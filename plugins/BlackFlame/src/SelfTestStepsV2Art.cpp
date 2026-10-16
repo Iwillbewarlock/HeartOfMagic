@@ -5,14 +5,16 @@
 // Cloak-archetype effect that is one of its fire effects (IsBurnable), whose hit art - the engine's choice,
 // MGEF hitVisuals' art (RFCT data.artObject) when set, else MGEF hitEffectArt - has an ARTO copy; of those the
 // spell whose defining file comes last in TESDataHandler::files (a tie: the smaller FormID). Fire and forget only:
-// CastSpellImmediate of a concentration cloak lasts one tick. No candidate: INFO, not judged.
-//   E6     the player casts it on itself while stoked: within kWatch a live ModelReferenceEffect on the player
-//          whose artObject is the copy, with its 3D loaded and every effect shape on the grey palette path, and the
-//          GetHitEffectArt hook's copy counter advanced. One run settles both spike questions: the engine takes the
-//          art the hook hands back (the 3D comes from the copy) and loads an ARTO whose record has no DATA.
-//   E6-npc the deer caster casts the same spell on itself: its art is the original, never the copy.
-// Each cloak is dispelled right after its judgement (its damage spell would hit anything near for 60 s and leave
-// hit shaders the later unstoked checks read).
+// CastSpellImmediate of a concentration cloak lasts one tick. No candidate: SKIP.
+//   E6       the player casts it on itself while stoked: within kWatch a live ModelReferenceEffect on the player
+//            whose artObject is the copy, with its 3D loaded and every effect shape on the grey palette path (INFO when
+//            the copy NIF has no effect shape), no NEW effect with the original art (one already on the player before the
+//            cast is INFO), and the GetHitEffectArt hook's copy counter advanced. One run settles both spike questions:
+//            the engine takes the art the hook hands back, and loads an ARTO whose record has no DATA.
+//   E6-drop  after the cloak is dispelled, the copy art is gone from the player within kWatch.
+//   E6-npc   the deer caster casts the same spell on itself: its art is the original, never the copy.
+// Each cloak is dispelled right after its judgement; T9 dispels the cloak and its associated spell on every actor in
+// high process again (CleanupArtSpells), whatever path the steps took.
 
 #include "SelfTestCtx.h"
 
@@ -35,6 +37,12 @@ namespace BlackFlame::SelfTest
 
         constexpr auto kWatch = std::chrono::milliseconds(2000);  // the art's 3D is cloned on a background task
 
+        enum Phase : int
+        {
+            kWatching,
+            kDropping
+        };
+
         struct ArtPick
         {
             RE::SpellItem* spell = nullptr;
@@ -48,7 +56,8 @@ namespace BlackFlame::SelfTest
         {
             std::optional<ArtPick> pick;
             std::uint64_t copiedBefore = 0;
-            bool cast = false;
+            bool originalBefore = false;  // the player wore the original art before the cast (another cloak)
+            Clock::time_point dispelAt{};
         };
         ArtState g_art;
 
@@ -149,19 +158,18 @@ namespace BlackFlame::SelfTest
             return seen;
         }
 
-        // First call: picks the spell (or says why there is none); false when the step is over
+        // First call: picks the spell (or says why there is none) and casts; false when the step is over
         bool Start(Ctx& a_c, const char* a_id, RE::Actor* a_caster)
         {
-            g_art.cast = false;
             if (!GetConfig().copyHitArt) {
-                SelfTestLog::Info(a_id, "not judged: copyHitArt is off");
+                SelfTestLog::Skip(a_id, "not judged: copyHitArt is off");
                 return false;
             }
             if (!g_art.pick) {
                 std::string note;
                 g_art.pick = PickCloak(note);
                 if (!g_art.pick) {
-                    SelfTestLog::Info(a_id, std::format("not judged: no fire and forget fire spell with a cloak effect whose hit "
+                    SelfTestLog::Skip(a_id, std::format("not judged: no fire and forget fire spell with a cloak effect whose hit "
                         "art has a copy ({} art copies in the map; {})", GetCopyCounts().arts, note));
                     return false;
                 }
@@ -172,19 +180,51 @@ namespace BlackFlame::SelfTest
                 return false;
             }
             g_art.copiedBefore = GetHitSlotStats(false).copied;
+            g_art.originalBefore = Look(a_caster->GetHandle(), *g_art.pick).original;
             if (!SelfTestWorld::Cast(a_caster, g_art.pick->spell, a_caster)) {
                 SelfTestLog::Fail(a_id, "CastSpellImmediate refused the cloak (no caster or spell)");
                 return false;
             }
             a_c.lastCast = Clock::now();
-            g_art.cast = true;
+            a_c.phase = kWatching;
             return true;
+        }
+
+        int DispelOn(RE::Actor* a_actor, const RE::SpellItem* a_spell)
+        {
+            return a_actor && a_spell ? SelfTestWorld::DispelSpell(a_actor, a_spell) : 0;
         }
 
         void EndCloak(const char* a_id, RE::Actor* a_caster)
         {
-            const int dispelled = a_caster && g_art.pick ? SelfTestWorld::DispelSpell(a_caster, g_art.pick->spell) : 0;
+            const int dispelled = g_art.pick ? DispelOn(a_caster, g_art.pick->spell) : 0;
+            g_art.dispelAt = Clock::now();
             SelfTestLog::Info(a_id, std::format("cloak dispelled: {} effect(s)", dispelled));
+        }
+
+        void JudgePlayer(const ArtSeen& a_seen)
+        {
+            const auto& pick = *g_art.pick;
+            const auto copied = GetHitSlotStats(false).copied - g_art.copiedBefore;
+            SelfTestProbe::Inspection grey;
+            if (a_seen.copy3D) {
+                grey = SelfTestProbe::Inspect(a_seen.copy3D.get());
+            }
+            const bool noShapes = a_seen.copy3D && grey.effectProperties == 0;
+            const bool allGrey = noShapes || grey.withPalettePath == grey.effectProperties;
+            const bool newOriginal = a_seen.original && !g_art.originalBefore;
+            SelfTestLog::Check("E6", a_seen.copy && a_seen.copy3D && allGrey && copied > 0 && !newOriginal,
+                std::format("{}: {} live art effect(s) on the player; the copy {} ({}), the original {}; effect shapes {}, with "
+                    "the grey palette path {}; GetHitEffectArt returned the copy {} time(s) since the cast", Describe(pick),
+                    a_seen.onTarget, a_seen.copy ? "FOUND" : "not found", a_seen.copy3D ? "3D loaded" : "no 3D yet",
+                    newOriginal ? "ALSO found (new)" : (a_seen.original ? "found, already there before the cast" : "not found"),
+                    grey.effectProperties, grey.withPalettePath, copied));
+            if (noShapes) {
+                SelfTestLog::Info("E6", "the copy's NIF has no effect shape: its grey is not judged here");
+            }
+            if (a_seen.original && g_art.originalBefore) {
+                SelfTestLog::Info("E6", "the player wore the original art before the cast (another cloak): not counted against E6");
+            }
         }
     }
 
@@ -204,22 +244,26 @@ namespace BlackFlame::SelfTest
         }
         const auto& pick = *g_art.pick;
         const auto seen = Look(player->GetHandle(), pick);
-        const bool watched = Clock::now() - a_c.stepStart >= kWatch;
-        if (!seen.copy3D && !watched) {
+        if (a_c.phase == kWatching) {
+            if (!seen.copy3D && Clock::now() - a_c.stepStart < kWatch) {
+                return false;
+            }
+            JudgePlayer(seen);
+            EndCloak("E6", player);
+            if (!seen.copy) {
+                return true;  // nothing to watch go
+            }
+            a_c.phase = kDropping;
+            a_c.waitingFor = "the copy art to go after the dispel";
             return false;
         }
-        const auto copied = GetHitSlotStats(false).copied - g_art.copiedBefore;
-        SelfTestProbe::Inspection grey;
-        if (seen.copy3D) {
-            grey = SelfTestProbe::Inspect(seen.copy3D.get());
+        const bool gone = !seen.copy;
+        if (!gone && Clock::now() - g_art.dispelAt < kWatch) {
+            return false;
         }
-        const bool allGrey = grey.effectProperties > 0 && grey.withPalettePath == grey.effectProperties;
-        SelfTestLog::Check("E6", seen.copy && seen.copy3D && allGrey && copied > 0 && !seen.original,
-            std::format("{}: {} live art effect(s) on the player; the copy {} ({}), the original {}; effect shapes {}, with "
-                "the grey palette path {}; GetHitEffectArt returned the copy {} time(s) since the cast", Describe(pick),
-                seen.onTarget, seen.copy ? "FOUND" : "not found", seen.copy3D ? "3D loaded" : "no 3D yet",
-                seen.original ? "ALSO found" : "not found", grey.effectProperties, grey.withPalettePath, copied));
-        EndCloak("E6", player);
+        SelfTestLog::Check("E6-drop", gone, std::format("{} ms after the dispel the copy art is {} on the player",
+            std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - g_art.dispelAt).count(),
+            gone ? "gone" : "STILL there"));
         return true;
     }
 
@@ -247,5 +291,29 @@ namespace BlackFlame::SelfTest
             seen.onTarget));
         EndCloak("E6-npc", caster);
         return true;
+    }
+
+    void CleanupArtSpells()
+    {
+        if (!g_art.pick) {
+            return;
+        }
+        const auto* spell = g_art.pick->spell;
+        const auto* associated = g_art.pick->effect->data.associatedForm ? g_art.pick->effect->data.associatedForm->As<RE::SpellItem>() :
+                                                                           nullptr;
+        std::vector<RE::Actor*> actors{ Player() };
+        if (auto* lists = RE::ProcessLists::GetSingleton()) {
+            for (auto& handle : lists->highActorHandles) {
+                if (auto actor = handle.get(); actor && actor.get() != Player()) {
+                    actors.push_back(actor.get());
+                }
+            }
+        }
+        int dispelled = 0;
+        for (auto* actor : actors) {
+            dispelled += DispelOn(actor, spell) + DispelOn(actor, associated);
+        }
+        SelfTestLog::Info("T9", std::format("E6's cloak {:08X} and its associated spell {:08X}: {} effect(s) dispelled on {} actor(s)",
+            spell->GetFormID(), associated ? associated->GetFormID() : 0, dispelled, actors.size()));
     }
 }

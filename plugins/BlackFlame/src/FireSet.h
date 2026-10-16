@@ -24,6 +24,8 @@
 // form (the damage spell the cloak casts on whatever comes near) is a fire spell whatever its
 // SpellType, and every effect of it is a fire effect - so the hit art and shader the cloak's
 // spell puts on a target count as the player's fire. Repeated until no new spell is added.
+// Those effects add no fire explosions or hazards (a frost sub-spell's shared explosion stays
+// out of the explosion and hazard sets).
 
 namespace BlackFlame
 {

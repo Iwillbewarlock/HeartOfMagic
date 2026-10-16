@@ -93,6 +93,7 @@ namespace GreyBuild
         std::vector<FormSource> forms;
         std::optional<Request> addons;      // v3: the load order's ADDN records and the closure's impact models
         std::string fingerprint;            // v3: copied into the copies map (the DLL compares it at every start)
+        std::string fingerprintSizes;       // v3: the same without the NIF byte hashes (the DLL's cheap check)
         std::string game;                   // v3: the runtime that wrote it
         std::vector<ExcludedForm> excluded; // v3: what the DLL left out and why (copied into the map)
         std::vector<std::string> failedNifs;  // v3: Data-relative NIFs the game could not read (no grey copy made)
@@ -128,6 +129,7 @@ namespace GreyBuild
         std::vector<CopyEntry> entries;  // by local id
         std::map<std::string, std::uint32_t> retired;  // sources no longer requested: their ids stay taken
         std::string requestFingerprint;  // v2: the request's fingerprint (the DLL's freshness check)
+        std::string requestFingerprintSizes;  // v2: its size-only form (the check when the game reads no NIF bytes)
         std::vector<ExcludedForm> excluded;  // v2: the request's excluded forms
     };
 
@@ -197,6 +199,7 @@ namespace GreyBuild
     struct FormsRunOptions
     {
         std::string fingerprint;             // into the copies map
+        std::string fingerprintSizes;        // into the copies map
         std::vector<ExcludedForm> excluded;  // into the copies map
         std::vector<std::string> failedNifs; // models the game could not read: no grey copy is tried
         bool reclaimRetired = false;         // AssignCopyIds

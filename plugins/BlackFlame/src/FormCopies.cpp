@@ -2,6 +2,9 @@
 
 #include "TrackedMutex.h"
 
+#include "FireClosure.h"
+#include "NifDump.h"
+
 #include "PluginNames.h"
 
 #include <nlohmann/json.hpp>
@@ -168,6 +171,23 @@ namespace BlackFlame
             }
         }
 
+        // J5: the copy's own model opens through the game's file system (as GreyCheck opens the grey models); a copy whose
+        // NIF is missing is left out, so the engine keeps the original form and its runtime fallback. Empty model: fine.
+        std::string ModelProblem(const RE::TESForm* a_copy)
+        {
+            const auto model = ModelPathOf(a_copy);
+            if (model.empty()) {
+                return {};
+            }
+            const auto path = NifDump::NormalizeModelPath(model);
+            if (!path) {
+                return std::format("the copy's model path '{}' is refused", model);
+            }
+            RE::BSResourceNiBinaryStream stream(path->c_str());
+            return stream.good() ? std::string() : std::format("the copy's model {} does not open (is the builder's output mod "
+                                                               "enabled with its meshes?)", *path);
+        }
+
         bool ReadMap(nlohmann::json& a_root)
         {
             std::ifstream file(kCopiesMapPath, std::ios::binary);
@@ -218,6 +238,10 @@ namespace BlackFlame
                                 copies.byCopy.contains(entry.source->GetFormID()))) {
                 entry.ok = false;
                 entry.detail = "the copy form already belongs to another entry (or a copy is named as a source)";
+            }
+            if (const auto problem = entry.ok ? ModelProblem(entry.copy) : std::string(); !problem.empty()) {
+                entry.ok = false;
+                entry.detail = problem;
             }
             if (const auto refusal = entry.ok ? CopyFill::Refusal(entry.source) : std::string(); !refusal.empty()) {
                 entry.ok = false;

@@ -128,6 +128,7 @@ namespace GreyBuild
         }
         FormsRunOptions options;
         options.fingerprint = parsed.fingerprint;
+        options.fingerprintSizes = parsed.fingerprintSizes;
         options.excluded = parsed.excluded;
         options.failedNifs = parsed.failedNifs;
         options.reclaimRetired = a_reclaim;

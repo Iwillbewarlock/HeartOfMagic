@@ -48,7 +48,7 @@ namespace GreyBuild::SelfTest
         // index; one NIF the game could not read
         std::string GameRequest()
         {
-            return R"({"version":3,"game":"1.6.1170.0","fingerprint":"fnv64:00000000000000ab","copiesPlugin":"HeartOfMagic_BlackFlame_Copies.esp",
+            return R"({"version":3,"game":"1.6.1170.0","fingerprint":"fnv64:00000000000000ab","fingerprintSizes":"fnv64:00000000000000cd","copiesPlugin":"HeartOfMagic_BlackFlame_Copies.esp",
 "forms":[
  {"source":"Skyrim.esm|012FCF","type":"PROJ","editorId":"","model":"magic\\test.nif","muzzleModel":"magic\\muzzle.nif","bounds":[-1,-1,-1,1,1,1],"data":{"projectileType":8,"speed":2500,"soundLevel":1},"viaSpell":"Skyrim.esm|012FCD","costliest":true},
  {"source":"Skyrim.esm|0ABCDE","type":"PROJ","editorId":"","model":"magic\\missing.nif","muzzleModel":"","bounds":[0,0,0,0,0,0],"data":{},"viaSpell":"","costliest":false},
@@ -176,6 +176,7 @@ namespace GreyBuild::SelfTest
             const auto request = LoadFormsRequestFile(a_dir / "game_request.json");
             FormsRunOptions options;
             options.fingerprint = request.fingerprint;
+            options.fingerprintSizes = request.fingerprintSizes;
             options.excluded = request.excluded;
             options.failedNifs = request.failedNifs;
             options.warnAndContinue = true;
@@ -192,7 +193,8 @@ namespace GreyBuild::SelfTest
                               unread && unread->note.find("could not read") != std::string::npos,
                 "warn-and-continue: missing, unparsable and unreadable models leave the grey path empty with a note");
             a_check.Check(proj && !proj->greyModel.empty() && !proj->greyMuzzleModel.empty() &&
-                              map.requestFingerprint == "fnv64:00000000000000ab" && map.excluded.size() == 1,
+                              map.requestFingerprint == "fnv64:00000000000000ab" &&
+                              map.requestFingerprintSizes == "fnv64:00000000000000cd" && map.excluded.size() == 1,
                 "warn-and-continue: the good PROJ has grey model and muzzle copies; the map carries fingerprint and excluded");
             EslHeader header;
             const auto forms = ReadCopiesEsl(out / kCopiesPluginName, header);

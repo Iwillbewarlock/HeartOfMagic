@@ -233,9 +233,11 @@ namespace BlackFlame
                     }
                     ++added;
                     grew = true;
+                    // J4: the effects only - their explosions and hazards are not fire explosions or hazards (a frost
+                    // sub-spell's shared explosion must not turn grey while stoked)
                     for (const auto* effect : spell->effects) {
                         if (const auto* base = effect ? effect->baseEffect : nullptr) {
-                            AddFireEffect(base);
+                            g_fireEffects.insert(base->GetFormID());
                         }
                     }
                 }

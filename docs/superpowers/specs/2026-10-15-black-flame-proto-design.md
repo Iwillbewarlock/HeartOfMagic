@@ -625,3 +625,15 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
 - id: 바닥나면 아무것도 안 쓰고 수(요청·이전·retired, 종류별)와 --reclaim-retired 안내. --reclaim-retired는 retired id를 낮은 것부터(새 세이브 전용).
 - 커밋: 스테이징 후 파일마다 MoveFileExW(교체, write-through), --out 폴더는 지우지도 rename하지도 않음(meta.ini 보존). Local.esp 늘 씀(빈 것 허용). 빈 Copies/Local ESL 배포(--write-empty-esls).
 - 오프라인 확인: 자가 시험 119/0, 손 요청을 v3로 바꾼 모의 덤프로 --forms 결과와 NIF 30개 바이트 동일·Local ESL·greymap 동일, 재실행 id 유지, LE NIF 3개 roundtrip 문자열 표 순서만.
+
+### v2 수정 J (968f5b1..fbff1cc 3곳 리뷰)
+
+- J1 폐포: 제외된 폼은 어떤 시작점에서 다시 와도 걷지 않는다(제외 집합). 정의 파일 없는 사본 종류 폼(런타임 생성)은 이유와 함께 제외.
+- J2 T2 하한 = 폭발 반경(런타임) + 100, 상한 1200. SKIP 줄을 따로 세어 DONE에 skipped=N. T1 디스펠 우회와 폭발 여유 건너뛰기는 SKIP. T0-request는 NIF 실패·덤프 실패면 FAIL.
+- J3 E6 제한 6초, 디스펠 뒤 2초 안 사본 아트 사라짐(E6-drop), 시전 전부터 있던 원본 아트·효과 셰이더 없는 사본 NIF는 INFO. T9가 E6 망토와 연결 주문을 high process 모든 배우에게서 디스펠.
+- J4 망토 연결 주문의 효과는 g_fireEffects에만(폭발·해저드 집합에 넣지 않음).
+- J5 사본의 모델이 게임 파일 시스템으로 열리지 않으면 그 사본은 맵에서 뺀다(모든 종류, 엔진은 원본).
+- J6 DoSeek kUnsupported는 한 번 경고하고 계속, kBusy는 한 번 재시도. 경로 정규화: 금지 문자 거절, data\·meshes\ 반복 제거, DBCS 선행 바이트 뒤는 그대로. 덤프는 \\?\ 긴 경로, unchanged는 파일 존재·크기 확인.
+- J7 writeRequest 기본 false(배포 json도), 꺼져 있으면 NIF를 읽지 않는다. 켜져 있으면 한 번만 읽고 바이트를 덤프에 쓴다. 요청에 fingerprintSizes(바이트 해시 없는 같은 공식), 빌더가 맵에 requestFingerprintSizes로 복사(C3 싼 검사용).
+- J8 HAZD.data.spell: 그 주문의 불 효과 + 가장 비싼 효과만 시작점으로.
+- J9 한계: 버프 중 만든 맞은 자리 아트는 사본 FormID로 저장된다(README). J10 FormCopiesBytes.h로 바이트 도우미 공유.

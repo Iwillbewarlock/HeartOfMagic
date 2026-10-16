@@ -1,6 +1,9 @@
 #include "NifDump.h"
 
+#include <atomic>
 #include <format>
+
+#include <Windows.h>
 
 namespace BlackFlame::NifDump
 {
@@ -11,6 +14,9 @@ namespace BlackFlame::NifDump
         constexpr std::string_view kMeshesRoot = "meshes\\";
         constexpr std::string_view kDataRoot = "data\\";
         constexpr int kMaxChunks = 1 << 16;  // 4 GiB of 64 KiB reads: a stream that never ends is refused
+        constexpr std::string_view kForbidden = "<>\"|?*";
+        constexpr unsigned char kFirstPrintable = 0x20;
+        std::atomic<bool> g_seekWarned{ false };
 
         const char* ErrorText(RE::BSResource::ErrorCode a_code)
         {
@@ -42,10 +48,15 @@ namespace BlackFlame::NifDump
     {
         std::string path;
         path.reserve(a_model.size() + kMeshesRoot.size());
-        for (const char raw : a_model) {
-            const auto c = static_cast<unsigned char>(raw);
-            if (c == ':') {
-                return std::nullopt;  // a drive letter or a stream name
+        for (std::size_t i = 0; i < a_model.size(); ++i) {
+            const auto c = static_cast<unsigned char>(a_model[i]);
+            if (c >= 0x80 && ::IsDBCSLeadByteEx(CP_ACP, c) && i + 1 < a_model.size()) {
+                path.push_back(a_model[i]);  // a double-byte character as it is: its trail byte may look like '\\' or a letter
+                path.push_back(a_model[++i]);
+                continue;
+            }
+            if (c == ':' || c < kFirstPrintable || kForbidden.find(static_cast<char>(c)) != std::string_view::npos) {
+                return std::nullopt;  // a drive letter, a stream name or a character no file name has
             }
             const char out = c == '/' ? '\\' : static_cast<char>(c < 0x80 ? std::tolower(c) : c);
             if (out == '\\' && (path.empty() || path.back() == '\\')) {
@@ -53,9 +64,13 @@ namespace BlackFlame::NifDump
             }
             path.push_back(out);
         }
-        for (const auto root : { kDataRoot, kMeshesRoot }) {
-            if (path.starts_with(root)) {
-                path.erase(0, root.size());
+        for (bool stripped = true; stripped;) {  // "data\\meshes\\meshes\\x.nif" too
+            stripped = false;
+            for (const auto root : { kDataRoot, kMeshesRoot }) {
+                if (path.starts_with(root)) {
+                    path.erase(0, root.size());
+                    stripped = true;
+                }
             }
         }
         if (path.empty() || path.back() == '\\') {
@@ -85,16 +100,25 @@ namespace BlackFlame::NifDump
     {
         ModelBlob blob;
         blob.dataPath = a_dataPath;
-        RE::BSResourceNiBinaryStream file(a_dataPath.c_str());
-        auto* stream = file.good() ? file.stream.get() : nullptr;
+        std::optional<RE::BSResourceNiBinaryStream> file;
+        file.emplace(a_dataPath.c_str());
+        if (!file->good() && file->lastError == RE::BSResource::ErrorCode::kBusy) {
+            file.emplace(a_dataPath.c_str());  // J6: once more for a busy archive
+        }
+        auto* stream = file->good() ? file->stream.get() : nullptr;
         if (!stream) {
-            blob.error = std::format("does not open (last error {})", ErrorText(file.lastError));
+            blob.error = std::format("does not open (last error {})", ErrorText(file->lastError));
             return blob;
         }
         // StreamBase::totalSize is at 0x08 on SE and AE alike (RE/S/StreamBase.h)
         const std::uint64_t total = stream->totalSize;
         std::uint64_t sought = 0;
-        if (const auto code = stream->DoSeek(0, RE::BSResource::SeekMode::kSet, sought); code != RE::BSResource::ErrorCode::kNone) {
+        if (const auto code = stream->DoSeek(0, RE::BSResource::SeekMode::kSet, sought); code == RE::BSResource::ErrorCode::kUnsupported) {
+            if (!g_seekWarned.exchange(true)) {
+                logger::warn("BlackFlame: copy request: a stream cannot seek ({}): read from where it opened (at 0); not "
+                             "logged again", a_dataPath);
+            }
+        } else if (code != RE::BSResource::ErrorCode::kNone) {
             blob.error = std::format("seek to 0 failed ({})", ErrorText(code));
             return blob;
         }
@@ -102,7 +126,11 @@ namespace BlackFlame::NifDump
         std::uint64_t hash = kFnvOffset;
         for (int i = 0; i < kMaxChunks; ++i) {
             std::uint64_t read = 0;
-            const auto code = stream->DoRead(chunk.data(), chunk.size(), read);
+            auto code = stream->DoRead(chunk.data(), chunk.size(), read);
+            if (code == RE::BSResource::ErrorCode::kBusy) {
+                read = 0;
+                code = stream->DoRead(chunk.data(), chunk.size(), read);  // J6: once more
+            }
             if (code != RE::BSResource::ErrorCode::kNone) {
                 blob.error = std::format("read failed at byte {} ({})", blob.size, ErrorText(code));
                 return blob;

@@ -211,6 +211,7 @@ namespace BlackFlame::SelfTest
     bool StepThreads(Ctx& a_c, bool a_first);
     bool StepE6Player(Ctx& a_c, bool a_first);  // SelfTestStepsV2Art.cpp (ARTO copies)
     bool StepE6Npc(Ctx& a_c, bool a_first);
+    void CleanupArtSpells();  // T9: E6's cloak and its associated spell dispelled on every high-process actor
 
     /// Paused time added to the v2 steps' own clocks (SelfTestStepsV2Fire.cpp, SelfTestStepsV2Flames.cpp,
     /// SelfTestReload.cpp); SelfTest.cpp ShiftClocks calls it

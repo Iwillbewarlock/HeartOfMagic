@@ -8,6 +8,7 @@
 #include <format>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace BlackFlame
 {
@@ -101,7 +102,8 @@ namespace BlackFlame
         private:
             void Push(RE::TESForm* a_form, RE::FormID a_via, bool a_costliest)
             {
-                if (!a_form) {
+                // J1: an excluded form is never walked, whichever seed reaches it again
+                if (!a_form || m_excluded.contains(a_form->GetFormID())) {
                     return;
                 }
                 auto& state = m_state[a_form->GetFormID()];
@@ -111,17 +113,15 @@ namespace BlackFlame
                 }
                 const bool first = state == kUnseen;
                 state = next;
-                if (first && IsOwnPluginForm(a_form)) {
-                    m_out.excluded.push_back({ a_form, "defined in one of our own plugins", a_via });
-                    return;
+                const auto kind = KindOf(a_form->GetFormType());
+                if (first) {
+                    if (auto reason = Exclusion(a_form, kind.has_value()); !reason.empty()) {
+                        Exclude(a_form, std::move(reason), a_via);
+                        return;
+                    }
                 }
-                if (const auto kind = KindOf(a_form->GetFormType())) {
+                if (kind) {
                     if (first) {
-                        if (const auto* art = a_form->As<RE::BGSArtObject>(); art && art->numAlternateTextures != 0) {
-                            m_out.excluded.push_back({ a_form, std::format("alternate textures not copied ({})",
-                                                                   art->numAlternateTextures), a_via });
-                            return;
-                        }
                         m_index.emplace(a_form->GetFormID(), m_out.forms.size());
                         m_out.forms.push_back({ a_form, *kind, a_via, a_costliest });
                     } else if (const auto it = m_index.find(a_form->GetFormID()); it != m_index.end()) {
@@ -142,20 +142,48 @@ namespace BlackFlame
                 }
                 if (KindOf(form->GetFormType())) {
                     Push(form, a_from.via, a_from.costliest);
-                } else if (m_state[form->GetFormID()] == kUnseen) {
-                    m_state[form->GetFormID()] = kSeen;
-                    m_out.excluded.push_back({ form, "placed object is not a copy type", a_from.via });
+                } else if (!m_excluded.contains(form->GetFormID())) {
+                    Exclude(form, "placed object is not a copy type", a_from.via);
                 }
             }
 
-            void PushSpellEffects(const RE::MagicItem* a_spell, const Visit& a_from)
+            // J8: a hazard's spell as a seed of plan section 1 (a)/(b): its fire effects and its costliest effect, not every
+            // effect (the spell is not made a fire spell)
+            void PushSpellEffects(RE::MagicItem* a_spell, const Visit& a_from)
             {
                 if (!a_spell) {
                     return;
                 }
                 for (const auto* item : a_spell->effects) {
-                    Push(item ? item->baseEffect : nullptr, a_from.via, a_from.costliest);
+                    auto* base = item ? item->baseEffect : nullptr;
+                    if (base && (IsFireEffect(base) || IsFireMgefAny(base))) {
+                        Push(base, a_from.via, a_from.costliest);
+                    }
                 }
+                Push(a_spell->GetAVEffect(), a_from.via, true);
+            }
+
+            // Why a_form is not walked or copied, or empty: our own plugins, a copy-type form with no defining file (made at
+            // runtime: the builder needs a source), an art with alternate textures
+            static std::string Exclusion(const RE::TESForm* a_form, bool a_copyType)
+            {
+                if (IsOwnPluginForm(a_form)) {
+                    return "defined in one of our own plugins";
+                }
+                if (a_copyType && !a_form->GetFile(0)) {
+                    return "no defining file (created at runtime)";
+                }
+                if (const auto* art = a_form->As<RE::BGSArtObject>(); art && art->numAlternateTextures != 0) {
+                    return std::format("alternate textures not copied ({})", art->numAlternateTextures);
+                }
+                return {};
+            }
+
+            void Exclude(RE::TESForm* a_form, std::string a_reason, RE::FormID a_via)
+            {
+                m_excluded.insert(a_form->GetFormID());
+                m_state[a_form->GetFormID()] = kSeenCostliest;
+                m_out.excluded.push_back({ a_form, std::move(a_reason), a_via });
             }
 
             void ExpandEffect(const RE::EffectSetting& a_mgef, const Visit& a_v)
@@ -212,6 +240,7 @@ namespace BlackFlame
             std::deque<Visit> m_queue;
             std::unordered_map<RE::FormID, std::uint8_t> m_state;
             std::unordered_map<RE::FormID, std::size_t> m_index;
+            std::unordered_set<RE::FormID> m_excluded;
         };
     }
 

@@ -8,6 +8,7 @@
 // TESFullName by BSFixedString assignment, the muzzle flash TESModel through SetModel.
 
 #include "FormCopies.h"
+#include "FormCopiesBytes.h"
 
 #include <algorithm>
 #include <array>
@@ -30,18 +31,6 @@ namespace BlackFlame::CopyFill
         // DecalData.h asserts 0x24 with every byte a named member)
         static_assert(std::is_trivially_copyable_v<RE::TESBoundObject::BOUND_DATA>);
 
-        template <class T>
-        void CopyBytes(T& a_to, const T& a_from)
-        {
-            std::memcpy(&a_to, &a_from, sizeof(T));
-        }
-
-        template <class T>
-        [[nodiscard]] bool SameBytes(const T& a_lhs, const T& a_rhs)
-        {
-            return std::memcmp(&a_lhs, &a_rhs, sizeof(T)) == 0;
-        }
-
         // The link a copy should hold for a source link: its copy when one exists, else the source's own
         template <class T>
         [[nodiscard]] T* LinkFor(T* a_link)
@@ -62,7 +51,7 @@ namespace BlackFlame::CopyFill
         RE::BGSProjectileData ExpectedData(const RE::BGSProjectile& a_source)
         {
             RE::BGSProjectileData data;
-            CopyBytes(data, a_source.data);
+            Bytes::Copy(data, a_source.data);
             data.explosionType = LinkFor(a_source.data.explosionType);
             return data;
         }
@@ -70,7 +59,7 @@ namespace BlackFlame::CopyFill
         RE::BGSExplosionData ExpectedData(const RE::BGSExplosion& a_source)
         {
             RE::BGSExplosionData data;
-            CopyBytes(data, a_source.data);
+            Bytes::Copy(data, a_source.data);
             data.impactPlacedObject = PlacedLinkFor(a_source.data.impactPlacedObject);
             data.spawnProjectile = LinkFor(a_source.data.spawnProjectile);
             return data;
@@ -78,8 +67,8 @@ namespace BlackFlame::CopyFill
 
         void FillProjectile(RE::BGSProjectile& a_copy, const RE::BGSProjectile& a_source)
         {
-            CopyBytes(a_copy.data, a_source.data);
-            CopyBytes(a_copy.boundData, a_source.boundData);
+            Bytes::Copy(a_copy.data, a_source.data);
+            Bytes::Copy(a_copy.boundData, a_source.boundData);
             a_copy.soundLevel = a_source.soundLevel;
             a_copy.fullName = a_source.fullName;
             const char* model = a_source.muzzleFlashModel.GetModel();  // virtual: may be null
@@ -88,8 +77,8 @@ namespace BlackFlame::CopyFill
 
         void FillExplosion(RE::BGSExplosion& a_copy, const RE::BGSExplosion& a_source)
         {
-            CopyBytes(a_copy.data, a_source.data);
-            CopyBytes(a_copy.boundData, a_source.boundData);
+            Bytes::Copy(a_copy.data, a_source.data);
+            Bytes::Copy(a_copy.boundData, a_source.boundData);
             a_copy.formEnchanting = a_source.formEnchanting;
             a_copy.castingType = a_source.castingType;
             a_copy.amountofEnchantment = a_source.amountofEnchantment;
@@ -99,7 +88,7 @@ namespace BlackFlame::CopyFill
 
         void FillImpact(RE::BGSImpactData& a_copy, const RE::BGSImpactData& a_source)
         {
-            CopyBytes(a_copy.data, a_source.data);
+            Bytes::Copy(a_copy.data, a_source.data);
             a_copy.decalTextureSet = a_source.decalTextureSet;
             a_copy.decalTextureSet2 = a_source.decalTextureSet2;
             a_copy.sound1 = a_source.sound1;
@@ -110,8 +99,8 @@ namespace BlackFlame::CopyFill
 
         void FillHazard(RE::BGSHazard& a_copy, const RE::BGSHazard& a_source)
         {
-            CopyBytes(a_copy.data, a_source.data);
-            CopyBytes(a_copy.boundData, a_source.boundData);
+            Bytes::Copy(a_copy.data, a_source.data);
+            Bytes::Copy(a_copy.boundData, a_source.boundData);
             a_copy.imageSpaceModifying = a_source.imageSpaceModifying;
             a_copy.fullName = a_source.fullName;
         }
@@ -238,7 +227,7 @@ namespace BlackFlame::CopyFill
         void DiffFields(std::string& a_out, const char* a_group, const T& a_copy, const T& a_expected, const T& a_source,
             const std::array<Field, N>& a_fields)
         {
-            if (SameBytes(a_copy, a_expected)) {
+            if (Bytes::Same(a_copy, a_expected)) {
                 return;
             }
             std::size_t covered = 0;
@@ -296,7 +285,7 @@ namespace BlackFlame::CopyFill
                 Note(out, std::format("muzzleFlashModel: source {} copy {}", Quoted(a_source.muzzleFlashModel.GetModel()),
                     Quoted(a_copy.muzzleFlashModel.GetModel())));
             }
-            if (!SameBytes(a_copy.boundData, a_source.boundData)) {
+            if (!Bytes::Same(a_copy.boundData, a_source.boundData)) {
                 Note(out, "boundData");
             }
             return out;
@@ -317,7 +306,7 @@ namespace BlackFlame::CopyFill
                     IdOf(a_copy.imageSpaceModifying)));
             }
             DiffName(out, a_copy, a_source);
-            if (!SameBytes(a_copy.boundData, a_source.boundData)) {
+            if (!Bytes::Same(a_copy.boundData, a_source.boundData)) {
                 Note(out, "boundData");
             }
             return out;
@@ -327,7 +316,7 @@ namespace BlackFlame::CopyFill
         {
             std::string out;
             DiffFields(out, "data", a_copy.data, a_source.data, a_source.data, kImpactFields);
-            if (!SameBytes(a_copy.dData, a_source.dData)) {
+            if (!Bytes::Same(a_copy.dData, a_source.dData)) {
                 Note(out, "decal data");
             }
             if (a_copy.decalTextureSet != a_source.decalTextureSet || a_copy.decalTextureSet2 != a_source.decalTextureSet2 ||
@@ -353,7 +342,7 @@ namespace BlackFlame::CopyFill
                     IdOf(a_copy.imageSpaceModifying)));
             }
             DiffName(out, a_copy, a_source);
-            if (!SameBytes(a_copy.boundData, a_source.boundData)) {
+            if (!Bytes::Same(a_copy.boundData, a_source.boundData)) {
                 Note(out, "boundData");
             }
             return out;
@@ -388,18 +377,6 @@ namespace BlackFlame::CopyFill
 
     namespace
     {
-        // D3 (R7): the expected struct (links already pointing at copies) written in one memcpy, and only when it differs,
-        // so a copy never points at an original in between (FillData + RewireLinks had that window)
-        template <class T>
-        bool WriteIfDiffers(T& a_to, const T& a_expected)
-        {
-            if (SameBytes(a_to, a_expected)) {
-                return false;
-            }
-            CopyBytes(a_to, a_expected);
-            return true;
-        }
-
         template <class T>
         bool AssignIfDiffers(T& a_to, const T& a_value)
         {
@@ -424,8 +401,8 @@ namespace BlackFlame::CopyFill
         bool changed = false;
         if (auto* p = a_copy->As<RE::BGSProjectile>()) {
             const auto& s = *a_source->As<RE::BGSProjectile>();
-            changed |= WriteIfDiffers(p->data, ExpectedData(s));
-            changed |= WriteIfDiffers(p->boundData, s.boundData);
+            changed |= Bytes::WriteIfDiffers(p->data, ExpectedData(s));
+            changed |= Bytes::WriteIfDiffers(p->boundData, s.boundData);
             changed |= AssignIfDiffers(p->soundLevel, s.soundLevel);
             changed |= RefillName(*p, s);
             const char* model = s.muzzleFlashModel.GetModel();
@@ -436,8 +413,8 @@ namespace BlackFlame::CopyFill
             }
         } else if (auto* e = a_copy->As<RE::BGSExplosion>()) {
             const auto& s = *a_source->As<RE::BGSExplosion>();
-            changed |= WriteIfDiffers(e->data, ExpectedData(s));
-            changed |= WriteIfDiffers(e->boundData, s.boundData);
+            changed |= Bytes::WriteIfDiffers(e->data, ExpectedData(s));
+            changed |= Bytes::WriteIfDiffers(e->boundData, s.boundData);
             changed |= AssignIfDiffers(e->formEnchanting, s.formEnchanting);
             changed |= AssignIfDiffers(e->castingType, s.castingType);
             changed |= AssignIfDiffers(e->amountofEnchantment, s.amountofEnchantment);
@@ -445,20 +422,20 @@ namespace BlackFlame::CopyFill
             changed |= RefillName(*e, s);
         } else if (auto* i = a_copy->As<RE::BGSImpactData>()) {
             const auto& s = *a_source->As<RE::BGSImpactData>();
-            changed |= WriteIfDiffers(i->data, s.data);
+            changed |= Bytes::WriteIfDiffers(i->data, s.data);
             changed |= AssignIfDiffers(i->decalTextureSet, s.decalTextureSet);
             changed |= AssignIfDiffers(i->decalTextureSet2, s.decalTextureSet2);
             changed |= AssignIfDiffers(i->sound1, s.sound1);
             changed |= AssignIfDiffers(i->sound2, s.sound2);
             changed |= AssignIfDiffers(i->hazard, LinkFor(s.hazard));  // one pointer store, straight to the copy
-            if (!SameBytes(i->dData, s.dData)) {
+            if (!Bytes::Same(i->dData, s.dData)) {
                 i->dData = s.dData;
                 changed = true;
             }
         } else if (auto* h = a_copy->As<RE::BGSHazard>()) {
             const auto& s = *a_source->As<RE::BGSHazard>();
-            changed |= WriteIfDiffers(h->data, s.data);
-            changed |= WriteIfDiffers(h->boundData, s.boundData);
+            changed |= Bytes::WriteIfDiffers(h->data, s.data);
+            changed |= Bytes::WriteIfDiffers(h->boundData, s.boundData);
             changed |= AssignIfDiffers(h->imageSpaceModifying, s.imageSpaceModifying);
             changed |= RefillName(*h, s);
         } else if (auto* a = a_copy->As<RE::BGSArtObject>()) {

@@ -8,6 +8,7 @@
 // 0 of 100), so a source with them is refused and left out of the map rather than copied.
 
 #include "FormCopies.h"
+#include "FormCopiesBytes.h"
 
 #include <cstring>
 #include <format>
@@ -15,27 +16,8 @@
 
 namespace BlackFlame::CopyFill
 {
-    namespace
-    {
-        static_assert(std::is_trivially_copyable_v<RE::BGSArtObject::Data>);
-        static_assert(std::is_trivially_copyable_v<RE::TESBoundObject::BOUND_DATA>);
-
-        template <class T>
-        [[nodiscard]] bool SameBytes(const T& a_lhs, const T& a_rhs)
-        {
-            return std::memcmp(&a_lhs, &a_rhs, sizeof(T)) == 0;
-        }
-
-        template <class T>
-        bool WriteIfDiffers(T& a_to, const T& a_from)
-        {
-            if (SameBytes(a_to, a_from)) {
-                return false;
-            }
-            std::memcpy(&a_to, &a_from, sizeof(T));
-            return true;
-        }
-    }
+    static_assert(std::is_trivially_copyable_v<RE::BGSArtObject::Data>);
+    static_assert(std::is_trivially_copyable_v<RE::TESBoundObject::BOUND_DATA>);
 
     std::string Refusal(const RE::TESForm* a_source)
     {
@@ -48,25 +30,25 @@ namespace BlackFlame::CopyFill
 
     void FillArt(RE::BGSArtObject& a_copy, const RE::BGSArtObject& a_source)
     {
-        std::memcpy(&a_copy.data, &a_source.data, sizeof(a_copy.data));
-        std::memcpy(&a_copy.boundData, &a_source.boundData, sizeof(a_copy.boundData));
+        Bytes::Copy(a_copy.data, a_source.data);
+        Bytes::Copy(a_copy.boundData, a_source.boundData);
     }
 
     bool RefillArt(RE::BGSArtObject& a_copy, const RE::BGSArtObject& a_source)
     {
-        bool changed = WriteIfDiffers(a_copy.data, a_source.data);
-        changed |= WriteIfDiffers(a_copy.boundData, a_source.boundData);
+        bool changed = Bytes::WriteIfDiffers(a_copy.data, a_source.data);
+        changed |= Bytes::WriteIfDiffers(a_copy.boundData, a_source.boundData);
         return changed;
     }
 
     std::string CompareArt(const RE::BGSArtObject& a_copy, const RE::BGSArtObject& a_source)
     {
         std::string out;
-        if (!SameBytes(a_copy.data, a_source.data)) {
+        if (!Bytes::Same(a_copy.data, a_source.data)) {
             out = std::format("DIFFERS: artType: source {} copy {}", a_source.data.artType.underlying(),
                 a_copy.data.artType.underlying());
         }
-        if (!SameBytes(a_copy.boundData, a_source.boundData)) {
+        if (!Bytes::Same(a_copy.boundData, a_source.boundData)) {
             out += out.empty() ? "DIFFERS: boundData" : ", boundData";
         }
         return out;

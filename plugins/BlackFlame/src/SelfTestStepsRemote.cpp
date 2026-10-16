@@ -257,7 +257,7 @@ namespace BlackFlame::SelfTest
             return false;
         }
         if (a_c.t6Skipped) {
-            SelfTestLog::Info("T6-swap", "not judged: T6 was skipped (explosion margin)");
+            SelfTestLog::Skip("T6-swap", "not judged: T6 was skipped (explosion margin)");
             return true;
         }
         const auto swaps = ImpactSwapCount() - a_c.swapsAtT6;
@@ -281,7 +281,7 @@ namespace BlackFlame::SelfTest
             return false;
         }
         if (a_c.t6NpcSkipped) {
-            SelfTestLog::Info("T6-npc-swap", "not judged: T6-npc was skipped (explosion margin)");
+            SelfTestLog::Skip("T6-npc-swap", "not judged: T6-npc was skipped (explosion margin)");
             return true;
         }
         const auto swaps = ImpactSwapCount() - a_c.swapsAtT6npc;

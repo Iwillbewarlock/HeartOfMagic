@@ -147,11 +147,19 @@ namespace BlackFlame::SelfTest
 
         // C1: the copy request's state (judged against the census by hand from request.json; here only that it ran)
         const auto& request = GetCopyRequestState();
-        SelfTestLog::Check("T0-request", request.computed && request.forms > 0 && (!cfg.writeRequest || request.requestWritten),
-            std::format("copy request: {} closure forms, {} excluded, {} NIFs ({} failed) read in {} ms, fingerprint {}, request {}, "
-                "dump {}", request.forms, request.excluded, request.nifs, request.nifsFailed, request.readMs,
-                request.computed ? request.fingerprint : std::string("NOT computed"),
-                request.requestWritten ? "written" : (cfg.writeRequest ? "NOT written" : "off"), request.dumpState));
+        const bool dumpOk = request.dumpState == "unchanged" || request.dumpState.starts_with("written (");
+        if (!cfg.writeRequest) {
+            SelfTestLog::Info("T0-request", std::format("copy request off (writeRequest false): {} closure forms, {} excluded",
+                request.forms, request.excluded));
+        } else {
+            // J2: a NIF the game could not read or a dump that did not complete is a FAIL (the builder would miss it)
+            SelfTestLog::Check("T0-request", request.computed && request.forms > 0 && request.requestWritten &&
+                request.nifsFailed == 0 && dumpOk,
+                std::format("copy request: {} closure forms, {} excluded, {} NIFs ({} failed) read in {} ms, fingerprint {}, "
+                    "request {}, dump {}", request.forms, request.excluded, request.nifs, request.nifsFailed, request.readMs,
+                    request.computed ? request.fingerprint : std::string("NOT computed"),
+                    request.requestWritten ? "written" : "NOT written", request.dumpState));
+        }
 
         std::string detail;
         const auto v2 = SelfTestWorld::LookupV2(detail);

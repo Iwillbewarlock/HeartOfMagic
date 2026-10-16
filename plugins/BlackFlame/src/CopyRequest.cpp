@@ -55,7 +55,26 @@ namespace BlackFlame
         {
             std::string path;  // Data-relative, normalised
             NifDump::ModelBlob blob;
+            std::vector<std::byte> bytes;  // J7: kept from the one read, for the dump (released after it)
         };
+
+        // J6: \\?\ in front of an absolute path, so a dump path past MAX_PATH still opens
+        std::filesystem::path LongPath(const std::filesystem::path& a_path)
+        {
+            std::error_code ec;
+            auto full = std::filesystem::absolute(a_path, ec);
+            if (ec) {
+                return a_path;
+            }
+            std::wstring text = full.lexically_normal().wstring();
+            if (text.starts_with(L"\\\\?\\")) {
+                return full;
+            }
+            if (text.starts_with(L"\\\\")) {
+                return std::filesystem::path(L"\\\\?\\UNC\\" + text.substr(2));
+            }
+            return std::filesystem::path(L"\\\\?\\" + text);
+        }
 
         // Every model the request names: closure forms, PROJ muzzles, ADDNs not ours. Refused paths are counted apart.
         std::vector<std::string> ModelsToRead(const FireClosure& a_closure, std::vector<std::string>& a_refused)
@@ -93,7 +112,9 @@ namespace BlackFlame
             return Utf8(path ? *path : a_model);
         }
 
-        std::string ComputeFingerprint(const FireClosure& a_closure, const std::vector<Nif>& a_nifs)
+        // a_sizesOnly: the NIF lines without the byte hash (path, size, ok) - the cheap form C3's freshness check can make
+        // by opening each stream without reading it
+        std::string ComputeFingerprint(const FireClosure& a_closure, const std::vector<Nif>& a_nifs, bool a_sizesOnly)
         {
             std::vector<std::string> lines;
             for (const auto& form : a_closure.forms) {
@@ -110,8 +131,9 @@ namespace BlackFlame
                 }
             }
             for (const auto& nif : a_nifs) {
-                lines.push_back(std::format("N|{}|{}|{:016x}|{}", Utf8(nif.path), nif.blob.size, nif.blob.fnv64,
-                    nif.blob.ok ? "ok" : "failed"));
+                lines.push_back(a_sizesOnly ? std::format("N|{}|{}|{}", Utf8(nif.path), nif.blob.size, nif.blob.ok ? "ok" : "failed") :
+                                              std::format("N|{}|{}|{:016x}|{}", Utf8(nif.path), nif.blob.size, nif.blob.fnv64,
+                                                  nif.blob.ok ? "ok" : "failed"));
             }
             std::ranges::sort(lines);
             std::uint64_t hash = NifDump::kFnvOffset;
@@ -122,12 +144,13 @@ namespace BlackFlame
             return std::format("fnv64:{:016x}", hash);
         }
 
-        Json RequestJson(const FireClosure& a_closure, const std::vector<Nif>& a_nifs, const std::string& a_fingerprint)
+        Json RequestJson(const FireClosure& a_closure, const std::vector<Nif>& a_nifs)
         {
             Json root;
             root["version"] = kRequestVersion;
             root["game"] = REL::Module::get().version().string();
-            root["fingerprint"] = a_fingerprint;
+            root["fingerprint"] = g_state.fingerprint;
+            root["fingerprintSizes"] = g_state.sizeFingerprint;
             root["copiesPlugin"] = "HeartOfMagic_BlackFlame_Copies.esp";
             root["forms"] = Json::array();
             std::set<std::string> impactModels;
@@ -193,31 +216,35 @@ namespace BlackFlame
                        std::string();
         }
 
-        // Every NIF read again (bytes this time) and written under data\; a failed one's stale copy is removed
-        std::string Dump(const std::filesystem::path& a_folder, const std::vector<Nif>& a_nifs, const std::string& a_fingerprint)
+        // J6: "unchanged" holds only while every dumped NIF is there with its size
+        bool DumpIntact(const std::filesystem::path& a_folder, const std::vector<Nif>& a_nifs)
+        {
+            const auto root = a_folder / kDumpRoot;
+            for (const auto& nif : a_nifs) {
+                std::error_code ec;
+                if (nif.blob.ok && std::filesystem::file_size(LongPath(UnderRoot(root, nif.path)), ec) != nif.blob.size) {
+                    return false;  // missing (ec) or another size
+                }
+            }
+            return true;
+        }
+
+        // Every NIF's bytes from the one read written under data\; a failed one's stale copy is removed
+        std::string Dump(const std::filesystem::path& a_folder, std::vector<Nif>& a_nifs, const std::string& a_fingerprint)
         {
             const auto root = a_folder / kDumpRoot;
             int written = 0;
             int failed = 0;
-            for (const auto& nif : a_nifs) {
-                const auto file = UnderRoot(root, nif.path);
+            for (auto& nif : a_nifs) {
+                const auto file = LongPath(UnderRoot(root, nif.path));
                 std::error_code ec;
                 if (!nif.blob.ok) {
                     std::filesystem::remove(file, ec);
                     continue;
                 }
-                std::vector<std::byte> bytes;
-                const auto again = NifDump::ReadModel(nif.path, &bytes);
-                if (!again.ok || again.fnv64 != nif.blob.fnv64) {
-                    ++failed;
-                    std::filesystem::remove(file, ec);
-                    logger::warn("BlackFlame: copy request: {} changed or failed between two reads ({}): not dumped",
-                        Utf8(nif.path), again.ok ? "other bytes" : again.error);
-                    continue;
-                }
                 std::filesystem::create_directories(file.parent_path(), ec);
                 std::ofstream out(file, std::ios::binary | std::ios::trunc);
-                out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+                out.write(reinterpret_cast<const char*>(nif.bytes.data()), static_cast<std::streamsize>(nif.bytes.size()));
                 out.close();
                 if (!out) {
                     ++failed;
@@ -225,6 +252,7 @@ namespace BlackFlame
                     continue;
                 }
                 ++written;
+                std::vector<std::byte>().swap(nif.bytes);
             }
             if (failed == 0) {
                 WriteWhole(a_folder / kManifestName, Json{ { "fingerprint", a_fingerprint } }.dump(kJsonIndent) + "\n");
@@ -256,36 +284,50 @@ namespace BlackFlame
         g_state.forms = a_closure.forms.size();
         g_state.excluded = a_closure.excluded.size();
         std::vector<Nif> nifs;
+        if (!GetConfig().writeRequest) {
+            // J7: players' default - no NIF is read and no fingerprint made (C3's freshness check makes the cheap one)
+            logger::info("BlackFlame: copy request: off (writeRequest false): {} closure forms, {} excluded, from {} fire spells; "
+                         "no NIF read", g_state.forms, g_state.excluded, a_closure.spells);
+            g_state.dumpState = "off";
+            return;
+        }
         try {
             std::vector<std::string> refused;
             const auto readStart = Clock::now();
             for (const auto& path : ModelsToRead(a_closure, refused)) {
-                nifs.push_back({ path, NifDump::ReadModel(path, nullptr) });
-                g_state.nifsFailed += nifs.back().blob.ok ? 0 : 1;
+                Nif nif{ path, {}, {} };
+                nif.blob = NifDump::ReadModel(path, &nif.bytes);
+                if (!nif.blob.ok) {
+                    std::vector<std::byte>().swap(nif.bytes);
+                }
+                g_state.nifsFailed += nif.blob.ok ? 0 : 1;
+                nifs.push_back(std::move(nif));
             }
             g_state.readMs = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - readStart).count();
             g_state.nifs = nifs.size();
             for (const auto& model : refused) {
                 logger::warn("BlackFlame: copy request: model path '{}' refused (a drive, ':' or '..'): not read", model);
             }
-            g_state.fingerprint = ComputeFingerprint(a_closure, nifs);
+            g_state.fingerprint = ComputeFingerprint(a_closure, nifs, false);
+            g_state.sizeFingerprint = ComputeFingerprint(a_closure, nifs, true);
             g_state.computed = true;
         } catch (const std::exception& e) {
             logger::error("BlackFlame: copy request: the fingerprint failed: {}", e.what());
         }
         const auto folder = RequestFolder();
         g_state.folder = folder.value_or(std::filesystem::path());
-        if (GetConfig().writeRequest && g_state.computed && folder) {
+        if (g_state.computed && folder) {
             try {
                 std::filesystem::create_directories(*folder);
-                WriteWhole(*folder / kRequestName, RequestJson(a_closure, nifs, g_state.fingerprint).dump(kJsonIndent) + "\n");
+                WriteWhole(*folder / kRequestName, RequestJson(a_closure, nifs).dump(kJsonIndent) + "\n");
                 g_state.requestWritten = true;
             } catch (const std::exception& e) {
                 logger::error("BlackFlame: copy request: writing {} failed: {}", kRequestName, e.what());
             }
             try {
-                g_state.dumpState = ManifestFingerprint(*folder) == g_state.fingerprint ? std::string("unchanged") :
-                                                                                         Dump(*folder, nifs, g_state.fingerprint);
+                g_state.dumpState = ManifestFingerprint(*folder) == g_state.fingerprint && DumpIntact(*folder, nifs) ?
+                                        std::string("unchanged") :
+                                        Dump(*folder, nifs, g_state.fingerprint);
             } catch (const std::exception& e) {
                 g_state.dumpState = std::format("failed: {}", e.what());
                 logger::error("BlackFlame: copy request: the NIF dump failed: {}", e.what());
@@ -302,7 +344,7 @@ namespace BlackFlame
                      "{} NIFs ({} failed) read in {} ms, fingerprint {}, request {}, dump {}, {} ms in all; folder {}",
             g_state.forms, perKind[0], perKind[1], perKind[2], perKind[3], perKind[4], a_closure.spells, g_state.excluded,
             g_state.nifs, g_state.nifsFailed, g_state.readMs, g_state.computed ? g_state.fingerprint : std::string("NOT computed"),
-            g_state.requestWritten ? "written" : (GetConfig().writeRequest ? "NOT written" : "off (writeRequest false)"),
+            g_state.requestWritten ? "written" : "NOT written",
             g_state.dumpState, g_state.totalMs, PathText(g_state.folder));
         constexpr int kMaxFailureLines = 20;
         int lines = 0;

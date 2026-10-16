@@ -18,9 +18,11 @@
 
 namespace BlackFlame::NifDump
 {
-    /// A record's model string as a Data-relative path: ASCII lower case, '/' as '\', repeated '\' folded, a leading
-    /// "data\" and "meshes\" dropped and one "meshes\" put in front. nullopt (refused) for an empty path, a drive letter or
-    /// ':' anywhere, or a ".." path token: such a path could name a file outside Data and is never read or written.
+    /// A record's model string as a Data-relative path: ASCII letters lower case, '/' as '\', repeated '\' folded, every
+    /// leading "data\" and "meshes\" dropped and one "meshes\" put in front. A double-byte character of the system code page
+    /// (lead byte by IsDBCSLeadByteEx) is copied as it is, so its trail byte is never lowered or taken for a separator.
+    /// nullopt (refused) for an empty path, a drive letter or ':' anywhere, a ".." path token, or a character Windows
+    /// forbids in a file name (<>"|?* and control characters): such a path could name a file outside Data or no file at all.
     [[nodiscard]] std::optional<std::string> NormalizeModelPath(std::string_view a_model);
 
     /// FNV-1a 64 over a_bytes, continuing from a_hash (start with kFnvOffset)
@@ -37,7 +39,9 @@ namespace BlackFlame::NifDump
     };
 
     /// Opens a_dataPath (BSResourceNiBinaryStream), seeks its stream to 0 and reads it 64 KiB at a time with every
-    /// return code checked until a read gives 0 bytes; ok only when the bytes read equal the stream's totalSize.
+    /// return code checked until a read gives 0 bytes; ok only when the bytes read equal the stream's totalSize. A stream
+    /// that cannot seek (kUnsupported) is read from where it opened (at 0), warned once; a busy open or read (kBusy) is
+    /// tried once more, so a transient error does not change the fingerprint.
     /// a_outBytes (optional) receives the bytes.
     [[nodiscard]] ModelBlob ReadModel(const std::string& a_dataPath, std::vector<std::byte>* a_outBytes);
 }

@@ -5,7 +5,7 @@
 #include <string>
 
 // =============================================================================
-// SELF-TEST LOG - "[SELFTEST] PASS|FAIL|INFO <id> <detail>" lines
+// SELF-TEST LOG - "[SELFTEST] PASS|FAIL|INFO|SKIP <id> <detail>" lines
 // =============================================================================
 // Each line goes to HeartOfMagic_BlackFlame.log and to
 // HeartOfMagic_BlackFlame_selftest.txt in the SKSE log folder. Game thread only.
@@ -20,9 +20,11 @@ namespace BlackFlame::SelfTestLog
     void Pass(const char* a_id, const std::string& a_detail);
     void Fail(const char* a_id, const std::string& a_detail);
     void Info(const char* a_id, const std::string& a_detail);
+    /// J2: a step that could not be judged this run (counted apart from INFO, so the DONE line shows it)
+    void Skip(const char* a_id, const std::string& a_detail);
     /// PASS or FAIL by a_ok
     void Check(const char* a_id, bool a_ok, const std::string& a_detail);
 
-    /// "[SELFTEST] DONE pass=N fail=M info=K" (a_label after DONE when given), then closes the file.
+    /// "[SELFTEST] DONE pass=N fail=M skipped=S info=K" (a_label after DONE when given), then closes the file.
     void Done(const char* a_label = nullptr);
 }

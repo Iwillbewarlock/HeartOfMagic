@@ -560,6 +560,7 @@ namespace BlackFlame::SelfTest
             if (dispelled > 0) {
                 SelfTestLog::Info("T9", std::format("dispelled {} Stoke effect(s) left on the player", dispelled));
             }
+            CleanupArtSpells();  // J3: whatever path E6 took
             a_c.waitingFor = "projectiles in flight before deleting the actors";
         }
         if (a_c.lastCast && Clock::now() - *a_c.lastCast < kInFlightWait) {

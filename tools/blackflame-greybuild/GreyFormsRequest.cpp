@@ -136,6 +136,7 @@ namespace GreyBuild
         {
             a_request.addons = ParseRequest(a_file, a_root, &a_request.warnings);
             a_request.fingerprint = Json::ReadString(a_file, a_root, "fingerprint", "the request");
+            a_request.fingerprintSizes = Json::ReadOptionalString(a_file, a_root, "fingerprintSizes", "the request");
             a_request.game = Json::ReadOptionalString(a_file, a_root, "game", "the request");
             a_request.excluded = ReadExcluded(a_file, a_root);
             if (a_root.contains("nifs")) {
@@ -289,6 +290,7 @@ namespace GreyBuild
         }
         CopiesMap map;
         map.requestFingerprint = Json::ReadOptionalString(a_file, root, "requestFingerprint", "the map");
+        map.requestFingerprintSizes = Json::ReadOptionalString(a_file, root, "requestFingerprintSizes", "the map");
         map.excluded = ReadExcluded(a_file, root);
         std::set<std::uint32_t> ids;
         std::set<std::string> sources;  // V16: a source once, across copies and retired
@@ -341,6 +343,7 @@ namespace GreyBuild
             "never given to another source (unless --reclaim-retired). requestFingerprint: the DLL compares it with the "
             "load order at every start." };
         root["requestFingerprint"] = a_map.requestFingerprint;
+        root["requestFingerprintSizes"] = a_map.requestFingerprintSizes;
         root["copiesPlugin"] = kCopiesPluginName;
         root["copies"] = nlohmann::ordered_json::array();
         for (const auto& entry : a_map.entries) {

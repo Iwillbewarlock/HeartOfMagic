@@ -24,7 +24,7 @@
 // form, (index, source, model) of every ADDN not in our plugins, and (path, totalSize, fnv64) of every NIF. Scalars,
 // EditorIDs and bounds are left out (the DLL fills those from the live forms); so are our own plugins' forms and
 // ADDNs (a built copies plugin must not make its own request stale). The NIF bytes are read at every start on the
-// kDataLoaded thread; the time is logged.
+// kDataLoaded thread; the time is logged. With writeRequest false (the players' default) nothing is read.
 // Each part - the fingerprint, the request, the dump - has its own try/catch: a failure is logged and kDataLoaded
 // goes on to install the hooks.
 
@@ -34,6 +34,7 @@ namespace BlackFlame
     {
         bool computed = false;        // the fingerprint was computed
         std::string fingerprint;      // "fnv64:<16 hex>"
+        std::string sizeFingerprint;  // the same without the NIF byte hashes (path, size): C3's cheap check
         bool requestWritten = false;
         std::string dumpState = "not written";  // "written", "unchanged", "not written", or what failed
         std::size_t forms = 0;

@@ -58,6 +58,7 @@ namespace BlackFlame::SelfTest
         constexpr float kRemoteTimeout = 8.0f;     // two marker casts one after the other, then they finish
         constexpr float kE1aTimeout = 8.0f;        // C3: up to three casts until one hits, then 1.5 s for the impact
         constexpr float kE1cTimeout = 30.0f;       // three phases, each waiting for an earlier explosion to end
+        constexpr float kE6Timeout = 6.0f;         // J3: kWatch for the art, the dispel, kWatch for the art to go, and slack
         constexpr float kE2Timeout = 10.0f;        // spawn, 1 s stream, toggle, 0.6 s, recast, hits
         constexpr float kE3Timeout = 20.0f;        // buff, rune, marker file
 
@@ -67,7 +68,8 @@ namespace BlackFlame::SelfTest
         constexpr float kTargetForward = 550.0f;
         constexpr float kRestXY = 5.0f;  // H1: units the target may slide on the ground plane at rest (sub-unit jitter ignored)
         constexpr float kRestZ = 5.0f;   // and up or down (a falling actor moves far more in 0.5 s)
-        constexpr float kMinTargetDistance = 300.0f;   // I1: the target's rest distance from the player on the ground plane
+        // I1/J2: the target's rest distance from the player on the ground plane: at least Fireball's explosion radius (read at
+        // runtime) + kRadiusMargin, at most this
         constexpr float kMaxTargetDistance = 1200.0f;
         constexpr auto kRestTime = std::chrono::milliseconds(500);  // that long within both
         constexpr float kCasterRight = 700.0f;
@@ -161,7 +163,7 @@ namespace BlackFlame::SelfTest
                     // H2: the dispel did not take (looked into apart): go on with the buff the player has, so the later
                     // steps run stoked; T1's own cast is not judged, and T8 dispels this buff
                     a_c.buffWasTurnedOn = true;
-                    SelfTestLog::Info("T1", std::format("the old buff did not go off {} ms after the dispel ({}): going on with it; "
+                    SelfTestLog::Skip("T1", std::format("cast not judged: the old buff did not go off {} ms after the dispel ({}): going on with it; "
                         "T1's cast is not judged this run", kOldBuffWait.count(), SelfTestWorld::DescribeStokeEffects()));
                     return true;
                 }
@@ -244,7 +246,9 @@ namespace BlackFlame::SelfTest
             const bool atRest = zStill && now - *a_c.targetXYSince >= kRestTime;
             const auto playerPos = Player()->GetPosition();
             const float groundToPlayer = std::hypot(pos.x - playerPos.x, pos.y - playerPos.y);
-            const bool inRange = groundToPlayer >= kMinTargetDistance && groundToPlayer <= kMaxTargetDistance;  // I1
+            const float radius = a_c.forms.fireballExplosion ? a_c.forms.fireballExplosion->data.radius : 0.0f;
+            const float minDistance = radius + kRadiusMargin;  // J2: the runtime radius, not a fixed number
+            const bool inRange = groundToPlayer >= minDistance && groundToPlayer <= kMaxTargetDistance;
             const auto moved = std::format("moved {:.0f} on the ground plane at most and {:.0f} - {:.0f} in height since the "
                 "wait began at ({:.0f}, {:.0f}, {:.0f})", a_c.targetMaxDrift, a_c.targetZMin, a_c.targetZMax, a_c.targetWaitStart->x,
                 a_c.targetWaitStart->y, a_c.targetWaitStart->z);
@@ -274,17 +278,16 @@ namespace BlackFlame::SelfTest
                 casterDrift <= kCasterLeash ? casterNow.z : a_c.targetLastZ };
             const auto& done = a_c.targetMadeText;
             const float health = SelfTestWorld::HealthOf(dummy);
-            const float radius = a_c.forms.fireballExplosion ? a_c.forms.fireballExplosion->data.radius : 0.0f;
             const float toPlayer = dummy->GetPosition().GetDistance(playerPos);
             const float toCaster = dummy->GetPosition().GetDistance(caster->GetPosition());
-            // I1: the explosion margin is no T2 condition; the explosion steps check it from the actual positions
+            // J2: on the ground plane at least the explosion's reach from the player; the explosion steps check the 3D distances
             const bool ok = !dummy->IsAIEnabled() && health >= SelfTestWorld::kDummyHealth * kHealthShare && inRange;
             a_c.actorsOk = ok;
             SelfTestLog::Check("T2", ok, std::format("target {}; health {:.0f}; target at rest {:.0f} from the player on the ground "
-                "plane ({:.0f} - {:.0f}; {:.0f} in 3D, planned {:.0f}), {:.0f} from the caster (explosion radius {:.0f} + {:.0f}: "
-                "checked again by each explosion step); caster AI {}, {:.0f} units from its planned spot; target at rest at height "
-                "{:.0f} (player {:.0f}); it {}", done, health, groundToPlayer, kMinTargetDistance, kMaxTargetDistance, toPlayer,
-                kTargetForward, toCaster, radius, kRadiusMargin, caster->IsAIEnabled() ? "on" : "off", casterDrift, pos.z,
+                "plane ({:.0f} - {:.0f}: explosion radius {:.0f} + {:.0f} to the limit; {:.0f} in 3D, planned {:.0f}), {:.0f} from the "
+                "caster (checked again by each explosion step); caster AI {}, {:.0f} units from its planned spot; target at rest at "
+                "height {:.0f} (player {:.0f}); it {}", done, health, groundToPlayer, minDistance, kMaxTargetDistance, radius,
+                kRadiusMargin, toPlayer, kTargetForward, toCaster, caster->IsAIEnabled() ? "on" : "off", casterDrift, pos.z,
                 playerPos.z, moved));
             return true;
         }
@@ -418,7 +421,7 @@ namespace BlackFlame::SelfTest
         if (toPlayer >= reach && (!a_caster || toCaster >= reach)) {
             return true;
         }
-        SelfTestLog::Info(a_id, std::format("skipped: the target is inside the explosion's reach ({:.0f}: radius + {:.0f}) - {:.0f} "
+        SelfTestLog::Skip(a_id, std::format("the target is inside the explosion's reach ({:.0f}: radius + {:.0f}) - {:.0f} "
             "from the player{}", reach, kRadiusMargin, toPlayer, a_caster ? std::format(", {:.0f} from the caster", toCaster) : ""));
         return false;
     }
@@ -466,8 +469,8 @@ namespace BlackFlame::SelfTest
             StepDef{ "E1b", kExplosionTimeout, &StepE1Fireball },
             StepDef{ "E1c", kE1cTimeout, &StepE1Npc },
             StepDef{ "E2", kE2Timeout, &StepE2Flames },
-            StepDef{ "E6", kInfoTimeout, &StepE6Player },
-            StepDef{ "E6-npc", kInfoTimeout, &StepE6Npc },
+            StepDef{ "E6", kE6Timeout, &StepE6Player },
+            StepDef{ "E6-npc", kE6Timeout, &StepE6Npc },
             StepDef{ "T8", kBuffOffTimeout, &StepBuffOff },
             StepDef{ "T8-cast", kProjectileTimeout, &StepCastUnstoked },
             StepDef{ "T-threads", kEnvTimeout, &StepThreads },

@@ -11,6 +11,7 @@ namespace BlackFlame::SelfTestLog
         int g_pass = 0;
         int g_fail = 0;
         int g_info = 0;
+        int g_skipped = 0;
 
         void Write(const char* a_kind, const char* a_id, const std::string& a_detail)
         {
@@ -32,6 +33,7 @@ namespace BlackFlame::SelfTestLog
         g_pass = 0;
         g_fail = 0;
         g_info = 0;
+        g_skipped = 0;
         auto dir = logger::log_directory();
         if (!dir) {
             logger::warn("BlackFlame: no SKSE log folder - self-test results go to the main log only");
@@ -62,6 +64,12 @@ namespace BlackFlame::SelfTestLog
         Write("INFO", a_id, a_detail);
     }
 
+    void Skip(const char* a_id, const std::string& a_detail)
+    {
+        ++g_skipped;
+        Write("SKIP", a_id, a_detail);
+    }
+
     void Check(const char* a_id, bool a_ok, const std::string& a_detail)
     {
         if (a_ok) {
@@ -73,8 +81,8 @@ namespace BlackFlame::SelfTestLog
 
     void Done(const char* a_label)
     {
-        const auto line = std::format("[SELFTEST] DONE{}{} pass={} fail={} info={}", a_label ? " " : "", a_label ? a_label : "",
-            g_pass, g_fail, g_info);
+        const auto line = std::format("[SELFTEST] DONE{}{} pass={} fail={} skipped={} info={}", a_label ? " " : "",
+            a_label ? a_label : "", g_pass, g_fail, g_skipped, g_info);
         logger::info("{}", line);
         if (g_file) {
             g_file << line << '\n';

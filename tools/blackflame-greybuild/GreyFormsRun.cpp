@@ -321,6 +321,7 @@ namespace GreyBuild
         }
         CopiesMap copies = AssignCopyIds(a_sources, PreviousCopies(out), a_options.reclaimRetired);
         copies.requestFingerprint = a_options.fingerprint;
+        copies.requestFingerprintSizes = a_options.fingerprintSizes;
         copies.excluded = a_options.excluded;
 
         if (!RemoveAll(staging)) {

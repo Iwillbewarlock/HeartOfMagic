@@ -29,7 +29,8 @@
 // the original's (LIGH, SNDR, TXST, IMAD, ENCH, SPEL, IPDS: no IPDS copies). A copy
 // that fails (form missing, wrong type, the copies plugin missing) is left out of the
 // map and logged. The map is built once on the kDataLoaded thread and never changed:
-// the hooks read it from any thread. Right after the fill every copy is compared with its
+// the hooks read it from any thread. A copy whose own model does not open through the game's
+// file system is left out too (v2 fix J5: the engine keeps the original form). Right after the fill every copy is compared with its
 // source (a difference there is a fill fault); at every kPostLoadGame / kNewGame
 // RefreshCopies compares again and re-fills a copy that no longer matches (C5), logging the
 // differing fields first.
