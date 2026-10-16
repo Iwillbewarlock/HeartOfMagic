@@ -115,6 +115,8 @@ namespace BlackFlame
             }
             if (SelfTestProbe::Recording()) {
                 a_record.after = SelfTestProbe::Inspect(a_explosion->Get3D());
+                a_record.position = a_explosion->GetPosition();
+                a_record.at = std::chrono::steady_clock::now();
                 SelfTestProbe::RecordExplosion(std::move(a_record));
             }
         }

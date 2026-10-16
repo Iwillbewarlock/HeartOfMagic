@@ -47,7 +47,7 @@ namespace BlackFlame
         bool devAutoQuit = false;  // the game quits 10 s after the self-test (and E3) ended, or 6 min after a load at most
         bool particleColors = false;  // also desaturate BSPSysSimpleColorModifier colours (unverified layout, Recolor.cpp)
         float tintScale = 0.6f;   // baseColor RGB = luminance * tintScale
-        float selfTestDelaySeconds = 30.0f;  // C1: unpaused play after a load before the self-test (and E3's judgement) starts
+        float selfTestDelaySeconds = 30.0f;  // C1: unpaused play after a load before the self-test starts (E3 judges after its own 1.5 s, H5)
         RE::NiColor lightColor{ 0.25f, 0.22f, 0.28f };
     };
 

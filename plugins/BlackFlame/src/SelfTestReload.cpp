@@ -3,6 +3,7 @@
 
 #include "BuffState.h"
 #include "Config.h"
+#include "CopySwap.h"
 #include "DevAutomation.h"
 #include "FormCopies.h"
 #include "Forms.h"
@@ -32,6 +33,11 @@ namespace BlackFlame::SelfTest::Reload
         constexpr float kGameDaysWindow = 1.0f;     // W2: a save more than a game day after the request is not E3's
         constexpr auto kLoadWait = std::chrono::minutes(5);    // W3: a started load must finish by then
         constexpr auto kResumeWait = std::chrono::minutes(5);  // W3: the player must be ready by then
+        // H5: E3 judges this long after the player is ready (not selfTestDelaySeconds: a restored rune may detonate on its
+        // own within seconds of the load - run 580e315-auto2: 14.8 s after the load, the judgement came at 31 s)
+        constexpr auto kJudgeDelay = std::chrono::milliseconds(1500);
+        constexpr float kRestoredReach = 200.0f;  // H5: a restored rune's explosion lands this close to where it lay
+        constexpr RE::FormID kPlayerRef = 0x14;
         constexpr const char* kMarkerFile = "HeartOfMagic_BlackFlame_e3.json";
 
         enum class State
@@ -48,13 +54,18 @@ namespace BlackFlame::SelfTest::Reload
             RE::FormID rune = 0;      // the rune projectile reference
             RE::FormID runeBase = 0;  // its base: the copy
             RE::FormID cell = 0;
+            RE::FormID explosion = 0;  // H5: the rune's explosion at arming (the copy)
+            RE::NiPoint3 runePos{};    // H5: where the rune lay
+            std::uint64_t probeMark = 0;  // H5: records from the load E3 takes on
+            bool recording = false;       // H5: E3 turned the probe's recording on for its resume
             float gameDays = 0.0f;
             std::uint64_t nonce = 0;
             Clock::time_point askedAt{};
             bool preloadSeen = false;
             Clock::time_point preloadAt{};
             Clock::time_point resumeAt{};
-            Clock::duration readyPlay{};  // C1: unpaused play since the load, against config selfTestDelaySeconds
+            Clock::time_point loadAt{};  // H5: the load E3 took ended
+            Clock::duration readyPlay{};  // unpaused ready play since the load, against kJudgeDelay (H5)
             std::optional<Clock::time_point> lastReadyCheck;
             RE::ObjectRefHandle runeHandle;  // valid only in the world E3 asked in
         };
@@ -183,9 +194,38 @@ namespace BlackFlame::SelfTest::Reload
                 a_marker.get() ? "; marker: " + SelfTestWorld::Remove(a_marker) : std::string()));
         }
 
+        // H5: a rune restored by the load that went off before the judgement: an explosion recorded since the load whose
+        // base was the armed rune's copy explosion from its creation (no runtime swap), owned by the player, within
+        // kRestoredReach of where the rune lay. Empty when there is none.
+        std::string RestoredExplosion(const E3& a_e3, Clock::time_point a_loadAt)
+        {
+            if (!a_e3.recording || a_e3.explosion == 0) {
+                return {};
+            }
+            const bool createHooked = GetCopySwapStatus().explosionCreate.hooked;
+            bool createdAsCopy = !createHooked;  // without the creation detour nothing can swap it, so a copy base is its own
+            for (const auto& c : SelfTestProbe::ExplosionCreatesSince(a_e3.probeMark)) {
+                createdAsCopy = createdAsCopy || (c.baseBefore == a_e3.explosion && c.baseAfter == a_e3.explosion);
+            }
+            if (!createdAsCopy) {
+                return {};
+            }
+            for (const auto& r : SelfTestProbe::ExplosionsSince(a_e3.probeMark)) {
+                const float distance = r.position.GetDistance(a_e3.runePos);
+                if (r.copyBase == a_e3.explosion && r.owner == kPlayerRef && distance <= kRestoredReach) {
+                    return std::format("the rune was restored and went off before the judgement: explosion {:08X} owned by the "
+                        "player, {:.0f} from the rune's spot, {:.1f} s after the load, its base the copy from creation ({})",
+                        r.copyBase, distance, std::chrono::duration<float>(r.at - a_loadAt).count(),
+                        createHooked ? "a creation record without a swap" : "no creation detour on this runtime");
+                }
+            }
+            return {};
+        }
+
         // Appends a closing block to the self-test file (the run itself already wrote DONE)
         void Close(const std::string& a_infoOrEmpty, bool a_alreadyOpen = false)
         {
+            SelfTestProbe::SetRecording(false);  // H5: E3's resume recorded; the main run ended before E3 armed
             if (!a_alreadyOpen) {
                 SelfTestLog::Open(true);
             }
@@ -219,9 +259,13 @@ namespace BlackFlame::SelfTest::Reload
             }
             std::string how;
             auto* rune = FindRune(a_e3.rune, a_e3.runeBase, how);
-            if (!rune) {
-                SelfTestLog::Fail("E3", std::format("after the reload: no rune {:08X} and no projectile of base {:08X} in the "
-                    "player's cell (the save is E3's: same cell, later game time)", a_e3.rune, a_e3.runeBase));
+            const auto restored = rune ? std::string() : RestoredExplosion(a_e3, a_e3.loadAt);
+            if (!rune && !restored.empty()) {
+                SelfTestLog::Pass("E3", "after the reload: " + restored);
+            } else if (!rune) {
+                SelfTestLog::Fail("E3", std::format("after the reload: no rune {:08X}, no projectile of base {:08X} in the "
+                    "player's cell and no explosion of its copy {:08X} near its spot since the load (the save is E3's: same cell, "
+                    "later game time)", a_e3.rune, a_e3.runeBase, a_e3.explosion));
             } else {
                 SelfTestLog::Check("E3", RuneOk(rune), std::format("after the reload, found {}: {}", how, DescribeRune(rune)));
             }
@@ -354,6 +398,8 @@ namespace BlackFlame::SelfTest::Reload
                 armed.state = State::kWaiting;
                 armed.rune = rune->GetFormID();
                 armed.runeBase = rune->GetBaseObject()->GetFormID();
+                armed.explosion = rune->GetProjectileRuntimeData().explosion ? rune->GetProjectileRuntimeData().explosion->GetFormID() : 0;
+                armed.runePos = rune->GetPosition();
                 armed.cell = cell ? cell->GetFormID() : 0;
                 armed.gameDays = RE::Calendar::GetSingleton() ? RE::Calendar::GetSingleton()->GetDaysPassed() : 0.0f;
                 armed.nonce = static_cast<std::uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
@@ -422,6 +468,11 @@ namespace BlackFlame::SelfTest::Reload
                 g_e3.readyPlay = {};
                 g_e3.lastReadyCheck.reset();
                 g_e3.resumeAt = Clock::now();
+                g_e3.loadAt = g_e3.resumeAt;
+                // H5: the restored rune's explosion is recorded from here (the main run's recording ended before E3 armed)
+                g_e3.probeMark = SelfTestProbe::Mark();
+                g_e3.recording = true;
+                SelfTestProbe::SetRecording(true);
                 return true;
             }
             skipped = std::format("E3 not run (manual step skipped): load {}, its preload {}, {} the {} minute window",
@@ -473,12 +524,11 @@ namespace BlackFlame::SelfTest::Reload
         if (e3.state != State::kResume) {
             return;
         }
-        const auto delay = std::chrono::duration_cast<Clock::duration>(
-            std::chrono::duration<float>(GetConfig().selfTestDelaySeconds));
+        const auto delay = std::chrono::duration_cast<Clock::duration>(kJudgeDelay);
         if (now - e3.resumeAt > kResumeWait + delay) {  // W3: the player never became ready after the load
             Disarm();
-            Close(std::format("E3 not run (manual step skipped): the player was not ready within {} minutes plus the {:.0f} s "
-                "start delay of the load", kResumeWait.count(), GetConfig().selfTestDelaySeconds));
+            Close(std::format("E3 not run (manual step skipped): the player was not ready within {} minutes plus E3's {} ms "
+                "judge delay", kResumeWait.count(), kJudgeDelay.count()));
             return;
         }
         auto* player = Player();
@@ -493,7 +543,7 @@ namespace BlackFlame::SelfTest::Reload
                 g_e3.readyPlay += gap;
             }
             if (!ready || g_e3.readyPlay < delay) {
-                return;  // C1: the same unpaused-play delay as the run's start
+                return;  // H5: kJudgeDelay of unpaused, ready play
             }
         }
         Disarm();

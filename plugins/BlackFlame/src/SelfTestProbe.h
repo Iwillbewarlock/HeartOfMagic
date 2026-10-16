@@ -107,6 +107,8 @@ namespace BlackFlame::SelfTestProbe
         bool lightAtSet3D = false;
         std::uint32_t hookThread = 0;
         Inspection after;
+        RE::NiPoint3 position{};                     // H5: where it went off (the reference's position)
+        std::chrono::steady_clock::time_point at{};  // H5: when it was recorded
     };
 
     // A GetHitEffectShader call on a fire effect (HitEffectHook.cpp): swapped for ours (the player's),
