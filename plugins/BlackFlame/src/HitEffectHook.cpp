@@ -156,11 +156,11 @@ namespace BlackFlame
             const auto target = a_this->target.get();
             const auto* ours = GetForms().burnShader;
             const auto flags = effect ? effect->flags.underlying() : 0u;
-            logger::info("BlackFlame: {} [{} {}]: controller 0x{:X} (call {} for it), effect {} flags 0x{:08X} (bit1 {}), "
+            logger::info("BlackFlame: {} [{} {}]: controller 0x{:X} (call {} for it), effect at 0x{:X} flags 0x{:08X} (bit1 {}), "
                          "MGEF {:08X} (its field {:08X}) spell {:08X}, target {:08X}, caster {}, stoked {}, burnShader {:08X} "
                          "at 0x{:X}, engine answer {:08X} -> {}, callerThread={}",
                 kSlotNames[a_slot], player ? "player" : "any", line, reinterpret_cast<std::uintptr_t>(a_this),
-                CallNumber(a_this), effect ? effect->usUniqueID : 0, flags, (flags & kNoHitShaderBit) ? "set" : "clear",
+                CallNumber(a_this), reinterpret_cast<std::uintptr_t>(effect), flags, (flags & kNoHitShaderBit) ? "set" : "clear",
                 base ? base->GetFormID() : 0, field ? field->GetFormID() : 0,
                 effect && effect->spell ? effect->spell->GetFormID() : 0, target ? target->GetFormID() : 0,
                 player ? "player" : "other", IsStoked() ? "yes" : "no", ours ? ours->GetFormID() : 0,
@@ -186,7 +186,7 @@ namespace BlackFlame
             auto* effect = a_this->effect;
             SelfTestProbe::RecordBurn({ 0, TargetIdOf(a_this), effect && effect->spell ? effect->spell->GetFormID() : 0,
                 a_original->GetFormID(), REX::W32::GetCurrentThreadId(), reinterpret_cast<std::uintptr_t>(a_this),
-                effect ? effect->usUniqueID : std::uint16_t{ 0 }, a_swapped });
+                reinterpret_cast<std::uintptr_t>(effect), a_swapped });
         }
 
         void LogSwap(Controller* a_this, const RE::TESEffectShader* a_original)

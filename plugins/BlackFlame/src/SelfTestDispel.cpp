@@ -2,7 +2,9 @@
 
 #include "Forms.h"
 
+#include <algorithm>
 #include <format>
+#include <vector>
 
 // =============================================================================
 // The self-test's Stoke dispel (v2 fix C4)
@@ -21,6 +23,9 @@
 // v2 fix D1 gives the cross-thread part: this now runs from the main-thread queue, after the frame's jobs. The
 // dispel goes through MagicTarget::DispelEffect only (no direct Dispel fallback: D3), with each effect's flags
 // before and after logged.
+// v2 fix H3 (2026-10-16): the real cause of every "did not hold" since 064e331 was ours, not threads: the effects were
+// found again by usUniqueID, which is 0 on most effects, so the first id-0 effect on the player (an unrelated one) was
+// dispelled and the Stoke effect stayed live. DispelStoke now scans again by keyword for each dispel.
 
 namespace BlackFlame::SelfTestWorld
 {
@@ -37,30 +42,25 @@ namespace BlackFlame::SelfTestWorld
             return player ? player->AsMagicTarget() : nullptr;
         }
 
-        RE::ActiveEffect* FindById(RE::MagicTarget* a_target, std::uint16_t a_id)
-        {
-            auto* list = a_target ? a_target->GetActiveEffectList() : nullptr;
-            if (!list) {
-                return nullptr;
-            }
-            for (auto* effect : *list) {
-                if (effect && effect->usUniqueID == a_id) {
-                    return effect;
-                }
-            }
-            return nullptr;
-        }
-
         bool TargetUpdating(const RE::MagicTarget* a_target)
         {
             const auto* raw = reinterpret_cast<const std::uint8_t*>(a_target);
             return (raw[kTargetUpdatingOffset] & kTargetUpdatingBit) != 0;
         }
 
-        std::string FlagsNow(RE::MagicTarget* a_target, std::uint16_t a_id)
+        // H3: the effect found again by its address in the list (compared, not dereferenced, until found) - never by
+        // usUniqueID, which is 0 on most effects
+        std::string FlagsNow(RE::MagicTarget* a_target, const RE::ActiveEffect* a_effect)
         {
-            const auto* effect = FindById(a_target, a_id);
-            return effect ? std::format("0x{:08X}", effect->flags.underlying()) : std::string("gone from the list");
+            auto* list = a_target ? a_target->GetActiveEffectList() : nullptr;
+            if (list) {
+                for (const auto* effect : *list) {
+                    if (effect == a_effect) {
+                        return std::format("0x{:08X}", effect->flags.underlying());
+                    }
+                }
+            }
+            return std::string("gone from the list");
         }
 
         bool IsLiveStoke(const RE::ActiveEffect* a_effect, const RE::BGSKeyword* a_keyword)
@@ -75,29 +75,38 @@ namespace BlackFlame::SelfTestWorld
     {
         auto* target = PlayerTarget();
         const auto* keyword = GetForms().stokedKeyword;
-        auto* effects = target ? target->GetActiveEffectList() : nullptr;
-        if (!effects || !keyword) {
+        if (!target || !target->GetActiveEffectList() || !keyword) {
             return 0;
         }
-        // Ids first, no ActiveEffect pointer kept across a dispel (it may change the list)
-        std::vector<std::uint16_t> ids;
-        for (auto* effect : *effects) {
-            if (IsLiveStoke(effect, keyword)) {
-                ids.push_back(effect->usUniqueID);
-            }
-        }
+        // H3: usUniqueID is no identity (0 on most effects: the old id lookup dispelled the first id-0 effect on the player,
+        // an unrelated one, and left the Stoke effect live). The list is scanned again for each dispel, by keyword, and no
+        // pointer is dereferenced across a dispel; one the engine left live (queued while the target updates) is skipped by
+        // its address the next time round.
+        constexpr int kMaxDispels = 16;
+        std::vector<const RE::ActiveEffect*> tried;
         int dispelled = 0;
-        for (const auto id : ids) {
-            auto* effect = FindById(target, id);
-            if (!effect) {
-                continue;
+        for (int guard = 0; guard < kMaxDispels; ++guard) {
+            RE::ActiveEffect* found = nullptr;
+            for (auto* effect : *target->GetActiveEffectList()) {
+                if (IsLiveStoke(effect, keyword) && std::ranges::find(tried, effect) == tried.end()) {
+                    found = effect;
+                    break;
+                }
             }
-            const auto before = effect->flags.underlying();
+            if (!found) {
+                break;
+            }
+            tried.push_back(found);
+            const auto before = found->flags.underlying();
+            const auto* base = found->GetBaseObject();
+            const auto baseId = base ? base->GetFormID() : 0;
+            const auto spellId = found->spell ? found->spell->GetFormID() : 0;
             const bool updating = TargetUpdating(target);
-            auto caster = effect->caster;  // DispelEffect takes the handle by reference
-            const bool matched = target->DispelEffect(effect->spell, caster, effect);  // RE/M/MagicTarget.h:158
-            logger::info("BlackFlame: self-test dispel: Stoke effect {} flags 0x{:08X} -> {} via MagicTarget::DispelEffect "
-                         "(matched: {}, target inside its update: {}), thread {}", id, before, FlagsNow(target, id),
+            auto caster = found->caster;  // DispelEffect takes the handle by reference
+            const bool matched = target->DispelEffect(found->spell, caster, found);  // RE/M/MagicTarget.h:158
+            logger::info("BlackFlame: self-test dispel: Stoke effect at 0x{:X} (MGEF {:08X}, spell {:08X}) flags 0x{:08X} -> {} "
+                         "via MagicTarget::DispelEffect (matched: {}, target inside its update: {}), thread {}",
+                reinterpret_cast<std::uintptr_t>(found), baseId, spellId, before, FlagsNow(target, found),
                 matched ? "yes" : "NO (nothing dispelled)", updating ? "yes (queued by the engine)" : "no",
                 REX::W32::GetCurrentThreadId());
             if (matched) {
@@ -121,8 +130,8 @@ namespace BlackFlame::SelfTestWorld
             if (!base || !base->HasKeyword(keyword)) {
                 continue;
             }
-            out += std::format("{}effect {} flags 0x{:08X} ({}), {:.1f}/{:.1f} s", out.empty() ? "" : "; ",
-                effect->usUniqueID, effect->flags.underlying(), IsLiveStoke(effect, keyword) ? "live" : "dispelled/inactive",
+            out += std::format("{}effect at 0x{:X} flags 0x{:08X} ({}), {:.1f}/{:.1f} s", out.empty() ? "" : "; ",
+                reinterpret_cast<std::uintptr_t>(effect), effect->flags.underlying(), IsLiveStoke(effect, keyword) ? "live" : "dispelled/inactive",
                 effect->elapsedSeconds, effect->duration);
         }
         return out.empty() ? std::string("no Stoke effect listed") :

@@ -119,8 +119,11 @@ namespace BlackFlame::SelfTest
             if (g_ctx.npcHitEta) {
                 *g_ctx.npcHitEta += a_paused;
             }
-            if (g_ctx.targetStillSince) {
-                *g_ctx.targetStillSince += a_paused;
+            if (g_ctx.targetXYSince) {
+                *g_ctx.targetXYSince += a_paused;
+            }
+            if (g_ctx.targetZSince) {
+                *g_ctx.targetZSince += a_paused;
             }
             if (g_ctx.aim.hitAt) {
                 *g_ctx.aim.hitAt += a_paused;

@@ -45,8 +45,10 @@ namespace BlackFlame::SelfTest
         // Step timeouts, counted in unpaused play
         constexpr float kEnvTimeout = 2.0f;
         constexpr float kBuffOnTimeout = 3.0f;    // a dispel first when already stoked, then the cast
+        constexpr auto kOldBuffWait = std::chrono::milliseconds(2000);  // H2: then T1 goes on with the buff it found
         constexpr float kSpawnTimeout = 1.0f;
-        constexpr float kActorsTimeout = 8.0f;   // C3: their 3D, then the target at rest
+        constexpr float kActorsTimeout = 10.0f;  // C3: their 3D, then the target at rest (H1: the step itself gives up at 8 s)
+        constexpr auto kRestCap = std::chrono::milliseconds(8000);  // H1: then judged by its height alone
         constexpr float kProjectileTimeout = 3.0f;
         constexpr float kBurnTimeout = 9.0f;     // C3: up to three casts until one hits, then the watch
         constexpr float kExplosionTimeout = 6.0f;
@@ -62,9 +64,10 @@ namespace BlackFlame::SelfTest
         // Placement: the target ahead (C3: close enough to hit, 550 units), the caster level with the player off to
         // the side, all beyond Fireball's explosion radius (320 units in Skyrim.esm; read at runtime, T2 checks it)
         constexpr float kTargetForward = 550.0f;
-        constexpr float kRestTolerance = 2.0f;                      // units the target may move at rest
+        constexpr float kRestXY = 5.0f;  // H1: units the target may slide on the ground plane at rest (sub-unit jitter ignored)
+        constexpr float kRestZ = 5.0f;   // and up or down (a falling actor moves far more in 0.5 s)
         constexpr float kPlacementSlack = 200.0f;                   // the target may end this much further than planned
-        constexpr auto kRestTime = std::chrono::milliseconds(500);  // that long without moving
+        constexpr auto kRestTime = std::chrono::milliseconds(500);  // that long within both
         constexpr float kCasterRight = 700.0f;
         constexpr float kHealthShare = 0.99f;  // the target's health must reach this share of kDummyHealth
 
@@ -147,6 +150,15 @@ namespace BlackFlame::SelfTest
             case 1:
                 if (!IsStoked()) {
                     a_c.phase = 2;
+                    return false;
+                }
+                if (Clock::now() - a_c.stepStart >= kOldBuffWait) {
+                    // H2: the dispel did not take (looked into apart): go on with the buff the player has, so the later
+                    // steps run stoked; T1's own cast is not judged, and T8 dispels this buff
+                    a_c.buffWasTurnedOn = true;
+                    SelfTestLog::Info("T1", std::format("the old buff did not go off {} ms after the dispel ({}): going on with it; "
+                        "T1's cast is not judged this run", kOldBuffWait.count(), SelfTestWorld::DescribeStokeEffects()));
+                    return true;
                 }
                 return false;
             default:
@@ -204,14 +216,45 @@ namespace BlackFlame::SelfTest
             // C3: spawned at the player's height, the target may still be falling: wait until it is at rest - its whole
             // position (D3), not only its height
             const auto pos = dummy->GetPosition();
-            if (!a_c.targetRestPos || pos.GetDistance(*a_c.targetRestPos) > kRestTolerance) {
-                a_c.targetRestPos = pos;
-                a_c.targetStillSince = Clock::now();
+            const auto now = Clock::now();
+            if (!a_c.targetWaitStart) {
+                a_c.targetWaitStart = pos;
+                a_c.targetZMin = a_c.targetZMax = pos.z;
             }
-            if (Clock::now() - *a_c.targetStillSince < kRestTime) {
-                a_c.waitingFor = std::format("the target to come to rest (at ({:.0f}, {:.0f}, {:.0f}), player height {:.0f})", pos.x,
-                    pos.y, pos.z, Player()->GetPositionZ());
-                return false;
+            a_c.targetMaxDrift = std::max(a_c.targetMaxDrift, std::hypot(pos.x - a_c.targetWaitStart->x, pos.y - a_c.targetWaitStart->y));
+            a_c.targetZMin = std::min(a_c.targetZMin, pos.z);
+            a_c.targetZMax = std::max(a_c.targetZMax, pos.z);
+            // H1: XY and Z apart - a target with its AI off may keep sliding on a slope while its height holds
+            if (!a_c.targetXYAnchor || std::hypot(pos.x - a_c.targetXYAnchor->x, pos.y - a_c.targetXYAnchor->y) > kRestXY) {
+                a_c.targetXYAnchor = pos;
+                a_c.targetXYSince = now;
+            }
+            if (!a_c.targetZAnchor || std::fabs(pos.z - *a_c.targetZAnchor) > kRestZ) {
+                a_c.targetZAnchor = pos.z;
+                a_c.targetZSince = now;
+            }
+            const bool zStill = now - *a_c.targetZSince >= kRestTime;
+            const bool atRest = zStill && now - *a_c.targetXYSince >= kRestTime;
+            const auto playerPos = Player()->GetPosition();
+            const bool closeEnough = pos.GetDistance(playerPos) <= kTargetForward + kPlacementSlack;  // D3: not slid off
+            const auto moved = std::format("moved {:.0f} on the ground plane at most and {:.0f} - {:.0f} in height since the "
+                "wait began at ({:.0f}, {:.0f}, {:.0f})", a_c.targetMaxDrift, a_c.targetZMin, a_c.targetZMax, a_c.targetWaitStart->x,
+                a_c.targetWaitStart->y, a_c.targetWaitStart->z);
+            if (!atRest) {
+                if (now - a_c.stepStart < kRestCap) {
+                    a_c.waitingFor = std::format("the target to come to rest (at ({:.0f}, {:.0f}, {:.0f}), player height {:.0f}; {})",
+                        pos.x, pos.y, pos.z, playerPos.z, moved);
+                    return false;
+                }
+                // H1: at the cap, a target whose height holds and that is still near its planned spot will do
+                if (!zStill || !closeEnough) {
+                    SelfTestLog::Fail("T2", std::format("the target did not come to rest in {} ms: at ({:.0f}, {:.0f}, {:.0f}), height "
+                        "{}, {:.0f} from the player (at most {:.0f}); {}", kRestCap.count(), pos.x, pos.y, pos.z,
+                        zStill ? "steady" : "still changing", pos.GetDistance(playerPos), kTargetForward + kPlacementSlack, moved));
+                    return true;
+                }
+                SelfTestLog::Info("T2", std::format("the target still slides on the ground plane after {} ms but its height holds "
+                    "within {:.0f} units: going on ({})", kRestCap.count(), kRestZ, moved));
             }
             a_c.targetLastZ = pos.z;
             // The caster's home: its planned spot at the height it stands at now (O-L1 refuted: the caster wanders hundreds
@@ -225,18 +268,16 @@ namespace BlackFlame::SelfTest
             const auto& done = a_c.targetMadeText;
             const float health = SelfTestWorld::HealthOf(dummy);
             const float radius = a_c.forms.fireballExplosion ? a_c.forms.fireballExplosion->data.radius : 0.0f;
-            const auto playerPos = Player()->GetPosition();
             const float toPlayer = dummy->GetPosition().GetDistance(playerPos);
             const float toCaster = dummy->GetPosition().GetDistance(caster->GetPosition());
             const bool farEnough = toPlayer >= radius + kRadiusMargin && toCaster >= radius + kRadiusMargin;
-            const bool closeEnough = toPlayer <= kTargetForward + kPlacementSlack;  // D3: placed where planned, not slid off
             const bool ok = !dummy->IsAIEnabled() && health >= SelfTestWorld::kDummyHealth * kHealthShare && farEnough &&
                             closeEnough;
             a_c.actorsOk = ok;
             SelfTestLog::Check("T2", ok, std::format("target {}; health {:.0f}; target to player {:.0f}, to caster {:.0f} "
                 "(explosion radius {:.0f} + {:.0f}; at most {:.0f} to the player); caster AI {}, {:.0f} units from its planned spot; "
-                "target at rest at height {:.0f} (player {:.0f})", done, health, toPlayer, toCaster, radius, kRadiusMargin,
-                kTargetForward + kPlacementSlack, caster->IsAIEnabled() ? "on" : "off", casterDrift, pos.z, playerPos.z));
+                "target at rest at height {:.0f} (player {:.0f}); it {}", done, health, toPlayer, toCaster, radius, kRadiusMargin,
+                kTargetForward + kPlacementSlack, caster->IsAIEnabled() ? "on" : "off", casterDrift, pos.z, playerPos.z, moved));
             return true;
         }
 

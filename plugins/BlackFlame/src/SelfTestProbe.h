@@ -119,7 +119,7 @@ namespace BlackFlame::SelfTestProbe
         RE::FormID engineShader = 0;  // what the engine asked for
         std::uint32_t thread = 0;     // the hook's thread
         std::uintptr_t controller = 0;
-        std::uint16_t effectId = 0;  // the active effect's usUniqueID (with the controller: one hit)
+        std::uintptr_t effect = 0;  // the ActiveEffect's address (with the controller: one hit; H3: usUniqueID is 0 on most effects)
         bool swapped = false;
     };
 

@@ -102,8 +102,15 @@ namespace BlackFlame::SelfTest
         bool targetMade = false;                       // T2 turned the target's AI off
         std::string targetMadeText;                    // what MakeTarget said
         float targetLastZ = 0.0f;                      // T2: the target's height at rest
-        std::optional<RE::NiPoint3> targetRestPos;     // T2: where the target was when it was last seen moving
-        std::optional<Clock::time_point> targetStillSince;
+        // T2 rest (H1): XY and Z each anchored where the target was last seen moving on that axis, since then still
+        std::optional<RE::NiPoint3> targetXYAnchor;
+        std::optional<Clock::time_point> targetXYSince;
+        std::optional<float> targetZAnchor;
+        std::optional<Clock::time_point> targetZSince;
+        std::optional<RE::NiPoint3> targetWaitStart;   // where the rest wait began (the T2 line says how far it moved)
+        float targetMaxDrift = 0.0f;                   // the most XY distance from targetWaitStart seen during the wait
+        float targetZMin = 0.0f;
+        float targetZMax = 0.0f;
         RE::NiPoint3 casterSpawn{};                    // where Spawn put the caster
         std::optional<RE::NiPoint3> casterHome;        // its planned spot at the height it stood at in T2
     };
