@@ -313,8 +313,8 @@ namespace BlackFlame
             // Multi-runtime (2026-10-16): on every runtime whose prologue the replay decoder takes. The create data layout
             // was read on 1.7.104 (1.6.1170 unwind-equal); elsewhere it is checked per pointer at runtime (the base by its
             // BGSExplosion vtable, the projectile by its form type, the caster by the ActorMagicCaster vtable, the spell by its
-            // form type), the thunk forwards all four argument registers, and a fault trips the SEH guard once and turns the
-            // swap off for the session. V14: no explosion copy, no detour.
+            // form type), the thunk forwards all four argument registers, and a fault trips the SEH guard once and stops the
+            // swap decision for the session (the detour stays and calls the original). V14: no explosion copy, no detour.
             const auto explosionVtableId = Patch::IdFor(kExplosionVtableSe, kExplosionVtableAe);
             const auto casterVtableId = Patch::IdFor(kActorCasterVtableSe, kActorCasterVtableAe);
             if (config.copyExplosionCreate && !REL::Module::IsAE()) {

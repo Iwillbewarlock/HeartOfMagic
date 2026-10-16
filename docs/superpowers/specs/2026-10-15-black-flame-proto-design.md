@@ -671,3 +671,17 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
 - E1m: 데이터로 고른 모드 불 주문(가장 비싼 효과 PROJ 사본, 파일 순서 맨 뒤), 공식 마스터뿐이면 INFO. 발사 → PROJ 사본, 폭발 사본이 있으면 1.5초 안 폭발 사본.
 - E5: PickCastingArtImpl 직접 호출 5가지 경우, SetCastingArt 자리·세션 카운터 INFO. T0-hooks에 SetCastingArt·해저드 생성·spawn 창.
 - 하지 않음: E6-reload(E3 저장·불러오기에 망토를 얹는 반자동 확인). 한계는 README에 적혀 있다.
+
+### v2 수정 F (6bedbd7..3081385 리뷰)
+
+- 반박(변경 없음): G1-1 XMM·스택 인자 손실 - 1.7.104에서 43829(인자 1), 43954(1), 34360(2), 44108(2) 모두 xmm·스택 인자 없음(verify-signatures.md). G2-2(1) SwapPlacedForm은 MarshallAndDispatch가 IsStoked를 먼저 본다.
+  G1-2(2) Guarded는 결함 뒤 그 단계(교체 결정)를 끈다(SkipDisabled), 우회는 남는다 - 주석을 그렇게 고침.
+- F1 SE: 폭발 생성·해저드 생성·spawn 창·SetCastingArt 자리를 SE에서 설치하지 않는다(SE id는 맞춤 시도뿐). 훅 목록에 SKIPPED, testerMode면 후보 주소 첫 32바이트를 tester.txt에. Launch 사후 쓰기는 SE에서도.
+- F2 spawn 창: 34360은 GuideEffect(경로 표시)였다. AE 36885(1.7.104 0x666ed0, 48 89 5C 24 18, 0x66700b에서 43954 호출) 첫머리 우회로 옮김, SpawnHazardEffect vtable 확인 유지, 기반이 효과 MGEF의 associatedForm일 때만.
+- F3 생성 데이터·창 복원은 범위 가드(SlotSwap, SpawnScope). F4 SetCastingArt: E8 앞 7바이트가 48 8B 90 E8 00 00 00이어야 설치, 썽크 레지스터 4개 전달, 주석(세 pdata 조각, 0xDA).
+- F5 PickCastingArtImpl은 FireSet이 kDataLoaded에 만든 주문→가장 비싼 효과 castingArt 캐시만 읽는다. F7 id 없음도 훅 목록에. F8 남겨 둔 장치는 T0-hooks INFO.
+- F6 카운터(해저드·spawn·SetCastingArt·PlaceAtMe)와 네이티브 래퍼 상태를 tester.txt와 T9 INFO에. F9 testerMode면 자가 시험 뒤에도 줄마다 기록.
+- F10 알림: none 문구 따로, pluginMissing 문구에 모드 순서, 큐에 들어간 뒤에만 표시 처리, kDataLoaded가 확인을 못 했으면 알림 없이 로그. pluginMissing은 사본 없는 항목 절반 이상(1개 이상).
+- F11 E1m: E1a 조준·재시전·일시정지 보정, aimed 주문만(룬은 표적 맞음으로 확인 안 됨), 엔진 규칙의 폭발(면적>0이면 MGEF, 아니면 투사체)과 그 사본 id로 판정, 로드 순서에 없는 파일 건너뜀, 제한 12초.
+- F12 E5: 사슴 없음·다른 castingArt 없음은 not run(PASS 조건 밖), 다른 효과의 실제 castingArt로 확인. F13 패키지 스크립트: PS7, 커밋 안 된 트리 거절(-AllowDirty), 소스보다 오래된 DLL 거절.
+- F14 README_TESTER: request.json·copies.json 회수, 사본 모드가 충돌에서 이기게, MO2 F5, 단계 번호, SE·다른 AE는 진단 실행. F15 README 장치 표·런타임 표·id 표(36885, SE 열 없음).

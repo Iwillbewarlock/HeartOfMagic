@@ -505,7 +505,8 @@ proof). No 1.5.97 exe is on disk: nothing inside an SE function is verified.
   E3 needs the player's quicksave and quickload); 1.6.1170 code inside the functions (pdata/unwind equality only); every SE offset and
   layout; whether another plugin's detour of Launch's prologue (IDRC) chains as expected.
 - The explosion creation detour reads its create data under an SEH guard: a caller with another layout (a pointer
-  that is not a form at +0x00 or +0x20) trips the guard once and turns the creation swap off for the session (log
+  that is not a form at +0x00 or +0x20) trips the guard once and stops the creation swap decision for the session (the
+  detour stays and calls the original; log
   `hardware exception` naming `copy explosion create`); `createLayoutRejected` counts checks that failed cleanly.
 - Script-placed fire takes a copy only when the Launch detour already sees the player link: the shooter, a blame actor,
   or a confirmed script tag. A projectile launched while its source's tag is still pending (a wrapped call on a VM
