@@ -718,17 +718,24 @@ its owner in turn. Every record version ever written is still read.
 - `SetSpellXP` (cheat mode, C++ API, Papyrus) clamps the progress to 0..1 of the required XP
   (`ProgressionMath::ProgressForXP`); 200 XP on a 100 XP spell used to read as 200%. NaN gives 0, so a NaN
   from the API cannot stay in the co-save as the spell's progress.
-- Mastery (`AddXP` with early learning on) fires when the progress is 1.0 and the spell is not unlocked - when
-  it crosses 1.0, or when it was already there and the spell is early learned and the player has it
-  (`ProgressionMath::ShouldMaster`). A spell left at 1.0 by the study overflow below masters on its next XP once
-  ISL has taught it (held for ISL and not taught, it waits: mastery adds no spell); a spell set to 100% by
-  cheat mode and never granted stays "ready" for the Unlock button.
+- Mastery (`AddXP` with early learning on, `ProgressionMath::ShouldMaster`) fires when the progress crosses
+  1.0, or when it was already there, not unlocked, and the spell is early learned and the player has it. A spell
+  held for ISL that ISL has not taught yet (early learned, not owned) is never mastered and gets no power step
+  rename: mastery adds no spell, and ISL teaching it afterwards re-registered a mastered spell as pending. It
+  stays "ready"; `OnStudyComplete` grants it 0 XP once taught, which masters it. A spell left at 1.0 by the
+  study overflow below masters the same way. Crossing 1.0 for a spell not early learned (a copy known) masters
+  as before. A spell set to 100% by cheat mode and never granted stays "ready" for the Unlock button.
 - **Internal sources** (`RegisterModdedXPSource(..., internal = true)`: passive learning) are tracked per spell
-  in `xpFromModded` but `AddSourcedXP` does not cut them with the modded multiplier or cap (`GetSourceCap`
-  answers 100): the modded default cap of 25% cut passive's per-tier caps (up to 50% for Master) at 25%. Passive
-  asks for the amount that lands inside its tier cap after the overall multiplier
-  (`ProgressionMath::PreMultiplierGrant`). A saved config entry for an internal source is ignored
+  in `xpFromModded` but `AddInternalSourcedXP` does not cut them with the modded multiplier or cap
+  (`GetSourceCap` answers 100): the modded default cap of 25% cut passive's per-tier caps (up to 50% for Master)
+  at 25%. Passive asks for the amount that lands inside its tier cap after the overall multiplier
+  (`ProgressionMath::PreMultiplierGrant`). `AddSourcedXP` and `RegisterModdedXPSource` from other mods refuse
+  the reserved names (`IsReservedSourceName`: `passive`, `isl_study`, any internal source), so a mod cannot skip
+  the modded cap by naming itself "passive". A saved config entry for a reserved name is ignored
   (`ApplySavedConfig`), so it cannot come back as an external, capped one.
+- **Source names the co-save can carry.** `ReadEntry` refuses a name over 4096 bytes or more than 4096
+  sources, and with them every later `SLPR` entry. So the API refuses such a name or a new source past the
+  limit (one warning per session), and `WriteEntry` leaves out any that got in anyway (one warning per save).
 
 **Reverse unlock** (2026-09-23): prerequisites run from lower spells to higher ones, but a spell the
 player already knows - a higher spell from a tome, a vendor, another mod - now opens its **direct**

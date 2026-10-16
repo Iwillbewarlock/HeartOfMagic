@@ -322,6 +322,13 @@ void SpellEffectivenessHook::SyncProgress(RE::FormID spellFormId, float progress
     if (m_earlySpellCount.load(std::memory_order_acquire) == 0) {
         return;
     }
+    // Membership under the shared lock first: most targets are not early learned
+    {
+        std::shared_lock<std::shared_mutex> readLock(m_mutex);
+        if (!m_earlyLearnedSpells.contains(spellFormId)) {
+            return;
+        }
+    }
     std::unique_lock<std::shared_mutex> lock(m_mutex);
     if (m_earlyLearnedSpells.contains(spellFormId)) {
         m_progressMirror[spellFormId] = progressFraction * 100.0f;

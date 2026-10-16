@@ -316,6 +316,40 @@ namespace
         const auto rm = ReadRecord(many.bytes, 2);
         Check(rm.result == CS::ReadResult::TooManySources, "modded source count over the limit refused");
 
+        // Oversized names and too many sources are never written: the rest round-trips
+        Check(CS::IsWritableSourceName(std::string(CS::kMaxNameLength, 'x')) &&
+                  !CS::IsWritableSourceName(std::string(CS::kMaxNameLength + 1, 'x')),
+              "source name limit: kMaxNameLength bytes writable, one more not");
+        CS::Entry big;
+        big.formId = 0x50;
+        big.progressPercent = 0.3f;
+        big.modded = { { "ok", 1.0f }, { std::string(CS::kMaxNameLength + 1, 'x'), 2.0f }, { "also", 3.0f } };
+        CS::Entry after;
+        after.formId = 0x51;
+        after.progressPercent = 0.6f;
+        after.modded = { { "book_reading", 4.0f } };
+        ByteWriter bigW;
+        bigW.Put(std::uint32_t{ 2 });
+        std::uint32_t skippedBig = 0;
+        const bool bigOk = CS::WriteEntry(bigW, big, &skippedBig) && CS::WriteEntry(bigW, after);
+        const auto rBig = ReadRecord(bigW.bytes, CS::kProgressVersion);
+        Check(bigOk && skippedBig == 1 && rBig.result == CS::ReadResult::Ok && rBig.entries.size() == 2 &&
+                  rBig.entries[0].modded.size() == 2 && rBig.entries[0].modded[1].first == "also" &&
+                  rBig.entries[1].formId == 0x51 && rBig.entries[1].modded.size() == 1,
+              "oversized source name left out on write; that entry and the next load");
+
+        CS::Entry crowded;
+        crowded.formId = 0x52;
+        for (std::uint32_t i = 0; i <= CS::kMaxModdedSources; ++i) crowded.modded.emplace_back(std::to_string(i), 1.0f);
+        ByteWriter crowdW;
+        crowdW.Put(std::uint32_t{ 2 });
+        std::uint32_t skippedCrowd = 0;
+        const bool crowdOk = CS::WriteEntry(crowdW, crowded, &skippedCrowd) && CS::WriteEntry(crowdW, after);
+        const auto rCrowd = ReadRecord(crowdW.bytes, CS::kProgressVersion);
+        Check(crowdOk && skippedCrowd == 1 && rCrowd.result == CS::ReadResult::Ok && rCrowd.entries.size() == 2 &&
+                  rCrowd.entries[0].modded.size() == CS::kMaxModdedSources && rCrowd.entries[1].formId == 0x51,
+              "sources past kMaxModdedSources left out on write; the next entry loads");
+
         const std::vector<std::uint8_t> empty;
         Check(ReadRecord(empty, 3).result == CS::ReadResult::ShortRead, "empty record: short read, nothing kept");
 
@@ -413,14 +447,21 @@ namespace
               "no-grant: a save already at 1.0 is not lowered; no required XP gives 0");
 
         // Mastery
-        Check(PM::ShouldMaster(0.95f, 1.0f, false, false), "mastery: crossing 1.0 masters");
-        Check(PM::ShouldMaster(1.0f, 1.0f, false, true),
-              "mastery: stuck at 1.0, early learned and known (ISL overflow, taught) masters");
-        Check(!PM::ShouldMaster(1.0f, 1.0f, false, false),
-              "mastery: stuck at 1.0, held for ISL and not taught, or never granted (cheat 100%), waits");
-        Check(PM::ShouldMaster(0.95f, 1.0f, true, false),
+        // ShouldMaster(old, new, unlocked, earlyLearned, playerHasSpell)
+        Check(PM::ShouldMaster(0.95f, 1.0f, false, true, true), "mastery: weakened spell crossing 1.0 masters");
+        Check(PM::ShouldMaster(0.95f, 1.0f, false, false, false),
+              "mastery: crossing 1.0 for a spell not early learned (a copy known) masters as before");
+        Check(!PM::ShouldMaster(0.95f, 1.0f, false, true, false),
+              "mastery: crossing 1.0 while held for ISL and not taught stays ready");
+        Check(PM::ShouldMaster(1.0f, 1.0f, false, true, true),
+              "mastery: stuck at 1.0, early learned and taught (ISL overflow) masters");
+        Check(!PM::ShouldMaster(1.0f, 1.0f, false, true, false),
+              "mastery: stuck at 1.0, held for ISL and not taught, waits");
+        Check(!PM::ShouldMaster(1.0f, 1.0f, false, false, false),
+              "mastery: stuck at 1.0, never granted (cheat 100%), stays ready for Unlock");
+        Check(PM::ShouldMaster(0.95f, 1.0f, true, false, true),
               "mastery: an unlocked spell lowered by cheat mode masters again when it crosses 1.0");
-        Check(!PM::ShouldMaster(1.0f, 1.0f, true, true) && !PM::ShouldMaster(0.5f, 0.99f, false, true),
+        Check(!PM::ShouldMaster(1.0f, 1.0f, true, true, true) && !PM::ShouldMaster(0.5f, 0.99f, false, true, true),
               "mastery: already unlocked at 1.0, or below 1.0, does not master");
     }
 }

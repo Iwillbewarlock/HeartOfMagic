@@ -52,16 +52,23 @@ void ProgressionManager::OnGameSaved(SKSE::SerializationInterface* a_intfc)
 
     // Each entry in the v2 layout 1.5.0 reads (ProgressionCoSave.h): percent,
     // unlocked, the modded sources' XP. The built-in sources' XP goes in SLPX below.
+    uint32_t skippedSources = 0;
     for (auto& [formId, progress] : m_spellProgress) {
         ProgressionCoSave::Entry entry;
         entry.formId = formId;
         entry.progressPercent = progress.progressPercent;
         entry.unlocked = progress.unlocked;
         entry.modded.assign(progress.xpFromModded.begin(), progress.xpFromModded.end());
-        if (!ProgressionCoSave::WriteEntry(*a_intfc, entry)) {
+        uint32_t skipped = 0;
+        if (!ProgressionCoSave::WriteEntry(*a_intfc, entry, &skipped)) {
             logger::error("ProgressionManager: Failed to write progress entry {:08X}", formId);
             return;
         }
+        skippedSources += skipped;
+    }
+    if (skippedSources > 0) {
+        logger::warn("ProgressionManager: {} modded XP source counts not saved (name too long or too many sources)",
+                     skippedSources);
     }
 
     logger::info("ProgressionManager: Saved {} spell progress entries to co-save (version {})", numProgress,
@@ -164,7 +171,7 @@ bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,
                     logger::error("ProgressionManager: Failed to read schoolLen at target {}", i);
                     break;
                 }
-                if (schoolLen > 4096) {
+                if (schoolLen > ProgressionCoSave::kMaxNameLength) {
                     logger::error("ProgressionManager: schoolLen {} exceeds limit at target {}", schoolLen, i);
                     break;
                 }

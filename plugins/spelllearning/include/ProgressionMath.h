@@ -17,6 +17,9 @@ namespace ProgressionMath
     // last step comes from a cast once ISL has taught it (ProgressionManager::AddXP).
     inline constexpr float kNoGrantMaxProgress = 0.99f;
 
+    // A cap in percent of the required XP that cuts nothing (self casts, internal sources)
+    inline constexpr float kNoCapPercent = 100.0f;
+
     // What is left under a cap: never negative
     [[nodiscard]] constexpr float CapRemaining(float capXP, float trackedXP) noexcept
     {
@@ -68,17 +71,20 @@ namespace ProgressionMath
         return (std::max)(oldProgress, (std::min)(added, kNoGrantMaxProgress));
     }
 
-    // AddXP with early learning on: mastery fires when progress crosses 1.0 now,
-    // or when it was already there, not unlocked (a study overflow saved by an
-    // older version left it at 1.0 unlearned), and the spell is early learned AND
-    // the player has it (weakened). A spell held
-    // for ISL that ISL has not taught yet waits: mastery does not add the spell. A
-    // spell set to 100% by cheat mode and never granted stays "ready" for Unlock.
+    // AddXP with early learning on: mastery fires when progress crosses 1.0 now
+    // (even for an unlocked spell lowered by cheat mode, as before), or when it was
+    // already there, not unlocked (a study overflow saved by an older version left
+    // it at 1.0 unlearned), and the spell is early learned and the player has it.
+    // Never for a spell held for ISL that ISL has not taught yet (early learned,
+    // not owned): mastery adds no spell, and ISL teaching it later would put a
+    // mastered spell back in the early set - it stays "ready" until taught, and the
+    // next XP after that masters it. A spell set to 100% by cheat mode and never
+    // granted stays "ready" for Unlock. Crossing for a spell that is not early
+    // learned (a copy known) masters as before, owned or not.
     [[nodiscard]] constexpr bool ShouldMaster(float oldProgress, float newProgress, bool unlocked,
-                                              bool earlyLearnedAndKnown) noexcept
+                                              bool earlyLearned, bool playerHasSpell) noexcept
     {
-        // Crossing 1.0 masters even an unlocked spell (a cheat-lowered one climbing
-        // back), as before: its target is cleared and the panel told
-        return newProgress >= 1.0f && (oldProgress < 1.0f || (!unlocked && earlyLearnedAndKnown));
+        if (newProgress < 1.0f || (earlyLearned && !playerHasSpell)) return false;
+        return oldProgress < 1.0f || (!unlocked && earlyLearned);
     }
 }

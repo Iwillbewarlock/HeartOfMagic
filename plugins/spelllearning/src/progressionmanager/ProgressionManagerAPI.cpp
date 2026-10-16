@@ -10,11 +10,45 @@
 // PUBLIC MODDER API
 // =============================================================================
 
+bool ProgressionManager::IsReservedSourceName(const std::string& sourceName) const
+{
+    if (sourceName == kPassiveSource || sourceName == kStudySource) return true;
+    const auto it = m_xpSettings.moddedSources.find(sourceName);
+    return it != m_xpSettings.moddedSources.end() && it->second.internal;
+}
+
+bool ProgressionManager::AcceptExternalSourceName(const std::string& sourceName) const
+{
+    // Once per session: a mod calling in a loop would fill the log
+    static bool s_warned = false;
+    const char* reason = nullptr;
+    if (IsReservedSourceName(sourceName)) {
+        reason = "it is one of Heart of Magic's own sources";
+    } else if (!ProgressionCoSave::IsWritableSourceName(sourceName)) {
+        reason = "the name is longer than the co-save can hold";
+    }
+    if (!reason) return true;
+    if (!s_warned) {
+        s_warned = true;
+        logger::warn("ProgressionManager: XP source '{:.64}' ({} bytes) refused: {} (further refusals not logged)",
+                     sourceName, sourceName.size(), reason);
+    }
+    return false;
+}
+
 bool ProgressionManager::RegisterModdedXPSource(const std::string& sourceId, const std::string& displayName, bool internal)
 {
     // Check if already registered
     if (m_xpSettings.moddedSources.find(sourceId) != m_xpSettings.moddedSources.end()) {
         logger::info("ProgressionManager: Modded source '{}' already registered", sourceId);
+        return false;
+    }
+    if (!internal && !AcceptExternalSourceName(sourceId)) {
+        return false;
+    }
+    if (m_xpSettings.moddedSources.size() >= ProgressionCoSave::kMaxModdedSources) {
+        logger::warn("ProgressionManager: XP source '{:.64}' not registered: {} sources already", sourceId,
+                     m_xpSettings.moddedSources.size());
         return false;
     }
 
@@ -43,7 +77,20 @@ bool ProgressionManager::RegisterModdedXPSource(const std::string& sourceId, con
 
 float ProgressionManager::AddSourcedXP(RE::FormID targetId, float amount, const std::string& sourceName)
 {
-    if (targetId == 0 || amount <= 0.0f) return 0.0f;
+    return AddSourcedXPImpl(targetId, amount, sourceName, false);
+}
+
+float ProgressionManager::AddInternalSourcedXP(RE::FormID targetId, float amount, const std::string& sourceName)
+{
+    return AddSourcedXPImpl(targetId, amount, sourceName, true);
+}
+
+float ProgressionManager::AddSourcedXPImpl(RE::FormID targetId, float amount, const std::string& sourceName,
+                                           bool internalCaller)
+{
+    if (targetId == 0 || !(amount > 0.0f)) return 0.0f;
+    const bool builtIn = sourceName == "any" || sourceName == "school" || sourceName == "direct" || sourceName == "self";
+    if (!builtIn && !internalCaller && !AcceptExternalSourceName(sourceName)) return 0.0f;
 
     auto& progress = EnsureProgress(targetId);
 
@@ -55,7 +102,7 @@ float ProgressionManager::AddSourcedXP(RE::FormID targetId, float amount, const 
     float adjustedAmount = amount * rates.globalMultiplier;
 
     // Built-in sources
-    if (sourceName == "any" || sourceName == "school" || sourceName == "direct" || sourceName == "self") {
+    if (builtIn) {
         float maxFromSource = 0.0f;
         float currentFromSource = 0.0f;
 
@@ -74,7 +121,7 @@ float ProgressionManager::AddSourcedXP(RE::FormID targetId, float amount, const 
         } else {  // "self" - no cap
             // Self-casting uses the direct multiplier — casting the target spell IS direct interaction
             adjustedAmount *= rates.multiplierDirect;
-            maxFromSource = progress.requiredXP;
+            maxFromSource = progress.requiredXP * (ProgressionMath::kNoCapPercent / 100.0f);
             currentFromSource = progress.xpFromSelf;
         }
 
@@ -90,9 +137,15 @@ float ProgressionManager::AddSourcedXP(RE::FormID targetId, float amount, const 
     }
     // Modded sources
     else {
-        // Auto-register if unknown
-        if (m_xpSettings.moddedSources.find(sourceName) == m_xpSettings.moddedSources.end()) {
-            RegisterModdedXPSource(sourceName, sourceName);
+        // Auto-register if unknown (refused when the registry is full)
+        if (m_xpSettings.moddedSources.find(sourceName) == m_xpSettings.moddedSources.end() &&
+            !RegisterModdedXPSource(sourceName, sourceName, internalCaller)) {
+            return 0.0f;
+        }
+        // A spell keeps at most kMaxModdedSources sources: the co-save reads no more
+        if (!progress.xpFromModded.contains(sourceName) &&
+            progress.xpFromModded.size() >= ProgressionCoSave::kMaxModdedSources) {
+            return 0.0f;
         }
 
         auto& srcConfig = m_xpSettings.moddedSources[sourceName];
@@ -151,13 +204,13 @@ float ProgressionManager::GetSourceCap(const std::string& sourceName) const
     if (sourceName == "any")    return m_xpSettings.capAny;
     if (sourceName == "school") return m_xpSettings.capSchool;
     if (sourceName == "direct") return m_xpSettings.capDirect;
-    if (sourceName == "self")   return 100.0f;  // Self has no cap
+    if (sourceName == "self")   return ProgressionMath::kNoCapPercent;  // Self has no cap
 
     // Check modded sources
     auto it = m_xpSettings.moddedSources.find(sourceName);
     if (it != m_xpSettings.moddedSources.end()) {
         // An internal source is not capped here (AddSourcedXP): its own rules apply
-        return it->second.internal ? 100.0f : it->second.cap;
+        return it->second.internal ? ProgressionMath::kNoCapPercent : it->second.cap;
     }
 
     return 0.0f;  // Unknown source

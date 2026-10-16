@@ -380,6 +380,13 @@ namespace DESTIntegration {
                              "now at weakened power, name/description modified",
                              a_spell->GetName(), formId);
 
+                // Cast XP may have taken it to 100% while ISL still held it: it was
+                // kept "ready", not mastered (ProgressionMath::ShouldMaster). Taught
+                // now, a zero grant masters it
+                if (auto* pm = ProgressionManager::GetSingleton(); pm->GetProgressPercent(formId) >= 1.0f) {
+                    pm->AddXP(formId, 0.0f);
+                }
+
                 // Notify UI
                 UIManager::GetSingleton()->NotifyProgressUpdate(formIdStr);
             });

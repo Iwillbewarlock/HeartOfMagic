@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -89,6 +90,13 @@ namespace ProgressionCoSave
         return "unknown";
     }
 
+    // A modded source name the reader takes back (ReadEntry refuses longer ones,
+    // and every entry after it in the record with them)
+    [[nodiscard]] constexpr bool IsWritableSourceName(std::string_view name) noexcept
+    {
+        return name.size() <= kMaxNameLength;
+    }
+
     [[nodiscard]] constexpr bool IsReadableProgressVersion(std::uint32_t version) noexcept
     {
         return version >= 1 && version <= kMaxProgressReadVersion;
@@ -117,19 +125,29 @@ namespace ProgressionCoSave
         }
     }
 
-    // Writes one entry in the kProgressVersion (v2) layout. False when a write failed.
+    // Writes one entry in the kProgressVersion (v2) layout. A modded source the
+    // reader would refuse - a name over kMaxNameLength, or past kMaxModdedSources -
+    // is left out (counted in `skipped`): written, it would cost every entry after
+    // it on load. False when a write failed.
     template <class Stream>
-    [[nodiscard]] bool WriteEntry(Stream& out, const Entry& entry)
+    [[nodiscard]] bool WriteEntry(Stream& out, const Entry& entry, std::uint32_t* skipped = nullptr)
     {
+        std::vector<const std::pair<std::string, float>*> sources;
+        sources.reserve(entry.modded.size());
+        for (const auto& source : entry.modded) {
+            if (IsWritableSourceName(source.first) && sources.size() < kMaxModdedSources) sources.push_back(&source);
+        }
+        if (skipped) *skipped = static_cast<std::uint32_t>(entry.modded.size() - sources.size());
+
         const std::uint8_t unlocked = entry.unlocked ? 1 : 0;
         bool ok = Detail::Write(out, entry.formId) && Detail::Write(out, entry.progressPercent) &&
                   Detail::Write(out, unlocked);
-        const auto count = static_cast<std::uint32_t>(entry.modded.size());
+        const auto count = static_cast<std::uint32_t>(sources.size());
         ok = ok && Detail::Write(out, count);
-        for (const auto& [name, xp] : entry.modded) {
-            const auto length = static_cast<std::uint32_t>(name.size());
-            ok = ok && Detail::Write(out, length) && (length == 0 || out.WriteRecordData(name.data(), length)) &&
-                 Detail::Write(out, xp);
+        for (const auto* source : sources) {
+            const auto length = static_cast<std::uint32_t>(source->first.size());
+            ok = ok && Detail::Write(out, length) &&
+                 (length == 0 || out.WriteRecordData(source->first.data(), length)) && Detail::Write(out, source->second);
         }
         return ok;
     }

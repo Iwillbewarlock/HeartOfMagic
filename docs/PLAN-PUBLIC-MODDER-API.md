@@ -45,7 +45,11 @@ When an external mod calls `AddSourcedXP` with a **custom source name** (anythin
 The plugin's own internal sources (passive learning: `RegisterModdedXPSource(..., internal = true)`) get no UI
 controls, and `AddSourcedXP` tracks their XP per spell without applying the source multiplier or cap above -
 they apply their own (passive: a cap per tier). `GetSourceCap` answers 100 for them (2026-10-17; before, the
-default cap of 25% cut passive learning short at 25% whatever its tier caps said).
+default cap of 25% cut passive learning short at 25% whatever its tier caps said). The plugin grants them
+through `AddInternalSourcedXP`; `AddSourcedXP` and `RegisterXPSource` from other mods (C++ API, Papyrus)
+refuse those names (`passive`, `isl_study`, any internal source) so a mod cannot skip the modded cap, a name
+over 4096 bytes (the co-save could not read it back), and a new source once 4096 are registered or a spell
+holds 4096 - they grant 0 / return false and log one warning per session.
 
 Mods can also **explicitly register** before granting XP (recommended -- lets them set a display name):
 

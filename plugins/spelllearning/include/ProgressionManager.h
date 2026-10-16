@@ -263,21 +263,34 @@ public:
     // PUBLIC MODDER API
     // =========================================================================
 
-    // Grant XP through the cap system with named source.
+    // Grant XP through the cap system with named source (other mods: C++ API, Papyrus).
     // Built-in sources: "any", "school", "direct", "self"
-    // Custom sources: any string (auto-registers if unknown)
+    // Custom sources: any string (auto-registers if unknown). Refused (0, logged
+    // once): the plugin's own internal source names (IsReservedSourceName), a name
+    // over ProgressionCoSave::kMaxNameLength bytes, and a new name once a spell or
+    // the registry holds kMaxModdedSources - the co-save could not read it back.
     // Returns actual XP granted after caps/multipliers.
     float AddSourcedXP(RE::FormID targetId, float amount, const std::string& sourceName = "direct");
+
+    // The plugin's own internal sources (passive learning): tracked per spell, not
+    // cut by the modded cap or multiplier - the source applies its own.
+    float AddInternalSourcedXP(RE::FormID targetId, float amount, const std::string& sourceName);
 
     // Grant raw XP bypassing ALL caps and multipliers.
     float AddRawXP(RE::FormID targetId, float amount);
 
     // Register a named modded XP source (creates UI controls).
-    // Returns true if newly registered, false if already existed.
+    // Returns true if newly registered, false if already existed or refused (the
+    // same names AddSourcedXP refuses, for an external source).
     // Internal sources (passive learning) don't appear in the modded XP sources UI;
-    // AddSourcedXP tracks their XP per spell but does not cut it with the modded cap
-    // or multiplier - the source applies its own (passive: a cap per tier).
+    // AddInternalSourcedXP tracks their XP per spell but does not cut it with the
+    // modded cap or multiplier - the source applies its own (passive: a cap per tier).
     bool RegisterModdedXPSource(const std::string& sourceId, const std::string& displayName, bool internal = false);
+
+    // Names only the plugin uses: kPassiveSource, kStudySource, any source
+    // registered as internal. Other mods may not grant XP or register under them.
+    static constexpr const char* kPassiveSource = "passive";
+    bool IsReservedSourceName(const std::string& sourceName) const;
 
     // Get the cap value for a source (works for built-in and modded)
     float GetSourceCap(const std::string& sourceName) const;
@@ -297,6 +310,11 @@ private:
     // XP (GetRequiredXP: tier, reverse unlock share) - not the struct's 100, which
     // made a Master tome's read worth 100% of an entry nobody had sized yet.
     SpellProgress& EnsureProgress(RE::FormID formId);
+
+    // AddSourcedXP / AddInternalSourcedXP: internalCaller lets the internal names through
+    float AddSourcedXPImpl(RE::FormID targetId, float amount, const std::string& sourceName, bool internalCaller);
+    // An external source name the co-save can carry (length) and not reserved; logs once
+    bool AcceptExternalSourceName(const std::string& sourceName) const;
 
     // One spell is the learning target of one school at most: a spell under two keys
     // earned XP twice per cast (ProgressionManagerCore.cpp). Every key dropped is

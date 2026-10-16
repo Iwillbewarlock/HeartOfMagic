@@ -20,7 +20,7 @@ void PassiveLearningSource::Initialize() {
     s_singleton = this;
 
     // Register as an internal XP source for per-spell cap tracking (not shown in modded UI)
-    ProgressionManager::GetSingleton()->RegisterModdedXPSource("passive", "Passive Learning", true);
+    ProgressionManager::GetSingleton()->RegisterModdedXPSource(ProgressionManager::kPassiveSource, "Passive Learning", true);
 
     auto* calendar = RE::Calendar::GetSingleton();
     if (calendar) {
@@ -140,7 +140,7 @@ void PassiveLearningSource::GrantPassiveXP(float gameHoursElapsed) {
 
         // Check how much passive XP has already been granted
         float alreadyGranted = 0.0f;
-        auto it = progress.xpFromModded.find("passive");
+        auto it = progress.xpFromModded.find(ProgressionManager::kPassiveSource);
         if (it != progress.xpFromModded.end()) {
             alreadyGranted = it->second;
         }
@@ -148,7 +148,7 @@ void PassiveLearningSource::GrantPassiveXP(float gameHoursElapsed) {
         float remaining = ProgressionMath::CapRemaining(maxPassiveXP, alreadyGranted);
         if (remaining <= 0.0f) continue;
 
-        // The tier cap is this source's only cap: AddSourcedXP tracks "passive" (an
+        // The tier cap is this source's only cap: AddInternalSourcedXP tracks "passive" (an
         // internal source) but neither caps it nor scales it beyond the overall
         // multiplier, which it applies after this - so ask for the amount that
         // lands inside the cap once multiplied
@@ -156,7 +156,7 @@ void PassiveLearningSource::GrantPassiveXP(float gameHoursElapsed) {
             ProgressionMath::PreMultiplierGrant(baseXP, remaining, pm->GetGainRates(targetId).globalMultiplier);
         if (xpToGrant <= 0.0f) continue;
 
-        float actual = pm->AddSourcedXP(targetId, xpToGrant, "passive");
+        float actual = pm->AddInternalSourcedXP(targetId, xpToGrant, ProgressionManager::kPassiveSource);
         if (actual > 0.0f) {
             granted++;
             logger::trace("PassiveLearningSource: Granted {:.1f} XP to {:08X} ({:.1f} hrs elapsed)",

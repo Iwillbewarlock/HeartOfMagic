@@ -322,16 +322,18 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
         }
 
         // Read before the step check: reaching the last step there masters the
-        // spell's effect and drops it from the early-learned set. Held for ISL
-        // (in the set, not yet taught) does not count: mastery adds no spell
+        // spell's effect and drops it from the early-learned set. A spell held for
+        // ISL (in the set, not yet taught) is neither renamed nor mastered until ISL
+        // teaches it - the same rule as OnStudyProgress (ProgressionMath::ShouldMaster)
         auto* player = RE::PlayerCharacter::GetSingleton();
         auto* targetSpell = RE::TESForm::LookupByID<RE::SpellItem>(targetSpellId);
-        const bool earlyLearned = effectivenessHook->IsEarlyLearnedSpell(targetSpellId) && player && targetSpell &&
-                                  player->HasSpell(targetSpell);
+        const bool earlyLearned = effectivenessHook->IsEarlyLearnedSpell(targetSpellId);
+        const bool playerHasSpell = player && targetSpell && player->HasSpell(targetSpell);
+        const bool heldForISL = earlyLearned && !playerHasSpell;
 
         // Check if power step changed (for display updates)
         // This only updates name/description when crossing step thresholds
-        bool stepChanged = effectivenessHook->CheckAndUpdatePowerStep(targetSpellId);
+        bool stepChanged = !heldForISL && effectivenessHook->CheckAndUpdatePowerStep(targetSpellId);
         if (stepChanged) {
             int currentStep = effectivenessHook->GetCurrentPowerStep(targetSpellId);
             float effectiveness = effectivenessHook->GetSteppedEffectiveness(targetSpellId);
@@ -355,7 +357,7 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
 
         // 100% and not yet unlocked: just reached, or reached before without
         // mastering (ProgressionMath::ShouldMaster)
-        if (ProgressionMath::ShouldMaster(oldProgress, newProgress, progress.unlocked, earlyLearned)) {
+        if (ProgressionMath::ShouldMaster(oldProgress, newProgress, progress.unlocked, earlyLearned, playerHasSpell)) {
             // Mark as mastered - this removes the nerf
             effectivenessHook->MarkMastered(targetSpellId);
             progress.unlocked = true;  // Also mark as unlocked in progress system
