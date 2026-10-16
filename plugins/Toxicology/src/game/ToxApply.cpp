@@ -56,6 +56,7 @@ namespace
     struct Application
     {
         double lastActionSeconds = kNeverActed;
+        bool foreignLogged = false;  // kForeignPresent logged once until the next refresh or cast
         std::vector<OwnedEffect> effects;
     };
 
@@ -201,11 +202,13 @@ namespace
     ToxGame::ApplyOutcome Decide(RE::Actor* a_target, RE::AlchemyItem* a_poison, RE::Actor* a_player,
         Application& a_app, std::size_t& a_count)
     {
-        auto* list = a_target->GetActiveEffectList();  // RE/A/Actor.h:373 (SE/AE vtable, no VR shim)
-        if (!list) return ToxGame::ApplyOutcome::kForeignPresent;
+        // RE/A/Actor.h:373 (SE/AE vtable, no VR shim). Null = no effects yet (CommonLib's own
+        // MagicTarget::HasEffectWithArchetype checks it the same way): nothing to refresh, cast.
+        auto* list = a_target->GetActiveEffectList();
+        if (!list) a_app.effects.clear();
 
         // Step 1: our effects still on the target
-        auto live = TakeLiveOwned(*list, a_poison, a_app.effects);
+        auto live = list ? TakeLiveOwned(*list, a_poison, a_app.effects) : std::vector<RE::ActiveEffect*>{};
         if (!live.empty()) {
             if constexpr (kRefreshByRecast) {
                 // Self test step 3 fallback: dispel ours, then cast again below
@@ -216,15 +219,18 @@ namespace
                 a_count = live.size();
                 return ToxGame::ApplyOutcome::kRefreshed;
             }
-        } else if (HasLiveEffectOf(*list, a_poison)) {
+        } else if (list && HasLiveEffectOf(*list, a_poison)) {
             // Step 2: the same poison from someone else (a coated weapon, an effect from before the load)
             return ToxGame::ApplyOutcome::kForeignPresent;
         }
 
-        // Step 3: cast, and remember the effects it created
-        const auto before = EffectsOf(*list, a_poison);
+        // Step 3: cast, and remember the effects it created (the list fetched again: it may only
+        // exist once the cast added something)
+        const auto before = list ? EffectsOf(*list, a_poison) : std::vector<const RE::ActiveEffect*>{};
         if (!CastPoison(a_target, a_poison, a_player)) return ToxGame::ApplyOutcome::kNoCaster;
-        auto created = NewOwnedEffects(*list, a_poison, before, a_player->GetHandle(), a_target->GetHandle());
+        auto* after = a_target->GetActiveEffectList();
+        if (!after) return ToxGame::ApplyOutcome::kCastNoEffect;
+        auto created = NewOwnedEffects(*after, a_poison, before, a_player->GetHandle(), a_target->GetHandle());
         a_count = created.size();
         a_app.effects.insert(a_app.effects.end(), created.begin(), created.end());
         return created.empty() ? ToxGame::ApplyOutcome::kCastNoEffect : ToxGame::ApplyOutcome::kCast;
@@ -248,6 +254,12 @@ ToxGame::ApplyOutcome ToxGame::ApplyOrRefresh(RE::Actor* a_target, RE::AlchemyIt
     // included, so a missing effect is not cast again on every hit)
     if (outcome == ApplyOutcome::kRefreshed || outcome == ApplyOutcome::kCast || outcome == ApplyOutcome::kCastNoEffect) {
         app.lastActionSeconds = now;
+        app.foreignLogged = false;
+    }
+    // A foreign effect is not acted on, so no interval limits these hits: log it once per stretch
+    if (outcome == ApplyOutcome::kForeignPresent) {
+        if (app.foreignLogged) return outcome;
+        app.foreignLogged = true;
     }
     LogOutcome(outcome, a_target, a_poison, count);
     return outcome;
