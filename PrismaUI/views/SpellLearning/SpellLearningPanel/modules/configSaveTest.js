@@ -7,9 +7,10 @@
  * save wrote that over the file, and an autosave still waiting when the panel
  * closed. Runs settingsPanel.js's own onUnifiedConfigLoaded, saveUnifiedConfig,
  * autoSaveSettings and saveSettings on a fresh `settings` and `state` (state.js
- * run in a context of its own), with the C++ bridge and the timers replaced.
+ * run in a context of its own), with the C++ bridge and the timers replaced. Also
+ * migrateLoweredWhitelist (plugin list entries an older panel lowered).
  *
- * Depends on: constants.js (global, run-tests.js), state.js, settingsPanel.js - under
+ * Depends on: constants.js (global, run-tests.js), state.js, settingsPanel.js, cppStatusKeys.js - under
  * node this file runs settingsPanel.js into the global scope the way the page's
  * script tag does. Swaps `settings`, `state`, `callCpp`, `setTimeout`,
  * `clearTimeout`, DesignPresets, the setting modules and the few page functions
@@ -37,8 +38,10 @@ var ConfigSaveTest = {
     _load: function(g) {
         if (typeof require !== 'function') return false;
         var vm = require('vm'), fs = require('fs'), path = require('path');
-        if (typeof g.noteConfigLoadResult !== 'function') {
-            var file = path.join(__dirname, 'settingsPanel.js');
+        var files = [['settingsPanel.js', 'noteConfigLoadResult'], ['cppStatusKeys.js', 'cppStatusKey']];
+        for (var i = 0; i < files.length; i++) {
+            if (typeof g[files[i][1]] === 'function') continue;
+            var file = path.join(__dirname, files[i][0]);
             vm.runInThisContext(fs.readFileSync(file, 'utf8'), { filename: file });
         }
         return typeof g.onUnifiedConfigLoaded === 'function';
@@ -58,11 +61,12 @@ var ConfigSaveTest = {
     /** Runs fn(env) with the page's globals replaced; env.sent lists [method, text] */
     _with: function(g, fn) {
         var self = this, fresh = this._freshState();
-        var env = { sent: [], timers: [], cleared: [], throwIn: null };
+        var env = { sent: [], status: [], timers: [], cleared: [], throwIn: null };
         var over = {
             settings: fresh.settings,
             state: fresh.state,
             callCpp: function(method, text) { env.sent.push([method, text]); },
+            updateStatus: function(message) { env.status.push(message); },
             setTimeout: function(cb, ms) { env.timers.push({ cb: cb, ms: ms }); return env.timers.length; },
             clearTimeout: function(id) { env.cleared.push(id); },
             DesignPresets: { DEFAULT_ID: 'classic', savedChoice: function() { return 'classic'; },
@@ -151,6 +155,9 @@ var ConfigSaveTest = {
             this.check(this._saves(env).length === 0, 'load failed part way: no save goes out (the file keeps the blacklist)');
             this.check(logged.length === 1 && /NOT saved/.test(JSON.parse(logged[0][1]).message),
                 'load failed part way: the reason goes to SpellLearning.log as an error');
+            this.check(env.status.length === 1 && typeof cppStatusKey === 'function' && cppStatusKey(env.status[0]) === 'status.configNotSaved' &&
+                env.status[0].indexOf('Error') === 0 && !/saved/i.test(env.status[0]),
+                'load failed part way: the status bar shows the DLL\'s translated "changes are NOT written" line, as an error');
 
             env.throwIn = null;
             g.onUnifiedConfigLoaded(JSON.stringify({ xpCapAny: 9 }));
@@ -212,6 +219,24 @@ var ConfigSaveTest = {
         this.check(/saveSettings\(\)/.test(hide), 'onPanelHiding saves through saveSettings');
     },
 
+    _testWhitelistMigration: function(g) {
+        this._with(g, function(env) {
+            var list = [{ plugin: 'заклинания.esp', enabled: false }, { plugin: 'skyrim.esm', enabled: true },
+                        { plugin: 'Übermagic.esp', enabled: false }];
+            var n = g.migrateLoweredWhitelist(list, ['Заклинания.esp', 'Skyrim.esm', 'Übermagic.esp']);
+            this.check(n === 1 && list[0].plugin === 'Заклинания.esp' && list[0].enabled === false,
+                'plugin list: a Cyrillic name an older panel lowered takes the scanned name, still off');
+            this.check(list[1].plugin === 'skyrim.esm' && list[2].plugin === 'Übermagic.esp',
+                'plugin list: an ASCII lowered name (folds the same) and an exact name are left alone');
+            this.check(env.timers.length === 1, 'plugin list: a rename is saved (autosave)');
+            var twice = [{ plugin: 'Заклинания.esp', enabled: true }, { plugin: 'заклинания.esp', enabled: false }];
+            this.check(g.migrateLoweredWhitelist(twice, ['Заклинания.esp']) === 0 && twice[1].plugin === 'заклинания.esp',
+                'plugin list: no rename when the scanned name has its own entry');
+            this.check(g.migrateLoweredWhitelist(null, ['A.esp']) === 0 && g.migrateLoweredWhitelist([], []) === 0,
+                'plugin list: no list or no scan: nothing done');
+        });
+    },
+
     run: function() {
         this.passed = 0;
         this.failed = 0;
@@ -224,6 +249,7 @@ var ConfigSaveTest = {
         this._testXpCaps(g);
         this._testLoadFailedBlocksSave(g);
         this._testFlushOnHide(g);
+        this._testWhitelistMigration(g);
         return { passed: this.passed, failed: this.failed };
     }
 };

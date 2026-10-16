@@ -26,9 +26,9 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `orphanRepair.js` | 456 | `analyzeOrphans` / `repairOrphans` / `updateOrphanRepairButton`: spells the loaded tree cannot reach and prerequisite links to spells it does not have, and the orphan repair button (split from treeParser.js, 2026-09-30) |
 | `spellNames.js` | 138 | `SpellNames` / `spellDisplayName(id, node, shown)`: a spell's name in the card's lists (Unlocks, prerequisites, Locks, paths to other schools); a name more than one different spell in the tree carries (locked ones counted; an edit-mode duplicate is its original) gets its plugin, `불씨조각 (NoviceBoltSpells.esp)`; `???` while hidden |
 | `wheelRenderer.js` | 2757 | SVG radial tree rendering engine |
-| `settingsPanel.js` | 2963 | Settings UI initialization and persistence |
+| `settingsPanel.js` | 3002 | Settings UI initialization and persistence |
 | `treeViewerUI.js` | 508 | Tree viewer setup, node lookup cache, SmartRenderer, Import dialog and tree merge |
-| `treeLoad.js` | 565 | Loading a tree: the trusted fast path (`_loadTrustedTree`) and `loadTreeData`; `sendTreePrerequisites` (the tree's prerequisites to C++, also after edit mode) |
+| `treeLoad.js` | 585 | Loading a tree: the trusted fast path (`_loadTrustedTree`) and `loadTreeData`; `sendTreePrerequisites` (the tree's prerequisites to C++, also after edit mode; an edit mode copy `_dup_` sent as its spell or not at all) |
 | `spellCardView.js` | 539 | Selecting a spell and drawing the spell card (`showSpellDetails`, `renderSpellCard`, `clearSpellSelection`) |
 | `spellProgressView.js` | 216 | The card's progress bar and Learn/Unlock buttons, `selectNodeById` |
 | `findSpell.js` | 300 | Find Spell (the tool bar's magnifier toggles it): dropdown under the bar, list, keyboard navigation, pan to the spell; `dismissFindSpell` (tab switch, panel close, tree load) |
@@ -105,10 +105,10 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `autoBuildFlowTest.js` | 534 | Node tests against the panel's own code (treeLoad, buttonHandlers, proceduralTreeBuilder): the load order recorded only for a build's save, the waits, every yield, an empty tree, scans, a throwing step, the Sun cache, the config last, the player's Build queued behind the run's; run by `run-tests.js` |
 | `autoBuildGuardTest.js` | 522 | Node tests for the guards: no scan debounce, a player's build under way, a partial or unread config (`configNotRead`), the progress shown on opening, Apply/Clear refused while building, stale lock scores dropped, the dev harness save, a run ending in its build step (progress closed or failed, late C++ result dropped, a player's queued Build still sent), a scan that throws, the auto build's keys in every language; run by `run-tests.js` |
 | `autoBuildHoldTest.js` | 211 | Node tests for the run held during play: decided in game -> the scan held (status line, C++ "held", no timeout running), a save load or a new game between steps holds the next one, the panel opening resumes a tick later and the main menu at once (the timeout again from there), the player's Scan/Build/Apply/Clear while it waits wins, the panel open holds nothing; run by `run-tests.js` |
-| `configSaveTest.js` | 232 | Node tests for the settings' load and save on settingsPanel.js's own code: XP caps read back, a part-way load blocking saves, closing the panel sending a waiting autosave; run by `run-tests.js` |
-| `panelRefreshTest.js` | 400 | Node tests for Unlock and cheat Unlock repainting the tree, the Classic tier zone chart on the settings' zones, edit mode's prerequisites sent to C++, a spawned spell's persistentId; run by `run-tests.js` |
+| `configSaveTest.js` | 258 | Node tests for the settings' load and save on settingsPanel.js's own code: XP caps read back, a part-way load blocking saves, closing the panel sending a waiting autosave, plugin list entries an older panel lowered renamed; run by `run-tests.js` |
+| `panelRefreshTest.js` | 428 | Node tests for Unlock and cheat Unlock repainting the tree, the Classic tier zone chart on the settings' zones, edit mode's prerequisites sent to C++ (copies not erasing their spell's), a spawned spell's persistentId; run by `run-tests.js` |
 | **script.js** | 797 | Main init, tabs, dragging, early learning |
-| **TOTAL** | ~33,740 | the 95 files in this table (the whole `modules/` tree, tests and `classic/` included, is ~46,250 lines in 109 files) |
+| **TOTAL** | ~33,850 | the 95 files in this table (the whole `modules/` tree, tests and `classic/` included, is ~46,360 lines in 109 files) |
 
 Removed 2026-09-27, with the Simple, Procedural+ and Visual-First builds that used them: the JS tree
 builders (`visualFirstBuilder.js`, `settingsAwareTreeBuilder.js`, `layoutEngine.js`, `layoutGenerator.js`,

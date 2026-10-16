@@ -13,17 +13,30 @@
  */
 function sendTreePrerequisites(nodes) {
     if (!window.callCpp || !nodes) return 0;
+    // A second copy of a spell (edit mode's Spawn, "<formId>_dup_<n>") is the same spell to C++:
+    // it is sent only when the tree has no node of its own for that spell, under the spell's
+    // formId. Sent as well, its empty lists would erase the original's requirements
+    var plain = {};
+    for (var ni = 0; ni < nodes.length; ni++) {
+        var nId = nodes[ni].formId || nodes[ni].id;
+        if (nId && _canonicalPrereqId(nId) === nId) plain[nId] = true;
+    }
     var prereqData = [];
     var hardCount = 0;
     var softCount = 0;
     for (var pi = 0; pi < nodes.length; pi++) {
         var pNode = nodes[pi];
-        hardCount += (pNode.hardPrereqs ? pNode.hardPrereqs.length : 0);
-        softCount += (pNode.softPrereqs ? pNode.softPrereqs.length : 0);
+        var ownId = pNode.formId || pNode.id;
+        var canonId = _canonicalPrereqId(ownId);
+        if (canonId !== ownId && plain[canonId]) continue;
+        var hard = (pNode.hardPrereqs || []).map(_canonicalPrereqId);
+        var soft = (pNode.softPrereqs || []).map(_canonicalPrereqId);
+        hardCount += hard.length;
+        softCount += soft.length;
         prereqData.push({
-            formId: pNode.formId || pNode.id,
-            hardPrereqs: pNode.hardPrereqs || [],
-            softPrereqs: pNode.softPrereqs || [],
+            formId: canonId,
+            hardPrereqs: hard,
+            softPrereqs: soft,
             softNeeded: pNode.softNeeded || 0
         });
     }
@@ -32,6 +45,13 @@ function sendTreePrerequisites(nodes) {
     window.callCpp('SetTreePrerequisites', JSON.stringify({ clear: true }));
     window.callCpp('SetTreePrerequisites', JSON.stringify(prereqData));
     return prereqData.length;
+}
+
+/** A node or prerequisite id without an edit mode copy's "_dup_<n>" suffix (getCanonicalFormId's rule) */
+function _canonicalPrereqId(id) {
+    var s = String(id);
+    var at = s.indexOf('_dup_');
+    return at === -1 ? s : s.substring(0, at);
 }
 
 /** The saved tree's nodes by formId (the raw nodes a load repair writes back to) */

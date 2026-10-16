@@ -713,6 +713,11 @@ function noteConfigLoadResult(applied, error) {
         ') - settings are NOT saved this session, so the file keeps the player\'s choices';
     console.error('[SpellLearning] ' + msg);
     if (window.callCpp) window.callCpp('LogMessage', JSON.stringify({ message: msg, level: 'error' }));
+    // The scan status bar, in the panel's language: the DLL's own line for a save it does not
+    // write (status.configNotSaved, cppStatusKeys.js) says what the player needs to know
+    if (typeof updateStatus === 'function') {
+        updateStatus('Error: config.json could not be read - changes are NOT written to it (see SpellLearning.log)');
+    }
 }
 
 function saveUnifiedConfig() {
@@ -2742,6 +2747,10 @@ function renderWhitelistEntries() {
         }
     });
 
+    // Entries an older panel saved with toLowerCase ("заклинания.esp" for "Заклинания.esp", Select All
+    // and Base Only stored the lowered name) take the scanned name, so they match again
+    migrateLoweredWhitelist(settings.pluginWhitelist, allPlugins);
+
     // Get current whitelist state
     var whitelist = settings.pluginWhitelist || [];
     var whitelistMap = {};
@@ -2797,6 +2806,36 @@ function renderWhitelistEntries() {
     if (modCountEl) {
         modCountEl.textContent = enabledModCount + '/' + modPlugins.length;
     }
+}
+
+/**
+ * Plugin list entries saved before plugin names were compared A-Z folded (foldPluginName): a name
+ * an older panel lowered with toLowerCase matches no scanned plugin with a non-ASCII capital. Such an
+ * entry takes the scanned name when exactly that plugin lowers to it and no entry has it already.
+ * @param {Array} whitelist - settings.pluginWhitelist (changed in place)
+ * @param {Array} plugins - the scanned plugin names
+ * @returns {number} entries renamed (saved with the next save)
+ */
+function migrateLoweredWhitelist(whitelist, plugins) {
+    if (!whitelist || !plugins || !plugins.length) return 0;
+    var byFold = {};
+    whitelist.forEach(function(entry) { if (entry && entry.plugin) byFold[foldPluginName(entry.plugin)] = entry; });
+    var renamed = 0;
+    plugins.forEach(function(plugin) {
+        var lowered = plugin.toLowerCase();
+        if (lowered === foldPluginName(plugin) || byFold[foldPluginName(plugin)]) return;   // nothing to carry over
+        var old = byFold[lowered];
+        if (!old) return;
+        delete byFold[lowered];
+        old.plugin = plugin;
+        byFold[foldPluginName(plugin)] = old;
+        renamed++;
+    });
+    if (renamed > 0) {
+        console.log('[SpellLearning] Plugin list: ' + renamed + ' entries saved with a lowered name now use the plugin\'s name');
+        autoSaveSettings();
+    }
+    return renamed;
 }
 
 /**

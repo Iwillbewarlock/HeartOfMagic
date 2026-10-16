@@ -40,7 +40,13 @@ When an external mod calls `AddSourcedXP` with a **custom source name** (anythin
 1. **C++ side**: `ProgressionManager::AddSourcedXP("mymod_training", ...)` sees unknown source name -> calls `RegisterModdedXPSource("mymod_training", "Training Mod")` automatically
 2. **Registration creates**: a default entry `{ enabled: true, multiplier: 100, cap: 25 }` in `m_xpSettings.moddedSources`
 3. **C++ notifies JS**: `UIManager::NotifyModdedSourceRegistered(name, displayName)` -> JS creates the UI controls dynamically
-4. **Settings persist**: saved in unified config + presets, loaded on next session
+4. **Settings persist**: saved in unified config + presets, loaded on next session. Since 2026-10-17 they are applied
+   at game start, not only at the panel's next save (`ReadModdedSourcesFromConfig`, UIManagerConfig.cpp): a source the
+   player turned off or slowed down counts that way from the first XP. A source the config names but no mod has
+   registered yet is kept with its saved settings (`ModdedSourceConfig::registered` false); the mod's first
+   `RegisterXPSource` / `RegisterModdedXPSource` for it then returns true, sends `SourceRegistered` and the panel row
+   as a new registration would, and keeps the saved on/off, multiplier and cap (the display name is the mod's).
+   A second registration returns false as before.
 
 The plugin's own internal sources (passive learning: `RegisterModdedXPSource(..., internal = true)`) get no UI
 controls, and `AddSourcedXP` tracks their XP per spell without applying the source multiplier or cap above -

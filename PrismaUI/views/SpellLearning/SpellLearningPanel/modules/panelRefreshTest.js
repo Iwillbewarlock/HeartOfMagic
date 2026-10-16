@@ -341,6 +341,33 @@ var PanelRefreshTest = {
         this.check(/EditMode\.commitPrerequisites\(\)/.test(hide), 'onPanelHiding sends edit mode\'s changes');
     },
 
+    /** An edit mode copy of a spell must not erase the spell's own requirements in C++ */
+    _testDuplicatePrereqs: function(g) {
+        var env = { sent: [] };
+        this._with(g, { callCpp: function(m, d) { env.sent.push([m, d]); } }, function() {
+            var nodes = [
+                { formId: 'P', hardPrereqs: [], softPrereqs: [] },
+                { formId: 'S', hardPrereqs: ['P'], softPrereqs: [], softNeeded: 0 },
+                { formId: 'S_dup_17', originalFormId: 'S', hardPrereqs: [], softPrereqs: [] },
+                { formId: 'Q_dup_9', originalFormId: 'Q', hardPrereqs: ['P_dup_4'], softPrereqs: ['S_dup_17'], softNeeded: 1 }
+            ];
+            var count = g.sendTreePrerequisites(nodes);
+            var sent = JSON.parse(env.sent[1][1]);
+            var byId = {};
+            sent.forEach(function(n) { byId[n.formId] = n; });
+            this.check(count === 3 && !byId.S_dup_17 && byId.S.hardPrereqs.join() === 'P',
+                'Prerequisites: a copy of a spell on the tree is left out, the spell keeps its requirement');
+            this.check(byId.Q && byId.Q.hardPrereqs.join() === 'P' && byId.Q.softPrereqs.join() === 'S',
+                'Prerequisites: a lone copy goes under its spell\'s formId, _dup_ ids in the lists become the spell\'s');
+            env.sent.length = 0;
+            this.check(g.sendTreePrerequisites([]) === 0 && JSON.parse(env.sent[1][1]).length === 0,
+                'Prerequisites: an empty tree sends the clear and an empty list');
+        });
+        this._with(g, { callCpp: undefined }, function() {
+            this.check(g.sendTreePrerequisites([{ formId: 'P' }]) === 0, 'Prerequisites: no C++ bridge: nothing sent');
+        });
+    },
+
     _testSpawnPersistentId: function(g) {
         var env = {};
         this._with(g, this._editEnv(env), function() {
@@ -391,6 +418,7 @@ var PanelRefreshTest = {
         this._testUnlockRepaint(g);
         this._testTierZones(g);
         this._testEditModePrereqs(g);
+        this._testDuplicatePrereqs(g);
         this._testSpawnPersistentId(g);
         return { passed: this.passed, failed: this.failed };
     }

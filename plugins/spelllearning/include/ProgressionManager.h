@@ -192,6 +192,7 @@ public:
         float multiplier = 100.0f;  // 0-200%
         float cap = 25.0f;          // 0-100% of required XP
         bool internal = false;      // Internal sources: tracked, not capped here, not shown in modded UI
+        bool registered = true;     // false: known only from config.json; no mod has registered it this session
     };
 
     // How fast XP comes in: the overall multiplier, and a multiplier and a cap

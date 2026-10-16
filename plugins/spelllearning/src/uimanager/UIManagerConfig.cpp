@@ -88,15 +88,18 @@ std::unordered_map<std::string, ProgressionManager::ModdedSourceConfig> ReadModd
         // file would make it an external one, capped at 25% again. A name the
         // co-save cannot hold is refused at registration too (ProgressionCoSave.h)
         if (progression->IsReservedSourceName(srcId) || !ProgressionCoSave::IsWritableSourceName(srcId)) continue;
-        const auto registered = sources.find(srcId);
-        if (registered == sources.end() && sources.size() >= ProgressionCoSave::kMaxModdedSources) continue;
+        const auto known = sources.find(srcId);
+        if (known == sources.end() && sources.size() >= ProgressionCoSave::kMaxModdedSources) continue;
 
         ProgressionManager::ModdedSourceConfig sourceConfig;
         sourceConfig.displayName = SafeJsonValue<std::string>(srcData, "displayName",
-            registered != sources.end() ? registered->second.displayName : srcId);
+            known != sources.end() ? known->second.displayName : srcId);
         sourceConfig.enabled = SafeJsonValue<bool>(srcData, "enabled", true);
         sourceConfig.multiplier = SafeJsonValue<float>(srcData, "multiplier", 100.0f);
         sourceConfig.cap = SafeJsonValue<float>(srcData, "cap", 25.0f);
+        // A source only the file names waits for its mod: RegisterModdedXPSource then takes
+        // it as a first registration (event, panel row) and keeps these settings
+        sourceConfig.registered = known != sources.end() && known->second.registered;
         sources[srcId] = sourceConfig;
         ++fromFile;
     }

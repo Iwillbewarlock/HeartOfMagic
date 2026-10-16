@@ -39,9 +39,24 @@ bool ProgressionManager::AcceptExternalSourceName(const std::string& sourceName)
 bool ProgressionManager::RegisterModdedXPSource(const std::string& sourceId, const std::string& displayName, bool internal)
 {
     // Check if already registered
-    if (m_xpSettings.moddedSources.find(sourceId) != m_xpSettings.moddedSources.end()) {
-        logger::info("ProgressionManager: Modded source '{}' already registered", sourceId);
-        return false;
+    if (auto known = m_xpSettings.moddedSources.find(sourceId); known != m_xpSettings.moddedSources.end()) {
+        if (known->second.registered) {
+            logger::info("ProgressionManager: Modded source '{}' already registered", sourceId);
+            return false;
+        }
+        // Known only from config.json (ReadModdedSourcesFromConfig): this is the mod's own
+        // registration. The player's saved settings for it (on/off, multiplier, cap) stay
+        known->second.registered = true;
+        known->second.internal = internal;
+        if (!displayName.empty()) known->second.displayName = displayName;
+        logger::info("ProgressionManager: Registered {} XP source '{}' with its saved settings",
+            internal ? "internal" : "modded", sourceId);
+        if (!internal) {
+            UIManager::GetSingleton()->NotifyModdedSourceRegistered(sourceId, known->second.displayName,
+                known->second.multiplier, known->second.cap);
+        }
+        SendModEvent("SpellLearning_SourceRegistered", sourceId, 0.0f, nullptr);
+        return true;
     }
     if (!internal && !AcceptExternalSourceName(sourceId)) {
         return false;

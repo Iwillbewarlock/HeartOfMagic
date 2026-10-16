@@ -663,10 +663,14 @@ the text equals its last save (`_lastSavedConfigText`, settingsPanel.js), and th
 On the panel side, closing it (`onPanelHiding` -> `saveSettings`) cancels a pending 500 ms autosave and saves at once.
 `onUnifiedConfigLoaded` reports every load in its `finally` (`noteConfigLoadResult`): a config that threw part way, did
 not parse or held nothing leaves the settings partly defaults, so `saveUnifiedConfig` sends nothing for the rest of the
-session (logged once to SpellLearning.log as an error) - otherwise the next save would write an empty blacklist,
-whitelist, root choice and kept-spell list over the file. A later load that goes in whole lifts the block. This is the
-panel's counterpart of C++'s `ConfigFile::SaveMode::Blocked`; a `configNotRead` config (C++ could not read the file)
-still saves, because C++ writes nothing then and applies the panel's settings for the session. The XP caps
+session (logged to SpellLearning.log as an error, and the scan status bar shows the DLL's `status.configNotSaved`
+line) - otherwise the next save would write an empty blacklist, whitelist, root choice and kept-spell list over the
+file. A later load that goes in whole lifts the block. Unlike C++'s `ConfigFile::SaveMode::Blocked`, which writes
+nothing but still applies what the panel sends, nothing is applied either: the game keeps the settings C++ read
+from the file at start, since the panel's own are partly defaults (the game applies a setting only through a save,
+`ApplySavedConfig`, so a change made in such a session takes effect at the next game start that loads whole). A
+`configNotRead` config (C++ could not read the file) still saves, because C++ writes nothing then and applies the
+panel's settings for the session. The XP caps
 (`xpCapAny`, `xpCapSchool`, `xpCapDirect`) are read back on load (held to 0-100, defaults 5/15/50, `XP_CAP_*` in
 constants.js) - before, they were saved but never loaded, so the next save put the defaults back - and Reset to
 Defaults resets them.
@@ -676,7 +680,15 @@ sources the game uses - the ones mods registered, each `moddedXPSources` entry o
 added), internal and reserved names (passive, isl_study, any internal source), names the co-save cannot hold and
 entries past `ProgressionCoSave::kMaxModdedSources` left out. Both the config load at game start and every save use
 it; before, the load kept only the registered defaults, so a source the player turned off (BookXP) or slowed down
-counted at full rate until the panel's next save.
+counted at full rate until the panel's next save. An entry for a source no mod has registered yet is kept with
+`registered` false; the mod's first registration takes it as new (true, `SourceRegistered`, the panel row) with the
+saved settings (docs/PLAN-PUBLIC-MODDER-API.md).
+
+**Edit mode copies and the prerequisite map** (2026-10-17): `sendTreePrerequisites` (treeLoad.js) leaves out a
+second copy of a spell (`<formId>_dup_<n>`, edit mode's Spawn) when the tree has the spell's own node, sends a
+lone copy under the spell's formId, and strips `_dup_` from prerequisite ids; C++ `OnSetTreePrerequisites` skips a
+formId text it cannot parse to the end. Before, `stoul` read a copy's id as the original's formId and the copy's
+empty lists erased the original's requirements.
 
 **PrismaUI View Path:**
 ```

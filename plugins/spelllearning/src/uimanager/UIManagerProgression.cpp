@@ -498,7 +498,15 @@ void UIManager::OnSetTreePrerequisites(const char* argument)
 
                 RE::FormID formId = 0;
                 try {
-                    formId = std::stoul(formIdStr, nullptr, 0);
+                    // The whole text must be the id: stoul stops at "_dup_" (an edit mode copy,
+                    // "0x0001ABCD_dup_17...") and would give the original's formId, whose
+                    // requirements the copy's empty lists would then erase
+                    std::size_t parsed = 0;
+                    formId = std::stoul(formIdStr, &parsed, 0);
+                    if (parsed != formIdStr.size()) {
+                        logger::warn("UIManager: SetTreePrerequisites - '{}' is not a formId - skipping", formIdStr);
+                        continue;
+                    }
                 } catch (const std::exception& e) {
                     logger::warn("UIManager: Could not parse formId '{}' ({}) - skipping", formIdStr, e.what());
                     continue;
