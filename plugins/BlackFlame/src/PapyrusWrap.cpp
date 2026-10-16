@@ -224,7 +224,14 @@ namespace BlackFlame
                 }
                 return;
             }
-            argument.Pack(copy);
+            // Packed as the concrete class, as the script would have passed it
+            if (auto* hazard = copy->As<RE::BGSHazard>()) {
+                argument.Pack(hazard);
+            } else if (auto* explosion = copy->As<RE::BGSExplosion>()) {
+                argument.Pack(explosion);
+            } else if (auto* projectile = copy->As<RE::BGSProjectile>()) {
+                argument.Pack(projectile);
+            }
             if (g_placeSwaps.fetch_add(1) == 0) {
                 logger::info("BlackFlame: PlaceAtMe: {:08X} placed as its copy {:08X} for the player's fire (first of its kind)",
                     form->GetFormID(), copy->GetFormID());

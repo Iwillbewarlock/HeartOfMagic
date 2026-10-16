@@ -32,6 +32,11 @@ namespace BlackFlame
         constexpr std::uintptr_t kScanWindow = 0x200;      // the caller is 0xD0 bytes on 1.7.104, in two pdata chunks
         constexpr std::uintptr_t kKnownOffsetAe = 0x91;    // 1.7.104 (1.6.1170 by unwind equality)
         constexpr int kMaxLines = 40;
+        // Vtable ids (SE, AE; CommonLib Offsets_VTABLE.h), checked and resolved at install
+        constexpr std::uint64_t kCasterVtableSe = 257613, kCasterVtableAe = 205828;  // VTABLE_ActorMagicCaster[0]
+        constexpr std::uint64_t kArtVtableSe = 233406, kArtVtableAe = 189017;        // VTABLE_BGSArtObject[0]
+        std::uintptr_t g_casterVtable = 0;
+        std::uintptr_t g_artVtable = 0;
 
         std::atomic<std::uint64_t> g_calls{ 0 }, g_swaps{ 0 }, g_rejected{ 0 };
         std::atomic<int> g_lines{ 0 };
@@ -47,10 +52,8 @@ namespace BlackFlame
 
         RE::BGSArtObject* Decide(RE::ActorMagicCaster* a_caster, RE::BGSArtObject* a_art, std::string& a_line)
         {
-            static const std::uintptr_t casterVtable = REL::Relocation<std::uintptr_t>{ RE::VTABLE_ActorMagicCaster[0] }.address();
-            static const std::uintptr_t artVtable = REL::Relocation<std::uintptr_t>{ RE::VTABLE_BGSArtObject[0] }.address();
-            if (!a_caster || !a_art || ReadAt<std::uintptr_t>(a_caster, 0) != casterVtable ||
-                ReadAt<std::uintptr_t>(a_art, 0) != artVtable) {
+            if (!a_caster || !a_art || ReadAt<std::uintptr_t>(a_caster, 0) != g_casterVtable ||
+                ReadAt<std::uintptr_t>(a_art, 0) != g_artVtable) {
                 g_rejected.fetch_add(1);
                 return a_art;
             }
@@ -148,11 +151,15 @@ namespace BlackFlame
             }
             const auto calleeId = Patch::IdFor(kSetArtSe, kSetArtAe);
             const auto callerId = Patch::IdFor(kCallerSe, kCallerAe);
-            if (!Patch::HasIds({ calleeId, callerId }, "copy casting art")) {
+            const auto casterVtableId = Patch::IdFor(kCasterVtableSe, kCasterVtableAe);
+            const auto artVtableId = Patch::IdFor(kArtVtableSe, kArtVtableAe);
+            if (!Patch::HasIds({ calleeId, callerId, casterVtableId, artVtableId }, "copy casting art")) {
                 site.note = "an Address Library id is missing";
                 Patch::RecordHook("SetCastingArt call", false, 0, {}, site.note);
                 return;
             }
+            g_casterVtable = Patch::AddressOf(casterVtableId);
+            g_artVtable = Patch::AddressOf(artVtableId);
             const auto callee = Patch::AddressOf(calleeId);
             const auto caller = Patch::AddressOf(callerId);
             const auto sites = CallsInWindow(caller, callee);

@@ -229,6 +229,11 @@ namespace BlackFlame::SelfTest
         }
     }
 
+    void ShiftArtClocks(Clock::duration a_paused)
+    {
+        g_art.dispelAt += a_paused;
+    }
+
     bool StepE6Player(Ctx& a_c, bool a_first)
     {
         auto* player = Player();

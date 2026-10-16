@@ -38,6 +38,14 @@ namespace BlackFlame
 
         using Fn4 = std::uintptr_t(void*, void*, void*, void*);
 
+        // Vtable ids (SE, AE; CommonLib Offsets_VTABLE.h), checked and resolved at install
+        constexpr std::uint64_t kHazardVtableSe = 233487, kHazardVtableAe = 189079;  // VTABLE_BGSHazard[0]
+        constexpr std::uint64_t kCellVtableSe = 235197, kCellVtableAe = 190143;      // VTABLE_TESObjectCELL[0]
+        constexpr std::uint64_t kSpawnVtableSe = 259802, kSpawnVtableAe = 207209;    // VTABLE_SpawnHazardEffect[0]
+        std::uintptr_t g_hazardVtable = 0;
+        std::uintptr_t g_cellVtable = 0;
+        std::uintptr_t g_spawnVtable = 0;
+
         std::uintptr_t g_createOriginal = 0;
         std::uintptr_t g_spawnOriginal = 0;
         thread_local RE::ActiveEffect* t_spawnEffect = nullptr;  // the spawn-hazard effect on this thread's stack, or null
@@ -57,12 +65,10 @@ namespace BlackFlame
         // What the creation should get instead of its base, or null
         RE::BGSHazard* Decide(void* a_data)
         {
-            static const std::uintptr_t hazardVtable = REL::Relocation<std::uintptr_t>{ RE::VTABLE_BGSHazard[0] }.address();
-            static const std::uintptr_t cellVtable = REL::Relocation<std::uintptr_t>{ RE::VTABLE_TESObjectCELL[0] }.address();
             auto* base = ReadAt<RE::TESForm*>(a_data, kCreateBase);
             auto* cell = ReadAt<void*>(a_data, kCreateCell);
-            if (!base || ReadAt<std::uintptr_t>(base, 0) != hazardVtable || base->GetFormType() != RE::FormType::Hazard ||
-                (cell && ReadAt<std::uintptr_t>(cell, 0) != cellVtable)) {
+            if (!base || ReadAt<std::uintptr_t>(base, 0) != g_hazardVtable || base->GetFormType() != RE::FormType::Hazard ||
+                (cell && ReadAt<std::uintptr_t>(cell, 0) != g_cellVtable)) {
                 g_rejected.fetch_add(1);
                 return nullptr;
             }
@@ -117,13 +123,12 @@ namespace BlackFlame
 
         std::uintptr_t SpawnThunk(void* a_effect, void* a_rdx, void* a_r8, void* a_r9)
         {
-            static const std::uintptr_t spawnVtable = REL::Relocation<std::uintptr_t>{ RE::VTABLE_SpawnHazardEffect[0] }.address();
             g_spawnCalls.fetch_add(1);
             auto* previous = t_spawnEffect;
             RE::ActiveEffect* effect = nullptr;
             try {
                 (void)Guarded("spawn hazard window", [&]() {
-                    if (a_effect && ReadAt<std::uintptr_t>(a_effect, 0) == spawnVtable) {
+                    if (a_effect && ReadAt<std::uintptr_t>(a_effect, 0) == g_spawnVtable) {
                         effect = static_cast<RE::ActiveEffect*>(a_effect);
                     } else {
                         g_spawnOther.fetch_add(1);
@@ -152,6 +157,17 @@ namespace BlackFlame
                 return;
             }
             const auto createId = Patch::IdFor(kCreateSe, kCreateAe);
+            const auto hazardVtableId = Patch::IdFor(kHazardVtableSe, kHazardVtableAe);
+            const auto cellVtableId = Patch::IdFor(kCellVtableSe, kCellVtableAe);
+            const auto spawnVtableId = Patch::IdFor(kSpawnVtableSe, kSpawnVtableAe);
+            if (!Patch::HasIds({ hazardVtableId, cellVtableId, spawnVtableId }, "copy hazard create (vtables)")) {
+                a_status.hazardCreate.note = "a vtable id is missing";
+                Patch::RecordHook("hazard creation (v2 copy swap)", false, 0, {}, a_status.hazardCreate.note);
+                return;
+            }
+            g_hazardVtable = Patch::AddressOf(hazardVtableId);
+            g_cellVtable = Patch::AddressOf(cellVtableId);
+            g_spawnVtable = Patch::AddressOf(spawnVtableId);
             if (Patch::HasIds({ createId }, "copy hazard create")) {
                 a_status.hazardCreate = Patch::PrologueDetour("hazard creation (v2 copy swap)", Patch::AddressOf(createId),
                     reinterpret_cast<std::uintptr_t>(&CreateThunk), g_createOriginal);

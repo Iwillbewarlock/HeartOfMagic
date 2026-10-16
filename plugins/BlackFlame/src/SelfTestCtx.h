@@ -225,4 +225,5 @@ namespace BlackFlame::SelfTest
     [[nodiscard]] bool CopyLaunchExpected(const RE::SpellItem* a_spell);
     void ShiftFireClocks(Clock::duration a_paused);
     void ShiftFlameClocks(Clock::duration a_paused);
+    void ShiftArtClocks(Clock::duration a_paused);  // SelfTestStepsV2Art.cpp (E6-drop)
 }

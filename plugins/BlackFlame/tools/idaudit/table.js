@@ -29,7 +29,11 @@ var own = [
   ['VTABLE_BGSHazard[2] (TESModel)', 233489, 189083],
   ['VTABLE_BGSImpactData[1] (TESModel)', 236357, 190905],
   ['VTABLE_ActiveEffectReferenceEffectController[0]', 257577, 205809],
-  ['VTABLE_BGSExplosion[0] (explosion creation base check)', 233467, 189059]
+  ['VTABLE_BGSExplosion[0] (explosion creation base check)', 233467, 189059],
+  ['VTABLE_BGSArtObject[0] (casting art check)', 233406, 189017],
+  ['VTABLE_BGSHazard[0] (hazard creation base check)', 233487, 189079],
+  ['VTABLE_TESObjectCELL[0] (hazard creation cell check)', 235197, 190143],
+  ['VTABLE_SpawnHazardEffect[0] (spawn-hazard window check)', 259802, 207209]
 ];
 var lib = require('./reached.json').filter(function (r) { return r[1] !== 46022; /* not called: SelfTestWorld.cpp says so */ }).map(function (r) { return [r[0], r[1], r[2]]; }).concat([
   ['MagicTarget::DispelEffect', 33721, 34505],

@@ -36,6 +36,7 @@ namespace BlackFlame::SelfTest
 
         constexpr std::size_t kMaxMissingLines = 20;
         constexpr auto kExplosionWait = std::chrono::milliseconds(1500);
+        constexpr auto kSettle = std::chrono::milliseconds(2500);  // an earlier step's explosion has ended (as E1c)
         constexpr std::array<std::string_view, 5> kOfficialMasters{ "skyrim.esm", "update.esm", "dawnguard.esm", "hearthfires.esm",
             "dragonborn.esm" };
 
@@ -94,8 +95,15 @@ namespace BlackFlame::SelfTest
             RE::SpellItem* spell = nullptr;
             const RE::BGSExplosion* explosion = nullptr;  // the explosion with a copy the launch should give, or null
             std::uint64_t mark = 0;
+            Clock::time_point castAt{};
         };
         E1mState g_e1m;
+
+        enum E1mPhase : int
+        {
+            kSettling,
+            kJudging
+        };
     }
 
     bool StepV2Cover(Ctx&, bool)
@@ -183,13 +191,24 @@ namespace BlackFlame::SelfTest
             const auto* own = costliest->data.projectileBase->data.explosionType;
             const auto* explosion = own ? own : costliest->data.explosion;
             g_e1m.explosion = explosion && CopyOf(explosion) ? explosion : nullptr;
-            g_e1m.mark = SelfTestProbe::Mark();
             SelfTestLog::Info("E1m", std::format("picked spell {:08X} '{}' ({}), projectile {:08X}, explosion {}", g_e1m.spell->GetFormID(),
                 g_e1m.spell->GetName(), FileOf(g_e1m.spell), costliest->data.projectileBase->GetFormID(),
                 g_e1m.explosion ? std::format("{:08X} (has a copy)", g_e1m.explosion->GetFormID()) : std::string("none with a copy")));
+            a_c.phase = kSettling;
+            return false;
+        }
+        if (a_c.phase == kSettling) {
+            // An earlier step's explosion (E1c ends with a Fireball) must not land after the mark
+            if (a_c.lastCast && Clock::now() - *a_c.lastCast < kSettle) {
+                a_c.waitingFor = "the earlier explosion to end";
+                return false;
+            }
+            g_e1m.mark = SelfTestProbe::Mark();
+            g_e1m.castAt = Clock::now();
+            a_c.phase = kJudging;
             return !CastAtTarget(a_c, Player(), g_e1m.spell, "E1m");
         }
-        if (Clock::now() - a_c.stepStart < kExplosionWait) {
+        if (Clock::now() - g_e1m.castAt < kExplosionWait) {
             a_c.waitingFor = "the modded spell's launch and explosion";
             return false;
         }

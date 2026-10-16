@@ -103,7 +103,8 @@ namespace BlackFlame::Tester
     {
         {
             std::lock_guard lock(g_mutex);
-            g_selfTest = a_doneLine;
+            // The main run and E3's reload part each end with a DONE line: both are kept
+            g_selfTest = g_selfTest.starts_with("not run") ? a_doneLine : g_selfTest + "\n  " + a_doneLine;
         }
         WriteStartup();
     }

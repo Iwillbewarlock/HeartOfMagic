@@ -45,6 +45,13 @@ namespace BlackFlame
         // and an unverified signature (SE) cannot lose rdx, r8 or r9 on the way to the original
         using CreateFn = std::uintptr_t(void*, void*, void*, void*);
 
+        // Vtable ids (SE, AE; CommonLib Offsets_VTABLE.h), checked and resolved at install, never in a thunk (a missing id
+        // there would end the game at the first call instead of leaving the device off)
+        constexpr std::uint64_t kExplosionVtableSe = 233467, kExplosionVtableAe = 189059;      // VTABLE_BGSExplosion[0]
+        constexpr std::uint64_t kActorCasterVtableSe = 257613, kActorCasterVtableAe = 205828;  // VTABLE_ActorMagicCaster[0]
+        std::uintptr_t g_explosionVtable = 0;
+        std::uintptr_t g_actorCasterVtable = 0;
+
         std::uintptr_t g_launchOriginal = 0;  // written before the detour's jump (Patch::PrologueDetour)
         std::uintptr_t g_createOriginal = 0;
 
@@ -184,9 +191,8 @@ namespace BlackFlame
         RE::BGSExplosion* DecideCreate(void* a_data, RE::BGSExplosion*& a_before, bool& a_selfArea, RE::FormID& a_projBase)
         {
             // The base must be a BGSExplosion by its vtable before anything else is read from it (another layout: rejected)
-            static const std::uintptr_t explosionVtable = REL::Relocation<std::uintptr_t>{ RE::VTABLE_BGSExplosion[0] }.address();
             auto* base = Read<RE::TESForm*>(a_data, kCreateBase);
-            if (!base || Read<std::uintptr_t>(base, 0) != explosionVtable || base->GetFormType() != RE::FormType::Explosion) {
+            if (!base || Read<std::uintptr_t>(base, 0) != g_explosionVtable || base->GetFormType() != RE::FormType::Explosion) {
                 g_createRejected.fetch_add(1);
                 return nullptr;
             }
@@ -215,8 +221,7 @@ namespace BlackFlame
             if (!copy || !caster || !IsStoked()) {
                 return nullptr;
             }
-            static const std::uintptr_t actorCasterVtable = REL::Relocation<std::uintptr_t>{ RE::VTABLE_ActorMagicCaster[0] }.address();
-            if (Read<std::uintptr_t>(caster, 0) != actorCasterVtable) {
+            if (Read<std::uintptr_t>(caster, 0) != g_actorCasterVtable) {
                 return nullptr;  // a NonActorMagicCaster or something else: not the self-area cast
             }
             auto* spell = Read<RE::TESForm*>(a_data, kCreateSpell);
@@ -307,9 +312,16 @@ namespace BlackFlame
             // BGSExplosion vtable, the projectile by its form type, the caster by the ActorMagicCaster vtable, the spell by its
             // form type), the thunk forwards all four argument registers, and a fault trips the SEH guard once and turns the
             // swap off for the session. V14: no explosion copy, no detour.
+            const auto explosionVtableId = Patch::IdFor(kExplosionVtableSe, kExplosionVtableAe);
+            const auto casterVtableId = Patch::IdFor(kActorCasterVtableSe, kActorCasterVtableAe);
             if (config.copyExplosionCreate && GetCopyCounts().explosions == 0) {
                 a_status.explosionCreate.note = "no explosion copies";
+            } else if (config.copyExplosionCreate && !Patch::HasIds({ explosionVtableId, casterVtableId }, "copy swap (explosion creation vtables)")) {
+                a_status.explosionCreate.note = "a vtable id is missing";
+                Patch::RecordHook("explosion creation (v2 copy swap)", false, 0, {}, a_status.explosionCreate.note);
             } else if (config.copyExplosionCreate) {
+                g_explosionVtable = Patch::AddressOf(explosionVtableId);
+                g_actorCasterVtable = Patch::AddressOf(casterVtableId);
                 const auto id = Patch::IdFor(kCreateSe, kCreateAe);
                 if (Patch::HasIds({ id }, "copy swap (explosion creation)")) {
                     a_status.explosionCreate = Patch::PrologueDetour("explosion creation (v2 copy swap)",
