@@ -5,6 +5,7 @@
 #include "EncodingUtils.h"
 
 #include <deque>
+#include <memory>
 #include <format>
 #include <string_view>
 #include <unordered_map>
@@ -100,11 +101,14 @@ namespace BlackFlame
             }
 
         private:
-            void Push(RE::TESForm* a_form, RE::FormID a_via, bool a_costliest)
+            void Push(RE::TESForm* a_form, RE::FormID a_via, bool a_costliest, std::uint32_t a_edge = kEdgeOther)
             {
                 // J1: an excluded form is never walked, whichever seed reaches it again
                 if (!a_form || m_excluded.contains(a_form->GetFormID())) {
                     return;
+                }
+                if (const auto it = m_index.find(a_form->GetFormID()); it != m_index.end()) {
+                    m_out.forms[it->second].edges |= a_edge;  // C5: every edge that reaches it, walked again or not
                 }
                 auto& state = m_state[a_form->GetFormID()];
                 const std::uint8_t next = a_costliest ? kSeenCostliest : kSeen;
@@ -123,7 +127,7 @@ namespace BlackFlame
                 if (kind) {
                     if (first) {
                         m_index.emplace(a_form->GetFormID(), m_out.forms.size());
-                        m_out.forms.push_back({ a_form, *kind, a_via, a_costliest });
+                        m_out.forms.push_back({ a_form, *kind, a_via, a_costliest, a_edge });
                     } else if (const auto it = m_index.find(a_form->GetFormID()); it != m_index.end()) {
                         m_out.forms[it->second].reachedByCostliest = true;
                     }
@@ -192,14 +196,15 @@ namespace BlackFlame
                 Push(d.projectileBase, a_v.via, a_v.costliest);
                 Push(d.explosion, a_v.via, a_v.costliest);
                 Push(d.impactDataSet, a_v.via, a_v.costliest);
-                Push(d.castingArt, a_v.via, a_v.costliest);
+                Push(d.castingArt, a_v.via, a_v.costliest, a_v.costliest ? kEdgeCastingArtCostliest : kEdgeCastingArt);
                 Push(d.dualCastData, a_v.via, a_v.costliest);
                 if (a_mgef.HasArchetype(RE::EffectSetting::Archetype::kSpawnHazard)) {
-                    Push(d.associatedForm ? d.associatedForm->As<RE::BGSHazard>() : nullptr, a_v.via, a_v.costliest);
+                    Push(d.associatedForm ? d.associatedForm->As<RE::BGSHazard>() : nullptr, a_v.via, a_v.costliest,
+                        IsFireEffect(&a_mgef) ? kEdgeSpawnHazardFire : kEdgeSpawnHazard);
                 }
                 // The hit art goes on a target only through IsBurnable effects (the 0x0C swap): fire MGEFs only
                 if (IsFireEffect(&a_mgef)) {
-                    Push(d.hitEffectArt, a_v.via, a_v.costliest);
+                    Push(d.hitEffectArt, a_v.via, a_v.costliest, kEdgeHitArt);
                     if (d.hitVisuals) {
                         Push(d.hitVisuals, a_v.via, a_v.costliest);
                     }
@@ -215,9 +220,9 @@ namespace BlackFlame
                     Push(dual->data.pProjectile, a_v.via, a_v.costliest);
                     Push(dual->data.pExplosion, a_v.via, a_v.costliest);
                     Push(dual->data.pImpactDataSet, a_v.via, a_v.costliest);
-                    Push(dual->data.pHitEffectArt, a_v.via, a_v.costliest);
+                    Push(dual->data.pHitEffectArt, a_v.via, a_v.costliest, kEdgeHitArt);
                 } else if (const auto* rfct = form->As<RE::BGSReferenceEffect>()) {
-                    Push(rfct->data.artObject, a_v.via, a_v.costliest);
+                    Push(rfct->data.artObject, a_v.via, a_v.costliest, kEdgeHitArt);
                 } else if (const auto* proj = form->As<RE::BGSProjectile>()) {
                     Push(proj->data.explosionType, a_v.via, a_v.costliest);
                 } else if (const auto* expl = form->As<RE::BGSExplosion>()) {
@@ -260,9 +265,24 @@ namespace BlackFlame
         }
     }
 
+    namespace
+    {
+        FireClosure& Kept()
+        {
+            static auto* kept = std::make_unique<FireClosure>().release();  // never freed (read at exit-free times only)
+            return *kept;
+        }
+    }
+
     FireClosure BuildFireClosure()
     {
-        return Walker().Run();
+        Kept() = Walker().Run();
+        return Kept();
+    }
+
+    const FireClosure& LastFireClosure() noexcept
+    {
+        return Kept();
     }
 
     std::string ModelPathOf(const RE::TESForm* a_form)

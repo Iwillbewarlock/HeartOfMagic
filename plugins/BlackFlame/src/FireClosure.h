@@ -39,13 +39,30 @@ namespace BlackFlame
     /// "PROJ" / "EXPL" / "IPCT" / "HAZD" / "ARTO"
     [[nodiscard]] const char* CopyKindTag(CopyKind a_kind) noexcept;
 
+    struct FireClosure;
+
+    // C5 (T0-cover): the edges that reached a form, so the self-test can tell a copy that no swap point uses
+    enum ClosureEdge : std::uint32_t
+    {
+        kEdgeOther = 1u << 0,
+        kEdgeCastingArt = 1u << 1,           // MGEF.castingArt of an effect not reached from a costliest seed
+        kEdgeCastingArtCostliest = 1u << 2,  // MGEF.castingArt from a costliest-effect seed (SetCastingArt shows it)
+        kEdgeHitArt = 1u << 3,               // a fire MGEF's hit art, RFCT art or DUAL hit art (the 0x0C swap)
+        kEdgeSpawnHazard = 1u << 4,          // a spawn-hazard MGEF that is not a fire effect (no swap point)
+        kEdgeSpawnHazardFire = 1u << 5       // a fire spawn-hazard MGEF (the spawn window)
+    };
+
     struct ClosureForm
     {
         RE::TESForm* form = nullptr;
         CopyKind kind = CopyKind::kProjectile;
         RE::FormID viaSpell = 0;          // the first spell whose walk reached it
         bool reachedByCostliest = false;  // some walk from a costliest-effect seed reached it
+        std::uint32_t edges = 0;          // ClosureEdge bits of every edge that reached it
     };
+
+    /// The closure the last BuildFireClosure made (kept for the self-test; kDataLoaded writes it once)
+    [[nodiscard]] const FireClosure& LastFireClosure() noexcept;
 
     struct ClosureExcluded
     {
@@ -62,7 +79,7 @@ namespace BlackFlame
         std::size_t passedThrough = 0;   // MGEF, SPEL, IPDS, DUAL and RFCT forms walked
     };
 
-    /// kDataLoaded thread, after BuildFireSets
+    /// kDataLoaded thread, after BuildFireSets (also kept as LastFireClosure)
     [[nodiscard]] FireClosure BuildFireClosure();
 
     /// The form's own model path as its record stores it (TESModel::model), or empty

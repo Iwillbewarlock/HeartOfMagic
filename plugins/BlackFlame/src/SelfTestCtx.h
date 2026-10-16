@@ -209,8 +209,11 @@ namespace BlackFlame::SelfTest
     bool StepE1Npc(Ctx& a_c, bool a_first);
     bool StepE2Flames(Ctx& a_c, bool a_first);
     bool StepThreads(Ctx& a_c, bool a_first);
+    bool StepV2Cover(Ctx& a_c, bool a_first);   // SelfTestStepsV2Cover.cpp: T0-fresh, T0-cover
+    bool StepE1Modded(Ctx& a_c, bool a_first);  // E1m
     bool StepE6Player(Ctx& a_c, bool a_first);  // SelfTestStepsV2Art.cpp (ARTO copies)
     bool StepE6Npc(Ctx& a_c, bool a_first);
+    bool StepE5(Ctx& a_c, bool a_first);  // PickCastingArtImpl's rule, called directly
     void CleanupArtSpells();  // T9: E6's cloak and its associated spell dispelled on every high-process actor
 
     /// Paused time added to the v2 steps' own clocks (SelfTestStepsV2Fire.cpp, SelfTestStepsV2Flames.cpp,

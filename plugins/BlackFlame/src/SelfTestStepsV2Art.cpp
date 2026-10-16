@@ -20,6 +20,7 @@
 
 #include "BuffState.h"
 #include "Config.h"
+#include "CopySwap.h"
 #include "FireSet.h"
 #include "FormCopies.h"
 #include "HitEffectHook.h"
@@ -290,6 +291,44 @@ namespace BlackFlame::SelfTest
             "({} live art effect(s))", Describe(pick), seen.original ? "found" : "NOT found", seen.copy ? "FOUND" : "not found",
             seen.onTarget));
         EndCloak("E6-npc", caster);
+        return true;
+    }
+
+    // E5: PickCastingArtImpl called directly (no engine state read or changed) on a fire spell picked by data whose costliest
+    // effect's casting art has a copy; then the session's SetCastingArt counters as INFO (when the engine calls it)
+    bool StepE5(Ctx& a_c, bool)
+    {
+        const RE::SpellItem* spell = nullptr;
+        RE::BGSArtObject* art = nullptr;
+        for (const auto* candidate : FireSpellList()) {
+            const auto* costliest = candidate->GetAVEffect();
+            if (costliest && costliest->data.castingArt && CopyOf(costliest->data.castingArt)) {
+                spell = candidate;
+                art = costliest->data.castingArt;
+                break;
+            }
+        }
+        const auto counters = GetCopySwapCounters();
+        const auto& site = GetCopySwapStatus().castingArt;
+        SelfTestLog::Info("E5", std::format("SetCastingArt site {} ({}); calls this session {}, art copies handed on {}, rejected {}",
+            site.hooked ? "hooked" : "NOT hooked", site.note, counters.castingArtCalls, counters.castingArtSwaps,
+            counters.castingArtRejected));
+        if (!spell) {
+            SelfTestLog::Skip("E5", "no fire spell whose costliest effect's casting art has a copy");
+            return true;
+        }
+        auto* player = Player();
+        auto* copy = CopyOfAs<RE::BGSArtObject>(art);
+        const auto right = RE::Actor::SlotTypes::kRightHand;
+        const bool stoked = PickCastingArtImpl(player, right, spell, art, true) == copy;
+        const bool unstoked = PickCastingArtImpl(player, right, spell, art, false) == art;
+        const bool npc = PickCastingArtImpl(ActorOf(a_c.caster), right, spell, art, true) == art;
+        const bool power = PickCastingArtImpl(player, RE::Actor::SlotTypes::kPowerOrShout, spell, art, true) == art;
+        auto* other = copy;  // an art that is not the costliest effect's: the copy itself stands in
+        const bool otherArt = PickCastingArtImpl(player, right, spell, other, true) == other;
+        SelfTestLog::Check("E5", stoked && unstoked && npc && power && otherArt, std::format("spell {:08X}, casting art {:08X} -> copy "
+            "{:08X}: player right hand stoked -> copy {}, not stoked -> original {}, the deer -> original {}, power slot -> original {}, "
+            "another art -> unchanged {}", spell->GetFormID(), art->GetFormID(), copy->GetFormID(), stoked, unstoked, npc, power, otherArt));
         return true;
     }
 

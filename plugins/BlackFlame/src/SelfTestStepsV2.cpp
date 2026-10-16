@@ -136,6 +136,23 @@ namespace BlackFlame::SelfTest
                 status.explosionCreate);
         }
         CheckReplayCases();
+        // C4: the casting art call site and the hazard creation detours (INFO when the decoder or the scan left them alone)
+        const auto& art = status.castingArt;
+        if (copies && cfg.copyCastingArt && counts.arts > 0) {
+            SelfTestLog::Check("T0-hooks", art.hooked, "SetCastingArt call: " + art.note);
+        } else {
+            SelfTestLog::Info("T0-hooks", "SetCastingArt call: not wanted (" + (art.note.empty() ? std::string("config off or no art copies") : art.note) + ")");
+        }
+        if (!status.hazardCreate.hooked && status.hazardCreate.note.find("replay decoder") != std::string::npos) {
+            SelfTestLog::Info("T0-hooks", "hazard creation: not detoured on this build (" + status.hazardCreate.note + "; bytes " +
+                status.hazardCreate.bytes + ")");
+        } else {
+            CheckDevice("hazard creation (copyHazardCreate)", copies && cfg.copyHazardCreate && counts.hazards > 0, status.hazardCreate);
+        }
+        if (status.hazardCreate.hooked) {
+            SelfTestLog::Info("T0-hooks", std::format("spawn-hazard window: {} ({}; bytes {})", status.spawnHazard.hooked ? "detoured" :
+                "NOT detoured (spawn-hazard hazards stay orange)", status.spawnHazard.note, status.spawnHazard.bytes));
+        }
         if (copies && cfg.copyImpacts && counts.impacts > 0) {
             SelfTestLog::Check("T0-hooks", status.impactSites == 2, std::format("GetImpactData call sites: {} of 2 hooked ({} "
                 "chained): {}", status.impactSites, status.impactChained, status.impactNote));

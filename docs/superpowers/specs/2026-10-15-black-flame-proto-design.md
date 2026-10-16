@@ -663,3 +663,11 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
 - PlaceAtMe: 호출자가 지금 확정(확정 태그 참조, 또는 게임 스레드에서 플레이어 불 ActiveEffect)일 때 akFormToPlace(HAZD·EXPL·PROJ)를 사본으로(그 호출의 인자만). 대기 중이면 원본, 로그 1회.
 - ImpactSwap/HazardSwap은 사본을 건너뛰라고 따로 고치지 않았다: 사본 모델은 copies\ 아래라 회색 맵에 없고, 원본 경로를 지닌 경고-계속 사본은 회색 맵 모델로 바뀌는 게 의도된 대체.
 - 설정 copyCastingArt, copyHazardCreate, copyPlaced(기본 true). 트램펄린 사용 최대 274바이트(512).
+
+### v2 확장 C5: 자가 시험 추가
+
+- T0-fresh(fresh PASS, 그 밖 FAIL), T0-cover(폐포 사본 종류 폼마다 사본 또는 제외, 없는 것 처음 20개 FAIL; 주문별 가장 비싼 효과 PROJ·DUAL PROJ·EXPL·손 아트 INFO; 회색 없는 사본·쓰이지 않는 사본 INFO).
+  폐포는 간선 비트를 기록한다(손 아트가 가장 비싼 효과에서 왔는지, 해저드가 불 아닌 spawn-hazard에서만 왔는지).
+- E1m: 데이터로 고른 모드 불 주문(가장 비싼 효과 PROJ 사본, 파일 순서 맨 뒤), 공식 마스터뿐이면 INFO. 발사 → PROJ 사본, 폭발 사본이 있으면 1.5초 안 폭발 사본.
+- E5: PickCastingArtImpl 직접 호출 5가지 경우, SetCastingArt 자리·세션 카운터 INFO. T0-hooks에 SetCastingArt·해저드 생성·spawn 창.
+- 하지 않음: E6-reload(E3 저장·불러오기에 망토를 얹는 반자동 확인). 한계는 README에 적혀 있다.

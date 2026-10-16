@@ -277,6 +277,10 @@ namespace BlackFlame
                 entry.detail = "the fill refused the type";
             }
             if (entry.ok) {
+                const bool greyless = item.contains("greyModel") && item["greyModel"].is_string() &&
+                                      item["greyModel"].get<std::string>().empty() && item.contains("sourceModel") &&
+                                      item["sourceModel"].is_string() && !item["sourceModel"].get<std::string>().empty();
+                copies.counts.greyless += greyless ? 1 : 0;
                 copies.bySource.emplace(entry.source->GetFormID(), entry.copy);
                 copies.byCopy.emplace(entry.copy->GetFormID(), entry.source);
                 Count(copies.counts, entry.type);

@@ -91,6 +91,7 @@ namespace BlackFlame
         std::size_t failed = 0;      // left out of the map
         std::size_t linksToCopies = 0;  // links the second pass pointed at a copy
         int mapVersion = 0;             // 1 (spike builds) or 2 (C2 builder)
+        std::size_t greyless = 0;       // filled copies whose map greyModel is empty (the builder kept the source's model)
         std::size_t sourceMissing = 0;  // entries whose source form is not in the load order
         std::size_t copyMissing = 0;    // entries whose copy form is not there (the copies plugin not enabled?)
         std::string requestFingerprint;       // map v2: the request's fingerprint

@@ -71,6 +71,7 @@ set(BLACKFLAME_SOURCES
     src/SelfTestStepsV2Fire.cpp
     src/SelfTestStepsV2Flames.cpp
     src/SelfTestStepsV2Art.cpp
+    src/SelfTestStepsV2Cover.cpp
     src/SelfTestReload.cpp
     src/SelfTestText.cpp
     src/SelfTestWorld.cpp
