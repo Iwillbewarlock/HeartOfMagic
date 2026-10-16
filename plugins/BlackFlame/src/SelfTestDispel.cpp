@@ -16,8 +16,11 @@
 //   - MagicTarget::DispelEffect (id 34505, RVA 0x5d0ed0) walks the list matching spell, caster handle and
 //     effect, and when the target's flag byte at +0x10 bit 0 (inside its update) is set, it queues the dispel
 //     (id 34551, the postUpdateDispelList at +0x08) instead of calling Dispel at once; otherwise it calls
-//     Dispel(true). That is the engine's own guard for exactly this race.
-// So the dispel goes through MagicTarget::DispelEffect, with each effect's flags before and after logged.
+//     Dispel(true). That guard is for re-entrancy (a dispel from inside the target's own effect update); its
+//     unlocked check gives no cross-thread safety (D3 review).
+// v2 fix D1 gives the cross-thread part: this now runs from the main-thread queue, after the frame's jobs. The
+// dispel goes through MagicTarget::DispelEffect only (no direct Dispel fallback: D3), with each effect's flags
+// before and after logged.
 
 namespace BlackFlame::SelfTestWorld
 {
@@ -93,19 +96,11 @@ namespace BlackFlame::SelfTestWorld
             const bool updating = TargetUpdating(target);
             auto caster = effect->caster;  // DispelEffect takes the handle by reference
             const bool matched = target->DispelEffect(effect->spell, caster, effect);  // RE/M/MagicTarget.h:158
-            std::string fallback;
-            if (!matched) {
-                // Not matched by spell + caster + effect (a caster handle changed): the direct call, logged as such
-                if (auto* again = FindById(target, id); again && IsLiveStoke(again, keyword)) {
-                    again->Dispel(true);  // RE/A/ActiveEffect.h:92
-                    fallback = ", not matched: ActiveEffect::Dispel(true) instead";
-                }
-            }
             logger::info("BlackFlame: self-test dispel: Stoke effect {} flags 0x{:08X} -> {} via MagicTarget::DispelEffect "
-                         "(matched: {}, target inside its update: {}){}, thread {}", id, before, FlagsNow(target, id),
-                matched ? "yes" : "no", updating ? "yes (queued by the engine)" : "no", fallback,
+                         "(matched: {}, target inside its update: {}), thread {}", id, before, FlagsNow(target, id),
+                matched ? "yes" : "NO (nothing dispelled)", updating ? "yes (queued by the engine)" : "no",
                 REX::W32::GetCurrentThreadId());
-            if (matched || !fallback.empty()) {
+            if (matched) {
                 ++dispelled;
             }
         }

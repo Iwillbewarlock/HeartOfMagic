@@ -256,8 +256,7 @@ namespace BlackFlame
             if (before.empty()) {
                 continue;
             }
-            (void)CopyFill::FillData(entry.copy, entry.source);
-            (void)CopyFill::RewireLinks(entry.copy);
+            (void)CopyFill::Refill(entry.copy, entry.source);  // D3: no window where a copy points at an original
             const auto after = CopyFill::Compare(entry.copy, entry.source);
             notes.push_back(std::format("{} {:08X} -> copy {:08X} differed at the {} ({}); filled again: {}", entry.sourceText,
                 entry.source->GetFormID(), entry.copy->GetFormID(), a_reason, before, after.empty() ? "now equal" : after));

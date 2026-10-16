@@ -8,6 +8,7 @@
 
 #include "SelfTestCtx.h"
 
+#include "FormCopies.h"
 #include "SelfTestLog.h"
 #include "SelfTestText.h"
 
@@ -26,6 +27,20 @@ namespace BlackFlame::SelfTest
 
         RE::PlayerCharacter* Player() { return RE::PlayerCharacter::GetSingleton(); }
 
+        // D3: the player's hit on the target by the spell, or by its projectile (the original base or its copy)
+        bool IsOurHit(const SelfTestProbe::HitRecord& a_hit, RE::FormID a_player, RE::FormID a_target,
+            const RE::SpellItem* a_spell)
+        {
+            if (a_hit.cause != a_player || a_hit.target != a_target || !a_spell) {
+                return false;
+            }
+            const auto* effect = a_spell->GetAVEffect();
+            const auto* base = effect ? effect->data.projectileBase : nullptr;
+            const auto* copy = base ? CopyOf(base) : nullptr;
+            return a_hit.source == a_spell->GetFormID() || (base && a_hit.projectile == base->GetFormID()) ||
+                   (copy && a_hit.projectile == copy->GetFormID());
+        }
+
         int HitsOnTarget(const Ctx& a_c, std::uint64_t a_mark, const RE::SpellItem* a_spell)
         {
             const auto* player = Player();
@@ -35,10 +50,23 @@ namespace BlackFlame::SelfTest
             }
             int hits = 0;
             for (const auto& hit : SelfTestProbe::HitsSince(a_mark)) {
-                hits += hit.cause == player->GetFormID() && hit.target == target->GetFormID() &&
-                                hit.source == a_spell->GetFormID() ? 1 : 0;
+                hits += IsOurHit(hit, player->GetFormID(), target->GetFormID(), a_spell) ? 1 : 0;
             }
             return hits;
+        }
+
+        // Every TESHitEvent on the target since a_mark, for the aim FAIL line
+        std::string HitsListed(const Ctx& a_c, std::uint64_t a_mark)
+        {
+            const auto* target = RefOf(a_c.dummy);
+            std::string out;
+            for (const auto& hit : SelfTestProbe::HitsSince(a_mark)) {
+                if (target && hit.target == target->GetFormID()) {
+                    out += std::format("{}cause {:08X} source {:08X} projectile {:08X}", out.empty() ? "" : "; ", hit.cause,
+                        hit.source, hit.projectile);
+                }
+            }
+            return out.empty() ? std::string("none") : out;
         }
 
         // The flight from the player to the target at the spell's projectile speed, plus the margin
@@ -65,6 +93,7 @@ namespace BlackFlame::SelfTest
     {
         a_aim = {};
         a_aim.mark = a_mark;
+        a_aim.firstMark = a_mark;
         a_aim.casts = 1;
     }
 
@@ -84,7 +113,7 @@ namespace BlackFlame::SelfTest
             player->GetPosition().GetDistance(target->GetPosition()), target->GetHeight(), a_c.targetLastZ);
     }
 
-    AimResult ConfirmHit(Ctx& a_c, Aim& a_aim, RE::SpellItem* a_spell, const char* a_id)
+    AimResult ConfirmHit(Ctx& a_c, Aim& a_aim, RE::SpellItem* a_spell, const char* a_id, bool a_mayRecast)
     {
         if (a_aim.hit) {
             return AimResult::kHit;
@@ -100,17 +129,21 @@ namespace BlackFlame::SelfTest
             return AimResult::kHit;
         }
         const auto wait = HitWait(a_c, a_spell);
-        if (a_c.lastCast && Clock::now() - *a_c.lastCast < wait) {
+        if (!a_mayRecast || (a_c.lastCast && Clock::now() - *a_c.lastCast < wait)) {
             a_c.waitingFor = std::format("the hit of cast {} of {} (TESHitEvent)", a_aim.casts, kMaxAimCasts);
             return AimResult::kWaiting;
         }
         if (a_aim.casts >= kMaxAimCasts) {
             a_aim.gaveUp = true;
-            SelfTestLog::Fail(a_id, std::format("aim: no hit after {} casts | {}", kMaxAimCasts, AimGeometry(a_c)));
+            SelfTestLog::Fail(a_id, std::format("aim: no hit after {} casts | hits on the target since the first cast: {} | {}",
+                kMaxAimCasts, HitsListed(a_c, a_aim.firstMark), AimGeometry(a_c)));
             return AimResult::kGaveUp;
         }
         SelfTestLog::Info(a_id, std::format("aim: no TESHitEvent within {:.1f} s of cast {}; casting again | {}",
             std::chrono::duration<float>(wait).count(), a_aim.casts, AimGeometry(a_c)));
+        // D3: the records are searched from this cast on, so the step judges the cast that hit
+        a_aim.mark = SelfTestProbe::Mark();
+        a_aim.newCast = true;
         if (!CastAtTarget(a_c, Player(), a_spell, a_id)) {
             a_aim.gaveUp = true;  // CastAtTarget logged this step's FAIL
             return AimResult::kGaveUp;

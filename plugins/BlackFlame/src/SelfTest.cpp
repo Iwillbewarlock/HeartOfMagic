@@ -19,7 +19,6 @@ namespace BlackFlame::SelfTest
     {
         constexpr auto kArmedLimit = std::chrono::minutes(5);       // never started by then: disarm
         constexpr auto kNominalTick = std::chrono::milliseconds(100);
-        constexpr auto kMaxTickGap = std::chrono::milliseconds(500);  // a longer gap counts as paused time
 
         std::atomic<bool> g_active{ false };  // armed or running
         // Game thread only, from here on
@@ -199,7 +198,8 @@ namespace BlackFlame::SelfTest
             const auto delay = std::chrono::duration_cast<Clock::duration>(
                 std::chrono::duration<float>(GetConfig().selfTestDelaySeconds));
             if (a_now - g_armedAt > kArmedLimit + delay) {
-                logger::info("BlackFlame: self-test disarmed: it could not start within {} minutes", kArmedLimit.count());
+                logger::info("BlackFlame: self-test disarmed: it could not start within {} minutes plus the {:.0f} s start delay",
+                    kArmedLimit.count(), GetConfig().selfTestDelaySeconds);
                 g_armed = false;
                 g_active.store(false);
                 return false;

@@ -82,7 +82,8 @@ namespace BlackFlame::CopyFill
             CopyBytes(a_copy.boundData, a_source.boundData);
             a_copy.soundLevel = a_source.soundLevel;
             a_copy.fullName = a_source.fullName;
-            a_copy.muzzleFlashModel.SetModel(a_source.muzzleFlashModel.GetModel());
+            const char* model = a_source.muzzleFlashModel.GetModel();  // virtual: may be null
+            a_copy.muzzleFlashModel.SetModel(model ? model : "");
         }
 
         void FillExplosion(RE::BGSExplosion& a_copy, const RE::BGSExplosion& a_source)
@@ -187,6 +188,26 @@ namespace BlackFlame::CopyFill
         };
 #undef BF_FIELD
 
+        // D3: a form pointer named without dereferencing it - found in the game's form map by value (LookupByID would need
+        // the id, which only the dereference gives). A full scan under the map's read lock: it runs only for a field that
+        // differs, a handful per load at most; a cache or a reverse map would be the upgrade if that ever changes.
+        std::string FormPointerText(const RE::TESForm* a_form)
+        {
+            if (!a_form) {
+                return "null";
+            }
+            auto [map, lock] = RE::TESForm::GetAllForms();
+            if (map) {
+                const RE::BSReadLockGuard guard(lock.get());
+                for (const auto& [id, form] : *map) {
+                    if (form == a_form) {
+                        return std::format("{:08X}", id);
+                    }
+                }
+            }
+            return std::format("pointer {:X} (not a form in the map)", reinterpret_cast<std::uintptr_t>(a_form));
+        }
+
         std::string FieldValue(const void* a_struct, const Field& a_field)
         {
             const auto* at = static_cast<const std::byte*>(a_struct) + a_field.offset;
@@ -195,7 +216,7 @@ namespace BlackFlame::CopyFill
                 {
                     const RE::TESForm* form = nullptr;
                     std::memcpy(&form, at, sizeof(form));
-                    return form ? std::format("{:08X}", form->GetFormID()) : std::string("null");
+                    return FormPointerText(form);
                 }
             case Kind::kFloat:
                 {
@@ -269,7 +290,9 @@ namespace BlackFlame::CopyFill
                     std::to_underlying(a_copy.soundLevel)));
             }
             DiffName(out, a_copy, a_source);
-            if (std::strcmp(a_copy.muzzleFlashModel.GetModel(), a_source.muzzleFlashModel.GetModel()) != 0) {
+            const char* copyModel = a_copy.muzzleFlashModel.GetModel();
+            const char* sourceModel = a_source.muzzleFlashModel.GetModel();
+            if (std::strcmp(copyModel ? copyModel : "", sourceModel ? sourceModel : "") != 0) {  // D3: null guards
                 Note(out, std::format("muzzleFlashModel: source {} copy {}", Quoted(a_source.muzzleFlashModel.GetModel()),
                     Quoted(a_copy.muzzleFlashModel.GetModel())));
             }
@@ -358,6 +381,85 @@ namespace BlackFlame::CopyFill
         default:
             return false;
         }
+    }
+
+    namespace
+    {
+        // D3 (R7): the expected struct (links already pointing at copies) written in one memcpy, and only when it differs,
+        // so a copy never points at an original in between (FillData + RewireLinks had that window)
+        template <class T>
+        bool WriteIfDiffers(T& a_to, const T& a_expected)
+        {
+            if (SameBytes(a_to, a_expected)) {
+                return false;
+            }
+            CopyBytes(a_to, a_expected);
+            return true;
+        }
+
+        template <class T>
+        bool AssignIfDiffers(T& a_to, const T& a_value)
+        {
+            if (a_to == a_value) {
+                return false;
+            }
+            a_to = a_value;
+            return true;
+        }
+
+        bool RefillName(RE::TESFullName& a_copy, const RE::TESFullName& a_source)
+        {
+            return AssignIfDiffers(a_copy.fullName, a_source.fullName);
+        }
+    }
+
+    bool Refill(RE::TESForm* a_copy, const RE::TESForm* a_source)
+    {
+        if (!a_copy || !a_source || a_copy->GetFormType() != a_source->GetFormType()) {
+            return false;
+        }
+        bool changed = false;
+        if (auto* p = a_copy->As<RE::BGSProjectile>()) {
+            const auto& s = *a_source->As<RE::BGSProjectile>();
+            changed |= WriteIfDiffers(p->data, ExpectedData(s));
+            changed |= WriteIfDiffers(p->boundData, s.boundData);
+            changed |= AssignIfDiffers(p->soundLevel, s.soundLevel);
+            changed |= RefillName(*p, s);
+            const char* model = s.muzzleFlashModel.GetModel();
+            const char* now = p->muzzleFlashModel.GetModel();
+            if (std::strcmp(now ? now : "", model ? model : "") != 0) {
+                p->muzzleFlashModel.SetModel(model ? model : "");
+                changed = true;
+            }
+        } else if (auto* e = a_copy->As<RE::BGSExplosion>()) {
+            const auto& s = *a_source->As<RE::BGSExplosion>();
+            changed |= WriteIfDiffers(e->data, ExpectedData(s));
+            changed |= WriteIfDiffers(e->boundData, s.boundData);
+            changed |= AssignIfDiffers(e->formEnchanting, s.formEnchanting);
+            changed |= AssignIfDiffers(e->castingType, s.castingType);
+            changed |= AssignIfDiffers(e->amountofEnchantment, s.amountofEnchantment);
+            changed |= AssignIfDiffers(e->imageSpaceModifying, s.imageSpaceModifying);
+            changed |= RefillName(*e, s);
+        } else if (auto* i = a_copy->As<RE::BGSImpactData>()) {
+            const auto& s = *a_source->As<RE::BGSImpactData>();
+            changed |= WriteIfDiffers(i->data, s.data);
+            changed |= AssignIfDiffers(i->decalTextureSet, s.decalTextureSet);
+            changed |= AssignIfDiffers(i->decalTextureSet2, s.decalTextureSet2);
+            changed |= AssignIfDiffers(i->sound1, s.sound1);
+            changed |= AssignIfDiffers(i->sound2, s.sound2);
+            changed |= AssignIfDiffers(i->hazard, LinkFor(s.hazard));  // one pointer store, straight to the copy
+            if (!SameBytes(i->dData, s.dData)) {
+                i->dData = s.dData;
+                changed = true;
+            }
+        } else if (auto* h = a_copy->As<RE::BGSHazard>()) {
+            const auto& s = *a_source->As<RE::BGSHazard>();
+            changed |= WriteIfDiffers(h->data, s.data);
+            changed |= WriteIfDiffers(h->boundData, s.boundData);
+            changed |= AssignIfDiffers(h->imageSpaceModifying, s.imageSpaceModifying);
+            changed |= RefillName(*h, s);
+        }
+        return changed;
     }
 
     int RewireLinks(RE::TESForm* a_copy)

@@ -183,14 +183,6 @@ namespace BlackFlame::SelfTest
             }
             StartAim(a_c.aim, a_c.t3Mark);  // T3's cast is the first
         }
-        // C3: judged only after a confirmed hit; up to three casts, then FAIL "aim: no hit after 3 casts"
-        const auto aim = ConfirmHit(a_c, a_c.aim, a_c.forms.firebolt, "T5");
-        if (aim == AimResult::kGaveUp) {
-            return true;
-        }
-        if (aim == AimResult::kWaiting && !a_c.greySeen) {
-            return false;
-        }
         const auto* ours = GetForms().burnShader;
         const auto engines = EngineShadersOf(a_c.forms.firebolt);
         const auto shaders = SelfTestWorld::ShadersOn(a_c.dummy);
@@ -204,6 +196,15 @@ namespace BlackFlame::SelfTest
         }
         if (a_c.greySeen && EngineLive(shaders, engines)) {
             a_c.engineLiveAfterGrey = true;
+        }
+        // C3/D3: judged only after a hit confirmed by TESHitEvent (up to three casts, then FAIL "aim: no hit after 3
+        // casts"); no recast once our shader is seen
+        const auto aim = ConfirmHit(a_c, a_c.aim, a_c.forms.firebolt, "T5", !a_c.greySeen);
+        if (aim == AimResult::kGaveUp) {
+            return true;
+        }
+        if (aim != AimResult::kHit) {
+            return false;
         }
         a_c.waitingFor = std::format("our shader alight on the target, then {} s of watching; shaders seen: {}; swaps: {}",
             kBurnWatch.count(), DescribeShaders(shaders), DescribeBurns(a_c.t3Mark));
@@ -498,8 +499,10 @@ namespace BlackFlame::SelfTest
         }
         if (!IsStoked()) {
             const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - a_c.stepStart);
-            SelfTestLog::Pass("T8", std::format("buff flag off {} ms after the dispel{}", ms.count(), a_c.redispelled ?
-                " - only after the second dispel at 500 ms (the first did not hold: see the 'self-test dispel' log lines)" : ""));
+            // D3: PASS only when the first dispel held; a needed second one is a FAIL (the flags are in the log lines)
+            SelfTestLog::Check("T8", !a_c.redispelled, std::format("buff flag off {} ms after the dispel{}", ms.count(),
+                a_c.redispelled ? " - only after a SECOND dispel at 500 ms: the first did not hold (flags before and after in the "
+                                  "'self-test dispel' log lines)" : ", the first dispel held"));
             return true;
         }
         return false;
@@ -531,9 +534,11 @@ namespace BlackFlame::SelfTest
                 DescribeProjectile(*r));
             return true;
         }
-        const bool ok = !r->recolored && r->after.effectProperties > 0 && r->after.withGrey == 0 &&
-                        (GetConfig().projectile ? a_c.t3Recolored : r->copyBase == 0);
-        SelfTestLog::Check("T8-cast", ok, std::format("T3 recoloured: {} | {}", a_c.t3Recolored ? "yes" : "NO",
+        // D3: the unbuffed launch never takes a copy, whatever the recolour setting; T3 must have been judged grey
+        const bool ok = !r->recolored && r->after.effectProperties > 0 && r->after.withGrey == 0 && r->copyBase == 0 &&
+                        a_c.t3Recolored;
+        SelfTestLog::Check("T8-cast", ok, std::format("T3 grey (copy/recolour): {} | unbuffed launch: copy {:08X}, {} effect "
+            "shapes, {} grey | {}", a_c.t3Recolored ? "yes" : "NO", r->copyBase, r->after.effectProperties, r->after.withGrey,
             DescribeProjectile(*r)));
         return true;
     }

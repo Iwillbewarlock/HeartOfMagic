@@ -103,6 +103,10 @@ namespace BlackFlame
         /// that is not copied
         bool FillData(RE::TESForm* a_copy, const RE::TESForm* a_source);
 
+        /// D3 (refresh): writes into a_copy only what differs from a fill now, each data struct as one write with its links
+        /// already pointing at copies; whether anything changed
+        bool Refill(RE::TESForm* a_copy, const RE::TESForm* a_source);
+
         /// The second pass: links that have a copy point at it; returns how many were rewired
         int RewireLinks(RE::TESForm* a_copy);
 

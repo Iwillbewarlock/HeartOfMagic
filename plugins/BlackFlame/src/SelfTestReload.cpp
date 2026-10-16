@@ -475,17 +475,16 @@ namespace BlackFlame::SelfTest::Reload
             std::chrono::duration<float>(GetConfig().selfTestDelaySeconds));
         if (now - e3.resumeAt > kResumeWait + delay) {  // W3: the player never became ready after the load
             Disarm();
-            Close(std::format("E3 not run (manual step skipped): the player was not ready within {} minutes of the load",
-                kResumeWait.count()));
+            Close(std::format("E3 not run (manual step skipped): the player was not ready within {} minutes plus the {:.0f} s "
+                "start delay of the load", kResumeWait.count(), GetConfig().selfTestDelaySeconds));
             return;
         }
         auto* player = Player();
         auto* ui = RE::UI::GetSingleton();
-        constexpr auto kMaxGap = std::chrono::milliseconds(500);  // a longer gap between ticks is paused time
         const bool ready = player && ui && player->Is3DLoaded() && player->GetParentCell() && !ui->GameIsPaused();
         {
             std::lock_guard lock(g_mutex);
-            const auto gap = g_e3.lastReadyCheck ? std::min<Clock::duration>(now - *g_e3.lastReadyCheck, kMaxGap) :
+            const auto gap = g_e3.lastReadyCheck ? std::min<Clock::duration>(now - *g_e3.lastReadyCheck, kMaxTickGap) :
                                                    Clock::duration{};
             g_e3.lastReadyCheck = now;
             if (ready) {

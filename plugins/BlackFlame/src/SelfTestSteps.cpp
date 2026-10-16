@@ -176,7 +176,6 @@ namespace BlackFlame::SelfTest
                 return true;
             }
             a_c.casterId = caster->GetFormID();
-            a_c.casterHome = caster->GetPosition();  // where Spawn put it; T2 takes the height it comes to rest at
             SelfTestLog::Info("T2", std::format("spawned target {:08X} and caster {:08X} (both EncDeer)", dummy->GetFormID(),
                 caster->GetFormID()));
             return true;
@@ -193,12 +192,8 @@ namespace BlackFlame::SelfTest
             if (!dummy || !caster || !dummy->Is3DLoaded() || !caster->Is3DLoaded()) {
                 return false;
             }
-            // The caster keeps its AI (an actor without it may never run its cast)
-            if (!a_c.targetMade) {
-                a_c.targetMadeText = SelfTestWorld::MakeTarget(dummy);
-                a_c.targetMade = true;
-            }
-            // C3: spawned at the player's height, the target may still be falling: wait until it is at rest
+            // C3: spawned at the player's height, the target may still be falling: wait until it is at rest (D3: with its
+            // AI still on; it is turned off only once the target is at rest)
             const float z = dummy->GetPositionZ();
             if (!a_c.targetStillSince || std::fabs(z - a_c.targetLastZ) > kRestTolerance) {
                 a_c.targetLastZ = z;
@@ -209,9 +204,12 @@ namespace BlackFlame::SelfTest
                     Player()->GetPositionZ());
                 return false;
             }
-            if (a_c.casterHome) {
-                a_c.casterHome->z = caster->GetPositionZ();  // the planned spot, at the ground's height
+            // The caster keeps its AI (an actor without it may never run its cast); the target is made passive now
+            if (!a_c.targetMade) {
+                a_c.targetMadeText = SelfTestWorld::MakeTarget(dummy);
+                a_c.targetMade = true;
             }
+            a_c.casterHome = caster->GetPosition();  // D3: where the caster stands now, as a whole (its own ground height)
             const auto& done = a_c.targetMadeText;
             const float health = SelfTestWorld::HealthOf(dummy);
             const float radius = a_c.forms.fireballExplosion ? a_c.forms.fireballExplosion->data.radius : 0.0f;

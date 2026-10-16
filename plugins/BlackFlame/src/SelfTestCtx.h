@@ -36,8 +36,10 @@ namespace BlackFlame::SelfTest
 
     struct Aim
     {
-        std::uint64_t mark = 0;  // hits counted since
+        std::uint64_t mark = 0;       // hits and records searched since (the latest cast)
+        std::uint64_t firstMark = 0;  // the first cast (the FAIL line lists every hit since)
         int casts = 0;
+        bool newCast = false;         // a recast was made: the step resets its own search from mark
         bool hit = false;
         bool gaveUp = false;
         std::optional<Clock::time_point> hitAt;
@@ -99,7 +101,7 @@ namespace BlackFlame::SelfTest
         std::string targetMadeText;                    // what MakeTarget said
         float targetLastZ = 0.0f;                      // T2: the target's height when it was last seen moving
         std::optional<Clock::time_point> targetStillSince;
-        std::optional<RE::NiPoint3> casterHome;        // where Spawn put the caster, at the height it rests at in T2
+        std::optional<RE::NiPoint3> casterHome;        // where the caster stood when T2 judged (the target at rest)
     };
 
     using Handler = bool (*)(Ctx&, bool);  // true when the step is finished
@@ -127,11 +129,14 @@ namespace BlackFlame::SelfTest
     void StartAim(Aim& a_aim, std::uint64_t a_mark);
     /// The hit of the last cast by TESHitEvent; after its flight and a margin without one, the player casts again,
     /// up to kMaxAimCasts casts, then a FAIL "aim: no hit after 3 casts" with the geometry
-    [[nodiscard]] AimResult ConfirmHit(Ctx& a_c, Aim& a_aim, RE::SpellItem* a_spell, const char* a_id);
+    [[nodiscard]] AimResult ConfirmHit(Ctx& a_c, Aim& a_aim, RE::SpellItem* a_spell, const char* a_id, bool a_mayRecast = true);
     /// The player, the target, its 3D bound and their distance, for FAIL lines
     [[nodiscard]] std::string AimGeometry(const Ctx& a_c);
     /// The caster moved back to where it stood in T2 when it wandered off (it keeps its AI)
     void BringCasterHome(Ctx& a_c, const char* a_id);
+
+    // D3: one gap for the self-test's clocks and E3's ready time: a longer gap between ticks is paused time
+    inline constexpr auto kMaxTickGap = std::chrono::milliseconds(500);
 
     inline constexpr auto kBurnWatch = std::chrono::seconds(1);             // engine shader watched after the grey shows
     // An engine hit shader counts as alight from this age on (a younger one may be a frame's flash)

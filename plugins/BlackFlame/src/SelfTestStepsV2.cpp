@@ -185,8 +185,8 @@ namespace BlackFlame::SelfTest
             "null ({} with flags bit 1), {} not stoked, {} not a fire effect, {} other; GetHitEffectArt: {} calls, {} null",
             shader.playerCalls, shader.swapped, shader.engineNull, shader.engineNullFlag, shader.notStoked, shader.notFire,
             shader.otherRejected, art.playerCalls, art.engineNull));
-        // C3: judged only after a confirmed hit (T5's aim)
-        if (!a_c.aim.hit) {
+        // C3/D3: judged only after a confirmed hit (T5's aim) or our shader seen on the target
+        if (!a_c.aim.hit && !a_c.greySeen) {
             SelfTestLog::Fail("E4", std::format("aim: no hit after {} casts (T5) - nothing to judge | {}", a_c.aim.casts,
                 AimGeometry(a_c)));
             return true;

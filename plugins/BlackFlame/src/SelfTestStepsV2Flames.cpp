@@ -183,6 +183,10 @@ namespace BlackFlame::SelfTest
                 }
             }
             if (!IsStoked()) {
+                if (g_flames.redispelled) {  // D3: the first dispel must hold
+                    SelfTestLog::Fail("E2", "the buff went off only after a SECOND dispel: the first did not hold (flags before and "
+                        "after in the 'self-test dispel' log lines)");
+                }
                 g_flames.afterMark = SelfTestProbe::Mark();
                 Next(a_c.phase, kAfter);
             } else if (since >= kOffWait) {

@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <format>
 #include <unordered_set>
+#include <utility>
 
 namespace BlackFlame::SelfTest
 {
@@ -146,6 +147,13 @@ namespace BlackFlame::SelfTest
         }
         // C3: the impact is judged only after the hit is confirmed (up to three casts)
         const auto aim = ConfirmHit(a_c, g_fire.aim, a_c.forms.firebolt, "E1a");
+        if (std::exchange(g_fire.aim.newCast, false)) {
+            // D3: judge the cast that hit - records and counters from the new cast on
+            g_fire.mark = g_fire.aim.mark;
+            g_fire.at = GetCopySwapCounters();
+            g_fire.launch.reset();
+            g_fire.projectile.reset();
+        }
         if (aim == AimResult::kGaveUp) {
             return true;
         }
