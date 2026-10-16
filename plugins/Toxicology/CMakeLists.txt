@@ -12,9 +12,12 @@ if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
     message(FATAL_ERROR "In-source builds not allowed. Use: cmake -B build")
 endif()
 
+# EncodingUtils.cpp: PluginNames (plugin names with non-ASCII bytes in catalog keys), as SpellScannerFormId.cpp.
 set(TOXICOLOGY_SOURCES
     src/Main.cpp
     src/core/ToxCore.cpp
+    src/game/ToxData.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/EncodingUtils.cpp
 )
 
 add_commonlibsse_plugin(${PROJECT_NAME}
@@ -29,6 +32,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/plugins/spelllearning/include
 )
 
 target_precompile_headers(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../PCH.h)
