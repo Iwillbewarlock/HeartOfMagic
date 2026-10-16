@@ -43,7 +43,7 @@ namespace
     // Debug check (spec 5.6): every kCheckWindowSeconds of poison casting, Magicka counted vs the
     // player's Magicka drop. A pause longer than kCheckGapSeconds starts a new window.
     constexpr double kCheckWindowSeconds = 5.0;
-    constexpr double kCheckGapSeconds = 2.0;
+    constexpr double kCheckGapSeconds = 4.0;  // longer than a slow fire-and-forget charge
 
     using Clock = std::chrono::steady_clock;
 
@@ -259,7 +259,7 @@ namespace
 
         const double now = NowSeconds();
         if (a_spellId == g_lastCastSpell && now - g_lastCastAt < kSameCastWindowSeconds) {
-            logger::debug("Toxicology: second cast event for {:08X} inside {} s - same release, not charged", a_spellId, kSameCastWindowSeconds);
+            logger::info("Toxicology: second cast event for {:08X} inside {} s - same release, not charged", a_spellId, kSameCastWindowSeconds);
             return;
         }
         g_lastCastSpell = a_spellId;
