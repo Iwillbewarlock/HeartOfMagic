@@ -53,4 +53,15 @@ namespace BlackFlame
     /// The first kPostLoadGame / kNewGame of the session: the HUD line for stale / none / pluginMissing, once (nothing when
     /// kDataLoaded never checked; marked shown only once the main-thread queue took the notice)
     void NotifyFreshnessOnce();
+
+    /// The copy model probe found a_count copy NIFs that exist (the plain stream opens them) but that the game's loose-file
+    /// index does not know (a cache mod such as CRDW AE out of date). Logged and kept for the tester file; the HUD line is
+    /// shown now when the player is in the world, else at the first kPostLoadGame / kNewGame (NotifyFileIndexOnce). Any thread.
+    void ReportStaleFileIndex(std::size_t a_count);
+
+    /// The HUD line of ReportStaleFileIndex, once per session (nothing when nothing was reported)
+    void NotifyFileIndexOnce();
+
+    /// "" or the stale file index line (the tester file)
+    [[nodiscard]] std::string StaleFileIndexText();
 }

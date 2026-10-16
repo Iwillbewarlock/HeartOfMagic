@@ -838,6 +838,20 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
 - J13 README 알려진 한계: 런타임 묶인 목록은 정적 씨앗으로 제한(런타임에 MGEF associatedForm을 바꾸는 모드는 못 덮음).
 - J14 배포 json에 copyModelProbe "log".
 
+### 탐침 실패의 원인: 느슨한 파일 색인 캐시 (scratchpad probe-fail/notes.md)
+
+- CRDW AE(Nexus 186434)가 느슨한 파일 탐색(70050)과 존재·크기 질의(70164)를 걸어 2026-10-16 11:13에 만든 캐시로 답한다. MO2 플러그인의
+  지문은 모드·플러그인 목록만 봐서, 켜진 모드 안에 나중에 쓴 사본 파일은 모델 DB가 모른다(Demand 오류 1). 성공한 9개는 그 캐시에 있던
+  옛 파일이다. 평범한 스트림(BSResourceNiBinaryStream)은 그 훅을 거치지 않아 J5 검사는 통과했다. Dragonfire·Incinerate·Flame Cloak이
+  안 보인 것도 같은 원인일 가능성이 높다(엔진의 LoadGraphics가 같은 조회를 씀).
+- 탐침: 실패한 Demand마다 BSResourceNiBinaryStream("meshes\\" + 경로)이 열리는지 함께 남기고, "열림 + 오류 1"은 "파일은 있으나 게임의
+  파일 색인이 모름"으로 따로 셈. 하나라도 있으면 화면에 한 번(플레이 중이면 바로, 아니면 첫 kPostLoadGame/kNewGame): "Black Flame: N grey
+  copies are not visible to the game's file index (...) - rebuild that cache.", CRDW.dll이 올라와 있으면 CRDW를 이름으로. 로그와 테스터
+  파일 "file index" 줄에도.
+- 캐시: 실패가 있던 결과는 다시 쓰지 않고 다시 탐침(원인이 사본 밖, 예컨대 색인 캐시일 수 있음).
+- 문서: README 알려진 한계, README_TESTER 3단계, 빌더 마지막 줄 "느슨한 파일 캐시 모드를 쓰면 빌더 뒤 그 캐시를 다시 만들 것".
+- 기본 모드는 "log" 그대로.
+
 ### v2 dev automation (580e315 이후)
 
 - 목적: 사람이 게임을 만지지 않고 자가 시험을 끝까지 돌린다(MO2로 실행만 하면 됨). 개발용 설정 키 셋, 기본 꺼짐, 배포 json·테스터 패키지에 없음, `selfTest`(testerMode 포함)가 켜졌을 때만 적용(Config.cpp GateDevKeys). 코드는 DevAutomation.cpp/.h.

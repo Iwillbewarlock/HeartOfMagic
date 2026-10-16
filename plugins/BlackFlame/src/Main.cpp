@@ -136,6 +136,7 @@ namespace
             BlackFlame::Watchdog::NoteLoadEnded();
             BlackFlame::RefreshCopies("save load");  // C5: copies that no longer match their source, re-filled
             BlackFlame::NotifyFreshnessOnce();
+            BlackFlame::NotifyFileIndexOnce();  // a loose-file cache that does not know the copies (CopyModelProbe)
             BlackFlame::RetryNativeWrappers();
             BlackFlame::Tester::Write("save load");  // G5: the wrappers have bound by now
             BlackFlame::RequestRecomputeBuff("game loaded");
@@ -150,6 +151,7 @@ namespace
             TearDown("a new game started");
             BlackFlame::RefreshCopies("new game");
             BlackFlame::NotifyFreshnessOnce();
+            BlackFlame::NotifyFileIndexOnce();
             BlackFlame::SelfTest::OnNewGame();
             BlackFlame::RetryNativeWrappers();
             BlackFlame::RequestRecomputeBuff("new game");

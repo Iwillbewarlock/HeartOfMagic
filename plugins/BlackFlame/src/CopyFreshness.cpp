@@ -3,9 +3,12 @@
 #include "CopyRequest.h"
 #include "FormCopies.h"
 #include "MainThreadQueue.h"
+#include "TrackedMutex.h"
 
 #include <atomic>
 #include <format>
+#include <mutex>
+#include <string>
 
 namespace BlackFlame
 {
@@ -16,7 +19,16 @@ namespace BlackFlame
         constexpr const char* kEmptyText = "Black Flame: the copies output holds no fire forms. Check the builder's messages.";
         constexpr const char* kMissingText = "Black Flame: the generated copies are not enabled. Enable HeartOfMagic_BlackFlame_Copies.esp "
                                              "and put the copies output mod after Black Flame.";
+        // The player-facing line when a loose-file index (CRDW and the like) does not know the copies; {} the count, {} the cache
+        constexpr const char* kFileIndexText = "Black Flame: {} grey copies are not visible to the game's file index ({}) - "
+                                               "rebuild that cache.";
+        constexpr const char* kFileIndexNamed = "the CRDW loose-file cache is out of date";
+        constexpr const char* kFileIndexGeneric = "a loose-file cache such as CRDW is out of date";
         constexpr int kOldMapVersion = 1;
+
+        TrackedMutex g_fileIndexMutex;
+        std::string g_fileIndexText;               // under g_fileIndexMutex
+        std::atomic<bool> g_fileIndexNotified{ false };
 
         FreshnessState g_state;          // written once at kDataLoaded
         bool g_checked = false;          // F10: CheckFreshness ran (kDataLoaded finished its copy request part)
@@ -96,6 +108,46 @@ namespace BlackFlame
     const FreshnessState& GetFreshness() noexcept
     {
         return g_state;
+    }
+
+    void ReportStaleFileIndex(std::size_t a_count)
+    {
+        const bool crdw = REX::W32::GetModuleHandleW(L"CRDW.dll") != nullptr;  // CRDW AE's SKSE plugin (mod "CRDW AE")
+        const auto text = std::vformat(kFileIndexText, std::make_format_args(a_count, crdw ? kFileIndexNamed : kFileIndexGeneric));
+        {
+            std::lock_guard lock(g_fileIndexMutex);
+            g_fileIndexText = text;
+        }
+        logger::warn("BlackFlame: {} copy NIF(s) exist on disk but the game's loose-file index does not know them ({}): \"{}\" - "
+                     "rebuild the loose-file cache after running the builder", a_count, crdw ? "CRDW.dll is loaded" :
+                     "no CRDW.dll; another index layer", text);
+        const auto* player = RE::PlayerCharacter::GetSingleton();
+        if (player && player->GetParentCell()) {
+            NotifyFileIndexOnce();  // in the world already: now
+        }
+    }
+
+    std::string StaleFileIndexText()
+    {
+        std::lock_guard lock(g_fileIndexMutex);
+        return g_fileIndexText;
+    }
+
+    void NotifyFileIndexOnce()
+    {
+        const auto text = StaleFileIndexText();
+        if (text.empty() || g_fileIndexNotified.load()) {
+            return;
+        }
+        if (!MainQueue::Installed()) {
+            g_fileIndexNotified.store(true);
+            logger::info("BlackFlame: file index notice \"{}\" (no main-thread queue: not shown)", text);
+            return;
+        }
+        if (MainQueue::Post("file index notice", [text]() { RE::SendHUDMessage::ShowHUDMessage(text.c_str()); })) {
+            g_fileIndexNotified.store(true);
+            logger::info("BlackFlame: file index notice: telling the player \"{}\"", text);
+        }
     }
 
     void NotifyFreshnessOnce()

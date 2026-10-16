@@ -57,6 +57,9 @@ namespace BlackFlame::Tester
             out += std::format("  map {} (version {}): {} entries; filled PROJ {}, EXPL {}, IPCT {}, HAZD {}, ARTO {}; left out {} ({} source mesh absent)\n",
                 c.mapRead ? "read" : "NOT read", c.mapVersion, c.mapEntries, c.projectiles, c.explosions, c.impacts, c.hazards, c.arts, c.failed,
                 c.sourceAbsent);
+            if (const auto stale = StaleFileIndexText(); !stale.empty()) {
+                out += "  file index: " + stale + "\n";
+            }
             out += CopyModelProbeDone() ?  // v2i (CopyModelProbe; I12: a startup write comes before the probe)
                        std::format("  copy NIF failed to load in game: {} (probe {})\n", CopiesFailedToLoad().size(), CopyModelProbeStatus()) :
                        std::format("  copy NIF failed to load in game: not known yet (probe {})\n", CopyModelProbeStatus());

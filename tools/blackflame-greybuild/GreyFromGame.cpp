@@ -142,7 +142,8 @@ namespace GreyBuild
             return kFail;
         }
         std::cout << "next: enable the output mod (placed after Heart of Magic - Black Flame, so its two ESLs win over the empty "
-                     "ones), then start the game again.\n";
+                     "ones), then start the game again. If you use a loose-file cache mod (CRDW and the like), rebuild its cache "
+                     "after running the builder: a cache made before this run does not know the new files.\n";
         return kOk;
     }
 }

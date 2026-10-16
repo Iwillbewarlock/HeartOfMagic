@@ -1,6 +1,7 @@
 #include "CopyModelProbe.h"
 
 #include "Config.h"
+#include "CopyFreshness.h"
 #include "CopyRequest.h"
 #include "FireClosure.h"
 #include "NifDump.h"
@@ -129,6 +130,7 @@ namespace BlackFlame
             Clock::time_point begun = Clock::now();
             int frames = 0;
             int faults = 0;  // Demand calls that faulted (GuardedKeep)
+            int staleIndex = 0;  // failed Demand while the plain stream opens the file: a stale loose-file index (CRDW and the like)
             Clock::duration largestSlice{};
         };
 
@@ -184,6 +186,8 @@ namespace BlackFlame
                                "copies map is the one in 'key'. Delete it, or set copyModelProbeAlways true, to probe again.";
             root["key"] = a_run.cacheKey;
             root["paths"] = a_run.order.size();
+            root["failed"] = a_run.failed;
+            root["staleIndex"] = a_run.staleIndex;
             root["dropped"] = nlohmann::json::array();
             for (const auto& item : a_disabled) {
                 root["dropped"].push_back({ { "copy", LocalHex(item.copy) }, { "text", item.text } });
@@ -224,10 +228,12 @@ namespace BlackFlame
             }
             const auto root = nlohmann::json::parse(in, nullptr, false);
             if (root.is_discarded() || !root.is_object() || root.value("version", 0) != kCacheVersion ||
-                root.value("key", std::string()) != a_key || !root.contains("dropped") || !root["dropped"].is_array() ||
+                root.value("key", std::string()) != a_key || root.value("failed", -1) != 0 || !root.contains("dropped") ||
+                !root["dropped"].is_array() ||
                 !root.contains("muzzles") || !root["muzzles"].is_array()) {
-                logger::info("BlackFlame: copy model probe: the cached result is for another copies map or plugin version - probing "
-                             "again in the background");
+                logger::info("BlackFlame: copy model probe: the cached result is for another copies map or plugin version, or had "
+                             "failures (their cause may lie outside the copies, e.g. a loose-file cache) - probing again in the "
+                             "background");
                 return false;
             }
             std::vector<DisabledCopy> disabled;
@@ -304,6 +310,20 @@ namespace BlackFlame
             }
         }
 
+        // Does the engine's plain stream open the file? It does not go through the loose-file index that the model database's
+        // lookup uses (a cache mod such as CRDW AE hooks that lookup, 70050 / 70164), so "stream opens, Demand error 1" means
+        // that index does not know the file (probe-fail notes)
+        bool StreamOpens(const std::string& a_path)
+        {
+            const std::string data = Key(a_path).starts_with("meshes\\") ? a_path : "meshes\\" + a_path;
+            bool good = false;
+            (void)GuardedKeep("copy model probe stream", [&]() {
+                RE::BSResourceNiBinaryStream stream(data.c_str());
+                good = stream.good();
+            });
+            return good;
+        }
+
         // One copy path (left out when the budget ran out)
         void ProbePath(Run& a_run, const std::string& a_path)
         {
@@ -324,7 +344,12 @@ namespace BlackFlame
                 control = OverBudget(a_run) ? std::format("Demand(\"{}\") not run (budget)", source) :
                                               Describe(source, ResultFor(a_run, source));
             }
-            logger::warn("BlackFlame: copy model probe: FAILED copy {} | control (source) {}", Describe(a_path, result), control);
+            const bool stream = StreamOpens(a_path);
+            const bool stale = stream && result.code == static_cast<int>(RE::BSResource::ErrorCode::kNotExist);
+            a_run.staleIndex += stale ? 1 : 0;
+            logger::warn("BlackFlame: copy model probe: FAILED copy {} | stream open: {}{} | control (source) {}",
+                Describe(a_path, result), stream ? "yes" : "no",
+                stale ? " - the file exists but the game's file index does not know it" : "", control);
         }
 
         // The safety net for one use: a failed copy path whose source path (the control) loads takes the copy out (its model)
@@ -382,10 +407,14 @@ namespace BlackFlame
             const auto ms = [](Clock::duration a_duration) {
                 return std::chrono::duration_cast<std::chrono::milliseconds>(a_duration).count();
             };
-            logger::info("BlackFlame: copy model probe: {} distinct copy model path(s) of {} copies: {} ok, {} failed, {} left out; "
-                         "{} ms of probing over {} frames (largest slice {} ms), {} ms from start to end", a_run.order.size(),
-                FilledCopies().size(), a_run.ok, a_run.failed, a_run.leftOut.size(), ms(a_run.spent), a_run.frames,
-                ms(a_run.largestSlice), ms(Clock::now() - a_run.begun));
+            logger::info("BlackFlame: copy model probe: {} distinct copy model path(s) of {} copies: {} ok, {} failed ({} of them: file "
+                         "exists but the game's file index does not know it), {} left out; {} ms of probing over {} frames (largest "
+                         "slice {} ms), {} ms from start to end", a_run.order.size(), FilledCopies().size(), a_run.ok, a_run.failed,
+                a_run.staleIndex, a_run.leftOut.size(), ms(a_run.spent), a_run.frames, ms(a_run.largestSlice),
+                ms(Clock::now() - a_run.begun));
+            if (a_run.staleIndex > 0) {
+                ReportStaleFileIndex(static_cast<std::size_t>(a_run.staleIndex));
+            }
             for (std::size_t i = 0; i < a_run.leftOut.size(); i += kPathsPerLine) {
                 std::string line;
                 for (std::size_t j = i; j < std::min(a_run.leftOut.size(), i + kPathsPerLine); ++j) {

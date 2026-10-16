@@ -41,6 +41,9 @@ hazard models from the shipped grey map still apply, and the rest runs.
 2. Run the builder (MO2: the executable from step 3 of the MO2 install; Vortex: the bat). It ends with "next: enable the
    output mod".
 3. Enable the output mod (it replaces the two empty plugins). In MO2, press F5 (refresh) if its new files do not show.
+   If you use a loose-file cache mod (CRDW and the like), rebuild its cache after running the builder: a cache made
+   before the builder ran does not know the new files, and the game then cannot load those grey copies (the plugin says
+   so on screen once, and in the tester file's "file index" line).
    Start the game and load your throwaway save.
 4. Wait about 30 seconds without pausing. The self-test runs by itself; at the end it asks you to quicksave and
    quickload once.
