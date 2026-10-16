@@ -95,9 +95,11 @@ namespace SpellScanner
 
     // Validate and optionally fix a spell tree JSON
     // - A node's persistentId decides its FormID; the stored formId is used for a node without one
+    //   (and that node goes when a persistentId node now has its formId)
     // - Drops nodes that are not a player's spell now
     // - Updates formId fields and the links to a moved or dropped node (children,
-    //   prerequisites, hardPrereqs, softPrereqs, locks[].nodeId, school root, bridges)
+    //   prerequisites, hardPrereqs, softPrereqs, locks[].nodeId, school root, bridges),
+    //   each link looked up once by its saved formId (TreeRemap.h)
     // - Returns validation statistics
     TreeValidationResult ValidateAndFixTree(json& treeData);
 

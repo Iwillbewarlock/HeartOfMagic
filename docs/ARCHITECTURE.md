@@ -98,7 +98,10 @@ spell, 2026-10-05), `gate` (the spell gate, `SpellScannerGate.cpp` `JudgeSpell`,
 when the band is not "in". "out" - free, or only dismisses a summon (banish only), or an "out" rule from
 `gate/rules.json` (none ships) - leaves the tree, a saved tree's load (`ValidateAndFixTree`) and Spell Research
 unless the player includes it again from the blacklist window's "Left out by itself" list (`GateLeavesOut`
-with `ReadGateKept`, the panel's `gateReviewed` in config.json); "review" - a summon or reanimation over an
+with `ReadGateKept`, the panel's `gateReviewed` in config.json: "plugin:localid" keys whose plugin name is
+UTF-8 with A-Z folded and nothing else, `PluginKey` in C++ and `GateReview.asciiLower` in the panel, so a
+Korean, Russian or accented plugin name matches on both sides since 2026-10-17; a key the panel saved before
+with `toLowerCase` still counts in the panel); "review" - a summon or reanimation over an
 hour, a horse summon, a unique NPC summon, a summon of a non-hostile race (`nonHostileSummon`, the race's
 RACE_DATA flags2 NonHostile: mounts and pets, 2026-10-10), a script-only spell under 20 Magicka, a rule from
 `gate/rules.json` (plugin masters plus effect archetypes, never spell names; the shipped one is "review") -
@@ -618,6 +621,11 @@ Runtime FormID (e.g. 0x02001234) → "Skyrim.esm|0x001234"
   unnamed "Constant Effect" node; a persistentId that no longer resolves drops the node); `children`,
   `prerequisites`, `hardPrereqs`, `softPrereqs` (all schools, after every school is checked), the school
   `root` and the cross school `bridges` (both ends) follow the new FormIDs, and a bridge to a removed spell goes
+- A persistentId resolves only to a loaded plugin: `TESDataHandler::files` (and `LookupModByName`) lists
+  plugins that are unchecked in the load order too, kept at compile index 0xFF; those count as missing
+  (CommonLib's own `LookupFormID` refuses them the same way, 2026-10-17). A local id that does not fit the
+  plugin (above 0xFFF in a light plugin: saved while it was a full ESP, then ESL-flagged without compacting)
+  resolves to nothing instead of being cut to 12 bits, which named another record.
 ```
 
 ### 2. **UIManager** (`plugins/spelllearning/src/uimanager/`, `plugins/spelllearning/include/uimanager/UIManager.h`)
@@ -1672,11 +1680,22 @@ Player reads spell tome → TESObjectBOOK::ProcessBook hooked
 Load spell_tree.json → For each node:
   → persistentId field ("Plugin.esp|0x001234")? ResolvePersistentFormId() → the node takes that FormID
     (whether or not the saved one is still a valid form); none resolved → the node goes
-  → No persistentId: the saved FormID stays if it is valid
+  → No persistentId: the saved FormID stays if it is valid, unless a node with a persistentId
+    (saved under another FormID) now resolves to it: that was the other spell's slot, the
+    persistentId names the record, and the legacy node goes
   → Then, after every school: every node's link lists (children, prerequisites, hardPrereqs,
     softPrereqs), its Pre Req Master locks[].nodeId, the school root and the tree's bridges
     follow the new FormIDs; an entry naming a dropped node goes (softNeeded is held to the
     soft list by treeParser.clampSoftNeeded and UIManagerProgression, not here)
+  → Every link in the file holds the FormID its node had when the file was saved, so each is
+    looked up once by that saved value (saved -> new for a node that moved, dropped for one
+    that went). A new FormID that equals another node's saved one is never looked up again:
+    light plugin A removed with B and C one index down, or two plugins swapping indices, keep
+    every link on its own spell. (2026-10-05 to 10-17 the pass erased every kept node's new
+    FormID from both maps, which sent those links to the neighbour; tree-remap-check shows it.)
+  → The node verdicts ask the game (ResolveWith, IsFormIdValid, IsPlayerSpell); the FormIDs and
+    links are fixed by include/TreeRemap.h (no game types), which tools/tree-remap-check runs
+    on made-up trees: `tree-remap-check --self-test`
   → OnLoadSpellTree sends the fixed tree to the panel whenever a node moved or was dropped
     (resolvedFromPersistent or invalidNodes > 0); the file on disk is not rewritten, so this
     runs again on every load
@@ -1809,6 +1828,7 @@ HeartOfMagic/
 │   │   │   ├── PapyrusAPI.h                 ✅ Papyrus native function header
 │   │   │   ├── PassiveLearningSource.h      ✅ Passive learning source header
 │   │   │   ├── PluginNames.h                ✅ persistentId plugin names: UTF-8 key, memoised lookup (no game types)
+│   │   │   ├── TreeRemap.h                  ✅ a saved tree's FormIDs and links after a load order change (no game types)
 │   │   │   ├── ProgressionManager.h         ✅ XP tracking header
 │   │   │   ├── SimdKernels.h                ✅ SIMD kernel header
 │   │   │   ├── SpellCastHandler.h           ✅ Spell cast events header

@@ -13,7 +13,7 @@
  * (Mysticism's Symmetry, a spell whose cost follows another spell).
  *
  * Keep and Include write the same list, settings.gateReviewed (config.json,
- * "plugin.esp:localid" keys, plugin lowercase, local id as getLocalFormId
+ * "plugin.esp:localid" keys, plugin A-Z folded (asciiLower), local id as getLocalFormId
  * writes it). The DLL reads it too (ReadGateKept), so a saved tree's load and
  * Spell Research take an included spell back.
  *
@@ -35,23 +35,44 @@ var GateReview = {
         rule: ['modals.gateReview.reason.rule', 'matches a review rule']
     },
 
-    /** "plugin.esp:localid", lowercase plugin: the key blacklist entries use too */
+    /**
+     * A-Z folded, every other letter as it is: the DLL folds the plugin name the same
+     * way (SpellScannerGate.cpp Lower), so a Korean, Russian or accented name gives one key
+     * on both sides. toLowerCase would fold Cyrillic and accented capitals too, and the DLL cannot.
+     */
+    asciiLower: function(text) {
+        return String(text).replace(/[A-Z]+/g, function(run) { return run.toLowerCase(); });
+    },
+
+    _local: function(spell) {
+        return typeof getLocalFormId === 'function' ? getLocalFormId(spell.formId) : spell.formId;
+    },
+
+    /** "plugin.esp:localid", plugin A-Z folded (asciiLower): the key blacklist entries use too */
     key: function(spell) {
-        var local = typeof getLocalFormId === 'function' ? getLocalFormId(spell.formId) : spell.formId;
-        return String(spell.plugin || '').toLowerCase() + ':' + local;
+        return this.asciiLower(spell.plugin || '') + ':' + this._local(spell);
+    },
+
+    /** The key Keep wrote before 2026-10-17 (toLowerCase): a saved one still counts in the panel (not in the DLL) */
+    _oldKey: function(spell) {
+        return String(spell.plugin || '').toLowerCase() + ':' + this._local(spell);
+    },
+
+    _inList: function(spell, kept) {
+        return kept[this.key(spell)] === true || kept[this._oldKey(spell)] === true;
     },
 
     /** The player kept or included this spell (settings.gateReviewed) */
     isKept: function(spell) {
         var list = (typeof settings !== 'undefined' && settings.gateReviewed) || [];
-        return list.indexOf(this.key(spell)) !== -1;
+        return list.indexOf(this.key(spell)) !== -1 || list.indexOf(this._oldKey(spell)) !== -1;
     },
 
     _blacklisted: function(spell, list) {
         var key = this.key(spell);
         for (var i = 0; i < list.length; i++) {
             var e = list[i];
-            if (e.plugin && e.localFormId && (String(e.plugin).toLowerCase() + ':' + e.localFormId) === key) return true;
+            if (e.plugin && e.localFormId && (this.asciiLower(e.plugin) + ':' + e.localFormId) === key) return true;
             if (e.formId === spell.formId) return true;
         }
         return false;
@@ -70,7 +91,7 @@ var GateReview = {
         for (var i = 0; i < (spells || []).length; i++) {
             var s = spells[i];
             if (!s || !s.gate || s.gate.band !== band) continue;
-            if (kept[this.key(s)] || this._blacklisted(s, blacklist || [])) continue;
+            if (this._inList(s, kept) || this._blacklisted(s, blacklist || [])) continue;
             out.push(s);
         }
         return out;

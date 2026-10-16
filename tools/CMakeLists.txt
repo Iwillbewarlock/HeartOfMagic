@@ -154,3 +154,24 @@ target_include_directories(tree-save-check PRIVATE
 target_link_libraries(tree-save-check PRIVATE
     nlohmann_json::nlohmann_json
 )
+
+# =============================================================================
+# tree-remap-check  -  offline check of a saved tree's load order fix
+# =============================================================================
+# The plugin's own TreeRemap.h (header only, no game types), the part of
+# SpellScanner::ValidateAndFixTree that moves formIds and links: --self-test on
+# made-up trees and load orders (shift, swap, legacy nodes, removed spells).
+
+add_executable(tree-remap-check
+    tree-remap-check.cpp
+)
+
+target_compile_features(tree-remap-check PRIVATE cxx_std_23)
+
+target_include_directories(tree-remap-check PRIVATE
+    ${SL_INCLUDE_DIR}
+)
+
+target_link_libraries(tree-remap-check PRIVATE
+    nlohmann_json::nlohmann_json
+)
