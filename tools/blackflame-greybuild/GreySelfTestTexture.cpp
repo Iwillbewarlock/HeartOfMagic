@@ -19,10 +19,13 @@
 #include <NifFile.hpp>
 #include <Shaders.hpp>
 
+#include <cmath>
 #include <cstdlib>
 #include <fmt/format.h>
 #include <fstream>
+#include <map>
 #include <memory>
+#include <vector>
 
 namespace GreyBuild::SelfTest
 {
@@ -35,11 +38,20 @@ namespace GreyBuild::SelfTest
         constexpr std::uint8_t kOrange[3] = { 255, 128, 0 };
         constexpr std::uint8_t kGrey = 128;
         constexpr std::uint8_t kAlphaFloor = 40;  // the test alpha runs from here up across each row
+        constexpr std::uint8_t kOpaque = 255;
+        constexpr std::size_t kSpeckEvery = 32;   // one 4x4 orange speck (one BC block) per 32x32 cell: 1/64 of the texels
+                                                  // (the old all-visible-pixels saturation, about 0.016, called it grey)
+        constexpr std::size_t kSpeckSide = 4;
+        constexpr std::size_t kDarkGreyTop = 60;  // the dark grey runs 0..this across each row
+        constexpr float kFloatTolerance = 1e-5f;
+        const nifly::Vector3 kOrangeEmissive{ 1.0f, 0.5f, 0.0f };
 
         enum class Fill
         {
-            kOrange,
-            kGrey
+            kOrange,    // orange, alpha a gradient
+            kGrey,      // mid grey, alpha a gradient
+            kSpecks,    // black with small orange specks, opaque (T2)
+            kDarkGrey   // a dark grey ramp, opaque (T2: 5:6:5 noise)
         };
 
         [[nodiscard]] std::uint8_t TestAlpha(std::size_t a_x) noexcept
@@ -47,7 +59,22 @@ namespace GreyBuild::SelfTest
             return static_cast<std::uint8_t>(kAlphaFloor + (255 - kAlphaFloor) * a_x / (kTestSize - 1));
         }
 
-        // A kTestSize square with a full mip chain, filled orange or grey, alpha a gradient, written in a_format
+        void FillTexel(std::uint8_t* a_texel, std::size_t a_x, std::size_t a_y, Fill a_fill)
+        {
+            const bool speck = a_x % kSpeckEvery < kSpeckSide && a_y % kSpeckEvery < kSpeckSide;
+            const auto dark = static_cast<std::uint8_t>(kDarkGreyTop * a_x / (kTestSize - 1));
+            for (int c = 0; c < 3; ++c) {
+                switch (a_fill) {
+                case Fill::kOrange: a_texel[c] = kOrange[c]; break;
+                case Fill::kGrey: a_texel[c] = kGrey; break;
+                case Fill::kSpecks: a_texel[c] = speck ? kOrange[c] : 0; break;
+                default: a_texel[c] = dark; break;
+                }
+            }
+            a_texel[3] = a_fill == Fill::kOrange || a_fill == Fill::kGrey ? TestAlpha(a_x) : kOpaque;
+        }
+
+        // A kTestSize square with a full mip chain, filled as a_fill says, written in a_format
         [[nodiscard]] bool WriteDds(const std::filesystem::path& a_file, DXGI_FORMAT a_format, Fill a_fill)
         {
             DirectX::ScratchImage base;
@@ -58,10 +85,7 @@ namespace GreyBuild::SelfTest
             for (std::size_t y = 0; y < kTestSize; ++y) {
                 std::uint8_t* row = image.pixels + y * image.rowPitch;
                 for (std::size_t x = 0; x < kTestSize; ++x) {
-                    for (int c = 0; c < 3; ++c) {
-                        row[x * 4 + c] = a_fill == Fill::kOrange ? kOrange[c] : kGrey;
-                    }
-                    row[x * 4 + 3] = TestAlpha(x);
+                    FillTexel(row + x * 4, x, y, a_fill);
                 }
             }
             DirectX::ScratchImage mips;
@@ -147,21 +171,6 @@ namespace GreyBuild::SelfTest
             return true;
         }
 
-        void CheckPaths(Checker& a_check)
-        {
-            a_check.Check(TextureDataPath("Textures/Effects/FXFire01.DDS") == std::string("textures\\effects\\fxfire01.dds") &&
-                              TextureDataPath("effects\\a.dds") == std::string("textures\\effects\\a.dds") &&
-                              TextureDataPath("data\\textures\\b.dds") == std::string("textures\\b.dds") &&
-                              TextureDataPath("\\Textures\\textures\\c.dds") == std::string("textures\\c.dds"),
-                "textures: slot text as a Data-relative path (case, slashes, data\\ and repeated textures\\ dropped, one "
-                "textures\\ in front, as the DLL's dump path)");
-            a_check.Check(!TextureDataPath("..\\x.dds") && !TextureDataPath("c:\\x.dds") && !TextureDataPath("textures\\x.tga") &&
-                              !TextureDataPath(""),
-                "textures: '..', a drive, a non-DDS name and an empty slot are refused");
-            a_check.Check(TextureCopyPathFor("textures\\effects\\a.dds") == "textures\\heartofmagic\\blackflame\\copies\\effects\\a.dds",
-                "textures: the copy path is textures\\heartofmagic\\blackflame\\copies\\<path after textures\\>");
-        }
-
         // One coloured texture in a_format through RecolourDds: grey, alpha and format and mips kept, the source untouched
         void CheckRecolour(Checker& a_check, const std::filesystem::path& a_dir, DXGI_FORMAT a_format, const char* a_name)
         {
@@ -186,15 +195,80 @@ namespace GreyBuild::SelfTest
             a_check.Check(Bytes(source) == sourceBytes, fmt::format("textures: the {} source file is not changed", a_name));
         }
 
+
+        // A legacy A8L8 DDS (DDPF_LUMINANCE | DDPF_ALPHAPIXELS, 16 bits): without luminance expansion DirectXTex reads it as
+        // R8G8 (two channels), with it as grey RGBA (T5)
+        void WriteLegacyA8L8(const std::filesystem::path& a_file)
+        {
+            constexpr std::uint32_t kSide = 4;
+            constexpr std::uint32_t kHeaderSize = 124;
+            constexpr std::uint32_t kFlags = 0x100F;          // CAPS | HEIGHT | WIDTH | PITCH | PIXELFORMAT
+            constexpr std::uint32_t kPixelFormatSize = 32;
+            constexpr std::uint32_t kLuminanceAlpha = 0x20001;  // DDPF_LUMINANCE | DDPF_ALPHAPIXELS
+            constexpr std::uint32_t kBits = 16;
+            constexpr std::uint32_t kLuminanceMask = 0x00FF;
+            constexpr std::uint32_t kAlphaMask = 0xFF00;
+            constexpr std::uint32_t kCapsTexture = 0x1000;
+            constexpr int kReserved = 11;
+            constexpr char kLuminance = static_cast<char>(200);
+            constexpr char kOpaqueAlpha = static_cast<char>(kOpaque);
+            std::string bytes = "DDS ";
+            const auto put = [&](std::uint32_t a_value) {
+                for (int i = 0; i < 4; ++i) {
+                    bytes.push_back(static_cast<char>((a_value >> (8 * i)) & 0xFF));
+                }
+            };
+            for (const std::uint32_t value : { kHeaderSize, kFlags, kSide, kSide, kSide * 2, 0u, 0u }) {
+                put(value);
+            }
+            for (int i = 0; i < kReserved; ++i) {
+                put(0);
+            }
+            for (const std::uint32_t value : { kPixelFormatSize, kLuminanceAlpha, 0u, kBits, kLuminanceMask, 0u, 0u, kAlphaMask,
+                     kCapsTexture, 0u, 0u, 0u, 0u }) {
+                put(value);
+            }
+            for (std::uint32_t i = 0; i < kSide * kSide; ++i) {
+                bytes.push_back(kLuminance);
+                bytes.push_back(kOpaqueAlpha);
+            }
+            std::ofstream(a_file, std::ios::binary) << bytes;
+        }
+
         void CheckSkipsAndFailures(Checker& a_check, const std::filesystem::path& a_dir)
         {
+            a_check.Check(TextureCopyPathFor("textures\\effects\\a.dds", 1.0f) == "textures\\heartofmagic\\blackflame\\copies\\effects\\a.dds" &&
+                              TextureCopyPathFor("textures\\effects\\a.dds", 0.6f) ==
+                                  "textures\\heartofmagic\\blackflame\\copies\\t60\\effects\\a.dds",
+                "textures: the copy path is copies\\<path after textures\\>, a tint other than 1 in its own t<percent>\\ folder");
+
             const auto grey = a_dir / "grey_bc1.dds";
             const auto greyOut = a_dir / "out" / "grey_bc1.dds";
             const bool made = WriteDds(grey, DXGI_FORMAT_BC1_UNORM, Fill::kGrey);
             const auto skipped = RecolourDds(grey, greyOut, kTestTint);
             a_check.Check(made && skipped.outcome == RecolourOutcome::kGreyscale && !std::filesystem::exists(greyOut),
-                fmt::format("textures: a grey BC1 is skipped and nothing is written ({}, saturation {:.3f})", skipped.reason,
-                    skipped.saturation));
+                fmt::format("textures: a grey BC1 is skipped and nothing is written ({})", skipped.reason));
+
+            // T2: small orange specks on black are judged by the specks; a dark grey with 5:6:5 noise stays grey
+            const auto specks = a_dir / "specks_bc1.dds";
+            const bool madeSpecks = WriteDds(specks, DXGI_FORMAT_BC1_UNORM, Fill::kSpecks);
+            const auto specksResult = RecolourDds(specks, a_dir / "out" / "specks_bc1.dds", kTestTint);
+            a_check.Check(madeSpecks && specksResult.outcome == RecolourOutcome::kRecoloured,
+                fmt::format("textures: a black BC1 with small orange specks is recoloured (chroma {:.3f}{})", specksResult.chroma,
+                    specksResult.reason.empty() ? std::string() : "; " + specksResult.reason));
+            const auto dark = a_dir / "darkgrey_bc1.dds";
+            const bool madeDark = WriteDds(dark, DXGI_FORMAT_BC1_UNORM, Fill::kDarkGrey);
+            const auto darkResult = RecolourDds(dark, a_dir / "out" / "darkgrey_bc1.dds", kTestTint);
+            a_check.Check(madeDark && darkResult.outcome == RecolourOutcome::kGreyscale,
+                fmt::format("textures: a dark grey BC1 (5:6:5 noise) is skipped as grey ({})", darkResult.reason));
+
+            // T5: a legacy A8L8 reads as grey, not as a two-channel failure
+            const auto luminance = a_dir / "legacy_a8l8.dds";
+            WriteLegacyA8L8(luminance);
+            const auto luminanceResult = RecolourDds(luminance, a_dir / "out" / "legacy_a8l8.dds", kTestTint);
+            a_check.Check(luminanceResult.outcome == RecolourOutcome::kGreyscale,
+                fmt::format("textures: a legacy A8L8 DDS is read expanded and skipped as grey ({}, {})", luminanceResult.format,
+                    luminanceResult.reason));
 
             const auto broken = a_dir / "broken.dds";
             std::ofstream(broken, std::ios::binary) << std::string("DDS ") + std::string(20, '\x7F');
@@ -208,83 +282,147 @@ namespace GreyBuild::SelfTest
             const auto bc5 = RecolourDds(twoChannel, a_dir / "out" / "orange_bc5.dds", kTestTint);
             a_check.Check(madeBc5 && bc5.outcome == RecolourOutcome::kFailed && !std::filesystem::exists(a_dir / "out" / "orange_bc5.dds"),
                 fmt::format("textures: a BC5 (no blue channel) is left with a reason ({})", bc5.reason));
+
+            // T17: a float format is refused, not clamped
+            const auto floating = a_dir / "orange_f16.dds";
+            const bool madeFloat = WriteDds(floating, DXGI_FORMAT_R16G16B16A16_FLOAT, Fill::kOrange);
+            const auto floatResult = RecolourDds(floating, a_dir / "out" / "orange_f16.dds", kTestTint);
+            a_check.Check(madeFloat && floatResult.outcome == RecolourOutcome::kFailed,
+                fmt::format("textures: a float texture is refused ({})", floatResult.reason));
+        }
+
+        nifly::BSLightingShaderProperty* AddLighting(nifly::NifFile& a_nif, std::uint32_t a_set, bool a_glowType, bool a_glowFlag)
+        {
+            auto lit = std::make_unique<nifly::BSLightingShaderProperty>();
+            lit->textureSetRef.index = a_set;
+            lit->emissiveColor = kOrangeEmissive;
+            if (a_glowType) {
+                lit->SetShaderType(nifly::BSLSP_GLOWMAP);
+            }
+            if (a_glowFlag) {
+                lit->shaderFlags2 |= kSlsf2GlowMap;
+            }
+            auto* raw = lit.get();
+            a_nif.GetHeader().AddBlock(std::move(lit));
+            return raw;
+        }
+
+        std::uint32_t AddSet(nifly::NifFile& a_nif, const char* a_diffuse, const char* a_normal, const char* a_slot2)
+        {
+            auto set = std::make_unique<nifly::BSShaderTextureSet>();
+            set->textures[kSlotDiffuse].get() = a_diffuse;
+            set->textures[1].get() = a_normal;
+            set->textures[kSlotGlow].get() = a_slot2;
+            return a_nif.GetHeader().AddBlock(std::move(set));
+        }
+
+        void AddEffect(nifly::NifFile& a_nif, const char* a_name, const char* a_texture, bool a_palette)
+        {
+            auto effect = std::make_unique<nifly::BSEffectShaderProperty>();
+            effect->name.get() = a_name;
+            effect->sourceTexture.get() = a_texture;
+            effect->shaderFlags1 = a_palette ? (effect->shaderFlags1 | kSlsf1GreyscaleToPaletteColor) :
+                                               (effect->shaderFlags1 & ~kSlsf1GreyscaleToPaletteColor);
+            a_nif.GetHeader().AddBlock(std::move(effect));
+        }
+
+        [[nodiscard]] bool EmissiveGrey(const nifly::BSLightingShaderProperty& a_shader)
+        {
+            const float grey = Luminance(kOrangeEmissive.x, kOrangeEmissive.y, kOrangeEmissive.z);
+            const auto& c = a_shader.emissiveColor;
+            return std::fabs(c.x - grey) < kFloatTolerance && std::fabs(c.y - grey) < kFloatTolerance &&
+                   std::fabs(c.z - grey) < kFloatTolerance;
         }
 
         // A NIF naming the test textures in every kind of slot the rule looks at (and some it must not touch)
         void CheckNifSlots(Checker& a_check, const std::filesystem::path& a_dir)
         {
             const auto in = a_dir / "in";
-            const bool made = WriteDds(in / "textures" / "effects" / "homtest_orange.dds", DXGI_FORMAT_BC3_UNORM, Fill::kOrange) &&
-                              WriteDds(in / "textures" / "effects" / "homtest_grey.dds", DXGI_FORMAT_BC1_UNORM, Fill::kGrey) &&
-                              WriteDds(in / "textures" / "effects" / "homtest_fx.dds", DXGI_FORMAT_BC1_UNORM, Fill::kOrange);
+            const auto effects = in / "textures" / "effects";
+            const bool made = WriteDds(effects / "homtest_orange.dds", DXGI_FORMAT_BC3_UNORM, Fill::kOrange) &&
+                              WriteDds(effects / "homtest_grey.dds", DXGI_FORMAT_BC1_UNORM, Fill::kGrey) &&
+                              WriteDds(effects / "homtest_glow.dds", DXGI_FORMAT_BC1_UNORM, Fill::kOrange) &&
+                              WriteDds(effects / "homtest_skin.dds", DXGI_FORMAT_BC1_UNORM, Fill::kOrange) &&
+                              WriteDds(effects / "homtest_fx.dds", DXGI_FORMAT_BC1_UNORM, Fill::kOrange);
             nifly::NifFile nif;
             nif.Create(nifly::NiVersion::getSSE());
-            auto& hdr = nif.GetHeader();
-            auto set = std::make_unique<nifly::BSShaderTextureSet>();
-            set->textures[kSlotDiffuse].get() = "Textures/Effects/HoMTest_Orange.dds";
-            set->textures[1].get() = "textures\\effects\\homtest_orange_n.dds";  // normal map: not a slot the rule takes
-            set->textures[kSlotGlow].get() = "textures\\effects\\homtest_grey.dds";
-            const std::uint32_t setId = hdr.AddBlock(std::move(set));
-            for (int i = 0; i < 2; ++i) {  // two lighting shaders sharing the set: its slots once
-                auto lit = std::make_unique<nifly::BSLightingShaderProperty>();
-                lit->textureSetRef.index = setId;
-                hdr.AddBlock(std::move(lit));
-            }
-            const auto addEffect = [&](const char* a_name, const char* a_texture, bool a_palette) {
-                auto effect = std::make_unique<nifly::BSEffectShaderProperty>();
-                effect->name.get() = a_name;
-                effect->sourceTexture.get() = a_texture;
-                effect->shaderFlags1 = a_palette ? (effect->shaderFlags1 | kSlsf1GreyscaleToPaletteColor) :
-                                                   (effect->shaderFlags1 & ~kSlsf1GreyscaleToPaletteColor);
-                hdr.AddBlock(std::move(effect));
-            };
-            addEffect("FxOff", "textures\\effects\\homtest_fx.dds", false);
-            addEffect("FxPalette", "textures\\effects\\homtest_fx.dds", true);
-            addEffect("FxMissing", "textures\\effects\\homtest_missing.dds", false);
-            addEffect("FxOurs", kPalettePath, false);
+            // Set A on a glow-type shader and on a shader with only the glow flag (shared: its slots once); set B on a
+            // default shader, whose slot 2 is no glow map (T6)
+            const std::uint32_t setA = AddSet(nif, "Textures/Effects/HoMTest_Orange.dds", "textures\\effects\\homtest_orange_n.dds",
+                "textures\\effects\\homtest_glow.dds");
+            const std::uint32_t setB = AddSet(nif, "textures\\effects\\homtest_grey.dds", "", "textures\\effects\\homtest_skin.dds");
+            AddLighting(nif, setA, true, false);
+            AddLighting(nif, setA, false, true);
+            AddLighting(nif, setB, false, false);
+            AddEffect(nif, "FxOff", "textures\\effects\\homtest_fx.dds", false);
+            AddEffect(nif, "FxPalette", "textures\\effects\\homtest_fx.dds", true);
+            AddEffect(nif, "FxMissing", "textures\\effects\\homtest_missing.dds", false);
+            AddEffect(nif, "FxOurs", kPalettePath, false);
 
             TextureJob job;
             job.inputs = { in };
             job.out = a_dir / "nifout";
+            job.diffuseTint = kTestTint;
             RetargetTextures(nif, job, "meshes\\test.nif");
             const auto nifFile = a_dir / "retarget.nif";
             SaveNif(nif, nifFile);
             nifly::NifFile back;
             LoadNif(back, nifFile);
-            auto& backHdr = back.GetHeader();
-            auto* backSet = backHdr.GetBlock<nifly::BSShaderTextureSet>(setId);  // NiStringVector has no const []
-            std::map<std::string, std::string> effects;
-            for (std::uint32_t id = 0; id < backHdr.GetNumBlocks(); ++id) {
-                if (const auto* effect = backHdr.GetBlock<nifly::BSEffectShaderProperty>(id)) {
-                    effects[effect->name.get()] = effect->sourceTexture.get();
+            auto& hdr = back.GetHeader();
+            auto* backA = hdr.GetBlock<nifly::BSShaderTextureSet>(setA);  // NiStringVector has no const []
+            auto* backB = hdr.GetBlock<nifly::BSShaderTextureSet>(setB);
+            std::map<std::string, std::string> fx;
+            std::vector<const nifly::BSLightingShaderProperty*> lit;
+            for (std::uint32_t id = 0; id < hdr.GetNumBlocks(); ++id) {
+                if (const auto* effect = hdr.GetBlock<nifly::BSEffectShaderProperty>(id)) {
+                    fx[effect->name.get()] = effect->sourceTexture.get();
+                } else if (const auto* shader = hdr.GetBlock<nifly::BSLightingShaderProperty>(id)) {
+                    lit.push_back(shader);
                 }
             }
-            const std::string orangeCopy = "textures\\heartofmagic\\blackflame\\copies\\effects\\homtest_orange.dds";
-            const std::string fxCopy = "textures\\heartofmagic\\blackflame\\copies\\effects\\homtest_fx.dds";
-            a_check.Check(made && backSet && backSet->textures[kSlotDiffuse].get() == orangeCopy &&
-                              backSet->textures[1].get() == "textures\\effects\\homtest_orange_n.dds" &&
-                              backSet->textures[kSlotGlow].get() == "textures\\effects\\homtest_grey.dds",
-                "textures: NIF diffuse slot repointed at its grey copy, normal slot and a grey glow left (read back)");
-            a_check.Check(effects["FxOff"] == fxCopy && effects["FxPalette"] == "textures\\effects\\homtest_fx.dds" &&
-                              effects["FxMissing"] == "textures\\effects\\homtest_missing.dds" && effects["FxOurs"] == kPalettePath,
+            const std::string copies = "textures\\heartofmagic\\blackflame\\copies\\";
+            const std::string orangeDiffuse = copies + "t60\\effects\\homtest_orange.dds";
+            const std::string glowCopy = copies + "effects\\homtest_glow.dds";
+            const std::string fxCopy = copies + "effects\\homtest_fx.dds";
+            a_check.Check(made && backA && backA->textures[kSlotDiffuse].get() == orangeDiffuse &&
+                              backA->textures[1].get() == "textures\\effects\\homtest_orange_n.dds" &&
+                              backA->textures[kSlotGlow].get() == glowCopy,
+                "textures: glow shader set - diffuse copy at tint 0.6 (t60\\), glow copy at tint 1, normal slot left (read back)");
+            a_check.Check(backB && backB->textures[kSlotDiffuse].get() == "textures\\effects\\homtest_grey.dds" &&
+                              backB->textures[kSlotGlow].get() == "textures\\effects\\homtest_skin.dds",
+                "textures: default shader set - grey diffuse left, slot 2 (not a glow map there) left though it is orange");
+            a_check.Check(lit.size() == 3 && EmissiveGrey(*lit[0]) && EmissiveGrey(*lit[1]) && !EmissiveGrey(*lit[2]),
+                "textures: emissive colour greyed on the glow-type and the glow-flag shader, left on the default one (T3)");
+            a_check.Check(fx["FxOff"] == fxCopy && fx["FxPalette"] == "textures\\effects\\homtest_fx.dds" &&
+                              fx["FxMissing"] == "textures\\effects\\homtest_missing.dds" && fx["FxOurs"] == kPalettePath,
                 "textures: effect source off the palette repointed; a palette shader's, a missing one and our own left");
             const auto& t = job.totals;
-            a_check.Check(t.recoloured == 2 && t.greyscale == 1 && t.missing == 1 && t.failed == 0 && t.slots == 4 && t.repointed == 2 &&
-                              std::filesystem::exists(job.out / orangeCopy) && std::filesystem::exists(job.out / fxCopy),
-                fmt::format("textures: counts (recoloured {}, greyscale {}, missing {}, failed {}, slots {}, repointed {})", t.recoloured,
-                    t.greyscale, t.missing, t.failed, t.slots, t.repointed));
+            a_check.Check(t.recoloured == 3 && t.greyscale == 1 && t.missing == 1 && t.failed == 0 && t.slots == 5 && t.repointed == 3 &&
+                              t.emissiveGreyed == 2 && std::filesystem::exists(job.out / orangeDiffuse) &&
+                              std::filesystem::exists(job.out / glowCopy) && std::filesystem::exists(job.out / fxCopy) &&
+                              !std::filesystem::exists(job.out / copies / "effects" / "homtest_skin.dds"),
+                fmt::format("textures: counts (recoloured {}, greyscale {}, missing {}, failed {}, slots {}, repointed {}, emissive {})",
+                    t.recoloured, t.greyscale, t.missing, t.failed, t.slots, t.repointed, t.emissiveGreyed));
 
-            // A second NIF naming the same texture in another role: the copy made once is used
+            // A second NIF: the orange texture as an effect source (tint 1: a second copy) and again as a diffuse (reused)
             nifly::NifFile second;
             second.Create(nifly::NiVersion::getSSE());
-            auto effect = std::make_unique<nifly::BSEffectShaderProperty>();
-            effect->sourceTexture.get() = "textures\\effects\\homtest_orange.dds";
-            effect->shaderFlags1 &= ~kSlsf1GreyscaleToPaletteColor;
-            const std::uint32_t effectId = second.GetHeader().AddBlock(std::move(effect));
+            AddEffect(second, "Again", "textures\\effects\\homtest_orange.dds", false);
+            const std::uint32_t setC = AddSet(second, "textures\\effects\\homtest_orange.dds", "", "");
+            AddLighting(second, setC, false, false);
             RetargetTextures(second, job, "meshes\\second.nif");
-            const auto* again = second.GetHeader().GetBlock<nifly::BSEffectShaderProperty>(effectId);
-            a_check.Check(again && again->sourceTexture.get() == orangeCopy && job.totals.recoloured == 2 && job.totals.repointed == 3,
-                "textures: a texture met again (another NIF, another role) reuses its copy, not made twice");
+            std::string againSource;
+            for (std::uint32_t id = 0; id < second.GetHeader().GetNumBlocks(); ++id) {
+                if (const auto* effect = second.GetHeader().GetBlock<nifly::BSEffectShaderProperty>(id)) {
+                    againSource = effect->sourceTexture.get();
+                }
+            }
+            auto* setAgain = second.GetHeader().GetBlock<nifly::BSShaderTextureSet>(setC);
+            a_check.Check(againSource == copies + "effects\\homtest_orange.dds" && setAgain &&
+                              setAgain->textures[kSlotDiffuse].get() == orangeDiffuse && job.totals.recoloured == 4 &&
+                              job.totals.repointed == 5,
+                fmt::format("textures: one texture at two tints gets two copies, each made once (recoloured {}, repointed {}) (T4)",
+                    job.totals.recoloured, job.totals.repointed));
         }
     }
 
@@ -292,7 +430,6 @@ namespace GreyBuild::SelfTest
     {
         const auto dir = a_dir / "textures";
         std::filesystem::create_directories(dir);
-        CheckPaths(a_check);
         CheckRecolour(a_check, dir, DXGI_FORMAT_BC3_UNORM, "BC3");
         CheckRecolour(a_check, dir, DXGI_FORMAT_BC7_UNORM, "BC7");
         CheckRecolour(a_check, dir, DXGI_FORMAT_B8G8R8A8_UNORM, "B8G8R8A8");

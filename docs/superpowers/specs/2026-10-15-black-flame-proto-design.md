@@ -759,3 +759,16 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
 - DLL(writeRequest 켬일 때만): 잘 읽힌 NIF 바이트에서 `.dds`로 끝나고 앞 4바이트 길이와 정확히 맞는 문자열을 모두 찾고(NifDump::TexturePathsIn, NIF 파서 없음), 모델 경로와 같은 규칙에 `textures\` 루트로 정규화, ProbeModel로 크기만 열어 경로 순으로 상한(한 장 64 MiB, 합 768 MiB) 안에서 계획. 바이트는 덤프를 다시 쓸 때만 읽음. 요청 지문 공식은 그대로(플레이어 신선도 검사와 공유), 매니페스트에 `textureFingerprint`(경로·크기·계획)를 따로 둠. 예전 매니페스트는 한 번 다시 덤프. request.json에 `textures`(path, size, ok, error)와 `textureCaps`, 요청은 덤프 뒤에 씀. 텍스처 목록이 없는 예전 요청이면 빌더가 알리고 텍스처 없이 빌드.
 - 비용: 2026-10-16 덤프(NIF 662개)에서 텍스처 경로 411개(effects 216, 노멀맵 23, 팔레트 그라디언트 포함: DLL은 경로를 다 받고 빌더가 슬롯을 고름). 매 시작 크기 열기 약 80-100 ms(테스터 실행에서 NIF 677개 열기 136 ms), 덤프를 쓸 때 읽기·쓰기는 미측정, 추정 300-600 MB·2-6초(NIF 677개 20 MB 읽기 289 ms 기준). writeRequest 끔(플레이어 기본)이면 0.
 - 확인: 빌더 자가 시험 147/147(색 BC3·BC7·B8G8R8A8 → 회색, 알파·형식·밉 7 유지, 원본 불변; 회색 BC1 건너뜀; 깨진 DDS·BC5 이유와 함께 실패; NIF 슬롯 바꿈 규칙). 미확인: 게임 안 텍스처 덤프, 회색 사본이 화면에서 어떻게 보이는지.
+
+### 텍스처 사본 수정 T (3곳 리뷰 fixlist-tex-t, 2026-10-17)
+
+- T1: 열리지만 못 읽은 텍스처는 매니페스트 `textureReadFailures`에 남기고, 두 지문이 그대로인 동안 다시 읽지 않음(전체 덤프를 매 시작마다 다시 하지 않음). 쓰기 실패는 planned 해제·오류 기록, 매니페스트 갱신 안 함(다음 시작에 다시 덤프).
+- T2: 이미 회색 판정은 보이고(알파) 밝은(최대 채널 ≥ kLitFloor 0.1) 픽셀의 평균 채도(chroma, 최대-최소) < 0.05. 밝은 픽셀이 없으면 회색. 검은 바탕의 작은 주황 점은 다시 칠하고, 565 잡음의 어두운 회색은 둠.
+- T3: 글로우 셰이더(BSLSP_GLOWMAP 또는 SLSF2 bit 6)의 emissive 색을 휘도(×1)로.
+- T4: tint는 역할별, diffuse는 --tint. tint≠1 사본은 `copies\t<백분율>\`에, 한 텍스처가 두 tint로 쓰이면 사본 둘.
+- T5: DDS_FLAGS_EXPAND_LUMINANCE로 읽어 L8·A8L8·L16은 회색으로 건너뜀. 진짜 BC5·R8G8은 계속 거절.
+- T6: 슬롯 2는 글로우 셰이더일 때만.
+- T7: 경로 규칙과 텍스처 스캔을 `plugins/BlackFlame/src/DataPathRule.h` 하나로(DLL NifDump와 빌더가 함께 include), 빌더 자가 시험에 공통 표.
+- T8: 테스터 패키지에 THIRD-PARTY-NOTICES.md와 licenses\(nifly, directxtex, CommonLibSSE-NG 등)를 넣고 없으면 거부. README_TESTER와 bat에 VC++ 2015-2022 x64 재배포 패키지와 종료 코드 -1073741515(0xC0000135) 안내.
+- 같이 한 것: T11(덤프 경로가 덤프 폴더를 벗어나지 않는지 검사), T13(목록이 실패하면 지문 "error", 요청에서 textures 생략), T14(ReadModel이 totalSize만큼 미리 확보, 상한 256 MiB), T15(textureCaps를 요청에 씀), T16(문서), T17(float 형식 거절).
+- 안 한 것: T9(같은 크기 교체는 README에 매니페스트 지우기 안내만), T10(덤프 예산 우선순위), T12(고아 사본·덤프 정리).

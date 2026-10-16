@@ -3,6 +3,8 @@
 #include "EncodingUtils.h"
 
 #include <format>
+#include <fstream>
+#include <sstream>
 #include <set>
 #include <utility>
 
@@ -161,5 +163,35 @@ namespace BlackFlame::CopyRequestData
             list.push_back(std::move(item));
         }
         return list;
+    }
+
+    nlohmann::json ReadJsonObject(const std::filesystem::path& a_file)
+    {
+        std::ifstream in(a_file, std::ios::binary);
+        if (!in) {
+            return nlohmann::json::object();
+        }
+        std::stringstream text;
+        text << in.rdbuf();
+        auto root = nlohmann::json::parse(text.str(), nullptr, false);
+        return root.is_object() ? root : nlohmann::json::object();
+    }
+
+    std::string JsonString(const nlohmann::json& a_object, const char* a_key)
+    {
+        return a_object.contains(a_key) && a_object[a_key].is_string() ? a_object[a_key].get<std::string>() : std::string();
+    }
+
+    std::set<std::string> JsonStringSet(const nlohmann::json& a_object, const char* a_key)
+    {
+        std::set<std::string> values;
+        if (a_object.contains(a_key) && a_object[a_key].is_array()) {
+            for (const auto& item : a_object[a_key]) {
+                if (item.is_string()) {
+                    values.insert(item.get<std::string>());
+                }
+            }
+        }
+        return values;
     }
 }

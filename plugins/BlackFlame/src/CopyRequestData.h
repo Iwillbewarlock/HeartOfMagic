@@ -9,6 +9,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -47,6 +49,7 @@ namespace BlackFlame::CopyRequestData
         NifDump::ModelBlob probe;  // opened and totalSize; no byte read until the dump
         bool planned = false;      // opened and within both caps: the dump holds it
         std::string error;         // why it is not in the dump ("" when planned)
+        bool readFailed = false;   // T1: planned, but it opened and could not be read (kept in the manifest, not retried)
     };
 
     /// Every texture path a_nifBytes name inline (NifDump::TexturePathsIn: the builder picks the slots it recolours), our
@@ -60,4 +63,13 @@ namespace BlackFlame::CopyRequestData
 
     /// [{ path, size, ok (in the dump), error (when not) }]
     [[nodiscard]] nlohmann::ordered_json TexturesJson(const std::vector<Texture>& a_textures);
+
+    /// The JSON object in a_file (the dump manifest), or an empty object when it is missing or not an object
+    [[nodiscard]] nlohmann::json ReadJsonObject(const std::filesystem::path& a_file);
+
+    /// a_object[a_key] when it is a string, else ""
+    [[nodiscard]] std::string JsonString(const nlohmann::json& a_object, const char* a_key);
+
+    /// The strings of a_object[a_key] when it is an array (others skipped), else none
+    [[nodiscard]] std::set<std::string> JsonStringSet(const nlohmann::json& a_object, const char* a_key);
 }

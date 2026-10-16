@@ -345,7 +345,7 @@ overwrite stays clean):
 | `request.json` | version 3: `game`, `fingerprint`, `copiesPlugin`; `forms` (source `Plugin|localId` in UTF-8, type, editorId, model and muzzleModel as the record stores them, bounds, the scalars the builder writes into a placeholder, `viaSpell`, `costliest`); `excluded` (source, type, reason); `addons` (every ADDN record: index, model, cap, DNAM flags, `own` for ours); `models` (the closure's impact and hazard models); `nifs` (each NIF read: Data-relative path, size, fnv64, ok, error); `textures` (T1: each texture those NIFs name - path, size, ok = in the dump, error) and `textureCaps`. Written through a temporary file and a rename, after the dump |
 | `data\meshes\...` | the winning bytes of every NIF the request names (form models, PROJ muzzles, every ADDN model not ours), read through the engine's own file system (`BSResourceNiBinaryStream`: archives, loose files and MO2's VFS as the game loads them). Rewritten only when the fingerprint differs from `dump-manifest.json`'s; a NIF that fails to read is removed from the dump |
 | `data\textures\...` | T1: the textures the dumped NIFs name, read the same way within the caps (Texture copies below) |
-| `dump-manifest.json` | the fingerprint the dump was made for, and the textures' own `textureFingerprint` |
+| `dump-manifest.json` | the fingerprint the dump was made for, the textures' own `textureFingerprint`, and `textureReadFailures` (textures that opened but could not be read) |
 
 Model paths are normalised (ASCII lower case, `/` as `\`, repeated separators folded, a leading `data\`/`meshes\` dropped,
 one `meshes\` put in front); a path with a drive letter, `:` or a `..` token is refused and never read or written. Each
@@ -419,49 +419,76 @@ Not checked: a request written by the game (C1 needs the in-game run).
 `GreyEffects` changes shader values only, so colour **painted into a texture** stays: an orange diffuse or glow map on a
 lighting-shaded mesh, or the source texture of an effect shader the builder leaves off the palette. `--forms` and
 `--from-game` (not `--map` / `--request`) therefore also write grey copies of those textures; `--no-textures` turns it
-off (the copy NIFs then keep naming the source textures).
+off (the copy NIFs then keep naming the source textures). An output built before this release has no texture copies:
+start the game once to the main menu with this release (the DLL then dumps the textures), quit and run the builder again.
 
 - **Which textures** (NIF data only, any load order): in every full-grey copy NIF and grey MPS, `BSLightingShaderProperty`
-  texture set slots 0 (diffuse) and 2 (glow), and the source texture of every `BSEffectShaderProperty` that `UsesPalette`
-  rejects (a palette shader's texture is a greyscale map through our palette). Our own textures
-  (`textures\heartofmagic\blackflame\...`) are skipped. A texture whose mean HSV saturation over the visible pixels of mip
-  0 is under `kGreyscaleSaturation` (0.05; BC1 quantisation alone leaves about 0.02) is already grey and left; so is a
-  one-channel format (BC4, R8, A8). A two-channel format (BC5, R8G8) cannot hold grey (no blue) and is left as a failure.
+  texture set slot 0 (diffuse) and slot 2 only on a **glow shader** (shader type `BSLSP_GLOWMAP` or the SLSF2 glow flag,
+  bit 6; on a skin, face or multi-layer shader slot 2 is another map and stays), and the source texture of every
+  `BSEffectShaderProperty` that `UsesPalette` rejects (a palette shader's texture is a greyscale map through our palette).
+  Our own textures (`textures\heartofmagic\blackflame\...`) are skipped. A texture is **already grey** when the mean chroma
+  (brightest minus darkest channel) of the mip 0 pixels that are visible (alpha) and lit (brightest channel at
+  `kLitFloor` 0.1 or above) is under `kGreyscaleChroma` (0.05), or when none is lit: small orange specks on black count
+  fully, the 5:6:5 noise of a dark grey BC1 does not. One-channel formats (BC4, R8, A8) and legacy luminance DDS (L8,
+  A8L8, L16, read expanded to RGBA) are grey too. A two-channel format (BC5, R8G8) cannot hold grey (no blue) and is
+  left as a failure.
+- **Glow shaders' emissive colour**: set to its luminance (x 1) in the copy NIF, since a grey glow map under an orange
+  emissive colour still glows orange. Other lighting shaders keep their emissive colour.
 - **Recolour** (DirectXTex, MIT, linked into the builder only): decode (BCn to 8-bit RGBA in the source's colour space, so
   sRGB stays sRGB), each pixel set to its Rec. 709 luminance (the builder's own `Luminance`) x the role's tint, alpha kept,
   encoded again in the **source format** (BC1/BC2/BC3/BC7 or the uncompressed format; BC7 with `TEX_COMPRESS_BC7_QUICK`)
-  with the same size, mip count and array size. Tints: diffuse `kTextureTintDiffuse` 0.6 (lighting shaders are otherwise
-  left alone), glow `kTextureTintGlow` 1.0 (a brightness mask), effect source `kTextureTintEffect` 1.0 (the base colour
-  already carries the tint). Each texture is made once per run; one met again in another role reuses the first copy (a
-  `TEX NOTE` line). HDR (BC6H), typeless, planar, palettized and video formats are refused with a reason.
-- **Where**: `textures\heartofmagic\blackflame\copies\<path after textures\>` in `--out` (staged and committed with the
-  rest); the slot is rewritten as that path with `textures\` in front, as `kPalettePath` is. The source file is never
-  written. A texture that is missing, unreadable or fails leaves its slot as it was; it never fails the NIF.
-- **Output**: one `TEX OK|GREY|FAIL|MISS` line per texture the first time it is met, and at the end
-  `textures  recoloured N, skipped greyscale G, failed F, not in the dump M; R of S slots now name a grey copy; copies X MiB`.
-  `MISS` names the game's reason when the request lists the texture as left out of the dump.
+  with the same size, mip count and array size. Tints: diffuse = the run's `--tint` (default 0.6; lighting shaders are
+  otherwise left alone, so the diffuse carries the darkening), glow `kTextureTintGlow` 1.0 (a brightness mask), effect
+  source `kTextureTintEffect` 1.0 (the base colour already carries the tint). HDR (BC6H), float, typeless, planar,
+  palettized and video formats are refused with a reason (a float texture is not clamped).
+- **Where**: `textures\heartofmagic\blackflame\copies\<path after textures\>` for tint 1 and
+  `...\copies\t<tint x 100>\<path after textures\>` for another tint (`t60\` by default), in `--out` (staged and committed
+  with the rest). One texture used at two tints gets two copies; each texture and tint is made once per run. The slot is
+  rewritten as that path with `textures\` in front, as `kPalettePath` is. The source file is never written. A texture that
+  is missing, unreadable or fails leaves its slot as it was; it never fails the NIF.
+- **Paths**: the builder reads a slot with the DLL's own rule (`plugins/BlackFlame/src/DataPathRule.h`, included by both,
+  not copied): lower case, `/` as `\`, leading and repeated separators folded, every leading `data\` and `textures\`
+  dropped and one `textures\` put in front, a double-byte character of the system code page kept as it is; a drive, `:`,
+  a `..` token or a character no file name has is refused. One table of cases runs in the self-test against that header.
+- **Output**: one `TEX OK|GREY|FAIL|MISS` line per texture and tint the first time it is met, and at the end
+  `textures  recoloured N, skipped greyscale G, failed F, not in the dump M; R of S slots now name a grey copy; glow shader
+  emissive colours greyed E; copies X MiB`. `MISS` names the game's reason when the request lists the texture as left out
+  of the dump.
 - **Where the textures come from** (`--from-game`): the DLL's dump (`data\textures\...`, Copy request above). A request
-  written by an older DLL has no `textures` list: the run says so and builds without texture copies. `--forms` reads them
-  from the `--in` folders.
+  without a `textures` list (an older DLL, or a listing that failed) builds without texture copies and says so. `--forms`
+  reads them from the `--in` folders.
 - **The DLL side**: with `writeRequest` on, every NIF that read ok is scanned for inline texture strings
-  (`NifDump::TexturePathsIn`: each `.dds`, any case, whose run of printable bytes before it is exactly as long as the 4
-  length bytes in front say - no NIF parser, so every block type's slots are found), normalised like model paths with
-  `textures\` as the root, opened for their size (`ProbeModel`) and planned in path order within `kMaxTextureBytes` (64
-  MiB each) and `kMaxTextureDumpBytes` (768 MiB in all; a texture that no longer fits is left out, smaller ones after it
-  still go in). They are read and written only when the dump is (re)written. The request fingerprint is unchanged (the
-  players' freshness check shares it), so a texture-only change does not make the copies stale; `dump-manifest.json`
-  carries its own `textureFingerprint` (path, size, planned), and a manifest without one - a dump made before T1 - is
-  written again once.
+  (`DataPathRule::TexturePathsIn`: each `.dds`, any case, whose run of printable bytes before it is exactly as long as the 4
+  length bytes in front say - no NIF parser, so every block type's slots are found), normalised with `textures\` as the
+  root, opened for their size (`ProbeModel`) and planned in path order within `kMaxTextureBytes` (64 MiB each) and
+  `kMaxTextureDumpBytes` (768 MiB in all; a texture that no longer fits is left out, smaller ones after it still go in).
+  They are read and written only when the dump is (re)written. `request.json` lists them (`textures`: path, size, ok,
+  error) with `textureCaps`; it is written after the dump, so a read failure is named there. The request fingerprint is
+  unchanged (the players' freshness check shares it), so a texture-only change does not make the copies stale;
+  `dump-manifest.json` carries its own `textureFingerprint` (path, size, planned) and `textureReadFailures`: a texture
+  that opens but cannot be read is listed there and not tried again (nor the whole dump redone) until a fingerprint
+  changes; a texture that cannot be written leaves the manifest as it was, so the next start dumps again. A manifest
+  without a texture fingerprint - a dump made before T1 - is written again once. A listing that throws writes `error` as
+  the texture fingerprint (never equal to a real one) and leaves `textures` out of the request.
+- **Same-size replacements**: the texture fingerprint holds sizes only (no byte is read at a start), so a texture mod
+  swapped for one of the same size is not dumped again. After changing texture mods, delete `dump-manifest.json` in the
+  request folder, start the game to the main menu once and run the builder again.
 - **Cost** (writeRequest on only; players' default `false` opens no texture): on the 662-NIF dump of 2026-10-16 the scan
   finds 411 distinct texture paths (216 under `textures\effects\`, 23 normal maps, the palette gradients too: the DLL takes
-  every path, the builder picks the slots). Opening them for their size at every start: about 80-100 ms (677 NIFs took
-  136 ms in the tester run). Reading and writing them when the dump is written: not measured; estimated 300-600 MB and 2-6
-  s (677 NIFs, 20 MB, read in 289 ms), once per load order change.
+  every path, the builder picks the slots; a run over that dump used 90 of them). Opening them for their size at every
+  start: about 80-100 ms (677 NIFs took 136 ms in the tester run). Reading and writing them when the dump is written: not
+  measured; estimated 300-600 MB and 2-6 s (677 NIFs, 20 MB, read in 289 ms), once per load order change.
+- **Not done** (fix list T10, T12): the dump does not put the textures of the NIFs the builder greys first, so under the
+  total cap a needed texture can lose to an unneeded one (the cap is far above the 411-path estimate); copies a run no
+  longer makes stay in `--out`, a failed NIF's texture copies are committed with the rest, and the dump keeps textures
+  that are no longer named (none of these is read by anything).
 
-Checked offline (2026-10-17): the builder self-test (a coloured BC3, BC7 and B8G8R8A8 become grey with alpha, format and 7
-mips kept and the source unchanged; a grey BC1 is skipped; a broken DDS and a BC5 fail with a reason; a NIF's diffuse slot
-and an off-palette effect source are repointed, a normal slot, a grey glow, a palette shader's texture, a missing one and
-our own are left, each texture made once). Not checked: the DLL's texture dump in the game, and how the grey copies look.
+Checked offline (2026-10-17): the builder self-test (the shared path table against the DLL's header - the DBCS case runs
+only on a double-byte system code page; the texture scan cases; a coloured BC3, BC7 and B8G8R8A8 become grey with alpha,
+format and 7 mips kept and the source unchanged; a grey BC1, a dark grey BC1 and a legacy A8L8 are skipped; black with
+small orange specks is recoloured; a broken DDS, a BC5 and a float texture fail with a reason; the glow shader rule, its
+emissive colour, per-tint copies, and the slots that must stay). Not checked: the DLL's texture dump in the game, and how
+the grey copies look.
 
 ### Freshness and the copies map v2 (v2 expansion C3, DLL): `CopyFreshness.h`
 
@@ -730,10 +757,10 @@ script refuses to package generated copies (a `copies` mesh folder, a copies map
 - A catalog-fire spell without a fire effect gets nothing (see "Fire spells and fire effects").
 - Explosions of a projectile shot by a script-tagged source are only the player's when the explosion itself carries the cause or blame; light effects cast on others than the player are not tinted.
 - A reference placed initially disabled by a script has no 3D within the 5 s tag window and stays as it is.
-- Glow-map cores on lighting shaders (e.g. Vulcano's Heartstone) are not touched: `BSLightingShaderProperty` emissive colour may be shared.
+- Glow-map cores on lighting shaders (e.g. Vulcano's Heartstone) are not touched by the runtime recolour: `BSLightingShaderProperty` emissive colour may be shared. The builder's copies grey their glow map and emissive colour (Texture copies), so a form the copies cover is grey there.
 - Explosions: a weapon enchantment's explosion cannot be told apart from the explosion's own enchantment, so a player-owned one in the fire explosion set is recoloured; with no magicCaster spell, a player-owned fire explosion is recoloured whatever made it.
 - A `BSEffectShaderPropertyColorController` animates a property's colour every frame and overrides the base colour change; the log counts such shapes. Particle colour modifiers multiply the palette, so some orange can stay unless `particleColors` is on.
-- Shapes without the palette flag, with `forcePalette` off, keep their texture's colour (examples from vanilla paths: `PCoreCircularFlare`, `RedGlowAdd` on bolt/ball projectiles, `pGlow`/`ppLight` on hand effects).
+- Shapes without the palette flag, with `forcePalette` off, keep their texture's colour (examples from vanilla paths: `PCoreCircularFlare`, `RedGlowAdd` on bolt/ball projectiles, `pGlow`/`ppLight` on hand effects). The builder's copies give such shapes grey copies of their source textures (Texture copies).
 - Staffs, scrolls, enchantments and powers are excluded (`SpellType::kSpell` only).
 - Heart of Magic's tree leaves the Stoke spell out (no tome teaches it); the prototype gives it by console.
 - The recolour does not call `SetupGeometry`. If a recoloured shape does not show the palette in game, a missing `SetupGeometry`/`FinishSetupGeometry` (render pass state) is the first suspect.

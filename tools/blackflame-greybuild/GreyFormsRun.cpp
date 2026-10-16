@@ -264,6 +264,7 @@ namespace GreyBuild
             TextureJob job;
             job.inputs = a_inputs;
             job.out = a_staging;
+            job.diffuseTint = a_plan.map.tint;  // T4: --tint, as the effect shaders' base colour
             job.notDumped = a_options.texturesNotDumped;
             TextureJob* textures = a_options.textures ? &job : nullptr;
             const bool built = StageMps(a_plan, a_inputs, a_staging, warn, textures, a_totals) &&

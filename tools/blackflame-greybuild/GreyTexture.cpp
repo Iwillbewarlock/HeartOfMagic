@@ -11,9 +11,12 @@
 
 #include "GreyTexture.h"
 
+#include "../../plugins/BlackFlame/src/DataPathRule.h"  // T7: the DLL's own path rule, not a copy
+
 #include <DirectXTex.h>
 
 #include <algorithm>
+#include <cmath>
 #include <fmt/format.h>
 #include <system_error>
 
@@ -21,11 +24,12 @@ namespace GreyBuild
 {
     namespace
     {
-        constexpr const char* kDataRoot = "data\\";
         constexpr const char* kDdsSuffix = ".dds";
-        // A pixel counts for the saturation measure when its alpha is above this (an effect texture's fill under zero
-        // alpha is often coloured and never seen)
+        // A pixel counts for the chroma measure when its alpha is above this (an effect texture's fill under zero alpha
+        // is often coloured and never seen)
         constexpr float kVisibleAlpha = 1.0f / 255.0f;
+        // T5: legacy luminance formats (L8, A8L8, L16) come in as RGBA with r = g = b, so they read as grey and are left
+        constexpr auto kLoadFlags = static_cast<DirectX::DDS_FLAGS>(DirectX::DDS_FLAGS_PERMISSIVE | DirectX::DDS_FLAGS_EXPAND_LUMINANCE);
         constexpr std::uint64_t kMiB = 1024ull * 1024ull;
 
         using DirectX::XMVECTOR;
@@ -106,30 +110,26 @@ namespace GreyBuild
             return a_format == DXGI_FORMAT_BC6H_TYPELESS || a_format == DXGI_FORMAT_BC6H_UF16 || a_format == DXGI_FORMAT_BC6H_SF16;
         }
 
-        // Mean HSV saturation over the visible pixels of a_image (all pixels when none is visible). Out: the mean.
-        [[nodiscard]] HRESULT MeanSaturation(const DirectX::Image& a_image, float& a_mean)
+        // T2: mean chroma (brightest - darkest channel) over the pixels that are visible (alpha) and lit (brightest channel
+        // at kLitFloor or above). None lit: 0 (grey). A dark texture with small orange specks is judged by its specks; the
+        // 5:6:5 noise of a dark grey BC1 stays under the line (chroma of a few 8-bit steps). Out: the mean.
+        [[nodiscard]] HRESULT MeanChroma(const DirectX::Image& a_image, float& a_mean)
         {
-            double visibleSum = 0.0;
-            double allSum = 0.0;
-            std::uint64_t visible = 0;
-            std::uint64_t all = 0;
+            double sum = 0.0;
+            std::uint64_t lit = 0;
             const HRESULT result = DirectX::EvaluateImage(a_image, [&](const XMVECTOR* a_pixels, std::size_t a_width, std::size_t) {
                 for (std::size_t x = 0; x < a_width; ++x) {
                     DirectX::XMFLOAT4 p;
                     DirectX::XMStoreFloat4(&p, a_pixels[x]);
                     const float high = std::max({ p.x, p.y, p.z });
-                    const float low = std::min({ p.x, p.y, p.z });
-                    const double saturation = high > 0.0f ? (high - low) / high : 0.0;
-                    allSum += saturation;
-                    ++all;
-                    if (p.w > kVisibleAlpha) {
-                        visibleSum += saturation;
-                        ++visible;
+                    if (p.w <= kVisibleAlpha || high < kLitFloor) {
+                        continue;
                     }
+                    sum += high - std::min({ p.x, p.y, p.z });
+                    ++lit;
                 }
             });
-            a_mean = visible > 0 ? static_cast<float>(visibleSum / static_cast<double>(visible)) :
-                                   (all > 0 ? static_cast<float>(allSum / static_cast<double>(all)) : 0.0f);
+            a_mean = lit > 0 ? static_cast<float>(sum / static_cast<double>(lit)) : 0.0f;
             return result;
         }
 
@@ -150,10 +150,10 @@ namespace GreyBuild
         }
     }
 
-    float TextureTint(TextureRole a_role) noexcept
+    float TextureTint(TextureRole a_role, float a_diffuseTint) noexcept
     {
         switch (a_role) {
-        case TextureRole::kDiffuse: return kTextureTintDiffuse;
+        case TextureRole::kDiffuse: return a_diffuseTint;
         case TextureRole::kGlow: return kTextureTintGlow;
         default: return kTextureTintEffect;
         }
@@ -161,36 +161,18 @@ namespace GreyBuild
 
     std::optional<std::string> TextureDataPath(const std::string& a_slot)
     {
-        std::string path = NormalizeDataPath(a_slot);
-        path.erase(0, path.find_first_not_of('\\'));
-        // Every leading data\ and textures\ dropped, one textures\ put back: the DLL's NormalizeTexturePath rule, so a
-        // slot finds the file the dump wrote for it
-        for (bool stripped = true; stripped;) {
-            stripped = false;
-            for (const char* root : { kDataRoot, kTexturesRoot }) {
-                if (StartsWith(path, root)) {
-                    path.erase(0, std::char_traits<char>::length(root));
-                    path.erase(0, path.find_first_not_of('\\'));
-                    stripped = true;
-                }
-            }
-        }
-        if (path.empty() || path.find(':') != std::string::npos || !EndsWith(path, kDdsSuffix)) {
+        auto path = BlackFlame::DataPathRule::Normalize(a_slot, BlackFlame::DataPathRule::kTexturesRoot);
+        if (!path || !EndsWith(*path, kDdsSuffix)) {
             return std::nullopt;
         }
-        for (std::size_t at = 0; at < path.size();) {
-            const auto end = std::min(path.find('\\', at), path.size());
-            if (path.compare(at, end - at, "..") == 0) {
-                return std::nullopt;
-            }
-            at = end + 1;
-        }
-        return std::string(kTexturesRoot) + path;
+        return path;
     }
 
-    std::string TextureCopyPathFor(const std::string& a_textureDataPath)
+    std::string TextureCopyPathFor(const std::string& a_textureDataPath, float a_tint)
     {
-        return std::string(kTextureCopyRoot) + a_textureDataPath.substr(std::char_traits<char>::length(kTexturesRoot));
+        const long percent = std::lround(a_tint * static_cast<float>(kTintPercent));
+        const std::string folder = percent == kTintPercent ? std::string() : fmt::format("t{}\\", percent);
+        return std::string(kTextureCopyRoot) + folder + a_textureDataPath.substr(std::char_traits<char>::length(kTexturesRoot));
     }
 
     RecolourResult RecolourDds(const std::filesystem::path& a_source, const std::filesystem::path& a_target, float a_tint)
@@ -198,7 +180,7 @@ namespace GreyBuild
         RecolourResult result;
         DirectX::TexMetadata meta{};
         DirectX::ScratchImage source;
-        if (const HRESULT hr = DirectX::LoadFromDDSFile(a_source.c_str(), DirectX::DDS_FLAGS_PERMISSIVE, &meta, source); FAILED(hr)) {
+        if (const HRESULT hr = DirectX::LoadFromDDSFile(a_source.c_str(), kLoadFlags, &meta, source); FAILED(hr)) {
             return Fail(result, fmt::format("not a readable DDS: {}", HrText(hr)));
         }
         const DXGI_FORMAT format = meta.format;
@@ -212,9 +194,11 @@ namespace GreyBuild
         if (IsTwoChannel(format)) {
             return Fail(result, fmt::format("{} has no blue channel, so it cannot hold grey; left as it is", result.format));
         }
-        if (IsHdr(format) || DirectX::IsTypeless(format) || DirectX::IsPlanar(format) || DirectX::IsPalettized(format) ||
-            DirectX::IsVideo(format)) {
-            return Fail(result, fmt::format("format {} is not recoloured (HDR, typeless, planar, palettized or video)", result.format));
+        // T17: float formats too (their values run past 1; a clamp would cut the highlights)
+        if (IsHdr(format) || DirectX::FormatDataType(format) == DirectX::FORMAT_TYPE_FLOAT || DirectX::IsTypeless(format) ||
+            DirectX::IsPlanar(format) || DirectX::IsPalettized(format) || DirectX::IsVideo(format)) {
+            return Fail(result, fmt::format("format {} is not recoloured (HDR or float, typeless, planar, palettized or video)",
+                result.format));
         }
 
         // The pixels in a form TransformImage can write: compressed ones decoded to 8-bit RGBA in the same colour space
@@ -229,12 +213,12 @@ namespace GreyBuild
         }
         const DirectX::ScratchImage& pixels = compressed ? decoded : source;
 
-        if (const HRESULT hr = MeanSaturation(*pixels.GetImage(0, 0, 0), result.saturation); FAILED(hr)) {
+        if (const HRESULT hr = MeanChroma(*pixels.GetImage(0, 0, 0), result.chroma); FAILED(hr)) {
             return Fail(result, fmt::format("reading the pixels failed: {}", HrText(hr)));
         }
-        if (result.saturation < kGreyscaleSaturation) {
+        if (result.chroma < kGreyscaleChroma) {
             result.outcome = RecolourOutcome::kGreyscale;
-            result.reason = fmt::format("mean saturation {:.3f} < {}", result.saturation, kGreyscaleSaturation);
+            result.reason = fmt::format("mean chroma of the lit pixels {:.3f} < {}", result.chroma, kGreyscaleChroma);
             return result;
         }
 
@@ -294,8 +278,8 @@ namespace GreyBuild
     std::string TextureTotalsLine(const TextureTotals& a_totals)
     {
         return fmt::format("textures  recoloured {}, skipped greyscale {}, failed {}, not in the dump {}; {} of {} slots now name a "
-                           "grey copy; copies {:.1f} MiB",
-            a_totals.recoloured, a_totals.greyscale, a_totals.failed, a_totals.missing, a_totals.repointed, a_totals.slots,
+                           "grey copy; glow shader emissive colours greyed {}; copies {:.1f} MiB",
+            a_totals.recoloured, a_totals.greyscale, a_totals.failed, a_totals.missing, a_totals.repointed, a_totals.slots, a_totals.emissiveGreyed,
             static_cast<double>(a_totals.bytes) / static_cast<double>(kMiB));
     }
 }
