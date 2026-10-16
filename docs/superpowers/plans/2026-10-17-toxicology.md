@@ -130,6 +130,8 @@ Expected: every field as listed.
   - `RE::BGSKeyword* MimicKeyword(); RE::SpellItem* Ability(); RE::TESObjectBOOK* Tome();` — null when the ESL is not loaded.
   - `bool PlayerHasAbility();`
   - `void LoadSettings(); void LoadPoisonSpells(); void PutTomeInShop();` — `LoadPoisonSpells` runs at kDataLoaded and again at kPostLoadGame/kNewGame (the catalog can change after a rescan).
+- Cloak poison spells: also put in the set every `SpellItem` that is the associated item of one of the spell's effects (the cloak hits with that spell).
+- Catalog re-read: `LoadPoisonSpells()` also runs from the hit task when the catalog file's last-write time changed, checked at most every 5 s.
 - Catalog key → FormID: reuse the persistentId resolution the Librarian uses (search `plugins/spelllearning/src` for the function that resolves `Plugin|0x...` including light plugins and non-ASCII names, e.g. `EncodingUtils.cpp` / `SpellScannerFormId.cpp`); do not write a second resolver.
 
 - [ ] **Step 1:** Implement; log counts: catalog keys, resolved, hostile kept, unresolved; ESL present or not; tome added (count after) or why not.
@@ -150,6 +152,7 @@ Expected: every field as listed.
   - `void OnSelectionMaybeChanged();` — recompute; when the result differs, remove `HoMTox_MimicPoison` from the old form, add it to the new one (only if `showIcon`), then purge I5 once (below).
   - A `MenuOpenCloseEvent` sink calling `OnSelectionMaybeChanged()` when `InventoryMenu` or `FavoritesMenu` opens.
 - Candidates: player inventory filtered to `AlchemyItem` with `IsPoison()`; name = `InventoryEntryData::GetDisplayName()`; favorited = `IsFavorited()`; count from the inventory map.
+- Keyword bookkeeping: remember the keyworded poison by FormID, never by pointer. On kPreLoadGame look it up again and remove the keyword (a keyword added to a static form stays in memory across loads); a 0xFF form that no longer resolves is just forgotten.
 - I5 purge: only when `InventoryInjectorImproved.dll` is loaded (`GetModuleHandle`), run the console line `i5 cache purge` through `RE::Script` (exact call from the header research in the session; if no safe path exists, skip and log once). Log the outcome.
 
 - [ ] **Step 1:** Implement. **Step 2:** Build. **Step 3:** Commit `Toxicology: poison choice, mimic keyword, I5 cache purge`
@@ -169,9 +172,19 @@ Expected: every field as listed.
   - `void ClearApplications();`
 - Sink: `TESHitEvent`; keep when `cause` is the player, `LookupByID(source)` is `FormType::Spell` and `IsPoisonSpell`, target is a live actor and not the player. Queue a task carrying `ActorHandle`, spell id, generation. No `TESMagicEffectApplyEvent` fallback (spec 5.3).
 - Task: drop when generation differs; re-check ability, `enabled`, target alive, `CurrentPoison()` non-null; interval per (target FormID, poison FormID) with `IntervalElapsed`, clock = `std::chrono::steady_clock`.
-- Ownership: after `CastSpellImmediate(poison, false, target, 1.0f, false, 0.0f, player)` on `player->GetMagicCaster(kInstant)`, collect the target's active effects whose `spell == poison` and whose caster is the player and that were not there before the cast; store them under (target, poison). Refresh = set `elapsedSeconds = 0` on stored effects still present in the target's list. A same-poison effect not in our records → do nothing (spec 5.4).
+- Effects flagged `kInactive` or `kDispelled` (`ActiveEffect.h:45-54`) count as gone everywhere.
+- Caster: `player->GetMagicCaster(kInstant)`; if the self test (step 2) shows the poison landing on the player (Self delivery), switch to `target->GetMagicCaster(kInstant)` with the player as blame actor.
+- Refresh fallback: if the self test (step 3) shows `elapsedSeconds = 0` does not extend the effect, refresh by dispelling our effects and casting again.
+- Ownership: after `CastSpellImmediate(poison, false, target, 1.0f, false, 0.0f, player)`, collect the target's active effects whose `spell == poison` and whose caster is the player and that were not there before the cast; store them under (target, poison). Refresh = set `elapsedSeconds = 0` on stored effects still present in the target's list. A same-poison effect not in our records → do nothing (spec 5.4).
 
 - [ ] **Step 1:** Implement. **Step 2:** Build. **Step 3:** Commit `Toxicology: poison spell hits apply or refresh the mimicked poison`
+
+---
+
+
+### Task 5b (only if the Task 7 self test shows a gap): `MagicTarget::AddTarget` hook
+
+Run only when step 2 of the self test logs a delivery whose hits never reach the `TESHitEvent` sink or arrive with a non-spell `source` (explosion, concentration). Hook the player-cast path where `AddTargetData` carries the casting `MagicItem` (`MagicTarget.h:90-110`; read the header and pick the vfunc), keep the same filters and the same task (`OnPoisonSpellHit`), and dedupe across both sources by (target, spell) inside `minIntervalSeconds`. Remove the `TESHitEvent` sink only if the hook covers every delivery the self test checks. Commit `Toxicology: poison spell hits from AddTarget (deliveries without hit events)`.
 
 ---
 
@@ -188,6 +201,7 @@ Expected: every field as listed.
   - Fire-and-forget: `TESSpellCastEvent` for the player with a poison spell (it comes only for a released cast; an interrupted charge costs nothing) → task → the cost is that hand caster's `currentSpellCost` read in the hook at release; when it cannot be matched to a caster, `CalculateMagickaCost(player)` and, if `player->IsDualCasting()` (`Actor.h:637`), `RE::MagicFormulas::CalcDualCastCost(cost)` (`MagicFormulas.h:7`).
 - `TESSpellCastEvent` arrives on any thread (`SpellCastHandler.cpp:63-66`): only the spell id crosses into the task.
 - Not counted without the ability, with `enabled` false, or with `CurrentPoison()` null.
+- Removing a dose: take it from a stack without `ExtraHotkey` first (pass that stack's `ExtraDataList` to `RemoveItem`); only when the favorited stack is all that is left, reduce it.
 - Debug check: every 5 s of poison casting, log `magicka counted X / player magicka drop Y`.
 - Co-save: unique id `'HMTX'`, record `'ACCM'` version 1 = one float. Revert: accumulator 0, `BumpGeneration()`, `ClearApplications()`. Load: read if present, reject non-finite or negative (log, keep 0).
 
