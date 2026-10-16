@@ -288,8 +288,111 @@ namespace GreyBuild
         }
     }
 
+    namespace
+    {
+        std::vector<std::string> HeaderStrings(const nifly::NifFile& a_nif)
+        {
+            const auto& hdr = a_nif.GetHeader();
+            std::vector<std::string> out;
+            out.reserve(hdr.GetStringCount());
+            for (std::uint32_t i = 0; i < hdr.GetStringCount(); ++i) {
+                out.push_back(hdr.GetStringById(i));
+            }
+            return out;
+        }
+
+        // v2i: nifly's Save rebuilds the header string table from the string references it knows (FinalizeData ->
+        // NiHeader::UpdateHeaderStrings(false): ClearStrings, then each block's GetStringRefs in block order), so strings
+        // no known reference names are dropped and the rest renumbered (Dragonfire's copy lost 'AutoPlay',
+        // 'GenericBehaviors\Autoplay.hkx', 'Magic\SprayRange.hkx'). A reference nifly does not enumerate keeps its raw
+        // index and would then name another string. Here the source's table comes back exactly (same strings, same
+        // order, duplicates included: source tables do hold a string twice, e.g. icehazard02.nif's 'IceHazard02' at 0 and
+        // 72) after nifly's Save; every known reference gets back its index from before the Save when it still names that
+        // string (so a reference to the second of two equal strings keeps the second), else the first equal string or a
+        // new one at the end; and the file is written the way NifFile::Save writes it (nifly 680a3c0, the vcpkg port),
+        // without the rebuild. False (nothing written) when the references no longer line up with the snapshot.
+        std::vector<std::uint32_t> RefIndices(nifly::NifFile& a_nif, std::vector<nifly::NiStringRef*>* a_refs = nullptr)
+        {
+            auto& hdr = a_nif.GetHeader();
+            std::vector<std::uint32_t> out;
+            for (std::uint32_t id = 0; id < hdr.GetNumBlocks(); ++id) {
+                auto* block = hdr.GetBlock<nifly::NiObject>(id);
+                if (!block) {
+                    continue;
+                }
+                std::vector<nifly::NiStringRef*> refs;
+                block->GetStringRefs(refs);
+                for (auto* ref : refs) {
+                    out.push_back(ref->GetIndex());
+                    if (a_refs) {
+                        a_refs->push_back(ref);
+                    }
+                }
+            }
+            return out;
+        }
+
+        bool WriteKeepingStrings(nifly::NifFile& a_nif, const std::vector<std::string>& a_strings,
+            const std::vector<std::uint32_t>& a_before, std::ostream& a_out)
+        {
+            auto& hdr = a_nif.GetHeader();
+            std::vector<nifly::NiStringRef*> refs;
+            (void)RefIndices(a_nif, &refs);
+            if (refs.size() != a_before.size()) {
+                return false;
+            }
+            // The table as it was: slots made with distinct placeholders (AddOrFindStringId would merge equal strings), then
+            // each slot set to its string
+            hdr.ClearStrings();
+            for (std::uint32_t i = 0; i < a_strings.size(); ++i) {
+                if (hdr.AddOrFindStringId(fmt::format("\x01HoMBF slot {}", i), true) != i) {
+                    return false;
+                }
+            }
+            for (std::uint32_t i = 0; i < a_strings.size(); ++i) {
+                hdr.SetStringById(i, a_strings[i]);
+            }
+            for (std::size_t i = 0; i < refs.size(); ++i) {
+                auto* ref = refs[i];
+                const std::uint32_t was = a_before[i];
+                if (was != nifly::NIF_NPOS && was < a_strings.size() && a_strings[was] == ref->get()) {
+                    ref->SetIndex(was);  // the very slot it named
+                } else if (ref->GetIndex() == nifly::NIF_NPOS && ref->get().empty()) {
+                    continue;  // no string, as nifly leaves it
+                } else {
+                    ref->SetIndex(hdr.AddOrFindStringId(ref->get(), true));  // changed or new: first equal string, or appended
+                }
+            }
+            hdr.UpdateMaxStringLength();
+
+            nifly::NiOStream stream(&a_out, hdr.GetVersion());
+            hdr.Put(stream);
+            stream.InitBlockSize();
+            std::vector<std::streamsize> sizes(hdr.GetNumBlocks());
+            for (std::uint32_t id = 0; id < hdr.GetNumBlocks(); ++id) {
+                hdr.GetBlock<nifly::NiObject>(id)->Put(stream);
+                sizes[id] = stream.GetBlockSize();
+                stream.InitBlockSize();
+            }
+            std::uint32_t endPad = 1;  // the footer: one root, block 0 (as NifFile::Save)
+            stream << endPad;
+            endPad = 0;
+            stream << endPad;
+            if (const auto sizePos = hdr.GetBlockSizeStreamPos(); sizePos != std::streampos()) {
+                a_out.seekp(sizePos);
+                for (const auto size : sizes) {
+                    stream << static_cast<std::uint32_t>(size);
+                }
+                hdr.ResetBlockSizeStreamPos();
+            }
+            return true;
+        }
+    }
+
     std::string SaveToBytes(nifly::NifFile& a_nif)
     {
+        const auto strings = HeaderStrings(a_nif);  // the source's table, as loaded (nifly does not touch it at load)
+        const auto before = RefIndices(a_nif);       // each known reference's index into it
         nifly::NifSaveOptions options;
         options.optimize = false;    // no bounds update, no unreferenced block removal
         options.sortBlocks = false;  // keep the source's block order
@@ -298,7 +401,11 @@ namespace GreyBuild
         if (result != kNiflyOk) {
             throw std::runtime_error(fmt::format("nifly could not write the NIF (code {})", result));
         }
-        return out.str();
+        std::ostringstream kept(std::ios::binary);
+        if (!WriteKeepingStrings(a_nif, strings, before, kept) || !kept) {
+            return out.str();  // the references did not line up: nifly's own table (CheckHeaderStrings reports it)
+        }
+        return kept.str();
     }
 
     void SaveNif(nifly::NifFile& a_nif, const std::filesystem::path& a_file)
@@ -314,6 +421,21 @@ namespace GreyBuild
         if (!out) {
             throw std::runtime_error(fmt::format("writing '{}' failed", a_file.string()));
         }
+    }
+
+    std::vector<std::string> CheckHeaderStrings(const nifly::NifFile& a_source, const nifly::NifFile& a_written)
+    {
+        std::vector<std::string> problems;
+        const auto before = HeaderStrings(a_source);
+        const auto after = HeaderStrings(a_written);
+        for (std::size_t i = 0; i < before.size(); ++i) {
+            if (i >= after.size() || after[i] != before[i]) {
+                problems.push_back(fmt::format("header string {} '{}' not kept (now '{}')", i, before[i],
+                    i < after.size() ? after[i] : std::string("missing")));
+                break;  // the first one says it
+            }
+        }
+        return problems;
     }
 
     int CountUnknownBlocks(const nifly::NifFile& a_nif)

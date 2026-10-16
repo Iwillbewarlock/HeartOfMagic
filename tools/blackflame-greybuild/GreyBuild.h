@@ -245,6 +245,10 @@ namespace GreyBuild
 
     [[nodiscard]] float Luminance(float a_red, float a_green, float a_blue) noexcept;
 
+    /// v2i: a_written's header string table starts with a_source's, string for string in the same order (SaveToBytes keeps
+    /// it); the first difference, or empty
+    [[nodiscard]] std::vector<std::string> CheckHeaderStrings(const nifly::NifFile& a_source, const nifly::NifFile& a_written);
+
     /// A palette shader: the source already maps its texture through a palette (SLSF1 greyscale-to-palette colour on
     /// and a non-empty source texture). Reads shader data only; the builder never changes either, so it holds on the copy.
     [[nodiscard]] bool UsesPalette(const nifly::BSEffectShaderProperty& a_prop);

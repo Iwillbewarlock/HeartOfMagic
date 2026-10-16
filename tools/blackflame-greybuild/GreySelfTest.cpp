@@ -115,6 +115,7 @@ namespace GreyBuild
             ctrl->targetRef.index = a_target;
         }
 
+        constexpr const char* kOrphanString = "HoMBF_OrphanHeaderString";
         constexpr const char* kOnTexture = "textures\\effects\\fxfire02.dds";
         constexpr const char* kOrangePalette = "textures\\effects\\gradients\\gradflame01.dds";
 
@@ -167,6 +168,8 @@ namespace GreyBuild
 
             AddColorController(nif, nifly::NIF_NPOS);
             AddColorController(nif, addId);  // v2i: drives the additive palette shader: keys x tintAdd
+            // v2i: a header string no block names (as Dragonfire's 'AutoPlay'): the copy must keep it, in its place
+            (void)nif.GetHeader().AddOrFindStringId(kOrphanString);
             SaveNif(nif, a_file);
         }
 
@@ -348,6 +351,16 @@ namespace GreyBuild
             nifly::NifFile written;
             LoadNif(written, grey);
             CheckOutput(check, written, map);
+            {
+                nifly::NifFile original;
+                LoadNif(original, source);
+                const auto problems = CheckHeaderStrings(original, written);
+                check.Check(problems.empty() && written.GetHeader().FindStringId(kOrphanString) != nifly::NIF_NPOS &&
+                                written.GetHeader().FindStringId(kOrphanString) == original.GetHeader().FindStringId(kOrphanString),
+                    fmt::format("header strings kept as the source has them, the orphan string included ({} source, {} copy{})",
+                        original.GetHeader().GetStringCount(), written.GetHeader().GetStringCount(),
+                        problems.empty() ? std::string() : "; " + problems.front()));
+            }
 
             nifly::NifFile partial;
             LoadNif(partial, source);

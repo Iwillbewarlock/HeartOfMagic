@@ -117,7 +117,12 @@ namespace GreyBuild
 
             nifly::NifFile written;
             LoadNif(written, target);
-            const auto problems = VerifyGrey(written, a_greyEffects, a_map, a_options.keepUnmapped);
+            auto problems = VerifyGrey(written, a_greyEffects, a_map, a_options.keepUnmapped);
+            nifly::NifFile original;  // v2i: the header strings as the source has them (orphans included)
+            LoadNif(original, *source);
+            for (auto& line : CheckHeaderStrings(original, written)) {
+                problems.push_back(std::move(line));
+            }
             PrintResult(a_rel, a_greyRel, *source, unknown, roundTrip, problems);
             if (a_greyEffects) {
                 PrintStats(stats);
