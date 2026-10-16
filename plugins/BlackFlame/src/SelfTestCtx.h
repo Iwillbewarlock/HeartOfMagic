@@ -31,6 +31,25 @@ namespace BlackFlame::SelfTest
         bool finished = false;
     };
 
+    // C3: a cast at the target counts as a hit only on a TESHitEvent (the player, the spell, the target)
+    inline constexpr int kMaxAimCasts = 3;
+
+    struct Aim
+    {
+        std::uint64_t mark = 0;  // hits counted since
+        int casts = 0;
+        bool hit = false;
+        bool gaveUp = false;
+        std::optional<Clock::time_point> hitAt;
+    };
+
+    enum class AimResult
+    {
+        kHit,
+        kWaiting,
+        kGaveUp  // a FAIL "aim: no hit after 3 casts" with the geometry is logged
+    };
+
     struct Ctx
     {
         Clock::time_point stepStart;
@@ -75,6 +94,12 @@ namespace BlackFlame::SelfTest
         std::vector<ColorKeys> t3ModifierKeys;     // the player's T3 projectile's colour keys before its recolour
         std::optional<SelfTestProbe::ProjectileRecord> playerT4;
         std::optional<SelfTestProbe::ProjectileRecord> npcT4;
+        Aim aim;                                       // C3: T5's confirmation of the T3 Firebolt's hit
+        bool targetMade = false;                       // T2 turned the target's AI off
+        std::string targetMadeText;                    // what MakeTarget said
+        float targetLastZ = 0.0f;                      // T2: the target's height when it was last seen moving
+        std::optional<Clock::time_point> targetStillSince;
+        std::optional<RE::NiPoint3> casterHome;        // where the caster stood at rest in T2
     };
 
     using Handler = bool (*)(Ctx&, bool);  // true when the step is finished
@@ -96,6 +121,17 @@ namespace BlackFlame::SelfTest
 
     /// Both test actors still resolve and T2 passed; otherwise a FAIL "skipped" and false
     [[nodiscard]] bool NeedActors(Ctx& a_c, const char* a_id);
+
+    // SelfTestAim.cpp (C3)
+    /// A new aim whose first cast was just made; hits are counted from a_mark
+    void StartAim(Aim& a_aim, std::uint64_t a_mark);
+    /// The hit of the last cast by TESHitEvent; after its flight and a margin without one, the player casts again,
+    /// up to kMaxAimCasts casts, then a FAIL "aim: no hit after 3 casts" with the geometry
+    [[nodiscard]] AimResult ConfirmHit(Ctx& a_c, Aim& a_aim, RE::SpellItem* a_spell, const char* a_id);
+    /// The player, the target, its 3D bound and their distance, for FAIL lines
+    [[nodiscard]] std::string AimGeometry(const Ctx& a_c);
+    /// The caster moved back to where it stood in T2 when it wandered off (it keeps its AI)
+    void BringCasterHome(Ctx& a_c, const char* a_id);
 
     inline constexpr auto kBurnWatch = std::chrono::seconds(1);             // engine shader watched after the grey shows
     // An engine hit shader counts as alight from this age on (a younger one may be a frame's flash)

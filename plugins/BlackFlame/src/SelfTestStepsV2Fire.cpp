@@ -37,6 +37,7 @@ namespace BlackFlame::SelfTest
             std::optional<SelfTestProbe::ProjectileRecord> projectile;
             int phase = 0;
             Clock::time_point phaseStart{};
+            Aim aim;  // C3: E1a judges only after its Firebolt's hit is confirmed
         };
         FireState g_fire;
 
@@ -123,6 +124,9 @@ namespace BlackFlame::SelfTest
     void ShiftFireClocks(Clock::duration a_paused)
     {
         g_fire.phaseStart += a_paused;
+        if (g_fire.aim.hitAt) {
+            *g_fire.aim.hitAt += a_paused;
+        }
     }
 
     // E1a: the player's Firebolt launches with its projectile copy, its 3D at the projectile hook carries the grey palette path and
@@ -134,7 +138,19 @@ namespace BlackFlame::SelfTest
             if (!NeedActors(a_c, "E1a")) {
                 return true;
             }
-            return !CastAtTarget(a_c, Player(), a_c.forms.firebolt, "E1a");
+            if (!CastAtTarget(a_c, Player(), a_c.forms.firebolt, "E1a")) {
+                return true;
+            }
+            StartAim(g_fire.aim, g_fire.mark);
+            return false;
+        }
+        // C3: the impact is judged only after the hit is confirmed (up to three casts)
+        const auto aim = ConfirmHit(a_c, g_fire.aim, a_c.forms.firebolt, "E1a");
+        if (aim == AimResult::kGaveUp) {
+            return true;
+        }
+        if (aim == AimResult::kWaiting) {
+            return false;
         }
         if (!g_fire.launch) {
             g_fire.launch = FindLaunch(g_fire.mark, Player()->GetFormID(), a_c.forms.firebolt);
@@ -144,7 +160,7 @@ namespace BlackFlame::SelfTest
         }
         a_c.waitingFor = "the player's Firebolt launch and projectile records";
         const bool impactsDone = GetCopySwapCounters().impactCopies > g_fire.at.impactCopies;
-        if ((!g_fire.launch || !g_fire.projectile || !impactsDone) && Clock::now() - g_fire.phaseStart < kImpactWait) {
+        if ((!g_fire.launch || !g_fire.projectile || !impactsDone) && Clock::now() - *g_fire.aim.hitAt < kImpactWait) {
             return false;
         }
         JudgeFirebolt(a_c);
@@ -198,15 +214,18 @@ namespace BlackFlame::SelfTest
             const auto projectile = FindProjectileFrom(g_fire.mark, a_c.casterId, a_c.forms.fireball);
             const auto explosion = FindExplosion(g_fire.mark, false, a_c.casterId, a_c.forms.fireballExplosion);
             const bool launchOk = launch && launch->copyBase == 0 && !launch->playerFire;
-            const bool projectileOk = projectile && projectile->copyBase == 0 && projectile->after.withGrey == 0 &&
-                                      projectile->after.withPalettePath == 0;
-            const bool explosionOk = explosion && explosion->copyBase == 0 && explosion->after.withGrey == 0 &&
-                                     explosion->after.withPalettePath == 0;
-            SelfTestLog::Check("E1c", launchOk && projectileOk && explosionOk, std::format("{}: caster's launch {}, projectile {}, "
-                "explosion {}", a_phase,
+            // C2: no PASS without observing: each needs effect shapes in its 3D to be called not grey
+            const bool projectileOk = projectile && projectile->copyBase == 0 && projectile->after.effectProperties > 0 &&
+                                      projectile->after.withGrey == 0 && projectile->after.withPalettePath == 0;
+            const bool explosionOk = explosion && explosion->copyBase == 0 && explosion->after.effectProperties > 0 &&
+                                     explosion->after.withGrey == 0 && explosion->after.withPalettePath == 0;
+            SelfTestLog::Check("E1c", launchOk && projectileOk && explosionOk, std::format("{}: caster's launch {}, projectile ({} "
+                "effect shapes in its 3D) {}, explosion ({} in its 3D) {}", a_phase,
                 launch ? std::format("base {:08X} copy {:08X} rule {}", launch->base, launch->copyBase, launch->playerFire) :
                          std::string("NOT OBSERVED"),
+                projectile ? projectile->after.effectProperties : 0,
                 projectile ? DescribeProjectile(*projectile) : std::string("NOT OBSERVED"),
+                explosion ? explosion->after.effectProperties : 0,
                 explosion ? DescribeExplosion(*explosion) : std::string("NOT OBSERVED")));
         }
 
@@ -241,6 +260,7 @@ namespace BlackFlame::SelfTest
                 a_c.waitingFor = "the earlier Fireball explosion to end";
                 return false;
             }
+            BringCasterHome(a_c, "E1c");  // C3: near the target like the other steps
             SelfTestWorld::FaceTarget(caster, target);
             g_fire.mark = SelfTestProbe::Mark();
             next(kWaitA);
@@ -264,6 +284,7 @@ namespace BlackFlame::SelfTest
             if (since < kSettle) {
                 return false;
             }
+            BringCasterHome(a_c, "E1c");
             SelfTestWorld::FaceTarget(caster, target);
             g_fire.mark = SelfTestProbe::Mark();
             next(kWaitB);
@@ -280,6 +301,7 @@ namespace BlackFlame::SelfTest
             if (a_c.lastCast && Clock::now() - *a_c.lastCast < kSettle) {
                 return false;
             }
+            BringCasterHome(a_c, "E1c");
             SelfTestWorld::FaceTarget(caster, target);
             g_fire.mark = SelfTestProbe::Mark();
             next(kWaitC);

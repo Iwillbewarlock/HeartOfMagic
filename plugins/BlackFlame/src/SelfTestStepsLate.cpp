@@ -7,6 +7,7 @@
 #include "HazardSwap.h"
 #include "ImpactSwap.h"
 #include "ProjectileHook.h"
+#include "SelfTestJudge.h"
 #include "SelfTestLog.h"
 #include "SelfTestJudge.h"
 #include "SelfTestText.h"
@@ -58,6 +59,7 @@ namespace BlackFlame::SelfTest
         // the target; FAIL without casting otherwise
         bool PrepareCaster(Ctx& a_c, const char* a_id)
         {
+            BringCasterHome(a_c, a_id);  // C3: it keeps its AI and wandered up to 8,400 units off in run 11:11
             auto* caster = ActorOf(a_c.caster);
             auto* target = RefOf(a_c.dummy);
             auto* player = Player();
@@ -124,14 +126,18 @@ namespace BlackFlame::SelfTest
                     continue;
                 }
                 const auto& a = r.after;
-                if (a_byPlayer && !GetConfig().explosion) {
-                    SelfTestLog::Info(id, "runtime recolour off (explosion false): not judged | " + DescribeExplosion(r));
+                if (a_byPlayer) {
+                    // C2: a copy by the copy and the palette in its 3D, a non-copy by the runtime recolour (when on)
+                    const auto verdict = JudgeGrey(r.copyBase, r.recolored, r.stats.Recolored(), a, GetConfig().explosion);
+                    if (!verdict.judged) {
+                        SelfTestLog::Info(id, verdict.how + " | " + DescribeExplosion(r));
+                    } else {
+                        SelfTestLog::Check(id, verdict.pass, verdict.how + " | " + DescribeExplosion(r));
+                    }
                     return true;
                 }
-                const bool ok = a_byPlayer ?
-                                    (r.recolored && r.stats.Recolored() > 0 && a.withPalettePath >= r.stats.Recolored()) :
-                                    (!r.recolored && a.effectProperties > 0 && a.withGrey == 0);
-                SelfTestLog::Check(id, ok, DescribeExplosion(r));
+                SelfTestLog::Check(id, !r.recolored && a.effectProperties > 0 && a.withGrey == 0, std::format("{} effect "
+                    "shapes in its 3D, {} grey | {}", a.effectProperties, a.withGrey, DescribeExplosion(r)));
                 return true;
             }
             a_c.waitingFor = std::format("Fireball's explosion {:08X} from the {} (others seen:{})",
@@ -175,6 +181,15 @@ namespace BlackFlame::SelfTest
             if (!NeedActors(a_c, "T5")) {
                 return true;
             }
+            StartAim(a_c.aim, a_c.t3Mark);  // T3's cast is the first
+        }
+        // C3: judged only after a confirmed hit; up to three casts, then FAIL "aim: no hit after 3 casts"
+        const auto aim = ConfirmHit(a_c, a_c.aim, a_c.forms.firebolt, "T5");
+        if (aim == AimResult::kGaveUp) {
+            return true;
+        }
+        if (aim == AimResult::kWaiting && !a_c.greySeen) {
+            return false;
         }
         const auto* ours = GetForms().burnShader;
         const auto engines = EngineShadersOf(a_c.forms.firebolt);

@@ -18,6 +18,7 @@ namespace BlackFlame::SelfTestWorld
         constexpr float kPlayerFallbackHeight = 100.0f;
         constexpr float kCreatureFallbackHeight = 60.0f;  // a deer
         constexpr float kTargetFallbackLift = 50.0f;
+        constexpr float kMinBoundRadius = 1.0f;  // below this the 3D's world bound is not set yet
         constexpr float kHalf = 0.5f;
         // An approximation of the engine's gravity in units/s^2: 9.8 m/s^2 at about 70 units/m. Scaled by
         // the projectile's own gravity value; the launch line logs the drop it computed.
@@ -99,6 +100,12 @@ namespace BlackFlame::SelfTestWorld
         const auto from = a_shooter->GetPosition();
         auto aim = a_target->GetPosition();
         aim.z += aimLift;
+        // C3: the centre of the target's 3D (its world bound) when it has one: the torso of a standing deer
+        const char* aimedAt = "height share";
+        if (const auto* root = a_target->Get3D(); root && root->worldBound.radius >= kMinBoundRadius) {
+            aim = root->worldBound.center;
+            aimedAt = "3D bound centre";
+        }
         const float flatX = aim.x - from.x;
         const float flatY = aim.y - from.y;
         const float flat = std::sqrt(flatX * flatX + flatY * flatY);
@@ -130,8 +137,8 @@ namespace BlackFlame::SelfTestWorld
         RE::ProjectileHandle handle;
         RE::Projectile::Launch(&handle, data);
         const bool launched = static_cast<bool>(handle);
-        a_detail = std::format("launched from ({:.0f}, {:.0f}, {:.0f}) at ({:.0f}, {:.0f}, {:.0f}) incl. {:.1f} units of "
-            "gravity drop ({:.0f} units at speed {:.0f}, gravity {:.2f}): pitch {:.3f}, heading {:.3f} rad;{} {}", origin.x,
+        a_detail = std::format("aimed at the target's {}: launched from ({:.0f}, {:.0f}, {:.0f}) at ({:.0f}, {:.0f}, {:.0f}) incl. {:.1f} units of "
+            "gravity drop ({:.0f} units at speed {:.0f}, gravity {:.2f}): pitch {:.3f}, heading {:.3f} rad;{} {}", aimedAt, origin.x,
             origin.y, origin.z, aim.x, aim.y, aim.z, drop, distance, speed, projectileBase->data.gravity, angles.x, angles.z,
             fallback, launched ? "projectile handle returned" : "NO projectile handle");
         return launched;

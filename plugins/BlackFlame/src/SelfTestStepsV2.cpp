@@ -183,6 +183,12 @@ namespace BlackFlame::SelfTest
             "null ({} with flags bit 1), {} not stoked, {} not a fire effect, {} other; GetHitEffectArt: {} calls, {} null",
             shader.playerCalls, shader.swapped, shader.engineNull, shader.engineNullFlag, shader.notStoked, shader.notFire,
             shader.otherRejected, art.playerCalls, art.engineNull));
+        // C3: judged only after a confirmed hit (T5's aim)
+        if (!a_c.aim.hit) {
+            SelfTestLog::Fail("E4", std::format("aim: no hit after {} casts (T5) - nothing to judge | {}", a_c.aim.casts,
+                AimGeometry(a_c)));
+            return true;
+        }
         const bool alight = a_c.greySeen.has_value();
         SelfTestLog::Check("E4", alight, alight ? "our EFSH was alight on the target after the player's Firebolt (T5)" :
             std::format("our EFSH never showed on the target (T5); hit {}, swapped {} - {}", hits, shader.swapped,

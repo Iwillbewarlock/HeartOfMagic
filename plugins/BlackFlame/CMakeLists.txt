@@ -64,6 +64,7 @@ set(BLACKFLAME_SOURCES
     src/SelfTestText.cpp
     src/SelfTestWorld.cpp
     src/SelfTestDispel.cpp
+    src/SelfTestAim.cpp
     ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/EncodingUtils.cpp
 )
 

@@ -5,6 +5,7 @@
 #include "HazardSwap.h"
 #include "ImpactSwap.h"
 #include "ScriptTags.h"
+#include "SelfTestJudge.h"
 #include "SelfTestLog.h"
 #include "SelfTestProbe.h"
 #include "SelfTestText.h"
@@ -140,10 +141,13 @@ namespace BlackFlame::SelfTest
                     a_c.phase = kCastBlamed;
                     return false;
                 }
-                SelfTestLog::Check("T3-remote", tagged->byPlayer && byTag &&
-                    (GetConfig().projectile ? tagged->recolored : tagged->copyBase != 0),
-                    std::format("projectile shot by the tagged marker {:08X}, the player's through its {}: {}",
-                        a_c.remoteMarkerId, tagged->link, DescribeProjectile(*tagged)));
+                // C2: grey judged the same way as T3 (a copy by its 3D, else the recolour); observed 3D required
+                const auto verdict = JudgeGrey(tagged->copyBase, tagged->recolored, tagged->stats.Recolored(), tagged->after,
+                    GetConfig().projectile);
+                SelfTestLog::Check("T3-remote", tagged->byPlayer && byTag && verdict.judged && verdict.pass && tagged->inspected3D,
+                    std::format("projectile shot by the tagged marker {:08X}, the player's through its {}; {}{}: {}",
+                        a_c.remoteMarkerId, tagged->link, verdict.how, tagged->inspected3D ? "" : " (NOT INSPECTED: no 3D)",
+                        DescribeProjectile(*tagged)));
                 a_c.phase = kCastBlamed;
                 return false;
             }

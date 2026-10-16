@@ -17,6 +17,29 @@ namespace BlackFlame::SelfTest
         bool Near(float a_lhs, float a_rhs) { return std::fabs(a_lhs - a_rhs) <= kColorTolerance; }
     }
 
+    GreyVerdict JudgeGrey(RE::FormID a_copyBase, bool a_recolored, int a_recoloredShapes,
+        const SelfTestProbe::Inspection& a_after, bool a_recolourOn)
+    {
+        GreyVerdict out;
+        if (a_copyBase != 0) {
+            out.judged = true;
+            out.copy = true;
+            out.pass = a_after.effectProperties > 0 && a_after.withPalettePath == a_after.effectProperties;
+            out.how = std::format("copy {:08X}: grey palette path on {} of {} effect shapes in its 3D{}", a_copyBase,
+                a_after.withPalettePath, a_after.effectProperties, a_after.effectProperties == 0 ? " (NOTHING OBSERVED)" : "");
+            return out;
+        }
+        if (a_recolourOn) {
+            out.judged = true;
+            out.pass = a_recolored && a_recoloredShapes > 0 && a_after.withPalettePath >= a_recoloredShapes;
+            out.how = std::format("runtime recolour (no copy): {} shapes recoloured, palette path on {} of {}", a_recoloredShapes,
+                a_after.withPalettePath, a_after.effectProperties);
+            return out;
+        }
+        out.how = "no copy and the runtime recolour off: nothing to judge";
+        return out;
+    }
+
     bool EngineLive(const std::vector<SelfTestWorld::ShaderOn>& a_shaders, const std::vector<RE::FormID>& a_engines,
         const ShaderFilter& a_exclude)
     {

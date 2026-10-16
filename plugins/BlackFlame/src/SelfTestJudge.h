@@ -39,6 +39,20 @@ namespace BlackFlame::SelfTest
     /// alpha kept), within a small tolerance; false for an already grey original
     [[nodiscard]] bool MatchesDesaturated(const ColorKeys& a_keys, const ColorKeys& a_original);
 
+    /// C2: whether the player's projectile or explosion is grey. A copy base is grey by construction, so it is
+    /// judged by the copy and the grey palette path on every effect shape of its 3D (already grey is the expected
+    /// state); a non-copy only by the runtime recolour, when that is on; otherwise not judged.
+    struct GreyVerdict
+    {
+        bool judged = false;
+        bool pass = false;
+        bool copy = false;
+        std::string how;
+    };
+
+    [[nodiscard]] GreyVerdict JudgeGrey(RE::FormID a_copyBase, bool a_recolored, int a_recoloredShapes,
+        const SelfTestProbe::Inspection& a_after, bool a_recolourOn);
+
     /// The caster's colour keys at its hook vs now, per modifier pointer; empty when nothing matched
     [[nodiscard]] std::optional<bool> ModifiersChanged(const SelfTestProbe::Inspection& a_atHook,
         const SelfTestProbe::Inspection& a_now);

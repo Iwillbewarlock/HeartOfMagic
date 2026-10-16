@@ -10,6 +10,7 @@
 #include "GreyCheck.h"
 #include "ImpactSwap.h"
 #include "PapyrusWrap.h"
+#include "SelfTestJudge.h"
 #include "SelfTestLog.h"
 #include "SelfTestText.h"
 #include "SelfTestReload.h"
@@ -45,9 +46,9 @@ namespace BlackFlame::SelfTest
         constexpr float kEnvTimeout = 2.0f;
         constexpr float kBuffOnTimeout = 3.0f;    // a dispel first when already stoked, then the cast
         constexpr float kSpawnTimeout = 1.0f;
-        constexpr float kActorsTimeout = 5.0f;
+        constexpr float kActorsTimeout = 8.0f;   // C3: their 3D, then the target at rest
         constexpr float kProjectileTimeout = 3.0f;
-        constexpr float kBurnTimeout = 4.0f;
+        constexpr float kBurnTimeout = 9.0f;     // C3: up to three casts until one hits, then the watch
         constexpr float kExplosionTimeout = 6.0f;
         constexpr float kInfoTimeout = 3.0f;
         constexpr float kBuffOffTimeout = 1.0f;
@@ -57,9 +58,11 @@ namespace BlackFlame::SelfTest
         constexpr float kE2Timeout = 10.0f;        // spawn, 1 s stream, toggle, 0.6 s, recast, hits
         constexpr float kE3Timeout = 20.0f;        // buff, rune, marker file
 
-        // Placement: the target well ahead, the caster level with the player off to the side,
-        // all beyond Fireball's explosion radius (320 units in Skyrim.esm; read at runtime)
-        constexpr float kTargetForward = 1000.0f;
+        // Placement: the target ahead (C3: close enough to hit, 550 units), the caster level with the player off to
+        // the side, all beyond Fireball's explosion radius (320 units in Skyrim.esm; read at runtime, T2 checks it)
+        constexpr float kTargetForward = 550.0f;
+        constexpr float kRestTolerance = 2.0f;                      // units the target's height may change at rest
+        constexpr auto kRestTime = std::chrono::milliseconds(500);  // that long without moving
         constexpr float kCasterRight = 700.0f;
         constexpr float kHealthShare = 0.99f;  // the target's health must reach this share of kDummyHealth
 
@@ -189,7 +192,23 @@ namespace BlackFlame::SelfTest
                 return false;
             }
             // The caster keeps its AI (an actor without it may never run its cast)
-            const auto done = SelfTestWorld::MakeTarget(dummy);
+            if (!a_c.targetMade) {
+                a_c.targetMadeText = SelfTestWorld::MakeTarget(dummy);
+                a_c.targetMade = true;
+            }
+            // C3: spawned at the player's height, the target may still be falling: wait until it is at rest
+            const float z = dummy->GetPositionZ();
+            if (!a_c.targetStillSince || std::fabs(z - a_c.targetLastZ) > kRestTolerance) {
+                a_c.targetLastZ = z;
+                a_c.targetStillSince = Clock::now();
+            }
+            if (Clock::now() - *a_c.targetStillSince < kRestTime) {
+                a_c.waitingFor = std::format("the target to come to rest (height {:.0f}, player at {:.0f})", z,
+                    Player()->GetPositionZ());
+                return false;
+            }
+            a_c.casterHome = caster->GetPosition();
+            const auto& done = a_c.targetMadeText;
             const float health = SelfTestWorld::HealthOf(dummy);
             const float radius = a_c.forms.fireballExplosion ? a_c.forms.fireballExplosion->data.radius : 0.0f;
             const auto playerPos = Player()->GetPosition();
@@ -199,8 +218,9 @@ namespace BlackFlame::SelfTest
             const bool ok = !dummy->IsAIEnabled() && health >= SelfTestWorld::kDummyHealth * kHealthShare && farEnough;
             a_c.actorsOk = ok;
             SelfTestLog::Check("T2", ok, std::format("target {}; health {:.0f}; target to player {:.0f}, to caster {:.0f} "
-                "(explosion radius {:.0f} + {:.0f}); caster AI {}", done, health, toPlayer, toCaster, radius, kRadiusMargin,
-                caster->IsAIEnabled() ? "on" : "off"));
+                "(explosion radius {:.0f} + {:.0f}); caster AI {}; target at rest at height {:.0f} (player {:.0f})", done, health,
+                toPlayer, toCaster, radius, kRadiusMargin, caster->IsAIEnabled() ? "on" : "off", dummy->GetPositionZ(),
+                playerPos.z));
             return true;
         }
 
@@ -267,19 +287,28 @@ namespace BlackFlame::SelfTest
                 return false;
             }
             const auto& a = r->after;
-            if (!GetConfig().projectile) {
-                // v2: runtime recolour off by default; the grey copy is judged by E1a
-                a_c.t3ModifierKeys = r->before.modifierKeys;
-                a_c.t3Copy = r->copyBase != 0;
-                SelfTestLog::Info("T3", std::format("runtime recolour off (projectile false): not judged; {} of {} effect "
-                    "shapes carry the palette path | {}", a.withPalettePath, a.effectProperties, DescribeProjectile(*r)));
-                SelfTestLog::Info("T3-pointer", "not judged: runtime recolour off");
-                SelfTestLog::Info("T3-tint", "not judged: runtime recolour off");
+            a_c.t3Copy = r->copyBase != 0;
+            a_c.t3ModifierKeys = r->before.modifierKeys;  // T7: contamination before T4 would show against these
+            // C2: a copy is grey by construction: judged by the copy and the palette in its 3D; the recolour checks
+            // (T3-pointer, T3-tint) only for a launch without a copy
+            if (r->copyBase != 0 || !GetConfig().projectile) {
+                const auto verdict = JudgeGrey(r->copyBase, r->recolored, r->stats.Recolored(), a, GetConfig().projectile);
+                const bool observed = r->inspected3D;
+                if (verdict.judged) {
+                    a_c.t3Recolored = verdict.pass && observed;
+                    SelfTestLog::Check("T3", verdict.pass && observed, std::format("{}{} | {}", verdict.how,
+                        observed ? "" : "; NOT INSPECTED: no 3D at the hook", DescribeProjectile(*r)));
+                } else {
+                    SelfTestLog::Info("T3", verdict.how + " | " + DescribeProjectile(*r));
+                }
+                const char* why = verdict.copy ? "not judged: a copy (grey by construction, the recolour changes nothing)" :
+                                                 "not judged: runtime recolour off";
+                SelfTestLog::Info("T3-pointer", why);
+                SelfTestLog::Info("T3-tint", why);
                 return true;
             }
             const bool ok = r->recolored && r->stats.Recolored() > 0 && a.withPalettePath >= r->stats.Recolored();
             a_c.t3Recolored = ok;
-            a_c.t3ModifierKeys = r->before.modifierKeys;  // T7: contamination before T4 would show against these
             SelfTestLog::Check("T3", ok, std::format("{} effect shapes with the palette path of {} | {}", a.withPalettePath,
                 a.effectProperties, DescribeProjectile(*r)));
             SelfTestLog::Check("T3-pointer", a.withPalettePath > 0 && a.withBoth == a.withPalettePath, std::format(
