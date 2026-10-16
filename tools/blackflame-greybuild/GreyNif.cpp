@@ -246,7 +246,7 @@ namespace GreyBuild
     // Verify
     // =========================================================================
 
-    std::vector<std::string> VerifyGrey(nifly::NifFile& a_nif, bool a_expectGreyEffects, const GreyMap& a_map)
+    std::vector<std::string> VerifyGrey(nifly::NifFile& a_nif, bool a_expectGreyEffects, const GreyMap& a_map, bool a_allowUnmapped)
     {
         std::vector<std::string> problems;
         const std::string palette = Lower(kPalettePath);
@@ -275,7 +275,7 @@ namespace GreyBuild
         if (values.remapped != 0) {
             problems.push_back(fmt::format("{} AddOnNode value(s) still hold an original index", values.remapped));
         }
-        for (const auto& line : values.unmapped) {
+        for (const auto& line : a_allowUnmapped ? std::vector<std::string>() : values.unmapped) {
             problems.push_back(fmt::format("AddOnNode {} is in no map entry", line));
         }
         return problems;

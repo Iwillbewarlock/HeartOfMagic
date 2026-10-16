@@ -13,11 +13,19 @@
 #include <fstream>
 #include <stdexcept>
 
+namespace GreyBuild
+{
+    /// The "addons" and "models" of a request object (version 1 file, or the version 3 forms request). An index listed
+    /// twice fails, or with a_duplicates set is a line there (the later record kept: the later file in the load order).
+    [[nodiscard]] Request ParseRequest(const std::filesystem::path& a_file, const nlohmann::json& a_root,
+        std::vector<std::string>* a_duplicates = nullptr);
+}
+
 namespace GreyBuild::Json
 {
     [[noreturn]] inline void Fail(const std::filesystem::path& a_file, const std::string& a_what)
     {
-        throw std::runtime_error(fmt::format("'{}': {}", a_file.string(), a_what));
+        throw std::runtime_error(fmt::format("'{}': {}", PathText(a_file), a_what));
     }
 
     [[nodiscard]] inline nlohmann::json ReadFile(const std::filesystem::path& a_file)

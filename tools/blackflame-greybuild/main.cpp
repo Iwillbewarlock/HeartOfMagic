@@ -4,6 +4,8 @@
 //   blackflame-greybuild --map <map.json> --in <dir> [--in <dir> ...] --out <mod root>
 //   blackflame-greybuild --request <request.json> --in <dir> [...] --out <mod root> [--tint <0..2>]
 //   blackflame-greybuild --forms <forms.json> --request <request.json> --in <dir> [...] --out <mod root> [--tint <0..2>]
+//   blackflame-greybuild --from-game [<request folder>] --out <mod root> [--tint <0..2>] [--reclaim-retired]
+//   blackflame-greybuild --write-empty-esls <folder>
 //   blackflame-greybuild --dump <file.nif> [...]
 //   blackflame-greybuild --roundtrip <file.nif> [...]
 //   blackflame-greybuild --self-test
@@ -12,7 +14,9 @@
 // (the shipped vanilla core); --request finds what one setup needs, builds it and writes
 // the map (and, when needed, a small ESL of grey ADDN records) into --out. --forms adds the v2
 // copies (GreyForms.h): full-grey copies of the listed forms' NIFs, the copies ESL and the copies
-// map, on top of what --request writes (its ADDN list gives the grey indices).
+// map, on top of what --request writes (its ADDN list gives the grey indices). --from-game reads the request and the
+// NIF dump the DLL wrote at kDataLoaded (GreyFromGame.cpp) and writes all of that into --out, warning and going on
+// where a NIF cannot be read. --write-empty-esls writes the empty copies and local ESLs the mod ships.
 // Exit 0 = success, 1 = a failure, 2 = bad arguments.
 
 #include "GreyBuild.h"
@@ -34,6 +38,10 @@ namespace
         std::filesystem::path map;
         std::filesystem::path request;
         std::filesystem::path forms;
+        bool fromGame = false;
+        std::filesystem::path fromGameDir;  // empty: found under Documents
+        bool reclaimRetired = false;
+        std::filesystem::path emptyEsls;
         std::vector<std::filesystem::path> inputs;
         std::filesystem::path out;
         std::vector<std::filesystem::path> files;  // --dump / --roundtrip
@@ -48,7 +56,12 @@ namespace
                      "  blackflame-greybuild --map <map.json> --in <dir> [--in <dir> ...] --out <mod root>\n"
                      "  blackflame-greybuild --request <request.json> --in <dir> [...] --out <mod root> [--tint <0..2>]\n"
                      "  blackflame-greybuild --forms <forms.json> --request <request.json> --in <dir> [...] --out <mod root> "
-                     "[--tint <0..2>]\n"
+                     "[--tint <0..2>] [--reclaim-retired]\n"
+                     "  blackflame-greybuild --from-game [<request folder>] --out <output mod folder> [--tint <0..2>] "
+                     "[--reclaim-retired]\n"
+                     "      (the request folder defaults to <Documents>\\My Games\\Skyrim Special Edition[ GOG]\\SKSE\\"
+                     "HeartOfMagic_BlackFlame; --out must exist and be the same folder every time; SE and AE, not VR)\n"
+                     "  blackflame-greybuild --write-empty-esls <folder>\n"
                      "  blackflame-greybuild --dump <file.nif> [...]\n"
                      "  blackflame-greybuild --roundtrip <file.nif> [...]\n"
                      "  blackflame-greybuild --self-test\n";
@@ -72,6 +85,15 @@ namespace
             const bool hasValue = i + 1 < a_argc;
             if (arg == "--self-test") {
                 a_options.selfTest = true;
+            } else if (arg == "--from-game") {
+                a_options.fromGame = true;
+                if (hasValue && !GreyBuild::StartsWith(a_argv[i + 1], "--")) {
+                    a_options.fromGameDir = a_argv[++i];
+                }
+            } else if (arg == "--reclaim-retired") {
+                a_options.reclaimRetired = true;
+            } else if (arg == "--write-empty-esls" && hasValue) {
+                a_options.emptyEsls = a_argv[++i];
             } else if (arg == "--map" && hasValue) {
                 a_options.map = a_argv[++i];
             } else if (arg == "--forms" && hasValue) {
@@ -183,7 +205,9 @@ namespace
         std::cout << fmt::format("forms {}: {} source form(s); request {}: {} ADDN record(s), {} model(s)\n",
             a_options.forms.string(), sources.size(), a_options.request.string(), addons.addons.size(),
             addons.models.size());
-        const auto totals = GreyBuild::BuildForms(sources, addons, a_options.inputs, a_options.out, a_options.tint);
+        GreyBuild::FormsRunOptions options;
+        options.reclaimRetired = a_options.reclaimRetired;
+        const auto totals = GreyBuild::BuildForms(sources, addons, a_options.inputs, a_options.out, a_options.tint, options);
         std::cout << fmt::format("forms: {} copies, {} copy NIFs, {} failed\n", totals.copies, totals.nifsBuilt,
             totals.failed);
         return totals.failed == 0 && totals.copies > 0 ? kExitOk : kExitFail;
@@ -199,6 +223,30 @@ int main(int a_argc, char** a_argv)
     }
     if (options.selfTest) {
         return GreyBuild::RunSelfTest();
+    }
+    if (!options.emptyEsls.empty()) {
+        try {
+            for (const char* name : { GreyBuild::kCopiesPluginName, GreyBuild::kLocalPluginName }) {
+                GreyBuild::WriteEmptyEsl(options.emptyEsls / name);
+                std::cout << "wrote " << GreyBuild::PathText(options.emptyEsls / name) << "\n";
+            }
+            return kExitOk;
+        } catch (const std::exception& e) {
+            std::cerr << e.what() << "\n";
+            return kExitFail;
+        }
+    }
+    if (options.fromGame) {
+        if (!options.inputs.empty() || !options.map.empty() || !options.request.empty() || !options.forms.empty()) {
+            std::cerr << "--from-game reads only the game's request and NIF dump: leave out --in, --map, --request and --forms\n";
+            return kExitUsage;
+        }
+        try {
+            return GreyBuild::RunFromGame(options.fromGameDir, options.out, options.tint, options.reclaimRetired);
+        } catch (const std::exception& e) {
+            std::cerr << e.what() << "\n";
+            return kExitFail;
+        }
     }
     if (!options.files.empty()) {
         int result = kExitOk;

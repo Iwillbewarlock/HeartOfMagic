@@ -50,6 +50,13 @@ namespace GreyBuild
     inline constexpr const char* kGreyRoot = "meshes\\heartofmagic\\blackflame\\";
     inline constexpr const char* kMeshesRoot = "meshes\\";
 
+    /// A path as UTF-8 text for messages (path::string() throws on a name outside the ANSI code page)
+    [[nodiscard]] inline std::string PathText(const std::filesystem::path& a_path)
+    {
+        const auto text = a_path.u8string();
+        return std::string(text.begin(), text.end());
+    }
+
     [[nodiscard]] inline bool StartsWith(std::string_view a_text, std::string_view a_prefix) noexcept
     {
         return a_text.substr(0, a_prefix.size()) == a_prefix;
@@ -146,6 +153,7 @@ namespace GreyBuild
         std::vector<AddonEntry> newRecords;  // every record kLocalPluginName must hold, by local id (kept and new)
         std::vector<std::string> problems;   // values with no ADDN in the request, and the like
         std::vector<std::string> skipped;    // request models in no --in folder
+        std::vector<std::string> warnings;   // a_warnAndContinue: what would have been a problem, kept going
     };
 
     /// Reads every listed model found in a_inputs (first folder that has it wins), collects
@@ -155,8 +163,10 @@ namespace GreyBuild
     /// free index above every used one; new local records take ids after every local id the request has.
     /// a_valueOnlyModels (--forms: the copies' models) count for the AddOnNode values a grey index is
     /// needed for, but get no remapped copy in map.models (their copies are the full-grey forms copies).
+    /// a_warnAndContinue (--from-game): an AddOnNode value in no ADDN, or a model nifly cannot read, is a warning
+    /// (the model gets no remapped copy; its other values still count), not a problem.
     [[nodiscard]] Plan PlanFromRequest(const Request& a_request, const std::vector<std::filesystem::path>& a_inputs,
-        float a_tint, const std::vector<std::string>& a_valueOnlyModels = {});
+        float a_tint, const std::vector<std::string>& a_valueOnlyModels = {}, bool a_warnAndContinue = false);
 
     // =========================================================================
     // Generated ESL (GreyEsl.cpp)
@@ -247,8 +257,9 @@ namespace GreyBuild
     [[nodiscard]] int CountUnknownBlocks(const nifly::NifFile& a_nif);
 
     /// Checks a written grey MPS / remapped copy against the map; returns the problems.
+    /// a_allowUnmapped: an AddOnNode value in no map entry is not a problem (kept on purpose, warn-and-continue).
     [[nodiscard]] std::vector<std::string> VerifyGrey(nifly::NifFile& a_nif, bool a_expectGreyEffects,
-        const GreyMap& a_map);
+        const GreyMap& a_map, bool a_allowUnmapped = false);
 
     // =========================================================================
     // Round trip (GreyRoundTrip.cpp)
@@ -302,8 +313,28 @@ namespace GreyBuild
         const std::filesystem::path& a_out, const std::string& a_rel, const std::string& a_greyRel, bool a_greyEffects,
         bool a_needed, Totals& a_totals);
 
+    struct NifOptions
+    {
+        bool greyEffects = true;
+        bool needed = true;         // a missing source counts as failed (else skipped)
+        bool keepUnmapped = false;  // an AddOnNode value in no map entry stays as it is (warned), the NIF is written
+    };
+
+    struct NifResult
+    {
+        bool ok = false;
+        bool missing = false;       // in no --in folder
+        std::string reason;         // why not ok
+        std::vector<std::string> keptValues;  // keepUnmapped: "name: value" left as they were
+    };
+
+    /// BuildNif with options and the reason of a failure (BuildNif is this with keepUnmapped off)
+    NifResult BuildNifWith(const GreyMap& a_map, const std::vector<std::filesystem::path>& a_inputs,
+        const std::filesystem::path& a_out, const std::string& a_rel, const std::string& a_greyRel, const NifOptions& a_options,
+        Totals& a_totals);
+
     /// Writes kLocalPluginName with a_records (read back and compared), or with none removes one an earlier
-    /// run left in the folder. False (reason printed) on a failure.
+    /// run left in the folder (--request; a --forms run writes it always, empty or not). False (reason printed) on a failure.
     [[nodiscard]] bool SyncLocalEsl(const std::vector<AddonEntry>& a_records, const std::filesystem::path& a_file);
 
     // =========================================================================

@@ -111,7 +111,7 @@ namespace GreyBuild::SelfTest
             const auto* art = Find(forms, kFirst + 4);
             a_check.Check(art && art->hasDnam && At<std::uint32_t>(art->dnam, 0) == 1 && art->data.empty() && art->hasBounds &&
                               art->bounds[5] == 130 && art->model == "heartofmagic\\blackflame\\copies\\magic\\fxfirecloak01.nif" &&
-                              art->editorId == "HoMBF_Copy_FXFireCloak01_02ACD7" && art->otherSubrecords.empty(),
+                              art->editorId == "HoMBF_C_ARTO_804" && art->otherSubrecords.empty(),
                 "forms ARTO: EDID, OBND, MODL (grey copy), DNAM art type 1, no DATA, nothing else");
             a_check.Check(VerifyCopiesEsl(map, sources, esl).empty(), "forms ARTO: VerifyCopiesEsl finds no difference");
         }
@@ -163,7 +163,7 @@ namespace GreyBuild::SelfTest
                               !ipct->hasBounds && !ipct->hasSoundLevel,
                 "forms ESL: IPCT flags u8 1 @0x14, sound level 2 @0x10, no OBND, no VNAM");
             a_check.Check(proj->hasBounds && proj->bounds[4] == 190 && proj->model == "heartofmagic\\blackflame\\copies\\magic\\test.nif" &&
-                              proj->editorId == "HoMBF_Copy_FlamesProjectile_012FCF",
+                              proj->editorId == "HoMBF_C_PROJ_800",
                 fmt::format("forms ESL: PROJ OBND, MODL '{}', EDID '{}'", proj->model, proj->editorId));
             a_check.Check(VerifyCopiesEsl(map, sources, esl).empty(), "forms ESL: VerifyCopiesEsl finds no difference");
 

@@ -125,6 +125,12 @@ namespace GreyBuild
     {
         const nlohmann::json root = Json::ReadFile(a_file);
         Json::RequireVersion(a_file, root, kRequestVersion);
+        return ParseRequest(a_file, root);
+    }
+
+    Request ParseRequest(const std::filesystem::path& a_file, const nlohmann::json& a_root, std::vector<std::string>* a_duplicates)
+    {
+        const auto& root = a_root;
         Request request;
         const auto& addons = Json::RequireArray(a_file, root, "addons");
         for (std::size_t i = 0; i < addons.size(); ++i) {
@@ -142,8 +148,13 @@ namespace GreyBuild
             addon.masterParticleCap = Json::ReadU16(a_file, item, "masterParticleCap", where, 0);
             addon.dnamFlags = Json::ReadU16(a_file, item, "dnamFlags", where, kDnamMasterParticleSystem);
             if (!request.addons.emplace(addon.index, addon).second) {
-                Json::Fail(a_file, fmt::format("{}: index {} is listed twice (list the winning ADDN per index)", where,
-                    addon.index));
+                if (!a_duplicates) {
+                    Json::Fail(a_file, fmt::format("{}: index {} is listed twice (list the winning ADDN per index)", where,
+                        addon.index));
+                }
+                a_duplicates->push_back(fmt::format("{}: ADDN index {} is listed twice ({} and {}): the later one is kept",
+                    where, addon.index, request.addons[addon.index].source, addon.source));
+                request.addons[addon.index] = addon;
             }
         }
         const auto& models = Json::RequireArray(a_file, root, "models");
@@ -163,7 +174,7 @@ namespace GreyBuild
     }
 
     Plan PlanFromRequest(const Request& a_request, const std::vector<std::filesystem::path>& a_inputs, float a_tint,
-        const std::vector<std::string>& a_valueOnlyModels)
+        const std::vector<std::string>& a_valueOnlyModels, bool a_warnAndContinue)
     {
         Plan plan;
         plan.map.tint = a_tint;
@@ -183,7 +194,16 @@ namespace GreyBuild
                 plan.skipped.push_back(model + ": in no --in folder");
                 continue;
             }
-            const auto nodes = ReadValueNodes(*source);
+            std::vector<ValueNode> nodes;
+            try {
+                nodes = ReadValueNodes(*source);
+            } catch (const std::runtime_error& e) {
+                if (!a_warnAndContinue) {
+                    throw;
+                }
+                plan.warnings.push_back(fmt::format("{}: not read ({}): its AddOnNodes are not counted", model, e.what()));
+                continue;
+            }
             if (nodes.empty()) {
                 plan.skipped.push_back(model + ": no AddOnNodes (nothing shared to replace)");
                 continue;
@@ -191,8 +211,13 @@ namespace GreyBuild
             bool known = true;
             for (const auto& node : nodes) {
                 if (a_request.addons.count(node.value) == 0) {
-                    plan.problems.push_back(fmt::format("{} ({}): AddOnNode '{}' value {} has no ADDN in the request",
-                        model, source->string(), node.name, node.value));
+                    auto line = fmt::format("{} ({}): AddOnNode '{}' value {} has no ADDN in the request", model,
+                        source->string(), node.name, node.value);
+                    if (a_warnAndContinue) {
+                        plan.warnings.push_back(line + " - kept as it is");
+                    } else {
+                        plan.problems.push_back(std::move(line));
+                    }
                     known = false;
                 } else {
                     needed.insert(node.value);

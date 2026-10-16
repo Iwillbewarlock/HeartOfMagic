@@ -61,11 +61,22 @@ namespace GreyBuild
         const std::filesystem::path& a_out, const std::string& a_rel, const std::string& a_greyRel, bool a_greyEffects,
         bool a_needed, Totals& a_totals)
     {
+        return BuildNifWith(a_map, a_inputs, a_out, a_rel, a_greyRel, NifOptions{ a_greyEffects, a_needed, false }, a_totals).ok;
+    }
+
+    NifResult BuildNifWith(const GreyMap& a_map, const std::vector<std::filesystem::path>& a_inputs,
+        const std::filesystem::path& a_out, const std::string& a_rel, const std::string& a_greyRel, const NifOptions& a_options,
+        Totals& a_totals)
+    {
+        const bool a_greyEffects = a_options.greyEffects;
+        NifResult result;
         const auto source = FindSource(a_inputs, a_rel);
         if (!source) {
-            std::cout << fmt::format("{}  {}: in no --in folder\n", a_needed ? "FAIL" : "SKIP", a_rel);
-            (a_needed ? a_totals.failed : a_totals.skipped) += 1;
-            return false;
+            std::cout << fmt::format("{}  {}: in no --in folder\n", a_options.needed ? "FAIL" : "SKIP", a_rel);
+            (a_options.needed ? a_totals.failed : a_totals.skipped) += 1;
+            result.missing = true;
+            result.reason = "in no --in folder";
+            return result;
         }
         const auto target = a_out / std::filesystem::path(a_greyRel);
         try {
@@ -79,20 +90,28 @@ namespace GreyBuild
                 stats = GreyEffects(nif, a_map.tint);
             }
             const RemapStats remap = RemapAddonValues(nif, a_map);
-            if (!remap.unmapped.empty()) {
+            if (!remap.unmapped.empty() && a_options.keepUnmapped) {
+                result.keptValues = remap.unmapped;
+                std::cout << fmt::format("WARN  {} ({}): AddOnNode value(s) in no map entry, kept as they are:\n", a_rel,
+                    source->string());
+                for (const auto& line : remap.unmapped) {
+                    std::cout << "      " << line << "\n";
+                }
+            } else if (!remap.unmapped.empty()) {
                 std::cout << fmt::format("FAIL  {} ({}): AddOnNode value(s) in no map entry, nothing written:\n", a_rel,
                     source->string());
                 for (const auto& line : remap.unmapped) {
                     std::cout << "      " << line << "\n";
                 }
                 ++a_totals.failed;
-                return false;
+                result.reason = "AddOnNode value(s) in no map entry";
+                return result;
             }
             SaveNif(nif, target);
 
             nifly::NifFile written;
             LoadNif(written, target);
-            const auto problems = VerifyGrey(written, a_greyEffects, a_map);
+            const auto problems = VerifyGrey(written, a_greyEffects, a_map, a_options.keepUnmapped);
             PrintResult(a_rel, a_greyRel, *source, unknown, roundTrip, problems);
             if (a_greyEffects) {
                 PrintStats(stats);
@@ -106,11 +125,16 @@ namespace GreyBuild
                 std::cout << "      problem: " << problem << "\n";
             }
             (problems.empty() ? a_totals.built : a_totals.failed) += 1;
-            return problems.empty();
+            result.ok = problems.empty();
+            if (!result.ok) {
+                result.reason = problems.front();
+            }
+            return result;
         } catch (const std::exception& e) {
             std::cout << fmt::format("FAIL  {}: {}\n", a_rel, e.what());
             ++a_totals.failed;
-            return false;
+            result.reason = e.what();
+            return result;
         }
     }
 

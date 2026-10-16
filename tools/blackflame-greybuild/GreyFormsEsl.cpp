@@ -151,8 +151,8 @@ namespace GreyBuild
                 const auto& b = a_source.bounds;
                 body.Sub("OBND", Pack(b[0], b[1], b[2], b[3], b[4], b[5]));
             }
-            if (!a_entry.greyModel.empty()) {
-                body.ZString("MODL", a_entry.greyModel.substr(std::char_traits<char>::length(kMeshesRoot)));
+            if (const auto model = CopyRecordModel(a_entry); !model.empty()) {
+                body.ZString("MODL", model);  // the grey copy, or the source's own model when no grey copy could be made
             }
             body.Sub(CopyDataTag(a_entry.type), DataBytes(a_source));
             if (a_entry.type == CopyType::kProjectile) {
@@ -283,9 +283,8 @@ namespace GreyBuild
     void WriteCopiesEsl(const CopiesMap& a_map, const std::vector<FormSource>& a_sources,
         const std::filesystem::path& a_file)
     {
-        if (a_map.entries.empty() || a_map.entries.size() != a_sources.size() ||
-            a_map.entries.size() > kLastLightFormId - kFirstLightFormId + 1) {
-            throw std::runtime_error(fmt::format("the copies ESL needs 1 to 2048 entries matching the sources ({} entries, "
+        if (a_map.entries.size() != a_sources.size() || a_map.entries.size() > kLastLightFormId - kFirstLightFormId + 1) {
+            throw std::runtime_error(fmt::format("the copies ESL needs 0 to 2048 entries matching the sources ({} entries, "
                 "{} sources)", a_map.entries.size(), a_sources.size()));
         }
         Writer file;
@@ -310,7 +309,7 @@ namespace GreyBuild
             }
         }
         Writer header;
-        header.Sub("HEDR", Pack(kHedrVersion, count, highest + 1));
+        header.Sub("HEDR", Pack(kHedrVersion, count, std::max(highest + 1, kFirstLightFormId)));
         header.ZString("CNAM", kAuthor);
         RecordHeader(file, "TES4", header.Data().size(), kEslFlag, 0);
         file.Bytes(header.Data().data(), header.Data().size());
@@ -323,6 +322,11 @@ namespace GreyBuild
         if (!out) {
             throw std::runtime_error(fmt::format("writing '{}' failed", a_file.string()));
         }
+    }
+
+    void WriteEmptyEsl(const std::filesystem::path& a_file)
+    {
+        WriteCopiesEsl({}, {}, a_file);
     }
 
     std::vector<EslForm> ReadCopiesEsl(const std::filesystem::path& a_file, EslHeader& a_header)
@@ -401,9 +405,7 @@ namespace GreyBuild
                 problems.push_back(fmt::format("{:06X} {} not read back", entry.localId, entry.editorId));
                 continue;
             }
-            const std::string model = entry.greyModel.empty() ?
-                                          std::string() :
-                                          entry.greyModel.substr(std::char_traits<char>::length(kMeshesRoot));
+            const std::string model = CopyRecordModel(entry);
             const bool boundsOk = CopyHasBounds(entry.type) ? (it->hasBounds && it->bounds == a_sources[i].bounds) :
                                                               !it->hasBounds;
             const bool soundOk = entry.type == CopyType::kProjectile ?

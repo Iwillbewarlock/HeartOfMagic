@@ -19,6 +19,7 @@ Design and decisions: [docs/superpowers/specs/2026-10-15-black-flame-proto-desig
 |---|---|
 | `data/HeartOfMagic_BlackFlame.esp` | ESL (master Skyrim.esm; houseCARL dropped the unused Update.esm master when it added the ADDN records): EFSH `HoMBF_BurnShader` 0x800 (vanilla FireFXShader with both palettes grey), KYWD `HoMBF_StokedKeyword` 0x801, MGEF `HoMBF_StokeEffect` 0x802, SPEL `HoMBF_StokeSpell` "흑염 달구기" 0x803, ADDN `HoMBF_GreyAddon_*` 0x804-0x80C (section "Grey duplicates") |
 | `data/SKSE/Plugins/HeartOfMagic_BlackFlame_greymap.json` | the grey duplicate map (section "Grey duplicates") |
+| `data/HeartOfMagic_BlackFlame_Copies.esp`, `data/HeartOfMagic_BlackFlame_Local.esp` | empty ESLs (no masters, no records, HEDR 1.70; `blackflame-greybuild --write-empty-esls`): enabled from the start, so the builder's output - the same two file names in a mod placed after this one - takes over without changing the plugin list |
 | `data/meshes/heartofmagic/blackflame/` | grey master particle systems and remapped impact / hazard copies, made from the vanilla BSAs by `tools/blackflame-greybuild` |
 | `data/textures/HeartOfMagic/BlackFlame/GradBlackFlame.dds` | the grey palette (256x64), made by `tools/make-gradient.js` |
 | `data/SKSE/Plugins/HeartOfMagic_BlackFlame.json` | config (below) |
@@ -330,6 +331,48 @@ recolour) is caught; the log line gives the time (`copy request: N forms (PROJ a
 fire spells, X excluded, M NIFs (K failed) read in T ms, fingerprint F, request written, dump written|unchanged`). The
 fingerprint, the request and the dump each have their own try/catch: a failure is logged and the hooks are installed
 anyway. `writeRequest` false skips the request and the dump (the fingerprint is still computed).
+
+### Builder from the game (v2 expansion C2): `--from-game`
+
+```
+blackflame-greybuild --from-game [<request folder>] --out <output mod folder> [--tint <0..2>] [--reclaim-retired]
+```
+
+The request folder defaults to `<Documents>\My Games\Skyrim Special Edition\SKSE\HeartOfMagic_BlackFlame` (SE and AE)
+or `...\Skyrim Special Edition GOG\...`, whichever `request.json` is newer (Documents through `SHGetKnownFolderPath`, so a
+redirected or OneDrive Documents works). Skyrim VR is not supported. The run reads `request.json` (version 3) and the
+NIF dump beside it - no `--in`, `--map`, `--request` or `--forms` - and writes everything into `--out`, which must be an
+existing folder and **the same folder every time** (its copies map gives the stable ids). Every refusal names the next
+step (no request: start the game to the main menu once; no `--out`: make an empty mod first).
+
+- **Warn and continue**: a model the game could not read (`nifs` ok false), a NIF missing from the dump or one nifly
+  cannot parse gives a copy that keeps the **source's** model (`greyModel` "", a `note` in the map, a `WARN` line); a grey
+  MPS that cannot be made drops its grey index (those AddOnNodes keep the original particles); an AddOnNode value in no
+  ADDN record (e.g. Flamearrowflight.nif's 99) is kept as it is and warned. With `--forms` (hand-made requests) these
+  stay failures, as before: the behaviour change is `--from-game` only. A request listing one ADDN index twice keeps the
+  later record (warned).
+- **Copies map version 2** (`SKSE\Plugins\HeartOfMagic_BlackFlame_copies.json`): `requestFingerprint` (the request's,
+  compared by the DLL at every start), `copiesPlugin`, per copy also `sourceMuzzleModel`, `greyMuzzleModel` (PROJ: the
+  grey copy of its muzzle flash model, built like the form models) and `note`; `retired`; `excluded` (the request's).
+  Version 1 maps are still read. Copy EditorIDs are `HoMBF_C_<TYPE>_<local id>` (the runtime gives no source EditorID).
+- **Ids**: kept and new as before; when no id above every used one is left, the run writes nothing and the message gives
+  the requested, earlier and retired counts per type. `--reclaim-retired` then gives retired ids to new forms, lowest
+  first - only for a new save (a saved projectile or hazard of a retired copy would read as the new form).
+- **Commit**: every output is staged and read back beside `--out` first, then each file is moved in on its own
+  (`MoveFileExW`, replace, write through). `--out` itself is never removed or renamed (MO2's `meta.ini` stays); a failed
+  move names how many files were moved, and running again converges. `HeartOfMagic_BlackFlame_Local.esp` is always
+  written, empty when no local grey ADDN record is needed (the old run removed it).
+- **Install**: MO2 - add the builder as an executable with the arguments
+  `--from-game --out "<MO2 mods>\HeartOfMagic BlackFlame Copies"`, make that empty mod first and place it after Heart of
+  Magic - Black Flame; Vortex - point `--out` at a mod folder in Vortex's staging folder, or zip the output folder and
+  install it as a mod. The builder needs no VFS (it reads only the dump). Then start the game again.
+
+Checked offline (2026-10-16): the builder self-test (v3 parsing, map v2, the 2049th form, `--reclaim-retired`, warn and
+continue on a missing, an unparsable and an unreadable model and an AddOnNode with no ADDN, `meta.ini` kept, the empty ESL);
+a simulated game request made from the spike's hand-made requests with the same NIFs as a dump gave the same 30 grey NIFs
+byte for byte, the same local ESL and grey map as the `--forms` run, and a second run kept every id; `--roundtrip` of the LE
+streams `bluefiresprayfx01.nif` (Skeletal Revenants, Vigilant) and Vigilant's `flamering.nif`: string table reordered only.
+Not checked: a request written by the game (C1 needs the in-game run).
 
 ### Fill (S1, DLL): `FormCopies.h`
 

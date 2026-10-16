@@ -176,9 +176,11 @@ add_executable(blackflame-greybuild
     blackflame-greybuild/GreySelfTest.cpp
     blackflame-greybuild/GreySelfTestPlan.cpp
     blackflame-greybuild/GreySelfTestForms.cpp
+    blackflame-greybuild/GreySelfTestGame.cpp
     blackflame-greybuild/GreyFormsRequest.cpp
     blackflame-greybuild/GreyFormsEsl.cpp
     blackflame-greybuild/GreyFormsRun.cpp
+    blackflame-greybuild/GreyFromGame.cpp
 )
 
 # C++17 (std::format via fmt): nifly's Matrix3/Matrix4 declare a non-const operator==, which
@@ -186,7 +188,10 @@ add_executable(blackflame-greybuild
 find_package(fmt CONFIG REQUIRED)
 set_target_properties(blackflame-greybuild PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 
+# shell32 / ole32: SHGetKnownFolderPath and CoTaskMemFree (--from-game finds Documents); Windows SDK, no new package
 target_link_libraries(blackflame-greybuild PRIVATE
+    shell32
+    ole32
     nifly
     fmt::fmt
     nlohmann_json::nlohmann_json

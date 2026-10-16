@@ -29,4 +29,7 @@ namespace GreyBuild::SelfTest
 
     /// The v2 copies (--forms): ESL layout, stable ids, refusals, and a whole run with a_sourceNif as a model.
     void CheckForms(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_sourceNif);
+
+    /// The game's request (v3), the copies map v2, the id budget, warn-and-continue and the per-file commit.
+    void CheckGameRequest(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_sourceNif);
 }

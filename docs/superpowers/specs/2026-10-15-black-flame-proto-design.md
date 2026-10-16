@@ -615,3 +615,13 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
   읽기 실패 NIF는 덤프에서 지운다(빌더가 낡은 파일을 쓰지 않게). 경로는 UTF-8 → wide 경로, 정규화된 경로는 드라이브·:·..가 없어 덤프 폴더 밖으로 못 나간다.
 - 자가 시험 T0-request: 요청이 돌았는지만(수·지문·시간). 집합의 정확성은 request.json을 센서스와 대조해 판정(게임 1회 필요, 미검증).
 - 지문 비용(매 시작 NIF 읽기)은 아직 측정 전: 1초를 넘으면 (path, totalSize) 공식으로 바꾼다(코디네이터 결정).
+
+### v2 확장 C2: 빌더 --from-game
+
+- --from-game: 문서 폴더(SHGetKnownFolderPath)의 Skyrim Special Edition / ... GOG 중 request.json이 새로운 쪽, VR 미지원. --in 없이 덤프만 읽는다. --out은 있는 폴더, 매번 같은 폴더.
+- 경고하고 계속(--from-game만): 게임이 못 읽은 NIF·덤프 없음·파싱 실패 → 사본 MODL = 원본 경로, greyModel "", note. 회색 MPS 실패 → 그 회색 인덱스 빼고 원래 입자. ADDN 없는 AddOnNode 값 → 그대로.
+  --forms(손으로 만든 요청)는 예전처럼 실패.
+- 맵 v2(requestFingerprint, copiesPlugin, sourceMuzzleModel/greyMuzzleModel/note, excluded), v1 읽음. EDID HoMBF_C_<TYPE>_<id>. 머즐 모델도 회색 사본.
+- id: 바닥나면 아무것도 안 쓰고 수(요청·이전·retired, 종류별)와 --reclaim-retired 안내. --reclaim-retired는 retired id를 낮은 것부터(새 세이브 전용).
+- 커밋: 스테이징 후 파일마다 MoveFileExW(교체, write-through), --out 폴더는 지우지도 rename하지도 않음(meta.ini 보존). Local.esp 늘 씀(빈 것 허용). 빈 Copies/Local ESL 배포(--write-empty-esls).
+- 오프라인 확인: 자가 시험 119/0, 손 요청을 v3로 바꾼 모의 덤프로 --forms 결과와 NIF 30개 바이트 동일·Local ESL·greymap 동일, 재실행 id 유지, LE NIF 3개 roundtrip 문자열 표 순서만.

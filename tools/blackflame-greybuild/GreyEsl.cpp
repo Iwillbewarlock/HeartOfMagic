@@ -156,8 +156,8 @@ namespace GreyBuild
 
     void WriteAddonEsl(const std::vector<AddonEntry>& a_records, const std::filesystem::path& a_file)
     {
-        if (a_records.empty() || a_records.size() > kLastLightFormId - kFirstLightFormId + 1) {
-            throw std::runtime_error(fmt::format("an ESL holds 1 to 2048 records, not {}", a_records.size()));
+        if (a_records.size() > kLastLightFormId - kFirstLightFormId + 1) {
+            throw std::runtime_error(fmt::format("an ESL holds 0 to 2048 records, not {}", a_records.size()));
         }
         const std::vector<std::uint32_t> formIds = EslFormIds(a_records);
         std::string records;
@@ -166,15 +166,18 @@ namespace GreyBuild
         }
 
         Writer header;
-        const auto count = static_cast<std::int32_t>(a_records.size() + 1);  // records and groups
-        const std::uint32_t nextObjectId = *std::max_element(formIds.begin(), formIds.end()) + 1;
+        // records and groups; an empty plugin (a --forms run that needs no local record) has neither
+        const auto count = static_cast<std::int32_t>(a_records.empty() ? 0 : a_records.size() + 1);
+        const std::uint32_t nextObjectId = formIds.empty() ? kFirstLightFormId : *std::max_element(formIds.begin(), formIds.end()) + 1;
         header.Sub("HEDR", Pack(kHedrVersion, count, nextObjectId));
         header.ZString("CNAM", kAuthor);
 
         Writer file;
         RecordHeader(file, "TES4", header.Data().size(), kEslFlag, 0);
         file.Bytes(header.Data().data(), header.Data().size());
-        TopGroup(file, "ADDN", records);
+        if (!a_records.empty()) {
+            TopGroup(file, "ADDN", records);
+        }
 
         std::filesystem::create_directories(a_file.parent_path());
         std::ofstream out(a_file, std::ios::binary | std::ios::trunc);
