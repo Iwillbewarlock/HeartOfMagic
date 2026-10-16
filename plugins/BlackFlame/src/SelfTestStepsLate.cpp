@@ -24,6 +24,7 @@ namespace BlackFlame::SelfTest
         using namespace SelfTestText;
 
         constexpr float kColorTolerance = 0.002f;
+        constexpr auto kRedispelAfter = std::chrono::milliseconds(500);  // C4: inside T8's 1 s limit
 
         RE::PlayerCharacter* Player() { return RE::PlayerCharacter::GetSingleton(); }
 
@@ -466,9 +467,19 @@ namespace BlackFlame::SelfTest
                 SelfTestLog::Fail("T8", "no Stoke effect left to dispel");
                 return true;
             }
-            SelfTestLog::Info("T8", std::format("dispelled {} Stoke effect(s) with ActiveEffect::Dispel(true)", dispelled));
+            SelfTestLog::Info("T8", std::format("dispelled {} Stoke effect(s) with MagicTarget::DispelEffect", dispelled));
             a_c.waitingFor = "IsStoked() false after dispelling the Stoke effect";
+            a_c.redispelled = false;
             return false;
+        }
+        if (IsStoked() && !a_c.redispelled && Clock::now() - a_c.stepStart >= kRedispelAfter) {
+            // C4: a dispel that did not hold leaves a live effect; once more, inside the same 1 s limit
+            a_c.redispelled = true;
+            const auto state = SelfTestWorld::DescribeStokeEffects();
+            if (const int again = SelfTestWorld::DispelStoke(); again > 0) {
+                SelfTestLog::Info("T8", std::format("the dispel did not hold after {} ms ({}): dispelled {} again",
+                    kRedispelAfter.count(), state, again));
+            }
         }
         if (!IsStoked()) {
             const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - a_c.stepStart);

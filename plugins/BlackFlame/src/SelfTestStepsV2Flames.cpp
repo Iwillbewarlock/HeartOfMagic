@@ -28,6 +28,7 @@ namespace BlackFlame::SelfTest
         constexpr auto kStream = std::chrono::milliseconds(1000);       // launches while stoked
         constexpr auto kAfterToggle = std::chrono::milliseconds(600);   // launches after the buff went off
         constexpr auto kOffWait = std::chrono::milliseconds(1500);
+        constexpr auto kRedispelAfter = std::chrono::milliseconds(500);  // C4: once more when the first did not hold
         constexpr auto kOnWait = std::chrono::milliseconds(2000);
         constexpr auto kHitSettle = std::chrono::milliseconds(500);
 
@@ -51,6 +52,7 @@ namespace BlackFlame::SelfTest
             Clock::time_point phaseStart{};
             int launches = 0;
             bool firstLogged = false;
+            bool redispelled = false;
         };
         FlameState g_flames;
 
@@ -172,11 +174,20 @@ namespace BlackFlame::SelfTest
         case kToggling:
             LaunchOnce(a_c);
             a_c.waitingFor = "the buff flag off after the dispel";
+            if (IsStoked() && !g_flames.redispelled && since >= kRedispelAfter) {
+                g_flames.redispelled = true;
+                const auto state = SelfTestWorld::DescribeStokeEffects();
+                if (const int again = SelfTestWorld::DispelStoke(); again > 0) {
+                    SelfTestLog::Info("E2", std::format("the dispel did not hold after {} ms ({}): dispelled {} again",
+                        kRedispelAfter.count(), state, again));
+                }
+            }
             if (!IsStoked()) {
                 g_flames.afterMark = SelfTestProbe::Mark();
                 Next(a_c.phase, kAfter);
             } else if (since >= kOffWait) {
-                SelfTestLog::Fail("E2", "the buff flag did not go off after the dispel");
+                SelfTestLog::Fail("E2", "the buff flag did not go off after the dispel: " +
+                    SelfTestWorld::DescribeStokeEffects());
                 return true;
             }
             return false;

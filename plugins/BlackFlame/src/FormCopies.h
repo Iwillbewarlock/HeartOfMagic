@@ -27,7 +27,10 @@
 // the original's (LIGH, SNDR, TXST, IMAD, ENCH, SPEL, IPDS: no IPDS copies). A copy
 // that fails (form missing, wrong type, the copies plugin missing) is left out of the
 // map and logged. The map is built once on the kDataLoaded thread and never changed:
-// the hooks read it from any thread.
+// the hooks read it from any thread. Right after the fill every copy is compared with its
+// source (a difference there is a fill fault); at every kPostLoadGame / kNewGame
+// RefreshCopies compares again and re-fills a copy that no longer matches (C5), logging the
+// differing fields first.
 
 namespace BlackFlame
 {
@@ -36,6 +39,13 @@ namespace BlackFlame
 
     /// kDataLoaded, once, after LoadForms: reads the copies map, fills every copy and builds the lookup
     void LoadAndFillCopies();
+
+    /// kPostLoadGame / kNewGame (message thread): compare every copy with its live source; a copy that differs
+    /// is logged field by field, filled again and its links rewired, then compared once more (C5)
+    void RefreshCopies(const char* a_reason);
+
+    /// What the last RefreshCopies found (one line per differing copy), for the self-test's T0-v2
+    [[nodiscard]] std::vector<std::string> CopyRefreshNotes();
 
     /// The copy of a source form, or null (any thread after kDataLoaded)
     [[nodiscard]] RE::TESForm* CopyOf(const RE::TESForm* a_source) noexcept;

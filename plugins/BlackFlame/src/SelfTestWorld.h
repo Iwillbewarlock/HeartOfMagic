@@ -84,9 +84,13 @@ namespace BlackFlame::SelfTestWorld
     /// The player's live (not dispelled or inactive) effects carrying the Stoke keyword
     [[nodiscard]] int StokeEffectCount();
 
-    /// ActiveEffect::Dispel(true) on every player effect carrying the Stoke keyword, each found
-    /// again by its unique id right before its Dispel; how many.
+    /// MagicTarget::DispelEffect on every live player effect carrying the Stoke keyword, each found again by
+    /// its unique id right before; the engine queues it when the target is inside its update (C4,
+    /// SelfTestDispel.cpp). Logs each effect's flags before and after; how many were dispelled or queued.
     [[nodiscard]] int DispelStoke();
+
+    /// Every player effect carrying the Stoke keyword: id, flags, live or not, elapsed/duration (for FAIL lines)
+    [[nodiscard]] std::string DescribeStokeEffects();
 
     struct ShaderOn
     {

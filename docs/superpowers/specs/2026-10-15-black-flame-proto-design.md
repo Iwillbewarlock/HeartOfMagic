@@ -490,3 +490,15 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
   종류·스레드를 적는다. ThreadTrace는 본문 시작(START)과 끝(END)을 모두 남기고 열린 본문 표(128칸)를 둔다. 우리 뮤텍스는 모두
   TrackedMutex(소유 스레드·선언 위치). 로딩·일시정지가 아닌데 10초 동안 틱 본문이 끝나지 않으면 STALL 블록(마지막 64개 기록, 열린 본문,
   잡힌 뮤텍스)을 한 번 쓴다. 멈춘 게임의 스택은 `cdbX64 -pv -p <pid> -c "~*kb 30;q"`(README Known limits).
+- C4 버프 해제 지연: 원인은 BuffState가 아니다(목록 걷기는 이미 kDispelled·kInactive·만료를 빼고, 제거 이벤트에서 재계산한다).
+  11:11 실행에서 E2·T8·T9가 매번 살아 있는 Stoke 효과를 다시 찾았고 "buff flag off" 줄도 제거 이벤트도 없었다: Dispel이 남지 않았다.
+  1.7.104 SkyrimSE.exe에서 읽은 것: ActiveEffect::Dispel(id 34061)은 +0x7C에 bit 18을 잠금 없이 읽고-쓰고(bts) 효과 갱신을 부른다.
+  효과 갱신도 같은 필드를 같은 식으로 쓴다(0x5bcf8d `or [rbx+0x7C], 0x20`). MagicTarget::DispelEffect(id 34505)는 대상의 +0x10 bit 0
+  (갱신 중)이면 바로 Dispel하지 않고 postUpdateDispelList에 미룬다(id 34551). 우리 작업은 여러 잡 스레드에서 돈다(T-threads).
+  그래서 엔진 자신의 보호 경로인 DispelEffect로 바꾸고(SelfTestDispel.cpp), 효과마다 해제 전후 flags·갱신 중 여부·스레드를 적는다.
+  0.5초에 아직 켜져 있으면 한 번 더 해제한다(T8 1초 한도 그대로). 경쟁이 원인이라는 것은 다음 실행의 로그로 확인할 가설이다.
+- C5 47DBBD 사본 DIFFERS: 비교를 필드 단위로 바꿨다(구조체마다 멤버 표: 이름, 기대값(원본, 사본이 있는 링크는 그 사본), 사본 값;
+  어느 멤버도 아닌 바이트는 따로). 채운 직후에도 비교해 다르면 채우기 결함으로 경고한다. 저장 불러오기·새 게임마다 RefreshCopies가
+  다시 비교하고 다른 사본은 필드별로 적은 뒤 다시 채우고 링크를 다시 잇고 재비교한다. T0-v2가 그 결과를 INFO로 먼저 적는다.
+  원본(MAG_ExplosionRuneFlame02)은 houseCARL로 확인: 다시 이을 링크가 없고 SkyPatcher가 바꿀 수 없는 형식이다. 그러니 차이는
+  kDataLoaded 뒤 런타임에 원본이나 사본이 바뀐 것이고, 어느 필드인지는 다음 실행의 필드 줄이 말한다(아직 모름).

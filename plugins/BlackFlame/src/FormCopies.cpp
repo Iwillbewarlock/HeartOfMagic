@@ -1,5 +1,7 @@
 #include "FormCopies.h"
 
+#include "TrackedMutex.h"
+
 #include "PluginNames.h"
 
 #include <nlohmann/json.hpp>
@@ -38,6 +40,9 @@ namespace BlackFlame
             std::vector<Entry> entries;
             CopyCounts counts;
         };
+
+        TrackedMutex g_refreshMutex;
+        std::vector<std::string> g_refreshNotes;  // under g_refreshMutex
 
         // Built once on the kDataLoaded thread and never changed afterwards (hooks read it from any thread)
         Copies& TheCopies()
@@ -227,10 +232,47 @@ namespace BlackFlame
                 copies.counts.linksToCopies += static_cast<std::size_t>(CopyFill::RewireLinks(entry.copy));
             }
         }
+        // C5: a copy that differs right after its own fill is a fill fault, not a later change
+        for (const auto& entry : copies.entries) {
+            if (const auto diff = entry.ok ? CopyFill::Compare(entry.copy, entry.source) : std::string(); !diff.empty()) {
+                logger::warn("BlackFlame: copies: {} {:08X} -> {:08X} differs right after the fill: {}", entry.sourceText,
+                    entry.source->GetFormID(), entry.copy->GetFormID(), diff);
+            }
+        }
         const auto& c = copies.counts;
         logger::info("BlackFlame: copies: {} map entries; filled PROJ {}, EXPL {}, IPCT {}, HAZD {}; {} left out; {} links "
                      "pointed at copies", c.mapEntries, c.projectiles, c.explosions, c.impacts, c.hazards, c.failed,
             c.linksToCopies);
+    }
+
+    void RefreshCopies(const char* a_reason)
+    {
+        std::vector<std::string> notes;
+        for (const auto& entry : TheCopies().entries) {
+            if (!entry.ok) {
+                continue;
+            }
+            const auto before = CopyFill::Compare(entry.copy, entry.source);
+            if (before.empty()) {
+                continue;
+            }
+            (void)CopyFill::FillData(entry.copy, entry.source);
+            (void)CopyFill::RewireLinks(entry.copy);
+            const auto after = CopyFill::Compare(entry.copy, entry.source);
+            notes.push_back(std::format("{} {:08X} -> copy {:08X} differed at the {} ({}); filled again: {}", entry.sourceText,
+                entry.source->GetFormID(), entry.copy->GetFormID(), a_reason, before, after.empty() ? "now equal" : after));
+            logger::warn("BlackFlame: copies: {}", notes.back());
+        }
+        logger::info("BlackFlame: copies: refresh at the {}: {} cop{} differed from the live source", a_reason, notes.size(),
+            notes.size() == 1 ? "y" : "ies");
+        std::lock_guard lock(g_refreshMutex);
+        g_refreshNotes = std::move(notes);
+    }
+
+    std::vector<std::string> CopyRefreshNotes()
+    {
+        std::lock_guard lock(g_refreshMutex);
+        return g_refreshNotes;
     }
 
     RE::TESForm* CopyOf(const RE::TESForm* a_source) noexcept

@@ -101,6 +101,10 @@ namespace BlackFlame::SelfTest
             for (const auto& line : GreyCheckResults()) {
                 SelfTestLog::Check("T0-grey", line.pass, line.text);
             }
+            // C5: what the refresh at this load found and re-filled (field by field), then the compare after it
+            for (const auto& note : CopyRefreshNotes()) {
+                SelfTestLog::Info("T0-v2", "refresh: " + note);
+            }
             // v2: every copy against its live source now (fill counts, fields, links); no map read is a FAIL
             for (const auto& line : CheckCopies()) {
                 SelfTestLog::Check("T0-v2", line.pass, line.text);

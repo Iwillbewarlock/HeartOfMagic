@@ -9,9 +9,14 @@
 
 #include "FormCopies.h"
 
+#include <algorithm>
+#include <array>
+#include <cstddef>
 #include <cstring>
 #include <format>
+#include <string_view>
 #include <type_traits>
+#include <utility>
 
 namespace BlackFlame::CopyFill
 {
@@ -110,26 +115,163 @@ namespace BlackFlame::CopyFill
             a_copy.fullName = a_source.fullName;
         }
 
-        void Note(std::string& a_out, const char* a_what)
+        void Note(std::string& a_out, std::string_view a_what)
         {
             a_out += a_out.empty() ? "DIFFERS: " : ", ";
             a_out += a_what;
         }
 
+        // C5: per-field compare. Each data struct as a table of its members (offset, size, how to print), so a
+        // difference names the field with the expected value (the source's, or the copy for a link that has one)
+        // and the copy's; bytes no member covers (padding) are reported as such.
+        enum class Kind
+        {
+            kForm,   // a form pointer, printed as its form id
+            kFloat,
+            kUInt    // 1, 2 or 4 bytes, printed in hex
+        };
+
+        struct Field
+        {
+            const char* name;
+            std::size_t offset;
+            std::size_t size;
+            Kind kind;
+        };
+
+#define BF_FIELD(T, member, kind) Field{ #member, offsetof(T, member), sizeof(T::member), kind }
+        constexpr std::array kProjectileFields{
+            BF_FIELD(RE::BGSProjectileData, flags, Kind::kUInt), BF_FIELD(RE::BGSProjectileData, types, Kind::kUInt),
+            BF_FIELD(RE::BGSProjectileData, gravity, Kind::kFloat), BF_FIELD(RE::BGSProjectileData, speed, Kind::kFloat),
+            BF_FIELD(RE::BGSProjectileData, range, Kind::kFloat), BF_FIELD(RE::BGSProjectileData, light, Kind::kForm),
+            BF_FIELD(RE::BGSProjectileData, muzzleFlashLight, Kind::kForm),
+            BF_FIELD(RE::BGSProjectileData, tracerChance, Kind::kFloat),
+            BF_FIELD(RE::BGSProjectileData, explosionProximity, Kind::kFloat),
+            BF_FIELD(RE::BGSProjectileData, explosionTimer, Kind::kFloat), BF_FIELD(RE::BGSProjectileData, pad2C, Kind::kUInt),
+            BF_FIELD(RE::BGSProjectileData, explosionType, Kind::kForm),
+            BF_FIELD(RE::BGSProjectileData, activeSoundLoop, Kind::kForm),
+            BF_FIELD(RE::BGSProjectileData, muzzleFlashDuration, Kind::kFloat),
+            BF_FIELD(RE::BGSProjectileData, fadeOutTime, Kind::kFloat), BF_FIELD(RE::BGSProjectileData, force, Kind::kFloat),
+            BF_FIELD(RE::BGSProjectileData, pad4C, Kind::kUInt), BF_FIELD(RE::BGSProjectileData, countdownSound, Kind::kForm),
+            BF_FIELD(RE::BGSProjectileData, deactivateSound, Kind::kForm),
+            BF_FIELD(RE::BGSProjectileData, defaultWeaponSource, Kind::kForm),
+            BF_FIELD(RE::BGSProjectileData, coneSpread, Kind::kFloat),
+            BF_FIELD(RE::BGSProjectileData, collisionRadius, Kind::kFloat),
+            BF_FIELD(RE::BGSProjectileData, lifetime, Kind::kFloat),
+            BF_FIELD(RE::BGSProjectileData, relaunchInterval, Kind::kFloat),
+            BF_FIELD(RE::BGSProjectileData, decalData, Kind::kForm), BF_FIELD(RE::BGSProjectileData, collisionLayer, Kind::kForm)
+        };
+        constexpr std::array kExplosionFields{
+            BF_FIELD(RE::BGSExplosionData, light, Kind::kForm), BF_FIELD(RE::BGSExplosionData, sound1, Kind::kForm),
+            BF_FIELD(RE::BGSExplosionData, sound2, Kind::kForm), BF_FIELD(RE::BGSExplosionData, impactDataSet, Kind::kForm),
+            BF_FIELD(RE::BGSExplosionData, impactPlacedObject, Kind::kForm),
+            BF_FIELD(RE::BGSExplosionData, spawnProjectile, Kind::kForm), BF_FIELD(RE::BGSExplosionData, force, Kind::kFloat),
+            BF_FIELD(RE::BGSExplosionData, damage, Kind::kFloat), BF_FIELD(RE::BGSExplosionData, radius, Kind::kFloat),
+            BF_FIELD(RE::BGSExplosionData, imageSpaceRadius, Kind::kFloat),
+            BF_FIELD(RE::BGSExplosionData, verticalOffsetMult, Kind::kFloat), BF_FIELD(RE::BGSExplosionData, flags, Kind::kUInt),
+            BF_FIELD(RE::BGSExplosionData, eSoundLevel, Kind::kUInt), BF_FIELD(RE::BGSExplosionData, pad4C, Kind::kUInt)
+        };
+        constexpr std::array kHazardFields{
+            BF_FIELD(RE::BGSHazardData, limit, Kind::kUInt), BF_FIELD(RE::BGSHazardData, radius, Kind::kFloat),
+            BF_FIELD(RE::BGSHazardData, lifetime, Kind::kFloat), BF_FIELD(RE::BGSHazardData, imageSpaceRadius, Kind::kFloat),
+            BF_FIELD(RE::BGSHazardData, targetInterval, Kind::kFloat), BF_FIELD(RE::BGSHazardData, flags, Kind::kUInt),
+            BF_FIELD(RE::BGSHazardData, spell, Kind::kForm), BF_FIELD(RE::BGSHazardData, light, Kind::kForm),
+            BF_FIELD(RE::BGSHazardData, impactDataSet, Kind::kForm), BF_FIELD(RE::BGSHazardData, sound, Kind::kForm)
+        };
+        using ImpactData = RE::BGSImpactData::IMPACT_DATA_DATA;
+        constexpr std::array kImpactFields{
+            BF_FIELD(ImpactData, effectDuration, Kind::kFloat), BF_FIELD(ImpactData, orient, Kind::kUInt),
+            BF_FIELD(ImpactData, angleThreshold, Kind::kFloat), BF_FIELD(ImpactData, placementRadius, Kind::kFloat),
+            BF_FIELD(ImpactData, soundLevel, Kind::kUInt), BF_FIELD(ImpactData, flags, Kind::kUInt),
+            BF_FIELD(ImpactData, resultOverride, Kind::kUInt), BF_FIELD(ImpactData, unk16, Kind::kUInt)
+        };
+#undef BF_FIELD
+
+        std::string FieldValue(const void* a_struct, const Field& a_field)
+        {
+            const auto* at = static_cast<const std::byte*>(a_struct) + a_field.offset;
+            switch (a_field.kind) {
+            case Kind::kForm:
+                {
+                    const RE::TESForm* form = nullptr;
+                    std::memcpy(&form, at, sizeof(form));
+                    return form ? std::format("{:08X}", form->GetFormID()) : std::string("null");
+                }
+            case Kind::kFloat:
+                {
+                    float value = 0.0f;
+                    std::memcpy(&value, at, sizeof(value));
+                    return std::format("{}", value);
+                }
+            default:
+                {
+                    std::uint32_t value = 0;
+                    std::memcpy(&value, at, std::min(a_field.size, sizeof(value)));
+                    return std::format("0x{:X}", value);
+                }
+            }
+        }
+
+        // a_expected: what a fill would give now (links to copies); a_source: the source's own bytes
+        template <class T, std::size_t N>
+        void DiffFields(std::string& a_out, const char* a_group, const T& a_copy, const T& a_expected, const T& a_source,
+            const std::array<Field, N>& a_fields)
+        {
+            if (SameBytes(a_copy, a_expected)) {
+                return;
+            }
+            std::size_t covered = 0;
+            bool named = false;
+            for (const auto& field : a_fields) {
+                covered += field.size;
+                const auto* copyAt = reinterpret_cast<const std::byte*>(&a_copy) + field.offset;
+                const auto* expectedAt = reinterpret_cast<const std::byte*>(&a_expected) + field.offset;
+                if (std::memcmp(copyAt, expectedAt, field.size) == 0) {
+                    continue;
+                }
+                named = true;
+                const auto expected = FieldValue(&a_expected, field);
+                const auto own = FieldValue(&a_source, field);
+                Note(a_out, std::format("{}.{}: source {}{} copy {}", a_group, field.name, expected,
+                    own != expected ? " (link to its copy; the source's own " + own + ")" : std::string(),
+                    FieldValue(&a_copy, field)));
+            }
+            if (!named) {
+                Note(a_out, std::format("{}: bytes no member covers ({} of {} bytes are named members)", a_group, covered,
+                    sizeof(T)));
+            }
+        }
+
+        std::string Quoted(const char* a_text)
+        {
+            return a_text ? std::format("\"{}\"", a_text) : std::string("null");
+        }
+
+        RE::FormID IdOf(const RE::TESForm* a_form)
+        {
+            return a_form ? a_form->GetFormID() : 0;
+        }
+
+        void DiffName(std::string& a_out, const RE::TESFullName& a_copy, const RE::TESFullName& a_source)
+        {
+            if (a_copy.fullName != a_source.fullName) {
+                Note(a_out, std::format("fullName: source {} copy {}", Quoted(a_source.fullName.c_str()),
+                    Quoted(a_copy.fullName.c_str())));
+            }
+        }
+
         std::string CompareProjectile(const RE::BGSProjectile& a_copy, const RE::BGSProjectile& a_source)
         {
             std::string out;
-            if (!SameBytes(a_copy.data, ExpectedData(a_source))) {
-                Note(out, "data (scalars or links)");
-            }
+            DiffFields(out, "data", a_copy.data, ExpectedData(a_source), a_source.data, kProjectileFields);
             if (a_copy.soundLevel != a_source.soundLevel) {
-                Note(out, "soundLevel");
+                Note(out, std::format("soundLevel: source {} copy {}", std::to_underlying(a_source.soundLevel),
+                    std::to_underlying(a_copy.soundLevel)));
             }
-            if (a_copy.fullName != a_source.fullName) {
-                Note(out, "fullName");
-            }
+            DiffName(out, a_copy, a_source);
             if (std::strcmp(a_copy.muzzleFlashModel.GetModel(), a_source.muzzleFlashModel.GetModel()) != 0) {
-                Note(out, "muzzleFlashModel");
+                Note(out, std::format("muzzleFlashModel: source {} copy {}", Quoted(a_source.muzzleFlashModel.GetModel()),
+                    Quoted(a_copy.muzzleFlashModel.GetModel())));
             }
             if (!SameBytes(a_copy.boundData, a_source.boundData)) {
                 Note(out, "boundData");
@@ -140,19 +282,18 @@ namespace BlackFlame::CopyFill
         std::string CompareExplosion(const RE::BGSExplosion& a_copy, const RE::BGSExplosion& a_source)
         {
             std::string out;
-            if (!SameBytes(a_copy.data, ExpectedData(a_source))) {
-                Note(out, "data (scalars or links)");
-            }
+            DiffFields(out, "data", a_copy.data, ExpectedData(a_source), a_source.data, kExplosionFields);
             if (a_copy.formEnchanting != a_source.formEnchanting || a_copy.castingType != a_source.castingType ||
                 a_copy.amountofEnchantment != a_source.amountofEnchantment) {
-                Note(out, "enchantment");
+                Note(out, std::format("enchantment: source {:08X}/{}/{} copy {:08X}/{}/{}", IdOf(a_source.formEnchanting),
+                    a_source.castingType.underlying(), a_source.amountofEnchantment, IdOf(a_copy.formEnchanting),
+                    a_copy.castingType.underlying(), a_copy.amountofEnchantment));
             }
             if (a_copy.imageSpaceModifying != a_source.imageSpaceModifying) {
-                Note(out, "imageSpaceModifying");
+                Note(out, std::format("imageSpaceModifying: source {:08X} copy {:08X}", IdOf(a_source.imageSpaceModifying),
+                    IdOf(a_copy.imageSpaceModifying)));
             }
-            if (a_copy.fullName != a_source.fullName) {
-                Note(out, "fullName");
-            }
+            DiffName(out, a_copy, a_source);
             if (!SameBytes(a_copy.boundData, a_source.boundData)) {
                 Note(out, "boundData");
             }
@@ -162,15 +303,20 @@ namespace BlackFlame::CopyFill
         std::string CompareImpact(const RE::BGSImpactData& a_copy, const RE::BGSImpactData& a_source)
         {
             std::string out;
-            if (!SameBytes(a_copy.data, a_source.data) || !SameBytes(a_copy.dData, a_source.dData)) {
-                Note(out, "data or decal data");
+            DiffFields(out, "data", a_copy.data, a_source.data, a_source.data, kImpactFields);
+            if (!SameBytes(a_copy.dData, a_source.dData)) {
+                Note(out, "decal data");
             }
             if (a_copy.decalTextureSet != a_source.decalTextureSet || a_copy.decalTextureSet2 != a_source.decalTextureSet2 ||
                 a_copy.sound1 != a_source.sound1 || a_copy.sound2 != a_source.sound2) {
-                Note(out, "texture sets or sounds");
+                Note(out, std::format("texture sets or sounds: source {:08X} {:08X} {:08X} {:08X} copy {:08X} {:08X} {:08X} "
+                    "{:08X}", IdOf(a_source.decalTextureSet), IdOf(a_source.decalTextureSet2), IdOf(a_source.sound1),
+                    IdOf(a_source.sound2), IdOf(a_copy.decalTextureSet), IdOf(a_copy.decalTextureSet2), IdOf(a_copy.sound1),
+                    IdOf(a_copy.sound2)));
             }
             if (a_copy.hazard != LinkFor(a_source.hazard)) {
-                Note(out, "hazard link");
+                Note(out, std::format("hazard link: expected {:08X} (the source's own {:08X}) copy {:08X}",
+                    IdOf(LinkFor(a_source.hazard)), IdOf(a_source.hazard), IdOf(a_copy.hazard)));
             }
             return out;
         }
@@ -178,15 +324,12 @@ namespace BlackFlame::CopyFill
         std::string CompareHazard(const RE::BGSHazard& a_copy, const RE::BGSHazard& a_source)
         {
             std::string out;
-            if (!SameBytes(a_copy.data, a_source.data)) {
-                Note(out, "data (scalars or links)");
-            }
+            DiffFields(out, "data", a_copy.data, a_source.data, a_source.data, kHazardFields);
             if (a_copy.imageSpaceModifying != a_source.imageSpaceModifying) {
-                Note(out, "imageSpaceModifying");
+                Note(out, std::format("imageSpaceModifying: source {:08X} copy {:08X}", IdOf(a_source.imageSpaceModifying),
+                    IdOf(a_copy.imageSpaceModifying)));
             }
-            if (a_copy.fullName != a_source.fullName) {
-                Note(out, "fullName");
-            }
+            DiffName(out, a_copy, a_source);
             if (!SameBytes(a_copy.boundData, a_source.boundData)) {
                 Note(out, "boundData");
             }

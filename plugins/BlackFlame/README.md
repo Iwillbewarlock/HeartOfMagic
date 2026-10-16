@@ -300,8 +300,12 @@ own model: PROJ `data` (0x80-0x108), `soundLevel`, `fullName`, `muzzleFlashModel
 only the links that have a copy at it: PROJ `explosionType`, EXPL `impactPlacedObject` and `spawnProjectile`, IPCT
 `hazard`; every other link (light, sounds, texture sets, image space, enchantment, hazard spell, impact data sets)
 stays the source's. A copy whose source or copy form is missing, or whose types differ, is left out of the map and
-logged. The fire set treats a copy as its source (`IsFireExplosion`, `IsFireHazard`). Self-test T0-v2 compares every
-copy with its live source again.
+logged. The fire set treats a copy as its source (`IsFireExplosion`, `IsFireHazard`). Right after the fill every copy
+is compared with its source (a difference there is a fill fault, logged as a warning). At every save load and new game
+(`RefreshCopies`, v2 fix C5) every copy is compared again; one that no longer matches its live source is logged field
+by field (`data.radius: source 320 copy 300`; a link with a copy prints the copy it should hold and the source's own),
+filled again and its links rewired, then compared once more. Self-test T0-v2 lists what that refresh re-filled (INFO
+`refresh:`) and then compares every copy with its live source again, field by field.
 
 ### Swap points (S2, DLL): `CopySwap.h`
 
@@ -468,7 +472,7 @@ no crime. Every projectile re-finds its target first and nothing is launched whe
 | T3-blame | INFO: a second marker casts with the player as blame actor and no tag; reports whether the engine kept that blame on the marker's NonActorMagicCaster (the blame rule matched) |
 | T-bound / T-placed | INFO "manual": vanilla has no bound weapon with a fire effect; no test script ships for script-placed fire |
 | T7 / T7-player | INFO: the first colour modifier's keys (0x30-0x5F) and whether the layout looks plausible (all in 0..2, one above 0); with `particleColors`: every player modifier desaturated (T7-player); and, only when the caster's projectile was recorded before the player's, its modifiers neither shared, nor changed between its hook and T4, nor already equal to the desaturated keys of the player's T3 projectile before its recolour (T7; "not compared" when those had no colour, INFO when not comparable) |
-| T8 / T8-cast | after T1 turned the buff on, dispelling it turns the flag off within 1 s; then (skipped if the buff never came on or is still on) the next Firebolt has effect shapes, none grey, not recoloured, and T3 had recoloured; with `projectile` false: the unbuffed launch keeps the original base (no copy) |
+| T8 / T8-cast | after T1 turned the buff on, dispelling it (`MagicTarget::DispelEffect`, which the engine defers while the player's effects are updating; a second dispel at 0.5 s when the first did not hold, logged with every Stoke effect's flags) turns the flag off within 1 s; then (skipped if the buff never came on or is still on) the next Firebolt has effect shapes, none grey, not recoloured, and T3 had recoloured; with `projectile` false: the unbuffed launch keeps the original base (no copy) |
 | T-threads | v2 S4, measurement only: every QueueTask body and every v2 hook body records (kind, thread, start, end) in a 4096-entry ring (`ThreadTrace.h`); the step lists per kind the threads seen (and how many on the stamped game thread) and the overlapping intervals of different threads per kind pair. PASS only when each installed v2 hook kind (Launch, explosion creation where it is installed, GetImpactData in a copy window) has at least one entry; otherwise INFO naming the kinds with none. No gate depends on it |
 | T9 | cleanup (INFO) |
 | T0-hooks | v2: the Launch and explosion creation detours hooked (or chained) with the bytes they found, and both GetImpactData call sites hooked; FAIL for a device that is wanted (config on, copies of that kind filled; the creation detour on AE only) but not hooked; INFO otherwise. Also the round-10 impact call sites, and the prologue replay decoder on fixed byte cases (Launch's and the creation's 1.7.104 prologues = 5, sub rsp imm8/imm32, mov rax/r11 rsp accepted; `48 8B C4 48 89 58 08` and an E9 refused) |

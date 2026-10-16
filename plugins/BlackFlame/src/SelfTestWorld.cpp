@@ -221,41 +221,6 @@ namespace BlackFlame::SelfTestWorld
         return count;
     }
 
-    int DispelStoke()
-    {
-        auto* player = RE::PlayerCharacter::GetSingleton();
-        const auto* keyword = GetForms().stokedKeyword;
-        auto* target = player ? player->AsMagicTarget() : nullptr;
-        auto* effects = target ? target->GetActiveEffectList() : nullptr;
-        if (!effects || !keyword) {
-            return 0;
-        }
-        // Ids first, no ActiveEffect pointer kept across a Dispel (it may change the list)
-        std::vector<std::uint16_t> ids;
-        for (auto* effect : *effects) {
-            const auto* base = effect ? effect->GetBaseObject() : nullptr;
-            if (base && base->HasKeyword(keyword) &&
-                !effect->flags.any(RE::ActiveEffect::Flag::kDispelled, RE::ActiveEffect::Flag::kInactive)) {
-                ids.push_back(effect->usUniqueID);
-            }
-        }
-        int dispelled = 0;
-        for (const auto id : ids) {
-            auto* list = target->GetActiveEffectList();
-            if (!list) {
-                break;
-            }
-            for (auto* effect : *list) {
-                if (effect && effect->usUniqueID == id) {
-                    effect->Dispel(true);  // RE/A/ActiveEffect.h:92
-                    ++dispelled;
-                    break;
-                }
-            }
-        }
-        return dispelled;
-    }
-
     std::vector<ShaderOn> ShadersOn(RE::ObjectRefHandle a_target)
     {
         std::vector<ShaderOn> out;

@@ -111,6 +111,7 @@ namespace
             break;
         case SKSE::MessagingInterface::kPostLoadGame:
             BlackFlame::Watchdog::NoteLoadEnded();
+            BlackFlame::RefreshCopies("save load");  // C5: copies that no longer match their source, re-filled
             BlackFlame::RetryNativeWrappers();
             BlackFlame::RequestRecomputeBuff("game loaded");
             // SKSE passes the load's success flag as the data pointer's value, dataLen 1 (SKSE PluginAPI.h:
@@ -121,6 +122,7 @@ namespace
         case SKSE::MessagingInterface::kNewGame:
             BlackFlame::Watchdog::NoteLoadEnded();
             TearDown("a new game started");
+            BlackFlame::RefreshCopies("new game");
             BlackFlame::SelfTest::OnNewGame();
             BlackFlame::RetryNativeWrappers();
             BlackFlame::RequestRecomputeBuff("new game");

@@ -51,6 +51,7 @@ namespace BlackFlame::SelfTest
         bool buffWasTurnedOn = false;
         bool t3Recolored = false;
         bool t3Copy = false;  // W5: T3's Firebolt launched with the projectile copy (recolour off)
+        bool redispelled = false;  // C4: T8 dispelled a second time
         int stokeBefore = 0;
         std::optional<Clock::time_point> greySeen;
         bool engineLiveAfterGrey = false;
