@@ -62,8 +62,15 @@ namespace BlackFlame
             return false;
         }
 
+        // D2: the tick's end is noted even when a layer throws out of Tick
+        struct TickEndMark
+        {
+            ~TickEndMark() { ThreadTrace::NoteTickEnd(); }
+        };
+
         void Tick()
         {
+            const TickEndMark mark;
             g_tickPending.store(false);
             RecomputeBuff("tick");
             TickHitArt();  // layer 1: hit arts waiting for their 3D
@@ -75,7 +82,6 @@ namespace BlackFlame
                 TickPlayerArt();  // layer 4: bound fire weapons, fire light effects
             }
             SelfTest::Tick();  // does nothing unless config selfTest armed it
-            ThreadTrace::NoteTickEnd();  // the watchdog measures stalls from here (Watchdog.h)
         }
 
         void TickerLoop()

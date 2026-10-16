@@ -73,7 +73,7 @@ namespace BlackFlame::ThreadTrace
     /// The complete entries in the ring now (any thread)
     [[nodiscard]] std::vector<Entry> Snapshot();
 
-    /// Total records ever made (the ring holds the last kTraceCapacity)
+    /// Bodies ever recorded (END entries; the ring holds the last kTraceCapacity records, START and END)
     [[nodiscard]] std::uint64_t TotalRecords() noexcept;
 
     /// Report lines for T-threads: per kind "kind: N bodies on threads a(x n), b(x m)", then the overlap

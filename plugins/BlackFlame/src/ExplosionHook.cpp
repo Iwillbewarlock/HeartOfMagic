@@ -303,13 +303,9 @@ namespace BlackFlame
             record.lightAtSet3D = data.light != nullptr;
             record.hookThread = REX::W32::GetCurrentThreadId();
 
-            const bool onGameThread = IsOnGameThread();
+            // D1: the hook only records and posts; the recolour runs from the main-thread queue
             if (recolor) {
                 LogHookThread(g_threadLogs, "Explosion Set3D");
-            }
-            if (onGameThread) {
-                HandleExplosion(a_explosion, recolor, logMaterials, std::move(record));
-                return;
             }
             const auto handle = a_explosion->GetHandle();
             const auto generation = WorldGeneration();

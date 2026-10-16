@@ -7,6 +7,8 @@
 
 #include "SelfTestCtx.h"
 
+#include "MainThreadQueue.h"
+
 #include "Config.h"
 #include "CopySwap.h"
 #include "FireSet.h"
@@ -247,14 +249,17 @@ namespace BlackFlame::SelfTest
                 missing += std::format("{}'{}'", missing.empty() ? "" : ", ", kind);
             }
         }
-        const auto detail = std::format("{} traced bodies, {} not on the stamped game thread, {} overlapping pairs on different "
-            "threads (measurement: the thread gates stay as they are)", entries.size(), onOther,
-            ThreadTrace::CountCrossThreadOverlaps(entries));
-        if (!missing.empty()) {
-            SelfTestLog::Info("T-threads", detail + "; not measured (no entry): " + missing);
-        } else {
-            SelfTestLog::Pass("T-threads", detail + "; every v2 hook kind measured");
-        }
+        SelfTestLog::Info("T-threads", std::format("{} traced bodies (tasks and hooks), {} not on the main thread, {} overlapping "
+            "pairs on different threads; v2 hook kinds {}", entries.size(), onOther, ThreadTrace::CountCrossThreadOverlaps(entries),
+            missing.empty() ? std::string("all measured") : "not measured (no entry): " + missing));
+        // D1: every queued body ran on the main thread, one drain at a time; hooks stay measured above
+        const auto q = MainQueue::GetStats();
+        const bool ok = MainQueue::Installed() && q.bodies > 0 && q.bodiesOffMain == 0 && q.overlaps == 0 && q.fallbacks == 0 &&
+                        q.thread != 0 && q.thread == q.mainThreadId;
+        SelfTestLog::Check("T-threads", ok, std::format("main-thread queue {}: {} frames ({} paused), {} task bodies, {} off "
+            "Main::threadID, {} overlapping drains, {} posts sent to SKSE AddTask; drain thread {}, Main::threadID {}",
+            MainQueue::Installed() ? "installed" : "NOT installed", q.frames, q.pausedFrames, q.bodies, q.bodiesOffMain, q.overlaps,
+            q.fallbacks, q.thread, q.mainThreadId));
         return true;
     }
 }

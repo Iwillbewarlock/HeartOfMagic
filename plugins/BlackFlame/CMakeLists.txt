@@ -26,6 +26,7 @@ set(BLACKFLAME_SOURCES
     src/Palette.cpp
     src/ThreadTrace.cpp
     src/TrackedMutex.cpp
+    src/MainThreadQueue.cpp
     src/Watchdog.cpp
     src/BuffState.cpp
     src/EffectEvents.cpp

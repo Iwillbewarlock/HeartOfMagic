@@ -177,26 +177,22 @@ namespace BlackFlame
                 return;
             }
 
-            // Nothing here walks the scene graph: off the game thread it all goes to a task
+            // D1: the hook only records and posts; the 3D walk and the recolour run from the main-thread queue
             const bool onGameThread = IsOnGameThread();
             const auto hookThread = REX::W32::GetCurrentThreadId();
             if (recolor) {
                 LogHookThread(g_threadLogs, "Projectile Handle3DLoaded");
             }
-            if (onGameThread) {
-                HandleProjectile(a_projectile, a_kind, recolor, byPlayer, linkName, logMaterials, hookThread, true);
-                return;
-            }
             const auto handle = a_projectile->GetHandle();
             const auto generation = WorldGeneration();
             QueueTask("BlackFlameProjectile",
-                [handle, a_kind, recolor, byPlayer, linkName, logMaterials, hookThread, generation]() {
+                [handle, a_kind, recolor, byPlayer, linkName, logMaterials, hookThread, onGameThread, generation]() {
                 if (generation != WorldGeneration()) {
                     return;  // queued before a load
                 }
                 const auto ref = handle.get();
                 if (auto* projectile = skyrim_cast<RE::Projectile*>(ref.get())) {
-                    HandleProjectile(projectile, a_kind, recolor, byPlayer, linkName, logMaterials, hookThread, false);
+                    HandleProjectile(projectile, a_kind, recolor, byPlayer, linkName, logMaterials, hookThread, onGameThread);
                 }
             });
         }

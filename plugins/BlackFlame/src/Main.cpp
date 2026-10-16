@@ -33,6 +33,7 @@
 #include "Recolor.h"
 #include "ScriptTags.h"
 #include "SelfTest.h"
+#include "MainThreadQueue.h"
 #include "Watchdog.h"
 
 namespace
@@ -186,15 +187,17 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 {
     // The trampoline holds the impact swap's three call redirects (ImpactSwap.cpp, 14 bytes each), the two v2
     // GetImpactData redirects (14 each) and the two v2 prologue detours (a 14-byte jump plus a gateway of up
-    // to 16 + 14 bytes each, CopySwap.h): 158 bytes at most; the rest is headroom
+    // to 16 + 14 bytes each, CopySwap.h) and the main-thread queue's call (14, MainThreadQueue.h): 172 bytes at most;
+    // the rest is headroom
     constexpr std::size_t kTrampolineSize = 512;
     SKSE::Init(a_skse, { .log = false, .trampoline = true, .trampolineSize = kTrampolineSize });
-    BlackFlame::StampGameThreadFromTask();  // the first SKSE task stamps the game thread (GameThread.h)
     // Info lines are buffered (plugins/Common.h): warnings and errors, game load, save, new game
     // and the self-test's end write them out
     SetupLog("Black Flame prototype (grey-black fire for the player's fire spells while stoked)");
 
     BlackFlame::LoadConfig();
+    BlackFlame::MainQueue::Install();          // D1: our per-frame main-thread drain (MainThreadQueue.h)
+    BlackFlame::StampGameThreadFallback();     // without the queue an SKSE task stamps the game thread (GameThread.h)
 
     auto* messaging = SKSE::GetMessagingInterface();
     if (!messaging || !messaging->RegisterListener(OnSKSEMessage)) {

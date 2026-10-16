@@ -122,8 +122,7 @@ namespace BlackFlame
                 pending.push_back({ handle, WorldGeneration(), Clock::now() });
                 g_pendingCount.store(pending.size());
             }
-            LogHookThread(g_threadLogs, "Hazard Set3D/Initialize", "handled by a game-thread task",
-                "handled by a game-thread task");
+            LogHookThread(g_threadLogs, "Hazard Set3D/Initialize");
             QueueTask("BlackFlameHazard", &TickHazards);
         }
 

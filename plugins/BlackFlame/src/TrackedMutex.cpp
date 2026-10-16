@@ -37,6 +37,15 @@ namespace BlackFlame
         const auto index = g_count.fetch_add(1);
         if (index < kMaxTracked) {
             Registry()[index].store(this);
+            m_slot = static_cast<int>(index);
+        }
+    }
+
+    // D2: a destroyed mutex (a static at exit) leaves the registry first, so the watchdog never reads it
+    TrackedMutex::~TrackedMutex()
+    {
+        if (m_slot >= 0) {
+            Registry()[static_cast<std::size_t>(m_slot)].store(nullptr);
         }
     }
 

@@ -50,6 +50,7 @@ namespace BlackFlame::ThreadTrace
         }
 
         std::atomic<std::int64_t> g_lastTickEnd{ 0 };
+        std::atomic<std::uint64_t> g_bodies{ 0 };  // finished bodies recorded (END entries)
     }
 
     std::int64_t Now() noexcept
@@ -60,6 +61,9 @@ namespace BlackFlame::ThreadTrace
     void Record(const char* a_kind, std::uint32_t a_thread, std::int64_t a_start, std::int64_t a_end) noexcept
     {
         const auto n = g_next.fetch_add(1, std::memory_order_relaxed);
+        if (a_end != 0) {
+            g_bodies.fetch_add(1, std::memory_order_relaxed);  // D2: bodies, not START + END records
+        }
         auto& slot = Ring()[n % kTraceCapacity];
         slot.seq.store(0, std::memory_order_release);
         slot.kind.store(a_kind, std::memory_order_relaxed);
@@ -78,8 +82,9 @@ namespace BlackFlame::ThreadTrace
         for (std::size_t i = 0; i < kOpenSlots; ++i) {
             std::uint32_t free = 0;
             if (open[i].thread.compare_exchange_strong(free, thread)) {
-                open[i].kind.store(m_kind);
-                open[i].start.store(m_start);
+                // D2: start first, kind last (release): a reader that sees the kind sees this body's start and thread
+                open[i].start.store(m_start, std::memory_order_relaxed);
+                open[i].kind.store(m_kind, std::memory_order_release);
                 m_slot = static_cast<int>(i);
                 break;
             }
@@ -100,10 +105,15 @@ namespace BlackFlame::ThreadTrace
     {
         std::vector<OpenBody> out;
         for (auto& slot : Open()) {
-            const auto thread = slot.thread.load();
-            const auto* kind = slot.kind.load();
-            if (thread != 0 && kind) {
-                out.push_back({ kind, thread, slot.start.load() });
+            // kind -> start -> thread, then the kind again: a slot freed or re-claimed while read is skipped
+            const auto* kind = slot.kind.load(std::memory_order_acquire);
+            if (!kind) {
+                continue;
+            }
+            const auto start = slot.start.load(std::memory_order_relaxed);
+            const auto thread = slot.thread.load(std::memory_order_relaxed);
+            if (thread != 0 && slot.kind.load(std::memory_order_acquire) == kind) {
+                out.push_back({ kind, thread, start });
             }
         }
         return out;
@@ -150,7 +160,7 @@ namespace BlackFlame::ThreadTrace
 
     std::uint64_t TotalRecords() noexcept
     {
-        return g_next.load(std::memory_order_relaxed);
+        return g_bodies.load(std::memory_order_relaxed);
     }
 
     namespace

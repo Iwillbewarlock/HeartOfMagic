@@ -513,3 +513,20 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
   Spawn이 놓은 자리(높이는 T2에서 멈춘 높이)를 집으로 두고 매 시전 전에 200 넘게 벗어났으면 Actor::SetPosition으로 되돌린다
   (T4·T6-npc·E1c A/B/C). E1a 제한 시간은 8초(3번 시전 + 충돌 1.5초). T8은 두 번째 해제가 필요했으면 PASS 줄에 그렇게 적는다.
   시야(line of sight)는 확인하지 않는다: Actor::HasLineOfSight의 1.6.1170 id를 확인하지 않았다.
+
+### v2 수정 D (리뷰어·Gemini·OCR 리뷰와 메인 스레드 조사, fixlist-v2d)
+
+- D1 메인 스레드 큐: SKSE AddTask는 평소 플레이에서 BSJobs "Post process" 잡(39092 -> 36588)으로 작업 스레드에서 돌고, 메인 스레드
+  쪽(36564 +0xB9C)은 일시정지 프레임에서만 돈다(research-mainthread). 그래서 우리 작업은 모두 MainThreadQueue로 보낸다:
+  Main::Update(SE 35565 +0x748, AE 36564 +0xC26 / 1.7.99부터 +0xC38)의 E8에 write_call<5>. 프레임의 잡 대기(35409) 뒤라 그 프레임의
+  잡이 모두 끝난 자리이고, 일시정지 여부와 상관없이 매 프레임 메인 스레드에서 돈다. 쓰기 전 확인: E8, 대상이 게임 코드나 트램펄린
+  스텁, AE면 함수 끝까지 0x37(1.6.1170·1.7.104 pdata). 아니면 쓰지 않고 AddTask로 대체(로그). 썽크는 원래 호출 다음에 큐를 비운다
+  (TrackedMutex 아래 교환, 잠금 밖에서 작업마다 try/catch·추적). 게임 스레드 표시는 큐의 첫 프레임이 하고 Main::threadID와 비교한다.
+  투사체·폭발 훅의 "게임 스레드면 바로 처리" 경로를 없앴다: 훅은 기록하고 큐에 넣기만 한다. 사본 교체 우회(Launch, 폭발 생성,
+  GetImpactData)의 포인터 바꾸기는 호출마다의 자료라 그대로. 큐 전체에 세대 확인을 두지 않은 이유: 틱 작업을 버리면 g_tickPending이
+  남아 틱이 다시 안 들어온다. 세대 확인은 지금처럼 작업마다(세상에 묶인 작업만) 한다. T-threads는 큐 몸체가 모두 Main::threadID에서
+  겹침 없이 돌았을 때만 PASS.
+- D2 감시: GamePaused와 모든 RE 읽기를 뺐다. 멈춤 신호는 큐 프레임이 10초(로딩 중 120초) 없을 때. 하트비트는 큐에서 5초마다.
+  열린 몸체 칸은 start 먼저 kind 나중(release), 읽기는 kind -> start -> thread -> kind 재확인. "recorded in all"은 몸체 수(END).
+  틱 끝 표시는 스코프 가드. 감시 스레드는 atexit 플래그로 플러시 전에 멈추고, TrackedMutex는 소멸자에서 등록 칸을 비운다.
+  남은 위험: 종료 순간 이미 시작된 플러시 한 번은 막지 못한다. README에 cdb 명령과 _NT_SYMBOL_PATH.

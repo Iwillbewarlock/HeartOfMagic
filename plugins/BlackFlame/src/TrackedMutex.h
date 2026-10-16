@@ -25,6 +25,7 @@ namespace BlackFlame
     {
     public:
         explicit TrackedMutex(std::source_location a_where = std::source_location::current()) noexcept;
+        ~TrackedMutex();
         TrackedMutex(const TrackedMutex&) = delete;
         TrackedMutex& operator=(const TrackedMutex&) = delete;
 
@@ -41,6 +42,7 @@ namespace BlackFlame
         std::atomic<std::uint32_t> m_owner{ 0 };
         const char* m_file;
         std::uint32_t m_line;
+        int m_slot = -1;  // its registry slot, -1 when the table was full
     };
 
     /// "file:line held by thread N" for every registered mutex held now (any thread, read only)
