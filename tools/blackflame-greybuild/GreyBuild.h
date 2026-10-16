@@ -357,12 +357,23 @@ namespace GreyBuild
         const std::filesystem::path& a_out, const std::string& a_rel, const std::string& a_greyRel, bool a_greyEffects,
         bool a_needed, Totals& a_totals);
 
+    struct RiskJob;
+    struct GlowContext;
+
+    /// A run's work on the full-grey NIFs beyond GreyEffects; each part may be off (null)
+    struct Judging
+    {
+        TextureJob* textures = nullptr;  // texture slots retargeted at grey copies (GreyTexture.h)
+        GlowContext* glow = nullptr;     // the glow and palette rules (GreyGlow.h)
+        RiskJob* risk = nullptr;         // the visual-risk check of each written copy (GreyRisk.h)
+    };
+
     struct NifOptions
     {
         bool greyEffects = true;
         bool needed = true;         // a missing source counts as failed (else skipped)
         bool keepUnmapped = false;  // an AddOnNode value in no map entry stays as it is (warned), the NIF is written
-        TextureJob* textures = nullptr;  // with greyEffects: texture slots retargeted at grey copies (GreyTexture.h); none: left
+        Judging judging;            // with greyEffects only
     };
 
     struct NifResult

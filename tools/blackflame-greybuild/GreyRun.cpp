@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "GreyBuild.h"
+#include "GreyRisk.h"
 #include "GreyTexture.h"
 
 #include <NifFile.hpp>
@@ -101,8 +102,8 @@ namespace GreyBuild
                 for (const auto& line : shaderNotes) {
                     std::cout << fmt::format("NOTE  {}: {}\n", a_rel, line);
                 }
-                if (a_options.textures) {
-                    RetargetTextures(nif, *a_options.textures, a_rel);  // after GreyEffects: UsesPalette as the copy has it
+                if (a_options.judging.textures) {
+                    RetargetTextures(nif, *a_options.judging.textures, a_rel);  // after GreyEffects: UsesPalette as the copy has it
                 }
             }
             const RemapStats remap = RemapAddonValues(nif, a_map);
@@ -130,6 +131,9 @@ namespace GreyBuild
             auto problems = VerifyGrey(written, a_greyEffects, a_map, a_options.keepUnmapped);
             nifly::NifFile original;  // v2i: the header strings as the source has them (orphans included)
             LoadNif(original, *source);
+            if (a_greyEffects && a_options.judging.risk) {
+                RiskCheckNif(original, written, a_greyRel, *a_options.judging.risk);  // the copy as written, against its source
+            }
             const auto headerProblems = CheckHeaderStrings(original, written);
             for (const auto& line : headerProblems) {
                 problems.push_back(line);

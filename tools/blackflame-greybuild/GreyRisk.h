@@ -1,0 +1,89 @@
+#pragma once
+
+// =============================================================================
+// GreyRisk - the offline visual-risk check of the builder's own output (README "Visual-risk check")
+// =============================================================================
+// Each full-grey copy NIF (and grey MPS) is compared with its source shape by shape (same block numbers: the builder
+// changes values only) and judged by data alone: colour left in the copy (KEYS_LEFT, VC_LEFT, PSYS_LEFT), a soft
+// additive warm glow turned into a visible grey haze (GREY_HALO), a coloured texture the copy still names (TEX_COLOUR),
+// a palette shape that turns into a sheet or vanishes (PAL_SHEET, PAL_VANISH), a NIF whose every visible shape went
+// dark (EFFECT_EMPTY), and warnings (PAL_BRIGHTER, NEUTRAL_HALO, PAL_FLAT). A texture the check needs and cannot read
+// is UNREAD (never a pass); one the game itself does not have is MISSING (listed only). The gate is FAIL 0 and UNREAD 0.
+// The rules and constants are the prototype's (scratchpad glow-rule/riskcheck.js and glow-rule.md section 4), which
+// assumes NifSkope's effect shader model: the palette colour looked up by the texture's green channel, its alpha by the
+// texture's alpha - not checked against the game.
+
+#include "GreyTexStats.h"
+
+#include <filesystem>
+#include <map>
+#include <string>
+#include <vector>
+
+namespace nifly
+{
+    class NifFile;
+}
+
+namespace GreyBuild
+{
+    inline constexpr double kRiskWarmSat = 0.35;        // a source colour this saturated or more is warm (coloured)
+    inline constexpr double kRiskMinChannel = 0.02;     // a colour darker than this has no saturation verdict
+    inline constexpr double kRiskSoftDetail = 0.06;     // texture detail below this: a soft glow texture
+    inline constexpr double kRiskHaloLumMax = 0.01;     // a soft additive copy brighter than this is visible
+    inline constexpr double kRiskMaxKeySat = 0.05;      // any copy colour more saturated than this is colour left
+    inline constexpr double kRiskMaxVcSat = 0.10;       // copy vertex colours (alpha-weighted mean) more saturated: colour left
+    inline constexpr double kRiskTexColoredFrac = 0.20; // share of coloured lit texels from which a texture is coloured
+    inline constexpr double kRiskTexMeanSat = 0.30;     // or the saturation of its alpha-weighted mean colour
+    inline constexpr double kRiskSheetRatio = 4.0;      // palette energy (additive) or coverage (normal) ratio copy / source
+    inline constexpr double kRiskSheetCover = 0.5;      // ... with the copy covering at least this share: a sheet
+    inline constexpr double kRiskVanishRatio = 0.25;    // additive palette energy ratio below which the shape vanishes
+    inline constexpr double kRiskMinSrcEnergy = 0.01;   // ... when the source drew at least this much
+    inline constexpr double kRiskMinGBand = 0.05;       // palette texture green spread below this: one flat colour
+    inline constexpr double kRiskDarkLum = 0.15;        // palette colour darker than this: the "dark valley"
+    inline constexpr double kRiskEnergyFloor = 1e-4;    // an energy or coverage below this counts as drawing nothing
+
+    enum class RiskLevel
+    {
+        kFail,
+        kWarn,
+        kUnread,
+        kMissing
+    };
+
+    struct RiskFinding
+    {
+        RiskLevel level = RiskLevel::kFail;
+        std::string rule;
+        std::string nif;
+        std::uint32_t block = 0;
+        std::string name;
+        std::string detail;
+    };
+
+    /// One run's check: where textures come from, and everything found so far
+    struct RiskJob
+    {
+        TextureSource* textures = nullptr;  // none: every texture rule is UNREAD
+        double tintAdd = kDefaultTintAdd;   // the additive palette shaders' base colour scale (the energy ratio's factor)
+        int nifs = 0;
+        int shapes = 0;
+        std::vector<RiskFinding> findings;
+        std::map<std::string, int> perRule;
+    };
+
+    /// Compares a copy NIF with its source and adds what it finds to a_job (a_nif: the copy's Data-relative path)
+    void RiskCheckNif(nifly::NifFile& a_source, nifly::NifFile& a_copy, const std::string& a_nif, RiskJob& a_job);
+
+    [[nodiscard]] int RiskCount(const RiskJob& a_job, RiskLevel a_level);
+
+    /// "T0 risk: PASS fail=0 unread=0" or "T0 risk: FAIL fail=<n> unread=<m> (see <file name>)"
+    [[nodiscard]] std::string RiskGateLine(const RiskJob& a_job);
+
+    [[nodiscard]] bool RiskGatePasses(const RiskJob& a_job);
+
+    /// The report (UTF-8, tab separated): header, constants, SUMMARY, then FAIL / WARN / UNREAD / MISSING lines
+    void WriteRiskReport(const RiskJob& a_job, const std::filesystem::path& a_file);
+
+    inline constexpr const char* kRiskReportName = "HeartOfMagic_BlackFlame_risk.txt";
+}

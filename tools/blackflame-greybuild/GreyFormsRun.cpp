@@ -13,6 +13,7 @@
 // AddOnNodes keep the original value), an AddOnNode value in no ADDN stays as it is.
 
 #include "GreyForms.h"
+#include "GreyRisk.h"
 
 #include <fmt/format.h>
 #include <iostream>
@@ -127,14 +128,14 @@ namespace GreyBuild
 
         // Grey MPS copies: a failure drops the grey index under warn-and-continue (its AddOnNodes keep the original value)
         [[nodiscard]] bool StageMps(Plan& a_plan, const std::vector<std::filesystem::path>& a_inputs,
-            const std::filesystem::path& a_staging, bool a_warn, TextureJob* a_textures, FormsTotals& a_totals)
+            const std::filesystem::path& a_staging, bool a_warn, const Judging& a_judging, FormsTotals& a_totals)
         {
             std::map<std::string, NifResult> done;
             for (const auto& [index, entry] : a_plan.map.addons) {
                 if (done.count(entry.greyModel) == 0) {  // indices sharing one MPS share its grey copy
                     Totals totals;
                     const auto& result = done.emplace(entry.greyModel, BuildNifWith(a_plan.map, a_inputs, a_staging, entry.model,
-                                                      entry.greyModel, NifOptions{ true, true, a_warn, a_textures }, totals)).first->second;
+                                                      entry.greyModel, NifOptions{ true, true, a_warn, a_judging }, totals)).first->second;
                     if (result.ok) {
                         AddShaderCounts(a_totals.shaders, result.stats);
                     }
@@ -193,7 +194,7 @@ namespace GreyBuild
         // a note (the record then names the source's model)
         [[nodiscard]] bool StageCopies(const Plan& a_plan, const std::vector<FormSource>& a_sources, CopiesMap& a_copies,
             const std::vector<std::filesystem::path>& a_inputs, const std::filesystem::path& a_staging,
-            const FormsRunOptions& a_options, TextureJob* a_textures, FormsTotals& a_totals)
+            const FormsRunOptions& a_options, const Judging& a_judging, FormsTotals& a_totals)
         {
             const std::set<std::string> unreadable(a_options.failedNifs.begin(), a_options.failedNifs.end());
             std::map<std::string, std::string> failures;  // model -> why
@@ -204,7 +205,7 @@ namespace GreyBuild
                 }
                 Totals totals;
                 const auto result = BuildNifWith(a_plan.map, a_inputs, a_staging, model, CopyModelFor(model),
-                    NifOptions{ true, true, a_options.warnAndContinue, a_textures }, totals);
+                    NifOptions{ true, true, a_options.warnAndContinue, a_judging }, totals);
                 if (result.ok) {
                     ++a_totals.nifsBuilt;
                     AddShaderCounts(a_totals.shaders, result.stats);
@@ -271,11 +272,21 @@ namespace GreyBuild
             job.out = a_staging;
             job.diffuseTint = a_plan.map.tint;  // T4: --tint, as the effect shaders' base colour
             job.notDumped = a_options.texturesNotDumped;
-            TextureJob* textures = a_options.textures ? &job : nullptr;
+            // The visual-risk check reads textures from the inputs, the output being written and our own shipped ones
+            std::vector<std::filesystem::path> textureFolders = a_inputs;
+            textureFolders.push_back(a_staging);
+            for (const auto& own : TextureSource::OwnFolders()) {
+                textureFolders.push_back(own);
+            }
+            TextureSource textureSource(textureFolders, a_options.texturesNotDumped);
+            RiskJob risk;
+            risk.textures = &textureSource;
+            risk.tintAdd = a_plan.map.tintAdd;
+            const Judging judging{ a_options.textures ? &job : nullptr, nullptr, &risk };
             bool built = false;
             {
                 const StageTimer time("NIF build: grey MPS (with their textures)");
-                built = StageMps(a_plan, a_inputs, a_staging, warn, textures, a_totals);
+                built = StageMps(a_plan, a_inputs, a_staging, warn, judging, a_totals);
             }
             if (built) {
                 const StageTimer time("NIF build: remapped impact / hazard copies");
@@ -283,12 +294,17 @@ namespace GreyBuild
             }
             if (built) {
                 const StageTimer time("NIF build: copy NIFs (with their textures)");
-                built = StageCopies(a_plan, a_sources, a_copies, a_inputs, a_staging, a_options, textures, a_totals);
+                built = StageCopies(a_plan, a_sources, a_copies, a_inputs, a_staging, a_options, judging, a_totals);
             }
             a_totals.textures = job.totals;
             if (!built) {
                 return false;
             }
+            // The check's report goes out with the copies; its gate is reported here, not fatal (README "Visual-risk check")
+            WriteRiskReport(risk, PluginsDir(a_staging) / kRiskReportName);
+            a_totals.riskGate = RiskGateLine(risk);
+            a_totals.riskPassed = RiskGatePasses(risk);
+            std::cout << a_totals.riskGate << "\n";
             const StageTimer time("ESLs and maps");
             // 3. The copies ESL again (a copy without its grey NIF names the source's model), the local ADDN ESL (always,
             //    empty or not: the same rule as the empty one shipped with the mod), the grey map and the copies map

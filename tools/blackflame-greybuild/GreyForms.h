@@ -196,6 +196,8 @@ namespace GreyBuild
 
     struct FormsTotals
     {
+        std::string riskGate;     // the visual-risk check's T0 line (GreyRisk.h); "" when it did not run
+        bool riskPassed = true;   // its gate: FAIL 0 and UNREAD 0
         int copies = 0;      // records written
         int nifsBuilt = 0;   // distinct grey copy NIFs
         int failed = 0;      // NIFs or records that failed (nothing then written for the ESL and map)

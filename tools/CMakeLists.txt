@@ -187,6 +187,9 @@ add_executable(blackflame-greybuild
     blackflame-greybuild/GreyTextureNif.cpp
     blackflame-greybuild/GreySelfTestTexture.cpp
     blackflame-greybuild/GreySelfTestPaths.cpp
+    blackflame-greybuild/GreyShapes.cpp
+    blackflame-greybuild/GreyTexStats.cpp
+    blackflame-greybuild/GreyRisk.cpp
 )
 
 # C++17 (std::format via fmt): nifly's Matrix3/Matrix4 declare a non-const operator==, which
