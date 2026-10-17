@@ -939,27 +939,32 @@ Request v5 as this builder reads it (P2 writes it; every point below is a builde
   next start, which reads it again under a new key, builds it); the error text is never read;
 - `txst[] {slot, key, dodt}`: the TXST form whose `forms[].key` is `key`; `slot` must be a TXST slot and `dodt` its
   DODT split.
-- Refused as the DLL's mistakes (exit 2): a NIF object `nifs[]` does not list (with its fnv64, or ok false), a txst key no
-  TXST form has, one key for two objects, an ADDN index or slot bound twice or in no `addons[]` record, an `ok` `nifs[]`
+- A NIF object `nifs[]` does not list (with its fnv64, or ok false; paths compared after `MeshDataPath`) is warned and that
+  object alone gets a `failed` line, so one slip of the DLL does not block every build.
+- Refused as the DLL's mistakes (exit 2): a txst key no TXST form has, one key for two objects, an ADDN index or slot bound twice or in no `addons[]` record, an `ok` `nifs[]`
   entry whose fnv64 does not parse.
 
 Objects and their lines (`progress.jsonl`, the contract's writer only):
 
 | Kind | Object | Line |
 |---|---|---|
-| `nif` | a form's model or a PROJ muzzle: the full-grey copy (GreyEffects, the glow rules, texture and palette copies), AddOnNode values on the slot indices | path, bytes, fnv64; deps: each texture / palette copy it names (path, fnv64) and `{"addn": n}` for every slot index it holds |
+| `nif` | a form's model or a PROJ muzzle: the full-grey copy (GreyEffects, the glow rules, texture and palette copies), AddOnNode values on the slot indices | path, bytes, fnv64; deps: each texture / palette copy it names (path, fnv64) and `{"addn": n}` for every slot index the remap gave it (from the source's AddOnNode values the map binds) |
 | `mps` | an ADDN slot's grey master particle system, the same build | the same (`{"addn"}` deps too, since contract 4) |
 | `txst` | a TXST's TX00 (diffuse, `tint`) and TX03 (glow, tint 1) copies | no path; deps: those copies. A TXST with no colour slot copied (both left or empty) is `fallback` with no dep, never ok (contract 3) |
 | `dds` | a texture copy (role diffuse / glow / effect, `copies\<key16>\copy.dds`) or a derived palette (add / normal, `copies\<key16>\palette.dds` from `PaletteCopyPath`), made once per run and named by every object that uses it | path, bytes, fnv64 |
 
 An AddOnNode value goes to `40000 + place` when an `addnMps` entry binds its original index; a value bound to no slot
-stays (fallback), and an index of the request inside the pool's own range is never bound (warned).
+stays (fallback), and an index of the request inside the pool's own range is never bound (warned). A source value
+that already lies in 40000-40207 is left as it is and warned; it gives no `{"addn"}` dep (a source with 9 and 40012 and 9
+bound to 40012 still lists 40012, through 9).
 
 | Outcome | When |
 |---|---|
 | `ok` | everything applied (an already grey texture at tint 1 left as it is counts as applied) |
 | `fallback` | a deterministic slot left: a texture not in the dump (the game: does not open), a format that cannot be recoloured (BC5, HDR, float), a DDS that does not decode, a source palette or our palette that does not read (today's palette kept), a TXST slot that is not ASCII, an AddOnNode value bound to no slot |
-| `failed` | retryable: an I/O error, out of memory (`bad_alloc`, `E_OUTOFMEMORY`), a locked, vanished or unreadable file (`IsTransientResult`) on any read - the glow rules' and palettes' too -, over the cap with what the process holds, a 30-minute wait for commit, a source NIF not listed, not in the dump or that nifly cannot read, the dump's NIF bytes not the request's, a texture the request lists as dumped that is not in the dump, a texture whose `state` is `unread` |
+| `failed` | retryable: an I/O error, out of memory (`bad_alloc`, `E_OUTOFMEMORY`), a locked, vanished or unreadable file (`IsTransientResult`: too many open files, a pending delete, a lost network share, a device or CRC error and a quota too)
+on any read - the glow rules' and palettes' too -, a texture copy's write that fails for any reason but `E_INVALIDARG` or
+not supported (a short write, a full disk, a locked target), over the cap with what the process holds, a 30-minute wait for commit, a source NIF not listed, not in the dump or that nifly cannot read, the dump's NIF bytes not the request's, a texture the request lists as dumped that is not in the dump, a texture whose `state` is `unread` |
 | `too_large` | a texture whose estimate alone is over the job memory cap: a `too_large` dds line for it (the cap in its `cap` field), and every object naming it `too_large` (with `cap` too); also an object whose glow rules or palettes would read a texture larger than the cap |
 | `not_dumped` | a texture the rule recolours that the request gives `state` `notdumped`: the object `not_dumped` |
 
@@ -973,7 +978,10 @@ fallback line only while its file is in staging with its size and fnv64; bad lin
 holds the file open with FILE_SHARE_DELETE does not block it; MoveFileExW when the file system has none). A progress
 file that is there but does not read stops the run and is left as it is. Then it is opened for appending (shared read,
 write and delete) and each finished object adds one line in one write, after its file was written as `<path>.tmp` and
-renamed into place, flushed to the disk for the compacted file. A write that fails (a full disk) latches the log and
+renamed into place. Appended lines are not flushed one by one (a line lost to a crash only rebuilds its object: a kept line
+is trusted only after the compaction's fnv64 check of its file); the compacted file is flushed before its rename. The
+staging line of the log gives the time the compaction's fnv64 checks took (`fnv64 checks N ms`). Once an object has
+failed, its remaining texture slots, palettes and reads are not tried. A write that fails (a full disk) latches the log and
 stops the run (exit 1); a line the contract's writer refuses is written as a failed line instead and the run goes on. A reason's bytes outside ASCII
 are written as `?`. An object is skipped (reused, nothing rewritten) when its key's last line is ok or fallback, its file
 is in staging with the line's bytes and fnv64 and every path dep with its fnv64; or the line is terminal - `too_large`

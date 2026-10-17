@@ -38,14 +38,14 @@ namespace GreyBuild::SelfTest
         namespace Rule = BlackFlame::DataPathRule;
 
         constexpr std::uint64_t kModel = 0x1111111111111111ull;   // forms[0]: the source NIF as a PROJ model
-        constexpr std::uint64_t kPlain = 0x2222222222222222ull;   // forms[1]: the AddOnNode-only NIF
+        constexpr std::uint64_t kPlain = 0x2222222222222222ull;   // forms[1]: the AddOnNode-only NIF (values 9 and 40012)
         constexpr std::uint64_t kTxst = 0x3333333333333333ull;    // forms[2] and txst[0]
         constexpr std::uint64_t kMuzzle = 0x4444444444444444ull;  // muzzles[0]: the AddOnNode-only NIF
         constexpr std::uint64_t kMps = 0x5555555555555555ull;     // addnMps[0]: the source NIF as ADDN 9's MPS
         constexpr std::uint32_t kSlot = 0xF0C;
         constexpr int kSlotIndex = 40012;
-        constexpr std::uint64_t kTinyCap = 64 * 1024;
-        constexpr DWORD kChildTimeoutMs = 120000;                 // a CLI child run: 2 minutes at most             // under the 64 x 64 test texture's estimate (109220)
+        constexpr std::uint64_t kTinyCap = 64 * 1024;             // under the 64 x 64 test texture's estimate (109220)
+        constexpr DWORD kChildTimeoutMs = 120000;                 // a CLI child run: 2 minutes at most
         constexpr const char* kFxFire = "textures\\effects\\fxfire01.dds";
         constexpr const char* kSourcePalette = "textures\\effects\\gradients\\gradflame01.dds";
         constexpr const char* kDecal = "textures\\effects\\decal.dds";
@@ -95,6 +95,12 @@ namespace GreyBuild::SelfTest
             node->value = 9;
             const auto id = nif.GetHeader().AddBlock(std::move(node));
             nif.GetRootNode()->childRefs.AddBlockRef(id);
+            // a value already at the slot index 9 is bound to: its dep still comes from 9 (Codex review), with a warning
+            auto already = std::make_unique<nifly::BSValueNode>();
+            already->name.get() = "AddOnNode40012";
+            already->value = kSlotIndex;
+            const auto alreadyId = nif.GetHeader().AddBlock(std::move(already));
+            nif.GetRootNode()->childRefs.AddBlockRef(alreadyId);
             SaveNif(nif, a_file);
         }
 
@@ -284,8 +290,19 @@ namespace GreyBuild::SelfTest
             noForm.replace(noForm.find(txstKey), txstKey.size(), "\"slot\":3744,\"key\":\"9999999999999999\"");
             auto badDodt = ReadAll(fixture.folder / "request.json");
             badDodt.replace(badDodt.find("\"dodt\":true"), std::string("\"dodt\":true").size(), "\"dodt\":false");
-            a_check.Check(refusedText("req_unlisted", unlisted) && refusedText("req_noform", noForm) && refusedText("req_dodt", badDodt),
-                "request v5: a NIF nifs[] does not list, a txst key no TXST form has, and a dodt that is not its slot's are refused");
+            a_check.Check(refusedText("req_noform", noForm) && refusedText("req_dodt", badDodt),
+                "request v5: a txst key no TXST form has and a dodt that is not its slot's are refused");
+            Write(a_dir / "req_unlisted" / "request.json", unlisted);
+            bool warned = false;
+            try {
+                const auto slipped = LoadKeyedRequest(a_dir / "req_unlisted" / "request.json");
+                warned = slipped.nifHashes.count("meshes\\magic\\keyed.nif") == 0 &&
+                         std::any_of(slipped.warnings.begin(), slipped.warnings.end(),
+                             [](const std::string& a_line) { return a_line.find("keyed.nif") != std::string::npos; });
+            } catch (const std::runtime_error&) {
+                warned = false;
+            }
+            a_check.Check(warned, "request v5: a NIF nifs[] does not list is warned, not refused (its object fails alone)");
         }
 
         void CheckFirstRuns(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_sourceNif)
@@ -431,6 +448,26 @@ namespace GreyBuild::SelfTest
                               brokenModel->reason.find("listed as dumped") != std::string::npos,
                 fmt::format("failed: a texture the request lists as dumped that is not in the dump fails its object, never a "
                             "fallback that would be reused ('{}')", brokenModel ? brokenModel->reason : ""));
+
+            const auto slip = MakeFixture(a_dir, "slip", a_sourceNif, Variant::kNormal);
+            auto slipText = ReadAll(slip.folder / "request.json");
+            const auto replaceEntry = [&](const std::string& a_start, const std::string& a_entry) {
+                const auto at = slipText.find(a_start);
+                slipText.replace(at, slipText.find('}', at) - at + 1, a_entry);
+            };
+            replaceEntry(R"({"path":"meshes\\magic\\keyed.nif")", R"({"path":"meshes\\magic\\other.nif","size":1,"ok":false})");
+            replaceEntry(R"({"path":"meshes\\mps\\a.nif")", R"({"path":"MPS\\A.nif","size":1,"ok":false})");  // MeshDataPath folds it
+            Write(slip.folder / "request.json", slipText);
+            const int slipExit = Run(slip);
+            const auto slipProgress = Progress(slip);
+            const auto* slipModel = Find(slipProgress, kModel);
+            const auto* slipMps = Find(slipProgress, kMps);
+            a_check.Check(slipExit == 0 && slipModel && slipModel->outcome == CC::Outcome::kFailed &&
+                              slipModel->reason.find("does not list") != std::string::npos && slipMps &&
+                              slipMps->outcome == CC::Outcome::kFailed && slipMps->reason.find("could not read") != std::string::npos &&
+                              Find(slipProgress, kPlain) && Find(slipProgress, kPlain)->outcome == CC::Outcome::kOk,
+                fmt::format("failed: a NIF nifs[] does not list fails its object alone ('{}'); an ok false path matched after "
+                            "MeshDataPath ('{}'); the rest builds", slipModel ? slipModel->reason : "", slipMps ? slipMps->reason : ""));
 
             const auto otherExe = MakeFixture(a_dir, "exe", a_sourceNif, Variant::kNormal, 0.6, kGameRequestVersionKeyed, 0x0123456789ABCDEFull);
             const auto wrongTint = MakeFixture(a_dir, "tint", a_sourceNif, Variant::kNormal, 0.7);

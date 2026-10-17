@@ -171,12 +171,19 @@ namespace GreyBuild
     {
         constexpr DWORD kTransientErrors[] = { ERROR_FILE_NOT_FOUND, ERROR_PATH_NOT_FOUND, ERROR_ACCESS_DENIED, ERROR_SHARING_VIOLATION,
             ERROR_LOCK_VIOLATION, ERROR_READ_FAULT, ERROR_WRITE_FAULT, ERROR_DISK_FULL, ERROR_HANDLE_DISK_FULL, ERROR_NOT_ENOUGH_MEMORY,
-            ERROR_OUTOFMEMORY, ERROR_COMMITMENT_LIMIT, ERROR_NOT_ENOUGH_QUOTA, ERROR_NO_SYSTEM_RESOURCES };
+            ERROR_OUTOFMEMORY, ERROR_COMMITMENT_LIMIT, ERROR_NOT_ENOUGH_QUOTA, ERROR_NO_SYSTEM_RESOURCES, ERROR_TOO_MANY_OPEN_FILES,
+            ERROR_USER_MAPPED_FILE, ERROR_DELETE_PENDING, ERROR_IO_DEVICE, ERROR_CRC, ERROR_WORKING_SET_QUOTA, ERROR_PAGEFILE_QUOTA,
+            ERROR_NETNAME_DELETED, ERROR_SEM_TIMEOUT };  // not E_FAIL: DirectXTex reads a bad header as E_FAIL too
         if (a_result == E_OUTOFMEMORY) {
             return true;
         }
         return std::any_of(std::begin(kTransientErrors), std::end(kTransientErrors),
             [&](DWORD a_code) { return a_result == HRESULT_FROM_WIN32(a_code); });
+    }
+
+    bool IsTransientWriteResult(long a_result) noexcept
+    {
+        return a_result != E_INVALIDARG && a_result != HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
     }
 
     const char* TextureRoleName(TextureRole a_role) noexcept
@@ -313,7 +320,7 @@ namespace GreyBuild
         if (const HRESULT hr = DirectX::SaveToDDSFile(out->GetImages(), out->GetImageCount(), out->GetMetadata(),
                 DirectX::DDS_FLAGS_NONE, a_target.c_str());
             FAILED(hr)) {
-            return Fail(result, fmt::format("writing {} failed: {}", PathText(a_target), HrText(hr)), IsTransientResult(hr));
+            return Fail(result, fmt::format("writing {} failed: {}", PathText(a_target), HrText(hr)), IsTransientWriteResult(hr));
         }
         const auto written = std::filesystem::file_size(a_target, ec);
         if (ec) {

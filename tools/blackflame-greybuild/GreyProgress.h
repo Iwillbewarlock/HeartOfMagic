@@ -64,6 +64,7 @@ namespace GreyBuild
             std::size_t kept = 0;       // lines written back
             std::size_t badLines = 0;   // lines that did not parse
             bool cutLastLine = false;   // the file ended inside a line
+            std::uint64_t hashMs = 0;   // the time the staged files' fnv64 checks took (its cost grows with staging)
         };
 
         ProgressLog() = default;

@@ -122,6 +122,10 @@ namespace GreyBuild
     /// the same bytes may well work at the next run (key mode: failed, not fallback)
     [[nodiscard]] bool IsTransientResult(long a_result) noexcept;
 
+    /// A write's HRESULT (SaveToDDSFile): retryable unless it says the image itself cannot be written that way (E_INVALIDARG,
+    /// not supported) - a short write (E_FAIL), a locked, full or vanished target all try again at the next run
+    [[nodiscard]] bool IsTransientWriteResult(long a_result) noexcept;
+
     /// Reads a_source (DDS; legacy luminance formats expanded to RGBA, so they read as grey) and writes its grey copy to
     /// a_target (folders made): luminance x a_tint per pixel, alpha kept, the same format, size, mip count and array size.
     /// An already grey texture is left (kGreyscale, nothing written) at a tint of 1 only; at another tint it is copied

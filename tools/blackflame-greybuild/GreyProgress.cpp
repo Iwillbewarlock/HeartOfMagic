@@ -1,11 +1,15 @@
 // =============================================================================
-// GreyProgress - progress.jsonl (append-only, flushed per line; compacted at the builder's start) and the staging files
+// GreyProgress - progress.jsonl (append-only, one write per line; compacted at the builder's start) and the staging files
 // =============================================================================
+// Appended lines are not flushed one by one: a line lost to a crash or power cut only rebuilds its object. What makes a kept
+// line safe is the compaction's check that its file is in staging with the line's bytes and fnv64 (StagedMatches); the
+// compacted file itself is flushed before its rename.
 #include "GreyProgress.h"
 
 #include "GreyBuild.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstddef>
 #include <cstring>
 #include <fmt/format.h>
@@ -67,11 +71,13 @@ namespace GreyBuild
         // a_temp over a_target with POSIX semantics: it replaces a target another process holds open with FILE_SHARE_DELETE
         // (the DLL's tail reader on progress.jsonl), which MoveFileExW refuses with ERROR_ACCESS_DENIED. False when the
         // system or file system has no such rename (then MoveFileExW is tried)
-        [[nodiscard]] bool PosixRename(const std::filesystem::path& a_temp, const std::filesystem::path& a_target)
+        /// The POSIX-semantics rename; false with a_error the Windows error (MoveFileExW is tried next, and the message names both)
+        [[nodiscard]] bool PosixRename(const std::filesystem::path& a_temp, const std::filesystem::path& a_target, DWORD& a_error)
         {
             const HANDLE file = ::CreateFileW(a_temp.c_str(), DELETE | SYNCHRONIZE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                 nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
             if (file == INVALID_HANDLE_VALUE) {
+                a_error = ::GetLastError();
                 return false;
             }
             const std::wstring name = a_target.wstring();
@@ -82,6 +88,7 @@ namespace GreyBuild
             info->fileNameLength = static_cast<DWORD>(name.size() * sizeof(WCHAR));
             std::memcpy(info->fileName, name.data(), name.size() * sizeof(WCHAR));
             const bool renamed = ::SetFileInformationByHandle(file, kFileRenameInfoEx, info, static_cast<DWORD>(buffer.size())) != FALSE;
+            a_error = renamed ? ERROR_SUCCESS : ::GetLastError();
             ::CloseHandle(file);
             return renamed;
         }
@@ -139,11 +146,13 @@ namespace GreyBuild
             a_why = fmt::format("making the folder of {} failed: {}", PathText(a_target), ec.message());
             return false;
         }
-        if (PosixRename(a_temp, a_target)) {
+        DWORD posixError = ERROR_SUCCESS;
+        if (PosixRename(a_temp, a_target, posixError)) {
             return true;
         }
         if (!::MoveFileExW(a_temp.c_str(), a_target.c_str(), MOVEFILE_REPLACE_EXISTING)) {
-            a_why = fmt::format("renaming {} into place failed (Windows error {})", PathText(a_temp), ::GetLastError());
+            a_why = fmt::format("renaming {} into place failed (POSIX rename: Windows error {}; MoveFileExW: Windows error {})",
+                PathText(a_temp), posixError, ::GetLastError());
             return false;
         }
         return true;
@@ -201,6 +210,7 @@ namespace GreyBuild
             lastAt[parsed.lines[i].key] = i;
         }
         std::vector<std::size_t> keep;
+        const auto hashStart = std::chrono::steady_clock::now();
         for (const auto& [key, at] : lastAt) {
             const auto& line = parsed.lines[at];
             if (line.outcome == CC::Outcome::kFailed) {
@@ -211,6 +221,8 @@ namespace GreyBuild
             }
             keep.push_back(at);
         }
+        m_compaction.hashMs = static_cast<std::uint64_t>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - hashStart).count());
         std::sort(keep.begin(), keep.end());
         std::string out;
         for (const auto at : keep) {

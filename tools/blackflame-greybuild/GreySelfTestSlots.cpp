@@ -222,7 +222,8 @@ namespace GreyBuild::SelfTest
                 a_check.Check(log.Append(large, why) && log.Reusable(kB, kMiB) && !log.Reusable(kB, 2 * kMiB),
                     "progress: a too_large line is reused while the cap is not larger, retried under a larger cap");
                 CC::ProgressLine refused = FileLine(kC, "meshes\\not\\a\\copy.nif", 1, 1);
-                a_check.Check(!log.Append(refused, why) && !why.empty(), "progress: a line the contract's writer refuses is not appended");
+                a_check.Check(!log.Append(refused, why) && !why.empty() && !log.Broken(),
+                    "progress: a line the contract's writer refuses is not appended, and the log is not latched broken by it");
             }
             const auto again = CC::ParseProgress(ReadAll(staging / CC::kProgressFile));
             a_check.Check(again.lines.size() == 2 && again.errors.empty() && again.lines[1].outcome == CC::Outcome::kTooLarge,
@@ -232,6 +233,25 @@ namespace GreyBuild::SelfTest
             std::string why;
             a_check.Check(changed.Open(staging, why) && !changed.Reusable(kA, kMiB) && changed.Reusable(kB, kMiB) && !changed.Reusable(kB, 2 * kMiB),
                 "progress: a staged file whose bytes changed is not reused; a too_large line survives the next compaction with its cap");
+
+            // the DLL reading progress.jsonl (shared read, write and delete) while the builder starts: the compaction's
+            // rename replaces the file under that handle, and the reader's handle still reads the old bytes
+            const auto held = (staging / CC::kProgressFile).wstring();
+            const HANDLE reader = ::CreateFileW(held.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+                OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+            // `changed` still holds its append handle too; the compaction writes and renames whatever it keeps (b's line)
+            ProgressLog whileHeld;
+            std::string heldWhy;
+            const bool heldOpened = reader != INVALID_HANDLE_VALUE && whileHeld.Open(staging, heldWhy);
+            char first = 0;
+            DWORD got = 0;
+            const bool readerReads = reader != INVALID_HANDLE_VALUE && ::ReadFile(reader, &first, 1, &got, nullptr) != FALSE && got == 1;
+            if (reader != INVALID_HANDLE_VALUE) {
+                ::CloseHandle(reader);
+            }
+            a_check.Check(heldOpened && readerReads && first == '{' && whileHeld.LastCompaction().kept == 1,
+                fmt::format("progress: compaction renames over a progress.jsonl another handle holds with FILE_SHARE_DELETE (POSIX "
+                            "rename), the holder still reads{}", heldWhy.empty() ? std::string() : " (" + heldWhy + ")"));
         }
 
         void CheckBudget(Checker& a_check, const std::filesystem::path& a_dir)
@@ -376,6 +396,12 @@ namespace GreyBuild::SelfTest
                               IsTransientResult(HRESULT_FROM_WIN32(ERROR_DISK_FULL)) && !IsTransientResult(E_FAIL) &&
                               !IsTransientResult(HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED)) && !IsTransientResult(E_INVALIDARG),
                 "outcome: out of memory, a locked file and a full disk are retryable; a bad or unsupported DDS is not");
+            a_check.Check(IsTransientResult(HRESULT_FROM_WIN32(ERROR_TOO_MANY_OPEN_FILES)) && IsTransientResult(HRESULT_FROM_WIN32(ERROR_DELETE_PENDING)) &&
+                              IsTransientResult(HRESULT_FROM_WIN32(ERROR_NETNAME_DELETED)) && IsTransientWriteResult(E_FAIL) &&
+                              IsTransientWriteResult(HRESULT_FROM_WIN32(ERROR_DISK_FULL)) && IsTransientWriteResult(HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED)) &&
+                              !IsTransientWriteResult(E_INVALIDARG) && !IsTransientWriteResult(HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED)),
+                "outcome: too many open files, a pending delete or a lost share retry a read; a write fails retryable (a short write "
+                "E_FAIL, a full disk, a locked target) unless it is E_INVALIDARG or not supported");
         }
 
         void CheckChildKeys(Checker& a_check, const std::filesystem::path& a_dir)
@@ -398,6 +424,30 @@ namespace GreyBuild::SelfTest
                               PaletteState(dir, BlackFlame::DataPathRule::kOurPaletteAdd, received, "gradadd", {}).state == CC::FileState::kMissing,
                 "key prefix: a palette the request does not list as dumped (its stale file there unread) is notdumped:<size> when the "
                 "DLL says so, else missing");
+
+            // an object that has failed tries none of its remaining slots; the next object does
+            const auto staging = a_dir / "failed-object";
+            std::filesystem::create_directories(staging);
+            ProgressLog log;
+            std::string why;
+            const bool opened = log.Open(staging, why);
+            Budget budget(kMiB * 1024, 0, nullptr, nullptr);
+            TextureJob textures;
+            textures.inputs = { staging / "dump" };
+            const std::string listed = "textures\\gone.dds";  // listed as dumped, not in the dump: a failure when tried
+            KeyedOutputs outputs(log, budget, prefix, textures, { listed }, {});
+            KeyedObject failed;
+            failed.failed = "an earlier slot";
+            outputs.Begin(&failed);
+            const auto skipped = outputs.Texture(listed, TextureRole::kDiffuse, 0.6f, "test");
+            KeyedObject next;
+            outputs.Begin(&next);
+            const auto tried = outputs.Texture(listed, TextureRole::kDiffuse, 0.6f, "test");
+            a_check.Check(opened && skipped.empty() && failed.failed == "an earlier slot" && outputs.ObjectFailed() && tried.empty() &&
+                              next.failed.find("listed as dumped") != std::string::npos,
+                fmt::format("key outputs: a failed object's next slot is not tried (its reason kept), the next object's is ('{}')",
+                    next.failed));
+            outputs.Begin(nullptr);
         }
     }
 

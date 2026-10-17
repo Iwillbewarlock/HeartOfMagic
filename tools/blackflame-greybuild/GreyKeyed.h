@@ -78,6 +78,7 @@ namespace GreyBuild
         std::vector<KeyedSpec> objects;  // in request order
         std::map<int, int> addnSlots;    // original ADDN index -> slot ADDN index (40000 + place)
         std::map<std::string, std::uint64_t> nifHashes;  // nifs[] the game read: Data-relative path -> fnv64
+        std::set<std::string> unreadNifs;                // nifs[] ok false, MeshDataPath like nifHashes and the objects' sources
         std::vector<std::string> warnings;
     };
 
@@ -122,6 +123,9 @@ namespace GreyBuild
             std::set<std::string> a_listed, std::map<std::string, BlackFlame::CopyContract::Request::TextureState> a_states);
 
         void Begin(KeyedObject* a_object) noexcept { m_object = a_object; }
+
+        /// The object in hand has failed: its remaining slots, palettes and reads are not tried (second OCR review 4)
+        [[nodiscard]] bool ObjectFailed() const noexcept { return m_object && !m_object->failed.empty(); }
 
         /// A texture slot (TextureDataPath a_path, picked as a_role at a_tint): its copy's slot text, "" when the slot stays
         [[nodiscard]] std::string Texture(const std::string& a_path, TextureRole a_role, float a_tint, const std::string& a_where);

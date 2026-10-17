@@ -48,7 +48,6 @@ namespace GreyBuild
             TextureJob& textures;
             GlowContext& glow;
             GreyMap map;
-            std::set<int> slotIndices;  // the grey values the map hands out (40000 + place)
             std::uint64_t cap = 0;      // the job memory cap (too_large lines name it)
         };
 
@@ -63,34 +62,31 @@ namespace GreyBuild
         }
 
 
-        // The slot indices among a NIF's AddOnNode values
-        [[nodiscard]] std::set<std::uint32_t> SlotValuesIn(const std::filesystem::path& a_nif, const std::set<int>& a_slots)
+        // The slot indices the remap put into the copy (its {"addn": n} deps), read off the source's own AddOnNode values the
+        // way RemapAddonValues binds them: a value the map binds gives its slot index. Not a set difference of copy and source
+        // values: a source holding 9 and 40012 with 9 -> 40012 still depends on 40012 (Codex review). A source value already in
+        // the slot range is no binding of ours and stays out, with a warning: the copy names a slot it did not ask for.
+        [[nodiscard]] std::vector<std::uint32_t> BoundSlotValues(const std::filesystem::path& a_source, const GreyMap& a_map,
+            const std::string& a_rel)
         {
             nifly::NifFile nif;
-            LoadNif(nif, a_nif);
+            LoadNif(nif, a_source);
             std::set<std::uint32_t> values;
             const auto& hdr = nif.GetHeader();
             for (std::uint32_t id = 0; id < hdr.GetNumBlocks(); ++id) {
-                if (const auto* node = hdr.GetBlock<nifly::BSValueNode>(id); node && a_slots.count(node->value) != 0) {
-                    values.insert(static_cast<std::uint32_t>(node->value));
+                const auto* node = hdr.GetBlock<nifly::BSValueNode>(id);
+                if (!node) {
+                    continue;
+                }
+                if (const auto it = a_map.addons.find(node->value); it != a_map.addons.end()) {
+                    values.insert(static_cast<std::uint32_t>(it->second.grey));
+                }
+                if (node->value >= 0 && CC::SlotOfAddnIndex(static_cast<std::uint32_t>(node->value))) {
+                    std::cout << fmt::format("WARN  {}: AddOnNode value {} (block {}) is already a slot index; no dep for it\n", a_rel,
+                        node->value, id);
                 }
             }
-            return values;
-        }
-
-        // The slot indices the remap put into a written NIF (its {"addn": n} deps): those the copy holds and the source did
-        // not - a source value that already was a slot index is no binding of ours (agy Opus review)
-        [[nodiscard]] std::vector<std::uint32_t> SlotValues(const std::filesystem::path& a_copy, const std::filesystem::path& a_source,
-            const std::set<int>& a_slots)
-        {
-            const auto had = SlotValuesIn(a_source, a_slots);
-            std::vector<std::uint32_t> out;
-            for (const auto value : SlotValuesIn(a_copy, a_slots)) {
-                if (had.count(value) == 0) {
-                    out.push_back(value);
-                }
-            }
-            return out;
+            return { values.begin(), values.end() };
         }
 
         // <copy>.tmp removed when the object leaves before its rename (an exception included)
@@ -115,8 +111,10 @@ namespace GreyBuild
             }
             const auto listed = a_run.request.nifHashes.find(a_spec.source);
             if (listed == a_run.request.nifHashes.end()) {
-                // LoadKeyedRequest took it only as nifs[] ok false: the game could not read it (its key says missing)
-                return Line(a_spec, CC::Outcome::kFailed, fmt::format("{}: the game could not read it (nifs[] ok false)", a_spec.source));
+                // nifs[] ok false (the game could not read it; its key says missing), or not listed at all (the DLL's slip, warned)
+                return Line(a_spec, CC::Outcome::kFailed, a_run.request.unreadNifs.count(a_spec.source) != 0 ?
+                    fmt::format("{}: the game could not read it (nifs[] ok false)", a_spec.source) :
+                    fmt::format("{}: nifs[] does not list it (no fnv64, not ok false)", a_spec.source));
             }
             const auto source = FindSource({ a_run.dump }, a_spec.source);
             if (!source) {
@@ -151,10 +149,10 @@ namespace GreyBuild
             std::string why;
             std::vector<std::uint32_t> addn;
             try {
-                addn = SlotValues(temp, *source, a_run.slotIndices);
+                addn = BoundSlotValues(*source, a_run.map, a_spec.source);
             } catch (const std::exception& e) {
                 RemoveQuietly(temp);
-                return Line(a_spec, CC::Outcome::kFailed, fmt::format("the written copy does not read back: {}", e.what()));
+                return Line(a_spec, CC::Outcome::kFailed, fmt::format("the source does not read back: {}", e.what()));
             }
             const auto digest = DigestFile(temp, why);
             if (!digest || !CommitTemp(temp, StagedFile(a_run.staging, *copy), why)) {
@@ -362,9 +360,9 @@ namespace GreyBuild
             return kFail;
         }
         const auto& compaction = log.LastCompaction();
-        std::cout << fmt::format("staging {}: {} temp file(s) removed; progress.jsonl {} line(s) read, {} kept, {} bad{}\n",
+        std::cout << fmt::format("staging {}: {} temp file(s) removed; progress.jsonl {} line(s) read, {} kept, {} bad{}; fnv64 checks {} ms\n",
             PathText(a_options.staging), temps, compaction.read, compaction.kept, compaction.badLines,
-            compaction.cutLastLine ? ", a cut last line dropped" : "");
+            compaction.cutLastLine ? ", a cut last line dropped" : "", compaction.hashMs);
 
         // The dump only: every byte an output depends on is one the keys name (our palettes too: grad / gradadd)
         TextureSource textureSource({ dump }, request.base.texturesNotDumped, a_options.staging);
@@ -380,6 +378,10 @@ namespace GreyBuild
         // The glow rules' and palettes' reads decode too: admitted like a recolour, without clearing the cache (a TextureLook
         // may be alive); too large or over the cap makes the object too_large or failed (Codex review 1)
         textureSource.SetReadGate([&](const std::filesystem::path& a_file, std::string& a_why) {
+            if (outputs.ObjectFailed()) {
+                a_why = "the object has failed already";
+                return false;  // no estimate or budget wait for an object that publishes nothing
+            }
             std::string why;
             bool transient = false;
             const auto estimate = EstimateReadBytes(a_file, why, &transient);
@@ -421,7 +423,6 @@ namespace GreyBuild
         run.map.tintAdd = glow.tintAdd;
         for (const auto& [index, grey] : request.addnSlots) {
             run.map.addons[index] = AddonEntry{ index, grey };
-            run.slotIndices.insert(grey);
         }
 
         std::vector<KeyedSpec> pending;

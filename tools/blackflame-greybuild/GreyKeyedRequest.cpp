@@ -194,13 +194,16 @@ namespace GreyBuild
         ReadOptions(a_file, root, request);
         ReadObjects(a_file, root, request);
         ReadNifHashes(root, request);
-        // every NIF object's bytes must be listed (nifs[] with its fnv64), or the game could not read it (nifs[] ok false):
-        // a NIF the request does not mention at all is the DLL's mistake, and the whole request is refused (OCR review 1)
-        const std::set<std::string> unread(request.base.failedNifs.begin(), request.base.failedNifs.end());
+        // every NIF object's bytes are listed (nifs[] with its fnv64), or the game could not read it (nifs[] ok false). A NIF
+        // in neither is the DLL's slip about one object: warned here, and that object alone gets a failed line
+        // (BuildNifObject), so one slip does not block every build (second OCR review 3)
+        for (const auto& nif : request.base.failedNifs) {
+            request.unreadNifs.insert(MeshDataPath(nif));
+        }
         for (const auto& spec : request.objects) {
-            if (spec.kind != CC::ProgressKind::kTxst && request.nifHashes.count(spec.source) == 0 && unread.count(spec.source) == 0) {
-                Json::Fail(a_file, fmt::format("{} {}: nifs[] does not list it (no fnv64, not ok false)", CC::ProgressKindText(spec.kind),
-                    spec.source));
+            if (spec.kind != CC::ProgressKind::kTxst && request.nifHashes.count(spec.source) == 0 && request.unreadNifs.count(spec.source) == 0) {
+                request.warnings.push_back(fmt::format("{} {} (key {}): nifs[] does not list it (no fnv64, not ok false): that object fails",
+                    CC::ProgressKindText(spec.kind), spec.source, CC::Hex16(spec.key)));
             }
         }
         for (auto& line : request.base.warnings) {

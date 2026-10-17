@@ -170,6 +170,10 @@ namespace GreyBuild
             }
             groups += CopiesEslGroup(type, map, sources, count, highest);
         }
+        if (highest >= CC::kFirstReservedLocalId) {  // HEDR's next id must stay past every record (the pools end below it)
+            throw std::runtime_error(fmt::format("slot pool: a record at 0x{:X}, in the reserved ids from 0x{:X}", highest,
+                CC::kFirstReservedLocalId));
+        }
         WriteLightPlugin(a_file, groups, count, CC::kFirstReservedLocalId);
     }
 

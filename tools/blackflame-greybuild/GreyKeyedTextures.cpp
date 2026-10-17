@@ -248,6 +248,9 @@ namespace GreyBuild
 
     std::string KeyedOutputs::Texture(const std::string& a_path, TextureRole a_role, float a_tint, const std::string& a_where)
     {
+        if (ObjectFailed()) {
+            return {};  // failed already: no recolour, budget wait or TEX FAIL line for a copy nothing will publish
+        }
         const std::string id = fmt::format("{}|{}", TextureRoleName(a_role), a_path);
         auto it = m_children.find(id);
         if (it == m_children.end()) {
@@ -333,6 +336,10 @@ namespace GreyBuild
     std::string KeyedOutputs::Palette(const TextureLook& a_source, bool a_additive, const MakeImage& a_make, const WriteImage& a_write,
         std::string& a_why)
     {
+        if (ObjectFailed()) {
+            a_why = m_object->failed;
+            return {};
+        }
         const std::string id = fmt::format("{}|{}", a_additive ? "add" : "normal", a_source.path);
         auto it = m_children.find(id);
         if (it == m_children.end()) {
