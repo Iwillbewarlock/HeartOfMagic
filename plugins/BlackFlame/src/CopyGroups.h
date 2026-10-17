@@ -6,10 +6,12 @@
 // A published copy may link only to an open copy or to an original (LinkFor goes through CopyOf), so slots open by
 // groups: the connected components of the copy links of the slots' sources (PROJ explosion and decal, EXPL placed object
 // and spawn projectile, IPCT hazard and both decals; design v3.1 G). Per member object (its model, a PROJ's muzzle):
-//   ready      the slot already shows a generation that was verified in an earlier session (ApplyLastPublished)
+//   ready      the slot already shows a generation that was verified in an earlier session (ApplyLastPublished); also a
+//              member whose new object failed, is terminal, has no key, or got no line or not all its files once the
+//              builder's lines are all read and copied (BuildProgress::CaughtUp): it shows that older generation
 //   candidate  this session's key has an ok or fallback line and its files are in Data (BuildProgress kInData)
-//   pending    built later (or retried): the group waits
-//   left       terminal (too_large, not_dumped, ledger "parse") or no key this session and no older generation, or a TXST
+//   pending    built later (or retried) while the builder may still write it: the group waits
+//   left       the cases of ready without an older generation, or a TXST
 //              slot: the member leaves its group, stays gated, links to it go to its source. A terminal muzzle only keeps
 //              the source's muzzle
 // A NIF naming an ADDN slot index (a progress dep {addn}) is used only when that ADDN slot's MPS is published (its gate);
@@ -20,8 +22,8 @@
 // ledger and the group is not opened this session; there is no re-close. Windows (MenuWatch.h): at kDataLoaded the groups
 // whose members are all ready open at once (W1); the drains go on while the publish window is open and the main-thread
 // proof holds (W1 drains and W2); each publish step re-checks the close flag right before SetModel and RegisterLoose. A
-// group unfinished when the window closes stays as it was. TXST slots are filled and keyed (the builder builds them) but
-// never published here: design v2 §1 keeps the original decal until SetTexturePath and its textureFileIDs are proven.
+// group unfinished when the window closes stays as it was. A Demand that faults stops publication for the session. TXST
+// slots are filled (keyed and built only with the config slotTxst) but never published here: design v2 §1 keeps the original decal until SetTexturePath and its textureFileIDs are proven.
 
 #include "Common.h"
 
