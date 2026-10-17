@@ -4,21 +4,24 @@
 
 An addon to Heart of Magic Librarian. Once you have learned the ability **Toxicology**, every poison spell you cast
 also delivers one of your own poisons: when a poison spell hits a living target, the poison you have favorited
-first is applied to that target, at the poison's own strength and duration, with you as the caster.
+first is applied to that target, at the poison's own strength and duration, with you as the caster (intended;
+pending in-game self test, see "Not yet confirmed in game" below).
 
 - **Poison spells** are the spells the Librarian tags `poison` in `Data/SKSE/Plugins/SpellLearning/spell_catalog.json`
   (its scan writes the file), kept only when the spell has at least one hostile effect. The Librarian also tags
   Cure Poison, poison resistance buffs and similar helpful spells `poison` for tree grouping; those are skipped, so
-  healing a follower does not poison them. For cloak spells the sub-spell the cloak casts on enemies counts too.
+  healing a follower does not poison them. For cloak spells the sub-spell the cloak casts on enemies is
+  meant to count too (pending in-game self test).
 - **Which poison**: among the poisons in your inventory that are favorited, the first by name (the name shown in
   the inventory, a poison you named yourself by that name; case is ignored). That is the order SkyUI's favorites
   menu sorts by. The vanilla favorites menu's order was not checked; the same rule is used.
-- **Repeat hits** do not stack: while the effect the addon applied is still on the target, a new hit only renews
-  its duration. Per target and poison, hits closer together than `minIntervalSeconds` (default 1 s) are ignored.
+- **Repeat hits** do not stack: while the effect the addon applied is still on the target, a new hit is meant
+  only to renew its duration (pending in-game self test). Per target and poison, hits closer together than `minIntervalSeconds` (default 1 s) are ignored.
   The addon never renews an effect it did not apply itself: if the target already carries the same poison from a
   coated weapon, or from before the save was loaded, nothing happens until that effect ends.
 - **Bottles**: hits use up no bottles. Instead, every 100 Magicka you spend casting poison spells (hit or miss;
-  the cost after perks and gear, dual casting and concentration included) uses one bottle of the poison being
+  meant to be the cost after perks and gear, dual casting and concentration included - pending in-game self
+  test) uses one bottle of the poison being
   mimicked. When that poison runs out the next favorited poison takes over. The running total is kept in the SKSE
   co-save. Bottles without a favorite mark are used before the favorited stack.
 - **Icon**: with Inventory Interface Information Injector (I4) installed, the poison being mimicked shows a
@@ -82,20 +85,37 @@ over I4's default poison icon. A newly added plugin loads last by default, so th
 
 ## Known limits
 
+### Not yet confirmed in game
+
+TODO (pending in-game self test): the points below are what the addon is built to do, but none has been confirmed
+in game yet. Update this list from the self test's `SELFTEST` lines and move each confirmed point out of it.
+
 - **Deliveries without hit events**: the addon reacts to the engine's hit events (`TESHitEvent`) from your poison
-  spells. TODO (pending in-game self test): which of runes, explosions, concentration spells and cloaks send those
-  events, and how often for concentration, is not confirmed yet; list here any delivery that does not trigger.
+  spells. Which of runes, explosions, concentration spells and cloaks send those events, and how often for
+  concentration, is not confirmed; list here any delivery that does not trigger.
+- **Cloaks**: the cloak's sub-spell (the one it casts on enemies) is in the poison spell set; whether its hits
+  apply the poison is not confirmed.
+- **Where the poison lands and who cast it**: the poison is cast on the hit target with you as the caster; that it
+  lands on the target (not on you) and carries you as its caster is not confirmed.
+- **Renewing instead of stacking**: a repeat hit sets the elapsed time of the addon's own effect back to 0; that
+  the engine really extends the effect this way (and that it does not break fading or scripted effects) is not
+  confirmed.
+- **Magicka count**: the counted cost is meant to match the Magicka the engine takes (after perks and gear, dual
+  casting and concentration included); that it does, within 5 %, is not confirmed.
+
+### Other limits
+
 - **I5 (InventoryInjectorImproved)** caches inventory icons per item, so the icon can stay on the old poison in the
-  inventory and barter menus after the favorite changes. The console command `i5 purge` clears the cache; the
-  favorites menu is always accurate. The addon cannot clear that cache itself (it logs a line when I5 is loaded).
+  inventory and barter menus after the favorite changes. The console command `i5 purge` (I5 0.4.0, the release in
+  use when this was written) or `i5 cache purge` (newer I5) clears the cache; the favorites menu is always accurate. The addon cannot clear that cache itself (it logs a line when I5 is loaded).
 - Changing favorites with a menu open changes the icon the next time the menu is opened.
 - **Saves that already traded with Elgrim** may show the tome only after the merchant restocks (about 48 hours of
   game time).
 - **Poisons with an instant and a lasting effect**: while the lasting effect is still on the target, hits only
   renew it, so the instant damage lands once per application, not once per hit.
 - **Only your own casts**: poison spells cast by NPCs, followers included, do not apply poisons.
-- **A rescan in game** (the Librarian's full scan rewrites the catalog) is picked up within about 5 seconds, at the
-  next poison spell hit. A spell from a mod installed after the last scan counts only after the next scan.
+- **A rescan in game** (the Librarian's full scan rewrites the catalog) is picked up at the first spell you cast, or
+  spell hit of yours, at least 5 seconds after the previous check of the catalog file, or at the next save load. A spell from a mod installed after the last scan counts only after the next scan.
 - **Cost-reducing mods** that lower spell cost outside the engine's own spell cost (for example by script) may not
   be reflected in the Magicka count.
 - **Perks on the applied poison**: whether the engine applies alchemy perks to a poison the addon applies is not

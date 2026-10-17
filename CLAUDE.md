@@ -159,7 +159,7 @@ statically linked library needs its port in `_vcpkg_license_ports` (Distribution
 .\DeployDev.ps1 -PanelOnly   # UI only, no rebuild needed
 .\DeployDev.ps1 -WithISLPatch  # also the ISL patch's scripts; -WithBookXP the BookXP script
 .\DeployDev.ps1 -NoScripts     # plugin + panel, the install's Papyrus scripts left as they are
-.\DeployDev.ps1 -ToxicologyOnly   # Toxicology addon: DLL, ESL, I4 rule, icon SWF, settings JSON (an existing one kept; -Force replaces it); the dev self test file only with -ToxicologySelfTest (every deploy without it, the plain one too, removes that file from the Toxicology install, and a deploy that stops says whether it is still there) -> D:\TAKEALOOK\mods\HeartOfMagic-Toxicology-Dev (must exist; -ToxicologyModPath for another)
+.\DeployDev.ps1 -ToxicologyOnly   # Toxicology addon: DLL, ESL, I4 rule, icon SWF, settings JSON (an existing one kept; -Force replaces it); the dev self test file only with -ToxicologySelfTest (every deploy without it, the plain one too, removes that file from the Toxicology install, and a -ToxicologyOnly deploy that stops says whether it is still there) -> D:\TAKEALOOK\mods\HeartOfMagic-Toxicology-Dev (must exist; -ToxicologyModPath for another)
 ```
 
 **ALWAYS use `DeployDev.ps1`**—never copy the panel by hand. It refuses to run while SkyrimSE is

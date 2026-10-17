@@ -25,7 +25,8 @@
 
     The Toxicology self test file is opt-in: every deploy without -ToxicologySelfTest (-ToxicologyOnly or the plain
     one) removes it from the Toxicology install ($ToxicologyModPath) and says so, because the dev mod may be enabled
-    in a profile used for real play. A deploy that stops before copying says whether the file is still installed.
+    in a profile used for real play. A -ToxicologyOnly deploy that stops before copying says whether the file is still
+    installed (the plain deploy removes it only once its own preflight has passed).
 
     Everything it will copy is checked before anything is copied (the plugin, the
     panel, each compiled script there and newer than its source), so a missing or
@@ -50,8 +51,8 @@ if (Get-Process SkyrimSE -ErrorAction SilentlyContinue) {
     throw 'SkyrimSE is running. Close the game first: the panel files are open and a copy would leave the mod half written.'
 }
 # The Toxicology dev self test file in the install (plugins\Toxicology\src\game\ToxSelfTest.h): it makes the DLL
-# give the player the ability and poisons and spawn targets after a load, so a deploy that stops says whether it
-# is still there. Its state file (HeartOfMagic_Toxicology_selftest_state.json, written by the test) is inert
+# give the player the ability and poisons and spawn targets after a load, so a -ToxicologyOnly deploy that stops
+# says whether it is still there. Its state file (HeartOfMagic_Toxicology_selftest_state.json, written by the test) is inert
 # without it and is left alone.
 $toxSelfTestDst = Join-Path $ToxicologyModPath 'SKSE\Plugins\HeartOfMagic_Toxicology_selftest.json'
 function Get-ToxSelfTestNote {
@@ -85,9 +86,9 @@ if ($ToxicologyOnly) {
     # Stale: the DLL older than a source it is built from (the addon's src and the shared files its
     # CMakeLists.txt and includes name). The ESL, the JSONs and the SWF are committed files, copied as they are.
     $dllSources = @(Get-ChildItem (Join-Path $toxRepo 'plugins\Toxicology\src') -Recurse -File -Include '*.cpp', '*.h') + @(
-        'plugins\Toxicology\CMakeLists.txt', 'plugins\PCH.h', 'plugins\Common.h',
+        'plugins\Toxicology\CMakeLists.txt', 'plugins\PCH.h', 'plugins\Common.h', 'plugins\WideFileSink.h',
         'plugins\spelllearning\src\EncodingUtils.cpp', 'plugins\spelllearning\include\EncodingUtils.h',
-        'plugins\spelllearning\include\PluginNames.h' | ForEach-Object { Get-Item (Join-Path $toxRepo $_) })
+        'plugins\spelllearning\include\PluginNames.h', 'plugins\spelllearning\include\AsciiText.h' | ForEach-Object { Get-Item (Join-Path $toxRepo $_) })
     $built = (Get-Item $toxDll).LastWriteTime
     $newest = $dllSources | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if ($newest.LastWriteTime -gt $built) {
