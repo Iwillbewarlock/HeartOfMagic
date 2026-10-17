@@ -70,8 +70,9 @@ namespace BlackFlame::DataPathRule
     /// code page (lead byte by IsDBCSLeadByteEx) is copied as it is and counts as one character of its path token: its
     /// trail byte is never lowered, taken for a separator (a real '\' after it is kept, a path ending in it is not taken
     /// for one ending in '\') or split off a ".." token. nullopt (refused) for an empty path, a drive letter or ':'
-    /// anywhere, a ".." path token, a trailing separator, or a character Windows forbids in a file name (<>"|?* and
-    /// control characters): such a path could name a file outside Data, a folder, or no file at all.
+    /// anywhere, a "." or ".." path token (AC2: a "." token is refused, not folded - textures\.\fx.dds is refused), a
+    /// trailing separator, or a character Windows forbids in a file name (<>"|?* and control characters): such a path
+    /// could name a file outside Data, a folder, or no file at all.
     [[nodiscard]] inline std::optional<std::string> Normalize(std::string_view a_text, std::string_view a_root)
     {
         std::string path;
@@ -111,7 +112,7 @@ namespace BlackFlame::DataPathRule
             lastSeparator = false;
         }
         if (lastSeparator || tokenIsDots()) {
-            return std::nullopt;  // a folder, not a file; or a last ".." token
+            return std::nullopt;  // a folder, not a file; or a last "." or ".." token
         }
         for (bool stripped = true; stripped;) {  // "data\\meshes\\meshes\\x.nif" too (whole ASCII tokens only)
             stripped = false;

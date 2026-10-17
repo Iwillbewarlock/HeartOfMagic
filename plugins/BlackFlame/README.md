@@ -354,13 +354,14 @@ overwrite stays clean):
 
 | File | What |
 |---|---|
-| `request.json` | version 3: `game`, `fingerprint`, `copiesPlugin`; `forms` (source `Plugin|localId` in UTF-8, type, editorId, model and muzzleModel as the record stores them, bounds, the scalars the builder writes into a placeholder, `viaSpell`, `costliest`); `excluded` (source, type, reason); `addons` (every ADDN record: index, model, cap, DNAM flags, `own` for ours); `models` (the closure's impact and hazard models); `nifs` (each NIF read: Data-relative path, size, fnv64, ok, error); `textures` (T1: each texture those NIFs name - path, size, ok = in the dump, error) and `textureCaps`. Written through a temporary file and a rename, after the dump |
+| `request.json` | version 4 (AD1; the builder still reads 3, which had no `dumpComplete`): `game`, `fingerprint`, `copiesPlugin`, `dumpComplete` (false when a dump file could not be written, with `dumpWriteFailures`, or `dumpError` when the dump stopped part way); `forms` (source `Plugin|localId` in UTF-8, type, editorId, model and muzzleModel as the record stores them, bounds, the scalars the builder writes into a placeholder, `viaSpell`, `costliest`); `excluded` (source, type, reason); `addons` (every ADDN record: index, model, cap, DNAM flags, `own` for ours); `models` (the closure's impact and hazard models); `nifs` (each NIF read: Data-relative path, size, fnv64, ok, error); `textures` (T1: each texture those NIFs name - path, size, ok = in the dump, error) and `textureCaps`. Written through a temporary file and a rename, after the dump |
 | `data\meshes\...` | the winning bytes of every NIF the request names (form models, PROJ muzzles, every ADDN model not ours), read through the engine's own file system (`BSResourceNiBinaryStream`: archives, loose files and MO2's VFS as the game loads them). Rewritten only when the fingerprint differs from `dump-manifest.json`'s; a NIF that fails to read is removed from the dump; one that cannot be written, or whose path the dump refuses, is removed and listed as not read, and the request then says `"dumpComplete": false` with `dumpWriteFailures` (the fingerprints stay this load order's); the builder copies it into the map and the DLL reads such a map as stale ("built from an incomplete dump") whatever the fingerprint says (AC1; a map without the field counts as complete) |
 | `data\textures\...` | T1: the textures the dumped NIFs name, read the same way within the caps (Texture copies below) |
 | `dump-manifest.json` | the fingerprint the dump was made for, the textures' own `textureFingerprint`, and `textureReadFailures` (textures that opened but could not be read) |
 
 Model paths are normalised (ASCII lower case, `/` as `\`, repeated separators folded, a leading `data\`/`meshes\` dropped,
-one `meshes\` put in front); a path with a drive letter, `:` or a `..` token is refused and never read or written. Each
+one `meshes\` put in front); a path with a drive letter, `:` or a `.` or `..` token is refused and never read or written
+(AC2: a `.` token is refused, not folded - `meshes\.\fx.nif` is never read, a known limit). Each
 NIF is read in 64 KiB pieces with every return code checked and must give exactly the stream's `totalSize`.
 
 **Fingerprint** (one formula for the request, which the builder copies into the copies map, and for the freshness
@@ -402,7 +403,8 @@ step (no request: start the game to the main menu once; no `--out`: make an empt
   stay failures, as before: the behaviour change is `--from-game` only. A request listing one ADDN index twice keeps the
   later record (warned).
 - **Copies map version 2** (`SKSE\Plugins\HeartOfMagic_BlackFlame_copies.json`): `requestFingerprint` (the request's,
-  compared by the DLL at every start), `copiesPlugin`, per copy also `sourceMuzzleModel`, `greyMuzzleModel` (PROJ: the
+  compared by the DLL at every start), `dumpComplete` (the request's; false or not a bool: the DLL reads the map as
+  stale), `copiesPlugin`, per copy also `sourceMuzzleModel`, `greyMuzzleModel` (PROJ: the
   grey copy of its muzzle flash model, built like the form models) and `note`; `retired`; `excluded` (the request's);
   `shaders` (v2i, information only, no reader takes it: `tint`, `tintAdd` and the grey NIFs' effect shader counts
   `paletteNormal`, `paletteNormalNoAlpha`, `paletteAdditive`, `left`; the run prints the same as its `shaders` line).
@@ -471,7 +473,8 @@ start the game once to the main menu with this release (the DLL then dumps the t
 - **Paths**: the builder reads a slot with the DLL's own rule (`plugins/BlackFlame/src/DataPathRule.h`, included by both,
   not copied): lower case, `/` as `\`, leading and repeated separators folded, every leading `data\` and `textures\`
   dropped and one `textures\` put in front, a double-byte character of the system code page kept as it is; a drive, `:`,
-  a `..` token, a trailing separator or a character no file name has is refused. A double-byte character counts as one
+  a `.` or `..` token (a `.` token is refused, not folded: `textures\.\fx.dds` is a known limit), a trailing separator or
+  a character no file name has is refused. A double-byte character counts as one
   character of its path token, so a trail byte 0x5C is never taken for a separator (the separator after it is kept, a
   path ending in it is a file, it splits no `..` off its token). One table of cases runs in the self-test against that
   header (the double-byte cases only on a double-byte system code page). The same header's `LowerSlashes` (case and

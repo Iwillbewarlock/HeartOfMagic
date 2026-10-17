@@ -14,7 +14,7 @@
 // =============================================================================
 // <SKSE log folder>\HeartOfMagic_BlackFlame\ (SKSE::log::log_directory(): outside the VFS, so MO2's
 // overwrite stays clean, and the builder finds it without MO2):
-//   request.json         version 3: the closure's copy-type forms (source, type, model, muzzle, bounds, scalars,
+//   request.json         version 4 (AD1; 3 had no dumpComplete): the closure's copy-type forms (source, type, model, muzzle, bounds, scalars,
 //                        the spell that reached it), what was excluded and why, every ADDN record (ours marked
 //                        own), the closure's impact and hazard models, every NIF read (path, size, fnv64, ok)
 //   data\meshes\...      the winning bytes of every NIF the request names (form and muzzle models, ADDN models),
@@ -44,6 +44,7 @@ namespace BlackFlame
         bool computed = false;        // the fingerprint was computed
         bool dumpComplete = true;     // AC1: every dump file was written (request.json "dumpComplete"; the map carries it)
         int dumpWriteFailures = 0;    // AC1: files the dump could not write (or whose path it refused) this start
+        std::string dumpError;        // AD5: why the dump stopped part way (request.json "dumpError"), "" when it did not
         std::string fingerprint;      // "fnv64:<16 hex>"
         std::string sizeFingerprint;  // the same without the NIF byte hashes (path, size): C3's cheap check
         bool requestWritten = false;

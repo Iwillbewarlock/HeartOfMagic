@@ -108,6 +108,14 @@ namespace BlackFlame
                 state.state = CopyFreshness::kStale;
                 state.detail = "built from an incomplete dump (the game could not write every file of it): start the game once "
                                "to the main menu, then run the builder again";
+                if (!request.dumpComplete) {
+                    // AD3: this start's dump is incomplete too: a rebuild now would read the same holes
+                    state.detail += request.dumpError.empty() ?
+                        std::format("; this start's dump is incomplete as well ({} file(s) could not be written; see "
+                                    "HeartOfMagic_BlackFlame.log): fix that first, a rebuild now would repeat it", request.dumpWriteFailures) :
+                        std::format("; this start's dump stopped part way ({}; see HeartOfMagic_BlackFlame.log): fix that first, a "
+                                    "rebuild now would repeat it", request.dumpError);
+                }
             } else if (built.empty() || now.empty() || built != now) {
                 state.state = CopyFreshness::kStale;
                 state.detail = std::format("the {} fingerprint differs: built {}, now {}", bytes ? "byte" : "size",

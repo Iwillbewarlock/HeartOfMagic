@@ -297,8 +297,13 @@ namespace BlackFlame
         };
         copies.counts.requestFingerprint = text("requestFingerprint");
         copies.counts.requestFingerprintSizes = text("requestFingerprintSizes");
-        copies.counts.dumpComplete = !root.contains("dumpComplete") || !root["dumpComplete"].is_boolean() ||
-                                     root["dumpComplete"].get<bool>();
+        if (root.contains("dumpComplete") && !root["dumpComplete"].is_boolean()) {
+            copies.counts.dumpComplete = false;  // AD2: not readable as complete, so not complete
+            logger::warn("BlackFlame: copies: the map's dumpComplete is {} (not true or false): read as built from an incomplete "
+                         "dump", root["dumpComplete"].dump());
+        } else {
+            copies.counts.dumpComplete = !root.contains("dumpComplete") || root["dumpComplete"].get<bool>();  // absent: complete
+        }
         PluginNames::Lookup<const RE::TESFile*> lookup;
         // Pass 1: resolve and fill data members; failures stay out of the lookup
         for (const auto& item : root["copies"]) {

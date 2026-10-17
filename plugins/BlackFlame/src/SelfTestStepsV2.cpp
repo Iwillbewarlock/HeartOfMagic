@@ -182,7 +182,8 @@ namespace BlackFlame::SelfTest
 
         // C1: the copy request's state (judged against the census by hand from request.json; here only that it ran)
         const auto& request = GetCopyRequestState();
-        const bool dumpOk = request.dumpState == "unchanged" || request.dumpState.starts_with("written (");
+        // AD4: a dump that wrote every file (dumpComplete) and did not stop part way
+        const bool dumpOk = request.dumpComplete && !request.dumpState.starts_with("failed");
         if (!cfg.writeRequest) {
             SelfTestLog::Info("T0-request", std::format("copy request off (writeRequest false): {} closure forms, {} excluded",
                 request.forms, request.excluded));

@@ -20,7 +20,7 @@ namespace BlackFlame
 {
     namespace
     {
-        constexpr int kRequestVersion = 3;
+        constexpr int kRequestVersion = 4;  // AD1: 4 carries dumpComplete (an older builder refuses it rather than miss it)
         constexpr int kJsonIndent = 1;
         constexpr const char* kFolderName = "HeartOfMagic_BlackFlame";
         constexpr const char* kRequestName = "request.json";
@@ -169,7 +169,9 @@ namespace BlackFlame
             root["fingerprintSizes"] = g_state.sizeFingerprint;
             // AC1: the fingerprints stay this load order's; a dump that could not write a file says so on its own
             root["dumpComplete"] = g_state.dumpComplete;
-            if (!g_state.dumpComplete) {
+            if (!g_state.dumpError.empty()) {
+                root["dumpError"] = Utf8(g_state.dumpError);  // AD5: the dump stopped part way (no count to give)
+            } else if (!g_state.dumpComplete) {
                 root["dumpWriteFailures"] = g_state.dumpWriteFailures;
             }
             root["copiesPlugin"] = "HeartOfMagic_BlackFlame_Copies.esp";
@@ -282,7 +284,7 @@ namespace BlackFlame
             g_state.nifs = nifs.size();
             FoldAbsentWhenNothingOpened();
             for (const auto& model : refused) {
-                logger::warn("BlackFlame: copy request: model path '{}' refused (a drive, ':' or '..'): not read", model);
+                logger::warn("BlackFlame: copy request: model path '{}' refused (a drive, ':', a '.' or '..' token): not read", model);
             }
             g_state.fingerprint = ComputeFingerprint(a_closure, nifs, false);
             g_state.sizeFingerprint = ComputeFingerprint(a_closure, nifs, true);
@@ -341,6 +343,7 @@ namespace BlackFlame
             } catch (const std::exception& e) {
                 g_state.dumpState = std::format("failed: {}", e.what());
                 g_state.dumpComplete = false;  // AC2: a dump that stopped part way is incomplete too
+                g_state.dumpError = e.what();
                 logger::error("BlackFlame: copy request: the NIF dump failed: {}", e.what());
             }
             try {
