@@ -213,13 +213,15 @@ namespace BlackFlame::SlotLedgerFiles
         }
         std::error_code ec;
         const bool mainThere = fs::exists(a_main, ec);
-        if (ec) {
-            a_mainWhy = "main could not be looked at (" + ec.message() + "): not written";  // review agy redo 1
-            return false;
+        // review agy redo 1: main that cannot be looked at is not written (nor are the backups rolled); the mirror, an
+        // independent copy, still is (Codex: as before that change)
+        const bool mainRefused = static_cast<bool>(ec);
+        if (mainRefused) {
+            a_mainWhy = "main could not be looked at (" + ec.message() + "): main not written; ";
         }
         std::string mainNow;
         // an unreadable main is no backup: it would push a good one out
-        if (a_rotate && mainThere && ReadOne(a_main, mainNow)) {
+        if (!mainRefused && a_rotate && mainThere && ReadOne(a_main, mainNow)) {
             // review agy redo 4: main copied beside backup 1 first; only with that copy are the backups rolled (a failed
             // copy leaves every backup where it was), and the copy is renamed in as backup 1 after the roll
             auto copy = BackupPath(a_main, 1);
@@ -243,10 +245,14 @@ namespace BlackFlame::SlotLedgerFiles
             fs::remove(copy, ec);  // gone already after the rename
         }
         std::string writeWhy;  // review agy redo 5: what the roll said is kept
-        const bool mainOk = WriteReplacing(a_main, text, writeWhy);
+        const bool mainOk = !mainRefused && WriteReplacing(a_main, text, writeWhy);
         a_mainWhy += writeWhy;
-        if (!a_mirror.empty() && !WriteReplacing(a_mirror, text, a_mirrorWhy)) {
-            a_mirrorWhy = "mirror: " + a_mirrorWhy;
+        if (!a_mirror.empty()) {
+            if (!WriteReplacing(a_mirror, text, a_mirrorWhy)) {
+                a_mirrorWhy = "mirror: " + a_mirrorWhy;
+            } else if (!mainOk) {
+                a_mirrorWhy = "the mirror was written";  // the log names which copy holds this version
+            }
         }
         return mainOk;
     }

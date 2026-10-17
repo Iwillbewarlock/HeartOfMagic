@@ -216,6 +216,21 @@ namespace SlotLedgerReviewTests
         a_check(files.size() == 2 && files[0].second == 0x11 && files[1].second == 0x22 && files[1].first.find("copy.dds") != std::string::npos &&
                     LM::FilesOf(LM::Object{}).empty(),
             "review Codex 3 P1: FilesOf lists the object's own file and its copy deps, never an ADDN slot");
+        // Codex: main that cannot be written (here a name Windows refuses) leaves the mirror written, and says so
+        {
+            const auto badMain = folder / "bad<name>.json";
+            const auto goodMirror = folder / "mirror" / "HoMBF_slots.0000beef.json";
+            LM::Ledger kept;
+            kept.epoch = 94;
+            kept.version = 6;
+            std::string mainWhy;
+            std::string mirrorWhy;
+            const bool saved = LF::SaveAll(kept, badMain, goodMirror, mainWhy, mirrorWhy);
+            std::string readWhy;
+            const auto mirrorRead = LF::ReadOne(goodMirror, readWhy);
+            a_check(!saved && mirrorRead && mirrorRead->version == 6 && mirrorWhy == "the mirror was written",
+                "review Codex: main not written, the mirror still is and the log names it (" + mainWhy + " / " + mirrorWhy + ")");
+        }
         fs::remove_all(folder, ec);
     }
 }
