@@ -147,6 +147,11 @@ namespace BlackFlame::FileVisibilityProbe
                     a_run.results[std::string(test)] = { "NOT RUN", "its step did not get to it (see the lines above)" };
                 }
             }
+            try {
+                FileProbe::ApplyLooseRouteRule(a_run);  // FQ2
+            } catch (const std::exception& e) {
+                Note(a_run, std::format("the loose-route rule threw ({}): C verdicts as judged", e.what()));
+            }
             Note(a_run, Summary(a_run));
             WriteResultFile(a_run.lines);
             Quit("file probe");

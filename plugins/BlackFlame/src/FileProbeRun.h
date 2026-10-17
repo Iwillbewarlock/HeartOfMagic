@@ -71,6 +71,14 @@ namespace BlackFlame::FileProbe
         RE::NiPointer<RE::NiTexture> texture;
     };
 
+    struct DemandResult
+    {
+        bool fault = false;
+        int code = 0;
+        bool node = false;
+        long long ms = 0;
+    };
+
     struct Run
     {
         std::string tag;                       // unique per run: every written or served path carries it
@@ -88,6 +96,7 @@ namespace BlackFlame::FileProbe
         std::string inFlightTarget;            // C-loading: a DDS of another projectile, never asked for by the probe before
         bool loadInFlight = false;             // C-loading: that load had no GPU texture yet when the files were registered
         std::string inFlightState = "not started";
+        std::optional<std::pair<std::string, DemandResult>> loadingMesh;  // FQ1: C-mesh-loading's Demand, judged with the textures
         std::map<std::string, Verdict, std::less<>> results;
         std::vector<PendingTexture> textures;
         std::vector<std::string> lines;        // every line, for the result file
@@ -99,14 +108,6 @@ namespace BlackFlame::FileProbe
         std::optional<std::size_t> bNegLocation;  // B-neg's empty memory location (FileProbeLocation.h id)
         Clock::time_point earlyAt{};           // when B-neg and D-neg were registered
         int framesSinceEarly = 0;              // frames the late wait has seen
-    };
-
-    struct DemandResult
-    {
-        bool fault = false;
-        int code = 0;
-        bool node = false;
-        long long ms = 0;
     };
 
     // Shared by the test files (FileProbeTests.cpp)
@@ -157,5 +158,6 @@ namespace BlackFlame::FileProbe
     void LateCreate(Run& a_run);     // after the mount wait: B-neg and D-neg files made; C-late's first (failing) requests
     void LateCheck(Run& a_run);      // next frame: B-neg and D-neg asked; C-late written, registered, asked; C-loading
     [[nodiscard]] std::uint32_t ChoosePriority(Run& a_run, std::string_view a_who);  // RegisterLocation's priority, logged
-    void JudgeTextures(Run& a_run); // every texture asked for, by its loaded size
+    void JudgeTextures(Run& a_run); // every texture asked for, by its loaded size; C-mesh-loading too (FQ1)
+    void ApplyLooseRouteRule(Run& a_run);  // FQ2: a C test passes only when its A twin (the plain loose route) failed
 }

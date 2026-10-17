@@ -19,7 +19,8 @@
 //              projectile the probe never asked for, then at once the files written, registered and asked for. BSModelDB
 //              has only Demand (synchronous) in CommonLib's headers, so the in-flight load is a texture for the mesh case
 //              too. Only a load really outstanding counts: a target that came back with its GPU texture already made (or
-//              nothing) makes both C-loading tests INCONCLUSIVE
+//              nothing), or that still has none when the textures are judged (it may have failed), makes both C-loading
+//              tests INCONCLUSIVE; the mesh's verdict waits for that judging (FQ1)
 
 namespace BlackFlame::FileProbe
 {
@@ -105,13 +106,8 @@ namespace BlackFlame::FileProbe
             const auto mesh = MeshDataPath(a_run, "cload");
             if (WriteAndRegister(a_run, "C-mesh-loading", mesh, *a_run.nif)) {
                 const auto record = MeshRecordPath(a_run, "cload");
-                const auto result = Demand(record);
-                if (!a_run.loadInFlight) {  // FP6: a load really outstanding, or no verdict
-                    SetVerdict(a_run, "C-mesh-loading", "INCONCLUSIVE",
-                        std::format("no load was in flight ({}); {}", a_run.inFlightState, Text(record, result)));
-                } else {
-                    SetVerdict(a_run, "C-mesh-loading", Passed(result) ? "PASS" : "FAIL", Text(record, result) + "; " + a_run.inFlightState);
-                }
+                a_run.loadingMesh.emplace(record, Demand(record));  // FQ1: judged with the textures, once the load's end is known
+                Note(a_run, "C-mesh-loading: " + Text(record, a_run.loadingMesh->second) + " (judged after the texture wait)");
             }
             const auto texture = TextureDataPath(a_run, "cload");
             if (WriteAndRegister(a_run, "C-texture-loading", texture, *a_run.dds)) {

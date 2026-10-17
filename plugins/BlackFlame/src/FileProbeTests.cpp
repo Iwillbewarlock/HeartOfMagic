@@ -33,6 +33,8 @@ namespace BlackFlame::FileProbe
         constexpr std::array<std::string_view, 4> kWrittenLabels{ "a", "aneg", "c", "cneg" };
         constexpr const char* kMissingLabel = "missing";  // a texture path no file ever gets: what a miss returns
         constexpr std::size_t kExePathChars = 32768;       // the longest Windows path, in UTF-16 units
+        // FQ5: a vanilla file (Skyrim - Meshes0.bsa) as the last index check when the source NIF and DDS are not found
+        constexpr std::string_view kVanillaModel = "meshes\\actors\\character\\character assets\\skeleton.nif";
     }
 
     // Helpers below are shared with FileProbeTestD.cpp (declared in FileProbeRun.h) or used only here
@@ -245,7 +247,24 @@ namespace BlackFlame::FileProbe
         return false;
     }
 
+    void JudgeOneKnown(Run& a_run, const PendingTexture& a_pending, const TextureLook& a_look);
+
+    // FQ6: a missing path that came back as an NiSourceTexture still without its GPU texture after the wait leaves what a
+    // miss gives unknown: every texture verdict is then INCONCLUSIVE, with the verdict it would have had in its reason
     void JudgeOne(Run& a_run, const PendingTexture& a_pending, const TextureLook& a_look)
+    {
+        if (a_run.missingLook.source && !a_run.missingLook.renderer) {
+            JudgeOneKnown(a_run, a_pending, a_look);
+            auto& verdict = a_run.results[a_pending.test];
+            SetVerdict(a_run, a_pending.test, "INCONCLUSIVE", std::format("would be {} ({}), but a missing path's texture got no GPU "
+                                                                          "texture within the wait: what a miss gives is unknown",
+                                                                  verdict.word, verdict.why));
+            return;
+        }
+        JudgeOneKnown(a_run, a_pending, a_look);
+    }
+
+    void JudgeOneKnown(Run& a_run, const PendingTexture& a_pending, const TextureLook& a_look)
     {
         const auto lead = std::format("GetTexture(\"{}\"): {}", a_pending.path, Text(a_look));
         if (!a_look.returned || !a_look.source || !a_look.renderer || a_look.fault) {
@@ -324,7 +343,7 @@ namespace BlackFlame::FileProbe
         SetVerdict(a_run, "control-mesh", Passed(control) ? "PASS" : "FAIL", Text(a_run.sourceModel, control));
         // FP2: the index layout is used only after a lookup of this shipped file found it
         lines.clear();
-        Engine::ConfirmIndex(*NifDump::NormalizeModelPath(a_run.sourceModel), lines);
+        Engine::ConfirmIndex({ *NifDump::NormalizeModelPath(a_run.sourceModel), a_run.sourceTexture, std::string(kVanillaModel) }, lines);
         for (auto& line : lines) {
             Note(a_run, std::move(line));
         }
@@ -462,6 +481,25 @@ namespace BlackFlame::FileProbe
         }
     }
 
+    void ApplyLooseRouteRule(Run& a_run)
+    {
+        // FQ2: RegisterLoose is shown to matter only when the same kind of file, written the same way, did NOT load without it
+        constexpr std::array<std::pair<std::string_view, std::string_view>, 8> kTwins{ { { "C-mesh", "A-mesh" },
+            { "C-texture", "A-texture" }, { "C-mesh-neg", "A-mesh-neg" }, { "C-texture-neg", "A-texture-neg" },
+            { "C-mesh-late", "A-mesh-neg" }, { "C-texture-late", "A-texture-neg" }, { "C-mesh-loading", "A-mesh" },
+            { "C-texture-loading", "A-texture" } } };
+        for (const auto& [cTest, aTest] : kTwins) {
+            const auto c = a_run.results.find(cTest);
+            const auto a = a_run.results.find(aTest);
+            if (c == a_run.results.end() || a == a_run.results.end() || c->second.word != "PASS" || a->second.word != "PASS") {
+                continue;
+            }
+            SetVerdict(a_run, cTest, "INCONCLUSIVE (loose route open)",
+                std::format("{} passed without RegisterLoose too, so this PASS does not show RegisterLoose mattered ({})", aTest,
+                    c->second.why));
+        }
+    }
+
     bool TexturesReady(const Run& a_run)
     {
         return std::ranges::all_of(a_run.textures, [](const PendingTexture& a_pending) {
@@ -472,25 +510,44 @@ namespace BlackFlame::FileProbe
 
     void JudgeTextures(Run& a_run)
     {
-        // The control and the miss first: the size the others are measured against, and what a miss gives (FP1)
-        (void)std::ranges::stable_partition(a_run.textures, [](const PendingTexture& a_pending) {
-            return a_pending.test == kControlTexture || a_pending.test == kMissingTexture;
-        });
+        // First the control, the miss and the in-flight load: the size the others are measured against, what a miss gives
+        // (FP1), and whether C-loading's load finished (FQ1)
+        const auto special = [](const PendingTexture& a_pending) {
+            return a_pending.test == kControlTexture || a_pending.test == kMissingTexture || a_pending.test == kInFlightTexture;
+        };
+        bool inFlightFinished = false;
         for (const auto& pending : a_run.textures) {
-            const auto look = Look(pending.texture.get());
-            if (pending.test == kControlTexture || pending.test == kMissingTexture) {
-                (pending.test == kControlTexture ? a_run.sourceLook : a_run.missingLook) = look;
-                Note(a_run, std::format("{}: GetTexture(\"{}\"): {}", pending.test, pending.path, Text(look)));
+            if (!special(pending)) {
                 continue;
             }
+            const auto look = Look(pending.texture.get());
             if (pending.test == kInFlightTexture) {
+                inFlightFinished = look.renderer;
                 Note(a_run, std::format("C-loading's in-flight load at the judging: GetTexture(\"{}\", demand false): {}", pending.path,
                     Text(look)));
                 continue;
             }
-            if (pending.test == "C-texture-loading" && !a_run.loadInFlight) {  // FP6: only a load really outstanding counts
-                SetVerdict(a_run, pending.test, "INCONCLUSIVE", std::format("no load was in flight ({}); GetTexture(\"{}\"): {}",
-                    a_run.inFlightState, pending.path, Text(look)));
+            (pending.test == kControlTexture ? a_run.sourceLook : a_run.missingLook) = look;
+            Note(a_run, std::format("{}: GetTexture(\"{}\"): {}", pending.test, pending.path, Text(look)));
+        }
+        // FP6 / FQ1: C-loading counts only for a load that was outstanding when the files were registered and has finished since
+        const std::string loadingDoubt = !a_run.loadInFlight ? std::format("no load was in flight ({})", a_run.inFlightState) :
+                                         (!inFlightFinished ? "the in-flight load never got its GPU texture (it may have failed)" : "");
+        if (a_run.loadingMesh) {
+            const auto& [record, result] = *a_run.loadingMesh;
+            if (!loadingDoubt.empty()) {
+                SetVerdict(a_run, "C-mesh-loading", "INCONCLUSIVE", std::format("{}; {}", loadingDoubt, Text(record, result)));
+            } else {
+                SetVerdict(a_run, "C-mesh-loading", Passed(result) ? "PASS" : "FAIL", Text(record, result) + "; " + a_run.inFlightState);
+            }
+        }
+        for (const auto& pending : a_run.textures) {
+            if (special(pending)) {
+                continue;
+            }
+            const auto look = Look(pending.texture.get());
+            if (pending.test == "C-texture-loading" && !loadingDoubt.empty()) {
+                SetVerdict(a_run, pending.test, "INCONCLUSIVE", std::format("{}; GetTexture(\"{}\"): {}", loadingDoubt, pending.path, Text(look)));
                 continue;
             }
             JudgeOne(a_run, pending, look);

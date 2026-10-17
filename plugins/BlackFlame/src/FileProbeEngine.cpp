@@ -27,6 +27,9 @@ namespace BlackFlame::FileProbe::Engine
         constexpr std::size_t kRecordSizeFlags = 0x0C; // int32: negative = archive record
         constexpr std::size_t kIncRefWindow = 0x200;   // bytes of 68483 / 69839 scanned for the inlined IncRef
         constexpr std::size_t kFindWindow = 0x40;      // bytes of FindRecord scanned for the ArchiveManager load
+        constexpr std::size_t kGuardWindow = 0x80;     // bytes of IndexGuard's ctor / dtor scanned (FQ4)
+        constexpr std::size_t kGuardBytesLogged = 32;
+        constexpr std::uint32_t kGuardManagerOffset = 0xB8;  // the manager inside the guard (TFF)
         constexpr std::uint32_t kSeCountOffset = 0x0C;
         constexpr std::uint32_t kAeLateCountOffset = 0x10;
         constexpr std::uint32_t kRefOne = 0x1000;          // StreamBase::kRefCountBeg
@@ -114,6 +117,41 @@ namespace BlackFlame::FileProbe::Engine
             return false;
         }
 
+        // FQ4: IndexGuard's constructor and destructor must touch the ArchiveManager the way the guard's layout says (TFF: the
+        // manager is kept at +0xB8 of the guard): within their first kGuardWindow bytes, a REX.W mov (8B / 89) that is either
+        // rip-relative to the manager static or has a 32-bit displacement of +0xB8 (ModRM mod 10, with or without SIB).
+        // A structural check, not a byte pattern: no byte pattern of the 1.6.1170 image is known here (its .text is encrypted
+        // on disk). It cannot prove the functions right; it keeps two arbitrary functions from being called as the guard
+        bool TouchesManager(std::uintptr_t a_function, std::uintptr_t a_manager)
+        {
+            if (!Patch::IsExecutable(a_function, kGuardWindow + kMovRcxRipSize)) {
+                return false;
+            }
+            const auto* bytes = reinterpret_cast<const std::uint8_t*>(a_function);
+            for (std::size_t i = 0; i + kMovRcxRipSize < kGuardWindow; ++i) {
+                const bool rexW = (bytes[i] & 0xF8) == 0x48;
+                const bool mov = bytes[i + 1] == 0x8B || bytes[i + 1] == 0x89;
+                if (!rexW || !mov) {
+                    continue;
+                }
+                const std::uint8_t modrm = bytes[i + 2];
+                std::int32_t disp = 0;
+                if ((modrm & 0xC7) == 0x05) {  // mod 00, rm 101: [rip + disp32]
+                    std::memcpy(&disp, bytes + i + 3, sizeof(disp));
+                    if (a_function + i + kMovRcxRipSize + disp == a_manager) {
+                        return true;
+                    }
+                } else if ((modrm & 0xC0) == 0x80) {  // mod 10: [reg + disp32], a SIB byte first when rm is 100
+                    const std::size_t at = (modrm & 0x07) == 0x04 ? i + 4 : i + 3;
+                    std::memcpy(&disp, bytes + at, sizeof(disp));
+                    if (disp == static_cast<std::int32_t>(kGuardManagerOffset)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
         void InitIndex(std::vector<std::string>& a_lines)
         {
             if (!Patch::HasIds({ Patch::IdFor(68631, 69971), Patch::IdFor(68321, 69681), Patch::IdFor(68322, 69682),
@@ -128,6 +166,18 @@ namespace BlackFlame::FileProbe::Engine
             if (!FindLoadsManager(find, manager)) {
                 g_state.indexWhy = std::format("FindRecord (SkyrimSE+0x{:X}) does not load the ArchiveManager static "
                                                "(SkyrimSE+0x{:X}) in its first 0x{:X} bytes", find - Base(), manager - Base(), kFindWindow);
+                return;
+            }
+            const auto ctor = Patch::AddressOf(Patch::IdFor(68321, 69681));
+            const auto dtor = Patch::AddressOf(Patch::IdFor(68322, 69682));
+            const bool ctorOk = TouchesManager(ctor, manager);
+            const bool dtorOk = TouchesManager(dtor, manager);
+            a_lines.push_back(std::format("index: IndexGuard ctor SkyrimSE+0x{:X} [{}] touches the manager: {}; dtor SkyrimSE+0x{:X} [{}]: {}",
+                ctor - Base(), Patch::HexBytes(ctor, kGuardBytesLogged), ctorOk ? "yes" : "NO", dtor - Base(),
+                Patch::HexBytes(dtor, kGuardBytesLogged), dtorOk ? "yes" : "NO"));
+            if (!ctorOk || !dtorOk) {
+                g_state.indexWhy = "IndexGuard's constructor or destructor does not touch the ArchiveManager (static or the guard's "
+                                   "+0xB8) in its first bytes: the guard is not called";
                 return;
             }
             g_state.pathToId = reinterpret_cast<PathToIdFn>(Patch::AddressOf(Patch::IdFor(68631, 69971)));
@@ -260,20 +310,21 @@ namespace BlackFlame::FileProbe::Engine
         return offset ? std::optional<std::uint32_t>(offset) : std::nullopt;
     }
 
-    void ConfirmIndex(const std::string& a_shippedDataPath, std::vector<std::string>& a_lines)
+    void ConfirmIndex(const std::vector<std::string>& a_shippedDataPaths, std::vector<std::string>& a_lines)
     {
         if (!g_state.indexWhy.empty() || !g_state.globalsWhy.empty()) {
             return;
         }
-        const auto lookup = Find(a_shippedDataPath);
-        const auto ids = DescribeIds(a_shippedDataPath);
-        a_lines.push_back(std::format("index check on the shipped '{}': {}; {}", a_shippedDataPath, Describe(lookup), ids));
-        if (!lookup.ran || !lookup.found) {
-            g_state.indexWhy = std::format("the index lookup of a shipped file ('{}') did not find it ({}): the guard / FindRecord "
-                                           "layout is not confirmed, so IndexGuard and RegisterLoose are not used",
-                a_shippedDataPath, Describe(lookup));
-            a_lines.push_back("index: " + g_state.indexWhy);
+        for (const auto& path : a_shippedDataPaths) {  // FQ5: the first one the index knows confirms the layout
+            const auto lookup = Find(path);
+            a_lines.push_back(std::format("index check on the shipped '{}': {}; {}", path, Describe(lookup), DescribeIds(path)));
+            if (lookup.ran && lookup.found) {
+                return;
+            }
         }
+        g_state.indexWhy = std::format("no index lookup of {} shipped file(s) found its record: the guard / FindRecord layout is not "
+                                       "confirmed, so IndexGuard and RegisterLoose are not used", a_shippedDataPaths.size());
+        a_lines.push_back("index: " + g_state.indexWhy);
     }
 
     std::string IndexUnavailable()
@@ -388,12 +439,15 @@ namespace BlackFlame::FileProbe::Engine
             return false;
         }
         std::uint64_t streamSize = 0;
-        (void)GuardedKeep("file probe loose stream size", [&]() { streamSize = stream.Get()->totalSize; });
-        const auto sizeText = streamSize == a_expectedSize ?
+        const bool sizeRead = GuardedKeep("file probe loose stream size", [&]() { streamSize = stream.Get()->totalSize; });
+        const auto sizeText = !sizeRead ? std::string("the stream's size could not be read (FAULT, logged)") :
+                              (streamSize == a_expectedSize ?
                                   std::format("stream size {} = the bytes written", streamSize) :
-                                  std::format("SIZE MISMATCH: the stream says {} bytes, {} were written", streamSize, a_expectedSize);
-        if (streamSize != a_expectedSize) {
+                                  std::format("SIZE MISMATCH: the stream says {} bytes, {} were written", streamSize, a_expectedSize));
+        if (!sizeRead || streamSize != a_expectedSize) {  // FQ3: not the file we wrote: never registered
             logger::warn("BlackFlame: file visibility probe: '{}': {}", a_dataPath, sizeText);
+            a_note = "not registered: " + sizeText;
+            return false;
         }
         const auto offset = g_countOffset.load();
         Lookup before;

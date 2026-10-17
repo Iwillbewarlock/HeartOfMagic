@@ -29,6 +29,8 @@
 //   GlobalLocations   no singleton id in CommonLib (RE/G/GlobalLocations.h): found by its vtable in the game's .data
 //                     (a static buffer), checked by walking its entry list. DoCreateStream("data\\" + path, out, where,
 //                     false) is the call the engine makes for a loose file (paths there are relative to the game folder).
+// IndexGuard's ctor and dtor are called only when each touches the ArchiveManager (its static, or the guard's +0xB8) in its
+// first bytes (a structural check; a wrong layout that passes it can still hang the game once the lock is taken).
 // The in-function offsets are not trusted as fixed numbers on any build (Patch::IsCodeReadBuild): each is found by a scan
 // of a bounded window, and a scan that finds nothing usable turns the test off with the reason.
 // CommonLib's own ID::GenerateFromPath (68635 / 69979) is another function: the probe logs both ids for the same path.
@@ -95,13 +97,13 @@ namespace BlackFlame::FileProbe::Engine
     [[nodiscard]] RE::BSResource::ErrorCode OpenLoose(const std::string& a_dataPath, StreamSlot& a_out);
 
     /// Test C: the loose stream (OpenLoose) registered in the index under PathToID(a_dataPath); every step logged into a_note,
-    /// the stream's size against a_expectedSize (the bytes written) included
+    /// the stream's size against a_expectedSize (the bytes written) included: a mismatch or an unreadable size registers nothing
     [[nodiscard]] bool RegisterLoose(const std::string& a_dataPath, std::uint64_t a_expectedSize, std::string& a_note);
 
-    /// Prepare, after Init: the index lookup of a file the load order ships must find it (FindRecord ran and found a record),
-    /// or the index tests are turned off (IndexUnavailable says why): IndexGuard and RegisterLoose are never called on a
-    /// layout no lookup confirmed. Logs both ids of the path (PathToID and GenerateFromPath)
-    void ConfirmIndex(const std::string& a_shippedDataPath, std::vector<std::string>& a_lines);
+    /// Prepare, after Init: the index lookup of one of a_shippedDataPaths (tried in order) must find it (FindRecord ran and
+    /// found a record), or the index tests are turned off (IndexUnavailable says why): RegisterLoose is never called on a
+    /// layout no lookup confirmed. Logs both ids of each path tried (PathToID and GenerateFromPath)
+    void ConfirmIndex(const std::vector<std::string>& a_shippedDataPaths, std::vector<std::string>& a_lines);
 
     /// GlobalLocations' entry list (location vtable as module offset, its DoGetName, priority), read under its lock
     [[nodiscard]] std::vector<std::string> DescribeLocations();
