@@ -212,7 +212,8 @@ namespace BlackFlame
 
         /// Data members from a_source into a_copy (same form type, checked by the caller); false for a type
         /// that is not copied
-        bool FillData(RE::TESForm* a_copy, const RE::TESForm* a_source);
+        /// a_models false (the slot preflight at kPreLoadGame): a PROJ's muzzle model is not set (no SetModel there)
+        bool FillData(RE::TESForm* a_copy, const RE::TESForm* a_source, bool a_models = true);
 
         /// D3 (refresh): writes into a_copy only what differs from a fill now, each data struct as one write with its links
         /// already pointing at copies; whether anything changed

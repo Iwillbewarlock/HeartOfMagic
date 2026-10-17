@@ -168,11 +168,13 @@ namespace BlackFlame::FormCopies
                     continue;  // a TXST slot stays unpublished (CopyGroups.h)
                 }
                 const auto* model = intact(*entry, addnPass ? LM::Role::kMps : LM::Role::kModel, slot);
-                const bool addnReady = !model || std::all_of(model->deps.begin(), model->deps.end(), [](const LM::Dep& a_dep) {
-                    const auto addn = a_dep.isAddn ? CopyContract::SlotOfAddnIndex(a_dep.addn) : std::nullopt;
-                    return !a_dep.isAddn || (addn && SlotAssign::GateOpen(*addn));
-                });
-                if (!model || !addnReady) {
+                const auto addnReady = [](const LM::Object* a_object) {  // every ADDN slot it names already shows its MPS
+                    return a_object && std::all_of(a_object->deps.begin(), a_object->deps.end(), [](const LM::Dep& a_dep) {
+                        const auto addn = a_dep.isAddn ? CopyContract::SlotOfAddnIndex(a_dep.addn) : std::nullopt;
+                        return !a_dep.isAddn || (addn && SlotAssign::GateOpen(*addn));
+                    });
+                };
+                if (!model || !addnReady(model)) {
                     continue;
                 }
                 (void)SetFormModel(slot.form, RecordModelPath(model->path));
@@ -182,7 +184,8 @@ namespace BlackFlame::FormCopies
                         SetAddonFlagsFromSource(*addon, *slot.source->As<RE::BGSAddonNode>());
                     }
                     SlotAssign::OpenGate(id);  // an ADDN slot's gate: its MPS is published (CopyOf never hands one out)
-                } else if (const auto* muzzle = slot.sourceMuzzle.empty() ? nullptr : intact(*entry, LM::Role::kMuzzle, slot)) {
+                } else if (const auto* muzzle = slot.sourceMuzzle.empty() ? nullptr : intact(*entry, LM::Role::kMuzzle, slot);
+                           addnReady(muzzle)) {  // review B4: the muzzle's ADDN slots too
                     slot.publishedMuzzle = RecordModelPath(muzzle->path);
                 }
                 ++applied;

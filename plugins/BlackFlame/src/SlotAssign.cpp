@@ -141,7 +141,8 @@ namespace BlackFlame::SlotAssign
         }
 
         // A source's data into its slot (FormCopies' per-type fill; an ADDN its cap and sound) and its model as placeholder
-        bool Fill(Slot& a_slot, const RE::TESForm* a_from)
+        // a_models false (the preflight at kPreLoadGame, review decision 6): data only, no SetModel of the model or the muzzle
+        bool Fill(Slot& a_slot, const RE::TESForm* a_from, bool a_models = true)
         {
             bool filled = false;
             if (a_slot.type == CC::SlotType::kADDN) {
@@ -152,11 +153,13 @@ namespace BlackFlame::SlotAssign
                     filled = true;
                 }
             } else {
-                filled = CopyFill::FillData(a_slot.form, a_from);
+                filled = CopyFill::FillData(a_slot.form, a_from, a_models);
             }
             const auto model = ModelPathOf(a_from);
             a_slot.sourceModel = model;
-            (void)FormCopies::SetFormModel(a_slot.form, model);
+            if (a_models) {
+                (void)FormCopies::SetFormModel(a_slot.form, model);
+            }
             if (const auto* projectile = a_from->As<RE::BGSProjectile>()) {
                 a_slot.sourceMuzzle = CopyRequestData::MuzzleModelOf(*projectile);
             }
@@ -184,6 +187,7 @@ namespace BlackFlame::SlotAssign
                 auto* entry = index < nodes.free_idx() ? nodes[static_cast<std::uint16_t>(index)] : nullptr;
                 if (claimed.contains(id) || entry != slot.form) {
                     slot.usable = false;
+                    slot.collided = true;
                     slot.why = std::format("ADDN index {} collided (another record claims it, or addonNodes[{}] is not the slot)", index, index);
                     ++a_table.counts.collided;
                 }
@@ -452,12 +456,23 @@ namespace BlackFlame::SlotAssign
             for (const auto& mismatch : a_mismatches) {
                 CloseGate(mismatch.slot);
                 auto& slot = table.slots[IndexOf(mismatch.slot)];
-                if (a_when != When::kPreflight || !slot.form || !dh) {
+                if (a_when != When::kPreflight || !dh) {
                     continue;
                 }
-                // slotPreflight: the slot holds the save's source before the engine reads the save (its model the source's)
+                // slotPreflight: the slot holds the save's source's data before the engine reads the save; its model is left
+                // as it is (review decision 6: no SetModel at kPreLoadGame). A slot this session never filled is set up first
+                if (!slot.form) {
+                    auto* form = dh->LookupForm(mismatch.slot, kSlotsPluginName);
+                    if (!form || form->GetFormType() != FormTypeOf(mismatch.save.type)) {
+                        continue;
+                    }
+                    slot.form = form;
+                    slot.localId = mismatch.slot;
+                    slot.type = mismatch.save.type;
+                    slot.sourceText = LM::SourceText(mismatch.save.plugin, mismatch.save.sourceLocalId);
+                }
                 if (auto* source = Lookup(dh, mismatch.save.plugin, mismatch.save.sourceLocalId, mismatch.save.type)) {
-                    (void)Fill(slot, source);
+                    (void)Fill(slot, source, false);
                     slot.source = source;
                     slot.filledFrom = source;
                     slot.usable = false;

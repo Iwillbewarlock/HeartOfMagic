@@ -51,6 +51,7 @@ namespace BlackFlame::SlotAssign
         bool active = false;                 // bound to a source of this session's closure
         bool usable = false;                 // active and publishable (forms right, not a conflict, not collided)
         std::string why;                     // why not usable
+        bool collided = false;               // an ADDN slot whose AddOnNode index another record claims
         std::string sourceModel;             // the source's model as its record stores it
         std::string sourceMuzzle;            // PROJ: the source's muzzle flash model
         std::optional<SlotKeys::Key> modelKey;   // kModel (an ADDN slot: its MPS, kMps)

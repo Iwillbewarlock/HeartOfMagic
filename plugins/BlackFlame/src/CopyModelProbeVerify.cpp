@@ -27,7 +27,8 @@ namespace BlackFlame::CopyModelProbe
         {
             for (const auto id : SlotAssign::Assigned()) {
                 const auto& slot = SlotAssign::At(id);
-                if (SlotAssign::GateOpen(id) || !slot.form) {
+                // a gated slot showing a verified generation of this very path (two sources sharing one NIF) is no unready slot
+                if (SlotAssign::GateOpen(id) || !slot.form || slot.publishedModel == a_recordPath) {
                     continue;
                 }
                 const auto* model = FormCopies::ModelOf(slot.form);

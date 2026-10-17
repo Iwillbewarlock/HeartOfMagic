@@ -130,6 +130,6 @@ namespace BlackFlame::SingleLaunch
             return true;
         }
         const auto progress = CopyGroups::GetProgress();
-        return progress.settled || progress.open >= progress.slots || (!BuilderLauncher::Running() && progress.verifying == 0);
+        return progress.settled || progress.open >= progress.slots || (BuildProgress::CaughtUp() && progress.verifying == 0);
     }
 }

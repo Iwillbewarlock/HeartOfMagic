@@ -33,6 +33,7 @@ namespace BlackFlame::SingleLaunch
     /// HUD message shows at the main menu is not checked in game
     void NotifyProgress();
 
-    /// The dev auto-load may go: publication settled, every slot open, or the builder ended with nothing being verified
+    /// The dev auto-load may go: publication settled, every slot open, or the builder ended, its lines all read, and nothing
+    /// is being verified
     [[nodiscard]] bool ReadyForLoad();
 }
