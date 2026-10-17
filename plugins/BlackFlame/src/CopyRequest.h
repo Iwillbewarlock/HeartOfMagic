@@ -24,7 +24,10 @@
 //                        each with ok / error. Opened for their size at every start with writeRequest on, read only when
 //                        the dump is written. Not part of the fingerprint (a texture-only change does not make the
 //                        copies stale); its own size fingerprint in the manifest decides when the dump is written again
-//   dump-manifest.json   the fingerprints the dump was made for (request, textures)
+//                        Also the TX00 / TX03 textures of the closure's decal texture sets (TXST forms: "textures",
+//                        "hasDecal"; the request says "decalTextureSets": true) and our two fixed palettes ("own": read
+//                        whole at every start for their hash, so the builder's risk check judges the game's own)
+//   dump-manifest.json   the fingerprints the dump was made for (request, textures); the dump code is CopyRequestDump.cpp
 // The fingerprint is one formula, used by the request (the builder copies it into the copies map) and by the
 // freshness check at every start: FNV-1a 64 over the sorted lines (type, source, model, muzzle) of every closure
 // form, (index, source, model) of every ADDN not in our plugins, and (path, totalSize, fnv64) of every NIF. Scalars,

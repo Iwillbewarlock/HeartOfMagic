@@ -64,22 +64,7 @@ namespace BlackFlame
 
         RE::FormType TypeOf(std::string_view a_tag)
         {
-            if (a_tag == "PROJ") {
-                return RE::FormType::Projectile;
-            }
-            if (a_tag == "EXPL") {
-                return RE::FormType::Explosion;
-            }
-            if (a_tag == "IPCT") {
-                return RE::FormType::Impact;
-            }
-            if (a_tag == "HAZD") {
-                return RE::FormType::Hazard;
-            }
-            if (a_tag == "ARTO") {
-                return RE::FormType::ArtObject;
-            }
-            return RE::FormType::None;
+            return CopyFormTypeOf(a_tag);  // FireClosure.h kCopyKindTraits
         }
 
         bool ParseHex(std::string_view a_text, std::uint32_t& a_out)
@@ -129,7 +114,7 @@ namespace BlackFlame
             if (entry.type == RE::FormType::None || bar == std::string::npos || bar == 0 ||
                 !ParseHex(std::string_view(entry.sourceText).substr(bar + 1), sourceLocal) ||
                 !ParseHex(a_item["copy"].get<std::string>(), copyLocal)) {
-                entry.detail = std::format("bad entry {} (type PROJ/EXPL/IPCT/HAZD/ARTO, hex ids)", a_item.dump());
+                entry.detail = std::format("bad entry {} (type PROJ/EXPL/IPCT/HAZD/ARTO/TXST, hex ids)", a_item.dump());
                 return entry;
             }
             entry.source = LookupLocal(a_dh, a_lookup, entry.sourceText.substr(0, bar), sourceLocal);
@@ -175,6 +160,9 @@ namespace BlackFlame
                 break;
             case RE::FormType::ArtObject:
                 ++a_counts.arts;
+                break;
+            case RE::FormType::TextureSet:
+                ++a_counts.textureSets;
                 break;
             default:
                 break;  // TypeOf admits no other type
@@ -344,6 +332,17 @@ namespace BlackFlame
                 entry.ok = false;
                 entry.detail = refusal;
             }
+            // Decal texture sets: the copy's slots and DODT against the map and the live source, its grey textures open
+            if (entry.ok && entry.type == RE::FormType::TextureSet) {
+                std::array<std::string, CopyFill::kTextureSlots> expected{};
+                if (const auto problem = CopyFill::TextureSetProblem(entry.copy, entry.source, item, expected); !problem.empty()) {
+                    entry.ok = false;
+                    entry.detail = problem;
+                    ++copies.counts.textureSetsRejected;
+                } else {
+                    copies.textureSets.emplace(entry.copy->GetFormID(), std::move(expected));
+                }
+            }
             if (entry.ok && !CopyFill::FillData(entry.copy, entry.source)) {
                 entry.ok = false;
                 entry.detail = "the fill refused the type";
@@ -398,8 +397,9 @@ namespace BlackFlame
             }
         }
         const auto& c = copies.counts;
-        logger::info("BlackFlame: copies: {} map entries; filled PROJ {}, EXPL {}, IPCT {}, HAZD {}, ARTO {}; {} left out; {} "
-                     "links pointed at copies", c.mapEntries, c.projectiles, c.explosions, c.impacts, c.hazards, c.arts, c.failed,
+        logger::info("BlackFlame: copies: {} map entries; filled PROJ {}, EXPL {}, IPCT {}, HAZD {}, ARTO {}, TXST {}; {} left out "
+                     "({} decal texture sets out of step with the load order); {} links pointed at copies", c.mapEntries,
+            c.projectiles, c.explosions, c.impacts, c.hazards, c.arts, c.textureSets, c.failed, c.textureSetsRejected,
             c.linksToCopies);
     }
 

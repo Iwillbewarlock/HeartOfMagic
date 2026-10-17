@@ -1,5 +1,6 @@
 #include "CopyRequestData.h"
 
+#include "DataPathRule.h"
 #include "EncodingUtils.h"
 
 #include <format>
@@ -86,8 +87,53 @@ namespace BlackFlame::CopyRequestData
         } else if (const auto* a = a_form->As<RE::BGSArtObject>()) {
             item["bounds"] = Bounds(*a);
             item["data"] = Json{ { "artType", a->data.artType.underlying() } };
+        } else if (const auto* t = a_form->As<RE::BGSTextureSet>()) {
+            item["model"] = "";
+            item["bounds"] = Bounds(*t);
+            item["data"] = Json{ { "flags", t->flags.underlying() } };
+            item["hasDecal"] = t->decalData != nullptr;
+            Json slots = Json::array();
+            for (const auto& texture : t->textures) {  // TX00..TX07 (RE/B/BGSTextureSet.h)
+                slots.push_back(Utf8(texture.textureName.c_str()));
+            }
+            item["textures"] = std::move(slots);
         }
         return item;
+    }
+
+    std::string FingerprintModelOf(const RE::TESForm* a_form)
+    {
+        const auto normalised = [](const std::string& a_text, bool a_texture) {
+            const auto path = a_text.empty() ? std::nullopt :
+                              (a_texture ? NifDump::NormalizeTexturePath(a_text) : NifDump::NormalizeModelPath(a_text));
+            return EncodingUtils::SanitizeToUTF8(path ? *path : a_text);
+        };
+        const auto* set = a_form ? a_form->As<RE::BGSTextureSet>() : nullptr;
+        if (!set) {
+            return normalised(ModelPathOf(a_form), false);
+        }
+        std::string out = set->decalData ? "dodt" : "nododt";
+        for (const auto& texture : set->textures) {
+            const char* text = texture.textureName.c_str();
+            out += ";" + normalised(text ? std::string(text) : std::string(), true);
+        }
+        return out;
+    }
+
+    std::vector<std::string> FormTexturePaths(const FireClosure& a_closure)
+    {
+        constexpr std::size_t kColourSlots[] = { RE::BSTextureSet::Textures::kDiffuse, RE::BSTextureSet::Textures::kGlowMap };
+        std::vector<std::string> paths;
+        for (const auto& form : a_closure.forms) {
+            if (const auto* set = form.form->As<RE::BGSTextureSet>()) {
+                for (const auto slot : kColourSlots) {
+                    if (const char* text = set->textures[slot].textureName.c_str(); text && *text) {
+                        paths.emplace_back(text);
+                    }
+                }
+            }
+        }
+        return paths;
     }
 
     Json AddonsJson()
@@ -109,19 +155,39 @@ namespace BlackFlame::CopyRequestData
         return list;
     }
 
-    std::vector<Texture> PlanTextures(const std::vector<const std::vector<std::byte>*>& a_nifBytes)
+    std::vector<Texture> PlanTextures(const std::vector<const std::vector<std::byte>*>& a_nifBytes,
+        const std::vector<std::string>& a_formTextures)
     {
         constexpr std::string_view kOwnTextureRoot = "textures\\heartofmagic\\blackflame\\";  // the palettes, texture copies
         std::set<std::string> paths;
+        const auto add = [&](const std::string& a_raw) {
+            if (const auto path = NifDump::NormalizeTexturePath(a_raw); path && !path->starts_with(kOwnTextureRoot)) {
+                paths.insert(*path);
+            }
+        };
         for (const auto* bytes : a_nifBytes) {
             for (const auto& raw : NifDump::TexturePathsIn(*bytes)) {
-                if (const auto path = NifDump::NormalizeTexturePath(raw); path && !path->starts_with(kOwnTextureRoot)) {
-                    paths.insert(*path);
-                }
+                add(raw);
             }
+        }
+        for (const auto& raw : a_formTextures) {
+            add(raw);
         }
         std::vector<Texture> textures;
         std::uint64_t total = 0;
+        // Our two fixed palettes first (small), read whole for their hash: the builder's risk check judges with them
+        for (const auto palette : { DataPathRule::kOurPalette, DataPathRule::kOurPaletteAdd }) {
+            Texture texture{ std::string(palette), NifDump::ReadModel(std::string(palette), nullptr), false, {} };
+            texture.own = true;
+            texture.fnv64 = texture.probe.fnv64;
+            if (!texture.probe.ok) {
+                texture.error = texture.probe.error;
+            } else {
+                texture.planned = true;
+                total += texture.probe.totalSize;
+            }
+            textures.push_back(std::move(texture));
+        }
         for (const auto& path : paths) {
             Texture texture{ path, NifDump::ProbeModel(path), false, {} };
             const std::uint64_t size = texture.probe.totalSize;
@@ -144,8 +210,8 @@ namespace BlackFlame::CopyRequestData
     {
         std::uint64_t hash = NifDump::kFnvOffset;
         for (const auto& texture : a_textures) {  // in path order (PlanTextures)
-            const auto line = std::format("T|{}|{}|{}\n", EncodingUtils::SanitizeToUTF8(texture.path), texture.probe.totalSize,
-                texture.planned ? "dumped" : "left");
+            const auto line = std::format("T|{}|{}|{}|{:016x}\n", EncodingUtils::SanitizeToUTF8(texture.path),
+                texture.probe.totalSize, texture.planned ? "dumped" : "left", texture.fnv64);  // fnv64: own palettes only
             hash = NifDump::Fnv64(line.data(), line.size(), hash);
         }
         return std::format("fnv64:{:016x}", hash);
@@ -157,6 +223,9 @@ namespace BlackFlame::CopyRequestData
         for (const auto& texture : a_textures) {
             Json item{ { "path", EncodingUtils::SanitizeToUTF8(texture.path) }, { "size", texture.probe.totalSize },
                 { "ok", texture.planned } };
+            if (texture.own) {
+                item["own"] = true;
+            }
             if (!texture.planned) {
                 item["error"] = EncodingUtils::SanitizeToUTF8(texture.error);
             }

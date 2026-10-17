@@ -3,11 +3,12 @@
 // =============================================================================
 // FORM COPIES STATE - the copies table FormCopies.cpp fills and FormCopiesRefresh.cpp checks (internal)
 // =============================================================================
-// Built once on the kDataLoaded thread and never changed afterwards (hooks read it from any thread). Only the two
-// FormCopies translation units include this header.
+// Built once on the kDataLoaded thread and never changed afterwards (hooks read it from any thread). Only the FormCopies
+// translation units include this header.
 
 #include "FormCopies.h"
 
+#include <array>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -37,6 +38,7 @@ namespace BlackFlame::CopiesState
         CopyCounts counts;
         std::unordered_map<RE::FormID, std::string> muzzles;  // copy -> expected muzzle model (node-stable strings)
         std::unordered_set<RE::FormID> absentSources;          // H1: sources whose own mesh is absent (INFO, not FAIL)
+        std::unordered_map<RE::FormID, std::array<std::string, CopyFill::kTextureSlots>> textureSets;  // TXST copy -> slots (map, UTF-8)
     };
 
     /// The one table (an inline function's static: one instance across both translation units)

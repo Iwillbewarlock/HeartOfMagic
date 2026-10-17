@@ -3,8 +3,8 @@
 // =============================================================================
 // Data structs are copied byte for byte (std::memcpy of trivially copyable structs whose
 // layouts CommonLibSSE-NG asserts: BGSProjectileData 0x88, BGSExplosionData 0x50,
-// BGSHazardData 0x38, IMPACT_DATA_DATA 0x18; DecalData 0x24 is assigned), so the compare is byte
-// for byte too. Components holding engine strings or owned arrays are never memcpy'd:
+// BGSHazardData 0x38, IMPACT_DATA_DATA 0x18; DecalData 0x24 is assigned, its colour greyed), so the compare is byte
+// for byte too. Decal links (PROJ decalData, IPCT decalTextureSet / 2) point at the TXST copies (FormCopiesFillTexture.cpp). Components holding engine strings or owned arrays are never memcpy'd:
 // TESFullName by BSFixedString assignment, the muzzle flash TESModel through SetModel.
 
 #include "FormCopies.h"
@@ -68,6 +68,7 @@ namespace BlackFlame::CopyFill
             RE::BGSProjectileData data;
             Bytes::Copy(data, a_source.data);
             data.explosionType = LinkFor(a_source.data.explosionType);
+            data.decalData = LinkFor(a_source.data.decalData);  // its decal TXST copy when one exists
             return data;
         }
 
@@ -109,7 +110,7 @@ namespace BlackFlame::CopyFill
             a_copy.sound1 = a_source.sound1;
             a_copy.sound2 = a_source.sound2;
             a_copy.hazard = a_source.hazard;
-            a_copy.dData = a_source.dData;
+            a_copy.dData = ExpectedDecal(a_source.dData);  // the impact's own DODT, colour greyed (FormCopiesFillTexture.cpp)
         }
 
         void FillHazard(RE::BGSHazard& a_copy, const RE::BGSHazard& a_source)
@@ -313,15 +314,18 @@ namespace BlackFlame::CopyFill
         {
             std::string out;
             DiffFields(out, "data", a_copy.data, a_source.data, a_source.data, kImpactFields);
-            if (!Bytes::Same(a_copy.dData, a_source.dData)) {
+            if (!Bytes::Same(a_copy.dData, ExpectedDecal(a_source.dData))) {
                 Note(out, "decal data");
             }
-            if (a_copy.decalTextureSet != a_source.decalTextureSet || a_copy.decalTextureSet2 != a_source.decalTextureSet2 ||
-                a_copy.sound1 != a_source.sound1 || a_copy.sound2 != a_source.sound2) {
-                Note(out, std::format("texture sets or sounds: source {:08X} {:08X} {:08X} {:08X} copy {:08X} {:08X} {:08X} "
-                    "{:08X}", IdOf(a_source.decalTextureSet), IdOf(a_source.decalTextureSet2), IdOf(a_source.sound1),
-                    IdOf(a_source.sound2), IdOf(a_copy.decalTextureSet), IdOf(a_copy.decalTextureSet2), IdOf(a_copy.sound1),
-                    IdOf(a_copy.sound2)));
+            // the texture sets point at their TXST copies where one exists (LinkFor), the sounds stay the source's
+            if (a_copy.decalTextureSet != LinkFor(a_source.decalTextureSet) ||
+                a_copy.decalTextureSet2 != LinkFor(a_source.decalTextureSet2) || a_copy.sound1 != a_source.sound1 ||
+                a_copy.sound2 != a_source.sound2) {
+                Note(out, std::format("texture sets or sounds: expected {:08X} {:08X} {:08X} {:08X} (the source's own texture "
+                    "sets {:08X} {:08X}) copy {:08X} {:08X} {:08X} {:08X}", IdOf(LinkFor(a_source.decalTextureSet)),
+                    IdOf(LinkFor(a_source.decalTextureSet2)), IdOf(a_source.sound1), IdOf(a_source.sound2),
+                    IdOf(a_source.decalTextureSet), IdOf(a_source.decalTextureSet2), IdOf(a_copy.decalTextureSet),
+                    IdOf(a_copy.decalTextureSet2), IdOf(a_copy.sound1), IdOf(a_copy.sound2)));
             }
             if (a_copy.hazard != LinkFor(a_source.hazard)) {
                 Note(out, std::format("hazard link: expected {:08X} (the source's own {:08X}) copy {:08X}",
@@ -367,6 +371,9 @@ namespace BlackFlame::CopyFill
         case RE::FormType::ArtObject:
             FillArt(*a_copy->As<RE::BGSArtObject>(), *a_source->As<RE::BGSArtObject>());
             return true;
+        case RE::FormType::TextureSet:
+            FillTextureSet(*a_copy->As<RE::BGSTextureSet>(), *a_source->As<RE::BGSTextureSet>());
+            return true;
         default:
             return false;
         }
@@ -400,13 +407,18 @@ namespace BlackFlame::CopyFill
         {
             bool changed = false;
             if (auto* p = a_copy->As<RE::BGSProjectile>()) {
-                changed |= AssignIfDiffers(p->data.explosionType, LinkFor(a_source->As<RE::BGSProjectile>()->data.explosionType));
+                const auto& s = *a_source->As<RE::BGSProjectile>();
+                changed |= AssignIfDiffers(p->data.explosionType, LinkFor(s.data.explosionType));
+                changed |= AssignIfDiffers(p->data.decalData, LinkFor(s.data.decalData));
             } else if (auto* e = a_copy->As<RE::BGSExplosion>()) {
                 const auto& s = *a_source->As<RE::BGSExplosion>();
                 changed |= AssignIfDiffers(e->data.impactPlacedObject, PlacedLinkFor(s.data.impactPlacedObject));
                 changed |= AssignIfDiffers(e->data.spawnProjectile, LinkFor(s.data.spawnProjectile));
             } else if (auto* i = a_copy->As<RE::BGSImpactData>()) {
-                changed |= AssignIfDiffers(i->hazard, LinkFor(a_source->As<RE::BGSImpactData>()->hazard));
+                const auto& s = *a_source->As<RE::BGSImpactData>();
+                changed |= AssignIfDiffers(i->hazard, LinkFor(s.hazard));
+                changed |= AssignIfDiffers(i->decalTextureSet, LinkFor(s.decalTextureSet));
+                changed |= AssignIfDiffers(i->decalTextureSet2, LinkFor(s.decalTextureSet2));
             }
             return changed;
         }
@@ -448,13 +460,13 @@ namespace BlackFlame::CopyFill
         } else if (auto* i = a_copy->As<RE::BGSImpactData>()) {
             const auto& s = *a_source->As<RE::BGSImpactData>();
             changed |= Bytes::WriteIfDiffers(i->data, s.data);
-            changed |= AssignIfDiffers(i->decalTextureSet, s.decalTextureSet);
-            changed |= AssignIfDiffers(i->decalTextureSet2, s.decalTextureSet2);
+            changed |= AssignIfDiffers(i->decalTextureSet, LinkFor(s.decalTextureSet));
+            changed |= AssignIfDiffers(i->decalTextureSet2, LinkFor(s.decalTextureSet2));
             changed |= AssignIfDiffers(i->sound1, s.sound1);
             changed |= AssignIfDiffers(i->sound2, s.sound2);
             changed |= AssignIfDiffers(i->hazard, LinkFor(s.hazard));  // one pointer store, straight to the copy
-            if (!Bytes::Same(i->dData, s.dData)) {
-                i->dData = s.dData;
+            if (const auto decal = ExpectedDecal(s.dData); !Bytes::Same(i->dData, decal)) {
+                i->dData = decal;
                 changed = true;
             }
         } else if (auto* h = a_copy->As<RE::BGSHazard>()) {
@@ -465,6 +477,8 @@ namespace BlackFlame::CopyFill
             changed |= refillName(*h, s);
         } else if (auto* a = a_copy->As<RE::BGSArtObject>()) {
             changed |= RefillArt(*a, *a_source->As<RE::BGSArtObject>());
+        } else if (auto* t = a_copy->As<RE::BGSTextureSet>()) {
+            changed |= RefillTextureSet(*t, *a_source->As<RE::BGSTextureSet>());
         }
         return changed;
     }
@@ -478,11 +492,14 @@ namespace BlackFlame::CopyFill
         };
         if (auto* projectile = a_copy->As<RE::BGSProjectile>()) {
             set(projectile->data.explosionType, LinkFor(projectile->data.explosionType));
+            set(projectile->data.decalData, LinkFor(projectile->data.decalData));
         } else if (auto* explosion = a_copy->As<RE::BGSExplosion>()) {
             set(explosion->data.impactPlacedObject, PlacedLinkFor(explosion->data.impactPlacedObject));
             set(explosion->data.spawnProjectile, LinkFor(explosion->data.spawnProjectile));
         } else if (auto* impact = a_copy->As<RE::BGSImpactData>()) {
             set(impact->hazard, LinkFor(impact->hazard));
+            set(impact->decalTextureSet, LinkFor(impact->decalTextureSet));
+            set(impact->decalTextureSet2, LinkFor(impact->decalTextureSet2));
         }
         return rewired;
     }
@@ -503,6 +520,8 @@ namespace BlackFlame::CopyFill
             return CompareHazard(*a_copy->As<RE::BGSHazard>(), *a_source->As<RE::BGSHazard>());
         case RE::FormType::ArtObject:
             return CompareArt(*a_copy->As<RE::BGSArtObject>(), *a_source->As<RE::BGSArtObject>());
+        case RE::FormType::TextureSet:
+            return CompareTextureSet(*a_copy->As<RE::BGSTextureSet>(), *a_source->As<RE::BGSTextureSet>());
         default:
             return "DIFFERS: not a copied type";
         }

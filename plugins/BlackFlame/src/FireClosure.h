@@ -2,7 +2,10 @@
 
 #include "Common.h"
 
+#include <iterator>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 // =============================================================================
@@ -23,9 +26,10 @@
 //         (RFCT data.artObject - the engine prefers it)
 //   DUAL  pProjectile, pExplosion, pImpactDataSet, pHitEffectArt
 //   PROJ  explosionType          EXPL  impactDataSet, impactPlacedObject, spawnProjectile
-//   IPDS  every impact            IPCT  hazard
+//   IPDS  every impact            IPCT  hazard, decalTextureSet, decalTextureSet2
+//   PROJ  also decalData (its decal TXST; edge kEdgeDecal, as both IPCT texture sets)
 //   HAZD  impactDataSet, and its spell's MGEFs (as seeds, without making the spell fire)
-// Copy types: PROJ, EXPL, IPCT, HAZD, ARTO. IPDS, DUAL, RFCT, SPEL and MGEF are passed through.
+// Copy types: PROJ, EXPL, IPCT, HAZD, ARTO, TXST (kCopyKindTraits). IPDS, DUAL, RFCT, SPEL and MGEF are passed through.
 // Excluded (with the reason): a form defined in one of our own plugins (HeartOfMagic_BlackFlame*),
 // a placed object that is not a copy type, an art with alternate textures (MODS: not copied).
 
@@ -37,11 +41,48 @@ namespace BlackFlame
         kExplosion,
         kImpact,
         kHazard,
-        kArt
+        kArt,
+        kTextureSet  // a decal texture set of a copied PROJ / IPCT
     };
 
-    /// "PROJ" / "EXPL" / "IPCT" / "HAZD" / "ARTO"
+    /// Every per-kind fact in one table, indexed by the enum (checked below): the form type and the record tag the request
+    /// and the copies map use. CopyKindTag, KindOf and the copies map's TypeOf read it, so a new kind is one row
+    struct CopyKindTraits
+    {
+        CopyKind kind;
+        RE::FormType formType;
+        const char* tag;
+    };
+
+    inline constexpr CopyKindTraits kCopyKindTraits[] = {
+        { CopyKind::kProjectile, RE::FormType::Projectile, "PROJ" },
+        { CopyKind::kExplosion, RE::FormType::Explosion, "EXPL" },
+        { CopyKind::kImpact, RE::FormType::Impact, "IPCT" },
+        { CopyKind::kHazard, RE::FormType::Hazard, "HAZD" },
+        { CopyKind::kArt, RE::FormType::ArtObject, "ARTO" },
+        { CopyKind::kTextureSet, RE::FormType::TextureSet, "TXST" },
+    };
+    inline constexpr std::size_t kCopyKindCount = std::size(kCopyKindTraits);
+
+    [[nodiscard]] constexpr bool CopyKindTraitsInOrder() noexcept
+    {
+        for (std::size_t i = 0; i < kCopyKindCount; ++i) {
+            if (static_cast<std::size_t>(kCopyKindTraits[i].kind) != i) {
+                return false;
+            }
+        }
+        return static_cast<std::size_t>(CopyKind::kTextureSet) + 1 == kCopyKindCount;
+    }
+    static_assert(CopyKindTraitsInOrder(), "kCopyKindTraits: one row per CopyKind, in the enum's order");
+
+    /// "PROJ" / "EXPL" / "IPCT" / "HAZD" / "ARTO" / "TXST"
     [[nodiscard]] const char* CopyKindTag(CopyKind a_kind) noexcept;
+
+    /// The copy kind of a form type, or none (not a copy type)
+    [[nodiscard]] std::optional<CopyKind> CopyKindOf(RE::FormType a_type) noexcept;
+
+    /// The form type of a record tag ("PROJ" .. "TXST"), or FormType::None
+    [[nodiscard]] RE::FormType CopyFormTypeOf(std::string_view a_tag) noexcept;
 
     struct FireClosure;
 
@@ -54,7 +95,8 @@ namespace BlackFlame
         kEdgeHitArt = 1u << 3,               // a fire MGEF's hit art, RFCT art or DUAL hit art (the 0x0C swap)
         kEdgeSpawnHazard = 1u << 4,          // a spawn-hazard MGEF that is not a fire effect (no swap point)
         kEdgeSpawnHazardFire = 1u << 5,      // a fire spawn-hazard MGEF (the spawn window)
-        kEdgeBoundArrow = 1u << 6            // a bound fire weapon's arrow PROJ (the Launch swap with the weapon as source)
+        kEdgeBoundArrow = 1u << 6,           // a bound fire weapon's arrow PROJ (the Launch swap with the weapon as source)
+        kEdgeDecal = 1u << 7                 // a copied PROJ's or IPCT's decal texture set (used through that copy's link)
     };
 
     struct ClosureForm

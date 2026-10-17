@@ -60,20 +60,7 @@ namespace BlackFlame
     {
         std::optional<CopyKind> KindOf(RE::FormType a_type)
         {
-            switch (a_type) {
-            case RE::FormType::Projectile:
-                return CopyKind::kProjectile;
-            case RE::FormType::Explosion:
-                return CopyKind::kExplosion;
-            case RE::FormType::Impact:
-                return CopyKind::kImpact;
-            case RE::FormType::Hazard:
-                return CopyKind::kHazard;
-            case RE::FormType::ArtObject:
-                return CopyKind::kArt;
-            default:
-                return std::nullopt;
-            }
+            return CopyKindOf(a_type);
         }
 
         class Walker
@@ -250,6 +237,7 @@ namespace BlackFlame
                     Push(rfct->data.artObject, a_v.via, a_v.costliest, kEdgeHitArt);
                 } else if (const auto* proj = form->As<RE::BGSProjectile>()) {
                     Push(proj->data.explosionType, a_v.via, a_v.costliest);
+                    Push(proj->data.decalData, a_v.via, a_v.costliest, kEdgeDecal);  // RE/B/BGSProjectile.h decalData (0x78)
                 } else if (const auto* expl = form->As<RE::BGSExplosion>()) {
                     Push(expl->data.impactDataSet, a_v.via, a_v.costliest);
                     PushPlaced(expl->data.impactPlacedObject, a_v);
@@ -260,6 +248,8 @@ namespace BlackFlame
                     }
                 } else if (const auto* impact = form->As<RE::BGSImpactData>()) {
                     Push(impact->hazard, a_v.via, a_v.costliest);
+                    Push(impact->decalTextureSet, a_v.via, a_v.costliest, kEdgeDecal);  // RE/B/BGSImpactData.h DNAM, ENAM
+                    Push(impact->decalTextureSet2, a_v.via, a_v.costliest, kEdgeDecal);
                 } else if (const auto* hazard = form->As<RE::BGSHazard>()) {
                     Push(hazard->data.impactDataSet, a_v.via, a_v.costliest);
                     PushSpellEffects(hazard->data.spell, a_v);
@@ -276,18 +266,28 @@ namespace BlackFlame
 
     const char* CopyKindTag(CopyKind a_kind) noexcept
     {
-        switch (a_kind) {
-        case CopyKind::kProjectile:
-            return "PROJ";
-        case CopyKind::kExplosion:
-            return "EXPL";
-        case CopyKind::kImpact:
-            return "IPCT";
-        case CopyKind::kHazard:
-            return "HAZD";
-        default:
-            return "ARTO";
+        const auto index = static_cast<std::size_t>(a_kind);
+        return index < kCopyKindCount ? kCopyKindTraits[index].tag : "?";
+    }
+
+    std::optional<CopyKind> CopyKindOf(RE::FormType a_type) noexcept
+    {
+        for (const auto& traits : kCopyKindTraits) {
+            if (traits.formType == a_type) {
+                return traits.kind;
+            }
         }
+        return std::nullopt;
+    }
+
+    RE::FormType CopyFormTypeOf(std::string_view a_tag) noexcept
+    {
+        for (const auto& traits : kCopyKindTraits) {
+            if (a_tag == traits.tag) {
+                return traits.formType;
+            }
+        }
+        return RE::FormType::None;
     }
 
     namespace

@@ -15,7 +15,8 @@
 //                 entries lost their copy form (the output mod is not enabled)
 //   notApplied    Y11: the map was there but filling the copies stopped part way (no copy is used this session)
 //   stale         a version 1 map, or the map's request fingerprint differs from this start's (the bytes form when
-//                 writeRequest computed it, else the size form); with how many closure forms have no copy and how
+//                 writeRequest computed it, else the size form), or a decal texture set copy was left out as out of step
+//                 with the load order (CopyCounts::textureSetsRejected); with how many closure forms have no copy and how
 //                 many map entries lost their source
 //   fresh         otherwise
 // The player is told once per session (the first save load or new game) through the main-thread queue

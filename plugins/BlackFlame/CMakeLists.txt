@@ -27,10 +27,12 @@ set(BLACKFLAME_SOURCES
     src/FormCopiesRefresh.cpp
     src/FormCopiesNames.cpp
     src/FormCopiesFillArt.cpp
+    src/FormCopiesFillTexture.cpp
     src/FireClosure.cpp
     src/NifDump.cpp
     src/CopyRequest.cpp
     src/CopyRequestData.cpp
+    src/CopyRequestDump.cpp
     src/Tester.cpp
     src/CopyFreshness.cpp
     src/Palette.cpp
@@ -79,6 +81,7 @@ set(BLACKFLAME_SOURCES
     src/SelfTestStepsV2Flames.cpp
     src/SelfTestStepsV2Art.cpp
     src/SelfTestStepsV2Cover.cpp
+    src/SelfTestStepsDecal.cpp
     src/SelfTestStepsBound.cpp
     src/SelfTestReload.cpp
     src/SelfTestText.cpp

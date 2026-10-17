@@ -55,9 +55,10 @@ namespace BlackFlame::Tester
             const auto fire = GetFireSetCounts();
             const auto& fresh = GetFreshness();
             std::string out = std::format("  freshness {}: {}\n", FreshnessName(fresh.state), fresh.detail);
-            out += std::format("  map {} (version {}): {} entries; filled PROJ {}, EXPL {}, IPCT {}, HAZD {}, ARTO {}; left out {} ({} source mesh absent)\n",
-                c.mapRead ? "read" : "NOT read", c.mapVersion, c.mapEntries, c.projectiles, c.explosions, c.impacts, c.hazards, c.arts, c.failed,
-                c.sourceAbsent);
+            out += std::format("  map {} (version {}): {} entries; filled PROJ {}, EXPL {}, IPCT {}, HAZD {}, ARTO {}, TXST {}; left out {} ({} "
+                               "source mesh absent, {} decal texture sets out of step)\n",
+                c.mapRead ? "read" : "NOT read", c.mapVersion, c.mapEntries, c.projectiles, c.explosions, c.impacts, c.hazards, c.arts,
+                c.textureSets, c.failed, c.sourceAbsent, c.textureSetsRejected);
             if (const auto stale = StaleFileIndexText(); !stale.empty()) {
                 out += "  file index: " + stale + "\n";
             }

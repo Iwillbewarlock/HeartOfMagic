@@ -101,6 +101,13 @@ namespace BlackFlame
                 state.state = CopyFreshness::kStale;
                 state.detail = std::format("the {} fingerprint differs: built {}, now {}", bytes ? "byte" : "size",
                     built.empty() ? std::string("(none in the map)") : built, now.empty() ? std::string("(not computed)") : now);
+            } else if (counts.textureSetsRejected > 0) {
+                // Codex 2: a decal texture set copy out of step with the load order (FormCopies.h TextureSetProblem) needs a
+                // rebuild even when the fingerprint matches
+                state.state = CopyFreshness::kStale;
+                state.detail = std::format("the {} fingerprint matches, but {} decal texture set copies are out of step with the "
+                                           "load order (left out: their decals stay the source's)", bytes ? "byte" : "size",
+                    counts.textureSetsRejected);
             } else {
                 state.state = CopyFreshness::kFresh;
                 state.detail = std::format("the {} fingerprint matches ({})", bytes ? "byte" : "size", now);
@@ -108,6 +115,14 @@ namespace BlackFlame
         }
         state.detail += std::format("; {} closure forms without a copy, {} map entries whose source is gone", state.formsWithoutCopy,
             state.copiesLostSource);
+        // Codex 14: the decal texture sets the closure names against the map's (the fill ran before the closure)
+        const auto closureSets = std::ranges::count_if(a_closure.forms, [](const ClosureForm& a_form) {
+            return a_form.kind == CopyKind::kTextureSet;
+        });
+        if (closureSets > 0 && counts.mapRead && counts.textureSets == 0 && counts.textureSetsRejected == 0) {
+            logger::info("BlackFlame: copies: decal texture sets: {} in the fire closure, none in the copies map (built before decal "
+                         "copies): the player's decals keep the source's texture sets; run the builder", closureSets);
+        }
         g_state = std::move(state);
         g_checked = true;
         logger::info("BlackFlame: copies freshness: {} - {}", FreshnessName(g_state.state), g_state.detail);

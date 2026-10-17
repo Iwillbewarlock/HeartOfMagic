@@ -2,13 +2,16 @@
 
 #include "Common.h"
 
+#include <nlohmann/json_fwd.hpp>
+
+#include <array>
 #include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 // =============================================================================
-// FORM COPIES (v2 spike S1) - the grey copies of fire PROJ / EXPL / IPCT / HAZD / ARTO
+// FORM COPIES (v2 spike S1) - the grey copies of fire PROJ / EXPL / IPCT / HAZD / ARTO / TXST
 // =============================================================================
 // tools/blackflame-greybuild --forms writes HeartOfMagic_BlackFlame_Copies.esp: one
 // masterless placeholder record per source form (EDID, OBND, MODL = a fully grey
@@ -21,13 +24,16 @@
 //         muzzleFlashModel through TESModel::SetModel, boundData
 //   EXPL  BGSExplosionData data (0x98-0xE8), TESEnchantableForm members (0x70-0x7C),
 //         TESImageSpaceModifiableForm imageSpaceModifying (0x90), fullName, boundData
-//   IPCT  data, decalTextureSet(2), sound1/2, hazard, DecalData dData (0x48-0xAC)
+//   IPCT  data, decalTextureSet(2), sound1/2, hazard, DecalData dData (0x48-0xAC; its colour greyed)
+//   TXST  boundData, flags (DNAM, 0x0C8), *decalData (DODT, 0x0C0, a pointer the record's stub allocated: assigned, colour
+//         greyed); never textures[] (0x040) or textureFileIDs (0x0CC): the copy keeps its record's grey texture paths
+//         (FormCopiesFillTexture.cpp)
 //   HAZD  BGSHazardData data (0x80-0xB8), imageSpaceModifying (0x78), fullName, boundData
 //   ARTO  data (DNAM art type, 0x68), boundData; never its TESModelTextureSwap (the copy keeps its grey
 //         model). A source with alternate textures (MODS) is refused and left out (FormCopiesFillArt.cpp)
-// then a second pass rewires only the links that have a copy (PROJ.explosionType,
-// EXPL.impactPlacedObject and spawnProjectile, IPCT.hazard); every other link stays
-// the original's (LIGH, SNDR, TXST, IMAD, ENCH, SPEL, IPDS: no IPDS copies). A copy
+// then a second pass rewires only the links that have a copy (PROJ.explosionType and decalData,
+// EXPL.impactPlacedObject and spawnProjectile, IPCT.hazard and both decal texture sets); every other
+// link stays the original's (LIGH, SNDR, IMAD, ENCH, SPEL, IPDS: no IPDS copies). A copy
 // that fails (form missing, wrong type, the copies plugin missing) is left out of the
 // map and logged. The map is built once on the kDataLoaded thread and never changed:
 // the hooks read it from any thread. A copy whose own model does not open through the game's
@@ -124,6 +130,8 @@ namespace BlackFlame
         std::size_t impacts = 0;
         std::size_t hazards = 0;
         std::size_t arts = 0;
+        std::size_t textureSets = 0;          // TXST (decal texture sets)
+        std::size_t textureSetsRejected = 0;  // of failed: TXST copies out of step with the load order (rebuild; freshness)
         std::size_t failed = 0;      // left out of the map
         std::size_t linksToCopies = 0;  // links the second pass pointed at a copy
         int mapVersion = 0;             // 1 (spike builds) or 2 (C2 builder)
@@ -159,6 +167,26 @@ namespace BlackFlame
     // Fill helpers, FormCopiesFill.cpp (kDataLoaded only)
     namespace CopyFill
     {
+        // TXST (FormCopiesFillTexture.cpp): RE/B/BSTextureSet.h Textures::kUsedTotal (TX00..TX07)
+        inline constexpr std::size_t kTextureSlots = RE::BSTextureSet::Textures::kUsedTotal;
+
+        /// a_decal with its colour's red, green and blue set to its Rec. 709 luminance (Tint.h kLuma*), alpha kept
+        [[nodiscard]] RE::DecalData ExpectedDecal(const RE::DecalData& a_decal) noexcept;
+
+        void FillTextureSet(RE::BGSTextureSet& a_copy, const RE::BGSTextureSet& a_source);
+        bool RefillTextureSet(RE::BGSTextureSet& a_copy, const RE::BGSTextureSet& a_source);
+        [[nodiscard]] std::string CompareTextureSet(const RE::BGSTextureSet& a_copy, const RE::BGSTextureSet& a_source);
+
+        /// Why a TXST copy cannot be used (empty: it can): its DODT present unlike the live source's, a live source slot
+        /// other than the map's sourceTextures (the build is stale), a copy slot other than the map says (ESL and map out of
+        /// step), or a grey texture that does not open through the game's file system. a_expected: the copy's slots as the
+        /// map gives them (UTF-8)
+        [[nodiscard]] std::string TextureSetProblem(const RE::TESForm* a_copy, const RE::TESForm* a_source,
+            const nlohmann::json& a_item, std::array<std::string, kTextureSlots>& a_expected);
+
+        /// The TXST copy's slots as the map gave them (null when a_copy is no filled TXST copy)
+        [[nodiscard]] const std::array<std::string, kTextureSlots>* ExpectedTexturesOf(const RE::TESForm* a_copy) noexcept;
+
         /// Why a_source cannot be copied although its type can (an ARTO with alternate textures), or empty
         [[nodiscard]] std::string Refusal(const RE::TESForm* a_source);
 

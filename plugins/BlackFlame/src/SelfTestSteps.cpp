@@ -413,6 +413,7 @@ namespace BlackFlame::SelfTest
             StepDef{ "T0", kT0Timeout, &StepEnvironment },
             StepDef{ "T0-hooks", kEnvTimeout, &StepV2Static },
             StepDef{ "T0-cover", kEnvTimeout, &StepV2Cover },
+            StepDef{ "T0-decal", kEnvTimeout, &StepDecalCover },
             StepDef{ "T0-bound", kEnvTimeout, &StepBoundCover },
             StepDef{ "T1", kBuffOnTimeout, &StepBuffOn },
             StepDef{ "T2", kSpawnTimeout, &StepSpawn },
