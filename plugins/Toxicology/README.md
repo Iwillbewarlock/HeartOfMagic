@@ -4,28 +4,32 @@
 
 An addon to Heart of Magic Librarian. Once you have learned the ability **Toxicology**, every poison spell you cast
 also delivers one of your own poisons: when a poison spell hits a living target, the poison you have favorited
-first is applied to that target, at the poison's own strength and duration, with you as the caster (intended;
-pending in-game self test, see "Not yet confirmed in game" below).
+first is applied to that target, at the poison's own strength and duration, with you as the caster. The poison is
+cast by your instant magic caster onto the target and lands on the target, not on you (confirmed in game; what was
+tested and what was not is under "Tested in game" and "Not yet confirmed in game" below).
 
 - **Poison spells** are the spells the Librarian tags `poison` in `Data/SKSE/Plugins/SpellLearning/spell_catalog.json`
   (its scan writes the file), kept only when the spell has at least one hostile effect. The Librarian also tags
   Cure Poison, poison resistance buffs and similar helpful spells `poison` for tree grouping; those are skipped, so
   healing a follower does not poison them. For cloak spells the sub-spell the cloak casts on enemies is
-  meant to count too (pending in-game self test).
+  in the set too (not yet confirmed in game). Aimed bolts and aimed concentration sprays were confirmed in game
+  to apply the poison on hit; other deliveries are in "Not yet confirmed in game".
 - **Which poison**: among the poisons in your inventory that are favorited, the first by name (the name shown in
   the inventory, a poison you named yourself by that name; case is ignored). That is the order SkyUI's favorites
   menu sorts by. The vanilla favorites menu's order was not checked; the same rule is used.
 - **Immunity after the poison wears off**: once a poison is applied to a target, that target is immune to the same
   poison until the poison's duration has run out and an immunity time after it has passed: the immunity is the
   duration times `immunityMultiplier` (default 1.0), and at least `minImmunitySeconds` (default 5). A 10 second
-  poison can therefore be applied again 20 seconds after it was applied; an instant poison after 5 seconds. Hits in
+  poison can therefore be applied again about 20 seconds after it was applied (game time, see Known limits); an
+  instant poison after 5 seconds. Hits in
   between do nothing - they neither stack nor renew it, so a paralysis poison cannot keep a target held forever. The
   duration is the one the poison actually got on the target (alchemy perks included). Time is game time: it stands
   still while a menu pauses the game. Each poison has its own window, so a newly favorited poison can be applied at
   once. The record is kept in memory only, so it starts over after a save is loaded (see Known limits).
 - **Bottles**: hits use up no bottles. Instead, every `magickaPerDose` Magicka (default 100) you spend casting poison spells from your hands
-  (hit or miss; meant to be the cost after perks and gear, dual casting and concentration included - pending in-game
-  self test) uses one bottle of the poison being mimicked. A poison cloak costs what you pay for the cloak; the
+  (hit or miss) uses one bottle of the poison being mimicked. A fire-and-forget spell counts the cost its hand caster
+  holds for the cast (the cost after perks and gear); a concentration spell counts that cost per second while the
+  hand caster is casting. A dual cast is meant to count once (not yet confirmed in game). A poison cloak costs what you pay for the cloak; the
   sub-spell it casts on enemies costs nothing. When that poison runs out the next favorited poison takes over.
   Bottles without a favorite mark are used before the favorited stack. The running total (with any concentration
   Magicka not yet counted) is kept in the SKSE co-save.
@@ -92,22 +96,36 @@ over I4's default poison icon. A newly added plugin loads last by default, so th
 
 ## Known limits
 
+### Tested in game
+
+Skyrim AE 1.6.1170, the developer's load order (with Mysticism and Apothecary), 2026-10-17/18, from the log and by eye:
+
+- **Hits**: aimed fire-and-forget bolts (Mysticism's Poison Spray) and aimed concentration sprays (Mysticism's
+  Deadly Poison Spray) raise hit events, and the poison is applied on hit for both.
+- **Where it lands**: the poison lands on the target, cast by the player's instant caster with the player as
+  caster (`(player's caster): 1 new effect(s)` on the target); nothing landed on the player.
+- **Immunity window**: a 10 s poison got 10 s of immunity and its next cast 20 s later (`D 10.00 s ... immunity
+  10.00 s, reapply in 20.00 s`); a paralysis poison was not renewed while the target was immune.
+- **Magicka count**: a fire-and-forget cast was charged the hand caster's cost (17.15 per cast, the spell's own
+  cost); concentration was counted in caster state 6 (`kCasting`). One 5 s concentration window counted 28.28
+  against a player Magicka drop of 26.67 (about 6 % high; regeneration was not ruled out). Bottles were used up
+  one per 100 Magicka.
+- **Alchemy perks**: for the test character the applied magnitude and duration equalled the poison record's
+  (50 / 10 s), so no perk that acts when a poison is applied changed it. See "Perks on the applied poison" below.
+- **Mod-added poisons**: vanilla poisons overridden by Apothecary work. **Icon**: shows in the inventory.
+- **Runtime 1.6.629 and later**: the crash when reading a target's active effects was fixed (the list is now
+  reached through `Actor::AsMagicTarget()`).
+
 ### Not yet confirmed in game
 
-TODO (pending in-game self test): the points below are what the addon is built to do, but none has been confirmed
-in game yet. Update this list from the self test's `SELFTEST` lines and move each confirmed point out of it.
-
-- **Deliveries without hit events**: the addon reacts to the engine's hit events (`TESHitEvent`) from your poison
-  spells. Which of runes, explosions, concentration spells and cloaks send those events, and how often for
-  concentration, is not confirmed; list here any delivery that does not trigger.
-- **Cloaks**: the cloak's sub-spell (the one it casts on enemies) is in the poison spell set; whether its hits
-  apply the poison is not confirmed.
-- **Where the poison lands and who cast it**: the poison is cast on the hit target with you as the caster; that it
-  lands on the target (not on you) and carries you as its caster is not confirmed.
-- **Magicka count**: the counted cost is meant to match the Magicka the engine takes (after perks and gear, dual
-  casting and concentration included); that it does, within 5 %, is not confirmed. The addon reads the hand
-  caster's own cost; which of its two cost values tracks the engine's charge is decided by this check. The check
-  is manual: the self test casts through the instant caster, which the addon does not watch (see Development).
+- **Other deliveries**: runes and other target-location spells, explosions and cloak sub-spells - whether they raise
+  hit events (`TESHitEvent`, which the addon reacts to) and so apply the poison. A delivery that does not trigger
+  applies nothing.
+- **Dual casting**: counted once per cast (fire-and-forget: one release; concentration: only the right hand while
+  both hands cast the same spell, `kCountOneHandWhenDual`); not measured.
+- **The tome on Elgrim's shelf**, seen by eye, and the I5 inventory icon refresh after the favorite changes.
+- **Text**: the ability's description under Active Effects and the tome's text (both rewritten for the immunity
+  window) have not been looked at in game.
 
 ### Other limits
 
@@ -131,7 +149,10 @@ in game yet. Update this list from the self test's `SELFTEST` lines and move eac
   does not shorten the window. The same poison from a coated weapon does not count: the addon may still apply its
   own copy.
 - **Waiting moves the clock**: the window runs on game time, so waiting, sleeping or fast travel ends it early
-  (game time runs much faster then). A timescale change by a mod stretches what is left of a window with it.
+  (game time runs much faster then). A timescale change by a mod stretches what is left of a window with it. The
+  window is therefore about its length in real seconds, not exact: in testing one reapply came 18.7 s of real time
+  after a 20 s window. Whether a timescale change or the measurement caused that is still open; the `cast #N` line
+  carries the game hour and timescale at the cast and the immune line the timescale at the cast, to tell.
 - **The icon is on the poison, not on your bottles**: the mimic icon marks the base poison, so every copy of it shows
   the icon while it is being mimicked - at vendors, in containers and in loot too.
 - **Leftover Magicka**: when the last favorited poison runs out, the part of the count under one dose stays and goes
@@ -144,9 +165,12 @@ in game yet. Update this list from the self test's `SELFTEST` lines and move eac
   spell hit of yours, at least 5 seconds after the previous check of the catalog file, or at the next save load. A spell from a mod installed after the last scan counts only after the next scan.
 - **Cost-reducing mods** that lower spell cost outside the engine's own spell cost (for example by script) may not
   be reflected in the Magicka count.
-- **Perks on the applied poison**: whether the engine applies alchemy perks to a poison the addon applies is not
-  checked. The log shows it: for the first 10 casts after each load, each new effect's actual magnitude and duration
-  next to the poison record's (`Toxicology: cast #N ...` and the `effect` lines under it; later casts at debug level).
+- **Perks on the applied poison**: the poison is applied at its record's strength and duration. Perks that act at
+  brewing are already in a brewed poison's record; the dose perks (Concentrated Poison, Bottomless Cup) do not
+  apply, since no weapon is coated. In testing no perk changed the applied values. Perks that change a spell's
+  magnitude or duration when it is applied (for example Ordinator's Doctor Death or Elemental Oil) were not tested.
+  The log shows it: for the first 10 casts after each load, each new effect's actual magnitude and duration next to
+  the poison record's (`Toxicology: cast #N ...` and the `effect` lines under it; later casts at debug level).
 - **Crime**: a poison spell hit already counts as an attack; whether the applied poison adds anything on a
   non-hostile target is not checked.
 - If the first favorited poison changes while an effect is running, that effect runs to its end and the next hit
@@ -196,5 +220,6 @@ record), and the tome placed in Elgrim's chest was only in memory. The co-save r
   still with no regeneration or potion effects, cast poison spells from your hands (single, dual, concentration)
   for 5 seconds at a time, and read the `magicka counted X ... / player magicka drop Y` lines (the first 3 after each
   load are logged at info) and the `casting starts` / `fire-and-forget release` lines beside them, which give both
-  cost values the caster holds. X and Y should agree within 5 %.
+  cost values the caster holds. X and Y should agree within about 5 %; the one window measured so far was about 6 %
+  high, with regeneration not ruled out (see "Tested in game").
 - The ESL and how it was made: `ESL.md`. The icon and the SWF: `art/ICON.md`.
