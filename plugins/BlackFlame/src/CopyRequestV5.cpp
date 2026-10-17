@@ -66,6 +66,18 @@ namespace BlackFlame::CopyRequestV5
             return state;
         }
 
+        // ok: in the dump and hashed; unread: planned but its read failed; notdumped: opened, over a cap; missing: no file
+        CC::Request::TextureState TextureStateOf(const SlotKeys::Inputs& a_inputs, const CopyRequestData::Texture& a_texture)
+        {
+            using State = CC::Request::TextureState;
+            if (a_texture.planned) {
+                const auto it = a_inputs.textureHash.find(a_texture.path);
+                const bool hashed = it != a_inputs.textureHash.end() && it->second.state == CC::FileState::kHashed;
+                return hashed && !a_texture.readFailed ? State::kOk : State::kUnread;
+            }
+            return a_texture.probe.opened ? State::kNotDumped : State::kMissing;
+        }
+
         Json Options(const SlotKeys::Inputs& a_inputs)
         {
             const auto& prefix = *a_inputs.prefix;
@@ -121,7 +133,7 @@ namespace BlackFlame::CopyRequestV5
                 if (slot.type == CC::SlotType::kADDN && slot.modelKey) {
                     const auto* addon = slot.source->As<RE::BGSAddonNode>();
                     a_root[CC::Request::kAddnMps].push_back({ { CC::Request::kSlot, id }, { CC::Request::kPath, Utf8(slot.sourceModel) },
-                        { CC::Request::kKey, CC::Hex16(slot.modelKey->key) }, { "index", addon ? addon->index : 0 },
+                        { CC::Request::kKey, CC::Hex16(slot.modelKey->key) }, { CC::Request::kIndex, addon ? addon->index : 0 },
                         { "source", slot.sourceText } });
                     ++a_out.addnMps;
                 }
@@ -162,6 +174,9 @@ namespace BlackFlame::CopyRequestV5
                 root["nifs"].push_back(std::move(item));
             }
             root["textures"] = CopyRequestData::TexturesJson(a_inputs.textures);
+            for (std::size_t i = 0; i < a_inputs.textures.size() && i < root["textures"].size(); ++i) {  // contract v4: each one's state
+                root["textures"][i][CC::Request::kTextureState] = std::string(CC::Request::TextureStateText(TextureStateOf(a_inputs, a_inputs.textures[i])));
+            }
             root["textureCaps"] = { { "perTexture", CopyRequestData::kMaxTextureBytes }, { "total", CopyRequestData::kMaxTextureDumpBytes } };
             return root;
         }

@@ -195,12 +195,16 @@ namespace BlackFlame::FormCopies
         };
         std::size_t applied = 0;
         // ADDN slots first: a NIF naming an ADDN slot index is used only when that slot's MPS is (design v3.2 §3)
-        for (const bool addnPass : { true, false }) {
+        // an MPS may name other ADDN slots too (contract v4): the ADDN pass runs again until nothing more opens
+        constexpr int kAddnPasses = 4;
+        for (int pass = 0; pass <= kAddnPasses; ++pass) {
+            const bool addnPass = pass < kAddnPasses;
+            const auto before = applied;
             for (const auto id : SlotAssign::Assigned()) {
                 auto& slot = SlotAssign::At(id);
                 const auto* entry = LM::FindSlot(ledger, id);
                 if (!slot.usable || !entry || (slot.type == CopyContract::SlotType::kADDN) != addnPass ||
-                    slot.type == CopyContract::SlotType::kTXST) {
+                    slot.type == CopyContract::SlotType::kTXST || (addnPass && SlotAssign::GateOpen(id))) {
                     continue;  // a TXST slot stays unpublished (CopyGroups.h)
                 }
                 const auto* model = intact(*entry, addnPass ? LM::Role::kMps : LM::Role::kModel, slot);
@@ -222,6 +226,9 @@ namespace BlackFlame::FormCopies
                     slot.publishedMuzzle = RecordModelPath(muzzle->path);
                 }
                 ++applied;
+            }
+            if (addnPass && applied == before) {
+                pass = kAddnPasses - 1;  // no ADDN slot opened in this pass: on to the forms
             }
         }
         logger::info("BlackFlame: slots: kDataLoaded: {} slot(s) took their last published generation (gates still closed until "

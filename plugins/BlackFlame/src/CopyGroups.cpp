@@ -403,8 +403,8 @@ namespace BlackFlame::CopyGroups
             for (; it != a_state.addns.end() && Clock::now() - a_start < kSlice;) {
                 auto& slot = SlotAssign::At(*it);
                 const auto plan = PlanObject(LM::Role::kMps, slot.modelKey, slot.publishedModel, LM::FindSlot(ledger, *it), true);
-                if (plan.state != Member::kCandidate) {
-                    it = plan.state == Member::kPending ? std::next(it) : a_state.addns.erase(it);
+                if (plan.state != Member::kCandidate || !AddnReady(*plan.candidate)) {  // an MPS may wait for other ADDN slots
+                    it = plan.state == Member::kPending || plan.state == Member::kCandidate ? std::next(it) : a_state.addns.erase(it);
                     continue;
                 }
                 std::string why;
