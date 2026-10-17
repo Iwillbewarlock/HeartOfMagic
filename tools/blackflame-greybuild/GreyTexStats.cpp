@@ -56,6 +56,9 @@ namespace GreyBuild
 
     std::optional<RgbaImage> ReadRgba(const std::filesystem::path& a_file, std::string& a_why, bool* a_transient)
     {
+        if (a_transient) {
+            *a_transient = false;
+        }
         DirectX::TexMetadata meta{};
         DirectX::ScratchImage source;
         if (const HRESULT hr = DirectX::LoadFromDDSFile(a_file.c_str(), kLoadFlags, &meta, source); FAILED(hr)) {
@@ -300,10 +303,10 @@ namespace GreyBuild
         if (it == m_cache.end()) {
             Entry entry;
             std::vector<std::filesystem::path> folders = m_folders;
-            if (!m_generated.empty() && StartsWith(*path, kTextureCopyRoot)) {
+            const bool generated = !m_generated.empty() && StartsWith(*path, kTextureCopyRoot);
+            if (generated) {
                 folders = { m_generated };  // Y14, Z11: one of our copies is this run's, read from the output only
             }
-            const bool generated = folders.size() == 1 && !m_generated.empty() && folders.front() == m_generated;
             const bool listed = !m_limited || generated || m_listed.count(*path) != 0;
             const auto found = listed ? FindSource(folders, *path) : std::nullopt;
             if (m_limited && !generated && listed && !found) {
@@ -333,7 +336,6 @@ namespace GreyBuild
                     return look;  // not cached: a later object reads it again
                 }
                 if (image) {
-                    m_cachedBytes += image->pixels.size();
                     entry.status = TextureRead::kOk;
                     entry.stats = std::make_unique<TexStats>(ComputeStats(*image));
                     entry.image = std::make_unique<RgbaImage>(std::move(*image));
@@ -352,6 +354,7 @@ namespace GreyBuild
                                                           std::string("in none of the folders read");
             }
             it = m_cache.emplace(*path, std::move(entry)).first;
+            m_cachedBytes += it->second.image ? it->second.image->pixels.size() : 0;  // counted once it is in the cache
         }
         look.status = it->second.status;
         look.image = it->second.image.get();

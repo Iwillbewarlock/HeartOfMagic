@@ -6,8 +6,8 @@
 #include "GreyBuild.h"
 
 #include <algorithm>
-#include <cerrno>
-#include <cstdlib>
+#include <cstddef>
+#include <cstring>
 #include <fmt/format.h>
 #include <fstream>
 #include <iostream>
@@ -50,6 +50,40 @@ namespace GreyBuild
                 return std::nullopt;
             }
             return text;
+        }
+
+        // FILE_RENAME_INFO with its Win10 flags field (the SDK names it only for newer _WIN32_WINNT targets): same layout
+        struct RenameInfoEx
+        {
+            DWORD flags;
+            HANDLE rootDirectory;
+            DWORD fileNameLength;
+            WCHAR fileName[1];
+        };
+        constexpr DWORD kRenameReplaceIfExists = 0x1;  // FILE_RENAME_FLAG_REPLACE_IF_EXISTS
+        constexpr DWORD kRenamePosixSemantics = 0x2;   // FILE_RENAME_FLAG_POSIX_SEMANTICS
+        constexpr auto kFileRenameInfoEx = static_cast<FILE_INFO_BY_HANDLE_CLASS>(22);  // FileRenameInfoEx (Windows 10 1709+)
+
+        // a_temp over a_target with POSIX semantics: it replaces a target another process holds open with FILE_SHARE_DELETE
+        // (the DLL's tail reader on progress.jsonl), which MoveFileExW refuses with ERROR_ACCESS_DENIED. False when the
+        // system or file system has no such rename (then MoveFileExW is tried)
+        [[nodiscard]] bool PosixRename(const std::filesystem::path& a_temp, const std::filesystem::path& a_target)
+        {
+            const HANDLE file = ::CreateFileW(a_temp.c_str(), DELETE | SYNCHRONIZE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+            if (file == INVALID_HANDLE_VALUE) {
+                return false;
+            }
+            const std::wstring name = a_target.wstring();
+            std::vector<std::uint8_t> buffer(offsetof(RenameInfoEx, fileName) + (name.size() + 1) * sizeof(WCHAR), 0);
+            auto* info = reinterpret_cast<RenameInfoEx*>(buffer.data());
+            info->flags = kRenameReplaceIfExists | kRenamePosixSemantics;
+            info->rootDirectory = nullptr;
+            info->fileNameLength = static_cast<DWORD>(name.size() * sizeof(WCHAR));
+            std::memcpy(info->fileName, name.data(), name.size() * sizeof(WCHAR));
+            const bool renamed = ::SetFileInformationByHandle(file, kFileRenameInfoEx, info, static_cast<DWORD>(buffer.size())) != FALSE;
+            ::CloseHandle(file);
+            return renamed;
         }
 
         [[nodiscard]] bool WriteAll(HANDLE a_file, const std::string& a_text)
@@ -105,6 +139,9 @@ namespace GreyBuild
             a_why = fmt::format("making the folder of {} failed: {}", PathText(a_target), ec.message());
             return false;
         }
+        if (PosixRename(a_temp, a_target)) {
+            return true;
+        }
         if (!::MoveFileExW(a_temp.c_str(), a_target.c_str(), MOVEFILE_REPLACE_EXISTING)) {
             a_why = fmt::format("renaming {} into place failed (Windows error {})", PathText(a_temp), ::GetLastError());
             return false;
@@ -118,7 +155,7 @@ namespace GreyBuild
         for (const auto root : { BlackFlame::DataPathRule::kMeshesRoot, BlackFlame::DataPathRule::kTexturesRoot }) {
             const auto folder = StagedFile(a_staging, std::string(root) + std::string(BlackFlame::DataPathRule::kCopiesFolder));
             std::error_code ec;
-            for (auto it = std::filesystem::recursive_directory_iterator(folder, ec);
+            for (auto it = std::filesystem::recursive_directory_iterator(folder, std::filesystem::directory_options::skip_permission_denied, ec);
                  !ec && it != std::filesystem::recursive_directory_iterator(); it.increment(ec)) {
                 std::error_code typeError;
                 if (it->is_regular_file(typeError) && !it->is_symlink(typeError) && it->path().extension() == kTempFileSuffix) {
@@ -193,16 +230,22 @@ namespace GreyBuild
             return true;
         }
         const auto temp = TempPathOf(a_file);
-        {
-            std::ofstream file(temp, std::ios::binary | std::ios::trunc);
-            file.write(out.data(), static_cast<std::streamsize>(out.size()));
-            file.close();
-            if (!file) {
-                a_why = fmt::format("writing {} failed", PathText(temp));
-                return false;
-            }
+        // written, flushed to the disk (the contract: flush, then rename), closed, renamed; the temp removed on a failure
+        const HANDLE file = ::CreateFileW(temp.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        const bool written = file != INVALID_HANDLE_VALUE && (out.empty() || WriteAll(file, out)) && ::FlushFileBuffers(file) != FALSE;
+        if (file != INVALID_HANDLE_VALUE) {
+            ::CloseHandle(file);
         }
-        return CommitTemp(temp, a_file, a_why);
+        if (!written) {
+            a_why = fmt::format("writing {} failed (Windows error {})", PathText(temp), ::GetLastError());
+            RemoveQuietly(temp);
+            return false;
+        }
+        if (!CommitTemp(temp, a_file, a_why)) {
+            RemoveQuietly(temp);
+            return false;
+        }
+        return true;
     }
 
     bool ProgressLog::Open(const std::filesystem::path& a_staging, std::string& a_why)

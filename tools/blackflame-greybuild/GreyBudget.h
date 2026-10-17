@@ -43,6 +43,8 @@ namespace GreyBuild
     inline constexpr unsigned kPauseStepMs = 1000;
     inline constexpr unsigned kPauseNoteEvery = 60;                 // one "still waiting" line a minute
     inline constexpr unsigned kMaxPauseSteps = 1800;                // 30 minutes: then the texture fails (a run by hand never hangs)
+    inline constexpr unsigned kMaxRunPauseSteps = 3600;             // 60 minutes of waits in a run: then every later wait fails at once
+    inline constexpr std::size_t kMaxMips = 32;                     // a header's mip count is cut here (no level past it holds a texel)
     inline constexpr std::uint64_t kReadImages = 2;                 // ReadRgba: mip 0 decoded, then copied out (plus the file)
     inline constexpr unsigned kParentGraceMs = 30000;               // after the parent died: the object in hand, then out
     inline constexpr int kExitParentGone = 3;
@@ -54,7 +56,8 @@ namespace GreyBuild
 
     /// What a TextureSource read (ReadRgba) holds at once: the file's bytes as loaded plus mip 0 decoded x kReadImages;
     /// nullopt with a_why when the header does not read
-    [[nodiscard]] std::optional<std::uint64_t> EstimateReadBytes(const std::filesystem::path& a_dds, std::string& a_why);
+    [[nodiscard]] std::optional<std::uint64_t> EstimateReadBytes(const std::filesystem::path& a_dds, std::string& a_why,
+        bool* a_transient = nullptr);
 
     enum class Admission
     {
@@ -108,6 +111,7 @@ namespace GreyBuild
         Sleeper m_sleep;
         int m_pauses = 0;
         int m_evictions = 0;
+        unsigned m_pausedSteps = 0;  // every wait step of the run (kMaxRunPauseSteps)
     };
 
     /// BELOW_NORMAL_PRIORITY_CLASS (no background mode: it would also lower I/O and memory priority)

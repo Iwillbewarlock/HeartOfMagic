@@ -63,8 +63,8 @@ namespace GreyBuild
         }
 
 
-        // The slot indices a written NIF holds (its {"addn": n} deps)
-        [[nodiscard]] std::vector<std::uint32_t> SlotValues(const std::filesystem::path& a_nif, const std::set<int>& a_slots)
+        // The slot indices among a NIF's AddOnNode values
+        [[nodiscard]] std::set<std::uint32_t> SlotValuesIn(const std::filesystem::path& a_nif, const std::set<int>& a_slots)
         {
             nifly::NifFile nif;
             LoadNif(nif, a_nif);
@@ -75,8 +75,36 @@ namespace GreyBuild
                     values.insert(static_cast<std::uint32_t>(node->value));
                 }
             }
-            return { values.begin(), values.end() };
+            return values;
         }
+
+        // The slot indices the remap put into a written NIF (its {"addn": n} deps): those the copy holds and the source did
+        // not - a source value that already was a slot index is no binding of ours (agy Opus review)
+        [[nodiscard]] std::vector<std::uint32_t> SlotValues(const std::filesystem::path& a_copy, const std::filesystem::path& a_source,
+            const std::set<int>& a_slots)
+        {
+            const auto had = SlotValuesIn(a_source, a_slots);
+            std::vector<std::uint32_t> out;
+            for (const auto value : SlotValuesIn(a_copy, a_slots)) {
+                if (had.count(value) == 0) {
+                    out.push_back(value);
+                }
+            }
+            return out;
+        }
+
+        // <copy>.tmp removed when the object leaves before its rename (an exception included)
+        struct TempGuard
+        {
+            std::filesystem::path file;
+            bool released = false;
+            ~TempGuard()
+            {
+                if (!released) {
+                    RemoveQuietly(file);
+                }
+            }
+        };
 
         // A NIF object (form model, muzzle, MPS): BuildNifWith into <copy>.tmp, then renamed with its line's file fields
         [[nodiscard]] CC::ProgressLine BuildNifObject(const KeyedSpec& a_spec, KeyedObject& a_object, Run& a_run)
@@ -107,6 +135,7 @@ namespace GreyBuild
             Totals totals;
             const std::string tempRel = *copy + kTempFileSuffix;
             const auto temp = StagedFile(a_run.staging, tempRel);
+            TempGuard guard{ temp };
             const auto result = BuildNifWith(a_run.map, { a_run.dump }, a_run.staging, a_spec.source, tempRel, options, totals);
             if (!result.ok) {
                 a_object.failed = result.reason.empty() ? std::string("the NIF was not built") : result.reason;
@@ -122,7 +151,7 @@ namespace GreyBuild
             std::string why;
             std::vector<std::uint32_t> addn;
             try {
-                addn = SlotValues(temp, a_run.slotIndices);
+                addn = SlotValues(temp, *source, a_run.slotIndices);
             } catch (const std::exception& e) {
                 RemoveQuietly(temp);
                 return Line(a_spec, CC::Outcome::kFailed, fmt::format("the written copy does not read back: {}", e.what()));
@@ -132,6 +161,7 @@ namespace GreyBuild
                 RemoveQuietly(temp);
                 return Line(a_spec, CC::Outcome::kFailed, why);
             }
+            guard.released = true;
             a_run.log.NoteWritten(*copy, *digest);
             auto line = Line(a_spec, outcome, reason);
             line.path = *copy;
@@ -228,7 +258,7 @@ namespace GreyBuild
                 const auto estimate = file ? EstimateTextureBytes(*file, why) : std::nullopt;
                 if (estimate) {
                     a_spec.textured = true;
-                    a_spec.cost += *estimate;
+                    a_spec.cost = *estimate > UINT64_MAX - a_spec.cost ? UINT64_MAX : a_spec.cost + *estimate;
                 }
             }
         }
@@ -351,9 +381,15 @@ namespace GreyBuild
         // may be alive); too large or over the cap makes the object too_large or failed (Codex review 1)
         textureSource.SetReadGate([&](const std::filesystem::path& a_file, std::string& a_why) {
             std::string why;
-            const auto estimate = EstimateReadBytes(a_file, why);
+            bool transient = false;
+            const auto estimate = EstimateReadBytes(a_file, why, &transient);
+            if (!estimate && transient) {
+                outputs.Failed(fmt::format("{}: {}", PathText(a_file.filename()), why));
+                a_why = why;
+                return false;
+            }
             if (!estimate) {
-                return true;  // ReadRgba says what is wrong with it
+                return true;  // a header that does not read: ReadRgba refuses the same bytes at once (no decode)
             }
             switch (budget.Acquire(*estimate, why, false)) {
             case Admission::kAdmit:
@@ -391,6 +427,10 @@ namespace GreyBuild
         std::vector<KeyedSpec> pending;
         int hits = 0;
         for (const auto& spec : request.objects) {
+            if (watch.Gone()) {
+                std::cerr << "the parent process is gone: stopping before the first object\n";
+                return kExitParentGone;
+            }
             if (log.Reusable(spec.key, budget.Cap())) {
                 ++hits;
                 continue;

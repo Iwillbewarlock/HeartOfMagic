@@ -69,6 +69,10 @@ namespace GreyBuild
 
     std::string AddonRecord(const AddonEntry& a_entry, std::uint32_t a_formId)
     {
+        if (!StartsWith(a_entry.greyModel, kMeshesRoot)) {
+            throw std::runtime_error(fmt::format("ADDN '{}': its model '{}' is not under {}", a_entry.greyEditorId, a_entry.greyModel,
+                kMeshesRoot));
+        }
         std::string model = a_entry.greyModel.substr(std::char_traits<char>::length(kMeshesRoot));
         Writer body;
         body.ZString("EDID", a_entry.greyEditorId);

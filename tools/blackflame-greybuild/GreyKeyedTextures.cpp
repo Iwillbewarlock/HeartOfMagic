@@ -59,7 +59,7 @@ namespace GreyBuild
     void KeyedOutputs::Failed(const std::string& a_why)
     {
         if (m_object && m_object->failed.empty()) {
-            m_object->failed = a_why;
+            m_object->failed = a_why.empty() ? std::string("a failure with no reason given") : a_why;
         }
     }
 
@@ -290,11 +290,17 @@ namespace GreyBuild
         switch (m_budget.Acquire(estimate, why, false)) {
         case Admission::kAdmit:
             break;
-        case Admission::kTooLarge:
+        case Admission::kTooLarge: {
+            auto line = DdsLine(key, CC::Outcome::kTooLarge, why);
+            line.cap = m_budget.Cap();
+            if (std::string lineWhy; !m_log.Append(line, lineWhy)) {
+                std::cout << fmt::format("WARN  the too_large line of {} was not written: {}\n", *slot, lineWhy);
+            }
             child.state = State::kTerminal;
             child.terminal = CC::Outcome::kTooLarge;
             child.why = fmt::format("source palette {}: {}", a_source.path, why);
             return child;
+        }
         default:
             child.why = fmt::format("source palette {}: {}", a_source.path, why);
             return child;  // failed

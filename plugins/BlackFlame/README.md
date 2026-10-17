@@ -910,7 +910,7 @@ scalars, links, the DODT data and the ADDN cap and flags from the slot's source.
 
 **`--collisions <request>`**: the request's ADDN records (`addons`, a `--request` file or the game's request.json) whose
 index is in 40000-40207, our own (`"own": true`) left out, one `COLLIDE` line each with the slot it takes. Exit 0 none,
-1 some.
+1 some, 2 the request does not read. It runs alone (no other mode's option).
 
 **Key mode** (`--from-game ... --staging`): reads request.json **version 5** and the dump beside it, and builds every
 object at the path its key gives - `DataPathRule::CopyPath(<root>, key16, <source>)`, `...\copies\<key16>\copy.<ext>` -
@@ -937,8 +937,11 @@ Request v5 as this builder reads it (P2 writes it; every point below is a builde
 - `textures[].state` (required): `ok` (in the dump), `notdumped` (over a dump cap: the object is `not_dumped`), `missing`
   (does not open: a slot left, fallback), `unread` (the game opened it and its read failed: the object is `failed`, so the
   next start, which reads it again under a new key, builds it); the error text is never read;
-- `txst[] {slot, key, dodt}`: the TXST form whose `forms[].key` is `key` (none: a failed line); `slot` and `dodt` are
-  not read (they are in the key already).
+- `txst[] {slot, key, dodt}`: the TXST form whose `forms[].key` is `key`; `slot` must be a TXST slot and `dodt` its
+  DODT split.
+- Refused as the DLL's mistakes (exit 2): a NIF object `nifs[]` does not list (with its fnv64, or ok false), a txst key no
+  TXST form has, one key for two objects, an ADDN index or slot bound twice or in no `addons[]` record, an `ok` `nifs[]`
+  entry whose fnv64 does not parse.
 
 Objects and their lines (`progress.jsonl`, the contract's writer only):
 
@@ -965,11 +968,13 @@ key's last line is the one that counts (compaction keeps it).
 
 **progress.jsonl and staging** (`GreyProgress.h`): at the start (the DLL has read the file to its end before it launched
 the builder) leftover `*.tmp` files are removed - in staging's two copies folders and `progress.jsonl.tmp` only - and the
-file is compacted: per key its last line that is not `failed`, an ok or fallback line only while its file is in staging
-with its size; bad lines and a cut last line dropped; written to `progress.jsonl.tmp` and renamed over it. A progress
+file is compacted: per key its last line - dropped when it is `failed` (no older line of the key comes back), an ok or
+fallback line only while its file is in staging with its size and fnv64; bad lines and a cut last line dropped; written to `progress.jsonl.tmp` and renamed over it (a POSIX-semantics rename, so a reader that
+holds the file open with FILE_SHARE_DELETE does not block it; MoveFileExW when the file system has none). A progress
 file that is there but does not read stops the run and is left as it is. Then it is opened for appending (shared read,
 write and delete) and each finished object adds one line in one write, after its file was written as `<path>.tmp` and
-renamed into place; a line that cannot be written (a full disk) stops the run (exit 1). A reason's bytes outside ASCII
+renamed into place, flushed to the disk for the compacted file. A write that fails (a full disk) latches the log and
+stops the run (exit 1); a line the contract's writer refuses is written as a failed line instead and the run goes on. A reason's bytes outside ASCII
 are written as `?`. An object is skipped (reused, nothing rewritten) when its key's last line is ok or fallback, its file
 is in staging with the line's bytes and fnv64 and every path dep with its fnv64; or the line is terminal - `too_large`
 only while its `cap` field is not below this run's (the cap is no part of the key, so a larger cap tries again). Staging

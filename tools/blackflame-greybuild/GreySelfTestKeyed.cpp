@@ -44,7 +44,8 @@ namespace GreyBuild::SelfTest
         constexpr std::uint64_t kMps = 0x5555555555555555ull;     // addnMps[0]: the source NIF as ADDN 9's MPS
         constexpr std::uint32_t kSlot = 0xF0C;
         constexpr int kSlotIndex = 40012;
-        constexpr std::uint64_t kTinyCap = 64 * 1024;             // under the 64 x 64 test texture's estimate (109220)
+        constexpr std::uint64_t kTinyCap = 64 * 1024;
+        constexpr DWORD kChildTimeoutMs = 120000;                 // a CLI child run: 2 minutes at most             // under the 64 x 64 test texture's estimate (109220)
         constexpr const char* kFxFire = "textures\\effects\\fxfire01.dds";
         constexpr const char* kSourcePalette = "textures\\effects\\gradients\\gradflame01.dds";
         constexpr const char* kDecal = "textures\\effects\\decal.dds";
@@ -77,6 +78,14 @@ namespace GreyBuild::SelfTest
             return digest ? digest->fnv64 : 0;
         }
 
+        // A fixture texture or nothing: a write that fails throws, so no check passes on a file that is not there
+        void MustWrite(const std::filesystem::path& a_file, unsigned a_format, bool a_orange)
+        {
+            if (!WriteTestTexture(a_file, a_format, a_orange)) {
+                throw std::runtime_error(fmt::format("fixture: {} was not written", PathText(a_file)));
+            }
+        }
+
         void MakePlainNif(const std::filesystem::path& a_file)
         {
             nifly::NifFile nif;
@@ -97,7 +106,7 @@ namespace GreyBuild::SelfTest
             prefix.tintAdd = 0.9;
             prefix.gradBlackFlame = CC::FileHash::Hashed(Fnv(a_dump / std::string(Rule::kOurPalette)));
             prefix.gradBlackFlameAdd = CC::FileHash::Hashed(Fnv(a_dump / std::string(Rule::kOurPaletteAdd)));
-            return *CC::KeyPrefixString(prefix);
+            return CC::KeyPrefixString(prefix).value();  // bad_optional_access: the check fails, the test goes on
         }
 
         [[nodiscard]] std::string Escape(std::string a_text)
@@ -127,15 +136,15 @@ namespace GreyBuild::SelfTest
                 std::filesystem::copy_file(a_sourceNif, dump / rel, std::filesystem::copy_options::overwrite_existing);
             }
             MakePlainNif(dump / "meshes/magic/plain.nif");
-            (void)WriteTestTexture(dump / std::string(Rule::kOurPalette), DXGI_FORMAT_B8G8R8A8_UNORM, true);
-            (void)WriteTestTexture(dump / std::string(Rule::kOurPaletteAdd), DXGI_FORMAT_B8G8R8A8_UNORM, false);
+            MustWrite(dump / std::string(Rule::kOurPalette), DXGI_FORMAT_B8G8R8A8_UNORM, true);
+            MustWrite(dump / std::string(Rule::kOurPaletteAdd), DXGI_FORMAT_B8G8R8A8_UNORM, false);
             if (a_variant != Variant::kNotDumped && a_variant != Variant::kUnread) {
-                (void)WriteTestTexture(dump / kFxFire, DXGI_FORMAT_BC3_UNORM, true);
+                MustWrite(dump / kFxFire, DXGI_FORMAT_BC3_UNORM, true);
             }
             if (a_variant != Variant::kMissingPalette) {
-                (void)WriteTestTexture(dump / kSourcePalette, DXGI_FORMAT_B8G8R8A8_UNORM, true);
+                MustWrite(dump / kSourcePalette, DXGI_FORMAT_B8G8R8A8_UNORM, true);
             }
-            (void)WriteTestTexture(dump / kDecal, a_variant == Variant::kMissingPalette ? DXGI_FORMAT_BC5_UNORM : DXGI_FORMAT_BC3_UNORM, true);
+            MustWrite(dump / kDecal, a_variant == Variant::kMissingPalette ? DXGI_FORMAT_BC5_UNORM : DXGI_FORMAT_BC3_UNORM, true);
             const std::uint64_t exe = a_exe != 0 ? a_exe : Fnv(ThisExecutable());
             // the error text is no longer read: the state decides (contract 4)
             const std::string fxEntry = a_variant == Variant::kNotDumped ?
@@ -344,6 +353,7 @@ namespace GreyBuild::SelfTest
                             "contract's own TextureKeyString gives ('{}')", effectSource));
 
             const auto modelTime = std::filesystem::last_write_time(staged);
+            const auto mpsFile = StagedFile(fixture.staging, mps->path);
             const auto lines = progress.lines.size();
             const int second = Run(fixture);
             const auto after = Progress(fixture);
@@ -351,10 +361,12 @@ namespace GreyBuild::SelfTest
                 fmt::format("key run again: every object reused - no line added, no copy rewritten ({} lines, were {})", after.lines.size(), lines));
 
             std::ofstream(staged, std::ios::binary | std::ios::app) << 'x';
+            const auto mpsTime = std::filesystem::last_write_time(mpsFile);
             const int third = Run(fixture);
             const auto rebuilt = Progress(fixture);
             const auto* line = Find(rebuilt, kModel);
-            a_check.Check(third == 0 && line && line->fnv64 == model->fnv64 && Fnv(staged) == model->fnv64 && rebuilt.lines.size() == lines,
+            a_check.Check(third == 0 && line && line->fnv64 == model->fnv64 && Fnv(staged) == model->fnv64 && rebuilt.lines.size() == lines &&
+                              std::filesystem::last_write_time(mpsFile) == mpsTime,
                 "key run after a staged copy changed: only that object is built again, to the same bytes");
         }
 
@@ -374,6 +386,11 @@ namespace GreyBuild::SelfTest
             std::string why;
             a_check.Check(log.Open(tiny.staging, why) && log.Reusable(kModel, kTinyCap) && !log.Reusable(kModel, kTinyCap * 2),
                 "too_large: terminal while the cap stays, built again under a larger cap");
+            const int again = Run(tiny);  // the default cap: built this time
+            const auto larger = Progress(tiny);
+            a_check.Check(again == 0 && Find(larger, kModel) && Find(larger, kModel)->outcome == CC::Outcome::kFallback &&
+                              Find(larger, kTxst) && Find(larger, kTxst)->outcome == CC::Outcome::kOk,
+                "too_large: the next run under a larger cap builds the model and the TXST (the last line for a key wins)");
 
             const auto missing = MakeFixture(a_dir, "palette", a_sourceNif, Variant::kMissingPalette);
             const int missingExit = Run(missing);
@@ -419,7 +436,9 @@ namespace GreyBuild::SelfTest
             const auto wrongTint = MakeFixture(a_dir, "tint", a_sourceNif, Variant::kNormal, 0.7);
             const auto v4 = MakeFixture(a_dir, "v4", a_sourceNif, Variant::kNormal, 0.6, kGameRequestVersion);
             std::error_code ec;
-            a_check.Check(Run(otherExe) == 1 && Run(wrongTint) == 1 && Run(v4) == 2 && !std::filesystem::exists(otherExe.staging / CC::kProgressFile, ec),
+            a_check.Check(Run(otherExe) == 1 && Run(wrongTint) == 1 && Run(v4) == 2 && !std::filesystem::exists(otherExe.staging / CC::kProgressFile, ec) &&
+                              !std::filesystem::exists(wrongTint.staging / CC::kProgressFile, ec) &&
+                              !std::filesystem::exists(v4.staging / CC::kProgressFile, ec),
                 "refused runs: VerifyKeyPrefix refuses keys for another builder exe and a prefix not of its options (exit 1, nothing "
                 "written); a v4 request (exit 2)");
         }
@@ -435,7 +454,10 @@ namespace GreyBuild::SelfTest
                 return MAXDWORD;
             }
             ::CloseHandle(process.hThread);
-            ::WaitForSingleObject(process.hProcess, INFINITE);
+            if (::WaitForSingleObject(process.hProcess, kChildTimeoutMs) == WAIT_TIMEOUT) {
+                ::TerminateProcess(process.hProcess, MAXDWORD);  // a hang is a failure, never a self-test that never ends
+                ::WaitForSingleObject(process.hProcess, INFINITE);
+            }
             DWORD code = MAXDWORD;
             ::GetExitCodeProcess(process.hProcess, &code);
             ::CloseHandle(process.hProcess);

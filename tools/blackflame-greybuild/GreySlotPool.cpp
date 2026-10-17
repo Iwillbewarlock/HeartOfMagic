@@ -133,7 +133,12 @@ namespace GreyBuild
                 }
                 return;
             }
-            const auto type = *CopyTypeOfSlot(a_type);
+            const auto copyType = CopyTypeOfSlot(a_type);
+            if (!copyType) {
+                add("no record type for this slot type");
+                return;
+            }
+            const auto type = *copyType;
             const bool dnamType = std::string_view(CopyDataTag(type)) == "DNAM";
             const bool scalarsOk = dnamType ? (a_form.hasDnam && a_form.dnam == Zeros(CopyDataSize(type)) && !a_form.hasData) :
                                               (a_form.hasData && a_form.data == Zeros(CopyDataSize(type)) && !a_form.hasDnam);
@@ -144,8 +149,8 @@ namespace GreyBuild
             const bool dodtOk = a_form.hasDodt == decal && (!decal || a_form.dodt == Zeros(kDodtSize));
             if (!scalarsOk || !boundsOk || !soundOk || !dodtOk || a_form.hasModel || a_form.textureMask != 0 ||
                 !a_form.otherSubrecords.empty()) {
-                add(fmt::format("scalars {}, bounds {}, VNAM {}, DODT {} (want {}), MODL {}, texture slots 0x{:X}, other {}",
-                    scalarsOk ? "ok" : "DIFFER", boundsOk ? "ok" : "DIFFER", soundOk ? "ok" : "DIFFER", a_form.hasDodt, decal,
+                add(fmt::format("scalars {}, bounds {}, VNAM {}, DODT {} (present {}, want {}), MODL {}, texture slots 0x{:X}, other {}",
+                    scalarsOk ? "ok" : "DIFFER", boundsOk ? "ok" : "DIFFER", soundOk ? "ok" : "DIFFER", dodtOk ? "ok" : "DIFFER", a_form.hasDodt, decal,
                     a_form.hasModel, a_form.textureMask, a_form.otherSubrecords.size()));
             }
         }
@@ -176,8 +181,11 @@ namespace GreyBuild
         std::vector<EslAddon> addons;
         try {
             forms = ReadCopiesEsl(a_file, header);
-            std::uint32_t flags = 0;
-            addons = ReadAddonEsl(a_file, flags);  // the ADDN reader too: index and flags as the --request ESL reads them
+            std::uint32_t addonFlags = 0;
+            addons = ReadAddonEsl(a_file, addonFlags);  // the ADDN reader too: index and flags as the --request ESL reads them
+            if (addonFlags != header.flags) {
+                problems.push_back(fmt::format("the two readers disagree on the header flags ({:X}, {:X})", addonFlags, header.flags));
+            }
         } catch (const std::exception& e) {
             return { fmt::format("cannot read it back: {}", e.what()) };
         }
@@ -239,7 +247,10 @@ namespace GreyBuild
                 Json::Fail(a_request, where + " must be an object");
             }
             const int index = Json::ReadIndex(a_request, addons[i], "index", where);
-            const bool own = addons[i].contains("own") && addons[i]["own"].is_boolean() && addons[i]["own"].get<bool>();
+            if (addons[i].contains("own") && !addons[i]["own"].is_boolean()) {
+                Json::Fail(a_request, where + ": 'own' must be true or false");
+            }
+            const bool own = addons[i].contains("own") && addons[i]["own"].get<bool>();
             const auto slot = CC::SlotOfAddnIndex(static_cast<std::uint32_t>(index));
             if (own || !slot) {
                 continue;
@@ -294,7 +305,7 @@ namespace GreyBuild
             collisions = FindAddnCollisions(a_request);
         } catch (const std::exception& e) {
             std::cout << fmt::format("FAIL  {}\n", e.what());
-            return kExitFail;
+            return kExitUsage;  // the request does not read: 2, apart from 1 for collisions found
         }
         for (const auto& c : collisions) {
             std::cout << fmt::format("COLLIDE  ADDN index {} ({}, model '{}') is slot {:03X}'s index: that slot cannot be used "

@@ -165,9 +165,11 @@ namespace GreyBuild
                     if (path && state) {
                         a_request.textureStates[*path] = *state;
                     }
-                    if (path && ok) {
+                    if (path && ok) {  // a path listed twice: its last entry decides (never in both sets)
                         a_request.texturesDumped.insert(*path);
+                        a_request.texturesNotDumped.erase(*path);
                     } else if (path) {
+                        a_request.texturesDumped.erase(*path);
                         a_request.texturesNotDumped[*path] = Json::ReadOptionalString(a_file, textures[i], "error", where);
                     }
                 }

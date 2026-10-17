@@ -31,8 +31,10 @@
 #include "GreyKeyed.h"
 #include "GreySlotPool.h"
 
+#include <charconv>
 #include <fmt/format.h>
 #include <iostream>
+#include <system_error>
 #include <stdexcept>
 #include <string_view>
 
@@ -89,11 +91,13 @@ namespace
                      "       palettes derived from each source palette)\n"
                      "  blackflame-greybuild --from-game [<request folder>] --staging <dir> [--job-memory <MiB>] "
                      "[--commit-reserve <MiB>] [--parent-pid <pid>]\n"
-                     "      (key mode, request version 5: tint, tintAdd and the palette mode come from the request; job memory "
-                     "default 1536 MiB, commit reserve 4096 MiB)\n"
+                  << fmt::format("      (key mode, request version 5: tint, tintAdd and the palette mode come from the request; "
+                                 "job memory default {} MiB, commit reserve {} MiB)\n",
+                         GreyBuild::kDefaultJobMemoryMiB, GreyBuild::kDefaultCommitReserveMiB)
+                  << 
                      "  blackflame-greybuild --write-empty-esls <folder>\n"
                      "  blackflame-greybuild --write-slot-pool <file.esp>\n"
-                     "  blackflame-greybuild --collisions <request.json>\n"
+                     "  blackflame-greybuild --collisions <request.json>   (exit 0 none, 1 some, 2 the request does not read)\n"
                      "  blackflame-greybuild --dump <file.nif> [...]\n"
                      "  blackflame-greybuild --roundtrip <file.nif> [...]\n"
                      "  blackflame-greybuild --self-test\n";
@@ -110,20 +114,29 @@ namespace
         }
     }
 
-    // A whole number of a_min..a_max in a_text
+    // A whole number of a_min..a_max in a_text: digits only (no space, sign or trailing text); a_value set only then
     [[nodiscard]] bool ParseCount(const char* a_text, std::uint64_t a_min, std::uint64_t a_max, std::uint64_t& a_value)
     {
-        if (a_text[0] < '0' || a_text[0] > '9') {
-            return false;  // stoull would take a leading space, '+' or '-'
-        }
-        try {
-            std::size_t used = 0;
-            const unsigned long long value = std::stoull(a_text, &used);
-            a_value = value;
-            return a_text[used] == '\0' && a_text[0] != '-' && value >= a_min && value <= a_max;
-        } catch (const std::logic_error&) {
+        const std::string_view text(a_text);
+        std::uint64_t value = 0;
+        const auto result = std::from_chars(text.data(), text.data() + text.size(), value);
+        if (text.empty() || text.front() < '0' || text.front() > '9' || result.ec != std::errc() ||
+            result.ptr != text.data() + text.size() || value < a_min || value > a_max) {
             return false;
         }
+        a_value = value;
+        return true;
+    }
+
+    // A path argument that is no empty text (an empty one would pick another mode)
+    [[nodiscard]] bool TakePath(const char* a_option, const char* a_text, std::filesystem::path& a_path)
+    {
+        if (a_text[0] == '\0') {
+            std::cerr << fmt::format("{} needs a path, not an empty text\n", a_option);
+            return false;
+        }
+        a_path = a_text;
+        return true;
     }
 
     [[nodiscard]] bool ParseArgs(int a_argc, char** a_argv, Options& a_options)
@@ -156,7 +169,9 @@ namespace
             } else if (arg == "--retire-left-out") {
                 a_options.retireLeftOut = true;
             } else if (arg == "--staging" && hasValue) {
-                a_options.staging = a_argv[++i];
+                if (!TakePath("--staging", a_argv[++i], a_options.staging)) {
+                    return false;
+                }
             } else if ((arg == "--job-memory" || arg == "--commit-reserve") && hasValue) {
                 const bool job = arg == "--job-memory";
                 auto& value = job ? a_options.jobMemoryMiB : a_options.commitReserveMiB;
@@ -175,9 +190,13 @@ namespace
                 a_options.parentPid = static_cast<std::uint32_t>(pid);
                 a_options.keyedOnlySet = true;
             } else if (arg == "--write-slot-pool" && hasValue) {
-                a_options.slotPool = a_argv[++i];
+                if (!TakePath("--write-slot-pool", a_argv[++i], a_options.slotPool)) {
+                    return false;
+                }
             } else if (arg == "--collisions" && hasValue) {
-                a_options.collisions = a_argv[++i];
+                if (!TakePath("--collisions", a_argv[++i], a_options.collisions)) {
+                    return false;
+                }
             } else if (arg == "--write-empty-esls" && hasValue) {
                 a_options.emptyEsls = a_argv[++i];
             } else if (arg == "--map" && hasValue) {
@@ -375,6 +394,14 @@ int main(int a_argc, char** a_argv)
             std::cerr << e.what() << "\n";
             return kExitFail;
         }
+    }
+    // one mode a run: the slot pool and the collision list take no other mode's options (agy Opus review)
+    const bool otherMode = options.fromGame || !options.staging.empty() || options.keyedOnlySet || !options.out.empty() ||
+                           !options.inputs.empty() || !options.map.empty() || !options.request.empty() || !options.forms.empty() ||
+                           !options.files.empty() || !options.emptyEsls.empty() || options.optionsSet;
+    if ((!options.slotPool.empty() || !options.collisions.empty()) && (otherMode || (!options.slotPool.empty() && !options.collisions.empty()))) {
+        std::cerr << "--write-slot-pool and --collisions each run alone: leave out every other mode and option\n";
+        return kExitUsage;
     }
     if (!options.slotPool.empty()) {
         return GreyBuild::RunWriteSlotPool(options.slotPool);

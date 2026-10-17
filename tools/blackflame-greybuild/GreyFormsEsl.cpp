@@ -276,10 +276,18 @@ namespace GreyBuild
     std::string CopiesEslGroup(CopyType a_type, const CopiesMap& a_map, const std::vector<FormSource>& a_sources,
         std::int32_t& a_count, std::uint32_t& a_highest)
     {
+        if (a_map.entries.size() != a_sources.size()) {
+            throw std::runtime_error(fmt::format("a copies group needs one source per entry ({} entries, {} sources)", a_map.entries.size(),
+                a_sources.size()));
+        }
         std::string records;
         for (std::size_t i = 0; i < a_map.entries.size(); ++i) {
             if (a_map.entries[i].type != a_type) {
                 continue;
+            }
+            if (a_map.entries[i].localId < kFirstLightFormId || a_map.entries[i].localId > kLastLightFormId) {
+                throw std::runtime_error(fmt::format("{} {} has local id {:X}, outside an ESL's 800-FFF", CopyTypeTag(a_type),
+                    a_map.entries[i].editorId, a_map.entries[i].localId));
             }
             records += CopyRecord(a_map.entries[i], a_sources[i]);
             a_highest = std::max(a_highest, a_map.entries[i].localId);
@@ -297,6 +305,10 @@ namespace GreyBuild
     void WriteLightPlugin(const std::filesystem::path& a_file, const std::string& a_groups, std::int32_t a_count,
         std::uint32_t a_nextObjectId)
     {
+        if (a_count < 0 || a_nextObjectId < kFirstLightFormId || a_nextObjectId > kLastLightFormId + 1) {
+            throw std::runtime_error(fmt::format("a light plugin's HEDR: {} records, next id {:X} (0 or more, 800-1000)", a_count,
+                a_nextObjectId));
+        }
         Writer file;
         Writer header;
         header.Sub("HEDR", Pack(kHedrVersion, a_count, a_nextObjectId));

@@ -170,7 +170,8 @@ namespace GreyBuild
     bool IsTransientResult(long a_result) noexcept
     {
         constexpr DWORD kTransientErrors[] = { ERROR_FILE_NOT_FOUND, ERROR_PATH_NOT_FOUND, ERROR_ACCESS_DENIED, ERROR_SHARING_VIOLATION,
-            ERROR_LOCK_VIOLATION, ERROR_READ_FAULT, ERROR_WRITE_FAULT, ERROR_DISK_FULL, ERROR_NOT_ENOUGH_MEMORY, ERROR_OUTOFMEMORY };
+            ERROR_LOCK_VIOLATION, ERROR_READ_FAULT, ERROR_WRITE_FAULT, ERROR_DISK_FULL, ERROR_HANDLE_DISK_FULL, ERROR_NOT_ENOUGH_MEMORY,
+            ERROR_OUTOFMEMORY, ERROR_COMMITMENT_LIMIT, ERROR_NOT_ENOUGH_QUOTA, ERROR_NO_SYSTEM_RESOURCES };
         if (a_result == E_OUTOFMEMORY) {
             return true;
         }
@@ -312,7 +313,7 @@ namespace GreyBuild
         if (const HRESULT hr = DirectX::SaveToDDSFile(out->GetImages(), out->GetImageCount(), out->GetMetadata(),
                 DirectX::DDS_FLAGS_NONE, a_target.c_str());
             FAILED(hr)) {
-            return Fail(result, fmt::format("writing {} failed: {}", PathText(a_target), HrText(hr)), true);
+            return Fail(result, fmt::format("writing {} failed: {}", PathText(a_target), HrText(hr)), IsTransientResult(hr));
         }
         const auto written = std::filesystem::file_size(a_target, ec);
         if (ec) {

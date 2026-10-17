@@ -86,9 +86,9 @@ namespace GreyBuild
                 return;
             }
             const auto& first = a_request.objects[it->second];
-            if (first.kind != a_spec.kind || first.source != a_spec.source) {
-                a_request.warnings.push_back(fmt::format("{}: key {} names another object as well ({} {}); the first is built",
-                    a_where, CC::Hex16(a_spec.key), CC::ProgressKindText(first.kind), first.source));
+            if (first.kind != a_spec.kind || first.source != a_spec.source) {  // one key, two objects: the DLL's mistake
+                throw std::runtime_error(fmt::format("{}: key {} names another object as well ({} {})", a_where, CC::Hex16(a_spec.key),
+                    CC::ProgressKindText(first.kind), first.source));
             }
         }
 
@@ -127,8 +127,9 @@ namespace GreyBuild
                 if (CC::SlotOfAddnIndex(static_cast<std::uint32_t>(*index))) {
                     a_request.warnings.push_back(fmt::format("{}: ADDN index {} is inside the slot pool's range: not bound", where, *index));
                 } else if (slotsTaken.count(static_cast<int>(*grey)) != 0 || a_request.addnSlots.count(*index) != 0) {
-                    a_request.warnings.push_back(fmt::format("{}: ADDN index {} or slot {:X} is bound twice: the first binding kept", where,
-                        *index, slot));
+                    Json::Fail(a_file, fmt::format("{}: ADDN index {} or slot {:X} is bound twice", where, *index, slot));
+                } else if (a_request.base.addons->addons.count(*index) == 0) {
+                    Json::Fail(a_file, fmt::format("{}: ADDN index {} is in no addons[] record", where, *index));
                 } else {
                     slotsTaken.insert(static_cast<int>(*grey));
                     a_request.addnSlots.emplace(*index, static_cast<int>(*grey));
@@ -168,6 +169,10 @@ namespace GreyBuild
                 const bool ok = nif.is_object() && nif.contains("ok") && nif["ok"].is_boolean() && nif["ok"].get<bool>() &&
                                 nif.contains("path") && nif["path"].is_string() && nif.contains("fnv64") && nif["fnv64"].is_string();
                 const auto fnv = ok ? CC::ParseHex16(nif["fnv64"].get<std::string>()) : std::nullopt;
+                if (ok && !fnv) {
+                    throw std::runtime_error(fmt::format("nifs[]: {} has an fnv64 that is not 16 lower-case hex digits",
+                        nif["path"].get<std::string>()));
+                }
                 if (fnv) {
                     a_request.nifHashes[MeshDataPath(nif["path"].get<std::string>())] = *fnv;
                 }

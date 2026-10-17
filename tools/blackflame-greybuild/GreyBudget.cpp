@@ -65,7 +65,9 @@ namespace GreyBuild
         std::uint64_t width = meta.width;
         std::uint64_t height = meta.height;
         std::uint64_t depth = std::max<std::uint64_t>(meta.depth, 1);
-        for (std::size_t mip = 0; mip < std::max<std::size_t>(meta.mipLevels, 1); ++mip) {
+        // a header's mip count is not trusted: past kMaxMips every level is one texel (a broken header never loops long)
+        const std::size_t mips = std::min<std::size_t>(std::max<std::size_t>(meta.mipLevels, 1), kMaxMips);
+        for (std::size_t mip = 0; mip < mips; ++mip) {
             chain = SatAdd(chain, SatMul(SatMul(SatMul(width, height), depth), kDecodedBytesPerTexel));
             width = std::max<std::uint64_t>(width / 2, 1);
             height = std::max<std::uint64_t>(height / 2, 1);
@@ -74,16 +76,26 @@ namespace GreyBuild
         return SatMul(SatMul(chain, std::max<std::uint64_t>(meta.arraySize, 1)), kEncoderImages);
     }
 
-    std::optional<std::uint64_t> EstimateReadBytes(const std::filesystem::path& a_dds, std::string& a_why)
+    std::optional<std::uint64_t> EstimateReadBytes(const std::filesystem::path& a_dds, std::string& a_why, bool* a_transient)
     {
         DirectX::TexMetadata meta{};
         if (const HRESULT hr = DirectX::GetMetadataFromDDSFile(a_dds.c_str(), kHeaderFlags, meta); FAILED(hr)) {
+            if (a_transient) {
+                *a_transient = IsTransientResult(hr);
+            }
             a_why = fmt::format("the DDS header of {} does not read (HRESULT 0x{:08X})", PathText(a_dds), static_cast<std::uint32_t>(hr));
             return std::nullopt;
         }
         std::error_code ec;
         const std::uint64_t file = std::filesystem::file_size(a_dds, ec);
-        return SatAdd(ec ? 0 : file, SatMul(SatMul(SatMul(meta.width, meta.height), kDecodedBytesPerTexel), kReadImages));
+        if (ec) {  // the header read and the size does not: the machine, not the file
+            if (a_transient) {
+                *a_transient = true;
+            }
+            a_why = fmt::format("the size of {} does not read: {}", PathText(a_dds), ec.message());
+            return std::nullopt;
+        }
+        return SatAdd(file, SatMul(SatMul(SatMul(meta.width, meta.height), kDecodedBytesPerTexel), kReadImages));
     }
 
     Admission Admit(std::uint64_t a_estimate, std::uint64_t a_inUse, std::uint64_t a_cap, std::uint64_t a_availableCommit,
@@ -129,34 +141,41 @@ namespace GreyBuild
     {
         bool evicted = false;
         bool paused = false;
-        for (unsigned step = 0;; ++step) {
-            if (m_stop && m_stop->load()) {
-                a_why = "the run is stopping (the parent process is gone)";
-                return Admission::kOverCap;
-            }
-            // Not measurable: the cap alone decides (the job object still holds the process to it)
-            const MemoryState state = m_probe ? m_probe().value_or(MemoryState{ 0, UINT64_MAX }) : MemoryState{ 0, UINT64_MAX };
+        for (unsigned waited = 0;;) {
+            // Not measurable: the cap alone decides, with the cache this process holds (the job object still caps it)
+            const MemoryState unknown{ m_cache ? m_cache->CachedBytes() : 0, UINT64_MAX };
+            const MemoryState state = m_probe ? m_probe().value_or(unknown) : unknown;
             const Admission admission = Admit(a_estimate, state.inUse, m_cap, state.availableCommit, m_reserve);
-            if (admission == Admission::kOverCap && a_mayClear && !evicted && m_cache && m_cache->CachedBytes() > 0) {
+            // over the cap, or short of commit: the cache this process holds goes first (it is commit too)
+            if ((admission == Admission::kOverCap || admission == Admission::kPause) && a_mayClear && !evicted && m_cache &&
+                m_cache->CachedBytes() > 0) {
                 m_cache->Clear();
                 ++m_evictions;
                 evicted = true;
                 continue;
             }
-            if (admission == Admission::kPause && step >= kMaxPauseSteps) {
-                a_why = fmt::format("waited {} s for the system's commit to come back above the reserve", step * kPauseStepMs / kMsPerSecond);
-                return Admission::kOverCap;
-            }
             if (admission == Admission::kPause) {
+                // a stop (the parent gone) ends a wait, never an admission that needs none (Gemini review)
+                if (m_stop && m_stop->load()) {
+                    a_why = "the run is stopping (the parent process is gone)";
+                    return Admission::kOverCap;
+                }
+                if (waited >= kMaxPauseSteps || m_pausedSteps >= kMaxRunPauseSteps) {
+                    a_why = fmt::format("waited {} s for the system's commit to come back above the reserve ({} s this run)",
+                        waited * kPauseStepMs / kMsPerSecond, m_pausedSteps * kPauseStepMs / kMsPerSecond);
+                    return Admission::kOverCap;
+                }
                 if (!paused) {
                     ++m_pauses;
                     paused = true;
                 }
-                if (step % kPauseNoteEvery == 0) {
+                if (waited % kPauseNoteEvery == 0) {
                     std::cout << fmt::format("WAIT  the system has {:.0f} MiB of commit left (reserve {:.0f} MiB, this texture needs "
                                              "about {:.0f} MiB): waiting\n", MiB(state.availableCommit), MiB(m_reserve), MiB(a_estimate));
                 }
                 m_sleep(kPauseStepMs);
+                ++waited;
+                ++m_pausedSteps;
                 continue;
             }
             if (paused) {
@@ -216,6 +235,14 @@ namespace GreyBuild
                                   fmt::format("the parent process {} does not open (Windows error {})", a_pid, error);
             return false;
         }
+        if (::WaitForSingleObject(m_process, 0) == WAIT_OBJECT_0) {
+            // ended already (another handle keeps its object): gone before the first object starts (Gemini review)
+            ::CloseHandle(m_process);
+            m_process = nullptr;
+            m_noProcess = true;
+            a_why = fmt::format("the parent process {} is gone", a_pid);
+            return false;
+        }
         m_quit = ::CreateEventW(nullptr, TRUE, FALSE, nullptr);
         if (!m_quit) {
             a_why = fmt::format("no event for the parent watch (Windows error {})", ::GetLastError());
@@ -223,14 +250,20 @@ namespace GreyBuild
         }
         m_thread = std::thread([this, a_pid, a_graceMs]() {
             const HANDLE waits[] = { m_process, m_quit };
-            if (::WaitForMultipleObjects(2, waits, FALSE, INFINITE) != WAIT_OBJECT_0) {
-                return;  // quit (the run ended) or a failed wait
+            const DWORD waited = ::WaitForMultipleObjects(2, waits, FALSE, INFINITE);
+            if (waited == WAIT_OBJECT_0 + 1) {
+                return;  // quit: the run ended
             }
+            // the parent ended, or the wait failed (then nobody watches it any more: stop as if it ended)
             m_gone.store(true);
-            std::cout << fmt::format("STOP  the parent process {} is gone: stopping after the object in hand\n", a_pid);
+            // no CRT stream here: the main thread may hold std::cout's lock (a full pipe) and must not keep us from the exit
+            const auto say = [](const std::string& a_text) {
+                DWORD written = 0;
+                ::WriteFile(::GetStdHandle(STD_OUTPUT_HANDLE), a_text.data(), static_cast<DWORD>(a_text.size()), &written, nullptr);
+            };
+            say(fmt::format("STOP  the parent process {} is gone: stopping after the object in hand\n", a_pid));
             if (::WaitForSingleObject(m_quit, a_graceMs) == WAIT_TIMEOUT) {
-                std::cout << "STOP  still running after the grace time: exiting (temp files are cleared at the next start)\n";
-                std::cout.flush();
+                say("STOP  still running after the grace time: exiting (temp files are cleared at the next start)\n");
                 // TerminateProcess, not ExitProcess: no DLL detach while the main thread may hold the CRT or loader lock
                 ::TerminateProcess(::GetCurrentProcess(), static_cast<UINT>(kExitParentGone));
             }

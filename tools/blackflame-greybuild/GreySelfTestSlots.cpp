@@ -32,7 +32,7 @@ namespace GreyBuild::SelfTest
     {
         namespace CC = BlackFlame::CopyContract;
 
-        constexpr std::uint64_t kTestTextureEstimate = 109220;  // 64 x 64, 7 mips: 4 x 5461 texels x 4 bytes x 5 images
+        constexpr std::uint64_t kTestTextureEstimate = 109220;  // 64 x 64, 7 mips: 5461 texels x 4 bytes x 5 images
         constexpr std::uint64_t kMiB = kBytesPerMiB;
         constexpr std::size_t kTxstDodt = 72;
         constexpr std::size_t kTxstPlain = 24;
@@ -54,17 +54,24 @@ namespace GreyBuild::SelfTest
         std::vector<std::string> GroupLabels(const std::string& a_bytes)
         {
             std::vector<std::string> labels;
+            if (a_bytes.size() < 24) {
+                return { "?" };
+            }
             std::uint32_t tes4 = 0;
             std::memcpy(&tes4, a_bytes.data() + 4, sizeof(tes4));
-            for (std::size_t at = 24 + tes4; at + 24 <= a_bytes.size();) {
+            std::size_t at = 24 + static_cast<std::size_t>(tes4);
+            for (; at + 24 <= a_bytes.size();) {
                 std::uint32_t size = 0;
                 std::memcpy(&size, a_bytes.data() + at + 4, sizeof(size));
-                if (a_bytes.compare(at, 4, "GRUP") != 0 || size < 24) {
+                if (a_bytes.compare(at, 4, "GRUP") != 0 || size < 24 || size > a_bytes.size() - at) {
                     labels.push_back("?");
                     break;
                 }
                 labels.push_back(a_bytes.substr(at + 8, 4));
                 at += size;
+            }
+            if (at != a_bytes.size()) {
+                labels.push_back("?");  // bytes after the last group, or a group cut short
             }
             return labels;
         }
@@ -172,9 +179,9 @@ namespace GreyBuild::SelfTest
             const std::uint64_t kA = 0xAAAAAAAAAAAAAAA1ull;
             const std::uint64_t kB = 0xBBBBBBBBBBBBBBB2ull;
             const std::uint64_t kC = 0xCCCCCCCCCCCCCCC3ull;
-            const std::string pathA = *BlackFlame::DataPathRule::CopyPath(BlackFlame::DataPathRule::kTexturesRoot, CC::Hex16(kA), "a.dds");
-            const std::string pathB = *BlackFlame::DataPathRule::CopyPath(BlackFlame::DataPathRule::kTexturesRoot, CC::Hex16(kB), "b.dds");
-            const std::string pathC = *BlackFlame::DataPathRule::CopyPath(BlackFlame::DataPathRule::kTexturesRoot, CC::Hex16(kC), "c.dds");
+            const std::string pathA = BlackFlame::DataPathRule::CopyPath(BlackFlame::DataPathRule::kTexturesRoot, CC::Hex16(kA), "a.dds").value();
+            const std::string pathB = BlackFlame::DataPathRule::CopyPath(BlackFlame::DataPathRule::kTexturesRoot, CC::Hex16(kB), "b.dds").value();
+            const std::string pathC = BlackFlame::DataPathRule::CopyPath(BlackFlame::DataPathRule::kTexturesRoot, CC::Hex16(kC), "c.dds").value();
             Write(StagedFile(staging, pathA), "AAAA");
             Write(StagedFile(staging, pathA + kTempFileSuffix), "left by a killed run");
             Write(staging / "someone else's.tmp", "not ours");
@@ -188,7 +195,8 @@ namespace GreyBuild::SelfTest
                                      LineText(FileLine(kB, pathB, 4, 1)) + LineText(FileLine(kC, pathC, 4, CC::Fnv64("CCCC"))) + LineText(failed) + LineText(FileLine(kC, pathC, 4, fnvA)).substr(0, 20);
             Write(StagedFile(staging, pathC), "CCCC");  // its ok line comes before its failed one: it must not come back
             Write(staging / CC::kProgressFile, text);
-            a_check.Check(RemoveTempFiles(staging) == 1 && std::filesystem::exists(StagedFile(staging, pathA)) &&
+            a_check.Check(RemoveTempFiles(staging) == 1 && !std::filesystem::exists(StagedFile(staging, pathA + kTempFileSuffix)) &&
+                              std::filesystem::exists(StagedFile(staging, pathA)) &&
                               std::filesystem::exists(staging / "someone else's.tmp"),
                 "progress: a leftover .tmp in our copies folder is removed; the copy beside it and a .tmp outside it kept");
             {
@@ -222,7 +230,8 @@ namespace GreyBuild::SelfTest
             Write(StagedFile(staging, pathA), "AAAB");
             ProgressLog changed;
             std::string why;
-            a_check.Check(changed.Open(staging, why) && !changed.Reusable(kA, kMiB), "progress: a staged file whose bytes changed is not reused");
+            a_check.Check(changed.Open(staging, why) && !changed.Reusable(kA, kMiB) && changed.Reusable(kB, kMiB) && !changed.Reusable(kB, 2 * kMiB),
+                "progress: a staged file whose bytes changed is not reused; a too_large line survives the next compaction with its cap");
         }
 
         void CheckBudget(Checker& a_check, const std::filesystem::path& a_dir)
@@ -269,8 +278,10 @@ namespace GreyBuild::SelfTest
                               !EstimateTextureBytes(Write(a_dir / "budget" / "no.dds", "not a dds"), estimateWhy),
                 fmt::format("budget: a 64 x 64 BC3 with 7 mips estimates {} bytes (decoded chain x 5); a file that is no DDS has none",
                     kTestTextureEstimate));
+            cache.Put("textures\\y.dds", image);
+            const bool held = cache.CachedBytes() == 16;
             cache.Clear();
-            a_check.Check(cache.CachedBytes() == 0, "budget: Clear empties the texture cache");
+            a_check.Check(held && cache.CachedBytes() == 0, "budget: Clear empties the texture cache");
         }
 
         // A process that ends at once: this exe with no arguments (it prints its usage and exits 2)
@@ -305,15 +316,19 @@ namespace GreyBuild::SelfTest
             if (::CreateProcessW(nullptr, command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &startup, &process)) {
                 ::CloseHandle(process.hThread);
                 ParentWatch child;
+                why.clear();
                 if (child.Start(process.dwProcessId, kParentGraceMs, why)) {
                     for (int i = 0; i < 100 && !child.Gone(); ++i) {
                         std::this_thread::sleep_for(std::chrono::milliseconds(50));
                     }
                     gone = child.Gone();
+                } else {
+                    gone = child.NoProcess() && !why.empty();  // it had ended already: Start says so at once
                 }
                 ::CloseHandle(process.hProcess);
             }
             a_check.Check(gone, "parent watch: a parent that ends is gone within 5 s");
+            why.clear();
             const auto ended = EndedProcess();
             // Windows may keep an ended process's object a moment (another handle to it): then the watch opens it and finds it
             // gone at once; else the pid opens nothing and NoProcess says so
@@ -363,22 +378,26 @@ namespace GreyBuild::SelfTest
                 "outcome: out of memory, a locked file and a full disk are retryable; a bad or unsupported DDS is not");
         }
 
-        void CheckChildKeys(Checker& a_check)
+        void CheckChildKeys(Checker& a_check, const std::filesystem::path& a_dir)
         {
             const auto prefix = BlackFlame::CopyContractTest::Detail::Prefix();
-            const auto text = *CC::KeyPrefixString(prefix);
+            const auto text = CC::KeyPrefixString(prefix).value();
             const auto mode = std::string(CC::PaletteModeText(prefix.paletteMode));
             a_check.Check(CC::VerifyKeyPrefix(text, prefix.tint, prefix.tintAdd, mode, prefix.builderExeFnv64, prefix.gradBlackFlame,
                               prefix.gradBlackFlameAdd) &&
                               !CC::VerifyKeyPrefix(text, prefix.tint, prefix.tintAdd, mode, prefix.builderExeFnv64 + 1, prefix.gradBlackFlame,
                                   prefix.gradBlackFlameAdd),
                 "key prefix: VerifyKeyPrefix takes the prefix this builder rebuilds, refuses another exe's");
-            const auto dir = std::filesystem::temp_directory_path() / "blackflame-greybuild-selftest" / "palette-state";
+            // our palettes are there, but the request lists neither: they are never read (a stale dump file)
+            const auto dir = a_dir / "palette-state";
+            Write(dir / std::string(BlackFlame::DataPathRule::kOurPalette), "stale");
+            Write(dir / std::string(BlackFlame::DataPathRule::kOurPaletteAdd), "stale");
             const std::string received = "format=BFK3|exe=0|tint=0|tintadd=0|palette=derived|grad=notdumped:4096|gradadd=missing";
             a_check.Check(PaletteState(dir, BlackFlame::DataPathRule::kOurPalette, received, "grad", {}).state == CC::FileState::kNotDumped &&
                               PaletteState(dir, BlackFlame::DataPathRule::kOurPalette, received, "grad", {}).size == 4096 &&
                               PaletteState(dir, BlackFlame::DataPathRule::kOurPaletteAdd, received, "gradadd", {}).state == CC::FileState::kMissing,
-                "key prefix: a palette not in the dump is notdumped:<size> when the DLL says so, else missing");
+                "key prefix: a palette the request does not list as dumped (its stale file there unread) is notdumped:<size> when the "
+                "DLL says so, else missing");
         }
     }
 
@@ -391,7 +410,7 @@ namespace GreyBuild::SelfTest
             CheckBudget(a_check, a_dir);
             CheckParentWatch(a_check);
             CheckGuardAndOutcome(a_check);
-            CheckChildKeys(a_check);
+            CheckChildKeys(a_check, a_dir);
         } catch (const std::exception& e) {
             a_check.Check(false, fmt::format("single launch parts: exception: {}", e.what()));
         }
