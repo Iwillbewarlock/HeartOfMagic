@@ -27,6 +27,8 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace BlackFlame::BuildProgress
 {
@@ -59,6 +61,21 @@ namespace BlackFlame::BuildProgress
     /// a_path with a_fnv64 entered Data this session (copied by the worker, or renamed in by ApplyDeferred): the startup
     /// index does not know it, so it is used only through FileIndex (any thread)
     [[nodiscard]] bool CopiedNow(const std::string& a_path, std::uint64_t a_fnv64);
+
+    /// a_path with a_fnv64 replaced another file at its path this session (ApplyDeferred): the index may hold the old
+    /// file's size, so nothing standing on it is published before the next start (any thread)
+    [[nodiscard]] bool ReplacedNow(const std::string& a_path, std::uint64_t a_fnv64);
+
+    /// Any of a_files (SlotLedgerModel::FilesOf) replaced this session
+    [[nodiscard]] inline bool AnyReplacedNow(const std::vector<std::pair<std::string, std::uint64_t>>& a_files)
+    {
+        for (const auto& [path, fnv] : a_files) {
+            if (ReplacedNow(path, fnv)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     /// After the launch: the tail and copy worker (a detached thread; it stops copying when the publish window closes)
     void StartWorker();

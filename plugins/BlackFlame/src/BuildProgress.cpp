@@ -478,6 +478,13 @@ namespace BlackFlame::BuildProgress
                      "line); used from the next start", renamed, renamed == 1 ? "y" : "ies", dropped);
     }
 
+    bool ReplacedNow(const std::string& a_path, std::uint64_t a_fnv64)
+    {
+        auto& s = The();
+        std::lock_guard lock(s.mutex);
+        return s.replacedNow.contains({ a_path, a_fnv64 });
+    }
+
     bool CopiedNow(const std::string& a_path, std::uint64_t a_fnv64)
     {
         auto& s = The();

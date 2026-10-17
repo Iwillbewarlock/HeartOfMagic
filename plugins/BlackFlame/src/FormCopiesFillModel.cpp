@@ -4,6 +4,7 @@
 
 #include "FormCopiesFillModel.h"
 
+#include "BuildProgress.h"
 #include "DataFiles.h"
 #include "DataPathRule.h"
 #include "FileIndex.h"
@@ -160,6 +161,10 @@ namespace BlackFlame::FormCopies
             }
             if (object && object->path.empty()) {
                 why = "it has no file";  // review agy 4: never SetModel("") nor an ADDN gate opened on it
+            }
+            if (object && why.empty() && BuildProgress::AnyReplacedNow(LM::FilesOf(*object))) {
+                // review Codex 3 P1: a file renamed in at this start (ApplyDeferred) may still have the old file's record
+                why = "a file of it replaced another at this start: used from the next start";
             }
             if (!object || !why.empty() || !ObjectIntact(*object, a_inputs, why) || !RegisterObject(*object, why)) {
                 if (object) {

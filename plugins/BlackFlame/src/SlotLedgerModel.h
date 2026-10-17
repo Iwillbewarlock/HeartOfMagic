@@ -370,7 +370,28 @@ namespace BlackFlame::SlotLedgerModel
                                   SourceText(mine->plugin, mine->localId) + " here and " + SourceText(other.plugin, other.localId) +
                                   " in " + std::string(a_what) + ": refused, the slot is never published again");
         }
+        if (newer) {
+            // review Codex 3 P2: the versions up to a_other's exist (a co-save holds one); the next write must be newer than
+            // it, or a later rebind would lose to that obsolete copy in a later recovery
+            a_into.version = a_other.version;
+        }
         return added;
+    }
+
+    /// The files an object stands on: its own (path, fnv64) when it has one, then each dep's that is a file (not an ADDN
+    /// slot), in order. The checks that a file entered or was replaced in Data this session look at every one
+    [[nodiscard]] inline std::vector<std::pair<std::string, std::uint64_t>> FilesOf(const Object& a_object)
+    {
+        std::vector<std::pair<std::string, std::uint64_t>> files;
+        if (!a_object.path.empty()) {
+            files.emplace_back(a_object.path, a_object.fnv64);
+        }
+        for (const auto& dep : a_object.deps) {
+            if (!dep.isAddn && !dep.path.empty()) {
+                files.emplace_back(dep.path, dep.fnv64);
+            }
+        }
+        return files;
     }
 
     /// Co-saves' ledgers (FromSnapshot, each with its name) into a_into. Those of a_into's epoch are merged newest first

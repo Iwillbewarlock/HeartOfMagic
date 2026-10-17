@@ -128,11 +128,8 @@ namespace BlackFlame::CopyGroups::Detail
 
     bool EnteredDataNow(const LM::Object& a_object)
     {
-        if (!a_object.path.empty() && BuildProgress::CopiedNow(a_object.path, a_object.fnv64)) {
-            return true;
-        }
-        return std::any_of(a_object.deps.begin(), a_object.deps.end(),
-            [](const LM::Dep& a_dep) { return !a_dep.isAddn && BuildProgress::CopiedNow(a_dep.path, a_dep.fnv64); });
+        const auto files = LM::FilesOf(a_object);
+        return std::any_of(files.begin(), files.end(), [](const auto& a_file) { return BuildProgress::CopiedNow(a_file.first, a_file.second); });
     }
 
     AddnDep AddnDeps(const State& a_state, const LM::Object& a_object)
@@ -198,6 +195,11 @@ namespace BlackFlame::CopyGroups::Detail
         case BuildProgress::State::kInData:
             break;
         }
+        // review Codex 3 P1: before any route to ready or candidate - an object standing on a file that replaced another at
+        // its path this session (its own or a copy dep's) is not published before the next start
+        if (const auto files = LM::FilesOf(ObjectOf(a_role, found->line, a_key->text)); BuildProgress::AnyReplacedNow(files)) {
+            return fallback("a file of it replaced another at the same path this session: used from the next start");
+        }
         if (older && FormCopies::RecordModelPath(found->line.path) == a_published) {
             plan.state = Member::kReady;  // the ledger's generation is this key's (ApplyLastPublished compared its string)
             return plan;
@@ -208,10 +210,6 @@ namespace BlackFlame::CopyGroups::Detail
         // P1's builder is deterministic for the same inputs (its dev output was byte-identical over 774 files across rebuilds)
         // and a key's path is under its key folder, so one key gives one file: a copy replaces another file at its path only
         // when that file was damaged or cut. Should a key ever give two files, a path published this session could change
-        if (found->replacedThisSession) {
-            // review agy 7 #3: the index may hold a record of the file this one replaced, with its size: not before next start
-            return fallback("its file replaced another at the same path this session: used from the next start");
-        }
         auto candidate = ObjectOf(a_role, found->line, a_key->text);
         if (!FileIndex::Available() && EnteredDataNow(candidate)) {
             return fallback("in Data only since this session and no file index: the next start's index has it");
