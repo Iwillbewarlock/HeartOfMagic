@@ -1,4 +1,5 @@
 #include "FileProbeEngine.h"
+#include "FileProbeGuardCheck.h"
 
 #include "Patch.h"
 #include "SehGuard.h"
@@ -15,6 +16,8 @@ namespace BlackFlame::FileProbe::Engine
 {
     namespace
     {
+        using namespace GuardCheck;  // IndexGuard's structural checks (FileProbeGuardCheck.h)
+
         using ID = RE::BSResource::ID;
         using PathToIdFn = ID* (*)(ID*, const char*);
         using GuardCtorFn = void* (*)(void*);
@@ -27,11 +30,6 @@ namespace BlackFlame::FileProbe::Engine
         constexpr std::size_t kRecordSizeFlags = 0x0C; // int32: negative = archive record
         constexpr std::size_t kIncRefWindow = 0x200;   // bytes of 68483 / 69839 scanned for the inlined IncRef
         constexpr std::size_t kFindWindow = 0x40;      // bytes of FindRecord scanned for the ArchiveManager load
-        constexpr std::size_t kGuardWindow = 0x80;     // bytes of IndexGuard's ctor / dtor scanned (FQ4)
-        constexpr std::size_t kGuardBytesLogged = 32;
-        constexpr std::uint32_t kGuardManagerOffset = 0xB8;  // the manager inside the guard (TFF)
-        constexpr std::array<std::uint8_t, 2> kFarJump{ 0xFF, 0x25 };  // jmp [rip + disp32]
-        constexpr std::size_t kFarJumpSize = 6;
         constexpr std::uint32_t kSeCountOffset = 0x0C;
         constexpr std::uint32_t kAeLateCountOffset = 0x10;
         constexpr std::uint32_t kRefOne = 0x1000;          // StreamBase::kRefCountBeg
@@ -119,74 +117,6 @@ namespace BlackFlame::FileProbe::Engine
             return false;
         }
 
-        // FQ4: IndexGuard's constructor and destructor must touch the ArchiveManager the way the guard's layout says (TFF: the
-        // manager is kept at +0xB8 of the guard): within their first kGuardWindow bytes, a REX.W mov (8B / 89) that is either
-        // rip-relative to the manager static or has a 32-bit displacement of +0xB8 (ModRM mod 10, with or without SIB).
-        // A structural check, not a byte pattern: no byte pattern of the 1.6.1170 image is known here (its .text is encrypted
-        // on disk). It cannot prove the functions right; it keeps two arbitrary functions from being called as the guard
-        bool TouchesManager(std::uintptr_t a_function, std::uintptr_t a_manager)
-        {
-            if (!Patch::IsExecutable(a_function, kGuardWindow + kMovRcxRipSize)) {
-                return false;
-            }
-            const auto* bytes = reinterpret_cast<const std::uint8_t*>(a_function);
-            for (std::size_t i = 0; i + kMovRcxRipSize < kGuardWindow; ++i) {
-                const bool rexW = (bytes[i] & 0xF8) == 0x48;
-                const bool mov = bytes[i + 1] == 0x8B || bytes[i + 1] == 0x89;
-                if (!rexW || !mov) {
-                    continue;
-                }
-                const std::uint8_t modrm = bytes[i + 2];
-                std::int32_t disp = 0;
-                if ((modrm & 0xC7) == 0x05) {  // mod 00, rm 101: [rip + disp32]
-                    std::memcpy(&disp, bytes + i + 3, sizeof(disp));
-                    if (a_function + i + kMovRcxRipSize + disp == a_manager) {
-                        return true;
-                    }
-                } else if ((modrm & 0xC0) == 0x80) {  // mod 10: [reg + disp32], a SIB byte first when rm is 100
-                    const std::size_t at = (modrm & 0x07) == 0x04 ? i + 4 : i + 3;
-                    std::memcpy(&disp, bytes + at, sizeof(disp));
-                    if (disp == static_cast<std::int32_t>(kGuardManagerOffset)) {
-                        return true;
-                    }
-                }
-            }
-            return false;
-        }
-
-        // Run 1 (1.6.1170): the dtor id points at a jmp thunk (E9 rel32, then CC padding). One leading E9 rel32, or FF 25
-        // [rip + disp32] (an absolute jump through a slot), is followed to the body the check reads; a_function itself when
-        // it starts with neither, or the jump's target cannot be read
-        std::uintptr_t FollowJump(std::uintptr_t a_function)
-        {
-            if (!Patch::IsExecutable(a_function, kFarJumpSize)) {
-                return a_function;
-            }
-            const auto* bytes = reinterpret_cast<const std::uint8_t*>(a_function);
-            if (bytes[0] == Patch::kJmpOpcode) {
-                return Patch::Rel32Target(a_function);
-            }
-            if (bytes[0] == kFarJump[0] && bytes[1] == kFarJump[1]) {
-                std::int32_t disp = 0;
-                std::memcpy(&disp, bytes + kFarJump.size(), sizeof(disp));
-                std::uintptr_t target = 0;
-                const auto slot = a_function + kFarJumpSize + disp;
-                if (GuardedKeep("file probe jump slot", [&]() { target = *reinterpret_cast<const std::uintptr_t*>(slot); }) && target) {
-                    return target;
-                }
-            }
-            return a_function;
-        }
-
-        std::string BodyText(std::uintptr_t a_function, std::uintptr_t a_body)
-        {
-            if (a_body == a_function) {
-                return std::format("SkyrimSE+0x{:X} [{}]", a_function - Base(), Patch::HexBytes(a_function, kGuardBytesLogged));
-            }
-            return std::format("SkyrimSE+0x{:X} [{}] -> jump to SkyrimSE+0x{:X} [{}]", a_function - Base(),
-                Patch::HexBytes(a_function, kGuardBytesLogged), a_body - Base(), Patch::HexBytes(a_body, kGuardBytesLogged));
-        }
-
         void InitIndex(std::vector<std::string>& a_lines)
         {
             if (!Patch::HasIds({ Patch::IdFor(68631, 69971), Patch::IdFor(68321, 69681), Patch::IdFor(68322, 69682),
@@ -208,12 +138,18 @@ namespace BlackFlame::FileProbe::Engine
             const auto ctorBody = FollowJump(ctor);
             const auto dtorBody = FollowJump(dtor);
             const bool ctorOk = TouchesManager(ctorBody, manager);
-            const bool dtorOk = TouchesManager(dtorBody, manager);
-            a_lines.push_back(std::format("index: IndexGuard ctor {} touches the manager: {}; dtor {}: {}", BodyText(ctor, ctorBody),
-                ctorOk ? "yes" : "NO", BodyText(dtor, dtorBody), dtorOk ? "yes" : "NO"));
+            const bool dtorManager = TouchesManager(dtorBody, manager);
+            const bool dtorReadsGuard = ReadsOwnGuard(dtorBody);
+            const bool dtorOk = dtorManager || (dtorReadsGuard && ctorOk);
+            const char* dtorRule = dtorManager ? "touches the manager" :
+                                   (dtorReadsGuard ? (ctorOk ? "reads its own guard field (ctor touched the manager)" :
+                                                               "reads its own guard field but the ctor did not pass") :
+                                                     "neither touches the manager nor reads its own guard field");
+            a_lines.push_back(std::format("index: IndexGuard ctor {} touches the manager: {}; dtor {}: {} -> {}",
+                BodyText(ctor, ctorBody), ctorOk ? "yes" : "NO", BodyText(dtor, dtorBody), dtorRule, dtorOk ? "accepted" : "NO"));
             if (!ctorOk || !dtorOk) {
-                g_state.indexWhy = "IndexGuard's constructor or destructor does not touch the ArchiveManager (static or the guard's "
-                                   "+0xB8) in its first bytes: the guard is not called";
+                g_state.indexWhy = std::format("IndexGuard's layout is not confirmed (ctor touches the manager: {}; dtor: {}): the "
+                                               "guard is not called", ctorOk ? "yes" : "no", dtorRule);
                 return;
             }
             g_state.pathToId = reinterpret_cast<PathToIdFn>(Patch::AddressOf(Patch::IdFor(68631, 69971)));

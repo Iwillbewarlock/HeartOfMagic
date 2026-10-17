@@ -55,6 +55,7 @@ namespace BlackFlame::FileVisibilityProbe
             kLateWait,
             kLateCreate,
             kLateCheck,
+            kE,
             kWait,
             kJudge,
             kFinish
@@ -73,7 +74,7 @@ namespace BlackFlame::FileVisibilityProbe
             // FP4: A and C (and their -neg) run before any location of ours is registered (B, the early ones, D)
             constexpr std::array kNames{ "prepare", "pre-request", "write files", "test A", "test C", "test B",
                 "register early (B-neg, D-neg)", "test D", "test D check", "wait for the early locations to mount", "late: create files",
-                "late: ask", "wait for the GPU textures", "judge textures", "finish" };
+                "late: ask", "test E (overwrite placeholders)", "wait for the GPU textures", "judge textures", "finish" };
             return kNames[static_cast<std::size_t>(a_step)];
         }
 
@@ -152,6 +153,11 @@ namespace BlackFlame::FileVisibilityProbe
             } catch (const std::exception& e) {
                 Note(a_run, std::format("the loose-route rule threw ({}): C verdicts as judged", e.what()));
             }
+            try {
+                FileProbe::WriteEPlaceholders(a_run);  // the keep_e* files for the next run (test E)
+            } catch (const std::exception& e) {
+                Note(a_run, std::format("writing the E placeholders threw ({})", e.what()));
+            }
             Note(a_run, Summary(a_run));
             WriteResultFile(a_run.lines);
             Quit("file probe");
@@ -198,6 +204,9 @@ namespace BlackFlame::FileVisibilityProbe
                 break;
             case Step::kLateCheck:
                 FileProbe::LateCheck(a_run);
+                break;
+            case Step::kE:
+                FileProbe::TestE(a_run);
                 break;
             case Step::kJudge:
                 FileProbe::JudgeTextures(a_run);

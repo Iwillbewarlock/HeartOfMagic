@@ -25,7 +25,9 @@ set(BLACKFLAME_SOURCES
     src/FileProbeSources.cpp
     src/FileProbeTestD.cpp
     src/FileProbeTestLate.cpp
+    src/FileProbeTestE.cpp
     src/FileProbeEngine.cpp
+    src/FileProbeGuardCheck.cpp
     src/FileProbeLocation.cpp
     src/Forms.cpp
     src/FireSet.cpp

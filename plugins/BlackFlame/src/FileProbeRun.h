@@ -28,9 +28,9 @@ namespace BlackFlame::FileProbe
 
     /// The tests in the order the summary line names them
     /// D and D-neg each twice: "-data" = the files under <root>\data\meshes|textures\ instead of <root>\meshes|textures (FP5)
-    inline constexpr std::array<std::string_view, 25> kTests{ "A-mesh", "A-texture", "B-mesh", "B-texture", "C-mesh", "C-texture",
+    inline constexpr std::array<std::string_view, 29> kTests{ "A-mesh", "A-texture", "B-mesh", "B-texture", "C-mesh", "C-texture",
         "D-mesh", "D-texture", "D-mesh-data", "D-texture-data", "A-mesh-neg", "A-texture-neg", "C-mesh-neg", "C-texture-neg",
-        "B-mesh-neg", "B-texture-neg", "D-mesh-neg", "D-texture-neg", "D-mesh-neg-data", "D-texture-neg-data", "C-mesh-late", "C-texture-late", "C-mesh-loading", "C-texture-loading", "control-mesh" };
+        "B-mesh-neg", "B-texture-neg", "D-mesh-neg", "D-texture-neg", "D-mesh-neg-data", "D-texture-neg-data", "C-mesh-late", "C-texture-late", "C-mesh-loading", "C-texture-loading", "E-mesh", "E-texture", "E-mesh-same", "E-texture-same", "control-mesh" };
 
     /// The summary line's parts: how many of kTests (in order) each names. The first part has no label
     struct TestGroup
@@ -38,11 +38,12 @@ namespace BlackFlame::FileProbe
         std::string_view label;
         std::size_t count;
     };
-    inline constexpr std::array<TestGroup, 6> kTestGroups{ TestGroup{ "", 10 },
+    inline constexpr std::array<TestGroup, 7> kTestGroups{ TestGroup{ "", 10 },
         TestGroup{ "asked before the file existed", 4 },    // A-neg, C-neg
         TestGroup{ "location registered before the file", 6 },  // B-neg, D-neg: the real use
         TestGroup{ "registered after a failed request", 2 },     // C-late
         TestGroup{ "while a load is in flight", 2 },            // C-loading
+        TestGroup{ "placeholder overwritten mid-session", 4 },  // E, E-same (a file the index knew at startup, rewritten now)
         TestGroup{ "environment", 1 } };                        // control: a shipped NIF that must load
 
     struct Verdict
@@ -97,6 +98,19 @@ namespace BlackFlame::FileProbe
         bool loadInFlight = false;             // C-loading: that load had no GPU texture yet when the files were registered
         std::string inFlightState = "not started";
         std::optional<std::pair<std::string, DemandResult>> loadingMesh;  // FQ1: C-mesh-loading's Demand, judged with the textures
+        // Test E (FileProbeTestE.cpp): the keep_e* placeholders the last run left, overwritten this session
+        bool eExisted = false;      // keep_e.nif and keep_e.dds both present at startup (else E is the first run: SKIPPED)
+        bool eSameExisted = false;  // keep_es.nif and keep_es.dds both present at startup
+        std::string sourceNifRoot;  // the source NIF's root node name + child count (the placeholders' old content)
+        std::string eNifRecord;     // the overwrite NIF's own record path, Demanded for its root name (the new content)
+        std::string eNifRoot;       // its root node name + child count
+        std::shared_ptr<const Bytes> eNif;   // the overwrite NIF (a different byte size from the source)
+        std::shared_ptr<const Bytes> eDds;   // the overwrite DDS
+        std::uint32_t eDdsWidth = 0;
+        std::uint32_t eDdsHeight = 0;
+        std::string eSameNifRecord;  // the same-size overwrite NIF's own record path (Demanded for its root name)
+        std::shared_ptr<const Bytes> eSameNif;  // the source NIF's byte size, different content (may be null: E-same SKIPPED)
+        std::shared_ptr<const Bytes> eSameDds;  // the source DDS's dimensions, different content (may be null)
         std::map<std::string, Verdict, std::less<>> results;
         std::vector<PendingTexture> textures;
         std::vector<std::string> lines;        // every line, for the result file
@@ -159,5 +173,12 @@ namespace BlackFlame::FileProbe
     void LateCheck(Run& a_run);      // next frame: B-neg and D-neg asked; C-late written, registered, asked; C-loading
     [[nodiscard]] std::uint32_t ChoosePriority(Run& a_run, std::string_view a_who);  // RegisterLocation's priority, logged
     void JudgeTextures(Run& a_run); // every texture asked for, by its loaded size; C-mesh-loading too (FQ1)
+    [[nodiscard]] DemandResult DemandNamed(const std::string& a_recordPath, std::string& a_outRoot);  // a_outRoot: "name (N children)"
+    void PickOverwrite(Run& a_run);  // E's overwrite NIF/DDS (different size) and the same-size variants (FileProbeSources.cpp)
+    void NoteEPlaceholders(Run& a_run);  // E: whether the keep_e* files are in place at startup (before any overwrite)
+    [[nodiscard]] std::string Text(const TextureLook& a_look);  // what a GetTexture call gave, in words
+    void JudgeETexture(Run& a_run, const TextureLook& a_look);  // E-texture against the overwrite's dimensions
+    void TestE(Run& a_run);              // E: overwrite the placeholders, Demand/GetTexture them the first time this session
+    void WriteEPlaceholders(Run& a_run); // E: at the end, the placeholders for the next run (never deleted at the next start)
     void ApplyLooseRouteRule(Run& a_run);  // FQ2: a C test passes only when its A twin (the plain loose route) failed
 }

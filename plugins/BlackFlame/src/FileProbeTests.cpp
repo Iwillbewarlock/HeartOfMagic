@@ -39,18 +39,30 @@ namespace BlackFlame::FileProbe
 
     // Helpers below are shared with FileProbeTestD.cpp (declared in FileProbeRun.h) or used only here
 
-    DemandResult Demand(const std::string& a_recordPath)
+    DemandResult DemandNamed(const std::string& a_recordPath, std::string& a_outRoot)
     {
         DemandResult result;
         RE::NiPointer<RE::NiNode> out;
         auto code = RE::BSResource::ErrorCode::kNone;
         const auto begin = Clock::now();
-        result.fault = !GuardedKeep("file probe Demand", [&]() { code = RE::BSModelDB::Demand(a_recordPath.c_str(), out, {}); });
+        result.fault = !GuardedKeep("file probe Demand", [&]() {
+            code = RE::BSModelDB::Demand(a_recordPath.c_str(), out, {});
+            if (out) {
+                const char* name = out->name.c_str();
+                a_outRoot = std::format("'{}' ({} children)", name ? name : "", out->children.size());
+            }
+        });
         result.ms = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - begin).count();
         result.code = static_cast<int>(code);
         result.node = out != nullptr;
         out.reset();
         return result;
+    }
+
+    DemandResult Demand(const std::string& a_recordPath)
+    {
+        std::string ignored;
+        return DemandNamed(a_recordPath, ignored);
     }
 
     bool Passed(const DemandResult& a_result) { return !a_result.fault && a_result.code == 0 && a_result.node; }
@@ -339,8 +351,11 @@ namespace BlackFlame::FileProbe
             a_run.inFlightTarget.empty() ? "(none found)" : a_run.inFlightTarget));
         // The environment check: a NIF the load order ships, Demanded the same way; a FAIL here means the way of asking (or
         // the game state) is at fault, not the route a test takes
-        const auto control = Demand(a_run.sourceModel);
-        SetVerdict(a_run, "control-mesh", Passed(control) ? "PASS" : "FAIL", Text(a_run.sourceModel, control));
+        const auto control = DemandNamed(a_run.sourceModel, a_run.sourceNifRoot);  // its root name is test E's old content
+        SetVerdict(a_run, "control-mesh", Passed(control) ? "PASS" : "FAIL",
+            std::format("{}; root {}", Text(a_run.sourceModel, control), a_run.sourceNifRoot.empty() ? "(none)" : a_run.sourceNifRoot));
+        (void)GuardedKeep("file probe E overwrite pick", [&]() { PickOverwrite(a_run); });
+        NoteEPlaceholders(a_run);  // before anything overwrites them
         // FP2: the index layout is used only after a lookup of this shipped file found it
         lines.clear();
         Engine::ConfirmIndex({ *NifDump::NormalizeModelPath(a_run.sourceModel), a_run.sourceTexture, std::string(kVanillaModel) }, lines);
@@ -548,6 +563,10 @@ namespace BlackFlame::FileProbe
             const auto look = Look(pending.texture.get());
             if (pending.test == "C-texture-loading" && !loadingDoubt.empty()) {
                 SetVerdict(a_run, pending.test, "INCONCLUSIVE", std::format("{}; GetTexture(\"{}\"): {}", loadingDoubt, pending.path, Text(look)));
+                continue;
+            }
+            if (pending.test == "E-texture") {  // judged against the overwrite dimensions, not the source's
+                JudgeETexture(a_run, look);
                 continue;
             }
             JudgeOne(a_run, pending, look);

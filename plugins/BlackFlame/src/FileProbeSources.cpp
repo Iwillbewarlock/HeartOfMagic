@@ -134,4 +134,56 @@ namespace BlackFlame::FileProbe
             }
         }
     }
+
+    // Test E's overwrite files: another projectile NIF of a different byte size from the source (eNif, with its own record
+    // path to Demand for the new content's root name) and a DDS of different dimensions (eDds); and, when found, a NIF of the
+    // source's exact byte size with different content (eSameNif) and a DDS of the source's dimensions (eSameDds) for E-same
+    void PickOverwrite(Run& a_run)
+    {
+        auto* handler = RE::TESDataHandler::GetSingleton();
+        if (!handler || !a_run.nif || !a_run.dds) {
+            return;
+        }
+        const auto sourceDds = DdsSize(*a_run.dds);
+        std::size_t tried = 0;
+        for (auto* projectile : handler->GetFormArray<RE::BGSProjectile>()) {
+            const char* model = projectile ? static_cast<const RE::TESModel*>(projectile)->GetModel() : nullptr;
+            if (!model || !*model || a_run.sourceModel == model || ++tried > kMaxProjectilesTried) {
+                continue;
+            }
+            const auto dataPath = NifDump::NormalizeModelPath(model);
+            Bytes nif;
+            if (!dataPath || !ReadSource(*dataPath, nif) || nif == *a_run.nif) {
+                continue;
+            }
+            if (!a_run.eNif && nif.size() != a_run.nif->size()) {
+                a_run.eNifRecord = model;  // its own record path: Demanded for the new content's root name
+                a_run.eNif = std::make_shared<const Bytes>(nif);
+            } else if (!a_run.eSameNif && nif.size() == a_run.nif->size()) {
+                a_run.eSameNifRecord = model;
+                a_run.eSameNif = std::make_shared<const Bytes>(nif);
+            }
+            for (const auto& slot : NifDump::TexturePathsIn(nif)) {
+                const auto texture = NifDump::NormalizeTexturePath(slot);
+                Bytes dds;
+                if (!texture || !ReadSource(*texture, dds) || dds == *a_run.dds) {
+                    continue;
+                }
+                const auto dims = DdsSize(dds);
+                if (!dims) {
+                    continue;
+                }
+                if (!a_run.eDds && (!sourceDds || *dims != *sourceDds)) {
+                    a_run.eDdsWidth = dims->first;
+                    a_run.eDdsHeight = dims->second;
+                    a_run.eDds = std::make_shared<const Bytes>(std::move(dds));
+                } else if (!a_run.eSameDds && sourceDds && *dims == *sourceDds) {
+                    a_run.eSameDds = std::make_shared<const Bytes>(std::move(dds));
+                }
+            }
+            if (a_run.eNif && a_run.eDds && a_run.eSameNif && a_run.eSameDds) {
+                return;
+            }
+        }
+    }
 }
