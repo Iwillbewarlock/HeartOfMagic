@@ -158,7 +158,7 @@ namespace BlackFlame
                 const auto link = LinkToPlayer("projectile", projectile, shooter.get(), NonActorCasterOf(shooter.get()));
                 const bool byPlayer = link != PlayerLink::kNone;
                 if (byPlayer) {
-                    NotePlayerRef(projectile, "projectile");  // dev spike (DrawTimeGrey.h)
+                    NotePlayerRef(projectile, DrawTime::RootKind::kProjectile);  // dev spike (DrawTimeGrey.h)
                 }
                 const bool tint = byPlayer && IsStoked() && GetConfig().light;
                 LogLinkOnce("projectile", link);
@@ -186,7 +186,7 @@ namespace BlackFlame
             }
             const bool byPlayer = link != PlayerLink::kNone;
             if (byPlayer) {
-                NotePlayerRef(a_projectile, "projectile");  // dev spike: before the light and log early-outs below
+                NotePlayerRef(a_projectile, DrawTime::RootKind::kProjectile);  // dev spike, before the early-outs below
             }
             LogLinkOnce("projectile", link);
             const char* linkName = PlayerLinkName(link);

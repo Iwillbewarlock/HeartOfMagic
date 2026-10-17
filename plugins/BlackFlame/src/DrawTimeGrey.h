@@ -21,14 +21,39 @@
 
 namespace BlackFlame
 {
+    namespace DrawTime
+    {
+        /// Where a player geometry was found (the first bind lines and the summary's counts are per kind)
+        enum class RootKind : std::uint8_t
+        {
+            kProjectile,
+            kExplosion,
+            kHand,
+            kCount
+        };
+
+        [[nodiscard]] constexpr const char* RootKindName(RootKind a_kind) noexcept
+        {
+            switch (a_kind) {
+            case RootKind::kProjectile:
+                return "projectile";
+            case RootKind::kExplosion:
+                return "explosion";
+            case RootKind::kHand:
+                return "hand art";
+            default:
+                return "?";
+            }
+        }
+    }
+
     /// kDataLoaded, after the palettes are loaded: hooks the two vfuncs and starts the 100 ms rewalk ticker (key off:
     /// nothing)
     void InstallDrawTimeGrey();
 
     /// Any thread (Projectile Handle3DLoaded, Explosion Set3D): a reference the attribution gave to the player; its
-    /// 3D is walked on the main thread at the next drain. a_kind: a string literal for the logs. Nothing while the key
-    /// is off or the buff is not on.
-    void NotePlayerRef(RE::TESObjectREFR* a_ref, const char* a_kind);
+    /// 3D is walked on the main thread at the next drain. Nothing while the key is off or the buff is not on; never throws
+    void NotePlayerRef(RE::TESObjectREFR* a_ref, DrawTime::RootKind a_kind) noexcept;
 
     /// Message handler, at kPreLoadGame / kNewGame: the set and its roots dropped (an empty snapshot published first)
     void ResetDrawTimeGrey();

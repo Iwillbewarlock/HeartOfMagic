@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Common.h"
+#include "DrawTimeGrey.h"
 
 #include <atomic>
 #include <cstdint>
@@ -26,30 +27,6 @@ namespace BlackFlame::DrawTime
         kLeftAlone   // palette alpha on and no derived palette on disk: one universal palette would break its outline
     };
 
-    /// Where a player geometry was found (the first bind lines are per kind, so a projectile's are not crowded out by
-    /// the hand art that is in the set first)
-    enum class RootKind : std::uint8_t
-    {
-        kProjectile,
-        kExplosion,
-        kHand,
-        kCount
-    };
-
-    [[nodiscard]] constexpr const char* RootKindName(RootKind a_kind) noexcept
-    {
-        switch (a_kind) {
-        case RootKind::kProjectile:
-            return "projectile";
-        case RootKind::kExplosion:
-            return "explosion";
-        case RootKind::kHand:
-            return "hand art";
-        default:
-            return "?";
-        }
-    }
-
     /// One player geometry, decided on the main thread. The render side only compares these pointers with the pass's
     /// own and writes `grey` (a view of a session-long palette texture); it never dereferences them
     struct Target
@@ -68,7 +45,10 @@ namespace BlackFlame::DrawTime
     {
         std::uint64_t generation = 0;
         std::unordered_map<const RE::BSGeometry*, Target> targets;
-        std::unordered_set<Srv*> ours;  // every palette view we may bind (the NPC leak check)
+        std::unordered_set<Srv*> ours;  // every palette view we may bind (the NPC leak check; kept in an empty snapshot too)
+        // The player's geometries skipped because their material already names one of our palettes (a copy): not in
+        // targets, and not NPC leaks when the slot holds our view
+        std::unordered_set<const RE::BSGeometry*> playerSkipped;
     };
 
     [[nodiscard]] std::shared_ptr<const Snapshot> LoadSnapshot() noexcept;
@@ -88,7 +68,8 @@ namespace BlackFlame::DrawTime
         std::atomic<std::uint64_t> unmeasured{ 0 };      // player hits before the slot was measured
         std::atomic<std::uint64_t> slotMismatch{ 0 };    // the measured slot did not hold the shape's own palette
         std::atomic<std::uint64_t> propMismatch{ 0 };    // the geometry's pass had another shaderProperty than walked
-        std::atomic<std::uint64_t> npcLeaks{ 0 };        // a pass NOT in the set found one of our views in the slot
+        std::atomic<std::uint64_t> npcLeaks{ 0 };        // a pass NOT the player's found one of our views in the slot
+        std::atomic<std::uint64_t> playerOwnPalette{ 0 };  // a player pass skipped as already ours, with our view: no leak
         std::atomic<std::uint64_t> failures{ 0 };        // SEH-guarded bodies that faulted (or skipped after a fault)
         std::atomic<std::uint64_t> setupNs{ 0 };         // time inside our part of SetupGeometry
         std::atomic<std::uint64_t> restoreNs{ 0 };       // time inside our part of RestoreGeometry

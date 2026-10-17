@@ -275,7 +275,7 @@ namespace BlackFlame
                                   casterSpell->GetSpellType() == SpellType::kEnchantment;
             const bool notFireCast = !fireCast;
             if (byPlayer && fireCast) {
-                NotePlayerRef(a_explosion, "explosion");  // dev spike: before the light and log early-outs below
+                NotePlayerRef(a_explosion, DrawTime::RootKind::kExplosion);  // dev spike, before the early-outs below
             }
             if (byPlayer && notFireCast) {
                 int suppressed = 0;

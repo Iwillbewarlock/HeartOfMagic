@@ -5,13 +5,16 @@
 #include "Palette.h"
 #include "Patch.h"
 #include "SehGuard.h"
+#include "TrackedMutex.h"
 
 #ifndef NOMINMAX
 #    define NOMINMAX
 #endif
 #include <Windows.h>
 
+#include <algorithm>
 #include <array>
+#include <mutex>
 #include <chrono>
 #include <format>
 #include <string>
@@ -44,7 +47,9 @@ namespace BlackFlame::DrawTime
         constexpr int kLeakLogs = 10;
         constexpr int kSameMaterialLogs = 6;
         constexpr int kMismatchLogs = 6;
-        constexpr int kSlotLogs = 4;
+        constexpr int kSlotLogs = 8;
+        constexpr int kSlotAgreement = 3;           // distinct materials that must name the same slot before it is used
+        constexpr int kMaxMeasureAttempts = 4096;   // then measuring stops for the session (unmeasured keeps counting)
         constexpr double kNsPerUs = 1000.0;
 
         std::atomic<bool> g_installed{ false };
@@ -69,6 +74,25 @@ namespace BlackFlame::DrawTime
         std::atomic<int> g_sameMaterialLogs{ 0 };
         std::atomic<int> g_mismatchLogs{ 0 };
         std::atomic<int> g_slotLogs{ 0 };
+        std::atomic<int> g_measureAttempts{ 0 };
+
+        // The slot vote: one candidate slot and the distinct materials that named it (render side, try_lock only)
+        struct SlotVote
+        {
+            int candidate = -1;
+            std::array<const RE::BSShaderMaterial*, kSlotAgreement> materials{};
+            int agreed = 0;
+        };
+        TrackedMutex g_voteMutex;
+        SlotVote g_vote;
+
+        // A log line is due while its counter is under the cap (read first, so the counter stops growing there and
+        // cannot wrap)
+        bool AllowLog(std::atomic<int>& a_counter, int a_cap)
+        {
+            return a_counter.load(std::memory_order_relaxed) < a_cap &&
+                   a_counter.fetch_add(1, std::memory_order_relaxed) < a_cap;
+        }
 
         // One open bind: what the slot held before ours, for that pass's RestoreGeometry
         struct OpenBind
@@ -128,7 +152,7 @@ namespace BlackFlame::DrawTime
 
         void LogThreadOnce()
         {
-            if (g_threadLogs.fetch_add(1, std::memory_order_relaxed) >= kThreadLogs) {
+            if (!AllowLog(g_threadLogs, kThreadLogs)) {
                 return;
             }
             const auto* main = RE::Main::GetSingleton();
@@ -136,32 +160,56 @@ namespace BlackFlame::DrawTime
                 REX::W32::GetCurrentThreadId(), g_gameThreadNativeId.load(), main ? main->threadID : 0);
         }
 
-        // The slot: the first PSTexture[] index holding the shape's own greyscale view; every match and the source
-        // texture's slot logged for the first few
+        // The slot: the PSTexture[] index holding the shape's own greyscale view. Only a shape whose greyscale view is not
+        // also its source texture's (that would name the diffuse slot) and sits in exactly one slot votes; the slot is
+        // used once kSlotAgreement distinct materials named it. No allocation unless a line is logged
         void MeasureSlot(const ShadowData& a_state, const Target& a_target)
         {
-            int first = -1;
-            std::string matches;
-            std::string baseSlots;
+            if (g_measureAttempts.load(std::memory_order_relaxed) >= kMaxMeasureAttempts) {
+                return;
+            }
+            g_measureAttempts.fetch_add(1, std::memory_order_relaxed);
+            if (!a_target.source || a_target.source == a_target.base) {
+                return;
+            }
+            int found = -1;
+            int matches = 0;
+            int baseSlot = -1;
             for (int i = 0; i < kTextureSlots; ++i) {
-                if (a_target.source && a_state.PSTexture[i] == a_target.source) {
-                    first = first < 0 ? i : first;
-                    matches += std::format(" {}", i);
+                if (a_state.PSTexture[i] == a_target.source) {
+                    found = found < 0 ? i : found;
+                    ++matches;
                 }
-                if (a_target.base && a_state.PSTexture[i] == a_target.base) {
-                    baseSlots += std::format(" {}", i);
+                if (a_target.base && baseSlot < 0 && a_state.PSTexture[i] == a_target.base) {
+                    baseSlot = i;
                 }
             }
-            auto& counters = CountersRef();
-            if (first >= 0) {
-                int expected = -1;
-                (void)counters.slot.compare_exchange_strong(expected, first);
+            int agreed = 0;
+            bool locked = false;
+            if (matches == 1) {
+                std::unique_lock lock(g_voteMutex, std::try_to_lock);
+                if (!lock.owns_lock()) {
+                    return;  // another render thread is voting: this pass waits for the next
+                }
+                if (g_vote.candidate != found) {
+                    g_vote = SlotVote{};  // a different slot: the count starts again from this material
+                    g_vote.candidate = found;
+                }
+                if (std::ranges::find(g_vote.materials, a_target.material) == g_vote.materials.end() &&
+                    g_vote.agreed < kSlotAgreement) {
+                    g_vote.materials[static_cast<std::size_t>(g_vote.agreed++)] = a_target.material;
+                }
+                agreed = g_vote.agreed;
+                if (agreed >= kSlotAgreement) {
+                    int expected = -1;
+                    locked = CountersRef().slot.compare_exchange_strong(expected, found);
+                }
             }
-            if (g_slotLogs.fetch_add(1, std::memory_order_relaxed) < kSlotLogs) {
-                logger::info("BlackFlame: draw-time grey: slot measure on material 0x{:X}: greyscale view 0x{:X} in PS slot(s){} "
-                             "(source texture view 0x{:X} in slot(s){}); slot now {}",
-                    Addr(a_target.material), Addr(a_target.source), matches.empty() ? " none" : matches,
-                    Addr(a_target.base), baseSlots.empty() ? " none" : baseSlots, counters.slot.load());
+            if (AllowLog(g_slotLogs, kSlotLogs)) {
+                logger::info("BlackFlame: draw-time grey: slot measure on material 0x{:X}: greyscale view 0x{:X} in {} PS "
+                             "slot(s), first {} (source texture view 0x{:X} in slot {}); votes {}/{}{}",
+                    Addr(a_target.material), Addr(a_target.source), matches, found, Addr(a_target.base), baseSlot, agreed,
+                    kSlotAgreement, locked ? std::format(" - slot {} in use from now on", found) : "");
             }
         }
 
@@ -171,23 +219,24 @@ namespace BlackFlame::DrawTime
             auto& counters = CountersRef();
             Srv* inSlot = a_slot >= 0 ? a_state.PSTexture[a_slot] : nullptr;
             const bool ours = inSlot && a_snapshot.ours.contains(inSlot);
-            if (ours) {
+            if (ours && a_snapshot.playerSkipped.contains(a_pass->geometry)) {
+                counters.playerOwnPalette.fetch_add(1, std::memory_order_relaxed);  // a player copy's own grey palette
+            } else if (ours) {
                 counters.npcLeaks.fetch_add(1, std::memory_order_relaxed);
-                if (g_leakLogs.fetch_add(1, std::memory_order_relaxed) < kLeakLogs) {
+                if (AllowLog(g_leakLogs, kLeakLogs)) {
                     logger::warn("BlackFlame: draw-time grey: NPC LEAK: pass geometry 0x{:X} property 0x{:X} (not the player's) "
                                  "has our palette view 0x{:X} in slot {}",
                         Addr(a_pass->geometry), Addr(a_pass->shaderProperty), Addr(inSlot), a_slot);
                 }
             }
             const auto* material = a_pass->shaderProperty ? a_pass->shaderProperty->material : nullptr;
-            if (material && material == t_binds.lastBoundMaterial &&
-                g_sameMaterialLogs.fetch_add(1, std::memory_order_relaxed) < kSameMaterialLogs) {
+            if (material && material == t_binds.lastBoundMaterial && AllowLog(g_sameMaterialLogs, kSameMaterialLogs)) {
                 logger::info("BlackFlame: draw-time grey: same-material pass after a bind: geometry 0x{:X} (not the "
                              "player's), material 0x{:X}, slot {} holds 0x{:X} ({})",
                     Addr(a_pass->geometry), Addr(material), a_slot, Addr(inSlot), ours ? "OURS - leak" : "not ours");
             }
             t_binds.lastBoundMaterial = nullptr;
-            if (g_nonHitLogs.fetch_add(1, std::memory_order_relaxed) < kNonHitLogs) {
+            if (AllowLog(g_nonHitLogs, kNonHitLogs)) {
                 logger::info("BlackFlame: draw-time grey: non-player pass: geometry 0x{:X} property 0x{:X} material 0x{:X}, "
                              "slot {} holds 0x{:X}",
                     Addr(a_pass->geometry), Addr(a_pass->shaderProperty), Addr(material), a_slot, Addr(inSlot));
@@ -217,7 +266,7 @@ namespace BlackFlame::DrawTime
             Srv* before = a_state.PSTexture[slot];
             if (before != a_target.source) {
                 counters.slotMismatch.fetch_add(1, std::memory_order_relaxed);
-                if (g_mismatchLogs.fetch_add(1, std::memory_order_relaxed) < kMismatchLogs) {
+                if (AllowLog(g_mismatchLogs, kMismatchLogs)) {
                     logger::info("BlackFlame: draw-time grey: slot {} holds 0x{:X}, not the shape's palette 0x{:X} (geometry "
                                  "0x{:X}) - not bound",
                         slot, Addr(before), Addr(a_target.source), Addr(a_pass->geometry));
@@ -232,7 +281,7 @@ namespace BlackFlame::DrawTime
             WriteSlot(a_state, slot, a_target.grey);
             counters.binds.fetch_add(1, std::memory_order_relaxed);
             t_binds.lastBoundMaterial = a_target.material;
-            if (g_hitLogs[static_cast<std::size_t>(a_target.root)].fetch_add(1, std::memory_order_relaxed) < kHitLogs) {
+            if (AllowLog(g_hitLogs[static_cast<std::size_t>(a_target.root)], kHitLogs)) {
                 constexpr std::array kGreyKindNames{ "derived", "fixed", "fixed add", "left alone" };
                 logger::info("BlackFlame: draw-time grey: bind ({}): geometry 0x{:X} property 0x{:X} material 0x{:X}, slot {}: "
                              "0x{:X} -> 0x{:X} ({} palette)",
@@ -249,11 +298,27 @@ namespace BlackFlame::DrawTime
                 return;
             }
             auto& state = Shadow();
-            for (int i = 0; i < t_binds.count; ++i) {
-                Close(state, t_binds.open[i]);
+            while (t_binds.count > 0) {  // one at a time: a fault leaves count = the binds really left open
+                Close(state, t_binds.open[static_cast<std::size_t>(t_binds.count - 1)]);
+                --t_binds.count;
+                CountersRef().unpaired.fetch_add(1, std::memory_order_relaxed);
             }
-            CountersRef().unpaired.fetch_add(static_cast<std::uint64_t>(t_binds.count), std::memory_order_relaxed);
+        }
+
+        // Closing them faulted: what is left open is forgotten (never written back blind) and said once per drop
+        void DropOpenBinds(const char* a_why) noexcept
+        {
+            const int left = t_binds.count;
             t_binds.count = 0;
+            CountersRef().failures.fetch_add(1, std::memory_order_relaxed);
+            if (left > 0) {
+                try {
+                    logger::warn("BlackFlame: draw-time grey: dropped {} open bind(s) unrestored ({} while closing them on "
+                                 "thread {})",
+                        left, a_why, REX::W32::GetCurrentThreadId());
+                } catch (...) {
+                }
+            }
         }
 
         void OnSetup(const RE::BSRenderPass* a_pass)
@@ -302,11 +367,10 @@ namespace BlackFlame::DrawTime
                 // Entered from the engine's vtable: nothing may throw out of here
                 try {
                     if (t_binds.count > 0 && !GuardedKeep("draw-time grey unpaired close", [] { CloseUnpaired(); })) {
-                        t_binds.count = 0;
-                        CountersRef().failures.fetch_add(1, std::memory_order_relaxed);
+                        DropOpenBinds("a fault");
                     }
                 } catch (...) {
-                    t_binds.count = 0;
+                    DropOpenBinds("an exception");
                 }
                 func(a_this, a_pass, a_flags);
                 if (!a_pass || !IsStoked()) {
@@ -432,12 +496,12 @@ namespace BlackFlame::DrawTime
             c.renderThread.load(), g_gameThreadNativeId.load(), rate(totals.passes, g_last.passes),
             rate(totals.hits, g_last.hits), rate(totals.binds, g_last.binds), c.slot.load(), c.failures.load());
         logger::info("BlackFlame: draw-time grey: detail: passes off main {:.0f}/s, restores {}, restore found slot changed {}, "
-                     "unpaired {}, left alone {}, unmeasured {}, slot mismatch {}, property mismatch {}, NPC LEAKS {}, "
-                     "set {} geometries ({}) from {} roots, cost setup {:.0f} us/s restore {:.0f} us/s rewalk {:.0f} us/s, "
-                     "snapshot seen {}, vtable slots {}",
+                     "unpaired {}, left alone {}, unmeasured {} (measures {}), slot mismatch {}, property mismatch {}, NPC "
+                     "LEAKS {}, player copy palette passes {}, set {} geometries ({}) from {} roots, cost setup {:.0f} us/s "
+                     "restore {:.0f} us/s rewalk {:.0f} us/s, snapshot seen {}, vtable slots {}",
             rate(totals.offMain, g_last.offMain), c.restores.load(), c.restoreChanged.load(), c.unpaired.load(),
-            c.leftAlone.load(), c.unmeasured.load(), c.slotMismatch.load(), c.propMismatch.load(), c.npcLeaks.load(),
-            a_setSize, a_kinds, a_roots, rate(totals.setupNs, g_last.setupNs) / kNsPerUs,
+            c.leftAlone.load(), c.unmeasured.load(), g_measureAttempts.load(), c.slotMismatch.load(), c.propMismatch.load(),
+            c.npcLeaks.load(), c.playerOwnPalette.load(), a_setSize, a_kinds, a_roots, rate(totals.setupNs, g_last.setupNs) / kNsPerUs,
             rate(totals.restoreNs, g_last.restoreNs) / kNsPerUs, rate(totals.rewalkNs, g_last.rewalkNs) / kNsPerUs,
             c.seenGeneration.load(), SlotState());
         g_last = totals;
@@ -462,18 +526,29 @@ namespace BlackFlame::DrawTime
                 "draw-time grey")) {
             return false;
         }
-        (void)RE::BSGraphics::RendererShadowState::GetSingleton();  // its relocation resolved here, not on the render thread
+        // Relocations resolved here, not on the render thread (function-local statics in CommonLib)
+        (void)RE::BSGraphics::RendererShadowState::GetSingleton();
+        (void)RE::Main::GetSingleton();
         REL::Relocation<std::uintptr_t> vtbl{ RE::VTABLE_BSEffectShader[0] };
         g_vtable = vtbl.address();
         const auto setupBefore = SlotValue(kSetupGeometryIndex);
         const auto restoreBefore = SlotValue(kRestoreGeometryIndex);
-        // Restore first: a SetupGeometry of ours never runs without our RestoreGeometry in place
-        RestoreGeometryHook::func =
-            Patch::WriteVfunc("BSEffectShader RestoreGeometry (draw-time grey)", vtbl, kRestoreGeometryIndex,
-                RestoreGeometryHook::thunk);
-        SetupGeometryHook::func =
-            Patch::WriteVfunc("BSEffectShader SetupGeometry (draw-time grey)", vtbl, kSetupGeometryIndex,
-                SetupGeometryHook::thunk);
+        // Each thunk's original is set BEFORE its slot is written: a render thread may call the thunk the moment the
+        // slot changes. Restore first: a SetupGeometry of ours never runs without our RestoreGeometry in place
+        RestoreGeometryHook::func = restoreBefore;
+        const auto restoreOriginal = Patch::WriteVfunc("BSEffectShader RestoreGeometry (draw-time grey)", vtbl,
+            kRestoreGeometryIndex, RestoreGeometryHook::thunk);
+        SetupGeometryHook::func = setupBefore;
+        const auto setupOriginal = Patch::WriteVfunc("BSEffectShader SetupGeometry (draw-time grey)", vtbl,
+            kSetupGeometryIndex, SetupGeometryHook::thunk);
+        if (restoreOriginal != restoreBefore || setupOriginal != setupBefore) {
+            // Another thread wrote the slot between our read and our write: chain onto what it wrote
+            RestoreGeometryHook::func = restoreOriginal;
+            SetupGeometryHook::func = setupOriginal;
+            logger::warn("BlackFlame: draw-time grey: a vtable slot changed while it was hooked (restore {} -> {}, setup "
+                         "{} -> {}) - chained onto the newer one",
+                ModuleOf(restoreBefore), ModuleOf(restoreOriginal), ModuleOf(setupBefore), ModuleOf(setupOriginal));
+        }
         g_installed.store(true);
         logger::info("BlackFlame: draw-time grey: hooked BSEffectShader vtable {} slots 0x{:X} / 0x{:X} ({}): the originals "
                      "were in {} / {} (another module = chained onto it)",

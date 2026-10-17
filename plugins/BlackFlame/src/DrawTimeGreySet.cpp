@@ -12,6 +12,7 @@
 #include "SehGuard.h"
 #include "TrackedMutex.h"
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <filesystem>
@@ -46,10 +47,12 @@ namespace BlackFlame
         constexpr const char* kLeftMagicNodeName = "NPC L MagicNode [LMag]";   // as CasterArt.cpp
         constexpr const char* kRightMagicNodeName = "NPC R MagicNode [RMag]";
 
+        constexpr std::size_t kRootKinds = static_cast<std::size_t>(RootKind::kCount);
+
         struct Root
         {
             RE::ObjectRefHandle handle;
-            const char* kind = "";
+            RootKind kind = RootKind::kProjectile;
         };
 
         struct WalkStats
@@ -63,12 +66,19 @@ namespace BlackFlame
             int noPaletteFlag = 0;
             int noSource = 0;
             int alreadyOurs = 0;
+            std::array<int, kRootKinds> roots{};       // roots walked with 3D, per kind
+            std::array<int, kRootKinds> geometries{};  // targets per kind (an enchantment explosion shows here too)
 
             [[nodiscard]] std::string Describe() const
             {
-                return std::format("derived {}, fixed {}, fixed add {}, left alone {}; skipped: MPS {}, legacy {}, no palette "
-                                   "flag {}, no palette texture {}, already ours {}",
-                    derived, fixed, fixedAdd, leftAlone, mps, legacy, noPaletteFlag, noSource, alreadyOurs);
+                std::string perKind;
+                for (std::size_t i = 0; i < kRootKinds; ++i) {
+                    perKind += std::format("{}{} {} ({} roots)", i ? ", " : "", RootKindName(static_cast<RootKind>(i)),
+                        geometries[i], roots[i]);
+                }
+                return std::format("{}; derived {}, fixed {}, fixed add {}, left alone {}; skipped: MPS {}, legacy {}, no "
+                                   "palette flag {}, no palette texture {}, already ours {}",
+                    perKind, derived, fixed, fixedAdd, leftAlone, mps, legacy, noPaletteFlag, noSource, alreadyOurs);
             }
         };
 
@@ -128,9 +138,11 @@ namespace BlackFlame
             return false;
         }
 
-        // The builder's palette for this source palette and blend: textures\heartofmagic\blackflame\copies\palettes\
-        // {add,normal}\<path after textures\> (tools/blackflame-greybuild/GreyPalette.h). Loaded once through the engine's
-        // texture path when the loose file is there; cached either way
+        // The builder's palette for this source palette and blend: DataPathRule::kDerivedPaletteAdd / Normal followed by
+        // the source path after "textures" (tools/blackflame-greybuild/GreyPalette.h). Loaded once through the engine's
+        // texture path when the loose file is there; cached either way. Loose files only: std::filesystem sees the Data
+        // folder (through MO2's VFS), not a BSA, so a derived palette packed into an archive reads as missing (the
+        // builder writes them loose; CopyFreshness.cpp counts them the same way)
         RE::NiSourceTexture* DerivedPalette(MainState& a_state, const RE::BSFixedString& a_source, bool a_additive)
         {
             if (a_source.empty()) {
@@ -189,7 +201,9 @@ namespace BlackFlame
                 return;
             }
             if (IsAnyPalettePath(material->greyscaleTexturePath)) {
-                ++a_stats.alreadyOurs;  // a copy's own grey palette (copy swaps on)
+                ++a_stats.alreadyOurs;  // a copy's own grey palette (copy swaps on): not bound, not an NPC leak either
+                a_out.playerSkipped.insert(a_geometry);
+                a_owners.try_emplace(a_geometry, RE::NiPointer<RE::BSGeometry>(a_geometry));  // its address held too
                 return;
             }
             const bool additive = IsAdditive(a_geometry);
@@ -211,6 +225,7 @@ namespace BlackFlame
             }
             a_out.targets.emplace(a_geometry, target);
             a_owners.try_emplace(a_geometry, RE::NiPointer<RE::BSGeometry>(a_geometry));
+            ++a_stats.geometries[static_cast<std::size_t>(a_root)];
         }
 
         void Collect(MainState& a_state, RE::NiAVObject* a_root, RootKind a_kind, Snapshot& a_out, Owners& a_owners,
@@ -228,7 +243,7 @@ namespace BlackFlame
                     ++a_stats.mps;
                     return;
                 }
-                if (!a_out.targets.contains(a_geometry)) {
+                if (!a_out.targets.contains(a_geometry) && !a_out.playerSkipped.contains(a_geometry)) {
                     Classify(a_state, a_prop, a_geometry, a_kind, a_out, a_owners, a_stats);
                 }
             });
@@ -274,6 +289,7 @@ namespace BlackFlame
                         a_owners, a_stats);
                 }
                 ++roots;
+                ++a_stats.roots[static_cast<std::size_t>(RootKind::kHand)];
             }
             return roots;
         }
@@ -323,6 +339,22 @@ namespace BlackFlame
             }
         }
 
+        // Every palette view we may bind: the fixed ones and every derived one loaded so far (an empty snapshot keeps
+        // them too, so the NPC leak check still sees our views after a clear)
+        void FillOurs(const MainState& a_state, Snapshot& a_snapshot)
+        {
+            for (auto* fixed : { GetPalette(), GetAddPalette() }) {
+                if (Srv* view = ViewOf(fixed)) {
+                    a_snapshot.ours.insert(view);
+                }
+            }
+            for (const auto& [path, texture] : a_state.derived) {
+                if (Srv* view = ViewOf(texture)) {
+                    a_snapshot.ours.insert(view);
+                }
+            }
+        }
+
         // Every live root walked again (clones and late 3D attach after the first walk); the set replaced whole
         void Rewalk(MainState& a_state)
         {
@@ -330,30 +362,25 @@ namespace BlackFlame
             TakeNotes(a_state);
             auto snapshot = std::make_shared<Snapshot>();
             snapshot->generation = ++a_state.generation;
-            for (auto* fixed : { GetPalette(), GetAddPalette() }) {
-                if (Srv* view = ViewOf(fixed)) {
-                    snapshot->ours.insert(view);
-                }
-            }
             Owners owners;
             WalkStats stats;
             std::erase_if(a_state.roots, [](const Root& a_root) { return !a_root.handle.get(); });
             for (const auto& root : a_state.roots) {
                 const auto ref = root.handle.get();
                 auto* object = ref ? ref->Get3D() : nullptr;
-                if (object && g_rootLogs.fetch_add(1, std::memory_order_relaxed) < kRootLogs) {
-                    logger::info("BlackFlame: draw-time grey: walking {} {:08X} (base {:08X})", root.kind, ref->GetFormID(),
-                        ref->GetBaseObject() ? ref->GetBaseObject()->GetFormID() : 0);
+                if (!object) {
+                    continue;
                 }
-                const auto kind = std::string_view(root.kind) == "explosion" ? RootKind::kExplosion : RootKind::kProjectile;
-                Collect(a_state, object, kind, *snapshot, owners, stats);
+                ++stats.roots[static_cast<std::size_t>(root.kind)];
+                if (g_rootLogs.load(std::memory_order_relaxed) < kRootLogs) {
+                    g_rootLogs.fetch_add(1, std::memory_order_relaxed);
+                    logger::info("BlackFlame: draw-time grey: walking {} {:08X} (base {:08X})", RootKindName(root.kind),
+                        ref->GetFormID(), ref->GetBaseObject() ? ref->GetBaseObject()->GetFormID() : 0);
+                }
+                Collect(a_state, object, root.kind, *snapshot, owners, stats);
             }
             (void)CollectHands(a_state, *snapshot, owners, stats);
-            for (const auto& [path, texture] : a_state.derived) {
-                if (Srv* view = ViewOf(texture)) {
-                    snapshot->ours.insert(view);
-                }
-            }
+            FillOurs(a_state, *snapshot);  // after the walk: derived palettes it loaded count too
             Publish(a_state, std::move(snapshot), std::move(owners));
             a_state.lastStats = stats;
             const auto spent = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start);
@@ -364,6 +391,7 @@ namespace BlackFlame
         {
             auto empty = std::make_shared<Snapshot>();
             empty->generation = ++a_state.generation;
+            FillOurs(a_state, *empty);
             a_state.roots.clear();
             Publish(a_state, std::move(empty), {});
         }
@@ -393,26 +421,71 @@ namespace BlackFlame
             }
         }
 
-        void PostTick()
+        // A tick that faulted: the set is emptied (no stale snapshot, no geometry held from a walk that stopped half
+        // way); the next tick walks again (GuardedKeep: the step stays on)
+        void ClearAfterFault()
+        {
+            // try_lock: should the fault have left the lock held, this clear is skipped (logged), never a deadlock
+            std::unique_lock lock(g_stateMutex, std::try_to_lock);
+            if (!lock.owns_lock()) {
+                logger::error("BlackFlame: draw-time grey: the set's lock is still held after a faulted tick - not cleared");
+                return;
+            }
+            auto& state = State();
+            Clear(state);
+            state.wasStoked = false;
+            logger::warn("BlackFlame: draw-time grey: a tick failed - the set was emptied; the next tick walks again");
+        }
+
+        void RunTick()
+        {
+            g_tickQueued.store(false);
+            bool ok = false;
+            try {
+                ok = GuardedKeep("draw-time grey tick", [] { Tick(); });
+            } catch (const std::exception& e) {
+                logger::error("BlackFlame: draw-time grey: the tick threw: {}", e.what());
+            } catch (...) {
+                logger::error("BlackFlame: draw-time grey: the tick threw an exception of an unknown type");
+            }
+            if (ok) {
+                return;
+            }
+            GetCounters().failures.fetch_add(1, std::memory_order_relaxed);
+            if (!GuardedKeep("draw-time grey clear after a fault", [] { ClearAfterFault(); })) {
+                GetCounters().failures.fetch_add(1, std::memory_order_relaxed);
+            }
+        }
+
+        // Any thread. Never throws: a failed post clears the flag so the next one can go out
+        void PostTick() noexcept
         {
             if (g_tickQueued.exchange(true)) {
                 return;
             }
-            if (!QueueTask("BlackFlameDrawTimeTick", [] {
-                    g_tickQueued.store(false);
-                    if (!Guarded("draw-time grey tick", [] { Tick(); })) {
-                        GetCounters().failures.fetch_add(1, std::memory_order_relaxed);
-                    }
-                })) {
-                g_tickQueued.store(false);
+            try {
+                if (QueueTask("BlackFlameDrawTimeTick", [] { RunTick(); })) {
+                    return;
+                }
+            } catch (const std::exception& e) {
+                try {
+                    logger::error("BlackFlame: draw-time grey: posting the tick threw: {}", e.what());
+                } catch (...) {
+                }
+            } catch (...) {
             }
+            g_tickQueued.store(false);
         }
 
-        // Detached, never joined (as BuffState.cpp's ticker): it only sleeps and posts
-        void TickerLoop()
+        // Detached, never joined (as BuffState.cpp's ticker): it only sleeps and posts; nothing leaves it (an exception
+        // out of a thread function would end the game)
+        void TickerLoop() noexcept
         {
             for (;;) {
-                std::this_thread::sleep_for(kTickInterval);
+                try {
+                    std::this_thread::sleep_for(kTickInterval);
+                } catch (...) {
+                }
                 PostTick();
             }
         }
@@ -449,18 +522,20 @@ namespace BlackFlame
         DrawTime::StartSetTicker();
     }
 
-    void NotePlayerRef(RE::TESObjectREFR* a_ref, const char* a_kind)
+    void NotePlayerRef(RE::TESObjectREFR* a_ref, DrawTime::RootKind a_kind) noexcept
     {
         if (!a_ref || !GetConfig().devDrawTimeGrey || !DrawTime::HookInstalled() || !IsStoked()) {
             return;
         }
-        {
+        try {
             std::lock_guard lock(g_notesMutex);
             auto& notes = Notes();
             if (notes.size() >= kMaxRoots) {
                 notes.erase(notes.begin());
             }
             notes.push_back(Root{ a_ref->GetHandle(), a_kind });
+        } catch (...) {
+            return;  // called from the engine hooks: a failed note is only a root missed
         }
         PostTick();  // walked at the next drain, not only at the next 100 ms tick
     }
