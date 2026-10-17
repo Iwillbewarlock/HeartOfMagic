@@ -2,9 +2,11 @@
 
 #include "PluginNames.h"
 
+#include <atomic>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -39,7 +41,10 @@ namespace
     RE::BGSKeyword* g_mimicKeyword = nullptr;
     RE::SpellItem* g_ability = nullptr;
     RE::TESObjectBOOK* g_tome = nullptr;
-    std::unordered_set<RE::FormID> g_poisonSpells;
+    std::unordered_set<RE::FormID> g_poisonSpells;  // the hit set (ToxData.h)
+    // The cost set, replaced whole by LoadPoisonSpells; read from any thread (ToxData.h PoisonCostSnapshot)
+    std::atomic<std::shared_ptr<const std::unordered_set<RE::FormID>>> g_costSnapshot{
+        std::make_shared<const std::unordered_set<RE::FormID>>() };
 
     using Clock = std::chrono::steady_clock;
     // The catalog's last-write time when LoadPoisonSpells read it; nullopt = the file was missing
@@ -118,17 +123,24 @@ namespace
 
     // The spell each of a spell's cloak effects casts on whoever comes near, one level down
     // (EffectSettingData::associatedForm, RE/E/EffectSetting.h:71). The cloak effect on the
-    // caster is not hostile (vanilla FireCloakFFSelf), its sub-spell is: the hostile filter runs
-    // after this, so a poison cloak keeps its sub-spell and drops itself.
-    void AddCloakSpells(const RE::SpellItem* a_spell, std::vector<RE::SpellItem*>& a_out)
+    // caster is not hostile (vanilla FireCloakFFSelf), its sub-spell is: core BuildPoisonSets puts
+    // a hostile sub-spell in the hit set and its cloak in the cost set.
+    std::vector<Toxicology::CloakSubSpell> CloakSubSpells(const RE::SpellItem* a_spell)
     {
+        std::vector<Toxicology::CloakSubSpell> subs;
         for (const auto* effect : a_spell->effects) {
             const auto* base = effect ? effect->baseEffect : nullptr;
             if (!base || !base->HasArchetype(RE::EffectSetting::Archetype::kCloak) || !base->data.associatedForm) continue;
-            if (auto* sub = base->data.associatedForm->As<RE::SpellItem>()) {
-                a_out.push_back(sub);
+            if (const auto* sub = base->data.associatedForm->As<RE::SpellItem>()) {
+                subs.push_back({ sub->GetFormID(), HasHostileEffect(sub) });
             }
         }
+        return subs;
+    }
+
+    void PublishCostSnapshot(std::unordered_set<RE::FormID> a_cost)
+    {
+        g_costSnapshot.store(std::make_shared<const std::unordered_set<RE::FormID>>(std::move(a_cost)));
     }
 
     std::optional<nlohmann::json> ReadCatalog()
@@ -218,6 +230,7 @@ bool ToxGame::PlayerHasAbility()
 void ToxGame::LoadPoisonSpells()
 {
     g_poisonSpells.clear();
+    PublishCostSnapshot({});
     // Stamped before the read: a catalog rewritten during it differs next check and is read again
     g_catalogStamp = WriteTime(kCatalogPath);
     g_catalogStampValid = true;
@@ -237,42 +250,26 @@ void ToxGame::LoadPoisonSpells()
     }
 
     PluginLookup lookup;  // one per pass: the file list is converted once, not once per key
-    std::vector<RE::SpellItem*> catalogSpells;
+    std::vector<Toxicology::PoisonSpellNode> nodes;
     std::size_t unresolved = 0;
     for (const auto& key : keys) {
-        auto* spell = ResolveSpell(dh, lookup, key);
+        const auto* spell = ResolveSpell(dh, lookup, key);
         if (!spell) {
             ++unresolved;
             logger::debug("Toxicology: catalog key {} is not a loaded spell", key);
             continue;
         }
-        catalogSpells.push_back(spell);
-    }
-    std::vector<RE::SpellItem*> subSpells;
-    for (auto* spell : catalogSpells) {
-        AddCloakSpells(spell, subSpells);
+        nodes.push_back({ spell->GetFormID(), HasHostileEffect(spell), CloakSubSpells(spell) });
     }
 
-    // Each form once: the catalog spells first, then the cloak sub-spells that are not catalog
-    // spells themselves, so resolved + sub-spells = kept + left out
-    std::unordered_set<RE::FormID> seen;
-    std::size_t resolved = 0;
-    std::size_t cloakSpells = 0;
-    std::size_t notHostile = 0;
-    const auto take = [&](RE::SpellItem* a_spell, std::size_t& a_count) {
-        if (!seen.insert(a_spell->GetFormID()).second) return;
-        ++a_count;
-        if (HasHostileEffect(a_spell)) {
-            g_poisonSpells.insert(a_spell->GetFormID());
-        } else {
-            ++notHostile;
-        }
-    };
-    for (auto* spell : catalogSpells) take(spell, resolved);
-    for (auto* spell : subSpells) take(spell, cloakSpells);
+    // core/ToxCore.h, checked by tools/toxicology-test
+    auto sets = Toxicology::BuildPoisonSets(nodes);
+    g_poisonSpells = std::move(sets.hit);
+    const auto costCount = sets.cost.size();
+    PublishCostSnapshot(std::move(sets.cost));
     logger::info("Toxicology: poison spells: {} catalog keys, {} resolved, {} unresolved, {} cloak sub-spells added, "
-        "{} without a hostile effect left out, {} kept", keys.size(), resolved, unresolved, cloakSpells, notHostile,
-        g_poisonSpells.size());
+        "{} without a hostile effect left out, {} kept for hits, {} charged when cast (cloaks by their own spell)",
+        keys.size(), sets.catalogSpells, unresolved, sets.cloakSubSpells, sets.notHostile, g_poisonSpells.size(), costCount);
 }
 
 bool ToxGame::ReloadPoisonSpellsIfChanged()
@@ -291,6 +288,17 @@ bool ToxGame::ReloadPoisonSpellsIfChanged()
 bool ToxGame::IsPoisonSpell(RE::FormID a_spell)
 {
     return g_poisonSpells.contains(a_spell);
+}
+
+bool ToxGame::IsPoisonCostSpell(RE::FormID a_spell)
+{
+    const auto cost = PoisonCostSnapshot();
+    return cost && cost->contains(a_spell);
+}
+
+std::shared_ptr<const std::unordered_set<RE::FormID>> ToxGame::PoisonCostSnapshot()
+{
+    return g_costSnapshot.load();
 }
 
 // =============================================================================

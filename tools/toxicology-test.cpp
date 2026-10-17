@@ -7,6 +7,7 @@
 
 #include "core/ToxCore.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <exception>
@@ -352,6 +353,62 @@ namespace
         return {};
     }
 
+    // ---------------------------------------------------------- poison sets
+
+    using Toxicology::PoisonSets;
+    using Toxicology::PoisonSpellNode;
+
+    std::string DescribeIds(const std::unordered_set<std::uint32_t>& a_ids)
+    {
+        std::vector<std::uint32_t> sorted(a_ids.begin(), a_ids.end());
+        std::sort(sorted.begin(), sorted.end());
+        std::string out = "{";
+        for (std::size_t i = 0; i < sorted.size(); ++i) {
+            out += (i ? ", " : "") + std::to_string(sorted[i]);
+        }
+        return out + "}";
+    }
+
+    std::string ExpectSets(const PoisonSets& a_got, const std::unordered_set<std::uint32_t>& a_hit,
+        const std::unordered_set<std::uint32_t>& a_cost, std::size_t a_catalog, std::size_t a_subs, std::size_t a_notHostile)
+    {
+        if (a_got.hit == a_hit && a_got.cost == a_cost && a_got.catalogSpells == a_catalog && a_got.cloakSubSpells == a_subs &&
+            a_got.notHostile == a_notHostile) {
+            return {};
+        }
+        return "hit " + DescribeIds(a_got.hit) + " (expected " + DescribeIds(a_hit) + "), cost " + DescribeIds(a_got.cost) +
+               " (expected " + DescribeIds(a_cost) + "), catalog " + std::to_string(a_got.catalogSpells) + ", subs " +
+               std::to_string(a_got.cloakSubSpells) + ", not hostile " + std::to_string(a_got.notHostile);
+    }
+
+    // Hostile spells are in both sets; a helpful "poison" spell (Cure Poison) in neither
+    std::string PoisonSetsPlain()
+    {
+        const auto sets = Toxicology::BuildPoisonSets({ { 1, true, {} }, { 2, false, {} } });
+        return ExpectSets(sets, { 1 }, { 1 }, 2, 0, 1);
+    }
+
+    // A cloak: its hostile sub-spell is hit, the cloak itself is charged; the sub-spell is never charged
+    std::string PoisonSetsCloak()
+    {
+        const auto sets = Toxicology::BuildPoisonSets({ { 10, false, { { 11, true } } } });
+        return ExpectSets(sets, { 11 }, { 10 }, 1, 1, 1);
+    }
+
+    // A cloak whose sub-spell is not hostile counts nowhere; a sub-spell that is also a catalog spell is
+    // counted once, as a catalog spell
+    std::string PoisonSetsHelpfulCloakAndDuplicate()
+    {
+        const auto sets = Toxicology::BuildPoisonSets({ { 20, false, { { 21, false } } }, { 30, false, { { 31, true } } },
+            { 31, true, {} } });
+        return ExpectSets(sets, { 31 }, { 30, 31 }, 3, 1, 3);
+    }
+
+    std::string PoisonSetsEmpty()
+    {
+        return ExpectSets(Toxicology::BuildPoisonSets({}), {}, {}, 0, 0, 0);
+    }
+
     constexpr Check kChecks[] = {
         { "ParseSettingsDefaults", ParseSettingsDefaults },
         { "ParseSettingsValues", ParseSettingsValues },
@@ -380,6 +437,10 @@ namespace
         { "SplitKeyNoPrefix", SplitKeyNoPrefix },
         { "SplitKeyTooLarge", SplitKeyTooLarge },
         { "SplitKeyBad", SplitKeyBad },
+        { "PoisonSetsPlain", PoisonSetsPlain },
+        { "PoisonSetsCloak", PoisonSetsCloak },
+        { "PoisonSetsHelpfulCloakAndDuplicate", PoisonSetsHelpfulCloakAndDuplicate },
+        { "PoisonSetsEmpty", PoisonSetsEmpty },
     };
 
     int SelfTest()

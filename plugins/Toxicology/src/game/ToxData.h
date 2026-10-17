@@ -8,11 +8,15 @@
 //
 // Threads: everything here is called from the game's main thread - the SKSE
 // messaging listener (kDataLoaded, kPostLoadGame, kNewGame) and SKSE tasks
-// (the hit task). Nothing is read off that thread, so there is no lock; a
-// caller on another thread would need one first.
+// (the hit and cast tasks). Nothing is read off that thread, so there is no lock;
+// a caller on another thread would need one first. The one exception is
+// PoisonCostSnapshot (below).
 // =============================================================================
 
 #include "core/ToxCore.h"
+
+#include <memory>
+#include <unordered_set>
 
 namespace ToxGame
 {
@@ -38,23 +42,35 @@ namespace ToxGame
     // True when the player has the Toxicology ability (false without the ESL).
     bool PlayerHasAbility();
 
-    // The poison spell set: every catalog spell tagged "poison", plus the spell each of its
-    // cloak effects casts (one level), keeping only spells with at least one hostile effect
-    // (EffectSetting::IsHostile). A missing catalog or a version other than 1 leaves it empty.
-    // Runs at kDataLoaded, kPostLoadGame and kNewGame (an in-game rescan rewrites the catalog).
+    // The poison spell sets (core BuildPoisonSets), from every catalog spell tagged "poison" and
+    // the spell each of its cloak effects casts (one level), counting only spells with at least
+    // one hostile effect (EffectSetting::IsHostile):
+    //   - hit set: the hostile catalog spells and the hostile cloak sub-spells (what reaches a target);
+    //   - cost set: the hostile catalog spells and the cloaks whose sub-spell is hostile (what the
+    //     player casts and pays Magicka for; a cloak's sub-spell is never charged).
+    // A missing catalog or a version other than 1 leaves both empty. Runs at kDataLoaded,
+    // kPostLoadGame and kNewGame (an in-game rescan rewrites the catalog).
     void LoadPoisonSpells();
 
-    // For the hit task: at most once every kCatalogCheckSeconds it reads the catalog file's
-    // last-write time and, when it differs from the one LoadPoisonSpells last read, calls
+    // For the hit and cast tasks: at most once every kCatalogCheckSeconds it reads the catalog
+    // file's last-write time and, when it differs from the one LoadPoisonSpells last read, calls
     // LoadPoisonSpells. Returns true when it reloaded. Cheap to call on every hit.
-    // Contract: the hit path calls this before every IsPoisonSpell check. On a fresh install
-    // Heart of Magic writes the catalog after kDataLoaded (its first full scan), so until the
-    // next save load this is the only path that fills the set.
+    // Contract: the hit and cast paths call this before every IsPoisonSpell / IsPoisonCostSpell
+    // check. On a fresh install Heart of Magic writes the catalog after kDataLoaded (its first full
+    // scan), so until the next save load this is the only path that fills the sets.
     inline constexpr double kCatalogCheckSeconds = 5.0;
     bool ReloadPoisonSpellsIfChanged();
 
-    // Whether a_spell is in the poison set. Call ReloadPoisonSpellsIfChanged() first (above).
+    // Whether a_spell is in the hit set. Call ReloadPoisonSpellsIfChanged() first (above).
     bool IsPoisonSpell(RE::FormID a_spell);
+
+    // Whether a_spell is in the cost set. Call ReloadPoisonSpellsIfChanged() first (above).
+    bool IsPoisonCostSpell(RE::FormID a_spell);
+
+    // The cost set as LoadPoisonSpells last published it, never null. The one call here that is
+    // safe on any thread (an atomic shared_ptr, replaced whole and never changed after): the
+    // caster update hook filters with it before it takes its lock.
+    std::shared_ptr<const std::unordered_set<RE::FormID>> PoisonCostSnapshot();
 
     // Puts one tome into Elgrim's Elixirs' merchant chest (base container, in memory) unless
     // it already holds one. Call once at kDataLoaded, after LoadForms.

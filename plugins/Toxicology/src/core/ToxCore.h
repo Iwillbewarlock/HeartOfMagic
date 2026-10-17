@@ -13,6 +13,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <vector>
 
 namespace Toxicology
@@ -33,6 +34,37 @@ namespace Toxicology
     // Every spells key whose "elements" array holds "poison", sorted. Empty with
     // a_error set when "version" is not 1 or "spells" is not an object.
     std::vector<std::string> PoisonSpellKeys(const nlohmann::json& a_catalog, std::string& a_error);
+
+    // A spell a cloak effect casts on whoever comes near (one level down from a catalog spell)
+    struct CloakSubSpell
+    {
+        std::uint32_t formId = 0;
+        bool hostile = false;  // at least one hostile effect
+    };
+
+    // A catalog spell tagged "poison" that resolved to a loaded spell
+    struct PoisonSpellNode
+    {
+        std::uint32_t formId = 0;
+        bool hostile = false;
+        std::vector<CloakSubSpell> cloakSubs;
+    };
+
+    struct PoisonSets
+    {
+        // What a hit is checked against: hostile catalog spells and hostile cloak sub-spells (the cloak
+        // spell itself is not hostile; its sub-spell is what reaches the enemy)
+        std::unordered_set<std::uint32_t> hit;
+        // What a cast is charged for: hostile catalog spells and catalog spells with a hostile cloak
+        // sub-spell (the player casts and pays for the cloak, never for its sub-spell)
+        std::unordered_set<std::uint32_t> cost;
+        std::size_t catalogSpells = 0;   // distinct catalog spells
+        std::size_t cloakSubSpells = 0;  // distinct sub-spells that are not catalog spells themselves
+        std::size_t notHostile = 0;      // of both, those without a hostile effect
+    };
+
+    // Builds both sets; each form counted once, so catalogSpells + cloakSubSpells = hit.size() + notHostile.
+    PoisonSets BuildPoisonSets(const std::vector<PoisonSpellNode>& a_catalog);
 
     // The largest local FormID a catalog key may name: a full plugin's 24 bits. A light plugin's
     // narrower range (12 bits) is the caller's check, once it knows the file is light.

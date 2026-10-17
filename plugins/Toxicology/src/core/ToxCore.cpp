@@ -177,6 +177,33 @@ namespace Toxicology
         return std::nullopt;
     }
 
+    PoisonSets BuildPoisonSets(const std::vector<PoisonSpellNode>& a_catalog)
+    {
+        PoisonSets sets;
+        std::unordered_set<std::uint32_t> seen;
+        const auto take = [&](std::uint32_t a_formId, bool a_hostile, std::size_t& a_count) {
+            if (!seen.insert(a_formId).second) return;
+            ++a_count;
+            if (a_hostile) {
+                sets.hit.insert(a_formId);
+            } else {
+                ++sets.notHostile;
+            }
+        };
+        // Catalog spells first, so a sub-spell that is also a catalog spell counts as a catalog spell
+        for (const auto& spell : a_catalog) {
+            take(spell.formId, spell.hostile, sets.catalogSpells);
+            if (spell.hostile) sets.cost.insert(spell.formId);
+        }
+        for (const auto& spell : a_catalog) {
+            for (const auto& sub : spell.cloakSubs) {
+                take(sub.formId, sub.hostile, sets.cloakSubSpells);
+                if (sub.hostile) sets.cost.insert(spell.formId);
+            }
+        }
+        return sets;
+    }
+
     bool IntervalElapsed(double a_lastSeconds, double a_nowSeconds, float a_minInterval)
     {
         if (a_lastSeconds < 0.0) return true;
