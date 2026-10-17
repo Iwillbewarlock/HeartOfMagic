@@ -74,6 +74,23 @@ namespace BlackFlame::CopyContractTest
                     !Rule::IsPlainAsciiName(""),
             "path: IsPlainAsciiName (Windows-trimmed names, device names in any case, forbidden and non-ASCII bytes)");
 
+        const std::string paletteCopy = std::string("textures\\heartofmagic\\blackflame\\copies\\") + kKey16 + "\\palette.dds";
+        const auto palette = Rule::ParseCopyPath(paletteCopy);
+        a_check(Rule::PaletteCopyPath(kKey16) == paletteCopy && palette && palette->palette && palette->extension == "dds" &&
+                    texture && !texture->palette && !Rule::PaletteCopyPath("0123456789ABCDEF") &&
+                    !Rule::ParseCopyPath(folder + "palette.dds") && !Rule::ParseCopyPath(paletteCopy.substr(0, paletteCopy.size() - 3) + "DDS") &&
+                    !Rule::ParseCopyPath(paletteCopy.substr(0, paletteCopy.size() - 3) + "nif"),
+            "path: a derived palette is copies\\<key16>\\palette.dds under textures\\ only (not under meshes\\, no other case or "
+            "extension)");
+        a_check(Rule::IsOurPalettePath(paletteCopy) &&
+                    Rule::IsOurPalettePath("Textures\\HeartOfMagic\\BlackFlame\\Copies\\0123456789abcdef\\Palette.dds") &&
+                    Rule::IsOurPalettePath("heartofmagic/blackflame/gradblackflame.dds") &&
+                    Rule::IsOurPalettePath("textures\\heartofmagic\\blackflame\\copies\\palettes\\add\\effects\\a.dds") &&
+                    !Rule::IsOurPalettePath(kTextureCopy) && !Rule::IsOurPalettePath("effects\\gradientfire.dds") &&
+                    !Rule::IsOurPalettePath("textures\\heartofmagic\\blackflame\\copies\\0123456789abcde\\palette.dds"),
+            "path: IsOurPalettePath takes a single-launch palette (any case), the shipped and older derived ones, not a "
+            "texture copy or a source palette");
+
         // Code page 932: "x" 0x81 0x5C is one character and a real separator, so the 0x5C is no separator
         const std::string dbcs = std::string("magic\\x\x81\\y.nif");
         const auto normalized932 = Rule::NormalizeWith(dbcs, Rule::kMeshesRoot, IsCp932Lead);
