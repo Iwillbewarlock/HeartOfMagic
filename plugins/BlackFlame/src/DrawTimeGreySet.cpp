@@ -90,6 +90,10 @@ namespace BlackFlame
             std::vector<Root> roots;
             Owners owners;
             std::vector<RE::NiPointer<RE::BSGeometry>> retired;
+            // DU5: the published snapshot and the ones it replaced, held here so the last reference to a snapshot (and
+            // its hash maps) always drops on the main thread, never in a render-side shared_ptr copy
+            std::shared_ptr<const Snapshot> current;
+            std::vector<std::shared_ptr<const Snapshot>> retiredSnapshots;
             std::unordered_map<std::string, RE::NiSourceTexture*> derived;  // derived path -> texture (null: none)
             std::uint64_t generation = 0;
             bool wasStoked = false;
@@ -296,11 +300,13 @@ namespace BlackFlame
 
         void ReleaseRetired(MainState& a_state)
         {
-            if (a_state.retired.empty()) {
+            if (a_state.retired.empty() && a_state.retiredSnapshots.empty()) {
                 return;
             }
-            // seq_cst: read after the publish. 0 = no hook body holds an older snapshot; later ones load the new one
+            // seq_cst: read after the publish. 0 = no hook body holds an older snapshot (its shared_ptr copy is gone
+            // with it, so ours here is the last one); later bodies load the new one
             if (GetCounters().inside.load() == 0) {
+                a_state.retiredSnapshots.clear();
                 a_state.retired.clear();
             } else {
                 ++a_state.deferredReleases;  // tried again at the next walk
@@ -315,6 +321,10 @@ namespace BlackFlame
                 }
             }
             a_state.owners = std::move(a_owners);
+            if (a_state.current) {
+                a_state.retiredSnapshots.push_back(std::move(a_state.current));
+            }
+            a_state.current = a_snapshot;  // held before the store, so the atomic never drops the last reference
             PublishSnapshot(std::move(a_snapshot));
             ReleaseRetired(a_state);
         }
@@ -401,9 +411,10 @@ namespace BlackFlame
             std::lock_guard lock(g_stateMutex);
             auto& state = State();
             if (!IsStoked()) {
-                if (state.wasStoked || !state.owners.empty() || !state.retired.empty()) {
+                if (state.wasStoked || !state.owners.empty()) {
                     Clear(state);
                 }
+                ReleaseRetired(state);  // what a clear had to defer (no hook body runs while the buff is off)
                 state.wasStoked = false;
                 return;
             }
@@ -412,6 +423,7 @@ namespace BlackFlame
                 state.wasStoked = true;
                 state.lastSummary = now;
                 StartSummaryWindow();
+                ResetSlotVote();  // DU1: an unmeasured slot gets a fresh examined-materials budget each buff-on
             }
             Rewalk(state);
             if (now - state.lastSummary >= kSummaryInterval) {
@@ -421,39 +433,70 @@ namespace BlackFlame
             }
         }
 
+        constexpr int kMaxConsecutiveTickFaults = 3;  // then the tick is off for the session (the set emptied)
+        constexpr int kMaxFaultWarns = 10;             // tick-fault warning lines per session
+        int g_consecutiveTickFaults = 0;               // main thread only (RunTick)
+        int g_faultWarns = 0;                          // main thread only (RunTick)
+        std::atomic<bool> g_tickOff{ false };
+
         // A tick that faulted: the set is emptied (no stale snapshot, no geometry held from a walk that stopped half
-        // way); the next tick walks again (GuardedKeep: the step stays on)
-        void ClearAfterFault()
+        // way); the next tick walks again (GuardedKeep: the step stays on) until kMaxConsecutiveTickFaults
+        bool ClearAfterFault()
         {
-            // try_lock: should the fault have left the lock held, this clear is skipped (logged), never a deadlock
+            // The build uses /EHa (plugins/cmake/CompilerFlags.cmake:45, the vcxproj's ExceptionHandling Async), so
+            // the faulted Tick's lock_guard was unwound and released; try_lock is belt-and-braces, never a deadlock
             std::unique_lock lock(g_stateMutex, std::try_to_lock);
             if (!lock.owns_lock()) {
                 logger::error("BlackFlame: draw-time grey: the set's lock is still held after a faulted tick - not cleared");
-                return;
+                return false;
             }
             auto& state = State();
             Clear(state);
             state.wasStoked = false;
-            logger::warn("BlackFlame: draw-time grey: a tick failed - the set was emptied; the next tick walks again");
+            return true;
+        }
+
+        // Runs a_work under GuardedKeep with every C++ exception caught and logged (a queue task must not let one out)
+        template <class F>
+        bool RunCaught(const char* a_step, F&& a_work)
+        {
+            try {
+                return GuardedKeep(a_step, std::forward<F>(a_work));
+            } catch (const std::exception& e) {
+                logger::error("BlackFlame: draw-time grey: {} threw: {}", a_step, e.what());
+            } catch (...) {
+                logger::error("BlackFlame: draw-time grey: {} threw an exception of an unknown type", a_step);
+            }
+            return false;
         }
 
         void RunTick()
         {
             g_tickQueued.store(false);
-            bool ok = false;
-            try {
-                ok = GuardedKeep("draw-time grey tick", [] { Tick(); });
-            } catch (const std::exception& e) {
-                logger::error("BlackFlame: draw-time grey: the tick threw: {}", e.what());
-            } catch (...) {
-                logger::error("BlackFlame: draw-time grey: the tick threw an exception of an unknown type");
+            if (g_tickOff.load()) {
+                return;
             }
-            if (ok) {
+            if (RunCaught("draw-time grey tick", [] { Tick(); })) {
+                g_consecutiveTickFaults = 0;
                 return;
             }
             GetCounters().failures.fetch_add(1, std::memory_order_relaxed);
-            if (!GuardedKeep("draw-time grey clear after a fault", [] { ClearAfterFault(); })) {
+            bool cleared = false;
+            if (!RunCaught("draw-time grey clear after a fault", [&cleared] { cleared = ClearAfterFault(); }) || !cleared) {
+                cleared = false;
                 GetCounters().failures.fetch_add(1, std::memory_order_relaxed);
+            }
+            if (++g_consecutiveTickFaults >= kMaxConsecutiveTickFaults) {
+                g_tickOff.store(true);
+                logger::error("BlackFlame: draw-time grey: the tick failed {} times in a row - rewalks off for the "
+                              "session ({})",
+                    g_consecutiveTickFaults,
+                    cleared ? "the set was emptied: nothing is bound any more" : "the clear failed too: the last set stays");
+            } else if (g_faultWarns < kMaxFaultWarns) {
+                ++g_faultWarns;
+                logger::warn("BlackFlame: draw-time grey: a tick failed ({} of {} in a row) - the set {}; the next tick "
+                             "walks again",
+                    g_consecutiveTickFaults, kMaxConsecutiveTickFaults, cleared ? "was emptied" : "could not be emptied");
             }
         }
 

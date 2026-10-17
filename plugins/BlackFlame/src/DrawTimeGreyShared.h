@@ -91,6 +91,9 @@ namespace BlackFlame::DrawTime
     /// Main thread, when the buff comes on: the next summary's rates count from now
     void StartSummaryWindow();
 
+    /// Main thread, when the buff comes on: an unmeasured slot's vote and its examined-materials budget start again
+    void ResetSlotVote();
+
     /// DrawTimeGreySet.cpp: starts the ticker (InstallDrawTimeGrey calls it after the hook)
     void StartSetTicker();
 

@@ -49,7 +49,7 @@ namespace BlackFlame::DrawTime
         constexpr int kMismatchLogs = 6;
         constexpr int kSlotLogs = 8;
         constexpr int kSlotAgreement = 3;           // distinct materials that must name the same slot before it is used
-        constexpr int kMaxMeasureAttempts = 4096;   // then measuring stops for the session (unmeasured keeps counting)
+        constexpr int kMaxMeasuredMaterials = 64;   // distinct eligible materials examined per buff-on, then no more
         constexpr double kNsPerUs = 1000.0;
 
         std::atomic<bool> g_installed{ false };
@@ -74,17 +74,23 @@ namespace BlackFlame::DrawTime
         std::atomic<int> g_sameMaterialLogs{ 0 };
         std::atomic<int> g_mismatchLogs{ 0 };
         std::atomic<int> g_slotLogs{ 0 };
-        std::atomic<int> g_measureAttempts{ 0 };
+        // Render hooks off for the session after a fault (their own flag: a kDisableStep Guarded would take
+        // SehGuard's lock and build a std::string key on every pass once any step anywhere has faulted)
+        std::atomic<bool> g_setupOff{ false };
 
-        // The slot vote: one candidate slot and the distinct materials that named it (render side, try_lock only)
+        // The slot vote: one candidate slot and the distinct materials that named it, and every eligible material
+        // examined (each looked at once). Under g_voteMutex: the render side try_locks, the buff-on reset locks
         struct SlotVote
         {
             int candidate = -1;
             std::array<const RE::BSShaderMaterial*, kSlotAgreement> materials{};
             int agreed = 0;
+            std::array<const RE::BSShaderMaterial*, kMaxMeasuredMaterials> examined{};
+            int examinedCount = 0;
         };
         TrackedMutex g_voteMutex;
         SlotVote g_vote;
+        std::atomic<int> g_examined{ 0 };  // g_vote.examinedCount, readable without the lock (the cap check)
 
         // A log line is due while its counter is under the cap (read first, so the counter stops growing there and
         // cannot wrap)
@@ -165,12 +171,11 @@ namespace BlackFlame::DrawTime
         // used once kSlotAgreement distinct materials named it. No allocation unless a line is logged
         void MeasureSlot(const ShadowData& a_state, const Target& a_target)
         {
-            if (g_measureAttempts.load(std::memory_order_relaxed) >= kMaxMeasureAttempts) {
+            if (g_examined.load(std::memory_order_relaxed) >= kMaxMeasuredMaterials) {
                 return;
             }
-            g_measureAttempts.fetch_add(1, std::memory_order_relaxed);
-            if (!a_target.source || a_target.source == a_target.base) {
-                return;
+            if (!a_target.source || a_target.source == a_target.base || !a_target.material) {
+                return;  // not eligible: not counted
             }
             int found = -1;
             int matches = 0;
@@ -186,24 +191,35 @@ namespace BlackFlame::DrawTime
             }
             int agreed = 0;
             bool locked = false;
-            if (matches == 1) {
+            {
                 std::unique_lock lock(g_voteMutex, std::try_to_lock);
                 if (!lock.owns_lock()) {
-                    return;  // another render thread is voting: this pass waits for the next
+                    return;  // another thread holds the vote: not counted, this pass waits for the next
                 }
-                if (g_vote.candidate != found) {
-                    g_vote = SlotVote{};  // a different slot: the count starts again from this material
-                    g_vote.candidate = found;
+                auto& vote = g_vote;
+                const auto examinedEnd = vote.examined.begin() + vote.examinedCount;
+                if (vote.examinedCount >= kMaxMeasuredMaterials ||
+                    std::find(vote.examined.begin(), examinedEnd, a_target.material) != examinedEnd) {
+                    return;  // the cap, or this material was looked at already: not counted again
                 }
-                if (std::ranges::find(g_vote.materials, a_target.material) == g_vote.materials.end() &&
-                    g_vote.agreed < kSlotAgreement) {
-                    g_vote.materials[static_cast<std::size_t>(g_vote.agreed++)] = a_target.material;
+                vote.examined[static_cast<std::size_t>(vote.examinedCount++)] = a_target.material;
+                g_examined.store(vote.examinedCount, std::memory_order_relaxed);
+                if (matches == 1) {
+                    if (vote.candidate != found) {
+                        // a different slot: the count starts again from this material (the examined list stays)
+                        vote.candidate = found;
+                        vote.materials = {};
+                        vote.agreed = 0;
+                    }
+                    if (vote.agreed < kSlotAgreement) {
+                        vote.materials[static_cast<std::size_t>(vote.agreed++)] = a_target.material;
+                    }
+                    if (vote.agreed >= kSlotAgreement) {
+                        int expected = -1;
+                        locked = CountersRef().slot.compare_exchange_strong(expected, found);
+                    }
                 }
-                agreed = g_vote.agreed;
-                if (agreed >= kSlotAgreement) {
-                    int expected = -1;
-                    locked = CountersRef().slot.compare_exchange_strong(expected, found);
-                }
+                agreed = vote.agreed;  // the real count, also for a material that did not vote
             }
             if (AllowLog(g_slotLogs, kSlotLogs)) {
                 logger::info("BlackFlame: draw-time grey: slot measure on material 0x{:X}: greyscale view 0x{:X} in {} PS "
@@ -219,9 +235,27 @@ namespace BlackFlame::DrawTime
             auto& counters = CountersRef();
             Srv* inSlot = a_slot >= 0 ? a_state.PSTexture[a_slot] : nullptr;
             const bool ours = inSlot && a_snapshot.ours.contains(inSlot);
-            if (ours && a_snapshot.playerSkipped.contains(a_pass->geometry)) {
-                counters.playerOwnPalette.fetch_add(1, std::memory_order_relaxed);  // a player copy's own grey palette
-            } else if (ours) {
+            const auto* material = a_pass->shaderProperty ? a_pass->shaderProperty->material : nullptr;
+            // Only when the slot holds one of ours (rare): the pass's own effect material's palette, read from the live
+            // pass (the engine is drawing it), never from our snapshot
+            bool ownView = false;
+            if (ours) {
+                auto* effect = netimmerse_cast<RE::BSEffectShaderProperty*>(a_pass->shaderProperty);
+                const auto* effectMaterial = effect ? effect->GetMaterial() : nullptr;
+                const auto* ownPalette = effectMaterial ? effectMaterial->greyscaleTexture.get() : nullptr;
+                ownView = ownPalette && ownPalette->rendererTexture && ownPalette->rendererTexture->resourceView == inSlot;
+            }
+            const bool skippedPlayer = a_snapshot.playerSkipped.contains(a_pass->geometry);
+            if (ours && (ownView || skippedPlayer)) {
+                // A copy's own grey palette, bound by the engine (also one the next walk has not listed yet, or after
+                // a clear): no leak, and left out of the diagnostic lines below
+                counters.playerOwnPalette.fetch_add(1, std::memory_order_relaxed);
+                return;
+            }
+            if (skippedPlayer) {
+                return;  // the player's, not a non-player pass: no diagnostic line
+            }
+            if (ours) {
                 counters.npcLeaks.fetch_add(1, std::memory_order_relaxed);
                 if (AllowLog(g_leakLogs, kLeakLogs)) {
                     logger::warn("BlackFlame: draw-time grey: NPC LEAK: pass geometry 0x{:X} property 0x{:X} (not the player's) "
@@ -229,7 +263,6 @@ namespace BlackFlame::DrawTime
                         Addr(a_pass->geometry), Addr(a_pass->shaderProperty), Addr(inSlot), a_slot);
                 }
             }
-            const auto* material = a_pass->shaderProperty ? a_pass->shaderProperty->material : nullptr;
             if (material && material == t_binds.lastBoundMaterial && AllowLog(g_sameMaterialLogs, kSameMaterialLogs)) {
                 logger::info("BlackFlame: draw-time grey: same-material pass after a bind: geometry 0x{:X} (not the "
                              "player's), material 0x{:X}, slot {} holds 0x{:X} ({})",
@@ -373,21 +406,30 @@ namespace BlackFlame::DrawTime
                     DropOpenBinds("an exception");
                 }
                 func(a_this, a_pass, a_flags);
-                if (!a_pass || !IsStoked()) {
+                if (!a_pass || !IsStoked() || g_setupOff.load(std::memory_order_relaxed)) {
                     return;
                 }
                 // seq_cst, before the snapshot load and outside the guard (neither a fault nor a throw leaves it
                 // raised): DrawTimeGreySet.cpp releases retired geometries only when it reads 0 after a publish
                 auto& inside = CountersRef().inside;
                 inside.fetch_add(1);
+                bool ok = false;
                 try {
-                    if (!Guarded("draw-time grey SetupGeometry", [&]() { OnSetup(a_pass); })) {
-                        CountersRef().failures.fetch_add(1, std::memory_order_relaxed);
-                    }
+                    // GuardedKeep, not Guarded: no SehGuard lock or string key per pass; our own flag turns it off
+                    ok = GuardedKeep("draw-time grey SetupGeometry", [&]() { OnSetup(a_pass); });
                 } catch (...) {
-                    CountersRef().failures.fetch_add(1, std::memory_order_relaxed);
                 }
                 inside.fetch_sub(1);
+                if (!ok) {
+                    CountersRef().failures.fetch_add(1, std::memory_order_relaxed);
+                    if (!g_setupOff.exchange(true)) {
+                        try {
+                            logger::error("BlackFlame: draw-time grey: SetupGeometry body failed - no more binds this "
+                                          "session (open binds are still restored)");
+                        } catch (...) {
+                        }
+                    }
+                }
             }
 
             static inline REL::Relocation<decltype(thunk)> func;
@@ -496,14 +538,15 @@ namespace BlackFlame::DrawTime
             c.renderThread.load(), g_gameThreadNativeId.load(), rate(totals.passes, g_last.passes),
             rate(totals.hits, g_last.hits), rate(totals.binds, g_last.binds), c.slot.load(), c.failures.load());
         logger::info("BlackFlame: draw-time grey: detail: passes off main {:.0f}/s, restores {}, restore found slot changed {}, "
-                     "unpaired {}, left alone {}, unmeasured {} (measures {}), slot mismatch {}, property mismatch {}, NPC "
-                     "LEAKS {}, player copy palette passes {}, set {} geometries ({}) from {} roots, cost setup {:.0f} us/s "
-                     "restore {:.0f} us/s rewalk {:.0f} us/s, snapshot seen {}, vtable slots {}",
+                     "unpaired {}, left alone {}, unmeasured {} (materials examined {}/{}), slot mismatch {}, property "
+                     "mismatch {}, NPC LEAKS {}, own grey palette passes {}, set {} geometries ({}) from {} roots, cost "
+                     "setup {:.0f} us/s restore {:.0f} us/s rewalk {:.0f} us/s, snapshot seen {}, vtable slots {}{}",
             rate(totals.offMain, g_last.offMain), c.restores.load(), c.restoreChanged.load(), c.unpaired.load(),
-            c.leftAlone.load(), c.unmeasured.load(), g_measureAttempts.load(), c.slotMismatch.load(), c.propMismatch.load(),
-            c.npcLeaks.load(), c.playerOwnPalette.load(), a_setSize, a_kinds, a_roots, rate(totals.setupNs, g_last.setupNs) / kNsPerUs,
+            c.leftAlone.load(), c.unmeasured.load(), g_examined.load(), kMaxMeasuredMaterials, c.slotMismatch.load(),
+            c.propMismatch.load(), c.npcLeaks.load(), c.playerOwnPalette.load(), a_setSize, a_kinds, a_roots,
+            rate(totals.setupNs, g_last.setupNs) / kNsPerUs,
             rate(totals.restoreNs, g_last.restoreNs) / kNsPerUs, rate(totals.rewalkNs, g_last.rewalkNs) / kNsPerUs,
-            c.seenGeneration.load(), SlotState());
+            c.seenGeneration.load(), SlotState(), g_setupOff.load() ? ", SETUP HOOK OFF after a fault" : "");
         g_last = totals;
         g_lastTime = now;
     }
@@ -514,6 +557,16 @@ namespace BlackFlame::DrawTime
         g_last = Totals{ c.passes.load(), c.passesOffMain.load(), c.playerHits.load(), c.binds.load(), c.setupNs.load(),
             c.restoreNs.load(), c.rewalkNs.load() };
         g_lastTime = std::chrono::steady_clock::now();
+    }
+
+    void ResetSlotVote()
+    {
+        if (CountersRef().slot.load() >= 0) {
+            return;  // measured: kept for the session
+        }
+        std::lock_guard lock(g_voteMutex);  // main thread; the render side only try_locks it
+        g_vote = SlotVote{};
+        g_examined.store(0, std::memory_order_relaxed);
     }
 
     bool InstallHook()
