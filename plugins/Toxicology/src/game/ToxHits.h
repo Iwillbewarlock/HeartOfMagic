@@ -11,6 +11,7 @@
 // ability, the setting, the target alive, drops a repeat of the same (target,
 // spell) inside kSameHitWindowSeconds (one hit raises several events), checks
 // there is a poison to copy, then calls ApplyOrRefresh (game/ToxApply.h).
+// While the self test switches it on, each spell's hits are traced (HitTrace).
 //
 // Threads: the sink may run on any thread. It reads the event's fields, does a
 // LookupByID form type check, takes the target's handle and reads the
@@ -19,10 +20,51 @@
 // game's main thread.
 // =============================================================================
 
+#include "game/ToxApply.h"
+
 #include <cstdint>
+#include <optional>
 
 namespace ToxGame
 {
+    // =========================================================================
+    // Hit trace (the dev-only self test, game/ToxSelfTest.h)
+    // =========================================================================
+
+    // How far the last hit task of a spell got
+    enum class HitStage
+    {
+        kNone,            // no task ran for it yet
+        kOff,             // "enabled" off or no ability
+        kNotPoisonSpell,  // not in the poison set
+        kTargetGone,      // no player, or the target is gone, dead or the player
+        kSameHit,         // a repeat of the same hit inside kSameHitWindowSeconds
+        kNoPoison,        // no poison to copy
+        kApplied,         // ApplyOrRefresh ran; HitTrace::outcome holds what it did
+    };
+
+    // What became of one spell's hits since tracing was switched on
+    struct HitTrace
+    {
+        std::uint32_t rawEvents = 0;  // TESHitEvents with this source, before any check
+        std::uint32_t sinkHits = 0;   // events the sink kept (cause the player, target another actor)
+        std::uint32_t tasks = 0;      // hit tasks that ran
+        std::uint32_t applied = 0;    // tasks that reached ApplyOrRefresh
+        HitStage last = HitStage::kNone;
+        std::optional<ApplyOutcome> outcome;  // the last ApplyOrRefresh result
+    };
+
+    // Main thread. On: clears every trace and starts counting; off: stops (and clears). Off by default:
+    // outside the self test the sink only reads one atomic flag for it.
+    void SetHitTracing(bool a_on);
+
+    // Main thread. The trace of a_spell (zeros when none).
+    HitTrace HitTraceFor(RE::FormID a_spell);
+
+    // =========================================================================
+    // Hits
+    // =========================================================================
+
     // The session generation: a task queued before a load, a new game or a co-save Revert sees a
     // different number and is dropped. Safe from any thread.
     std::uint32_t SessionGeneration();

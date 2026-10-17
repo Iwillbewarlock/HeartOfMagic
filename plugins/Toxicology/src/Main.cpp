@@ -7,6 +7,7 @@
 // poison to copy and its icon keyword: game/ToxSelection.h. Hits: game/ToxHits.h;
 // applying or refreshing the poison: game/ToxApply.h. Magicka spent on poison
 // spells uses up bottles: game/ToxMagicka.h, kept in the co-save: game/ToxSave.h.
+// A dev-only self test (game/ToxSelfTest.h) runs after a save load when its file is present.
 // =============================================================================
 
 #include "Common.h"
@@ -16,11 +17,14 @@
 #include "game/ToxMagicka.h"
 #include "game/ToxSave.h"
 #include "game/ToxSelection.h"
+#include "game/ToxSelfTest.h"
 
 namespace
 {
-    // SKSE/Interfaces.h:453-459 (MessagingInterface::kPreLoadGame, kPostLoadGame, kNewGame, kDataLoaded).
-    // All of them arrive on the game's main thread.
+    // SKSE/Interfaces.h:453-459 (MessagingInterface::kPreLoadGame, kPostLoadGame, kSaveGame, kNewGame,
+    // kDataLoaded). All of them arrive on the game's main thread. kPreLoadGame's and kSaveGame's data is
+    // the save name by skse64's convention (not documented in CommonLibSSE-NG); only the dev self test
+    // reads it, as text of at most dataLen bytes.
     void OnSKSEMessage(SKSE::MessagingInterface::Message* a_msg)
     {
         if (!a_msg) {
@@ -43,9 +47,14 @@ namespace
             ToxGame::ClearApplications();
             // The keyword added to a static form stays in memory across loads (spec 12)
             ToxGame::ResetSelection();
+            ToxGame::OnSelfTestPreLoad(static_cast<const char*>(a_msg->data), a_msg->dataLen);
             FlushLog();
             break;
+        case SKSE::MessagingInterface::kSaveGame:
+            ToxGame::OnSelfTestSave(static_cast<const char*>(a_msg->data), a_msg->dataLen);
+            break;
         case SKSE::MessagingInterface::kNewGame:
+            ToxGame::OnSelfTestNewGame();
             ToxGame::BumpGeneration();
             ToxGame::ClearApplications();
             ToxGame::ResetMagicka();  // spec 5.6: a new game starts at 0 (co-save Revert does the same)
@@ -57,6 +66,8 @@ namespace
             ToxGame::LoadPoisonSpells();
             // Puts the keyword back on the loaded game's poison (spec 5.5)
             ToxGame::OnSelectionMaybeChanged();
+            // Dev only, idle without its file; never on a new game (spawned targets in the opening scene)
+            if (a_msg->type == SKSE::MessagingInterface::kPostLoadGame) ToxGame::MaybeStartSelfTest();
             FlushLog();
             break;
         default:

@@ -24,6 +24,10 @@ set(TOXICOLOGY_SOURCES
     src/game/ToxBottles.cpp
     src/game/ToxCheck.cpp
     src/game/ToxSave.cpp
+    src/game/ToxSelfTest.cpp
+    src/game/ToxSelfTestSetup.cpp
+    src/game/ToxSelfTestHits.cpp
+    src/game/ToxSelfTestReload.cpp
     ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/EncodingUtils.cpp
 )
 
