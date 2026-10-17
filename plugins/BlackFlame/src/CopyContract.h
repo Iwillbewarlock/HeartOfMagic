@@ -30,7 +30,9 @@ namespace BlackFlame::CopyContract
     // Bumped when a key string, the copy path, the pool table, the progress line or request v5 changes meaning.
     // 2: copies named copy.<ext>, notdumped:<size>, non-ASCII paths as <name>hex=, the ADDN table's full sort order.
     // 3: tints in the builder's own range 0..2, ADDN rows once, plugin names lowered outside double-byte characters.
-    inline constexpr std::uint32_t kContractVersion = 3;
+    // 4: derived palettes named palette.dds (IsOurPalettePath), request textures[].state and addnMps[].index, addn deps
+    //    on mps lines, the too_large line's cap field.
+    inline constexpr std::uint32_t kContractVersion = 4;
 
     // =========================================================================
     // Slot pool (the slot ESL's local ids 0x800-0xFFF): fixed types, contiguous, never reused
@@ -426,11 +428,52 @@ namespace BlackFlame::CopyContract
         inline constexpr const char* kKeyPrefix = "keyPrefix";
         inline constexpr const char* kKey = "key";                  // a form's model key16, and each entry's below
         inline constexpr const char* kMuzzles = "muzzles";          // [{ path, key }]
-        inline constexpr const char* kAddnMps = "addnMps";          // [{ slot, path, key }]
+        // [{ slot, index, path, key }]: index (required in v5) is the source ADDN's AddOnNode index the slot copies, so the
+        // builder maps that index to the slot's (AddnIndexOfSlot) in the NIFs it remaps
+        inline constexpr const char* kAddnMps = "addnMps";
+        inline constexpr const char* kIndex = "index";              // a source ADDN's AddOnNode index (number)
         inline constexpr const char* kTxst = "txst";                // [{ slot, key, dodt }]
         inline constexpr const char* kPath = "path";
         inline constexpr const char* kSlot = "slot";                // a slot's local id (number)
         inline constexpr const char* kDodt = "dodt";                // bool
+        // textures[] (the dump's list, CopyRequestData TexturesJson): each entry's "state" (required in v5) says what the
+        // dump did with it, so neither side reads the error text; "error" stays for people
+        inline constexpr const char* kTextures = "textures";
+        inline constexpr const char* kTextureState = "state";
+        inline constexpr std::string_view kTextureStateOk = "ok";               // in the dump: hashed (FileHash::Hashed)
+        inline constexpr std::string_view kTextureStateNotDumped = "notdumped"; // opened, over a dump cap (NotDumped(size))
+        inline constexpr std::string_view kTextureStateMissing = "missing";     // does not open (FileHash::Missing)
+        inline constexpr std::string_view kTextureStateUnread = "unread";       // opened, its read failed: no copy this run
+        inline constexpr const char* kTextureSize = "size";         // the stream's size (number), for notdumped:<size>
+
+        enum class TextureState : std::uint8_t
+        {
+            kOk,
+            kNotDumped,
+            kMissing,
+            kUnread,
+        };
+
+        [[nodiscard]] constexpr std::string_view TextureStateText(TextureState a_state) noexcept
+        {
+            switch (a_state) {
+                case TextureState::kOk: return kTextureStateOk;
+                case TextureState::kNotDumped: return kTextureStateNotDumped;
+                case TextureState::kMissing: return kTextureStateMissing;
+                case TextureState::kUnread: return kTextureStateUnread;
+            }
+            return "";
+        }
+
+        [[nodiscard]] constexpr std::optional<TextureState> TextureStateFromText(std::string_view a_text) noexcept
+        {
+            for (const auto state : { TextureState::kOk, TextureState::kNotDumped, TextureState::kMissing, TextureState::kUnread }) {
+                if (!a_text.empty() && TextureStateText(state) == a_text) {
+                    return state;
+                }
+            }
+            return std::nullopt;
+        }
     }
 
     // Files both sides name

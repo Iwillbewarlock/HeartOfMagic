@@ -28,7 +28,7 @@
 
 namespace BlackFlame::CopyContractTest
 {
-    inline constexpr int kMinChecks = 56;  // every check the table makes today but the one that may SKIP (the locale)
+    inline constexpr int kMinChecks = 64;  // every check the table makes today but the one that may SKIP (the locale)
 
     namespace Detail
     {
