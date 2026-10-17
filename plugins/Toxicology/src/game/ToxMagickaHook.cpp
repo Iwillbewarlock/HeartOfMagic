@@ -291,9 +291,13 @@ namespace
         } else {
             // A zero cost is kept too (it charges nothing); "no spell" above keeps the last reading for the cast task
             if (!std::isfinite(sample.currentSpellCost)) return;
-            sample.spellCost = a_caster.GetCurrentSpellCost();  // beside currentSpellCost, for the release log
             std::lock_guard lock(g_sharedMutex);
-            g_shared.fireHands[hand] = sample;
+            auto& last = g_shared.fireHands[hand];
+            // GetCurrentSpellCost, beside currentSpellCost for the once-per-stretch release log, is read only when
+            // the hand's spell or state changes; the charge uses currentSpellCost (ToxMagicka.cpp OnPlayerCast)
+            const bool changed = last.spell != sample.spell || last.state != sample.state;
+            sample.spellCost = changed ? a_caster.GetCurrentSpellCost() : last.spellCost;  // RE/M/MagicCaster.h:94
+            last = sample;
         }
     }
 

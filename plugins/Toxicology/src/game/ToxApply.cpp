@@ -86,7 +86,10 @@ namespace
     // game. A long session holds a few hundred small entries; prune by age if that ever matters.
     std::unordered_map<std::uint64_t, Application> g_applications;
     std::array<bool, static_cast<std::size_t>(NoEffectReason::kCount)> g_warnedNoEffect{};
+    // Steady-state outcome lines: info the first time in the DLL's life, debug after
     bool g_refreshLogged = false;
+    bool g_castLogged = false;
+    bool g_instantOnlyLogged = false;
 
     // =========================================================================
     // Helpers
@@ -253,13 +256,17 @@ namespace
                 poisonName, poisonId, targetName, targetId);
             break;
         case ToxGame::ApplyOutcome::kCast:
-            logger::info("Toxicology: cast '{}' [{:08X}] on '{}' [{:08X}] ({} caster), {} new effect(s) recorded",
-                poisonName, poisonId, targetName, targetId, casterText, a_result.count);
+            spdlog::log(g_castLogged ? spdlog::level::debug : spdlog::level::info, "Toxicology: cast '{}' [{:08X}] on '{}' "
+                "[{:08X}] ({} caster), {} new effect(s) recorded (repeats at debug level)", poisonName, poisonId, targetName,
+                targetId, casterText, a_result.count);
+            g_castLogged = true;
             break;
         case ToxGame::ApplyOutcome::kCastNoEffect:
             if (a_result.noEffect == NoEffectReason::kInstantOnly) {
-                logger::info("Toxicology: cast '{}' [{:08X}] on '{}' [{:08X}] ({} caster): instant-only poison, "
-                             "nothing lasting to record", poisonName, poisonId, targetName, targetId, casterText);
+                spdlog::log(g_instantOnlyLogged ? spdlog::level::debug : spdlog::level::info, "Toxicology: cast '{}' "
+                    "[{:08X}] on '{}' [{:08X}] ({} caster): instant-only poison, nothing lasting to record (repeats at debug "
+                    "level)", poisonName, poisonId, targetName, targetId, casterText);
+                g_instantOnlyLogged = true;
                 break;
             }
             if (auto& warned = g_warnedNoEffect[static_cast<std::size_t>(a_result.noEffect)]; !warned) {
