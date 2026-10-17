@@ -126,6 +126,11 @@ std::string SelfTest::FormText(const RE::TESForm* a_form)
 
 namespace
 {
+    // Step 7's test count: half a dose plus a fraction no real count is likely to sit on, so the
+    // reload check can tell the saved test value from a count left over
+    constexpr float kReloadTestDoseFraction = 0.5f;
+    constexpr float kReloadTestOffset = 0.25f;
+
     std::mutex g_currentLock;
     std::weak_ptr<State> g_current;  // the running test, for the load and save messages
     bool g_started = false;          // main thread only (SKSE messages and tasks)
@@ -196,7 +201,7 @@ namespace
             SelfTest::BottleCount(s.poisonB), ToxGame::PlayerHasAbility() ? "kept" : "not held",
             s.addedAbility ? "added by the test" : "already held", SelfTest::FormText(choice)));
 
-        const float testValue = ToxGame::GetSettings().magickaPerDose * 0.5f + 0.25f;
+        const float testValue = ToxGame::GetSettings().magickaPerDose * kReloadTestDoseFraction + kReloadTestOffset;
         if (s.dosesRan && s.config.reloadCheck && SelfTest::ArmReloadCheck(testValue, s.originalAccumulated)) {
             ToxGame::SetAccumulated(testValue);
             SelfTest::Info("7 reload", std::format("ACTION: save the game now (any slot), then load that save. The count toward "
@@ -291,7 +296,6 @@ namespace
                 SelfTest::NextStep(s, Step::kDoses);
                 return;
             }
-            s.accumulatedAtHits = ToxGame::Accumulated();
             s.bottlesAtHits = SelfTest::BottleCount(s.poisonA);
             ToxGame::SetHitTracing(true);
             SelfTest::NextStep(s, Step::kDeliveries);

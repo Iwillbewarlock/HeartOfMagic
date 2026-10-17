@@ -86,6 +86,7 @@ namespace
     // game. A long session holds a few hundred small entries; prune by age if that ever matters.
     std::unordered_map<std::uint64_t, Application> g_applications;
     std::array<bool, static_cast<std::size_t>(NoEffectReason::kCount)> g_warnedNoEffect{};
+    bool g_refreshLogged = false;
 
     // =========================================================================
     // Helpers
@@ -171,8 +172,15 @@ namespace
         });
     }
 
-    // The effects of a_poison in the list now that were not there before the cast and whose
-    // caster is the player (or, casting from the target, the target)
+    // A live effect whose record has a duration (ActiveEffect::effect, RE/A/ActiveEffect.h:105;
+    // GetDuration, RE/E/Effect.h:34): an instant one is nothing to renew
+    bool IsLiveLasting(const RE::ActiveEffect& a_effect)
+    {
+        return IsLive(a_effect) && a_effect.effect && a_effect.effect->baseEffect && a_effect.effect->GetDuration() > 0;
+    }
+
+    // The live, lasting effects of a_poison in the list now that were not there before the cast and
+    // whose caster is the player (or, casting from the target, the target)
     std::vector<OwnedEffect> NewOwnedEffects(EffectList& a_list, const RE::MagicItem* a_poison,
         const std::vector<SeenEffect>& a_before, const RE::ActorHandle& a_player,
         const RE::ActorHandle& a_target)
@@ -180,7 +188,7 @@ namespace
         std::vector<OwnedEffect> owned;
         for (auto* effect : a_list) {
             if (!effect || effect->spell != a_poison) continue;
-            if (WasSeen(a_before, effect)) continue;
+            if (WasSeen(a_before, effect) || !IsLiveLasting(*effect)) continue;
             const bool ourCaster = effect->caster == a_player || (kCastFromTarget && effect->caster == a_target);
             if (!ourCaster) continue;
             owned.push_back({ effect, effect->caster, effect->usUniqueID });
@@ -235,8 +243,10 @@ namespace
         const char* casterText = kCastFromTarget ? "target's" : "player's";
         switch (a_result.outcome) {
         case ToxGame::ApplyOutcome::kRefreshed:
-            logger::info("Toxicology: refreshed {} of our effect(s) of '{}' [{:08X}] on '{}' [{:08X}]",
-                a_result.count, poisonName, poisonId, targetName, targetId);
+            // Every renewing hit: info the first time in the DLL's life, debug after
+            spdlog::log(g_refreshLogged ? spdlog::level::debug : spdlog::level::info, "Toxicology: refreshed {} of our effect(s) "
+                "of '{}' [{:08X}] on '{}' [{:08X}] (repeats at debug level)", a_result.count, poisonName, poisonId, targetName, targetId);
+            g_refreshLogged = true;
             break;
         case ToxGame::ApplyOutcome::kForeignPresent:
             logger::info("Toxicology: '{}' [{:08X}] already on '{}' [{:08X}] from another source - nothing done",

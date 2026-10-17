@@ -135,7 +135,10 @@ namespace ToxGame::SelfTest
         float elapsedAfter = 0.0f;       // step 3: the longest effect's elapsedSeconds read just after the second hit
         float sinceFirstHit = 0.0f;      // step 3: seconds our effect has run since the first hit (last seen)
         std::int32_t bottlesAtHits = 0;
-        float accumulatedAtHits = 0.0f;
+        // The count toward the next bottle is set to 0 before each delivery cast (steps 2-4), so a cast
+        // the addon charged cannot use up poison A; what each cast left is added here first
+        bool countZeroed = false;
+        float chargedByTestCasts = 0.0f;
 
         std::atomic<bool> queued{ false };
         std::atomic<bool> finished{ false };

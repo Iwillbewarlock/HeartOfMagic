@@ -149,10 +149,20 @@ namespace
         return false;
     }
 
+    // Before each delivery cast: the count toward the next bottle to 0, what the last cast left added to
+    // chargedByTestCasts (the first time it holds the player's own count, put back by Undo)
+    void ZeroCountBeforeCast(State& s)
+    {
+        if (s.countZeroed) s.chargedByTestCasts += ToxGame::Accumulated();
+        s.countZeroed = true;
+        ToxGame::SetAccumulated(0.0f);
+    }
+
     // Casts d at the target (a cloak on the player) after noting what the checks compare against
     bool CastDelivery(State& s, const SelfTest::Delivery& d, RE::Actor* a_target)
     {
         auto* player = RE::PlayerCharacter::GetSingleton();
+        ZeroCountBeforeCast(s);
         s.traceBefore = ToxGame::HitTraceFor(d.hitSpell->GetFormID());
         s.playerBefore = SelfTest::Refs(SelfTest::LiveEffectsOf(player, s.poisonA));
         s.hitSeenTick.reset();
@@ -238,9 +248,10 @@ namespace
 
     void EndDeliveries(State& s)
     {
-        SelfTest::Info("2 magicka", std::format("over step 2 the count toward the next bottle went {:.2f} -> {:.2f} and {} {} -> {} "
-            "bottles: a change means CastSpellImmediate raised player cast events that were charged", s.accumulatedAtHits,
-            ToxGame::Accumulated(), SelfTest::FormText(s.poisonA), s.bottlesAtHits, SelfTest::BottleCount(s.poisonA)));
+        SelfTest::Info("2 magicka", std::format("step 2's casts were charged {:.2f} Magicka in all (the count is set to 0 before "
+            "each cast) and {} went {} -> {} bottles: anything but 0 and no change means CastSpellImmediate raised player cast "
+            "events that were charged", s.chargedByTestCasts + ToxGame::Accumulated(), SelfTest::FormText(s.poisonA),
+            s.bottlesAtHits, SelfTest::BottleCount(s.poisonA)));
         for (const auto label : kRefreshOrder) {
             for (std::size_t i = 0; i < s.deliveries.size() && !s.refreshDelivery; ++i) {
                 if (s.deliveries[i].label == label && s.deliveries[i].landed) s.refreshDelivery = i;

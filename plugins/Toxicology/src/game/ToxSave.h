@@ -19,8 +19,12 @@
 
 namespace ToxGame
 {
+    // Multi-character literals are implementation-defined; MSVC puts the first character in the
+    // high byte: 'HMTX' = 0x484D5458 ('H' 0x48, 'M' 0x4D, 'T' 0x54, 'X' 0x58), 'ACCM' = 0x4143434D
+    // ('A' 0x41, 'C' 0x43, 'C' 0x43, 'M' 0x4D) - the values SKSE stores
     inline constexpr std::uint32_t kCoSaveUniqueId = 'HMTX';
     inline constexpr std::uint32_t kAccumulatedRecord = 'ACCM';
+    static_assert(kCoSaveUniqueId == 0x484D5458 && kAccumulatedRecord == 0x4143434D, "co-save ids changed value");
     inline constexpr std::uint32_t kAccumulatedVersion = 1;
 
     // Registers the serialization callbacks. Call once from SKSEPluginLoad, after SKSE::Init.
