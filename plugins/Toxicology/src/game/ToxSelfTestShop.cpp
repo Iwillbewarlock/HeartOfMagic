@@ -28,6 +28,15 @@ namespace
     constexpr std::int32_t kMinTomesInShop = 1;
     constexpr std::int32_t kTomeValue = 350;  // spec 4a; plugins/Toxicology/ESL.md
     constexpr std::string_view kStep = "4a shop";
+
+    // RE/T/TESObjectREFR.h:409, src/RE/T/TESObjectREFR.cpp:430-479: the base container counted too;
+    // a_noInit keeps a reference whose inventory was never set up untouched
+    std::int32_t TomeCount(RE::TESObjectREFR& a_ref, RE::TESObjectBOOK* a_tome)
+    {
+        const auto counts = a_ref.GetInventoryCounts([a_tome](RE::TESBoundObject& a_object) { return &a_object == a_tome; }, true);
+        const auto it = counts.find(a_tome);
+        return it != counts.end() ? it->second : 0;
+    }
 }
 
 void SelfTest::StepShop(State& s)
@@ -42,13 +51,21 @@ void SelfTest::StepShop(State& s)
     if (!chest) {
         Fail(s, kStep, std::format("chest reference {:06X} ({}) not found", kElgrimChestRefId, kSkyrimEsm));
     } else {
-        // RE/T/TESObjectREFR.h:409, src/RE/T/TESObjectREFR.cpp:430-479: the base container counted too;
-        // a_noInit keeps a chest whose inventory was never set up untouched
-        const auto counts = chest->GetInventoryCounts([tome](RE::TESBoundObject& a_object) { return &a_object == tome; }, true);
-        const auto it = counts.find(tome);
-        const std::int32_t count = it != counts.end() ? it->second : 0;
-        Check(s, kStep, count >= kMinTomesInShop, std::format("chest {} holds {} of {} (at least {} expected; 0 after the "
-            "player bought it in this save)", FormText(chest), count, FormText(tome), kMinTomesInShop));
+        const std::int32_t count = TomeCount(*chest, tome);
+        const auto detail = std::format("chest {} holds {} of {} (at least {} expected)", FormText(chest), count,
+            FormText(tome), kMinTomesInShop);
+        // Runs before Setup's AddSpell, so the ability and the carried tome are the save's own
+        auto* player = RE::PlayerCharacter::GetSingleton();
+        const bool abilityHeld = ToxGame::PlayerHasAbility();
+        const bool tomeCarried = player && TomeCount(*player, tome) > 0;
+        if (count >= kMinTomesInShop) {
+            Pass(s, kStep, detail);
+        } else if (abilityHeld || tomeCarried) {
+            Info(kStep, std::format("tome already bought in this save ({}); count check skipped - {}",
+                abilityHeld ? "ability held" : "tome carried", detail));
+        } else {
+            Fail(s, kStep, detail);
+        }
     }
     auto* teaches = tome->GetSpell();  // RE/T/TESObjectBOOK.h:106,112: null unless the teaches-spell flag is set
     Check(s, kStep, tome->TeachesSpell() && teaches && teaches == ToxGame::Ability(), std::format("{} teaches spell {}: "
