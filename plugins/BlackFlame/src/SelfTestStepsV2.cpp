@@ -184,7 +184,9 @@ namespace BlackFlame::SelfTest
         const auto& request = GetCopyRequestState();
         // AD4: a dump that wrote every file (dumpComplete) and did not stop part way
         const bool dumpOk = request.dumpComplete && !request.dumpState.starts_with("failed");
-        if (!cfg.writeRequest) {
+        if (cfg.singleLaunch) {
+            SelfTestLog::Info("T0-request", "single launch: request v5 and the dump are written by the slot route (T0-slots)");
+        } else if (!cfg.writeRequest) {
             SelfTestLog::Info("T0-request", std::format("copy request off (writeRequest false): {} closure forms, {} excluded",
                 request.forms, request.excluded));
         } else {

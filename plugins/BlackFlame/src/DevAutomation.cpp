@@ -5,6 +5,7 @@
 #include "MenuWatch.h"
 #include "Patch.h"
 #include "SelfTestReload.h"
+#include "SingleLaunch.h"
 #include "TrackedMutex.h"
 
 #include <atomic>
@@ -135,8 +136,9 @@ namespace BlackFlame::DevAutomation
         void Due(Clock::time_point a_now, const Config& a_config, std::vector<Action>& a_out)
         {
             auto& s = g_state;
+            // single launch: the load waits for the slots to settle (they are frozen at the first load), kSlotWait at most
             if (!a_config.devAutoLoad.empty() && !s.autoLoadIssued && s.menuAt && !s.loadStarted &&
-                a_now - *s.menuAt >= kMenuSettle) {
+                a_now - *s.menuAt >= kMenuSettle && (SingleLaunch::ReadyForLoad() || a_now - *s.menuAt >= kSlotWait)) {
                 s.autoLoadIssued = true;
                 s.stallFrom = a_now;
                 a_out.push_back(Action::kLoadConfigSave);

@@ -445,6 +445,7 @@ namespace BlackFlame::CopyGroups
             for (const auto& group : a_state.groups) {
                 progress.groupsOpen += group.state == GroupState::kOpen ? 1 : 0;
                 progress.groupsFailed += group.state == GroupState::kFailed ? 1 : 0;
+                progress.verifying += group.state == GroupState::kVerifying ? 1 : 0;
                 busy = busy || group.state == GroupState::kWaiting || group.state == GroupState::kVerifying;
                 for (const auto& member : group.members) {
                     if (member.state == Member::kLeft) {
@@ -511,6 +512,7 @@ namespace BlackFlame::CopyGroups
                 }
             }
             UpdateProgress(state);
+            SingleLaunch::NotifyProgress();
             if (!GetProgress().settled) {
                 (void)QueueTask(kTaskName, &Step);
             } else {

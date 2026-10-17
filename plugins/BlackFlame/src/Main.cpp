@@ -84,7 +84,9 @@ namespace
         // failures are caught inside; this catch is for the closure walk itself, so the hooks below are installed anyway
         try {
             const auto closure = BlackFlame::BuildFireClosure();
-            BlackFlame::PrepareCopyRequest(closure);
+            if (!singleLaunch) {
+                BlackFlame::PrepareCopyRequest(closure);  // single launch: request v5 and the dump (CopyRequestV5.h)
+            }
             if (singleLaunch) {
                 // the slots are filled from the live closure every start: no copies map to be stale
                 BlackFlame::MarkFreshnessUnchecked("single launch: the copies are the slot pool (no copies map)");

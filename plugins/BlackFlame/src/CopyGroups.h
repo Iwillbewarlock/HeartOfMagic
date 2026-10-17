@@ -44,6 +44,7 @@ namespace BlackFlame::CopyGroups
         std::size_t groupsFailed = 0;  // a NIF did not parse: not opened this session
         std::size_t left = 0;          // members that left their group
         std::size_t addnOpen = 0;      // ADDN slots whose MPS is published
+        std::size_t verifying = 0;     // groups being verified now
         bool settled = false;          // nothing more can open this session (all open, failed or the window closed)
     };
 

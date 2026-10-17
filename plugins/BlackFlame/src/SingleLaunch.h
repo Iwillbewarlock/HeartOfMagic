@@ -12,6 +12,7 @@
 //   5. CopyGroups::Start       W1: groups ready from the ledger open; the rest verified and opened in the drains
 //   6. BuilderLauncher::Start  the builder as a child (launchBuilder, a key prefix, request.json there)
 //   7. BuildProgress::StartWorker  the tail and the staging -> Data copy while the publish window is open
+// with request v5 and the dump (CopyRequestV5.h) written between 3 and 4, and the HUD line from the main menu on.
 // and the copies map route (LoadAndFillCopies, the freshness check, the copy model probe) does not run.
 
 #include "Common.h"
@@ -24,6 +25,14 @@ namespace BlackFlame::SingleLaunch
     /// kDataLoaded thread, after BuildFireSets and BuildFireClosure
     void OnDataLoaded(const FireClosure& a_closure);
 
-    /// The key inputs read at kDataLoaded (kept for the session: the W2 verification and request v5 read them)
+    /// The key inputs read at kDataLoaded (kept for the session; the NIF bytes are dropped after the dump)
     [[nodiscard]] const SlotKeys::Inputs& Inputs();
+
+    /// The HUD line (main thread): "Black Flame: N of M grey copies ready" when the main menu is open and the count moved
+    /// (at most every 10 s), "all ready" once; nothing before the main menu or after the publish window closed. Whether a
+    /// HUD message shows at the main menu is not checked in game
+    void NotifyProgress();
+
+    /// The dev auto-load may go: publication settled, every slot open, or the builder ended with nothing being verified
+    [[nodiscard]] bool ReadyForLoad();
 }
