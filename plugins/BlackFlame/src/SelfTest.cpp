@@ -58,6 +58,9 @@ namespace BlackFlame::SelfTest
             g_running = false;
             g_active.store(false);
             g_ctx = {};
+            if (!lateCleanup) {
+                ForgetHandRefresh();  // HB2: a later run's T9 must not sheathe hands this run drew (a load: not touched)
+            }
             SelfTestProbe::SetRecording(false);
             try {
                 if (lateCleanup) {
@@ -73,6 +76,12 @@ namespace BlackFlame::SelfTest
                     } catch (...) {
                         logger::error("BlackFlame: self-test late cleanup: CleanupBoundSpell threw");
                     }
+                    try {
+                        CleanupHandRefresh(false);  // E5b's drawn hands (the buff is dispelled below)
+                    } catch (...) {
+                        logger::error("BlackFlame: self-test late cleanup: CleanupHandRefresh threw");
+                    }
+                    ForgetHandRefresh();
                     // Each removal on its own first, so a throw in one cannot skip the other
                     int dispelled = 0;
                     std::string target = "not removed (threw)";

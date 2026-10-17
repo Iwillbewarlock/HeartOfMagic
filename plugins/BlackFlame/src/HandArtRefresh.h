@@ -6,7 +6,7 @@
 #include <string>
 
 // =============================================================================
-// HAND ART REFRESH - the player's readied hand art follows the buff at once (AE 1.6.1170 / 1.7.104)
+// HAND ART REFRESH - the player's readied hand art follows the buff at the next tick, ~100 ms (AE 1.6.1170 / 1.7.104)
 // =============================================================================
 // The copy casting art is handed out only where the engine calls SetCastingArt (CopySwapArt.cpp, 38784 +0x91),
 // which is when a hand readies a spell; SetCastingArt (34150) also does nothing while an art is attached (it returns
@@ -18,9 +18,11 @@
 // whatever the flags), then SetCastingArt (34150). ActorMagicCaster::Update's first call, CheckAttachCastingArt
 // (34185), clones and attaches the new art over the next frames. Only from the main-thread queue (MainThreadQueue.h:
 // after the frame's job wait), never from a hook or the ticker thread. Tried at the next tick after the change; a hand
-// that is charging or casting waits (a concentration spell may be held long) for up to kMaxCastWaitTicks, a hand still
+// whose caster is not in state kNone (ready, charging or casting; a concentration spell may be held long) waits for up
+// to kMaxCastWaitTicks, a hand still
 // being drawn or a player without 3D for up to kMaxRetryTicks unpaused ticks; a paused game waits without counting.
-// Only on the builds whose code was read (Patch::IsCodeReadBuild), when the SetCastingArt site is hooked with
+// Only on 1.6.1170 / 1.7.104 (Patch::IsCodeReadBuild; 34152 and 38784 were read on 1.6.1170, 1.7.104 is checked only by
+// the install-time byte patterns), when the SetCastingArt site is hooked with
 // `mov rcx, rbx` before its castingArt load, and the 34152 call in 38784 is found at install (one E8 preceded by
 // mov dl,1; mov rcx,rbx: the same caster register). Our call goes to SetCastingArt itself, so a redirect another
 // plugin put on the +0x91 call site does not see it. SE: off, as the site.
@@ -49,7 +51,7 @@ namespace BlackFlame
         std::string note;
         std::uint64_t refreshed = 0;   // Detach + SetCastingArt calls made
         std::uint64_t wasPending = 0;  // of those, with the art not attached yet (its clone pending)
-        std::uint64_t gaveUp = 0;      // a hand still charging or casting after kMaxCastWaitTicks, or still being drawn
+        std::uint64_t gaveUp = 0;      // a hand not in kNone after kMaxCastWaitTicks, or still being drawn
                                        // or without the player's 3D after kMaxRetryTicks
     };
 

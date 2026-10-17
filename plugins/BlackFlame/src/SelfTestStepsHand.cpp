@@ -89,6 +89,14 @@ namespace BlackFlame::SelfTest
                    a_caster->flags.all(RE::ActorMagicCaster::Flags::kCastingArtAttached) && (!a_refreshed || Refreshes() > g_run.refreshesAt);
         }
 
+        // HB5: whether the not-yet-attached path (Detach + Set on an art whose clone was pending) ran this session
+        std::string PendingNote()
+        {
+            const auto status = GetHandArtRefreshStatus();
+            return std::format("session refreshes {}, of them with the art not attached yet {}, given up {}", status.refreshed,
+                status.wasPending, status.gaveUp);
+        }
+
         bool PickHand()
         {
             auto* player = Player();
@@ -107,6 +115,11 @@ namespace BlackFlame::SelfTest
             return false;
         }
 
+    }
+
+    void ForgetHandRefresh() noexcept
+    {
+        g_run = {};
     }
 
     void CleanupHandRefresh(bool a_restoreBuff)
@@ -159,8 +172,8 @@ namespace BlackFlame::SelfTest
         auto* caster = CasterOf(g_run.slot);
         if (++g_run.calls > kPhaseCalls) {
             SelfTestLog::Fail("E5b", std::format("phase {} not reached in {} ticks (1 the copy while stoked, 2 the original after the "
-                "dispel, 3 the copy after the recast): {}{}", a_c.phase, kPhaseCalls, Describe(caster),
-                g_run.offLine.empty() ? std::string() : "; buff off was: " + g_run.offLine));
+                "dispel, 3 the copy after the recast): {}{}; {}", a_c.phase, kPhaseCalls, Describe(caster),
+                g_run.offLine.empty() ? std::string() : "; buff off was: " + g_run.offLine, PendingNote()));
             CleanupHandRefresh(true);
             return true;
         }
@@ -188,7 +201,7 @@ namespace BlackFlame::SelfTest
             g_run.offLine = Describe(caster);
             g_run.refreshesAt = Refreshes();
             if (!SelfTestWorld::Cast(Player(), GetForms().stokeSpell, Player())) {
-                SelfTestLog::Fail("E5b", "buff off: " + g_run.offLine + "; the Stoke spell could not be cast again");
+                SelfTestLog::Fail("E5b", "buff off: " + g_run.offLine + "; the Stoke spell could not be cast again; " + PendingNote());
                 CleanupHandRefresh(false);
                 return true;
             }
@@ -201,7 +214,7 @@ namespace BlackFlame::SelfTest
                 return false;
             }
             SelfTestLog::Pass("E5b", std::format("the drawn hand's art followed the buff without a re-ready: buff off -> the original ({}); "
-                "buff on -> the copy ({})", g_run.offLine, Describe(caster)));
+                "buff on -> the copy ({}); {}", g_run.offLine, Describe(caster), PendingNote()));
             CleanupHandRefresh(false);
             return true;
         }

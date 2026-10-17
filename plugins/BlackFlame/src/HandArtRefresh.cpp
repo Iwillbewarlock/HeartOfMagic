@@ -51,7 +51,7 @@ namespace BlackFlame
         {
             kDone,           // the art is the one wanted now (set here or already)
             kRetry,          // the hands are being drawn, or the player has no 3D: next tick, kMaxRetryTicks
-            kCastWait,       // charging or casting: next tick, kMaxCastWaitTicks
+            kCastWait,       // caster state not kNone (ready, charging, casting): next tick, kMaxCastWaitTicks
             kNotApplicable,  // sheathed, not a fire spell, another art: the hooked SetCastingArt decides at the next ready
         };
 
@@ -91,8 +91,10 @@ namespace BlackFlame
                 return Outcome::kDone;
             }
             const auto castState = caster->state.get();
-            if (castState != RE::MagicCaster::State::kNone && castState != RE::MagicCaster::State::kReady) {
-                a_line = std::format("hand {}, spell {:08X}, charging or casting (caster state {})", a_slot, spell->GetFormID(),
+            // HB1: kNone only, until a log shows which state an idle drawn hand is in; kReady waits like a charge or a cast
+            // (the engine's unready path reads no state, so kReady is likely safe, but that is not shown)
+            if (castState != RE::MagicCaster::State::kNone) {
+                a_line = std::format("hand {}, spell {:08X}, not idle (caster state {}: ready, charging or casting)", a_slot, spell->GetFormID(),
                     static_cast<std::uint32_t>(castState));
                 return Outcome::kCastWait;
             }
