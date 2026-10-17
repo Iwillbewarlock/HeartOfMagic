@@ -45,13 +45,24 @@ Set on the new record: name, value 350, the teaches-spell link to `0x802`, and t
 
 Effect description (`0x801`, DNAM):
 
-> Poison spells inflict your first favorited poison; repeat strikes only renew its duration. Every 100 Magicka
-> spent on poison spells uses one bottle, moving to the next when empty.
+> Poison spells inflict your first favorited poison; each poison can affect a creature only once. Every 100
+> Magicka spent on poison spells uses one bottle, moving to the next when empty.
 
 Book text (`0x803`): a centred handwritten title "Toxicology" in the vanilla tome markup
 (`<font face='$HandwrittenFont'><font size='40'><p align='center'>`), then `</font><p align='left'>` and four
-paragraphs separated by blank lines (`\r\n\r\n`). Both texts were drafted by Gemini Argon from a fact sheet
-and checked line by line against it.
+paragraphs separated by blank lines (`\r\n\r\n`). The second paragraph says each creature takes a given poison
+only once (later strikes add no dose; a different poison can take hold once too). Both texts were drafted by
+Gemini Argon from a fact sheet and checked line by line against it.
+
+### Changes
+
+- 2026-10-18: the effect description and the tome's second paragraph rewritten for the once-per-target-and-poison
+  rule (they described renew-on-hit, which was removed). Done as a byte edit of just the `0x801` `DNAM` and the
+  `0x803` `DESC` subrecords (node, no houseCARL write, so no `Update.esm` to remove), with the MGEF and BOOK record
+  sizes and their group sizes recomputed; the other subrecords, the TES4 header (flags `0x200`, `Skyrim.esm`
+  only, HEDR count 8 = four records and four groups, next object ID `0x804`) and FormIDs `0x800`-`0x803`
+  byte-identical to the previous file. Read back with `housecarl_records` (form `everything`) from the dev mod
+  folder: both texts equal the approved text.
 
 ## How it was made (houseCARL)
 
