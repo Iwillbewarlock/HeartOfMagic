@@ -19,11 +19,12 @@ pending in-game self test, see "Not yet confirmed in game" below).
   only to renew its duration (pending in-game self test). Per target and poison, hits closer together than `minIntervalSeconds` (default 1 s) are ignored.
   The addon never renews an effect it did not apply itself: if the target already carries the same poison from a
   coated weapon, or from before the save was loaded, nothing happens until that effect ends.
-- **Bottles**: hits use up no bottles. Instead, every 100 Magicka you spend casting poison spells (hit or miss;
-  meant to be the cost after perks and gear, dual casting and concentration included - pending in-game self
-  test) uses one bottle of the poison being
-  mimicked. When that poison runs out the next favorited poison takes over. The running total is kept in the SKSE
-  co-save. Bottles without a favorite mark are used before the favorited stack.
+- **Bottles**: hits use up no bottles. Instead, every 100 Magicka you spend casting poison spells from your hands
+  (hit or miss; meant to be the cost after perks and gear, dual casting and concentration included - pending in-game
+  self test) uses one bottle of the poison being mimicked. A poison cloak costs what you pay for the cloak; the
+  sub-spell it casts on enemies costs nothing. When that poison runs out the next favorited poison takes over.
+  Bottles without a favorite mark are used before the favorited stack. The running total is kept in the SKSE
+  co-save.
 - **Icon**: with Inventory Interface Information Injector (I4) installed, the poison being mimicked shows a
   "flask before a magic circle" icon in green (`#62A636`) in the inventory and favorites menus.
 
@@ -101,18 +102,28 @@ in game yet. Update this list from the self test's `SELFTEST` lines and move eac
   the engine really extends the effect this way (and that it does not break fading or scripted effects) is not
   confirmed.
 - **Magicka count**: the counted cost is meant to match the Magicka the engine takes (after perks and gear, dual
-  casting and concentration included); that it does, within 5 %, is not confirmed.
+  casting and concentration included); that it does, within 5 %, is not confirmed. The addon reads the hand
+  caster's own cost; which of its two cost values tracks the engine's charge is decided by this check. The check
+  is manual: the self test casts through the instant caster, which the addon does not watch (see Development).
 
 ### Other limits
 
 - **I5 (InventoryInjectorImproved)** caches inventory icons per item, so the icon can stay on the old poison in the
   inventory and barter menus after the favorite changes. The console command `i5 purge` (I5 0.4.0, the release in
   use when this was written) or `i5 cache purge` (newer I5) clears the cache; the favorites menu is always accurate. The addon cannot clear that cache itself (it logs a line when I5 is loaded).
-- Changing favorites with a menu open changes the icon the next time the menu is opened.
+- Changing favorites with the inventory or favorites menu open moves the icon when that menu closes, so the open
+  menu still shows it on the old poison.
 - **Saves that already traded with Elgrim** may show the tome only after the merchant restocks (about 48 hours of
   game time).
-- **Poisons with an instant and a lasting effect**: while the lasting effect is still on the target, hits only
-  renew it, so the instant damage lands once per application, not once per hit.
+- **Poisons with an instant and a lasting effect**: while the lasting effect is still on the target, hits are meant
+  only to renew it (pending in-game self test), so the instant damage lands once per application, not once per hit.
+- **The icon is on the poison, not on your bottles**: the mimic icon marks the base poison, so every copy of it shows
+  the icon while it is being mimicked - at vendors, in containers and in loot too.
+- **Leftover Magicka**: when the last favorited poison runs out, the part of the count under one dose stays and goes
+  toward the next poison you favorite; whole doses with no bottle left to take are dropped. Casting with no
+  favorited poison counts nothing.
+- **Casts from your hands only**: a poison spell a script or another mod casts for you does not count toward
+  bottles; the addon takes the cost from your left and right hand casters.
 - **Only your own casts**: poison spells cast by NPCs, followers included, do not apply poisons.
 - **A rescan in game** (the Librarian's full scan rewrites the catalog) is picked up at the first spell you cast, or
   spell hit of yours, at least 5 seconds after the previous check of the catalog file, or at the next save load. A spell from a mod installed after the last scan counts only after the next scan.
@@ -140,8 +151,8 @@ record), and the tome placed in Elgrim's chest was only in memory. The co-save r
   the notice comes from `plugins/Toxicology/THIRD-PARTY-NOTICES.md.in`, source tag `toxicology-v<version>`). The dev
   self test file and `art/` never go into the zip.
 - **Offline harness**: `build/tools/Release/toxicology-test.exe --self-test` checks the pure core
-  (`src/core/ToxCore.*`: settings, catalog parsing, catalog keys, the poison choice, the bottle arithmetic and
-  which stack loses a bottle, the hit interval); every
+  (`src/core/ToxCore.*`: settings, catalog parsing, catalog keys, the hit and cost spell sets, the poison choice,
+  the bottle arithmetic and which stack loses a bottle, the hit interval); every
   check prints PASS or FAIL, exit 1 on a failure.
 - **Dev deploy** (game closed; the dev mod folder must exist, default `D:\TAKEALOOK\mods\HeartOfMagic-Toxicology-Dev`):
 
@@ -161,4 +172,10 @@ record), and the tome placed in Elgrim's chest was only in memory. The co-save r
   Magicka total (it asks for a save and a reload for that last check), and takes back what it added. Results are
   `SELFTEST PASS|FAIL|INFO|DONE` lines in `HeartOfMagic_Toxicology.log`. Use a disposable save. Details:
   `src/game/ToxSelfTest.h`.
+- **Magicka accuracy is checked by hand**: the caster hook only sees the player's hand casters, and the self test
+  casts through the instant caster, so it cannot measure the count. With the ability and a favorited poison, stand
+  still with no regeneration or potion effects, cast poison spells from your hands (single, dual, concentration)
+  for 5 seconds at a time, and read the `magicka counted X ... / player magicka drop Y` lines (the first 3 after each
+  load are logged at info) and the `casting starts` / `fire-and-forget release` lines beside them, which give both
+  cost values the caster holds. X and Y should agree within 5 %.
 - The ESL and how it was made: `ESL.md`. The icon and the SWF: `art/ICON.md`.
