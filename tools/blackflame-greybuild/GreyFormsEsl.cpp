@@ -273,40 +273,37 @@ namespace GreyBuild
         return keys;
     }
 
-    void WriteCopiesEsl(const CopiesMap& a_map, const std::vector<FormSource>& a_sources,
-        const std::filesystem::path& a_file)
+    std::string CopiesEslGroup(CopyType a_type, const CopiesMap& a_map, const std::vector<FormSource>& a_sources,
+        std::int32_t& a_count, std::uint32_t& a_highest)
     {
-        if (a_map.entries.size() != a_sources.size() || a_map.entries.size() > kLastLightFormId - kFirstLightFormId + 1) {
-            throw std::runtime_error(fmt::format("the copies ESL needs 0 to 2048 entries matching the sources ({} entries, "
-                "{} sources)", a_map.entries.size(), a_sources.size()));
+        std::string records;
+        for (std::size_t i = 0; i < a_map.entries.size(); ++i) {
+            if (a_map.entries[i].type != a_type) {
+                continue;
+            }
+            records += CopyRecord(a_map.entries[i], a_sources[i]);
+            a_highest = std::max(a_highest, a_map.entries[i].localId);
+            ++a_count;
         }
+        if (records.empty()) {
+            return {};
+        }
+        Writer group;
+        TopGroup(group, CopyTypeTag(a_type), records);
+        ++a_count;
+        return group.Data();
+    }
+
+    void WriteLightPlugin(const std::filesystem::path& a_file, const std::string& a_groups, std::int32_t a_count,
+        std::uint32_t a_nextObjectId)
+    {
         Writer file;
-        std::string groups;
-        std::int32_t count = 0;
-        std::uint32_t highest = 0;
-        for (const auto type : kCopyTypes) {
-            std::string records;
-            for (std::size_t i = 0; i < a_map.entries.size(); ++i) {
-                if (a_map.entries[i].type != type) {
-                    continue;
-                }
-                records += CopyRecord(a_map.entries[i], a_sources[i]);
-                highest = std::max(highest, a_map.entries[i].localId);
-                ++count;
-            }
-            if (!records.empty()) {
-                Writer group;
-                TopGroup(group, CopyTypeTag(type), records);
-                groups += group.Data();
-                ++count;
-            }
-        }
         Writer header;
-        header.Sub("HEDR", Pack(kHedrVersion, count, std::max(highest + 1, kFirstLightFormId)));
+        header.Sub("HEDR", Pack(kHedrVersion, a_count, a_nextObjectId));
         header.ZString("CNAM", kAuthor);
         RecordHeader(file, "TES4", header.Data().size(), kEslFlag, 0);
         file.Bytes(header.Data().data(), header.Data().size());
-        file.Bytes(groups.data(), groups.size());
+        file.Bytes(a_groups.data(), a_groups.size());
 
         std::filesystem::create_directories(a_file.parent_path());
         std::ofstream out(a_file, std::ios::binary | std::ios::trunc);
@@ -315,6 +312,22 @@ namespace GreyBuild
         if (!out) {
             throw std::runtime_error(fmt::format("writing '{}' failed", a_file.string()));
         }
+    }
+
+    void WriteCopiesEsl(const CopiesMap& a_map, const std::vector<FormSource>& a_sources,
+        const std::filesystem::path& a_file)
+    {
+        if (a_map.entries.size() != a_sources.size() || a_map.entries.size() > kLastLightFormId - kFirstLightFormId + 1) {
+            throw std::runtime_error(fmt::format("the copies ESL needs 0 to 2048 entries matching the sources ({} entries, "
+                "{} sources)", a_map.entries.size(), a_sources.size()));
+        }
+        std::string groups;
+        std::int32_t count = 0;
+        std::uint32_t highest = 0;
+        for (const auto type : kCopyTypes) {
+            groups += CopiesEslGroup(type, a_map, a_sources, count, highest);
+        }
+        WriteLightPlugin(a_file, groups, count, std::max(highest + 1, kFirstLightFormId));
     }
 
     void WriteEmptyEsl(const std::filesystem::path& a_file)

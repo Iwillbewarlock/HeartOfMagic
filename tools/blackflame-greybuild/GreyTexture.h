@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <map>
 #include <optional>
 #include <string>
@@ -31,6 +32,8 @@ namespace nifly
 
 namespace GreyBuild
 {
+    class KeyedOutputs;  // GreyKeyed.h
+
     inline constexpr const char* kTexturesRoot = "textures\\";
     // Every texture copy lives here (a NIF slot names it with textures\ in front, as kPalettePath does)
     inline constexpr const char* kTextureCopyRoot = "textures\\heartofmagic\\blackflame\\copies\\";
@@ -112,7 +115,12 @@ namespace GreyBuild
         bool riskColoured = false;   // the visual-risk check's coloured-texture rule holds (then never left as grey)
         std::size_t mips = 0;
         std::uint64_t bytes = 0;  // kRecoloured: the copy's file size
+        bool transient = false;   // kFailed by an I/O error or out of memory (the same bytes may work later), not the texture
     };
+
+    /// An HRESULT that says the machine, not the file, failed (out of memory, a file locked, gone, unreadable or a full disk):
+    /// the same bytes may well work at the next run (key mode: failed, not fallback)
+    [[nodiscard]] bool IsTransientResult(long a_result) noexcept;
 
     /// Reads a_source (DDS; legacy luminance formats expanded to RGBA, so they read as grey) and writes its grey copy to
     /// a_target (folders made): luminance x a_tint per pixel, alpha kept, the same format, size, mip count and array size.
@@ -160,6 +168,7 @@ namespace GreyBuild
         };
         std::map<std::string, PathState> paths;  // by TextureDataPath
         TextureTotals totals;
+        KeyedOutputs* keyed = nullptr;  // key mode: each texture copy at copies\<key16>\ with its progress line (GreyKeyed.h)
     };
 
     /// One slot (a NIF slot, or a TXST copy's TX00 / TX03, GreyFormsTxst.h): its texture recoloured with a_role's tint the
@@ -172,6 +181,10 @@ namespace GreyBuild
     /// a glow shader's emissive colour set to its luminance. Prints one line per texture the first time it is met. Never
     /// throws for a texture; the NIF stays loadable as it was.
     void RetargetTextures(nifly::NifFile& a_nif, TextureJob& a_job, const std::string& a_nifRel);
+
+    /// Every texture slot of a_nif RetargetTextures would visit (the same rule, each texture set slot once), with its role;
+    /// the slot text may be changed through the reference. The key mode's scheduler reads it on the source NIF.
+    void ForEachTextureSlot(nifly::NifFile& a_nif, const std::function<void(std::string&, TextureRole)>& a_visit);
 
     /// "textures  recoloured N, ..." for a run's end
     [[nodiscard]] std::string TextureTotalsLine(const TextureTotals& a_totals);

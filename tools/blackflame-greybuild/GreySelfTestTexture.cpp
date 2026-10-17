@@ -473,6 +473,11 @@ namespace GreyBuild::SelfTest
         }
     }
 
+    bool WriteTestTexture(const std::filesystem::path& a_file, unsigned a_dxgiFormat, bool a_orange)
+    {
+        return WriteDds(a_file, static_cast<DXGI_FORMAT>(a_dxgiFormat), a_orange ? Fill::kOrange : Fill::kGrey);
+    }
+
     void CheckTextures(Checker& a_check, const std::filesystem::path& a_dir)
     {
         const auto dir = a_dir / "textures";

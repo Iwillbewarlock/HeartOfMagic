@@ -25,14 +25,7 @@ namespace GreyBuild
         constexpr const char* kRuleMissing = "MISSING";
         constexpr const char* kRuleDecalNotJudged = "DECAL_NOT_JUDGED";
 
-        struct ColourSlot
-        {
-            std::size_t slot;
-            TextureRole role;
-            const char* name;
-        };
-        constexpr ColourSlot kColourSlots[] = { { kTxstSlotDiffuse, TextureRole::kDiffuse, "TX00" },
-            { kTxstSlotGlow, TextureRole::kGlow, "TX03" } };
+        constexpr const auto& kColourSlots = kTxstColourSlots;
 
         void AddFinding(RiskJob& a_risk, RiskLevel a_level, const char* a_rule, const CopyEntry& a_entry, std::string a_detail)
         {

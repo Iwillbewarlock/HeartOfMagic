@@ -15,6 +15,7 @@
 #include <array>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -59,6 +60,9 @@ namespace GreyBuild
         const TexStats* stats = nullptr;   // kOk
         std::string path;                  // the Data-relative path ("" when the slot text is none)
         std::string why;                   // kMissing / kUnread
+        std::filesystem::path file;        // the file it was read from ("" when none was found)
+        bool transient = false;            // not read for the machine's sake (a locked file, no memory, the budget): not
+                                           // cached, read again when looked at
     };
 
     inline constexpr double kStatLitWeight = 0.1;
@@ -88,6 +92,22 @@ namespace GreyBuild
         /// Self-test: a texture as if read from the folders (a_image nullopt: there but unreadable)
         void Put(const std::string& a_path, std::optional<RgbaImage> a_image);
 
+        /// The decoded images the cache holds, in bytes (GreyBudget.h counts them against the job memory cap)
+        [[nodiscard]] std::uint64_t CachedBytes() const noexcept;
+
+        /// Every cached texture dropped (read again when looked at). No TextureLook of this source may be in use.
+        void Clear() noexcept;
+
+        /// Key mode (GreyBudget.h): asked before a file is decoded; false (with its why) leaves the texture unread and
+        /// uncached, so a later object asks again
+        using ReadGate = std::function<bool(const std::filesystem::path&, std::string&)>;
+        void SetReadGate(ReadGate a_gate) { m_gate = std::move(a_gate); }
+
+        /// Key mode: told why when a read fails for the machine's sake (IsTransientResult), so the object fails instead of
+        /// being judged on a texture it could not see
+        using TransientSink = std::function<void(const std::string&)>;
+        void SetTransientSink(TransientSink a_sink) { m_transientSink = std::move(a_sink); }
+
         /// Our own shipped textures' folders for this builder: the tester package's mod root (two folders above
         /// tools\BlackFlame\blackflame-greybuild.exe) and the repository's plugins\BlackFlame\data (three above
         /// build\tools\Release\), whichever have a textures folder
@@ -100,15 +120,20 @@ namespace GreyBuild
             std::unique_ptr<RgbaImage> image;
             std::unique_ptr<TexStats> stats;
             std::string why;
+            std::filesystem::path file;
         };
         std::vector<std::filesystem::path> m_folders;
         std::filesystem::path m_generated;
         std::map<std::string, std::string> m_notInGame;
         std::map<std::string, Entry> m_cache;
+        std::uint64_t m_cachedBytes = 0;
+        ReadGate m_gate;
+        TransientSink m_transientSink;
     };
 
     /// Reads a DDS as 8-bit RGBA mip 0; nullopt with a_why on a failure
-    [[nodiscard]] std::optional<RgbaImage> ReadRgba(const std::filesystem::path& a_file, std::string& a_why);
+    /// a_transient (when given): the failure is the machine's (IsTransientResult), not the file's
+    [[nodiscard]] std::optional<RgbaImage> ReadRgba(const std::filesystem::path& a_file, std::string& a_why, bool* a_transient = nullptr);
 
     [[nodiscard]] TexStats ComputeStats(const RgbaImage& a_image);
 

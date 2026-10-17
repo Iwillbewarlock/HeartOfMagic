@@ -138,7 +138,7 @@ namespace GreyBuild
 
             nifly::NifFile written;
             LoadNif(written, target);
-            auto problems = VerifyGrey(written, a_greyEffects, a_map, a_options.keepUnmapped);
+            auto problems = VerifyGrey(written, a_greyEffects, a_map, a_options.keepUnmapped, a_options.keyedPalettes);
             if (a_greyEffects && a_options.judging.risk) {
                 const auto* glow = a_options.judging.glow;
                 const bool kept = glow && glow->haloKept.count(a_rel) != 0;

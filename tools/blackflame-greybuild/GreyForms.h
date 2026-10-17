@@ -45,6 +45,7 @@ namespace GreyBuild
     inline constexpr int kFormsRequestVersion = 2;  // hand-made requests (forms only)
     inline constexpr int kGameRequestVersion = 4;   // the DLL's request (forms, addons, models, nifs, fingerprint, dumpComplete)
     inline constexpr int kGameRequestVersionOld = 3;  // AD1: the same without dumpComplete (read as complete)
+    inline constexpr int kGameRequestVersionKeyed = 5;  // single launch: version 4 plus the keys (GreyKeyed.h); --out reads it too
     inline constexpr int kCopiesMapVersion = 2;     // version 1 maps are still read
 
     enum class CopyType
@@ -144,6 +145,7 @@ namespace GreyBuild
         std::array<std::string, kTxstSlots> textures{};
         std::array<std::string, kTxstSlots> textureNames{};
         bool hasDecal = false;  // TXST: the source has DODT (the copy's DODT is a stub the DLL fills)
+        std::string key;        // request v5: its model's key16 (a TXST form: its TXST key); "" in older requests
     };
 
     /// The scalar keys a type's "data" may hold (unknown keys are refused, missing ones are 0)
@@ -246,6 +248,15 @@ namespace GreyBuild
     /// IPCT, ARTO in that order (kCopyTypes, Skyrim.esm's group order). a_sources[i] belongs to a_map.entries[i].
     void WriteCopiesEsl(const CopiesMap& a_map, const std::vector<FormSource>& a_sources,
         const std::filesystem::path& a_file);
+
+    /// One top-level group of a_map's a_type entries, records as WriteCopiesEsl writes them ("" when there are none);
+    /// a_count gains the records and the group, a_highest the largest local id (the slot pool ESL, GreySlotPool.h)
+    [[nodiscard]] std::string CopiesEslGroup(CopyType a_type, const CopiesMap& a_map, const std::vector<FormSource>& a_sources,
+        std::int32_t& a_count, std::uint32_t& a_highest);
+
+    /// A masterless ESL: TES4 (light flag, HEDR 1.70 with a_count and a_nextObjectId, CNAM), then a_groups as given
+    void WriteLightPlugin(const std::filesystem::path& a_file, const std::string& a_groups, std::int32_t a_count,
+        std::uint32_t a_nextObjectId);
 
     struct EslForm
     {

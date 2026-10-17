@@ -121,9 +121,11 @@ namespace GreyBuild
         std::optional<StageTimer> readTime(std::in_place, "read request");
         const FormsRequest parsed = LoadFormsRequestFile(request);
         readTime.reset();
-        if ((parsed.version != kGameRequestVersion && parsed.version != kGameRequestVersionOld) || !parsed.addons) {
-            std::cerr << fmt::format("{} is a version {} request; --from-game reads the game's (version {}). Use --forms for a "
-                                     "hand-made one.\n", PathText(request), parsed.version, kGameRequestVersion);
+        if ((parsed.version != kGameRequestVersion && parsed.version != kGameRequestVersionOld &&
+                parsed.version != kGameRequestVersionKeyed) || !parsed.addons) {
+            std::cerr << fmt::format("{} is a version {} request; --from-game reads the game's (version {}, {} or {}). Use --forms for "
+                                     "a hand-made one.\n", PathText(request), parsed.version, kGameRequestVersionOld, kGameRequestVersion,
+                kGameRequestVersionKeyed);
             return kUsage;
         }
         std::cout << fmt::format("request {} (game {}, fingerprint {}): {} forms, {} excluded, {} ADDN records, {} NIFs the game "

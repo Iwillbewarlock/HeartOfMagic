@@ -54,11 +54,14 @@ namespace GreyBuild
         return { p[0] / kByteMax, p[1] / kByteMax, p[2] / kByteMax, p[3] / kByteMax };
     }
 
-    std::optional<RgbaImage> ReadRgba(const std::filesystem::path& a_file, std::string& a_why)
+    std::optional<RgbaImage> ReadRgba(const std::filesystem::path& a_file, std::string& a_why, bool* a_transient)
     {
         DirectX::TexMetadata meta{};
         DirectX::ScratchImage source;
         if (const HRESULT hr = DirectX::LoadFromDDSFile(a_file.c_str(), kLoadFlags, &meta, source); FAILED(hr)) {
+            if (a_transient) {
+                *a_transient = IsTransientResult(hr);
+            }
             a_why = fmt::format("not a readable DDS (HRESULT 0x{:08X})", static_cast<std::uint32_t>(hr));
             return std::nullopt;
         }
@@ -76,6 +79,9 @@ namespace GreyBuild
                                                                     DirectX::Convert(*top, target, kConvertFilter,
                                                                         DirectX::TEX_THRESHOLD_DEFAULT, converted);
             if (FAILED(hr)) {
+                if (a_transient) {
+                    *a_transient = IsTransientResult(hr);
+                }
                 a_why = fmt::format("decoding format {} failed (HRESULT 0x{:08X})", static_cast<int>(top->format),
                     static_cast<std::uint32_t>(hr));
                 return std::nullopt;
@@ -218,22 +224,30 @@ namespace GreyBuild
         m_folders(std::move(a_folders)), m_generated(std::move(a_generated)), m_notInGame(std::move(a_notInGame))
     {}
 
-    std::vector<std::filesystem::path> TextureSource::OwnFolders()
+    std::filesystem::path ThisExecutable()
     {
-        std::vector<std::filesystem::path> out;
         std::wstring exe(MAX_PATH, L'\0');
         for (;;) {
             const DWORD length = ::GetModuleFileNameW(nullptr, exe.data(), static_cast<DWORD>(exe.size()));
             if (length == 0) {
-                return out;
+                return {};
             }
             if (length < exe.size()) {
                 exe.resize(length);
-                break;
+                return std::filesystem::path(exe);
             }
             exe.resize(exe.size() * 2);
         }
-        const auto dir = std::filesystem::path(exe).parent_path();
+    }
+
+    std::vector<std::filesystem::path> TextureSource::OwnFolders()
+    {
+        std::vector<std::filesystem::path> out;
+        const auto exe = ThisExecutable();
+        if (exe.empty()) {
+            return out;
+        }
+        const auto dir = exe.parent_path();
         // tools\BlackFlame\blackflame-greybuild.exe in the tester package: the mod root two folders up;
         // build\tools\Release\ in the repository: plugins\BlackFlame\data three folders up
         for (const auto& candidate : { dir / ".." / "..", dir / ".." / ".." / ".." / "plugins" / "BlackFlame" / "data" }) {
@@ -255,7 +269,22 @@ namespace GreyBuild
         } else {
             entry.why = "does not decode (self-test)";
         }
+        if (const auto old = m_cache.find(a_path); old != m_cache.end() && old->second.image) {
+            m_cachedBytes -= old->second.image->pixels.size();
+        }
+        m_cachedBytes += entry.image ? entry.image->pixels.size() : 0;
         m_cache[a_path] = std::move(entry);
+    }
+
+    std::uint64_t TextureSource::CachedBytes() const noexcept
+    {
+        return m_cachedBytes;
+    }
+
+    void TextureSource::Clear() noexcept
+    {
+        m_cache.clear();
+        m_cachedBytes = 0;
     }
 
     TextureLook TextureSource::Look(const std::string& a_slot)
@@ -275,7 +304,23 @@ namespace GreyBuild
                 folders = { m_generated };  // Y14, Z11: one of our copies is this run's, read from the output only
             }
             if (const auto file = FindSource(folders, *path)) {
-                if (auto image = ReadRgba(*file, entry.why)) {
+                if (m_gate && !m_gate(*file, look.why)) {
+                    look.transient = true;
+                    return look;  // over the memory budget: not read, not cached (the object says why)
+                }
+                entry.file = *file;
+                bool transient = false;
+                auto image = ReadRgba(*file, entry.why, &transient);
+                if (!image && transient) {
+                    look.why = entry.why;
+                    look.transient = true;
+                    if (m_transientSink) {
+                        m_transientSink(fmt::format("{}: {}", *path, entry.why));
+                    }
+                    return look;  // not cached: a later object reads it again
+                }
+                if (image) {
+                    m_cachedBytes += image->pixels.size();
                     entry.status = TextureRead::kOk;
                     entry.stats = std::make_unique<TexStats>(ComputeStats(*image));
                     entry.image = std::make_unique<RgbaImage>(std::move(*image));
@@ -299,6 +344,7 @@ namespace GreyBuild
         look.image = it->second.image.get();
         look.stats = it->second.stats.get();
         look.why = it->second.why;
+        look.file = it->second.file;
         return look;
     }
 }

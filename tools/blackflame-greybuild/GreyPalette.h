@@ -22,6 +22,8 @@
 
 namespace GreyBuild
 {
+    class KeyedOutputs;  // GreyKeyed.h
+
     inline constexpr const char* kPaletteCopyRoot = "textures\\heartofmagic\\blackflame\\copies\\palettes\\";
     // Y16: the folder of each blend under kPaletteCopyRoot (GreyPalette.cpp writes there, VerifyGrey expects them)
     inline constexpr const char* kPaletteAddFolder = "add\\";
@@ -50,6 +52,7 @@ namespace GreyBuild
         TextureSource* textures = nullptr;   // the source palettes and GradBlackFlame.dds
         std::map<std::string, std::string> made;  // "add|path" / "normal|path" -> the slot text ("" when it failed)
         PaletteTotals totals;
+        KeyedOutputs* keyed = nullptr;  // key mode: each palette at its own key's copies folder, with its line (GreyKeyed.h)
     };
 
     /// The greyscale texture slot a palette shader's copy takes for a_sourcePalette (its slot text), made once per run;

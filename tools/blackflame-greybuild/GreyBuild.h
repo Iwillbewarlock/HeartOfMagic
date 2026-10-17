@@ -73,6 +73,9 @@ namespace GreyBuild
     inline constexpr const char* kGreyRoot = "meshes\\heartofmagic\\blackflame\\";
     inline constexpr const char* kMeshesRoot = "meshes\\";
 
+    /// This process's exe file ("" when Windows does not say; GreyTexStats.cpp)
+    [[nodiscard]] std::filesystem::path ThisExecutable();
+
     /// A path as UTF-8 text for messages (path::string() throws on a name outside the ANSI code page)
     [[nodiscard]] inline std::string PathText(const std::filesystem::path& a_path)
     {
@@ -208,6 +211,10 @@ namespace GreyBuild
     /// an id that is not hex in 0x800..0xFFF.
     [[nodiscard]] std::optional<std::uint32_t> LocalFormId(const std::string& a_form);
 
+    /// One ADDN record as WriteAddonEsl writes it (EDID greyEditorId, OBND, MODL greyModel without meshes\, DATA grey,
+    /// DNAM cap and flags) at a_formId
+    [[nodiscard]] std::string AddonRecord(const AddonEntry& a_entry, std::uint32_t a_formId);
+
     /// Writes an ESL-flagged plugin with no masters holding one ADDN record per entry
     /// (EDID, OBND, MODL, DATA = grey index, DNAM copied), in the order given; each record's
     /// FormID is the local id its greyForm names (kLocalPluginName|0008xx).
@@ -299,8 +306,10 @@ namespace GreyBuild
 
     /// Checks a written grey MPS / remapped copy against the map; returns the problems.
     /// a_allowUnmapped: an AddOnNode value in no map entry is not a problem (kept on purpose, warn-and-continue).
+    /// a_keyedPalettes (key mode): the palette copies this run's shaders may name (copies\<key16>\, GreyKeyed.h) by path,
+    /// true for an additive one; such a path counts as ours for its blend
     [[nodiscard]] std::vector<std::string> VerifyGrey(nifly::NifFile& a_nif, bool a_expectGreyEffects,
-        const GreyMap& a_map, bool a_allowUnmapped = false);
+        const GreyMap& a_map, bool a_allowUnmapped = false, const std::map<std::string, bool>* a_keyedPalettes = nullptr);
 
     // =========================================================================
     // Round trip (GreyRoundTrip.cpp)
@@ -375,6 +384,7 @@ namespace GreyBuild
         bool needed = true;         // a missing source counts as failed (else skipped)
         bool keepUnmapped = false;  // an AddOnNode value in no map entry stays as it is (warned), the NIF is written
         Judging judging;            // with greyEffects only
+        const std::map<std::string, bool>* keyedPalettes = nullptr;  // key mode: VerifyGrey's palette copies
     };
 
     struct NifResult

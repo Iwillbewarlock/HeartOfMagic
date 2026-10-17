@@ -201,12 +201,13 @@ namespace GreyBuild
         const nlohmann::json root = Json::ReadFile(a_file);
         FormsRequest request;
         if (!root.contains("version") || (root["version"] != kFormsRequestVersion && root["version"] != kGameRequestVersion &&
-                                             root["version"] != kGameRequestVersionOld)) {
-            Json::Fail(a_file, fmt::format("'version' must be {} (a hand-made forms request), {} or {} (the request the game "
-                "writes)", kFormsRequestVersion, kGameRequestVersionOld, kGameRequestVersion));
+                                             root["version"] != kGameRequestVersionOld && root["version"] != kGameRequestVersionKeyed)) {
+            Json::Fail(a_file, fmt::format("'version' must be {} (a hand-made forms request), {}, {} or {} (the request the game "
+                "writes)", kFormsRequestVersion, kGameRequestVersionOld, kGameRequestVersion, kGameRequestVersionKeyed));
         }
         request.version = root["version"].get<int>();
-        const bool fromGame = request.version == kGameRequestVersion || request.version == kGameRequestVersionOld;
+        const bool keyed = request.version == kGameRequestVersionKeyed;
+        const bool fromGame = request.version == kGameRequestVersion || request.version == kGameRequestVersionOld || keyed;
         const auto& forms = Json::RequireArray(a_file, root, "forms");
         std::vector<FormSource>& out = request.forms;
         std::set<std::string> seen;
@@ -229,6 +230,12 @@ namespace GreyBuild
             }
             form.type = ParseType(a_file, Json::ReadString(a_file, item, "type", where), where);
             form.editorId = Json::ReadOptionalString(a_file, item, "editorId", where);
+            if (keyed && item.contains("key")) {
+                form.key = Json::ReadString(a_file, item, "key", where);
+                if (!BlackFlame::DataPathRule::IsCopyKey16(form.key)) {
+                    Json::Fail(a_file, fmt::format("{}: key '{}' is not 16 lower-case hex digits", where, form.key));
+                }
+            }
             if (form.type == CopyType::kTextureSet) {
                 if (std::string why; !ReadTextureSetParts(a_file, item, form, where, why)) {
                     if (!fromGame) {

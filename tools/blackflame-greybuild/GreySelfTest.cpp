@@ -419,6 +419,8 @@ namespace GreyBuild
             SelfTest::CheckRisk(check, dir);
             SelfTest::CheckDecals(check, dir);
             CheckMapRefusals(check, dir);
+            SelfTest::CheckSlotsAndProgress(check, dir);
+            SelfTest::CheckKeyed(check, dir, source);
         } catch (const std::exception& e) {
             check.Check(false, fmt::format("exception: {}", e.what()));
         }

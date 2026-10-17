@@ -4,6 +4,8 @@
 
 #include "GreyTexture.h"
 
+#include "GreyKeyed.h"
+
 #include <NifFile.hpp>
 #include <Shaders.hpp>
 
@@ -51,9 +53,19 @@ namespace GreyBuild
             std::cout << fmt::format("TEX   FAIL {}: slot '{}' ({}) is not a texture path the builder reads (a drive, '..', a "
                                      "character no file name has, or not .dds): left\n", a_nifRel, a_slot, TextureRoleName(a_role));
             ++a_job.totals.failed;
+            if (a_job.keyed) {
+                a_job.keyed->Fallback(fmt::format("{}: slot '{}' is no texture path the builder reads: left", a_nifRel, a_slot));
+            }
             return;
         }
         const float tint = TextureTint(a_role, a_job.diffuseTint);
+        if (a_job.keyed) {  // key mode: the copy at copies\<key16>\, its line and the object's outcome (GreyKeyed.h)
+            if (const auto copy = a_job.keyed->Texture(*path, a_role, tint, a_nifRel); !copy.empty()) {
+                a_slot = copy;
+                ++a_job.totals.repointed;
+            }
+            return;
+        }
         const std::string key = fmt::format("{}|{}", *path, std::lround(tint * static_cast<float>(kTintPercent)));
         auto found = a_job.done.find(key);
         if (found == a_job.done.end()) {
@@ -107,16 +119,13 @@ namespace GreyBuild
         }
     }
 
-    void RetargetTextures(nifly::NifFile& a_nif, TextureJob& a_job, const std::string& a_nifRel)
+    void ForEachTextureSlot(nifly::NifFile& a_nif, const std::function<void(std::string&, TextureRole)>& a_visit)
     {
         auto& hdr = a_nif.GetHeader();
         std::set<std::pair<std::uint32_t, std::uint32_t>> slotsDone;  // (texture set, slot): a set two shaders share, once
         for (std::uint32_t id = 0; id < hdr.GetNumBlocks(); ++id) {
             if (auto* lit = hdr.GetBlock<nifly::BSLightingShaderProperty>(id)) {
                 const bool glow = IsGlowShader(*lit);
-                if (glow || (lit->shaderFlags1 & kSlsf1OwnEmit) != 0) {
-                    GreyEmissive(*lit, a_job);
-                }
                 auto* set = hdr.GetBlock<nifly::BSShaderTextureSet>(lit->textureSetRef);
                 if (!set) {
                     continue;
@@ -128,13 +137,25 @@ namespace GreyBuild
                         !slotsDone.insert({ lit->textureSetRef.index, slot }).second) {
                         continue;
                     }
-                    RetargetTextureSlot(set->textures[slot].get(), role, a_job, a_nifRel);
+                    a_visit(set->textures[slot].get(), role);
                 }
             } else if (auto* effect = hdr.GetBlock<nifly::BSEffectShaderProperty>(id)) {
                 if (!UsesPalette(*effect)) {  // a palette shader's texture is a greyscale map through the palette
-                    RetargetTextureSlot(effect->sourceTexture.get(), TextureRole::kEffectSource, a_job, a_nifRel);
+                    a_visit(effect->sourceTexture.get(), TextureRole::kEffectSource);
                 }
             }
         }
+    }
+
+    void RetargetTextures(nifly::NifFile& a_nif, TextureJob& a_job, const std::string& a_nifRel)
+    {
+        auto& hdr = a_nif.GetHeader();
+        for (std::uint32_t id = 0; id < hdr.GetNumBlocks(); ++id) {
+            auto* lit = hdr.GetBlock<nifly::BSLightingShaderProperty>(id);
+            if (lit && (IsGlowShader(*lit) || (lit->shaderFlags1 & kSlsf1OwnEmit) != 0)) {
+                GreyEmissive(*lit, a_job);
+            }
+        }
+        ForEachTextureSlot(a_nif, [&](std::string& a_slot, TextureRole a_role) { RetargetTextureSlot(a_slot, a_role, a_job, a_nifRel); });
     }
 }

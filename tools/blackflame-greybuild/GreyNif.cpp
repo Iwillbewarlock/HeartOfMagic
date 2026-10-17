@@ -500,7 +500,8 @@ namespace GreyBuild
     // Verify
     // =========================================================================
 
-    std::vector<std::string> VerifyGrey(nifly::NifFile& a_nif, bool a_expectGreyEffects, const GreyMap& a_map, bool a_allowUnmapped)
+    std::vector<std::string> VerifyGrey(nifly::NifFile& a_nif, bool a_expectGreyEffects, const GreyMap& a_map, bool a_allowUnmapped,
+        const std::map<std::string, bool>* a_keyedPalettes)
     {
         std::vector<std::string> problems;
         const std::string palette = Lower(kPalettePath);
@@ -518,8 +519,12 @@ namespace GreyBuild
                         // palette derived for that blend (GreyPalette.h)
                         const std::string greyscale = Lower(a_prop.greyscaleTexture.get());
                         const std::string derived = std::string(kPaletteCopyRoot) + (additive ? kPaletteAddFolder : kPaletteNormalFolder);
-                        if (!BlackFlame::DataPathRule::IsOurPalettePath(greyscale) ||
-                            (greyscale != (additive ? paletteAdd : palette) && !StartsWith(greyscale, derived))) {
+                        // key mode: a palette copy of this run for this blend (copies\<key16>\, which IsOurPalettePath does
+                        // not know)
+                        const auto keyed = a_keyedPalettes ? a_keyedPalettes->find(greyscale) : std::map<std::string, bool>::const_iterator{};
+                        const bool keyedOurs = a_keyedPalettes && keyed != a_keyedPalettes->end() && keyed->second == additive;
+                        if (!keyedOurs && (!BlackFlame::DataPathRule::IsOurPalettePath(greyscale) ||
+                                              (greyscale != (additive ? paletteAdd : palette) && !StartsWith(greyscale, derived)))) {
                             problems.push_back(fmt::format("effect shader block {}: {} palette shader, greyscale texture '{}'",
                                 a_id, additive ? "additive" : "normal-blend", a_prop.greyscaleTexture.get()));
                         }

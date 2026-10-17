@@ -158,12 +158,24 @@ namespace GreyBuild
             return MeasureChroma(a_image, true, a_out);
         }
 
-        RecolourResult Fail(RecolourResult a_result, std::string a_reason)
+        RecolourResult Fail(RecolourResult a_result, std::string a_reason, bool a_transient = false)
         {
             a_result.outcome = RecolourOutcome::kFailed;
             a_result.reason = std::move(a_reason);
+            a_result.transient = a_transient;
             return a_result;
         }
+    }
+
+    bool IsTransientResult(long a_result) noexcept
+    {
+        constexpr DWORD kTransientErrors[] = { ERROR_FILE_NOT_FOUND, ERROR_PATH_NOT_FOUND, ERROR_ACCESS_DENIED, ERROR_SHARING_VIOLATION,
+            ERROR_LOCK_VIOLATION, ERROR_READ_FAULT, ERROR_WRITE_FAULT, ERROR_DISK_FULL, ERROR_NOT_ENOUGH_MEMORY, ERROR_OUTOFMEMORY };
+        if (a_result == E_OUTOFMEMORY) {
+            return true;
+        }
+        return std::any_of(std::begin(kTransientErrors), std::end(kTransientErrors),
+            [&](DWORD a_code) { return a_result == HRESULT_FROM_WIN32(a_code); });
     }
 
     const char* TextureRoleName(TextureRole a_role) noexcept
@@ -206,7 +218,7 @@ namespace GreyBuild
         DirectX::TexMetadata meta{};
         DirectX::ScratchImage source;
         if (const HRESULT hr = DirectX::LoadFromDDSFile(a_source.c_str(), kLoadFlags, &meta, source); FAILED(hr)) {
-            return Fail(result, fmt::format("not a readable DDS: {}", HrText(hr)));
+            return Fail(result, fmt::format("not a readable DDS: {}", HrText(hr)), IsTransientResult(hr));
         }
         const DXGI_FORMAT format = meta.format;
         result.format = fmt::format("{} {}", static_cast<int>(format), FormatName(format));
@@ -233,7 +245,7 @@ namespace GreyBuild
         if (compressed) {
             const DXGI_FORMAT work = DirectX::IsSRGB(format) ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM;
             if (const HRESULT hr = DirectX::Decompress(source.GetImages(), source.GetImageCount(), meta, work, decoded); FAILED(hr)) {
-                return Fail(result, fmt::format("decoding {} failed: {}", result.format, HrText(hr)));
+                return Fail(result, fmt::format("decoding {} failed: {}", result.format, HrText(hr)), IsTransientResult(hr));
             }
         }
         const DirectX::ScratchImage& pixels = compressed ? decoded : source;
@@ -270,7 +282,7 @@ namespace GreyBuild
             },
             grey);
         if (FAILED(transformed)) {
-            return Fail(result, fmt::format("recolouring the pixels failed: {}", HrText(transformed)));
+            return Fail(result, fmt::format("recolouring the pixels failed: {}", HrText(transformed)), IsTransientResult(transformed));
         }
 
         DirectX::ScratchImage encoded;
@@ -282,7 +294,7 @@ namespace GreyBuild
             if (const HRESULT hr = DirectX::Compress(grey.GetImages(), grey.GetImageCount(), grey.GetMetadata(), format, flags,
                     DirectX::TEX_THRESHOLD_DEFAULT, encoded);
                 FAILED(hr)) {
-                return Fail(result, fmt::format("encoding {} failed: {}", result.format, HrText(hr)));
+                return Fail(result, fmt::format("encoding {} failed: {}", result.format, HrText(hr)), IsTransientResult(hr));
             }
             out = &encoded;
         }
@@ -295,16 +307,16 @@ namespace GreyBuild
         std::error_code ec;
         std::filesystem::create_directories(a_target.parent_path(), ec);
         if (ec) {
-            return Fail(result, fmt::format("making the folder of {} failed: {}", PathText(a_target), ec.message()));
+            return Fail(result, fmt::format("making the folder of {} failed: {}", PathText(a_target), ec.message()), true);
         }
         if (const HRESULT hr = DirectX::SaveToDDSFile(out->GetImages(), out->GetImageCount(), out->GetMetadata(),
                 DirectX::DDS_FLAGS_NONE, a_target.c_str());
             FAILED(hr)) {
-            return Fail(result, fmt::format("writing {} failed: {}", PathText(a_target), HrText(hr)));
+            return Fail(result, fmt::format("writing {} failed: {}", PathText(a_target), HrText(hr)), true);
         }
         const auto written = std::filesystem::file_size(a_target, ec);
         if (ec) {
-            return Fail(result, fmt::format("{} was written but cannot be read back: {}", PathText(a_target), ec.message()));
+            return Fail(result, fmt::format("{} was written but cannot be read back: {}", PathText(a_target), ec.message()), true);
         }
         result.bytes = written;
         result.outcome = RecolourOutcome::kRecoloured;

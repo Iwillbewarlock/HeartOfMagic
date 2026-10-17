@@ -29,21 +29,6 @@ namespace GreyBuild
         constexpr std::int16_t kBoundMax = 32767;
         constexpr std::size_t kMaxLocalIdDigits = 8;       // "000800" as written; a u32 at most
 
-        [[nodiscard]] std::string AddonRecord(const AddonEntry& a_entry, std::uint32_t a_formId)
-        {
-            std::string model = a_entry.greyModel.substr(std::char_traits<char>::length(kMeshesRoot));
-            Writer body;
-            body.ZString("EDID", a_entry.greyEditorId);
-            body.Sub("OBND", Pack(kBoundMin, kBoundMin, kBoundMin, kBoundMax, kBoundMax, kBoundMax));
-            body.ZString("MODL", model);
-            body.Sub("DATA", Pack(static_cast<std::int32_t>(a_entry.grey)));
-            body.Sub("DNAM", Pack(a_entry.masterParticleCap, a_entry.dnamFlags));
-            Writer record;
-            RecordHeader(record, "ADDN", body.Data().size(), 0, a_formId);
-            record.Bytes(body.Data().data(), body.Data().size());
-            return record.Data();
-        }
-
         /// One ADDN record whose header starts at a_at and which must end by a_limit (its group's end).
         [[nodiscard]] EslAddon ReadAddon(const Reader& a_in, std::size_t a_at, std::size_t a_limit)
         {
@@ -82,6 +67,21 @@ namespace GreyBuild
             }
             return addon;
         }
+    }
+
+    std::string AddonRecord(const AddonEntry& a_entry, std::uint32_t a_formId)
+    {
+        std::string model = a_entry.greyModel.substr(std::char_traits<char>::length(kMeshesRoot));
+        Writer body;
+        body.ZString("EDID", a_entry.greyEditorId);
+        body.Sub("OBND", Pack(kBoundMin, kBoundMin, kBoundMin, kBoundMax, kBoundMax, kBoundMax));
+        body.ZString("MODL", model);
+        body.Sub("DATA", Pack(static_cast<std::int32_t>(a_entry.grey)));
+        body.Sub("DNAM", Pack(a_entry.masterParticleCap, a_entry.dnamFlags));
+        Writer record;
+        RecordHeader(record, "ADDN", body.Data().size(), 0, a_formId);
+        record.Bytes(body.Data().data(), body.Data().size());
+        return record.Data();
     }
 
     std::optional<std::uint32_t> LocalFormId(const std::string& a_form)

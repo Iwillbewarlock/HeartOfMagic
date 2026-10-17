@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "GreyPalette.h"
+#include "GreyKeyed.h"
 #include "GreyTexture.h"
 
 #include <DirectXTex.h>
@@ -95,26 +96,39 @@ namespace GreyBuild
         if (source.status != TextureRead::kOk) {
             a_why = fmt::format("source palette {}: {}", source.path.empty() ? a_sourcePalette : source.path, source.why);
             ++a_job.totals.fallback;
+            if (a_job.keyed && !source.transient) {  // a transient read made the object failed already (the sink, the gate)
+                a_job.keyed->Fallback(a_why + ": today's palette kept");  // GreyPalette.cpp:98 in the design: deterministic
+            }
             return {};
+        }
+        // P2 (additive) or P1 (normal blend) from the source image; false with a_why when our palette does not read
+        const auto make = [&](RgbaImage& a_image, std::string& a_makeWhy, bool& a_transient) {
+            if (a_additive) {
+                Desaturate(a_image);
+                return true;
+            }
+            const auto ours = a_job.textures->Look(kPalettePath);
+            if (ours.status != TextureRead::kOk) {
+                a_makeWhy = fmt::format("our palette {}: {}", kPalettePath, ours.why);
+                a_transient = ours.transient;
+                return false;
+            }
+            TakeColour(a_image, *ours.image);
+            a_image.srgb = ours.image->srgb;  // Y13: the colour bytes are ours, so is their encoding (alpha is linear)
+            return true;
+        };
+        if (a_job.keyed) {  // key mode: the copy at its own key's folder, its line, the object's outcome (GreyKeyed.h)
+            const auto slot = a_job.keyed->Palette(source, a_additive, make, Write, a_why);
+            ++(slot.empty() ? a_job.totals.fallback : (a_additive ? a_job.totals.shadersAdd : a_job.totals.shadersNormal));
+            return slot;
         }
         const std::string key = fmt::format("{}|{}", a_additive ? "add" : "normal", source.path);
         auto it = a_job.made.find(key);
         if (it == a_job.made.end()) {
             RgbaImage image = *source.image;
             std::string why;
-            bool ok = true;
-            if (a_additive) {
-                Desaturate(image);
-            } else {
-                const auto ours = a_job.textures->Look(kPalettePath);
-                ok = ours.status == TextureRead::kOk;
-                if (ok) {
-                    TakeColour(image, *ours.image);
-                    image.srgb = ours.image->srgb;  // Y13: the colour bytes are ours, so is their encoding (alpha is linear)
-                } else {
-                    why = fmt::format("our palette {}: {}", kPalettePath, ours.why);
-                }
-            }
+            bool transient = false;
+            bool ok = make(image, why, transient);
             const std::string slot = std::string(kPaletteCopyRoot) + (a_additive ? kPaletteAddFolder : kPaletteNormalFolder) +
                                      source.path.substr(std::char_traits<char>::length(kTexturesRoot));
             if (ok) {

@@ -28,6 +28,16 @@ namespace GreyBuild
     struct RiskJob;
     struct TextureJob;
 
+    /// The TXST slots the builder recolours: TX00 diffuse (--tint) and TX03 glow (tint 1); every other slot keeps the source's
+    struct TxstColourSlot
+    {
+        std::size_t slot;
+        TextureRole role;
+        const char* name;
+    };
+    inline constexpr TxstColourSlot kTxstColourSlots[] = { { kTxstSlotDiffuse, TextureRole::kDiffuse, "TX00" },
+        { kTxstSlotGlow, TextureRole::kGlow, "TX03" } };
+
     /// Every byte of a_text below 0x80
     [[nodiscard]] bool IsAscii(const std::string& a_text) noexcept;
 

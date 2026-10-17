@@ -5,7 +5,10 @@
 //   blackflame-greybuild --request <request.json> --in <dir> [...] --out <mod root> [--tint <0..2>] [--tint-add <0..2>]
 //   blackflame-greybuild --forms <forms.json> --request <request.json> --in <dir> [...] --out <mod root> [--tint <0..2>] [--tint-add <0..2>] [--reclaim-retired] [--no-textures]
 //   blackflame-greybuild --from-game [<request folder>] --out <mod root> [--tint <0..2>] [--tint-add <0..2>] [--reclaim-retired] [--no-textures] [--retire-left-out]
+//   blackflame-greybuild --from-game [<request folder>] --staging <dir> [--job-memory <MiB>] [--commit-reserve <MiB>] [--parent-pid <pid>]
 //   blackflame-greybuild --write-empty-esls <folder>
+//   blackflame-greybuild --write-slot-pool <file.esp>
+//   blackflame-greybuild --collisions <request.json>
 //   blackflame-greybuild --dump <file.nif> [...]
 //   blackflame-greybuild --roundtrip <file.nif> [...]
 //   blackflame-greybuild --self-test
@@ -18,10 +21,15 @@
 // NIF dump the DLL wrote at kDataLoaded (GreyFromGame.cpp) and writes all of that into --out, warning and going on
 // where a NIF cannot be read. --forms and --from-game also write grey copies of the textures the copy NIFs name
 // (GreyTexture.h; --no-textures: none). --write-empty-esls writes the empty copies and local ESLs the mod ships.
+// --staging is the single launch's key mode (GreyKeyed.h): request v5's objects at the DLL's keys in a staging folder,
+// with progress.jsonl; tint, tintAdd and the palette mode come from the request only. --write-slot-pool writes the slot
+// pool ESL, --collisions lists a request's ADDN indices in the pool's range (GreySlotPool.h).
 // Exit 0 = success, 1 = a failure, 2 = bad arguments.
 
 #include "GreyBuild.h"
 #include "GreyForms.h"
+#include "GreyKeyed.h"
+#include "GreySlotPool.h"
 
 #include <fmt/format.h>
 #include <iostream>
@@ -33,6 +41,8 @@ namespace
     constexpr int kExitOk = 0;
     constexpr int kExitFail = 1;
     constexpr int kExitUsage = 2;
+    constexpr std::uint64_t kMinJobMemoryMiB = 64;              // below this no texture of any size is admitted
+    constexpr std::uint64_t kMaxMemoryMiB = 1024ull * 1024ull;  // 1 TiB: a typo, not a machine
 
     struct Options
     {
@@ -51,6 +61,14 @@ namespace
         float tint = GreyBuild::kDefaultTint;
         float tintAdd = GreyBuild::kDefaultTintAdd;  // v2i: additive palette shaders
         GreyBuild::PaletteMode paletteMode = GreyBuild::PaletteMode::kDerived;  // --palette-mode derived|godskin
+        bool optionsSet = false;      // --tint, --tint-add or --palette-mode given (refused in key mode)
+        std::filesystem::path staging;  // key mode
+        std::uint64_t jobMemoryMiB = GreyBuild::kDefaultJobMemoryMiB;
+        std::uint64_t commitReserveMiB = GreyBuild::kDefaultCommitReserveMiB;
+        std::uint32_t parentPid = 0;
+        bool keyedOnlySet = false;    // --job-memory, --commit-reserve or --parent-pid given (key mode only)
+        std::filesystem::path slotPool;
+        std::filesystem::path collisions;
         bool roundTrip = false;
         bool selfTest = false;
     };
@@ -69,7 +87,13 @@ namespace
                      "      (--no-textures: no grey texture copies; the copy NIFs keep naming the source textures)\n"
                      "      (--palette-mode godskin: GradBlackFlameAdd.dds / GradBlackFlame.dds on every palette shader instead of\n"
                      "       palettes derived from each source palette)\n"
+                     "  blackflame-greybuild --from-game [<request folder>] --staging <dir> [--job-memory <MiB>] "
+                     "[--commit-reserve <MiB>] [--parent-pid <pid>]\n"
+                     "      (key mode, request version 5: tint, tintAdd and the palette mode come from the request; job memory "
+                     "default 1536 MiB, commit reserve 4096 MiB)\n"
                      "  blackflame-greybuild --write-empty-esls <folder>\n"
+                     "  blackflame-greybuild --write-slot-pool <file.esp>\n"
+                     "  blackflame-greybuild --collisions <request.json>\n"
                      "  blackflame-greybuild --dump <file.nif> [...]\n"
                      "  blackflame-greybuild --roundtrip <file.nif> [...]\n"
                      "  blackflame-greybuild --self-test\n";
@@ -81,6 +105,19 @@ namespace
             std::size_t used = 0;
             a_tint = std::stof(a_text, &used);
             return a_text[used] == '\0' && a_tint >= GreyBuild::kMinTint && a_tint <= GreyBuild::kMaxTint;
+        } catch (const std::logic_error&) {
+            return false;
+        }
+    }
+
+    // A whole number of a_min..a_max in a_text
+    [[nodiscard]] bool ParseCount(const char* a_text, std::uint64_t a_min, std::uint64_t a_max, std::uint64_t& a_value)
+    {
+        try {
+            std::size_t used = 0;
+            const unsigned long long value = std::stoull(a_text, &used);
+            a_value = value;
+            return a_text[used] == '\0' && a_text[0] != '-' && value >= a_min && value <= a_max;
         } catch (const std::logic_error&) {
             return false;
         }
@@ -101,6 +138,7 @@ namespace
             } else if (arg == "--no-textures") {
                 a_options.noTextures = true;
             } else if (arg == "--palette-mode" && hasValue) {
+                a_options.optionsSet = true;
                 const std::string_view mode = a_argv[++i];
                 if (mode == "derived") {
                     a_options.paletteMode = GreyBuild::PaletteMode::kDerived;
@@ -114,6 +152,29 @@ namespace
                 a_options.reclaimRetired = true;
             } else if (arg == "--retire-left-out") {
                 a_options.retireLeftOut = true;
+            } else if (arg == "--staging" && hasValue) {
+                a_options.staging = a_argv[++i];
+            } else if ((arg == "--job-memory" || arg == "--commit-reserve") && hasValue) {
+                const bool job = arg == "--job-memory";
+                auto& value = job ? a_options.jobMemoryMiB : a_options.commitReserveMiB;
+                if (!ParseCount(a_argv[++i], job ? kMinJobMemoryMiB : 0, kMaxMemoryMiB, value)) {
+                    std::cerr << fmt::format("{} '{}' must be a whole number of MiB ({} up to {})\n", arg, a_argv[i],
+                        job ? kMinJobMemoryMiB : 0, kMaxMemoryMiB);
+                    return false;
+                }
+                a_options.keyedOnlySet = true;
+            } else if (arg == "--parent-pid" && hasValue) {
+                std::uint64_t pid = 0;
+                if (!ParseCount(a_argv[++i], 1, UINT32_MAX, pid)) {
+                    std::cerr << fmt::format("--parent-pid '{}' must be a process id\n", a_argv[i]);
+                    return false;
+                }
+                a_options.parentPid = static_cast<std::uint32_t>(pid);
+                a_options.keyedOnlySet = true;
+            } else if (arg == "--write-slot-pool" && hasValue) {
+                a_options.slotPool = a_argv[++i];
+            } else if (arg == "--collisions" && hasValue) {
+                a_options.collisions = a_argv[++i];
             } else if (arg == "--write-empty-esls" && hasValue) {
                 a_options.emptyEsls = a_argv[++i];
             } else if (arg == "--map" && hasValue) {
@@ -127,12 +188,14 @@ namespace
             } else if (arg == "--out" && hasValue) {
                 a_options.out = a_argv[++i];
             } else if (arg == "--tint" && hasValue) {
+                a_options.optionsSet = true;
                 if (!ParseTint(a_argv[++i], a_options.tint)) {
                     std::cerr << fmt::format("--tint '{}' must be a number in {}..{}\n", a_argv[i],
                         GreyBuild::kMinTint, GreyBuild::kMaxTint);
                     return false;
                 }
             } else if (arg == "--tint-add" && hasValue) {
+                a_options.optionsSet = true;
                 if (!ParseTint(a_argv[++i], a_options.tintAdd)) {
                     std::cerr << fmt::format("--tint-add '{}' must be a number in {}..{}\n", a_argv[i],
                         GreyBuild::kMinTint, GreyBuild::kMaxTint);
@@ -257,6 +320,37 @@ namespace
     }
 }
 
+namespace
+{
+    // --from-game --staging: everything that would change an output without changing its key is refused
+    [[nodiscard]] int RunKeyMode(const Options& a_options)
+    {
+        if (!a_options.fromGame || a_options.staging.empty()) {
+            std::cerr << "--staging, --job-memory, --commit-reserve and --parent-pid belong to the key mode: --from-game [<request "
+                         "folder>] --staging <dir>\n";
+            return kExitUsage;
+        }
+        if (a_options.optionsSet || a_options.noTextures || a_options.reclaimRetired || a_options.retireLeftOut || !a_options.out.empty() ||
+            !a_options.inputs.empty() || !a_options.map.empty() || !a_options.request.empty() || !a_options.forms.empty()) {
+            std::cerr << "the key mode takes tint, tintAdd and the palette mode from the request (options) and writes only into "
+                         "--staging: leave out --tint, --tint-add, --palette-mode, --no-textures, --reclaim-retired, "
+                         "--retire-left-out, --out, --in, --map, --request and --forms\n";
+            return kExitUsage;
+        }
+        GreyBuild::KeyedOptions keyed;
+        keyed.staging = a_options.staging;
+        keyed.jobMemory = a_options.jobMemoryMiB * GreyBuild::kBytesPerMiB;
+        keyed.commitReserve = a_options.commitReserveMiB * GreyBuild::kBytesPerMiB;
+        keyed.parentPid = a_options.parentPid;
+        try {
+            return GreyBuild::RunKeyed(a_options.fromGameDir, keyed);
+        } catch (const std::exception& e) {
+            std::cerr << e.what() << "\n";
+            return kExitFail;
+        }
+    }
+}
+
 int main(int a_argc, char** a_argv)
 {
     Options options;
@@ -278,6 +372,15 @@ int main(int a_argc, char** a_argv)
             std::cerr << e.what() << "\n";
             return kExitFail;
         }
+    }
+    if (!options.slotPool.empty()) {
+        return GreyBuild::RunWriteSlotPool(options.slotPool);
+    }
+    if (!options.collisions.empty()) {
+        return GreyBuild::RunCollisions(options.collisions);
+    }
+    if (!options.staging.empty() || options.keyedOnlySet) {
+        return RunKeyMode(options);
     }
     if (options.fromGame) {
         if (!options.inputs.empty() || !options.map.empty() || !options.request.empty() || !options.forms.empty()) {

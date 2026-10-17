@@ -45,4 +45,16 @@ namespace GreyBuild::SelfTest
     /// The visual-risk check (GreyRisk.h), the glow rules (GreyGlow.h) and the derived palettes (GreyPalette.h, written to
     /// a_dir) on made-up NIFs and 4 x 4 textures.
     void CheckRisk(Checker& a_check, const std::filesystem::path& a_dir);
+
+    /// A 64 x 64 DDS with a full mip chain (7 mips) in a_dxgiFormat (a DXGI_FORMAT value): orange with an alpha ramp, or
+    /// mid grey (GreySelfTestTexture.cpp)
+    [[nodiscard]] bool WriteTestTexture(const std::filesystem::path& a_file, unsigned a_dxgiFormat, bool a_orange);
+
+    /// The single launch's parts on their own (GreySelfTestSlots.cpp): the slot pool ESL, --collisions, progress.jsonl,
+    /// the memory budget, the parent watch, the object guard and outcome, the child key strings
+    void CheckSlotsAndProgress(Checker& a_check, const std::filesystem::path& a_dir);
+
+    /// The key mode end to end (GreySelfTestKeyed.cpp): request v5, a run into staging, the cache, terminal and fallback
+    /// outcomes, the CLI refusals - on made-up NIFs (a_sourceNif) and DDS files in a_dir
+    void CheckKeyed(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_sourceNif);
 }
