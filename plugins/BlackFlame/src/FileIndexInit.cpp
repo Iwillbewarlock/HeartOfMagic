@@ -235,6 +235,11 @@ namespace BlackFlame::FileIndex
             Log("the game's exe path could not be read whole: no Data folder");
         }
         std::string why;
+        if (!REL::Module::IsAE()) {  // design v3 #6: SE stays on the next-launch fallback until an SE probe run passes
+            state.why = "SE: the file probe has not run on SE (the next-launch fallback)";
+            logger::warn("BlackFlame: file index: not used this session ({})", state.why);
+            return;
+        }
         const auto offset = ScanCountOffset(why);
         if (offset) {
             CountOffset().store(*offset);

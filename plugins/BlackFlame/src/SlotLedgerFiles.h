@@ -160,10 +160,11 @@ namespace BlackFlame::SlotLedgerFiles
         return true;
     }
 
-    /// Rolls the backups (.4 -> .5 ... main -> .1, main copied), writes main, then the mirror (a_mirror may be empty).
-    /// a_mainWhy / a_mirrorWhy say what failed; the return is main's result (the mirror is best effort)
+    /// Rolls the backups (.4 -> .5 ... main -> .1, main copied) when a_rotate, writes main, then the mirror (a_mirror may be
+    /// empty). The DLL rotates once a session, so five backups are five sessions, not five writes of one. a_mainWhy /
+    /// a_mirrorWhy say what failed; the return is main's result (the mirror is best effort)
     [[nodiscard]] inline bool SaveAll(const Ledger& a_ledger, const fs::path& a_main, const fs::path& a_mirror,
-        std::string& a_mainWhy, std::string& a_mirrorWhy)
+        std::string& a_mainWhy, std::string& a_mirrorWhy, bool a_rotate = true)
     {
         std::string text;
         try {
@@ -173,7 +174,7 @@ namespace BlackFlame::SlotLedgerFiles
             return false;
         }
         std::error_code ec;
-        if (fs::exists(a_main, ec)) {
+        if (a_rotate && fs::exists(a_main, ec)) {
             for (int n = kBackups - 1; n >= 1; --n) {
                 const auto from = BackupPath(a_main, n);
                 if (fs::exists(from, ec)) {

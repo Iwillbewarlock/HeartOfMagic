@@ -96,7 +96,12 @@ namespace BlackFlame::BuildProgress
             std::lock_guard lock(g_mutex);
             auto& object = g_objects[a_line.key];
             const bool known = object.line.key == a_line.key;
-            object.state = StateOf(a_line);
+            // a compaction re-read of the same line keeps its state (kInData stays; the last line of a key wins otherwise)
+            const bool same = known && object.line.path == a_line.path && object.line.fnv64 == a_line.fnv64 &&
+                              object.line.outcome == a_line.outcome;
+            if (!same) {
+                object.state = StateOf(a_line);
+            }
             object.line = std::move(a_line);
             g_stats.lines += known ? 0 : 1;
             g_generation.fetch_add(1);
@@ -242,6 +247,10 @@ namespace BlackFlame::BuildProgress
                     (there ? g_stats.copied : g_stats.copyFailures) += 1;
                     if (!there) {
                         g_copyFailed.insert(line.path);
+                        if (auto it = g_objects.find(line.key); it != g_objects.end() && it->second.line.path == line.path) {
+                            it->second.state = State::kFailed;  // not waited for: an older generation may stand in
+                            g_generation.fetch_add(1);
+                        }
                         logger::warn("BlackFlame: slots: '{}' not copied into Data: {}", line.path, why);
                     }
                 }
@@ -297,11 +306,13 @@ namespace BlackFlame::BuildProgress
         const auto start = std::chrono::steady_clock::now();
         try {
             ReadNew();  // to its end, before the builder starts (it compacts only at its own start)
+            Settle();   // the files of earlier sessions checked (and copied) now, so the groups plan from the real state
         } catch (const std::bad_alloc&) {
             logger::error("BlackFlame: slots: out of memory reading progress.jsonl at the start - its objects are not used this session");
         }
         const auto stats = GetStats();
-        logger::info("BlackFlame: slots: progress.jsonl at the start: {} keys, {} lines refused{}, {} ms", stats.lines, stats.badLines,
+        logger::info("BlackFlame: slots: progress.jsonl at the start: {} keys ({} in Data, {} copied now), {} lines refused{}, {} ms",
+            stats.lines, stats.inData, stats.copied, stats.badLines,
             g_tail.pending.empty() ? "" : ", a last line without its end ignored",
             std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count());
     }

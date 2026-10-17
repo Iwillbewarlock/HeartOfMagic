@@ -515,7 +515,9 @@ namespace BlackFlame::CopyGroups
             UpdateProgress(state);
             SingleLaunch::NotifyProgress();
             if (!GetProgress().settled) {
-                (void)QueueTask(kTaskName, &Step);
+                if (!QueueTask(kTaskName, &Step)) {
+                    logger::warn("BlackFlame: slots: the publish stepper could not be queued again: nothing more is published this session");
+                }
             } else {
                 logger::info("BlackFlame: slots: publication settled: {} of {} slots open, {} groups open, {} failed",
                     GetProgress().open, GetProgress().slots, GetProgress().groupsOpen, GetProgress().groupsFailed);

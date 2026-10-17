@@ -41,6 +41,7 @@ namespace BlackFlame::SlotLedger
         Status g_status;
         LoadedSave g_loaded;
         std::atomic<std::uint32_t> g_session{ 0 };
+        bool g_rotated = false;  // the backups were rolled this session (once: five backups are five sessions)
         std::function<void(const std::vector<Mismatch>&, MismatchWhen)> g_handler;
 
         std::string Text(const fs::path& a_path) { return SlotLedgerFiles::PathText(a_path); }
@@ -151,7 +152,8 @@ namespace BlackFlame::SlotLedger
             ++g_ledger.version;
             std::string mainWhy;
             std::string mirrorWhy;
-            const bool ok = SlotLedgerFiles::SaveAll(g_ledger, g_status.main, g_status.mirror, mainWhy, mirrorWhy);
+            const bool ok = SlotLedgerFiles::SaveAll(g_ledger, g_status.main, g_status.mirror, mainWhy, mirrorWhy, !g_rotated);
+            g_rotated = g_rotated || ok;
             if (ok) {
                 logger::info("BlackFlame: slots: ledger version {} written ({}): {} slots{}{}", g_ledger.version, a_reason,
                     g_ledger.entries.size(), mainWhy.empty() ? "" : "; " + mainWhy, mirrorWhy.empty() ? "" : "; " + mirrorWhy);
