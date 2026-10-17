@@ -13,7 +13,7 @@
 //     delete), so another process sees whole lines; the object's file was renamed into place before.
 //   - Reusable: an object the staging folder already holds - its key's last line is ok or fallback with its file there
 //     with the line's bytes and fnv64, and every path dep there with its fnv64 too; or the line is terminal (too_large
-//     only while the cap it names is not below this run's).
+//     only while its cap field is not below this run's cap).
 // Copy files are written as <path>.tmp beside their place and renamed (CommitTemp); RemoveTempFiles clears what a run
 // that was killed left.
 
@@ -29,7 +29,6 @@
 namespace GreyBuild
 {
     inline constexpr const char* kTempFileSuffix = ".tmp";
-    inline constexpr const char* kTooLargeCapToken = "cap=";  // a too_large reason's cap in bytes: "... cap=<n>"
 
     struct FileDigest
     {
@@ -52,9 +51,6 @@ namespace GreyBuild
 
     /// A staging-relative (= Data-relative) path as a file under a_staging
     [[nodiscard]] std::filesystem::path StagedFile(const std::filesystem::path& a_staging, const std::string& a_relative);
-
-    /// The cap a too_large reason names (kTooLargeCapToken), nullopt when it names none
-    [[nodiscard]] std::optional<std::uint64_t> TooLargeCap(const std::string& a_reason);
 
     class ProgressLog
     {

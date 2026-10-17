@@ -112,7 +112,7 @@ namespace GreyBuild
         }
 
         // v3: the game's parts of the request (addons and models, fingerprint, excluded, the NIFs it could not read)
-        void ReadGameParts(const std::filesystem::path& a_file, const nlohmann::json& a_root, FormsRequest& a_request)
+        void ReadGameParts(const std::filesystem::path& a_file, const nlohmann::json& a_root, FormsRequest& a_request, bool a_keyed)
         {
             a_request.addons = ParseRequest(a_file, a_root, &a_request.warnings);
             a_request.fingerprint = Json::ReadString(a_file, a_root, "fingerprint", "the request");
@@ -142,8 +142,17 @@ namespace GreyBuild
                 const auto& textures = Json::RequireArray(a_file, a_root, "textures");
                 for (std::size_t i = 0; i < textures.size(); ++i) {
                     const std::string where = fmt::format("textures[{}]", i);
-                    const bool ok = textures[i].is_object() && textures[i].contains("ok") && textures[i]["ok"].is_boolean() &&
-                                    textures[i]["ok"].get<bool>();
+                    bool ok = textures[i].is_object() && textures[i].contains("ok") && textures[i]["ok"].is_boolean() &&
+                              textures[i]["ok"].get<bool>();
+                    std::optional<BlackFlame::CopyContract::Request::TextureState> state;
+                    if (a_keyed) {  // v5: the state decides (required), never the error text
+                        namespace R = BlackFlame::CopyContract::Request;
+                        state = R::TextureStateFromText(Json::ReadString(a_file, textures[i], R::kTextureState, where));
+                        if (!state) {
+                            Json::Fail(a_file, where + ": 'state' must be ok, notdumped, missing or unread");
+                        }
+                        ok = *state == R::TextureState::kOk;
+                    }
                     // reviewer 7, Codex 9: our fixed palettes listed and dumped, each on its own (ok entries too)
                     if (const auto path = TextureDataPath(Utf8ToAnsi(Json::ReadString(a_file, textures[i], "path", where)));
                         path && (*path == BlackFlame::DataPathRule::kOurPalette || *path == BlackFlame::DataPathRule::kOurPaletteAdd)) {
@@ -153,6 +162,9 @@ namespace GreyBuild
                         }
                     }
                     const auto path = TextureDataPath(Utf8ToAnsi(Json::ReadString(a_file, textures[i], "path", where)));
+                    if (path && state) {
+                        a_request.textureStates[*path] = *state;
+                    }
                     if (path && ok) {
                         a_request.texturesDumped.insert(*path);
                     } else if (path) {
@@ -276,7 +288,7 @@ namespace GreyBuild
             Json::Fail(a_file, fromGame ? "'forms' is empty: the game found no fire spell forms to copy" : "'forms' is empty");
         }
         if (fromGame) {
-            ReadGameParts(a_file, root, request);
+            ReadGameParts(a_file, root, request, keyed);
         }
         return request;
     }

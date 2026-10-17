@@ -133,22 +133,6 @@ namespace GreyBuild
         return a_staging / std::filesystem::path(a_relative);  // the copy paths are ASCII (P0 fix) or the system code page
     }
 
-    std::optional<std::uint64_t> TooLargeCap(const std::string& a_reason)
-    {
-        const auto at = a_reason.rfind(kTooLargeCapToken);
-        if (at == std::string::npos) {
-            return std::nullopt;
-        }
-        const char* begin = a_reason.c_str() + at + std::char_traits<char>::length(kTooLargeCapToken);
-        char* end = nullptr;
-        errno = 0;
-        const unsigned long long value = std::strtoull(begin, &end, kDecimalBase);
-        if (end == begin || errno == ERANGE) {
-            return std::nullopt;
-        }
-        return value;
-    }
-
     ProgressLog::~ProgressLog()
     {
         if (m_handle) {
@@ -288,8 +272,7 @@ namespace GreyBuild
             return false;
         }
         if (line->outcome == CC::Outcome::kTooLarge) {
-            const auto cap = TooLargeCap(line->reason);
-            return cap && *cap >= a_cap;  // a larger cap tries again (the cap is no part of the key)
+            return line->cap >= a_cap;  // a larger cap tries again (the cap is no part of the key)
         }
         if (CC::IsTerminal(line->outcome)) {
             return true;

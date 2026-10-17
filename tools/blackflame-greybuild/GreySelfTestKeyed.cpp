@@ -53,7 +53,8 @@ namespace GreyBuild::SelfTest
         {
             kNormal,
             kMissingPalette,  // gradflame01.dds not in the dump, decal.dds a BC5: fallbacks
-            kNotDumped        // fxfire01.dds outside the dump caps
+            kNotDumped,       // fxfire01.dds outside the dump caps (state notdumped)
+            kUnread           // fxfire01.dds opened by the game, its read failed (state unread)
         };
 
         std::filesystem::path Write(const std::filesystem::path& a_file, const std::string& a_text)
@@ -128,7 +129,7 @@ namespace GreyBuild::SelfTest
             MakePlainNif(dump / "meshes/magic/plain.nif");
             (void)WriteTestTexture(dump / std::string(Rule::kOurPalette), DXGI_FORMAT_B8G8R8A8_UNORM, true);
             (void)WriteTestTexture(dump / std::string(Rule::kOurPaletteAdd), DXGI_FORMAT_B8G8R8A8_UNORM, false);
-            if (a_variant != Variant::kNotDumped) {
+            if (a_variant != Variant::kNotDumped && a_variant != Variant::kUnread) {
                 (void)WriteTestTexture(dump / kFxFire, DXGI_FORMAT_BC3_UNORM, true);
             }
             if (a_variant != Variant::kMissingPalette) {
@@ -136,14 +137,18 @@ namespace GreyBuild::SelfTest
             }
             (void)WriteTestTexture(dump / kDecal, a_variant == Variant::kMissingPalette ? DXGI_FORMAT_BC5_UNORM : DXGI_FORMAT_BC3_UNORM, true);
             const std::uint64_t exe = a_exe != 0 ? a_exe : Fnv(ThisExecutable());
+            // the error text is no longer read: the state decides (contract 4)
             const std::string fxEntry = a_variant == Variant::kNotDumped ?
-                                            fmt::format(R"j({{"path":"{}","size":9000000,"ok":false,"error":"over the per-texture cap (9000000 bytes > 1)"}})j",
+                                            fmt::format(R"j({{"path":"{}","size":9000000,"ok":false,"state":"notdumped","error":"text"}})j",
                                                 Escape(kFxFire)) :
-                                            fmt::format(R"({{"path":"{}","size":1,"ok":true}})", Escape(kFxFire));
+                                        a_variant == Variant::kUnread ?
+                                            fmt::format(R"j({{"path":"{}","size":9000,"ok":false,"state":"unread","error":"text"}})j",
+                                                Escape(kFxFire)) :
+                                            fmt::format(R"({{"path":"{}","size":1,"ok":true,"state":"ok"}})", Escape(kFxFire));
             // the dump's other textures as the request lists them (a file the request does not list is never read)
-            std::string listed = fmt::format(R"(,{{"path":"{}","size":1,"ok":true}})", Escape(kDecal));
+            std::string listed = fmt::format(R"(,{{"path":"{}","size":1,"ok":true,"state":"ok"}})", Escape(kDecal));
             if (a_variant != Variant::kMissingPalette) {
-                listed += fmt::format(R"(,{{"path":"{}","size":1,"ok":true}})", Escape(kSourcePalette));
+                listed += fmt::format(R"(,{{"path":"{}","size":1,"ok":true,"state":"ok"}})", Escape(kSourcePalette));
             }
             const std::string request = fmt::format(R"({{"version":{},"contractVersion":{},"game":"1.6.1170.0","fingerprint":"fnv64:00000000000000ab",
 "copiesPlugin":"HeartOfMagic_BlackFlame_Slots.esp","dumpComplete":true,"decalTextureSets":true,
@@ -160,7 +165,7 @@ namespace GreyBuild::SelfTest
 "models":[],
 "nifs":[{{"path":"meshes\\magic\\keyed.nif","size":1,"fnv64":"{}","ok":true}},{{"path":"meshes\\magic\\plain.nif","size":1,"fnv64":"{}","ok":true}},
  {{"path":"meshes\\mps\\a.nif","size":1,"fnv64":"{}","ok":true}}],
-"textures":[{{"path":"{}","size":1,"ok":true,"own":true}},{{"path":"{}","size":1,"ok":true,"own":true}},{}{}],
+"textures":[{{"path":"{}","size":1,"ok":true,"state":"ok","own":true}},{{"path":"{}","size":1,"ok":true,"state":"ok","own":true}},{}{}],
 "excluded":[]}})", a_version, CC::kContractVersion, a_tint, Escape(Prefix(dump, 0.6, exe)), CC::Hex16(kModel), CC::Hex16(kPlain), CC::Hex16(kTxst),
                 CC::Hex16(kMuzzle), kSlot, CC::Hex16(kMps), CC::Hex16(kTxst), CC::Hex16(Fnv(dump / "meshes/magic/keyed.nif")),
                 CC::Hex16(Fnv(dump / "meshes/magic/plain.nif")), CC::Hex16(Fnv(dump / "meshes/mps/a.nif")),
@@ -243,6 +248,16 @@ namespace GreyBuild::SelfTest
                 refused = true;
             }
             a_check.Check(refused, "request v5: another contract version is refused");
+            auto noIndex = ReadAll(fixture.folder / "request.json");
+            noIndex.replace(noIndex.find(",\"index\":9}"), std::string(",\"index\":9").size(), "");
+            Write(a_dir / "req_index" / "request.json", noIndex);
+            refused = false;
+            try {
+                (void)LoadKeyedRequest(a_dir / "req_index" / "request.json");
+            } catch (const std::runtime_error&) {
+                refused = true;
+            }
+            a_check.Check(refused, "request v5: an addnMps entry without its source ADDN index is refused (no guess by model path)");
         }
 
         void CheckFirstRuns(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_sourceNif)
@@ -278,9 +293,9 @@ namespace GreyBuild::SelfTest
                 return std::count_if(a_line->deps.begin(), a_line->deps.end(), [](const CC::ProgressDep& a_dep) { return !a_dep.isAddn; });
             };
             a_check.Check(dds == 4 && paths(model) == 3 && paths(mps) == 3 && paths(txst) == 1 && HasAddnDep(model, kSlotIndex) &&
-                              HasAddnDep(plain, kSlotIndex) && HasAddnDep(muzzle, kSlotIndex) && !HasAddnDep(txst, kSlotIndex),
-                fmt::format("key run: 4 child copies made once (effect texture, 2 derived palettes, decal); the NIFs list their 3 and "
-                            "{{\"addn\":40012}}, the TXST its decal ({} dds lines)", dds));
+                              HasAddnDep(mps, kSlotIndex) && HasAddnDep(plain, kSlotIndex) && HasAddnDep(muzzle, kSlotIndex) && !HasAddnDep(txst, kSlotIndex),
+                fmt::format("key run: 4 child copies made once (effect texture, 2 derived palettes, decal); the NIFs and the MPS list their "
+                            "3 and {{\"addn\":40012}}, the TXST its decal ({} dds lines)", dds));
             const auto order = [&](std::uint64_t a_first, std::uint64_t a_later) { return Position(progress, a_first) < Position(progress, a_later); };
             a_check.Check(order(kPlain, kMps) && order(kMuzzle, kMps) && order(kMps, kModel) && order(kMps, kTxst),
                 "key run: the NIFs with no texture to recolour first, then the MPS, then the rest by texture cost");
@@ -332,7 +347,7 @@ namespace GreyBuild::SelfTest
             const auto* model = Find(progress, kModel);
             const auto* plain = Find(progress, kPlain);
             const auto* txst = Find(progress, kTxst);
-            a_check.Check(exit == 0 && model && model->outcome == CC::Outcome::kTooLarge && TooLargeCap(model->reason) == kTinyCap &&
+            a_check.Check(exit == 0 && model && model->outcome == CC::Outcome::kTooLarge && model->cap == kTinyCap &&
                               txst && txst->outcome == CC::Outcome::kTooLarge && plain && plain->outcome == CC::Outcome::kOk,
                 fmt::format("job memory cap {}: textures over it make their objects too_large (cap in the reason), the plain NIF ok",
                     kTinyCap));
@@ -361,6 +376,15 @@ namespace GreyBuild::SelfTest
             a_check.Check(cappedExit == 0 && cappedModel && cappedModel->outcome == CC::Outcome::kNotDumped && cappedModel->path.empty() &&
                               Find(notDumped, kTxst) && Find(notDumped, kTxst)->outcome == CC::Outcome::kOk,
                 "not_dumped: a texture the rule picks outside the dump caps makes its object not_dumped (no file); the TXST ok");
+
+            const auto unread = MakeFixture(a_dir, "unread", a_sourceNif, Variant::kUnread);
+            const int unreadExit = Run(unread);
+            const auto unreadProgress = Progress(unread);
+            const auto* unreadModel = Find(unreadProgress, kModel);
+            a_check.Check(unreadExit == 0 && unreadModel && unreadModel->outcome == CC::Outcome::kFailed &&
+                              unreadModel->reason.find("unread") != std::string::npos,
+                fmt::format("failed: a texture the game could not read (state unread) fails its object, retried at the next start ('{}')",
+                    unreadModel ? unreadModel->reason : ""));
 
             const auto broken = MakeFixture(a_dir, "broken", a_sourceNif, Variant::kNormal);
             std::filesystem::remove(broken.dump / kFxFire);  // listed as dumped, gone from the dump

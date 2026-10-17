@@ -882,7 +882,7 @@ blackflame-cosave-check --self-test     (BFSL on byte buffers and the contract t
 
 ### Single launch: the builder (P1): `GreySlotPool.h`, `GreyKeyed.h`, `GreyProgress.h`, `GreyBudget.h`
 
-Work in progress like P0 (built against contract version 3): the builder side of the single launch. Nothing in game
+Work in progress like P0 (built against contract version 4): the builder side of the single launch. Nothing in game
 runs it until P2's DLL launches it.
 
 ```
@@ -933,8 +933,10 @@ Request v5 as this builder reads it (P2 writes it; every point below is a builde
   form's key is its TXST key;
 - `muzzles[] {path, key}`: `nif` objects;
 - `addnMps[] {slot, path, key, index}`: an `mps` object, and its slot (an ADDN slot's local id) bound to the original
-  ADDN index `index`. **`index` is a builder addition to the P0 names**: without it the builder binds the one `addons`
-  record whose model is `path`, and with none or several it binds nothing (warned);
+  ADDN index `index` (required since contract 4: an entry without it refuses the request);
+- `textures[].state` (required): `ok` (in the dump), `notdumped` (over a dump cap: the object is `not_dumped`), `missing`
+  (does not open: a slot left, fallback), `unread` (the game opened it and its read failed: the object is `failed`, so the
+  next start, which reads it again under a new key, builds it); the error text is never read;
 - `txst[] {slot, key, dodt}`: the TXST form whose `forms[].key` is `key` (none: a failed line); `slot` and `dodt` are
   not read (they are in the key already).
 
@@ -943,9 +945,9 @@ Objects and their lines (`progress.jsonl`, the contract's writer only):
 | Kind | Object | Line |
 |---|---|---|
 | `nif` | a form's model or a PROJ muzzle: the full-grey copy (GreyEffects, the glow rules, texture and palette copies), AddOnNode values on the slot indices | path, bytes, fnv64; deps: each texture / palette copy it names (path, fnv64) and `{"addn": n}` for every slot index it holds |
-| `mps` | an ADDN slot's grey master particle system, the same build | the same without `{"addn"}` deps (the contract takes them on nif lines only) |
+| `mps` | an ADDN slot's grey master particle system, the same build | the same (`{"addn"}` deps too, since contract 4) |
 | `txst` | a TXST's TX00 (diffuse, `tint`) and TX03 (glow, tint 1) copies | no path; deps: those copies. A TXST with no colour slot copied (both left or empty) is `fallback` with no dep, never ok (contract 3) |
-| `dds` | a texture copy (role diffuse / glow / effect) or a derived palette (add / normal), made once per run and named by every object that uses it | path, bytes, fnv64 |
+| `dds` | a texture copy (role diffuse / glow / effect, `copies\<key16>\copy.dds`) or a derived palette (add / normal, `copies\<key16>\palette.dds` from `PaletteCopyPath`), made once per run and named by every object that uses it | path, bytes, fnv64 |
 
 An AddOnNode value goes to `40000 + place` when an `addnMps` entry binds its original index; a value bound to no slot
 stays (fallback), and an index of the request inside the pool's own range is never bound (warned).
@@ -954,9 +956,9 @@ stays (fallback), and an index of the request inside the pool's own range is nev
 |---|---|
 | `ok` | everything applied (an already grey texture at tint 1 left as it is counts as applied) |
 | `fallback` | a deterministic slot left: a texture not in the dump (the game: does not open), a format that cannot be recoloured (BC5, HDR, float), a DDS that does not decode, a source palette or our palette that does not read (today's palette kept), a TXST slot that is not ASCII, an AddOnNode value bound to no slot |
-| `failed` | retryable: an I/O error, out of memory (`bad_alloc`, `E_OUTOFMEMORY`), a locked, vanished or unreadable file (`IsTransientResult`) on any read - the glow rules' and palettes' too -, over the cap with what the process holds, a 30-minute wait for commit, a source NIF not listed, not in the dump or that nifly cannot read, the dump's NIF bytes not the request's, a texture the request lists as dumped that is not in the dump |
-| `too_large` | a texture whose estimate alone is over the job memory cap: a `too_large` dds line for it (the cap in the reason, `cap=<bytes>`), and every object naming it `too_large`; also an object whose glow rules or palettes would read a texture larger than the cap |
-| `not_dumped` | a texture the rule recolours that the game left out of the dump for its caps (the DLL's reason `over the ... cap`): the object `not_dumped` |
+| `failed` | retryable: an I/O error, out of memory (`bad_alloc`, `E_OUTOFMEMORY`), a locked, vanished or unreadable file (`IsTransientResult`) on any read - the glow rules' and palettes' too -, over the cap with what the process holds, a 30-minute wait for commit, a source NIF not listed, not in the dump or that nifly cannot read, the dump's NIF bytes not the request's, a texture the request lists as dumped that is not in the dump, a texture whose `state` is `unread` |
+| `too_large` | a texture whose estimate alone is over the job memory cap: a `too_large` dds line for it (the cap in its `cap` field), and every object naming it `too_large` (with `cap` too); also an object whose glow rules or palettes would read a texture larger than the cap |
+| `not_dumped` | a texture the rule recolours that the request gives `state` `notdumped`: the object `not_dumped` |
 
 A failure wins over a terminal state, a terminal state over a fallback. Failed and terminal objects leave no file. The
 key's last line is the one that counts (compaction keeps it).
@@ -970,7 +972,7 @@ write and delete) and each finished object adds one line in one write, after its
 renamed into place; a line that cannot be written (a full disk) stops the run (exit 1). A reason's bytes outside ASCII
 are written as `?`. An object is skipped (reused, nothing rewritten) when its key's last line is ok or fallback, its file
 is in staging with the line's bytes and fnv64 and every path dep with its fnv64; or the line is terminal - `too_large`
-only while the cap it names is not below this run's (the cap is no part of the key, so a larger cap tries again). Staging
+only while its `cap` field is not below this run's (the cap is no part of the key, so a larger cap tries again). Staging
 is the builder's cache: the DLL's copy worker must copy into Data, never move, or every start rebuilds.
 
 **Memory** (`GreyBudget.h`): before a texture is recoloured its peak is estimated from the DDS header (the decoded RGBA

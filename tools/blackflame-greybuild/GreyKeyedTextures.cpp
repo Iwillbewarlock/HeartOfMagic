@@ -29,7 +29,6 @@ namespace GreyBuild
         namespace CC = BlackFlame::CopyContract;
         namespace Rule = BlackFlame::DataPathRule;
 
-        constexpr const char* kOverTheCap = "over the";
         constexpr std::uint64_t kPaletteImages = 2;  // MakePalette's copy of the source and the image Write makes  // the DLL's reason for a texture outside the dump caps (CopyRequestData.cpp)
 
         [[nodiscard]] CC::ProgressLine DdsLine(std::uint64_t a_key, CC::Outcome a_outcome, const std::string& a_reason)
@@ -50,8 +49,9 @@ namespace GreyBuild
     }
 
     KeyedOutputs::KeyedOutputs(ProgressLog& a_log, Budget& a_budget, CC::KeyPrefix a_prefix, TextureJob& a_textures,
-        std::set<std::string> a_listed) :
-        m_log(a_log), m_budget(a_budget), m_prefix(std::move(a_prefix)), m_textures(a_textures), m_listed(std::move(a_listed))
+        std::set<std::string> a_listed, std::map<std::string, CC::Request::TextureState> a_states) :
+        m_log(a_log), m_budget(a_budget), m_prefix(std::move(a_prefix)), m_textures(a_textures), m_listed(std::move(a_listed)),
+        m_states(std::move(a_states))
     {}
 
     void KeyedOutputs::Fallback(const std::string& a_why)
@@ -157,18 +157,25 @@ namespace GreyBuild
             return child;  // failed: the dump is broken, not the texture (Codex review 2)
         }
         if (!source) {
+            namespace R = CC::Request;
             const auto game = m_textures.notDumped.find(a_path);
             const std::string said = game == m_textures.notDumped.end() ? std::string("not listed") : game->second;
+            const auto state = m_states.find(a_path);
             ++m_textures.totals.missing;
-            std::cout << fmt::format("TEX   MISS {} ({}, first in {}): not in the dump - the game: {}\n", a_path, TextureRoleName(a_role),
-                a_where, said);
-            if (game != m_textures.notDumped.end() && StartsWith(game->second, kOverTheCap)) {
-                child.state = State::kTerminal;
+            std::cout << fmt::format("TEX   MISS {} ({}, first in {}): not in the dump - the game: {}{}\n", a_path, TextureRoleName(a_role),
+                a_where, state == m_states.end() ? std::string("no state") : std::string(R::TextureStateText(state->second)),
+                said.empty() ? std::string() : " (" + said + ")");
+            if (state != m_states.end() && state->second == R::TextureState::kNotDumped) {
+                child.state = State::kTerminal;  // the request's state, never its error text (contract 4)
                 child.terminal = CC::Outcome::kNotDumped;
-                child.why = fmt::format("texture {} is outside the dump caps ({})", a_path, game->second);
+                child.why = fmt::format("texture {} is outside the dump caps", a_path);
+            } else if (state != m_states.end() && state->second == R::TextureState::kUnread) {
+                // the game opened it and its read failed: nothing about the texture is known; the next start reads it again
+                child.why = fmt::format("texture {}: the game could not read it this start (unread)", a_path);
             } else {
-                child.state = State::kFallback;
-                child.why = fmt::format("texture {} is not in the dump ({}): slot left", a_path, said);
+                child.state = State::kFallback;  // missing (does not open) or not listed: the key says so
+                child.why = fmt::format("texture {} is not in the dump ({}): slot left", a_path,
+                    state == m_states.end() ? std::string("not listed") : std::string(R::TextureStateText(state->second)));
             }
             return child;
         }
@@ -198,7 +205,11 @@ namespace GreyBuild
         }
         switch (m_budget.Acquire(*estimate, why)) {
         case Admission::kTooLarge:
-            if (std::string lineWhy; !m_log.Append(DdsLine(key, CC::Outcome::kTooLarge, why), lineWhy)) {
+            if (std::string lineWhy; [&] {
+                    auto line = DdsLine(key, CC::Outcome::kTooLarge, why);
+                    line.cap = m_budget.Cap();  // contract 4: the cap is a field
+                    return !m_log.Append(line, lineWhy);
+                }()) {
                 std::cout << fmt::format("WARN  the too_large line of {} was not written: {}\n", *slot, lineWhy);
             }
             std::cout << fmt::format("TEX   LARGE {} ({}): {}\n", a_path, TextureRoleName(a_role), why);
@@ -265,10 +276,10 @@ namespace GreyBuild
             return child;  // failed
         }
         const auto key = CC::KeyOf(*keyText);
-        const auto slot = Rule::CopyPath(Rule::kTexturesRoot, CC::Hex16(key), a_source.path);
-        if (!slot || !IsAscii(*slot)) {
+        const auto slot = Rule::PaletteCopyPath(CC::Hex16(key));  // contract 4: ...\copies\<key16>\palette.dds
+        if (!slot) {
             child.state = State::kFallback;
-            child.why = fmt::format("source palette {}: no ASCII copy path for it: today's palette kept", a_source.path);
+            child.why = fmt::format("source palette {}: no copy path for it: today's palette kept", a_source.path);
             return child;
         }
         m_paletteBlends[*slot] = a_additive;

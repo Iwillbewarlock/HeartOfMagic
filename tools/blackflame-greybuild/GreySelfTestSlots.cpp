@@ -207,9 +207,9 @@ namespace GreyBuild::SelfTest
                 large.kind = CC::ProgressKind::kDds;
                 large.key = kB;
                 large.outcome = CC::Outcome::kTooLarge;
-                large.reason = fmt::format("over the job memory cap ({}{})", kTooLargeCapToken, kMiB);
-                a_check.Check(log.Append(large, why) && log.Reusable(kB, kMiB) && !log.Reusable(kB, 2 * kMiB) && TooLargeCap(large.reason) == kMiB &&
-                                  !TooLargeCap("no cap here"),
+                large.reason = "over the job memory cap";
+                large.cap = kMiB;
+                a_check.Check(log.Append(large, why) && log.Reusable(kB, kMiB) && !log.Reusable(kB, 2 * kMiB),
                     "progress: a too_large line is reused while the cap is not larger, retried under a larger cap");
                 CC::ProgressLine refused = FileLine(kC, "meshes\\not\\a\\copy.nif", 1, 1);
                 a_check.Check(!log.Append(refused, why) && !why.empty(), "progress: a line the contract's writer refuses is not appended");
@@ -256,7 +256,7 @@ namespace GreyBuild::SelfTest
             std::string overWhy;
             std::string largeWhy;
             a_check.Check(over.Acquire(20, overWhy) == Admission::kOverCap && !overWhy.empty() &&
-                              over.Acquire(200, largeWhy) == Admission::kTooLarge && TooLargeCap(largeWhy) == kCap,
+                              over.Acquire(200, largeWhy) == Admission::kTooLarge && largeWhy.find(std::to_string(kCap) + " bytes") != std::string::npos,
                 "budget: still over the cap is over (the object fails); a too_large reason names its cap");
             std::atomic<bool> stop{ true };
             Budget stopped(kCap, 10, nullptr, &stop, []() { return std::optional<MemoryState>(MemoryState{ 0, 0 }); }, [](unsigned) {});

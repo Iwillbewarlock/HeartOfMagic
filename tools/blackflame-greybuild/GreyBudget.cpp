@@ -150,8 +150,7 @@ namespace GreyBuild
                 std::cout << "WAIT  done: commit is back above the reserve\n";
             }
             if (admission == Admission::kTooLarge) {
-                a_why = fmt::format("the texture needs about {} bytes, over the job memory cap ({}{})", a_estimate, kTooLargeCapToken,
-                    m_cap);
+                a_why = fmt::format("the texture needs about {} bytes, over the job memory cap ({} bytes)", a_estimate, m_cap);
             } else if (admission == Admission::kOverCap) {
                 a_why = fmt::format("{} bytes in use + about {} for this texture are over the job memory cap ({} bytes)", state.inUse,
                     a_estimate, m_cap);

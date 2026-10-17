@@ -15,7 +15,7 @@
 //   mps   addnMps[] {slot, path, key[, index]}: the grey copy of an ADDN slot's master particle system
 //   txst  txst[] {slot, key, dodt}: the TXST form whose forms[].key is that key; its TX00 / TX03 copies are the deps
 // AddOnNode values go to the slot indices: an addnMps entry binds its slot (index 40000 + place) to the original ADDN
-// index it names ("index"; without it, the one ADDN of the request whose model is its path). A value bound to no slot
+// index it names ("index", required since contract 4). A value bound to no slot
 // stays as it is (fallback). A NIF's line lists its texture and palette copies (path, fnv64) and {"addn": n} for every
 // slot index it now holds.
 // Outcomes (ClassifyObject): a transient failure (I/O, out of memory, a source NIF that will not parse, the request's
@@ -119,7 +119,7 @@ namespace GreyBuild
     public:
         /// a_listed: the request's dumped textures (TextureDataPath), the only ones read
         KeyedOutputs(ProgressLog& a_log, Budget& a_budget, BlackFlame::CopyContract::KeyPrefix a_prefix, TextureJob& a_textures,
-            std::set<std::string> a_listed);
+            std::set<std::string> a_listed, std::map<std::string, BlackFlame::CopyContract::Request::TextureState> a_states);
 
         void Begin(KeyedObject* a_object) noexcept { m_object = a_object; }
 
@@ -181,6 +181,7 @@ namespace GreyBuild
         BlackFlame::CopyContract::KeyPrefix m_prefix;
         TextureJob& m_textures;
         std::set<std::string> m_listed;
+        std::map<std::string, BlackFlame::CopyContract::Request::TextureState> m_states;  // request v5 textures[].state
         KeyedObject* m_object = nullptr;
         std::map<std::string, Child> m_children;  // "<role|blend>|<source path>" -> what it gave
         std::map<std::string, bool> m_paletteBlends;

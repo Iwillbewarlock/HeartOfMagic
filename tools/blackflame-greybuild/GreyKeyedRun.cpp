@@ -51,6 +51,7 @@ namespace GreyBuild
             GlowContext& glow;
             GreyMap map;
             std::set<int> slotIndices;  // the grey values the map hands out (40000 + place)
+            std::uint64_t cap = 0;      // the job memory cap (too_large lines name it)
         };
 
         [[nodiscard]] CC::ProgressLine Line(const KeyedSpec& a_spec, CC::Outcome a_outcome, const std::string& a_reason)
@@ -144,8 +145,8 @@ namespace GreyBuild
             line.bytes = digest->bytes;
             line.fnv64 = digest->fnv64;
             line.deps = a_object.deps;
-            for (const auto index : a_spec.kind == CC::ProgressKind::kNif ? addn : std::vector<std::uint32_t>{}) {
-                CC::ProgressDep dep;  // the contract takes {"addn"} deps on nif lines only (an MPS that names a slot: none)
+            for (const auto index : addn) {
+                CC::ProgressDep dep;  // contract 4: on nif and mps lines
                 dep.isAddn = true;
                 dep.addn = index;
                 line.deps.push_back(dep);
@@ -190,10 +191,13 @@ namespace GreyBuild
         {
             KeyedObject object;
             a_run.outputs.Begin(&object);
-            const auto line = GuardObject(a_spec, [&]() {
+            auto line = GuardObject(a_spec, [&]() {
                 return a_spec.kind == CC::ProgressKind::kTxst ? BuildTxstObject(a_spec, object, a_run) : BuildNifObject(a_spec, object, a_run);
             });
             a_run.outputs.Begin(nullptr);
+            if (line.outcome == CC::Outcome::kTooLarge) {
+                line.cap = a_run.cap;  // contract 4: the job memory cap it was over, as a field
+            }
             return line;
         }
 
@@ -346,7 +350,7 @@ namespace GreyBuild
         textures.out = a_options.staging;
         textures.diffuseTint = static_cast<float>(request.tint);
         textures.notDumped = request.base.texturesNotDumped;
-        KeyedOutputs outputs(log, budget, *prefix, textures, request.base.texturesDumped);
+        KeyedOutputs outputs(log, budget, *prefix, textures, request.base.texturesDumped, request.base.textureStates);
         textures.keyed = &outputs;
         // The glow rules' and palettes' reads decode too: admitted like a recolour, without clearing the cache (a TextureLook
         // may be alive); too large or over the cap makes the object too_large or failed (Codex review 1)
@@ -381,6 +385,7 @@ namespace GreyBuild
         glow.tint = static_cast<float>(request.tint);
         glow.tintAdd = static_cast<float>(request.tintAdd);
         Run run{ request, dump, a_options.staging, log, outputs, textures, glow };
+        run.cap = budget.Cap();
         run.map.tint = glow.tint;
         run.map.tintAdd = glow.tintAdd;
         for (const auto& [index, grey] : request.addnSlots) {

@@ -93,27 +93,6 @@ namespace GreyBuild
             }
         }
 
-        // The original ADDN index an addnMps entry binds: its "index", else the one ADDN whose model is its path
-        [[nodiscard]] std::optional<int> BoundIndex(const std::filesystem::path& a_file, const nlohmann::json& a_item,
-            const std::string& a_path, const KeyedRequest& a_request, const std::string& a_where, std::string& a_why)
-        {
-            if (a_item.contains("index")) {
-                return Json::ReadIndex(a_file, a_item, "index", a_where);
-            }
-            std::vector<int> found;
-            for (const auto& [index, addon] : a_request.base.addons->addons) {
-                if (addon.model == a_path) {
-                    found.push_back(index);
-                }
-            }
-            if (found.size() == 1) {
-                return found.front();
-            }
-            a_why = fmt::format("{}: no 'index', and {} ADDN records have the model {}: its slot is bound to no AddOnNode value",
-                a_where, found.size(), a_path);
-            return std::nullopt;
-        }
-
         void ReadObjects(const std::filesystem::path& a_file, const nlohmann::json& a_root, KeyedRequest& a_request)
         {
             std::map<std::uint64_t, std::size_t> byKey;
@@ -144,11 +123,9 @@ namespace GreyBuild
                 }
                 const std::string path = NifPath(a_file, mps[i], where);
                 AddObject(a_request, byKey, { CC::ProgressKind::kMps, ReadKey(a_file, mps[i], where), path }, where);
-                std::string why;
-                const auto index = BoundIndex(a_file, mps[i], path, a_request, where, why);
-                if (!index) {
-                    a_request.warnings.push_back(why);
-                } else if (CC::SlotOfAddnIndex(static_cast<std::uint32_t>(*index))) {
+                // contract 4: the source ADDN's index is required (no guess by model path)
+                const std::optional<int> index = Json::ReadIndex(a_file, mps[i], CC::Request::kIndex, where);
+                if (CC::SlotOfAddnIndex(static_cast<std::uint32_t>(*index))) {
                     a_request.warnings.push_back(fmt::format("{}: ADDN index {} is inside the slot pool's range: not bound", where, *index));
                 } else if (slotsTaken.count(static_cast<int>(*grey)) != 0 || a_request.addnSlots.count(*index) != 0) {
                     a_request.warnings.push_back(fmt::format("{}: ADDN index {} or slot {:X} is bound twice: the first binding kept", where,

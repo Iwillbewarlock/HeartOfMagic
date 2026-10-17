@@ -519,8 +519,8 @@ namespace GreyBuild
                         // palette derived for that blend (GreyPalette.h)
                         const std::string greyscale = Lower(a_prop.greyscaleTexture.get());
                         const std::string derived = std::string(kPaletteCopyRoot) + (additive ? kPaletteAddFolder : kPaletteNormalFolder);
-                        // key mode: a palette copy of this run for this blend (copies\<key16>\, which IsOurPalettePath does
-                        // not know)
+                        // key mode: a palette copy of this run, for this blend. IsOurPalettePath takes copies\<key16>\palette.dds
+                        // since contract 4, but the path does not say add or normal: the run's own list does
                         const auto keyed = a_keyedPalettes ? a_keyedPalettes->find(greyscale) : std::map<std::string, bool>::const_iterator{};
                         const bool keyedOurs = a_keyedPalettes && keyed != a_keyedPalettes->end() && keyed->second == additive;
                         if (!keyedOurs && (!BlackFlame::DataPathRule::IsOurPalettePath(greyscale) ||
