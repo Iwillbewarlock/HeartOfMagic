@@ -39,7 +39,7 @@ namespace BlackFlame::DrawTime
         constexpr int kTextureSlots = 16;                   // RendererShadowState PSTexture[16]
         constexpr int kMaxOpenBinds = 4;                    // binds open on one thread at once (1 expected)
         constexpr int kThreadLogs = 8;
-        constexpr int kHitLogs = 10;
+        constexpr int kHitLogs = 6;  // per root kind
         constexpr int kNonHitLogs = 10;
         constexpr int kLeakLogs = 10;
         constexpr int kSameMaterialLogs = 6;
@@ -63,7 +63,7 @@ namespace BlackFlame::DrawTime
         }
 
         std::atomic<int> g_threadLogs{ 0 };
-        std::atomic<int> g_hitLogs{ 0 };
+        std::array<std::atomic<int>, static_cast<std::size_t>(RootKind::kCount)> g_hitLogs{};
         std::atomic<int> g_nonHitLogs{ 0 };
         std::atomic<int> g_leakLogs{ 0 };
         std::atomic<int> g_sameMaterialLogs{ 0 };
@@ -232,11 +232,12 @@ namespace BlackFlame::DrawTime
             WriteSlot(a_state, slot, a_target.grey);
             counters.binds.fetch_add(1, std::memory_order_relaxed);
             t_binds.lastBoundMaterial = a_target.material;
-            if (g_hitLogs.fetch_add(1, std::memory_order_relaxed) < kHitLogs) {
-                logger::info("BlackFlame: draw-time grey: bind: geometry 0x{:X} property 0x{:X} material 0x{:X}, slot {}: "
-                             "0x{:X} -> 0x{:X} (kind {})",
-                    Addr(a_pass->geometry), Addr(a_pass->shaderProperty), Addr(a_target.material), slot, Addr(before),
-                    Addr(a_target.grey), static_cast<int>(a_target.kind));
+            if (g_hitLogs[static_cast<std::size_t>(a_target.root)].fetch_add(1, std::memory_order_relaxed) < kHitLogs) {
+                constexpr std::array kGreyKindNames{ "derived", "fixed", "fixed add", "left alone" };
+                logger::info("BlackFlame: draw-time grey: bind ({}): geometry 0x{:X} property 0x{:X} material 0x{:X}, slot {}: "
+                             "0x{:X} -> 0x{:X} ({} palette)",
+                    RootKindName(a_target.root), Addr(a_pass->geometry), Addr(a_pass->shaderProperty), Addr(a_target.material),
+                    slot, Addr(before), Addr(a_target.grey), kGreyKindNames[static_cast<std::size_t>(a_target.kind)]);
             }
         }
 

@@ -26,6 +26,30 @@ namespace BlackFlame::DrawTime
         kLeftAlone   // palette alpha on and no derived palette on disk: one universal palette would break its outline
     };
 
+    /// Where a player geometry was found (the first bind lines are per kind, so a projectile's are not crowded out by
+    /// the hand art that is in the set first)
+    enum class RootKind : std::uint8_t
+    {
+        kProjectile,
+        kExplosion,
+        kHand,
+        kCount
+    };
+
+    [[nodiscard]] constexpr const char* RootKindName(RootKind a_kind) noexcept
+    {
+        switch (a_kind) {
+        case RootKind::kProjectile:
+            return "projectile";
+        case RootKind::kExplosion:
+            return "explosion";
+        case RootKind::kHand:
+            return "hand art";
+        default:
+            return "?";
+        }
+    }
+
     /// One player geometry, decided on the main thread. The render side only compares these pointers with the pass's
     /// own and writes `grey` (a view of a session-long palette texture); it never dereferences them
     struct Target
@@ -36,6 +60,7 @@ namespace BlackFlame::DrawTime
         Srv* base = nullptr;                             // the material's source texture view (logged with the slot)
         Srv* grey = nullptr;                             // what is bound instead (null: kLeftAlone)
         GreyKind kind = GreyKind::kLeftAlone;
+        RootKind root = RootKind::kProjectile;
     };
 
     /// Published by the main thread, read by the render hook. Immutable once published

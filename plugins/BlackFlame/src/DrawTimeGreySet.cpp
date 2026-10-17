@@ -173,8 +173,8 @@ namespace BlackFlame
 
         // Decides one geometry: palette colour only takes the derived palette, else the fixed one of its blend; palette
         // alpha takes only the derived one (one universal palette would carve or fill its outline, README "Palettes")
-        void Classify(MainState& a_state, RE::BSEffectShaderProperty* a_prop, RE::BSGeometry* a_geometry, Snapshot& a_out,
-            Owners& a_owners, WalkStats& a_stats)
+        void Classify(MainState& a_state, RE::BSEffectShaderProperty* a_prop, RE::BSGeometry* a_geometry, RootKind a_root,
+            Snapshot& a_out, Owners& a_owners, WalkStats& a_stats)
         {
             const bool colour = a_prop->flags.any(Flag::kGrayscaleToPaletteColor);
             const bool alpha = a_prop->flags.any(Flag::kGrayscaleToPaletteAlpha);
@@ -193,7 +193,8 @@ namespace BlackFlame
                 return;
             }
             const bool additive = IsAdditive(a_geometry);
-            Target target{ a_prop, material, source, ViewOf(material->sourceTexture.get()), nullptr, GreyKind::kLeftAlone };
+            Target target{ a_prop, material, source, ViewOf(material->sourceTexture.get()), nullptr, GreyKind::kLeftAlone,
+                a_root };
             if (Srv* derived = ViewOf(DerivedPalette(a_state, material->greyscaleTexturePath, additive))) {
                 target.grey = derived;
                 target.kind = GreyKind::kDerived;
@@ -212,7 +213,8 @@ namespace BlackFlame
             a_owners.try_emplace(a_geometry, RE::NiPointer<RE::BSGeometry>(a_geometry));
         }
 
-        void Collect(MainState& a_state, RE::NiAVObject* a_root, Snapshot& a_out, Owners& a_owners, WalkStats& a_stats)
+        void Collect(MainState& a_state, RE::NiAVObject* a_root, RootKind a_kind, Snapshot& a_out, Owners& a_owners,
+            WalkStats& a_stats)
         {
             if (!a_root) {
                 return;
@@ -227,7 +229,7 @@ namespace BlackFlame
                     return;
                 }
                 if (!a_out.targets.contains(a_geometry)) {
-                    Classify(a_state, a_prop, a_geometry, a_out, a_owners, a_stats);
+                    Classify(a_state, a_prop, a_geometry, a_kind, a_out, a_owners, a_stats);
                 }
             });
         }
@@ -264,11 +266,12 @@ namespace BlackFlame
                 if (!IsFireSpell(spell)) {
                     continue;
                 }
-                Collect(a_state, caster->castingArtData.attachedArt.get(), a_out, a_owners, a_stats);
-                Collect(a_state, caster->magicNode, a_out, a_owners, a_stats);
+                Collect(a_state, caster->castingArtData.attachedArt.get(), RootKind::kHand, a_out, a_owners, a_stats);
+                Collect(a_state, caster->magicNode, RootKind::kHand, a_out, a_owners, a_stats);
                 for (const bool firstPerson : { true, false }) {
                     auto* root = player->Get3D(firstPerson);
-                    Collect(a_state, root ? root->GetObjectByName(MagicNodeName(left)) : nullptr, a_out, a_owners, a_stats);
+                    Collect(a_state, root ? root->GetObjectByName(MagicNodeName(left)) : nullptr, RootKind::kHand, a_out,
+                        a_owners, a_stats);
                 }
                 ++roots;
             }
@@ -342,7 +345,8 @@ namespace BlackFlame
                     logger::info("BlackFlame: draw-time grey: walking {} {:08X} (base {:08X})", root.kind, ref->GetFormID(),
                         ref->GetBaseObject() ? ref->GetBaseObject()->GetFormID() : 0);
                 }
-                Collect(a_state, object, *snapshot, owners, stats);
+                const auto kind = std::string_view(root.kind) == "explosion" ? RootKind::kExplosion : RootKind::kProjectile;
+                Collect(a_state, object, kind, *snapshot, owners, stats);
             }
             (void)CollectHands(a_state, *snapshot, owners, stats);
             for (const auto& [path, texture] : a_state.derived) {
