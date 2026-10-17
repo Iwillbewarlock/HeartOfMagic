@@ -46,6 +46,16 @@ from address library IDs (TESObjectBOOK::Read 17439/17842, the 41 ActiveEffect s
 1.7.99 library); the one hand-measured spot is the tome hook's patch site (see SpellTomeHook below and
 docs/DEST-IMPROVEMENTS.md).
 
+**Toxicology addon** (`plugins/Toxicology/`, `HeartOfMagic_Toxicology.dll` with `HeartOfMagic_Toxicology.esp`;
+released on its own with its own version, `plugins/cmake/DistributionToxicology.cmake`): with the ESL's ability
+learned, a poison spell the player casts (a spell tagged `poison` in the Librarian's `spell_catalog.json` with a
+hostile effect) applies the player's first favorited poison to the target it hits (`TESHitEvent`), renews only the
+effects it applied itself, and uses one bottle per 100 Magicka spent on poison spells (co-save record `HMTX`). It
+reads only the catalog file from Heart of Magic and compiles in no Heart of Magic source besides `EncodingUtils.cpp`. Same CommonLib
+setup as the DLLs above (`add_commonlibsse_plugin(... USE_ADDRESS_LIBRARY)`, default struct compatibility); its one
+game address is the `ActorMagicCaster` vtable (`RE::VTABLE_ActorMagicCaster[0]`, address library) for the Magicka
+count's update hook. Details: plugins/Toxicology/README.md.
+
 **Core Flow:**
 ```
 Scan Spells → Generate Tree (C++ NLP builders) → Validate FormIDs → Display Tree → Track XP → Grant Early (nerfed) → Reveal Details → Master Spells
@@ -1896,6 +1906,10 @@ HeartOfMagic/
 │   │   ├── CMakeLists.txt
 │   │   └── src/
 │   │       └── Main.cpp           ✅ BookMenu watcher + API integration
+│   ├── Toxicology/                # Toxicology addon (own release; README.md, ESL.md, art/ICON.md)
+│   │   ├── CMakeLists.txt
+│   │   ├── data/                  ESL, settings, I4 rule, icon SWF (shipped); dev/ self test file (never shipped)
+│   │   └── src/                   core/ (RE-free, tools/toxicology-test) + game/ (hits, apply, magicka, bottles, co-save, self test)
 ├── Scripts/Source/
 │   ├── SpellLearning_DEST.psc         ✅ DEST native function stubs
 │   ├── SpellLearning_DEST_Handler.psc ✅ DEST event handler
