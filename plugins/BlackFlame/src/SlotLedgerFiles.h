@@ -115,6 +115,15 @@ namespace BlackFlame::SlotLedgerFiles
                 ++out.unreadable;
             }
         }
+        // The mirror lives outside the save folder (its file name carries a hash of that folder): it is merged only when its
+        // epoch is the one the save folder's own files hold, so another profile's ledger never mixes in
+        const auto mirror = std::find_if(reads.begin(), reads.end(), [](const Read& a_read) { return a_read.what == "mirror"; });
+        const auto own = std::find_if(reads.begin(), reads.end(), [](const Read& a_read) { return a_read.what != "mirror"; });
+        if (mirror != reads.end() && own != reads.end() && mirror->ledger.epoch != own->ledger.epoch) {
+            out.notes.push_back("mirror not merged: epoch " + CopyContract::Hex16(mirror->ledger.epoch) + ", the save folder's ledger " +
+                                CopyContract::Hex16(own->ledger.epoch));
+            reads.erase(mirror);
+        }
         if (reads.empty()) {
             return out;
         }
@@ -127,7 +136,9 @@ namespace BlackFlame::SlotLedgerFiles
         Ledger merged = reads[base].ledger;
         for (std::size_t i = 0; i < reads.size(); ++i) {
             if (i != base) {
-                (void)SlotLedgerModel::Merge(merged, reads[i].ledger, out.conflicts, reads[i].what);
+                std::vector<std::string> stale;
+                (void)SlotLedgerModel::Merge(merged, reads[i].ledger, out.conflicts, reads[i].what, &stale);
+                out.notes.insert(out.notes.end(), stale.begin(), stale.end());
             }
         }
         out.notes.push_back("base: " + reads[base].what + "; " + std::to_string(merged.entries.size()) + " slots after the union");
@@ -135,25 +146,31 @@ namespace BlackFlame::SlotLedgerFiles
         return out;
     }
 
-    /// a_text into a_file through a_file + ".tmp" and a replacing rename
+    /// a_text into a_file through a_file + ".tmp": written, flushed to disk (FlushFileBuffers), then a replacing,
+    /// write-through rename (MoveFileExW); a failed step removes the temporary file
     [[nodiscard]] inline bool WriteReplacing(const fs::path& a_file, const std::string& a_text, std::string& a_why)
     {
         std::error_code ec;
         fs::create_directories(a_file.parent_path(), ec);
         auto temp = a_file;
         temp += ".tmp";
-        {
-            std::ofstream out(temp, std::ios::binary | std::ios::trunc);
-            out.write(a_text.data(), static_cast<std::streamsize>(a_text.size()));
-            out.flush();
-            if (!out) {
-                a_why = "writing '" + PathText(temp) + "' failed";
-                return false;
-            }
+        const HANDLE file = ::CreateFileW(temp.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (file == INVALID_HANDLE_VALUE) {
+            a_why = "creating '" + PathText(temp) + "' failed (Windows error " + std::to_string(::GetLastError()) + ")";
+            return false;
         }
-        fs::rename(temp, a_file, ec);  // MSVC: MoveFileExW with MOVEFILE_REPLACE_EXISTING
-        if (ec) {
-            a_why = "renaming onto '" + PathText(a_file) + "' failed: " + ec.message();
+        DWORD written = 0;
+        const bool ok = a_text.size() <= MAXDWORD &&
+                        ::WriteFile(file, a_text.data(), static_cast<DWORD>(a_text.size()), &written, nullptr) && written == a_text.size() &&
+                        ::FlushFileBuffers(file);
+        ::CloseHandle(file);
+        if (!ok) {
+            a_why = "writing '" + PathText(temp) + "' failed";
+            fs::remove(temp, ec);
+            return false;
+        }
+        if (!::MoveFileExW(temp.c_str(), a_file.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+            a_why = "renaming onto '" + PathText(a_file) + "' failed (Windows error " + std::to_string(::GetLastError()) + ")";
             fs::remove(temp, ec);
             return false;
         }
@@ -174,16 +191,23 @@ namespace BlackFlame::SlotLedgerFiles
             return false;
         }
         std::error_code ec;
-        if (a_rotate && fs::exists(a_main, ec)) {
-            for (int n = kBackups - 1; n >= 1; --n) {
+        std::string mainNow;
+        // an unreadable main is no backup: it would push a good one out
+        if (a_rotate && fs::exists(a_main, ec) && ReadOne(a_main, mainNow)) {
+            bool rolled = true;
+            for (int n = kBackups - 1; n >= 1 && rolled; --n) {
                 const auto from = BackupPath(a_main, n);
-                if (fs::exists(from, ec)) {
-                    fs::rename(from, BackupPath(a_main, n + 1), ec);
+                if (fs::exists(from, ec) && !::MoveFileExW(from.c_str(), BackupPath(a_main, n + 1).c_str(),
+                                                MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+                    rolled = false;  // stop at the first failure: no backup is overwritten out of order
+                    a_mainWhy = "the backups were not rolled (Windows error " + std::to_string(::GetLastError()) + "); ";
                 }
             }
-            fs::copy_file(a_main, BackupPath(a_main, 1), fs::copy_options::overwrite_existing, ec);
-            if (ec) {
-                a_mainWhy = "the backup copy failed: " + ec.message() + " (main written anyway)";
+            if (rolled) {
+                fs::copy_file(a_main, BackupPath(a_main, 1), fs::copy_options::overwrite_existing, ec);
+                if (ec) {
+                    a_mainWhy = "the backup copy failed: " + ec.message() + " (main written anyway); ";
+                }
             }
         }
         const bool mainOk = WriteReplacing(a_main, text, a_mainWhy);

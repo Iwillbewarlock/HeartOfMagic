@@ -41,7 +41,9 @@ namespace BlackFlame::SlotLedgerModel
     {
         kActive,     // bound and in this (or the last) session's closure
         kTombstone,  // bound, its source left the closure (filled from it while it resolves; never given to another)
-        kConflict,   // two ledgers or a save bind it to different sources: never published again
+        kConflict,   // two ledgers (other epochs, or a newer copy) bind it to different sources: never published again.
+                     // A save's differing pairs make a tombstone instead (ApplySave), and an older copy of the same epoch
+                     // loses to the newer (Merge: its binding is stale, not a conflict)
     };
 
     enum class Role : std::uint8_t
@@ -120,20 +122,13 @@ namespace BlackFlame::SlotLedgerModel
         return "model";
     }
 
-    [[nodiscard]] inline bool SamePlugin(std::string_view a_lhs, std::string_view a_rhs) noexcept
+    /// ASCII case folded, a double-byte character of a_isLeadByte's code page compared as it is (its trail byte may look
+    /// like a capital: code page 932 0x83 0x41 and 0x83 0x61 are two names) - SlotCoSave::LowerPluginName's rule
+    template <class LeadByte = DataPathRule::SystemLeadByte>
+    [[nodiscard]] bool SamePlugin(std::string_view a_lhs, std::string_view a_rhs, LeadByte a_isLeadByte = {})
     {
-        if (a_lhs.size() != a_rhs.size()) {
-            return false;
-        }
-        for (std::size_t i = 0; i < a_lhs.size(); ++i) {
-            const auto l = static_cast<unsigned char>(a_lhs[i]);
-            const auto r = static_cast<unsigned char>(a_rhs[i]);
-            const auto fold = [](unsigned char c) { return c >= 'A' && c <= 'Z' ? static_cast<unsigned char>(c - 'A' + 'a') : c; };
-            if (fold(l) != fold(r)) {
-                return false;
-            }
-        }
-        return true;
+        return a_lhs.size() == a_rhs.size() &&
+               SlotCoSave::LowerPluginName(a_lhs, a_isLeadByte) == SlotCoSave::LowerPluginName(a_rhs, a_isLeadByte);
     }
 
     [[nodiscard]] inline bool SameSource(const Entry& a_entry, CC::SlotType a_type, std::string_view a_plugin, std::uint32_t a_localId)
@@ -320,9 +315,13 @@ namespace BlackFlame::SlotLedgerModel
 
     /// a_other's reservations added to a_into. A slot a_into lacks is added (a_other's state kept, published data kept);
     /// the same slot with the same source keeps a_into's entry (its terminal keys and parse counts joined); the same slot
-    /// with another source becomes kConflict (a line naming both in a_conflicts). Returns how many slots were added.
-    inline std::size_t Merge(Ledger& a_into, const Ledger& a_other, std::vector<std::string>& a_conflicts, std::string_view a_what)
+    /// with another source: when a_other is an older copy of the same epoch (a backup from before a save's pairs rebound
+    /// it, ApplySave) a_into's binding wins (a line in a_stale when given); otherwise it becomes kConflict (a line naming
+    /// both in a_conflicts). Returns how many slots were added.
+    inline std::size_t Merge(Ledger& a_into, const Ledger& a_other, std::vector<std::string>& a_conflicts, std::string_view a_what,
+        std::vector<std::string>* a_stale = nullptr)
     {
+        const bool older = a_other.epoch == a_into.epoch && a_other.version < a_into.version;
         std::size_t added = 0;
         for (const auto& other : a_other.entries) {
             Entry* mine = FindSlot(a_into, other.slot);
@@ -337,6 +336,15 @@ namespace BlackFlame::SlotLedgerModel
                     auto& own = mine->parseFailures[key];
                     own.count = (std::max)(own.count, failures.count);
                     own.lastSession = (std::max)(own.lastSession, failures.lastSession);
+                }
+                continue;
+            }
+            if (older) {
+                if (a_stale) {
+                    a_stale->push_back("slot " + HexId(other.slot) + " is " + SourceText(other.plugin, other.localId) + " in " +
+                                       std::string(a_what) + " (version " + std::to_string(a_other.version) + "), " +
+                                       SourceText(mine->plugin, mine->localId) + " in the newer version " +
+                                       std::to_string(a_into.version) + ": the newer binding is kept");
                 }
                 continue;
             }

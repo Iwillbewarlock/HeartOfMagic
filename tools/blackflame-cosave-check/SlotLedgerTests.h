@@ -166,7 +166,7 @@ namespace SlotLedgerTests
         auto& proj = *LM::FindSlot(ledger, 0x800);
         LM::SetPublished(proj, { LM::Role::kModel, 0x1111, "format=BFK3|kind=model", "meshes\\heartofmagic\\blackflame\\copies\\0000000000001111\\copy.nif",
                                     100, 0x22, { { true, 40000, "", 0 }, { false, 0, "textures\\fx\\a.dds", 0x33 } } });
-        LM::SetPublished(proj, { LM::Role::kMuzzle, 0x4444, "", "meshes\\x.nif", 5, 0x55, {} });
+        LM::SetPublished(proj, { LM::Role::kMuzzle, 0x4444, "", "meshes\\heartofmagic\\blackflame\\copies\\0000000000004444\\copy.nif", 5, 0x55, {} });
         const bool firstFail = !LM::NoteParseFailure(proj, 0x6666, 2);
         const bool sameSession = !LM::NoteParseFailure(proj, 0x6666, 2);
         const bool terminal = LM::NoteParseFailure(proj, 0x6666, 3);
@@ -273,6 +273,88 @@ namespace SlotLedgerTests
         fs::remove_all(folder, ec);
     }
 
+    // Review fixes (P2 reviews 2026-10-18): each a regression test of a data-corruption finding
+    template <class Check>
+    void RunReviewFixes(Check&& a_check)
+    {
+        std::error_code ec;
+        const auto folder = fs::temp_directory_path(ec) / ("blackflame-cosave-check-r-" + std::to_string(::GetCurrentProcessId()));
+        fs::remove_all(folder, ec);
+        fs::create_directories(folder / "mirror", ec);
+        const auto main = folder / "HoMBF_slots.json";
+        const auto mirror = folder / "mirror" / "HoMBF_slots.0000abcd.json";
+        std::string w1;
+        std::string w2;
+
+        // D1: a save's pairs rebind slot 0x800 (ApplySave) after a backup holding the old binding was written
+        LM::Ledger ledger;
+        ledger.epoch = 77;
+        ledger.version = 1;
+        (void)LM::Assign(ledger, { { CC::SlotType::kPROJ, "Cur.esp", 1 } }, true, 1);
+        (void)LF::SaveAll(ledger, main, mirror, w1, w2);
+        Co::Slot save{ 0x800, CC::SlotType::kPROJ, "save.esp", 2 };
+        LM::ApplySave(ledger, LM::Compare(ledger, { 77, 1, { save } }), 2);
+        ledger.version = 2;
+        (void)LF::SaveAll(ledger, main, mirror, w1, w2);  // rotates: .1 holds the old binding Cur.esp
+        ledger.version = 3;
+        (void)LF::SaveAll(ledger, main, mirror, w1, w2);
+        const auto rebound = LF::LoadAll(main, mirror);
+        const auto* slot = rebound.ledger ? LM::FindSlot(*rebound.ledger, 0x800) : nullptr;
+        a_check(slot && slot->plugin == "save.esp" && slot->state == LM::State::kTombstone && rebound.conflicts.empty(),
+            "review D1: a save's rebind survives a backup with the older binding of the same epoch (the newer version wins, no "
+            "conflict; the slot stays usable)");
+
+        // the same backup from another epoch is still a conflict
+        LM::Ledger other = ledger;
+        other.epoch = 78;
+        other.version = 1;
+        LM::FindSlot(other, 0x800)->plugin = "Cur.esp";
+        std::vector<std::string> conflicts;
+        LM::Ledger mine = ledger;
+        (void)LM::Merge(mine, other, conflicts, "another epoch");
+        a_check(conflicts.size() == 1 && LM::FindSlot(mine, 0x800)->state == LM::State::kConflict,
+            "review D1: another epoch's binding of the slot stays a conflict");
+
+        // mirror of another epoch (another profile's) is not merged
+        LM::Ledger foreign;
+        foreign.epoch = 99;
+        foreign.version = 50;
+        (void)LM::Assign(foreign, { { CC::SlotType::kHAZD, "Foreign.esp", 9 } }, true, 1);
+        std::string mirrorWhy;
+        (void)LF::WriteReplacing(mirror, LM::ToJson(foreign).dump(), mirrorWhy);
+        const auto withForeign = LF::LoadAll(main, mirror);
+        a_check(withForeign.ledger && withForeign.ledger->epoch == 77 && !LM::FindSlot(*withForeign.ledger, 0xDE0),
+            "review OCR DC2: a mirror of another epoch (another profile) is not merged");
+
+        // an unreadable main is not rolled into .1
+        const auto backupBefore = LF::ReadOne(LF::BackupPath(main, 1), w1);
+        { std::ofstream cut(main, std::ios::binary | std::ios::trunc); cut << "{\"format\":1,"; }
+        ledger.version = 4;
+        (void)LF::SaveAll(ledger, main, mirror, w1, w2);
+        const auto backupAfter = LF::ReadOne(LF::BackupPath(main, 1), w1);
+        a_check(backupBefore && backupAfter && backupAfter->version == backupBefore->version,
+            "review OCR DC3: a main that does not read is not copied over the newest backup");
+
+        // lead-byte-aware plugin names (code page 932: 0x83 0x41 and 0x83 0x61 are two characters)
+        const auto cp932 = [](unsigned char a_byte) { return (a_byte >= 0x81 && a_byte <= 0x9F) || (a_byte >= 0xE0 && a_byte <= 0xFC); };
+        a_check(!LM::SamePlugin("\x83\x41.esp", "\x83\x61.esp", cp932) && LM::SamePlugin("Ab\x83\x41.ESP", "ab\x83\x41.esp", cp932),
+            "review Codex #2: plugin names fold ASCII case but never a double-byte character's trail byte");
+
+        // a published path that is not a copy path is dropped on load; an addn over 32 bits is refused
+        auto json = LM::ToJson(ledger);
+        json["slots"][0]["published"] = LM::Json::array({ { { "role", "model" }, { "key", CC::Hex16(1) }, { "path", "meshes\\..\\x.nif" },
+            { "bytes", std::uint64_t{ 1 } }, { "fnv64", CC::Hex16(2) }, { "deps", LM::Json::array() } } });
+        std::string why;
+        const auto dropped = LM::FromJson(json, why);
+        auto wide = LM::ToJson(ledger);
+        wide["slots"][0]["published"] = LM::Json::array({ { { "role", "model" }, { "key", CC::Hex16(1) },
+            { "path", "meshes\\heartofmagic\\blackflame\\copies\\0000000000000001\\copy.nif" }, { "bytes", std::uint64_t{ 1 } }, { "fnv64", CC::Hex16(2) },
+            { "deps", LM::Json::array({ { { "addn", 40000ull + (1ull << 32) } } }) } } });
+        a_check(dropped && LM::FindSlot(*dropped, 0x800)->published.empty() && !LM::FromJson(wide, why),
+            "review OCR DC4/DC7: a published path that is no copy path is dropped; an addn dep of 2^32 + 40000 is refused");
+        fs::remove_all(folder, ec);
+    }
+
     template <class Check>
     void Run(Check&& a_check)
     {
@@ -280,5 +362,6 @@ namespace SlotLedgerTests
         RunMerge(a_check);
         RunJsonAndSaves(a_check);
         RunFiles(a_check);
+        RunReviewFixes(a_check);
     }
 }

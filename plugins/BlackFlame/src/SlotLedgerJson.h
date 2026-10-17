@@ -100,7 +100,8 @@ namespace BlackFlame::SlotLedgerModel
                     return false;
                 }
                 if (const auto addn = item.find("addn"); addn != item.end()) {
-                    if (!addn->is_number_unsigned() || !CC::SlotOfAddnIndex(static_cast<std::uint32_t>(addn->get<std::uint64_t>()))) {
+                    if (!addn->is_number_unsigned() || addn->get<std::uint64_t>() > UINT32_MAX ||
+                        !CC::SlotOfAddnIndex(static_cast<std::uint32_t>(addn->get<std::uint64_t>()))) {
                         return false;
                     }
                     dep.isAddn = true;
@@ -246,7 +247,12 @@ namespace BlackFlame::SlotLedgerModel
                         object.keyText = text->get<std::string>();
                     }
                     object.bytes = p["bytes"].get<std::uint64_t>();
-                    SetPublished(entry, std::move(object));
+                    // a path the DLL would hash, register and set as a model must be a copy path (a TXST object has none);
+                    // one that is not is dropped (the slot shows its source until a new generation is published)
+                    const bool pathOk = object.role == Role::kTxst ? object.path.empty() : DataPathRule::ParseCopyPath(object.path).has_value();
+                    if (pathOk) {
+                        SetPublished(entry, std::move(object));
+                    }
                 }
             }
             if (const auto failures = item.find("parseFailures"); failures != item.end() && failures->is_array()) {

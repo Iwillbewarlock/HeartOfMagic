@@ -46,6 +46,14 @@ namespace BlackFlame::SlotLedger
 
         std::string Text(const fs::path& a_path) { return SlotLedgerFiles::PathText(a_path); }
 
+        // HoMBF_slots.<8 hex of the save folder's path>.json: profiles with their own save folders get their own mirror
+        fs::path MirrorName(const fs::path& a_saveFolder)
+        {
+            constexpr std::uint64_t kHashMask = 0xFFFFFFFFull;
+            const auto folder = SlotCoSave::LowerPluginName(Text(a_saveFolder));  // ASCII case folded, the bytes kept otherwise
+            return std::format("HoMBF_slots.{:08x}.json", CopyContract::Fnv64(folder) & kHashMask);
+        }
+
         bool EndsWithName(std::string_view a_path, std::string_view a_name)
         {
             return a_path.size() >= a_name.size() &&
@@ -74,7 +82,8 @@ namespace BlackFlame::SlotLedger
             buffer.back() = '\0';
             const std::string path(buffer.data());
             if (!ok || code != 0 || path.empty()) {
-                a_why = std::format("PrepareFileSavePath(\"{}\") failed (error {}, path '{}')", kLedgerFileName, code, path);
+                a_why = !ok ? std::format("PrepareFileSavePath(\"{}\") threw", kLedgerFileName) :
+                              std::format("PrepareFileSavePath(\"{}\") failed (error {}, path '{}')", kLedgerFileName, code, path);
                 return {};
             }
             if (!EndsWithName(path, kLedgerFileName)) {
@@ -257,6 +266,17 @@ namespace BlackFlame::SlotLedger
             g_loaded = {};
         }
 
+        void Callback(const char* a_what, void (*a_body)(SKSE::SerializationInterface*), SKSE::SerializationInterface* a_intfc)
+        {
+            try {
+                a_body(a_intfc);
+            } catch (const std::exception& e) {
+                logger::error("BlackFlame: slots: the co-save {} callback threw: {}", a_what, e.what());
+            } catch (...) {
+                logger::error("BlackFlame: slots: the co-save {} callback threw an exception of an unknown type", a_what);
+            }
+        }
+
         // The co-save beside a save named by kPreLoadGame's data: a bare name, a name with .ess, or a full path
         fs::path CoSavePathFor(std::string a_name)
         {
@@ -287,7 +307,7 @@ namespace BlackFlame::SlotLedger
         }
         g_status.saveFolder = g_status.main.parent_path();
         if (const auto log = SKSE::log::log_directory()) {
-            g_status.mirror = *log / kFolderName / kLedgerFileName;
+            g_status.mirror = *log / kFolderName / MirrorName(g_status.saveFolder);  // one mirror per save folder (profile)
         }
         const auto loaded = SlotLedgerFiles::LoadAll(g_status.main, g_status.mirror);
         for (const auto& note : loaded.notes) {
@@ -298,6 +318,18 @@ namespace BlackFlame::SlotLedger
         if (loaded.ledger) {
             g_ledger = *loaded.ledger;
             g_status.restoredFromBackup = !loaded.mainReadable;
+            if (g_status.restoredFromBackup) {
+                // main lost or refused: a backup may lack the last session's reservations, which that session's saves hold
+                UnionFromCoSaves(g_ledger);
+                if (g_status.coSavesBad > 0) {
+                    g_status.allowNew = false;
+                    g_status.why = std::format("main was not readable and {} co-save(s) could not be read whole: no new slot this "
+                                               "session (one of them may hold slots the backup lacks)", g_status.coSavesBad);
+                }
+                logger::warn("BlackFlame: slots: main not readable: restored from a backup or the mirror, and {} co-save(s) read ({} "
+                             "with a slot list, {} unreadable) for the reservations it may lack", g_status.coSavesRead,
+                    g_status.coSavesWithSlots, g_status.coSavesBad);
+            }
         } else {
             g_ledger = {};
             g_ledger.epoch = NewEpoch();
@@ -382,9 +414,10 @@ namespace BlackFlame::SlotLedger
             return;
         }
         serialization->SetUniqueID(SlotCoSave::kUniqueId);
-        serialization->SetSaveCallback(OnSave);
-        serialization->SetLoadCallback(OnLoad);
-        serialization->SetRevertCallback(OnRevert);
+        // nothing may throw out of a serialization callback (Main's guarded message handler does not cover them)
+        serialization->SetSaveCallback([](SKSE::SerializationInterface* a_intfc) { Callback("save", OnSave, a_intfc); });
+        serialization->SetLoadCallback([](SKSE::SerializationInterface* a_intfc) { Callback("load", OnLoad, a_intfc); });
+        serialization->SetRevertCallback([](SKSE::SerializationInterface* a_intfc) { Callback("revert", OnRevert, a_intfc); });
         logger::info("BlackFlame: slots: co-save registered (unique id 'HBFS', record BFSL v{})", SlotCoSave::kVersion);
     }
 
