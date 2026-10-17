@@ -6,8 +6,9 @@
 // blackflame-greybuild --from-game [<request folder>] --staging <dir> [--job-memory <MiB>] [--commit-reserve <MiB>]
 //                      [--parent-pid <pid>]   (README "Single launch: the builder (P1)")
 // The DLL makes every object's key (CopyContractKeys.h) and writes it into request v5; the builder never invents one but
-// the keys of its own child objects (texture and palette copies), which it builds from the request's options.keyPrefix
-// text and the source file's bytes as the contract's TextureKeyString / PaletteKeyString do. Every object goes to
+// the keys of its own child objects (texture and palette copies): the contract's TextureKeyString / PaletteKeyString over
+// the prefix it rebuilt and verified (VerifyKeyPrefix: options, its own exe's fnv64, the dumped palettes' hashes must give
+// options.keyPrefix exactly, else the run is refused) and the source file's bytes. Every object goes to
 // DataPathRule::CopyPath(<root>, key16, <source>) in staging, written as <path>.tmp and renamed, then one progress line
 // (GreyProgress.h). Objects (each key once):
 //   nif   forms[].key of a form with a model (its model), and muzzles[] {path, key}
@@ -30,11 +31,15 @@
 #include "GreyTexStats.h"
 #include "GreyTexture.h"
 
+#include "../../plugins/BlackFlame/src/CopyContractKeys.h"
+#include "../../plugins/BlackFlame/src/CopyContractProgress.h"
+
 #include <cstdint>
 #include <filesystem>
 #include <functional>
 #include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -49,6 +54,7 @@ namespace GreyBuild
         std::uint64_t jobMemory = kDefaultJobMemoryMiB * kBytesPerMiB;
         std::uint64_t commitReserve = kDefaultCommitReserveMiB * kBytesPerMiB;
         std::uint32_t parentPid = 0;  // 0: no parent to watch
+        MemoryProbe memoryProbe = MeasureMemory;  // the self-test's seam (a cap below what any process holds)
     };
 
     struct KeyedSpec
@@ -67,10 +73,8 @@ namespace GreyBuild
         double tint = kDefaultTint;
         double tintAdd = kDefaultTintAdd;
         PaletteMode paletteMode = PaletteMode::kDerived;
-        std::string keyPrefix;           // options.keyPrefix, as the DLL built it
-        std::uint64_t exeFnv64 = 0;      // its exe field
-        std::string grad;                // its grad and gradadd fields (16 hex, notdumped or missing)
-        std::string gradAdd;
+        std::string paletteModeText;     // options.paletteMode as written
+        std::string keyPrefix;           // options.keyPrefix, as the DLL built it (VerifyKeyPrefix at the run's start)
         std::vector<KeyedSpec> objects;  // in request order
         std::map<int, int> addnSlots;    // original ADDN index -> slot ADDN index (40000 + place)
         std::map<std::string, std::uint64_t> nifHashes;  // nifs[] the game read: Data-relative path -> fnv64
@@ -81,12 +85,13 @@ namespace GreyBuild
     /// Throws std::runtime_error naming the field (a version other than 5 included).
     [[nodiscard]] KeyedRequest LoadKeyedRequest(const std::filesystem::path& a_file);
 
-    /// A child's key string from the request's prefix text: what the contract's TextureKeyString / PaletteKeyString write
-    /// after their prefix, put after a_prefix; nullopt when the contract refuses the input
-    [[nodiscard]] std::optional<std::string> ChildTextureKeyString(const std::string& a_prefix, TextureRole a_role,
-        const std::string& a_sourcePath, std::uint64_t a_sourceFnv64);
-    [[nodiscard]] std::optional<std::string> ChildPaletteKeyString(const std::string& a_prefix, bool a_additive,
-        const std::string& a_sourcePath, std::uint64_t a_sourceFnv64);
+    /// The builder's texture role as the contract names it
+    [[nodiscard]] BlackFlame::CopyContract::TextureRole ContractRole(TextureRole a_role) noexcept;
+
+    /// One of our palettes as the key prefix states it: the dump's file hashed, else notdumped:<size> when a_received
+    /// (the DLL's prefix text) says so for a_field ("grad" / "gradadd"), else missing
+    [[nodiscard]] BlackFlame::CopyContract::FileHash PaletteState(const std::filesystem::path& a_dump, std::string_view a_path,
+        std::string_view a_received, std::string_view a_field, const std::set<std::string>& a_listed);
 
     /// What one object's build collected
     struct KeyedObject
@@ -112,7 +117,9 @@ namespace GreyBuild
     class KeyedOutputs
     {
     public:
-        KeyedOutputs(ProgressLog& a_log, Budget& a_budget, std::string a_prefix, TextureJob& a_textures);
+        /// a_listed: the request's dumped textures (TextureDataPath), the only ones read
+        KeyedOutputs(ProgressLog& a_log, Budget& a_budget, BlackFlame::CopyContract::KeyPrefix a_prefix, TextureJob& a_textures,
+            std::set<std::string> a_listed);
 
         void Begin(KeyedObject* a_object) noexcept { m_object = a_object; }
 
@@ -163,8 +170,9 @@ namespace GreyBuild
 
         ProgressLog& m_log;
         Budget& m_budget;
-        std::string m_prefix;
+        BlackFlame::CopyContract::KeyPrefix m_prefix;
         TextureJob& m_textures;
+        std::set<std::string> m_listed;
         KeyedObject* m_object = nullptr;
         std::map<std::string, Child> m_children;  // "<role|blend>|<source path>" -> what it gave
         std::map<std::string, bool> m_paletteBlends;

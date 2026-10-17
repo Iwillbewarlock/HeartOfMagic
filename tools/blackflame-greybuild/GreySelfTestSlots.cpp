@@ -174,6 +174,7 @@ namespace GreyBuild::SelfTest
             const std::uint64_t kC = 0xCCCCCCCCCCCCCCC3ull;
             const std::string pathA = *BlackFlame::DataPathRule::CopyPath(BlackFlame::DataPathRule::kTexturesRoot, CC::Hex16(kA), "a.dds");
             const std::string pathB = *BlackFlame::DataPathRule::CopyPath(BlackFlame::DataPathRule::kTexturesRoot, CC::Hex16(kB), "b.dds");
+            const std::string pathC = *BlackFlame::DataPathRule::CopyPath(BlackFlame::DataPathRule::kTexturesRoot, CC::Hex16(kC), "c.dds");
             Write(StagedFile(staging, pathA), "AAAA");
             Write(StagedFile(staging, pathA + kTempFileSuffix), "left by a killed run");
             Write(staging / "someone else's.tmp", "not ours");
@@ -184,7 +185,7 @@ namespace GreyBuild::SelfTest
             failed.outcome = CC::Outcome::kFailed;
             failed.reason = "io";
             const std::string text = LineText(FileLine(kA, pathA, 3, fnvA)) + LineText(FileLine(kA, pathA, 4, fnvA)) + "{\"v\":7}\n" +
-                                     LineText(FileLine(kB, pathB, 4, 1)) + LineText(failed) + LineText(FileLine(kC, pathA, 4, fnvA)).substr(0, 20);
+                                     LineText(FileLine(kB, pathB, 4, 1)) + LineText(failed) + LineText(FileLine(kC, pathC, 4, fnvA)).substr(0, 20);
             Write(staging / CC::kProgressFile, text);
             a_check.Check(RemoveTempFiles(staging) == 1 && std::filesystem::exists(StagedFile(staging, pathA)) &&
                               std::filesystem::exists(staging / "someone else's.tmp"),
@@ -312,9 +313,15 @@ namespace GreyBuild::SelfTest
             }
             a_check.Check(gone, "parent watch: a parent that ends is gone within 5 s");
             const auto ended = EndedProcess();
+            // Windows may keep an ended process's object a moment (another handle to it): then the watch opens it and finds it
+            // gone at once; else the pid opens nothing and NoProcess says so
             ParentWatch none;
-            a_check.Check(ended && !none.Start(*ended, kParentGraceMs, why) && !why.empty() && none.NoProcess(),
-                "parent watch: a pid that names no process does not start (the run stops at once)");
+            const bool watching = ended && none.Start(*ended, kParentGraceMs, why);
+            for (int i = 0; i < 100 && watching && !none.Gone(); ++i) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            }
+            a_check.Check(ended && (watching ? none.Gone() : none.NoProcess() && !why.empty()),
+                "parent watch: an ended parent's pid stops the run at once (no process, or one already gone)");
         }
 
         void CheckGuardAndOutcome(Checker& a_check)
@@ -358,24 +365,18 @@ namespace GreyBuild::SelfTest
         {
             const auto prefix = BlackFlame::CopyContractTest::Detail::Prefix();
             const auto text = *CC::KeyPrefixString(prefix);
-            bool same = true;
-            for (const auto role : { TextureRole::kDiffuse, TextureRole::kGlow, TextureRole::kEffectSource }) {
-                const auto contractRole = role == TextureRole::kDiffuse ? CC::TextureRole::kDiffuse :
-                                          role == TextureRole::kGlow    ? CC::TextureRole::kGlow :
-                                                                          CC::TextureRole::kEffectSource;
-                same = same && ChildTextureKeyString(text, role, "Effects/FXFire01.dds", 0x77) ==
-                                   CC::TextureKeyString(prefix, contractRole, { "Effects/FXFire01.dds", 0x77 });
-            }
-            for (const bool additive : { true, false }) {
-                same = same && ChildPaletteKeyString(text, additive, "effects\\grad.dds", 0x88) ==
-                                   CC::PaletteKeyString(prefix, additive ? CC::PaletteBlend::kAdd : CC::PaletteBlend::kNormal,
-                                       { "effects\\grad.dds", 0x88 });
-            }
-            a_check.Check(same, "child keys: built from the prefix text, byte for byte the contract's texture (3 roles) and palette (2 "
-                                "blends) key strings");
-            a_check.Check(ChildTextureKeyString(text, TextureRole::kDiffuse, "a.dds", 1) != ChildTextureKeyString(text + "x", TextureRole::kDiffuse,
-                              "a.dds", 1),
-                "child keys: another prefix text gives another string");
+            const auto mode = std::string(CC::PaletteModeText(prefix.paletteMode));
+            a_check.Check(CC::VerifyKeyPrefix(text, prefix.tint, prefix.tintAdd, mode, prefix.builderExeFnv64, prefix.gradBlackFlame,
+                              prefix.gradBlackFlameAdd) &&
+                              !CC::VerifyKeyPrefix(text, prefix.tint, prefix.tintAdd, mode, prefix.builderExeFnv64 + 1, prefix.gradBlackFlame,
+                                  prefix.gradBlackFlameAdd),
+                "key prefix: VerifyKeyPrefix takes the prefix this builder rebuilds, refuses another exe's");
+            const auto dir = std::filesystem::temp_directory_path() / "blackflame-greybuild-selftest" / "palette-state";
+            const std::string received = "format=BFK3|exe=0|tint=0|tintadd=0|palette=derived|grad=notdumped:4096|gradadd=missing";
+            a_check.Check(PaletteState(dir, BlackFlame::DataPathRule::kOurPalette, received, "grad", {}).state == CC::FileState::kNotDumped &&
+                              PaletteState(dir, BlackFlame::DataPathRule::kOurPalette, received, "grad", {}).size == 4096 &&
+                              PaletteState(dir, BlackFlame::DataPathRule::kOurPaletteAdd, received, "gradadd", {}).state == CC::FileState::kMissing,
+                "key prefix: a palette not in the dump is notdumped:<size> when the DLL says so, else missing");
         }
     }
 

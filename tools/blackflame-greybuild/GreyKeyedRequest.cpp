@@ -3,8 +3,8 @@
 // =============================================================================
 // Read on top of LoadFormsRequestFile (the v4 parts, and forms[].key):
 //   "contractVersion"  CopyContract::kContractVersion, else refused
-//   "options"          { tint, tintAdd (numbers in 0..2), paletteMode ("derived" | "godskin"), keyPrefix } - keyPrefix must be
-//                      exactly the contract's KeyPrefixString of those values and its own exe / grad / gradadd fields
+//   "options"          { tint, tintAdd (numbers in 0..2), paletteMode ("derived" | "godskin"), keyPrefix } - keyPrefix is
+//                      checked by VerifyKeyPrefix when the run starts (GreyKeyedRun.cpp: it needs the exe and the dump)
 //   "muzzles"          [{ path, key }]
 //   "addnMps"          [{ slot, path, key[, index] }]: slot an ADDN slot's local id (0xF00-0xFCF)
 //   "txst"             [{ slot, key, dodt }]: matched to the TXST form with that forms[].key
@@ -15,7 +15,9 @@
 #include "GreyJson.h"
 
 #include <algorithm>
+#include <charconv>
 #include <cmath>
+#include <system_error>
 #include <set>
 #include <sstream>
 
@@ -25,7 +27,6 @@ namespace GreyBuild
     {
         namespace CC = BlackFlame::CopyContract;
 
-        constexpr std::size_t kPrefixFields = 7;  // format, exe, tint, tintadd, palette, grad, gradadd
         constexpr std::size_t kMaxReasons = 3;    // fallback reasons a line names (then "and N more")
 
         [[nodiscard]] std::uint64_t ReadKey(const std::filesystem::path& a_file, const nlohmann::json& a_item, const std::string& a_where)
@@ -50,65 +51,6 @@ namespace GreyBuild
             return value;
         }
 
-        [[nodiscard]] std::vector<std::string> SplitFields(const std::string& a_text)
-        {
-            std::vector<std::string> fields;
-            std::string field;
-            std::istringstream in(a_text);
-            while (std::getline(in, field, '|')) {
-                fields.push_back(field);
-            }
-            return fields;
-        }
-
-        [[nodiscard]] std::optional<CC::FileHash> HashFromText(const std::string& a_text)
-        {
-            if (a_text == CC::kSentinelNotDumped) {
-                return CC::FileHash::NotDumped();
-            }
-            if (a_text == CC::kSentinelMissing) {
-                return CC::FileHash::Missing();
-            }
-            const auto value = CC::ParseHex16(a_text);
-            return value ? std::optional<CC::FileHash>(CC::FileHash::Hashed(*value)) : std::nullopt;
-        }
-
-        // The prefix text: the contract's own string of the options and its exe / grad / gradadd fields, nothing else
-        void ReadPrefix(const std::filesystem::path& a_file, KeyedRequest& a_request)
-        {
-            const auto fields = SplitFields(a_request.keyPrefix);
-            const auto value = [&](std::size_t a_at) {
-                const auto equals = fields[a_at].find('=');
-                return equals == std::string::npos ? std::string() : fields[a_at].substr(equals + 1);
-            };
-            if (fields.size() != kPrefixFields) {
-                Json::Fail(a_file, fmt::format("options.keyPrefix '{}' does not have the contract's {} fields", a_request.keyPrefix,
-                    kPrefixFields));
-            }
-            CC::KeyPrefix prefix;
-            const auto exe = CC::ParseHex16(value(1));
-            const auto grad = HashFromText(value(5));
-            const auto gradAdd = HashFromText(value(6));
-            if (!exe || !grad || !gradAdd) {
-                Json::Fail(a_file, fmt::format("options.keyPrefix '{}': exe, grad or gradadd is not 16 hex digits or a sentinel",
-                    a_request.keyPrefix));
-            }
-            prefix.builderExeFnv64 = *exe;
-            prefix.tint = a_request.tint;
-            prefix.tintAdd = a_request.tintAdd;
-            prefix.paletteMode = a_request.paletteMode == PaletteMode::kGodskin ? CC::PaletteMode::kGodskin : CC::PaletteMode::kDerived;
-            prefix.gradBlackFlame = *grad;
-            prefix.gradBlackFlameAdd = *gradAdd;
-            const auto expected = CC::KeyPrefixString(prefix);
-            if (!expected || *expected != a_request.keyPrefix) {
-                Json::Fail(a_file, fmt::format("options.keyPrefix '{}' is not the contract's prefix of options.tint, tintAdd and "
-                    "paletteMode ('{}')", a_request.keyPrefix, expected.value_or("refused")));
-            }
-            a_request.exeFnv64 = *exe;
-            a_request.grad = value(5);
-            a_request.gradAdd = value(6);
-        }
-
         void ReadOptions(const std::filesystem::path& a_file, const nlohmann::json& a_root, KeyedRequest& a_request)
         {
             if (!a_root.contains(CC::Request::kContractVersion) || !a_root[CC::Request::kContractVersion].is_number_unsigned() ||
@@ -126,8 +68,8 @@ namespace GreyBuild
                 Json::Fail(a_file, "options.paletteMode must be \"derived\" or \"godskin\"");
             }
             a_request.paletteMode = *mode == CC::PaletteMode::kGodskin ? PaletteMode::kGodskin : PaletteMode::kDerived;
+            a_request.paletteModeText = std::string(CC::PaletteModeText(*mode));
             a_request.keyPrefix = Json::ReadString(a_file, options, CC::Request::kKeyPrefix, "options");
-            ReadPrefix(a_file, a_request);
         }
 
         [[nodiscard]] std::string NifPath(const std::filesystem::path& a_file, const nlohmann::json& a_item, const std::string& a_where)
@@ -248,24 +190,6 @@ namespace GreyBuild
             }
         }
 
-        [[nodiscard]] CC::TextureRole ContractRole(TextureRole a_role) noexcept
-        {
-            switch (a_role) {
-            case TextureRole::kDiffuse: return CC::TextureRole::kDiffuse;
-            case TextureRole::kGlow: return CC::TextureRole::kGlow;
-            default: return CC::TextureRole::kEffectSource;
-            }
-        }
-
-        // The contract's string after its own prefix (computed for a fixed prefix), put after a_prefix
-        [[nodiscard]] std::optional<std::string> AfterPrefix(const std::string& a_prefix, const std::optional<std::string>& a_contract)
-        {
-            const auto own = CC::KeyPrefixString(CC::KeyPrefix{});
-            if (!own || !a_contract || a_contract->compare(0, own->size(), *own) != 0) {
-                return std::nullopt;
-            }
-            return a_prefix + a_contract->substr(own->size());
-        }
     }
 
     KeyedRequest LoadKeyedRequest(const std::filesystem::path& a_file)
@@ -287,17 +211,35 @@ namespace GreyBuild
         return request;
     }
 
-    std::optional<std::string> ChildTextureKeyString(const std::string& a_prefix, TextureRole a_role, const std::string& a_sourcePath,
-        std::uint64_t a_sourceFnv64)
+    CC::TextureRole ContractRole(TextureRole a_role) noexcept
     {
-        return AfterPrefix(a_prefix, CC::TextureKeyString(CC::KeyPrefix{}, ContractRole(a_role), { a_sourcePath, a_sourceFnv64 }));
+        switch (a_role) {
+        case TextureRole::kDiffuse: return CC::TextureRole::kDiffuse;
+        case TextureRole::kGlow: return CC::TextureRole::kGlow;
+        default: return CC::TextureRole::kEffectSource;
+        }
     }
 
-    std::optional<std::string> ChildPaletteKeyString(const std::string& a_prefix, bool a_additive, const std::string& a_sourcePath,
-        std::uint64_t a_sourceFnv64)
+    CC::FileHash PaletteState(const std::filesystem::path& a_dump, std::string_view a_path, std::string_view a_received,
+        std::string_view a_field, const std::set<std::string>& a_listed)
     {
-        return AfterPrefix(a_prefix, CC::PaletteKeyString(CC::KeyPrefix{}, a_additive ? CC::PaletteBlend::kAdd : CC::PaletteBlend::kNormal,
-                                         { a_sourcePath, a_sourceFnv64 }));
+        const auto file = a_listed.count(std::string(a_path)) != 0 ? FindSource({ a_dump }, std::string(a_path)) : std::nullopt;
+        if (file) {
+            std::string why;
+            const auto digest = DigestFile(*file, why);
+            return digest ? CC::FileHash::Hashed(digest->fnv64) : CC::FileHash::Missing();
+        }
+        const std::string marker = "|" + std::string(a_field) + "=" + std::string(CC::kSentinelNotDumped) + ":";
+        const auto at = a_received.find(marker);
+        if (at != std::string_view::npos) {
+            const auto digits = a_received.substr(at + marker.size(), a_received.find('|', at + marker.size()) - at - marker.size());
+            std::uint64_t size = 0;
+            const auto result = std::from_chars(digits.data(), digits.data() + digits.size(), size);
+            if (result.ec == std::errc() && result.ptr == digits.data() + digits.size()) {
+                return CC::FileHash::NotDumped(size);  // the DLL did not dump it; its content is never read here
+            }
+        }
+        return CC::FileHash::Missing();
     }
 
     void KeyedObject::AddDep(const std::string& a_path, std::uint64_t a_fnv64)

@@ -18,6 +18,7 @@
 // that was killed left.
 
 #include "../../plugins/BlackFlame/src/CopyContract.h"
+#include "../../plugins/BlackFlame/src/CopyContractProgress.h"
 
 #include <cstdint>
 #include <filesystem>

@@ -232,6 +232,7 @@ target_link_libraries(blackflame-greybuild PRIVATE
 
 add_executable(blackflame-cosave-check
     blackflame-cosave-check/main.cpp
+    blackflame-cosave-check/SkseFile.cpp
 )
 
 set_target_properties(blackflame-cosave-check PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)

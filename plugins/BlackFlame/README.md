@@ -860,20 +860,21 @@ proof). No 1.5.97 exe is on disk: nothing inside an SE function is verified.
 ### Single launch: the copy contract (P0): `CopyContract.h`, `SlotCoSave.h`
 
 Work in progress (branch feature/black-flame-single): grey copies built while the game runs, published at kDataLoaded
-and at the main menu before the first load, into a fixed slot pool. P0 is the contract both sides build against;
-nothing in game uses it yet. Header-only, C++17, no game types, included by the DLL and the builder like
-`DataPathRule.h`:
+and at the main menu before the first load, into a fixed slot pool. P0 is the contract both sides build against
+(contract version 2); nothing in game uses it yet. Header-only, C++17, no game types, included by the DLL and the
+builder like `DataPathRule.h`:
 
 | File | What |
 |---|---|
-| `src/CopyContract.h` | contract version; the slot pool (ESL local ids: PROJ 480 at 0x800, IPCT 480 at 0x9E0, EXPL 320 at 0xBC0, ARTO 224 at 0xD00, HAZD 192 at 0xDE0, TXST 96 at 0xEA0 - the first 72 with a DODT stub -, ADDN 208 at 0xF00 with AddOnNode index 40000 + place; 0xFD0-0xFFF reserved), FNV-1a 64, request.json v5 field names |
-| `src/CopyContractKeys.h` | the key string of every model object (form NIF, PROJ muzzle, ADDN MPS, TXST, the builder's texture and palette copies) and the ADDN table part; key16 = the string's FNV-1a 64 as 16 lower-case hex digits. The exact format is in the header and frozen by golden strings in the test table |
-| `src/CopyContractProgress.h` | the builder's `progress.jsonl` line: outcomes ok, fallback, failed (retryable), too_large and not_dumped (terminal); the writer and a parser that ignores a last line without `\n`, refuses any v but 1 and reports a bad line by number |
-| `src/CopyContractTest.h`, `CopyContractTestProgress.h` | the shared test table: `blackflame-cosave-check --self-test` and `blackflame-greybuild --self-test` both run it |
-| `src/SlotCoSave.h` | co-save record BFSL v1 (unique id `HBFS`): epoch, ledger version, plugin table, 9 bytes per slot; a read cut short or out of limits invalidates the whole record |
-| `src/DataPathRule.h` | `CopyPath` / `ParseCopyPath`: a copy lives at `meshes\|textures\heartofmagic\blackflame\copies\<key16>\<basename>`; the staging folder mirrors Data |
+| `src/CopyContract.h` | contract version; the slot pool (ESL local ids: PROJ 480 at 0x800, IPCT 480 at 0x9E0, EXPL 320 at 0xBC0, ARTO 224 at 0xD00, HAZD 192 at 0xDE0, TXST 96 at 0xEA0 - the first 72 with a DODT stub -, ADDN 208 at 0xF00 with AddOnNode index 40000 + place; 0xFD0-0xFFF reserved; every entry pinned by a static_assert), FNV-1a 64, the tint text (`TintText`, `QuantizedTint`: to_chars fixed 6 decimals, \|tint\| <= 16, -0 as 0), file states (an unset one makes every key builder refuse), request.json v5 field names |
+| `src/CopyContractKeys.h` | the key string of every model object (form NIF, PROJ muzzle, ADDN MPS, TXST, the builder's texture and palette copies) and the ADDN table part; key16 = the string's FNV-1a 64 as 16 lower-case hex digits. A not-dumped file keys as `notdumped:<size>` (content-free: the builder never reads it); a non-ASCII path as hex. `VerifyKeyPrefix`: the builder rebuilds the DLL's `keyPrefix` and refuses the run on a difference. The exact format is in the header and frozen by golden strings in the test table |
+| `src/CopyContractProgress.h` | the builder's `progress.jsonl` line: outcomes ok, fallback, failed (retryable), too_large and not_dumped (terminal); the writer and a parser that ignores a last line without `\n`, refuses any v but 1, a key given twice and any path that is not a copy path, and reports a bad line by number; `ProgressValidPrefix` for the builder before it appends |
+| `src/CopyContractTest.h`, `CopyContractTestPaths.h`, `CopyContractTestProgress.h` | the shared test table: `blackflame-cosave-check --self-test` and `blackflame-greybuild --self-test` both run it (the double-byte path cases with a fixed code page 932 rule, so they run on any system; a case the system cannot run is SKIP, not PASS) |
+| `src/SlotCoSave.h` | co-save record BFSL v1 (unique id `HBFS`): epoch, ledger version, plugin table, 9 bytes per slot; one byte sequence per snapshot (names ASCII-lower-cased, table and slots sorted); a read cut short, out of limits or not in that form invalidates the whole record; Write validates before it opens the record |
+| `src/DataPathRule.h` | `CopyPath` / `ParseCopyPath`: a copy lives at `meshes\|textures\heartofmagic\blackflame\copies\<key16>\copy.<ext>` (ASCII only; the source's own name appears only in its key string); the staging folder mirrors Data |
 
-The files P1 (builder) and P2 (DLL) fill in exist as stubs with their CMake entries already in place.
+The files P1 (builder) and P2 (DLL) fill in exist as stubs with their CMake entries already in place, among them
+`tools/blackflame-cosave-check/SkseFile.cpp` for P2's .skse file reader.
 
 ```
 blackflame-cosave-check --self-test     (BFSL on byte buffers and the contract table; exit 0 = pass)
@@ -881,7 +882,8 @@ blackflame-cosave-check --self-test     (BFSL on byte buffers and the contract t
 
 ### Single launch: the builder (P1): `GreySlotPool.h`, `GreyKeyed.h`, `GreyProgress.h`, `GreyBudget.h`
 
-Work in progress like P0: the builder side of the single launch. Nothing in game runs it until P2's DLL launches it.
+Work in progress like P0 (built against contract version 2): the builder side of the single launch. Nothing in game
+runs it until P2's DLL launches it.
 
 ```
 blackflame-greybuild --write-slot-pool <file.esp>
@@ -893,7 +895,8 @@ blackflame-greybuild --from-game [<request folder>] --staging <dir> [--job-memor
 1.70, one placeholder per slot of `CopyContract.h`'s pool table, FormIDs 0x800-0xFCF (next id 0xFD0), written through
 the copies ESL's record writer (`GreyFormsEsl.cpp`) and the ADDN record writer (`GreyEsl.cpp`), groups in Skyrim.esm's
 order TXST, PROJ, HAZD, EXPL, ADDN, IPCT, ARTO. Written beside the target, read back with both byte readers and compared
-slot by slot, then moved into place. EditorIDs `HoMBF_S_<TYPE>_<local id>`.
+slot by slot, then moved into place. EditorIDs `HoMBF_S_<TYPE>_<local id>`. The builder self-test fails when the
+committed file is not what the builder writes.
 
 | Slots | Record |
 |---|---|
@@ -910,20 +913,22 @@ index is in 40000-40207, our own (`"own": true`) left out, one `COLLIDE` line ea
 1 some.
 
 **Key mode** (`--from-game ... --staging`): reads request.json **version 5** and the dump beside it, and builds every
-object at the path its key gives - `DataPathRule::CopyPath(<root>, key16, <source>)` - inside `--staging`, which
-mirrors Data. The builder never makes a key for an object the DLL keyed; it makes only its child objects' keys (texture
-and palette copies), from `options.keyPrefix` as given plus the contract's texture / palette tail over the source file's
-own bytes, which the self-test checks byte for byte against `TextureKeyString` / `PaletteKeyString`. `--tint`,
-`--tint-add`, `--palette-mode`, `--no-textures`, `--out` and the other run options are refused (they would change an
-output without changing its key); `--job-memory`, `--commit-reserve` and `--parent-pid` exist only here.
+object at the path its key gives - `DataPathRule::CopyPath(<root>, key16, <source>)`, `...\copies\<key16>\copy.<ext>` -
+inside `--staging`, which mirrors Data. The builder never makes a key for an object the DLL keyed; it makes only its child
+objects' keys (texture and palette copies): the contract's `TextureKeyString` / `PaletteKeyString` over the verified prefix
+and the source file's own bytes. At the start it rebuilds the prefix from the options, its own exe's fnv64 and the dumped
+palettes (`GradBlackFlame.dds` / `GradBlackFlameAdd.dds`: hashed, else `notdumped:<size>` when the prefix says so, else
+`missing`) and refuses the run (exit 1, nothing written) when `VerifyKeyPrefix` says it is not `options.keyPrefix`.
+`--tint`, `--tint-add`, `--palette-mode`, `--no-textures`, `--out`, `--in` and the other run options are refused (they
+would change an output without changing its key); `--job-memory`, `--commit-reserve` and `--parent-pid` exist only here.
+Only files the request lists are read from the dump: a NIF with its fnv64 in `nifs[]` (built only when the dump's bytes
+have that fnv64), a texture `textures[]` lists as dumped (`ok`). Any other file in the dump folder (a stale one the DLL
+could not delete) counts as not there.
 
 Request v5 as this builder reads it (P2 writes it; every point below is a builder assumption):
 - every v4 field, read as `--from-game --out` reads it (so the dev mode builds a v5 request too);
-- `contractVersion` = `CopyContract::kContractVersion`, else refused;
-- `options {tint, tintAdd, paletteMode, keyPrefix}`: tints in 0..2; `keyPrefix` must be exactly the contract's
-  `KeyPrefixString` of those options and of its own exe / grad / gradadd fields. The exe field must be this exe's fnv64
-  (else exit 1: the outputs would carry keys made for another builder), and grad / gradadd the fnv64 of the dump's
-  `GradBlackFlame.dds` / `GradBlackFlameAdd.dds` (or `notdumped` / `missing` when the dump has no such file);
+- `contractVersion` (top level) = `CopyContract::kContractVersion`, else refused;
+- `options {tint, tintAdd, paletteMode, keyPrefix}`: tints in 0..2 (QuantizedTint values);
 - `forms[].key`: a form with a model is a `nif` object at that key (a form with a model and no key is refused); a TXST
   form's key is its TXST key;
 - `muzzles[] {path, key}`: `nif` objects;
@@ -931,16 +936,15 @@ Request v5 as this builder reads it (P2 writes it; every point below is a builde
   ADDN index `index`. **`index` is a builder addition to the P0 names**: without it the builder binds the one `addons`
   record whose model is `path`, and with none or several it binds nothing (warned);
 - `txst[] {slot, key, dodt}`: the TXST form whose `forms[].key` is `key` (none: a failed line); `slot` and `dodt` are
-  not read (they are in the key already);
-- `nifs[]` (v4): a NIF the request lists with its fnv64 is built only when the dump's bytes have that fnv64.
+  not read (they are in the key already).
 
 Objects and their lines (`progress.jsonl`, the contract's writer only):
 
 | Kind | Object | Line |
 |---|---|---|
 | `nif` | a form's model or a PROJ muzzle: the full-grey copy (GreyEffects, the glow rules, texture and palette copies), AddOnNode values on the slot indices | path, bytes, fnv64; deps: each texture / palette copy it names (path, fnv64) and `{"addn": n}` for every slot index it holds |
-| `mps` | an ADDN slot's grey master particle system, the same build | the same |
-| `txst` | a TXST's TX00 (diffuse, `tint`) and TX03 (glow, tint 1) copies | no path; deps: those copies |
+| `mps` | an ADDN slot's grey master particle system, the same build | the same without `{"addn"}` deps (the contract takes them on nif lines only) |
+| `txst` | a TXST's TX00 (diffuse, `tint`) and TX03 (glow, tint 1) copies | no path; deps: those copies. The contract needs at least one: a TXST with no colour slot copied is `failed` (a contract gap, reported to P0) |
 | `dds` | a texture copy (role diffuse / glow / effect) or a derived palette (add / normal), made once per run and named by every object that uses it | path, bytes, fnv64 |
 
 An AddOnNode value goes to `40000 + place` when an `addnMps` entry binds its original index; a value bound to no slot
@@ -950,52 +954,58 @@ stays (fallback), and an index of the request inside the pool's own range is nev
 |---|---|
 | `ok` | everything applied (an already grey texture at tint 1 left as it is counts as applied) |
 | `fallback` | a deterministic slot left: a texture not in the dump (the game: does not open), a format that cannot be recoloured (BC5, HDR, float), a DDS that does not decode, a source palette or our palette that does not read (today's palette kept), a TXST slot that is not ASCII, an AddOnNode value bound to no slot |
-| `failed` | retryable: an I/O error, out of memory (`bad_alloc`, `E_OUTOFMEMORY`), over the cap with what the process holds, a source NIF not in the dump or that nifly cannot read, the dump's NIF bytes not the request's |
-| `too_large` | a texture whose estimate alone is over the job memory cap: a `too_large` dds line for it (the cap in the reason, `cap=<bytes>`), and every object naming it `too_large` |
+| `failed` | retryable: an I/O error, out of memory (`bad_alloc`, `E_OUTOFMEMORY`), a locked, vanished or unreadable file (`IsTransientResult`) on any read - the glow rules' and palettes' too -, over the cap with what the process holds, a 30-minute wait for commit, a source NIF not listed, not in the dump or that nifly cannot read, the dump's NIF bytes not the request's, a TXST with no colour slot copied |
+| `too_large` | a texture whose estimate alone is over the job memory cap: a `too_large` dds line for it (the cap in the reason, `cap=<bytes>`), and every object naming it `too_large`; also an object whose glow rules or palettes would read a texture larger than the cap |
 | `not_dumped` | a texture the rule recolours that the game left out of the dump for its caps (the DLL's reason `over the ... cap`): the object `not_dumped` |
 
 A failure wins over a terminal state, a terminal state over a fallback. Failed and terminal objects leave no file. The
 key's last line is the one that counts (compaction keeps it).
 
 **progress.jsonl and staging** (`GreyProgress.h`): at the start (the DLL has read the file to its end before it launched
-the builder) leftover `*.tmp` files under staging are removed and the file is compacted - per key its last line that is
-not `failed`, an ok or fallback line only while its file is in staging with its size; bad lines and a cut last line
-dropped - into `progress.jsonl.tmp`, renamed over it. Then it is opened for appending (shared read, write and delete) and
-each finished object adds one line in one write, after its file was written as `<path>.tmp` and renamed into place. An
-object is skipped (reused, nothing rewritten) when its key's last line is ok or fallback, its file is in staging with the
-line's bytes and fnv64 and every path dep with its fnv64; or the line is terminal - `too_large` only while the cap it
-names is not below this run's (the cap is no part of the key, so a larger cap tries again). Staging is the builder's
-cache: the DLL's copy worker must copy into Data, never move, or every start rebuilds.
+the builder) leftover `*.tmp` files are removed - in staging's two copies folders and `progress.jsonl.tmp` only - and the
+file is compacted: per key its last line that is not `failed`, an ok or fallback line only while its file is in staging
+with its size; bad lines and a cut last line dropped; written to `progress.jsonl.tmp` and renamed over it. A progress
+file that is there but does not read stops the run and is left as it is. Then it is opened for appending (shared read,
+write and delete) and each finished object adds one line in one write, after its file was written as `<path>.tmp` and
+renamed into place; a line that cannot be written (a full disk) stops the run (exit 1). A reason's bytes outside ASCII
+are written as `?`. An object is skipped (reused, nothing rewritten) when its key's last line is ok or fallback, its file
+is in staging with the line's bytes and fnv64 and every path dep with its fnv64; or the line is terminal - `too_large`
+only while the cap it names is not below this run's (the cap is no part of the key, so a larger cap tries again). Staging
+is the builder's cache: the DLL's copy worker must copy into Data, never move, or every start rebuilds.
 
 **Memory** (`GreyBudget.h`): before a texture is recoloured its peak is estimated from the DDS header (the decoded RGBA
 chain x 5: RecolourDds holds the source, the decoded chain, the pixel copy for the risk measure, the grey chain and the
-encoded chain at once). Too large alone: `too_large`. The system's available commit (commit limit - commit total, not
-the job's own remainder) under `--commit-reserve` (default 4096 MiB) plus the estimate: the builder waits, a line a
-minute. The process's committed bytes plus the estimate over `--job-memory` (default 1536 MiB, the job object's cap the
-DLL sets): the texture cache the glow rules keep is cleared once and it is measured again, still over: `failed`. The
-cache is also cleared between objects past 256 MiB. One worker builds one object at a time (the texture, palette and
-progress state is not thread-safe), so `TEX_COMPRESS_PARALLEL` is only used with one worker; the DirectXTex the builder
-links has no OpenMP (vcpkg `directxtex` without default features, the exe imports no vcomp), so there are no OpenMP
-threads to cap. The process runs at `BELOW_NORMAL_PRIORITY_CLASS`.
+encoded chain at once); before the glow rules or a palette read one, the read's own peak (the file and mip 0 decoded x 2).
+Too large alone: `too_large`. The system's available commit (commit limit - commit total, not the job's own remainder)
+under `--commit-reserve` (default 4096 MiB) plus the estimate: the builder waits, a line a minute, at most 30 minutes.
+The process's committed bytes plus the estimate over `--job-memory` (default 1536 MiB, the job object's cap the DLL
+sets): before a recolour the texture cache the glow rules keep is cleared once and it is measured again (never during the
+glow rules' reads, while a texture of that cache is in use); still over: `failed`. The cache is also cleared between
+objects past 256 MiB. One worker builds one object at a time (the texture, palette and progress state is not
+thread-safe), so `TEX_COMPRESS_PARALLEL` is only used with one worker; the DirectXTex the builder links has no OpenMP
+(vcpkg `directxtex` without default features, the exe imports no vcomp), so there are no OpenMP threads to cap. The
+process runs at `BELOW_NORMAL_PRIORITY_CLASS`.
 
 **Order**: objects whose NIF names no texture the rule recolours (that the dump has) first, MPS before the rest, then by
 the texture estimate. The visual-risk check does not run in key mode (it is the dev mode's report).
 
-**`--parent-pid <pid>`**: a thread waits on that process; when it ends the run stops after the object in hand (exit 3),
-and exits anyway 30 s later. A pid that does not open stops the run at once (exit 3). Known limit: a pid Windows gave to
-another process before the builder opened it is watched instead (the job object's kill-on-close is the first guard).
+**`--parent-pid <pid>`**: a thread waits on that process; when it ends the run stops after the object in hand (exit 3)
+and is terminated 30 s later if it is still going. A pid that names no process stops the run at once (exit 3); one that
+does not open for another reason is exit 1. Known limit: a pid Windows gave to another process before the builder opened
+it is watched instead (the job object's kill-on-close is the first guard).
 
-Exit codes: 0 every object got a line (whatever its outcome), 1 the run could not go on (staging, the exe or palette
-check), 2 bad arguments or a request that is not version 5, 3 the parent is gone.
+Exit codes: 0 every object got a line (whatever its outcome), 1 the run could not go on (staging, the key prefix, a line
+not written), 2 bad arguments or a request that is not version 5, 3 the parent is gone.
 
 Checked offline: the builder self-test - the pool ESL (counts per type, the DODT split, ADDN 0xF00 = 40000 .. 0xFCF =
-40207 with flags 1, the group order, a damaged and a cut copy refused, the shipped file the same bytes), `--collisions`,
-the progress file (compaction, append, reuse, a changed file not reused), the memory rule (waits, cache clears, too large,
-the estimate of a 64 x 64 BC3), the parent watch, the object guard, the child keys, and key runs on made-up NIFs and DDS
-files (outcomes, CopyPath files with their fnv64, deps, order, the AddOnNode remap, a second run reusing everything, a
-changed copy rebuilt to the same bytes, a tiny cap, a missing palette and a BC5 decal, a texture outside the dump caps,
-refused requests, the CLI refusals, and `--from-game --out` on the same v5 request). Not checked: a request written by
-the game (P2), the job object's own limit, a real pause for commit.
+40207 with flags 1, the group order, a damaged and a cut copy refused, the committed file the same bytes), `--collisions`,
+the progress file (compaction, append, reuse, a changed file not reused, temp files only in our folders), the memory rule
+(waits, cache clears, too large, the estimate of a 64 x 64 BC3), the parent watch, the object guard and outcome order,
+`IsTransientResult`, `VerifyKeyPrefix` and the palettes' notdumped state, and key runs on made-up NIFs and DDS files
+(outcomes, CopyPath files with their fnv64, deps, order, the AddOnNode remap, a second run reusing everything, a changed
+copy rebuilt to the same bytes, a tiny cap, a missing palette and a BC5 decal, a texture outside the dump caps, refused
+requests and prefixes, the CLI refusals, and `--from-game --out` on the same v5 request). Not checked: a request written
+by the game (P2), the job object's own limit, a real pause for commit, a transient read failure.
 
 
 ## Runtimes and Address Library ids

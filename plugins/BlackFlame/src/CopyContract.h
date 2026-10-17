@@ -5,8 +5,9 @@
 // =============================================================================
 // Included by both sides like DataPathRule.h: the DLL (C++23, CommonLib) and tools/blackflame-greybuild (C++17, no
 // CommonLib), and by tools/blackflame-cosave-check. C++17, no game types. Design: single-launch-design v3.2 with the
-// v3.3 decisions. Parts:
-//   this file              contract version, the slot pool table, FNV-1a 64, hex, file states, request.json v5 names
+// v3.3 decisions. Each part includes this core and nothing includes back:
+//   this file              contract version, the slot pool table, FNV-1a 64, hex, the tint text, file states,
+//                          request.json v5 names
 //   CopyContractKeys.h     the key strings of every model object (form NIF, muzzle, ADDN MPS, TXST, texture, palette)
 //   CopyContractProgress.h the builder's progress.jsonl line: outcome states, writer and tolerant parser
 //   CopyContractTest.h     the shared test table both self-tests run (cosave-check and the builder)
@@ -15,22 +16,26 @@
 #include "DataPathRule.h"
 
 #include <array>
+#include <charconv>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <system_error>
 
 namespace BlackFlame::CopyContract
 {
-    // Bumped only when a key string, the pool table, the progress line or request v5 changes meaning
-    inline constexpr std::uint32_t kContractVersion = 1;
+    // Bumped when a key string, the copy path, the pool table, the progress line or request v5 changes meaning.
+    // 2: copies named copy.<ext>, notdumped:<size>, non-ASCII paths as <name>hex=, the ADDN table's full sort order.
+    inline constexpr std::uint32_t kContractVersion = 2;
 
     // =========================================================================
     // Slot pool (the slot ESL's local ids 0x800-0xFFF): fixed types, contiguous, never reused
     // =========================================================================
 
-    // The co-save's type byte (SlotCoSave.h); 0 is no type
+    // The co-save's type byte (SlotCoSave.h); 0 is no type. The value is the pool's place in kSlotPools + 1.
     enum class SlotType : std::uint8_t
     {
         kNone = 0,
@@ -43,7 +48,7 @@ namespace BlackFlame::CopyContract
         kADDN = 7,
     };
 
-    [[nodiscard]] inline constexpr std::string_view SlotTypeTag(SlotType a_type) noexcept
+    [[nodiscard]] constexpr std::string_view SlotTypeTag(SlotType a_type) noexcept
     {
         switch (a_type) {
             case SlotType::kPROJ: return "PROJ";
@@ -80,17 +85,25 @@ namespace BlackFlame::CopyContract
         { SlotType::kTXST, 0xEA0, kTxstWithDodt + kTxstWithoutDodt },
         { SlotType::kADDN, 0xF00, 208 },
     } };
+    inline constexpr std::size_t kTxstPoolIndex = 5;
+    inline constexpr std::size_t kAddnPoolIndex = 6;
+    inline constexpr SlotPool kAddnPool = kSlotPools[kAddnPoolIndex];
 
     inline constexpr std::uint16_t kFirstReservedLocalId = 0xFD0;  // 0xFD0-0xFFF: reserved, no slot
     inline constexpr std::uint16_t kSlotCount = 2000;
 
     namespace Detail
     {
-        [[nodiscard]] inline constexpr bool PoolsContiguous() noexcept
+        [[nodiscard]] constexpr bool PoolIs(std::size_t a_index, SlotType a_type, std::uint16_t a_first, std::uint16_t a_count) noexcept
+        {
+            return kSlotPools[a_index].type == a_type && kSlotPools[a_index].first == a_first && kSlotPools[a_index].count == a_count;
+        }
+
+        [[nodiscard]] constexpr bool PoolsContiguous() noexcept
         {
             std::uint32_t next = kFirstEslLocalId;
             for (const auto& pool : kSlotPools) {
-                if (pool.first != next || pool.count == 0 || pool.type == SlotType::kNone) {
+                if (pool.first != next || pool.count == 0) {
                     return false;
                 }
                 next = static_cast<std::uint32_t>(pool.first) + pool.count;
@@ -98,7 +111,17 @@ namespace BlackFlame::CopyContract
             return next == kFirstReservedLocalId;
         }
 
-        [[nodiscard]] inline constexpr std::uint32_t PoolTotal() noexcept
+        [[nodiscard]] constexpr bool TypesInEnumOrder() noexcept
+        {
+            for (std::size_t i = 0; i < kSlotPools.size(); ++i) {
+                if (static_cast<std::size_t>(kSlotPools[i].type) != i + 1) {
+                    return false;  // also makes every type appear once
+                }
+            }
+            return true;
+        }
+
+        [[nodiscard]] constexpr std::uint32_t PoolTotal() noexcept
         {
             std::uint32_t total = 0;
             for (const auto& pool : kSlotPools) {
@@ -108,18 +131,24 @@ namespace BlackFlame::CopyContract
         }
     }
 
-    static_assert(Detail::PoolsContiguous(), "the slot pools must follow each other from 0x800 and end at 0xFD0");
+    // The frozen table, entry by entry (a change here moves every local id a co-save names)
+    static_assert(Detail::PoolIs(0, SlotType::kPROJ, 0x800, 480), "PROJ: 480 at 0x800");
+    static_assert(Detail::PoolIs(1, SlotType::kIPCT, 0x9E0, 480), "IPCT: 480 at 0x9E0");
+    static_assert(Detail::PoolIs(2, SlotType::kEXPL, 0xBC0, 320), "EXPL: 320 at 0xBC0");
+    static_assert(Detail::PoolIs(3, SlotType::kARTO, 0xD00, 224), "ARTO: 224 at 0xD00");
+    static_assert(Detail::PoolIs(4, SlotType::kHAZD, 0xDE0, 192), "HAZD: 192 at 0xDE0");
+    static_assert(Detail::PoolIs(kTxstPoolIndex, SlotType::kTXST, 0xEA0, 96), "TXST: 96 at 0xEA0");
+    static_assert(Detail::PoolIs(kAddnPoolIndex, SlotType::kADDN, 0xF00, 208), "ADDN: 208 at 0xF00");
+    static_assert(Detail::TypesInEnumOrder(), "pool i has type value i + 1, each type once");
+    static_assert(Detail::PoolsContiguous(), "the slot pools follow each other from 0x800 and end at 0xFD0");
     static_assert(Detail::PoolTotal() == kSlotCount, "the slot pools hold 2000 slots");
     static_assert(kFirstReservedLocalId <= kLastEslLocalId + 1u, "the pools stay inside the ESL range");
-    static_assert(kSlotPools[5].type == SlotType::kTXST && kSlotPools[5].count == 96, "TXST pool: 96");
-    static_assert(kSlotPools[5].first + kTxstWithDodt == 0xEE8, "TXST: 0xEA0-0xEE7 with DODT, 0xEE8-0xEFF without");
-    static_assert(kSlotPools[6].type == SlotType::kADDN && kSlotPools[6].first == 0xF00 && kSlotPools[6].count == 208,
-        "ADDN pool: 208 at 0xF00");
+    static_assert(kSlotPools[kTxstPoolIndex].first + kTxstWithDodt == 0xEE8, "TXST: 0xEA0-0xEE7 with DODT, 0xEE8-0xEFF without");
 
-    inline constexpr std::uint32_t kAddnIndexEnd = kAddnIndexBase + kSlotPools[6].count;  // one past the last ADDN index
+    inline constexpr std::uint32_t kAddnIndexEnd = kAddnIndexBase + kAddnPool.count;  // one past the last ADDN index
 
     /// The pool a local id belongs to, or nullopt (outside 0x800-0xFCF)
-    [[nodiscard]] inline constexpr std::optional<SlotPool> PoolOf(std::uint32_t a_localId) noexcept
+    [[nodiscard]] constexpr std::optional<SlotPool> PoolOf(std::uint32_t a_localId) noexcept
     {
         for (const auto& pool : kSlotPools) {
             if (a_localId >= pool.first && a_localId < static_cast<std::uint32_t>(pool.first) + pool.count) {
@@ -130,7 +159,7 @@ namespace BlackFlame::CopyContract
     }
 
     /// The pool of a type, or nullopt for kNone or a value no pool has
-    [[nodiscard]] inline constexpr std::optional<SlotPool> PoolOfType(SlotType a_type) noexcept
+    [[nodiscard]] constexpr std::optional<SlotPool> PoolOfType(SlotType a_type) noexcept
     {
         for (const auto& pool : kSlotPools) {
             if (pool.type == a_type) {
@@ -140,35 +169,52 @@ namespace BlackFlame::CopyContract
         return std::nullopt;
     }
 
-    /// A TXST slot whose record carries the DODT stub (false for any other id)
-    [[nodiscard]] inline constexpr bool TxstHasDodt(std::uint32_t a_localId) noexcept
+    /// The type of a local id's pool, kNone outside every pool
+    [[nodiscard]] constexpr SlotType TypeOf(std::uint32_t a_localId) noexcept
     {
         const auto pool = PoolOf(a_localId);
-        return pool && pool->type == SlotType::kTXST && a_localId < static_cast<std::uint32_t>(pool->first) + kTxstWithDodt;
+        return pool ? pool->type : SlotType::kNone;
+    }
+
+    /// A TXST slot whose record carries the DODT stub (false for any other id)
+    [[nodiscard]] constexpr bool TxstHasDodt(std::uint32_t a_localId) noexcept
+    {
+        const auto& txst = kSlotPools[kTxstPoolIndex];
+        return a_localId >= txst.first && a_localId < static_cast<std::uint32_t>(txst.first) + kTxstWithDodt;
     }
 
     /// A slot ADDN's AddOnNode index (40000 + its place in the ADDN pool), or nullopt for a local id outside that pool
-    [[nodiscard]] inline constexpr std::optional<std::uint32_t> AddnIndexOfSlot(std::uint32_t a_localId) noexcept
+    [[nodiscard]] constexpr std::optional<std::uint32_t> AddnIndexOfSlot(std::uint32_t a_localId) noexcept
     {
-        const auto pool = PoolOf(a_localId);
-        if (!pool || pool->type != SlotType::kADDN) {
+        if (a_localId < kAddnPool.first || a_localId >= static_cast<std::uint32_t>(kAddnPool.first) + kAddnPool.count) {
             return std::nullopt;
         }
-        return kAddnIndexBase + (a_localId - pool->first);
+        return kAddnIndexBase + (a_localId - kAddnPool.first);
     }
 
     /// AddnIndexOfSlot back: the ADDN slot's local id, or nullopt outside 40000-40207
-    [[nodiscard]] inline constexpr std::optional<std::uint16_t> SlotOfAddnIndex(std::uint32_t a_index) noexcept
+    [[nodiscard]] constexpr std::optional<std::uint16_t> SlotOfAddnIndex(std::uint32_t a_index) noexcept
     {
         if (a_index < kAddnIndexBase || a_index >= kAddnIndexEnd) {
             return std::nullopt;
         }
-        return static_cast<std::uint16_t>(kSlotPools[6].first + (a_index - kAddnIndexBase));
+        return static_cast<std::uint16_t>(kAddnPool.first + (a_index - kAddnIndexBase));
     }
 
-    static_assert(AddnIndexOfSlot(0xF0C) == 40012u && SlotOfAddnIndex(40012) == 0xF0C, "ADDN index base 40000");
-    static_assert(!PoolOf(0x7FF) && !PoolOf(kFirstReservedLocalId) && PoolOf(0x800)->type == SlotType::kPROJ, "pool edges");
-    static_assert(TxstHasDodt(0xEE7) && !TxstHasDodt(0xEE8) && !TxstHasDodt(0xEFF + 1), "TXST DODT split");
+    static_assert(TypeOf(0x7FF) == SlotType::kNone && TypeOf(0x800) == SlotType::kPROJ && TypeOf(0x9DF) == SlotType::kPROJ &&
+                      TypeOf(0x9E0) == SlotType::kIPCT && TypeOf(0xBBF) == SlotType::kIPCT && TypeOf(0xBC0) == SlotType::kEXPL &&
+                      TypeOf(0xCFF) == SlotType::kEXPL && TypeOf(0xD00) == SlotType::kARTO && TypeOf(0xDDF) == SlotType::kARTO &&
+                      TypeOf(0xDE0) == SlotType::kHAZD && TypeOf(0xE9F) == SlotType::kHAZD && TypeOf(0xEA0) == SlotType::kTXST &&
+                      TypeOf(0xEFF) == SlotType::kTXST && TypeOf(0xF00) == SlotType::kADDN && TypeOf(0xFCF) == SlotType::kADDN &&
+                      TypeOf(0xFD0) == SlotType::kNone,
+        "every pool's first and last id, and the ids just outside");
+    static_assert(!TxstHasDodt(0xE9F) && TxstHasDodt(0xEA0) && TxstHasDodt(0xEE7) && !TxstHasDodt(0xEE8) && !TxstHasDodt(0xEFF),
+        "TXST DODT split");
+    static_assert(AddnIndexOfSlot(0xF00) == 40000u && AddnIndexOfSlot(0xF0C) == 40012u && AddnIndexOfSlot(0xFCF) == 40207u &&
+                      !AddnIndexOfSlot(0xEFF) && !AddnIndexOfSlot(0xFD0) && SlotOfAddnIndex(40000) == 0xF00 &&
+                      SlotOfAddnIndex(40207) == 0xFCF && !SlotOfAddnIndex(39999) && !SlotOfAddnIndex(40208) &&
+                      !SlotOfAddnIndex(0xFFFFFFFFu),
+        "ADDN index = 40000 + place, 40000-40207");
 
     // =========================================================================
     // FNV-1a 64 and hex (the key, file hashes, the progress line)
@@ -178,8 +224,8 @@ namespace BlackFlame::CopyContract
     inline constexpr std::uint64_t kFnvPrime = 0x100000001B3ull;
     inline constexpr std::size_t kHex16Digits = 16;
 
-    /// FNV-1a 64 over a_bytes, continuing from a_hash
-    [[nodiscard]] inline constexpr std::uint64_t Fnv64(std::string_view a_bytes, std::uint64_t a_hash = kFnvOffset) noexcept
+    /// FNV-1a 64 over a_bytes, continuing from a_hash. Every key is the hash of one delimited string, never a chain.
+    [[nodiscard]] constexpr std::uint64_t Fnv64(std::string_view a_bytes, std::uint64_t a_hash = kFnvOffset) noexcept
     {
         for (const char c : a_bytes) {
             a_hash = (a_hash ^ static_cast<unsigned char>(c)) * kFnvPrime;
@@ -203,31 +249,28 @@ namespace BlackFlame::CopyContract
     }
 
     /// Hex16 back: exactly 16 lower-case hex digits, else nullopt (upper case is refused: one spelling per key)
-    [[nodiscard]] inline std::optional<std::uint64_t> ParseHex16(std::string_view a_text) noexcept
+    [[nodiscard]] constexpr std::optional<std::uint64_t> ParseHex16(std::string_view a_text) noexcept
     {
-        if (a_text.size() != kHex16Digits) {
+        if (!DataPathRule::IsCopyKey16(a_text)) {
             return std::nullopt;
         }
         std::uint64_t value = 0;
         for (const char c : a_text) {
-            int digit = -1;
-            if (c >= '0' && c <= '9') {
-                digit = c - '0';
-            } else if (c >= 'a' && c <= 'f') {
-                digit = c - 'a' + 10;
-            }
-            if (digit < 0) {
-                return std::nullopt;
-            }
-            value = (value << 4) | static_cast<std::uint64_t>(digit);
+            value = (value << 4) | static_cast<std::uint64_t>(c <= '9' ? c - '0' : c - 'a' + 10);
         }
         return value;
     }
 
-    [[nodiscard]] inline bool IsKey16(std::string_view a_text) noexcept
+    [[nodiscard]] constexpr bool IsKey16(std::string_view a_text) noexcept
     {
-        return ParseHex16(a_text).has_value();
+        return DataPathRule::IsCopyKey16(a_text);
     }
+
+    static_assert(ParseHex16("0123456789abcdef") == 0x0123456789ABCDEFull && ParseHex16("ffffffffffffffff") == ~0ull &&
+                      !ParseHex16("0123456789ABCDEF") && !ParseHex16("0123456789abcde") && !ParseHex16("0123456789abcdef0") &&
+                      !ParseHex16("") && !ParseHex16("-123456789abcdef") && !ParseHex16("+123456789abcdef") &&
+                      !ParseHex16(" 123456789abcdef") && !ParseHex16("0x23456789abcdef") && !ParseHex16("0123456789abcdeg"),
+        "hex16: exactly 16 lower-case hex digits");
 
     /// a_bytes as lower-case hex, two digits a byte (raw record strings in a key string)
     [[nodiscard]] inline std::string LowerHex(std::string_view a_bytes)
@@ -244,39 +287,89 @@ namespace BlackFlame::CopyContract
     }
 
     // =========================================================================
+    // The tint text: the one form a tint takes in a key and in request.json
+    // =========================================================================
+
+    inline constexpr int kFloatDecimals = 6;
+    inline constexpr double kMaxAbsTint = 16.0;  // |tint| and |tintAdd| at most this (the builder takes 0..2)
+
+    /// a_value as std::to_chars fixed with 6 decimals (locale-free), "-0.000000" written as "0.000000"; nullopt for NaN,
+    /// infinity or |a_value| > kMaxAbsTint
+    [[nodiscard]] inline std::optional<std::string> TintText(double a_value)
+    {
+        if (!std::isfinite(a_value) || std::fabs(a_value) > kMaxAbsTint) {
+            return std::nullopt;
+        }
+        char buffer[32];
+        const auto result = std::to_chars(buffer, buffer + sizeof(buffer), a_value, std::chars_format::fixed, kFloatDecimals);
+        if (result.ec != std::errc()) {
+            return std::nullopt;
+        }
+        std::string text(buffer, result.ptr);
+        if (text == "-0.000000") {
+            text.erase(0, 1);
+        }
+        return text;
+    }
+
+    /// The tint the DLL writes into request.json and builds the key prefix from: TintText's decimal read back
+    /// (std::from_chars), so the JSON number, the key text and what the builder renders are one value; -0 is 0
+    [[nodiscard]] inline std::optional<double> QuantizedTint(double a_value)
+    {
+        const auto text = TintText(a_value);
+        if (!text) {
+            return std::nullopt;
+        }
+        double value = 0.0;
+        const auto result = std::from_chars(text->data(), text->data() + text->size(), value, std::chars_format::fixed);
+        if (result.ec != std::errc() || result.ptr != text->data() + text->size()) {
+            return std::nullopt;
+        }
+        return value == 0.0 ? 0.0 : value;
+    }
+
+    // =========================================================================
     // A file's state as a key string names it
     // =========================================================================
 
-    inline constexpr std::string_view kSentinelNotDumped = "notdumped";  // outside the dump caps (not read)
+    inline constexpr std::string_view kSentinelNotDumped = "notdumped";  // outside the dump caps: notdumped:<size>
     inline constexpr std::string_view kSentinelMissing = "missing";      // does not open (or its path is refused)
     inline constexpr std::string_view kSentinelNone = "none";            // no file at all (an empty TXST slot, no ADDN part)
 
+    // kUnset is the default: a FileHash nobody filled makes every key builder refuse (nullopt), never a valid key
     enum class FileState : std::uint8_t
     {
+        kUnset = 0,
         kHashed,     // read whole: fnv64 is its bytes' FNV-1a 64
-        kNotDumped,  // opened, outside the dump caps
+        kNotDumped,  // opened, outside the dump caps: only its size is known (the DLL does not read it)
         kMissing,    // does not open
     };
 
+    // notdumped: content-free by design. A same-size replacement of a not-dumped file is not detected; that is safe
+    // because the builder never reads a not-dumped file's content (--from-game reads only the dump folder, and the dump
+    // removes a texture that is no longer planned: CopyRequestDump.cpp, "One not planned has its stale copy removed").
     struct FileHash
     {
-        FileState state = FileState::kMissing;
+        FileState state = FileState::kUnset;
         std::uint64_t fnv64 = 0;  // kHashed only
+        std::uint64_t size = 0;   // kNotDumped only
 
-        [[nodiscard]] static FileHash Hashed(std::uint64_t a_fnv64) noexcept { return { FileState::kHashed, a_fnv64 }; }
-        [[nodiscard]] static FileHash NotDumped() noexcept { return { FileState::kNotDumped, 0 }; }
-        [[nodiscard]] static FileHash Missing() noexcept { return { FileState::kMissing, 0 }; }
+        [[nodiscard]] static constexpr FileHash Hashed(std::uint64_t a_fnv64) noexcept { return { FileState::kHashed, a_fnv64, 0 }; }
+        [[nodiscard]] static constexpr FileHash NotDumped(std::uint64_t a_size) noexcept { return { FileState::kNotDumped, 0, a_size }; }
+        [[nodiscard]] static constexpr FileHash Missing() noexcept { return { FileState::kMissing, 0, 0 }; }
     };
 
-    /// The value a key string writes for a_hash: 16 hex digits, "notdumped" or "missing"
-    [[nodiscard]] inline std::string FileHashText(const FileHash& a_hash)
+    /// The value a key string writes for a_hash: 16 hex digits, notdumped:<size> or missing; nullopt for kUnset or a
+    /// value no state has
+    [[nodiscard]] inline std::optional<std::string> FileHashText(const FileHash& a_hash)
     {
         switch (a_hash.state) {
             case FileState::kHashed: return Hex16(a_hash.fnv64);
-            case FileState::kNotDumped: return std::string(kSentinelNotDumped);
-            case FileState::kMissing: break;
+            case FileState::kNotDumped: return std::string(kSentinelNotDumped) + ":" + std::to_string(a_hash.size);
+            case FileState::kMissing: return std::string(kSentinelMissing);
+            case FileState::kUnset: break;
         }
-        return std::string(kSentinelMissing);
+        return std::nullopt;
     }
 
     // =========================================================================
@@ -292,12 +385,17 @@ namespace BlackFlame::CopyContract
     inline constexpr std::string_view kPaletteModeDerived = "derived";
     inline constexpr std::string_view kPaletteModeGodskin = "godskin";
 
-    [[nodiscard]] inline constexpr std::string_view PaletteModeText(PaletteMode a_mode) noexcept
+    /// "derived" or "godskin"; "" for a value no mode has (the key builders refuse it)
+    [[nodiscard]] constexpr std::string_view PaletteModeText(PaletteMode a_mode) noexcept
     {
-        return a_mode == PaletteMode::kGodskin ? kPaletteModeGodskin : kPaletteModeDerived;
+        switch (a_mode) {
+            case PaletteMode::kDerived: return kPaletteModeDerived;
+            case PaletteMode::kGodskin: return kPaletteModeGodskin;
+        }
+        return "";
     }
 
-    [[nodiscard]] inline constexpr std::optional<PaletteMode> PaletteModeFromText(std::string_view a_text) noexcept
+    [[nodiscard]] constexpr std::optional<PaletteMode> PaletteModeFromText(std::string_view a_text) noexcept
     {
         if (a_text == kPaletteModeDerived) {
             return PaletteMode::kDerived;
@@ -308,24 +406,25 @@ namespace BlackFlame::CopyContract
         return std::nullopt;
     }
 
-    // request.json v5 (the DLL writes, the builder reads). Keys in the request are key16 text.
+    // request.json v5 (the DLL writes, the builder reads). Keys in the request are key16 text. Names are const char*
+    // because both sides index nlohmann::json with them.
     namespace Request
     {
         inline constexpr std::uint32_t kVersion = 5;
+        // Top level of the request (beside "version"), not in options: kContractVersion the DLL was built with
+        inline constexpr const char* kContractVersion = "contractVersion";
         inline constexpr const char* kOptions = "options";          // { tint, tintAdd, paletteMode, keyPrefix }
-        inline constexpr const char* kTint = "tint";                // number (double as the DLL's config holds it)
-        inline constexpr const char* kTintAdd = "tintAdd";          // number
+        inline constexpr const char* kTint = "tint";                // number: QuantizedTint of the DLL's config value
+        inline constexpr const char* kTintAdd = "tintAdd";          // number: QuantizedTint as well
         inline constexpr const char* kPaletteMode = "paletteMode";  // "derived" | "godskin"
-        // P0 addition: the key prefix the DLL built (KeyPrefixString), so the builder's own child keys (textures,
-        // palettes) start from the same text instead of a reconstruction that could drift
+        // The key prefix the DLL built (KeyPrefixString). The builder rebuilds it from options, its own exe hash and the
+        // dumped palettes' hashes (VerifyKeyPrefix) and refuses the run when the two differ
         inline constexpr const char* kKeyPrefix = "keyPrefix";
-        inline constexpr const char* kContractVersion = "contractVersion";  // P0 addition: kContractVersion
-        inline constexpr const char* kFormKey = "key";              // per form: its model's key16
+        inline constexpr const char* kKey = "key";                  // a form's model key16, and each entry's below
         inline constexpr const char* kMuzzles = "muzzles";          // [{ path, key }]
         inline constexpr const char* kAddnMps = "addnMps";          // [{ slot, path, key }]
         inline constexpr const char* kTxst = "txst";                // [{ slot, key, dodt }]
         inline constexpr const char* kPath = "path";
-        inline constexpr const char* kKey = "key";
         inline constexpr const char* kSlot = "slot";                // a slot's local id (number)
         inline constexpr const char* kDodt = "dodt";                // bool
     }
@@ -335,6 +434,3 @@ namespace BlackFlame::CopyContract
     inline constexpr const char* kProgressFile = "progress.jsonl";        // in the staging folder
     inline constexpr const char* kBuilderExeRelative = "HeartOfMagic_BlackFlame\\blackflame-greybuild.exe";  // beside the DLL
 }
-
-#include "CopyContractKeys.h"
-#include "CopyContractProgress.h"

@@ -171,6 +171,7 @@ namespace GreyBuild
         std::vector<std::string> warnings;  // v3: entries skipped while reading (duplicate ADDN index)
         bool hasTextures = false;           // the request lists "textures" (a DLL that dumps them; older requests do not)
         std::map<std::string, std::string> texturesNotDumped;  // "textures" entries with ok false: path -> error
+        std::set<std::string> texturesDumped;  // "textures" entries with ok true (TextureDataPath): the dump's listed files
         bool decalTextureSets = false;      // the DLL walked decal texture sets (TXST in "forms"); older requests do not
         std::set<std::string> palettesListed;  // our two fixed palettes the request names (DataPathRule kOurPalette*)
         std::set<std::string> palettesDumped;  // of those, the ones in the dump (ok true)

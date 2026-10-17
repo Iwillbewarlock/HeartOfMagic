@@ -137,10 +137,15 @@ namespace GreyBuild::SelfTest
             (void)WriteTestTexture(dump / kDecal, a_variant == Variant::kMissingPalette ? DXGI_FORMAT_BC5_UNORM : DXGI_FORMAT_BC3_UNORM, true);
             const std::uint64_t exe = a_exe != 0 ? a_exe : Fnv(ThisExecutable());
             const std::string fxEntry = a_variant == Variant::kNotDumped ?
-                                            fmt::format(R"({{"path":"{}","size":9000000,"ok":false,"error":"over the per-texture cap (9000000 bytes > 1)"}})",
+                                            fmt::format(R"j({{"path":"{}","size":9000000,"ok":false,"error":"over the per-texture cap (9000000 bytes > 1)"}})j",
                                                 Escape(kFxFire)) :
                                             fmt::format(R"({{"path":"{}","size":1,"ok":true}})", Escape(kFxFire));
-            const std::string request = fmt::format(R"({{"version":{},"contractVersion":1,"game":"1.6.1170.0","fingerprint":"fnv64:00000000000000ab",
+            // the dump's other textures as the request lists them (a file the request does not list is never read)
+            std::string listed = fmt::format(R"(,{{"path":"{}","size":1,"ok":true}})", Escape(kDecal));
+            if (a_variant != Variant::kMissingPalette) {
+                listed += fmt::format(R"(,{{"path":"{}","size":1,"ok":true}})", Escape(kSourcePalette));
+            }
+            const std::string request = fmt::format(R"({{"version":{},"contractVersion":{},"game":"1.6.1170.0","fingerprint":"fnv64:00000000000000ab",
 "copiesPlugin":"HeartOfMagic_BlackFlame_Slots.esp","dumpComplete":true,"decalTextureSets":true,
 "options":{{"tint":{},"tintAdd":0.9,"paletteMode":"derived","keyPrefix":"{}"}},
 "forms":[
@@ -155,11 +160,11 @@ namespace GreyBuild::SelfTest
 "models":[],
 "nifs":[{{"path":"meshes\\magic\\keyed.nif","size":1,"fnv64":"{}","ok":true}},{{"path":"meshes\\magic\\plain.nif","size":1,"fnv64":"{}","ok":true}},
  {{"path":"meshes\\mps\\a.nif","size":1,"fnv64":"{}","ok":true}}],
-"textures":[{{"path":"{}","size":1,"ok":true,"own":true}},{{"path":"{}","size":1,"ok":true,"own":true}},{}],
-"excluded":[]}})", a_version, a_tint, Escape(Prefix(dump, 0.6, exe)), CC::Hex16(kModel), CC::Hex16(kPlain), CC::Hex16(kTxst),
+"textures":[{{"path":"{}","size":1,"ok":true,"own":true}},{{"path":"{}","size":1,"ok":true,"own":true}},{}{}],
+"excluded":[]}})", a_version, CC::kContractVersion, a_tint, Escape(Prefix(dump, 0.6, exe)), CC::Hex16(kModel), CC::Hex16(kPlain), CC::Hex16(kTxst),
                 CC::Hex16(kMuzzle), kSlot, CC::Hex16(kMps), CC::Hex16(kTxst), CC::Hex16(Fnv(dump / "meshes/magic/keyed.nif")),
                 CC::Hex16(Fnv(dump / "meshes/magic/plain.nif")), CC::Hex16(Fnv(dump / "meshes/mps/a.nif")),
-                Escape(std::string(Rule::kOurPalette)), Escape(std::string(Rule::kOurPaletteAdd)), fxEntry);
+                Escape(std::string(Rule::kOurPalette)), Escape(std::string(Rule::kOurPaletteAdd)), fxEntry, listed);
             Write(fixture.folder / "request.json", request);
             return fixture;
         }
@@ -170,6 +175,8 @@ namespace GreyBuild::SelfTest
             options.staging = a_fixture.staging;
             options.jobMemory = a_cap;
             options.commitReserve = 0;  // the test never waits for the system's commit
+            // nothing in use: the tiny cap test sees the estimates alone (this process holds more than 64 KiB)
+            options.memoryProbe = []() { return std::optional<MemoryState>(MemoryState{ 0, UINT64_MAX }); };
             return RunKeyed(a_fixture.folder, options);
         }
 
@@ -224,10 +231,10 @@ namespace GreyBuild::SelfTest
                     return true;
                 }
             };
-            a_check.Check(refuses("req_tint", 0.7, kGameRequestVersionKeyed) && refuses("req_v4", 0.6, kGameRequestVersion),
-                "request v5: a keyPrefix that is not the options' prefix, and a version 4 request, are refused");
+            a_check.Check(refuses("req_v4", 0.6, kGameRequestVersion), "request v5: a version 4 request is refused");
             auto text = ReadAll(fixture.folder / "request.json");
-            text.replace(text.find("\"contractVersion\":1"), 19, "\"contractVersion\":2");
+            const std::string version = fmt::format("\"contractVersion\":{}", CC::kContractVersion);
+            text.replace(text.find(version), version.size(), fmt::format("\"contractVersion\":{}", CC::kContractVersion + 1));
             Write(a_dir / "req_cv" / "request.json", text);
             bool refused = false;
             try {
@@ -341,8 +348,10 @@ namespace GreyBuild::SelfTest
             const auto* bc5 = Find(fallback, kTxst);
             a_check.Check(missingExit == 0 && fallbackModel && fallbackModel->outcome == CC::Outcome::kFallback &&
                               fallbackModel->reason.find("source palette") != std::string::npos && !fallbackModel->path.empty() && bc5 &&
-                              bc5->outcome == CC::Outcome::kFallback && bc5->reason.find("blue") != std::string::npos,
-                fmt::format("fallback: a missing source palette ('{}') and a BC5 decal ('{}') publish, slot left", fallbackModel ? fallbackModel->reason : "",
+                              bc5->outcome == CC::Outcome::kFailed && bc5->reason.find("blue") != std::string::npos &&
+                              bc5->reason.find("no colour slot") != std::string::npos,
+                fmt::format("fallback: a missing source palette publishes, slot left ('{}'); a TXST whose BC5 decal got no copy has no "
+                            "dep, which the contract's txst line needs: failed ('{}')", fallbackModel ? fallbackModel->reason : "",
                     bc5 ? bc5->reason : ""));
 
             const auto capped = MakeFixture(a_dir, "capped", a_sourceNif, Variant::kNotDumped);
@@ -357,8 +366,9 @@ namespace GreyBuild::SelfTest
             const auto wrongTint = MakeFixture(a_dir, "tint", a_sourceNif, Variant::kNormal, 0.7);
             const auto v4 = MakeFixture(a_dir, "v4", a_sourceNif, Variant::kNormal, 0.6, kGameRequestVersion);
             std::error_code ec;
-            a_check.Check(Run(otherExe) == 1 && Run(wrongTint) == 2 && Run(v4) == 2 && !std::filesystem::exists(otherExe.staging / CC::kProgressFile, ec),
-                "refused runs: keys for another builder exe (exit 1, nothing written), a prefix not of its options and a v4 request (exit 2)");
+            a_check.Check(Run(otherExe) == 1 && Run(wrongTint) == 1 && Run(v4) == 2 && !std::filesystem::exists(otherExe.staging / CC::kProgressFile, ec),
+                "refused runs: VerifyKeyPrefix refuses keys for another builder exe and a prefix not of its options (exit 1, nothing "
+                "written); a v4 request (exit 2)");
         }
 
         // This exe with a_args (output to nothing); its exit code

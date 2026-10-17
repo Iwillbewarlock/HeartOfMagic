@@ -1,8 +1,8 @@
 // =============================================================================
 // GreyKeyedTextures - key mode's child objects: texture and derived palette copies at copies\<key16>\ (GreyKeyed.h)
 // =============================================================================
-// A child's key: the request's prefix text + the contract's texture or palette tail over the source file's own bytes
-// (hashed here, from the dump). Its file: DataPathRule::CopyPath(textures\, key16, source). Each child is judged once per
+// A child's key: the contract's TextureKeyString / PaletteKeyString over the verified prefix and the source file's own
+// bytes (hashed here, from the dump). Its file: DataPathRule::CopyPath(textures\, key16, source). Each child is judged once per
 // run (by role or blend and source path); every object that names it gets its dep, fallback or failure. A texture child:
 //   not in the dump               outside the dump caps ("over the ... cap"): the object not_dumped; else fallback (left)
 //   reusable line in staging      the slot names the staged copy (no rewrite)
@@ -48,8 +48,9 @@ namespace GreyBuild
         }
     }
 
-    KeyedOutputs::KeyedOutputs(ProgressLog& a_log, Budget& a_budget, std::string a_prefix, TextureJob& a_textures) :
-        m_log(a_log), m_budget(a_budget), m_prefix(std::move(a_prefix)), m_textures(a_textures)
+    KeyedOutputs::KeyedOutputs(ProgressLog& a_log, Budget& a_budget, CC::KeyPrefix a_prefix, TextureJob& a_textures,
+        std::set<std::string> a_listed) :
+        m_log(a_log), m_budget(a_budget), m_prefix(std::move(a_prefix)), m_textures(a_textures), m_listed(std::move(a_listed))
     {}
 
     void KeyedOutputs::Fallback(const std::string& a_why)
@@ -147,7 +148,8 @@ namespace GreyBuild
     KeyedOutputs::Child KeyedOutputs::MakeTexture(const std::string& a_path, TextureRole a_role, float a_tint, const std::string& a_where)
     {
         Child child;
-        const auto source = FindSource(m_textures.inputs, a_path);
+        // the dump's listed files only (CopyRequestDump may leave a stale file it could not delete)
+        const auto source = m_listed.count(a_path) != 0 ? FindSource(m_textures.inputs, a_path) : std::nullopt;
         if (!source) {
             const auto game = m_textures.notDumped.find(a_path);
             const std::string said = game == m_textures.notDumped.end() ? std::string("not listed") : game->second;
@@ -166,7 +168,7 @@ namespace GreyBuild
         }
         std::string why;
         const auto digest = DigestFile(*source, why);
-        const auto keyText = digest ? ChildTextureKeyString(m_prefix, a_role, a_path, digest->fnv64) : std::nullopt;
+        const auto keyText = digest ? CC::TextureKeyString(m_prefix, ContractRole(a_role), { a_path, digest->fnv64 }) : std::nullopt;
         if (!keyText) {
             child.why = digest ? fmt::format("texture {}: the contract gives it no key", a_path) : why;
             return child;  // failed
@@ -248,7 +250,9 @@ namespace GreyBuild
         Child child;
         std::string why;
         const auto digest = a_source.file.empty() ? std::nullopt : DigestFile(a_source.file, why);
-        const auto keyText = digest ? ChildPaletteKeyString(m_prefix, a_additive, a_source.path, digest->fnv64) : std::nullopt;
+        const auto keyText = digest ? CC::PaletteKeyString(m_prefix, a_additive ? CC::PaletteBlend::kAdd : CC::PaletteBlend::kNormal,
+                                          { a_source.path, digest->fnv64 }) :
+                                      std::nullopt;
         if (!keyText) {
             child.why = fmt::format("source palette {}: {}", a_source.path, digest ? "the contract gives it no key" :
                                     a_source.file.empty() ? "read from no file" : why);

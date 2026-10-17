@@ -19,6 +19,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -108,6 +109,10 @@ namespace GreyBuild
         using TransientSink = std::function<void(const std::string&)>;
         void SetTransientSink(TransientSink a_sink) { m_transientSink = std::move(a_sink); }
 
+        /// Key mode: only these paths (TextureDataPath) are read from the folders - the request's dumped textures; any other
+        /// file a folder holds (a stale dump left behind) counts as not there. Our own copies (a_generated) are not limited
+        void SetListed(std::set<std::string> a_listed) { m_listed = std::move(a_listed); m_limited = true; }
+
         /// Our own shipped textures' folders for this builder: the tester package's mod root (two folders above
         /// tools\BlackFlame\blackflame-greybuild.exe) and the repository's plugins\BlackFlame\data (three above
         /// build\tools\Release\), whichever have a textures folder
@@ -129,6 +134,8 @@ namespace GreyBuild
         std::uint64_t m_cachedBytes = 0;
         ReadGate m_gate;
         TransientSink m_transientSink;
+        std::set<std::string> m_listed;
+        bool m_limited = false;
     };
 
     /// Reads a DDS as 8-bit RGBA mip 0; nullopt with a_why on a failure

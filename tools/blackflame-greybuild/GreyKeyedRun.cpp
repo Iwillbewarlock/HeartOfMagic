@@ -1,8 +1,8 @@
 // =============================================================================
 // GreyKeyedRun - key-directed outputs into staging (the run of GreyKeyed.h)
 // =============================================================================
-// Order: the request (v5) and its checks - the keys were made for this exe (options.keyPrefix's exe = this file's fnv64)
-// and for the palettes the dump holds (grad / gradadd) -, the staging folder (leftover *.tmp removed, progress.jsonl
+// Order: the request (v5) and the key prefix check (VerifyKeyPrefix: its options, this exe's fnv64 and the dump's
+// palettes give options.keyPrefix exactly), the staging folder (leftover *.tmp removed, progress.jsonl
 // compacted), every object whose line is reusable counted as a cache hit, the rest scheduled (GreyKeyed.h) and built one
 // at a time under the memory budget, each ending in one progress line. A parent that dies stops the run after the object
 // in hand.
@@ -23,6 +23,8 @@
 #include <new>
 #include <set>
 #include <tuple>
+
+#include "../../plugins/BlackFlame/src/CopyContractKeys.h"
 
 namespace GreyBuild
 {
@@ -89,14 +91,14 @@ namespace GreyBuild
             if (!copy || !IsAscii(*copy)) {  // a progress line is UTF-8 (P0: copy basenames become ASCII)
                 return Line(a_spec, CC::Outcome::kFailed, fmt::format("{}: no ASCII copy path for it", a_spec.source));
             }
+            const auto listed = a_run.request.nifHashes.find(a_spec.source);
+            if (listed == a_run.request.nifHashes.end()) {
+                return Line(a_spec, CC::Outcome::kFailed, fmt::format("{}: the request's nifs[] lists it with no fnv64 (not read from the "
+                    "dump: only the files the request lists are)", a_spec.source));
+            }
             const auto source = FindSource({ a_run.dump }, a_spec.source);
             if (!source) {
                 return Line(a_spec, CC::Outcome::kFailed, fmt::format("{} is not in the dump", a_spec.source));
-            }
-            const auto listed = a_run.request.nifHashes.find(a_spec.source);
-            if (listed == a_run.request.nifHashes.end()) {
-                return Line(a_spec, CC::Outcome::kFailed, fmt::format("{}: the request's nifs[] gives no fnv64 for it (its key cannot be "
-                    "checked against the dump)", a_spec.source));
             }
             {
                 std::string why;
@@ -142,8 +144,8 @@ namespace GreyBuild
             line.bytes = digest->bytes;
             line.fnv64 = digest->fnv64;
             line.deps = a_object.deps;
-            for (const auto index : addn) {
-                CC::ProgressDep dep;
+            for (const auto index : a_spec.kind == CC::ProgressKind::kNif ? addn : std::vector<std::uint32_t>{}) {
+                CC::ProgressDep dep;  // the contract takes {"addn"} deps on nif lines only (an MPS that names a slot: none)
                 dep.isAddn = true;
                 dep.addn = index;
                 line.deps.push_back(dep);
@@ -171,6 +173,13 @@ namespace GreyBuild
                 RetargetTextureSlot(slot, colour.role, a_run.textures, fmt::format("TXST {} {}", form.source, colour.name));
             }
             auto [outcome, reason] = ClassifyObject(a_object);
+            if (CC::IsPublishable(outcome) && a_object.deps.empty()) {
+                // The contract's ok or fallback txst line needs a texture dep (CopyContractProgress.h); a TXST with no colour
+                // slot copied cannot say so: failed, tried again (reported to the coordinator as a contract gap)
+                outcome = CC::Outcome::kFailed;
+                reason = "no colour slot got a copy" + (reason.empty() ? std::string() : " (" + reason + ")") +
+                         "; an ok or fallback txst line needs a dep";
+            }
             auto line = Line(a_spec, outcome, reason);
             if (CC::IsPublishable(outcome)) {
                 line.deps = a_object.deps;
@@ -206,7 +215,8 @@ namespace GreyBuild
                         add(a_run.request.base.forms[a_spec.form].textures[colour.slot]);
                     }
                 }
-            } else if (const auto source = FindSource({ a_run.dump }, a_spec.source)) {
+            } else if (const auto source = a_run.request.nifHashes.count(a_spec.source) != 0 ? FindSource({ a_run.dump }, a_spec.source) :
+                                                                                             std::nullopt) {
                 try {
                     nifly::NifFile nif;
                     LoadNif(nif, *source);
@@ -217,7 +227,7 @@ namespace GreyBuild
             }
             for (const auto& path : paths) {
                 std::string why;
-                const auto file = FindSource({ a_run.dump }, path);
+                const auto file = a_run.request.base.texturesDumped.count(path) != 0 ? FindSource({ a_run.dump }, path) : std::nullopt;
                 const auto estimate = file ? EstimateTextureBytes(*file, why) : std::nullopt;
                 if (estimate) {
                     a_spec.textured = true;
@@ -226,33 +236,35 @@ namespace GreyBuild
             }
         }
 
-        // The keys were made for this exe and for the palettes in the dump; false (printed) when not
-        [[nodiscard]] bool CheckPrefixFiles(const KeyedRequest& a_request, const std::filesystem::path& a_dump)
+        // The prefix rebuilt from the options, this exe's fnv64 and the dump's palettes must be the DLL's keyPrefix exactly
+        // (VerifyKeyPrefix); the verified prefix, or nullopt (printed)
+        [[nodiscard]] std::optional<CC::KeyPrefix> VerifiedPrefix(const KeyedRequest& a_request, const std::filesystem::path& a_dump)
         {
             std::string why;
             const auto exe = ThisExecutable();
             const auto own = exe.empty() ? std::nullopt : DigestFile(exe, why);
-            if (!own || own->fnv64 != a_request.exeFnv64) {
-                std::cerr << fmt::format("the request's keys were made for the builder exe {}, this one is {} ({}): its outputs would "
-                                         "carry keys that are not theirs. Run the exe the DLL hashed "
-                                         "(<DLL folder>\\HeartOfMagic_BlackFlame\\blackflame-greybuild.exe).\n",
-                    CC::Hex16(a_request.exeFnv64), own ? CC::Hex16(own->fnv64) : std::string("unreadable"), PathText(exe));
-                return false;
+            if (!own) {
+                std::cerr << fmt::format("this builder's own exe {} does not read: {}\n", PathText(exe), why);
+                return std::nullopt;
             }
-            const std::pair<std::string_view, const std::string*> palettes[] = { { Rule::kOurPalette, &a_request.grad },
-                { Rule::kOurPaletteAdd, &a_request.gradAdd } };
-            for (const auto& [path, expected] : palettes) {
-                const auto file = FindSource({ a_dump }, std::string(path));
-                const auto digest = file ? DigestFile(*file, why) : std::nullopt;
-                const std::string actual = digest ? CC::Hex16(digest->fnv64) : std::string(CC::kSentinelMissing);
-                const bool notDumped = *expected == CC::kSentinelNotDumped && !file;
-                if (actual != *expected && !notDumped) {
-                    std::cerr << fmt::format("the request keyed {} as {}, the dump holds {}: start the game again so the DLL writes "
-                                             "a new request and dump.\n", path, *expected, actual);
-                    return false;
-                }
+            CC::KeyPrefix prefix;
+            prefix.builderExeFnv64 = own->fnv64;
+            prefix.tint = a_request.tint;
+            prefix.tintAdd = a_request.tintAdd;
+            prefix.paletteMode = a_request.paletteMode == PaletteMode::kGodskin ? CC::PaletteMode::kGodskin : CC::PaletteMode::kDerived;
+            prefix.gradBlackFlame = PaletteState(a_dump, Rule::kOurPalette, a_request.keyPrefix, "grad", a_request.base.texturesDumped);
+            prefix.gradBlackFlameAdd = PaletteState(a_dump, Rule::kOurPaletteAdd, a_request.keyPrefix, "gradadd",
+                a_request.base.texturesDumped);
+            if (!CC::VerifyKeyPrefix(a_request.keyPrefix, a_request.tint, a_request.tintAdd, a_request.paletteModeText, prefix.builderExeFnv64,
+                    prefix.gradBlackFlame, prefix.gradBlackFlameAdd)) {
+                std::cerr << fmt::format("the request's keyPrefix '{}' is not what this builder rebuilds ('{}': its options, this exe "
+                                         "{} and the dump's palettes): its outputs would carry keys that are not theirs. Run the exe the DLL "
+                                         "hashed (<DLL folder>\\HeartOfMagic_BlackFlame\\blackflame-greybuild.exe) on the request and dump "
+                                         "of one start.\n", a_request.keyPrefix, CC::KeyPrefixString(prefix).value_or("refused"),
+                    PathText(exe));
+                return std::nullopt;
             }
-            return true;
+            return prefix;
         }
 
         void Tally(std::map<CC::Outcome, int>& a_counts, const CC::ProgressLine& a_line)
@@ -312,7 +324,8 @@ namespace GreyBuild
         for (const auto& line : request.warnings) {
             std::cout << "WARN  " << line << "\n";
         }
-        if (!CheckPrefixFiles(request, dump)) {
+        const auto prefix = VerifiedPrefix(request, dump);
+        if (!prefix) {
             return kFail;
         }
         const int temps = RemoveTempFiles(a_options.staging);
@@ -328,13 +341,14 @@ namespace GreyBuild
 
         // The dump only: every byte an output depends on is one the keys name (our palettes too: grad / gradadd)
         TextureSource textureSource({ dump }, request.base.texturesNotDumped, a_options.staging);
-        Budget budget(a_options.jobMemory, a_options.commitReserve, &textureSource, watch.Flag());
+        textureSource.SetListed(request.base.texturesDumped);
+        Budget budget(a_options.jobMemory, a_options.commitReserve, &textureSource, watch.Flag(), a_options.memoryProbe);
         TextureJob textures;
         textures.inputs = { dump };
         textures.out = a_options.staging;
         textures.diffuseTint = static_cast<float>(request.tint);
         textures.notDumped = request.base.texturesNotDumped;
-        KeyedOutputs outputs(log, budget, request.keyPrefix, textures);
+        KeyedOutputs outputs(log, budget, *prefix, textures, request.base.texturesDumped);
         textures.keyed = &outputs;
         // The glow rules' and palettes' reads decode too: admitted like a recolour, without clearing the cache (a TextureLook
         // may be alive); too large or over the cap makes the object too_large or failed (Codex review 1)

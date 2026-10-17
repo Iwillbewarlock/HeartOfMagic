@@ -1,7 +1,6 @@
 // =============================================================================
 // GreyProgress - progress.jsonl (append-only, flushed per line; compacted at the builder's start) and the staging files
 // =============================================================================
-
 #include "GreyProgress.h"
 
 #include "GreyBuild.h"
@@ -21,7 +20,6 @@
 #    define NOMINMAX
 #endif
 #include <windows.h>
-
 namespace GreyBuild
 {
     namespace

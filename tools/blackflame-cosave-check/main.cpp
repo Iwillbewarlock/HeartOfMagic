@@ -2,16 +2,19 @@
 // blackflame-cosave-check - offline check of Black Flame's BFSL co-save record and the copy contract
 // =============================================================================
 //   blackflame-cosave-check --self-test
-// Round-trips plugins/BlackFlame/src/SlotCoSave.h on byte buffers (normal, cut short at every byte, over the limits, an
-// empty table, the full pool) and runs CopyContract's shared test table (CopyContractTest.h; the builder's --self-test
-// runs the same table). Exit 0 when every check passes, 1 on any failure, 2 on a usage error. No game, no files.
+// Round-trips plugins/BlackFlame/src/SlotCoSave.h on byte buffers (golden bytes, cut short at every byte, every write
+// failing, over the limits, the stored form, an empty table, the full pool) and runs CopyContract's shared test table
+// (CopyContractTest.h; the builder's --self-test runs the same table). Exit 0 when every check passes, 1 on any
+// failure, 2 on a usage error. No game, no files. SkseFile.h is where P2 puts the .skse file reader.
 
 #include "../../plugins/BlackFlame/src/CopyContractTest.h"
 #include "../../plugins/BlackFlame/src/SlotCoSave.h"
+#include "SkseFile.h"
 
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <exception>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -26,23 +29,40 @@ namespace
     {
         int pass = 0;
         int fail = 0;
+        int skip = 0;
 
         void operator()(bool a_ok, const std::string& a_what)
         {
             std::cout << (a_ok ? "PASS " : "FAIL ") << a_what << "\n";
             (a_ok ? pass : fail) += 1;
         }
+
+        void Skip(const std::string& a_what)
+        {
+            std::cout << "SKIP " << a_what << "\n";
+            ++skip;
+        }
     };
 
-    // SKSE::SerializationInterface's two calls over a byte buffer
+    // SKSE::SerializationInterface's calls over a byte buffer; once a write fails, every later one fails too
     struct BufferWriter
     {
         Bytes bytes;
-        std::size_t failAt = SIZE_MAX;  // the write that crosses this size fails (a full co-save)
+        std::size_t failAt = SIZE_MAX;  // the write that would cross this size fails (a full co-save)
+        bool failed = false;
+        int opened = 0;
+        bool openFails = false;
+
+        bool OpenRecord(std::uint32_t a_type, std::uint32_t a_version)
+        {
+            ++opened;
+            return !openFails && a_type == Co::kRecordType && a_version == Co::kVersion;
+        }
 
         bool WriteRecordData(const void* a_data, std::uint32_t a_size)
         {
-            if (bytes.size() + a_size > failAt) {
+            if (failed || bytes.size() + a_size > failAt) {
+                failed = true;
                 return false;
             }
             const auto* begin = static_cast<const unsigned char*>(a_data);
@@ -62,10 +82,10 @@ namespace
             (void)WriteRecordData(a_name.data(), static_cast<std::uint32_t>(a_name.size()));
         }
 
-        void PutSlot(std::uint16_t a_slot, CC::SlotType a_type, std::uint16_t a_plugin, std::uint32_t a_source)
+        void PutSlot(std::uint16_t a_slot, std::uint8_t a_type, std::uint16_t a_plugin, std::uint32_t a_source)
         {
             Put(a_slot);
-            Put(static_cast<std::uint8_t>(a_type));
+            Put(a_type);
             Put(a_plugin);
             Put(a_source);
         }
@@ -79,7 +99,8 @@ namespace
 
         std::uint32_t ReadRecordData(void* a_buffer, std::uint32_t a_size)
         {
-            const std::size_t count = (std::min)(static_cast<std::size_t>(a_size), available - at);
+            const std::size_t end = (std::min)(available, bytes.size());
+            const std::size_t count = at >= end ? 0 : (std::min)(static_cast<std::size_t>(a_size), end - at);
             if (count > 0) {
                 std::memcpy(a_buffer, bytes.data() + at, count);
             }
@@ -110,103 +131,128 @@ namespace
         return a_snapshot.epoch == 0 && a_snapshot.ledgerVersion == 0 && a_snapshot.slots.empty();
     }
 
+    // Five slots in no order, names in mixed case (Write stores them lower-cased and sorted)
     [[nodiscard]] Co::Snapshot Normal()
     {
         Co::Snapshot snapshot;
         snapshot.epoch = 0xFEDCBA9876543210ull;
         snapshot.ledgerVersion = 7;
-        snapshot.slots = { { 0x800, CC::SlotType::kPROJ, "Skyrim.esm", 0x10FBED },
-            { 0x9E0, CC::SlotType::kIPCT, "Embers XD.esp", 0x812 },
-            { 0xEE7, CC::SlotType::kTXST, "Skyrim.esm", 0x3C9AA },
+        snapshot.slots = { { 0xFCF, CC::SlotType::kADDN, "Dawnguard.esm", 0x1ABC },
+            { 0x800, CC::SlotType::kPROJ, "Skyrim.esm", 0x10FBED },
             { 0xEE8, CC::SlotType::kTXST, std::string("\xB8\xB6\xB9\xFD.esp"), 0xFFFFFF },  // a code page's bytes
-            { 0xFCF, CC::SlotType::kADDN, "Dawnguard.esm", 0x1ABC } };
+            { 0x9E0, CC::SlotType::kIPCT, "Embers XD.esp", 0 },
+            { 0xEE7, CC::SlotType::kTXST, "Skyrim.esm", 0x3C9AA } };
         return snapshot;
+    }
+
+    [[nodiscard]] Bytes Written(const Co::Snapshot& a_snapshot)
+    {
+        BufferWriter out;
+        return Co::Write(out, a_snapshot) == Co::Result::Ok ? out.bytes : Bytes{};
     }
 
     void CheckRoundTrips(Checker& a_check)
     {
+        Co::Snapshot two;
+        two.epoch = 0x0102030405060708ull;
+        two.ledgerVersion = 3;
+        two.slots = { { 0x9E0, CC::SlotType::kIPCT, "Skyrim.esm", 0x10 }, { 0x800, CC::SlotType::kPROJ, "B.esp", 0x10FBED } };
+        const Bytes expected = { 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x03, 0x00, 0x00, 0x00, 0x02, 0x00,
+            0x05, 0x00, 'b', '.', 'e', 's', 'p', 0x0A, 0x00, 's', 'k', 'y', 'r', 'i', 'm', '.', 'e', 's', 'm', 0x02, 0x00,
+            0x00, 0x08, 0x01, 0x00, 0x00, 0xED, 0xFB, 0x10, 0x00, 0xE0, 0x09, 0x02, 0x01, 0x00, 0x10, 0x00, 0x00, 0x00 };
         BufferWriter golden;
-        Co::Snapshot one;
-        one.epoch = 0x0102030405060708ull;
-        one.ledgerVersion = 3;
-        one.slots = { { 0x800, CC::SlotType::kPROJ, "Skyrim.esm", 0x10FBED } };
-        const Bytes expected = { 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x0A, 0x00,
-            'S', 'k', 'y', 'r', 'i', 'm', '.', 'e', 's', 'm', 0x01, 0x00, 0x00, 0x08, 0x01, 0x00, 0x00, 0xED, 0xFB, 0x10, 0x00 };
-        a_check(Co::Write(golden, one) == Co::Result::Ok && golden.bytes == expected,
-            "BFSL: the golden bytes of one slot (epoch, ledger version, table, 9-byte slot, little-endian)");
+        a_check(Co::Write(golden, two) == Co::Result::Ok && golden.bytes == expected && golden.opened == 1,
+            "BFSL: the golden bytes of two slots given out of order (names lowered, table and slots sorted, little-endian)");
+        auto reordered = two;
+        std::reverse(reordered.slots.begin(), reordered.slots.end());
+        reordered.slots[0].plugin = "b.ESP";
+        a_check(Written(reordered) == expected, "BFSL: one byte sequence per snapshot (slot order and name case do not matter)");
 
-        BufferWriter normal;
         const auto snapshot = Normal();
+        const Bytes normal = Written(snapshot);
         Co::Snapshot back;
-        const std::size_t size = 8 + 4 + 2 + (2 + 10) + (2 + 13) + (2 + 13) + (2 + 8) + 2 + 5 * Co::kSlotEntrySize;
-        const bool normalOk = Co::Write(normal, snapshot) == Co::Result::Ok && normal.bytes.size() == size &&
-                              ReadAll(normal.bytes, back) == Co::Result::Ok && Same(back, snapshot);
-        a_check(normalOk,
-            "BFSL: a normal snapshot (5 slots, 4 plugins, a non-ASCII name) reads back slot for slot, " +
-                std::to_string(normal.bytes.size()) + " bytes");
+        const std::size_t size = 8 + 4 + 2 + (2 + 13) + (2 + 13) + (2 + 10) + (2 + 8) + 2 + 5 * Co::kSlotEntrySize;
+        const bool normalOk = normal.size() == size && ReadAll(normal, back) == Co::Result::Ok && Same(back, Co::Canonical(snapshot)) &&
+                              Written(back) == normal;
+        a_check(normalOk, "BFSL: a normal snapshot (5 slots, 4 plugins, a non-ASCII name, source id 0) reads back in its stored "
+                          "form and writes the same bytes again, " + std::to_string(normal.size()) + " bytes");
 
-        BufferWriter empty;
         Co::Snapshot none;
         none.epoch = 42;
         none.ledgerVersion = 1;
-        Co::Snapshot emptyBack;
-        a_check(Co::Write(empty, none) == Co::Result::Ok && empty.bytes.size() == 16 && ReadAll(empty.bytes, emptyBack) == Co::Result::Ok &&
-                    Same(emptyBack, none),
+        Co::Snapshot emptyBack = Normal();
+        const Bytes empty = Written(none);
+        a_check(empty.size() == 16 && ReadAll(empty, emptyBack) == Co::Result::Ok && Same(emptyBack, none),
             "BFSL: an empty table and no slots round-trip (16 bytes)");
 
         Co::Snapshot full;
         full.epoch = 1;
         for (const auto& pool : CC::kSlotPools) {
             for (std::uint16_t i = 0; i < pool.count; ++i) {
-                full.slots.push_back({ static_cast<std::uint16_t>(pool.first + i), pool.type, "Plugin" + std::to_string(i % 300) + ".esp",
+                full.slots.push_back({ static_cast<std::uint16_t>(pool.first + i), pool.type, "plugin" + std::to_string(i % 300) + ".esp",
                     static_cast<std::uint32_t>(0x800 + i) });
             }
         }
-        BufferWriter fullOut;
+        const Bytes fullBytes = Written(full);
         Co::Snapshot fullBack;
-        const bool fullOk = full.slots.size() == CC::kSlotCount && Co::Write(fullOut, full) == Co::Result::Ok &&
-                            ReadAll(fullOut.bytes, fullBack) == Co::Result::Ok && Same(fullBack, full);
-        a_check(fullOk,
-            "BFSL: the whole pool (2000 slots, 300 plugins) round-trips, " + std::to_string(fullOut.bytes.size()) + " bytes");
+        a_check(full.slots.size() == CC::kSlotCount && ReadAll(fullBytes, fullBack) == Co::Result::Ok && Same(fullBack, Co::Canonical(full)),
+            "BFSL: the whole pool (2000 slots, 300 plugins) round-trips, " + std::to_string(fullBytes.size()) + " bytes");
 
-        int cutRefused = 0;
-        int cutKeptNothing = 0;
-        for (std::size_t n = 0; n < normal.bytes.size(); ++n) {
-            Co::Snapshot shortLength = Normal();
-            Co::Snapshot shortStream = Normal();
-            const auto byLength = ReadBack(normal.bytes, shortLength, n, static_cast<std::uint32_t>(n));
-            const auto byStream = ReadBack(normal.bytes, shortStream, n, static_cast<std::uint32_t>(normal.bytes.size()));
-            cutRefused += byLength != Co::Result::Ok && byStream != Co::Result::Ok;
-            cutKeptNothing += IsEmpty(shortLength) && IsEmpty(shortStream);
+        int refused = 0;
+        int keptNothing = 0;
+        for (std::size_t n = 0; n < normal.size(); ++n) {
+            Co::Snapshot byLength = Normal();
+            Co::Snapshot byStream = Normal();
+            const auto length = ReadBack(normal, byLength, normal.size(), static_cast<std::uint32_t>(n));  // the record says n
+            const auto stream = ReadBack(normal, byStream, n, static_cast<std::uint32_t>(normal.size()));  // the file ends at n
+            refused += length != Co::Result::Ok && stream != Co::Result::Ok;
+            keptNothing += IsEmpty(byLength) && IsEmpty(byStream);
         }
-        const auto cuts = static_cast<int>(normal.bytes.size());
-        a_check(cutRefused == cuts && cutKeptNothing == cuts,
-            "BFSL: cut short at every byte (" + std::to_string(cuts) + " cuts, by the record length and by the stream): every "
-            "read refused, no partial snapshot (" + std::to_string(cutRefused) + " refused, " + std::to_string(cutKeptNothing) +
-            " empty)");
+        const auto cuts = static_cast<int>(normal.size());
+        a_check(cuts > 0 && refused == cuts && keptNothing == cuts,
+            "BFSL: cut short at every byte (" + std::to_string(cuts) + " cuts, by the record length alone and by the stream "
+            "alone): every read refused, no partial snapshot");
 
-        Bytes trailing = normal.bytes;
+        int writeFailures = 0;
+        for (std::size_t n = 0; n < normal.size(); ++n) {
+            BufferWriter stopping;
+            stopping.failAt = n;
+            writeFailures += Co::Write(stopping, snapshot) == Co::Result::WriteFailed;
+        }
+        BufferWriter closed;
+        closed.openFails = true;
+        a_check(writeFailures == cuts && Co::Write(closed, snapshot) == Co::Result::WriteFailed && closed.bytes.empty(),
+            "BFSL: a stream that stops taking bytes at any byte, or a record that does not open, is a failed write");
+
+        Bytes trailing = normal;
         trailing.push_back(0);
-        Co::Snapshot trailingBack;
-        Co::Snapshot versionBack;
+        Co::Snapshot trailingBack = Normal();
+        Co::Snapshot claimsMore = Normal();
         a_check(ReadAll(trailing, trailingBack) == Co::Result::TrailingBytes && IsEmpty(trailingBack) &&
-                    ReadBack(normal.bytes, versionBack, normal.bytes.size(), static_cast<std::uint32_t>(normal.bytes.size()), 2) ==
-                        Co::Result::BadVersion,
-            "BFSL: a byte after the last slot and a record version 2 are refused");
-
-        BufferWriter refused;
-        auto bad = Normal();
-        bad.slots.back().slot = 0xFD0;
-        BufferWriter full2;
-        full2.failAt = 20;
-        a_check(Co::Write(refused, bad) == Co::Result::BadSlotId && refused.bytes.empty() &&
-                    Co::Write(full2, Normal()) == Co::Result::WriteFailed,
-            "BFSL: the writer refuses an invalid snapshot before writing a byte, and reports a stream that stops taking bytes");
+                    ReadBack(normal, claimsMore, normal.size(), static_cast<std::uint32_t>(normal.size() + 4)) == Co::Result::ShortRead &&
+                    IsEmpty(claimsMore),
+            "BFSL: a byte after the last slot is refused; a record longer than the stream is a short read");
+        bool versionsRefused = true;
+        for (const std::uint32_t version : { 0u, 2u, 0xFFFFFFFFu }) {
+            Co::Snapshot out = Normal();
+            versionsRefused = versionsRefused &&
+                              ReadBack(normal, out, normal.size(), static_cast<std::uint32_t>(normal.size()), version) == Co::Result::BadVersion &&
+                              IsEmpty(out);
+        }
+        a_check(versionsRefused, "BFSL: record versions 0, 2 and 0xFFFFFFFF refused, nothing kept");
     }
 
-    // A record from a header and one table name and some slots, written field by field
+    // A record from a header, table names and slots, written field by field (types as raw bytes)
+    struct RawSlot
+    {
+        std::uint16_t slot;
+        std::uint8_t type;
+        std::uint16_t plugin;
+        std::uint32_t source;
+    };
+
     [[nodiscard]] Bytes Record(std::uint16_t a_pluginCount, const std::vector<std::string>& a_names, std::uint16_t a_slotCount,
-        const std::vector<Co::Slot>& a_slots, const std::vector<std::uint16_t>& a_pluginIndex)
+        const std::vector<RawSlot>& a_slots)
     {
         BufferWriter out;
         out.Put(std::uint64_t{ 9 });
@@ -216,15 +262,17 @@ namespace
             out.PutName(name);
         }
         out.Put(a_slotCount);
-        for (std::size_t i = 0; i < a_slots.size(); ++i) {
-            out.PutSlot(a_slots[i].slot, a_slots[i].type, a_pluginIndex[i], a_slots[i].sourceLocalId);
+        for (const auto& slot : a_slots) {
+            out.PutSlot(slot.slot, slot.type, slot.plugin, slot.source);
         }
         return out.bytes;
     }
 
     void CheckLimits(Checker& a_check)
     {
-        const Co::Slot proj{ 0x800, CC::SlotType::kPROJ, "", 0x10 };
+        const auto proj = static_cast<std::uint8_t>(CC::SlotType::kPROJ);
+        const RawSlot first{ 0x800, proj, 0, 0x10 };
+        const RawSlot second{ 0x801, proj, 1, 0x10 };
         struct Case
         {
             const char* what;
@@ -232,20 +280,28 @@ namespace
             Co::Result expected;
         };
         const std::vector<Case> cases = {
-            { "a name of 261 bytes", Record(1, { std::string(261, 'a') }, 1, { proj }, { 0 }), Co::Result::NameTooLong },
-            { "a name of 0 bytes", Record(1, { "" }, 1, { proj }, { 0 }), Co::Result::EmptyName },
-            { "2001 plugin names", Record(2001, {}, 0, {}, {}), Co::Result::TooManyPlugins },
-            { "a plugin count the record cannot hold", Record(5, { "a.esp" }, 0, {}, {}), Co::Result::CountTooLarge },
-            { "the same plugin twice", Record(2, { "a.esp", "a.esp" }, 1, { proj }, { 0 }), Co::Result::DuplicatePlugin },
-            { "2001 slots", Record(1, { "a.esp" }, 2001, {}, {}), Co::Result::TooManySlots },
-            { "a slot count the record cannot hold", Record(1, { "a.esp" }, 2, { proj }, { 0 }), Co::Result::CountTooLarge },
-            { "slot 0x7FF", Record(1, { "a.esp" }, 1, { { 0x7FF, CC::SlotType::kPROJ, "", 1 } }, { 0 }), Co::Result::BadSlotId },
-            { "slot 0xFD0 (reserved)", Record(1, { "a.esp" }, 1, { { 0xFD0, CC::SlotType::kADDN, "", 1 } }, { 0 }), Co::Result::BadSlotId },
-            { "a PROJ slot typed IPCT", Record(1, { "a.esp" }, 1, { { 0x800, CC::SlotType::kIPCT, "", 1 } }, { 0 }), Co::Result::TypeMismatch },
-            { "type byte 0", Record(1, { "a.esp" }, 1, { { 0x800, CC::SlotType::kNone, "", 1 } }, { 0 }), Co::Result::TypeMismatch },
-            { "plugin index 1 of 1", Record(1, { "a.esp" }, 1, { proj }, { 1 }), Co::Result::BadPluginIndex },
-            { "source id 0x1000000", Record(1, { "a.esp" }, 1, { { 0x800, CC::SlotType::kPROJ, "", 0x1000000 } }, { 0 }), Co::Result::BadSourceId },
-            { "one slot twice", Record(1, { "a.esp" }, 2, { proj, proj }, { 0, 0 }), Co::Result::DuplicateSlot },
+            { "a name of 261 bytes", Record(1, { std::string(261, 'a') }, 1, { first }), Co::Result::NameTooLong },
+            { "a name of 0 bytes", Record(1, { "" }, 1, { first }), Co::Result::EmptyName },
+            { "a name with a capital", Record(1, { "A.esp" }, 1, { first }), Co::Result::NotLowerCase },
+            { "a name with a NUL", Record(1, { std::string("a.esp\0x", 7) }, 1, { first }), Co::Result::BadNameByte },
+            { "a name with a '\\'", Record(1, { "a\\b.esp" }, 1, { first }), Co::Result::BadNameByte },
+            { "2001 plugin names", Record(2001, {}, 0, {}), Co::Result::TooManyPlugins },
+            { "a plugin count the record cannot hold", Record(5, { "a.esp" }, 0, {}), Co::Result::CountTooLarge },
+            { "the same plugin twice", Record(2, { "a.esp", "a.esp" }, 2, { first, second }), Co::Result::DuplicatePlugin },
+            { "a table out of order", Record(2, { "b.esp", "a.esp" }, 2, { first, second }), Co::Result::TableNotSorted },
+            { "a name no slot uses", Record(2, { "a.esp", "b.esp" }, 1, { first }), Co::Result::UnusedPlugin },
+            { "2001 slots", Record(1, { "a.esp" }, 2001, {}), Co::Result::TooManySlots },
+            { "a slot count the record cannot hold", Record(1, { "a.esp" }, 2, { first }), Co::Result::CountTooLarge },
+            { "slot 0x7FF", Record(1, { "a.esp" }, 1, { { 0x7FF, proj, 0, 1 } }), Co::Result::BadSlotId },
+            { "slot 0xFD0 (reserved)", Record(1, { "a.esp" }, 1, { { 0xFD0, 7, 0, 1 } }), Co::Result::BadSlotId },
+            { "a PROJ slot typed IPCT", Record(1, { "a.esp" }, 1, { { 0x800, 2, 0, 1 } }), Co::Result::TypeMismatch },
+            { "type byte 0", Record(1, { "a.esp" }, 1, { { 0x800, 0, 0, 1 } }), Co::Result::TypeMismatch },
+            { "type byte 8", Record(1, { "a.esp" }, 1, { { 0x800, 8, 0, 1 } }), Co::Result::TypeMismatch },
+            { "type byte 0xFF", Record(1, { "a.esp" }, 1, { { 0x800, 0xFF, 0, 1 } }), Co::Result::TypeMismatch },
+            { "plugin index 1 of 1", Record(1, { "a.esp" }, 1, { { 0x800, proj, 1, 1 } }), Co::Result::BadPluginIndex },
+            { "source id 0x1000000", Record(1, { "a.esp" }, 1, { { 0x800, proj, 0, 0x1000000 } }), Co::Result::BadSourceId },
+            { "one slot twice", Record(1, { "a.esp" }, 2, { first, first }), Co::Result::DuplicateSlot },
+            { "slots out of order", Record(2, { "a.esp", "b.esp" }, 2, { second, first }), Co::Result::SlotsNotSorted },
         };
         for (const auto& c : cases) {
             Co::Snapshot out = Normal();
@@ -253,9 +309,36 @@ namespace
             a_check(result == c.expected && IsEmpty(out), std::string("BFSL: refused, ") + c.what + " (" + Co::Describe(result) + ")");
         }
         Co::Snapshot ok;
-        a_check(ReadAll(Record(1, { std::string(260, 'a') }, 1, { proj }, { 0 }), ok) == Co::Result::Ok && ok.slots.size() == 1 &&
+        a_check(ReadAll(Record(1, { std::string(260, 'a') }, 1, { first }), ok) == Co::Result::Ok && ok.slots.size() == 1 &&
                     ok.slots[0].plugin.size() == 260,
             "BFSL: a name of exactly 260 bytes is taken");
+
+        struct WriteCase
+        {
+            const char* what;
+            Co::Slot slot;
+            Co::Result expected;
+        };
+        const std::vector<WriteCase> writes = {
+            { "an empty name", { 0x800, CC::SlotType::kPROJ, "", 1 }, Co::Result::EmptyName },
+            { "a name of 261 bytes", { 0x800, CC::SlotType::kPROJ, std::string(261, 'a'), 1 }, Co::Result::NameTooLong },
+            { "a name with ':'", { 0x800, CC::SlotType::kPROJ, "a:b.esp", 1 }, Co::Result::BadNameByte },
+            { "slot 0xFD0", { 0xFD0, CC::SlotType::kADDN, "a.esp", 1 }, Co::Result::BadSlotId },
+            { "a wrong type", { 0x800, CC::SlotType::kIPCT, "a.esp", 1 }, Co::Result::TypeMismatch },
+            { "source id 0x1000000", { 0x800, CC::SlotType::kPROJ, "a.esp", 0x1000000 }, Co::Result::BadSourceId },
+        };
+        for (const auto& w : writes) {
+            BufferWriter out;
+            auto snapshot = Normal();
+            snapshot.slots.push_back(w.slot);
+            const auto result = Co::Write(out, snapshot);
+            a_check(result == w.expected && out.bytes.empty() && out.opened == 0,
+                std::string("BFSL: the writer refuses ") + w.what + " before opening the record (" + Co::Describe(result) + ")");
+        }
+        BufferWriter twice;
+        auto duplicate = Normal();
+        duplicate.slots.push_back(duplicate.slots.front());
+        a_check(Co::Write(twice, duplicate) == Co::Result::DuplicateSlot && twice.opened == 0, "BFSL: the writer refuses one slot twice");
     }
 }
 
@@ -269,10 +352,15 @@ int main(int a_argc, char** a_argv)
     try {
         CheckRoundTrips(check);
         CheckLimits(check);
-        BlackFlame::CopyContractTest::Run([&](bool a_ok, const std::string& a_what) { check(a_ok, "contract: " + a_what); });
+        const int contract = BlackFlame::CopyContractTest::Run(
+            [&](bool a_ok, const std::string& a_what) { check(a_ok, "contract: " + a_what); },
+            [&](const std::string& a_what) { check.Skip("contract: " + a_what); });
+        check(contract >= BlackFlame::CopyContractTest::kMinChecks,
+            "contract: the shared table ran " + std::to_string(contract) + " checks (at least " +
+                std::to_string(BlackFlame::CopyContractTest::kMinChecks) + ")");
     } catch (const std::exception& e) {
         check(false, std::string("exception: ") + e.what());
     }
-    std::cout << "SELF-TEST pass=" << check.pass << " fail=" << check.fail << "\n";
+    std::cout << "SELF-TEST pass=" << check.pass << " fail=" << check.fail << " skip=" << check.skip << "\n";
     return check.fail == 0 ? 0 : 1;
 }

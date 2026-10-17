@@ -303,7 +303,9 @@ namespace GreyBuild
             if (!m_generated.empty() && StartsWith(*path, kTextureCopyRoot)) {
                 folders = { m_generated };  // Y14, Z11: one of our copies is this run's, read from the output only
             }
-            if (const auto file = FindSource(folders, *path)) {
+            const bool generated = folders.size() == 1 && !m_generated.empty() && folders.front() == m_generated;
+            const bool listed = !m_limited || generated || m_listed.count(*path) != 0;
+            if (const auto file = listed ? FindSource(folders, *path) : std::nullopt) {
                 if (m_gate && !m_gate(*file, look.why)) {
                     look.transient = true;
                     return look;  // over the memory budget: not read, not cached (the object says why)

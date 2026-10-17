@@ -152,11 +152,11 @@ namespace GreyBuild
                             a_request.palettesDumped.insert(*path);
                         }
                     }
-                    if (!ok) {
-                        const auto path = TextureDataPath(Utf8ToAnsi(Json::ReadString(a_file, textures[i], "path", where)));
-                        if (path) {
-                            a_request.texturesNotDumped[*path] = Json::ReadOptionalString(a_file, textures[i], "error", where);
-                        }
+                    const auto path = TextureDataPath(Utf8ToAnsi(Json::ReadString(a_file, textures[i], "path", where)));
+                    if (path && ok) {
+                        a_request.texturesDumped.insert(*path);
+                    } else if (path) {
+                        a_request.texturesNotDumped[*path] = Json::ReadOptionalString(a_file, textures[i], "error", where);
                     }
                 }
             }
