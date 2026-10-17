@@ -13,13 +13,16 @@
 //   plugin count u16, then per plugin: name length u16 (1..260), name bytes,
 //   slot count u16 (at most 2000), then per slot 9 bytes: slot local id u16, type u8 (CopyContract::SlotType),
 //   plugin index u16 (into the table), source local id u32 (at most 0xFFFFFF).
-// One byte sequence per snapshot: plugin names are stored ASCII-lower-cased (A-Z only; bytes >= 0x80 untouched), the
-// table strictly ascending (sorted, no name twice), every name used by a slot, the slots strictly ascending by slot id.
-// A name holds no byte < 0x20 and none of <>"|?*:/\. Write puts any snapshot into that form (Canonical) and checks it;
-// Read refuses a record that is not in it.
+// One byte sequence per snapshot: plugin names are stored ASCII-lower-cased, the table strictly ascending (sorted, no
+// name twice), every name used by a slot, the slots strictly ascending by slot id. A name holds no byte < 0x20 and none
+// of <>"|?*:/\. Both rules read the name as the system code page's text (a lead-byte rule, IsLeadByte by default, a
+// fixed one in the tests): a double-byte character's trail byte is never lowered and never checked against those
+// characters (code page 932: 0x95 0x5C and 0x83 0x41 are kept as they are; only single bytes A-Z are lowered).
+// Write puts any snapshot into that form (Canonical) and checks it; Read refuses a record that is not in it.
 // Unlike SLPR, a read cut short or out of limits invalidates the whole record: Read returns the failure and leaves the
 // snapshot empty, never a partial list. The record must end exactly after the last slot.
-// Write validates before it opens the record (OpenRecord), so a snapshot it refuses leaves no empty BFSL record behind.
+// Write opens the record itself (OpenRecord(kRecordType, kVersion)) after the checks pass: the caller must not open it
+// first, and a snapshot Write refuses leaves no empty BFSL record behind.
 
 #include "CopyContract.h"
 
@@ -130,20 +133,17 @@ namespace BlackFlame::SlotCoSave
         return "unknown";
     }
 
-    /// A-Z to a-z, every other byte as it is (bytes >= 0x80 untouched)
-    [[nodiscard]] inline std::string LowerPluginName(std::string_view a_name)
+    /// A-Z to a-z outside double-byte characters (a_isLeadByte), every other byte as it is: a trail byte is never lowered
+    template <class LeadByte = DataPathRule::SystemLeadByte>
+    [[nodiscard]] std::string LowerPluginName(std::string_view a_name, LeadByte a_isLeadByte = {})
     {
-        std::string out(a_name);
-        for (char& c : out) {
-            if (c >= 'A' && c <= 'Z') {
-                c = static_cast<char>(c - 'A' + 'a');
-            }
-        }
-        return out;
+        return DataPathRule::LowerAsciiWith(a_name, a_isLeadByte);
     }
 
-    /// The rules a stored plugin name follows
-    [[nodiscard]] inline Result CheckStoredName(std::string_view a_name) noexcept
+    /// The rules a stored plugin name follows; a double-byte character's trail byte (a_isLeadByte) is part of its
+    /// character, so it is neither a capital nor one of <>"|?*:/\ (code page 932: 0x95 0x5C is one character)
+    template <class LeadByte = DataPathRule::SystemLeadByte>
+    [[nodiscard]] Result CheckStoredName(std::string_view a_name, LeadByte a_isLeadByte = {}) noexcept
     {
         if (a_name.empty()) {
             return Result::EmptyName;
@@ -151,7 +151,12 @@ namespace BlackFlame::SlotCoSave
         if (a_name.size() > kMaxPluginName) {
             return Result::NameTooLong;
         }
-        for (const char c : a_name) {
+        for (std::size_t i = 0; i < a_name.size(); ++i) {
+            const char c = a_name[i];
+            if (a_isLeadByte(static_cast<unsigned char>(c)) && i + 1 < a_name.size()) {
+                ++i;  // the trail byte: any value
+                continue;
+            }
             if (static_cast<unsigned char>(c) < DataPathRule::kFirstPrintable || kNameForbidden.find(c) != std::string_view::npos) {
                 return Result::BadNameByte;
             }
@@ -163,7 +168,8 @@ namespace BlackFlame::SlotCoSave
     }
 
     /// The checks one slot of a stored snapshot passes
-    [[nodiscard]] inline Result ValidateSlot(const Slot& a_slot) noexcept
+    template <class LeadByte = DataPathRule::SystemLeadByte>
+    [[nodiscard]] Result ValidateSlot(const Slot& a_slot, LeadByte a_isLeadByte = {}) noexcept
     {
         const auto pool = CopyContract::PoolOf(a_slot.slot);
         if (!pool) {
@@ -172,20 +178,21 @@ namespace BlackFlame::SlotCoSave
         if (pool->type != a_slot.type) {
             return Result::TypeMismatch;
         }
-        if (const auto name = CheckStoredName(a_slot.plugin); name != Result::Ok) {
+        if (const auto name = CheckStoredName(a_slot.plugin, a_isLeadByte); name != Result::Ok) {
             return name;
         }
         return a_slot.sourceLocalId > kMaxSourceLocalId ? Result::BadSourceId : Result::Ok;
     }
 
     /// A stored snapshot: at most kMaxSlots slots, each valid, strictly ascending by slot id
-    [[nodiscard]] inline Result Validate(const Snapshot& a_snapshot)
+    template <class LeadByte = DataPathRule::SystemLeadByte>
+    [[nodiscard]] Result Validate(const Snapshot& a_snapshot, LeadByte a_isLeadByte = {})
     {
         if (a_snapshot.slots.size() > kMaxSlots) {
             return Result::TooManySlots;
         }
         for (std::size_t i = 0; i < a_snapshot.slots.size(); ++i) {
-            if (const auto result = ValidateSlot(a_snapshot.slots[i]); result != Result::Ok) {
+            if (const auto result = ValidateSlot(a_snapshot.slots[i], a_isLeadByte); result != Result::Ok) {
                 return result;
             }
             if (i > 0 && a_snapshot.slots[i].slot <= a_snapshot.slots[i - 1].slot) {
@@ -195,12 +202,13 @@ namespace BlackFlame::SlotCoSave
         return Result::Ok;
     }
 
-    /// a_snapshot in its stored form: names ASCII-lower-cased, slots sorted by slot id (equal ids keep their order, so
-    /// Validate still sees a duplicate)
-    [[nodiscard]] inline Snapshot Canonical(Snapshot a_snapshot)
+    /// a_snapshot in its stored form: names ASCII-lower-cased (LowerPluginName), slots sorted by slot id (equal ids keep
+    /// their order, so Validate still sees a duplicate)
+    template <class LeadByte = DataPathRule::SystemLeadByte>
+    [[nodiscard]] Snapshot Canonical(Snapshot a_snapshot, LeadByte a_isLeadByte = {})
     {
         for (auto& slot : a_snapshot.slots) {
-            slot.plugin = LowerPluginName(slot.plugin);
+            slot.plugin = LowerPluginName(slot.plugin, a_isLeadByte);
         }
         std::stable_sort(a_snapshot.slots.begin(), a_snapshot.slots.end(),
             [](const Slot& a, const Slot& b) { return a.slot < b.slot; });
@@ -258,13 +266,13 @@ namespace BlackFlame::SlotCoSave
         };
     }
 
-    /// Canonical(a_snapshot) validated, then OpenRecord(kRecordType, kVersion) and the record's data; nothing opened or
-    /// written when the check fails
-    template <class Stream>
-    [[nodiscard]] Result Write(Stream& a_out, const Snapshot& a_snapshot)
+    /// Canonical(a_snapshot) validated, then OpenRecord(kRecordType, kVersion) - called here: the caller must not open the
+    /// record first - and the record's data; nothing opened or written when the check fails
+    template <class Stream, class LeadByte = DataPathRule::SystemLeadByte>
+    [[nodiscard]] Result Write(Stream& a_out, const Snapshot& a_snapshot, LeadByte a_isLeadByte = {})
     {
-        const Snapshot stored = Canonical(a_snapshot);
-        if (const auto result = Validate(stored); result != Result::Ok) {
+        const Snapshot stored = Canonical(a_snapshot, a_isLeadByte);
+        if (const auto result = Validate(stored, a_isLeadByte); result != Result::Ok) {
             return result;
         }
         std::vector<std::string> table;
@@ -293,8 +301,9 @@ namespace BlackFlame::SlotCoSave
     }
 
     /// One BFSL record of a_version and a_length bytes (GetNextRecordInfo's). Anything but Ok leaves a_snapshot empty.
-    template <class Stream>
-    [[nodiscard]] Result Read(Stream& a_in, std::uint32_t a_version, std::uint32_t a_length, Snapshot& a_snapshot)
+    template <class Stream, class LeadByte = DataPathRule::SystemLeadByte>
+    [[nodiscard]] Result Read(Stream& a_in, std::uint32_t a_version, std::uint32_t a_length, Snapshot& a_snapshot,
+        LeadByte a_isLeadByte = {})
     {
         a_snapshot = Snapshot{};
         if (a_version != kVersion) {
@@ -329,7 +338,7 @@ namespace BlackFlame::SlotCoSave
             if (!in.Bytes(name.data(), length)) {
                 return Result::ShortRead;
             }
-            if (const auto check = CheckStoredName(name); check != Result::Ok) {
+            if (const auto check = CheckStoredName(name, a_isLeadByte); check != Result::Ok) {
                 return check;
             }
             if (!table.empty() && name <= table.back()) {
@@ -367,7 +376,7 @@ namespace BlackFlame::SlotCoSave
         if (const auto end = in.End(); end != Result::Ok) {
             return end;
         }
-        if (const auto result = Validate(read); result != Result::Ok) {
+        if (const auto result = Validate(read, a_isLeadByte); result != Result::Ok) {
             return result;
         }
         if (std::find(used.begin(), used.end(), false) != used.end()) {

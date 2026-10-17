@@ -66,6 +66,31 @@ namespace BlackFlame::DataPathRule
         return out;
     }
 
+    /// IsLeadByte as a callable type: the default lead-byte rule of every *With function's caller (the system code page)
+    struct SystemLeadByte
+    {
+        [[nodiscard]] bool operator()(unsigned char a_byte) const noexcept { return IsLeadByte(a_byte); }
+    };
+
+    /// ASCII A-Z to a-z, nothing else changed; a double-byte character (lead byte by a_isLeadByte) is copied as it is, so a
+    /// trail byte that looks like a capital is never lowered (code page 932: 0x83 0x41 stays, it does not become 0x83 0x61)
+    template <class LeadByte>
+    [[nodiscard]] std::string LowerAsciiWith(std::string_view a_text, LeadByte a_isLeadByte)
+    {
+        std::string out(a_text);
+        for (std::size_t i = 0; i < out.size(); ++i) {
+            const auto c = static_cast<unsigned char>(out[i]);
+            if (a_isLeadByte(c) && i + 1 < out.size()) {
+                ++i;
+                continue;
+            }
+            if (c >= 'A' && c <= 'Z') {
+                out[i] = static_cast<char>(c - 'A' + 'a');
+            }
+        }
+        return out;
+    }
+
     /// A path text as a Data-relative path under a_root ("meshes\" or "textures\"): LowerSlashes, leading and repeated '\'
     /// folded, every leading "data\" and a_root dropped and one a_root put in front. A double-byte character of the system
     /// code page (lead byte by IsDBCSLeadByteEx) is copied as it is and counts as one character of its path token: its

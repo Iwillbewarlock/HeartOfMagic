@@ -161,8 +161,22 @@ namespace BlackFlame::CopyContractTest
             return Takes(Line(txstHead, "", "", "", a_outcome, ",\"deps\":[" + a_deps + "]"));
         };
         a_check(txst("{\"path\":\"" + std::string(kDdsJson) + "\",\"fnv64\":\"0000000000000001\"}") && !txst("") &&
-                    !txst("{\"path\":\"" + std::string(kNifJson) + "\",\"fnv64\":\"0000000000000001\"}") && txst("", "\"failed\""),
-            "progress: an ok txst line needs at least one dep, all textures (a failed one none)");
+                    !txst("{\"path\":\"" + std::string(kNifJson) + "\",\"fnv64\":\"0000000000000001\"}") && txst("", "\"failed\"") &&
+                    txst("", "\"fallback\"") &&
+                    !txst("{\"path\":\"" + std::string(kNifJson) + "\",\"fnv64\":\"0000000000000001\"}", "\"fallback\""),
+            "progress: an ok txst line needs at least one dep, all textures; a fallback one (both colour slots kept) or a "
+            "failed one may have none");
+        CC::ProgressLine keptSlots;
+        keptSlots.kind = CC::ProgressKind::kTxst;
+        keptSlots.key = 0x0123456789ABCDEFull;
+        keptSlots.outcome = CC::Outcome::kFallback;
+        keptSlots.reason = "TX00 and TX03 kept";
+        const auto keptText = CC::WriteProgressLine(keptSlots);
+        auto keptOk = keptSlots;
+        keptOk.outcome = CC::Outcome::kOk;
+        a_check(keptText && CC::ParseProgress(*keptText).lines.size() == 1 && CC::ParseProgress(*keptText).lines[0] == keptSlots &&
+                    !CC::WriteProgressLine(keptOk),
+            "progress: a fallback txst line with no texture dep is written and read back; as ok it is refused");
         a_check(!Takes(Line(kHead, std::string("\"") + kNifJson + "\"", "1", "\"0000000000000001\"", "\"ok\"",
                     ",\"pad\":\"" + std::string(CC::kMaxProgressLine, 'a') + "\"")) &&
                     !Takes("{" + kHead + ",\"outcome\":\"failed\",\"reason\":\"\xFF\xFE\"}"),

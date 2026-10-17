@@ -28,7 +28,7 @@
 
 namespace BlackFlame::CopyContractTest
 {
-    inline constexpr int kMinChecks = 53;  // every check the table makes today but the one that may SKIP (the locale)
+    inline constexpr int kMinChecks = 56;  // every check the table makes today but the one that may SKIP (the locale)
 
     namespace Detail
     {
@@ -138,15 +138,16 @@ namespace BlackFlame::CopyContractTest
         void CheckTints(Check& a_check, Skip& a_skip)
         {
             a_check(CC::TintText(0.6) == "0.600000" && CC::TintText(0.6000006) == "0.600001" && CC::TintText(0.6000004) == "0.600000" &&
-                        CC::TintText(-0.0) == "0.000000" && CC::TintText(-0.0000001) == "0.000000" && CC::TintText(16.0) == "16.000000" &&
-                        CC::TintText(-16.0) == "-16.000000",
-                "tint: to_chars fixed 6 decimals rounds (0.6000006 -> 0.600001), -0 and -0.0000001 as 0.000000, +-16 taken");
-            a_check(!CC::TintText(16.000001) && !CC::TintText(std::numeric_limits<double>::quiet_NaN()) &&
+                        CC::TintText(-0.0) == "0.000000" && CC::TintText(0.0) == "0.000000" && CC::TintText(2.0) == "2.000000" &&
+                        CC::TintText(1.9999996) == "2.000000",
+                "tint: to_chars fixed 6 decimals rounds (0.6000006 -> 0.600001), -0 as 0.000000, the ends 0 and 2 taken");
+            a_check(!CC::TintText(2.0000001) && !CC::TintText(-0.0000001) && !CC::TintText(-1.0) && !CC::TintText(16.0) &&
+                        !CC::TintText(std::numeric_limits<double>::quiet_NaN()) &&
                         !CC::TintText(std::numeric_limits<double>::infinity()) && !CC::TintText(-std::numeric_limits<double>::infinity()) &&
                         !CC::TintText(1e300),
-                "tint: |tint| > 16, NaN and +-inf refused");
+                "tint: outside the builder's 0..2 (checked before rounding), NaN and +-inf refused");
             bool roundTrips = true;
-            for (const double value : { 0.6, 0.9, 0.1234567, 1.9999995, 0.0000005, -0.4, 2.0 }) {
+            for (const double value : { 0.6, 0.9, 0.1234567, 1.9999995, 0.0000005, 2.0 }) {
                 const auto quantized = CC::QuantizedTint(value);
                 roundTrips = roundTrips && quantized && CC::TintText(*quantized) == CC::TintText(value) &&
                              CC::QuantizedTint(*quantized) == quantized;
@@ -349,6 +350,24 @@ namespace BlackFlame::CopyContractTest
                         Differs(CC::AddnTableString(slashes, Pairs()), CC::AddnTableString(backslashes, Pairs())) &&
                         Contains(CC::AddnTableString(bar, Pairs()), "|srchex=787c736c6f743d312e657370:2f|"),
                 "key: a local id over 0xFFFFFF or an unset model hash refused; plugin names ASCII-lowered only, odd ones as srchex");
+            auto doubled = Addns();
+            const auto addnCopies = Addns();
+            doubled.insert(doubled.end(), addnCopies.begin(), addnCopies.begin() + 2);
+            auto doubledPairs = Pairs();
+            doubledPairs.push_back(Pairs().back());
+            a_check(CC::AddnTableString(doubled, doubledPairs) == kGoldenAddn,
+                "key: an ADDN record or ledger pair listed twice goes in once (the golden string)");
+            // Code page 932: 0x83 0x41 (katakana a) and 0x83 0x61 (small ya) are two names; a single-byte A is lowered
+            const auto table932 = [&](std::string a_plugin) {
+                auto records = Addns();
+                records.front().plugin = std::move(a_plugin);
+                return CC::AddnTableString(records, Pairs(), PathDetail::IsCp932Lead);
+            };
+            const auto a932 = table932(std::string("\x83\x41.ESP"));
+            a_check(Differs(a932, table932(std::string("\x83\x61.esp"))) && Same(a932, table932(std::string("\x83\x41.esp"))) &&
+                        Contains(a932, "|srchex=83412e657370:2f|") &&
+                        Differs(table932(std::string("\x95\x5c.esp")), table932(std::string("\x83\x5c.esp"))),
+                "key: plugin names keep a double-byte character's trail byte (code page 932: 83 41 and 83 61 differ, 95 5C kept)");
             a_check(CC::HasValueNodeBlock(std::string_view("\x0b\0\0\0BSValueNode", 15)) &&
                         !CC::HasValueNodeBlock(std::string_view("\x0b\0\0\0BSValueNod", 14)) && !CC::HasValueNodeBlock("NiNode"),
                 "key: the BSValueNode byte scan (a cut name is no match)");

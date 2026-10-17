@@ -17,7 +17,11 @@
 //     a txst line has no path (its files are its deps);
 //   - an ok or fallback line of nif, dds or mps has its path, bytes > 0 and fnv64 != 0 (FNV-1a 64 of any real file);
 //   - every dep is exactly one of {path, fnv64} (path a copy path, fnv64 != 0) or {addn} (an ADDN slot index,
-//     40000-40207, on nif lines only); an ok or fallback txst line has at least one dep, all under textures\.
+//     40000-40207, on nif lines only); a txst line's deps are all under textures\: an ok one has at least one, a fallback
+//     one may have none. The builder's TXST copy (GreyFormsTxst.h, GreyFormsTextureSets.cpp) always writes the record and
+//     gives TX00 / TX03 a grey copy only when one was made: a slot whose texture is missing, already grey at tint 1,
+//     non-ASCII or failed keeps the source's text, so a TXST with both colour slots kept has no texture dep. That is a
+//     deterministic result: the builder writes it as fallback (reason: the slots kept), never as ok.
 // Unknown extra fields are ignored. Shipped files (our two palettes) are never deps: they are always present.
 // A last line without '\n' is a write cut short and is ignored (cutLastLine; whitespace after the last '\n' is not a
 // cut line). Before appending, the builder drops such a tail (ProgressValidPrefix), so a cut line never fuses with the
@@ -343,8 +347,8 @@ namespace BlackFlame::CopyContract
             const bool texturesOnly = std::all_of(line.deps.begin(), line.deps.end(), [](const ProgressDep& a_dep) {
                 return !a_dep.isAddn && DataPathRule::StartsWith(a_dep.path, DataPathRule::kTexturesRoot);
             });
-            if (line.deps.empty() || !texturesOnly) {
-                return { std::nullopt, "an ok or fallback txst line needs at least one dep, all textures" };
+            if ((line.outcome == Outcome::kOk && line.deps.empty()) || !texturesOnly) {
+                return { std::nullopt, "a txst line's deps are textures, and an ok one has at least one" };
             }
         }
         return { std::move(line), "" };
