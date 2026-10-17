@@ -37,11 +37,10 @@ namespace BlackFlame::FileProbe
         std::string MeshData(const Placeholder& a_p) { return std::string(kMeshesRoot) + MeshRecord(a_p); }
         std::string TextureData(const Placeholder& a_p) { return std::format("{}{}{}.dds", kTexturesRoot, kFolder, a_p.stem); }
 
-        bool BothExist(const Run& a_run, const Placeholder& a_p)
+        bool Exists(const Run& a_run, const std::string& a_dataPath)
         {
             std::error_code ec;
-            return std::filesystem::exists(a_run.data / MeshData(a_p), ec) &&
-                   std::filesystem::exists(a_run.data / TextureData(a_p), ec);
+            return std::filesystem::exists(a_run.data / a_dataPath, ec);
         }
 
         void SkipMesh(Run& a_run, const Placeholder& a_p, const std::string& a_why) { SetVerdict(a_run, a_p.meshTest, "SKIPPED", a_why); }
@@ -121,34 +120,42 @@ namespace BlackFlame::FileProbe
 
     void NoteEPlaceholders(Run& a_run)
     {
-        a_run.eExisted = BothExist(a_run, kE);
-        a_run.eSameExisted = BothExist(a_run, kESame);
-        Note(a_run, std::format("E: at startup keep_e in place: {}; keep_es in place: {} (a first run writes them for the next)",
-            a_run.eExisted ? "yes" : "no", a_run.eSameExisted ? "yes" : "no"));
+        // Per resource: each E test needs only its own placeholder (E-texture-same is never run, so keep_es.dds is not checked)
+        a_run.eMeshExisted = Exists(a_run, MeshData(kE));
+        a_run.eTextureExisted = Exists(a_run, TextureData(kE));
+        a_run.eSameMeshExisted = Exists(a_run, MeshData(kESame));
+        const auto yesNo = [](bool a_value) { return a_value ? "yes" : "no"; };
+        Note(a_run, std::format("E: at startup keep_e.nif in place: {}, keep_e.dds: {}, keep_es.nif: {} (a first run writes them "
+                                "for the next)", yesNo(a_run.eMeshExisted), yesNo(a_run.eTextureExisted), yesNo(a_run.eSameMeshExisted)));
     }
 
     void TestE(Run& a_run)
     {
-        // E (different-size overwrite)
-        if (!a_run.eExisted) {
-            SkipMesh(a_run, kE, "placeholder did not exist at startup (written for the next run)");
-            SetVerdict(a_run, kE.textureTest, "SKIPPED", "placeholder did not exist at startup (written for the next run)");
-        } else if (!a_run.eNif || !a_run.eDds) {
+        constexpr const char* kNoPlaceholder = "placeholder did not exist at startup (written for the next run)";
+        // E-mesh and E-texture each on their own placeholder and their own overwrite file (Codex P2 on 41d7fb3)
+        if (!a_run.eMeshExisted) {
+            SkipMesh(a_run, kE, kNoPlaceholder);
+        } else if (!a_run.eNif) {
             SkipMesh(a_run, kE, "no different-size overwrite NIF was found");
-            SetVerdict(a_run, kE.textureTest, "SKIPPED", "no different-dimension overwrite DDS was found");
         } else {
             std::string newRoot;
             if (!a_run.eNifRecord.empty()) {
                 (void)DemandNamed(a_run.eNifRecord, newRoot);  // the overwrite NIF at its own path: the new content's root
             }
             JudgeMesh(a_run, kE, *a_run.eNif, newRoot);
+        }
+        if (!a_run.eTextureExisted) {
+            SetVerdict(a_run, kE.textureTest, "SKIPPED", kNoPlaceholder);
+        } else if (!a_run.eDds) {
+            SetVerdict(a_run, kE.textureTest, "SKIPPED", "no different-dimension overwrite DDS was found");
+        } else {
             OverwriteTexture(a_run, kE, *a_run.eDds);
         }
         // E-same (same-size / same-dimension overwrite): the mesh by root name; the texture cannot be told apart by size
         SetVerdict(a_run, kESame.textureTest, "SKIPPED",
             "a same-dimension overwrite cannot be told from the placeholder by GetTexture (size is the only signal)");
-        if (!a_run.eSameExisted) {
-            SkipMesh(a_run, kESame, "placeholder did not exist at startup (written for the next run)");
+        if (!a_run.eSameMeshExisted) {
+            SkipMesh(a_run, kESame, kNoPlaceholder);
         } else if (!a_run.eSameNif) {
             SkipMesh(a_run, kESame, "no same-size different-content NIF was found");
         } else {

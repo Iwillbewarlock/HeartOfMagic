@@ -99,8 +99,9 @@ namespace BlackFlame::FileProbe
         std::string inFlightState = "not started";
         std::optional<std::pair<std::string, DemandResult>> loadingMesh;  // FQ1: C-mesh-loading's Demand, judged with the textures
         // Test E (FileProbeTestE.cpp): the keep_e* placeholders the last run left, overwritten this session
-        bool eExisted = false;      // keep_e.nif and keep_e.dds both present at startup (else E is the first run: SKIPPED)
-        bool eSameExisted = false;  // keep_es.nif and keep_es.dds both present at startup
+        bool eMeshExisted = false;      // keep_e.nif present at startup (else E-mesh: first run, SKIPPED)
+        bool eTextureExisted = false;   // keep_e.dds present at startup (else E-texture SKIPPED)
+        bool eSameMeshExisted = false;  // keep_es.nif present at startup (else E-mesh-same SKIPPED)
         std::string sourceNifRoot;  // the source NIF's root node name + child count (the placeholders' old content)
         std::string eNifRecord;     // the overwrite NIF's own record path, Demanded for its root name (the new content)
         std::string eNifRoot;       // its root node name + child count
