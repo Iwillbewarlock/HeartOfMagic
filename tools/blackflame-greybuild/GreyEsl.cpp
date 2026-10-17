@@ -25,8 +25,6 @@ namespace GreyBuild
     {
         using namespace EslIo;
 
-        constexpr std::int16_t kBoundMin = -32768;         // OBND as Skyrim.esm's MPS ADDN records
-        constexpr std::int16_t kBoundMax = 32767;
         constexpr std::size_t kMaxLocalIdDigits = 8;       // "000800" as written; a u32 at most
 
         /// One ADDN record whose header starts at a_at and which must end by a_limit (its group's end).
@@ -74,7 +72,7 @@ namespace GreyBuild
         std::string model = a_entry.greyModel.substr(std::char_traits<char>::length(kMeshesRoot));
         Writer body;
         body.ZString("EDID", a_entry.greyEditorId);
-        body.Sub("OBND", Pack(kBoundMin, kBoundMin, kBoundMin, kBoundMax, kBoundMax, kBoundMax));
+        body.Sub("OBND", Pack(kAddnBoundMin, kAddnBoundMin, kAddnBoundMin, kAddnBoundMax, kAddnBoundMax, kAddnBoundMax));
         body.ZString("MODL", model);
         body.Sub("DATA", Pack(static_cast<std::int32_t>(a_entry.grey)));
         body.Sub("DNAM", Pack(a_entry.masterParticleCap, a_entry.dnamFlags));

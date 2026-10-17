@@ -91,8 +91,9 @@ namespace GreyBuild
         /// a_mayClear false: the texture cache is never cleared here (a TextureLook may be alive: the glow rules' reads)
         [[nodiscard]] Admission Acquire(std::uint64_t a_estimate, std::string& a_why, bool a_mayClear = true);
 
-        /// Between objects: the texture cache cleared once it holds over kTextureCacheKeepBytes
-        void BetweenObjects();
+        /// Between objects: the texture cache cleared once it holds over kTextureCacheKeepBytes, or when it and the next
+        /// object's texture estimate a_nextCost would not fit the cap together (OCR review 6)
+        void BetweenObjects(std::uint64_t a_nextCost = 0);
 
         [[nodiscard]] std::uint64_t Cap() const noexcept { return m_cap; }
         [[nodiscard]] int Pauses() const noexcept { return m_pauses; }

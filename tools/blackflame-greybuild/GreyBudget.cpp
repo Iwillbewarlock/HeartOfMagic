@@ -32,6 +32,19 @@ namespace GreyBuild
     {
         constexpr auto kHeaderFlags = static_cast<DirectX::DDS_FLAGS>(DirectX::DDS_FLAGS_PERMISSIVE | DirectX::DDS_FLAGS_EXPAND_LUMINANCE);
 
+        constexpr unsigned kMsPerSecond = 1000;
+
+        // a_a x a_b, UINT64_MAX when it overflows (a header with absurd sizes estimates as too large, never as small)
+        [[nodiscard]] std::uint64_t SatMul(std::uint64_t a_a, std::uint64_t a_b) noexcept
+        {
+            return a_a != 0 && a_b > UINT64_MAX / a_a ? UINT64_MAX : a_a * a_b;
+        }
+
+        [[nodiscard]] std::uint64_t SatAdd(std::uint64_t a_a, std::uint64_t a_b) noexcept
+        {
+            return a_b > UINT64_MAX - a_a ? UINT64_MAX : a_a + a_b;
+        }
+
         [[nodiscard]] double MiB(std::uint64_t a_bytes) noexcept
         {
             return static_cast<double>(a_bytes) / static_cast<double>(kBytesPerMiB);
@@ -53,12 +66,12 @@ namespace GreyBuild
         std::uint64_t height = meta.height;
         std::uint64_t depth = std::max<std::uint64_t>(meta.depth, 1);
         for (std::size_t mip = 0; mip < std::max<std::size_t>(meta.mipLevels, 1); ++mip) {
-            chain += width * height * depth * kDecodedBytesPerTexel;
+            chain = SatAdd(chain, SatMul(SatMul(SatMul(width, height), depth), kDecodedBytesPerTexel));
             width = std::max<std::uint64_t>(width / 2, 1);
             height = std::max<std::uint64_t>(height / 2, 1);
             depth = std::max<std::uint64_t>(depth / 2, 1);
         }
-        return chain * std::max<std::uint64_t>(meta.arraySize, 1) * kEncoderImages;
+        return SatMul(SatMul(chain, std::max<std::uint64_t>(meta.arraySize, 1)), kEncoderImages);
     }
 
     std::optional<std::uint64_t> EstimateReadBytes(const std::filesystem::path& a_dds, std::string& a_why)
@@ -70,7 +83,7 @@ namespace GreyBuild
         }
         std::error_code ec;
         const std::uint64_t file = std::filesystem::file_size(a_dds, ec);
-        return (ec ? 0 : file) + static_cast<std::uint64_t>(meta.width) * meta.height * kDecodedBytesPerTexel * kReadImages;
+        return SatAdd(ec ? 0 : file, SatMul(SatMul(SatMul(meta.width, meta.height), kDecodedBytesPerTexel), kReadImages));
     }
 
     Admission Admit(std::uint64_t a_estimate, std::uint64_t a_inUse, std::uint64_t a_cap, std::uint64_t a_availableCommit,
@@ -131,7 +144,7 @@ namespace GreyBuild
                 continue;
             }
             if (admission == Admission::kPause && step >= kMaxPauseSteps) {
-                a_why = fmt::format("waited {} s for the system's commit to come back above the reserve", step * kPauseStepMs / 1000);
+                a_why = fmt::format("waited {} s for the system's commit to come back above the reserve", step * kPauseStepMs / kMsPerSecond);
                 return Admission::kOverCap;
             }
             if (admission == Admission::kPause) {
@@ -159,9 +172,9 @@ namespace GreyBuild
         }
     }
 
-    void Budget::BetweenObjects()
+    void Budget::BetweenObjects(std::uint64_t a_nextCost)
     {
-        if (m_cache && m_cache->CachedBytes() > kTextureCacheKeepBytes) {
+        if (m_cache && (m_cache->CachedBytes() > kTextureCacheKeepBytes || SatAdd(m_cache->CachedBytes(), a_nextCost) > m_cap)) {
             m_cache->Clear();
             ++m_evictions;
         }
@@ -191,6 +204,10 @@ namespace GreyBuild
 
     bool ParentWatch::Start(std::uint32_t a_pid, unsigned a_graceMs, std::string& a_why)
     {
+        if (m_process || m_thread.joinable()) {
+            a_why = "the parent watch is started already";
+            return false;
+        }
         m_process = ::OpenProcess(SYNCHRONIZE, FALSE, a_pid);
         if (!m_process) {
             const DWORD error = ::GetLastError();

@@ -7,6 +7,7 @@
 #include "GreyEslIo.h"
 #include "GreyForms.h"
 #include "GreyJson.h"
+#include "GreyProgress.h"
 
 #include "../../plugins/BlackFlame/src/CopyContract.h"
 
@@ -31,12 +32,7 @@ namespace GreyBuild
     {
         namespace CC = BlackFlame::CopyContract;
 
-        constexpr int kExitOk = 0;
-        constexpr int kExitFail = 1;
-        constexpr std::int16_t kAddnBoundMin = -32768;  // GreyEsl.cpp's ADDN bounds (Skyrim.esm's MPS records)
-        constexpr std::int16_t kAddnBoundMax = 32767;
         constexpr std::uint16_t kSlotAddnCap = 0;       // the DLL fills the cap from the slot's source
-        constexpr const char* kTempSuffix = ".tmp";
         constexpr std::size_t kProblemsShown = 20;  // the first ones say it
 
         [[nodiscard]] std::optional<CopyType> CopyTypeOfSlot(CC::SlotType a_type) noexcept
@@ -263,9 +259,8 @@ namespace GreyBuild
             std::cout << fmt::format("FAIL  {} is no path this builder can write: {}\n", PathText(a_target), absoluteError.message());
             return kExitFail;
         }
+        const auto temp = TempPathOf(file);
         try {
-            std::filesystem::path temp = file;
-            temp += kTempSuffix;
             WriteSlotPool(temp);
             const auto problems = VerifySlotPool(temp);
             for (const auto& problem : problems) {
@@ -279,10 +274,12 @@ namespace GreyBuild
             }
             if (!::MoveFileExW(temp.c_str(), file.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
                 std::cout << fmt::format("FAIL  moving {} into place failed (Windows error {})\n", PathText(file), ::GetLastError());
+                RemoveQuietly(temp);
                 return kExitFail;
             }
         } catch (const std::exception& e) {
             std::cout << fmt::format("FAIL  {}\n", e.what());
+            RemoveQuietly(temp);
             return kExitFail;
         }
         std::cout << fmt::format("wrote {}: {} slots (PROJ, IPCT, EXPL, ARTO, HAZD, TXST, ADDN at 0x{:X}-0x{:X}), read back\n",

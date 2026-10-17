@@ -24,8 +24,6 @@
 #include <set>
 #include <tuple>
 
-#include "../../plugins/BlackFlame/src/CopyContractKeys.h"
-
 namespace GreyBuild
 {
     namespace
@@ -33,9 +31,9 @@ namespace GreyBuild
         namespace CC = BlackFlame::CopyContract;
         namespace Rule = BlackFlame::DataPathRule;
 
-        constexpr int kOk = 0;
-        constexpr int kFail = 1;
-        constexpr int kUsage = 2;
+        constexpr int kOk = kExitOk;
+        constexpr int kFail = kExitFail;
+        constexpr int kUsage = kExitUsage;
         constexpr const char* kRequestFile = "request.json";
         constexpr const char* kDumpFolder = "data";
 
@@ -64,11 +62,6 @@ namespace GreyBuild
             return line;
         }
 
-        void Remove(const std::filesystem::path& a_file)
-        {
-            std::error_code ec;
-            std::filesystem::remove(a_file, ec);
-        }
 
         // The slot indices a written NIF holds (its {"addn": n} deps)
         [[nodiscard]] std::vector<std::uint32_t> SlotValues(const std::filesystem::path& a_nif, const std::set<int>& a_slots)
@@ -89,13 +82,13 @@ namespace GreyBuild
         [[nodiscard]] CC::ProgressLine BuildNifObject(const KeyedSpec& a_spec, KeyedObject& a_object, Run& a_run)
         {
             const auto copy = Rule::CopyPath(Rule::kMeshesRoot, CC::Hex16(a_spec.key), a_spec.source);
-            if (!copy || !IsAscii(*copy)) {  // a progress line is UTF-8 (P0: copy basenames become ASCII)
-                return Line(a_spec, CC::Outcome::kFailed, fmt::format("{}: no ASCII copy path for it", a_spec.source));
+            if (!copy) {
+                return Line(a_spec, CC::Outcome::kFailed, fmt::format("{}: no copy path for it", a_spec.source));
             }
             const auto listed = a_run.request.nifHashes.find(a_spec.source);
             if (listed == a_run.request.nifHashes.end()) {
-                return Line(a_spec, CC::Outcome::kFailed, fmt::format("{}: the request's nifs[] lists it with no fnv64 (not read from the "
-                    "dump: only the files the request lists are)", a_spec.source));
+                // LoadKeyedRequest took it only as nifs[] ok false: the game could not read it (its key says missing)
+                return Line(a_spec, CC::Outcome::kFailed, fmt::format("{}: the game could not read it (nifs[] ok false)", a_spec.source));
             }
             const auto source = FindSource({ a_run.dump }, a_spec.source);
             if (!source) {
@@ -123,7 +116,7 @@ namespace GreyBuild
             }
             auto [outcome, reason] = ClassifyObject(a_object);
             if (!CC::IsPublishable(outcome)) {
-                Remove(temp);
+                RemoveQuietly(temp);
                 return Line(a_spec, outcome, reason);
             }
             std::string why;
@@ -131,12 +124,12 @@ namespace GreyBuild
             try {
                 addn = SlotValues(temp, a_run.slotIndices);
             } catch (const std::exception& e) {
-                Remove(temp);
+                RemoveQuietly(temp);
                 return Line(a_spec, CC::Outcome::kFailed, fmt::format("the written copy does not read back: {}", e.what()));
             }
             const auto digest = DigestFile(temp, why);
             if (!digest || !CommitTemp(temp, StagedFile(a_run.staging, *copy), why)) {
-                Remove(temp);
+                RemoveQuietly(temp);
                 return Line(a_spec, CC::Outcome::kFailed, why);
             }
             a_run.log.NoteWritten(*copy, *digest);
@@ -223,8 +216,10 @@ namespace GreyBuild
                     nifly::NifFile nif;
                     LoadNif(nif, *source);
                     ForEachTextureSlot(nif, [&](std::string& a_slot, TextureRole) { add(a_slot); });
-                } catch (const std::exception&) {
-                    return;  // it fails fast when built
+                } catch (const std::exception& e) {
+                    std::cout << fmt::format("NOTE  {} does not load for the scheduler's estimate ({}): it fails when built\n", a_spec.source,
+                        e.what());
+                    return;
                 }
             }
             for (const auto& path : paths) {
@@ -419,12 +414,21 @@ namespace GreyBuild
                 stopped = true;
                 break;
             }
-            budget.BetweenObjects();
-            const auto line = BuildObject(spec, run);
-            if (std::string why; !log.Append(line, why)) {
-                // a full disk or a refused line: no later line is trusted on this handle either (Codex review 1)
-                std::cerr << fmt::format("the line of {} {} was not written: {}. Stopping; the next run builds it again.\n",
+            budget.BetweenObjects(spec.cost);
+            auto line = BuildObject(spec, run);
+            if (std::string why; !log.Broken() && !log.Append(line, why) && !log.Broken()) {
+                // the contract's writer refused it (deterministic): a failed line in its place, the run goes on (OCR review 4)
+                std::cout << fmt::format("FAIL  the line of {} {} is refused by the contract's writer ({}): written as failed\n",
                     CC::ProgressKindText(line.kind), CC::Hex16(line.key), why);
+                line = CC::ProgressLine{ line.kind, line.key };
+                line.outcome = CC::Outcome::kFailed;
+                line.reason = "the contract's writer refused this object's line";
+                (void)log.Append(line, why);
+            }
+            if (log.Broken()) {
+                // a write failed (a full disk): no later line is trusted on this handle, a child's included (OCR review 2)
+                std::cerr << fmt::format("writing progress.jsonl failed at {} {}. Stopping; the next run builds it again.\n",
+                    CC::ProgressKindText(line.kind), CC::Hex16(line.key));
                 return kFail;
             }
             Tally(counts, line);

@@ -19,7 +19,6 @@
 #include <cmath>
 #include <system_error>
 #include <set>
-#include <sstream>
 
 namespace GreyBuild
 {
@@ -139,14 +138,22 @@ namespace GreyBuild
             for (std::size_t i = 0; i < txst.size(); ++i) {
                 const std::string where = fmt::format("txst[{}]", i);
                 KeyedSpec spec{ CC::ProgressKind::kTxst, ReadKey(a_file, txst[i], where) };
+                const auto slot = Json::ReadInteger(a_file, txst[i], CC::Request::kSlot, where, 0, UINT16_MAX);
+                if (CC::TypeOf(static_cast<std::uint32_t>(slot)) != CC::SlotType::kTXST) {
+                    Json::Fail(a_file, fmt::format("{}: slot {:X} is not a TXST slot", where, slot));
+                }
+                if (!txst[i].contains(CC::Request::kDodt) || !txst[i][CC::Request::kDodt].is_boolean() ||
+                    txst[i][CC::Request::kDodt].get<bool>() != CC::TxstHasDodt(static_cast<std::uint32_t>(slot))) {
+                    Json::Fail(a_file, fmt::format("{}: 'dodt' must be true or false and match slot {:X} (the first 72 TXST slots carry "
+                        "DODT)", where, slot));
+                }
                 for (std::size_t f = 0; f < forms.size() && spec.form == kNoForm; ++f) {
                     if (forms[f].type == CopyType::kTextureSet && forms[f].key == CC::Hex16(spec.key)) {
                         spec.form = f;
                     }
                 }
                 if (spec.form == kNoForm) {
-                    a_request.warnings.push_back(fmt::format("{}: no TXST form has the key {} (its line says failed)", where,
-                        CC::Hex16(spec.key)));
+                    Json::Fail(a_file, fmt::format("{}: no TXST form has the key {}", where, CC::Hex16(spec.key)));
                 }
                 AddObject(a_request, byKey, std::move(spec), where);
             }
@@ -182,6 +189,15 @@ namespace GreyBuild
         ReadOptions(a_file, root, request);
         ReadObjects(a_file, root, request);
         ReadNifHashes(root, request);
+        // every NIF object's bytes must be listed (nifs[] with its fnv64), or the game could not read it (nifs[] ok false):
+        // a NIF the request does not mention at all is the DLL's mistake, and the whole request is refused (OCR review 1)
+        const std::set<std::string> unread(request.base.failedNifs.begin(), request.base.failedNifs.end());
+        for (const auto& spec : request.objects) {
+            if (spec.kind != CC::ProgressKind::kTxst && request.nifHashes.count(spec.source) == 0 && unread.count(spec.source) == 0) {
+                Json::Fail(a_file, fmt::format("{} {}: nifs[] does not list it (no fnv64, not ok false)", CC::ProgressKindText(spec.kind),
+                    spec.source));
+            }
+        }
         for (auto& line : request.base.warnings) {
             request.warnings.push_back(line);
         }

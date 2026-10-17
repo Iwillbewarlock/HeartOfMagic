@@ -29,7 +29,7 @@ namespace GreyBuild
         namespace CC = BlackFlame::CopyContract;
         namespace Rule = BlackFlame::DataPathRule;
 
-        constexpr std::uint64_t kPaletteImages = 2;  // MakePalette's copy of the source and the image Write makes  // the DLL's reason for a texture outside the dump caps (CopyRequestData.cpp)
+        constexpr std::uint64_t kPaletteImages = 2;  // MakePalette's copy of the source and the image Write makes
 
         [[nodiscard]] CC::ProgressLine DdsLine(std::uint64_t a_key, CC::Outcome a_outcome, const std::string& a_reason)
         {
@@ -41,11 +41,6 @@ namespace GreyBuild
             return line;
         }
 
-        void Remove(const std::filesystem::path& a_file)
-        {
-            std::error_code ec;
-            std::filesystem::remove(a_file, ec);
-        }
     }
 
     KeyedOutputs::KeyedOutputs(ProgressLog& a_log, Budget& a_budget, CC::KeyPrefix a_prefix, TextureJob& a_textures,
@@ -127,7 +122,7 @@ namespace GreyBuild
         std::string why;
         const auto digest = DigestFile(a_temp, why);
         if (!digest || !CommitTemp(a_temp, StagedFile(m_log.Staging(), a_slot), why)) {
-            Remove(a_temp);
+            RemoveQuietly(a_temp);
             child.why = why;
             return child;  // failed
         }
@@ -188,9 +183,9 @@ namespace GreyBuild
         }
         const auto key = CC::KeyOf(*keyText);
         const auto slot = Rule::CopyPath(Rule::kTexturesRoot, CC::Hex16(key), a_path);
-        if (!slot || !IsAscii(*slot)) {  // a progress line is UTF-8: a code page name cannot go in (P0's ASCII basenames)
+        if (!slot) {  // CopyPath refuses a source with no plain extension (its paths are always ASCII)
             child.state = State::kFallback;
-            child.why = fmt::format("texture {}: no ASCII copy path for it: slot left", a_path);
+            child.why = fmt::format("texture {}: no copy path for it: slot left", a_path);
             return child;
         }
         if (auto reused = Reused(key, *slot)) {
@@ -241,7 +236,7 @@ namespace GreyBuild
             child.state = State::kLeft;
             return child;
         default:
-            Remove(temp);
+            RemoveQuietly(temp);
             ++m_textures.totals.failed;
             std::cout << fmt::format("TEX   FAIL {} ({}, first in {}): {}{}\n", a_path, TextureRoleName(a_role), a_where, result.reason,
                 result.transient ? " (tried again at the next run)" : "; slot left");
@@ -256,7 +251,11 @@ namespace GreyBuild
         const std::string id = fmt::format("{}|{}", TextureRoleName(a_role), a_path);
         auto it = m_children.find(id);
         if (it == m_children.end()) {
-            it = m_children.emplace(id, MakeTexture(a_path, a_role, a_tint, a_where)).first;
+            auto child = MakeTexture(a_path, a_role, a_tint, a_where);
+            if (child.state == State::kFailed) {
+                return Apply(child);  // a transient failure is not kept: the next object that names it tries again (OCR review 5)
+            }
+            it = m_children.emplace(id, std::move(child)).first;
         }
         return Apply(it->second);
     }
@@ -318,7 +317,7 @@ namespace GreyBuild
         }
         const auto temp = TempPathOf(StagedFile(m_log.Staging(), *slot));
         if (!a_write(image, temp, why)) {
-            Remove(temp);
+            RemoveQuietly(temp);
             child.why = why;
             return child;  // failed
         }
@@ -332,6 +331,10 @@ namespace GreyBuild
         auto it = m_children.find(id);
         if (it == m_children.end()) {
             auto child = MakePalette(a_source, a_additive, a_make, a_write);
+            if (child.state == State::kFailed) {
+                a_why = child.why;
+                return Apply(child);  // not kept, like a texture's (OCR review 5)
+            }
             if (!child.keep) {
                 a_why = "a texture it needs was refused by the memory budget";
                 return Apply(child);

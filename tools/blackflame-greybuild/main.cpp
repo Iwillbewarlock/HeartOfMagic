@@ -38,9 +38,9 @@
 
 namespace
 {
-    constexpr int kExitOk = 0;
-    constexpr int kExitFail = 1;
-    constexpr int kExitUsage = 2;
+    using GreyBuild::kExitFail;
+    using GreyBuild::kExitOk;
+    using GreyBuild::kExitUsage;
     constexpr std::uint64_t kMinJobMemoryMiB = 64;              // below this no texture of any size is admitted
     constexpr std::uint64_t kMaxMemoryMiB = 1024ull * 1024ull;  // 1 TiB: a typo, not a machine
 
@@ -113,6 +113,9 @@ namespace
     // A whole number of a_min..a_max in a_text
     [[nodiscard]] bool ParseCount(const char* a_text, std::uint64_t a_min, std::uint64_t a_max, std::uint64_t& a_value)
     {
+        if (a_text[0] < '0' || a_text[0] > '9') {
+            return false;  // stoull would take a leading space, '+' or '-'
+        }
         try {
             std::size_t used = 0;
             const unsigned long long value = std::stoull(a_text, &used);

@@ -6,8 +6,8 @@
 // The line format, writer and parser are the contract's (plugins/BlackFlame/src/CopyContractProgress.h); this is the
 // builder's side of the file:
 //   - Open (at the builder's start only, v3.3 #3: the DLL has read the file to its end before it launched the builder):
-//     every line read, then compacted - for each key its last line that is not "failed", an ok or fallback line only
-//     while its file is in staging with its size - written to progress.jsonl.tmp and renamed over progress.jsonl (the
+//     every line read, then compacted - for each key its last line, dropped when it is "failed" (no older line comes
+//     back), an ok or fallback line only while its file is in staging with its size and fnv64 - written to progress.jsonl.tmp and renamed over progress.jsonl (the
 //     DLL's tail reader reopens on the new file id). A cut last line and bad lines are dropped.
 //   - Append: one line per finished object in one WriteFile on a handle opened for appending (shared read, write and
 //     delete), so another process sees whole lines; the object's file was renamed into place before.
@@ -42,6 +42,9 @@ namespace GreyBuild
     /// a_path with kTempFileSuffix
     [[nodiscard]] std::filesystem::path TempPathOf(const std::filesystem::path& a_path);
 
+    /// a_file removed, an error ignored (a temp file that failed; RemoveTempFiles clears what is left)
+    void RemoveQuietly(const std::filesystem::path& a_file) noexcept;
+
     /// a_temp renamed over a_target (folders made); false with a_why
     [[nodiscard]] bool CommitTemp(const std::filesystem::path& a_temp, const std::filesystem::path& a_target, std::string& a_why);
 
@@ -71,8 +74,12 @@ namespace GreyBuild
         /// a_staging\progress.jsonl compacted and opened for appending (the folder made); false with a_why
         [[nodiscard]] bool Open(const std::filesystem::path& a_staging, std::string& a_why);
 
-        /// One line appended (the contract's writer); false with a_why when it is refused or not written
+        /// One line appended (the contract's writer); false with a_why when it is refused or not written. A write that fails
+        /// latches Broken(): no later line is written on that handle (a partial write would fuse with the next line)
         [[nodiscard]] bool Append(const BlackFlame::CopyContract::ProgressLine& a_line, std::string& a_why);
+
+        /// A write failed (I/O): the run stops; a refusal by the contract's writer does not latch
+        [[nodiscard]] bool Broken() const noexcept { return m_broken; }
 
         /// The key's last line, or null
         [[nodiscard]] const BlackFlame::CopyContract::ProgressLine* Last(std::uint64_t a_key) const;
@@ -93,7 +100,8 @@ namespace GreyBuild
         [[nodiscard]] bool Compact(const std::filesystem::path& a_file, std::string& a_why);
 
         std::filesystem::path m_staging;
-        void* m_handle = nullptr;  // HANDLE, closed by the destructor (INVALID_HANDLE_VALUE kept as null)
+        void* m_handle = nullptr;  // HANDLE, closed by the destructor and by a second Open (INVALID_HANDLE_VALUE kept as null)
+        bool m_broken = false;
         std::map<std::uint64_t, BlackFlame::CopyContract::ProgressLine> m_last;
         std::map<std::string, std::optional<FileDigest>> m_digests;
         Compaction m_compaction;

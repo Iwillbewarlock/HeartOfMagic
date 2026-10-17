@@ -258,6 +258,25 @@ namespace GreyBuild::SelfTest
                 refused = true;
             }
             a_check.Check(refused, "request v5: an addnMps entry without its source ADDN index is refused (no guess by model path)");
+            const auto refusedText = [&](const std::string& a_name, std::string a_text) {
+                Write(a_dir / a_name / "request.json", a_text);
+                try {
+                    (void)LoadKeyedRequest(a_dir / a_name / "request.json");
+                    return false;
+                } catch (const std::runtime_error&) {
+                    return true;
+                }
+            };
+            auto unlisted = ReadAll(fixture.folder / "request.json");
+            const std::string keyedNif = R"({"path":"meshes\\magic\\keyed.nif")";
+            unlisted.replace(unlisted.find(keyedNif), keyedNif.size(), R"({"path":"meshes\\magic\\other.nif")");
+            auto noForm = ReadAll(fixture.folder / "request.json");
+            const std::string txstKey = fmt::format("\"slot\":3744,\"key\":\"{}\"", CC::Hex16(kTxst));
+            noForm.replace(noForm.find(txstKey), txstKey.size(), "\"slot\":3744,\"key\":\"9999999999999999\"");
+            auto badDodt = ReadAll(fixture.folder / "request.json");
+            badDodt.replace(badDodt.find("\"dodt\":true"), std::string("\"dodt\":true").size(), "\"dodt\":false");
+            a_check.Check(refusedText("req_unlisted", unlisted) && refusedText("req_noform", noForm) && refusedText("req_dodt", badDodt),
+                "request v5: a NIF nifs[] does not list, a txst key no TXST form has, and a dodt that is not its slot's are refused");
         }
 
         void CheckFirstRuns(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_sourceNif)

@@ -91,6 +91,12 @@ namespace GreyBuild
         return temp;
     }
 
+    void RemoveQuietly(const std::filesystem::path& a_file) noexcept
+    {
+        std::error_code ec;
+        std::filesystem::remove(a_file, ec);
+    }
+
     bool CommitTemp(const std::filesystem::path& a_temp, const std::filesystem::path& a_target, std::string& a_why)
     {
         std::error_code ec;
@@ -153,23 +159,19 @@ namespace GreyBuild
         m_compaction.read = parsed.lines.size();
         m_compaction.badLines = parsed.errors.size();
         m_compaction.cutLastLine = parsed.cutLastLine;
-        std::map<std::uint64_t, std::size_t> lastAt;  // key -> its last line worth keeping
+        std::map<std::uint64_t, std::size_t> lastAt;  // key -> its last line
         for (std::size_t i = 0; i < parsed.lines.size(); ++i) {
-            const auto& line = parsed.lines[i];
-            if (line.outcome == CC::Outcome::kFailed) {
-                continue;  // retried at this run
-            }
-            if (CC::IsPublishable(line.outcome) && !line.path.empty()) {
-                std::error_code ec;
-                const auto size = std::filesystem::file_size(StagedFile(m_staging, line.path), ec);
-                if (ec || size != line.bytes) {
-                    continue;  // its file is gone or another size: rebuilt
-                }
-            }
-            lastAt[line.key] = i;
+            lastAt[parsed.lines[i].key] = i;
         }
         std::vector<std::size_t> keep;
         for (const auto& [key, at] : lastAt) {
+            const auto& line = parsed.lines[at];
+            if (line.outcome == CC::Outcome::kFailed) {
+                continue;  // retried at this run; an older ok line of the key does not come back (OCR review 3)
+            }
+            if (CC::IsPublishable(line.outcome) && !line.path.empty() && !StagedMatches(line.path, line.fnv64, line.bytes)) {
+                continue;  // its file is gone or other bytes: rebuilt (the digest is remembered for the reuse check)
+            }
             keep.push_back(at);
         }
         std::sort(keep.begin(), keep.end());
@@ -205,7 +207,14 @@ namespace GreyBuild
 
     bool ProgressLog::Open(const std::filesystem::path& a_staging, std::string& a_why)
     {
+        if (m_handle) {
+            ::CloseHandle(m_handle);  // a second Open (not done by the builder) closes the first handle
+            m_handle = nullptr;
+        }
         m_staging = a_staging;
+        m_last.clear();
+        m_digests.clear();
+        m_broken = false;
         std::error_code ec;
         std::filesystem::create_directories(a_staging, ec);
         if (ec) {
@@ -236,8 +245,10 @@ namespace GreyBuild
             a_why = "the contract's writer refuses the line (a path or reason that is not UTF-8, or a field it would not read back)";
             return false;
         }
-        if (!m_handle || !WriteAll(m_handle, *text)) {
-            a_why = fmt::format("appending to progress.jsonl failed (Windows error {})", ::GetLastError());
+        if (m_broken || !m_handle || !WriteAll(m_handle, *text)) {
+            a_why = m_broken ? std::string("an earlier write to progress.jsonl failed") :
+                               fmt::format("appending to progress.jsonl failed (Windows error {})", ::GetLastError());
+            m_broken = true;
             return false;
         }
         m_last[line.key] = std::move(line);

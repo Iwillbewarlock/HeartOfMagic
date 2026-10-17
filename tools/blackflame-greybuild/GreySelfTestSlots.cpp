@@ -185,7 +185,8 @@ namespace GreyBuild::SelfTest
             failed.outcome = CC::Outcome::kFailed;
             failed.reason = "io";
             const std::string text = LineText(FileLine(kA, pathA, 3, fnvA)) + LineText(FileLine(kA, pathA, 4, fnvA)) + "{\"v\":7}\n" +
-                                     LineText(FileLine(kB, pathB, 4, 1)) + LineText(failed) + LineText(FileLine(kC, pathC, 4, fnvA)).substr(0, 20);
+                                     LineText(FileLine(kB, pathB, 4, 1)) + LineText(FileLine(kC, pathC, 4, CC::Fnv64("CCCC"))) + LineText(failed) + LineText(FileLine(kC, pathC, 4, fnvA)).substr(0, 20);
+            Write(StagedFile(staging, pathC), "CCCC");  // its ok line comes before its failed one: it must not come back
             Write(staging / CC::kProgressFile, text);
             a_check.Check(RemoveTempFiles(staging) == 1 && std::filesystem::exists(StagedFile(staging, pathA)) &&
                               std::filesystem::exists(staging / "someone else's.tmp"),
@@ -196,10 +197,11 @@ namespace GreyBuild::SelfTest
                 const bool opened = log.Open(staging, why);
                 const auto& c = log.LastCompaction();
                 const auto back = CC::ParseProgress(ReadAll(staging / CC::kProgressFile));
-                a_check.Check(opened && c.read == 4 && c.kept == 1 && c.badLines == 1 && c.cutLastLine && back.lines.size() == 1 &&
+                a_check.Check(opened && c.read == 5 && c.kept == 1 && c.badLines == 1 && c.cutLastLine && back.lines.size() == 1 &&
                                   back.errors.empty() && !back.cutLastLine && back.lines[0].key == kA && back.lines[0].bytes == 4 &&
                                   log.Last(kB) == nullptr && log.Last(kC) == nullptr,
-                    fmt::format("progress: compaction keeps the last good line per key, drops a failed line, a line whose file is gone, a bad "
+                    fmt::format("progress: compaction keeps the last line per key, drops a key whose last line failed (its older ok line too), a line "
+                                "whose file is gone, a bad "
                                 "and a cut line (read {}, kept {}, bad {}, cut {}{})", c.read, c.kept, c.badLines, c.cutLastLine,
                         why.empty() ? std::string() : "; " + why));
                 a_check.Check(log.Reusable(kA, kMiB) && !log.Reusable(kB, kMiB), "progress: a line whose file matches its fnv64 is reusable");

@@ -66,6 +66,15 @@ namespace GreyBuild
     inline constexpr float kLumaGreen = 0.7152f;
     inline constexpr float kLumaBlue = 0.0722f;
 
+    // The builder's exit codes (main.cpp, GreySlotPool, GreyKeyed)
+    inline constexpr int kExitOk = 0;
+    inline constexpr int kExitFail = 1;
+    inline constexpr int kExitUsage = 2;
+
+    // ADDN OBND as Skyrim.esm's MPS records (GreyEsl.cpp writes them, GreySlotPool checks them)
+    inline constexpr std::int16_t kAddnBoundMin = -32768;
+    inline constexpr std::int16_t kAddnBoundMax = 32767;
+
     inline constexpr float kMinTint = 0.0f;
     inline constexpr float kMaxTint = 2.0f;
 
