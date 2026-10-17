@@ -414,7 +414,14 @@ namespace GreyBuild
             SelfTest::CheckForms(check, dir, source);
             SelfTest::CheckGameRequest(check, dir, source);
             SelfTest::CheckPathRule(check);
-            BlackFlame::CopyContractTest::Run([&](bool a_ok, const std::string& a_what) { check.Check(a_ok, "contract: " + a_what); });
+            {
+                const int contract = BlackFlame::CopyContractTest::Run(
+                    [&](bool a_ok, const std::string& a_what) { check.Check(a_ok, "contract: " + a_what); },
+                    [](const std::string& a_what) { std::cout << "SKIP contract: " << a_what << "\n"; });
+                check.Check(contract >= BlackFlame::CopyContractTest::kMinChecks,
+                    fmt::format("contract: the shared table ran {} checks (at least {})", contract,
+                        BlackFlame::CopyContractTest::kMinChecks));
+            }
             SelfTest::CheckTextures(check, dir);
             SelfTest::CheckRisk(check, dir);
             SelfTest::CheckDecals(check, dir);
