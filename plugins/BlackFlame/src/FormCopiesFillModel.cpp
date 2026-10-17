@@ -184,10 +184,19 @@ namespace BlackFlame::FormCopies
                     slot.type == CopyContract::SlotType::kTXST || (addnPass && SlotAssign::GateOpen(id))) {
                     continue;  // a TXST slot stays unpublished (CopyGroups.h)
                 }
-                const auto addnReady = [](const LM::Object* a_object) {  // every ADDN slot it names already shows its MPS
+                // review: the rule W2 has (CopyGroups AddnDeps): an ADDN slot it names must be ours this session and usable;
+                // one not open yet shows the model it has until it opens (only a collided or unusable one refuses)
+                const auto addnReady = [](const LM::Object* a_object) {
                     return a_object && std::all_of(a_object->deps.begin(), a_object->deps.end(), [](const LM::Dep& a_dep) {
                         const auto addn = a_dep.isAddn ? CopyContract::SlotOfAddnIndex(a_dep.addn) : std::nullopt;
-                        return !a_dep.isAddn || (addn && SlotAssign::GateOpen(*addn));
+                        if (!a_dep.isAddn) {
+                            return true;
+                        }
+                        if (!addn) {
+                            return true;  // not a slot index (as AddnDeps reads it)
+                        }
+                        const auto& slot = SlotAssign::At(*addn);
+                        return SlotAssign::GateOpen(*addn) || (slot.assigned && slot.usable);
                     });
                 };
                 const auto role = addnPass ? LM::Role::kMps : LM::Role::kModel;

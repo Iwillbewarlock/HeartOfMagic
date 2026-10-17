@@ -8,6 +8,8 @@
 #include "NifDump.h"
 #include "TrackedMutex.h"
 
+#include <atomic>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -34,6 +36,10 @@ namespace BlackFlame::DataFiles
             TrackedMutex mutex;
             std::unordered_map<std::string, Cached> files;
         };
+        std::atomic<std::uint64_t> g_files{ 0 };
+        std::atomic<std::uint64_t> g_bytes{ 0 };
+        std::atomic<std::uint64_t> g_micros{ 0 };
+
         Cache& TheCache()
         {
             static auto* cache = std::make_unique<Cache>().release();  // leaked: worker threads may use it at exit
@@ -74,6 +80,7 @@ namespace BlackFlame::DataFiles
                 return Hash{ size, it->second.fnv64 };
             }
         }
+        const auto begin = std::chrono::steady_clock::now();
         std::ifstream in(*file, std::ios::binary);
         if (!in) {
             return std::nullopt;
@@ -86,6 +93,10 @@ namespace BlackFlame::DataFiles
             hash = NifDump::Fnv64(chunk.data(), count, hash);
             read += count;
         }
+        g_files.fetch_add(1);
+        g_bytes.fetch_add(read);
+        g_micros.fetch_add(static_cast<std::uint64_t>(
+            std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - begin).count()));
         if (in.bad() || read != size) {
             return std::nullopt;  // review Gemini dc 9: a read cut short is no hash (and is not cached)
         }
@@ -102,6 +113,11 @@ namespace BlackFlame::DataFiles
         }
         const auto hash = HashOf(a_dataPath);
         return hash && hash->size == a_size && hash->fnv64 == a_fnv64;
+    }
+
+    Stats GetStats()
+    {
+        return { g_files.load(), g_bytes.load(), g_micros.load() };
     }
 
     void Forget(const std::string& a_dataPath)

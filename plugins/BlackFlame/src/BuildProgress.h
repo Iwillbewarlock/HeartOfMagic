@@ -52,6 +52,14 @@ namespace BlackFlame::BuildProgress
     /// state checked (sizes first, a hash once a session); no file is copied on this thread (the worker does, after W1)
     void ReadAtStart();
 
+    /// kDataLoaded, before anything uses a copy path (SingleLaunch, before ApplyLastPublished): the copies an earlier session
+    /// could not put in place (another file was at the path) renamed in from <path>.next; they count as copied and replaced
+    void ApplyDeferred();
+
+    /// a_path with a_fnv64 entered Data this session (copied by the worker, or renamed in by ApplyDeferred): the startup
+    /// index does not know it, so it is used only through FileIndex (any thread)
+    [[nodiscard]] bool CopiedNow(const std::string& a_path, std::uint64_t a_fnv64);
+
     /// After the launch: the tail and copy worker (a detached thread; it stops copying when the publish window closes)
     void StartWorker();
 

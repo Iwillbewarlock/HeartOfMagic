@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <charconv>
 #include <chrono>
 #include <format>
 #include <fstream>
@@ -21,6 +22,8 @@
 #include <mutex>
 #include <new>
 #include <set>
+#include <string>
+#include <system_error>
 #include <thread>
 #include <unordered_map>
 #include <utility>
@@ -35,6 +38,8 @@ namespace BlackFlame::BuildProgress
         constexpr auto kPoll = std::chrono::milliseconds(500);
         constexpr std::size_t kReadChunk = 1 << 16;
         constexpr std::size_t kMaxLoggedErrors = 20;
+        constexpr const char* kDeferredName = "deferred-copies.txt";  // path, bytes, fnv64 of the copies renamed in next start
+        constexpr const char* kNextSuffix = ".next";
 
         using PathHash = std::pair<std::string, std::uint64_t>;  // a copy path and the fnv64 it must hold
 
@@ -105,13 +110,21 @@ namespace BlackFlame::BuildProgress
         }
 
         // What was appended since the last read (ProgressTail: a new file id is read from 0, a cut last line again next time)
-        void ReadNew()
+        enum class Read : std::uint8_t
+        {
+            kAbsent,  // no progress file (the builder wrote nothing yet)
+            kRead,    // read to its end
+            kFailed,  // it is there but could not be read: tried again at the next poll, never "caught up" on it
+        };
+
+        Read ReadNew()
         {
             const auto path = StagingFolder() / CC::kProgressFile;
             const HANDLE file = ::CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
                 OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
             if (file == INVALID_HANDLE_VALUE) {
-                return;
+                const auto error = ::GetLastError();  // review Codex 2: absent and unreadable differ
+                return error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND ? Read::kAbsent : Read::kFailed;
             }
             struct Closer
             {
@@ -120,7 +133,7 @@ namespace BlackFlame::BuildProgress
             } closer{ file };
             BY_HANDLE_FILE_INFORMATION info{};
             if (!::GetFileInformationByHandle(file, &info)) {
-                return;
+                return Read::kFailed;
             }
             auto& tail = The().tail;
             bool reset = false;
@@ -133,25 +146,46 @@ namespace BlackFlame::BuildProgress
             }
             LARGE_INTEGER at{};
             at.QuadPart = static_cast<LONGLONG>(from);
-            if (size <= from || !::SetFilePointerEx(file, at, nullptr, FILE_BEGIN)) {
-                return;
+            if (size <= from) {
+                return Read::kRead;  // nothing new
             }
+            if (!::SetFilePointerEx(file, at, nullptr, FILE_BEGIN)) {
+                return Read::kFailed;
+            }
+            bool ended = false;
             try {
                 std::vector<char> chunk(kReadChunk);
                 DWORD read = 0;
-                while (::ReadFile(file, chunk.data(), static_cast<DWORD>(chunk.size()), &read, nullptr) && read > 0) {
+                for (;;) {
+                    if (!::ReadFile(file, chunk.data(), static_cast<DWORD>(chunk.size()), &read, nullptr)) {
+                        break;  // an I/O failure: not the end
+                    }
+                    if (read == 0) {
+                        ended = true;
+                        break;
+                    }
                     TakeLines(ProgressTail::Take(tail, std::string_view(chunk.data(), read)));
                 }
             } catch (...) {
                 tail = {};  // lines may be lost past the offset: read the file again from 0 (a line read twice changes nothing)
                 throw;
             }
+            if (!ended) {
+                tail = {};  // where the failure left off is unsure: from 0 at the next poll
+                return Read::kFailed;
+            }
             ProgressTail::End(tail);
+            return Read::kRead;
+        }
+
+        fs::path DeferredList()
+        {
+            return StagingFolder().parent_path() / kDeferredName;
         }
 
         // staging -> Data through the VFS: the staging bytes checked against the line, a temporary file, a replacing rename,
         // the Data file read back. Copies, never moves (the builder's compaction and cache need the staging files)
-        bool CopyIn(const CC::ProgressLine& a_line, bool& a_replaced, std::string& a_why)
+        bool CopyIn(const CC::ProgressLine& a_line, bool& a_deferred, std::string& a_why)
         {
             const auto data = FileIndex::DataFolder();
             if (!data || !DataPathRule::ParseCopyPath(a_line.path)) {
@@ -193,7 +227,25 @@ namespace BlackFlame::BuildProgress
                 fs::remove(temp, ec);
                 return false;
             }
-            a_replaced = fs::exists(target, ec) || ec;  // a file there now is not the line's (Settle found no match)
+            // review N3: a file there now is not the line's (Settle found no match): it is never replaced while the game runs.
+            // The copy waits beside it as <path>.next and the next start renames it in before anything uses the path
+            // (ApplyDeferred); P1's builder gives one file a key, so this is a damaged or cut file, not another generation
+            if (fs::exists(target, ec) || ec) {
+                auto next = target;
+                next += kNextSuffix;
+                if (!::MoveFileExW(temp.c_str(), next.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+                    a_why = std::format("the deferred copy could not be put beside it (Windows error {})", ::GetLastError());
+                    fs::remove(temp, ec);
+                    return false;
+                }
+                std::ofstream list(DeferredList(), std::ios::binary | std::ios::app);
+                list << a_line.path << '\t' << a_line.bytes << '\t' << CC::Hex16(a_line.fnv64) << '\n';
+                list.flush();
+                a_deferred = true;
+                a_why = list ? "another file is at its path: the copy is renamed in at the next start" :
+                               "another file is at its path, and the deferred list could not be written";
+                return false;
+            }
             if (!::MoveFileExW(temp.c_str(), target.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
                 a_why = std::format("the rename failed (Windows error {})", ::GetLastError());
                 fs::remove(temp, ec);
@@ -237,12 +289,8 @@ namespace BlackFlame::BuildProgress
                         break;
                     }
                     std::string why;
-                    bool replaced = false;
-                    copied = there = CopyIn(line, replaced, why);
-                    if (copied && replaced) {
-                        std::lock_guard lock(s.mutex);
-                        s.replacedNow.insert({ line.path, line.fnv64 });
-                    }
+                    bool deferred = false;
+                    copied = there = CopyIn(line, deferred, why);
                     std::lock_guard lock(s.mutex);
                     (there ? s.stats.copied : s.stats.copyFailures) += 1;
                     if (!there) {
@@ -251,7 +299,11 @@ namespace BlackFlame::BuildProgress
                             it->second.state = State::kFailed;
                             g_generation.fetch_add(1);
                         }
-                        logger::warn("BlackFlame: slots: '{}' not copied into Data: {}", line.path, why);
+                        if (deferred) {
+                            logger::info("BlackFlame: slots: '{}': {}", line.path, why);
+                        } else {
+                            logger::warn("BlackFlame: slots: '{}' not copied into Data: {}", line.path, why);
+                        }
                     }
                 }
                 if (there) {
@@ -326,9 +378,13 @@ namespace BlackFlame::BuildProgress
             for (;;) {
                 try {
                     const bool builderDone = !BuilderLauncher::Running();  // before the read: what it wrote is all there
-                    ReadNew();
+                    const auto read = ReadNew();
                     Settle(true);
-                    if (builderDone && !g_caughtUp.exchange(true)) {
+                    if (read == Read::kFailed && failures++ < kMaxLoggedErrors) {
+                        logger::warn("BlackFlame: slots: progress.jsonl could not be read - tried again at the next poll");
+                    }
+                    // review Codex 2: caught up only after a read that reached the end (or found no file)
+                    if (builderDone && read != Read::kFailed && !g_caughtUp.exchange(true)) {
                         g_generation.fetch_add(1);  // CopyGroups re-plans: keys without a line are left now
                         logger::info("BlackFlame: slots: progress caught up after the builder ({}): {} keys, {} in Data",
                             BuilderLauncher::Status(), GetStats().lines, GetStats().inData);
@@ -357,7 +413,9 @@ namespace BlackFlame::BuildProgress
     {
         const auto start = std::chrono::steady_clock::now();
         try {
-            ReadNew();       // to its end, before the builder starts (it compacts only at its own start)
+            if (ReadNew() == Read::kFailed) {  // to its end, before the builder starts (it compacts only at its own start)
+                logger::warn("BlackFlame: slots: progress.jsonl could not be read at the start - the worker tries again");
+            }
             Settle(false);   // what earlier sessions copied into Data counts now; copying is the worker's, after W1
         } catch (const std::exception& e) {
             logger::error("BlackFlame: slots: reading progress.jsonl at the start failed ({}) - the worker tries again", e.what());
@@ -369,6 +427,62 @@ namespace BlackFlame::BuildProgress
         logger::info("BlackFlame: slots: progress.jsonl at the start: {} keys ({} in Data), {} lines refused, {} ms", stats.lines,
             stats.inData, stats.badLines,
             std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count());
+    }
+
+    void ApplyDeferred()
+    {
+        // review N3: copies an earlier session put beside a file of their path, renamed in now, before anything uses the
+        // path this session; the engine's index may still hold the old file's size, so they count as replaced (used from
+        // the next start)
+        std::error_code ec;
+        const auto list = DeferredList();
+        const auto data = FileIndex::DataFolder();
+        if (!data || !fs::exists(list, ec)) {
+            return;
+        }
+        std::ifstream in(list, std::ios::binary);
+        std::string row;
+        std::size_t renamed = 0;
+        std::size_t dropped = 0;
+        auto& s = The();
+        while (std::getline(in, row)) {
+            const auto tab1 = row.find('\t');
+            const auto tab2 = tab1 == std::string::npos ? std::string::npos : row.find('\t', tab1 + 1);
+            const auto path = row.substr(0, tab1);
+            const auto fnv = tab2 == std::string::npos ? std::nullopt : CC::ParseHex16(row.substr(tab2 + 1));
+            std::uint64_t bytes = 0;
+            const bool sized = tab2 != std::string::npos &&
+                               std::from_chars(row.data() + tab1 + 1, row.data() + tab2, bytes).ec == std::errc{};
+            if (!sized || !fnv || !DataPathRule::ParseCopyPath(path)) {
+                ++dropped;
+                continue;
+            }
+            const auto target = *data / fs::path(path);
+            auto next = target;
+            next += kNextSuffix;
+            if (fs::file_size(next, ec) != bytes || ec ||
+                !::MoveFileExW(next.c_str(), target.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+                ++dropped;
+                ec.clear();
+                continue;
+            }
+            DataFiles::Forget(path);
+            std::lock_guard lock(s.mutex);
+            s.copiedNow.insert({ path, *fnv });
+            s.replacedNow.insert({ path, *fnv });
+            ++renamed;
+        }
+        in.close();
+        fs::remove(list, ec);
+        logger::info("BlackFlame: slots: {} deferred cop{} renamed into Data ({} dropped: no file of that size beside it, or a bad "
+                     "line); used from the next start", renamed, renamed == 1 ? "y" : "ies", dropped);
+    }
+
+    bool CopiedNow(const std::string& a_path, std::uint64_t a_fnv64)
+    {
+        auto& s = The();
+        std::lock_guard lock(s.mutex);
+        return s.copiedNow.contains({ a_path, a_fnv64 });
     }
 
     void StartWorker()

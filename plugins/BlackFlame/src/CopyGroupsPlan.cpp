@@ -63,7 +63,7 @@ namespace BlackFlame::CopyGroups::Detail
                 const auto deps = AddnDeps(a_state, *plan->candidate);
                 if (deps == AddnDep::kLeft && plan == &out.model) {
                     out.state = Member::kLeft;
-                    out.model.why = "it names a collided ADDN slot";
+                    out.model.why = "it names a collided or unusable ADDN slot";
                     return out;
                 }
                 if (deps == AddnDep::kLeft) {
@@ -126,6 +126,15 @@ namespace BlackFlame::CopyGroups::Detail
         return *state;
     }
 
+    bool EnteredDataNow(const LM::Object& a_object)
+    {
+        if (!a_object.path.empty() && BuildProgress::CopiedNow(a_object.path, a_object.fnv64)) {
+            return true;
+        }
+        return std::any_of(a_object.deps.begin(), a_object.deps.end(),
+            [](const LM::Dep& a_dep) { return !a_dep.isAddn && BuildProgress::CopiedNow(a_dep.path, a_dep.fnv64); });
+    }
+
     AddnDep AddnDeps(const State& a_state, const LM::Object& a_object)
     {
         for (const auto& dep : a_object.deps) {
@@ -133,7 +142,9 @@ namespace BlackFlame::CopyGroups::Detail
             if (!id || SlotAssign::GateOpen(*id)) {
                 continue;
             }
-            if (SlotAssign::At(*id).collided) {
+            // review: an ADDN slot no source holds this session, or one that cannot be published (collided, refused,
+            // a save's mismatch), is no ADDN of ours: the NIF would name a record that is not its MPS
+            if (const auto& slot = SlotAssign::At(*id); !slot.assigned || !slot.usable) {
                 return AddnDep::kLeft;
             }
             if (std::find(a_state.addns.begin(), a_state.addns.end(), *id) != a_state.addns.end()) {
@@ -161,10 +172,17 @@ namespace BlackFlame::CopyGroups::Detail
             return fallback("terminal: it failed to parse in two sessions");
         }
         const auto found = BuildProgress::Find(a_key->key);
+        const auto stillComing = [&]() {  // older: shown meanwhile, the ADDN queue keeps the slot (review Codex 1)
+            if (!older) {
+                return Plan{ Member::kPending, std::nullopt, "" };
+            }
+            auto meanwhile = fallback("");
+            meanwhile.waiting = true;
+            return meanwhile;
+        };
         if (!found) {
             // the builder ended (or never started) and every line it wrote is read: none will come this session
-            return BuildProgress::CaughtUp() ? fallback("the builder made no line for it this session") :
-                                               (older ? fallback("") : Plan{ Member::kPending, std::nullopt, "" });
+            return BuildProgress::CaughtUp() ? fallback("the builder made no line for it this session") : stillComing();
         }
         switch (found->state) {
         case BuildProgress::State::kTerminal:
@@ -176,7 +194,7 @@ namespace BlackFlame::CopyGroups::Detail
                 // the worker's pass after the builder ended copied all it could: a file still missing will not come this session
                 return fallback("its files did not all reach Data this session");
             }
-            return older ? fallback("") : Plan{ Member::kPending, std::nullopt, "" };  // its files come into Data later
+            return stillComing();  // its files come into Data later
         case BuildProgress::State::kInData:
             break;
         }
@@ -194,11 +212,12 @@ namespace BlackFlame::CopyGroups::Detail
             // review agy 7 #3: the index may hold a record of the file this one replaced, with its size: not before next start
             return fallback("its file replaced another at the same path this session: used from the next start");
         }
-        if (found->copiedThisSession && !FileIndex::Available()) {
+        auto candidate = ObjectOf(a_role, found->line, a_key->text);
+        if (!FileIndex::Available() && EnteredDataNow(candidate)) {
             return fallback("in Data only since this session and no file index: the next start's index has it");
         }
         plan.state = Member::kCandidate;
-        plan.candidate = ObjectOf(a_role, found->line, a_key->text);
+        plan.candidate = std::move(candidate);
         return plan;
     }
 

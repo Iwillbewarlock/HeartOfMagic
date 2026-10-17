@@ -22,6 +22,7 @@ namespace BlackFlame::CopyGroups::Detail
     namespace LM = SlotLedgerModel;
     using Clock = std::chrono::steady_clock;
     inline constexpr auto kSlice = std::chrono::milliseconds(8);  // the probe's measured no-hitch slice (README copyModelProbe)
+    inline constexpr auto kLedgerWriteGap = std::chrono::seconds(1);  // review: ledger writes at most this often while publishing
     inline constexpr std::uint64_t kNoGeneration = UINT64_MAX;    // "not planned yet" (BuildProgress' counter never reaches it)
 
     enum class Member : std::uint8_t
@@ -37,6 +38,7 @@ namespace BlackFlame::CopyGroups::Detail
         Member state = Member::kLeft;         // kLeft: no object (no file to show)
         std::optional<LM::Object> candidate;  // kCandidate: the object this session's key gave
         std::string why;
+        bool waiting = false;                 // kReady on an older generation while the current key may still come
     };
 
     struct Slot
@@ -74,17 +76,27 @@ namespace BlackFlame::CopyGroups::Detail
         std::uint64_t plannedAt = kNoGeneration;  // the progress generation its plan was made at
     };
 
+    struct AddnPass  // one pass over State::addns, carried over the slices (StepAddn)
+    {
+        std::size_t next = 0;
+        std::size_t pending = 0;
+        std::size_t waiting = 0;
+        bool changed = false;
+    };
+
     struct State
     {
         std::vector<Group> groups;
         std::vector<std::uint16_t> addns;      // usable ADDN slots whose newest MPS may still be published
         bool addnDirty = true;
+        AddnPass addnPass;
         std::uint64_t generation = kNoGeneration;
         std::size_t replanNext = 0;             // Replan's place (it goes on in the next slice)
         LM::Ledger ledger;                      // a copy, taken when the generation moved
         bool canVerify = false;
         bool stopped = false;
-        bool ledgerDirty = false;               // something to save at the end of this step (one write a step)
+        bool ledgerDirty = false;               // something to save (written at most every kLedgerWriteGap, and at the end)
+        std::optional<Clock::time_point> lastLedgerWrite;
     };
 
     [[nodiscard]] State& TheState();
@@ -97,6 +109,10 @@ namespace BlackFlame::CopyGroups::Detail
     };
 
     [[nodiscard]] AddnDep AddnDeps(const State& a_state, const LM::Object& a_object);
+
+    /// a_object's file or one of its copy deps entered Data this session (BuildProgress::CopiedNow): the startup index does
+    /// not know it, so it is verified only through the file index (review N1)
+    [[nodiscard]] bool EnteredDataNow(const LM::Object& a_object);
 
     [[nodiscard]] Plan PlanObject(const State& a_state, LM::Role a_role, const std::optional<SlotKeys::Key>& a_key,
         const std::string& a_published, const LM::Entry* a_entry);

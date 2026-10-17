@@ -34,4 +34,14 @@ namespace BlackFlame::DataFiles
 
     /// a_dataPath was written: its cached hash is dropped
     void Forget(const std::string& a_dataPath);
+
+    struct Stats
+    {
+        std::uint64_t files = 0;   // files read whole for a hash (cache hits not counted)
+        std::uint64_t bytes = 0;
+        std::uint64_t micros = 0;  // reading and hashing them
+    };
+
+    /// What hashing cost so far this session (the kDataLoaded log line; any thread)
+    [[nodiscard]] Stats GetStats();
 }
