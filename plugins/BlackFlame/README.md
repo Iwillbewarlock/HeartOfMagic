@@ -548,8 +548,12 @@ originals, and a texture set the player's and an NPC's forms share is never writ
   allocates for a record with DODT, which the DLL then fills; it never allocates one. Read back subrecord by subrecord
   (presence kept apart from content, a subrecord twice is a fault).
 - **Text**: the request's UTF-8 slot text is written into the record in the system code page's bytes (a slot that does
-  not convert without loss leaves that texture set out with a warning: its decal stays the source's); the map holds
-  UTF-8 again (`sourceTextures`, `greyTextures`, `hasDecal`).
+  not convert without loss - no best-fit character, the result read back to the same text - leaves that texture set
+  out with a warning: its decal stays the source's); the map holds UTF-8 again (`sourceTextures`, `greyTextures`,
+  `hasDecal`). A slot whose bytes are no text in the system code page (U+FFFD after the DLL's `SanitizeToUTF8`) is never
+  copied: the DLL's closure excludes that texture set, the builder and the fill refuse it too (a copy would name another
+  file). A texture set left out while reading a game request whose copy `--out` still holds refuses the whole build,
+  like an older request over TXST copies.
 - **Fill (DLL)**: `boundData`, `flags` and `*decalData` (its colour's RGB set to its Rec. 709 luminance, alpha kept)
   from the live source; never `textures[]` or `textureFileIDs`, nor `SetTexturePath`: the copy keeps its record's
   paths. An IPCT copy's own `dData` colour is greyed the same way, and its two texture sets, like a PROJ copy's
@@ -557,7 +561,9 @@ originals, and a texture set the player's and an NPC's forms share is never writ
   left out (the decal stays the source's, orange) when its DODT presence differs from the live source's, a live source
   slot is not the one it was built for, its slots are not the map's (the ESL and the map from different runs), or a
   grey texture does not open through the game's file system (opens only: whether it decodes is the builder's risk
-  check, which decodes every copy it judges). Such a copy makes freshness `stale` even with a matching fingerprint. A
+  check, which decodes every copy it judges). The reasons are counted apart: an out-of-step copy makes freshness `stale`
+  ("run the builder") even with a matching fingerprint, a grey texture that does not open makes it `pluginMissing`
+  ("enable the output mod"); the tester file and CheckCopies give the three counts. A
   slot that changes after the start cannot be refilled (the record's string): CheckCopies reports it and the next start
   leaves the copy out.
 - **Risk check**: `DECAL_COLOUR` (FAIL) when a TXST copy's TX00 or TX03 still names a coloured texture (the same
@@ -569,9 +575,11 @@ originals, and a texture set the player's and an NPC's forms share is never writ
   refuses a request from an older DLL when `--out` already holds TXST copies (building would retire their records),
   and builds without decals, saying so, otherwise. A source keeps its type with its id: one that comes back as another
   type, active or retired, is refused before anything is written (retired entries now keep their `type`).
-- **Saves**: a TXST copy id stays its source's through the retired rule, so a saved reference resolves while the copies
-  mod is installed. Whether decals are saved at all is not checked (`BSTempEffect` has save and load virtuals; the save
-  format has a temp-effects section, UESP); uninstalling the copies with saved decals is a known limit.
+- **Saves**: the copies ESL holds only active entries, so a saved reference to a TXST copy resolves only while its source
+  is still copied; retiring a source only reserves its id (it is never given to another source or type), its record is
+  gone. Whether decals are saved at all is not checked (`BSTempEffect` has save and load virtuals; the save format has a
+  temp-effects section, UESP); uninstalling the copies, or a rebuild that drops a texture set, with saved decals is a
+  known limit.
 - **Known limits**: TX02 (environment mask / subsurface tint), TX06 (multilayer) and TX07 are not dumped or judged; the
   decal on screen is an eye check (self-test T0-decal judges the forms by data).
 
@@ -705,7 +713,7 @@ the copy request, the copies are judged:
 | State | When |
 |---|---|
 | `none` | no copies map, or one with no entry (only the empty ESLs the mod ships) |
-| `pluginMissing` | the map was read but `HeartOfMagic_BlackFlame_Copies.esp` is not loaded, or at least half of its entries (and at least one) lost their copy form (the output mod placed before Black Flame, or not enabled) |
+| `pluginMissing` | the map was read but `HeartOfMagic_BlackFlame_Copies.esp` is not loaded, or at least half of its entries (and at least one) lost their copy form (the output mod placed before Black Flame, or not enabled); or, with a matching fingerprint, a decal texture set copy names a grey texture that does not open |
 | `notApplied` | Y11: the map was there but filling the copies stopped part way: every copy is left out this session (the log says why) |
 | `stale` | a version 1 map, or the map's request fingerprint differs from this start's: the byte form when `writeRequest` computed it, else the size form (each NIF only opened for its size, no byte read; the request carries both forms); or a decal texture set copy was left out as out of step with the load order (section "Decal texture set copies") |
 | `fresh` | otherwise |
@@ -732,9 +740,9 @@ own model: PROJ `data` (0x80-0x108), `soundLevel`, `fullName`, `muzzleFlashModel
 `fullName`, `boundData`; ARTO `data` (the DNAM art type) and `boundData` - never its model component; TXST `boundData`,
 `flags`, `*decalData` (section "Decal texture set copies"); a source art with alternate
 textures (MODS) is refused and left out (`alternate textures not copied`; no fire art in the measured order has any). Data structs are copied byte for byte (their layouts are asserted by CommonLib). A second pass points
-only the links that have a copy at it: PROJ `explosionType`, EXPL `impactPlacedObject` and `spawnProjectile`, IPCT
-`hazard`; every other link (light, sounds, texture sets, image space, enchantment, hazard spell, impact data sets)
-stays the source's. A copy whose source or copy form is missing, or whose types differ, or whose own model does not
+only the links that have a copy at it: PROJ `explosionType` and `decalData`, EXPL `impactPlacedObject` and
+`spawnProjectile`, IPCT `hazard`, `decalTextureSet` and `decalTextureSet2`; every other link (light, sounds, image space,
+enchantment, hazard spell, impact data sets) stays the source's. A copy whose source or copy form is missing, or whose types differ, or whose own model does not
 open through the game's file system (v2 fix J5: the engine then keeps the original and its runtime fallback), is left
 out of the map and logged. The fire set treats a copy as its source (`IsFireExplosion`, `IsFireHazard`). Right after the fill every copy
 is compared with its source (a difference there is a fill fault, logged as a warning). At every save load and new game
