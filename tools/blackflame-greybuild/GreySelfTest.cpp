@@ -19,6 +19,8 @@
 #include <iostream>
 #include <memory>
 
+#include "../../plugins/BlackFlame/src/CopyContractTest.h"
+
 namespace GreyBuild
 {
     namespace
@@ -412,6 +414,7 @@ namespace GreyBuild
             SelfTest::CheckForms(check, dir, source);
             SelfTest::CheckGameRequest(check, dir, source);
             SelfTest::CheckPathRule(check);
+            BlackFlame::CopyContractTest::Run([&](bool a_ok, const std::string& a_what) { check.Check(a_ok, "contract: " + a_what); });
             SelfTest::CheckTextures(check, dir);
             SelfTest::CheckRisk(check, dir);
             SelfTest::CheckDecals(check, dir);

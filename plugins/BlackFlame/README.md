@@ -856,6 +856,28 @@ proof). No 1.5.97 exe is on disk: nothing inside an SE function is verified.
   again (the request does not list the local records a DLL-written request would): replace the whole output mod,
   never layer two outputs (the same greymap and Local ESL names, different ids).
 
+### Single launch: the copy contract (P0): `CopyContract.h`, `SlotCoSave.h`
+
+Work in progress (branch feature/black-flame-single): grey copies built while the game runs, published at kDataLoaded
+and at the main menu before the first load, into a fixed slot pool. P0 is the contract both sides build against;
+nothing in game uses it yet. Header-only, C++17, no game types, included by the DLL and the builder like
+`DataPathRule.h`:
+
+| File | What |
+|---|---|
+| `src/CopyContract.h` | contract version; the slot pool (ESL local ids: PROJ 480 at 0x800, IPCT 480 at 0x9E0, EXPL 320 at 0xBC0, ARTO 224 at 0xD00, HAZD 192 at 0xDE0, TXST 96 at 0xEA0 - the first 72 with a DODT stub -, ADDN 208 at 0xF00 with AddOnNode index 40000 + place; 0xFD0-0xFFF reserved), FNV-1a 64, request.json v5 field names |
+| `src/CopyContractKeys.h` | the key string of every model object (form NIF, PROJ muzzle, ADDN MPS, TXST, the builder's texture and palette copies) and the ADDN table part; key16 = the string's FNV-1a 64 as 16 lower-case hex digits. The exact format is in the header and frozen by golden strings in the test table |
+| `src/CopyContractProgress.h` | the builder's `progress.jsonl` line: outcomes ok, fallback, failed (retryable), too_large and not_dumped (terminal); the writer and a parser that ignores a last line without `\n`, refuses any v but 1 and reports a bad line by number |
+| `src/CopyContractTest.h`, `CopyContractTestProgress.h` | the shared test table: `blackflame-cosave-check --self-test` and `blackflame-greybuild --self-test` both run it |
+| `src/SlotCoSave.h` | co-save record BFSL v1 (unique id `HBFS`): epoch, ledger version, plugin table, 9 bytes per slot; a read cut short or out of limits invalidates the whole record |
+| `src/DataPathRule.h` | `CopyPath` / `ParseCopyPath`: a copy lives at `meshes\|textures\heartofmagic\blackflame\copies\<key16>\<basename>`; the staging folder mirrors Data |
+
+The files P1 (builder) and P2 (DLL) fill in exist as stubs with their CMake entries already in place.
+
+```
+blackflame-cosave-check --self-test     (BFSL on byte buffers and the contract table; exit 0 = pass)
+```
+
 
 ## Runtimes and Address Library ids
 

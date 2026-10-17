@@ -145,6 +145,116 @@ namespace BlackFlame::DataPathRule
                            StartsWith(*path, kDerivedPaletteNormal));
     }
 
+    // =========================================================================
+    // Single-launch copies (CopyContract.h): <root>heartofmagic\blackflame\copies\<key16>\<basename>
+    // =========================================================================
+    // One object per key folder; basename is the source file's name only (keeps MAX_PATH room). The staging folder
+    // (<SKSE log folder>\HeartOfMagic_BlackFlame\staging) mirrors Data, so a copy's staging-relative path is its
+    // Data-relative path. The key16 folder never collides with the older copies\palettes\ and copies\_tint\ folders
+    // (16 hex digits). Both roots, the copies folder and key16 are ASCII; basename keeps the source's bytes.
+
+    inline constexpr std::string_view kCopiesFolder = "heartofmagic\\blackflame\\copies\\";
+    inline constexpr std::size_t kKey16Length = 16;
+
+    struct CopyPathParts
+    {
+        std::string_view root;  // kMeshesRoot or kTexturesRoot
+        std::string key16;
+        std::string basename;
+    };
+
+    /// 16 lower-case hex digits (CopyContract::IsKey16, kept here so this header needs no other)
+    [[nodiscard]] inline bool IsCopyKey16(std::string_view a_text) noexcept
+    {
+        if (a_text.size() != kKey16Length) {
+            return false;
+        }
+        for (const char c : a_text) {
+            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /// Where a normalised path's last token starts: one past its last real '\' (a double-byte character's trail byte
+    /// 0x5C is no separator), 0 when it has none
+    [[nodiscard]] inline std::size_t LastTokenStart(std::string_view a_path) noexcept
+    {
+        std::size_t start = 0;
+        for (std::size_t i = 0; i < a_path.size(); ++i) {
+            const auto c = static_cast<unsigned char>(a_path[i]);
+            if (IsLeadByte(c) && i + 1 < a_path.size()) {
+                ++i;
+                continue;
+            }
+            if (c == '\\') {
+                start = i + 1;
+            }
+        }
+        return start;
+    }
+
+    /// The copy of a_source (a record's or a slot's path text) under a_root (kMeshesRoot or kTexturesRoot) for a_key16:
+    /// <root>heartofmagic\blackflame\copies\<key16>\<basename>, Normalize applied. nullopt for another root, a key16 that
+    /// is not 16 lower-case hex digits, or a source Normalize refuses.
+    [[nodiscard]] inline std::optional<std::string> CopyPath(std::string_view a_root, std::string_view a_key16,
+        std::string_view a_source)
+    {
+        if ((a_root != kMeshesRoot && a_root != kTexturesRoot) || !IsCopyKey16(a_key16)) {
+            return std::nullopt;
+        }
+        const auto source = Normalize(a_source, a_root);
+        if (!source) {
+            return std::nullopt;
+        }
+        const std::string_view basename = std::string_view(*source).substr(LastTokenStart(*source));
+        std::string path;
+        path.reserve(a_root.size() + kCopiesFolder.size() + a_key16.size() + 1 + basename.size());
+        path.append(a_root).append(kCopiesFolder).append(a_key16).append("\\").append(basename);
+        return Normalize(path, a_root);  // unchanged by construction; applied so the rule is Normalize's
+    }
+
+    /// CopyPath back: a_path must be exactly a copy path as CopyPath writes it (Normalize leaves it unchanged, the root,
+    /// the copies folder, 16 lower-case hex digits, one '\', a basename and nothing deeper); else nullopt. The DLL's guard
+    /// for every path it copies from staging into Data.
+    [[nodiscard]] inline std::optional<CopyPathParts> ParseCopyPath(std::string_view a_path)
+    {
+        for (const auto root : { kMeshesRoot, kTexturesRoot }) {
+            if (!StartsWith(a_path, root)) {
+                continue;
+            }
+            const auto normalized = Normalize(a_path, root);
+            if (!normalized || *normalized != a_path) {
+                return std::nullopt;
+            }
+            std::string_view rest = a_path.substr(root.size());
+            if (!StartsWith(rest, kCopiesFolder)) {
+                return std::nullopt;
+            }
+            rest.remove_prefix(kCopiesFolder.size());
+            if (rest.size() <= kKey16Length + 1 || rest[kKey16Length] != '\\' || !IsCopyKey16(rest.substr(0, kKey16Length))) {
+                return std::nullopt;
+            }
+            const std::string_view basename = rest.substr(kKey16Length + 1);
+            if (LastTokenStart(basename) != 0) {
+                return std::nullopt;  // a folder below the key folder
+            }
+            return CopyPathParts{ root, std::string(rest.substr(0, kKey16Length)), std::string(basename) };
+        }
+        return std::nullopt;
+    }
+
+    /// A copy's path inside the staging folder (which mirrors Data): a_dataRelative itself when ParseCopyPath takes it,
+    /// else nullopt
+    [[nodiscard]] inline std::optional<std::string> StagingRelative(std::string_view a_dataRelative)
+    {
+        if (!ParseCopyPath(a_dataRelative)) {
+            return std::nullopt;
+        }
+        return std::string(a_dataRelative);
+    }
+
     /// AB1: a record string's own bytes as hex (upper case, two digits a byte), so a text that is no text in any code page
     /// travels through request.json and the copies map unchanged
     [[nodiscard]] inline std::string ToHex(std::string_view a_bytes)

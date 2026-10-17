@@ -90,6 +90,19 @@ set(BLACKFLAME_SOURCES
     src/SelfTestWorld.cpp
     src/SelfTestDispel.cpp
     src/SelfTestAim.cpp
+    # Single launch (P2 owns these files; P0 added the entries so no phase edits this list)
+    src/FileIndex.cpp
+    src/FileIndexInit.cpp
+    src/FileIndexGuardCheck.cpp
+    src/SlotLedger.cpp
+    src/SlotAssign.cpp
+    src/FormCopiesFillModel.cpp
+    src/CopyGroups.cpp
+    src/CopyModelProbeVerify.cpp
+    src/MenuWatch.cpp
+    src/BuilderLauncher.cpp
+    src/BuildProgress.cpp
+    src/SelfTestStepsSlots.cpp
     ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/EncodingUtils.cpp
 )
 

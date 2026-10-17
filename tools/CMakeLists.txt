@@ -197,6 +197,11 @@ add_executable(blackflame-greybuild
     blackflame-greybuild/GreyPalette.cpp
     blackflame-greybuild/GreySelfTestRisk.cpp
     blackflame-greybuild/GreySelfTestDecal.cpp
+    # Single launch (P1 owns these files; P0 added the entries)
+    blackflame-greybuild/GreySlotPool.cpp
+    blackflame-greybuild/GreyKeyedRun.cpp
+    blackflame-greybuild/GreyProgress.cpp
+    blackflame-greybuild/GreyBudget.cpp
 )
 
 # C++17 (std::format via fmt): nifly's Matrix3/Matrix4 declare a non-const operator==, which
@@ -211,5 +216,26 @@ target_link_libraries(blackflame-greybuild PRIVATE
     nifly
     Microsoft::DirectXTex
     fmt::fmt
+    nlohmann_json::nlohmann_json
+)
+
+# =============================================================================
+# blackflame-cosave-check  -  offline check of Black Flame's BFSL co-save record
+# =============================================================================
+# plugins/BlackFlame/src/SlotCoSave.h (header only, no game types) on byte buffers and the copy contract's shared test
+# table (CopyContractTest.h): --self-test. C++17 like the builder, so the contract headers are checked at the
+# standard both sides build them with. Entry frozen by P0 of the single-launch design; P2 owns the sources.
+
+add_executable(blackflame-cosave-check
+    blackflame-cosave-check/main.cpp
+)
+
+set_target_properties(blackflame-cosave-check PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+
+target_include_directories(blackflame-cosave-check PRIVATE
+    ${CMAKE_SOURCE_DIR}/plugins/BlackFlame/src
+)
+
+target_link_libraries(blackflame-cosave-check PRIVATE
     nlohmann_json::nlohmann_json
 )

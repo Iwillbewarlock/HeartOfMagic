@@ -296,9 +296,12 @@ This project does not have a C++ test framework. Validation is done through:
   it must list what `lab/tome-reach/expected-*.txt` lists on the same load order) and `declutter-test`
   (the native tree declutter pass: `declutter-test -i tree.json -o reply.json [-r runs]`; its positions
   must match `LayoutDeclutter.apply` in `modules/layoutDeclutter.js` on the same tree - see
-  docs/TREE_BUILDING_SYSTEM.md, "Decluttering before save") and `tree-save-check` (SaveSpellTree's no-spells guard,
+  docs/TREE_BUILDING_SYSTEM.md, "Decluttering before save"), `tree-save-check` (SaveSpellTree's no-spells guard,
   `include/uimanager/TreeSaveCheck.h`: `--self-test` on made-up trees, or `tree-save-check <tree.json>...` against a
-  full parse; exit 1 on a disagreement)
+  full parse; exit 1 on a disagreement) and `blackflame-cosave-check` (Black Flame's BFSL co-save record,
+  `plugins/BlackFlame/src/SlotCoSave.h`, and the single-launch copy contract `CopyContract.h`: `--self-test` round-trips
+  BFSL on byte buffers - cut short at every byte, over the limits, an empty table, the whole pool - and runs the
+  contract's shared test table, which `blackflame-greybuild --self-test` runs too; exit 1 on a failure)
 
 ## Code Style
 
