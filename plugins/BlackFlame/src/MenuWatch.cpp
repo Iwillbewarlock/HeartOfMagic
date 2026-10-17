@@ -87,8 +87,10 @@ namespace BlackFlame::MenuWatch
                             Close("the loading menu opened");
                         }
                     }
+                } catch (const std::exception& e) {
+                    logger::error("BlackFlame: menu watch: the menu event handler threw: {}", e.what());
                 } catch (...) {
-                    logger::error("BlackFlame: menu watch: the menu event handler threw");
+                    logger::error("BlackFlame: menu watch: the menu event handler threw an exception of an unknown type");
                 }
                 return RE::BSEventNotifyControl::kContinue;
             }
@@ -189,6 +191,12 @@ namespace BlackFlame::MenuWatch
                 return;
             }
         }
-        a_listener();
+        try {
+            a_listener();  // the main menu is already open: at once
+        } catch (const std::exception& e) {
+            logger::error("BlackFlame: menu watch: a main menu listener threw: {}", e.what());
+        } catch (...) {
+            logger::error("BlackFlame: menu watch: a main menu listener threw an exception of an unknown type");
+        }
     }
 }

@@ -72,6 +72,9 @@ namespace BlackFlame::FileIndex
             [[nodiscard]] StreamPtr& Ptr() noexcept { return *reinterpret_cast<StreamPtr*>(&m_raw); }
             [[nodiscard]] Stream* Get() const noexcept { return m_raw; }
 
+            /// Our reference is not given back (the index may hold the stream without having counted it: never deleted)
+            void Leak() noexcept { m_raw = nullptr; }
+
         private:
             Stream* m_raw = nullptr;  // the only member of a BSTSmartPointer (RE/B/BSTSmartPointer.h, _ptr at 0)
         };
@@ -112,18 +115,31 @@ namespace BlackFlame::FileIndex
             return state.find && state.pathToId && state.guardCtor && state.guardDtor && state.manager && *state.manager;
         }
 
+        // Review decision 12: the first fault (a lock the guard took may not have been given back) or an unexpected stream
+        // count turns the index off for the session; nothing calls into it again
+        void TurnOff(const std::string& a_why)
+        {
+            auto& state = TheState();
+            if (state.why.empty()) {
+                state.why = a_why;
+                logger::error("BlackFlame: file index: turned off for the session: {}", a_why);
+            }
+        }
+
         Lookup FindChecked(const std::string& a_dataPath)
         {
             Lookup result;
             if (!CanLookUp()) {
                 return result;
             }
-            (void)GuardedKeep("file index lookup", [&]() {
-                ID id{};
-                TheState().pathToId(&id, a_dataPath.c_str());
-                IndexGuard guard;
-                result = FindUnder(guard, id);
-            });
+            if (!GuardedKeep("file index lookup", [&]() {
+                    ID id{};
+                    TheState().pathToId(&id, a_dataPath.c_str());
+                    IndexGuard guard;
+                    result = FindUnder(guard, id);
+                })) {
+                TurnOff("a lookup faulted (" + a_dataPath + ")");
+            }
             return result;
         }
 
@@ -151,7 +167,7 @@ namespace BlackFlame::FileIndex
             {
                 before = FindChecked(a_dataPath);
                 if (!before.ran) {
-                    return { Outcome::kFault, "not registered: the lookup before faulted (logged)" };
+                    return { Outcome::kFault, "not registered: the lookup before faulted (logged; the index is off now)" };
                 }
                 if (before.found) {
                     return before.archive ? Registration{ Outcome::kArchiveClash, "an archive record of this path: a name clash, never registered" } :
@@ -166,6 +182,7 @@ namespace BlackFlame::FileIndex
             }
             std::uint64_t streamSize = 0;
             if (!GuardedKeep("file index loose stream size", [&]() { streamSize = stream.Get()->totalSize; })) {
+                TurnOff("the loose stream's size could not be read");
                 return { Outcome::kFault, "not registered: the stream's size could not be read (FAULT, logged)" };
             }
             if (streamSize != a_expectedSize) {  // FQ3: not the file we wrote: never registered
@@ -189,7 +206,15 @@ namespace BlackFlame::FileIndex
                 countAfter = CountOf(stream.Get(), offset);
             });
             if (!ok) {
+                stream.Leak();  // whatever RegisterLoose did with it, the stream is not deleted under the index
+                TurnOff("RegisterLoose faulted");
                 return { Outcome::kFault, "RegisterLoose FAULTED (logged)" };
+            }
+            if (registered && countAfter != countBefore + 1) {
+                stream.Leak();  // the index holds it without a reference of its own: releasing ours could delete it under it
+                TurnOff(std::format("RegisterLoose left the stream count at {} (from {}): the count offset or the layout is not "
+                                    "what the checks said", countAfter, countBefore));
+                return { Outcome::kFault, "the stream count did not rise by one" };
             }
             if (!registered) {
                 return { underGuard.archive ? Outcome::kArchiveClash : Outcome::kAlreadyLoose, "a record appeared before RegisterLoose" };

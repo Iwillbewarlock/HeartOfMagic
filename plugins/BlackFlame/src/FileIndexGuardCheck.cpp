@@ -76,7 +76,7 @@ namespace BlackFlame::FileIndexGuardCheck
         const auto* bytes = reinterpret_cast<const std::uint8_t*>(a_function);
         std::uint16_t aliases = 1u << kRcx;  // registers holding the guard pointer; rcx to start
         for (std::size_t i = 0; i + 3 < kGuardWindow; ++i) {
-            if ((bytes[i] & 0xF8) != 0x48) {  // REX.W, no R/B extension (the observed move is 48 8B D9)
+            if (bytes[i] != 0x48) {  // REX.W exactly: an R or B bit would change the register numbers (the observed move is 48 8B D9)
                 continue;
             }
             const std::uint8_t op = bytes[i + 1];
@@ -93,7 +93,7 @@ namespace BlackFlame::FileIndexGuardCheck
             }
         }
         for (std::size_t i = 0; i + kMovRcxRipSize < kGuardWindow; ++i) {
-            const std::size_t op = (bytes[i] & 0xF8) == 0x48 ? i + 1 : i;  // an optional REX.W before the 8B
+            const std::size_t op = bytes[i] == 0x48 ? i + 1 : i;  // an optional REX.W (no R or B bit) before the 8B
             if (bytes[op] != 0x8B) {
                 continue;
             }

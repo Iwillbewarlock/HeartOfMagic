@@ -69,6 +69,7 @@ namespace BlackFlame
         bool launchBuilder = true;    // with singleLaunch: the builder is started at kDataLoaded (BuilderLauncher.h)
         bool slotPreflight = false;   // kPreLoadGame: refill slots whose save pairs differ (unverified in game: off)
         bool selfTestSlots = false;   // self-test steps T0-slots and T0-W2 (with selfTest; SelfTestStepsSlots.cpp)
+        bool slotTxst = false;        // decal texture set slots keyed and their builds requested; never published yet (CopyGroups.h)
         double tint = 0.6;            // the copies' base colour scale (the builder's kDefaultTint), into the key and request v5
         double tintAdd = 0.9;         // additive palette shaders' base colour scale (kDefaultTintAdd)
         bool paletteGodskin = false;  // "paletteMode": "derived" (false, the builder's default) or "godskin"

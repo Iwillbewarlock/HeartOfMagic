@@ -73,7 +73,7 @@ namespace BlackFlame::BuilderLauncher
         const std::filesystem::path& a_staging, std::uint32_t a_jobMemoryMiB);
 
     /// The builder's process is still in its job (any thread)
-    [[nodiscard]] bool Running() noexcept;
+    [[nodiscard]] bool Running();
 
     /// "not started (why)", "running (pid N)", "ended" - for the log and the HUD
     [[nodiscard]] std::string Status();

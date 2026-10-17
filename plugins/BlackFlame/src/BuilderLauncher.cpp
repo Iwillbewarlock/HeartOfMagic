@@ -168,7 +168,7 @@ namespace BlackFlame::BuilderLauncher
         return session.launch;
     }
 
-    bool Running() noexcept
+    bool Running()
     {
         std::lock_guard lock(g_mutex);
         auto& session = TheSession();

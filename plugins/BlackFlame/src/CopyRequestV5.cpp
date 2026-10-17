@@ -41,6 +41,10 @@ namespace BlackFlame::CopyRequestV5
             for (const auto& nif : a_inputs.nifs) {
                 lines.push_back(std::format("N|{}|{}|{:016x}|{}", Utf8(nif.path), nif.blob.size, nif.blob.fnv64, nif.blob.ok ? "ok" : "failed"));
             }
+            // review Codex #3: every texture's content hash too (a same-size replacement must re-dump: the keys hashed it)
+            for (const auto& [path, hash] : a_inputs.textureHash) {
+                lines.push_back(std::format("T|{}|{}", Utf8(path), CC::FileHashText(hash).value_or("unset")));
+            }
             std::ranges::sort(lines);
             std::uint64_t hash = CC::kFnvOffset;
             for (const auto& line : lines) {
@@ -91,7 +95,7 @@ namespace BlackFlame::CopyRequestV5
             std::unordered_map<RE::FormID, std::uint16_t> slotOf;
             for (const auto id : SlotAssign::Assigned()) {
                 const auto& slot = SlotAssign::At(id);
-                if (slot.active && slot.source) {
+                if (slot.usable && slot.source) {  // the slots that can be published (SlotObjects' rule too)
                     slotOf.emplace(slot.source->GetFormID(), id);
                 }
             }
@@ -134,7 +138,7 @@ namespace BlackFlame::CopyRequestV5
                     const auto* addon = slot.source->As<RE::BGSAddonNode>();
                     a_root[CC::Request::kAddnMps].push_back({ { CC::Request::kSlot, id }, { CC::Request::kPath, Utf8(slot.sourceModel) },
                         { CC::Request::kKey, CC::Hex16(slot.modelKey->key) }, { CC::Request::kIndex, addon ? addon->index : 0 },
-                        { "source", slot.sourceText } });
+                        { "source", Utf8(slot.sourceText) } });  // the plugin name's bytes are the code page's
                     ++a_out.addnMps;
                 }
                 if (slot.type == CC::SlotType::kTXST && slot.txstKey) {

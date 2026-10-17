@@ -4,6 +4,7 @@
 
 #include "SlotAssign.h"
 
+#include "Config.h"
 #include "FormCopiesFillModel.h"
 #include "FormCopiesState.h"
 #include "SlotLedger.h"
@@ -209,7 +210,9 @@ namespace BlackFlame::SlotAssign
                     continue;
                 }
                 if (slot.type == CC::SlotType::kTXST) {
-                    slot.txstKey = SlotKeys::TxstKey(a_inputs, *slot.source->As<RE::BGSTextureSet>());
+                    if (GetConfig().slotTxst) {  // off: no TXST build is requested (none would be published: CopyGroups.h)
+                        slot.txstKey = SlotKeys::TxstKey(a_inputs, *slot.source->As<RE::BGSTextureSet>());
+                    }
                     continue;
                 }
                 const auto kind = slot.type == CC::SlotType::kADDN ? CC::NifKind::kMps : CC::NifKind::kModel;

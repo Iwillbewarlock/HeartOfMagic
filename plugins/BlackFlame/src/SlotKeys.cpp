@@ -149,8 +149,15 @@ namespace BlackFlame::SlotKeys
                     addon->GetFormID() & (file->IsLight() ? kLightLocalMask : kFullLocalMask), model,
                     model.empty() ? CC::FileHash::Missing() : NifHash(a_out, model) });
             }
-            for (const auto& path : a_closurePaths) {
-                const auto it = a_out.nifAt.find(path);
+            // The closure's NIFs, then (review: the transitive part) the MPS NIFs of the ADDN records they name, until no new
+            // index appears: an MPS naming another ADDN gets that one a slot too
+            std::vector<std::string> queue(a_closurePaths.begin(), a_closurePaths.end());
+            std::set<std::string> scanned;
+            const auto& nodes = dh->addonNodes;
+            while (!queue.empty()) {
+                const auto path = std::move(queue.back());
+                queue.pop_back();
+                const auto it = scanned.insert(path).second ? a_out.nifAt.find(path) : a_out.nifAt.end();
                 if (it == a_out.nifAt.end()) {
                     continue;
                 }
@@ -167,8 +174,13 @@ namespace BlackFlame::SlotKeys
                     continue;
                 }
                 for (const auto value : read.values) {
-                    if (value >= 0) {
-                        a_out.valueNodeIndices.insert(static_cast<std::uint32_t>(value));
+                    if (value < 0 || !a_out.valueNodeIndices.insert(static_cast<std::uint32_t>(value)).second) {
+                        continue;
+                    }
+                    const auto index = static_cast<std::uint32_t>(value);
+                    const auto* addon = index < nodes.free_idx() ? nodes[static_cast<std::uint16_t>(index)] : nullptr;
+                    if (const auto model = addon ? NifDump::NormalizeModelPath(ModelPathOf(addon)) : std::nullopt) {
+                        queue.push_back(*model);
                     }
                 }
             }

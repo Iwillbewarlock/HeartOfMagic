@@ -45,9 +45,19 @@ namespace BlackFlame::FileIndex
         std::uintptr_t Base() { return REL::Module::get().base(); }
 
         // 0x0C on SE and on AE before 1.6.1170, 0x10 from 1.6.1170 on (Temp File Framework's reading of the engines)
-        std::uint32_t ExpectedCountOffset()
+        // Review decision 13: probe run 3 measured 0x10 on 1.6.1170, so there it must be 0x10. On another AE build the scan's
+        // one offset is taken when it is 0x0C or 0x10 (Temp File Framework reads 0x0C before 1.6.1170; CommonLib's
+        // StreamBase.h:56 GetFlags says 0x10 on every AE build - the two disagree, so neither is trusted there): the first
+        // registration then checks the count before and after (FileIndex.cpp) and turns the index off when it is not +1
+        bool CountOffsetAccepted(std::uint32_t a_offset, std::string& a_note)
         {
-            return REL::Module::IsAE() && REL::Module::get().version() >= REL::Version(1, 6, 1170, 0) ? kAeLateCountOffset : kSeCountOffset;
+            const auto version = REL::Module::get().version();
+            if (version == REL::Version(1, 6, 1170, 0)) {
+                a_note = "as probe run 3 measured on 1.6.1170";
+                return a_offset == kAeLateCountOffset;
+            }
+            a_note = "not measured on this build: the first registration checks the count";
+            return a_offset == kSeCountOffset || a_offset == kAeLateCountOffset;
         }
 
         // The inlined Stream::IncRef in the engine's CreateStream: every `lock cmpxchg [rbx+disp8], ecx` in the window
@@ -75,11 +85,13 @@ namespace BlackFlame::FileIndex
                 return std::nullopt;
             }
             const auto offset = *found.begin();
-            if (offset != ExpectedCountOffset()) {
-                a_why = std::format("CONFLICT: the stream count scan found 0x{:X}, this build ({}) is expected to use 0x{:X}", offset,
-                    REL::Module::get().version().string(), ExpectedCountOffset());
+            std::string note;
+            if (!CountOffsetAccepted(offset, note)) {
+                a_why = std::format("CONFLICT: the stream count scan found 0x{:X} on {}, which is not accepted ({})", offset,
+                    REL::Module::get().version().string(), note);
                 return std::nullopt;
             }
+            Log(std::format("stream count at +0x{:X} ({})", offset, note));
             return offset;
         }
 
@@ -196,6 +208,9 @@ namespace BlackFlame::FileIndex
                 bool found = false;
                 bool archive = false;
                 const bool ran = RawFind(std::string(path), found, archive);
+                if (!ran) {
+                    return std::format("the lookup of the shipped '{}' faulted: the index is not used", path);  // review OCR 5
+                }
                 Log(std::format("check on the shipped '{}': {}; {}", path,
                     !ran ? "lookup FAULTED" : (found ? (archive ? "archive record" : "loose record") : "no record"),
                     DescribeIds(std::string(path))));

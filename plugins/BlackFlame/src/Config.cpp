@@ -58,6 +58,7 @@ namespace BlackFlame
             BoolKey{ "launchBuilder", &Config::launchBuilder },
             BoolKey{ "slotPreflight", &Config::slotPreflight },
             BoolKey{ "selfTestSlots", &Config::selfTestSlots },
+            BoolKey{ "slotTxst", &Config::slotTxst },
         };
 
         // Single launch: the tints the builder bakes (GreyBuild.h --tint / --tint-add take 0..2) and the job memory cap
@@ -272,9 +273,9 @@ namespace BlackFlame
                 g_config.copyLaunch, g_config.copyLaunchExplosion, g_config.copyExplosionCreate, g_config.copyImpacts,
                 g_config.copyHitArt, ProbeModeName(g_config.copyModelProbe), g_config.copyModelProbeAlways, g_config.copyCastingArt, g_config.refreshCastingArt, g_config.copyHazardCreate, g_config.copyPlaced, g_config.writeRequest, g_config.testerMode, g_config.devAutoLoad, g_config.devAutoE3, g_config.devAutoQuit, g_config.selfTestDelaySeconds,
                 g_config.lightColor.red, g_config.lightColor.green, g_config.lightColor.blue);
-            logger::info("BlackFlame: config singleLaunch={} launchBuilder={} slotPreflight={} selfTestSlots={} tint={} "
+            logger::info("BlackFlame: config singleLaunch={} launchBuilder={} slotPreflight={} selfTestSlots={} slotTxst={} tint={} "
                          "tintAdd={} paletteMode={} builderJobMemoryMiB={}", g_config.singleLaunch, g_config.launchBuilder,
-                g_config.slotPreflight, g_config.selfTestSlots, g_config.tint, g_config.tintAdd,
+                g_config.slotPreflight, g_config.selfTestSlots, g_config.slotTxst, g_config.tint, g_config.tintAdd,
                 g_config.paletteGodskin ? "godskin" : "derived", g_config.builderJobMemoryMiB);
         }
     }
