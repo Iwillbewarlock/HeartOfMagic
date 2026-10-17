@@ -29,7 +29,8 @@ namespace BlackFlame::CopyContract
 {
     // Bumped when a key string, the copy path, the pool table, the progress line or request v5 changes meaning.
     // 2: copies named copy.<ext>, notdumped:<size>, non-ASCII paths as <name>hex=, the ADDN table's full sort order.
-    inline constexpr std::uint32_t kContractVersion = 2;
+    // 3: tints in the builder's own range 0..2, ADDN rows once, plugin names lowered outside double-byte characters.
+    inline constexpr std::uint32_t kContractVersion = 3;
 
     // =========================================================================
     // Slot pool (the slot ESL's local ids 0x800-0xFFF): fixed types, contiguous, never reused
@@ -291,13 +292,16 @@ namespace BlackFlame::CopyContract
     // =========================================================================
 
     inline constexpr int kFloatDecimals = 6;
-    inline constexpr double kMaxAbsTint = 16.0;  // |tint| and |tintAdd| at most this (the builder takes 0..2)
+    // The range the builder takes for tint and tintAdd alike (tools/blackflame-greybuild GreyBuild.h kMinTint / kMaxTint,
+    // checked by main.cpp ParseTint and GreyMap.cpp), so the DLL refuses the same values before it writes a request
+    inline constexpr double kMinTint = 0.0;
+    inline constexpr double kMaxTint = 2.0;
 
     /// a_value as std::to_chars fixed with 6 decimals (locale-free), "-0.000000" written as "0.000000"; nullopt for NaN,
-    /// infinity or |a_value| > kMaxAbsTint
+    /// infinity or a value outside kMinTint..kMaxTint (checked before rounding: 2.0000004 is refused, -0.0 taken)
     [[nodiscard]] inline std::optional<std::string> TintText(double a_value)
     {
-        if (!std::isfinite(a_value) || std::fabs(a_value) > kMaxAbsTint) {
+        if (!std::isfinite(a_value) || !(a_value >= kMinTint && a_value <= kMaxTint)) {
             return std::nullopt;
         }
         char buffer[32];
