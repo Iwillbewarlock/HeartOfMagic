@@ -1,59 +1,38 @@
 #include "game/ToxApply.h"
 
-#include "core/ToxCore.h"
-#include "game/ToxData.h"
-
 #include <algorithm>
 #include <array>
-#include <chrono>
+#include <cstddef>
 #include <cstdint>
-#include <optional>
-#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace
 {
     // =========================================================================
-    // Fallbacks decided by the in-game self test (Task 7)
+    // Fallback decided by the in-game self test (Task 7)
     // =========================================================================
 
     // Self test step 2: when the poison cast by the player's instant caster lands on the player
     // (a potion's delivery is Self), set this to cast from the target's own instant caster with
-    // the player as blame actor. Effects whose caster is the target then count as ours too.
+    // the player as blame actor.
     constexpr bool kCastFromTarget = false;
-
-    // Self test step 3: when elapsedSeconds = 0 does not lengthen the effect (or breaks a fading
-    // or scripted effect), set this to refresh by dispelling our effects and casting again.
-    constexpr bool kRefreshByRecast = false;
 
     // =========================================================================
     // Constants
     // =========================================================================
 
-    // MagicCaster::CastSpellImmediate arguments (RE/M/MagicCaster.h:62); spec 5.4 step 3
+    // MagicCaster::CastSpellImmediate arguments (RE/M/MagicCaster.h:62); spec 5.4
     constexpr bool kNoHitEffectArt = false;
     constexpr float kFullEffectiveness = 1.0f;
     constexpr bool kHostileEffectivenessOnly = false;
     constexpr float kNoMagnitudeOverride = 0.0f;
-    constexpr float kRestartedElapsedSeconds = 0.0f;
-    constexpr double kNeverActed = -1.0;  // IntervalElapsed: < 0 means never seen
 
     // =========================================================================
     // State (game main thread only, ToxApply.h)
     // =========================================================================
 
-    using Clock = std::chrono::steady_clock;
-    using EffectFlag = RE::ActiveEffect::Flag;
     using EffectList = RE::BSSimpleList<RE::ActiveEffect*>;
-
-    // An effect our cast created. The pointer is only an identity: it is dereferenced only after
-    // it was found again in the target's current list (the engine frees ended effects).
-    struct OwnedEffect
-    {
-        RE::ActiveEffect* effect = nullptr;
-        RE::ActorHandle caster;
-        std::uint16_t uniqueId = 0;
-    };
 
     // An effect seen in a list before our cast: the address plus usUniqueID, so a freed address
     // reused by the cast's new effect is not mistaken for the old one
@@ -63,134 +42,33 @@ namespace
         std::uint16_t uniqueId = 0;
     };
 
-    struct Application
-    {
-        double lastActionSeconds = kNeverActed;
-        // kForeignPresent / kNoCaster are not interval-limited: each is logged once until the
-        // outcome changes or the next refresh or cast
-        std::optional<ToxGame::ApplyOutcome> quietLogged;
-        std::vector<OwnedEffect> effects;
-    };
-
-    // Why a cast left nothing to record (kCastNoEffect), for Task 7's fallback decisions
+    // Why a cast showed no new effect on the target (kCastNoEffect)
     enum class NoEffectReason
     {
-        kInstantOnly,   // no effect of the poison has a duration > 0: nothing lasting to record
+        kInstantOnly,   // no effect of the poison has a duration > 0: nothing lasting to see
         kNoTargetList,  // the target still had no active effect list after the cast
         kOnCaster,      // a new effect of the poison showed up on the player (Self delivery)
         kNowhere,       // neither on the target nor on the player
         kCount
     };
 
-    // One entry per (target, poison) pair acted on this session, emptied on every load and new
-    // game. A long session holds a few hundred small entries; prune by age if that ever matters.
-    std::unordered_map<std::uint64_t, Application> g_applications;
+    // (target FormID << 32 | poison FormID) of every pair cast on this session, emptied on every
+    // load and new game. A long session holds a few hundred 8-byte keys.
+    std::unordered_set<std::uint64_t> g_applied;
     std::array<bool, static_cast<std::size_t>(NoEffectReason::kCount)> g_warnedNoEffect{};
-    // Steady-state outcome lines: info the first time in the DLL's life, debug after
-    bool g_refreshLogged = false;
+    // Steady-state outcome lines: info (warn for kNoCaster) the first time in the DLL's life, debug after
+    bool g_alreadyLogged = false;
     bool g_castLogged = false;
     bool g_instantOnlyLogged = false;
+    bool g_noCasterLogged = false;
 
     // =========================================================================
     // Helpers
     // =========================================================================
 
-    double NowSeconds()
-    {
-        return std::chrono::duration<double>(Clock::now().time_since_epoch()).count();
-    }
-
     std::uint64_t ApplicationKey(RE::FormID a_target, RE::FormID a_poison)
     {
         return (static_cast<std::uint64_t>(a_target) << 32) | a_poison;
-    }
-
-    // Spec 12: kInactive and kDispelled count as gone (RE/A/ActiveEffect.h:45-54)
-    bool IsLive(const RE::ActiveEffect& a_effect)
-    {
-        return a_effect.flags.none(EffectFlag::kInactive, EffectFlag::kDispelled);
-    }
-
-    bool IsInList(EffectList& a_list, const RE::ActiveEffect* a_effect)
-    {
-        return std::find(a_list.begin(), a_list.end(), a_effect) != a_list.end();
-    }
-
-    // Diagnosis (in-game run 2026-10-17): why a record was dropped, every mismatch bit on its own.
-    // a_now is the record's effect found again in the current list, or null when it was not there.
-    constexpr int kRecordDropLines = 12;
-    int g_recordDropLeft = kRecordDropLines;
-
-    void LogRecordDrop(const OwnedEffect& a_record, const char* a_kind, const RE::ActiveEffect* a_now)
-    {
-        if (g_recordDropLeft <= 0) return;
-        --g_recordDropLeft;
-        if (!a_now) {
-            logger::info("Toxicology: diagnosis drop {}: record {} uid {} caster {:08X}", a_kind,
-                static_cast<const void*>(a_record.effect), a_record.uniqueId, a_record.caster.native_handle());
-            return;
-        }
-        logger::info("Toxicology: diagnosis drop {}: record {} uid {}->{} caster {:08X}->{:08X} inactive {} dispelled {} "
-                     "flags {:08X} elapsed {:.2f} duration {:.2f}",
-            a_kind, static_cast<const void*>(a_record.effect), a_record.uniqueId, a_now->usUniqueID,
-            a_record.caster.native_handle(), a_now->caster.native_handle(),
-            a_now->flags.any(EffectFlag::kInactive), a_now->flags.any(EffectFlag::kDispelled),
-            a_now->flags.underlying(), a_now->elapsedSeconds, a_now->duration);
-    }
-
-    // Drops the records whose effect left the list, changed, or is no longer live; returns the rest
-    std::vector<RE::ActiveEffect*> TakeLiveOwned(EffectList& a_list, const RE::MagicItem* a_poison,
-        std::vector<OwnedEffect>& a_owned)
-    {
-        std::vector<RE::ActiveEffect*> live;
-        std::erase_if(a_owned, [&](const OwnedEffect& a_record) {
-            if (!a_record.effect || !IsInList(a_list, a_record.effect)) {
-                LogRecordDrop(a_record, "missing-pointer", nullptr);
-                return true;
-            }
-            const auto& effect = *a_record.effect;
-            if (effect.spell != a_poison || effect.caster != a_record.caster ||
-                effect.usUniqueID != a_record.uniqueId || !IsLive(effect)) {
-                LogRecordDrop(a_record, "mismatch", &effect);
-                return true;
-            }
-            live.push_back(a_record.effect);
-            return false;
-        });
-        return live;
-    }
-
-    bool HasLiveEffectOf(EffectList& a_list, const RE::MagicItem* a_poison)
-    {
-        return std::any_of(a_list.begin(), a_list.end(), [&](const RE::ActiveEffect* a_effect) {
-            return a_effect && a_effect->spell == a_poison && IsLive(*a_effect);
-        });
-    }
-
-    // Diagnosis for "our own effect judged foreign" (in-game run 2026-10-17): the records held before
-    // TakeLiveOwned and every effect of the poison in the list, so the log shows which field stopped the
-    // match (address, usUniqueID, caster, flags). Pointers are printed, never dereferenced unless in the list.
-    constexpr int kForeignDiagnosisLines = 8;
-    int g_foreignDiagnosisLeft = kForeignDiagnosisLines;
-
-    void LogForeignDiagnosis(EffectList& a_list, const RE::MagicItem* a_poison,
-        const std::vector<OwnedEffect>& a_records, const RE::ActorHandle& a_player)
-    {
-        if (g_foreignDiagnosisLeft <= 0) return;
-        --g_foreignDiagnosisLeft;
-        logger::info("Toxicology: diagnosis (foreign): {} record(s); player handle {:08X}",
-            a_records.size(), a_player.native_handle());
-        for (const auto& record : a_records) {
-            logger::info("Toxicology: diagnosis   record {} uid {} caster {:08X} in list {}",
-                static_cast<const void*>(record.effect), record.uniqueId, record.caster.native_handle(),
-                record.effect && IsInList(a_list, record.effect));
-        }
-        for (const auto* effect : a_list) {
-            if (!effect || effect->spell != a_poison) continue;
-            logger::info("Toxicology: diagnosis   list {} uid {} caster {:08X} flags {:08X} elapsed {:.2f} duration {:.2f}",
-                static_cast<const void*>(effect), effect->usUniqueID, effect->caster.native_handle(),
-                effect->flags.underlying(), effect->elapsedSeconds, effect->duration);
-        }
     }
 
     // The poison's effects in a list (null list = none)
@@ -211,12 +89,12 @@ namespace
         });
     }
 
-    bool HasNewEffectOf(EffectList* a_list, const RE::MagicItem* a_poison, const std::vector<SeenEffect>& a_before)
+    std::size_t CountNewEffectsOf(EffectList* a_list, const RE::MagicItem* a_poison, const std::vector<SeenEffect>& a_before)
     {
-        if (!a_list) return false;
-        return std::any_of(a_list->begin(), a_list->end(), [&](const RE::ActiveEffect* a_effect) {
+        if (!a_list) return 0;
+        return static_cast<std::size_t>(std::count_if(a_list->begin(), a_list->end(), [&](const RE::ActiveEffect* a_effect) {
             return a_effect && a_effect->spell == a_poison && !WasSeen(a_before, a_effect);
-        });
+        }));
     }
 
     // RE/E/Effect.h:34 (GetDuration reads baseEffect without a null check, src/RE/E/Effect.cpp:57-62)
@@ -227,31 +105,7 @@ namespace
         });
     }
 
-    // A live effect whose record has a duration (ActiveEffect::effect, RE/A/ActiveEffect.h:105;
-    // GetDuration, RE/E/Effect.h:34): an instant one is nothing to renew
-    bool IsLiveLasting(const RE::ActiveEffect& a_effect)
-    {
-        return IsLive(a_effect) && a_effect.effect && a_effect.effect->baseEffect && a_effect.effect->GetDuration() > 0;
-    }
-
-    // The live, lasting effects of a_poison in the list now that were not there before the cast and
-    // whose caster is the player (or, casting from the target, the target)
-    std::vector<OwnedEffect> NewOwnedEffects(EffectList& a_list, const RE::MagicItem* a_poison,
-        const std::vector<SeenEffect>& a_before, const RE::ActorHandle& a_player,
-        const RE::ActorHandle& a_target)
-    {
-        std::vector<OwnedEffect> owned;
-        for (auto* effect : a_list) {
-            if (!effect || effect->spell != a_poison) continue;
-            if (WasSeen(a_before, effect) || !IsLiveLasting(*effect)) continue;
-            const bool ourCaster = effect->caster == a_player || (kCastFromTarget && effect->caster == a_target);
-            if (!ourCaster) continue;
-            owned.push_back({ effect, effect->caster, effect->usUniqueID });
-        }
-        return owned;
-    }
-
-    // Spec 5.4 step 3; the caster per kCastFromTarget (self test step 2)
+    // Spec 5.4; the caster per kCastFromTarget (self test step 2)
     bool CastPoison(RE::Actor* a_target, RE::AlchemyItem* a_poison, RE::Actor* a_player)
     {
         RE::Actor* casterActor = a_player;
@@ -280,14 +134,22 @@ namespace
         }
     }
 
-    struct DecideResult
+    struct ApplyResult
     {
-        ToxGame::ApplyOutcome outcome = ToxGame::ApplyOutcome::kTooSoon;
-        std::size_t count = 0;
+        ToxGame::ApplyOutcome outcome = ToxGame::ApplyOutcome::kAlreadyApplied;
+        std::size_t count = 0;                              // new effects on the target (kCast)
         NoEffectReason noEffect = NoEffectReason::kNowhere;  // meaningful for kCastNoEffect only
     };
 
-    void LogOutcome(const DecideResult& a_result, const RE::Actor* a_target, const RE::AlchemyItem* a_poison)
+    // Info (warn) the first time a_logged is false, debug after
+    spdlog::level::level_enum FirstThenDebug(bool& a_logged, spdlog::level::level_enum a_first)
+    {
+        const auto level = a_logged ? spdlog::level::debug : a_first;
+        a_logged = true;
+        return level;
+    }
+
+    void LogOutcome(const ApplyResult& a_result, const RE::Actor* a_target, const RE::AlchemyItem* a_poison)
     {
         const char* targetRaw = a_target->GetName();
         const char* poisonRaw = a_poison->GetName();
@@ -297,74 +159,56 @@ namespace
         const auto poisonId = a_poison->GetFormID();
         const char* casterText = kCastFromTarget ? "target's" : "player's";
         switch (a_result.outcome) {
-        case ToxGame::ApplyOutcome::kRefreshed:
-            // Every renewing hit: info the first time in the DLL's life, debug after
-            spdlog::log(g_refreshLogged ? spdlog::level::debug : spdlog::level::info, "Toxicology: refreshed {} of our effect(s) "
-                "of '{}' [{:08X}] on '{}' [{:08X}] (repeats at debug level)", a_result.count, poisonName, poisonId, targetName, targetId);
-            g_refreshLogged = true;
-            break;
-        case ToxGame::ApplyOutcome::kForeignPresent:
-            logger::info("Toxicology: '{}' [{:08X}] already on '{}' [{:08X}] from another source - nothing done",
+        case ToxGame::ApplyOutcome::kAlreadyApplied:
+            spdlog::log(FirstThenDebug(g_alreadyLogged, spdlog::level::info), "Toxicology: '{}' [{:08X}] was already applied "
+                "to '{}' [{:08X}] this session - nothing done (once per target and poison; repeats at debug level)",
                 poisonName, poisonId, targetName, targetId);
             break;
         case ToxGame::ApplyOutcome::kCast:
-            spdlog::log(g_castLogged ? spdlog::level::debug : spdlog::level::info, "Toxicology: cast '{}' [{:08X}] on '{}' "
-                "[{:08X}] ({} caster), {} new effect(s) recorded (repeats at debug level)", poisonName, poisonId, targetName,
+            spdlog::log(FirstThenDebug(g_castLogged, spdlog::level::info), "Toxicology: cast '{}' [{:08X}] on '{}' [{:08X}] "
+                "({} caster), {} new effect(s) of it on the target (repeats at debug level)", poisonName, poisonId, targetName,
                 targetId, casterText, a_result.count);
-            g_castLogged = true;
             break;
         case ToxGame::ApplyOutcome::kCastNoEffect:
             if (a_result.noEffect == NoEffectReason::kInstantOnly) {
-                spdlog::log(g_instantOnlyLogged ? spdlog::level::debug : spdlog::level::info, "Toxicology: cast '{}' "
-                    "[{:08X}] on '{}' [{:08X}] ({} caster): instant-only poison, nothing lasting to record (repeats at debug "
-                    "level)", poisonName, poisonId, targetName, targetId, casterText);
-                g_instantOnlyLogged = true;
+                spdlog::log(FirstThenDebug(g_instantOnlyLogged, spdlog::level::info), "Toxicology: cast '{}' [{:08X}] on '{}' "
+                    "[{:08X}] ({} caster): instant-only poison, nothing lasting on the target (repeats at debug level)",
+                    poisonName, poisonId, targetName, targetId, casterText);
                 break;
             }
             if (auto& warned = g_warnedNoEffect[static_cast<std::size_t>(a_result.noEffect)]; !warned) {
                 warned = true;
-                logger::warn("Toxicology: cast '{}' [{:08X}] on '{}' [{:08X}] ({} caster), nothing recorded: {}; "
-                             "repeats of this case are logged at debug level",
+                logger::warn("Toxicology: cast '{}' [{:08X}] on '{}' [{:08X}] ({} caster), no new effect of it on the target: "
+                             "{}; repeats of this case are logged at debug level",
                     poisonName, poisonId, targetName, targetId, casterText, NoEffectText(a_result.noEffect));
             } else {
-                logger::debug("Toxicology: cast '{}' [{:08X}] on [{:08X}], nothing recorded: {}",
+                logger::debug("Toxicology: cast '{}' [{:08X}] on [{:08X}], no new effect of it on the target: {}",
                     poisonName, poisonId, targetId, NoEffectText(a_result.noEffect));
             }
             break;
         case ToxGame::ApplyOutcome::kNoCaster:
-            logger::warn("Toxicology: no instant magic caster on the {} - '{}' [{:08X}] not cast on [{:08X}]",
-                kCastFromTarget ? "target" : "player", poisonName, poisonId, targetId);
-            break;
-        case ToxGame::ApplyOutcome::kTooSoon:
+            spdlog::log(FirstThenDebug(g_noCasterLogged, spdlog::level::warn), "Toxicology: no instant magic caster on the {} - "
+                "'{}' [{:08X}] not cast on [{:08X}] (repeats at debug level)", kCastFromTarget ? "target" : "player", poisonName,
+                poisonId, targetId);
             break;
         }
     }
 
-    // Spec 5.4 step 3: cast, and remember the effects it created
-    DecideResult CastAndRecord(RE::Actor* a_target, RE::AlchemyItem* a_poison, RE::Actor* a_player,
-        EffectList* a_targetList, Application& a_app)
+    // Spec 5.4: cast, record the pair, and see whether a new effect of the poison appeared on the target
+    ApplyResult CastAndRecord(RE::Actor* a_target, RE::AlchemyItem* a_poison, RE::Actor* a_player, std::uint64_t a_key)
     {
-        DecideResult result;
-        const auto before = EffectsOf(a_targetList, a_poison);
+        ApplyResult result;
+        const auto before = EffectsOf(ToxGame::ActiveEffectsOf(a_target), a_poison);
         const auto playerBefore = EffectsOf(ToxGame::ActiveEffectsOf(a_player), a_poison);
         if (!CastPoison(a_target, a_poison, a_player)) {
             result.outcome = ToxGame::ApplyOutcome::kNoCaster;
             return result;
         }
+        g_applied.insert(a_key);
         // Fetched again: the list may only exist once the cast added something
         auto* after = ToxGame::ActiveEffectsOf(a_target);
-        auto created = after ? NewOwnedEffects(*after, a_poison, before, a_player->GetHandle(), a_target->GetHandle())
-                             : std::vector<OwnedEffect>{};
-        result.count = created.size();
-        if (g_foreignDiagnosisLeft > 0) {
-            for (const auto& record : created) {
-                logger::info("Toxicology: diagnosis (cast): recorded {} uid {} caster {:08X} flags {:08X} elapsed {:.2f} duration {:.2f}",
-                    static_cast<const void*>(record.effect), record.uniqueId, record.caster.native_handle(),
-                    record.effect->flags.underlying(), record.effect->elapsedSeconds, record.effect->duration);
-            }
-        }
-        a_app.effects.insert(a_app.effects.end(), created.begin(), created.end());
-        if (!created.empty()) {
+        result.count = CountNewEffectsOf(after, a_poison, before);
+        if (result.count > 0) {
             result.outcome = ToxGame::ApplyOutcome::kCast;
             return result;
         }
@@ -373,39 +217,12 @@ namespace
             result.noEffect = NoEffectReason::kInstantOnly;
         } else if (!after) {
             result.noEffect = NoEffectReason::kNoTargetList;
-        } else if (HasNewEffectOf(ToxGame::ActiveEffectsOf(a_player), a_poison, playerBefore)) {
+        } else if (CountNewEffectsOf(ToxGame::ActiveEffectsOf(a_player), a_poison, playerBefore) > 0) {
             result.noEffect = NoEffectReason::kOnCaster;
         } else {
             result.noEffect = NoEffectReason::kNowhere;
         }
         return result;
-    }
-
-    DecideResult Decide(RE::Actor* a_target, RE::AlchemyItem* a_poison, RE::Actor* a_player, Application& a_app)
-    {
-        // RE/A/Actor.h:373 (SE/AE vtable, no VR shim). Null = no effects yet (CommonLib's own
-        // MagicTarget::HasEffectWithArchetype checks it the same way): nothing to refresh, cast.
-        auto* list = ToxGame::ActiveEffectsOf(a_target);
-        if (!list) a_app.effects.clear();
-
-        // Step 1: our effects still on the target
-        const auto recordsBefore = a_app.effects;  // diagnosis: what TakeLiveOwned dropped (see LogForeignDiagnosis)
-        auto live = list ? TakeLiveOwned(*list, a_poison, a_app.effects) : std::vector<RE::ActiveEffect*>{};
-        if (!live.empty()) {
-            if constexpr (kRefreshByRecast) {
-                // Self test step 3 fallback: dispel ours, then cast again below
-                for (auto* effect : live) effect->Dispel(true);  // ActiveEffect.h:92
-                a_app.effects.clear();
-            } else {
-                for (auto* effect : live) effect->elapsedSeconds = kRestartedElapsedSeconds;  // ActiveEffect.h:110
-                return { ToxGame::ApplyOutcome::kRefreshed, live.size() };
-            }
-        } else if (list && HasLiveEffectOf(*list, a_poison)) {
-            // Step 2: the same poison from someone else (a coated weapon, an effect from before the load)
-            LogForeignDiagnosis(*list, a_poison, recordsBefore, a_player->GetHandle());
-            return { ToxGame::ApplyOutcome::kForeignPresent };
-        }
-        return CastAndRecord(a_target, a_poison, a_player, list, a_app);
     }
 }
 
@@ -413,32 +230,17 @@ namespace
 // Public
 // =============================================================================
 
-ToxGame::ApplyOutcome ToxGame::ApplyOrRefresh(RE::Actor* a_target, RE::AlchemyItem* a_poison, RE::Actor* a_player)
+ToxGame::ApplyOutcome ToxGame::ApplyOnce(RE::Actor* a_target, RE::AlchemyItem* a_poison, RE::Actor* a_player)
 {
-    auto& app = g_applications[ApplicationKey(a_target->GetFormID(), a_poison->GetFormID())];
-    const double now = NowSeconds();
-    if (!Toxicology::IntervalElapsed(app.lastActionSeconds, now, GetSettings().minIntervalSeconds)) {
-        return ApplyOutcome::kTooSoon;
-    }
-    const auto result = Decide(a_target, a_poison, a_player, app);
-    const auto outcome = result.outcome;
-    // Spec 5.4: the interval runs from the last refresh or cast (a cast without a visible effect
-    // included, so a missing effect is not cast again on every hit)
-    if (outcome == ApplyOutcome::kRefreshed || outcome == ApplyOutcome::kCast || outcome == ApplyOutcome::kCastNoEffect) {
-        app.lastActionSeconds = now;
-        app.quietLogged.reset();
-    }
-    if (outcome == ApplyOutcome::kForeignPresent || outcome == ApplyOutcome::kNoCaster) {
-        if (app.quietLogged == outcome) return outcome;
-        app.quietLogged = outcome;
-    }
+    const auto key = ApplicationKey(a_target->GetFormID(), a_poison->GetFormID());
+    const auto result = g_applied.contains(key) ? ApplyResult{} : CastAndRecord(a_target, a_poison, a_player, key);
     LogOutcome(result, a_target, a_poison);
-    return outcome;
+    return result.outcome;
 }
 
 void ToxGame::ClearApplications()
 {
-    g_applications.clear();
+    g_applied.clear();
     g_warnedNoEffect.fill(false);
 }
 

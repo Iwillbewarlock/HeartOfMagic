@@ -6,7 +6,7 @@
 // ToxSelfTest.cpp       the run: file gate, ticks, load/save messages, undo, DONE
 // ToxSelfTestSetup.cpp  step 1, the poison / spell / target picks, step 5,
 //                       and the target, effect and inventory helpers
-// ToxSelfTestHits.cpp   steps 2, 3, 4 and 6 (poison spell hits on spawned targets)
+// ToxSelfTestHits.cpp   steps 2, 3 and 6 (poison spell hits on spawned targets)
 // ToxSelfTestDoses.cpp  step 7 (Magicka spent -> bottles)
 // ToxSelfTestReload.cpp the reload check of step 7 (its state file)
 // ToxSelfTestShop.cpp   the tome in Elgrim's Elixirs (spec 4a, read only)
@@ -35,10 +35,8 @@ namespace ToxGame::SelfTest
     inline constexpr int kPlayerWaitMs = 60000;     // the player's 3D and cell, before the start delay
     inline constexpr int kPlayerGoneMs = 15000;     // after step 1 began: gone this long (loading screens not counted) ends the test
     inline constexpr int kSettleTicks = 3;          // ticks after the first sign of a hit before it is judged
-    inline constexpr float kMinPoisonSeconds = 8.0f;  // a test poison's longest effect: at least this long
-    inline constexpr float kNearZeroSeconds = 1.5f;   // "elapsed back near 0" after a refresh
-    inline constexpr float kExtendMarginSeconds = 1.0f;
-    inline constexpr float kElapsedSlackSeconds = 15.0f;  // a wait on elapsedSeconds gives up this long past its goal
+    // A test poison's longest effect: at least this long, so it is still on the target at step 3's second hit
+    inline constexpr float kMinPoisonSeconds = 8.0f;
     inline constexpr float kMagickaTolerance = 0.01f;
 
     // =========================================================================
@@ -51,7 +49,7 @@ namespace ToxGame::SelfTest
         int spawnWaitMs = 10000;    // a target's 3D and high process
         int hitWaitMs = 4000;       // a cast's hit task, from the cast
         float targetDistance = 120.0f;  // game units in front of the player (touch reach)
-        float maxPoisonSeconds = 30.0f; // a test poison's longest effect: at most this long (step 3 waits it out)
+        float maxPoisonSeconds = 30.0f; // a test poison's longest effect: at most this long
         bool disableTargetAI = false;   // true: Actor::EnableAI(false) on targets (may stop their effect timers)
         bool reloadCheck = true;        // step 7's save + load check
         std::string targetBase = "0510C2:Skyrim.esm";  // CWMission08CowHand: no factions, no crime faction, no spells, no script
@@ -66,8 +64,7 @@ namespace ToxGame::SelfTest
         kWaitPlayer,
         kSetup,       // step 1 (+ the picks, step 5)
         kDeliveries,  // steps 2 and 6
-        kRefresh,     // step 3
-        kForeign,     // step 4
+        kSecondHit,   // step 3
         kDoses,       // step 7
     };
 
@@ -120,23 +117,17 @@ namespace ToxGame::SelfTest
         RE::TESNPC* targetBase = nullptr;
         Target target;                   // the one live spawned target (id 0 = none)
 
-        // Steps 2-4
+        // Steps 2-3
         std::vector<Delivery> deliveries;
         std::size_t deliveryIndex = 0;
-        std::optional<std::size_t> refreshDelivery;  // steps 3 and 4 use this delivery
+        std::optional<std::size_t> secondHitDelivery;  // step 3 uses this delivery
         HitTrace traceBefore;
         std::optional<std::size_t> hitSeenTick;
         bool castSync = false;           // the cast spell's own effects were on the target right after the call
         std::vector<EffectRef> playerBefore;
-        std::vector<EffectRef> owned;    // step 3: our effects after the first hit; step 4: the foreign ones
-        std::size_t longest = 0;         // index in owned of the longest effect
-        float duration = 0.0f;
-        float waitElapsed = 0.0f;
-        float elapsedBefore = 0.0f;
-        float elapsedAfter = 0.0f;       // step 3: the longest effect's elapsedSeconds read just after the second hit
-        float sinceFirstHit = 0.0f;      // step 3: seconds our effect has run since the first hit (last seen)
+        std::vector<EffectRef> owned;    // step 3: the poison's effects on the target after the first hit
         std::int32_t bottlesAtHits = 0;
-        // The count toward the next bottle is set to 0 before each delivery cast (steps 2-4), so a cast
+        // The count toward the next bottle is set to 0 before each delivery cast (steps 2-3), so a cast
         // the addon charged cannot use up poison A; what each cast left is added here first
         bool countZeroed = false;
         float chargedByTestCasts = 0.0f;
@@ -200,8 +191,7 @@ namespace ToxGame::SelfTest
     // =========================================================================
 
     void TickDeliveries(State& s);
-    void TickRefresh(State& s);
-    void TickForeign(State& s);
+    void TickSecondHit(State& s);
 
     // =========================================================================
     // Reload check (ToxSelfTestReload.cpp)

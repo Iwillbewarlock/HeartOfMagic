@@ -4,7 +4,7 @@
 // Toxicology core - pure C++ (no RE/SKSE types), shared by the DLL and
 // tools/toxicology-test: settings, the poison spell list from the librarian's
 // catalog, the top favorited poison, the magicka-per-dose count and the
-// coat interval.
+// interval check the Magicka drain queue uses.
 // =============================================================================
 
 #include <cstddef>
@@ -22,13 +22,13 @@ namespace Toxicology
     {
         bool enabled = true;
         bool showIcon = true;
-        float minIntervalSeconds = 1.0f;
         float magickaPerDose = 100.0f;
     };
 
-    // A missing key keeps its default silently. A key of the wrong type, a negative
-    // minIntervalSeconds, a magickaPerDose <= 0 or a non-finite number keeps the
-    // default and adds one warning naming the key and the value.
+    // A missing key keeps its default silently. A key of the wrong type, a
+    // magickaPerDose <= 0 or a non-finite number keeps the default and adds one
+    // warning naming the key and the value. Other keys are ignored silently,
+    // minIntervalSeconds included (removed 2026-10-18; older files still have it).
     Settings ParseSettings(const nlohmann::json& a_json, std::vector<std::string>& a_warnings);
 
     // Every spells key whose "elements" array holds "poison", sorted. Empty with

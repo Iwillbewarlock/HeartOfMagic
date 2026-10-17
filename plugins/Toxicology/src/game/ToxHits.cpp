@@ -24,7 +24,7 @@ namespace
     std::thread::id g_mainThread;                   // written once by RegisterHitSink, before the sink exists
 
     // Spec 5.3: one hit raises several TESHitEvents. Repeats of the same (target, spell) inside
-    // this window are dropped whatever minIntervalSeconds is and whatever the first one did.
+    // this window are dropped whatever the first one did.
     constexpr double kSameHitWindowSeconds = 0.05;
     // The window map is swept of expired entries once it holds more than this many
     constexpr std::size_t kSameHitSweepSize = 64;
@@ -181,7 +181,7 @@ void ToxGame::OnPoisonSpellHit(RE::ActorHandle a_target, RE::FormID a_spell)
     if (IsSameHit(target->GetFormID(), a_spell)) return TraceStage(a_spell, HitStage::kSameHit);
     auto* poison = CurrentPoison();  // null with no favorited poison (ToxSelection.h)
     if (!poison) return TraceStage(a_spell, HitStage::kNoPoison);
-    const auto outcome = ApplyOrRefresh(target, poison, player);
+    const auto outcome = ApplyOnce(target, poison, player);
     Trace(a_spell, [outcome](HitTrace& a_trace) {
         ++a_trace.applied;
         a_trace.last = HitStage::kApplied;

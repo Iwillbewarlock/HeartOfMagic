@@ -72,12 +72,8 @@ const char* SelfTest::OutcomeName(std::optional<ApplyOutcome> a_outcome)
 {
     if (!a_outcome) return "none";
     switch (*a_outcome) {
-    case ApplyOutcome::kTooSoon:
-        return "kTooSoon";
-    case ApplyOutcome::kRefreshed:
-        return "kRefreshed";
-    case ApplyOutcome::kForeignPresent:
-        return "kForeignPresent";
+    case ApplyOutcome::kAlreadyApplied:
+        return "kAlreadyApplied";
     case ApplyOutcome::kCast:
         return "kCast";
     case ApplyOutcome::kCastNoEffect:
@@ -304,13 +300,9 @@ namespace
             SelfTest::CalmTarget(s);
             SelfTest::TickDeliveries(s);
             return;
-        case Step::kRefresh:
+        case Step::kSecondHit:
             SelfTest::CalmTarget(s);
-            SelfTest::TickRefresh(s);
-            return;
-        case Step::kForeign:
-            SelfTest::CalmTarget(s);
-            SelfTest::TickForeign(s);
+            SelfTest::TickSecondHit(s);
             return;
         case Step::kDoses:
             SelfTest::StepDoses(s);

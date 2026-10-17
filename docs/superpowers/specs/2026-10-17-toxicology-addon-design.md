@@ -41,7 +41,7 @@
 |---|---|
 | `HeartOfMagic_Toxicology.esp` (ESL 플래그) | 키워드·마법 효과·능력·주문서(4a). I4 는 `<활성 플러그인>.json` 만 읽으므로 이름을 걸 자리이기도 하다 |
 | `SKSE/Plugins/HeartOfMagic_Toxicology.dll` | 본체 |
-| `SKSE/Plugins/HeartOfMagic_Toxicology.json` | 설정: `enabled`, `showIcon`, `minIntervalSeconds`(기본 1.0), `magickaPerDose`(기본 100) |
+| `SKSE/Plugins/HeartOfMagic_Toxicology.json` | 설정: `enabled`, `showIcon`, `magickaPerDose`(기본 100). 옛 `minIntervalSeconds` 는 무시(5.4) |
 | `SKSE/Plugins/InventoryInjector/HeartOfMagic_Toxicology.json` | I4 규칙: `{"match":{"formType":"Potion","keywords":"HoMTox_MimicPoison"},"assign":{"iconSource":"HeartOfMagicToxicology/icons.swf","iconLabel":"potion_mimic","iconColor":"#62A636"}}` |
 | `Interface/HeartOfMagicToxicology/icons.swf` | 아이콘 1개(라벨 `potion_mimic`) |
 | `SKSE/Plugins/HeartOfMagic_Toxicology/` | `LICENSE`, `THIRD-PARTY-NOTICES.md`, `licenses/` (NPC Spells 와 같은 방식) |
@@ -183,7 +183,7 @@ ESL 의 키워드 `HoMTox_MimicPoison` 을 5.2 에서 고른 독약의 기본 �
 |---|---|
 | 카탈로그 없음 / `version` 불일치 | 독 마법 집합 비어 있음 → 아무 일 없음 |
 | ESL 꺼짐(능력·키워드 못 찾음) | 아무 일 없음 — 기능 전체가 ESL 의 능력에 묶여 있다(4a). 로그에 이유 |
-| 설정 json 깨짐 / 없음, 값이 범위 밖 | 기본값(`enabled` true, `showIcon` true, `minIntervalSeconds` 1.0; 음수·NaN 은 기본값) |
+| 설정 json 깨짐 / 없음, 값이 범위 밖 | 기본값(`enabled` true, `showIcon` true, `magickaPerDose` 100; 0 이하·NaN 은 기본값) |
 | 즐겨찾기 독약 없음 | 아무 일 없음 |
 | 대상이 죽었거나 사라짐(태스크 실행 시점) | 건너뜀 |
 
@@ -206,7 +206,7 @@ ESL 의 키워드 `HoMTox_MimicPoison` 을 5.2 에서 고른 독약의 기본 �
   1. 독약 2개를 주고 즐겨찾기 → 이름이 앞인 것이 골라지고 그 폼에만 키워드.
   2. 대상 NPC 를 소환, 독 마법을 전달 방식별로(투사체, 접촉, 집중, 룬) 플레이어 시전으로 맞힘 → 피격 이벤트 수신
      여부, 독약 효과가 대상에 생겼는지.
-  3. 다시 맞힘 → 같은 효과가 하나뿐이고 경과 시간이 0 근처로 돌아갔는지, 지속 시간이 실제로 연장되는지.
+  3. 같은 대상을 다시 맞힘 → 아무것도 하지 않는지(kAlreadyApplied), 독약 효과가 여전히 하나뿐인지(5.4, 2026-10-18).
   4. 독약 효과의 크기를 독약 레코드 값과 비교해 로그(퍽 반영 여부 기록, 판정 없음).
   5. I5 가 있으면 `i5 cache purge` 실행 결과 로그.
   6. 효과의 시전자가 플레이어인지.

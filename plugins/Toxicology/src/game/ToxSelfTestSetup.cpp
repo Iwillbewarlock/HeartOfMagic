@@ -30,7 +30,7 @@ namespace
     // Constants
     // =========================================================================
 
-    constexpr std::int32_t kBottlesA = 20;      // steps 2-4 may use some up (cast events charge Magicka)
+    constexpr std::int32_t kBottlesA = 20;      // steps 2-3 may use some up (cast events charge Magicka)
     constexpr std::int32_t kBottlesB = 5;
     constexpr float kTargetHealth = 100000.0f;  // a DoT poison must not kill the target mid-test
     constexpr float kNoAggression = 0.0f;       // Unaggressive
@@ -480,7 +480,7 @@ void SelfTest::DispelCloak(State& s)
 }
 
 // =============================================================================
-// Step 1 (+ the picks for steps 2-4, step 5)
+// Step 1 (+ the picks for steps 2-3, step 5)
 // =============================================================================
 
 bool SelfTest::Setup(State& s)
@@ -536,9 +536,9 @@ bool SelfTest::Setup(State& s)
         if (d.cloak) picked += std::format(" (hits with {})", FormText(d.hitSpell));
     }
     Info("2 spells", picked.empty() ? "no poison spell to cast (no catalog, or no poison spell of a known delivery)" : picked);
-    if (s.deliveries.empty()) Fail(s, "2 spells", "no poison spell - steps 2-4 skipped");
+    if (s.deliveries.empty()) Fail(s, "2 spells", "no poison spell - steps 2-3 skipped");
     s.targetBase = LookupBase(s.config.targetBase, why);
-    if (!s.targetBase) Fail(s, "2 target", std::format("targetBase {}: {} - steps 2-4 skipped", s.config.targetBase, why));
+    if (!s.targetBase) Fail(s, "2 target", std::format("targetBase {}: {} - steps 2-3 skipped", s.config.targetBase, why));
     StepI5();
     return true;
 }

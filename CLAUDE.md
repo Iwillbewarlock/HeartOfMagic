@@ -309,7 +309,7 @@ This project does not have a C++ test framework. Validation is done through:
   full parse; exit 1 on a disagreement) and `toxicology-test` (the Toxicology addon's RE-free core,
   `plugins/Toxicology/src/core/ToxCore.h`: `toxicology-test --self-test` checks settings parsing, the catalog's poison
   spell keys and key splitting, the favorited poison choice, the Magicka-per-bottle arithmetic, which stack loses a
-  bottle and the hit interval; exit 1 on a failure)
+  bottle and the Magicka drain queue's interval check; exit 1 on a failure)
 - The Toxicology addon's dev-only in-game self test (`plugins/Toxicology/src/game/ToxSelfTest.h`: runs when
   `SKSE/Plugins/HeartOfMagic_Toxicology_selftest.json` is installed, `.\DeployDev.ps1 -ToxicologyOnly
   -ToxicologySelfTest`; `SELFTEST PASS|FAIL|INFO|DONE` lines in `HeartOfMagic_Toxicology.log`; see

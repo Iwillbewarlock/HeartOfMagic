@@ -15,10 +15,10 @@ pending in-game self test, see "Not yet confirmed in game" below).
 - **Which poison**: among the poisons in your inventory that are favorited, the first by name (the name shown in
   the inventory, a poison you named yourself by that name; case is ignored). That is the order SkyUI's favorites
   menu sorts by. The vanilla favorites menu's order was not checked; the same rule is used.
-- **Repeat hits** do not stack: while the effect the addon applied is still on the target, a new hit is meant
-  only to renew its duration (pending in-game self test). Per target and poison, hits closer together than `minIntervalSeconds` (default 1 s) are ignored.
-  The addon never renews an effect it did not apply itself: if the target already carries the same poison from a
-  coated weapon, or from before the save was loaded, nothing happens until that effect ends.
+- **Once per target**: each poison is applied to a given target only once. Later hits on that target with the same
+  poison do nothing - they neither stack nor renew it, so a paralysis poison cannot keep a target held forever. If
+  your first favorited poison changes, the new poison can be applied to that target once too. The record is kept in
+  memory only, so it starts over after a save is loaded (see Known limits).
 - **Bottles**: hits use up no bottles. Instead, every `magickaPerDose` Magicka (default 100) you spend casting poison spells from your hands
   (hit or miss; meant to be the cost after perks and gear, dual casting and concentration included - pending in-game
   self test) uses one bottle of the poison being mimicked. A poison cloak costs what you pay for the cloak; the
@@ -73,11 +73,11 @@ menu, not in the spell list.
 |---|---|---|
 | `enabled` | `true` | Off: no poison is applied, no icon, no Magicka counted |
 | `showIcon` | `true` | Off: the mimic keyword is not put on the poison, so I4 shows its normal icon |
-| `minIntervalSeconds` | `1.0` | Least time between two applications or renewals of the same poison on the same target (0 or more) |
 | `magickaPerDose` | `100` | Magicka spent on poison spells per bottle used (more than 0) |
 
-A missing key keeps its default. A value of the wrong type, a negative `minIntervalSeconds`, a `magickaPerDose` of 0
-or less, or a file that is not valid JSON keeps the default and is logged.
+A missing key keeps its default. A value of the wrong type, a `magickaPerDose` of 0 or less, or a file that is not
+valid JSON keeps the default and is logged. `minIntervalSeconds`, a setting of earlier test builds, is no longer
+used; a settings file that still has it loads without a warning.
 
 ## Load order
 
@@ -98,9 +98,6 @@ in game yet. Update this list from the self test's `SELFTEST` lines and move eac
   apply the poison is not confirmed.
 - **Where the poison lands and who cast it**: the poison is cast on the hit target with you as the caster; that it
   lands on the target (not on you) and carries you as its caster is not confirmed.
-- **Renewing instead of stacking**: a repeat hit sets the elapsed time of the addon's own effect back to 0; that
-  the engine really extends the effect this way (and that it does not break fading or scripted effects) is not
-  confirmed.
 - **Magicka count**: the counted cost is meant to match the Magicka the engine takes (after perks and gear, dual
   casting and concentration included); that it does, within 5 %, is not confirmed. The addon reads the hand
   caster's own cost; which of its two cost values tracks the engine's charge is decided by this check. The check
@@ -120,8 +117,12 @@ in game yet. Update this list from the self test's `SELFTEST` lines and move eac
   at a later load.
 - **Saves that already traded with Elgrim** may show the tome only after the merchant restocks (about 48 hours of
   game time).
-- **Poisons with an instant and a lasting effect**: while the lasting effect is still on the target, hits are meant
-  only to renew it (pending in-game self test), so the instant damage lands once per application, not once per hit.
+- **Once per target resets after a load**: which targets already got which poison is not saved. After a save is
+  loaded (or a new game started) every target can get each poison once more, even one that still carries it from
+  before the load.
+- **Once per target counts the cast, not the effect**: a target counts as poisoned as soon as the addon casts the
+  poison on it, even if the target resisted it or the poison has only instant effects. The same poison from a coated
+  weapon does not count: the addon may still apply its own copy once.
 - **The icon is on the poison, not on your bottles**: the mimic icon marks the base poison, so every copy of it shows
   the icon while it is being mimicked - at vendors, in containers and in loot too.
 - **Leftover Magicka**: when the last favorited poison runs out, the part of the count under one dose stays and goes
@@ -139,7 +140,7 @@ in game yet. Update this list from the self test's `SELFTEST` lines and move eac
 - **Crime**: a poison spell hit already counts as an attack; whether the applied poison adds anything on a
   non-hostile target is not checked.
 - If the first favorited poison changes while an effect is running, that effect runs to its end and the next hit
-  uses the new poison.
+  applies the new poison (once per target, as above).
 
 ## Uninstalling
 
@@ -157,7 +158,7 @@ record), and the tome placed in Elgrim's chest was only in memory. The co-save r
   self test file and `art/` never go into the zip.
 - **Offline harness**: `build/tools/Release/toxicology-test.exe --self-test` checks the pure core
   (`src/core/ToxCore.*`: settings, catalog parsing, catalog keys, the hit and cost spell sets, the poison choice,
-  the bottle arithmetic and which stack loses a bottle, the hit interval); every
+  the bottle arithmetic and which stack loses a bottle, the interval check of the Magicka drain queue); every
   check prints PASS or FAIL, exit 1 on a failure.
 - **Dev deploy** (game closed; the dev mod folder must exist, default `D:\TAKEALOOK\mods\HeartOfMagic-Toxicology-Dev`):
 

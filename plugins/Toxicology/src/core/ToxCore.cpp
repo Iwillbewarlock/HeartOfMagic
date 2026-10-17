@@ -29,8 +29,8 @@ namespace Toxicology
             a_out = it->get<bool>();
         }
 
-        // a_allowZero: true accepts 0 (an interval), false wants more than 0 (a dose size)
-        void ReadNumber(const nlohmann::json& a_json, std::string_view a_key, bool a_allowZero, float& a_out,
+        // A finite number above 0 (a dose size)
+        void ReadPositiveNumber(const nlohmann::json& a_json, std::string_view a_key, float& a_out,
             std::vector<std::string>& a_warnings)
         {
             const auto it = a_json.find(a_key);
@@ -44,8 +44,8 @@ namespace Toxicology
                 Warn(a_warnings, a_key, *it, "is not a finite number");
                 return;
             }
-            if (a_allowZero ? value < 0.0f : value <= 0.0f) {
-                Warn(a_warnings, a_key, *it, a_allowZero ? "is negative" : "is not above 0");
+            if (value <= 0.0f) {
+                Warn(a_warnings, a_key, *it, "is not above 0");
                 return;
             }
             a_out = value;
@@ -70,8 +70,8 @@ namespace Toxicology
         }
         ReadBool(a_json, "enabled", settings.enabled, a_warnings);
         ReadBool(a_json, "showIcon", settings.showIcon, a_warnings);
-        ReadNumber(a_json, "minIntervalSeconds", true, settings.minIntervalSeconds, a_warnings);
-        ReadNumber(a_json, "magickaPerDose", false, settings.magickaPerDose, a_warnings);
+        // "minIntervalSeconds" (removed 2026-10-18, spec 5.4) is not read: an older file that has it loads silently
+        ReadPositiveNumber(a_json, "magickaPerDose", settings.magickaPerDose, a_warnings);
         return settings;
     }
 

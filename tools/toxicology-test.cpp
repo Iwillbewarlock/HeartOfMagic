@@ -52,7 +52,6 @@ namespace
     std::string Describe(const Settings& a_s)
     {
         return "{enabled=" + std::to_string(a_s.enabled) + ", showIcon=" + std::to_string(a_s.showIcon) +
-               ", minIntervalSeconds=" + std::to_string(a_s.minIntervalSeconds) +
                ", magickaPerDose=" + std::to_string(a_s.magickaPerDose) + "}";
     }
 
@@ -78,7 +77,7 @@ namespace
     bool SameSettings(const Settings& a_a, const Settings& a_b)
     {
         return a_a.enabled == a_b.enabled && a_a.showIcon == a_b.showIcon &&
-               Near(a_a.minIntervalSeconds, a_b.minIntervalSeconds) && Near(a_a.magickaPerDose, a_b.magickaPerDose);
+               Near(a_a.magickaPerDose, a_b.magickaPerDose);
     }
 
     std::string ExpectDose(float a_accumulated, float a_spent, float a_perDose, DoseResult a_expected)
@@ -118,9 +117,9 @@ namespace
     std::string ParseSettingsValues()
     {
         std::vector<std::string> warnings;
-        const auto input = json::parse(R"({"enabled":false,"showIcon":false,"minIntervalSeconds":2.5,"magickaPerDose":40})");
+        const auto input = json::parse(R"({"enabled":false,"showIcon":false,"magickaPerDose":40})");
         const auto s = Toxicology::ParseSettings(input, warnings);
-        const Settings expected{ false, false, 2.5f, 40.0f };
+        const Settings expected{ false, false, 40.0f };
         if (!SameSettings(s, expected)) return "got " + Describe(s) + ", expected " + Describe(expected);
         if (!warnings.empty()) return "warnings " + Describe(warnings);
         return {};
@@ -129,11 +128,11 @@ namespace
     std::string ParseSettingsBadTypes()
     {
         std::vector<std::string> warnings;
-        const auto input = json::parse(R"({"enabled":"yes","minIntervalSeconds":-1,"magickaPerDose":0})");
+        const auto input = json::parse(R"({"enabled":"yes","magickaPerDose":0})");
         const auto s = Toxicology::ParseSettings(input, warnings);
         if (!SameSettings(s, Settings{})) return "got " + Describe(s);
-        if (warnings.size() != 3) return "expected 3 warnings, got " + Describe(warnings);
-        for (const char* key : { "enabled", "minIntervalSeconds", "magickaPerDose" }) {
+        if (warnings.size() != 2) return "expected 2 warnings, got " + Describe(warnings);
+        for (const char* key : { "enabled", "magickaPerDose" }) {
             bool named = false;
             for (const auto& w : warnings) named = named || w.find(key) != std::string::npos;
             if (!named) return std::string("no warning names ") + key + ": " + Describe(warnings);
@@ -146,6 +145,19 @@ namespace
         const auto n = Toxicology::ParseSettings(nanInput, nanWarnings);
         if (!SameSettings(n, Settings{})) return "NaN magickaPerDose: got " + Describe(n);
         if (nanWarnings.size() != 1) return "NaN magickaPerDose: expected 1 warning, got " + Describe(nanWarnings);
+        return {};
+    }
+
+    // minIntervalSeconds was removed (2026-10-18): a settings file that still has it, even with a value that
+    // was invalid, loads to the defaults with no warning
+    std::string ParseSettingsIgnoresRemovedKey()
+    {
+        for (const char* text : { R"({"minIntervalSeconds":2.5})", R"({"minIntervalSeconds":-1})" }) {
+            std::vector<std::string> warnings;
+            const auto s = Toxicology::ParseSettings(json::parse(text), warnings);
+            if (!SameSettings(s, Settings{})) return std::string(text) + ": got " + Describe(s);
+            if (!warnings.empty()) return std::string(text) + ": warnings " + Describe(warnings);
+        }
         return {};
     }
 
@@ -424,6 +436,7 @@ namespace
         { "ParseSettingsDefaults", ParseSettingsDefaults },
         { "ParseSettingsValues", ParseSettingsValues },
         { "ParseSettingsBadTypes", ParseSettingsBadTypes },
+        { "ParseSettingsIgnoresRemovedKey", ParseSettingsIgnoresRemovedKey },
         { "PoisonSpellKeysBasic", PoisonSpellKeysBasic },
         { "PoisonSpellKeysWrongVersion", PoisonSpellKeysWrongVersion },
         { "PoisonSpellKeysNoElements", PoisonSpellKeysNoElements },
