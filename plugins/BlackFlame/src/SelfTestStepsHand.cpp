@@ -8,15 +8,17 @@
 //   1. stoked: castingArt is the copy and attached (by the hooked SetCastingArt or the refresh at T1)
 //   2. the buff dispelled: castingArt is the original and attached again, with a refresh counted since the dispel
 //   3. the buff cast again: castingArt is the copy and attached again, with a refresh counted since the cast
-// The buff is on again afterwards (T8 dispels it). The look is the player's eye check (README in-game checks).
+// The buff is on again afterwards (T8 dispels it), also after a FAIL or the harness's timeout (CleanupHandRefresh). The look is the player's eye check (README in-game checks).
 
 #include "SelfTestCtx.h"
 
 #include "BuffState.h"
+#include "Config.h"
 #include "FireSet.h"
 #include "Forms.h"
 #include "FormCopies.h"
 #include "HandArtRefresh.h"
+#include "Patch.h"
 #include "CopySwap.h"
 #include "SelfTestLog.h"
 #include "SelfTestWorld.h"
@@ -40,7 +42,8 @@ namespace BlackFlame::SelfTest
             const RE::MagicItem* spell = nullptr;
             const RE::BGSArtObject* original = nullptr;
             const RE::BGSArtObject* copy = nullptr;
-            bool drew = false;
+            bool drew = false;       // the step drew the hands: sheathed again at the end
+            bool dispelled = false;  // the step dispelled the buff and has not cast it again
             std::uint64_t refreshesAt = 0;  // the refresh counters when the phase began
             std::string offLine;
             int calls = 0;  // in this phase
@@ -51,7 +54,7 @@ namespace BlackFlame::SelfTest
         std::uint64_t Refreshes()
         {
             const auto status = GetHandArtRefreshStatus();
-            return status.detached + status.setOnly;
+            return status.refreshed;
         }
 
         RE::ActorMagicCaster* CasterOf(int a_slot)
@@ -104,12 +107,18 @@ namespace BlackFlame::SelfTest
             return false;
         }
 
-        void End()
-        {
-            if (g_run.drew && Player()) {
-                Player()->DrawWeaponMagicHands(false);
-            }
+    }
+
+    void CleanupHandRefresh(bool a_restoreBuff)
+    {
+        if (a_restoreBuff && g_run.dispelled && !IsStoked() && Player()) {
+            (void)SelfTestWorld::Cast(Player(), GetForms().stokeSpell, Player());  // the later steps run stoked
         }
+        g_run.dispelled = false;
+        if (g_run.drew && Player()) {
+            Player()->DrawWeaponMagicHands(false);
+        }
+        g_run.drew = false;
     }
 
     bool StepHandRefresh(Ctx& a_c, bool a_first)
@@ -117,12 +126,18 @@ namespace BlackFlame::SelfTest
         if (a_first) {
             g_run = {};
             const auto status = GetHandArtRefreshStatus();
+            if (!GetConfig().refreshCastingArt) {
+                SelfTestLog::Skip("E5b", "refreshCastingArt is off (config, or switched off for the session without the main-thread "
+                    "queue): " + status.note);
+                return true;
+            }
             SelfTestLog::Info("E5b", std::format("hand art refresh {} ({})", status.installed ? "on" : "OFF", status.note));
             if (!status.installed) {
-                if (GetCopySwapStatus().castingArt.hooked) {
+                if (GetCopySwapStatus().castingArt.hooked && Patch::IsCodeReadBuild()) {
                     SelfTestLog::Fail("E5b", "the SetCastingArt site is hooked but the refresh is not installed: " + status.note);
                 } else {
-                    SelfTestLog::Skip("E5b", "the SetCastingArt site is not hooked (SE, copyCastingArt off or no art copies)");
+                    SelfTestLog::Skip("E5b", "not installed here (SE, a build whose code was not read, copyCastingArt off or no art "
+                        "copies): " + status.note);
                 }
                 return true;
             }
@@ -146,10 +161,7 @@ namespace BlackFlame::SelfTest
             SelfTestLog::Fail("E5b", std::format("phase {} not reached in {} ticks (1 the copy while stoked, 2 the original after the "
                 "dispel, 3 the copy after the recast): {}{}", a_c.phase, kPhaseCalls, Describe(caster),
                 g_run.offLine.empty() ? std::string() : "; buff off was: " + g_run.offLine));
-            if (!IsStoked()) {
-                (void)SelfTestWorld::Cast(Player(), GetForms().stokeSpell, Player());  // the later steps run stoked
-            }
-            End();
+            CleanupHandRefresh(true);
             return true;
         }
         a_c.waitingFor = std::format("phase {} (spell {:08X}, original {:08X}, copy {:08X}): {}", a_c.phase, g_run.spell->GetFormID(),
@@ -160,7 +172,12 @@ namespace BlackFlame::SelfTest
                 return false;
             }
             g_run.refreshesAt = Refreshes();
-            SelfTestLog::Info("E5b", std::format("stoked: {}; dispelling the buff ({} effect(s))", Describe(caster), SelfTestWorld::DispelStoke()));
+            {
+                const auto before = Describe(caster);  // read before the dispel (argument order is unspecified)
+                const int dispelled = SelfTestWorld::DispelStoke();
+                g_run.dispelled = true;
+                SelfTestLog::Info("E5b", std::format("stoked: {}; dispelled the buff ({} effect(s))", before, dispelled));
+            }
             a_c.phase = 2;
             g_run.calls = 0;
             return false;
@@ -172,9 +189,10 @@ namespace BlackFlame::SelfTest
             g_run.refreshesAt = Refreshes();
             if (!SelfTestWorld::Cast(Player(), GetForms().stokeSpell, Player())) {
                 SelfTestLog::Fail("E5b", "buff off: " + g_run.offLine + "; the Stoke spell could not be cast again");
-                End();
+                CleanupHandRefresh(false);
                 return true;
             }
+            g_run.dispelled = false;
             a_c.phase = 3;
             g_run.calls = 0;
             return false;
@@ -184,7 +202,7 @@ namespace BlackFlame::SelfTest
             }
             SelfTestLog::Pass("E5b", std::format("the drawn hand's art followed the buff without a re-ready: buff off -> the original ({}); "
                 "buff on -> the copy ({})", g_run.offLine, Describe(caster)));
-            End();
+            CleanupHandRefresh(false);
             return true;
         }
     }

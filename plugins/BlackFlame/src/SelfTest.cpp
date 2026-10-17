@@ -183,6 +183,9 @@ namespace BlackFlame::SelfTest
                 SelfTestLog::Fail(step.id, std::format("timeout: {:.2f} s of unpaused play passed (limit {:.1f} s) "
                     "waiting for {}", elapsed, step.timeoutSeconds,
                     g_ctx.waitingFor.empty() ? "the step" : g_ctx.waitingFor));
+                if (step.onTimeout) {
+                    step.onTimeout();
+                }
                 done = true;
             }
             if (!done) {

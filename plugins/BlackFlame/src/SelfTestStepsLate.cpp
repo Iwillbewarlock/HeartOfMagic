@@ -511,6 +511,7 @@ namespace BlackFlame::SelfTest
             }
             CleanupArtSpells();  // J3: whatever path E6 took
             CleanupBoundSpell();  // E-bound-launch's spell, when E-bound-off did not end it
+            CleanupHandRefresh(false);  // E5b's drawn hands, when an exception ended it (the buff is being dispelled here)
             SelfTestLog::Info("T9", "counters: " + Tester::CounterSummary());  // F6: the session's swap counters
             a_c.waitingFor = "projectiles in flight before deleting the actors";
         }

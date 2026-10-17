@@ -76,7 +76,7 @@ namespace BlackFlame
             const TickEndMark mark;
             g_tickPending.store(false);
             RecomputeBuff("tick");
-            TickHandArtRefresh();  // hands still charging or casting when the buff changed
+            TickHandArtRefresh();  // the hands a buff change made pending: first try here, then again while they wait
             TickHitArt();  // layer 1: hit arts waiting for their 3D
             TickCloneWatch();  // cause B diagnostics: a copy hit art's clone task (CloneWatch.h)
             TickExplosionLights();  // layer 3: lights that did not exist at Set3D
@@ -137,7 +137,7 @@ namespace BlackFlame
             logger::info("BlackFlame: buff flag {} ({})", now ? "ON" : "off", a_reason);
             OnBuffChanged(now);  // the hand flames: grey at once, or put back
             OnPlayerArtBuffChanged(now);
-            RequestHandArtRefresh(now ? "buff on" : "buff off");  // the readied hands: copy or original art at once
+            RequestHandArtRefresh(now ? "buff on" : "buff off");  // the drawn hands: copy or original art at the next tick
         }
     }
 

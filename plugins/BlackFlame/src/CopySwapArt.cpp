@@ -250,7 +250,7 @@ namespace BlackFlame
             site.note = std::format("caller +0x{:X}{} (bytes from -7: {})", at - caller, chained ? ", chained onto another plugin's "
                 "redirect" : "", before);
             logger::info("BlackFlame: copy casting art: SetCastingArt call hooked at {}", site.note);
-            InstallHandArtRefresh(caller, callee);  // the readied hands follow the buff at once (HandArtRefresh.h)
+            InstallHandArtRefresh(caller, at, callee);  // the readied hands follow the buff at once (HandArtRefresh.h)
         }
 
         void AddArtCounters(CopySwapCounters& a_out) noexcept

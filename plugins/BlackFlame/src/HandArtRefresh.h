@@ -6,7 +6,7 @@
 #include <string>
 
 // =============================================================================
-// HAND ART REFRESH - the player's readied hand art follows the buff at once (AE)
+// HAND ART REFRESH - the player's readied hand art follows the buff at once (AE 1.6.1170 / 1.7.104)
 // =============================================================================
 // The copy casting art is handed out only where the engine calls SetCastingArt (CopySwapArt.cpp, 38784 +0x91),
 // which is when a hand readies a spell; SetCastingArt (34150) also does nothing while an art is attached (it returns
@@ -14,20 +14,24 @@
 // before the buff kept the original art for the whole buff, and hands readied during it kept the copy after it.
 // When the buff flag changes, each drawn hand of the player whose selected spell is a fire spell, and whose
 // castingArt is that spell's costliest effect's art or its copy, gets the art PickCastingArtImpl picks now, by the
-// engine's own unready/ready steps (38784): DetachCastingArt (34152, with true as 38784's unready branch passes it),
-// then SetCastingArt (34150). ActorMagicCaster::Update's first call, CheckAttachCastingArt (34185), clones and
-// attaches the new art over the next frames. Only from the main-thread queue (MainThreadQueue.h: after the frame's
-// job wait), never from a hook or the ticker thread. A hand that is charging or casting, or a paused game, is retried
-// every tick for up to kMaxRetryTicks unpaused ticks. AE only, and only when the SetCastingArt site is hooked and the
-// 34152 call in 38784 is found at install (one E8 preceded by mov dl,1; mov rcx,rbx). SE: off, as the site.
+// engine's own unready/ready steps (38784): DetachCastingArt (34152, with true, as 38784's unready branch calls it
+// whatever the flags), then SetCastingArt (34150). ActorMagicCaster::Update's first call, CheckAttachCastingArt
+// (34185), clones and attaches the new art over the next frames. Only from the main-thread queue (MainThreadQueue.h:
+// after the frame's job wait), never from a hook or the ticker thread. Tried at the next tick after the change; a hand
+// that is charging or casting waits (a concentration spell may be held long) for up to kMaxCastWaitTicks, a hand still
+// being drawn or a player without 3D for up to kMaxRetryTicks unpaused ticks; a paused game waits without counting.
+// Only on the builds whose code was read (Patch::IsCodeReadBuild), when the SetCastingArt site is hooked with
+// `mov rcx, rbx` before its castingArt load, and the 34152 call in 38784 is found at install (one E8 preceded by
+// mov dl,1; mov rcx,rbx: the same caster register). Our call goes to SetCastingArt itself, so a redirect another
+// plugin put on the +0x91 call site does not see it. SE: off, as the site.
 
 namespace BlackFlame
 {
-    /// kDataLoaded, from InstallArtSite after the SetCastingArt site was hooked: checks the ids and that 38784 (at
-    /// a_caller) calls 34152 once with dl = 1; a_setCastingArt is 34150's address
-    void InstallHandArtRefresh(std::uintptr_t a_caller, std::uintptr_t a_setCastingArt);
+    /// kDataLoaded, from InstallArtSite after the SetCastingArt site was hooked: a_caller is 38784, a_site the hooked
+    /// call in it, a_setCastingArt 34150's address
+    void InstallHandArtRefresh(std::uintptr_t a_caller, std::uintptr_t a_site, std::uintptr_t a_setCastingArt);
 
-    /// The buff flag changed (RecomputeBuff, main thread): both hands become pending and are tried at once
+    /// The buff flag changed (RecomputeBuff): both hands become pending (the next tick tries them)
     void RequestHandArtRefresh(const char* a_reason);
 
     /// Ticker task (main-thread queue): tries the pending hands
@@ -43,9 +47,10 @@ namespace BlackFlame
     {
         bool installed = false;
         std::string note;
-        std::uint64_t detached = 0;  // Detach + SetCastingArt (the art was attached)
-        std::uint64_t setOnly = 0;   // SetCastingArt alone (its clone was still pending)
-        std::uint64_t gaveUp = 0;    // a hand still charging, casting or paused after kMaxRetryTicks
+        std::uint64_t refreshed = 0;   // Detach + SetCastingArt calls made
+        std::uint64_t wasPending = 0;  // of those, with the art not attached yet (its clone pending)
+        std::uint64_t gaveUp = 0;      // a hand still charging or casting after kMaxCastWaitTicks, or still being drawn
+                                       // or without the player's 3D after kMaxRetryTicks
     };
 
     [[nodiscard]] HandArtRefreshStatus GetHandArtRefreshStatus();
