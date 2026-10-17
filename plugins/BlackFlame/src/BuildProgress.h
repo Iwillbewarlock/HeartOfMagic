@@ -27,6 +27,8 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace BlackFlame::BuildProgress
 {
@@ -51,6 +53,29 @@ namespace BlackFlame::BuildProgress
     /// kDataLoaded (singleLaunch), before the builder is launched: progress.jsonl read to its end and each object's Data
     /// state checked (sizes first, a hash once a session); no file is copied on this thread (the worker does, after W1)
     void ReadAtStart();
+
+    /// kDataLoaded, before anything uses a copy path (SingleLaunch, before ApplyLastPublished): the copies an earlier session
+    /// could not put in place (another file was at the path) renamed in from <path>.next; they count as copied and replaced
+    void ApplyDeferred();
+
+    /// a_path with a_fnv64 entered Data this session (copied by the worker, or renamed in by ApplyDeferred): the startup
+    /// index does not know it, so it is used only through FileIndex (any thread)
+    [[nodiscard]] bool CopiedNow(const std::string& a_path, std::uint64_t a_fnv64);
+
+    /// a_path with a_fnv64 replaced another file at its path this session (ApplyDeferred): the index may hold the old
+    /// file's size, so nothing standing on it is published before the next start (any thread)
+    [[nodiscard]] bool ReplacedNow(const std::string& a_path, std::uint64_t a_fnv64);
+
+    /// Any of a_files (SlotLedgerModel::FilesOf) replaced this session
+    [[nodiscard]] inline bool AnyReplacedNow(const std::vector<std::pair<std::string, std::uint64_t>>& a_files)
+    {
+        for (const auto& [path, fnv] : a_files) {
+            if (ReplacedNow(path, fnv)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     /// After the launch: the tail and copy worker (a detached thread; it stops copying when the publish window closes)
     void StartWorker();

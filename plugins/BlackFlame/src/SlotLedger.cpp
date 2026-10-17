@@ -103,29 +103,43 @@ namespace BlackFlame::SlotLedger
             return ((high << 32) | low) ^ now;
         }
 
-        std::optional<std::vector<unsigned char>> ReadFile(const fs::path& a_file, std::uintmax_t a_max)
+        // a_file whole, or nullopt with a_why (review: a co-save over the cap is named apart from one that does not read)
+        std::optional<std::vector<unsigned char>> ReadFile(const fs::path& a_file, std::uintmax_t a_max, std::string& a_why)
         {
             std::error_code ec;
             const auto size = fs::file_size(a_file, ec);
-            if (ec || size > a_max) {
+            if (ec) {
+                a_why = "its size could not be read: " + ec.message();
+                return std::nullopt;
+            }
+            if (size > a_max) {
+                a_why = std::format("{} bytes, over the {} MiB cap: not read", size, a_max / (1024 * 1024));
                 return std::nullopt;
             }
             std::ifstream in(a_file, std::ios::binary);
             if (!in) {
+                a_why = "does not open";
                 return std::nullopt;
             }
             std::vector<unsigned char> bytes(static_cast<std::size_t>(size));  // one read of the known size
             if (size > 0 && !in.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(size))) {
+                a_why = "a read cut short";
                 return std::nullopt;
             }
-            return in.peek() == std::char_traits<char>::eof() ? std::optional(std::move(bytes)) : std::nullopt;  // grew since
+            if (in.peek() != std::char_traits<char>::eof()) {
+                a_why = "it grew while read";
+                return std::nullopt;
+            }
+            return bytes;
         }
 
-        // v3.3 #6: no ledger at all - the union of every co-save's BFSL in the save folder (under g_mutex)
+        // v3.3 #6: no ledger at all (or main lost) - the union of every co-save's BFSL in the save folder (under g_mutex),
+        // merged newest first (SlotLedgerModel::MergeCoSaves; review N2)
         void UnionFromCoSaves(Ledger& a_ledger)
         {
             std::error_code ec;
             std::size_t seen = 0;
+            std::vector<std::pair<std::string, Ledger>> saves;
             // review Gemini / agy 16: increment(ec), never the throwing operator++; a co-save that cannot be stat'ed is unread
             for (auto it = fs::directory_iterator(g_status.saveFolder, ec); !ec && it != fs::directory_iterator(); it.increment(ec)) {
                 const auto& item = *it;
@@ -147,19 +161,24 @@ namespace BlackFlame::SlotLedger
                     ++g_status.coSavesBad;  // not read: counted, so new slots are refused
                     break;
                 }
-                const auto bytes = ReadFile(item.path(), kMaxCoSaveBytes);
+                std::string why;
+                const auto bytes = ReadFile(item.path(), kMaxCoSaveBytes, why);
                 const auto read = bytes ? CoSaveFile::ReadBfsl(bytes->data(), bytes->size()) : CoSaveFile::BfslRead{};
                 if (read.state == CoSaveFile::BfslState::kBad) {
                     ++g_status.coSavesBad;
-                    logger::warn("BlackFlame: slots: total loss: co-save '{}' {}", Text(item.path()), bytes ? read.why : "could not be read");
+                    logger::warn("BlackFlame: slots: co-save '{}' not used for the union: {}", Text(item.path()), bytes ? read.why : why);
                     continue;
                 }
                 ++g_status.coSavesRead;
                 if (read.state == CoSaveFile::BfslState::kRead) {
                     ++g_status.coSavesWithSlots;
-                    (void)SlotLedgerModel::Merge(a_ledger, SlotLedgerModel::FromSnapshot(read.snapshot), g_status.conflicts,
-                        "co-save " + Text(item.path().filename()));
+                    saves.emplace_back("co-save " + Text(item.path().filename()), SlotLedgerModel::FromSnapshot(read.snapshot));
                 }
+            }
+            std::vector<std::string> stale;
+            SlotLedgerModel::MergeCoSaves(a_ledger, std::move(saves), g_status.conflicts, &stale);
+            for (const auto& note : stale) {
+                logger::info("BlackFlame: slots: co-saves: {}", note);
             }
             if (ec) {
                 ++g_status.coSavesBad;
@@ -457,14 +476,15 @@ namespace BlackFlame::SlotLedger
                 Text(coSave), a_length);
             return;
         }
-        const auto bytes = exists ? ReadFile(coSave, kMaxCoSaveBytes) : std::nullopt;
+        std::string readWhy;
+        const auto bytes = exists ? ReadFile(coSave, kMaxCoSaveBytes, readWhy) : std::nullopt;
         const auto read = bytes ? CoSaveFile::ReadBfsl(bytes->data(), bytes->size()) : CoSaveFile::BfslRead{};
         if (read.state == CoSaveFile::BfslState::kBad) {
             // coordinator decision (review Gemini 16): absent and corrupt differ. No HBFS block, or a block without a BFSL
             // record, is a save made before the slot route: normal (below). A co-save that is there but cannot be read, or
             // whose BFSL record does not read, may hold slot pairs we cannot see: every gate closes, slotPreflight on or off
             logger::warn("BlackFlame: slots: preflight: '{}' could not be read whole ({}): every gate closes for the session",
-                Text(coSave), ec ? "it could not be looked at: " + ec.message() : bytes ? read.why : std::string("not opened"));
+                Text(coSave), ec ? "it could not be looked at: " + ec.message() : bytes ? read.why : readWhy);
             CallHandler({}, MismatchWhen::kUnreadable);
             return;
         }

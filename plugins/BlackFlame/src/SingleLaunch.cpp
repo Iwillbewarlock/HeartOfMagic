@@ -10,6 +10,7 @@
 #include "CopyGroups.h"
 #include "CopyRequest.h"
 #include "CopyRequestV5.h"
+#include "DataFiles.h"
 #include "FormCopies.h"
 #include "FormCopiesFillModel.h"
 #include "MenuWatch.h"
@@ -89,6 +90,7 @@ namespace BlackFlame::SingleLaunch
             return;
         }
         g_routeActive.store(true);
+        BuildProgress::ApplyDeferred();  // before anything uses a copy path this session (review N3)
         (void)FormCopies::ApplyLastPublished(inputs);
         const auto request = CopyRequestV5::Write(a_closure, inputs);  // the dump holds the bytes the keys hashed
         TheRequest() = request;
@@ -100,8 +102,10 @@ namespace BlackFlame::SingleLaunch
         LaunchBuilder(inputs, request.written);
         BuildProgress::StartWorker();  // tails the progress and copies finished files into Data while the window is open
         MenuWatch::OnMainMenuOpen(&OnMainMenu);
-        logger::info("BlackFlame: single launch: kDataLoaded part done in {} ms",
-            std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - start).count());
+        const auto hashed = DataFiles::GetStats();  // review: the kDataLoaded hashing cost, by itself
+        logger::info("BlackFlame: single launch: kDataLoaded part done in {} ms; {} Data file(s) hashed ({} KiB) in {} ms",
+            std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - start).count(), hashed.files, hashed.bytes / 1024,
+            hashed.micros / 1000);
     }
 
     const SlotKeys::Inputs& Inputs()

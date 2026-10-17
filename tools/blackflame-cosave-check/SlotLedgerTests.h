@@ -448,6 +448,69 @@ namespace SlotLedgerTests
         const bool failureRefused = !LM::FromJson(badFailure, w3);
         a_check(sinceRefused && terminalRefused && failureRefused,
             "review Gemini 18: a damaged since, terminal key or parse failure (no session) refuses the ledger: " + w1 + "; " + w2 + "; " + w3);
+
+        // N2: the same epoch's newer copy (a co-save over a restored backup) replaces the base's binding and what it published
+        LM::Ledger restored;
+        restored.epoch = 91;
+        restored.version = 3;
+        LM::Entry bound;
+        bound.slot = 0x900;
+        bound.type = CC::SlotType::kPROJ;
+        bound.plugin = "Old.esp";
+        bound.localId = 7;
+        bound.since = 1;
+        LM::SetPublished(bound, { LM::Role::kModel, 0x77, "", "meshes\\heartofmagic\\blackflame\\copies\\0000000000000077\\copy.nif", 9, 0x78, {} });
+        LM::Insert(restored, bound);
+        LM::Ledger coSave;
+        coSave.epoch = 91;
+        coSave.version = 7;
+        LM::Entry rebound = bound;
+        rebound.plugin = "New.esp";
+        rebound.published.clear();
+        LM::Insert(coSave, rebound);
+        std::vector<std::string> mergeConflicts;
+        std::vector<std::string> mergeStale;
+        (void)LM::Merge(restored, coSave, mergeConflicts, "co-save v7", &mergeStale);
+        const auto* replaced = LM::FindSlot(restored, 0x900);
+        a_check(replaced && replaced->plugin == "New.esp" && replaced->published.empty() && mergeConflicts.empty() && mergeStale.size() == 1,
+            "review N2: a newer copy of the same epoch replaces the binding (no conflict, the older source's published object gone)");
+        a_check(restored.version == 7, "review Codex 3 P2: absorbing the newer copy (v7) moves the ledger to v7, so its next write "
+                                       "(v8) is newer than that copy; now v" + std::to_string(restored.version));
+
+        // N2: co-saves of one epoch merged newest first - v9 binds 0x901 to Nine.esp, v8 to Eight.esp; the base (v5) lacks it;
+        // listed v9 first, so merging them one by one in that order would end on v8
+        LM::Ledger lost;
+        lost.epoch = 92;
+        lost.version = 5;
+        const auto save = [](std::uint32_t a_version, const char* a_plugin) {
+            LM::Ledger ledger;
+            ledger.epoch = 92;
+            ledger.version = a_version;
+            LM::Entry entry;
+            entry.slot = 0x901;
+            entry.type = CC::SlotType::kPROJ;
+            entry.plugin = a_plugin;
+            entry.localId = 1;
+            entry.state = LM::State::kTombstone;
+            LM::Insert(ledger, entry);
+            return ledger;
+        };
+        std::vector<std::pair<std::string, LM::Ledger>> saves{ { "v9", save(9, "Nine.esp") }, { "v8", save(8, "Eight.esp") },
+            { "v2", save(2, "Two.esp") } };
+        std::vector<std::string> unionConflicts;
+        LM::MergeCoSaves(lost, saves, unionConflicts);
+        const auto* newest = LM::FindSlot(lost, 0x901);
+        a_check(newest && newest->plugin == "Nine.esp" && unionConflicts.empty() && lost.version == 9,
+            "review N2 / Codex 3 P2: co-saves of one epoch take the newest binding (v9 over v8 and v2, in any order), no "
+            "conflict, and the ledger goes on from v9 (now v" + std::to_string(lost.version) + ")");
+
+        // Codex 3 P1: the files an object stands on, its own and its copy deps' (not the ADDN slots)
+        LM::Object standing{ LM::Role::kModel, 1, "", "meshes\\heartofmagic\\blackflame\\copies\\0000000000000001\\copy.nif", 4, 0x11,
+            { { true, 40000, "", 0 }, { false, 0, "textures\\heartofmagic\\blackflame\\copies\\0000000000000002\\copy.dds", 0x22 } } };
+        const auto files = LM::FilesOf(standing);
+        a_check(files.size() == 2 && files[0].second == 0x11 && files[1].second == 0x22 && files[1].first.find("copy.dds") != std::string::npos &&
+                    LM::FilesOf(LM::Object{}).empty(),
+            "review Codex 3 P1: FilesOf lists the object's own file and its copy deps, never an ADDN slot");
         fs::remove_all(folder, ec);
     }
 

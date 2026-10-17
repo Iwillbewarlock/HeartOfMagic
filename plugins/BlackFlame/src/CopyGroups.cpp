@@ -9,6 +9,7 @@
 
 #include "BuildProgress.h"
 #include "CopyModelProbeVerify.h"
+#include "FileIndex.h"
 #include "FormCopies.h"
 #include "FormCopiesFillModel.h"
 #include "GameThread.h"
@@ -164,27 +165,30 @@ namespace BlackFlame::CopyGroups
                 return true;
             }
             bool opened = false;
-            const auto listed = a_state.addns.size();
-            std::size_t pending = 0;    // its MPS still coming
-            std::size_t waiting = 0;    // waiting for another listed ADDN slot
-            auto it = a_state.addns.begin();
-            for (; it != a_state.addns.end() && Clock::now() - a_start < kSlice;) {
-                const auto id = *it;
+            auto& pass = a_state.addnPass;  // review Codex 1: a pass goes on where the last slice stopped
+            const auto erase = [&]() {
+                a_state.addns.erase(a_state.addns.begin() + static_cast<std::ptrdiff_t>(pass.next));
+                pass.changed = true;
+            };
+            while (pass.next < a_state.addns.size() && Clock::now() - a_start < kSlice) {
+                const auto id = a_state.addns[pass.next];
                 auto& slot = SlotAssign::At(id);
                 const auto plan = PlanObject(a_state, LM::Role::kMps, slot.modelKey, slot.publishedModel, LM::FindSlot(a_state.ledger, id));
-                if (plan.state == Member::kPending) {
-                    ++pending;
-                    ++it;
+                // review Codex 1: a slot showing an older MPS stays listed while its current key may still come (its NIFs use
+                // the older one meanwhile)
+                if (plan.state == Member::kPending || plan.waiting) {
+                    ++pass.pending;
+                    ++pass.next;
                     continue;
                 }
                 if (plan.state != Member::kCandidate) {
-                    it = a_state.addns.erase(it);  // shows what it has for the session (its verified MPS, or the source's)
+                    erase();  // shows what it has for the session (its verified MPS, or the source's)
                     continue;
                 }
                 const auto deps = AddnDeps(a_state, *plan.candidate);  // an MPS may name other ADDN slots too (contract v4)
                 if (deps == AddnDep::kWait) {
-                    ++waiting;
-                    ++it;
+                    ++pass.waiting;
+                    ++pass.next;
                     continue;
                 }
                 if (!MenuWatch::DrainMayPublish()) {
@@ -192,10 +196,18 @@ namespace BlackFlame::CopyGroups
                 }
                 std::string why;
                 const auto path = FormCopies::RecordModelPath(plan.candidate->path);
-                if (deps == AddnDep::kLeft || !slot.form || !FormCopies::ModelOf(slot.form) || !FormCopies::RegisterObject(*plan.candidate, why)) {
-                    logger::warn("BlackFlame: slots: ADDN slot {:X}'s MPS is not used this session: {}", id,
-                        deps == AddnDep::kLeft ? "it names a collided ADDN slot" : why.empty() ? "no form or no model to set" : why);
-                    it = a_state.addns.erase(it);
+                if (EnteredDataNow(*plan.candidate) && !FileIndex::Available()) {
+                    why = "its files entered Data this session and the file index is off now: the next start's index has them";
+                } else if (deps == AddnDep::kLeft) {
+                    why = "it names a collided or unusable ADDN slot";
+                } else if (!slot.form || !FormCopies::ModelOf(slot.form)) {
+                    why = "no form or no model to set";
+                } else if (!FormCopies::RegisterObject(*plan.candidate, why) && why.empty()) {
+                    why = "a file did not register";
+                }
+                if (!why.empty()) {
+                    logger::warn("BlackFlame: slots: ADDN slot {:X}'s MPS is not used this session: {}", id, why);
+                    erase();
                     continue;
                 }
                 const auto result = CopyModelProbe::DemandOnce(path);
@@ -207,7 +219,7 @@ namespace BlackFlame::CopyGroups
                     const bool terminal = CountParseFailure(a_state, { id }, plan.candidate->key);
                     logger::warn("BlackFlame: slots: ADDN slot {:X}'s MPS failed: {}{}", id, CopyModelProbe::Describe(path, result),
                         terminal ? "; its key is now terminal \"parse\"" : "");
-                    it = a_state.addns.erase(it);
+                    erase();
                     continue;
                 }
                 NoteStep();
@@ -221,15 +233,19 @@ namespace BlackFlame::CopyGroups
                 });
                 a_state.ledgerDirty = true;
                 opened = true;
-                it = a_state.addns.erase(it);
+                erase();
             }
-            a_state.addnDirty = it != a_state.addns.end();  // cut by the slice: go on next frame
-            if (it == a_state.addns.end() && a_state.addns.size() == listed && pending == 0 && waiting > 0) {
-                // a whole pass changed nothing and every slot left waits for another listed one (MPS naming each other, or
-                // itself): none can open first, so none opens this session; the NIFs naming them see the models they have
-                logger::warn("BlackFlame: slots: {} ADDN slot(s) wait for each other's MPS: not published this session", waiting);
-                a_state.addns.clear();
-                opened = true;  // re-plan: their NIFs no longer wait
+            const bool passDone = pass.next >= a_state.addns.size();
+            a_state.addnDirty = !passDone;  // cut by the slice: go on next frame from there
+            if (passDone) {
+                if (!pass.changed && pass.pending == 0 && pass.waiting > 0) {
+                    // a whole pass changed nothing and every slot left waits for another listed one (MPS naming each other,
+                    // or itself): none can open first, so none opens this session; the NIFs naming them see the models they have
+                    logger::warn("BlackFlame: slots: {} ADDN slot(s) wait for each other's MPS: not published this session", pass.waiting);
+                    a_state.addns.clear();
+                    opened = true;  // re-plan: their NIFs no longer wait
+                }
+                pass = {};
             }
             if (opened) {
                 a_state.generation = kNoGeneration;  // NIFs naming it may be ready now: re-plan the groups
@@ -277,6 +293,12 @@ namespace BlackFlame::CopyGroups
             while (a_group.state == GroupState::kVerifying && a_group.verifyNext < a_group.verify.size() && Clock::now() - a_start < kSlice) {
                 auto& item = a_group.verify[a_group.verifyNext];
                 std::string why;
+                if (!item.registered && !FileIndex::Available() && EnteredDataNow(item.object)) {
+                    // review N1: the index turned off after the plan; never Demanded (no parse failure counted)
+                    FailGroup(a_state, a_group, item.path, std::nullopt, "its files entered Data this session and the file index is off "
+                                                                         "now (the next start's index has them)");
+                    return;
+                }
                 if (!item.registered) {
                     item.registered = FormCopies::RegisterObject(item.object, why);
                     if (!item.registered) {
@@ -300,12 +322,17 @@ namespace BlackFlame::CopyGroups
             }
         }
 
-        void SaveLedger(State& a_state)
+        // review: at most one ledger write every kLedgerWriteGap while publishing; a_final (kDataLoaded, settled, the window
+        // closed, the stepper not queued again) writes what is left at once
+        void SaveLedger(State& a_state, bool a_final)
         {
-            if (a_state.ledgerDirty) {
-                a_state.ledgerDirty = false;
-                (void)SlotLedger::Save("publication");
+            const auto now = Clock::now();
+            if (!a_state.ledgerDirty || (!a_final && a_state.lastLedgerWrite && now - *a_state.lastLedgerWrite < kLedgerWriteGap)) {
+                return;
             }
+            a_state.ledgerDirty = false;
+            a_state.lastLedgerWrite = now;
+            (void)SlotLedger::Save("publication");
         }
 
         // One drain's slice: re-plan (within the slice) when the builder's progress moved, the ADDN MPS, then the groups
@@ -325,6 +352,7 @@ namespace BlackFlame::CopyGroups
                 a_state.ledger = SlotLedger::Copy();
                 a_state.replanNext = 0;
                 a_state.addnDirty = true;
+                a_state.addnPass = {};  // a new generation: the pass starts over
             }
             const bool planned = Replan(a_state, start);
             if (!planned || !StepAddn(a_state, start)) {
@@ -357,12 +385,13 @@ namespace BlackFlame::CopyGroups
                 state.stopped = true;
                 logger::error("BlackFlame: slots: the publish step threw an exception of an unknown type: nothing more is published");
             }
-            SaveLedger(state);
             UpdateProgress(state);
             SingleLaunch::NotifyProgress();
             const auto progress = GetProgress();
+            const bool queued = !progress.settled && QueueTask(kTaskName, &Step);
+            SaveLedger(state, !queued);
             if (!progress.settled) {
-                if (!QueueTask(kTaskName, &Step)) {
+                if (!queued) {
                     logger::warn("BlackFlame: slots: the publish stepper could not be queued again: nothing more is published this session");
                 }
             } else {
@@ -388,7 +417,7 @@ namespace BlackFlame::CopyGroups
                 opened += group.state == GroupState::kOpen ? 1 : 0;
             }
         }
-        SaveLedger(state);
+        SaveLedger(state, true);
         UpdateProgress(state);
         logger::info("BlackFlame: slots: {} groups, {} opened at kDataLoaded from their last published generations; {}", state.groups.size(),
             opened, state.canVerify ? "the rest are published on the main thread as they are verified" :

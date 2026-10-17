@@ -63,7 +63,7 @@ namespace BlackFlame::CopyGroups::Detail
                 const auto deps = AddnDeps(a_state, *plan->candidate);
                 if (deps == AddnDep::kLeft && plan == &out.model) {
                     out.state = Member::kLeft;
-                    out.model.why = "it names a collided ADDN slot";
+                    out.model.why = "it names a collided or unusable ADDN slot";
                     return out;
                 }
                 if (deps == AddnDep::kLeft) {
@@ -126,6 +126,12 @@ namespace BlackFlame::CopyGroups::Detail
         return *state;
     }
 
+    bool EnteredDataNow(const LM::Object& a_object)
+    {
+        const auto files = LM::FilesOf(a_object);
+        return std::any_of(files.begin(), files.end(), [](const auto& a_file) { return BuildProgress::CopiedNow(a_file.first, a_file.second); });
+    }
+
     AddnDep AddnDeps(const State& a_state, const LM::Object& a_object)
     {
         for (const auto& dep : a_object.deps) {
@@ -133,7 +139,9 @@ namespace BlackFlame::CopyGroups::Detail
             if (!id || SlotAssign::GateOpen(*id)) {
                 continue;
             }
-            if (SlotAssign::At(*id).collided) {
+            // review: an ADDN slot no source holds this session, or one that cannot be published (collided, refused,
+            // a save's mismatch), is no ADDN of ours: the NIF would name a record that is not its MPS
+            if (const auto& slot = SlotAssign::At(*id); !slot.assigned || !slot.usable) {
                 return AddnDep::kLeft;
             }
             if (std::find(a_state.addns.begin(), a_state.addns.end(), *id) != a_state.addns.end()) {
@@ -161,10 +169,17 @@ namespace BlackFlame::CopyGroups::Detail
             return fallback("terminal: it failed to parse in two sessions");
         }
         const auto found = BuildProgress::Find(a_key->key);
+        const auto stillComing = [&]() {  // older: shown meanwhile, the ADDN queue keeps the slot (review Codex 1)
+            if (!older) {
+                return Plan{ Member::kPending, std::nullopt, "" };
+            }
+            auto meanwhile = fallback("");
+            meanwhile.waiting = true;
+            return meanwhile;
+        };
         if (!found) {
             // the builder ended (or never started) and every line it wrote is read: none will come this session
-            return BuildProgress::CaughtUp() ? fallback("the builder made no line for it this session") :
-                                               (older ? fallback("") : Plan{ Member::kPending, std::nullopt, "" });
+            return BuildProgress::CaughtUp() ? fallback("the builder made no line for it this session") : stillComing();
         }
         switch (found->state) {
         case BuildProgress::State::kTerminal:
@@ -176,9 +191,14 @@ namespace BlackFlame::CopyGroups::Detail
                 // the worker's pass after the builder ended copied all it could: a file still missing will not come this session
                 return fallback("its files did not all reach Data this session");
             }
-            return older ? fallback("") : Plan{ Member::kPending, std::nullopt, "" };  // its files come into Data later
+            return stillComing();  // its files come into Data later
         case BuildProgress::State::kInData:
             break;
+        }
+        // review Codex 3 P1: before any route to ready or candidate - an object standing on a file that replaced another at
+        // its path this session (its own or a copy dep's) is not published before the next start
+        if (const auto files = LM::FilesOf(ObjectOf(a_role, found->line, a_key->text)); BuildProgress::AnyReplacedNow(files)) {
+            return fallback("a file of it replaced another at the same path this session: used from the next start");
         }
         if (older && FormCopies::RecordModelPath(found->line.path) == a_published) {
             plan.state = Member::kReady;  // the ledger's generation is this key's (ApplyLastPublished compared its string)
@@ -190,15 +210,12 @@ namespace BlackFlame::CopyGroups::Detail
         // P1's builder is deterministic for the same inputs (its dev output was byte-identical over 774 files across rebuilds)
         // and a key's path is under its key folder, so one key gives one file: a copy replaces another file at its path only
         // when that file was damaged or cut. Should a key ever give two files, a path published this session could change
-        if (found->replacedThisSession) {
-            // review agy 7 #3: the index may hold a record of the file this one replaced, with its size: not before next start
-            return fallback("its file replaced another at the same path this session: used from the next start");
-        }
-        if (found->copiedThisSession && !FileIndex::Available()) {
+        auto candidate = ObjectOf(a_role, found->line, a_key->text);
+        if (!FileIndex::Available() && EnteredDataNow(candidate)) {
             return fallback("in Data only since this session and no file index: the next start's index has it");
         }
         plan.state = Member::kCandidate;
-        plan.candidate = ObjectOf(a_role, found->line, a_key->text);
+        plan.candidate = std::move(candidate);
         return plan;
     }
 

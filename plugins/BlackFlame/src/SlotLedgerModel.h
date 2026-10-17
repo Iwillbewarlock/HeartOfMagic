@@ -41,9 +41,9 @@ namespace BlackFlame::SlotLedgerModel
     {
         kActive,     // bound and in this (or the last) session's closure
         kTombstone,  // bound, its source left the closure (filled from it while it resolves; never given to another)
-        kConflict,   // two ledgers (other epochs, or a newer copy) bind it to different sources: never published again.
-                     // A save's differing pairs make a tombstone instead (ApplySave), and an older copy of the same epoch
-                     // loses to the newer (Merge: its binding is stale, not a conflict)
+        kConflict,   // two ledgers of other epochs bind it to different sources: never published again. A save's
+                     // differing pairs make a tombstone instead (ApplySave); within one epoch the newer version's binding
+                     // wins (Merge: the older one is stale, not a conflict)
     };
 
     enum class Role : std::uint8_t
@@ -316,12 +316,14 @@ namespace BlackFlame::SlotLedgerModel
     /// a_other's reservations added to a_into. A slot a_into lacks is added (a_other's state kept, published data kept);
     /// the same slot with the same source keeps a_into's entry (its terminal keys and parse counts joined); the same slot
     /// with another source: when a_other is an older copy of the same epoch (a backup from before a save's pairs rebound
-    /// it, ApplySave) a_into's binding wins (a line in a_stale when given); otherwise it becomes kConflict (a line naming
-    /// both in a_conflicts). Returns how many slots were added.
+    /// it, ApplySave) a_into's binding wins, when it is a newer copy (a co-save over a restored backup) its binding replaces
+    /// a_into's with what it published (a line in a_stale either way, when given); another epoch makes it kConflict (a
+    /// line naming both in a_conflicts). Returns how many slots were added.
     inline std::size_t Merge(Ledger& a_into, const Ledger& a_other, std::vector<std::string>& a_conflicts, std::string_view a_what,
         std::vector<std::string>* a_stale = nullptr)
     {
         const bool older = a_other.epoch == a_into.epoch && a_other.version < a_into.version;
+        const bool newer = a_other.epoch == a_into.epoch && a_other.version > a_into.version;  // review N2 (a co-save over a backup)
         std::size_t added = 0;
         for (const auto& other : a_other.entries) {
             Entry* mine = FindSlot(a_into, other.slot);
@@ -337,6 +339,17 @@ namespace BlackFlame::SlotLedgerModel
                     own.count = (std::max)(own.count, failures.count);
                     own.lastSession = (std::max)(own.lastSession, failures.lastSession);
                 }
+                continue;
+            }
+            if (newer) {
+                // the same epoch's newer binding replaces this one (what it published was the older source's: gone with it)
+                if (a_stale) {
+                    a_stale->push_back("slot " + HexId(other.slot) + " is " + SourceText(mine->plugin, mine->localId) + " here (version " +
+                                       std::to_string(a_into.version) + "), " + SourceText(other.plugin, other.localId) + " in " +
+                                       std::string(a_what) + " (the newer version " + std::to_string(a_other.version) +
+                                       "): the newer binding replaces it");
+                }
+                *mine = other;
                 continue;
             }
             if (older) {
@@ -357,7 +370,61 @@ namespace BlackFlame::SlotLedgerModel
                                   SourceText(mine->plugin, mine->localId) + " here and " + SourceText(other.plugin, other.localId) +
                                   " in " + std::string(a_what) + ": refused, the slot is never published again");
         }
+        if (newer) {
+            // review Codex 3 P2: the versions up to a_other's exist (a co-save holds one); the next write must be newer than
+            // it, or a later rebind would lose to that obsolete copy in a later recovery
+            a_into.version = a_other.version;
+        }
         return added;
+    }
+
+    /// The files an object stands on: its own (path, fnv64) when it has one, then each dep's that is a file (not an ADDN
+    /// slot), in order. The checks that a file entered or was replaced in Data this session look at every one
+    [[nodiscard]] inline std::vector<std::pair<std::string, std::uint64_t>> FilesOf(const Object& a_object)
+    {
+        std::vector<std::pair<std::string, std::uint64_t>> files;
+        if (!a_object.path.empty()) {
+            files.emplace_back(a_object.path, a_object.fnv64);
+        }
+        for (const auto& dep : a_object.deps) {
+            if (!dep.isAddn && !dep.path.empty()) {
+                files.emplace_back(dep.path, dep.fnv64);
+            }
+        }
+        return files;
+    }
+
+    /// Co-saves' ledgers (FromSnapshot, each with its name) into a_into. Those of a_into's epoch are merged newest first
+    /// into one union whose version is the newest's (so a slot takes the newest co-save's binding, older ones stale), and
+    /// that union over a_into (Merge: newer than a_into, its bindings replace a_into's; older, a_into's stay); other
+    /// epochs' after it, one by one. The union's version stands for all of its slots: a newer co-save holds every slot an
+    /// older one of its epoch holds (reservations are never dropped), so a slot only an older co-save names is rare
+    inline void MergeCoSaves(Ledger& a_into, std::vector<std::pair<std::string, Ledger>> a_saves, std::vector<std::string>& a_conflicts,
+        std::vector<std::string>* a_stale = nullptr)
+    {
+        std::stable_sort(a_saves.begin(), a_saves.end(),
+            [](const auto& a_l, const auto& a_r) { return a_l.second.version > a_r.second.version; });
+        Ledger same;
+        same.epoch = a_into.epoch;
+        bool any = false;
+        for (const auto& [name, save] : a_saves) {
+            if (save.epoch != a_into.epoch) {
+                continue;
+            }
+            if (!any) {
+                same.version = save.version;
+                any = true;
+            }
+            (void)Merge(same, save, a_conflicts, name, a_stale);
+        }
+        if (any) {
+            (void)Merge(a_into, same, a_conflicts, "the co-saves of this epoch", a_stale);
+        }
+        for (const auto& [name, save] : a_saves) {
+            if (save.epoch != a_into.epoch) {
+                (void)Merge(a_into, save, a_conflicts, name, a_stale);
+            }
+        }
     }
 
     /// A save's BFSL pairs as a ledger (every slot a tombstone: whether it is wanted is the next Assign's call)
