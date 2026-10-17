@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -32,9 +33,12 @@ namespace BlackFlame::FileProbe::VirtualFiles
         std::shared_ptr<const std::vector<std::byte>> bytes;
     };
 
-    /// Main thread, once: the location made over a_files and registered at a_priority. False (a_note says why) when the
-    /// engine's stream count is unknown, it was registered already, or the call faulted
-    [[nodiscard]] bool Register(std::vector<File> a_files, std::uint32_t a_priority, std::string& a_note);
+    /// Main thread: a new location made over a_files (may be empty: B-neg) and registered at a_priority; its id for AddFile.
+    /// Nothing (a_note says why) when the engine's stream count is unknown, a few are registered already, or the call faulted
+    [[nodiscard]] std::optional<std::size_t> Register(std::vector<File> a_files, std::uint32_t a_priority, std::string& a_note);
+
+    /// Main thread: a file the registered location a_location serves from now on (B-neg: added after the registration)
+    bool AddFile(std::size_t a_location, File a_file);
 
     /// What the engine asked the location so far (any thread)
     [[nodiscard]] std::string CountersText();

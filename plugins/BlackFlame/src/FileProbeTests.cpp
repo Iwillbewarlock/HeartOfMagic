@@ -145,6 +145,13 @@ namespace BlackFlame::FileProbe
         return texture;
     }
 
+    std::string AskTextureText(const std::string& a_dataPath)
+    {
+        std::string form;
+        auto texture = AskTexture(a_dataPath, form);
+        return std::format("GetTexture(\"{}\"): {}", form, Text(Look(texture.get())));
+    }
+
     void Request(Run& a_run, std::string_view a_test, const std::string& a_dataPath)
     {
         std::string form;
@@ -284,6 +291,11 @@ namespace BlackFlame::FileProbe
                     }
                     a_run.sourceModel = model;
                     a_run.sourceTexture = *texture;
+                    for (const auto& other : NifDump::TexturePathsIn(nif)) {
+                        if (const auto path = NifDump::NormalizeTexturePath(other); path && *path != *texture) {
+                            a_run.otherTextures.push_back(*path);
+                        }
+                    }
                     a_run.nif = std::make_shared<const Bytes>(std::move(nif));
                     a_run.dds = std::make_shared<const Bytes>(std::move(dds));
                     return true;
@@ -334,6 +346,17 @@ namespace BlackFlame::FileProbe
             return;
         }
         SetVerdict(a_run, a_pending.test, "PASS", lead + "; size as expected: " + expected);
+    }
+
+    std::uint32_t ChoosePriority(Run& a_run, std::string_view a_who)
+    {
+        // No source says how RegisterLocation orders by priority; our folders are served by no other location, so the order
+        // decides only who is asked first. The loose-file location's own priority is taken when it is in the list
+        constexpr std::uint32_t kPriorityWithoutLoose = 0;
+        const auto loose = Engine::LooseFilePriority();
+        const auto priority = loose.value_or(kPriorityWithoutLoose);
+        Note(a_run, std::format("{}: priority {} ({})", a_who, priority, loose ? "the LooseFileLocation's" : "no LooseFileLocation in the list"));
+        return priority;
     }
 
     std::string MeshRecordPath(const Run& a_run, std::string_view a_label)
@@ -439,12 +462,7 @@ namespace BlackFlame::FileProbe
         for (const auto& line : Engine::DescribeLocations()) {
             Note(a_run, "B: before: " + line);
         }
-        // No source says how RegisterLocation orders by priority; our folder is served by no other location, so the order
-        // decides only who is asked first. The loose-file location's own priority is taken when it is in the list
-        constexpr std::uint32_t kPriorityWithoutLoose = 0;
-        const auto loose = Engine::LooseFilePriority();
-        const auto priority = loose.value_or(kPriorityWithoutLoose);
-        Note(a_run, std::format("B: priority {} ({})", priority, loose ? "the LooseFileLocation's" : "no LooseFileLocation in the list"));
+        const auto priority = ChoosePriority(a_run, "B");
         std::string note;
         if (!VirtualFiles::Register({ { meshKey, a_run.nif }, { textureKey, a_run.dds } }, priority, note)) {
             Note(a_run, "B: " + note);
@@ -515,6 +533,11 @@ namespace BlackFlame::FileProbe
             if (pending.test == "control") {
                 a_run.sourceLook = look;
                 Note(a_run, std::format("control: GetTexture(\"{}\"): {}", pending.path, Text(look)));
+                continue;
+            }
+            if (pending.test == kInFlightTexture) {
+                Note(a_run, std::format("C-loading's in-flight load at the judging: GetTexture(\"{}\", demand false): {}", pending.path,
+                    Text(look)));
                 continue;
             }
             JudgeOne(a_run, pending, look);

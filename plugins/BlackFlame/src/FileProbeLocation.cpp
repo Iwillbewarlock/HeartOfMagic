@@ -8,6 +8,9 @@
 #include <cctype>
 #include <cstring>
 #include <format>
+#include <mutex>
+#include <optional>
+#include <shared_mutex>
 #include <string_view>
 
 #include <Windows.h>
@@ -36,7 +39,7 @@ namespace BlackFlame::FileProbe::VirtualFiles
         std::atomic<std::uint64_t> g_getInfo{ 0 };
         std::atomic<std::uint64_t> g_traverse{ 0 };
         std::atomic<std::uint64_t> g_reads{ 0 };
-        std::atomic<bool> g_registered{ false };
+        constexpr std::size_t kMaxLocations = 4;  // B and B-neg; a few spare
 
         std::string Normalize(const char* a_path)
         {
@@ -194,13 +197,20 @@ namespace BlackFlame::FileProbe::VirtualFiles
                 m_files(std::move(a_files))
             {}
 
+            // Main thread; the engine's threads read the list under the shared lock
+            void Add(File a_file)
+            {
+                std::unique_lock lock(m_mutex);
+                m_files.push_back(std::move(a_file));
+            }
+
             ErrorCode DoCreateStream(const char* a_path, RE::BSTSmartPointer<RE::BSResource::Stream>& a_stream,
                 RE::BSResource::Location*& a_location, bool a_readOnly) override
             {
                 try {
                     g_createStream.fetch_add(1);
                     const auto key = Normalize(a_path);
-                    const auto* file = Lookup(key);
+                    const auto file = Lookup(key);
                     if (!file) {
                         Note("DoCreateStream", a_path, key, "not ours (kNotExist)");
                         return ErrorCode::kNotExist;
@@ -222,16 +232,21 @@ namespace BlackFlame::FileProbe::VirtualFiles
                 try {
                     g_traverse.fetch_add(1);
                     const auto prefix = Normalize(a_path);
-                    int reported = 0;
-                    for (const auto& file : m_files) {
-                        if (file.key.starts_with(prefix)) {
-                            a_traverser.ProcessName(file.key.c_str(), *this);
-                            logger::info("BlackFlame: file visibility probe: location DoTraversePrefix(\"{}\"): reported '{}'",
-                                a_path ? a_path : "(null)", file.key);
-                            ++reported;
+                    std::vector<std::string> names;
+                    {
+                        std::shared_lock lock(m_mutex);
+                        for (const auto& file : m_files) {
+                            if (file.key.starts_with(prefix)) {
+                                names.push_back(file.key);
+                            }
                         }
                     }
-                    Note("DoTraversePrefix", a_path, prefix, reported > 0 ? "reported our files" : "nothing under it");
+                    for (const auto& name : names) {  // outside the lock: the traverser may call back in
+                        a_traverser.ProcessName(name.c_str(), *this);
+                        logger::info("BlackFlame: file visibility probe: location DoTraversePrefix(\"{}\"): reported '{}'",
+                            a_path ? a_path : "(null)", name);
+                    }
+                    Note("DoTraversePrefix", a_path, prefix, names.empty() ? "nothing under it" : "reported our files");
                     return ErrorCode::kNone;
                 } catch (...) {
                     return ErrorCode::kMemoryError;
@@ -251,10 +266,11 @@ namespace BlackFlame::FileProbe::VirtualFiles
             const char* DoGetName() const override { return kLocationName; }
 
         private:
-            const File* Lookup(const std::string& a_key) const
+            std::optional<File> Lookup(const std::string& a_key) const
             {
+                std::shared_lock lock(m_mutex);
                 const auto it = std::ranges::find(m_files, a_key, &File::key);
-                return it == m_files.end() ? nullptr : &*it;
+                return it == m_files.end() ? std::nullopt : std::optional<File>(*it);
             }
 
             ErrorCode Answer(const char* a_call, const char* a_path, RE::BSResource::Info& a_info, RE::BSResource::Location** a_location)
@@ -262,7 +278,7 @@ namespace BlackFlame::FileProbe::VirtualFiles
                 try {
                     g_getInfo.fetch_add(1);
                     const auto key = Normalize(a_path);
-                    const auto* file = Lookup(key);
+                    const auto file = Lookup(key);
                     if (!file) {
                         Note(a_call, a_path, key, "not ours (kNotExist)");
                         return ErrorCode::kNotExist;
@@ -278,19 +294,24 @@ namespace BlackFlame::FileProbe::VirtualFiles
                 }
             }
 
-            const std::vector<File> m_files;  // never changed after construction: read from any thread
+            mutable std::shared_mutex m_mutex;
+            std::vector<File> m_files;  // under m_mutex: the engine reads it from any thread
         };
+
+        std::mutex g_locationsMutex;
+        std::vector<MemoryLocation*> g_locations;  // kept for the process: the engine holds them (under g_locationsMutex)
     }
 
-    bool Register(std::vector<File> a_files, std::uint32_t a_priority, std::string& a_note)
+    std::optional<std::size_t> Register(std::vector<File> a_files, std::uint32_t a_priority, std::string& a_note)
     {
         if (!Engine::StreamCountOffset()) {
             a_note = "not registered: the engine's stream count offset is unknown (our streams could not be counted)";
-            return false;
+            return std::nullopt;
         }
-        if (g_registered.exchange(true)) {
-            a_note = "not registered: registered once already this session";
-            return false;
+        std::lock_guard guard(g_locationsMutex);
+        if (g_locations.size() >= kMaxLocations) {
+            a_note = std::format("not registered: {} memory locations registered already this session", g_locations.size());
+            return std::nullopt;
         }
         std::string files;
         for (const auto& file : a_files) {
@@ -299,9 +320,23 @@ namespace BlackFlame::FileProbe::VirtualFiles
         // Kept for the rest of the process on purpose: the engine holds this pointer and nothing unregisters it
         auto* location = new MemoryLocation(std::move(a_files));  // game heap (Location's TES_HEAP_REDEFINE_NEW)
         const bool ok = GuardedKeep("file probe RegisterLocation", [&]() { RE::BSResource::RegisterLocation(location, a_priority); });
-        a_note = std::format("RegisterLocation(memory location, priority {}) {}; serving {}", a_priority,
-            ok ? "returned" : "FAULTED (logged)", files);
-        return ok;
+        a_note = std::format("RegisterLocation(memory location {}, priority {}) {}; serving {}", g_locations.size(), a_priority,
+            ok ? "returned" : "FAULTED (logged)", files.empty() ? "nothing yet" : files);
+        if (!ok) {
+            return std::nullopt;  // what the engine did with it is unknown: never touched again
+        }
+        g_locations.push_back(location);
+        return g_locations.size() - 1;
+    }
+
+    bool AddFile(std::size_t a_location, File a_file)
+    {
+        std::lock_guard guard(g_locationsMutex);
+        if (a_location >= g_locations.size()) {
+            return false;
+        }
+        g_locations[a_location]->Add(std::move(a_file));
+        return true;
     }
 
     std::string CountersText()

@@ -15,10 +15,14 @@
 //   A           a loose file written this session: plain stream open, GlobalLocations open, index lookup, then
 //               BSModelDB::Demand / BSShaderManager::GetTexture
 //   B           a BSResource::Location over memory registered now (FileProbeLocation.h), then the same requests under
-//               meshes\ and textures\heartofmagic\blackflame\vfsprobe\
+//               meshes\ and textures\heartofmagic\blackflame\vfsprobe (one location with its files, B-neg one empty)
 //   C           the written files put into the engine's index with RegisterLoose (FileProbeEngine.h), then the requests
-//   D           the engine's own LooseFileLocation rooted at <SKSE log folder>\HeartOfMagic_BlackFlame\fileprobe-root\
-//               registered (FileProbeTestD.cpp); a frame later its files asked for under ...\heartofmagic\blackflame\droot\
+//   D           the engine's own LooseFileLocation rooted at <SKSE log folder>\HeartOfMagic_BlackFlame\fileprobe-root (D-neg: -neg)
+//               registered (FileProbeTestD.cpp); a frame later its files asked for under ...\heartofmagic\blackflame\droot
+//   Late        B-neg / D-neg: an EMPTY memory location and an EMPTY LooseFileLocation registered right after Prepare,
+//               kMountWait (and kMountFrames) later their files made at fresh paths, then asked for the first time;
+//               C-late: asked with no file, then written, RegisterLoose, asked again; C-loading: a texture load started
+//               without waiting, then at once written, registered, asked (FileProbeTestLate.cpp)
 //   Judge       once every asked texture has its GPU texture (NiSourceTexture::rendererTexture), kTextureWait at most:
 //               every texture by its loaded size against the source DDS's (a miss may return a default texture, so "a
 //               texture came back" is not enough)
@@ -32,6 +36,8 @@ namespace BlackFlame::FileVisibilityProbe
 {
     inline constexpr auto kMenuSettle = std::chrono::seconds(8);
     inline constexpr auto kTextureWait = std::chrono::seconds(5);
+    inline constexpr auto kMountWait = std::chrono::seconds(2);  // B-neg / D-neg: from their registration to their files
+    inline constexpr int kMountFrames = 10;                      // and at least this many frames of that wait
     inline constexpr auto kRunDeadline = std::chrono::seconds(90);  // from the first step: the rest is SKIPPED
     inline constexpr auto kGiveUp = std::chrono::minutes(5);        // from kDataLoaded, with devAutoQuit only
     inline constexpr const char* kResultFile = "HeartOfMagic_BlackFlame_fileprobe.txt";

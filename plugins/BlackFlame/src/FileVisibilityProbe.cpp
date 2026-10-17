@@ -44,6 +44,7 @@ namespace BlackFlame::FileVisibilityProbe
         enum class Step
         {
             kPrepare,
+            kEarly,
             kPreRequest,
             kWrite,
             kA,
@@ -51,6 +52,9 @@ namespace BlackFlame::FileVisibilityProbe
             kC,
             kD,
             kDCheck,
+            kLateWait,
+            kLateCreate,
+            kLateCheck,
             kWait,
             kJudge,
             kFinish
@@ -66,8 +70,9 @@ namespace BlackFlame::FileVisibilityProbe
 
         const char* StepName(Step a_step)
         {
-            constexpr std::array kNames{ "prepare", "pre-request", "write files", "test A", "test B", "test C", "test D",
-                "test D check", "wait for the GPU textures", "judge textures", "finish" };
+            constexpr std::array kNames{ "prepare", "register early (B-neg, D-neg)", "pre-request", "write files", "test A",
+                "test B", "test C", "test D", "test D check", "wait for the early locations to mount", "late: create files",
+                "late: ask", "wait for the GPU textures", "judge textures", "finish" };
             return kNames[static_cast<std::size_t>(a_step)];
         }
 
@@ -108,18 +113,22 @@ namespace BlackFlame::FileVisibilityProbe
 
         std::string Summary(const Run& a_run)
         {
-            std::string main;
-            std::string negative;
-            std::string control;
-            for (std::size_t i = 0; i < FileProbe::kTests.size(); ++i) {
-                const auto it = a_run.results.find(FileProbe::kTests[i]);
-                const std::string word = it == a_run.results.end() ? "NOT RUN" : it->second.word;
-                auto& part = i < FileProbe::kMainTests ? main : (i < FileProbe::kMainTests + FileProbe::kNegativeTests ? negative : control);
-                part += std::format("{}{} {}", part.empty() ? "" : ", ", FileProbe::kTests[i], word);
+            std::string out;
+            std::size_t next = 0;
+            for (const auto& group : FileProbe::kTestGroups) {
+                std::string part;
+                for (std::size_t i = 0; i < group.count && next < FileProbe::kTests.size(); ++i, ++next) {
+                    const auto it = a_run.results.find(FileProbe::kTests[next]);
+                    const std::string word = it == a_run.results.end() ? "NOT RUN" : it->second.word;
+                    part += std::format("{}{} {}", part.empty() ? "" : ", ", FileProbe::kTests[next], word);
+                }
+                out += group.label.empty() ? part : std::format("{}{}: {}", out.ends_with("(") ? "" : "; ", group.label, part);
+                if (group.label.empty()) {
+                    out += " (";
+                }
             }
             const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - a_run.begun).count();
-            return std::format("{} (negative cache: {}; {}; run {}, {} ms; every line in {})", main, negative, control, a_run.tag, ms,
-                kResultFile);
+            return std::format("{}; run {}, {} ms; every line in {})", out, a_run.tag, ms, kResultFile);
         }
 
         void Finish(Run& a_run)
@@ -149,6 +158,9 @@ namespace BlackFlame::FileVisibilityProbe
                     }
                 }
                 break;
+            case Step::kEarly:
+                FileProbe::RegisterEarly(a_run);
+                break;
             case Step::kPreRequest:
                 FileProbe::PreRequest(a_run);
                 break;
@@ -170,6 +182,12 @@ namespace BlackFlame::FileVisibilityProbe
             case Step::kDCheck:
                 FileProbe::TestDCheck(a_run);
                 break;
+            case Step::kLateCreate:
+                FileProbe::LateCreate(a_run);
+                break;
+            case Step::kLateCheck:
+                FileProbe::LateCheck(a_run);
+                break;
             case Step::kJudge:
                 FileProbe::JudgeTextures(a_run);
                 break;
@@ -189,6 +207,18 @@ namespace BlackFlame::FileVisibilityProbe
                     }
                 }
                 a_step = Step::kFinish;
+            }
+            if (a_step == Step::kLateWait) {
+                // B-neg and D-neg: their locations, registered empty in kEarly, get kMountWait and kMountFrames frames to mount
+                ++run.framesSinceEarly;
+                if (run.framesSinceEarly < kMountFrames || Clock::now() - run.earlyAt < kMountWait) {
+                    Schedule(a_run, Step::kLateWait);
+                    return;
+                }
+                Note(run, std::format("the early locations had {} ms to mount ({} frames of this wait)",
+                    std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - run.earlyAt).count(), run.framesSinceEarly));
+                Schedule(a_run, Step::kLateCreate);
+                return;
             }
             if (a_step == Step::kWait) {
                 // E: a texture passes only with its GPU texture made; wait for every one, kTextureWait at most
@@ -219,7 +249,7 @@ namespace BlackFlame::FileVisibilityProbe
                     Note(run, std::format("step '{}' threw an exception of an unknown type; going on", StepName(a_step)));
                 }
             }
-            if (a_step == Step::kDCheck) {
+            if (a_step == Step::kLateCheck) {
                 run.judgeAt = Clock::now() + kTextureWait;
             }
             Schedule(a_run, skip ? Step::kFinish : static_cast<Step>(static_cast<int>(a_step) + 1));
