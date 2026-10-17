@@ -85,14 +85,15 @@ namespace BlackFlame::CopyFill
             return data;
         }
 
-        void FillProjectile(RE::BGSProjectile& a_copy, const RE::BGSProjectile& a_source)
+        void FillProjectile(RE::BGSProjectile& a_copy, const RE::BGSProjectile& a_source, bool a_models)
         {
             Bytes::Copy(a_copy.data, a_source.data);
             Bytes::Copy(a_copy.boundData, a_source.boundData);
             a_copy.soundLevel = a_source.soundLevel;
             a_copy.fullName = a_source.fullName;
-            const char* model = ExpectedMuzzle(a_copy, a_source);
-            a_copy.muzzleFlashModel.SetModel(model);
+            if (a_models) {
+                a_copy.muzzleFlashModel.SetModel(ExpectedMuzzle(a_copy, a_source));
+            }
         }
 
         void FillExplosion(RE::BGSExplosion& a_copy, const RE::BGSExplosion& a_source)
@@ -354,14 +355,14 @@ namespace BlackFlame::CopyFill
         }
     }
 
-    bool FillData(RE::TESForm* a_copy, const RE::TESForm* a_source)
+    bool FillData(RE::TESForm* a_copy, const RE::TESForm* a_source, bool a_models)
     {
         if (!a_copy || !a_source || a_copy->GetFormType() != a_source->GetFormType()) {
             return false;
         }
         switch (a_source->GetFormType()) {
         case RE::FormType::Projectile:
-            FillProjectile(*a_copy->As<RE::BGSProjectile>(), *a_source->As<RE::BGSProjectile>());
+            FillProjectile(*a_copy->As<RE::BGSProjectile>(), *a_source->As<RE::BGSProjectile>(), a_models);
             return true;
         case RE::FormType::Explosion:
             FillExplosion(*a_copy->As<RE::BGSExplosion>(), *a_source->As<RE::BGSExplosion>());

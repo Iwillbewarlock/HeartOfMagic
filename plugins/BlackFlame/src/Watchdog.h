@@ -29,6 +29,9 @@ namespace BlackFlame::Watchdog
     /// kPostLoadGame / kNewGame: the load ended
     void NoteLoadEnded() noexcept;
 
+    /// Between NoteLoadStarted and NoteLoadEnded (single launch: no publish step may run then; T0-W2)
+    [[nodiscard]] bool LoadUnderWay() noexcept;
+
     /// While the self-test records: every info line is written through at once (flush_on info)
     void SetFlushEveryLine(bool a_on) noexcept;
 }

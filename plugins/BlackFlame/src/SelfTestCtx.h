@@ -209,6 +209,8 @@ namespace BlackFlame::SelfTest
     bool StepThreads(Ctx& a_c, bool a_first);
     bool StepV2Cover(Ctx& a_c, bool a_first);   // SelfTestStepsV2Cover.cpp: T0-fresh, T0-cover
     bool StepDecalCover(Ctx& a_c, bool a_first);  // SelfTestStepsDecal.cpp: T0-decal (decal texture set copies, by data)
+    bool StepSlotsT0(Ctx& a_c, bool a_first);     // SelfTestStepsSlots.cpp: T0-slots (single launch; selfTestSlots)
+    bool StepSlotsW2(Ctx& a_c, bool a_first);     // SelfTestStepsSlots.cpp: T0-W2 (single launch; selfTestSlots)
     bool StepE1Modded(Ctx& a_c, bool a_first);  // E1m
     bool StepE6Player(Ctx& a_c, bool a_first);  // SelfTestStepsV2Art.cpp (ARTO copies)
     bool StepE6Npc(Ctx& a_c, bool a_first);

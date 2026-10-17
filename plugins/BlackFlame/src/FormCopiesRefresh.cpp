@@ -5,6 +5,7 @@
 
 #include "FormCopiesState.h"
 
+#include "SlotAssign.h"
 #include "TrackedMutex.h"
 
 #include <algorithm>
@@ -40,7 +41,8 @@ namespace BlackFlame
         std::unordered_set<RE::FormID> deferred;
         std::size_t compared = 0;
         for (const auto& entry : TheCopies().entries) {
-            if (!entry.ok) {
+            // v3.2 §6: a slot of a group not opened this session is skipped (its expected value is its current one)
+            if (!entry.ok || SlotAssign::IsGated(entry.copy)) {
                 continue;
             }
             ++compared;
@@ -123,6 +125,11 @@ namespace BlackFlame
         for (const auto& entry : copies.entries) {
             if (!entry.ok) {
                 lines.push_back({ false, std::format("{}: left out: {}", entry.sourceText, entry.detail), entry.sourceAbsent });
+                continue;
+            }
+            if (SlotAssign::IsGated(entry.copy)) {  // single launch: its group was not opened this session (not judged)
+                lines.push_back({ false, std::format("{} -> slot {:08X}: not published this session (its source is used)",
+                    entry.sourceText, entry.copy->GetFormID()), true });
                 continue;
             }
             const auto diff = CopyFill::Compare(entry.copy, entry.source);

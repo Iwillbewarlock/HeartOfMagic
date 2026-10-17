@@ -19,6 +19,7 @@
 #include "DevAutomation.h"
 #include "EffectEvents.h"
 #include "ExplosionHook.h"
+#include "FileIndex.h"
 #include "FireSet.h"
 #include "FormCopies.h"
 #include "Forms.h"
@@ -39,8 +40,11 @@
 #include "Recolor.h"
 #include "ScriptTags.h"
 #include "SelfTest.h"
+#include "SingleLaunch.h"
+#include "SlotLedger.h"
 #include "Tester.h"
 #include "MainThreadQueue.h"
+#include "MenuWatch.h"
 #include "Watchdog.h"
 
 namespace
@@ -48,11 +52,6 @@ namespace
     void OnDataLoaded()
     {
         BlackFlame::g_dataLoadedThreadNativeId.store(REX::W32::GetCurrentThreadId());
-        if (!BlackFlame::LoadForms()) {
-            logger::error("BlackFlame: the addon ESP's forms are missing - nothing is installed");
-            BlackFlame::MarkFreshnessUnchecked("the addon ESP's forms are missing");
-            return;
-        }
         // W23: every step before the hook installs runs guarded, so a throw in one cannot skip the installs below
         const auto guarded = [](const char* a_step, auto&& a_work) {
             try {
@@ -64,22 +63,49 @@ namespace
                     a_step);
             }
         };
-        guarded("LoadAndFillCopies", [] { BlackFlame::LoadAndFillCopies(); });  // v2: before any hook reads the copies
+        // Single launch: the main-thread proof and the menu sink before anything is scheduled (MenuWatch.h); always (the dev
+        // auto-load reads the main menu from it), guarded too (review Gemini / agy 10)
+        guarded("MenuWatch::Install", [] { BlackFlame::MenuWatch::Install(); });
+        if (!BlackFlame::LoadForms()) {
+            logger::error("BlackFlame: the addon ESP's forms are missing - nothing is installed");
+            BlackFlame::MarkFreshnessUnchecked("the addon ESP's forms are missing");
+            return;
+        }
+        const bool singleLaunch = BlackFlame::GetConfig().singleLaunch;
+        if (singleLaunch) {
+            // Single launch: the engine's resource index first (RegisterLoose is gated on its structural checks), then the
+            // slot ledger (no ledger path: no slots this session). The copies map route below does not run (SingleLaunch.h)
+            guarded("FileIndex::Init", [] { BlackFlame::FileIndex::Init(); });
+            guarded("SlotLedger::Load", [] { (void)BlackFlame::SlotLedger::Load(); });
+        } else {
+            guarded("LoadAndFillCopies", [] { BlackFlame::LoadAndFillCopies(); });  // v2: before any hook reads the copies
+        }
         guarded("BuildFireSets", [] { BlackFlame::BuildFireSets(); });
         // v2 expansion C1: the closure from the original forms, the fingerprint, the request and the NIF dump. Its own
         // failures are caught inside; this catch is for the closure walk itself, so the hooks below are installed anyway
         try {
             const auto closure = BlackFlame::BuildFireClosure();
-            BlackFlame::PrepareCopyRequest(closure);
-            BlackFlame::CheckFreshness(closure);  // C3: fresh / stale / none / pluginMissing / notApplied / texturesMissing (CopyFreshness.h)
+            if (!singleLaunch) {
+                BlackFlame::PrepareCopyRequest(closure);  // single launch: request v5 and the dump (CopyRequestV5.h)
+            }
+            if (singleLaunch) {
+                // the slots are filled from the live closure every start: no copies map to be stale
+                BlackFlame::MarkFreshnessUnchecked("single launch: the copies are the slot pool (no copies map)");
+                guarded("SingleLaunch::OnDataLoaded", [&] { BlackFlame::SingleLaunch::OnDataLoaded(closure); });
+            } else {
+                BlackFlame::CheckFreshness(closure);  // C3: fresh / stale / none / pluginMissing / notApplied / texturesMissing (CopyFreshness.h)
+            }
         } catch (const std::exception& e) {
             logger::error("BlackFlame: copy request: the fire closure failed: {}", e.what());
             BlackFlame::MarkFreshnessUnchecked(std::string("the fire closure failed: ") + e.what());
         }
         guarded("LoadGreyMap", [] { BlackFlame::LoadGreyMap(); });
         guarded("LoadPalette", [] { (void)BlackFlame::LoadPalette(); });
-        // v2i: every copy NIF demanded once on the main thread; failures out of the swaps
-        guarded("QueueCopyModelProbe", [] { BlackFlame::QueueCopyModelProbe(); });
+        if (!singleLaunch) {
+            // v2i: every copy NIF demanded once on the main thread; failures out of the swaps (single launch: CopyGroups
+            // verifies before it opens)
+            guarded("QueueCopyModelProbe", [] { BlackFlame::QueueCopyModelProbe(); });
+        }
         guarded("event sinks", [] {
             BlackFlame::EffectEventSink::GetSingleton()->Register();
             BlackFlame::HitEventSink::GetSingleton()->Register();
@@ -141,6 +167,10 @@ namespace
         BlackFlame::LogThread("SKSE message handler", "message", kMessageThreadLogs);
         switch (a_msg.type) {
         case SKSE::MessagingInterface::kPreLoadGame:
+            BlackFlame::MenuWatch::Close("kPreLoadGame (a save is being loaded)");
+            if (BlackFlame::GetConfig().singleLaunch) {
+                BlackFlame::SlotLedger::OnPreLoadGame(a_msg.data, a_msg.dataLen);  // before the engine reads the save
+            }
             BlackFlame::Watchdog::NoteLoadStarted();
             TearDown("a save is being loaded");
             BlackFlame::SelfTest::OnPreLoadGame();
@@ -164,6 +194,7 @@ namespace
             FlushLog();
             break;
         case SKSE::MessagingInterface::kNewGame:
+            BlackFlame::MenuWatch::Close("kNewGame");
             BlackFlame::Watchdog::NoteLoadEnded();
             TearDown("a new game started");
             BlackFlame::RefreshCopies("new game");
@@ -254,6 +285,9 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
     if (!messaging || !messaging->RegisterListener(OnSKSEMessage)) {
         logger::error("BlackFlame: could not register the SKSE message listener - the addon stays off");
         return true;
+    }
+    if (BlackFlame::GetConfig().singleLaunch) {
+        BlackFlame::SlotLedger::RegisterCoSave();  // BFSL: each save keeps the slot pairs it was made with
     }
     // Native wrappers bound when SKSE registers Papyrus functions (after the game's own natives)
     if (auto* papyrus = SKSE::GetPapyrusInterface(); !papyrus || !papyrus->Register(BlackFlame::InstallNativeWrappers)) {

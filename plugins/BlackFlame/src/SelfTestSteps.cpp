@@ -416,6 +416,8 @@ namespace BlackFlame::SelfTest
             StepDef{ "T0-cover", kEnvTimeout, &StepV2Cover },
             StepDef{ "T0-decal", kEnvTimeout, &StepDecalCover },
             StepDef{ "T0-bound", kEnvTimeout, &StepBoundCover },
+            StepDef{ "T0-slots", kEnvTimeout, &StepSlotsT0 },
+            StepDef{ "T0-W2", kEnvTimeout, &StepSlotsW2 },
             StepDef{ "T1", kBuffOnTimeout, &StepBuffOn },
             StepDef{ "T2", kSpawnTimeout, &StepSpawn },
             StepDef{ "T2", kActorsTimeout, &StepActorsReady },

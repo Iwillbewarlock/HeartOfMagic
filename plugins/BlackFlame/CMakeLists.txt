@@ -103,6 +103,12 @@ set(BLACKFLAME_SOURCES
     src/BuilderLauncher.cpp
     src/BuildProgress.cpp
     src/SelfTestStepsSlots.cpp
+    # P2 additions: the slot route's kDataLoaded order and its key inputs
+    src/SingleLaunch.cpp
+    src/SlotKeys.cpp
+    src/CopyRequestV5.cpp
+    src/DataFiles.cpp
+    src/CopyGroupsPlan.cpp
     ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/EncodingUtils.cpp
 )
 

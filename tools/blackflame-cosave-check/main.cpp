@@ -2,20 +2,30 @@
 // blackflame-cosave-check - offline check of Black Flame's BFSL co-save record and the copy contract
 // =============================================================================
 //   blackflame-cosave-check --self-test
-// Round-trips plugins/BlackFlame/src/SlotCoSave.h on byte buffers (golden bytes, cut short at every byte, every write
-// failing, over the limits, the stored form, an empty table, the full pool) and runs CopyContract's shared test table
-// (CopyContractTest.h; the builder's --self-test runs the same table). Exit 0 when every check passes, 1 on any
-// failure, 2 on a usage error. No game, no files. SkseFile.h is where P2 puts the .skse file reader.
+//   blackflame-cosave-check --cosave <file.skse> [<file.skse> ...]
+//   blackflame-cosave-check --nif-values <file.nif> [<file.nif> ...]
+// --self-test: round-trips plugins/BlackFlame/src/SlotCoSave.h on byte buffers (golden bytes, cut short at every byte,
+// every write failing, over the limits, the stored form, an empty table, the full pool), runs CopyContract's shared test
+// table (CopyContractTest.h; the builder's --self-test runs the same table), the co-save file reader (CoSaveFile.h;
+// CoSaveFileTests.h) on buffers built per the spike's layout, the slot ledger (SlotLedgerModel.h, SlotLedgerFiles.h;
+// SlotLedgerTests.h - its file cases use a folder under the system temp folder, removed after) and the BSValueNode reader
+// (NifValueNodes.h; NifValueNodesTests.h) and the progress.jsonl tail (ProgressTail.h; ProgressTailTests.h). --cosave and --nif-values (SkseFile.cpp): the DLL's readers on real files.
+// Exit 0 when every check (or every file) passes, 1 on a failure, 2 on a usage error. No game.
 
 #include "../../plugins/BlackFlame/src/CopyContractTest.h"
 #include "../../plugins/BlackFlame/src/SlotCoSave.h"
+#include "CoSaveFileTests.h"
+#include "NifValueNodesTests.h"
+#include "ProgressTailTests.h"
 #include "SkseFile.h"
+#include "SlotLedgerTests.h"
 
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <exception>
 #include <iostream>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -377,8 +387,15 @@ namespace
 
 int main(int a_argc, char** a_argv)
 {
+    if (a_argc >= 3 && std::string(a_argv[1]) == "--cosave") {
+        return BlackFlame::SkseFile::WalkFiles(a_argc, a_argv);
+    }
+    if (a_argc >= 3 && std::string(a_argv[1]) == "--nif-values") {
+        return BlackFlame::SkseFile::NifValues(a_argc, a_argv);
+    }
     if (a_argc != 2 || std::string(a_argv[1]) != "--self-test") {
-        std::cerr << "Usage:\n  blackflame-cosave-check --self-test\n";
+        std::cerr << "Usage:\n  blackflame-cosave-check --self-test\n  blackflame-cosave-check --cosave <file.skse> [<file.skse> ...]\n"
+                     "  blackflame-cosave-check --nif-values <file.nif> [<file.nif> ...]\n";
         return 2;
     }
     Checker check;
@@ -392,6 +409,10 @@ int main(int a_argc, char** a_argv)
         check(contract >= BlackFlame::CopyContractTest::kMinChecks,
             "contract: the shared table ran " + std::to_string(contract) + " checks (at least " +
                 std::to_string(BlackFlame::CopyContractTest::kMinChecks) + ")");
+        CoSaveFileTests::Run([&](bool a_ok, const std::string& a_what) { check(a_ok, a_what); });
+        SlotLedgerTests::Run([&](bool a_ok, const std::string& a_what) { check(a_ok, a_what); });
+        NifValueNodesTests::Run([&](bool a_ok, const std::string& a_what) { check(a_ok, a_what); });
+        ProgressTailTests::Run([&](bool a_ok, const std::string& a_what) { check(a_ok, a_what); });
     } catch (const std::exception& e) {
         check(false, std::string("exception: ") + e.what());
     }

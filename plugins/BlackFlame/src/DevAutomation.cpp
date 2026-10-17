@@ -2,8 +2,10 @@
 
 #include "Config.h"
 #include "MainThreadQueue.h"
+#include "MenuWatch.h"
 #include "Patch.h"
 #include "SelfTestReload.h"
+#include "SingleLaunch.h"
 #include "TrackedMutex.h"
 
 #include <atomic>
@@ -48,7 +50,8 @@ namespace BlackFlame::DevAutomation
             Clock::time_point e3At{};                 // when the current E3 phase began
             std::optional<Clock::time_point> saveSeenAt;
             std::optional<Clock::time_point> quitAt;
-            std::optional<Clock::time_point> stallFrom;  // the last load's end or the auto load's request
+            std::optional<Clock::time_point> stallFrom;  // the last load's end, the auto load's request or the main menu's opening
+            std::optional<Clock::time_point> menuWaitFrom;  // devAutoLoad: kDataLoaded, until the main menu opens
             bool quitIssued = false;
         };
         TrackedMutex g_mutex;
@@ -133,8 +136,13 @@ namespace BlackFlame::DevAutomation
         void Due(Clock::time_point a_now, const Config& a_config, std::vector<Action>& a_out)
         {
             auto& s = g_state;
+            // single launch: the load waits for the slots to settle (they are frozen at the first load), kSlotWait at most
             if (!a_config.devAutoLoad.empty() && !s.autoLoadIssued && s.menuAt && !s.loadStarted &&
-                a_now - *s.menuAt >= kMenuSettle) {
+                a_now - *s.menuAt >= kMenuSettle && (SingleLaunch::ReadyForLoad() || a_now - *s.menuAt >= kSlotWait)) {
+                if (!SingleLaunch::ReadyForLoad()) {  // review Gemini / agy 6: the load that freezes unsettled slots is named
+                    logger::warn("BlackFlame: dev: auto-load after {} s with the slots not settled: what is not open now stays "
+                                 "closed for this session", std::chrono::duration_cast<std::chrono::seconds>(kSlotWait).count());
+                }
                 s.autoLoadIssued = true;
                 s.stallFrom = a_now;
                 a_out.push_back(Action::kLoadConfigSave);
@@ -162,6 +170,9 @@ namespace BlackFlame::DevAutomation
                 a_out.push_back(Action::kQuit);
             } else if (s.stallFrom && a_now - *s.stallFrom >= kStallTimeout) {
                 s.quitIssued = true;
+                a_out.push_back(Action::kQuitOnTimeout);
+            } else if (!s.menuAt && s.menuWaitFrom && a_now - *s.menuWaitFrom >= kMenuWaitTimeout) {
+                s.quitIssued = true;  // the main menu never opened
                 a_out.push_back(Action::kQuitOnTimeout);
             }
         }
@@ -193,24 +204,18 @@ namespace BlackFlame::DevAutomation
             }
         }
 
-        class MenuSink final : public RE::BSTEventSink<RE::MenuOpenCloseEvent>
+        // MenuWatch's listener (the shared MenuOpenCloseEvent sink): the main menu's first opening; the stall timeout counts
+        // from here (single-launch v3 decision 8: the kDataLoaded-to-menu time is not part of it)
+        void OnMainMenu()
         {
-        public:
-            RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent* a_event,
-                RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
-            {
-                if (a_event && a_event->opening && a_event->menuName == RE::MainMenu::MENU_NAME) {
-                    std::lock_guard lock(g_mutex);
-                    if (!g_state.menuAt) {
-                        g_state.menuAt = Clock::now();
-                        logger::info("BlackFlame: dev automation: main menu opened; loading '{}' in {} s unless a load "
-                                     "starts first", GetConfig().devAutoLoad, kMenuSettle.count());
-                    }
-                }
-                return RE::BSEventNotifyControl::kContinue;
+            std::lock_guard lock(g_mutex);
+            if (!g_state.menuAt) {
+                g_state.menuAt = Clock::now();
+                g_state.stallFrom = g_state.menuAt;
+                logger::info("BlackFlame: dev automation: main menu opened; loading '{}' in {} s unless a load starts first",
+                    GetConfig().devAutoLoad, kMenuSettle.count());
             }
-        };
-        MenuSink g_menuSink;
+        }
 
         // The ids behind BGSSaveLoadManager::GetSingleton/Save/Load and Main::GetSingleton (CommonLib's .cpp files)
         bool EngineIdsPresent()
@@ -232,17 +237,12 @@ namespace BlackFlame::DevAutomation
             return;
         }
         if (!config.devAutoLoad.empty()) {
-            // The timeout runs from here until the load is requested: a main menu event never seen still ends the game
-            std::lock_guard lock(g_mutex);
-            g_state.stallFrom = Clock::now();
-        }
-        if (!config.devAutoLoad.empty()) {
-            auto* ui = RE::UI::GetSingleton();
-            if (ui) {
-                ui->AddEventSink<RE::MenuOpenCloseEvent>(&g_menuSink);
-            } else {
-                logger::error("BlackFlame: dev automation: no RE::UI - devAutoLoad cannot see the main menu");
+            // A main menu event never seen still ends the game, kMenuWaitTimeout after kDataLoaded
+            {
+                std::lock_guard lock(g_mutex);
+                g_state.menuWaitFrom = Clock::now();
             }
+            MenuWatch::OnMainMenuOpen(&OnMainMenu);
         }
         g_installed = true;
         std::thread(&PollLoop).detach();  // detached, never joined: a thread joined at DLL unload can hang the exit

@@ -54,7 +54,18 @@ namespace BlackFlame
             BoolKey{ "testerMode", &Config::testerMode },
             BoolKey{ "devAutoE3", &Config::devAutoE3 },
             BoolKey{ "devAutoQuit", &Config::devAutoQuit },
+            BoolKey{ "singleLaunch", &Config::singleLaunch },
+            BoolKey{ "launchBuilder", &Config::launchBuilder },
+            BoolKey{ "slotPreflight", &Config::slotPreflight },
+            BoolKey{ "selfTestSlots", &Config::selfTestSlots },
+            BoolKey{ "slotTxst", &Config::slotTxst },
         };
+
+        // Single launch: the tints the builder bakes (GreyBuild.h --tint / --tint-add take 0..2) and the job memory cap
+        constexpr double kMinTint = 0.0;
+        constexpr double kMaxTint = 2.0;
+        constexpr std::uint32_t kMinJobMemoryMiB = 256;
+        constexpr std::uint32_t kMaxJobMemoryMiB = 16384;
 
         // C6: keys of the retired runtime recolour (and burnMode before it). An old json keeps loading: each is logged
         // once as retired and ignored, not as an unknown key
@@ -68,7 +79,8 @@ namespace BlackFlame
 
         bool IsKnownKey(std::string_view key)
         {
-            if (key == "lightColor" || key == "selfTestDelaySeconds" || key == "devAutoLoad" || key == "copyModelProbe") {
+            if (key == "lightColor" || key == "selfTestDelaySeconds" || key == "devAutoLoad" || key == "copyModelProbe" ||
+                key == "tint" || key == "tintAdd" || key == "paletteMode" || key == "builderJobMemoryMiB") {
                 return true;
             }
             for (const auto& b : kBoolKeys) {
@@ -181,6 +193,45 @@ namespace BlackFlame
             out.devAutoQuit = false;
         }
 
+        void ReadTint(const nlohmann::json& j, const char* a_key, double& a_out)
+        {
+            const auto it = j.find(a_key);
+            if (it == j.end()) {
+                return;
+            }
+            if (!it->is_number() || !(it->get<double>() >= kMinTint && it->get<double>() <= kMaxTint)) {
+                logger::warn("BlackFlame: config '{}' {} is not a number in {}..{} - keeping {}", a_key, it->dump(), kMinTint,
+                    kMaxTint, a_out);
+                return;
+            }
+            a_out = it->get<double>();
+        }
+
+        // Single launch: tint, tintAdd, paletteMode, builderJobMemoryMiB
+        void ReadSingleLaunch(const nlohmann::json& j, Config& out)
+        {
+            ReadTint(j, "tint", out.tint);
+            ReadTint(j, "tintAdd", out.tintAdd);
+            if (const auto it = j.find("paletteMode"); it != j.end()) {
+                const std::string text = it->is_string() ? it->get<std::string>() : std::string();
+                if (text == "derived" || text == "godskin") {
+                    out.paletteGodskin = text == "godskin";
+                } else {
+                    logger::warn("BlackFlame: config 'paletteMode' {} is not \"derived\" or \"godskin\" - keeping {}", it->dump(),
+                        out.paletteGodskin ? "godskin" : "derived");
+                }
+            }
+            if (const auto it = j.find("builderJobMemoryMiB"); it != j.end()) {
+                if (!it->is_number_unsigned() || it->get<std::uint64_t>() < kMinJobMemoryMiB ||
+                    it->get<std::uint64_t>() > kMaxJobMemoryMiB) {
+                    logger::warn("BlackFlame: config 'builderJobMemoryMiB' {} is not a whole number in {}..{} - keeping {}",
+                        it->dump(), kMinJobMemoryMiB, kMaxJobMemoryMiB, out.builderJobMemoryMiB);
+                } else {
+                    out.builderJobMemoryMiB = static_cast<std::uint32_t>(it->get<std::uint64_t>());
+                }
+            }
+        }
+
         void ReadLightColor(const nlohmann::json& j, Config& out)
         {
             const auto it = j.find("lightColor");
@@ -222,6 +273,10 @@ namespace BlackFlame
                 g_config.copyLaunch, g_config.copyLaunchExplosion, g_config.copyExplosionCreate, g_config.copyImpacts,
                 g_config.copyHitArt, ProbeModeName(g_config.copyModelProbe), g_config.copyModelProbeAlways, g_config.copyCastingArt, g_config.refreshCastingArt, g_config.copyHazardCreate, g_config.copyPlaced, g_config.writeRequest, g_config.testerMode, g_config.devAutoLoad, g_config.devAutoE3, g_config.devAutoQuit, g_config.selfTestDelaySeconds,
                 g_config.lightColor.red, g_config.lightColor.green, g_config.lightColor.blue);
+            logger::info("BlackFlame: config singleLaunch={} launchBuilder={} slotPreflight={} selfTestSlots={} slotTxst={} tint={} "
+                         "tintAdd={} paletteMode={} builderJobMemoryMiB={}", g_config.singleLaunch, g_config.launchBuilder,
+                g_config.slotPreflight, g_config.selfTestSlots, g_config.slotTxst, g_config.tint, g_config.tintAdd,
+                g_config.paletteGodskin ? "godskin" : "derived", g_config.builderJobMemoryMiB);
         }
     }
 
@@ -254,6 +309,7 @@ namespace BlackFlame
         ReadProbeMode(j, next);
         ReadSelfTestDelay(j, next);
         ReadLightColor(j, next);
+        ReadSingleLaunch(j, next);
         if (next.testerMode) {
             // the tester package: the self-test and the copy request on; every info line reaches disk at once (a crash keeps it)
             next.selfTest = true;
