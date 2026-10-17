@@ -30,7 +30,6 @@ namespace GreyBuild
         // TX00..TX07: the subrecord tags in slot order (RE/B/BGSTextureSet.h textures, "TX00 - TX07")
         constexpr const char* kSlotTags[kTxstSlots] = { "TX00", "TX01", "TX02", "TX03", "TX04", "TX05", "TX06", "TX07" };
 
-
         // AA2: U+FFFD, what a code page's bytes that are no valid text become (EF BF BD in UTF-8)
         constexpr std::string_view kReplacement = "\xEF\xBF\xBD";
 

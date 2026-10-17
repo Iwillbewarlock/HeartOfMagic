@@ -16,6 +16,7 @@
 
 #include <DirectXTex.h>
 
+#include <cstdint>
 #include <cstring>
 #include <fmt/format.h>
 #include <fstream>
@@ -431,6 +432,79 @@ namespace GreyBuild::SelfTest
         }
     }
 
+    namespace
+    {
+        // The text a reader throws for a_text, or "" when it reads
+        template <class F>
+        [[nodiscard]] std::string Refusal(F&& a_read)
+        {
+            try {
+                a_read();
+            } catch (const std::runtime_error& e) {
+                return e.what();
+            }
+            return {};
+        }
+
+        [[nodiscard]] std::string GameRequest(const std::string& a_extra, const std::string& a_forms)
+        {
+            return R"({"version":4,"fingerprint":"fnv64:00000000000000ab","fingerprintSizes":"fnv64:00000000000000cd",)"
+                   R"("addons":[],"models":[],"nifs":[],)" + a_extra + R"("forms":[)" + a_forms + "]}";
+        }
+
+        // AD7: dumpComplete through a map without it, a request that names it wrong, and a whole --from-game run; the raw
+        // slot checks in both directions and the subrecord length, by their messages; AC5's refusal
+        void CheckDumpAndRequests(Checker& a_check, const std::filesystem::path& a_dir)
+        {
+            const auto oldMap = WriteText(a_dir / "map_no_dump.json", R"({"version":2,"copies":[]})");
+            a_check.Check(LoadCopiesMap(oldMap).dumpComplete, "copies map (AD7): a map without dumpComplete reads as complete");
+            const auto txst = Txst("A.esp|000807", "Raw", false, R"("a.dds","","","","","","","")");
+            const auto badFlag = Refusal([&] {
+                (void)LoadFormsRequestFile(WriteText(a_dir / "req_flag.json", GameRequest(R"("dumpComplete":"no",)", txst)));
+            });
+            a_check.Check(badFlag.find("'dumpComplete' must be true or false") != std::string::npos,
+                fmt::format("request (AD7): a dumpComplete that is not a bool is refused ({})", badFlag));
+            const auto rawForm = [](const std::string& a_name, const std::string& a_hex) {
+                return fmt::format(R"({{"source":"A.esp|000808","type":"TXST","hasDecal":false,"textures":["{}","","","","","","",""],)"
+                                   R"("texturesRaw":["{}","","","","","","",""]}})", a_name, a_hex);
+            };
+            const auto emptyName = Refusal([&] {
+                (void)LoadFormsRequestFile(WriteText(a_dir / "req_empty_name.json", GameRequest("", rawForm("", "61"))));
+            });
+            const auto emptyBytes = Refusal([&] {
+                (void)LoadFormsRequestFile(WriteText(a_dir / "req_empty_bytes.json", GameRequest("", rawForm("a", ""))));
+            });
+            const auto tooLong = Refusal([&] {
+                (void)LoadFormsRequestFile(WriteText(a_dir / "req_long.json",
+                    GameRequest("", rawForm("a", BlackFlame::DataPathRule::ToHex(std::string(UINT16_MAX, 'a'))))));
+            });
+            a_check.Check(emptyName.find("disagree on an empty slot") != std::string::npos &&
+                              emptyBytes.find("disagree on an empty slot") != std::string::npos &&
+                              tooLong.find("longer than a subrecord") != std::string::npos,
+                "raw slots (AD7): text and bytes disagreeing either way, and a slot of 65535 bytes, are refused by name");
+
+            // GreyFromGame -> BuildForms -> the map: dumpComplete false travels; a malformed excluded TXST refuses (AC5)
+            const auto game = a_dir / "game_request";
+            std::filesystem::create_directories(game / "data");
+            const auto out = a_dir / "game_request_out";
+            std::filesystem::create_directories(out);
+            (void)WriteText(game / "request.json", GameRequest(R"("dumpComplete":false,"dumpWriteFailures":1,)", txst));
+            const int built = RunFromGame(game, out, kTint, false);
+            const auto mapFile = out / "SKSE/Plugins" / kCopiesMapName;
+            std::error_code ec;
+            const bool mapThere = std::filesystem::is_regular_file(mapFile, ec);
+            a_check.Check(built == 0 && mapThere && !LoadCopiesMap(mapFile).dumpComplete,
+                fmt::format("--from-game (AD7): a request with dumpComplete false builds a map that says so (exit {})", built));
+            const auto refusedOut = a_dir / "game_request_refused";
+            std::filesystem::create_directories(refusedOut);
+            (void)WriteText(game / "request.json",
+                GameRequest(R"("excluded":[{"source":"not a source","type":"TXST","reason":"x"}],)", txst));
+            const int refused = RunFromGame(game, refusedOut, kTint, false);
+            a_check.Check(refused != 0 && !std::filesystem::exists(refusedOut / "SKSE/Plugins" / kCopiesMapName, ec),
+                fmt::format("--from-game (AC5): a malformed excluded TXST source refuses the run, nothing written (exit {})", refused));
+        }
+    }
+
     void CheckDecals(Checker& a_check, const std::filesystem::path& a_dir)
     {
         const auto dir = a_dir / "decals";
@@ -442,5 +516,6 @@ namespace GreyBuild::SelfTest
         CheckTextureStep(a_check, dir);
         CheckOldRequest(a_check, dir);
         CheckRawSlots(a_check, dir);
+        CheckDumpAndRequests(a_check, dir);
     }
 }

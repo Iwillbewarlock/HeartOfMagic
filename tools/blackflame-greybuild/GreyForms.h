@@ -43,7 +43,8 @@ namespace GreyBuild
     inline constexpr const char* kCopyRoot = "meshes\\heartofmagic\\blackflame\\copies\\";
     inline constexpr const char* kCopyEditorIdPrefix = "HoMBF_C_";  // + type + "_" + the copy's local id (3 hex)
     inline constexpr int kFormsRequestVersion = 2;  // hand-made requests (forms only)
-    inline constexpr int kGameRequestVersion = 3;   // the DLL's request (forms, addons, models, nifs, fingerprint)
+    inline constexpr int kGameRequestVersion = 4;   // the DLL's request (forms, addons, models, nifs, fingerprint, dumpComplete)
+    inline constexpr int kGameRequestVersionOld = 3;  // AD1: the same without dumpComplete (read as complete)
     inline constexpr int kCopiesMapVersion = 2;     // version 1 maps are still read
 
     enum class CopyType

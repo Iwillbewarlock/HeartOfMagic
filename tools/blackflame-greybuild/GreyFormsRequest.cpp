@@ -200,12 +200,13 @@ namespace GreyBuild
     {
         const nlohmann::json root = Json::ReadFile(a_file);
         FormsRequest request;
-        if (!root.contains("version") || (root["version"] != kFormsRequestVersion && root["version"] != kGameRequestVersion)) {
-            Json::Fail(a_file, fmt::format("'version' must be {} (a hand-made forms request) or {} (the request the game "
-                "writes)", kFormsRequestVersion, kGameRequestVersion));
+        if (!root.contains("version") || (root["version"] != kFormsRequestVersion && root["version"] != kGameRequestVersion &&
+                                             root["version"] != kGameRequestVersionOld)) {
+            Json::Fail(a_file, fmt::format("'version' must be {} (a hand-made forms request), {} or {} (the request the game "
+                "writes)", kFormsRequestVersion, kGameRequestVersionOld, kGameRequestVersion));
         }
         request.version = root["version"].get<int>();
-        const bool fromGame = request.version == kGameRequestVersion;
+        const bool fromGame = request.version == kGameRequestVersion || request.version == kGameRequestVersionOld;
         const auto& forms = Json::RequireArray(a_file, root, "forms");
         std::vector<FormSource>& out = request.forms;
         std::set<std::string> seen;
