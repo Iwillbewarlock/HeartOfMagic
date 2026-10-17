@@ -253,7 +253,8 @@ namespace BlackFlame::CopyContract
         }
     }
 
-    /// One line (without its '\n')
+    /// One line (without its '\n'). A refusal comes back as an error text; memory exhaustion still throws
+    /// (std::bad_alloc), so P2's worker thread calls it inside a catch of std::exception
     [[nodiscard]] inline ProgressLineResult ParseProgressLine(std::string_view a_text)
     {
         if (a_text.size() > kMaxProgressLine) {
@@ -350,7 +351,7 @@ namespace BlackFlame::CopyContract
     }
 
     /// The line as the builder appends it, '\n' included; nullopt for an unknown enum value, a string that is not UTF-8,
-    /// or a line that would not parse back field for field (ParseProgressLine)
+    /// or a line that would not parse back field for field (ParseProgressLine). May throw std::bad_alloc
     [[nodiscard]] inline std::optional<std::string> WriteProgressLine(const ProgressLine& a_line)
     {
         const auto kind = ProgressKindText(a_line.kind);
@@ -404,7 +405,7 @@ namespace BlackFlame::CopyContract
         return end == std::string_view::npos ? 0 : end + 1;
     }
 
-    /// The whole progress.jsonl text
+    /// The whole progress.jsonl text. May throw std::bad_alloc (a worker thread catches std::exception)
     [[nodiscard]] inline ProgressFile ParseProgress(std::string_view a_text)
     {
         constexpr std::string_view kBlank = " \t\r";

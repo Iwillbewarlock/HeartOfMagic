@@ -250,10 +250,11 @@ namespace BlackFlame::CopyContractTest
             model.path = "magic\\firebolt.nif";
             model.nif = CC::FileHash::Hashed(0x5555555555555555ull);
             auto muzzle = Muzzle();
-            const auto modelBefore = CC::NifKeyString(prefix, model);
             const auto muzzleBefore = CC::NifKeyString(prefix, muzzle);
             muzzle.nif = CC::FileHash::Hashed(0x6666666666666666ull);
-            a_check(Same(CC::NifKeyString(prefix, model), modelBefore) && Differs(CC::NifKeyString(prefix, muzzle), muzzleBefore),
+            const auto modelText = CC::NifKeyString(prefix, model);  // the PROJ model key holds nothing of its muzzle
+            a_check(modelText && !Contains(modelText, "fireboltmuzzle") && !Contains(modelText, "aaaaaaaaaaaaaaaa") &&
+                        Contains(muzzleBefore, "fireboltmuzzle") && Differs(CC::NifKeyString(prefix, muzzle), muzzleBefore),
                 "key: a PROJ's model and muzzle are two objects: a muzzle-only replacement re-keys only the muzzle");
             auto asModel = Muzzle();
             asModel.kind = CC::NifKind::kModel;
