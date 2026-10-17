@@ -63,6 +63,17 @@ namespace BlackFlame
         bool devAutoQuit = false;  // the game quits 10 s after the self-test (and E3) ended, or 6 min after a load at most
         float selfTestDelaySeconds = 30.0f;  // C1: unpaused play after a load before the self-test starts (E3 judges after its own 1.5 s, H5)
         RE::NiColor lightColor{ 0.25f, 0.22f, 0.28f };
+        // Single launch (README "Single launch: the DLL side"): the slot pool, the ledger, the builder as a child, publication
+        // at kDataLoaded and at the main menu. Off: the copies map route above, unchanged
+        bool singleLaunch = false;
+        bool launchBuilder = true;    // with singleLaunch: the builder is started at kDataLoaded (BuilderLauncher.h)
+        bool slotPreflight = false;   // kPreLoadGame: refill slots whose save pairs differ (unverified in game: off)
+        bool slotTxst = false;        // decal texture set slots published (SetTexturePath and the id check; unproven: off)
+        bool selfTestSlots = false;   // self-test steps T0-slots and T0-W2 (with selfTest; SelfTestStepsSlots.cpp)
+        double tint = 0.6;            // the copies' base colour scale (the builder's kDefaultTint), into the key and request v5
+        double tintAdd = 0.9;         // additive palette shaders' base colour scale (kDefaultTintAdd)
+        bool paletteGodskin = false;  // "paletteMode": "derived" (false, the builder's default) or "godskin"
+        std::uint32_t builderJobMemoryMiB = 1536;  // the builder's job object memory cap (JOB_OBJECT_LIMIT_JOB_MEMORY)
     };
 
     inline constexpr const char* kConfigPath = "Data/SKSE/Plugins/HeartOfMagic_BlackFlame.json";

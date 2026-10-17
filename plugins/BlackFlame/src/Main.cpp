@@ -19,6 +19,7 @@
 #include "DevAutomation.h"
 #include "EffectEvents.h"
 #include "ExplosionHook.h"
+#include "FileIndex.h"
 #include "FireSet.h"
 #include "FormCopies.h"
 #include "Forms.h"
@@ -64,6 +65,10 @@ namespace
                     a_step);
             }
         };
+        if (BlackFlame::GetConfig().singleLaunch) {
+            // Single launch: the engine's resource index first (RegisterLoose is gated on its structural checks)
+            guarded("FileIndex::Init", [] { BlackFlame::FileIndex::Init(); });
+        }
         guarded("LoadAndFillCopies", [] { BlackFlame::LoadAndFillCopies(); });  // v2: before any hook reads the copies
         guarded("BuildFireSets", [] { BlackFlame::BuildFireSets(); });
         // v2 expansion C1: the closure from the original forms, the fingerprint, the request and the NIF dump. Its own
