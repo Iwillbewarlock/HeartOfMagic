@@ -192,7 +192,7 @@ namespace BlackFlame::FormCopies
                 const auto* entry = LM::FindSlot(ledger, id);
                 if (!slot.usable || !entry || (slot.type == CopyContract::SlotType::kADDN) != addnPass ||
                     slot.type == CopyContract::SlotType::kTXST) {
-                    continue;  // a TXST slot is published only through CopyGroups (slotTxst)
+                    continue;  // a TXST slot stays unpublished (CopyGroups.h)
                 }
                 const auto* model = intact(*entry, addnPass ? LM::Role::kMps : LM::Role::kModel, slot);
                 const bool addnReady = !model || std::all_of(model->deps.begin(), model->deps.end(), [](const LM::Dep& a_dep) {

@@ -150,6 +150,11 @@ namespace BlackFlame::Watchdog
         g_loading.store(true);
     }
 
+    bool LoadUnderWay() noexcept
+    {
+        return g_loading.load();
+    }
+
     void NoteLoadEnded() noexcept
     {
         g_frameAtLoadEnd.store(LastSign());

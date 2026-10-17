@@ -8,6 +8,7 @@
 //   1. SlotKeys::Read          the closure's NIFs, the textures they name, the builder exe, the AddOnNode indices
 //   2. SlotAssign::AssignAndFill   wants, the ledger's assignment, every slot filled, gates closed, keys
 //   3. ApplyLastPublished      W1: last published generations that are still intact set as the slots' models
+//   4. CopyGroups::Start       W1: groups ready from the ledger open; the rest verified and opened in the drains
 // and the copies map route (LoadAndFillCopies, the freshness check, the copy model probe) does not run.
 
 #include "Common.h"

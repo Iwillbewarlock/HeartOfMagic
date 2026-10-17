@@ -4,6 +4,7 @@
 
 #include "SingleLaunch.h"
 
+#include "CopyGroups.h"
 #include "FormCopies.h"
 #include "FormCopiesFillModel.h"
 #include "SlotAssign.h"
@@ -34,6 +35,7 @@ namespace BlackFlame::SingleLaunch
             return;
         }
         (void)FormCopies::ApplyLastPublished(inputs);
+        CopyGroups::Start();  // W1: the groups ready from the ledger open now; the rest on the main thread as verified
         logger::info("BlackFlame: single launch: kDataLoaded part done in {} ms",
             std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count());
     }
