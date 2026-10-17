@@ -2,17 +2,26 @@
 // blackflame-cosave-check - offline check of Black Flame's BFSL co-save record and the copy contract
 // =============================================================================
 //   blackflame-cosave-check --self-test
-// Round-trips plugins/BlackFlame/src/SlotCoSave.h on byte buffers (normal, cut short at every byte, over the limits, an
-// empty table, the full pool) and runs CopyContract's shared test table (CopyContractTest.h; the builder's --self-test
-// runs the same table). Exit 0 when every check passes, 1 on any failure, 2 on a usage error. No game, no files.
+//   blackflame-cosave-check --cosave <file.skse> [<file.skse> ...]
+// --self-test: round-trips plugins/BlackFlame/src/SlotCoSave.h on byte buffers (normal, cut short at every byte, over the
+// limits, an empty table, the full pool), runs CopyContract's shared test table (CopyContractTest.h; the builder's
+// --self-test runs the same table), the co-save file reader (CoSaveFile.h; CoSaveFileTests.h) on buffers built per the
+// spike's layout, and the slot ledger (SlotLedgerModel.h, SlotLedgerFiles.h; SlotLedgerTests.h - its file cases use a
+// folder under the system temp folder, removed after). --cosave: walks real co-saves with the DLL's reader and prints each
+// block and whether a BFSL slot list is there. Exit 0 when every check (or every walk) passes, 1 on a failure, 2 on a
+// usage error. No game.
 
 #include "../../plugins/BlackFlame/src/CopyContractTest.h"
 #include "../../plugins/BlackFlame/src/SlotCoSave.h"
+#include "CoSaveFileTests.h"
+#include "SlotLedgerTests.h"
 
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -259,10 +268,57 @@ namespace
     }
 }
 
+namespace
+{
+    // --cosave: every block of each file and the HBFS block's state; 0 when every file walks to its end
+    int WalkFiles(int a_argc, char** a_argv)
+    {
+        namespace CF = BlackFlame::CoSaveFile;
+        int failed = 0;
+        for (int i = 2; i < a_argc; ++i) {
+            std::ifstream in(a_argv[i], std::ios::binary);
+            if (!in) {
+                std::cout << a_argv[i] << ": does not open\n";
+                ++failed;
+                continue;
+            }
+            const Bytes bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+            const auto walk = CF::WalkCoSave(bytes.data(), bytes.size());
+            const auto bfsl = CF::ReadBfsl(bytes.data(), bytes.size());
+            std::cout << a_argv[i] << ": " << bytes.size() << " bytes, walk " << CF::Describe(walk.result);
+            if (walk.result != CF::Result::Ok) {
+                std::cout << " at offset " << walk.failAt;
+            }
+            std::cout << ", runtime 0x" << std::hex << walk.runtimeVersion << std::dec << ", " << walk.plugins.size()
+                      << " blocks; Black Flame: " << CF::Describe(bfsl.state);
+            if (bfsl.state == CF::BfslState::kRead) {
+                std::cout << " (" << bfsl.snapshot.slots.size() << " slots, epoch " << CC::Hex16(bfsl.snapshot.epoch) << ")";
+            } else if (!bfsl.why.empty()) {
+                std::cout << " (" << bfsl.why << ")";
+            }
+            std::cout << "\n";
+            for (const auto& plugin : walk.plugins) {
+                std::string uid;
+                for (int shift = 24; shift >= 0; shift -= 8) {
+                    const auto c = static_cast<unsigned char>((plugin.uniqueId >> shift) & 0xFF);
+                    uid.push_back(c >= 0x20 && c < 0x7F ? static_cast<char>(c) : '.');
+                }
+                std::cout << "  block '" << uid << "' (0x" << std::hex << plugin.uniqueId << std::dec << ") at " << plugin.offset
+                          << ": " << plugin.records.size() << " records\n";
+            }
+            failed += walk.result != CF::Result::Ok ? 1 : 0;
+        }
+        return failed == 0 ? 0 : 1;
+    }
+}
+
 int main(int a_argc, char** a_argv)
 {
+    if (a_argc >= 3 && std::string(a_argv[1]) == "--cosave") {
+        return WalkFiles(a_argc, a_argv);
+    }
     if (a_argc != 2 || std::string(a_argv[1]) != "--self-test") {
-        std::cerr << "Usage:\n  blackflame-cosave-check --self-test\n";
+        std::cerr << "Usage:\n  blackflame-cosave-check --self-test\n  blackflame-cosave-check --cosave <file.skse> [<file.skse> ...]\n";
         return 2;
     }
     Checker check;
@@ -270,6 +326,8 @@ int main(int a_argc, char** a_argv)
         CheckRoundTrips(check);
         CheckLimits(check);
         BlackFlame::CopyContractTest::Run([&](bool a_ok, const std::string& a_what) { check(a_ok, "contract: " + a_what); });
+        CoSaveFileTests::Run([&](bool a_ok, const std::string& a_what) { check(a_ok, a_what); });
+        SlotLedgerTests::Run([&](bool a_ok, const std::string& a_what) { check(a_ok, a_what); });
     } catch (const std::exception& e) {
         check(false, std::string("exception: ") + e.what());
     }

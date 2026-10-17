@@ -40,6 +40,7 @@
 #include "Recolor.h"
 #include "ScriptTags.h"
 #include "SelfTest.h"
+#include "SlotLedger.h"
 #include "Tester.h"
 #include "MainThreadQueue.h"
 #include "MenuWatch.h"
@@ -69,8 +70,10 @@ namespace
             }
         };
         if (BlackFlame::GetConfig().singleLaunch) {
-            // Single launch: the engine's resource index first (RegisterLoose is gated on its structural checks)
+            // Single launch: the engine's resource index first (RegisterLoose is gated on its structural checks), then the
+            // slot ledger (no ledger path: no slots this session)
             guarded("FileIndex::Init", [] { BlackFlame::FileIndex::Init(); });
+            guarded("SlotLedger::Load", [] { (void)BlackFlame::SlotLedger::Load(); });
         }
         guarded("LoadAndFillCopies", [] { BlackFlame::LoadAndFillCopies(); });  // v2: before any hook reads the copies
         guarded("BuildFireSets", [] { BlackFlame::BuildFireSets(); });
@@ -150,6 +153,9 @@ namespace
         switch (a_msg.type) {
         case SKSE::MessagingInterface::kPreLoadGame:
             BlackFlame::MenuWatch::Close("kPreLoadGame (a save is being loaded)");
+            if (BlackFlame::GetConfig().singleLaunch) {
+                BlackFlame::SlotLedger::OnPreLoadGame(a_msg.data, a_msg.dataLen);  // before the engine reads the save
+            }
             BlackFlame::Watchdog::NoteLoadStarted();
             TearDown("a save is being loaded");
             BlackFlame::SelfTest::OnPreLoadGame();
@@ -264,6 +270,9 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
     if (!messaging || !messaging->RegisterListener(OnSKSEMessage)) {
         logger::error("BlackFlame: could not register the SKSE message listener - the addon stays off");
         return true;
+    }
+    if (BlackFlame::GetConfig().singleLaunch) {
+        BlackFlame::SlotLedger::RegisterCoSave();  // BFSL: each save keeps the slot pairs it was made with
     }
     // Native wrappers bound when SKSE registers Papyrus functions (after the game's own natives)
     if (auto* papyrus = SKSE::GetPapyrusInterface(); !papyrus || !papyrus->Register(BlackFlame::InstallNativeWrappers)) {
