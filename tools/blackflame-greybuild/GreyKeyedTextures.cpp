@@ -29,7 +29,8 @@ namespace GreyBuild
         namespace CC = BlackFlame::CopyContract;
         namespace Rule = BlackFlame::DataPathRule;
 
-        constexpr const char* kOverTheCap = "over the";  // the DLL's reason for a texture outside the dump caps (CopyRequestData.cpp)
+        constexpr const char* kOverTheCap = "over the";
+        constexpr std::uint64_t kPaletteImages = 2;  // MakePalette's copy of the source and the image Write makes  // the DLL's reason for a texture outside the dump caps (CopyRequestData.cpp)
 
         [[nodiscard]] CC::ProgressLine DdsLine(std::uint64_t a_key, CC::Outcome a_outcome, const std::string& a_reason)
         {
@@ -149,7 +150,12 @@ namespace GreyBuild
     {
         Child child;
         // the dump's listed files only (CopyRequestDump may leave a stale file it could not delete)
-        const auto source = m_listed.count(a_path) != 0 ? FindSource(m_textures.inputs, a_path) : std::nullopt;
+        const bool listed = m_listed.count(a_path) != 0;
+        const auto source = listed ? FindSource(m_textures.inputs, a_path) : std::nullopt;
+        if (listed && !source) {
+            child.why = fmt::format("texture {} is listed as dumped but not in the dump", a_path);
+            return child;  // failed: the dump is broken, not the texture (Codex review 2)
+        }
         if (!source) {
             const auto game = m_textures.notDumped.find(a_path);
             const std::string said = game == m_textures.notDumped.end() ? std::string("not listed") : game->second;
@@ -269,11 +275,34 @@ namespace GreyBuild
         if (auto reused = Reused(key, *slot)) {
             return *reused;
         }
+        // the copy and the written image (two RGBA images of the source's size) are admitted like a read (Codex review 2)
+        const std::uint64_t estimate = static_cast<std::uint64_t>(a_source.image->pixels.size()) * kPaletteImages;
+        switch (m_budget.Acquire(estimate, why, false)) {
+        case Admission::kAdmit:
+            break;
+        case Admission::kTooLarge:
+            child.state = State::kTerminal;
+            child.terminal = CC::Outcome::kTooLarge;
+            child.why = fmt::format("source palette {}: {}", a_source.path, why);
+            return child;
+        default:
+            child.why = fmt::format("source palette {}: {}", a_source.path, why);
+            return child;  // failed
+        }
         RgbaImage image = *a_source.image;
-        bool transient = false;
-        if (!a_make(image, why, transient)) {
-            child.state = transient ? State::kFailed : State::kFallback;
-            child.why = transient ? why : fmt::format("{}: today's palette kept", why);
+        switch (a_make(image, why)) {
+        case Made::kMade:
+            break;
+        case Made::kGated:
+            child.state = State::kLeft;
+            child.keep = false;
+            return child;
+        case Made::kFailed:
+            child.why = why;
+            return child;  // failed
+        case Made::kFallback:
+            child.state = State::kFallback;
+            child.why = fmt::format("{}: today's palette kept", why);
             return child;
         }
         const auto temp = TempPathOf(StagedFile(m_log.Staging(), *slot));
@@ -291,7 +320,12 @@ namespace GreyBuild
         const std::string id = fmt::format("{}|{}", a_additive ? "add" : "normal", a_source.path);
         auto it = m_children.find(id);
         if (it == m_children.end()) {
-            it = m_children.emplace(id, MakePalette(a_source, a_additive, a_make, a_write)).first;
+            auto child = MakePalette(a_source, a_additive, a_make, a_write);
+            if (!child.keep) {
+                a_why = "a texture it needs was refused by the memory budget";
+                return Apply(child);
+            }
+            it = m_children.emplace(id, std::move(child)).first;
         }
         if (it->second.state != State::kCopy) {
             a_why = it->second.why;

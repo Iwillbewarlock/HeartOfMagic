@@ -62,8 +62,9 @@ namespace GreyBuild
         std::string path;                  // the Data-relative path ("" when the slot text is none)
         std::string why;                   // kMissing / kUnread
         std::filesystem::path file;        // the file it was read from ("" when none was found)
-        bool transient = false;            // not read for the machine's sake (a locked file, no memory, the budget): not
-                                           // cached, read again when looked at
+        bool transient = false;            // not read for the machine's sake (a locked file, no memory, the budget, a listed
+                                           // file gone): not cached, read again when looked at
+        bool gated = false;                // of those, refused by the read gate (which told the object itself)
     };
 
     inline constexpr double kStatLitWeight = 0.1;

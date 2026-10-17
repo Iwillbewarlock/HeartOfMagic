@@ -126,7 +126,14 @@ namespace GreyBuild
         /// A texture slot (TextureDataPath a_path, picked as a_role at a_tint): its copy's slot text, "" when the slot stays
         [[nodiscard]] std::string Texture(const std::string& a_path, TextureRole a_role, float a_tint, const std::string& a_where);
 
-        using MakeImage = std::function<bool(RgbaImage&, std::string&, bool&)>;  // false: why, and whether it was transient
+        enum class Made
+        {
+            kMade,
+            kFallback,  // deterministic: today's palette kept
+            kFailed,    // transient: the object fails
+            kGated      // the read gate refused a texture it needs and told the object: nothing more to say, not cached
+        };
+        using MakeImage = std::function<Made(RgbaImage&, std::string&)>;
         using WriteImage = std::function<bool(const RgbaImage&, const std::filesystem::path&, std::string&)>;
 
         /// A palette shader's derived palette from a_source (a TextureSource look that read): its slot text, "" when the
@@ -159,6 +166,7 @@ namespace GreyBuild
             std::uint64_t fnv64 = 0;
             BlackFlame::CopyContract::Outcome terminal = BlackFlame::CopyContract::Outcome::kTooLarge;
             std::string why;
+            bool keep = true;  // false: not cached for the run's later objects (a gate refusal)
         };
 
         [[nodiscard]] std::string Apply(const Child& a_child);

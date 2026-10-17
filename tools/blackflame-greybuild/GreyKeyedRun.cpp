@@ -174,11 +174,9 @@ namespace GreyBuild
             }
             auto [outcome, reason] = ClassifyObject(a_object);
             if (CC::IsPublishable(outcome) && a_object.deps.empty()) {
-                // The contract's ok or fallback txst line needs a texture dep (CopyContractProgress.h); a TXST with no colour
-                // slot copied cannot say so: failed, tried again (reported to the coordinator as a contract gap)
-                outcome = CC::Outcome::kFailed;
-                reason = "no colour slot got a copy" + (reason.empty() ? std::string() : " (" + reason + ")") +
-                         "; an ok or fallback txst line needs a dep";
+                // Contract 3: a TXST with no colour slot copied (both left or empty) is a fallback with no dep, never ok
+                outcome = CC::Outcome::kFallback;
+                reason = "no colour slot got a copy" + (reason.empty() ? std::string() : " (" + reason + ")");
             }
             auto line = Line(a_spec, outcome, reason);
             if (CC::IsPublishable(outcome)) {

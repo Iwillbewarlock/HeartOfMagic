@@ -102,20 +102,20 @@ namespace GreyBuild
             return {};
         }
         // P2 (additive) or P1 (normal blend) from the source image; false with a_why when our palette does not read
-        const auto make = [&](RgbaImage& a_image, std::string& a_makeWhy, bool& a_transient) {
+        using Made = KeyedOutputs::Made;
+        const auto make = [&](RgbaImage& a_image, std::string& a_makeWhy) {
             if (a_additive) {
                 Desaturate(a_image);
-                return true;
+                return Made::kMade;
             }
             const auto ours = a_job.textures->Look(kPalettePath);
             if (ours.status != TextureRead::kOk) {
                 a_makeWhy = fmt::format("our palette {}: {}", kPalettePath, ours.why);
-                a_transient = ours.transient;
-                return false;
+                return ours.gated ? Made::kGated : ours.transient ? Made::kFailed : Made::kFallback;
             }
             TakeColour(a_image, *ours.image);
             a_image.srgb = ours.image->srgb;  // Y13: the colour bytes are ours, so is their encoding (alpha is linear)
-            return true;
+            return Made::kMade;
         };
         if (a_job.keyed) {  // key mode: the copy at its own key's folder, its line, the object's outcome (GreyKeyed.h)
             const auto slot = a_job.keyed->Palette(source, a_additive, make, Write, a_why);
@@ -127,8 +127,7 @@ namespace GreyBuild
         if (it == a_job.made.end()) {
             RgbaImage image = *source.image;
             std::string why;
-            bool transient = false;
-            bool ok = make(image, why, transient);
+            bool ok = make(image, why) == Made::kMade;
             const std::string slot = std::string(kPaletteCopyRoot) + (a_additive ? kPaletteAddFolder : kPaletteNormalFolder) +
                                      source.path.substr(std::char_traits<char>::length(kTexturesRoot));
             if (ok) {

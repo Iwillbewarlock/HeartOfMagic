@@ -305,10 +305,21 @@ namespace GreyBuild
             }
             const bool generated = folders.size() == 1 && !m_generated.empty() && folders.front() == m_generated;
             const bool listed = !m_limited || generated || m_listed.count(*path) != 0;
-            if (const auto file = listed ? FindSource(folders, *path) : std::nullopt) {
+            const auto found = listed ? FindSource(folders, *path) : std::nullopt;
+            if (m_limited && !generated && listed && !found) {
+                // the request lists it as dumped and it is not there: the dump is broken, not the texture (Codex review 2)
+                look.why = "listed as dumped, not in the dump";
+                look.transient = true;
+                if (m_transientSink) {
+                    m_transientSink(fmt::format("{}: {}", *path, look.why));
+                }
+                return look;
+            }
+            if (const auto file = found) {
                 if (m_gate && !m_gate(*file, look.why)) {
                     look.transient = true;
-                    return look;  // over the memory budget: not read, not cached (the object says why)
+                    look.gated = true;
+                    return look;  // over the memory budget: not read, not cached (the gate told the object)
                 }
                 entry.file = *file;
                 bool transient = false;

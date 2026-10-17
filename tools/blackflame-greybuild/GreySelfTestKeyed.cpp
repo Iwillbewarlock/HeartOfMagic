@@ -348,10 +348,10 @@ namespace GreyBuild::SelfTest
             const auto* bc5 = Find(fallback, kTxst);
             a_check.Check(missingExit == 0 && fallbackModel && fallbackModel->outcome == CC::Outcome::kFallback &&
                               fallbackModel->reason.find("source palette") != std::string::npos && !fallbackModel->path.empty() && bc5 &&
-                              bc5->outcome == CC::Outcome::kFailed && bc5->reason.find("blue") != std::string::npos &&
+                              bc5->outcome == CC::Outcome::kFallback && bc5->deps.empty() && bc5->reason.find("blue") != std::string::npos &&
                               bc5->reason.find("no colour slot") != std::string::npos,
-                fmt::format("fallback: a missing source palette publishes, slot left ('{}'); a TXST whose BC5 decal got no copy has no "
-                            "dep, which the contract's txst line needs: failed ('{}')", fallbackModel ? fallbackModel->reason : "",
+                fmt::format("fallback: a missing source palette publishes, slot left ('{}'); a TXST whose BC5 decal got no "
+                            "copy is a fallback with no dep ('{}')", fallbackModel ? fallbackModel->reason : "",
                     bc5 ? bc5->reason : ""));
 
             const auto capped = MakeFixture(a_dir, "capped", a_sourceNif, Variant::kNotDumped);
