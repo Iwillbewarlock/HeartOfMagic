@@ -93,11 +93,14 @@ namespace
     // were not used: BSTimer::runTimeMS (RE/B/BSTimer.h:50) stops only while BSTimer::pauseCount is
     // non-zero (BSTimer.h:34), and no header ties that to the menu pause (UI::numPausesGame, RE/U/UI.h:131);
     // Main::QFrameAnimTime (RE/M/Main.h:77) has no documented pause behaviour. The menu pause itself is
-    // not proven by a header either: self test step 3 compares this clock with an effect's elapsedSeconds.
+    // engine behaviour, not proven by a header either. Self test step 3 checks only that this clock runs at
+    // the rate of an effect's elapsedSeconds during play; it opens no menu, so it does not test the pause.
     // A window is stored in game hours, converted from seconds with the timescale at the cast, so a
     // later timescale change stretches the rest of it as it stretches game time instead of moving its
     // end. Wait, sleep and fast travel move game time forward and end windows early. gameDaysPassed is a
-    // float: at day 1000 one step is about 0.3 s at timescale 20 (5 s at timescale 1).
+    // float: at day 1000 one step is about 0.3 s at timescale 20 (5 s at timescale 1); two such steps are
+    // about the self test's clock tolerance late in a game. A sharper fraction would come from
+    // Calendar::gameHour (Calendar.h:90), minding the wrap at midnight.
 
     std::optional<double> GameHours()
     {
