@@ -5,6 +5,7 @@
 #include "ExplosionHook.h"
 #include "Forms.h"
 #include "GameThread.h"
+#include "HandArtRefresh.h"
 #include "HazardHook.h"
 #include "HitArt.h"
 #include "MainThreadQueue.h"
@@ -75,6 +76,7 @@ namespace BlackFlame
             const TickEndMark mark;
             g_tickPending.store(false);
             RecomputeBuff("tick");
+            TickHandArtRefresh();  // hands still charging or casting when the buff changed
             TickHitArt();  // layer 1: hit arts waiting for their 3D
             TickCloneWatch();  // cause B diagnostics: a copy hit art's clone task (CloneWatch.h)
             TickExplosionLights();  // layer 3: lights that did not exist at Set3D
@@ -93,7 +95,7 @@ namespace BlackFlame
             for (;;) {
                 std::this_thread::sleep_for(kTickInterval);
                 ++ticks;
-                if (!IsStoked() && !SelfTest::WantsFastTicks() && !HasPendingHitArt() && !CloneWatchActive() && !HasPendingHazards() && !HasScriptTags() && ticks % kIdleTicksPerCheck != 0) {
+                if (!IsStoked() && !HasPendingHandArtRefresh() && !SelfTest::WantsFastTicks() && !HasPendingHitArt() && !CloneWatchActive() && !HasPendingHazards() && !HasScriptTags() && ticks % kIdleTicksPerCheck != 0) {
                     continue;
                 }
                 // A throw here would end the thread (and std::terminate the game): keep looping
@@ -135,6 +137,7 @@ namespace BlackFlame
             logger::info("BlackFlame: buff flag {} ({})", now ? "ON" : "off", a_reason);
             OnBuffChanged(now);  // the hand flames: grey at once, or put back
             OnPlayerArtBuffChanged(now);
+            RequestHandArtRefresh(now ? "buff on" : "buff off");  // the readied hands: copy or original art at once
         }
     }
 

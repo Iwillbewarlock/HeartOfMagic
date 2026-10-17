@@ -22,6 +22,7 @@ var own = [
   ['Main::Update (main-thread queue call site)', 35565, 36564],
   ['ActorMagicCaster::SetCastingArt (C4 callee; SE id unverified, not used on SE)', 33369, 34150],
   ['SetCastingArt caller (C4 site; SE id unverified, not used on SE)', 37830, 38784],
+  ['ActorMagicCaster::DetachCastingArt (hand art refresh; no SE id, not used on SE)', null, 34152],
   ['SpawnHazardEffect start, the spawn window (fix F2; no SE id)', null, 36885],
   ['VTABLE_ActorMagicCaster[0]', 257613, 205828],
   ['VTABLE_Explosion[0]', 263870, 209940],

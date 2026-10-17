@@ -212,6 +212,7 @@ namespace BlackFlame::SelfTest
     bool StepE6Player(Ctx& a_c, bool a_first);  // SelfTestStepsV2Art.cpp (ARTO copies)
     bool StepE6Npc(Ctx& a_c, bool a_first);
     bool StepE5(Ctx& a_c, bool a_first);  // PickCastingArtImpl's rule, called directly
+    bool StepHandRefresh(Ctx& a_c, bool a_first);  // SelfTestStepsHand.cpp: E5b, the drawn hand art follows the buff
     void CleanupArtSpells();  // T9: E6's cloak and its associated spell dispelled on every high-process actor
     bool StepBoundCover(Ctx& a_c, bool a_first);   // SelfTestStepsBound.cpp: T0-bound
     bool StepBoundLaunch(Ctx& a_c, bool a_first);  // E-bound-launch, E-bound-npc

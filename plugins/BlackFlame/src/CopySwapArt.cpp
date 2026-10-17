@@ -18,6 +18,7 @@
 #include "Config.h"
 #include "FireSet.h"
 #include "FormCopies.h"
+#include "HandArtRefresh.h"
 #include "LogLimit.h"
 #include "MainThreadQueue.h"
 #include "SehGuard.h"
@@ -126,20 +127,25 @@ namespace BlackFlame
             static inline REL::Relocation<decltype(thunk)> func;
         };
 
-        // Every E8 to a_callee in [a_function, a_function + kScanWindow)
-        std::vector<std::uintptr_t> CallsInWindow(std::uintptr_t a_function, std::uintptr_t a_callee)
+        std::vector<std::uintptr_t> ArtCallsInWindow(std::uintptr_t a_function, std::uintptr_t a_callee)
         {
-            std::vector<std::uintptr_t> sites;
-            if (!Patch::IsExecutable(a_function, kScanWindow + Patch::kRel32Size)) {
-                return sites;
-            }
-            for (auto at = a_function; at < a_function + kScanWindow; ++at) {
-                if (*reinterpret_cast<const std::uint8_t*>(at) == Patch::kCallOpcode && Patch::Rel32Target(at) == a_callee) {
-                    sites.push_back(at);
-                }
-            }
+            return CopySwapDetail::CallsInWindow(a_function, a_callee, kScanWindow);
+        }
+    }
+
+    std::vector<std::uintptr_t> CopySwapDetail::CallsInWindow(std::uintptr_t a_function, std::uintptr_t a_callee,
+        std::uintptr_t a_window)
+    {
+        std::vector<std::uintptr_t> sites;
+        if (!Patch::IsExecutable(a_function, a_window + Patch::kRel32Size)) {
             return sites;
         }
+        for (auto at = a_function; at < a_function + a_window; ++at) {
+            if (*reinterpret_cast<const std::uint8_t*>(at) == Patch::kCallOpcode && Patch::Rel32Target(at) == a_callee) {
+                sites.push_back(at);
+            }
+        }
+        return sites;
     }
 
     namespace
@@ -153,7 +159,7 @@ namespace BlackFlame
             const auto callee = Patch::AddressOf(kSetArtSeCandidate);
             const auto caller = Patch::AddressOf(kCallerSeCandidate);
             std::string found;
-            for (const auto at : CallsInWindow(caller, callee)) {
+            for (const auto at : ArtCallsInWindow(caller, callee)) {
                 const bool load = Patch::IsExecutable(at - kArtLoad.size(), kArtLoad.size()) &&
                                   std::memcmp(reinterpret_cast<const void*>(at - kArtLoad.size()), kArtLoad.data(), kArtLoad.size()) == 0;
                 found += std::format("{}+0x{:X} (bytes from -7: {}; mov rdx, [rax+0xE8] {})", found.empty() ? "" : "; ", at - caller,
@@ -210,7 +216,7 @@ namespace BlackFlame
             g_artVtable = Patch::AddressOf(kArtVtableAe);
             const auto callee = Patch::AddressOf(kSetArtAe);
             const auto caller = Patch::AddressOf(kCallerAe);
-            const auto sites = CallsInWindow(caller, callee);
+            const auto sites = ArtCallsInWindow(caller, callee);
             std::uintptr_t at = sites.size() == 1 ? sites.front() : 0;
             bool chained = false;
             if (sites.empty() && Patch::IsCodeReadBuild()) {
@@ -244,6 +250,7 @@ namespace BlackFlame
             site.note = std::format("caller +0x{:X}{} (bytes from -7: {})", at - caller, chained ? ", chained onto another plugin's "
                 "redirect" : "", before);
             logger::info("BlackFlame: copy casting art: SetCastingArt call hooked at {}", site.note);
+            InstallHandArtRefresh(caller, callee);  // the readied hands follow the buff at once (HandArtRefresh.h)
         }
 
         void AddArtCounters(CopySwapCounters& a_out) noexcept

@@ -47,6 +47,8 @@ namespace BlackFlame
                                           // J7: off for players (no NIF is read), on in the tester package
         bool copyPlaced = true;           // PlaceAtMe from the player's fire effect script: akFormToPlace becomes its copy
         bool copyCastingArt = true;       // SetCastingArt: the player's fire hand art becomes its copy (CopySwapArt.cpp)
+        bool refreshCastingArt = true;    // the readied hands get the copy or original art at once when the buff turns on or off
+                                          // (HandArtRefresh.h; needs copyCastingArt and the main-thread queue)
         bool copyHazardCreate = true;     // hazard creation: the base becomes its copy (copy window, spawn-hazard effect)
         bool copyHitArt = true;           // GetHitEffectArt (0x0C) returns the hit art's copy for the player's fire effects
         ProbeMode copyModelProbe = ProbeMode::kLog;  // v2i: the copy NIFs demanded from the model database in the background
@@ -72,7 +74,7 @@ namespace BlackFlame
     [[nodiscard]] const Config& GetConfig() noexcept;
 
     /// E6: SKSEPlugin_Load, when the main-thread queue could not be installed: the layers that change engine data from a
-    /// task (the kept runtime recolours hitArt, handArt, boundWeapon and the light writes) are switched off for the
+    /// task (the kept runtime recolours hitArt, handArt, boundWeapon, the light writes and the hand art refresh) are switched off for the
     /// session; the per-call swaps (copies, hit shader, impact and hazard models) keep working. Logs a_why.
     void DisableEngineWrites(const char* a_why);
 }

@@ -23,6 +23,7 @@
 #include "FormCopies.h"
 #include "Forms.h"
 #include "GameThread.h"
+#include "HandArtRefresh.h"
 #include "GreyCheck.h"
 #include "GreyMap.h"
 #include "HazardHook.h"
@@ -114,6 +115,7 @@ namespace
         BlackFlame::ResetPlayerArt();
         BlackFlame::ResetExplosionState();
         BlackFlame::ResetCasterArt();
+        BlackFlame::ResetHandArtRefresh();
         BlackFlame::ResetRecolorState();
     }
 

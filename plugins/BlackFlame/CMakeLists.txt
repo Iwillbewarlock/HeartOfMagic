@@ -59,6 +59,7 @@ set(BLACKFLAME_SOURCES
     src/CopySwapLaunch.cpp
     src/CopySwapImpact.cpp
     src/CopySwapArt.cpp
+    src/HandArtRefresh.cpp
     src/CopySwapHazard.cpp
     src/HitEvents.cpp
     src/HazardSwap.cpp
@@ -80,6 +81,7 @@ set(BLACKFLAME_SOURCES
     src/SelfTestStepsV2Fire.cpp
     src/SelfTestStepsV2Flames.cpp
     src/SelfTestStepsV2Art.cpp
+    src/SelfTestStepsHand.cpp
     src/SelfTestStepsV2Cover.cpp
     src/SelfTestStepsDecal.cpp
     src/SelfTestStepsBound.cpp

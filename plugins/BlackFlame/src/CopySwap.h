@@ -34,7 +34,7 @@
 //      (AE 34150, in AE 38784; the SE ids 33369 / 37830 are unverified and not used on SE):
 //      the art becomes its copy when the caster is the player's, a hand, the hand's
 //      selected spell is fire, and the art is that spell's costliest effect's castingArt
-//      (PickCastingArtImpl).
+//      (PickCastingArtImpl). Hands already drawn when the buff changes: HandArtRefresh.h.
 //   6. Hazard creation (CopySwapHazard.cpp, AE 43954; SE 42786 unverified, not used on SE):
 //      the create data's base to its copy inside a copy window, or from the player's fire
 //      SpawnHazardEffect (AE 36885, no SE id, whose prologue opens a thread-local window).
@@ -170,6 +170,10 @@ namespace BlackFlame
             T** m_slot;
             T* m_before;
         };
+
+        /// Every E8 to a_callee in [a_function, a_function + a_window) (a fixed window: the callers' pdata is split)
+        [[nodiscard]] std::vector<std::uintptr_t> CallsInWindow(std::uintptr_t a_function, std::uintptr_t a_callee,
+            std::uintptr_t a_window);
 
         void InstallLaunchDetours(CopySwapStatus& a_status);
         void InstallImpactSites(CopySwapStatus& a_status);

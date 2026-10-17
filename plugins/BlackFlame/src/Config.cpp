@@ -46,6 +46,7 @@ namespace BlackFlame
             BoolKey{ "copyHitArt", &Config::copyHitArt },
             BoolKey{ "copyModelProbeAlways", &Config::copyModelProbeAlways },
             BoolKey{ "copyCastingArt", &Config::copyCastingArt },
+            BoolKey{ "refreshCastingArt", &Config::refreshCastingArt },
             BoolKey{ "copyPlaced", &Config::copyPlaced },
             BoolKey{ "copyHazardCreate", &Config::copyHazardCreate },
             BoolKey{ "writeRequest", &Config::writeRequest },
@@ -215,11 +216,11 @@ namespace BlackFlame
             logger::info(
                 "BlackFlame: config burnShader={} hitArt={} handArt={} boundWeapon={} scriptPlaced={} impactSwap={} hazardSwap={} light={} "
                 "selfTest={} copyLaunch={} copyLaunchExplosion={} copyExplosionCreate={} "
-                "copyImpacts={} copyHitArt={} copyModelProbe={} copyModelProbeAlways={} copyCastingArt={} copyHazardCreate={} copyPlaced={} writeRequest={} testerMode={} devAutoLoad='{}' devAutoE3={} devAutoQuit={} selfTestDelaySeconds={} lightColor=[{}, {}, {}]",
+                "copyImpacts={} copyHitArt={} copyModelProbe={} copyModelProbeAlways={} copyCastingArt={} refreshCastingArt={} copyHazardCreate={} copyPlaced={} writeRequest={} testerMode={} devAutoLoad='{}' devAutoE3={} devAutoQuit={} selfTestDelaySeconds={} lightColor=[{}, {}, {}]",
                 g_config.burnShader, g_config.hitArt, g_config.handArt, g_config.boundWeapon, g_config.scriptPlaced, g_config.impactSwap,
                 g_config.hazardSwap, g_config.light, g_config.selfTest,
                 g_config.copyLaunch, g_config.copyLaunchExplosion, g_config.copyExplosionCreate, g_config.copyImpacts,
-                g_config.copyHitArt, ProbeModeName(g_config.copyModelProbe), g_config.copyModelProbeAlways, g_config.copyCastingArt, g_config.copyHazardCreate, g_config.copyPlaced, g_config.writeRequest, g_config.testerMode, g_config.devAutoLoad, g_config.devAutoE3, g_config.devAutoQuit, g_config.selfTestDelaySeconds,
+                g_config.copyHitArt, ProbeModeName(g_config.copyModelProbe), g_config.copyModelProbeAlways, g_config.copyCastingArt, g_config.refreshCastingArt, g_config.copyHazardCreate, g_config.copyPlaced, g_config.writeRequest, g_config.testerMode, g_config.devAutoLoad, g_config.devAutoE3, g_config.devAutoQuit, g_config.selfTestDelaySeconds,
                 g_config.lightColor.red, g_config.lightColor.green, g_config.lightColor.blue);
         }
     }
@@ -272,7 +273,8 @@ namespace BlackFlame
         g_config.handArt = false;
         g_config.boundWeapon = false;
         g_config.light = false;
-        logger::warn("BlackFlame: config overridden for this session ({}): hitArt, handArt, boundWeapon and light false; the "
+        g_config.refreshCastingArt = false;  // Detach + SetCastingArt only from the main-thread queue (HandArtRefresh.h)
+        logger::warn("BlackFlame: config overridden for this session ({}): hitArt, handArt, boundWeapon, light and refreshCastingArt false; the "
                      "copies and the per-call swaps stay on", a_why);
     }
 

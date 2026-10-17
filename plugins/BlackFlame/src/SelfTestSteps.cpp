@@ -71,6 +71,7 @@ namespace BlackFlame::SelfTest
         constexpr float kE6Timeout = 23.0f;        // J3: kWatch (10 s) for the art, the dispel, kWatch for the art to go, and slack
         constexpr float kE2Timeout = 10.0f;        // spawn, 1 s stream, toggle, 0.6 s, recast, hits
         constexpr float kE3Timeout = 20.0f;        // buff, rune, marker file
+        constexpr float kE5bTimeout = 20.0f;       // three phases of at most 50 ticks each (the step ends itself first)
 
         // Placement: the target ahead (C3: close enough to hit, 550 units), the caster level with the player off to
         // the side. I1: wherever the target comes to rest 300..1200 from the player (ground plane) will do; the explosion
@@ -438,6 +439,7 @@ namespace BlackFlame::SelfTest
             StepDef{ "E6", kE6Timeout, &StepE6Player },
             StepDef{ "E6-npc", kE6Timeout, &StepE6Npc },
             StepDef{ "E5", kEnvTimeout, &StepE5 },
+            StepDef{ "E5b", kE5bTimeout, &StepHandRefresh },
             StepDef{ "E-bound-launch", kEBoundTimeout, &StepBoundLaunch },
             StepDef{ "T8", kBuffOffTimeout, &StepBuffOff },
             StepDef{ "T8-cast", kProjectileTimeout, &StepCastUnstoked },
