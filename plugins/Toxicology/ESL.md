@@ -45,13 +45,15 @@ Set on the new record: name, value 350, the teaches-spell link to `0x802`, and t
 
 Effect description (`0x801`, DNAM):
 
-> Poison spells inflict your first favorited poison; each poison can affect a creature only once. Every 100
+> Poison spells inflict your first favorited poison; once it wears off, creatures resist it for a while. Every 100
 > Magicka spent on poison spells uses one bottle, moving to the next when empty.
 
 Book text (`0x803`): a centred handwritten title "Toxicology" in the vanilla tome markup
 (`<font face='$HandwrittenFont'><font size='40'><p align='center'>`), then `</font><p align='left'>` and four
-paragraphs separated by blank lines (`\r\n\r\n`). The second paragraph says each creature takes a given poison
-only once (later strikes add no dose; a different poison can take hold once too). Both texts were drafted by
+paragraphs separated by blank lines (`\r\n\r\n`). The second paragraph says that when a poison wears off, the
+creature resists that same poison for a while (ordinarily as long as the effect lasted, briefly for poisons that act
+at once) and can then be poisoned again; during the effect and the resistance later strikes add no dose of it, and a
+different poison can still take hold. Both texts were drafted by
 Gemini Argon from a fact sheet and checked line by line against it.
 
 ### Changes
@@ -63,12 +65,17 @@ Gemini Argon from a fact sheet and checked line by line against it.
   only, HEDR count 8 = four records and four groups, next object ID `0x804`) and FormIDs `0x800`-`0x803`
   byte-identical to the previous file. Read back with `housecarl_records` (form `everything`) from the dev mod
   folder: both texts equal the approved text.
+- 2026-10-18 (later): the effect description and the tome's second paragraph rewritten again for the immunity window
+  after the poison wears off (spec 5.4, which replaced once per target and poison). Same method and checks as the
+  entry above: only the `0x801` `DNAM` and the `0x803` `DESC` changed (with the MGEF and BOOK record and group
+  sizes), header and FormIDs byte-identical; read back with `housecarl_records` from the dev mod folder.
 
 ## How it was made (houseCARL)
 
 1. `housecarl_create_plugin` `patch="HeartOfMagic_Toxicology"`, `esl=true` - an empty ESL-flagged header. houseCARL
    put it in the mod folder `houseCARL - HeartOfMagic_Toxicology`; the folder was renamed on disk to
-   `HeartOfMagic-Toxicology-Dev` (the dev mod folder) before any record was written. It is not enabled in MO2.
+   `HeartOfMagic-Toxicology-Dev` (the dev mod folder) before any record was written. Since 2026-10-17 the mod
+   and the plugin are enabled in the MO2 profile `TKL - MUNG ADDON`.
 2. `housecarl_create` `into="HeartOfMagic_Toxicology.esp"` with the four records in one call, in the order KYWD, MGEF,
    SPEL, BOOK, so they took `0x800`-`0x803`. The spell's effect and the book's teaches link point at their
    siblings by `@<editorid>`. The MGEF archetype is a composed `MagicEffectArchetype` arm with type Script.
