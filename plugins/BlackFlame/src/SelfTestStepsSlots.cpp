@@ -21,6 +21,7 @@
 #include "FileIndex.h"
 #include "FormCopiesFillModel.h"
 #include "SelfTestLog.h"
+#include "SingleLaunch.h"
 #include "SlotAssign.h"
 #include "SlotLedger.h"
 #include "SlotLedgerFiles.h"
@@ -104,6 +105,12 @@ namespace BlackFlame::SelfTest
                     "kept their slot, {} moved", counts.session, counts.kept, counts.moved));
             }
             CheckRestore();
+            // review Gemini / agy 13: T0-request hands request v5 and its dump to this step on the slot route
+            const auto request = SingleLaunch::Request();
+            const bool dumpOk = request.dumpComplete && !request.dumpState.starts_with("failed");  // T0-request's rule
+            SelfTestLog::Check("T0-slots", request.written && dumpOk, std::format("request v5 {}: {} form keys, {} muzzles, {} ADDN "
+                "MPS, {} TXST; dump {}{}", request.written ? "written" : "NOT written", request.forms, request.muzzles, request.addnMps,
+                request.txst, request.dumpState, request.dumpComplete ? "" : " (incomplete)"));
             std::string detail;
             SelfTestLog::Check("T0-slots", SlotLedger::RoundTripNow(detail), "BFSL round trip in memory: " + detail);
             const auto loaded = SlotLedger::LastLoadedSave();
@@ -150,7 +157,9 @@ namespace BlackFlame::SelfTest
                 const auto* entry = LM::FindSlot(ledger, id);
                 const auto* recorded = entry ? LM::PublishedOf(*entry, slot.type == CopyContract::SlotType::kADDN ? LM::Role::kMps : LM::Role::kModel) : nullptr;
                 std::string why;
-                if (!slot.publishedModel.empty() && (!now || slot.publishedModel != now)) {
+                // the model pool hands back the first spelling of a path (case-blind): compared as the engine compares them
+                const auto differs = [](const std::string& a_ours, const char* a_engine) { return !a_engine || _stricmp(a_ours.c_str(), a_engine) != 0; };
+                if (!slot.publishedModel.empty() && differs(slot.publishedModel, now)) {
                     why = std::format("model '{}', published '{}'", now ? now : "", slot.publishedModel);
                 } else if (recorded ? FormCopies::RecordModelPath(recorded->path) != slot.publishedModel : !slot.publishedModel.empty()) {
                     why = std::format("the ledger records '{}', the slot shows '{}'", recorded ? recorded->path : std::string("nothing"),
@@ -159,7 +168,7 @@ namespace BlackFlame::SelfTest
                 if (const auto* projectile = slot.form->As<RE::BGSProjectile>(); why.empty() && projectile && !slot.publishedMuzzle.empty()) {
                     const char* muzzle = projectile->muzzleFlashModel.GetModel();
                     const auto* recordedMuzzle = entry ? LM::PublishedOf(*entry, LM::Role::kMuzzle) : nullptr;
-                    if (!muzzle || slot.publishedMuzzle != muzzle) {
+                    if (differs(slot.publishedMuzzle, muzzle)) {
                         why = std::format("muzzle '{}', published '{}'", muzzle ? muzzle : "", slot.publishedMuzzle);
                     } else if (!recordedMuzzle || FormCopies::RecordModelPath(recordedMuzzle->path) != slot.publishedMuzzle) {
                         why = std::format("the ledger records the muzzle '{}', the slot shows '{}'",
@@ -170,8 +179,12 @@ namespace BlackFlame::SelfTest
                     SelfTestLog::Fail("T0-W2", std::format("slot {:X} ({}): {}", id, slot.sourceText, why));
                 }
             }
-            SelfTestLog::Check("T0-W2", wrong == 0, std::format("{} open slot(s): models and muzzles as published and recorded ({} differ)",
-                open, wrong));
+            if (open == 0) {
+                SelfTestLog::Skip("T0-W2", "no slot is open: the published models cannot be judged");
+            } else {
+                SelfTestLog::Check("T0-W2", wrong == 0, std::format("{} open slot(s): models and muzzles as published and recorded ({} "
+                    "differ)", open, wrong));
+            }
             SelfTestLog::Check("T0-W2", CopyModelProbe::GatedSlotDemands() == 0, "no Demand of a gated slot's model");
             SelfTestLog::Info("T0-W2", std::format("{} publish step(s) ran with the main menu open (SetModel at the main menu); the grey "
                 "look of those copies is the eye check", log.mainMenuSteps));

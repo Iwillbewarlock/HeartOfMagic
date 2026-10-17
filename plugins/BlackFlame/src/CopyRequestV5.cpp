@@ -18,6 +18,7 @@
 #include <chrono>
 #include <format>
 #include <set>
+#include <stdexcept>
 #include <unordered_map>
 
 namespace BlackFlame::CopyRequestV5
@@ -136,8 +137,13 @@ namespace BlackFlame::CopyRequestV5
                 }
                 if (slot.type == CC::SlotType::kADDN && slot.modelKey) {
                     const auto* addon = slot.source->As<RE::BGSAddonNode>();
+                    if (!addon) {  // review Gemini / agy dc 6: never index 0 for a source that is no ADDN record
+                        logger::warn("BlackFlame: slots: ADDN slot {:X}: its source {} is not an ADDN record - no MPS requested", id,
+                            slot.sourceText);
+                        continue;
+                    }
                     a_root[CC::Request::kAddnMps].push_back({ { CC::Request::kSlot, id }, { CC::Request::kPath, Utf8(slot.sourceModel) },
-                        { CC::Request::kKey, CC::Hex16(slot.modelKey->key) }, { CC::Request::kIndex, addon ? addon->index : 0 },
+                        { CC::Request::kKey, CC::Hex16(slot.modelKey->key) }, { CC::Request::kIndex, addon->index },
                         { "source", Utf8(slot.sourceText) } });  // the plugin name's bytes are the code page's
                     ++a_out.addnMps;
                 }
@@ -178,7 +184,10 @@ namespace BlackFlame::CopyRequestV5
                 root["nifs"].push_back(std::move(item));
             }
             root["textures"] = CopyRequestData::TexturesJson(a_inputs.textures);
-            for (std::size_t i = 0; i < a_inputs.textures.size() && i < root["textures"].size(); ++i) {  // contract v4: each one's state
+            if (root["textures"].size() != a_inputs.textures.size()) {  // review agy 5 #3: one entry a texture, in its order
+                throw std::runtime_error("the texture list and its JSON differ in length");
+            }
+            for (std::size_t i = 0; i < a_inputs.textures.size(); ++i) {  // contract v4: each one's state
                 root["textures"][i][CC::Request::kTextureState] = std::string(CC::Request::TextureStateText(TextureStateOf(a_inputs, a_inputs.textures[i])));
             }
             root["textureCaps"] = { { "perTexture", CopyRequestData::kMaxTextureBytes }, { "total", CopyRequestData::kMaxTextureDumpBytes } };
@@ -200,7 +209,9 @@ namespace BlackFlame::CopyRequestV5
             const auto fingerprint = DumpFingerprint(a_inputs);
             out.dumpState = WriteDump(*folder, a_inputs, fingerprint, out.dumpComplete);
             CopyRequestDump::WriteWhole(*folder / kRequestName,
-                RequestJson(a_closure, a_inputs, fingerprint, out.dumpComplete, out).dump(kJsonIndent) + "\n");
+                RequestJson(a_closure, a_inputs, fingerprint, out.dumpComplete, out).dump(kJsonIndent, ' ', false,
+                    Json::error_handler_t::replace) + "\n");  // review Gemini / agy 5: a name, reason or error in the code page's
+                                                              // bytes is replaced, never the end of the request
             out.written = true;
         } catch (const std::exception& e) {
             logger::error("BlackFlame: slots: request v5 or its dump failed: {}", e.what());

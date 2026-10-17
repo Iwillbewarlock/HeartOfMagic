@@ -84,8 +84,11 @@ namespace BlackFlame::SlotKeys
             a_out.textures = CopyRequestData::PlanTextures(bytes, CopyRequestData::FormTexturePaths(a_closure));
             for (const auto& texture : a_out.textures) {
                 CC::FileHash hash = CC::FileHash::Missing();
+                if (texture.own && !texture.planned) {
+                    continue;  // review agy 15 #3: not in the map, so TextureHash reads our own file itself (never "missing")
+                }
                 if (texture.own) {
-                    hash = texture.planned ? CC::FileHash::Hashed(texture.fnv64) : CC::FileHash::Missing();
+                    hash = CC::FileHash::Hashed(texture.fnv64);
                 } else if (texture.planned) {
                     const auto blob = NifDump::ReadModel(texture.path, nullptr);  // the bytes the dump will hold
                     hash = blob.ok ? CC::FileHash::Hashed(blob.fnv64) : CC::FileHash::Missing();
@@ -110,6 +113,10 @@ namespace BlackFlame::SlotKeys
             std::vector<char> chunk(1 << 16);
             while (exe.read(chunk.data(), static_cast<std::streamsize>(chunk.size())) || exe.gcount() > 0) {
                 hash = CC::Fnv64(std::string_view(chunk.data(), static_cast<std::size_t>(exe.gcount())), hash);
+            }
+            if (exe.bad()) {  // review agy 15 #4: a read cut short is no hash of the exe
+                a_out.prefixWhy = "the builder exe could not be read whole: no key this session";
+                return;
             }
             a_out.builderExeFound = true;
             const auto& config = GetConfig();
@@ -262,7 +269,10 @@ namespace BlackFlame::SlotKeys
         input.nif = NifHash(a_inputs, a_recordModel);
         const auto path = NifDump::NormalizeModelPath(a_recordModel);
         const auto it = path ? a_inputs.nifAt.find(*path) : a_inputs.nifAt.end();
-        if (it != a_inputs.nifAt.end() && a_inputs.nifs[it->second].blob.ok) {
+        if (it != a_inputs.nifAt.end() && !a_inputs.nifs[it->second].blob.ok) {
+            return std::nullopt;  // review agy 15 #2: a NIF that is there but was not read is no "missing" NIF (and no key)
+        }
+        if (it != a_inputs.nifAt.end()) {
             const auto& bytes = a_inputs.nifs[it->second].bytes;
             for (const auto& raw : NifDump::TexturePathsIn(bytes)) {
                 input.textures.push_back({ raw, TextureHash(a_inputs, raw) });

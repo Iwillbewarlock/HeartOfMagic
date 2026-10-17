@@ -52,17 +52,23 @@ namespace BlackFlame::MenuWatch
 
         void NoteMainMenuOpen()
         {
-            if (g_menuOpened.exchange(true)) {
-                return;
-            }
             {
+                // review Gemini / agy 11: the time first, the flag after, both under the lock OnMainMenuOpen takes - a reader
+                // that sees MainMenuOpened() also gets MainMenuOpenedAt()
                 std::lock_guard lock(g_mutex);
+                if (g_menuAt) {
+                    return;
+                }
                 g_menuAt = Clock::now();
+                g_menuOpened.store(true);
             }
-            const auto thread = REX::W32::GetCurrentThreadId();
-            logger::info("BlackFlame: menu watch: the main menu opened (W2 {}) on thread {} ({})",
-                g_closed.load() ? "not opened: the publish window is already closed" : "begins",
-                thread, thread == g_mainThread.load() ? "Main's thread" : "NOT Main's thread");
+            try {  // agy 11 #6: a throw in the log line must not keep the listeners from running
+                const auto thread = REX::W32::GetCurrentThreadId();
+                logger::info("BlackFlame: menu watch: the main menu opened (W2 {}) on thread {} ({})",
+                    g_closed.load() ? "not opened: the publish window is already closed" : "begins",
+                    thread, thread == g_mainThread.load() ? "Main's thread" : "NOT Main's thread");
+            } catch (...) {
+            }
             RunListeners();
         }
 
@@ -100,7 +106,8 @@ namespace BlackFlame::MenuWatch
 
     void Install()
     {
-        if (g_installed.exchange(true)) {
+        static std::atomic<bool> s_once{ false };
+        if (s_once.exchange(true)) {
             return;
         }
         const auto* main = RE::Main::GetSingleton();
@@ -110,6 +117,7 @@ namespace BlackFlame::MenuWatch
         const bool proven = queue && mainId != 0 && loaded == mainId;
         g_mainThread.store(mainId);
         g_proven.store(proven);
+        g_installed.store(true);  // review agy 11 #5: the window opens once the proof is made
         {
             std::lock_guard lock(g_mutex);
             g_proofText = std::format("queue installed {}, kDataLoaded thread {}, Main::threadID {}: {}", queue ? "yes" : "NO",
@@ -160,16 +168,18 @@ namespace BlackFlame::MenuWatch
 
     void Close(const char* a_reason)
     {
-        if (g_closed.exchange(true)) {
-            return;
-        }
         {
+            // review Gemini / agy 11: the reason before the flag, so a reader that sees the window closed gets why
             std::lock_guard lock(g_mutex);
-            g_closeReason = a_reason;
+            if (g_closed.load()) {
+                return;
+            }
+            g_closeReason = a_reason ? a_reason : "unknown";
+            g_closed.store(true);
         }
         const auto thread = REX::W32::GetCurrentThreadId();
         logger::info("BlackFlame: menu watch: the publish window closed for the session: {} (thread {}, {}; the main menu {})",
-            a_reason, thread, thread == g_mainThread.load() ? "Main's thread" : "NOT Main's thread",
+            a_reason ? a_reason : "unknown", thread, thread == g_mainThread.load() ? "Main's thread" : "NOT Main's thread",
             g_menuOpened.load() ? "had opened" : "had not opened");
     }
 

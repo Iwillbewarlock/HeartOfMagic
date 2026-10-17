@@ -39,8 +39,9 @@ namespace BlackFlame::FileIndex::Engine
         RegisterLooseFn registerLoose = nullptr;
         void** manager = nullptr;
         RE::BSResource::GlobalLocations* globals = nullptr;
-        std::string why = "not initialised";  // "" once every check passed
+        std::string why = "not initialised";  // "" once every check passed (main thread: Init and TurnOff)
         bool initialised = false;
+        std::atomic<bool> usable{ false };    // every check passed and nothing turned it off since (any thread reads it)
     };
 
     /// The one state (an inline function's static: one instance across the FileIndex translation units)

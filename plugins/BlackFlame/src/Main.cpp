@@ -52,13 +52,6 @@ namespace
     void OnDataLoaded()
     {
         BlackFlame::g_dataLoadedThreadNativeId.store(REX::W32::GetCurrentThreadId());
-        // Single launch: the main-thread proof and the menu sink before anything is scheduled (MenuWatch.h); always
-        BlackFlame::MenuWatch::Install();
-        if (!BlackFlame::LoadForms()) {
-            logger::error("BlackFlame: the addon ESP's forms are missing - nothing is installed");
-            BlackFlame::MarkFreshnessUnchecked("the addon ESP's forms are missing");
-            return;
-        }
         // W23: every step before the hook installs runs guarded, so a throw in one cannot skip the installs below
         const auto guarded = [](const char* a_step, auto&& a_work) {
             try {
@@ -70,6 +63,14 @@ namespace
                     a_step);
             }
         };
+        // Single launch: the main-thread proof and the menu sink before anything is scheduled (MenuWatch.h); always (the dev
+        // auto-load reads the main menu from it), guarded too (review Gemini / agy 10)
+        guarded("MenuWatch::Install", [] { BlackFlame::MenuWatch::Install(); });
+        if (!BlackFlame::LoadForms()) {
+            logger::error("BlackFlame: the addon ESP's forms are missing - nothing is installed");
+            BlackFlame::MarkFreshnessUnchecked("the addon ESP's forms are missing");
+            return;
+        }
         const bool singleLaunch = BlackFlame::GetConfig().singleLaunch;
         if (singleLaunch) {
             // Single launch: the engine's resource index first (RegisterLoose is gated on its structural checks), then the

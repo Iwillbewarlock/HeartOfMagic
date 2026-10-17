@@ -30,6 +30,7 @@ namespace BlackFlame::NifValueNodes
     inline constexpr std::size_t kMaxHeaderLine = 128;
     inline constexpr std::uint32_t kVersion20207 = 0x14020007;
     inline constexpr std::uint8_t kLittleEndian = 1;
+    inline constexpr std::uint32_t kMinBsUserVersion = 3;     // the Bethesda stream header is there from user version 3
     inline constexpr std::uint32_t kBsHasUnknownInt = 130;     // bs version > 130: an unknown u32 after the author
     inline constexpr std::uint32_t kBsHasProcessScript = 131;  // bs version < 131: a process script string
     inline constexpr std::uint32_t kBsHasMaxFilepath = 103;    // bs version >= 103: a max filepath string
@@ -96,13 +97,12 @@ namespace BlackFlame::NifValueNodes
                 if (!Read(length)) {
                     return false;
                 }
-                std::string ignored;
-                return Text(length, a_out ? *a_out : ignored);
+                return a_out ? Text(length, *a_out) : Skip(length);  // a string not wanted is skipped, not copied
             }
 
             [[nodiscard]] std::size_t At() const noexcept { return m_at; }
             [[nodiscard]] std::size_t Left() const noexcept { return m_size - m_at; }
-            void Set(std::size_t a_at) noexcept { m_at = a_at; }
+            void Set(std::size_t a_at) noexcept { m_at = a_at <= m_size ? a_at : m_size; }  // never past the end
 
         private:
             const unsigned char* m_bytes;
@@ -118,6 +118,8 @@ namespace BlackFlame::NifValueNodes
             out.parsed = false;
             out.why = a_why;
             out.values.clear();
+            out.valueNodes = 0;  // review Gemini / agy 12: a failed read reports no counts
+            out.blocks = 0;
             return out;
         };
         if (!a_bytes || a_size < kHeaderPrefix.size()) {
@@ -142,6 +144,9 @@ namespace BlackFlame::NifValueNodes
         }
         if (endian != kLittleEndian) {
             return fail("not little-endian");
+        }
+        if (userVersion < kMinBsUserVersion) {
+            return fail("no Bethesda stream header (user version below 3)");  // review agy 12 #1 (nif.xml BSStreamHeader)
         }
         if (blockCount > kMaxBlocks) {
             return fail("an implausible block count");

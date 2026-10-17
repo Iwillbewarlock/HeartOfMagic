@@ -139,6 +139,10 @@ namespace BlackFlame::DevAutomation
             // single launch: the load waits for the slots to settle (they are frozen at the first load), kSlotWait at most
             if (!a_config.devAutoLoad.empty() && !s.autoLoadIssued && s.menuAt && !s.loadStarted &&
                 a_now - *s.menuAt >= kMenuSettle && (SingleLaunch::ReadyForLoad() || a_now - *s.menuAt >= kSlotWait)) {
+                if (!SingleLaunch::ReadyForLoad()) {  // review Gemini / agy 6: the load that freezes unsettled slots is named
+                    logger::warn("BlackFlame: dev: auto-load after {} s with the slots not settled: what is not open now stays "
+                                 "closed for this session", std::chrono::duration_cast<std::chrono::seconds>(kSlotWait).count());
+                }
                 s.autoLoadIssued = true;
                 s.stallFrom = a_now;
                 a_out.push_back(Action::kLoadConfigSave);

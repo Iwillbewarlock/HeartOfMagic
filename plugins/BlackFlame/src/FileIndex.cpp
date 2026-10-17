@@ -52,11 +52,14 @@ namespace BlackFlame::FileIndex
             if (!a_stream || !offset) {
                 return;  // never counted by us: nothing of ours to give back
             }
-            auto* flags = reinterpret_cast<volatile long*>(reinterpret_cast<std::byte*>(a_stream) + offset);
-            const auto after = static_cast<std::uint32_t>(_InterlockedExchangeAdd(flags, -static_cast<long>(kRefOne))) - kRefOne;
-            if ((after & kRefMask) == 0) {
-                delete a_stream;  // the engine's release protocol: the virtual (scalar deleting) destructor, its own heap
-            }
+            // review Gemini dc 6: the release (and a delete through the engine's destructor) under the SEH guard
+            (void)GuardedKeep("file index stream release", [&]() {
+                auto* flags = reinterpret_cast<volatile long*>(reinterpret_cast<std::byte*>(a_stream) + offset);
+                const auto after = static_cast<std::uint32_t>(_InterlockedExchangeAdd(flags, -static_cast<long>(kRefOne))) - kRefOne;
+                if ((after & kRefMask) == 0) {
+                    delete a_stream;  // the engine's release protocol: the virtual (scalar deleting) destructor, its own heap
+                }
+            });
         }
 
         /// An engine smart pointer slot the engine fills (DoCreateStream) and copies (RegisterLoose); released at the
@@ -120,6 +123,7 @@ namespace BlackFlame::FileIndex
         void TurnOff(const std::string& a_why)
         {
             auto& state = TheState();
+            state.usable.store(false, std::memory_order_release);
             if (state.why.empty()) {
                 state.why = a_why;
                 logger::error("BlackFlame: file index: turned off for the session: {}", a_why);
@@ -189,7 +193,13 @@ namespace BlackFlame::FileIndex
                 return { Outcome::kSizeMismatch, std::format("not registered: the stream says {} bytes, {} were expected", streamSize, a_expectedSize) };
             }
             const auto offset = CountOffset().load();
-            const auto countBefore = CountOf(stream.Get(), offset);
+            std::uint32_t countBefore = 0;
+            // review Gemini dc 6: read under the guard, and the stream must hold our one reference before RegisterLoose
+            if (!GuardedKeep("file index stream count", [&]() { countBefore = CountOf(stream.Get(), offset); }) || countBefore == 0) {
+                stream.Leak();
+                TurnOff(std::format("a new loose stream's count read {} at offset 0x{:X}", countBefore, offset));
+                return { Outcome::kFault, "the stream count could not be read or was 0 (logged; the index is off now)" };
+            }
             std::uint32_t countAfter = 0;
             Lookup underGuard;
             bool registered = false;

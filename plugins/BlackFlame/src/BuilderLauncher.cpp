@@ -20,7 +20,8 @@ namespace BlackFlame::BuilderLauncher
 
         struct Session
         {
-            UniqueHandle job;  // never closed by us (kill-on-close fires when the game ends)
+            TrackedMutex mutex;  // with the session's lifetime (review Gemini 2: no static mutex destroyed before a late reader)
+            UniqueHandle job;    // never closed by us (kill-on-close fires when the game ends)
             Launch launch;
             bool tried = false;
         };
@@ -29,11 +30,26 @@ namespace BlackFlame::BuilderLauncher
             static auto* session = std::make_unique<Session>().release();  // leaked on purpose: the job outlives every static
             return *session;
         }
-        TrackedMutex g_mutex;
 
+        // One argument as CommandLineToArgvW reads it back: quoted, a backslash run before a quote (or the closing one)
+        // doubled, an inner quote escaped (review Gemini / agy 2: a path ending in '\' would swallow the next arguments)
         std::wstring Quoted(const std::filesystem::path& a_path)
         {
-            return L"\"" + a_path.wstring() + L"\"";
+            const auto text = a_path.wstring();
+            std::wstring out = L"\"";
+            std::size_t backslashes = 0;
+            for (const wchar_t c : text) {
+                if (c == L'\\') {
+                    ++backslashes;
+                    continue;
+                }
+                out.append(c == L'"' ? backslashes * 2 + 1 : backslashes, L'\\');
+                backslashes = 0;
+                out.push_back(c);
+            }
+            out.append(backslashes * 2, L'\\');
+            out.push_back(L'"');
+            return out;
         }
 
         std::string Text(const std::filesystem::path& a_path)
@@ -87,6 +103,10 @@ namespace BlackFlame::BuilderLauncher
                 return out;
             }
             std::filesystem::create_directories(a_staging, ec);
+            if (ec) {
+                out.why = std::format("the staging folder '{}' could not be made: {}", Text(a_staging), ec.message());
+                return out;
+            }
             auto job = MakeJob(a_jobMemoryMiB, out.why);
             auto log = job ? MakeLog(a_requestFolder, out.why) : UniqueHandle{};
             if (!job || !log) {
@@ -151,7 +171,7 @@ namespace BlackFlame::BuilderLauncher
     Launch Start(const std::filesystem::path& a_exe, const std::filesystem::path& a_requestFolder,
         const std::filesystem::path& a_staging, std::uint32_t a_jobMemoryMiB)
     {
-        std::lock_guard lock(g_mutex);
+        std::lock_guard lock(TheSession().mutex);
         auto& session = TheSession();
         if (session.tried) {
             return session.launch;
@@ -170,7 +190,7 @@ namespace BlackFlame::BuilderLauncher
 
     bool Running()
     {
-        std::lock_guard lock(g_mutex);
+        std::lock_guard lock(TheSession().mutex);
         auto& session = TheSession();
         if (!session.job) {
             return false;
@@ -184,7 +204,7 @@ namespace BlackFlame::BuilderLauncher
     {
         Launch launch;
         {
-            std::lock_guard lock(g_mutex);
+            std::lock_guard lock(TheSession().mutex);
             launch = TheSession().launch;
         }
         if (!launch.started) {

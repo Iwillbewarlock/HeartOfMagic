@@ -91,8 +91,7 @@ namespace CoSaveFileTests
     inline Bytes BfslData(const Co::Snapshot& a_snapshot)
     {
         Writer writer;
-        (void)Co::Write(writer, a_snapshot);
-        return writer.bytes;
+        return Co::Write(writer, a_snapshot) == Co::Result::Ok ? writer.bytes : Bytes{};  // a failed write gives no record
     }
 
     inline std::vector<PluginSpec> Normal()
@@ -178,8 +177,6 @@ namespace CoSaveFileTests
         auto two = Normal();
         two[2].records.push_back(two[2].records[0]);
         const auto twoFile = File(two);
-        auto badSlot = Sample();
-        badSlot.slots[0].slot = 0x7FF;
         auto badData = Normal();
         badData[2].records[0].data = BfslData(Sample());
         badData[2].records[0].data[16 + 2 + 10] = 0xFF;  // the first slot id's low byte: 0x8FF stays PROJ, so damage the type

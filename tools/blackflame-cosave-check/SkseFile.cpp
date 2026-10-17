@@ -26,7 +26,7 @@ namespace BlackFlame::SkseFile
                 return false;
             }
             a_out.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
-            return true;
+            return !in.bad();  // a read cut short is no file
         }
 
         std::string UidText(std::uint32_t a_uid)
@@ -42,6 +42,10 @@ namespace BlackFlame::SkseFile
 
     int WalkFiles(int a_argc, char** a_argv)
     {
+        if (a_argc <= 2) {
+            std::cout << "no .skse file given\n";
+            return 2;  // nothing checked is no pass
+        }
         int failed = 0;
         for (int i = 2; i < a_argc; ++i) {
             Bytes bytes;
@@ -75,11 +79,15 @@ namespace BlackFlame::SkseFile
 
     int NifValues(int a_argc, char** a_argv)
     {
+        if (a_argc <= 2) {
+            std::cout << "no .nif file given\n";
+            return 2;
+        }
         int failed = 0;
         for (int i = 2; i < a_argc; ++i) {
             Bytes bytes;
             const bool opened = ReadWhole(a_argv[i], bytes);
-            const auto read = NifValueNodes::Read(bytes.data(), bytes.size());
+            const auto read = opened ? NifValueNodes::Read(bytes.data(), bytes.size()) : NifValueNodes::Result{};
             std::cout << a_argv[i] << ":";
             if (!opened || !read.parsed) {
                 std::cout << " NOT PARSED (" << (opened ? read.why : std::string("does not open")) << ")";

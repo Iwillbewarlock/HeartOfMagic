@@ -16,8 +16,9 @@
 #include <cstring>
 #include <format>
 #include <set>
+#include <string_view>
+#include <vector>
 
-#include "FileIndex.h"
 
 namespace BlackFlame::FileIndex
 {
@@ -63,6 +64,11 @@ namespace BlackFlame::FileIndex
         // The inlined Stream::IncRef in the engine's CreateStream: every `lock cmpxchg [rbx+disp8], ecx` in the window
         std::optional<std::uint32_t> ScanCountOffset(std::string& a_why)
         {
+            // review Gemini / agy 8: the id checked before its address is taken (the scan runs before InitIndex's check)
+            if (!Patch::HasIds({ Patch::IdFor(68483, 69839) }, "file index CreateStream (count offset scan)")) {
+                a_why = "the CreateStream id is missing (logged above)";
+                return std::nullopt;
+            }
             const auto function = Patch::AddressOf(Patch::IdFor(68483, 69839));
             if (!Patch::IsExecutable(function, kIncRefWindow)) {
                 a_why = std::format("CreateStream at +0x{:X} is not readable code", function - Base());
@@ -183,6 +189,7 @@ namespace BlackFlame::FileIndex
             const auto* words = data.pointer<std::uintptr_t>();
             const std::size_t count = data.size() / sizeof(std::uintptr_t);
             int hits = 0;
+            std::vector<RE::BSResource::GlobalLocations*> sane;
             for (std::size_t i = 0; i < count; ++i) {
                 if (words[i] != vtable) {
                     continue;
@@ -194,11 +201,16 @@ namespace BlackFlame::FileIndex
                 Log(std::format("GlobalLocations candidate at SkyrimSE+0x{:X}: {} entries{}",
                     reinterpret_cast<std::uintptr_t>(candidate) - Base(), entries, ok ? "" : " (the walk faulted)"));
                 if (ok && entries > 0) {
-                    TheState().globals = candidate;
-                    return "";
+                    sane.push_back(candidate);
                 }
             }
-            return std::format("no object with GlobalLocations' vtable and a sane entry list in .data ({} vtable hits)", hits);
+            // review agy / Gemini 8: exactly one, as the count offset scan asks (two would leave the pick to chance)
+            if (sane.size() == 1) {
+                TheState().globals = sane.front();
+                return "";
+            }
+            return sane.empty() ? std::format("no object with GlobalLocations' vtable and a sane entry list in .data ({} vtable hits)", hits) :
+                                  std::format("{} objects with GlobalLocations' vtable and a sane entry list in .data: not used", sane.size());
         }
 
         // FQ5: the first shipped path the index knows confirms the guard / FindRecord layout
@@ -215,7 +227,15 @@ namespace BlackFlame::FileIndex
                     !ran ? "lookup FAULTED" : (found ? (archive ? "archive record" : "loose record") : "no record"),
                     DescribeIds(std::string(path))));
                 if (ran && found) {
-                    return "";
+                    // review agy dc 5: and a path nothing ships must not be found (a lookup that finds everything proves nothing)
+                    constexpr std::string_view kNoSuchPath = "meshes\\heartofmagic\\blackflame\\no such file 7f3a.nif";
+                    bool absentFound = false;
+                    bool absentArchive = false;
+                    if (!RawFind(std::string(kNoSuchPath), absentFound, absentArchive)) {
+                        return "the lookup of a path nothing ships faulted: the index is not used";
+                    }
+                    Log(std::format("check on a path nothing ships: {}", absentFound ? "FOUND (the lookup is not trusted)" : "no record"));
+                    return absentFound ? "a path nothing ships was found: the guard / FindRecord layout is not confirmed" : "";
                 }
             }
             return std::format("no lookup of {} shipped file(s) found its record: the guard / FindRecord layout is not confirmed",
@@ -269,6 +289,7 @@ namespace BlackFlame::FileIndex
             why = ConfirmIndex();
         }
         state.why = why;
+        state.usable.store(why.empty(), std::memory_order_release);
         if (why.empty()) {
             Log("every structural check passed: RegisterLoose is used for the copies this session");
         } else {
@@ -279,8 +300,7 @@ namespace BlackFlame::FileIndex
 
     bool Available() noexcept
     {
-        const auto& state = TheState();
-        return state.initialised && state.why.empty();
+        return TheState().usable.load(std::memory_order_acquire);
     }
 
     std::string Unavailable()

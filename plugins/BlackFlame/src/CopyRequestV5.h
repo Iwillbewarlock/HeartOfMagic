@@ -29,7 +29,7 @@ namespace BlackFlame::CopyRequestV5
     struct Result
     {
         bool written = false;
-        bool dumpComplete = true;
+        bool dumpComplete = false;  // set by the dump; false whenever nothing was written
         std::string dumpState;
         std::size_t forms = 0;     // forms with a key
         std::size_t muzzles = 0;

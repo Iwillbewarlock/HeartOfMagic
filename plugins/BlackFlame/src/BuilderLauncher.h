@@ -51,6 +51,9 @@ namespace BlackFlame::BuilderLauncher
         }
         void Reset(HANDLE a_handle = nullptr) noexcept
         {
+            if (a_handle == m_handle) {
+                return;  // the handle it holds: never closed and kept
+            }
             if (*this) {
                 ::CloseHandle(m_handle);
             }
