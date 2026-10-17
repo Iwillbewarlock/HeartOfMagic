@@ -1,5 +1,5 @@
 // =============================================================================
-// GreyFormsEsl - the copies ESL: placeholder PROJ, HAZD, EXPL, IPCT and ARTO records
+// GreyFormsEsl - the copies ESL: placeholder TXST, PROJ, HAZD, EXPL, IPCT and ARTO records
 // =============================================================================
 // DATA layouts as Skyrim.esm stores them (FormIDs 4 bytes; the CommonLibSSE-NG memory layouts
 // RE/B/BGSProjectile.h, BGSHazard.h, BGSExplosion.h, BGSImpactData.h with pointers as FormIDs):
@@ -14,10 +14,12 @@
 //   IPCT 24: effect duration 0, orientation u32 4, angle threshold 8, placement radius C, sound level u32 10,
 //            flags u8 14, result override u8 15, unused u16 16.
 //   ARTO: no DATA; DNAM u32 art type (0 casting, 1 hit effect, 2 enchant effect; RE/B/BGSArtObject.h Data).
+//   TXST: no DATA; TX00..TX07, a DODT stub, DNAM u16 flags (GreyFormsTxst.cpp).
 // Every form link is written 0 (no masters): the DLL copies the live source's values and links.
 
 #include "GreyEslIo.h"
 #include "GreyForms.h"
+#include "GreyFormsTxst.h"
 
 #include <algorithm>
 #include <cmath>
@@ -44,11 +46,6 @@ namespace GreyBuild
             Kind kind;
         };
 
-        constexpr std::size_t kProjectileData = 92;
-        constexpr std::size_t kHazardData = 40;
-        constexpr std::size_t kExplosionData = 52;
-        constexpr std::size_t kImpactData = 24;
-        constexpr std::size_t kArtData = 4;  // DNAM
         constexpr std::uint32_t kMaxArtType = 2;
         constexpr const char* kSoundLevelKey = "soundLevel";  // PROJ: VNAM, the others: inside DATA
 
@@ -74,6 +71,7 @@ namespace GreyBuild
                 { "placementRadius", 0x0C, Kind::kFloat }, { "soundLevel", 0x10, Kind::kU32 }, { "flags", 0x14, Kind::kU8 },
                 { "resultOverride", 0x15, Kind::kU8 } };
             static const std::vector<Field> kArt{ { "artType", 0x00, Kind::kU32 } };
+            static const std::vector<Field> kTextureSet{ { "flags", 0x00, Kind::kU16 } };  // DNAM (RE/B/BGSTextureSet.h flags)
             switch (a_type) {
             case CopyType::kProjectile:
                 return kProjectile;
@@ -81,11 +79,14 @@ namespace GreyBuild
                 return kHazard;
             case CopyType::kExplosion:
                 return kExplosion;
+            case CopyType::kImpact:
+                return kImpact;
             case CopyType::kArtObject:
                 return kArt;
-            default:
-                return kImpact;
+            case CopyType::kTextureSet:
+                return kTextureSet;
             }
+            throw std::logic_error(fmt::format("no scalar fields for copy type {}", static_cast<int>(a_type)));
         }
 
         template <class T>
@@ -145,6 +146,13 @@ namespace GreyBuild
 
         [[nodiscard]] std::string CopyRecord(const CopyEntry& a_entry, const FormSource& a_source)
         {
+            if (a_entry.type == CopyType::kTextureSet) {
+                Writer record;
+                const std::string body = TextureSetRecordBody(a_entry, a_source, DataBytes(a_source));
+                RecordHeader(record, CopyTypeTag(a_entry.type), body.size(), 0, a_entry.localId);
+                record.Bytes(body.data(), body.size());
+                return record.Data();
+            }
             Writer body;
             body.ZString("EDID", a_entry.editorId);
             if (CopyHasBounds(a_entry.type)) {
@@ -186,24 +194,29 @@ namespace GreyBuild
                     throw std::runtime_error(fmt::format("subrecord {} at byte {} runs past its record", tag, pos));
                 }
                 const auto text = [&] { return a_in.Slice(data, length > 0 ? length - 1u : 0u); };
-                if (tag == "EDID") {
+                const bool terminated = length > 0 && a_in.Value<char>(data + length - 1u) == '\0';
+                // Codex 12: presence kept apart from content; a subrecord seen twice or unterminated is a writer bug
+                if (tag == "EDID" && form.editorId.empty() && terminated) {
                     form.editorId = text();
-                } else if (tag == "MODL") {
+                } else if (tag == "MODL" && !form.hasModel && terminated) {
+                    form.hasModel = true;
                     form.model = text();
-                } else if (tag == "OBND" && length == sizeof(form.bounds)) {
+                } else if (tag == "OBND" && !form.hasBounds && length == sizeof(form.bounds)) {
                     form.hasBounds = true;
                     for (std::size_t i = 0; i < form.bounds.size(); ++i) {
                         form.bounds[i] = a_in.Value<std::int16_t>(data + i * sizeof(std::int16_t));
                     }
-                } else if (tag == "DATA") {
+                } else if (tag == "DATA" && !form.hasData) {
+                    form.hasData = true;
                     form.data = a_in.Slice(data, length);
-                } else if (tag == "DNAM" && length == kArtData) {
+                } else if (tag == "DNAM" && !form.hasDnam &&
+                           (length == CopyDataSize(CopyType::kArtObject) || length == CopyDataSize(CopyType::kTextureSet))) {
                     form.hasDnam = true;
                     form.dnam = a_in.Slice(data, length);
-                } else if (tag == "VNAM" && length == sizeof(std::uint32_t)) {
+                } else if (tag == "VNAM" && !form.hasSoundLevel && length == sizeof(std::uint32_t)) {
                     form.hasSoundLevel = true;
                     form.soundLevel = a_in.Value<std::uint32_t>(data);
-                } else {
+                } else if (!ReadTextureSetSubrecord(tag, a_in.Slice(data, length), form)) {
                     form.otherSubrecords.push_back(fmt::format("{}({})", tag, length));
                 }
                 pos = data + length;
@@ -214,58 +227,38 @@ namespace GreyBuild
 
     const char* CopyTypeTag(CopyType a_type) noexcept
     {
-        switch (a_type) {
-        case CopyType::kProjectile:
-            return "PROJ";
-        case CopyType::kHazard:
-            return "HAZD";
-        case CopyType::kExplosion:
-            return "EXPL";
-        case CopyType::kArtObject:
-            return "ARTO";
-        default:
-            return "IPCT";
+        return TraitsOf(a_type).tag;
+    }
+
+    std::optional<CopyType> CopyTypeFromTag(std::string_view a_tag) noexcept
+    {
+        for (const auto& traits : kCopyTypeTraits) {
+            if (a_tag == traits.tag) {
+                return traits.type;
+            }
         }
+        return std::nullopt;
     }
 
     const char* CopyDataTag(CopyType a_type) noexcept
     {
-        return a_type == CopyType::kArtObject ? "DNAM" : "DATA";
+        return TraitsOf(a_type).scalarTag;
     }
 
     std::size_t CopyDataSize(CopyType a_type) noexcept
     {
-        switch (a_type) {
-        case CopyType::kProjectile:
-            return kProjectileData;
-        case CopyType::kHazard:
-            return kHazardData;
-        case CopyType::kExplosion:
-            return kExplosionData;
-        case CopyType::kArtObject:
-            return kArtData;
-        default:
-            return kImpactData;
-        }
+        return TraitsOf(a_type).scalarSize;
     }
 
     bool CopyHasBounds(CopyType a_type) noexcept
     {
-        return a_type != CopyType::kImpact;
+        return TraitsOf(a_type).bounds;
     }
 
     std::vector<std::size_t> CopyLinkOffsets(CopyType a_type)
     {
-        switch (a_type) {
-        case CopyType::kProjectile:
-            return { 0x10, 0x14, 0x24, 0x28, 0x38, 0x3C, 0x40, 0x54, 0x58 };
-        case CopyType::kHazard:
-            return { 0x18, 0x1C, 0x20, 0x24 };
-        case CopyType::kExplosion:
-            return { 0x00, 0x04, 0x08, 0x0C, 0x10, 0x14 };
-        default:
-            return {};
-        }
+        const auto& traits = TraitsOf(a_type);
+        return { traits.links, traits.links + traits.linkCount };
     }
 
     std::vector<std::string> CopyFieldKeys(CopyType a_type)
@@ -405,6 +398,12 @@ namespace GreyBuild
                 problems.push_back(fmt::format("{:06X} {} not read back", entry.localId, entry.editorId));
                 continue;
             }
+            if (entry.type == CopyType::kTextureSet) {  // its own arm: DNAM and TX / DODT, no DATA, no MODL
+                for (auto& problem : VerifyTextureSetRecord(*it, entry, a_sources[i], DataBytes(a_sources[i]))) {
+                    problems.push_back(std::move(problem));
+                }
+                continue;
+            }
             const std::string model = CopyRecordModel(entry);
             const bool boundsOk = CopyHasBounds(entry.type) ? (it->hasBounds && it->bounds == a_sources[i].bounds) :
                                                               !it->hasBounds;
@@ -413,10 +412,11 @@ namespace GreyBuild
                                      !it->hasSoundLevel;
             // ARTO: the scalars in DNAM and no DATA; every other type: DATA and no DNAM
             const bool art = entry.type == CopyType::kArtObject;
-            const bool scalarsOk = art ? (it->hasDnam && it->dnam == DataBytes(a_sources[i]) && it->data.empty()) :
-                                         (!it->hasDnam && it->data == DataBytes(a_sources[i]));
-            if (it->type != CopyTypeTag(entry.type) || it->editorId != entry.editorId || it->model != model || !scalarsOk ||
-                !boundsOk || !soundOk || !it->otherSubrecords.empty()) {
+            const bool scalarsOk = art ? (it->hasDnam && it->dnam == DataBytes(a_sources[i]) && !it->hasData) :
+                                         (!it->hasDnam && it->hasData && it->data == DataBytes(a_sources[i]));
+            const bool modelOk = model.empty() ? !it->hasModel : (it->hasModel && it->model == model);
+            if (it->type != CopyTypeTag(entry.type) || it->editorId != entry.editorId || !modelOk || !scalarsOk ||
+                !boundsOk || !soundOk || it->textureMask != 0 || it->hasDodt || !it->otherSubrecords.empty()) {
                 problems.push_back(fmt::format("{:06X} {}: read back {} '{}' model '{}' DATA {} bytes, DNAM {} bytes, scalars {}, "
                     "bounds {}, sound level {}, other subrecords {}", entry.localId, entry.editorId, it->type, it->editorId,
                     it->model, it->data.size(), it->dnam.size(), scalarsOk ? "ok" : "DIFFER", boundsOk ? "ok" : "DIFFER",

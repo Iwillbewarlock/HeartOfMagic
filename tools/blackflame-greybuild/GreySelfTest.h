@@ -39,6 +39,9 @@ namespace GreyBuild::SelfTest
     /// The path rule the DLL and the builder share (DataPathRule.h): normalising and the texture scan, one table (T7).
     void CheckPathRule(Checker& a_check);
 
+    /// The decal texture set copies (GreyFormsTxst.h): types, record, map, ids, code page, texture step, old requests (a_dir)
+    void CheckDecals(Checker& a_check, const std::filesystem::path& a_dir);
+
     /// The visual-risk check (GreyRisk.h), the glow rules (GreyGlow.h) and the derived palettes (GreyPalette.h, written to
     /// a_dir) on made-up NIFs and 4 x 4 textures.
     void CheckRisk(Checker& a_check, const std::filesystem::path& a_dir);

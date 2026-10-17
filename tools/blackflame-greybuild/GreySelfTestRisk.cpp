@@ -15,6 +15,7 @@
 #include <Shaders.hpp>
 
 #include <cmath>
+#include <algorithm>
 #include <fmt/format.h>
 #include <functional>
 #include <memory>
@@ -557,5 +558,27 @@ namespace GreyBuild::SelfTest
         const auto unreadJob = Judge(unread, textures, nullptr);
         a_check.Check(Count(unreadJob, "UNREAD") == 1 && !RiskGatePasses(unreadJob),
             fmt::format("risk: a palette that does not decode is UNREAD and fails the gate ({})", RiskGateLine(unreadJob)));
+
+        // Codex 11: our fixed palette unread for two shapes is one ordinary UNREAD finding with the count; the gate counts it
+        RiskJob ownJob;
+        ownJob.textures = &textures;
+        for (int i = 0; i < 2; ++i) {
+            Pair pair;
+            MakePair(pair, sheet, nullptr);
+            auto& hdr = pair.copy.GetHeader();
+            for (std::uint32_t id = 0; id < hdr.GetNumBlocks(); ++id) {
+                if (auto* copyShader = hdr.GetBlock<nifly::BSEffectShaderProperty>(id)) {
+                    copyShader->greyscaleTexture.get() = "textures\\heartofmagic\\blackflame\\gradblackflameadd.dds";
+                }
+            }
+            RiskCheckNif(pair.source, pair.copy, "meshes\\selftest.nif", ownJob);
+        }
+        const bool counted = ownJob.findings.size() >= 1 && Count(ownJob, "UNREAD") == 1 &&
+                             RiskCount(ownJob, RiskLevel::kUnread) == 1 && !RiskGatePasses(ownJob);
+        const auto own = std::find_if(ownJob.findings.begin(), ownJob.findings.end(),
+            [](const RiskFinding& a_finding) { return a_finding.rule == "UNREAD"; });
+        a_check.Check(counted && own != ownJob.findings.end() && own->detail.find("for 2 shapes") != std::string::npos,
+            fmt::format("risk: our palette unread for two shapes is one UNREAD line with the count, the gate fails ({})",
+                own != ownJob.findings.end() ? own->detail : std::string("none")));
     }
 }

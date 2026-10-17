@@ -1,24 +1,24 @@
 // =============================================================================
-// GreyFormsRequest - the forms request, the copies map and stable copy ids
+// GreyFormsRequest - the forms request (the copies map and stable ids: GreyFormsMap.cpp)
 // =============================================================================
 // Request version 3 (written by the DLL at kDataLoaded, plugins/BlackFlame/src/CopyRequest.h): the forms as below plus
 // "muzzleModel" (PROJ), "viaSpell", "costliest"; and "fingerprint", "game", "excluded" [{ source, type, reason }],
-// "addons" and "models" (the --request shape, ours marked "own"), "nifs" [{ path, size, fnv64, ok }].
+// "addons" and "models" (the --request shape, ours marked "own"), "nifs" [{ path, size, fnv64, ok }], "textures"
+// [{ path, size, ok, error, own }] (our two palettes marked own), "decalTextureSets" true (TXST forms walked;
+// GreyFormsTxst.h for a TXST form's "textures" and "hasDecal").
 // Request (version 2; type ARTO with "data": { "artType": 0..2 } since the ARTO spike):
 //   { "version": 2,
 //     "forms": [ { "source": "Skyrim.esm|10FBED", "type": "PROJ", "editorId": "MAG_FireBallProjectile01",
 //                  "model": "Magic\\FireballProjectile01.nif", "bounds": [x1, y1, z1, x2, y2, z2],
 //                  "data": { "projectileType": "Missile", "speed": 2500, ... } } ] }
-// Copies map (version 2, written by the builder, read back on the next run for stable ids; version 1 is still read):
-//   { "version": 2, "requestFingerprint": "fnv64:..", "copiesPlugin": "HeartOfMagic_BlackFlame_Copies.esp",
-//     "copies": [ ... as below, plus "sourceMuzzleModel", "greyMuzzleModel", "note" ], "retired": [...], "excluded": [...] }
-// version 1: { "version": 1, "plugin": "HeartOfMagic_BlackFlame_Copies.esp",
-//     "copies": [ { "source": "skyrim.esm|10FBED", "type": "PROJ", "copy": "000800", "editorId": ...,
-//                   "sourceEditorId": ..., "sourceModel": ..., "greyModel": ... } ],
-//     "retired": [ { "source": ..., "copy": "000805" } ] }
+// The copies map: GreyFormsMap.cpp.
 
 #include "GreyForms.h"
+#include "GreyFormsTxst.h"
 #include "GreyJson.h"
+#include "GreyTexture.h"
+
+#include "../../plugins/BlackFlame/src/DataPathRule.h"
 
 #include <algorithm>
 #include <cctype>
@@ -26,57 +26,23 @@
 #include <fstream>
 #include <set>
 
-#ifndef WIN32_LEAN_AND_MEAN
-#    define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#    define NOMINMAX
-#endif
-#include <Windows.h>
 
 namespace GreyBuild
 {
     namespace
     {
-        // U11: request.json holds the DLL's paths as UTF-8 (EncodingUtils::SanitizeToUTF8 of the system code page's
-        // bytes), a NIF slot holds the code page's bytes: a non-ASCII path back to the code page, so its texturesNotDumped
-        // key is the one a slot looks up. The text unchanged when it is ASCII or does not convert without loss.
-        [[nodiscard]] std::string Utf8ToAnsi(const std::string& a_text)
-        {
-            if (std::all_of(a_text.begin(), a_text.end(), [](char c) { return static_cast<unsigned char>(c) < 0x80; })) {
-                return a_text;
-            }
-            const int wide = ::MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, a_text.data(), static_cast<int>(a_text.size()), nullptr, 0);
-            if (wide <= 0) {
-                return a_text;
-            }
-            std::wstring buffer(static_cast<std::size_t>(wide), L'\0');
-            ::MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, a_text.data(), static_cast<int>(a_text.size()), buffer.data(), wide);
-            BOOL lossy = FALSE;
-            const int narrow = ::WideCharToMultiByte(CP_ACP, 0, buffer.data(), wide, nullptr, 0, nullptr, &lossy);
-            if (narrow <= 0 || lossy) {
-                return a_text;
-            }
-            std::string out(static_cast<std::size_t>(narrow), '\0');
-            ::WideCharToMultiByte(CP_ACP, 0, buffer.data(), wide, out.data(), narrow, nullptr, &lossy);
-            return lossy ? a_text : out;
-        }
-
         constexpr std::uint32_t kMaxLocalId = 0xFFFFFF;
         constexpr std::size_t kMaxIdDigits = 6;
-        constexpr int kJsonIndent = 2;
         constexpr int kHexBase = 16;
         constexpr std::size_t kBoundCount = 6;
 
         [[nodiscard]] CopyType ParseType(const std::filesystem::path& a_file, const std::string& a_tag,
             const std::string& a_where)
         {
-            for (const auto type : kCopyTypes) {
-                if (a_tag == CopyTypeTag(type)) {
-                    return type;
-                }
+            if (const auto type = CopyTypeFromTag(a_tag)) {
+                return *type;
             }
-            Json::Fail(a_file, fmt::format("{}: type '{}' is not PROJ, HAZD, EXPL, IPCT or ARTO", a_where, a_tag));
+            Json::Fail(a_file, fmt::format("{}: type '{}' is not PROJ, HAZD, EXPL, IPCT, ARTO or TXST", a_where, a_tag));
         }
 
         // projectileType: a name (Missile, Lobber, Beam, Flame, Cone, Barrier, Arrow) or the raw u16 bit
@@ -147,22 +113,6 @@ namespace GreyBuild
             return bounds;
         }
 
-        std::vector<ExcludedForm> ReadExcluded(const std::filesystem::path& a_file, const nlohmann::json& a_root)
-        {
-            std::vector<ExcludedForm> out;
-            if (!a_root.contains("excluded")) {
-                return out;
-            }
-            const auto& list = Json::RequireArray(a_file, a_root, "excluded");
-            for (std::size_t i = 0; i < list.size(); ++i) {
-                const std::string where = fmt::format("excluded[{}]", i);
-                out.push_back({ Json::ReadOptionalString(a_file, list[i], "source", where),
-                    Json::ReadOptionalString(a_file, list[i], "type", where),
-                    Json::ReadOptionalString(a_file, list[i], "reason", where) });
-            }
-            return out;
-        }
-
         // v3: the game's parts of the request (addons and models, fingerprint, excluded, the NIFs it could not read)
         void ReadGameParts(const std::filesystem::path& a_file, const nlohmann::json& a_root, FormsRequest& a_request)
         {
@@ -170,7 +120,9 @@ namespace GreyBuild
             a_request.fingerprint = Json::ReadString(a_file, a_root, "fingerprint", "the request");
             a_request.fingerprintSizes = Json::ReadOptionalString(a_file, a_root, "fingerprintSizes", "the request");
             a_request.game = Json::ReadOptionalString(a_file, a_root, "game", "the request");
-            a_request.excluded = ReadExcluded(a_file, a_root);
+            a_request.excluded = ReadExcludedForms(a_file, a_root);
+        a_request.decalTextureSets = a_root.contains("decalTextureSets") && a_root["decalTextureSets"].is_boolean() &&
+                                     a_root["decalTextureSets"].get<bool>();
             if (a_root.contains("nifs")) {
                 const auto& nifs = Json::RequireArray(a_file, a_root, "nifs");
                 for (std::size_t i = 0; i < nifs.size(); ++i) {
@@ -190,6 +142,14 @@ namespace GreyBuild
                     const std::string where = fmt::format("textures[{}]", i);
                     const bool ok = textures[i].is_object() && textures[i].contains("ok") && textures[i]["ok"].is_boolean() &&
                                     textures[i]["ok"].get<bool>();
+                    // reviewer 7, Codex 9: our fixed palettes listed and dumped, each on its own (ok entries too)
+                    if (const auto path = TextureDataPath(Utf8ToAnsi(Json::ReadString(a_file, textures[i], "path", where)));
+                        path && (*path == BlackFlame::DataPathRule::kOurPalette || *path == BlackFlame::DataPathRule::kOurPaletteAdd)) {
+                        a_request.palettesListed.insert(*path);
+                        if (ok) {
+                            a_request.palettesDumped.insert(*path);
+                        }
+                    }
                     if (!ok) {
                         const auto path = TextureDataPath(Utf8ToAnsi(Json::ReadString(a_file, textures[i], "path", where)));
                         if (path) {
@@ -200,35 +160,6 @@ namespace GreyBuild
             }
         }
 
-        std::string OutOfIds(const std::vector<FormSource>& a_sources, const CopiesMap& a_previous, bool a_reclaim)
-        {
-            std::map<std::string, int> byType;
-            for (const auto& form : a_sources) {
-                ++byType[CopyTypeTag(form.type)];
-            }
-            std::string types;
-            for (const auto& [tag, count] : byType) {
-                types += fmt::format("{}{} {}", types.empty() ? "" : ", ", tag, count);
-            }
-            return fmt::format("no copy id left: {} forms requested ({}), {} copies in the earlier map, {} retired ids; an ESL "
-                "holds 2048 (0x800..0xFFF). Nothing was written. {}", a_sources.size(), types, a_previous.entries.size(),
-                a_previous.retired.size(), a_reclaim ? "Even with --reclaim-retired the ids do not fit: the load order has more "
-                "fire forms than one ESL can copy." : "Run again with --reclaim-retired to give retired ids to new forms - only "
-                "for a new save: a save holding a projectile or hazard of a retired copy would read it as the new form.");
-        }
-
-        [[nodiscard]] std::uint32_t ParseCopyId(const std::filesystem::path& a_file, const std::string& a_text,
-            const std::string& a_where)
-        {
-            const bool hex = !a_text.empty() && a_text.size() <= kMaxIdDigits &&
-                             a_text.find_first_not_of("0123456789abcdefABCDEF") == std::string::npos;
-            const auto id = hex ? static_cast<std::uint32_t>(std::stoul(a_text, nullptr, kHexBase)) : 0u;  // 6 hex digits
-            if (!hex || id < kFirstLightFormId || id > kLastLightFormId) {
-                Json::Fail(a_file, fmt::format("{}: copy id '{}' is not hex in {:03X}..{:03X}", a_where, a_text,
-                    kFirstLightFormId, kLastLightFormId));
-            }
-            return id;
-        }
     }
 
     std::string NormalizeSource(const std::string& a_source)
@@ -295,6 +226,15 @@ namespace GreyBuild
             }
             form.type = ParseType(a_file, Json::ReadString(a_file, item, "type", where), where);
             form.editorId = Json::ReadOptionalString(a_file, item, "editorId", where);
+            if (form.type == CopyType::kTextureSet) {
+                if (std::string why; !ReadTextureSetParts(a_file, item, form, where, why)) {
+                    if (!fromGame) {
+                        Json::Fail(a_file, where + ": " + why);
+                    }
+                    request.warnings.push_back(why);
+                    continue;  // left out: its decal stays the source's
+                }
+            }
             const auto readModel = [&](const char* a_key) {
                 const std::string model = Json::ReadOptionalString(a_file, item, a_key, where);
                 if (model.empty()) {
@@ -310,7 +250,7 @@ namespace GreyBuild
                     return std::string();
                 }
             };
-            form.model = readModel("model");
+            form.model = form.type == CopyType::kTextureSet ? std::string() : readModel("model");
             if (form.type == CopyType::kProjectile) {
                 form.muzzleModel = readModel("muzzleModel");
             }
@@ -330,167 +270,18 @@ namespace GreyBuild
         return request;
     }
 
-    CopiesMap LoadCopiesMap(const std::filesystem::path& a_file)
+    std::vector<ExcludedForm> ReadExcludedForms(const std::filesystem::path& a_file, const nlohmann::json& a_root)
     {
-        const nlohmann::json root = Json::ReadFile(a_file);
-        if (!root.contains("version") || (root["version"] != 1 && root["version"] != kCopiesMapVersion)) {
-            Json::Fail(a_file, fmt::format("'version' must be 1 or {}", kCopiesMapVersion));
+        std::vector<ExcludedForm> out;
+        if (!a_root.contains("excluded")) {
+            return out;
         }
-        CopiesMap map;
-        map.requestFingerprint = Json::ReadOptionalString(a_file, root, "requestFingerprint", "the map");
-        map.requestFingerprintSizes = Json::ReadOptionalString(a_file, root, "requestFingerprintSizes", "the map");
-        map.excluded = ReadExcluded(a_file, root);
-        std::set<std::uint32_t> ids;
-        std::set<std::string> sources;  // V16: a source once, across copies and retired
-        const auto& copies = Json::RequireArray(a_file, root, "copies");
-        for (std::size_t i = 0; i < copies.size(); ++i) {
-            const std::string where = fmt::format("copies[{}]", i);
-            CopyEntry entry;
-            entry.source = NormalizeSource(Json::ReadString(a_file, copies[i], "source", where));
-            entry.type = ParseType(a_file, Json::ReadString(a_file, copies[i], "type", where), where);
-            entry.localId = ParseCopyId(a_file, Json::ReadString(a_file, copies[i], "copy", where), where);
-            entry.editorId = Json::ReadOptionalString(a_file, copies[i], "editorId", where);
-            entry.sourceEditorId = Json::ReadOptionalString(a_file, copies[i], "sourceEditorId", where);
-            entry.sourceModel = Json::ReadOptionalString(a_file, copies[i], "sourceModel", where);
-            entry.greyModel = Json::ReadOptionalString(a_file, copies[i], "greyModel", where);
-            entry.sourceMuzzleModel = Json::ReadOptionalString(a_file, copies[i], "sourceMuzzleModel", where);
-            entry.greyMuzzleModel = Json::ReadOptionalString(a_file, copies[i], "greyMuzzleModel", where);
-            entry.note = Json::ReadOptionalString(a_file, copies[i], "note", where);
-            if (!ids.insert(entry.localId).second) {
-                Json::Fail(a_file, fmt::format("{}: copy id {:06X} is used twice", where, entry.localId));
-            }
-            if (!sources.insert(entry.source).second) {
-                Json::Fail(a_file, fmt::format("{}: source {} is listed twice", where, entry.source));
-            }
-            map.entries.push_back(std::move(entry));
-        }
-        if (root.contains("retired")) {
-            const auto& retired = Json::RequireArray(a_file, root, "retired");
-            for (std::size_t i = 0; i < retired.size(); ++i) {
-                const std::string where = fmt::format("retired[{}]", i);
-                const auto id = ParseCopyId(a_file, Json::ReadString(a_file, retired[i], "copy", where), where);
-                if (!ids.insert(id).second) {
-                    Json::Fail(a_file, fmt::format("{}: copy id {:06X} is used twice", where, id));
-                }
-                const auto source = NormalizeSource(Json::ReadString(a_file, retired[i], "source", where));
-                if (!sources.insert(source).second) {
-                    Json::Fail(a_file, fmt::format("{}: source {} is listed twice (copies and retired)", where, source));
-                }
-                map.retired[source] = id;
-            }
-        }
-        return map;
-    }
-
-    void WriteCopiesMap(const CopiesMap& a_map, const std::filesystem::path& a_file)
-    {
-        nlohmann::ordered_json root;
-        root["version"] = kCopiesMapVersion;
-        root["_comment"] = { "Generated by blackflame-greybuild (plugins/BlackFlame/README.md, \"Black Flame v2\").",
-            "Source form -> its copy in the copies plugin. Read back by the next run: ids stay stable, retired ids are "
-            "never given to another source (unless --reclaim-retired). requestFingerprint: the DLL compares it with the "
-            "load order at every start." };
-        root["requestFingerprint"] = a_map.requestFingerprint;
-        root["requestFingerprintSizes"] = a_map.requestFingerprintSizes;
-        root["copiesPlugin"] = kCopiesPluginName;
-        root["copies"] = nlohmann::ordered_json::array();
-        for (const auto& entry : a_map.entries) {
-            root["copies"].push_back({ { "source", entry.source }, { "type", CopyTypeTag(entry.type) },
-                { "copy", fmt::format("{:06X}", entry.localId) }, { "editorId", entry.editorId },
-                { "sourceEditorId", entry.sourceEditorId }, { "sourceModel", entry.sourceModel },
-                { "greyModel", entry.greyModel }, { "sourceMuzzleModel", entry.sourceMuzzleModel },
-                { "greyMuzzleModel", entry.greyMuzzleModel }, { "note", entry.note } });
-        }
-        root["retired"] = nlohmann::ordered_json::array();
-        for (const auto& [source, id] : a_map.retired) {
-            root["retired"].push_back({ { "source", source }, { "copy", fmt::format("{:06X}", id) } });
-        }
-        root["excluded"] = nlohmann::ordered_json::array();
-        for (const auto& excluded : a_map.excluded) {
-            root["excluded"].push_back({ { "source", excluded.source }, { "type", excluded.type }, { "reason", excluded.reason } });
-        }
-        // v2i: the palette kinds of the grey NIFs (information only: no reader takes it)
-        root["shaders"] = { { "tint", std::stod(fmt::format("{:.4g}", a_map.tint)) },
-            { "tintAdd", std::stod(fmt::format("{:.4g}", a_map.tintAdd)) }, { "effectShaders", a_map.shaders.effectShaders },
-            { "paletteNormal", a_map.shaders.paletted }, { "paletteNormalNoAlpha", a_map.shaders.paletteNoAlpha },
-            { "paletteAdditive", a_map.shaders.palettedAdd }, { "left", a_map.shaders.paletteLeft } };
-        std::filesystem::create_directories(a_file.parent_path());
-        std::ofstream out(a_file, std::ios::binary | std::ios::trunc);
-        out << root.dump(kJsonIndent) << "\n";
-        out.close();
-        if (!out) {
-            throw std::runtime_error(fmt::format("writing '{}' failed", a_file.string()));
-        }
-    }
-
-    std::string CopyRecordModel(const CopyEntry& a_entry)
-    {
-        const std::string& model = a_entry.greyModel.empty() ? a_entry.sourceModel : a_entry.greyModel;
-        return StartsWith(model, kMeshesRoot) ? model.substr(std::char_traits<char>::length(kMeshesRoot)) : model;
-    }
-
-    CopiesMap AssignCopyIds(const std::vector<FormSource>& a_sources, const CopiesMap& a_previous, bool a_reclaimRetired)
-    {
-        std::map<std::string, std::uint32_t> known = a_previous.retired;
-        std::uint32_t highest = kFirstLightFormId - 1;
-        for (const auto& entry : a_previous.entries) {
-            known[entry.source] = entry.localId;
-        }
-        // V16: from every id the previous map holds (entries and retired alike), not from the merged source map
-        for (const auto& entry : a_previous.entries) {
-            highest = std::max(highest, entry.localId);
-        }
-        for (const auto& [source, id] : a_previous.retired) {
-            highest = std::max(highest, id);
-        }
-        CopiesMap out;
-        std::set<std::string> requested;
-        // --reclaim-retired: retired ids lowest first, once the ids above every used one run out
-        std::map<std::uint32_t, std::string> reclaimable;
-        if (a_reclaimRetired) {
-            for (const auto& [source, id] : a_previous.retired) {
-                reclaimable.emplace(id, source);
-            }
-        }
-        std::set<std::string> reclaimed;
-        for (const auto& form : a_sources) {
-            requested.insert(NormalizeSource(form.source));
-        }
-        for (auto it = reclaimable.begin(); it != reclaimable.end();) {
-            it = requested.count(it->second) != 0 ? reclaimable.erase(it) : std::next(it);  // requested again: keeps its id
-        }
-        requested.clear();
-        for (const auto& form : a_sources) {
-            const std::string source = NormalizeSource(form.source);
-            if (!requested.insert(source).second) {
-                throw std::runtime_error(fmt::format("source {} is listed twice", source));
-            }
-            CopyEntry entry;
-            entry.source = source;
-            entry.type = form.type;
-            if (const auto it = known.find(source); it != known.end()) {
-                entry.localId = it->second;
-            } else if (highest < kLastLightFormId) {
-                entry.localId = ++highest;
-            } else if (!reclaimable.empty()) {
-                entry.localId = reclaimable.begin()->first;
-                reclaimed.insert(reclaimable.begin()->second);
-                reclaimable.erase(reclaimable.begin());
-            } else {
-                throw std::runtime_error(OutOfIds(a_sources, a_previous, a_reclaimRetired));
-            }
-            entry.editorId = fmt::format("{}{}_{:03X}", kCopyEditorIdPrefix, CopyTypeTag(form.type), entry.localId);
-            entry.sourceEditorId = form.editorId;
-            entry.sourceModel = form.model;
-            entry.greyModel = form.model.empty() ? std::string() : CopyModelFor(form.model);
-            entry.sourceMuzzleModel = form.muzzleModel;
-            entry.greyMuzzleModel = form.muzzleModel.empty() ? std::string() : CopyModelFor(form.muzzleModel);
-            out.entries.push_back(std::move(entry));
-        }
-        for (const auto& [source, id] : known) {
-            if (requested.count(source) == 0 && reclaimed.count(source) == 0) {
-                out.retired[source] = id;
-            }
+        const auto& list = Json::RequireArray(a_file, a_root, "excluded");
+        for (std::size_t i = 0; i < list.size(); ++i) {
+            const std::string where = fmt::format("excluded[{}]", i);
+            out.push_back({ Json::ReadOptionalString(a_file, list[i], "source", where),
+                Json::ReadOptionalString(a_file, list[i], "type", where),
+                Json::ReadOptionalString(a_file, list[i], "reason", where) });
         }
         return out;
     }

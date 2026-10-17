@@ -7,7 +7,8 @@
 // changes values only) and judged by data alone: colour left in the copy (KEYS_LEFT, VC_LEFT, PSYS_LEFT), a soft
 // additive warm glow turned into a visible grey haze (GREY_HALO), a coloured texture the copy still names (TEX_COLOUR),
 // a palette shape that turns into a sheet or vanishes (PAL_SHEET, PAL_VANISH), a NIF whose every visible shape went
-// dark (EFFECT_EMPTY), and warnings (PAL_BRIGHTER, NEUTRAL_HALO, PAL_FLAT). A texture the check needs and cannot read
+// dark (EFFECT_EMPTY), a decal texture set copy that still names a coloured texture (DECAL_COLOUR, GreyFormsTxst.h), and
+// warnings (PAL_BRIGHTER, NEUTRAL_HALO, PAL_FLAT). A texture the check needs and cannot read
 // is UNREAD (never a pass); one the game itself does not have is MISSING (listed only). The gate is FAIL 0 and UNREAD 0.
 // The rules and constants are the prototype's (scratchpad glow-rule/riskcheck.js and glow-rule.md section 4), which
 // assumes NifSkope's effect shader model: the palette colour looked up by the texture's green channel, its alpha by the
@@ -71,6 +72,9 @@ namespace GreyBuild
         int shapes = 0;
         std::vector<RiskFinding> findings;
         std::map<std::string, int> perRule;
+        // Codex 11: our two fixed palettes (DataPathRule kOurPalette*) unread: one ordinary finding each (so the gate counts
+        // it), its index and the number of shapes that needed it
+        std::map<std::string, std::pair<std::size_t, int>> ownPaletteUnread;
     };
 
     /// Compares a copy NIF with its source and adds what it finds to a_job (a_nif: the copy's Data-relative path)

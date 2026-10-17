@@ -314,8 +314,9 @@ namespace GreyBuild
     std::string TextureTotalsLine(const TextureTotals& a_totals)
     {
         return fmt::format("textures  recoloured {}, skipped greyscale {}, failed {}, not in the dump {}; {} of {} slots now name a "
-                           "grey copy; glow and Own_Emit shader emissive colours greyed {}; copies {:.1f} MiB",
-            a_totals.recoloured, a_totals.greyscale, a_totals.failed, a_totals.missing, a_totals.repointed, a_totals.slots, a_totals.emissiveGreyed,
-            static_cast<double>(a_totals.bytes) / static_cast<double>(kMiB));
+                           "grey copy ({} of {} decal texture set slots); glow and Own_Emit shader emissive colours greyed {}; copies "
+                           "{:.1f} MiB",
+            a_totals.recoloured, a_totals.greyscale, a_totals.failed, a_totals.missing, a_totals.repointed, a_totals.slots,
+            a_totals.decalRepointed, a_totals.decalSlots, a_totals.emissiveGreyed, static_cast<double>(a_totals.bytes) / static_cast<double>(kMiB));
     }
 }

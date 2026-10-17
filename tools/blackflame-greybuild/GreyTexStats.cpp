@@ -3,6 +3,8 @@
 // =============================================================================
 
 #include "GreyTexStats.h"
+
+#include "../../plugins/BlackFlame/src/DataPathRule.h"
 #include "GreyTexture.h"
 
 #include <DirectXTex.h>
@@ -282,6 +284,11 @@ namespace GreyBuild
                        reason != m_notInGame.end() && StartsWith(reason->second, kNotOpening)) {
                 entry.status = TextureRead::kMissing;
                 entry.why = "the game: " + reason->second;
+            } else if (reason == m_notInGame.end() &&
+                       (*path == BlackFlame::DataPathRule::kOurPalette || *path == BlackFlame::DataPathRule::kOurPaletteAdd)) {
+                // our fixed palette, which only a DLL of this release dumps (CopyRequestData PlanTextures)
+                entry.why = "not in the dump (a request from a Black Flame DLL before the palette dump: start the game once to "
+                            "the main menu with this release, quit, run the builder again) nor in the builder's own folders";
             } else {
                 entry.why = reason != m_notInGame.end() ? "not in the dump - the game: " + reason->second :
                                                           std::string("in none of the folders read");

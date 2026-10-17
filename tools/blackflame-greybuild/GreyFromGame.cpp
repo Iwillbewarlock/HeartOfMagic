@@ -9,6 +9,8 @@
 
 #include "GreyForms.h"
 
+#include "../../plugins/BlackFlame/src/DataPathRule.h"
+
 #include <fmt/format.h>
 #include <iostream>
 #include <optional>
@@ -146,6 +148,27 @@ namespace GreyBuild
             std::cout << "NOTE  the request lists no textures (written by an older Black Flame DLL, or the game could not list "
                          "the textures - see HeartOfMagic_BlackFlame.log): no texture copies this run. Start the game once to "
                          "the main menu with this release, quit, then run this again.\n";
+        }
+        options.decalTextureSets = parsed.decalTextureSets;
+        if (!parsed.decalTextureSets) {
+            std::cout << "NOTE  the request has no decal texture sets (written by a Black Flame DLL before decal copies): the "
+                         "player's fire decals (Fire Rune's glyph, scorch marks) stay coloured. Start the game once to the main "
+                         "menu with this release, quit, then run this again.\n";
+        }
+        // Our two fixed palettes: the dump's when the request lists them (the game's winning files), else the builder's own
+        // folders (a request before the palette dump), said once here rather than per shape
+        options.ownTextureFolders = parsed.palettesListed.empty();
+        if (parsed.hasTextures && parsed.palettesListed.empty()) {
+            std::cout << "NOTE  the request lists neither of our palettes (GradBlackFlame.dds, GradBlackFlameAdd.dds; a Black Flame "
+                         "DLL before the palette dump): the visual-risk check reads them from the builder's own folders, when it "
+                         "finds them there. Start the game once to the main menu with this release to dump the game's own.\n";
+        }
+        for (const auto* palette : { BlackFlame::DataPathRule::kOurPalette.data(), BlackFlame::DataPathRule::kOurPaletteAdd.data() }) {
+            if (parsed.palettesListed.count(palette) != 0 && parsed.palettesDumped.count(palette) == 0) {
+                const auto why = parsed.texturesNotDumped.find(palette);
+                std::cout << fmt::format("WARN  our palette {} is not in the dump - the game: {}\n", palette,
+                    why == parsed.texturesNotDumped.end() ? std::string("(no reason given)") : why->second);
+            }
         }
         const auto totals = BuildForms(parsed.forms, *parsed.addons, { dump }, a_out, a_tint, options);
         std::cout << fmt::format("forms: {} copies, {} copy NIFs, {} warnings, {} failed\n", totals.copies, totals.nifsBuilt,

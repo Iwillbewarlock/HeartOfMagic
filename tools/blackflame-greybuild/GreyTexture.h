@@ -132,6 +132,8 @@ namespace GreyBuild
                                  // texture path (each slot)
         int missing = 0;         // textures in no --in folder (not in the dump), each path once (U8)
         int emissiveGreyed = 0;  // glow and Own_Emit lighting shaders whose emissive colour was greyed
+        int decalSlots = 0;      // of slots: TXST copies' TX00 / TX03 (GreyFormsTxst.h)
+        int decalRepointed = 0;  // of those, now naming a grey copy
         std::uint64_t bytes = 0;  // the copies' size
     };
 
@@ -159,6 +161,11 @@ namespace GreyBuild
         std::map<std::string, PathState> paths;  // by TextureDataPath
         TextureTotals totals;
     };
+
+    /// One slot (a NIF slot, or a TXST copy's TX00 / TX03, GreyFormsTxst.h): its texture recoloured with a_role's tint the
+    /// first time any slot names it (path and tint once per job), the slot pointed at its copy (the Data-relative copy path,
+    /// "textures\..."); a_where names the slot's NIF or form in the lines printed. Our own textures are left.
+    void RetargetTextureSlot(std::string& a_slot, TextureRole a_role, TextureJob& a_job, const std::string& a_where);
 
     /// Every texture slot of a_nif the rule picks (UsesPalette on the effect shaders as GreyEffects leaves them): each
     /// distinct texture and tint recoloured once per job into a_job.out, each slot whose texture got a copy pointed at it;

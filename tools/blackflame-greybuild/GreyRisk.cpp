@@ -84,10 +84,26 @@ namespace GreyBuild
             return std::isinf(a_value) ? std::string("inf") : fmt::format("{:.2f}", a_value);
         }
 
-        // A texture the rule needs and cannot have: MISSING when the game itself lacks it, UNREAD otherwise
+        // A texture the rule needs and cannot have: MISSING when the game itself lacks it, UNREAD otherwise. Codex 11: one of
+        // our two fixed palettes is one finding for the run (the first shape's), counting the shapes that needed it
         void NotRead(Context& a_ctx, const EffectShape& a_shape, const TextureLook& a_look, const std::string& a_slot,
             const char* a_what)
         {
+            if (a_look.path == BlackFlame::DataPathRule::kOurPalette || a_look.path == BlackFlame::DataPathRule::kOurPaletteAdd) {
+                auto& job = a_ctx.job;
+                if (const auto it = job.ownPaletteUnread.find(a_look.path); it != job.ownPaletteUnread.end()) {
+                    auto& [index, shapes] = it->second;
+                    ++shapes;
+                    job.findings[index].detail = fmt::format("our palette {} not read for {} shapes (the first: {} {}): {}",
+                        a_look.path, shapes, job.findings[index].nif, job.findings[index].block, a_look.why);
+                    return;
+                }
+                job.ownPaletteUnread.emplace(a_look.path, std::make_pair(job.findings.size(), 1));
+                Add(a_ctx, a_look.status == TextureRead::kMissing ? RiskLevel::kMissing : RiskLevel::kUnread,
+                    a_look.status == TextureRead::kMissing ? kRuleMissing : kRuleUnread, &a_shape,
+                    fmt::format("our palette {} not read for 1 shape: {}", a_look.path, a_look.why));
+                return;
+            }
             const bool missing = a_look.status == TextureRead::kMissing;
             Add(a_ctx, missing ? RiskLevel::kMissing : RiskLevel::kUnread, missing ? kRuleMissing : kRuleUnread, &a_shape,
                 fmt::format("{} {}: {}", a_what, a_look.path.empty() ? a_slot : a_look.path, a_look.why));

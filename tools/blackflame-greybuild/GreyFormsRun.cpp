@@ -13,6 +13,7 @@
 // AddOnNodes keep the original value), an AddOnNode value in no ADDN stays as it is.
 
 #include "GreyForms.h"
+#include "GreyFormsTxst.h"
 #include "GreyGlow.h"
 #include "GreyRisk.h"
 
@@ -349,7 +350,9 @@ namespace GreyBuild
             // The visual-risk check reads textures from the inputs, the output being written and our own shipped ones
             std::vector<std::filesystem::path> textureFolders = a_inputs;
             textureFolders.push_back(a_staging);
-            for (const auto& own : TextureSource::OwnFolders()) {
+            // Codex 9: our palettes from the builder's own folders only for a request that does not list them (one that does
+            // gives the game's own in the dump, or the reason the game could not read them)
+            for (const auto& own : a_options.ownTextureFolders ? TextureSource::OwnFolders() : std::vector<std::filesystem::path>{}) {
                 textureFolders.push_back(own);
             }
             TextureSource textureSource(textureFolders, a_options.texturesNotDumped, a_staging);
@@ -377,6 +380,10 @@ namespace GreyBuild
             if (built) {
                 const StageTimer time("NIF build: copy NIFs (with their textures)");
                 built = StageCopies(a_plan, a_sources, a_copies, a_inputs, a_staging, a_options, judging, a_totals);
+            }
+            if (built) {
+                const StageTimer time("decal texture sets (their textures and the decal rule)");
+                StageTextureSets(a_copies, a_options.textures ? &job : nullptr, risk);
             }
             a_totals.textures = job.totals;
             if (!built) {
@@ -455,7 +462,22 @@ namespace GreyBuild
             std::cout << "nothing written\n";
             return totals;
         }
-        CopiesMap copies = AssignCopyIds(a_sources, PreviousCopies(out), a_options.reclaimRetired);
+        const CopiesMap previous = PreviousCopies(out);
+        // Codex 1: a game request from a DLL before decal copies would retire the TXST copies this --out holds (their records
+        // gone while a save may still name them): refused before anything is written
+        if (!a_options.decalTextureSets) {
+            const auto txst = std::count_if(previous.entries.begin(), previous.entries.end(),
+                [](const CopyEntry& a_entry) { return a_entry.type == CopyType::kTextureSet; });
+            if (txst > 0) {
+                std::cout << fmt::format("FAIL  the request comes from a Black Flame DLL before decal copies, and {} holds {} decal "
+                                         "texture set copies: building would remove them. Nothing written. Start the game once to "
+                                         "the main menu with this release (it writes a new request), quit, then run this again.\n",
+                    PathText(out), txst);
+                ++totals.failed;
+                return totals;
+            }
+        }
+        CopiesMap copies = AssignCopyIds(a_sources, previous, a_options.reclaimRetired);
         copies.requestFingerprint = a_options.fingerprint;
         copies.requestFingerprintSizes = a_options.fingerprintSizes;
         copies.excluded = a_options.excluded;

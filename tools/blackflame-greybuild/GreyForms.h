@@ -3,8 +3,9 @@
 // =============================================================================
 // GreyForms - Black Flame v2 copies (README "Black Flame v2", --forms)
 // =============================================================================
-// A forms request lists source forms (PROJ, EXPL, IPCT, HAZD, ARTO) of one load order with
-// their model path, object bounds and scalar DATA values (ARTO: its DNAM art type). The builder writes:
+// A forms request lists source forms (PROJ, EXPL, IPCT, HAZD, ARTO, TXST) of one load order with
+// their model path, object bounds and scalar DATA values (ARTO: its DNAM art type; TXST: its eight texture slots, DNAM
+// flags and whether it has DODT - GreyFormsTxst.h). The builder writes:
 //   - a masterless ESL (HeartOfMagic_BlackFlame_Copies.esp) of placeholder records,
 //     one per source: EDID, OBND (types that have it), MODL = the fully grey copy of
 //     the source NIF, DATA in Skyrim.esm's size for the type with the scalars copied
@@ -22,12 +23,17 @@
 #include "GreyPalette.h"
 #include "GreyTexture.h"
 
+#include <nlohmann/json_fwd.hpp>
+
 #include <array>
 #include <cstdint>
 #include <filesystem>
+#include <iterator>
 #include <map>
 #include <optional>
+#include <set>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace GreyBuild
@@ -46,26 +52,79 @@ namespace GreyBuild
         kHazard,
         kExplosion,
         kImpact,
-        kArtObject
+        kArtObject,
+        kTextureSet  // decal texture sets (TXST) of copied PROJ / IPCT
     };
 
-    /// Every copy type in the ESL's group order (Skyrim.esm's top group order: PROJ, HAZD, EXPL, IPCT, ARTO)
-    inline constexpr CopyType kCopyTypes[] = { CopyType::kProjectile, CopyType::kHazard, CopyType::kExplosion,
-        CopyType::kImpact, CopyType::kArtObject };
+    // TXST: the eight TX00..TX07 slots (CommonLibSSE-NG RE/B/BSTextureSet.h Textures, kUsedTotal); the colour slots the
+    // builder recolours are diffuse (TX00) and glow / detail (TX03). Not the NIF slot numbers (GreyTexture.h kSlotGlow 2)
+    inline constexpr std::size_t kTxstSlots = 8;
+    inline constexpr std::size_t kTxstSlotDiffuse = 0;
+    inline constexpr std::size_t kTxstSlotGlow = 3;
+    inline constexpr std::size_t kDodtSize = 36;  // DODT (RE/D/DecalData.h DECAL_DATA_DATA 0x24)
 
-    /// "PROJ" / "HAZD" / "EXPL" / "IPCT" / "ARTO"
+    inline constexpr std::size_t kMaxLinkOffsets = 9;
+
+    /// Every per-type fact in one table (indexed by the enum, checked below): the record signature, its scalar subrecord
+    /// and size as Skyrim.esm stores it, OBND, MODL, and the scalar subrecord's form-link offsets (each written 0)
+    struct CopyTypeTraits
+    {
+        CopyType type;
+        const char* tag;
+        const char* scalarTag;
+        std::size_t scalarSize;
+        bool bounds;
+        bool model;
+        std::size_t linkCount;
+        std::size_t links[kMaxLinkOffsets];
+    };
+
+    inline constexpr CopyTypeTraits kCopyTypeTraits[] = {
+        { CopyType::kProjectile, "PROJ", "DATA", 92, true, true, 9, { 0x10, 0x14, 0x24, 0x28, 0x38, 0x3C, 0x40, 0x54, 0x58 } },
+        { CopyType::kHazard, "HAZD", "DATA", 40, true, true, 4, { 0x18, 0x1C, 0x20, 0x24 } },
+        { CopyType::kExplosion, "EXPL", "DATA", 52, true, true, 6, { 0x00, 0x04, 0x08, 0x0C, 0x10, 0x14 } },
+        { CopyType::kImpact, "IPCT", "DATA", 24, false, true, 0, {} },
+        { CopyType::kArtObject, "ARTO", "DNAM", 4, true, true, 0, {} },
+        { CopyType::kTextureSet, "TXST", "DNAM", 2, true, false, 0, {} },
+    };
+
+    [[nodiscard]] constexpr bool CopyTraitsInOrder() noexcept
+    {
+        for (std::size_t i = 0; i < std::size(kCopyTypeTraits); ++i) {
+            if (static_cast<std::size_t>(kCopyTypeTraits[i].type) != i || kCopyTypeTraits[i].linkCount > kMaxLinkOffsets) {
+                return false;
+            }
+        }
+        return static_cast<std::size_t>(CopyType::kTextureSet) + 1 == std::size(kCopyTypeTraits);
+    }
+    static_assert(CopyTraitsInOrder(), "kCopyTypeTraits: one row per CopyType, in the enum's order");
+
+    [[nodiscard]] constexpr const CopyTypeTraits& TraitsOf(CopyType a_type) noexcept
+    {
+        return kCopyTypeTraits[static_cast<std::size_t>(a_type)];
+    }
+
+    /// Every copy type in the ESL's group order (Skyrim.esm's top group order: TXST, PROJ, HAZD, EXPL, IPCT, ARTO)
+    inline constexpr CopyType kCopyTypes[] = { CopyType::kTextureSet, CopyType::kProjectile, CopyType::kHazard,
+        CopyType::kExplosion, CopyType::kImpact, CopyType::kArtObject };
+    static_assert(std::size(kCopyTypes) == std::size(kCopyTypeTraits), "kCopyTypes lists every copy type once");
+
+    /// "PROJ" / "HAZD" / "EXPL" / "IPCT" / "ARTO" / "TXST"
     [[nodiscard]] const char* CopyTypeTag(CopyType a_type) noexcept;
 
-    /// The DATA subrecord size Skyrim.esm uses for the type (PROJ 92, HAZD 40, EXPL 52, IPCT 24; ARTO: its DNAM, 4)
+    /// The type's tag back (nullopt for any other text)
+    [[nodiscard]] std::optional<CopyType> CopyTypeFromTag(std::string_view a_tag) noexcept;
+
+    /// The scalar subrecord size Skyrim.esm uses for the type (PROJ 92, HAZD 40, EXPL 52, IPCT 24 DATA; ARTO 4, TXST 2 DNAM)
     [[nodiscard]] std::size_t CopyDataSize(CopyType a_type) noexcept;
 
-    /// The type's scalar subrecord: "DATA", or "DNAM" for ARTO (an ARTO record has no DATA)
+    /// The type's scalar subrecord: "DATA", or "DNAM" for ARTO and TXST (neither has DATA)
     [[nodiscard]] const char* CopyDataTag(CopyType a_type) noexcept;
 
-    /// The type has OBND (PROJ, HAZD, EXPL, ARTO; not IPCT)
+    /// The type has OBND (every type but IPCT)
     [[nodiscard]] bool CopyHasBounds(CopyType a_type) noexcept;
 
-    /// The DATA offsets of the type's form links (each a 4-byte FormID written as 0)
+    /// The scalar subrecord offsets of the type's form links (each a 4-byte FormID written as 0)
     [[nodiscard]] std::vector<std::size_t> CopyLinkOffsets(CopyType a_type);
 
     struct FormSource
@@ -77,6 +136,10 @@ namespace GreyBuild
         std::string muzzleModel;  // PROJ: its muzzle flash model, the same form (v3), "" when none
         std::array<std::int16_t, 6> bounds{};
         std::map<std::string, double> data;  // scalar DATA values by key (CopyFieldKeys)
+        // TXST: each slot's text as the record stores it (relative to textures\, the system code page's bytes; the request
+        // gives UTF-8), "" when the slot is empty
+        std::array<std::string, kTxstSlots> textures{};
+        bool hasDecal = false;  // TXST: the source has DODT (the copy's DODT is a stub the DLL fills)
     };
 
     /// The scalar keys a type's "data" may hold (unknown keys are refused, missing ones are 0)
@@ -102,11 +165,17 @@ namespace GreyBuild
         std::vector<std::string> warnings;  // v3: entries skipped while reading (duplicate ADDN index)
         bool hasTextures = false;           // the request lists "textures" (a DLL that dumps them; older requests do not)
         std::map<std::string, std::string> texturesNotDumped;  // "textures" entries with ok false: path -> error
+        bool decalTextureSets = false;      // the DLL walked decal texture sets (TXST in "forms"); older requests do not
+        std::set<std::string> palettesListed;  // our two fixed palettes the request names (DataPathRule kOurPalette*)
+        std::set<std::string> palettesDumped;  // of those, the ones in the dump (ok true)
     };
 
     /// Reads and validates a forms request: version 2 (forms only) or 3 (the DLL's: also addons, models, nifs,
     /// fingerprint, excluded). Throws std::runtime_error naming what is wrong.
     [[nodiscard]] FormsRequest LoadFormsRequestFile(const std::filesystem::path& a_file);
+
+    /// A request's or map's "excluded" list (absent: none)
+    [[nodiscard]] std::vector<ExcludedForm> ReadExcludedForms(const std::filesystem::path& a_file, const nlohmann::json& a_root);
 
     /// The forms of LoadFormsRequestFile
     [[nodiscard]] std::vector<FormSource> LoadFormsRequest(const std::filesystem::path& a_file);
@@ -126,12 +195,19 @@ namespace GreyBuild
         std::string sourceMuzzleModel;  // PROJ, "" when none
         std::string greyMuzzleModel;    // PROJ: the grey copy of its muzzle model, "" when none or not made
         std::string note;         // why a grey copy is missing (warn-and-continue), "" when none
+        std::array<std::string, kTxstSlots> sourceTextures{};  // TXST: the source's slots (record text)
+        std::array<std::string, kTxstSlots> greyTextures{};    // TXST: a slot's grey copy (record text), "" = the source's
+        bool hasDecal = false;                                 // TXST: the record has the DODT stub
     };
+
+    /// TXST: the text the copy record names in slot a_slot: its grey copy, else the source's
+    [[nodiscard]] const std::string& CopyRecordTexture(const CopyEntry& a_entry, std::size_t a_slot);
 
     struct CopiesMap
     {
         std::vector<CopyEntry> entries;  // by local id
         std::map<std::string, std::uint32_t> retired;  // sources no longer requested: their ids stay taken
+        std::map<std::string, CopyType> retiredTypes;  // their types (maps before TXST copies did not keep them: absent)
         std::string requestFingerprint;  // v2: the request's fingerprint (the DLL's freshness check)
         std::string requestFingerprintSizes;  // v2: its size-only form (the check when the game reads no NIF bytes)
         std::vector<ExcludedForm> excluded;  // v2: the request's excluded forms
@@ -168,15 +244,21 @@ namespace GreyBuild
         std::string type;  // record signature
         std::uint32_t formId = 0;
         std::string editorId;
+        bool hasModel = false;
         std::string model;
         bool hasBounds = false;
         std::array<std::int16_t, 6> bounds{};
+        bool hasData = false;
         std::string data;  // raw DATA bytes
         bool hasDnam = false;
-        std::string dnam;  // raw DNAM bytes (ARTO art type)
+        std::string dnam;  // raw DNAM bytes (ARTO art type, TXST flags)
         bool hasSoundLevel = false;
         std::uint32_t soundLevel = 0;  // PROJ VNAM
-        std::vector<std::string> otherSubrecords;  // anything else (a writer bug)
+        std::array<std::string, kTxstSlots> textures{};  // TXST TX00..TX07 (text without the terminator)
+        std::uint32_t textureMask = 0;                   // bit i: TX0i present
+        bool hasDodt = false;
+        std::string dodt;  // raw DODT bytes
+        std::vector<std::string> otherSubrecords;  // anything else, or a subrecord seen twice (a writer bug)
     };
 
     struct EslHeader
@@ -220,6 +302,10 @@ namespace GreyBuild
                                              // in no ADDN, is a warning (source model kept / value kept), not a failure
         bool textures = true;                // texture copies (GreyTexture.h) of the full-grey copy NIFs and grey MPS; --no-textures: off
         std::map<std::string, std::string> texturesNotDumped;  // --from-game: the request's textures not in the dump, and why
+        bool decalTextureSets = true;        // the request walked decal texture sets (false: a game request from an older
+                                             // DLL - refused when --out already holds TXST copies)
+        bool ownTextureFolders = true;       // the risk check may read our palettes from the builder's own folders (false
+                                             // when the request lists them: the game's own then, or its reason)
     };
 
     /// The whole --forms run: grey ADDN plan from a_addons (whose models gain the copies' models for their
