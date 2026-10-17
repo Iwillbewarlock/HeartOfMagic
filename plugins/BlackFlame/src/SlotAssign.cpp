@@ -127,7 +127,7 @@ namespace BlackFlame::SlotAssign
                 }
             };
             for (const auto& form : a_closure.forms) {
-                if (const auto type = SlotTypeOf(form.kind)) {
+                if (const auto type = SlotTypeOf(form.kind); type && !IsOwnPluginForm(form.form)) {  // never a slot for a slot
                     add(form.form, *type);
                 }
             }
@@ -270,7 +270,8 @@ namespace BlackFlame::SlotAssign
             return false;
         }
         const auto* file = dh->LookupModByName(kSlotsPluginName);
-        if (!file || !file->IsLight() || file->GetPartialIndex() == 0xFF) {
+        // review agy 14_01 #9: a light file's partial index is 0xFExxx, never 0xFF; an unloaded file has compile index 0xFF
+        if (!file || !file->IsLight() || file->compileIndex == 0xFF) {
             logger::warn("BlackFlame: slots: {} is not loaded as a light plugin - no slots this session", kSlotsPluginName);
             return false;
         }
@@ -307,6 +308,9 @@ namespace BlackFlame::SlotAssign
                 result.refused.size(), status.why);
         }
         for (const auto& entry : ledger.entries) {
+            if (!CC::PoolOf(entry.slot)) {
+                continue;  // FromJson refuses such a slot; kept as the one guard before the table index
+            }
             auto& slot = table.slots[IndexOf(entry.slot)];
             slot.localId = entry.slot;
             slot.type = entry.type;
@@ -325,7 +329,7 @@ namespace BlackFlame::SlotAssign
             const RE::TESForm* from = slot.source;
             if (!from) {
                 const auto it = std::ranges::find_if(kTemplates, [&](const Template& a_t) { return a_t.type == entry.type; });
-                from = Lookup(dh, kTemplatePlugin, it->localId, entry.type);
+                from = it != kTemplates.end() ? Lookup(dh, kTemplatePlugin, it->localId, entry.type) : nullptr;
                 table.counts.templates += from ? 1 : 0;
             }
             if (from && !Fill(slot, from)) {
@@ -451,15 +455,25 @@ namespace BlackFlame::SlotAssign
                 for (const auto id : table.assigned) {
                     closed += GateOpen(id) ? 1 : 0;
                     CloseGate(id);
+                    table.slots[IndexOf(id)].usable = false;  // sticky for the session
                 }
                 SlotNotice::Show(std::format("Black Flame: this save's slot list could not be read; grey is off for {} spells", closed));
                 return;
             }
             auto* dh = RE::TESDataHandler::GetSingleton();
             for (const auto& mismatch : a_mismatches) {
+                if (!CC::PoolOf(mismatch.slot)) {
+                    continue;  // review Gemini / agy 14_01: a co-save's slot number is checked before the table index
+                }
                 CloseGate(mismatch.slot);
                 auto& slot = table.slots[IndexOf(mismatch.slot)];
+                slot.usable = false;  // sticky for the session: nothing publishes a slot a save binds otherwise
                 if (a_when != When::kPreflight || !dh) {
+                    continue;
+                }
+                if (slot.form && slot.type != mismatch.save.type) {
+                    logger::warn("BlackFlame: slots: preflight: slot {:X} is a {} here, the save says {}: not refilled", mismatch.slot,
+                        CC::SlotTypeTag(slot.type), CC::SlotTypeTag(mismatch.save.type));
                     continue;
                 }
                 // slotPreflight: the slot holds the save's source's data before the engine reads the save; its model is left
@@ -478,7 +492,10 @@ namespace BlackFlame::SlotAssign
                     (void)Fill(slot, source, false);
                     slot.source = source;
                     slot.filledFrom = source;
-                    slot.usable = false;
+                    slot.sourceText = LM::SourceText(mismatch.save.plugin, mismatch.save.sourceLocalId);
+                    slot.modelKey.reset();  // this session's keys were the other source's
+                    slot.muzzleKey.reset();
+                    slot.txstKey.reset();
                     SlotLedger::NoteRefilled(mismatch.slot, mismatch.save);
                     logger::info("BlackFlame: slots: preflight: slot {:X} refilled from {} (gated for the session)", mismatch.slot,
                         LM::SourceText(mismatch.save.plugin, mismatch.save.sourceLocalId));

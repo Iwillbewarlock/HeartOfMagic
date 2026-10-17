@@ -6,13 +6,14 @@
 // Redundancy (design v3.2 §7): the ledger beside the saves (main), HoMBF_slots.1.json .. .5.json beside it (rolled at each
 // write, newest .1), and a mirror in <SKSE log folder>\HeartOfMagic_BlackFlame\. LoadAll reads every one that is there;
 // the base is the readable one with the highest version (main first on a tie), and every other readable one is merged into
-// it (SlotLedgerModel Merge: the union of reservations, conflicts named) - so a lost or cut main loses nothing a backup or
+// it, newest first (SlotLedgerModel Merge: the union of reservations, conflicts named, an older copy of a binding stale) - so a lost or cut main loses nothing a backup or
 // the mirror still holds. SaveAll writes main through a temporary file and a replacing rename after rolling the backups
 // (main is copied to .1 first, so a crash at any point leaves a readable main or .1), then the mirror the same way.
 // C++17 std::filesystem and nlohmann only: blackflame-cosave-check tests it in a temporary folder.
 
 #include "SlotLedgerModel.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -134,12 +135,20 @@ namespace BlackFlame::SlotLedgerFiles
             }
         }
         Ledger merged = reads[base].ledger;
+        // review Gemini 17: the others newest first, so a slot the base lacks takes the newest file's binding (an older
+        // copy of the same epoch then loses to it as stale; files read in name order let backup 5 win over the mirror)
+        std::vector<std::size_t> order;
         for (std::size_t i = 0; i < reads.size(); ++i) {
             if (i != base) {
-                std::vector<std::string> stale;
-                (void)SlotLedgerModel::Merge(merged, reads[i].ledger, out.conflicts, reads[i].what, &stale);
-                out.notes.insert(out.notes.end(), stale.begin(), stale.end());
+                order.push_back(i);
             }
+        }
+        std::stable_sort(order.begin(), order.end(),
+            [&](std::size_t a_l, std::size_t a_r) { return reads[a_l].ledger.version > reads[a_r].ledger.version; });
+        for (const auto i : order) {
+            std::vector<std::string> stale;
+            (void)SlotLedgerModel::Merge(merged, reads[i].ledger, out.conflicts, reads[i].what, &stale);
+            out.notes.insert(out.notes.end(), stale.begin(), stale.end());
         }
         out.notes.push_back("base: " + reads[base].what + "; " + std::to_string(merged.entries.size()) + " slots after the union");
         out.ledger = std::move(merged);
@@ -204,9 +213,14 @@ namespace BlackFlame::SlotLedgerFiles
                 }
             }
             if (rolled) {
-                fs::copy_file(a_main, BackupPath(a_main, 1), fs::copy_options::overwrite_existing, ec);
-                if (ec) {
-                    a_mainWhy = "the backup copy failed: " + ec.message() + " (main written anyway); ";
+                // review Gemini 17: copied beside it, then renamed: a copy cut short never stands as backup 1
+                auto temp = BackupPath(a_main, 1);
+                temp += ".tmp";
+                fs::copy_file(a_main, temp, fs::copy_options::overwrite_existing, ec);
+                if (ec || !::MoveFileExW(temp.c_str(), BackupPath(a_main, 1).c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+                    a_mainWhy = (ec ? "the backup copy failed: " + ec.message() : "the backup rename failed (Windows error " +
+                                 std::to_string(::GetLastError()) + ")") + " (main written anyway); ";
+                    fs::remove(temp, ec);
                 }
             }
         }

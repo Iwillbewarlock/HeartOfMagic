@@ -114,8 +114,11 @@ namespace BlackFlame::SlotLedger
             if (!in) {
                 return std::nullopt;
             }
-            std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-            return bytes.size() == size ? std::optional(std::move(bytes)) : std::nullopt;
+            std::vector<unsigned char> bytes(static_cast<std::size_t>(size));  // one read of the known size
+            if (size > 0 && !in.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(size))) {
+                return std::nullopt;
+            }
+            return in.peek() == std::char_traits<char>::eof() ? std::optional(std::move(bytes)) : std::nullopt;  // grew since
         }
 
         // v3.3 #6: no ledger at all - the union of every co-save's BFSL in the save folder (under g_mutex)
@@ -123,9 +126,21 @@ namespace BlackFlame::SlotLedger
         {
             std::error_code ec;
             std::size_t seen = 0;
-            for (const auto& item : fs::directory_iterator(g_status.saveFolder, ec)) {
+            // review Gemini / agy 16: increment(ec), never the throwing operator++; a co-save that cannot be stat'ed is unread
+            for (auto it = fs::directory_iterator(g_status.saveFolder, ec); !ec && it != fs::directory_iterator(); it.increment(ec)) {
+                const auto& item = *it;
+                if (_wcsicmp(item.path().extension().c_str(), L".skse") != 0) {
+                    continue;
+                }
                 std::error_code fileError;
-                if (!item.is_regular_file(fileError) || _wcsicmp(item.path().extension().c_str(), L".skse") != 0) {
+                const bool regular = item.is_regular_file(fileError);
+                if (fileError) {
+                    ++g_status.coSavesBad;
+                    logger::warn("BlackFlame: slots: total loss: co-save '{}' could not be looked at: {}", Text(item.path()),
+                        fileError.message());
+                    continue;
+                }
+                if (!regular) {
                     continue;
                 }
                 if (++seen > kMaxCoSaves) {
@@ -162,7 +177,10 @@ namespace BlackFlame::SlotLedger
             std::string mainWhy;
             std::string mirrorWhy;
             const bool ok = SlotLedgerFiles::SaveAll(g_ledger, g_status.main, g_status.mirror, mainWhy, mirrorWhy, !g_rotated);
-            g_rotated = g_rotated || ok;
+            g_rotated = true;  // review agy 16 #4: one roll a session even when main's write failed after it (no second roll)
+            if (!ok) {
+                --g_ledger.version;  // what a BFSL records next is a version some file holds
+            }
             if (ok) {
                 logger::info("BlackFlame: slots: ledger version {} written ({}): {} slots{}{}", g_ledger.version, a_reason,
                     g_ledger.entries.size(), mainWhy.empty() ? "" : "; " + mainWhy, mirrorWhy.empty() ? "" : "; " + mirrorWhy);
@@ -280,8 +298,8 @@ namespace BlackFlame::SlotLedger
         // The co-save beside a save named by kPreLoadGame's data: a bare name, a name with .ess, or a full path
         fs::path CoSavePathFor(std::string a_name)
         {
-            while (!a_name.empty() && a_name.back() == '\0') {
-                a_name.pop_back();
+            if (const auto nul = a_name.find('\0'); nul != std::string::npos) {
+                a_name.resize(nul);  // the name ends at its first NUL (a fixed buffer may hold more after it)
             }
             if (a_name.size() > kSaveExtension.size() && EndsWithName(a_name, kSaveExtension)) {
                 a_name.resize(a_name.size() - kSaveExtension.size());
@@ -421,7 +439,7 @@ namespace BlackFlame::SlotLedger
         logger::info("BlackFlame: slots: co-save registered (unique id 'HBFS', record BFSL v{})", SlotCoSave::kVersion);
     }
 
-    void OnPreLoadGame(const void* a_data, std::uint32_t a_length)
+    static void PreLoadGame(const void* a_data, std::uint32_t a_length)
     {
         fs::path coSave;
         {
@@ -433,19 +451,19 @@ namespace BlackFlame::SlotLedger
         }
         const bool refill = GetConfig().slotPreflight;
         std::error_code ec;
-        if (!fs::exists(coSave, ec)) {
+        const bool exists = fs::exists(coSave, ec);
+        if (!exists && !ec) {
             logger::info("BlackFlame: slots: preflight: no co-save at '{}' (the message's name was {} bytes): nothing to compare",
                 Text(coSave), a_length);
             return;
         }
-        const auto bytes = ReadFile(coSave, kMaxCoSaveBytes);
+        const auto bytes = exists ? ReadFile(coSave, kMaxCoSaveBytes) : std::nullopt;
         const auto read = bytes ? CoSaveFile::ReadBfsl(bytes->data(), bytes->size()) : CoSaveFile::BfslRead{};
         if (read.state == CoSaveFile::BfslState::kBad) {
-            logger::warn("BlackFlame: slots: preflight: '{}' could not be read whole ({}){}", Text(coSave), bytes ? read.why : "not opened",
-                refill ? ": every gate closes" : " (slotPreflight off: only logged)");
-            if (refill) {
-                CallHandler({}, MismatchWhen::kUnreadable);
-            }
+            // review Gemini 16: fail closed whatever slotPreflight says (the load callback may never see a record either)
+            logger::warn("BlackFlame: slots: preflight: '{}' could not be read whole ({}): every gate closes", Text(coSave),
+                ec ? "it could not be looked at: " + ec.message() : bytes ? read.why : std::string("not opened"));
+            CallHandler({}, MismatchWhen::kUnreadable);
             return;
         }
         if (read.state != CoSaveFile::BfslState::kRead) {
@@ -471,6 +489,19 @@ namespace BlackFlame::SlotLedger
         }
     }
 
+    void OnPreLoadGame(const void* a_data, std::uint32_t a_length)
+    {
+        try {  // review agy 10 #2: a throw here would skip the rest of Main's kPreLoadGame handling
+            PreLoadGame(a_data, a_length);
+        } catch (const std::exception& e) {
+            logger::error("BlackFlame: slots: preflight threw ({}): every gate closes", e.what());
+            CallHandler({}, MismatchWhen::kUnreadable);
+        } catch (...) {
+            logger::error("BlackFlame: slots: preflight threw an exception of an unknown type: every gate closes");
+            CallHandler({}, MismatchWhen::kUnreadable);
+        }
+    }
+
     LoadedSave LastLoadedSave()
     {
         std::lock_guard lock(g_mutex);
@@ -493,7 +524,9 @@ namespace BlackFlame::SlotLedger
             std::uint32_t ReadRecordData(void* a_d, std::uint32_t a_n)
             {
                 const auto n = (std::min)(static_cast<std::size_t>(a_n), bytes.size() - at);
-                std::memcpy(a_d, bytes.data() + at, n);
+                if (n > 0) {
+                    std::memcpy(a_d, bytes.data() + at, n);
+                }
                 at += n;
                 return static_cast<std::uint32_t>(n);
             }

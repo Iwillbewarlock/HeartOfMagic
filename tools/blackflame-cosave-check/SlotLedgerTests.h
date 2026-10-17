@@ -7,9 +7,11 @@
 
 #include "../../plugins/BlackFlame/src/SlotLedgerFiles.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -28,6 +30,13 @@ namespace SlotLedgerTests
             { CC::SlotType::kTXST, std::string("\xB8\xB6\xB9\xFD.esp"), 0x801, true } };
     }
 
+    // A slot's state, nullopt when the slot is not there (review Gemini 22: a check that never dereferences null)
+    inline std::optional<LM::State> StateOf(const LM::Ledger& a_ledger, std::uint16_t a_slot)
+    {
+        const auto* entry = LM::FindSlot(a_ledger, a_slot);
+        return entry ? std::optional<LM::State>(entry->state) : std::nullopt;
+    }
+
     inline bool SameEntries(const LM::Ledger& a_lhs, const LM::Ledger& a_rhs)
     {
         if (a_lhs.epoch != a_rhs.epoch || a_lhs.version != a_rhs.version || a_lhs.sessions != a_rhs.sessions ||
@@ -40,6 +49,13 @@ namespace SlotLedgerTests
             if (l.slot != r.slot || l.type != r.type || l.plugin != r.plugin || l.localId != r.localId || l.state != r.state ||
                 l.since != r.since || l.conflict != r.conflict || l.terminal != r.terminal || l.published.size() != r.published.size() ||
                 l.parseFailures.size() != r.parseFailures.size()) {
+                return false;
+            }
+            // review Gemini 22: the parse failures' keys and values, not only how many
+            if (!std::equal(l.parseFailures.begin(), l.parseFailures.end(), r.parseFailures.begin(), [](const auto& a_a, const auto& a_b) {
+                    return a_a.first == a_b.first && a_a.second.count == a_b.second.count &&
+                           a_a.second.lastSession == a_b.second.lastSession;
+                })) {
                 return false;
             }
             for (std::size_t j = 0; j < l.published.size(); ++j) {
@@ -81,7 +97,7 @@ namespace SlotLedgerTests
         a_check(fourth.slots[1] == 0x802, "ledger: a new source never takes a tombstone's slot (0x801 kept, 0x802 given)");
 
         const auto fifth = LM::Assign(ledger, wants, true, 5);
-        a_check(fifth.slots[1] == 0x801 && fifth.reactivated >= 1 && LM::FindSlot(ledger, 0x801)->state == LM::State::kActive,
+        a_check(fifth.slots[1] == 0x801 && fifth.reactivated >= 1 && StateOf(ledger, 0x801) == LM::State::kActive,
             "ledger: the source back in the closure gets its own slot back (tombstone re-activated)");
 
         LM::Ledger refused;
@@ -106,7 +122,7 @@ namespace SlotLedgerTests
         flipped.txstDodt = false;  // a mod removed the source's DODT: the stubbed slot no longer fits
         const auto moved = LM::Assign(decals, { flipped, withoutDodt }, true, 2);
         a_check(split.slots[0] == 0xEA0 && split.slots[1] == 0xEE8 && moved.slots[0] == 0xEE9 && moved.slots[1] == 0xEE8 &&
-                    LM::FindSlot(decals, 0xEA0)->state == LM::State::kTombstone,
+                    StateOf(decals, 0xEA0) == LM::State::kTombstone,
             "ledger: a TXST with DODT takes a stubbed slot (ea0), one without the first unstubbed (ee8); a source whose DODT went "
             "away moves to an unstubbed slot and its old one stays reserved");
 
@@ -136,7 +152,7 @@ namespace SlotLedgerTests
             "ledger: a merge adds the other ledger's reservations and refuses one slot bound to two sources, naming both (" +
                 (conflicts.empty() ? std::string() : conflicts[0]) + ")");
         const auto after = LM::Assign(mine, { { CC::SlotType::kPROJ, "B.esp", 2 } }, true, 2);
-        a_check(after.slots[0] && *after.slots[0] == 0x803 && LM::FindSlot(mine, 0x801)->state == LM::State::kConflict,
+        a_check(after.slots[0] && *after.slots[0] == 0x803 && StateOf(mine, 0x801) == LM::State::kConflict,
             "ledger: a conflict slot is never given out again; its source gets a new one");
 
         LM::Ledger two;
@@ -151,7 +167,7 @@ namespace SlotLedgerTests
         std::vector<std::string> none;
         (void)LM::Merge(two, moved, none, "the mirror");
         const auto pick = LM::Assign(two, { { CC::SlotType::kPROJ, "A.esp", 1 } }, true, 2);
-        a_check(pick.slots[0] == 0x800 && LM::FindSlot(two, 0x801)->state == LM::State::kTombstone && none.empty(),
+        a_check(pick.slots[0] == 0x800 && StateOf(two, 0x801) == LM::State::kTombstone && none.empty(),
             "ledger: a source two ledgers placed in two slots keeps the lower one; the other stays reserved as a tombstone");
     }
 
@@ -163,7 +179,12 @@ namespace SlotLedgerTests
         ledger.version = 9;
         ledger.sessions = 3;
         (void)LM::Assign(ledger, Wants(), true, 2);
-        auto& proj = *LM::FindSlot(ledger, 0x800);
+        auto* projSlot = LM::FindSlot(ledger, 0x800);
+        if (!projSlot) {
+            a_check(false, "ledger: Assign gave slot 0x800 (needed by the JSON tests)");
+            return;
+        }
+        auto& proj = *projSlot;
         LM::SetPublished(proj, { LM::Role::kModel, 0x1111, "format=BFK3|kind=model", "meshes\\heartofmagic\\blackflame\\copies\\0000000000001111\\copy.nif",
                                     100, 0x22, { { true, 40000, "", 0 }, { false, 0, "textures\\fx\\a.dds", 0x33 } } });
         LM::SetPublished(proj, { LM::Role::kMuzzle, 0x4444, "", "meshes\\heartofmagic\\blackflame\\copies\\0000000000004444\\copy.nif", 5, 0x55, {} });
@@ -221,6 +242,10 @@ namespace SlotLedgerTests
         a_check(trip && LM::Compare(ledger, read).empty() && read.slots.size() == ledger.entries.size(),
             "ledger: the session's pairs survive the BFSL record (write, read, compare: no mismatch)");
         auto other = read;
+        if (other.slots.size() < 2) {
+            a_check(false, "ledger: the BFSL round trip gave two slots (needed by the save tests)");
+            return;
+        }
         other.slots[1].plugin = "Else.esp";
         other.slots.push_back({ 0xBC0, CC::SlotType::kEXPL, "New.esp", 5 });
         const auto mismatches = LM::Compare(ledger, other);
@@ -308,11 +333,13 @@ namespace SlotLedgerTests
         LM::Ledger other = ledger;
         other.epoch = 78;
         other.version = 1;
-        LM::FindSlot(other, 0x800)->plugin = "Cur.esp";
+        if (auto* bound = LM::FindSlot(other, 0x800)) {
+            bound->plugin = "Cur.esp";
+        }
         std::vector<std::string> conflicts;
         LM::Ledger mine = ledger;
         (void)LM::Merge(mine, other, conflicts, "another epoch");
-        a_check(conflicts.size() == 1 && LM::FindSlot(mine, 0x800)->state == LM::State::kConflict,
+        a_check(conflicts.size() == 1 && StateOf(mine, 0x800) == LM::State::kConflict,
             "review D1: another epoch's binding of the slot stays a conflict");
 
         // mirror of another epoch (another profile's) is not merged
@@ -350,8 +377,77 @@ namespace SlotLedgerTests
         wide["slots"][0]["published"] = LM::Json::array({ { { "role", "model" }, { "key", CC::Hex16(1) },
             { "path", "meshes\\heartofmagic\\blackflame\\copies\\0000000000000001\\copy.nif" }, { "bytes", std::uint64_t{ 1 } }, { "fnv64", CC::Hex16(2) },
             { "deps", LM::Json::array({ { { "addn", 40000ull + (1ull << 32) } } }) } } });
-        a_check(dropped && LM::FindSlot(*dropped, 0x800)->published.empty() && !LM::FromJson(wide, why),
+        a_check(dropped && LM::FindSlot(*dropped, 0x800) && LM::FindSlot(*dropped, 0x800)->published.empty() && !LM::FromJson(wide, why),
             "review OCR DC4/DC7: a published path that is no copy path is dropped; an addn dep of 2^32 + 40000 is refused");
+        fs::remove_all(folder, ec);
+    }
+
+    // Review fixes, second round (Gemini and agy Opus, 2026-10-18)
+    template <class Check>
+    void RunReviewFixes2(Check&& a_check)
+    {
+        std::error_code ec;
+        const auto folder = fs::temp_directory_path(ec) / ("blackflame-cosave-check-r2-" + std::to_string(::GetCurrentProcessId()));
+        fs::remove_all(folder, ec);
+        fs::create_directories(folder / "mirror", ec);
+        const auto main = folder / "HoMBF_slots.json";
+        const auto mirror = folder / "mirror" / "HoMBF_slots.0000abcd.json";
+        const auto write = [&](const fs::path& a_file, const LM::Ledger& a_ledger) {
+            std::string why;
+            return LF::WriteReplacing(a_file, LM::ToJson(a_ledger).dump(1) + "\n", why);
+        };
+
+        // Gemini 17: main (v11) lacks slot 0x801; the mirror (v10) binds it to Mirror.esp, backup 5 (v6) to Old.esp. The
+        // newer file's binding must win (files merged newest first), with no conflict
+        LM::Ledger base;
+        base.epoch = 90;
+        (void)LM::Assign(base, { { CC::SlotType::kPROJ, "Base.esp", 1 } }, true, 1);
+        LM::Ledger newer = base;
+        LM::Ledger older = base;
+        LM::Entry mirrored;
+        mirrored.slot = 0x801;
+        mirrored.type = CC::SlotType::kPROJ;
+        mirrored.plugin = "Mirror.esp";
+        mirrored.localId = 2;
+        mirrored.since = 1;
+        LM::Entry old = mirrored;
+        old.plugin = "Old.esp";
+        old.localId = 3;
+        LM::Insert(newer, mirrored);
+        LM::Insert(older, old);
+        base.version = 11;
+        newer.version = 10;
+        older.version = 6;
+        const bool written = write(main, base) && write(mirror, newer) && write(LF::BackupPath(main, 5), older);
+        const auto loaded = LF::LoadAll(main, mirror);
+        const auto* slot = loaded.ledger ? LM::FindSlot(*loaded.ledger, 0x801) : nullptr;
+        a_check(written && slot && slot->plugin == "Mirror.esp" && loaded.conflicts.empty(),
+            "review Gemini 17: a slot main lacks takes the newest other file's binding (mirror v10 over backup 5 v6), no conflict");
+
+        // Gemini 18: a conflict text with bytes outside printable ASCII comes back as it was
+        LM::Ledger conflicted = base;
+        conflicted.entries[0].state = LM::State::kConflict;
+        conflicted.entries[0].conflict = std::string("\xB8\xB6.esp|801");
+        std::string why;
+        const auto back = LM::FromJson(LM::ToJson(conflicted), why);
+        a_check(back && back->entries.size() == 1 && back->entries[0].conflict == conflicted.entries[0].conflict,
+            "review Gemini 18: a non-ASCII conflict text survives the JSON (conflictHex) " + why);
+
+        // Gemini 18: a field that is there but damaged refuses the file (the caller then reads a backup)
+        auto badSince = LM::ToJson(base);
+        badSince["slots"][0]["since"] = "three";
+        auto badTerminal = LM::ToJson(base);
+        badTerminal["slots"][0]["terminal"] = LM::Json::array({ "not a key" });
+        auto badFailure = LM::ToJson(base);
+        badFailure["slots"][0]["parseFailures"] = LM::Json::array({ { { "key", CC::Hex16(5) }, { "count", std::uint64_t{ 1 } } } });
+        std::string w1;
+        std::string w2;
+        std::string w3;
+        const bool sinceRefused = !LM::FromJson(badSince, w1);
+        const bool terminalRefused = !LM::FromJson(badTerminal, w2);
+        const bool failureRefused = !LM::FromJson(badFailure, w3);
+        a_check(sinceRefused && terminalRefused && failureRefused,
+            "review Gemini 18: a damaged since, terminal key or parse failure (no session) refuses the ledger: " + w1 + "; " + w2 + "; " + w3);
         fs::remove_all(folder, ec);
     }
 
@@ -363,5 +459,6 @@ namespace SlotLedgerTests
         RunJsonAndSaves(a_check);
         RunFiles(a_check);
         RunReviewFixes(a_check);
+        RunReviewFixes2(a_check);
     }
 }

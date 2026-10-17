@@ -5,14 +5,15 @@
 // =============================================================================
 // { "format": 1, "epoch": "<16 hex>", "version": n, "sessions": n, "slots": [
 //     { "slot": "800", "type": "PROJ", "plugin": "Skyrim.esm" | "pluginHex": "<bytes as hex>", "localId": "10fbed",
-//       "state": "active|tombstone|conflict", "since": n, ["conflict": "plugin|id"],
+//       "state": "active|tombstone|conflict", "since": n, ["conflict": "plugin|id" | "conflictHex": "<bytes as hex>"],
 //       "published": [ { "role": "model|muzzle|mps|txst", "key": "<16 hex>", "keyString": "...", "path": "...", "bytes": n,
 //                        "fnv64": "<16 hex>",
 //                        "deps": [ { "path": "...", "fnv64": "<16 hex>" } | { "addn": 40012 } ] } ],
 //       "parseFailures": [ { "key": "<16 hex>", "count": n, "session": n } ], "terminal": [ "<16 hex>" ] } ] }
 // A plugin name with a byte outside printable ASCII is written as pluginHex (JSON text must be UTF-8; the engine's names are
-// the system code page's bytes). FromJson is strict: an unknown format, a slot outside its type's pool, a slot twice, or a
-// field of the wrong kind refuses the whole file (the caller then reads a backup or the mirror).
+// the system code page's bytes); a conflict text likewise as conflictHex. FromJson is strict: an unknown format, a slot
+// outside its type's pool, a slot twice, or a field that is there but of the wrong kind (since, conflict, keyString, a
+// parse failure, a terminal key) refuses the whole file (the caller then reads a backup or the mirror).
 
 #include "SlotLedgerModel.h"
 
@@ -143,7 +144,8 @@ namespace BlackFlame::SlotLedgerModel
             item["state"] = StateText(entry.state);
             item["since"] = entry.since;
             if (!entry.conflict.empty()) {
-                item["conflict"] = PrintableAscii(entry.conflict) ? entry.conflict : CC::LowerHex(entry.conflict);
+                item[PrintableAscii(entry.conflict) ? "conflict" : "conflictHex"] =
+                    PrintableAscii(entry.conflict) ? entry.conflict : CC::LowerHex(entry.conflict);  // review Gemini 18: read back
             }
             item["published"] = Json::array();
             for (const auto& object : entry.published) {
@@ -221,9 +223,25 @@ namespace BlackFlame::SlotLedgerModel
             } else {
                 return refuse("slot " + HexId(entry.slot) + ": unknown state");
             }
-            entry.since = Count(item, "since").value_or(0);
-            if (const auto conflict = item.find("conflict"); conflict != item.end() && conflict->is_string()) {
+            // review Gemini 18: a field that is there must be of its kind (a damaged entry is no silent 0)
+            if (item.contains("since")) {
+                const auto since = Count(item, "since");
+                if (!since) {
+                    return refuse("slot " + HexId(entry.slot) + ": since is not a count");
+                }
+                entry.since = *since;
+            }
+            if (const auto conflict = item.find("conflict"); conflict != item.end()) {
+                if (!conflict->is_string()) {
+                    return refuse("slot " + HexId(entry.slot) + ": conflict is not text");
+                }
                 entry.conflict = conflict->get<std::string>();
+            } else if (const auto hex = item.find("conflictHex"); hex != item.end()) {
+                const auto bytes = hex->is_string() ? DataPathRule::FromHex(hex->get<std::string>()) : std::nullopt;
+                if (!bytes) {
+                    return refuse("slot " + HexId(entry.slot) + ": conflictHex is not hex");
+                }
+                entry.conflict = *bytes;
             }
             if (const auto published = item.find("published"); published != item.end()) {
                 if (!published->is_array()) {
@@ -243,7 +261,10 @@ namespace BlackFlame::SlotLedgerModel
                     object.key = *key;
                     object.fnv64 = *fnv;
                     object.path = p["path"].get<std::string>();
-                    if (const auto text = p.find("keyString"); text != p.end() && text->is_string()) {
+                    if (const auto text = p.find("keyString"); text != p.end()) {
+                        if (!text->is_string()) {
+                            return refuse("slot " + HexId(entry.slot) + ": a keyString is not text");
+                        }
                         object.keyText = text->get<std::string>();
                     }
                     object.bytes = p["bytes"].get<std::uint64_t>();
@@ -255,20 +276,30 @@ namespace BlackFlame::SlotLedgerModel
                     }
                 }
             }
-            if (const auto failures = item.find("parseFailures"); failures != item.end() && failures->is_array()) {
+            if (const auto failures = item.find("parseFailures"); failures != item.end()) {
+                if (!failures->is_array()) {
+                    return refuse("slot " + HexId(entry.slot) + ": parseFailures is not an array");
+                }
                 for (const auto& f : *failures) {
                     const auto key = f.is_object() && f.contains("key") ? Key(f["key"]) : std::nullopt;
                     const auto count = f.is_object() ? Count(f, "count") : std::nullopt;
-                    if (key && count) {
-                        entry.parseFailures[*key] = { *count, Count(f, "session").value_or(0) };
+                    const auto session = f.is_object() ? Count(f, "session") : std::nullopt;
+                    if (!key || !count || !session) {
+                        return refuse("slot " + HexId(entry.slot) + ": a parse failure is not valid");
                     }
+                    entry.parseFailures[*key] = { *count, *session };
                 }
             }
-            if (const auto terminal = item.find("terminal"); terminal != item.end() && terminal->is_array()) {
+            if (const auto terminal = item.find("terminal"); terminal != item.end()) {
+                if (!terminal->is_array()) {
+                    return refuse("slot " + HexId(entry.slot) + ": terminal is not an array");
+                }
                 for (const auto& t : *terminal) {
-                    if (const auto key = Key(t)) {
-                        entry.terminal.insert(*key);
+                    const auto key = Key(t);
+                    if (!key) {
+                        return refuse("slot " + HexId(entry.slot) + ": a terminal key is not 16 hex digits");
                     }
+                    entry.terminal.insert(*key);
                 }
             }
             if (FindSlot(ledger, entry.slot)) {
