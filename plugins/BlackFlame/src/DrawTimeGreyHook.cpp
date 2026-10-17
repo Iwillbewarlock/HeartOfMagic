@@ -5,16 +5,13 @@
 #include "Palette.h"
 #include "Patch.h"
 #include "SehGuard.h"
-#include "TrackedMutex.h"
 
 #ifndef NOMINMAX
 #    define NOMINMAX
 #endif
 #include <Windows.h>
 
-#include <algorithm>
 #include <array>
-#include <mutex>
 #include <chrono>
 #include <format>
 #include <string>
@@ -22,24 +19,19 @@
 // =============================================================================
 // DRAW-TIME GREY - the BSEffectShader SetupGeometry / RestoreGeometry hook (DrawTimeGrey.h)
 // =============================================================================
-// The palette slot is measured, not assumed: Community Shaders' Effect.hlsl declares TexGrayscaleSampler at t4, but
-// what the engine binds is read here - the one PSTexture[] index holding the player shape's own greyscale texture
-// view after the original SetupGeometry, agreed on by kSlotAgreement materials (MeasureSlot) (the engine binds material textures in SetupMaterial, vfunc 04, so a diff
-// across SetupGeometry alone would show nothing).
+// The palette slot is measured, not assumed (DrawTimeGreySlot.cpp): our view goes only into the slot the vote there
+// settled on, and only when that slot holds the shape's own palette view.
 
 namespace BlackFlame::DrawTime
 {
     namespace
     {
-        using ShadowData = RE::BSGraphics::RendererShadowState::FLAT_RUNTIME_DATA;  // VR is not built
-
         constexpr std::size_t kSetupGeometryIndex = 0x6;    // RE/B/BSShader.h: SetupGeometry
         constexpr std::size_t kRestoreGeometryIndex = 0x7;  // RE/B/BSShader.h: RestoreGeometry
         constexpr std::uint64_t kVtableSE = 305447;         // RE/Offsets_VTABLE.h VTABLE_BSEffectShader[0]
         constexpr std::uint64_t kVtableAE = 255194;
         constexpr std::uint64_t kShadowStateSE = 524773;    // RE/R/RendererShadowState.h GetSingleton
         constexpr std::uint64_t kShadowStateAE = 388819;
-        constexpr int kTextureSlots = 16;                   // RendererShadowState PSTexture[16]
         constexpr int kMaxOpenBinds = 4;                    // binds open on one thread at once (1 expected)
         constexpr int kThreadLogs = 8;
         constexpr int kHitLogs = 6;  // per root kind
@@ -47,9 +39,6 @@ namespace BlackFlame::DrawTime
         constexpr int kLeakLogs = 10;
         constexpr int kSameMaterialLogs = 6;
         constexpr int kMismatchLogs = 6;
-        constexpr int kSlotLogs = 8;
-        constexpr int kSlotAgreement = 3;           // distinct materials that must name the same slot before it is used
-        constexpr int kMaxMeasuredMaterials = 64;   // distinct eligible materials examined per buff-on, then no more
         constexpr double kNsPerUs = 1000.0;
 
         std::atomic<bool> g_installed{ false };
@@ -73,32 +62,9 @@ namespace BlackFlame::DrawTime
         std::atomic<int> g_leakLogs{ 0 };
         std::atomic<int> g_sameMaterialLogs{ 0 };
         std::atomic<int> g_mismatchLogs{ 0 };
-        std::atomic<int> g_slotLogs{ 0 };
         // Render hooks off for the session after a fault (their own flag: a kDisableStep Guarded would take
         // SehGuard's lock and build a std::string key on every pass once any step anywhere has faulted)
         std::atomic<bool> g_setupOff{ false };
-
-        // The slot vote: one candidate slot and the distinct materials that named it, and every eligible material
-        // examined (each looked at once). Under g_voteMutex: the render side try_locks, the buff-on reset locks
-        struct SlotVote
-        {
-            int candidate = -1;
-            std::array<const RE::BSShaderMaterial*, kSlotAgreement> materials{};
-            int agreed = 0;
-            std::array<const RE::BSShaderMaterial*, kMaxMeasuredMaterials> examined{};
-            int examinedCount = 0;
-        };
-        TrackedMutex g_voteMutex;
-        SlotVote g_vote;
-        std::atomic<int> g_examined{ 0 };  // g_vote.examinedCount, readable without the lock (the cap check)
-
-        // A log line is due while its counter is under the cap (read first, so the counter stops growing there and
-        // cannot wrap)
-        bool AllowLog(std::atomic<int>& a_counter, int a_cap)
-        {
-            return a_counter.load(std::memory_order_relaxed) < a_cap &&
-                   a_counter.fetch_add(1, std::memory_order_relaxed) < a_cap;
-        }
 
         // One open bind: what the slot held before ours, for that pass's RestoreGeometry
         struct OpenBind
@@ -139,11 +105,6 @@ namespace BlackFlame::DrawTime
                 std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
         }
 
-        std::uintptr_t Addr(const void* a_pointer)
-        {
-            return reinterpret_cast<std::uintptr_t>(a_pointer);
-        }
-
         // Puts back one open bind when the slot still holds ours
         void Close(ShadowData& a_state, const OpenBind& a_bind)
         {
@@ -164,69 +125,6 @@ namespace BlackFlame::DrawTime
             const auto* main = RE::Main::GetSingleton();
             logger::info("BlackFlame: draw-time grey: SetupGeometry on thread {} (stamped main thread {}, Main::threadID {})",
                 REX::W32::GetCurrentThreadId(), g_gameThreadNativeId.load(), main ? main->threadID : 0);
-        }
-
-        // The slot: the PSTexture[] index holding the shape's own greyscale view. Only a shape whose greyscale view is not
-        // also its source texture's (that would name the diffuse slot) and sits in exactly one slot votes; the slot is
-        // used once kSlotAgreement distinct materials named it. No allocation unless a line is logged
-        void MeasureSlot(const ShadowData& a_state, const Target& a_target)
-        {
-            if (g_examined.load(std::memory_order_relaxed) >= kMaxMeasuredMaterials) {
-                return;
-            }
-            if (!a_target.source || a_target.source == a_target.base || !a_target.material) {
-                return;  // not eligible: not counted
-            }
-            int found = -1;
-            int matches = 0;
-            int baseSlot = -1;
-            for (int i = 0; i < kTextureSlots; ++i) {
-                if (a_state.PSTexture[i] == a_target.source) {
-                    found = found < 0 ? i : found;
-                    ++matches;
-                }
-                if (a_target.base && baseSlot < 0 && a_state.PSTexture[i] == a_target.base) {
-                    baseSlot = i;
-                }
-            }
-            int agreed = 0;
-            bool locked = false;
-            {
-                std::unique_lock lock(g_voteMutex, std::try_to_lock);
-                if (!lock.owns_lock()) {
-                    return;  // another thread holds the vote: not counted, this pass waits for the next
-                }
-                auto& vote = g_vote;
-                const auto examinedEnd = vote.examined.begin() + vote.examinedCount;
-                if (vote.examinedCount >= kMaxMeasuredMaterials ||
-                    std::find(vote.examined.begin(), examinedEnd, a_target.material) != examinedEnd) {
-                    return;  // the cap, or this material was looked at already: not counted again
-                }
-                vote.examined[static_cast<std::size_t>(vote.examinedCount++)] = a_target.material;
-                g_examined.store(vote.examinedCount, std::memory_order_relaxed);
-                if (matches == 1) {
-                    if (vote.candidate != found) {
-                        // a different slot: the count starts again from this material (the examined list stays)
-                        vote.candidate = found;
-                        vote.materials = {};
-                        vote.agreed = 0;
-                    }
-                    if (vote.agreed < kSlotAgreement) {
-                        vote.materials[static_cast<std::size_t>(vote.agreed++)] = a_target.material;
-                    }
-                    if (vote.agreed >= kSlotAgreement) {
-                        int expected = -1;
-                        locked = CountersRef().slot.compare_exchange_strong(expected, found);
-                    }
-                }
-                agreed = vote.agreed;  // the real count, also for a material that did not vote
-            }
-            if (AllowLog(g_slotLogs, kSlotLogs)) {
-                logger::info("BlackFlame: draw-time grey: slot measure on material 0x{:X}: greyscale view 0x{:X} in {} PS "
-                             "slot(s), first {} (source texture view 0x{:X} in slot {}); votes {}/{}{}",
-                    Addr(a_target.material), Addr(a_target.source), matches, found, Addr(a_target.base), baseSlot, agreed,
-                    kSlotAgreement, locked ? std::format(" - slot {} in use from now on", found) : "");
-            }
         }
 
         // A pass not in the set: the NPC leak check and the first logs
@@ -542,7 +440,7 @@ namespace BlackFlame::DrawTime
                      "mismatch {}, NPC LEAKS {}, own grey palette passes {}, set {} geometries ({}) from {} roots, cost "
                      "setup {:.0f} us/s restore {:.0f} us/s rewalk {:.0f} us/s, snapshot seen {}, vtable slots {}{}",
             rate(totals.offMain, g_last.offMain), c.restores.load(), c.restoreChanged.load(), c.unpaired.load(),
-            c.leftAlone.load(), c.unmeasured.load(), g_examined.load(), kMaxMeasuredMaterials, c.slotMismatch.load(),
+            c.leftAlone.load(), c.unmeasured.load(), ExaminedMaterials(), kMaxMeasuredMaterials, c.slotMismatch.load(),
             c.propMismatch.load(), c.npcLeaks.load(), c.playerOwnPalette.load(), a_setSize, a_kinds, a_roots,
             rate(totals.setupNs, g_last.setupNs) / kNsPerUs,
             rate(totals.restoreNs, g_last.restoreNs) / kNsPerUs, rate(totals.rewalkNs, g_last.rewalkNs) / kNsPerUs,
@@ -557,16 +455,6 @@ namespace BlackFlame::DrawTime
         g_last = Totals{ c.passes.load(), c.passesOffMain.load(), c.playerHits.load(), c.binds.load(), c.setupNs.load(),
             c.restoreNs.load(), c.rewalkNs.load() };
         g_lastTime = std::chrono::steady_clock::now();
-    }
-
-    void ResetSlotVote()
-    {
-        if (CountersRef().slot.load() >= 0) {
-            return;  // measured: kept for the session
-        }
-        std::lock_guard lock(g_voteMutex);  // main thread; the render side only try_locks it
-        g_vote = SlotVote{};
-        g_examined.store(0, std::memory_order_relaxed);
     }
 
     bool InstallHook()

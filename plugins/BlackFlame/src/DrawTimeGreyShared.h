@@ -17,6 +17,22 @@
 namespace BlackFlame::DrawTime
 {
     using Srv = REX::W32::ID3D11ShaderResourceView;
+    using ShadowData = RE::BSGraphics::RendererShadowState::FLAT_RUNTIME_DATA;  // VR is not built
+
+    inline constexpr int kTextureSlots = 16;           // RendererShadowState PSTexture[16]
+    inline constexpr int kMaxMeasuredMaterials = 64;   // distinct eligible materials examined per buff-on, then no more
+
+    [[nodiscard]] inline std::uintptr_t Addr(const void* a_pointer) noexcept
+    {
+        return reinterpret_cast<std::uintptr_t>(a_pointer);
+    }
+
+    /// A log line is due while its counter is under the cap (read first, so the counter stops there and cannot wrap)
+    [[nodiscard]] inline bool AllowLog(std::atomic<int>& a_counter, int a_cap) noexcept
+    {
+        return a_counter.load(std::memory_order_relaxed) < a_cap &&
+               a_counter.fetch_add(1, std::memory_order_relaxed) < a_cap;
+    }
 
     /// What the palette of one player geometry is turned into
     enum class GreyKind : std::uint8_t
@@ -90,6 +106,13 @@ namespace BlackFlame::DrawTime
 
     /// Main thread, when the buff comes on: the next summary's rates count from now
     void StartSummaryWindow();
+
+    /// DrawTimeGreySlot.cpp. Render side, a player pass after the original SetupGeometry while the slot is unmeasured:
+    /// one vote (see that file)
+    void MeasureSlot(const ShadowData& a_state, const Target& a_target);
+
+    /// Distinct eligible materials examined since the last reset (the summary)
+    [[nodiscard]] int ExaminedMaterials() noexcept;
 
     /// Main thread, when the buff comes on: an unmeasured slot's vote and its examined-materials budget start again
     void ResetSlotVote();

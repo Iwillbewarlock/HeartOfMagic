@@ -90,6 +90,7 @@ set(BLACKFLAME_SOURCES
     src/SelfTestAim.cpp
     src/DrawTimeGreyHook.cpp
     src/DrawTimeGreySet.cpp
+    src/DrawTimeGreySlot.cpp
     ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/EncodingUtils.cpp
 )
 
