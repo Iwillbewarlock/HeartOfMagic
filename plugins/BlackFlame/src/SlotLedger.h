@@ -8,10 +8,11 @@
 //             false): the folder the game saves to (MO2 local saves included). CommonLib declares only the virtual (no
 //             source in its src/), so whether it adds an extension is unverified: the returned path must end with the name,
 //             else no slots this session (logged). Its folder is also where the saves' co-saves are looked for.
-//   mirror    <SKSE log folder>\HeartOfMagic_BlackFlame\HoMBF_slots.json
+//   mirror    <SKSE log folder>\HeartOfMagic_BlackFlame\HoMBF_slots.<8 hex>.json, the hash of the save folder's path (one
+//             per save folder, merged only on that folder's epoch)
 //   load      kDataLoaded: main, its 5 backups and the mirror merged (the union of reservations, conflicts refused and
-//             named). Total loss (none readable): the BFSL of every .skse in the save folder is read with CoSaveFile.h and
-//             the union taken; new assignments are refused this session when any co-save could not be read whole
+//             named). Main not readable, or total loss (none readable): the BFSL of every .skse in the save folder is read
+//             with CoSaveFile.h and the union taken (newest first); new assignments are refused this session when any co-save could not be read whole
 //   co-save   unique id 'HBFS', record BFSL v1 (SlotCoSave.h). Save: the ledger's pairs now (what the slots are filled
 //             from, and the save's pairs after a mismatch). Load: compared with what the forms were filled from this
 //             session; differing slots go to the mismatch handler (SlotAssign: gates closed, HUD line), the save's pairs
@@ -43,7 +44,7 @@ namespace BlackFlame::SlotLedger
     {
         bool available = false;   // a ledger is in use this session (read, rebuilt or new)
         bool totalLoss = false;   // no ledger file, backup or mirror was readable
-        bool allowNew = true;     // new slots may be assigned this session
+        bool allowNew = false;    // new slots may be assigned this session (Load sets it once the ledger path is known)
         std::string why;          // why not available, or why new slots are refused
         std::filesystem::path main;
         std::filesystem::path mirror;

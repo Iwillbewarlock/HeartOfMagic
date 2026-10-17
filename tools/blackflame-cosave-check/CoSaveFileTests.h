@@ -70,7 +70,14 @@ namespace CoSaveFileTests
     struct Writer
     {
         Bytes bytes;
-        bool OpenRecord(std::uint32_t, std::uint32_t) { return true; }
+        std::uint32_t type = 0;
+        std::uint32_t version = 0;
+        bool OpenRecord(std::uint32_t a_type, std::uint32_t a_version)
+        {
+            type = a_type;  // review agy redo 4.9: what Write opened is checked
+            version = a_version;
+            return true;
+        }
         bool WriteRecordData(const void* a_data, std::uint32_t a_size)
         {
             const auto* begin = static_cast<const unsigned char*>(a_data);
@@ -112,8 +119,12 @@ namespace CoSaveFileTests
             "co-save: a normal file (4 blocks, an empty record) walks to its end");
         const auto read = CF::ReadBfsl(normal.data(), normal.size());
         const auto sample = Co::Canonical(Sample());  // names stored lower-cased
-        a_check(read.state == CF::BfslState::kRead && read.snapshot.epoch == sample.epoch && read.snapshot.slots == sample.slots,
-            "co-save: the HBFS block's BFSL record reads back slot for slot");
+        a_check(read.state == CF::BfslState::kRead && read.snapshot.epoch == sample.epoch && read.snapshot.slots == sample.slots &&
+                    read.snapshot.ledgerVersion == sample.ledgerVersion,
+            "co-save: the HBFS block's BFSL record reads back slot for slot, its epoch and ledger version too");
+        Writer opened;
+        a_check(Co::Write(opened, Sample()) == Co::Result::Ok && opened.type == Co::kRecordType && opened.version == Co::kVersion,
+            "co-save: Write opens the record as BFSL of its version");
 
         int cutsRefused = 0;
         for (std::size_t n = 0; n < normal.size(); ++n) {
@@ -179,11 +190,15 @@ namespace CoSaveFileTests
         const auto twoFile = File(two);
         auto badData = Normal();
         badData[2].records[0].data = BfslData(Sample());
-        badData[2].records[0].data[16 + 2 + 10] = 0xFF;  // the first slot id's low byte: 0x8FF stays PROJ, so damage the type
-        badData[2].records[0].data[16 + 2 + 10 + 2] = 7;  // PROJ slot typed ADDN
+        constexpr std::size_t kFirstSlotType = 16 + 2 + 10 + 2;  // epoch, version, plugin count, "skyrim.esm" entry, slot id
+        if (badData[2].records[0].data.size() <= kFirstSlotType) {
+            a_check(false, "co-save: the sample BFSL record was written (needed for the damaged-type case)");
+            return;
+        }
+        badData[2].records[0].data[kFirstSlotType] = static_cast<std::uint8_t>(CC::SlotType::kADDN);  // the PROJ slot typed ADDN
         const auto badDataFile = File(badData);
         auto version2 = Normal();
-        version2[2].records[0].version = 2;
+        version2[2].records[0].version = Co::kVersion + 1;  // a version this reader does not know
         const auto version2File = File(version2);
         a_check(CF::ReadBfsl(noBlockFile.data(), noBlockFile.size()).state == CF::BfslState::kNoBlock,
             "co-save: a file without an HBFS block reads as no Black Flame block (nothing to repair)");

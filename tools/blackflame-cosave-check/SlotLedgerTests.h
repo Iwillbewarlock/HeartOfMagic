@@ -193,10 +193,23 @@ namespace SlotLedgerTests
         const bool terminal = LM::NoteParseFailure(proj, 0x6666, 3);
         a_check(firstFail && sameSession && terminal && proj.terminal.count(0x6666) == 1,
             "ledger: a parse failure counts once a session; the second session's makes the key terminal \"parse\"");
+        // review agy redo 2.1 / 6.1: a key string and a source dep path in the code page's bytes, through the text itself
+        LM::SetPublished(proj, { LM::Role::kModel, 0x1111, std::string("format=BFK3|path=meshes\\\xB8\xB6.nif"),
+                                    "meshes\\heartofmagic\\blackflame\\copies\\0000000000001111\\copy.nif", 100, 0x22,
+                                    { { true, 40000, "", 0 }, { false, 0, std::string("textures\\\xB8\xB6\\a.dds"), 0x33 } } });
         std::string why;
-        const auto back = LM::FromJson(LM::ToJson(ledger), why);
-        a_check(back && SameEntries(*back, ledger), "ledger: JSON round trip (published objects with deps, parse counts, a "
-            "non-ASCII plugin name as pluginHex) " + why);
+        std::string text;
+        std::optional<LM::Ledger> back;
+        try {
+            text = LM::ToJson(ledger).dump(1);
+            back = LM::FromJson(LM::Json::parse(text), why);
+        } catch (const LM::Json::exception& e) {
+            why = e.what();
+        }
+        a_check(back && SameEntries(*back, ledger) && text.find("pluginHex") != std::string::npos &&
+                    text.find("keyStringHex") != std::string::npos && text.find("pathHex") != std::string::npos,
+            "ledger: JSON round trip through its text (published objects with deps, parse counts; a non-ASCII plugin name, "
+            "key string and dep path as hex) " + why);
 
         auto badFormat = LM::ToJson(ledger);
         badFormat["format"] = 2;
@@ -260,7 +273,12 @@ namespace SlotLedgerTests
     void RunFiles(Check&& a_check)
     {
         std::error_code ec;
-        const auto folder = fs::temp_directory_path(ec) / ("blackflame-cosave-check-" + std::to_string(::GetCurrentProcessId()));
+        const auto temp = fs::temp_directory_path(ec);
+        if (ec || !temp.is_absolute()) {
+            a_check(false, "ledger file tests: no temporary folder (" + ec.message() + ")");
+            return;
+        }
+        const auto folder = temp / ("blackflame-cosave-check-" + std::to_string(::GetCurrentProcessId()));
         fs::remove_all(folder, ec);
         fs::create_directories(folder / "mirror", ec);
         const auto main = folder / "HoMBF_slots.json";
@@ -303,7 +321,12 @@ namespace SlotLedgerTests
     void RunReviewFixes(Check&& a_check)
     {
         std::error_code ec;
-        const auto folder = fs::temp_directory_path(ec) / ("blackflame-cosave-check-r-" + std::to_string(::GetCurrentProcessId()));
+        const auto temp = fs::temp_directory_path(ec);
+        if (ec || !temp.is_absolute()) {
+            a_check(false, "ledger review tests: no temporary folder (" + ec.message() + ")");
+            return;
+        }
+        const auto folder = temp / ("blackflame-cosave-check-r-" + std::to_string(::GetCurrentProcessId()));
         fs::remove_all(folder, ec);
         fs::create_directories(folder / "mirror", ec);
         const auto main = folder / "HoMBF_slots.json";
@@ -316,6 +339,8 @@ namespace SlotLedgerTests
         ledger.epoch = 77;
         ledger.version = 1;
         (void)LM::Assign(ledger, { { CC::SlotType::kPROJ, "Cur.esp", 1 } }, true, 1);
+        a_check(LM::FindSlot(ledger, 0x800) && LM::FindSlot(ledger, 0x800)->plugin == "Cur.esp",
+            "review fixtures: Cur.esp holds slot 0x800 before the save rebinds it (agy redo 6_01 #5)");
         (void)LF::SaveAll(ledger, main, mirror, w1, w2);
         Co::Slot save{ 0x800, CC::SlotType::kPROJ, "save.esp", 2 };
         LM::ApplySave(ledger, LM::Compare(ledger, { 77, 1, { save } }), 2);
@@ -350,22 +375,28 @@ namespace SlotLedgerTests
         std::string mirrorWhy;
         (void)LF::WriteReplacing(mirror, LM::ToJson(foreign).dump(), mirrorWhy);
         const auto withForeign = LF::LoadAll(main, mirror);
-        a_check(withForeign.ledger && withForeign.ledger->epoch == 77 && !LM::FindSlot(*withForeign.ledger, 0xDE0),
-            "review OCR DC2: a mirror of another epoch (another profile) is not merged");
+        const bool foreignAbsent = withForeign.ledger && std::none_of(withForeign.ledger->entries.begin(), withForeign.ledger->entries.end(),
+                                                             [](const LM::Entry& a_e) { return a_e.plugin == "Foreign.esp"; });
+        a_check(!foreign.entries.empty() && withForeign.ledger && withForeign.ledger->epoch == 77 && foreignAbsent,
+            "review OCR DC2: a mirror of another epoch (another profile) is not merged (no entry of Foreign.esp)");
 
         // an unreadable main is not rolled into .1
         const auto backupBefore = LF::ReadOne(LF::BackupPath(main, 1), w1);
         { std::ofstream cut(main, std::ios::binary | std::ios::trunc); cut << "{\"format\":1,"; }
         ledger.version = 4;
-        (void)LF::SaveAll(ledger, main, mirror, w1, w2);
-        const auto backupAfter = LF::ReadOne(LF::BackupPath(main, 1), w1);
-        a_check(backupBefore && backupAfter && backupAfter->version == backupBefore->version,
-            "review OCR DC3: a main that does not read is not copied over the newest backup");
+        const bool savedOverCut = LF::SaveAll(ledger, main, mirror, w1, w2);
+        std::string w3;
+        const auto backupAfter = LF::ReadOne(LF::BackupPath(main, 1), w3);
+        const auto mainAfter = LF::ReadOne(main, w3);
+        a_check(savedOverCut && mainAfter && mainAfter->version == 4 && backupBefore && backupAfter && backupAfter->version == backupBefore->version,
+            "review OCR DC3: a main that does not read is not copied over the newest backup, and main is written (v4)");
 
         // lead-byte-aware plugin names (code page 932: 0x83 0x41 and 0x83 0x61 are two characters)
         const auto cp932 = [](unsigned char a_byte) { return (a_byte >= 0x81 && a_byte <= 0x9F) || (a_byte >= 0xE0 && a_byte <= 0xFC); };
         a_check(!LM::SamePlugin("\x83\x41.esp", "\x83\x61.esp", cp932) && LM::SamePlugin("Ab\x83\x41.ESP", "ab\x83\x41.esp", cp932),
             "review Codex #2: plugin names fold ASCII case but never a double-byte character's trail byte");
+        a_check(LM::SamePlugin("a\x83", "A\x83", cp932) && !LM::SamePlugin("a\x83", "a", cp932),
+            "review agy redo 6_01 #10: a lead byte alone at the end is read safely (kept as it is)");
 
         // a published path that is not a copy path is dropped on load; an addn over 32 bits is refused
         auto json = LM::ToJson(ledger);
@@ -377,8 +408,17 @@ namespace SlotLedgerTests
         wide["slots"][0]["published"] = LM::Json::array({ { { "role", "model" }, { "key", CC::Hex16(1) },
             { "path", "meshes\\heartofmagic\\blackflame\\copies\\0000000000000001\\copy.nif" }, { "bytes", std::uint64_t{ 1 } }, { "fnv64", CC::Hex16(2) },
             { "deps", LM::Json::array({ { { "addn", 40000ull + (1ull << 32) } } }) } } });
-        a_check(dropped && LM::FindSlot(*dropped, 0x800) && LM::FindSlot(*dropped, 0x800)->published.empty() && !LM::FromJson(wide, why),
-            "review OCR DC4/DC7: a published path that is no copy path is dropped; an addn dep of 2^32 + 40000 is refused");
+        auto good = LM::ToJson(ledger);
+        good["slots"][0]["published"] = LM::Json::array({ { { "role", "model" }, { "key", CC::Hex16(1) },
+            { "path", "meshes\\heartofmagic\\blackflame\\copies\\0000000000000001\\copy.nif" }, { "bytes", std::uint64_t{ 1 } }, { "fnv64", CC::Hex16(2) },
+            { "deps", LM::Json::array({ { { "addn", 40000ull } } }) } } });
+        std::string goodWhy;
+        const auto kept = LM::FromJson(good, goodWhy);
+        const auto* keptSlot = kept ? LM::FindSlot(*kept, 0x800) : nullptr;
+        a_check(keptSlot && keptSlot->published.size() == 1 && dropped && LM::FindSlot(*dropped, 0x800) &&
+                    LM::FindSlot(*dropped, 0x800)->published.empty() && !LM::FromJson(wide, why),
+            "review OCR DC4/DC7: the same object with a copy path and addn 40000 is kept; with a path that is no copy path it "
+            "is dropped; with an addn dep of 2^32 + 40000 the ledger is refused " + goodWhy);
         fs::remove_all(folder, ec);
     }
 
@@ -387,7 +427,12 @@ namespace SlotLedgerTests
     void RunReviewFixes2(Check&& a_check)
     {
         std::error_code ec;
-        const auto folder = fs::temp_directory_path(ec) / ("blackflame-cosave-check-r2-" + std::to_string(::GetCurrentProcessId()));
+        const auto temp = fs::temp_directory_path(ec);
+        if (ec || !temp.is_absolute()) {
+            a_check(false, "ledger review tests: no temporary folder (" + ec.message() + ")");  // review agy redo 6_01 #6
+            return;
+        }
+        const auto folder = temp / ("blackflame-cosave-check-r2-" + std::to_string(::GetCurrentProcessId()));
         fs::remove_all(folder, ec);
         fs::create_directories(folder / "mirror", ec);
         const auto main = folder / "HoMBF_slots.json";
@@ -497,12 +542,66 @@ namespace SlotLedgerTests
         };
         std::vector<std::pair<std::string, LM::Ledger>> saves{ { "v9", save(9, "Nine.esp") }, { "v8", save(8, "Eight.esp") },
             { "v2", save(2, "Two.esp") } };
+        // review agy redo 6_01 #1: every order of the three
+        std::vector<std::size_t> order{ 0, 1, 2 };
+        bool everyOrder = true;
+        do {
+            LM::Ledger lostCopy = lost;
+            std::vector<std::pair<std::string, LM::Ledger>> shuffled;
+            for (const auto i : order) {
+                shuffled.push_back(saves[i]);
+            }
+            std::vector<std::string> orderConflicts;
+            LM::MergeCoSaves(lostCopy, shuffled, orderConflicts);
+            const auto* found = LM::FindSlot(lostCopy, 0x901);
+            everyOrder = everyOrder && found && found->plugin == "Nine.esp" && orderConflicts.empty() && lostCopy.version == 9;
+        } while (std::next_permutation(order.begin(), order.end()));
         std::vector<std::string> unionConflicts;
         LM::MergeCoSaves(lost, saves, unionConflicts);
         const auto* newest = LM::FindSlot(lost, 0x901);
-        a_check(newest && newest->plugin == "Nine.esp" && unionConflicts.empty() && lost.version == 9,
+        a_check(everyOrder && newest && newest->plugin == "Nine.esp" && unionConflicts.empty() && lost.version == 9,
             "review N2 / Codex 3 P2: co-saves of one epoch take the newest binding (v9 over v8 and v2, in any order), no "
             "conflict, and the ledger goes on from v9 (now v" + std::to_string(lost.version) + ")");
+
+        // agy redo 3.1 / 3.2: a conflict survives a same-source copy that holds it and a newer copy of the epoch
+        LM::Ledger calm;
+        calm.epoch = 93;
+        calm.version = 4;
+        LM::Entry plain;
+        plain.slot = 0x902;
+        plain.type = CC::SlotType::kPROJ;
+        plain.plugin = "Same.esp";
+        plain.localId = 1;
+        LM::Insert(calm, plain);
+        LM::Ledger claimed = calm;
+        claimed.entries[0].state = LM::State::kConflict;
+        claimed.entries[0].conflict = "Other.esp|1";
+        std::vector<std::string> keptConflicts;
+        (void)LM::Merge(calm, claimed, keptConflicts, "a copy of one version");
+        LM::Ledger newerCopy = calm;
+        newerCopy.version = 8;
+        newerCopy.entries[0] = plain;
+        newerCopy.entries[0].plugin = "Third.esp";
+        (void)LM::Merge(calm, newerCopy, keptConflicts, "a newer copy");
+        a_check(StateOf(calm, 0x902) == LM::State::kConflict && calm.entries[0].plugin == "Same.esp" && !keptConflicts.empty(),
+            "review agy redo 3.1 / 3.2: a conflict another copy holds is kept, and a newer copy of the epoch does not settle it");
+
+        // agy redo 1.3: with main readable, the base is of main's epoch (an older epoch's backup has a higher version)
+        {
+            const auto epochFolder = folder / "epochs";
+            fs::create_directories(epochFolder, ec);
+            const auto epochMain = epochFolder / "HoMBF_slots.json";
+            LM::Ledger fresh;
+            fresh.epoch = 200;
+            fresh.version = 2;
+            LM::Ledger stale;
+            stale.epoch = 100;
+            stale.version = 40;
+            const bool wrote = write(epochMain, fresh) && write(LF::BackupPath(epochMain, 3), stale);
+            const auto epochLoad = LF::LoadAll(epochMain, {});
+            a_check(wrote && epochLoad.ledger && epochLoad.ledger->epoch == 200,
+                "review agy redo 1.3: the base keeps main's epoch over an older epoch's backup with a higher version");
+        }
 
         // Codex 3 P1: the files an object stands on, its own and its copy deps' (not the ADDN slots)
         LM::Object standing{ LM::Role::kModel, 1, "", "meshes\\heartofmagic\\blackflame\\copies\\0000000000000001\\copy.nif", 4, 0x11,

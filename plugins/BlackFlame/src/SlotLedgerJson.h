@@ -10,20 +10,25 @@
 //                        "fnv64": "<16 hex>",
 //                        "deps": [ { "path": "...", "fnv64": "<16 hex>" } | { "addn": 40012 } ] } ],
 //       "parseFailures": [ { "key": "<16 hex>", "count": n, "session": n } ], "terminal": [ "<16 hex>" ] } ] }
-// A plugin name with a byte outside printable ASCII is written as pluginHex (JSON text must be UTF-8; the engine's names are
+// A plugin name with a byte outside printable ASCII is written as pluginHex, a key string or a dep path likewise as
+// keyStringHex / pathHex (JSON text must be UTF-8; the engine's names and paths are
 // the system code page's bytes); a conflict text likewise as conflictHex. FromJson is strict: an unknown format, a slot
 // outside its type's pool, a slot twice, or a field that is there but of the wrong kind (since, conflict, keyString, a
 // parse failure, a terminal key) refuses the whole file (the caller then reads a backup or the mirror).
 
 #include "SlotLedgerModel.h"
 
+#include <algorithm>
+#include <optional>
 #include <string>
+#include <string_view>
 
 namespace BlackFlame::SlotLedgerModel
 {
     namespace JsonDetail
     {
         inline constexpr unsigned char kFirstPrintable = 0x20;
+        inline constexpr std::size_t kMaxQuotedEntry = 200;  // how much of a refused entry a log line quotes
         inline constexpr unsigned char kLastPrintable = 0x7E;
 
         [[nodiscard]] inline bool PrintableAscii(std::string_view a_text) noexcept
@@ -85,7 +90,10 @@ namespace BlackFlame::SlotLedgerModel
         {
             Json deps = Json::array();
             for (const auto& dep : a_deps) {
-                deps.push_back(dep.isAddn ? Json{ { "addn", dep.addn } } : Json{ { "path", dep.path }, { "fnv64", CC::Hex16(dep.fnv64) } });
+                // review agy redo 2.1: a source path may hold the code page's bytes: hex, never raw text that dump() refuses
+                deps.push_back(dep.isAddn ? Json{ { "addn", dep.addn } } :
+                               PrintableAscii(dep.path) ? Json{ { "path", dep.path }, { "fnv64", CC::Hex16(dep.fnv64) } } :
+                                                          Json{ { "pathHex", CC::LowerHex(dep.path) }, { "fnv64", CC::Hex16(dep.fnv64) } });
             }
             return deps;
         }
@@ -100,8 +108,9 @@ namespace BlackFlame::SlotLedgerModel
                 if (!item.is_object()) {
                     return false;
                 }
+                const bool hasPath = item.contains("path") || item.contains("pathHex");
                 if (const auto addn = item.find("addn"); addn != item.end()) {
-                    if (!addn->is_number_unsigned() || addn->get<std::uint64_t>() > UINT32_MAX ||
+                    if (hasPath || item.contains("fnv64") || !addn->is_number_unsigned() || addn->get<std::uint64_t>() > UINT32_MAX ||
                         !CC::SlotOfAddnIndex(static_cast<std::uint32_t>(addn->get<std::uint64_t>()))) {
                         return false;
                     }
@@ -109,11 +118,23 @@ namespace BlackFlame::SlotLedgerModel
                     dep.addn = static_cast<std::uint32_t>(addn->get<std::uint64_t>());
                 } else {
                     const auto path = item.find("path");
+                    const auto hex = item.find("pathHex");
                     const auto fnv = item.find("fnv64");
-                    if (path == item.end() || !path->is_string() || fnv == item.end() || !Key(*fnv)) {
-                        return false;
+                    if ((path != item.end()) == (hex != item.end()) || fnv == item.end() || !Key(*fnv)) {
+                        return false;  // exactly one of path and pathHex
                     }
-                    dep.path = path->get<std::string>();
+                    if (path != item.end()) {
+                        if (!path->is_string()) {
+                            return false;
+                        }
+                        dep.path = path->get<std::string>();
+                    } else {
+                        const auto bytes = hex->is_string() ? DataPathRule::FromHex(hex->get<std::string>()) : std::nullopt;
+                        if (!bytes) {
+                            return false;
+                        }
+                        dep.path = *bytes;
+                    }
                     dep.fnv64 = *Key(*fnv);
                 }
                 a_out.push_back(std::move(dep));
@@ -149,9 +170,12 @@ namespace BlackFlame::SlotLedgerModel
             }
             item["published"] = Json::array();
             for (const auto& object : entry.published) {
-                item["published"].push_back({ { "role", RoleText(object.role) }, { "key", CC::Hex16(object.key) },
-                    { "keyString", object.keyText }, { "path", object.path }, { "bytes", object.bytes }, { "fnv64", CC::Hex16(object.fnv64) },
-                    { "deps", DepsJson(object.deps) } });
+                Json p{ { "role", RoleText(object.role) }, { "key", CC::Hex16(object.key) }, { "path", object.path },
+                    { "bytes", object.bytes }, { "fnv64", CC::Hex16(object.fnv64) }, { "deps", DepsJson(object.deps) } };
+                // review agy redo 2.1: a key string names source paths, which may hold the code page's bytes
+                p[PrintableAscii(object.keyText) ? "keyString" : "keyStringHex"] =
+                    PrintableAscii(object.keyText) ? object.keyText : CC::LowerHex(object.keyText);
+                item["published"].push_back(std::move(p));
             }
             item["parseFailures"] = Json::array();
             for (const auto& [key, failures] : entry.parseFailures) {
@@ -196,15 +220,25 @@ namespace BlackFlame::SlotLedgerModel
             const auto local = item.contains("localId") ? ParseHexId(item["localId"], SlotCoSave::kMaxSourceLocalId) : std::nullopt;
             const auto pool = slot ? CC::PoolOf(*slot) : std::nullopt;
             if (!slot || !type || !local || !pool || pool->type != *type) {
-                return refuse("a slot entry's slot, type or localId is not valid (" + item.dump() + ")");
+                auto text = item.dump();
+                if (text.size() > kMaxQuotedEntry) {
+                    text = text.substr(0, kMaxQuotedEntry) + "...";  // review agy redo 2.10
+                }
+                return refuse("a slot entry's slot, type or localId is not valid (" + text + ")");
             }
             entry.slot = static_cast<std::uint16_t>(*slot);
             entry.type = *type;
             entry.localId = *local;
-            if (const auto plugin = item.find("plugin"); plugin != item.end() && plugin->is_string()) {
+            const auto plugin = item.find("plugin");
+            const auto pluginHex = item.find("pluginHex");
+            if ((plugin != item.end() && !plugin->is_string()) || (pluginHex != item.end() && !pluginHex->is_string()) ||
+                (plugin != item.end() && pluginHex != item.end())) {
+                return refuse("slot " + HexId(entry.slot) + ": plugin / pluginHex not one text");  // review agy redo 2.6
+            }
+            if (plugin != item.end()) {
                 entry.plugin = plugin->get<std::string>();
-            } else if (const auto hex = item.find("pluginHex"); hex != item.end() && hex->is_string()) {
-                const auto bytes = DataPathRule::FromHex(hex->get<std::string>());
+            } else if (pluginHex != item.end()) {
+                const auto bytes = DataPathRule::FromHex(pluginHex->get<std::string>());
                 if (!bytes) {
                     return refuse("a slot entry's pluginHex is not hex");
                 }
@@ -254,18 +288,34 @@ namespace BlackFlame::SlotLedgerModel
                     const auto fnv = p.is_object() && p.contains("fnv64") ? Key(p["fnv64"]) : std::nullopt;
                     const auto path = p.is_object() && p.contains("path") && p["path"].is_string();
                     const bool known = role == "model" || role == "muzzle" || role == "mps" || role == "txst";
-                    if (!known || !key || !fnv || !path || !Count(p, "bytes") || !p.contains("deps") || !ReadDeps(p["deps"], object.deps)) {
+                    // review agy redo 2.3: bytes read as written (64 bits)
+                    const bool bytes = p.is_object() && p.contains("bytes") && p["bytes"].is_number_unsigned();
+                    if (!known || !key || !fnv || !path || !bytes || !p.contains("deps") || !ReadDeps(p["deps"], object.deps)) {
                         return refuse("slot " + HexId(entry.slot) + ": a published object is not valid");
                     }
                     object.role = role == "muzzle" ? Role::kMuzzle : role == "mps" ? Role::kMps : role == "txst" ? Role::kTxst : Role::kModel;
                     object.key = *key;
                     object.fnv64 = *fnv;
                     object.path = p["path"].get<std::string>();
-                    if (const auto text = p.find("keyString"); text != p.end()) {
+                    const auto text = p.find("keyString");
+                    const auto textHex = p.find("keyStringHex");
+                    if (text != p.end() && textHex != p.end()) {
+                        return refuse("slot " + HexId(entry.slot) + ": both keyString and keyStringHex");
+                    }
+                    if (text != p.end()) {
                         if (!text->is_string()) {
                             return refuse("slot " + HexId(entry.slot) + ": a keyString is not text");
                         }
                         object.keyText = text->get<std::string>();
+                    } else if (textHex != p.end()) {
+                        const auto keyBytes = textHex->is_string() ? DataPathRule::FromHex(textHex->get<std::string>()) : std::nullopt;
+                        if (!keyBytes) {
+                            return refuse("slot " + HexId(entry.slot) + ": a keyStringHex is not hex");
+                        }
+                        object.keyText = *keyBytes;
+                    }
+                    if (PublishedOf(entry, object.role)) {
+                        return refuse("slot " + HexId(entry.slot) + ": two published objects of one role");  // review agy redo 2.8
                     }
                     object.bytes = p["bytes"].get<std::uint64_t>();
                     // a path the DLL would hash, register and set as a model must be a copy path (a TXST object has none);
@@ -287,7 +337,9 @@ namespace BlackFlame::SlotLedgerModel
                     if (!key || !count || !session) {
                         return refuse("slot " + HexId(entry.slot) + ": a parse failure is not valid");
                     }
-                    entry.parseFailures[*key] = { *count, *session };
+                    if (!entry.parseFailures.emplace(*key, ParseFailures{ *count, *session }).second) {
+                        return refuse("slot " + HexId(entry.slot) + ": a parse failure key twice");  // review agy redo 2.8
+                    }
                 }
             }
             if (const auto terminal = item.find("terminal"); terminal != item.end()) {

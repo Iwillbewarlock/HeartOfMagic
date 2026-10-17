@@ -4,12 +4,14 @@
 // SLOT LEDGER FILES - HoMBF_slots.json, its 5 backups and its mirror on disk (no game types)
 // =============================================================================
 // Redundancy (design v3.2 §7): the ledger beside the saves (main), HoMBF_slots.1.json .. .5.json beside it (rolled at each
-// write, newest .1), and a mirror in <SKSE log folder>\HeartOfMagic_BlackFlame\. LoadAll reads every one that is there;
-// the base is the readable one with the highest version (main first on a tie), and every other readable one is merged into
-// it, newest first (SlotLedgerModel Merge: the union of reservations, conflicts named, an older copy of a binding stale) - so a lost or cut main loses nothing a backup or
-// the mirror still holds. SaveAll writes main through a temporary file and a replacing rename after rolling the backups
-// (main is copied to .1 first, so a crash at any point leaves a readable main or .1), then the mirror the same way.
-// C++17 std::filesystem and nlohmann only: blackflame-cosave-check tests it in a temporary folder.
+// write, newest .1), and a mirror per save folder in <SKSE log folder>\HeartOfMagic_BlackFlame\ (its name carries a hash
+// of the save folder's path). LoadAll reads every one that is there; the base is the readable one with the highest version
+// of main's epoch (any epoch when main does not read; main first on a tie), and every other readable one is merged into
+// it, newest first (SlotLedgerModel Merge: the union of reservations, conflicts named, an older copy of a binding stale) -
+// so a lost or cut main loses nothing a backup or the mirror still holds. SaveAll copies main beside backup 1, rolls the
+// backups, renames the copy in as backup 1, then writes main through a temporary file and a write-through rename, then the
+// mirror the same way. C++17 std::filesystem, nlohmann and the Win32 file API (FlushFileBuffers, MoveFileExW; Windows.h
+// comes from the including unit): blackflame-cosave-check tests it in a temporary folder.
 
 #include "SlotLedgerModel.h"
 
@@ -51,7 +53,12 @@ namespace BlackFlame::SlotLedgerFiles
     [[nodiscard]] inline std::optional<Ledger> ReadOne(const fs::path& a_file, std::string& a_why)
     {
         std::error_code ec;
-        if (!fs::exists(a_file, ec)) {
+        const bool exists = fs::exists(a_file, ec);
+        if (ec) {
+            a_why = "it could not be looked at: " + ec.message();  // review agy redo 1: an error is no missing file
+            return std::nullopt;
+        }
+        if (!exists) {
             a_why = "missing";
             return std::nullopt;
         }
@@ -128,9 +135,13 @@ namespace BlackFlame::SlotLedgerFiles
         if (reads.empty()) {
             return out;
         }
-        std::size_t base = 0;
-        for (std::size_t i = 1; i < reads.size(); ++i) {
-            if (reads[i].ledger.version > reads[base].ledger.version) {
+        // review agy redo 3: the base is of main's epoch when main reads (a new epoch restarts at a low version; an older
+        // epoch's backup with a higher version must not take the ledger back to that epoch); its files merge as usual
+        const auto mainRead = std::find_if(reads.begin(), reads.end(), [](const Read& a_read) { return a_read.what == "main"; });
+        std::size_t base = mainRead != reads.end() ? static_cast<std::size_t>(mainRead - reads.begin()) : 0;
+        for (std::size_t i = 0; i < reads.size(); ++i) {
+            const bool sameEpoch = mainRead == reads.end() || reads[i].ledger.epoch == mainRead->ledger.epoch;
+            if (sameEpoch && reads[i].ledger.version > reads[base].ledger.version) {
                 base = i;
             }
         }
@@ -172,9 +183,10 @@ namespace BlackFlame::SlotLedgerFiles
         const bool ok = a_text.size() <= MAXDWORD &&
                         ::WriteFile(file, a_text.data(), static_cast<DWORD>(a_text.size()), &written, nullptr) && written == a_text.size() &&
                         ::FlushFileBuffers(file);
+        const DWORD error = ok ? 0 : ::GetLastError();  // before CloseHandle can change it
         ::CloseHandle(file);
         if (!ok) {
-            a_why = "writing '" + PathText(temp) + "' failed";
+            a_why = "writing '" + PathText(temp) + "' failed (Windows error " + std::to_string(error) + ")";
             fs::remove(temp, ec);
             return false;
         }
@@ -200,31 +212,39 @@ namespace BlackFlame::SlotLedgerFiles
             return false;
         }
         std::error_code ec;
+        const bool mainThere = fs::exists(a_main, ec);
+        if (ec) {
+            a_mainWhy = "main could not be looked at (" + ec.message() + "): not written";  // review agy redo 1
+            return false;
+        }
         std::string mainNow;
         // an unreadable main is no backup: it would push a good one out
-        if (a_rotate && fs::exists(a_main, ec) && ReadOne(a_main, mainNow)) {
-            bool rolled = true;
+        if (a_rotate && mainThere && ReadOne(a_main, mainNow)) {
+            // review agy redo 4: main copied beside backup 1 first; only with that copy are the backups rolled (a failed
+            // copy leaves every backup where it was), and the copy is renamed in as backup 1 after the roll
+            auto copy = BackupPath(a_main, 1);
+            copy += ".tmp";
+            fs::copy_file(a_main, copy, fs::copy_options::overwrite_existing, ec);
+            bool rolled = !ec;
+            if (ec) {
+                a_mainWhy += "the backup copy failed (" + ec.message() + "): backups left as they were; ";
+            }
             for (int n = kBackups - 1; n >= 1 && rolled; --n) {
                 const auto from = BackupPath(a_main, n);
                 if (fs::exists(from, ec) && !::MoveFileExW(from.c_str(), BackupPath(a_main, n + 1).c_str(),
                                                 MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
                     rolled = false;  // stop at the first failure: no backup is overwritten out of order
-                    a_mainWhy = "the backups were not rolled (Windows error " + std::to_string(::GetLastError()) + "); ";
+                    a_mainWhy += "the backups were not rolled (Windows error " + std::to_string(::GetLastError()) + "); ";
                 }
             }
-            if (rolled) {
-                // review Gemini 17: copied beside it, then renamed: a copy cut short never stands as backup 1
-                auto temp = BackupPath(a_main, 1);
-                temp += ".tmp";
-                fs::copy_file(a_main, temp, fs::copy_options::overwrite_existing, ec);
-                if (ec || !::MoveFileExW(temp.c_str(), BackupPath(a_main, 1).c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
-                    a_mainWhy = (ec ? "the backup copy failed: " + ec.message() : "the backup rename failed (Windows error " +
-                                 std::to_string(::GetLastError()) + ")") + " (main written anyway); ";
-                    fs::remove(temp, ec);
-                }
+            if (rolled && !::MoveFileExW(copy.c_str(), BackupPath(a_main, 1).c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+                a_mainWhy += "the backup rename failed (Windows error " + std::to_string(::GetLastError()) + "); ";
             }
+            fs::remove(copy, ec);  // gone already after the rename
         }
-        const bool mainOk = WriteReplacing(a_main, text, a_mainWhy);
+        std::string writeWhy;  // review agy redo 5: what the roll said is kept
+        const bool mainOk = WriteReplacing(a_main, text, writeWhy);
+        a_mainWhy += writeWhy;
         if (!a_mirror.empty() && !WriteReplacing(a_mirror, text, a_mirrorWhy)) {
             a_mirrorWhy = "mirror: " + a_mirrorWhy;
         }
