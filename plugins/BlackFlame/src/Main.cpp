@@ -17,6 +17,7 @@
 #include "CopyRequest.h"
 #include "CopySwap.h"
 #include "DevAutomation.h"
+#include "DrawTimeGrey.h"
 #include "EffectEvents.h"
 #include "ExplosionHook.h"
 #include "FireSet.h"
@@ -96,6 +97,7 @@ namespace
         guarded("InstallImpactSwap", [] { BlackFlame::InstallImpactSwap(); });
         guarded("InstallCopySwaps", [] { BlackFlame::InstallCopySwaps(); });  // v2: after the copies are filled (CopySwap.h)
         guarded("InstallHazardSwap", [] { BlackFlame::InstallHazardSwap(); });
+        guarded("InstallDrawTimeGrey", [] { BlackFlame::InstallDrawTimeGrey(); });  // dev spike, devDrawTimeGrey (DrawTimeGrey.h)
         guarded("RunGreyCheck", [] { BlackFlame::RunGreyCheck(); });
         guarded("Tester::WriteStartup", [] { BlackFlame::Tester::WriteStartup(); });  // every hook's state, the copies
         guarded("DevAutomation::Install", [] { BlackFlame::DevAutomation::Install(); });  // dev only (DevAutomation.h)
@@ -115,6 +117,7 @@ namespace
         BlackFlame::ResetExplosionState();
         BlackFlame::ResetCasterArt();
         BlackFlame::ResetRecolorState();
+        BlackFlame::ResetDrawTimeGrey();
     }
 
     // Layers first, then the self-test abort (which does not touch the old handles either); each in

@@ -59,6 +59,7 @@ namespace BlackFlame
         std::string devAutoLoad;   // a save name without extension: loaded once, 5 s after the main menu first opens
         bool devAutoE3 = false;    // E3's save and load done by the plugin
         bool devAutoQuit = false;  // the game quits 10 s after the self-test (and E3) ended, or 6 min after a load at most
+        bool devDrawTimeGrey = false;  // dev spike (DrawTimeGrey.h): our palette bound at draw time for the player's geometries
         float selfTestDelaySeconds = 30.0f;  // C1: unpaused play after a load before the self-test starts (E3 judges after its own 1.5 s, H5)
         RE::NiColor lightColor{ 0.25f, 0.22f, 0.28f };
     };

@@ -53,6 +53,7 @@ namespace BlackFlame
             BoolKey{ "testerMode", &Config::testerMode },
             BoolKey{ "devAutoE3", &Config::devAutoE3 },
             BoolKey{ "devAutoQuit", &Config::devAutoQuit },
+            BoolKey{ "devDrawTimeGrey", &Config::devDrawTimeGrey },
         };
 
         // C6: keys of the retired runtime recolour (and burnMode before it). An old json keeps loading: each is logged

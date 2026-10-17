@@ -7,6 +7,7 @@
 #include "Attribution.h"
 #include "BuffState.h"
 #include "Config.h"
+#include "DrawTimeGrey.h"
 #include "FireSet.h"
 #include "CopySwap.h"
 #include "FormCopies.h"
@@ -273,6 +274,9 @@ namespace BlackFlame
                                   (casterSpell->GetSpellType() == SpellType::kSpell && IsFireSpell(casterSpell)) ||
                                   casterSpell->GetSpellType() == SpellType::kEnchantment;
             const bool notFireCast = !fireCast;
+            if (byPlayer && fireCast) {
+                NotePlayerRef(a_explosion, "explosion");  // dev spike: before the light and log early-outs below
+            }
             if (byPlayer && notFireCast) {
                 int suppressed = 0;
                 if (LogLimit::Allow("explosion skipped", casterSpell->GetFormID(), suppressed)) {

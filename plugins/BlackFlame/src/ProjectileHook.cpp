@@ -5,6 +5,7 @@
 #include "Attribution.h"
 #include "BuffState.h"
 #include "Config.h"
+#include "DrawTimeGrey.h"
 #include "FireSet.h"
 #include "FormCopies.h"
 #include "GameThread.h"
@@ -156,6 +157,9 @@ namespace BlackFlame
                 (void)ResolvePending(shooter.get());
                 const auto link = LinkToPlayer("projectile", projectile, shooter.get(), NonActorCasterOf(shooter.get()));
                 const bool byPlayer = link != PlayerLink::kNone;
+                if (byPlayer) {
+                    NotePlayerRef(projectile, "projectile");  // dev spike (DrawTimeGrey.h)
+                }
                 const bool tint = byPlayer && IsStoked() && GetConfig().light;
                 LogLinkOnce("projectile", link);
                 // Not the player's after all: the normal path still runs for the records and logs
@@ -181,6 +185,9 @@ namespace BlackFlame
                 return;
             }
             const bool byPlayer = link != PlayerLink::kNone;
+            if (byPlayer) {
+                NotePlayerRef(a_projectile, "projectile");  // dev spike: before the light and log early-outs below
+            }
             LogLinkOnce("projectile", link);
             const char* linkName = PlayerLinkName(link);
 
