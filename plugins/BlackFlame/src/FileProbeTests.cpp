@@ -29,15 +29,10 @@ namespace BlackFlame::FileProbe
         constexpr std::string_view kFilePrefix = "probe_";
         constexpr std::string_view kMeshesRoot = "meshes\\";
         constexpr std::string_view kTexturesRoot = "textures\\";
-        constexpr std::size_t kMaxSourceBytes = 8u * 1024u * 1024u;  // a larger NIF or DDS is not a quick probe file
-        constexpr std::size_t kMaxProjectilesTried = 48;             // per pass (fire models first, then any)
-        constexpr const char* kPaletteTexture = "textures\\heartofmagic\\blackflame\\gradblackflame.dds";  // ships with the addon
-        constexpr std::size_t kDdsHeaderEnd = 128;  // "DDS " + the 124-byte header
-        constexpr std::size_t kDdsHeightAt = 12;    // after the 4-byte magic: dwSize, dwFlags, dwHeight, dwWidth
-        constexpr std::size_t kDdsWidthAt = 16;
         constexpr std::uint32_t kMaxMipSkip = 3;    // texture quality may load a DDS without its top mips
         constexpr std::array<std::string_view, 4> kWrittenLabels{ "a", "aneg", "c", "cneg" };
         constexpr const char* kMissingLabel = "missing";  // a texture path no file ever gets: what a miss returns
+        constexpr std::size_t kExePathChars = 32768;       // the longest Windows path, in UTF-16 units
     }
 
     // Helpers below are shared with FileProbeTestD.cpp (declared in FileProbeRun.h) or used only here
@@ -161,21 +156,6 @@ namespace BlackFlame::FileProbe
         a_run.textures.push_back({ std::string(a_test), form, std::move(texture) });
     }
 
-    std::optional<std::pair<std::uint32_t, std::uint32_t>> DdsSize(const Bytes& a_bytes)
-    {
-        if (a_bytes.size() < kDdsHeaderEnd || std::memcmp(a_bytes.data(), "DDS ", 4) != 0) {
-            return std::nullopt;
-        }
-        std::uint32_t height = 0;
-        std::uint32_t width = 0;
-        std::memcpy(&height, a_bytes.data() + kDdsHeightAt, sizeof(height));
-        std::memcpy(&width, a_bytes.data() + kDdsWidthAt, sizeof(width));
-        if (width == 0 || height == 0) {
-            return std::nullopt;
-        }
-        return std::pair{ width, height };
-    }
-
     std::string PathText(const std::filesystem::path& a_path)
     {
         try {
@@ -185,10 +165,14 @@ namespace BlackFlame::FileProbe
         }
     }
 
-    std::filesystem::path DataFolder()
+    // Nothing when the exe path cannot be read whole (0, or a cut path: the length fills the buffer)
+    std::optional<std::filesystem::path> DataFolder()
     {
-        std::wstring buffer(MAX_PATH * 4, L'\0');
+        std::wstring buffer(kExePathChars, L'\0');
         const auto length = ::GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
+        if (length == 0 || length >= buffer.size()) {
+            return std::nullopt;
+        }
         buffer.resize(length);
         return std::filesystem::path(buffer).parent_path() / L"Data";
     }
@@ -243,73 +227,6 @@ namespace BlackFlame::FileProbe
             a_why = ec ? ec.message() : std::format("{} bytes on disk, {} written", size, a_bytes.size());
             return false;
         }
-        return true;
-    }
-
-    bool ReadSource(const std::string& a_dataPath, Bytes& a_bytes)
-    {
-        a_bytes.clear();
-        const auto blob = NifDump::ReadModel(a_dataPath, &a_bytes);
-        return blob.ok && !a_bytes.empty() && a_bytes.size() <= kMaxSourceBytes;
-    }
-
-    // A projectile's NIF that reads through the game's file system, and a DDS it names that reads too
-    bool PickSources(Run& a_run)
-    {
-        auto* handler = RE::TESDataHandler::GetSingleton();
-        if (!handler) {
-            return false;
-        }
-        std::string fallbackModel;
-        Bytes fallbackNif;
-        for (const bool firePass : { true, false }) {
-            std::size_t tried = 0;
-            for (auto* projectile : handler->GetFormArray<RE::BGSProjectile>()) {
-                const char* model = projectile ? static_cast<const RE::TESModel*>(projectile)->GetModel() : nullptr;
-                if (!model || !*model) {
-                    continue;
-                }
-                std::string lower(model);
-                std::ranges::transform(lower, lower.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-                if ((lower.find("fire") != std::string::npos) != firePass || ++tried > kMaxProjectilesTried) {
-                    continue;
-                }
-                const auto dataPath = NifDump::NormalizeModelPath(model);
-                Bytes nif;
-                if (!dataPath || !ReadSource(*dataPath, nif)) {
-                    continue;
-                }
-                if (fallbackModel.empty()) {
-                    fallbackModel = model;
-                    fallbackNif = nif;
-                }
-                for (const auto& slot : NifDump::TexturePathsIn(nif)) {
-                    const auto texture = NifDump::NormalizeTexturePath(slot);
-                    Bytes dds;
-                    if (!texture || !ReadSource(*texture, dds) || !DdsSize(dds)) {
-                        continue;
-                    }
-                    a_run.sourceModel = model;
-                    a_run.sourceTexture = *texture;
-                    for (const auto& other : NifDump::TexturePathsIn(nif)) {
-                        if (const auto path = NifDump::NormalizeTexturePath(other); path && *path != *texture) {
-                            a_run.otherTextures.push_back(*path);
-                        }
-                    }
-                    a_run.nif = std::make_shared<const Bytes>(std::move(nif));
-                    a_run.dds = std::make_shared<const Bytes>(std::move(dds));
-                    return true;
-                }
-            }
-        }
-        Bytes palette;
-        if (fallbackModel.empty() || !ReadSource(kPaletteTexture, palette) || !DdsSize(palette)) {
-            return false;
-        }
-        a_run.sourceModel = fallbackModel;
-        a_run.sourceTexture = kPaletteTexture;
-        a_run.nif = std::make_shared<const Bytes>(std::move(fallbackNif));
-        a_run.dds = std::make_shared<const Bytes>(std::move(palette));
         return true;
     }
 
@@ -381,7 +298,12 @@ namespace BlackFlame::FileProbe
         for (auto& line : lines) {
             Note(a_run, std::move(line));
         }
-        a_run.data = DataFolder();
+        const auto data = DataFolder();
+        if (!data) {
+            Note(a_run, "the game's exe path could not be read (GetModuleFileNameW gave 0 or a cut path) - no Data folder, nothing to test");
+            return false;
+        }
+        a_run.data = *data;
         Note(a_run, std::format("Data folder (from the game's exe): '{}'", PathText(a_run.data)));
         RemoveOldFiles(a_run);
         bool picked = false;
@@ -389,18 +311,24 @@ namespace BlackFlame::FileProbe
             Note(a_run, "no source NIF and DDS could be read through the game's file system - nothing to test");
             return false;
         }
+        (void)GuardedKeep("file probe in-flight target pick", [&]() { PickInFlightTarget(a_run); });
         const auto size = DdsSize(*a_run.dds);
         a_run.ddsWidth = size->first;
         a_run.ddsHeight = size->second;
-        Note(a_run, std::format("source NIF '{}' ({} bytes), source DDS '{}' ({} bytes, {}x{} in its header)", a_run.sourceModel,
-            a_run.nif->size(), a_run.sourceTexture, a_run.dds->size(), a_run.ddsWidth, a_run.ddsHeight));
+        Note(a_run, std::format("source NIF '{}' ({} bytes), source DDS '{}' ({} bytes, {}x{} in its header); C-loading's target '{}'",
+            a_run.sourceModel, a_run.nif->size(), a_run.sourceTexture, a_run.dds->size(), a_run.ddsWidth, a_run.ddsHeight,
+            a_run.inFlightTarget.empty() ? "(none found)" : a_run.inFlightTarget));
         // The environment check: a NIF the load order ships, Demanded the same way; a FAIL here means the way of asking (or
         // the game state) is at fault, not the route a test takes
         const auto control = Demand(a_run.sourceModel);
         SetVerdict(a_run, "control-mesh", Passed(control) ? "PASS" : "FAIL", Text(a_run.sourceModel, control));
-        Note(a_run, "control: " + Engine::DescribeIds(*NifDump::NormalizeModelPath(a_run.sourceModel)) + "; " +
-                        IndexText(*NifDump::NormalizeModelPath(a_run.sourceModel)));
-        Request(a_run, "control", a_run.sourceTexture);
+        // FP2: the index layout is used only after a lookup of this shipped file found it
+        lines.clear();
+        Engine::ConfirmIndex(*NifDump::NormalizeModelPath(a_run.sourceModel), lines);
+        for (auto& line : lines) {
+            Note(a_run, std::move(line));
+        }
+        Request(a_run, kControlTexture, a_run.sourceTexture);
         a_run.ready = true;
         return true;
     }
@@ -412,14 +340,10 @@ namespace BlackFlame::FileProbe
             Note(a_run, std::format("before its file exists: {}", Text(path, Demand(path))));
         }
         for (const auto label : { "aneg", "cneg" }) {
-            std::string form;
-            auto texture = AskTexture(TextureDataPath(a_run, label), form);
-            Note(a_run, std::format("before its file exists: GetTexture(\"{}\"): {}", form, Text(Look(texture.get()))));
+            Note(a_run, "before its file exists: " + AskTextureText(TextureDataPath(a_run, label)));
         }
-        std::string form;
-        auto missing = AskTexture(TextureDataPath(a_run, kMissingLabel), form);
-        a_run.missingLook = Look(missing.get());
-        Note(a_run, std::format("a path no file has: GetTexture(\"{}\"): {}", form, Text(a_run.missingLook)));
+        // FP1: judged with the others (after the same wait), first, so the INCONCLUSIVE check sees its GPU texture
+        Request(a_run, kMissingTexture, TextureDataPath(a_run, kMissingLabel));
     }
 
     void WriteFiles(Run& a_run)
@@ -431,13 +355,29 @@ namespace BlackFlame::FileProbe
                 std::string why;
                 const bool ok = WriteBytes(file, *bytes, why);
                 Note(a_run, std::format("written '{}' ({} bytes): {}", PathText(file), bytes->size(), ok ? "ok" : "FAILED: " + why));
+                if (!ok) {
+                    a_run.writeFailed.emplace(label);
+                }
             }
         }
+    }
+
+    // FP8: a test whose file could not be written is SKIPPED, not FAIL
+    bool SkippedForWrite(Run& a_run, std::string_view a_label, std::string_view a_test)
+    {
+        if (!a_run.writeFailed.contains(a_label)) {
+            return false;
+        }
+        SetVerdict(a_run, a_test, "SKIPPED", std::format("the '{}' files could not be written (see 'written' above)", a_label));
+        return true;
     }
 
     void TestA(Run& a_run)
     {
         for (const auto& [label, test] : { std::pair{ "a", "A-mesh" }, std::pair{ "aneg", "A-mesh-neg" } }) {
+            if (SkippedForWrite(a_run, label, test)) {
+                continue;
+            }
             const auto data = MeshDataPath(a_run, label);
             Note(a_run, std::format("{}: {}", test, StreamText(data)));
             Note(a_run, std::format("{}: {}", test, LooseText(data)));
@@ -447,6 +387,9 @@ namespace BlackFlame::FileProbe
             SetVerdict(a_run, test, Passed(result) ? "PASS" : "FAIL", Text(record, result));
         }
         for (const auto& [label, test] : { std::pair{ "a", "A-texture" }, std::pair{ "aneg", "A-texture-neg" } }) {
+            if (SkippedForWrite(a_run, label, test)) {
+                continue;
+            }
             const auto data = TextureDataPath(a_run, label);
             Note(a_run, std::format("{}: {}", test, StreamText(data)));
             Note(a_run, std::format("{}: {}", test, IndexText(data)));
@@ -493,9 +436,12 @@ namespace BlackFlame::FileProbe
         }
         for (const auto& [label, meshTest, textureTest] :
             { std::tuple{ "c", "C-mesh", "C-texture" }, std::tuple{ "cneg", "C-mesh-neg", "C-texture-neg" } }) {
+            if (SkippedForWrite(a_run, label, meshTest) | SkippedForWrite(a_run, label, textureTest)) {
+                continue;
+            }
             std::string note;
             const auto mesh = MeshDataPath(a_run, label);
-            const bool meshRegistered = Engine::RegisterLoose(mesh, note);
+            const bool meshRegistered = Engine::RegisterLoose(mesh, a_run.nif->size(), note);
             Note(a_run, std::format("{}: RegisterLoose '{}': {}", meshTest, mesh, note));
             if (meshRegistered) {
                 Note(a_run, std::format("{}: {}", meshTest, StreamText(mesh)));
@@ -506,7 +452,7 @@ namespace BlackFlame::FileProbe
                 SetVerdict(a_run, meshTest, "FAIL", "not registered: " + note);
             }
             const auto texture = TextureDataPath(a_run, label);
-            const bool textureRegistered = Engine::RegisterLoose(texture, note);
+            const bool textureRegistered = Engine::RegisterLoose(texture, a_run.dds->size(), note);
             Note(a_run, std::format("{}: RegisterLoose '{}': {}", textureTest, texture, note));
             if (textureRegistered) {
                 Request(a_run, textureTest, texture);
@@ -526,18 +472,25 @@ namespace BlackFlame::FileProbe
 
     void JudgeTextures(Run& a_run)
     {
-        // The control first: its size is what the others are measured against
-        (void)std::ranges::stable_partition(a_run.textures, [](const PendingTexture& a_pending) { return a_pending.test == "control"; });
+        // The control and the miss first: the size the others are measured against, and what a miss gives (FP1)
+        (void)std::ranges::stable_partition(a_run.textures, [](const PendingTexture& a_pending) {
+            return a_pending.test == kControlTexture || a_pending.test == kMissingTexture;
+        });
         for (const auto& pending : a_run.textures) {
             const auto look = Look(pending.texture.get());
-            if (pending.test == "control") {
-                a_run.sourceLook = look;
-                Note(a_run, std::format("control: GetTexture(\"{}\"): {}", pending.path, Text(look)));
+            if (pending.test == kControlTexture || pending.test == kMissingTexture) {
+                (pending.test == kControlTexture ? a_run.sourceLook : a_run.missingLook) = look;
+                Note(a_run, std::format("{}: GetTexture(\"{}\"): {}", pending.test, pending.path, Text(look)));
                 continue;
             }
             if (pending.test == kInFlightTexture) {
                 Note(a_run, std::format("C-loading's in-flight load at the judging: GetTexture(\"{}\", demand false): {}", pending.path,
                     Text(look)));
+                continue;
+            }
+            if (pending.test == "C-texture-loading" && !a_run.loadInFlight) {  // FP6: only a load really outstanding counts
+                SetVerdict(a_run, pending.test, "INCONCLUSIVE", std::format("no load was in flight ({}); GetTexture(\"{}\"): {}",
+                    a_run.inFlightState, pending.path, Text(look)));
                 continue;
             }
             JudgeOne(a_run, pending, look);

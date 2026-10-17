@@ -53,6 +53,14 @@ namespace BlackFlame::FileProbe::Engine
 
         std::uintptr_t Base() { return REL::Module::get().base(); }
 
+        // The count offset this build is expected to use: 0x0C on SE and on AE before 1.6.1170, 0x10 from 1.6.1170 on (Temp File
+        // Framework's reading of the engines). CommonLib's StreamBase::GetFlags says 0x10 on every AE build: before 1.6.1170 the
+        // two disagree, and the offset the running engine's code uses (the scan) must equal this one
+        std::uint32_t ExpectedCountOffset()
+        {
+            return REL::Module::IsAE() && REL::Module::get().version() >= REL::Version(1, 6, 1170, 0) ? kAeLateCountOffset : kSeCountOffset;
+        }
+
         // The inlined Stream::IncRef in the engine's CreateStream: every `lock cmpxchg [rbx+disp8], ecx` in the window
         std::optional<std::uint32_t> ScanCountOffset(std::vector<std::string>& a_lines)
         {
@@ -78,10 +86,10 @@ namespace BlackFlame::FileProbe::Engine
                 return std::nullopt;
             }
             const auto offset = *found.begin();
-            const bool plausible = REL::Module::IsAE() ? (offset == kSeCountOffset || offset == kAeLateCountOffset) :
-                                                         offset == kSeCountOffset;
-            if (!plausible) {
-                a_lines.push_back(std::format("stream count: offset 0x{:X} is not one this runtime can have - tests B and C off", offset));
+            const auto expected = ExpectedCountOffset();
+            if (offset != expected) {
+                a_lines.push_back(std::format("stream count: CONFLICT: the scan found 0x{:X}, this build ({}) is expected to use 0x{:X} - "
+                                              "tests B and C off", offset, REL::Module::get().version().string(), expected));
                 return std::nullopt;
             }
             return offset;
@@ -229,9 +237,9 @@ namespace BlackFlame::FileProbe::Engine
     {
         if (const auto offset = ScanCountOffset(a_lines)) {
             g_countOffset.store(*offset);
-            a_lines.push_back(std::format("stream count at +0x{:X} (CommonLib's StreamBase::GetFlags uses +0x{:X} on this runtime{})",
-                *offset, REL::Module::IsAE() ? kAeLateCountOffset : kSeCountOffset,
-                (REL::Module::IsAE() ? kAeLateCountOffset : kSeCountOffset) == *offset ? ": the same" : ": DIFFERENT"));
+            const auto commonLib = REL::Module::IsAE() ? kAeLateCountOffset : kSeCountOffset;
+            a_lines.push_back(std::format("stream count at +0x{:X}, as expected for this build (CommonLib's StreamBase::GetFlags uses "
+                                          "+0x{:X} here{})", *offset, commonLib, commonLib == *offset ? ": the same" : ": CONFLICT, CommonLib is wrong here"));
         }
         InitIndex(a_lines);
         if (!g_countOffset.load() && g_state.indexWhy.empty()) {
@@ -250,6 +258,22 @@ namespace BlackFlame::FileProbe::Engine
     {
         const auto offset = g_countOffset.load();
         return offset ? std::optional<std::uint32_t>(offset) : std::nullopt;
+    }
+
+    void ConfirmIndex(const std::string& a_shippedDataPath, std::vector<std::string>& a_lines)
+    {
+        if (!g_state.indexWhy.empty() || !g_state.globalsWhy.empty()) {
+            return;
+        }
+        const auto lookup = Find(a_shippedDataPath);
+        const auto ids = DescribeIds(a_shippedDataPath);
+        a_lines.push_back(std::format("index check on the shipped '{}': {}; {}", a_shippedDataPath, Describe(lookup), ids));
+        if (!lookup.ran || !lookup.found) {
+            g_state.indexWhy = std::format("the index lookup of a shipped file ('{}') did not find it ({}): the guard / FindRecord "
+                                           "layout is not confirmed, so IndexGuard and RegisterLoose are not used",
+                a_shippedDataPath, Describe(lookup));
+            a_lines.push_back("index: " + g_state.indexWhy);
+        }
     }
 
     std::string IndexUnavailable()
@@ -350,7 +374,7 @@ namespace BlackFlame::FileProbe::Engine
         return code;
     }
 
-    bool RegisterLoose(const std::string& a_dataPath, std::string& a_note)
+    bool RegisterLoose(const std::string& a_dataPath, std::uint64_t a_expectedSize, std::string& a_note)
     {
         if (const auto why = IndexUnavailable(); !why.empty()) {
             a_note = "not registered: " + why;
@@ -362,6 +386,14 @@ namespace BlackFlame::FileProbe::Engine
             a_note = std::format("not registered: GlobalLocations::DoCreateStream(\"data\\{}\", readOnly false) gave error {}{}",
                 a_dataPath, static_cast<int>(code), stream.Get() ? "" : ", no stream");
             return false;
+        }
+        std::uint64_t streamSize = 0;
+        (void)GuardedKeep("file probe loose stream size", [&]() { streamSize = stream.Get()->totalSize; });
+        const auto sizeText = streamSize == a_expectedSize ?
+                                  std::format("stream size {} = the bytes written", streamSize) :
+                                  std::format("SIZE MISMATCH: the stream says {} bytes, {} were written", streamSize, a_expectedSize);
+        if (streamSize != a_expectedSize) {
+            logger::warn("BlackFlame: file visibility probe: '{}': {}", a_dataPath, sizeText);
         }
         const auto offset = g_countOffset.load();
         Lookup before;
@@ -381,8 +413,8 @@ namespace BlackFlame::FileProbe::Engine
             countAfter = CountOf(stream.Get(), offset);
         });
         const auto after = Find(a_dataPath);
-        a_note = std::format("{}; loose stream opened (references {}); before: {}; RegisterLoose {}; references after {}; after: {}",
-            DescribeIds(a_dataPath), countBefore, Describe(before),
+        a_note = std::format("{}; loose stream opened (references {}, {}); before: {}; RegisterLoose {}; references after {}; after: {}",
+            DescribeIds(a_dataPath), countBefore, sizeText, Describe(before),
             !ok ? "FAULTED (logged)" : (registered ? "called" : "not called (an archive record)"), countAfter, Describe(after));
         return ok && registered;
     }
@@ -408,8 +440,11 @@ namespace BlackFlame::FileProbe::Engine
         for (std::size_t i = 0; i < entries.size(); ++i) {
             const auto* location = entries[i].first;
             const char* name = nullptr;
-            (void)GuardedKeep("file probe location name", [&]() { name = location->DoGetName(); });
-            const auto vtable = *reinterpret_cast<const std::uintptr_t*>(location);
+            std::uintptr_t vtable = 0;
+            (void)GuardedKeep("file probe location name", [&]() {
+                vtable = *reinterpret_cast<const std::uintptr_t*>(location);
+                name = location->DoGetName();
+            });
             out.push_back(std::format("location {}: vtable SkyrimSE+0x{:X}, name '{}', priority {}", i, vtable - Base(),
                 name ? name : "(none)", entries[i].second));
         }

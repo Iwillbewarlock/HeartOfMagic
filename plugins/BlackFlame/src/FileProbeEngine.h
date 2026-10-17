@@ -22,7 +22,8 @@
 //                                    record's stream replaced, or an archive record made loose
 //   Record            +0x0C int32: negative = an archive record, else a loose one
 //   Stream count      the engine's own inlined Stream::IncRef in 68483 / 69839 (`lock cmpxchg [rbx+disp8], ecx`):
-//                     disp8 0x0C on SE and AE up to at least 1.6.640, 0x10 on 1.6.1170 and later. CommonLib's
+//                     disp8 0x0C on SE and AE up to at least 1.6.640, 0x10 on 1.6.1170 and later. Only the value expected
+//                     for the running build is accepted (a scan that finds another is logged as a conflict). CommonLib's
 //                     StreamBase::GetFlags() uses 0x10 on every AE build, so engine streams and our own streams are
 //                     counted here at the offset the running engine uses, never through CommonLib's BSTSmartPointer.
 //   GlobalLocations   no singleton id in CommonLib (RE/G/GlobalLocations.h): found by its vtable in the game's .data
@@ -93,8 +94,14 @@ namespace BlackFlame::FileProbe::Engine
     /// GlobalLocations::DoCreateStream("data\\" + a_dataPath, ..., false): the loose stream the engine would make
     [[nodiscard]] RE::BSResource::ErrorCode OpenLoose(const std::string& a_dataPath, StreamSlot& a_out);
 
-    /// Test C: the loose stream (OpenLoose) registered in the index under PathToID(a_dataPath); every step logged into a_note
-    [[nodiscard]] bool RegisterLoose(const std::string& a_dataPath, std::string& a_note);
+    /// Test C: the loose stream (OpenLoose) registered in the index under PathToID(a_dataPath); every step logged into a_note,
+    /// the stream's size against a_expectedSize (the bytes written) included
+    [[nodiscard]] bool RegisterLoose(const std::string& a_dataPath, std::uint64_t a_expectedSize, std::string& a_note);
+
+    /// Prepare, after Init: the index lookup of a file the load order ships must find it (FindRecord ran and found a record),
+    /// or the index tests are turned off (IndexUnavailable says why): IndexGuard and RegisterLoose are never called on a
+    /// layout no lookup confirmed. Logs both ids of the path (PathToID and GenerateFromPath)
+    void ConfirmIndex(const std::string& a_shippedDataPath, std::vector<std::string>& a_lines);
 
     /// GlobalLocations' entry list (location vtable as module offset, its DoGetName, priority), read under its lock
     [[nodiscard]] std::vector<std::string> DescribeLocations();

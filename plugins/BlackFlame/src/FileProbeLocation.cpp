@@ -35,6 +35,7 @@ namespace BlackFlame::FileProbe::VirtualFiles
         std::atomic<std::uint64_t> g_calls{ 0 };
         std::atomic<std::uint64_t> g_ourCalls{ 0 };
         std::atomic<std::uint64_t> g_createStream{ 0 };
+        std::atomic<std::uint64_t> g_createAsync{ 0 };
         std::atomic<std::uint64_t> g_served{ 0 };
         std::atomic<std::uint64_t> g_getInfo{ 0 };
         std::atomic<std::uint64_t> g_traverse{ 0 };
@@ -227,6 +228,35 @@ namespace BlackFlame::FileProbe::VirtualFiles
                 }
             }
 
+            // Location's default answers kUnsupported for every path (CommonLib Location.cpp), which could stop a lookup
+            // that walks the locations at ours: a path not ours is kNotExist, as in DoCreateStream. Ours has no asynchronous
+            // stream (no AsyncStream class of ours): kUnsupported, logged
+            ErrorCode DoCreateAsyncStream(const char* a_path, RE::BSTSmartPointer<RE::BSResource::AsyncStream>&,
+                RE::BSResource::Location*&, bool) override
+            {
+                try {
+                    g_createAsync.fetch_add(1);
+                    const auto key = Normalize(a_path);
+                    const bool ours = Lookup(key).has_value();
+                    Note("DoCreateAsyncStream", a_path, key, ours ? "ours, no async stream (kUnsupported)" : "not ours (kNotExist)");
+                    return ours ? ErrorCode::kUnsupported : ErrorCode::kNotExist;
+                } catch (...) {
+                    return ErrorCode::kNotExist;
+                }
+            }
+
+            ErrorCode DoDelete(const char* a_path) override
+            {
+                try {
+                    const auto key = Normalize(a_path);
+                    const bool ours = Lookup(key).has_value();
+                    Note("DoDelete", a_path, key, ours ? "ours, not deleted (kUnsupported)" : "not ours (kNotExist)");
+                    return ours ? ErrorCode::kUnsupported : ErrorCode::kNotExist;
+                } catch (...) {
+                    return ErrorCode::kNotExist;
+                }
+            }
+
             ErrorCode DoTraversePrefix(const char* a_path, RE::BSResource::LocationTraverser& a_traverser) override
             {
                 try {
@@ -341,9 +371,9 @@ namespace BlackFlame::FileProbe::VirtualFiles
 
     std::string CountersText()
     {
-        return std::format("location calls: {} in all, {} naming {}; DoCreateStream {} (served {}), DoGetInfo {}, DoTraversePrefix {}, "
+        return std::format("location calls: {} in all, {} naming {}; DoCreateStream {} (served {}), DoCreateAsyncStream {}, DoGetInfo {}, DoTraversePrefix {}, "
                            "reads from our streams {}",
-            g_calls.load(), g_ourCalls.load(), kFolder, g_createStream.load(), g_served.load(), g_getInfo.load(), g_traverse.load(),
+            g_calls.load(), g_ourCalls.load(), kFolder, g_createStream.load(), g_served.load(), g_createAsync.load(), g_getInfo.load(), g_traverse.load(),
             g_reads.load());
     }
 }

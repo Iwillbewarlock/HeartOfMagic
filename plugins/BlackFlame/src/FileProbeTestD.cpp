@@ -3,6 +3,7 @@
 #include "FileProbeEngine.h"
 #include "SehGuard.h"
 
+#include <array>
 #include <format>
 #include <optional>
 
@@ -10,12 +11,15 @@
 // a folder of ours outside Data, registered with BSResource::RegisterLocation at the probe's time. LooseFileLocation::Create
 // (RE/L/LooseFileLocation.h) allocates it on the game heap, zeroes it, puts the engine's vtable in and sets its prefix (the
 // folder its paths are read under); the engine keeps the pointer for the rest of the process, so it is never freed.
-// Folders: <SKSE log folder>\HeartOfMagic_BlackFlame\fileprobe-root\ (D) and ...\fileprobe-root-neg\ (D-neg), outside MO2's
-// VFS; the prefix is the folder's full path with a trailing '\' - whether a LooseFileLocation takes a full path as its
-// prefix is what the run shows (the engine's own Data location's name is in the "B: before" lines).
+// Folders: <SKSE log folder>\HeartOfMagic_BlackFlame\fileprobe-root (D) and fileprobe-root-neg (D-neg), outside MO2's VFS;
+// the prefix is the folder's full path with a trailing '\' - whether a LooseFileLocation takes a full path as its prefix
+// is what the run shows (the engine's own Data location's name is in the "B: before" lines).
+// Two layouts each (FP5), since what the location appends to its prefix is not known: the files at <root>\meshes\... and
+// <root>\textures\... (D-mesh, D-texture), and other files at <root>\data\meshes\... and <root>\data\textures\...
+// (D-mesh-data, D-texture-data); which of them load shows the layout the location reads.
 //   D       files written, then the location registered; asked for a frame later (a location the engine mounts later,
 //           GlobalLocations' pendingMount list, has a frame to mount)
-//   D-neg   the real use: the location registered EMPTY in the first step, left to mount (FileVisibilityProbe kMountWait),
+//   D-neg   the real use: the location registered EMPTY (RegisterEarly), left to mount (FileVisibilityProbe kMountWait),
 //           then the files written at fresh paths, then asked for the first time
 
 namespace BlackFlame::FileProbe
@@ -25,6 +29,14 @@ namespace BlackFlame::FileProbe
         constexpr std::string_view kFolder = "heartofmagic\\blackflame\\droot\\";
         constexpr std::string_view kMeshesRoot = "meshes\\";
         constexpr std::string_view kTexturesRoot = "textures\\";
+        constexpr std::string_view kDataLayout = "data\\";
+
+        struct Layout
+        {
+            std::string_view under;   // "" or "data\": between the root and meshes\ / textures\ on disk
+            std::string_view suffix;  // in the file names and the test names
+        };
+        constexpr std::array kLayouts{ Layout{ "", "" }, Layout{ kDataLayout, "-data" } };
 
         struct Variant
         {
@@ -36,6 +48,8 @@ namespace BlackFlame::FileProbe
         constexpr Variant kD{ "d", "fileprobe-root", "D-mesh", "D-texture" };
         constexpr Variant kDNeg{ "dneg", "fileprobe-root-neg", "D-mesh-neg", "D-texture-neg" };
 
+        std::string Test(std::string_view a_base, const Layout& a_layout) { return std::format("{}{}", a_base, a_layout.suffix); }
+
         std::optional<std::filesystem::path> RootFolder(const Variant& a_variant)
         {
             const auto dir = logger::log_directory();
@@ -45,23 +59,28 @@ namespace BlackFlame::FileProbe
             return *dir / "HeartOfMagic_BlackFlame" / std::string(a_variant.folder);
         }
 
-        std::string MeshRecord(const Run& a_run, const Variant& a_variant)
+        // The record path (Demand form) and the texture data path the engine is asked for; the name says the layout
+        std::string MeshRecord(const Run& a_run, const Variant& a_variant, const Layout& a_layout)
         {
-            return std::format("{}probe_{}_{}.nif", kFolder, a_variant.label, a_run.tag);
+            return std::format("{}probe_{}{}_{}.nif", kFolder, a_variant.label, a_layout.suffix.empty() ? "" : "data", a_run.tag);
         }
 
-        std::string TextureData(const Run& a_run, const Variant& a_variant)
+        std::string TextureData(const Run& a_run, const Variant& a_variant, const Layout& a_layout)
         {
-            return std::format("{}{}probe_{}_{}.dds", kTexturesRoot, kFolder, a_variant.label, a_run.tag);
+            return std::format("{}{}probe_{}{}_{}.dds", kTexturesRoot, kFolder, a_variant.label, a_layout.suffix.empty() ? "" : "data",
+                a_run.tag);
         }
 
         void Skip(Run& a_run, const Variant& a_variant, const std::string& a_why)
         {
-            SetVerdict(a_run, a_variant.meshTest, "SKIPPED", a_why);
-            SetVerdict(a_run, a_variant.textureTest, "SKIPPED", a_why);
+            for (const auto& layout : kLayouts) {
+                SetVerdict(a_run, Test(a_variant.meshTest, layout), "SKIPPED", a_why);
+                SetVerdict(a_run, Test(a_variant.textureTest, layout), "SKIPPED", a_why);
+            }
         }
 
-        // The root folder with the last run's probe files removed; nothing (and both tests SKIPPED) when it cannot be named
+        // The root folder with the last run's probe files removed (both layouts); nothing (and every test SKIPPED) when it
+        // cannot be named
         std::optional<std::filesystem::path> CleanRoot(Run& a_run, const Variant& a_variant, std::string& a_prefix)
         {
             const auto root = RootFolder(a_variant);
@@ -75,22 +94,29 @@ namespace BlackFlame::FileProbe
                 Skip(a_run, a_variant, "the root folder's path is outside the ANSI code page");
                 return std::nullopt;
             }
-            RemoveProbeFiles(a_run, *root / std::string(kMeshesRoot) / std::string(kFolder));
-            RemoveProbeFiles(a_run, *root / std::string(kTexturesRoot) / std::string(kFolder));
+            for (const auto& layout : kLayouts) {
+                const auto base = *root / std::string(layout.under);
+                RemoveProbeFiles(a_run, base / std::string(kMeshesRoot) / std::string(kFolder));
+                RemoveProbeFiles(a_run, base / std::string(kTexturesRoot) / std::string(kFolder));
+            }
             return root;
         }
 
         bool WriteFilesUnder(Run& a_run, const Variant& a_variant, const std::filesystem::path& a_root)
         {
-            const std::string meshData = std::string(kMeshesRoot) + MeshRecord(a_run, a_variant);
-            for (const auto& [dataPath, bytes] : { std::pair{ meshData, a_run.nif }, std::pair{ TextureData(a_run, a_variant), a_run.dds } }) {
-                const auto file = a_root / dataPath;
-                std::string why;
-                if (!WriteBytes(file, *bytes, why)) {
-                    Skip(a_run, a_variant, std::format("'{}' could not be written: {}", PathText(file), why));
-                    return false;
+            for (const auto& layout : kLayouts) {
+                const auto base = a_root / std::string(layout.under);
+                const std::string meshData = std::string(kMeshesRoot) + MeshRecord(a_run, a_variant, layout);
+                for (const auto& [dataPath, bytes] :
+                    { std::pair{ meshData, a_run.nif }, std::pair{ TextureData(a_run, a_variant, layout), a_run.dds } }) {
+                    const auto file = base / dataPath;
+                    std::string why;
+                    if (!WriteBytes(file, *bytes, why)) {
+                        Skip(a_run, a_variant, std::format("'{}' could not be written: {}", PathText(file), why));
+                        return false;
+                    }
+                    Note(a_run, std::format("{}: written '{}' ({} bytes)", a_variant.meshTest, PathText(file), bytes->size()));
                 }
-                Note(a_run, std::format("{}: written '{}' ({} bytes)", a_variant.meshTest, PathText(file), bytes->size()));
             }
             return true;
         }
@@ -118,13 +144,18 @@ namespace BlackFlame::FileProbe
             for (const auto& line : Engine::DescribeLocations()) {
                 Note(a_run, std::format("{}: locations now: {}", a_variant.meshTest, line));
             }
-            const auto record = MeshRecord(a_run, a_variant);
-            Note(a_run, std::format("{}: {}", a_variant.meshTest, StreamText(std::string(kMeshesRoot) + record)));
-            const auto result = Demand(record);
-            SetVerdict(a_run, a_variant.meshTest, Passed(result) ? "PASS" : "FAIL", Text(record, result));
-            const auto texture = TextureData(a_run, a_variant);
-            Note(a_run, std::format("{}: {}", a_variant.textureTest, StreamText(texture)));
-            Request(a_run, a_variant.textureTest, texture);
+            for (const auto& layout : kLayouts) {
+                const auto meshTest = Test(a_variant.meshTest, layout);
+                const auto record = MeshRecord(a_run, a_variant, layout);
+                Note(a_run, std::format("{}: {}", meshTest, StreamText(std::string(kMeshesRoot) + record)));
+                const auto result = Demand(record);
+                SetVerdict(a_run, meshTest, Passed(result) ? "PASS" : "FAIL",
+                    std::format("{} (files at <root>\\{}meshes)", Text(record, result), layout.under));
+                const auto texture = TextureData(a_run, a_variant, layout);
+                const auto textureTest = Test(a_variant.textureTest, layout);
+                Note(a_run, std::format("{}: {} (files at <root>\\{}textures)", textureTest, StreamText(texture), layout.under));
+                Request(a_run, textureTest, texture);
+            }
         }
     }
 

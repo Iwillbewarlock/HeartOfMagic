@@ -44,12 +44,12 @@ namespace BlackFlame::FileVisibilityProbe
         enum class Step
         {
             kPrepare,
-            kEarly,
             kPreRequest,
             kWrite,
             kA,
-            kB,
             kC,
+            kB,
+            kEarly,
             kD,
             kDCheck,
             kLateWait,
@@ -70,8 +70,9 @@ namespace BlackFlame::FileVisibilityProbe
 
         const char* StepName(Step a_step)
         {
-            constexpr std::array kNames{ "prepare", "register early (B-neg, D-neg)", "pre-request", "write files", "test A",
-                "test B", "test C", "test D", "test D check", "wait for the early locations to mount", "late: create files",
+            // FP4: A and C (and their -neg) run before any location of ours is registered (B, the early ones, D)
+            constexpr std::array kNames{ "prepare", "pre-request", "write files", "test A", "test C", "test B",
+                "register early (B-neg, D-neg)", "test D", "test D check", "wait for the early locations to mount", "late: create files",
                 "late: ask", "wait for the GPU textures", "judge textures", "finish" };
             return kNames[static_cast<std::size_t>(a_step)];
         }
@@ -105,6 +106,11 @@ namespace BlackFlame::FileVisibilityProbe
             }
             if (config.selfTest) {
                 logger::info("BlackFlame: file visibility probe: devAutoQuit left to the self-test (selfTest is on)");
+                return;
+            }
+            if (!DevAutomation::Installed()) {
+                logger::warn("BlackFlame: file visibility probe: devAutoQuit is on but dev automation is not installed (see its "
+                             "lines above) - the game is not quit");
                 return;
             }
             logger::info("BlackFlame: file visibility probe: asking dev automation to quit ({})", a_label);
@@ -222,7 +228,10 @@ namespace BlackFlame::FileVisibilityProbe
             }
             if (a_step == Step::kWait) {
                 // E: a texture passes only with its GPU texture made; wait for every one, kTextureWait at most
-                const bool ready = FileProbe::TexturesReady(run);
+                bool ready = false;
+                if (!GuardedKeep("file probe textures ready", [&]() { ready = FileProbe::TexturesReady(run); })) {
+                    ready = true;  // a fault reading them (logged): judge now, the judging reads them guarded too
+                }
                 if (!ready && Clock::now() < run.judgeAt) {
                     Schedule(a_run, Step::kWait);
                     return;
@@ -311,8 +320,14 @@ namespace BlackFlame::FileVisibilityProbe
             RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent* a_event,
                 RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
             {
-                if (a_event && a_event->opening && a_event->menuName == RE::MainMenu::MENU_NAME) {
-                    OnMainMenu();
+                try {  // called by the engine: nothing may throw out of here
+                    if (a_event && a_event->opening && a_event->menuName == RE::MainMenu::MENU_NAME) {
+                        OnMainMenu();
+                    }
+                } catch (const std::exception& e) {
+                    logger::error("BlackFlame: file visibility probe: the main menu event threw: {}", e.what());
+                } catch (...) {
+                    logger::error("BlackFlame: file visibility probe: the main menu event threw an exception of an unknown type");
                 }
                 return RE::BSEventNotifyControl::kContinue;
             }
@@ -320,7 +335,21 @@ namespace BlackFlame::FileVisibilityProbe
         MenuSink g_menuSink;
 
         // devAutoQuit: an unattended run ends even when the probe never starts or never finishes
+        void GiveUpBody();
+
+        // A throw would end the thread through std::terminate (the game with it)
         void GiveUpLoop()
+        {
+            try {
+                GiveUpBody();
+            } catch (const std::exception& e) {
+                logger::error("BlackFlame: file visibility probe: the give-up thread threw: {}", e.what());
+            } catch (...) {
+                logger::error("BlackFlame: file visibility probe: the give-up thread threw an exception of an unknown type");
+            }
+        }
+
+        void GiveUpBody()
         {
             const auto until = Clock::now() + kGiveUp;
             while (Clock::now() < until) {

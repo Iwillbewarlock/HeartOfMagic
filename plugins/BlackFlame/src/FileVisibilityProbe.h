@@ -19,7 +19,7 @@
 //   C           the written files put into the engine's index with RegisterLoose (FileProbeEngine.h), then the requests
 //   D           the engine's own LooseFileLocation rooted at <SKSE log folder>\HeartOfMagic_BlackFlame\fileprobe-root (D-neg: -neg)
 //               registered (FileProbeTestD.cpp); a frame later its files asked for under ...\heartofmagic\blackflame\droot
-//   Late        B-neg / D-neg: an EMPTY memory location and an EMPTY LooseFileLocation registered right after Prepare,
+//   Late        B-neg / D-neg: an EMPTY memory location and an EMPTY LooseFileLocation registered after A, C and B,
 //               kMountWait (and kMountFrames) later their files made at fresh paths, then asked for the first time;
 //               C-late: asked with no file, then written, RegisterLoose, asked again; C-loading: a texture load started
 //               without waiting, then at once written, registered, asked (FileProbeTestLate.cpp)

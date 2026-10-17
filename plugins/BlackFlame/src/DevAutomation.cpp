@@ -299,6 +299,11 @@ namespace BlackFlame::DevAutomation
         }
     }
 
+    bool Installed() noexcept
+    {
+        return g_installed.load();
+    }
+
     void OnSelfTestDone(const char* a_label)
     {
         if (!g_installed || !GetConfig().devAutoQuit) {

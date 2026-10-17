@@ -44,4 +44,7 @@ namespace BlackFlame::DevAutomation
 
     /// SelfTestLog::Done: a_label null for the main run, "E3" for E3's end
     void OnSelfTestDone(const char* a_label);
+
+    /// Install ran and armed the polling thread (any thread)
+    [[nodiscard]] bool Installed() noexcept;
 }

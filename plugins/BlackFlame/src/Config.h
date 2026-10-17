@@ -55,7 +55,8 @@ namespace BlackFlame
         bool selfTest = false;    // run the scripted self-test once after a save is loaded (SelfTest.h)
         bool testerMode = false;  // the tester package: selfTest and writeRequest on, every log line written through at once,
                                   // and HeartOfMagic_BlackFlame_tester.txt (Tester.h; the file is written in every mode)
-        // Dev only (DevAutomation.h): honoured only with selfTest on (testerMode counts); absent from the shipped json
+        // Dev only (DevAutomation.h): honoured only with selfTest on (testerMode counts); absent from the shipped json.
+        // devAutoQuit also with devFileVisibilityProbe, when devAutoLoad is empty and devAutoE3 off (Config.cpp GateDevKeys)
         std::string devAutoLoad;   // a save name without extension: loaded once, 5 s after the main menu first opens
         bool devAutoE3 = false;    // E3's save and load done by the plugin
         bool devAutoQuit = false;  // the game quits 10 s after the self-test (and E3) ended, or 6 min after a load at most

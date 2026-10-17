@@ -8,16 +8,18 @@
 
 // The dev file visibility probe's tests of the real use (FileVisibilityProbe.h): the file appears after the route is set up
 // or after the game asked for it.
-//   B-neg      an EMPTY memory location registered in the first step (RegisterEarly), left to mount for
+//   B-neg      an EMPTY memory location registered after tests A, C and B (RegisterEarly), left to mount for
 //              FileVisibilityProbe::kMountWait, then the files added to it at fresh paths, then asked for the first time
 //   D-neg      the same with the engine's LooseFileLocation over an empty folder (FileProbeTestD.cpp)
 //   C-late     asked for late in the session with no file (fails), then written into Data, put into the index
-//              (RegisterLoose), asked again. C-neg asks before its file exists too, but early, before any location of ours
-//              is registered; C-late's failed request and its registration are a frame apart, after all of them
-//   C-loading  a texture load started without waiting (BSShaderManager::GetTexture with demand false: the load is queued, so
-//              it can be in flight), then at once the files written, registered and asked for. BSModelDB has only Demand
-//              (synchronous) in CommonLib's headers, so the in-flight load is a texture for the mesh case too; whether it
-//              was in flight is read from it (no GPU texture yet = still loading) and logged
+//              (RegisterLoose), asked again. C-neg asks before its file exists too, but in the run's first steps, before
+//              any location of ours is registered (the step order puts A and C before B and the early registrations);
+//              C-late's failed request comes after every one of them, and its registration a frame after that
+//   C-loading  a texture load started without waiting (BSShaderManager::GetTexture with demand false) on a DDS of another
+//              projectile the probe never asked for, then at once the files written, registered and asked for. BSModelDB
+//              has only Demand (synchronous) in CommonLib's headers, so the in-flight load is a texture for the mesh case
+//              too. Only a load really outstanding counts: a target that came back with its GPU texture already made (or
+//              nothing) makes both C-loading tests INCONCLUSIVE
 
 namespace BlackFlame::FileProbe
 {
@@ -44,11 +46,11 @@ namespace BlackFlame::FileProbe
             const auto file = a_run.data / a_dataPath;
             std::string why;
             if (!WriteBytes(file, a_bytes, why)) {
-                SetVerdict(a_run, a_test, "FAIL", std::format("'{}' could not be written: {}", PathText(file), why));
+                SetVerdict(a_run, a_test, "SKIPPED", std::format("'{}' could not be written: {}", PathText(file), why));
                 return false;
             }
             std::string note;
-            const bool registered = Engine::RegisterLoose(a_dataPath, note);
+            const bool registered = Engine::RegisterLoose(a_dataPath, a_bytes.size(), note);
             Note(a_run, std::format("{}: written '{}' ({} bytes); RegisterLoose: {}", a_test, PathText(file), a_bytes.size(), note));
             if (!registered) {
                 SetVerdict(a_run, a_test, "FAIL", "not registered: " + note);
@@ -74,27 +76,42 @@ namespace BlackFlame::FileProbe
             }
         }
 
-        // The in-flight load: a DDS of the source NIF not asked for before (the source DDS itself when it has no other)
-        std::string StartInFlightLoad(Run& a_run)
+        // The in-flight load (Prepare picked the target): a_run.loadInFlight only when it came back without its GPU texture
+        void StartInFlightLoad(Run& a_run)
         {
-            const auto target = a_run.otherTextures.empty() ? a_run.sourceTexture : a_run.otherTextures.front();
+            if (a_run.inFlightTarget.empty()) {
+                a_run.inFlightState = "no DDS of another projectile was found to load";
+                return;
+            }
             RE::NiPointer<RE::NiTexture> texture;
-            (void)GuardedKeep("file probe in-flight GetTexture", [&]() { RE::BSShaderManager::GetTexture(target.c_str(), false, texture, false); });
+            const bool ok = GuardedKeep("file probe in-flight GetTexture",
+                [&]() { RE::BSShaderManager::GetTexture(a_run.inFlightTarget.c_str(), false, texture, false); });
             const auto* source = texture ? netimmerse_cast<RE::NiSourceTexture*>(texture.get()) : nullptr;
-            const char* state = !texture ? "nothing came back" :
-                                (!source ? "not an NiSourceTexture" :
-                                           (source->rendererTexture ? "already loaded: NOT in flight" : "no GPU texture yet: in flight"));
-            a_run.textures.push_back({ std::string(kInFlightTexture), target, std::move(texture) });  // kept: the load goes on
-            return std::format("GetTexture(\"{}\", demand false) just before: {}", target, state);
+            a_run.loadInFlight = ok && source && !source->rendererTexture;
+            const char* state = !ok ? "the call faulted" :
+                                (!texture ? "nothing came back" :
+                                    (!source ? "not an NiSourceTexture" :
+                                        (source->rendererTexture ? "already loaded: NOT in flight" : "no GPU texture yet: in flight")));
+            a_run.inFlightState = std::format("GetTexture(\"{}\", demand false) just before: {}", a_run.inFlightTarget, state);
+            if (texture) {
+                a_run.textures.push_back({ std::string(kInFlightTexture), a_run.inFlightTarget, std::move(texture) });  // kept: the load goes on
+            }
         }
 
         void LoadingC(Run& a_run)
         {
-            const auto inFlight = StartInFlightLoad(a_run);
-            Note(a_run, "C-loading: " + inFlight);
+            StartInFlightLoad(a_run);
+            Note(a_run, "C-loading: " + a_run.inFlightState);
             const auto mesh = MeshDataPath(a_run, "cload");
             if (WriteAndRegister(a_run, "C-mesh-loading", mesh, *a_run.nif)) {
-                AskMesh(a_run, "C-mesh-loading", MeshRecordPath(a_run, "cload"), "; " + inFlight);
+                const auto record = MeshRecordPath(a_run, "cload");
+                const auto result = Demand(record);
+                if (!a_run.loadInFlight) {  // FP6: a load really outstanding, or no verdict
+                    SetVerdict(a_run, "C-mesh-loading", "INCONCLUSIVE",
+                        std::format("no load was in flight ({}); {}", a_run.inFlightState, Text(record, result)));
+                } else {
+                    SetVerdict(a_run, "C-mesh-loading", Passed(result) ? "PASS" : "FAIL", Text(record, result) + "; " + a_run.inFlightState);
+                }
             }
             const auto texture = TextureDataPath(a_run, "cload");
             if (WriteAndRegister(a_run, "C-texture-loading", texture, *a_run.dds)) {
