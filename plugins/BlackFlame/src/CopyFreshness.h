@@ -16,7 +16,8 @@
 //   notApplied    Y11: the map was there but filling the copies stopped part way (no copy is used this session)
 //   texturesMissing AB4: with a matching fingerprint, a decal texture set copy names a grey texture that does not open
 //                 (the output mod's textures missing or overwritten, or a loose-file cache out of date)
-//   stale         a version 1 map, or the map's request fingerprint differs from this start's (the bytes form when
+//   stale         a version 1 map, a map built from an incomplete dump (dumpComplete false, AC1), or the map's request
+//                 fingerprint differs from this start's (the bytes form when
 //                 writeRequest computed it, else the size form), or a decal texture set copy was left out as out of step
 //                 with the load order (CopyCounts::textureSetsRejected); with how many closure forms have no copy and how
 //                 many map entries lost their source
@@ -59,7 +60,7 @@ namespace BlackFlame
     /// "fresh" / "stale" / "none" / "pluginMissing" / "notApplied" / "texturesMissing"
     [[nodiscard]] const char* FreshnessName(CopyFreshness a_state) noexcept;
 
-    /// The first kPostLoadGame / kNewGame of the session: the HUD line for stale / none / pluginMissing / notApplied, once (nothing when
+    /// The first kPostLoadGame / kNewGame of the session: the HUD line for stale / none / pluginMissing / notApplied / texturesMissing, once (nothing when
     /// kDataLoaded never checked; marked shown only once the main-thread queue took the notice)
     void NotifyFreshnessOnce();
 

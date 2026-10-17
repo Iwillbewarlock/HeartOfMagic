@@ -44,12 +44,14 @@ namespace BlackFlame::CopyRequestDump
     [[nodiscard]] bool DumpIntact(const std::filesystem::path& a_folder, const std::vector<Nif>& a_nifs,
         const std::vector<CopyRequestData::Texture>& a_textures, const std::set<std::string>& a_readFailed);
 
-    /// U10: an unchanged dump tries once more the textures the last dump could not read; its state text
+    /// U10: an unchanged dump tries once more the textures the last dump could not read; its state text. a_writeFailures:
+    /// the files it could not write (AC3)
     [[nodiscard]] std::string RetryReadFailures(const std::filesystem::path& a_folder, std::vector<CopyRequestData::Texture>& a_textures,
-        const std::set<std::string>& a_readFailed, const std::string& a_fingerprint, const std::string& a_textureFingerprint);
+        const std::set<std::string>& a_readFailed, const std::string& a_fingerprint, const std::string& a_textureFingerprint,
+        int& a_writeFailures);
 
     /// Every NIF's bytes and every planned texture written under data\, then the manifest; its state text. a_writeFailures:
-    /// the files that could not be written (AB3: the request then carries a fingerprint that never matches)
+    /// the files that could not be written or whose path was refused (AC1: the request then says dumpComplete false)
     [[nodiscard]] std::string Dump(const std::filesystem::path& a_folder, std::vector<Nif>& a_nifs,
         std::vector<CopyRequestData::Texture>& a_textures, const std::string& a_fingerprint, const std::string& a_textureFingerprint,
         int& a_writeFailures);

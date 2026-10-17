@@ -25,7 +25,6 @@ namespace BlackFlame
         constexpr const char* kFolderName = "HeartOfMagic_BlackFlame";
         constexpr const char* kRequestName = "request.json";
         using namespace CopyRequestDump;
-        constexpr const char* kDumpIncompleteMark = "+dump-incomplete";  // AB3
         constexpr const char* kTextureListError = "error";  // T13: the manifest's texture fingerprint when the listing threw
         using CopyRequestData::Texture;
         using CopyRequestData::kMiB;
@@ -168,6 +167,11 @@ namespace BlackFlame
             root["game"] = REL::Module::get().version().string();
             root["fingerprint"] = g_state.fingerprint;
             root["fingerprintSizes"] = g_state.sizeFingerprint;
+            // AC1: the fingerprints stay this load order's; a dump that could not write a file says so on its own
+            root["dumpComplete"] = g_state.dumpComplete;
+            if (!g_state.dumpComplete) {
+                root["dumpWriteFailures"] = g_state.dumpWriteFailures;
+            }
             root["copiesPlugin"] = "HeartOfMagic_BlackFlame_Copies.esp";
             root["decalTextureSets"] = true;  // TXST forms walked (the builder refuses an older request over TXST copies)
             root["forms"] = Json::array();
@@ -322,13 +326,13 @@ namespace BlackFlame
                                        CopyRequestData::JsonString(manifest, kTextureFingerprintKey) == textureFingerprint &&
                                        DumpIntact(*folder, nifs, textures, readFailed);
                 int writeFailures = 0;
-                g_state.dumpState = unchanged ? RetryReadFailures(*folder, textures, readFailed, g_state.fingerprint, textureFingerprint) :
-                                                Dump(*folder, nifs, textures, g_state.fingerprint, textureFingerprint, writeFailures);
+                g_state.dumpState = unchanged ?
+                                        RetryReadFailures(*folder, textures, readFailed, g_state.fingerprint, textureFingerprint, writeFailures) :
+                                        Dump(*folder, nifs, textures, g_state.fingerprint, textureFingerprint, writeFailures);
                 if (writeFailures > 0) {
-                    // AB3: the request's fingerprint must never match a later start (its dump is incomplete): a map built from
-                    // it reads stale until a start dumps whole
-                    g_state.fingerprint += kDumpIncompleteMark;
-                    g_state.sizeFingerprint += kDumpIncompleteMark;
+                    // AC1: the request says its dump is incomplete; a map built from it reads stale whatever the fingerprint
+                    g_state.dumpComplete = false;
+                    g_state.dumpWriteFailures = writeFailures;
                     for (const auto& nif : nifs) {
                         g_state.nifsFailed += nif.blob.error == kDumpWriteFailed ? 1 : 0;
                     }
@@ -336,6 +340,7 @@ namespace BlackFlame
                 dumpMs = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - dumpStart).count();
             } catch (const std::exception& e) {
                 g_state.dumpState = std::format("failed: {}", e.what());
+                g_state.dumpComplete = false;  // AC2: a dump that stopped part way is incomplete too
                 logger::error("BlackFlame: copy request: the NIF dump failed: {}", e.what());
             }
             try {

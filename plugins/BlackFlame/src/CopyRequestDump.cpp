@@ -108,7 +108,11 @@ namespace BlackFlame::CopyRequestDump
         const auto root = a_folder / kDumpRoot;
         const auto sizeIs = [&](const std::string& a_path, std::uint64_t a_size) {
             std::error_code ec;
-            return std::filesystem::file_size(LongPath(UnderRoot(root, a_path)), ec) == a_size && !ec;
+            try {
+                return std::filesystem::file_size(LongPath(UnderRoot(root, a_path)), ec) == a_size && !ec;
+            } catch (const std::runtime_error&) {
+                return false;  // AC2: a path the dump refuses is not there (the dump then counts it as a failure)
+            }
         };
         for (const auto& nif : a_nifs) {
             if (nif.blob.ok && !sizeIs(nif.path, nif.blob.size)) {
@@ -143,7 +147,19 @@ namespace BlackFlame::CopyRequestDump
     {
         int failed = 0;
         for (auto& texture : a_textures) {
-            const auto file = LongPath(UnderRoot(a_root, texture.path));
+            std::filesystem::path file;
+            try {
+                file = LongPath(UnderRoot(a_root, texture.path));
+            } catch (const std::runtime_error& e) {
+                // AC2: one refused path is one failure, not the end of the dump
+                if (texture.planned) {
+                    ++failed;
+                    texture.planned = false;
+                    texture.error = e.what();
+                    logger::warn("BlackFlame: copy request: texture {} not dumped: {}", Utf8(texture.path), e.what());
+                }
+                continue;
+            }
             std::error_code ec;
             std::vector<std::byte> bytes;
             if (texture.planned) {
@@ -190,7 +206,8 @@ namespace BlackFlame::CopyRequestDump
     // U10: an unchanged dump tries once more the textures the last dump could not read (only those; a read failure may
     // pass, e.g. a busy archive), and rewrites the manifest when one reads now
     std::string RetryReadFailures(const std::filesystem::path& a_folder, std::vector<Texture>& a_textures,
-        const std::set<std::string>& a_readFailed, const std::string& a_fingerprint, const std::string& a_textureFingerprint)
+        const std::set<std::string>& a_readFailed, const std::string& a_fingerprint, const std::string& a_textureFingerprint,
+        int& a_writeFailures)
     {
         std::vector<Texture*> retry;
         std::vector<Texture> batch;
@@ -206,6 +223,7 @@ namespace BlackFlame::CopyRequestDump
         int written = 0;
         std::uint64_t bytes = 0;
         const int failed = DumpTextures(a_folder / kDumpRoot, batch, written, bytes);
+        a_writeFailures = failed;  // AC3
         for (std::size_t i = 0; i < batch.size(); ++i) {
             *retry[i] = std::move(batch[i]);
         }
@@ -223,7 +241,20 @@ namespace BlackFlame::CopyRequestDump
         int written = 0;
         int failed = 0;
         for (auto& nif : a_nifs) {
-            const auto file = LongPath(UnderRoot(root, nif.path));
+            std::filesystem::path file;
+            try {
+                file = LongPath(UnderRoot(root, nif.path));
+            } catch (const std::runtime_error& e) {
+                // AC2: one refused path is one failure (named as not read), not the end of the dump
+                if (nif.blob.ok) {
+                    ++failed;
+                    nif.blob.ok = false;
+                    nif.blob.error = kDumpWriteFailed;
+                    std::vector<std::byte>().swap(nif.bytes);
+                    logger::warn("BlackFlame: copy request: NIF {} not dumped: {}", Utf8(nif.path), e.what());
+                }
+                continue;
+            }
             std::error_code ec;
             if (!nif.blob.ok) {
                 std::filesystem::remove(file, ec);

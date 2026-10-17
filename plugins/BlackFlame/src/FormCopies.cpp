@@ -297,6 +297,8 @@ namespace BlackFlame
         };
         copies.counts.requestFingerprint = text("requestFingerprint");
         copies.counts.requestFingerprintSizes = text("requestFingerprintSizes");
+        copies.counts.dumpComplete = !root.contains("dumpComplete") || !root["dumpComplete"].is_boolean() ||
+                                     root["dumpComplete"].get<bool>();
         PluginNames::Lookup<const RE::TESFile*> lookup;
         // Pass 1: resolve and fill data members; failures stay out of the lookup
         for (const auto& item : root["copies"]) {

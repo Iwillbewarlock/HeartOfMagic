@@ -103,26 +103,29 @@ namespace BlackFlame
             if (counts.mapVersion == kOldMapVersion) {
                 state.state = CopyFreshness::kStale;
                 state.detail = "a version 1 map (built before the game wrote requests)";
+            } else if (!counts.dumpComplete) {
+                // AC1: whatever the fingerprint says, its NIFs or textures were missing from the dump the builder read
+                state.state = CopyFreshness::kStale;
+                state.detail = "built from an incomplete dump (the game could not write every file of it): start the game once "
+                               "to the main menu, then run the builder again";
             } else if (built.empty() || now.empty() || built != now) {
                 state.state = CopyFreshness::kStale;
                 state.detail = std::format("the {} fingerprint differs: built {}, now {}", bytes ? "byte" : "size",
                     built.empty() ? std::string("(none in the map)") : built, now.empty() ? std::string("(not computed)") : now);
+            } else if (counts.textureSetsRejected > 0) {
+                // Codex 2, AC4: a decal texture set copy out of step with the load order needs a rebuild even when the
+                // fingerprint matches; it wins over grey textures that do not open (a rebuild writes them again)
+                state.state = CopyFreshness::kStale;
+                state.detail = std::format("the {} fingerprint matches, but {} decal texture set copies are out of step with the "
+                                           "load order (left out: their decals stay the source's){}", bytes ? "byte" : "size",
+                    counts.textureSetsRejected, counts.textureSetsUnopened > 0 ?
+                        std::format("; {} more name grey textures that do not open", counts.textureSetsUnopened) : std::string());
             } else if (counts.textureSetsUnopened > 0) {
                 // AA6, AB4: built for this load order, the ESL loaded, but grey textures do not open: the output's textures
                 // missing or overwritten, or a loose-file cache out of date (TextureSetProblem says which per copy)
                 state.state = CopyFreshness::kTexturesMissing;
                 state.detail = std::format("the {} fingerprint matches, but {} decal texture set copies name grey textures that do "
-                                           "not open{}", bytes ? "byte" : "size", counts.textureSetsUnopened,
-                    counts.textureSetsRejected > 0 ? std::format(", and {} are out of step with the load order (run the builder)",
-                                                         counts.textureSetsRejected) :
-                                                     std::string());
-            } else if (counts.textureSetsRejected > 0) {
-                // Codex 2: a decal texture set copy out of step with the load order (FormCopies.h TextureSetProblem) needs a
-                // rebuild even when the fingerprint matches
-                state.state = CopyFreshness::kStale;
-                state.detail = std::format("the {} fingerprint matches, but {} decal texture set copies are out of step with the "
-                                           "load order (left out: their decals stay the source's)", bytes ? "byte" : "size",
-                    counts.textureSetsRejected);
+                                           "not open", bytes ? "byte" : "size", counts.textureSetsUnopened);
             } else {
                 state.state = CopyFreshness::kFresh;
                 state.detail = std::format("the {} fingerprint matches ({})", bytes ? "byte" : "size", now);
@@ -210,7 +213,9 @@ namespace BlackFlame
             const std::string relative = DataPathRule::Normalize(model, DataPathRule::kMeshesRoot).value_or(model);
             entries.push_back(model + "|" + stamp(std::filesystem::path("Data") / relative));
         }
-        // AB4: the decal texture sets' grey textures (the map's TXST entries) are loose files too
+        // AB4: the decal texture sets' grey textures (the map's TXST entries) are loose files too, kept in the key on purpose:
+        // a changed or stale-indexed one probes again. CopyGreyTexturePaths gives NifDump::NormalizeTexturePath results
+        // ("textures\..."), so they are Data-relative already (the model paths above are record text, hence Normalize)
         const auto greyTextures = CopyGreyTexturePaths();
         for (const auto& texture : greyTextures) {
             entries.push_back(texture + "|" + stamp(std::filesystem::path("Data") / texture));

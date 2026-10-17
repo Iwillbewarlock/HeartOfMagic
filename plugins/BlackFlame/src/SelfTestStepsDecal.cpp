@@ -116,7 +116,9 @@ namespace BlackFlame::SelfTest
             } else if (const auto* e = copy->As<RE::BGSExplosion>()) {
                 // AB2: an explosion that places a texture set keeps the source's set (decals only get TXST copies)
                 const auto* placed = reinterpret_cast<const RE::TESForm*>(e->data.impactPlacedObject);
-                const auto* own = reinterpret_cast<const RE::TESForm*>(source->As<RE::BGSExplosion>()->data.impactPlacedObject);
+                const auto* sourceExplosion = source->As<RE::BGSExplosion>();
+                const auto* own = sourceExplosion ? reinterpret_cast<const RE::TESForm*>(sourceExplosion->data.impactPlacedObject) :
+                                                    nullptr;
                 if (own && own->GetFormType() == RE::FormType::TextureSet) {
                     ++tally.placedSets;
                     if (placed != own) {

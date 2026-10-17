@@ -70,7 +70,7 @@ namespace
         try {
             const auto closure = BlackFlame::BuildFireClosure();
             BlackFlame::PrepareCopyRequest(closure);
-            BlackFlame::CheckFreshness(closure);  // C3: fresh / stale / none / pluginMissing / notApplied (CopyFreshness.h)
+            BlackFlame::CheckFreshness(closure);  // C3: fresh / stale / none / pluginMissing / notApplied / texturesMissing (CopyFreshness.h)
         } catch (const std::exception& e) {
             logger::error("BlackFlame: copy request: the fire closure failed: {}", e.what());
             BlackFlame::MarkFreshnessUnchecked(std::string("the fire closure failed: ") + e.what());

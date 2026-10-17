@@ -146,6 +146,7 @@ namespace BlackFlame
         std::size_t sourceAbsent = 0;   // H1: of failed, left out because the source's own mesh is in no mod or archive
         std::string requestFingerprint;       // map v2: the request's fingerprint
         std::string requestFingerprintSizes;  // map v2: its size-only form
+        bool dumpComplete = true;             // AC1: the map's "dumpComplete" (absent in older maps: complete)
     };
 
     [[nodiscard]] CopyCounts GetCopyCounts() noexcept;

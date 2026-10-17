@@ -42,6 +42,8 @@ namespace BlackFlame
     struct CopyRequestState
     {
         bool computed = false;        // the fingerprint was computed
+        bool dumpComplete = true;     // AC1: every dump file was written (request.json "dumpComplete"; the map carries it)
+        int dumpWriteFailures = 0;    // AC1: files the dump could not write (or whose path it refused) this start
         std::string fingerprint;      // "fnv64:<16 hex>"
         std::string sizeFingerprint;  // the same without the NIF byte hashes (path, size): C3's cheap check
         bool requestWritten = false;
