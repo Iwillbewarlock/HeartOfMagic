@@ -25,7 +25,7 @@ namespace SlotLedgerTests
     {
         return { { CC::SlotType::kPROJ, "Skyrim.esm", 0x10FBED }, { CC::SlotType::kPROJ, "Embers XD.esp", 0x812 },
             { CC::SlotType::kIPCT, "Skyrim.esm", 0x3C9AA }, { CC::SlotType::kADDN, "Skyrim.esm", 0x2F },
-            { CC::SlotType::kTXST, std::string("\xB8\xB6\xB9\xFD.esp"), 0x801 } };
+            { CC::SlotType::kTXST, std::string("\xB8\xB6\xB9\xFD.esp"), 0x801, true } };
     }
 
     inline bool SameEntries(const LM::Ledger& a_lhs, const LM::Ledger& a_rhs)
@@ -97,6 +97,25 @@ namespace SlotLedgerTests
         const auto packed = LM::Assign(full, many, true, 1);
         a_check(packed.assigned == 480 && packed.poolFull.size() == 1 && packed.poolFull[0] == 480 && !packed.slots[480],
             "ledger: the 481st PROJ finds its pool full (480) and stays without a slot");
+
+        LM::Ledger decals;
+        const LM::Want withDodt{ CC::SlotType::kTXST, "Skyrim.esm", 0x6051D, true };
+        const LM::Want withoutDodt{ CC::SlotType::kTXST, "Skyrim.esm", 0x6051E, false };
+        const auto split = LM::Assign(decals, { withDodt, withoutDodt }, true, 1);
+        auto flipped = withDodt;
+        flipped.txstDodt = false;  // a mod removed the source's DODT: the stubbed slot no longer fits
+        const auto moved = LM::Assign(decals, { flipped, withoutDodt }, true, 2);
+        a_check(split.slots[0] == 0xEA0 && split.slots[1] == 0xEE8 && moved.slots[0] == 0xEE9 && moved.slots[1] == 0xEE8 &&
+                    LM::FindSlot(decals, 0xEA0)->state == LM::State::kTombstone,
+            "ledger: a TXST with DODT takes a stubbed slot (ea0), one without the first unstubbed (ee8); a source whose DODT went "
+            "away moves to an unstubbed slot and its old one stays reserved");
+
+        LM::Ledger addn;
+        const auto first400 = LM::Assign(addn, { { CC::SlotType::kADDN, "a.esp", 1 }, { CC::SlotType::kARTO, "a.esp", 2 },
+                                                  { CC::SlotType::kHAZD, "a.esp", 3 }, { CC::SlotType::kEXPL, "a.esp", 4 } }, true, 1);
+        a_check(first400.slots[0] == 0xF00 && first400.slots[1] == 0xD00 && first400.slots[2] == 0xDE0 && first400.slots[3] == 0xBC0 &&
+                    CC::AddnIndexOfSlot(*first400.slots[0]) == 40000u,
+            "ledger: ADDN, ARTO, HAZD and EXPL take the first id of their pools (f00 = AddOnNode index 40000, d00, de0, bc0)");
     }
 
     template <class Check>

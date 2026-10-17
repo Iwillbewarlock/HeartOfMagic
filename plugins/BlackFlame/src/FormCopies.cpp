@@ -7,6 +7,7 @@
 
 #include "FireClosure.h"
 #include "NifDump.h"
+#include "SlotAssign.h"
 
 #include "PluginNames.h"
 
@@ -441,6 +442,9 @@ namespace BlackFlame
         if (g_disabledReady.load(std::memory_order_acquire) && DisabledIds().contains(it->second->GetFormID())) {
             return nullptr;  // its model did not load in game: the source stays (v2i safety net)
         }
+        if (SlotAssign::IsGated(it->second)) {
+            return nullptr;  // single launch: a slot is handed out only while its group is published (SlotAssign.h)
+        }
         return it->second;
     }
 
@@ -497,6 +501,9 @@ namespace BlackFlame
     {
         if (!a_copy) {
             return nullptr;
+        }
+        if (SlotAssign::IsSlotForm(a_copy)) {
+            return SlotAssign::PublishedMuzzle(a_copy);  // v3.2 §6: grey only for a published slot, else the source's
         }
         // I8: a grey muzzle the game could not load: the source's muzzle is expected (the caller's fallback)
         if (g_disabledReady.load(std::memory_order_acquire) && RevertedMuzzles().contains(a_copy->GetFormID())) {

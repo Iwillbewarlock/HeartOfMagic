@@ -8,12 +8,14 @@
 // --self-test runs the same table), the co-save file reader (CoSaveFile.h; CoSaveFileTests.h) on buffers built per the
 // spike's layout, and the slot ledger (SlotLedgerModel.h, SlotLedgerFiles.h; SlotLedgerTests.h - its file cases use a
 // folder under the system temp folder, removed after). --cosave: walks real co-saves with the DLL's reader and prints each
-// block and whether a BFSL slot list is there. Exit 0 when every check (or every walk) passes, 1 on a failure, 2 on a
-// usage error. No game.
+// block and whether a BFSL slot list is there. --nif-values: the BSValueNode values (AddOnNode indices) the DLL reads from
+// each NIF's header (NifValueNodes.h). Exit 0 when every check (or every file) passes, 1 on a failure, 2 on a usage error.
+// No game.
 
 #include "../../plugins/BlackFlame/src/CopyContractTest.h"
 #include "../../plugins/BlackFlame/src/SlotCoSave.h"
 #include "CoSaveFileTests.h"
+#include "NifValueNodesTests.h"
 #include "SlotLedgerTests.h"
 
 #include <algorithm>
@@ -310,6 +312,28 @@ namespace
         }
         return failed == 0 ? 0 : 1;
     }
+
+    // --nif-values: "<file>: <values...>" per NIF (the DLL's BSValueNode reader); 0 when every file parsed
+    int NifValues(int a_argc, char** a_argv)
+    {
+        namespace NV = BlackFlame::NifValueNodes;
+        int failed = 0;
+        for (int i = 2; i < a_argc; ++i) {
+            std::ifstream in(a_argv[i], std::ios::binary);
+            const Bytes bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+            const auto read = NV::Read(bytes.data(), bytes.size());
+            std::cout << a_argv[i] << ":";
+            if (!read.parsed) {
+                std::cout << " NOT PARSED (" << read.why << ")";
+                ++failed;
+            }
+            for (const auto value : read.values) {
+                std::cout << " " << value;
+            }
+            std::cout << "\n";
+        }
+        return failed == 0 ? 0 : 1;
+    }
 }
 
 int main(int a_argc, char** a_argv)
@@ -317,8 +341,12 @@ int main(int a_argc, char** a_argv)
     if (a_argc >= 3 && std::string(a_argv[1]) == "--cosave") {
         return WalkFiles(a_argc, a_argv);
     }
+    if (a_argc >= 3 && std::string(a_argv[1]) == "--nif-values") {
+        return NifValues(a_argc, a_argv);
+    }
     if (a_argc != 2 || std::string(a_argv[1]) != "--self-test") {
-        std::cerr << "Usage:\n  blackflame-cosave-check --self-test\n  blackflame-cosave-check --cosave <file.skse> [<file.skse> ...]\n";
+        std::cerr << "Usage:\n  blackflame-cosave-check --self-test\n  blackflame-cosave-check --cosave <file.skse> [<file.skse> ...]\n"
+                     "  blackflame-cosave-check --nif-values <file.nif> [<file.nif> ...]\n";
         return 2;
     }
     Checker check;
@@ -328,6 +356,7 @@ int main(int a_argc, char** a_argv)
         BlackFlame::CopyContractTest::Run([&](bool a_ok, const std::string& a_what) { check(a_ok, "contract: " + a_what); });
         CoSaveFileTests::Run([&](bool a_ok, const std::string& a_what) { check(a_ok, a_what); });
         SlotLedgerTests::Run([&](bool a_ok, const std::string& a_what) { check(a_ok, a_what); });
+        NifValueNodesTests::Run([&](bool a_ok, const std::string& a_what) { check(a_ok, a_what); });
     } catch (const std::exception& e) {
         check(false, std::string("exception: ") + e.what());
     }

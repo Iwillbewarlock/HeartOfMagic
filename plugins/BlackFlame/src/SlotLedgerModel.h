@@ -212,7 +212,14 @@ namespace BlackFlame::SlotLedgerModel
         CC::SlotType type = CC::SlotType::kNone;
         std::string plugin;
         std::uint32_t localId = 0;
+        bool txstDodt = false;  // TXST: the source has a DODT, so only a slot with the DODT stub fits (CopyContract TxstHasDodt)
     };
+
+    /// A TXST slot fits a want only when its DODT stub matches the source's DODT; every other type fits any slot of its pool
+    [[nodiscard]] inline bool SlotFits(std::uint16_t a_slot, const Want& a_want) noexcept
+    {
+        return a_want.type != CC::SlotType::kTXST || CC::TxstHasDodt(a_slot) == a_want.txstDodt;
+    }
 
     struct AssignResult
     {
@@ -229,7 +236,8 @@ namespace BlackFlame::SlotLedgerModel
     /// a_wants (each source once) get their slot: the source's active slot (lowest when a merge left two; the other
     /// becomes a tombstone), else its tombstone back to active, else (only with a_allowNew) the lowest local id of its
     /// type's pool that no entry holds in any state. Every other active entry becomes a tombstone. Conflict entries are
-    /// never given out. a_session: the session number for new entries.
+    /// never given out; a TXST slot whose DODT stub no longer matches its source's DODT is not kept (SlotFits: the source
+    /// takes a fitting slot, the old one stays a reserved tombstone). a_session: the session number for new entries.
     [[nodiscard]] inline AssignResult Assign(Ledger& a_ledger, const std::vector<Want>& a_wants, bool a_allowNew,
         std::uint32_t a_session)
     {
@@ -241,7 +249,7 @@ namespace BlackFlame::SlotLedgerModel
             Entry* best = nullptr;
             for (auto& entry : a_ledger.entries) {
                 if (entry.state == State::kConflict || !SameSource(entry, want.type, want.plugin, want.localId) ||
-                    used.count(entry.slot) != 0) {
+                    used.count(entry.slot) != 0 || !SlotFits(entry.slot, want)) {
                     continue;
                 }
                 const bool better = !best || (entry.state == State::kActive && best->state != State::kActive);
@@ -272,7 +280,7 @@ namespace BlackFlame::SlotLedgerModel
             }
             std::optional<std::uint16_t> free;
             for (std::uint32_t id = pool->first; id < static_cast<std::uint32_t>(pool->first) + pool->count; ++id) {
-                if (!FindSlot(a_ledger, static_cast<std::uint16_t>(id))) {
+                if (!FindSlot(a_ledger, static_cast<std::uint16_t>(id)) && SlotFits(static_cast<std::uint16_t>(id), want)) {
                     free = static_cast<std::uint16_t>(id);
                     break;
                 }

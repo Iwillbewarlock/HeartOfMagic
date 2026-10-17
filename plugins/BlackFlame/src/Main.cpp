@@ -40,6 +40,7 @@
 #include "Recolor.h"
 #include "ScriptTags.h"
 #include "SelfTest.h"
+#include "SingleLaunch.h"
 #include "SlotLedger.h"
 #include "Tester.h"
 #include "MainThreadQueue.h"
@@ -69,28 +70,39 @@ namespace
                     a_step);
             }
         };
-        if (BlackFlame::GetConfig().singleLaunch) {
+        const bool singleLaunch = BlackFlame::GetConfig().singleLaunch;
+        if (singleLaunch) {
             // Single launch: the engine's resource index first (RegisterLoose is gated on its structural checks), then the
-            // slot ledger (no ledger path: no slots this session)
+            // slot ledger (no ledger path: no slots this session). The copies map route below does not run (SingleLaunch.h)
             guarded("FileIndex::Init", [] { BlackFlame::FileIndex::Init(); });
             guarded("SlotLedger::Load", [] { (void)BlackFlame::SlotLedger::Load(); });
+        } else {
+            guarded("LoadAndFillCopies", [] { BlackFlame::LoadAndFillCopies(); });  // v2: before any hook reads the copies
         }
-        guarded("LoadAndFillCopies", [] { BlackFlame::LoadAndFillCopies(); });  // v2: before any hook reads the copies
         guarded("BuildFireSets", [] { BlackFlame::BuildFireSets(); });
         // v2 expansion C1: the closure from the original forms, the fingerprint, the request and the NIF dump. Its own
         // failures are caught inside; this catch is for the closure walk itself, so the hooks below are installed anyway
         try {
             const auto closure = BlackFlame::BuildFireClosure();
             BlackFlame::PrepareCopyRequest(closure);
-            BlackFlame::CheckFreshness(closure);  // C3: fresh / stale / none / pluginMissing / notApplied / texturesMissing (CopyFreshness.h)
+            if (singleLaunch) {
+                // the slots are filled from the live closure every start: no copies map to be stale
+                BlackFlame::MarkFreshnessUnchecked("single launch: the copies are the slot pool (no copies map)");
+                guarded("SingleLaunch::OnDataLoaded", [&] { BlackFlame::SingleLaunch::OnDataLoaded(closure); });
+            } else {
+                BlackFlame::CheckFreshness(closure);  // C3: fresh / stale / none / pluginMissing / notApplied / texturesMissing (CopyFreshness.h)
+            }
         } catch (const std::exception& e) {
             logger::error("BlackFlame: copy request: the fire closure failed: {}", e.what());
             BlackFlame::MarkFreshnessUnchecked(std::string("the fire closure failed: ") + e.what());
         }
         guarded("LoadGreyMap", [] { BlackFlame::LoadGreyMap(); });
         guarded("LoadPalette", [] { (void)BlackFlame::LoadPalette(); });
-        // v2i: every copy NIF demanded once on the main thread; failures out of the swaps
-        guarded("QueueCopyModelProbe", [] { BlackFlame::QueueCopyModelProbe(); });
+        if (!singleLaunch) {
+            // v2i: every copy NIF demanded once on the main thread; failures out of the swaps (single launch: CopyGroups
+            // verifies before it opens)
+            guarded("QueueCopyModelProbe", [] { BlackFlame::QueueCopyModelProbe(); });
+        }
         guarded("event sinks", [] {
             BlackFlame::EffectEventSink::GetSingleton()->Register();
             BlackFlame::HitEventSink::GetSingleton()->Register();
