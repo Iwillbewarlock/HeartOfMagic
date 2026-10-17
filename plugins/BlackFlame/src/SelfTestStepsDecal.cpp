@@ -66,8 +66,8 @@ namespace BlackFlame::SelfTest
             if (a_held != want) {
                 a_tally.Fault(std::format("{:08X} {}: holds {:08X}, expected {:08X}", IdOf(a_copy), a_what, IdOf(a_held), IdOf(want)));
             }
-            SelfTestLog::Info("T0-decal", std::format("{:08X} {} -> {:08X} ({})", IdOf(a_copy), a_what, IdOf(a_held),
-                expected && a_held == expected ? "the TXST copy" : "the source's set: no TXST copy"));
+            const char* what = a_held != want ? "a wrong link" : expected ? "the TXST copy" : "the source's set: no TXST copy";
+            SelfTestLog::Info("T0-decal", std::format("{:08X} {} -> {:08X} ({})", IdOf(a_copy), a_what, IdOf(a_held), what));
         }
 
         void JudgeSet(DecalTally& a_tally, const RE::BGSTextureSet& a_copy, const RE::BGSTextureSet& a_source)

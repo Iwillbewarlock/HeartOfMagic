@@ -132,6 +132,8 @@ namespace BlackFlame
         std::size_t arts = 0;
         std::size_t textureSets = 0;          // TXST (decal texture sets)
         std::size_t textureSetsRejected = 0;  // of failed: TXST copies out of step with the load order (rebuild; freshness)
+        std::size_t textureSetsUnopened = 0;  // of failed: TXST copies whose grey texture does not open (enable the output)
+        std::size_t textureSetsUnusable = 0;  // of failed: TXST copies whose source slot is no text (U+FFFD; never copied)
         std::size_t failed = 0;      // left out of the map
         std::size_t linksToCopies = 0;  // links the second pass pointed at a copy
         int mapVersion = 0;             // 1 (spike builds) or 2 (C2 builder)
@@ -177,12 +179,20 @@ namespace BlackFlame
         bool RefillTextureSet(RE::BGSTextureSet& a_copy, const RE::BGSTextureSet& a_source);
         [[nodiscard]] std::string CompareTextureSet(const RE::BGSTextureSet& a_copy, const RE::BGSTextureSet& a_source);
 
+        enum class TextureSetReason
+        {
+            kNone,
+            kStale,          // DODT presence, a source slot, a copy slot or the map's slots: run the builder
+            kOutputMissing,  // a grey texture does not open: enable the builder's output mod with its textures
+            kUnusable        // a source slot holds bytes that are no text (U+FFFD): never copied
+        };
+
         /// Why a TXST copy cannot be used (empty: it can): its DODT present unlike the live source's, a live source slot
         /// other than the map's sourceTextures (the build is stale), a copy slot other than the map says (ESL and map out of
-        /// step), or a grey texture that does not open through the game's file system. a_expected: the copy's slots as the
-        /// map gives them (UTF-8)
+        /// step), a source slot that is no text, or a grey texture that does not open through the game's file system.
+        /// a_expected: the copy's slots as the map gives them (UTF-8); a_reason: which of those (AA6)
         [[nodiscard]] std::string TextureSetProblem(const RE::TESForm* a_copy, const RE::TESForm* a_source,
-            const nlohmann::json& a_item, std::array<std::string, kTextureSlots>& a_expected);
+            const nlohmann::json& a_item, std::array<std::string, kTextureSlots>& a_expected, TextureSetReason& a_reason);
 
         /// The TXST copy's slots as the map gave them (null when a_copy is no filled TXST copy)
         [[nodiscard]] const std::array<std::string, kTextureSlots>* ExpectedTexturesOf(const RE::TESForm* a_copy) noexcept;

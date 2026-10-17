@@ -101,6 +101,12 @@ namespace BlackFlame
                 state.state = CopyFreshness::kStale;
                 state.detail = std::format("the {} fingerprint differs: built {}, now {}", bytes ? "byte" : "size",
                     built.empty() ? std::string("(none in the map)") : built, now.empty() ? std::string("(not computed)") : now);
+            } else if (counts.textureSetsUnopened > 0) {
+                // AA6: the copies are built for this load order but the output's textures are not there: enable the output mod
+                state.state = CopyFreshness::kPluginMissing;
+                state.detail = std::format("the {} fingerprint matches, but {} decal texture set copies name grey textures that do "
+                                           "not open (is the builder's output mod enabled with its textures?)", bytes ? "byte" : "size",
+                    counts.textureSetsUnopened);
             } else if (counts.textureSetsRejected > 0) {
                 // Codex 2: a decal texture set copy out of step with the load order (FormCopies.h TextureSetProblem) needs a
                 // rebuild even when the fingerprint matches
@@ -119,9 +125,10 @@ namespace BlackFlame
         const auto closureSets = std::ranges::count_if(a_closure.forms, [](const ClosureForm& a_form) {
             return a_form.kind == CopyKind::kTextureSet;
         });
-        if (closureSets > 0 && counts.mapRead && counts.textureSets == 0 && counts.textureSetsRejected == 0) {
-            logger::info("BlackFlame: copies: decal texture sets: {} in the fire closure, none in the copies map (built before decal "
-                         "copies): the player's decals keep the source's texture sets; run the builder", closureSets);
+        if (closureSets > 0 && counts.mapRead && counts.textureSets == 0 && counts.textureSetsRejected == 0 &&
+            counts.textureSetsUnopened == 0 && counts.textureSetsUnusable == 0) {
+            logger::info("BlackFlame: copies: decal texture sets: {} in the fire closure, none in the copies map (an older build, or "
+                         "the builder left them out; see its warnings): the player's decals keep the source's texture sets", closureSets);
         }
         g_state = std::move(state);
         g_checked = true;

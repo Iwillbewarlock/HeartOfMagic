@@ -40,6 +40,7 @@ namespace BlackFlame::CopyFill
         static_assert(kTextureSlots == 8, "TX00..TX07");
 
         constexpr float kByteMax = 255.0f;
+        constexpr std::string_view kReplacement = "\xEF\xBF\xBD";  // U+FFFD in UTF-8 (SanitizeToUTF8 of bytes that are no text)
 
         [[nodiscard]] std::uint8_t GreyByte(const RE::Color& a_colour) noexcept
         {
@@ -152,8 +153,9 @@ namespace BlackFlame::CopyFill
     }
 
     std::string TextureSetProblem(const RE::TESForm* a_copy, const RE::TESForm* a_source, const nlohmann::json& a_item,
-        std::array<std::string, kTextureSlots>& a_expected)
+        std::array<std::string, kTextureSlots>& a_expected, TextureSetReason& a_reason)
     {
+        a_reason = TextureSetReason::kStale;
         const auto* copy = a_copy ? a_copy->As<RE::BGSTextureSet>() : nullptr;
         const auto* source = a_source ? a_source->As<RE::BGSTextureSet>() : nullptr;
         if (!copy || !source) {
@@ -170,6 +172,10 @@ namespace BlackFlame::CopyFill
         }
         for (std::size_t i = 0; i < kTextureSlots; ++i) {
             const auto live = SlotText(*source, i);
+            if (live.find(kReplacement) != std::string::npos) {
+                a_reason = TextureSetReason::kUnusable;  // AA2: every comparison would agree on U+FFFD and name another file
+                return std::format("the source's TX0{} holds bytes that are no text in this code page: not copied", i);
+            }
             if (Folded(live) != Folded((*sourceSlots)[i])) {
                 return std::format("the source's TX0{} is '{}', the copy was built for '{}' (run the builder)", i, live, (*sourceSlots)[i]);
             }
@@ -190,10 +196,12 @@ namespace BlackFlame::CopyFill
             // Opens, which is all it says: whether the DDS decodes is the builder's risk check's (it decodes every copy)
             RE::BSResourceNiBinaryStream stream(path->c_str());
             if (!stream.good()) {
+                a_reason = TextureSetReason::kOutputMissing;
                 return std::format("the copy's texture {} does not open (is the builder's output mod enabled with its textures?)",
                     EncodingUtils::SanitizeToUTF8(*path));
             }
         }
+        a_reason = TextureSetReason::kNone;
         return {};
     }
 

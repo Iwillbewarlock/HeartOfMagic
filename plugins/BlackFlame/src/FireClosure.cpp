@@ -156,7 +156,9 @@ namespace BlackFlame
                 if (!form) {
                     return;
                 }
-                if (KindOf(form->GetFormType())) {
+                // AA10: a placed object of the kinds it took before decal copies; a texture set is copied only as a decal
+                // (an EXPL placing a TXST keeps the source's, as before)
+                if (const auto kind = KindOf(form->GetFormType()); kind && *kind != CopyKind::kTextureSet) {
                     Push(form, a_from.via, a_from.costliest);
                 } else if (!m_excluded.contains(form->GetFormID())) {
                     Exclude(form, "placed object is not a copy type", a_from.via);
@@ -191,6 +193,16 @@ namespace BlackFlame
                 }
                 if (const auto* art = a_form->As<RE::BGSArtObject>(); art && art->numAlternateTextures != 0) {
                     return std::format("alternate textures not copied ({})", art->numAlternateTextures);
+                }
+                // AA2: a slot whose bytes are no text in this code page (U+FFFD after SanitizeToUTF8): a copy would name
+                // another file than the source's, so the decal stays the source's
+                if (const auto* set = a_form->As<RE::BGSTextureSet>()) {
+                    for (const auto& texture : set->textures) {
+                        const char* text = texture.textureName.c_str();
+                        if (text && *text && EncodingUtils::SanitizeToUTF8(text).find("\xEF\xBF\xBD") != std::string::npos) {
+                            return "a texture slot whose bytes are no text in this code page (not copied)";
+                        }
+                    }
                 }
                 return {};
             }

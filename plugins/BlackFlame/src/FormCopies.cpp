@@ -268,6 +268,7 @@ namespace BlackFlame
             copies.entries.clear();
             copies.muzzles.clear();
             copies.absentSources.clear();
+            copies.textureSets.clear();  // AA9: with the other tables
             copies.counts.mapRead = false;
             logger::error("BlackFlame: copies: the fill stopped part way ({}) - every copy left out this session (no swap)", why);
             MarkCopiesFillFailed(why);  // Y11: the freshness check says so, not "not built"
@@ -333,14 +334,25 @@ namespace BlackFlame
                 entry.detail = refusal;
             }
             // Decal texture sets: the copy's slots and DODT against the map and the live source, its grey textures open
+            std::array<std::string, CopyFill::kTextureSlots> expectedTextures{};
             if (entry.ok && entry.type == RE::FormType::TextureSet) {
-                std::array<std::string, CopyFill::kTextureSlots> expected{};
-                if (const auto problem = CopyFill::TextureSetProblem(entry.copy, entry.source, item, expected); !problem.empty()) {
+                auto reason = CopyFill::TextureSetReason::kNone;
+                if (const auto problem = CopyFill::TextureSetProblem(entry.copy, entry.source, item, expectedTextures, reason);
+                    !problem.empty()) {
                     entry.ok = false;
                     entry.detail = problem;
-                    ++copies.counts.textureSetsRejected;
-                } else {
-                    copies.textureSets.emplace(entry.copy->GetFormID(), std::move(expected));
+                    // AA6: counted by what the player has to do
+                    switch (reason) {
+                    case CopyFill::TextureSetReason::kOutputMissing:
+                        ++copies.counts.textureSetsUnopened;
+                        break;
+                    case CopyFill::TextureSetReason::kUnusable:
+                        ++copies.counts.textureSetsUnusable;
+                        break;
+                    default:
+                        ++copies.counts.textureSetsRejected;
+                        break;
+                    }
                 }
             }
             if (entry.ok && !CopyFill::FillData(entry.copy, entry.source)) {
@@ -354,6 +366,9 @@ namespace BlackFlame
                 copies.counts.greyless += greyless ? 1 : 0;
                 copies.bySource.emplace(entry.source->GetFormID(), entry.copy);
                 copies.byCopy.emplace(entry.copy->GetFormID(), entry.source);
+                if (entry.type == RE::FormType::TextureSet) {
+                    copies.textureSets.emplace(entry.copy->GetFormID(), std::move(expectedTextures));  // AA9: filled ones only
+                }
                 Count(copies.counts, entry.type);
             } else {
                 ++copies.counts.failed;
@@ -398,8 +413,9 @@ namespace BlackFlame
         }
         const auto& c = copies.counts;
         logger::info("BlackFlame: copies: {} map entries; filled PROJ {}, EXPL {}, IPCT {}, HAZD {}, ARTO {}, TXST {}; {} left out "
-                     "({} decal texture sets out of step with the load order); {} links pointed at copies", c.mapEntries,
-            c.projectiles, c.explosions, c.impacts, c.hazards, c.arts, c.textureSets, c.failed, c.textureSetsRejected,
+                     "(decal texture sets: {} out of step with the load order, {} with a grey texture that does not open, {} with "
+                     "a slot that is no text); {} links pointed at copies", c.mapEntries, c.projectiles, c.explosions, c.impacts,
+            c.hazards, c.arts, c.textureSets, c.failed, c.textureSetsRejected, c.textureSetsUnopened, c.textureSetsUnusable,
             c.linksToCopies);
     }
 

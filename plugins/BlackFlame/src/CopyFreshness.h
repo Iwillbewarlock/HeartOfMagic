@@ -12,7 +12,8 @@
 // At kDataLoaded, after the copy request (CopyRequest.h), from the copies map and this start's fingerprint:
 //   none          no map, or a map with no entry (only the empty ESLs the mod ships)
 //   pluginMissing the map was read but HeartOfMagic_BlackFlame_Copies.esp is not loaded, or more than half of its
-//                 entries lost their copy form (the output mod is not enabled)
+//                 entries lost their copy form (the output mod is not enabled); or, with a matching fingerprint, a decal
+//                 texture set copy names a grey texture that does not open (CopyCounts::textureSetsUnopened)
 //   notApplied    Y11: the map was there but filling the copies stopped part way (no copy is used this session)
 //   stale         a version 1 map, or the map's request fingerprint differs from this start's (the bytes form when
 //                 writeRequest computed it, else the size form), or a decal texture set copy was left out as out of step

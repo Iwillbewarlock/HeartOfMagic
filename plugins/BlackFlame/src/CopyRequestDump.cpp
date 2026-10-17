@@ -38,9 +38,16 @@ namespace BlackFlame::CopyRequestDump
     std::filesystem::path UnderRoot(const std::filesystem::path& a_root, const std::string& a_dataPath)
     {
         const auto utf8 = Utf8(a_dataPath);
-        auto joined = a_root / std::filesystem::path(std::u8string(utf8.begin(), utf8.end()));
-        const auto relative = joined.lexically_normal().lexically_relative(a_root.lexically_normal());
-        if (relative.empty() || relative.is_absolute() || *relative.begin() == "..") {
+        // AA4: a root given with a trailing separator compares as the folder itself (lexically_relative would see an empty
+        // last element and answer "..\x")
+        auto base = a_root.lexically_normal();
+        if (!base.has_filename() && base.has_parent_path() && base != base.root_path()) {
+            base = base.parent_path();
+        }
+        auto joined = base / std::filesystem::path(std::u8string(utf8.begin(), utf8.end()));
+        const auto relative = joined.lexically_normal().lexically_relative(base);
+        // AA4: "." is the root itself (an empty data path), never a file under it
+        if (relative.empty() || relative == "." || relative.is_absolute() || *relative.begin() == "..") {
             throw std::runtime_error(std::format("dump path '{}' would leave the dump folder", utf8));
         }
         return joined;
@@ -69,15 +76,24 @@ namespace BlackFlame::CopyRequestDump
     {
         auto temp = a_file;
         temp += L".tmp";
+        const auto longTemp = LongPath(temp);  // AA4: as the dump's own files
         {
-            std::ofstream out(temp, std::ios::binary | std::ios::trunc);
+            std::ofstream out(longTemp, std::ios::binary | std::ios::trunc);
             out << a_text;
             out.close();
             if (!out) {
+                std::error_code ec;
+                std::filesystem::remove(longTemp, ec);
                 throw std::runtime_error(std::format("writing {} failed", PathText(temp)));
             }
         }
-        std::filesystem::rename(temp, a_file);  // MSVC: MoveFileExW with MOVEFILE_REPLACE_EXISTING
+        try {
+            std::filesystem::rename(longTemp, LongPath(a_file));  // MSVC: MoveFileExW with MOVEFILE_REPLACE_EXISTING
+        } catch (...) {
+            std::error_code ec;
+            std::filesystem::remove(longTemp, ec);  // AA4: no .tmp left behind
+            throw;
+        }
     }
 
     // J6: "unchanged" holds only while every dumped NIF and planned texture (T1) is there with its size; a texture the
@@ -211,6 +227,11 @@ namespace BlackFlame::CopyRequestDump
             }
             if (!WriteDumpFile(file, nif.bytes)) {
                 ++failed;
+                // AA4: no partial file, and the request names it as not read (the builder then keeps the source's model)
+                std::filesystem::remove(file, ec);
+                nif.blob.ok = false;
+                nif.blob.error = "writing the dump failed";
+                std::vector<std::byte>().swap(nif.bytes);
                 logger::warn("BlackFlame: copy request: writing the dump of {} failed", Utf8(nif.path));
                 continue;
             }
