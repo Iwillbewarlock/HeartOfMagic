@@ -114,7 +114,7 @@ void SelfTest::StepDoses(State& s)
         std::format("copied poison after A ran out: {} (expected {})", FormText(next), FormText(s.poisonB)));
     CheckKeyword(s, "7 keyword", s.poisonB, s.poisonA);
     if (next != s.poisonB) {
-        Fail(s, "7 setup", "the next poison was not B - the doses-across-poisons part is skipped");
+        Info("7 span", "skipped: the next poison was not B (see 7 next poison above)");
         return;
     }
 

@@ -180,6 +180,7 @@ namespace
         SelfTest::DeleteTarget(s);
         SelfTest::DispelCloak(s);
         for (auto* poison : { s.poisonA, s.poisonB }) {  // a test poison that landed on the player (Self delivery)
+            if (!poison) continue;  // Setup stopped before picking it
             for (auto* effect : SelfTest::LiveEffectsOf(player, poison)) effect->Dispel(true);  // RE/A/ActiveEffect.h:92
         }
         ToxGame::SetHitTracing(false);
@@ -242,8 +243,9 @@ namespace
     }
 
     // After step 1 began: the player's 3D and cell. Missing for kPlayerGoneMs (quit to the main menu, a long
-    // load) ends the test: in the main menu nothing is touched (the world is gone), otherwise it is undone.
-    // A short gap (a door's loading screen) only pauses the steps.
+    // gap outside a loading screen) ends the test: in the main menu nothing is touched (the world is gone),
+    // otherwise it is undone.
+    // A shorter gap, or any time while the loading screen is open, only pauses the steps.
     bool PlayerStillHere(State& s)
     {
         auto* player = RE::PlayerCharacter::GetSingleton();
@@ -251,8 +253,10 @@ namespace
             s.playerGoneTicks = 0;
             return true;
         }
-        if (!SelfTest::WaitOver(++s.playerGoneTicks, SelfTest::kPlayerGoneMs)) return false;
         auto* ui = RE::UI::GetSingleton();
+        // A loading screen pauses the steps without counting (RE/L/LoadingMenu.h:21): a long one is no abort
+        if (ui && ui->IsMenuOpen(RE::LoadingMenu::MENU_NAME)) return false;
+        if (!SelfTest::WaitOver(++s.playerGoneTicks, SelfTest::kPlayerGoneMs)) return false;
         const bool mainMenu = ui && ui->IsMenuOpen(RE::MainMenu::MENU_NAME);  // RE/U/UI.h:92, RE/M/MainMenu.h:30
         SelfTest::Fail(s, "abort", std::format("the player's 3D or cell has been gone for {} ms ({}){}", SelfTest::kPlayerGoneMs,
             mainMenu ? "main menu" : "no main menu", mainMenu ? ": nothing touched" : ": the test's changes are undone"));
@@ -385,14 +389,14 @@ namespace
         }).detach();
     }
 
-    // The save name SKSE passes with kPreLoadGame / kSaveGame (skse64's convention; CommonLibSSE-NG's
-    // SKSE/Interfaces.h does not document the data): up to a_length bytes, empty when none
     bool DevFilePresent()
     {
         std::error_code ec;
         return std::filesystem::exists(ToxGame::kSelfTestPath, ec);
     }
 
+    // The save name SKSE passes with kPreLoadGame / kSaveGame (skse64's convention; CommonLibSSE-NG's
+    // SKSE/Interfaces.h does not document the data): up to a_length bytes, empty when none
     std::string_view SaveNameView(const char* a_name, std::uint32_t a_length)
     {
         if (!a_name || a_length == 0) return {};

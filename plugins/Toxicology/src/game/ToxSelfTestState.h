@@ -32,7 +32,7 @@ namespace ToxGame::SelfTest
 
     inline constexpr int kPollMs = 100;             // one main-thread tick per this much
     inline constexpr int kPlayerWaitMs = 60000;     // the player's 3D and cell, before the start delay
-    inline constexpr int kPlayerGoneMs = 3000;      // after step 1 began: gone this long ends the test
+    inline constexpr int kPlayerGoneMs = 15000;     // after step 1 began: gone this long (loading screens not counted) ends the test
     inline constexpr int kSettleTicks = 3;          // ticks after the first sign of a hit before it is judged
     inline constexpr float kMinPoisonSeconds = 8.0f;  // a test poison's longest effect: at least this long
     inline constexpr float kNearZeroSeconds = 1.5f;   // "elapsed back near 0" after a refresh
