@@ -883,3 +883,17 @@ README "Ids and how each was checked (v2)" 표가 기준. 요약: 모든 id가 1
 - T8: 테스터 패키지에 THIRD-PARTY-NOTICES.md와 licenses\(nifly, directxtex, CommonLibSSE-NG 등)를 넣고 없으면 거부. README_TESTER와 bat에 VC++ 2015-2022 x64 재배포 패키지와 종료 코드 -1073741515(0xC0000135) 안내.
 - 같이 한 것: T11(덤프 경로가 덤프 폴더를 벗어나지 않는지 검사), T13(목록이 실패하면 지문 "error", 요청에서 textures 생략), T14(ReadModel이 totalSize만큼 미리 확보, 상한 256 MiB), T15(textureCaps를 요청에 씀), T16(문서), T17(float 형식 거절).
 - 안 한 것: T9(같은 크기 교체는 README에 매니페스트 지우기 안내만), T10(덤프 예산 우선순위), T12(고아 사본·덤프 정리).
+
+### 데칼 사본 (decal texture set copies, TXST, 2026-10-17)
+
+- 문제(게임과 데이터로 확인): 버프 중에도 Fire Rune의 룬 문양과 땅에 남는 그을음이 주황. 둘 다 NIF가 아니라 데칼이다. MAG_RuneFireProjectile02의 DecalData = DecalRuneFire(Skyrim.esm 06051D, TX00·TX03 RuneFire01.dds, 주황 DXT5), 화염 IPCT의 TextureSet = DecalFlameBurn01(02B95A). FormCopiesFill이 PROJ.decalData와 IPCT.decalTextureSet/2를 원본 그대로 복사하고 있었다.
+- 결정: TXST를 여섯 번째 사본 종류로. 클로저가 사본 PROJ의 decalData와 사본 IPCT의 두 texture set을 따라가고(kEdgeDecal), 빌더가 TXST 사본 레코드를 ESL에 쓰고(TXST 그룹이 맨 앞), DLL이 사본 PROJ/IPCT의 데칼 링크를 TXST 사본으로 다시 잇는다. NPC 폼과 공유되는 원본 TXST는 건드리지 않는다. 요청 버전 3, 맵 버전 2 그대로(TXST가 forms/copies에 실려 옛 빌더는 `type 'TXST'`에서, 옛 DLL은 항목마다 "bad entry"로 크게 실패).
+- 슬롯: CommonLib BSTextureSet.h 순서(0 diffuse, 1 normal, 2 env mask, 3 glow/detail ...). TX00은 --tint(조명 받는 표면 위 diffuse), TX03은 1(밝기 마스크), NIF와 같은 텍스처 단계·같은 채도 판정. 나머지 슬롯은 원본 문자열. 브리프의 "TX02"는 짐작이었고 헤더로 TX03.
+- DODT: BGSTextureSet::decalData는 포인터(0x0C0). DLL은 할당하지 않는다. 빌더가 원본에 DODT가 있을 때만 36바이트 0 스텁을 쓰고, DLL이 살아 있는 원본 값을 대입(색 RGB는 Tint.h 휘도, 알파 유지). IPCT 사본 자신의 dData 색도 같은 규칙으로 회색. textures[]·textureFileIDs·SetTexturePath는 쓰지 않음(사본은 레코드의 회색 경로 그대로).
+- 사본을 빼는 경우(데칼은 원본으로 남음): DODT 있음/없음이 원본과 다름, 원본 슬롯이 빌드 때와 다름, 사본 슬롯이 맵과 다름(ESL·맵이 다른 실행), 회색 텍스처가 게임 파일 시스템으로 안 열림. 이런 TXST 사본이 있으면 지문이 같아도 신선도 stale.
+- 문자: 요청은 UTF-8, 레코드와 텍스처 찾기는 시스템 코드 페이지 바이트(Utf8ToAnsiExact, 손실이면 그 TXST 제외 경고), 맵은 다시 UTF-8.
+- id: 원본 키와 함께 타입도 유지. retired 항목에 type을 남기고, 같은 원본이 다른 타입으로 다시 오면(활성이든 retired든) 쓰기 전에 거부. 옛 요청(decalTextureSets 없음)이 TXST 사본을 가진 --out에 오면 쓰기 전에 거부.
+- 팔레트(같은 날 따로 요청): 13:09 실행의 위험 검사 UNREAD 167은 GradBlackFlame.dds·GradBlackFlameAdd.dds가 덤프에 없어서. DLL이 두 팔레트를 매 요청 시작마다 게임 파일 시스템으로 읽어 해시하고(같은 크기 교체도 다시 덤프) 덤프와 request.json textures(own)에 넣는다. 빌더는 dump-manifest.json을 읽지 않으므로 "목록"은 request.json. 목록에 있으면 빌더 자신의 폴더는 안 읽고(게임 것 아니면 그 이유), 없으면(옛 DLL) 시작에 한 줄 알리고 빌더 폴더로. 못 읽은 우리 팔레트는 팔레트마다 UNREAD 한 줄(셰이프 수 포함), 게이트는 그대로 센다.
+- 검증 방식: 실시간 데칼 배열(BGSDecalManager) 스캔은 하지 않음(스레드 보장이 코드에 없음, SEH는 락이 아님, 주소 재사용, T4가 NPC·플레이어를 한 프레임에 쏨). 자가 시험 T0-decal이 데이터로 판정: 사본 링크, TXST 사본의 DODT 유무·슬롯·textureFileIDs. 화면의 룬·그을음은 눈 확인.
+- 세이브: retired 규칙으로 TXST 사본 id가 그 원본에 남으니 사본 모드가 설치된 동안 저장된 참조는 풀린다. 데칼이 저장되는지는 미확인(BSTempEffect의 저장 가상 함수, UESP의 temp effects 구역). 저장된 데칼이 있는 채로 사본을 지우는 것은 알려진 한계.
+- 리뷰에서 받지 않은 것: TXST가 ESL id를 고갈시킨다(사본 PROJ/IPCT를 거쳐서만 들어와 수십 개), 런타임 IFormFactory TXST(런타임 id의 세이브·경로 생성 미확인, 나중의 슬롯 풀 변경 때 다시 봄), TX02·TX06 색(마스크·맵 슬롯, 덤프하지 않음: README 알려진 한계).

@@ -338,7 +338,8 @@ casting art; fire or not), then to a fixed point MGEF projectile, explosion, imp
 data and a spawn-hazard archetype's hazard (and for a fire MGEF its hit art and its RFCT's art), DUAL projectile,
 explosion, impact data set and hit art, PROJ explosion, EXPL impact data set, placed object and spawn projectile, every
 impact of an IPDS, IPCT hazard, HAZD impact data set and its spell's MGEFs. Copy types: PROJ, EXPL, IPCT, HAZD, ARTO;
-IPDS, DUAL, RFCT, SPEL and MGEF are walked through. Excluded, each with its reason: a form of our own plugins
+IPDS, DUAL, RFCT, SPEL and MGEF are walked through; a copied PROJ's decal texture set and a copied IPCT's two make TXST
+copies (section "Decal texture set copies"). Excluded, each with its reason: a form of our own plugins
 (`HeartOfMagic_BlackFlame*`), a placed object that is not a copy type, an art with alternate textures. Bound fire
 weapons (bound-weapon stage 1): every Bound Weapon-archetype MGEF whose associated form is a bound WEAP that is fire by the
 runtime rule's two branches - a fire effect of a fire spell, or the weapon's enchantment carrying a fire MGEF (the MGEF
@@ -499,6 +500,9 @@ start the game once to the main menu with this release (the DLL then dumps the t
   that cannot be written leaves the manifest as it was, so the next start dumps again. A manifest
   without a texture fingerprint - a dump made before T1 - is written again once. A listing that throws writes `error` as
   the texture fingerprint (never equal to a real one) and leaves `textures` out of the request.
+- **Our palettes**: the two fixed palettes (`textures\heartofmagic\blackflame\gradblackflame.dds`, `...add.dds`) are
+  planned first (`own` in the request's `textures`), read whole at every start with `writeRequest` on for their FNV,
+  which goes into the texture fingerprint: replacing one, even with a file of the same size, dumps again.
 - **Same-size replacements**: the texture fingerprint holds sizes only (no byte is read at a start), so a texture mod
   swapped for one of the same size is not dumped again. After changing texture mods, delete `dump-manifest.json` in the
   request folder, start the game to the main menu once and run the builder again.
@@ -518,6 +522,58 @@ format and 7 mips kept and the source unchanged; a grey BC1, a dark grey BC1 and
 small orange specks is recoloured; a broken DDS, a BC5 and a float texture fail with a reason; the glow shader rule, its
 emissive colour, per-tint copies, and the slots that must stay). Not checked: the DLL's texture dump in the game, and how
 the grey copies look.
+
+### Decal texture set copies (TXST): `GreyFormsTxst.h`, `FormCopiesFillTexture.cpp`
+
+Fire Rune's glyph and the scorch a fire impact leaves are **decals**: texture sets (TXST) the projectile
+(`BGSProjectileData::decalData`) and the impact (`BGSImpactData::decalTextureSet`, `decalTextureSet2`) name, drawn
+apart from their NIFs. Measured 2026-10-17: Fire Rune's `MAG_RuneFireProjectile02` names `DecalRuneFire` (Skyrim.esm
+06051D: TX00 and TX03 `Effects\RuneFire01.dds`, an orange DXT5), the fire impacts `DecalFlameBurn01` (02B95A); the copy
+NIFs were grey, the decals stayed orange. The player's copies now point at copies of those texture sets; NPCs keep the
+originals, and a texture set the player's and an NPC's forms share is never written (only the copies point at its copy).
+
+- **Closure and request**: the closure takes a copied PROJ's decal set and a copied IPCT's two sets (edge `kEdgeDecal`).
+  A TXST form in `request.json` gives `textures` (TX00..TX07 as the record stores them, UTF-8, `""` for an empty slot),
+  `hasDecal` (the source has DODT), `data.flags` (DNAM) and `bounds`; the request says `"decalTextureSets": true`. Its
+  TX00 and TX03 textures are dumped with the NIFs' (a path both name, once). The fingerprint's line of a TXST is its
+  eight slots and whether it has DODT, so a change of either makes the copies stale.
+- **Slots** (CommonLibSSE-NG `RE/B/BSTextureSet.h`, TX00..TX07): diffuse TX00 is recoloured at the run's `--tint` (a
+  decal is drawn on a lit surface like a mesh diffuse), glow / detail TX03 at 1 (a brightness mask), both through the
+  same texture step as the NIFs (the same chroma judgement, the same `copies\_tint\<pct>\` folders; RuneFire01 gets a
+  `_tint\60\` and a `_tint\100\` copy). Normal, masks, environment and the rest keep the source's text. Not checked against
+  the game: how the decal shader uses each slot.
+- **Record** (in the copies ESL, the TXST group first): EDID `HoMBF_C_TXST_<id>`, OBND, each slot the source has (its grey
+  copy when one was made, else the source's text, without `textures\`), a **DODT stub** (36 zero bytes) exactly when
+  the source has DODT, DNAM flags; no DATA, no MODL. `decalData` is a pointer (`RE/B/BGSTextureSet.h` 0x0C0) the engine
+  allocates for a record with DODT, which the DLL then fills; it never allocates one. Read back subrecord by subrecord
+  (presence kept apart from content, a subrecord twice is a fault).
+- **Text**: the request's UTF-8 slot text is written into the record in the system code page's bytes (a slot that does
+  not convert without loss leaves that texture set out with a warning: its decal stays the source's); the map holds
+  UTF-8 again (`sourceTextures`, `greyTextures`, `hasDecal`).
+- **Fill (DLL)**: `boundData`, `flags` and `*decalData` (its colour's RGB set to its Rec. 709 luminance, alpha kept)
+  from the live source; never `textures[]` or `textureFileIDs`, nor `SetTexturePath`: the copy keeps its record's
+  paths. An IPCT copy's own `dData` colour is greyed the same way, and its two texture sets, like a PROJ copy's
+  `decalData`, point at the TXST copies (the second pass, the compare and the refresh, in play too). A TXST copy is
+  left out (the decal stays the source's, orange) when its DODT presence differs from the live source's, a live source
+  slot is not the one it was built for, its slots are not the map's (the ESL and the map from different runs), or a
+  grey texture does not open through the game's file system (opens only: whether it decodes is the builder's risk
+  check, which decodes every copy it judges). Such a copy makes freshness `stale` even with a matching fingerprint. A
+  slot that changes after the start cannot be refilled (the record's string): CheckCopies reports it and the next start
+  leaves the copy out.
+- **Risk check**: `DECAL_COLOUR` (FAIL) when a TXST copy's TX00 or TX03 still names a coloured texture (the same
+  `IsColouredTexture` judgement as `TEX_COLOUR`); UNREAD / MISSING as for the NIFs.
+- **Old and new**: an old copies ESL and map with this DLL: no TXST entries, the decals stay the source's, the fingerprint
+  differs (stale: "run the builder"), and the log says how many texture sets the closure has without a copy. A new
+  output with an older DLL: one "bad entry" warning per TXST entry (T0-v2 FAIL lines), every other copy works and the
+  decals stay the source's. An older builder refuses a new request (`type 'TXST' is not ...`) and a new map. This builder
+  refuses a request from an older DLL when `--out` already holds TXST copies (building would retire their records),
+  and builds without decals, saying so, otherwise. A source keeps its type with its id: one that comes back as another
+  type, active or retired, is refused before anything is written (retired entries now keep their `type`).
+- **Saves**: a TXST copy id stays its source's through the retired rule, so a saved reference resolves while the copies
+  mod is installed. Whether decals are saved at all is not checked (`BSTempEffect` has save and load virtuals; the save
+  format has a temp-effects section, UESP); uninstalling the copies with saved decals is a known limit.
+- **Known limits**: TX02 (environment mask / subsurface tint), TX06 (multilayer) and TX07 are not dumped or judged; the
+  decal on screen is an eye check (self-test T0-decal judges the forms by data).
 
 ### Glow rules: `GreyGlow.h`
 
@@ -599,6 +655,7 @@ run it is reported, not fatal.
 | PSYS_LEFT | FAIL | a copy `BSPSysSimpleColorModifier` or `NiColorData` key more saturated than 0.05 |
 | GREY_HALO | FAIL | a soft (no texture, or texture detail under 0.06) additive shape whose source colour (base x keys x texture mean x vertex colour) is warm (S >= 0.35) and whose copy shows luminance x emissive multiple above 0.01 |
 | TEX_COLOUR | FAIL | a coloured texture (20% of lit texels with S > 0.25, or a mean colour with S >= 0.30) the copy still names |
+| DECAL_COLOUR | FAIL | a decal texture set copy (TXST) whose TX00 or TX03 still names a coloured texture (the same judgement) |
 | PAL_SHEET | FAIL | a palette shape whose energy (additive: each side's palette x its own emissive multiple) or coverage (normal blend; alpha test: the samples passing the threshold, GEQUAL) grows over 4x while the copy covers at least half the texture |
 | PAL_VANISH | FAIL | an additive palette shape that drew at least 0.01 whose energy falls under a quarter |
 | EFFECT_EMPTY | FAIL | a NIF whose source draws a shape and whose copy draws none |
@@ -608,11 +665,15 @@ run it is reported, not fatal.
 | PAL_MODEL | WARN | Y3: an additive palette shape whose energy ratio under the other reading of the shader (base colour multiplies the palette) differs more than 2x |
 | EFFECT_DIM | WARN | Y5: a NIF whose drawn shapes give under a quarter of its source's light (G1's RGB 0 included) |
 | KEYS_UNREACHED | WARN | Y6: a colour controller none of whose keys can be reached (nothing to grey or judge) |
-| UNREAD | gate | a texture the rule needs is in no folder read (and the game did not say it is absent) or does not decode |
+| UNREAD | gate | a texture the rule needs is in no folder read (and the game did not say it is absent) or does not decode; one of our two fixed palettes is one line for the run with the number of shapes that needed it (still one UNREAD for the gate) |
 | MISSING | INFO | the game itself does not have the texture (the request lists it as not opening): the source has the same hole |
 
 Textures (mip 0, 8-bit RGBA) are read from the `--in` folders (`--from-game`: the game's dump), the output being written
-and our own shipped ones (this run's copies first, Y14). The palette rules follow Community Shaders' `Effect.hlsl`
+and our own shipped ones (this run's copies first, Y14). Our two fixed palettes (`GradBlackFlame.dds`,
+`GradBlackFlameAdd.dds`) are in the dump since this release (the DLL reads them through the game's file system and
+hashes them at every start, so a same-size variant is dumped again); the dump's copy then wins over the builder's own
+folders, which are read only for a request that does not list the palettes (an older DLL, said once at the start of the
+run; before this a run from outside the tester package or the repository found neither and gave UNREAD per shape). The palette rules follow Community Shaders' `Effect.hlsl`
 (2026-10-17; the vanilla shader may differ): colour = emissive multiple x palette(texture green, base red x vertex red),
 palette alpha = palette(texture alpha, base alpha x vertex alpha); an empty source texture slot is taken as one white
 texel (assumed). Each side is read from its own NIF values (Y2: the copy's row and emissive multiple, not the run's
@@ -646,7 +707,7 @@ the copy request, the copies are judged:
 | `none` | no copies map, or one with no entry (only the empty ESLs the mod ships) |
 | `pluginMissing` | the map was read but `HeartOfMagic_BlackFlame_Copies.esp` is not loaded, or at least half of its entries (and at least one) lost their copy form (the output mod placed before Black Flame, or not enabled) |
 | `notApplied` | Y11: the map was there but filling the copies stopped part way: every copy is left out this session (the log says why) |
-| `stale` | a version 1 map, or the map's request fingerprint differs from this start's: the byte form when `writeRequest` computed it, else the size form (each NIF only opened for its size, no byte read; the request carries both forms) |
+| `stale` | a version 1 map, or the map's request fingerprint differs from this start's: the byte form when `writeRequest` computed it, else the size form (each NIF only opened for its size, no byte read; the request carries both forms); or a decal texture set copy was left out as out of step with the load order (section "Decal texture set copies") |
 | `fresh` | otherwise |
 
 The log line gives the state, why, how many closure forms have no copy and how many map entries lost their source. Once
@@ -667,8 +728,9 @@ At kDataLoaded only, before any hook reads them, each copy is filled from the LI
 other runtime edits made before then are included), data members only, never the form header, flags or the copy's
 own model: PROJ `data` (0x80-0x108), `soundLevel`, `fullName`, `muzzleFlashModel` through `TESModel::SetModel`,
 `boundData`; EXPL `data` (0x98-0xE8), the enchantment members, `imageSpaceModifying`, `fullName`, `boundData`; IPCT
-`data`, both decal texture sets, both sounds, `hazard`, `dData`; HAZD `data`, `imageSpaceModifying`, `fullName`,
-`boundData`; ARTO `data` (the DNAM art type) and `boundData` - never its model component; a source art with alternate
+`data`, both decal texture sets, both sounds, `hazard`, `dData` (its colour greyed); HAZD `data`, `imageSpaceModifying`,
+`fullName`, `boundData`; ARTO `data` (the DNAM art type) and `boundData` - never its model component; TXST `boundData`,
+`flags`, `*decalData` (section "Decal texture set copies"); a source art with alternate
 textures (MODS) is refused and left out (`alternate textures not copied`; no fire art in the measured order has any). Data structs are copied byte for byte (their layouts are asserted by CommonLib). A second pass points
 only the links that have a copy at it: PROJ `explosionType`, EXPL `impactPlacedObject` and `spawnProjectile`, IPCT
 `hazard`; every other link (light, sounds, texture sets, image space, enchantment, hazard spell, impact data sets)
@@ -918,7 +980,7 @@ release notice lists them).
 
 - Grey-black, not pitch black: the blending stays additive.
 - Death flames (an actor burning to death) stay orange: hardcoded in the engine (Black Flame author's note).
-- Scorch decals and impact data sets are unchanged. Of hazards (ground fire) the copy or the grey map's model is grey and the light is tinted (C6: no runtime recolour); vanilla flames that emit into a shared `BSMasterParticleSystem` (MPSFireWallBase and the like) stay orange, because recolouring them would turn every NPC's fire of that kind grey. Grey copies of the shared-particle impacts and hazards exist (section "Grey duplicates"), and the DLL swaps the player's to them while stoked (section "Grey swap").
+- Impact data sets are unchanged; scorch decals and Fire Rune's glyph are grey through TXST copies (section "Decal texture set copies"; their look is an eye check). Of hazards (ground fire) the copy or the grey map's model is grey and the light is tinted (C6: no runtime recolour); vanilla flames that emit into a shared `BSMasterParticleSystem` (MPSFireWallBase and the like) stay orange, because recolouring them would turn every NPC's fire of that kind grey. Grey copies of the shared-particle impacts and hazards exist (section "Grey duplicates"), and the DLL swaps the player's to them while stoked (section "Grey swap").
 - A hit shader or hit art made while stoked stays grey until it ends, also after the buff ends; one made before the buff stays as it was (expected: the engine asks when it makes it; the `GetHitEffectShader` lines show the call count per controller).
 - Hit art that is a shared master particle system (`BSMasterParticleSystem`) is not recoloured.
 - A fire effect whose MGEF names no hit shader gets none (the engine is asked, we only swap what it would show; the old layer applied grey anyway).
@@ -1020,6 +1082,7 @@ no crime. Every projectile re-finds its target first and nothing is launched whe
 | T0-request | v2 expansion C1: with `writeRequest` on, PASS when closure forms are above 0, the fingerprint is computed, `request.json` is written, no closure form's or muzzle's NIF failed to read and the dump is unchanged or written in full (else FAIL); an ADDN record's NIF that failed (often another mod's missing mesh) is an INFO line with the count and the first five paths, not a FAIL; INFO when `writeRequest` is off; the line gives the counts, the NIF read time, the fingerprint and the dump state. Whether the closure is the right set is judged from `request.json` against the census, not here |
 | T0-fresh | v2 expansion C5: PASS when the copies are fresh (section "Freshness"); FAIL for stale, none, pluginMissing or notApplied, with why and how many closure forms have no copy |
 | T0-cover | PASS when every copy-type form of this session's fire closure has a filled copy or was excluded with a reason; FAIL lists the first 20 without one (type, FormID, plugin, the spell that reached it and its plugin). INFO: per fire spell its costliest effect's projectile, dual cast projectile, explosion and casting art, each as copied of present; copies without a grey model (the builder kept the source's); copies no swap point uses (a casting art reached only from an effect that is not a costliest one, a hazard reached only as a non-fire spawn-hazard effect's form). T0-hooks also judges explosion creation, the SetCastingArt call site, the hazard creation detour and the SpawnHazardEffect window: PASS hooked; INFO when left off on purpose (the replay decoder refused the prologue, SE where the function is not verified, the SetCastingArt scan or its byte check) - except on 1.6.1170 / 1.7.104, where a wanted device that is not hooked is a FAIL whatever the note; a full trampoline, a jump into memory that is not executable or a missing id is a FAIL everywhere (fix G1) |
+| T0-decal | by data, no live decal read: every PROJ / IPCT copy's decal links hold the TXST copy when one is filled (else the source's set); every TXST copy's DODT presence equals the source's, its slots the map's, its non-empty slots' `textureFileIDs` set wherever the source's are; no closure texture set without a copy. INFO: one line per decal-bearing copy, the closure's sets, the `textureFileIDs` count |
 | T0-bound | per bound fire weapon seed (weapon, MGEF, which branch made it fire, the spell carrying it): its MGEF's projectile and, for a bow or crossbow, every bound-arrow AMMO's projectile has a copy (PASS), is excluded from the closure or has no source mesh (listed with the reason), or has no copy (FAIL: run the builder again); a seed without an arrow PROJ (a melee weapon) is INFO. T0-cover adds an INFO line: bound fire weapon arrows copied of those in the closure |
 | E-bound-launch / E-bound-npc | while stoked, the first bow or crossbow seed with a spell: the player's hands and ammo recorded, the spell cast on the player, then (once the weapon is on the runtime bound fire list, 3 s at most) an arrow shot at the self-test's target deer (T3's aim; no target: SKIP, nothing launched - only the test's own actors are shot) through the AMMO `LaunchData` constructor (projectile base = the ammo's PROJ, weapon and ammo source set): PASS when the Launch record has that PROJ's copy. E-bound-npc: the same ammo and weapon from the deer caster is not swapped. SKIP without a bow seed with a spell, or without bound-arrow AMMO |
 | E-bound-off | after T8 (the buff off): the same launch from the player is not swapped; then the spell is dispelled and the player's hands and ammo put back (T9 and a late cleanup do it again whatever path the steps took). Every test arrow (player, deer, buff off) is deleted after its judgement (W3: its handle is taken at the launch, so an abort or a failed later step still deletes it), so the save E3 asks for holds no copy-based arrow; as with E3, use a throwaway save: a bound weapon or arrow left by a crash mid-step would be in it |
