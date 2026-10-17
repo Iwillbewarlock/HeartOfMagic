@@ -22,6 +22,8 @@
 
 #include "game/ToxApply.h"
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 
@@ -43,6 +45,9 @@ namespace ToxGame
         kApplied,         // ApplyOrRefresh ran; HitTrace::outcome holds what it did
     };
 
+    // ApplyOutcome's enumerators are 0..kNoCaster (ToxApply.h): one counter each
+    inline constexpr std::size_t kApplyOutcomeKinds = static_cast<std::size_t>(ApplyOutcome::kNoCaster) + 1;
+
     // What became of one spell's hits since tracing was switched on
     struct HitTrace
     {
@@ -52,6 +57,7 @@ namespace ToxGame
         std::uint32_t applied = 0;    // tasks that reached ApplyOrRefresh
         HitStage last = HitStage::kNone;
         std::optional<ApplyOutcome> outcome;  // the last ApplyOrRefresh result
+        std::array<std::uint32_t, kApplyOutcomeKinds> outcomes{};  // ApplyOrRefresh results by kind (index = enum value)
     };
 
     // Main thread. On: clears every trace and starts counting; off: stops (and clears). Off by default:

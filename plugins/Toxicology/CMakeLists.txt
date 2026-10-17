@@ -27,6 +27,7 @@ set(TOXICOLOGY_SOURCES
     src/game/ToxSelfTest.cpp
     src/game/ToxSelfTestSetup.cpp
     src/game/ToxSelfTestHits.cpp
+    src/game/ToxSelfTestDoses.cpp
     src/game/ToxSelfTestReload.cpp
     ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/EncodingUtils.cpp
 )

@@ -52,7 +52,11 @@ namespace
         std::uint32_t tasks = 0;
         std::uint32_t applied = 0;
         ToxGame::HitStage last = ToxGame::HitStage::kNone;
-        std::optional<ApplyOutcome> outcome;  // set only when a task reached ApplyOrRefresh since the cast
+        std::optional<ApplyOutcome> outcome;  // the last one, set only when a task reached ApplyOrRefresh since the cast
+        std::array<std::uint32_t, ToxGame::kApplyOutcomeKinds> outcomes{};  // since the cast, by kind
+
+        // How many ApplyOrRefresh calls since the cast gave a_kind
+        [[nodiscard]] std::uint32_t Count(ApplyOutcome a_kind) const { return outcomes[static_cast<std::size_t>(a_kind)]; }
     };
 
     HitResult Since(const State& s, RE::FormID a_spell)
@@ -60,16 +64,22 @@ namespace
         const auto now = ToxGame::HitTraceFor(a_spell);
         const auto& was = s.traceBefore;
         HitResult r{ now.rawEvents - was.rawEvents, now.sinkHits - was.sinkHits, now.tasks - was.tasks,
-            now.applied - was.applied, now.last, std::nullopt };
+            now.applied - was.applied, now.last, std::nullopt, {} };
         if (r.applied > 0) r.outcome = now.outcome;
+        for (std::size_t i = 0; i < r.outcomes.size(); ++i) r.outcomes[i] = now.outcomes[i] - was.outcomes[i];
         return r;
     }
 
     std::string HitText(const HitResult& a_r)
     {
-        return std::format("TESHitEvents with this source {}, kept by the sink {}, hit tasks run {}, reached ApplyOrRefresh {}, "
-            "last task: {}, outcome {}", a_r.raw, a_r.kept, a_r.tasks, a_r.applied, SelfTest::StageName(a_r.last),
-            SelfTest::OutcomeName(a_r.outcome));
+        std::string kinds;
+        for (std::size_t i = 0; i < a_r.outcomes.size(); ++i) {
+            if (a_r.outcomes[i] == 0) continue;
+            kinds += std::format("{}{} x{}", kinds.empty() ? "" : ", ", SelfTest::OutcomeName(static_cast<ApplyOutcome>(i)), a_r.outcomes[i]);
+        }
+        return std::format("TESHitEvents with this source {}, kept by the sink {}, hit tasks run {}, reached ApplyOrRefresh {} "
+            "({}), last task: {}, last outcome {}", a_r.raw, a_r.kept, a_r.tasks, a_r.applied, kinds.empty() ? "no outcome" : kinds,
+            SelfTest::StageName(a_r.last), SelfTest::OutcomeName(a_r.outcome));
     }
 
     // True once the hit has had kSettleTicks since its first sign and every kept event's task ran,
@@ -180,16 +190,20 @@ namespace
                                             " - no TESHitEvent for this spell: this delivery needs another hook (spec 5.3, MagicTarget::AddTarget)")));
         if (r.kept == 0) {
             if (!onTarget.empty()) SelfTest::Info(step, "the poison is on the target anyway: " + EffectsText(onTarget));
+            if (!d.cloak && d.spell->GetDelivery() == RE::MagicSystem::Delivery::kTargetLocation) {
+                SelfTest::Info(step, "no hit from the target-location spell: its rune or area may still be in the world here "
+                    "(run the test in a throwaway cell)");
+            }
             return;
         }
         if (r.applied == 0) {
             SelfTest::Fail(s, step + " apply", std::format("no hit task reached ApplyOrRefresh; the last stopped at: {}", SelfTest::StageName(r.last)));
         } else {
-            SelfTest::Check(s, step + " apply", r.outcome == ApplyOutcome::kCast,
-                std::format("ApplyOrRefresh gave {} (expected kCast on a fresh target)", SelfTest::OutcomeName(r.outcome)));
+            SelfTest::Check(s, step + " apply", r.Count(ApplyOutcome::kCast) > 0,
+                std::format("{} (expected a kCast on a fresh target)", HitText(r)));
         }
         auto detail = EffectsText(onTarget);
-        if (r.outcome == ApplyOutcome::kCastNoEffect && !onTarget.empty()) {
+        if (r.Count(ApplyOutcome::kCastNoEffect) > 0 && !onTarget.empty()) {
             detail += " - present now but not right after ApplyOrRefresh's cast: the effect is added later, so nothing was "
                       "recorded and a refresh can never happen";
         }
@@ -211,7 +225,7 @@ namespace
                 std::format("{} of {} effect(s) have the player [{:08X}] as caster; casters:{}", byPlayer, onTarget.size(),
                     player->GetFormID(), casters));
         }
-        d.landed = r.outcome == ApplyOutcome::kCast && !onTarget.empty();
+        d.landed = r.Count(ApplyOutcome::kCast) > 0 && !onTarget.empty();
     }
 
     void NextDelivery(State& s)
@@ -268,7 +282,7 @@ void SelfTest::TickDeliveries(State& s)
     }
     if (s.phase == kFirstOwn) {
         if (!CastDelivery(s, d, actor.get())) {
-            Fail(s, step + " cast", "the player has no instant magic caster");
+            Fail(s, step + " cast", "not cast: the player has no instant magic caster (GetMagicCaster(kInstant) is null)");
             NextDelivery(s);
             return;
         }
@@ -310,7 +324,11 @@ void SelfTest::TickRefresh(State& s)
     case kCast1:
     case kCast2:
         if (s.phase == kCast2) s.elapsedBefore = LongestElapsed(actor.get(), { s.owned[s.longest] });
-        CastDelivery(s, d, actor.get());
+        if (!CastDelivery(s, d, actor.get())) {
+            Fail(s, "3 cast", "not cast: the player has no instant magic caster (GetMagicCaster(kInstant) is null)");
+            EndStep(s, Step::kForeign);
+            return;
+        }
         NextPhase(s, s.phase + 1);
         return;
     case kWait1:
@@ -322,7 +340,7 @@ void SelfTest::TickRefresh(State& s)
             for (auto* e : LiveEffectsOf(actor.get(), s.poisonA)) {
                 if (e->caster == playerHandle) ours.push_back(e);
             }
-            if (r.outcome != ApplyOutcome::kCast || ours.empty()) {
+            if (r.Count(ApplyOutcome::kCast) == 0 || ours.empty()) {
                 Fail(s, "3 first hit", std::format("{}; our effects on the target: {}", HitText(r), ours.size()));
                 EndStep(s, Step::kForeign);
                 return;
@@ -362,7 +380,8 @@ void SelfTest::TickRefresh(State& s)
         {
             if (!HitSettled(s, d.hitSpell->GetFormID())) return;
             const auto r = Since(s, d.hitSpell->GetFormID());
-            Check(s, "3 refresh outcome", r.outcome == ApplyOutcome::kRefreshed, HitText(r) + " (expected kRefreshed)");
+            Check(s, "3 refresh outcome", r.Count(ApplyOutcome::kRefreshed) > 0 && r.Count(ApplyOutcome::kCast) == 0,
+                HitText(r) + " (expected a kRefreshed and no kCast)");
             const auto live = LiveEffectsOf(actor.get(), s.poisonA);
             std::size_t found = 0;
             for (const auto& ref : s.owned) {
@@ -377,6 +396,7 @@ void SelfTest::TickRefresh(State& s)
             Check(s, "3 elapsed reset", after >= 0.0f && after <= s.elapsedBefore - kResetGapSeconds && after <= kNearZeroSeconds,
                 std::format("longest effect's elapsedSeconds {:.2f} before the second hit, {:.2f} after (expected <= {:.1f})",
                     s.elapsedBefore, after, kNearZeroSeconds));
+            s.elapsedAfter = after;
             NextPhase(s, kWaitEnd);
             return;
         }
@@ -389,7 +409,9 @@ void SelfTest::TickRefresh(State& s)
                 EndStep(s, Step::kForeign);
                 return;
             }
-            s.sinceFirstHit = s.elapsedBefore + e->elapsedSeconds;
+            // Time since the first hit, counted low: elapsed at the second hit plus what the effect ran since the
+            // reading just after it. Without a real reset this tops out below the duration, so no false PASS.
+            s.sinceFirstHit = s.elapsedBefore + (e->elapsedSeconds - s.elapsedAfter);
             if (s.sinceFirstHit >= s.duration + kExtendMarginSeconds) {
                 Pass(s, "3 extended", std::format("still on {:.1f} s after the first hit (its duration {:.1f} s, elapsed {:.1f}/{:.1f})",
                     s.sinceFirstHit, s.duration, e->elapsedSeconds, e->duration));
@@ -434,7 +456,11 @@ void SelfTest::TickForeign(State& s)
     switch (s.phase) {
     case kDirectCast:
         // The poison put on directly, as a coated weapon would: not through ApplyOrRefresh, so no record
-        CastFromPlayer(s.poisonA, actor.get());
+        if (!CastFromPlayer(s.poisonA, actor.get())) {
+            Fail(s, "4 cast", "the poison was not cast: the player has no instant magic caster (GetMagicCaster(kInstant) is null)");
+            EndStep(s, Step::kDoses);
+            return;
+        }
         Info("4 sync", std::format("effects of {} in the target's list right after CastSpellImmediate returned: {} (ApplyOrRefresh "
             "records what is there at that moment)", FormText(s.poisonA), LiveEffectsOf(actor.get(), s.poisonA).size()));
         NextPhase(s, kHit);
@@ -451,7 +477,11 @@ void SelfTest::TickForeign(State& s)
             s.owned = Refs(foreign);
             s.elapsedBefore = LongestElapsed(actor.get(), s.owned);
             Info("4 foreign", "before the hit: " + EffectsText(foreign));
-            CastDelivery(s, d, actor.get());
+            if (!CastDelivery(s, d, actor.get())) {
+                Fail(s, "4 cast", "not cast: the player has no instant magic caster (GetMagicCaster(kInstant) is null)");
+                EndStep(s, Step::kDoses);
+                return;
+            }
             NextPhase(s, kWaitHit);
             return;
         }
@@ -459,13 +489,14 @@ void SelfTest::TickForeign(State& s)
         {
             if (!HitSettled(s, d.hitSpell->GetFormID())) return;
             const auto r = Since(s, d.hitSpell->GetFormID());
-            Check(s, "4 foreign outcome", r.outcome == ApplyOutcome::kForeignPresent, HitText(r) + " (expected kForeignPresent)");
+            Check(s, "4 foreign outcome", r.Count(ApplyOutcome::kForeignPresent) > 0 && r.Count(ApplyOutcome::kCast) == 0 &&
+                r.Count(ApplyOutcome::kRefreshed) == 0, HitText(r) + " (expected a kForeignPresent, no kCast or kRefreshed)");
             const auto live = LiveEffectsOf(actor.get(), s.poisonA);
             Check(s, "4 not stacked", live.size() == s.owned.size(), std::format("{} effect(s) of {} after the hit, {} before: {}",
                 live.size(), FormText(s.poisonA), s.owned.size(), EffectsText(live)));
             const float after = LongestElapsed(actor.get(), s.owned);
-            Check(s, "4 not extended", after >= s.elapsedBefore, std::format("longest elapsedSeconds {:.2f} before the hit, {:.2f} "
-                "after (-1 = gone)", s.elapsedBefore, after));
+            Check(s, "4 not extended", after > s.elapsedBefore, std::format("longest elapsedSeconds {:.2f} before the hit, {:.2f} "
+                "after (expected it kept running: larger; -1 = gone)", s.elapsedBefore, after));
             EndStep(s, Step::kDoses);
             return;
         }

@@ -1,5 +1,5 @@
 // =============================================================================
-// Toxicology - dev self test: step 1, the picks, steps 5 and 7, helpers
+// Toxicology - dev self test: step 1, the picks, step 5, helpers
 // =============================================================================
 // See game/ToxSelfTestState.h for the split between the self test's files.
 
@@ -31,22 +31,12 @@ namespace
 
     constexpr std::int32_t kBottlesA = 20;      // steps 2-4 may use some up (cast events charge Magicka)
     constexpr std::int32_t kBottlesB = 5;
-    constexpr std::int32_t kDoseBottlesA = 2;   // step 7 (spec 9.7)
-    constexpr std::int32_t kDoseBottlesB = 3;
     constexpr float kTargetHealth = 100000.0f;  // a DoT poison must not kill the target mid-test
     constexpr float kNoAggression = 0.0f;       // Unaggressive
     constexpr float kFoolhardy = 4.0f;          // Confidence 4: never flees
     constexpr int kMaxRemoveSteps = 32;
     constexpr std::uint32_t kRuntimeFormIndex = 0xFF;
     constexpr const wchar_t* kI5ModuleName = L"InventoryInjectorImproved.dll";
-
-    std::string Lower(std::string_view a_text)
-    {
-        std::string out(a_text);
-        std::transform(out.begin(), out.end(), out.begin(),
-            [](char a_c) { return (a_c >= 'A' && a_c <= 'Z') ? static_cast<char>(a_c - 'A' + 'a') : a_c; });
-        return out;
-    }
 
     // =========================================================================
     // Poisons (step 1)
@@ -57,10 +47,32 @@ namespace
         RE::AlchemyItem* item = nullptr;
         std::string lower;
         float longest = 0.0f;
+        std::string archetypes;  // the effects' archetypes, for the log
     };
 
-    // Load order poisons the player holds none of, with a name and a longest effect of
-    // kMinPoisonSeconds..maxPoisonSeconds; sorted by lowercased name, then FormID (the core's order)
+    // Archetypes that only change actor values: no Calm/Fear/Frenzy/Paralysis/script, nothing that makes
+    // the target flee, attack or stand still (RE/E/EffectArchetypes.h:10-59)
+    bool ChangesValuesOnly(const RE::EffectSetting& a_base)
+    {
+        using A = RE::EffectSetting::Archetype;
+        switch (a_base.GetArchetype()) {  // RE/E/EffectSetting.h:138
+        case A::kValueModifier:
+        case A::kDualValueModifier:
+        case A::kPeakValueModifier:
+        case A::kAccumulateMagnitude:
+        case A::kAbsorb:
+            break;
+        default:
+            return false;
+        }
+        // RE/E/EffectSetting.h:89,94 (primaryAV, secondaryAV); RE/A/ActorValues.h:8-9
+        const auto behaviour = [](RE::ActorValue a_av) { return a_av == RE::ActorValue::kAggression || a_av == RE::ActorValue::kConfidence; };
+        return !behaviour(a_base.data.primaryAV) && !behaviour(a_base.data.secondaryAV);
+    }
+
+    // Load order poisons the player holds none of, with a name, only value-changing effects
+    // (ChangesValuesOnly) and a longest effect of kMinPoisonSeconds..maxPoisonSeconds; sorted by
+    // lowercased name, then FormID (the core's order)
     std::vector<PoisonPick> PoisonCandidates(const SelfTest::Config& a_config)
     {
         std::vector<PoisonPick> out;
@@ -69,14 +81,23 @@ namespace
         for (auto* item : dh->GetFormArray<RE::AlchemyItem>()) {  // RE/T/TESDataHandler.h:89
             if (!item || !item->IsPoison() || (item->GetFormID() >> 24) == kRuntimeFormIndex) continue;
             const char* name = item->GetFullName();  // RE/T/TESFullName.h:23
-            if (!name || !*name || SelfTest::BottleCount(item) > 0) continue;
+            if (!name || !*name) continue;
             float longest = 0.0f;
+            bool usable = !item->effects.empty();
+            std::string archetypes;
             for (const auto* effect : item->effects) {
                 // RE/E/Effect.h:34; GetDuration reads baseEffect unchecked (ToxApply.cpp HasLastingEffect)
-                if (effect && effect->baseEffect) longest = std::max(longest, static_cast<float>(effect->GetDuration()));
+                if (!effect || !effect->baseEffect || !ChangesValuesOnly(*effect->baseEffect)) {
+                    usable = false;
+                    break;
+                }
+                longest = std::max(longest, static_cast<float>(effect->GetDuration()));
+                archetypes += std::format("{}{} {}", archetypes.empty() ? "" : ", ", SelfTest::FormText(effect->baseEffect),
+                    std::to_string(effect->baseEffect->GetArchetype()));  // RE/E/EffectArchetypes.h:118-121
             }
-            if (longest < SelfTest::kMinPoisonSeconds || longest > a_config.maxPoisonSeconds) continue;
-            out.push_back({ item, Lower(name), longest });
+            if (!usable || longest < SelfTest::kMinPoisonSeconds || longest > a_config.maxPoisonSeconds) continue;
+            if (SelfTest::BottleCount(item) > 0) continue;  // last: it counts the whole inventory
+            out.push_back({ item, SelfTest::LowerAscii(name), longest, std::move(archetypes) });
         }
         std::sort(out.begin(), out.end(), [](const PoisonPick& a_l, const PoisonPick& a_r) {
             return a_l.lower != a_r.lower ? a_l.lower < a_r.lower : a_l.item->GetFormID() < a_r.item->GetFormID();
@@ -118,23 +139,6 @@ namespace
         a_why = std::format("SetFavorite(entry, {}) left entry IsFavorited={} and a list with ExtraHotkey={}",
             hadList ? "its first list" : "no list", entryFavorited, hotkeyList);
         return false;
-    }
-
-    // All bottles of a_poison removed, then a_count added and favorited
-    bool GiveFavorited(RE::AlchemyItem* a_poison, std::int32_t a_count, std::string& a_why)
-    {
-        auto* player = RE::PlayerCharacter::GetSingleton();
-        if (!player) {
-            a_why = "no player";
-            return false;
-        }
-        SelfTest::RemoveAllBottles(a_poison);
-        player->AddObjectToContainer(a_poison, nullptr, a_count, nullptr);  // RE/T/TESObjectREFR.h:270
-        if (const auto count = SelfTest::BottleCount(a_poison); count != a_count) {
-            a_why = std::format("{} bottles after adding {}", count, a_count);
-            return false;
-        }
-        return Favorite(*player, a_poison, a_why);
     }
 
     // A target that outlives any test poison and neither starts a fight nor flees
@@ -191,7 +195,8 @@ namespace
         auto& spells = dh->GetFormArray<RE::SpellItem>();
         std::unordered_set<RE::FormID> subSpells;
         for (auto* spell : spells) {
-            if (!spell) continue;
+            // A cloak the test casts on the player: a plain spell only (not an ability, power or disease)
+            if (!spell || spell->GetSpellType() != RE::MagicSystem::SpellType::kSpell) continue;  // RE/S/SpellItem.h:67
             for (const auto* effect : spell->effects) {
                 const auto* base = effect ? effect->baseEffect : nullptr;
                 if (!base || !base->HasArchetype(RE::EffectSetting::Archetype::kCloak) || !base->data.associatedForm) continue;
@@ -253,27 +258,52 @@ namespace
         }
         s.poisonA = candidates.front().item;
         s.poisonB = second->item;
-        SelfTest::Info("1 poisons", std::format("A {} longest effect {:.0f} s; B {} longest effect {:.0f} s ({} candidates)",
-            SelfTest::FormText(s.poisonA), candidates.front().longest, SelfTest::FormText(s.poisonB), second->longest,
-            candidates.size()));
+        SelfTest::Info("1 poisons", std::format("A {} longest effect {:.0f} s, effects: {}; B {} longest effect {:.0f} s, "
+            "effects: {} ({} candidates)", SelfTest::FormText(s.poisonA), candidates.front().longest, candidates.front().archetypes,
+            SelfTest::FormText(s.poisonB), second->longest, second->archetypes, candidates.size()));
         return true;
     }
 
-    void CheckKeyword(State& s, std::string_view a_step, RE::AlchemyItem* a_on, RE::AlchemyItem* a_off)
-    {
-        auto* keyword = ToxGame::MimicKeyword();
-        const bool on = a_on->HasKeyword(keyword);  // RE/B/BGSKeywordForm.h:26
-        const bool off = a_off->HasKeyword(keyword);
-        const bool wantOn = ToxGame::GetSettings().showIcon;
-        const auto detail = std::format("HoMTox_MimicPoison on {}: {}, on {}: {} (showIcon {})", SelfTest::FormText(a_on), on,
-            SelfTest::FormText(a_off), off, wantOn);
-        SelfTest::Check(s, a_step, on == wantOn && !off, detail);
-    }
 }
 
 // =============================================================================
 // Inventory and effects
 // =============================================================================
+
+std::string SelfTest::LowerAscii(std::string_view a_text)
+{
+    std::string out(a_text);
+    std::transform(out.begin(), out.end(), out.begin(),
+        [](char a_c) { return (a_c >= 'A' && a_c <= 'Z') ? static_cast<char>(a_c - 'A' + 'a') : a_c; });
+    return out;
+}
+
+bool SelfTest::GiveFavorited(RE::AlchemyItem* a_poison, std::int32_t a_count, std::string& a_why)
+{
+    auto* player = RE::PlayerCharacter::GetSingleton();
+    if (!player) {
+        a_why = "no player";
+        return false;
+    }
+    RemoveAllBottles(a_poison);
+    player->AddObjectToContainer(a_poison, nullptr, a_count, nullptr);  // RE/T/TESObjectREFR.h:270
+    if (const auto count = BottleCount(a_poison); count != a_count) {
+        a_why = std::format("{} bottles after adding {}", count, a_count);
+        return false;
+    }
+    return Favorite(*player, a_poison, a_why);
+}
+
+void SelfTest::CheckKeyword(State& s, std::string_view a_step, RE::AlchemyItem* a_on, RE::AlchemyItem* a_off)
+{
+    auto* keyword = ToxGame::MimicKeyword();
+    const bool on = a_on->HasKeyword(keyword);  // RE/B/BGSKeywordForm.h:26
+    const bool off = a_off->HasKeyword(keyword);
+    const bool wantOn = ToxGame::GetSettings().showIcon;
+    const auto detail = std::format("HoMTox_MimicPoison on {}: {}, on {}: {} (showIcon {})", FormText(a_on), on,
+        FormText(a_off), off, wantOn);
+    Check(s, a_step, on == wantOn && !off, detail);
+}
 
 std::int32_t SelfTest::BottleCount(RE::AlchemyItem* a_poison)
 {
@@ -445,8 +475,13 @@ std::string SelfTest::TargetText(State& s, RE::Actor* a_actor)
 void SelfTest::DispelCloak(State& s)
 {
     if (!s.cloakOnPlayer) return;
-    for (auto* effect : LiveEffectsOf(RE::PlayerCharacter::GetSingleton(), s.cloakOnPlayer)) {
+    auto* player = RE::PlayerCharacter::GetSingleton();
+    for (auto* effect : LiveEffectsOf(player, s.cloakOnPlayer)) {
         effect->Dispel(true);  // RE/A/ActiveEffect.h:92
+    }
+    if (const auto left = LiveEffectsOf(player, s.cloakOnPlayer); !left.empty()) {
+        Fail(s, "2/cloak dispel", std::format("{} live effect(s) of {} still on the player after Dispel(true) - it ends by "
+            "its own duration", left.size(), FormText(s.cloakOnPlayer)));
     }
     s.cloakOnPlayer = nullptr;
 }
@@ -519,53 +554,4 @@ void SelfTest::StepI5()
     const bool loaded = REX::W32::GetModuleHandleW(kI5ModuleName) != nullptr;  // REX/W32/KERNEL32.h:462
     Info("5 I5", std::format("InventoryInjectorImproved.dll loaded: {}; Toxicology attempts no purge of its icon cache "
         "(spec 5.5: its console command cannot be reached from a plugin)", loaded ? "yes" : "no"));
-}
-
-// =============================================================================
-// Step 7: Magicka spent -> bottles
-// =============================================================================
-
-void SelfTest::StepDoses(State& s)
-{
-    s.dosesRan = true;
-    const float perDose = ToxGame::GetSettings().magickaPerDose;
-    std::string why;
-    if (!GiveFavorited(s.poisonA, kDoseBottlesA, why) || !GiveFavorited(s.poisonB, kDoseBottlesB, why)) {
-        Fail(s, "7 setup", why);
-        return;
-    }
-    ToxGame::SetAccumulated(0.0f);
-    ToxGame::OnSelectionMaybeChanged();
-    if (ToxGame::CurrentPoison(true) != s.poisonA) {
-        Fail(s, "7 setup", std::format("the copied poison is {}, not {}", FormText(ToxGame::CurrentPoison(true)), FormText(s.poisonA)));
-        return;
-    }
-    const float spent = perDose * 2.5f;
-    ToxGame::AddSpentMagicka(spent);
-    const auto a = BottleCount(s.poisonA);
-    const auto b = BottleCount(s.poisonB);
-    const float left = ToxGame::Accumulated();
-    auto* next = ToxGame::CurrentPoison(true);
-    const auto bottles = std::format("spent {:.1f} (2.5 x magickaPerDose {:.1f}): A {} -> {}, B {} -> {} (expected 0 and {})",
-        spent, perDose, kDoseBottlesA, a, kDoseBottlesB, b, kDoseBottlesB);
-    Check(s, "7 bottles", a == 0 && b == kDoseBottlesB, bottles);
-    const auto rest = std::format("count toward the next bottle {:.2f} (expected {:.2f})", left, perDose * 0.5f);
-    Check(s, "7 remainder", std::fabs(left - perDose * 0.5f) < kMagickaTolerance, rest);
-    const auto choice = std::format("copied poison after A ran out: {} (expected {})", FormText(next), FormText(s.poisonB));
-    Check(s, "7 next poison", next == s.poisonB, choice);
-    CheckKeyword(s, "7 keyword", s.poisonB, s.poisonA);
-
-    // Doses that cross from one poison to the next in one call
-    if (!GiveFavorited(s.poisonA, 1, why)) {
-        Fail(s, "7 span setup", why);
-        return;
-    }
-    ToxGame::SetAccumulated(0.0f);
-    ToxGame::OnSelectionMaybeChanged();
-    ToxGame::AddSpentMagicka(perDose * 2.0f);
-    const auto a2 = BottleCount(s.poisonA);
-    const auto b2 = BottleCount(s.poisonB);
-    const auto span = std::format("2 doses with A x1, B x{}: A {}, B {}, count {:.2f} (expected 0, {}, 0)", kDoseBottlesB,
-        a2, b2, ToxGame::Accumulated(), kDoseBottlesB - 1);
-    Check(s, "7 doses span poisons", a2 == 0 && b2 == kDoseBottlesB - 1 && std::fabs(ToxGame::Accumulated()) < kMagickaTolerance, span);
 }

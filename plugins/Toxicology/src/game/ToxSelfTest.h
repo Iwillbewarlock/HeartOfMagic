@@ -27,20 +27,22 @@ namespace ToxGame
     inline constexpr const char* kSelfTestPath = "Data/SKSE/Plugins/HeartOfMagic_Toxicology_selftest.json";
     inline constexpr const char* kSelfTestStatePath = "Data/SKSE/Plugins/HeartOfMagic_Toxicology_selftest_state.json";
 
-    // kPostLoadGame (after the poison set and the selection are refreshed). A pending reload check
-    // (the state file) runs at once and the main test does not start this session. Otherwise,
-    // with the dev file, starts the main test once per session: one that ended before it gave the
-    // player anything logs SELFTEST RESTART and may start again at a later load.
+    // kPostLoadGame (after the poison set and the selection are refreshed). Without the dev file:
+    // one file-exists check, nothing else. With it: a pending reload check (the state file) runs
+    // at once and the main test does not start this session; otherwise the main test starts once
+    // per session: one that ended before it gave the player anything logs SELFTEST RESTART and may
+    // start again at a later load.
     void MaybeStartSelfTest();
 
     // kPreLoadGame (a_saveName: the message's data, may be empty). Before the test gave anything the
-    // wait starts again; after, the next tick ends it without touching the old world.
+    // wait starts again; after, the next tick ends it without touching the old world. With the dev
+    // file, notes the save name for the reload check.
     void OnSelfTestPreLoad(const char* a_saveName, std::uint32_t a_length);
 
     // kNewGame: a running test ends at its next tick, the old world untouched
     void OnSelfTestNewGame();
 
     // kSaveGame (a_saveName: the message's data, may be empty). Warns about a save taken while the
-    // test's changes are in the world; notes the save the reload check waits for.
+    // test's changes are in the world; with the dev file, notes the save the reload check waits for.
     void OnSelfTestSave(const char* a_saveName, std::uint32_t a_length);
 }

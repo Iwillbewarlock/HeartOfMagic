@@ -4,9 +4,10 @@
 // Toxicology - dev self test: shared state (internal to ToxSelfTest*.cpp)
 // =============================================================================
 // ToxSelfTest.cpp       the run: file gate, ticks, load/save messages, undo, DONE
-// ToxSelfTestSetup.cpp  step 1, the poison / spell / target picks, steps 5 and 7,
-//                       and the target and effect helpers
+// ToxSelfTestSetup.cpp  step 1, the poison / spell / target picks, step 5,
+//                       and the target, effect and inventory helpers
 // ToxSelfTestHits.cpp   steps 2, 3, 4 and 6 (poison spell hits on spawned targets)
+// ToxSelfTestDoses.cpp  step 7 (Magicka spent -> bottles)
 // ToxSelfTestReload.cpp the reload check of step 7 (its state file)
 // Every member is touched on the game's main thread (SKSE tasks and messages)
 // except the atomics, which the worker thread reads.
@@ -31,6 +32,7 @@ namespace ToxGame::SelfTest
 
     inline constexpr int kPollMs = 100;             // one main-thread tick per this much
     inline constexpr int kPlayerWaitMs = 60000;     // the player's 3D and cell, before the start delay
+    inline constexpr int kPlayerGoneMs = 3000;      // after step 1 began: gone this long ends the test
     inline constexpr int kSettleTicks = 3;          // ticks after the first sign of a hit before it is judged
     inline constexpr float kMinPoisonSeconds = 8.0f;  // a test poison's longest effect: at least this long
     inline constexpr float kNearZeroSeconds = 1.5f;   // "elapsed back near 0" after a refresh
@@ -100,6 +102,7 @@ namespace ToxGame::SelfTest
         std::size_t phaseTicks = 0;      // ticks since the phase began
         std::size_t notReadyTicks = 0;   // ticks without the player's 3D and cell
         std::size_t readyTicks = 0;      // ticks with them (the start delay)
+        std::size_t playerGoneTicks = 0; // after step 1 began: ticks without them
         bool begun = false;              // step 1 started changing the world
         bool aborted = false;            // another save or a new game: the next tick ends the test
         std::string abortReason;
@@ -129,6 +132,7 @@ namespace ToxGame::SelfTest
         float duration = 0.0f;
         float waitElapsed = 0.0f;
         float elapsedBefore = 0.0f;
+        float elapsedAfter = 0.0f;       // step 3: the longest effect's elapsedSeconds read just after the second hit
         float sinceFirstHit = 0.0f;      // step 3: seconds our effect has run since the first hit (last seen)
         std::int32_t bottlesAtHits = 0;
         float accumulatedAtHits = 0.0f;
@@ -159,7 +163,7 @@ namespace ToxGame::SelfTest
     // Step 1 and the picks; false: nothing further can be tested (FAIL logged)
     bool Setup(State& s);
     void StepI5();
-    void StepDoses(State& s);
+    void StepDoses(State& s);  // ToxSelfTestDoses.cpp
 
     bool SpawnTarget(State& s, std::string_view step);
     enum class Readiness { kWaiting, kReady, kTimedOut };
@@ -181,6 +185,12 @@ namespace ToxGame::SelfTest
 
     std::int32_t BottleCount(RE::AlchemyItem* a_poison);
     void RemoveAllBottles(RE::AlchemyItem* a_poison);
+    // All bottles removed, then a_count added and favorited (checked as entry IsFavorited and an ExtraHotkey list)
+    bool GiveFavorited(RE::AlchemyItem* a_poison, std::int32_t a_count, std::string& a_why);
+    // HoMTox_MimicPoison on a_on (when showIcon) and not on a_off
+    void CheckKeyword(State& s, std::string_view a_step, RE::AlchemyItem* a_on, RE::AlchemyItem* a_off);
+    // A-Z lowered, other bytes kept (the core's name order)
+    std::string LowerAscii(std::string_view a_text);
 
     // =========================================================================
     // Hits (ToxSelfTestHits.cpp)

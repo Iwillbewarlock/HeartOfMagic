@@ -186,6 +186,7 @@ void ToxGame::OnPoisonSpellHit(RE::ActorHandle a_target, RE::FormID a_spell)
         ++a_trace.applied;
         a_trace.last = HitStage::kApplied;
         a_trace.outcome = outcome;
+        if (const auto kind = static_cast<std::size_t>(outcome); kind < a_trace.outcomes.size()) ++a_trace.outcomes[kind];
     });
 }
 

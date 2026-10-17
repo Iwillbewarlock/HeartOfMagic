@@ -179,6 +179,9 @@ namespace
         auto* player = RE::PlayerCharacter::GetSingleton();
         SelfTest::DeleteTarget(s);
         SelfTest::DispelCloak(s);
+        for (auto* poison : { s.poisonA, s.poisonB }) {  // a test poison that landed on the player (Self delivery)
+            for (auto* effect : SelfTest::LiveEffectsOf(player, poison)) effect->Dispel(true);  // RE/A/ActiveEffect.h:92
+        }
         ToxGame::SetHitTracing(false);
         SelfTest::RemoveAllBottles(s.poisonA);
         SelfTest::RemoveAllBottles(s.poisonB);
@@ -238,6 +241,27 @@ namespace
         }
     }
 
+    // After step 1 began: the player's 3D and cell. Missing for kPlayerGoneMs (quit to the main menu, a long
+    // load) ends the test: in the main menu nothing is touched (the world is gone), otherwise it is undone.
+    // A short gap (a door's loading screen) only pauses the steps.
+    bool PlayerStillHere(State& s)
+    {
+        auto* player = RE::PlayerCharacter::GetSingleton();
+        if (player && player->Is3DLoaded() && player->GetParentCell()) {  // RE/T/TESObjectREFR.h:448, :420
+            s.playerGoneTicks = 0;
+            return true;
+        }
+        if (!SelfTest::WaitOver(++s.playerGoneTicks, SelfTest::kPlayerGoneMs)) return false;
+        auto* ui = RE::UI::GetSingleton();
+        const bool mainMenu = ui && ui->IsMenuOpen(RE::MainMenu::MENU_NAME);  // RE/U/UI.h:92, RE/M/MainMenu.h:30
+        SelfTest::Fail(s, "abort", std::format("the player's 3D or cell has been gone for {} ms ({}){}", SelfTest::kPlayerGoneMs,
+            mainMenu ? "main menu" : "no main menu", mainMenu ? ": nothing touched" : ": the test's changes are undone"));
+        if (!mainMenu) Undo(s);
+        ToxGame::SetHitTracing(false);
+        Finish(s, "(ended: the player left the world)");
+        return false;
+    }
+
     void Tick(State& s)
     {
         if (s.aborted) {
@@ -247,6 +271,7 @@ namespace
             Finish(s, s.abortReason);
             return;
         }
+        if (s.begun && !PlayerStillHere(s)) return;
         ++s.phaseTicks;
         switch (s.step) {
         case Step::kWaitPlayer:
@@ -362,6 +387,12 @@ namespace
 
     // The save name SKSE passes with kPreLoadGame / kSaveGame (skse64's convention; CommonLibSSE-NG's
     // SKSE/Interfaces.h does not document the data): up to a_length bytes, empty when none
+    bool DevFilePresent()
+    {
+        std::error_code ec;
+        return std::filesystem::exists(ToxGame::kSelfTestPath, ec);
+    }
+
     std::string_view SaveNameView(const char* a_name, std::uint32_t a_length)
     {
         if (!a_name || a_length == 0) return {};
@@ -377,6 +408,9 @@ namespace
 void ToxGame::MaybeStartSelfTest()
 {
     try {
+        // The shipped path: no dev file, one file-exists check, nothing else (the reload check never
+        // touches the co-saved count without it)
+        if (!DevFilePresent()) return;
         if (SelfTest::ReloadCheckPending()) {
             g_started = true;  // no main test while a reload check waits (this session)
             SelfTest::RunReloadCheck();
@@ -384,8 +418,6 @@ void ToxGame::MaybeStartSelfTest()
             return;
         }
         if (g_started) return;
-        std::error_code ec;
-        if (!std::filesystem::exists(kSelfTestPath, ec)) return;
         g_started = true;
         Start();
     } catch (const std::exception& e) {
@@ -397,22 +429,23 @@ void ToxGame::MaybeStartSelfTest()
 
 void ToxGame::OnSelfTestPreLoad(const char* a_saveName, std::uint32_t a_length)
 {
+    // A running test first (it exists only with the dev file; no file check needed for it)
+    if (const auto s = Current(); s && !s->finished) {
+        if (!s->begun) {
+            s->notReadyTicks = 0;
+            s->readyTicks = 0;
+            logger::info("SELFTEST another save is loading before the test began: the wait starts again");
+        } else {
+            s->aborted = true;
+            s->abortReason = "another save was loaded during the test";
+            logger::warn("SELFTEST WARN another save is loading during the test: the next tick ends it (its changes go with the old world)");
+        }
+    }
     try {
-        SelfTest::NoteReloadLoading(SaveNameView(a_saveName, a_length));
+        if (DevFilePresent()) SelfTest::NoteReloadLoading(SaveNameView(a_saveName, a_length));
     } catch (const std::exception& e) {
         logger::error("SELFTEST could not note the loading save: {}", e.what());
     }
-    const auto s = Current();
-    if (!s || s->finished) return;
-    if (!s->begun) {
-        s->notReadyTicks = 0;
-        s->readyTicks = 0;
-        logger::info("SELFTEST another save is loading before the test began: the wait starts again");
-        return;
-    }
-    s->aborted = true;
-    s->abortReason = "another save was loaded during the test";
-    logger::warn("SELFTEST WARN another save is loading during the test: the next tick ends it (its changes go with the old world)");
 }
 
 void ToxGame::OnSelfTestNewGame()
@@ -427,13 +460,13 @@ void ToxGame::OnSelfTestNewGame()
 void ToxGame::OnSelfTestSave(const char* a_saveName, std::uint32_t a_length)
 {
     const auto name = SaveNameView(a_saveName, a_length);
-    const auto s = Current();
-    if (s && !s->finished && s->begun) {
-        logger::warn("SELFTEST WARN save '{}' taken during the test: it holds the test's ability, poisons and target", name);
+    if (const auto s = Current(); s && !s->finished && s->begun) {
+        logger::warn("SELFTEST WARN save '{}' taken during the test: it holds the test's ability, poisons and target, and "
+            "loading it later brings that test state back", name);
         return;
     }
     try {
-        SelfTest::NoteReloadSave(name);
+        if (DevFilePresent()) SelfTest::NoteReloadSave(name);
     } catch (const std::exception& e) {
         logger::error("SELFTEST could not note the save for the reload check: {}", e.what());
     }
