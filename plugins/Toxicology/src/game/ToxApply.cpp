@@ -116,16 +116,42 @@ namespace
         return std::find(a_list.begin(), a_list.end(), a_effect) != a_list.end();
     }
 
+    // Diagnosis (in-game run 2026-10-17): why a record was dropped, every mismatch bit on its own.
+    // a_now is the record's effect found again in the current list, or null when it was not there.
+    constexpr int kRecordDropLines = 12;
+    int g_recordDropLeft = kRecordDropLines;
+
+    void LogRecordDrop(const OwnedEffect& a_record, const char* a_kind, const RE::ActiveEffect* a_now)
+    {
+        if (g_recordDropLeft <= 0) return;
+        --g_recordDropLeft;
+        if (!a_now) {
+            logger::info("Toxicology: diagnosis drop {}: record {} uid {} caster {:08X}", a_kind,
+                static_cast<const void*>(a_record.effect), a_record.uniqueId, a_record.caster.native_handle());
+            return;
+        }
+        logger::info("Toxicology: diagnosis drop {}: record {} uid {}->{} caster {:08X}->{:08X} inactive {} dispelled {} "
+                     "flags {:08X} elapsed {:.2f} duration {:.2f}",
+            a_kind, static_cast<const void*>(a_record.effect), a_record.uniqueId, a_now->usUniqueID,
+            a_record.caster.native_handle(), a_now->caster.native_handle(),
+            a_now->flags.any(EffectFlag::kInactive), a_now->flags.any(EffectFlag::kDispelled),
+            a_now->flags.underlying(), a_now->elapsedSeconds, a_now->duration);
+    }
+
     // Drops the records whose effect left the list, changed, or is no longer live; returns the rest
     std::vector<RE::ActiveEffect*> TakeLiveOwned(EffectList& a_list, const RE::MagicItem* a_poison,
         std::vector<OwnedEffect>& a_owned)
     {
         std::vector<RE::ActiveEffect*> live;
         std::erase_if(a_owned, [&](const OwnedEffect& a_record) {
-            if (!a_record.effect || !IsInList(a_list, a_record.effect)) return true;
+            if (!a_record.effect || !IsInList(a_list, a_record.effect)) {
+                LogRecordDrop(a_record, "missing-pointer", nullptr);
+                return true;
+            }
             const auto& effect = *a_record.effect;
             if (effect.spell != a_poison || effect.caster != a_record.caster ||
                 effect.usUniqueID != a_record.uniqueId || !IsLive(effect)) {
+                LogRecordDrop(a_record, "mismatch", &effect);
                 return true;
             }
             live.push_back(a_record.effect);
