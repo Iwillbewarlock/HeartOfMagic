@@ -9,13 +9,14 @@
 // table (CopyContractTest.h; the builder's --self-test runs the same table), the co-save file reader (CoSaveFile.h;
 // CoSaveFileTests.h) on buffers built per the spike's layout, the slot ledger (SlotLedgerModel.h, SlotLedgerFiles.h;
 // SlotLedgerTests.h - its file cases use a folder under the system temp folder, removed after) and the BSValueNode reader
-// (NifValueNodes.h; NifValueNodesTests.h). --cosave and --nif-values (SkseFile.cpp): the DLL's readers on real files.
+// (NifValueNodes.h; NifValueNodesTests.h) and the progress.jsonl tail (ProgressTail.h; ProgressTailTests.h). --cosave and --nif-values (SkseFile.cpp): the DLL's readers on real files.
 // Exit 0 when every check (or every file) passes, 1 on a failure, 2 on a usage error. No game.
 
 #include "../../plugins/BlackFlame/src/CopyContractTest.h"
 #include "../../plugins/BlackFlame/src/SlotCoSave.h"
 #include "CoSaveFileTests.h"
 #include "NifValueNodesTests.h"
+#include "ProgressTailTests.h"
 #include "SkseFile.h"
 #include "SlotLedgerTests.h"
 
@@ -411,6 +412,7 @@ int main(int a_argc, char** a_argv)
         CoSaveFileTests::Run([&](bool a_ok, const std::string& a_what) { check(a_ok, a_what); });
         SlotLedgerTests::Run([&](bool a_ok, const std::string& a_what) { check(a_ok, a_what); });
         NifValueNodesTests::Run([&](bool a_ok, const std::string& a_what) { check(a_ok, a_what); });
+        ProgressTailTests::Run([&](bool a_ok, const std::string& a_what) { check(a_ok, a_what); });
     } catch (const std::exception& e) {
         check(false, std::string("exception: ") + e.what());
     }

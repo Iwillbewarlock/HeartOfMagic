@@ -4,9 +4,12 @@
 
 #include "BuildProgress.h"
 
+#include "BuilderLauncher.h"
+#include "DataFiles.h"
 #include "FileIndex.h"
 #include "MenuWatch.h"
 #include "NifDump.h"
+#include "ProgressTail.h"
 #include "TrackedMutex.h"
 
 #include <algorithm>
@@ -14,11 +17,13 @@
 #include <chrono>
 #include <format>
 #include <fstream>
+#include <memory>
 #include <mutex>
 #include <new>
 #include <set>
 #include <thread>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace BlackFlame::BuildProgress
@@ -31,56 +36,27 @@ namespace BlackFlame::BuildProgress
         constexpr std::size_t kReadChunk = 1 << 16;
         constexpr std::size_t kMaxLoggedErrors = 20;
 
-        TrackedMutex g_mutex;  // the table and the stats
-        std::unordered_map<std::uint64_t, Object> g_objects;
-        std::set<std::string> g_inData;  // copy paths known to be in Data with their line's fnv64
-        std::set<std::string> g_copyFailed;  // copies that failed once (tried again at the next start, not every poll)
-        Stats g_stats;
-        std::atomic<std::uint64_t> g_generation{ 0 };
-        std::atomic<bool> g_workerStarted{ false };
+        using PathHash = std::pair<std::string, std::uint64_t>;  // a copy path and the fnv64 it must hold
 
-        // The tail's place (worker thread only, and ReadAtStart before it starts)
-        struct Tail
+        // Everything the worker and the readers share; leaked on purpose (the detached worker may run while statics go)
+        struct Shared
         {
-            std::string pending;     // bytes after the last '\n'
-            std::uint64_t offset = 0;
-            std::uint64_t fileId = 0;
-            bool haveFile = false;
+            TrackedMutex mutex;  // the members below but tail (the worker's, and ReadAtStart's before it starts)
+            std::unordered_map<std::uint64_t, Object> objects;  // by key: the last line of a key wins
+            std::set<PathHash> inData;                          // files known to be in Data with that fnv64
+            std::set<PathHash> copyFailed;                      // copies that failed once (tried again at the next start)
+            Stats stats;
+            ProgressTail::Tail tail;
             std::size_t errorsLogged = 0;
         };
-        Tail g_tail;
-
-        std::string Text(const fs::path& a_path)
+        Shared& The()
         {
-            const auto text = a_path.u8string();
-            return std::string(text.begin(), text.end());
+            static auto* shared = std::make_unique<Shared>().release();
+            return *shared;
         }
-
-        // a_file read whole: its size and FNV-1a 64 (false when it does not open)
-        bool HashFile(const fs::path& a_file, std::uint64_t& a_size, std::uint64_t& a_hash)
-        {
-            std::ifstream in(a_file, std::ios::binary);
-            if (!in) {
-                return false;
-            }
-            a_hash = NifDump::kFnvOffset;
-            a_size = 0;
-            std::vector<char> chunk(kReadChunk);
-            while (in.read(chunk.data(), static_cast<std::streamsize>(chunk.size())) || in.gcount() > 0) {
-                const auto count = static_cast<std::size_t>(in.gcount());
-                a_hash = NifDump::Fnv64(chunk.data(), count, a_hash);
-                a_size += count;
-            }
-            return true;
-        }
-
-        bool InData(const std::string& a_path, std::uint64_t a_bytes, std::uint64_t a_fnv64)
-        {
-            const auto data = FileIndex::DataFolder();
-            std::uint64_t size = 0;
-            std::uint64_t hash = 0;
-            return data && HashFile(*data / fs::path(a_path), size, hash) && size == a_bytes && hash == a_fnv64;
-        }
+        std::atomic<std::uint64_t> g_generation{ 0 };
+        std::atomic<bool> g_workerStarted{ false };
+        std::atomic<bool> g_caughtUp{ false };
 
         State StateOf(const CC::ProgressLine& a_line)
         {
@@ -90,38 +66,36 @@ namespace BlackFlame::BuildProgress
             return CC::IsPublishable(a_line.outcome) ? State::kStaging : State::kFailed;
         }
 
-        // A parsed line into the table (the newest line of a key wins)
+        // A parsed line into the table; a re-read of the same line (the compaction) keeps its state
         void Take(CC::ProgressLine a_line)
         {
-            std::lock_guard lock(g_mutex);
-            auto& object = g_objects[a_line.key];
+            auto& s = The();
+            std::lock_guard lock(s.mutex);
+            auto& object = s.objects[a_line.key];
             const bool known = object.line.key == a_line.key;
-            // a compaction re-read of the same line keeps its state (kInData stays; the last line of a key wins otherwise)
             const bool same = known && object.line.path == a_line.path && object.line.fnv64 == a_line.fnv64 &&
                               object.line.outcome == a_line.outcome;
             if (!same) {
                 object.state = StateOf(a_line);
+                object.copiedThisSession = false;
             }
             object.line = std::move(a_line);
-            g_stats.lines += known ? 0 : 1;
+            s.stats.lines += known ? 0 : 1;
             g_generation.fetch_add(1);
         }
 
-        // Every complete line of a_text (the part after the last '\n' kept for the next read)
-        void TakeText(std::string_view a_text)
+        void TakeLines(const std::string& a_text)
         {
-            g_tail.pending.append(a_text);
-            const auto end = g_tail.pending.rfind('\n');
-            if (end == std::string::npos) {
+            if (a_text.empty()) {
                 return;
             }
-            const auto file = CC::ParseProgress(std::string_view(g_tail.pending).substr(0, end + 1));
-            g_tail.pending.erase(0, end + 1);
+            const auto file = CC::ParseProgress(a_text);
+            auto& s = The();
             for (const auto& error : file.errors) {
-                std::lock_guard lock(g_mutex);
-                ++g_stats.badLines;
-                if (g_tail.errorsLogged++ < kMaxLoggedErrors) {
-                    logger::warn("BlackFlame: slots: progress.jsonl line {} refused: {}", error.lineNumber, error.error);
+                std::lock_guard lock(s.mutex);
+                ++s.stats.badLines;
+                if (s.errorsLogged++ < kMaxLoggedErrors) {
+                    logger::warn("BlackFlame: slots: a progress.jsonl line refused: {}", error.error);
                 }
             }
             for (auto line : file.lines) {
@@ -129,7 +103,7 @@ namespace BlackFlame::BuildProgress
             }
         }
 
-        // Reads what was appended since the last read; a new file id (the builder compacted it) is read from its start
+        // What was appended since the last read (ProgressTail: a new file id is read from 0, a cut last line again next time)
         void ReadNew()
         {
             const auto path = StagingFolder() / CC::kProgressFile;
@@ -147,31 +121,30 @@ namespace BlackFlame::BuildProgress
             if (!::GetFileInformationByHandle(file, &info)) {
                 return;
             }
+            auto& tail = The().tail;
+            bool reset = false;
             const auto id = (static_cast<std::uint64_t>(info.nFileIndexHigh) << 32) | info.nFileIndexLow;
             const auto size = (static_cast<std::uint64_t>(info.nFileSizeHigh) << 32) | info.nFileSizeLow;
-            if (g_tail.haveFile && (id != g_tail.fileId || size < g_tail.offset)) {
-                g_tail.offset = 0;  // compacted (write-temp and rename) or cut: every line again (the table is by key)
-                g_tail.pending.clear();
-                std::lock_guard lock(g_mutex);
-                ++g_stats.reopens;
+            const auto from = ProgressTail::Begin(tail, id, size, reset);
+            if (reset) {
+                std::lock_guard lock(The().mutex);
+                ++The().stats.reopens;
             }
-            g_tail.haveFile = true;
-            g_tail.fileId = id;
             LARGE_INTEGER at{};
-            at.QuadPart = static_cast<LONGLONG>(g_tail.offset);
-            if (size <= g_tail.offset || !::SetFilePointerEx(file, at, nullptr, FILE_BEGIN)) {
+            at.QuadPart = static_cast<LONGLONG>(from);
+            if (size <= from || !::SetFilePointerEx(file, at, nullptr, FILE_BEGIN)) {
                 return;
             }
             std::vector<char> chunk(kReadChunk);
             DWORD read = 0;
             while (::ReadFile(file, chunk.data(), static_cast<DWORD>(chunk.size()), &read, nullptr) && read > 0) {
-                g_tail.offset += read;
-                TakeText(std::string_view(chunk.data(), read));
+                TakeLines(ProgressTail::Take(tail, std::string_view(chunk.data(), read)));
             }
+            ProgressTail::End(tail);
         }
 
         // staging -> Data through the VFS: the staging bytes checked against the line, a temporary file, a replacing rename,
-        // the Data file read back
+        // the Data file read back. Copies, never moves (the builder's compaction and cache need the staging files)
         bool CopyIn(const CC::ProgressLine& a_line, std::string& a_why)
         {
             const auto data = FileIndex::DataFolder();
@@ -179,8 +152,7 @@ namespace BlackFlame::BuildProgress
                 a_why = "no Data folder, or not a copy path";
                 return false;
             }
-            const auto source = StagingFolder() / fs::path(a_line.path);
-            std::ifstream in(source, std::ios::binary);
+            std::ifstream in(StagingFolder() / fs::path(a_line.path), std::ios::binary);
             if (!in) {
                 a_why = "not in staging";
                 return false;
@@ -193,6 +165,10 @@ namespace BlackFlame::BuildProgress
             const auto target = *data / fs::path(a_line.path);
             std::error_code ec;
             fs::create_directories(target.parent_path(), ec);
+            if (ec) {
+                a_why = "its Data folder could not be made: " + ec.message();
+                return false;
+            }
             auto temp = target;
             temp += ".tmp";
             {
@@ -201,6 +177,8 @@ namespace BlackFlame::BuildProgress
                 out.flush();
                 if (!out) {
                     a_why = "writing the temporary file failed";
+                    out.close();
+                    fs::remove(temp, ec);
                     return false;
                 }
             }
@@ -209,83 +187,124 @@ namespace BlackFlame::BuildProgress
                 fs::remove(temp, ec);
                 return false;
             }
-            if (!InData(a_line.path, a_line.bytes, a_line.fnv64)) {
+            DataFiles::Forget(a_line.path);
+            if (!DataFiles::Matches(a_line.path, a_line.bytes, a_line.fnv64)) {
                 a_why = "the Data file does not read back as the line's";
                 return false;
             }
             return true;
         }
 
-        // Each staging object's file into Data (while the window is open), then the objects whose copy deps are all in Data
-        void Settle()
+        // Each staging object's file found in Data or (a_copy, the window open) copied in; then the objects whose own file and
+        // copy deps are all in Data become kInData. A copy that fails marks its object failed (an older generation stands in)
+        void Settle(bool a_copy)
         {
+            auto& s = The();
             std::vector<CC::ProgressLine> todo;
             {
-                std::lock_guard lock(g_mutex);
-                for (const auto& [key, object] : g_objects) {
-                    if (object.state == State::kStaging && !object.line.path.empty() && !g_inData.contains(object.line.path) &&
-                        !g_copyFailed.contains(object.line.path)) {
+                std::lock_guard lock(s.mutex);
+                for (const auto& [key, object] : s.objects) {
+                    const PathHash file{ object.line.path, object.line.fnv64 };
+                    if (object.state == State::kStaging && !object.line.path.empty() && !s.inData.contains(file) &&
+                        !s.copyFailed.contains(file)) {
                         todo.push_back(object.line);
                     }
                 }
             }
             for (const auto& line : todo) {
-                bool there = InData(line.path, line.bytes, line.fnv64);
-                if (!there) {
+                bool there = DataFiles::Matches(line.path, line.bytes, line.fnv64);
+                bool copied = false;
+                if (!there && a_copy) {
                     if (!MenuWatch::PublishOpen()) {
-                        std::lock_guard lock(g_mutex);
-                        if (!g_stats.copyingStopped) {
-                            g_stats.copyingStopped = true;
+                        std::lock_guard lock(s.mutex);
+                        if (!s.stats.copyingStopped) {
+                            s.stats.copyingStopped = true;
                             logger::info("BlackFlame: slots: copy worker stopped (the publish window closed: {}); what is left stays "
                                          "in staging for the next start", MenuWatch::CloseReason());
                         }
                         break;
                     }
                     std::string why;
-                    there = CopyIn(line, why);
-                    std::lock_guard lock(g_mutex);
-                    (there ? g_stats.copied : g_stats.copyFailures) += 1;
+                    copied = there = CopyIn(line, why);
+                    std::lock_guard lock(s.mutex);
+                    (there ? s.stats.copied : s.stats.copyFailures) += 1;
                     if (!there) {
-                        g_copyFailed.insert(line.path);
-                        if (auto it = g_objects.find(line.key); it != g_objects.end() && it->second.line.path == line.path) {
-                            it->second.state = State::kFailed;  // not waited for: an older generation may stand in
+                        s.copyFailed.insert({ line.path, line.fnv64 });
+                        if (auto it = s.objects.find(line.key); it != s.objects.end() && it->second.line.path == line.path) {
+                            it->second.state = State::kFailed;
                             g_generation.fetch_add(1);
                         }
                         logger::warn("BlackFlame: slots: '{}' not copied into Data: {}", line.path, why);
                     }
                 }
                 if (there) {
-                    std::lock_guard lock(g_mutex);
-                    g_inData.insert(line.path);
+                    std::lock_guard lock(s.mutex);
+                    s.inData.insert({ line.path, line.fnv64 });
+                    if (auto it = s.objects.find(line.key); it != s.objects.end() && it->second.line.path == line.path) {
+                        it->second.copiedThisSession = it->second.copiedThisSession || copied;
+                    }
                     g_generation.fetch_add(1);
                 }
             }
-            std::lock_guard lock(g_mutex);
-            std::size_t inData = 0;
-            for (auto& [key, object] : g_objects) {
-                if (object.state == State::kStaging) {
-                    const bool own = object.line.path.empty() || g_inData.contains(object.line.path);
-                    const bool deps = std::all_of(object.line.deps.begin(), object.line.deps.end(), [](const CC::ProgressDep& a_dep) {
-                        return a_dep.isAddn || !DataPathRule::ParseCopyPath(a_dep.path) || g_inData.contains(a_dep.path);
-                    });
-                    if (own && deps) {
-                        object.state = State::kInData;
-                        g_generation.fetch_add(1);
+            // the objects whose own file is in Data; their copy deps checked without the lock (a hash may read a file)
+            std::vector<CC::ProgressLine> ready;
+            {
+                std::lock_guard lock(s.mutex);
+                for (const auto& [key, object] : s.objects) {
+                    if (object.state == State::kStaging &&
+                        (object.line.path.empty() || s.inData.contains({ object.line.path, object.line.fnv64 }))) {
+                        ready.push_back(object.line);
                     }
                 }
+            }
+            const auto depInData = [&](const CC::ProgressDep& a_dep) {
+                if (a_dep.isAddn || !DataPathRule::ParseCopyPath(a_dep.path)) {
+                    return true;  // an ADDN dep is CopyGroups'; a source file is the builder's input (the key covers it)
+                }
+                {
+                    std::lock_guard lock(s.mutex);
+                    if (s.inData.contains({ a_dep.path, a_dep.fnv64 })) {
+                        return true;
+                    }
+                }
+                const auto hash = DataFiles::HashOf(a_dep.path);
+                return hash && hash->fnv64 == a_dep.fnv64;
+            };
+            std::vector<const CC::ProgressLine*> complete;
+            for (const auto& line : ready) {
+                if (std::all_of(line.deps.begin(), line.deps.end(), depInData)) {
+                    complete.push_back(&line);
+                }
+            }
+            std::lock_guard lock(s.mutex);
+            for (const auto* line : complete) {  // still that line (a newer one for the key starts over)
+                if (auto it = s.objects.find(line->key); it != s.objects.end() && it->second.state == State::kStaging &&
+                    it->second.line.path == line->path && it->second.line.fnv64 == line->fnv64) {
+                    it->second.state = State::kInData;
+                    g_generation.fetch_add(1);
+                }
+            }
+            std::size_t inData = 0;
+            for (const auto& [key, object] : s.objects) {
                 inData += object.state == State::kInData ? 1 : 0;
             }
-            g_stats.inData = inData;
+            s.stats.inData = inData;
         }
 
         void Worker()
         {
             for (;;) {
                 try {
+                    const bool builderDone = !BuilderLauncher::Running();  // before the read: what it wrote is all there
                     ReadNew();
-                    Settle();
+                    Settle(true);
+                    if (builderDone && !g_caughtUp.exchange(true)) {
+                        g_generation.fetch_add(1);  // CopyGroups re-plans: keys without a line are left now
+                        logger::info("BlackFlame: slots: progress caught up after the builder ({}): {} keys, {} in Data",
+                            BuilderLauncher::Status(), GetStats().lines, GetStats().inData);
+                    }
                 } catch (const std::bad_alloc&) {
-                    logger::error("BlackFlame: slots: the progress worker ran out of memory reading progress.jsonl - trying again");
+                    logger::error("BlackFlame: slots: the progress worker ran out of memory - trying again");
                 } catch (const std::exception& e) {
                     logger::error("BlackFlame: slots: the progress worker threw: {}", e.what());
                 } catch (...) {
@@ -294,7 +313,7 @@ namespace BlackFlame::BuildProgress
                 if (!MenuWatch::PublishOpen()) {
                     logger::info("BlackFlame: slots: progress worker done ({} keys, {} in Data, {} copied this session)",
                         GetStats().lines, GetStats().inData, GetStats().copied);
-                    return;  // nothing can be published any more this session; the builder's later files wait for the next start
+                    return;  // nothing can be published any more this session; later files wait for the next start
                 }
                 std::this_thread::sleep_for(kPoll);
             }
@@ -305,15 +324,14 @@ namespace BlackFlame::BuildProgress
     {
         const auto start = std::chrono::steady_clock::now();
         try {
-            ReadNew();  // to its end, before the builder starts (it compacts only at its own start)
-            Settle();   // the files of earlier sessions checked (and copied) now, so the groups plan from the real state
-        } catch (const std::bad_alloc&) {
-            logger::error("BlackFlame: slots: out of memory reading progress.jsonl at the start - its objects are not used this session");
+            ReadNew();       // to its end, before the builder starts (it compacts only at its own start)
+            Settle(false);   // what earlier sessions copied into Data counts now; copying is the worker's, after W1
+        } catch (const std::exception& e) {
+            logger::error("BlackFlame: slots: reading progress.jsonl at the start failed ({}) - the worker tries again", e.what());
         }
         const auto stats = GetStats();
-        logger::info("BlackFlame: slots: progress.jsonl at the start: {} keys ({} in Data, {} copied now), {} lines refused{}, {} ms",
-            stats.lines, stats.inData, stats.copied, stats.badLines,
-            g_tail.pending.empty() ? "" : ", a last line without its end ignored",
+        logger::info("BlackFlame: slots: progress.jsonl at the start: {} keys ({} in Data), {} lines refused, {} ms", stats.lines,
+            stats.inData, stats.badLines,
             std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count());
     }
 
@@ -327,14 +345,20 @@ namespace BlackFlame::BuildProgress
 
     std::optional<Object> Find(std::uint64_t a_key)
     {
-        std::lock_guard lock(g_mutex);
-        const auto it = g_objects.find(a_key);
-        return it != g_objects.end() ? std::optional(it->second) : std::nullopt;
+        auto& s = The();
+        std::lock_guard lock(s.mutex);
+        const auto it = s.objects.find(a_key);
+        return it != s.objects.end() ? std::optional(it->second) : std::nullopt;
     }
 
     std::uint64_t Generation() noexcept
     {
         return g_generation.load();
+    }
+
+    bool CaughtUp() noexcept
+    {
+        return g_caughtUp.load();
     }
 
     fs::path StagingFolder()
@@ -345,7 +369,8 @@ namespace BlackFlame::BuildProgress
 
     Stats GetStats()
     {
-        std::lock_guard lock(g_mutex);
-        return g_stats;
+        auto& s = The();
+        std::lock_guard lock(s.mutex);
+        return s.stats;
     }
 }

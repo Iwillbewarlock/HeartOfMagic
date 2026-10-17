@@ -4,27 +4,21 @@
 
 #include "FormCopiesFillModel.h"
 
+#include "DataFiles.h"
 #include "DataPathRule.h"
 #include "FileIndex.h"
-#include "NifDump.h"
 #include "SlotAssign.h"
 #include "SlotLedger.h"
 
 #include <algorithm>
 #include <cstring>
 #include <format>
-#include <fstream>
 #include <vector>
 
 #include "FormCopies.h"
 
 namespace BlackFlame::FormCopies
 {
-    namespace
-    {
-        constexpr std::size_t kReadChunk = 1 << 16;
-    }
-
     RE::TESModel* ModelOf(RE::TESForm* a_form) noexcept
     {
         if (!a_form) {
@@ -75,41 +69,10 @@ namespace BlackFlame::FormCopies
         a_slot.data.flags = a_source.data.flags;
     }
 
-    namespace
-    {
-        // a_dataPath under the Data folder read whole: its size and FNV-1a 64; false when it does not open
-        bool HashDataFile(const std::string& a_dataPath, std::uint64_t& a_size, std::uint64_t& a_hash)
-        {
-            const auto data = FileIndex::DataFolder();
-            if (!data) {
-                return false;
-            }
-            std::ifstream in(*data / std::filesystem::path(a_dataPath), std::ios::binary);
-            if (!in) {
-                return false;
-            }
-            a_hash = NifDump::kFnvOffset;
-            a_size = 0;
-            std::vector<char> chunk(kReadChunk);
-            while (in.read(chunk.data(), static_cast<std::streamsize>(chunk.size())) || in.gcount() > 0) {
-                const auto count = static_cast<std::size_t>(in.gcount());
-                a_hash = NifDump::Fnv64(chunk.data(), count, a_hash);
-                a_size += count;
-            }
-            return true;
-        }
-    }
-
     bool DataFileMatches(const std::string& a_dataPath, std::uint64_t a_bytes, std::uint64_t a_fnv64, std::string& a_why)
     {
-        std::uint64_t size = 0;
-        std::uint64_t hash = 0;
-        if (!HashDataFile(a_dataPath, size, hash)) {
-            a_why = std::format("'{}' is not in Data", a_dataPath);
-            return false;
-        }
-        if (size != a_bytes || hash != a_fnv64) {
-            a_why = std::format("'{}' is {} bytes, fnv64 {:016x}; {} bytes, {:016x} recorded", a_dataPath, size, hash, a_bytes, a_fnv64);
+        if (!DataFiles::Matches(a_dataPath, a_bytes, a_fnv64)) {
+            a_why = std::format("'{}' is not in Data with {} bytes and fnv64 {:016x}", a_dataPath, a_bytes, a_fnv64);
             return false;
         }
         return true;
@@ -125,9 +88,8 @@ namespace BlackFlame::FormCopies
                 continue;
             }
             if (DataPathRule::ParseCopyPath(dep.path)) {
-                std::uint64_t size = 0;
-                std::uint64_t hash = 0;
-                if (!HashDataFile(dep.path, size, hash) || hash != dep.fnv64) {  // a dep's size is not recorded: its hash decides
+                const auto hash = DataFiles::HashOf(dep.path);  // a dep's size is not recorded: its hash decides (once a session)
+                if (!hash || hash->fnv64 != dep.fnv64) {
                     a_why = std::format("the dep '{}' is not in Data or changed", dep.path);
                     return false;
                 }
@@ -154,10 +116,8 @@ namespace BlackFlame::FormCopies
             files.emplace_back(a_object.path, a_object.bytes);
         }
         for (const auto& dep : a_object.deps) {
-            std::uint64_t size = 0;
-            std::uint64_t hash = 0;
-            if (!dep.isAddn && DataPathRule::ParseCopyPath(dep.path) && HashDataFile(dep.path, size, hash)) {
-                files.emplace_back(dep.path, size);
+            if (const auto size = !dep.isAddn && DataPathRule::ParseCopyPath(dep.path) ? DataFiles::SizeOf(dep.path) : std::nullopt) {
+                files.emplace_back(dep.path, *size);  // the size the loose stream must have (no byte read)
             }
         }
         for (const auto& [path, bytes] : files) {

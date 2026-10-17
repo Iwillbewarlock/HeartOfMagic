@@ -8,9 +8,11 @@
 // This side (design v3.2 §4, v3.3 #3 and #7):
 //   start    ReadAtStart, before the builder is launched: the whole progress.jsonl read to its end (the builder compacts it
 //            only at its own start, by write-temp and rename, after this read). A line's object is kInData when its file is
-//            already in Data with the line's fnv64 (an earlier session copied it), else kStaging
+//            already in Data with the line's fnv64 (an earlier session copied it), else kStaging. Nothing is copied on the
+//            kDataLoaded thread
 //   tail     a worker thread follows the file (opened with FILE_SHARE_READ | WRITE | DELETE; reopened from its start when
-//            its file id changes - the compaction - and every line read again; a last line without '\n' waits)
+//            its file id changes - the compaction - and every line read again; a last line without '\n' is read again from its
+//            start at the next poll, since the builder drops a cut last line before it appends). The last line of a key wins
 //   copy     the same worker copies an ok or fallback line's file staging -> Data (through the VFS, a temporary file and a
 //            replacing rename, fnv64 checked on both sides) only while the publish window is open (MenuWatch::PublishOpen);
 //            when the window closes it finishes the file in hand and stops, saying so. What finishes later stays in staging
@@ -42,9 +44,11 @@ namespace BlackFlame::BuildProgress
     {
         State state = State::kStaging;
         CC::ProgressLine line;
+        bool copiedThisSession = false;  // its file entered Data this session (not in the startup index: CopyGroups needs FileIndex)
     };
 
-    /// kDataLoaded (singleLaunch), before the builder is launched: the staging folder and progress.jsonl read to its end
+    /// kDataLoaded (singleLaunch), before the builder is launched: progress.jsonl read to its end and each object's Data
+    /// state checked (sizes first, a hash once a session); no file is copied on this thread (the worker does, after W1)
     void ReadAtStart();
 
     /// After the launch: the tail and copy worker (a detached thread; it stops copying when the publish window closes)
@@ -55,6 +59,10 @@ namespace BlackFlame::BuildProgress
 
     /// Bumped whenever a line or a state changes (CopyGroups re-plans when it moved)
     [[nodiscard]] std::uint64_t Generation() noexcept;
+
+    /// The builder is not running (ended, or never started) and the worker read and settled everything after that: a key
+    /// with no line now will not get one this session
+    [[nodiscard]] bool CaughtUp() noexcept;
 
     /// <SKSE log folder>\HeartOfMagic_BlackFlame\staging, or empty without a log folder
     [[nodiscard]] std::filesystem::path StagingFolder();
