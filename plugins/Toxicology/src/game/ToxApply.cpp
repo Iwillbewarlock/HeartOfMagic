@@ -1,5 +1,6 @@
 #include "game/ToxApply.h"
 
+#include "Common.h"
 #include "core/ToxCore.h"
 #include "game/ToxData.h"
 
@@ -71,6 +72,7 @@ namespace
         double reapplyAtHours = 0.0;
         double durationSeconds = 0.0;
         double immunitySeconds = 0.0;
+        double timescaleAtCast = 0.0;  // diagnosis: game seconds per real second when the window was set
     };
 
     // (target FormID << 32 | poison FormID) -> its window, emptied on every load and new game
@@ -285,9 +287,10 @@ namespace
         const auto& w = a_result.window;
         const char* source = !a_result.added.empty() ? "longest new effect" : (w.durationSeconds > 0.0 ? "poison record, no new effect seen" : "instant only");
         spdlog::log(level, "Toxicology: cast #{} '{}' [{:08X}] on '{}' [{:08X}] ({} caster): {} new effect(s); D {:.2f} s ({}), "
-            "immunity {:.2f} s, reapply in {}", g_castLogs, NameOf(a_poison), a_poison->GetFormID(), NameOf(a_target),
+            "immunity {:.2f} s, reapply in {}; game hour {:.5f}, timescale {:.2f}", g_castLogs, NameOf(a_poison), a_poison->GetFormID(), NameOf(a_target),
             a_target->GetFormID(), kCastFromTarget ? "target's" : "player's", a_result.added.size(), w.durationSeconds, source,
-            w.immunitySeconds, a_result.recorded ? std::format("{:.2f} s", w.durationSeconds + w.immunitySeconds) : std::string("- (no game clock, not recorded)"));
+            w.immunitySeconds, a_result.recorded ? std::format("{:.2f} s", w.durationSeconds + w.immunitySeconds) : std::string("- (no game clock, not recorded)"),
+            w.appliedAtHours, w.timescaleAtCast);
         for (const auto* active : a_result.added) {
             bool byBase = false;
             const auto* record = RecordEffectOf(a_poison, active, byBase);
@@ -305,6 +308,8 @@ namespace
 
     void LogOutcome(const ApplyResult& a_result, const RE::Actor* a_target, const RE::AlchemyItem* a_poison)
     {
+        // Lines at info are written through at once (test runs end by closing the game; buffered lines were lost 2026-10-18)
+        struct FlushAfter { ~FlushAfter() { FlushLog(); } } flushAfter;
         const auto targetName = NameOf(a_target);
         const auto poisonName = NameOf(a_poison);
         const auto targetId = a_target->GetFormID();
@@ -313,9 +318,9 @@ namespace
         switch (a_result.outcome) {
         case ToxGame::ApplyOutcome::kImmune:
             spdlog::log(FirstThenDebug(g_immuneLogged, spdlog::level::info), "Toxicology: '{}' [{:08X}] on '{}' [{:08X}] is immune "
-                "for {:.2f} s more (D {:.2f} s + immunity {:.2f} s from the cast) - nothing done (repeats at debug level)",
+                "for {:.2f} s more (D {:.2f} s + immunity {:.2f} s from the cast; timescale at cast {:.2f}) - nothing done (repeats at debug level)",
                 poisonName, poisonId, targetName, targetId, a_result.secondsLeft, a_result.window.durationSeconds,
-                a_result.window.immunitySeconds);
+                a_result.window.immunitySeconds, a_result.window.timescaleAtCast);
             return;
         case ToxGame::ApplyOutcome::kNoCaster:
             spdlog::log(FirstThenDebug(g_noCasterLogged, spdlog::level::warn), "Toxicology: no instant magic caster on the {} - "
@@ -369,6 +374,7 @@ namespace
         if (a_now) {
             const double windowSeconds = Toxicology::ReapplyAt(0.0, w.durationSeconds, settings.immunityMultiplier, settings.minImmunitySeconds);
             w.appliedAtHours = a_now->hours;
+            w.timescaleAtCast = a_now->timescale;
             w.reapplyAtHours = a_now->hours + SecondsToHours(windowSeconds, a_now->timescale);
             g_records[a_key] = w;
             result.recorded = true;
