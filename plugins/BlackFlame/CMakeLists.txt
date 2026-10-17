@@ -91,6 +91,7 @@ set(BLACKFLAME_SOURCES
     src/DrawTimeGreyHook.cpp
     src/DrawTimeGreySet.cpp
     src/DrawTimeGreySlot.cpp
+    src/DrawTimeGreyTick.cpp
     ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/EncodingUtils.cpp
 )
 

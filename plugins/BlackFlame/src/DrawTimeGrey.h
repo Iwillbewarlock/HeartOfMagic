@@ -11,13 +11,14 @@
 // - BSEffectShader SetupGeometry / RestoreGeometry (BSShader.h vfuncs 06 / 07) are hooked on VTABLE_BSEffectShader[0].
 //   After the original SetupGeometry, while stoked, a pass whose geometry is in the player set gets our palette's view
 //   written into the renderer shadow state's PS texture slot that holds the shape's own palette (the slot is MEASURED:
-//   the one index of PSTexture[] that equals the material's greyscale texture view, agreed on by 3 materials; see
-//   DrawTimeGreyHook.cpp MeasureSlot). RestoreGeometry puts the saved
-//   view back first, whatever the buff is by then, then calls the original.
+//   the one index of PSTexture[] that equals the material's greyscale texture view, agreed on by 3 materials;
+//   DrawTimeGreySlot.cpp MeasureSlot). RestoreGeometry puts the saved view back first, whatever the buff is by then,
+//   then calls the original.
 // - The player set (DrawTimeGreySet.cpp): projectiles and explosions the existing hooks attribute to the player
-//   (NotePlayerRef) and the casting art in the player's hands, walked on the main thread; their effect geometries are
-//   held by NiPointer on the main thread only, and the render side reads an immutable snapshot of raw pointers.
-// - Every 5 s while stoked one summary line (DrawTimeGreyHook.cpp, Summary()).
+//   (NotePlayerRef) and the casting art in the player's hands, walked on the main thread every 100 ms
+//   (DrawTimeGreyTick.cpp); their effect geometries are held by NiPointer on the main thread only, and the render side
+//   reads an immutable snapshot of raw pointers.
+// - Every 5 s while stoked a summary and a detail line (DrawTimeGreyHook.cpp LogSummary).
 // Nothing is installed or started when the key is off.
 
 namespace BlackFlame

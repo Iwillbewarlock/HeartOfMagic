@@ -85,7 +85,9 @@ namespace BlackFlame::DrawTime
         std::atomic<std::uint64_t> slotMismatch{ 0 };    // the measured slot did not hold the shape's own palette
         std::atomic<std::uint64_t> propMismatch{ 0 };    // the geometry's pass had another shaderProperty than walked
         std::atomic<std::uint64_t> npcLeaks{ 0 };        // a pass NOT the player's found one of our views in the slot
-        std::atomic<std::uint64_t> playerOwnPalette{ 0 };  // a player pass skipped as already ours, with our view: no leak
+        // Passes not in the targets with our view in the slot that are no leak:
+        std::atomic<std::uint64_t> listedCopyPalette{ 0 };   // a listed player-copy geometry (Snapshot::playerSkipped)
+        std::atomic<std::uint64_t> ownMaterialPalette{ 0 };  // the pass's own material names that palette (an unlisted copy)
         std::atomic<std::uint64_t> failures{ 0 };        // SEH-guarded bodies that faulted (or skipped after a fault)
         std::atomic<std::uint64_t> setupNs{ 0 };         // time inside our part of SetupGeometry
         std::atomic<std::uint64_t> restoreNs{ 0 };       // time inside our part of RestoreGeometry
@@ -117,8 +119,22 @@ namespace BlackFlame::DrawTime
     /// Main thread, when the buff comes on: an unmeasured slot's vote and its examined-materials budget start again
     void ResetSlotVote();
 
-    /// DrawTimeGreySet.cpp: starts the ticker (InstallDrawTimeGrey calls it after the hook)
+    /// DrawTimeGreyTick.cpp: starts the 100 ms ticker (InstallDrawTimeGrey calls it after the hook)
     void StartSetTicker();
+
+    /// DrawTimeGreyTick.cpp, any thread, never throws: one tick task queued for the next drain (none while one is
+    /// queued, or after the tick was turned off)
+    void PostTick() noexcept;
+
+    /// DrawTimeGreySet.cpp, main thread (the tick task): one walk and publish, or the clear while the buff is off; the
+    /// summary every 5 s while stoked
+    void TickSet();
+
+    /// DrawTimeGreySet.cpp, main thread, after a faulted tick: the set emptied; false when it could not be
+    bool ClearSetAfterFault();
+
+    /// DrawTimeGreyHook.cpp: no more binds this session (open ones are still restored); logs a_why once
+    void StopBinding(const char* a_why) noexcept;
 
     /// DrawTimeGreyHook.cpp: writes the two vfuncs; false when an id is missing or the palettes did not load
     [[nodiscard]] bool InstallHook();

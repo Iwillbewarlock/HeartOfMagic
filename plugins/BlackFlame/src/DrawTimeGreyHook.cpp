@@ -134,26 +134,23 @@ namespace BlackFlame::DrawTime
             Srv* inSlot = a_slot >= 0 ? a_state.PSTexture[a_slot] : nullptr;
             const bool ours = inSlot && a_snapshot.ours.contains(inSlot);
             const auto* material = a_pass->shaderProperty ? a_pass->shaderProperty->material : nullptr;
-            // Only when the slot holds one of ours (rare): the pass's own effect material's palette, read from the live
-            // pass (the engine is drawing it), never from our snapshot
-            bool ownView = false;
             if (ours) {
+                // Only when the slot holds one of ours (rare), so a plain non-player pass pays no extra lookup
+                if (a_snapshot.playerSkipped.contains(a_pass->geometry)) {
+                    counters.listedCopyPalette.fetch_add(1, std::memory_order_relaxed);  // a listed player copy
+                    t_binds.lastBoundMaterial = nullptr;
+                    return;
+                }
+                // The pass's own effect material's palette, read from the live pass (the engine is drawing it), never
+                // from our snapshot: a copy the next walk has not listed yet, or one drawn after a clear
                 auto* effect = netimmerse_cast<RE::BSEffectShaderProperty*>(a_pass->shaderProperty);
                 const auto* effectMaterial = effect ? effect->GetMaterial() : nullptr;
                 const auto* ownPalette = effectMaterial ? effectMaterial->greyscaleTexture.get() : nullptr;
-                ownView = ownPalette && ownPalette->rendererTexture && ownPalette->rendererTexture->resourceView == inSlot;
-            }
-            const bool skippedPlayer = a_snapshot.playerSkipped.contains(a_pass->geometry);
-            if (ours && (ownView || skippedPlayer)) {
-                // A copy's own grey palette, bound by the engine (also one the next walk has not listed yet, or after
-                // a clear): no leak, and left out of the diagnostic lines below
-                counters.playerOwnPalette.fetch_add(1, std::memory_order_relaxed);
-                return;
-            }
-            if (skippedPlayer) {
-                return;  // the player's, not a non-player pass: no diagnostic line
-            }
-            if (ours) {
+                if (ownPalette && ownPalette->rendererTexture && ownPalette->rendererTexture->resourceView == inSlot) {
+                    counters.ownMaterialPalette.fetch_add(1, std::memory_order_relaxed);
+                    t_binds.lastBoundMaterial = nullptr;
+                    return;
+                }
                 counters.npcLeaks.fetch_add(1, std::memory_order_relaxed);
                 if (AllowLog(g_leakLogs, kLeakLogs)) {
                     logger::warn("BlackFlame: draw-time grey: NPC LEAK: pass geometry 0x{:X} property 0x{:X} (not the player's) "
@@ -320,13 +317,7 @@ namespace BlackFlame::DrawTime
                 inside.fetch_sub(1);
                 if (!ok) {
                     CountersRef().failures.fetch_add(1, std::memory_order_relaxed);
-                    if (!g_setupOff.exchange(true)) {
-                        try {
-                            logger::error("BlackFlame: draw-time grey: SetupGeometry body failed - no more binds this "
-                                          "session (open binds are still restored)");
-                        } catch (...) {
-                        }
-                    }
+                    StopBinding("the SetupGeometry body failed");
                 }
             }
 
@@ -437,16 +428,30 @@ namespace BlackFlame::DrawTime
             rate(totals.hits, g_last.hits), rate(totals.binds, g_last.binds), c.slot.load(), c.failures.load());
         logger::info("BlackFlame: draw-time grey: detail: passes off main {:.0f}/s, restores {}, restore found slot changed {}, "
                      "unpaired {}, left alone {}, unmeasured {} (materials examined {}/{}), slot mismatch {}, property "
-                     "mismatch {}, NPC LEAKS {}, own grey palette passes {}, set {} geometries ({}) from {} roots, cost "
+                     "mismatch {}, NPC LEAKS {}, listed copy passes {}, own-material palette passes {}, set {} "
+                     "geometries ({}) from {} roots, cost "
                      "setup {:.0f} us/s restore {:.0f} us/s rewalk {:.0f} us/s, snapshot seen {}, vtable slots {}{}",
             rate(totals.offMain, g_last.offMain), c.restores.load(), c.restoreChanged.load(), c.unpaired.load(),
             c.leftAlone.load(), c.unmeasured.load(), ExaminedMaterials(), kMaxMeasuredMaterials, c.slotMismatch.load(),
-            c.propMismatch.load(), c.npcLeaks.load(), c.playerOwnPalette.load(), a_setSize, a_kinds, a_roots,
+            c.propMismatch.load(), c.npcLeaks.load(), c.listedCopyPalette.load(), c.ownMaterialPalette.load(), a_setSize, a_kinds, a_roots,
             rate(totals.setupNs, g_last.setupNs) / kNsPerUs,
             rate(totals.restoreNs, g_last.restoreNs) / kNsPerUs, rate(totals.rewalkNs, g_last.rewalkNs) / kNsPerUs,
-            c.seenGeneration.load(), SlotState(), g_setupOff.load() ? ", SETUP HOOK OFF after a fault" : "");
+            c.seenGeneration.load(), SlotState(), g_setupOff.load() ? ", BINDS OFF for the session (see the error line)" : "");
         g_last = totals;
         g_lastTime = now;
+    }
+
+    void StopBinding(const char* a_why) noexcept
+    {
+        if (g_setupOff.exchange(true)) {
+            return;
+        }
+        try {
+            logger::error("BlackFlame: draw-time grey: {} - no more binds this session (open binds are still restored; "
+                          "the SetupGeometry hook only calls the original now)",
+                a_why);
+        } catch (...) {
+        }
     }
 
     void StartSummaryWindow()

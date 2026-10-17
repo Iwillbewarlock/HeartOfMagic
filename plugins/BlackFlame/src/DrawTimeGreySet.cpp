@@ -20,7 +20,6 @@
 #include <mutex>
 #include <string>
 #include <system_error>
-#include <thread>
 #include <vector>
 
 // =============================================================================
@@ -39,7 +38,6 @@ namespace BlackFlame
         using namespace DrawTime;
         using Flag = RE::BSShaderProperty::EShaderPropertyFlag;
 
-        constexpr auto kTickInterval = std::chrono::milliseconds(100);
         constexpr auto kSummaryInterval = std::chrono::seconds(5);
         constexpr std::size_t kMaxRoots = 256;  // noted projectiles / explosions kept at once (oldest dropped)
         constexpr int kDerivedLogs = 12;
@@ -104,8 +102,6 @@ namespace BlackFlame
 
         TrackedMutex g_stateMutex;
         TrackedMutex g_notesMutex;
-        std::atomic<bool> g_tickQueued{ false };
-        std::atomic<bool> g_tickerStarted{ false };
         std::atomic<int> g_derivedLogs{ 0 };
         std::atomic<int> g_rootLogs{ 0 };
 
@@ -414,7 +410,7 @@ namespace BlackFlame
                 if (state.wasStoked || !state.owners.empty()) {
                     Clear(state);
                 }
-                ReleaseRetired(state);  // what a clear had to defer (no hook body runs while the buff is off)
+                ReleaseRetired(state);  // releases a clear had to defer (no hook body runs while the buff is off)
                 state.wasStoked = false;
                 return;
             }
@@ -433,14 +429,8 @@ namespace BlackFlame
             }
         }
 
-        constexpr int kMaxConsecutiveTickFaults = 3;  // then the tick is off for the session (the set emptied)
-        constexpr int kMaxFaultWarns = 10;             // tick-fault warning lines per session
-        int g_consecutiveTickFaults = 0;               // main thread only (RunTick)
-        int g_faultWarns = 0;                          // main thread only (RunTick)
-        std::atomic<bool> g_tickOff{ false };
-
         // A tick that faulted: the set is emptied (no stale snapshot, no geometry held from a walk that stopped half
-        // way); the next tick walks again (GuardedKeep: the step stays on) until kMaxConsecutiveTickFaults
+        // way); DrawTimeGreyTick.cpp tries the tick again, up to its consecutive-fault limit
         bool ClearAfterFault()
         {
             // The build uses /EHa (plugins/cmake/CompilerFlags.cmake:45, the vcxproj's ExceptionHandling Async), so
@@ -455,94 +445,18 @@ namespace BlackFlame
             state.wasStoked = false;
             return true;
         }
-
-        // Runs a_work under GuardedKeep with every C++ exception caught and logged (a queue task must not let one out)
-        template <class F>
-        bool RunCaught(const char* a_step, F&& a_work)
-        {
-            try {
-                return GuardedKeep(a_step, std::forward<F>(a_work));
-            } catch (const std::exception& e) {
-                logger::error("BlackFlame: draw-time grey: {} threw: {}", a_step, e.what());
-            } catch (...) {
-                logger::error("BlackFlame: draw-time grey: {} threw an exception of an unknown type", a_step);
-            }
-            return false;
-        }
-
-        void RunTick()
-        {
-            g_tickQueued.store(false);
-            if (g_tickOff.load()) {
-                return;
-            }
-            if (RunCaught("draw-time grey tick", [] { Tick(); })) {
-                g_consecutiveTickFaults = 0;
-                return;
-            }
-            GetCounters().failures.fetch_add(1, std::memory_order_relaxed);
-            bool cleared = false;
-            if (!RunCaught("draw-time grey clear after a fault", [&cleared] { cleared = ClearAfterFault(); }) || !cleared) {
-                cleared = false;
-                GetCounters().failures.fetch_add(1, std::memory_order_relaxed);
-            }
-            if (++g_consecutiveTickFaults >= kMaxConsecutiveTickFaults) {
-                g_tickOff.store(true);
-                logger::error("BlackFlame: draw-time grey: the tick failed {} times in a row - rewalks off for the "
-                              "session ({})",
-                    g_consecutiveTickFaults,
-                    cleared ? "the set was emptied: nothing is bound any more" : "the clear failed too: the last set stays");
-            } else if (g_faultWarns < kMaxFaultWarns) {
-                ++g_faultWarns;
-                logger::warn("BlackFlame: draw-time grey: a tick failed ({} of {} in a row) - the set {}; the next tick "
-                             "walks again",
-                    g_consecutiveTickFaults, kMaxConsecutiveTickFaults, cleared ? "was emptied" : "could not be emptied");
-            }
-        }
-
-        // Any thread. Never throws: a failed post clears the flag so the next one can go out
-        void PostTick() noexcept
-        {
-            if (g_tickQueued.exchange(true)) {
-                return;
-            }
-            try {
-                if (QueueTask("BlackFlameDrawTimeTick", [] { RunTick(); })) {
-                    return;
-                }
-            } catch (const std::exception& e) {
-                try {
-                    logger::error("BlackFlame: draw-time grey: posting the tick threw: {}", e.what());
-                } catch (...) {
-                }
-            } catch (...) {
-            }
-            g_tickQueued.store(false);
-        }
-
-        // Detached, never joined (as BuffState.cpp's ticker): it only sleeps and posts; nothing leaves it (an exception
-        // out of a thread function would end the game)
-        void TickerLoop() noexcept
-        {
-            for (;;) {
-                try {
-                    std::this_thread::sleep_for(kTickInterval);
-                } catch (...) {
-                }
-                PostTick();
-            }
-        }
     }
 
     namespace DrawTime
     {
-        void StartSetTicker()
+        void TickSet()
         {
-            if (g_tickerStarted.exchange(true)) {
-                return;
-            }
-            std::thread(&TickerLoop).detach();
-            logger::info("BlackFlame: draw-time grey: rewalk ticker started ({} ms)", kTickInterval.count());
+            Tick();
+        }
+
+        bool ClearSetAfterFault()
+        {
+            return ClearAfterFault();
         }
     }
 
@@ -580,7 +494,7 @@ namespace BlackFlame
         } catch (...) {
             return;  // called from the engine hooks: a failed note is only a root missed
         }
-        PostTick();  // walked at the next drain, not only at the next 100 ms tick
+        DrawTime::PostTick();  // walked at the next drain, not only at the next 100 ms tick
     }
 
     void ResetDrawTimeGrey()
