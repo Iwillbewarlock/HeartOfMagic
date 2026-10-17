@@ -209,6 +209,8 @@ namespace BlackFlame::FileIndex
             }
             // review agy / Gemini 8 asked for exactly one; the probe took the first and how many 1.6.1170 has is not on record
             // here, so the first is kept and more than one is logged (to settle from the next log)
+            // in-game checklist: this line gives the count to judge
+            Log(std::format("GlobalLocations: {} sane candidate(s) of {} vtable hit(s); the first is used", sane.size(), hits));
             if (sane.size() > 1) {
                 logger::warn("BlackFlame: file index: {} objects with GlobalLocations' vtable and a sane entry list: the first is used",
                     sane.size());

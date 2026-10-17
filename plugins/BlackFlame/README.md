@@ -76,7 +76,7 @@ too, all as UTF-8 text and sorted), and reused. Only a complete probe without fa
 | `lightColor` | `[0.25, 0.22, 0.28]` | RGB 0..1 for the tinted lights |
 | `singleLaunch` | `false` | The single-launch route (section "Single launch: the DLL side"): the slot pool, the ledger, the builder started by the game, publication at kDataLoaded and at the main menu. Off: the copies map route as above. Off by default because the route has not run in game and needs P1's slot ESL and builder |
 | `launchBuilder` | `true` | With `singleLaunch`: start the builder at kDataLoaded (`false`: only copies already built are published) |
-| `slotPreflight` | `false` | With `singleLaunch`: at kPreLoadGame read the save's co-save from disk and refill the slots whose pairs differ (their data only, no SetModel) before the engine reads the save. Off: only logged (the message's save name format and refilling at that point are unverified in game); on, a co-save that is there but cannot be read closes every gate |
+| `slotPreflight` | `false` | With `singleLaunch`: at kPreLoadGame read the save's co-save from disk and refill the slots whose pairs differ (their data only, no SetModel) before the engine reads the save. Off: only logged (the message's save name format and refilling at that point are unverified in game). On or off, a co-save that is there but cannot be read, or whose BFSL record does not read, closes every slot gate for the session (log and HUD line); a save without a Black Flame block (made before the mod or the slot route) is normal |
 | `slotTxst` | `false` | With `singleLaunch`: compute TXST keys and ask the builder for TXST copies in request v5. TXST slots are never published whatever this says (no proof yet that SetTexturePath and `textureFileIDs` hold); off, no TXST build is requested at all |
 | `selfTestSlots` | `false` | With `selfTest` and `singleLaunch`: the self-test steps T0-slots and T0-W2 |
 | `tint`, `tintAdd` | `0.6`, `0.9` | With `singleLaunch`: the copies' base colour scales (0..2; another value keeps the default, logged), quantised to 6 decimals into the keys and request.json v5 (the builder takes them only from there) |
@@ -926,9 +926,11 @@ you restart the game."), and its pairs win in the ledger (the current sources ge
 that already resolved cannot be repaired: the slot route is for throwaway saves. With `slotPreflight` the save's co-save
 is read from disk at kPreLoadGame and the differing slots' data are refilled from the save's sources before the engine
 reads the save, their models left as they are (no SetModel at kPreLoadGame; unverified: the message's name format and
-refilling at that point); a refill of another type is refused; a co-save that is there but cannot be read (or a
-preflight that throws) closes every gate ("this save's slot list could not be read; grey is off for N spells"). Off, the
-preflight only logs what it found. A slot a save binds otherwise stays unusable for the session.
+refilling at that point); a refill of another type is refused. Off, the preflight only logs what it found. Either way
+absent and corrupt differ: no co-save, no HBFS block or a block without a BFSL record (a save made before the mod or the
+slot route) is normal; a co-save that is there but cannot be read, a BFSL record that does not read (at kPreLoadGame or
+in the load callback), or a preflight that throws closes every slot gate for the session ("this save's slot list could
+not be read; grey is off for N spells"). A slot a save binds otherwise stays unusable for the session.
 
 **Not done here:** TXST slots are filled but never published (design v2 §1: no proof yet that SetTexturePath and
 textureFileIDs hold), and keyed and requested from the builder only with `slotTxst`; staging cleanup is the builder's;

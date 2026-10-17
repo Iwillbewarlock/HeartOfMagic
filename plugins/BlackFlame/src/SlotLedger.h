@@ -18,9 +18,11 @@
 //             win in the ledger (tombstones; their current sources get new slots next launch), and the ledger is saved
 //   preflight kPreLoadGame (config slotPreflight, off: the message's save name format and refilling at that point are
 //             unverified in game): the save's co-save read from disk before the engine reads the save; with the key on,
-//             differing slots are refilled from the save's sources (data only, no SetModel), else only logged. An
-//             unreadable co-save (or a preflight that throws), with the key on, closes every gate: "this save's slot list
-//             could not be read; grey is off for N spells"; a slot a save binds otherwise stays unusable for the session
+//             differing slots are refilled from the save's sources (data only, no SetModel), else only logged. Absent and
+//             corrupt differ, whatever the key says: no co-save, no HBFS block or a block without a BFSL record (a save made
+//             before the slot route) is normal; a co-save that is there but does not read, a BFSL record that does not read,
+//             or a preflight that throws closes every gate for the session: "this save's slot list could not be read; grey is
+//             off for N spells"; a slot a save binds otherwise stays unusable for the session
 // The ledger is shared by the kDataLoaded thread, the main-thread drains and the serialization callbacks: under one mutex.
 
 #include "CopyContractKeys.h"

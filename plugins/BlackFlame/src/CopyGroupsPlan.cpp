@@ -187,6 +187,9 @@ namespace BlackFlame::CopyGroups::Detail
         if (!a_state.canVerify) {
             return fallback("no main-thread proof: verified at the next start");
         }
+        // P1's builder is deterministic for the same inputs (its dev output was byte-identical over 774 files across rebuilds)
+        // and a key's path is under its key folder, so one key gives one file: a copy replaces another file at its path only
+        // when that file was damaged or cut. Should a key ever give two files, a path published this session could change
         if (found->replacedThisSession) {
             // review agy 7 #3: the index may hold a record of the file this one replaced, with its size: not before next start
             return fallback("its file replaced another at the same path this session: used from the next start");
