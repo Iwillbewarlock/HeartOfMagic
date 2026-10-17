@@ -50,7 +50,11 @@ namespace BlackFlame::CopyRequestDump
         if (relative.empty() || relative == "." || relative.is_absolute() || *relative.begin() == "..") {
             throw std::runtime_error(std::format("dump path '{}' would leave the dump folder", utf8));
         }
-        return joined;
+        auto normal = joined.lexically_normal();
+        if (!normal.has_filename() || normal.filename() == "." || normal.filename() == "..") {
+            throw std::runtime_error(std::format("dump path '{}' names a folder, not a file", utf8));  // AB7
+        }
+        return normal;
     }
 
     // J6: \\?\ in front of an absolute path, so a dump path past MAX_PATH still opens
@@ -89,7 +93,7 @@ namespace BlackFlame::CopyRequestDump
         }
         try {
             std::filesystem::rename(longTemp, LongPath(a_file));  // MSVC: MoveFileExW with MOVEFILE_REPLACE_EXISTING
-        } catch (...) {
+        } catch (const std::filesystem::filesystem_error&) {
             std::error_code ec;
             std::filesystem::remove(longTemp, ec);  // AA4: no .tmp left behind
             throw;
@@ -213,7 +217,7 @@ namespace BlackFlame::CopyRequestDump
 
     // Every NIF's bytes from the one read written under data\ (a failed one's stale copy removed), then the textures (T1)
     std::string Dump(const std::filesystem::path& a_folder, std::vector<Nif>& a_nifs, std::vector<Texture>& a_textures,
-        const std::string& a_fingerprint, const std::string& a_textureFingerprint)
+        const std::string& a_fingerprint, const std::string& a_textureFingerprint, int& a_writeFailures)
     {
         const auto root = a_folder / kDumpRoot;
         int written = 0;
@@ -230,7 +234,7 @@ namespace BlackFlame::CopyRequestDump
                 // AA4: no partial file, and the request names it as not read (the builder then keeps the source's model)
                 std::filesystem::remove(file, ec);
                 nif.blob.ok = false;
-                nif.blob.error = "writing the dump failed";
+                nif.blob.error = kDumpWriteFailed;
                 std::vector<std::byte>().swap(nif.bytes);
                 logger::warn("BlackFlame: copy request: writing the dump of {} failed", Utf8(nif.path));
                 continue;
@@ -245,6 +249,7 @@ namespace BlackFlame::CopyRequestDump
             WriteManifest(a_folder, a_fingerprint, a_textureFingerprint, a_textures);
         }
         const auto counts = std::format("{} NIFs, {} textures ({} MiB)", written, textures, textureBytes / kMiB);
+        a_writeFailures = failed;
         return failed == 0 ? std::format("written ({})", counts) :
                              std::format("written with {} failure(s) ({}; the manifest not updated, so the next start "
                                          "dumps again)", failed, counts);

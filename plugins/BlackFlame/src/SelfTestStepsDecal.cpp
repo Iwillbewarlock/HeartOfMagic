@@ -42,6 +42,7 @@ namespace BlackFlame::SelfTest
             std::size_t wrong = 0;      // holding neither the expected copy nor (without a copy) the source's set
             std::size_t sets = 0;       // TXST copies judged
             std::size_t setFaults = 0;  // of those, a DODT presence, slot or textureFileIDs fault
+            std::size_t placedSets = 0; // AB2: copied EXPLs whose source places a texture set
             std::string lines;          // the first kMaxFailLines faults
 
             void Fault(const std::string& a_line)
@@ -112,6 +113,17 @@ namespace BlackFlame::SelfTest
                 const auto& s = *source->As<RE::BGSImpactData>();
                 JudgeLink(tally, copy, "IPCT texture set", i->decalTextureSet, s.decalTextureSet);
                 JudgeLink(tally, copy, "IPCT texture set 2", i->decalTextureSet2, s.decalTextureSet2);
+            } else if (const auto* e = copy->As<RE::BGSExplosion>()) {
+                // AB2: an explosion that places a texture set keeps the source's set (decals only get TXST copies)
+                const auto* placed = reinterpret_cast<const RE::TESForm*>(e->data.impactPlacedObject);
+                const auto* own = reinterpret_cast<const RE::TESForm*>(source->As<RE::BGSExplosion>()->data.impactPlacedObject);
+                if (own && own->GetFormType() == RE::FormType::TextureSet) {
+                    ++tally.placedSets;
+                    if (placed != own) {
+                        tally.Fault(std::format("{:08X} EXPL placed texture set: holds {:08X}, expected the source's {:08X}",
+                            IdOf(copy), IdOf(placed), IdOf(own)));
+                    }
+                }
             } else if (const auto* t = copy->As<RE::BGSTextureSet>()) {
                 JudgeSet(tally, *t, *source->As<RE::BGSTextureSet>());
                 for (std::size_t slot = 0; slot < CopyFill::kTextureSlots; ++slot) {
@@ -132,7 +144,8 @@ namespace BlackFlame::SelfTest
             }
         }
         SelfTestLog::Info("T0-decal", std::format("decal texture sets in the fire closure: {}, without a copy: {}; TXST copies' "
-            "non-empty slots with a textureFileID: {} of {}", closureSets, closureWithout, idsSet, idSlots));
+            "non-empty slots with a textureFileID: {} of {}; EXPL copies placing a texture set (kept the source's): {}", closureSets,
+            closureWithout, idsSet, idSlots, tally.placedSets));
         const bool judged = tally.links > 0 || tally.sets > 0;
         SelfTestLog::Check("T0-decal", judged && tally.wrong == 0 && tally.setFaults == 0 && closureWithout == 0,
             std::format("{} decal links of PROJ / IPCT copies, {} to TXST copies, {} wrong; {} TXST copies, {} with a fault; {} "

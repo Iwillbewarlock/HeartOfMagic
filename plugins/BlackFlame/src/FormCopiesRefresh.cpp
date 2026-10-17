@@ -116,10 +116,10 @@ namespace BlackFlame
         }
         lines.push_back({ c.mapRead && c.failed == c.sourceAbsent && c.mapEntries > 0,
             std::format("copies map {}: {} entries, filled PROJ {} EXPL {} IPCT {} HAZD {} ARTO {} TXST {}, {} left out ({} of "
-                "them: source mesh absent in this load order; decal texture sets: {} out of step, {} grey texture not opening, {} "
-                "slot no text), {} links to copies", c.mapRead ? "read" : "NOT read", c.mapEntries, c.projectiles, c.explosions,
-                c.impacts, c.hazards, c.arts, c.textureSets, c.failed, c.sourceAbsent, c.textureSetsRejected, c.textureSetsUnopened,
-                c.textureSetsUnusable, c.linksToCopies) });
+                "them: source mesh absent in this load order; decal texture sets: {} out of step, {} grey texture not opening), "
+                "{} links to copies", c.mapRead ? "read" : "NOT read", c.mapEntries, c.projectiles, c.explosions, c.impacts,
+                c.hazards, c.arts, c.textureSets, c.failed, c.sourceAbsent, c.textureSetsRejected, c.textureSetsUnopened,
+                c.linksToCopies) });
         for (const auto& entry : copies.entries) {
             if (!entry.ok) {
                 lines.push_back({ false, std::format("{}: left out: {}", entry.sourceText, entry.detail), entry.sourceAbsent });

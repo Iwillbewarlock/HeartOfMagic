@@ -269,6 +269,7 @@ namespace BlackFlame
             copies.muzzles.clear();
             copies.absentSources.clear();
             copies.textureSets.clear();  // AA9: with the other tables
+            copies.greyTexturePaths.clear();
             copies.counts.mapRead = false;
             logger::error("BlackFlame: copies: the fill stopped part way ({}) - every copy left out this session (no swap)", why);
             MarkCopiesFillFailed(why);  // Y11: the freshness check says so, not "not built"
@@ -335,6 +336,11 @@ namespace BlackFlame
             }
             // Decal texture sets: the copy's slots and DODT against the map and the live source, its grey textures open
             std::array<std::string, CopyFill::kTextureSlots> expectedTextures{};
+            if (entry.type == RE::FormType::TextureSet) {
+                for (auto& path : CopyFill::GreyTexturePaths(item)) {
+                    copies.greyTexturePaths.push_back(std::move(path));
+                }
+            }
             if (entry.ok && entry.type == RE::FormType::TextureSet) {
                 auto reason = CopyFill::TextureSetReason::kNone;
                 if (const auto problem = CopyFill::TextureSetProblem(entry.copy, entry.source, item, expectedTextures, reason);
@@ -345,9 +351,6 @@ namespace BlackFlame
                     switch (reason) {
                     case CopyFill::TextureSetReason::kOutputMissing:
                         ++copies.counts.textureSetsUnopened;
-                        break;
-                    case CopyFill::TextureSetReason::kUnusable:
-                        ++copies.counts.textureSetsUnusable;
                         break;
                     default:
                         ++copies.counts.textureSetsRejected;
@@ -413,10 +416,9 @@ namespace BlackFlame
         }
         const auto& c = copies.counts;
         logger::info("BlackFlame: copies: {} map entries; filled PROJ {}, EXPL {}, IPCT {}, HAZD {}, ARTO {}, TXST {}; {} left out "
-                     "(decal texture sets: {} out of step with the load order, {} with a grey texture that does not open, {} with "
-                     "a slot that is no text); {} links pointed at copies", c.mapEntries, c.projectiles, c.explosions, c.impacts,
-            c.hazards, c.arts, c.textureSets, c.failed, c.textureSetsRejected, c.textureSetsUnopened, c.textureSetsUnusable,
-            c.linksToCopies);
+                     "(decal texture sets: {} out of step with the load order, {} with a grey texture that does not open); {} links "
+                     "pointed at copies", c.mapEntries, c.projectiles, c.explosions, c.impacts, c.hazards, c.arts, c.textureSets,
+            c.failed, c.textureSetsRejected, c.textureSetsUnopened, c.linksToCopies);
     }
 
     RE::TESForm* CopyOf(const RE::TESForm* a_source) noexcept
@@ -433,6 +435,11 @@ namespace BlackFlame
             return nullptr;  // its model did not load in game: the source stays (v2i safety net)
         }
         return it->second;
+    }
+
+    std::vector<std::string> CopyGreyTexturePaths()
+    {
+        return TheCopies().greyTexturePaths;
     }
 
     std::vector<FilledCopy> FilledCopies()

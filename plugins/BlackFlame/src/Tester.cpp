@@ -57,9 +57,9 @@ namespace BlackFlame::Tester
             std::string out = std::format("  freshness {}: {}\n", FreshnessName(fresh.state), fresh.detail);
             out += std::format("  map {} (version {}): {} entries; filled PROJ {}, EXPL {}, IPCT {}, HAZD {}, ARTO {}, TXST {}; left out {} ({} "
                                "source mesh absent; decal texture sets: {} out of step - run the builder, {} grey texture not "
-                               "opening - enable the output mod, {} slot no text)\n",
+                               "opening - the output mod's textures missing or overwritten, or a loose-file cache out of date)\n",
                 c.mapRead ? "read" : "NOT read", c.mapVersion, c.mapEntries, c.projectiles, c.explosions, c.impacts, c.hazards, c.arts,
-                c.textureSets, c.failed, c.sourceAbsent, c.textureSetsRejected, c.textureSetsUnopened, c.textureSetsUnusable);
+                c.textureSets, c.failed, c.sourceAbsent, c.textureSetsRejected, c.textureSetsUnopened);
             if (const auto stale = StaleFileIndexText(); !stale.empty()) {
                 out += "  file index: " + stale + "\n";
             }

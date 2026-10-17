@@ -26,7 +26,8 @@ namespace BlackFlame::CopyRequestData
     [[nodiscard]] std::string MuzzleModelOf(const RE::BGSProjectile& a_projectile);
 
     /// { source, type, editorId, model, [muzzleModel], [bounds], data }; TXST also "textures" (TX00..TX07 as the record
-    /// stores them, UTF-8) and "hasDecal" (the builder's GreyFormsTxst.h)
+    /// stores them, UTF-8 for people), "texturesRaw" (AB1: each slot's own bytes in hex, what the copy record gets) and
+    /// "hasDecal" (the builder's GreyFormsTxst.h)
     [[nodiscard]] nlohmann::ordered_json FormJson(const RE::TESForm* a_form, CopyKind a_kind);
 
     /// The fingerprint's model column of a closure form: its model, or for a TXST its eight slots and whether it has DODT

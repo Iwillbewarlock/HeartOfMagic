@@ -25,6 +25,7 @@ namespace BlackFlame
         constexpr const char* kFolderName = "HeartOfMagic_BlackFlame";
         constexpr const char* kRequestName = "request.json";
         using namespace CopyRequestDump;
+        constexpr const char* kDumpIncompleteMark = "+dump-incomplete";  // AB3
         constexpr const char* kTextureListError = "error";  // T13: the manifest's texture fingerprint when the listing threw
         using CopyRequestData::Texture;
         using CopyRequestData::kMiB;
@@ -320,8 +321,18 @@ namespace BlackFlame
                 const bool unchanged = CopyRequestData::JsonString(manifest, kFingerprintKey) == g_state.fingerprint &&
                                        CopyRequestData::JsonString(manifest, kTextureFingerprintKey) == textureFingerprint &&
                                        DumpIntact(*folder, nifs, textures, readFailed);
+                int writeFailures = 0;
                 g_state.dumpState = unchanged ? RetryReadFailures(*folder, textures, readFailed, g_state.fingerprint, textureFingerprint) :
-                                                Dump(*folder, nifs, textures, g_state.fingerprint, textureFingerprint);
+                                                Dump(*folder, nifs, textures, g_state.fingerprint, textureFingerprint, writeFailures);
+                if (writeFailures > 0) {
+                    // AB3: the request's fingerprint must never match a later start (its dump is incomplete): a map built from
+                    // it reads stale until a start dumps whole
+                    g_state.fingerprint += kDumpIncompleteMark;
+                    g_state.sizeFingerprint += kDumpIncompleteMark;
+                    for (const auto& nif : nifs) {
+                        g_state.nifsFailed += nif.blob.error == kDumpWriteFailed ? 1 : 0;
+                    }
+                }
                 dumpMs = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - dumpStart).count();
             } catch (const std::exception& e) {
                 g_state.dumpState = std::format("failed: {}", e.what());

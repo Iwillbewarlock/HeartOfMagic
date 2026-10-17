@@ -38,7 +38,8 @@ namespace BlackFlame::CopiesState
         CopyCounts counts;
         std::unordered_map<RE::FormID, std::string> muzzles;  // copy -> expected muzzle model (node-stable strings)
         std::unordered_set<RE::FormID> absentSources;          // H1: sources whose own mesh is absent (INFO, not FAIL)
-        std::unordered_map<RE::FormID, std::array<std::string, CopyFill::kTextureSlots>> textureSets;  // TXST copy -> slots (map, UTF-8)
+        std::unordered_map<RE::FormID, std::array<std::string, CopyFill::kTextureSlots>> textureSets;  // TXST copy -> slots (bytes)
+        std::vector<std::string> greyTexturePaths;  // AB4: every TXST entry's grey textures (the file-index state)
     };
 
     /// The one table (an inline function's static: one instance across both translation units)

@@ -12,9 +12,10 @@
 // At kDataLoaded, after the copy request (CopyRequest.h), from the copies map and this start's fingerprint:
 //   none          no map, or a map with no entry (only the empty ESLs the mod ships)
 //   pluginMissing the map was read but HeartOfMagic_BlackFlame_Copies.esp is not loaded, or more than half of its
-//                 entries lost their copy form (the output mod is not enabled); or, with a matching fingerprint, a decal
-//                 texture set copy names a grey texture that does not open (CopyCounts::textureSetsUnopened)
+//                 entries lost their copy form (the output mod is not enabled)
 //   notApplied    Y11: the map was there but filling the copies stopped part way (no copy is used this session)
+//   texturesMissing AB4: with a matching fingerprint, a decal texture set copy names a grey texture that does not open
+//                 (the output mod's textures missing or overwritten, or a loose-file cache out of date)
 //   stale         a version 1 map, or the map's request fingerprint differs from this start's (the bytes form when
 //                 writeRequest computed it, else the size form), or a decal texture set copy was left out as out of step
 //                 with the load order (CopyCounts::textureSetsRejected); with how many closure forms have no copy and how
@@ -32,7 +33,8 @@ namespace BlackFlame
         kStale,
         kNone,
         kPluginMissing,
-        kNotApplied  // Y11: the map was there but filling the copies failed part way (no copy is used this session)
+        kNotApplied,      // Y11: the map was there but filling the copies failed part way (no copy is used this session)
+        kTexturesMissing  // AB4: grey decal textures of the copies do not open (the ESL is loaded)
     };
 
     struct FreshnessState
@@ -54,7 +56,7 @@ namespace BlackFlame
 
     [[nodiscard]] const FreshnessState& GetFreshness() noexcept;
 
-    /// "fresh" / "stale" / "none" / "pluginMissing" / "notApplied"
+    /// "fresh" / "stale" / "none" / "pluginMissing" / "notApplied" / "texturesMissing"
     [[nodiscard]] const char* FreshnessName(CopyFreshness a_state) noexcept;
 
     /// The first kPostLoadGame / kNewGame of the session: the HUD line for stale / none / pluginMissing / notApplied, once (nothing when

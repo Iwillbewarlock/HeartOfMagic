@@ -22,6 +22,7 @@ namespace BlackFlame::CopyRequestDump
     inline constexpr const char* kFingerprintKey = "fingerprint";
     inline constexpr const char* kTextureFingerprintKey = "textureFingerprint";
     inline constexpr const char* kTextureReadFailuresKey = "textureReadFailures";
+    inline constexpr const char* kDumpWriteFailed = "writing the dump failed";  // a NIF's blob error when its dump write failed
 
     struct Nif
     {
@@ -47,7 +48,9 @@ namespace BlackFlame::CopyRequestDump
     [[nodiscard]] std::string RetryReadFailures(const std::filesystem::path& a_folder, std::vector<CopyRequestData::Texture>& a_textures,
         const std::set<std::string>& a_readFailed, const std::string& a_fingerprint, const std::string& a_textureFingerprint);
 
-    /// Every NIF's bytes and every planned texture written under data\, then the manifest; its state text
+    /// Every NIF's bytes and every planned texture written under data\, then the manifest; its state text. a_writeFailures:
+    /// the files that could not be written (AB3: the request then carries a fingerprint that never matches)
     [[nodiscard]] std::string Dump(const std::filesystem::path& a_folder, std::vector<Nif>& a_nifs,
-        std::vector<CopyRequestData::Texture>& a_textures, const std::string& a_fingerprint, const std::string& a_textureFingerprint);
+        std::vector<CopyRequestData::Texture>& a_textures, const std::string& a_fingerprint, const std::string& a_textureFingerprint,
+        int& a_writeFailures);
 }

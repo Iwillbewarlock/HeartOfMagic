@@ -48,7 +48,11 @@ namespace BlackFlame::CopyFill
         // pointer value is the form's; only form lookups by id are done on it.
         [[nodiscard]] RE::TESObjectREFR* PlacedLinkFor(RE::TESObjectREFR* a_link)
         {
-            auto* copy = CopyOf(reinterpret_cast<RE::TESForm*>(a_link));
+            const auto* form = reinterpret_cast<RE::TESForm*>(a_link);
+            if (form && form->GetFormType() == RE::FormType::TextureSet) {
+                return a_link;  // AB2: a texture set's copy is a decal's; the copy EXPL places the source's set
+            }
+            auto* copy = CopyOf(form);
             return copy ? reinterpret_cast<RE::TESObjectREFR*>(copy) : a_link;
         }
 

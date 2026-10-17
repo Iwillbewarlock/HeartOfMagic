@@ -27,6 +27,10 @@ namespace BlackFlame
                                                 "HeartOfMagic_BlackFlame.log); fire spells stay as they were.";
         constexpr const char* kMissingText = "Black Flame: the generated copies are not enabled. Enable HeartOfMagic_BlackFlame_Copies.esp "
                                              "and put the copies output mod after Black Flame.";
+        // AB4: the copies' ESL is loaded but grey decal textures do not load
+        constexpr const char* kTexturesMissingText = "Black Flame: some grey decal textures of the copies do not load. Check that the "
+                                                     "copies output mod is enabled with its textures and nothing overwrites it; with a "
+                                                     "loose-file cache such as CRDW, rebuild the cache.";
         // The player-facing line when a loose-file index (CRDW and the like) does not know the copies; {} the count, {} the cache
         constexpr const char* kFileIndexText = "Black Flame: {} grey copies are not visible to the game's file index ({}) - "
                                                "rebuild that cache.";
@@ -64,6 +68,8 @@ namespace BlackFlame
             return "pluginMissing";
         case CopyFreshness::kNotApplied:
             return "notApplied";
+        case CopyFreshness::kTexturesMissing:
+            return "texturesMissing";
         default:
             return "none";
         }
@@ -102,11 +108,14 @@ namespace BlackFlame
                 state.detail = std::format("the {} fingerprint differs: built {}, now {}", bytes ? "byte" : "size",
                     built.empty() ? std::string("(none in the map)") : built, now.empty() ? std::string("(not computed)") : now);
             } else if (counts.textureSetsUnopened > 0) {
-                // AA6: the copies are built for this load order but the output's textures are not there: enable the output mod
-                state.state = CopyFreshness::kPluginMissing;
+                // AA6, AB4: built for this load order, the ESL loaded, but grey textures do not open: the output's textures
+                // missing or overwritten, or a loose-file cache out of date (TextureSetProblem says which per copy)
+                state.state = CopyFreshness::kTexturesMissing;
                 state.detail = std::format("the {} fingerprint matches, but {} decal texture set copies name grey textures that do "
-                                           "not open (is the builder's output mod enabled with its textures?)", bytes ? "byte" : "size",
-                    counts.textureSetsUnopened);
+                                           "not open{}", bytes ? "byte" : "size", counts.textureSetsUnopened,
+                    counts.textureSetsRejected > 0 ? std::format(", and {} are out of step with the load order (run the builder)",
+                                                         counts.textureSetsRejected) :
+                                                     std::string());
             } else if (counts.textureSetsRejected > 0) {
                 // Codex 2: a decal texture set copy out of step with the load order (FormCopies.h TextureSetProblem) needs a
                 // rebuild even when the fingerprint matches
@@ -126,7 +135,7 @@ namespace BlackFlame
             return a_form.kind == CopyKind::kTextureSet;
         });
         if (closureSets > 0 && counts.mapRead && counts.textureSets == 0 && counts.textureSetsRejected == 0 &&
-            counts.textureSetsUnopened == 0 && counts.textureSetsUnusable == 0) {
+            counts.textureSetsUnopened == 0) {
             logger::info("BlackFlame: copies: decal texture sets: {} in the fire closure, none in the copies map (an older build, or "
                          "the builder left them out; see its warnings): the player's decals keep the source's texture sets", closureSets);
         }
@@ -201,6 +210,11 @@ namespace BlackFlame
             const std::string relative = DataPathRule::Normalize(model, DataPathRule::kMeshesRoot).value_or(model);
             entries.push_back(model + "|" + stamp(std::filesystem::path("Data") / relative));
         }
+        // AB4: the decal texture sets' grey textures (the map's TXST entries) are loose files too
+        const auto greyTextures = CopyGreyTexturePaths();
+        for (const auto& texture : greyTextures) {
+            entries.push_back(texture + "|" + stamp(std::filesystem::path("Data") / texture));
+        }
         // Y8: the palettes the builder derived for the copies are loose files too (the copy NIFs name them)
         std::error_code walkError;
         std::size_t palettes = 0;
@@ -216,7 +230,7 @@ namespace BlackFlame
         for (const auto& entry : entries) {
             mix(entry);
         }
-        mix(std::format("palettes {}", palettes));
+        mix(std::format("palettes {} decal textures {}", palettes, greyTextures.size()));
         std::string crdw = "no CRDW.dll";
         if (const auto module = REX::W32::GetModuleHandleW(L"CRDW.dll")) {
             constexpr std::size_t kModulePathChars = 1024;  // a longer module path reads as absent
@@ -274,6 +288,7 @@ namespace BlackFlame
         const auto counts = GetCopyCounts();
         const char* text = state == CopyFreshness::kNotApplied         ? kNotAppliedText :
                            state == CopyFreshness::kPluginMissing      ? kMissingText :
+                           state == CopyFreshness::kTexturesMissing    ? kTexturesMissingText :
                            state == CopyFreshness::kNone && counts.mapRead ? kEmptyText :  // G9: a map with no entry
                            state == CopyFreshness::kNone                 ? kNoneText :
                                                                            kStaleText;

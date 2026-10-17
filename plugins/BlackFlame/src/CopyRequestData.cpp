@@ -93,10 +93,14 @@ namespace BlackFlame::CopyRequestData
             item["data"] = Json{ { "flags", t->flags.underlying() } };
             item["hasDecal"] = t->decalData != nullptr;
             Json slots = Json::array();
+            Json raw = Json::array();
             for (const auto& texture : t->textures) {  // TX00..TX07 (RE/B/BGSTextureSet.h)
-                slots.push_back(Utf8(texture.textureName.c_str()));
+                const char* text = texture.textureName.c_str();
+                slots.push_back(Utf8(text));  // for people (a code page's bytes that are no text show as replacements)
+                raw.push_back(DataPathRule::ToHex(text ? std::string_view(text) : std::string_view()));  // AB1: the bytes
             }
             item["textures"] = std::move(slots);
+            item["texturesRaw"] = std::move(raw);
         }
         return item;
     }
@@ -115,7 +119,8 @@ namespace BlackFlame::CopyRequestData
         std::string out = set->decalData ? "dodt" : "nododt";
         for (const auto& texture : set->textures) {
             const char* text = texture.textureName.c_str();
-            out += ";" + normalised(text ? std::string(text) : std::string(), true);
+            // AB1: the record string's bytes (case and separators folded), as the copy compares them
+            out += ";" + DataPathRule::ToHex(DataPathRule::LowerSlashes(text ? std::string_view(text) : std::string_view()));
         }
         return out;
     }

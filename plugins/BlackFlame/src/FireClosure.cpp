@@ -156,12 +156,20 @@ namespace BlackFlame
                 if (!form) {
                     return;
                 }
-                // AA10: a placed object of the kinds it took before decal copies; a texture set is copied only as a decal
-                // (an EXPL placing a TXST keeps the source's, as before)
-                if (const auto kind = KindOf(form->GetFormType()); kind && *kind != CopyKind::kTextureSet) {
+                const auto kind = KindOf(form->GetFormType());
+                // AB2: a texture set placed by an explosion is neither walked nor excluded (excluding it would also take away
+                // the decal copy a PROJ or IPCT reaches it for); the copy EXPL keeps the source's placed set (PlacedLinkFor)
+                if (kind == CopyKind::kTextureSet) {
+                    if (m_placedSets.insert(form->GetFormID()).second) {
+                        logger::info("BlackFlame: fire closure: explosion placed object {:08X} is a texture set: kept as the "
+                                     "source's (texture sets are copied as decals only)", form->GetFormID());
+                    }
+                    return;
+                }
+                if (kind) {
                     Push(form, a_from.via, a_from.costliest);
                 } else if (!m_excluded.contains(form->GetFormID())) {
-                    Exclude(form, "placed object is not a copy type", a_from.via);
+                    Exclude(form, "placed object is not a form type the copies hold (PROJ, EXPL, IPCT, HAZD, ARTO)", a_from.via);
                 }
             }
 
@@ -193,16 +201,6 @@ namespace BlackFlame
                 }
                 if (const auto* art = a_form->As<RE::BGSArtObject>(); art && art->numAlternateTextures != 0) {
                     return std::format("alternate textures not copied ({})", art->numAlternateTextures);
-                }
-                // AA2: a slot whose bytes are no text in this code page (U+FFFD after SanitizeToUTF8): a copy would name
-                // another file than the source's, so the decal stays the source's
-                if (const auto* set = a_form->As<RE::BGSTextureSet>()) {
-                    for (const auto& texture : set->textures) {
-                        const char* text = texture.textureName.c_str();
-                        if (text && *text && EncodingUtils::SanitizeToUTF8(text).find("\xEF\xBF\xBD") != std::string::npos) {
-                            return "a texture slot whose bytes are no text in this code page (not copied)";
-                        }
-                    }
                 }
                 return {};
             }
@@ -273,6 +271,7 @@ namespace BlackFlame
             std::unordered_map<RE::FormID, std::uint8_t> m_state;
             std::unordered_map<RE::FormID, std::size_t> m_index;
             std::unordered_set<RE::FormID> m_excluded;
+            std::unordered_set<RE::FormID> m_placedSets;  // AB2: texture sets an explosion places (logged once)
         };
     }
 
