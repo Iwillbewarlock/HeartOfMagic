@@ -10,7 +10,8 @@
 //
 // Threads: game main thread only, like ToxData.h - the SKSE messaging listener,
 // SKSE tasks, and the menu sink (which hands the work to an SKSE task when an
-// event arrives on another thread).
+// event arrives on another thread). The container sink may run on any thread
+// and only sets an atomic flag that CurrentPoison reads.
 // =============================================================================
 
 namespace RE
@@ -24,7 +25,8 @@ namespace ToxGame
     inline constexpr double kSelectionCacheSeconds = 0.5;
 
     // The poison to copy: the player's top favorited poison (count > 0). Cached for
-    // kSelectionCacheSeconds; a_forceRecompute reads the inventory now. Null without the
+    // kSelectionCacheSeconds; a_forceRecompute reads the inventory now, and so does the first call
+    // after the player's inventory lost some of the cached poison (RegisterContainerSink). Null without the
     // Toxicology ability, with the setting "enabled" false, or with no favorited poison.
     // Every call also refreshes the caster hook's flag (ToxMagicka.h PublishMagickaTracking).
     RE::AlchemyItem* CurrentPoison(bool a_forceRecompute = false);
@@ -51,4 +53,9 @@ namespace ToxGame
     // closing, BarterMenu opening -> OnSelectionMaybeChanged). Call once at kDataLoaded,
     // on the main thread.
     void RegisterMenuSink();
+
+    // Registers the TESContainerChangedEvent sink: an item of the cached poison leaving the player's
+    // inventory (a script taking the last bottle, say) makes the next CurrentPoison read the
+    // inventory again instead of using the cache. Call once at kDataLoaded, on the main thread.
+    void RegisterContainerSink();
 }

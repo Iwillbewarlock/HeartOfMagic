@@ -34,14 +34,20 @@ namespace
     void OnSave(SKSE::SerializationInterface* a_intfc)
     {
         LogThreadOnce(g_saveThreadLogged, "save");
-        const float accumulated = ToxGame::Accumulated();
+        // The counted total plus the concentration Magicka still waiting for its drain task (a load resets
+        // the hook's state, so it would be lost). Nothing is counted here: no bottle is used during a save.
+        const float counted = ToxGame::Accumulated();
+        const float pending = ToxGame::PendingMagicka();
+        const float accumulated = counted + pending;
         // SKSE/Interfaces.h:272 (WriteRecord<T>: type, version, one value)
         if (!a_intfc->WriteRecord(ToxGame::kAccumulatedRecord, ToxGame::kAccumulatedVersion, accumulated)) {
-            logger::error("Toxicology: co-save record ACCM ({:.2f} Magicka toward the next bottle) not written", accumulated);
+            logger::error("Toxicology: co-save record ACCM ({:.2f} Magicka toward the next bottle: {:.2f} counted + {:.2f} "
+                "concentration not yet counted) not written", accumulated, counted, pending);
             FlushLog();
             return;
         }
-        logger::info("Toxicology: co-save: {:.2f} Magicka toward the next bottle saved", accumulated);
+        logger::info("Toxicology: co-save: {:.2f} Magicka toward the next bottle saved ({:.2f} counted + {:.2f} concentration "
+            "not yet counted)", accumulated, counted, pending);
         FlushLog();
     }
 

@@ -37,6 +37,7 @@ namespace
             ToxGame::LoadPoisonSpells();
             ToxGame::PutTomeInShop();
             ToxGame::RegisterMenuSink();
+            ToxGame::RegisterContainerSink();
             ToxGame::RegisterHitSink();
             ToxGame::InstallMagickaTracking();
             FlushLog();

@@ -16,14 +16,17 @@ namespace
     // =========================================================================
 
     constexpr const wchar_t* kI5ModuleName = L"InventoryInjectorImproved.dll";
+    // The player reference's FormID (RE/T/TESForm.h:352 IsPlayerRef)
+    constexpr RE::FormID kPlayerRefId = 0x00000014;
 
     // =========================================================================
-    // State (game main thread only, ToxSelection.h)
+    // State (game main thread only, ToxSelection.h; the two atomics are also read or set by the container sink)
     // =========================================================================
 
     using Clock = std::chrono::steady_clock;
 
-    RE::FormID g_cachedPoisonId = 0;               // 0 = no poison to copy
+    std::atomic<RE::FormID> g_cachedPoisonId{ 0 };  // 0 = no poison to copy; written on the main thread only
+    std::atomic<bool> g_cacheInvalidated{ false };  // the player lost some of the cached poison: read the inventory again
     std::optional<Clock::time_point> g_cachedAt;   // nullopt = recompute on the next call
     RE::FormID g_keywordedId = 0;                  // the poison carrying the keyword, 0 = none
     RE::FormID g_loggedChoiceId = 0;               // the last choice written to the log
@@ -177,6 +180,41 @@ namespace
 
         std::atomic<bool> m_threadLogged{ false };  // events can arrive on more than one thread
     };
+
+    // =========================================================================
+    // Container sink
+    // =========================================================================
+    // A script (or anything else) can take the last bottle of the cached poison between two
+    // inventory reads; without this, CurrentPoison could hand a hit task a poison the player no
+    // longer has for up to kSelectionCacheSeconds. The event can arrive on any thread: no game
+    // calls here, only the atomic flag CurrentPoison checks on the main thread.
+
+    class ContainerSink final : public RE::BSTEventSink<RE::TESContainerChangedEvent>
+    {
+    public:
+        static ContainerSink* GetSingleton()
+        {
+            static ContainerSink singleton;
+            return &singleton;
+        }
+
+        ContainerSink(const ContainerSink&) = delete;
+        ContainerSink& operator=(const ContainerSink&) = delete;
+
+        // RE/B/BSTEvent.h:188; RE/T/TESContainerChangedEvent.h:10-13 (oldContainer, baseObj are FormIDs)
+        RE::BSEventNotifyControl ProcessEvent(const RE::TESContainerChangedEvent* a_event,
+            RE::BSTEventSource<RE::TESContainerChangedEvent>*) override
+        {
+            if (!a_event || a_event->oldContainer != kPlayerRefId) return RE::BSEventNotifyControl::kContinue;
+            const RE::FormID cached = g_cachedPoisonId.load();
+            if (cached != 0 && a_event->baseObj == cached) g_cacheInvalidated.store(true);
+            return RE::BSEventNotifyControl::kContinue;
+        }
+
+    private:
+        ContainerSink() = default;
+        ~ContainerSink() override = default;
+    };
 }
 
 // =============================================================================
@@ -189,13 +227,19 @@ RE::AlchemyItem* ToxGame::CurrentPoison(bool a_forceRecompute)
     PublishMagickaTracking(on);  // ToxMagicka.h: the caster hook's flag, kept current from here
     if (!on) return nullptr;
     const auto now = Clock::now();
-    if (a_forceRecompute || !g_cachedAt ||
+    // The container sink saw the player lose some of the cached poison (perhaps the last bottle)
+    const bool invalidated = g_cacheInvalidated.exchange(false);
+    if (invalidated && !a_forceRecompute) {
+        logger::debug("Toxicology: the player lost some of poison {:08X} - choice read again", g_cachedPoisonId.load());
+    }
+    if (a_forceRecompute || invalidated || !g_cachedAt ||
         std::chrono::duration<double>(now - *g_cachedAt).count() >= kSelectionCacheSeconds) {
-        g_cachedPoisonId = PickFromInventory();
+        g_cachedPoisonId.store(PickFromInventory());
         g_cachedAt = now;
     }
     // By FormID, not a kept pointer: a player-made poison's form can go away between calls
-    return g_cachedPoisonId ? RE::TESForm::LookupByID<RE::AlchemyItem>(g_cachedPoisonId) : nullptr;
+    const RE::FormID id = g_cachedPoisonId.load();
+    return id ? RE::TESForm::LookupByID<RE::AlchemyItem>(id) : nullptr;
 }
 
 void ToxGame::OnSelectionMaybeChanged()
@@ -247,7 +291,8 @@ void ToxGame::SweepMimicKeyword()
 void ToxGame::ResetSelection()
 {
     RemoveKeywordFromHolder();
-    g_cachedPoisonId = 0;
+    g_cachedPoisonId.store(0);
+    g_cacheInvalidated.store(false);
     g_cachedAt.reset();
     g_loggedChoiceId = 0;
 }
@@ -263,4 +308,16 @@ void ToxGame::RegisterMenuSink()
     ui->AddEventSink<RE::MenuOpenCloseEvent>(MenuSink::GetSingleton());  // RE/U/UI.h:83,166
     logger::info("Toxicology: menu sink registered (InventoryMenu, FavoritesMenu and ContainerMenu open and close, "
         "BarterMenu open)");
+}
+
+void ToxGame::RegisterContainerSink()
+{
+    auto* holder = RE::ScriptEventSourceHolder::GetSingleton();
+    if (!holder) {
+        logger::error("Toxicology: no ScriptEventSourceHolder at kDataLoaded - a poison taken from the player by a script "
+            "can stay the choice for up to {} s", kSelectionCacheSeconds);
+        return;
+    }
+    holder->AddEventSink<RE::TESContainerChangedEvent>(ContainerSink::GetSingleton());  // RE/S/ScriptEventSourceHolder.h:75,147
+    logger::info("Toxicology: container sink registered (the cached poison leaving the player's inventory)");
 }

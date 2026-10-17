@@ -23,8 +23,8 @@ pending in-game self test, see "Not yet confirmed in game" below).
   (hit or miss; meant to be the cost after perks and gear, dual casting and concentration included - pending in-game
   self test) uses one bottle of the poison being mimicked. A poison cloak costs what you pay for the cloak; the
   sub-spell it casts on enemies costs nothing. When that poison runs out the next favorited poison takes over.
-  Bottles without a favorite mark are used before the favorited stack. The running total is kept in the SKSE
-  co-save.
+  Bottles without a favorite mark are used before the favorited stack. The running total (with any concentration
+  Magicka not yet counted) is kept in the SKSE co-save.
 - **Icon**: with Inventory Interface Information Injector (I4) installed, the poison being mimicked shows a
   "flask before a magic circle" icon in green (`#62A636`) in the inventory and favorites menus.
 

@@ -56,6 +56,11 @@ namespace ToxGame
     // The Magicka counted toward the next bottle.
     float Accumulated();
 
+    // Concentration Magicka the hook has measured but no drain task has counted yet (read under the
+    // hook's lock; nothing is taken out). The co-save stores Accumulated() + this, so the last
+    // stretch's leftover is not lost to a save and load (ToxSave.cpp).
+    float PendingMagicka();
+
     // Co-save load: the saved running total (the caller checked it is finite and >= 0).
     void SetAccumulated(float a_value);
 

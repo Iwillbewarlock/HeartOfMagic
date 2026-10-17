@@ -3,7 +3,8 @@
 // =============================================================================
 // Toxicology - co-save
 // =============================================================================
-// Spec 5.6: the Magicka counted toward the next bottle (ToxMagicka.h) is kept in
+// Spec 5.6: the Magicka counted toward the next bottle (ToxMagicka.h), plus the
+// concentration Magicka not yet counted (PendingMagicka), is kept in
 // the SKSE co-save. Unique id 'HMTX', one record 'ACCM' version 1 holding one
 // float. Revert (before every load and on a new game): the total back to 0, the
 // session generation bumped (queued hit and cast tasks dropped) and our poison

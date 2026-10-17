@@ -135,7 +135,7 @@ void SelfTest::NoteReloadSave(std::string_view a_saveName)
 {
     auto state = Read();
     if (!state || (state->phase != kAwaitSave && state->phase != kAwaitLoad)) return;
-    const float now = ToxGame::Accumulated();
+    const float now = ToxGame::Accumulated() + ToxGame::PendingMagicka();  // what the co-save writes (ToxSave.cpp)
     if (std::fabs(now - state->expected) >= kMagickaTolerance) {
         Info("7 reload", std::format("save '{}' holds the count {:.2f}, not the test's {:.2f} - not the save the check waits for",
             a_saveName, now, state->expected));

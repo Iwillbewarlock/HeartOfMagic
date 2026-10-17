@@ -9,6 +9,7 @@
 #include "core/ToxCore.h"
 #include "game/ToxData.h"
 #include "game/ToxHits.h"
+#include "game/ToxMagicka.h"
 
 #include <cmath>
 #include <exception>
@@ -349,6 +350,22 @@ void ToxGame::MagickaDetail::ResetHookState()
     g_drainPending.store(false);
     g_drainQueued.store(false);  // a task still queued is dropped by its generation
     g_lastDrainQueuedAt.store(kNeverQueued);
+}
+
+// =============================================================================
+// Public (ToxMagicka.h)
+// =============================================================================
+
+float ToxGame::PendingMagicka()
+{
+    std::lock_guard lock(g_sharedMutex);
+    // Only poison cost spells' amounts are noted (Observe checks PoisonCostSnapshot); the drain task's
+    // second IsPoisonCostSpell check is not repeated here (it may read the catalog file)
+    double sum = 0.0;
+    for (const auto& [key, amount] : g_shared.concentration) {
+        if (std::isfinite(amount) && amount > 0.0f) sum += amount;
+    }
+    return static_cast<float>(sum);
 }
 
 void ToxGame::MagickaDetail::InstallCasterHook()
