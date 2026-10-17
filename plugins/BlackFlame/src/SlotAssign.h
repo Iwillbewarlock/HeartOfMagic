@@ -24,7 +24,7 @@
 
 #include "Common.h"
 
-#include "CopyContract.h"
+#include "CopyContractKeys.h"
 #include "FireClosure.h"
 #include "SlotKeys.h"
 
@@ -53,9 +53,9 @@ namespace BlackFlame::SlotAssign
         std::string why;                     // why not usable
         std::string sourceModel;             // the source's model as its record stores it
         std::string sourceMuzzle;            // PROJ: the source's muzzle flash model
-        std::optional<std::uint64_t> modelKey;   // kModel (an ADDN slot: its MPS, kMps)
-        std::optional<std::uint64_t> muzzleKey;  // PROJ with a muzzle
-        std::optional<std::uint64_t> txstKey;    // TXST
+        std::optional<SlotKeys::Key> modelKey;   // kModel (an ADDN slot: its MPS, kMps)
+        std::optional<SlotKeys::Key> muzzleKey;  // PROJ with a muzzle
+        std::optional<SlotKeys::Key> txstKey;    // TXST
         bool txstDodt = false;
         std::string publishedModel;          // main thread: the record-form path SetModel gave ("" = the source's model)
         std::string publishedMuzzle;         // main thread: PROJ ("" = the source's muzzle)

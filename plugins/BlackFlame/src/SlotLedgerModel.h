@@ -15,7 +15,8 @@
 //   - Compare / ApplySave: a loaded save's BFSL pairs against the session's; the save's pairs win for the slots involved
 // Plugin names compare ASCII case-insensitively (the P0 rule for BFSL names); ids are lower-case hex without 0x.
 
-#include "CopyContract.h"
+#include "CopyContractKeys.h"
+#include "CopyContractProgress.h"
 #include "SlotCoSave.h"
 
 #include <nlohmann/json.hpp>
@@ -68,6 +69,7 @@ namespace BlackFlame::SlotLedgerModel
     {
         Role role = Role::kModel;
         std::uint64_t key = 0;
+        std::string keyText;  // the key's canonical string (an FNV-1a 64 collision guard: a load compares it too)
         std::string path;  // the copy's Data-relative path ("" for kTxst)
         std::uint64_t bytes = 0;
         std::uint64_t fnv64 = 0;

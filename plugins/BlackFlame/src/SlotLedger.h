@@ -22,7 +22,7 @@
 //             (with the key on) closes every gate: "this save's slot list could not be read; grey is off for N spells"
 // The ledger is shared by the kDataLoaded thread, the main-thread drains and the serialization callbacks: under one mutex.
 
-#include "CopyContract.h"
+#include "CopyContractKeys.h"
 #include "SlotCoSave.h"
 #include "SlotLedgerModel.h"
 

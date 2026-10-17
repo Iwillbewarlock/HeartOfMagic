@@ -201,11 +201,7 @@ namespace BlackFlame::SlotLedger
                 }
                 snapshot = SlotLedgerModel::ToSnapshot(g_ledger);
             }
-            if (!a_intfc->OpenRecord(SlotCoSave::kRecordType, SlotCoSave::kVersion)) {
-                logger::error("BlackFlame: slots: the co-save refused the BFSL record");
-                return;
-            }
-            const auto result = SlotCoSave::Write(*a_intfc, snapshot);
+            const auto result = SlotCoSave::Write(*a_intfc, snapshot);  // checks, then opens the record itself
             if (result != SlotCoSave::Result::Ok) {
                 logger::error("BlackFlame: slots: BFSL not written whole: {}", SlotCoSave::Describe(result));
             } else {
@@ -453,6 +449,7 @@ namespace BlackFlame::SlotLedger
         {
             std::vector<unsigned char> bytes;
             std::size_t at = 0;
+            bool OpenRecord(std::uint32_t, std::uint32_t) { return true; }
             bool WriteRecordData(const void* a_d, std::uint32_t a_n)
             {
                 bytes.insert(bytes.end(), static_cast<const unsigned char*>(a_d), static_cast<const unsigned char*>(a_d) + a_n);
@@ -471,7 +468,8 @@ namespace BlackFlame::SlotLedger
         const auto read = written == SlotCoSave::Result::Ok ?
                               SlotCoSave::Read(buffer, SlotCoSave::kVersion, static_cast<std::uint32_t>(buffer.bytes.size()), back) :
                               written;
-        const bool same = read == SlotCoSave::Result::Ok && back.slots == snapshot.slots && back.epoch == snapshot.epoch;
+        const auto stored = SlotCoSave::Canonical(snapshot);  // names lower-cased, slots sorted: what a save holds
+        const bool same = read == SlotCoSave::Result::Ok && back.slots == stored.slots && back.epoch == snapshot.epoch;
         a_detail = std::format("{} slots, {} bytes: write {}, read {}{}", snapshot.slots.size(), buffer.bytes.size(),
             SlotCoSave::Describe(written), SlotCoSave::Describe(read), same ? ", equal" : ", NOT equal");
         return same;

@@ -16,6 +16,8 @@
 #include <fstream>
 #include <vector>
 
+#include "FormCopies.h"
+
 namespace BlackFlame::FormCopies
 {
     namespace
@@ -175,7 +177,14 @@ namespace BlackFlame::FormCopies
         const auto intact = [&](const LM::Entry& a_entry, LM::Role a_role, const SlotAssign::Slot& a_slot) -> const LM::Object* {
             const auto* object = LM::PublishedOf(a_entry, a_role);
             std::string why;
-            if (!object || !ObjectIntact(*object, a_inputs, why) || !RegisterObject(*object, why)) {
+            // the FNV-1a 64 collision guard: the same key with another key string is not this session's object
+            const auto& current = a_role == LM::Role::kMuzzle ? a_slot.muzzleKey : a_slot.modelKey;
+            const bool collision = object && current && object->key == current->key && !object->keyText.empty() &&
+                                   object->keyText != current->text;
+            if (collision) {
+                why = "its key equals this session's but the key strings differ (an FNV-1a 64 collision)";
+            }
+            if (!object || collision || !ObjectIntact(*object, a_inputs, why) || !RegisterObject(*object, why)) {
                 if (object) {
                     logger::info("BlackFlame: slots: slot {:X} ({}): its last published {} is not used: {}", a_slot.localId,
                         a_slot.sourceText, LM::RoleText(a_role), why);

@@ -99,7 +99,7 @@ namespace BlackFlame::CopyGroups
 
         LM::Object ObjectOf(LM::Role a_role, const CC::ProgressLine& a_line)
         {
-            LM::Object object{ a_role, a_line.key, a_line.path, a_line.bytes, a_line.fnv64, {} };
+            LM::Object object{ a_role, a_line.key, std::string(), a_line.path, a_line.bytes, a_line.fnv64, {} };
             for (const auto& dep : a_line.deps) {
                 object.deps.push_back({ dep.isAddn, dep.addn, dep.path, dep.fnv64 });
             }
@@ -118,7 +118,7 @@ namespace BlackFlame::CopyGroups
         }
 
         // One object of a slot: the slot's ready generation (a_published), this session's key, or nothing
-        Plan PlanObject(LM::Role a_role, const std::optional<std::uint64_t>& a_key, const std::string& a_published,
+        Plan PlanObject(LM::Role a_role, const std::optional<SlotKeys::Key>& a_key, const std::string& a_published,
             const LM::Entry* a_entry, bool a_canVerify)
         {
             Plan plan;
@@ -131,21 +131,22 @@ namespace BlackFlame::CopyGroups
             if (!a_key) {
                 return ready("no key this session (no builder) and no published generation");
             }
-            if (a_entry && a_entry->terminal.count(*a_key) != 0) {
+            if (a_entry && a_entry->terminal.count(a_key->key) != 0) {
                 return ready("terminal: it failed to parse in two sessions");
             }
-            const auto found = BuildProgress::Find(*a_key);
+            const auto found = BuildProgress::Find(a_key->key);
             if (found && found->state == BuildProgress::State::kTerminal) {
                 return ready("terminal: too large or outside the dump caps");
             }
             if (found && found->state == BuildProgress::State::kInData) {
                 if (older && FormCopies::RecordModelPath(found->line.path) == a_published) {
-                    plan.state = Member::kReady;  // the ledger's generation is this key's
+                    plan.state = Member::kReady;  // the ledger's generation is this key's (ApplyLastPublished compared its string)
                     return plan;
                 }
                 if (a_canVerify || !older) {
                     plan.state = a_canVerify ? Member::kCandidate : Member::kPending;
                     plan.candidate = ObjectOf(a_role, found->line);
+                    plan.candidate->keyText = a_key->text;
                     return plan;
                 }
             }
@@ -378,7 +379,7 @@ namespace BlackFlame::CopyGroups
                 for (const auto id : a_group.ids) {
                     if (auto* entry = LM::FindSlot(a_ledger, id)) {
                         const auto& slot = SlotAssign::At(id);
-                        if (slot.modelKey == a_key || slot.muzzleKey == a_key) {
+                        if ((slot.modelKey && slot.modelKey->key == a_key) || (slot.muzzleKey && slot.muzzleKey->key == a_key)) {
                             terminal = LM::NoteParseFailure(*entry, a_key, SlotLedger::Session()) || terminal;
                         }
                     }

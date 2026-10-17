@@ -19,7 +19,7 @@
 
 #include "Common.h"
 
-#include "CopyContract.h"
+#include "CopyContractProgress.h"
 
 #include <cstdint>
 #include <filesystem>

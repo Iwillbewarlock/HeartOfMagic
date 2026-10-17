@@ -17,6 +17,8 @@
 #include <format>
 #include <set>
 
+#include "FileIndex.h"
+
 namespace BlackFlame::FileIndex
 {
     namespace

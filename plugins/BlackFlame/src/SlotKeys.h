@@ -18,7 +18,7 @@
 
 #include "Common.h"
 
-#include "CopyContract.h"
+#include "CopyContractKeys.h"
 #include "CopyRequestData.h"
 #include "CopyRequestDump.h"
 #include "FireClosure.h"
@@ -63,15 +63,24 @@ namespace BlackFlame::SlotKeys
     /// A NIF's state for a key (by its record model text): hashed, or missing when it did not read
     [[nodiscard]] CC::FileHash NifHash(const Inputs& a_inputs, const std::string& a_recordModel);
 
-    /// The ADDN table hash of a_pairs (every ADDN slot binding of the ledger) and the load order's ADDN records
-    [[nodiscard]] std::uint64_t AddnTableHash(const Inputs& a_inputs, const std::vector<CC::LedgerPair>& a_pairs);
+    /// The ADDN table hash of a_pairs (every ADDN slot binding of the ledger) and the load order's ADDN records; nullopt
+    /// when the contract refuses the table (an unset hash, an id over 0xFFFFFF)
+    [[nodiscard]] std::optional<std::uint64_t> AddnTableHash(const Inputs& a_inputs, const std::vector<CC::LedgerPair>& a_pairs);
 
-    /// A NIF object's key (form model, PROJ muzzle, ADDN MPS); nullopt without a prefix or for a path Normalize refuses
-    [[nodiscard]] std::optional<std::uint64_t> NifKey(const Inputs& a_inputs, CC::NifKind a_kind, const std::string& a_recordModel,
-        std::uint64_t a_addnTableHash);
+    /// A key and its canonical string (the ledger keeps both: the string is the FNV-1a 64 collision guard)
+    struct Key
+    {
+        std::uint64_t key = 0;
+        std::string text;
+    };
+
+    /// A NIF object's key (form model, PROJ muzzle, ADDN MPS); nullopt without a prefix, for a path Normalize refuses, or a
+    /// NIF with BSValueNode while the ADDN table has no hash
+    [[nodiscard]] std::optional<Key> NifKey(const Inputs& a_inputs, CC::NifKind a_kind, const std::string& a_recordModel,
+        const std::optional<std::uint64_t>& a_addnTableHash);
 
     /// A TXST slot's key from its source's eight slots, TX00 / TX03's states and its DODT; nullopt without a prefix
-    [[nodiscard]] std::optional<std::uint64_t> TxstKey(const Inputs& a_inputs, const RE::BGSTextureSet& a_source);
+    [[nodiscard]] std::optional<Key> TxstKey(const Inputs& a_inputs, const RE::BGSTextureSet& a_source);
 
     /// a_texture's state by its raw slot text (the plan's table, or one read now when the plan has no entry)
     [[nodiscard]] CC::FileHash TextureHash(const Inputs& a_inputs, std::string_view a_raw);

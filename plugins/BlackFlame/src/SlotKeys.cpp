@@ -91,7 +91,7 @@ namespace BlackFlame::SlotKeys
                     hash = blob.ok ? CC::FileHash::Hashed(blob.fnv64) : CC::FileHash::Missing();
                     a_out.textureBytesHashed += blob.ok ? blob.size : 0;
                 } else if (texture.probe.opened) {
-                    hash = CC::FileHash::NotDumped();
+                    hash = CC::FileHash::NotDumped(texture.probe.totalSize);
                 }
                 a_out.textureHash.emplace(texture.path, hash);
             }
@@ -113,15 +113,21 @@ namespace BlackFlame::SlotKeys
             }
             a_out.builderExeFound = true;
             const auto& config = GetConfig();
+            const auto tint = CC::QuantizedTint(config.tint);  // the key text and request.json carry one value
+            const auto tintAdd = CC::QuantizedTint(config.tintAdd);
+            if (!tint || !tintAdd) {
+                a_out.prefixWhy = "a tint the contract refuses: no key this session";
+                return;
+            }
             CC::KeyPrefix prefix;
             prefix.builderExeFnv64 = hash;
-            prefix.tint = config.tint;
-            prefix.tintAdd = config.tintAdd;
+            prefix.tint = *tint;
+            prefix.tintAdd = *tintAdd;
             prefix.paletteMode = config.paletteGodskin ? CC::PaletteMode::kGodskin : CC::PaletteMode::kDerived;
             prefix.gradBlackFlame = TextureHash(a_out, DataPathRule::kOurPalette);
             prefix.gradBlackFlameAdd = TextureHash(a_out, DataPathRule::kOurPaletteAdd);
             if (!CC::KeyPrefixString(prefix)) {
-                a_out.prefixWhy = "a tint is not finite: no key this session";
+                a_out.prefixWhy = "the key prefix was refused (a palette hash unset?): no key this session";
                 return;
             }
             a_out.prefix = prefix;
@@ -227,13 +233,13 @@ namespace BlackFlame::SlotKeys
         return blob.ok ? CC::FileHash::Hashed(blob.fnv64) : CC::FileHash::Missing();
     }
 
-    std::uint64_t AddnTableHash(const Inputs& a_inputs, const std::vector<CC::LedgerPair>& a_pairs)
+    std::optional<std::uint64_t> AddnTableHash(const Inputs& a_inputs, const std::vector<CC::LedgerPair>& a_pairs)
     {
         return CC::AddnTableHash(a_inputs.addnRecords, a_pairs);
     }
 
-    std::optional<std::uint64_t> NifKey(const Inputs& a_inputs, CC::NifKind a_kind, const std::string& a_recordModel,
-        std::uint64_t a_addnTableHash)
+    std::optional<Key> NifKey(const Inputs& a_inputs, CC::NifKind a_kind, const std::string& a_recordModel,
+        const std::optional<std::uint64_t>& a_addnTableHash)
     {
         if (!a_inputs.prefix || a_recordModel.empty()) {
             return std::nullopt;
@@ -250,14 +256,17 @@ namespace BlackFlame::SlotKeys
                 input.textures.push_back({ raw, TextureHash(a_inputs, raw) });
             }
             if (CC::HasValueNodeBlock(std::string_view(reinterpret_cast<const char*>(bytes.data()), bytes.size()))) {
+                if (!a_addnTableHash) {
+                    return std::nullopt;
+                }
                 input.addnTable = a_addnTableHash;
             }
         }
         const auto text = CC::NifKeyString(*a_inputs.prefix, input);
-        return text ? std::optional(CC::KeyOf(*text)) : std::nullopt;
+        return text ? std::optional(Key{ CC::KeyOf(*text), *text }) : std::nullopt;
     }
 
-    std::optional<std::uint64_t> TxstKey(const Inputs& a_inputs, const RE::BGSTextureSet& a_source)
+    std::optional<Key> TxstKey(const Inputs& a_inputs, const RE::BGSTextureSet& a_source)
     {
         if (!a_inputs.prefix) {
             return std::nullopt;
@@ -271,6 +280,6 @@ namespace BlackFlame::SlotKeys
         input.tx03 = TextureHash(a_inputs, input.slotsRaw[CC::kTxstGlowSlot]);
         input.dodt = a_source.decalData != nullptr;
         const auto text = CC::TxstKeyString(*a_inputs.prefix, input);
-        return text ? std::optional(CC::KeyOf(*text)) : std::nullopt;
+        return text ? std::optional(Key{ CC::KeyOf(*text), *text }) : std::nullopt;
     }
 }

@@ -87,6 +87,14 @@ namespace BlackFlame::SlotAssign
         RE::TESForm* Lookup(RE::TESDataHandler* a_dh, const std::string& a_plugin, std::uint32_t a_local, CC::SlotType a_type)
         {
             const auto* file = a_dh->LookupModByName(a_plugin);
+            if (!file) {  // a save's BFSL stores names ASCII-lower-cased (SlotCoSave Canonical): the case is not the file's
+                for (const auto* candidate : a_dh->files) {
+                    if (candidate && LM::SamePlugin(candidate->GetFilename(), a_plugin)) {
+                        file = candidate;
+                        break;
+                    }
+                }
+            }
             if (!file || a_local > (file->IsLight() ? kLightLocalMask : kFullLocalMask)) {
                 return nullptr;
             }

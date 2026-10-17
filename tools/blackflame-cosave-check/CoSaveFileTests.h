@@ -70,6 +70,7 @@ namespace CoSaveFileTests
     struct Writer
     {
         Bytes bytes;
+        bool OpenRecord(std::uint32_t, std::uint32_t) { return true; }
         bool WriteRecordData(const void* a_data, std::uint32_t a_size)
         {
             const auto* begin = static_cast<const unsigned char*>(a_data);
@@ -111,7 +112,7 @@ namespace CoSaveFileTests
                     walk.runtimeVersion == 0x01064920,
             "co-save: a normal file (4 blocks, an empty record) walks to its end");
         const auto read = CF::ReadBfsl(normal.data(), normal.size());
-        const auto sample = Sample();
+        const auto sample = Co::Canonical(Sample());  // names stored lower-cased
         a_check(read.state == CF::BfslState::kRead && read.snapshot.epoch == sample.epoch && read.snapshot.slots == sample.slots,
             "co-save: the HBFS block's BFSL record reads back slot for slot");
 

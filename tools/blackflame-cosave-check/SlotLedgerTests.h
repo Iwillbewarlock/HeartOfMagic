@@ -45,7 +45,7 @@ namespace SlotLedgerTests
             for (std::size_t j = 0; j < l.published.size(); ++j) {
                 const auto& a = l.published[j];
                 const auto& b = r.published[j];
-                if (a.role != b.role || a.key != b.key || a.path != b.path || a.bytes != b.bytes || a.fnv64 != b.fnv64 || !(a.deps == b.deps)) {
+                if (a.role != b.role || a.key != b.key || a.keyText != b.keyText || a.path != b.path || a.bytes != b.bytes || a.fnv64 != b.fnv64 || !(a.deps == b.deps)) {
                     return false;
                 }
             }
@@ -164,9 +164,9 @@ namespace SlotLedgerTests
         ledger.sessions = 3;
         (void)LM::Assign(ledger, Wants(), true, 2);
         auto& proj = *LM::FindSlot(ledger, 0x800);
-        LM::SetPublished(proj, { LM::Role::kModel, 0x1111, "meshes\\heartofmagic\\blackflame\\copies\\0000000000001111\\a.nif", 100, 0x22,
-                                    { { true, 40000, "", 0 }, { false, 0, "textures\\fx\\a.dds", 0x33 } } });
-        LM::SetPublished(proj, { LM::Role::kMuzzle, 0x4444, "meshes\\x.nif", 5, 0x55, {} });
+        LM::SetPublished(proj, { LM::Role::kModel, 0x1111, "format=BFK3|kind=model", "meshes\\heartofmagic\\blackflame\\copies\\0000000000001111\\copy.nif",
+                                    100, 0x22, { { true, 40000, "", 0 }, { false, 0, "textures\\fx\\a.dds", 0x33 } } });
+        LM::SetPublished(proj, { LM::Role::kMuzzle, 0x4444, "", "meshes\\x.nif", 5, 0x55, {} });
         const bool firstFail = !LM::NoteParseFailure(proj, 0x6666, 2);
         const bool sameSession = !LM::NoteParseFailure(proj, 0x6666, 2);
         const bool terminal = LM::NoteParseFailure(proj, 0x6666, 3);
@@ -200,6 +200,7 @@ namespace SlotLedgerTests
         {
             std::vector<unsigned char> bytes;
             std::size_t at = 0;
+            bool OpenRecord(std::uint32_t, std::uint32_t) { return true; }
             bool WriteRecordData(const void* a_d, std::uint32_t a_n)
             {
                 bytes.insert(bytes.end(), static_cast<const unsigned char*>(a_d), static_cast<const unsigned char*>(a_d) + a_n);

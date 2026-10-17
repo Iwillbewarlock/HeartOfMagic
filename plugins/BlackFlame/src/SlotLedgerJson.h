@@ -6,7 +6,8 @@
 // { "format": 1, "epoch": "<16 hex>", "version": n, "sessions": n, "slots": [
 //     { "slot": "800", "type": "PROJ", "plugin": "Skyrim.esm" | "pluginHex": "<bytes as hex>", "localId": "10fbed",
 //       "state": "active|tombstone|conflict", "since": n, ["conflict": "plugin|id"],
-//       "published": [ { "role": "model|muzzle|mps|txst", "key": "<16 hex>", "path": "...", "bytes": n, "fnv64": "<16 hex>",
+//       "published": [ { "role": "model|muzzle|mps|txst", "key": "<16 hex>", "keyString": "...", "path": "...", "bytes": n,
+//                        "fnv64": "<16 hex>",
 //                        "deps": [ { "path": "...", "fnv64": "<16 hex>" } | { "addn": 40012 } ] } ],
 //       "parseFailures": [ { "key": "<16 hex>", "count": n, "session": n } ], "terminal": [ "<16 hex>" ] } ] }
 // A plugin name with a byte outside printable ASCII is written as pluginHex (JSON text must be UTF-8; the engine's names are
@@ -146,7 +147,7 @@ namespace BlackFlame::SlotLedgerModel
             item["published"] = Json::array();
             for (const auto& object : entry.published) {
                 item["published"].push_back({ { "role", RoleText(object.role) }, { "key", CC::Hex16(object.key) },
-                    { "path", object.path }, { "bytes", object.bytes }, { "fnv64", CC::Hex16(object.fnv64) },
+                    { "keyString", object.keyText }, { "path", object.path }, { "bytes", object.bytes }, { "fnv64", CC::Hex16(object.fnv64) },
                     { "deps", DepsJson(object.deps) } });
             }
             item["parseFailures"] = Json::array();
@@ -241,6 +242,9 @@ namespace BlackFlame::SlotLedgerModel
                     object.key = *key;
                     object.fnv64 = *fnv;
                     object.path = p["path"].get<std::string>();
+                    if (const auto text = p.find("keyString"); text != p.end() && text->is_string()) {
+                        object.keyText = text->get<std::string>();
+                    }
                     object.bytes = p["bytes"].get<std::uint64_t>();
                     SetPublished(entry, std::move(object));
                 }
