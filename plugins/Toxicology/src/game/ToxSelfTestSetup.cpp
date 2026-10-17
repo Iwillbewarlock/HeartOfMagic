@@ -137,6 +137,15 @@ namespace
         return Favorite(*player, a_poison, a_why);
     }
 
+    // A target that outlives any test poison and neither starts a fight nor flees
+    void SetTargetValues(RE::Actor& a_actor)
+    {
+        auto* values = a_actor.AsActorValueOwner();  // RE/A/Actor.h:778; RE/A/ActorValueOwner.h:16,19,22
+        values->SetBaseActorValue(RE::ActorValue::kHealth, kTargetHealth);
+        values->SetActorValue(RE::ActorValue::kAggression, kNoAggression);
+        values->SetActorValue(RE::ActorValue::kConfidence, kFoolhardy);
+    }
+
     // =========================================================================
     // Poison spells by delivery (step 2)
     // =========================================================================
@@ -381,10 +390,7 @@ bool SelfTest::SpawnTarget(State& s, std::string_view step)
     auto pos = player->GetPosition();
     pos.x += std::sin(angle) * s.config.targetDistance;
     pos.y += std::cos(angle) * s.config.targetDistance;
-    auto* values = actor->AsActorValueOwner();  // RE/A/Actor.h:778; RE/A/ActorValueOwner.h:19,22
-    values->SetBaseActorValue(RE::ActorValue::kHealth, kTargetHealth);
-    values->SetActorValue(RE::ActorValue::kAggression, kNoAggression);
-    values->SetActorValue(RE::ActorValue::kConfidence, kFoolhardy);
+    SetTargetValues(*actor);
     if (s.config.disableTargetAI) actor->EnableAI(false);  // RE/A/Actor.h:552
     s.target = { actor->GetHandle(), actor->GetFormID(), pos, 0 };  // RE/A/Actor.h:584
     const auto* crime = actor->GetCrimeFaction();  // RE/A/Actor.h:571
@@ -400,6 +406,12 @@ SelfTest::Readiness SelfTest::TargetReady(State& s)
     if (actor && actor->Is3DLoaded() && actor->GetHighProcess() && !actor->IsDead()) {  // Actor.h:587, :363
         // Moved once its 3D (and character controller) is there: Actor::SetPosition, RE/A/Actor.h:384 (vfunc 0xA9)
         actor->SetPosition(s.target.placedAt, true);
+        // Again: an AutoCalcStats NPC may have its stats computed when its process starts, after the spawn
+        SetTargetValues(*actor);
+        auto* values = actor->AsActorValueOwner();
+        Info("target ready", std::format("[{:08X}] after {} ticks: health {:.0f}, aggression {:.0f}, confidence {:.0f}",
+            actor->GetFormID(), s.target.waited, values->GetActorValue(RE::ActorValue::kHealth),
+            values->GetActorValue(RE::ActorValue::kAggression), values->GetActorValue(RE::ActorValue::kConfidence)));
         return Readiness::kReady;
     }
     return WaitOver(++s.target.waited, s.config.spawnWaitMs) ? Readiness::kTimedOut : Readiness::kWaiting;
