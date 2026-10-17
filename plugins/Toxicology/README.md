@@ -104,7 +104,7 @@ Skyrim AE 1.6.1170, the developer's load order (with Mysticism and Apothecary), 
   Deadly Poison Spray) raise hit events, and the poison is applied on hit for both.
 - **Where it lands**: the poison lands on the target, cast by the player's instant caster with the player as
   caster (`(player's caster): 1 new effect(s)` on the target); nothing landed on the player.
-- **Immunity window**: a 10 s poison got 10 s of immunity and its next cast 20 s later (`D 10.00 s ... immunity
+- **Immunity window**: a 10 s poison got 10 s of immunity and a reapply time 20 s after the cast (`D 10.00 s ... immunity
   10.00 s, reapply in 20.00 s`); a paralysis poison was not renewed while the target was immune.
 - **Magicka count**: a fire-and-forget cast was charged the hand caster's cost (17.15 per cast, the spell's own
   cost); concentration was counted in caster state 6 (`kCasting`). One 5 s concentration window counted 28.28
