@@ -16,8 +16,10 @@
 //                         judge that load exactly as a player's quickload.
 //   devAutoQuit true      kQuitDelay after the self-test's DONE (DONE E3 when E3 armed), Main::quitGame is
 //                         set on the main thread. kStallTimeout after the last load (or the auto load's
-//                         request, or kDataLoaded with devAutoLoad set) without that, it quits anyway and
-//                         logs the timeout.
+//                         request, or the main menu's first opening with devAutoLoad set: the timeouts count
+//                         from the main menu, single-launch v3 decision 8) without that, it quits anyway and
+//                         logs the timeout; kMenuWaitTimeout after kDataLoaded when the main menu never opens.
+// The main menu's first opening comes from MenuWatch (the shared MenuOpenCloseEvent sink).
 // One detached thread polls every kPoll; every engine call goes through MainQueue::Post. Each step is logged.
 
 namespace BlackFlame::DevAutomation
@@ -28,6 +30,7 @@ namespace BlackFlame::DevAutomation
     inline constexpr auto kSaveSignalWait = std::chrono::seconds(10);
     inline constexpr auto kQuitDelay = std::chrono::seconds(10);
     inline constexpr auto kStallTimeout = std::chrono::minutes(6);
+    inline constexpr auto kMenuWaitTimeout = std::chrono::minutes(20);  // kDataLoaded to the main menu took ~7 min (run 4)
     inline constexpr auto kPoll = std::chrono::milliseconds(250);
     inline constexpr const char* kE3Save = "HoMBF_E3";
 

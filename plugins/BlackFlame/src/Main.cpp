@@ -42,6 +42,7 @@
 #include "SelfTest.h"
 #include "Tester.h"
 #include "MainThreadQueue.h"
+#include "MenuWatch.h"
 #include "Watchdog.h"
 
 namespace
@@ -49,6 +50,8 @@ namespace
     void OnDataLoaded()
     {
         BlackFlame::g_dataLoadedThreadNativeId.store(REX::W32::GetCurrentThreadId());
+        // Single launch: the main-thread proof and the menu sink before anything is scheduled (MenuWatch.h); always
+        BlackFlame::MenuWatch::Install();
         if (!BlackFlame::LoadForms()) {
             logger::error("BlackFlame: the addon ESP's forms are missing - nothing is installed");
             BlackFlame::MarkFreshnessUnchecked("the addon ESP's forms are missing");
@@ -146,6 +149,7 @@ namespace
         BlackFlame::LogThread("SKSE message handler", "message", kMessageThreadLogs);
         switch (a_msg.type) {
         case SKSE::MessagingInterface::kPreLoadGame:
+            BlackFlame::MenuWatch::Close("kPreLoadGame (a save is being loaded)");
             BlackFlame::Watchdog::NoteLoadStarted();
             TearDown("a save is being loaded");
             BlackFlame::SelfTest::OnPreLoadGame();
@@ -169,6 +173,7 @@ namespace
             FlushLog();
             break;
         case SKSE::MessagingInterface::kNewGame:
+            BlackFlame::MenuWatch::Close("kNewGame");
             BlackFlame::Watchdog::NoteLoadEnded();
             TearDown("a new game started");
             BlackFlame::RefreshCopies("new game");
