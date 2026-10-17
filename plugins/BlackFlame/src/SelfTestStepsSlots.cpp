@@ -59,7 +59,6 @@ namespace BlackFlame::SelfTest
             for (int n = 1; n <= SlotLedgerFiles::kBackups; ++n) {
                 files.push_back(SlotLedgerFiles::BackupPath(status.main, n));
             }
-            files.push_back(status.mirror);
             for (const auto& file : files) {
                 std::string why;
                 if (const auto ledger = SlotLedgerFiles::ReadOne(file, why)) {
@@ -67,15 +66,26 @@ namespace BlackFlame::SelfTest
                     ++read;
                 }
             }
+            if (read == 0) {
+                SelfTestLog::Skip("T0-slots", "ledger loss: no backup yet (the backups are rolled once a session: start again)");
+                return;
+            }
             const auto current = SlotLedger::Copy();
+            const auto session = SlotAssign::GetCounts().session;
             std::size_t missing = 0;
+            std::size_t judged = 0;
             for (const auto& entry : current.entries) {
+                if (entry.since >= session) {
+                    continue;  // reserved this session: in no backup yet
+                }
+                ++judged;
                 const auto* kept = LM::FindSlot(restored, entry.slot);
                 missing += kept && LM::SameSource(*kept, entry.type, entry.plugin, entry.localId) ? 0 : 1;
             }
-            SelfTestLog::Check("T0-slots", read > 0 && missing == 0,
-                std::format("ledger loss: {} backup/mirror file(s) read without main; their union holds {} of {} reservations",
-                    read, current.entries.size() - missing, current.entries.size()));
+            SelfTestLog::Check("T0-slots", missing == 0,
+                std::format("ledger loss: {} backup file(s) read without main and the mirror; their union holds {} of {} reservations "
+                            "(this session's new ones aside)",
+                    read, judged - missing, judged));
         }
 
         bool StepSlots(Ctx&, bool)
@@ -84,7 +94,7 @@ namespace BlackFlame::SelfTest
                 return true;
             }
             const auto counts = SlotAssign::GetCounts();
-            SelfTestLog::Pass("T0-slots", std::format("slots in use: {} wanted, {} active ({} usable), {} tombstones, {} conflicts, {} pool "
+            SelfTestLog::Check("T0-slots", counts.wanted > 0 && counts.active > 0, std::format("slots in use: {} wanted, {} active ({} usable), {} tombstones, {} conflicts, {} pool "
                 "full, {} refused, {} from a template, {} ADDN collided, {} gates open", counts.wanted, counts.active, counts.usable,
                 counts.tombstones, counts.conflicts, counts.poolFull, counts.refused, counts.templates, counts.collided, counts.open));
             if (counts.session <= 1) {
@@ -119,9 +129,13 @@ namespace BlackFlame::SelfTest
                 return true;
             }
             const auto log = CopyGroups::GetPublishLog();
-            SelfTestLog::Check("T0-W2", log.allOnMainThread && !log.loadDuringPublish, std::format("{} publish step(s): every one on "
-                "Main's thread: {}; a load under way during one: {}", log.steps, log.allOnMainThread ? "yes" : "NO",
-                log.loadDuringPublish ? "YES" : "no"));
+            if (log.steps == 0) {
+                SelfTestLog::Skip("T0-W2", "no publish step ran this session (nothing was ready): the threads cannot be judged");
+            } else {
+                SelfTestLog::Check("T0-W2", log.allOnMainThread && !log.loadDuringPublish, std::format("{} publish step(s): every one "
+                    "on Main's thread: {}; a load under way during one: {}", log.steps, log.allOnMainThread ? "yes" : "NO",
+                    log.loadDuringPublish ? "YES" : "no"));
+            }
             const auto ledger = SlotLedger::Copy();
             std::size_t open = 0;
             std::size_t wrong = 0;
@@ -138,13 +152,18 @@ namespace BlackFlame::SelfTest
                 std::string why;
                 if (!slot.publishedModel.empty() && (!now || slot.publishedModel != now)) {
                     why = std::format("model '{}', published '{}'", now ? now : "", slot.publishedModel);
-                } else if (recorded && FormCopies::RecordModelPath(recorded->path) != slot.publishedModel) {
-                    why = std::format("the ledger records '{}', the slot shows '{}'", recorded->path, slot.publishedModel);
+                } else if (recorded ? FormCopies::RecordModelPath(recorded->path) != slot.publishedModel : !slot.publishedModel.empty()) {
+                    why = std::format("the ledger records '{}', the slot shows '{}'", recorded ? recorded->path : std::string("nothing"),
+                        slot.publishedModel);
                 }
                 if (const auto* projectile = slot.form->As<RE::BGSProjectile>(); why.empty() && projectile && !slot.publishedMuzzle.empty()) {
                     const char* muzzle = projectile->muzzleFlashModel.GetModel();
+                    const auto* recordedMuzzle = entry ? LM::PublishedOf(*entry, LM::Role::kMuzzle) : nullptr;
                     if (!muzzle || slot.publishedMuzzle != muzzle) {
                         why = std::format("muzzle '{}', published '{}'", muzzle ? muzzle : "", slot.publishedMuzzle);
+                    } else if (!recordedMuzzle || FormCopies::RecordModelPath(recordedMuzzle->path) != slot.publishedMuzzle) {
+                        why = std::format("the ledger records the muzzle '{}', the slot shows '{}'",
+                            recordedMuzzle ? recordedMuzzle->path : std::string("nothing"), slot.publishedMuzzle);
                     }
                 }
                 if (!why.empty() && ++wrong <= kMaxFailLines) {
