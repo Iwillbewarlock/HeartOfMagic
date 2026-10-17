@@ -141,6 +141,32 @@ namespace
         });
     }
 
+    // Diagnosis for "our own effect judged foreign" (in-game run 2026-10-17): the records held before
+    // TakeLiveOwned and every effect of the poison in the list, so the log shows which field stopped the
+    // match (address, usUniqueID, caster, flags). Pointers are printed, never dereferenced unless in the list.
+    constexpr int kForeignDiagnosisLines = 8;
+    int g_foreignDiagnosisLeft = kForeignDiagnosisLines;
+
+    void LogForeignDiagnosis(EffectList& a_list, const RE::MagicItem* a_poison,
+        const std::vector<OwnedEffect>& a_records, const RE::ActorHandle& a_player)
+    {
+        if (g_foreignDiagnosisLeft <= 0) return;
+        --g_foreignDiagnosisLeft;
+        logger::info("Toxicology: diagnosis (foreign): {} record(s); player handle {:08X}",
+            a_records.size(), a_player.native_handle());
+        for (const auto& record : a_records) {
+            logger::info("Toxicology: diagnosis   record {} uid {} caster {:08X} in list {}",
+                static_cast<const void*>(record.effect), record.uniqueId, record.caster.native_handle(),
+                record.effect && IsInList(a_list, record.effect));
+        }
+        for (const auto* effect : a_list) {
+            if (!effect || effect->spell != a_poison) continue;
+            logger::info("Toxicology: diagnosis   list {} uid {} caster {:08X} flags {:08X} elapsed {:.2f} duration {:.2f}",
+                static_cast<const void*>(effect), effect->usUniqueID, effect->caster.native_handle(),
+                effect->flags.underlying(), effect->elapsedSeconds, effect->duration);
+        }
+    }
+
     // The poison's effects in a list (null list = none)
     std::vector<SeenEffect> EffectsOf(EffectList* a_list, const RE::MagicItem* a_poison)
     {
@@ -304,6 +330,13 @@ namespace
         auto created = after ? NewOwnedEffects(*after, a_poison, before, a_player->GetHandle(), a_target->GetHandle())
                              : std::vector<OwnedEffect>{};
         result.count = created.size();
+        if (g_foreignDiagnosisLeft > 0) {
+            for (const auto& record : created) {
+                logger::info("Toxicology: diagnosis (cast): recorded {} uid {} caster {:08X} flags {:08X} elapsed {:.2f} duration {:.2f}",
+                    static_cast<const void*>(record.effect), record.uniqueId, record.caster.native_handle(),
+                    record.effect->flags.underlying(), record.effect->elapsedSeconds, record.effect->duration);
+            }
+        }
         a_app.effects.insert(a_app.effects.end(), created.begin(), created.end());
         if (!created.empty()) {
             result.outcome = ToxGame::ApplyOutcome::kCast;
@@ -330,6 +363,7 @@ namespace
         if (!list) a_app.effects.clear();
 
         // Step 1: our effects still on the target
+        const auto recordsBefore = a_app.effects;  // diagnosis: what TakeLiveOwned dropped (see LogForeignDiagnosis)
         auto live = list ? TakeLiveOwned(*list, a_poison, a_app.effects) : std::vector<RE::ActiveEffect*>{};
         if (!live.empty()) {
             if constexpr (kRefreshByRecast) {
@@ -342,6 +376,7 @@ namespace
             }
         } else if (list && HasLiveEffectOf(*list, a_poison)) {
             // Step 2: the same poison from someone else (a coated weapon, an effect from before the load)
+            LogForeignDiagnosis(*list, a_poison, recordsBefore, a_player->GetHandle());
             return { ToxGame::ApplyOutcome::kForeignPresent };
         }
         return CastAndRecord(a_target, a_poison, a_player, list, a_app);
