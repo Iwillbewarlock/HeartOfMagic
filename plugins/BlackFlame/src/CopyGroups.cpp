@@ -77,6 +77,15 @@ namespace BlackFlame::CopyGroups
             if (!WindowOpen(a_sync)) {
                 return;  // closed right before the first SetModel: the group stays as it was
             }
+            for (const auto& member : a_group.members) {  // review agy dc 6: every SetFormModel below can take its model
+                const auto& slot = SlotAssign::At(member.id);
+                if (member.state != Member::kLeft && (!slot.form || (member.model.candidate && !FormCopies::ModelOf(slot.form)))) {
+                    a_group.state = GroupState::kFailed;
+                    logger::warn("BlackFlame: slots: a group of {} is not opened: slot {:X} has no form or no model to set",
+                        a_group.ids.size(), member.id);
+                    return;
+                }
+            }
             NoteStep();
             std::vector<std::pair<std::uint16_t, LM::Object>> recorded;
             for (const auto& member : a_group.members) {
@@ -86,7 +95,7 @@ namespace BlackFlame::CopyGroups
                 auto& slot = SlotAssign::At(member.id);
                 if (member.model.candidate) {
                     slot.publishedModel = FormCopies::RecordModelPath(member.model.candidate->path);
-                    (void)FormCopies::SetFormModel(slot.form, slot.publishedModel);
+                    (void)FormCopies::SetFormModel(slot.form, slot.publishedModel);  // checked above
                     recorded.emplace_back(member.id, *member.model.candidate);
                 }
                 if (member.muzzle.candidate) {
@@ -95,8 +104,12 @@ namespace BlackFlame::CopyGroups
                 } else if (member.muzzle.state != Member::kReady) {
                     slot.publishedMuzzle.clear();
                 }
-                if (auto* projectile = slot.form->As<RE::BGSProjectile>(); projectile && !slot.publishedMuzzle.empty()) {
-                    projectile->muzzleFlashModel.SetModel(slot.publishedMuzzle.c_str());
+                if (auto* projectile = slot.form->As<RE::BGSProjectile>()) {
+                    // review agy 11: a muzzle that is not published shows the source's again (the form and the slot agree)
+                    const auto& muzzle = slot.publishedMuzzle.empty() ? slot.sourceMuzzle : slot.publishedMuzzle;
+                    if (!muzzle.empty()) {
+                        projectile->muzzleFlashModel.SetModel(muzzle.c_str());
+                    }
                 }
             }
             for (const auto& member : a_group.members) {
@@ -125,6 +138,14 @@ namespace BlackFlame::CopyGroups
                 MenuWatch::MainMenuOpened() ? "W2" : "after kDataLoaded", recorded.size());
         }
 
+        // review agy dc 5: a Demand that faulted may have left the model DB's lock or state behind: nothing more this session
+        void StopOnFault(State& a_state, const std::string& a_path, const CopyModelProbe::VerifyResult& a_result)
+        {
+            a_state.stopped = true;
+            logger::error("BlackFlame: slots: {} - the model database's state is unknown: nothing more is published this session",
+                CopyModelProbe::Describe(a_path, a_result));
+        }
+
         void FailGroup(State& a_state, Group& a_group, const std::string& a_path, std::optional<std::uint64_t> a_parseKey,
             const std::string& a_what)
         {
@@ -143,12 +164,16 @@ namespace BlackFlame::CopyGroups
                 return true;
             }
             bool opened = false;
+            const auto listed = a_state.addns.size();
+            std::size_t pending = 0;    // its MPS still coming
+            std::size_t waiting = 0;    // waiting for another listed ADDN slot
             auto it = a_state.addns.begin();
             for (; it != a_state.addns.end() && Clock::now() - a_start < kSlice;) {
                 const auto id = *it;
                 auto& slot = SlotAssign::At(id);
                 const auto plan = PlanObject(a_state, LM::Role::kMps, slot.modelKey, slot.publishedModel, LM::FindSlot(a_state.ledger, id));
                 if (plan.state == Member::kPending) {
+                    ++pending;
                     ++it;
                     continue;
                 }
@@ -158,6 +183,7 @@ namespace BlackFlame::CopyGroups
                 }
                 const auto deps = AddnDeps(a_state, *plan.candidate);  // an MPS may name other ADDN slots too (contract v4)
                 if (deps == AddnDep::kWait) {
+                    ++waiting;
                     ++it;
                     continue;
                 }
@@ -166,13 +192,17 @@ namespace BlackFlame::CopyGroups
                 }
                 std::string why;
                 const auto path = FormCopies::RecordModelPath(plan.candidate->path);
-                if (deps == AddnDep::kLeft || !FormCopies::RegisterObject(*plan.candidate, why)) {
+                if (deps == AddnDep::kLeft || !slot.form || !FormCopies::ModelOf(slot.form) || !FormCopies::RegisterObject(*plan.candidate, why)) {
                     logger::warn("BlackFlame: slots: ADDN slot {:X}'s MPS is not used this session: {}", id,
-                        deps == AddnDep::kLeft ? "it names a collided ADDN slot" : why);
+                        deps == AddnDep::kLeft ? "it names a collided ADDN slot" : why.empty() ? "no form or no model to set" : why);
                     it = a_state.addns.erase(it);
                     continue;
                 }
                 const auto result = CopyModelProbe::DemandOnce(path);
+                if (result.fault) {
+                    StopOnFault(a_state, path, result);
+                    return false;
+                }
                 if (!result.ok) {
                     const bool terminal = CountParseFailure(a_state, { id }, plan.candidate->key);
                     logger::warn("BlackFlame: slots: ADDN slot {:X}'s MPS failed: {}{}", id, CopyModelProbe::Describe(path, result),
@@ -193,7 +223,14 @@ namespace BlackFlame::CopyGroups
                 opened = true;
                 it = a_state.addns.erase(it);
             }
-            a_state.addnDirty = it != a_state.addns.end();  // cut by the slice, or slots still waiting: go on next frame
+            a_state.addnDirty = it != a_state.addns.end();  // cut by the slice: go on next frame
+            if (it == a_state.addns.end() && a_state.addns.size() == listed && pending == 0 && waiting > 0) {
+                // a whole pass changed nothing and every slot left waits for another listed one (MPS naming each other, or
+                // itself): none can open first, so none opens this session; the NIFs naming them see the models they have
+                logger::warn("BlackFlame: slots: {} ADDN slot(s) wait for each other's MPS: not published this session", waiting);
+                a_state.addns.clear();
+                opened = true;  // re-plan: their NIFs no longer wait
+            }
             if (opened) {
                 a_state.generation = kNoGeneration;  // NIFs naming it may be ready now: re-plan the groups
             }
@@ -248,6 +285,10 @@ namespace BlackFlame::CopyGroups
                     }
                 }
                 const auto result = CopyModelProbe::DemandOnce(item.path);
+                if (result.fault) {
+                    StopOnFault(a_state, item.path, result);
+                    return;
+                }
                 if (!result.ok) {
                     FailGroup(a_state, a_group, item.path, item.key, CopyModelProbe::Describe(item.path, result));
                     return;
@@ -271,6 +312,9 @@ namespace BlackFlame::CopyGroups
         void StepChecked(State& a_state)
         {
             const auto start = Clock::now();
+            if (a_state.stopped) {
+                return;
+            }
             if (!MenuWatch::DrainMayPublish()) {
                 a_state.stopped = true;
                 logger::info("BlackFlame: slots: publication stopped ({})", MenuWatch::CloseReason());
@@ -287,7 +331,7 @@ namespace BlackFlame::CopyGroups
                 return;
             }
             for (auto& group : a_state.groups) {
-                if (Clock::now() - start >= kSlice) {
+                if (a_state.stopped || Clock::now() - start >= kSlice) {
                     break;
                 }
                 if (group.plannedAt != a_state.generation) {
@@ -332,6 +376,7 @@ namespace BlackFlame::CopyGroups
     {
         auto& state = TheState();
         state.canVerify = MenuWatch::MainThreadProven();
+        state.stopped = !state.canVerify;  // review agy 3: no drain will step, so the progress is settled after kDataLoaded
         BuildGroups(state);
         state.generation = BuildProgress::Generation();
         state.ledger = SlotLedger::Copy();

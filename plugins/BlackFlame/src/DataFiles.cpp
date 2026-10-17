@@ -86,6 +86,9 @@ namespace BlackFlame::DataFiles
             hash = NifDump::Fnv64(chunk.data(), count, hash);
             read += count;
         }
+        if (in.bad() || read != size) {
+            return std::nullopt;  // review Gemini dc 9: a read cut short is no hash (and is not cached)
+        }
         std::lock_guard lock(cache.mutex);
         cache.files[a_dataPath] = { read, written, hash };
         return Hash{ read, hash };

@@ -172,6 +172,10 @@ namespace BlackFlame::CopyGroups::Detail
         case BuildProgress::State::kFailed:
             return fallback("failed this session (tried again next start)");
         case BuildProgress::State::kStaging:
+            if (BuildProgress::CaughtUp()) {
+                // the worker's pass after the builder ended copied all it could: a file still missing will not come this session
+                return fallback("its files did not all reach Data this session");
+            }
             return older ? fallback("") : Plan{ Member::kPending, std::nullopt, "" };  // its files come into Data later
         case BuildProgress::State::kInData:
             break;

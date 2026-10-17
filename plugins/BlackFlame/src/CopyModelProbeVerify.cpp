@@ -13,6 +13,7 @@
 #include <chrono>
 #include <cstring>
 #include <format>
+#include <memory>
 
 
 namespace BlackFlame::CopyModelProbe
@@ -49,15 +50,24 @@ namespace BlackFlame::CopyModelProbe
             logger::warn("BlackFlame: slots: verify: '{}' is a gated slot's current model - demanded anyway (counted)", a_recordPath);
         }
         g_demands.fetch_add(1);
-        RE::NiPointer<RE::NiNode> out;
+        // review Gemini 5: the pointer lives on the heap; after a fault it is leaked, never released (it may hold anything)
+        auto out = std::make_unique<RE::NiPointer<RE::NiNode>>();
         auto code = RE::BSResource::ErrorCode::kNone;
         const auto begin = std::chrono::steady_clock::now();
-        result.fault = !GuardedKeep("slot verify Demand", [&]() { code = RE::BSModelDB::Demand(a_recordPath.c_str(), out, {}); });
+        result.fault = !GuardedKeep("slot verify Demand", [&]() { code = RE::BSModelDB::Demand(a_recordPath.c_str(), *out, {}); });
         result.ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count();
         result.code = static_cast<int>(code);
-        result.node = out != nullptr;
-        result.ok = !result.fault && code == RE::BSResource::ErrorCode::kNone && result.node;
-        out.reset();  // our reference given back (the model DB keeps or frees its entry)
+        if (result.fault) {
+            (void)out.release();
+            return result;
+        }
+        result.node = *out != nullptr;
+        result.ok = code == RE::BSResource::ErrorCode::kNone && result.node;
+        if (!GuardedKeep("slot verify release", [&]() { out->reset(); })) {  // our reference given back (the DB keeps its entry)
+            (void)out.release();
+            result.fault = true;
+            result.ok = false;
+        }
         return result;
     }
 

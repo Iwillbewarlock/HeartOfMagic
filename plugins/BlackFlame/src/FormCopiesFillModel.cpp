@@ -80,6 +80,10 @@ namespace BlackFlame::FormCopies
 
     bool ObjectIntact(const SlotLedgerModel::Object& a_object, const SlotKeys::Inputs& a_inputs, std::string& a_why)
     {
+        if (!a_object.path.empty() && !DataPathRule::ParseCopyPath(a_object.path)) {
+            a_why = std::format("'{}' is not a copy path", a_object.path);  // review agy dc 9: never hashed or registered
+            return false;
+        }
         if (!a_object.path.empty() && !DataFileMatches(a_object.path, a_object.bytes, a_object.fnv64, a_why)) {
             return false;
         }
@@ -113,12 +117,22 @@ namespace BlackFlame::FormCopies
         }
         std::vector<std::pair<std::string, std::uint64_t>> files;
         if (!a_object.path.empty()) {
+            if (!DataPathRule::ParseCopyPath(a_object.path)) {
+                a_why = std::format("'{}' is not a copy path", a_object.path);
+                return false;
+            }
             files.emplace_back(a_object.path, a_object.bytes);
         }
         for (const auto& dep : a_object.deps) {
-            if (const auto size = !dep.isAddn && DataPathRule::ParseCopyPath(dep.path) ? DataFiles::SizeOf(dep.path) : std::nullopt) {
-                files.emplace_back(dep.path, *size);  // the size the loose stream must have (no byte read)
+            if (dep.isAddn || !DataPathRule::ParseCopyPath(dep.path)) {
+                continue;  // an ADDN slot, or a source file (in the startup index)
             }
+            const auto size = DataFiles::SizeOf(dep.path);
+            if (!size) {
+                a_why = std::format("the dep '{}' is not in Data", dep.path);  // review agy 3: never registered without it
+                return false;
+            }
+            files.emplace_back(dep.path, *size);  // the size the loose stream must have (no byte read)
         }
         for (const auto& [path, bytes] : files) {
             const auto registration = FileIndex::Register(path, bytes);
@@ -144,7 +158,10 @@ namespace BlackFlame::FormCopies
             if (collision) {
                 why = "its key equals this session's but the key strings differ (an FNV-1a 64 collision)";
             }
-            if (!object || collision || !ObjectIntact(*object, a_inputs, why) || !RegisterObject(*object, why)) {
+            if (object && object->path.empty()) {
+                why = "it has no file";  // review agy 4: never SetModel("") nor an ADDN gate opened on it
+            }
+            if (!object || !why.empty() || !ObjectIntact(*object, a_inputs, why) || !RegisterObject(*object, why)) {
                 if (object) {
                     logger::info("BlackFlame: slots: slot {:X} ({}): its last published {} is not used: {}", a_slot.localId,
                         a_slot.sourceText, LM::RoleText(a_role), why);
@@ -167,26 +184,33 @@ namespace BlackFlame::FormCopies
                     slot.type == CopyContract::SlotType::kTXST || (addnPass && SlotAssign::GateOpen(id))) {
                     continue;  // a TXST slot stays unpublished (CopyGroups.h)
                 }
-                const auto* model = intact(*entry, addnPass ? LM::Role::kMps : LM::Role::kModel, slot);
                 const auto addnReady = [](const LM::Object* a_object) {  // every ADDN slot it names already shows its MPS
                     return a_object && std::all_of(a_object->deps.begin(), a_object->deps.end(), [](const LM::Dep& a_dep) {
                         const auto addn = a_dep.isAddn ? CopyContract::SlotOfAddnIndex(a_dep.addn) : std::nullopt;
                         return !a_dep.isAddn || (addn && SlotAssign::GateOpen(*addn));
                     });
                 };
-                if (!model || !addnReady(model)) {
+                const auto role = addnPass ? LM::Role::kMps : LM::Role::kModel;
+                // review Gemini 9: the ADDN slots first, before any file is hashed or registered for an object not applied now
+                if (!addnReady(LM::PublishedOf(*entry, role))) {
                     continue;
                 }
-                (void)SetFormModel(slot.form, RecordModelPath(model->path));
+                const auto* model = intact(*entry, role, slot);
+                if (!model || !SetFormModel(slot.form, RecordModelPath(model->path))) {
+                    continue;
+                }
                 slot.publishedModel = RecordModelPath(model->path);
                 if (addnPass) {
-                    if (auto* addon = slot.form->As<RE::BGSAddonNode>(); addon && slot.source) {
-                        SetAddonFlagsFromSource(*addon, *slot.source->As<RE::BGSAddonNode>());
+                    const auto* source = slot.source ? slot.source->As<RE::BGSAddonNode>() : nullptr;
+                    if (auto* addon = slot.form->As<RE::BGSAddonNode>(); addon && source) {
+                        SetAddonFlagsFromSource(*addon, *source);
                     }
                     SlotAssign::OpenGate(id);  // an ADDN slot's gate: its MPS is published (CopyOf never hands one out)
-                } else if (const auto* muzzle = slot.sourceMuzzle.empty() ? nullptr : intact(*entry, LM::Role::kMuzzle, slot);
-                           addnReady(muzzle)) {  // review B4: the muzzle's ADDN slots too
-                    slot.publishedMuzzle = RecordModelPath(muzzle->path);
+                } else if (const auto* published = LM::PublishedOf(*entry, LM::Role::kMuzzle);
+                           !slot.sourceMuzzle.empty() && addnReady(published)) {  // review B4: the muzzle's ADDN slots too
+                    if (const auto* muzzle = intact(*entry, LM::Role::kMuzzle, slot)) {
+                        slot.publishedMuzzle = RecordModelPath(muzzle->path);
+                    }
                 }
                 ++applied;
             }

@@ -17,6 +17,7 @@
 
 #include "Common.h"
 
+#include "CopyRequestV5.h"
 #include "FireClosure.h"
 #include "SlotKeys.h"
 
@@ -33,7 +34,10 @@ namespace BlackFlame::SingleLaunch
     /// HUD message shows at the main menu is not checked in game
     void NotifyProgress();
 
-    /// The dev auto-load may go: publication settled, every slot open, or the builder ended, its lines all read, and nothing
-    /// is being verified
+    /// The dev auto-load may go: publication settled (nothing more can open this session: every group open, failed or
+    /// left once the builder ended and its lines are read, or the window closed) or every slot open
     [[nodiscard]] bool ReadyForLoad();
+
+    /// What request v5's write did this session (T0-slots; written false off the route)
+    [[nodiscard]] CopyRequestV5::Result Request();
 }

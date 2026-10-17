@@ -71,10 +71,10 @@ namespace BlackFlame::BuildProgress
         {
             auto& s = The();
             std::lock_guard lock(s.mutex);
-            auto& object = s.objects[a_line.key];
-            const bool known = object.line.key == a_line.key;
-            const bool same = known && object.line.path == a_line.path && object.line.fnv64 == a_line.fnv64 &&
-                              object.line.outcome == a_line.outcome;
+            const auto [it, added] = s.objects.try_emplace(a_line.key);
+            auto& object = it->second;
+            const bool known = !added;
+            const bool same = known && object.line == a_line;  // every field, the deps included (review Gemini 1)
             if (!same) {
                 object.state = StateOf(a_line);
                 object.copiedThisSession = false;
@@ -135,10 +135,15 @@ namespace BlackFlame::BuildProgress
             if (size <= from || !::SetFilePointerEx(file, at, nullptr, FILE_BEGIN)) {
                 return;
             }
-            std::vector<char> chunk(kReadChunk);
-            DWORD read = 0;
-            while (::ReadFile(file, chunk.data(), static_cast<DWORD>(chunk.size()), &read, nullptr) && read > 0) {
-                TakeLines(ProgressTail::Take(tail, std::string_view(chunk.data(), read)));
+            try {
+                std::vector<char> chunk(kReadChunk);
+                DWORD read = 0;
+                while (::ReadFile(file, chunk.data(), static_cast<DWORD>(chunk.size()), &read, nullptr) && read > 0) {
+                    TakeLines(ProgressTail::Take(tail, std::string_view(chunk.data(), read)));
+                }
+            } catch (...) {
+                tail = {};  // lines may be lost past the offset: read the file again from 0 (a line read twice changes nothing)
+                throw;
             }
             ProgressTail::End(tail);
         }
@@ -181,6 +186,11 @@ namespace BlackFlame::BuildProgress
                     fs::remove(temp, ec);
                     return false;
                 }
+            }
+            if (!MenuWatch::PublishOpen()) {  // closed while the bytes were written: nothing enters Data during a load
+                a_why = "the publish window closed during the copy";
+                fs::remove(temp, ec);
+                return false;
             }
             if (!::MoveFileExW(temp.c_str(), target.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
                 a_why = std::format("the rename failed (Windows error {})", ::GetLastError());
@@ -250,9 +260,21 @@ namespace BlackFlame::BuildProgress
             std::vector<CC::ProgressLine> ready;
             {
                 std::lock_guard lock(s.mutex);
-                for (const auto& [key, object] : s.objects) {
-                    if (object.state == State::kStaging &&
-                        (object.line.path.empty() || s.inData.contains({ object.line.path, object.line.fnv64 }))) {
+                for (auto& [key, object] : s.objects) {
+                    if (object.state != State::kStaging) {
+                        continue;
+                    }
+                    // review agy 3: a file whose copy failed fails every object that is it or needs it (another key's line
+                    // for the same file is skipped by the copy loop and would wait for the whole session)
+                    const auto failed = [&](const std::string& a_path, std::uint64_t a_fnv) { return s.copyFailed.contains({ a_path, a_fnv }); };
+                    if ((!object.line.path.empty() && failed(object.line.path, object.line.fnv64)) ||
+                        std::any_of(object.line.deps.begin(), object.line.deps.end(),
+                            [&](const CC::ProgressDep& a_dep) { return !a_dep.isAddn && failed(a_dep.path, a_dep.fnv64); })) {
+                        object.state = State::kFailed;
+                        g_generation.fetch_add(1);
+                        continue;
+                    }
+                    if (object.line.path.empty() || s.inData.contains({ object.line.path, object.line.fnv64 })) {
                         ready.push_back(object.line);
                     }
                 }
@@ -293,6 +315,7 @@ namespace BlackFlame::BuildProgress
 
         void Worker()
         {
+            std::size_t failures = 0;
             for (;;) {
                 try {
                     const bool builderDone = !BuilderLauncher::Running();  // before the read: what it wrote is all there
@@ -303,12 +326,15 @@ namespace BlackFlame::BuildProgress
                         logger::info("BlackFlame: slots: progress caught up after the builder ({}): {} keys, {} in Data",
                             BuilderLauncher::Status(), GetStats().lines, GetStats().inData);
                     }
-                } catch (const std::bad_alloc&) {
-                    logger::error("BlackFlame: slots: the progress worker ran out of memory - trying again");
                 } catch (const std::exception& e) {
-                    logger::error("BlackFlame: slots: the progress worker threw: {}", e.what());
+                    if (failures++ < kMaxLoggedErrors) {  // review agy 12: a repeated failure is not logged every poll
+                        logger::error("BlackFlame: slots: the progress worker threw ({}) - trying again at the next poll{}", e.what(),
+                            failures == kMaxLoggedErrors ? "; further failures are not logged" : "");
+                    }
                 } catch (...) {
-                    logger::error("BlackFlame: slots: the progress worker threw an exception of an unknown type");
+                    if (failures++ < kMaxLoggedErrors) {
+                        logger::error("BlackFlame: slots: the progress worker threw an exception of an unknown type - trying again");
+                    }
                 }
                 if (!MenuWatch::PublishOpen()) {
                     logger::info("BlackFlame: slots: progress worker done ({} keys, {} in Data, {} copied this session)",
@@ -328,6 +354,9 @@ namespace BlackFlame::BuildProgress
             Settle(false);   // what earlier sessions copied into Data counts now; copying is the worker's, after W1
         } catch (const std::exception& e) {
             logger::error("BlackFlame: slots: reading progress.jsonl at the start failed ({}) - the worker tries again", e.what());
+        } catch (...) {
+            logger::error("BlackFlame: slots: reading progress.jsonl at the start threw an exception of an unknown type - the "
+                          "worker tries again");
         }
         const auto stats = GetStats();
         logger::info("BlackFlame: slots: progress.jsonl at the start: {} keys ({} in Data), {} lines refused, {} ms", stats.lines,

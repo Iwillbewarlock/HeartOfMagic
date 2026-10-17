@@ -37,6 +37,12 @@ namespace BlackFlame::SingleLaunch
             return *inputs;
         }
 
+        CopyRequestV5::Result& TheRequest()  // kDataLoaded writes it; the self-test reads it later on the main thread
+        {
+            static auto* request = std::make_unique<CopyRequestV5::Result>().release();
+            return *request;
+        }
+
         std::atomic<bool> g_routeActive{ false };
         std::atomic<bool> g_allReadyShown{ false };
         TrackedMutex g_hudMutex;
@@ -77,19 +83,23 @@ namespace BlackFlame::SingleLaunch
         auto& inputs = TheInputs();
         inputs = SlotKeys::Read(a_closure);
         if (!SlotAssign::AssignAndFill(a_closure, inputs)) {
+            for (auto& nif : inputs.nifs) {
+                std::vector<std::byte>().swap(nif.bytes);  // no slots, no dump: not kept for the session
+            }
             return;
         }
         g_routeActive.store(true);
         (void)FormCopies::ApplyLastPublished(inputs);
         const auto request = CopyRequestV5::Write(a_closure, inputs);  // the dump holds the bytes the keys hashed
+        TheRequest() = request;
+        for (auto& nif : inputs.nifs) {  // before any thread starts (review agy 14_00 #1); nothing after the dump reads them
+            std::vector<std::byte>().swap(nif.bytes);  // the dump has them and the keys are made: the NIF bytes are not kept
+        }
         BuildProgress::ReadAtStart();  // to its end before the builder starts (it compacts the file at its own start)
         CopyGroups::Start();  // W1: the groups ready from the ledger open now; the rest on the main thread as verified
         LaunchBuilder(inputs, request.written);
         BuildProgress::StartWorker();  // tails the progress and copies finished files into Data while the window is open
         MenuWatch::OnMainMenuOpen(&OnMainMenu);
-        for (auto& nif : inputs.nifs) {
-            std::vector<std::byte>().swap(nif.bytes);  // the dump has them and the keys are made: the NIF bytes are not kept
-        }
         logger::info("BlackFlame: single launch: kDataLoaded part done in {} ms",
             std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - start).count());
     }
@@ -129,7 +139,14 @@ namespace BlackFlame::SingleLaunch
         if (!g_routeActive.load()) {
             return true;
         }
+        // review Gemini / agy 14_00: no "caught up and nothing verifying" shortcut - between the worker's catch-up and the
+        // main thread's re-plan nothing is verifying yet; settled waits for that re-plan (kStaging and keyless members leave)
         const auto progress = CopyGroups::GetProgress();
-        return progress.settled || progress.open >= progress.slots || (BuildProgress::CaughtUp() && progress.verifying == 0);
+        return progress.settled || progress.open >= progress.slots;
+    }
+
+    CopyRequestV5::Result Request()
+    {
+        return TheRequest();
     }
 }
