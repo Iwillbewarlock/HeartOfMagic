@@ -355,7 +355,7 @@ overwrite stays clean):
 | File | What |
 |---|---|
 | `request.json` | version 3: `game`, `fingerprint`, `copiesPlugin`; `forms` (source `Plugin|localId` in UTF-8, type, editorId, model and muzzleModel as the record stores them, bounds, the scalars the builder writes into a placeholder, `viaSpell`, `costliest`); `excluded` (source, type, reason); `addons` (every ADDN record: index, model, cap, DNAM flags, `own` for ours); `models` (the closure's impact and hazard models); `nifs` (each NIF read: Data-relative path, size, fnv64, ok, error); `textures` (T1: each texture those NIFs name - path, size, ok = in the dump, error) and `textureCaps`. Written through a temporary file and a rename, after the dump |
-| `data\meshes\...` | the winning bytes of every NIF the request names (form models, PROJ muzzles, every ADDN model not ours), read through the engine's own file system (`BSResourceNiBinaryStream`: archives, loose files and MO2's VFS as the game loads them). Rewritten only when the fingerprint differs from `dump-manifest.json`'s; a NIF that fails to read is removed from the dump |
+| `data\meshes\...` | the winning bytes of every NIF the request names (form models, PROJ muzzles, every ADDN model not ours), read through the engine's own file system (`BSResourceNiBinaryStream`: archives, loose files and MO2's VFS as the game loads them). Rewritten only when the fingerprint differs from `dump-manifest.json`'s; a NIF that fails to read is removed from the dump; one that cannot be written is removed and listed as not read, and the request's fingerprints then carry `+dump-incomplete`, so a map built from that request never reads as fresh (AB3) |
 | `data\textures\...` | T1: the textures the dumped NIFs name, read the same way within the caps (Texture copies below) |
 | `dump-manifest.json` | the fingerprint the dump was made for, the textures' own `textureFingerprint`, and `textureReadFailures` (textures that opened but could not be read) |
 
@@ -385,7 +385,7 @@ runtime) is excluded, and a hazard's spell seeds only its fire effects and its c
 ### Builder from the game (v2 expansion C2): `--from-game`
 
 ```
-blackflame-greybuild --from-game [<request folder>] --out <output mod folder> [--tint <0..2>] [--tint-add <0..2>] [--reclaim-retired] [--no-textures]
+blackflame-greybuild --from-game [<request folder>] --out <output mod folder> [--tint <0..2>] [--tint-add <0..2>] [--reclaim-retired] [--no-textures] [--retire-left-out]
 ```
 
 The request folder defaults to `<Documents>\My Games\Skyrim Special Edition\SKSE\HeartOfMagic_BlackFlame` (SE and AE)
@@ -533,7 +533,9 @@ NIFs were grey, the decals stayed orange. The player's copies now point at copie
 originals, and a texture set the player's and an NPC's forms share is never written (only the copies point at its copy).
 
 - **Closure and request**: the closure takes a copied PROJ's decal set and a copied IPCT's two sets (edge `kEdgeDecal`).
-  A TXST form in `request.json` gives `textures` (TX00..TX07 as the record stores them, UTF-8, `""` for an empty slot),
+  A texture set an explosion places (`impactPlacedObject`) is neither walked nor excluded for that (AB2: excluding it
+  would take away its decal copy); the copy EXPL keeps the source's placed set (T0-decal checks it).
+  A TXST form in `request.json` gives `textures` (TX00..TX07 for people, UTF-8, `""` for an empty slot), `texturesRaw`,
   `hasDecal` (the source has DODT), `data.flags` (DNAM) and `bounds`; the request says `"decalTextureSets": true`. Its
   TX00 and TX03 textures are dumped with the NIFs' (a path both name, once). The fingerprint's line of a TXST is its
   eight slots and whether it has DODT, so a change of either makes the copies stale.
@@ -547,13 +549,19 @@ originals, and a texture set the player's and an NPC's forms share is never writ
   the source has DODT, DNAM flags; no DATA, no MODL. `decalData` is a pointer (`RE/B/BGSTextureSet.h` 0x0C0) the engine
   allocates for a record with DODT, which the DLL then fills; it never allocates one. Read back subrecord by subrecord
   (presence kept apart from content, a subrecord twice is a fault).
-- **Text**: the request's UTF-8 slot text is written into the record in the system code page's bytes (a slot that does
-  not convert without loss - no best-fit character, the result read back to the same text - leaves that texture set
-  out with a warning: its decal stays the source's); the map holds UTF-8 again (`sourceTextures`, `greyTextures`,
-  `hasDecal`). A slot whose bytes are no text in the system code page (U+FFFD after the DLL's `SanitizeToUTF8`) is never
-  copied: the DLL's closure excludes that texture set, the builder and the fill refuse it too (a copy would name another
-  file). A texture set left out while reading a game request whose copy `--out` still holds refuses the whole build,
-  like an older request over TXST copies.
+- **Text** (AB1): a slot's text never goes through a code page. The DLL sends each slot's own bytes (`texturesRaw`, hex
+  of the record string) beside its text for people (`textures`); the builder writes those bytes unchanged into the copy
+  record for every slot it does not recolour, the map keeps them (`sourceTexturesRaw`, hex; `sourceTextures` the text),
+  and the DLL compares bytes with bytes (ASCII case and `/` folded, a double-byte character of the system code page
+  kept). A double-byte path, or bytes that are no text in any code page, pass through as they are. A colour slot
+  (TX00 / TX03) whose bytes are not plain ASCII is not recoloured (a `NOTE`; the risk check's `DECAL_NOT_JUDGED` WARN),
+  since its dump file's name depends on a conversion of those bytes. Only a hand-made `--forms` request without
+  `texturesRaw` converts its UTF-8 text to the code page (exactly: no best-fit character, read back to the same text;
+  otherwise that texture set is left out with a warning). A texture set left out while reading, or one the DLL excluded
+  (the request's `excluded`, type TXST), whose copy `--out` still holds refuses the whole build, like an older request
+  over TXST copies: run again with `--retire-left-out` to retire it on purpose (its record goes: only for a new save),
+  or build into an empty `--out`. `--forms` refuses a game (version 3) request: it carries the dump, the decal flag and
+  the left-out forms only `--from-game` reads.
 - **Fill (DLL)**: `boundData`, `flags` and `*decalData` (its colour's RGB set to its Rec. 709 luminance, alpha kept)
   from the live source; never `textures[]` or `textureFileIDs`, nor `SetTexturePath`: the copy keeps its record's
   paths. An IPCT copy's own `dData` colour is greyed the same way, and its two texture sets, like a PROJ copy's
@@ -562,8 +570,11 @@ originals, and a texture set the player's and an NPC's forms share is never writ
   slot is not the one it was built for, its slots are not the map's (the ESL and the map from different runs), or a
   grey texture does not open through the game's file system (opens only: whether it decodes is the builder's risk
   check, which decodes every copy it judges). The reasons are counted apart: an out-of-step copy makes freshness `stale`
-  ("run the builder") even with a matching fingerprint, a grey texture that does not open makes it `pluginMissing`
-  ("enable the output mod"); the tester file and CheckCopies give the three counts. A
+  ("run the builder") even with a matching fingerprint; a grey texture that does not open makes it `texturesMissing`
+  (its own corner notice: the output mod's textures missing or overwritten, or a loose-file cache such as CRDW out of
+  date - the copy's line says "on disk under Data" when the file is there but the game's file system does not open it;
+  both counts in the detail when both occur); the tester file and CheckCopies give the two counts. The grey decal
+  textures are part of the copy model probe's file-index state, so a changed one probes again. A
   slot that changes after the start cannot be refilled (the record's string): CheckCopies reports it and the next start
   leaves the copy out.
 - **Risk check**: `DECAL_COLOUR` (FAIL) when a TXST copy's TX00 or TX03 still names a coloured texture (the same
@@ -713,7 +724,8 @@ the copy request, the copies are judged:
 | State | When |
 |---|---|
 | `none` | no copies map, or one with no entry (only the empty ESLs the mod ships) |
-| `pluginMissing` | the map was read but `HeartOfMagic_BlackFlame_Copies.esp` is not loaded, or at least half of its entries (and at least one) lost their copy form (the output mod placed before Black Flame, or not enabled); or, with a matching fingerprint, a decal texture set copy names a grey texture that does not open |
+| `pluginMissing` | the map was read but `HeartOfMagic_BlackFlame_Copies.esp` is not loaded, or at least half of its entries (and at least one) lost their copy form (the output mod placed before Black Flame, or not enabled) |
+| `texturesMissing` | AB4: the fingerprint matches, but a decal texture set copy names a grey texture that does not open: "Black Flame: some grey decal textures of the copies do not load. Check that the copies output mod is enabled with its textures and nothing overwrites it; with a loose-file cache such as CRDW, rebuild the cache." |
 | `notApplied` | Y11: the map was there but filling the copies stopped part way: every copy is left out this session (the log says why) |
 | `stale` | a version 1 map, or the map's request fingerprint differs from this start's: the byte form when `writeRequest` computed it, else the size form (each NIF only opened for its size, no byte read; the request carries both forms); or a decal texture set copy was left out as out of step with the load order (section "Decal texture set copies") |
 | `fresh` | otherwise |
