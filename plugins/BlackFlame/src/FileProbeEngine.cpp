@@ -30,6 +30,8 @@ namespace BlackFlame::FileProbe::Engine
         constexpr std::size_t kGuardWindow = 0x80;     // bytes of IndexGuard's ctor / dtor scanned (FQ4)
         constexpr std::size_t kGuardBytesLogged = 32;
         constexpr std::uint32_t kGuardManagerOffset = 0xB8;  // the manager inside the guard (TFF)
+        constexpr std::array<std::uint8_t, 2> kFarJump{ 0xFF, 0x25 };  // jmp [rip + disp32]
+        constexpr std::size_t kFarJumpSize = 6;
         constexpr std::uint32_t kSeCountOffset = 0x0C;
         constexpr std::uint32_t kAeLateCountOffset = 0x10;
         constexpr std::uint32_t kRefOne = 0x1000;          // StreamBase::kRefCountBeg
@@ -152,6 +154,39 @@ namespace BlackFlame::FileProbe::Engine
             return false;
         }
 
+        // Run 1 (1.6.1170): the dtor id points at a jmp thunk (E9 rel32, then CC padding). One leading E9 rel32, or FF 25
+        // [rip + disp32] (an absolute jump through a slot), is followed to the body the check reads; a_function itself when
+        // it starts with neither, or the jump's target cannot be read
+        std::uintptr_t FollowJump(std::uintptr_t a_function)
+        {
+            if (!Patch::IsExecutable(a_function, kFarJumpSize)) {
+                return a_function;
+            }
+            const auto* bytes = reinterpret_cast<const std::uint8_t*>(a_function);
+            if (bytes[0] == Patch::kJmpOpcode) {
+                return Patch::Rel32Target(a_function);
+            }
+            if (bytes[0] == kFarJump[0] && bytes[1] == kFarJump[1]) {
+                std::int32_t disp = 0;
+                std::memcpy(&disp, bytes + kFarJump.size(), sizeof(disp));
+                std::uintptr_t target = 0;
+                const auto slot = a_function + kFarJumpSize + disp;
+                if (GuardedKeep("file probe jump slot", [&]() { target = *reinterpret_cast<const std::uintptr_t*>(slot); }) && target) {
+                    return target;
+                }
+            }
+            return a_function;
+        }
+
+        std::string BodyText(std::uintptr_t a_function, std::uintptr_t a_body)
+        {
+            if (a_body == a_function) {
+                return std::format("SkyrimSE+0x{:X} [{}]", a_function - Base(), Patch::HexBytes(a_function, kGuardBytesLogged));
+            }
+            return std::format("SkyrimSE+0x{:X} [{}] -> jump to SkyrimSE+0x{:X} [{}]", a_function - Base(),
+                Patch::HexBytes(a_function, kGuardBytesLogged), a_body - Base(), Patch::HexBytes(a_body, kGuardBytesLogged));
+        }
+
         void InitIndex(std::vector<std::string>& a_lines)
         {
             if (!Patch::HasIds({ Patch::IdFor(68631, 69971), Patch::IdFor(68321, 69681), Patch::IdFor(68322, 69682),
@@ -170,11 +205,12 @@ namespace BlackFlame::FileProbe::Engine
             }
             const auto ctor = Patch::AddressOf(Patch::IdFor(68321, 69681));
             const auto dtor = Patch::AddressOf(Patch::IdFor(68322, 69682));
-            const bool ctorOk = TouchesManager(ctor, manager);
-            const bool dtorOk = TouchesManager(dtor, manager);
-            a_lines.push_back(std::format("index: IndexGuard ctor SkyrimSE+0x{:X} [{}] touches the manager: {}; dtor SkyrimSE+0x{:X} [{}]: {}",
-                ctor - Base(), Patch::HexBytes(ctor, kGuardBytesLogged), ctorOk ? "yes" : "NO", dtor - Base(),
-                Patch::HexBytes(dtor, kGuardBytesLogged), dtorOk ? "yes" : "NO"));
+            const auto ctorBody = FollowJump(ctor);
+            const auto dtorBody = FollowJump(dtor);
+            const bool ctorOk = TouchesManager(ctorBody, manager);
+            const bool dtorOk = TouchesManager(dtorBody, manager);
+            a_lines.push_back(std::format("index: IndexGuard ctor {} touches the manager: {}; dtor {}: {}", BodyText(ctor, ctorBody),
+                ctorOk ? "yes" : "NO", BodyText(dtor, dtorBody), dtorOk ? "yes" : "NO"));
             if (!ctorOk || !dtorOk) {
                 g_state.indexWhy = "IndexGuard's constructor or destructor does not touch the ArchiveManager (static or the guard's "
                                    "+0xB8) in its first bytes: the guard is not called";

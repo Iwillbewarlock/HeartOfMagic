@@ -30,7 +30,8 @@
 //                     (a static buffer), checked by walking its entry list. DoCreateStream("data\\" + path, out, where,
 //                     false) is the call the engine makes for a loose file (paths there are relative to the game folder).
 // IndexGuard's ctor and dtor are called only when each touches the ArchiveManager (its static, or the guard's +0xB8) in its
-// first bytes (a structural check; a wrong layout that passes it can still hang the game once the lock is taken).
+// first bytes, after one leading jmp (E9 rel32 / FF 25) is followed: run 1 found the 1.6.1170 dtor id on a jmp thunk (a
+// structural check; a wrong layout that passes it can still hang the game once the lock is taken).
 // The in-function offsets are not trusted as fixed numbers on any build (Patch::IsCodeReadBuild): each is found by a scan
 // of a bounded window, and a scan that finds nothing usable turns the test off with the reason.
 // CommonLib's own ID::GenerateFromPath (68635 / 69979) is another function: the probe logs both ids for the same path.
