@@ -23,8 +23,8 @@
 // DRAW-TIME GREY - the BSEffectShader SetupGeometry / RestoreGeometry hook (DrawTimeGrey.h)
 // =============================================================================
 // The palette slot is measured, not assumed: Community Shaders' Effect.hlsl declares TexGrayscaleSampler at t4, but
-// what the engine binds is read here - the first PSTexture[] index holding the player shape's own greyscale texture
-// view after the original SetupGeometry (the engine binds material textures in SetupMaterial, vfunc 04, so a diff
+// what the engine binds is read here - the one PSTexture[] index holding the player shape's own greyscale texture
+// view after the original SetupGeometry, agreed on by kSlotAgreement materials (MeasureSlot) (the engine binds material textures in SetupMaterial, vfunc 04, so a diff
 // across SetupGeometry alone would show nothing).
 
 namespace BlackFlame::DrawTime
