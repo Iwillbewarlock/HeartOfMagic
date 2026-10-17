@@ -8,7 +8,10 @@
 //   1. SlotKeys::Read          the closure's NIFs, the textures they name, the builder exe, the AddOnNode indices
 //   2. SlotAssign::AssignAndFill   wants, the ledger's assignment, every slot filled, gates closed, keys
 //   3. ApplyLastPublished      W1: last published generations that are still intact set as the slots' models
-//   4. CopyGroups::Start       W1: groups ready from the ledger open; the rest verified and opened in the drains
+//   4. BuildProgress::ReadAtStart  progress.jsonl to its end (before the builder starts and compacts it)
+//   5. CopyGroups::Start       W1: groups ready from the ledger open; the rest verified and opened in the drains
+//   6. BuilderLauncher::Start  the builder as a child (launchBuilder, a key prefix, request.json there)
+//   7. BuildProgress::StartWorker  the tail and the staging -> Data copy while the publish window is open
 // and the copies map route (LoadAndFillCopies, the freshness check, the copy model probe) does not run.
 
 #include "Common.h"
