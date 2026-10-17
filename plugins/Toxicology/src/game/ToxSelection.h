@@ -36,13 +36,19 @@ namespace ToxGame
     // the keyword is added again.
     void OnSelectionMaybeChanged();
 
+    // kPostLoadGame and kNewGame, after OnSelectionMaybeChanged: takes the keyword off every poison in
+    // the player's inventory except the one carrying it now (none with "showIcon" off). A player-made
+    // poison (0xFF form) is saved with its keywords, so one that carried the keyword when the game was
+    // saved brings it back with the save.
+    void SweepMimicKeyword();
+
     // Before a save loads or a new game starts: takes the keyword off the poison carrying it
     // (looked up again by FormID; a player-made 0xFF form that no longer resolves is forgotten)
     // and forgets the cached choice, so the next call reads the inventory.
     void ResetSelection();
 
-    // Registers the MenuOpenCloseEvent sink (InventoryMenu or FavoritesMenu opening or closing,
-    // BarterMenu or ContainerMenu opening -> OnSelectionMaybeChanged). Call once at kDataLoaded,
+    // Registers the MenuOpenCloseEvent sink (InventoryMenu, FavoritesMenu or ContainerMenu opening or
+    // closing, BarterMenu opening -> OnSelectionMaybeChanged). Call once at kDataLoaded,
     // on the main thread.
     void RegisterMenuSink();
 }

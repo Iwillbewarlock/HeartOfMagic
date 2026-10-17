@@ -10,7 +10,8 @@
 // messaging listener (kDataLoaded, kPostLoadGame, kNewGame) and SKSE tasks
 // (the hit and cast tasks). Nothing is read off that thread, so there is no lock;
 // a caller on another thread would need one first. The one exception is
-// PoisonCostSnapshot (below).
+// PoisonCostSnapshot (below). LoadPoisonSpells also calls ToxMagicka.h's
+// PublishMagickaTracking (main thread too).
 // =============================================================================
 
 #include "core/ToxCore.h"
@@ -48,9 +49,17 @@ namespace ToxGame
     //   - hit set: the hostile catalog spells and the hostile cloak sub-spells (what reaches a target);
     //   - cost set: the hostile catalog spells and the cloaks whose sub-spell is hostile (what the
     //     player casts and pays Magicka for; a cloak's sub-spell is never charged).
-    // A missing catalog or a version other than 1 leaves both empty. Runs at kDataLoaded,
-    // kPostLoadGame and kNewGame (an in-game rescan rewrites the catalog).
+    // A missing catalog or a version other than 1 leaves both empty. Both are built before either
+    // is replaced, then replaced together. Ends by publishing the caster hook's flag for the new
+    // cost set (ToxMagicka.h PublishMagickaTracking). Runs at kDataLoaded and from the two reload
+    // checks below.
     void LoadPoisonSpells();
+
+    // kPostLoadGame and kNewGame: calls LoadPoisonSpells only when the catalog file's last-write time
+    // differs from the one LoadPoisonSpells last read (an in-game rescan rewrites the catalog), with
+    // no kCatalogCheckSeconds wait; the load order cannot change in a session, so unchanged sets stay.
+    // Restarts ReloadPoisonSpellsIfChanged's wait. Returns true when it reloaded.
+    bool ReloadPoisonSpellsAtLoad();
 
     // For the hit and cast tasks: at most once every kCatalogCheckSeconds it reads the catalog
     // file's last-write time and, when it differs from the one LoadPoisonSpells last read, calls

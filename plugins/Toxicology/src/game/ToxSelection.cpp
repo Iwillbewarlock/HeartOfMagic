@@ -163,13 +163,16 @@ namespace
         ~MenuSink() override = default;
 
         // The inventory and favorites menus opening (the icon drawn from then on) or closing (favorites
-        // changed in them, a poison used up there); the barter and container menus opening (they show
-        // the icon too)
+        // changed in them, a poison used up there); the container menu opening (it shows the icon) or
+        // closing (poisons taken from or put into a chest); the barter menu opening (it shows the icon)
         static bool Watched(const RE::MenuOpenCloseEvent& a_event)
         {
             const auto& name = a_event.menuName;
-            if (name == RE::InventoryMenu::MENU_NAME || name == RE::FavoritesMenu::MENU_NAME) return true;
-            return a_event.opening && (name == RE::BarterMenu::MENU_NAME || name == RE::ContainerMenu::MENU_NAME);
+            if (name == RE::InventoryMenu::MENU_NAME || name == RE::FavoritesMenu::MENU_NAME ||
+                name == RE::ContainerMenu::MENU_NAME) {
+                return true;
+            }
+            return a_event.opening && name == RE::BarterMenu::MENU_NAME;
         }
 
         std::atomic<bool> m_threadLogged{ false };  // events can arrive on more than one thread
@@ -217,6 +220,30 @@ void ToxGame::OnSelectionMaybeChanged()
     NoteI5Cache();
 }
 
+void ToxGame::SweepMimicKeyword()
+{
+    auto* keyword = MimicKeyword();
+    auto* player = RE::PlayerCharacter::GetSingleton();
+    if (!keyword || !player) return;
+    // RE/T/TESObjectREFR.h:406, the same filter as PickFromInventory; every poison object, whatever its count
+    const auto inventory = player->GetInventory([](RE::TESBoundObject& a_object) {
+        const auto* item = a_object.As<RE::AlchemyItem>();
+        return item && item->IsPoison();
+    });
+    std::size_t removed = 0;
+    for (const auto& [object, data] : inventory) {
+        auto* poison = object ? object->As<RE::AlchemyItem>() : nullptr;
+        if (!poison || poison->GetFormID() == g_keywordedId) continue;
+        // RE/B/BGSKeywordForm.h:26,39
+        if (poison->HasKeyword(keyword) && poison->RemoveKeyword(keyword)) {
+            ++removed;
+            logger::debug("Toxicology: icon keyword removed from {:08X} (not the copied poison)", poison->GetFormID());
+        }
+    }
+    spdlog::log(removed > 0 ? spdlog::level::info : spdlog::level::debug,
+        "Toxicology: icon keyword swept from {} other poison(s) in the inventory", removed);
+}
+
 void ToxGame::ResetSelection()
 {
     RemoveKeywordFromHolder();
@@ -234,6 +261,6 @@ void ToxGame::RegisterMenuSink()
         return;
     }
     ui->AddEventSink<RE::MenuOpenCloseEvent>(MenuSink::GetSingleton());  // RE/U/UI.h:83,166
-    logger::info("Toxicology: menu sink registered (InventoryMenu and FavoritesMenu open and close, BarterMenu and "
-        "ContainerMenu open)");
+    logger::info("Toxicology: menu sink registered (InventoryMenu, FavoritesMenu and ContainerMenu open and close, "
+        "BarterMenu open)");
 }

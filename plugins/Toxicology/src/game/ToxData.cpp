@@ -1,6 +1,7 @@
 #include "game/ToxData.h"
 
 #include "PluginNames.h"
+#include "game/ToxMagicka.h"
 
 #include <atomic>
 #include <chrono>
@@ -227,49 +228,68 @@ bool ToxGame::PlayerHasAbility()
 // Poison spell set
 // =============================================================================
 
+namespace
+{
+    // Both sets built from the catalog, not yet published; nullopt on an error (logged)
+    std::optional<Toxicology::PoisonSets> BuildSetsFromCatalog()
+    {
+        const auto catalog = ReadCatalog();
+        if (!catalog) return std::nullopt;
+        std::string error;
+        const auto keys = Toxicology::PoisonSpellKeys(*catalog, error);
+        if (!error.empty()) {
+            logger::warn("Toxicology: {}: {} - no poison spells", ToxGame::kCatalogPath, error);
+            return std::nullopt;
+        }
+        auto* dh = RE::TESDataHandler::GetSingleton();
+        if (!dh) {
+            logger::error("Toxicology: no TESDataHandler - no poison spells");
+            return std::nullopt;
+        }
+
+        PluginLookup lookup;  // one per pass: the file list is converted once, not once per key
+        std::vector<Toxicology::PoisonSpellNode> nodes;
+        std::size_t unresolved = 0;
+        for (const auto& key : keys) {
+            const auto* spell = ResolveSpell(dh, lookup, key);
+            if (!spell) {
+                ++unresolved;
+                logger::debug("Toxicology: catalog key {} is not a loaded spell", key);
+                continue;
+            }
+            nodes.push_back({ spell->GetFormID(), HasHostileEffect(spell), CloakSubSpells(spell) });
+        }
+
+        // core/ToxCore.h, checked by tools/toxicology-test
+        auto sets = Toxicology::BuildPoisonSets(nodes);
+        logger::info("Toxicology: poison spells: {} catalog keys, {} resolved, {} unresolved, {} cloak sub-spells added, "
+            "{} without a hostile effect left out, {} kept for hits, {} charged when cast (cloaks by their own spell)",
+            keys.size(), sets.catalogSpells, unresolved, sets.cloakSubSpells, sets.notHostile, sets.hit.size(), sets.cost.size());
+        return sets;
+    }
+
+    bool CatalogChanged()
+    {
+        return !g_catalogStampValid || WriteTime(ToxGame::kCatalogPath) != g_catalogStamp;
+    }
+}
+
 void ToxGame::LoadPoisonSpells()
 {
-    g_poisonSpells.clear();
-    PublishCostSnapshot({});
     // Stamped before the read: a catalog rewritten during it differs next check and is read again
     g_catalogStamp = WriteTime(kCatalogPath);
     g_catalogStampValid = true;
 
-    const auto catalog = ReadCatalog();
-    if (!catalog) return;
-    std::string error;
-    const auto keys = Toxicology::PoisonSpellKeys(*catalog, error);
-    if (!error.empty()) {
-        logger::warn("Toxicology: {}: {} - no poison spells", kCatalogPath, error);
-        return;
+    // The old sets stay in place while the new ones are built, then both are replaced at once
+    if (auto sets = BuildSetsFromCatalog()) {
+        g_poisonSpells = std::move(sets->hit);
+        PublishCostSnapshot(std::move(sets->cost));
+    } else {
+        g_poisonSpells.clear();
+        PublishCostSnapshot({});
     }
-    auto* dh = RE::TESDataHandler::GetSingleton();
-    if (!dh) {
-        logger::error("Toxicology: no TESDataHandler - no poison spells");
-        return;
-    }
-
-    PluginLookup lookup;  // one per pass: the file list is converted once, not once per key
-    std::vector<Toxicology::PoisonSpellNode> nodes;
-    std::size_t unresolved = 0;
-    for (const auto& key : keys) {
-        const auto* spell = ResolveSpell(dh, lookup, key);
-        if (!spell) {
-            ++unresolved;
-            logger::debug("Toxicology: catalog key {} is not a loaded spell", key);
-            continue;
-        }
-        nodes.push_back({ spell->GetFormID(), HasHostileEffect(spell), CloakSubSpells(spell) });
-    }
-
-    // core/ToxCore.h, checked by tools/toxicology-test
-    auto sets = Toxicology::BuildPoisonSets(nodes);
-    g_poisonSpells = std::move(sets.hit);
-    const auto costCount = sets.cost.size();
-    PublishCostSnapshot(std::move(sets.cost));
-    logger::info("Toxicology: poison spells: {} catalog keys, {} resolved, {} unresolved, {} cloak sub-spells added, "
-        "{} without a hostile effect left out, {} kept for hits, {} charged when cast (cloaks by their own spell)",
-        keys.size(), sets.catalogSpells, unresolved, sets.cloakSubSpells, sets.notHostile, g_poisonSpells.size(), costCount);
+    // The caster hook's flag follows the new cost set at once (ToxMagicka.h), not at the next menu or cast
+    PublishMagickaTracking(GetSettings().enabled && PlayerHasAbility());
 }
 
 bool ToxGame::ReloadPoisonSpellsIfChanged()
@@ -279,8 +299,20 @@ bool ToxGame::ReloadPoisonSpellsIfChanged()
         return false;
     }
     g_lastCatalogCheck = now;
-    if (g_catalogStampValid && WriteTime(kCatalogPath) == g_catalogStamp) return false;
+    if (!CatalogChanged()) return false;
     logger::info("Toxicology: {} changed, reading it again", kCatalogPath);
+    LoadPoisonSpells();
+    return true;
+}
+
+bool ToxGame::ReloadPoisonSpellsAtLoad()
+{
+    g_lastCatalogCheck = Clock::now();  // the 5 s window of ReloadPoisonSpellsIfChanged starts again here
+    if (!CatalogChanged()) {
+        logger::info("Toxicology: {} unchanged since it was last read - poison spells kept", kCatalogPath);
+        return false;
+    }
+    logger::info("Toxicology: {} changed since it was last read, reading it again", kCatalogPath);
     LoadPoisonSpells();
     return true;
 }

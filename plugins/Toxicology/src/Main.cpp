@@ -62,10 +62,12 @@ namespace
             ToxGame::ResetSelection();
             [[fallthrough]];
         case SKSE::MessagingInterface::kPostLoadGame:
-            // A full scan in game rewrites the catalog
-            ToxGame::LoadPoisonSpells();
+            // A full scan in game rewrites the catalog: read again only when the file changed
+            ToxGame::ReloadPoisonSpellsAtLoad();
             // Puts the keyword back on the loaded game's poison (spec 5.5)
             ToxGame::OnSelectionMaybeChanged();
+            // ...and off any other poison the save brought it on (a player-made one keeps it in the save)
+            ToxGame::SweepMimicKeyword();
             // Dev only, idle without its file; never on a new game (spawned targets in the opening scene)
             if (a_msg->type == SKSE::MessagingInterface::kPostLoadGame) ToxGame::MaybeStartSelfTest();
             FlushLog();

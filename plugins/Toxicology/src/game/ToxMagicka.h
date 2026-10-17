@@ -64,8 +64,8 @@ namespace ToxGame
     void ResetMagicka();
 
     // Main thread: the hook counts only while a_abilityAndEnabled (the ability held and "enabled" on)
-    // and the cost set is not empty. Called by CurrentPoison (hits, menus, loads) and every player
-    // cast task; changes are logged.
+    // and the cost set is not empty. Called by CurrentPoison (hits, menus, loads), every player
+    // cast task and the end of ToxData.h's LoadPoisonSpells (a new cost set); changes are logged.
     void PublishMagickaTracking(bool a_abilityAndEnabled);
 
     // Installs the ActorMagicCaster::Update hook and registers the TESSpellCastEvent sink. Call once at
