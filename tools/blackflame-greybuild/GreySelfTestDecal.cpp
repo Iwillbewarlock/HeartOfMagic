@@ -374,7 +374,7 @@ namespace GreyBuild::SelfTest
             std::string names;
             std::string raw;
             for (std::size_t i = 0; i < kTxstSlots; ++i) {
-                names += fmt::format("{}\"slot{}\"", i == 0 ? "" : ",", slots[i].empty() ? std::string() : std::to_string(i));
+                names += fmt::format("{}\"{}\"", i == 0 ? "" : ",", slots[i].empty() ? std::string() : "slot" + std::to_string(i));
                 raw += fmt::format("{}\"{}\"", i == 0 ? "" : ",", ToHex(slots[i]));
             }
             const auto form = fmt::format(R"({{"source":"A.esp|000805","type":"TXST","editorId":"Raw","bounds":[0,0,0,0,0,0],)"
@@ -411,6 +411,23 @@ namespace GreyBuild::SelfTest
             a_check.Check(again && again->sourceTextures[1] == dbcs && again->sourceTextures[2] == lone &&
                               again->sourceTextureNames[1] == "slot1",
                 "raw slots (AB1): the map keeps the bytes (sourceTexturesRaw) and the names apart");
+            // AC9: the text and the bytes must agree on an empty slot
+            const auto mismatch = fmt::format(R"({{"source":"A.esp|000806","type":"TXST","hasDecal":false,)"
+                                              R"("textures":["slot0","","","","","","",""],"texturesRaw":["","","","","","","",""]}})");
+            bool refused = false;
+            try {
+                (void)LoadFormsRequestFile(WriteText(a_dir / "raw_mismatch.json",
+                    R"({"version":3,"fingerprint":"x","addons":[],"models":[],"forms":[)" + mismatch + "," + kProj + "]}"));
+            } catch (const std::runtime_error&) {
+                refused = true;
+            }
+            a_check.Check(refused, "raw slots (AC9): a slot named in textures but empty in texturesRaw is refused");
+            // AC1: dumpComplete false travels through the map
+            CopiesMap incomplete = map;
+            incomplete.dumpComplete = false;
+            WriteCopiesMap(incomplete, a_dir / "raw_incomplete.json");
+            a_check.Check(!LoadCopiesMap(a_dir / "raw_incomplete.json").dumpComplete && LoadCopiesMap(a_dir / "raw_map.json").dumpComplete,
+                "copies map (AC1): dumpComplete false is written and read back, true by default");
         }
     }
 

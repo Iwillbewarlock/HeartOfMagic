@@ -4,15 +4,16 @@
 // GreyFormsTxst - decal texture set (TXST) copies: request parts, the record, its read-back, the map parts
 // =============================================================================
 // The DLL's closure reaches a TXST through a copied PROJ's decal (BGSProjectileData::decalData) or a copied IPCT's two
-// texture sets (BGSImpactData::decalTextureSet / decalTextureSet2). The request gives its eight slots (TX00..TX07, as the
-// record stores them, UTF-8), "hasDecal" (the source has DODT), its DNAM flags and bounds. The copy record:
-//   EDID HoMBF_C_TXST_<id>, OBND, TX00..TX07 (each slot the source has: its grey copy for TX00 / TX03 when one was made,
-//   else the source's text), DODT (36 zero bytes, only when the source has DODT), DNAM u16 flags.
+// texture sets (BGSImpactData::decalTextureSet / decalTextureSet2). The request gives its eight slots ("textures": text for
+// people; "texturesRaw": hex of each record string's own bytes), "hasDecal" (the source has DODT), its DNAM flags and
+// bounds. The copy record: EDID HoMBF_C_TXST_<id>, OBND, TX00..TX07 (each slot the source has: its grey copy for TX00 /
+// TX03 when one was made, else the source's bytes unchanged), DODT (36 zero bytes, only when the source has DODT), DNAM u16.
 // The DODT bytes are a stub: the DLL assigns the live source's decal data (colour greyed) at kDataLoaded, so a stub it
 // cannot allocate later is there exactly when the source has one (RE/B/BGSTextureSet.h: decalData is a pointer).
-// Text: the request is UTF-8 (the DLL's SanitizeToUTF8 of the code page's bytes); the record and the texture lookups use
-// the system code page's bytes (Utf8ToAnsiExact), the map UTF-8 again (AnsiToUtf8Exact). A slot that does not convert
-// without loss refuses its form (a hand-made request) or leaves it out with a warning (--from-game).
+// Text (AB1): a game request's slots travel as their bytes - texturesRaw into the record, "sourceTexturesRaw" (hex) in
+// the map - never through a code page; a non-ASCII colour slot is not recoloured. Only a hand-made request without
+// texturesRaw converts its UTF-8 text to the system code page (Utf8ToAnsiExact: no best-fit character, read back to the
+// same text); a slot that does not convert refuses its form (hand-made) or leaves it out with a warning.
 
 #include "GreyForms.h"
 #include "GreyJson.h"
@@ -26,6 +27,9 @@ namespace GreyBuild
 {
     struct RiskJob;
     struct TextureJob;
+
+    /// Every byte of a_text below 0x80
+    [[nodiscard]] bool IsAscii(const std::string& a_text) noexcept;
 
     /// a_text from UTF-8 to the system code page; the text itself when ASCII; nullopt when it is not UTF-8 or does not
     /// convert without loss
@@ -58,7 +62,8 @@ namespace GreyBuild
     [[nodiscard]] std::vector<std::string> VerifyTextureSetRecord(const EslForm& a_back, const CopyEntry& a_entry,
         const FormSource& a_source, const std::string& a_dnam);
 
-    /// The map entry's TXST parts: "sourceTextures", "greyTextures" (UTF-8), "hasDecal"
+    /// The map entry's TXST parts: "sourceTextures" (text for people), "sourceTexturesRaw" (hex of the bytes), "greyTextures"
+    /// (ASCII), "hasDecal"
     void WriteTextureSetMapParts(nlohmann::ordered_json& a_item, const CopyEntry& a_entry);
     void ReadTextureSetMapParts(const std::filesystem::path& a_file, const nlohmann::json& a_item, CopyEntry& a_entry,
         const std::string& a_where);

@@ -499,6 +499,7 @@ namespace GreyBuild
         CopiesMap copies = AssignCopyIds(a_sources, previous, a_options.reclaimRetired);
         copies.requestFingerprint = a_options.fingerprint;
         copies.requestFingerprintSizes = a_options.fingerprintSizes;
+        copies.dumpComplete = a_options.dumpComplete;
         copies.excluded = a_options.excluded;
 
         planTime.reset();

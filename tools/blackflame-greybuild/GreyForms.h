@@ -172,6 +172,7 @@ namespace GreyBuild
         std::set<std::string> palettesListed;  // our two fixed palettes the request names (DataPathRule kOurPalette*)
         std::set<std::string> palettesDumped;  // of those, the ones in the dump (ok true)
         std::set<std::string> leftOut;         // AA3: normalised sources of forms left out while reading (a TXST slot)
+        bool dumpComplete = true;              // AC1: the request's "dumpComplete" (absent: true)
     };
 
     /// Reads and validates a forms request: version 2 (forms only) or 3 (the DLL's: also addons, models, nifs,
@@ -215,6 +216,7 @@ namespace GreyBuild
         std::map<std::string, CopyType> retiredTypes;  // their types (maps before TXST copies did not keep them: absent)
         std::string requestFingerprint;  // v2: the request's fingerprint (the DLL's freshness check)
         std::string requestFingerprintSizes;  // v2: its size-only form (the check when the game reads no NIF bytes)
+        bool dumpComplete = true;             // AC1: the request's dump had every file (false: the DLL reads the map as stale)
         std::vector<ExcludedForm> excluded;  // v2: the request's excluded forms
         GreyStats shaders;                   // v2i: effect shaders of the grey NIFs by palette kind (written, not read back)
         float tint = kDefaultTint;
@@ -313,6 +315,7 @@ namespace GreyBuild
                                              // when the request lists them: the game's own then, or its reason)
         std::set<std::string> leftOut;       // AA3: sources the request reader left out; one --out still copies is refused
         bool retireLeftOut = false;          // AB5: --retire-left-out: retire those copies on purpose (their records go)
+        bool dumpComplete = true;            // AC1: into the copies map
     };
 
     /// The whole --forms run: grey ADDN plan from a_addons (whose models gain the copies' models for their

@@ -2,10 +2,12 @@
 // GreyFormsMap - the copies map and stable copy ids (GreyForms.h)
 // =============================================================================
 // Copies map (version 2, written by the builder, read back on the next run for stable ids; version 1 is still read):
-//   { "version": 2, "requestFingerprint": "fnv64:..", "copiesPlugin": "HeartOfMagic_BlackFlame_Copies.esp",
+//   { "version": 2, "requestFingerprint": "fnv64:..", "requestFingerprintSizes", "dumpComplete": true|false,
+//     "copiesPlugin": "HeartOfMagic_BlackFlame_Copies.esp",
 //     "copies": [ { "source": "skyrim.esm|10FBED", "type": "PROJ", "copy": "000800", "editorId", "sourceEditorId",
 //                   "sourceModel", "greyModel", "sourceMuzzleModel", "greyMuzzleModel", "note",
-//                   TXST: "sourceTextures", "greyTextures", "hasDecal" (GreyFormsTxst.h) } ],
+//                   TXST: "sourceTextures" (text for people), "sourceTexturesRaw" (hex of the record strings' bytes),
+//                   "greyTextures" (ASCII), "hasDecal" (GreyFormsTxst.h) } ],
 //     "retired": [ { "source": ..., "copy": "000805", "type": "PROJ" } ], "excluded": [...] }
 // Codex 8: an id stays with its source AND type: a source that comes back as another type, active or retired, is refused
 // before anything is written (a save holding the old copy would read it as a form of the other type). Retired entries of
@@ -85,6 +87,10 @@ namespace GreyBuild
         CopiesMap map;
         map.requestFingerprint = Json::ReadOptionalString(a_file, root, "requestFingerprint", "the map");
         map.requestFingerprintSizes = Json::ReadOptionalString(a_file, root, "requestFingerprintSizes", "the map");
+        if (root.contains("dumpComplete") && !root["dumpComplete"].is_boolean()) {
+            Json::Fail(a_file, "'dumpComplete' must be true or false");
+        }
+        map.dumpComplete = !root.contains("dumpComplete") || root["dumpComplete"].get<bool>();
         map.excluded = ReadExcludedForms(a_file, root);
         std::set<std::uint32_t> ids;
         std::set<std::string> sources;  // V16: a source once, across copies and retired
@@ -144,6 +150,7 @@ namespace GreyBuild
             "load order at every start." };
         root["requestFingerprint"] = a_map.requestFingerprint;
         root["requestFingerprintSizes"] = a_map.requestFingerprintSizes;
+        root["dumpComplete"] = a_map.dumpComplete;  // AC1: the DLL reads a map built from an incomplete dump as stale
         root["copiesPlugin"] = kCopiesPluginName;
         root["copies"] = nlohmann::ordered_json::array();
         for (const auto& entry : a_map.entries) {

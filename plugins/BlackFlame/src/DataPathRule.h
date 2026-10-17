@@ -78,7 +78,11 @@ namespace BlackFlame::DataPathRule
         path.reserve(a_text.size() + a_root.size());
         bool lastSeparator = false;  // U3: the last byte written was a real separator (not a DBCS trail byte 0x5C)
         std::size_t token = 0;       // where the current path token starts in path
-        const auto tokenIsDots = [&]() { return std::string_view(path).substr(token) == ".."; };
+        // AC2: "." and ".." tokens both (a "." token names its folder, a ".." one leaves it)
+        const auto tokenIsDots = [&]() {
+            const auto text = std::string_view(path).substr(token);
+            return text == ".." || text == ".";
+        };
         for (std::size_t i = 0; i < a_text.size(); ++i) {
             const auto c = static_cast<unsigned char>(a_text[i]);
             if (IsLeadByte(c) && i + 1 < a_text.size()) {

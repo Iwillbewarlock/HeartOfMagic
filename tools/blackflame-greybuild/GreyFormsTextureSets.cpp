@@ -25,11 +25,6 @@ namespace GreyBuild
         constexpr const char* kRuleMissing = "MISSING";
         constexpr const char* kRuleDecalNotJudged = "DECAL_NOT_JUDGED";
 
-        [[nodiscard]] bool IsAsciiText(const std::string& a_text)
-        {
-            return std::all_of(a_text.begin(), a_text.end(), [](char c) { return static_cast<unsigned char>(c) < 0x80; });
-        }
-
         struct ColourSlot
         {
             std::size_t slot;
@@ -65,7 +60,7 @@ namespace GreyBuild
                     if (slot.empty()) {
                         continue;
                     }
-                    if (!IsAsciiText(slot)) {
+                    if (!IsAscii(slot)) {
                         // AB1: its dump file's name depends on a code page conversion of these bytes: left as the source's
                         std::cout << fmt::format("NOTE  TXST {} {}: '{}' is not plain ASCII: not recoloured (the slot keeps the "
                                                  "source's bytes)\n", entry.source, colour.name, entry.sourceTextureNames[colour.slot]);
@@ -98,7 +93,7 @@ namespace GreyBuild
             if (text.empty()) {
                 continue;
             }
-            if (!IsAsciiText(text)) {
+            if (!IsAscii(text)) {
                 AddFinding(a_risk, RiskLevel::kWarn, kRuleDecalNotJudged, a_entry, fmt::format("{} '{}' is not plain ASCII: not "
                     "recoloured and not judged", colour.name, a_entry.sourceTextureNames[colour.slot]));
                 continue;

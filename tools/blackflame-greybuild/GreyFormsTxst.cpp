@@ -10,6 +10,7 @@
 #include "../../plugins/BlackFlame/src/DataPathRule.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <fmt/format.h>
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -29,10 +30,6 @@ namespace GreyBuild
         // TX00..TX07: the subrecord tags in slot order (RE/B/BGSTextureSet.h textures, "TX00 - TX07")
         constexpr const char* kSlotTags[kTxstSlots] = { "TX00", "TX01", "TX02", "TX03", "TX04", "TX05", "TX06", "TX07" };
 
-        [[nodiscard]] bool IsAscii(const std::string& a_text)
-        {
-            return std::all_of(a_text.begin(), a_text.end(), [](char c) { return static_cast<unsigned char>(c) < 0x80; });
-        }
 
         // AA2: U+FFFD, what a code page's bytes that are no valid text become (EF BF BD in UTF-8)
         constexpr std::string_view kReplacement = "\xEF\xBF\xBD";
@@ -88,6 +85,11 @@ namespace GreyBuild
             }
             return out;
         }
+    }
+
+    bool IsAscii(const std::string& a_text) noexcept
+    {
+        return std::all_of(a_text.begin(), a_text.end(), [](char c) { return static_cast<unsigned char>(c) < 0x80; });
     }
 
     std::optional<std::string> Utf8ToAnsiExact(const std::string& a_text)
@@ -153,6 +155,14 @@ namespace GreyBuild
                 const auto bytes = hex.is_string() ? BlackFlame::DataPathRule::FromHex(hex.get<std::string>()) : std::nullopt;
                 if (!bytes || bytes->find('\0') != std::string::npos) {
                     Json::Fail(a_file, fmt::format("{}: texturesRaw[{}] must be hex of the slot's bytes (no 00)", a_where, i));
+                }
+                // AC9: the shared checks for the raw path too - the text and the bytes agree on an empty slot, and the
+                // string fits a subrecord (u16 size with its terminator)
+                if (bytes->empty() != a_form.textureNames[i].empty()) {
+                    Json::Fail(a_file, fmt::format("{}: textures[{}] and texturesRaw[{}] disagree on an empty slot", a_where, i, i));
+                }
+                if (bytes->size() + 1 > UINT16_MAX) {
+                    Json::Fail(a_file, fmt::format("{}: texturesRaw[{}] is longer than a subrecord holds", a_where, i));
                 }
                 a_form.textures[i] = *bytes;
                 continue;
@@ -297,8 +307,8 @@ namespace GreyBuild
                     }
                 } else if (which == "sourceTexturesRaw") {
                     const auto bytes = BlackFlame::DataPathRule::FromHex(text);
-                    if (!bytes) {
-                        Json::Fail(a_file, fmt::format("{}: sourceTexturesRaw[{}] is no hex", a_where, i));
+                    if (!bytes || bytes->find('\0') != std::string::npos) {
+                        Json::Fail(a_file, fmt::format("{}: sourceTexturesRaw[{}] is no hex of a string (no 00)", a_where, i));
                     }
                     a_entry.sourceTextures[i] = *bytes;
                 } else {

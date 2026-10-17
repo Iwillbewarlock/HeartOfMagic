@@ -121,6 +121,10 @@ namespace GreyBuild
             a_request.excluded = ReadExcludedForms(a_file, a_root);
             a_request.decalTextureSets = a_root.contains("decalTextureSets") && a_root["decalTextureSets"].is_boolean() &&
                                          a_root["decalTextureSets"].get<bool>();
+            if (a_root.contains("dumpComplete") && !a_root["dumpComplete"].is_boolean()) {
+                Json::Fail(a_file, "'dumpComplete' must be true or false");
+            }
+            a_request.dumpComplete = !a_root.contains("dumpComplete") || a_root["dumpComplete"].get<bool>();
             if (a_root.contains("nifs")) {
                 const auto& nifs = Json::RequireArray(a_file, a_root, "nifs");
                 for (std::size_t i = 0; i < nifs.size(); ++i) {

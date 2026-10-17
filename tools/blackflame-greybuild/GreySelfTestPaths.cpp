@@ -48,6 +48,10 @@ namespace GreyBuild::SelfTest
             { "textures\\", nullptr },
             { "effects\\", nullptr },
             { "effects\\..", nullptr },
+            { "effects\\.", nullptr },        // AC2: a "." token names its folder
+            { "effects\\.\\x.dds", nullptr },
+            { ".\\x.dds", nullptr },
+            { ".a\\x.dds", "textures\\.a\\x.dds" },
             { "..a\\x.dds", "textures\\..a\\x.dds" },
         };
 

@@ -151,6 +151,11 @@ namespace GreyBuild
         }
         options.decalTextureSets = parsed.decalTextureSets;
         options.leftOut = parsed.leftOut;
+        options.dumpComplete = parsed.dumpComplete;
+        if (!parsed.dumpComplete) {
+            std::cout << "NOTE  the game could not write every file of the dump (request dumpComplete false): the copies are built, "
+                         "but the DLL will report them stale until a start dumps whole and the builder runs again.\n";
+        }
         options.retireLeftOut = a_retireLeftOut;
         // AB5: a texture set the DLL itself excluded (not in "forms") goes through the same check as one the reader left out
         for (const auto& excluded : parsed.excluded) {
@@ -160,7 +165,10 @@ namespace GreyBuild
             try {
                 options.leftOut.insert(NormalizeSource(excluded.source));
             } catch (const std::runtime_error& e) {
-                std::cout << fmt::format("WARN  excluded TXST '{}': {}\n", excluded.source, e.what());
+                // AC5: it would slip past the left-out check: refused, not warned
+                std::cerr << fmt::format("{}: excluded TXST '{}' is not \"Plugin|localId\" ({}): nothing written. Start the game once "
+                                         "to the main menu to write a new request.\n", PathText(request), excluded.source, e.what());
+                return kFail;
             }
         }
         if (!parsed.decalTextureSets) {
