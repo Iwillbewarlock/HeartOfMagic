@@ -387,11 +387,22 @@ namespace
 
 int main(int a_argc, char** a_argv)
 {
+    // review agy redo 7.1: the real-file modes report a throw as a failure (exit 1), never an abort
+    const auto guardedTool = [](int (*a_tool)(int, char**), int a_count, char** a_values) {
+        try {
+            return a_tool(a_count, a_values);
+        } catch (const std::exception& e) {
+            std::cerr << "failed: " << e.what() << "\n";
+        } catch (...) {
+            std::cerr << "failed: an exception of an unknown type\n";
+        }
+        return 1;
+    };
     if (a_argc >= 3 && std::string(a_argv[1]) == "--cosave") {
-        return BlackFlame::SkseFile::WalkFiles(a_argc, a_argv);
+        return guardedTool(&BlackFlame::SkseFile::WalkFiles, a_argc, a_argv);
     }
     if (a_argc >= 3 && std::string(a_argv[1]) == "--nif-values") {
-        return BlackFlame::SkseFile::NifValues(a_argc, a_argv);
+        return guardedTool(&BlackFlame::SkseFile::NifValues, a_argc, a_argv);
     }
     if (a_argc != 2 || std::string(a_argv[1]) != "--self-test") {
         std::cerr << "Usage:\n  blackflame-cosave-check --self-test\n  blackflame-cosave-check --cosave <file.skse> [<file.skse> ...]\n"
@@ -409,13 +420,26 @@ int main(int a_argc, char** a_argv)
         check(contract >= BlackFlame::CopyContractTest::kMinChecks,
             "contract: the shared table ran " + std::to_string(contract) + " checks (at least " +
                 std::to_string(BlackFlame::CopyContractTest::kMinChecks) + ")");
-        CoSaveFileTests::Run([&](bool a_ok, const std::string& a_what) { check(a_ok, a_what); });
-        SlotLedgerTests::Run([&](bool a_ok, const std::string& a_what) { check(a_ok, a_what); });
-        NifValueNodesTests::Run([&](bool a_ok, const std::string& a_what) { check(a_ok, a_what); });
-        ProgressTailTests::Run([&](bool a_ok, const std::string& a_what) { check(a_ok, a_what); });
     } catch (const std::exception& e) {
         check(false, std::string("exception: ") + e.what());
+    } catch (...) {
+        check(false, "an exception of an unknown type");
     }
+    // review agy redo 7.5: one suite that throws is named and does not keep the others from running
+    const auto report = [&](bool a_ok, const std::string& a_what) { check(a_ok, a_what); };
+    const auto suite = [&](const char* a_name, auto&& a_run) {
+        try {
+            a_run(report);
+        } catch (const std::exception& e) {
+            check(false, std::string(a_name) + ": exception: " + e.what());
+        } catch (...) {
+            check(false, std::string(a_name) + ": an exception of an unknown type");
+        }
+    };
+    suite("co-save file", [](auto&& a_check) { CoSaveFileTests::Run(a_check); });
+    suite("ledger", [](auto&& a_check) { SlotLedgerTests::Run(a_check); });
+    suite("NIF value nodes", [](auto&& a_check) { NifValueNodesTests::Run(a_check); });
+    suite("progress tail", [](auto&& a_check) { ProgressTailTests::Run(a_check); });
     std::cout << "SELF-TEST pass=" << check.pass << " fail=" << check.fail << " skip=" << check.skip << "\n";
     return check.fail == 0 ? 0 : 1;
 }

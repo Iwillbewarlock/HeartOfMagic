@@ -342,6 +342,7 @@ namespace BlackFlame::SlotLedger
             logger::error("BlackFlame: slots: no ledger path ({}) - no slots this session", why);
             return false;
         }
+        g_status.allowNew = true;  // review agy redo 10: closed until here (a Load that fails early leaves it false)
         g_status.saveFolder = g_status.main.parent_path();
         if (const auto log = SKSE::log::log_directory()) {
             g_status.mirror = *log / kFolderName / MirrorName(g_status.saveFolder);  // one mirror per save folder (profile)

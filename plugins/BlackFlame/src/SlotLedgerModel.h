@@ -333,11 +333,28 @@ namespace BlackFlame::SlotLedgerModel
                 continue;
             }
             if (SameSource(*mine, other.type, other.plugin, other.localId)) {
+                // review agy redo 3.1: a conflict a_other found (two co-saves of one version, another epoch) stays one,
+                // unless a_other is an older copy of this epoch (a save's rebind since then settled the slot)
+                if (other.state == State::kConflict && mine->state != State::kConflict && !older) {
+                    mine->state = State::kConflict;
+                    mine->conflict = other.conflict;
+                    mine->published.clear();
+                    a_conflicts.push_back("slot " + HexId(other.slot) + " is a conflict in " + std::string(a_what) + " (" + other.conflict +
+                                          "): refused, the slot is never published again");
+                }
                 mine->terminal.insert(other.terminal.begin(), other.terminal.end());
                 for (const auto& [key, failures] : other.parseFailures) {
                     auto& own = mine->parseFailures[key];
                     own.count = (std::max)(own.count, failures.count);
                     own.lastSession = (std::max)(own.lastSession, failures.lastSession);
+                }
+                continue;
+            }
+            if (newer && mine->state == State::kConflict) {
+                // review agy redo 3.2: a conflict stays one - a newer copy of this epoch does not settle another epoch's claim
+                if (a_stale) {
+                    a_stale->push_back("slot " + HexId(other.slot) + " stays a conflict (" + mine->conflict + "); " + std::string(a_what) +
+                                       " binds it to " + SourceText(other.plugin, other.localId));
                 }
                 continue;
             }
@@ -366,7 +383,7 @@ namespace BlackFlame::SlotLedgerModel
                 mine->conflict = SourceText(other.plugin, other.localId);
                 mine->published.clear();
             }
-            a_conflicts.push_back("slot " + HexId(other.slot) + " (" + CC::SlotTypeTag(other.type).data() + ") is " +
+            a_conflicts.push_back("slot " + HexId(other.slot) + " (" + std::string(CC::SlotTypeTag(other.type)) + ") is " +
                                   SourceText(mine->plugin, mine->localId) + " here and " + SourceText(other.plugin, other.localId) +
                                   " in " + std::string(a_what) + ": refused, the slot is never published again");
         }

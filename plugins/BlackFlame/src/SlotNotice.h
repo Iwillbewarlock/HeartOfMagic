@@ -21,7 +21,8 @@ namespace BlackFlame::SlotNotice
             logger::info("BlackFlame: slots: notice (no main-thread queue: not shown): \"{}\"", a_text);
             return;
         }
-        logger::info("BlackFlame: slots: telling the player \"{}\"", a_text);
-        (void)MainQueue::Post("slot notice", [text = std::move(a_text)]() { RE::SendHUDMessage::ShowHUDMessage(text.c_str()); });
+        const std::string logged = a_text;  // review agy redo 4.3: the log says whether it went out
+        const bool posted = MainQueue::Post("slot notice", [text = std::move(a_text)]() { RE::SendHUDMessage::ShowHUDMessage(text.c_str()); });
+        logger::info("BlackFlame: slots: {} \"{}\"", posted ? "telling the player" : "notice NOT queued (not shown):", logged);
     }
 }
