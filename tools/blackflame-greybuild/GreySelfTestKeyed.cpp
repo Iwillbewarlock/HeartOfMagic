@@ -362,6 +362,16 @@ namespace GreyBuild::SelfTest
                               Find(notDumped, kTxst) && Find(notDumped, kTxst)->outcome == CC::Outcome::kOk,
                 "not_dumped: a texture the rule picks outside the dump caps makes its object not_dumped (no file); the TXST ok");
 
+            const auto broken = MakeFixture(a_dir, "broken", a_sourceNif, Variant::kNormal);
+            std::filesystem::remove(broken.dump / kFxFire);  // listed as dumped, gone from the dump
+            const int brokenExit = Run(broken);
+            const auto brokenProgress = Progress(broken);
+            const auto* brokenModel = Find(brokenProgress, kModel);
+            a_check.Check(brokenExit == 0 && brokenModel && brokenModel->outcome == CC::Outcome::kFailed &&
+                              brokenModel->reason.find("listed as dumped") != std::string::npos,
+                fmt::format("failed: a texture the request lists as dumped that is not in the dump fails its object, never a "
+                            "fallback that would be reused ('{}')", brokenModel ? brokenModel->reason : ""));
+
             const auto otherExe = MakeFixture(a_dir, "exe", a_sourceNif, Variant::kNormal, 0.6, kGameRequestVersionKeyed, 0x0123456789ABCDEFull);
             const auto wrongTint = MakeFixture(a_dir, "tint", a_sourceNif, Variant::kNormal, 0.7);
             const auto v4 = MakeFixture(a_dir, "v4", a_sourceNif, Variant::kNormal, 0.6, kGameRequestVersion);
