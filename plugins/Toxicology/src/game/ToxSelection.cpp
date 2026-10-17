@@ -1,7 +1,9 @@
 #include "game/ToxSelection.h"
 
 #include "game/ToxData.h"
+#include "game/ToxMagicka.h"
 
+#include <atomic>
 #include <chrono>
 #include <optional>
 #include <thread>
@@ -136,20 +138,16 @@ namespace
         MenuSink(const MenuSink&) = delete;
         MenuSink& operator=(const MenuSink&) = delete;
 
-        // RE/B/BSTEvent.h:188; RE/M/MenuOpenCloseEvent.h; menu names RE/I/InventoryMenu.h:25, RE/F/FavoritesMenu.h:28
+        // RE/B/BSTEvent.h:188; RE/M/MenuOpenCloseEvent.h; menu names RE/I/InventoryMenu.h:25,
+        // RE/F/FavoritesMenu.h:28, RE/B/BarterMenu.h:24, RE/C/ContainerMenu.h:24
         RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent* a_event,
             RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
         {
-            if (!a_event || !a_event->opening) return RE::BSEventNotifyControl::kContinue;
-            if (a_event->menuName != RE::InventoryMenu::MENU_NAME && a_event->menuName != RE::FavoritesMenu::MENU_NAME) {
-                return RE::BSEventNotifyControl::kContinue;
-            }
+            if (!a_event || !Watched(*a_event)) return RE::BSEventNotifyControl::kContinue;
             // Same frame on the main thread (the icon is drawn from this opening on); from any
             // other thread the work goes to an SKSE task, which runs on the main thread
             const bool onMain = std::this_thread::get_id() == g_mainThread;
-            static bool threadLogged = false;
-            if (!threadLogged) {
-                threadLogged = true;
+            if (!m_threadLogged.exchange(true)) {
                 logger::info("Toxicology: menu events arrive on the {} thread", onMain ? "main" : "a non-main");
             }
             if (onMain) {
@@ -163,6 +161,18 @@ namespace
     private:
         MenuSink() = default;
         ~MenuSink() override = default;
+
+        // The inventory and favorites menus opening (the icon drawn from then on) or closing (favorites
+        // changed in them, a poison used up there); the barter and container menus opening (they show
+        // the icon too)
+        static bool Watched(const RE::MenuOpenCloseEvent& a_event)
+        {
+            const auto& name = a_event.menuName;
+            if (name == RE::InventoryMenu::MENU_NAME || name == RE::FavoritesMenu::MENU_NAME) return true;
+            return a_event.opening && (name == RE::BarterMenu::MENU_NAME || name == RE::ContainerMenu::MENU_NAME);
+        }
+
+        std::atomic<bool> m_threadLogged{ false };  // events can arrive on more than one thread
     };
 }
 
@@ -172,7 +182,9 @@ namespace
 
 RE::AlchemyItem* ToxGame::CurrentPoison(bool a_forceRecompute)
 {
-    if (!GetSettings().enabled || !PlayerHasAbility()) return nullptr;
+    const bool on = GetSettings().enabled && PlayerHasAbility();
+    PublishMagickaTracking(on);  // ToxMagicka.h: the caster hook's flag, kept current from here
+    if (!on) return nullptr;
     const auto now = Clock::now();
     if (a_forceRecompute || !g_cachedAt ||
         std::chrono::duration<double>(now - *g_cachedAt).count() >= kSelectionCacheSeconds) {
@@ -189,6 +201,16 @@ void ToxGame::OnSelectionMaybeChanged()
     const RE::FormID choice = poison ? poison->GetFormID() : 0;
     LogChoice(choice);
     const RE::FormID wanted = (choice && GetSettings().showIcon && MimicKeyword()) ? choice : 0;
+    if (wanted && wanted == g_keywordedId) {
+        // The same FormID can name another form by now (a player-made 0xFF id reused): put the
+        // keyword back when the form under it does not carry it
+        const auto* holder = RE::TESForm::LookupByID<RE::AlchemyItem>(wanted);
+        if (holder && !holder->HasKeyword(MimicKeyword())) {  // RE/B/BGSKeywordForm.h:26
+            logger::debug("Toxicology: poison {:08X} lost the icon keyword (a reused id?) - added again", wanted);
+            AddKeywordTo(wanted);
+        }
+        return;
+    }
     if (wanted == g_keywordedId) return;
     RemoveKeywordFromHolder();
     if (wanted) AddKeywordTo(wanted);
@@ -212,5 +234,6 @@ void ToxGame::RegisterMenuSink()
         return;
     }
     ui->AddEventSink<RE::MenuOpenCloseEvent>(MenuSink::GetSingleton());  // RE/U/UI.h:83,166
-    logger::info("Toxicology: menu sink registered (InventoryMenu, FavoritesMenu)");
+    logger::info("Toxicology: menu sink registered (InventoryMenu and FavoritesMenu open and close, BarterMenu and "
+        "ContainerMenu open)");
 }

@@ -26,11 +26,14 @@ namespace ToxGame
     // The poison to copy: the player's top favorited poison (count > 0). Cached for
     // kSelectionCacheSeconds; a_forceRecompute reads the inventory now. Null without the
     // Toxicology ability, with the setting "enabled" false, or with no favorited poison.
+    // Every call also refreshes the caster hook's flag (ToxMagicka.h PublishMagickaTracking).
     RE::AlchemyItem* CurrentPoison(bool a_forceRecompute = false);
 
     // Recomputes the choice. When the poison that should carry the icon keyword differs from
     // the one carrying it: removes the keyword from the old one, adds it to the new one (only
-    // with "showIcon" on and the ESL loaded), then deals with I5's icon cache once.
+    // with "showIcon" on and the ESL loaded), then deals with I5's icon cache once. When it is
+    // the same FormID but the form under it lacks the keyword (a reused player-made 0xFF id),
+    // the keyword is added again.
     void OnSelectionMaybeChanged();
 
     // Before a save loads or a new game starts: takes the keyword off the poison carrying it
@@ -38,7 +41,8 @@ namespace ToxGame
     // and forgets the cached choice, so the next call reads the inventory.
     void ResetSelection();
 
-    // Registers the MenuOpenCloseEvent sink (InventoryMenu or FavoritesMenu opening ->
-    // OnSelectionMaybeChanged). Call once at kDataLoaded, on the main thread.
+    // Registers the MenuOpenCloseEvent sink (InventoryMenu or FavoritesMenu opening or closing,
+    // BarterMenu or ContainerMenu opening -> OnSelectionMaybeChanged). Call once at kDataLoaded,
+    // on the main thread.
     void RegisterMenuSink();
 }

@@ -21,6 +21,11 @@ namespace
 
     CheckWindow g_check;
 
+    // The first this many windows after each load or new game are logged at info, the rest at debug
+    // (the log runs at info: a manual check loads a save and reads its first windows)
+    constexpr std::uint32_t kInfoWindows = 3;
+    std::uint32_t g_windowsLogged = 0;
+
     double NowSeconds()
     {
         return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -51,7 +56,9 @@ void ToxGame::NoteCountedForCheck(float a_amount, std::size_t a_hand)
     g_check.lastAt = now;
     if (now - g_check.openedAt < kCheckWindowSeconds) return;
     const auto& c = g_check.counted;
-    logger::info("Toxicology: magicka counted {:.2f} (left {:.2f}, right {:.2f}, no hand {:.2f}) / player magicka drop {:.2f} over {:.1f} s",
+    const auto level = g_windowsLogged < kInfoWindows ? spdlog::level::info : spdlog::level::debug;
+    ++g_windowsLogged;
+    spdlog::log(level, "Toxicology: magicka counted {:.2f} (left {:.2f}, right {:.2f}, no hand {:.2f}) / player magicka drop {:.2f} over {:.1f} s",
         c[0] + c[1] + c[2], c[0], c[1], c[2], g_check.startMagicka - magicka, now - g_check.openedAt);
     g_check.open = false;
 }
@@ -59,4 +66,5 @@ void ToxGame::NoteCountedForCheck(float a_amount, std::size_t a_hand)
 void ToxGame::ResetCheck()
 {
     g_check = {};
+    g_windowsLogged = 0;
 }

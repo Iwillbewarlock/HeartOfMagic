@@ -5,7 +5,9 @@
 // =============================================================================
 // Spec 5.6: every kCheckWindowSeconds of poison casting the log gets
 // "magicka counted X (left a, right b, no hand c) / player magicka drop Y". With
-// regeneration and potions out of the way the two should agree within 5%.
+// regeneration and potions out of the way the two should agree within 5%. The
+// first 3 windows after each load or new game go to the log at info, the rest at
+// debug (the log runs at info).
 //
 // Threads: game main thread only (ToxMagicka's tasks, ResetMagicka).
 // =============================================================================
@@ -27,6 +29,6 @@ namespace ToxGame
     // reads the player's Magicka, so it opens the window and is left out of both sides.
     void NoteCountedForCheck(float a_amount, std::size_t a_hand);
 
-    // Closes the window without logging (co-save Revert, new game)
+    // Closes the window without logging and counts info windows from 0 again (co-save Revert, new game)
     void ResetCheck();
 }

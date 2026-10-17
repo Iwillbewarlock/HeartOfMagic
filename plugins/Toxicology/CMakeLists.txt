@@ -21,6 +21,7 @@ set(TOXICOLOGY_SOURCES
     src/game/ToxApply.cpp
     src/game/ToxHits.cpp
     src/game/ToxMagicka.cpp
+    src/game/ToxMagickaHook.cpp
     src/game/ToxBottles.cpp
     src/game/ToxCheck.cpp
     src/game/ToxSave.cpp
