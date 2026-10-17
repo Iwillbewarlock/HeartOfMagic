@@ -19,7 +19,7 @@ pending in-game self test, see "Not yet confirmed in game" below).
   only to renew its duration (pending in-game self test). Per target and poison, hits closer together than `minIntervalSeconds` (default 1 s) are ignored.
   The addon never renews an effect it did not apply itself: if the target already carries the same poison from a
   coated weapon, or from before the save was loaded, nothing happens until that effect ends.
-- **Bottles**: hits use up no bottles. Instead, every 100 Magicka you spend casting poison spells from your hands
+- **Bottles**: hits use up no bottles. Instead, every `magickaPerDose` Magicka (default 100) you spend casting poison spells from your hands
   (hit or miss; meant to be the cost after perks and gear, dual casting and concentration included - pending in-game
   self test) uses one bottle of the poison being mimicked. A poison cloak costs what you pay for the cloak; the
   sub-spell it casts on enemies costs nothing. When that poison runs out the next favorited poison takes over.
@@ -112,7 +112,12 @@ in game yet. Update this list from the self test's `SELFTEST` lines and move eac
   inventory and barter menus after the favorite changes. The console command `i5 purge` (I5 0.4.0, the release in
   use when this was written) or `i5 cache purge` (newer I5) clears the cache; the favorites menu is always accurate. The addon cannot clear that cache itself (it logs a line when I5 is loaded).
 - Changing favorites with the inventory or favorites menu open moves the icon when that menu closes, so the open
-  menu still shows it on the old poison.
+  menu still shows it on the old poison. Poisons taken from or put into a container are picked up when the container
+  menu closes.
+- **Player-made poisons keep the icon in the save**: a poison you brewed is saved with the mimic keyword if it was
+  being mimicked then. After every load the addon takes the keyword off every poison in your inventory except the one
+  being mimicked; such a poison left in a chest or with a follower keeps the icon until it is back in your inventory
+  at a later load.
 - **Saves that already traded with Elgrim** may show the tome only after the merchant restocks (about 48 hours of
   game time).
 - **Poisons with an instant and a lasting effect**: while the lasting effect is still on the target, hits are meant
@@ -167,7 +172,7 @@ record), and the tome placed in Elgrim's chest was only in memory. The co-save r
   the Toxicology install and says so. Every copy is checked by hash.
 - **In-game self test** (dev only): with `data/dev/HeartOfMagic_Toxicology_selftest.json` installed as
   `SKSE/Plugins/HeartOfMagic_Toxicology_selftest.json`, the DLL runs a test once per session, `startDelayMs`
-  (default 30 s) after a save load settles: it gives the ability and two poisons, spawns targets, casts the load
+  (default 30 s) after a save load settles: it checks the tome in Elgrim's chest (read only), gives the ability and two poisons, spawns targets, casts the load
   order's poison spells at them (one per delivery), checks what the addon did, then the bottles and the saved
   Magicka total (it asks for a save and a reload for that last check), and takes back what it added. Results are
   `SELFTEST PASS|FAIL|INFO|DONE` lines in `HeartOfMagic_Toxicology.log`. Use a disposable save. Details:

@@ -59,6 +59,9 @@ function Get-ToxSelfTestNote {
     if (Test-Path $toxSelfTestDst) { return " The Toxicology self test file is STILL INSTALLED: $toxSelfTestDst" }
     return ''
 }
+if ($Force -and -not $ToxicologyOnly) {
+    throw ('-Force replaces the Toxicology settings JSON and goes with -ToxicologyOnly. Nothing was copied.' + (Get-ToxSelfTestNote))
+}
 if ($ToxicologySelfTest -and -not $ToxicologyOnly) {
     throw ('-ToxicologySelfTest deploys the Toxicology self test file and goes with -ToxicologyOnly. Nothing was copied.' + (Get-ToxSelfTestNote))
 }

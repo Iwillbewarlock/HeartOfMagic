@@ -50,7 +50,7 @@ docs/DEST-IMPROVEMENTS.md).
 released on its own with its own version, `plugins/cmake/DistributionToxicology.cmake`): with the ESL's ability
 learned, a poison spell the player casts (a spell tagged `poison` in the Librarian's `spell_catalog.json` with a
 hostile effect) applies the player's first favorited poison to the target it hits (`TESHitEvent`), renews only the
-effects it applied itself, and uses one bottle per 100 Magicka spent on poison spells (co-save record `HMTX`). It
+effects it applied itself, and uses one bottle per `magickaPerDose` Magicka (default 100) spent on poison spells (co-save record `HMTX`). It
 reads only the catalog file from Heart of Magic and compiles in no Heart of Magic source besides `EncodingUtils.cpp`. Same CommonLib
 setup as the DLLs above (`add_commonlibsse_plugin(... USE_ADDRESS_LIBRARY)`, default struct compatibility); its one
 game address is the `ActorMagicCaster` vtable (`RE::VTABLE_ActorMagicCaster[0]`, address library) for the Magicka
