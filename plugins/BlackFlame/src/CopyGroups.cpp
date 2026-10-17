@@ -297,6 +297,7 @@ namespace BlackFlame::CopyGroups
                     main && thread == main->threadID ? "Main's thread" : "NOT Main's thread");
             }
             g_log.allOnMainThread = g_log.allOnMainThread && main && thread == main->threadID;
+            g_log.mainMenuSteps += MenuWatch::MainMenuOpened() ? 1 : 0;
             g_log.loadDuringPublish = g_log.loadDuringPublish || Watchdog::LoadUnderWay();
         }
 

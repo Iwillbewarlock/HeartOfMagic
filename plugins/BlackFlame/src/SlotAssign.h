@@ -106,6 +106,9 @@ namespace BlackFlame::SlotAssign
         std::size_t templates = 0;   // filled from a template (source gone)
         std::size_t collided = 0;    // ADDN slots whose index another record claims
         std::size_t open = 0;        // gates open now
+        std::size_t kept = 0;        // sources the ledger already held, in the same slot (T0-slots: assignment stable)
+        std::size_t moved = 0;       // sources the ledger held that are in another slot now (stable: 0)
+        std::uint32_t session = 0;   // this start's session number (1: the ledger's first)
     };
 
     [[nodiscard]] Counts GetCounts() noexcept;

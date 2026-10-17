@@ -273,10 +273,22 @@ namespace BlackFlame::SlotAssign
         LM::AssignResult result;
         LM::Ledger ledger;
         const auto status = SlotLedger::GetStatus();
+        LM::Ledger before;
         SlotLedger::Edit([&](LM::Ledger& a_ledger) {
+            before = a_ledger;
             result = LM::Assign(a_ledger, wants, status.allowNew, SlotLedger::Session());
             ledger = a_ledger;
         });
+        table.counts.session = SlotLedger::Session();
+        for (std::size_t i = 0; i < wants.size(); ++i) {  // T0-slots: a source the ledger held keeps its slot
+            const auto& want = wants[i];
+            const auto held = std::ranges::find_if(before.entries, [&](const LM::Entry& a_e) {
+                return a_e.state != LM::State::kConflict && LM::SameSource(a_e, want.type, want.plugin, want.localId) && LM::SlotFits(a_e.slot, want);
+            });
+            if (held != before.entries.end()) {
+                (result.slots[i] == held->slot ? table.counts.kept : table.counts.moved) += 1;
+            }
+        }
         table.counts.poolFull = result.poolFull.size();
         table.counts.refused = result.refused.size();
         for (std::size_t i = 0; i < result.poolFull.size() && i < kLoggedEach; ++i) {

@@ -10,8 +10,8 @@
 //                  keyPrefix (KeyPrefixString: the builder rebuilds it with VerifyKeyPrefix) }
 //   forms[]      key (the model key16 of the form's slot, when it has one), slot (its local id: information)
 //   muzzles[]    { path (the PROJ muzzle as its record stores it), key }
-//   addnMps[]    { slot, path (the source ADDN's model), key } plus two fields P0 does not name: sourceIndex (the source
-//                ADDN's AddOnNode index the copies' AddOnNodes are remapped from; slot index = 40000 + its place) and source
+//   addnMps[]    { slot, path (the source ADDN's model), key, index (the source ADDN's AddOnNode index the copies'
+//                AddOnNodes are remapped from; contract v4 names it), source (information) }
 //   txst[]       { slot, key, dodt }
 // The dump (data\meshes, data\textures, dump-manifest.json; CopyRequestDump.h) holds the very bytes the keys hashed (the
 // NIFs read at kDataLoaded, the planned textures); it is rewritten only when its fingerprint changed. With the config's

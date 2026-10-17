@@ -121,7 +121,7 @@ namespace BlackFlame::CopyRequestV5
                 if (slot.type == CC::SlotType::kADDN && slot.modelKey) {
                     const auto* addon = slot.source->As<RE::BGSAddonNode>();
                     a_root[CC::Request::kAddnMps].push_back({ { CC::Request::kSlot, id }, { CC::Request::kPath, Utf8(slot.sourceModel) },
-                        { CC::Request::kKey, CC::Hex16(slot.modelKey->key) }, { "sourceIndex", addon ? addon->index : 0 },
+                        { CC::Request::kKey, CC::Hex16(slot.modelKey->key) }, { "index", addon ? addon->index : 0 },
                         { "source", slot.sourceText } });
                     ++a_out.addnMps;
                 }
