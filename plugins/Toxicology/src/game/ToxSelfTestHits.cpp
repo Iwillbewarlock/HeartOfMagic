@@ -1,5 +1,5 @@
 // =============================================================================
-// Toxicology - dev self test: poison spell hits (steps 2, 3 and 6)
+// Toxicology - dev self test: poison spell hits (steps 2, 3 and 6; step 3 the immunity window)
 // =============================================================================
 // Each case spawns a fresh target (game/ToxSelfTestSetup.cpp), casts with the
 // player's instant caster, waits for the hit task (the hit trace, ToxHits.h)
@@ -13,7 +13,9 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <format>
+#include <optional>
 #include <string>
 
 namespace SelfTest = ToxGame::SelfTest;
@@ -45,10 +47,10 @@ namespace
         std::uint32_t tasks = 0;
         std::uint32_t applied = 0;
         ToxGame::HitStage last = ToxGame::HitStage::kNone;
-        std::optional<ApplyOutcome> outcome;  // the last one, set only when a task reached ApplyOnce since the cast
+        std::optional<ApplyOutcome> outcome;  // the last one, set only when a task reached ApplyPoison since the cast
         std::array<std::uint32_t, ToxGame::kApplyOutcomeKinds> outcomes{};  // since the cast, by kind
 
-        // How many ApplyOnce calls since the cast gave a_kind
+        // How many ApplyPoison calls since the cast gave a_kind
         [[nodiscard]] std::uint32_t Count(ApplyOutcome a_kind) const { return outcomes[static_cast<std::size_t>(a_kind)]; }
     };
 
@@ -70,7 +72,7 @@ namespace
             if (a_r.outcomes[i] == 0) continue;
             kinds += std::format("{}{} x{}", kinds.empty() ? "" : ", ", SelfTest::OutcomeName(static_cast<ApplyOutcome>(i)), a_r.outcomes[i]);
         }
-        return std::format("TESHitEvents with this source {}, kept by the sink {}, hit tasks run {}, reached ApplyOnce {} "
+        return std::format("TESHitEvents with this source {}, kept by the sink {}, hit tasks run {}, reached ApplyPoison {} "
             "({}), last task: {}, last outcome {}", a_r.raw, a_r.kept, a_r.tasks, a_r.applied, kinds.empty() ? "no outcome" : kinds,
             SelfTest::StageName(a_r.last), SelfTest::OutcomeName(a_r.outcome));
     }
@@ -191,14 +193,14 @@ namespace
             return;
         }
         if (r.applied == 0) {
-            SelfTest::Fail(s, step + " apply", std::format("no hit task reached ApplyOnce; the last stopped at: {}", SelfTest::StageName(r.last)));
+            SelfTest::Fail(s, step + " apply", std::format("no hit task reached ApplyPoison; the last stopped at: {}", SelfTest::StageName(r.last)));
         } else {
             SelfTest::Check(s, step + " apply", r.Count(ApplyOutcome::kCast) > 0,
                 std::format("{} (expected a kCast on a fresh target)", HitText(r)));
         }
         auto detail = EffectsText(onTarget);
         if (r.Count(ApplyOutcome::kCastNoEffect) > 0 && !onTarget.empty()) {
-            detail += " - present now but not right after ApplyOnce's cast: the effect is added later (the pair is "
+            detail += " - present now but not right after ApplyPoison's cast: the effect is added later (the pair is "
                       "recorded all the same; only the cast's log line says no effect)";
         }
         SelfTest::Check(s, step + " poison on target", !onTarget.empty(), std::format("{} on the target: {}", SelfTest::FormText(s.poisonA), detail));
@@ -289,13 +291,143 @@ void SelfTest::TickDeliveries(State& s)
     NextDelivery(s);
 }
 
+
 // =============================================================================
-// Step 3: a second hit on the same target does nothing (once per target and poison)
+// Step 3: immunity (spec 5.4) - a second hit inside the window does nothing,
+// a third hit after it casts again
 // =============================================================================
+
+namespace
+{
+    enum : int
+    {
+        kCast1 = kFirstOwn,
+        kWait1,
+        kCast2,
+        kWait2,
+        kWaitWindow,
+        kCast3,
+        kWait3
+    };
+
+    // The first hit's effect with the longest duration (the clock check follows it)
+    std::optional<SelfTest::EffectRef> LongestRef(const std::vector<RE::ActiveEffect*>& a_live)
+    {
+        const auto it = std::max_element(a_live.begin(), a_live.end(),
+            [](const RE::ActiveEffect* a, const RE::ActiveEffect* b) { return a->duration < b->duration; });
+        if (it == a_live.end() || !((*it)->duration > 0.0f)) return std::nullopt;
+        return SelfTest::EffectRef{ *it, (*it)->usUniqueID };
+    }
+
+    // The game clock and s.clockRef's elapsedSeconds now, or nullopt once that effect has ended or the clock is missing
+    std::optional<SelfTest::ClockSample> SampleClock(State& s, RE::Actor* a_actor)
+    {
+        if (!s.clockRef) return std::nullopt;
+        const auto clock = ToxGame::GameClockSeconds();
+        const auto* effect = SelfTest::FindAgain(a_actor, *s.clockRef);
+        if (!clock || !effect || !SelfTest::IsLiveEffect(*effect)) return std::nullopt;
+        return SelfTest::ClockSample{ *clock, effect->elapsedSeconds };  // RE/A/ActiveEffect.h:110
+    }
+
+    // The game clock against the effect's own timer over the samples taken while it ran
+    void CheckClock(State& s)
+    {
+        if (!s.clockFirst || !s.clockLast) {
+            SelfTest::Info("3 clock", "no two samples of the first hit's effect and the game clock - not compared");
+            return;
+        }
+        const double clockSpan = s.clockLast->clockSeconds - s.clockFirst->clockSeconds;
+        const double effectSpan = s.clockLast->effectSeconds - s.clockFirst->effectSeconds;
+        const auto detail = std::format("game clock advanced {:.2f} s, the effect's elapsedSeconds {:.2f} s (tolerance {:.2f} s)",
+            clockSpan, effectSpan, SelfTest::kClockToleranceSeconds);
+        if (effectSpan < SelfTest::kMinClockSpanSeconds) {
+            SelfTest::Info("3 clock", detail + " - too short a span to judge");
+            return;
+        }
+        SelfTest::Check(s, "3 clock", std::fabs(clockSpan - effectSpan) <= SelfTest::kClockToleranceSeconds, detail);
+    }
+
+    // kWait1: the first hit cast, its effects and its window
+    bool CheckFirstHit(State& s, RE::Actor* a_actor, const SelfTest::Delivery& d)
+    {
+        const auto r = Since(s, d.hitSpell->GetFormID());
+        const auto live = SelfTest::LiveEffectsOf(a_actor, s.poisonA);
+        if (r.Count(ApplyOutcome::kCast) == 0 || live.empty()) {
+            SelfTest::Fail(s, "3 first hit", std::format("{}; effects of {} on the target: {} (expected a kCast and an effect)",
+                HitText(r), SelfTest::FormText(s.poisonA), live.size()));
+            return false;
+        }
+        s.owned = SelfTest::Refs(live);
+        SelfTest::Info("3 first hit", EffectsText(live));
+        s.window = ToxGame::ImmunityOf(a_actor->GetFormID(), s.poisonA->GetFormID());
+        if (!s.window) {
+            SelfTest::Fail(s, "3 window", "no immunity window recorded for the pair (no game clock?)");
+            return false;
+        }
+        SelfTest::Info("3 window", std::format("D {:.2f} s, immunity {:.2f} s, reapply in {:.2f} s", s.window->durationSeconds,
+            s.window->immunitySeconds, s.window->reapplyInSeconds));
+        s.clockRef = LongestRef(live);
+        s.clockFirst = SampleClock(s, a_actor);
+        s.clockLast.reset();
+        return true;
+    }
+
+    // kWait2: the second hit was immune and left the first hit's effects alone
+    void CheckSecondHit(State& s, RE::Actor* a_actor, const HitResult& r)
+    {
+        SelfTest::Check(s, "3 second hit outcome", r.Count(ApplyOutcome::kImmune) > 0 && r.Count(ApplyOutcome::kCast) == 0 &&
+            r.Count(ApplyOutcome::kCastNoEffect) == 0, HitText(r) + " (expected a kImmune and no cast)");
+        const auto live = SelfTest::LiveEffectsOf(a_actor, s.poisonA);
+        std::size_t found = 0;
+        for (const auto& ref : s.owned) {
+            if (const auto* e = SelfTest::FindAgain(a_actor, ref); e && SelfTest::IsLiveEffect(*e)) ++found;
+        }
+        SelfTest::Check(s, "3 one instance", live.size() == s.owned.size() && found == s.owned.size(),
+            std::format("{} live effect(s) of {} on the target, {} of them from the first hit (expected {} each): {}",
+                live.size(), SelfTest::FormText(s.poisonA), found, s.owned.size(), EffectsText(live)));
+    }
+
+    // kWait3: the hit after the window cast again, with a new effect
+    void CheckThirdHit(State& s, RE::Actor* a_actor, const HitResult& r)
+    {
+        SelfTest::Check(s, "3 third hit outcome", r.Count(ApplyOutcome::kCast) > 0 && r.Count(ApplyOutcome::kImmune) == 0,
+            HitText(r) + " (expected a kCast after the immunity window)");
+        const auto live = SelfTest::LiveEffectsOf(a_actor, s.poisonA);
+        const auto fresh = NewSince(live, s.owned);
+        SelfTest::Check(s, "3 third hit effect", fresh > 0, std::format("{} new effect(s) of {} on the target: {}", fresh,
+            SelfTest::FormText(s.poisonA), EffectsText(live)));
+    }
+
+    // kWaitWindow, one tick: true when the window has ended (or the step is over, a_done set)
+    bool WindowEnded(State& s, RE::Actor* a_actor, bool& a_done)
+    {
+        a_done = false;
+        if (const auto sample = SampleClock(s, a_actor)) s.clockLast = sample;
+        const auto window = ToxGame::ImmunityOf(a_actor->GetFormID(), s.poisonA->GetFormID());
+        if (!window) {
+            SelfTest::Fail(s, "3 window", "the pair's window is gone while waiting (cleared, or no game clock)");
+            a_done = true;
+            return false;
+        }
+        if (window->reapplyInSeconds <= 0.0) {
+            CheckClock(s);
+            return true;
+        }
+        constexpr double kMsPerSecond = 1000.0;
+        constexpr double kWaitFactor = 1.5;
+        constexpr double kWaitSlackMs = 10000.0;
+        const double capMs = (s.window->durationSeconds + s.window->immunitySeconds) * kMsPerSecond * kWaitFactor + kWaitSlackMs;
+        if (SelfTest::WaitOver(s.phaseTicks, capMs)) {
+            SelfTest::Fail(s, "3 window", std::format("the game clock did not reach the end of the window: {:.2f} s left after "
+                "{:.0f} ms of ticks (the clock does not advance?)", window->reapplyInSeconds, capMs));
+            a_done = true;
+        }
+        return false;
+    }
+}
 
 void SelfTest::TickSecondHit(State& s)
 {
-    enum : int { kCast1 = kFirstOwn, kWait1, kCast2, kWait2 };
     if (!s.secondHitDelivery) {
         Fail(s, "3 second hit", "no delivery put the poison on a target in step 2 - nothing to hit twice");
         EndStep(s, Step::kDoses);
@@ -315,9 +447,8 @@ void SelfTest::TickSecondHit(State& s)
         return;
     }
     switch (s.phase) {
-    case kCast1:
     case kCast2:
-        if (s.phase == kCast2) {
+        {
             const bool stillOn = std::any_of(s.owned.begin(), s.owned.end(), [&](const EffectRef& ref) {
                 const auto* e = FindAgain(actor.get(), ref);
                 return e && IsLiveEffect(*e);
@@ -329,6 +460,9 @@ void SelfTest::TickSecondHit(State& s)
                 return;
             }
         }
+        [[fallthrough]];
+    case kCast1:
+    case kCast3:
         if (!CastDelivery(s, d, actor.get())) {
             Fail(s, "3 cast", "not cast: the player has no instant magic caster (GetMagicCaster(kInstant) is null)");
             EndStep(s, Step::kDoses);
@@ -337,21 +471,13 @@ void SelfTest::TickSecondHit(State& s)
         NextPhase(s, s.phase + 1);
         return;
     case kWait1:
-        {
-            if (!HitSettled(s, d.hitSpell->GetFormID())) return;
-            const auto r = Since(s, d.hitSpell->GetFormID());
-            const auto live = LiveEffectsOf(actor.get(), s.poisonA);
-            if (r.Count(ApplyOutcome::kCast) == 0 || live.empty()) {
-                Fail(s, "3 first hit", std::format("{}; effects of {} on the target: {} (expected a kCast and an effect)",
-                    HitText(r), FormText(s.poisonA), live.size()));
-                EndStep(s, Step::kDoses);
-                return;
-            }
-            s.owned = Refs(live);
-            Info("3 first hit", EffectsText(live));
-            NextPhase(s, kCast2);
+        if (!HitSettled(s, d.hitSpell->GetFormID())) return;
+        if (!CheckFirstHit(s, actor.get(), d)) {
+            EndStep(s, Step::kDoses);
             return;
         }
+        NextPhase(s, kCast2);
+        return;
     case kWait2:
         {
             if (!HitSettled(s, d.hitSpell->GetFormID())) return;
@@ -361,16 +487,36 @@ void SelfTest::TickSecondHit(State& s)
                 EndStep(s, Step::kDoses);
                 return;
             }
-            Check(s, "3 second hit outcome", r.Count(ApplyOutcome::kAlreadyApplied) > 0 && r.Count(ApplyOutcome::kCast) == 0 &&
-                r.Count(ApplyOutcome::kCastNoEffect) == 0, HitText(r) + " (expected a kAlreadyApplied and no cast)");
-            const auto live = LiveEffectsOf(actor.get(), s.poisonA);
-            std::size_t found = 0;
-            for (const auto& ref : s.owned) {
-                if (const auto* e = FindAgain(actor.get(), ref); e && IsLiveEffect(*e)) ++found;
+            CheckSecondHit(s, actor.get(), r);
+            const double total = s.window->durationSeconds + s.window->immunitySeconds;
+            if (total > kMaxImmunityWaitSeconds) {
+                Info("3 third hit", std::format("skipped: D + immunity is {:.1f} s, over {:.0f} s (lower immunityMultiplier or "
+                    "maxPoisonSeconds to test it)", total, kMaxImmunityWaitSeconds));
+                EndStep(s, Step::kDoses);
+                return;
             }
-            Check(s, "3 one instance", live.size() == s.owned.size() && found == s.owned.size(),
-                std::format("{} live effect(s) of {} on the target, {} of them from the first hit (expected {} each): {}",
-                    live.size(), FormText(s.poisonA), found, s.owned.size(), EffectsText(live)));
+            NextPhase(s, kWaitWindow);
+            return;
+        }
+    case kWaitWindow:
+        {
+            bool done = false;
+            if (WindowEnded(s, actor.get(), done)) {
+                NextPhase(s, kCast3);
+            } else if (done) {
+                EndStep(s, Step::kDoses);
+            }
+            return;
+        }
+    case kWait3:
+        {
+            if (!HitSettled(s, d.hitSpell->GetFormID())) return;
+            const auto r = Since(s, d.hitSpell->GetFormID());
+            if (r.kept == 0 || r.applied == 0) {
+                Fail(s, "3 third hit", HitText(r) + " - the third hit never reached the apply step, so nothing was judged");
+            } else {
+                CheckThirdHit(s, actor.get(), r);
+            }
             EndStep(s, Step::kDoses);
             return;
         }

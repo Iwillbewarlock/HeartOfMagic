@@ -10,7 +10,7 @@
 // hit from an earlier session, checks the spell is in the poison set, the
 // ability, the setting, the target alive, drops a repeat of the same (target,
 // spell) inside kSameHitWindowSeconds (one hit raises several events), checks
-// there is a poison to copy, then calls ApplyOnce (game/ToxApply.h).
+// there is a poison to copy, then calls ApplyPoison (game/ToxApply.h).
 // While the self test switches it on, each spell's hits are traced (HitTrace).
 //
 // Threads: the sink may run on any thread. It reads the event's fields, does a
@@ -42,7 +42,7 @@ namespace ToxGame
         kTargetGone,      // no player, or the target is gone, dead or the player
         kSameHit,         // a repeat of the same hit inside kSameHitWindowSeconds
         kNoPoison,        // no poison to copy
-        kApplied,         // ApplyOnce ran; HitTrace::outcome holds what it did
+        kApplied,         // ApplyPoison ran; HitTrace::outcome holds what it did
     };
 
     // ApplyOutcome's enumerators are 0..kNoCaster (ToxApply.h): one counter each
@@ -54,10 +54,10 @@ namespace ToxGame
         std::uint32_t rawEvents = 0;  // TESHitEvents with this source, before any check
         std::uint32_t sinkHits = 0;   // events the sink kept (cause the player, target another actor)
         std::uint32_t tasks = 0;      // hit tasks that ran
-        std::uint32_t applied = 0;    // tasks that reached ApplyOnce
+        std::uint32_t applied = 0;    // tasks that reached ApplyPoison
         HitStage last = HitStage::kNone;
-        std::optional<ApplyOutcome> outcome;  // the last ApplyOnce result
-        std::array<std::uint32_t, kApplyOutcomeKinds> outcomes{};  // ApplyOnce results by kind (index = enum value)
+        std::optional<ApplyOutcome> outcome;  // the last ApplyPoison result
+        std::array<std::uint32_t, kApplyOutcomeKinds> outcomes{};  // ApplyPoison results by kind (index = enum value)
     };
 
     // Main thread. On: clears every trace and starts counting; off: stops (and clears). Off by default:

@@ -308,7 +308,8 @@ This project does not have a C++ test framework. Validation is done through:
   `include/uimanager/TreeSaveCheck.h`: `--self-test` on made-up trees, or `tree-save-check <tree.json>...` against a
   full parse; exit 1 on a disagreement) and `toxicology-test` (the Toxicology addon's RE-free core,
   `plugins/Toxicology/src/core/ToxCore.h`: `toxicology-test --self-test` checks settings parsing, the catalog's poison
-  spell keys and key splitting, the favorited poison choice, the Magicka-per-bottle arithmetic, which stack loses a
+  spell keys and key splitting, the favorited poison choice, the Magicka-per-bottle arithmetic, the immunity window
+  after a poison wears off, which stack loses a
   bottle and the Magicka drain queue's interval check; exit 1 on a failure)
 - The Toxicology addon's dev-only in-game self test (`plugins/Toxicology/src/game/ToxSelfTest.h`: runs when
   `SKSE/Plugins/HeartOfMagic_Toxicology_selftest.json` is installed, `.\DeployDev.ps1 -ToxicologyOnly

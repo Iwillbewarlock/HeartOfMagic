@@ -3,8 +3,9 @@
 // =============================================================================
 // Toxicology core - pure C++ (no RE/SKSE types), shared by the DLL and
 // tools/toxicology-test: settings, the poison spell list from the librarian's
-// catalog, the top favorited poison, the magicka-per-dose count and the
-// interval check the Magicka drain queue uses.
+// catalog, the top favorited poison, the magicka-per-dose count, the immunity
+// window after a poison wears off and the interval check the Magicka drain
+// queue uses.
 // =============================================================================
 
 #include <cstddef>
@@ -23,13 +24,25 @@ namespace Toxicology
         bool enabled = true;
         bool showIcon = true;
         float magickaPerDose = 100.0f;
+        float immunityMultiplier = 1.0f;  // spec 5.4: immunity = max(D x this, minImmunitySeconds)
+        float minImmunitySeconds = 5.0f;
     };
 
     // A missing key keeps its default silently. A key of the wrong type, a
-    // magickaPerDose <= 0 or a non-finite number keeps the default and adds one
-    // warning naming the key and the value. Other keys are ignored silently,
-    // minIntervalSeconds included (removed 2026-10-18; older files still have it).
+    // magickaPerDose <= 0, a negative immunityMultiplier or minImmunitySeconds, or
+    // a non-finite number keeps the default and adds one warning naming the key and
+    // the value. Other keys are ignored silently, minIntervalSeconds included
+    // (removed 2026-10-18; older files still have it).
     Settings ParseSettings(const nlohmann::json& a_json, std::vector<std::string>& a_warnings);
+
+    // Spec 5.4: the immunity after a poison of a_durationSeconds wears off,
+    // max(D x a_multiplier, a_minImmunity). A negative or non-finite D counts as 0;
+    // a negative or non-finite multiplier or minimum counts as 0.
+    double ImmunitySeconds(double a_durationSeconds, float a_multiplier, float a_minImmunity);
+
+    // Spec 5.4: when the poison may be cast on the same target again,
+    // a_appliedAt + D + ImmunitySeconds(D, ...), D sanitized as in ImmunitySeconds.
+    double ReapplyAt(double a_appliedAt, double a_durationSeconds, float a_multiplier, float a_minImmunity);
 
     // Every spells key whose "elements" array holds "poison", sorted. Empty with
     // a_error set when "version" is not 1 or "spells" is not an object.

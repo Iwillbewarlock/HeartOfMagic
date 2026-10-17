@@ -38,6 +38,12 @@ namespace ToxGame::SelfTest
     // A test poison's longest effect: at least this long, so it is still on the target at step 3's second hit
     inline constexpr float kMinPoisonSeconds = 8.0f;
     inline constexpr float kMagickaTolerance = 0.01f;
+    // Step 3 waits for the immunity window to end only when D + immunity is at most this long
+    inline constexpr double kMaxImmunityWaitSeconds = 90.0;
+    // Step 3's clock check: the game clock and the first hit's effect timer agree within this, over
+    // at least kMinClockSpanSeconds of the effect's run
+    inline constexpr double kClockToleranceSeconds = 0.5;
+    inline constexpr double kMinClockSpanSeconds = 2.0;
 
     // =========================================================================
     // Config (the dev file)
@@ -92,6 +98,13 @@ namespace ToxGame::SelfTest
         std::uint16_t uniqueId = 0;
     };
 
+    // Step 3: the game clock (ToxApply.h GameClockSeconds) and an effect's elapsedSeconds read in one tick
+    struct ClockSample
+    {
+        double clockSeconds = 0.0;
+        double effectSeconds = 0.0;
+    };
+
     struct State
     {
         Config config;
@@ -125,7 +138,12 @@ namespace ToxGame::SelfTest
         std::optional<std::size_t> hitSeenTick;
         bool castSync = false;           // the cast spell's own effects were on the target right after the call
         std::vector<EffectRef> playerBefore;
-        std::vector<EffectRef> owned;    // step 3: the poison's effects on the target after the first hit
+    std::vector<EffectRef> owned;    // step 3: the poison's effects on the target after the first hit
+    // Step 3: the first hit's window, and the game clock against the first hit's longest effect
+    std::optional<ImmunityWindow> window;
+    std::optional<EffectRef> clockRef;
+    std::optional<ClockSample> clockFirst;
+    std::optional<ClockSample> clockLast;
         std::int32_t bottlesAtHits = 0;
         // The count toward the next bottle is set to 0 before each delivery cast (steps 2-3), so a cast
         // the addon charged cannot use up poison A; what each cast left is added here first

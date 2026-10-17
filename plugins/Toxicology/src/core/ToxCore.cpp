@@ -29,8 +29,14 @@ namespace Toxicology
             a_out = it->get<bool>();
         }
 
-        // A finite number above 0 (a dose size)
-        void ReadPositiveNumber(const nlohmann::json& a_json, std::string_view a_key, float& a_out,
+        enum class Lower
+        {
+            kAboveZero,  // a dose size
+            kZeroOrMore  // an immunity multiplier or minimum (0 is a valid choice)
+        };
+
+        // A finite number above 0 or at least 0, per a_lower
+        void ReadNumber(const nlohmann::json& a_json, std::string_view a_key, Lower a_lower, float& a_out,
             std::vector<std::string>& a_warnings)
         {
             const auto it = a_json.find(a_key);
@@ -44,11 +50,21 @@ namespace Toxicology
                 Warn(a_warnings, a_key, *it, "is not a finite number");
                 return;
             }
-            if (value <= 0.0f) {
+            if (a_lower == Lower::kAboveZero && value <= 0.0f) {
                 Warn(a_warnings, a_key, *it, "is not above 0");
                 return;
             }
+            if (a_lower == Lower::kZeroOrMore && value < 0.0f) {
+                Warn(a_warnings, a_key, *it, "is negative");
+                return;
+            }
             a_out = value;
+        }
+
+        // Negative or non-finite -> 0
+        double NonNegative(double a_value)
+        {
+            return (std::isfinite(a_value) && a_value > 0.0) ? a_value : 0.0;
         }
 
         bool HasPoisonElement(const nlohmann::json& a_entry)
@@ -71,8 +87,21 @@ namespace Toxicology
         ReadBool(a_json, "enabled", settings.enabled, a_warnings);
         ReadBool(a_json, "showIcon", settings.showIcon, a_warnings);
         // "minIntervalSeconds" (removed 2026-10-18, spec 5.4) is not read: an older file that has it loads silently
-        ReadPositiveNumber(a_json, "magickaPerDose", settings.magickaPerDose, a_warnings);
+        ReadNumber(a_json, "magickaPerDose", Lower::kAboveZero, settings.magickaPerDose, a_warnings);
+        ReadNumber(a_json, "immunityMultiplier", Lower::kZeroOrMore, settings.immunityMultiplier, a_warnings);
+        ReadNumber(a_json, "minImmunitySeconds", Lower::kZeroOrMore, settings.minImmunitySeconds, a_warnings);
         return settings;
+    }
+
+    double ImmunitySeconds(double a_durationSeconds, float a_multiplier, float a_minImmunity)
+    {
+        const double duration = NonNegative(a_durationSeconds);
+        return std::max(duration * NonNegative(a_multiplier), NonNegative(a_minImmunity));
+    }
+
+    double ReapplyAt(double a_appliedAt, double a_durationSeconds, float a_multiplier, float a_minImmunity)
+    {
+        return a_appliedAt + NonNegative(a_durationSeconds) + ImmunitySeconds(a_durationSeconds, a_multiplier, a_minImmunity);
     }
 
     std::vector<std::string> PoisonSpellKeys(const nlohmann::json& a_catalog, std::string& a_error)

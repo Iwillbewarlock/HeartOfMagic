@@ -1,5 +1,5 @@
 // toxicology-test - offline checks of the Toxicology addon's pure core
-// (plugins/Toxicology/src/core/ToxCore.h).
+// (plugins/Toxicology/src/core/ToxCore.h), the immunity window of spec 5.4 included.
 //
 //   toxicology-test --self-test    every check, "PASS <name>" / "FAIL <name>: <detail>"
 //
@@ -52,7 +52,8 @@ namespace
     std::string Describe(const Settings& a_s)
     {
         return "{enabled=" + std::to_string(a_s.enabled) + ", showIcon=" + std::to_string(a_s.showIcon) +
-               ", magickaPerDose=" + std::to_string(a_s.magickaPerDose) + "}";
+               ", magickaPerDose=" + std::to_string(a_s.magickaPerDose) + ", immunityMultiplier=" +
+               std::to_string(a_s.immunityMultiplier) + ", minImmunitySeconds=" + std::to_string(a_s.minImmunitySeconds) + "}";
     }
 
     std::string Describe(const DoseResult& a_r)
@@ -77,7 +78,8 @@ namespace
     bool SameSettings(const Settings& a_a, const Settings& a_b)
     {
         return a_a.enabled == a_b.enabled && a_a.showIcon == a_b.showIcon &&
-               Near(a_a.magickaPerDose, a_b.magickaPerDose);
+               Near(a_a.magickaPerDose, a_b.magickaPerDose) && Near(a_a.immunityMultiplier, a_b.immunityMultiplier) &&
+               Near(a_a.minImmunitySeconds, a_b.minImmunitySeconds);
     }
 
     std::string ExpectDose(float a_accumulated, float a_spent, float a_perDose, DoseResult a_expected)
@@ -117,9 +119,10 @@ namespace
     std::string ParseSettingsValues()
     {
         std::vector<std::string> warnings;
-        const auto input = json::parse(R"({"enabled":false,"showIcon":false,"magickaPerDose":40})");
+        const auto input = json::parse(
+            R"({"enabled":false,"showIcon":false,"magickaPerDose":40,"immunityMultiplier":2.5,"minImmunitySeconds":0})");
         const auto s = Toxicology::ParseSettings(input, warnings);
-        const Settings expected{ false, false, 40.0f };
+        const Settings expected{ false, false, 40.0f, 2.5f, 0.0f };
         if (!SameSettings(s, expected)) return "got " + Describe(s) + ", expected " + Describe(expected);
         if (!warnings.empty()) return "warnings " + Describe(warnings);
         return {};
@@ -159,6 +162,85 @@ namespace
             if (!warnings.empty()) return std::string(text) + ": warnings " + Describe(warnings);
         }
         return {};
+    }
+
+    // Spec 5.4: the two immunity keys - defaults 1.0 and 5.0 when missing, read when good (0 is good),
+    // the default with one warning naming the key when negative, a string or non-finite
+    std::string ParseSettingsImmunity()
+    {
+        std::vector<std::string> warnings;
+        const auto missing = Toxicology::ParseSettings(json::parse(R"({"enabled":true})"), warnings);
+        if (!Near(missing.immunityMultiplier, 1.0f) || !Near(missing.minImmunitySeconds, 5.0f) || !warnings.empty()) {
+            return "missing keys: got " + Describe(missing) + ", warnings " + Describe(warnings);
+        }
+        const auto good = Toxicology::ParseSettings(json::parse(R"({"immunityMultiplier":0,"minImmunitySeconds":12.5})"), warnings);
+        if (!Near(good.immunityMultiplier, 0.0f) || !Near(good.minImmunitySeconds, 12.5f) || !warnings.empty()) {
+            return "good values: got " + Describe(good) + ", warnings " + Describe(warnings);
+        }
+        json nanInput = json::object();
+        nanInput["immunityMultiplier"] = std::numeric_limits<double>::quiet_NaN();
+        nanInput["minImmunitySeconds"] = -1.0;
+        for (const auto& input : { json::parse(R"({"immunityMultiplier":-0.5,"minImmunitySeconds":"5"})"), nanInput }) {
+            std::vector<std::string> badWarnings;
+            const auto bad = Toxicology::ParseSettings(input, badWarnings);
+            if (!SameSettings(bad, Settings{})) return input.dump() + ": got " + Describe(bad);
+            if (badWarnings.size() != 2) return input.dump() + ": expected 2 warnings, got " + Describe(badWarnings);
+            for (const char* key : { "immunityMultiplier", "minImmunitySeconds" }) {
+                bool named = false;
+                for (const auto& w : badWarnings) named = named || w.find(key) != std::string::npos;
+                if (!named) return input.dump() + ": no warning names " + std::string(key) + ": " + Describe(badWarnings);
+            }
+        }
+        return {};
+    }
+
+    // ------------------------------------------------------------- immunity
+
+    std::string ExpectReapply(double a_appliedAt, double a_duration, float a_multiplier, float a_min, double a_expected)
+    {
+        const double got = Toxicology::ReapplyAt(a_appliedAt, a_duration, a_multiplier, a_min);
+        if (std::fabs(got - a_expected) <= kFloatTolerance) return {};
+        return "ReapplyAt(" + std::to_string(a_appliedAt) + ", " + std::to_string(a_duration) + ", " + std::to_string(a_multiplier) +
+               ", " + std::to_string(a_min) + ") = " + std::to_string(got) + ", expected " + std::to_string(a_expected);
+    }
+
+    // D 10, x1, min 5: immune for 10 more after the 10 s effect -> applied + 20
+    std::string ReapplyNormal()
+    {
+        auto detail = ExpectReapply(100.0, 10.0, 1.0f, 5.0f, 120.0);
+        if (detail.empty()) detail = ExpectReapply(0.0, 10.0, 2.0f, 5.0f, 30.0);
+        return detail;
+    }
+
+    // An instant-only poison (D 0): the minimum alone
+    std::string ReapplyInstant()
+    {
+        return ExpectReapply(100.0, 0.0, 1.0f, 5.0f, 105.0);
+    }
+
+    // D x multiplier under the minimum: the minimum applies; multiplier 0: the minimum too
+    std::string ReapplyMinimumWins()
+    {
+        auto detail = ExpectReapply(0.0, 2.0, 1.0f, 5.0f, 7.0);
+        if (detail.empty()) detail = ExpectReapply(0.0, 8.0, 0.5f, 5.0f, 13.0);
+        if (detail.empty()) detail = ExpectReapply(0.0, 30.0, 0.0f, 5.0f, 35.0);
+        if (detail.empty()) detail = ExpectReapply(0.0, 4.0, 1.0f, 0.0f, 8.0);  // minimum 0: D x 1
+        if (detail.empty() && std::fabs(Toxicology::ImmunitySeconds(2.0, 1.0f, 5.0f) - 5.0) > kFloatTolerance) {
+            detail = "ImmunitySeconds(2, 1, 5) = " + std::to_string(Toxicology::ImmunitySeconds(2.0, 1.0f, 5.0f)) + ", expected 5";
+        }
+        return detail;
+    }
+
+    // A NaN, infinite or negative D counts as 0; a NaN or negative multiplier or minimum counts as 0
+    std::string ReapplyBadInput()
+    {
+        constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
+        auto detail = ExpectReapply(50.0, kNaN, 1.0f, 5.0f, 55.0);
+        if (detail.empty()) detail = ExpectReapply(50.0, -3.0, 1.0f, 5.0f, 55.0);
+        if (detail.empty()) detail = ExpectReapply(50.0, std::numeric_limits<double>::infinity(), 1.0f, 5.0f, 55.0);
+        if (detail.empty()) detail = ExpectReapply(0.0, 10.0, std::numeric_limits<float>::quiet_NaN(), 5.0f, 15.0);
+        if (detail.empty()) detail = ExpectReapply(0.0, 10.0, -1.0f, -5.0f, 10.0);
+        return detail;
     }
 
     // ------------------------------------------------------------ poison keys
@@ -437,6 +519,11 @@ namespace
         { "ParseSettingsValues", ParseSettingsValues },
         { "ParseSettingsBadTypes", ParseSettingsBadTypes },
         { "ParseSettingsIgnoresRemovedKey", ParseSettingsIgnoresRemovedKey },
+        { "ParseSettingsImmunity", ParseSettingsImmunity },
+        { "ReapplyNormal", ReapplyNormal },
+        { "ReapplyInstant", ReapplyInstant },
+        { "ReapplyMinimumWins", ReapplyMinimumWins },
+        { "ReapplyBadInput", ReapplyBadInput },
         { "PoisonSpellKeysBasic", PoisonSpellKeysBasic },
         { "PoisonSpellKeysWrongVersion", PoisonSpellKeysWrongVersion },
         { "PoisonSpellKeysNoElements", PoisonSpellKeysNoElements },

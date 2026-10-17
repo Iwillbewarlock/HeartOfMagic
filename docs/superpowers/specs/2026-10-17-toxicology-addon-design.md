@@ -41,7 +41,7 @@
 |---|---|
 | `HeartOfMagic_Toxicology.esp` (ESL 플래그) | 키워드·마법 효과·능력·주문서(4a). I4 는 `<활성 플러그인>.json` 만 읽으므로 이름을 걸 자리이기도 하다 |
 | `SKSE/Plugins/HeartOfMagic_Toxicology.dll` | 본체 |
-| `SKSE/Plugins/HeartOfMagic_Toxicology.json` | 설정: `enabled`, `showIcon`, `magickaPerDose`(기본 100). 옛 `minIntervalSeconds` 는 무시(5.4) |
+| `SKSE/Plugins/HeartOfMagic_Toxicology.json` | 설정: `enabled`, `showIcon`, `magickaPerDose`(기본 100), `immunityMultiplier`(기본 1.0), `minImmunitySeconds`(기본 5.0). 옛 `minIntervalSeconds` 는 무시(5.4) |
 | `SKSE/Plugins/InventoryInjector/HeartOfMagic_Toxicology.json` | I4 규칙: `{"match":{"formType":"Potion","keywords":"HoMTox_MimicPoison"},"assign":{"iconSource":"HeartOfMagicToxicology/icons.swf","iconLabel":"potion_mimic","iconColor":"#62A636"}}` |
 | `Interface/HeartOfMagicToxicology/icons.swf` | 아이콘 1개(라벨 `potion_mimic`) |
 | `SKSE/Plugins/HeartOfMagic_Toxicology/` | `LICENSE`, `THIRD-PARTY-NOTICES.md`, `licenses/` (NPC Spells 와 같은 방식) |
@@ -209,7 +209,9 @@ ESL 의 키워드 `HoMTox_MimicPoison` 을 5.2 에서 고른 독약의 기본 �
   1. 독약 2개를 주고 즐겨찾기 → 이름이 앞인 것이 골라지고 그 폼에만 키워드.
   2. 대상 NPC 를 소환, 독 마법을 전달 방식별로(투사체, 접촉, 집중, 룬) 플레이어 시전으로 맞힘 → 피격 이벤트 수신
      여부, 독약 효과가 대상에 생겼는지.
-  3. 같은 대상을 다시 맞힘 → 아무것도 하지 않는지(kAlreadyApplied), 독약 효과가 여전히 하나뿐인지(5.4, 2026-10-18).
+  3. 같은 대상을 면역 시간 안에 다시 맞힘 → 아무것도 하지 않는지(kImmune), 독약 효과가 여전히 하나뿐인지. 다시 걸 수 있는
+     때가 지난 뒤 세 번째로 맞힘 → 다시 걸리는지(kCast, 새 효과). 지속 + 면역이 90 초를 넘으면 세 번째는 건너뜀(INFO).
+     기다리는 동안 면역 시계와 첫 효과의 elapsedSeconds 를 비교(5.4, 2026-10-18).
   4. 독약 효과의 크기를 독약 레코드 값과 비교해 로그(퍽 반영 여부 기록, 판정 없음).
   5. I5 가 있으면 `i5 cache purge` 실행 결과 로그.
   6. 효과의 시전자가 플레이어인지.

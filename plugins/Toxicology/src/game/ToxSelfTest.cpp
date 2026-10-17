@@ -72,8 +72,8 @@ const char* SelfTest::OutcomeName(std::optional<ApplyOutcome> a_outcome)
 {
     if (!a_outcome) return "none";
     switch (*a_outcome) {
-    case ApplyOutcome::kAlreadyApplied:
-        return "kAlreadyApplied";
+    case ApplyOutcome::kImmune:
+        return "kImmune";
     case ApplyOutcome::kCast:
         return "kCast";
     case ApplyOutcome::kCastNoEffect:

@@ -184,8 +184,9 @@ void ToxGame::LoadSettings()
             logger::warn("Toxicology: settings: {}", w);
         }
     }
-    logger::info("Toxicology: settings: enabled {}, showIcon {}, magickaPerDose {}",
-        g_settings.enabled, g_settings.showIcon, g_settings.magickaPerDose);
+    logger::info("Toxicology: settings: enabled {}, showIcon {}, magickaPerDose {}, immunityMultiplier {}, minImmunitySeconds {}",
+        g_settings.enabled, g_settings.showIcon, g_settings.magickaPerDose, g_settings.immunityMultiplier,
+        g_settings.minImmunitySeconds);
 }
 
 // =============================================================================

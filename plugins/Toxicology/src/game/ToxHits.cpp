@@ -181,7 +181,7 @@ void ToxGame::OnPoisonSpellHit(RE::ActorHandle a_target, RE::FormID a_spell)
     if (IsSameHit(target->GetFormID(), a_spell)) return TraceStage(a_spell, HitStage::kSameHit);
     auto* poison = CurrentPoison();  // null with no favorited poison (ToxSelection.h)
     if (!poison) return TraceStage(a_spell, HitStage::kNoPoison);
-    const auto outcome = ApplyOnce(target, poison, player);
+    const auto outcome = ApplyPoison(target, poison, player);
     Trace(a_spell, [outcome](HitTrace& a_trace) {
         ++a_trace.applied;
         a_trace.last = HitStage::kApplied;

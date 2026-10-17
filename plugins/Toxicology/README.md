@@ -15,10 +15,14 @@ pending in-game self test, see "Not yet confirmed in game" below).
 - **Which poison**: among the poisons in your inventory that are favorited, the first by name (the name shown in
   the inventory, a poison you named yourself by that name; case is ignored). That is the order SkyUI's favorites
   menu sorts by. The vanilla favorites menu's order was not checked; the same rule is used.
-- **Once per target**: each poison is applied to a given target only once. Later hits on that target with the same
-  poison do nothing - they neither stack nor renew it, so a paralysis poison cannot keep a target held forever. If
-  your first favorited poison changes, the new poison can be applied to that target once too. The record is kept in
-  memory only, so it starts over after a save is loaded (see Known limits).
+- **Immunity after the poison wears off**: once a poison is applied to a target, that target is immune to the same
+  poison until the poison's duration has run out and an immunity time after it has passed: the immunity is the
+  duration times `immunityMultiplier` (default 1.0), and at least `minImmunitySeconds` (default 5). A 10 second
+  poison can therefore be applied again 20 seconds after it was applied; an instant poison after 5 seconds. Hits in
+  between do nothing - they neither stack nor renew it, so a paralysis poison cannot keep a target held forever. The
+  duration is the one the poison actually got on the target (alchemy perks included). Time is game time: it stands
+  still while a menu pauses the game. Each poison has its own window, so a newly favorited poison can be applied at
+  once. The record is kept in memory only, so it starts over after a save is loaded (see Known limits).
 - **Bottles**: hits use up no bottles. Instead, every `magickaPerDose` Magicka (default 100) you spend casting poison spells from your hands
   (hit or miss; meant to be the cost after perks and gear, dual casting and concentration included - pending in-game
   self test) uses one bottle of the poison being mimicked. A poison cloak costs what you pay for the cloak; the
@@ -74,9 +78,11 @@ menu, not in the spell list.
 | `enabled` | `true` | Off: no poison is applied, no icon, no Magicka counted |
 | `showIcon` | `true` | Off: the mimic keyword is not put on the poison, so I4 shows its normal icon |
 | `magickaPerDose` | `100` | Magicka spent on poison spells per bottle used (more than 0) |
+| `immunityMultiplier` | `1.0` | Immunity after a poison wears off, as a multiple of its duration (0 or more; 0: only `minImmunitySeconds`) |
+| `minImmunitySeconds` | `5.0` | The shortest immunity, in seconds (0 or more); also the whole immunity for an instant poison |
 
-A missing key keeps its default. A value of the wrong type, a `magickaPerDose` of 0 or less, or a file that is not
-valid JSON keeps the default and is logged. `minIntervalSeconds`, a setting of earlier test builds, is no longer
+A missing key keeps its default. A value of the wrong type, a `magickaPerDose` of 0 or less, a negative
+`immunityMultiplier` or `minImmunitySeconds`, or a file that is not valid JSON keeps the default and is logged. `minIntervalSeconds`, a setting of earlier test builds, is no longer
 used; a settings file that still has it loads without a warning.
 
 ## Load order
@@ -117,12 +123,15 @@ in game yet. Update this list from the self test's `SELFTEST` lines and move eac
   at a later load.
 - **Saves that already traded with Elgrim** may show the tome only after the merchant restocks (about 48 hours of
   game time).
-- **Once per target resets after a load**: which targets already got which poison is not saved. After a save is
-  loaded (or a new game started) every target can get each poison once more, even one that still carries it from
+- **Immunity resets after a load**: which targets are immune to which poison is not saved. After a save is loaded
+  (or a new game started) every target can get each poison again at once, even one that still carries it from
   before the load.
-- **Once per target counts the cast, not the effect**: a target counts as poisoned as soon as the addon casts the
-  poison on it, even if the target resisted it or the poison has only instant effects. The same poison from a coated
-  weapon does not count: the addon may still apply its own copy once.
+- **Immunity counts the cast, not the effect**: the window starts as soon as the addon casts the poison, even if
+  the target resisted it (then the poison record's duration is used). A cure or dispel that ends the poison early
+  does not shorten the window. The same poison from a coated weapon does not count: the addon may still apply its
+  own copy.
+- **Waiting moves the clock**: the window runs on game time, so waiting, sleeping or fast travel ends it early
+  (game time runs much faster then). A timescale change by a mod stretches what is left of a window with it.
 - **The icon is on the poison, not on your bottles**: the mimic icon marks the base poison, so every copy of it shows
   the icon while it is being mimicked - at vendors, in containers and in loot too.
 - **Leftover Magicka**: when the last favorited poison runs out, the part of the count under one dose stays and goes
@@ -136,11 +145,12 @@ in game yet. Update this list from the self test's `SELFTEST` lines and move eac
 - **Cost-reducing mods** that lower spell cost outside the engine's own spell cost (for example by script) may not
   be reflected in the Magicka count.
 - **Perks on the applied poison**: whether the engine applies alchemy perks to a poison the addon applies is not
-  checked (the in-game self test logs it); the addon uses the poison's values as they are.
+  checked. The log shows it: for the first 10 casts after each load, each new effect's actual magnitude and duration
+  next to the poison record's (`Toxicology: cast #N ...` and the `effect` lines under it; later casts at debug level).
 - **Crime**: a poison spell hit already counts as an attack; whether the applied poison adds anything on a
   non-hostile target is not checked.
 - If the first favorited poison changes while an effect is running, that effect runs to its end and the next hit
-  applies the new poison (once per target, as above).
+  applies the new poison (with its own immunity window, as above).
 
 ## Uninstalling
 
@@ -158,7 +168,8 @@ record), and the tome placed in Elgrim's chest was only in memory. The co-save r
   self test file and `art/` never go into the zip.
 - **Offline harness**: `build/tools/Release/toxicology-test.exe --self-test` checks the pure core
   (`src/core/ToxCore.*`: settings, catalog parsing, catalog keys, the hit and cost spell sets, the poison choice,
-  the bottle arithmetic and which stack loses a bottle, the interval check of the Magicka drain queue); every
+  the bottle arithmetic and which stack loses a bottle, the immunity window, the interval check of the Magicka
+  drain queue); every
   check prints PASS or FAIL, exit 1 on a failure.
 - **Dev deploy** (game closed; the dev mod folder must exist, default `D:\TAKEALOOK\mods\HeartOfMagic-Toxicology-Dev`):
 
@@ -174,7 +185,9 @@ record), and the tome placed in Elgrim's chest was only in memory. The co-save r
 - **In-game self test** (dev only): with `data/dev/HeartOfMagic_Toxicology_selftest.json` installed as
   `SKSE/Plugins/HeartOfMagic_Toxicology_selftest.json`, the DLL runs a test once per session, `startDelayMs`
   (default 30 s) after a save load settles: it checks the tome in Elgrim's chest (read only), gives the ability and two poisons, spawns targets, casts the load
-  order's poison spells at them (one per delivery), checks what the addon did, then the bottles and the saved
+  order's poison spells at them (one per delivery), checks what the addon did, hits one target again inside its
+  immunity window and once after it (it waits up to about 90 s for that and compares the window's game clock with
+  the poison effect's own timer), then the bottles and the saved
   Magicka total (it asks for a save and a reload for that last check), and takes back what it added. Results are
   `SELFTEST PASS|FAIL|INFO|DONE` lines in `HeartOfMagic_Toxicology.log`. Use a disposable save. Details:
   `src/game/ToxSelfTest.h`.

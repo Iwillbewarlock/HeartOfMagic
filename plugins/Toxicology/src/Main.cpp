@@ -5,7 +5,7 @@
 // favorited poison to the target. Data load: settings, the ESL's forms, the
 // poison spell set and the tome at Elgrim's Elixirs (game/ToxData.h). The
 // poison to copy and its icon keyword: game/ToxSelection.h. Hits: game/ToxHits.h;
-// applying the poison once per target: game/ToxApply.h. Magicka spent on poison
+// applying the poison and its immunity window: game/ToxApply.h. Magicka spent on poison
 // spells uses up bottles: game/ToxMagicka.h, kept in the co-save: game/ToxSave.h.
 // A dev-only self test (game/ToxSelfTest.h) runs after a save load when its file is present.
 // =============================================================================
