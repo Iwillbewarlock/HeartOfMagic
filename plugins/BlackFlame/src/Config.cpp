@@ -53,6 +53,7 @@ namespace BlackFlame
             BoolKey{ "testerMode", &Config::testerMode },
             BoolKey{ "devAutoE3", &Config::devAutoE3 },
             BoolKey{ "devAutoQuit", &Config::devAutoQuit },
+            BoolKey{ "devFileVisibilityProbe", &Config::devFileVisibilityProbe },
         };
 
         // C6: keys of the retired runtime recolour (and burnMode before it). An old json keeps loading: each is logged
@@ -172,6 +173,9 @@ namespace BlackFlame
         {
             if (out.selfTest || (out.devAutoLoad.empty() && !out.devAutoE3 && !out.devAutoQuit)) {
                 return;
+            }
+            if (out.devFileVisibilityProbe && out.devAutoLoad.empty() && !out.devAutoE3) {
+                return;  // devAutoQuit alone ends the file visibility probe's run (FileVisibilityProbe.h)
             }
             logger::warn("BlackFlame: config devAutoLoad/devAutoE3/devAutoQuit ignored: they work only with selfTest (or "
                          "testerMode) on");

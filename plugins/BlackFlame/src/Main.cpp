@@ -19,6 +19,7 @@
 #include "DevAutomation.h"
 #include "EffectEvents.h"
 #include "ExplosionHook.h"
+#include "FileVisibilityProbe.h"
 #include "FireSet.h"
 #include "FormCopies.h"
 #include "Forms.h"
@@ -99,6 +100,7 @@ namespace
         guarded("RunGreyCheck", [] { BlackFlame::RunGreyCheck(); });
         guarded("Tester::WriteStartup", [] { BlackFlame::Tester::WriteStartup(); });  // every hook's state, the copies
         guarded("DevAutomation::Install", [] { BlackFlame::DevAutomation::Install(); });  // dev only (DevAutomation.h)
+        guarded("FileVisibilityProbe::Install", [] { BlackFlame::FileVisibilityProbe::Install(); });  // dev only, after DevAutomation
     }
 
     // The world is torn down: nothing tracked from it may be touched again

@@ -20,6 +20,11 @@ set(BLACKFLAME_SOURCES
     src/Main.cpp
     src/Config.cpp
     src/DevAutomation.cpp
+    src/FileVisibilityProbe.cpp
+    src/FileProbeTests.cpp
+    src/FileProbeTestD.cpp
+    src/FileProbeEngine.cpp
+    src/FileProbeLocation.cpp
     src/Forms.cpp
     src/FireSet.cpp
     src/FormCopies.cpp
