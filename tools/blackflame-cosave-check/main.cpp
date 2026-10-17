@@ -118,11 +118,12 @@ namespace
         }
     };
 
+    template <class LeadByte = BlackFlame::DataPathRule::SystemLeadByte>
     [[nodiscard]] Co::Result ReadBack(const Bytes& a_bytes, Co::Snapshot& a_out, std::size_t a_available, std::uint32_t a_length,
-        std::uint32_t a_version = Co::kVersion)
+        std::uint32_t a_version = Co::kVersion, LeadByte a_isLeadByte = {})
     {
         BufferReader reader{ a_bytes, a_available };
-        return Co::Read(reader, a_version, a_length, a_out);
+        return Co::Read(reader, a_version, a_length, a_out, a_isLeadByte);
     }
 
     [[nodiscard]] Co::Result ReadAll(const Bytes& a_bytes, Co::Snapshot& a_out)
@@ -251,6 +252,38 @@ namespace
         a_check(versionsRefused, "BFSL: record versions 0, 2 and 0xFFFFFFFF refused, nothing kept");
     }
 
+    // Plugin names in code page 932 (a fixed lead-byte rule, so it runs on any system): trail bytes kept and unchecked
+    void CheckCodePage(Checker& a_check)
+    {
+        using BlackFlame::CopyContractTest::PathDetail::IsCp932Lead;
+        using BlackFlame::CopyContractTest::PathDetail::NoLead;
+        const std::string hyou("\x95\x5C.esp", 6);   // 表: trail 0x5C
+        const std::string so("\x83\x5C.esp", 6);     // ソ: trail 0x5C
+        const std::string a("\x83\x41.esp", 6);      // ア: trail 0x41 ('A')
+        const std::string smallYa("\x83\x61.esp", 6);  // ャ: trail 0x61 ('a'), what a lowered ア would become
+        Co::Snapshot snapshot;
+        snapshot.epoch = 5;
+        snapshot.slots = { { 0x800, CC::SlotType::kPROJ, hyou, 1 }, { 0x801, CC::SlotType::kPROJ, so, 2 },
+            { 0x802, CC::SlotType::kPROJ, a, 3 }, { 0x803, CC::SlotType::kPROJ, smallYa, 4 },
+            { 0x804, CC::SlotType::kPROJ, "Skyrim.ESM", 5 } };
+        BufferWriter out;
+        Co::Snapshot back = Normal();
+        const bool written = Co::Write(out, snapshot, IsCp932Lead) == Co::Result::Ok;
+        const bool read = written && ReadBack(out.bytes, back, out.bytes.size(), static_cast<std::uint32_t>(out.bytes.size()), Co::kVersion,
+                                         IsCp932Lead) == Co::Result::Ok;
+        const bool kept = read && back.slots.size() == 5 && back.slots[0].plugin == hyou && back.slots[1].plugin == so &&
+                          back.slots[2].plugin == a && back.slots[3].plugin == smallYa && back.slots[4].plugin == "skyrim.esm";
+        a_check(kept, "BFSL: code page 932 names round-trip unchanged (95 5C, 83 5C, 83 41 and 83 61 stay four names; "
+                      "Skyrim.ESM is lowered)");
+        BufferWriter refused;
+        Co::Snapshot asSingleBytes = Normal();
+        a_check(Co::Write(refused, snapshot, NoLead) == Co::Result::BadNameByte && refused.opened == 0 &&
+                    ReadBack(out.bytes, asSingleBytes, out.bytes.size(), static_cast<std::uint32_t>(out.bytes.size()), Co::kVersion,
+                        NoLead) != Co::Result::Ok &&
+                    IsEmpty(asSingleBytes),
+            "BFSL: read as single bytes the same names are refused (0x5C is '\\', 0x41 a capital)");
+    }
+
     // A record from a header, table names and slots, written field by field (types as raw bytes)
     struct RawSlot
     {
@@ -368,6 +401,7 @@ int main(int a_argc, char** a_argv)
     try {
         CheckRoundTrips(check);
         CheckLimits(check);
+        CheckCodePage(check);
         const int contract = BlackFlame::CopyContractTest::Run(
             [&](bool a_ok, const std::string& a_what) { check(a_ok, "contract: " + a_what); },
             [&](const std::string& a_what) { check.Skip("contract: " + a_what); });

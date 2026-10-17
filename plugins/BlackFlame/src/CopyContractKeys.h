@@ -10,7 +10,7 @@
 // bytes>, because a double-byte character's trail byte may be '|' or '='; a path Normalize refuses as
 // <name>raw=<lower-case hex of its own bytes> (texture and ADDN model paths; a NIF or child source path that Normalize
 // refuses gives no key at all: no copy can be made of it). So '|' only ever separates fields and the string decodes
-// one way. fnv64 values: 16 lower-case hex digits; floats: TintText (to_chars fixed, 6 decimals, |x| <= 16, -0 as 0);
+// one way. fnv64 values: 16 lower-case hex digits; floats: TintText (to_chars fixed, 6 decimals, in the builder's 0..2, -0 as 0);
 // booleans 0/1; sentinels notdumped:<size>, missing, none.
 // Refusal (nullopt): an unset FileHash (FileState::kUnset), an unknown enum value, a tint TintText refuses, one path
 // named twice with two different states, a local id over 0xFFFFFF.
@@ -33,9 +33,11 @@
 // Palette copy (builder): <prefix>|kind=palette|blend=<add|normal>|src=<path>|srchash=<h>
 // ADDN table (AddnTableString):
 //   format=BFA2|addn=<index>|src=<plugin>:<local id hex>|model=<path>|modelhash=<h>...|slot=<local id hex>|src=...
-//   ADDN records sorted by (index, plugin, local id, model field, model hash), ledger pairs by (slot, plugin, local id),
-//   so the same set in any order gives one string. plugin: ASCII lower case only (other bytes kept); a name with a
-//   byte outside printable ASCII or one of |:=/\ goes in as srchex=<lower-case hex>:<id>. Ids lower-case hex, no 0x.
+//   ADDN records sorted by (index, src field text, model field text, model hash text), ledger pairs by (slot, src field
+//   text), an exact duplicate row kept once, so the same set in any order gives one string. plugin: single-byte A-Z
+//   lowered, every other byte kept (a double-byte character's trail byte is never lowered: code page 932 0x83 0x41 and
+//   0x83 0x61 stay two names); a name with a byte outside printable ASCII or one of |:=/\ goes in as
+//   srchex=<lower-case hex>:<id>. Ids lower-case hex, no 0x.
 
 #include "CopyContract.h"
 
@@ -199,18 +201,15 @@ namespace BlackFlame::CopyContract
             return IsPrintableAscii(*path) ? std::string(a_name) + "=" + *path : std::string(a_name) + "hex=" + LowerHex(*path);
         }
 
-        /// <plugin>:<id> with the plugin ASCII-lowered, or srchex form; the whole field "src=..." / "srchex=..."
-        [[nodiscard]] inline std::optional<std::string> SourceField(std::string_view a_plugin, std::uint32_t a_localId)
+        /// <plugin>:<id> with the plugin ASCII-lowered outside double-byte characters (a_isLeadByte: a trail byte is never
+        /// lowered), or srchex form; the whole field "src=..." / "srchex=..."
+        template <class LeadByte>
+        [[nodiscard]] std::optional<std::string> SourceField(std::string_view a_plugin, std::uint32_t a_localId, LeadByte a_isLeadByte)
         {
             if (a_plugin.empty() || a_localId > kMaxLocalId) {
                 return std::nullopt;
             }
-            std::string lowered(a_plugin);
-            for (char& c : lowered) {
-                if (c >= 'A' && c <= 'Z') {
-                    c = static_cast<char>(c - 'A' + 'a');
-                }
-            }
+            const std::string lowered = DataPathRule::LowerAsciiWith(a_plugin, a_isLeadByte);
             const bool plain = IsPrintableAscii(lowered) && lowered.find_first_of("|:=/\\") == std::string::npos;
             return (plain ? "src=" + lowered : "srchex=" + LowerHex(lowered)) + ":" + HexId(a_localId);
         }
@@ -361,15 +360,17 @@ namespace BlackFlame::CopyContract
         return Detail::ChildKeyString(a_prefix, "palette", "blend", PaletteBlendText(a_blend), a_input);
     }
 
-    /// The ADDN part's string: every ADDN record of the closure and every ADDN slot ledger pair, in one total order;
-    /// nullopt for a local id over 0xFFFFFF, an empty plugin name or an unset model hash
-    [[nodiscard]] inline std::optional<std::string> AddnTableString(const std::vector<AddnRecord>& a_records,
-        const std::vector<LedgerPair>& a_pairs)
+    /// The ADDN part's string: every ADDN record of the closure and every ADDN slot ledger pair, in one total order, an
+    /// exact duplicate row once; nullopt for a local id over 0xFFFFFF, an empty plugin name or an unset model hash.
+    /// a_isLeadByte: the plugin names' code page (the system's by default)
+    template <class LeadByte = DataPathRule::SystemLeadByte>
+    [[nodiscard]] std::optional<std::string> AddnTableString(const std::vector<AddnRecord>& a_records,
+        const std::vector<LedgerPair>& a_pairs, LeadByte a_isLeadByte = {})
     {
         using RecordRow = std::tuple<std::uint32_t, std::string, std::string, std::string>;  // index, src, model, hash
         std::vector<RecordRow> records;
         for (const auto& record : a_records) {
-            auto source = Detail::SourceField(record.plugin, record.localId);
+            auto source = Detail::SourceField(record.plugin, record.localId, a_isLeadByte);
             auto model = Detail::PathField("model", record.model, DataPathRule::kMeshesRoot, false);
             auto hash = FileHashText(record.modelHash);
             if (!source || !model || !hash) {
@@ -380,7 +381,7 @@ namespace BlackFlame::CopyContract
         using PairRow = std::pair<std::uint16_t, std::string>;  // slot, src
         std::vector<PairRow> pairs;
         for (const auto& pair : a_pairs) {
-            auto source = Detail::SourceField(pair.plugin, pair.localId);
+            auto source = Detail::SourceField(pair.plugin, pair.localId, a_isLeadByte);
             if (!source) {
                 return std::nullopt;
             }
@@ -388,6 +389,8 @@ namespace BlackFlame::CopyContract
         }
         std::stable_sort(records.begin(), records.end());
         std::stable_sort(pairs.begin(), pairs.end());
+        records.erase(std::unique(records.begin(), records.end()), records.end());  // one ADDN listed twice: once
+        pairs.erase(std::unique(pairs.begin(), pairs.end()), pairs.end());
         std::string out = "format=" + std::string(kAddnTableFormat);
         for (const auto& [index, source, model, hash] : records) {
             Detail::Field(out, "addn", std::to_string(index));
@@ -401,10 +404,11 @@ namespace BlackFlame::CopyContract
         return out;
     }
 
-    [[nodiscard]] inline std::optional<std::uint64_t> AddnTableHash(const std::vector<AddnRecord>& a_records,
-        const std::vector<LedgerPair>& a_pairs)
+    template <class LeadByte = DataPathRule::SystemLeadByte>
+    [[nodiscard]] std::optional<std::uint64_t> AddnTableHash(const std::vector<AddnRecord>& a_records,
+        const std::vector<LedgerPair>& a_pairs, LeadByte a_isLeadByte = {})
     {
-        const auto text = AddnTableString(a_records, a_pairs);
+        const auto text = AddnTableString(a_records, a_pairs, a_isLeadByte);
         return text ? std::optional<std::uint64_t>(Fnv64(*text)) : std::nullopt;
     }
 
