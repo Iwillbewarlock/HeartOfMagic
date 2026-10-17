@@ -187,6 +187,10 @@ namespace BlackFlame::CopyGroups::Detail
         if (!a_state.canVerify) {
             return fallback("no main-thread proof: verified at the next start");
         }
+        if (found->replacedThisSession) {
+            // review agy 7 #3: the index may hold a record of the file this one replaced, with its size: not before next start
+            return fallback("its file replaced another at the same path this session: used from the next start");
+        }
         if (found->copiedThisSession && !FileIndex::Available()) {
             return fallback("in Data only since this session and no file index: the next start's index has it");
         }

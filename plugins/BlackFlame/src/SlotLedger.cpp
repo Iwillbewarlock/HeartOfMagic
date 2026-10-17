@@ -460,10 +460,14 @@ namespace BlackFlame::SlotLedger
         const auto bytes = exists ? ReadFile(coSave, kMaxCoSaveBytes) : std::nullopt;
         const auto read = bytes ? CoSaveFile::ReadBfsl(bytes->data(), bytes->size()) : CoSaveFile::BfslRead{};
         if (read.state == CoSaveFile::BfslState::kBad) {
-            // review Gemini 16: fail closed whatever slotPreflight says (the load callback may never see a record either)
-            logger::warn("BlackFlame: slots: preflight: '{}' could not be read whole ({}): every gate closes", Text(coSave),
-                ec ? "it could not be looked at: " + ec.message() : bytes ? read.why : std::string("not opened"));
-            CallHandler({}, MismatchWhen::kUnreadable);
+            // review Gemini 16 asked to close the gates whatever slotPreflight says; kept to the key's contract (off: only
+            // logged - our reader may refuse what SKSE reads, and the load callback then judges the record)
+            logger::warn("BlackFlame: slots: preflight: '{}' could not be read whole ({}){}", Text(coSave),
+                ec ? "it could not be looked at: " + ec.message() : bytes ? read.why : std::string("not opened"),
+                refill ? ": every gate closes" : " (slotPreflight off: only logged)");
+            if (refill) {
+                CallHandler({}, MismatchWhen::kUnreadable);
+            }
             return;
         }
         if (read.state != CoSaveFile::BfslState::kRead) {
@@ -491,14 +495,21 @@ namespace BlackFlame::SlotLedger
 
     void OnPreLoadGame(const void* a_data, std::uint32_t a_length)
     {
-        try {  // review agy 10 #2: a throw here would skip the rest of Main's kPreLoadGame handling
+        // review agy 10 #2: a throw here would skip the rest of Main's kPreLoadGame handling; with slotPreflight on it is an
+        // unreadable co-save (every gate closes), off it is only logged like one
+        const auto failed = [](const std::string& a_what) {
+            const bool refill = GetConfig().slotPreflight;
+            logger::error("BlackFlame: slots: preflight threw ({}){}", a_what, refill ? ": every gate closes" : " (slotPreflight off)");
+            if (refill) {
+                CallHandler({}, MismatchWhen::kUnreadable);
+            }
+        };
+        try {
             PreLoadGame(a_data, a_length);
         } catch (const std::exception& e) {
-            logger::error("BlackFlame: slots: preflight threw ({}): every gate closes", e.what());
-            CallHandler({}, MismatchWhen::kUnreadable);
+            failed(e.what());
         } catch (...) {
-            logger::error("BlackFlame: slots: preflight threw an exception of an unknown type: every gate closes");
-            CallHandler({}, MismatchWhen::kUnreadable);
+            failed("an exception of an unknown type");
         }
     }
 

@@ -44,7 +44,8 @@ namespace BlackFlame::BuildProgress
     {
         State state = State::kStaging;
         CC::ProgressLine line;
-        bool copiedThisSession = false;  // its file entered Data this session (not in the startup index: CopyGroups needs FileIndex)
+        bool copiedThisSession = false;   // its file entered Data this session (not in the startup index: CopyGroups needs FileIndex)
+        bool replacedThisSession = false; // and replaced another file at that path (the index may hold the old size: next start)
     };
 
     /// kDataLoaded (singleLaunch), before the builder is launched: progress.jsonl read to its end and each object's Data

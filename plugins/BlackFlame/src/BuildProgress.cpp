@@ -45,6 +45,8 @@ namespace BlackFlame::BuildProgress
             std::unordered_map<std::uint64_t, Object> objects;  // by key: the last line of a key wins
             std::set<PathHash> inData;                          // files known to be in Data with that fnv64
             std::set<PathHash> copyFailed;                      // copies that failed once (tried again at the next start)
+            std::set<PathHash> copiedNow;                       // copied into Data this session
+            std::set<PathHash> replacedNow;                     // of them, over another file at that path
             Stats stats;
             ProgressTail::Tail tail;
             std::size_t errorsLogged = 0;
@@ -77,7 +79,6 @@ namespace BlackFlame::BuildProgress
             const bool same = known && object.line == a_line;  // every field, the deps included (review Gemini 1)
             if (!same) {
                 object.state = StateOf(a_line);
-                object.copiedThisSession = false;
             }
             object.line = std::move(a_line);
             s.stats.lines += known ? 0 : 1;
@@ -150,7 +151,7 @@ namespace BlackFlame::BuildProgress
 
         // staging -> Data through the VFS: the staging bytes checked against the line, a temporary file, a replacing rename,
         // the Data file read back. Copies, never moves (the builder's compaction and cache need the staging files)
-        bool CopyIn(const CC::ProgressLine& a_line, std::string& a_why)
+        bool CopyIn(const CC::ProgressLine& a_line, bool& a_replaced, std::string& a_why)
         {
             const auto data = FileIndex::DataFolder();
             if (!data || !DataPathRule::ParseCopyPath(a_line.path)) {
@@ -192,6 +193,7 @@ namespace BlackFlame::BuildProgress
                 fs::remove(temp, ec);
                 return false;
             }
+            a_replaced = fs::exists(target, ec) || ec;  // a file there now is not the line's (Settle found no match)
             if (!::MoveFileExW(temp.c_str(), target.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
                 a_why = std::format("the rename failed (Windows error {})", ::GetLastError());
                 fs::remove(temp, ec);
@@ -235,7 +237,12 @@ namespace BlackFlame::BuildProgress
                         break;
                     }
                     std::string why;
-                    copied = there = CopyIn(line, why);
+                    bool replaced = false;
+                    copied = there = CopyIn(line, replaced, why);
+                    if (copied && replaced) {
+                        std::lock_guard lock(s.mutex);
+                        s.replacedNow.insert({ line.path, line.fnv64 });
+                    }
                     std::lock_guard lock(s.mutex);
                     (there ? s.stats.copied : s.stats.copyFailures) += 1;
                     if (!there) {
@@ -250,8 +257,8 @@ namespace BlackFlame::BuildProgress
                 if (there) {
                     std::lock_guard lock(s.mutex);
                     s.inData.insert({ line.path, line.fnv64 });
-                    if (auto it = s.objects.find(line.key); it != s.objects.end() && it->second.line.path == line.path) {
-                        it->second.copiedThisSession = it->second.copiedThisSession || copied;
+                    if (copied) {
+                        s.copiedNow.insert({ line.path, line.fnv64 });  // by file, so a later line of the key keeps it
                     }
                     g_generation.fetch_add(1);
                 }
@@ -377,7 +384,14 @@ namespace BlackFlame::BuildProgress
         auto& s = The();
         std::lock_guard lock(s.mutex);
         const auto it = s.objects.find(a_key);
-        return it != s.objects.end() ? std::optional(it->second) : std::nullopt;
+        if (it == s.objects.end()) {
+            return std::nullopt;
+        }
+        auto object = it->second;
+        const PathHash file{ object.line.path, object.line.fnv64 };
+        object.copiedThisSession = s.copiedNow.contains(file);
+        object.replacedThisSession = s.replacedNow.contains(file);
+        return object;
     }
 
     std::uint64_t Generation() noexcept

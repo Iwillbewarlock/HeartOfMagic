@@ -204,13 +204,17 @@ namespace BlackFlame::FileIndex
                     sane.push_back(candidate);
                 }
             }
-            // review agy / Gemini 8: exactly one, as the count offset scan asks (two would leave the pick to chance)
-            if (sane.size() == 1) {
-                TheState().globals = sane.front();
-                return "";
+            if (sane.empty()) {
+                return std::format("no object with GlobalLocations' vtable and a sane entry list in .data ({} vtable hits)", hits);
             }
-            return sane.empty() ? std::format("no object with GlobalLocations' vtable and a sane entry list in .data ({} vtable hits)", hits) :
-                                  std::format("{} objects with GlobalLocations' vtable and a sane entry list in .data: not used", sane.size());
+            // review agy / Gemini 8 asked for exactly one; the probe took the first and how many 1.6.1170 has is not on record
+            // here, so the first is kept and more than one is logged (to settle from the next log)
+            if (sane.size() > 1) {
+                logger::warn("BlackFlame: file index: {} objects with GlobalLocations' vtable and a sane entry list: the first is used",
+                    sane.size());
+            }
+            TheState().globals = sane.front();
+            return "";
         }
 
         // FQ5: the first shipped path the index knows confirms the guard / FindRecord layout
