@@ -64,7 +64,8 @@ A missing file, bad JSON or a bad value keeps the default for what was wrong and
 | `copyHazardCreate` | `true` | v2 expansion C4: hazard creation gives the hazard its copy inside a copy window or from the player's fire spawn-hazard effect |
 | `copyPlaced` | `true` | v2 expansion C4: PlaceAtMe called by the player's fire effect script places the copy of a HAZD, EXPL or PROJ |
 | `copyHitArt` | `true` | v2 (ARTO spike): the hit art of the player's fire effects is the art's ARTO copy when it has one - `GetHitEffectArt` returns the copy, so the engine builds the art's 3D from the copy's grey NIF; an art without a copy keeps the engine's art (recoloured only under `hitArt`) |
-| `copyModelProbe` | `"log"` | v2i: does the game load every copy NIF? `"log"` (default; `true` means the same): probe and log only, no copy is ever taken out - the in-game run of 46855dd reported 347 of 356 copy models failed (`error code 1, node NULL, 0 ms`) although the copies load in play, so the probe's way of asking is in doubt (being investigated). `"drop"`: a copy whose model fails while its source's loads is left out of the swaps for the session (the form stays original), a failed grey muzzle goes back to the source's, and links other copies hold to a dropped copy return to the source at once (T0-v2 FAIL lines); in play only those links are stored, one pointer each (W11), and the rest of such a refill waits for the next load's refresh - the tester file lists it as deferred (INFO, W26). `"off"` / `false`: no probe. Every failure line quotes the exact string handed to `BSModelDB::Demand` for the copy and for its source (the control). Cost: a normal start probes nothing - the last complete probe's results are cached in `<SKSE log folder>\HeartOfMagic_BlackFlame\HeartOfMagic_BlackFlame_probe.json` (`My Games\Skyrim Special Edition\SKSE\...`), keyed by the copies map's bytes, its write time (a builder run rewrites it), the plugin version and the file-index state (W20: CRDW.dll's size and time, every copy NIF's size and time), and reused. Only a complete probe without failures is cached (W14), so the cache's effect is skipping the probe; a cache that does not read is ignored and the probe runs (W23). A stale file index is reported only when the control (the source's own model) loaded, and its corner notice only with CRDW.dll loaded (W13, W25). It probes again when that key changed, there is no cache, `selfTest` / `testerMode` is on, or `copyModelProbeAlways` is true. A probe demands each distinct copy model path (record models and PROJ muzzles) in 8 ms slices, one per frame (no visible hitch at 60 fps; a single NIF that takes longer still loads whole, and the log names the largest slice), finishing in the background in the main menu or on into play (a copy not probed yet stays enabled); 20 s of probing at most. The log gives the probing time, the frames used and the largest slice. To force a re-probe: delete the cache file, or set `copyModelProbeAlways` for one start |
+| `copyModelProbe` | `"log"` | v2i: does the game load every copy NIF? `"log"` (default; `true` means the same): probe and log only, no copy is ever taken out - the in-game run of 46855dd reported 347 of 356 copy models failed (`error code 1, node NULL, 0 ms`) although the copies load in play, so the probe's way of asking is in doubt (being investigated). `"drop"`: a copy whose model fails while its source's loads is left out of the swaps for the session (the form stays original), a failed grey muzzle goes back to the source's, and links other copies hold to a dropped copy return to the source at once (T0-v2 FAIL lines); in play only those links are stored, one pointer each (W11), and the rest of such a refill waits for the next load's refresh - the tester file lists it as deferred (INFO, W26). `"off"` / `false`: no probe. Every failure line quotes the exact string handed to `BSModelDB::Demand` for the copy and for its source (the control). Cost: a normal start probes nothing - the last complete probe's results are cached in `<SKSE log folder>\HeartOfMagic_BlackFlame\HeartOfMagic_BlackFlame_probe.json` (`My Games\Skyrim Special Edition\SKSE\...`), keyed by the copies map's bytes, its write time (a builder run rewrites it), the plugin version and the file-index state (W20: CRDW.dll's size and time, every copy NIF's size and time; Y8, Z14: every derived palette file's
+too, all as UTF-8 text and sorted), and reused. Only a complete probe without failures is cached (W14), so the cache's effect is skipping the probe; a cache that does not read is ignored and the probe runs (W23). A stale file index is reported only when the control (the source's own model) loaded, and its corner notice only with CRDW.dll loaded (W13, W25). It probes again when that key changed, there is no cache, `selfTest` / `testerMode` is on, or `copyModelProbeAlways` is true. A probe demands each distinct copy model path (record models and PROJ muzzles) in 8 ms slices, one per frame (no visible hitch at 60 fps; a single NIF that takes longer still loads whole, and the log names the largest slice), finishing in the background in the main menu or on into play (a copy not probed yet stays enabled); 20 s of probing at most. The log gives the probing time, the frames used and the largest slice. To force a re-probe: delete the cache file, or set `copyModelProbeAlways` for one start |
 | `copyModelProbeAlways` | `false` | Probe at every start instead of reusing the cached result |
 | `selfTest` | `false` | Run the scripted self-test once after a save is loaded (section "Self-test") |
 | `devAutoLoad` | absent | **Dev only** (not in the shipped json or the tester package; ignored unless `selfTest` or `testerMode` is on): a save name without extension, loaded once, 5 s after the main menu first opens in a session, unless a load has started by then (`DevAutomation.h`) |
@@ -168,9 +169,11 @@ blending on and destination blend ONE, i.e. SRC_ALPHA->ONE or ONE->ONE, is addit
 palette has bright edges), `GradBlackFlame.dds` for normal blend. A palette shader whose shape has no alpha property
 counts as normal blend and the build prints a `NOTE` line for it. Every other shader (textureless glows, FXWhite tint
 spheres, lens flares, palette-alpha-only shaders) keeps its flags and textures (v2i: forcing the flag and the palette on
-them made flat grey shapes). Every shader's base colour RGB = luminance x `tint` (Rec. 709 weights and default 0.6,
-the DLL's `Tint.h` and the 0.6 of its kept runtime recolour), or x `tintAdd` (default 0.9, `--tint-add`) on an additive palette shader, alpha
-kept; the palette alpha flag stays as it was. `BSPSysSimpleColorModifier` keys and `BSEffectShaderPropertyColorController`
+them made flat grey shapes; since Y1 the palette colour flag alone makes a palette shader, see "Glow rules"). Every
+shader's base colour RGB = luminance x `tint` (Rec. 709 weights and default 0.6, the DLL's `Tint.h` and the 0.6 of its
+kept runtime recolour), or x `tintAdd` (default 0.9, `--tint-add`) on an additive palette shader - on a palette shader
+that only moves the palette row (Effect.hlsl); the glow rules then write the colours again and put `tintAdd` on a derived
+additive palette's emissive multiple. Alpha kept; the palette alpha flag stays as it was. `BSPSysSimpleColorModifier` keys and `BSEffectShaderPropertyColorController`
 keys (direct `NiPoint3Interpolator` only; the build counts any it cannot reach) go to luminance, alpha kept, the
 controller's keys scaled like the base colour of the shader it targets. The palettes are made by
 `node tools/make-gradient.js <out.dds> [default|godskin|blackblade|messmer]` (no name: the grey palette, byte-identical
@@ -525,7 +528,7 @@ numbers: the builder changes values only), so nothing is greyed twice:
   G1, an additive soft shape (no texture, or texture detail under 0.06) whose source colour - base colour and keys x
   texture mean x vertex colour - is warm (S >= 0.35): RGB 0 for its base colour and every key, alpha and flags kept (in
   the source it was an orange haze; grey it floats a grey disc or ball over the black body, and additive cannot draw
-  dark). When G1 would leave a NIF nothing drawn (on this load order `impactfrost01` and `impactfrostsmall01`), those
+  dark). When G1 would leave a NIF nothing drawn (on this load order `impactfrost01`, `impactfrostsmall01` and `mpsfrostmist01`), those
   shaders take G2 instead and the risk check lists them as HALO_KEPT (WARN). G2, additive with detail (flames, sparks):
   luminance x `tintAdd` (0.9), the silver edge. G3, additive soft neutral (white in the source): luminance x `--tint`
   (WARN NEUTRAL_HALO). G5, normal blend: luminance x `--tint`. G0, not drawn (hidden, no blending, a blank texture,
@@ -534,7 +537,9 @@ numbers: the builder changes values only), so nothing is greyed twice:
 - **P, palettes** (`GreyPalette.h`, `--palette-mode derived`, the default). A palette shader is one with the palette colour
   flag on, with or without a source texture (Y1: Community Shaders' `Effect.hlsl` samples the palette whenever the flag is on;
   13 flag-only copy shapes on the scratch run - firestorm and rune `Glow:0`, Vulcan, `arcwallfx01 Cylinder10:0` - had kept
-  their source's orange palette: PAL_FOREIGN 13).
+  their source's orange palette: PAL_FOREIGN 13). A flag-only shape's empty source texture slot is taken as one white
+  texel (texture green and alpha 1: the palette's right-hand column) - an assumption about the engine's default texture,
+  not checked in the shader code; the risk report's header says so and the in-game check below compares one such shape.
   It gets a palette derived from its
   own source palette, one file per source palette and blend under
   `textures\heartofmagic\blackflame\copies\palettes\{add,normal}\<path after textures\>` (8-bit RGBA, one mip, sRGB as the
@@ -546,14 +551,24 @@ numbers: the builder changes values only), so nothing is greyed twice:
   multiple) x palette(texture green, base red x vertex red) - the base colour only picks the row - so a derived palette's
   rows are read as the source's were. `--tint-add` scales a derived additive palette's output through that emissive
   multiple (the shader's `baseColorScale` and every emissive-multiple controller value and key), so `--tint-add 0`
-  really darkens it (Y2). The vanilla shader may differ (NifSkope's reading multiplies the base colour in): the risk
+  really darkens it (Y2). The keys are found as the colour keys are (K): a float controller's own `NiFloatInterpolator`
+  and its `NiFloatData`, every controlled block of a sequence that names the controller, and a controller's own
+  `NiBlendFloatInterpolator` value (Z1, Z2). A key block also used by another variable (the alpha transparency, 5) or by
+  another shader is left as it is, noted in the log and counted on the `glow` line ("left as shared"). The multiple
+  scales a palette shape only: a shape without the flag shows base colour x texture x vertex colour (`Effect.hlsl` reads
+  `BaseColorScale` in the palette branch alone), so the risk check's measures for plain shapes leave it out (Z5). The vanilla shader may differ (NifSkope's reading multiplies the base colour in): the risk
   check warns (PAL_MODEL) where the two readings differ more than 2x, and the in-game check is Fire Rune's ground planes
   and Firebolt's `Cylinder02:0` / `Wisps02:0` against the original. A source palette that cannot be read keeps `GradBlackFlameAdd.dds` /
   `GradBlackFlame.dds` and the risk check reports it (UNREAD, or MISSING when the game lacks it).
   `--palette-mode godskin` keeps the earlier rule: `GradBlackFlameAdd.dds` (the Godskin gradient) on every additive palette
-  shader and `GradBlackFlame.dds` on every normal-blend one. The DLL counts a greyscale texture under
-  `textures\heartofmagic\blackflame\copies\palettes\` (and the two fixed ones) as one of ours, when it is loaded (`IsAnyPalettePath`: the self-test's grey rule, the runtime recolour's
-  "already ours"), and the builder's own check accepts a derived palette of the shader's blend.
+  shader and `GradBlackFlame.dds` on every normal-blend one. One rule says which greyscale paths are ours, for the DLL and
+  the builder alike (Z6, `DataPathRule::IsOurPalettePath`): the two fixed palettes and every file under
+  `textures\heartofmagic\blackflame\copies\palettes\{add,normal}\`, after the shared path folding. The DLL counts such a
+  path as ours when it is loaded (`IsAnyPalettePath`: the self-test's grey rule, the runtime recolour's "already ours");
+  the builder's own check (`VerifyGrey`) accepts one of them that fits the shader's blend; the risk check fails any other
+  palette left on a copy's palette shape, hidden shapes included (PAL_FOREIGN). The runtime recolour's terminal guard
+  (Y9): a property that shows one of our palette paths with no texture behind it has its palette flags turned off and is
+  not recoloured again (the shader would read a palette it does not have).
 - **K, colour keys**: every key a shader's `BSEffectShaderPropertyColorController`s reach - the controller's own
   `NiPoint3Interpolator`, and every `NiControllerSequence` controlled block that names the controller (by reference, or
   for a block without one by node name, property type `BSEffectShaderProperty` and controller type) - gets the shader's
@@ -564,7 +579,9 @@ numbers: the builder changes values only), so nothing is greyed twice:
   vertex red selects the palette row), and so is geometry a palette shape shares.
 
 The run ends with `glow  shaders: G1 RGB 0 N (N NIF(s) kept at G2: nothing else drawn), G2 x tintAdd N; shapes: G3 ...;
-colour keys reached through controlled blocks greyed N; ...; vertex colours to luminance on N shape(s)`.
+colour keys reached through controlled blocks greyed N; ...; vertex colours to luminance on N shape(s) (...); shaders shared
+by a soft warm glow and another kind of shape (no G1) N; emissive-multiple controller blocks x tintAdd N, left as shared
+with another variable or shader N`.
 
 ### Visual-risk check: `GreyRisk.h`
 
@@ -582,7 +599,7 @@ run it is reported, not fatal.
 | PSYS_LEFT | FAIL | a copy `BSPSysSimpleColorModifier` or `NiColorData` key more saturated than 0.05 |
 | GREY_HALO | FAIL | a soft (no texture, or texture detail under 0.06) additive shape whose source colour (base x keys x texture mean x vertex colour) is warm (S >= 0.35) and whose copy shows luminance x emissive multiple above 0.01 |
 | TEX_COLOUR | FAIL | a coloured texture (20% of lit texels with S > 0.25, or a mean colour with S >= 0.30) the copy still names |
-| PAL_SHEET | FAIL | a palette shape whose energy (additive, x tintAdd) or coverage (normal) grows over 4x while the copy covers at least half the texture |
+| PAL_SHEET | FAIL | a palette shape whose energy (additive: each side's palette x its own emissive multiple) or coverage (normal blend; alpha test: the samples passing the threshold, GEQUAL) grows over 4x while the copy covers at least half the texture |
 | PAL_VANISH | FAIL | an additive palette shape that drew at least 0.01 whose energy falls under a quarter |
 | EFFECT_EMPTY | FAIL | a NIF whose source draws a shape and whose copy draws none |
 | PAL_BRIGHTER, NEUTRAL_HALO, PAL_FLAT | WARN | energy over 4x on a small area; a soft additive neutral glow still visible; a palette texture with one flat green |
@@ -611,7 +628,10 @@ and a mean colour's saturation needs a channel of 0.02 (the design's S(c); the p
 Alpha-test-only shapes (no blending) draw an opaque cut-out: the colour rules and the coverage rule apply, the coverage
 counted as the samples whose alpha passes the property's threshold (Y4), and the energy rules do not. After Y1-Y7 the
 scratch run gives PAL_FOREIGN 13 -> 0 and `T0 risk: PASS fail=0 unread=0` (WARN 122: PAL_FLAT 37, NEUTRAL_HALO 33,
-EFFECT_DIM 30, PAL_MODEL 18, HALO_KEPT 2, KEYS_UNREACHED 2; MISSING 2). Source and copy shapes are paired by block and name (BLOCK_LAYOUT otherwise), and the copy side is judged with
+EFFECT_DIM 30, PAL_MODEL 18, HALO_KEPT 2, KEYS_UNREACHED 2; MISSING 2). After Z (the glow classes and the risk check on
+one measure, Z3; plain shapes without the emissive multiple, Z5): WARN 125 (PAL_FLAT 37, NEUTRAL_HALO 33, EFFECT_DIM 32,
+PAL_MODEL 18, HALO_KEPT 3 - `mpsfrostmist01`'s `PCloud07`, which the glow rules already kept at G2, is now measured warm
+by the check too -, KEYS_UNREACHED 2; MISSING 2), PAL_FOREIGN 0; 813 emissive-multiple key blocks scaled, none shared. Source and copy shapes are paired by block and name (BLOCK_LAYOUT otherwise), and the copy side is judged with
 the texture the copy names.
 
 ### Freshness and the copies map v2 (v2 expansion C3, DLL): `CopyFreshness.h`
@@ -625,6 +645,7 @@ the copy request, the copies are judged:
 |---|---|
 | `none` | no copies map, or one with no entry (only the empty ESLs the mod ships) |
 | `pluginMissing` | the map was read but `HeartOfMagic_BlackFlame_Copies.esp` is not loaded, or at least half of its entries (and at least one) lost their copy form (the output mod placed before Black Flame, or not enabled) |
+| `notApplied` | Y11: the map was there but filling the copies stopped part way: every copy is left out this session (the log says why) |
 | `stale` | a version 1 map, or the map's request fingerprint differs from this start's: the byte form when `writeRequest` computed it, else the size form (each NIF only opened for its size, no byte read; the request carries both forms) |
 | `fresh` | otherwise |
 
@@ -633,7 +654,8 @@ per session, at the first save load or new game, the player sees a corner notice
 queue: the log only): stale - "Black Flame: your fire spells changed. Run the Black Flame builder, then restart the
 game."; none - "Black Flame: the grey copies are not built yet. Run the Black Flame builder, then restart the game.";
 pluginMissing - "Black Flame: the generated copies are not enabled. Enable HeartOfMagic_BlackFlame_Copies.esp and put
-the copies output mod after Black Flame." The notice counts as shown only once the main-thread queue took it, and none
+the copies output mod after Black Flame."; notApplied - "Black Flame: the grey copies could not be applied this session
+(see HeartOfMagic_BlackFlame.log); fire spells stay as they were." The notice counts as shown only once the main-thread queue took it, and none
 is shown when kDataLoaded did not get as far as the check (the ESP's forms missing, the closure failing: the log says
 why; fix F10). English only (as the rest of this prototype's HUD lines); no id goes on screen. A
 player's fire form without a copy stays orange, logged once per form with the freshness state. Do not deploy a C2
@@ -996,7 +1018,7 @@ no crime. Every projectile re-finds its target first and nothing is launched whe
 | T9-loadout | W4: 1 s after the bound weapon's spell is dispelled and the loadout put back, the player's right and left hands, ammo and shield are read again: PASS when each holds what it held before (the same instance - enchantment, tempering - when the inventory still has it). The left hand is put back on its own unless the right hand held a two-handed weapon, bow or crossbow (W1); a scroll is re-equipped as an item (W19) |
 | T0-hooks | v2: the Launch and explosion creation detours hooked (or chained) with the bytes they found, and both GetImpactData call sites hooked; FAIL for a device that is wanted (config on, copies of that kind filled; the creation detour on AE only) but not hooked; INFO otherwise. Also the round-10 impact call sites, and the prologue replay decoder on fixed byte cases (Launch's and the creation's 1.7.104 prologues = 5, sub rsp imm8/imm32, mov rax/r11 rsp accepted; `48 8B C4 48 89 58 08` and an E9 refused) |
 | T0-request | v2 expansion C1: with `writeRequest` on, PASS when closure forms are above 0, the fingerprint is computed, `request.json` is written, no closure form's or muzzle's NIF failed to read and the dump is unchanged or written in full (else FAIL); an ADDN record's NIF that failed (often another mod's missing mesh) is an INFO line with the count and the first five paths, not a FAIL; INFO when `writeRequest` is off; the line gives the counts, the NIF read time, the fingerprint and the dump state. Whether the closure is the right set is judged from `request.json` against the census, not here |
-| T0-fresh | v2 expansion C5: PASS when the copies are fresh (section "Freshness"); FAIL for stale, none or pluginMissing, with why and how many closure forms have no copy |
+| T0-fresh | v2 expansion C5: PASS when the copies are fresh (section "Freshness"); FAIL for stale, none, pluginMissing or notApplied, with why and how many closure forms have no copy |
 | T0-cover | PASS when every copy-type form of this session's fire closure has a filled copy or was excluded with a reason; FAIL lists the first 20 without one (type, FormID, plugin, the spell that reached it and its plugin). INFO: per fire spell its costliest effect's projectile, dual cast projectile, explosion and casting art, each as copied of present; copies without a grey model (the builder kept the source's); copies no swap point uses (a casting art reached only from an effect that is not a costliest one, a hazard reached only as a non-fire spawn-hazard effect's form). T0-hooks also judges explosion creation, the SetCastingArt call site, the hazard creation detour and the SpawnHazardEffect window: PASS hooked; INFO when left off on purpose (the replay decoder refused the prologue, SE where the function is not verified, the SetCastingArt scan or its byte check) - except on 1.6.1170 / 1.7.104, where a wanted device that is not hooked is a FAIL whatever the note; a full trampoline, a jump into memory that is not executable or a missing id is a FAIL everywhere (fix G1) |
 | T0-bound | per bound fire weapon seed (weapon, MGEF, which branch made it fire, the spell carrying it): its MGEF's projectile and, for a bow or crossbow, every bound-arrow AMMO's projectile has a copy (PASS), is excluded from the closure or has no source mesh (listed with the reason), or has no copy (FAIL: run the builder again); a seed without an arrow PROJ (a melee weapon) is INFO. T0-cover adds an INFO line: bound fire weapon arrows copied of those in the closure |
 | E-bound-launch / E-bound-npc | while stoked, the first bow or crossbow seed with a spell: the player's hands and ammo recorded, the spell cast on the player, then (once the weapon is on the runtime bound fire list, 3 s at most) an arrow shot at the self-test's target deer (T3's aim; no target: SKIP, nothing launched - only the test's own actors are shot) through the AMMO `LaunchData` constructor (projectile base = the ammo's PROJ, weapon and ammo source set): PASS when the Launch record has that PROJ's copy. E-bound-npc: the same ammo and weapon from the deer caster is not swapped. SKIP without a bow seed with a spell, or without bound-arrow AMMO |
@@ -1066,3 +1088,8 @@ Only what needs eyes or hands. Steps 1-3 set up a manual session.
    turns grey (log `placed by a script of the player's fire effect`, `first one attributed to the player through
    its script tag / caster's blame actor`). A RemoteCast hit shader turns grey only if the engine gives the
    effect the blame actor as caster: the `GetHitEffectShader` lines say `caster player` or `other`.
+10. **A flag-only palette shape against the original** (Z17): the builder takes an empty source texture slot as one white
+   texel (the palette's right-hand column), not checked in the shader code. Cast Firestorm (or set a Fire Rune) with the
+   copies and once without Black Flame, and compare `firestormareaeffect.nif`'s `Glow:0`: in the copy it should glow grey
+   about as bright and as wide as the orange one did. Not automated: what the engine binds to an empty slot shows only on
+   screen. Report a copy that is clearly brighter, dimmer or missing.

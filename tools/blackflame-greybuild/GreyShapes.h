@@ -20,6 +20,7 @@
 namespace nifly
 {
     class NifFile;
+    class NiAlphaProperty;
 }
 
 namespace GreyBuild
@@ -81,6 +82,7 @@ namespace GreyBuild
         double baseAlpha = 1.0;     // the base colour's alpha (the palette alpha row with the vertex alpha, Y17)
         double alphaMax = 1.0;      // Y5: the base alpha's largest value, its alpha-transparency controller keys included
         double alphaThreshold = 0.0;  // NiAlphaProperty threshold / 255 (alpha test)
+        bool alphaTest = false;       // Z8: NiAlphaProperty alpha test on (blended or not)
         double colourScale = 1.0;   // baseColorScale
         std::vector<Rgb> colours;   // base colour, then every colour controller value and key reached
         int sequenceLinks = 0;      // controlled blocks that name one of its colour controllers
@@ -106,9 +108,24 @@ namespace GreyBuild
     /// Y16: a shader blends additively when any shape using it does (GreyEffects' BlendByShader rule)
     [[nodiscard]] bool AnyAdditive(const std::vector<const EffectShape*>& a_users) noexcept;
 
-    /// Y2: the emissive multiple's float interpolators a shader's BSEffectShaderPropertyFloatController (variable 0)
-    /// reaches, directly or through controlled blocks: (interpolator, its NiFloatData or NIF_NPOS)
-    [[nodiscard]] std::vector<std::pair<std::uint32_t, std::uint32_t>> EmissiveKeysOf(nifly::NifFile& a_nif, std::uint32_t a_shader);
+    /// Z1, Z2: one block a BSEffectShaderPropertyFloatController reaches - its own interpolator, one a controlled block
+    /// gives it, or that interpolator's NiFloatData - with the shader and the variable it drives
+    struct FloatUse
+    {
+        std::uint32_t block = 0;   // an NiFloatInterpolator, an NiBlendFloatInterpolator or an NiFloatData
+        std::uint32_t shader = 0;
+        std::uint32_t variable = 0;
+    };
+
+    /// Every block every effect-shader float controller of a_nif reaches (directly or through controlled blocks)
+    [[nodiscard]] std::vector<FloatUse> FloatControllerUses(nifly::NifFile& a_nif);
+
+    /// Z12: the one blend classification (builder GreyEffects, VerifyGrey, the glow rules and the risk check)
+    [[nodiscard]] ShapeBlend BlendOfAlpha(const nifly::NiAlphaProperty* a_alpha) noexcept;
+
+    /// Z3: every colour a shape can show: each colour (base and keys) x a_texMean x a_vertex x each particle colour
+    /// modifier colour (one white when it has none) - the one measure of the glow classes and the risk check
+    [[nodiscard]] std::vector<Rgb> ShownColours(const EffectShape& a_shape, const Rgb& a_texMean, const Rgb& a_vertex);
 
     /// Every effect-shader shape of a_nif, in block order
     [[nodiscard]] std::vector<EffectShape> EffectShapes(nifly::NifFile& a_nif);

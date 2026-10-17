@@ -74,9 +74,15 @@ namespace GreyBuild
     };
 
     /// Compares a copy NIF with its source and adds what it finds to a_job (a_nif: the copy's Data-relative path)
-    /// a_haloKept: the glow rules kept this NIF's soft warm glows visible (the G1 exception, GlowContext::haloKept)
+    /// a_haloKept: the glow rules kept this NIF's soft warm glows visible (the G1 exception, GlowContext::haloKept);
+    /// a_mixed: its shaders the glow rules kept out of G1, and why (Z4: said in the GREY_HALO line)
     void RiskCheckNif(nifly::NifFile& a_source, nifly::NifFile& a_copy, const std::string& a_nif, RiskJob& a_job,
-        bool a_haloKept = false);
+        bool a_haloKept = false, const std::map<std::uint32_t, std::string>* a_mixed = nullptr);
+
+    /// Z5: a shape draws at all - shown, blended, its texture not blank; a palette shape with an emissive multiple above 0
+    /// (and alpha above 0 unless palette alpha picks it), a plain one with alpha and colour above 0 (Community Shaders'
+    /// Effect.hlsl: the emissive multiple scales the palette branch only). The glow rules' G1 exception uses it too
+    [[nodiscard]] bool IsDrawn(const EffectShape& a_shape, const TexStats* a_stats);
 
     [[nodiscard]] int RiskCount(const RiskJob& a_job, RiskLevel a_level);
 

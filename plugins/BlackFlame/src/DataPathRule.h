@@ -124,6 +124,22 @@ namespace BlackFlame::DataPathRule
         return std::string(a_root) + path;
     }
 
+    // Z6: our palettes, as Normalize under textures\ gives them: the two shipped ones and the builder's derived ones
+    inline constexpr std::string_view kOurPalette = "textures\\heartofmagic\\blackflame\\gradblackflame.dds";
+    inline constexpr std::string_view kOurPaletteAdd = "textures\\heartofmagic\\blackflame\\gradblackflameadd.dds";
+    inline constexpr std::string_view kDerivedPaletteAdd = "textures\\heartofmagic\\blackflame\\copies\\palettes\\add\\";
+    inline constexpr std::string_view kDerivedPaletteNormal = "textures\\heartofmagic\\blackflame\\copies\\palettes\\normal\\";
+
+    /// Z6: the one definition of "a palette of ours" (the DLL's IsAnyPalettePath, the builder's VerifyGrey and the risk
+    /// check's PAL_FOREIGN): a slot naming one of the two shipped palettes, or a derived palette under
+    /// copies\palettes\add\ or copies\palettes\normal\; compared by these constants, never by what loaded
+    [[nodiscard]] inline bool IsOurPalettePath(std::string_view a_slot)
+    {
+        const auto path = Normalize(a_slot, kTexturesRoot);
+        return path && (*path == kOurPalette || *path == kOurPaletteAdd || StartsWith(*path, kDerivedPaletteAdd) ||
+                           StartsWith(*path, kDerivedPaletteNormal));
+    }
+
     /// Every texture path a NIF names inline (BSShaderTextureSet slots, effect shader textures: a uint32 length, then the
     /// text): each ".dds" (any case) whose run of printable bytes before it is exactly as long as the 4 little-endian bytes
     /// in front say. Reads bytes only (no NIF parser), so it finds the slots of any block type; the text as stored.

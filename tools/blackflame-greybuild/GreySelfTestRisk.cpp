@@ -16,6 +16,7 @@
 
 #include <cmath>
 #include <fmt/format.h>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -43,6 +44,11 @@ namespace GreyBuild::SelfTest
             bool paletteAlpha = false;
             std::optional<nifly::Vector3> directKey;    // a colour controller's own NiPoint3Interpolator key
             std::optional<nifly::Vector3> sequenceKey;  // a key only a controlled block reaches (the controller blends)
+            // Z13: an emissive-multiple float controller: its key; reached only through a controlled block (the controller
+            // holds an NiBlendFloatInterpolator); its interpolator shared with an alpha-transparency controller
+            std::optional<float> emissiveKey;
+            bool emissiveViaSequence = false;
+            bool emissiveShared = false;
             std::optional<nifly::Color4> vertexColour;  // every vertex, with the Vertex_Colors flag
             bool companion = false;  // a second, normal-blend grey shape (smoke) with its own shader and alpha
         };
@@ -120,6 +126,44 @@ namespace GreyBuild::SelfTest
                 interp->dataRef.index = keysId;
                 return Add(a_nif, std::move(interp));
             };
+            if (a_spec.emissiveKey) {
+                auto keys = std::make_unique<nifly::NiFloatData>();
+                keys->data.SetInterpolationType(nifly::NiKeyType::LINEAR_KEY);
+                nifly::NiAnimationKey<float> key;
+                key.value = *a_spec.emissiveKey;
+                keys->data.AddKey(key);
+                const auto keysId = Add(a_nif, std::move(keys));
+                auto interp = std::make_unique<nifly::NiFloatInterpolator>();
+                interp->floatValue = *a_spec.emissiveKey;
+                interp->dataRef.index = keysId;
+                const auto interpId = Add(a_nif, std::move(interp));
+                auto ctrl = std::make_unique<nifly::BSEffectShaderPropertyFloatController>();
+                ctrl->targetRef.index = made.shader;
+                ctrl->typeOfControlledVariable = kFloatVarEmissiveMultiple;
+                if (a_spec.emissiveViaSequence) {
+                    auto blend = std::make_unique<nifly::NiBlendFloatInterpolator>();
+                    blend->value = *a_spec.emissiveKey;
+                    ctrl->interpolatorRef.index = Add(a_nif, std::move(blend));
+                } else {
+                    ctrl->interpolatorRef.index = interpId;
+                }
+                const auto ctrlId = Add(a_nif, std::move(ctrl));
+                if (a_spec.emissiveViaSequence) {
+                    auto sequence = std::make_unique<nifly::NiControllerSequence>();
+                    nifly::ControllerLink link;
+                    link.interpolatorRef.index = interpId;
+                    link.controllerRef.index = ctrlId;
+                    sequence->controlledBlocks.push_back(link);
+                    Add(a_nif, std::move(sequence));
+                }
+                if (a_spec.emissiveShared) {
+                    auto alphaCtrl = std::make_unique<nifly::BSEffectShaderPropertyFloatController>();
+                    alphaCtrl->targetRef.index = made.shader;
+                    alphaCtrl->typeOfControlledVariable = kFloatVarAlpha;
+                    alphaCtrl->interpolatorRef.index = interpId;
+                    Add(a_nif, std::move(alphaCtrl));
+                }
+            }
             if (a_spec.directKey || a_spec.sequenceKey) {
                 auto ctrl = std::make_unique<nifly::BSEffectShaderPropertyColorController>();
                 ctrl->targetRef.index = made.shader;
@@ -322,8 +366,54 @@ namespace GreyBuild::SelfTest
             a_check.Check(RiskGatePasses(good) && Count(good, "PAL_SHEET") == 0 && Count(good, "PAL_VANISH") == 0,
                 fmt::format("Y2: glow rules -> derived palette -> the check, from the copy's own values, passes ({})", RiskGateLine(good)));
             const auto dark = run(palShape, 0.0f, nullptr);
-            a_check.Check(!RiskGatePasses(dark), fmt::format("Y2: --tint-add 0 really darkens a derived additive palette (emissive "
-                "multiple 0) and the check fails it ({})", RiskGateLine(dark)));
+            a_check.Check(Count(dark, "PAL_VANISH") + Count(dark, "EFFECT_EMPTY") >= 1, fmt::format("Y2, Z13: --tint-add 0 really "
+                "darkens a derived additive palette (emissive multiple 0): PAL_VANISH {} / EFFECT_EMPTY {}",
+                Count(dark, "PAL_VANISH"), Count(dark, "EFFECT_EMPTY")));
+            // Z13: the copy's own values - baseColorScale and the emissive keys x tintAdd, a shared block left
+            const auto emissive = [&](const Spec& a_spec, float& a_scale, float& a_key, float& a_blend, int& a_shared) {
+                PaletteJob palettes;
+                palettes.out = out;
+                palettes.textures = &textures;
+                GlowContext glow;
+                glow.textures = &textures;
+                glow.palettes = &palettes;
+                Pair pair;
+                MakePair(pair, a_spec, &glow);
+                auto& hdr = pair.copy.GetHeader();
+                a_scale = a_key = a_blend = -1.0f;
+                for (std::uint32_t id = 0; id < hdr.GetNumBlocks(); ++id) {
+                    if (const auto* shader = hdr.GetBlock<nifly::BSEffectShaderProperty>(id);
+                        shader && (shader->shaderFlags1 & kSlsf1GreyscaleToPaletteColor) != 0) {
+                        a_scale = shader->baseColorScale;
+                    } else if (const auto* data = hdr.GetBlock<nifly::NiFloatData>(id); data && data->data.GetNumKeys() > 0) {
+                        a_key = data->data.GetKey(0).value;
+                    } else if (const auto* blend = hdr.GetBlock<nifly::NiBlendFloatInterpolator>(id)) {
+                        a_blend = blend->value;
+                    }
+                }
+                a_shared = glow.totals.sharedEmissive;
+            };
+            Spec keyed = palShape;
+            keyed.emissiveKey = 2.0f;
+            float scale = 0.0f;
+            float key = 0.0f;
+            float blendValue = 0.0f;
+            int shared = 0;
+            emissive(keyed, scale, key, blendValue, shared);
+            const float expect = kDefaultTintAdd;
+            a_check.Check(std::fabs(scale - expect) < 1e-5f && std::fabs(key - 2.0f * expect) < 1e-5f && shared == 0,
+                fmt::format("Z13: baseColorScale = source x tintAdd ({}), the emissive key x tintAdd ({})", scale, key));
+            Spec viaSequence = keyed;
+            viaSequence.emissiveViaSequence = true;
+            emissive(viaSequence, scale, key, blendValue, shared);
+            a_check.Check(std::fabs(key - 2.0f * expect) < 1e-5f && std::fabs(blendValue - 2.0f * expect) < 1e-5f,
+                fmt::format("Z1, Z2: an emissive key reached through a controlled block and the controller's blend value are "
+                            "x tintAdd ({}, {})", key, blendValue));
+            Spec sharedSpec = keyed;
+            sharedSpec.emissiveShared = true;
+            emissive(sharedSpec, scale, key, blendValue, shared);
+            a_check.Check(std::fabs(key - 2.0f) < 1e-5f && shared >= 1,
+                fmt::format("Z1: a key block the alpha controller shares is left ({}; {} shared block(s) noted)", key, shared));
             Spec flagOnly = palShape;
             flagOnly.texture.clear();
             const auto flag = run(flagOnly, kDefaultTintAdd, nullptr);

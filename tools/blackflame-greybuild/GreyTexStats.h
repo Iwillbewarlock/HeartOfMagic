@@ -49,6 +49,7 @@ namespace GreyBuild
         double colouredFrac = 0.0; // of the texels with alpha x max channel > kStatLitWeight, the share with S > kStatColouredSat
         double energyMean = 0.0;   // mean of max channel x alpha
         double detail = 0.0;       // mean |1 px gradient| of max channel x alpha over its mean
+        double alphaMean = 0.0;    // Z9: mean alpha (a plain shape's light in EFFECT_DIM)
     };
 
     struct TextureLook
@@ -77,7 +78,7 @@ namespace GreyBuild
     {
     public:
         /// a_folders searched in order; a_notInGame: the request's textures the game left out, path -> its reason;
-        /// a_generated (Y14): the output being written, searched first for a path under our copies folder
+        /// a_generated (Y14, Z11): the output being written - the only folder read for a path under our copies folder
         TextureSource(std::vector<std::filesystem::path> a_folders, std::map<std::string, std::string> a_notInGame,
             std::filesystem::path a_generated = {});
 
@@ -126,8 +127,20 @@ namespace GreyBuild
     inline constexpr double kSimLitAlpha = 0.05;
     inline constexpr std::size_t kSimGrid = 128;
 
+    /// Z8: a_testThreshold >= 0 (alpha test on): a sample whose alpha is below it is discarded (GEQUAL passes); a_cutout
+    /// (alpha test without blending): the coverage counts the passing samples as opaque
     [[nodiscard]] PaletteSim SimulatePalette(const RgbaImage& a_texture, const RgbaImage& a_palette, bool a_paletteAlpha,
-        double a_colourRow, double a_alphaRow, double a_darkLum, double a_testThreshold = -1.0);
+        double a_colourRow, double a_alphaRow, double a_darkLum, double a_testThreshold = -1.0, bool a_cutout = false);
+
+    // Z7: the sRGB transfer (IEC 61966-2-1), shared by the palette maker and the simulation
+    inline constexpr float kSrgbLinearLimit = 0.04045f;     // encoded value below which the curve is linear
+    inline constexpr float kSrgbLinearScale = 12.92f;
+    inline constexpr float kSrgbOffset = 0.055f;
+    inline constexpr float kSrgbGamma = 2.4f;
+    inline constexpr float kLinearLimit = 0.0031308f;       // linear value below which the curve is linear
+
+    [[nodiscard]] float SrgbToLinear(float a_value) noexcept;
+    [[nodiscard]] float LinearToSrgb(float a_value) noexcept;
 
     /// The texture a shader samples when its source texture slot is empty (Y1): one white texel (assumed; not checked
     /// against the game's default texture)

@@ -33,16 +33,24 @@ namespace GreyBuild
 
         [[nodiscard]] ShapeBlend BlendOf(const nifly::NiAlphaProperty* a_alpha) noexcept
         {
-            if (!a_alpha) {
-                return ShapeBlend::kNoAlpha;
-            }
-            if ((a_alpha->flags & kAlphaBlendOn) == 0) {
-                return (a_alpha->flags & kAlphaTestOn) != 0 ? ShapeBlend::kTest : ShapeBlend::kOpaque;
-            }
-            const auto dest = static_cast<std::uint16_t>((a_alpha->flags >> kDestBlendShift) & kBlendModeMask);
-            return dest == kBlendOne ? ShapeBlend::kAdditive : dest == kBlendInvSrcAlpha ? ShapeBlend::kNormal : ShapeBlend::kOther;
+            return BlendOfAlpha(a_alpha);
         }
+    }
 
+    ShapeBlend BlendOfAlpha(const nifly::NiAlphaProperty* a_alpha) noexcept
+    {
+        if (!a_alpha) {
+            return ShapeBlend::kNoAlpha;
+        }
+        if ((a_alpha->flags & kAlphaBlendOn) == 0) {
+            return (a_alpha->flags & kAlphaTestOn) != 0 ? ShapeBlend::kTest : ShapeBlend::kOpaque;
+        }
+        const auto dest = static_cast<std::uint16_t>((a_alpha->flags >> kDestBlendShift) & kBlendModeMask);
+        return dest == kBlendOne ? ShapeBlend::kAdditive : dest == kBlendInvSrcAlpha ? ShapeBlend::kNormal : ShapeBlend::kOther;
+    }
+
+    namespace
+    {
         [[nodiscard]] std::map<std::uint32_t, std::uint32_t> Parents(nifly::NifFile& a_nif)
         {
             auto& hdr = a_nif.GetHeader();
@@ -173,15 +181,19 @@ namespace GreyBuild
         void AddFloatValues(nifly::NifFile& a_nif, std::uint32_t a_interp, double& a_max)
         {
             auto& hdr = a_nif.GetHeader();
+            const auto take = [&](float a_value) {
+                if (a_value > kUnusedKeyValue && a_value < kHugeFloatValue) {
+                    a_max = std::max(a_max, static_cast<double>(a_value));
+                }
+            };
+            if (const auto* blend = hdr.GetBlock<nifly::NiBlendFloatInterpolator>(a_interp)) {
+                take(blend->value);  // Z2: a blend interpolator's own value
+                return;
+            }
             auto* interp = hdr.GetBlock<nifly::NiFloatInterpolator>(a_interp);
             if (!interp) {
                 return;
             }
-            const auto take = [&](float a_value) {
-                if (a_value < kHugeFloatValue) {
-                    a_max = std::max(a_max, static_cast<double>(a_value));
-                }
-            };
             if (interp->floatValue > kUnusedKeyValue) {
                 take(interp->floatValue);
             }
@@ -310,14 +322,14 @@ namespace GreyBuild
         return out;
     }
 
-    std::vector<std::pair<std::uint32_t, std::uint32_t>> EmissiveKeysOf(nifly::NifFile& a_nif, std::uint32_t a_shader)
+    std::vector<FloatUse> FloatControllerUses(nifly::NifFile& a_nif)
     {
         auto& hdr = a_nif.GetHeader();
         const auto sequences = SequenceInterpolators(a_nif);
-        std::vector<std::pair<std::uint32_t, std::uint32_t>> out;
+        std::vector<FloatUse> out;
         for (std::uint32_t id = 0; id < hdr.GetNumBlocks(); ++id) {
             auto* ctrl = hdr.GetBlock<nifly::BSEffectShaderPropertyFloatController>(id);
-            if (!ctrl || ctrl->targetRef.index != a_shader || ctrl->typeOfControlledVariable != kFloatVarEmissiveMultiple) {
+            if (!ctrl) {
                 continue;
             }
             std::vector<std::uint32_t> interps{ ctrl->interpolatorRef.index };
@@ -326,8 +338,29 @@ namespace GreyBuild
             }
             for (const auto interp : interps) {
                 if (const auto* f = hdr.GetBlock<nifly::NiFloatInterpolator>(interp)) {
-                    out.emplace_back(interp, f->dataRef.index);
+                    out.push_back({ interp, ctrl->targetRef.index, ctrl->typeOfControlledVariable });
+                    if (f->dataRef.index != nifly::NIF_NPOS) {
+                        out.push_back({ f->dataRef.index, ctrl->targetRef.index, ctrl->typeOfControlledVariable });
+                    }
+                } else if (hdr.GetBlock<nifly::NiBlendFloatInterpolator>(interp)) {
+                    out.push_back({ interp, ctrl->targetRef.index, ctrl->typeOfControlledVariable });
                 }
+            }
+        }
+        return out;
+    }
+
+    std::vector<Rgb> ShownColours(const EffectShape& a_shape, const Rgb& a_texMean, const Rgb& a_vertex)
+    {
+        const Rgb white{ 1.0, 1.0, 1.0 };
+        std::vector<Rgb> modifiers = a_shape.particleColours;
+        if (modifiers.empty()) {
+            modifiers.push_back(white);
+        }
+        std::vector<Rgb> out;
+        for (const auto& colour : a_shape.colours) {
+            for (const auto& modifier : modifiers) {
+                out.push_back(Multiply(Multiply(Multiply(colour, a_texMean), a_vertex), modifier));
             }
         }
         return out;
@@ -362,6 +395,7 @@ namespace GreyBuild
             const auto* alphaProperty = hdr.GetBlock<nifly::NiAlphaProperty>(alphaRef);
             shape.blend = BlendOf(alphaProperty);
             shape.alphaThreshold = alphaProperty ? alphaProperty->threshold / kByteMax : 0.0;
+            shape.alphaTest = alphaProperty && (alphaProperty->flags & kAlphaTestOn) != 0;
             shape.hidden = OnChain(a_nif, parent, id, true, [](nifly::NiHeader& a_hdr, std::uint32_t a_id) {
                 const auto* object = a_hdr.GetBlock<nifly::NiAVObject>(a_id);
                 return object && (object->flags & kHiddenFlag) != 0;

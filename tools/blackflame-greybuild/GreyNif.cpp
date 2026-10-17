@@ -3,7 +3,10 @@
 // =============================================================================
 
 #include "GreyBuild.h"
+
+#include "../../plugins/BlackFlame/src/DataPathRule.h"
 #include "GreyPalette.h"
+#include "GreyShapes.h"
 
 #include <Animation.hpp>
 #include <NifFile.hpp>
@@ -55,11 +58,6 @@ namespace GreyBuild
             return a_color.r == a_color.g && a_color.g == a_color.b;
         }
 
-        // NiAlphaProperty flags: bit 0 blending on, bits 5-8 the destination blend mode (0 = ONE)
-        constexpr std::uint16_t kAlphaBlendOn = 1u;
-        constexpr int kDestBlendShift = 5;
-        constexpr std::uint16_t kBlendModeMask = 0xF;
-        constexpr std::uint16_t kBlendOne = 0;
 
         enum class Blend
         {
@@ -79,10 +77,10 @@ namespace GreyBuild
                     return;
                 }
                 const auto* alpha = a_alpha == nifly::NIF_NPOS ? nullptr : hdr.GetBlock<nifly::NiAlphaProperty>(a_alpha);
-                const Blend blend = !alpha ? Blend::kNoAlpha :
-                                    ((alpha->flags & kAlphaBlendOn) != 0 &&
-                                        ((alpha->flags >> kDestBlendShift) & kBlendModeMask) == kBlendOne) ? Blend::kAdditive :
-                                                                                                             Blend::kNormal;
+                const ShapeBlend shape = BlendOfAlpha(alpha);  // Z12: the one blend classification (GreyShapes.h)
+                const Blend blend = shape == ShapeBlend::kNoAlpha  ? Blend::kNoAlpha :
+                                    shape == ShapeBlend::kAdditive ? Blend::kAdditive :
+                                                                     Blend::kNormal;
                 auto& slot = out.try_emplace(a_shader, blend).first->second;
                 slot = std::max(slot, blend);
             };
@@ -195,7 +193,8 @@ namespace GreyBuild
         const auto blends = BlendByShader(a_nif);
         std::set<std::uint32_t> additive;  // shaders that took the additive palette: their colour controllers use a_tintAdd
 
-        // v2i (cause A2): only a shader that already maps its texture through a palette gets ours. Forcing the flag and the
+        // v2i (cause A2), Y1: only a shader whose palette colour flag is already on gets ours (the shader samples the palette
+        // with or without a source texture). Forcing the flag and the
         // palette on the others (textureless glows, FXWhite tint spheres, lens flares, palette-alpha-only shaders) turned
         // them into flat grey shapes; they keep their flags and textures and only their base colour is greyed
         // v2i (cause A1): an additive palette shader gets the bright-edge palette and its own tint (additive cannot draw dark)
@@ -510,15 +509,17 @@ namespace GreyBuild
         if (a_expectGreyEffects) {
             ForEachBlock<nifly::BSEffectShaderProperty>(a_nif,
                 [&](std::uint32_t a_id, nifly::BSEffectShaderProperty& a_prop) {
-                    // v2i: a palette shader (flag on, a source texture) carries our palette; every other one only a grey
+                    // v2i, Y1, Z6: a palette shader (the flag on) carries one of ours for its blend; every other one only a grey
                     // base colour (flags and textures are never changed, so the copy tells which kind each was)
                     if (UsesPalette(a_prop)) {
                         const auto it = blends.find(a_id);
                         const bool additive = it != blends.end() && it->second == Blend::kAdditive;
-                        // Our fixed palette for its blend, or a palette derived for that blend (GreyPalette.h)
+                        // Z6: one of ours by the shared definition, and the one for its blend: our fixed palette or a
+                        // palette derived for that blend (GreyPalette.h)
                         const std::string greyscale = Lower(a_prop.greyscaleTexture.get());
                         const std::string derived = std::string(kPaletteCopyRoot) + (additive ? kPaletteAddFolder : kPaletteNormalFolder);
-                        if (greyscale != (additive ? paletteAdd : palette) && !StartsWith(greyscale, derived)) {
+                        if (!BlackFlame::DataPathRule::IsOurPalettePath(greyscale) ||
+                            (greyscale != (additive ? paletteAdd : palette) && !StartsWith(greyscale, derived))) {
                             problems.push_back(fmt::format("effect shader block {}: {} palette shader, greyscale texture '{}'",
                                 a_id, additive ? "additive" : "normal-blend", a_prop.greyscaleTexture.get()));
                         }

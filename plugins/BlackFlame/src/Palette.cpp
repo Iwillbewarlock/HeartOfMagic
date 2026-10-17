@@ -1,5 +1,7 @@
 #include "Palette.h"
 
+#include "DataPathRule.h"
+
 #include <array>
 #include <atomic>
 #include <cctype>
@@ -125,10 +127,8 @@ namespace BlackFlame
 
     bool IsAnyPalettePath(const RE::BSFixedString& a_path)
     {
-        // B(d): the builder's palettes derived from each source palette (Y19: only their folder,
-        // textures\heartofmagic\blackflame\copies\palettes\, besides the two fixed ones)
-        constexpr std::string_view kOwnRoot = "heartofmagic\\blackflame\\copies\\palettes\\";
-        return IsPalettePath(a_path) || IsAddPalettePath(a_path) ||
-               (!a_path.empty() && NormalizePath(a_path.c_str()).starts_with(kOwnRoot));
+        // Z6: the shared definition (DataPathRule.h), by constant - not by the palette that loaded, so it holds when
+        // loading failed too
+        return !a_path.empty() && DataPathRule::IsOurPalettePath(a_path.c_str());
     }
 }

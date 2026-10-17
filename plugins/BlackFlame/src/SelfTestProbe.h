@@ -52,9 +52,10 @@ namespace BlackFlame::SelfTestProbe
         int withPalettePointer = 0;  // the material's greyscaleTexture is our palette texture
         int withBoth = 0;
         int withGrey = 0;            // HasGreyMaterial: pointer or path (the contamination test)
-        // v2i: the copies' rule - a palette shader (palette colour flag on and a source texture) carries one of our palettes,
+        // v2i, Y1: the copies' rule - a palette shader (palette colour flag on, with or without a source texture) carries
+        // one of our palettes (loaded, Y8),
         // every other shader a grey base colour (the builder leaves its flags and textures)
-        int paletteShaders = 0;      // palette colour flag on and a source texture
+        int paletteShaders = 0;      // palette colour flag on (Y1: with or without a source texture)
         int withOurPalette = 0;      // the greyscale path names either of our palettes (any shader)
         int withAddPalette = 0;      // of those, the additive palette (GradBlackFlameAdd.dds)
         int greyByRule = 0;          // palette shaders with one of ours plus other shaders with a grey base colour

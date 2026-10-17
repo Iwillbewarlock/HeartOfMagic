@@ -13,6 +13,7 @@
 //   none          no map, or a map with no entry (only the empty ESLs the mod ships)
 //   pluginMissing the map was read but HeartOfMagic_BlackFlame_Copies.esp is not loaded, or more than half of its
 //                 entries lost their copy form (the output mod is not enabled)
+//   notApplied    Y11: the map was there but filling the copies stopped part way (no copy is used this session)
 //   stale         a version 1 map, or the map's request fingerprint differs from this start's (the bytes form when
 //                 writeRequest computed it, else the size form); with how many closure forms have no copy and how
 //                 many map entries lost their source
@@ -51,10 +52,10 @@ namespace BlackFlame
 
     [[nodiscard]] const FreshnessState& GetFreshness() noexcept;
 
-    /// "fresh" / "stale" / "none" / "pluginMissing"
+    /// "fresh" / "stale" / "none" / "pluginMissing" / "notApplied"
     [[nodiscard]] const char* FreshnessName(CopyFreshness a_state) noexcept;
 
-    /// The first kPostLoadGame / kNewGame of the session: the HUD line for stale / none / pluginMissing, once (nothing when
+    /// The first kPostLoadGame / kNewGame of the session: the HUD line for stale / none / pluginMissing / notApplied, once (nothing when
     /// kDataLoaded never checked; marked shown only once the main-thread queue took the notice)
     void NotifyFreshnessOnce();
 

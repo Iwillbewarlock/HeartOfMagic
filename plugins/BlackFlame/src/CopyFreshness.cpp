@@ -7,6 +7,7 @@
 #include "TrackedMutex.h"
 
 #include <algorithm>
+#include <vector>
 #include <atomic>
 #include <chrono>
 #include <cctype>
@@ -166,11 +167,17 @@ namespace BlackFlame
             return ok && !ec ? std::format("{}:{}", size, time.time_since_epoch().count()) : std::string("absent");
         };
         const auto begun = std::chrono::steady_clock::now();
+        // Z14: every entry as UTF-8 text (no narrow conversion that throws on a name the code page lacks), sorted, then
+        // mixed, so the walk's order does not change the key
+        std::vector<std::string> entries;
+        const auto utf8 = [](const std::filesystem::path& a_path) {
+            const auto text = a_path.generic_u8string();
+            return std::string(text.begin(), text.end());
+        };
         for (const auto& model : a_copyModelPaths) {
             // X21: the DLL's own path rule (as the dump and the grey map); a path it refuses is stamped as given
             const std::string relative = DataPathRule::Normalize(model, DataPathRule::kMeshesRoot).value_or(model);
-            mix(model);
-            mix(stamp(std::filesystem::path("Data") / relative));
+            entries.push_back(model + "|" + stamp(std::filesystem::path("Data") / relative));
         }
         // Y8: the palettes the builder derived for the copies are loose files too (the copy NIFs name them)
         std::error_code walkError;
@@ -179,10 +186,13 @@ namespace BlackFlame
              !walkError && it != std::filesystem::recursive_directory_iterator(); it.increment(walkError)) {
             std::error_code typeError;
             if (it->is_regular_file(typeError)) {
-                mix(it->path().string());
-                mix(stamp(it->path()));
+                entries.push_back(utf8(it->path()) + "|" + stamp(it->path()));
                 ++palettes;
             }
+        }
+        std::ranges::sort(entries);
+        for (const auto& entry : entries) {
+            mix(entry);
         }
         mix(std::format("palettes {}", palettes));
         std::string crdw = "no CRDW.dll";

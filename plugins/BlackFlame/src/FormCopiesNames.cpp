@@ -124,9 +124,7 @@ namespace BlackFlame::CopyFill
                 names.forms.reserve(pairs.size());
                 names.forms.insert(pairs.begin(), pairs.end());
                 names.built = true;
-                if (t_scope) {
-                    t_scope->m_built = true;
-                }
+                t_scope->m_built = true;  // Z16: inside a scope only (Y12)
             }
             if (names.built) {
                 if (const auto it = names.forms.find(a_form); it != names.forms.end()) {

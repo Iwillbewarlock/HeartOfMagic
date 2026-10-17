@@ -140,6 +140,7 @@ namespace GreyBuild
             }
         }
         stats.detail = total > 0.0 ? Round3(gradient / total) : 0.0;
+        stats.alphaMean = w * h > 0 ? alphaSum / static_cast<double>(w * h) : 0.0;
         stats.energyMean = Round3(total / static_cast<double>(std::max<std::size_t>(count, 1)));
         return stats;
     }
@@ -155,8 +156,18 @@ namespace GreyBuild
         return white;
     }
 
+    float SrgbToLinear(float a_value) noexcept
+    {
+        return a_value <= kSrgbLinearLimit ? a_value / kSrgbLinearScale : std::pow((a_value + kSrgbOffset) / (1.0f + kSrgbOffset), kSrgbGamma);
+    }
+
+    float LinearToSrgb(float a_value) noexcept
+    {
+        return a_value <= kLinearLimit ? a_value * kSrgbLinearScale : (1.0f + kSrgbOffset) * std::pow(a_value, 1.0f / kSrgbGamma) - kSrgbOffset;
+    }
+
     PaletteSim SimulatePalette(const RgbaImage& a_texture, const RgbaImage& a_palette, bool a_paletteAlpha, double a_colourRow,
-        double a_alphaRow, double a_darkLum, double a_testThreshold)
+        double a_alphaRow, double a_darkLum, double a_testThreshold, bool a_cutout)
     {
         PaletteSim sim;
         const std::size_t step = std::max<std::size_t>(1, std::max(a_texture.width, a_texture.height) / kSimGrid);
@@ -170,11 +181,18 @@ namespace GreyBuild
         for (std::size_t y = 0; y < a_texture.height; y += step) {
             for (std::size_t x = 0; x < a_texture.width; x += step) {
                 const auto t = a_texture.At(x, y);
-                const auto c = Lookup(a_palette, t[1], a_colourRow);
-                const double a = a_paletteAlpha ? Lookup(a_palette, t[3], a_alphaRow)[3] : t[3];
+                auto c = Lookup(a_palette, t[1], a_colourRow);
+                if (a_palette.srgb) {  // Z7: the luminance of the colour the shader gets (decoded), as the builder computes it
+                    for (int i = 0; i < 3; ++i) {
+                        c[i] = SrgbToLinear(static_cast<float>(c[i]));
+                    }
+                }
+                const double raw = a_paletteAlpha ? Lookup(a_palette, t[3], a_alphaRow)[3] : t[3];
+                const bool passes = a_testThreshold < 0.0 || raw >= a_testThreshold;  // Z8: GEQUAL
+                const double a = passes ? raw : 0.0;
                 const double lum = Lum(c);
                 energy += lum * a;
-                alpha += a_testThreshold >= 0.0 ? (a > a_testThreshold ? 1.0 : 0.0) : a;
+                alpha += a_cutout ? (passes ? 1.0 : 0.0) : a;
                 ++samples;
                 if (t[3] > kSimLitAlpha) {
                     ++lit;
@@ -252,7 +270,7 @@ namespace GreyBuild
             Entry entry;
             std::vector<std::filesystem::path> folders = m_folders;
             if (!m_generated.empty() && StartsWith(*path, kTextureCopyRoot)) {
-                folders.insert(folders.begin(), m_generated);  // Y14: this run's copy first, never an older one elsewhere
+                folders = { m_generated };  // Y14, Z11: one of our copies is this run's, read from the output only
             }
             if (const auto file = FindSource(folders, *path)) {
                 if (auto image = ReadRgba(*file, entry.why)) {

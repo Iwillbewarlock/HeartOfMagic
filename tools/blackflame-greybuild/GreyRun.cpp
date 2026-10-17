@@ -140,8 +140,11 @@ namespace GreyBuild
             LoadNif(written, target);
             auto problems = VerifyGrey(written, a_greyEffects, a_map, a_options.keepUnmapped);
             if (a_greyEffects && a_options.judging.risk) {
-                const bool kept = a_options.judging.glow && a_options.judging.glow->haloKept.count(a_rel) != 0;
-                RiskCheckNif(original, written, a_greyRel, *a_options.judging.risk, kept);  // the copy as written, against its source
+                const auto* glow = a_options.judging.glow;
+                const bool kept = glow && glow->haloKept.count(a_rel) != 0;
+                const auto mixed = glow ? glow->mixed.find(a_rel) : decltype(glow->mixed)::const_iterator{};
+                RiskCheckNif(original, written, a_greyRel, *a_options.judging.risk, kept,
+                    glow && mixed != glow->mixed.end() ? &mixed->second : nullptr);  // the copy as written, against its source
             }
             const auto headerProblems = CheckHeaderStrings(original, written);
             for (const auto& line : headerProblems) {

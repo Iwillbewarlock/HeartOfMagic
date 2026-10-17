@@ -42,38 +42,67 @@ namespace GreyBuild
         // Y2: a derived additive palette's brightness: the emissive multiple scales the palette output (Effect.hlsl:
         // baseColor.xyz = BaseColorScale.x x palette; the base colour only picks the row), so --tint-add goes there - the
         // shader's baseColorScale and every emissive-multiple value and key, from the source's
-        void ScaleEmissive(nifly::NifFile& a_copy, nifly::NifFile& a_source, std::uint32_t a_shader, float a_scale)
+        void ScaleEmissive(nifly::NifFile& a_copy, nifly::NifFile& a_source, const std::set<std::uint32_t>& a_shaders,
+            float a_scale, GlowContext& a_ctx, const std::string& a_rel)
         {
+            if (a_shaders.empty()) {
+                return;
+            }
             auto& copyHdr = a_copy.GetHeader();
             auto& sourceHdr = a_source.GetHeader();
-            if (auto* shader = copyHdr.GetBlock<nifly::BSEffectShaderProperty>(a_shader)) {
-                if (const auto* source = sourceHdr.GetBlock<nifly::BSEffectShaderProperty>(a_shader)) {
-                    shader->baseColorScale = source->baseColorScale * a_scale;
+            for (const auto shader : a_shaders) {  // the property's own value: never shared
+                auto* copy = copyHdr.GetBlock<nifly::BSEffectShaderProperty>(shader);
+                const auto* source = sourceHdr.GetBlock<nifly::BSEffectShaderProperty>(shader);
+                if (copy && source) {
+                    copy->baseColorScale = source->baseColorScale * a_scale;
                 }
             }
-            const auto scaled = [&](float a_value) {
-                return a_value > kUnusedKeyValue && a_value < kHugeFloatValue ? a_value * a_scale : a_value;
-            };
-            for (const auto& [interpId, dataId] : EmissiveKeysOf(a_source, a_shader)) {
-                auto* interp = copyHdr.GetBlock<nifly::NiFloatInterpolator>(interpId);
-                const auto* sourceInterp = sourceHdr.GetBlock<nifly::NiFloatInterpolator>(interpId);
-                if (interp && sourceInterp) {
-                    interp->floatValue = scaled(sourceInterp->floatValue);
-                }
-                auto* data = copyHdr.GetBlock<nifly::NiFloatData>(dataId);
-                const auto* sourceData = sourceHdr.GetBlock<nifly::NiFloatData>(dataId);
-                if (!data || !sourceData) {
+            // Z1: a controller block is scaled only when every controller that reaches it drives the emissive multiple of a
+            // shader scaled here; one also shared with another variable (alpha, UV) or another shader is left and noted
+            std::map<std::uint32_t, bool> scalable;  // block -> every user qualifies
+            for (const auto& use : FloatControllerUses(a_source)) {
+                const bool ours = use.variable == kFloatVarEmissiveMultiple && a_shaders.count(use.shader) != 0;
+                auto it = scalable.try_emplace(use.block, ours).first;  // every user must qualify
+                it->second = it->second && ours;
+            }
+            std::set<std::uint32_t> touched;
+            for (const auto& use : FloatControllerUses(a_source)) {
+                if (use.variable != kFloatVarEmissiveMultiple || a_shaders.count(use.shader) == 0 || !touched.insert(use.block).second) {
                     continue;
                 }
-                const auto count = static_cast<int>(std::min(data->data.GetNumKeys(), sourceData->data.GetNumKeys()));
-                for (int i = 0; i < count; ++i) {
-                    const auto source = sourceData->data.GetKey(i);
-                    auto key = data->data.GetKey(i);
-                    key.value = scaled(source.value);
-                    key.forward = source.forward * a_scale;
-                    key.backward = source.backward * a_scale;
-                    data->data.SetKey(i, key);
+                if (!scalable[use.block]) {
+                    ++a_ctx.totals.sharedEmissive;
+                    std::cout << fmt::format("NOTE  {}: block {} drives the emissive multiple of shader {} and also another variable "
+                                             "or shader: left as it is (not x tintAdd)\n", a_rel, use.block, use.shader);
+                    continue;
                 }
+                const auto scaled = [&](float a_value) {
+                    return a_value > kUnusedKeyValue && a_value < kHugeFloatValue ? a_value * a_scale : a_value;
+                };
+                if (auto* interp = copyHdr.GetBlock<nifly::NiFloatInterpolator>(use.block)) {
+                    if (const auto* source = sourceHdr.GetBlock<nifly::NiFloatInterpolator>(use.block)) {
+                        interp->floatValue = scaled(source->floatValue);
+                    }
+                } else if (auto* blend = copyHdr.GetBlock<nifly::NiBlendFloatInterpolator>(use.block)) {
+                    if (const auto* source = sourceHdr.GetBlock<nifly::NiBlendFloatInterpolator>(use.block)) {
+                        blend->value = scaled(source->value);  // Z2
+                    }
+                } else if (auto* data = copyHdr.GetBlock<nifly::NiFloatData>(use.block)) {
+                    const auto* source = sourceHdr.GetBlock<nifly::NiFloatData>(use.block);
+                    if (!source) {
+                        continue;
+                    }
+                    const auto count = static_cast<int>(std::min(data->data.GetNumKeys(), source->data.GetNumKeys()));
+                    for (int i = 0; i < count; ++i) {
+                        const auto from = source->data.GetKey(i);
+                        auto key = data->data.GetKey(i);
+                        key.value = scaled(from.value);
+                        key.forward = from.forward * a_scale;
+                        key.backward = from.backward * a_scale;
+                        data->data.SetKey(i, key);
+                    }
+                }
+                ++a_ctx.totals.emissiveBlocks;
             }
         }
 
@@ -141,19 +170,11 @@ namespace GreyBuild
             const Rgb texMean = stats ? stats->meanRgb : white;
             const bool vertexOn = (a_shape.flags2 & kSlsf2VertexColors) != 0 && a_shape.vertexColours;
             const Rgb vertex = vertexOn ? a_shape.vertexMean : white;
-            // Y5: a particle system's colour modifier multiplies its particles: each of its colours counts too
-            std::vector<Rgb> modifiers = a_shape.particleColours;
-            if (modifiers.empty()) {
-                modifiers.push_back(white);
-            }
             double sat = 0.0;
             double high = 0.0;
-            for (const auto& colour : a_shape.colours) {
-                for (const auto& modifier : modifiers) {
-                    const Rgb shown = Multiply(Multiply(Multiply(colour, texMean), vertex), modifier);
-                    sat = std::max(sat, Saturation(shown, kRiskMinChannel));
-                    high = std::max({ high, shown.r, shown.g, shown.b });
-                }
+            for (const auto& shown : ShownColours(a_shape, texMean, vertex)) {  // Z3: the risk check's measure too
+                sat = std::max(sat, Saturation(shown, kRiskMinChannel));
+                high = std::max({ high, shown.r, shown.g, shown.b });
             }
             if (high <= 0.0) {
                 return { Glow::kG0 };
@@ -210,6 +231,8 @@ namespace GreyBuild
             }
             if (anyG1) {  // Y18: one shader for a soft warm glow and another kind of shape: no RGB 0, said once
                 ++a_ctx.totals.mixed;
+                a_ctx.mixed[a_rel][a_shapes.front()->shader] = fmt::format("shares its shader with {}: kept out of G1",
+                    other.empty() ? std::string("a hidden shape") : other);  // Z4: the risk check's GREY_HALO says why
                 std::cout << fmt::format("NOTE  {}: a soft warm glow shares its shader with {}: not RGB 0 (G1), {}\n", a_rel,
                     other.empty() ? std::string("a hidden shape") : other, anyG2 ? "luminance x tintAdd" : "luminance x tint");
             }
@@ -219,20 +242,11 @@ namespace GreyBuild
         // EFFECT_EMPTY's exception: drawn at all in the source (the risk check's measure)
         [[nodiscard]] bool Drawn(const EffectShape& a_shape, GlowContext& a_ctx)
         {
-            if (a_shape.hidden || a_shape.blend == ShapeBlend::kNoAlpha || a_shape.blend == ShapeBlend::kOpaque) {
-                return false;
-            }
-            if (a_shape.alphaMax * a_shape.multipleMax <= 0.0) {
-                return false;  // Y5: the risk check's Visible - no alpha (controllers included) or no emissive multiple
-            }
+            const TexStats* stats = nullptr;
             if (!a_shape.sourceTexture.empty() && a_ctx.textures) {
-                const auto look = a_ctx.textures->Look(a_shape.sourceTexture);
-                if (look.stats && look.stats->energyMean == 0.0) {
-                    return false;
-                }
+                stats = a_ctx.textures->Look(a_shape.sourceTexture).stats;
             }
-            return IsPaletteShape(a_shape) || std::any_of(a_shape.colours.begin(), a_shape.colours.end(),
-                                                  [](const Rgb& a_c) { return std::max({ a_c.r, a_c.g, a_c.b }) > 0.0; });
+            return IsDrawn(a_shape, stats);  // Z5: the risk check's own measure (GreyRisk.h)
         }
 
         // K: one interpolator and its keys from the source's values (the unused marker kept as it is)
@@ -324,6 +338,7 @@ namespace GreyBuild
         // G: each shader's rule; G1 (RGB 0) only while the NIF keeps a drawn shape - else those shaders take G2
         std::map<std::uint32_t, ColourRule> rules;
         std::set<std::uint32_t> zeroed;
+        std::set<std::uint32_t> emissiveShaders;  // derived additive palettes: --tint-add on their emissive multiple
         for (const auto& [shader, users] : byShader) {
             bool zero = false;
             rules[shader] = RuleFor(users, a_ctx, zero, a_rel);
@@ -333,10 +348,11 @@ namespace GreyBuild
             if (IsPaletteShape(*users.front()) && TakeDerivedPalette(a_copy, shader, users, a_ctx, a_rel)) {
                 rules[shader].red = true;
                 if (AnyAdditive(users)) {
-                    ScaleEmissive(a_copy, a_source, shader, a_ctx.tintAdd);
+                    emissiveShaders.insert(shader);
                 }
             }
         }
+        ScaleEmissive(a_copy, a_source, emissiveShaders, a_ctx.tintAdd, a_ctx, a_rel);
         int drawnBefore = 0;
         int drawnAfter = 0;
         for (const auto& shape : shapes) {
@@ -419,6 +435,9 @@ namespace GreyBuild
                            "greyed {}; blend interpolator values greyed {}; colour controllers without keys {}; vertex colours to "
                            "luminance on {} shape(s) ({} left: geometry a palette shape shares)", a_totals.g1, a_totals.g1Kept,
             a_totals.g2, a_totals.g3, a_totals.g5, a_totals.unread, a_totals.sequenceKeys, a_totals.blendValues,
-            a_totals.unreached, a_totals.vertexShapes, a_totals.vertexShared);
+            a_totals.unreached, a_totals.vertexShapes, a_totals.vertexShared) +
+               fmt::format("; shaders shared by a soft warm glow and another kind of shape (no G1) {}; emissive-multiple "
+                           "controller blocks x tintAdd {}, left as shared with another variable or shader {}",
+                   a_totals.mixed, a_totals.emissiveBlocks, a_totals.sharedEmissive);
     }
 }

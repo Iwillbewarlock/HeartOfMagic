@@ -96,20 +96,22 @@ $commit = (git -C $repo rev-parse HEAD).Trim()
 # W6: published = reachable from a branch or tag that origin has now (fetched first; offline counts as unpublished)
 $published = $false
 $promptBefore = $env:GIT_TERMINAL_PROMPT
-$env:GIT_TERMINAL_PROMPT = '0'  # X12: never wait on a credential prompt
-git -C $repo fetch --quiet --tags origin 2>$null
-$fetchCode = $LASTEXITCODE
-$env:GIT_TERMINAL_PROMPT = $promptBefore  # Y19: put back as it was
-if ($fetchCode -eq 0) {
-    foreach ($line in @(git -C $repo ls-remote --heads --tags origin)) {
-        $sha = ($line -split '\s+')[0]
-        if ($sha) {
-            git -C $repo merge-base --is-ancestor $commit $sha 2>$null
-            if ($LASTEXITCODE -eq 0) { $published = $true; break }
+try {
+    $env:GIT_TERMINAL_PROMPT = '0'  # X12, Z15: no credential prompt for the fetch nor for ls-remote
+    git -C $repo fetch --quiet --tags origin 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        foreach ($line in @(git -C $repo ls-remote --heads --tags origin)) {
+            $sha = ($line -split '\s+')[0]
+            if ($sha) {
+                git -C $repo merge-base --is-ancestor $commit $sha 2>$null
+                if ($LASTEXITCODE -eq 0) { $published = $true; break }
+            }
         }
+    } else {
+        Write-Host "Make-TesterPackage: git fetch origin failed (offline, no access, or a tag conflict): the commit counts as unpublished"
     }
-} else {
-    Write-Host "Make-TesterPackage: git fetch origin failed (offline, no access, or a tag conflict): the commit counts as unpublished"
+} finally {
+    $env:GIT_TERMINAL_PROMPT = $promptBefore  # Y19, Z15: put back as it was, whatever happened
 }
 if ($dirty -and -not $AllowUnpublished) {
     Fail "-AllowDirty packages changes no commit holds: pass -AllowUnpublished too (the source zip then goes in the package)"
@@ -274,15 +276,20 @@ if ($withSource) {
     if ($LASTEXITCODE -ne 0) { Fail "git archive of the CommonLibSSE-NG submodule failed: no source zip, no package" }
     Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
     try {
-        $target = [System.IO.Compression.ZipFile]::Open($sourceZip, [System.IO.Compression.ZipArchiveMode]::Update)
-        $library = [System.IO.Compression.ZipFile]::OpenRead($libZip)
+        $target = $null
+        $library = $null
         try {
+            # Z15: both opened inside the try, so a failed second open still disposes the first
+            $target = [System.IO.Compression.ZipFile]::Open($sourceZip, [System.IO.Compression.ZipArchiveMode]::Update)
+            $library = [System.IO.Compression.ZipFile]::OpenRead($libZip)
             foreach ($entry in $library.Entries) {
                 # X10: the repository's archive already has the submodule's folder entry (its gitlink): never twice
                 if ($target.GetEntry($entry.FullName)) { continue }
                 $copy = $target.CreateEntry($entry.FullName)
                 $copy.LastWriteTime = $entry.LastWriteTime
-                $copy.ExternalAttributes = $entry.ExternalAttributes  # symbolic link and executable bits as git wrote them
+                # Z15: copied, but .NET writes "made on Windows", so extractors ignore the unix bits: a symbolic link comes
+                # out as a small file holding its target (README, Y20)
+                $copy.ExternalAttributes = $entry.ExternalAttributes
                 if ($entry.FullName.EndsWith('/')) { continue }
                 $in = $entry.Open()
                 $out = $copy.Open()

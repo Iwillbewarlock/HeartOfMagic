@@ -24,16 +24,6 @@ namespace GreyBuild
             return static_cast<std::uint8_t>(std::clamp(std::lround(a_value * kByteMax), 0L, kByteTop));
         }
 
-        // Y13: sRGB transfer (IEC 61966-2-1), so an sRGB palette's luminance is taken from linear values
-        [[nodiscard]] float ToLinear(float a_value) noexcept
-        {
-            return a_value <= 0.04045f ? a_value / 12.92f : std::pow((a_value + 0.055f) / 1.055f, 2.4f);
-        }
-
-        [[nodiscard]] float ToSrgb(float a_value) noexcept
-        {
-            return a_value <= 0.0031308f ? a_value * 12.92f : 1.055f * std::pow(a_value, 1.0f / 2.4f) - 0.055f;
-        }
 
         // P2: every texel's colour to its luminance (8-bit, the builder's Luminance; an sRGB palette decoded to linear and
         // encoded back), alpha untouched
@@ -45,12 +35,12 @@ namespace GreyBuild
                 float g = p[1] / kByteMax;
                 float b = p[2] / kByteMax;
                 if (a_image.srgb) {
-                    r = ToLinear(r);
-                    g = ToLinear(g);
-                    b = ToLinear(b);
+                    r = SrgbToLinear(r);  // Y13, Z7: the shared transfer (GreyTexStats.h)
+                    g = SrgbToLinear(g);
+                    b = SrgbToLinear(b);
                 }
                 const float lum = Luminance(r, g, b);
-                const auto grey = Byte(a_image.srgb ? ToSrgb(lum) : lum);
+                const auto grey = Byte(a_image.srgb ? LinearToSrgb(lum) : lum);
                 p[0] = grey;
                 p[1] = grey;
                 p[2] = grey;

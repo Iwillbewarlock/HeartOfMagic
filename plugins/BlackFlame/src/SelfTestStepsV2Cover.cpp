@@ -1,7 +1,7 @@
 // =============================================================================
 // SELF-TEST v2 STEPS - T0-fresh, T0-cover, E1m (v2 expansion C5)
 // =============================================================================
-//   T0-fresh  the copies freshness (CopyFreshness.h): fresh PASS; stale, none and pluginMissing FAIL with why.
+//   T0-fresh  the copies freshness (CopyFreshness.h): fresh PASS; stale, none, pluginMissing and notApplied FAIL with why.
 //   T0-cover  every copy-type form of this session's fire closure has a filled copy or was excluded with a reason
 //             (FAIL lists the first 20 missing: type, FormID, the spell that reached it and its plugin). Per fire spell the
 //             costliest effect's projectile (and its dual cast projectile), that projectile's explosion and the casting
