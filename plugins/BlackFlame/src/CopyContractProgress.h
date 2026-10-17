@@ -7,7 +7,12 @@
 // per finished object, flushed after its file was renamed into place. Fields, in the order the writer puts them:
 //   {"v":1,"kind":"nif|dds|mps|txst","key":"<16hex>","path":"<staging-relative>","bytes":N,"fnv64":"<16hex>",
 //    "outcome":"ok|fallback|failed|too_large|not_dumped","reason":"...","deps":[{"path":"...","fnv64":"..."},{"addn":40012}]}
-// path, bytes and fnv64 are written only for a line with a file (path not empty).
+// path, bytes and fnv64 are written only for a line with a file (path not empty); "cap":N (after outcome) only on a
+// too_large line, where it is required: the job memory cap in bytes the admission estimate was over (a field, not text
+// in reason). The last line for a key wins: a too_large line under a smaller cap may be followed by an ok line for the
+// same key from a run with a larger one, and a failed line by an ok one. The DLL copies a finished file from staging to
+// Data and never moves it: the staging file stays, so the builder's compaction and its cache (an existing key is not
+// built again) keep finding it.
 // The parser takes a line only when:
 //   - it is at most kMaxProgressLine bytes, one JSON object with no key twice (at any depth);
 //   - v is the unsigned number 1; kind, key (16 lower-case hex) and outcome are known values; path and reason, when
@@ -17,7 +22,7 @@
 //     a txst line has no path (its files are its deps);
 //   - an ok or fallback line of nif, dds or mps has its path, bytes > 0 and fnv64 != 0 (FNV-1a 64 of any real file);
 //   - every dep is exactly one of {path, fnv64} (path a copy path, fnv64 != 0) or {addn} (an ADDN slot index,
-//     40000-40207, on nif lines only); a txst line's deps are all under textures\: an ok one has at least one, a fallback
+//     40000-40207, on nif and mps lines only: an MPS's value nodes may name another slot); a txst line's deps are all under textures\: an ok one has at least one, a fallback
 //     one may have none. The builder's TXST copy (GreyFormsTxst.h, GreyFormsTextureSets.cpp) always writes the record and
 //     gives TX00 / TX03 a grey copy only when one was made: a slot whose texture is missing, already grey at tint 1,
 //     non-ASCII or failed keeps the source's text, so a TXST with both colour slots kept has no texture dep. That is a
@@ -151,12 +156,14 @@ namespace BlackFlame::CopyContract
         std::uint64_t fnv64 = 0;
         Outcome outcome = Outcome::kOk;
         std::string reason;
+        std::uint64_t cap = 0;  // too_large only (required there, > 0): the job memory cap in bytes the estimate was over
         std::vector<ProgressDep> deps;
 
         [[nodiscard]] bool operator==(const ProgressLine& a_other) const
         {
             return kind == a_other.kind && key == a_other.key && path == a_other.path && bytes == a_other.bytes &&
-                   fnv64 == a_other.fnv64 && outcome == a_other.outcome && reason == a_other.reason && deps == a_other.deps;
+                   fnv64 == a_other.fnv64 && outcome == a_other.outcome && reason == a_other.reason && deps == a_other.deps &&
+                   cap == a_other.cap;
         }
     };
 
@@ -226,7 +233,7 @@ namespace BlackFlame::CopyContract
                 if (value >= kAddnIndexEnd || !SlotOfAddnIndex(static_cast<std::uint32_t>(value))) {
                     return "a dep's addn is not an ADDN slot index (40000-40207)";
                 }
-                return a_kind == ProgressKind::kNif ? "" : "an addn dep on a line that is not nif";
+                return a_kind == ProgressKind::kNif || a_kind == ProgressKind::kMps ? "" : "an addn dep on a line that is not nif or mps";
             }
             const auto path = a_dep.find("path");
             if (path == a_dep.end() || !path->is_string() || !DataPathRule::ParseCopyPath(path->get_ref<const std::string&>())) {
@@ -320,6 +327,13 @@ namespace BlackFlame::CopyContract
         if (auto why = Detail::PathError(line); !why.empty()) {
             return { std::nullopt, std::move(why) };
         }
+        const bool tooLarge = line.outcome == Outcome::kTooLarge;
+        if (const auto cap = root.find("cap"); cap != root.end() || tooLarge) {
+            if (cap == root.end() || !tooLarge || !cap->is_number_unsigned() || cap->get<std::uint64_t>() == 0) {
+                return { std::nullopt, "cap is required on a too_large line (unsigned, > 0) and found on no other" };
+            }
+            line.cap = cap->get<std::uint64_t>();
+        }
         const bool publishable = IsPublishable(line.outcome);
         if (publishable && line.kind != ProgressKind::kTxst && (line.path.empty() || line.bytes == 0 || line.fnv64 == 0)) {
             return { std::nullopt, "an ok or fallback file line needs path, bytes > 0 and a real fnv64" };
@@ -373,6 +387,9 @@ namespace BlackFlame::CopyContract
             root["fnv64"] = Hex16(a_line.fnv64);
         }
         root["outcome"] = std::string(outcome);
+        if (a_line.outcome == Outcome::kTooLarge) {
+            root["cap"] = a_line.cap;
+        }
         root["reason"] = a_line.reason;
         root["deps"] = nlohmann::ordered_json::array();
         for (const auto& dep : a_line.deps) {

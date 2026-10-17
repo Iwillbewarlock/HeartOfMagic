@@ -169,22 +169,14 @@ namespace BlackFlame::DataPathRule
     inline constexpr std::string_view kDerivedPaletteAdd = "textures\\heartofmagic\\blackflame\\copies\\palettes\\add\\";
     inline constexpr std::string_view kDerivedPaletteNormal = "textures\\heartofmagic\\blackflame\\copies\\palettes\\normal\\";
 
-    /// Z6: the one definition of "a palette of ours" (the DLL's IsAnyPalettePath, the builder's VerifyGrey and the risk
-    /// check's PAL_FOREIGN): a slot naming one of the two shipped palettes, or a derived palette under
-    /// copies\palettes\add\ or copies\palettes\normal\; compared by these constants, never by what loaded
-    [[nodiscard]] inline bool IsOurPalettePath(std::string_view a_slot)
-    {
-        const auto path = Normalize(a_slot, kTexturesRoot);
-        return path && (*path == kOurPalette || *path == kOurPaletteAdd || StartsWith(*path, kDerivedPaletteAdd) ||
-                           StartsWith(*path, kDerivedPaletteNormal));
-    }
-
     // =========================================================================
     // Single-launch copies (CopyContract.h): <root>heartofmagic\blackflame\copies\<key16>\copy.<ext>
     // =========================================================================
     // One object per key folder, under a fixed ASCII name: copy.<ext>, ext the source's extension (lower case, 1..8
-    // ASCII letters or digits). So every copy path is ASCII: progress.jsonl carries it as plain JSON text, and no code
-    // page decides where a separator is. The source's own name, non-ASCII included, appears only inside its key string.
+    // ASCII letters or digits); a derived palette (a builder child of the palette kind) is palette.dds instead, so the
+    // path alone tells a palette of ours from a recoloured texture (IsOurPalettePath). So every copy path is ASCII:
+    // progress.jsonl carries it as plain JSON text, and no code page decides where a separator is. The source's own
+    // name, non-ASCII included, appears only inside its key string.
     // The staging folder (<SKSE log folder>\HeartOfMagic_BlackFlame\staging) mirrors Data, so a copy's staging-relative
     // path is its Data-relative path. The key16 folder never collides with the older copies\palettes\ and copies\_tint\
     // folders (16 hex digits).
@@ -192,6 +184,7 @@ namespace BlackFlame::DataPathRule
     inline constexpr std::string_view kCopiesFolder = "heartofmagic\\blackflame\\copies\\";
     inline constexpr std::size_t kKey16Length = 16;
     inline constexpr std::string_view kCopyStem = "copy.";
+    inline constexpr std::string_view kPaletteCopyName = "palette.dds";  // a derived palette's file in its key folder
     inline constexpr std::size_t kMaxCopyExtension = 8;
     // Windows device names: a file named so (any extension, any case) is the device, not a file
     inline constexpr std::string_view kDeviceNames[] = { "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5",
@@ -202,6 +195,7 @@ namespace BlackFlame::DataPathRule
         std::string_view root;  // kMeshesRoot or kTexturesRoot
         std::string key16;
         std::string extension;  // "nif", "dds", ...
+        bool palette = false;   // palette.dds: a derived palette
     };
 
     /// 16 lower-case hex digits (the one definition; CopyContract::IsKey16 calls it)
@@ -288,9 +282,10 @@ namespace BlackFlame::DataPathRule
         return std::string(extension);
     }
 
-    /// CopyPath back: a_path must be exactly <root>heartofmagic\blackflame\copies\<key16>\copy.<ext> - ASCII only (any
-    /// byte >= 0x80 or < 0x20 refused), Normalize leaves it unchanged, the name a plain ASCII name (IsPlainAsciiName) of
-    /// the form copy.<ext>; else nullopt. The DLL's guard for every path it copies from staging into Data.
+    /// CopyPath back: a_path must be exactly <root>heartofmagic\blackflame\copies\<key16>\copy.<ext>, or
+    /// textures\...\copies\<key16>\palette.dds (palette true) - ASCII only (any byte >= 0x80 or < 0x20 refused),
+    /// Normalize leaves it unchanged, the name a plain ASCII name (IsPlainAsciiName); else nullopt. The DLL's guard for
+    /// every path it copies from staging into Data.
     [[nodiscard]] inline std::optional<CopyPathParts> ParseCopyPath(std::string_view a_path)
     {
         for (const char c : a_path) {
@@ -316,12 +311,15 @@ namespace BlackFlame::DataPathRule
                 return std::nullopt;
             }
             const std::string_view name = rest.substr(kKey16Length + 1);
+            if (root == kTexturesRoot && name == kPaletteCopyName) {
+                return CopyPathParts{ root, std::string(rest.substr(0, kKey16Length)), "dds", true };
+            }
             const auto extension = CopyExtension(name);
             if (!IsPlainAsciiName(name) || !StartsWith(name, kCopyStem) || !extension ||
                 name.size() != kCopyStem.size() + extension->size()) {
                 return std::nullopt;  // a folder below the key folder, another name, a name Windows would change
             }
-            return CopyPathParts{ root, std::string(rest.substr(0, kKey16Length)), *extension };
+            return CopyPathParts{ root, std::string(rest.substr(0, kKey16Length)), *extension, false };
         }
         return std::nullopt;
     }
@@ -357,6 +355,37 @@ namespace BlackFlame::DataPathRule
         std::string_view a_source)
     {
         return CopyPathWith(a_root, a_key16, a_source, IsLeadByte);
+    }
+
+    /// A derived palette's copy for a_key16 (a palette key, CopyContract::PaletteKeyString):
+    /// textures\heartofmagic\blackflame\copies\<key16>\palette.dds; nullopt for a key16 that is not 16 lower-case hex digits
+    [[nodiscard]] inline std::optional<std::string> PaletteCopyPath(std::string_view a_key16)
+    {
+        if (!IsCopyKey16(a_key16)) {
+            return std::nullopt;
+        }
+        std::string path;
+        path.append(kTexturesRoot).append(kCopiesFolder).append(a_key16).append("\\").append(kPaletteCopyName);
+        return path;
+    }
+
+    /// Z6: the one definition of "a palette of ours" (the DLL's IsAnyPalettePath, the builder's VerifyGrey and the risk
+    /// check's PAL_FOREIGN): a slot naming one of the two shipped palettes, a derived palette under copies\palettes\add\
+    /// or copies\palettes\normal\ (the older builds), or a single-launch derived palette (copies\<key16>\palette.dds);
+    /// compared by these constants and ParseCopyPath, never by what loaded. A recoloured texture copy
+    /// (copies\<key16>\copy.dds) is not a palette.
+    [[nodiscard]] inline bool IsOurPalettePath(std::string_view a_slot)
+    {
+        const auto path = Normalize(a_slot, kTexturesRoot);
+        if (!path) {
+            return false;
+        }
+        if (*path == kOurPalette || *path == kOurPaletteAdd || StartsWith(*path, kDerivedPaletteAdd) ||
+            StartsWith(*path, kDerivedPaletteNormal)) {
+            return true;
+        }
+        const auto copy = ParseCopyPath(*path);
+        return copy && copy->palette;
     }
 
     /// A copy's path inside the staging folder (which mirrors Data): a_dataRelative itself when ParseCopyPath takes it,

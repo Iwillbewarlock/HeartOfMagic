@@ -177,6 +177,53 @@ namespace BlackFlame::CopyContractTest
         a_check(keptText && CC::ParseProgress(*keptText).lines.size() == 1 && CC::ParseProgress(*keptText).lines[0] == keptSlots &&
                     !CC::WriteProgressLine(keptOk),
             "progress: a fallback txst line with no texture dep is written and read back; as ok it is refused");
+
+        const std::string mpsHead = "\"v\":1,\"kind\":\"mps\",\"key\":\"0123456789abcdef\"";
+        a_check(dep("{\"addn\":40001}", mpsHead) && !ddsDep("{\"addn\":40001}"),
+            "progress: an addn dep on an mps line (its value nodes name another slot) is taken; on a dds line it is not");
+        const std::string paletteJson = "\"textures\\\\heartofmagic\\\\blackflame\\\\copies\\\\fedcba9876543210\\\\palette.dds\"";
+        a_check(Takes(Line(ddsHead, paletteJson)) && !Takes(Line(kHead, paletteJson)) &&
+                    dep("{\"path\":" + paletteJson + ",\"fnv64\":\"0000000000000001\"}"),
+            "progress: a derived palette's line (dds, palette.dds) and a dep on it are taken; as a nif line it is not");
+
+        CC::ProgressLine tooLarge;
+        tooLarge.kind = CC::ProgressKind::kDds;
+        tooLarge.key = 0xFEDCBA9876543210ull;
+        tooLarge.outcome = CC::Outcome::kTooLarge;
+        tooLarge.cap = 1610612736;
+        tooLarge.reason = "8192 x 8192 RGBA: estimate 1.6 GiB";
+        const auto tooLargeText = CC::WriteProgressLine(tooLarge);
+        auto noCap = tooLarge;
+        noCap.cap = 0;
+        auto capOnOk = NifLine();
+        capOnOk.cap = 5;
+        a_check(tooLargeText ==
+                        std::string("{\"v\":1,\"kind\":\"dds\",\"key\":\"fedcba9876543210\",\"outcome\":\"too_large\",\"cap\":1610612736,") +
+                            "\"reason\":\"8192 x 8192 RGBA: estimate 1.6 GiB\",\"deps\":[]}\n" &&
+                    tooLargeText && CC::ParseProgress(*tooLargeText).lines.size() == 1 &&
+                    CC::ParseProgress(*tooLargeText).lines[0] == tooLarge && !CC::WriteProgressLine(noCap) &&
+                    !CC::WriteProgressLine(capOnOk),
+            "progress: a too_large line carries its cap as a field and reads back; no cap there, or a cap elsewhere, is refused");
+        const std::string ddsTooLarge = "{" + ddsHead + ",\"outcome\":\"too_large\"";
+        a_check(Takes(ddsTooLarge + ",\"cap\":1}") && !Takes(ddsTooLarge + "}") && !Takes(ddsTooLarge + ",\"cap\":0}") &&
+                    !Takes(ddsTooLarge + ",\"cap\":\"1\"}") && !Takes(Line(kHead, std::string("\"") + kNifJson + "\"", "1",
+                                                                   "\"0000000000000001\"", "\"ok\"", ",\"cap\":1")),
+            "progress: the parser wants cap > 0 on too_large lines only");
+        auto earlier = tooLarge;
+        earlier.kind = CC::ProgressKind::kNif;
+        earlier.key = NifLine().key;
+        const auto both = CC::ParseProgress(CC::WriteProgressLine(earlier).value_or("") + CC::WriteProgressLine(NifLine()).value_or(""));
+        a_check(both.lines.size() == 2 && both.lines[0].key == both.lines[1].key &&
+                    both.lines[0].outcome == CC::Outcome::kTooLarge && both.lines[1] == NifLine(),
+            "progress: one key's lines come back in file order (too_large, then ok from a larger cap: the last one wins)");
+
+        namespace Req = CC::Request;
+        a_check(Req::TextureStateFromText("ok") == Req::TextureState::kOk &&
+                    Req::TextureStateFromText("notdumped") == Req::TextureState::kNotDumped &&
+                    Req::TextureStateFromText("missing") == Req::TextureState::kMissing &&
+                    Req::TextureStateFromText("unread") == Req::TextureState::kUnread && !Req::TextureStateFromText("") &&
+                    !Req::TextureStateFromText("over the per-texture cap") && Req::TextureStateText(static_cast<Req::TextureState>(9)).empty(),
+            "request: textures[].state values (ok, notdumped, missing, unread); message text is no state");
         a_check(!Takes(Line(kHead, std::string("\"") + kNifJson + "\"", "1", "\"0000000000000001\"", "\"ok\"",
                     ",\"pad\":\"" + std::string(CC::kMaxProgressLine, 'a') + "\"")) &&
                     !Takes("{" + kHead + ",\"outcome\":\"failed\",\"reason\":\"\xFF\xFE\"}"),
