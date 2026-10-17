@@ -12,6 +12,8 @@
 #include "GreySelfTest.h"
 #include "GreyTexture.h"
 
+#include "../../plugins/BlackFlame/src/DataPathRule.h"
+
 #include <DirectXTex.h>
 
 #include <cstring>
@@ -347,6 +349,68 @@ namespace GreyBuild::SelfTest
             a_check.Check(refusedLeftOut.failed == 1 && afterLeftOut.entries.size() == before.entries.size(),
                 fmt::format("a TXST left out of the request whose copy --out holds is refused before writing (AA3; failed {})",
                     refusedLeftOut.failed));
+            // AB5: --retire-left-out builds anyway and retires it, keeping its id and type
+            leftOut.retireLeftOut = true;
+            const auto retired = BuildForms({}, Request{}, {}, withTxst, kTint, leftOut);
+            const auto afterRetire = LoadCopiesMap(withTxst / "SKSE/Plugins" / kCopiesMapName);
+            const auto retiredType = afterRetire.retiredTypes.find("a.esp|000801");
+            a_check.Check(retired.failed == 0 && afterRetire.entries.empty() && afterRetire.retired.count("a.esp|000801") == 1 &&
+                              retiredType != afterRetire.retiredTypes.end() && retiredType->second == CopyType::kTextureSet,
+                fmt::format("--retire-left-out retires the left-out TXST with its id and type (AB5; failed {})", retired.failed));
+        }
+    }
+
+    namespace
+    {
+        // AB1: the DLL's texturesRaw (each record string's bytes) go into the record and the map unchanged - double-byte
+        // characters, a lone lead byte at the end - with no code page round trip; a non-ASCII colour slot is not recoloured
+        void CheckRawSlots(Checker& a_check, const std::filesystem::path& a_dir)
+        {
+            using BlackFlame::DataPathRule::ToHex;
+            const std::string dbcs = std::string("Effects\\") + "\xB0\xA1" + "_n.dds";  // EUC-KR / CP949 bytes
+            const std::string lone = std::string("Effects\\x") + "\x81";                // a lead byte with no trail
+            const std::string colour = std::string("Effects\\") + "\xC7\xD1" + ".dds";  // non-ASCII in a colour slot
+            const std::string slots[kTxstSlots] = { "Effects\\RuneFire01.dds", dbcs, lone, colour, "", "", "", "" };
+            std::string names;
+            std::string raw;
+            for (std::size_t i = 0; i < kTxstSlots; ++i) {
+                names += fmt::format("{}\"slot{}\"", i == 0 ? "" : ",", slots[i].empty() ? std::string() : std::to_string(i));
+                raw += fmt::format("{}\"{}\"", i == 0 ? "" : ",", ToHex(slots[i]));
+            }
+            const auto form = fmt::format(R"({{"source":"A.esp|000805","type":"TXST","editorId":"Raw","bounds":[0,0,0,0,0,0],)"
+                                          R"("data":{{"flags":0}},"hasDecal":true,"textures":[{}],"texturesRaw":[{}]}})", names, raw);
+            const auto request = LoadFormsRequestFile(WriteText(a_dir / "raw.json",
+                R"({"version":3,"fingerprint":"x","addons":[],"models":[],"forms":[)" + form + "," + kProj + "]}"));
+            const auto* source = request.forms.empty() ? nullptr : &request.forms[0];
+            a_check.Check(source && source->textures[1] == dbcs && source->textures[2] == lone && source->textures[3] == colour &&
+                              request.warnings.empty(),
+                "raw slots (AB1): double-byte characters and a lone lead byte read from texturesRaw byte for byte");
+            CopiesMap map = AssignCopyIds(request.forms, {});
+            TextureJob job;
+            job.out = a_dir / "raw_out";
+            job.diffuseTint = kTint;
+            TextureSource textures({}, {});
+            RiskJob risk;
+            risk.textures = &textures;
+            StageTextureSets(map, &job, risk);
+            const auto* entry = EntryOf(map, "a.esp|000805");
+            a_check.Check(entry && entry->greyTextures[3].empty() && CountRule(risk, "DECAL_NOT_JUDGED") == 1,
+                fmt::format("raw slots (AB1): a non-ASCII colour slot is not recoloured and not judged (WARN {})",
+                    CountRule(risk, "DECAL_NOT_JUDGED")));
+            const auto esl = a_dir / "raw.esp";
+            WriteCopiesEsl(map, request.forms, esl);
+            EslHeader header;
+            const auto back = ReadCopiesEsl(esl, header);
+            const auto* record = entry ? Find(back, entry->localId) : nullptr;
+            a_check.Check(record && record->textures[1] == dbcs && record->textures[2] == lone && record->textures[3] == colour &&
+                              VerifyCopiesEsl(map, request.forms, esl).empty(),
+                "raw slots (AB1): the record holds the source's bytes unchanged (read back)");
+            WriteCopiesMap(map, a_dir / "raw_map.json");
+            const CopiesMap mapBack = LoadCopiesMap(a_dir / "raw_map.json");
+            const auto* again = EntryOf(mapBack, "a.esp|000805");
+            a_check.Check(again && again->sourceTextures[1] == dbcs && again->sourceTextures[2] == lone &&
+                              again->sourceTextureNames[1] == "slot1",
+                "raw slots (AB1): the map keeps the bytes (sourceTexturesRaw) and the names apart");
         }
     }
 
@@ -360,5 +424,6 @@ namespace GreyBuild::SelfTest
         CheckCodePage(a_check, dir);
         CheckTextureStep(a_check, dir);
         CheckOldRequest(a_check, dir);
+        CheckRawSlots(a_check, dir);
     }
 }

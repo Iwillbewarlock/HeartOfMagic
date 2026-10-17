@@ -480,13 +480,21 @@ namespace GreyBuild
         // AA3: a form the request reader left out (a TXST slot it could not use) whose copy --out still holds would be retired
         // and its record dropped: refused the same way
         for (const auto& entry : previous.entries) {
-            if (a_options.leftOut.count(entry.source) != 0) {
-                std::cout << fmt::format("FAIL  {} {} was left out of this request (see the warnings above) but {} holds its copy "
-                                         "{:06X}: building would remove it. Nothing written.\n", CopyTypeTag(entry.type), entry.source,
-                    PathText(out), entry.localId);
-                ++totals.failed;
-                return totals;
+            if (a_options.leftOut.count(entry.source) == 0) {
+                continue;
             }
+            if (a_options.retireLeftOut) {
+                std::cout << fmt::format("NOTE  {} {} is left out of this request: its copy {:06X} is retired (--retire-left-out; a "
+                                         "save holding it no longer finds it)\n", CopyTypeTag(entry.type), entry.source, entry.localId);
+                continue;
+            }
+            std::cout << fmt::format("FAIL  {} {} was left out of this request (see the warnings above, or the request's "
+                                     "excluded list) but {} holds its copy {:06X}: building would remove it. Nothing written. To "
+                                     "build anyway, run again with --retire-left-out (the copy's record goes: only for a new save), "
+                                     "or build into an empty --out.\n", CopyTypeTag(entry.type), entry.source, PathText(out),
+                entry.localId);
+            ++totals.failed;
+            return totals;
         }
         CopiesMap copies = AssignCopyIds(a_sources, previous, a_options.reclaimRetired);
         copies.requestFingerprint = a_options.fingerprint;

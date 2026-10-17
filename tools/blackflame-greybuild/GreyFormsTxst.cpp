@@ -7,6 +7,8 @@
 #include "GreyEslIo.h"
 #include "GreyTexture.h"
 
+#include "../../plugins/BlackFlame/src/DataPathRule.h"
+
 #include <algorithm>
 #include <fmt/format.h>
 
@@ -134,10 +136,26 @@ namespace GreyBuild
             Json::Fail(a_file, a_where + ": a TXST needs 'hasDecal' (true when the source has DODT)");
         }
         a_form.hasDecal = a_item["hasDecal"].get<bool>();
+        // AB1: the DLL's "texturesRaw" (hex of each record string's bytes) is what the copy record gets, never a code page
+        // round trip; a hand-made request without it gives UTF-8 text, converted exactly to the code page
+        const bool raw = a_item.contains("texturesRaw");
+        if (raw && (!a_item["texturesRaw"].is_array() || a_item["texturesRaw"].size() != kTxstSlots)) {
+            Json::Fail(a_file, fmt::format("{}: 'texturesRaw' must be {} hex strings", a_where, kTxstSlots));
+        }
         for (std::size_t i = 0; i < kTxstSlots; ++i) {
             const auto& slot = a_item["textures"][i];
             if (!slot.is_string()) {
                 Json::Fail(a_file, fmt::format("{}: textures[{}] must be a string", a_where, i));
+            }
+            a_form.textureNames[i] = slot.get<std::string>();
+            if (raw) {
+                const auto& hex = a_item["texturesRaw"][i];
+                const auto bytes = hex.is_string() ? BlackFlame::DataPathRule::FromHex(hex.get<std::string>()) : std::nullopt;
+                if (!bytes || bytes->find('\0') != std::string::npos) {
+                    Json::Fail(a_file, fmt::format("{}: texturesRaw[{}] must be hex of the slot's bytes (no 00)", a_where, i));
+                }
+                a_form.textures[i] = *bytes;
+                continue;
             }
             if (slot.get<std::string>().find(kReplacement) != std::string::npos) {
                 // AA2: bytes the game could not read as text (the DLL's SanitizeToUTF8 made them U+FFFD): the copy would name
@@ -236,21 +254,21 @@ namespace GreyBuild
 
     void WriteTextureSetMapParts(nlohmann::ordered_json& a_item, const CopyEntry& a_entry)
     {
-        nlohmann::ordered_json source = nlohmann::ordered_json::array();
+        nlohmann::ordered_json names = nlohmann::ordered_json::array();
+        nlohmann::ordered_json raw = nlohmann::ordered_json::array();
         nlohmann::ordered_json grey = nlohmann::ordered_json::array();
         for (std::size_t i = 0; i < kTxstSlots; ++i) {
-            // reviewer 1: JSON holds UTF-8 (a code page byte would make dump() throw); every slot came in converted, so one
-            // that does not go back is a writer bug (AA5: never an empty slot in its place)
-            for (const auto& [text, list] : { std::pair{ &a_entry.sourceTextures[i], &source }, std::pair{ &a_entry.greyTextures[i], &grey } }) {
-                const auto utf8 = AnsiToUtf8Exact(*text);
-                if (!utf8) {
-                    throw std::runtime_error(fmt::format("{} {} slot {} '{}' does not convert back to UTF-8 (a builder bug)",
-                        a_entry.source, a_entry.editorId, kSlotTags[i], *text));
-                }
-                list->push_back(*utf8);
+            // AB1: the source's bytes in hex (the DLL compares bytes with bytes); its text for people as the request gave it
+            names.push_back(a_entry.sourceTextureNames[i]);
+            raw.push_back(BlackFlame::DataPathRule::ToHex(a_entry.sourceTextures[i]));
+            if (!IsAscii(a_entry.greyTextures[i])) {
+                throw std::runtime_error(fmt::format("{} {} slot {}: grey copy path '{}' is not ASCII (a builder bug)", a_entry.source,
+                    a_entry.editorId, kSlotTags[i], a_entry.greyTextures[i]));  // AA5: never written in another form
             }
+            grey.push_back(a_entry.greyTextures[i]);
         }
-        a_item["sourceTextures"] = std::move(source);
+        a_item["sourceTextures"] = std::move(names);
+        a_item["sourceTexturesRaw"] = std::move(raw);
         a_item["greyTextures"] = std::move(grey);
         a_item["hasDecal"] = a_entry.hasDecal;
     }
@@ -258,7 +276,7 @@ namespace GreyBuild
     void ReadTextureSetMapParts(const std::filesystem::path& a_file, const nlohmann::json& a_item, CopyEntry& a_entry,
         const std::string& a_where)
     {
-        for (const char* key : { "sourceTextures", "greyTextures" }) {
+        for (const char* key : { "sourceTextures", "sourceTexturesRaw", "greyTextures" }) {
             if (!a_item.contains(key)) {
                 continue;  // ids only matter for a later run; a map without them still keeps them stable
             }
@@ -266,12 +284,26 @@ namespace GreyBuild
             if (!list.is_array() || list.size() != kTxstSlots) {
                 Json::Fail(a_file, fmt::format("{}: '{}' must be {} strings", a_where, key, kTxstSlots));
             }
-            auto& out = std::string_view(key) == "sourceTextures" ? a_entry.sourceTextures : a_entry.greyTextures;
+            const std::string_view which = key;
             for (std::size_t i = 0; i < kTxstSlots; ++i) {
                 if (!list[i].is_string()) {
                     Json::Fail(a_file, fmt::format("{}: {}[{}] must be a string", a_where, key, i));
                 }
-                out[i] = Utf8ToAnsi(list[i].get<std::string>());
+                const auto text = list[i].get<std::string>();
+                if (which == "sourceTextures") {
+                    a_entry.sourceTextureNames[i] = text;
+                    if (!a_item.contains("sourceTexturesRaw")) {
+                        a_entry.sourceTextures[i] = Utf8ToAnsi(text);  // a map before AB1
+                    }
+                } else if (which == "sourceTexturesRaw") {
+                    const auto bytes = BlackFlame::DataPathRule::FromHex(text);
+                    if (!bytes) {
+                        Json::Fail(a_file, fmt::format("{}: sourceTexturesRaw[{}] is no hex", a_where, i));
+                    }
+                    a_entry.sourceTextures[i] = *bytes;
+                } else {
+                    a_entry.greyTextures[i] = text;
+                }
             }
         }
         if (a_item.contains("hasDecal") && !a_item["hasDecal"].is_boolean()) {

@@ -12,6 +12,7 @@
 #include "GreyRisk.h"
 #include "GreyTexture.h"
 
+#include <algorithm>
 #include <fmt/format.h>
 #include <iostream>
 
@@ -22,6 +23,12 @@ namespace GreyBuild
         constexpr const char* kRuleDecalColour = "DECAL_COLOUR";
         constexpr const char* kRuleUnread = "UNREAD";
         constexpr const char* kRuleMissing = "MISSING";
+        constexpr const char* kRuleDecalNotJudged = "DECAL_NOT_JUDGED";
+
+        [[nodiscard]] bool IsAsciiText(const std::string& a_text)
+        {
+            return std::all_of(a_text.begin(), a_text.end(), [](char c) { return static_cast<unsigned char>(c) < 0x80; });
+        }
 
         struct ColourSlot
         {
@@ -58,6 +65,13 @@ namespace GreyBuild
                     if (slot.empty()) {
                         continue;
                     }
+                    if (!IsAsciiText(slot)) {
+                        // AB1: its dump file's name depends on a code page conversion of these bytes: left as the source's
+                        std::cout << fmt::format("NOTE  TXST {} {}: '{}' is not plain ASCII: not recoloured (the slot keeps the "
+                                                 "source's bytes)\n", entry.source, colour.name, entry.sourceTextureNames[colour.slot]);
+                        ++a_job->totals.decalSlots;
+                        continue;
+                    }
                     const std::string before = slot;
                     const int repointed = a_job->totals.repointed;
                     ++a_job->totals.decalSlots;
@@ -82,6 +96,11 @@ namespace GreyBuild
         for (const auto& colour : kColourSlots) {
             const std::string& text = CopyRecordTexture(a_entry, colour.slot);
             if (text.empty()) {
+                continue;
+            }
+            if (!IsAsciiText(text)) {
+                AddFinding(a_risk, RiskLevel::kWarn, kRuleDecalNotJudged, a_entry, fmt::format("{} '{}' is not plain ASCII: not "
+                    "recoloured and not judged", colour.name, a_entry.sourceTextureNames[colour.slot]));
                 continue;
             }
             if (!a_risk.textures) {

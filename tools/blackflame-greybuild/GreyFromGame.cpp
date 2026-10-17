@@ -75,7 +75,7 @@ namespace GreyBuild
     }
 
     int RunFromGame(const std::filesystem::path& a_folder, const std::filesystem::path& a_out, float a_tint, bool a_reclaim,
-        float a_tintAdd, bool a_textures, PaletteMode a_paletteMode)
+        float a_tintAdd, bool a_textures, PaletteMode a_paletteMode, bool a_retireLeftOut)
     {
         constexpr int kOk = 0;
         constexpr int kFail = 1;
@@ -151,6 +151,18 @@ namespace GreyBuild
         }
         options.decalTextureSets = parsed.decalTextureSets;
         options.leftOut = parsed.leftOut;
+        options.retireLeftOut = a_retireLeftOut;
+        // AB5: a texture set the DLL itself excluded (not in "forms") goes through the same check as one the reader left out
+        for (const auto& excluded : parsed.excluded) {
+            if (excluded.type != "TXST" || excluded.source.empty()) {
+                continue;
+            }
+            try {
+                options.leftOut.insert(NormalizeSource(excluded.source));
+            } catch (const std::runtime_error& e) {
+                std::cout << fmt::format("WARN  excluded TXST '{}': {}\n", excluded.source, e.what());
+            }
+        }
         if (!parsed.decalTextureSets) {
             std::cout << "NOTE  the request has no decal texture sets (written by a Black Flame DLL before decal copies): the "
                          "player's fire decals (Fire Rune's glyph, scorch marks) stay coloured. Start the game once to the main "

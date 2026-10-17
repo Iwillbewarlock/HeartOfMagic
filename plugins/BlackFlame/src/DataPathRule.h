@@ -140,6 +140,43 @@ namespace BlackFlame::DataPathRule
                            StartsWith(*path, kDerivedPaletteNormal));
     }
 
+    /// AB1: a record string's own bytes as hex (upper case, two digits a byte), so a text that is no text in any code page
+    /// travels through request.json and the copies map unchanged
+    [[nodiscard]] inline std::string ToHex(std::string_view a_bytes)
+    {
+        constexpr char kDigits[] = "0123456789ABCDEF";
+        std::string out;
+        out.reserve(a_bytes.size() * 2);
+        for (const char c : a_bytes) {
+            const auto byte = static_cast<unsigned char>(c);
+            out.push_back(kDigits[byte >> 4]);
+            out.push_back(kDigits[byte & 0x0F]);
+        }
+        return out;
+    }
+
+    /// ToHex back; nullopt for an odd length or a character that is no hex digit
+    [[nodiscard]] inline std::optional<std::string> FromHex(std::string_view a_hex)
+    {
+        if (a_hex.size() % 2 != 0) {
+            return std::nullopt;
+        }
+        const auto digit = [](char a_c) -> int {
+            return a_c >= '0' && a_c <= '9' ? a_c - '0' : a_c >= 'A' && a_c <= 'F' ? a_c - 'A' + 10 : a_c >= 'a' && a_c <= 'f' ? a_c - 'a' + 10 : -1;
+        };
+        std::string out;
+        out.reserve(a_hex.size() / 2);
+        for (std::size_t i = 0; i < a_hex.size(); i += 2) {
+            const int high = digit(a_hex[i]);
+            const int low = digit(a_hex[i + 1]);
+            if (high < 0 || low < 0) {
+                return std::nullopt;
+            }
+            out.push_back(static_cast<char>(high * 16 + low));
+        }
+        return out;
+    }
+
     /// Every texture path a NIF names inline (BSShaderTextureSet slots, effect shader textures: a uint32 length, then the
     /// text): each ".dds" (any case) whose run of printable bytes before it is exactly as long as the 4 little-endian bytes
     /// in front say. Reads bytes only (no NIF parser), so it finds the slots of any block type; the text as stored.

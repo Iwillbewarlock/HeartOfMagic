@@ -138,9 +138,10 @@ namespace GreyBuild
         std::string muzzleModel;  // PROJ: its muzzle flash model, the same form (v3), "" when none
         std::array<std::int16_t, 6> bounds{};
         std::map<std::string, double> data;  // scalar DATA values by key (CopyFieldKeys)
-        // TXST: each slot's text as the record stores it (relative to textures\, the system code page's bytes; the request
-        // gives UTF-8), "" when the slot is empty
+        // TXST: each slot's own bytes as the record stores them (relative to textures\; AB1: the request's "texturesRaw",
+        // never through a code page), "" when the slot is empty; and the same as UTF-8 text for people ("textures")
         std::array<std::string, kTxstSlots> textures{};
+        std::array<std::string, kTxstSlots> textureNames{};
         bool hasDecal = false;  // TXST: the source has DODT (the copy's DODT is a stub the DLL fills)
     };
 
@@ -198,7 +199,8 @@ namespace GreyBuild
         std::string sourceMuzzleModel;  // PROJ, "" when none
         std::string greyMuzzleModel;    // PROJ: the grey copy of its muzzle model, "" when none or not made
         std::string note;         // why a grey copy is missing (warn-and-continue), "" when none
-        std::array<std::string, kTxstSlots> sourceTextures{};  // TXST: the source's slots (record text)
+        std::array<std::string, kTxstSlots> sourceTextures{};  // TXST: the source's slots (its record string's bytes)
+        std::array<std::string, kTxstSlots> sourceTextureNames{};  // TXST: the same as UTF-8 text (the map, for people)
         std::array<std::string, kTxstSlots> greyTextures{};    // TXST: a slot's grey copy (record text), "" = the source's
         bool hasDecal = false;                                 // TXST: the record has the DODT stub
     };
@@ -310,6 +312,7 @@ namespace GreyBuild
         bool ownTextureFolders = true;       // the risk check may read our palettes from the builder's own folders (false
                                              // when the request lists them: the game's own then, or its reason)
         std::set<std::string> leftOut;       // AA3: sources the request reader left out; one --out still copies is refused
+        bool retireLeftOut = false;          // AB5: --retire-left-out: retire those copies on purpose (their records go)
     };
 
     /// The whole --forms run: grey ADDN plan from a_addons (whose models gain the copies' models for their
@@ -327,7 +330,8 @@ namespace GreyBuild
     /// The whole --from-game run: the request (version 3) and its NIF dump in a_folder (empty: FindRequestFolder) into
     /// a_out, warn-and-continue. Exit code 0 / 1 (failure) / 2 (bad arguments), each refusal with the next step.
     [[nodiscard]] int RunFromGame(const std::filesystem::path& a_folder, const std::filesystem::path& a_out, float a_tint,
-        bool a_reclaim, float a_tintAdd = kDefaultTintAdd, bool a_textures = true, PaletteMode a_paletteMode = PaletteMode::kDerived);
+        bool a_reclaim, float a_tintAdd = kDefaultTintAdd, bool a_textures = true, PaletteMode a_paletteMode = PaletteMode::kDerived,
+        bool a_retireLeftOut = false);
 
     /// Writes an ESL-flagged, masterless plugin with no records (HEDR 1.70, next id 0x800): the empty
     /// HeartOfMagic_BlackFlame_Copies.esp / _Local.esp shipped with the mod (a built output replaces them)

@@ -4,7 +4,7 @@
 //   blackflame-greybuild --map <map.json> --in <dir> [--in <dir> ...] --out <mod root>
 //   blackflame-greybuild --request <request.json> --in <dir> [...] --out <mod root> [--tint <0..2>] [--tint-add <0..2>]
 //   blackflame-greybuild --forms <forms.json> --request <request.json> --in <dir> [...] --out <mod root> [--tint <0..2>] [--tint-add <0..2>] [--reclaim-retired] [--no-textures]
-//   blackflame-greybuild --from-game [<request folder>] --out <mod root> [--tint <0..2>] [--tint-add <0..2>] [--reclaim-retired] [--no-textures]
+//   blackflame-greybuild --from-game [<request folder>] --out <mod root> [--tint <0..2>] [--tint-add <0..2>] [--reclaim-retired] [--no-textures] [--retire-left-out]
 //   blackflame-greybuild --write-empty-esls <folder>
 //   blackflame-greybuild --dump <file.nif> [...]
 //   blackflame-greybuild --roundtrip <file.nif> [...]
@@ -42,6 +42,7 @@ namespace
         bool fromGame = false;
         std::filesystem::path fromGameDir;  // empty: found under Documents
         bool reclaimRetired = false;
+        bool retireLeftOut = false;  // AB5: --from-game: retire copies of forms this request leaves out (their records go)
         bool noTextures = false;  // --no-textures: no texture copies (--forms, --from-game)
         std::filesystem::path emptyEsls;
         std::vector<std::filesystem::path> inputs;
@@ -62,7 +63,7 @@ namespace
                      "  blackflame-greybuild --forms <forms.json> --request <request.json> --in <dir> [...] --out <mod root> "
                      "[--tint <0..2>] [--tint-add <0..2>] [--reclaim-retired] [--no-textures] [--palette-mode derived|godskin]\n"
                      "  blackflame-greybuild --from-game [<request folder>] --out <output mod folder> [--tint <0..2>] [--tint-add <0..2>] "
-                     "[--reclaim-retired] [--no-textures] [--palette-mode derived|godskin]\n"
+                     "[--reclaim-retired] [--no-textures] [--palette-mode derived|godskin] [--retire-left-out]\n"
                      "      (the request folder defaults to <Documents>\\My Games\\Skyrim Special Edition[ GOG]\\SKSE\\"
                      "HeartOfMagic_BlackFlame; --out must exist and be the same folder every time; SE and AE, not VR)\n"
                      "      (--no-textures: no grey texture copies; the copy NIFs keep naming the source textures)\n"
@@ -111,6 +112,8 @@ namespace
                 }
             } else if (arg == "--reclaim-retired") {
                 a_options.reclaimRetired = true;
+            } else if (arg == "--retire-left-out") {
+                a_options.retireLeftOut = true;
             } else if (arg == "--write-empty-esls" && hasValue) {
                 a_options.emptyEsls = a_argv[++i];
             } else if (arg == "--map" && hasValue) {
@@ -230,7 +233,14 @@ namespace
 
     [[nodiscard]] int RunForms(const Options& a_options)
     {
-        const auto sources = GreyBuild::LoadFormsRequest(a_options.forms);
+        const auto request = GreyBuild::LoadFormsRequestFile(a_options.forms);
+        if (request.version != GreyBuild::kFormsRequestVersion) {
+            std::cerr << fmt::format("{} is a version {} request (the game's): build it with --from-game, which also reads its "
+                                     "dump, decal flag and left-out forms. --forms takes hand-made version {} requests.\n",
+                a_options.forms.string(), request.version, GreyBuild::kFormsRequestVersion);
+            return kExitUsage;
+        }
+        const auto& sources = request.forms;
         const GreyBuild::Request addons = GreyBuild::LoadRequest(a_options.request);
         std::cout << fmt::format("forms {}: {} source form(s); request {}: {} ADDN record(s), {} model(s)\n",
             a_options.forms.string(), sources.size(), a_options.request.string(), addons.addons.size(),
@@ -276,7 +286,7 @@ int main(int a_argc, char** a_argv)
         }
         try {
             return GreyBuild::RunFromGame(options.fromGameDir, options.out, options.tint, options.reclaimRetired, options.tintAdd,
-                !options.noTextures, options.paletteMode);
+                !options.noTextures, options.paletteMode, options.retireLeftOut);
         } catch (const std::exception& e) {
             std::cerr << e.what() << "\n";
             return kExitFail;

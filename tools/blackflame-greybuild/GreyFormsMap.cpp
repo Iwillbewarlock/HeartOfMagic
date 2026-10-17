@@ -253,6 +253,7 @@ namespace GreyBuild
             entry.sourceMuzzleModel = form.muzzleModel;
             entry.greyMuzzleModel = form.muzzleModel.empty() ? std::string() : CopyModelFor(form.muzzleModel);
             entry.sourceTextures = form.textures;  // TXST (empty otherwise); greyTextures come from the texture step
+            entry.sourceTextureNames = form.textureNames;
             entry.hasDecal = form.hasDecal;
             out.entries.push_back(std::move(entry));
         }
