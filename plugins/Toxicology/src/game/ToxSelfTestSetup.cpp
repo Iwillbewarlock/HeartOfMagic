@@ -97,7 +97,7 @@ namespace
             }
             if (!usable || longest < SelfTest::kMinPoisonSeconds || longest > a_config.maxPoisonSeconds) continue;
             if (SelfTest::BottleCount(item) > 0) continue;  // last: it counts the whole inventory
-            out.push_back({ item, SelfTest::LowerAscii(name), longest, std::move(archetypes) });
+            out.push_back({ item, Toxicology::LowerAscii(name), longest, std::move(archetypes) });
         }
         std::sort(out.begin(), out.end(), [](const PoisonPick& a_l, const PoisonPick& a_r) {
             return a_l.lower != a_r.lower ? a_l.lower < a_r.lower : a_l.item->GetFormID() < a_r.item->GetFormID();
@@ -269,14 +269,6 @@ namespace
 // =============================================================================
 // Inventory and effects
 // =============================================================================
-
-std::string SelfTest::LowerAscii(std::string_view a_text)
-{
-    std::string out(a_text);
-    std::transform(out.begin(), out.end(), out.begin(),
-        [](char a_c) { return (a_c >= 'A' && a_c <= 'Z') ? static_cast<char>(a_c - 'A' + 'a') : a_c; });
-    return out;
-}
 
 bool SelfTest::GiveFavorited(RE::AlchemyItem* a_poison, std::int32_t a_count, std::string& a_why)
 {
@@ -507,6 +499,7 @@ bool SelfTest::Setup(State& s)
         Fail(s, "setup", "the setting \"enabled\" is false - the addon does nothing to test");
         return false;
     }
+    StepShop(s);
     if (!ToxGame::PlayerHasAbility()) {
         player->AddSpell(ToxGame::Ability());  // RE/A/Actor.h:518
         s.addedAbility = true;

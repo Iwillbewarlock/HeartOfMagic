@@ -51,16 +51,6 @@ namespace Toxicology
             a_out = value;
         }
 
-        // ASCII letters lowered, every other byte (UTF-8 lead and trail bytes too) kept
-        std::string LowerAscii(std::string_view a_text)
-        {
-            std::string out(a_text);
-            for (auto& c : out) {
-                if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
-            }
-            return out;
-        }
-
         bool HasPoisonElement(const nlohmann::json& a_entry)
         {
             if (!a_entry.is_object()) return false;
@@ -108,6 +98,15 @@ namespace Toxicology
         }
         std::sort(keys.begin(), keys.end());
         return keys;
+    }
+
+    std::string LowerAscii(std::string_view a_text)
+    {
+        std::string out(a_text);
+        for (auto& c : out) {
+            if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+        }
+        return out;
     }
 
     std::optional<std::size_t> PickTopPoison(const std::vector<PoisonCandidate>& a_candidates)

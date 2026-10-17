@@ -9,6 +9,7 @@
 // ToxSelfTestHits.cpp   steps 2, 3, 4 and 6 (poison spell hits on spawned targets)
 // ToxSelfTestDoses.cpp  step 7 (Magicka spent -> bottles)
 // ToxSelfTestReload.cpp the reload check of step 7 (its state file)
+// ToxSelfTestShop.cpp   the tome in Elgrim's Elixirs (spec 4a, read only)
 // Every member is touched on the game's main thread (SKSE tasks and messages)
 // except the atomics, which the worker thread reads.
 // =============================================================================
@@ -166,6 +167,7 @@ namespace ToxGame::SelfTest
     // Step 1 and the picks; false: nothing further can be tested (FAIL logged)
     bool Setup(State& s);
     void StepI5();
+    void StepShop(State& s);  // ToxSelfTestShop.cpp (spec 4a, read only)
     void StepDoses(State& s);  // ToxSelfTestDoses.cpp
 
     bool SpawnTarget(State& s, std::string_view step);
@@ -192,8 +194,6 @@ namespace ToxGame::SelfTest
     bool GiveFavorited(RE::AlchemyItem* a_poison, std::int32_t a_count, std::string& a_why);
     // HoMTox_MimicPoison on a_on (when showIcon) and not on a_off
     void CheckKeyword(State& s, std::string_view a_step, RE::AlchemyItem* a_on, RE::AlchemyItem* a_off);
-    // A-Z lowered, other bytes kept (the core's name order)
-    std::string LowerAscii(std::string_view a_text);
 
     // =========================================================================
     // Hits (ToxSelfTestHits.cpp)

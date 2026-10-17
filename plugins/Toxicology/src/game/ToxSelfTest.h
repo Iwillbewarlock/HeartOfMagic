@@ -6,7 +6,8 @@
 // Spec 9. Runs only when Data/SKSE/Plugins/HeartOfMagic_Toxicology_selftest.json
 // exists (the file never ships; the code is in the DLL, idle without it). Once
 // per session, startDelayMs (default 30 s) after the player stands loaded in a
-// save, it gives the ability and two poisons, spawns targets in front of the
+// save, it checks the tome in Elgrim's Elixirs' chest (read only: there, teaches
+// the ability, value 350), gives the ability and two poisons, spawns targets in front of the
 // player, casts the load order's poison spells at them (one per delivery) and
 // checks what the addon did; then the bottles and the saved Magicka count.
 // Every result is a log line:

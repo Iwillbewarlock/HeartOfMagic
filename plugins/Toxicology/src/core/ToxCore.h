@@ -89,6 +89,9 @@ namespace Toxicology
         std::int32_t count = 0;
     };
 
+    // A-Z lowered, every other byte (UTF-8 lead and trail bytes too) kept: the name order PickTopPoison uses
+    std::string LowerAscii(std::string_view a_text);
+
     // Among favorited candidates with count > 0: the smallest name by ASCII-lowercased
     // UTF-8 bytes (unsigned), ties by the smaller formId. nullopt when none qualifies.
     std::optional<std::size_t> PickTopPoison(const std::vector<PoisonCandidate>& a_candidates);

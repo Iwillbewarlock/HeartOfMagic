@@ -228,6 +228,17 @@ namespace
         return ExpectPick({}, std::nullopt);
     }
 
+    // Only A-Z changes: digits, punctuation, a-z and every UTF-8 byte (Korean) are kept as they are
+    std::string LowerAsciiOnlyAsciiLetters()
+    {
+        const std::string in = std::string("Az09_[@") + kKoreanPoison;
+        const std::string want = std::string("az09_[@") + kKoreanPoison;
+        const auto got = Toxicology::LowerAscii(in);
+        if (got != want) return "got '" + got + "', want '" + want + "'";
+        if (!Toxicology::LowerAscii("").empty()) return "empty text did not stay empty";
+        return {};
+    }
+
     // ---------------------------------------------------------------- magicka
 
     std::string ConsumeMagickaUnder()
@@ -423,6 +434,7 @@ namespace
         { "PickTopPoisonKoreanAfterAscii", PickTopPoisonKoreanAfterAscii },
         { "PickTopPoisonTieByFormId", PickTopPoisonTieByFormId },
         { "PickTopPoisonEmpty", PickTopPoisonEmpty },
+        { "LowerAsciiOnlyAsciiLetters", LowerAsciiOnlyAsciiLetters },
         { "ConsumeMagickaUnder", ConsumeMagickaUnder },
         { "ConsumeMagickaExact", ConsumeMagickaExact },
         { "ConsumeMagickaMulti", ConsumeMagickaMulti },

@@ -15,6 +15,7 @@
 #include "game/ToxSelfTestState.h"
 
 #include "Common.h"
+#include "core/ToxCore.h"
 #include "game/ToxMagicka.h"
 
 #include <algorithm>
@@ -50,7 +51,7 @@ namespace
     std::string SaveKey(std::string_view a_name)
     {
         if (const auto slash = a_name.find_last_of("/\\"); slash != std::string_view::npos) a_name.remove_prefix(slash + 1);
-        std::string out = SelfTest::LowerAscii(a_name);
+        std::string out = Toxicology::LowerAscii(a_name);
         for (const std::string_view ext : { std::string_view(".ess"), std::string_view(".skse") }) {
             if (out.size() > ext.size() && out.ends_with(ext)) {
                 out.resize(out.size() - ext.size());

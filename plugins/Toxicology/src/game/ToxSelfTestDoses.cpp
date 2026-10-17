@@ -10,6 +10,7 @@
 #include "game/ToxSelfTestState.h"
 
 #include "Common.h"
+#include "core/ToxCore.h"
 #include "game/ToxData.h"
 #include "game/ToxMagicka.h"
 #include "game/ToxSelection.h"
@@ -53,7 +54,7 @@ namespace
             auto& [count, entry] = data;
             if (count <= 0 || !entry || !entry->IsFavorited()) continue;  // RE/I/InventoryEntryData.h:50
             const char* name = entry->GetDisplayName();                   // RE/I/InventoryEntryData.h:39
-            out.push_back({ object->As<RE::AlchemyItem>(), SelfTest::LowerAscii(name ? name : "") });
+            out.push_back({ object->As<RE::AlchemyItem>(), Toxicology::LowerAscii(name ? name : "") });
         }
         std::sort(out.begin(), out.end(), [](const Ranked& a_l, const Ranked& a_r) {
             return a_l.lower != a_r.lower ? a_l.lower < a_r.lower : a_l.item->GetFormID() < a_r.item->GetFormID();
