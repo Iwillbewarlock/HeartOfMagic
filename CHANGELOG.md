@@ -1,11 +1,52 @@
 # Changelog
 
-## Unreleased
+## Heart of Magic Librarian 1.5.1
 
 ### New
 
 - **Skald design.** A sixth look in Settings > UI Display > Design, after Skyrim's own menus: smoky black,
-  thin pale lines, knotwork corners, wide-set capital titles, and the school colours softened to quiet tints.
+  thin pale lines, woven knotwork in the page corners, wide-set capital titles, and the school colours softened
+  to quiet tints. It uses Windows' own Bahnschrift font; without it, the panel's usual narrow font.
+
+### Fixed
+
+- **A saved tree keeps its requirements on the right spells after a load order change.** Removing or moving a
+  light (ESL) plugin could put a spell's requirements on another spell. A spell from a plugin that is no longer
+  active, or from a plugin made ESL after the tree was built, is no longer swapped for an unrelated spell.
+- **The spell gate's Include choice holds for plugins with non-Latin file names** (Korean, Japanese, Chinese) or
+  accented capitals; older choices are converted once by themselves.
+- **XP caps carry over through save and load.** The per-spell caps for casting other spells, same-school spells
+  and direct prerequisites opened again on every load.
+- **Tome XP is given once per tome per save:** loading an earlier save lets you get it again, and restarting the
+  game no longer gives it twice.
+- **Passive learning reaches its tier limits** (it stopped at 25%).
+- **ISL patch:** swapping tomes while studying no longer adds study XP past the threshold, and a spell ISL has not
+  taught you yet is not mastered before you have it.
+- **Changing the learning target no longer leaves "[x% Power]"** on another spell that shares an effect.
+- **Settings:** the XP Caps sliders keep their values between sessions (they went back to 5 / 15 / 50) and Reset
+  to Defaults resets them; a setting changed right before closing the panel is saved; when config.json cannot be
+  read completely the panel no longer saves over it (blacklist, whitelist and chosen roots stay), and the Scan
+  tab says so.
+- **Other mods' XP source settings apply from the game's start** (the Book Reading source turned off or its
+  multiplier lowered), not only after the panel saved its settings once.
+- **BookXP's corner message shows the XP the spells really got** after the multipliers and the cap; it always
+  said +15.
+- **With Modify Game Display off, the game's menus keep the spells' own names and descriptions** (turning it
+  off puts them back).
+- **After Unlock** (also the cheat-mode Unlock) the tree is redrawn at once and the next spells open.
+- **The Classic tier zone chart** shows the current values after a preset is applied, and dragging uses them.
+- **Edit mode:** requirement changes take effect in game when you leave edit mode (before, only after a
+  restart), and spells added in edit mode keep their place after a load order change.
+
+### For mod authors
+
+- `SetSpellXP` is limited to 0-100%. Another mod's XP source cannot use the names Heart of Magic uses itself
+  (`passive`, `isl_study`), and source names over 4096 bytes are refused.
+
+### Good to know
+
+- Saves made with 1.5.1 still load in 1.5.0 with all progress; only the new cap counters are lost there. On a
+  save from 1.5.0 the caps start counting from zero once.
 
 ## Heart of Magic Librarian 1.5.0
 

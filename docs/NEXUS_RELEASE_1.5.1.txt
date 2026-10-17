@@ -1,0 +1,48 @@
+Heart of Magic Librarian 1.5.1 - text for the Nexus upload
+(The page itself: docs/NEXUS_PAGE.bbcode, "New in 1.5.1" section. Full list: CHANGELOG.md.)
+
+=====================================================================
+1. Files tab - main file
+=====================================================================
+
+Name: Heart of Magic Librarian
+Version: 1.5.1
+
+Description:
+Main file. Run the installer (it offers the ISL / DEST compatibility patch). Nothing to do after updating: your saved tree and saves keep working, and no rebuild is needed.
+
+Debug Symbols file description (same version):
+Optional. Puts function names into Crash Logger reports. Install it only if you want to send a crash log.
+
+
+=====================================================================
+2. Changelogs tab - version 1.5.1 (one line per entry)
+=====================================================================
+
+New: Skald design (Settings > UI Display > Design), after Skyrim's own menus: smoky black background, thin pale lines, woven knotwork in the page corners, wide-set capital titles, softened school colours, and Windows' Bahnschrift font (or the panel's usual narrow font without it).
+Fixed: when a light (ESL) plugin is removed or moved, or a plugin is no longer active or made ESL after the tree was built, saved tree requirements stay with their own spells instead of moving to unrelated ones.
+Fixed: the spell gate's Include choice is kept for plugins with non-Latin letters (Korean, Japanese, Chinese) or accented capitals in their file names; older choices are converted once, automatically.
+Fixed: the per-spell XP caps (casting other spells, same-school spells, direct prerequisites) carry over through save and load instead of opening again on every load.
+Fixed: tome XP is given once per tome per save, so loading an earlier save lets you get it again and restarting the game no longer gives it a second time.
+Fixed: passive learning reaches its tier limits instead of stopping at 25%.
+Fixed: with the ISL patch, swapping tomes while studying no longer adds study XP past the threshold, and a spell is not counted as mastered before ISL has taught it to you.
+Fixed: settings for other mods' XP sources (Book Reading turned off, or its multiplier lowered) apply from the start of the game, and the BookXP add-on's corner message shows the XP your spells really got (it always said +15).
+Fixed: the XP Caps sliders keep their values between sessions (instead of going back to 5 / 15 / 50) and Reset to Defaults resets them; a setting changed just before closing the panel is saved; if config.json cannot be read completely, the panel no longer saves over it and the Scan tab says so.
+Fixed: changing your learning target no longer leaves the "[x% Power]" note on another spell that shares an effect; with Modify Game Display off, spell names and descriptions in the game's menus are left unchanged (turning it off puts them back).
+Fixed: after Unlock (and cheat-mode Unlock) the tree is redrawn at once and the next spells open; the Classic tier zone chart shows and drags the current values after a preset is applied; edit mode requirement changes take effect when leaving edit mode, and spells added there keep their place after a load order change.
+Fixed: for mod authors, SetSpellXP is limited to 0-100%, and another mod's XP source cannot use the names Heart of Magic uses itself (such as "passive") or very long source names.
+
+
+=====================================================================
+3. Posts tab - announcement (optional)
+=====================================================================
+
+1.5.1 is up.
+
+- New design: Skald (Settings > UI Display > Design). It looks like Skyrim's own menus, with a smoky black background, thin pale lines, woven knotwork in the corners, wide-set capital titles and softened school colours.
+- Load order changes with light (ESL) or removed plugins no longer put a saved tree's requirements onto the wrong spells.
+- Per-spell XP caps now carry over through save and load, tome XP is given once per tome per save, passive learning goes past 25% to its tier limits, and the ISL patch no longer adds extra study XP when you swap tomes.
+- Book Reading XP: its multiplier now applies from the start of the game, and the BookXP corner message shows the XP your spells really got (it always said +15, which made a lowered multiplier look like it did nothing - thanks for the report).
+- Settings fixes: the XP Caps sliders keep their values, a change made just before closing the panel is saved, and an unreadable config.json is no longer overwritten.
+
+Nothing to do after updating - your saved tree and saves keep working, no rebuild needed. On a save from 1.5.0 the XP caps start counting from zero once. Saves made with 1.5.1 still load in 1.5.0 with all progress (only the new cap counters are lost there).

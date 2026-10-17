@@ -5,7 +5,7 @@ A rebuild of [url=https://www.nexusmods.com/skyrimspecialedition/mods/171146]Hea
 released with the original author's permission to improve and re-release it.[/center]
 [center][color=#ffff00][size=6]PLZ read change log. [/size]
 [/color][/center]
-[center]Source code: [url=https://github.com/Iwillbewarlock/HeartOfMagic/tree/v1.5.0]https://github.com/Iwillbewarlock/HeartOfMagic/tree/v1.5.0[/url][/center]
+[center]Source code: [url=https://github.com/Iwillbewarlock/HeartOfMagic/tree/v1.5.1]https://github.com/Iwillbewarlock/HeartOfMagic/tree/v1.5.1[/url][/center]
 [center][youtube]fyMM1G6eWow[/youtube]
 
 [img]{{IMG_02}}[/img][/center]
@@ -22,6 +22,22 @@ No spell lists to maintain and no patches per spell mod: the tree is built from 
 
 [line]
 
+[size=5][b]New in 1.5.1[/b][/size]
+
+[list]
+[*][b]New design - Skald[/b] (Settings > UI Display > Design). It looks like Skyrim's own menus: smoky black background, thin pale lines, woven knotwork in the page corners, wide-set capital titles, and the magic schools' colours softened to quiet tints. It uses the Bahnschrift font that comes with Windows 10 and 11; without it, the panel's usual narrow font is used.
+[*][b]Saved tree and load order changes:[/b] when a light (ESL) plugin is removed or moved, a saved tree's requirements stay with their own spells instead of ending up on the wrong ones. A spell from a plugin that is no longer active, or from a plugin made ESL after the tree was built, is no longer swapped for an unrelated spell. The spell gate's [b]Include[/b] choice is also kept for plugins whose file names use non-Latin letters (Korean, Japanese, Chinese) or accented capitals; older choices are converted once, automatically.
+[*][b]XP caps, tome XP and passive learning:[/b] the per-spell XP caps (casting other spells, same-school spells, direct prerequisites) now carry over through save and load instead of opening again on every load. Tome XP is given once per tome per save: loading an earlier save lets you get it again, and restarting the game no longer gives it a second time. Passive learning now reaches its tier limits (it stopped at 25%).
+[*][b]ISL and other mods' XP sources:[/b] with the ISL patch, swapping tomes while studying no longer adds study XP past the threshold, and a spell is not counted as mastered before ISL has taught it to you. Settings for other mods' XP sources (for example Book Reading turned off, or its multiplier lowered) apply from the start of the game. The BookXP add-on's corner message now shows the XP your spells really got; it always said +15, so lowering its multiplier looked like it did nothing.
+[*][b]Settings:[/b] the [b]XP Caps[/b] sliders keep their values between sessions (they went back to 5 / 15 / 50), and [b]Reset to Defaults[/b] resets them too. A setting changed just before closing the panel is saved. If config.json cannot be read completely, the panel no longer saves over it (your blacklist, whitelist and chosen roots stay), and the Scan tab's status line says so.
+[*][b]Spell text in the game's menus:[/b] changing your learning target no longer leaves the "[x% Power]" note on another spell that shares an effect. With [b]Modify Game Display[/b] off, spell names and descriptions are left unchanged, and turning it off puts them back.
+[*][b]Tree:[/b] after [b]Unlock[/b] (and the cheat-mode Unlock), the tree is redrawn at once and the next spells open. The Classic tier zone chart shows the current values after a preset is applied, and dragging it uses them. In edit mode, requirement changes take effect when you leave edit mode (before, only after a restart), and spells added there keep their place after a load order change.
+[*][b]For mod authors:[/b] SetSpellXP is limited to 0-100%. Another mod's XP source cannot use the names Heart of Magic uses itself (such as "passive"), and very long source names are refused.
+[/list]
+[b]After updating:[/b] nothing to do - your saved tree and saves keep working, no rebuild needed. On a save from 1.5.0 the XP caps start counting from zero once. Saves made with 1.5.1 still load in 1.5.0 with all progress; only the new cap counters are lost there.
+
+[spoiler]
+
 [size=5][b]New in 1.5.0[/b][/size]
 
 [list]
@@ -34,7 +50,6 @@ No spell lists to maintain and no patches per spell mod: the tree is built from 
 [/list]
 [b]After updating:[/b] nothing to do - your saved tree keeps working.
 
-[spoiler]
 
 [size=5][b]New in 1.4.0[/b][/size]
 
@@ -165,7 +180,7 @@ The tree is easier to read, quicker to use and smoother to handle - and it keeps
 [*][b]A camera that follows you.[/b] Clicking a spell glides to it (Center on Click, Zoom on Click, Focus Zoom, Rotate Wheel, Dim Others - each a setting).
 [*][b]Clicks do what you meant.[/b] A click no longer nudges the tree. Esc first drops the selection, then closes the panel; Esc in Find Spell closes only the search.
 [*][b]Tidy trees.[/b] Spells are moved off each other, off the lines and off the heart when a tree is built.
-[*][b]Five designs[/b] - Classic (the old look), Modern Dark, Arcane (a parchment spellbook), Night Grimoire and Chalkboard - each with its own lines and fonts for every script. Add-on designs are one JSON file.
+[*][b]Six designs[/b] - Classic (the old look), Modern Dark, Arcane (a parchment spellbook), Night Grimoire, Chalkboard and Skald (after Skyrim's own menus) - each with its own lines and fonts. Add-on designs are one JSON file.
 [*][b]The Render popup[/b] turns off any moving part with one chip, or everything with "Still everything".
 [/list]
 

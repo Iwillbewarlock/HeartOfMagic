@@ -68,6 +68,16 @@ public:
 private:
     BookMenuWatcher() = default;
 
+    // Whole numbers, or one decimal below 10 so a small grant does not read as 0 or 1 ("7.5", "3")
+    static std::string FormatXP(float xp)
+    {
+        static constexpr float kWholeFrom = 10.0f;
+        if (xp >= kWholeFrom) return fmt::format("{:.0f}", xp);
+        auto text = fmt::format("{:.1f}", xp);
+        if (text.ends_with(".0")) text.resize(text.size() - 2);
+        return text;
+    }
+
     // Full API path - query targets and grant XP with source tracking
     static void GrantXPViaAPI()
     {
@@ -78,6 +88,8 @@ private:
         };
 
         int granted = 0;
+        float leastGranted = 0.0f;
+        float mostGranted = 0.0f;
         for (const char* school : schools) {
             uint32_t targetId = g_api->GetLearningTarget(school);
             if (targetId != 0) {
@@ -86,6 +98,8 @@ private:
                 if (actual > 0.0f) {
                     logger::info("SL_BookXP: Granted {:.1f} XP to {:08X} ({})",
                         actual, targetId, school);
+                    leastGranted = granted == 0 ? actual : (std::min)(leastGranted, actual);
+                    mostGranted = granted == 0 ? actual : (std::max)(mostGranted, actual);
                     granted++;
                 } else {
                     logger::info("SL_BookXP: XP capped for {:08X} ({}) - returned {:.1f}",
@@ -95,7 +109,12 @@ private:
         }
 
         if (granted > 0) {
-            auto xpText = fmt::format("{:.0f}", XP_PER_BOOK);
+            // The XP the spells really got - after the Overall XP Multiplier, this source's
+            // Multiplier and Cap - not XP_PER_BOOK, which the corner showed before 1.5.1
+            auto xpText = FormatXP(leastGranted);
+            if (FormatXP(mostGranted) != xpText) {
+                xpText += "-" + FormatXP(mostGranted);
+            }
             auto countText = std::to_string(granted);
             constexpr const char* kEnglish = "[BookXP] +{{xp}} XP to {{count}} spell(s)";
             // Heart of Magic 1.2.1+ shows it in the panel's language and honours

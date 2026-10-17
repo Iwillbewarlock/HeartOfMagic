@@ -7,7 +7,9 @@ Pure SKSE DLL plugin (no ESP) that grants spell learning XP when the player read
 1. On `kPostLoad`: Requests `ISpellLearningAPI*` from SpellLearning via SKSE messaging
 2. On `kDataLoaded`: Registers "Book Reading" as a custom XP source (creates UI controls)
 3. On `BookMenu` open: Queries all active learning targets via API, grants XP to each, and shows
-   "+XP to N spell(s)" with `api->ShowNotification("hud.bookXpGranted", ...)` (API v2): in the panel's
+   "+XP to N spell(s)" with `api->ShowNotification("hud.bookXpGranted", ...)` (API v2) - the XP the spells
+   really got after the multipliers and the cap ("7.5", or a range such as "3-15" when spells differ; up to
+   1.5.0 it always said 15): in the panel's
    language, and not at all when Settings > XP Alerts is off. With an older Heart of Magic (API v1)
    it shows the English text itself. The Papyrus version (`SL_BookXP_QuestScript`) gets its text from
    `SpellLearning.NotificationText` the same way, and shows its English text when that gives "" while
@@ -90,7 +92,9 @@ With default SpellLearning settings (cap 25%):
 | Expert | 800 | 200 | ~13 |
 | Master | 1500 | 375 | ~25 |
 
-Users adjust via the "Book Reading" multiplier (0-200%) and cap (0-100%) sliders in SpellLearning settings.
+Users adjust via the "Book Reading" multiplier (0-200%) and cap (0-100%) sliders in SpellLearning settings
+(Settings > Progression > Modded XP Sources). Up to 1.5.0 the saved values reached the game only after the panel
+saved its settings once in that session; since 1.5.1 they apply from the game's start.
 
 ## XP Flow
 
