@@ -20,7 +20,9 @@
 namespace RE
 {
     class Actor;
+    class ActiveEffect;
     class AlchemyItem;
+    template <class T> class BSSimpleList;
 }
 
 namespace ToxGame
@@ -42,4 +44,10 @@ namespace ToxGame
 
     // Forgets every record and last-action time. Called on kPreLoadGame, kNewGame and co-save Revert.
     void ClearApplications();
+
+    // The actor's active effect list, or null. Always through Actor::AsMagicTarget(): the MagicTarget
+    // base sits at 0x98 before 1.6.629 and 0xA0 from it (RE/A/Actor.h:777), so calling
+    // Actor::GetActiveEffectList() directly uses the compile-time offset and, on the other runtime,
+    // calls through the wrong vtable (crash 2026-10-17: RIP 0 in ApplyOrRefresh on 1.6.1170).
+    RE::BSSimpleList<RE::ActiveEffect*>* ActiveEffectsOf(RE::Actor* a_actor);
 }

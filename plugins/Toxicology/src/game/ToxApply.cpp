@@ -294,13 +294,13 @@ namespace
     {
         DecideResult result;
         const auto before = EffectsOf(a_targetList, a_poison);
-        const auto playerBefore = EffectsOf(a_player->GetActiveEffectList(), a_poison);
+        const auto playerBefore = EffectsOf(ToxGame::ActiveEffectsOf(a_player), a_poison);
         if (!CastPoison(a_target, a_poison, a_player)) {
             result.outcome = ToxGame::ApplyOutcome::kNoCaster;
             return result;
         }
         // Fetched again: the list may only exist once the cast added something
-        auto* after = a_target->GetActiveEffectList();
+        auto* after = ToxGame::ActiveEffectsOf(a_target);
         auto created = after ? NewOwnedEffects(*after, a_poison, before, a_player->GetHandle(), a_target->GetHandle())
                              : std::vector<OwnedEffect>{};
         result.count = created.size();
@@ -314,7 +314,7 @@ namespace
             result.noEffect = NoEffectReason::kInstantOnly;
         } else if (!after) {
             result.noEffect = NoEffectReason::kNoTargetList;
-        } else if (HasNewEffectOf(a_player->GetActiveEffectList(), a_poison, playerBefore)) {
+        } else if (HasNewEffectOf(ToxGame::ActiveEffectsOf(a_player), a_poison, playerBefore)) {
             result.noEffect = NoEffectReason::kOnCaster;
         } else {
             result.noEffect = NoEffectReason::kNowhere;
@@ -326,7 +326,7 @@ namespace
     {
         // RE/A/Actor.h:373 (SE/AE vtable, no VR shim). Null = no effects yet (CommonLib's own
         // MagicTarget::HasEffectWithArchetype checks it the same way): nothing to refresh, cast.
-        auto* list = a_target->GetActiveEffectList();
+        auto* list = ToxGame::ActiveEffectsOf(a_target);
         if (!list) a_app.effects.clear();
 
         // Step 1: our effects still on the target
@@ -379,4 +379,10 @@ void ToxGame::ClearApplications()
 {
     g_applications.clear();
     g_warnedNoEffect.fill(false);
+}
+
+RE::BSSimpleList<RE::ActiveEffect*>* ToxGame::ActiveEffectsOf(RE::Actor* a_actor)
+{
+    auto* target = a_actor ? a_actor->AsMagicTarget() : nullptr;  // RE/A/Actor.h:777 (versioned base offset)
+    return target ? target->GetActiveEffectList() : nullptr;      // RE/M/MagicTarget.h:122 (vfunc 07)
 }

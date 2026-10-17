@@ -6,6 +6,7 @@
 #include "game/ToxSelfTestState.h"
 
 #include "Common.h"
+#include "game/ToxApply.h"
 #include "game/ToxData.h"
 #include "game/ToxMagicka.h"
 #include "game/ToxSelection.h"
@@ -343,7 +344,7 @@ bool SelfTest::IsLiveEffect(const RE::ActiveEffect& a_effect)
 std::vector<RE::ActiveEffect*> SelfTest::LiveEffectsOf(RE::Actor* a_actor, const RE::MagicItem* a_item)
 {
     std::vector<RE::ActiveEffect*> out;
-    auto* list = a_actor ? a_actor->GetActiveEffectList() : nullptr;  // RE/A/Actor.h:373
+    auto* list = ToxGame::ActiveEffectsOf(a_actor);  // ToxApply.h (through AsMagicTarget)
     if (!list) return out;
     for (auto* effect : *list) {
         if (effect && effect->spell == a_item && IsLiveEffect(*effect)) out.push_back(effect);
@@ -360,7 +361,7 @@ std::vector<SelfTest::EffectRef> SelfTest::Refs(const std::vector<RE::ActiveEffe
 
 RE::ActiveEffect* SelfTest::FindAgain(RE::Actor* a_actor, const EffectRef& a_ref)
 {
-    auto* list = a_actor ? a_actor->GetActiveEffectList() : nullptr;
+    auto* list = ToxGame::ActiveEffectsOf(a_actor);
     if (!list) return nullptr;
     for (auto* effect : *list) {
         if (effect == a_ref.effect && effect->usUniqueID == a_ref.uniqueId) return effect;
