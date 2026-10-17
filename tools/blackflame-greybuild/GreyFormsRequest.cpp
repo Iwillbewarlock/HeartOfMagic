@@ -32,8 +32,6 @@ namespace GreyBuild
     namespace
     {
         constexpr std::uint32_t kMaxLocalId = 0xFFFFFF;
-        constexpr std::size_t kMaxIdDigits = 6;
-        constexpr int kHexBase = 16;
         constexpr std::size_t kBoundCount = 6;
 
         [[nodiscard]] CopyType ParseType(const std::filesystem::path& a_file, const std::string& a_tag,
@@ -121,8 +119,8 @@ namespace GreyBuild
             a_request.fingerprintSizes = Json::ReadOptionalString(a_file, a_root, "fingerprintSizes", "the request");
             a_request.game = Json::ReadOptionalString(a_file, a_root, "game", "the request");
             a_request.excluded = ReadExcludedForms(a_file, a_root);
-        a_request.decalTextureSets = a_root.contains("decalTextureSets") && a_root["decalTextureSets"].is_boolean() &&
-                                     a_root["decalTextureSets"].get<bool>();
+            a_request.decalTextureSets = a_root.contains("decalTextureSets") && a_root["decalTextureSets"].is_boolean() &&
+                                         a_root["decalTextureSets"].get<bool>();
             if (a_root.contains("nifs")) {
                 const auto& nifs = Json::RequireArray(a_file, a_root, "nifs");
                 for (std::size_t i = 0; i < nifs.size(); ++i) {
@@ -173,7 +171,7 @@ namespace GreyBuild
         if (id.rfind("0x", 0) == 0 || id.rfind("0X", 0) == 0) {
             id.erase(0, 2);
         }
-        const bool hex = !id.empty() && id.size() <= kMaxIdDigits &&
+        const bool hex = !id.empty() && id.size() <= kMaxLocalIdDigits &&
                          id.find_first_not_of("0123456789abcdefABCDEF") == std::string::npos;
         if (!hex || std::stoul(id, nullptr, kHexBase) > kMaxLocalId) {
             throw std::runtime_error(fmt::format("source '{}': the local id must be up to 6 hex digits", a_source));
@@ -232,6 +230,7 @@ namespace GreyBuild
                         Json::Fail(a_file, where + ": " + why);
                     }
                     request.warnings.push_back(why);
+                    request.leftOut.insert(form.source);  // AA3: BuildForms refuses to retire a copy --out still has
                     continue;  // left out: its decal stays the source's
                 }
             }
@@ -250,7 +249,7 @@ namespace GreyBuild
                     return std::string();
                 }
             };
-            form.model = form.type == CopyType::kTextureSet ? std::string() : readModel("model");
+            form.model = TraitsOf(form.type).model ? readModel("model") : std::string();  // TXST: no MODL
             if (form.type == CopyType::kProjectile) {
                 form.muzzleModel = readModel("muzzleModel");
             }

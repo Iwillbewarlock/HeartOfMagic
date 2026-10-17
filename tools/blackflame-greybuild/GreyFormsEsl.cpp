@@ -159,7 +159,7 @@ namespace GreyBuild
                 const auto& b = a_source.bounds;
                 body.Sub("OBND", Pack(b[0], b[1], b[2], b[3], b[4], b[5]));
             }
-            if (const auto model = CopyRecordModel(a_entry); !model.empty()) {
+            if (const auto model = CopyRecordModel(a_entry); TraitsOf(a_entry.type).model && !model.empty()) {
                 body.ZString("MODL", model);  // the grey copy, or the source's own model when no grey copy could be made
             }
             body.Sub(CopyDataTag(a_entry.type), DataBytes(a_source));
@@ -410,8 +410,8 @@ namespace GreyBuild
             const bool soundOk = entry.type == CopyType::kProjectile ?
                                      (it->hasSoundLevel && it->soundLevel == ProjectileSoundLevel(a_sources[i])) :
                                      !it->hasSoundLevel;
-            // ARTO: the scalars in DNAM and no DATA; every other type: DATA and no DNAM
-            const bool art = entry.type == CopyType::kArtObject;
+            // the scalars in the type's subrecord (ARTO: DNAM and no DATA; the others DATA and no DNAM)
+            const bool art = std::string_view(CopyDataTag(entry.type)) == "DNAM";
             const bool scalarsOk = art ? (it->hasDnam && it->dnam == DataBytes(a_sources[i]) && !it->hasData) :
                                          (!it->hasDnam && it->hasData && it->data == DataBytes(a_sources[i]));
             const bool modelOk = model.empty() ? !it->hasModel : (it->hasModel && it->model == model);

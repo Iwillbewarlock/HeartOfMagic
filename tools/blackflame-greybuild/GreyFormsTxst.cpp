@@ -32,7 +32,11 @@ namespace GreyBuild
             return std::all_of(a_text.begin(), a_text.end(), [](char c) { return static_cast<unsigned char>(c) < 0x80; });
         }
 
-        // a_text from a_from to a_to through UTF-16; nullopt when it is not valid in a_from or loses a character in a_to
+        // AA2: U+FFFD, what a code page's bytes that are no valid text become (EF BF BD in UTF-8)
+        constexpr std::string_view kReplacement = "\xEF\xBF\xBD";
+
+        // a_text from a_from to a_to through UTF-16; nullopt when it is not valid in a_from or loses a character in a_to.
+        // AA1: no best-fit substitution (WC_NO_BEST_FIT_CHARS), and the result must read back to the same UTF-16
         [[nodiscard]] std::optional<std::string> Convert(const std::string& a_text, UINT a_from, UINT a_to)
         {
             if (a_text.empty() || IsAscii(a_text)) {
@@ -53,14 +57,25 @@ namespace GreyBuild
             std::wstring buffer(static_cast<std::size_t>(wide), L'\0');
             ::MultiByteToWideChar(a_from, MB_ERR_INVALID_CHARS, a_text.data(), size, buffer.data(), wide);
             BOOL lossy = FALSE;
-            BOOL* lossyOut = a_to == CP_UTF8 ? nullptr : &lossy;  // CP_UTF8 takes no default-character flag
-            const int narrow = ::WideCharToMultiByte(a_to, 0, buffer.data(), wide, nullptr, 0, nullptr, lossyOut);
+            const bool utf8 = a_to == CP_UTF8;  // CP_UTF8 takes neither the default-character flag nor WC_NO_BEST_FIT_CHARS
+            BOOL* lossyOut = utf8 ? nullptr : &lossy;
+            const DWORD flags = utf8 ? 0 : WC_NO_BEST_FIT_CHARS;
+            const int narrow = ::WideCharToMultiByte(a_to, flags, buffer.data(), wide, nullptr, 0, nullptr, lossyOut);
             if (narrow <= 0 || lossy) {
                 return std::nullopt;
             }
             std::string out(static_cast<std::size_t>(narrow), '\0');
-            ::WideCharToMultiByte(a_to, 0, buffer.data(), wide, out.data(), narrow, nullptr, lossyOut);
-            return lossy ? std::nullopt : std::optional<std::string>(std::move(out));
+            ::WideCharToMultiByte(a_to, flags, buffer.data(), wide, out.data(), narrow, nullptr, lossyOut);
+            if (lossy) {
+                return std::nullopt;
+            }
+            const int back = ::MultiByteToWideChar(a_to, MB_ERR_INVALID_CHARS, out.data(), narrow, nullptr, 0);
+            std::wstring again(static_cast<std::size_t>(back > 0 ? back : 0), L'\0');
+            if (back <= 0 || ::MultiByteToWideChar(a_to, MB_ERR_INVALID_CHARS, out.data(), narrow, again.data(), back) != back ||
+                again != buffer) {
+                return std::nullopt;  // not the same characters read back
+            }
+            return out;
         }
 
         [[nodiscard]] std::string Hex(const std::string& a_bytes)
@@ -75,7 +90,12 @@ namespace GreyBuild
 
     std::optional<std::string> Utf8ToAnsiExact(const std::string& a_text)
     {
-        return Convert(a_text, CP_UTF8, CP_ACP);
+        return Utf8ToCodePageExact(a_text, CP_ACP);
+    }
+
+    std::optional<std::string> Utf8ToCodePageExact(const std::string& a_text, unsigned int a_codePage)
+    {
+        return Convert(a_text, CP_UTF8, a_codePage);
     }
 
     std::optional<std::string> AnsiToUtf8Exact(const std::string& a_text)
@@ -118,6 +138,13 @@ namespace GreyBuild
             const auto& slot = a_item["textures"][i];
             if (!slot.is_string()) {
                 Json::Fail(a_file, fmt::format("{}: textures[{}] must be a string", a_where, i));
+            }
+            if (slot.get<std::string>().find(kReplacement) != std::string::npos) {
+                // AA2: bytes the game could not read as text (the DLL's SanitizeToUTF8 made them U+FFFD): the copy would name
+                // another file than the source's
+                a_why = fmt::format("{} {}: '{}' holds bytes that are no text in this system's code page (U+FFFD): no copy of "
+                    "this texture set (its decal stays the source's)", a_form.source, kSlotTags[i], slot.get<std::string>());
+                return false;
             }
             const auto text = Utf8ToAnsiExact(slot.get<std::string>());
             if (!text) {
@@ -212,9 +239,16 @@ namespace GreyBuild
         nlohmann::ordered_json source = nlohmann::ordered_json::array();
         nlohmann::ordered_json grey = nlohmann::ordered_json::array();
         for (std::size_t i = 0; i < kTxstSlots; ++i) {
-            // reviewer 1: JSON holds UTF-8 (a code page byte would make dump() throw); every slot converted the way in
-            source.push_back(AnsiToUtf8Exact(a_entry.sourceTextures[i]).value_or(std::string()));
-            grey.push_back(AnsiToUtf8Exact(a_entry.greyTextures[i]).value_or(std::string()));
+            // reviewer 1: JSON holds UTF-8 (a code page byte would make dump() throw); every slot came in converted, so one
+            // that does not go back is a writer bug (AA5: never an empty slot in its place)
+            for (const auto& [text, list] : { std::pair{ &a_entry.sourceTextures[i], &source }, std::pair{ &a_entry.greyTextures[i], &grey } }) {
+                const auto utf8 = AnsiToUtf8Exact(*text);
+                if (!utf8) {
+                    throw std::runtime_error(fmt::format("{} {} slot {} '{}' does not convert back to UTF-8 (a builder bug)",
+                        a_entry.source, a_entry.editorId, kSlotTags[i], *text));
+                }
+                list->push_back(*utf8);
+            }
         }
         a_item["sourceTextures"] = std::move(source);
         a_item["greyTextures"] = std::move(grey);
@@ -240,6 +274,9 @@ namespace GreyBuild
                 out[i] = Utf8ToAnsi(list[i].get<std::string>());
             }
         }
-        a_entry.hasDecal = a_item.contains("hasDecal") && a_item["hasDecal"].is_boolean() && a_item["hasDecal"].get<bool>();
+        if (a_item.contains("hasDecal") && !a_item["hasDecal"].is_boolean()) {
+            Json::Fail(a_file, a_where + ": 'hasDecal' must be true or false");  // AA5: not read as false
+        }
+        a_entry.hasDecal = a_item.contains("hasDecal") && a_item["hasDecal"].get<bool>();
     }
 }

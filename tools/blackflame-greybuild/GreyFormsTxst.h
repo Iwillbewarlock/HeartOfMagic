@@ -31,6 +31,9 @@ namespace GreyBuild
     /// convert without loss
     [[nodiscard]] std::optional<std::string> Utf8ToAnsiExact(const std::string& a_text);
 
+    /// a_text from UTF-8 to a_codePage (Utf8ToAnsiExact with CP_ACP): no best-fit character, read back to the same text
+    [[nodiscard]] std::optional<std::string> Utf8ToCodePageExact(const std::string& a_text, unsigned int a_codePage);
+
     /// a_text from the system code page to UTF-8; the text itself when ASCII; nullopt when it does not convert
     [[nodiscard]] std::optional<std::string> AnsiToUtf8Exact(const std::string& a_text);
 
@@ -38,7 +41,7 @@ namespace GreyBuild
     [[nodiscard]] std::string Utf8ToAnsi(const std::string& a_text);
 
     /// A TXST form's own request parts ("textures", "hasDecal"; "model" must be empty). False with a_why when a slot
-    /// cannot be used (not UTF-8, lossy in the code page); throws (Json::Fail) on a malformed field.
+    /// cannot be used (not UTF-8, lossy in the code page, U+FFFD); throws (Json::Fail) on a malformed field.
     [[nodiscard]] bool ReadTextureSetParts(const std::filesystem::path& a_file, const nlohmann::json& a_item, FormSource& a_form,
         const std::string& a_where, std::string& a_why);
 

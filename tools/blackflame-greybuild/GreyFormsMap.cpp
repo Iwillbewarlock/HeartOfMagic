@@ -23,9 +23,7 @@ namespace GreyBuild
 {
     namespace
     {
-        constexpr std::size_t kMaxIdDigits = 6;
         constexpr int kJsonIndent = 2;
-        constexpr int kHexBase = 16;
 
         [[nodiscard]] CopyType ParseType(const std::filesystem::path& a_file, const std::string& a_tag, const std::string& a_where)
         {
@@ -55,7 +53,7 @@ namespace GreyBuild
         [[nodiscard]] std::uint32_t ParseCopyId(const std::filesystem::path& a_file, const std::string& a_text,
             const std::string& a_where)
         {
-            const bool hex = !a_text.empty() && a_text.size() <= kMaxIdDigits &&
+            const bool hex = !a_text.empty() && a_text.size() <= kMaxLocalIdDigits &&
                              a_text.find_first_not_of("0123456789abcdefABCDEF") == std::string::npos;
             const auto id = hex ? static_cast<std::uint32_t>(std::stoul(a_text, nullptr, kHexBase)) : 0u;  // 6 hex digits
             if (!hex || id < kFirstLightFormId || id > kLastLightFormId) {

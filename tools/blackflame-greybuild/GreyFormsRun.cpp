@@ -477,6 +477,17 @@ namespace GreyBuild
                 return totals;
             }
         }
+        // AA3: a form the request reader left out (a TXST slot it could not use) whose copy --out still holds would be retired
+        // and its record dropped: refused the same way
+        for (const auto& entry : previous.entries) {
+            if (a_options.leftOut.count(entry.source) != 0) {
+                std::cout << fmt::format("FAIL  {} {} was left out of this request (see the warnings above) but {} holds its copy "
+                                         "{:06X}: building would remove it. Nothing written.\n", CopyTypeTag(entry.type), entry.source,
+                    PathText(out), entry.localId);
+                ++totals.failed;
+                return totals;
+            }
+        }
         CopiesMap copies = AssignCopyIds(a_sources, previous, a_options.reclaimRetired);
         copies.requestFingerprint = a_options.fingerprint;
         copies.requestFingerprintSizes = a_options.fingerprintSizes;

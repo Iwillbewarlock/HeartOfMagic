@@ -230,6 +230,13 @@ namespace GreyBuild::SelfTest
             a_check.Check(korean ? (ansi && (*ansi == utf8) == sameBytes && back && *back == utf8) : !ansi,
                 fmt::format("code page {}: a Korean slot {} (reviewer 1)", ::GetACP(),
                     korean ? "goes to the code page's bytes and back to the same UTF-8" : "is refused (lossy)"));
+            // AA1: no best-fit character (U+016B and a full-width A would turn into 'u' and 'A' in 1252); an exact one passes
+            constexpr unsigned int kWestern = 1252;
+            const auto latinSmallUMacron = Utf8ToCodePageExact("a\xC5\xAB.dds", kWestern);
+            const auto fullWidthA = Utf8ToCodePageExact("\xEF\xBC\xA1.dds", kWestern);
+            const auto eAcute = Utf8ToCodePageExact("\xC3\xA9.dds", kWestern);
+            a_check.Check(!latinSmallUMacron && !fullWidthA && eAcute && *eAcute == "\xE9.dds",
+                "code page 1252: a best-fit character (U+016B, U+FF21) is refused, an exact one (U+00E9) converts (AA1)");
             const auto slots = R"(")" + std::string("Effects\\\\\xED\x9A\xA8\xEA\xB3\xBC.dds") + R"(","","","","","","","")";
             const auto file = WriteText(a_dir / "cp.json", R"({"version":3,"fingerprint":"x","addons":[],"models":[],"forms":[)" +
                 Txst("A.esp|000801", "K", false, slots) + "," + kProj + "]}");
@@ -243,6 +250,14 @@ namespace GreyBuild::SelfTest
                 const auto* entry = EntryOf(mapBack, "a.esp|000801");
                 mapped = entry && entry->sourceTextures[0] == *ansi;
             }
+            // AA2: a slot the DLL could only give as U+FFFD (bytes that are no text) is left out with a warning, any code page
+            const auto replaced = R"(")" + std::string("Effects\\\\\xEF\xBF\xBD.dds") + R"(","","","","","","","")";
+            const auto replacedRequest = LoadFormsRequestFile(WriteText(a_dir / "cp_fffd.json",
+                R"({"version":3,"fingerprint":"x","addons":[],"models":[],"forms":[)" + Txst("A.esp|000802", "F", false, replaced) +
+                    "," + kProj + "]}"));
+            a_check.Check(replacedRequest.forms.size() == 1 && replacedRequest.warnings.size() == 1 &&
+                              replacedRequest.leftOut.count("a.esp|000802") == 1,
+                "code page: a slot holding U+FFFD leaves its TXST out with one warning and names it as left out (AA2)");
             a_check.Check(kept && mapped, fmt::format("code page: a game request's TXST with that slot is kept (map round trip in "
                 "the code page's bytes) or left out with one warning ({} forms, {} warnings{})", request.forms.size(),
                 request.warnings.size(), request.warnings.empty() ? std::string() : ": " + request.warnings.front()));
@@ -323,6 +338,15 @@ namespace GreyBuild::SelfTest
             a_check.Check(refused.failed == 1 && after.entries.size() == before.entries.size() && control.failed == 0,
                 fmt::format("an old request against an output holding TXST copies is refused before writing (Codex 1; failed {}, "
                     "control {})", refused.failed, control.failed));
+            // AA3: a TXST the request reader left out while --out still copies it is refused the same way
+            FormsRunOptions leftOut;
+            leftOut.warnAndContinue = true;
+            leftOut.leftOut = { "a.esp|000801" };
+            const auto refusedLeftOut = BuildForms({}, Request{}, {}, withTxst, kTint, leftOut);
+            const auto afterLeftOut = LoadCopiesMap(withTxst / "SKSE/Plugins" / kCopiesMapName);
+            a_check.Check(refusedLeftOut.failed == 1 && afterLeftOut.entries.size() == before.entries.size(),
+                fmt::format("a TXST left out of the request whose copy --out holds is refused before writing (AA3; failed {})",
+                    refusedLeftOut.failed));
         }
     }
 

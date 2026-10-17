@@ -64,6 +64,8 @@ namespace GreyBuild
     inline constexpr std::size_t kDodtSize = 36;  // DODT (RE/D/DecalData.h DECAL_DATA_DATA 0x24)
 
     inline constexpr std::size_t kMaxLinkOffsets = 9;
+    inline constexpr std::size_t kMaxLocalIdDigits = 6;  // a local id in "Plugin|localId" and a copy id: up to 6 hex digits
+    inline constexpr int kHexBase = 16;
 
     /// Every per-type fact in one table (indexed by the enum, checked below): the record signature, its scalar subrecord
     /// and size as Skyrim.esm stores it, OBND, MODL, and the scalar subrecord's form-link offsets (each written 0)
@@ -168,6 +170,7 @@ namespace GreyBuild
         bool decalTextureSets = false;      // the DLL walked decal texture sets (TXST in "forms"); older requests do not
         std::set<std::string> palettesListed;  // our two fixed palettes the request names (DataPathRule kOurPalette*)
         std::set<std::string> palettesDumped;  // of those, the ones in the dump (ok true)
+        std::set<std::string> leftOut;         // AA3: normalised sources of forms left out while reading (a TXST slot)
     };
 
     /// Reads and validates a forms request: version 2 (forms only) or 3 (the DLL's: also addons, models, nifs,
@@ -234,8 +237,8 @@ namespace GreyBuild
     /// The grey copy's path of a source model: kCopyRoot + the path after meshes\ (lower case)
     [[nodiscard]] std::string CopyModelFor(const std::string& a_meshDataPath);
 
-    /// Writes the copies ESL: one record per entry (the matching source by index), groups PROJ, HAZD, EXPL,
-    /// IPCT, ARTO in that order (Skyrim.esm's group order). a_sources[i] belongs to a_map.entries[i].
+    /// Writes the copies ESL: one record per entry (the matching source by index), groups TXST, PROJ, HAZD, EXPL,
+    /// IPCT, ARTO in that order (kCopyTypes, Skyrim.esm's group order). a_sources[i] belongs to a_map.entries[i].
     void WriteCopiesEsl(const CopiesMap& a_map, const std::vector<FormSource>& a_sources,
         const std::filesystem::path& a_file);
 
@@ -306,6 +309,7 @@ namespace GreyBuild
                                              // DLL - refused when --out already holds TXST copies)
         bool ownTextureFolders = true;       // the risk check may read our palettes from the builder's own folders (false
                                              // when the request lists them: the game's own then, or its reason)
+        std::set<std::string> leftOut;       // AA3: sources the request reader left out; one --out still copies is refused
     };
 
     /// The whole --forms run: grey ADDN plan from a_addons (whose models gain the copies' models for their

@@ -150,6 +150,7 @@ namespace GreyBuild
                          "the main menu with this release, quit, then run this again.\n";
         }
         options.decalTextureSets = parsed.decalTextureSets;
+        options.leftOut = parsed.leftOut;
         if (!parsed.decalTextureSets) {
             std::cout << "NOTE  the request has no decal texture sets (written by a Black Flame DLL before decal copies): the "
                          "player's fire decals (Fire Rune's glyph, scorch marks) stay coloured. Start the game once to the main "
