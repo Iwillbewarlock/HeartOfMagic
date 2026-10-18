@@ -4,11 +4,14 @@
 
 #include "BuilderLauncher.h"
 
+#include "BuilderControl.h"
+#include "BuilderSignal.h"
 #include "TrackedMutex.h"
 
 #include <format>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <vector>
 
 namespace BlackFlame::BuilderLauncher
@@ -16,14 +19,20 @@ namespace BlackFlame::BuilderLauncher
     namespace
     {
         constexpr const wchar_t* kLogName = L"builder.log";
+        constexpr const wchar_t* kPrevLogName = L"builder.prev.log";
         constexpr std::uint64_t kMiB = 1024ull * 1024ull;
 
         struct Session
         {
             TrackedMutex mutex;  // with the session's lifetime (review Gemini 2: no static mutex destroyed before a late reader)
             UniqueHandle job;    // never closed by us (kill-on-close fires when the game ends)
+            UniqueHandle process;        // kept for the exit code (F4); the end wait below holds it, so never closed either
+            UniqueHandle throttleEvent;  // BuilderSignal.h, manual reset; set by ThrottleAfterWindow
             Launch launch;
+            std::optional<std::uint32_t> exitCode;  // once the end is noted (nullopt then: GetExitCodeProcess failed)
+            bool ended = false;                     // the end noted and logged
             bool tried = false;
+            bool throttled = false;
         };
         Session& TheSession()
         {
@@ -81,6 +90,24 @@ namespace BlackFlame::BuilderLauncher
             return job;
         }
 
+        // The last launch's builder.log as builder.prev.log (an older prev replaced). Not kept: a warning, and builder.log
+        // is overwritten as before. What happened, for the "builder started" line
+        std::string KeepPreviousLog(const std::filesystem::path& a_folder)
+        {
+            const auto log = a_folder / kLogName;
+            const auto prev = a_folder / kPrevLogName;
+            if (::MoveFileExW(log.c_str(), prev.c_str(), MOVEFILE_REPLACE_EXISTING)) {
+                return "the previous one kept as builder.prev.log";
+            }
+            const auto error = ::GetLastError();
+            if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND) {
+                return "no previous builder.log";
+            }
+            logger::warn("BlackFlame: slots: the previous builder.log could not be kept as builder.prev.log (Windows error {}): it "
+                         "is overwritten", error);
+            return std::format("the previous one NOT kept (Windows error {})", error);
+        }
+
         // builder.log, inheritable (the only handle the child gets)
         UniqueHandle MakeLog(const std::filesystem::path& a_folder, std::string& a_why)
         {
@@ -93,8 +120,28 @@ namespace BlackFlame::BuilderLauncher
             return log;
         }
 
+        // The throttle event (BuilderSignal.h), unset, not inherited (the builder opens it by name). Not made: the builder
+        // still starts (never throttled from its own side; the job's priority and CPU cap still apply); a_note says why
+        UniqueHandle MakeThrottleEvent(std::string& a_note)
+        {
+            const auto name = BuilderSignal::ThrottleEventName(::GetCurrentProcessId());
+            UniqueHandle event(::CreateEventW(nullptr, TRUE, FALSE, name.c_str()));
+            if (!event) {
+                a_note = std::format("'{}' NOT made: {}", Text(name), LastError("CreateEventW"));
+                return {};
+            }
+            if (::GetLastError() == ERROR_ALREADY_EXISTS) {
+                (void)::ResetEvent(event.Get());  // not ours from before (one DLL a process), but it never starts set
+                a_note = std::format("'{}' (it already existed: reset)", Text(name));
+            } else {
+                a_note = std::format("'{}'", Text(name));
+            }
+            return event;
+        }
+
         Launch StartChecked(const std::filesystem::path& a_exe, const std::filesystem::path& a_requestFolder,
-            const std::filesystem::path& a_staging, std::uint32_t a_jobMemoryMiB, UniqueHandle& a_jobOut)
+            const std::filesystem::path& a_staging, std::uint32_t a_jobMemoryMiB, Session& a_session, std::string& a_logNote,
+            std::string& a_eventNote)
         {
             Launch out;
             std::error_code ec;
@@ -108,9 +155,16 @@ namespace BlackFlame::BuilderLauncher
                 return out;
             }
             auto job = MakeJob(a_jobMemoryMiB, out.why);
+            if (job) {
+                a_logNote = KeepPreviousLog(a_requestFolder);
+            }
             auto log = job ? MakeLog(a_requestFolder, out.why) : UniqueHandle{};
             if (!job || !log) {
                 return out;
+            }
+            auto throttleEvent = MakeThrottleEvent(a_eventNote);  // before the child starts: it opens the event once, at its start
+            if (!throttleEvent) {
+                logger::warn("BlackFlame: slots: the builder's throttle event {}; the builder starts without it", a_eventNote);
             }
             // Only the log handle is inherited: an attribute list naming it
             SIZE_T size = 0;
@@ -163,8 +217,104 @@ namespace BlackFlame::BuilderLauncher
             }
             out.started = true;
             out.pid = process.dwProcessId;
-            a_jobOut = std::move(job);
-            return out;  // the process and thread handles close here; the job lives on in the session
+            a_session.job = std::move(job);
+            a_session.process = std::move(processHandle);
+            a_session.throttleEvent = std::move(throttleEvent);
+            return out;  // the thread handle closes here; the job and the process live on in the session
+        }
+
+        // Under the session's lock: once the process has ended (its handle signalled), its exit code, logged once. A job
+        // that shows no process while the handle is not signalled yet is left to the next call (no STILL_ACTIVE guess)
+        void NoteEndedLocked(Session& a_session)
+        {
+            if (a_session.ended || !a_session.process || ::WaitForSingleObject(a_session.process.Get(), 0) != WAIT_OBJECT_0) {
+                return;
+            }
+            a_session.ended = true;
+            DWORD code = 0;
+            if (!::GetExitCodeProcess(a_session.process.Get(), &code)) {
+                logger::warn("BlackFlame: slots: builder (pid {}) ended; its exit code: {}", a_session.launch.pid,
+                    LastError("GetExitCodeProcess"));
+                return;
+            }
+            a_session.exitCode = code;
+            const auto text = BuilderControl::ExitCodeText(code);
+            if (code == BuilderControl::kExitOk) {
+                logger::info("BlackFlame: slots: builder (pid {}) ended: exit code {}", a_session.launch.pid, text);
+            } else {
+                logger::warn("BlackFlame: slots: builder (pid {}) ended: exit code {}", a_session.launch.pid, text);
+            }
+        }
+
+        // The end seen however late in the session (the progress worker stops polling when the publish window closes)
+        VOID CALLBACK OnBuilderEnded(PVOID, BOOLEAN)
+        {
+            try {
+                std::lock_guard lock(TheSession().mutex);
+                NoteEndedLocked(TheSession());
+            } catch (...) {
+            }
+        }
+
+        // Under the session's lock: the extended limits read, only the priority class added (a set replaces LimitFlags
+        // whole: kill-on-close and the memory cap must stay), then read back with the process's own class
+        std::string ApplyIdlePriority(Session& a_session, bool& a_ok)
+        {
+            JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
+            if (!::QueryInformationJobObject(a_session.job.Get(), JobObjectExtendedLimitInformation, &limits, sizeof(limits), nullptr)) {
+                a_ok = false;
+                return "idle priority NOT set: " + LastError("QueryInformationJobObject(limits)");
+            }
+            limits.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_PRIORITY_CLASS;
+            limits.BasicLimitInformation.PriorityClass = IDLE_PRIORITY_CLASS;
+            if (!::SetInformationJobObject(a_session.job.Get(), JobObjectExtendedLimitInformation, &limits, sizeof(limits))) {
+                a_ok = false;
+                return "idle priority NOT set: " + LastError("SetInformationJobObject(limits)");
+            }
+            JOBOBJECT_EXTENDED_LIMIT_INFORMATION back{};
+            if (!::QueryInformationJobObject(a_session.job.Get(), JobObjectExtendedLimitInformation, &back, sizeof(back), nullptr)) {
+                a_ok = false;
+                return "idle priority set (read back: " + LastError("QueryInformationJobObject(limits)") + ")";
+            }
+            const DWORD flags = back.BasicLimitInformation.LimitFlags;
+            const bool killOnClose = (flags & JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE) != 0;
+            const bool memoryCap = (flags & JOB_OBJECT_LIMIT_JOB_MEMORY) != 0;
+            const DWORD jobClass = back.BasicLimitInformation.PriorityClass;
+            const DWORD processClass = ::GetPriorityClass(a_session.process.Get());
+            a_ok = killOnClose && memoryCap && jobClass == IDLE_PRIORITY_CLASS;
+            return std::format("idle priority set (read back: kill-on-close {}, job memory {} MiB, job priority class 0x{:X}, the "
+                               "process's 0x{:X}; idle is 0x{:X})", killOnClose ? "yes" : "NO",
+                memoryCap ? static_cast<std::uint64_t>(back.JobMemoryLimit) / kMiB : 0, jobClass, processClass,
+                static_cast<DWORD>(IDLE_PRIORITY_CLASS));
+        }
+
+        // A hard cap of one logical CPU of the whole machine (BuilderControl.h), read back
+        std::string ApplyCpuCap(Session& a_session, bool& a_ok)
+        {
+            DWORD cpus = ::GetActiveProcessorCount(ALL_PROCESSOR_GROUPS);
+            if (cpus == 0) {
+                SYSTEM_INFO info{};
+                ::GetSystemInfo(&info);
+                cpus = info.dwNumberOfProcessors;
+            }
+            const auto rate = BuilderControl::CpuRateForOneCpu(cpus);
+            JOBOBJECT_CPU_RATE_CONTROL_INFORMATION cap{};
+            cap.ControlFlags = JOB_OBJECT_CPU_RATE_CONTROL_ENABLE | JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP;
+            cap.CpuRate = rate;
+            if (!::SetInformationJobObject(a_session.job.Get(), JobObjectCpuRateControlInformation, &cap, sizeof(cap))) {
+                a_ok = false;
+                return std::format("CPU cap {}/{} NOT set: {}", rate, BuilderControl::kCpuRateWholeMachine,
+                    LastError("SetInformationJobObject(CPU rate)"));
+            }
+            JOBOBJECT_CPU_RATE_CONTROL_INFORMATION back{};
+            if (!::QueryInformationJobObject(a_session.job.Get(), JobObjectCpuRateControlInformation, &back, sizeof(back), nullptr)) {
+                a_ok = false;
+                return std::format("CPU hard cap {}/{} set (one of {} logical CPUs; read back: {})", rate,
+                    BuilderControl::kCpuRateWholeMachine, cpus, LastError("QueryInformationJobObject(CPU rate)"));
+            }
+            a_ok = back.ControlFlags == cap.ControlFlags && back.CpuRate == rate;
+            return std::format("CPU hard cap {}/{} set (one of {} logical CPUs; read back: flags 0x{:X}, rate {})", rate,
+                BuilderControl::kCpuRateWholeMachine, cpus, back.ControlFlags, back.CpuRate);
         }
     }
 
@@ -177,11 +327,20 @@ namespace BlackFlame::BuilderLauncher
             return session.launch;
         }
         session.tried = true;
-        session.launch = StartChecked(a_exe, a_requestFolder, a_staging, a_jobMemoryMiB, session.job);
+        std::string logNote = "no previous builder.log";
+        std::string eventNote;
+        session.launch = StartChecked(a_exe, a_requestFolder, a_staging, a_jobMemoryMiB, session, logNote, eventNote);
         if (session.launch.started) {
             logger::info("BlackFlame: slots: builder started (pid {}): '{}' --from-game '{}' --staging '{}' --job-memory {} MiB, "
-                         "below normal priority, in a kill-on-close job; its output in builder.log", session.launch.pid, Text(a_exe),
-                Text(a_requestFolder), Text(a_staging), a_jobMemoryMiB);
+                         "below normal priority, in a kill-on-close job; its output in builder.log ({}); throttle event {}",
+                session.launch.pid, Text(a_exe), Text(a_requestFolder), Text(a_staging), a_jobMemoryMiB, logNote,
+                session.throttleEvent ? eventNote : std::string("none"));
+            // Never unregistered: the wait and the process handle live with the leaked session
+            HANDLE wait = nullptr;
+            if (!::RegisterWaitForSingleObject(&wait, session.process.Get(), &OnBuilderEnded, nullptr, INFINITE, WT_EXECUTEONLYONCE)) {
+                logger::warn("BlackFlame: slots: {}: the builder's end is noted only while the progress worker polls",
+                    LastError("RegisterWaitForSingleObject"));
+            }
         } else {
             logger::warn("BlackFlame: slots: the builder was not started: {}", session.launch.why);
         }
@@ -196,8 +355,13 @@ namespace BlackFlame::BuilderLauncher
             return false;
         }
         JOBOBJECT_BASIC_ACCOUNTING_INFORMATION info{};
-        return ::QueryInformationJobObject(session.job.Get(), JobObjectBasicAccountingInformation, &info, sizeof(info), nullptr) &&
-               info.ActiveProcesses > 0;
+        const bool running =
+            ::QueryInformationJobObject(session.job.Get(), JobObjectBasicAccountingInformation, &info, sizeof(info), nullptr) &&
+            info.ActiveProcesses > 0;
+        if (!running) {
+            NoteEndedLocked(session);
+        }
+        return running;
     }
 
     std::string Status()
@@ -210,6 +374,54 @@ namespace BlackFlame::BuilderLauncher
         if (!launch.started) {
             return launch.why.empty() ? std::string("not started") : "not started (" + launch.why + ")";
         }
-        return Running() ? std::format("running (pid {})", launch.pid) : std::string("ended");
+        if (Running()) {
+            return std::format("running (pid {})", launch.pid);
+        }
+        std::lock_guard lock(TheSession().mutex);
+        const auto& session = TheSession();
+        if (!session.ended) {
+            return "ended (exit code not read yet)";
+        }
+        return session.exitCode ? "ended (exit " + BuilderControl::ExitCodeText(*session.exitCode) + ")" :
+                                  std::string("ended (exit code not readable)");
+    }
+
+    void ThrottleAfterWindow()
+    {
+        std::lock_guard lock(TheSession().mutex);
+        auto& session = TheSession();
+        if (!session.launch.started || !session.job || !session.process) {
+            logger::debug("BlackFlame: slots: no builder this session: nothing to throttle");
+            return;
+        }
+        if (session.throttled) {
+            return;
+        }
+        session.throttled = true;
+        NoteEndedLocked(session);
+        if (session.ended) {
+            logger::debug("BlackFlame: slots: the builder (pid {}) already ended: nothing to throttle", session.launch.pid);
+            return;
+        }
+        bool priorityOk = true;
+        bool cpuOk = true;
+        const auto priority = ApplyIdlePriority(session, priorityOk);
+        const auto cpu = ApplyCpuCap(session, cpuOk);
+        bool eventOk = true;
+        std::string event = "set";
+        if (!session.throttleEvent) {
+            eventOk = false;
+            event = "not there (it was not made at launch)";
+        } else if (!::SetEvent(session.throttleEvent.Get())) {
+            eventOk = false;
+            event = "NOT set: " + LastError("SetEvent");
+        }
+        const auto line = std::format("BlackFlame: slots: builder (pid {}) throttled after the publish window closed: {}; {}; "
+                                      "throttle event {}", session.launch.pid, priority, cpu, event);
+        if (priorityOk && cpuOk && eventOk) {
+            logger::info("{}", line);
+        } else {
+            logger::warn("{}", line);
+        }
     }
 }

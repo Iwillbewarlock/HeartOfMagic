@@ -10,12 +10,14 @@
 // CoSaveFileTests.h) on buffers built per the spike's layout, the slot ledger (SlotLedgerModel.h, SlotLedgerFiles.h;
 // SlotLedgerTests.h - its file cases use a folder under the system temp folder, removed after) and the BSValueNode reader
 // (NifValueNodes.h; NifValueNodesTests.h), the progress.jsonl tail (ProgressTail.h; ProgressTailTests.h) and the DLL's
-// read of the builder's output identity (CopyContractIdentity.h; IdentityTests.h, on the builder built beside this exe).
+// read of the builder's output identity (CopyContractIdentity.h; IdentityTests.h, on the builder built beside this exe), and
+// the builder launcher's pure parts (BuilderControl.h; BuilderControlTests.h: the throttle's CPU rate, the exit code text).
 // --cosave and --nif-values (SkseFile.cpp): the DLL's readers on real files.
 // Exit 0 when every check (or every file) passes, 1 on a failure, 2 on a usage error. No game.
 
 #include "../../plugins/BlackFlame/src/CopyContractTest.h"
 #include "../../plugins/BlackFlame/src/SlotCoSave.h"
+#include "BuilderControlTests.h"
 #include "CoSaveFileTests.h"
 #include "IdentityTests.h"
 #include "NifValueNodesTests.h"
@@ -449,6 +451,7 @@ int main(int a_argc, char** a_argv)
     suite("route start", [](auto&& a_check) { RouteStartTests::Run(a_check); });
     suite("txst paths", [](auto&& a_check) { TxstPathsTests::Run(a_check); });
     suite("txst rule", [](auto&& a_check) { TxstRuleTests::Run(a_check); });
+    suite("builder control", [](auto&& a_check) { BuilderControlTests::Run(a_check); });
     suite("identity", [&](auto&& a_check) {
         auto skip = [&](const std::string& a_what) { check.Skip(a_what); };
         IdentityTests::Run(a_check, skip);

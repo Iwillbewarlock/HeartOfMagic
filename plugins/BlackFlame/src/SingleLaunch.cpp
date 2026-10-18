@@ -1,5 +1,5 @@
 // =============================================================================
-// SingleLaunch - the kDataLoaded order of the slot route, the HUD line and the dev auto-load's readiness (SingleLaunch.h)
+// SingleLaunch - the kDataLoaded order of the slot route, the progress log line and the dev auto-load's readiness (SingleLaunch.h)
 // =============================================================================
 
 #include "SingleLaunch.h"
@@ -30,7 +30,8 @@ namespace BlackFlame::SingleLaunch
     namespace
     {
         using Clock = std::chrono::steady_clock;
-        constexpr auto kHudInterval = std::chrono::seconds(10);  // "N of M" at most this often (the "all ready" line always)
+        constexpr auto kProgressLogInterval = std::chrono::seconds(10);  // the "N of M" log line at most this often (NotifyProgress
+                                                                         // runs at every publish step); "all ready" once
 
         SlotKeys::Inputs& TheInputs()
         {
@@ -45,10 +46,10 @@ namespace BlackFlame::SingleLaunch
         }
 
         std::atomic<bool> g_routeActive{ false };
-        std::atomic<bool> g_allReadyShown{ false };
-        TrackedMutex g_hudMutex;
-        std::optional<Clock::time_point> g_lastHud;
-        std::size_t g_lastShown = SIZE_MAX;
+        std::atomic<bool> g_allReadyLogged{ false };
+        TrackedMutex g_progressMutex;
+        std::optional<Clock::time_point> g_lastProgressLog;
+        std::size_t g_lastLogged = SIZE_MAX;
 
         // The builder as a child, when the config wants it and request v5 was written for it
         void LaunchBuilder(const SlotKeys::Inputs& a_inputs, bool a_requestWritten)
@@ -145,7 +146,9 @@ namespace BlackFlame::SingleLaunch
 
     void NotifyProgress()
     {
-        if (!g_routeActive.load() || !MenuWatch::MainMenuOpened() || !MenuWatch::PublishOpen() || g_allReadyShown.load()) {
+        // bf-no-wait-proposal.md section 5 (user's choice 4a): log lines only, nothing on screen - a count invites waiting,
+        // and what is not open when the window closes simply opens at the next launch
+        if (!g_routeActive.load() || !MenuWatch::MainMenuOpened() || !MenuWatch::PublishOpen() || g_allReadyLogged.load()) {
             return;
         }
         const auto progress = CopyGroups::GetProgress();
@@ -153,19 +156,19 @@ namespace BlackFlame::SingleLaunch
             return;
         }
         if (progress.open >= progress.slots) {
-            if (!g_allReadyShown.exchange(true)) {
-                SlotNotice::Show("Black Flame: all grey copies are ready");
+            if (!g_allReadyLogged.exchange(true)) {
+                logger::info("BlackFlame: slots: progress: all {} grey copies are ready (log only)", progress.slots);
             }
             return;
         }
-        std::lock_guard lock(g_hudMutex);
+        std::lock_guard lock(g_progressMutex);
         const auto now = Clock::now();
-        if (progress.open == g_lastShown || (g_lastHud && now - *g_lastHud < kHudInterval)) {
+        if (progress.open == g_lastLogged || (g_lastProgressLog && now - *g_lastProgressLog < kProgressLogInterval)) {
             return;
         }
-        g_lastHud = now;
-        g_lastShown = progress.open;
-        SlotNotice::Show(std::format("Black Flame: {} of {} grey copies ready", progress.open, progress.slots));
+        g_lastProgressLog = now;
+        g_lastLogged = progress.open;
+        logger::info("BlackFlame: slots: progress: {} of {} grey copies ready (log only)", progress.open, progress.slots);
     }
 
     bool ReadyForLoad()

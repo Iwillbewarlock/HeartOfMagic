@@ -59,7 +59,8 @@ namespace BlackFlame::MenuWatch
     /// When the main menu first opened (the anchor of the timeouts and the HUD), if it has
     [[nodiscard]] std::optional<Clock::time_point> MainMenuOpenedAt();
 
-    /// Closes the publish window for the session (idempotent; the first reason is kept and logged with its thread)
+    /// Closes the publish window for the session (idempotent; the first reason is kept and logged with its thread), then
+    /// throttles the builder (BuilderLauncher::ThrottleAfterWindow)
     void Close(const char* a_reason);
 
     /// Why the window closed ("" while open)

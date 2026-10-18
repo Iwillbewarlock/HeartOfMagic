@@ -4,6 +4,7 @@
 
 #include "MenuWatch.h"
 
+#include "BuilderLauncher.h"
 #include "GameThread.h"
 #include "MainThreadProof.h"
 #include "MainThreadQueue.h"
@@ -227,6 +228,15 @@ namespace BlackFlame::MenuWatch
         logger::info("BlackFlame: menu watch: the publish window closed for the session: {} (thread {}, {}; the main menu {})",
             a_reason ? a_reason : "unknown", thread, thread == g_mainThread.load() ? "Main's thread" : "NOT Main's thread",
             g_menuOpened.load() ? "had opened" : "had not opened");
+        // What the builder finishes from now on is used only at the next launch: idle priority, one CPU, the throttle event
+        // (a few job and event calls, no wait: fine on the main thread at kPreLoadGame)
+        try {
+            BuilderLauncher::ThrottleAfterWindow();
+        } catch (const std::exception& e) {
+            logger::error("BlackFlame: menu watch: throttling the builder threw: {}", e.what());
+        } catch (...) {
+            logger::error("BlackFlame: menu watch: throttling the builder threw an exception of an unknown type");
+        }
     }
 
     std::string CloseReason()
