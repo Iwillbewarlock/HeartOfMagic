@@ -470,8 +470,13 @@ void ToxGame::OnSelfTestSave(const char* a_saveName, std::uint32_t a_length)
 {
     const auto name = SaveNameView(a_saveName, a_length);
     if (const auto s = Current(); s && !s->finished && s->begun) {
-        logger::warn("SELFTEST WARN save '{}' taken during the test: it holds the test's ability, poisons and target, and "
-            "loading it later brings that test state back", name);
+        if (s->step == Step::kReward) {
+            logger::warn("SELFTEST WARN save '{}' taken during the reward step: it holds the save without its ability and "
+                "tomes and with the reward flag cleared (or the tome just given), and loading it later brings that back", name);
+        } else {
+            logger::warn("SELFTEST WARN save '{}' taken during the test: it holds the test's ability, poisons and target, and "
+                "loading it later brings that test state back", name);
+        }
         return;
     }
     try {

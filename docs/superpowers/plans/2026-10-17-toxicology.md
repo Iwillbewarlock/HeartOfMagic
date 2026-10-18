@@ -1,5 +1,8 @@
 # Heart of Magic Librarian - Toxicology Implementation Plan
 
+> **2026-10-18:** the tome is no longer sold at Elgrim's Elixirs; it is the reward of the quest Few and Far Between
+> (spec section 4a, `game/ToxReward.h`). The shop steps below (PutTomeInShop, the shop self test) are history.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** An SKSE addon that, once the player has learned the "Toxicology" ability, makes Librarian-tagged poison spells apply the top favorited poison to the targets they hit, refreshes our own applications instead of stacking, and consumes one bottle per 100 magicka spent on poison spells.

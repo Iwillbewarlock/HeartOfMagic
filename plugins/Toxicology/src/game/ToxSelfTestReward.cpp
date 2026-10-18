@@ -110,8 +110,8 @@ namespace
             a_why = "the quest has no Papyrus handle";
             return false;
         }
-        RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> callback{ new SetStageCallback(a_call) };
-        // RE/I/IVirtualMachine.h:132; RE/F/FunctionArguments.h:80 (the VM owns the arguments)
+        RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> callback = RE::make_smart<SetStageCallback>(a_call);  // RE/B/BSTSmartPointer.h:234
+        // RE/I/IVirtualMachine.h:132; the VM keeps the arguments (CommonLib's own RE/R/RegistrationSet.h:92-93 never frees them)
         auto* args = RE::MakeFunctionArguments(static_cast<std::int32_t>(ToxGame::kRewardStage));
         if (!vm->DispatchMethodCall(handle, kQuestClass, kSetStage, args, callback)) {
             a_why = "DispatchMethodCall(Quest.SetStage) returned false";
@@ -176,7 +176,7 @@ namespace
             ToxGame::PlayerTomeCount(), ToxGame::RewardSatisfied());
     }
 
-    // The same checks the shop step made of the record
+    // Spec 4a's record checks (teaches the ability, value 350)
     void CheckTomeRecord(State& s, RE::TESObjectBOOK& a_tome)
     {
         auto* teaches = a_tome.GetSpell();  // RE/T/TESObjectBOOK.h:106,112: null unless the teaches-spell flag is set

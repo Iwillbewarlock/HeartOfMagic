@@ -132,6 +132,9 @@ Skyrim AE 1.6.1170, the developer's load order (with Mysticism and Apothecary), 
 - **The tome reward** given in a real playthrough of Few and Far Between (the dev self test sets the stage through
   Papyrus instead), and the look of its on-screen "added" line; the I5 inventory icon refresh after the favorite
   changes.
+- **The tome for a save that finished the quest earlier**: the load check relies on the stopped quest still reading
+  stage 200 after a save and load, and on SKSE's kPostLoadGame passing the load's success as its data pointer. The
+  self test's reload check (step 4a) measures the first; neither has run in game yet.
 - **Text**: the ability's description under Active Effects and the tome's text (both rewritten for the immunity
   window) have not been looked at in game.
 

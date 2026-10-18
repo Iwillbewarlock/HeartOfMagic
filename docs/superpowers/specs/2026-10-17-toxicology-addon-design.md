@@ -65,7 +65,7 @@
 - HoM 과의 관계: HoM 의 주문서 훅은 능력·권능을 가르치는 책을 바닐라 방식으로 처리한다 — 바로 배우고 책이
   사라진다(`plugins/spelllearning/src/SpellTomeHook.cpp:81-88, 165-190`). 그래서 공부 XP 로 바뀌지 않고, 트리에도
   들어가지 않는다(스캐너는 kSpell 만 남김).
-- 퀘스트 보상(`game/ToxReward.h`): 퀘스트는 `FreeformRiften04`(Skyrim.esm `0x053308`, 니른루트·나이트셰이드·
+- 퀘스트 보상(`game/ToxReward.h`): 퀘스트는 `FreeformRiften04`(Skyrim.esm `0x053308`, 넌루트·나이트쉐이드·
   데스벨 각 20개). 단계 200 이 성공(Fragment_5: 열쇠, 영주 수, Ingun 관계, CompleteAllObjectives, Stop()), 250 이
   실패다. 200 의 로그 항목에 CompleteQuest 플래그가 없어서 `TESQuest::IsCompleted()` 로는 성공을 알 수 없고, 현재
   단계(`GetCurrentStageID()`)로 판단한다. 레코드는 덮어쓰지 않는다.

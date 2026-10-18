@@ -76,7 +76,9 @@ namespace
             // Dev only, idle without its file; never on a new game (spawned targets in the opening scene)
             if (a_msg->type == SKSE::MessagingInterface::kPostLoadGame) ToxGame::MaybeStartSelfTest();
             // Spec 4a: a save that finished Few and Far Between gets the tome now. Only after a load that
-            // succeeded: kPostLoadGame's data pointer is the result (non-null = success, never dereferenced)
+            // succeeded: kPostLoadGame's data pointer is the result (non-null = success, never dereferenced). That is
+            // skse64's convention (PluginAPI.h, Hooks_SaveLoad.cpp passes the load's bool as data); CommonLibSSE-NG does
+            // not document it. Not yet confirmed in game: the first run's log should show "reads stage ... after the load"
             if (a_msg->type == SKSE::MessagingInterface::kPostLoadGame && a_msg->data) ToxGame::QueueFinishedQuestCheck();
             FlushLog();
             break;
