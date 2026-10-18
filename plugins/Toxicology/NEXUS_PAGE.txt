@@ -1,5 +1,6 @@
 SUMMARY: An addon for Heart of Magic Librarian that lets your poison-tagged spells apply the effect of your top favorited poison. Hits use no bottles; instead, every 100 Magicka spent casting poison spells consumes one bottle.
 FILE: Heart of Magic Librarian - Toxicology 1.0.0 - SKSE plugin and ESL-flagged ESP for Skyrim SE/AE.
+FILE_KO: Heart of Magic Librarian - Toxicology 1.0.0 (Korean) - SKSE plugin and ESL-flagged ESP for Skyrim SE/AE, with Korean in-game text.
 PAGE:
 [size=4][b]Heart of Magic Librarian - Toxicology[/b][/size]
 [i]Version 1.0.0 by Iwillbewarlock[/i]
@@ -40,6 +41,7 @@ You can configure the mod via [i]SKSE/Plugins/HeartOfMagic_Toxicology.json[/i]:
 
 [size=3][b]Installation & Load Order[/b][/size]
 Install with a mod manager and enable [b]HeartOfMagic_Toxicology.esp[/b] (it is ESL-flagged and takes no load order slot). If you use I4, load HeartOfMagic_Toxicology.esp after [b]I4IconAddon.esp[/b] (a new plugin loads last by default).
+There is an English main file ([b]HeartOfMagic-Librarian-Toxicology_1.0.0.zip[/b]) and a Korean main file ([b]HeartOfMagic-Librarian-Toxicology_1.0.0_KO.zip[/b]); install only one of them, not both. The Korean file is the same except that the in-game names, effect description, and tome text in HeartOfMagic_Toxicology.esp are in Korean (the tome is "마법책: 독물학" there), with the same plugin file name, install steps, and load order.
 
 [size=3][b]Known Limits[/b][/size]
 [list]
