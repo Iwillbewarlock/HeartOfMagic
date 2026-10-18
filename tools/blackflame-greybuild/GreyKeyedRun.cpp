@@ -371,14 +371,17 @@ namespace GreyBuild
         textureSource.SetListed(request.base.texturesDumped);
         Budget budget(a_options.jobMemory, a_options.commitReserve, &textureSource, watch.Flag(), a_options.memoryProbe);
         // BC7 targets on the GPU when its guards allow (GreyGpuEncoder.h); its device goes first when a texture is over the cap
-        GpuEncoder gpu(a_options.gpu, a_options.staging, prefix->outputIdentity, a_options.jobMemory, a_options.memoryProbe);
+        GpuEncoder gpu(a_options.gpu, a_options.staging, prefix->outputIdentity, a_options.jobMemory, a_options.commitReserve,
+            a_options.memoryProbe);
         gpu.Start();
         budget.SetDeviceRelease([&gpu]() { return gpu.ReleaseForMemory(); });
-        // The DLL's throttle event (BuilderSignal.h): absent (a run by hand) means never throttled
+        // The DLL's throttle event (BuilderSignal.h): absent (a run by hand) means never throttled. Read before each object
+        // and by the GPU encoder at each texture (review round 1)
         ThrottleSignal throttle;
         if (a_options.parentPid != 0 && !throttle.Open(a_options.parentPid)) {
             std::cout << "THROTTLE no throttle event from the parent: this run is never throttled\n";
         }
+        gpu.SetThrottleCheck([&throttle]() { return throttle.IsSet(); });
         bool throttled = false;
         TextureJob textures;
         textures.inputs = { dump };

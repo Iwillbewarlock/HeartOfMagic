@@ -10,7 +10,9 @@
 // release through the Budget's memory-probe seam, the throttle event, and the encoder's own state on Microsoft's software
 // adapter (GpuUse::kTestWarp, on every machine): Start's strikes, the device's headroom (share plus the encoded chain),
 // the one re-creation after a release for memory, none after the throttle, the summary's counts and words, and the
-// wiring (RecolourDds hands a BC7 target to a usable encoder: the regression check that runs on every machine). WARP that
+// wiring (RecolourDds hands a BC7 target to a usable encoder: the regression check that runs on every machine). Review
+// round 1: the commit reserve at the device's admission, the throttle read at a texture, a strike carried only into the
+// same texture's call (and the old marker form), an unknown driver version, output check refusals in a row. WARP that
 // cannot be found or made FAILs only on a Windows that has it: d3d10warp.dll in System32 and an IDXGIFactory4 (the
 // interface EnumWarpAdapter is on); otherwise INFO. Not injectable: a hardware adapter that is absent (FindAdapter has no
 // seam; an encoder that was never started is that state for the summary line).
@@ -41,6 +43,8 @@
 
 #include <DirectXTex.h>
 
+#include <omp.h>
+
 #include <algorithm>
 #include <cstring>
 #include <fmt/format.h>
@@ -54,6 +58,9 @@ namespace GreyBuild::SelfTest
     {
         constexpr const char* kAdapterA = "Test GPU (vendor 0x10DE, device 0x0001, driver 32.0.15.1)";
         constexpr const char* kAdapterNewDriver = "Test GPU (vendor 0x10DE, device 0x0001, driver 32.0.15.2)";
+        constexpr const char* kAdapterUnknownDriver = "Test GPU (vendor 0x10DE, device 0x0001, driver unknown (HRESULT 0x887A0004 (test)))";
+        constexpr const char* kTextureA = "data\\textures\\a.dds";
+        constexpr const char* kTextureB = "data\\textures\\b.dds";
         constexpr const char* kOutput = "1";
         constexpr std::size_t kSide = 64;
         constexpr std::size_t kZeroedMip = 2;
@@ -61,6 +68,7 @@ namespace GreyBuild::SelfTest
         static_assert(kSpeckAlpha > kGpuMaxAlphaDiff, "the alpha speck must be over the alpha limit");
         constexpr std::uint8_t kOpaque = 255;
         constexpr std::uint64_t kGuardCap = 4096 * kBytesPerMiB;
+        constexpr std::uint64_t kGuardReserve = kDefaultCommitReserveMiB * kBytesPerMiB;
         constexpr std::uint32_t kNamePid = 0xFFFFFF01u;  // the event name's format only: no event is made for it
 
         [[nodiscard]] std::string ReadAll(const std::filesystem::path& a_file)
@@ -141,19 +149,42 @@ namespace GreyBuild::SelfTest
             a_check.Check(fresh.allowed && fresh.strikes == 0 && fresh.note.empty() && !Exists(markers.Inflight()) && !Exists(markers.Disabled()),
                 "gpu markers: a fresh staging allows the GPU, no strike, no file");
             std::string why;
-            a_check.Check(markers.Enter(fresh.strikes, kAdapterA, why) && ReadAll(markers.Inflight()) == fmt::format("1\n{}\n", kAdapterA),
-                "gpu markers: before a GPU call gpu.inflight holds strike 1 and the adapter");
+            a_check.Check(markers.Enter(fresh.strikes, fresh.texture, kAdapterA, kTextureA, why) &&
+                              ReadAll(markers.Inflight()) == fmt::format("1\n{}\n{}\n", kAdapterA, kTextureA),
+                "gpu markers: before a GPU call gpu.inflight holds strike 1, the adapter and the texture");
             markers.Leave();
             a_check.Check(!Exists(markers.Inflight()), "gpu markers: after the call returned gpu.inflight is gone");
 
-            // a run killed inside a call: the next start keeps the GPU and carries the strike
+            // a run killed inside a call on texture B, the next one inside a call on texture A (game exits): strike 1 each
+            // time, never disabled (review round 1)
+            WriteAll(markers.Inflight(), fmt::format("1\n{}\n{}\n", kAdapterA, kTextureB));
+            const auto otherTexture = markers.OnStart(kAdapterA, kOutput);
+            const bool reset = otherTexture.allowed && otherTexture.strikes == 1 && otherTexture.texture == kTextureB &&
+                               markers.Enter(otherTexture.strikes, otherTexture.texture, kAdapterA, kTextureA, why) &&
+                               ReadAll(markers.Inflight()) == fmt::format("1\n{}\n{}\n", kAdapterA, kTextureA);
+            const auto afterReset = markers.OnStart(kAdapterA, kOutput);
+            a_check.Check(reset && afterReset.allowed && afterReset.strikes == 1 && !Exists(markers.Disabled()),
+                fmt::format("gpu markers: a kill in another texture's call writes strike 1 again, two such starts disable nothing ({})",
+                    afterReset.note));
+            // the old form (no texture line) still reads; its strike is not carried
             WriteAll(markers.Inflight(), fmt::format("1\n{}\n", kAdapterA));
+            const auto oldForm = markers.OnStart(kAdapterA, kOutput);
+            a_check.Check(oldForm.allowed && oldForm.strikes == 1 && oldForm.texture.empty() &&
+                              markers.Enter(oldForm.strikes, oldForm.texture, kAdapterA, kTextureA, why) &&
+                              ReadAll(markers.Inflight()) == fmt::format("1\n{}\n{}\n", kAdapterA, kTextureA),
+                fmt::format("gpu markers: a marker of the old form reads as one strike, never carried into a texture's call ({})",
+                    oldForm.note));
+            markers.Leave();
+
+            // a run killed inside a call: the next start keeps the GPU and carries the strike into the same texture's call
+            WriteAll(markers.Inflight(), fmt::format("1\n{}\n{}\n", kAdapterA, kTextureA));
             const auto one = markers.OnStart(kAdapterA, kOutput);
-            const bool oneOk = one.allowed && one.strikes == 1 && one.note.find("found") != std::string::npos && !Exists(markers.Inflight()) &&
-                               !Exists(markers.Disabled());
-            a_check.Check(oneOk && markers.Enter(one.strikes, kAdapterA, why) && ReadAll(markers.Inflight()) == fmt::format("2\n{}\n", kAdapterA),
-                fmt::format("gpu markers: one marker found keeps the GPU, its own marker is strike 2 ({})", one.note));
-            // and that run was killed inside a call too: two starts in a row
+            const bool oneOk = one.allowed && one.strikes == 1 && one.texture == kTextureA && one.note.find("found") != std::string::npos &&
+                               !Exists(markers.Inflight()) && !Exists(markers.Disabled());
+            a_check.Check(oneOk && markers.Enter(one.strikes, one.texture, kAdapterA, kTextureA, why) &&
+                              ReadAll(markers.Inflight()) == fmt::format("2\n{}\n{}\n", kAdapterA, kTextureA),
+                fmt::format("gpu markers: one marker found keeps the GPU, its own marker on the same texture is strike 2 ({})", one.note));
+            // and that run was killed inside the same texture's call too: two starts in a row
             const auto two = markers.OnStart(kAdapterA, kOutput);
             const auto disabledText = ReadAll(markers.Disabled());
             a_check.Check(!two.allowed && !Exists(markers.Inflight()) &&
@@ -166,7 +197,7 @@ namespace GreyBuild::SelfTest
             // a CPU run (GpuUse::kOff) neither reads nor clears a marker
             WriteAll(markers.Inflight(), fmt::format("1\n{}\n", kAdapterA));
             {
-                GpuEncoder cpu(GpuUse::kOff, staging, kOutput, kGuardCap, Free(kGuardCap, kGuardCap));
+                GpuEncoder cpu(GpuUse::kOff, staging, kOutput, kGuardCap, kGuardReserve, Free(kGuardCap, kGuardCap));
                 cpu.Start();
                 a_check.Check(!cpu.Usable() && !cpu.ReleaseForMemory(), "gpu markers: a CPU run has no GPU and no device to release");
             }
@@ -202,6 +233,21 @@ namespace GreyBuild::SelfTest
                     fmt::format("gpu markers: a malformed gpu.disabled ('{}') keeps the GPU off and stays ({})", text, malformed.note));
             }
             std::filesystem::remove(markers.Disabled());
+
+            // a driver version that does not read: strike 2 writes no gpu.disabled (a driver update could not clear it), this
+            // run alone on the CPU, the marker dropped; one written for such an identity is removed at a start (review round 1)
+            WriteAll(markers.Inflight(), fmt::format("2\n{}\n{}\n", kAdapterUnknownDriver, kTextureA));
+            const auto unknown = markers.OnStart(kAdapterUnknownDriver, kOutput);
+            const auto unknownNext = markers.OnStart(kAdapterUnknownDriver, kOutput);
+            a_check.Check(!unknown.allowed && !Exists(markers.Disabled()) && !Exists(markers.Inflight()) &&
+                              unknown.note.find("driver version does not read") != std::string::npos && unknownNext.allowed,
+                fmt::format("gpu markers: strike 2 on an unknown driver version writes no gpu.disabled, the CPU for that run only ({})",
+                    unknown.note));
+            WriteAll(markers.Disabled(), fmt::format("adapter={}\noutput={}\n", kAdapterUnknownDriver, kOutput));
+            const auto unknownDisabled = markers.OnStart(kAdapterUnknownDriver, kOutput);
+            a_check.Check(unknownDisabled.allowed && !Exists(markers.Disabled()) && unknownDisabled.note.find("never kept") != std::string::npos,
+                fmt::format("gpu markers: a gpu.disabled written for an unknown driver version is removed at a start, even for that "
+                            "identity ({})", unknownDisabled.note));
         }
 
         /// The real write (temp file, then a replacing rename) when it fails part way, and a stale gpu.disabled that cannot be
@@ -233,14 +279,14 @@ namespace GreyBuild::SelfTest
                 fmt::format("gpu markers write: gpu.disabled cut after half its bytes: no gpu.disabled, no temp file, both strikes kept "
                             "({})", notWritten.note));
             std::string why;
-            const bool entered = cut.Enter(0, kAdapterA, why);
+            const bool entered = cut.Enter(0, {}, kAdapterA, kTextureA, why);
             a_check.Check(!entered && ReadAll(inflight) == oldInflight && !Exists(temp(inflight)) && why.find("half") != std::string::npos,
                 "gpu markers write: gpu.inflight cut after half its bytes: the call is refused, the marker there is unchanged, no temp file");
             // the rename fails (a folder where the marker goes): the temp file is removed, the folder stays
             std::filesystem::remove(inflight);
             std::filesystem::create_directories(inflight);
             GpuMarkers real(a_staging);
-            const bool renamed = real.Enter(0, kAdapterA, why);
+            const bool renamed = real.Enter(0, {}, kAdapterA, kTextureA, why);
             a_check.Check(!renamed && !Exists(temp(inflight)) && std::filesystem::is_directory(inflight) && why.find("replace") != std::string::npos,
                 fmt::format("gpu markers write: a rename that fails leaves no temp file ({})", why));
             std::filesystem::remove(inflight);
@@ -249,7 +295,8 @@ namespace GreyBuild::SelfTest
             const auto clean = real.OnStart(kAdapterA, kOutput);
             a_check.Check(clean.allowed && !Exists(temp(disabled)) && !Exists(disabled), "gpu markers write: a start removes a leftover gpu.disabled.tmp");
             // real writes: whole files
-            a_check.Check(real.Enter(0, kAdapterA, why) && ReadAll(inflight) == fmt::format("1\n{}\n", kAdapterA) && !Exists(temp(inflight)),
+            a_check.Check(real.Enter(0, {}, kAdapterA, kTextureA, why) && ReadAll(inflight) == fmt::format("1\n{}\n{}\n", kAdapterA, kTextureA) &&
+                              !Exists(temp(inflight)),
                 "gpu markers write: a real write leaves the whole marker and no temp file");
             real.Leave();
 
@@ -327,7 +374,7 @@ namespace GreyBuild::SelfTest
                 "gpu markers io: the next start still sees two strikes and writes gpu.disabled");
             std::string why;
             GpuMarkers enterFails(staging, MarkerIo{ {}, failWrite });
-            a_check.Check(!enterFails.Enter(0, kAdapterA, why) && !why.empty(), "gpu markers io: a marker that cannot be written refuses the call");
+            a_check.Check(!enterFails.Enter(0, {}, kAdapterA, kTextureA, why) && !why.empty(), "gpu markers io: a marker that cannot be written refuses the call");
             CheckMarkerWrites(a_check, staging);
         }
 
@@ -486,7 +533,7 @@ namespace GreyBuild::SelfTest
                 a_check.Check(false, fmt::format("gpu wiring: {} not written", PathText(source)));
                 return;
             }
-            GpuEncoder wired(GpuUse::kTestWarp, a_staging, kOutput, kGuardCap, Free(kGuardCap, kGuardCap));
+            GpuEncoder wired(GpuUse::kTestWarp, a_staging, kOutput, kGuardCap, kGuardReserve, Free(kGuardCap, kGuardCap));
             (void)Captured([&]() { wired.Start(); });
             const bool usable = wired.Usable();
             RecolourResult onGpu;
@@ -518,7 +565,7 @@ namespace GreyBuild::SelfTest
             const auto plenty = Free(kGuardCap, kGuardCap);
             std::string identity;
             {
-                GpuEncoder probe(GpuUse::kTestWarp, staging, kOutput, kGuardCap, plenty);
+                GpuEncoder probe(GpuUse::kTestWarp, staging, kOutput, kGuardCap, kGuardReserve, plenty);
                 (void)Captured([&]() { probe.Start(); });
                 identity = probe.Adapter();
             }
@@ -538,7 +585,7 @@ namespace GreyBuild::SelfTest
             // Start carries the strike it found into the run (m_strikes), and Encode's own marker builds on it
             WriteAll(staging / kGpuInflightFile, fmt::format("1\n{}\n", identity));
             {
-                GpuEncoder carried(GpuUse::kTestWarp, staging, kOutput, kGuardCap, plenty);
+                GpuEncoder carried(GpuUse::kTestWarp, staging, kOutput, kGuardCap, kGuardReserve, plenty);
                 (void)Captured([&]() { carried.Start(); });
                 DirectX::ScratchImage out;
                 std::string why;
@@ -554,7 +601,7 @@ namespace GreyBuild::SelfTest
 
             // headroom: the device's share alone is no longer enough, the texture's encoded chain is counted too
             {
-                GpuEncoder tight(GpuUse::kTestWarp, staging, kOutput, kGuardCap, Free(kGuardCap, kGpuDeviceShareBytes));
+                GpuEncoder tight(GpuUse::kTestWarp, staging, kOutput, kGuardCap, kGuardReserve, Free(kGuardCap, kGpuDeviceShareBytes));
                 (void)Captured([&]() { tight.Start(); });
                 DirectX::ScratchImage out;
                 std::string why;
@@ -566,16 +613,37 @@ namespace GreyBuild::SelfTest
                 });
                 a_check.Check(!first && !second && !tight.DeviceMade() && tight.HeadroomNoted() && why.empty() && Count(printed, "no device yet") == 1,
                     "gpu encoder: free memory of exactly the device's share (no room for the encoded chain): no device, noted once");
-                GpuEncoder roomy(GpuUse::kTestWarp, staging, kOutput, kGuardCap, Free(kGuardCap, kGpuDeviceShareBytes + kBytesPerMiB));
+                GpuEncoder roomy(GpuUse::kTestWarp, staging, kOutput, kGuardCap, kGuardReserve, Free(kGuardCap, kGpuDeviceShareBytes + kBytesPerMiB));
                 (void)Captured([&]() { roomy.Start(); });
                 bool made = false;
                 (void)Captured([&]() { made = roomy.Encode(grey, DXGI_FORMAT_BC7_UNORM, out, why); });
                 a_check.Check(made && roomy.DeviceMade() && !roomy.HeadroomNoted(), "gpu encoder: the share plus room for the chain: the device is made");
             }
 
+            // a BC7 source for the cases below that go through RecolourDds (the CPU used, not only Encode's false)
+            const auto source = staging / "encoder.dds";
+            if (!WriteTestTexture(source, DXGI_FORMAT_BC7_UNORM, true)) {
+                a_check.Check(false, fmt::format("gpu encoder: {} not written", PathText(source)));
+                return;
+            }
+
+            // the system's commit under the reserve plus the need, the cap with room: no device, the CPU (Budget's rule, not
+            // the job cap alone; review round 1)
+            {
+                const MemoryProbe shortCommit = []() { return std::optional<MemoryState>(MemoryState{ 0, kGuardReserve + kGpuDeviceShareBytes }); };
+                GpuEncoder gpu(GpuUse::kTestWarp, staging, kOutput, kGuardCap, kGuardReserve, shortCommit);
+                (void)Captured([&]() { gpu.Start(); });
+                RecolourResult result;
+                const auto printed = Captured([&]() { result = RecolourDds(source, staging / "commit.out.dds", 1.0f, &gpu); });
+                a_check.Check(!result.gpu && result.outcome == RecolourOutcome::kRecoloured && !gpu.DeviceMade() && gpu.HeadroomNoted() &&
+                                  Count(printed, "no device yet") == 1 && printed.find("commit left") != std::string::npos,
+                    fmt::format("gpu encoder: the system's commit under the reserve plus the device's need: no device, the texture on the "
+                                "CPU, noted once (on the GPU {}, device made {})", result.gpu, gpu.DeviceMade()));
+            }
+
             // a release for memory: made again once, then not again
             {
-                GpuEncoder gpu(GpuUse::kTestWarp, staging, kOutput, kGuardCap, plenty);
+                GpuEncoder gpu(GpuUse::kTestWarp, staging, kOutput, kGuardCap, kGuardReserve, plenty);
                 (void)Captured([&]() { gpu.Start(); });
                 DirectX::ScratchImage out;
                 std::string why;
@@ -599,7 +667,7 @@ namespace GreyBuild::SelfTest
 
             // the throttle: never made again
             {
-                GpuEncoder gpu(GpuUse::kTestWarp, staging, kOutput, kGuardCap, plenty);
+                GpuEncoder gpu(GpuUse::kTestWarp, staging, kOutput, kGuardCap, kGuardReserve, plenty);
                 (void)Captured([&]() { gpu.Start(); });
                 DirectX::ScratchImage out;
                 std::string why;
@@ -614,12 +682,71 @@ namespace GreyBuild::SelfTest
                     "gpu encoder: after the throttle the device is released and never made again");
             }
 
+            // the throttle event set between two textures of one object: Encode reads it, the second is on the CPU, OpenMP on
+            // one thread; set before the first, no device is made at all (review round 1). OpenMP's thread count is restored
+            {
+                struct RestoreThreads
+                {
+                    int threads;
+                    ~RestoreThreads() { ::omp_set_num_threads(threads); }
+                } restore{ ::omp_get_max_threads() };
+                bool set = false;
+                GpuEncoder gpu(GpuUse::kTestWarp, staging, kOutput, kGuardCap, kGuardReserve, plenty);
+                gpu.SetThrottleCheck([&set]() { return set; });
+                (void)Captured([&]() { gpu.Start(); });
+                RecolourResult first;
+                RecolourResult second;
+                const auto printed = Captured([&]() {
+                    first = RecolourDds(source, staging / "first.out.dds", 1.0f, &gpu);
+                    set = true;
+                    second = RecolourDds(source, staging / "second.out.dds", 1.0f, &gpu);
+                });
+                const int threads = ::omp_get_max_threads();
+                a_check.Check((first.gpu || !first.gpuNote.empty()) && !second.gpu && second.gpuNote.empty() &&
+                                  second.outcome == RecolourOutcome::kRecoloured && gpu.Devices() == 1 && !gpu.DeviceHeld() && gpu.Stopped() &&
+                                  threads == 1 && Count(printed, "throttle event is set") == 1,
+                    fmt::format("gpu encoder: the throttle set between two textures: the first on the GPU, the second on the CPU, the "
+                                "device released, OpenMP on {} thread(s)", threads));
+                ::omp_set_num_threads(restore.threads);
+                GpuEncoder early(GpuUse::kTestWarp, staging, kOutput, kGuardCap, kGuardReserve, plenty);
+                early.SetThrottleCheck([]() { return true; });
+                (void)Captured([&]() { early.Start(); });
+                RecolourResult onCpu;
+                (void)Captured([&]() { onCpu = RecolourDds(source, staging / "early.out.dds", 1.0f, &early); });
+                a_check.Check(!onCpu.gpu && onCpu.outcome == RecolourOutcome::kRecoloured && !early.DeviceMade() && early.Stopped(),
+                    "gpu encoder: the throttle set before an object's first BC7 texture: no device is made, the texture on the CPU");
+            }
+
+            // output check refusals: kGpuMaxRejectsInRow in a row stop the GPU (logged once), an accepted one in between resets
+            // the count (review round 1)
+            {
+                GpuEncoder gpu(GpuUse::kTestWarp, staging, kOutput, kGuardCap, kGuardReserve, plenty);
+                (void)Captured([&]() { gpu.Start(); });
+                DirectX::ScratchImage out;
+                std::string why;
+                bool made = false;
+                bool usableBefore = false;
+                const auto printed = Captured([&]() {
+                    made = gpu.Encode(grey, DXGI_FORMAT_BC7_UNORM, out, why);
+                    for (const bool accepted : { false, false, true, false, false }) {
+                        gpu.NoteResult(accepted);
+                    }
+                    usableBefore = gpu.Usable();
+                    gpu.NoteResult(false);
+                    gpu.NoteResult(false);  // reached only by a caller that ignores Usable: logged once all the same
+                });
+                a_check.Check(made && usableBefore && gpu.Stopped() && !gpu.Usable() && !gpu.DeviceHeld() && gpu.Rejected() == 6 &&
+                                  Count(printed, "GPU results in a row") == 1,
+                    fmt::format("gpu encoder: {} output check refusals in a row stop the GPU and release the device, logged once; an "
+                                "accepted result in between resets the count", kGpuMaxRejectsInRow));
+            }
+
             // the summary's words: "disabled" only with an adapter whose gpu.disabled holds; "no adapter" without one
             WriteAll(staging / kGpuDisabledFile, fmt::format("adapter={}\noutput={}\n", identity, kOutput));
             {
-                GpuEncoder disabled(GpuUse::kTestWarp, staging, kOutput, kGuardCap, plenty);
+                GpuEncoder disabled(GpuUse::kTestWarp, staging, kOutput, kGuardCap, kGuardReserve, plenty);
                 (void)Captured([&]() { disabled.Start(); });
-                GpuEncoder notStarted(GpuUse::kAuto, staging, kOutput, kGuardCap, plenty);  // what Start leaves when no adapter is found
+                GpuEncoder notStarted(GpuUse::kAuto, staging, kOutput, kGuardCap, kGuardReserve, plenty);  // what Start leaves when no adapter is found
                 const auto off = disabled.SummaryLine();
                 const auto none = notStarted.SummaryLine();
                 a_check.Check(!disabled.Usable() && off.find("; disabled") != std::string::npos && none.find("no adapter") != std::string::npos &&
@@ -652,7 +779,7 @@ namespace GreyBuild::SelfTest
             };
             const Fixture fixtures[] = { { "bc7", Golden::kBc7, DXGI_FORMAT_BC7_UNORM }, { "bc7srgb", Golden::kBc7Srgb, DXGI_FORMAT_BC7_UNORM_SRGB },
                 { "bc7wide", Golden::kBc7Wide, DXGI_FORMAT_BC7_UNORM } };
-            GpuEncoder gpu(GpuUse::kAuto, dir / "staging", kOutput, kGuardCap, Free(kGuardCap, kGuardCap));
+            GpuEncoder gpu(GpuUse::kAuto, dir / "staging", kOutput, kGuardCap, kGuardReserve, Free(kGuardCap, kGuardCap));
             gpu.Start();
             if (!gpu.AdapterFound()) {
                 std::cout << "INFO gpu guard 5: no hardware adapter here (see the GPU line above): not a failure\n";

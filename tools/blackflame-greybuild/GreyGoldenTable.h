@@ -14,9 +14,9 @@
 
 namespace GreyBuild::Golden
 {
-    // ---- version 1: made 2026-10-18 on one machine (the first table). It is the build's gate already
-    // (GreySelfTestGate.cmake); it has not been confirmed on a second machine yet. Regenerated in place, before version 1
-    // was released: on 2026-10-18 for the sRGB source palette fixture (GreyGolden.h kPaletteSrgb, kKeyPaletteSrgb): two
+    // ---- version 1: made 2026-10-18 on one machine (the first table), pinned 2026-10-19 (kReleasedPins: never regenerated
+    // again). It is the build's gate already (GreySelfTestGate.cmake); it has not been confirmed on a second machine yet.
+    // Regenerated in place, before version 1 was pinned: on 2026-10-18 for the sRGB source palette fixture (GreyGolden.h kPaletteSrgb, kKeyPaletteSrgb): two
     // files and two lines added; on 2026-10-19 for the four texel-test fixtures (GreyGolden.h kThresholds 8-11): the
     // textures NIF's copy (601d000000000001) and its progress line changed (two more texture deps), two texture copies
     // and their two dds lines added (minchannel_edge, lit_over: recoloured; sat_edge, lit_under: left grey, no copy).
@@ -136,9 +136,11 @@ namespace GreyBuild::Golden
     };
 
     // ---- released pins: one row per version a tester package shipped with, never printed by --print-golden (so a pasted
-    // table cannot overwrite one) and never removed. Version 1 is not pinned yet. Procedure (Make-TesterPackage.ps1 refuses
-    // a builder whose kBuilderOutputVersion has no row here and prints the row to add): run --self-test, add the row its
-    // "NOTE golden table v<n> fnv64 <hex>" line gives ({ <n>, "<hex>" },), commit, build Release again, package
+    // table cannot overwrite one) and never removed. A version with no row here builds as <n>+dev (GreyIdentity.cmake reads
+    // this block), so a forgotten bump never ships as a released number; Make-TesterPackage.ps1 refuses it too. Procedure:
+    // run --self-test, add the row its "NOTE golden table v<n> fnv64 <hex>" line gives ({ <n>, "<hex>" },), commit, build
+    // Release again, package. Version 1 pinned 2026-10-19 (review round 1), before any copy was keyed out=1 in game
     inline constexpr std::initializer_list<ReleasedPin> kReleasedPins = {
+        { 1, "98c3bb9ade3ef20a" },
     };
 }

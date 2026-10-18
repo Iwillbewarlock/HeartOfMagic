@@ -45,6 +45,13 @@ namespace GreyBuild
         constexpr unsigned kDriverFieldMask = 0xFFFF;
         constexpr const char* kAdapterKey = "adapter=";
         constexpr const char* kOutputKey = "output=";
+        constexpr const char* kDriverUnknown = "driver unknown (";  // Describe's identity when DriverVersion does not read
+
+        /// a_identity's driver version did not read: a driver update would not change it, so nothing is disabled on it
+        [[nodiscard]] bool DriverUnknown(const std::string& a_identity)
+        {
+            return a_identity.find(kDriverUnknown) != std::string::npos;
+        }
 
         [[nodiscard]] std::string HrText(HRESULT a_result)
         {
@@ -253,6 +260,12 @@ namespace GreyBuild
             return a_b > UINT64_MAX - a_a ? UINT64_MAX : a_a + a_b;
         }
 
+        /// The bytes of a_grey's mip 0 (its first image, RGBA8); 0 when it has none
+        [[nodiscard]] std::uint64_t Mip0Bytes(const DirectX::ScratchImage& a_grey) noexcept
+        {
+            return a_grey.GetImageCount() == 0 ? 0 : a_grey.GetImages()[0].slicePitch;
+        }
+
         /// The bytes a_grey's chain takes in a_format, every subresource (UINT64_MAX when a pitch does not compute)
         [[nodiscard]] std::uint64_t EncodedChainBytes(const DirectX::ScratchImage& a_grey, DXGI_FORMAT a_format) noexcept
         {
@@ -380,28 +393,32 @@ namespace GreyBuild
                     kAdapterKey, kOutputKey);
                 return start;
             }
-            if (*adapter == a_adapter && *output == a_output) {
+            // one written for an unknown driver version is never kept: a driver update could not clear it (review round 1)
+            const bool unknownDriver = DriverUnknown(*adapter);
+            if (*adapter == a_adapter && *output == a_output && !unknownDriver) {
                 start.allowed = false;
                 start.note = fmt::format("{} holds for this adapter and output identity ({}; {}): BC7 on the CPU", kGpuDisabledFile,
                     *adapter, *output);
                 std::filesystem::remove(Inflight(), ec);  // gpu.disabled is written: the strikes are kept by it
                 return start;
             }
-            // another adapter, driver or output: stale, cleared with any marker (whose strikes were counted for that one)
-            const char* const what = *adapter != a_adapter ? "adapter or driver" : "output identity";
+            // another adapter, driver or output, or an unknown driver: stale, cleared with any marker (whose strikes were
+            // counted for that one)
+            const char* const what = unknownDriver ? "an adapter whose driver version did not read (never kept)" :
+                                     *adapter != a_adapter ? "another adapter or driver" : "another output identity";
             std::filesystem::remove(Disabled(), ec);
             if (ec) {
                 // still there: this run stays on the CPU (no zero-strike start past a file that may yet hold); tried again
                 // at the next start
                 start.allowed = false;
-                start.note = fmt::format("{} was written for another {} ('{}', output '{}'; now '{}', '{}') but could not be removed "
+                start.note = fmt::format("{} was written for {} ('{}', output '{}'; now '{}', '{}') but could not be removed "
                                          "({}): BC7 on the CPU for this run, it is tried again at the next start", kGpuDisabledFile, what,
                     *adapter, *output, a_adapter, a_output, ec.message());
                 return start;
             }
             std::error_code inflightEc;
             std::filesystem::remove(Inflight(), inflightEc);
-            start.note = fmt::format("{} was written for another {} ('{}', output '{}'; now '{}', '{}'): cleared with any {}, the GPU is "
+            start.note = fmt::format("{} was written for {} ('{}', output '{}'; now '{}', '{}'): cleared with any {}, the GPU is "
                                      "tried again", kGpuDisabledFile, what, *adapter, *output, a_adapter, a_output, kGpuInflightFile);
             return start;
         }
@@ -411,27 +428,47 @@ namespace GreyBuild
         }
         if (inflight.state == MarkerRead::kUnreadable) {
             // one strike, as a garbled count; left in place, so a later start that can read it still has its count (this
-            // run's own marker overwrites it with strike 2 when it can write it)
+            // run's own marker overwrites it; its texture is not known, so that one is strike 1)
             start.strikes = 1;
             start.note = fmt::format("{} is there but does not read ({}): counted as one strike and left in place; the GPU is kept, "
                                      "{} more such start(s) turn it off", kGpuInflightFile, inflight.why, kGpuDisableStrikes - 1);
             return start;
         }
-        // "<strikes>\n<adapter>\n"; an unparseable count is one strike (the file is there, so a call did not return)
+        // "<strikes>\n<adapter>\n<texture>\n" (the old form has no texture line); an unparseable count is one strike (the
+        // file is there, so a call did not return)
         int found = 1;
         try {
             found = std::max(1, std::stoi(inflight.text));
         } catch (const std::exception&) {
             found = 1;
         }
-        const auto firstEnd = inflight.text.find('\n');
-        const auto secondEnd = firstEnd == std::string::npos ? std::string::npos : inflight.text.find('\n', firstEnd + 1);
-        const std::string inCall = firstEnd == std::string::npos ? std::string() :
-                                       inflight.text.substr(firstEnd + 1, secondEnd == std::string::npos ? std::string::npos : secondEnd - firstEnd - 1);
+        const auto line = [&](std::size_t a_index) {
+            std::size_t at = 0;
+            for (std::size_t i = 0; i < a_index; ++i) {
+                const auto next = inflight.text.find('\n', at);
+                if (next == std::string::npos) {
+                    return std::string();
+                }
+                at = next + 1;
+            }
+            const auto end = inflight.text.find('\n', at);
+            return inflight.text.substr(at, end == std::string::npos ? std::string::npos : end - at);
+        };
+        const std::string inCall = line(1);
         if (!inCall.empty() && inCall != a_adapter) {
             std::filesystem::remove(Inflight(), ec);
             start.note = fmt::format("{} was written for another adapter or driver ('{}'; now '{}'): its {} strike(s) are dropped, the "
                                      "GPU is kept", kGpuInflightFile, inCall, a_adapter, found);
+            return start;
+        }
+        if (found >= kGpuDisableStrikes && DriverUnknown(a_adapter)) {
+            // no gpu.disabled: a driver update could not clear it (review round 1); this run alone on the CPU
+            std::filesystem::remove(Inflight(), ec);
+            start.allowed = false;
+            start.note = fmt::format("{} found at {} starts in a row (the process ended inside a GPU call on {}), but the driver "
+                                     "version does not read, so a driver update could not clear a {}: none is written; BC7 on the CPU "
+                                     "for this run only, the marker is dropped and the GPU is tried again at the next start",
+                kGpuInflightFile, found, a_adapter, kGpuDisabledFile);
             return start;
         }
         if (found >= kGpuDisableStrikes) {
@@ -452,15 +489,21 @@ namespace GreyBuild
         }
         std::filesystem::remove(Inflight(), ec);  // this run writes its own, with the strike carried
         start.strikes = found;
-        start.note = fmt::format("{} found (the last run ended inside a GPU call on {}; a game exit can do that): the GPU is "
-                                 "kept, {} more such start(s) turn it off", kGpuInflightFile, inCall.empty() ? "an unnamed adapter" : inCall,
-            kGpuDisableStrikes - found);
+        start.texture = line(2);
+        start.note = fmt::format("{} found (the last run ended inside a GPU call on {}, texture {}; a game exit can do that): the "
+                                 "GPU is kept, {}", kGpuInflightFile, inCall.empty() ? "an unnamed adapter" : inCall,
+            start.texture.empty() ? std::string("unnamed") : start.texture,
+            start.texture.empty() ? std::string("the strike is not carried (no texture named: the old marker form)") :
+                                    fmt::format("{} more such start(s) ending in that texture's call turn it off", kGpuDisableStrikes - found));
         return start;
     }
 
-    bool GpuMarkers::Enter(int a_strikes, const std::string& a_adapter, std::string& a_why)
+    bool GpuMarkers::Enter(int a_strikes, const std::string& a_carriedTexture, const std::string& a_adapter, const std::string& a_texture,
+        std::string& a_why)
     {
-        return Write(Inflight(), fmt::format("{}\n{}\n", a_strikes + 1, a_adapter), a_why);
+        // the strike carries only into the same texture's call: two game exits in a row on different textures are no GPU fault
+        const int strikes = !a_texture.empty() && a_texture == a_carriedTexture ? a_strikes : 0;
+        return Write(Inflight(), fmt::format("{}\n{}\n{}\n", strikes + 1, a_adapter, a_texture), a_why);
     }
 
     void GpuMarkers::Leave() noexcept
@@ -477,8 +520,9 @@ namespace GreyBuild
     };
 
     GpuEncoder::GpuEncoder(GpuUse a_use, std::filesystem::path a_staging, std::string a_outputIdentity, std::uint64_t a_cap,
-        MemoryProbe a_probe) :
-        m_use(a_use), m_markers(std::move(a_staging)), m_output(std::move(a_outputIdentity)), m_cap(a_cap), m_probe(std::move(a_probe))
+        std::uint64_t a_reserve, MemoryProbe a_probe) :
+        m_use(a_use), m_markers(std::move(a_staging)), m_output(std::move(a_outputIdentity)), m_cap(a_cap), m_reserve(a_reserve),
+        m_probe(std::move(a_probe))
     {}
 
     GpuEncoder::~GpuEncoder()
@@ -509,12 +553,13 @@ namespace GreyBuild
         }
         m_allowed = start.allowed;
         m_strikes = start.strikes;
+        m_strikeTexture = start.texture;
     }
 
-    bool GpuEncoder::MakeDevice()
+    bool GpuEncoder::MakeDevice(const std::string& a_texture)
     {
         std::string why;
-        if (!m_markers.Enter(m_strikes, m_adapter, why)) {
+        if (!m_markers.Enter(m_strikes, m_strikeTexture, m_adapter, a_texture, why)) {
             Stop(why + ": no crash marker, so no device");
             return false;
         }
@@ -545,37 +590,56 @@ namespace GreyBuild
         return m_device && m_device->device;
     }
 
-    bool GpuEncoder::Encode(const DirectX::ScratchImage& a_grey, unsigned a_dxgiFormat, DirectX::ScratchImage& a_out, std::string& a_why)
+    bool GpuEncoder::Encode(const DirectX::ScratchImage& a_grey, unsigned a_dxgiFormat, DirectX::ScratchImage& a_out, std::string& a_why,
+        const std::string& a_texture)
     {
+        // the throttle read here too, not only between objects: an object's later textures never use the GPU after it, nor
+        // make a device (review round 1)
+        if (!m_throttled && m_throttleCheck && m_throttleCheck()) {
+            Throttle();
+            OneOpenMpThread();
+            std::cout << "GPU   the throttle event is set (read at a texture): the GPU device is released for the rest of the run "
+                         "and OpenMP runs on one thread\n";
+        }
         const auto format = static_cast<DXGI_FORMAT>(a_dxgiFormat);
         if (!Usable() || !m_device || (format != DXGI_FORMAT_BC7_UNORM && format != DXGI_FORMAT_BC7_UNORM_SRGB)) {
             return false;
         }
         if (!m_device->device) {
-            // the device's share and what this texture still allocates (its encoded chain): the rest of the texture is
-            // already in PrivateUsage
-            const std::uint64_t need = SatAdd(kGpuDeviceShareBytes, EncodedChainBytes(a_grey, format));
+            // the device's share and what this texture still allocates: its encoded chain, and mip 0's RGBA twice (the output
+            // check's decode, the call's upload or readback copies; review round 1); the rest of the texture is already in
+            // PrivateUsage. Budget's own rule decides: the job cap and the system's commit reserve (review round 1)
+            const std::uint64_t need = SatAdd(SatAdd(kGpuDeviceShareBytes, EncodedChainBytes(a_grey, format)), SatAdd(Mip0Bytes(a_grey),
+                Mip0Bytes(a_grey)));
             const auto state = m_probe ? m_probe() : std::nullopt;
-            if (!state || state->inUse > m_cap || m_cap - state->inUse < need) {
+            const auto admission = state ? Admit(need, state->inUse, m_cap, state->availableCommit, m_reserve) : Admission::kOverCap;
+            if (admission != Admission::kAdmit) {
                 if (!m_admissionNoted) {
                     m_admissionNoted = true;
-                    std::cout << fmt::format("GPU   no device yet: {} under the job memory cap, the device and this texture's encoded "
-                                             "chain take about {} MiB: BC7 on the CPU until there is room (noted once)\n", state ?
-                                             fmt::format("{} MiB free", state->inUse > m_cap ? 0 : (m_cap - state->inUse) / kBytesPerMiB) :
-                                             std::string("the memory in use is not measurable, so nothing is known"),
-                        need / kBytesPerMiB);
+                    std::string where;
+                    if (!state) {
+                        where = "the memory in use is not measurable, so nothing is known";
+                    } else if (admission == Admission::kPause) {
+                        where = fmt::format("the system has {} MiB of commit left (reserve {} MiB)", state->availableCommit / kBytesPerMiB,
+                            m_reserve / kBytesPerMiB);
+                    } else {
+                        where = fmt::format("{} MiB free under the job memory cap", state->inUse > m_cap ? 0 : (m_cap - state->inUse) / kBytesPerMiB);
+                    }
+                    std::cout << fmt::format("GPU   no device yet: {}, the device and what this texture's call allocates take about {} "
+                                             "MiB: BC7 on the CPU until there is room (noted once)\n", where, need / kBytesPerMiB);
                 }
                 return false;
             }
-            if (!MakeDevice()) {
+            if (!MakeDevice(a_texture)) {
                 return false;
             }
         }
         std::string why;
-        if (!m_markers.Enter(m_strikes, m_adapter, why)) {
+        if (!m_markers.Enter(m_strikes, m_strikeTexture, m_adapter, a_texture, why)) {
             Stop(why + ": no crash marker, so no GPU call");
             return false;
         }
+        // shipped output the golden test does not see (it runs GpuUse::kOff): a change here bumps kBuilderOutputVersion
         const auto flags = static_cast<DirectX::TEX_COMPRESS_FLAGS>(DirectX::TEX_COMPRESS_DEFAULT | DirectX::TEX_COMPRESS_BC7_QUICK);
         const HRESULT hr = DirectX::Compress(m_device->device.Get(), a_grey.GetImages(), a_grey.GetImageCount(), a_grey.GetMetadata(),
             format, flags, kGpuAlphaWeight, a_out);
@@ -634,9 +698,21 @@ namespace GreyBuild
         return true;
     }
 
+    void GpuEncoder::NoteResult(bool a_accepted)
+    {
+        ++(a_accepted ? m_encoded : m_rejected);
+        m_rejectedInRow = a_accepted ? 0 : m_rejectedInRow + 1;
+        // a GPU or driver whose results the check keeps refusing costs an encode and a decode per texture for nothing
+        // (review round 1): stopped, logged once by Stop
+        if (m_rejectedInRow >= kGpuMaxRejectsInRow) {
+            Stop(fmt::format("the output check refused {} GPU results in a row", m_rejectedInRow));
+        }
+    }
+
     void GpuEncoder::Throttle()
     {
         Release();
+        m_throttled = true;
         if (!m_stopped) {
             m_stopped = true;
             m_stopWhy = "throttled (the publish window closed)";

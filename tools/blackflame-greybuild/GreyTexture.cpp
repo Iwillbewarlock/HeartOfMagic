@@ -310,7 +310,8 @@ namespace GreyBuild
         const DirectX::ScratchImage* out = &grey;
         if (compressed && a_gpu && (format == DXGI_FORMAT_BC7_UNORM || format == DXGI_FORMAT_BC7_UNORM_SRGB)) {
             std::string gpuWhy;
-            if (a_gpu->Encode(grey, static_cast<unsigned>(format), encoded, gpuWhy)) {
+            // the source names the call in the crash marker (its strikes carry only into the same texture's call)
+            if (a_gpu->Encode(grey, static_cast<unsigned>(format), encoded, gpuWhy, PathText(a_source))) {
                 const auto check = CheckGpuOutput(grey, encoded, static_cast<unsigned>(format));
                 a_gpu->NoteResult(check.ok);
                 if (check.ok) {

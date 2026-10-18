@@ -31,7 +31,10 @@
 // folder is compiled in); --print-golden runs that part alone and prints this build's table as source (it needs
 // --golden-dir). --make-golden-fixtures writes the fixtures' input files once (they are committed, never made again at
 // test time). --identity prints the output identity this exe keys with ("<n>" or "<n>+dev<digest>", GreyIdentity.cmake).
-// Every mode runs with the CRT's FMA3 paths off (_set_FMA3_enable(0)), so a run gives the golden table's bytes.
+// Every mode runs with the CRT's FMA3 paths off (_set_FMA3_enable(0)), so a CPU-encoded run gives the golden table's
+// bytes (the golden test runs GpuUse::kOff). Key mode's BC7 targets may be encoded on the GPU (GreyGpuEncoder.cpp
+// Encode), whose bytes no table holds (guard 5 checks them by tolerance): a change to its encode settings must bump
+// kBuilderOutputVersion all the same.
 // Exit 0 = success, 1 = a failure, 2 = bad arguments.
 
 #include "GreyBuild.h"

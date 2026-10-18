@@ -134,7 +134,8 @@ namespace GreyBuild
     /// them: the object loop's; vcomp140 is process-wide, so DirectXTex's PARALLEL encoder and ComputeStats both follow)
     void OneOpenMpThread();
 
-    /// The DLL's throttle event (plugins/BlackFlame/src/BuilderSignal.h), opened with SYNCHRONIZE and read between objects
+    /// The DLL's throttle event (plugins/BlackFlame/src/BuilderSignal.h), opened with SYNCHRONIZE and read between objects and
+    /// at each GPU encode (GpuEncoder::SetThrottleCheck)
     class ThrottleSignal
     {
     public:

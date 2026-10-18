@@ -4,8 +4,10 @@
 # The identity is the text the DLL copies into every key prefix (out=<identity>, CopyContractKeys.h):
 #   <n>                 a release build: kBuilderOutputVersion from CopyContractKeys.h, nothing else
 #   <n>+dev<16 hex>     a build of any configuration but Release (Debug, RelWithDebInfo, MinSizeRel), or one whose
-#                       output-affecting sources differ from git HEAD (modified, staged or untracked), or one where git
-#                       cannot tell: <16 hex> is a digest of the configuration name and those sources
+#                       kBuilderOutputVersion has no row in GreyGoldenTable.h's kReleasedPins (an unpinned table, or a
+#                       forgotten bump: never a released number; review round 1), or one whose output-affecting sources
+#                       differ from git HEAD (modified, staged or untracked), or one where git cannot tell: <16 hex> is a
+#                       digest of the configuration name and those sources
 # Output-affecting sources: tools/blackflame-greybuild/** (this script, the golden fixtures included), the contract
 # headers the builder compiles (plugins/BlackFlame/src/CopyContract*.h, DataPathRule.h), and what picks its compiler
 # flags and library versions: tools/CMakeLists.txt (its target), the root CMakeLists.txt and plugins/cmake/*.cmake
@@ -60,6 +62,24 @@ set(source_globs
 set(dev_why "")
 if(NOT CONFIG STREQUAL "Release")
     set(dev_why "a ${CONFIG} build (only Release builds are releases)")
+endif()
+
+# A released number needs its pin: the rows of the kReleasedPins block only (kTables' rows look the same), "{ <n>, "<hex>" }"
+set(pins_header "${ROOT}/tools/blackflame-greybuild/GreyGoldenTable.h")
+file(READ "${pins_header}" pins_text)
+string(FIND "${pins_text}" "kReleasedPins = {" pins_at)
+if(pins_at EQUAL -1)
+    message(FATAL_ERROR "GreyIdentity.cmake: no 'kReleasedPins = {' in ${pins_header}")
+endif()
+string(SUBSTRING "${pins_text}" ${pins_at} -1 pins_text)
+string(FIND "${pins_text}" "};" pins_end)
+if(pins_end EQUAL -1)
+    message(FATAL_ERROR "GreyIdentity.cmake: the kReleasedPins block in ${pins_header} has no '};'")
+endif()
+string(SUBSTRING "${pins_text}" 0 ${pins_end} pins_text)
+string(REGEX MATCH "\\{ *${version} *, *\"[0-9a-f]+\" *\\}" pin_match "${pins_text}")
+if(dev_why STREQUAL "" AND NOT pin_match)
+    set(dev_why "kBuilderOutputVersion ${version} has no row in kReleasedPins (GreyGoldenTable.h), so it is no released number")
 endif()
 
 if(dev_why STREQUAL "")
