@@ -1112,11 +1112,16 @@ from the Windows SDK, the builder only). In key mode a BC7 target is encoded by 
   with its context, at the first failure (the rest of the run is CPU), before an object would fail over the cap or wait
   for commit (made again once a run when there is room, never a third time), and for the rest of the run on the throttle
   event;
-- the crash guard allows it: `staging\gpu.inflight` (`<strikes>` and the adapter) exists only while device creation or a
-  GPU encode runs; a start that finds it keeps the GPU and carries the strike, a marker of strike 2 (two starts in a row
-  ended inside a GPU call) writes `staging\gpu.disabled` (adapter with its driver version, output identity) and from then
-  BC7 is encoded on the CPU; the marker stays until that write succeeds (a failed write leaves both strikes for the next
-  start). A marker naming another adapter or driver is dropped with its strikes; one that does not read is one strike and
+- the crash guard allows it: `staging\gpu.inflight` (`<strikes>`, the adapter, the texture being encoded and `<deaths>`,
+  one a line) exists only while device creation or a GPU encode runs. A start that finds it keeps the GPU; the strike
+  carries only when the next GPU call is on the same texture (a game exit kills the builder in a kill-on-close job, so a
+  death on another texture is no evidence against the GPU), the death count carries whatever the texture. Strike 2 (two
+  starts in a row ended inside a GPU call on one texture) or 4 deaths in a row on any textures writes
+  `staging\gpu.disabled` (adapter with its driver version, output identity) and from then BC7 is encoded on the CPU; a
+  GPU encode that returns sets the death count back to 0, and one on the carried texture the strike too. A marker with no
+  texture line (an older builder's) counts as strike 1 and never disables; on an adapter whose driver version does not
+  read, either limit puts only that run on the CPU and no `gpu.disabled` is written (it could never be cleared by a driver
+  update). The marker stays until the disable write succeeds (a failed write leaves the counts for the next start). A marker naming another adapter or driver is dropped with its strikes; one that does not read is one strike and
   stays. `gpu.disabled` is cleared, with any marker, only at a start whose adapter, driver or output identity differs, and
   only when it is whole (both lines there and non-empty, the output a valid identity); one that does not read, or is
   malformed, keeps the GPU off and is never deleted, and a stale one that cannot be removed keeps the GPU off for that run.
