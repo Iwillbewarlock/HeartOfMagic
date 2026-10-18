@@ -19,22 +19,31 @@
 //               a wait for commit (Budget's device release, then the device may be made again later), and for the rest
 //               of the run on the throttle event (GreyBudget.h ThrottleSignal), read before each object and at each
 //               Encode (an object's later textures; review round 1)
-//   crash guard staging\gpu.inflight holds "<strikes>\n<adapter>\n<texture>\n" only while device creation or a GPU
-//               Compress runs (written before, removed after: a kill outside those calls leaves nothing). A start that
-//               finds it logs it and keeps the GPU, carrying the strike into its own markers only for the same texture
-//               (a game exit's kill lands in whatever call runs: two in a row on different textures say nothing about
-//               the GPU; review round 1): another texture's call writes strike 1. A marker of the old form (no texture
-//               line) reads, and its strike is never carried. A marker of strike 2 (two starts in a row ended inside a
-//               GPU call on the same texture) writes staging\gpu.disabled ("adapter=...\noutput=...\n") and the
-//               CPU encodes from then on; the marker stays until gpu.disabled is written (a failed write leaves both
-//               strikes for the next start). A marker that names another adapter or driver is dropped with its strikes;
-//               one that exists but does not read counts as one strike and is left in place (its count is not lost).
+//   crash guard staging\gpu.inflight holds "<strikes>\n<adapter>\n<texture>\n<deaths>\n" only while device creation or
+//               a GPU Compress runs (written before, removed after: a kill outside those calls leaves nothing). A start
+//               that finds it logs it and keeps the GPU, carrying two counts into its own markers:
+//               <strikes>  starts in a row that ended inside a call on the same texture: carried only into that
+//                          texture's calls (a game exit's kill lands in whatever call runs: two in a row on different
+//                          textures say nothing about the GPU; review round 1); another texture's call writes strike 1
+//               <deaths>   starts in a row that ended inside a GPU call on any texture (a fault that dies on another
+//                          texture each time, A, B, A, C, would otherwise crash every session; review round 2): every
+//                          call writes the carried count + 1
+//               A marker of strike kGpuDisableStrikes (2) or of deaths kGpuDisableDeaths (4) writes staging\gpu.disabled
+//               ("adapter=...\noutput=...\n") and the CPU encodes from then on; the marker stays until gpu.disabled is
+//               written (a failed write leaves the counts for the next start). The carried counts are consumed by a GPU
+//               Compress that returns (not by a device creation, which says nothing about the Compress after it): its
+//               deaths go back to 0, and its strike too when the call was on the carried texture, so a second encode of
+//               that source later in the run (another tint's slot) starts at strike 1 (review round 2). Older forms
+//               read: one with no <deaths> line has deaths 1 (its strike rule as before); one with no <texture> line is
+//               strike 1 and deaths 1, never carried and never disabling, whatever its count (review round 2). A marker
+//               that names another adapter or driver is dropped with its counts; one that exists but does not read
+//               counts as strike 1 and deaths 1 (never carried: no texture) and is left in place (its count is not lost).
 //               gpu.disabled is cleared, with any marker, only at a start whose adapter (description, ids, driver
 //               version) or output identity differs and only when it is whole (both fields there and non-empty, the
 //               output a valid identity); one that exists but does not read, or is malformed, keeps the GPU off and is
 //               never deleted; a stale one that cannot be removed keeps the GPU off for that run. An adapter whose
 //               driver version does not read ("driver unknown (...)": a driver update could not clear it) never gets a
-//               gpu.disabled: its strike 2 puts this run alone on the CPU and drops the marker, and a gpu.disabled
+//               gpu.disabled: its strike 2 (or deaths 4) puts this run alone on the CPU and drops the marker, and a gpu.disabled
 //               written for such an identity is removed at a start like a stale one (review round 1). Both files are written
 //               to <file>.tmp, flushed, and renamed over the file (MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH):
 //               a failed write leaves no partial marker (the temp file is removed; a start removes a leftover one). A
@@ -89,6 +98,9 @@ namespace GreyBuild
     // driver), so about twice that; an alpha channel lost (190) or one texel far off (the self-test's 120) is over it
     inline constexpr unsigned kGpuMaxAlphaDiff = 96;
     inline constexpr int kGpuDisableStrikes = 2;  // a marker of this strike count at a start disables the GPU
+    // a marker of this many deaths (in a GPU call on any texture, starts in a row) disables it too (review round 2): over
+    // the same-texture count, as a game exit lands in a GPU call now and then
+    inline constexpr int kGpuDisableDeaths = 4;
     inline constexpr int kGpuMaxRejectsInRow = 3;  // output check refusals in a row that stop the GPU for the run
     inline constexpr int kGpuMaxDevicesPerRun = 2;  // the first device and one re-creation after a release for memory
     inline constexpr const char* kGpuInflightFile = "gpu.inflight";
@@ -159,6 +171,7 @@ namespace GreyBuild
             bool allowed = true;  // false: gpu.disabled holds (or was just written) for this adapter and output
             int strikes = 0;      // carried into this run's markers (the marker found, else 0)
             std::string texture;  // the texture whose call the marker found was written for ("" none, or the old form)
+            int deaths = 0;       // carried into this run's markers, on any texture (the marker found, else 0)
             std::string note;     // what was found and done, "" when nothing was there
         };
 
@@ -167,10 +180,10 @@ namespace GreyBuild
         [[nodiscard]] Start OnStart(const std::string& a_adapter, const std::string& a_output);
 
         /// gpu.inflight written before a GPU call on a_texture: strike a_strikes + 1 when a_texture is a_carriedTexture
-        /// (Start::texture, non-empty), else strike 1; false with a_why when it is not written (then the call is not made:
-        /// no crash guard, no GPU)
+        /// (Start::texture, non-empty), else strike 1, and deaths a_deaths + 1 on any texture; false with a_why when it is not
+        /// written (then the call is not made: no crash guard, no GPU)
         [[nodiscard]] bool Enter(int a_strikes, const std::string& a_carriedTexture, const std::string& a_adapter,
-            const std::string& a_texture, std::string& a_why);
+            const std::string& a_texture, std::string& a_why, int a_deaths = 0);
         /// gpu.inflight removed after the call returned
         void Leave() noexcept;
 
@@ -233,6 +246,7 @@ namespace GreyBuild
         [[nodiscard]] int Devices() const noexcept { return m_devices; }
         [[nodiscard]] int Rejected() const noexcept { return m_rejected; }
         [[nodiscard]] int Strikes() const noexcept { return m_strikes; }
+        [[nodiscard]] int Deaths() const noexcept { return m_deaths; }
         [[nodiscard]] bool HeadroomNoted() const noexcept { return m_admissionNoted; }
         [[nodiscard]] bool AdapterFound() const noexcept { return !m_adapter.empty(); }
         [[nodiscard]] const std::string& Adapter() const noexcept { return m_adapter; }  // the markers' identity
@@ -257,6 +271,7 @@ namespace GreyBuild
         std::string m_adapterLine;  // the logged description
         int m_strikes = 0;
         std::string m_strikeTexture;  // the texture the found marker's strike was for (Start::texture)
+        int m_deaths = 0;             // the found marker's deaths (Start::deaths); 0 after a GPU Compress returns
         bool m_allowed = false;     // Start found an adapter and no gpu.disabled for it
         bool m_stopped = false;     // a failure or the throttle: CPU for the rest of the run
         bool m_throttled = false;

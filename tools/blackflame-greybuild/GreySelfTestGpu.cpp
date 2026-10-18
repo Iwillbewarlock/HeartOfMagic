@@ -12,7 +12,10 @@
 // the one re-creation after a release for memory, none after the throttle, the summary's counts and words, and the
 // wiring (RecolourDds hands a BC7 target to a usable encoder: the regression check that runs on every machine). Review
 // round 1: the commit reserve at the device's admission, the throttle read at a texture, a strike carried only into the
-// same texture's call (and the old marker form), an unknown driver version, output check refusals in a row. WARP that
+// same texture's call (and the old marker form), an unknown driver version, output check refusals in a row. Review round
+// 2: deaths on any texture (A, B, A, C) disable at kGpuDisableDeaths, an old-form marker of strike 2 disables nothing, a
+// marker with no deaths line still disables on its strike, a returned call consumes the carried counts, a CPU run's
+// throttle prints no GPU line. WARP that
 // cannot be found or made FAILs only on a Windows that has it: d3d10warp.dll in System32 and an IDXGIFactory4 (the
 // interface EnumWarpAdapter is on); otherwise INFO. Not injectable: a hardware adapter that is absent (FindAdapter has no
 // seam; an encoder that was never started is that state for the summary line).
@@ -149,40 +152,78 @@ namespace GreyBuild::SelfTest
             a_check.Check(fresh.allowed && fresh.strikes == 0 && fresh.note.empty() && !Exists(markers.Inflight()) && !Exists(markers.Disabled()),
                 "gpu markers: a fresh staging allows the GPU, no strike, no file");
             std::string why;
-            a_check.Check(markers.Enter(fresh.strikes, fresh.texture, kAdapterA, kTextureA, why) &&
-                              ReadAll(markers.Inflight()) == fmt::format("1\n{}\n{}\n", kAdapterA, kTextureA),
-                "gpu markers: before a GPU call gpu.inflight holds strike 1, the adapter and the texture");
+            a_check.Check(markers.Enter(fresh.strikes, fresh.texture, kAdapterA, kTextureA, why, fresh.deaths) &&
+                              ReadAll(markers.Inflight()) == fmt::format("1\n{}\n{}\n1\n", kAdapterA, kTextureA),
+                "gpu markers: before a GPU call gpu.inflight holds strike 1, the adapter, the texture and death 1");
             markers.Leave();
             a_check.Check(!Exists(markers.Inflight()), "gpu markers: after the call returned gpu.inflight is gone");
 
             // a run killed inside a call on texture B, the next one inside a call on texture A (game exits): strike 1 each
-            // time, never disabled (review round 1)
+            // time, never disabled (review round 1); the deaths count on (review round 2)
             WriteAll(markers.Inflight(), fmt::format("1\n{}\n{}\n", kAdapterA, kTextureB));
             const auto otherTexture = markers.OnStart(kAdapterA, kOutput);
-            const bool reset = otherTexture.allowed && otherTexture.strikes == 1 && otherTexture.texture == kTextureB &&
-                               markers.Enter(otherTexture.strikes, otherTexture.texture, kAdapterA, kTextureA, why) &&
-                               ReadAll(markers.Inflight()) == fmt::format("1\n{}\n{}\n", kAdapterA, kTextureA);
+            const bool reset = otherTexture.allowed && otherTexture.strikes == 1 && otherTexture.texture == kTextureB && otherTexture.deaths == 1 &&
+                               markers.Enter(otherTexture.strikes, otherTexture.texture, kAdapterA, kTextureA, why, otherTexture.deaths) &&
+                               ReadAll(markers.Inflight()) == fmt::format("1\n{}\n{}\n2\n", kAdapterA, kTextureA);
             const auto afterReset = markers.OnStart(kAdapterA, kOutput);
-            a_check.Check(reset && afterReset.allowed && afterReset.strikes == 1 && !Exists(markers.Disabled()),
+            a_check.Check(reset && afterReset.allowed && afterReset.strikes == 1 && afterReset.deaths == 2 && !Exists(markers.Disabled()),
                 fmt::format("gpu markers: a kill in another texture's call writes strike 1 again, two such starts disable nothing ({})",
                     afterReset.note));
             // the old form (no texture line) still reads; its strike is not carried
             WriteAll(markers.Inflight(), fmt::format("1\n{}\n", kAdapterA));
             const auto oldForm = markers.OnStart(kAdapterA, kOutput);
-            a_check.Check(oldForm.allowed && oldForm.strikes == 1 && oldForm.texture.empty() &&
-                              markers.Enter(oldForm.strikes, oldForm.texture, kAdapterA, kTextureA, why) &&
-                              ReadAll(markers.Inflight()) == fmt::format("1\n{}\n{}\n", kAdapterA, kTextureA),
+            a_check.Check(oldForm.allowed && oldForm.strikes == 1 && oldForm.texture.empty() && oldForm.deaths == 1 &&
+                              markers.Enter(oldForm.strikes, oldForm.texture, kAdapterA, kTextureA, why, oldForm.deaths) &&
+                              ReadAll(markers.Inflight()) == fmt::format("1\n{}\n{}\n2\n", kAdapterA, kTextureA),
                 fmt::format("gpu markers: a marker of the old form reads as one strike, never carried into a texture's call ({})",
                     oldForm.note));
             markers.Leave();
+            // the old form at strike 2: still strike 1 and death 1, never a gpu.disabled (no texture line; review round 2)
+            WriteAll(markers.Inflight(), fmt::format("2\n{}\n", kAdapterA));
+            const auto oldTwo = markers.OnStart(kAdapterA, kOutput);
+            a_check.Check(oldTwo.allowed && oldTwo.strikes == 1 && oldTwo.deaths == 1 && oldTwo.texture.empty() && !Exists(markers.Disabled()) &&
+                              !Exists(markers.Inflight()),
+                fmt::format("gpu markers: an old-form marker (no texture line) of strike 2 disables nothing, it reads as strike 1 ({})",
+                    oldTwo.note));
+            // round 1's form (a texture line, no deaths line) at strike 2 still disables: older markers stay readable
+            WriteAll(markers.Inflight(), fmt::format("2\n{}\n{}\n", kAdapterA, kTextureA));
+            const auto roundOne = markers.OnStart(kAdapterA, kOutput);
+            a_check.Check(!roundOne.allowed && Exists(markers.Disabled()) && !Exists(markers.Inflight()),
+                fmt::format("gpu markers: a marker with no deaths line at strike 2 on its texture still writes gpu.disabled ({})", roundOne.note));
+            std::filesystem::remove(markers.Disabled());
+
+            // a fault that kills each run in a call on another texture (A, B, A, C): strike 1 each time, the deaths 1, 2, 3, 4;
+            // the start after the fourth writes gpu.disabled (review round 2)
+            {
+                bool allowedThrough = true;
+                std::string seen;
+                for (const char* texture : { kTextureA, kTextureB, kTextureA, "data\\textures\\c.dds" }) {
+                    const auto start = markers.OnStart(kAdapterA, kOutput);
+                    allowedThrough = allowedThrough && start.allowed;
+                    seen += fmt::format("{}/{} ", start.strikes, start.deaths);
+                    allowedThrough = markers.Enter(start.strikes, start.texture, kAdapterA, texture, why, start.deaths) && allowedThrough;
+                }
+                const bool fourth = ReadAll(markers.Inflight()) == fmt::format("1\n{}\ndata\\textures\\c.dds\n4\n", kAdapterA);
+                const auto fifth = markers.OnStart(kAdapterA, kOutput);
+                a_check.Check(allowedThrough && seen == "0/0 1/1 1/2 1/3 " && fourth && !fifth.allowed && Exists(markers.Disabled()) &&
+                                  !Exists(markers.Inflight()) && fifth.note.find("any texture") != std::string::npos,
+                    fmt::format("gpu markers: {} deaths in a row on different textures write gpu.disabled, the starts before keep the GPU "
+                                "(strikes/deaths seen: {}; {})", kGpuDisableDeaths, seen, fifth.note));
+                std::filesystem::remove(markers.Disabled());
+                // the same on an unknown driver version: this run on the CPU, no gpu.disabled
+                WriteAll(markers.Inflight(), fmt::format("1\n{}\n{}\n{}\n", kAdapterUnknownDriver, kTextureA, kGpuDisableDeaths));
+                const auto unknownDeaths = markers.OnStart(kAdapterUnknownDriver, kOutput);
+                a_check.Check(!unknownDeaths.allowed && !Exists(markers.Disabled()) && !Exists(markers.Inflight()),
+                    fmt::format("gpu markers: the deaths limit on an unknown driver version writes no gpu.disabled ({})", unknownDeaths.note));
+            }
 
             // a run killed inside a call: the next start keeps the GPU and carries the strike into the same texture's call
-            WriteAll(markers.Inflight(), fmt::format("1\n{}\n{}\n", kAdapterA, kTextureA));
+            WriteAll(markers.Inflight(), fmt::format("1\n{}\n{}\n1\n", kAdapterA, kTextureA));
             const auto one = markers.OnStart(kAdapterA, kOutput);
-            const bool oneOk = one.allowed && one.strikes == 1 && one.texture == kTextureA && one.note.find("found") != std::string::npos &&
-                               !Exists(markers.Inflight()) && !Exists(markers.Disabled());
-            a_check.Check(oneOk && markers.Enter(one.strikes, one.texture, kAdapterA, kTextureA, why) &&
-                              ReadAll(markers.Inflight()) == fmt::format("2\n{}\n{}\n", kAdapterA, kTextureA),
+            const bool oneOk = one.allowed && one.strikes == 1 && one.texture == kTextureA && one.deaths == 1 &&
+                               one.note.find("found") != std::string::npos && !Exists(markers.Inflight()) && !Exists(markers.Disabled());
+            a_check.Check(oneOk && markers.Enter(one.strikes, one.texture, kAdapterA, kTextureA, why, one.deaths) &&
+                              ReadAll(markers.Inflight()) == fmt::format("2\n{}\n{}\n2\n", kAdapterA, kTextureA),
                 fmt::format("gpu markers: one marker found keeps the GPU, its own marker on the same texture is strike 2 ({})", one.note));
             // and that run was killed inside the same texture's call too: two starts in a row
             const auto two = markers.OnStart(kAdapterA, kOutput);
@@ -269,7 +310,7 @@ namespace GreyBuild::SelfTest
                 a_why = "the test's failure after half the bytes";
                 return false;
             };
-            const auto oldInflight = fmt::format("2\n{}\n", kAdapterA);
+            const auto oldInflight = fmt::format("2\n{}\n{}\n2\n", kAdapterA, kTextureA);
             WriteAll(inflight, oldInflight);
             MarkerIo partialIo;
             partialIo.writeTemp = partial;
@@ -295,7 +336,7 @@ namespace GreyBuild::SelfTest
             const auto clean = real.OnStart(kAdapterA, kOutput);
             a_check.Check(clean.allowed && !Exists(temp(disabled)) && !Exists(disabled), "gpu markers write: a start removes a leftover gpu.disabled.tmp");
             // real writes: whole files
-            a_check.Check(real.Enter(0, {}, kAdapterA, kTextureA, why) && ReadAll(inflight) == fmt::format("1\n{}\n{}\n", kAdapterA, kTextureA) &&
+            a_check.Check(real.Enter(0, {}, kAdapterA, kTextureA, why) && ReadAll(inflight) == fmt::format("1\n{}\n{}\n1\n", kAdapterA, kTextureA) &&
                               !Exists(temp(inflight)),
                 "gpu markers write: a real write leaves the whole marker and no temp file");
             real.Leave();
@@ -359,14 +400,15 @@ namespace GreyBuild::SelfTest
                 fmt::format("gpu markers io: a gpu.inflight that does not read is one strike and stays as it was ({})", struck.note));
 
             // strike 2 and gpu.disabled cannot be written: off for this run, the marker kept, so the next start disables
-            WriteAll(inflight, fmt::format("2\n{}\n", kAdapterA));
+            const auto strikeTwo = fmt::format("2\n{}\n{}\n", kAdapterA, kTextureA);  // a texture line: an old form never disables
+            WriteAll(inflight, strikeTwo);
             const auto failWrite = [disabled](const std::filesystem::path& a_file, const std::string&, std::string& a_why) {
                 a_why = a_file == disabled ? "the test's write failure" : "unexpected write";
                 return false;
             };
             GpuMarkers writeFails(staging, MarkerIo{ {}, failWrite });
             const auto notWritten = writeFails.OnStart(kAdapterA, kOutput);
-            a_check.Check(!notWritten.allowed && !Exists(disabled) && ReadAll(inflight) == fmt::format("2\n{}\n", kAdapterA),
+            a_check.Check(!notWritten.allowed && !Exists(disabled) && ReadAll(inflight) == strikeTwo,
                 fmt::format("gpu markers io: gpu.disabled not written: the GPU off, gpu.inflight kept with both strikes ({})", notWritten.note));
             GpuMarkers real(staging);
             const auto next = real.OnStart(kAdapterA, kOutput);
@@ -519,6 +561,21 @@ namespace GreyBuild::SelfTest
             }
             a_check.Check(BlackFlame::BuilderSignal::ThrottleEventName(kNamePid) == L"Local\\HoMBlackFlame_Throttle_4294967041",
                 "gpu throttle: the event name is Local\\HoMBlackFlame_Throttle_<pid in decimal>");
+
+            // a CPU run (GpuUse::kOff) read at a texture: OpenMP drops to one thread, no GPU line (review round 2); never a
+            // marker, so the staging path is not made
+            const int threadsBefore = ::omp_get_max_threads();
+            GpuEncoder cpu(GpuUse::kOff, "unused-staging", kOutput, kGuardCap, kGuardReserve, Free(kGuardCap, kGuardCap));
+            cpu.SetThrottleCheck([]() { return true; });
+            DirectX::ScratchImage out;
+            std::string why;
+            bool encoded = true;
+            const auto printed = Captured([&]() { encoded = cpu.Encode(Ramp(false), DXGI_FORMAT_BC7_UNORM, out, why); });
+            const int threads = ::omp_get_max_threads();
+            ::omp_set_num_threads(threadsBefore);
+            a_check.Check(!encoded && threads == 1 && printed.find("GPU") == std::string::npos,
+                fmt::format("gpu throttle: a CPU run's throttle at a texture drops OpenMP to one thread ({}) and prints no GPU line ('{}')",
+                    threads, printed));
         }
 
         /// The wiring on WARP: RecolourDds hands a BC7 target to a usable encoder, which makes its device and encodes (or
@@ -582,18 +639,32 @@ namespace GreyBuild::SelfTest
             }
             CheckWiring(a_check, staging / "wiring");
 
-            // Start carries the strike it found into the run (m_strikes), and Encode's own marker builds on it
-            WriteAll(staging / kGpuInflightFile, fmt::format("1\n{}\n", identity));
+            // Start carries the strike and deaths it found into the run, Encode's own marker builds on them; a call that returns
+            // consumes them: the deaths at any texture's call, the strike only at the carried texture's (a second encode of
+            // that source later in the run starts at strike 1; review round 2)
+            WriteAll(staging / kGpuInflightFile, fmt::format("1\n{}\n{}\n2\n", identity, kTextureA));
             {
                 GpuEncoder carried(GpuUse::kTestWarp, staging, kOutput, kGuardCap, kGuardReserve, plenty);
                 (void)Captured([&]() { carried.Start(); });
+                const bool atStart = carried.Strikes() == 1 && carried.Deaths() == 2;
                 DirectX::ScratchImage out;
                 std::string why;
-                bool encoded = false;
-                (void)Captured([&]() { encoded = carried.Encode(grey, DXGI_FORMAT_BC7_UNORM, out, why); });
-                a_check.Check(carried.Strikes() == 1 && carried.Usable() && encoded && !Exists(staging / kGpuInflightFile),
-                    fmt::format("gpu encoder: Start carries the marker's strike ({}) and the GPU stays usable; the call's marker is gone after it",
-                        carried.Strikes()));
+                bool other = false;
+                bool same = false;
+                int strikesAfterOther = -1;
+                int deathsAfterOther = -1;
+                (void)Captured([&]() {
+                    other = carried.Encode(grey, DXGI_FORMAT_BC7_UNORM, out, why, kTextureB);
+                    strikesAfterOther = carried.Strikes();
+                    deathsAfterOther = carried.Deaths();
+                    same = carried.Encode(grey, DXGI_FORMAT_BC7_UNORM, out, why, kTextureA);
+                });
+                a_check.Check(atStart && other && strikesAfterOther == 1 && deathsAfterOther == 0 && same && carried.Strikes() == 0 &&
+                                  carried.Deaths() == 0 && carried.Usable() && !Exists(staging / kGpuInflightFile),
+                    fmt::format("gpu encoder: Start carries the marker's strike and deaths; another texture's call that returns clears the "
+                                "deaths, the carried texture's clears the strike too; the GPU stays usable, no marker left (at start {}, "
+                                "after the other texture {}/{}, after the carried one {}/{})", atStart, strikesAfterOther, deathsAfterOther,
+                        carried.Strikes(), carried.Deaths()));
                 carried.NoteResult(false);
                 a_check.Check(carried.Encoded() == 0 && carried.Rejected() == 1,
                     "gpu encoder: a result the output check refuses is not counted as a GPU encode");

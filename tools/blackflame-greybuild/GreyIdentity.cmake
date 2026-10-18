@@ -64,7 +64,8 @@ if(NOT CONFIG STREQUAL "Release")
     set(dev_why "a ${CONFIG} build (only Release builds are releases)")
 endif()
 
-# A released number needs its pin: the rows of the kReleasedPins block only (kTables' rows look the same), "{ <n>, "<hex>" }"
+# A released number needs its pin: the rows of the kReleasedPins block only (kTables' rows look the same),
+# "{ <n>, "<16 lower-case hex>" }", with // comments stripped first (a commented-out row is no pin; review round 2)
 set(pins_header "${ROOT}/tools/blackflame-greybuild/GreyGoldenTable.h")
 file(READ "${pins_header}" pins_text)
 string(FIND "${pins_text}" "kReleasedPins = {" pins_at)
@@ -72,12 +73,14 @@ if(pins_at EQUAL -1)
     message(FATAL_ERROR "GreyIdentity.cmake: no 'kReleasedPins = {' in ${pins_header}")
 endif()
 string(SUBSTRING "${pins_text}" ${pins_at} -1 pins_text)
+string(REGEX REPLACE "//[^\n]*" "" pins_text "${pins_text}")  # before the end is looked for: a comment may hold "};"
 string(FIND "${pins_text}" "};" pins_end)
 if(pins_end EQUAL -1)
     message(FATAL_ERROR "GreyIdentity.cmake: the kReleasedPins block in ${pins_header} has no '};'")
 endif()
 string(SUBSTRING "${pins_text}" 0 ${pins_end} pins_text)
-string(REGEX MATCH "\\{ *${version} *, *\"[0-9a-f]+\" *\\}" pin_match "${pins_text}")
+string(REPEAT "[0-9a-f]" 16 pin_hex)  # CMake's regex has no {16}
+string(REGEX MATCH "\\{[ \t\r\n]*${version}[ \t\r\n]*,[ \t\r\n]*\"${pin_hex}\"[ \t\r\n]*\\}" pin_match "${pins_text}")
 if(dev_why STREQUAL "" AND NOT pin_match)
     set(dev_why "kBuilderOutputVersion ${version} has no row in kReleasedPins (GreyGoldenTable.h), so it is no released number")
 endif()

@@ -430,18 +430,20 @@ namespace GreyBuild
             // one strike, as a garbled count; left in place, so a later start that can read it still has its count (this
             // run's own marker overwrites it; its texture is not known, so that one is strike 1)
             start.strikes = 1;
-            start.note = fmt::format("{} is there but does not read ({}): counted as one strike and left in place; the GPU is kept, "
-                                     "{} more such start(s) turn it off", kGpuInflightFile, inflight.why, kGpuDisableStrikes - 1);
+            start.deaths = 1;
+            start.note = fmt::format("{} is there but does not read ({}): counted as one strike and one death and left in place; the "
+                                     "GPU is kept, {} more such start(s) turn it off", kGpuInflightFile, inflight.why, kGpuDisableDeaths - 1);
             return start;
         }
-        // "<strikes>\n<adapter>\n<texture>\n" (the old form has no texture line); an unparseable count is one strike (the
-        // file is there, so a call did not return)
-        int found = 1;
-        try {
-            found = std::max(1, std::stoi(inflight.text));
-        } catch (const std::exception&) {
-            found = 1;
-        }
+        // "<strikes>\n<adapter>\n<texture>\n<deaths>\n" (older forms have no deaths line, or no texture line either); an
+        // unparseable count is 1 (the file is there, so a call did not return)
+        const auto count = [](const std::string& a_text) {
+            try {
+                return std::max(1, std::stoi(a_text));
+            } catch (const std::exception&) {
+                return 1;
+            }
+        };
         const auto line = [&](std::size_t a_index) {
             std::size_t at = 0;
             for (std::size_t i = 0; i < a_index; ++i) {
@@ -455,55 +457,67 @@ namespace GreyBuild
             return inflight.text.substr(at, end == std::string::npos ? std::string::npos : end - at);
         };
         const std::string inCall = line(1);
+        const std::string texture = line(2);
+        const std::string deathsLine = line(3);
+        // no texture line (the oldest form): strike 1 and death 1 whatever its count, never carried and never disabling
+        // (review round 2); no deaths line (review round 1's form): death 1, its strike as written
+        const int found = texture.empty() ? 1 : count(inflight.text);
+        const int deaths = texture.empty() || deathsLine.empty() ? 1 : count(deathsLine);
         if (!inCall.empty() && inCall != a_adapter) {
             std::filesystem::remove(Inflight(), ec);
-            start.note = fmt::format("{} was written for another adapter or driver ('{}'; now '{}'): its {} strike(s) are dropped, the "
-                                     "GPU is kept", kGpuInflightFile, inCall, a_adapter, found);
+            start.note = fmt::format("{} was written for another adapter or driver ('{}'; now '{}'): its {} strike(s) and {} death(s) are "
+                                     "dropped, the GPU is kept", kGpuInflightFile, inCall, a_adapter, found, deaths);
             return start;
         }
-        if (found >= kGpuDisableStrikes && DriverUnknown(a_adapter)) {
-            // no gpu.disabled: a driver update could not clear it (review round 1); this run alone on the CPU
-            std::filesystem::remove(Inflight(), ec);
-            start.allowed = false;
-            start.note = fmt::format("{} found at {} starts in a row (the process ended inside a GPU call on {}), but the driver "
-                                     "version does not read, so a driver update could not clear a {}: none is written; BC7 on the CPU "
-                                     "for this run only, the marker is dropped and the GPU is tried again at the next start",
-                kGpuInflightFile, found, a_adapter, kGpuDisabledFile);
-            return start;
-        }
-        if (found >= kGpuDisableStrikes) {
+        const bool sameTexture = !texture.empty() && found >= kGpuDisableStrikes;
+        const bool anyTexture = deaths >= kGpuDisableDeaths;
+        if (sameTexture || anyTexture) {
+            const std::string foundAt = sameTexture ?
+                fmt::format("found at {} starts in a row ending inside a GPU call on the same texture ({}, on {})", found, texture, a_adapter) :
+                fmt::format("found at {} starts in a row ending inside a GPU call on any texture (the last {}, on {}; review round 2)", deaths,
+                    texture, a_adapter);
+            if (DriverUnknown(a_adapter)) {
+                // no gpu.disabled: a driver update could not clear it (review round 1); this run alone on the CPU
+                std::filesystem::remove(Inflight(), ec);
+                start.allowed = false;
+                start.note = fmt::format("{} {}, but the driver version does not read, so a driver update could not clear a {}: none "
+                                         "is written; BC7 on the CPU for this run only, the marker is dropped and the GPU is tried again "
+                                         "at the next start", kGpuInflightFile, foundAt, kGpuDisabledFile);
+                return start;
+            }
             std::string why;
             start.allowed = false;
             if (!Write(Disabled(), fmt::format("{}{}\n{}{}\n", kAdapterKey, a_adapter, kOutputKey, a_output), why)) {
-                // the marker stays: the next start sees these strikes again and tries the write again
-                start.note = fmt::format("{} found at {} starts in a row (the process ended inside a GPU call on {}), but {}: BC7 on "
-                                         "the CPU for this run, {} is kept for the next start", kGpuInflightFile, found, a_adapter, why,
-                    kGpuInflightFile);
+                // the marker stays: the next start sees these counts again and tries the write again
+                start.note = fmt::format("{} {}, but {}: BC7 on the CPU for this run, {} is kept for the next start", kGpuInflightFile,
+                    foundAt, why, kGpuInflightFile);
                 return start;
             }
             std::filesystem::remove(Inflight(), ec);
-            start.note = fmt::format("{} found at {} starts in a row (the process ended inside a GPU call on {}): {} written, BC7 "
-                                     "on the CPU until the adapter, its driver or the output identity changes", kGpuInflightFile, found,
-                a_adapter, kGpuDisabledFile);
+            start.note = fmt::format("{} {}: {} written, BC7 on the CPU until the adapter, its driver or the output identity changes",
+                kGpuInflightFile, foundAt, kGpuDisabledFile);
             return start;
         }
-        std::filesystem::remove(Inflight(), ec);  // this run writes its own, with the strike carried
+        std::filesystem::remove(Inflight(), ec);  // this run writes its own, with the counts carried
         start.strikes = found;
-        start.texture = line(2);
+        start.texture = texture;
+        start.deaths = deaths;
         start.note = fmt::format("{} found (the last run ended inside a GPU call on {}, texture {}; a game exit can do that): the "
-                                 "GPU is kept, {}", kGpuInflightFile, inCall.empty() ? "an unnamed adapter" : inCall,
-            start.texture.empty() ? std::string("unnamed") : start.texture,
-            start.texture.empty() ? std::string("the strike is not carried (no texture named: the old marker form)") :
-                                    fmt::format("{} more such start(s) ending in that texture's call turn it off", kGpuDisableStrikes - found));
+                                 "GPU is kept, {}; {} more such start(s) ending in any GPU call turn it off", kGpuInflightFile,
+            inCall.empty() ? "an unnamed adapter" : inCall, texture.empty() ? std::string("unnamed") : texture,
+            texture.empty() ? std::string("the strike is not carried (no texture named: the old marker form)") :
+                              fmt::format("{} more such start(s) ending in that texture's call turn it off", kGpuDisableStrikes - found),
+            kGpuDisableDeaths - deaths);
         return start;
     }
 
     bool GpuMarkers::Enter(int a_strikes, const std::string& a_carriedTexture, const std::string& a_adapter, const std::string& a_texture,
-        std::string& a_why)
+        std::string& a_why, int a_deaths)
     {
-        // the strike carries only into the same texture's call: two game exits in a row on different textures are no GPU fault
+        // the strike carries only into the same texture's call: two game exits in a row on different textures are no GPU fault;
+        // the deaths carry into every call (a fault that dies on another texture each time; review round 2)
         const int strikes = !a_texture.empty() && a_texture == a_carriedTexture ? a_strikes : 0;
-        return Write(Inflight(), fmt::format("{}\n{}\n{}\n", strikes + 1, a_adapter, a_texture), a_why);
+        return Write(Inflight(), fmt::format("{}\n{}\n{}\n{}\n", strikes + 1, a_adapter, a_texture, std::max(0, a_deaths) + 1), a_why);
     }
 
     void GpuMarkers::Leave() noexcept
@@ -554,12 +568,15 @@ namespace GreyBuild
         m_allowed = start.allowed;
         m_strikes = start.strikes;
         m_strikeTexture = start.texture;
+        m_deaths = start.deaths;
     }
 
     bool GpuEncoder::MakeDevice(const std::string& a_texture)
     {
         std::string why;
-        if (!m_markers.Enter(m_strikes, m_strikeTexture, m_adapter, a_texture, why)) {
+        // its Leave consumes nothing: a device creation that returns says nothing about the Compress after it, where the
+        // last run may have died (review round 2)
+        if (!m_markers.Enter(m_strikes, m_strikeTexture, m_adapter, a_texture, why, m_deaths)) {
             Stop(why + ": no crash marker, so no device");
             return false;
         }
@@ -598,8 +615,10 @@ namespace GreyBuild
         if (!m_throttled && m_throttleCheck && m_throttleCheck()) {
             Throttle();
             OneOpenMpThread();
-            std::cout << "GPU   the throttle event is set (read at a texture): the GPU device is released for the rest of the run "
-                         "and OpenMP runs on one thread\n";
+            if (m_use != GpuUse::kOff) {  // a CPU run has no GPU to release: OpenMP's drop alone (review round 2)
+                std::cout << "GPU   the throttle event is set (read at a texture): the GPU device is released for the rest of the run "
+                             "and OpenMP runs on one thread\n";
+            }
         }
         const auto format = static_cast<DXGI_FORMAT>(a_dxgiFormat);
         if (!Usable() || !m_device || (format != DXGI_FORMAT_BC7_UNORM && format != DXGI_FORMAT_BC7_UNORM_SRGB)) {
@@ -608,7 +627,9 @@ namespace GreyBuild
         if (!m_device->device) {
             // the device's share and what this texture still allocates: its encoded chain, and mip 0's RGBA twice (the output
             // check's decode, the call's upload or readback copies; review round 1); the rest of the texture is already in
-            // PrivateUsage. Budget's own rule decides: the job cap and the system's commit reserve (review round 1)
+            // PrivateUsage. Budget's own rule decides: the job cap and the system's commit reserve (review round 1). A probe that
+            // returns nothing keeps the GPU off (no device while the memory is unknown), on purpose stricter than Budget::Acquire,
+            // which then judges by the cap alone: a device is optional, the CPU encodes the texture all the same (review round 2)
             const std::uint64_t need = SatAdd(SatAdd(kGpuDeviceShareBytes, EncodedChainBytes(a_grey, format)), SatAdd(Mip0Bytes(a_grey),
                 Mip0Bytes(a_grey)));
             const auto state = m_probe ? m_probe() : std::nullopt;
@@ -619,6 +640,9 @@ namespace GreyBuild
                     std::string where;
                     if (!state) {
                         where = "the memory in use is not measurable, so nothing is known";
+                    } else if (admission == Admission::kTooLarge) {
+                        where = fmt::format("the job memory cap is {} MiB, under this call's need even with nothing else in use (review "
+                                            "round 2)", m_cap / kBytesPerMiB);
                     } else if (admission == Admission::kPause) {
                         where = fmt::format("the system has {} MiB of commit left (reserve {} MiB)", state->availableCommit / kBytesPerMiB,
                             m_reserve / kBytesPerMiB);
@@ -626,7 +650,8 @@ namespace GreyBuild
                         where = fmt::format("{} MiB free under the job memory cap", state->inUse > m_cap ? 0 : (m_cap - state->inUse) / kBytesPerMiB);
                     }
                     std::cout << fmt::format("GPU   no device yet: {}, the device and what this texture's call allocates take about {} "
-                                             "MiB: BC7 on the CPU until there is room (noted once)\n", where, need / kBytesPerMiB);
+                                             "MiB: BC7 on the CPU {} (noted once)\n", where, need / kBytesPerMiB,
+                        admission == Admission::kTooLarge ? "for this texture (a smaller one may still make the device)" : "until there is room");
                 }
                 return false;
             }
@@ -635,7 +660,7 @@ namespace GreyBuild
             }
         }
         std::string why;
-        if (!m_markers.Enter(m_strikes, m_strikeTexture, m_adapter, a_texture, why)) {
+        if (!m_markers.Enter(m_strikes, m_strikeTexture, m_adapter, a_texture, why, m_deaths)) {
             Stop(why + ": no crash marker, so no GPU call");
             return false;
         }
@@ -648,6 +673,14 @@ namespace GreyBuild
         m_device->context->ClearState();
         m_device->context->Flush();
         m_markers.Leave();
+        // the call returned: the carried deaths are consumed, and the strike when it was the carried texture's call, so the
+        // same source encoded again later in the run (another tint's slot) starts at strike 1 (review round 2). Another
+        // texture's call leaves the strike: the carried texture's own call still counts it
+        m_deaths = 0;
+        if (a_texture == m_strikeTexture) {
+            m_strikes = 0;
+            m_strikeTexture.clear();
+        }
         if (FAILED(hr)) {
             a_why = fmt::format("the GPU encode failed: {}", HrText(hr));
             a_out.Release();
