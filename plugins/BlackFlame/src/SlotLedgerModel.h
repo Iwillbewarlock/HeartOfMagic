@@ -432,6 +432,24 @@ namespace BlackFlame::SlotLedgerModel
         return false;
     }
 
+    /// Every file the published objects of a ledger stand on (FilesOf): by path, the fnv64s recorded for it
+    using PublishedFileMap = std::map<std::string, std::set<std::uint64_t>>;
+
+    /// (reviewer round 2) PublishedHolds for many paths: one walk of a_ledger, then a path is looked up before the file
+    /// there is hashed (a path no published object names needs no hash)
+    [[nodiscard]] inline PublishedFileMap PublishedFiles(const Ledger& a_ledger)
+    {
+        PublishedFileMap files;
+        for (const auto& entry : a_ledger.entries) {
+            for (const auto& object : entry.published) {
+                for (auto& [path, fnv] : FilesOf(object)) {
+                    files[std::move(path)].insert(fnv);
+                }
+            }
+        }
+        return files;
+    }
+
     /// Co-saves' ledgers (FromSnapshot, each with its name) into a_into. Those of a_into's epoch are merged newest first
     /// into one union whose version is the newest's (so a slot takes the newest co-save's binding, older ones stale), and
     /// that union over a_into (Merge: newer than a_into, its bindings replace a_into's; older, a_into's stay); other

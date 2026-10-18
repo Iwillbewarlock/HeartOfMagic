@@ -109,9 +109,14 @@ namespace BlackFlame::SelfTest
             // review Gemini / agy 13: T0-request hands request v5 and its dump to this step on the slot route
             const auto request = SingleLaunch::Request();
             const bool dumpOk = request.dumpComplete && !request.dumpState.starts_with("failed");  // T0-request's rule
-            SelfTestLog::Check("T0-slots", request.written && dumpOk, std::format("request v5 {}: {} form keys, {} muzzles, {} ADDN "
-                "MPS, {} TXST; dump {}{}", request.written ? "written" : "NOT written", request.forms, request.muzzles, request.addnMps,
-                request.txst, request.dumpState, request.dumpComplete ? "" : " (incomplete)"));
+            if (SingleLaunch::OtherGameHoldsFolder()) {
+                // (reviewer round 2) review round 1 D2: that game's request stands; this one writes none (not a failure)
+                SelfTestLog::Info("T0-slots", "request v5 not written this session: another game process holds the request folder");
+            } else {
+                SelfTestLog::Check("T0-slots", request.written && dumpOk, std::format("request v5 {}: {} form keys, {} muzzles, {} "
+                    "ADDN MPS, {} TXST; dump {}{}", request.written ? "written" : "NOT written", request.forms, request.muzzles,
+                    request.addnMps, request.txst, request.dumpState, request.dumpComplete ? "" : " (incomplete)"));
+            }
             std::string detail;
             SelfTestLog::Check("T0-slots", SlotLedger::RoundTripNow(detail), "BFSL round trip in memory: " + detail);
             const auto loaded = SlotLedger::LastLoadedSave();

@@ -46,6 +46,7 @@ namespace BlackFlame::SingleLaunch
         }
 
         std::atomic<bool> g_routeActive{ false };
+        std::atomic<bool> g_otherGame{ false };  // another game process holds the request folder (review round 1 D2)
         std::atomic<bool> g_allReadyLogged{ false };
         TrackedMutex g_progressMutex;
         std::optional<Clock::time_point> g_lastProgressLog;
@@ -123,6 +124,7 @@ namespace BlackFlame::SingleLaunch
         // (BuilderLauncher::ClaimFolder logs it once); no request folder: not excluded, as before
         const auto folder = RequestFolder();
         const bool otherGame = folder && !BuilderFolderMutex::MayStart(BuilderLauncher::ClaimFolder(*folder));
+        g_otherGame.store(otherGame);
         if (!otherGame) {
             BuildProgress::ApplyDeferred();  // before anything uses a copy path this session (review N3)
         }
@@ -195,5 +197,10 @@ namespace BlackFlame::SingleLaunch
     CopyRequestV5::Result Request()
     {
         return TheRequest();
+    }
+
+    bool OtherGameHoldsFolder()
+    {
+        return g_otherGame.load();
     }
 }

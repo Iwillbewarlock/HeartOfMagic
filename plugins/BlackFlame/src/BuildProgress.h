@@ -57,7 +57,8 @@ namespace BlackFlame::BuildProgress
     void ReadAtStart();
 
     /// kDataLoaded, before anything uses a copy path (SingleLaunch, before ApplyLastPublished): the copies an earlier session
-    /// could not put in place (another file was at the path) renamed in from <path>.next; they count as copied and replaced
+    /// could not put in place (another file was at the path) renamed in from <path>.next; they count as copied and replaced.
+    /// (reviewer round 2) A .next whose Data file a published ledger object stands on is deleted instead (the header's "keep")
     void ApplyDeferred();
 
     /// a_path with a_fnv64 entered Data this session (copied by the worker, or renamed in by ApplyDeferred): the startup

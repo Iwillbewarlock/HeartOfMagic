@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -231,6 +232,29 @@ namespace SlotLedgerReviewTests
             a_check(!LM::PublishedHolds(holding, "textures\\heartofmagic\\blackflame\\copies\\0000000000000003\\copy.dds", 0x22) &&
                         !LM::PublishedHolds(holding, "", 0) && !LM::PublishedHolds(LM::Ledger{}, dds, 0x22),
                 "review round 1 D1: another path, an empty one (an ADDN dep's), or an empty ledger hold nothing");
+            // (reviewer round 2) the path-first lookup KeepPublished and ApplyDeferred use before they hash a Data file
+            auto earlier = standing;
+            earlier.fnv64 = 0x10;
+            LM::Entry second;
+            second.slot = 0x811;
+            second.published.push_back(earlier);
+            LM::Insert(holding, second);
+            const auto map = LM::PublishedFiles(holding);
+            const auto own = map.find(standing.path);
+            const auto dep = map.find(dds);
+            a_check(map.size() == 2 && own != map.end() && own->second == std::set<std::uint64_t>{ 0x10, 0x11 } && dep != map.end() &&
+                        dep->second == std::set<std::uint64_t>{ 0x22 },
+                "reviewer round 2: PublishedFiles maps each path published objects stand on to every fnv64 recorded for it");
+            a_check(map.count("") == 0 && map.count("textures\\heartofmagic\\blackflame\\copies\\0000000000000003\\copy.dds") == 0 &&
+                        LM::PublishedFiles(LM::Ledger{}).empty(),
+                "reviewer round 2: an ADDN dep, an unrecorded path or an empty ledger gives no entry (no Data file is hashed for it)");
+            bool agrees = true;
+            for (const auto& [path, fnv] : { std::pair<std::string, std::uint64_t>{ standing.path, 0x10 }, { standing.path, 0x11 },
+                     { standing.path, 0x12 }, { dds, 0x22 }, { dds, 0x23 } }) {
+                const auto it = map.find(path);
+                agrees = agrees && LM::PublishedHolds(holding, path, fnv) == (it != map.end() && it->second.count(fnv) == 1);
+            }
+            a_check(agrees, "reviewer round 2: a PublishedFiles lookup agrees with PublishedHolds path by path");
         }
         // Codex: main that cannot be written (here a name Windows refuses) leaves the mirror written, and says so
         {

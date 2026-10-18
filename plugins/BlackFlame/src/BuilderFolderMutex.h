@@ -3,8 +3,9 @@
 // =============================================================================
 // BUILDER FOLDER MUTEX - one builder per request folder across game processes
 // =============================================================================
-// The DLL creates the named mutex Local\HoMBlackFlame_Builder_<key16> before it rotates builder.log and starts the builder
-// (BuilderLauncher.cpp StartChecked), and holds it for the game's lifetime (a handle never closed: the system closes it
+// The DLL creates the named mutex Local\HoMBlackFlame_Builder_<key16> once a session (BuilderLauncher.cpp ClaimLocked, called by
+// BuilderLauncher::ClaimFolder at the slot route's start, before the request, the dump or a deferred copy is touched; StartChecked
+// reuses that claim before it rotates builder.log and starts the builder; reviewer round 2), and holds it for the game's lifetime (a handle never closed: the system closes it
 // when the game ends, when the job's kill-on-close also ends that game's builder). key16 is the FNV-1a 64 (CopyContract.h)
 // of the request folder's path normalised: absolute, lexically normal, '/' read as '\', no trailing '\', lower case
 // (LCMapStringEx, the invariant locale), as UTF-8 bytes. A create that finds the mutex there (ERROR_ALREADY_EXISTS; or

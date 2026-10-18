@@ -270,13 +270,35 @@ namespace BlackFlame::BuildProgress
         // session), and stands for the line's file: dependants find the line's fnv64 in inData, and Find names the Data file's
         // size and fnv64, so what is verified and recorded in the ledger is what is in Data. Each path once a session (inData
         // then holds it)
-        bool KeepPublished(const CC::ProgressLine& a_line)
+        //
+        // (reviewer round 2) The ledger is looked up by path before the Data file is hashed: DataFiles::Matches stops at a
+        // size that differs without reading the file, so only a path a published object names is read whole here.
+        // a_published is the ledger's published files (SlotLedgerModel::PublishedFiles), made on first use: one ledger copy
+        // a pass, not one a line
+        std::optional<DataFiles::Hash> PublishedDataFile(const std::string& a_path,
+            std::optional<SlotLedgerModel::PublishedFileMap>& a_published)
+        {
+            if (!a_published) {
+                a_published = SlotLedgerModel::PublishedFiles(SlotLedger::Copy());
+            }
+            const auto recorded = a_published->find(a_path);
+            if (recorded == a_published->end()) {
+                return std::nullopt;
+            }
+            const auto hash = DataFiles::HashOf(a_path);
+            if (!hash || !recorded->second.contains(hash->fnv64)) {
+                return std::nullopt;
+            }
+            return hash;
+        }
+
+        bool KeepPublished(const CC::ProgressLine& a_line, std::optional<SlotLedgerModel::PublishedFileMap>& a_published)
         {
             if (!DataPathRule::ParseCopyPath(a_line.path)) {
                 return false;
             }
-            const auto hash = DataFiles::HashOf(a_line.path);  // cached: Settle's Matches just read it
-            if (!hash || !SlotLedgerModel::PublishedHolds(SlotLedger::Copy(), a_line.path, hash->fnv64)) {
+            const auto hash = PublishedDataFile(a_line.path, a_published);
+            if (!hash) {
                 return false;
             }
             auto& s = The();
@@ -307,8 +329,9 @@ namespace BlackFlame::BuildProgress
                     }
                 }
             }
+            std::optional<SlotLedgerModel::PublishedFileMap> published;  // made by the first line Matches refuses
             for (const auto& line : todo) {
-                bool there = DataFiles::Matches(line.path, line.bytes, line.fnv64) || KeepPublished(line);
+                bool there = DataFiles::Matches(line.path, line.bytes, line.fnv64) || KeepPublished(line, published);
                 bool copied = false;
                 if (!there && a_copy) {
                     if (!MenuWatch::PublishOpen()) {
@@ -476,6 +499,8 @@ namespace BlackFlame::BuildProgress
         std::string row;
         std::size_t renamed = 0;
         std::size_t dropped = 0;
+        std::size_t keptPublished = 0;  // of the dropped, over a file a published object stands on (deleted)
+        std::optional<SlotLedgerModel::PublishedFileMap> published;  // SlotLedger::Load ran before OnDataLoaded (Main.cpp)
         auto& s = The();
         while (std::getline(in, row)) {
             const auto tab1 = row.find('\t');
@@ -492,10 +517,25 @@ namespace BlackFlame::BuildProgress
             const auto target = *data / fs::path(path);
             auto next = target;
             next += kNextSuffix;
-            if (fs::file_size(next, ec) != bytes || ec ||
-                !::MoveFileExW(next.c_str(), target.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+            if (fs::file_size(next, ec) != bytes || ec) {
                 ++dropped;
                 ec.clear();
+                continue;
+            }
+            // (reviewer round 2) KeepPublished's rule at this door too: a .next (another build of the key, deferred by an
+            // earlier session or an earlier DLL) never replaces a Data file a published ledger object stands on, or every
+            // slot on it would show its source colour for this session (review round 1 D1's launch N+1)
+            if (const auto held = PublishedDataFile(path, published)) {
+                fs::remove(next, ec);
+                logger::info("BlackFlame: slots: '{}': deferred copy dropped, the published copy kept (fnv64 {} in Data, {} "
+                             "deferred){}", path, CC::Hex16(held->fnv64), CC::Hex16(*fnv), ec ? "; the .next was not deleted" : "");
+                ec.clear();
+                ++dropped;
+                ++keptPublished;
+                continue;
+            }
+            if (!::MoveFileExW(next.c_str(), target.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+                ++dropped;
                 continue;
             }
             DataFiles::Forget(path);
@@ -506,8 +546,9 @@ namespace BlackFlame::BuildProgress
         }
         in.close();
         fs::remove(list, ec);
-        logger::info("BlackFlame: slots: {} deferred cop{} renamed into Data ({} dropped: no file of that size beside it, or a bad "
-                     "line); used from the next start", renamed, renamed == 1 ? "y" : "ies", dropped);
+        logger::info("BlackFlame: slots: {} deferred cop{} renamed into Data ({} dropped: no file of that size beside it, a bad "
+                     "line, or {} over a published copy); used from the next start", renamed, renamed == 1 ? "y" : "ies", dropped,
+            keptPublished);
     }
 
     bool ReplacedNow(const std::string& a_path, std::uint64_t a_fnv64)

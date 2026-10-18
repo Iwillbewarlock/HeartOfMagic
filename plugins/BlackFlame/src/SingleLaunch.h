@@ -41,6 +41,11 @@ namespace BlackFlame::SingleLaunch
     /// left once the builder ended and its lines are read, or the window closed) or every slot open
     [[nodiscard]] bool ReadyForLoad();
 
-    /// What request v5's write did this session (T0-slots; written false off the route)
+    /// What request v5's write did this session (T0-slots; written false off the route, and when another game holds the
+    /// request folder: nothing is written then)
     [[nodiscard]] CopyRequestV5::Result Request();
+
+    /// (reviewer round 2) Another game process held the request folder at kDataLoaded (BuilderLauncher::ClaimFolder): no
+    /// request, dump, builder or copy worker this session (T0-slots says so instead of judging the request)
+    [[nodiscard]] bool OtherGameHoldsFolder();
 }
