@@ -12,16 +12,22 @@
 // refuses gives no key at all: no copy can be made of it). So '|' only ever separates fields and the string decodes
 // one way. fnv64 values: 16 lower-case hex digits; floats: TintText (to_chars fixed, 6 decimals, in the builder's 0..2, -0 as 0);
 // booleans 0/1; sentinels notdumped:<size>, missing, none.
-// Refusal (nullopt): an unset FileHash (FileState::kUnset), an unknown enum value, a tint TintText refuses, one path
-// named twice with two different states, a local id over 0xFFFFFF.
+// Refusal (nullopt): an unset FileHash (FileState::kUnset), an unknown enum value, a tint TintText refuses, an output
+// identity OutputIdentityVersion refuses, one path named twice with two different states, a local id over 0xFFFFFF.
 //
 // Encoding: the functions hash the bytes they are given. The DLL passes the engine's own bytes (record strings and
 // TexturePathsIn text, the system code page); the builder's child keys hash its own text the same way every run.
 // tint and tintAdd: the DLL passes QuantizedTint values and writes the same numbers into request.json; the builder
 // passes the numbers it read back, and VerifyKeyPrefix checks the rebuilt prefix against the DLL's keyPrefix text.
+// out: the builder's output identity (OutputIdentityVersion): "<n>" for a release build, n = kBuilderOutputVersion;
+// "<n>+dev<16 lower-case hex>" for a dev build (Debug, or builder sources other than git HEAD's; the hex is their digest,
+// tools/blackflame-greybuild/GreyIdentity.cmake). The builder exe carries it as an RCDATA resource the DLL reads and
+// copies verbatim (CopyContractIdentity.h); the builder writes its own compiled copy, so the two match exactly. A release
+// identity promises that every input's output is what version n made: the builder's golden test
+// (GreySelfTestGolden.cpp) fails while the output differs and the number was not bumped.
 //
 // Common prefix (KeyPrefixString):
-//   format=BFK3|exe=<builder exe fnv64>|tint=<f>|tintadd=<f>|palette=<derived|godskin>|grad=<h>|gradadd=<h>
+//   format=BFK4|out=<identity>|tint=<f>|tintadd=<f>|palette=<derived|godskin>|grad=<h>|gradadd=<h>
 // NIF (form model, PROJ muzzle, ADDN MPS - one formula, the kind in the string):
 //   <prefix>|kind=<model|muzzle|mps>|nif=<path>|nifhash=<h>|tex=<path>=<h>...|addn=<h|none>
 //   tex: every TexturePathsIn path, normalised under textures\, sorted by its field text and each once.
@@ -53,7 +59,12 @@
 
 namespace BlackFlame::CopyContract
 {
-    inline constexpr std::string_view kKeyFormat = "BFK3";
+    inline constexpr std::string_view kKeyFormat = "BFK4";
+    // The builder's output version, bumped by hand whenever any input's output bytes or progress line change (a rule, a
+    // threshold, a tint, an encoder or a library version); the golden test names the bump when it is missing.
+    // 1: BFK4, the first output identity (BFK3 keys carried the builder exe's FNV-1a 64 instead).
+    inline constexpr std::uint32_t kBuilderOutputVersion = 1;
+    inline constexpr std::string_view kDevIdentityTag = "+dev";  // <n>+dev<16 lower-case hex>
     inline constexpr std::string_view kAddnTableFormat = "BFA2";
     inline constexpr std::string_view kValueNodeBlockType = "BSValueNode";
     inline constexpr std::size_t kTxstSlots = 8;
@@ -112,8 +123,8 @@ namespace BlackFlame::CopyContract
 
     struct KeyPrefix
     {
-        std::uint64_t builderExeFnv64 = 0;  // the builder exe's bytes
-        double tint = 0.0;                  // QuantizedTint values
+        std::string outputIdentity;  // the builder's output identity text (OutputIdentityVersion takes it), verbatim
+        double tint = 0.0;           // QuantizedTint values
         double tintAdd = 0.0;
         PaletteMode paletteMode = PaletteMode::kDerived;
         FileHash gradBlackFlame;     // textures\heartofmagic\blackflame\gradblackflame.dds
@@ -165,6 +176,35 @@ namespace BlackFlame::CopyContract
         std::string plugin;               // the source it is bound to
         std::uint32_t localId = 0;
     };
+
+    /// The number of an output identity: "<n>" or "<n>+dev<16 lower-case hex>", n decimal from 1 to 0xFFFFFFFF with no
+    /// sign, space or leading zero; nullopt for any other text (one spelling per identity; refused like an unset hash)
+    [[nodiscard]] inline std::optional<std::uint32_t> OutputIdentityVersion(std::string_view a_identity) noexcept
+    {
+        const auto tag = a_identity.find('+');
+        const auto number = a_identity.substr(0, tag);
+        if (number.empty() || number.front() < '1' || number.front() > '9') {
+            return std::nullopt;
+        }
+        std::uint32_t value = 0;
+        const auto parsed = std::from_chars(number.data(), number.data() + number.size(), value);
+        if (parsed.ec != std::errc() || parsed.ptr != number.data() + number.size()) {
+            return std::nullopt;
+        }
+        if (tag != std::string_view::npos) {
+            const auto dev = a_identity.substr(tag);
+            if (dev.substr(0, kDevIdentityTag.size()) != kDevIdentityTag || !ParseHex16(dev.substr(kDevIdentityTag.size()))) {
+                return std::nullopt;
+            }
+        }
+        return value;
+    }
+
+    /// A valid identity of a dev build (the +dev form)
+    [[nodiscard]] inline bool IsDevIdentity(std::string_view a_identity) noexcept
+    {
+        return OutputIdentityVersion(a_identity) && a_identity.find('+') != std::string_view::npos;
+    }
 
     namespace Detail
     {
@@ -225,18 +265,19 @@ namespace BlackFlame::CopyContract
         }
     }
 
-    /// The common prefix; nullopt for a tint TintText refuses, an unknown palette mode or an unset palette hash
+    /// The common prefix; nullopt for an output identity OutputIdentityVersion refuses, a tint TintText refuses, an
+    /// unknown palette mode or an unset palette hash
     [[nodiscard]] inline std::optional<std::string> KeyPrefixString(const KeyPrefix& a_prefix)
     {
         const auto tints = Detail::TintPair(a_prefix);
         const auto palette = PaletteModeText(a_prefix.paletteMode);
         const auto grad = FileHashText(a_prefix.gradBlackFlame);
         const auto gradAdd = FileHashText(a_prefix.gradBlackFlameAdd);
-        if (!tints || palette.empty() || !grad || !gradAdd) {
+        if (!OutputIdentityVersion(a_prefix.outputIdentity) || !tints || palette.empty() || !grad || !gradAdd) {
             return std::nullopt;
         }
         std::string out = "format=" + std::string(kKeyFormat);
-        Detail::Field(out, "exe", Hex16(a_prefix.builderExeFnv64));
+        Detail::Field(out, "out", a_prefix.outputIdentity);
         out.push_back('|');
         out.append(*tints);
         Detail::Field(out, "palette", palette);
@@ -246,16 +287,16 @@ namespace BlackFlame::CopyContract
     }
 
     /// The builder's check of request v5 options: the prefix rebuilt from what it received (tint, tintAdd, paletteMode
-    /// text) and what it measured itself (its exe's FNV, the dumped palettes' hashes) must be the DLL's keyPrefix text
-    /// exactly; false (refuse the run) on any difference or an option it cannot read
+    /// text) and what it holds itself (its compiled output identity, the dumped palettes' hashes) must be the DLL's
+    /// keyPrefix text exactly; false (refuse the run) on any difference or an option it cannot read
     [[nodiscard]] inline bool VerifyKeyPrefix(std::string_view a_received, double a_tint, double a_tintAdd,
-        std::string_view a_paletteMode, std::uint64_t a_builderExeFnv64, const FileHash& a_grad, const FileHash& a_gradAdd)
+        std::string_view a_paletteMode, std::string_view a_outputIdentity, const FileHash& a_grad, const FileHash& a_gradAdd)
     {
         const auto mode = PaletteModeFromText(a_paletteMode);
         if (!mode) {
             return false;
         }
-        const KeyPrefix rebuilt{ a_builderExeFnv64, a_tint, a_tintAdd, *mode, a_grad, a_gradAdd };
+        const KeyPrefix rebuilt{ std::string(a_outputIdentity), a_tint, a_tintAdd, *mode, a_grad, a_gradAdd };
         const auto text = KeyPrefixString(rebuilt);
         return text && *text == a_received;
     }

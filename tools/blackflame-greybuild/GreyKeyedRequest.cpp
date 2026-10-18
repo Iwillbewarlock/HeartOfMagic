@@ -4,7 +4,7 @@
 // Read on top of LoadFormsRequestFile (the v4 parts, and forms[].key):
 //   "contractVersion"  CopyContract::kContractVersion, else refused
 //   "options"          { tint, tintAdd (numbers in 0..2), paletteMode ("derived" | "godskin"), keyPrefix } - keyPrefix is
-//                      checked by VerifyKeyPrefix when the run starts (GreyKeyedRun.cpp: it needs the exe and the dump)
+//                      checked by VerifyKeyPrefix when the run starts (GreyKeyedRun.cpp: it needs the output identity, the dump)
 //   "muzzles"          [{ path, key }]
 //   "addnMps"          [{ slot, path, key[, index] }]: slot an ADDN slot's local id (0xF00-0xFCF)
 //   "txst"             [{ slot, key, dodt }]: matched to the TXST form with that forms[].slot

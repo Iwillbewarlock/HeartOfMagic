@@ -57,4 +57,17 @@ namespace GreyBuild::SelfTest
     /// The key mode end to end (GreySelfTestKeyed.cpp): request v5, a run into staging, the cache, terminal and fallback
     /// outcomes, the CLI refusals - on made-up NIFs (a_sourceNif) and DDS files in a_dir
     void CheckKeyed(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_sourceNif);
+
+    /// The self-test's made-up source NIF (GreySelfTest.cpp: AddOnNodes 9 and 24, effect shaders on and off the palette,
+    /// normal and additive palette shapes, a lighting shader, a colour modifier and two colour controllers)
+    void MakeSourceNif(const std::filesystem::path& a_file);
+
+    /// The output identity and the golden-output test (GreySelfTestGolden.cpp): this exe's identity resource read the way
+    /// the DLL reads it; the committed fixture in a_goldenDir run through the key mode (CPU encoder, the release identity)
+    /// and compared with the table of kBuilderOutputVersion; the comparison's own failure cases. A missing a_goldenDir
+    /// fails when a_required, else that part is skipped (a tester package has no fixtures)
+    void CheckGolden(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_goldenDir, bool a_required);
+
+    /// --self-test --print-golden: the fixture's run, printed as the table source for kBuilderOutputVersion. Returns 0/1.
+    [[nodiscard]] int PrintGolden(const std::filesystem::path& a_dir, const std::filesystem::path& a_goldenDir);
 }

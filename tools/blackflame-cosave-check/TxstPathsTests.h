@@ -24,7 +24,7 @@ namespace TxstPathsTests
     inline CC::KeyPrefix Prefix()
     {
         CC::KeyPrefix prefix;
-        prefix.builderExeFnv64 = 0x0123456789ABCDEFull;
+        prefix.outputIdentity = "1+dev0123456789abcdef";
         prefix.tint = 0.6;
         prefix.tintAdd = 0.9;
         prefix.gradBlackFlame = CC::FileHash::Hashed(0x1111111111111111ull);
@@ -54,7 +54,7 @@ namespace TxstPathsTests
         const auto made = TP::RecordStrings(Prefix(), a_raw, a_tx00, a_tx03, { a_d00, a_d03 }, why);
         auto otherPrefix = Prefix();
         otherPrefix.tint = 0.7;          // another tint and builder since the publish: the key prefix differs
-        otherPrefix.builderExeFnv64 = 1;
+        otherPrefix.outputIdentity = "2";
         const auto keyText = CC::TxstKeyString(Prefix(), input(a_raw, a_tx00)).value_or("");
         const auto fields = CC::TxstSourceFields(input(a_raw, a_tx00));
         const std::vector<std::string> stored = made ? std::vector<std::string>(made->begin(), made->end()) : std::vector<std::string>{};

@@ -15,6 +15,7 @@
 
 #include <cmath>
 #include <fmt/format.h>
+#include <process.h>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -339,8 +340,17 @@ namespace GreyBuild
         }
     }
 
-    int RunSelfTest()
+    void SelfTest::MakeSourceNif(const std::filesystem::path& a_file)
     {
+        MakeSource(a_file);
+    }
+
+    int RunSelfTest(const SelfTestOptions& a_options)
+    {
+        // The CRT's maths functions (std::pow in the palettes and the sRGB curve) take an FMA3 path on CPUs that have it,
+        // which can give other last bits: off, so the golden table holds on every CPU (the table is still to be confirmed
+        // on a second machine before it is relied on as a gate)
+        (void)_set_FMA3_enable(0);
         Checker check;
         std::error_code ec;
         const auto temp = std::filesystem::temp_directory_path(ec);
@@ -348,7 +358,8 @@ namespace GreyBuild
             std::cout << fmt::format("FAIL no temp folder: {}\nSELF-TEST pass=0 fail=1\n", ec.message());
             return 1;
         }
-        const auto dir = temp / "blackflame-greybuild-selftest";
+        // one folder per process: a POST_BUILD run and a manual one (or another worktree's build) never share it
+        const auto dir = temp / fmt::format("blackflame-greybuild-selftest-{}", _getpid());
         std::filesystem::remove_all(dir, ec);
         std::filesystem::create_directories(dir, ec);
         if (ec) {
@@ -358,6 +369,12 @@ namespace GreyBuild
         }
         const auto source = dir / "source.nif";
         const auto grey = dir / "grey.nif";
+        const auto golden = a_options.goldenDir.empty() ? std::filesystem::path(BLACKFLAME_GOLDEN_DIR) : a_options.goldenDir;
+        if (a_options.printGolden) {
+            const int printed = SelfTest::PrintGolden(dir, golden);
+            std::filesystem::remove_all(dir, ec);
+            return printed;
+        }
 
         try {
             MakeSource(source);
@@ -428,6 +445,7 @@ namespace GreyBuild
             CheckMapRefusals(check, dir);
             SelfTest::CheckSlotsAndProgress(check, dir);
             SelfTest::CheckKeyed(check, dir, source);
+            SelfTest::CheckGolden(check, dir, golden, a_options.goldenRequired);
         } catch (const std::exception& e) {
             check.Check(false, fmt::format("exception: {}", e.what()));
         }

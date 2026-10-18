@@ -409,16 +409,28 @@ namespace GreyBuild::SelfTest
             const auto prefix = BlackFlame::CopyContractTest::Detail::Prefix();
             const auto text = CC::KeyPrefixString(prefix).value();
             const auto mode = std::string(CC::PaletteModeText(prefix.paletteMode));
-            a_check.Check(CC::VerifyKeyPrefix(text, prefix.tint, prefix.tintAdd, mode, prefix.builderExeFnv64, prefix.gradBlackFlame,
-                              prefix.gradBlackFlameAdd) &&
-                              !CC::VerifyKeyPrefix(text, prefix.tint, prefix.tintAdd, mode, prefix.builderExeFnv64 + 1, prefix.gradBlackFlame,
-                                  prefix.gradBlackFlameAdd),
-                "key prefix: VerifyKeyPrefix takes the prefix this builder rebuilds, refuses another exe's");
+            const auto verify = [&](const std::string& a_identity) {
+                return CC::VerifyKeyPrefix(text, prefix.tint, prefix.tintAdd, mode, a_identity, prefix.gradBlackFlame,
+                    prefix.gradBlackFlameAdd);
+            };
+            const std::string other = std::to_string(CC::kBuilderOutputVersion + 1);
+            a_check.Check(verify(prefix.outputIdentity) && !verify(other) && !verify(other + "+dev0123456789abcdef") &&
+                              !verify(std::to_string(CC::kBuilderOutputVersion)) && !verify("1+dev0123456789abcdee"),
+                "key prefix: VerifyKeyPrefix takes the prefix this builder rebuilds, refuses another output identity's (another "
+                "version, release or dev, the same version's release form, another digest)");
+            auto own = prefix;
+            own.outputIdentity = OutputIdentity();
+            const auto ownText = CC::KeyPrefixString(own);
+            a_check.Check(CC::OutputIdentityVersion(OutputIdentity()) == CC::kBuilderOutputVersion && ownText &&
+                              CC::VerifyKeyPrefix(*ownText, own.tint, own.tintAdd, mode, OutputIdentity(), own.gradBlackFlame,
+                                  own.gradBlackFlameAdd),
+                fmt::format("key prefix: this build's output identity '{}' is valid, of this contract's version {}, and keys",
+                    OutputIdentity(), CC::kBuilderOutputVersion));
             // our palettes are there, but the request lists neither: they are never read (a stale dump file)
             const auto dir = a_dir / "palette-state";
             Write(dir / std::string(BlackFlame::DataPathRule::kOurPalette), "stale");
             Write(dir / std::string(BlackFlame::DataPathRule::kOurPaletteAdd), "stale");
-            const std::string received = "format=BFK3|exe=0|tint=0|tintadd=0|palette=derived|grad=notdumped:4096|gradadd=missing";
+            const std::string received = "format=BFK4|out=1|tint=0|tintadd=0|palette=derived|grad=notdumped:4096|gradadd=missing";
             a_check.Check(PaletteState(dir, BlackFlame::DataPathRule::kOurPalette, received, "grad", {}).state == CC::FileState::kNotDumped &&
                               PaletteState(dir, BlackFlame::DataPathRule::kOurPalette, received, "grad", {}).size == 4096 &&
                               PaletteState(dir, BlackFlame::DataPathRule::kOurPaletteAdd, received, "gradadd", {}).state == CC::FileState::kMissing,

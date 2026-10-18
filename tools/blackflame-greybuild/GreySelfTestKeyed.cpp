@@ -104,10 +104,10 @@ namespace GreyBuild::SelfTest
             SaveNif(nif, a_file);
         }
 
-        [[nodiscard]] std::string Prefix(const std::filesystem::path& a_dump, double a_tint, std::uint64_t a_exe)
+        [[nodiscard]] std::string Prefix(const std::filesystem::path& a_dump, double a_tint, const std::string& a_identity)
         {
             CC::KeyPrefix prefix;
-            prefix.builderExeFnv64 = a_exe;
+            prefix.outputIdentity = a_identity;
             prefix.tint = a_tint;
             prefix.tintAdd = 0.9;
             prefix.gradBlackFlame = CC::FileHash::Hashed(Fnv(a_dump / std::string(Rule::kOurPalette)));
@@ -131,9 +131,10 @@ namespace GreyBuild::SelfTest
             std::filesystem::path staging;
         };
 
-        // The game folder of a_variant, request.json written with a_tint in options (the prefix keeps 0.6) and a_version
+        // The game folder of a_variant, request.json written with a_tint in options (the prefix keeps 0.6), a_version and
+        // the prefix's output identity (empty: this build's own)
         Fixture MakeFixture(const std::filesystem::path& a_dir, const std::string& a_name, const std::filesystem::path& a_sourceNif,
-            Variant a_variant, double a_tint = 0.6, int a_version = kGameRequestVersionKeyed, std::uint64_t a_exe = 0)
+            Variant a_variant, double a_tint = 0.6, int a_version = kGameRequestVersionKeyed, const std::string& a_identity = {})
         {
             Fixture fixture{ a_dir / a_name, a_dir / a_name / "data", a_dir / a_name / "staging" };
             const auto& dump = fixture.dump;
@@ -151,7 +152,7 @@ namespace GreyBuild::SelfTest
                 MustWrite(dump / kSourcePalette, DXGI_FORMAT_B8G8R8A8_UNORM, true);
             }
             MustWrite(dump / kDecal, a_variant == Variant::kMissingPalette ? DXGI_FORMAT_BC5_UNORM : DXGI_FORMAT_BC3_UNORM, true);
-            const std::uint64_t exe = a_exe != 0 ? a_exe : Fnv(ThisExecutable());
+            const std::string identity = a_identity.empty() ? std::string(OutputIdentity()) : a_identity;
             // the error text is no longer read: the state decides (contract 4)
             const std::string fxEntry = a_variant == Variant::kNotDumped ?
                                             fmt::format(R"j({{"path":"{}","size":9000000,"ok":false,"state":"notdumped","error":"text"}})j",
@@ -183,7 +184,7 @@ namespace GreyBuild::SelfTest
  {{"path":"meshes\\magic\\keyed.nif","size":1,"fnv64":"{}","ok":true}},{{"path":"meshes\\magic\\plain.nif","size":1,"fnv64":"{}","ok":true}},
  {{"path":"meshes\\mps\\a.nif","size":1,"fnv64":"{}","ok":true}}],
 "textures":[{{"path":"{}","size":1,"ok":true,"state":"ok","own":true}},{{"path":"{}","size":1,"ok":true,"state":"ok","own":true}},{}{}],
-"excluded":[{{"source":"","type":"IPCT","reason":"no defining file"}}]}})", a_version, CC::kContractVersion, a_tint, Escape(Prefix(dump, 0.6, exe)), CC::Hex16(kModel), CC::Hex16(kPlain),
+"excluded":[{{"source":"","type":"IPCT","reason":"no defining file"}}]}})", a_version, CC::kContractVersion, a_tint, Escape(Prefix(dump, 0.6, identity)), CC::Hex16(kModel), CC::Hex16(kPlain),
                 CC::Hex16(kMuzzle), kSlot, CC::Hex16(kMps), CC::Hex16(kTxst), CC::Hex16(Fnv(dump / "meshes/magic/keyed.nif")),
                 CC::Hex16(Fnv(dump / "meshes/magic/plain.nif")), CC::Hex16(Fnv(dump / "meshes/mps/a.nif")),
                 Escape(std::string(Rule::kOurPalette)), Escape(std::string(Rule::kOurPaletteAdd)), fxEntry, listed);
@@ -468,7 +469,7 @@ namespace GreyBuild::SelfTest
                 }
             }
             CC::KeyPrefix prefix;
-            prefix.builderExeFnv64 = Fnv(ThisExecutable());
+            prefix.outputIdentity = OutputIdentity();
             prefix.tint = 0.6;
             prefix.tintAdd = 0.9;
             prefix.gradBlackFlame = CC::FileHash::Hashed(Fnv(fixture.dump / std::string(Rule::kOurPalette)));
@@ -580,15 +581,16 @@ namespace GreyBuild::SelfTest
                 fmt::format("failed: a NIF nifs[] does not list fails its object alone ('{}'); an ok false path matched after "
                             "MeshDataPath ('{}'); the rest builds", slipModel ? slipModel->reason : "", slipMps ? slipMps->reason : ""));
 
-            const auto otherExe = MakeFixture(a_dir, "exe", a_sourceNif, Variant::kNormal, 0.6, kGameRequestVersionKeyed, 0x0123456789ABCDEFull);
+            const auto otherExe = MakeFixture(a_dir, "identity", a_sourceNif, Variant::kNormal, 0.6, kGameRequestVersionKeyed,
+                std::to_string(CC::kBuilderOutputVersion + 1));
             const auto wrongTint = MakeFixture(a_dir, "tint", a_sourceNif, Variant::kNormal, 0.7);
             const auto v4 = MakeFixture(a_dir, "v4", a_sourceNif, Variant::kNormal, 0.6, kGameRequestVersion);
             std::error_code ec;
             a_check.Check(Run(otherExe) == 1 && Run(wrongTint) == 1 && Run(v4) == 2 && !std::filesystem::exists(otherExe.staging / CC::kProgressFile, ec) &&
                               !std::filesystem::exists(wrongTint.staging / CC::kProgressFile, ec) &&
                               !std::filesystem::exists(v4.staging / CC::kProgressFile, ec),
-                "refused runs: VerifyKeyPrefix refuses keys for another builder exe and a prefix not of its options (exit 1, nothing "
-                "written); a v4 request (exit 2)");
+                "refused runs: VerifyKeyPrefix refuses keys of another output identity and a prefix not of its options (exit 1, "
+                "nothing written); a v4 request (exit 2)");
         }
 
         // This exe with a_args (output to nothing); its exit code

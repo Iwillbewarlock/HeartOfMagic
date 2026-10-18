@@ -9,9 +9,11 @@
 //   textures  the dump's plan (CopyRequestData::PlanTextures: every texture those NIFs name and the TXST colour slots,
 //             within the dump caps), each planned one read whole for its fnv64; one outside the caps is "notdumped",
 //             one that does not open "missing" (CopyContract FileState); our two palettes are read whole (the key prefix)
-//   builder   <DLL folder>\HeartOfMagic_BlackFlame\blackflame-greybuild.exe, its bytes' fnv64 (CopyContract
-//             kBuilderExeRelative). Missing: no key prefix, so no key this session (nothing new is built); a slot's last
-//             published generation can still be shown (it needs no new key)
+//   builder   <DLL folder>\HeartOfMagic_BlackFlame\blackflame-greybuild.exe (CopyContract kBuilderExeRelative): it must
+//             open, and its output identity (RCDATA, CopyContractIdentity.h), read as a data file and never run, must be of
+//             this DLL's kBuilderOutputVersion; it goes into the key prefix verbatim. Missing, unreadable or another
+//             version: no key prefix, so no key this session (nothing new is built); a slot's last published generation
+//             can still be shown (it needs no new key)
 //   ADDN      the BSValueNode values of the closure's form and muzzle NIFs (NifValueNodes.h): only the ADDN records the
 //             engine's addonNodes table gives for those indices get an ADDN slot
 // The key functions turn those into CopyContract key strings; both sides hash the same strings (the contract's test table).
@@ -44,7 +46,9 @@ namespace BlackFlame::SlotKeys
         std::optional<CC::KeyPrefix> prefix;                        // nullopt: no new key this session (prefixWhy)
         std::string prefixWhy;
         std::filesystem::path builderExe;
-        bool builderExeFound = false;
+        bool builderExeFound = false;                               // the exe opens (its identity taken or not)
+        std::string builderIdentity;                                // its output identity, when taken
+        std::string builderIdentityWhy;                             // found but refused: why (worded after "the builder exe")
         std::vector<CC::AddnRecord> addnRecords;                    // every ADDN record not ours
         std::set<std::uint32_t> valueNodeIndices;                   // AddOnNode values the closure's NIFs name
         std::size_t valueNodeUnparsed = 0;                          // closure NIFs with BSValueNode whose header did not parse

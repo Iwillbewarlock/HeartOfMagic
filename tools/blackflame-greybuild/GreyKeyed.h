@@ -7,8 +7,8 @@
 //                      [--parent-pid <pid>]   (README "Single launch: the builder (P1)")
 // The DLL makes every object's key (CopyContractKeys.h) and writes it into request v5; the builder never invents one but
 // the keys of its own child objects (texture and palette copies): the contract's TextureKeyString / PaletteKeyString over
-// the prefix it rebuilt and verified (VerifyKeyPrefix: options, its own exe's fnv64, the dumped palettes' hashes must give
-// options.keyPrefix exactly, else the run is refused) and the source file's bytes. Every object goes to
+// the prefix it rebuilt and verified (VerifyKeyPrefix: options, its compiled output identity, the dumped palettes' hashes
+// must give options.keyPrefix exactly, else the run is refused) and the source file's bytes. Every object goes to
 // DataPathRule::CopyPath(<root>, key16, <source>) in staging, written as <path>.tmp and renamed, then one progress line
 // (GreyProgress.h). Objects (each key once):
 //   nif   forms[].key of a form with a model (its model), and muzzles[] {path, key}
@@ -55,7 +55,14 @@ namespace GreyBuild
         std::uint64_t commitReserve = kDefaultCommitReserveMiB * kBytesPerMiB;
         std::uint32_t parentPid = 0;  // 0: no parent to watch
         MemoryProbe memoryProbe = MeasureMemory;  // the self-test's seam (a cap below what any process holds)
+        // The self-test's seam, never set from the command line: the output identity the run keys with in place of this
+        // build's own (the golden test keys its fixture with the release identity, so a dev build compares the same bytes)
+        std::string identityOverride;
     };
+
+    /// This build's output identity ("<n>" or "<n>+dev<digest>"), compiled in from GreyIdentity.cmake's GreyIdentityText.h:
+    /// the same text the exe's RCDATA resource carries for the DLL (CopyContractIdentity.h)
+    [[nodiscard]] const char* OutputIdentity() noexcept;
 
     struct KeyedSpec
     {

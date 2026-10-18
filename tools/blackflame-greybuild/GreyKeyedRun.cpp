@@ -1,8 +1,8 @@
 // =============================================================================
 // GreyKeyedRun - key-directed outputs into staging (the run of GreyKeyed.h)
 // =============================================================================
-// Order: the request (v5) and the key prefix check (VerifyKeyPrefix: its options, this exe's fnv64 and the dump's
-// palettes give options.keyPrefix exactly), the staging folder (leftover *.tmp removed, progress.jsonl
+// Order: the request (v5) and the key prefix check (VerifyKeyPrefix: its options, this build's output identity and the
+// dump's palettes give options.keyPrefix exactly), the staging folder (leftover *.tmp removed, progress.jsonl
 // compacted), every object whose line is reusable counted as a cache hit, the rest scheduled (GreyKeyed.h) and built one
 // at a time under the memory budget, each ending in one progress line. A parent that dies stops the run after the object
 // in hand.
@@ -13,6 +13,8 @@
 #include "GreyFormsTxst.h"
 
 #include "../../plugins/BlackFlame/src/DataPathRule.h"
+
+#include "GreyIdentityText.h"  // written at build time (GreyIdentity.cmake)
 
 #include <NifFile.hpp>
 
@@ -261,32 +263,26 @@ namespace GreyBuild
             }
         }
 
-        // The prefix rebuilt from the options, this exe's fnv64 and the dump's palettes must be the DLL's keyPrefix exactly
-        // (VerifyKeyPrefix); the verified prefix, or nullopt (printed)
-        [[nodiscard]] std::optional<CC::KeyPrefix> VerifiedPrefix(const KeyedRequest& a_request, const std::filesystem::path& a_dump)
+        // The prefix rebuilt from the options, the output identity (this build's, or the self-test's override) and the dump's
+        // palettes must be the DLL's keyPrefix exactly (VerifyKeyPrefix); the verified prefix, or nullopt (printed)
+        [[nodiscard]] std::optional<CC::KeyPrefix> VerifiedPrefix(const KeyedRequest& a_request, const std::filesystem::path& a_dump,
+            const std::string& a_identity)
         {
-            std::string why;
-            const auto exe = ThisExecutable();
-            const auto own = exe.empty() ? std::nullopt : DigestFile(exe, why);
-            if (!own) {
-                std::cerr << fmt::format("this builder's own exe {} does not read: {}\n", PathText(exe), why);
-                return std::nullopt;
-            }
             CC::KeyPrefix prefix;
-            prefix.builderExeFnv64 = own->fnv64;
+            prefix.outputIdentity = a_identity;
             prefix.tint = a_request.tint;
             prefix.tintAdd = a_request.tintAdd;
             prefix.paletteMode = a_request.paletteMode == PaletteMode::kGodskin ? CC::PaletteMode::kGodskin : CC::PaletteMode::kDerived;
             prefix.gradBlackFlame = PaletteState(a_dump, Rule::kOurPalette, a_request.keyPrefix, "grad", a_request.base.texturesDumped);
             prefix.gradBlackFlameAdd = PaletteState(a_dump, Rule::kOurPaletteAdd, a_request.keyPrefix, "gradadd",
                 a_request.base.texturesDumped);
-            if (!CC::VerifyKeyPrefix(a_request.keyPrefix, a_request.tint, a_request.tintAdd, a_request.paletteModeText, prefix.builderExeFnv64,
-                    prefix.gradBlackFlame, prefix.gradBlackFlameAdd)) {
-                std::cerr << fmt::format("the request's keyPrefix '{}' is not what this builder rebuilds ('{}': its options, this exe "
-                                         "{} and the dump's palettes): its outputs would carry keys that are not theirs. Run the exe the DLL "
-                                         "hashed (<DLL folder>\\HeartOfMagic_BlackFlame\\blackflame-greybuild.exe) on the request and dump "
-                                         "of one start.\n", a_request.keyPrefix, CC::KeyPrefixString(prefix).value_or("refused"),
-                    PathText(exe));
+            if (!CC::VerifyKeyPrefix(a_request.keyPrefix, a_request.tint, a_request.tintAdd, a_request.paletteModeText,
+                    prefix.outputIdentity, prefix.gradBlackFlame, prefix.gradBlackFlameAdd)) {
+                std::cerr << fmt::format("the request's keyPrefix '{}' is not what this builder rebuilds ('{}': its options, this "
+                                         "builder's output identity {} and the dump's palettes): its outputs would carry keys that are "
+                                         "not theirs. Run the builder the DLL read its identity from (<DLL folder>\\HeartOfMagic_BlackFlame"
+                                         "\\blackflame-greybuild.exe) on the request and dump of one start.\n", a_request.keyPrefix,
+                    CC::KeyPrefixString(prefix).value_or("refused"), prefix.outputIdentity);
                 return std::nullopt;
             }
             return prefix;
@@ -300,6 +296,11 @@ namespace GreyBuild
                                      std::string(CC::OutcomeText(a_line.outcome)), CC::ProgressKindText(a_line.kind), what,
                 a_line.reason.empty() ? std::string() : " - " + a_line.reason);
         }
+    }
+
+    const char* OutputIdentity() noexcept
+    {
+        return BLACKFLAME_BUILDER_OUTPUT_IDENTITY;
     }
 
     CC::ProgressLine GuardObject(const KeyedSpec& a_spec, const std::function<CC::ProgressLine()>& a_build)
@@ -349,7 +350,8 @@ namespace GreyBuild
         for (const auto& line : request.warnings) {
             std::cout << "WARN  " << line << "\n";
         }
-        const auto prefix = VerifiedPrefix(request, dump);
+        const auto prefix = VerifiedPrefix(request, dump,
+            a_options.identityOverride.empty() ? std::string(OutputIdentity()) : a_options.identityOverride);
         if (!prefix) {
             return kFail;
         }
@@ -444,9 +446,9 @@ namespace GreyBuild
                    std::make_tuple(b.textured, b.kind != CC::ProgressKind::kMps, b.cost);
         });
         std::cout << fmt::format("keyed  {} object(s): {} reusable from staging, {} to build ({} with textures to recolour); job "
-                                 "memory cap {} MiB, commit reserve {} MiB\n", request.objects.size(), hits, pending.size(),
-            std::count_if(pending.begin(), pending.end(), [](const KeyedSpec& a_spec) { return a_spec.textured; }),
-            a_options.jobMemory / kBytesPerMiB, a_options.commitReserve / kBytesPerMiB);
+                                 "memory cap {} MiB, commit reserve {} MiB; output identity {}\n", request.objects.size(), hits,
+            pending.size(), std::count_if(pending.begin(), pending.end(), [](const KeyedSpec& a_spec) { return a_spec.textured; }),
+            a_options.jobMemory / kBytesPerMiB, a_options.commitReserve / kBytesPerMiB, prefix->outputIdentity);
 
         std::map<CC::Outcome, int> counts;
         bool stopped = false;

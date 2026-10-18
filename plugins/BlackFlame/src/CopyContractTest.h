@@ -9,7 +9,8 @@
 // (bool ok, const std::string& what); a_skip one taking (const std::string& what) for a case this system cannot run.
 // Run returns how many checks it made; each caller fails its run below kMinChecks. The golden strings are the
 // contract: a change to them is a contract change (bump kContractVersion). Their FNVs were computed apart from this
-// code (Node BigInt FNV-1a, checked against the published vectors).
+// code (BFK3: Node BigInt FNV-1a; BFK4: Python FNV-1a, which gave the BFK3 values first; both checked against the
+// published vectors). The golden prefix carries the longest identity form, <n>+dev<16 hex>.
 
 #include "CopyContractKeys.h"
 #include "CopyContractTestPaths.h"
@@ -34,24 +35,25 @@ namespace BlackFlame::CopyContractTest
     {
         namespace CC = CopyContract;
 
+        inline constexpr const char* kGoldenIdentity = "1+dev0123456789abcdef";
         inline constexpr const char* kGoldenPrefix =
-            "format=BFK3|exe=0123456789abcdef|tint=0.600000|tintadd=0.900000|palette=derived|grad=1111111111111111|"
+            "format=BFK4|out=1+dev0123456789abcdef|tint=0.600000|tintadd=0.900000|palette=derived|grad=1111111111111111|"
             "gradadd=missing";
         inline constexpr const char* kGoldenNif =
-            "format=BFK3|exe=0123456789abcdef|tint=0.600000|tintadd=0.900000|palette=derived|grad=1111111111111111|"
+            "format=BFK4|out=1+dev0123456789abcdef|tint=0.600000|tintadd=0.900000|palette=derived|grad=1111111111111111|"
             "gradadd=missing|kind=muzzle|nif=meshes\\magic\\fx\\fireboltmuzzle.nif|nifhash=aaaaaaaaaaaaaaaa|"
             "tex=textures\\effects\\fxfire01.dds=2222222222222222|tex=textures\\effects\\gradientfire.dds=notdumped:4096|"
             "addn=none";
-        inline constexpr const char* kGoldenNifKey16 = "9534b61f5b30e53d";
+        inline constexpr const char* kGoldenNifKey16 = "97203f378c01bb9f";
         inline constexpr const char* kGoldenTxst =
-            "format=BFK3|exe=0123456789abcdef|tint=0.600000|tintadd=0.900000|palette=derived|grad=1111111111111111|"
+            "format=BFK4|out=1+dev0123456789abcdef|tint=0.600000|tintadd=0.900000|palette=derived|grad=1111111111111111|"
             "gradadd=missing|kind=txst|slot0=415c622e646473|slot1=|slot2=|slot3=672e646473|slot4=|slot5=|slot6=|slot7=|"
             "tx00=3333333333333333|tx03=missing|dodt=1";
-        inline constexpr const char* kGoldenTxstKey16 = "8a1ce45bf83eee1e";
+        inline constexpr const char* kGoldenTxstKey16 = "48c48b023d0ca814";
         // The texture child anchor: a texture copy's key16 for Prefix(), role diffuse, Effects\FXFire01.dds hashed 7777...
         // The builder's --self-test and blackflame-cosave-check run this table, and cosave-check's txst paths test asserts the
         // DLL's own path (SlotTxstPaths::CopyKey16) gives the same key16: a builder and DLL that key a copy differently fail offline
-        inline constexpr const char* kGoldenTextureKey16 = "dfddef9e4b821e1d";
+        inline constexpr const char* kGoldenTextureKey16 = "5c2ae933423affe7";
         inline constexpr std::uint64_t kAnchorTextureFnv64 = 0x7777777777777777ull;
         inline constexpr const char* kAnchorTexturePath = "Effects/FXFire01.dds";
         inline constexpr const char* kGoldenAddn =
@@ -64,7 +66,7 @@ namespace BlackFlame::CopyContractTest
         [[nodiscard]] inline CC::KeyPrefix Prefix()
         {
             CC::KeyPrefix prefix;
-            prefix.builderExeFnv64 = 0x0123456789ABCDEFull;
+            prefix.outputIdentity = kGoldenIdentity;
             prefix.tint = 0.6;
             prefix.tintAdd = 0.9;
             prefix.paletteMode = CC::PaletteMode::kDerived;
@@ -182,22 +184,61 @@ namespace BlackFlame::CopyContractTest
                 "tint: locale-free (0.600000 under a comma locale where printf gave 0,600000)");
         }
 
+        // The output identity's text rule (OutputIdentityVersion), the DLL's check of what it read (BuilderIdentityFault
+        // lives in CopyContractIdentity.h, a Windows header: its cases run in cosave-check and the builder's own tests)
+        template <class Check>
+        void CheckIdentities(Check& a_check)
+        {
+            a_check(CC::OutputIdentityVersion("1") == 1u && CC::OutputIdentityVersion("42") == 42u &&
+                        CC::OutputIdentityVersion("4294967295") == 4294967295u && !CC::IsDevIdentity("1") &&
+                        CC::OutputIdentityVersion(std::to_string(CC::kBuilderOutputVersion)) == CC::kBuilderOutputVersion,
+                "identity: a release identity is its decimal number (1, 42, the largest 32-bit one, this contract's own)");
+            a_check(CC::OutputIdentityVersion(kGoldenIdentity) == 1u && CC::IsDevIdentity(kGoldenIdentity) &&
+                        CC::OutputIdentityVersion("7+devffffffffffffffff") == 7u,
+                "identity: a dev identity is <n>+dev<16 lower-case hex>, its number n");
+            bool refused = true;
+            for (const char* text : { "", "0", "01", "-1", "+1", " 1", "1 ", "1.0", "1x", "4294967296", "99999999999999999999",
+                     "1+dev", "1+dev0123456789abcde", "1+dev0123456789abcdef0", "1+dev0123456789ABCDEF", "1+DEV0123456789abcdef",
+                     "1+dev0123456789abcdeg", "1-dev0123456789abcdef", "+dev0123456789abcdef", "1+dev+dev0123456789abcdef",
+                     "1+0123456789abcdef" }) {
+                refused = refused && !CC::OutputIdentityVersion(text) && !CC::IsDevIdentity(text);
+            }
+            refused = refused && !CC::OutputIdentityVersion(std::string_view("1\0", 2));
+            auto badPrefix = Prefix();
+            badPrefix.outputIdentity = "01";
+            a_check(refused && !CC::KeyPrefixString(badPrefix) && !CC::NifKeyString(badPrefix, Muzzle()),
+                "identity: no number, 0, a leading zero, a sign, a space, a fraction, over 32 bits, a short, long, upper-case or "
+                "non-hex digest, another tag, a NUL: refused, and no key with it");
+        }
+
         template <class Check>
         void CheckPrefix(Check& a_check)
         {
             const auto prefix = Prefix();
             a_check(CC::KeyPrefixString(prefix) == kGoldenPrefix, "prefix: the golden prefix string");
-            const auto verify = [&](double a_tint, std::string_view a_mode, std::uint64_t a_exe, const CC::FileHash& a_grad) {
-                return CC::VerifyKeyPrefix(kGoldenPrefix, a_tint, 0.9, a_mode, a_exe, a_grad, CC::FileHash::Missing());
+            const auto verify = [&](double a_tint, std::string_view a_mode, std::string_view a_identity, const CC::FileHash& a_grad) {
+                return CC::VerifyKeyPrefix(kGoldenPrefix, a_tint, 0.9, a_mode, a_identity, a_grad, CC::FileHash::Missing());
             };
             const auto grad = CC::FileHash::Hashed(0x1111111111111111ull);
-            a_check(verify(0.6, "derived", 0x0123456789ABCDEFull, grad) && verify(0.6000004, "derived", 0x0123456789ABCDEFull, grad),
+            a_check(verify(0.6, "derived", kGoldenIdentity, grad) && verify(0.6000004, "derived", kGoldenIdentity, grad),
                 "prefix: VerifyKeyPrefix takes the builder's own rebuild of the DLL's keyPrefix (the same 6-decimal text)");
-            a_check(!verify(0.61, "derived", 0x0123456789ABCDEFull, grad) && !verify(0.6, "godskin", 0x0123456789ABCDEFull, grad) &&
-                        !verify(0.6, "Derived", 0x0123456789ABCDEFull, grad) && !verify(0.6, "derived", 0x0123456789ABCDEEull, grad) &&
-                        !verify(0.6, "derived", 0x0123456789ABCDEFull, CC::FileHash::Hashed(1)) &&
-                        !verify(0.6, "derived", 0x0123456789ABCDEFull, CC::FileHash{}),
-                "prefix: VerifyKeyPrefix refuses another tint, mode, unknown mode text, exe, palette hash or an unset hash");
+            a_check(!verify(0.61, "derived", kGoldenIdentity, grad) && !verify(0.6, "godskin", kGoldenIdentity, grad) &&
+                        !verify(0.6, "Derived", kGoldenIdentity, grad) && !verify(0.6, "derived", kGoldenIdentity, CC::FileHash::Hashed(1)) &&
+                        !verify(0.6, "derived", kGoldenIdentity, CC::FileHash{}),
+                "prefix: VerifyKeyPrefix refuses another tint, mode, unknown mode text, palette hash or an unset hash");
+            a_check(!verify(0.6, "derived", "1", grad) && !verify(0.6, "derived", "2+dev0123456789abcdef", grad) &&
+                        !verify(0.6, "derived", "1+dev0123456789abcdee", grad) && !verify(0.6, "derived", "1+dev0123456789ABCDEF", grad) &&
+                        !verify(0.6, "derived", "", grad),
+                "prefix: VerifyKeyPrefix refuses another output identity (the release form of the same number, another number, "
+                "another digest, a refused spelling, none)");
+            auto release = prefix;
+            release.outputIdentity = "1";
+            const auto releaseText = CC::KeyPrefixString(release);
+            a_check(Contains(releaseText, "format=BFK4|out=1|tint=") && releaseText &&
+                        CC::VerifyKeyPrefix(*releaseText, 0.6, 0.9, "derived", "1", grad, CC::FileHash::Missing()) &&
+                        Differs(CC::NifKeyString(release, Muzzle()), CC::NifKeyString(prefix, Muzzle())),
+                "prefix: a release identity round-trips through VerifyKeyPrefix; dev and release keys of one source differ");
+            CheckIdentities(a_check);
             auto unknownMode = prefix;
             unknownMode.paletteMode = static_cast<CC::PaletteMode>(9);
             auto unsetGrad = prefix;

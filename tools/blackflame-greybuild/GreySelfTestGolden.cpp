@@ -1,0 +1,529 @@
+// =============================================================================
+// GreySelfTestGolden - --self-test of the output identity and the golden output (GreySelfTest.h CheckGolden)
+// =============================================================================
+// The release identity "<n>" promises that every input's output is what version n made. This test holds the promise
+// for a fixed fixture (GreyGolden.h): its committed input files, a request written around them, the key mode run with
+// the release identity (so a dev build keys and compares the same bytes) and, today, the only encoder there is, the CPU
+// one (a GPU encoder added later must be off in this run). Compared with the table of kBuilderOutputVersion
+// (GreyGoldenTable.h): every output file's size and fnv64, every progress line's kind, key, outcome and deps (not its
+// reason), and a digest of the output-affecting constants. A difference with the same version fails with the
+// instruction to bump the version and add a table. The table was made on one machine (FMA3 off, RunSelfTest): it is to
+// be confirmed on a second machine before it is relied on as a gate.
+// Not in the constant digest: constants inside .cpp files' unnamed namespaces (kVisibleAlpha, the DDS load and
+// compress flags); a change to them shows as changed bytes only where the fixture reaches them.
+
+#ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#    define NOMINMAX
+#endif
+
+#include "GreyGolden.h"
+#include "GreyGoldenTable.h"
+#include "GreyKeyed.h"
+#include "GreyRisk.h"
+#include "GreySelfTest.h"
+#include "GreyShapes.h"
+#include "GreyTexStats.h"
+#include "GreyTexture.h"
+
+#include "../../plugins/BlackFlame/src/CopyContractIdentity.h"
+#include "../../plugins/BlackFlame/src/DataPathRule.h"
+
+#include <DirectXTex.h>
+#include <nlohmann/json.hpp>
+
+#include <algorithm>
+#include <chrono>
+#include <fmt/format.h>
+#include <fstream>
+#include <map>
+#include <sstream>
+#include <vector>
+
+namespace GreyBuild::SelfTest
+{
+    namespace
+    {
+        namespace CC = BlackFlame::CopyContract;
+        namespace Rule = BlackFlame::DataPathRule;
+        using namespace Golden;
+
+        constexpr const char* kBumpAdvice = "bump kBuilderOutputVersion in CopyContractKeys.h and regenerate the table "
+                                            "(--self-test --print-golden)";
+        constexpr std::uint32_t kSlotTextures = 2048;  // PROJ slots
+        constexpr std::uint32_t kSlotGlow = 2049;
+        constexpr std::uint32_t kSlotPalette = 2050;
+        constexpr std::uint32_t kSlotTxst = 3744;      // a TXST slot
+        constexpr std::uint32_t kSlotMps = 0xF0C;      // an ADDN slot: index 40012
+        constexpr int kMpsIndex = 9;
+        constexpr double kGoldenTint = 0.6;     // QuantizedTint values, as the DLL writes them
+        constexpr double kGoldenTintAdd = 0.9;
+        constexpr std::size_t kTexturesNifCopies = 8;  // bc7 diffuse, bc3, bgra, bc7wide and the four over-threshold textures
+
+        struct Observed
+        {
+            std::map<std::string, std::pair<std::uint64_t, std::uint64_t>> files;  // staging-relative path -> bytes, fnv64
+            std::map<std::string, std::string> lines;  // "<kind> <key16>" -> "<outcome> | <deps>"
+            std::string constants;
+            std::size_t texturesCopies = 0;  // the textures NIF line's path deps
+        };
+
+        // The output-affecting constants the headers expose, as hex-float text, and its FNV-1a 64
+        struct Constants
+        {
+            std::string text;
+            std::string digest;
+        };
+
+        template <class T>
+        void Put(std::string& a_out, const char* a_name, T a_value)
+        {
+            if constexpr (std::is_floating_point_v<T>) {
+                a_out += fmt::format("{}={:a}\n", a_name, a_value);
+            } else {
+                a_out += fmt::format("{}={}\n", a_name, a_value);
+            }
+        }
+
+        [[nodiscard]] Constants ConstantDigest()
+        {
+            std::string t;
+            Put(t, "kGreyscaleChroma", kGreyscaleChroma);
+            Put(t, "kLitFloor", kLitFloor);
+            Put(t, "kColouredChroma", kColouredChroma);
+            Put(t, "kColouredShare", kColouredShare);
+            Put(t, "kTextureTintGlow", kTextureTintGlow);
+            Put(t, "kTextureTintEffect", kTextureTintEffect);
+            Put(t, "kTintPercent", kTintPercent);
+            Put(t, "kTintOneEpsilon", kTintOneEpsilon);
+            Put(t, "kSlsf2GlowMap", kSlsf2GlowMap);
+            Put(t, "kSlsf1OwnEmit", kSlsf1OwnEmit);
+            Put(t, "kSlsf1GreyscaleToPaletteColor", kSlsf1GreyscaleToPaletteColor);
+            Put(t, "kSlsf1GreyscaleToPaletteAlpha", kSlsf1GreyscaleToPaletteAlpha);
+            Put(t, "kLumaRed", kLumaRed);
+            Put(t, "kLumaGreen", kLumaGreen);
+            Put(t, "kLumaBlue", kLumaBlue);
+            Put(t, "kStatLitWeight", kStatLitWeight);
+            Put(t, "kStatColouredSat", kStatColouredSat);
+            Put(t, "kStatMinChannel", kStatMinChannel);
+            Put(t, "kStatColouredFrac", kStatColouredFrac);
+            Put(t, "kStatMeanSat", kStatMeanSat);
+            Put(t, "kSimLitAlpha", kSimLitAlpha);
+            Put(t, "kSimGrid", kSimGrid);
+            Put(t, "kSrgbLinearLimit", kSrgbLinearLimit);
+            Put(t, "kSrgbLinearScale", kSrgbLinearScale);
+            Put(t, "kSrgbOffset", kSrgbOffset);
+            Put(t, "kSrgbGamma", kSrgbGamma);
+            Put(t, "kLinearLimit", kLinearLimit);
+            Put(t, "kRiskWarmSat", kRiskWarmSat);
+            Put(t, "kRiskMinChannel", kRiskMinChannel);
+            Put(t, "kRiskSoftDetail", kRiskSoftDetail);
+            Put(t, "kRiskHaloLumMax", kRiskHaloLumMax);
+            Put(t, "kRiskMaxKeySat", kRiskMaxKeySat);
+            Put(t, "kRiskMaxVcSat", kRiskMaxVcSat);
+            Put(t, "kRiskTexColoredFrac", kRiskTexColoredFrac);
+            Put(t, "kRiskTexMeanSat", kRiskTexMeanSat);
+            Put(t, "kRiskSheetRatio", kRiskSheetRatio);
+            Put(t, "kRiskSheetCover", kRiskSheetCover);
+            Put(t, "kRiskVanishRatio", kRiskVanishRatio);
+            Put(t, "kRiskMinSrcEnergy", kRiskMinSrcEnergy);
+            Put(t, "kRiskMinGBand", kRiskMinGBand);
+            Put(t, "kRiskDarkLum", kRiskDarkLum);
+            Put(t, "kRiskEnergyFloor", kRiskEnergyFloor);
+            Put(t, "kRiskModelSpread", kRiskModelSpread);
+            Put(t, "kRiskDimRatio", kRiskDimRatio);
+            Put(t, "kAlphaTestOn", kAlphaTestOn);
+            Put(t, "kBlendInvSrcAlpha", kBlendInvSrcAlpha);
+            Put(t, "kSlsf2VertexColors", kSlsf2VertexColors);
+            Put(t, "kUnusedKeyValue", kUnusedKeyValue);
+            Put(t, "kHugeFloatValue", kHugeFloatValue);
+            Put(t, "kFloatVarEmissiveMultiple", kFloatVarEmissiveMultiple);
+            Put(t, "kFloatVarAlpha", kFloatVarAlpha);
+            Put(t, "kKeyFormat", CC::kKeyFormat);
+            Put(t, "DIRECTX_TEX_VERSION", DIRECTX_TEX_VERSION);
+            Put(t, "directxtex port", BLACKFLAME_DIRECTXTEX_PORT);
+            Put(t, "nifly port", BLACKFLAME_NIFLY_PORT);
+            return { t, CC::Hex16(CC::Fnv64(t)) };
+        }
+
+        [[nodiscard]] std::string ReadAll(const std::filesystem::path& a_file)
+        {
+            std::ifstream in(a_file, std::ios::binary);
+            return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+        }
+
+        [[nodiscard]] std::uint64_t Fnv(const std::filesystem::path& a_file)
+        {
+            std::string why;
+            const auto digest = DigestFile(a_file, why);
+            if (!digest) {
+                throw std::runtime_error(fmt::format("golden: {} does not read: {}", PathText(a_file), why));
+            }
+            return digest->fnv64;
+        }
+
+        [[nodiscard]] std::string UpperHex(const std::string& a_bytes)
+        {
+            std::string out;
+            for (const unsigned char c : a_bytes) {
+                out += fmt::format("{:02X}", c);
+            }
+            return out;
+        }
+
+        // A TXST slot's record text: the path after textures\ ("" for an empty slot)
+        [[nodiscard]] std::string RecordText(const char* a_path)
+        {
+            return std::string(a_path).substr(std::char_traits<char>::length(kTexturesRoot));
+        }
+
+        // A NIF path as a record names it (after meshes\)
+        [[nodiscard]] std::string ModelText(const char* a_path)
+        {
+            return std::string(a_path).substr(std::char_traits<char>::length(kMeshesRoot));
+        }
+
+        [[nodiscard]] nlohmann::json Proj(const char* a_source, const char* a_model, const std::string& a_muzzle, std::uint32_t a_slot,
+            std::uint64_t a_key)
+        {
+            return { { "source", a_source }, { "type", "PROJ" }, { "editorId", "" }, { "model", ModelText(a_model) },
+                { "muzzleModel", a_muzzle }, { "bounds", { 0, 0, 0, 0, 0, 0 } }, { "data", nlohmann::json::object() },
+                { "viaSpell", "Skyrim.esm|0A0000" }, { "costliest", true }, { "slot", a_slot }, { "key", CC::Hex16(a_key) } };
+        }
+
+        /// request.json v5 around the dump a_data (its files' sizes and fnv64), keyed with a_identity
+        [[nodiscard]] std::string Request(const std::filesystem::path& a_data, const std::string& a_identity)
+        {
+            CC::KeyPrefix prefix;
+            prefix.outputIdentity = a_identity;
+            prefix.tint = kGoldenTint;
+            prefix.tintAdd = kGoldenTintAdd;
+            prefix.gradBlackFlame = CC::FileHash::Hashed(Fnv(a_data / std::string(Rule::kOurPalette)));
+            prefix.gradBlackFlameAdd = CC::FileHash::Hashed(Fnv(a_data / std::string(Rule::kOurPaletteAdd)));
+            const std::vector<std::string> slots = { RecordText(kDecal), "", "", RecordText(kDecalGlow), "", "", "", "" };
+            std::vector<std::string> raw;
+            std::transform(slots.begin(), slots.end(), std::back_inserter(raw), UpperHex);
+            nlohmann::json forms = nlohmann::json::array();
+            forms.push_back(Proj("Skyrim.esm|0A0001", kTexturesNif, ModelText(kBc5Nif), kSlotTextures, kKeyTextures));
+            forms.push_back(Proj("Skyrim.esm|0A0002", kGlowNif, "", kSlotGlow, kKeyGlow));
+            forms.push_back(Proj("Skyrim.esm|0A0003", kPaletteNif, "", kSlotPalette, kKeyPalette));
+            forms.push_back({ { "source", "Skyrim.esm|0A0004" }, { "type", "TXST" }, { "editorId", "GoldenDecal" }, { "model", "" },
+                { "bounds", { 0, 0, 0, 0, 0, 0 } }, { "data", { { "flags", 0 } } }, { "hasDecal", true }, { "textures", slots },
+                { "texturesRaw", raw }, { "viaSpell", "Skyrim.esm|0A0000" }, { "costliest", true }, { "slot", kSlotTxst } });
+            nlohmann::json nifs = nlohmann::json::array();
+            for (const char* nif : { kTexturesNif, kBc5Nif, kGlowNif, kPaletteNif, kMpsNif }) {
+                nifs.push_back({ { "path", nif }, { "size", std::filesystem::file_size(a_data / nif) },
+                    { "fnv64", CC::Hex16(Fnv(a_data / nif)) }, { "ok", true } });
+            }
+            nlohmann::json textures = nlohmann::json::array();
+            for (const auto& entry : std::filesystem::recursive_directory_iterator(a_data / "textures")) {
+                if (!entry.is_regular_file()) {
+                    continue;
+                }
+                const auto rel = PathText(entry.path().lexically_relative(a_data).make_preferred());
+                const bool own = rel == Rule::kOurPalette || rel == Rule::kOurPaletteAdd;
+                textures.push_back({ { "path", rel }, { "size", entry.file_size() }, { "ok", true }, { "state", "ok" }, { "own", own } });
+            }
+            const nlohmann::json root = { { "version", kGameRequestVersionKeyed }, { "contractVersion", CC::kContractVersion },
+                { "game", "1.6.1170.0" }, { "fingerprint", "fnv64:00000000000000ab" }, { "slotsPlugin", "HeartOfMagic_BlackFlame_Slots.esp" },
+                { "dumpComplete", true }, { "decalTextureSets", true },
+                { "options", { { "tint", prefix.tint }, { "tintAdd", prefix.tintAdd }, { "paletteMode", "derived" },
+                                 { "keyPrefix", CC::KeyPrefixString(prefix).value() } } },
+                { "forms", forms }, { "muzzles", { { { "path", ModelText(kBc5Nif) }, { "key", CC::Hex16(kKeyBc5) } } } },
+                { "addnMps", { { { "slot", kSlotMps }, { "path", ModelText(kMpsNif) }, { "key", CC::Hex16(kKeyMps) }, { "index", kMpsIndex } } } },
+                { "txst", { { { "slot", kSlotTxst }, { "key", CC::Hex16(kKeyTxst) }, { "dodt", true } } } },
+                { "addons", { { { "index", kMpsIndex }, { "model", ModelText(kMpsNif) }, { "source", "Skyrim.esm|000009" },
+                                  { "masterParticleCap", 0 }, { "dnamFlags", 1 }, { "own", false } } } },
+                { "nifs", nifs }, { "textures", textures }, { "excluded", nlohmann::json::array() } };
+            return root.dump();
+        }
+
+        [[nodiscard]] std::string DepsText(const CC::ProgressLine& a_line)
+        {
+            std::vector<std::string> deps;
+            for (const auto& dep : a_line.deps) {
+                deps.push_back(dep.isAddn ? fmt::format("addn:{}", dep.addn) : fmt::format("{}@{}", dep.path, CC::Hex16(dep.fnv64)));
+            }
+            std::sort(deps.begin(), deps.end());
+            std::string out;
+            for (const auto& dep : deps) {
+                out += (out.empty() ? "" : " ") + dep;
+            }
+            return out;
+        }
+
+        /// Every file in a_staging (progress.jsonl aside) and every progress line
+        [[nodiscard]] Observed Observe(const std::filesystem::path& a_staging)
+        {
+            Observed out;
+            for (const auto& entry : std::filesystem::recursive_directory_iterator(a_staging)) {
+                if (entry.is_regular_file() && entry.path().filename() != CC::kProgressFile) {
+                    out.files[PathText(entry.path().lexically_relative(a_staging).make_preferred())] = { entry.file_size(), Fnv(entry.path()) };
+                }
+            }
+            for (const auto& line : CC::ParseProgress(ReadAll(a_staging / CC::kProgressFile)).lines) {
+                const auto deps = DepsText(line);
+                out.lines[fmt::format("{} {}", CC::ProgressKindText(line.kind), CC::Hex16(line.key))] =
+                    fmt::format("{} | {}", CC::OutcomeText(line.outcome), deps);
+                if (line.key == kKeyTextures) {
+                    out.texturesCopies = static_cast<std::size_t>(std::count_if(line.deps.begin(), line.deps.end(),
+                        [](const CC::ProgressDep& a_dep) { return !a_dep.isAddn; }));
+                }
+            }
+            out.constants = ConstantDigest().digest;
+            return out;
+        }
+
+        [[nodiscard]] const GoldenTable* FindTable(std::uint32_t a_version)
+        {
+            const auto it = std::find_if(std::begin(kTables), std::end(kTables), [&](const GoldenTable& a_t) { return a_t.version == a_version; });
+            return it == std::end(kTables) ? nullptr : &*it;
+        }
+
+        /// Every difference between a_table and a_seen, each with the instruction; none when they agree
+        [[nodiscard]] std::vector<std::string> Compare(const GoldenTable& a_table, const Observed& a_seen)
+        {
+            std::vector<std::string> out;
+            const auto fileText = [](std::uint64_t a_bytes, std::uint64_t a_fnv) { return fmt::format("{} bytes, fnv64 {}", a_bytes, CC::Hex16(a_fnv)); };
+            std::map<std::string, std::string> want;
+            for (std::size_t i = 0; i < a_table.fileCount; ++i) {
+                want[a_table.files[i].path] = fileText(a_table.files[i].bytes, a_table.files[i].fnv64);
+            }
+            std::map<std::string, std::string> seen;
+            for (const auto& [path, file] : a_seen.files) {
+                seen[path] = fileText(file.first, file.second);
+            }
+            const auto diff = [&](const char* a_what, const std::map<std::string, std::string>& a_want, const std::map<std::string, std::string>& a_got) {
+                for (const auto& [name, text] : a_want) {
+                    const auto it = a_got.find(name);
+                    if (it == a_got.end() || it->second != text) {
+                        out.push_back(fmt::format("{} {} changed ({} -> {}): {}", a_what, name, text, it == a_got.end() ? "none" : it->second, kBumpAdvice));
+                    }
+                }
+                for (const auto& [name, text] : a_got) {
+                    if (a_want.count(name) == 0) {
+                        out.push_back(fmt::format("{} {} changed (none -> {}): {}", a_what, name, text, kBumpAdvice));
+                    }
+                }
+            };
+            diff("output of", want, seen);
+            std::map<std::string, std::string> wantLines;
+            for (std::size_t i = 0; i < a_table.lineCount; ++i) {
+                const auto& line = a_table.lines[i];
+                wantLines[fmt::format("{} {}", line.kind, line.key)] = fmt::format("{} | {}", line.outcome, line.deps);
+            }
+            diff("progress line of", wantLines, a_seen.lines);
+            if (a_seen.constants != a_table.constants) {
+                out.push_back(fmt::format("the output-affecting constants changed (digest {} -> {}): {}", a_table.constants, a_seen.constants, kBumpAdvice));
+            }
+            return out;
+        }
+
+        struct GoldenRun
+        {
+            int exit = -1;
+            std::filesystem::path staging;
+            Observed seen;
+        };
+
+        /// The fixture copied from a_golden\input into a_dir, its request written, the key mode run (release identity)
+        [[nodiscard]] GoldenRun RunFixture(const std::filesystem::path& a_dir, const std::filesystem::path& a_golden)
+        {
+            const auto folder = a_dir / "golden";
+            const auto data = folder / "data";
+            std::filesystem::remove_all(folder);
+            std::filesystem::create_directories(data);
+            std::filesystem::copy(a_golden / kInputFolder, data, std::filesystem::copy_options::recursive);
+            std::ofstream(folder / "request.json", std::ios::binary) << Request(data, std::to_string(CC::kBuilderOutputVersion));
+            GoldenRun run;
+            run.staging = folder / "staging";
+            KeyedOptions options;
+            options.staging = run.staging;
+            options.commitReserve = 0;
+            options.memoryProbe = []() { return std::optional<MemoryState>(MemoryState{ 0, UINT64_MAX }); };
+            options.identityOverride = std::to_string(CC::kBuilderOutputVersion);
+            run.exit = RunKeyed(folder, options);
+            run.seen = Observe(run.staging);
+            return run;
+        }
+
+        void CheckIdentity(Checker& a_check)
+        {
+            const auto own = CC::ReadIdentityResource(ThisExecutable());
+            a_check.Check(own.text && *own.text == OutputIdentity() && !CC::BuilderIdentityFault(*own.text),
+                fmt::format("identity: this exe's RCDATA resource, read as the DLL reads it, is its compiled identity '{}' ({})",
+                    OutputIdentity(), own.text ? "'" + *own.text + "'" : own.why));
+        }
+
+        void CheckThresholds(Checker& a_check, const std::filesystem::path& a_in, const std::filesystem::path& a_dir)
+        {
+            for (const auto& fixture : kThresholds) {
+                const auto result = RecolourDds(a_in / fixture.path, a_dir / "thresholds" / fixture.path, kTextureTintEffect);
+                const auto want = fixture.recoloured ? RecolourOutcome::kRecoloured : RecolourOutcome::kGreyscale;
+                a_check.Check(result.outcome == want,
+                    fmt::format("golden fixture: {} is {} at tint 1 ({}; chroma {:.4f}, share {:.4f}, risk coloured {})", fixture.path,
+                        fixture.recoloured ? "recoloured" : "left as grey", fixture.rule, result.chroma, result.colouredShare,
+                        result.riskColoured));
+            }
+            const auto grey = RecolourDds(a_in / kGreyBc1, a_dir / "thresholds" / kGreyBc1, kTextureTintEffect);
+            const auto bc5 = RecolourDds(a_in / kBc5, a_dir / "thresholds" / kBc5, kTextureTintEffect);
+            a_check.Check(grey.outcome == RecolourOutcome::kGreyscale && bc5.outcome == RecolourOutcome::kFailed,
+                fmt::format("golden fixture: the grey BC1 is left at tint 1 ({}), the BC5 fails ({})", grey.reason, bc5.reason));
+        }
+
+        /// The comparison's own failure cases, against a table made from this run (so they hold whether or not the run
+        /// matches the released table)
+        void CheckComparison(Checker& a_check, const GoldenRun& a_run)
+        {
+            if (a_run.seen.files.empty() || a_run.seen.lines.empty()) {
+                a_check.Check(false, "golden compare: the run wrote no file or no line to compare");
+                return;
+            }
+            std::vector<GoldenFile> files;
+            for (const auto& [path, file] : a_run.seen.files) {
+                files.push_back({ path.c_str(), file.first, file.second });
+            }
+            std::vector<std::string> texts;  // kind, key16, outcome, deps of each line
+            for (const auto& [name, text] : a_run.seen.lines) {
+                const auto bar = text.find(" | ");
+                texts.insert(texts.end(), { name.substr(0, name.find(' ')), name.substr(name.find(' ') + 1), text.substr(0, bar),
+                                              text.substr(bar + 3) });
+            }
+            std::vector<GoldenLine> lines;
+            for (std::size_t i = 0; i + 3 < texts.size(); i += 4) {
+                lines.push_back({ texts[i].c_str(), texts[i + 1].c_str(), texts[i + 2].c_str(), texts[i + 3].c_str() });
+            }
+            const GoldenTable own{ CC::kBuilderOutputVersion, a_run.seen.constants.c_str(), files.data(), files.size(), lines.data(),
+                lines.size() };
+            a_check.Check(Compare(own, a_run.seen).empty(), "golden compare: a run against its own table has no difference");
+            // a deliberately changed byte in a staged copy is a changed output
+            const auto& [first, file] = *a_run.seen.files.begin();
+            const auto staged = a_run.staging / first;
+            auto bytes = ReadAll(staged);
+            bytes[bytes.size() / 2] = static_cast<char>(bytes[bytes.size() / 2] ^ 0x01);
+            std::ofstream(staged, std::ios::binary | std::ios::trunc) << bytes;
+            const auto tampered = Compare(own, Observe(a_run.staging));
+            a_check.Check(tampered.size() == 1 && tampered.front().find("output of " + first + " changed") != std::string::npos &&
+                              tampered.front().find(kBumpAdvice) != std::string::npos,
+                fmt::format("golden compare: one changed byte in {} fails with the bump instruction ({} difference(s))", first,
+                    tampered.size()));
+            auto seen = a_run.seen;
+            seen.lines.begin()->second = "failed | " + seen.lines.begin()->second;
+            seen.files.erase(seen.files.begin());
+            seen.files["textures\\heartofmagic\\blackflame\\copies\\0000000000000000\\extra.dds"] = { 1, 1 };
+            seen.constants = "0000000000000000";
+            const auto changed = Compare(own, seen);
+            const auto has = [&](const std::string& a_text) {
+                return std::any_of(changed.begin(), changed.end(), [&](const std::string& a_line) { return a_line.find(a_text) != std::string::npos; });
+            };
+            a_check.Check(changed.size() == 4 && has("progress line of " + seen.lines.begin()->first) && has("-> none)") &&
+                              has("(none -> 1 bytes") && has("constants changed (digest"),
+                fmt::format("golden compare: a changed outcome, a file gone, an extra file and changed constants each fail "
+                            "({} difference(s))", changed.size()));
+            a_check.Check(!FindTable(CC::kBuilderOutputVersion + 1000), "golden compare: a version with no table has none (the run fails)");
+        }
+
+        [[nodiscard]] std::string Escaped(const std::string& a_text)
+        {
+            std::string out;
+            for (const char c : a_text) {
+                out += c == '\\' || c == '"' ? std::string("\\") + c : std::string(1, c);
+            }
+            return out;
+        }
+    }
+
+    void CheckGolden(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_goldenDir, bool a_required)
+    {
+        CheckIdentity(a_check);
+        std::error_code ec;
+        if (!std::filesystem::is_directory(a_goldenDir / kInputFolder, ec)) {
+            if (a_required) {
+                a_check.Check(false, fmt::format("golden: {} has no {} folder (the committed fixtures)", PathText(a_goldenDir), kInputFolder));
+            } else {
+                std::cout << fmt::format("SKIP golden: {} has no {} folder (only the repository has the fixtures)\n", PathText(a_goldenDir),
+                    kInputFolder);
+            }
+            return;
+        }
+        try {
+            const auto started = std::chrono::steady_clock::now();
+            CheckThresholds(a_check, a_goldenDir / kInputFolder, a_dir);
+            const auto run = RunFixture(a_dir, a_goldenDir);
+            a_check.Check(run.exit == 0 && run.seen.texturesCopies == kTexturesNifCopies,
+                fmt::format("golden: the key mode ran the fixture (exit {}; {} files, {} lines; the textures NIF has {} texture copies, "
+                            "{} expected: the under-threshold and grey ones none)", run.exit, run.seen.files.size(), run.seen.lines.size(),
+                    run.seen.texturesCopies, kTexturesNifCopies));
+            const auto* table = FindTable(CC::kBuilderOutputVersion);
+            if (!table) {
+                a_check.Check(false, fmt::format("golden: no table for output version {} in GreyGoldenTable.h: add the one "
+                                                 "--self-test --print-golden prints", CC::kBuilderOutputVersion));
+                return;
+            }
+            const auto differences = Compare(*table, run.seen);
+            for (const auto& line : differences) {
+                std::cout << "      " << line << "\n";
+            }
+            a_check.Check(differences.empty(), fmt::format("golden: every output file and progress line is version {}'s ({} files, {} "
+                                                           "lines, constants {}; {} difference(s))", CC::kBuilderOutputVersion,
+                                                   table->fileCount, table->lineCount, table->constants, differences.size()));
+            if (!differences.empty() && run.seen.constants != table->constants) {
+                std::cout << "      the constants now:\n" << ConstantDigest().text;
+            }
+            CheckComparison(a_check, run);
+            std::cout << fmt::format("NOTE  golden part: {} ms\n", std::chrono::duration_cast<std::chrono::milliseconds>(
+                                                                    std::chrono::steady_clock::now() - started).count());
+        } catch (const std::exception& e) {
+            a_check.Check(false, fmt::format("golden: exception: {}", e.what()));
+        }
+    }
+
+    int PrintGolden(const std::filesystem::path& a_dir, const std::filesystem::path& a_goldenDir)
+    {
+        try {
+            std::filesystem::create_directories(a_dir);
+            std::ostringstream runOutput;  // the run's own lines, kept out of the table text
+            auto* const saved = std::cout.rdbuf(runOutput.rdbuf());
+            GoldenRun run;
+            try {
+                run = RunFixture(a_dir, a_goldenDir);
+            } catch (...) {
+                std::cout.rdbuf(saved);
+                throw;
+            }
+            std::cout.rdbuf(saved);
+            if (run.exit != 0) {
+                std::cerr << fmt::format("the key mode run of the fixture exited {}: no table\n", run.exit);
+                return kExitFail;
+            }
+            const auto version = CC::kBuilderOutputVersion;
+            const auto constants = ConstantDigest();
+            // indented for GreyGoldenTable.h's namespace: the arrays go in as they are, the row into kTables
+            std::string out = fmt::format("    // ---- version {} (never edit a released version's arrays)\n    // constants:\n", version);
+            std::size_t start = 0;
+            for (auto end = constants.text.find('\n'); end != std::string::npos; start = end + 1, end = constants.text.find('\n', start)) {
+                out += "    //   " + constants.text.substr(start, end - start) + "\n";
+            }
+            out += fmt::format("    inline constexpr GoldenFile kFilesV{}[] = {{\n", version);
+            for (const auto& [path, file] : run.seen.files) {
+                out += fmt::format("        {{ \"{}\", {}, 0x{}ull }},\n", Escaped(path), file.first, CC::Hex16(file.second));
+            }
+            out += fmt::format("    }};\n    inline constexpr GoldenLine kLinesV{}[] = {{\n", version);
+            for (const auto& [name, text] : run.seen.lines) {
+                const auto space = name.find(' ');
+                const auto bar = text.find(" | ");
+                out += fmt::format("        {{ \"{}\", \"{}\", \"{}\", \"{}\" }},\n", name.substr(0, space), name.substr(space + 1),
+                    text.substr(0, bar), Escaped(text.substr(bar + 3)));
+            }
+            out += fmt::format("    }};\n    // kTables row:\n    //    {{ {}, \"{}\", kFilesV{}, std::size(kFilesV{}), kLinesV{}, std::size(kLinesV{}) }},\n",
+                version, constants.digest, version, version, version, version);
+            std::cout << out;
+            return kExitOk;
+        } catch (const std::exception& e) {
+            std::cerr << e.what() << "\n";
+            return kExitFail;
+        }
+    }
+}

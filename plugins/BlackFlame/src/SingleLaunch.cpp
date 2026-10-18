@@ -71,6 +71,8 @@ namespace BlackFlame::SingleLaunch
         {
             if (!TheInputs().builderExeFound) {
                 a_why += "; the grey copy builder was not found either";
+            } else if (!TheInputs().builderIdentityWhy.empty()) {
+                a_why += "; the grey copy builder is from another version too";
             }
             const auto line = "Black Flame: grey copies are off this session (" + a_why + ")";
             logger::warn("BlackFlame: single launch: the slot route did not start: \"{}\" at the main menu", line);
@@ -81,6 +83,9 @@ namespace BlackFlame::SingleLaunch
         {
             if (!TheInputs().builderExeFound) {
                 SlotNotice::Show("Black Flame: the grey copy builder was not found; only copies built before are shown");
+            } else if (const auto& why = TheInputs().builderIdentityWhy; !why.empty()) {
+                logger::warn("BlackFlame: single launch: the grey copy builder {}: no key this session", why);
+                SlotNotice::Show("Black Flame: the grey copy builder is from another version; only copies built before are shown");
             }
             NotifyProgress();
         }

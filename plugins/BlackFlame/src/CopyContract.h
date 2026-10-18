@@ -32,7 +32,8 @@ namespace BlackFlame::CopyContract
     // 3: tints in the builder's own range 0..2, ADDN rows once, plugin names lowered outside double-byte characters.
     // 4: derived palettes named palette.dds (IsOurPalettePath), request textures[].state and addnMps[].index, addn deps
     //    on mps lines, the too_large line's cap field.
-    inline constexpr std::uint32_t kContractVersion = 4;
+    // 5: key format BFK4: the prefix's out=<output identity> in place of exe=<builder exe fnv64> (CopyContractKeys.h).
+    inline constexpr std::uint32_t kContractVersion = 5;
 
     // =========================================================================
     // Slot pool (the slot ESL's local ids 0x800-0xFFF): fixed types, contiguous, never reused
@@ -423,8 +424,8 @@ namespace BlackFlame::CopyContract
         inline constexpr const char* kTint = "tint";                // number: QuantizedTint of the DLL's config value
         inline constexpr const char* kTintAdd = "tintAdd";          // number: QuantizedTint as well
         inline constexpr const char* kPaletteMode = "paletteMode";  // "derived" | "godskin"
-        // The key prefix the DLL built (KeyPrefixString). The builder rebuilds it from options, its own exe hash and the
-        // dumped palettes' hashes (VerifyKeyPrefix) and refuses the run when the two differ
+        // The key prefix the DLL built (KeyPrefixString). The builder rebuilds it from options, its compiled output
+        // identity and the dumped palettes' hashes (VerifyKeyPrefix) and refuses the run when the two differ
         inline constexpr const char* kKeyPrefix = "keyPrefix";
         inline constexpr const char* kKey = "key";                  // a form's model key16, and each entry's below
         inline constexpr const char* kMuzzles = "muzzles";          // [{ path, key }]

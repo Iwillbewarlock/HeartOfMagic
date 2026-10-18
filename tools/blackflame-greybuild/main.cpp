@@ -11,7 +11,8 @@
 //   blackflame-greybuild --collisions <request.json>
 //   blackflame-greybuild --dump <file.nif> [...]
 //   blackflame-greybuild --roundtrip <file.nif> [...]
-//   blackflame-greybuild --self-test
+//   blackflame-greybuild --self-test [--golden-dir <dir>] [--print-golden]
+//   blackflame-greybuild --make-golden-fixtures <dir>
 // --in folders hold loose files laid out Data-relative (meshes\...); they are searched in
 // the order given and the first that has a file wins. --map builds what a fixed map lists
 // (the shipped vanilla core); --request finds what one setup needs, builds it and writes
@@ -24,6 +25,10 @@
 // --staging is the single launch's key mode (GreyKeyed.h): request v5's objects at the DLL's keys in a staging folder,
 // with progress.jsonl; tint, tintAdd and the palette mode come from the request only. --write-slot-pool writes the slot
 // pool ESL, --collisions lists a request's ADDN indices in the pool's range (GreySlotPool.h).
+// --self-test also runs the golden-output test (GreySelfTestGolden.cpp) on the committed fixtures in --golden-dir (default
+// the repository's tools\blackflame-greybuild\golden; given, it must exist, else a missing folder only skips that part);
+// --print-golden runs that part alone and prints this build's table as source. --make-golden-fixtures writes the
+// fixtures' input files once (they are committed, never made again at test time).
 // Exit 0 = success, 1 = a failure, 2 = bad arguments.
 
 #include "GreyBuild.h"
@@ -73,6 +78,9 @@ namespace
         std::filesystem::path collisions;
         bool roundTrip = false;
         bool selfTest = false;
+        GreyBuild::SelfTestOptions selfTestOptions;  // --golden-dir, --print-golden (with --self-test only)
+        bool selfTestOnlySet = false;
+        std::filesystem::path goldenFixtures;        // --make-golden-fixtures
     };
 
     void PrintUsage()
@@ -100,7 +108,8 @@ namespace
                      "  blackflame-greybuild --collisions <request.json>   (exit 0 none, 1 some, 2 the request does not read)\n"
                      "  blackflame-greybuild --dump <file.nif> [...]\n"
                      "  blackflame-greybuild --roundtrip <file.nif> [...]\n"
-                     "  blackflame-greybuild --self-test\n";
+                     "  blackflame-greybuild --self-test [--golden-dir <dir>] [--print-golden]\n"
+                     "  blackflame-greybuild --make-golden-fixtures <dir>\n";
     }
 
     [[nodiscard]] bool ParseTint(const char* a_text, float& a_tint)
@@ -146,6 +155,19 @@ namespace
             const bool hasValue = i + 1 < a_argc;
             if (arg == "--self-test") {
                 a_options.selfTest = true;
+            } else if (arg == "--golden-dir" && hasValue) {
+                a_options.selfTestOnlySet = true;
+                a_options.selfTestOptions.goldenRequired = true;
+                if (!TakePath("--golden-dir", a_argv[++i], a_options.selfTestOptions.goldenDir)) {
+                    return false;
+                }
+            } else if (arg == "--print-golden") {
+                a_options.selfTestOnlySet = true;
+                a_options.selfTestOptions.printGolden = true;
+            } else if (arg == "--make-golden-fixtures" && hasValue) {
+                if (!TakePath("--make-golden-fixtures", a_argv[++i], a_options.goldenFixtures)) {
+                    return false;
+                }
             } else if (arg == "--from-game") {
                 a_options.fromGame = true;
                 if (hasValue && !GreyBuild::StartsWith(a_argv[i + 1], "--")) {
@@ -380,8 +402,15 @@ int main(int a_argc, char** a_argv)
         PrintUsage();
         return kExitUsage;
     }
+    if (options.selfTestOnlySet && !options.selfTest) {
+        std::cerr << "--golden-dir and --print-golden go with --self-test\n";
+        return kExitUsage;
+    }
     if (options.selfTest) {
-        return GreyBuild::RunSelfTest();
+        return GreyBuild::RunSelfTest(options.selfTestOptions);
+    }
+    if (!options.goldenFixtures.empty()) {
+        return GreyBuild::MakeGoldenFixtures(options.goldenFixtures);
     }
     if (!options.emptyEsls.empty()) {
         try {

@@ -424,6 +424,17 @@ namespace GreyBuild
     /// Re-saves a NIF unchanged and reports whether the bytes match (and which block sizes moved). Returns 0/1.
     int RoundTripReport(const std::filesystem::path& a_file);
 
-    /// Builds a tiny NIF in a temp folder, runs both transforms, reloads and checks. Returns 0/1.
-    int RunSelfTest();
+    struct SelfTestOptions
+    {
+        std::filesystem::path goldenDir;  // the golden test's committed fixtures; empty: the repository's (BLACKFLAME_GOLDEN_DIR)
+        bool goldenRequired = false;      // --golden-dir given: a missing fixture folder fails (else the golden part is skipped)
+        bool printGolden = false;         // --print-golden: only the golden run, its table printed as source
+    };
+
+    /// Builds a tiny NIF in a temp folder, runs both transforms, reloads and checks; then every part's checks and the
+    /// golden-output test (GreySelfTestGolden.cpp). Returns 0/1.
+    int RunSelfTest(const SelfTestOptions& a_options);
+
+    /// --make-golden-fixtures <dir>: writes the golden test's input files (meshes, textures) under a_dir\input. Returns 0/1.
+    int MakeGoldenFixtures(const std::filesystem::path& a_dir);
 }

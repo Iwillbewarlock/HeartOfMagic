@@ -1,0 +1,111 @@
+# =============================================================================
+# GreyIdentity.cmake - the builder's output identity, written at build time (cmake -P)
+# =============================================================================
+# The identity is the text the DLL copies into every key prefix (out=<identity>, CopyContractKeys.h):
+#   <n>                 a release build: kBuilderOutputVersion from CopyContractKeys.h, nothing else
+#   <n>+dev<16 hex>     a Debug build, or one whose output-affecting sources differ from git HEAD (modified, staged or
+#                       untracked), or one where git cannot tell: <16 hex> is a digest of those sources
+# Output-affecting sources: tools/blackflame-greybuild/** (this script, the golden fixtures included), the contract
+# headers the builder compiles (plugins/BlackFlame/src/CopyContract*.h, DataPathRule.h), and what picks its compiler
+# flags and library versions (tools/CMakeLists.txt, vcpkg.json, vcpkg-configuration.json). Over-inclusion only gives a
+# dev build its own keys (a rebuild), never a release key for other output.
+# Digest: SHA-256 of "<path>\t<SHA-256 of its bytes>\n" over those files in sorted path order, its first 16 hex digits.
+# Not FNV-1a 64: a CMake script has no unsigned 64-bit arithmetic and a byte loop over the sources takes minutes; the
+# digest only has to tell two source states apart, the DLL copies it verbatim.
+# Writes OUT_DIR/GreyIdentityText.h (the builder's compiled copy) and OUT_DIR/GreyIdentity.rc (the RCDATA resource the
+# DLL reads), each only when its text changes, so an unchanged state rebuilds nothing.
+# Arguments: -DROOT=<repository root> -DOUT_DIR=<folder> -DCONFIG=<build configuration> [-DGIT=<git executable>]
+
+cmake_minimum_required(VERSION 3.21)
+
+foreach(arg ROOT OUT_DIR CONFIG)
+    if(NOT DEFINED ${arg} OR "${${arg}}" STREQUAL "")
+        message(FATAL_ERROR "GreyIdentity.cmake: -D${arg}=... is required")
+    endif()
+endforeach()
+
+set(keys_header "${ROOT}/plugins/BlackFlame/src/CopyContractKeys.h")
+file(READ "${keys_header}" keys_text)
+string(REGEX MATCH "kBuilderOutputVersion = ([0-9]+);" version_match "${keys_text}")
+if(NOT version_match)
+    message(FATAL_ERROR "GreyIdentity.cmake: no 'kBuilderOutputVersion = <n>;' in ${keys_header}")
+endif()
+set(version "${CMAKE_MATCH_1}")
+
+set(source_globs
+    "tools/blackflame-greybuild/*"
+    "plugins/BlackFlame/src/CopyContract*.h"
+    "plugins/BlackFlame/src/DataPathRule.h"
+    "tools/CMakeLists.txt"
+    "vcpkg.json"
+    "vcpkg-configuration.json")
+
+set(dev_why "")
+if(CONFIG STREQUAL "Debug")
+    set(dev_why "a Debug build")
+endif()
+
+if(dev_why STREQUAL "")
+    if(NOT DEFINED GIT OR GIT STREQUAL "")
+        find_program(GIT git)
+    endif()
+    if(NOT GIT)
+        set(dev_why "git was not found, so the sources cannot be compared with HEAD")
+    else()
+        execute_process(COMMAND "${GIT}" -C "${ROOT}" status --porcelain --untracked-files=all -- ${source_globs}
+            RESULT_VARIABLE git_result OUTPUT_VARIABLE git_status ERROR_VARIABLE git_error TIMEOUT 60)
+        if(NOT git_result EQUAL 0)
+            string(STRIP "${git_error}" git_error)
+            set(dev_why "git status failed (${git_result}: ${git_error}), so the sources cannot be compared with HEAD")
+        elseif(NOT git_status STREQUAL "")
+            string(REGEX MATCHALL "\n" changed_lines "\n${git_status}")
+            list(LENGTH changed_lines changed)
+            math(EXPR changed "${changed} - 1")
+            set(dev_why "${changed} output-affecting source file(s) differ from git HEAD")
+        endif()
+    endif()
+endif()
+
+if(dev_why STREQUAL "")
+    set(identity "${version}")
+else()
+    set(files "")
+    foreach(pattern IN LISTS source_globs)
+        file(GLOB_RECURSE matched LIST_DIRECTORIES false RELATIVE "${ROOT}" "${ROOT}/${pattern}")
+        list(APPEND files ${matched})
+    endforeach()
+    list(REMOVE_DUPLICATES files)
+    list(SORT files)
+    set(listing "")
+    foreach(file IN LISTS files)
+        file(SHA256 "${ROOT}/${file}" file_hash)
+        string(APPEND listing "${file}\t${file_hash}\n")
+    endforeach()
+    string(SHA256 digest "${listing}")
+    string(SUBSTRING "${digest}" 0 16 digest)
+    list(LENGTH files file_count)
+    set(identity "${version}+dev${digest}")
+endif()
+
+set(header_text "#pragma once\n// Written by tools/blackflame-greybuild/GreyIdentity.cmake at build time: do not edit, do not commit\n#define BLACKFLAME_BUILDER_OUTPUT_IDENTITY \"${identity}\"\n")
+set(rc_text "// Written by tools/blackflame-greybuild/GreyIdentity.cmake at build time: do not edit, do not commit\n#include \"${ROOT}/plugins/BlackFlame/src/CopyContractIdentity.h\"\nBLACKFLAME_BUILDER_IDENTITY_RESOURCE RCDATA { \"${identity}\" }\n")
+
+function(write_if_changed a_file a_text)
+    if(EXISTS "${a_file}")
+        file(READ "${a_file}" old_text)
+        if(old_text STREQUAL a_text)
+            return()
+        endif()
+    endif()
+    file(WRITE "${a_file}" "${a_text}")
+endfunction()
+
+file(MAKE_DIRECTORY "${OUT_DIR}")
+write_if_changed("${OUT_DIR}/GreyIdentityText.h" "${header_text}")
+write_if_changed("${OUT_DIR}/GreyIdentity.rc" "${rc_text}")
+
+if(dev_why STREQUAL "")
+    message(STATUS "Black Flame builder output identity: ${identity} (release: the sources are git HEAD's)")
+else()
+    message(STATUS "Black Flame builder output identity: ${identity} (dev: ${dev_why}; digest over ${file_count} file(s))")
+endif()

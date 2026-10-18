@@ -5,6 +5,7 @@
 #include "SlotKeys.h"
 
 #include "Config.h"
+#include "CopyContractIdentity.h"
 #include "NifDump.h"
 #include "NifValueNodes.h"
 
@@ -101,24 +102,32 @@ namespace BlackFlame::SlotKeys
             a_out.textureMs = MsSince(start);
         }
 
+        // The builder's output identity (its RCDATA resource, CopyContractIdentity.h), checked against this DLL's
+        // kBuilderOutputVersion; false with prefixWhy and builderIdentityWhy set when it is missing, malformed or another version
+        bool ReadBuilderIdentity(Inputs& a_out)
+        {
+            const auto resource = CC::ReadIdentityResource(a_out.builderExe);
+            const auto fault = resource.text ? CC::BuilderIdentityFault(*resource.text) : std::optional<std::string>(resource.why);
+            if (fault) {
+                a_out.builderIdentityWhy = *fault;
+                a_out.prefixWhy = "the builder exe " + *fault + ": no key this session";
+                return false;
+            }
+            a_out.builderIdentity = *resource.text;
+            return true;
+        }
+
         void ReadPrefix(Inputs& a_out)
         {
             a_out.builderExe = BuilderExePath();
-            std::ifstream exe(a_out.builderExe, std::ios::binary);
-            if (a_out.builderExe.empty() || !exe) {
+            if (a_out.builderExe.empty() || !std::ifstream(a_out.builderExe, std::ios::binary)) {
                 a_out.prefixWhy = "the builder exe does not open: no key this session";
                 return;
             }
-            std::uint64_t hash = CC::kFnvOffset;
-            std::vector<char> chunk(1 << 16);
-            while (exe.read(chunk.data(), static_cast<std::streamsize>(chunk.size())) || exe.gcount() > 0) {
-                hash = CC::Fnv64(std::string_view(chunk.data(), static_cast<std::size_t>(exe.gcount())), hash);
-            }
-            if (exe.bad()) {  // review agy 15 #4: a read cut short is no hash of the exe
-                a_out.prefixWhy = "the builder exe could not be read whole: no key this session";
+            a_out.builderExeFound = true;
+            if (!ReadBuilderIdentity(a_out)) {
                 return;
             }
-            a_out.builderExeFound = true;
             const auto& config = GetConfig();
             const auto tint = CC::QuantizedTint(config.tint);  // the key text and request.json carry one value
             const auto tintAdd = CC::QuantizedTint(config.tintAdd);
@@ -127,7 +136,7 @@ namespace BlackFlame::SlotKeys
                 return;
             }
             CC::KeyPrefix prefix;
-            prefix.builderExeFnv64 = hash;
+            prefix.outputIdentity = a_out.builderIdentity;  // verbatim: the builder rebuilds the prefix from its compiled copy
             prefix.tint = *tint;
             prefix.tintAdd = *tintAdd;
             prefix.paletteMode = config.paletteGodskin ? CC::PaletteMode::kGodskin : CC::PaletteMode::kDerived;
@@ -222,7 +231,11 @@ namespace BlackFlame::SlotKeys
         logger::info("BlackFlame: slots: key inputs: {} NIFs ({} not read) in {} ms; {} textures planned, {} MiB hashed in {} ms; "
                      "builder '{}' {}{}; {} ADDN records, {} AddOnNode indices named by the closure ({} NIF headers not parsed)",
             out.nifs.size(), out.nifsFailed, out.nifMs, out.textures.size(), out.textureBytesHashed >> 20, out.textureMs,
-            std::string(exe.begin(), exe.end()), out.builderExeFound ? "read" : "NOT found",
+            std::string(exe.begin(), exe.end()),
+            !out.builderExeFound          ? std::string("NOT found") :
+            !out.builderIdentityWhy.empty() ? "found, but it " + out.builderIdentityWhy :
+                                              std::format("found, output identity {} (this DLL's output version {})",
+                                                  out.builderIdentity, CC::kBuilderOutputVersion),
             out.prefix ? std::format(", prefix {}", CC::KeyPrefixString(*out.prefix).value_or("?")) : ": " + out.prefixWhy,
             out.addnRecords.size(), out.valueNodeIndices.size(), out.valueNodeUnparsed);
         return out;
