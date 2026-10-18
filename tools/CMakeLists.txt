@@ -159,13 +159,15 @@ target_link_libraries(tree-save-check PRIVATE
 # toxicology-test  -  offline harness for the Toxicology addon core
 # =============================================================================
 # The addon's own core (src/core, no game types): settings, poison spell keys,
-# top poison, magicka per dose, coat interval, catalog key split, hit and cost spell sets.
+# top poison, magicka per dose, coat interval, catalog key split, hit and cost spell sets,
+# the tome reward decision and its co-save flag (toxicology-test-reward.cpp).
 # --self-test, exit 1 on a FAIL.
 
 set(TOXICOLOGY_SRC_DIR "${CMAKE_SOURCE_DIR}/plugins/Toxicology/src")
 
 add_executable(toxicology-test
     toxicology-test.cpp
+    toxicology-test-reward.cpp
     ${TOXICOLOGY_SRC_DIR}/core/ToxCore.cpp
 )
 

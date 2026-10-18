@@ -237,4 +237,33 @@ namespace Toxicology
         if (a_lastSeconds < 0.0) return true;
         return a_nowSeconds - a_lastSeconds >= a_minInterval;
     }
+
+    TomeRewardAction DecideTomeReward(const TomeRewardInputs& a_in)
+    {
+        if (!a_in.formsPresent) return TomeRewardAction::kRetryLater;
+        if (!a_in.enabled || a_in.rewardSatisfied) return TomeRewardAction::kSkip;
+        if (a_in.knowsAbility || a_in.tomesHeld > 0) return TomeRewardAction::kMarkSatisfied;
+        return TomeRewardAction::kGrant;
+    }
+
+    const char* TomeRewardActionName(TomeRewardAction a_action)
+    {
+        switch (a_action) {
+        case TomeRewardAction::kGrant:
+            return "Grant";
+        case TomeRewardAction::kMarkSatisfied:
+            return "MarkSatisfied";
+        case TomeRewardAction::kSkip:
+            return "Skip";
+        case TomeRewardAction::kRetryLater:
+            return "RetryLater";
+        }
+        return "?";
+    }
+
+    std::optional<bool> ParseRewardFlag(const std::vector<std::uint8_t>& a_data)
+    {
+        if (a_data.size() != 1 || a_data[0] > 1) return std::nullopt;
+        return a_data[0] == 1;
+    }
 }

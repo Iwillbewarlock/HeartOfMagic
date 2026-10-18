@@ -190,6 +190,7 @@ namespace
         if (s.addedAbility && player && ToxGame::Ability()) {
             player->RemoveSpell(ToxGame::Ability());  // RE/A/Actor.h:678
         }
+        SelfTest::UndoReward(s);  // step 4a ended early: the save's own ability and tomes back
         ToxGame::OnSelectionMaybeChanged();  // the keyword back on the player's own choice (or on none)
         const auto* choice = ToxGame::CurrentPoison(true);
         SelfTest::Info("undo", std::format("test poisons left: {} {}, {} {}; ability {} (it was {}); copied poison now {}",
@@ -198,11 +199,12 @@ namespace
             s.addedAbility ? "added by the test" : "already held", SelfTest::FormText(choice)));
 
         const float testValue = ToxGame::GetSettings().magickaPerDose * kReloadTestDoseFraction + kReloadTestOffset;
-        if (s.dosesRan && s.config.reloadCheck && SelfTest::ArmReloadCheck(testValue, s.originalAccumulated)) {
+        if ((s.dosesRan || s.rewardGiven) && s.config.reloadCheck &&
+            SelfTest::ArmReloadCheck(testValue, s.originalAccumulated, s.rewardGiven)) {
             ToxGame::SetAccumulated(testValue);
             SelfTest::Info("7 reload", std::format("ACTION: save the game now (any slot), then load that save. The count toward "
-                "the next bottle is {:.2f} (the test value) until then; the check puts the pre-test {:.2f} back",
-                testValue, s.originalAccumulated));
+                "the next bottle is {:.2f} (the test value) until then; the check puts the pre-test {:.2f} back{}",
+                testValue, s.originalAccumulated, s.rewardGiven ? "; it also checks the tome reward flag comes back set" : ""));
         } else {
             ToxGame::SetAccumulated(s.originalAccumulated);
             SelfTest::Info("undo", std::format("count toward the next bottle back to {:.2f}", s.originalAccumulated));
@@ -239,12 +241,12 @@ namespace
             return;
         }
         if (SelfTest::WaitOver(s.readyTicks++, s.config.startDelayMs)) {
-            SelfTest::NextStep(s, Step::kSetup);
+            SelfTest::NextStep(s, Step::kReward);
         }
     }
 
-    // After step 1 began: the player's 3D and cell. Missing for kPlayerGoneMs (quit to the main menu, a long
-    // gap outside a loading screen) ends the test: in the main menu nothing is touched (the world is gone),
+    // After the test began (step 4a): the player's 3D and cell. Missing for kPlayerGoneMs (quit to the main menu, a
+    // long gap outside a loading screen) ends the test: in the main menu nothing is touched (the world is gone),
     // otherwise it is undone.
     // A shorter gap, or any time while the loading screen is open, only pauses the steps.
     bool PlayerStillHere(State& s)
@@ -281,6 +283,13 @@ namespace
         switch (s.step) {
         case Step::kWaitPlayer:
             TickWaitPlayer(s);
+            return;
+        case Step::kReward:
+            if (!s.begun) {
+                s.begun = true;
+                s.originalAccumulated = ToxGame::Accumulated();  // first: Undo puts it back whatever happens below
+            }
+            SelfTest::TickReward(s);
             return;
         case Step::kSetup:
             s.begun = true;

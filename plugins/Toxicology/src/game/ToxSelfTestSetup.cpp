@@ -500,7 +500,6 @@ bool SelfTest::Setup(State& s)
         Fail(s, "setup", "the setting \"enabled\" is false - the addon does nothing to test");
         return false;
     }
-    StepShop(s);
     if (!ToxGame::PlayerHasAbility()) {
         player->AddSpell(ToxGame::Ability());  // RE/A/Actor.h:518
         s.addedAbility = true;

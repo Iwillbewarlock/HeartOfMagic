@@ -37,7 +37,8 @@ tested and what was not is under "Tested in game" and "Not yet confirmed in game
   "flask before a magic circle" icon in green (`#62A636`) in the inventory and favorites menus.
 
 With no favorited poison, with the ability not learned, or with `enabled` off, nothing happens and no Magicka is
-counted. The addon writes nothing to the game's own save; only the Magicka total goes into the co-save.
+counted. The addon writes nothing to the game's own save; the SKSE co-save (ID `HMTX`) holds the Magicka total
+(record `ACCM`) and whether the tome reward has been given (record `TOMG`, see "Getting the ability").
 
 The design and its reasons are in `docs/superpowers/specs/2026-10-17-toxicology-addon-design.md` (Korean).
 
@@ -67,9 +68,14 @@ The log is `HeartOfMagic_Toxicology.log` in the SKSE log folder (`Documents/My G
 
 ## Getting the ability
 
-Buy **Spell Tome: Toxicology** (350 gold) from Elgrim's Elixirs in Riften. The DLL puts one tome into that shop's
-merchant chest in memory at game start; no vanilla record is overridden. Reading it teaches the ability at once and
-the tome is used up, as with any vanilla tome that teaches an ability (Heart of Magic's tome study does not apply
+**Spell Tome: Toxicology** is Ingun Black-Briar's reward for her quest **Few and Far Between** (Riften): the DLL
+gives it when the quest reaches its success stage, 200, with the game's "added" notice on screen; no vanilla record
+is overridden. A save that finished the quest before the addon was installed gets the tome at its next load. Once
+the reward is satisfied - the tome given, or the ability already known or a tome already carried at that moment -
+it is never given again (the co-save keeps that), so a tome sold or dropped unread is gone; the console
+(`player.additem` with the tome's form ID) is the way back. With `enabled` off (read at game start) nothing is
+given and the reward stays open, so turning it on later gives the tome at the next load. Reading the tome teaches
+the ability at once and the tome is used up, as with any vanilla tome that teaches an ability (Heart of Magic's tome study does not apply
 to abilities, and the ability is not in the spell tree). The ability shows under **Active Effects** in the magic
 menu, not in the spell list.
 
@@ -123,7 +129,9 @@ Skyrim AE 1.6.1170, the developer's load order (with Mysticism and Apothecary), 
   applies nothing.
 - **Dual casting**: counted once per cast (fire-and-forget: one release; concentration: only the right hand while
   both hands cast the same spell, `kCountOneHandWhenDual`); not measured.
-- **The tome on Elgrim's shelf**, seen by eye, and the I5 inventory icon refresh after the favorite changes.
+- **The tome reward** given in a real playthrough of Few and Far Between (the dev self test sets the stage through
+  Papyrus instead), and the look of its on-screen "added" line; the I5 inventory icon refresh after the favorite
+  changes.
 - **Text**: the ability's description under Active Effects and the tome's text (both rewritten for the immunity
   window) have not been looked at in game.
 
@@ -139,8 +147,11 @@ Skyrim AE 1.6.1170, the developer's load order (with Mysticism and Apothecary), 
   being mimicked then. After every load the addon takes the keyword off every poison in your inventory except the one
   being mimicked; such a poison left in a chest or with a follower keeps the icon until it is back in your inventory
   at a later load.
-- **Saves that already traded with Elgrim** may show the tome only after the merchant restocks (about 48 hours of
-  game time).
+- **A save from an earlier test build that sold the tome at Elgrim's Elixirs**: a tome bought there and left unread
+  in a chest (not in your inventory) does not count as the reward, so finishing Few and Far Between (or loading a
+  save that finished it) gives a second one.
+- **A quest stage set after 200 by a mod or the console** (for example 250, the failure stage, after 200) hides a
+  finished quest from the load check, so a save that finished it before the addon was installed gets no tome.
 - **Immunity resets after a load**: which targets are immune to which poison is not saved. After a save is loaded
   (or a new game started) every target can get each poison again at once, even one that still carries it from
   before the load.
@@ -179,8 +190,8 @@ Skyrim AE 1.6.1170, the developer's load order (with Mysticism and Apothecary), 
 ## Uninstalling
 
 Remove the mod. The ability record disappears with the ESL (a save that had it loses it, like any removed plugin's
-record), and the tome placed in Elgrim's chest was only in memory. The co-save record (the Magicka total, ID
-`HMTX`) is ignored by SKSE without the DLL. As always, test removal on a separate save.
+record). The co-save records (ID `HMTX`: the Magicka total and the tome reward flag) are ignored by SKSE without the
+DLL. As always, test removal on a separate save.
 
 ## Development
 
@@ -194,7 +205,7 @@ record), and the tome placed in Elgrim's chest was only in memory. The co-save r
 - **Offline harness**: `build/tools/Release/toxicology-test.exe --self-test` checks the pure core
   (`src/core/ToxCore.*`: settings, catalog parsing, catalog keys, the hit and cost spell sets, the poison choice,
   the bottle arithmetic and which stack loses a bottle, the immunity window, the interval check of the Magicka
-  drain queue); every
+  drain queue, whether the tome reward is given and the co-save record of that flag); every
   check prints PASS or FAIL, exit 1 on a failure.
 - **Dev deploy** (game closed; the dev mod folder must exist, default `D:\TAKEALOOK\mods\HeartOfMagic-Toxicology-Dev`):
 
@@ -210,11 +221,16 @@ record), and the tome placed in Elgrim's chest was only in memory. The co-save r
   the Toxicology install and says so. Every copy is checked by hash.
 - **In-game self test** (dev only): with `data/dev/HeartOfMagic_Toxicology_selftest.json` installed as
   `SKSE/Plugins/HeartOfMagic_Toxicology_selftest.json`, the DLL runs a test once per session, `startDelayMs`
-  (default 30 s) after a save load settles: it checks the tome in Elgrim's chest (read only), gives the ability and two poisons, spawns targets, casts the load
+  (default 30 s) after a save load settles: it checks the tome record and the tome reward (the save's ability and
+  tomes are taken, Few and Far Between is set to stage 200 through Papyrus - or, when it is already there, the load
+  check runs - the tome must be given once and not a second time, then the ability and tomes are put back; the
+  quest stays at stage 200 and the reward stays given, so the save is changed for good), gives the ability and two
+  poisons, spawns targets, casts the load
   order's poison spells at them (one per delivery), checks what the addon did, hits one target again inside its
   immunity window and once after it (it waits up to about 90 s for that and compares the window's game clock with
   the poison effect's own timer), then the bottles and the saved
-  Magicka total (it asks for a save and a reload for that last check), and takes back what it added. Results are
+  Magicka total and the reward flag (it asks for a save and a reload for that last check; after the load the flag
+  must be set and the quest at stage 200 again), and takes back what it added. Results are
   `SELFTEST PASS|FAIL|INFO|DONE` lines in `HeartOfMagic_Toxicology.log`. Use a disposable save. Details:
   `src/game/ToxSelfTest.h`.
 - **Magicka accuracy is checked by hand**: the caster hook only sees the player's hand casters, and the self test

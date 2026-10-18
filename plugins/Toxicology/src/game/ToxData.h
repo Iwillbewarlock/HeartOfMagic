@@ -3,8 +3,8 @@
 // =============================================================================
 // Toxicology - game data read at load
 // =============================================================================
-// The settings file, the poison spell set built from the librarian's catalog,
-// the ESL's forms and the tome put into Elgrim's Elixirs' chest.
+// The settings file, the poison spell set built from the librarian's catalog
+// and the ESL's forms.
 //
 // Threads: everything here is called from the game's main thread - the SKSE
 // messaging listener (kDataLoaded, kPostLoadGame, kNewGame) and SKSE tasks
@@ -24,6 +24,7 @@ namespace ToxGame
     inline constexpr const char* kSettingsPath = "Data/SKSE/Plugins/HeartOfMagic_Toxicology.json";
     inline constexpr const char* kCatalogPath = "Data/SKSE/Plugins/SpellLearning/spell_catalog.json";
     inline constexpr const char* kEslName = "HeartOfMagic_Toxicology.esp";
+    inline constexpr const char* kSkyrimEsm = "Skyrim.esm";  // the reward quest's plugin (ToxReward.h)
 
     // The settings LoadSettings read (defaults before it runs or when the file is missing or broken).
     const Toxicology::Settings& GetSettings();
@@ -80,8 +81,4 @@ namespace ToxGame
     // safe on any thread (an atomic shared_ptr, replaced whole and never changed after): the
     // caster update hook filters with it before it takes its lock.
     std::shared_ptr<const std::unordered_set<RE::FormID>> PoisonCostSnapshot();
-
-    // Puts one tome into Elgrim's Elixirs' merchant chest (base container, in memory) unless
-    // it already holds one. Call once at kDataLoaded, after LoadForms.
-    void PutTomeInShop();
 }

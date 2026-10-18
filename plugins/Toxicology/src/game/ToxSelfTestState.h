@@ -8,10 +8,13 @@
 //                       and the target, effect and inventory helpers
 // ToxSelfTestHits.cpp   steps 2, 3 and 6 (poison spell hits on spawned targets)
 // ToxSelfTestDoses.cpp  step 7 (Magicka spent -> bottles)
-// ToxSelfTestReload.cpp the reload check of step 7 (its state file)
-// ToxSelfTestShop.cpp   the tome in Elgrim's Elixirs (spec 4a, read only)
+// ToxSelfTestReload.cpp the reload check after a save + load (its state file):
+//                       step 7's count and step 4a's reward flag
+// ToxSelfTestReward.cpp step 4a, the tome as the reward of Few and Far Between
+//                       (changes the save for good: the quest reaches stage 200)
 // Every member is touched on the game's main thread (SKSE tasks and messages)
-// except the atomics, which the worker thread reads.
+// except the atomics, which the worker thread reads (and SetStageCall's, which
+// the Papyrus VM's callback writes).
 // =============================================================================
 
 #include "game/ToxApply.h"
@@ -20,6 +23,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -33,7 +37,7 @@ namespace ToxGame::SelfTest
 
     inline constexpr int kPollMs = 100;             // one main-thread tick per this much
     inline constexpr int kPlayerWaitMs = 60000;     // the player's 3D and cell, before the start delay
-    inline constexpr int kPlayerGoneMs = 15000;     // after step 1 began: gone this long (loading screens not counted) ends the test
+    inline constexpr int kPlayerGoneMs = 15000;     // after the test began: gone this long (loading screens not counted) ends the test
     inline constexpr int kSettleTicks = 3;          // ticks after the first sign of a hit before it is judged
     // A test poison's longest effect: at least this long, so it is still on the target at step 3's second hit
     inline constexpr float kMinPoisonSeconds = 8.0f;
@@ -68,6 +72,7 @@ namespace ToxGame::SelfTest
     enum class Step
     {
         kWaitPlayer,
+        kReward,      // step 4a (before step 1: its ability and tomes are the save's own)
         kSetup,       // step 1 (+ the picks, step 5)
         kDeliveries,  // steps 2 and 6
         kSecondHit,   // step 3
@@ -105,6 +110,9 @@ namespace ToxGame::SelfTest
         double effectSeconds = 0.0;
     };
 
+    // Step 4a: what the Papyrus VM's callback for Quest.SetStage reported (ToxSelfTestReward.cpp)
+    struct SetStageCall;
+
     struct State
     {
         Config config;
@@ -113,8 +121,8 @@ namespace ToxGame::SelfTest
         std::size_t phaseTicks = 0;      // ticks since the phase began
         std::size_t notReadyTicks = 0;   // ticks without the player's 3D and cell
         std::size_t readyTicks = 0;      // ticks with them (the start delay)
-        std::size_t playerGoneTicks = 0; // after step 1 began: ticks without them
-        bool begun = false;              // step 1 started changing the world
+        std::size_t playerGoneTicks = 0; // after the test began: ticks without them
+        bool begun = false;              // step 4a started changing the world
         bool aborted = false;            // another save or a new game: the next tick ends the test
         std::string abortReason;
         std::size_t pass = 0;
@@ -150,6 +158,13 @@ namespace ToxGame::SelfTest
         bool countZeroed = false;
         float chargedByTestCasts = 0.0f;
 
+        // Step 4a
+        bool rewardTaken = false;           // the save's ability and tomes are taken; UndoReward puts them back
+        bool rewardHadAbility = false;
+        std::int32_t rewardTomesBefore = 0;
+        bool rewardGiven = false;           // the tome was given: the reload check wants the flag back true
+        std::shared_ptr<SetStageCall> setStageCall;  // the Quest.SetStage dispatch, null on the load path
+
         std::atomic<bool> queued{ false };
         std::atomic<bool> finished{ false };
     };
@@ -176,7 +191,9 @@ namespace ToxGame::SelfTest
     // Step 1 and the picks; false: nothing further can be tested (FAIL logged)
     bool Setup(State& s);
     void StepI5();
-    void StepShop(State& s);  // ToxSelfTestShop.cpp (spec 4a, read only)
+    void TickReward(State& s);    // ToxSelfTestReward.cpp (step 4a; ends with NextStep(kSetup))
+    void UndoReward(State& s);    // puts back the ability and tomes step 4a took, if it has not yet
+    void ProbeQuestStages(std::string_view a_when);  // log only: the quest's executedStages entries
     void StepDoses(State& s);  // ToxSelfTestDoses.cpp
 
     bool SpawnTarget(State& s, std::string_view step);
@@ -216,7 +233,8 @@ namespace ToxGame::SelfTest
     // =========================================================================
 
     // Writes the state file: the test count to find after a save + load, and the count to put back
-    bool ArmReloadCheck(float a_expected, float a_original);
+    // a_reward: step 4a gave the tome, so the check also wants the reward flag back true and stage 200
+    bool ArmReloadCheck(float a_expected, float a_original, bool a_reward);
     bool ReloadCheckPending();
     // kPostLoadGame with the state file present: checks or keeps waiting; logs its own DONE
     void RunReloadCheck();

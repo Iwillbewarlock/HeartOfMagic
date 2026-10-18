@@ -2,9 +2,10 @@
 // Heart of Magic Librarian - Toxicology
 // =============================================================================
 // When a spell the librarian tags "poison" hits, applies the player's top
-// favorited poison to the target. Data load: settings, the ESL's forms, the
-// poison spell set and the tome at Elgrim's Elixirs (game/ToxData.h). The
-// poison to copy and its icon keyword: game/ToxSelection.h. Hits: game/ToxHits.h;
+// favorited poison to the target. Data load: settings, the ESL's forms and the
+// poison spell set (game/ToxData.h). The tome is the reward of the quest Few and
+// Far Between (game/ToxReward.h). The poison to copy and its icon keyword:
+// game/ToxSelection.h. Hits: game/ToxHits.h;
 // applying the poison and its immunity window: game/ToxApply.h. Magicka spent on poison
 // spells uses up bottles: game/ToxMagicka.h, kept in the co-save: game/ToxSave.h.
 // A dev-only self test (game/ToxSelfTest.h) runs after a save load when its file is present.
@@ -15,6 +16,7 @@
 #include "game/ToxData.h"
 #include "game/ToxHits.h"
 #include "game/ToxMagicka.h"
+#include "game/ToxReward.h"
 #include "game/ToxSave.h"
 #include "game/ToxSelection.h"
 #include "game/ToxSelfTest.h"
@@ -35,7 +37,8 @@ namespace
             ToxGame::LoadSettings();
             ToxGame::LoadForms();
             ToxGame::LoadPoisonSpells();
-            ToxGame::PutTomeInShop();
+            ToxGame::LoadRewardQuest();
+            ToxGame::RegisterQuestStageSink();
             ToxGame::RegisterMenuSink();
             ToxGame::RegisterContainerSink();
             ToxGame::RegisterHitSink();
@@ -59,6 +62,7 @@ namespace
             ToxGame::BumpGeneration();
             ToxGame::ClearApplications();
             ToxGame::ResetMagicka();  // spec 5.6: a new game starts at 0 (co-save Revert does the same)
+            ToxGame::SetRewardSatisfied(false);  // spec 4a: no reward given yet (co-save Revert does the same)
             // No kPreLoadGame before a new game: take the keyword off the last game's poison here
             ToxGame::ResetSelection();
             [[fallthrough]];
@@ -71,6 +75,9 @@ namespace
             ToxGame::SweepMimicKeyword();
             // Dev only, idle without its file; never on a new game (spawned targets in the opening scene)
             if (a_msg->type == SKSE::MessagingInterface::kPostLoadGame) ToxGame::MaybeStartSelfTest();
+            // Spec 4a: a save that finished Few and Far Between gets the tome now. Only after a load that
+            // succeeded: kPostLoadGame's data pointer is the result (non-null = success, never dereferenced)
+            if (a_msg->type == SKSE::MessagingInterface::kPostLoadGame && a_msg->data) ToxGame::QueueFinishedQuestCheck();
             FlushLog();
             break;
         default:

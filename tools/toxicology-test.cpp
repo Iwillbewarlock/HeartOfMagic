@@ -1,5 +1,6 @@
 // toxicology-test - offline checks of the Toxicology addon's pure core
-// (plugins/Toxicology/src/core/ToxCore.h), the immunity window of spec 5.4 included.
+// (plugins/Toxicology/src/core/ToxCore.h), the immunity window of spec 5.4 included;
+// the tome reward's checks are in toxicology-test-reward.cpp.
 //
 //   toxicology-test --self-test    every check, "PASS <name>" / "FAIL <name>: <detail>"
 //
@@ -16,7 +17,11 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
+
+// toxicology-test-reward.cpp: name and check, run after kChecks
+std::vector<std::pair<const char*, std::string (*)()>> RewardChecks();
 
 namespace
 {
@@ -557,8 +562,10 @@ namespace
 
     int SelfTest()
     {
+        std::vector<Check> checks(std::begin(kChecks), std::end(kChecks));
+        for (const auto& [name, run] : RewardChecks()) checks.push_back({ name, run });
         int failed = 0;
-        for (const auto& check : kChecks) {
+        for (const auto& check : checks) {
             std::string detail;
             try {
                 detail = check.run();
@@ -572,7 +579,7 @@ namespace
                 ++failed;
             }
         }
-        std::printf("%d of %zu checks failed\n", failed, std::size(kChecks));
+        std::printf("%d of %zu checks failed\n", failed, checks.size());
         return failed ? kExitFail : kExitOk;
     }
 }

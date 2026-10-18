@@ -26,11 +26,6 @@ namespace
     constexpr RE::FormID kAbilityId = 0x802;
     constexpr RE::FormID kTomeId = 0x803;
 
-    // MerchantRiftenElgrimsElixirsChest: the base container of the one chest Elgrim's Elixirs sells from
-    constexpr RE::FormID kElgrimChestId = 0x0A31AE;
-    constexpr std::string_view kSkyrimEsm = "Skyrim.esm";
-    constexpr std::int32_t kTomesInShop = 1;
-
     constexpr std::uint8_t kNotLoadedCompileIndex = 0xFF;  // RE/T/TESDataHandler.cpp:128, LookupFormID's "not loaded" test
     constexpr std::uint32_t kMaxLightLocalId = 0xFFF;      // a light plugin's local id: 12 bits
 
@@ -332,31 +327,4 @@ bool ToxGame::IsPoisonCostSpell(RE::FormID a_spell)
 std::shared_ptr<const std::unordered_set<RE::FormID>> ToxGame::PoisonCostSnapshot()
 {
     return g_costSnapshot.load();
-}
-
-// =============================================================================
-// Tome in the shop
-// =============================================================================
-
-void ToxGame::PutTomeInShop()
-{
-    if (!g_tome) {
-        logger::warn("Toxicology: no tome (the ESL is not loaded) - nothing put into Elgrim's Elixirs");
-        return;
-    }
-    auto* dh = RE::TESDataHandler::GetSingleton();
-    auto* chest = dh ? dh->LookupForm<RE::TESObjectCONT>(kElgrimChestId, kSkyrimEsm) : nullptr;
-    if (!chest) {
-        logger::error("Toxicology: Elgrim's Elixirs' chest {:06X} ({}) not found as a container - the tome is not sold",
-            kElgrimChestId, kSkyrimEsm);
-        return;
-    }
-    // RE/T/TESContainer.h:60,63; GetObjectCount first so a second call never adds a second copy
-    if (chest->GetObjectCount(g_tome) > 0) {
-        logger::info("Toxicology: Elgrim's Elixirs' chest already holds the tome ({}), nothing added", chest->GetObjectCount(g_tome));
-        return;
-    }
-    const bool added = chest->AddObjectToContainer(g_tome, kTomesInShop, nullptr);
-    logger::info("Toxicology: tome {} Elgrim's Elixirs' chest {:08X}: count now {}", added ? "added to" : "NOT added to",
-        chest->GetFormID(), chest->GetObjectCount(g_tome));
 }

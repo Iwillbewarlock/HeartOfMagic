@@ -6,19 +6,25 @@
 // Spec 9. Runs only when Data/SKSE/Plugins/HeartOfMagic_Toxicology_selftest.json
 // exists (the file never ships; the code is in the DLL, idle without it). Once
 // per session, startDelayMs (default 30 s) after the player stands loaded in a
-// save, it checks the tome in Elgrim's Elixirs' chest (read only: there, teaches
-// the ability, value 350), gives the ability and two poisons, spawns targets in front of the
+// save, it checks the tome (teaches the ability, value 350) and its reward:
+// the save's ability and tomes are taken, Few and Far Between is set to stage
+// 200 through Papyrus (or, already there, the load path runs) and the tome must
+// be given once and only once; the ability and tomes are put back. Then it gives
+// the ability and two poisons, spawns targets in front of the
 // player, casts the load order's poison spells at them (one per delivery) and
 // checks what the addon did; then the bottles and the saved Magicka count.
 // Every result is a log line:
 //   SELFTEST PASS <step>: <detail>     SELFTEST FAIL <step>: <detail>
 //   SELFTEST INFO <what>: <detail>     SELFTEST DONE pass=N fail=M ...
 // What it added (ability, poisons, targets, the cloak on the player) is taken
-// back before DONE. The Magicka count keeps a test value until the reload
+// back before DONE. The quest's stage 200 (with its fragment's key, thane count
+// and relationship) and the reward flag stay: the save is changed for good, so
+// use a disposable save. The Magicka count keeps a test value until the reload
 // check: the log asks for a save and a load of that save, and the next load
-// checks the count came back (HeartOfMagic_Toxicology_selftest_state.json
-// carries the expected value and the count from before the test, which is
-// put back after the check). Internals: game/ToxSelfTestState.h.
+// checks the count came back, and the reward flag and stage 200 when the tome
+// was given (HeartOfMagic_Toxicology_selftest_state.json carries the expected
+// value, the count from before the test, which is put back after the check,
+// and whether to check the reward). Internals: game/ToxSelfTestState.h.
 // =============================================================================
 
 #include <cstdint>

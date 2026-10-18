@@ -4,8 +4,9 @@
 // Toxicology core - pure C++ (no RE/SKSE types), shared by the DLL and
 // tools/toxicology-test: settings, the poison spell list from the librarian's
 // catalog, the top favorited poison, the magicka-per-dose count, the immunity
-// window after a poison wears off and the interval check the Magicka drain
-// queue uses.
+// window after a poison wears off, the interval check the Magicka drain
+// queue uses, and whether the quest reward gives the tome (with the co-saved
+// flag's record).
 // =============================================================================
 
 #include <cstddef>
@@ -141,4 +142,34 @@ namespace Toxicology
 
     // True when never seen (a_lastSeconds < 0) or a_nowSeconds - a_lastSeconds >= a_minInterval.
     bool IntervalElapsed(double a_lastSeconds, double a_nowSeconds, float a_minInterval);
+
+    // The tome as the quest reward (game/ToxReward.h): what one grant attempt does
+    enum class TomeRewardAction
+    {
+        kGrant,          // give one tome, then mark the reward satisfied
+        kMarkSatisfied,  // nothing given: the player already knows the ability or holds a tome
+        kSkip,           // nothing given, the flag unchanged: "enabled" is off, or the reward is already satisfied
+        kRetryLater      // nothing given, the flag unchanged: the player or a form is missing
+    };
+
+    // The inputs, read on the game's main thread just before the decision
+    struct TomeRewardInputs
+    {
+        bool formsPresent = false;     // the player, the tome, the ability and the quest
+        bool enabled = false;          // the setting "enabled"
+        bool rewardSatisfied = false;  // the co-saved flag
+        bool knowsAbility = false;
+        std::int32_t tomesHeld = 0;    // in the player's inventory
+    };
+
+    // First match: a form missing -> kRetryLater; "enabled" off -> kSkip; already satisfied -> kSkip;
+    // the ability known or a tome held -> kMarkSatisfied; otherwise kGrant.
+    TomeRewardAction DecideTomeReward(const TomeRewardInputs& a_in);
+
+    // "Grant", "MarkSatisfied", "Skip", "RetryLater" (for the log)
+    const char* TomeRewardActionName(TomeRewardAction a_action);
+
+    // The co-save record TOMG's data (game/ToxSave.h): exactly one byte, 0 or 1. nullopt for any
+    // other length or byte.
+    std::optional<bool> ParseRewardFlag(const std::vector<std::uint8_t>& a_data);
 }

@@ -1,9 +1,11 @@
 // =============================================================================
-// Toxicology - dev self test: step 7's reload check
+// Toxicology - dev self test: the reload check (step 7's count, step 4a's reward)
 // =============================================================================
 // The main test ends with a test value as the count toward the next bottle and
 // writes kSelfTestStatePath:
-//   {"phase": "awaitSave", "expected": V, "original": O}
+//   {"phase": "awaitSave", "expected": V, "original": O, "reward": R}
+// R is true when step 4a gave the tome: then the load must also bring back the
+// reward flag set (co-save TOMG) and the quest at stage 200.
 // The next save while the count is V turns it into "awaitLoad" with the save's
 // name. The next load (kPostLoadGame, after the co-save Load callback): the
 // count must be V again. When the loaded save is the one noted (or a name is
@@ -17,6 +19,7 @@
 #include "Common.h"
 #include "core/ToxCore.h"
 #include "game/ToxMagicka.h"
+#include "game/ToxReward.h"
 
 #include <algorithm>
 #include <cmath>
@@ -42,6 +45,7 @@ namespace
         float expected = 0.0f;
         float original = 0.0f;
         std::string saveName;  // normalized (SaveKey); empty = unknown
+        bool reward = false;   // step 4a gave the tome: the reward flag and stage 200 must come back too
     };
 
     std::string g_loadingName;  // the save named by the last kPreLoadGame (main thread)
@@ -78,6 +82,7 @@ namespace
             out.expected = json.value("expected", 0.0f);
             out.original = json.value("original", 0.0f);
             out.saveName = json.value("saveName", std::string{});
+            out.reward = json.value("reward", false);  // absent (a file from before step 4a): no reward check
         } catch (const nlohmann::json::exception& e) {
             logger::warn("SELFTEST WARN {}: {} - reload check dropped", ToxGame::kSelfTestStatePath, e.what());
             return ReloadState{};
@@ -88,7 +93,7 @@ namespace
     bool Write(const ReloadState& a_state)
     {
         const nlohmann::json json{ { "phase", a_state.phase }, { "expected", a_state.expected },
-            { "original", a_state.original }, { "saveName", a_state.saveName } };
+            { "original", a_state.original }, { "saveName", a_state.saveName }, { "reward", a_state.reward } };
         std::ofstream file(ToxGame::kSelfTestStatePath, std::ios::binary | std::ios::trunc);
         file << json.dump(4) << '\n';
         if (!file) {
@@ -115,9 +120,9 @@ namespace
 // ToxSelfTestState.h
 // =============================================================================
 
-bool SelfTest::ArmReloadCheck(float a_expected, float a_original)
+bool SelfTest::ArmReloadCheck(float a_expected, float a_original, bool a_reward)
 {
-    return Write({ std::string(kAwaitSave), a_expected, a_original, {} });
+    return Write({ std::string(kAwaitSave), a_expected, a_original, {}, a_reward });
 }
 
 bool SelfTest::ReloadCheckPending()
@@ -178,6 +183,22 @@ void SelfTest::RunReloadCheck()
     } else {
         ++fail;
         logger::warn("SELFTEST FAIL 7 reload: {}", detail);
+    }
+    if (state->reward) {
+        // Read here, before the load's own reward task runs (it is queued after this call, Main.cpp)
+        const auto* quest = ToxGame::RewardQuest();
+        const bool flag = ToxGame::RewardSatisfied();
+        const auto stage = quest ? quest->GetCurrentStageID() : 0;  // RE/T/TESQuest.h:244
+        const auto rewardDetail = std::format("tome reward flag after the load {} (true expected, co-save TOMG), Few and Far "
+            "Between stage {} ({} expected)", flag, stage, ToxGame::kRewardStage);
+        if (flag && stage == ToxGame::kRewardStage) {
+            ++pass;
+            logger::info("SELFTEST PASS 4a reward reload: {}", rewardDetail);
+        } else {
+            ++fail;
+            logger::warn("SELFTEST FAIL 4a reward reload: {}", rewardDetail);
+        }
+        ProbeQuestStages("after the reload");
     }
     ToxGame::SetAccumulated(state->original);
     Info("7 reload", std::format("count put back to the pre-test {:.2f}", state->original));
