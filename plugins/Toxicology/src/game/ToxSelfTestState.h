@@ -162,6 +162,7 @@ namespace ToxGame::SelfTest
         bool rewardTaken = false;           // the save's ability and tomes are taken; UndoReward puts them back
         bool rewardHadAbility = false;
         std::int32_t rewardTomesBefore = 0;
+        bool rewardFlagBefore = false;      // put back by UndoReward unless the tome was given
         bool rewardGiven = false;           // the tome was given: the reload check wants the flag back true
         std::shared_ptr<SetStageCall> setStageCall;  // the Quest.SetStage dispatch, null on the load path
 

@@ -215,6 +215,7 @@ namespace
         CheckTomeRecord(s, a_tome);
         s.rewardHadAbility = ToxGame::PlayerHasAbility();
         s.rewardTomesBefore = ToxGame::PlayerTomeCount();
+        s.rewardFlagBefore = ToxGame::RewardSatisfied();
         const auto stage = a_quest.GetCurrentStageID();
         SelfTest::Info(kStep, std::format("before: {}; {}", QuestText(a_quest), PlayerText()));
         if (stage > ToxGame::kRewardStage) {
@@ -334,6 +335,7 @@ void SelfTest::UndoReward(State& s)
         player->AddSpell(ToxGame::Ability());  // RE/A/Actor.h:518
     }
     SetTomeCount(s.rewardTomesBefore);
+    if (!s.rewardGiven) ToxGame::SetRewardSatisfied(s.rewardFlagBefore);  // the step stopped before a grant
     const auto* quest = ToxGame::RewardQuest();
     Info(kStep, std::format("put back: {} (the save had the ability {}, {} tomes). The save is changed for good: {}{}, "
         "with what the quest's own stage fragment did (Ingun's key, the thane count, her relationship), and the reward "
