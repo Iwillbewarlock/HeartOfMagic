@@ -5,7 +5,7 @@
 #include "BuilderLauncher.h"
 
 #include "BuilderControl.h"
-#include "BuilderLogProbe.h"
+#include "BuilderFolderMutex.h"
 #include "BuilderSignal.h"
 #include "TrackedMutex.h"
 
@@ -25,12 +25,14 @@ namespace BlackFlame::BuilderLauncher
         constexpr const wchar_t* kPrevLogName = L"builder.prev.log";
         constexpr std::uint64_t kMiB = 1024ull * 1024ull;
 
-        // review E2 #1: held only for a few field reads and kernel queries, never while logging or setting job limits (the
-        // main thread's ThrottleAfterWindow never waits on it). The three handles are set once in Start and never closed
-        // (the session is leaked), so copies taken under the lock stay valid outside it
+        // review E2 #1: held only for a few field reads and kernel queries, never while setting job limits, and while logging
+        // only in Start (its launch lines, so "builder started" precedes the end callback's line); the main thread's
+        // ThrottleAfterWindow never waits on it. The handles are set once in Start and never closed (the session is leaked),
+        // so copies taken under the lock stay valid outside it
         struct Session
         {
             TrackedMutex mutex;  // with the session's lifetime (review Gemini 2: no static mutex destroyed before a late reader)
+            UniqueHandle folderMutex;    // BuilderFolderMutex.h: this game's claim on the request folder, held for its lifetime
             UniqueHandle job;    // never closed by us (kill-on-close fires when the game ends)
             UniqueHandle process;        // kept for the exit code (F4); the end wait below holds it, so never closed either
             UniqueHandle throttleEvent;  // BuilderSignal.h, manual reset; set by ThrottleAfterWindow
@@ -39,8 +41,11 @@ namespace BlackFlame::BuilderLauncher
             std::optional<std::uint32_t> exitCode;  // once the end is noted (nullopt then: GetExitCodeProcess failed)
             bool ended = false;                     // the end noted
             bool tried = false;
-            bool throttled = false;                        // the throttle taken (BuilderControl::TakeOnce)
-            std::atomic<bool> throttleRequested{ false };  // set by ThrottleAfterWindow without the lock
+            bool throttled = false;  // the throttle taken (once a session)
+            // Set only when ThrottleAfterWindow found the lock busy and could not hand the throttle to a thread-pool thread:
+            // the next lock holder that honours it takes it (BuilderControl::TakeOnce). Unset otherwise, so the progress
+            // worker's polls never take the lock for it
+            std::atomic<bool> throttleRequested{ false };
         };
         Session& TheSession()
         {
@@ -157,15 +162,23 @@ namespace BlackFlame::BuilderLauncher
                 out.why = std::format("the builder exe '{}' is not there", Text(a_exe));
                 return out;
             }
-            // review E2 #2 (Codex 2 of defe5ede): a live builder holds its builder.log for write; that log is not rotated
-            // away and no second builder starts on the same staging folder (BuilderLogProbe.h)
-            DWORD probeError = 0;
-            if (const auto probe = BuilderLogProbe::Probe(a_requestFolder / kLogName, probeError); !BuilderLogProbe::MayStart(probe)) {
-                out.why = std::format("builder.log in '{}' is held for write by another process (Windows error {}): a builder "
-                                      "still runs on this request folder (an earlier session's, or a second game's on the same "
-                                      "SKSE folder), so no second one starts on its staging folder",
-                    Text(a_requestFolder), probeError);
+            // review E2 #2 (Codex 2 of defe5ede), round 2: one game process per request folder starts a builder; the claim
+            // is a named mutex made before builder.log is rotated and held for the game's lifetime (BuilderFolderMutex.h)
+            HANDLE folderMutex = nullptr;
+            DWORD claimError = 0;
+            const auto claim = BuilderFolderMutex::Acquire(a_requestFolder, folderMutex, claimError);
+            if (!BuilderFolderMutex::MayStart(claim)) {
+                out.why = std::format("another game process holds this request folder ('{}', mutex '{}', Windows error {}): its "
+                                      "builder.log is left as it is and no second builder starts on its staging folder",
+                    Text(a_requestFolder), Text(BuilderFolderMutex::MutexName(a_requestFolder)), claimError);
                 return out;
+            }
+            if (claim == BuilderFolderMutex::Claim::kOwned) {
+                a_session.folderMutex = UniqueHandle(folderMutex);
+            } else {
+                logger::warn("BlackFlame: slots: the request folder's mutex '{}' was not made (Windows error {}): a second game on "
+                             "the same folder is not excluded this session", Text(BuilderFolderMutex::MutexName(a_requestFolder)),
+                    claimError);
             }
             std::filesystem::create_directories(a_staging, ec);
             if (ec) {
@@ -305,10 +318,12 @@ namespace BlackFlame::BuilderLauncher
             std::optional<EndNote> end;
         };
 
-        ThrottleJob TakeThrottleLocked(Session& a_session)
+        // a_pending: the request ThrottleAfterWindow left in throttleRequested (TakeOnce); else asked directly (the main
+        // thread's free lock, the thread-pool hand-off). Either way at most once a session
+        ThrottleJob TakeThrottleLocked(Session& a_session, bool a_pending)
         {
             ThrottleJob out;
-            if (!BuilderControl::TakeOnce(a_session.throttleRequested, a_session.throttled)) {
+            if (!BuilderControl::TakeThrottle(a_pending, a_session.throttleRequested, a_session.throttled)) {
                 return out;
             }
             if (!a_session.launch.started || !a_session.job || !a_session.process) {
@@ -435,7 +450,7 @@ namespace BlackFlame::BuilderLauncher
                 ThrottleJob job;
                 {
                     std::lock_guard lock(TheSession().mutex);
-                    job = TakeThrottleLocked(TheSession());
+                    job = TakeThrottleLocked(TheSession(), false);
                 }
                 RunThrottle(job);
             } catch (const std::exception& e) {
@@ -456,7 +471,7 @@ namespace BlackFlame::BuilderLauncher
             ThrottleJob job;
             {
                 std::lock_guard lock(session.mutex);
-                job = TakeThrottleLocked(session);
+                job = TakeThrottleLocked(session, true);
             }
             RunThrottle(job);
         }
@@ -502,10 +517,10 @@ namespace BlackFlame::BuilderLauncher
         Launch launch;
         std::string logNote = "no previous builder.log";
         std::string eventNote;
-        bool eventMade = false;
         std::string waitWhy;
         {
-            // StartChecked's two warnings are logged under the lock: nothing else takes it before the end wait is registered
+            // StartChecked's warnings and the "builder started" line are logged under the lock: nothing else takes it
+            // before the end wait is registered, so a builder that ends at once is logged ended after it started
             std::lock_guard lock(session.mutex);
             if (session.tried) {
                 return session.launch;
@@ -513,6 +528,10 @@ namespace BlackFlame::BuilderLauncher
             session.tried = true;
             session.launch = StartChecked(a_exe, a_requestFolder, a_staging, a_jobMemoryMiB, session, logNote, eventNote);
             if (session.launch.started) {
+                logger::info("BlackFlame: slots: builder started (pid {}): '{}' --from-game '{}' --staging '{}' --job-memory {} MiB, "
+                             "below normal priority, in a kill-on-close job; its output in builder.log ({}); throttle event {}",
+                    session.launch.pid, Text(a_exe), Text(a_requestFolder), Text(a_staging), a_jobMemoryMiB, logNote,
+                    session.throttleEvent ? eventNote : std::string("none"));
                 // Stored under the lock the callback takes first, so it always finds the wait to release (review E2 #3)
                 HANDLE wait = nullptr;
                 if (::RegisterWaitForSingleObject(&wait, session.process.Get(), &OnBuilderEnded, nullptr, INFINITE, WT_EXECUTEONLYONCE)) {
@@ -522,16 +541,11 @@ namespace BlackFlame::BuilderLauncher
                 }
             }
             launch = session.launch;
-            eventMade = static_cast<bool>(session.throttleEvent);
         }
         if (!launch.started) {
             logger::warn("BlackFlame: slots: the builder was not started: {}", launch.why);
             return launch;
         }
-        logger::info("BlackFlame: slots: builder started (pid {}): '{}' --from-game '{}' --staging '{}' --job-memory {} MiB, "
-                     "below normal priority, in a kill-on-close job; its output in builder.log ({}); throttle event {}",
-            launch.pid, Text(a_exe), Text(a_requestFolder), Text(a_staging), a_jobMemoryMiB, logNote,
-            eventMade ? eventNote : std::string("none"));
         if (!waitWhy.empty()) {
             logger::warn("BlackFlame: slots: {}: the builder's end is noted only while the progress worker polls", waitWhy);
         }
@@ -586,15 +600,15 @@ namespace BlackFlame::BuilderLauncher
     {
         // review E2 #1 (Codex 1 of defe5ede): the main thread at kPreLoadGame never waits on the session lock. Free: the
         // job is taken under it and run after it, here. Busy (the end callback or the progress worker in its few calls):
-        // handed to a thread-pool thread, which may wait. That refused: the request stays for the next lock holder
+        // handed to a thread-pool thread, which may wait. That refused: the request is published (throttleRequested) for
+        // the next lock holder; only then, so a throttle taken here or by the pool thread leaves no flag for later polls
         auto& session = TheSession();
-        session.throttleRequested.store(true);
         ThrottleJob job;
         DWORD submitError = 0;
         const auto how = BuilderControl::RunOrHandOff(
             session.mutex,
             [&](std::unique_lock<TrackedMutex>& a_lock) {
-                job = TakeThrottleLocked(session);
+                job = TakeThrottleLocked(session, false);
                 a_lock.unlock();
             },
             [&]() {
@@ -612,6 +626,7 @@ namespace BlackFlame::BuilderLauncher
             logger::info("BlackFlame: slots: the builder's session lock was busy: its throttle is handed to a thread-pool thread");
             break;
         case BuilderControl::HandOff::kPending:
+            session.throttleRequested.store(true);
             logger::warn("BlackFlame: slots: the builder's session lock was busy and the hand-off to a thread-pool thread failed "
                          "(Windows error {}): the throttle waits for the next lock holder (the progress worker if it still "
                          "polls, else only the builder's end, when it no longer matters): in practice none this session",

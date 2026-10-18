@@ -5,12 +5,12 @@
 // =============================================================================
 // The DLL's copies of the builder's exit codes are pinned to the builder's own (GreyBuild.h, GreyBudget.h: both include only
 // the standard library). Also (review E2): the throttle's hand-off when the launcher's lock is busy (RunOrHandOff,
-// TakeOnce, on a mutex whose try_lock the test decides and on a std::mutex another thread holds) and the live-builder check
-// (BuilderLogProbe.h: the decision, and real files in the system temp folder opened as the builder holds its log). Included
-// by main.cpp.
+// TakeOnce, on a mutex whose try_lock the test decides and on a std::mutex another thread holds) and, round 2, the request
+// folder's mutex (BuilderFolderMutex.h: the name's normalisation pinned, the decision, and real named mutexes made twice
+// as two game processes would). Included by main.cpp.
 
 #include "../../plugins/BlackFlame/src/BuilderControl.h"
-#include "../../plugins/BlackFlame/src/BuilderLogProbe.h"
+#include "../../plugins/BlackFlame/src/BuilderFolderMutex.h"
 #include "../blackflame-greybuild/GreyBudget.h"
 #include "../blackflame-greybuild/GreyBuild.h"
 
@@ -103,6 +103,26 @@ namespace BuilderControlTests
         a_check(!notAsked && first && consumed && !second && done && !requested.load(),
             "throttle hand-off: the request is taken once (not before it is made, never a second time; consumed either way)");
 
+        // TakeThrottle: a direct take (the free lock, the pool thread) never touches the flag; a pending one consumes it;
+        // once a session either way
+        std::atomic<bool> flag{ false };
+        bool taken = false;
+        const bool direct = BC::TakeThrottle(false, flag, taken);
+        const bool directAgain = BC::TakeThrottle(false, flag, taken);
+        const bool flagUntouched = !flag.load();
+        flag.store(true);
+        const bool pendingAfter = BC::TakeThrottle(true, flag, taken);
+        a_check(direct && !directAgain && flagUntouched && !pendingAfter && !flag.load() && taken,
+            "throttle take: a direct take runs once and sets no flag; a request published after it is consumed, not run again");
+        bool fresh = false;
+        std::atomic<bool> unset{ false };
+        const bool pendingUnset = BC::TakeThrottle(true, unset, fresh);
+        unset.store(true);
+        const bool pendingSet = BC::TakeThrottle(true, unset, fresh);
+        const bool directLater = BC::TakeThrottle(false, unset, fresh);
+        a_check(!pendingUnset && pendingSet && !unset.load() && !directLater && fresh,
+            "throttle take: a pending take needs the published request, runs once, and a later direct take does not run again");
+
         // A real std::mutex held by another thread: RunOrHandOff returns while it is still held
         std::mutex real;
         std::atomic<bool> holding{ false };
@@ -130,55 +150,57 @@ namespace BuilderControlTests
     }
 
     template <class Check>
-    void LogProbe(Check&& a_check)
+    void FolderMutex(Check&& a_check)
     {
-        namespace P = BlackFlame::BuilderLogProbe;
-        a_check(P::FromError(ERROR_SUCCESS) == P::State::kFree && P::FromError(ERROR_FILE_NOT_FOUND) == P::State::kNoLog &&
-                    P::FromError(ERROR_PATH_NOT_FOUND) == P::State::kNoLog &&
-                    P::FromError(ERROR_SHARING_VIOLATION) == P::State::kHeld && P::FromError(ERROR_LOCK_VIOLATION) == P::State::kHeld &&
-                    P::FromError(ERROR_ACCESS_DENIED) == P::State::kUnknown,
-            "live builder: Windows errors read as no log (2, 3), free (0), held (32, 33), unknown (5)");
-        a_check(P::MayStart(P::State::kNoLog) && P::MayStart(P::State::kFree) && P::MayStart(P::State::kUnknown) &&
-                    !P::MayStart(P::State::kHeld),
-            "live builder: only a held builder.log keeps a second builder from starting");
-
+        namespace M = BlackFlame::BuilderFolderMutex;
+        namespace CC = BlackFlame::CopyContract;
+        // the name: the normalised path's FNV-1a 64; case, '/', a trailing separator and "." segments do not change it
+        const std::filesystem::path folder = L"C:\\Games\\Skyrim\\SKSE\\HeartOfMagic_BlackFlame";
+        const std::string normal = "c:\\games\\skyrim\\skse\\heartofmagic_blackflame";
+        const auto expected = std::wstring(M::kNamePrefix) + [&]() {
+            const auto key = CC::Hex16(CC::Fnv64(normal));
+            return std::wstring(key.begin(), key.end());
+        }();
+        a_check(M::NormalisedFolder(folder) == normal && M::MutexName(folder) == expected,
+            "folder mutex: the name is Local\\HoMBlackFlame_Builder_ and the FNV-1a 64 of the lower-case path (" + normal + ")");
+        const bool same = M::MutexName(L"c:/games/SKYRIM/skse/HeartOfMagic_BlackFlame/") == expected &&
+                          M::MutexName(L"C:\\Games\\Skyrim\\.\\SKSE\\x\\..\\HeartOfMagic_BlackFlame\\") == expected;
+        const bool other = M::MutexName(L"C:\\Games\\Skyrim\\SKSE\\HeartOfMagic_BlackFlame2") != expected;
+        const bool unicode = M::MutexName(L"C:\\Spiele\\\u00DCBER") == M::MutexName(L"c:\\spiele\\\u00FCber") &&
+                             M::NormalisedFolder(L"C:\\Spiele\\\u00DCBER") == "c:\\spiele\\\xC3\xBC" "ber";
+        a_check(same && other && unicode,
+            "folder mutex: '/', case (non-ASCII too: U+00DC as U+00FC), a trailing separator and . or .. segments give the same name; "
+            "another folder another");
+        // the decision
+        a_check(M::FromCreate(true, ERROR_SUCCESS) == M::Claim::kOwned && M::FromCreate(true, ERROR_ALREADY_EXISTS) == M::Claim::kOtherGame &&
+                    M::FromCreate(false, ERROR_ACCESS_DENIED) == M::Claim::kOtherGame &&
+                    M::FromCreate(false, ERROR_INVALID_HANDLE) == M::Claim::kUnknown && M::MayStart(M::Claim::kOwned) &&
+                    M::MayStart(M::Claim::kUnknown) && !M::MayStart(M::Claim::kOtherGame),
+            "folder mutex: made - owned; there already (183) or another integrity level's (5) - another game, no builder; any other "
+            "failure - not excluded, the builder starts");
+        // real named mutexes, made as two game processes on one folder would (a second create in one process sees the
+        // first one's object the same way)
         std::error_code ec;
-        const auto folder = std::filesystem::temp_directory_path(ec) /
-                            ("blackflame-cosave-check-probe-" + std::to_string(::GetCurrentProcessId()));
-        std::filesystem::create_directories(folder, ec);
-        const auto log = folder / "builder.log";
+        const auto real = std::filesystem::temp_directory_path(ec) /
+                          ("blackflame-cosave-check-mutex-" + std::to_string(::GetCurrentProcessId()));
+        HANDLE first = nullptr;
+        HANDLE second = nullptr;
+        HANDLE third = nullptr;
         DWORD error = 0;
-        const auto none = P::Probe(log, error);
-        a_check(none == P::State::kNoLog, "live builder: no builder.log - no log (Windows error " + std::to_string(error) + ")");
-        std::ofstream(log, std::ios::binary) << "an earlier builder's output\n";
-        const auto ended = P::Probe(log, error);
-        // As the builder holds it: the handle the game makes in MakeLog and the child inherits
-        const HANDLE builder = ::CreateFileW(log.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
-            FILE_ATTRIBUTE_NORMAL, nullptr);
-        const auto held = builder != INVALID_HANDLE_VALUE ? P::Probe(log, error) : P::State::kUnknown;
-        const DWORD heldError = error;
-        if (builder != INVALID_HANDLE_VALUE) {
-            ::CloseHandle(builder);
+        const auto firstClaim = M::Acquire(real, first, error);
+        const auto secondClaim = M::Acquire(real.wstring() + L"\\", second, error);
+        const DWORD secondError = error;
+        if (first) {
+            ::CloseHandle(first);
         }
-        // A reader that shares write (a log viewer, tail): not a live builder
-        const HANDLE viewer = ::CreateFileW(log.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
-            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-        const auto viewed = viewer != INVALID_HANDLE_VALUE ? P::Probe(log, error) : P::State::kUnknown;
-        if (viewer != INVALID_HANDLE_VALUE) {
-            ::CloseHandle(viewer);
+        const auto thirdClaim = M::Acquire(real, third, error);
+        if (third) {
+            ::CloseHandle(third);
         }
-        const auto after = P::Probe(log, error);
-        std::string kept;
-        {
-            std::ifstream back(log, std::ios::binary);
-            std::getline(back, kept);
-        }
-        a_check(ended == P::State::kFree && held == P::State::kHeld && heldError == ERROR_SHARING_VIOLATION &&
-                    viewed == P::State::kFree && after == P::State::kFree && kept == "an earlier builder's output",
-            "live builder: a real builder.log - free when no one writes it, held (Windows error " + std::to_string(heldError) +
-                ") while a handle opened as the builder's is open, free beside a viewer, free again after; the probe never "
-                "changes the file");
-        std::filesystem::remove_all(folder, ec);
+        a_check(firstClaim == M::Claim::kOwned && first && secondClaim == M::Claim::kOtherGame && !second &&
+                    secondError == ERROR_ALREADY_EXISTS && thirdClaim == M::Claim::kOwned && third,
+            "folder mutex: a real one - the first game owns it, a second on the same folder finds it (Windows error " +
+                std::to_string(secondError) + ", its handle closed), and once the first is gone a game owns it again");
     }
 
     template <class Check>
@@ -201,6 +223,6 @@ namespace BuilderControlTests
         Exit(a_check, 0xFFFFFFFFu, "0xFFFFFFFF (terminated or crashed)", "the largest code");
 
         HandOffs(a_check);
-        LogProbe(a_check);
+        FolderMutex(a_check);
     }
 }

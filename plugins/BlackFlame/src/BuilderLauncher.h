@@ -10,10 +10,11 @@
 //     (PROC_THREAD_ATTRIBUTE_HANDLE_LIST): stdout and stderr go to <request folder>\builder.log
 //   - a job object with JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE and JOB_OBJECT_LIMIT_JOB_MEMORY (config builderJobMemoryMiB, the
 //     same number passed as --job-memory), the process assigned to it, then resumed; --parent-pid as a second guard
-//   - before it: builder.log of the last launch renamed to builder.prev.log (an older prev replaced), and the throttle
-//     event (BuilderSignal.h, manual reset, unset) created for the builder to open. A builder.log another process holds
-//     for write (BuilderLogProbe.h: a live builder of an earlier session or of a second game on the same SKSE folder)
-//     is left alone and no builder starts (logged "the builder was not started: builder.log in ... is held for write")
+//   - before it: the request folder's named mutex made and held for the game's lifetime (BuilderFolderMutex.h); one
+//     that is there already (another game process on the same folder) leaves builder.log alone and starts no builder
+//     (logged "the builder was not started: another game process holds this request folder"). Then builder.log of the
+//     last launch renamed to builder.prev.log (an older prev replaced), and the throttle event (BuilderSignal.h, manual
+//     reset, unset) created for the builder to open
 //   - the thread handle is closed after the resume; the process handle is kept for the session (its exit code, logged
 //     once when it ends: BuilderControl.h ExitCodeText; the wait on its end is released by its callback, UnregisterWait
 //     without waiting); the job handle is owned by a static for the whole session and never closed by us, so

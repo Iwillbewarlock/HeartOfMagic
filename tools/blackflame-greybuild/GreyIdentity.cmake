@@ -11,7 +11,8 @@
 # flags and library versions: tools/CMakeLists.txt (its target), the root CMakeLists.txt and plugins/cmake/*.cmake
 # (CompilerFlags.cmake appends /GL, /EHa, /Gw ... to every target's flags), CMakePresets.json (the base flags, the
 # standard, the runtime and the triplet), vcpkg.json and vcpkg-configuration.json (the library versions and features;
-# /openmp reaches the builder through DirectXTex's OpenMP dependency). Over-inclusion only gives a dev build its own keys
+# /openmp is linked explicitly: tools/CMakeLists.txt's find_package(OpenMP) and OpenMP::OpenMP_CXX on the builder target,
+# for its own #pragma omp and omp_set_num_threads). Over-inclusion only gives a dev build its own keys
 # (a rebuild), never a release key for other output.
 # Digest: SHA-256 of "config\t<configuration>\n" then "<path>\t<SHA-256 of its bytes>\n" over those files in sorted path
 # order, its first 16 hex digits (so a Debug and a RelWithDebInfo build of the same sources key apart). git runs with

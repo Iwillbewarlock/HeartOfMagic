@@ -29,8 +29,10 @@
     -AllowUnpublished (no remote holds uncommitted changes). An untracked file under the DLL's or the builder's sources
     is refused always (no zip and no commit would hold it). The builder is refused when its output identity
     (blackflame-greybuild --identity) is a dev one ("+dev") or not kBuilderOutputVersion of CopyContractKeys.h, and when
-    its --self-test (the golden test on the repository's fixtures included) has a FAIL; the golden table's fnv64 is
-    printed, to pin in GreyGoldenTable.h once this package ships.
+    its --self-test (the golden test on the repository's fixtures included) has a FAIL, and when its kBuilderOutputVersion has
+    no released pin (GreyGoldenTable.h kReleasedPins; the refusal prints the row to add). Procedure for a new output
+    version: run the builder's --self-test, add the row its "NOTE golden table v<n> fnv64 <hex>" line gives, commit, build
+    Release again, package.
 
 .EXAMPLE
     .\plugins\BlackFlame\tools\Make-TesterPackage.ps1
@@ -192,12 +194,16 @@ if ($selfTestExit -ne 0 -or $selfTestFails -or -not $selfTestSummary) {
     Fail "the builder's --self-test failed (exit $selfTestExit, $(if ($selfTestSummary) { $selfTestSummary } else { 'no summary line' })): $($selfTestFails -join ' | ')"
 }
 Write-Host "builder: output identity $identity, --self-test $selfTestSummary"
-# A version's golden table is pinned once a package with it ships (GreyGoldenTable.h, the kTables row's last field): the
-# fnv64 to pin is printed here
-foreach ($line in @($selfTest | Where-Object { $_ -match '^NOTE golden table v[0-9]+ fnv64 [0-9a-f]{16}' })) {
-    Write-Host "  $line"
-    Write-Host '  -> when this package ships, put that fnv64 in the kTables row of tools\blackflame-greybuild\GreyGoldenTable.h (its pin) and commit it'
+# A package ships only a builder whose output version is pinned (GreyGoldenTable.h kReleasedPins: the self-test's
+# "PASS golden pin: version <n> is pinned" line), so its golden table can never be regenerated in place afterwards
+$pinned = @($selfTest | Where-Object { $_ -match "^PASS golden pin: version $outputVersion is pinned " })
+if (-not $pinned) {
+    $note = $selfTest | Where-Object { $_ -match "^NOTE golden table v$outputVersion fnv64 ([0-9a-f]{16})" } | Select-Object -First 1
+    $row = if ($note -and $note -match "fnv64 ([0-9a-f]{16})") { "{ $outputVersion, `"$($Matches[1])`" }," } else { "(the self-test printed no NOTE golden table v$outputVersion line)" }
+    Fail ("output version $outputVersion has no released pin: add this row to kReleasedPins in tools\blackflame-greybuild\GreyGoldenTable.h: " +
+        "$row then commit, build Release again (.\BuildRelease.ps1 -preset Release-2026) and run this again")
 }
+Write-Host "  $($pinned[0])"
 # Only the shipped, vanilla-derived files: no generated copies, no populated copies plugin
 if (Test-Path (Join-Path $data 'meshes\heartofmagic\blackflame\copies')) {
     Fail "plugins\BlackFlame\data\meshes\heartofmagic\blackflame\copies exists: generated copies must not ship (remove it)"

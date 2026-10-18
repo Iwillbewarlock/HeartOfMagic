@@ -976,10 +976,13 @@ to version 1 before its release (2026-10-18 and -19), every row they do not reac
 line's kind, key, outcome and deps (not its reason) and a digest of the output-affecting constants the headers expose
 (hex-float text, `DIRECTX_TEX_VERSION`, the DirectXTex and nifly vcpkg port versions) with the table of that version in
 `GreyGoldenTable.h`; a difference fails with "bump kBuilderOutputVersion in CopyContractKeys.h and regenerate the table
-(--self-test --print-golden)". A released table is never edited: a new version adds one. It is pinned: the last field
-of its `kTables` row holds the fnv64 of its text, and a pinned table that changes fails the self-test; the self-test and
-`Make-TesterPackage.ps1` print the fnv64 to pin (`NOTE golden table v<n> fnv64 <hex>`). Version 1 is not pinned yet: it is
-pinned when the first tester package with BFK4 ships. The builder turns FMA3 off in the CRT's maths functions
+(--self-test --print-golden)". A released table is never edited: a new version adds one. A released version is pinned:
+its row in `kReleasedPins` (`GreyGoldenTable.h`, apart from the tables, so a table pasted from `--print-golden` never
+overwrites a pin; that option prints no pin) holds the fnv64 of its table's text, and a pinned version whose table is
+missing or no longer hashes to its pin fails the self-test. `Make-TesterPackage.ps1` refuses a builder whose
+`kBuilderOutputVersion` has no pin and prints the row to add. Procedure: run `--self-test`, add the row its `NOTE golden
+table v<n> fnv64 <hex>` line gives (`{ <n>, "<hex>" },`), commit, build Release again, package. Version 1 is not pinned
+yet: it is pinned before the first tester package with BFK4 is made. The builder turns FMA3 off in the CRT's maths functions
 (`_set_FMA3_enable(0)`) at the start of every mode, so a shipped run gives the bytes the table holds. Version 1's table was
 made on one machine and has not been confirmed on a second one yet; it is the build's gate all the same (the POST_BUILD
 step above). Without `--golden-dir` the golden part is skipped (no developer's folder is compiled into the exe; a tester
@@ -990,8 +993,12 @@ a FAIL. Not in the digest: constants inside `.cpp`
 files' unnamed namespaces (their changes show only as changed bytes where the fixture reaches them). Stated limit: a
 forgotten bump whose output change the fixture does not reach gives stale copies, which the exe hash never did. Stated
 limit: the BFK3 generation is never pruned. After the switch to BFK4 every BFK3 key's staging files and progress lines stay
-(`GreyProgress.cpp`'s compaction keeps the last line of every key, whatever its format), and so do the Data copies
-published under BFK3 keys; nothing reads them again (about 250 MiB on the measured load order, proposal section 4).
+(`GreyProgress.cpp`'s compaction keeps the last line of every key, whatever its format, so those lines are parsed again,
+and their staged files hashed again, at every compaction: part of the `fnv64 checks N ms` time), and so do the Data
+copies published under BFK3 keys. Those Data copies stay in use until the slot's BFK4 generation is published: a slot's
+last published generation is applied at kDataLoaded while its files and deps are intact (`ApplyLastPublished`, W1),
+whatever its key; once the BFK4 generation of that slot is published they are unused disk space (about 250 MiB on the
+measured load order, proposal section 4).
 
 Request v5 as this builder reads it (P2 writes it; every point below is a builder assumption):
 - every v4 field, read as `--from-game --out` reads it (so the dev mode builds a v5 request too), but no `models`: v5
@@ -1106,8 +1113,11 @@ from the Windows SDK, the builder only). In key mode a BC7 target is encoded by 
   ended inside a GPU call) writes `staging\gpu.disabled` (adapter with its driver version, output identity) and from then
   BC7 is encoded on the CPU; the marker stays until that write succeeds (a failed write leaves both strikes for the next
   start). A marker naming another adapter or driver is dropped with its strikes; one that does not read is one strike and
-  stays. `gpu.disabled` is cleared, with any marker, only at a start whose adapter, driver or output identity differs; one
-  that does not read, or lacks a line, keeps the GPU off and is never deleted. The output check also refuses a result in
+  stays. `gpu.disabled` is cleared, with any marker, only at a start whose adapter, driver or output identity differs, and
+  only when it is whole (both lines there and non-empty, the output a valid identity); one that does not read, or is
+  malformed, keeps the GPU off and is never deleted, and a stale one that cannot be removed keeps the GPU off for that run.
+  Both files are written to `<file>.tmp`, flushed and renamed over the file (`MOVEFILE_REPLACE_EXISTING |
+  MOVEFILE_WRITE_THROUGH`), so a failed write never leaves a partial marker. The output check also refuses a result in
   another format than the target. A
   CPU run (`BLACKFLAME_GREYBUILD_GPU=off`, or the golden test) neither reads nor writes either file. The DLL never walks
   staging (it copies what progress lines name), so the two files reach nothing else.
@@ -1118,10 +1128,14 @@ from the Windows SDK, the builder only). In key mode a BC7 target is encoded by 
   line says why; a passed one gets a `GPU   BC7` line with its worst subresource. A small local defect under the limits is
   not caught. The run ends with a `gpu    ...` line (textures on the GPU, refused by the check, devices made, memory
   releases). GPU bytes are not the CPU's and can change with the driver. Stated limit (proposal 3.1), same key, other
-  bytes: only a rebuild of an object whose staging file is gone hits it. Launch N: the new file differs from the one in
-  Data and is deferred as `.next` (`BuildProgress.cpp`); a slot that already had a published generation keeps it (grey
-  stays), one that had none stays on its source. Launch N+1: `ApplyDeferred` renames it in and marks it replaced this
-  session, so `PlanObject` still refuses it. Launch N+2: published. The two ways out (keep the Data file when it is the
+  bytes: any rebuild of a key whose Data file already exists can hit it, whenever the rebuild's GPU bytes differ from the
+  file in Data. A key is rebuilt when its staging file is gone, its last line is failed or transient (not reusable), a
+  damaged progress.jsonl lost its line, or its staged copy (or a dep's) changed (`ProgressLog::Reusable`). Launch N: the
+  new file differs from the one in Data and is deferred as `.next` (`BuildProgress.cpp`); a slot that already had a
+  published generation keeps it (grey stays), one that had none stays on its source. Launch N+1: `ApplyDeferred` renames
+  it in over the old generation's file and marks it replaced this session, so `PlanObject` refuses it, and the old
+  generation no longer matches the ledger (`ApplyLastPublished` finds other bytes): the slot shows its source colour for
+  that session. Launch N+2: published. The two ways out (keep the Data file when it is the
   ledger's published generation of that key, or let the builder take the Data file's bytes for a key that has one) are
   not built.
 
@@ -1153,9 +1167,13 @@ copy rebuilt to the same bytes, a tiny cap, a missing palette and a BC5 decal, a
 requests and prefixes, the CLI refusals, and `--from-game --out` on the same v5 request); the GPU encoder's guards (the
 crash marker: fresh, one marker, two starts in a row, another driver or output identity, a CPU run leaving both files; the
 output check: a good result, one texel's alpha off, a zeroed mip, alpha lost, another mip count; the device released
-before an over-cap failure, none to release, too large untouched; the throttle event absent, unset, set) and guard 5
-(with a hardware device: the BC7, sRGB BC7 and 16 x 4 BC7 fixtures on the GPU against the CPU's result - format, mips,
-size, the check's limits; without one an INFO line). Not checked: a request written by the game (P2), the job object's
+before an over-cap failure, none to release, too large untouched; the throttle event absent, unset, set; the marker writes cut part way, a failed rename, a leftover temp file, a malformed
+or an undeletable stale `gpu.disabled`; on WARP the encoder's state and the wiring, `RecolourDds` reaching the encoder)
+and guard 5 (with a hardware device: the BC7, sRGB BC7 and 16 x 4 BC7 fixtures on the GPU against the CPU's result -
+format, mips, size, the check's limits; a hardware adapter that gives no device, or none at all, an INFO line); the
+throttle's wiring in a key mode run (a real event for the self-test's pid, set before a run whose BC7 texture otherwise
+gets a WARP device: the THROTTLE line, no device, OpenMP on one thread); the golden pins (a pinned version without its
+table, or with another text, fails). Not checked: a request written by the game (P2), the job object's
 own limit, a real pause for commit, a transient read failure, a driver that kills the process or resets (TDR), another
 GPU, an iGPU-only machine, the throttle event set by the real DLL.
 
@@ -1179,7 +1197,7 @@ model probe, the v4 request) does not run; with it off nothing below runs except
 | request v5 | `CopyRequestV5.h` | the dump (the very bytes the keys hashed) and `request.json` v5: contractVersion, options (quantised tints, palette mode, key prefix), per form its key and slot, `muzzles`, `addnMps` (with the source ADDN's `index`), `txst` |
 | progress | `BuildProgress.h` | `staging\progress.jsonl` read to its end before the builder starts (the builder compacts it only at its own start); what earlier sessions copied into Data counts now, but no file is copied on this thread (the worker does, after W1) |
 | groups | `CopyGroups.h`, `CopyModelProbeVerify.h` | the connected components of the sources' copy links. Groups whose members all show a verified generation open now (W1). The rest, while the publish window is open and the proof holds: every new object registered, its NIF Demanded one at a time in 8 ms main-thread slices, and only when all parse SetModel (model, muzzle), the gates, the links (`Refill` pointers only) and the ledger's lastPublished. A member whose object failed, is terminal, has no key, or got no line (once the builder ended and every line is read and copied: `CaughtUp`), or whose files did not all reach Data by then, shows its older generation (or, without one, leaves: gated, links to the source) and never keeps its group waiting; TXST members (with `slotTxst`) are registered, not Demanded, and written before the gates open (off: they leave). Without the file index nothing that entered Data this session is a candidate (the next start's index has it). A NIF naming an ADDN slot index waits for that slot's MPS; an ADDN slot that will not open counts as ready with the model it has, a collided one makes the member leave; ADDN slots whose MPS only wait for each other are dropped after a full pass. An open ADDN slot takes a newer complete MPS of its key in W1/W2: it stays in the ADDN queue while its current key may still come (its NIFs use the older MPS meanwhile), and a pass over the queue goes on where the last slice stopped. An ADDN slot a NIF names that no source holds this session, or that cannot be published, makes the member leave (W1 and W2 alike); one not open yet only keeps the NIF on the model it has. A parse failure (an ADDN MPS's too) counts the key and leaves the group closed this session; a registration failure leaves it closed without counting; a Demand that faults stops publication for the session; there is no re-close. Registration and the re-plan run inside the 8 ms slice; ledger writes at most once a second while publishing, and once more when publication settles or the window closes; a step that throws stops publication with a log line. If the file index turns off during the session, an object that entered Data this session is not Demanded (the group stays closed, no parse failure counted). The kDataLoaded log line gives the Data files hashed, their size and the time. RefreshCopies and CheckCopies skip closed slots; `ExpectedMuzzleFor` gives a slot's grey muzzle only while it is open |
-| builder | `BuilderLauncher.h` | `"<exe>" --from-game "<request folder>" --staging "<staging>" --job-memory <MiB> --parent-pid <pid>` (quoted the way `CommandLineToArgvW` reads it back): created suspended, below normal priority, only `builder.log` inherited, assigned to a job with kill-on-close and `JOB_OBJECT_LIMIT_JOB_MEMORY` (`builderJobMemoryMiB`), resumed; the job handle is held for the session and never closed by us. Before it: the last launch's `builder.log` is renamed to `builder.prev.log` (an older one replaced; not renamed: a warning, and it is overwritten) and the throttle event `Local\HoMBlackFlame_Throttle_<game pid>` (`BuilderSignal.h`, manual reset, unset) is made (not made: a warning, the builder starts without it). The process handle is kept for the session: when the builder ends (a thread-pool wait on it, so also in play), one line `builder (pid N) ended: exit code <code> (<meaning>)`: 0 ok, 1 failed (the run could not go on), 2 refused (bad arguments or not request v5), 3 stopped (the parent process is gone), anything else `0x........ (terminated or crashed)` (`BuilderControl.h`); the progress worker's "caught up" line carries it too |
+| builder | `BuilderLauncher.h` | `"<exe>" --from-game "<request folder>" --staging "<staging>" --job-memory <MiB> --parent-pid <pid>` (quoted the way `CommandLineToArgvW` reads it back): created suspended, below normal priority, only `builder.log` inherited, assigned to a job with kill-on-close and `JOB_OBJECT_LIMIT_JOB_MEMORY` (`builderJobMemoryMiB`), resumed; the job handle is held for the session and never closed by us. Before it: the request folder's named mutex `Local\HoMBlackFlame_Builder_<FNV-1a 64 of the normalised, lower-case folder path>` (`BuilderFolderMutex.h`) is made and held for the game's lifetime; one that is there already (another game process on the same folder) leaves `builder.log` alone and starts no builder, one warning `the builder was not started: another game process holds this request folder ...` (not made for another reason: a warning, the builder starts unexcluded). Then the last launch's `builder.log` is renamed to `builder.prev.log` (an older one replaced; not renamed: a warning, and it is overwritten) and the throttle event `Local\HoMBlackFlame_Throttle_<game pid>` (`BuilderSignal.h`, manual reset, unset) is made (not made: a warning, the builder starts without it). The process handle is kept for the session: when the builder ends (a thread-pool wait on it, so also in play), one line `builder (pid N) ended: exit code <code> (<meaning>)`: 0 ok, 1 failed (the run could not go on), 2 refused (bad arguments or not request v5), 3 stopped (the parent process is gone), anything else `0x........ (terminated or crashed)` (`BuilderControl.h`); the progress worker's "caught up" line carries it too |
 | throttle | `BuilderLauncher.h` `ThrottleAfterWindow` | when the publish window closes (`MenuWatch::Close`, any of its reasons; a few job and event calls, no wait): the job's extended limits read and `JOB_OBJECT_LIMIT_PRIORITY_CLASS` with `IDLE_PRIORITY_CLASS` added (kill-on-close and the memory cap kept, read back), a CPU hard cap (`JOB_OBJECT_CPU_RATE_CONTROL_ENABLE | HARD_CAP`, `CpuRate` 10000 / logical CPUs, at least 1: one logical CPU of the whole machine), and the throttle event set; one line `builder (pid N) throttled after the publish window closed: ...` with what was read back (a warning when a step failed, with the Windows error). What the builder finishes after that is used only at the next launch. A builder that already ended, or none this session: nothing (debug level, not in the log at the default info level) |
 | copy worker | `BuildProgress.h`, `ProgressTail.h` | a thread tails progress.jsonl (shared read, write and delete; read again from its start when its file id changes - the builder's compaction by a POSIX rename - or it is shorter than the offset; a cut last line is read again whole, never fused with a later one; the last line of a key wins, a line that differs in any field starts its object over) and copies (never moves) each ok or fallback file staging -> Data through a temporary file and a replacing rename, fnv64 checked on both sides, only while the publish window is open (checked again right before the rename). A failed copy leaves no temporary file and fails every object that is that file or needs it (an older generation stands in). Another file already at a copy's path (a damaged or cut one: P1's builder gives one file a key) is never replaced while the game runs: the copy waits beside it as `<path>.next` (listed in `<SKSE log folder>\HeartOfMagic_BlackFlame\deferred-copies.txt`), the next start renames it in at kDataLoaded before anything uses the path, and it is used from the start after (the index may hold the old file's size). An object counts as in Data once its file and its copy deps are. `CaughtUp`: a pass that began with the builder ended has read the file to its end (or found none - an I/O failure is tried again at the next poll and never counts) and copied everything |
 
@@ -1252,7 +1270,7 @@ Staging cleanup is the builder's; no GC.
 (assignment, merge, JSON, the save compare, the files with backups and the mirror in a temporary folder, and one
 regression test for each ledger finding of the P2 reviews: a rebind surviving its backups, the mirror's epoch, an
 unreadable main not rolled, newest-first merging, non-ASCII conflict text, damaged fields refused), the progress tail
-(`ProgressTail.h`: cut lines, a new file id, a shorter file), the BSValueNode reader, and the route start (the save folder from `PrepareFileSavePath`'s return with `.ess` appended or not, relative and empty refused; the main-thread proof's verdicts), and the builder launcher's pure parts (`BuilderControl.h`: the throttle's `CpuRate` for 1, 3, 4, 16, 64 logical CPUs, 0 and 20000 never 0; the exit code text for 0-3 and crash codes, the codes pinned to the builder's by `static_assert`); `--cosave <file.skse>...` walks real co-saves (the spike's two 1.6.1170 saves walk to their end, no
+(`ProgressTail.h`: cut lines, a new file id, a shorter file), the BSValueNode reader, and the route start (the save folder from `PrepareFileSavePath`'s return with `.ess` appended or not, relative and empty refused; the main-thread proof's verdicts), and the builder launcher's pure parts (`BuilderControl.h`: the throttle's `CpuRate` for 1, 3, 4, 16, 64 logical CPUs, 0 and 20000 never 0; the exit code text for 0-3 and crash codes, the codes pinned to the builder's by `static_assert`; the throttle's hand-off; `BuilderFolderMutex.h`: the name's normalisation pinned, the decision, real named mutexes made twice); `--cosave <file.skse>...` walks real co-saves (the spike's two 1.6.1170 saves walk to their end, no
 Black Flame block); `--nif-values <file.nif>...` prints the AddOnNode values (the sample request's 364 closure NIFs all
 parse and name every one of the 97 indices the builder's run made grey ADDN records for, plus 17 others).
 

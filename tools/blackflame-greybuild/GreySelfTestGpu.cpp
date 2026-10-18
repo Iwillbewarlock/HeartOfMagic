@@ -3,17 +3,21 @@
 // =============================================================================
 // The crash marker's state machine (fresh, one marker, two starts in a row, another driver or output identity, a CPU
 // run) and its file I/O failures through GpuMarkers' MarkerIo seam (a gpu.disabled or gpu.inflight that does not read, a
-// gpu.disabled that cannot be written, a malformed gpu.disabled, a marker of another adapter), the output check's limits
+// gpu.disabled that cannot be written, a malformed gpu.disabled, a marker of another adapter) and on real files (a write
+// cut after some bytes, a rename that fails, a leftover temp file, a stale gpu.disabled that cannot be removed), the
+// output check's limits
 // (a good result, a zeroed mip, alpha lost, another shape, another format), the over-cap and short-of-commit device
 // release through the Budget's memory-probe seam, the throttle event, and the encoder's own state on Microsoft's software
 // adapter (GpuUse::kTestWarp, on every machine): Start's strikes, the device's headroom (share plus the encoded chain),
-// the one re-creation after a release for memory, none after the throttle, the summary's counts and words. Not
-// injectable: a hardware adapter that is absent (FindAdapter has no seam; an encoder that was never started is that
-// state for the summary line).
+// the one re-creation after a release for memory, none after the throttle, the summary's counts and words, and the
+// wiring (RecolourDds hands a BC7 target to a usable encoder: the regression check that runs on every machine). WARP that
+// cannot be found or made FAILs only on a Windows that has it: d3d10warp.dll in System32 and an IDXGIFactory4 (the
+// interface EnumWarpAdapter is on); otherwise INFO. Not injectable: a hardware adapter that is absent (FindAdapter has no
+// seam; an encoder that was never started is that state for the summary line).
 // Guard 5: with a hardware adapter the BC7 and sRGB BC7 fixtures through the GPU against the CPU's result (format, mips,
-// size, PSNR within the check's limits; not bytes). It FAILs only on a regression this machine shows: an adapter but no
-// device, or the encoder not even tried while usable. An output-check refusal or a failed GPU encode is the documented
-// CPU fallback (another GPU, a TDR while a game runs): INFO. No adapter: INFO.
+// size, PSNR within the check's limits; not bytes). It FAILs only when the encoder is usable and was not tried (wiring).
+// A hardware adapter that gives no device (an FL 10.x iGPU, a TDR, no headroom), an output-check refusal or a failed GPU
+// encode is the documented CPU fallback: INFO. No adapter: INFO.
 
 #ifndef WIN32_LEAN_AND_MEAN
 #    define WIN32_LEAN_AND_MEAN
@@ -31,6 +35,9 @@
 #include "../../plugins/BlackFlame/src/BuilderSignal.h"
 
 #include <windows.h>
+
+#include <dxgi1_4.h>
+#include <wrl/client.h>
 
 #include <DirectXTex.h>
 
@@ -71,6 +78,26 @@ namespace GreyBuild::SelfTest
         {
             std::error_code ec;
             return std::filesystem::exists(a_file, ec);
+        }
+
+        /// This Windows has WARP for the encoder: d3d10warp.dll in System32 and an IDXGIFactory4 (EnumWarpAdapter's
+        /// interface). a_what says which part is there or missing
+        [[nodiscard]] bool WarpExpected(std::string& a_what)
+        {
+            const HMODULE warp = ::LoadLibraryExW(L"d3d10warp.dll", nullptr, LOAD_LIBRARY_AS_DATAFILE | LOAD_LIBRARY_SEARCH_SYSTEM32);
+            if (!warp) {
+                a_what = fmt::format("no d3d10warp.dll in System32 (Windows error {})", ::GetLastError());
+                return false;
+            }
+            ::FreeLibrary(warp);
+            Microsoft::WRL::ComPtr<IDXGIFactory1> factory;
+            Microsoft::WRL::ComPtr<IDXGIFactory4> factory4;
+            if (FAILED(::CreateDXGIFactory1(IID_PPV_ARGS(factory.GetAddressOf()))) || FAILED(factory.As(&factory4))) {
+                a_what = "d3d10warp.dll is in System32 but DXGI has no IDXGIFactory4 (before Windows 10)";
+                return false;
+            }
+            a_what = "d3d10warp.dll in System32 and DXGI 1.4";
+            return true;
         }
 
         [[nodiscard]] MemoryProbe Free(std::uint64_t a_cap, std::uint64_t a_free)
@@ -165,12 +192,83 @@ namespace GreyBuild::SelfTest
             a_check.Check(foreign.allowed && foreign.strikes == 0 && !Exists(markers.Inflight()) && !Exists(markers.Disabled()),
                 fmt::format("gpu markers: a strike-2 marker of another driver is dropped, the GPU kept ({})", foreign.note));
 
-            // a malformed gpu.disabled (no adapter= or output= line) keeps the GPU off and is never deleted
-            WriteAll(markers.Disabled(), "garbage\n");
-            const auto malformed = markers.OnStart(kAdapterA, kOutput);
-            a_check.Check(!malformed.allowed && ReadAll(markers.Disabled()) == "garbage\n",
-                fmt::format("gpu markers: a malformed gpu.disabled keeps the GPU off and stays ({})", malformed.note));
+            // a malformed gpu.disabled (no adapter= or output= line, an empty one, an output that is no identity) keeps the GPU
+            // off and is never deleted, even when its adapter is another one (it would look stale)
+            for (const std::string text : { std::string("garbage\n"), fmt::format("adapter=\noutput={}\n", kOutput),
+                     fmt::format("adapter={}\noutput=\n", kAdapterNewDriver), fmt::format("adapter={}\noutput=not an identity\n", kAdapterNewDriver) }) {
+                WriteAll(markers.Disabled(), text);
+                const auto malformed = markers.OnStart(kAdapterA, kOutput);
+                a_check.Check(!malformed.allowed && ReadAll(markers.Disabled()) == text && malformed.note.find("malformed") != std::string::npos,
+                    fmt::format("gpu markers: a malformed gpu.disabled ('{}') keeps the GPU off and stays ({})", text, malformed.note));
+            }
             std::filesystem::remove(markers.Disabled());
+        }
+
+        /// The real write (temp file, then a replacing rename) when it fails part way, and a stale gpu.disabled that cannot be
+        /// removed: real files, the temp step through the seam only where a real failure after some bytes cannot be made
+        void CheckMarkerWrites(Checker& a_check, const std::filesystem::path& a_staging)
+        {
+            std::filesystem::remove_all(a_staging);
+            std::filesystem::create_directories(a_staging);
+            const auto disabled = a_staging / kGpuDisabledFile;
+            const auto inflight = a_staging / kGpuInflightFile;
+            const auto temp = [](const std::filesystem::path& a_file) {
+                auto out = a_file;
+                out += ".tmp";
+                return out;
+            };
+            // some bytes into the temp file, then a failure: neither marker is a partial file, the temp file is gone
+            const auto partial = [](const std::filesystem::path& a_temp, const std::string& a_text, std::string& a_why) {
+                WriteAll(a_temp, a_text.substr(0, a_text.size() / 2));
+                a_why = "the test's failure after half the bytes";
+                return false;
+            };
+            const auto oldInflight = fmt::format("2\n{}\n", kAdapterA);
+            WriteAll(inflight, oldInflight);
+            MarkerIo partialIo;
+            partialIo.writeTemp = partial;
+            GpuMarkers cut(a_staging, partialIo);
+            const auto notWritten = cut.OnStart(kAdapterA, kOutput);
+            a_check.Check(!notWritten.allowed && !Exists(disabled) && !Exists(temp(disabled)) && ReadAll(inflight) == oldInflight,
+                fmt::format("gpu markers write: gpu.disabled cut after half its bytes: no gpu.disabled, no temp file, both strikes kept "
+                            "({})", notWritten.note));
+            std::string why;
+            const bool entered = cut.Enter(0, kAdapterA, why);
+            a_check.Check(!entered && ReadAll(inflight) == oldInflight && !Exists(temp(inflight)) && why.find("half") != std::string::npos,
+                "gpu markers write: gpu.inflight cut after half its bytes: the call is refused, the marker there is unchanged, no temp file");
+            // the rename fails (a folder where the marker goes): the temp file is removed, the folder stays
+            std::filesystem::remove(inflight);
+            std::filesystem::create_directories(inflight);
+            GpuMarkers real(a_staging);
+            const bool renamed = real.Enter(0, kAdapterA, why);
+            a_check.Check(!renamed && !Exists(temp(inflight)) && std::filesystem::is_directory(inflight) && why.find("replace") != std::string::npos,
+                fmt::format("gpu markers write: a rename that fails leaves no temp file ({})", why));
+            std::filesystem::remove(inflight);
+            // a leftover temp file of a killed write is removed at the next start, never read
+            WriteAll(temp(disabled), "adapter=");
+            const auto clean = real.OnStart(kAdapterA, kOutput);
+            a_check.Check(clean.allowed && !Exists(temp(disabled)) && !Exists(disabled), "gpu markers write: a start removes a leftover gpu.disabled.tmp");
+            // real writes: whole files
+            a_check.Check(real.Enter(0, kAdapterA, why) && ReadAll(inflight) == fmt::format("1\n{}\n", kAdapterA) && !Exists(temp(inflight)),
+                "gpu markers write: a real write leaves the whole marker and no temp file");
+            real.Leave();
+
+            // a stale gpu.disabled that cannot be removed (open without delete sharing): the GPU off for this run, nothing
+            // else touched; once it can be removed, the next start clears it
+            const auto stale = fmt::format("adapter={}\noutput={}\n", kAdapterNewDriver, kOutput);
+            WriteAll(disabled, stale);
+            WriteAll(inflight, fmt::format("1\n{}\n", kAdapterNewDriver));
+            const HANDLE held = ::CreateFileW(disabled.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+            const auto kept = real.OnStart(kAdapterA, kOutput);
+            if (held != INVALID_HANDLE_VALUE) {
+                ::CloseHandle(held);
+            }
+            a_check.Check(held != INVALID_HANDLE_VALUE && !kept.allowed && kept.strikes == 0 && ReadAll(disabled) == stale && Exists(inflight) &&
+                              kept.note.find("could not be removed") != std::string::npos,
+                fmt::format("gpu markers write: a stale gpu.disabled that cannot be removed keeps the GPU off this run ({})", kept.note));
+            const auto cleared = real.OnStart(kAdapterA, kOutput);
+            a_check.Check(cleared.allowed && !Exists(disabled) && !Exists(inflight),
+                "gpu markers write: the next start, the file removable again, clears it and the GPU is tried");
         }
 
         /// The marker file I/O failures, through the seam (GpuMarkers' MarkerIo); removal stays the real one, so a file a
@@ -230,6 +328,7 @@ namespace GreyBuild::SelfTest
             std::string why;
             GpuMarkers enterFails(staging, MarkerIo{ {}, failWrite });
             a_check.Check(!enterFails.Enter(0, kAdapterA, why) && !why.empty(), "gpu markers io: a marker that cannot be written refuses the call");
+            CheckMarkerWrites(a_check, staging);
         }
 
         /// A 64 x 64 RGBA8 chain: a grey ramp along x, alpha the same ramp (a_opaque: alpha 255 everywhere)
@@ -375,6 +474,40 @@ namespace GreyBuild::SelfTest
                 "gpu throttle: the event name is Local\\HoMBlackFlame_Throttle_<pid in decimal>");
         }
 
+        /// The wiring on WARP: RecolourDds hands a BC7 target to a usable encoder, which makes its device and encodes (or
+        /// refuses the result, which is reached too). FAIL: usable and not reached, or WARP's device not made on a Windows
+        /// that has WARP
+        void CheckWiring(Checker& a_check, const std::filesystem::path& a_staging)
+        {
+            std::filesystem::remove_all(a_staging);
+            std::filesystem::create_directories(a_staging);
+            const auto source = a_staging / "wiring.dds";
+            if (!WriteTestTexture(source, DXGI_FORMAT_BC7_UNORM, true)) {
+                a_check.Check(false, fmt::format("gpu wiring: {} not written", PathText(source)));
+                return;
+            }
+            GpuEncoder wired(GpuUse::kTestWarp, a_staging, kOutput, kGuardCap, Free(kGuardCap, kGuardCap));
+            (void)Captured([&]() { wired.Start(); });
+            const bool usable = wired.Usable();
+            RecolourResult onGpu;
+            const auto printed = Captured([&]() { onGpu = RecolourDds(source, a_staging / "wiring.out.dds", 1.0f, &wired); });
+            const bool reached = onGpu.gpu || !onGpu.gpuNote.empty();
+            if (usable && !reached && !wired.DeviceMade() && !wired.Usable()) {
+                std::string what;
+                const bool expected = WarpExpected(what);
+                if (expected) {
+                    a_check.Check(false, fmt::format("gpu wiring: WARP's device was not made on a Windows that has WARP ({}): {}", what, printed));
+                } else {
+                    std::cout << fmt::format("INFO gpu wiring: WARP's device was not made ({}): not run\n", what);
+                }
+                return;
+            }
+            a_check.Check(usable && reached && wired.DeviceMade() && onGpu.outcome == RecolourOutcome::kRecoloured,
+                fmt::format("gpu wiring: RecolourDds hands a BC7 target to the usable encoder, which makes its device and encodes it "
+                            "(usable {}, reached {}, device made {}, on the GPU {}; {})", usable, reached, wired.DeviceMade(), onGpu.gpu,
+                    onGpu.gpuNote.empty() ? onGpu.reason : onGpu.gpuNote));
+        }
+
         /// The encoder's own state machine on the WARP adapter (GpuUse::kTestWarp): every machine has one
         void CheckEncoderState(Checker& a_check, const std::filesystem::path& a_dir)
         {
@@ -390,9 +523,17 @@ namespace GreyBuild::SelfTest
                 identity = probe.Adapter();
             }
             if (identity.empty()) {
-                std::cout << "INFO gpu encoder: no WARP adapter on this machine: the encoder's state checks are not run\n";
+                std::string what;
+                if (WarpExpected(what)) {
+                    a_check.Check(false, fmt::format("gpu encoder: this Windows has WARP ({}) but the encoder found no WARP adapter (see the "
+                                                     "GPU line): the encoder's state and wiring checks cannot run", what));
+                } else {
+                    std::cout << fmt::format("INFO gpu encoder: no WARP on this machine ({}): the encoder's state and wiring checks are not "
+                                             "run\n", what);
+                }
                 return;
             }
+            CheckWiring(a_check, staging / "wiring");
 
             // Start carries the strike it found into the run (m_strikes), and Encode's own marker builds on it
             WriteAll(staging / kGpuInflightFile, fmt::format("1\n{}\n", identity));
@@ -538,8 +679,9 @@ namespace GreyBuild::SelfTest
                         cpu.reason.empty() && onGpu.reason.empty() ? std::string() : fmt::format(" ({}; {})", cpu.reason, onGpu.reason)));
                 if (!onGpu.gpu) {
                     if (!gpu.DeviceMade()) {
-                        a_check.Check(false, fmt::format("gpu guard 5: {}: a hardware adapter is here but no device was made (see the GPU "
-                                                         "lines above)", fixture.name));
+                        // the documented CPU fallback (an FL 10.x iGPU, no headroom, the GPU off): the wiring is checked on WARP
+                        std::cout << fmt::format("INFO gpu guard 5: {}: a hardware adapter is here but gave no device (see the GPU lines "
+                                                 "above): encoded on the CPU, the documented fallback\n", fixture.name);
                     } else if (onGpu.gpuNote.empty() && gpu.Usable()) {
                         a_check.Check(false, fmt::format("gpu guard 5: {}: the GPU is usable but the encoder was not tried (wiring)", fixture.name));
                     } else {

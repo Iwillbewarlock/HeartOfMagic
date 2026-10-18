@@ -7,7 +7,8 @@
 // TX00 is orange. Runs: a first build (outcomes, paths, deps, order, the AddOnNode remap), a second one (every object
 // reused, nothing written), one after a staged copy was changed (that object rebuilt, the same bytes), a tiny job memory
 // cap (too_large), a missing source palette and a BC5 decal (fallback), a texture outside the dump caps (not_dumped),
-// refused requests, the CLI refusals, and the dev mode (--out) on the same v5 request.
+// refused requests, the CLI refusals, the dev mode (--out) on the same v5 request, and the throttle's wiring (a real named
+// event for this process's pid, set before a run whose BC7 texture would otherwise get a WARP device).
 
 #ifndef WIN32_LEAN_AND_MEAN
 #    define WIN32_LEAN_AND_MEAN
@@ -19,16 +20,21 @@
 #include "GreyKeyed.h"
 #include "GreySelfTest.h"
 
+#include "../../plugins/BlackFlame/src/BuilderSignal.h"
 #include "../../plugins/BlackFlame/src/DataPathRule.h"
 
 #include <DirectXTex.h>
 #include <NifFile.hpp>
 #include <Shaders.hpp>
 
+#include <omp.h>
+
 #include <algorithm>
+#include <iostream>
 #include <memory>
 #include <fmt/format.h>
 #include <fstream>
+#include <sstream>
 
 namespace GreyBuild::SelfTest
 {
@@ -55,7 +61,8 @@ namespace GreyBuild::SelfTest
             kNormal,
             kMissingPalette,  // gradflame01.dds not in the dump, decal.dds a BC5: fallbacks
             kNotDumped,       // fxfire01.dds outside the dump caps (state notdumped)
-            kUnread           // fxfire01.dds opened by the game, its read failed (state unread)
+            kUnread,          // fxfire01.dds opened by the game, its read failed (state unread)
+            kBc7              // fxfire01.dds a BC7 (the GPU encoder's target), otherwise kNormal
         };
 
         std::filesystem::path Write(const std::filesystem::path& a_file, const std::string& a_text)
@@ -146,7 +153,7 @@ namespace GreyBuild::SelfTest
             MustWrite(dump / std::string(Rule::kOurPalette), DXGI_FORMAT_B8G8R8A8_UNORM, true);
             MustWrite(dump / std::string(Rule::kOurPaletteAdd), DXGI_FORMAT_B8G8R8A8_UNORM, false);
             if (a_variant != Variant::kNotDumped && a_variant != Variant::kUnread) {
-                MustWrite(dump / kFxFire, DXGI_FORMAT_BC3_UNORM, true);
+                MustWrite(dump / kFxFire, a_variant == Variant::kBc7 ? DXGI_FORMAT_BC7_UNORM : DXGI_FORMAT_BC3_UNORM, true);
             }
             if (a_variant != Variant::kMissingPalette) {
                 MustWrite(dump / kSourcePalette, DXGI_FORMAT_B8G8R8A8_UNORM, true);
@@ -645,6 +652,78 @@ namespace GreyBuild::SelfTest
         }
     }
 
+    namespace
+    {
+        /// The throttle's wiring in RunKeyed: with the parent's event (Local\HoMBlackFlame_Throttle_<this pid>) set before
+        /// the first object, the THROTTLE line is printed and no GPU device is made for the run's BC7 texture (WARP, so on
+        /// any machine), and OpenMP drops to one thread; the same run with the event unset makes the device (the pair shows
+        /// the throttle, not a run with nothing for the GPU, kept it off). OpenMP's thread count is restored after
+        void CheckThrottleRun(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_sourceNif)
+        {
+            const auto pid = static_cast<std::uint32_t>(::GetCurrentProcessId());
+            const auto name = BlackFlame::BuilderSignal::ThrottleEventName(pid);
+            const HANDLE event = ::CreateEventW(nullptr, TRUE, FALSE, name.c_str());
+            if (!event) {
+                a_check.Check(false, fmt::format("throttle run: the event for pid {} was not made (Windows error {})", pid, ::GetLastError()));
+                return;
+            }
+            (void)::ResetEvent(event);  // unset for the control run, whoever made it before
+            struct Restore
+            {
+                HANDLE event;
+                int threads;
+                ~Restore()
+                {
+                    ::omp_set_num_threads(threads);
+                    ::CloseHandle(event);
+                }
+            } restore{ event, ::omp_get_max_threads() };
+            const auto run = [&](const Fixture& a_fixture, int& a_exit) {
+                KeyedOptions options;
+                options.staging = a_fixture.staging;
+                options.commitReserve = 0;
+                options.memoryProbe = []() { return std::optional<MemoryState>(MemoryState{ 0, UINT64_MAX }); };
+                options.parentPid = pid;
+                options.gpu = GpuUse::kTestWarp;
+                std::ostringstream text;
+                auto* const saved = std::cout.rdbuf(text.rdbuf());
+                try {
+                    a_exit = RunKeyed(a_fixture.folder, options);
+                } catch (...) {
+                    std::cout.rdbuf(saved);
+                    throw;
+                }
+                std::cout.rdbuf(saved);
+                return text.str();
+            };
+            constexpr std::string_view kThrottled = "THROTTLE the publish window closed";
+            constexpr std::string_view kDeviceMade = "GPU   device made";
+            int controlExit = -1;
+            const auto control = run(MakeFixture(a_dir, "throttle-unset", a_sourceNif, Variant::kBc7), controlExit);
+            if (control.find("devices made 1") == std::string::npos) {
+                std::cout << "INFO throttle run: the control run made no WARP device (no WARP here: the GPU checks say so), the "
+                             "throttle's wiring is not checked\n";
+                return;
+            }
+            a_check.Check(controlExit == 0 && control.find(kThrottled) == std::string::npos && control.find(kDeviceMade) != std::string::npos,
+                fmt::format("throttle run: with the event unset the run makes a WARP device for its BC7 texture and prints no THROTTLE "
+                            "line (exit {})", controlExit));
+            (void)::SetEvent(event);
+            int throttledExit = -1;
+            const auto throttled = run(MakeFixture(a_dir, "throttle-set", a_sourceNif, Variant::kBc7), throttledExit);
+            const int threads = ::omp_get_max_threads();
+            const auto at = throttled.find(kThrottled);
+            const auto summary = throttled.find("gpu    ");
+            a_check.Check(throttledExit == 0 && at != std::string::npos && throttled.find(kDeviceMade) == std::string::npos &&
+                              summary != std::string::npos && summary > at &&
+                              throttled.find("devices made 0", summary) != std::string::npos &&
+                              throttled.find("stopped:", summary) != std::string::npos && threads == 1,
+                fmt::format("throttle run: with the event set the THROTTLE line comes before the first object, no GPU device is made "
+                            "after it (the summary: devices made 0, stopped) and OpenMP runs on {} thread(s) (exit {})", threads,
+                    throttledExit));
+        }
+    }
+
     void CheckKeyed(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_sourceNif)
     {
         const auto dir = a_dir / "keyed";
@@ -654,6 +733,7 @@ namespace GreyBuild::SelfTest
             CheckOutcomes(a_check, dir, a_sourceNif);
             CheckCommandLine(a_check, dir, a_sourceNif);
             CheckDevMode(a_check, dir, a_sourceNif);
+            CheckThrottleRun(a_check, dir, a_sourceNif);
         } catch (const std::exception& e) {
             a_check.Check(false, fmt::format("key mode: exception: {}", e.what()));
         }

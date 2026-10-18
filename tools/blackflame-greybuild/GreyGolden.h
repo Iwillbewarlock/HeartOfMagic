@@ -102,9 +102,15 @@ namespace GreyBuild::Golden
         std::size_t fileCount;
         const GoldenLine* lines;
         std::size_t lineCount;
-        // The pin: the fnv64 (16 lower-case hex digits) of this table's text (GreySelfTestGolden.cpp TableText) once its
-        // version is released, "" before. A pinned table that differs from its pin fails the self-test, so a released
-        // table cannot be regenerated in place
-        const char* pinned;
+    };
+
+    /// A released version's pin (GreyGoldenTable.h kReleasedPins): the fnv64 (16 lower-case hex digits) of its table's
+    /// text (GreySelfTestGolden.cpp TableText). Kept apart from the tables, which --print-golden prints, so pasting a
+    /// printed table never overwrites a pin: a pinned version whose table is missing or whose text no longer hashes to its
+    /// pin fails the self-test, so a released table cannot be regenerated in place
+    struct ReleasedPin
+    {
+        std::uint32_t version;
+        const char* fnv64;
     };
 }

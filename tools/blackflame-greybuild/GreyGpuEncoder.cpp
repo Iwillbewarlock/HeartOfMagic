@@ -13,6 +13,8 @@
 
 #include "GreyBuild.h"
 
+#include "../../plugins/BlackFlame/src/CopyContractKeys.h"
+
 #include <windows.h>
 
 // d3d11.h before DirectXTex.h: DirectXTex declares its GPU overloads only when it sees __d3d11_h__
@@ -186,16 +188,50 @@ namespace GreyBuild
             return out;
         }
 
-        [[nodiscard]] bool WriteMarkerFile(const std::filesystem::path& a_file, const std::string& a_text, std::string& a_why)
+        [[nodiscard]] std::filesystem::path MarkerTemp(const std::filesystem::path& a_file)
         {
-            std::ofstream out(a_file, std::ios::binary | std::ios::trunc);
-            out << a_text;
-            out.close();
-            if (!out) {
-                a_why = fmt::format("{} could not be written", PathText(a_file));
+            auto temp = a_file;
+            temp += ".tmp";
+            return temp;
+        }
+
+        /// a_text into a_temp (made anew) and flushed to the disk: a GPU call that takes the machine down still leaves the
+        /// marker it was written before
+        [[nodiscard]] bool WriteMarkerTemp(const std::filesystem::path& a_temp, const std::string& a_text, std::string& a_why)
+        {
+            const HANDLE file = ::CreateFileW(a_temp.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+            if (file == INVALID_HANDLE_VALUE) {
+                a_why = fmt::format("{} could not be made (Windows error {})", PathText(a_temp), ::GetLastError());
                 return false;
             }
-            return true;
+            DWORD written = 0;
+            const bool ok = ::WriteFile(file, a_text.data(), static_cast<DWORD>(a_text.size()), &written, nullptr) &&
+                            written == a_text.size() && ::FlushFileBuffers(file);
+            const DWORD error = ok ? ERROR_SUCCESS : ::GetLastError();
+            ::CloseHandle(file);
+            if (!ok) {
+                a_why = fmt::format("{} could not be written ({} of {} bytes, Windows error {})", PathText(a_temp), written, a_text.size(), error);
+            }
+            return ok;
+        }
+
+        /// A marker written whole or not at all: <file>.tmp (a_writeTemp: the seam, else WriteMarkerTemp), then renamed over
+        /// <file> (MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH). Either step failing removes the temp file and leaves
+        /// <file> as it was
+        [[nodiscard]] bool WriteMarkerFile(const std::filesystem::path& a_file, const std::string& a_text, const MarkerIo::WriteTemp& a_writeTemp,
+            std::string& a_why)
+        {
+            const auto temp = MarkerTemp(a_file);
+            bool ok = a_writeTemp ? a_writeTemp(temp, a_text, a_why) : WriteMarkerTemp(temp, a_text, a_why);
+            if (ok && !::MoveFileExW(temp.c_str(), a_file.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+                a_why = fmt::format("{} could not replace {} (Windows error {})", PathText(temp), PathText(a_file), ::GetLastError());
+                ok = false;
+            }
+            if (!ok) {
+                std::error_code ec;
+                std::filesystem::remove(temp, ec);
+            }
+            return ok;
         }
 
         /// The value after a_key on its own line of a_text; none when no line starts with a_key
@@ -313,13 +349,17 @@ namespace GreyBuild
 
     bool GpuMarkers::Write(const std::filesystem::path& a_file, const std::string& a_text, std::string& a_why) const
     {
-        return m_io.write ? m_io.write(a_file, a_text, a_why) : WriteMarkerFile(a_file, a_text, a_why);
+        return m_io.write ? m_io.write(a_file, a_text, a_why) : WriteMarkerFile(a_file, a_text, m_io.writeTemp, a_why);
     }
 
     GpuMarkers::Start GpuMarkers::OnStart(const std::string& a_adapter, const std::string& a_output)
     {
         Start start;
         std::error_code ec;
+        for (const auto& marker : { Disabled(), Inflight() }) {
+            std::error_code tempEc;
+            std::filesystem::remove(MarkerTemp(marker), tempEc);  // a write killed before its rename: never read
+        }
         const auto disabled = Read(Disabled());
         if (disabled.state == MarkerRead::kUnreadable) {
             // never deleted: it may hold the very adapter this start has, and a file that does not read cannot say
@@ -331,10 +371,13 @@ namespace GreyBuild
         if (disabled.state == MarkerRead::kRead) {
             const auto adapter = Field(disabled.text, kAdapterKey);
             const auto output = Field(disabled.text, kOutputKey);
-            if (!adapter || !output) {
+            // stale only when it is whole: both fields there, neither empty, the output a valid identity; anything else is
+            // malformed (a hand edit, another tool) and says nothing about which adapter it was for
+            if (!adapter || !output || adapter->empty() || output->empty() || !BlackFlame::CopyContract::OutputIdentityVersion(*output)) {
                 start.allowed = false;
-                start.note = fmt::format("{} has no {} or no {} line: BC7 on the CPU, the file is left as it is (delete it to try "
-                                         "the GPU again)", kGpuDisabledFile, kAdapterKey, kOutputKey);
+                start.note = fmt::format("{} is malformed (it needs a non-empty {} line and an {} line with a valid output identity): "
+                                         "BC7 on the CPU, the file is left as it is (delete it to try the GPU again)", kGpuDisabledFile,
+                    kAdapterKey, kOutputKey);
                 return start;
             }
             if (*adapter == a_adapter && *output == a_output) {
@@ -345,12 +388,21 @@ namespace GreyBuild
                 return start;
             }
             // another adapter, driver or output: stale, cleared with any marker (whose strikes were counted for that one)
-            const bool removed = std::filesystem::remove(Disabled(), ec) || !ec;
+            const char* const what = *adapter != a_adapter ? "adapter or driver" : "output identity";
+            std::filesystem::remove(Disabled(), ec);
+            if (ec) {
+                // still there: this run stays on the CPU (no zero-strike start past a file that may yet hold); tried again
+                // at the next start
+                start.allowed = false;
+                start.note = fmt::format("{} was written for another {} ('{}', output '{}'; now '{}', '{}') but could not be removed "
+                                         "({}): BC7 on the CPU for this run, it is tried again at the next start", kGpuDisabledFile, what,
+                    *adapter, *output, a_adapter, a_output, ec.message());
+                return start;
+            }
             std::error_code inflightEc;
             std::filesystem::remove(Inflight(), inflightEc);
-            start.note = fmt::format("{} was written for another {} ('{}', output '{}'; now '{}', '{}'): {}, the GPU is tried again",
-                kGpuDisabledFile, *adapter != a_adapter ? "adapter or driver" : "output identity", *adapter, *output, a_adapter, a_output,
-                removed ? fmt::format("cleared with any {}", kGpuInflightFile) : fmt::format("not removable ({}), passed over", ec.message()));
+            start.note = fmt::format("{} was written for another {} ('{}', output '{}'; now '{}', '{}'): cleared with any {}, the GPU is "
+                                     "tried again", kGpuDisabledFile, what, *adapter, *output, a_adapter, a_output, kGpuInflightFile);
             return start;
         }
         const auto inflight = Read(Inflight());

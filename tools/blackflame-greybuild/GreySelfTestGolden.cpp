@@ -9,8 +9,9 @@
 // (GreyGoldenTable.h): every output file's size and fnv64, every progress line's kind, key, outcome and deps (not its
 // reason), and a digest of the output-affecting constants. A difference with the same version fails with the
 // instruction to bump the version and add a table. The table was made on one machine (FMA3 off, main) and is already the
-// build's gate (GreySelfTestGate.cmake); it has not been confirmed on a second machine yet. A released table carries a
-// pin (GoldenTable::pinned, the fnv64 of its text): one that no longer matches its pin fails.
+// build's gate (GreySelfTestGate.cmake); it has not been confirmed on a second machine yet. A released version has a pin
+// (GreyGoldenTable.h kReleasedPins, the fnv64 of its table's text, kept apart from the tables --print-golden prints): a
+// pinned version whose table is missing or no longer hashes to its pin fails.
 // Not in the constant digest: constants inside .cpp files' unnamed namespaces (kVisibleAlpha, the DDS load and
 // compress flags); a change to them shows as changed bytes only where the fixture reaches them.
 
@@ -41,6 +42,7 @@
 #include <fmt/format.h>
 #include <fstream>
 #include <map>
+#include <optional>
 #include <sstream>
 #include <vector>
 
@@ -300,26 +302,61 @@ namespace GreyBuild::SelfTest
             return CC::Hex16(CC::Fnv64(TableText(a_table)));
         }
 
-        [[nodiscard]] bool PinHolds(const GoldenTable& a_table, const char* a_pin)
+        /// What is wrong with a_pin against a_tables: no table of its version, or one whose text no longer hashes to it;
+        /// nullopt when the pin holds
+        [[nodiscard]] std::optional<std::string> PinProblem(const ReleasedPin& a_pin, const std::vector<GoldenTable>& a_tables)
         {
-            return TableFnv(a_table) == a_pin;
+            const auto it = std::find_if(a_tables.begin(), a_tables.end(), [&](const GoldenTable& a_t) { return a_t.version == a_pin.version; });
+            if (it == a_tables.end()) {
+                return fmt::format("golden pin: version {} is pinned ({}) but GreyGoldenTable.h has no table for it: a released table "
+                                   "is never removed (restore it from git)", a_pin.version, a_pin.fnv64);
+            }
+            const auto fnv = TableFnv(*it);
+            if (fnv != a_pin.fnv64) {
+                return fmt::format("golden pin: the table of released version {} is not the one it was released with (fnv64 {}, pinned "
+                                   "{}): a released table is never regenerated; restore it from git, bump kBuilderOutputVersion and add "
+                                   "a table", a_pin.version, fnv, a_pin.fnv64);
+            }
+            return std::nullopt;
         }
 
-        /// Every released table (a pin set) is still the text it was released with; the unreleased ones print the fnv64 to
-        /// pin ("NOTE golden table v<n> fnv64 <hex>", which the package script reads)
+        /// Every released version (kReleasedPins) still has the table it was released with ("PASS golden pin: version <n>
+        /// is pinned ...", which the package script requires for kBuilderOutputVersion); a table with no pin prints the row
+        /// to add ("NOTE golden table v<n> fnv64 <hex>"). Then the check's own cases on made-up tables
         void CheckPins(Checker& a_check)
         {
-            for (const auto& table : kTables) {
-                const auto fnv = TableFnv(table);
-                if (table.pinned[0] == '\0') {
-                    std::cout << fmt::format("NOTE golden table v{} fnv64 {} (not pinned yet: pin it in GreyGoldenTable.h when the first "
-                                             "tester package with it ships)\n", table.version, fnv);
-                    continue;
-                }
-                a_check.Check(fnv == table.pinned, fmt::format("golden pin: the released table of version {} is the one it was released "
-                                                               "with (fnv64 {}, pinned {}); a released table is never regenerated: bump "
-                                                               "kBuilderOutputVersion and add a table", table.version, fnv, table.pinned));
+            const std::vector<GoldenTable> tables(std::begin(kTables), std::end(kTables));
+            for (const auto& pin : kReleasedPins) {
+                const auto problem = PinProblem(pin, tables);
+                a_check.Check(!problem, problem ? *problem :
+                                                  fmt::format("golden pin: version {} is pinned and its table holds the pin ({})", pin.version,
+                                                      pin.fnv64));
             }
+            for (const auto& table : tables) {
+                const bool pinned = std::any_of(kReleasedPins.begin(), kReleasedPins.end(),
+                    [&](const ReleasedPin& a_pin) { return a_pin.version == table.version; });
+                if (!pinned) {
+                    const auto fnv = TableFnv(table);
+                    std::cout << fmt::format("NOTE golden table v{} fnv64 {} (not pinned: when a tester package with this version ships, "
+                                             "add {{ {}, \"{}\" }}, to kReleasedPins in GreyGoldenTable.h)\n", table.version, fnv,
+                        table.version, fnv);
+                }
+            }
+            // made-up tables: a pin of its own text holds; another pin, the same rows under another version, or a pinned
+            // version with no table, does not
+            const GoldenFile files[] = { { "textures\\x.dds", 1, 2 } };
+            const GoldenLine lines[] = { { "dds", "0000000000000001", "ok", "" } };
+            const GoldenTable made{ 7, "0000000000000003", files, std::size(files), lines, std::size(lines) };
+            GoldenTable otherVersion = made;
+            ++otherVersion.version;
+            const auto madeFnv = TableFnv(made);
+            const bool own = !PinProblem({ made.version, madeFnv.c_str() }, { made });
+            const bool otherPin = PinProblem({ made.version, "0000000000000000" }, { made }).has_value();
+            const bool movedRows = PinProblem({ otherVersion.version, madeFnv.c_str() }, { otherVersion }).has_value();
+            const auto missing = PinProblem({ made.version + 1, madeFnv.c_str() }, { made });
+            a_check.Check(own && otherPin && movedRows && missing && missing->find("no table") != std::string::npos,
+                "golden pin: a table holds the pin of its own text; another pin, another version's text, or a pinned version with no "
+                "table fails");
         }
 
         /// A table as GreyGoldenTable.h would hold it, made from a run (its pointers into a_seen and the vectors here)
@@ -345,7 +382,7 @@ namespace GreyBuild::SelfTest
                 a_out.lines.push_back({ a_out.texts[i].c_str(), a_out.texts[i + 1].c_str(), a_out.texts[i + 2].c_str(), a_out.texts[i + 3].c_str() });
             }
             a_out.table = { CC::kBuilderOutputVersion, a_seen.constants.c_str(), a_out.files.data(), a_out.files.size(), a_out.lines.data(),
-                a_out.lines.size(), "" };
+                a_out.lines.size() };
         }
 
         [[nodiscard]] const GoldenTable* FindTable(std::uint32_t a_version)
@@ -486,12 +523,8 @@ namespace GreyBuild::SelfTest
             MakeOwnTable(a_run.seen, ownTable);
             const GoldenTable& own = ownTable.table;
             a_check.Check(Compare(own, a_run.seen).empty(), "golden compare: a run against its own table has no difference");
-            // the pin: the fnv64 of a table's own text holds; another pin, or the same rows under another version, does not
-            const auto ownFnv = TableFnv(own);
-            GoldenTable otherVersion = own;
-            ++otherVersion.version;
-            a_check.Check(PinHolds(own, ownFnv.c_str()) && !PinHolds(own, "0000000000000000") && !PinHolds(otherVersion, ownFnv.c_str()),
-                "golden pin: a table holds the pin of its own text; another pin, or another version's text, fails");
+            a_check.Check(!PinProblem({ own.version, TableFnv(own).c_str() }, { own }),
+                "golden pin: a table made from this run holds the pin of its own text");
             // a deliberately changed byte in a staged copy is a changed output
             const auto& [first, file] = *a_run.seen.files.begin();
             const auto staged = a_run.staging / first;
@@ -617,11 +650,9 @@ namespace GreyBuild::SelfTest
                 out += fmt::format("        {{ \"{}\", \"{}\", \"{}\", \"{}\" }},\n", name.substr(0, space), name.substr(space + 1),
                     text.substr(0, bar), Escaped(text.substr(bar + 3)));
             }
-            OwnTable own;
-            MakeOwnTable(run.seen, own);
-            out += fmt::format("    }};\n    // kTables row (\"\": not pinned; its pin once released is {}):\n    //    {{ {}, \"{}\", kFilesV{}, "
-                               "std::size(kFilesV{}), kLinesV{}, std::size(kLinesV{}), \"\" }},\n",
-                TableFnv(own.table), version, constants.digest, version, version, version, version);
+            // the kTables row only: a released version's pin (kReleasedPins) is never printed, so pasting this cannot overwrite it
+            out += fmt::format("    }};\n    // kTables row:\n    //    {{ {}, \"{}\", kFilesV{}, std::size(kFilesV{}), kLinesV{}, "
+                               "std::size(kLinesV{}) }},\n", version, constants.digest, version, version, version, version);
             std::cout << out;
             return kExitOk;
         } catch (const std::exception& e) {

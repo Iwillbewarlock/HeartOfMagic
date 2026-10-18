@@ -151,4 +151,20 @@ namespace BlackFlame::BuilderControl
         a_done = true;
         return true;
     }
+
+    /// Under the lock: the throttle taken, true once a session. a_pending: the request ThrottleAfterWindow published in
+    /// a_requested because its hand-off failed (TakeOnce: consumed either way); else asked directly (the free lock, the
+    /// thread-pool hand-off), which never reads or sets a_requested, so a throttle taken that way leaves no flag that
+    /// would make later polls take the lock
+    [[nodiscard]] inline bool TakeThrottle(bool a_pending, std::atomic<bool>& a_requested, bool& a_done) noexcept
+    {
+        if (a_pending) {
+            return TakeOnce(a_requested, a_done);
+        }
+        if (a_done) {
+            return false;
+        }
+        a_done = true;
+        return true;
+    }
 }

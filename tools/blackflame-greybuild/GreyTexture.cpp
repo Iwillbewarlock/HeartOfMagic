@@ -272,13 +272,16 @@ namespace GreyBuild
         // B: never "already grey" when the visual-risk check would call it coloured (TEX_COLOUR), so the check can only
         // fire on a texture that could not be done (a faint tint on many dark texels: fxbubble01's 34%). Its mip 0 as ReadRgba
         // gives it, from the pixels decoded above (no second read); a conversion that fails fails the texture
-        std::string riskWhy;
-        bool riskTransient = false;
-        const auto rgba = ToRgba(*pixels.GetImage(0, 0, 0), riskWhy, &riskTransient);
-        if (!rgba) {
-            return Fail(result, fmt::format("reading the pixels for the visual-risk check failed: {}", riskWhy), riskTransient);
+        {
+            // mip 0's RGBA copy lives only for the check: freed before the grey chain and its encode are made
+            std::string riskWhy;
+            bool riskTransient = false;
+            const auto rgba = ToRgba(*pixels.GetImage(0, 0, 0), riskWhy, &riskTransient);
+            if (!rgba) {
+                return Fail(result, fmt::format("reading the pixels for the visual-risk check failed: {}", riskWhy), riskTransient);
+            }
+            result.riskColoured = IsColouredTexture(ComputeColourStats(*rgba));
         }
-        result.riskColoured = IsColouredTexture(ComputeColourStats(*rgba));
         if (result.chroma < kGreyscaleChroma && result.colouredShare <= kColouredShare && !result.riskColoured &&
             std::abs(a_tint - 1.0f) < kTintOneEpsilon) {
             result.outcome = RecolourOutcome::kGreyscale;

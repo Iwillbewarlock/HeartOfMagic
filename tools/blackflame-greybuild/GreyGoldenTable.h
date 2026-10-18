@@ -4,10 +4,12 @@
 // GreyGoldenTable - the golden test's released tables, one per kBuilderOutputVersion (GreyGolden.h)
 // =============================================================================
 // Each version's arrays and kTables row are pasted from --self-test --print-golden and never edited afterwards: a change
-// of output gets a new kBuilderOutputVersion and a new table beside the old ones.
+// of output gets a new kBuilderOutputVersion and a new table beside the old ones. A released version's pin (kReleasedPins,
+// at the end) is written by hand, never pasted.
 
 #include "GreyGolden.h"
 
+#include <initializer_list>
 #include <iterator>
 
 namespace GreyBuild::Golden
@@ -129,10 +131,14 @@ namespace GreyBuild::Golden
         { "txst", "601d000000000005", "ok", "textures\\heartofmagic\\blackflame\\copies\\00968a124d75c834\\copy.dds@ba44603ee46bdfa3 textures\\heartofmagic\\blackflame\\copies\\95d90c23f3e69c62\\copy.dds@c934bfb9c2b6fb82" },
     };
 
-    // The last field is the pin (GoldenTable::pinned). Version 1 is not pinned yet: it is pinned, with the fnv64 the
-    // self-test prints ("NOTE golden table v1 fnv64 ..."; Make-TesterPackage.ps1 prints it too), when the first tester
-    // package with BFK4 ships, and from then this table is never regenerated in place
     inline constexpr GoldenTable kTables[] = {
-        { 1, "595ab0076f8d450d", kFilesV1, std::size(kFilesV1), kLinesV1, std::size(kLinesV1), "" },
+        { 1, "595ab0076f8d450d", kFilesV1, std::size(kFilesV1), kLinesV1, std::size(kLinesV1) },
+    };
+
+    // ---- released pins: one row per version a tester package shipped with, never printed by --print-golden (so a pasted
+    // table cannot overwrite one) and never removed. Version 1 is not pinned yet. Procedure (Make-TesterPackage.ps1 refuses
+    // a builder whose kBuilderOutputVersion has no row here and prints the row to add): run --self-test, add the row its
+    // "NOTE golden table v<n> fnv64 <hex>" line gives ({ <n>, "<hex>" },), commit, build Release again, package
+    inline constexpr std::initializer_list<ReleasedPin> kReleasedPins = {
     };
 }

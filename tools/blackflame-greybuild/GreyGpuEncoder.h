@@ -24,8 +24,12 @@
 //               strikes for the next start). A marker that names another adapter or driver is dropped with its strikes;
 //               one that exists but does not read counts as one strike and is left in place (its count is not lost).
 //               gpu.disabled is cleared, with any marker, only at a start whose adapter (description, ids, driver
-//               version) or output identity differs; one that exists but does not read, or lacks a field, keeps the
-//               GPU off and is never deleted. A CPU run (GpuUse::kOff) never reads or writes a marker
+//               version) or output identity differs and only when it is whole (both fields there and non-empty, the
+//               output a valid identity); one that exists but does not read, or is malformed, keeps the GPU off and is
+//               never deleted; a stale one that cannot be removed keeps the GPU off for that run. Both files are written
+//               to <file>.tmp, flushed, and renamed over the file (MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH):
+//               a failed write leaves no partial marker (the temp file is removed; a start removes a leftover one). A
+//               CPU run (GpuUse::kOff) never reads or writes a marker
 //   re-creation after a release for memory the device is made again at most once a run (kGpuMaxDevicesPerRun); after
 //               the throttle, never
 //   output      each GPU result is decoded and compared with the grey image on every subresource (CheckGpuOutput):
@@ -121,8 +125,12 @@ namespace GreyBuild
     /// The markers' file I/O; an empty function is the real one (the self-test's seam for read and write failures)
     struct MarkerIo
     {
+        /// The real write's first step: the bytes into <marker>.tmp (true: all written); the rename over the marker follows
+        using WriteTemp = std::function<bool(const std::filesystem::path& a_temp, const std::string& a_text, std::string& a_why)>;
+
         std::function<MarkerText(const std::filesystem::path&)> read;
-        std::function<bool(const std::filesystem::path&, const std::string&, std::string&)> write;
+        std::function<bool(const std::filesystem::path&, const std::string&, std::string&)> write;  // the whole write replaced
+        WriteTemp writeTemp;  // only the temp file step replaced (a write that fails part way): the real rename and cleanup run
     };
 
     /// The crash marker's state machine on a staging folder (header comment), apart from any device
