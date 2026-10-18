@@ -78,6 +78,10 @@ namespace GreyBuild::SelfTest
     /// CPU's result; INFO, not FAIL, without a hardware device)
     void CheckGpu(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_goldenDir);
 
+    /// This Windows has WARP for the encoder (d3d10warp.dll in System32 and DXGI 1.4); a_what says which part is there
+    /// or missing. The key-mode throttle test uses it to tell "no WARP here" from a broken run
+    [[nodiscard]] bool WarpAvailable(std::string& a_what);
+
     /// --self-test --print-golden: the fixture's run, printed as the table source for kBuilderOutputVersion. Returns 0/1.
     [[nodiscard]] int PrintGolden(const std::filesystem::path& a_dir, const std::filesystem::path& a_goldenDir);
 }

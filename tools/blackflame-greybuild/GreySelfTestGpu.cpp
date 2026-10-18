@@ -717,6 +717,11 @@ namespace GreyBuild::SelfTest
         }
     }
 
+    bool WarpAvailable(std::string& a_what)
+    {
+        return WarpExpected(a_what);
+    }
+
     void CheckGpu(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_goldenDir)
     {
         try {

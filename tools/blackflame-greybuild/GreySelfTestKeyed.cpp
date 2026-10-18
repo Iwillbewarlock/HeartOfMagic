@@ -698,29 +698,37 @@ namespace GreyBuild::SelfTest
             };
             constexpr std::string_view kThrottled = "THROTTLE the publish window closed";
             constexpr std::string_view kDeviceMade = "GPU   device made";
+            // WARP is established on its own, not from the control run: an inverted event check would throttle the control
+            // run and leave it without a device, which must FAIL here, never read as "no WARP" (Codex review)
+            std::string warpWhat;
+            const bool warp = WarpAvailable(warpWhat);
             int controlExit = -1;
             const auto control = run(MakeFixture(a_dir, "throttle-unset", a_sourceNif, Variant::kBc7), controlExit);
-            if (control.find("devices made 1") == std::string::npos) {
-                std::cout << "INFO throttle run: the control run made no WARP device (no WARP here: the GPU checks say so), the "
-                             "throttle's wiring is not checked\n";
-                return;
+            a_check.Check(controlExit == 0 && control.find(kThrottled) == std::string::npos,
+                fmt::format("throttle run: with the event unset the run prints no THROTTLE line (exit {})", controlExit));
+            if (warp) {
+                a_check.Check(control.find("devices made 1") != std::string::npos && control.find(kDeviceMade) != std::string::npos,
+                    fmt::format("throttle run: with the event unset the run makes a WARP device for its BC7 texture ({})", warpWhat));
+            } else {
+                std::cout << fmt::format("INFO throttle run: no WARP here ({}): the device side of the throttle is not checked; the "
+                                         "THROTTLE line and OpenMP still are\n", warpWhat);
             }
-            a_check.Check(controlExit == 0 && control.find(kThrottled) == std::string::npos && control.find(kDeviceMade) != std::string::npos,
-                fmt::format("throttle run: with the event unset the run makes a WARP device for its BC7 texture and prints no THROTTLE "
-                            "line (exit {})", controlExit));
             (void)::SetEvent(event);
             int throttledExit = -1;
             const auto throttled = run(MakeFixture(a_dir, "throttle-set", a_sourceNif, Variant::kBc7), throttledExit);
             const int threads = ::omp_get_max_threads();
             const auto at = throttled.find(kThrottled);
-            const auto summary = throttled.find("gpu    ");
-            a_check.Check(throttledExit == 0 && at != std::string::npos && throttled.find(kDeviceMade) == std::string::npos &&
-                              summary != std::string::npos && summary > at &&
-                              throttled.find("devices made 0", summary) != std::string::npos &&
-                              throttled.find("stopped:", summary) != std::string::npos && threads == 1,
-                fmt::format("throttle run: with the event set the THROTTLE line comes before the first object, no GPU device is made "
-                            "after it (the summary: devices made 0, stopped) and OpenMP runs on {} thread(s) (exit {})", threads,
-                    throttledExit));
+            a_check.Check(throttledExit == 0 && at != std::string::npos && threads == 1,
+                fmt::format("throttle run: with the event set the THROTTLE line is printed and OpenMP runs on {} thread(s) (exit {})",
+                    threads, throttledExit));
+            if (warp) {
+                const auto summary = throttled.find("gpu    ");
+                a_check.Check(throttled.find(kDeviceMade) == std::string::npos && summary != std::string::npos && summary > at &&
+                                  throttled.find("devices made 0", summary) != std::string::npos &&
+                                  throttled.find("stopped:", summary) != std::string::npos,
+                    "throttle run: with the event set the THROTTLE line comes before the first object and no GPU device is made after "
+                    "it (the summary: devices made 0, stopped)");
+            }
         }
     }
 
