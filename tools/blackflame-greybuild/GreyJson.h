@@ -17,8 +17,12 @@ namespace GreyBuild
 {
     /// The "addons" and "models" of a request object (version 1 file, or the version 3 forms request). An index listed
     /// twice fails, or with a_duplicates set is a line there (the later record kept: the later file in the load order).
+    /// a_readModels false (request v5): "models" is not read (v5 has none: CopyContract.h CC::Request, CopyRequestV5.cpp).
+    /// a_lenientModels (the key mode's route, --staging, with a_duplicates set): an ADDN whose model is no mesh path keeps
+    /// its index with no model and a line in a_duplicates (that route reads only the indices; the DLL lists every ADDN of
+    /// the load order, CopyRequestData AddonsJson). Every other route still refuses it: --out plans from the models.
     [[nodiscard]] Request ParseRequest(const std::filesystem::path& a_file, const nlohmann::json& a_root,
-        std::vector<std::string>* a_duplicates = nullptr);
+        std::vector<std::string>* a_duplicates = nullptr, bool a_readModels = true, bool a_lenientModels = false);
 }
 
 namespace GreyBuild::Json

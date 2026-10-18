@@ -63,8 +63,10 @@ namespace GreyBuild
             return a_value.get<double>();
         }
 
+        // a_nullWarnings set (key mode, which does not use the values): a null value - nlohmann writes a NaN or infinite
+        // float of the DLL's as null - is a line there and left out, not a refused request
         [[nodiscard]] std::map<std::string, double> ReadData(const std::filesystem::path& a_file,
-            const nlohmann::json& a_item, CopyType a_type, const std::string& a_where)
+            const nlohmann::json& a_item, CopyType a_type, const std::string& a_where, std::vector<std::string>* a_nullWarnings)
         {
             std::map<std::string, double> data;
             if (!a_item.contains("data")) {
@@ -79,7 +81,9 @@ namespace GreyBuild
                 if (std::find(keys.begin(), keys.end(), key) == keys.end()) {
                     Json::Fail(a_file, fmt::format("{}: data key '{}' is not a {} field", a_where, key, CopyTypeTag(a_type)));
                 }
-                if (key == "projectileType") {
+                if (value.is_null() && a_nullWarnings) {
+                    a_nullWarnings->push_back(fmt::format("{}: data '{}' is null (not a finite number): left out", a_where, key));
+                } else if (key == "projectileType") {
                     data[key] = ProjectileTypeValue(a_file, value, a_where);
                 } else if (value.is_number()) {
                     data[key] = value.get<double>();
@@ -112,9 +116,11 @@ namespace GreyBuild
         }
 
         // v3: the game's parts of the request (addons and models, fingerprint, excluded, the NIFs it could not read)
-        void ReadGameParts(const std::filesystem::path& a_file, const nlohmann::json& a_root, FormsRequest& a_request, bool a_keyed)
+        void ReadGameParts(const std::filesystem::path& a_file, const nlohmann::json& a_root, FormsRequest& a_request, bool a_keyed,
+            bool a_keyRoute)
         {
-            a_request.addons = ParseRequest(a_file, a_root, &a_request.warnings);
+            // v5 (key mode) has no "models": the run 2 builder refused the DLL's request on it (2026-10-18)
+            a_request.addons = ParseRequest(a_file, a_root, &a_request.warnings, !a_keyed, a_keyRoute);
             a_request.fingerprint = Json::ReadString(a_file, a_root, "fingerprint", "the request");
             a_request.fingerprintSizes = Json::ReadOptionalString(a_file, a_root, "fingerprintSizes", "the request");
             a_request.game = Json::ReadOptionalString(a_file, a_root, "game", "the request");
@@ -210,7 +216,7 @@ namespace GreyBuild
         return LoadFormsRequestFile(a_file).forms;
     }
 
-    FormsRequest LoadFormsRequestFile(const std::filesystem::path& a_file)
+    FormsRequest LoadFormsRequestFile(const std::filesystem::path& a_file, bool a_keyRoute)
     {
         const nlohmann::json root = Json::ReadFile(a_file);
         FormsRequest request;
@@ -244,6 +250,9 @@ namespace GreyBuild
             }
             form.type = ParseType(a_file, Json::ReadString(a_file, item, "type", where), where);
             form.editorId = Json::ReadOptionalString(a_file, item, "editorId", where);
+            if (keyed && item.contains("slot")) {
+                form.slot = static_cast<int>(Json::ReadInteger(a_file, item, "slot", where, 0, UINT16_MAX));
+            }
             if (keyed && item.contains("key")) {
                 form.key = Json::ReadString(a_file, item, "key", where);
                 if (!BlackFlame::DataPathRule::IsCopyKey16(form.key)) {
@@ -283,14 +292,14 @@ namespace GreyBuild
                 Json::Fail(a_file, fmt::format("{}: a {} record has no object bounds", where, CopyTypeTag(form.type)));
             }
             form.bounds = ReadBounds(a_file, item, where);
-            form.data = ReadData(a_file, item, form.type, where);
+            form.data = ReadData(a_file, item, form.type, where, keyed && a_keyRoute ? &request.warnings : nullptr);
             out.push_back(std::move(form));
         }
         if (out.empty()) {
             Json::Fail(a_file, fromGame ? "'forms' is empty: the game found no fire spell forms to copy" : "'forms' is empty");
         }
         if (fromGame) {
-            ReadGameParts(a_file, root, request, keyed);
+            ReadGameParts(a_file, root, request, keyed, keyed && a_keyRoute);
         }
         return request;
     }

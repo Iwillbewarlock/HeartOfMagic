@@ -7,7 +7,7 @@
 //                      checked by VerifyKeyPrefix when the run starts (GreyKeyedRun.cpp: it needs the exe and the dump)
 //   "muzzles"          [{ path, key }]
 //   "addnMps"          [{ slot, path, key[, index] }]: slot an ADDN slot's local id (0xF00-0xFCF)
-//   "txst"             [{ slot, key, dodt }]: matched to the TXST form with that forms[].key
+//   "txst"             [{ slot, key, dodt }]: matched to the TXST form with that forms[].slot
 // A key is 16 lower-case hex digits. Anything malformed refuses the request (the DLL wrote it; nothing is guessed).
 
 #include "GreyKeyed.h"
@@ -96,12 +96,33 @@ namespace GreyBuild
         {
             std::map<std::uint64_t, std::size_t> byKey;
             const auto& forms = a_request.base.forms;
+            std::set<std::string> unread;  // nifs[] ok false: the game could not read them
+            for (const auto& nif : a_request.base.failedNifs) {
+                unread.insert(MeshDataPath(nif));
+            }
+            std::set<int> txstSlots;
+            for (const auto& form : forms) {
+                if (form.type != CopyType::kTextureSet || form.slot < 0) {
+                    continue;
+                }
+                if (CC::TypeOf(static_cast<std::uint32_t>(form.slot)) != CC::SlotType::kTXST || !txstSlots.insert(form.slot).second) {
+                    Json::Fail(a_file, fmt::format("forms: TXST {} has slot {}, which is no TXST slot or another TXST form's as well",
+                        form.source, form.slot));
+                }
+            }
             for (std::size_t i = 0; i < forms.size(); ++i) {
                 if (forms[i].type == CopyType::kTextureSet || forms[i].model.empty()) {
                     continue;  // a TXST is built through txst[]; a form with no model has nothing to copy
                 }
                 if (forms[i].key.empty()) {
-                    Json::Fail(a_file, fmt::format("forms: {} {} has a model and no key", CopyTypeTag(forms[i].type), forms[i].source));
+                    // the DLL keys no slot whose NIF it could not read (SlotKeys::NifKey), and none outside a usable slot
+                    // (CopyRequestV5 Forms): nothing to build, the slot stays closed (run 2, 2026-10-18: a missing NIF)
+                    a_request.warnings.push_back(fmt::format("forms: {} {} ({}) has no key: not built ({})", CopyTypeTag(forms[i].type),
+                        forms[i].source, forms[i].model,
+                        forms[i].slot < 0                   ? "no usable slot: the pool was full or the slot refused"
+                        : unread.count(forms[i].model) != 0 ? "the game could not read the NIF"
+                                                            : "the game read the NIF, yet the DLL gave it no key (SlotKeys::NifKey)"));
+                    continue;
                 }
                 AddObject(a_request, byKey, { CC::ProgressKind::kNif, *CC::ParseHex16(forms[i].key), forms[i].model }, "forms");
             }
@@ -148,13 +169,19 @@ namespace GreyBuild
                     Json::Fail(a_file, fmt::format("{}: 'dodt' must be true or false and match slot {:X} (the first 72 TXST slots carry "
                         "DODT)", where, slot));
                 }
+                // matched by its slot: the DLL writes a TXST form's slot but no key (CopyRequestV5 Forms keys only a slot's
+                // model; run 2, 2026-10-18); a key it does write must be this one
                 for (std::size_t f = 0; f < forms.size() && spec.form == kNoForm; ++f) {
-                    if (forms[f].type == CopyType::kTextureSet && forms[f].key == CC::Hex16(spec.key)) {
+                    if (forms[f].type == CopyType::kTextureSet && forms[f].slot == slot) {
                         spec.form = f;
                     }
                 }
                 if (spec.form == kNoForm) {
-                    Json::Fail(a_file, fmt::format("{}: no TXST form has the key {}", where, CC::Hex16(spec.key)));
+                    Json::Fail(a_file, fmt::format("{}: no TXST form has the slot {} (key {})", where, slot, CC::Hex16(spec.key)));
+                }
+                if (!forms[spec.form].key.empty() && forms[spec.form].key != CC::Hex16(spec.key)) {
+                    Json::Fail(a_file, fmt::format("{}: TXST form {} has the key {}, not {}", where, forms[spec.form].source,
+                        forms[spec.form].key, CC::Hex16(spec.key)));
                 }
                 AddObject(a_request, byKey, std::move(spec), where);
             }
@@ -184,7 +211,7 @@ namespace GreyBuild
     KeyedRequest LoadKeyedRequest(const std::filesystem::path& a_file)
     {
         KeyedRequest request;
-        request.base = LoadFormsRequestFile(a_file);
+        request.base = LoadFormsRequestFile(a_file, true);
         if (request.base.version != kGameRequestVersionKeyed || !request.base.addons) {
             Json::Fail(a_file, fmt::format("a version {} request: --staging (key mode) reads version {} (written by a Black Flame "
                 "DLL of the single launch); --from-game --out builds an older one in the dev mode", request.base.version,

@@ -935,23 +935,38 @@ have that fnv64), a texture `textures[]` lists as dumped (`ok`). Any other file 
 could not delete) counts as not there.
 
 Request v5 as this builder reads it (P2 writes it; every point below is a builder assumption):
-- every v4 field, read as `--from-game --out` reads it (so the dev mode builds a v5 request too);
+- every v4 field, read as `--from-game --out` reads it (so the dev mode builds a v5 request too), but no `models`: v5
+  has none (the contract names no such key, `CopyRequestV5.cpp` writes none); in key mode only, an ADDN in `addons[]`
+  whose model is no mesh path keeps its index with a warning, and a null `forms[].data` value (a NaN or infinite float
+  as nlohmann writes it) is warned and left out - the key mode reads neither, `--out` still refuses both;
 - `contractVersion` (top level) = `CopyContract::kContractVersion`, else refused;
 - `options {tint, tintAdd, paletteMode, keyPrefix}`: tints in 0..2 (QuantizedTint values);
-- `forms[].key`: a form with a model is a `nif` object at that key (a form with a model and no key is refused); a TXST
-  form's key is its TXST key;
+- `forms[].key`: a form with a model is a `nif` object at that key; a form with a model and no key (the DLL keys no NIF
+  it could not read and no form outside a usable slot) is warned, worded by the reason, and not built: its slot stays
+  closed. `forms[].slot`: a TXST form's slot (a TXST slot, one form each, else refused); a TXST form carries no key;
 - `muzzles[] {path, key}`: `nif` objects;
 - `addnMps[] {slot, path, key, index}`: an `mps` object, and its slot (an ADDN slot's local id) bound to the original
   ADDN index `index` (required since contract 4: an entry without it refuses the request);
 - `textures[].state` (required): `ok` (in the dump), `notdumped` (over a dump cap: the object is `not_dumped`), `missing`
   (does not open: a slot left, fallback), `unread` (the game opened it and its read failed: the object is `failed`, so the
   next start, which reads it again under a new key, builds it); the error text is never read;
-- `txst[] {slot, key, dodt}`: the TXST form whose `forms[].key` is `key`; `slot` must be a TXST slot and `dodt` its
-  DODT split.
+- `txst[] {slot, key, dodt}`: the TXST form whose `forms[].slot` is `slot` (a key on that form, if any, must be `key`);
+  `slot` must be a TXST slot and `dodt` its DODT split.
 - A NIF object `nifs[]` does not list (with its fnv64, or ok false; paths compared after `MeshDataPath`) is warned and that
   object alone gets a `failed` line, so one slip of the DLL does not block every build.
-- Refused as the DLL's mistakes (exit 2): a txst key no TXST form has, one key for two objects, an ADDN index or slot bound twice or in no `addons[]` record, an `ok` `nifs[]`
-  entry whose fnv64 does not parse.
+- Refused as the DLL's mistakes (exit 2): a txst slot no TXST form has, a TXST form key that is not its entry's, two
+  TXST forms on one slot, one key for two objects, an ADDN index or slot bound twice or in no `addons[]` record, an `ok`
+  `nifs[]` entry whose fnv64 does not parse.
+
+Checked offline (2026-10-18, after in-game run 2): run 2's builder refused the request the DLL really wrote three times
+in a row (`'models' must be an array`; then a form with a model and no key, 4 IPCT whose NIF is missing from the load
+order; then `no TXST form has the key`, the DLL writing only `slot` on TXST forms) - the self-test's hand-written v5
+fixture had all three. The fixture now has the DLL's shape (slots on every form, a mixed-case model path, a TXST with
+`model ""`, `texturesRaw` and `data.flags`, a keyless IPCT whose NIF is ok false, an IPCT with no model, an `excluded`
+entry with no source) and every rule above has a test (builder self-test 381 pass, cosave-check 222). The real run 2 request, built by a
+throwaway builder carrying the old exe's fnv64 (so the keys match), ran end to end: 495 objects, 485 ok, 10 fallback,
+0 failed, 259 s; a checker compiled against `CopyContractProgress.h` read all 775 progress lines and matched every
+staged file and dep (size and fnv64), and every key the request asked for has a line.
 
 Objects and their lines (`progress.jsonl`, the contract's writer only):
 

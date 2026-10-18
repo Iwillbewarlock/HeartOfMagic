@@ -166,22 +166,24 @@ namespace GreyBuild::SelfTest
                 listed += fmt::format(R"(,{{"path":"{}","size":1,"ok":true,"state":"ok"}})", Escape(kSourcePalette));
             }
             const std::string request = fmt::format(R"({{"version":{},"contractVersion":{},"game":"1.6.1170.0","fingerprint":"fnv64:00000000000000ab",
-"copiesPlugin":"HeartOfMagic_BlackFlame_Slots.esp","dumpComplete":true,"decalTextureSets":true,
+"slotsPlugin":"HeartOfMagic_BlackFlame_Slots.esp","dumpComplete":true,"decalTextureSets":true,
 "options":{{"tint":{},"tintAdd":0.9,"paletteMode":"derived","keyPrefix":"{}"}},
 "forms":[
- {{"source":"Skyrim.esm|012FCF","type":"PROJ","model":"magic\\keyed.nif","muzzleModel":"magic\\plain.nif","bounds":[0,0,0,0,0,0],"data":{{}},"key":"{}"}},
- {{"source":"Skyrim.esm|012FD0","type":"PROJ","model":"magic\\plain.nif","bounds":[0,0,0,0,0,0],"data":{{}},"key":"{}"}},
- {{"source":"Skyrim.esm|0ABCDE","type":"TXST","textures":["effects\\decal.dds","","","","","","",""],"hasDecal":true,"bounds":[0,0,0,0,0,0],"data":{{}},"key":"{}"}}],
+ {{"source":"Skyrim.esm|012FCF","type":"PROJ","editorId":"","model":"Magic\\Keyed.nif","muzzleModel":"magic\\plain.nif","bounds":[0,0,0,0,0,0],"data":{{}},"viaSpell":"Skyrim.esm|012FCE","costliest":true,"slot":2048,"key":"{}"}},
+ {{"source":"Skyrim.esm|012FD0","type":"PROJ","editorId":"","model":"magic\\plain.nif","muzzleModel":"","bounds":[0,0,0,0,0,0],"data":{{}},"viaSpell":"Skyrim.esm|012FCE","costliest":true,"slot":2049,"key":"{}"}},
+ {{"source":"Skyrim.esm|0ABCDE","type":"TXST","editorId":"DecalRuneFire","model":"","bounds":[0,0,0,0,0,0],"data":{{"flags":0}},"hasDecal":true,"textures":["Effects\\Decal.dds","","","","","","",""],"texturesRaw":["456666656374735C446563616C2E646473","","","","","","",""],"viaSpell":"Skyrim.esm|012FCE","costliest":true,"slot":3744}},
+ {{"source":"Skyrim.esm|0ABCE0","type":"IPCT","editorId":"","model":"magic\\missing.nif","data":{{"flags":1}},"viaSpell":"Skyrim.esm|012FCE","costliest":true,"slot":2600}},
+ {{"source":"Skyrim.esm|0ABCE1","type":"IPCT","editorId":"","model":"","data":{{"flags":1}},"viaSpell":"Skyrim.esm|012FCE","costliest":true,"slot":2601}}],
 "muzzles":[{{"path":"magic\\plain.nif","key":"{}"}}],
 "addnMps":[{{"slot":{},"path":"mps\\a.nif","key":"{}","index":9}}],
 "txst":[{{"slot":3744,"key":"{}","dodt":true}}],
 "addons":[{{"index":9,"model":"mps\\a.nif","source":"Skyrim.esm|000009","masterParticleCap":0,"dnamFlags":1,"own":false}},
  {{"index":40001,"model":"x\\collide.nif","source":"Other.esp|000801","own":false}}],
-"models":[],
-"nifs":[{{"path":"meshes\\magic\\keyed.nif","size":1,"fnv64":"{}","ok":true}},{{"path":"meshes\\magic\\plain.nif","size":1,"fnv64":"{}","ok":true}},
+"nifs":[{{"path":"meshes\\magic\\missing.nif","size":0,"fnv64":"0000000000000000","ok":false,"error":"does not open"}},
+ {{"path":"meshes\\magic\\keyed.nif","size":1,"fnv64":"{}","ok":true}},{{"path":"meshes\\magic\\plain.nif","size":1,"fnv64":"{}","ok":true}},
  {{"path":"meshes\\mps\\a.nif","size":1,"fnv64":"{}","ok":true}}],
 "textures":[{{"path":"{}","size":1,"ok":true,"state":"ok","own":true}},{{"path":"{}","size":1,"ok":true,"state":"ok","own":true}},{}{}],
-"excluded":[]}})", a_version, CC::kContractVersion, a_tint, Escape(Prefix(dump, 0.6, exe)), CC::Hex16(kModel), CC::Hex16(kPlain), CC::Hex16(kTxst),
+"excluded":[{{"source":"","type":"IPCT","reason":"no defining file"}}]}})", a_version, CC::kContractVersion, a_tint, Escape(Prefix(dump, 0.6, exe)), CC::Hex16(kModel), CC::Hex16(kPlain),
                 CC::Hex16(kMuzzle), kSlot, CC::Hex16(kMps), CC::Hex16(kTxst), CC::Hex16(Fnv(dump / "meshes/magic/keyed.nif")),
                 CC::Hex16(Fnv(dump / "meshes/magic/plain.nif")), CC::Hex16(Fnv(dump / "meshes/mps/a.nif")),
                 Escape(std::string(Rule::kOurPalette)), Escape(std::string(Rule::kOurPaletteAdd)), fxEntry, listed);
@@ -241,7 +243,7 @@ namespace GreyBuild::SelfTest
                               kinds(CC::ProgressKind::kTxst) == 1 && request.objects.back().form == 2 && request.addnSlots.size() == 1 &&
                               request.addnSlots.at(9) == kSlotIndex && request.nifHashes.count("meshes\\magic\\keyed.nif") == 1 &&
                               request.base.forms[0].key == CC::Hex16(kModel) && request.tint == 0.6,
-                fmt::format("request v5: 3 NIFs (2 models, 1 muzzle), 1 MPS bound 9 -> 40012, 1 TXST by its key; forms keyed ({} objects)",
+                fmt::format("request v5: 3 NIFs (2 models, 1 muzzle), 1 MPS bound 9 -> 40012, 1 TXST by its slot; forms keyed ({} objects)",
                     request.objects.size()));
             const auto refuses = [&](const std::string& a_name, double a_tint, int a_version) {
                 try {
@@ -273,25 +275,36 @@ namespace GreyBuild::SelfTest
                 refused = true;
             }
             a_check.Check(refused, "request v5: an addnMps entry without its source ADDN index is refused (no guess by model path)");
-            const auto refusedText = [&](const std::string& a_name, std::string a_text) {
+            // a_why set: refused for that reason, not for another one on the way (agy round 2)
+            const auto refusedText = [&](const std::string& a_name, std::string a_text, const char* a_why = nullptr) {
                 Write(a_dir / a_name / "request.json", a_text);
                 try {
                     (void)LoadKeyedRequest(a_dir / a_name / "request.json");
                     return false;
-                } catch (const std::runtime_error&) {
-                    return true;
+                } catch (const std::runtime_error& e) {
+                    return !a_why || std::string(e.what()).find(a_why) != std::string::npos;
                 }
             };
             auto unlisted = ReadAll(fixture.folder / "request.json");
             const std::string keyedNif = R"({"path":"meshes\\magic\\keyed.nif")";
             unlisted.replace(unlisted.find(keyedNif), keyedNif.size(), R"({"path":"meshes\\magic\\other.nif")");
+            // the TXST form is found by its slot (the DLL writes no key on it): another slot, or a key of its own that is
+            // not the txst entry's, is refused
+            const std::string txstForm = R"("slot":3744},)";
             auto noForm = ReadAll(fixture.folder / "request.json");
-            const std::string txstKey = fmt::format("\"slot\":3744,\"key\":\"{}\"", CC::Hex16(kTxst));
-            noForm.replace(noForm.find(txstKey), txstKey.size(), "\"slot\":3744,\"key\":\"9999999999999999\"");
+            noForm.replace(noForm.find(txstForm), txstForm.size(), R"("slot":3745},)");
+            auto otherKey = ReadAll(fixture.folder / "request.json");
+            otherKey.replace(otherKey.find(txstForm), txstForm.size(), R"("slot":3744,"key":"9999999999999999"},)");
             auto badDodt = ReadAll(fixture.folder / "request.json");
             badDodt.replace(badDodt.find("\"dodt\":true"), std::string("\"dodt\":true").size(), "\"dodt\":false");
-            a_check.Check(refusedText("req_noform", noForm) && refusedText("req_dodt", badDodt),
-                "request v5: a txst key no TXST form has and a dodt that is not its slot's are refused");
+            a_check.Check(refusedText("req_noform", noForm, "no TXST form has the slot") &&
+                              refusedText("req_otherkey", otherKey, "has the key 9999999999999999") &&
+                              refusedText("req_dodt", badDodt, "'dodt' must be"),
+                "request v5: a txst slot no TXST form has, a TXST form key that is not its entry's and a dodt that is not its "
+                "slot's are refused");
+            auto sameKey = ReadAll(fixture.folder / "request.json");
+            sameKey.replace(sameKey.find(txstForm), txstForm.size(), fmt::format(R"("slot":3744,"key":"{}"}},)", CC::Hex16(kTxst)));
+            a_check.Check(!refusedText("req_samekey", sameKey), "request v5: a TXST form that carries its entry's own key is read");
             Write(a_dir / "req_unlisted" / "request.json", unlisted);
             bool warned = false;
             try {
@@ -303,6 +316,104 @@ namespace GreyBuild::SelfTest
                 warned = false;
             }
             a_check.Check(warned, "request v5: a NIF nifs[] does not list is warned, not refused (its object fails alone)");
+            // a form with a model and no key is left out with a warning, not a refused request: the fixture's IPCT, whose NIF the
+            // game could not read (run 2, 2026-10-18), and a read NIF that lost its key (worded apart: a DLL slip); the IPCT with
+            // no model is neither an object nor a warning
+            bool unreadSkipped = false;
+            try {
+                const auto read = LoadKeyedRequest(fixture.folder / "request.json");
+                const auto lines = [&](const char* a_text) {
+                    return std::count_if(read.warnings.begin(), read.warnings.end(),
+                        [&](const std::string& a_line) { return a_line.find(a_text) != std::string::npos; });
+                };
+                unreadSkipped = std::none_of(read.objects.begin(), read.objects.end(),
+                                    [](const KeyedSpec& a_spec) { return a_spec.source.find("missing.nif") != std::string::npos; }) &&
+                                lines("has no key") == 1 && lines("0ABCE0") == 1 && lines("could not read the NIF") == 1 &&
+                                lines("0ABCE1") == 0;
+            } catch (const std::runtime_error&) {
+                unreadSkipped = false;
+            }
+            a_check.Check(unreadSkipped, "request v5: a form whose NIF the game could not read has no key: warned and not built");
+            auto keyless = ReadAll(fixture.folder / "request.json");
+            const std::string plainKey = fmt::format(R"("slot":2049,"key":"{}"}})", CC::Hex16(kPlain));
+            keyless.replace(keyless.find(plainKey), plainKey.size(), R"("slot":2049})");
+            Write(a_dir / "req_keyless" / "request.json", keyless);
+            bool skipped = false;
+            try {
+                const auto read = LoadKeyedRequest(a_dir / "req_keyless" / "request.json");
+                skipped = std::none_of(read.objects.begin(), read.objects.end(),
+                              [&](const KeyedSpec& a_spec) { return a_spec.key == kPlain; }) &&
+                          std::any_of(read.warnings.begin(), read.warnings.end(),
+                              [](const std::string& a_line) { return a_line.find("yet the DLL gave it no key") != std::string::npos; });
+            } catch (const std::runtime_error&) {
+                skipped = false;
+            }
+            a_check.Check(skipped, "request v5: a read NIF's form with no key is warned (as the DLL's slip) and not built, not refused");
+            auto slotless = ReadAll(fixture.folder / "request.json");
+            const std::string missingSlot = R"("costliest":true,"slot":2600})";
+            slotless.replace(slotless.find(missingSlot), missingSlot.size(), R"("costliest":true})");
+            Write(a_dir / "req_slotless" / "request.json", slotless);
+            bool slotlessWarned = false;
+            try {
+                const auto read = LoadKeyedRequest(a_dir / "req_slotless" / "request.json");
+                slotlessWarned = std::any_of(read.warnings.begin(), read.warnings.end(),
+                    [](const std::string& a_line) { return a_line.find("0ABCE0") != std::string::npos && a_line.find("no usable slot") != std::string::npos; });
+            } catch (const std::runtime_error&) {
+                slotlessWarned = false;
+            }
+            a_check.Check(slotlessWarned, "request v5: a keyless form with no slot is worded as one the pool could not take");
+            // two TXST forms on one slot, or a TXST form on a slot of another type, is the DLL's mistake: refused
+            const std::string lastForm = R"("slot":2601})";
+            auto twoOnSlot = ReadAll(fixture.folder / "request.json");
+            twoOnSlot.replace(twoOnSlot.find(lastForm), lastForm.size(), R"("slot":2601},
+ {"source":"Skyrim.esm|0ABCE2","type":"TXST","editorId":"","model":"","bounds":[0,0,0,0,0,0],"data":{"flags":0},"hasDecal":true,"textures":["","","","","","","",""],"texturesRaw":["","","","","","","",""],"slot":3744})");
+            auto wrongType = ReadAll(fixture.folder / "request.json");
+            wrongType.replace(wrongType.find(txstForm), txstForm.size(), R"("slot":2602},)");
+            a_check.Check(refusedText("req_twoslot", twoOnSlot, "another TXST form's as well") &&
+                              refusedText("req_wrongtype", wrongType, "which is no TXST slot"),
+                "request v5: two TXST forms on one slot and a TXST form on a slot that is no TXST slot are refused");
+            // the key mode reads no ADDN model and no data value: another mod's ADDN with no mesh model, and a NaN or infinite
+            // float the DLL's JSON writes as null, are warned and the request is read (one odd record never blocks every build)
+            auto odd = ReadAll(fixture.folder / "request.json");
+            const std::string collide = R"("model":"x\\collide.nif")";
+            odd.replace(odd.find(collide), collide.size(), R"("model":"")");
+            const std::string flags = R"("data":{"flags":0})";
+            odd.replace(odd.find(flags), flags.size(), R"("data":{"flags":null})");
+            Write(a_dir / "req_odd" / "request.json", odd);
+            bool oddRead = false;
+            try {
+                const auto read = LoadKeyedRequest(a_dir / "req_odd" / "request.json");
+                const auto has = [&](const char* a_text) {
+                    return std::any_of(read.warnings.begin(), read.warnings.end(),
+                        [&](const std::string& a_line) { return a_line.find(a_text) != std::string::npos; });
+                };
+                oddRead = has("its index kept, no model") && has("is null (not a finite number)") &&
+                          read.base.addons->addons.count(40001) == 1 && read.objects.size() == 5;
+            } catch (const std::runtime_error&) {
+                oddRead = false;
+            }
+            a_check.Check(oddRead, "request v5: an ADDN with no mesh model and a null data value are warned, the request read");
+            auto nullModel = ReadAll(fixture.folder / "request.json");
+            nullModel.replace(nullModel.find(collide), collide.size(), R"("model":null)");
+            a_check.Check(refusedText("req_nullmodel", nullModel, "must be a string"),
+                "request v5: an ADDN model that is no string is refused in the key mode too");
+            // only the key mode's route is lenient: --out writes the data values and plans from the ADDN models (Codex round 2)
+            const auto outRefuses = [&](const std::string& a_name, const std::string& a_text) {
+                Write(a_dir / a_name / "request.json", a_text);
+                try {
+                    (void)LoadFormsRequestFile(a_dir / a_name / "request.json");
+                    return false;
+                } catch (const std::runtime_error&) {
+                    return true;
+                }
+            };
+            auto nullOnly = ReadAll(fixture.folder / "request.json");
+            nullOnly.replace(nullOnly.find(flags), flags.size(), R"("data":{"flags":null})");
+            auto addnOnly = ReadAll(fixture.folder / "request.json");
+            addnOnly.replace(addnOnly.find(collide), collide.size(), R"("model":"")");
+            a_check.Check(outRefuses("req_out_null", nullOnly) && outRefuses("req_out_addn", addnOnly) &&
+                              !outRefuses("req_out_plain", ReadAll(fixture.folder / "request.json")),
+                "request v5 outside the key mode (--out): a null data value and an ADDN with no mesh model are refused");
         }
 
         void CheckFirstRuns(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_sourceNif)

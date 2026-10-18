@@ -147,7 +147,9 @@ namespace GreyBuild
         std::array<std::string, kTxstSlots> textures{};
         std::array<std::string, kTxstSlots> textureNames{};
         bool hasDecal = false;  // TXST: the source has DODT (the copy's DODT is a stub the DLL fills)
-        std::string key;        // request v5: its model's key16 (a TXST form: its TXST key); "" in older requests
+        std::string key;        // request v5: its model's key16 ("" when the DLL gave none; a TXST form has none, it is
+                                // found by its slot, and a key it does carry must be its txst[] entry's); "" in older requests
+        int slot = -1;          // request v5: the slot the DLL gave it (forms[].slot), -1 when none or an older request
     };
 
     /// The scalar keys a type's "data" may hold (unknown keys are refused, missing ones are 0)
@@ -183,9 +185,12 @@ namespace GreyBuild
         bool dumpComplete = true;              // AC1: the request's "dumpComplete" (absent: true)
     };
 
-    /// Reads and validates a forms request: version 2 (forms only) or 3 (the DLL's: also addons, models, nifs,
-    /// fingerprint, excluded). Throws std::runtime_error naming what is wrong.
-    [[nodiscard]] FormsRequest LoadFormsRequestFile(const std::filesystem::path& a_file);
+    /// Reads and validates a forms request: version 2 (forms only), 3 and 4 (the DLL's: also addons, models, nifs,
+    /// fingerprint, excluded) or 5 (the single launch's: no models; forms carry slot and key). Throws std::runtime_error
+    /// naming what is wrong.
+    /// a_keyRoute: read for the key mode's run (--staging), which uses no ADDN model and no data value: an ADDN with no
+    /// mesh model and a null data value are warnings there, refusals on every other route (--out writes them into the ESL)
+    [[nodiscard]] FormsRequest LoadFormsRequestFile(const std::filesystem::path& a_file, bool a_keyRoute = false);
 
     /// A request's or map's "excluded" list (absent: none)
     [[nodiscard]] std::vector<ExcludedForm> ReadExcludedForms(const std::filesystem::path& a_file, const nlohmann::json& a_root);

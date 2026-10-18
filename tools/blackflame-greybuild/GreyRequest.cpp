@@ -128,7 +128,8 @@ namespace GreyBuild
         return ParseRequest(a_file, root);
     }
 
-    Request ParseRequest(const std::filesystem::path& a_file, const nlohmann::json& a_root, std::vector<std::string>* a_duplicates)
+    Request ParseRequest(const std::filesystem::path& a_file, const nlohmann::json& a_root, std::vector<std::string>* a_duplicates,
+        bool a_readModels, bool a_lenientModels)
     {
         const auto& root = a_root;
         Request request;
@@ -141,8 +142,16 @@ namespace GreyBuild
             }
             RequestAddon addon;
             addon.index = Json::ReadIndex(a_file, item, "index", where);
-            addon.model = Json::CheckedPath(a_file, MeshDataPath(Json::ReadString(a_file, item, "model", where)),
-                kMeshesRoot, where);
+            const std::string rawModel = Json::ReadString(a_file, item, "model", where);  // a string always (agy round 2)
+            if (a_lenientModels && a_duplicates) {
+                try {
+                    addon.model = Json::CheckedPath(a_file, MeshDataPath(rawModel), kMeshesRoot, where);
+                } catch (const std::runtime_error& e) {
+                    a_duplicates->push_back(fmt::format("{} (its index kept, no model)", e.what()));
+                }
+            } else {
+                addon.model = Json::CheckedPath(a_file, MeshDataPath(rawModel), kMeshesRoot, where);
+            }
             addon.editorId = Json::ReadOptionalString(a_file, item, "editorId", where);
             addon.source = Json::ReadOptionalString(a_file, item, "source", where);
             addon.masterParticleCap = Json::ReadU16(a_file, item, "masterParticleCap", where, 0);
@@ -156,6 +165,9 @@ namespace GreyBuild
                     where, addon.index, request.addons[addon.index].source, addon.source));
                 request.addons[addon.index] = addon;
             }
+        }
+        if (!a_readModels) {
+            return request;
         }
         const auto& models = Json::RequireArray(a_file, root, "models");
         std::set<std::string> seen;
