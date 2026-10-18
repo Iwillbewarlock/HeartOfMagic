@@ -63,8 +63,8 @@ namespace BlackFlame::SlotAssign
     };
 
     /// kDataLoaded (singleLaunch), after SlotLedger::Load and SlotKeys::Read: assign, fill, gates closed, keys, the copies
-    /// table. False: no slots this session (the reason logged)
-    bool AssignAndFill(const FireClosure& a_closure, const SlotKeys::Inputs& a_inputs);
+    /// table. False: no slots this session (the reason logged; a_offWhy gets it in plain words for the player's HUD line)
+    bool AssignAndFill(const FireClosure& a_closure, const SlotKeys::Inputs& a_inputs, std::string& a_offWhy);
 
     /// The slot route filled its table this session
     [[nodiscard]] bool Active() noexcept;

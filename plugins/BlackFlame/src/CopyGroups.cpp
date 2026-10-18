@@ -344,7 +344,8 @@ namespace BlackFlame::CopyGroups
             }
             if (!MenuWatch::DrainMayPublish()) {
                 a_state.stopped = true;
-                logger::info("BlackFlame: slots: publication stopped ({})", MenuWatch::CloseReason());
+                logger::info("BlackFlame: slots: publication stopped ({})",
+                    MenuWatch::PublishOpen() ? "no main-thread proof: " + MenuWatch::ProofText() : MenuWatch::CloseReason());
                 return;
             }
             if (const auto generation = BuildProgress::Generation(); generation != a_state.generation) {
@@ -404,7 +405,8 @@ namespace BlackFlame::CopyGroups
     void Start()
     {
         auto& state = TheState();
-        state.canVerify = MenuWatch::MainThreadProven();
+        // the proof is made in the first drain (MenuWatch.h): planned for when it can still be made; a refusal there stops the stepper
+        state.canVerify = MenuWatch::DrainsMayProve();
         state.stopped = !state.canVerify;  // review agy 3: no drain will step, so the progress is settled after kDataLoaded
         BuildGroups(state);
         state.generation = BuildProgress::Generation();
@@ -421,7 +423,7 @@ namespace BlackFlame::CopyGroups
         UpdateProgress(state);
         logger::info("BlackFlame: slots: {} groups, {} opened at kDataLoaded from their last published generations; {}", state.groups.size(),
             opened, state.canVerify ? "the rest are published on the main thread as they are verified" :
-                                       "no main-thread proof: nothing more is published this session (" + MenuWatch::ProofText() + ")");
+                                       "no main-thread drain: nothing more is published this session (" + MenuWatch::ProofText() + ")");
         if (state.canVerify && !GetProgress().settled && !QueueTask(kTaskName, &Step)) {
             logger::warn("BlackFlame: slots: the publish stepper could not be queued: nothing more is published this session");
         }

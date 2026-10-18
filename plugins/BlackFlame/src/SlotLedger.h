@@ -5,9 +5,10 @@
 // =============================================================================
 // The DLL side of SlotLedgerModel.h / SlotLedgerFiles.h (design v3.1 "Ledger and BFSL", v3.2 §7, v3.3 #5 and #6):
 //   path      RE::BSWin32SaveDataSystemUtility::GetSingleton()->PrepareFileSavePath("HoMBF_slots.json", buf[0x104], false,
-//             false): the folder the game saves to (MO2 local saves included). CommonLib declares only the virtual (no
-//             source in its src/), so whether it adds an extension is unverified: the returned path must end with the name,
-//             else no slots this session (logged). Its folder is also where the saves' co-saves are looked for.
+//             false): the folder the game saves to (MO2 profile-local saves: __MO_Saves). It appends ".ess" (in game, 1.6.1170:
+//             "...\__MO_Saves\HoMBF_slots.json.ess"), so only its folder is taken (SlotLedgerFiles::SaveFolderFromPrepared:
+//             absolute, file name starting with the name, else no slots this session, logged) and the ledger is
+//             <folder>\HoMBF_slots.json. That folder is also where the saves' co-saves are looked for.
 //   mirror    <SKSE log folder>\HeartOfMagic_BlackFlame\HoMBF_slots.<8 hex>.json, the hash of the save folder's path (one
 //             per save folder, merged only on that folder's epoch)
 //   load      kDataLoaded: main, its 5 backups and the mirror merged (the union of reservations, conflicts refused and

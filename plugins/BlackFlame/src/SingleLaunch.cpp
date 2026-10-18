@@ -66,6 +66,17 @@ namespace BlackFlame::SingleLaunch
             }
         }
 
+        // The slot route did not start: one line at the main menu, in plain words (the log has the details)
+        void ShowRouteOff(std::string a_why)
+        {
+            if (!TheInputs().builderExeFound) {
+                a_why += "; the grey copy builder was not found either";
+            }
+            const auto line = "Black Flame: grey copies are off this session (" + a_why + ")";
+            logger::warn("BlackFlame: single launch: the slot route did not start: \"{}\" at the main menu", line);
+            MenuWatch::OnMainMenuOpen([line]() { SlotNotice::Show(line); });
+        }
+
         void OnMainMenu()
         {
             if (!TheInputs().builderExeFound) {
@@ -83,10 +94,12 @@ namespace BlackFlame::SingleLaunch
         DisableCopiesForSession({}, {});
         auto& inputs = TheInputs();
         inputs = SlotKeys::Read(a_closure);
-        if (!SlotAssign::AssignAndFill(a_closure, inputs)) {
+        std::string offWhy;
+        if (!SlotAssign::AssignAndFill(a_closure, inputs, offWhy)) {
             for (auto& nif : inputs.nifs) {
                 std::vector<std::byte>().swap(nif.bytes);  // no slots, no dump: not kept for the session
             }
+            ShowRouteOff(offWhy.empty() ? "the slots could not be set up" : offWhy);
             return;
         }
         g_routeActive.store(true);
