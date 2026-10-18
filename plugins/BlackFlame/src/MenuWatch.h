@@ -12,9 +12,11 @@
 // The close flag is atomic; every publish step re-checks it on the main thread right before SetModel and RegisterLoose. The
 // SKSE messages close it on the main thread, so no close falls inside a main-thread step; a menu event that closes it on
 // another thread (not seen: its thread is logged) is honoured from the next check on.
-// Main-thread proof (v3.3 #2), at kDataLoaded before any publish is scheduled: the drains may publish (W1 drains and W2)
-// only when MainQueue::Installed() and the kDataLoaded thread is RE::Main's threadID; otherwise this session publishes at
-// kDataLoaded itself only, and the log says why. Publication never goes through SKSE's AddTask fallback.
+// Main-thread proof (v3.3 #2, MainThreadProof.h): the drains may publish (W1 drains and W2) only when MainQueue::Installed()
+// and the first drain's thread is RE::Main's threadID, decided in the first drain that asks, before any publish step;
+// otherwise this session publishes at kDataLoaded itself only, and the log says why (both thread ids). kDataLoaded's own
+// thread is not part of it: in game (1.6.1170, MO2) it was another thread than Main's, while every drain and menu event
+// ran on Main's. Publication never goes through SKSE's AddTask fallback.
 // The sink is registered whatever the config says (DevAutomation's devAutoLoad reads the main menu's first opening from it).
 
 #include "Common.h"
@@ -32,10 +34,13 @@ namespace BlackFlame::MenuWatch
     /// proof; the publish window opens here
     void Install();
 
-    /// The kDataLoaded thread is RE::Main's thread and the main-thread queue is installed (Install decided it)
+    /// The queue is installed and its first drain ran on RE::Main's thread (made by the first drain that asks; false before)
     [[nodiscard]] bool MainThreadProven() noexcept;
 
-    /// The proof as one line ("queue installed yes, kDataLoaded thread 1234, Main::threadID 1234: drains publish")
+    /// The proof is made or still to be made (false once refused, or with no main-thread queue): kDataLoaded plans for the drains
+    [[nodiscard]] bool DrainsMayProve() noexcept;
+
+    /// The proof as one line (both thread ids and what it allows)
     [[nodiscard]] std::string ProofText();
 
     /// The publish window is open: Install ran and nothing closed it yet (any thread)

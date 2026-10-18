@@ -22,6 +22,7 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <vector>
 
@@ -41,6 +42,28 @@ namespace BlackFlame::SlotLedgerFiles
         name += "." + std::to_string(a_n);
         name += a_main.extension();
         return a_main.parent_path() / name;
+    }
+
+    /// The folder of the path PrepareFileSavePath(a_name) returned: the path must be absolute and its file name must start
+    /// with a_name (ASCII case folded) - the engine appends ".ess" (1.6.1170 in game: "...\__MO_Saves\HoMBF_slots.json.ess");
+    /// nullopt with a_why otherwise. The caller joins its own file name to the folder
+    [[nodiscard]] inline std::optional<fs::path> SaveFolderFromPrepared(std::string_view a_returned, std::string_view a_name, std::string& a_why)
+    {
+        const auto fold = [](char a_c) { return a_c >= 'A' && a_c <= 'Z' ? static_cast<char>(a_c - 'A' + 'a') : a_c; };
+        const auto slash = a_returned.find_last_of("\\/");
+        const auto file = slash == std::string_view::npos ? a_returned : a_returned.substr(slash + 1);
+        const fs::path path(a_returned);
+        if (a_returned.empty()) {
+            a_why = "it gave an empty path";
+        } else if (!path.is_absolute()) {
+            a_why = "it gave '" + std::string(a_returned) + "', which is not an absolute path";
+        } else if (a_name.empty() || file.size() < a_name.size() ||
+                   !std::equal(a_name.begin(), a_name.end(), file.begin(), [&](char a_l, char a_r) { return fold(a_l) == fold(a_r); })) {
+            a_why = "it gave '" + std::string(a_returned) + "', whose file name does not start with '" + std::string(a_name) + "'";
+        } else {
+            return path.parent_path();
+        }
+        return std::nullopt;
     }
 
     [[nodiscard]] inline std::string PathText(const fs::path& a_path)

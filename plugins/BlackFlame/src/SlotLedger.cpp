@@ -86,12 +86,18 @@ namespace BlackFlame::SlotLedger
                               std::format("PrepareFileSavePath(\"{}\") failed (error {}, path '{}')", kLedgerFileName, code, path);
                 return {};
             }
-            if (!EndsWithName(path, kLedgerFileName)) {
-                a_why = std::format("PrepareFileSavePath(\"{}\") gave '{}', which does not end with the name: refused", kLedgerFileName, path);
+            // in-game run 2026-10-18 (1.6.1170, MO2): the engine appends ".ess" ("...\__MO_Saves\HoMBF_slots.json.ess"), so only
+            // its folder is taken and our own name joined to it
+            std::string folderWhy;
+            const auto folder = SlotLedgerFiles::SaveFolderFromPrepared(path, kLedgerFileName, folderWhy);
+            if (!folder) {
+                a_why = std::format("PrepareFileSavePath(\"{}\"): {}: refused", kLedgerFileName, folderWhy);
                 return {};
             }
-            logger::info("BlackFlame: slots: PrepareFileSavePath(\"{}\") = '{}'", kLedgerFileName, path);
-            return fs::path(path);  // the system code page's bytes, as MSVC's narrow path reads them
+            auto main = *folder / kLedgerFileName;  // the system code page's bytes, as MSVC's narrow path reads them
+            logger::info("BlackFlame: slots: PrepareFileSavePath(\"{}\") = '{}': save folder '{}', ledger '{}'", kLedgerFileName, path,
+                Text(*folder), Text(main));
+            return main;
         }
 
         std::uint64_t NewEpoch()

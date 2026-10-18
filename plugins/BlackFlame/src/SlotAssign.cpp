@@ -261,18 +261,20 @@ namespace BlackFlame::SlotAssign
         void OnMismatch(const std::vector<LM::Mismatch>& a_mismatches, SlotLedger::MismatchWhen a_when);
     }
 
-    bool AssignAndFill(const FireClosure& a_closure, const SlotKeys::Inputs& a_inputs)
+    bool AssignAndFill(const FireClosure& a_closure, const SlotKeys::Inputs& a_inputs, std::string& a_offWhy)
     {
         auto& table = TheTable();
         auto* dh = RE::TESDataHandler::GetSingleton();
         if (!dh || !SlotLedger::GetStatus().available) {
             logger::warn("BlackFlame: slots: no ledger this session - no slots (every fire form stays orange)");
+            a_offWhy = "their record could not be kept beside your saves";
             return false;
         }
         const auto* file = dh->LookupModByName(kSlotsPluginName);
         // review agy 14_01 #9: a light file's partial index is 0xFExxx, never 0xFF; an unloaded file has compile index 0xFF
         if (!file || !file->IsLight() || file->compileIndex == 0xFF) {
             logger::warn("BlackFlame: slots: {} is not loaded as a light plugin - no slots this session", kSlotsPluginName);
+            a_offWhy = std::string(kSlotsPluginName) + " is not enabled";
             return false;
         }
         g_base.store(static_cast<RE::FormID>(file->GetPartialIndex()) << kLightIdShift);
