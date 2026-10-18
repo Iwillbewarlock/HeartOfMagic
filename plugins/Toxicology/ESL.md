@@ -99,8 +99,21 @@ in-world and names no menu.
 Made with a byte edit like the changes above: only those five subrecords differ from the English file, with the MGEF,
 SPEL and BOOK record sizes and their group sizes recomputed; the TES4 header and FormIDs `0x800`-`0x803` are
 byte-identical. Read back with `housecarl_records` from the dev mod folder after a `-ToxicologyKorean` deploy: the
-names, the description and the book text equal the reviewed text, value 350. **When the English text changes, the
+names, the description and the book text equal the reviewed text, value 350. **When the English file changes, the
 Korean file has to be made again from the new English file.**
+
+`tools/toxicology-esl-check` (`toxicology-esl-check <english.esp> <korean.esp>`) holds the pair to this: the TES4
+header, every subrecord and the order of records, groups and subrecords must be byte-identical, and so must every
+record and GRUP header apart from its size field, which instead must add up in both files. The exceptions are the
+five subrecords in the table above (`0x801` FULL and DNAM, `0x802` FULL, `0x803` FULL and DESC): each must be in both
+files exactly once, the Korean ones UTF-8 ending in exactly one NUL with no other NUL, and not all five may equal the
+English ones (that would be the English file copied over the Korean one). The Toxicology distribution step
+(`plugins/cmake/DistributionToxicology.cmake`) runs it before the zips are made, so a Korean file left behind by a
+change to the English one (a value, a flag, a new record) stops the build. Each FAIL line names the record and
+subrecord, with the byte that differs for a subrecord or the offsets for a header; a change in the structure (a record
+added or removed) is reported at its first point only. `toxicology-test --self-test` runs the same check on the
+committed pair and on broken copies (`tools/toxicology-test-esl.cpp`). It cannot see a change to the English text
+itself, since those five subrecords may differ: after editing one, translate it again and remake the Korean file.
 
 ## How it was made (houseCARL)
 

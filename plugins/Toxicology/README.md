@@ -208,8 +208,8 @@ DLL. As always, test removal on a separate save.
 - **Offline harness**: `build/tools/Release/toxicology-test.exe --self-test` checks the pure core
   (`src/core/ToxCore.*`: settings, catalog parsing, catalog keys, the hit and cost spell sets, the poison choice,
   the bottle arithmetic and which stack loses a bottle, the immunity window, the interval check of the Magicka
-  drain queue, whether the tome reward is given and the co-save record of that flag); every
-  check prints PASS or FAIL, exit 1 on a failure.
+  drain queue, whether the tome reward is given and the co-save record of that flag) and the English / Korean ESL
+  check (`ESL.md`, "Korean ESL"); every check prints PASS or FAIL, exit 1 on a failure.
 - **Dev deploy** (game closed; the dev mod folder must exist, default `D:\TAKEALOOK\mods\HeartOfMagic-Toxicology-Dev`):
 
   ```powershell

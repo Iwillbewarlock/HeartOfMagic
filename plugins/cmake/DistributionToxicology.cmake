@@ -15,6 +15,7 @@
 # (SKSE/Plugins/HeartOfMagic_Toxicology.pdb).
 # The Korean archive HeartOfMagic-Librarian-Toxicology_<version>_KO.zip is the same files with the Korean ESL
 # (plugins/Toxicology/data/ko/HeartOfMagic_Toxicology.esp, same file name; only its text differs, ESL.md).
+# toxicology-esl-check holds it to that before the zips are made.
 if(NOT DEFINED DIST_DIR)
     return()
 endif()
@@ -47,9 +48,14 @@ endforeach()
 
 add_custom_target(assemble_toxicology ALL COMMENT "Assembling the Toxicology addon...")
 add_dependencies(assemble_toxicology HeartOfMagic_Toxicology)
+# The Korean ESL must still be the English one with only its five text subrecords changed (tools/toxicology-esl-check,
+# ESL.md "Korean ESL"). A mismatch stops the build here: after the old staging folders and zips are removed, so none
+# is left to pass for this build, and before anything is staged or zipped.
+add_dependencies(assemble_toxicology toxicology-esl-check)
 add_custom_command(TARGET assemble_toxicology POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E rm -rf "${TOXICOLOGY_DIST_DIR}" "${TOXICOLOGY_PDB_DIR}" "${TOXICOLOGY_KO_DIR}"
     COMMAND "${CMAKE_COMMAND}" -E rm -f "${TOXICOLOGY_ZIP}" "${TOXICOLOGY_PDB_ZIP}" "${TOXICOLOGY_KO_ZIP}"
+    COMMAND "$<TARGET_FILE:toxicology-esl-check>" "${TOXICOLOGY_DATA}/HeartOfMagic_Toxicology.esp" "${TOXICOLOGY_DATA}/ko/HeartOfMagic_Toxicology.esp"
     COMMAND "${CMAKE_COMMAND}" -E make_directory
     "${TOXICOLOGY_DOC_DIR}/licenses/CommonLibSSE-NG"
     "${TOXICOLOGY_DIST_DIR}/SKSE/Plugins/InventoryInjector"
