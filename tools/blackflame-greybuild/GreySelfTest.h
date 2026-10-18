@@ -36,6 +36,11 @@ namespace GreyBuild::SelfTest
     /// The texture copies (GreyTexture.h): recolour, skips, failures and the NIF slot rule, on made-up files in a_dir.
     void CheckTextures(Checker& a_check, const std::filesystem::path& a_dir);
 
+    /// The texture statistics (GreyTexStats.h, GreySelfTestStats.cpp): the integer ComputeStats against the double one it
+    /// replaced (seeded and edge images, the two thresholds), the risk check's image from RecolourDds's own pixels, and
+    /// LookStats across cache clears (hit, miss, a missing texture, our copies, a gated read); files in a_dir
+    void CheckTexStats(Checker& a_check, const std::filesystem::path& a_dir);
+
     /// The path rule the DLL and the builder share (DataPathRule.h): normalising and the texture scan, one table (T7).
     void CheckPathRule(Checker& a_check);
 

@@ -191,6 +191,7 @@ add_executable(blackflame-greybuild
     blackflame-greybuild/GreyTexture.cpp
     blackflame-greybuild/GreyTextureNif.cpp
     blackflame-greybuild/GreySelfTestTexture.cpp
+    blackflame-greybuild/GreySelfTestStats.cpp
     blackflame-greybuild/GreySelfTestPaths.cpp
     blackflame-greybuild/GreyShapes.cpp
     blackflame-greybuild/GreyTexStats.cpp

@@ -23,6 +23,11 @@
 #include <string>
 #include <vector>
 
+namespace DirectX
+{
+    struct Image;
+}
+
 namespace GreyBuild
 {
     struct RgbaImage
@@ -91,13 +96,29 @@ namespace GreyBuild
         /// The texture a slot names (read once, then cached)
         [[nodiscard]] TextureLook Look(const std::string& a_slot);
 
+        /// The texture's statistics alone (image null unless it is still cached): a path this source has looked up before
+        /// is answered from what that look found - its TexStats, status and why outlive Clear - without a decode; any other
+        /// is Look (the read gate and all). Our copies (a_generated) are always Look: one may be written later in the run
+        [[nodiscard]] TextureLook LookStats(const std::string& a_slot);
+
+        /// The run's reads: decodes (ReadRgba from the folders), the distinct paths decoded, the LookStats answers without
+        /// a decode
+        struct ReadCounts
+        {
+            std::uint64_t decodes = 0;
+            std::uint64_t paths = 0;
+            std::uint64_t statsAnswers = 0;
+        };
+        [[nodiscard]] ReadCounts Counts() const noexcept;
+
         /// Self-test: a texture as if read from the folders (a_image nullopt: there but unreadable)
         void Put(const std::string& a_path, std::optional<RgbaImage> a_image);
 
         /// The decoded images the cache holds, in bytes (GreyBudget.h counts them against the job memory cap)
         [[nodiscard]] std::uint64_t CachedBytes() const noexcept;
 
-        /// Every cached texture dropped (read again when looked at). No TextureLook of this source may be in use.
+        /// Every cached texture dropped (read again when looked at; the statistics LookStats answers from are kept). No
+        /// TextureLook of this source may be in use.
         void Clear() noexcept;
 
         /// Key mode (GreyBudget.h): asked before a file is decoded; false (with its why) leaves the texture unread and
@@ -124,15 +145,31 @@ namespace GreyBuild
         {
             TextureRead status = TextureRead::kUnread;
             std::unique_ptr<RgbaImage> image;
-            std::unique_ptr<TexStats> stats;
             std::string why;
             std::filesystem::path file;
         };
+        // What a look found (never a transient one), kept by Clear; the only owner of a path's TexStats
+        struct Known
+        {
+            TextureRead status = TextureRead::kUnread;
+            TexStats stats;
+            std::string why;
+            std::filesystem::path file;
+            bool reusable = false;  // LookStats may answer from it (not one of our copies)
+        };
+
+        /// a_entry (just cached) into m_known; its stats computed unless the same file's are known (a_fresh: always)
+        Known& Remember(const std::string& a_path, const Entry& a_entry, bool a_reusable, bool a_fresh);
+        [[nodiscard]] TextureLook LookOf(const std::string& a_path, const Entry& a_entry) const;
         std::vector<std::filesystem::path> m_folders;
         std::filesystem::path m_generated;
         std::map<std::string, std::string> m_notInGame;
         std::map<std::string, Entry> m_cache;
+        std::map<std::string, Known> m_known;  // map nodes stay put: TextureLook::stats points into it
         std::uint64_t m_cachedBytes = 0;
+        std::set<std::string> m_decodedPaths;
+        std::uint64_t m_decodes = 0;
+        std::uint64_t m_statsAnswers = 0;
         ReadGate m_gate;
         TransientSink m_transientSink;
         std::set<std::string> m_listed;
@@ -143,7 +180,18 @@ namespace GreyBuild
     /// a_transient (when given): the failure is the machine's (IsTransientResult), not the file's
     [[nodiscard]] std::optional<RgbaImage> ReadRgba(const std::filesystem::path& a_file, std::string& a_why, bool* a_transient = nullptr);
 
+    /// ReadRgba's conversion of a DDS's first image a_top (a_srgb: the file's format is sRGB): BCn decoded, other formats
+    /// converted, to 8-bit RGBA in the colour space stored; already RGBA8 of that space: copied. RecolourDds's risk check
+    /// uses it on the pixels it has decoded, so it sees the image ReadRgba would give
+    [[nodiscard]] std::optional<RgbaImage> ToRgba(const DirectX::Image& a_top, bool a_srgb, std::string& a_why, bool* a_transient = nullptr);
+
+    /// Integer sums over the bytes (exact, so the rows run in parallel in any order); the texel tests are the exact
+    /// compares of kStatLitWeight and kStatColouredSat (a texel exactly on kStatColouredSat is not coloured)
     [[nodiscard]] TexStats ComputeStats(const RgbaImage& a_image);
+
+    /// ComputeStats's first pass alone (meanRgb, meanSat, colouredFrac, alphaMean; detail and energyMean 0): what
+    /// IsColouredTexture reads
+    [[nodiscard]] TexStats ComputeColourStats(const RgbaImage& a_image);
 
     /// One palette shader through one palette over its texture, as Community Shaders' Effect.hlsl samples it (Y2, Y17):
     /// rgb = palette(u = texture green, v = a_colourRow: base red x vertex red), alpha = palette alpha (u = texture alpha,

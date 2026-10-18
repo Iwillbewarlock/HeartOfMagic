@@ -481,6 +481,9 @@ namespace GreyBuild
                                  "pauses {}, cache clears {}{}\n", seconds, counts[CC::Outcome::kOk], counts[CC::Outcome::kFallback],
             counts[CC::Outcome::kFailed], counts[CC::Outcome::kTooLarge], counts[CC::Outcome::kNotDumped], hits, budget.Pauses(),
             budget.Evictions(), stopped ? "; stopped early: the parent process is gone" : "");
+        const auto reads = textureSource.Counts();
+        std::cout << fmt::format("reads  texture decodes {} of {} path(s); statistics answered without a decode {}\n", reads.decodes,
+            reads.paths, reads.statsAnswers);
         std::cout << TextureTotalsLine(textures.totals) << "\n" << PaletteTotalsLine(palettes) << "\n";
         return stopped ? kExitParentGone : kOk;
     }

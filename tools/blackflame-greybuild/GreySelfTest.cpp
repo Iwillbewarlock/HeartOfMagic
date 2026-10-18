@@ -440,6 +440,7 @@ namespace GreyBuild
                         BlackFlame::CopyContractTest::kMinChecks));
             }
             SelfTest::CheckTextures(check, dir);
+            SelfTest::CheckTexStats(check, dir);
             SelfTest::CheckRisk(check, dir);
             SelfTest::CheckDecals(check, dir);
             CheckMapRefusals(check, dir);

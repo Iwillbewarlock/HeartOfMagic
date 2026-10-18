@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <fmt/format.h>
 
 namespace GreyBuild
@@ -30,6 +31,58 @@ namespace GreyBuild
         constexpr const char* kNotOpening = "does not open";  // the DLL's reason for a texture the game cannot open
         // No WIC: COM is not set up in the builder (WIC conversions fail with E_NOINTERFACE)
         constexpr auto kConvertFilter = static_cast<DirectX::TEX_FILTER_FLAGS>(DirectX::TEX_FILTER_DEFAULT | DirectX::TEX_FILTER_FORCE_NON_WIC);
+        constexpr std::uint32_t kByte = 255;
+        // lit: alpha x max channel > kStatLitWeight in 0..1, in bytes a x m > kStatLitWeight x 255 x 255 (6502.5), which for
+        // a whole a x m is a x m > its whole part (no product is within double rounding of it, so the double test agreed)
+        constexpr auto kLitProduct = static_cast<std::uint32_t>(kStatLitWeight * kByte * kByte);
+        // coloured: (max - min) / max > kStatColouredSat exactly, as (max - min) x kSatScale > kSatNumerator x max
+        constexpr std::uint32_t kSatScale = 1024;
+        constexpr auto kSatNumerator = static_cast<std::uint32_t>(kStatColouredSat * kSatScale);
+        static_assert(kSatNumerator == kStatColouredSat * kSatScale, "kStatColouredSat must be a multiple of 1/kSatScale for the exact compare");
+        constexpr std::size_t kParallelTexels = 64 * 1024;  // below this a texture's sums run on one thread (no fork)
+
+        struct ColourSums
+        {
+            std::uint64_t alpha = 0;  // sum of a
+            std::uint64_t r = 0;      // sum of r x a (g, b alike)
+            std::uint64_t g = 0;
+            std::uint64_t b = 0;
+            std::uint64_t lit = 0;
+            std::uint64_t coloured = 0;
+        };
+
+        // The first pass over every texel. Known limit: OpenMP 2.0 (MSVC) wants a signed loop index and scalar reductions
+        [[nodiscard]] ColourSums SumColour(const RgbaImage& a_image) noexcept
+        {
+            const std::uint8_t* const base = a_image.pixels.data();
+            const std::size_t w = a_image.width;
+            const auto h = static_cast<std::int64_t>(a_image.height);
+            std::uint64_t alpha = 0, r = 0, g = 0, b = 0, lit = 0, coloured = 0;
+#pragma omp parallel for reduction(+ : alpha, r, g, b, lit, coloured) if (w * a_image.height >= kParallelTexels)
+            for (std::int64_t y = 0; y < h; ++y) {
+                const std::uint8_t* p = base + static_cast<std::size_t>(y) * w * 4;
+                for (std::size_t x = 0; x < w; ++x, p += 4) {
+                    const std::uint32_t a = p[3];
+                    const std::uint32_t high = std::max({ p[0], p[1], p[2] });
+                    const std::uint32_t low = std::min({ p[0], p[1], p[2] });
+                    if (a * high > kLitProduct) {
+                        ++lit;
+                        coloured += (high - low) * kSatScale > kSatNumerator * high ? 1 : 0;
+                    }
+                    alpha += a;
+                    r += p[0] * a;
+                    g += p[1] * a;
+                    b += p[2] * a;
+                }
+            }
+            return { alpha, r, g, b, lit, coloured };
+        }
+
+        // max channel x alpha in bytes (0..255 x 255)
+        [[nodiscard]] std::int64_t Energy(const std::uint8_t* a_texel) noexcept
+        {
+            return static_cast<std::int64_t>(std::max({ a_texel[0], a_texel[1], a_texel[2] })) * a_texel[3];
+        }
 
         [[nodiscard]] std::size_t Clamp(double a_coordinate, std::size_t a_size) noexcept
         {
@@ -73,26 +126,34 @@ namespace GreyBuild
             a_why = "no image";
             return std::nullopt;
         }
+        return ToRgba(*top, DirectX::IsSRGB(meta.format), a_why, a_transient);
+    }
+
+    std::optional<RgbaImage> ToRgba(const DirectX::Image& a_top, bool a_srgb, std::string& a_why, bool* a_transient)
+    {
+        if (a_transient) {
+            *a_transient = false;
+        }
         // The stored bytes, not a colour space conversion: sRGB decodes to sRGB
-        const DXGI_FORMAT target = DirectX::IsSRGB(meta.format) ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM;
+        const DXGI_FORMAT target = a_srgb ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM;
         DirectX::ScratchImage converted;
-        const DirectX::Image* image = top;
-        if (top->format != target) {
-            const HRESULT hr = DirectX::IsCompressed(top->format) ? DirectX::Decompress(*top, target, converted) :
-                                                                    DirectX::Convert(*top, target, kConvertFilter,
-                                                                        DirectX::TEX_THRESHOLD_DEFAULT, converted);
+        const DirectX::Image* image = &a_top;
+        if (a_top.format != target) {
+            const HRESULT hr = DirectX::IsCompressed(a_top.format) ? DirectX::Decompress(a_top, target, converted) :
+                                                                     DirectX::Convert(a_top, target, kConvertFilter,
+                                                                         DirectX::TEX_THRESHOLD_DEFAULT, converted);
             if (FAILED(hr)) {
                 if (a_transient) {
                     *a_transient = IsTransientResult(hr);
                 }
-                a_why = fmt::format("decoding format {} failed (HRESULT 0x{:08X})", static_cast<int>(top->format),
+                a_why = fmt::format("decoding format {} failed (HRESULT 0x{:08X})", static_cast<int>(a_top.format),
                     static_cast<std::uint32_t>(hr));
                 return std::nullopt;
             }
             image = converted.GetImage(0, 0, 0);
         }
         RgbaImage out;
-        out.srgb = DirectX::IsSRGB(meta.format);
+        out.srgb = a_srgb;
         out.width = image->width;
         out.height = image->height;
         out.pixels.resize(out.width * out.height * 4);
@@ -106,53 +167,45 @@ namespace GreyBuild
         return out;
     }
 
-    TexStats ComputeStats(const RgbaImage& a_image)
+    TexStats ComputeColourStats(const RgbaImage& a_image)
     {
         TexStats stats;
-        const std::size_t w = a_image.width;
-        const std::size_t h = a_image.height;
-        double alphaSum = 0.0;
-        Rgb weighted;
-        std::size_t lit = 0;
-        std::size_t coloured = 0;
-        for (std::size_t y = 0; y < h; ++y) {
-            for (std::size_t x = 0; x < w; ++x) {
-                const auto c = a_image.At(x, y);
-                const double high = std::max({ c[0], c[1], c[2] });
-                const double low = std::min({ c[0], c[1], c[2] });
-                if (c[3] * high > kStatLitWeight) {
-                    ++lit;
-                    coloured += (high - low) / high > kStatColouredSat ? 1 : 0;
-                }
-                alphaSum += c[3];
-                weighted.r += c[0] * c[3];
-                weighted.g += c[1] * c[3];
-                weighted.b += c[2] * c[3];
-            }
-        }
-        const Rgb mean = alphaSum > 0.0 ? Rgb{ weighted.r / alphaSum, weighted.g / alphaSum, weighted.b / alphaSum } : Rgb{};
+        const ColourSums sums = SumColour(a_image);
+        const double alpha = static_cast<double>(sums.alpha);  // every sum is under 2^53: exact in a double
+        const Rgb mean = sums.alpha > 0 ? Rgb{ static_cast<double>(sums.r) / (alpha * kByteMax), static_cast<double>(sums.g) / (alpha * kByteMax),
+                                              static_cast<double>(sums.b) / (alpha * kByteMax) } :
+                                          Rgb{};
         stats.meanRgb = { Round3(mean.r), Round3(mean.g), Round3(mean.b) };
         stats.meanSat = Round3(Saturation(mean, kStatMinChannel));
-        stats.colouredFrac = lit > 0 ? Round3(static_cast<double>(coloured) / static_cast<double>(lit)) : 0.0;
+        stats.colouredFrac = sums.lit > 0 ? Round3(static_cast<double>(sums.coloured) / static_cast<double>(sums.lit)) : 0.0;
+        const std::size_t texels = a_image.width * a_image.height;
+        stats.alphaMean = texels > 0 ? alpha / (kByteMax * static_cast<double>(texels)) : 0.0;
+        return stats;
+    }
+
+    TexStats ComputeStats(const RgbaImage& a_image)
+    {
+        TexStats stats = ComputeColourStats(a_image);
         // Detail and energy over the texels with a right and a lower neighbour
-        const auto energy = [&](std::size_t a_x, std::size_t a_y) {
-            const auto c = a_image.At(a_x, a_y);
-            return std::max({ c[0], c[1], c[2] }) * c[3];
-        };
-        double gradient = 0.0;
-        double total = 0.0;
-        std::size_t count = 0;
-        for (std::size_t y = 0; y + 1 < h; ++y) {
-            for (std::size_t x = 0; x + 1 < w; ++x) {
-                const double e = energy(x, y);
-                gradient += std::fabs(energy(x + 1, y) - e) + std::fabs(energy(x, y + 1) - e);
-                total += e;
-                ++count;
+        const std::uint8_t* const base = a_image.pixels.data();
+        const std::size_t w = a_image.width;
+        const auto rows = static_cast<std::int64_t>(a_image.height > 0 ? a_image.height - 1 : 0);
+        std::uint64_t gradient = 0;
+        std::uint64_t total = 0;
+#pragma omp parallel for reduction(+ : gradient, total) if (w * a_image.height >= kParallelTexels)
+        for (std::int64_t y = 0; y < rows; ++y) {
+            const std::uint8_t* p = base + static_cast<std::size_t>(y) * w * 4;
+            const std::size_t below = w * 4;
+            for (std::size_t x = 0; x + 1 < w; ++x, p += 4) {
+                const std::int64_t e = Energy(p);
+                gradient += static_cast<std::uint64_t>(std::llabs(Energy(p + 4) - e) + std::llabs(Energy(p + below) - e));
+                total += static_cast<std::uint64_t>(e);
             }
         }
-        stats.detail = total > 0.0 ? Round3(gradient / total) : 0.0;
-        stats.alphaMean = w * h > 0 ? alphaSum / static_cast<double>(w * h) : 0.0;
-        stats.energyMean = Round3(total / static_cast<double>(std::max<std::size_t>(count, 1)));
+        const std::size_t count = w > 0 && a_image.height > 0 ? (w - 1) * (a_image.height - 1) : 0;
+        // both sums are in byte x byte steps: detail is their ratio, the energy mean their mean over 255 x 255
+        stats.detail = total > 0 ? Round3(static_cast<double>(gradient) / static_cast<double>(total)) : 0.0;
+        stats.energyMean = Round3(static_cast<double>(total) / (kByteMax * kByteMax * static_cast<double>(std::max<std::size_t>(count, 1))));
         return stats;
     }
 
@@ -262,16 +315,45 @@ namespace GreyBuild
         return out;
     }
 
+    TextureSource::Known& TextureSource::Remember(const std::string& a_path, const Entry& a_entry, bool a_reusable, bool a_fresh)
+    {
+        auto& known = m_known[a_path];
+        // a re-read of the same file after a Clear keeps the statistics it had (the dump does not change in a run)
+        const bool same = !a_fresh && known.reusable && a_reusable && known.status == TextureRead::kOk &&
+                          a_entry.status == TextureRead::kOk && known.file == a_entry.file;
+        if (!same) {
+            known.stats = a_entry.image ? ComputeStats(*a_entry.image) : TexStats{};
+        }
+        known.status = a_entry.status;
+        known.why = a_entry.why;
+        known.file = a_entry.file;
+        known.reusable = a_reusable;
+        return known;
+    }
+
+    TextureLook TextureSource::LookOf(const std::string& a_path, const Entry& a_entry) const
+    {
+        TextureLook look;
+        look.path = a_path;
+        look.status = a_entry.status;
+        look.image = a_entry.image.get();
+        const auto known = m_known.find(a_path);
+        look.stats = a_entry.status == TextureRead::kOk && known != m_known.end() ? &known->second.stats : nullptr;
+        look.why = a_entry.why;
+        look.file = a_entry.file;
+        return look;
+    }
+
     void TextureSource::Put(const std::string& a_path, std::optional<RgbaImage> a_image)
     {
         Entry entry;
         if (a_image) {
             entry.status = TextureRead::kOk;
-            entry.stats = std::make_unique<TexStats>(ComputeStats(*a_image));
             entry.image = std::make_unique<RgbaImage>(std::move(*a_image));
         } else {
             entry.why = "does not decode (self-test)";
         }
+        (void)Remember(a_path, entry, true, true);
         if (const auto old = m_cache.find(a_path); old != m_cache.end() && old->second.image) {
             m_cachedBytes -= old->second.image->pixels.size();
         }
@@ -284,10 +366,33 @@ namespace GreyBuild
         return m_cachedBytes;
     }
 
+    TextureSource::ReadCounts TextureSource::Counts() const noexcept
+    {
+        return { m_decodes, m_decodedPaths.size(), m_statsAnswers };
+    }
+
     void TextureSource::Clear() noexcept
     {
         m_cache.clear();
         m_cachedBytes = 0;
+    }
+
+    TextureLook TextureSource::LookStats(const std::string& a_slot)
+    {
+        const auto path = TextureDataPath(a_slot);
+        if (path && m_cache.find(*path) == m_cache.end()) {
+            if (const auto known = m_known.find(*path); known != m_known.end() && known->second.reusable) {
+                ++m_statsAnswers;
+                TextureLook look;
+                look.path = *path;
+                look.status = known->second.status;
+                look.stats = known->second.status == TextureRead::kOk ? &known->second.stats : nullptr;
+                look.why = known->second.why;
+                look.file = known->second.file;
+                return look;
+            }
+        }
+        return Look(a_slot);
     }
 
     TextureLook TextureSource::Look(const std::string& a_slot)
@@ -326,6 +431,8 @@ namespace GreyBuild
                 }
                 entry.file = *file;
                 bool transient = false;
+                ++m_decodes;
+                m_decodedPaths.insert(*path);
                 auto image = ReadRgba(*file, entry.why, &transient);
                 if (!image && transient) {
                     look.why = entry.why;
@@ -337,7 +444,6 @@ namespace GreyBuild
                 }
                 if (image) {
                     entry.status = TextureRead::kOk;
-                    entry.stats = std::make_unique<TexStats>(ComputeStats(*image));
                     entry.image = std::make_unique<RgbaImage>(std::move(*image));
                 }
             } else if (const auto reason = m_notInGame.find(*path);
@@ -353,14 +459,10 @@ namespace GreyBuild
                 entry.why = reason != m_notInGame.end() ? "not in the dump - the game: " + reason->second :
                                                           std::string("in none of the folders read");
             }
+            (void)Remember(*path, entry, !generated, false);
             it = m_cache.emplace(*path, std::move(entry)).first;
             m_cachedBytes += it->second.image ? it->second.image->pixels.size() : 0;  // counted once it is in the cache
         }
-        look.status = it->second.status;
-        look.image = it->second.image.get();
-        look.stats = it->second.stats.get();
-        look.why = it->second.why;
-        look.file = it->second.file;
-        return look;
+        return LookOf(*path, it->second);
     }
 }

@@ -157,7 +157,7 @@ namespace GreyBuild
                 if (!a_ctx.textures) {
                     return { Glow::kG2, true, "no texture source in this run" };
                 }
-                const auto look = a_ctx.textures->Look(a_shape.sourceTexture);
+                const auto look = a_ctx.textures->LookStats(a_shape.sourceTexture);  // statistics only
                 if (look.status != TextureRead::kOk) {
                     return { Glow::kG2, true, fmt::format("{}: {}", look.path.empty() ? a_shape.sourceTexture : look.path, look.why) };
                 }
@@ -244,7 +244,7 @@ namespace GreyBuild
         {
             const TexStats* stats = nullptr;
             if (!a_shape.sourceTexture.empty() && a_ctx.textures) {
-                stats = a_ctx.textures->Look(a_shape.sourceTexture).stats;
+                stats = a_ctx.textures->LookStats(a_shape.sourceTexture).stats;
             }
             return IsDrawn(a_shape, stats);  // Z5: the risk check's own measure (GreyRisk.h)
         }
