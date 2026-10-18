@@ -4,12 +4,14 @@
 // Run once to make <dir>\input; the files are then committed (tools\blackflame-greybuild\golden\input) and the test
 // only reads them, so a change to the library under test cannot quietly change its own inputs. Textures: the self-test's
 // 64 x 64 orange / grey ones with a full mip chain (WriteTestTexture) in BC7, sRGB BC7, BC3, BC1, B8G8R8A8 and BC5, a
-// 16 x 4 BC7 down to 1 x 1, small B8G8R8A8 ones on either side of each colour threshold (exact 8-bit values), and a
-// B8G8R8A8_UNORM_SRGB source palette (exact stored bytes, no conversion).
+// 16 x 4 BC7 down to 1 x 1, small B8G8R8A8 ones on either side of each colour threshold or exactly on a texel test (exact
+// 8-bit values), and a B8G8R8A8_UNORM_SRGB source palette (exact stored bytes, no conversion).
 // NIFs: one lighting diffuse and effect shaders on every texture, a two-channel source, glow shapes, the self-test's
 // palette source (MakeSourceNif), an MPS with AddOnNode 9 and an additive palette shader on the sRGB palette.
 // The sRGB palette and its NIF were added to version 1's fixtures before that version was released (2026-10-18): they
-// were written by this code into a fresh folder and copied in, every other input file kept as committed.
+// were written by this code into a fresh folder and copied in, every other input file kept as committed. The same way,
+// on 2026-10-19 and still before the release: the four texel-test fixtures (sat_edge, minchannel_edge, lit_under,
+// lit_over) and textures.nif, which names them.
 
 #ifndef WIN32_LEAN_AND_MEAN
 #    define WIN32_LEAN_AND_MEAN
@@ -61,6 +63,14 @@ namespace GreyBuild
         constexpr std::size_t kMeanSatOver = 51;    // rest (25, 17, 17): mean S 0.2992 -> 0.299, 0.2996 -> 0.300
         constexpr Texel kMeanSatHigh{ 25, 18, 18, kOpaque };
         constexpr Texel kMeanSatLow{ 25, 17, 17, kOpaque };
+        constexpr Texel kSatEdgeTexel{ 40, 30, 30, kOpaque };   // (max - min) / max = 10 / 40, exactly kStatColouredSat
+        constexpr std::size_t kMinChannelWidth = 10;            // 10 x 1: one kMinChannelHigh, nine kMinChannelLow:
+        constexpr Texel kMinChannelHigh{ 6, 0, 0, kOpaque };    // mean red 51 / 2550 = 0.02 = kStatMinChannel exactly
+        constexpr Texel kMinChannelLow{ 5, 0, 0, kOpaque };
+        constexpr std::size_t kLitEdgeCount = 5;                // 5 of 1024: within kColouredShare in RecolourDds's own measure
+        constexpr Texel kLitUnder{ 197, 100, 100, 33 };         // alpha x max 6501: not lit (ComputeStats)
+        constexpr Texel kLitOver{ 241, 120, 120, 27 };          // 6507: lit
+        constexpr Texel kFaintGrey{ 128, 128, 128, 40 };        // 5120: never lit for ComputeStats, lit and visible for the chroma
         constexpr std::uint16_t kAlphaNormal = 0x12ED;    // blending on, SRC_ALPHA -> INV_SRC_ALPHA, alpha test
         constexpr std::uint16_t kAlphaAdditive = 0x000D;  // blending on, SRC_ALPHA -> ONE
         constexpr int kMpsAddon = 9;
@@ -179,6 +189,10 @@ namespace GreyBuild
             WriteTexels(a_in / t[5].path, kShareSide, kShareSide, bgra, Counted(kShareSide, kFracOver, kFracTexel, kMidGrey), false);
             WriteTexels(a_in / t[6].path, kMeanSatSide, kMeanSatSide, bgra, Counted(kMeanSatSide, kMeanSatUnder, kMeanSatHigh, kMeanSatLow), false);
             WriteTexels(a_in / t[7].path, kMeanSatSide, kMeanSatSide, bgra, Counted(kMeanSatSide, kMeanSatOver, kMeanSatHigh, kMeanSatLow), false);
+            WriteTexels(a_in / t[8].path, kShareSide, kShareSide, bgra, Counted(kShareSide, kFracOver, kSatEdgeTexel, kMidGrey), false);
+            WriteTexels(a_in / t[9].path, kMinChannelWidth, 1, bgra, Counted(kMinChannelWidth, 1, kMinChannelHigh, kMinChannelLow), false);
+            WriteTexels(a_in / t[10].path, kShareSide, kShareSide, bgra, Counted(kShareSide, kLitEdgeCount, kLitUnder, kFaintGrey), false);
+            WriteTexels(a_in / t[11].path, kShareSide, kShareSide, bgra, Counted(kShareSide, kLitEdgeCount, kLitOver, kFaintGrey), false);
             WriteStoredSrgb(a_in / Golden::kPaletteSrgb, kSrgbPaletteWidth, kSrgbPaletteHeight, [](std::size_t a_x, std::size_t a_y) {
                 return Texel{ 255, static_cast<std::uint8_t>(64 + 6 * a_x), static_cast<std::uint8_t>(16 + 2 * a_x),
                     static_cast<std::uint8_t>(255 - 6 * a_x - 10 * a_y) };

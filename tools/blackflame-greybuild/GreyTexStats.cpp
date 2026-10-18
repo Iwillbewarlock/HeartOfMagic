@@ -126,16 +126,18 @@ namespace GreyBuild
             a_why = "no image";
             return std::nullopt;
         }
-        return ToRgba(*top, DirectX::IsSRGB(meta.format), a_why, a_transient);
+        return ToRgba(*top, a_why, a_transient);
     }
 
-    std::optional<RgbaImage> ToRgba(const DirectX::Image& a_top, bool a_srgb, std::string& a_why, bool* a_transient)
+    std::optional<RgbaImage> ToRgba(const DirectX::Image& a_top, std::string& a_why, bool* a_transient)
     {
         if (a_transient) {
             *a_transient = false;
         }
-        // The stored bytes, not a colour space conversion: sRGB decodes to sRGB
-        const DXGI_FORMAT target = a_srgb ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM;
+        // The stored bytes, not a colour space conversion: sRGB decodes to sRGB. The colour space is the image's own
+        // format's (a caller's separate flag could disagree with it)
+        const bool srgb = DirectX::IsSRGB(a_top.format);
+        const DXGI_FORMAT target = srgb ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM;
         DirectX::ScratchImage converted;
         const DirectX::Image* image = &a_top;
         if (a_top.format != target) {
@@ -153,7 +155,7 @@ namespace GreyBuild
             image = converted.GetImage(0, 0, 0);
         }
         RgbaImage out;
-        out.srgb = a_srgb;
+        out.srgb = srgb;
         out.width = image->width;
         out.height = image->height;
         out.pixels.resize(out.width * out.height * 4);

@@ -34,5 +34,6 @@ other libraries come from the vcpkg manifest `vcpkg.json` (triplet `x64-windows-
 @BUILDER_ROWS@
 
 Both binaries link the Microsoft C/C++ runtime (CRT) statically under the Visual Studio redistribution terms. The
-builder also loads Microsoft's OpenMP runtime `vcomp140.dll` (DirectXTex's BC6H/BC7 encoder). It is not in this
+builder also loads Microsoft's OpenMP runtime `vcomp140.dll` (DirectXTex's BC6H/BC7 encoder and the builder's own
+parallel texture statistics). It is not in this
 package: it comes with the Microsoft Visual C++ Redistributable 2015-2022 (x64).

@@ -173,6 +173,15 @@ namespace GreyBuild
                 evicted = true;
                 continue;
             }
+            // short of commit and the cache did not settle it (or there was none): a GPU device this process holds goes
+            // before any wait (its commit is the system's too), then it is measured again
+            if (admission == Admission::kPause && !released && m_releaseDevice) {
+                released = true;
+                if (m_releaseDevice()) {
+                    ++m_deviceReleases;
+                    continue;
+                }
+            }
             if (admission == Admission::kPause) {
                 // a stop (the parent gone) ends a wait, never an admission that needs none (Gemini review)
                 if (m_stop && m_stop->load()) {

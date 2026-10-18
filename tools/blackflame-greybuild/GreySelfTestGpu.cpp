@@ -2,10 +2,18 @@
 // GreySelfTestGpu - --self-test of the GPU BC7 encoder's guards (GreySelfTest.h CheckGpu, GreyGpuEncoder.h)
 // =============================================================================
 // The crash marker's state machine (fresh, one marker, two starts in a row, another driver or output identity, a CPU
-// run), the output check's limits (a good result, a zeroed mip, alpha lost, another shape), the over-cap retry through
-// the Budget's memory-probe seam, the throttle event, and guard 5: with a hardware device present the BC7 and sRGB BC7
-// fixtures through the GPU against the CPU's result (format, mips, size, PSNR within the check's limits; not bytes).
-// Without a device guard 5 prints an INFO line, not a FAIL.
+// run) and its file I/O failures through GpuMarkers' MarkerIo seam (a gpu.disabled or gpu.inflight that does not read, a
+// gpu.disabled that cannot be written, a malformed gpu.disabled, a marker of another adapter), the output check's limits
+// (a good result, a zeroed mip, alpha lost, another shape, another format), the over-cap and short-of-commit device
+// release through the Budget's memory-probe seam, the throttle event, and the encoder's own state on Microsoft's software
+// adapter (GpuUse::kTestWarp, on every machine): Start's strikes, the device's headroom (share plus the encoded chain),
+// the one re-creation after a release for memory, none after the throttle, the summary's counts and words. Not
+// injectable: a hardware adapter that is absent (FindAdapter has no seam; an encoder that was never started is that
+// state for the summary line).
+// Guard 5: with a hardware adapter the BC7 and sRGB BC7 fixtures through the GPU against the CPU's result (format, mips,
+// size, PSNR within the check's limits; not bytes). It FAILs only on a regression this machine shows: an adapter but no
+// device, or the encoder not even tried while usable. An output-check refusal or a failed GPU encode is the documented
+// CPU fallback (another GPU, a TDR while a game runs): INFO. No adapter: INFO.
 
 #ifndef WIN32_LEAN_AND_MEAN
 #    define WIN32_LEAN_AND_MEAN
@@ -30,6 +38,7 @@
 #include <cstring>
 #include <fmt/format.h>
 #include <fstream>
+#include <sstream>
 #include <string_view>
 
 namespace GreyBuild::SelfTest
@@ -45,7 +54,7 @@ namespace GreyBuild::SelfTest
         static_assert(kSpeckAlpha > kGpuMaxAlphaDiff, "the alpha speck must be over the alpha limit");
         constexpr std::uint8_t kOpaque = 255;
         constexpr std::uint64_t kGuardCap = 4096 * kBytesPerMiB;
-        constexpr std::uint32_t kTestPid = 0xFFFFFF01u;  // a name only: no process has this id
+        constexpr std::uint32_t kNamePid = 0xFFFFFF01u;  // the event name's format only: no event is made for it
 
         [[nodiscard]] std::string ReadAll(const std::filesystem::path& a_file)
         {
@@ -62,6 +71,36 @@ namespace GreyBuild::SelfTest
         {
             std::error_code ec;
             return std::filesystem::exists(a_file, ec);
+        }
+
+        [[nodiscard]] MemoryProbe Free(std::uint64_t a_cap, std::uint64_t a_free)
+        {
+            return [a_cap, a_free]() { return std::optional<MemoryState>(MemoryState{ a_cap - a_free, UINT64_MAX }); };
+        }
+
+        /// a_run with std::cout captured: what it printed
+        template <class F>
+        [[nodiscard]] std::string Captured(F&& a_run)
+        {
+            std::ostringstream text;
+            auto* const saved = std::cout.rdbuf(text.rdbuf());
+            try {
+                a_run();
+            } catch (...) {
+                std::cout.rdbuf(saved);
+                throw;
+            }
+            std::cout.rdbuf(saved);
+            return text.str();
+        }
+
+        [[nodiscard]] std::size_t Count(const std::string& a_text, std::string_view a_what)
+        {
+            std::size_t n = 0;
+            for (auto at = a_text.find(a_what); at != std::string::npos; at = a_text.find(a_what, at + a_what.size())) {
+                ++n;
+            }
+            return n;
         }
 
         void CheckMarkers(Checker& a_check, const std::filesystem::path& a_dir)
@@ -100,24 +139,97 @@ namespace GreyBuild::SelfTest
             // a CPU run (GpuUse::kOff) neither reads nor clears a marker
             WriteAll(markers.Inflight(), fmt::format("1\n{}\n", kAdapterA));
             {
-                GpuEncoder cpu(GpuUse::kOff, staging, kOutput, kGuardCap, []() { return std::optional<MemoryState>(MemoryState{ 0, UINT64_MAX }); });
+                GpuEncoder cpu(GpuUse::kOff, staging, kOutput, kGuardCap, Free(kGuardCap, kGuardCap));
                 cpu.Start();
                 a_check.Check(!cpu.Usable() && !cpu.ReleaseForMemory(), "gpu markers: a CPU run has no GPU and no device to release");
             }
             a_check.Check(Exists(markers.Disabled()) && ReadAll(markers.Disabled()) == disabledText && Exists(markers.Inflight()),
                 "gpu markers: a CPU run leaves gpu.disabled and gpu.inflight as they were");
-            std::filesystem::remove(markers.Inflight());
 
+            // another driver clears gpu.disabled, and with it the marker (its strikes were the old driver's)
             const auto newDriver = markers.OnStart(kAdapterNewDriver, kOutput);
-            a_check.Check(newDriver.allowed && !Exists(markers.Disabled()) && newDriver.note.find("cleared") != std::string::npos,
-                fmt::format("gpu markers: another driver version clears gpu.disabled ({})", newDriver.note));
+            a_check.Check(newDriver.allowed && newDriver.strikes == 0 && !Exists(markers.Disabled()) && !Exists(markers.Inflight()) &&
+                              newDriver.note.find("cleared") != std::string::npos,
+                fmt::format("gpu markers: another driver version clears gpu.disabled and gpu.inflight ({})", newDriver.note));
             WriteAll(markers.Disabled(), fmt::format("adapter={}\noutput={}\n", kAdapterA, kOutput));
             const auto newOutput = markers.OnStart(kAdapterA, "2");
             a_check.Check(newOutput.allowed && !Exists(markers.Disabled()), "gpu markers: another output identity clears gpu.disabled");
 
             WriteAll(markers.Inflight(), "not a number\n");
             const auto garbled = markers.OnStart(kAdapterA, kOutput);
-            a_check.Check(garbled.allowed && garbled.strikes == 1, "gpu markers: an unreadable marker counts as one strike");
+            a_check.Check(garbled.allowed && garbled.strikes == 1, "gpu markers: a marker whose count does not parse counts as one strike");
+
+            // a marker of another adapter or driver: its strikes are dropped, never carried or disabled on
+            WriteAll(markers.Inflight(), fmt::format("2\n{}\n", kAdapterNewDriver));
+            const auto foreign = markers.OnStart(kAdapterA, kOutput);
+            a_check.Check(foreign.allowed && foreign.strikes == 0 && !Exists(markers.Inflight()) && !Exists(markers.Disabled()),
+                fmt::format("gpu markers: a strike-2 marker of another driver is dropped, the GPU kept ({})", foreign.note));
+
+            // a malformed gpu.disabled (no adapter= or output= line) keeps the GPU off and is never deleted
+            WriteAll(markers.Disabled(), "garbage\n");
+            const auto malformed = markers.OnStart(kAdapterA, kOutput);
+            a_check.Check(!malformed.allowed && ReadAll(markers.Disabled()) == "garbage\n",
+                fmt::format("gpu markers: a malformed gpu.disabled keeps the GPU off and stays ({})", malformed.note));
+            std::filesystem::remove(markers.Disabled());
+        }
+
+        /// The marker file I/O failures, through the seam (GpuMarkers' MarkerIo); removal stays the real one, so a file a
+        /// failing read must not delete is a real file the test looks for afterwards
+        void CheckMarkerIoFailures(Checker& a_check, const std::filesystem::path& a_dir)
+        {
+            const auto staging = a_dir / "gpu-markers-io";
+            std::filesystem::remove_all(staging);
+            std::filesystem::create_directories(staging);
+            const auto disabled = staging / kGpuDisabledFile;
+            const auto inflight = staging / kGpuInflightFile;
+            const auto unreadable = [](const std::filesystem::path& a_which) {
+                return [a_which](const std::filesystem::path& a_file) {
+                    if (a_file == a_which) {
+                        return MarkerText{ MarkerRead::kUnreadable, {}, "the test's read failure" };
+                    }
+                    MarkerText out;
+                    std::error_code ec;
+                    if (std::filesystem::exists(a_file, ec)) {
+                        out.state = MarkerRead::kRead;
+                        std::ifstream in(a_file, std::ios::binary);
+                        out.text.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+                    }
+                    return out;
+                };
+            };
+
+            // gpu.disabled that does not read: off, kept (a stale-looking content underneath is not looked at)
+            WriteAll(disabled, fmt::format("adapter={}\noutput={}\n", kAdapterNewDriver, kOutput));
+            WriteAll(inflight, fmt::format("1\n{}\n", kAdapterA));
+            GpuMarkers readFails(staging, MarkerIo{ unreadable(disabled), {} });
+            const auto offRead = readFails.OnStart(kAdapterA, kOutput);
+            a_check.Check(!offRead.allowed && Exists(disabled) && Exists(inflight) && offRead.note.find("does not read") != std::string::npos,
+                fmt::format("gpu markers io: a gpu.disabled that does not read keeps the GPU off and deletes nothing ({})", offRead.note));
+            std::filesystem::remove(disabled);
+
+            // gpu.inflight that does not read: one strike, left in place
+            GpuMarkers inflightFails(staging, MarkerIo{ unreadable(inflight), {} });
+            const auto struck = inflightFails.OnStart(kAdapterA, kOutput);
+            a_check.Check(struck.allowed && struck.strikes == 1 && ReadAll(inflight) == fmt::format("1\n{}\n", kAdapterA),
+                fmt::format("gpu markers io: a gpu.inflight that does not read is one strike and stays as it was ({})", struck.note));
+
+            // strike 2 and gpu.disabled cannot be written: off for this run, the marker kept, so the next start disables
+            WriteAll(inflight, fmt::format("2\n{}\n", kAdapterA));
+            const auto failWrite = [disabled](const std::filesystem::path& a_file, const std::string&, std::string& a_why) {
+                a_why = a_file == disabled ? "the test's write failure" : "unexpected write";
+                return false;
+            };
+            GpuMarkers writeFails(staging, MarkerIo{ {}, failWrite });
+            const auto notWritten = writeFails.OnStart(kAdapterA, kOutput);
+            a_check.Check(!notWritten.allowed && !Exists(disabled) && ReadAll(inflight) == fmt::format("2\n{}\n", kAdapterA),
+                fmt::format("gpu markers io: gpu.disabled not written: the GPU off, gpu.inflight kept with both strikes ({})", notWritten.note));
+            GpuMarkers real(staging);
+            const auto next = real.OnStart(kAdapterA, kOutput);
+            a_check.Check(!next.allowed && Exists(disabled) && !Exists(inflight),
+                "gpu markers io: the next start still sees two strikes and writes gpu.disabled");
+            std::string why;
+            GpuMarkers enterFails(staging, MarkerIo{ {}, failWrite });
+            a_check.Check(!enterFails.Enter(0, kAdapterA, why) && !why.empty(), "gpu markers io: a marker that cannot be written refuses the call");
         }
 
         /// A 64 x 64 RGBA8 chain: a grey ramp along x, alpha the same ramp (a_opaque: alpha 255 everywhere)
@@ -140,10 +252,10 @@ namespace GreyBuild::SelfTest
             return chain;
         }
 
-        [[nodiscard]] DirectX::ScratchImage CpuBc7(const DirectX::ScratchImage& a_chain)
+        [[nodiscard]] DirectX::ScratchImage CpuEncode(const DirectX::ScratchImage& a_chain, DXGI_FORMAT a_format = DXGI_FORMAT_BC7_UNORM)
         {
             DirectX::ScratchImage out;
-            (void)DirectX::Compress(a_chain.GetImages(), a_chain.GetImageCount(), a_chain.GetMetadata(), DXGI_FORMAT_BC7_UNORM,
+            (void)DirectX::Compress(a_chain.GetImages(), a_chain.GetImageCount(), a_chain.GetMetadata(), a_format,
                 static_cast<DirectX::TEX_COMPRESS_FLAGS>(DirectX::TEX_COMPRESS_DEFAULT | DirectX::TEX_COMPRESS_BC7_QUICK),
                 DirectX::TEX_THRESHOLD_DEFAULT, out);
             return out;
@@ -152,11 +264,17 @@ namespace GreyBuild::SelfTest
         void CheckOutputLimits(Checker& a_check)
         {
             const auto grey = Ramp(false);
-            auto encoded = CpuBc7(grey);
-            const auto good = CheckGpuOutput(grey, encoded);
+            auto encoded = CpuEncode(grey);
+            const auto good = CheckGpuOutput(grey, encoded, DXGI_FORMAT_BC7_UNORM);
             a_check.Check(good.ok && good.worstPsnr >= kGpuMinPsnrDb && good.maxAlphaDiff <= kGpuMaxAlphaDiff,
                 fmt::format("gpu check: a good BC7 of a ramp passes (worst {:.1f} dB at subresource {}, alpha difference {})",
                     good.worstPsnr, good.worstImage, good.maxAlphaDiff));
+            const auto otherTarget = CheckGpuOutput(grey, encoded, DXGI_FORMAT_BC7_UNORM_SRGB);
+            const auto bc3 = CheckGpuOutput(grey, CpuEncode(grey, DXGI_FORMAT_BC3_UNORM), DXGI_FORMAT_BC7_UNORM);
+            a_check.Check(!otherTarget.ok && otherTarget.why.find("format differs") != std::string::npos && !bc3.ok &&
+                              bc3.why.find("format differs") != std::string::npos,
+                fmt::format("gpu check: a result in another format than the target fails like another shape ({}; {})", otherTarget.why,
+                    bc3.why));
 
             // one texel's alpha far off, everything else as encoded: the MSE stays under its limit, the alpha one fires
             DirectX::ScratchImage speck;
@@ -176,7 +294,7 @@ namespace GreyBuild::SelfTest
             a_check.Check(!zeroed.ok && zeroed.worstImage == kZeroedMip && zeroed.why.find("dB") != std::string::npos,
                 fmt::format("gpu check: a zeroed mip {} fails ({})", kZeroedMip, zeroed.why));
 
-            const auto opaque = CpuBc7(Ramp(true));
+            const auto opaque = CpuEncode(Ramp(true));
             const auto alphaOff = CheckGpuOutput(grey, opaque);
             a_check.Check(!alphaOff.ok && alphaOff.maxAlphaDiff > kGpuMaxAlphaDiff,
                 fmt::format("gpu check: a result with its alpha lost fails (alpha difference {}, {})", alphaOff.maxAlphaDiff, alphaOff.why));
@@ -217,26 +335,158 @@ namespace GreyBuild::SelfTest
             std::string largeWhy;
             a_check.Check(held.Acquire(200, largeWhy) == Admission::kTooLarge && heldCalls == 1,
                 "gpu budget: too large is the estimate alone (no device release, never caused by the device)");
+
+            // short of commit (a pause): no cache here, so the device goes before any wait
+            constexpr std::uint64_t kReserve = 50;
+            bool pauseReleased = false;
+            int sleeps = 0;
+            Budget pause(kCap, kReserve, nullptr, nullptr,
+                [&]() { return std::optional<MemoryState>(MemoryState{ 10, pauseReleased ? 1000u : kReserve }); },
+                [&](unsigned) { ++sleeps; });
+            pause.SetDeviceRelease([&]() {
+                pauseReleased = true;
+                return true;
+            });
+            std::string pauseWhy;
+            a_check.Check(pause.Acquire(20, pauseWhy) == Admission::kAdmit && pause.DeviceReleases() == 1 && sleeps == 0 && pause.Pauses() == 0,
+                "gpu budget: short of commit, the device is released before any wait and the texture admitted");
         }
 
         void CheckThrottle(Checker& a_check)
         {
+            // this process's own pid: a concurrent self-test (another worktree's build) has another, so another event
+            const auto pid = static_cast<std::uint32_t>(::GetCurrentProcessId());
             ThrottleSignal absent;
-            a_check.Check(!absent.Open(kTestPid) && !absent.IsSet(), "gpu throttle: no event from the parent: never throttled");
-            const auto name = BlackFlame::BuilderSignal::ThrottleEventName(kTestPid);
+            a_check.Check(!absent.Open(pid) && !absent.IsSet(), "gpu throttle: no event from the parent: never throttled");
+            const auto name = BlackFlame::BuilderSignal::ThrottleEventName(pid);
             HANDLE event = ::CreateEventW(nullptr, TRUE, FALSE, name.c_str());
             ThrottleSignal signal;
-            const bool opened = event && signal.Open(kTestPid);
+            const bool opened = event && signal.Open(pid);
             const bool before = signal.IsSet();
             if (event) {
                 ::SetEvent(event);
             }
             const bool after = signal.IsSet();
-            a_check.Check(opened && !before && after && name == L"Local\\HoMBlackFlame_Throttle_4294967041",
-                "gpu throttle: the parent's event opens by its pid's name, reads unset, then set once the DLL sets it");
+            a_check.Check(opened && !before && after, "gpu throttle: the parent's event opens by its pid's name, reads unset, then set once the DLL sets it");
             if (event) {
                 ::CloseHandle(event);
             }
+            a_check.Check(BlackFlame::BuilderSignal::ThrottleEventName(kNamePid) == L"Local\\HoMBlackFlame_Throttle_4294967041",
+                "gpu throttle: the event name is Local\\HoMBlackFlame_Throttle_<pid in decimal>");
+        }
+
+        /// The encoder's own state machine on the WARP adapter (GpuUse::kTestWarp): every machine has one
+        void CheckEncoderState(Checker& a_check, const std::filesystem::path& a_dir)
+        {
+            const auto staging = a_dir / "gpu-warp";
+            std::filesystem::remove_all(staging);
+            std::filesystem::create_directories(staging);
+            const auto grey = Ramp(false);
+            const auto plenty = Free(kGuardCap, kGuardCap);
+            std::string identity;
+            {
+                GpuEncoder probe(GpuUse::kTestWarp, staging, kOutput, kGuardCap, plenty);
+                (void)Captured([&]() { probe.Start(); });
+                identity = probe.Adapter();
+            }
+            if (identity.empty()) {
+                std::cout << "INFO gpu encoder: no WARP adapter on this machine: the encoder's state checks are not run\n";
+                return;
+            }
+
+            // Start carries the strike it found into the run (m_strikes), and Encode's own marker builds on it
+            WriteAll(staging / kGpuInflightFile, fmt::format("1\n{}\n", identity));
+            {
+                GpuEncoder carried(GpuUse::kTestWarp, staging, kOutput, kGuardCap, plenty);
+                (void)Captured([&]() { carried.Start(); });
+                DirectX::ScratchImage out;
+                std::string why;
+                bool encoded = false;
+                (void)Captured([&]() { encoded = carried.Encode(grey, DXGI_FORMAT_BC7_UNORM, out, why); });
+                a_check.Check(carried.Strikes() == 1 && carried.Usable() && encoded && !Exists(staging / kGpuInflightFile),
+                    fmt::format("gpu encoder: Start carries the marker's strike ({}) and the GPU stays usable; the call's marker is gone after it",
+                        carried.Strikes()));
+                carried.NoteResult(false);
+                a_check.Check(carried.Encoded() == 0 && carried.Rejected() == 1,
+                    "gpu encoder: a result the output check refuses is not counted as a GPU encode");
+            }
+
+            // headroom: the device's share alone is no longer enough, the texture's encoded chain is counted too
+            {
+                GpuEncoder tight(GpuUse::kTestWarp, staging, kOutput, kGuardCap, Free(kGuardCap, kGpuDeviceShareBytes));
+                (void)Captured([&]() { tight.Start(); });
+                DirectX::ScratchImage out;
+                std::string why;
+                bool first = true;
+                bool second = true;
+                const auto printed = Captured([&]() {
+                    first = tight.Encode(grey, DXGI_FORMAT_BC7_UNORM, out, why);
+                    second = tight.Encode(grey, DXGI_FORMAT_BC7_UNORM, out, why);
+                });
+                a_check.Check(!first && !second && !tight.DeviceMade() && tight.HeadroomNoted() && why.empty() && Count(printed, "no device yet") == 1,
+                    "gpu encoder: free memory of exactly the device's share (no room for the encoded chain): no device, noted once");
+                GpuEncoder roomy(GpuUse::kTestWarp, staging, kOutput, kGuardCap, Free(kGuardCap, kGpuDeviceShareBytes + kBytesPerMiB));
+                (void)Captured([&]() { roomy.Start(); });
+                bool made = false;
+                (void)Captured([&]() { made = roomy.Encode(grey, DXGI_FORMAT_BC7_UNORM, out, why); });
+                a_check.Check(made && roomy.DeviceMade() && !roomy.HeadroomNoted(), "gpu encoder: the share plus room for the chain: the device is made");
+            }
+
+            // a release for memory: made again once, then not again
+            {
+                GpuEncoder gpu(GpuUse::kTestWarp, staging, kOutput, kGuardCap, plenty);
+                (void)Captured([&]() { gpu.Start(); });
+                DirectX::ScratchImage out;
+                std::string why;
+                bool firstEncode = false;
+                bool firstRelease = false;
+                bool secondEncode = false;
+                bool secondRelease = false;
+                bool thirdEncode = true;
+                const auto printed = Captured([&]() {
+                    firstEncode = gpu.Encode(grey, DXGI_FORMAT_BC7_UNORM, out, why);
+                    firstRelease = gpu.ReleaseForMemory();
+                    secondEncode = gpu.Encode(grey, DXGI_FORMAT_BC7_UNORM, out, why);
+                    secondRelease = gpu.ReleaseForMemory();
+                    thirdEncode = gpu.Encode(grey, DXGI_FORMAT_BC7_UNORM, out, why);
+                });
+                a_check.Check(firstEncode && firstRelease && secondEncode && gpu.Devices() == kGpuMaxDevicesPerRun && secondRelease && !thirdEncode &&
+                                  !gpu.DeviceHeld() && !gpu.Usable() && Count(printed, "not made again") == 1,
+                    fmt::format("gpu encoder: after a release for memory the device is made again once ({} devices), after the second "
+                                "release not again (logged)", gpu.Devices()));
+            }
+
+            // the throttle: never made again
+            {
+                GpuEncoder gpu(GpuUse::kTestWarp, staging, kOutput, kGuardCap, plenty);
+                (void)Captured([&]() { gpu.Start(); });
+                DirectX::ScratchImage out;
+                std::string why;
+                bool before = false;
+                bool after = true;
+                (void)Captured([&]() {
+                    before = gpu.Encode(grey, DXGI_FORMAT_BC7_UNORM, out, why);
+                    gpu.Throttle();
+                    after = gpu.Encode(grey, DXGI_FORMAT_BC7_UNORM, out, why);
+                });
+                a_check.Check(before && !after && gpu.Devices() == 1 && !gpu.DeviceHeld() && gpu.Stopped(),
+                    "gpu encoder: after the throttle the device is released and never made again");
+            }
+
+            // the summary's words: "disabled" only with an adapter whose gpu.disabled holds; "no adapter" without one
+            WriteAll(staging / kGpuDisabledFile, fmt::format("adapter={}\noutput={}\n", identity, kOutput));
+            {
+                GpuEncoder disabled(GpuUse::kTestWarp, staging, kOutput, kGuardCap, plenty);
+                (void)Captured([&]() { disabled.Start(); });
+                GpuEncoder notStarted(GpuUse::kAuto, staging, kOutput, kGuardCap, plenty);  // what Start leaves when no adapter is found
+                const auto off = disabled.SummaryLine();
+                const auto none = notStarted.SummaryLine();
+                a_check.Check(!disabled.Usable() && off.find("; disabled") != std::string::npos && none.find("no adapter") != std::string::npos &&
+                                  none.find("disabled") == std::string::npos,
+                    fmt::format("gpu encoder: the summary says disabled for an adapter under gpu.disabled, no adapter otherwise ('{}'; '{}')", off,
+                        none));
+            }
+            a_check.Check(!Exists(staging / kGpuInflightFile), "gpu encoder: no crash marker is left after the calls returned");
         }
 
         [[nodiscard]] std::optional<DirectX::ScratchImage> Load(const std::filesystem::path& a_file)
@@ -261,11 +511,15 @@ namespace GreyBuild::SelfTest
             };
             const Fixture fixtures[] = { { "bc7", Golden::kBc7, DXGI_FORMAT_BC7_UNORM }, { "bc7srgb", Golden::kBc7Srgb, DXGI_FORMAT_BC7_UNORM_SRGB },
                 { "bc7wide", Golden::kBc7Wide, DXGI_FORMAT_BC7_UNORM } };
-            GpuEncoder gpu(GpuUse::kAuto, dir / "staging", kOutput, kGuardCap, []() { return std::optional<MemoryState>(MemoryState{ 0, UINT64_MAX }); });
+            GpuEncoder gpu(GpuUse::kAuto, dir / "staging", kOutput, kGuardCap, Free(kGuardCap, kGuardCap));
             gpu.Start();
+            if (!gpu.AdapterFound()) {
+                std::cout << "INFO gpu guard 5: no hardware adapter here (see the GPU line above): not a failure\n";
+                return;
+            }
             for (const auto& fixture : fixtures) {
-                auto source = a_goldenDir / Golden::kInputFolder / fixture.golden;
-                if (!Exists(source)) {  // a tester package has no fixtures: the self-test's own orange texture in that format
+                auto source = a_goldenDir.empty() ? std::filesystem::path() : a_goldenDir / Golden::kInputFolder / fixture.golden;
+                if (source.empty() || !Exists(source)) {  // a tester package has no fixtures: the self-test's own orange texture
                     if (std::string_view(fixture.golden) == Golden::kBc7Wide) {
                         continue;  // no stand-in for the non-square one
                     }
@@ -279,24 +533,41 @@ namespace GreyBuild::SelfTest
                 const auto gpuOut = dir / fmt::format("{}.gpu.dds", fixture.name);
                 const auto cpu = RecolourDds(source, cpuOut, 1.0f);
                 const auto onGpu = RecolourDds(source, gpuOut, 1.0f, &gpu);
-                if (!onGpu.gpu && !gpu.DeviceMade()) {
-                    std::cout << fmt::format("INFO gpu guard 5: {} not on the GPU, no hardware device here ({}): not a failure\n", fixture.name,
-                        onGpu.gpuNote.empty() ? std::string("see the GPU line above") : onGpu.gpuNote);
+                a_check.Check(cpu.outcome == RecolourOutcome::kRecoloured && onGpu.outcome == RecolourOutcome::kRecoloured && !cpu.gpu,
+                    fmt::format("gpu guard 5: {} is recoloured with and without the GPU encoder{}", fixture.name,
+                        cpu.reason.empty() && onGpu.reason.empty() ? std::string() : fmt::format(" ({}; {})", cpu.reason, onGpu.reason)));
+                if (!onGpu.gpu) {
+                    if (!gpu.DeviceMade()) {
+                        a_check.Check(false, fmt::format("gpu guard 5: {}: a hardware adapter is here but no device was made (see the GPU "
+                                                         "lines above)", fixture.name));
+                    } else if (onGpu.gpuNote.empty() && gpu.Usable()) {
+                        a_check.Check(false, fmt::format("gpu guard 5: {}: the GPU is usable but the encoder was not tried (wiring)", fixture.name));
+                    } else {
+                        std::cout << fmt::format("INFO gpu guard 5: {} encoded on the CPU, the documented fallback: {}\n", fixture.name,
+                            onGpu.gpuNote.empty() ? std::string("the GPU was stopped earlier this run") : onGpu.gpuNote);
+                    }
                     continue;
                 }
                 const auto cpuImage = Load(cpuOut);
                 const auto gpuImage = Load(gpuOut);
+                a_check.Check(cpuImage && gpuImage && gpuImage->GetMetadata().format == fixture.format &&
+                                  gpuImage->GetMetadata().mipLevels == cpuImage->GetMetadata().mipLevels && onGpu.bytes == cpu.bytes,
+                    fmt::format("gpu guard 5: {} on the GPU is {} with {} mips and {} bytes like the CPU's ({})", fixture.name, onGpu.format,
+                        onGpu.mips, onGpu.bytes, onGpu.gpuNote));
+                if (!cpuImage || !gpuImage) {
+                    continue;
+                }
                 DirectX::ScratchImage reference;
-                const bool decoded = cpuImage && gpuImage &&
-                                     SUCCEEDED(DirectX::Decompress(cpuImage->GetImages(), cpuImage->GetImageCount(), cpuImage->GetMetadata(),
-                                         DirectX::IsSRGB(fixture.format) ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM, reference));
-                const auto check = decoded ? CheckGpuOutput(reference, *gpuImage) : GpuOutputCheck{};
-                a_check.Check(cpu.outcome == RecolourOutcome::kRecoloured && onGpu.outcome == RecolourOutcome::kRecoloured && onGpu.gpu &&
-                                  !cpu.gpu && decoded && gpuImage->GetMetadata().format == fixture.format &&
-                                  gpuImage->GetMetadata().mipLevels == cpuImage->GetMetadata().mipLevels && onGpu.bytes == cpu.bytes && check.ok,
-                    fmt::format("gpu guard 5: {} on the GPU is {} with {} mips and {} bytes like the CPU's, within the check's limits of "
-                                "it (worst {:.1f} dB, alpha difference {}; {})", fixture.name, onGpu.format, onGpu.mips, onGpu.bytes,
-                        check.worstPsnr, check.maxAlphaDiff, onGpu.gpuNote));
+                const bool decoded = SUCCEEDED(DirectX::Decompress(cpuImage->GetImages(), cpuImage->GetImageCount(), cpuImage->GetMetadata(),
+                    DirectX::IsSRGB(fixture.format) ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM, reference));
+                const auto check = decoded ? CheckGpuOutput(reference, *gpuImage, fixture.format) : GpuOutputCheck{};
+                if (check.ok) {
+                    a_check.Check(true, fmt::format("gpu guard 5: {} on the GPU is within the check's limits of the CPU's (worst {:.1f} dB, "
+                                                    "alpha difference {})", fixture.name, check.worstPsnr, check.maxAlphaDiff));
+                } else {
+                    std::cout << fmt::format("INFO gpu guard 5: {} on the GPU against the CPU's result is over a limit on this GPU ({}): "
+                                             "quality, not a regression of the build\n", fixture.name, decoded ? check.why : "the CPU's copy does not decode");
+                }
             }
             a_check.Check(!Exists(dir / "staging" / kGpuInflightFile) && !Exists(dir / "staging" / kGpuDisabledFile),
                 "gpu guard 5: no crash marker is left after the calls returned");
@@ -308,9 +579,11 @@ namespace GreyBuild::SelfTest
     {
         try {
             CheckMarkers(a_check, a_dir);
+            CheckMarkerIoFailures(a_check, a_dir);
             CheckOutputLimits(a_check);
             CheckOverCapRetry(a_check);
             CheckThrottle(a_check);
+            CheckEncoderState(a_check, a_dir);
             CheckGuardFive(a_check, a_dir, a_goldenDir);
         } catch (const std::exception& e) {
             a_check.Check(false, fmt::format("gpu: exception: {}", e.what()));

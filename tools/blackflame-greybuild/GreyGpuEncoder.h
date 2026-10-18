@@ -6,19 +6,28 @@
 // Key mode only (RunKeyed): RecolourDds hands a BC7_UNORM / BC7_UNORM_SRGB target here first; anything else, a refusal
 // or a failure uses today's CPU encoder on the same grey image. The guards (bf-no-wait-proposal.md 3.1):
 //   adapter     IDXGIFactory6::EnumAdapterByGpuPreference(HIGH_PERFORMANCE), else IDXGIFactory1::EnumAdapters1; the
-//               first hardware adapter (no DXGI_ADAPTER_FLAG_SOFTWARE); logged once at the start
+//               first hardware adapter (no DXGI_ADAPTER_FLAG_SOFTWARE); logged once at the start. Each list ends at
+//               its first failed call (DXGI_ERROR_NOT_FOUND or any other)
 //   device      D3D11CreateDevice(adapter, D3D_DRIVER_TYPE_UNKNOWN, feature level 11_0), made at the first BC7 texture
-//               and only while cap - PrivateUsage >= kGpuDeviceShareBytes; SetGPUThreadPriority(kGpuThreadPriority) so
-//               the game's GPU work goes first (whether WDDM 2.x honours it is not known; harmless if not)
-//   release     device and context: at the first failure (the rest of the run is CPU), before an over-cap failure
-//               (Budget's device release, then the device may be made again later), and for the rest of the run on
-//               the throttle event (GreyBudget.h ThrottleSignal)
+//               and only while cap - PrivateUsage >= kGpuDeviceShareBytes + that texture's encoded chain;
+//               SetGPUThreadPriority(kGpuThreadPriority) so the game's GPU work goes first (whether WDDM 2.x honours
+//               it is not known; harmless if not). After each Compress the context is cleared and flushed, so the
+//               call's buffers are freed before the output check and the next memory probe
+//   release     device and context: at the first failure (the rest of the run is CPU), before an over-cap failure or
+//               a wait for commit (Budget's device release, then the device may be made again later), and for the rest
+//               of the run on the throttle event (GreyBudget.h ThrottleSignal)
 //   crash guard staging\gpu.inflight holds "<strikes>\n<adapter>\n" only while device creation or a GPU Compress runs
 //               (written before, removed after: a kill outside those calls leaves nothing). A start that finds it
 //               logs it and keeps the GPU, carrying the strike into its own markers; a marker of strike 2 (two starts
 //               in a row ended inside a GPU call) writes staging\gpu.disabled ("adapter=...\noutput=...\n") and the
-//               CPU encodes from then on. gpu.disabled is cleared only at a start whose adapter (description, ids,
-//               driver version) or output identity differs; a CPU run (GpuUse::kOff) never reads or writes a marker
+//               CPU encodes from then on; the marker stays until gpu.disabled is written (a failed write leaves both
+//               strikes for the next start). A marker that names another adapter or driver is dropped with its strikes;
+//               one that exists but does not read counts as one strike and is left in place (its count is not lost).
+//               gpu.disabled is cleared, with any marker, only at a start whose adapter (description, ids, driver
+//               version) or output identity differs; one that exists but does not read, or lacks a field, keeps the
+//               GPU off and is never deleted. A CPU run (GpuUse::kOff) never reads or writes a marker
+//   re-creation after a release for memory the device is made again at most once a run (kGpuMaxDevicesPerRun); after
+//               the throttle, never
 //   output      each GPU result is decoded and compared with the grey image on every subresource (CheckGpuOutput):
 //               over a limit, that texture is encoded again on the CPU (RecolourResult::gpuNote says why). A small
 //               local defect under the limits is not caught (known limit)
@@ -28,6 +37,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -61,6 +71,7 @@ namespace GreyBuild
     // driver), so about twice that; an alpha channel lost (190) or one texel far off (the self-test's 120) is over it
     inline constexpr unsigned kGpuMaxAlphaDiff = 96;
     inline constexpr int kGpuDisableStrikes = 2;  // a marker of this strike count at a start disables the GPU
+    inline constexpr int kGpuMaxDevicesPerRun = 2;  // the first device and one re-creation after a release for memory
     inline constexpr const char* kGpuInflightFile = "gpu.inflight";
     inline constexpr const char* kGpuDisabledFile = "gpu.disabled";
     // Tests only: BLACKFLAME_GREYBUILD_GPU=off runs a key mode run on the CPU encoder alone (a forced-CPU measurement)
@@ -68,8 +79,10 @@ namespace GreyBuild
 
     enum class GpuUse
     {
-        kOff,   // the CPU encoder only, no adapter, device or marker (the golden test, the variable above)
-        kAuto   // the GPU for BC7 when its guards allow
+        kOff,      // the CPU encoder only, no adapter, device or marker (the golden test, the variable above)
+        kAuto,     // the GPU for BC7 when its guards allow
+        kTestWarp  // the self-test only: kAuto on Microsoft's software adapter (WARP), so the encoder's state machine runs
+                   // on any machine; never chosen by a run
     };
 
     /// kOff when kGpuEnvironmentVariable is "off" (any case), else a_default
@@ -86,14 +99,37 @@ namespace GreyBuild
 
     /// a_encoded (a BC7 chain) decoded one subresource at a time into a_reference's format and compared with it (an
     /// R8G8B8A8_UNORM or _SRGB chain of the same shape): MSE per subresource against kGpuMinPsnrDb, the largest alpha
-    /// difference against kGpuMaxAlphaDiff
-    [[nodiscard]] GpuOutputCheck CheckGpuOutput(const DirectX::ScratchImage& a_reference, const DirectX::ScratchImage& a_encoded);
+    /// difference against kGpuMaxAlphaDiff. a_target (a DXGI_FORMAT; 0: not checked): a_encoded in another format fails
+    /// like another shape
+    [[nodiscard]] GpuOutputCheck CheckGpuOutput(const DirectX::ScratchImage& a_reference, const DirectX::ScratchImage& a_encoded,
+        unsigned a_target = 0);
+
+    enum class MarkerRead
+    {
+        kMissing,    // no such file
+        kRead,       // read whole: text
+        kUnreadable  // there (or not known not to be) and does not open or read: why
+    };
+
+    struct MarkerText
+    {
+        MarkerRead state = MarkerRead::kMissing;
+        std::string text;
+        std::string why;
+    };
+
+    /// The markers' file I/O; an empty function is the real one (the self-test's seam for read and write failures)
+    struct MarkerIo
+    {
+        std::function<MarkerText(const std::filesystem::path&)> read;
+        std::function<bool(const std::filesystem::path&, const std::string&, std::string&)> write;
+    };
 
     /// The crash marker's state machine on a staging folder (header comment), apart from any device
     class GpuMarkers
     {
     public:
-        explicit GpuMarkers(std::filesystem::path a_staging);
+        explicit GpuMarkers(std::filesystem::path a_staging, MarkerIo a_io = {});
 
         struct Start
         {
@@ -116,7 +152,11 @@ namespace GreyBuild
         [[nodiscard]] std::filesystem::path Disabled() const { return m_staging / kGpuDisabledFile; }
 
     private:
+        [[nodiscard]] MarkerText Read(const std::filesystem::path& a_file) const;
+        [[nodiscard]] bool Write(const std::filesystem::path& a_file, const std::string& a_text, std::string& a_why) const;
+
         std::filesystem::path m_staging;
+        MarkerIo m_io;
     };
 
     /// One key mode run's GPU encoder (header comment); not thread-safe (one worker)
@@ -134,7 +174,9 @@ namespace GreyBuild
 
         /// a_grey (an R8G8B8A8 chain) encoded to a_format (BC7) into a_out: true. false: encode on the CPU; a_why is
         /// set only when the GPU was tried and failed (a refusal by state or memory leaves it empty and prints its own
-        /// line once)
+        /// line once). A device is made only while the cap minus the bytes in use holds kGpuDeviceShareBytes plus the
+        /// encoded chain still to allocate (computed from a_grey's shape in a_format). The caller checks the result
+        /// (CheckGpuOutput) and reports it with NoteResult
         [[nodiscard]] bool Encode(const DirectX::ScratchImage& a_grey, unsigned a_dxgiFormat, DirectX::ScratchImage& a_out,
             std::string& a_why);
 
@@ -144,15 +186,25 @@ namespace GreyBuild
         /// The throttle event: the device released and never made again this run
         void Throttle();
 
-        /// A result CheckGpuOutput refused (counted for the run's summary)
-        void NoteRejected() noexcept { ++m_rejected; }
+        /// The output check's verdict on a result Encode returned: accepted ones are the run's GPU encodes, refused ones
+        /// were encoded again on the CPU (both counted for the summary)
+        void NoteResult(bool a_accepted) noexcept { ++(a_accepted ? m_encoded : m_rejected); }
 
-        /// "gpu: <adapter> - N textures, M refused by the output check; ..." for the run's end
+        /// "gpu: <adapter> - N textures, M refused by the output check; ..." for the run's end ("no adapter" when none was
+        /// found; "disabled" only when one was found and gpu.disabled holds for it)
         [[nodiscard]] std::string SummaryLine() const;
 
-        [[nodiscard]] bool Usable() const noexcept { return m_use == GpuUse::kAuto && m_allowed && !m_stopped; }
+        [[nodiscard]] bool Usable() const noexcept { return m_use != GpuUse::kOff && m_allowed && !m_stopped; }
         [[nodiscard]] int Encoded() const noexcept { return m_encoded; }
         [[nodiscard]] bool DeviceMade() const noexcept { return m_devices > 0; }
+        [[nodiscard]] bool DeviceHeld() const noexcept;
+        [[nodiscard]] int Devices() const noexcept { return m_devices; }
+        [[nodiscard]] int Rejected() const noexcept { return m_rejected; }
+        [[nodiscard]] int Strikes() const noexcept { return m_strikes; }
+        [[nodiscard]] bool HeadroomNoted() const noexcept { return m_admissionNoted; }
+        [[nodiscard]] bool AdapterFound() const noexcept { return !m_adapter.empty(); }
+        [[nodiscard]] const std::string& Adapter() const noexcept { return m_adapter; }  // the markers' identity
+        [[nodiscard]] bool Stopped() const noexcept { return m_stopped; }
 
     private:
         struct Device;  // the D3D11 and DXGI objects (GreyGpuEncoder.cpp)
@@ -177,6 +229,6 @@ namespace GreyBuild
         int m_encoded = 0;
         int m_rejected = 0;
         int m_devices = 0;          // devices made (more than one after an over-cap release)
-        int m_releases = 0;         // over-cap releases
+        int m_releases = 0;         // releases for memory
     };
 }

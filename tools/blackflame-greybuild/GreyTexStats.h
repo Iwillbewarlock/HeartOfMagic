@@ -180,10 +180,10 @@ namespace GreyBuild
     /// a_transient (when given): the failure is the machine's (IsTransientResult), not the file's
     [[nodiscard]] std::optional<RgbaImage> ReadRgba(const std::filesystem::path& a_file, std::string& a_why, bool* a_transient = nullptr);
 
-    /// ReadRgba's conversion of a DDS's first image a_top (a_srgb: the file's format is sRGB): BCn decoded, other formats
-    /// converted, to 8-bit RGBA in the colour space stored; already RGBA8 of that space: copied. RecolourDds's risk check
-    /// uses it on the pixels it has decoded, so it sees the image ReadRgba would give
-    [[nodiscard]] std::optional<RgbaImage> ToRgba(const DirectX::Image& a_top, bool a_srgb, std::string& a_why, bool* a_transient = nullptr);
+    /// ReadRgba's conversion of a DDS's first image a_top: BCn decoded, other formats converted, to 8-bit RGBA in the colour
+    /// space stored (sRGB when a_top's own format is, DirectX::IsSRGB); already RGBA8 of that space: copied. RecolourDds's
+    /// risk check uses it on the pixels it has decoded (sRGB stays sRGB there), so it sees the image ReadRgba would give
+    [[nodiscard]] std::optional<RgbaImage> ToRgba(const DirectX::Image& a_top, std::string& a_why, bool* a_transient = nullptr);
 
     /// Integer sums over the bytes (exact, so the rows run in parallel in any order); the texel tests are the exact
     /// compares of kStatLitWeight and kStatColouredSat (a texel exactly on kStatColouredSat is not coloured)

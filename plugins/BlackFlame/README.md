@@ -208,8 +208,10 @@ blackflame-greybuild --request <request.json> --in <dir> [...] --out <mod root> 
 blackflame-greybuild --dump <file.nif> [...]        (AddOnNodes, effect shaders, colour keys)
 blackflame-greybuild --roundtrip <file.nif> [...]   (does an unchanged re-save match?)
 blackflame-greybuild --self-test [--golden-dir <dir>] [--print-golden]
-                                                    (made-up NIF, no game files, and the golden test; exit 0 = pass)
+                                                    (made-up NIF, no game files, and the golden test with
+                                                    --golden-dir tools\blackflame-greybuild\golden; exit 0 = pass)
 blackflame-greybuild --make-golden-fixtures <dir>   (the golden test's input files, written once and committed)
+blackflame-greybuild --identity                     (the output identity this exe keys with: <n> or <n>+dev<hex>)
 ```
 
 `--in` folders hold loose files laid out as Data (`meshes\...`), searched in the order given: the first that has
@@ -881,7 +883,7 @@ builder like `DataPathRule.h`:
 | File | What |
 |---|---|
 | `src/CopyContract.h` | contract version; the slot pool (ESL local ids: PROJ 480 at 0x800, IPCT 480 at 0x9E0, EXPL 320 at 0xBC0, ARTO 224 at 0xD00, HAZD 192 at 0xDE0, TXST 96 at 0xEA0 - the first 72 with a DODT stub -, ADDN 208 at 0xF00 with AddOnNode index 40000 + place; 0xFD0-0xFFF reserved; every entry pinned by a static_assert), FNV-1a 64, the tint text (`TintText`, `QuantizedTint`: to_chars fixed 6 decimals, 0..2 for tint and tintAdd as the builder takes them, -0 as 0), file states (an unset one makes every key builder refuse), request.json v5 field names (with `textures[].state` - ok, notdumped, missing, unread - so no side reads the error text, and `addnMps[].index`, the source ADDN's index, both required) |
-| `src/CopyContractKeys.h` | the key string of every model object (form NIF, PROJ muzzle, ADDN MPS, TXST, the builder's texture and palette copies) and the ADDN table part; key16 = the string's FNV-1a 64 as 16 lower-case hex digits. A not-dumped file keys as `notdumped:<size>` (content-free: the builder never reads it); a non-ASCII path as hex. The prefix's `out=` field is the builder's output identity (`kBuilderOutputVersion`: `<n>` for a release build, `<n>+dev<16 hex>` for a Debug build or one whose builder sources differ from git HEAD; key format BFK4, where BFK3 had `exe=<the exe's fnv64>`). `VerifyKeyPrefix`: the builder rebuilds the DLL's `keyPrefix` from its compiled identity and refuses the run on a difference. The exact format is in the header and frozen by golden strings in the test table; the texture child key16 anchor (`kGoldenTextureKey16`) is asserted by that table (the builder's --self-test and cosave-check) and by cosave-check's txst paths test through the DLL's own `SlotTxstPaths::CopyKey16`, so a builder and DLL that key a texture copy differently fail offline |
+| `src/CopyContractKeys.h` | the key string of every model object (form NIF, PROJ muzzle, ADDN MPS, TXST, the builder's texture and palette copies) and the ADDN table part; key16 = the string's FNV-1a 64 as 16 lower-case hex digits. A not-dumped file keys as `notdumped:<size>` (content-free: the builder never reads it); a non-ASCII path as hex. The prefix's `out=` field is the builder's output identity (`kBuilderOutputVersion`: `<n>` for a release build, `<n>+dev<16 hex>` for a build of any configuration but Release or one whose builder sources differ from git HEAD; key format BFK4, where BFK3 had `exe=<the exe's fnv64>`). `VerifyKeyPrefix`: the builder rebuilds the DLL's `keyPrefix` from its compiled identity and refuses the run on a difference. The exact format is in the header and frozen by golden strings in the test table; the texture child key16 anchor (`kGoldenTextureKey16`) is asserted by that table (the builder's --self-test and cosave-check) and by cosave-check's txst paths test through the DLL's own `SlotTxstPaths::CopyKey16`, so a builder and DLL that key a texture copy differently fail offline |
 | `src/CopyContractIdentity.h` | the builder's output identity in its exe (RCDATA 4101, the text's bytes, no NUL) and its read: `ReadIdentityResource` loads the exe as a data file (never run; kernel32 only) and takes the resource's bytes, `BuilderIdentityFault` refuses a malformed identity or another output version than the DLL's own. rc.exe includes it too (only the resource id's `#define` outside `RC_INVOKED`). The builder's `--self-test` reads its own exe through it; cosave-check runs the failure paths (no file, no PE image, an exe without the resource) and reads the builder built beside it |
 | `src/CopyContractProgress.h` | the builder's `progress.jsonl` line: outcomes ok, fallback, failed (retryable), too_large and not_dumped (terminal); the writer and a parser that ignores a last line without `\n`, refuses any v but 1, a key given twice and any path that is not a copy path, and reports a bad line by number; a too_large line carries its memory cap as a `cap` field; the last line for a key wins; the DLL copies staging to Data and never moves a file; `ProgressValidPrefix` for the builder before it appends |
 | `src/CopyContractTest.h`, `CopyContractTestPaths.h`, `CopyContractTestProgress.h` | the shared test table: `blackflame-cosave-check --self-test` and `blackflame-greybuild --self-test` both run it (the double-byte path cases with a fixed code page 932 rule, so they run on any system; a case the system cannot run is SKIP, not PASS) |
@@ -946,35 +948,50 @@ does not change the builder's output rebuilds nothing. `tools/blackflame-greybui
 identity at build time (a custom target the builder depends on; it rewrites its two files, the builder's
 `GreyIdentityText.h` and the RCDATA `GreyIdentity.rc`, only when the text changes, in a folder per configuration -
 `build/tools/blackflame-greybuild-identity/<config>/` - so a Debug and a Release build at once each embed their own):
-`<n>` = `kBuilderOutputVersion` when the build is not Debug and the output-affecting sources
+`<n>` = `kBuilderOutputVersion` when the build is Release and the output-affecting sources
 (`tools/blackflame-greybuild/**` with the golden fixtures, `plugins/BlackFlame/src/CopyContract*.h`, `DataPathRule.h`,
 and what sets the builder's compile options and libraries: `tools/CMakeLists.txt`, the root `CMakeLists.txt`,
 `plugins/cmake/*.cmake`, `CMakePresets.json`, `vcpkg.json`, `vcpkg-configuration.json`; only the folder pattern recurses)
-are git HEAD's; else `<n>+dev<16 hex>` (Debug, a modified, staged or untracked source, or git
-not there), the hex the first 16 digits of a SHA-256 over those files (not FNV-1a: a CMake script has no unsigned 64-bit
-arithmetic). A dev build so gets keys of its own and never writes into a release's. The release identity is a promise
+are git HEAD's (`git --no-optional-locks status`, so a build never takes the index lock); else `<n>+dev<16 hex>` (any
+configuration but Release, a modified, staged or untracked source, or git not there), the hex the first 16 digits of a
+SHA-256 over the configuration name and those files (not FNV-1a: a CMake script has no unsigned 64-bit arithmetic; no
+file matched is an error, not an empty digest). A dev build so gets keys of its own and never writes into a release's. The release identity is a promise
 that the output did not change, kept by hand (bump `kBuilderOutputVersion` whenever any output byte or progress line
 changes) and checked by the golden test in `--self-test` (`GreySelfTestGolden.cpp`). It runs as a POST_BUILD step of
 `blackflame-greybuild` on every build of it (`GreySelfTestGate.cmake`: the whole `--self-test`, about 3 s, its output in
-`build/tools/Release/blackflame-greybuild-selftest.log`, the summary and FAIL lines in the build output); a failure fails
-the build and moves the exe to `blackflame-greybuild.gate-failed.exe`, which still runs `--print-golden`. The test runs the
+`build/tools/Release/blackflame-greybuild-selftest.log`, the summary and FAIL lines in the build output, its stderr too
+when it fails, a clear line when the exe did not run at all); a failure fails the build and moves the exe to
+`blackflame-greybuild.gate-failed.exe`, which still runs `--print-golden`; a passing gate removes a `.gate-failed.exe` an
+earlier one left. The test runs the
 key mode with the release identity and the CPU encoder forced (`GpuUse::kOff`, checked: no crash marker in its staging;
 GPU bytes are not fixed, guard 5 checks the GPU by tolerance) on committed inputs (`tools/blackflame-greybuild/golden/input`,
 about 180 KB, written once by `--make-golden-fixtures`): BC7, sRGB BC7, BC3, BC1, B8G8R8A8, a 16 x 4 BC7 down to 1 x 1,
 an already grey BC1, a B8G8R8A8 texture one step to either side of `kGreyscaleChroma`, `kColouredShare`,
-`kStatColouredFrac` and `kStatMeanSat` (each checked to land on its side), a BC5, a palette shader NIF, glow shapes and a
+`kStatColouredFrac` and `kStatMeanSat`, texels exactly on `kStatColouredSat` (saturation 0.25: not coloured) and an
+alpha-weighted mean channel exactly on `kStatMinChannel` (0.02: counted), texels at alpha x max 6501 and 6507 on either
+side of the lit test (each checked to land on its side), a BC5, a palette shader NIF, glow shapes and a
 glow map shader, an MPS with AddOnNode 9, a TXST, and an additive palette shader on a B8G8R8A8_UNORM_SRGB source palette
-(the derived palette's sRGB branch; checked to come out sRGB; added to version 1 before its release, every earlier row
-unchanged). It compares every output file's size and fnv64, every progress
+(the derived palette's sRGB branch; checked to come out sRGB). The sRGB palette and the texel-test fixtures were added
+to version 1 before its release (2026-10-18 and -19), every row they do not reach unchanged. It compares every output file's size and fnv64, every progress
 line's kind, key, outcome and deps (not its reason) and a digest of the output-affecting constants the headers expose
 (hex-float text, `DIRECTX_TEX_VERSION`, the DirectXTex and nifly vcpkg port versions) with the table of that version in
 `GreyGoldenTable.h`; a difference fails with "bump kBuilderOutputVersion in CopyContractKeys.h and regenerate the table
-(--self-test --print-golden)". A released table is never edited: a new version adds one. `--self-test` turns FMA3 off in
-the CRT's maths functions (`_set_FMA3_enable(0)`); version 1's table was made on one machine and is to be confirmed on a
-second before it is relied on as a gate. Without `--golden-dir` a missing fixture folder only skips the golden part (a
-tester package has none); the POST_BUILD step passes it, so there it fails. Not in the digest: constants inside `.cpp`
+(--self-test --print-golden)". A released table is never edited: a new version adds one. It is pinned: the last field
+of its `kTables` row holds the fnv64 of its text, and a pinned table that changes fails the self-test; the self-test and
+`Make-TesterPackage.ps1` print the fnv64 to pin (`NOTE golden table v<n> fnv64 <hex>`). Version 1 is not pinned yet: it is
+pinned when the first tester package with BFK4 ships. The builder turns FMA3 off in the CRT's maths functions
+(`_set_FMA3_enable(0)`) at the start of every mode, so a shipped run gives the bytes the table holds. Version 1's table was
+made on one machine and has not been confirmed on a second one yet; it is the build's gate all the same (the POST_BUILD
+step above). Without `--golden-dir` the golden part is skipped (no developer's folder is compiled into the exe; a tester
+package has no fixtures); the POST_BUILD step and `Make-TesterPackage.ps1` pass the repository's
+`tools/blackflame-greybuild/golden`, so there a missing folder fails. `--identity` prints the exe's output identity; the
+package script refuses a `+dev` one, one whose number is not `kBuilderOutputVersion`, and a builder whose `--self-test` has
+a FAIL. Not in the digest: constants inside `.cpp`
 files' unnamed namespaces (their changes show only as changed bytes where the fixture reaches them). Stated limit: a
-forgotten bump whose output change the fixture does not reach gives stale copies, which the exe hash never did.
+forgotten bump whose output change the fixture does not reach gives stale copies, which the exe hash never did. Stated
+limit: the BFK3 generation is never pruned. After the switch to BFK4 every BFK3 key's staging files and progress lines stay
+(`GreyProgress.cpp`'s compaction keeps the last line of every key, whatever its format), and so do the Data copies
+published under BFK3 keys; nothing reads them again (about 250 MiB on the measured load order, proposal section 4).
 
 Request v5 as this builder reads it (P2 writes it; every point below is a builder assumption):
 - every v4 field, read as `--from-game --out` reads it (so the dev mode builds a v5 request too), but no `models`: v5
@@ -1060,30 +1077,38 @@ encoded chain at once, plus, for a GPU result, one decoded subresource for its c
 read one, the read's own peak (the file and mip 0 decoded x 2).
 Too large alone: `too_large` (the estimate alone: the GPU device never makes one). The system's available commit (commit
 limit - commit total, not the job's own remainder) under `--commit-reserve` (default 4096 MiB) plus the estimate: the
-builder waits, a line a minute, at most 30 minutes. The process's committed bytes plus the estimate over `--job-memory`
+texture cache is cleared once, then a GPU device the run holds is released, each followed by a new measure; still short,
+the builder waits, a line a minute, at most 30 minutes. The process's committed bytes plus the estimate over `--job-memory`
 (default 1536 MiB, the job object's cap the DLL sets): a GPU device the run holds is released with the texture cache, else
 before a recolour the texture cache the glow rules keep is cleared once (never during the glow rules' reads, while a
 texture of that cache is in use), and it is measured again; still over: `failed` (retryable). The cache is also cleared
 between objects past 256 MiB. One worker builds one object at a time (the texture, palette and progress state is not
-thread-safe). Inside an object OpenMP runs on every logical CPU: vcpkg's DirectXTex links OpenMP, so the builder is built
-with `/openmp` and imports `vcomp140.dll`; `TEX_COMPRESS_PARALLEL` (the CPU encoder) and `ComputeStats`'s row loops use
+thread-safe). Inside an object OpenMP runs on every logical CPU: the builder links `OpenMP::OpenMP_CXX` itself (its own
+`#pragma omp` loops; vcpkg's DirectXTex links it too), so it is built with `/openmp` and imports `vcomp140.dll`; `TEX_COMPRESS_PARALLEL` (the CPU encoder) and `ComputeStats`'s row loops use
 it. The process runs at `BELOW_NORMAL_PRIORITY_CLASS`.
 
 **GPU BC7 encode** (`GreyGpuEncoder.h`, proposal Step 1, 2026-10-18; DirectXTex's `dx11` feature, `d3d11` and `dxgi`
 from the Windows SDK, the builder only). In key mode a BC7 target is encoded by DirectXTex's DirectCompute encoder
 (`DEFAULT | BC7_QUICK`, alpha weight 1.0; the CPU overload's float in the same place is BC1's threshold 0.5) when:
-- an adapter: `IDXGIFactory6::EnumAdapterByGpuPreference(HIGH_PERFORMANCE)` (else `EnumAdapters1`), the first that is not
-  a software adapter, logged once at the start (`GPU   adapter <description> (vendor, device, driver <version>), LUID,
+- an adapter: `IDXGIFactory6::EnumAdapterByGpuPreference(HIGH_PERFORMANCE)` (else `EnumAdapters1`; each list ends at its
+  first failed call), the first that is not a software adapter, logged once at the start (`GPU   adapter <description> (vendor, device, driver <version>), LUID,
   dedicated memory`); none: the CPU;
 - a device: `D3D11CreateDevice` on that adapter (`D3D_DRIVER_TYPE_UNKNOWN`, feature level 11_0), made at the first BC7
   texture only while the job memory cap minus the process's committed bytes is at least 448 MiB (`kGpuDeviceShareBytes`:
-  the GPU path's peak addition on the real request, 979 MiB against 563 MiB forced to the CPU, one exe); `SetGPUThreadPriority(-7)` (whether WDDM honours it is not known). It is released, with its
-  context, at the first failure (the rest of the run is CPU), before an object would fail over the cap (made again later
-  when there is room), and for the rest of the run on the throttle event;
+  the GPU path's peak addition on the real request, 979 MiB against 563 MiB forced to the CPU, one exe) plus that
+  texture's encoded chain; `SetGPUThreadPriority(-7)` (whether WDDM honours it is not known). After each GPU encode the
+  context is cleared and flushed (DirectXTex's buffers of that call are freed before the output check). It is released,
+  with its context, at the first failure (the rest of the run is CPU), before an object would fail over the cap or wait
+  for commit (made again once a run when there is room, never a third time), and for the rest of the run on the throttle
+  event;
 - the crash guard allows it: `staging\gpu.inflight` (`<strikes>` and the adapter) exists only while device creation or a
   GPU encode runs; a start that finds it keeps the GPU and carries the strike, a marker of strike 2 (two starts in a row
   ended inside a GPU call) writes `staging\gpu.disabled` (adapter with its driver version, output identity) and from then
-  BC7 is encoded on the CPU; `gpu.disabled` is cleared only at a start whose adapter, driver or output identity differs. A
+  BC7 is encoded on the CPU; the marker stays until that write succeeds (a failed write leaves both strikes for the next
+  start). A marker naming another adapter or driver is dropped with its strikes; one that does not read is one strike and
+  stays. `gpu.disabled` is cleared, with any marker, only at a start whose adapter, driver or output identity differs; one
+  that does not read, or lacks a line, keeps the GPU off and is never deleted. The output check also refuses a result in
+  another format than the target. A
   CPU run (`BLACKFLAME_GREYBUILD_GPU=off`, or the golden test) neither reads nor writes either file. The DLL never walks
   staging (it copies what progress lines name), so the two files reach nothing else.
 - Output check (`CheckGpuOutput`): the result is decoded one subresource at a time and compared with the grey image:
@@ -1092,8 +1117,13 @@ from the Windows SDK, the builder only). In key mode a BC7 target is encoded by 
   this machine (RTX 3070 Laptop, driver 32.0.16.1664). Over a limit: that texture is encoded on the CPU and a `GPU   CPU`
   line says why; a passed one gets a `GPU   BC7` line with its worst subresource. A small local defect under the limits is
   not caught. The run ends with a `gpu    ...` line (textures on the GPU, refused by the check, devices made, memory
-  releases). GPU bytes are not the CPU's and can change with the driver: same key, other bytes is the stated limit of
-  proposal 3.1 (a rebuild of an object whose staging file is gone).
+  releases). GPU bytes are not the CPU's and can change with the driver. Stated limit (proposal 3.1), same key, other
+  bytes: only a rebuild of an object whose staging file is gone hits it. Launch N: the new file differs from the one in
+  Data and is deferred as `.next` (`BuildProgress.cpp`); a slot that already had a published generation keeps it (grey
+  stays), one that had none stays on its source. Launch N+1: `ApplyDeferred` renames it in and marks it replaced this
+  session, so `PlanObject` still refuses it. Launch N+2: published. The two ways out (keep the Data file when it is the
+  ledger's published generation of that key, or let the builder take the Data file's bytes for a key that has one) are
+  not built.
 
 **Throttle** (`plugins/BlackFlame/src/BuilderSignal.h`): with `--parent-pid <pid>` the builder opens the named,
 manual-reset event `Local\HoMBlackFlame_Throttle_<pid>` (SYNCHRONIZE only; not there: never throttled, one `THROTTLE`

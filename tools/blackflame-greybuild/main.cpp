@@ -13,6 +13,7 @@
 //   blackflame-greybuild --roundtrip <file.nif> [...]
 //   blackflame-greybuild --self-test [--golden-dir <dir>] [--print-golden]
 //   blackflame-greybuild --make-golden-fixtures <dir>
+//   blackflame-greybuild --identity
 // --in folders hold loose files laid out Data-relative (meshes\...); they are searched in
 // the order given and the first that has a file wins. --map builds what a fixed map lists
 // (the shipped vanilla core); --request finds what one setup needs, builds it and writes
@@ -25,10 +26,12 @@
 // --staging is the single launch's key mode (GreyKeyed.h): request v5's objects at the DLL's keys in a staging folder,
 // with progress.jsonl; tint, tintAdd and the palette mode come from the request only. --write-slot-pool writes the slot
 // pool ESL, --collisions lists a request's ADDN indices in the pool's range (GreySlotPool.h).
-// --self-test also runs the golden-output test (GreySelfTestGolden.cpp) on the committed fixtures in --golden-dir (default
-// the repository's tools\blackflame-greybuild\golden; given, it must exist, else a missing folder only skips that part);
-// --print-golden runs that part alone and prints this build's table as source. --make-golden-fixtures writes the
-// fixtures' input files once (they are committed, never made again at test time).
+// --self-test also runs the golden-output test (GreySelfTestGolden.cpp) on the committed fixtures in --golden-dir (the
+// repository's tools\blackflame-greybuild\golden; given, it must exist; not given, that part is skipped: no developer's
+// folder is compiled in); --print-golden runs that part alone and prints this build's table as source (it needs
+// --golden-dir). --make-golden-fixtures writes the fixtures' input files once (they are committed, never made again at
+// test time). --identity prints the output identity this exe keys with ("<n>" or "<n>+dev<digest>", GreyIdentity.cmake).
+// Every mode runs with the CRT's FMA3 paths off (_set_FMA3_enable(0)), so a run gives the golden table's bytes.
 // Exit 0 = success, 1 = a failure, 2 = bad arguments.
 
 #include "GreyBuild.h"
@@ -37,6 +40,7 @@
 #include "GreySlotPool.h"
 
 #include <charconv>
+#include <cmath>
 #include <fmt/format.h>
 #include <iostream>
 #include <system_error>
@@ -81,6 +85,7 @@ namespace
         GreyBuild::SelfTestOptions selfTestOptions;  // --golden-dir, --print-golden (with --self-test only)
         bool selfTestOnlySet = false;
         std::filesystem::path goldenFixtures;        // --make-golden-fixtures
+        bool identity = false;                       // --identity
     };
 
     void PrintUsage()
@@ -109,7 +114,8 @@ namespace
                      "  blackflame-greybuild --dump <file.nif> [...]\n"
                      "  blackflame-greybuild --roundtrip <file.nif> [...]\n"
                      "  blackflame-greybuild --self-test [--golden-dir <dir>] [--print-golden]\n"
-                     "  blackflame-greybuild --make-golden-fixtures <dir>\n";
+                     "  blackflame-greybuild --make-golden-fixtures <dir>\n"
+                     "  blackflame-greybuild --identity   (prints the output identity this exe keys with)\n";
     }
 
     [[nodiscard]] bool ParseTint(const char* a_text, float& a_tint)
@@ -155,6 +161,8 @@ namespace
             const bool hasValue = i + 1 < a_argc;
             if (arg == "--self-test") {
                 a_options.selfTest = true;
+            } else if (arg == "--identity") {
+                a_options.identity = true;
             } else if (arg == "--golden-dir" && hasValue) {
                 a_options.selfTestOnlySet = true;
                 a_options.selfTestOptions.goldenRequired = true;
@@ -399,6 +407,9 @@ namespace
 
 int main(int a_argc, char** a_argv)
 {
+    // The CRT's maths functions (std::pow in the palettes and the sRGB curve) take an FMA3 path on CPUs that have it,
+    // which can give other last bits: off for every mode, so a shipped run gives the bytes the golden table holds
+    (void)_set_FMA3_enable(0);
     Options options;
     if (!ParseArgs(a_argc, a_argv, options)) {
         PrintUsage();
@@ -407,6 +418,14 @@ int main(int a_argc, char** a_argv)
     if (options.selfTestOnlySet && !options.selfTest) {
         std::cerr << "--golden-dir and --print-golden go with --self-test\n";
         return kExitUsage;
+    }
+    if (options.identity) {
+        if (a_argc != 2) {
+            std::cerr << "--identity runs alone\n";
+            return kExitUsage;
+        }
+        std::cout << GreyBuild::OutputIdentity() << "\n";
+        return kExitOk;
     }
     if (options.selfTest) {
         return GreyBuild::RunSelfTest(options.selfTestOptions);

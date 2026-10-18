@@ -251,8 +251,9 @@ foreach(port nifly directxtex)
         endif()
     endif()
 endforeach()
+# No fixture folder is compiled in (a developer's absolute path would ship in the exe): the POST_BUILD gate and the package
+# script pass --golden-dir
 target_compile_definitions(blackflame-greybuild PRIVATE
-    BLACKFLAME_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/blackflame-greybuild/golden"
     BLACKFLAME_NIFLY_PORT="${BLACKFLAME_NIFLY_PORT}"
     BLACKFLAME_DIRECTXTEX_PORT="${BLACKFLAME_DIRECTXTEX_PORT}"
 )
@@ -263,7 +264,10 @@ find_package(fmt CONFIG REQUIRED)
 set_target_properties(blackflame-greybuild PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 
 # shell32 / ole32: SHGetKnownFolderPath and CoTaskMemFree (--from-game finds Documents); d3d11 / dxgi: the GPU BC7
-# encoder's device and adapter (GreyGpuEncoder.cpp). Windows SDK, no new package; the builder only, never a DLL
+# encoder's device and adapter (GreyGpuEncoder.cpp). Windows SDK, no new package; the builder only, never a DLL.
+# OpenMP: the builder's own #pragma omp (ComputeStats, GreyTexStats.cpp) and omp_set_num_threads (GreyBudget.cpp), linked
+# here by name rather than through DirectXTex's target (which links it too, so nothing new is loaded: vcomp140.dll)
+find_package(OpenMP REQUIRED COMPONENTS CXX)
 target_link_libraries(blackflame-greybuild PRIVATE
     shell32
     ole32
@@ -271,6 +275,7 @@ target_link_libraries(blackflame-greybuild PRIVATE
     dxgi
     nifly
     Microsoft::DirectXTex
+    OpenMP::OpenMP_CXX
     fmt::fmt
     nlohmann_json::nlohmann_json
 )

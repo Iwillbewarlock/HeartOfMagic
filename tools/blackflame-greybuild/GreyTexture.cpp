@@ -274,7 +274,7 @@ namespace GreyBuild
         // gives it, from the pixels decoded above (no second read); a conversion that fails fails the texture
         std::string riskWhy;
         bool riskTransient = false;
-        const auto rgba = ToRgba(*pixels.GetImage(0, 0, 0), DirectX::IsSRGB(format), riskWhy, &riskTransient);
+        const auto rgba = ToRgba(*pixels.GetImage(0, 0, 0), riskWhy, &riskTransient);
         if (!rgba) {
             return Fail(result, fmt::format("reading the pixels for the visual-risk check failed: {}", riskWhy), riskTransient);
         }
@@ -308,14 +308,14 @@ namespace GreyBuild
         if (compressed && a_gpu && (format == DXGI_FORMAT_BC7_UNORM || format == DXGI_FORMAT_BC7_UNORM_SRGB)) {
             std::string gpuWhy;
             if (a_gpu->Encode(grey, static_cast<unsigned>(format), encoded, gpuWhy)) {
-                const auto check = CheckGpuOutput(grey, encoded);
+                const auto check = CheckGpuOutput(grey, encoded, static_cast<unsigned>(format));
+                a_gpu->NoteResult(check.ok);
                 if (check.ok) {
                     result.gpu = true;
                     result.gpuNote = fmt::format("worst subresource {} at {:.1f} dB, largest alpha difference {}", check.worstImage,
                         check.worstPsnr, check.maxAlphaDiff);
                     out = &encoded;
                 } else {
-                    a_gpu->NoteRejected();
                     result.gpuNote = fmt::format("the GPU's result is over a limit ({}): encoded on the CPU", check.why);
                     encoded.Release();
                 }

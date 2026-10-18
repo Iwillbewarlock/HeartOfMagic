@@ -43,8 +43,10 @@ namespace GreyBuild::Golden
     inline constexpr const char* kPaletteSrgb = "textures\\golden\\palettesrgb.dds";
 
     /// A texture one 8-bit step (or one texel) to either side of a threshold of the recolour decision at tint 1
-    /// (RecolourDds: kGreyscaleChroma, kColouredShare; IsColouredTexture: kStatColouredFrac, kStatMeanSat); uncompressed
-    /// B8G8R8A8, so the values are exact
+    /// (RecolourDds: kGreyscaleChroma, kColouredShare; IsColouredTexture: kStatColouredFrac, kStatMeanSat), or exactly on
+    /// one of ComputeStats's texel tests (kStatColouredSat, kStatMinChannel) and either side of its lit test
+    /// (kStatLitWeight: alpha x max 6501 / 6507 against 0.1 x 255 x 255 = 6502.5); uncompressed B8G8R8A8, so the values are
+    /// exact
     struct ThresholdFixture
     {
         const char* path;
@@ -61,6 +63,11 @@ namespace GreyBuild::Golden
         { "textures\\golden\\frac_over.dds", "kStatColouredFrac 0.20: 205 of 1024 lit texels at S 0.3 (0.200)", true },
         { "textures\\golden\\meansat_under.dds", "kStatMeanSat 0.30: unlit mean (25, 17.52, 17.52) (0.299)", false },
         { "textures\\golden\\meansat_over.dds", "kStatMeanSat 0.30: unlit mean (25, 17.51, 17.51) (0.300)", true },
+        { "textures\\golden\\sat_edge.dds", "kStatColouredSat 0.25: 205 of 1024 lit texels at S exactly 0.25, (40, 30, 30): not coloured", false },
+        { "textures\\golden\\minchannel_edge.dds", "kStatMinChannel 0.02: 10 unlit texels, one (6, 0, 0) and nine (5, 0, 0): mean red "
+                                                   "exactly 0.02, so mean S 1", true },
+        { "textures\\golden\\lit_under.dds", "kStatLitWeight 0.1: 5 coloured texels at alpha x max 6501 (197, 100, 100, a 33): unlit", false },
+        { "textures\\golden\\lit_over.dds", "kStatLitWeight 0.1: 5 coloured texels at alpha x max 6507 (241, 120, 120, a 27): lit", true },
     };
 
     // The request's objects (any 16 hex digits: the DLL's keys; the builder never checks them against their sources)
@@ -95,5 +102,9 @@ namespace GreyBuild::Golden
         std::size_t fileCount;
         const GoldenLine* lines;
         std::size_t lineCount;
+        // The pin: the fnv64 (16 lower-case hex digits) of this table's text (GreySelfTestGolden.cpp TableText) once its
+        // version is released, "" before. A pinned table that differs from its pin fails the self-test, so a released
+        // table cannot be regenerated in place
+        const char* pinned;
     };
 }

@@ -223,7 +223,7 @@ namespace GreyBuild::SelfTest
                 const DXGI_FORMAT work = DirectX::IsSRGB(meta.format) ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM;
                 loaded = SUCCEEDED(DirectX::Decompress(source.GetImages(), source.GetImageCount(), meta, work, decoded));
             }
-            const auto reused = loaded ? ToRgba(*(compressed ? decoded : source).GetImage(0, 0, 0), DirectX::IsSRGB(meta.format), why) :
+            const auto reused = loaded ? ToRgba(*(compressed ? decoded : source).GetImage(0, 0, 0), why) :
                                          std::nullopt;
             a_check.Check(old && reused && SameImage(*old, *reused), fmt::format("stats: {} {}: the risk check's image from the "
                 "decoded pixels is ReadRgba's, byte for byte", a_name, a_orange ? "orange" : "grey"));
@@ -257,7 +257,7 @@ namespace GreyBuild::SelfTest
             palettized.pixels = bytes.data();
             std::string why;
             bool transient = true;
-            const auto refused = ToRgba(palettized, false, why, &transient);
+            const auto refused = ToRgba(palettized, why, &transient);
             a_check.Check(!refused && !transient && why.find("decoding format") != std::string::npos,
                 fmt::format("stats: ToRgba of a format it cannot convert: none, not transient, why '{}'", why));
         }

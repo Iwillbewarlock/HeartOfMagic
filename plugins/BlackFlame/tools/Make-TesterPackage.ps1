@@ -27,7 +27,10 @@
     commit no branch or tag on origin reaches (after git fetch origin; local tags and other remotes do not count: the
     notices would name source nobody can get): -AllowUnpublished packages it with the source zip inside. -AllowDirty needs
     -AllowUnpublished (no remote holds uncommitted changes). An untracked file under the DLL's or the builder's sources
-    is refused always (no zip and no commit would hold it).
+    is refused always (no zip and no commit would hold it). The builder is refused when its output identity
+    (blackflame-greybuild --identity) is a dev one ("+dev") or not kBuilderOutputVersion of CopyContractKeys.h, and when
+    its --self-test (the golden test on the repository's fixtures included) has a FAIL; the golden table's fnv64 is
+    printed, to pin in GreyGoldenTable.h once this package ships.
 
 .EXAMPLE
     .\plugins\BlackFlame\tools\Make-TesterPackage.ps1
@@ -152,7 +155,10 @@ $commonlibVersion = $commonlibVersion.Trim().TrimStart('v')
 $dllSources = @('plugins\BlackFlame\src', 'plugins\BlackFlame\CMakeLists.txt', 'plugins\Common.h', 'plugins\PCH.h',
     'plugins\WideFileSink.h', 'plugins\spelllearning\src\EncodingUtils.cpp', 'plugins\spelllearning\include\EncodingUtils.h',
     'plugins\spelllearning\include\PluginNames.h', 'plugins\spelllearning\include\AsciiText.h')
-$builderSources = @('tools\blackflame-greybuild', 'tools\CMakeLists.txt', 'plugins\BlackFlame\src\DataPathRule.h')
+# The builder: its folder, its CMake target and every plugin header it compiles (tools\CMakeLists.txt's sources and their
+# includes: the copy contract, its identity resource header and test table, the throttle signal, the path rule)
+$builderSources = @('tools\blackflame-greybuild', 'tools\CMakeLists.txt', 'plugins\BlackFlame\src\CopyContract*.h',
+    'plugins\BlackFlame\src\BuilderSignal.h', 'plugins\BlackFlame\src\DataPathRule.h')
 # W7: a file the build compiles that git does not track would be in neither the commit nor the source zip
 $untracked = @(git -C $repo ls-files --others --exclude-standard -- @($dllSources + $builderSources | ForEach-Object { $_ -replace '\\', '/' }))
 if ($untracked) { Fail "untracked file(s) under the DLL's or the builder's sources (commit or remove them): $($untracked -join ', ')" }
@@ -162,6 +168,35 @@ foreach ($pair in @(@((Join-Path $dllDir 'HeartOfMagic_BlackFlame.dll'), $dllSou
     if ($newest -and $newest.LastWriteTime -gt $binary.LastWriteTime) {
         Fail "$($binary.Name) ($($binary.LastWriteTime)) is older than $($newest.FullName) ($($newest.LastWriteTime)): run .\BuildRelease.ps1 -preset Release-2026 first"
     }
+}
+# The builder's output identity: a release one ("<n>", no "+dev"), and n the kBuilderOutputVersion the DLL was built with
+$identity = (& $builder --identity 2>$null | Out-String).Trim()
+if ($LASTEXITCODE -ne 0 -or -not $identity) { Fail "$builder --identity failed (exit $LASTEXITCODE): build it again (.\BuildRelease.ps1 -preset Release-2026)" }
+$keysHeader = Join-Path $repo 'plugins\BlackFlame\src\CopyContractKeys.h'
+$versionMatch = [regex]::Match((Get-Content $keysHeader -Raw), 'kBuilderOutputVersion = ([0-9]+);')
+if (-not $versionMatch.Success) { Fail "no 'kBuilderOutputVersion = <n>;' in $keysHeader" }
+$outputVersion = $versionMatch.Groups[1].Value
+if ($identity -match '\+dev') {
+    Fail "the builder's output identity is '$identity', a dev build (not Release, or builder sources that differ from git HEAD): commit them and build Release"
+}
+if ($identity -ne $outputVersion) {
+    Fail "the builder's output identity '$identity' is not kBuilderOutputVersion $outputVersion of CopyContractKeys.h: build the builder again"
+}
+# Its whole --self-test, the golden test included (the repository's fixtures): any FAIL line or a non-zero exit stops here
+$golden = Join-Path $repo 'tools\blackflame-greybuild\golden'
+$selfTest = @(& $builder --self-test --golden-dir $golden 2>$null)
+$selfTestExit = $LASTEXITCODE
+$selfTestFails = @($selfTest | Where-Object { $_ -match '^FAIL [^ ]' })
+$selfTestSummary = $selfTest | Where-Object { $_ -match '^SELF-TEST ' } | Select-Object -Last 1
+if ($selfTestExit -ne 0 -or $selfTestFails -or -not $selfTestSummary) {
+    Fail "the builder's --self-test failed (exit $selfTestExit, $(if ($selfTestSummary) { $selfTestSummary } else { 'no summary line' })): $($selfTestFails -join ' | ')"
+}
+Write-Host "builder: output identity $identity, --self-test $selfTestSummary"
+# A version's golden table is pinned once a package with it ships (GreyGoldenTable.h, the kTables row's last field): the
+# fnv64 to pin is printed here
+foreach ($line in @($selfTest | Where-Object { $_ -match '^NOTE golden table v[0-9]+ fnv64 [0-9a-f]{16}' })) {
+    Write-Host "  $line"
+    Write-Host '  -> when this package ships, put that fnv64 in the kTables row of tools\blackflame-greybuild\GreyGoldenTable.h (its pin) and commit it'
 }
 # Only the shipped, vanilla-derived files: no generated copies, no populated copies plugin
 if (Test-Path (Join-Path $data 'meshes\heartofmagic\blackflame\copies')) {

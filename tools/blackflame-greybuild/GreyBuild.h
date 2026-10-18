@@ -426,7 +426,7 @@ namespace GreyBuild
 
     struct SelfTestOptions
     {
-        std::filesystem::path goldenDir;  // the golden test's committed fixtures; empty: the repository's (BLACKFLAME_GOLDEN_DIR)
+        std::filesystem::path goldenDir;  // the golden test's committed fixtures (--golden-dir); empty: the golden part is skipped
         bool goldenRequired = false;      // --golden-dir given: a missing fixture folder fails (else the golden part is skipped)
         bool printGolden = false;         // --print-golden: only the golden run, its table printed as source
     };

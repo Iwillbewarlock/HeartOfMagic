@@ -347,10 +347,7 @@ namespace GreyBuild
 
     int RunSelfTest(const SelfTestOptions& a_options)
     {
-        // The CRT's maths functions (std::pow in the palettes and the sRGB curve) take an FMA3 path on CPUs that have it,
-        // which can give other last bits: off, so the golden table holds on every CPU (the table is still to be confirmed
-        // on a second machine before it is relied on as a gate)
-        (void)_set_FMA3_enable(0);
+        // FMA3 is off for the whole process (main), so the golden table's maths give the same bits on every CPU
         Checker check;
         std::error_code ec;
         const auto temp = std::filesystem::temp_directory_path(ec);
@@ -369,8 +366,13 @@ namespace GreyBuild
         }
         const auto source = dir / "source.nif";
         const auto grey = dir / "grey.nif";
-        const auto golden = a_options.goldenDir.empty() ? std::filesystem::path(BLACKFLAME_GOLDEN_DIR) : a_options.goldenDir;
+        const auto& golden = a_options.goldenDir;  // empty: the golden part is skipped (a tester package has no fixtures)
         if (a_options.printGolden) {
+            if (golden.empty()) {
+                std::cerr << "--print-golden needs --golden-dir <the repository's tools\\blackflame-greybuild\\golden>\n";
+                std::filesystem::remove_all(dir, ec);
+                return 1;
+            }
             const int printed = SelfTest::PrintGolden(dir, golden);
             std::filesystem::remove_all(dir, ec);
             return printed;

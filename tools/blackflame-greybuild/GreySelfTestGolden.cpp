@@ -8,8 +8,9 @@
 // Compared with the table of kBuilderOutputVersion
 // (GreyGoldenTable.h): every output file's size and fnv64, every progress line's kind, key, outcome and deps (not its
 // reason), and a digest of the output-affecting constants. A difference with the same version fails with the
-// instruction to bump the version and add a table. The table was made on one machine (FMA3 off, RunSelfTest): it is to
-// be confirmed on a second machine before it is relied on as a gate.
+// instruction to bump the version and add a table. The table was made on one machine (FMA3 off, main) and is already the
+// build's gate (GreySelfTestGate.cmake); it has not been confirmed on a second machine yet. A released table carries a
+// pin (GoldenTable::pinned, the fnv64 of its text): one that no longer matches its pin fails.
 // Not in the constant digest: constants inside .cpp files' unnamed namespaces (kVisibleAlpha, the DDS load and
 // compress flags); a change to them shows as changed bytes only where the fixture reaches them.
 
@@ -62,7 +63,7 @@ namespace GreyBuild::SelfTest
         constexpr int kMpsIndex = 9;
         constexpr double kGoldenTint = 0.6;     // QuantizedTint values, as the DLL writes them
         constexpr double kGoldenTintAdd = 0.9;
-        constexpr std::size_t kTexturesNifCopies = 8;  // bc7 diffuse, bc3, bgra, bc7wide and the four over-threshold textures
+        constexpr std::size_t kTexturesNifCopies = 10;  // bc7 diffuse, bc3, bgra, bc7wide and the six recoloured threshold textures
 
         struct Observed
         {
@@ -279,6 +280,74 @@ namespace GreyBuild::SelfTest
             return out;
         }
 
+        /// A table's canonical text, which its pin hashes: version, constants, every file and every line in array order
+        [[nodiscard]] std::string TableText(const GoldenTable& a_table)
+        {
+            std::string text = fmt::format("version {}\nconstants {}\n", a_table.version, a_table.constants);
+            for (std::size_t i = 0; i < a_table.fileCount; ++i) {
+                const auto& file = a_table.files[i];
+                text += fmt::format("file {}\t{}\t{}\n", file.path, file.bytes, CC::Hex16(file.fnv64));
+            }
+            for (std::size_t i = 0; i < a_table.lineCount; ++i) {
+                const auto& line = a_table.lines[i];
+                text += fmt::format("line {}\t{}\t{}\t{}\n", line.kind, line.key, line.outcome, line.deps);
+            }
+            return text;
+        }
+
+        [[nodiscard]] std::string TableFnv(const GoldenTable& a_table)
+        {
+            return CC::Hex16(CC::Fnv64(TableText(a_table)));
+        }
+
+        [[nodiscard]] bool PinHolds(const GoldenTable& a_table, const char* a_pin)
+        {
+            return TableFnv(a_table) == a_pin;
+        }
+
+        /// Every released table (a pin set) is still the text it was released with; the unreleased ones print the fnv64 to
+        /// pin ("NOTE golden table v<n> fnv64 <hex>", which the package script reads)
+        void CheckPins(Checker& a_check)
+        {
+            for (const auto& table : kTables) {
+                const auto fnv = TableFnv(table);
+                if (table.pinned[0] == '\0') {
+                    std::cout << fmt::format("NOTE golden table v{} fnv64 {} (not pinned yet: pin it in GreyGoldenTable.h when the first "
+                                             "tester package with it ships)\n", table.version, fnv);
+                    continue;
+                }
+                a_check.Check(fnv == table.pinned, fmt::format("golden pin: the released table of version {} is the one it was released "
+                                                               "with (fnv64 {}, pinned {}); a released table is never regenerated: bump "
+                                                               "kBuilderOutputVersion and add a table", table.version, fnv, table.pinned));
+            }
+        }
+
+        /// A table as GreyGoldenTable.h would hold it, made from a run (its pointers into a_seen and the vectors here)
+        struct OwnTable
+        {
+            std::vector<GoldenFile> files;
+            std::vector<std::string> texts;  // kind, key16, outcome, deps of each line
+            std::vector<GoldenLine> lines;
+            GoldenTable table{};
+        };
+
+        void MakeOwnTable(const Observed& a_seen, OwnTable& a_out)
+        {
+            for (const auto& [path, file] : a_seen.files) {
+                a_out.files.push_back({ path.c_str(), file.first, file.second });
+            }
+            for (const auto& [name, text] : a_seen.lines) {
+                const auto bar = text.find(" | ");
+                a_out.texts.insert(a_out.texts.end(), { name.substr(0, name.find(' ')), name.substr(name.find(' ') + 1), text.substr(0, bar),
+                                                          text.substr(bar + 3) });
+            }
+            for (std::size_t i = 0; i + 3 < a_out.texts.size(); i += 4) {
+                a_out.lines.push_back({ a_out.texts[i].c_str(), a_out.texts[i + 1].c_str(), a_out.texts[i + 2].c_str(), a_out.texts[i + 3].c_str() });
+            }
+            a_out.table = { CC::kBuilderOutputVersion, a_seen.constants.c_str(), a_out.files.data(), a_out.files.size(), a_out.lines.data(),
+                a_out.lines.size(), "" };
+        }
+
         [[nodiscard]] const GoldenTable* FindTable(std::uint32_t a_version)
         {
             const auto it = std::find_if(std::begin(kTables), std::end(kTables), [&](const GoldenTable& a_t) { return a_t.version == a_version; });
@@ -413,23 +482,16 @@ namespace GreyBuild::SelfTest
                 a_check.Check(false, "golden compare: the run wrote no file or no line to compare");
                 return;
             }
-            std::vector<GoldenFile> files;
-            for (const auto& [path, file] : a_run.seen.files) {
-                files.push_back({ path.c_str(), file.first, file.second });
-            }
-            std::vector<std::string> texts;  // kind, key16, outcome, deps of each line
-            for (const auto& [name, text] : a_run.seen.lines) {
-                const auto bar = text.find(" | ");
-                texts.insert(texts.end(), { name.substr(0, name.find(' ')), name.substr(name.find(' ') + 1), text.substr(0, bar),
-                                              text.substr(bar + 3) });
-            }
-            std::vector<GoldenLine> lines;
-            for (std::size_t i = 0; i + 3 < texts.size(); i += 4) {
-                lines.push_back({ texts[i].c_str(), texts[i + 1].c_str(), texts[i + 2].c_str(), texts[i + 3].c_str() });
-            }
-            const GoldenTable own{ CC::kBuilderOutputVersion, a_run.seen.constants.c_str(), files.data(), files.size(), lines.data(),
-                lines.size() };
+            OwnTable ownTable;
+            MakeOwnTable(a_run.seen, ownTable);
+            const GoldenTable& own = ownTable.table;
             a_check.Check(Compare(own, a_run.seen).empty(), "golden compare: a run against its own table has no difference");
+            // the pin: the fnv64 of a table's own text holds; another pin, or the same rows under another version, does not
+            const auto ownFnv = TableFnv(own);
+            GoldenTable otherVersion = own;
+            ++otherVersion.version;
+            a_check.Check(PinHolds(own, ownFnv.c_str()) && !PinHolds(own, "0000000000000000") && !PinHolds(otherVersion, ownFnv.c_str()),
+                "golden pin: a table holds the pin of its own text; another pin, or another version's text, fails");
             // a deliberately changed byte in a staged copy is a changed output
             const auto& [first, file] = *a_run.seen.files.begin();
             const auto staged = a_run.staging / first;
@@ -470,6 +532,11 @@ namespace GreyBuild::SelfTest
     void CheckGolden(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_goldenDir, bool a_required)
     {
         CheckIdentity(a_check);
+        CheckPins(a_check);
+        if (a_goldenDir.empty()) {
+            std::cout << "SKIP golden: no --golden-dir given (only the repository has the fixtures: tools\\blackflame-greybuild\\golden)\n";
+            return;
+        }
         std::error_code ec;
         if (!std::filesystem::is_directory(a_goldenDir / kInputFolder, ec)) {
             if (a_required) {
@@ -550,8 +617,11 @@ namespace GreyBuild::SelfTest
                 out += fmt::format("        {{ \"{}\", \"{}\", \"{}\", \"{}\" }},\n", name.substr(0, space), name.substr(space + 1),
                     text.substr(0, bar), Escaped(text.substr(bar + 3)));
             }
-            out += fmt::format("    }};\n    // kTables row:\n    //    {{ {}, \"{}\", kFilesV{}, std::size(kFilesV{}), kLinesV{}, std::size(kLinesV{}) }},\n",
-                version, constants.digest, version, version, version, version);
+            OwnTable own;
+            MakeOwnTable(run.seen, own);
+            out += fmt::format("    }};\n    // kTables row (\"\": not pinned; its pin once released is {}):\n    //    {{ {}, \"{}\", kFilesV{}, "
+                               "std::size(kFilesV{}), kLinesV{}, std::size(kLinesV{}), \"\" }},\n",
+                TableFnv(own.table), version, constants.digest, version, version, version, version);
             std::cout << out;
             return kExitOk;
         } catch (const std::exception& e) {

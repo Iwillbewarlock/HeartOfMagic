@@ -12,8 +12,9 @@
 //   - the estimate alone over the cap: too_large, terminal for that texture's key while the cap stays (never because of
 //     the GPU device: it is not in the estimate);
 //   - the system's available commit (GetPerformanceInfo: commit limit - commit total, not the job's own remainder) under
-//     the reserve (--commit-reserve, default 4 GiB) plus the estimate: the builder waits (kPauseStepMs steps) - the game
-//     keeps its commit;
+//     the reserve (--commit-reserve, default 4 GiB) plus the estimate: the texture cache is cleared once, then a GPU
+//     device the run holds is released, each followed by a new measure; still short: the builder waits (kPauseStepMs
+//     steps) - the game keeps its commit;
 //   - the process's committed bytes (PrivateUsage, what the job limit counts) plus the estimate over the cap: a GPU
 //     device the run holds is released with the texture cache (SetDeviceRelease), else the texture cache (TextureSource,
 //     decoded mip 0 images the glow rules keep) is cleared once, and it is measured again; still over: that object fails
@@ -21,8 +22,8 @@
 // The cache is also cleared between objects once it holds over kTextureCacheKeepBytes. Clearing happens only where no
 // TextureLook is alive: between objects, and inside a texture slot's recolour (the glow rules are done by then).
 // One worker: objects are built one at a time (TextureJob, PaletteJob, TextureSource and the progress log are not
-// thread-safe). Inside one object OpenMP runs: the DirectXTex this build links has it (vcpkg "directxtex" links
-// OpenMP::OpenMP_CXX, so the builder is compiled with /openmp and the exe imports VCOMP140.DLL), so TEX_COMPRESS_PARALLEL
+// thread-safe). Inside one object OpenMP runs: the builder links OpenMP::OpenMP_CXX itself (tools/CMakeLists.txt; vcpkg
+// "directxtex" links it too), so it is compiled with /openmp and the exe imports VCOMP140.DLL, and TEX_COMPRESS_PARALLEL
 // in RecolourDds's CPU encode and ComputeStats's row loops (GreyTexStats.cpp) use every logical CPU. After the throttle
 // event (ThrottleSignal) OneOpenMpThread caps them at one thread. Upgrade path for more workers: a lock round those four,
 // one GPU submitter, then cap the workers at min(cores / 2 - 1, cap / the largest estimate).

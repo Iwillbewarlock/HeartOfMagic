@@ -78,10 +78,11 @@ namespace GreyBuild
             return fmt::format("{}.{}.{}.{}", high >> kDriverFieldBits, high & kDriverFieldMask, low >> kDriverFieldBits, low & kDriverFieldMask);
         }
 
-        [[nodiscard]] std::optional<AdapterInfo> Describe(ComPtr<IDXGIAdapter1> a_adapter)
+        /// a_software: a software adapter is taken too (the self-test's WARP only)
+        [[nodiscard]] std::optional<AdapterInfo> Describe(ComPtr<IDXGIAdapter1> a_adapter, bool a_software = false)
         {
             DXGI_ADAPTER_DESC1 desc{};
-            if (FAILED(a_adapter->GetDesc1(&desc)) || (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) != 0) {
+            if (FAILED(a_adapter->GetDesc1(&desc)) || ((desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) != 0 && !a_software)) {
                 return std::nullopt;
             }
             AdapterInfo info;
@@ -94,19 +95,43 @@ namespace GreyBuild
             return info;
         }
 
-        /// The first hardware adapter by high-performance preference (IDXGIFactory6), else in DXGI's own order
-        [[nodiscard]] std::optional<AdapterInfo> FindAdapter(std::string& a_why)
+        /// The self-test's software adapter (GpuUse::kTestWarp): IDXGIFactory4::EnumWarpAdapter
+        [[nodiscard]] std::optional<AdapterInfo> FindWarpAdapter(IDXGIFactory1* a_factory, std::string& a_why)
+        {
+            ComPtr<IDXGIFactory4> factory4;
+            ComPtr<IDXGIAdapter1> adapter;
+            HRESULT hr = a_factory->QueryInterface(IID_PPV_ARGS(factory4.GetAddressOf()));
+            if (SUCCEEDED(hr)) {
+                hr = factory4->EnumWarpAdapter(IID_PPV_ARGS(adapter.GetAddressOf()));
+            }
+            if (FAILED(hr)) {
+                a_why = fmt::format("no WARP adapter: {}", HrText(hr));
+                return std::nullopt;
+            }
+            auto info = Describe(adapter, true);
+            if (!info) {
+                a_why = "the WARP adapter does not describe itself";
+            }
+            return info;
+        }
+
+        /// The first hardware adapter by high-performance preference (IDXGIFactory6), else in DXGI's own order. Each list
+        /// ends at its first failed call: DXGI_ERROR_NOT_FOUND past the last adapter, or any other failure
+        [[nodiscard]] std::optional<AdapterInfo> FindAdapter(bool a_warp, std::string& a_why)
         {
             ComPtr<IDXGIFactory1> factory;
             if (const HRESULT hr = ::CreateDXGIFactory1(IID_PPV_ARGS(factory.GetAddressOf())); FAILED(hr)) {
                 a_why = fmt::format("no DXGI factory: {}", HrText(hr));
                 return std::nullopt;
             }
+            if (a_warp) {
+                return FindWarpAdapter(factory.Get(), a_why);
+            }
             ComPtr<IDXGIFactory6> factory6;
             if (SUCCEEDED(factory.As(&factory6))) {
                 ComPtr<IDXGIAdapter1> adapter;
-                for (UINT i = 0; factory6->EnumAdapterByGpuPreference(i, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
-                                     IID_PPV_ARGS(adapter.ReleaseAndGetAddressOf())) != DXGI_ERROR_NOT_FOUND;
+                for (UINT i = 0; SUCCEEDED(factory6->EnumAdapterByGpuPreference(i, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
+                                     IID_PPV_ARGS(adapter.ReleaseAndGetAddressOf())));
                      ++i) {
                     if (adapter) {
                         if (auto info = Describe(adapter)) {
@@ -116,26 +141,52 @@ namespace GreyBuild
                 }
             }
             ComPtr<IDXGIAdapter1> adapter;
-            for (UINT i = 0; factory->EnumAdapters1(i, adapter.ReleaseAndGetAddressOf()) != DXGI_ERROR_NOT_FOUND; ++i) {
-                if (auto info = Describe(adapter)) {
-                    return info;
+            HRESULT ended = S_OK;
+            for (UINT i = 0; SUCCEEDED(ended = factory->EnumAdapters1(i, adapter.ReleaseAndGetAddressOf())); ++i) {
+                if (adapter) {
+                    if (auto info = Describe(adapter)) {
+                        return info;
+                    }
                 }
             }
-            a_why = "no hardware adapter (only software ones, or none)";
+            a_why = ended == DXGI_ERROR_NOT_FOUND ? std::string("no hardware adapter (only software ones, or none)") :
+                                                    fmt::format("no hardware adapter: the adapter list ended with {}", HrText(ended));
             return std::nullopt;
         }
 
-        [[nodiscard]] std::optional<std::string> ReadText(const std::filesystem::path& a_file)
+        [[nodiscard]] MarkerText ReadMarkerFile(const std::filesystem::path& a_file)
         {
+            MarkerText out;
             std::error_code ec;
-            if (!std::filesystem::is_regular_file(a_file, ec)) {
-                return std::nullopt;
+            const auto status = std::filesystem::status(a_file, ec);
+            if (status.type() == std::filesystem::file_type::not_found) {
+                return out;  // kMissing
+            }
+            out.state = MarkerRead::kUnreadable;
+            if (ec) {
+                out.why = fmt::format("its state does not read: {}", ec.message());
+                return out;
+            }
+            if (!std::filesystem::is_regular_file(status)) {
+                out.why = "it is not a file";
+                return out;
             }
             std::ifstream in(a_file, std::ios::binary);
-            return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+            if (!in.is_open()) {
+                out.why = "it does not open";
+                return out;
+            }
+            out.text.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+            if (in.bad()) {
+                out.text.clear();
+                out.why = "reading it failed";
+                return out;
+            }
+            out.state = MarkerRead::kRead;
+            return out;
         }
 
-        [[nodiscard]] bool WriteText(const std::filesystem::path& a_file, const std::string& a_text, std::string& a_why)
+        [[nodiscard]] bool WriteMarkerFile(const std::filesystem::path& a_file, const std::string& a_text, std::string& a_why)
         {
             std::ofstream out(a_file, std::ios::binary | std::ios::trunc);
             out << a_text;
@@ -147,18 +198,39 @@ namespace GreyBuild
             return true;
         }
 
-        /// The value after a_key on its own line of a_text, "" when there is none
-        [[nodiscard]] std::string Field(const std::string& a_text, const char* a_key)
+        /// The value after a_key on its own line of a_text; none when no line starts with a_key
+        [[nodiscard]] std::optional<std::string> Field(const std::string& a_text, const char* a_key)
         {
             const std::string key = std::string("\n") + a_key;
             const std::string text = "\n" + a_text;
             const auto at = text.find(key);
             if (at == std::string::npos) {
-                return {};
+                return std::nullopt;
             }
             const auto start = at + key.size();
             const auto end = text.find('\n', start);
             return text.substr(start, end == std::string::npos ? std::string::npos : end - start);
+        }
+
+        [[nodiscard]] std::uint64_t SatAdd(std::uint64_t a_a, std::uint64_t a_b) noexcept
+        {
+            return a_b > UINT64_MAX - a_a ? UINT64_MAX : a_a + a_b;
+        }
+
+        /// The bytes a_grey's chain takes in a_format, every subresource (UINT64_MAX when a pitch does not compute)
+        [[nodiscard]] std::uint64_t EncodedChainBytes(const DirectX::ScratchImage& a_grey, DXGI_FORMAT a_format) noexcept
+        {
+            std::uint64_t total = 0;
+            for (std::size_t i = 0; i < a_grey.GetImageCount(); ++i) {
+                const DirectX::Image& image = a_grey.GetImages()[i];
+                std::size_t row = 0;
+                std::size_t slice = 0;
+                if (FAILED(DirectX::ComputePitch(a_format, image.width, image.height, row, slice))) {
+                    return UINT64_MAX;
+                }
+                total = SatAdd(total, slice);
+            }
+            return total;
         }
     }
 
@@ -172,12 +244,16 @@ namespace GreyBuild
         return a_default;
     }
 
-    GpuOutputCheck CheckGpuOutput(const DirectX::ScratchImage& a_reference, const DirectX::ScratchImage& a_encoded)
+    GpuOutputCheck CheckGpuOutput(const DirectX::ScratchImage& a_reference, const DirectX::ScratchImage& a_encoded, unsigned a_target)
     {
         GpuOutputCheck check;
         const auto& want = a_reference.GetMetadata();
         const auto& got = a_encoded.GetMetadata();
         const DXGI_FORMAT work = want.format;
+        if (a_target != 0 && static_cast<unsigned>(got.format) != a_target) {
+            check.why = fmt::format("the format differs (encoded {}, the target {})", static_cast<int>(got.format), a_target);
+            return check;
+        }
         if ((work != DXGI_FORMAT_R8G8B8A8_UNORM && work != DXGI_FORMAT_R8G8B8A8_UNORM_SRGB) || !DirectX::IsCompressed(got.format) ||
             got.width != want.width || got.height != want.height || got.mipLevels != want.mipLevels || got.arraySize != want.arraySize ||
             got.depth != want.depth || a_encoded.GetImageCount() != a_reference.GetImageCount()) {
@@ -226,70 +302,113 @@ namespace GreyBuild
         return check;
     }
 
-    GpuMarkers::GpuMarkers(std::filesystem::path a_staging) :
-        m_staging(std::move(a_staging))
+    GpuMarkers::GpuMarkers(std::filesystem::path a_staging, MarkerIo a_io) :
+        m_staging(std::move(a_staging)), m_io(std::move(a_io))
     {}
+
+    MarkerText GpuMarkers::Read(const std::filesystem::path& a_file) const
+    {
+        return m_io.read ? m_io.read(a_file) : ReadMarkerFile(a_file);
+    }
+
+    bool GpuMarkers::Write(const std::filesystem::path& a_file, const std::string& a_text, std::string& a_why) const
+    {
+        return m_io.write ? m_io.write(a_file, a_text, a_why) : WriteMarkerFile(a_file, a_text, a_why);
+    }
 
     GpuMarkers::Start GpuMarkers::OnStart(const std::string& a_adapter, const std::string& a_output)
     {
         Start start;
         std::error_code ec;
-        if (const auto disabled = ReadText(Disabled())) {
-            const std::string adapter = Field(*disabled, kAdapterKey);
-            const std::string output = Field(*disabled, kOutputKey);
-            if (adapter == a_adapter && output == a_output) {
-                start.allowed = false;
-                start.note = fmt::format("{} holds for this adapter and output identity ({}; {}): BC7 on the CPU", kGpuDisabledFile,
-                    adapter, output);
-                std::filesystem::remove(Inflight(), ec);
-                return start;
-            }
-            std::filesystem::remove(Disabled(), ec);
-            start.note = fmt::format("{} was written for another {} ('{}', output '{}'; now '{}', '{}'): cleared, the GPU is tried "
-                                     "again", kGpuDisabledFile, adapter != a_adapter ? "adapter or driver" : "output identity", adapter,
-                output, a_adapter, a_output);
-        }
-        const auto inflight = ReadText(Inflight());
-        if (!inflight) {
+        const auto disabled = Read(Disabled());
+        if (disabled.state == MarkerRead::kUnreadable) {
+            // never deleted: it may hold the very adapter this start has, and a file that does not read cannot say
+            start.allowed = false;
+            start.note = fmt::format("{} is there but does not read ({}): BC7 on the CPU, the file is left as it is (delete it to "
+                                     "try the GPU again)", kGpuDisabledFile, disabled.why);
             return start;
         }
-        std::filesystem::remove(Inflight(), ec);  // this run writes its own, with the strike carried
-        // "<strikes>\n<adapter>\n"; an unreadable count is one strike (the file is there, so a call did not return)
+        if (disabled.state == MarkerRead::kRead) {
+            const auto adapter = Field(disabled.text, kAdapterKey);
+            const auto output = Field(disabled.text, kOutputKey);
+            if (!adapter || !output) {
+                start.allowed = false;
+                start.note = fmt::format("{} has no {} or no {} line: BC7 on the CPU, the file is left as it is (delete it to try "
+                                         "the GPU again)", kGpuDisabledFile, kAdapterKey, kOutputKey);
+                return start;
+            }
+            if (*adapter == a_adapter && *output == a_output) {
+                start.allowed = false;
+                start.note = fmt::format("{} holds for this adapter and output identity ({}; {}): BC7 on the CPU", kGpuDisabledFile,
+                    *adapter, *output);
+                std::filesystem::remove(Inflight(), ec);  // gpu.disabled is written: the strikes are kept by it
+                return start;
+            }
+            // another adapter, driver or output: stale, cleared with any marker (whose strikes were counted for that one)
+            const bool removed = std::filesystem::remove(Disabled(), ec) || !ec;
+            std::error_code inflightEc;
+            std::filesystem::remove(Inflight(), inflightEc);
+            start.note = fmt::format("{} was written for another {} ('{}', output '{}'; now '{}', '{}'): {}, the GPU is tried again",
+                kGpuDisabledFile, *adapter != a_adapter ? "adapter or driver" : "output identity", *adapter, *output, a_adapter, a_output,
+                removed ? fmt::format("cleared with any {}", kGpuInflightFile) : fmt::format("not removable ({}), passed over", ec.message()));
+            return start;
+        }
+        const auto inflight = Read(Inflight());
+        if (inflight.state == MarkerRead::kMissing) {
+            return start;
+        }
+        if (inflight.state == MarkerRead::kUnreadable) {
+            // one strike, as a garbled count; left in place, so a later start that can read it still has its count (this
+            // run's own marker overwrites it with strike 2 when it can write it)
+            start.strikes = 1;
+            start.note = fmt::format("{} is there but does not read ({}): counted as one strike and left in place; the GPU is kept, "
+                                     "{} more such start(s) turn it off", kGpuInflightFile, inflight.why, kGpuDisableStrikes - 1);
+            return start;
+        }
+        // "<strikes>\n<adapter>\n"; an unparseable count is one strike (the file is there, so a call did not return)
         int found = 1;
         try {
-            found = std::max(1, std::stoi(*inflight));
+            found = std::max(1, std::stoi(inflight.text));
         } catch (const std::exception&) {
             found = 1;
         }
-        const auto firstEnd = inflight->find('\n');
-        const auto secondEnd = firstEnd == std::string::npos ? std::string::npos : inflight->find('\n', firstEnd + 1);
+        const auto firstEnd = inflight.text.find('\n');
+        const auto secondEnd = firstEnd == std::string::npos ? std::string::npos : inflight.text.find('\n', firstEnd + 1);
         const std::string inCall = firstEnd == std::string::npos ? std::string() :
-                                       inflight->substr(firstEnd + 1, secondEnd == std::string::npos ? std::string::npos : secondEnd - firstEnd - 1);
-        if (!start.note.empty()) {
-            start.note += "; ";
+                                       inflight.text.substr(firstEnd + 1, secondEnd == std::string::npos ? std::string::npos : secondEnd - firstEnd - 1);
+        if (!inCall.empty() && inCall != a_adapter) {
+            std::filesystem::remove(Inflight(), ec);
+            start.note = fmt::format("{} was written for another adapter or driver ('{}'; now '{}'): its {} strike(s) are dropped, the "
+                                     "GPU is kept", kGpuInflightFile, inCall, a_adapter, found);
+            return start;
         }
         if (found >= kGpuDisableStrikes) {
             std::string why;
-            const std::string named = inCall.empty() ? a_adapter : inCall;
-            if (!WriteText(Disabled(), fmt::format("{}{}\n{}{}\n", kAdapterKey, named, kOutputKey, a_output), why)) {
-                start.note += why + " (the GPU is off for this run all the same)";
-            }
             start.allowed = false;
-            start.note += fmt::format("{} found at {} starts in a row (the process ended inside a GPU call on {}): {} written, BC7 "
-                                      "on the CPU until the adapter, its driver or the output identity changes", kGpuInflightFile, found,
-                named, kGpuDisabledFile);
+            if (!Write(Disabled(), fmt::format("{}{}\n{}{}\n", kAdapterKey, a_adapter, kOutputKey, a_output), why)) {
+                // the marker stays: the next start sees these strikes again and tries the write again
+                start.note = fmt::format("{} found at {} starts in a row (the process ended inside a GPU call on {}), but {}: BC7 on "
+                                         "the CPU for this run, {} is kept for the next start", kGpuInflightFile, found, a_adapter, why,
+                    kGpuInflightFile);
+                return start;
+            }
+            std::filesystem::remove(Inflight(), ec);
+            start.note = fmt::format("{} found at {} starts in a row (the process ended inside a GPU call on {}): {} written, BC7 "
+                                     "on the CPU until the adapter, its driver or the output identity changes", kGpuInflightFile, found,
+                a_adapter, kGpuDisabledFile);
             return start;
         }
+        std::filesystem::remove(Inflight(), ec);  // this run writes its own, with the strike carried
         start.strikes = found;
-        start.note += fmt::format("{} found (the last run ended inside a GPU call on {}; a game exit can do that): the GPU is "
-                                  "kept, {} more such start(s) turn it off", kGpuInflightFile, inCall.empty() ? "an unnamed adapter" : inCall,
+        start.note = fmt::format("{} found (the last run ended inside a GPU call on {}; a game exit can do that): the GPU is "
+                                 "kept, {} more such start(s) turn it off", kGpuInflightFile, inCall.empty() ? "an unnamed adapter" : inCall,
             kGpuDisableStrikes - found);
         return start;
     }
 
     bool GpuMarkers::Enter(int a_strikes, const std::string& a_adapter, std::string& a_why)
     {
-        return WriteText(Inflight(), fmt::format("{}\n{}\n", a_strikes + 1, a_adapter), a_why);
+        return Write(Inflight(), fmt::format("{}\n{}\n", a_strikes + 1, a_adapter), a_why);
     }
 
     void GpuMarkers::Leave() noexcept
@@ -322,7 +441,7 @@ namespace GreyBuild
             return;
         }
         std::string why;
-        auto adapter = FindAdapter(why);
+        auto adapter = FindAdapter(m_use == GpuUse::kTestWarp, why);
         if (!adapter) {
             std::cout << fmt::format("GPU   {}: BC7 is encoded on the CPU\n", why);
             return;
@@ -362,12 +481,16 @@ namespace GreyBuild
         if (SUCCEEDED(priority)) {
             priority = dxgi->SetGPUThreadPriority(kGpuThreadPriority);
         }
-        if (m_devices == 1) {
-            std::cout << fmt::format("GPU   device made (feature level 11_0){}\n", SUCCEEDED(priority) ?
-                fmt::format(", GPU thread priority {}", kGpuThreadPriority) :
-                fmt::format("; the GPU thread priority was not lowered: {}", HrText(priority)));
-        }
+        std::cout << fmt::format("GPU   device made{} (feature level 11_0){}\n", m_devices == 1 ? "" : " again (once a run at most)",
+            SUCCEEDED(priority) ?
+            fmt::format(", GPU thread priority {}", kGpuThreadPriority) :
+            fmt::format("; the GPU thread priority was not lowered: {}", HrText(priority)));
         return true;
+    }
+
+    bool GpuEncoder::DeviceHeld() const noexcept
+    {
+        return m_device && m_device->device;
     }
 
     bool GpuEncoder::Encode(const DirectX::ScratchImage& a_grey, unsigned a_dxgiFormat, DirectX::ScratchImage& a_out, std::string& a_why)
@@ -377,15 +500,18 @@ namespace GreyBuild
             return false;
         }
         if (!m_device->device) {
+            // the device's share and what this texture still allocates (its encoded chain): the rest of the texture is
+            // already in PrivateUsage
+            const std::uint64_t need = SatAdd(kGpuDeviceShareBytes, EncodedChainBytes(a_grey, format));
             const auto state = m_probe ? m_probe() : std::nullopt;
-            if (!state || state->inUse > m_cap || m_cap - state->inUse < kGpuDeviceShareBytes) {
+            if (!state || state->inUse > m_cap || m_cap - state->inUse < need) {
                 if (!m_admissionNoted) {
                     m_admissionNoted = true;
-                    std::cout << fmt::format("GPU   no device yet: {} under the job memory cap, the device takes about {} MiB: BC7 "
-                                             "on the CPU until there is room (noted once)\n", state ? fmt::format("{} MiB free",
-                                             state->inUse > m_cap ? 0 : (m_cap - state->inUse) / kBytesPerMiB) :
+                    std::cout << fmt::format("GPU   no device yet: {} under the job memory cap, the device and this texture's encoded "
+                                             "chain take about {} MiB: BC7 on the CPU until there is room (noted once)\n", state ?
+                                             fmt::format("{} MiB free", state->inUse > m_cap ? 0 : (m_cap - state->inUse) / kBytesPerMiB) :
                                              std::string("the memory in use is not measurable, so nothing is known"),
-                        kGpuDeviceShareBytes / kBytesPerMiB);
+                        need / kBytesPerMiB);
                 }
                 return false;
             }
@@ -401,6 +527,10 @@ namespace GreyBuild
         const auto flags = static_cast<DirectX::TEX_COMPRESS_FLAGS>(DirectX::TEX_COMPRESS_DEFAULT | DirectX::TEX_COMPRESS_BC7_QUICK);
         const HRESULT hr = DirectX::Compress(m_device->device.Get(), a_grey.GetImages(), a_grey.GetImageCount(), a_grey.GetMetadata(),
             format, flags, kGpuAlphaWeight, a_out);
+        // DirectXTex's buffers for this call are freed at the flush (deferred destruction), before the output check and the
+        // next memory probe; inside the marker, as GPU work
+        m_device->context->ClearState();
+        m_device->context->Flush();
         m_markers.Leave();
         if (FAILED(hr)) {
             a_why = fmt::format("the GPU encode failed: {}", HrText(hr));
@@ -408,7 +538,6 @@ namespace GreyBuild
             Stop(a_why);
             return false;
         }
-        ++m_encoded;
         return true;
     }
 
@@ -436,12 +565,20 @@ namespace GreyBuild
 
     bool GpuEncoder::ReleaseForMemory()
     {
-        if (!m_device || !m_device->device) {
+        if (!DeviceHeld()) {
             return false;
         }
         Release();
         ++m_releases;
-        std::cout << "GPU   over the job memory cap: the device is released (made again when there is room)\n";
+        if (m_devices >= kGpuMaxDevicesPerRun) {
+            m_stopped = true;
+            m_stopWhy = fmt::format("released for memory after {} devices this run (at most {} a run): not made again", m_devices,
+                kGpuMaxDevicesPerRun);
+            std::cout << fmt::format("GPU   over the job memory cap: the device is released; it was made {} times this run, so it is "
+                                     "not made again and the rest of the run encodes BC7 on the CPU\n", m_devices);
+        } else {
+            std::cout << "GPU   over the job memory cap: the device is released (made again once this run, when there is room)\n";
+        }
         return true;
     }
 
@@ -459,8 +596,14 @@ namespace GreyBuild
         if (m_use == GpuUse::kOff) {
             return "gpu    off for this run";
         }
+        std::string state;
+        if (m_stopped) {
+            state = "; stopped: " + m_stopWhy;
+        } else if (!m_adapter.empty() && !m_allowed) {
+            state = "; disabled";
+        }
         return fmt::format("gpu    {}: {} BC7 texture(s) encoded on the GPU, {} refused by the output check (encoded on the CPU); "
                            "devices made {}, released for memory {}{}", m_adapterLine.empty() ? std::string("no adapter") : m_adapterLine,
-            m_encoded, m_rejected, m_devices, m_releases, m_stopped ? "; stopped: " + m_stopWhy : (m_allowed ? "" : "; disabled"));
+            m_encoded, m_rejected, m_devices, m_releases, state);
     }
 }
