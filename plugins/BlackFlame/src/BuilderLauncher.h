@@ -10,9 +10,10 @@
 //     (PROC_THREAD_ATTRIBUTE_HANDLE_LIST): stdout and stderr go to <request folder>\builder.log
 //   - a job object with JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE and JOB_OBJECT_LIMIT_JOB_MEMORY (config builderJobMemoryMiB, the
 //     same number passed as --job-memory), the process assigned to it, then resumed; --parent-pid as a second guard
-//   - before it: the request folder's named mutex made and held for the game's lifetime (BuilderFolderMutex.h); one
-//     that is there already (another game process on the same folder) leaves builder.log alone and starts no builder
-//     (logged "the builder was not started: another game process holds this request folder"). Then builder.log of the
+//   - before it: the request folder's named mutex made and held for the game's lifetime (BuilderFolderMutex.h; made by
+//     ClaimFolder at the slot route's start, before the request, the dump or a deferred copy is touched: review round 1
+//     D2); one that is there already (another game process on the same folder) leaves builder.log alone and starts no
+//     builder (logged once "the builder was not started: another game process holds this request folder"). Then builder.log of the
 //     last launch renamed to builder.prev.log (an older prev replaced), and the throttle event (BuilderSignal.h, manual
 //     reset, unset) created for the builder to open
 //   - the thread handle is closed after the resume; the process handle is kept for the session (its exit code, logged
@@ -26,6 +27,8 @@
 //   "<exe>" --from-game "<request folder>" --staging "<staging folder>" --job-memory <MiB> --parent-pid <game pid>
 
 #include "Common.h"
+
+#include "BuilderFolderMutex.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -80,6 +83,11 @@ namespace BlackFlame::BuilderLauncher
         std::uint32_t pid = 0;
         std::string why;  // why not started
     };
+
+    /// kDataLoaded, before the request, the dump or a deferred copy is touched (SingleLaunch): the request folder's mutex,
+    /// made once a session and held for the game's lifetime; Start uses the same claim. kOtherGame: Start will not start
+    /// a builder (logged once here); the caller writes nothing into the folder, renames no deferred copy and runs no worker
+    [[nodiscard]] BuilderFolderMutex::Claim ClaimFolder(const std::filesystem::path& a_requestFolder);
 
     /// kDataLoaded: starts the builder (once a session); a_exe from SlotKeys::BuilderExePath
     Launch Start(const std::filesystem::path& a_exe, const std::filesystem::path& a_requestFolder,

@@ -416,6 +416,22 @@ namespace BlackFlame::SlotLedgerModel
         return files;
     }
 
+    /// review round 1 D1: some published object of a_ledger stands on a_path with a_fnv64 (FilesOf: its own file or a file
+    /// dep). A copy path names its key (the key16 folder), so that file is a verified build of the same key
+    [[nodiscard]] inline bool PublishedHolds(const Ledger& a_ledger, const std::string& a_path, std::uint64_t a_fnv64)
+    {
+        for (const auto& entry : a_ledger.entries) {
+            for (const auto& object : entry.published) {
+                for (const auto& [path, fnv] : FilesOf(object)) {
+                    if (fnv == a_fnv64 && path == a_path) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     /// Co-saves' ledgers (FromSnapshot, each with its name) into a_into. Those of a_into's epoch are merged newest first
     /// into one union whose version is the newest's (so a slot takes the newest co-save's binding, older ones stale), and
     /// that union over a_into (Merge: newer than a_into, its bindings replace a_into's; older, a_into's stay); other

@@ -17,6 +17,8 @@
 //            replacing rename, fnv64 checked on both sides) only while the publish window is open (MenuWatch::PublishOpen);
 //            when the window closes it finishes the file in hand and stops, saying so. What finishes later stays in staging
 //            and is copied at the next start
+//   keep     review round 1 D1: a line whose path holds another file that a published ledger object stands on (another
+//            build of the same key: GPU bytes differ) keeps that file, never deferred, and Find names it by the Data file
 // CopyGroups asks Find(key) for each slot object; publication itself is CopyGroups' (main thread).
 
 #include "Common.h"
@@ -80,7 +82,12 @@ namespace BlackFlame::BuildProgress
     /// After the launch: the tail and copy worker (a detached thread; it stops copying when the publish window closes)
     void StartWorker();
 
-    /// The newest line for a_key and its state (any thread)
+    /// kDataLoaded, in place of StartWorker when another game process holds the request folder (review round 1 D2): nothing
+    /// more is read or copied this session, so the start's read counts as caught up
+    void SkipWorker();
+
+    /// The newest line for a_key and its state (any thread); a kept file (the header's "keep") by the Data file's size and
+    /// fnv64, as the object's own file and as a dep
     [[nodiscard]] std::optional<Object> Find(std::uint64_t a_key);
 
     /// Bumped whenever a line or a state changes (CopyGroups re-plans when it moved)
@@ -100,6 +107,7 @@ namespace BlackFlame::BuildProgress
         std::size_t inData = 0;
         std::size_t copied = 0;       // files copied into Data this session
         std::size_t copyFailures = 0;
+        std::size_t kept = 0;         // published copies kept for another build of their key (review round 1 D1)
         std::size_t reopens = 0;      // the file id changed (the builder compacted it)
         bool copyingStopped = false;  // the publish window closed
     };

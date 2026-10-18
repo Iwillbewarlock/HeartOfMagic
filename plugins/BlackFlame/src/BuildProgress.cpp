@@ -10,6 +10,7 @@
 #include "MenuWatch.h"
 #include "NifDump.h"
 #include "ProgressTail.h"
+#include "SlotLedger.h"
 #include "TrackedMutex.h"
 
 #include <algorithm>
@@ -18,6 +19,7 @@
 #include <chrono>
 #include <format>
 #include <fstream>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <new>
@@ -48,10 +50,11 @@ namespace BlackFlame::BuildProgress
         {
             TrackedMutex mutex;  // the members below but tail (the worker's, and ReadAtStart's before it starts)
             std::unordered_map<std::uint64_t, Object> objects;  // by key: the last line of a key wins
-            std::set<PathHash> inData;                          // files known to be in Data with that fnv64
+            std::set<PathHash> inData;                          // files known to be in Data with that fnv64 (or kept for it)
             std::set<PathHash> copyFailed;                      // copies that failed once (tried again at the next start)
             std::set<PathHash> copiedNow;                       // copied into Data this session
             std::set<PathHash> replacedNow;                     // of them, over another file at that path
+            std::map<PathHash, DataFiles::Hash> kept;           // a line's file whose path holds the ledger's build of its key (KeepPublished)
             Stats stats;
             ProgressTail::Tail tail;
             std::size_t errorsLogged = 0;
@@ -227,9 +230,11 @@ namespace BlackFlame::BuildProgress
                 fs::remove(temp, ec);
                 return false;
             }
-            // review N3: a file there now is not the line's (Settle found no match): it is never replaced while the game runs.
-            // The copy waits beside it as <path>.next and the next start renames it in before anything uses the path
-            // (ApplyDeferred); P1's builder gives one file a key, so this is a damaged or cut file, not another generation
+            // review N3: a file there now is neither the line's nor a published build of its key (Settle: Matches, then
+            // KeepPublished): it is never replaced while the game runs. The copy waits beside it as <path>.next and the next
+            // start renames it in before anything uses the path (ApplyDeferred). A damaged or cut file, or (review round 1 D1:
+            // GPU bytes differ from build to build, so one key no longer gives one file) a build of the key no ledger object
+            // stands on
             if (fs::exists(target, ec) || ec) {
                 auto next = target;
                 next += kNextSuffix;
@@ -259,8 +264,35 @@ namespace BlackFlame::BuildProgress
             return true;
         }
 
-        // Each staging object's file found in Data or (a_copy, the window open) copied in; then the objects whose own file and
-        // copy deps are all in Data become kInData. A copy that fails marks its object failed (an older generation stands in)
+        // review round 1 D1: with the GPU encoder a rebuild of a key (its staging file lost, another encoder mix) gives other
+        // bytes at the same copy path. When the Data file there is one a published object of the ledger stands on, it is kept,
+        // not deferred (ApplyDeferred would replace it at the next start and every slot on it would show its source for that
+        // session), and stands for the line's file: dependants find the line's fnv64 in inData, and Find names the Data file's
+        // size and fnv64, so what is verified and recorded in the ledger is what is in Data. Each path once a session (inData
+        // then holds it)
+        bool KeepPublished(const CC::ProgressLine& a_line)
+        {
+            if (!DataPathRule::ParseCopyPath(a_line.path)) {
+                return false;
+            }
+            const auto hash = DataFiles::HashOf(a_line.path);  // cached: Settle's Matches just read it
+            if (!hash || !SlotLedgerModel::PublishedHolds(SlotLedger::Copy(), a_line.path, hash->fnv64)) {
+                return false;
+            }
+            auto& s = The();
+            {
+                std::lock_guard lock(s.mutex);
+                s.kept[{ a_line.path, a_line.fnv64 }] = *hash;
+                ++s.stats.kept;
+            }
+            logger::info("BlackFlame: slots: '{}': kept the published copy (another build of the same key; fnv64 {} in Data, {} in "
+                         "staging)", a_line.path, CC::Hex16(hash->fnv64), CC::Hex16(a_line.fnv64));
+            return true;
+        }
+
+        // Each staging object's file found in Data (or kept: KeepPublished) or (a_copy, the window open) copied in; then the
+        // objects whose own file and copy deps are all in Data become kInData. A copy that fails marks its object failed (an
+        // older generation stands in)
         void Settle(bool a_copy)
         {
             auto& s = The();
@@ -276,7 +308,7 @@ namespace BlackFlame::BuildProgress
                 }
             }
             for (const auto& line : todo) {
-                bool there = DataFiles::Matches(line.path, line.bytes, line.fnv64);
+                bool there = DataFiles::Matches(line.path, line.bytes, line.fnv64) || KeepPublished(line);
                 bool copied = false;
                 if (!there && a_copy) {
                     if (!MenuWatch::PublishOpen()) {
@@ -400,8 +432,8 @@ namespace BlackFlame::BuildProgress
                     }
                 }
                 if (!MenuWatch::PublishOpen()) {
-                    logger::info("BlackFlame: slots: progress worker done ({} keys, {} in Data, {} copied this session)",
-                        GetStats().lines, GetStats().inData, GetStats().copied);
+                    logger::info("BlackFlame: slots: progress worker done ({} keys, {} in Data, {} copied this session, {} published "
+                                 "copies kept)", GetStats().lines, GetStats().inData, GetStats().copied, GetStats().kept);
                     return;  // nothing can be published any more this session; later files wait for the next start
                 }
                 std::this_thread::sleep_for(kPoll);
@@ -500,6 +532,16 @@ namespace BlackFlame::BuildProgress
         std::thread(&Worker).detach();  // detached, never joined (a thread joined at DLL unload can hang the exit)
     }
 
+    void SkipWorker()
+    {
+        if (g_workerStarted.exchange(true) || g_caughtUp.exchange(true)) {
+            return;
+        }
+        g_generation.fetch_add(1);  // CopyGroups re-plans: keys without a line, and staging objects, are left now
+        logger::info("BlackFlame: slots: no progress worker this session (another game holds the request folder): {} keys read at "
+                     "the start, {} in Data", GetStats().lines, GetStats().inData);
+    }
+
     std::optional<Object> Find(std::uint64_t a_key)
     {
         auto& s = The();
@@ -509,6 +551,17 @@ namespace BlackFlame::BuildProgress
             return std::nullopt;
         }
         auto object = it->second;
+        // review round 1 D1: a kept file (KeepPublished) by the Data file's size and fnv64, its own and as a dep, so the
+        // object CopyGroups verifies and records is the one in Data (ObjectIntact at the next start compares those)
+        if (const auto own = s.kept.find({ object.line.path, object.line.fnv64 }); own != s.kept.end()) {
+            object.line.bytes = own->second.size;
+            object.line.fnv64 = own->second.fnv64;
+        }
+        for (auto& dep : object.line.deps) {
+            if (const auto kept = dep.isAddn ? s.kept.end() : s.kept.find({ dep.path, dep.fnv64 }); kept != s.kept.end()) {
+                dep.fnv64 = kept->second.fnv64;
+            }
+        }
         const PathHash file{ object.line.path, object.line.fnv64 };
         object.copiedThisSession = s.copiedNow.contains(file);
         object.replacedThisSession = s.replacedNow.contains(file);

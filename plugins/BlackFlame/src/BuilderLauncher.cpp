@@ -33,6 +33,8 @@ namespace BlackFlame::BuilderLauncher
         {
             TrackedMutex mutex;  // with the session's lifetime (review Gemini 2: no static mutex destroyed before a late reader)
             UniqueHandle folderMutex;    // BuilderFolderMutex.h: this game's claim on the request folder, held for its lifetime
+            std::optional<BuilderFolderMutex::Claim> claim;  // made once (ClaimLocked); a second create would read as another game's
+            DWORD claimError = 0;
             UniqueHandle job;    // never closed by us (kill-on-close fires when the game ends)
             UniqueHandle process;        // kept for the exit code (F4); the end wait below holds it, so never closed either
             UniqueHandle throttleEvent;  // BuilderSignal.h, manual reset; set by ThrottleAfterWindow
@@ -152,6 +154,34 @@ namespace BlackFlame::BuilderLauncher
             return event;
         }
 
+        // review E2 #2 (Codex 2 of defe5ede), round 2: one game process per request folder; the claim is a named mutex held
+        // for the game's lifetime (BuilderFolderMutex.h). Review round 1 D2: made once a session, by ClaimFolder before the
+        // request, the dump or a deferred copy is touched, and read again by StartChecked (CreateMutexW on the name this
+        // process made gives ERROR_ALREADY_EXISTS: it would refuse its own builder)
+        BuilderFolderMutex::Claim ClaimLocked(Session& a_session, const std::filesystem::path& a_requestFolder)
+        {
+            if (a_session.claim) {
+                return *a_session.claim;
+            }
+            HANDLE folderMutex = nullptr;
+            a_session.claim = BuilderFolderMutex::Acquire(a_requestFolder, folderMutex, a_session.claimError);
+            if (*a_session.claim == BuilderFolderMutex::Claim::kOwned) {
+                a_session.folderMutex = UniqueHandle(folderMutex);
+            } else if (*a_session.claim == BuilderFolderMutex::Claim::kUnknown) {
+                logger::warn("BlackFlame: slots: the request folder's mutex '{}' was not made (Windows error {}): a second game on "
+                             "the same folder is not excluded this session", Text(BuilderFolderMutex::MutexName(a_requestFolder)),
+                    a_session.claimError);
+            }
+            return *a_session.claim;
+        }
+
+        std::string OtherGameWhy(const std::filesystem::path& a_requestFolder, DWORD a_error)
+        {
+            return std::format("another game process holds this request folder ('{}', mutex '{}', Windows error {}): its builder.log "
+                               "is left as it is and no second builder starts on its staging folder",
+                Text(a_requestFolder), Text(BuilderFolderMutex::MutexName(a_requestFolder)), a_error);
+        }
+
         Launch StartChecked(const std::filesystem::path& a_exe, const std::filesystem::path& a_requestFolder,
             const std::filesystem::path& a_staging, std::uint32_t a_jobMemoryMiB, Session& a_session, std::string& a_logNote,
             std::string& a_eventNote)
@@ -162,23 +192,10 @@ namespace BlackFlame::BuilderLauncher
                 out.why = std::format("the builder exe '{}' is not there", Text(a_exe));
                 return out;
             }
-            // review E2 #2 (Codex 2 of defe5ede), round 2: one game process per request folder starts a builder; the claim
-            // is a named mutex made before builder.log is rotated and held for the game's lifetime (BuilderFolderMutex.h)
-            HANDLE folderMutex = nullptr;
-            DWORD claimError = 0;
-            const auto claim = BuilderFolderMutex::Acquire(a_requestFolder, folderMutex, claimError);
-            if (!BuilderFolderMutex::MayStart(claim)) {
-                out.why = std::format("another game process holds this request folder ('{}', mutex '{}', Windows error {}): its "
-                                      "builder.log is left as it is and no second builder starts on its staging folder",
-                    Text(a_requestFolder), Text(BuilderFolderMutex::MutexName(a_requestFolder)), claimError);
+            // the claim before builder.log is rotated (ClaimLocked: made by ClaimFolder already on the slot route)
+            if (!BuilderFolderMutex::MayStart(ClaimLocked(a_session, a_requestFolder))) {
+                out.why = OtherGameWhy(a_requestFolder, a_session.claimError);
                 return out;
-            }
-            if (claim == BuilderFolderMutex::Claim::kOwned) {
-                a_session.folderMutex = UniqueHandle(folderMutex);
-            } else {
-                logger::warn("BlackFlame: slots: the request folder's mutex '{}' was not made (Windows error {}): a second game on "
-                             "the same folder is not excluded this session", Text(BuilderFolderMutex::MutexName(a_requestFolder)),
-                    claimError);
             }
             std::filesystem::create_directories(a_staging, ec);
             if (ec) {
@@ -550,6 +567,20 @@ namespace BlackFlame::BuilderLauncher
             logger::warn("BlackFlame: slots: {}: the builder's end is noted only while the progress worker polls", waitWhy);
         }
         return launch;
+    }
+
+    BuilderFolderMutex::Claim ClaimFolder(const std::filesystem::path& a_requestFolder)
+    {
+        auto& session = TheSession();
+        std::lock_guard lock(session.mutex);
+        const auto claim = ClaimLocked(session, a_requestFolder);
+        if (!BuilderFolderMutex::MayStart(claim) && !session.tried) {
+            session.tried = true;  // Start returns this launch (Status names why); logged once, here
+            session.launch.why = OtherGameWhy(a_requestFolder, session.claimError);
+            logger::warn("BlackFlame: slots: the builder was not started: {}; no request is written, no deferred copy is renamed in "
+                         "and no copy worker runs this session", session.launch.why);
+        }
+        return claim;
     }
 
     bool Running()

@@ -235,9 +235,9 @@ namespace BlackFlame::CopyGroups::Detail
         if (!a_state.canVerify) {
             return fallback("no main-thread proof: verified at the next start");
         }
-        // P1's builder is deterministic for the same inputs (its dev output was byte-identical over 774 files across rebuilds)
-        // and a key's path is under its key folder, so one key gives one file: a copy replaces another file at its path only
-        // when that file was damaged or cut. Should a key ever give two files, a path published this session could change
+        // A key's path is under its key folder. The CPU encoder gives one key one file; the GPU's bytes differ from build to
+        // build (review round 1 D1), so a rebuild of a published key keeps the Data file (BuildProgress KeepPublished, and
+        // Find names it by the Data file's fnv64); only a build no ledger object stands on, or a damaged file, is deferred
         auto candidate = ObjectOf(a_role, found->line, a_key->text);
         if (!FileIndex::Available() && EnteredDataNow(candidate)) {
             return fallback("in Data only since this session and no file index: the next start's index has it");

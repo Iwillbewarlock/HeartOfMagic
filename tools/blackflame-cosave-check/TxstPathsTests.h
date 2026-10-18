@@ -70,6 +70,11 @@ namespace TxstPathsTests
         };
         restore("an intact set comes back as stored, whatever this session's prefix (no prefix is read)", true, keyText, fields, stored,
             { a_d03, a_d00 });
+        // review round 1 D5: a set published under a BFK3 key (the exe hash in its prefix) restores the same way (README: the
+        // key prefix is never compared, only the source's fields at the end of the key string)
+        const std::string bfk3 = "format=BFK3|exe=0123456789abcdef|tint=0.6|tintadd=0.9" + fields.value_or("");
+        restore("a set published under a BFK3 key string comes back as stored (the prefix is not compared)", true, bfk3, fields, stored,
+            { a_d00, a_d03 });
         auto changed = a_raw;
         changed[0] = "Effects\\Other.dds";
         restore("the source's TX00 renamed since: refused", false, keyText, CC::TxstSourceFields(input(changed, a_tx00)), stored,

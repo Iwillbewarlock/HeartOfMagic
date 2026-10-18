@@ -72,10 +72,14 @@ namespace IdentityTests
             bool found;
             std::optional<std::string> text;
             Kind expected;
+            bool noResource = false;
         };
         const Case cases[] = {
             { "the exe not found", false, own, Kind::kMissing },
-            { "the exe not loaded or no resource", true, std::nullopt, Kind::kUnreadable },
+            { "the exe not found, no resource read", false, std::nullopt, Kind::kMissing, true },
+            { "the exe not loaded (or a resource that does not read)", true, std::nullopt, Kind::kUnreadable },
+            // review round 1 D3: a builder from before BFK4 has no RCDATA 4101: another version, not "could not be read"
+            { "the exe loaded with no identity resource (a pre-BFK4 builder)", true, std::nullopt, Kind::kOtherVersion, true },
             { "a malformed identity", true, std::string("01"), Kind::kUnreadable },
             { "a binary identity", true, std::string("1\0", 2), Kind::kUnreadable },
             { "another version", true, other, Kind::kOtherVersion },
@@ -84,7 +88,7 @@ namespace IdentityTests
             { "this version, release", true, own, Kind::kRelease },
         };
         for (const auto& c : cases) {
-            const auto kind = BC::ClassifyIdentity(c.found, c.text);
+            const auto kind = BC::ClassifyIdentity(c.found, c.text, c.noResource);
             const bool faultFree = c.text && !CC::BuilderIdentityFault(*c.text);
             a_check(kind == c.expected && (!c.found || BC::IdentityTaken(kind) == faultFree),
                 std::string("identity kind: ") + c.what + " (taken exactly when BuilderIdentityFault finds nothing)");
@@ -129,17 +133,21 @@ namespace IdentityTests
     void RunFiles(Check& a_check, Skip& a_skip, const std::filesystem::path& a_temp)
     {
         const auto missing = CC::ReadIdentityResource(a_temp / "no such builder.exe");
-        a_check(!missing.text && missing.why.find("does not load as a data file") != std::string::npos,
+        namespace BC = BlackFlame::BuilderControl;
+        a_check(!missing.text && !missing.noResource && missing.why.find("does not load as a data file") != std::string::npos,
             "identity read: no file - not loaded (" + missing.why + ")");
         const auto text = a_temp / "not-an-exe.exe";
         std::ofstream(text, std::ios::binary) << "this is no PE image";
         const auto notPe = CC::ReadIdentityResource(text);
-        a_check(!notPe.text && notPe.why.find("does not load as a data file") != std::string::npos,
-            "identity read: a file that is no PE image - not loaded (" + notPe.why + ")");
+        a_check(!notPe.text && !notPe.noResource && notPe.why.find("does not load as a data file") != std::string::npos &&
+                    BC::ClassifyIdentity(true, notPe.text, notPe.noResource) == BC::BuilderIdentityKind::kUnreadable,
+            "identity read: a file that is no PE image - not loaded, \"could not be read\" (" + notPe.why + ")");
         const auto self = ThisExe();
         const auto none = CC::ReadIdentityResource(self);
-        a_check(!self.empty() && !none.text && none.why.find("has no output identity resource") != std::string::npos,
-            "identity read: an exe without the resource (this one; a builder from before BFK4) - refused (" + none.why + ")");
+        a_check(!self.empty() && !none.text && none.noResource && none.why.find("has no output identity resource") != std::string::npos &&
+                    BC::ClassifyIdentity(true, none.text, none.noResource) == BC::BuilderIdentityKind::kOtherVersion,
+            "identity read: an exe without the resource (this one; a builder from before BFK4) - refused, \"from another version\" "
+            "(review round 1 D3) (" + none.why + ")");
         const auto builder = self.parent_path() / kBuilderExeName;
         std::error_code ec;
         if (!std::filesystem::exists(builder, ec)) {
@@ -147,7 +155,7 @@ namespace IdentityTests
             return;
         }
         const auto read = CC::ReadIdentityResource(builder);
-        a_check(read.text && !CC::BuilderIdentityFault(*read.text),
+        a_check(read.text && !read.noResource && !CC::BuilderIdentityFault(*read.text),
             "identity read: the builder beside this exe carries a valid identity of this version (" +
                 (read.text ? *read.text : read.why) + ")");
         const std::filesystem::path slashedPath = builder.generic_wstring();

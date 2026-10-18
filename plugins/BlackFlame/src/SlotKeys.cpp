@@ -109,7 +109,7 @@ namespace BlackFlame::SlotKeys
         {
             const auto resource = CC::ReadIdentityResource(a_out.builderExe);
             const auto fault = resource.text ? CC::BuilderIdentityFault(*resource.text) : std::optional<std::string>(resource.why);
-            a_out.builderKind = BuilderControl::ClassifyIdentity(true, resource.text);
+            a_out.builderKind = BuilderControl::ClassifyIdentity(true, resource.text, resource.noResource);
             if (fault || !BuilderControl::IdentityTaken(a_out.builderKind)) {
                 a_out.builderIdentityWhy = fault.value_or("has an output identity this DLL does not take");
                 a_out.prefixWhy = "the builder exe " + a_out.builderIdentityWhy + ": no key this session";

@@ -216,6 +216,22 @@ namespace SlotLedgerReviewTests
         a_check(files.size() == 2 && files[0].second == 0x11 && files[1].second == 0x22 && files[1].first.find("copy.dds") != std::string::npos &&
                     LM::FilesOf(LM::Object{}).empty(),
             "review Codex 3 P1: FilesOf lists the object's own file and its copy deps, never an ADDN slot");
+        // review round 1 D1: the Data file BuildProgress keeps for another build of its key is one a published object stands on
+        {
+            LM::Ledger holding;
+            LM::Entry entry;
+            entry.slot = 0x810;
+            entry.published.push_back(standing);
+            LM::Insert(holding, entry);
+            const auto& dds = standing.deps[1].path;
+            a_check(LM::PublishedHolds(holding, standing.path, 0x11) && LM::PublishedHolds(holding, dds, 0x22),
+                "review round 1 D1: PublishedHolds finds an object's own file and a dep's file at the fnv64 the ledger recorded");
+            a_check(!LM::PublishedHolds(holding, dds, 0x23) && !LM::PublishedHolds(holding, standing.path, 0x22),
+                "review round 1 D1: the same path with another fnv64 (another build of the key) is not held");
+            a_check(!LM::PublishedHolds(holding, "textures\\heartofmagic\\blackflame\\copies\\0000000000000003\\copy.dds", 0x22) &&
+                        !LM::PublishedHolds(holding, "", 0) && !LM::PublishedHolds(LM::Ledger{}, dds, 0x22),
+                "review round 1 D1: another path, an empty one (an ADDN dep's), or an empty ledger hold nothing");
+        }
         // Codex: main that cannot be written (here a name Windows refuses) leaves the mirror written, and says so
         {
             const auto badMain = folder / "bad<name>.json";

@@ -991,14 +991,18 @@ package has no fixtures); the POST_BUILD step and `Make-TesterPackage.ps1` pass 
 package script refuses a `+dev` one, one whose number is not `kBuilderOutputVersion`, and a builder whose `--self-test` has
 a FAIL. Not in the digest: constants inside `.cpp`
 files' unnamed namespaces (their changes show only as changed bytes where the fixture reaches them). Stated limit: a
-forgotten bump whose output change the fixture does not reach gives stale copies, which the exe hash never did. Stated
+forgotten bump whose output change the fixture does not reach gives stale copies, which the exe hash never did. The
+golden gate checks CPU outputs only (the test forces the CPU encoder): a change to the GPU encode settings changes no
+byte it sees, so it must bump `kBuilderOutputVersion` by hand (review round 1; the builder's code says the same). Stated
 limit: the BFK3 generation is never pruned. After the switch to BFK4 every BFK3 key's staging files and progress lines stay
 (`GreyProgress.cpp`'s compaction keeps the last line of every key, whatever its format, so those lines are parsed again,
 and their staged files hashed again, at every compaction: part of the `fnv64 checks N ms` time), and so do the Data
 copies published under BFK3 keys. Those Data copies stay in use until the slot's BFK4 generation is published: a slot's
 last published generation is applied at kDataLoaded while its files and deps are intact (`ApplyLastPublished`, W1),
 whatever its key; once the BFK4 generation of that slot is published they are unused disk space (about 250 MiB on the
-measured load order, proposal section 4).
+measured load order, proposal section 4). Exception: a txst object whose ledger entry has no stored strings (a pre-B2
+ledger) is made again from this session's keys (TXST slots below), which name BFK4 copies, so it is lost at the
+BFK3 -> BFK4 switch and the slot keeps its source until its BFK4 generation is published.
 
 Request v5 as this builder reads it (P2 writes it; every point below is a builder assumption):
 - every v4 field, read as `--from-game --out` reads it (so the dev mode builds a v5 request too), but no `models`: v5
@@ -1130,14 +1134,19 @@ from the Windows SDK, the builder only). In key mode a BC7 target is encoded by 
   releases). GPU bytes are not the CPU's and can change with the driver. Stated limit (proposal 3.1), same key, other
   bytes: any rebuild of a key whose Data file already exists can hit it, whenever the rebuild's GPU bytes differ from the
   file in Data. A key is rebuilt when its staging file is gone, its last line is failed or transient (not reusable), a
-  damaged progress.jsonl lost its line, or its staged copy (or a dep's) changed (`ProgressLog::Reusable`). Launch N: the
-  new file differs from the one in Data and is deferred as `.next` (`BuildProgress.cpp`); a slot that already had a
-  published generation keeps it (grey stays), one that had none stays on its source. Launch N+1: `ApplyDeferred` renames
-  it in over the old generation's file and marks it replaced this session, so `PlanObject` refuses it, and the old
-  generation no longer matches the ledger (`ApplyLastPublished` finds other bytes): the slot shows its source colour for
-  that session. Launch N+2: published. The two ways out (keep the Data file when it is the
-  ledger's published generation of that key, or let the builder take the Data file's bytes for a key that has one) are
-  not built.
+  damaged progress.jsonl lost its line, or its staged copy (or a dep's) changed (`ProgressLog::Reusable`). The DLL keeps
+  the Data file when a published object of the ledger stands on it (its own file or a dep, with the Data file's fnv64:
+  `SlotLedgerModel::PublishedHolds`; a copy path names its key, so that file is a build of the same key): the new file is
+  not deferred, the line counts as in Data for the objects that need it, `BuildProgress::Find` names the file by the Data
+  file's size and fnv64 (so what is verified and recorded in the ledger is what is in Data), and the log says
+  "'<path>': kept the published copy (another build of the same key; ...)" once a session per path (review round 1 D1:
+  `BuildProgress.cpp` `KeepPublished`). Only a file that is there and that no ledger object stands on (a damaged or cut
+  one, or a build copied in but never published) still goes the old way: launch N defers the new file as `.next`
+  (a slot that already had a published generation keeps it, one that had none stays on its source); launch N+1:
+  `ApplyDeferred` renames it in over the file there and marks it replaced this session, so `PlanObject` refuses it and
+  `ApplyLastPublished` finds other bytes for any generation on the old file: those slots show their source colour for
+  that session; launch N+2: published. A `.next` an earlier build of the DLL deferred before this fix is still renamed in
+  once that way. The other way out (let the builder take the Data file's bytes for a key that has one) is not built.
 
 **Throttle** (`plugins/BlackFlame/src/BuilderSignal.h`): with `--parent-pid <pid>` the builder opens the named,
 manual-reset event `Local\HoMBlackFlame_Throttle_<pid>` (SYNCHRONIZE only; not there: never throttled, one `THROTTLE`
@@ -1197,7 +1206,7 @@ model probe, the v4 request) does not run; with it off nothing below runs except
 | request v5 | `CopyRequestV5.h` | the dump (the very bytes the keys hashed) and `request.json` v5: contractVersion, options (quantised tints, palette mode, key prefix), per form its key and slot, `muzzles`, `addnMps` (with the source ADDN's `index`), `txst` |
 | progress | `BuildProgress.h` | `staging\progress.jsonl` read to its end before the builder starts (the builder compacts it only at its own start); what earlier sessions copied into Data counts now, but no file is copied on this thread (the worker does, after W1) |
 | groups | `CopyGroups.h`, `CopyModelProbeVerify.h` | the connected components of the sources' copy links. Groups whose members all show a verified generation open now (W1). The rest, while the publish window is open and the proof holds: every new object registered, its NIF Demanded one at a time in 8 ms main-thread slices, and only when all parse SetModel (model, muzzle), the gates, the links (`Refill` pointers only) and the ledger's lastPublished. A member whose object failed, is terminal, has no key, or got no line (once the builder ended and every line is read and copied: `CaughtUp`), or whose files did not all reach Data by then, shows its older generation (or, without one, leaves: gated, links to the source) and never keeps its group waiting; TXST members (with `slotTxst`) are registered, not Demanded, and written before the gates open (off: they leave). Without the file index nothing that entered Data this session is a candidate (the next start's index has it). A NIF naming an ADDN slot index waits for that slot's MPS; an ADDN slot that will not open counts as ready with the model it has, a collided one makes the member leave; ADDN slots whose MPS only wait for each other are dropped after a full pass. An open ADDN slot takes a newer complete MPS of its key in W1/W2: it stays in the ADDN queue while its current key may still come (its NIFs use the older MPS meanwhile), and a pass over the queue goes on where the last slice stopped. An ADDN slot a NIF names that no source holds this session, or that cannot be published, makes the member leave (W1 and W2 alike); one not open yet only keeps the NIF on the model it has. A parse failure (an ADDN MPS's too) counts the key and leaves the group closed this session; a registration failure leaves it closed without counting; a Demand that faults stops publication for the session; there is no re-close. Registration and the re-plan run inside the 8 ms slice; ledger writes at most once a second while publishing, and once more when publication settles or the window closes; a step that throws stops publication with a log line. If the file index turns off during the session, an object that entered Data this session is not Demanded (the group stays closed, no parse failure counted). The kDataLoaded log line gives the Data files hashed, their size and the time. RefreshCopies and CheckCopies skip closed slots; `ExpectedMuzzleFor` gives a slot's grey muzzle only while it is open |
-| builder | `BuilderLauncher.h` | `"<exe>" --from-game "<request folder>" --staging "<staging>" --job-memory <MiB> --parent-pid <pid>` (quoted the way `CommandLineToArgvW` reads it back): created suspended, below normal priority, only `builder.log` inherited, assigned to a job with kill-on-close and `JOB_OBJECT_LIMIT_JOB_MEMORY` (`builderJobMemoryMiB`), resumed; the job handle is held for the session and never closed by us. Before it: the request folder's named mutex `Local\HoMBlackFlame_Builder_<FNV-1a 64 of the normalised, lower-case folder path>` (`BuilderFolderMutex.h`) is made and held for the game's lifetime; one that is there already (another game process on the same folder) leaves `builder.log` alone and starts no builder, one warning `the builder was not started: another game process holds this request folder ...` (not made for another reason: a warning, the builder starts unexcluded). Then the last launch's `builder.log` is renamed to `builder.prev.log` (an older one replaced; not renamed: a warning, and it is overwritten) and the throttle event `Local\HoMBlackFlame_Throttle_<game pid>` (`BuilderSignal.h`, manual reset, unset) is made (not made: a warning, the builder starts without it). The process handle is kept for the session: when the builder ends (a thread-pool wait on it, so also in play), one line `builder (pid N) ended: exit code <code> (<meaning>)`: 0 ok, 1 failed (the run could not go on), 2 refused (bad arguments or not request v5), 3 stopped (the parent process is gone), anything else `0x........ (terminated or crashed)` (`BuilderControl.h`); the progress worker's "caught up" line carries it too |
+| builder | `BuilderLauncher.h` | `"<exe>" --from-game "<request folder>" --staging "<staging>" --job-memory <MiB> --parent-pid <pid>` (quoted the way `CommandLineToArgvW` reads it back): created suspended, below normal priority, only `builder.log` inherited, assigned to a job with kill-on-close and `JOB_OBJECT_LIMIT_JOB_MEMORY` (`builderJobMemoryMiB`), resumed; the job handle is held for the session and never closed by us. Before it: the request folder's named mutex `Local\HoMBlackFlame_Builder_<FNV-1a 64 of the normalised, lower-case folder path>` (`BuilderFolderMutex.h`) is made and held for the game's lifetime, at the slot route's start before the request, the dump or a deferred copy is touched (`BuilderLauncher::ClaimFolder`, also with `launchBuilder` off; review round 1 D2); one that is there already (another game process on the same folder) leaves `builder.log` alone and starts no builder, and this game writes no request or dump, renames no deferred copy and runs no copy worker (the start's read of progress.jsonl counts as caught up: `BuildProgress::SkipWorker`), one warning `the builder was not started: another game process holds this request folder ...; no request is written, no deferred copy is renamed in and no copy worker runs this session` (not made for another reason: a warning, the builder starts unexcluded). Then the last launch's `builder.log` is renamed to `builder.prev.log` (an older one replaced; not renamed: a warning, and it is overwritten) and the throttle event `Local\HoMBlackFlame_Throttle_<game pid>` (`BuilderSignal.h`, manual reset, unset) is made (not made: a warning, the builder starts without it). The process handle is kept for the session: when the builder ends (a thread-pool wait on it, so also in play), one line `builder (pid N) ended: exit code <code> (<meaning>)`: 0 ok, 1 failed (the run could not go on), 2 refused (bad arguments or not request v5), 3 stopped (the parent process is gone), anything else `0x........ (terminated or crashed)` (`BuilderControl.h`); the progress worker's "caught up" line carries it too |
 | throttle | `BuilderLauncher.h` `ThrottleAfterWindow` | when the publish window closes (`MenuWatch::Close`, any of its reasons; a few job and event calls, no wait): the job's extended limits read and `JOB_OBJECT_LIMIT_PRIORITY_CLASS` with `IDLE_PRIORITY_CLASS` added (kill-on-close and the memory cap kept, read back), a CPU hard cap (`JOB_OBJECT_CPU_RATE_CONTROL_ENABLE | HARD_CAP`, `CpuRate` 10000 / logical CPUs, at least 1: one logical CPU of the whole machine), and the throttle event set; one line `builder (pid N) throttled after the publish window closed: ...` with what was read back (a warning when a step failed, with the Windows error). What the builder finishes after that is used only at the next launch. A builder that already ended, or none this session: nothing (debug level, not in the log at the default info level) |
 | copy worker | `BuildProgress.h`, `ProgressTail.h` | a thread tails progress.jsonl (shared read, write and delete; read again from its start when its file id changes - the builder's compaction by a POSIX rename - or it is shorter than the offset; a cut last line is read again whole, never fused with a later one; the last line of a key wins, a line that differs in any field starts its object over) and copies (never moves) each ok or fallback file staging -> Data through a temporary file and a replacing rename, fnv64 checked on both sides, only while the publish window is open (checked again right before the rename). A failed copy leaves no temporary file and fails every object that is that file or needs it (an older generation stands in). Another file already at a copy's path (a damaged or cut one: P1's builder gives one file a key) is never replaced while the game runs: the copy waits beside it as `<path>.next` (listed in `<SKSE log folder>\HeartOfMagic_BlackFlame\deferred-copies.txt`), the next start renames it in at kDataLoaded before anything uses the path, and it is used from the start after (the index may hold the old file's size). An object counts as in Data once its file and its copy deps are. `CaughtUp`: a pass that began with the builder ended has read the file to its end (or found none - an I/O failure is tried again at the next poll and never counts) and copied everything |
 
@@ -1216,9 +1225,12 @@ menu and when the count moves (10 s at most) `slots: progress: N of M grey copie
 `slots: progress: all M grey copies are ready (log only)` once; nothing on screen, and after a load with copies missing
 nothing either (what was not open when the window closed opens at the next launch).
 
-**HUD** (English), faults only: "the grey copy builder was not found" when it is missing, "Black Flame:
-the grey copy builder is from another version; only copies built before are shown" when its output identity is missing,
-malformed or of another output version (the details logged). When the slot
+**HUD** (English), faults only, one of three lines (`BuilderControl.h` `BuilderNotice`): "Black Flame: the grey copy
+builder was not found; only copies built before are shown" when the exe does not open; "Black Flame: the grey copy
+builder could not be read; only copies built before are shown" when it does not load as a data file or its output
+identity is malformed or does not read; "Black Flame: the grey copy builder is from another version; only copies built
+before are shown" when its identity is of another output version or it has none (a builder from before BFK4: review
+round 1 D3) (the details logged). When the slot
 route does not start, one line at the main menu: "Black Flame: grey copies are off this session (<why>)", the why in
 plain words (no ledger beside the saves, the slot ESL not enabled; the builder's absence added), logged too. Whether a
 HUD line shows at the main menu is not checked in game.
@@ -1246,9 +1258,10 @@ at all (a fallback with both slots kept) publishes nothing for that slot. The wr
 `BSResource::ID::GenerateFromPath` by the rule the engine's own IDs follow, found once a session on the TXST sources slot
 by slot (`SlotTxstRule.h`, logged as "TXST textureFileIDs rule"): a slot whose stored ID is non-zero and equals the hash of
 the name normalised under textures\ votes "prefixed", of the bare name "bare"; any other slot does not vote. Run 3
-(2026-10-18) showed why: of 92 slots, 78 matched "textures\" + name; the other 14 were 10 TX03 'black.dds' that no
-record has (3 of them seen holding an earlier override's TX03 ID, 2 zero) and, by the counts, 4 PSI.esp TX05
-'cubemap\shinydull_e.dds', a missing file left at zero - the old all-slots rule gave NONE and wrote no TXST. A slot both
+(2026-10-18) showed why: of 92 slots, 78 matched "textures\" + name; the old all-slots rule gave NONE and wrote no TXST.
+The other 14 are, as run 3's counts read (its log has only counts; the rule line's `Tally::Text` names them by name at
+the next run), 10 TX03 'black.dds' that no record has (3 of them seen holding an
+earlier override's TX03 ID, 2 zero) and 4 PSI.esp TX05 'cubemap\shinydull_e.dds', a missing file left at zero. A slot both
 forms match (a rooted name) does not vote. The rule is the form with votes when the other has none; with both or
 neither, no TXST slot is written. The rule line groups the unexplained slots by name. An unchanged slot keeps the
 source's ID when it is zero, the rule's ID of its string, or Normalize changes the string's shape (data\, a root, a
@@ -1258,11 +1271,15 @@ registered like every copy file (a DDS loads without it, probe run 3). A publish
 the ID rule's name ("prefixed", "bare"; "zero" from an older build)
 with the txst object in the ledger (`textures`, `idsRule`). W1 in a later session restores the set from them
 (`SlotTxstPaths::RestoredStrings`), never from that session's key prefix, so a changed builder or tint, or no builder,
-keeps an intact generation: the source's key fields now (its eight strings, TX00 / TX03 hashes, DODT;
+keeps an intact generation while this session's textureFileIDs rule is usable (`SlotTxst::Write` writes nothing without
+it; the stored key string's prefix, BFK3 or BFK4, is never compared: cosave-check's txst restore test): the source's key fields now (its eight strings, TX00 / TX03 hashes, DODT;
 `CopyContract::TxstSourceFields`) must end the stored key string, each changed colour slot must name one of the deps
 (whose files `ObjectIntact` checks), every other slot must be the source's, and every dep must be named. The IDs are
-made by this session's rule (a different stored rule is logged). A ledger written before the strings were kept makes them
-again from this session's keys, as before.
+made by this session's rule (a different stored rule is logged). A txst object whose ledger entry has no stored strings
+(a ledger written before they were kept, pre-B2) makes them again from this session's keys, as before
+(`SlotTxst::RestoredFor` -> `StringsFor`): its deps must be the copies this session's prefix names, so such a generation
+is lost at the BFK3 -> BFK4 switch (and with a changed builder or tint, or no builder) and the slot keeps its source until
+its BFK4 generation is published.
 Whether the decal on screen takes the grey copies is the eye check (T0-decal and E3-slots judge the forms).
 Staging cleanup is the builder's; no GC.
 

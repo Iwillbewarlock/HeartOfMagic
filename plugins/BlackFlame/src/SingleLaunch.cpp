@@ -118,17 +118,30 @@ namespace BlackFlame::SingleLaunch
             return;
         }
         g_routeActive.store(true);
-        BuildProgress::ApplyDeferred();  // before anything uses a copy path this session (review N3)
+        // review round 1 D2: the request folder's claim before the request, the dump or a deferred copy is touched (also with
+        // launchBuilder off: those are written either way). Another game holds it: none of them, no builder, no worker
+        // (BuilderLauncher::ClaimFolder logs it once); no request folder: not excluded, as before
+        const auto folder = RequestFolder();
+        const bool otherGame = folder && !BuilderFolderMutex::MayStart(BuilderLauncher::ClaimFolder(*folder));
+        if (!otherGame) {
+            BuildProgress::ApplyDeferred();  // before anything uses a copy path this session (review N3)
+        }
         (void)FormCopies::ApplyLastPublished(inputs);
-        const auto request = CopyRequestV5::Write(a_closure, inputs);  // the dump holds the bytes the keys hashed
+        // the dump holds the bytes the keys hashed
+        const auto request = otherGame ? CopyRequestV5::Result{} : CopyRequestV5::Write(a_closure, inputs);
         TheRequest() = request;
         for (auto& nif : inputs.nifs) {  // before any thread starts (review agy 14_00 #1); nothing after the dump reads them
             std::vector<std::byte>().swap(nif.bytes);  // the dump has them and the keys are made: the NIF bytes are not kept
         }
         BuildProgress::ReadAtStart();  // to its end before the builder starts (it compacts the file at its own start)
+        if (otherGame) {
+            BuildProgress::SkipWorker();  // nothing more is read this session: the start's read is caught up (before W1 plans)
+        }
         CopyGroups::Start();  // W1: the groups ready from the ledger open now; the rest on the main thread as verified
-        LaunchBuilder(inputs, request.written);
-        BuildProgress::StartWorker();  // tails the progress and copies finished files into Data while the window is open
+        if (!otherGame) {
+            LaunchBuilder(inputs, request.written);
+            BuildProgress::StartWorker();  // tails the progress and copies finished files into Data while the window is open
+        }
         MenuWatch::OnMainMenuOpen(&OnMainMenu);
         const auto hashed = DataFiles::GetStats();  // review: the kDataLoaded hashing cost, by itself
         logger::info("BlackFlame: single launch: kDataLoaded part done in {} ms; {} Data file(s) hashed ({} KiB) in {} ms",

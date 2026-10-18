@@ -44,6 +44,7 @@ namespace BlackFlame::CopyContract
     {
         std::optional<std::string> text;  // the resource's bytes as they are (not validated here)
         std::string why;                  // nullopt text: why, worded after "the builder exe" ("has no ...")
+        bool noResource = false;          // it loaded but has no RCDATA identity: a builder from before BFK4 (review round 1 D3)
     };
 
     /// a_path as LoadLibraryExW takes it (review E2 #4): absolute, so a relative path never goes through the module
@@ -91,6 +92,7 @@ namespace BlackFlame::CopyContract
         if (!info) {
             out.why = "has no output identity resource (RCDATA " + std::to_string(kBuilderIdentityResource) +
                       "): a builder from before key format BFK4, or another exe";
+            out.noResource = true;
             return out;
         }
         const DWORD size = ::SizeofResource(module.handle, info);

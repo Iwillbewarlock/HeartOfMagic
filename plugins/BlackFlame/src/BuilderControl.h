@@ -62,19 +62,23 @@ namespace BlackFlame::BuilderControl
     enum class BuilderIdentityKind : std::uint8_t
     {
         kMissing,       // the exe does not open (or the DLL's own path did not read)
-        kUnreadable,    // there, but it does not load as a data file, has no identity resource, or a malformed one
-        kOtherVersion,  // a valid identity of another output version
+        kUnreadable,    // there, but it does not load as a data file, or its identity resource is malformed or does not read
+        kOtherVersion,  // a valid identity of another output version, or none at all (a builder from before BFK4)
         kDev,           // this version, a dev build ("<n>+dev<hex>"): taken, logged at warn level
         kRelease        // this version, a release build: taken
     };
 
-    /// a_text: the identity resource's bytes (nullopt: not read). Taken (kDev, kRelease) exactly when
-    /// CopyContractIdentity.h BuilderIdentityFault finds nothing wrong
+    /// a_text: the identity resource's bytes (nullopt: not read); a_noResource: the exe loaded and has no identity resource
+    /// (CopyContractIdentity.h IdentityResource::noResource). Taken (kDev, kRelease) exactly when BuilderIdentityFault
+    /// finds nothing wrong
     [[nodiscard]] inline BuilderIdentityKind ClassifyIdentity(bool a_exeFound, const std::optional<std::string>& a_text,
-        std::uint32_t a_ownVersion = CopyContract::kBuilderOutputVersion)
+        bool a_noResource = false, std::uint32_t a_ownVersion = CopyContract::kBuilderOutputVersion)
     {
         if (!a_exeFound) {
             return BuilderIdentityKind::kMissing;
+        }
+        if (!a_text && a_noResource) {
+            return BuilderIdentityKind::kOtherVersion;  // review round 1 D3: a pre-BFK4 builder is another version, not unreadable
         }
         const auto version = a_text ? CopyContract::OutputIdentityVersion(*a_text) : std::nullopt;
         if (!version) {
