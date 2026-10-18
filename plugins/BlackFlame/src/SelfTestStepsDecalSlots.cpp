@@ -171,9 +171,13 @@ namespace BlackFlame::SelfTest
         }
         SelfTestLog::Info("T0-decal", std::format("slot route: TXST slots assigned {}, usable {}, open {}; {}", txstAssigned, txstUsable,
             txstOpen, SlotTxst::RuleText()));
-        SelfTestLog::Check("T0-decal", tally.wrong == 0 && tally.setFaults == 0, std::format("{} links of open PROJ / IPCT slots ({} to "
-            "open TXST slots), {} wrong; {} open TXST slots, {} with a fault{}", tally.links, tally.toOpenTxst, tally.wrong, tally.sets,
-            tally.setFaults, tally.lines.empty() ? std::string() : ": " + tally.lines));
+        if (tally.links == 0 && tally.sets == 0) {
+            SelfTestLog::Info("T0-decal", "nothing to judge: no open PROJ / IPCT slot holds a decal link and no TXST slot is open");
+        } else {
+            SelfTestLog::Check("T0-decal", tally.wrong == 0 && tally.setFaults == 0, std::format("{} links of open PROJ / IPCT slots ({} "
+                "to open TXST slots), {} wrong; {} open TXST slots, {} with a fault{}", tally.links, tally.toOpenTxst, tally.wrong,
+                tally.sets, tally.setFaults, tally.lines.empty() ? std::string() : ": " + tally.lines));
+        }
         if (GetConfig().slotTxst && txstUsable > 0) {
             SelfTestLog::Check("T0-decal", txstOpen > 0, std::format("slotTxst: {} of {} usable TXST slots open (the plan's reasons for "
                 "the closed ones: 'TXST slot ... not published' and the group lines in the log)", txstOpen, txstUsable));
@@ -248,9 +252,13 @@ namespace BlackFlame::SelfTest
         }
         SelfTestLog::Check("E3-slots", sourcesWithSlots == 0, std::format("the rune's {} source form(s) hold no slot (the original stays "
             "for every path the swap does not take): {} slot link(s)", sources.size(), sourcesWithSlots));
-        SelfTestLog::Check("E3-slots", tally.wrong == 0 && tally.setFaults == 0, std::format("the rune's chain: {} links of its open "
-            "copies ({} to open TXST slots), {} wrong; {} open TXST slots judged, {} with a fault{}", tally.links, tally.toOpenTxst,
-            tally.wrong, tally.sets, tally.setFaults, tally.lines.empty() ? std::string() : ": " + tally.lines));
+        if (tally.links == 0 && tally.sets == 0) {
+            SelfTestLog::Info("E3-slots", "the rune's chain: nothing to judge (no open copy in it holds a decal or hazard link)");
+        } else {
+            SelfTestLog::Check("E3-slots", tally.wrong == 0 && tally.setFaults == 0, std::format("the rune's chain: {} links of its open "
+                "copies ({} to open TXST slots), {} wrong; {} open TXST slots judged, {} with a fault{}", tally.links, tally.toOpenTxst,
+                tally.wrong, tally.sets, tally.setFaults, tally.lines.empty() ? std::string() : ": " + tally.lines));
+        }
         if (GetConfig().slotTxst && decalSets > 0) {
             SelfTestLog::Check("E3-slots", tally.toOpenTxst > 0 && tally.sets > 0, std::format("slotTxst: the rune's chain names {} decal "
                 "set(s); {} of its open copies' decal links reach an open TXST slot with grey copies", decalSets, tally.toOpenTxst));
