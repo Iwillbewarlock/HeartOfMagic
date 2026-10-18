@@ -36,11 +36,21 @@ namespace BlackFlame::CopyGroups
         Progress g_progress;
         PublishLog g_log;
 
-        void NoteStep()
+        // a_sync: a W1 step at kDataLoaded itself - on the kDataLoaded (loader) thread, which is not Main's on 1.6.1170 under
+        // MO2 (run 2026-10-18): counted apart, T0-W2 judges the drain steps only
+        void NoteStep(bool a_sync)
         {
             const auto thread = REX::W32::GetCurrentThreadId();
             const auto* main = RE::Main::GetSingleton();
             std::lock_guard lock(g_mutex);
+            if (a_sync) {
+                if (g_log.syncSteps++ == 0) {
+                    g_log.syncThread = thread;
+                    logger::info("BlackFlame: slots: the first W1 publish step runs at kDataLoaded on thread {} ({})", thread,
+                        main && thread == main->threadID ? "Main's thread" : "not Main's thread: the kDataLoaded thread");
+                }
+                return;
+            }
             if (g_log.steps++ == 0) {
                 g_log.firstThread = thread;
                 logger::info("BlackFlame: slots: the first publish step runs on thread {} ({})", thread,
@@ -87,7 +97,7 @@ namespace BlackFlame::CopyGroups
                     return;
                 }
             }
-            NoteStep();
+            NoteStep(a_sync);
             std::vector<std::pair<std::uint16_t, LM::Object>> recorded;
             for (const auto& member : a_group.members) {
                 if (member.state == Member::kLeft) {
@@ -222,7 +232,7 @@ namespace BlackFlame::CopyGroups
                     erase();
                     continue;
                 }
-                NoteStep();
+                NoteStep(false);
                 slot.publishedModel = path;
                 (void)FormCopies::SetFormModel(slot.form, path);
                 SlotAssign::OpenGate(id);
@@ -343,6 +353,15 @@ namespace BlackFlame::CopyGroups
                 return;
             }
             if (!MenuWatch::DrainMayPublish()) {
+                if (MenuWatch::PublishOpen() && MenuWatch::ProofPending()) {
+                    // review / Codex: not made yet (Main::threadID still 0, or not asked on the drain's thread): the stepper is
+                    // queued again (not settled) and asks at the next drain
+                    if (!a_state.proofWaitLogged) {
+                        a_state.proofWaitLogged = true;
+                        logger::info("BlackFlame: slots: publication waits for the main-thread proof ({})", MenuWatch::ProofText());
+                    }
+                    return;
+                }
                 a_state.stopped = true;
                 logger::info("BlackFlame: slots: publication stopped ({})",
                     MenuWatch::PublishOpen() ? "no main-thread proof: " + MenuWatch::ProofText() : MenuWatch::CloseReason());

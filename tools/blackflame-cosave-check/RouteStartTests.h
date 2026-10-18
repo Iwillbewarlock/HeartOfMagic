@@ -44,15 +44,27 @@ namespace RouteStartTests
         Folder(a_check, "", nullptr, "an empty path refused");
         Folder(a_check, R"(C:\Saves\Other.ess)", nullptr, "another file name refused");
         Folder(a_check, R"(C:\Saves\HoMBF_slots.js)", nullptr, "a cut file name refused");
+        Folder(a_check, R"(C:\Saves\HoMBF_slots.json.bak)", nullptr, "another suffix refused");
+        Folder(a_check, R"(C:\Saves\HoMBF_slots.jsonx)", nullptr, "a longer name refused");
+        Folder(a_check, R"(C:\Saves\HoMBF_slots.json.ess.ess)", nullptr, "a doubled suffix refused");
+        Folder(a_check, R"(C:\a\b\..\Saves\.\HoMBF_slots.json.ess)", R"(C:\a\Saves)", "normalised ('..' and '.' folded)");
+        Folder(a_check, R"(..\Saves\HoMBF_slots.json.ess)", nullptr, "a leading '..' refused");
         Folder(a_check, R"(C:\HoMBF_slots.json.ess)", R"(C:\)", "a drive root");
 
         constexpr std::uint32_t kMain = 23672;
         constexpr std::uint32_t kOther = 11504;
-        a_check(MP::Decide(true, 1, kMain, kMain) == MP::Verdict::kProven,
+        a_check(MP::Decide(true, 1, kMain, kMain, kMain) == MP::Verdict::kProven,
             "proof: the first drain on Main's thread is proven (kDataLoaded's thread is not an input)");
-        a_check(MP::Decide(true, 1, kOther, kMain) == MP::Verdict::kRefused, "proof: a first drain on another thread is refused");
-        a_check(MP::Decide(false, 5, kMain, kMain) == MP::Verdict::kRefused, "proof: no main-thread queue is refused");
-        a_check(MP::Decide(true, 0, 0, kMain) == MP::Verdict::kPending, "proof: before the first drain it is pending");
-        a_check(MP::Decide(true, 1, kMain, 0) == MP::Verdict::kPending, "proof: Main::threadID not set yet is pending, not refused");
+        a_check(MP::Decide(true, 1, kOther, kMain, kOther) == MP::Verdict::kRefused,
+            "proof: a first drain on another thread is refused (asked from that drain)");
+        a_check(MP::Decide(false, 5, kMain, kMain, kMain) == MP::Verdict::kRefused, "proof: no main-thread queue is refused");
+        a_check(MP::Decide(true, 0, 0, kMain, kOther) == MP::Verdict::kPending, "proof: before the first drain it is pending");
+        a_check(MP::Decide(true, 1, kMain, 0, kMain) == MP::Verdict::kPending, "proof: Main::threadID not set yet is pending, not refused");
+        a_check(MP::Decide(true, 1, 0, kMain, kOther) == MP::Verdict::kPending,
+            "proof: frame counted but its thread not stored yet is pending, not refused (review)");
+        a_check(MP::Decide(true, 1, kMain, kMain, kOther) == MP::Verdict::kPending,
+            "proof: asked from another thread (kDataLoaded's) it stays pending - only the drain decides");
+        a_check(MP::Decide(true, 1, kOther, kMain, kMain) == MP::Verdict::kPending,
+            "proof: asked from Main's thread while the drain ran elsewhere it stays pending");
     }
 }

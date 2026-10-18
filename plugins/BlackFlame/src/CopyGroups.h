@@ -54,11 +54,13 @@ namespace BlackFlame::CopyGroups
 
     struct PublishLog
     {
-        std::size_t steps = 0;           // publish steps (SetModel / RegisterLoose batches) run
+        std::size_t steps = 0;           // publish steps (SetModel / RegisterLoose batches) run in the main-thread drains
         std::size_t mainMenuSteps = 0;   // of them, with the main menu open (W2: SetModel at the main menu)
-        bool allOnMainThread = true;     // every one on RE::Main's thread
+        bool allOnMainThread = true;     // every drain step on RE::Main's thread
         bool loadDuringPublish = false;  // a load was under way during one (Watchdog::LoadUnderWay)
-        std::uint32_t firstThread = 0;
+        std::uint32_t firstThread = 0;   // the first drain step's thread
+        std::size_t syncSteps = 0;       // W1 steps at kDataLoaded itself (its thread, not Main's on 1.6.1170 under MO2: not judged)
+        std::uint32_t syncThread = 0;    // the first W1 step's thread
     };
 
     /// T0-W2's evidence
