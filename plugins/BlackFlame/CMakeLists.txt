@@ -96,6 +96,8 @@ set(BLACKFLAME_SOURCES
     src/FileIndexGuardCheck.cpp
     src/SlotLedger.cpp
     src/SlotAssign.cpp
+    src/SlotTxst.cpp
+    src/SelfTestStepsDecalSlots.cpp
     src/FormCopiesFillModel.cpp
     src/CopyGroups.cpp
     src/CopyModelProbeVerify.cpp

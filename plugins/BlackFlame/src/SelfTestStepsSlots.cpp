@@ -151,8 +151,8 @@ namespace BlackFlame::SelfTest
             std::size_t wrong = 0;
             for (const auto id : SlotAssign::Assigned()) {
                 const auto& slot = SlotAssign::At(id);
-                if (!SlotAssign::GateOpen(id) || !slot.form) {
-                    continue;
+                if (!SlotAssign::GateOpen(id) || !slot.form || slot.type == CopyContract::SlotType::kTXST) {
+                    continue;  // a TXST slot has no model: T0-decal judges its strings
                 }
                 ++open;
                 const auto* model = FormCopies::ModelOf(slot.form);

@@ -17,12 +17,15 @@
 #include "SingleLaunch.h"
 #include "SlotAssign.h"
 #include "SlotLedger.h"
+#include "SlotTxst.h"
 #include "TrackedMutex.h"
 #include "Watchdog.h"
 
 #include <algorithm>
 #include <format>
 #include <mutex>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace BlackFlame::CopyGroups
 {
@@ -88,12 +91,25 @@ namespace BlackFlame::CopyGroups
             if (!WindowOpen(a_sync)) {
                 return;  // closed right before the first SetModel: the group stays as it was
             }
+            std::unordered_map<std::uint16_t, SlotTxstPaths::Strings> txst;  // every TXST write made before anything is written
+            std::unordered_set<std::uint16_t> unwritten;  // a TXST write that failed: its gate stays closed
             for (const auto& member : a_group.members) {  // review agy dc 6: every SetFormModel below can take its model
                 const auto& slot = SlotAssign::At(member.id);
-                if (member.state != Member::kLeft && (!slot.form || (member.model.candidate && !FormCopies::ModelOf(slot.form)))) {
+                const bool isTxst = slot.type == CC::SlotType::kTXST;
+                std::string why;
+                if (member.state != Member::kLeft && isTxst && member.model.candidate) {
+                    // the plan mapped it already; should it fail now, only this slot stays closed (the group's others open)
+                    if (const auto strings = SlotTxst::StringsFor(slot, *member.model.candidate, why)) {
+                        txst.emplace(member.id, *strings);
+                    } else {
+                        logger::warn("BlackFlame: slots: TXST slot {:X} not written ({}): its gate stays closed", member.id, why);
+                        unwritten.insert(member.id);
+                    }
+                }
+                if (member.state != Member::kLeft && (!slot.form || (!isTxst && member.model.candidate && !FormCopies::ModelOf(slot.form)))) {
                     a_group.state = GroupState::kFailed;
-                    logger::warn("BlackFlame: slots: a group of {} is not opened: slot {:X} has no form or no model to set",
-                        a_group.ids.size(), member.id);
+                    logger::warn("BlackFlame: slots: a group of {} is not opened: slot {:X} has no form or no model to set{}",
+                        a_group.ids.size(), member.id, why.empty() ? "" : " (" + why + ")");
                     return;
                 }
             }
@@ -104,6 +120,21 @@ namespace BlackFlame::CopyGroups
                     continue;
                 }
                 auto& slot = SlotAssign::At(member.id);
+                if (slot.type == CC::SlotType::kTXST) {
+                    const auto it = txst.find(member.id);
+                    std::string why;
+                    if (it == txst.end()) {
+                        continue;  // kReady (written before) or unwritten: no model, no muzzle
+                    }
+                    if (SlotTxst::Write(slot, it->second, why)) {
+                        slot.publishedTxst = CC::Hex16(member.model.candidate->key);
+                        recorded.emplace_back(member.id, *member.model.candidate);
+                    } else {
+                        logger::warn("BlackFlame: slots: TXST slot {:X} not written ({}): its gate stays closed (the decal keeps the source)", member.id, why);
+                        unwritten.insert(member.id);
+                    }
+                    continue;  // no model, no muzzle
+                }
                 if (member.model.candidate) {
                     slot.publishedModel = FormCopies::RecordModelPath(member.model.candidate->path);
                     (void)FormCopies::SetFormModel(slot.form, slot.publishedModel);  // checked above
@@ -124,7 +155,7 @@ namespace BlackFlame::CopyGroups
                 }
             }
             for (const auto& member : a_group.members) {
-                if (member.state != Member::kLeft) {
+                if (member.state != Member::kLeft && unwritten.count(member.id) == 0) {
                     SlotAssign::OpenGate(member.id);
                 }
             }
@@ -315,6 +346,10 @@ namespace BlackFlame::CopyGroups
                         FailGroup(a_state, a_group, item.path, std::nullopt, "a file did not register: " + why);
                         return;
                     }
+                }
+                if (!item.demand) {
+                    ++a_group.verifyNext;  // a TXST object: its DDS deps registered, nothing to Demand
+                    continue;
                 }
                 const auto result = CopyModelProbe::DemandOnce(item.path);
                 if (result.fault) {

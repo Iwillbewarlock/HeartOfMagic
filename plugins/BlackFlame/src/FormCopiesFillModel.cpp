@@ -9,7 +9,9 @@
 #include "DataPathRule.h"
 #include "FileIndex.h"
 #include "SlotAssign.h"
+#include "Config.h"
 #include "SlotLedger.h"
+#include "SlotTxst.h"
 
 #include <algorithm>
 #include <cstring>
@@ -153,13 +155,13 @@ namespace BlackFlame::FormCopies
             const auto* object = LM::PublishedOf(a_entry, a_role);
             std::string why;
             // the FNV-1a 64 collision guard: the same key with another key string is not this session's object
-            const auto& current = a_role == LM::Role::kMuzzle ? a_slot.muzzleKey : a_slot.modelKey;
+            const auto& current = a_role == LM::Role::kMuzzle ? a_slot.muzzleKey : a_role == LM::Role::kTxst ? a_slot.txstKey : a_slot.modelKey;
             const bool collision = object && current && object->key == current->key && !object->keyText.empty() &&
                                    object->keyText != current->text;
             if (collision) {
                 why = "its key equals this session's but the key strings differ (an FNV-1a 64 collision)";
             }
-            if (object && object->path.empty()) {
+            if (object && object->path.empty() && a_role != LM::Role::kTxst) {  // a txst object's files are its deps
                 why = "it has no file";  // review agy 4: never SetModel("") nor an ADDN gate opened on it
             }
             if (object && why.empty() && BuildProgress::AnyReplacedNow(LM::FilesOf(*object))) {
@@ -186,8 +188,23 @@ namespace BlackFlame::FormCopies
                 auto& slot = SlotAssign::At(id);
                 const auto* entry = LM::FindSlot(ledger, id);
                 if (!slot.usable || !entry || (slot.type == CopyContract::SlotType::kADDN) != addnPass ||
-                    slot.type == CopyContract::SlotType::kTXST || (addnPass && SlotAssign::GateOpen(id))) {
-                    continue;  // a TXST slot stays unpublished (CopyGroups.h)
+                    (addnPass && SlotAssign::GateOpen(id))) {
+                    continue;
+                }
+                if (slot.type == CopyContract::SlotType::kTXST) {
+                    // slotTxst: its last published txst object written now (gate closed until its group opens); off: unpublished
+                    const auto* object = GetConfig().slotTxst ? LM::PublishedOf(*entry, LM::Role::kTxst) : nullptr;
+                    std::string why;
+                    const auto* intactObject = object ? intact(*entry, LM::Role::kTxst, slot) : nullptr;
+                    const auto strings = intactObject ? SlotTxst::StringsFor(slot, *intactObject, why) : std::nullopt;
+                    if (strings && SlotTxst::Write(slot, *strings, why)) {
+                        slot.publishedTxst = CopyContract::Hex16(intactObject->key);
+                        ++applied;
+                    } else if (intactObject) {
+                        logger::info("BlackFlame: slots: TXST slot {:X} ({}): its last published set is not used: {}", slot.localId,
+                            slot.sourceText, why);
+                    }
+                    continue;
                 }
                 // review: the rule W2 has (CopyGroups AddnDeps): an ADDN slot it names must be ours this session and usable;
                 // one not open yet shows the model it has until it opens (only a collided or unusable one refuses)

@@ -65,6 +65,10 @@ namespace BlackFlame
     /// in game (DisableCopiesForSession): that form stays original
     [[nodiscard]] RE::TESForm* CopyOf(const RE::TESForm* a_source) noexcept;
 
+    /// Single launch: the slot a_source is bound to whether or not its gate is open (CopyOf hands out open ones only); the
+    /// self-test tells a closed slot from no slot with it. Null off the slot route or without a slot
+    [[nodiscard]] RE::TESForm* PoolCopyOf(const RE::TESForm* a_source) noexcept;
+
     struct FilledCopy
     {
         const RE::TESForm* source = nullptr;

@@ -23,7 +23,8 @@
 // whose members are all ready open at once (W1); the drains go on while the publish window is open and the main-thread
 // proof holds (W1 drains and W2); each publish step re-checks the close flag right before SetModel and RegisterLoose. A
 // group unfinished when the window closes stays as it was. A Demand that faults stops publication for the session. TXST
-// slots are filled (keyed and built only with the config slotTxst) but never published here: design v2 §1 keeps the original decal until SetTexturePath and its textureFileIDs are proven.
+// slots (config slotTxst) are members like the others: their txst object's DDS deps are registered (no Demand), and the
+// open writes TX00 / TX03 (SlotTxst.h) before the gates open; off, they are left and the decals keep the source's sets.
 
 #include "Common.h"
 

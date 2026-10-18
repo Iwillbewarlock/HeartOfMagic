@@ -9,6 +9,7 @@
 #include "Forms.h"
 #include "SelfTestLog.h"
 #include "SelfTestProbe.h"
+#include "SelfTestSlotDecal.h"
 #include "SehGuard.h"
 #include "SelfTestText.h"
 
@@ -335,6 +336,7 @@ namespace BlackFlame::SelfTest::Reload
             std::string detail;
             const auto v2 = SelfTestWorld::LookupV2(detail);
             g_step.rune = v2.fireRune;
+            JudgeRuneSlots(g_step.rune);  // slot route: the rune's chain by data, before anything is launched
             const auto* effect = g_step.rune ? g_step.rune->GetAVEffect() : nullptr;
             if (!g_step.rune || !effect || !CopyOf(effect->data.projectileBase) || !v2.marker) {
                 SelfTestLog::Fail("E3", "not run: no Fire Rune, no copy of its projectile, or no marker: " + detail);

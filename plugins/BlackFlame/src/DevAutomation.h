@@ -30,7 +30,9 @@ namespace BlackFlame::DevAutomation
     inline constexpr auto kAfterSave = std::chrono::seconds(3);
     inline constexpr auto kSaveSignalWait = std::chrono::seconds(10);
     inline constexpr auto kQuitDelay = std::chrono::seconds(10);
-    inline constexpr auto kStallTimeout = std::chrono::minutes(6);
+    // the main run's step caps add up to 270 s of play (SelfTestSteps.cpp, T0's probe wait aside), plus selfTestDelaySeconds,
+    // the load and E3's save and load: 6 minutes left about a minute (2026-10-18), so 12
+    inline constexpr auto kStallTimeout = std::chrono::minutes(12);
     inline constexpr auto kMenuWaitTimeout = std::chrono::minutes(20);  // kDataLoaded to the main menu took ~7 min (run 4)
     inline constexpr auto kSlotWait = std::chrono::minutes(5);  // single launch: the auto load waits for the slots (under kStallTimeout)
     inline constexpr auto kPoll = std::chrono::milliseconds(250);
