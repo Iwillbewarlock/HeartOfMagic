@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <format>
+#include <map>
 #include <mutex>
 #include <unordered_map>
 #include <unordered_set>
@@ -481,6 +482,65 @@ namespace BlackFlame::CopyGroups
         if (state.canVerify && !GetProgress().settled && !QueueTask(kTaskName, &Step)) {
             logger::warn("BlackFlame: slots: the publish stepper could not be queued: nothing more is published this session");
         }
+    }
+
+    namespace
+    {
+        [[nodiscard]] const char* GroupStateText(GroupState a_state) noexcept
+        {
+            switch (a_state) {
+            case GroupState::kWaiting: return "waiting (its objects still building or coming into Data)";
+            case GroupState::kVerifying: return "verifying";
+            case GroupState::kOpen: return "open";
+            case GroupState::kFailed: return "failed";
+            case GroupState::kGone: return "left";
+            }
+            return "unknown";
+        }
+    }
+
+    std::string SlotNote(std::uint16_t a_slot)
+    {
+        for (const auto& group : TheState().groups) {
+            for (const auto& member : group.members) {
+                if (member.id != a_slot) {
+                    continue;
+                }
+                const auto& why = !member.model.why.empty() ? member.model.why : member.muzzle.why;
+                const bool left = member.state == Member::kLeft;
+                return std::format("{}{}", left && group.state != GroupState::kFailed ? "left" : GroupStateText(group.state),
+                    why.empty() ? std::string() : ": " + why);
+            }
+        }
+        const auto& slot = SlotAssign::At(a_slot);
+        return slot.usable ? "in no group" : "not usable: " + slot.why;
+    }
+
+    std::string SlotSummary()
+    {
+        std::size_t open = 0;
+        std::size_t assigned = 0;
+        std::map<std::string, std::size_t> closed;
+        for (const auto id : SlotAssign::Assigned()) {
+            const auto& slot = SlotAssign::At(id);
+            if (!slot.active || slot.type == CC::SlotType::kADDN) {
+                continue;  // tombstones and other sessions' bindings; ADDN slots open through their MPS (counted apart)
+            }
+            ++assigned;
+            if (SlotAssign::GateOpen(id)) {
+                ++open;
+                continue;
+            }
+            auto note = SlotNote(id);
+            ++closed[note.substr(0, note.find_first_of(":("))];
+        }
+        std::string text;
+        for (const auto& [state, count] : closed) {
+            text += std::format("{}{} {}", text.empty() ? "" : ", ", state, count);
+        }
+        const auto progress = GetProgress();
+        return std::format("{} of {} assigned slots open (ADDN MPS open {}); closed: {}", open, assigned, progress.addnOpen,
+            text.empty() ? "none" : text);
     }
 
     Progress GetProgress()

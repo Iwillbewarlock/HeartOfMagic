@@ -44,6 +44,8 @@ namespace BlackFlame::SlotAssign
             std::vector<Slot> slots = std::vector<Slot>(CC::kSlotCount);  // by local id - 0x800; never resized
             std::vector<std::uint16_t> assigned;
             Counts counts;
+            std::set<RE::FormID> poolFull;  // sources that wanted a slot and got none: the pool was full
+            std::set<RE::FormID> refused;   // ... new slots refused this session
         };
         Table& TheTable()
         {
@@ -301,6 +303,16 @@ namespace BlackFlame::SlotAssign
         }
         table.counts.poolFull = result.poolFull.size();
         table.counts.refused = result.refused.size();
+        const auto note = [&](const auto& a_indices, std::set<RE::FormID>& a_set) {
+            for (const auto i : a_indices) {
+                const auto& want = wants[i];
+                if (const auto* form = Lookup(dh, want.plugin, want.localId, want.type)) {
+                    a_set.insert(form->GetFormID());
+                }
+            }
+        };
+        note(result.poolFull, table.poolFull);
+        note(result.refused, table.refused);
         for (std::size_t i = 0; i < result.poolFull.size() && i < kLoggedEach; ++i) {
             const auto& want = wants[result.poolFull[i]];
             logger::warn("BlackFlame: slots: pool full: {} {} stays orange", CC::SlotTypeTag(want.type), LM::SourceText(want.plugin, want.localId));
@@ -375,6 +387,27 @@ namespace BlackFlame::SlotAssign
     bool IsSlotForm(const RE::TESForm* a_form) noexcept
     {
         return SlotOf(a_form).has_value();
+    }
+
+    std::optional<std::uint16_t> SlotForSource(const RE::TESForm* a_source)
+    {
+        if (!a_source) {
+            return std::nullopt;
+        }
+        auto& table = TheTable();
+        for (const auto id : table.assigned) {
+            if (table.slots[IndexOf(id)].source == a_source) {
+                return id;
+            }
+        }
+        return std::nullopt;
+    }
+
+    const char* UnassignedWhy(const RE::TESForm* a_source)
+    {
+        const auto& table = TheTable();
+        const auto id = a_source ? a_source->GetFormID() : 0;
+        return table.poolFull.contains(id) ? "the pool of its type is full" : table.refused.contains(id) ? "new slots are refused this session" : "";
     }
 
     std::optional<std::uint16_t> SlotOf(const RE::TESForm* a_form) noexcept

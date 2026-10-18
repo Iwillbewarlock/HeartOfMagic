@@ -66,4 +66,11 @@ namespace BlackFlame::CopyGroups
 
     /// T0-W2's evidence
     [[nodiscard]] PublishLog GetPublishLog();
+
+    /// Main thread: a slot's group state and its member's reason in words ("waiting (still building)", "failed", "left: why",
+    /// "open"), "in no group" when no group holds it - for the self-test's slot lines
+    [[nodiscard]] std::string SlotNote(std::uint16_t a_slot);
+
+    /// Main thread: "N of M assigned slots open; closed: <state> <count>, ..." (the self-test's summary line)
+    [[nodiscard]] std::string SlotSummary();
 }

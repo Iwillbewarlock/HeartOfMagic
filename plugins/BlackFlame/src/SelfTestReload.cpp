@@ -7,6 +7,7 @@
 #include "DevAutomation.h"
 #include "FormCopies.h"
 #include "Forms.h"
+#include "SelfTestJudge.h"
 #include "SelfTestLog.h"
 #include "SelfTestProbe.h"
 #include "SelfTestSlotDecal.h"
@@ -338,6 +339,11 @@ namespace BlackFlame::SelfTest::Reload
             g_step.rune = v2.fireRune;
             JudgeRuneSlots(g_step.rune);  // slot route: the rune's chain by data, before anything is launched
             const auto* effect = g_step.rune ? g_step.rune->GetAVEffect() : nullptr;
+            if (const auto use = g_step.rune && effect && !CopyOf(effect->data.projectileBase) ? SlotUseOf(effect->data.projectileBase) :
+                                                                                                 std::nullopt; use && use->closed) {
+                SelfTestLog::Info("E3", "not run: the rune's projectile " + use->how);  // slot route: closed this session
+                return true;
+            }
             if (!g_step.rune || !effect || !CopyOf(effect->data.projectileBase) || !v2.marker) {
                 SelfTestLog::Fail("E3", "not run: no Fire Rune, no copy of its projectile, or no marker: " + detail);
                 return true;

@@ -9,6 +9,7 @@
 #include "CopySwap.h"
 #include "FormCopies.h"
 #include "GreyMap.h"
+#include "SelfTestJudge.h"
 #include "SelfTestLog.h"
 #include "SelfTestText.h"
 
@@ -115,6 +116,14 @@ namespace BlackFlame::SelfTest
                 !inspected ? "NOT inspected: no 3D at the hook" :
                 values.empty() ? "this NIF has none: the ADDN part is not judged" : (valuesGrey ? "all grey indices" : "SOME NOT GREY"),
                 impactCopies, now.impactWindowCalls - g_fire.at.impactWindowCalls));
+            // slot route: a launch without the copy because its slot is closed this session is INFO (the state named)
+            if (const auto use = launch && !launchOk ? SlotUseOf(launch->base) : std::nullopt; use && use->closed) {
+                SelfTestLog::Info("E1a", "player Firebolt not judged: " + use->how);
+                (void)a_c;
+                return;
+            } else if (use) {
+                SelfTestLog::Fail("E1a", "player Firebolt launched without its copy: " + use->how);
+            }
             SelfTestLog::Check("E1a", launchOk && projectileOk && inspected && valuesOk && impactCopies >= 1, std::format("player Firebolt: "
                 "launched with the copy {}, its 3D grey (copies' rule on {} shapes) {}, AddOnNodes on grey ADDNs {}, impact copies {} "
                 "(at least 1)", launchOk ? "yes" : "NO", projectile ? projectile->after.greyByRule : 0,
@@ -209,6 +218,12 @@ namespace BlackFlame::SelfTest
             postWrites, alreadyCopy, createSwaps, now.createSwapsSelfArea - g_fire.at.createSwapsSelfArea,
             now.createLayoutRejected - g_fire.at.createLayoutRejected, now.createNotSpell - g_fire.at.createNotSpell,
             now.launchNoCopy - g_fire.at.launchNoCopy));
+        if (const auto use = record->copyBase == 0 ? SlotUseOf(record->base) : std::nullopt; use && use->closed) {
+            SelfTestLog::Info("E1b", "player Fireball explosion not judged: " + use->how + " | " + DescribeExplosion(*record));
+            return true;
+        } else if (use) {
+            SelfTestLog::Fail("E1b", "player Fireball explosion without its copy: " + use->how);
+        }
         SelfTestLog::Check("E1b", record->copyBase != 0 && record->after.effectProperties > 0 &&
             record->after.greyByRule == record->after.effectProperties, std::format("player Fireball "
             "explosion: base {:08X} copy {:08X}, grey by the copies' rule on {} of {} shapes; made by {} | {}", record->base, record->copyBase,

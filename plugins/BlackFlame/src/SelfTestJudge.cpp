@@ -1,5 +1,10 @@
 #include "SelfTestJudge.h"
 
+#include "CopyGroups.h"
+#include "FormCopies.h"
+#include "SelfTestLog.h"
+#include "SlotAssign.h"
+
 #include <algorithm>
 #include <cmath>
 #include <format>
@@ -27,6 +32,39 @@ namespace BlackFlame::SelfTest
         }
         out.how = "no copy (C6: no runtime recolour; this form stays orange): nothing to judge";
         return out;
+    }
+
+    std::optional<SlotUse> SlotUseOf(const RE::TESForm* a_source)
+    {
+        if (!SlotAssign::Active()) {
+            return std::nullopt;
+        }
+        const auto id = SlotAssign::SlotForSource(a_source);
+        if (!id) {
+            const std::string why = SlotAssign::UnassignedWhy(a_source);
+            return why.empty() ? SlotUse{ false, std::format("{:08X} has no slot this session (the closure should have assigned one)",
+                                                   a_source ? a_source->GetFormID() : 0) } :
+                                 SlotUse{ true, std::format("{:08X} has no slot: {}", a_source->GetFormID(), why) };
+        }
+        if (SlotAssign::GateOpen(*id)) {
+            return SlotUse{ false, std::format("its slot {:X} is OPEN but the launch did not take it", *id) };
+        }
+        return SlotUse{ true, std::format("its slot {:X} is closed this session: {}", *id, CopyGroups::SlotNote(*id)) };
+    }
+
+    std::optional<SlotUse> SlotUseOf(RE::FormID a_source)
+    {
+        return SlotUseOf(a_source ? RE::TESForm::LookupByID(a_source) : nullptr);
+    }
+
+    void NoteSlotSummaryOnce(const char* a_id)
+    {
+        static bool s_done = false;  // main thread (the self-test's steps)
+        if (s_done || !SlotAssign::Active()) {
+            return;
+        }
+        s_done = true;
+        SelfTestLog::Info(a_id, "slots: " + CopyGroups::SlotSummary());
     }
 
     bool EngineLive(const std::vector<SelfTestWorld::ShaderOn>& a_shaders, const std::vector<RE::FormID>& a_engines,

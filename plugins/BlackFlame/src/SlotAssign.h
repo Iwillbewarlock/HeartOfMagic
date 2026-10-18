@@ -75,6 +75,13 @@ namespace BlackFlame::SlotAssign
     /// a_form is one of the slot ESL's pool forms (any thread)
     [[nodiscard]] bool IsSlotForm(const RE::TESForm* a_form) noexcept;
 
+    /// Main thread: the assigned slot bound to a_source (usable or not), or nullopt (a scan of the assigned slots)
+    [[nodiscard]] std::optional<std::uint16_t> SlotForSource(const RE::TESForm* a_source);
+
+    /// Why a_source wanted a slot and has none ("the pool of its type is full", "new slots are refused ..."), "" when it
+    /// was never wanted
+    [[nodiscard]] const char* UnassignedWhy(const RE::TESForm* a_source);
+
     /// The slot's local id of a pool form, or nullopt
     [[nodiscard]] std::optional<std::uint16_t> SlotOf(const RE::TESForm* a_form) noexcept;
 
