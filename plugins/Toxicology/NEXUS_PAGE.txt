@@ -11,7 +11,7 @@ Why reserve a carefully brewed poison for coating a weapon when your spells can 
 
 [size=3][b]How It Works[/b][/size]
 [list]
-[*][b]Learning the Ability:[/b] Purchase [i]Spell Tome: Toxicology[/i] from Elgrim's Elixirs in Riften (350 gold). Reading the tome teaches the [b]Toxicology[/b] ability, which appears under your Active Effects rather than in your spell list.
+[*][b]Learning the Ability:[/b] Complete the vanilla quest "Few and Far Between" from Ingun Black-Briar in Riften (she spends her time at Elgrim's Elixirs)—bring her 20 nirnroot, 20 nightshade and 20 deathbell—to receive [i]Spell Tome: Toxicology[/i] in addition to the quest's own reward (a save that already completed the quest before the addon was installed receives the tome when that save is loaded; the addon does not edit the quest and only reacts to its completion). Reading the tome teaches the [b]Toxicology[/b] ability, which appears under your Active Effects rather than in your spell list.
 [*][b]Delivering Poison by Spell:[/b] With the Toxicology ability active, spells that the Librarian tags as poison carry the effect of your top favorited poison. When such a spell hits a creature, that poison's effect is applied to the target as if you had poisoned it. Helpful spells that the Librarian also tags as "poison" (such as Cure Poison or poison resistance buffs) are skipped.
 [*][b]Which Poison Is Chosen:[/b] Among your favorited poisons, the mod selects the first by name—matching the alphabetical order shown in SkyUI's favorites menu. Any real poison item works, including player-made and mod-added poisons.
 [*][b]Magicka & Bottle Consumption:[/b] Spell hits themselves use no bottles. Instead, every 100 Magicka you spend casting poison spells uses up one bottle of the poison being copied (the Magicka amount is configurable). When that poison runs out, the next favorited poison automatically takes over; if you have none left, your spells carry no poison.
@@ -46,7 +46,7 @@ There is an English main file ([b]HeartOfMagic-Librarian-Toxicology_1.0.0.zip[/b
 [size=3][b]Known Limits[/b][/size]
 [list]
 [*]The immunity record is kept in memory: after loading a save, every creature can be poisoned once again.
-[*]Saves that have already traded with Elgrim's Elixirs will see the tome only after the merchant restocks (about 48 hours).
+[*]The tome is given once per save. A tome sold or dropped unread is not given again (the console command player.additem can give it back).
 [*]With InventoryInjectorImproved (I5), the inventory icon can lag; the favorites menu is always right (running [i]i5 purge[/i] in the console refreshes it).
 [*]Runes, explosions, and cloak spells are not yet confirmed in game to trigger the poison. Aimed bolts and concentration sprays are confirmed.
 [*]Waiting, sleeping, or fast travel moves game time forward and ends immunity early.
