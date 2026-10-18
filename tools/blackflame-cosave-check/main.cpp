@@ -19,6 +19,7 @@
 #include "ProgressTailTests.h"
 #include "RouteStartTests.h"
 #include "TxstPathsTests.h"
+#include "TxstRuleTests.h"
 #include "SkseFile.h"
 #include "SlotLedgerTests.h"
 
@@ -444,6 +445,7 @@ int main(int a_argc, char** a_argv)
     suite("progress tail", [](auto&& a_check) { ProgressTailTests::Run(a_check); });
     suite("route start", [](auto&& a_check) { RouteStartTests::Run(a_check); });
     suite("txst paths", [](auto&& a_check) { TxstPathsTests::Run(a_check); });
+    suite("txst rule", [](auto&& a_check) { TxstRuleTests::Run(a_check); });
     std::cout << "SELF-TEST pass=" << check.pass << " fail=" << check.fail << " skip=" << check.skip << "\n";
     return check.fail == 0 ? 0 : 1;
 }

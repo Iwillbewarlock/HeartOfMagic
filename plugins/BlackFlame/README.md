@@ -1104,12 +1104,20 @@ builder gives each copy (the contract's `TextureKeyString` over the prefix, the 
 fnv64); a colour slot no dep matches keeps the source's bytes, and a dep that matches neither, an ADDN dep, or no dep
 at all (a fallback with both slots kept) publishes nothing for that slot. The write sets `textures[i].textureName`
 (TESTexture, record strings without "textures\", `TESTexture::GetDefaultPath`) and `textureFileIDs[i]`
-(`RE/B/BGSTextureSet.h` 0x040 / 0x0CC); `SetTexturePath` (vfunc 27) is not called. An unchanged slot keeps the source's own
-ID; a copy slot's is made with `BSResource::ID::GenerateFromPath` by the rule the engine's own IDs follow, found once a
-session on the TXST sources ("textures\" + name, name, or zero; logged as "TXST textureFileIDs rule"); when no rule
-fits, no TXST slot is written; the rule line counts every TXST source that disagrees with the chosen form (or, with none,
-the form most slots follow) and quotes the first five. The DDS deps are registered like every copy file (a DDS loads
-without it, probe run 3). A publish stores the eight strings it wrote and the ID rule's name ("prefixed", "bare", "zero")
+(`RE/B/BGSTextureSet.h` 0x040 / 0x0CC); `SetTexturePath` (vfunc 27) is not called. A copy slot's ID is made with
+`BSResource::ID::GenerateFromPath` by the rule the engine's own IDs follow, found once a session on the TXST sources slot
+by slot (`SlotTxstRule.h`, logged as "TXST textureFileIDs rule"): a slot whose stored ID is non-zero and equals the hash of
+the name normalised under textures\ votes "prefixed", of the bare name "bare"; any other slot does not vote. Run 3
+(2026-10-18) showed why: of 92 slots, 78 matched "textures\" + name; the other 14 were 10 TX03 'black.dds' that no
+record has (3 of them seen holding an earlier override's TX03 ID, 2 zero) and, by the counts, 4 PSI.esp TX05
+'cubemap\shinydull_e.dds', a missing file left at zero - the old all-slots rule gave NONE and wrote no TXST. A slot both
+forms match (a rooted name) does not vote. The rule is the form with votes when the other has none; with both or
+neither, no TXST slot is written. The rule line groups the unexplained slots by name. An unchanged slot keeps the
+source's ID when it is zero, the rule's ID of its string, or Normalize changes the string's shape (data\, a root, a
+doubled or '/' separator); otherwise it takes the rule's (the stale ID names another file; the builder recoloured that
+slot by its string); an empty slot takes zero; `Write` logs each ID not taken from the source. The DDS deps are
+registered like every copy file (a DDS loads without it, probe run 3). A publish stores the eight strings it wrote and
+the ID rule's name ("prefixed", "bare"; "zero" from an older build)
 with the txst object in the ledger (`textures`, `idsRule`). W1 in a later session restores the set from them
 (`SlotTxstPaths::RestoredStrings`), never from that session's key prefix, so a changed builder or tint, or no builder,
 keeps an intact generation: the source's key fields now (its eight strings, TX00 / TX03 hashes, DODT;

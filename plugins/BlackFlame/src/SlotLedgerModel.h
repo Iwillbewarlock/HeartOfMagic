@@ -77,8 +77,8 @@ namespace BlackFlame::SlotLedgerModel
         std::uint64_t fnv64 = 0;
         std::vector<Dep> deps;
         // kTxst: the TX00..TX07 strings SlotTxst::Write gave the form when it was published, and the textureFileIDs rule then
-        // ("prefixed", "bare", "zero"); a later session restores the set from them (SlotTxstPaths::RestoredStrings). Empty:
-        // a ledger written before they were kept, or another role
+        // ("prefixed", "bare"; "zero" from an older build); a later session restores the set from them
+        // (SlotTxstPaths::RestoredStrings). Empty: a ledger written before they were kept, or another role
         std::vector<std::string> textures;
         std::string idsRule;
     };
