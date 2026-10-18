@@ -49,6 +49,9 @@ namespace BlackFlame::SelfTest
         if (SlotAssign::GateOpen(*id)) {
             return SlotUse{ false, std::format("its slot {:X} is OPEN but the launch did not take it", *id) };
         }
+        if (CopyGroups::ClosedUnexplained(*id)) {  // review B1: closed in an open group with no stated reason is a fault
+            return SlotUse{ false, std::format("its slot {:X} is closed inside an OPEN group with no reason stated", *id) };
+        }
         return SlotUse{ true, std::format("its slot {:X} is closed this session: {}", *id, CopyGroups::SlotNote(*id)) };
     }
 

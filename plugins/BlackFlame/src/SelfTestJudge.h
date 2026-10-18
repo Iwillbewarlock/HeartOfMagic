@@ -46,8 +46,9 @@ namespace BlackFlame::SelfTest
     [[nodiscard]] GreyVerdict JudgeGrey(RE::FormID a_copyBase, const SelfTestProbe::Inspection& a_after);
 
     /// Slot route: why a player's launch of a_source used no copy. closed: its slot is assigned but not open this session
-    /// (still building, failed, terminal, collided, not usable, pool full, refused) - INFO naming the state; otherwise a
-    /// FAIL: its slot is open and the launch did not take it, or no slot was ever assigned (the closure should have).
+    /// (still building, failed, terminal, collided, not usable, not written, pool full, refused) - INFO naming the state;
+    /// otherwise a FAIL: its slot is open and the launch did not take it, it is closed inside an open group with no reason
+    /// (CopyGroups::ClosedUnexplained), or no slot was ever assigned (the closure should have).
     /// nullopt off the slot route
     struct SlotUse
     {

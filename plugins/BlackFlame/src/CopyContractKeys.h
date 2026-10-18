@@ -301,12 +301,11 @@ namespace BlackFlame::CopyContract
         return out;
     }
 
-    /// The TXST key string; nullopt unless slotsRaw has exactly 8 entries, or when a non-empty TX00 / TX03 has an unset
-    /// hash (or the prefix is refused)
-    [[nodiscard]] inline std::optional<std::string> TxstKeyString(const KeyPrefix& a_prefix, const TxstKeyInput& a_input)
+    /// The TXST key string's source fields, after the prefix ("|kind=txst|slot0=...|dodt=1"): what a published txst
+    /// object was made from, compared without the prefix when a later session restores it. nullopt as TxstKeyString
+    [[nodiscard]] inline std::optional<std::string> TxstSourceFields(const TxstKeyInput& a_input)
     {
-        auto out = KeyPrefixString(a_prefix);
-        if (!out || a_input.slotsRaw.size() != kTxstSlots) {
+        if (a_input.slotsRaw.size() != kTxstSlots) {
             return std::nullopt;
         }
         const auto state = [&](std::size_t a_slot, const FileHash& a_hash) {
@@ -317,14 +316,24 @@ namespace BlackFlame::CopyContract
         if (!tx00 || !tx03) {
             return std::nullopt;
         }
-        Detail::Field(*out, "kind", "txst");
+        std::string out;
+        Detail::Field(out, "kind", "txst");
         for (std::size_t i = 0; i < kTxstSlots; ++i) {
-            Detail::Field(*out, "slot" + std::to_string(i), LowerHex(a_input.slotsRaw[i]));
+            Detail::Field(out, "slot" + std::to_string(i), LowerHex(a_input.slotsRaw[i]));
         }
-        Detail::Field(*out, "tx00", *tx00);
-        Detail::Field(*out, "tx03", *tx03);
-        Detail::Field(*out, "dodt", a_input.dodt ? "1" : "0");
+        Detail::Field(out, "tx00", *tx00);
+        Detail::Field(out, "tx03", *tx03);
+        Detail::Field(out, "dodt", a_input.dodt ? "1" : "0");
         return out;
+    }
+
+    /// The TXST key string; nullopt unless slotsRaw has exactly 8 entries, or when a non-empty TX00 / TX03 has an unset
+    /// hash (or the prefix is refused)
+    [[nodiscard]] inline std::optional<std::string> TxstKeyString(const KeyPrefix& a_prefix, const TxstKeyInput& a_input)
+    {
+        const auto prefix = KeyPrefixString(a_prefix);
+        const auto fields = TxstSourceFields(a_input);
+        return prefix && fields ? std::optional<std::string>(*prefix + *fields) : std::nullopt;
     }
 
     namespace Detail

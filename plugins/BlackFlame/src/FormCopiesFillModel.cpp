@@ -196,7 +196,7 @@ namespace BlackFlame::FormCopies
                     const auto* object = GetConfig().slotTxst ? LM::PublishedOf(*entry, LM::Role::kTxst) : nullptr;
                     std::string why;
                     const auto* intactObject = object ? intact(*entry, LM::Role::kTxst, slot) : nullptr;
-                    const auto strings = intactObject ? SlotTxst::StringsFor(slot, *intactObject, why) : std::nullopt;
+                    const auto strings = intactObject ? SlotTxst::RestoredFor(slot, *intactObject, why) : std::nullopt;
                     if (strings && SlotTxst::Write(slot, *strings, why)) {
                         slot.publishedTxst = CopyContract::Hex16(intactObject->key);
                         ++applied;

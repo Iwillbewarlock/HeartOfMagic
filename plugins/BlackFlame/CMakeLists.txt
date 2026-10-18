@@ -100,6 +100,7 @@ set(BLACKFLAME_SOURCES
     src/SelfTestStepsDecalSlots.cpp
     src/FormCopiesFillModel.cpp
     src/CopyGroups.cpp
+    src/CopyGroupsNotes.cpp
     src/CopyModelProbeVerify.cpp
     src/MenuWatch.cpp
     src/BuilderLauncher.cpp

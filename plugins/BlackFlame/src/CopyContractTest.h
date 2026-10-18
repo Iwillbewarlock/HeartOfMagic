@@ -48,6 +48,12 @@ namespace BlackFlame::CopyContractTest
             "gradadd=missing|kind=txst|slot0=415c622e646473|slot1=|slot2=|slot3=672e646473|slot4=|slot5=|slot6=|slot7=|"
             "tx00=3333333333333333|tx03=missing|dodt=1";
         inline constexpr const char* kGoldenTxstKey16 = "8a1ce45bf83eee1e";
+        // The texture child anchor: a texture copy's key16 for Prefix(), role diffuse, Effects\FXFire01.dds hashed 7777...
+        // The builder's --self-test and blackflame-cosave-check run this table, and cosave-check's txst paths test asserts the
+        // DLL's own path (SlotTxstPaths::CopyKey16) gives the same key16: a builder and DLL that key a copy differently fail offline
+        inline constexpr const char* kGoldenTextureKey16 = "dfddef9e4b821e1d";
+        inline constexpr std::uint64_t kAnchorTextureFnv64 = 0x7777777777777777ull;
+        inline constexpr const char* kAnchorTexturePath = "Effects/FXFire01.dds";
         inline constexpr const char* kGoldenAddn =
             "format=BFA2|addn=3|src=dawnguard.esm:1abb|model=meshes\\mps\\b.nif|modelhash=5555555555555555|addn=3|"
             "src=dawnguard.esm:1abc|modelraw=613c622e6e6966|modelhash=missing|addn=9|src=skyrim.esm:2f|"
@@ -372,7 +378,7 @@ namespace BlackFlame::CopyContractTest
                         !CC::HasValueNodeBlock(std::string_view("\x0b\0\0\0BSValueNod", 14)) && !CC::HasValueNodeBlock("NiNode"),
                 "key: the BSValueNode byte scan (a cut name is no match)");
 
-            const CC::ChildKeyInput source{ "Effects/FXFire01.dds", 0x7777777777777777ull };
+            const CC::ChildKeyInput source{ kAnchorTexturePath, kAnchorTextureFnv64 };
             auto otherSource = source;
             otherSource.sourceFnv64 = 0x7777777777777778ull;
             const auto diffuse = CC::TextureKeyString(prefix, CC::TextureRole::kDiffuse, source);
@@ -383,6 +389,8 @@ namespace BlackFlame::CopyContractTest
                             CC::PaletteKeyString(prefix, CC::PaletteBlend::kNormal, source)) &&
                         Contains(diffuse, "|kind=texture|role=diffuse|src=textures\\effects\\fxfire01.dds|srchash=7777777777777777"),
                 "key: texture and palette child keys (role, blend and source bytes each re-key)");
+            a_check(diffuse && CC::Key16Of(*diffuse) == kGoldenTextureKey16, std::string("key: the golden texture child key16 (the "
+                "DLL's txst paths test checks the same anchor), now ") + (diffuse ? CC::Key16Of(*diffuse) : std::string("none")));
             const CC::ChildKeyInput refusedSource{ "..\\x.dds", 1 };
             a_check(!CC::TextureKeyString(prefix, CC::TextureRole::kDiffuse, refusedSource) &&
                         !CC::PaletteKeyString(prefix, CC::PaletteBlend::kAdd, refusedSource) &&

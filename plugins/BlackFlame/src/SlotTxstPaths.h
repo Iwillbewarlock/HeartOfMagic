@@ -12,6 +12,8 @@
 // RE/T/TESTexture.h), so a dep's "textures\" is dropped.
 // Refused (nullopt + why): no deps (a fallback with both colour slots kept publishes nothing), an ADDN dep, a dep that
 // is no texture copy path, a dep that matches no colour slot. blackflame-cosave-check tests it.
+// RestoredStrings (W1, a later session): the strings the publish stored, checked against the source's key fields now and the
+// deps, never made again from this session's key prefix (a changed builder or tint, or no builder, keeps an intact set).
 
 #include "CopyContractKeys.h"
 #include "DataPathRule.h"
@@ -84,6 +86,56 @@ namespace BlackFlame::SlotTxstPaths
                 const auto& dep = a_deps[i];
                 a_why = dep.isAddn ? "an ADDN dep on a txst object" :
                                      "the dep '" + dep.path + "' is the copy of neither TX00 nor TX03 (keys from this session's textures)";
+                return std::nullopt;
+            }
+        }
+        return out;
+    }
+
+    /// a_keyText: the published object's key string; a_sourceFields: CopyContract::TxstSourceFields of the source now;
+    /// a_stored: the strings Write gave the form then. Refused (nullopt + why): nothing stored, the source changed since (its
+    /// fields are not the end of the key string), a colour slot naming neither the source's texture nor a dep, any other
+    /// slot not the source's, a dep no slot names
+    [[nodiscard]] inline std::optional<Strings> RestoredStrings(const std::string& a_keyText, const std::optional<std::string>& a_sourceFields,
+        const Strings& a_raw, const std::vector<std::string>& a_stored, const std::vector<SlotLedgerModel::Dep>& a_deps, std::string& a_why)
+    {
+        if (a_stored.size() != kSlots || a_keyText.empty()) {
+            a_why = "no strings or no key string were stored with it";
+            return std::nullopt;
+        }
+        const auto endsWith = [](const std::string& a_text, const std::string& a_tail) {  // C++17: the cosave-check builds with it
+            return a_text.size() >= a_tail.size() && a_text.compare(a_text.size() - a_tail.size(), a_tail.size(), a_tail) == 0;
+        };
+        if (!a_sourceFields || !endsWith(a_keyText, *a_sourceFields)) {
+            a_why = "the source texture set changed since it was published (its strings, TX00 / TX03 or DODT)";
+            return std::nullopt;
+        }
+        Strings out;
+        std::vector<bool> used(a_deps.size(), false);
+        const auto root = DataPathRule::kTexturesRoot;
+        for (std::size_t i = 0; i < kSlots; ++i) {
+            out[i] = a_stored[i];
+            if (a_stored[i] == a_raw[i]) {
+                continue;
+            }
+            const bool colour = i == CC::kTxstDiffuseSlot || i == CC::kTxstGlowSlot;
+            bool found = false;
+            for (std::size_t d = 0; colour && !found && d < a_deps.size(); ++d) {
+                const auto& dep = a_deps[d];
+                const auto parts = dep.isAddn ? std::nullopt : DataPathRule::ParseCopyPath(dep.path);
+                found = parts && !parts->palette && parts->root == root && dep.path.size() == root.size() + a_stored[i].size() &&
+                        dep.path.compare(0, root.size(), root) == 0 && dep.path.compare(root.size(), std::string::npos, a_stored[i]) == 0;
+                used[d] = used[d] || found;
+            }
+            if (!found) {
+                a_why = "TX0" + std::to_string(i) + " stored '" + a_stored[i] + "' is neither the source's '" + a_raw[i] + "'" +
+                        (colour ? " nor one of its deps" : " (only TX00 / TX03 take a copy)");
+                return std::nullopt;
+            }
+        }
+        for (std::size_t d = 0; d < a_deps.size(); ++d) {
+            if (!used[d]) {
+                a_why = a_deps[d].isAddn ? "an ADDN dep on a txst object" : "the dep '" + a_deps[d].path + "' is named by no stored slot";
                 return std::nullopt;
             }
         }

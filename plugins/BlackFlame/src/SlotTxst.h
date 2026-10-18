@@ -32,6 +32,14 @@ namespace BlackFlame::SlotTxst
     [[nodiscard]] std::optional<SlotTxstPaths::Strings> StringsFor(const SlotAssign::Slot& a_slot, const SlotLedgerModel::Object& a_object,
         std::string& a_why);
 
+    /// W1: the strings of a set published in an earlier session, from what the publish stored (SlotTxstPaths::RestoredStrings:
+    /// the source's key fields now and the deps, not this session's key prefix); a ledger without them: StringsFor
+    [[nodiscard]] std::optional<SlotTxstPaths::Strings> RestoredFor(const SlotAssign::Slot& a_slot, const SlotLedgerModel::Object& a_object,
+        std::string& a_why);
+
+    /// The rule's name as the ledger stores it with a published set ("prefixed", "bare", "zero", "none")
+    [[nodiscard]] std::string RuleName();
+
     /// The textureFileIDs rule can be used this session (made once, from the assigned TXST slots' sources); a_why when not
     [[nodiscard]] bool RuleUsable(std::string& a_why);
 

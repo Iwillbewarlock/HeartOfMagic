@@ -5,14 +5,18 @@
 #include "SelfTestSlotDecal.h"
 
 #include "Config.h"
+#include "CopyGroups.h"
 #include "DataPathRule.h"
 #include "FormCopies.h"
+#include "SelfTestJudge.h"
 #include "SelfTestLog.h"
 #include "SlotAssign.h"
 #include "SlotTxst.h"
 
+#include <algorithm>
 #include <cstring>
 #include <format>
+#include <map>
 #include <set>
 #include <vector>
 
@@ -108,7 +112,7 @@ namespace BlackFlame::SelfTest
                 }
                 const auto expected = SlotTxst::ExpectedId(a_slot, i, now);
                 if (!expected || std::memcmp(&*expected, &set->textureFileIDs[i], sizeof(RE::BSResource::ID)) != 0) {
-                    note(std::format("TX0{}'s textureFileID is not the expected one", i));
+                    note(std::format("TX0{}'s textureFileID read back is not the one the write computed", i));
                 }
             }
             if (!a_slot.publishedTxst.empty() && copies == 0) {
@@ -154,6 +158,8 @@ namespace BlackFlame::SelfTest
         std::size_t txstAssigned = 0;
         std::size_t txstUsable = 0;
         std::size_t txstOpen = 0;
+        std::map<std::string, std::size_t> closedStates;  // review B1: a usable TXST slot closed this session, by its state
+        std::string unexplained;                          // ... closed inside an open group with no reason (a FAIL)
         for (const auto id : SlotAssign::Assigned()) {
             const auto& slot = SlotAssign::At(id);
             if (slot.type == CC::SlotType::kTXST) {
@@ -162,6 +168,10 @@ namespace BlackFlame::SelfTest
                 if (SlotAssign::GateOpen(id)) {
                     ++txstOpen;
                     JudgeTxst(tally, slot);
+                } else if (slot.usable && CopyGroups::ClosedUnexplained(id)) {
+                    unexplained += std::format("{}{:X} ({})", unexplained.empty() ? "" : ", ", id, slot.sourceText);
+                } else if (slot.usable) {
+                    ++closedStates[CopyGroups::SlotStateOf(id).state];
                 }
                 continue;
             }
@@ -174,13 +184,23 @@ namespace BlackFlame::SelfTest
         if (tally.links == 0 && tally.sets == 0) {
             SelfTestLog::Info("T0-decal", "nothing to judge: no open PROJ / IPCT slot holds a decal link and no TXST slot is open");
         } else {
-            SelfTestLog::Check("T0-decal", tally.wrong == 0 && tally.setFaults == 0, std::format("{} links of open PROJ / IPCT slots ({} "
-                "to open TXST slots), {} wrong; {} open TXST slots, {} with a fault{}", tally.links, tally.toOpenTxst, tally.wrong,
-                tally.sets, tally.setFaults, tally.lines.empty() ? std::string() : ": " + tally.lines));
+            // consistency: our own writes read back from the forms (links, strings, IDs); not proof the engine draws them
+            SelfTestLog::Check("T0-decal", tally.wrong == 0 && tally.setFaults == 0, std::format("consistency (read back): {} links of "
+                "open PROJ / IPCT slots ({} to open TXST slots), {} not as written; {} open TXST slots, {} not as written{}", tally.links,
+                tally.toOpenTxst, tally.wrong, tally.sets, tally.setFaults, tally.lines.empty() ? std::string() : ": " + tally.lines));
         }
         if (GetConfig().slotTxst && txstUsable > 0) {
-            SelfTestLog::Check("T0-decal", txstOpen > 0, std::format("slotTxst: {} of {} usable TXST slots open (the plan's reasons for "
-                "the closed ones: 'TXST slot ... not published' and the group lines in the log)", txstOpen, txstUsable));
+            std::string states;
+            for (const auto& [state, count] : closedStates) {
+                states += std::format("{}{} {}", states.empty() ? "" : ", ", state, count);
+            }
+            const auto text = std::format("slotTxst: {} of {} usable TXST slots open; closed with a stated state: {}", txstOpen,
+                txstUsable, states.empty() ? "none" : states);
+            if (!unexplained.empty()) {
+                SelfTestLog::Fail("T0-decal", text + "; closed inside an OPEN group with no reason: " + unexplained);
+            } else {
+                SelfTestLog::Info("T0-decal", text);
+            }
         }
         return true;
     }
@@ -197,8 +217,12 @@ namespace BlackFlame::SelfTest
             return;
         }
         const auto* projCopy = CopyOf(projectile);
-        SelfTestLog::Check("E3-slots", projCopy && SlotAssign::SlotOf(projCopy).has_value(), std::format("the rune's PROJ {:08X}: the "
-            "player's launch takes {:08X} ({})", IdOf(projectile), IdOf(projCopy), projCopy ? "an open slot" : "none: its slot is closed"));
+        if (const auto use = projCopy ? std::nullopt : SlotUseOf(projectile); use && use->closed) {  // as "slot use": closed = INFO
+            SelfTestLog::Info("E3-slots", std::format("the rune's PROJ {:08X}: no copy this session: {}", IdOf(projectile), use->how));
+        } else {
+            SelfTestLog::Check("E3-slots", projCopy && SlotAssign::SlotOf(projCopy).has_value(), std::format("the rune's PROJ {:08X}: the "
+                "player's launch takes {:08X} ({})", IdOf(projectile), IdOf(projCopy), projCopy ? "an open slot" : use ? use->how : "none"));
+        }
         // the chain's sources: PROJ, its explosion (and the MGEF's), the explosion's impact set's IPCTs
         std::vector<const RE::TESForm*> sources{ projectile };
         std::set<const RE::TESForm*> seen{ projectile };
@@ -219,6 +243,7 @@ namespace BlackFlame::SelfTest
         Tally tally;
         std::size_t sourcesWithSlots = 0;
         std::size_t decalSets = 0;
+        std::vector<const RE::TESForm*> chainSets;  // the chain's decal texture sets, once each
         for (const auto* source : sources) {
             // the source itself is never a slot and holds no slot (the NPC's and every unswapped path keep the original)
             const RE::TESForm* links[3]{};
@@ -231,7 +256,11 @@ namespace BlackFlame::SelfTest
             }
             for (const auto* link : links) {
                 sourcesWithSlots += link && SlotAssign::IsSlotForm(link) ? 1 : 0;
-                decalSets += link && link->GetFormType() == RE::FormType::TextureSet ? 1 : 0;
+                const bool isSet = link && link->GetFormType() == RE::FormType::TextureSet;
+                decalSets += isSet ? 1 : 0;
+                if (isSet && std::find(chainSets.begin(), chainSets.end(), link) == chainSets.end()) {
+                    chainSets.push_back(link);
+                }
             }
             if (const auto* copy = CopyOf(source)) {
                 JudgeHolder(tally, copy, source);
@@ -250,18 +279,39 @@ namespace BlackFlame::SelfTest
                 }
             }
         }
-        SelfTestLog::Check("E3-slots", sourcesWithSlots == 0, std::format("the rune's {} source form(s) hold no slot (the original stays "
-            "for every path the swap does not take): {} slot link(s)", sources.size(), sourcesWithSlots));
+        SelfTestLog::Check("E3-slots", sourcesWithSlots == 0, std::format("consistency (read back): the rune's {} source form(s) hold "
+            "no slot link (the original stays for every path the swap does not take): {} slot link(s)", sources.size(), sourcesWithSlots));
         if (tally.links == 0 && tally.sets == 0) {
             SelfTestLog::Info("E3-slots", "the rune's chain: nothing to judge (no open copy in it holds a decal or hazard link)");
         } else {
-            SelfTestLog::Check("E3-slots", tally.wrong == 0 && tally.setFaults == 0, std::format("the rune's chain: {} links of its open "
-                "copies ({} to open TXST slots), {} wrong; {} open TXST slots judged, {} with a fault{}", tally.links, tally.toOpenTxst,
-                tally.wrong, tally.sets, tally.setFaults, tally.lines.empty() ? std::string() : ": " + tally.lines));
+            SelfTestLog::Check("E3-slots", tally.wrong == 0 && tally.setFaults == 0, std::format("consistency (read back): the rune's "
+                "chain: {} links of its open copies ({} to open TXST slots), {} not as written; {} open TXST slots judged, {} not as "
+                "written{}", tally.links, tally.toOpenTxst, tally.wrong, tally.sets, tally.setFaults,
+                tally.lines.empty() ? std::string() : ": " + tally.lines));
         }
         if (GetConfig().slotTxst && decalSets > 0) {
-            SelfTestLog::Check("E3-slots", tally.toOpenTxst > 0 && tally.sets > 0, std::format("slotTxst: the rune's chain names {} decal "
-                "set(s); {} of its open copies' decal links reach an open TXST slot with grey copies", decalSets, tally.toOpenTxst));
+            // review B1: each decal set's slot - open, closed with its state (INFO), or a fault (open group, no reason; no slot)
+            std::size_t open = 0;
+            std::string closed;
+            std::string faults;
+            for (const auto* set : chainSets) {
+                if (const auto* copy = CopyOf(set); copy && IsOpenTxstSlot(copy)) {
+                    ++open;
+                    continue;
+                }
+                const auto use = SlotUseOf(set);
+                auto& into = use && use->closed ? closed : faults;
+                into += std::format("{}{:08X} {}", into.empty() ? "" : "; ", IdOf(set), use ? use->how : "off the slot route");
+            }
+            const auto text = std::format("slotTxst: the rune's chain names {} decal set(s) ({} distinct), {} with an open TXST slot; "
+                "{} of its open copies' decal links reach one", decalSets, chainSets.size(), open, tally.toOpenTxst);
+            if (!faults.empty()) {
+                SelfTestLog::Fail("E3-slots", text + "; FAULT: " + faults + (closed.empty() ? "" : "; closed: " + closed));
+            } else if (open == 0) {
+                SelfTestLog::Info("E3-slots", text + "; every one closed this session: " + closed);
+            } else {
+                SelfTestLog::Check("E3-slots", tally.toOpenTxst > 0 && tally.sets > 0, text + (closed.empty() ? "" : "; closed: " + closed));
+            }
         } else {
             SelfTestLog::Info("E3-slots", std::format("decal sets in the rune's chain: {} (slotTxst {})", decalSets, GetConfig().slotTxst));
         }

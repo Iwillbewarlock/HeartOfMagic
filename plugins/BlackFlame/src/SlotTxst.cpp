@@ -9,8 +9,11 @@
 #include "SlotKeys.h"
 #include "TrackedMutex.h"
 
+#include <algorithm>
+#include <array>
 #include <cstring>
 #include <format>
+#include <vector>
 #include <mutex>
 
 namespace BlackFlame::SlotTxst
@@ -74,6 +77,29 @@ namespace BlackFlame::SlotTxst
             return text ? std::string(text) : std::string();
         }
 
+        [[nodiscard]] SlotTxstPaths::Strings RawOf(const RE::BGSTextureSet& a_set)
+        {
+            SlotTxstPaths::Strings raw;
+            for (std::size_t i = 0; i < raw.size(); ++i) {
+                raw[i] = NameOf(a_set, i);
+            }
+            return raw;
+        }
+
+        constexpr std::size_t kRuleExamples = 5;  // sources quoted by the rule line (all are counted)
+        constexpr std::size_t kForms = 3;         // "textures\" + name, name, zero
+
+        [[nodiscard]] const char* RuleTag(Rule a_rule) noexcept
+        {
+            switch (a_rule) {
+            case Rule::kPrefixed: return "prefixed";
+            case Rule::kBare: return "bare";
+            case Rule::kZero: return "zero";
+            case Rule::kNone: return "none";
+            default: return "not made";
+            }
+        }
+
         // Every non-empty slot of every assigned TXST slot's source against both forms
         void MakeRule()
         {
@@ -82,17 +108,22 @@ namespace BlackFlame::SlotTxst
             std::size_t bare = 0;
             std::size_t zero = 0;
             std::string first;
+            // per source: its first slot that disagrees with each form ("" when every slot agrees)
+            std::vector<std::pair<std::string, std::array<std::string, kForms>>> sources;
             for (const auto id : SlotAssign::Assigned()) {
                 const auto& slot = SlotAssign::At(id);
                 const auto* source = slot.type == CC::SlotType::kTXST && slot.source ? slot.source->As<RE::BGSTextureSet>() : nullptr;
                 if (!source) {
                     continue;
                 }
+                std::array<std::string, kForms> disagree;
+                bool any = false;
                 for (std::size_t i = 0; i < SlotTxstPaths::kSlots; ++i) {
                     const auto name = NameOf(*source, i);
                     if (name.empty()) {
                         continue;
                     }
+                    any = true;
                     const auto& stored = source->textureFileIDs[i];
                     const auto withPrefix = Generate(std::string(kTexturesPrefix) + name);
                     const auto without = Generate(name);
@@ -100,10 +131,19 @@ namespace BlackFlame::SlotTxst
                     prefixed += withPrefix && Same(*withPrefix, stored) ? 1 : 0;
                     bare += without && Same(*without, stored) ? 1 : 0;
                     zero += IsZero(stored) ? 1 : 0;
+                    const bool agrees[kForms] = { withPrefix && Same(*withPrefix, stored), without && Same(*without, stored), IsZero(stored) };
+                    for (std::size_t f = 0; f < kForms; ++f) {
+                        if (!agrees[f] && disagree[f].empty()) {
+                            disagree[f] = std::format("TX0{} stored {}", i, IdText(stored));
+                        }
+                    }
                     if (first.empty()) {
                         first = std::format("{} TX0{} '{}': stored {} | \"textures\\\" + name {} | name {}", slot.sourceText, i, name,
                             IdText(stored), withPrefix ? IdText(*withPrefix) : "FAULT", without ? IdText(*without) : "FAULT");
                     }
+                }
+                if (any) {
+                    sources.emplace_back(slot.sourceText, std::move(disagree));
                 }
             }
             g_rule = checked == 0 ? Rule::kNone : prefixed == checked ? Rule::kPrefixed : bare == checked ? Rule::kBare :
@@ -111,8 +151,24 @@ namespace BlackFlame::SlotTxst
             const char* name = g_rule == Rule::kPrefixed ? "GenerateFromPath(\"textures\\\" + name)" :
                                g_rule == Rule::kBare ? "GenerateFromPath(name)" : g_rule == Rule::kZero ? "zero (the engine leaves them so)" :
                                                                                                          "NONE: no TXST slot is written this session";
+            // the chosen form, or (none) the one most slots follow: every source that disagrees with it is counted
+            const std::size_t form = g_rule == Rule::kPrefixed ? 0 : g_rule == Rule::kBare ? 1 : g_rule == Rule::kZero ? 2 :
+                                     prefixed >= bare && prefixed >= zero ? 0 : bare >= zero ? 1 : 2;
+            std::size_t disagreeing = 0;
+            std::string examples;
+            for (const auto& [text, disagree] : sources) {
+                if (disagree[form].empty()) {
+                    continue;
+                }
+                if (++disagreeing <= kRuleExamples) {
+                    examples += std::format("{}{} {}", examples.empty() ? "" : "; ", text, disagree[form]);
+                }
+            }
+            constexpr const char* kFormNames[kForms] = { "\"textures\\\" + name", "name", "zero" };
             g_ruleText = std::format("textureFileIDs rule: {} ({} slots of the TXST sources checked: {} match \"textures\\\" + name, {} "
-                                     "match name, {} stored zero; first: {})", name, checked, prefixed, bare, zero, first.empty() ? "none" : first);
+                                     "match name, {} stored zero; first: {}; sources: {}, {} disagree with {}{})", name, checked, prefixed,
+                bare, zero, first.empty() ? "none" : first, sources.size(), disagreeing, kFormNames[form],
+                examples.empty() ? std::string() : std::format(" (first {}: {})", (std::min)(disagreeing, kRuleExamples), examples));
             logger::info("BlackFlame: slots: TXST {}", g_ruleText);
         }
 
@@ -134,12 +190,33 @@ namespace BlackFlame::SlotTxst
             a_why = !source ? "no source texture set" : "no key prefix this session";
             return std::nullopt;
         }
-        SlotTxstPaths::Strings raw;
-        for (std::size_t i = 0; i < raw.size(); ++i) {
-            raw[i] = NameOf(*source, i);
-        }
+        const auto raw = RawOf(*source);
         return SlotTxstPaths::RecordStrings(*inputs.prefix, raw, SlotKeys::TextureHash(inputs, raw[CC::kTxstDiffuseSlot]),
             SlotKeys::TextureHash(inputs, raw[CC::kTxstGlowSlot]), a_object.deps, a_why);
+    }
+
+    std::optional<SlotTxstPaths::Strings> RestoredFor(const SlotAssign::Slot& a_slot, const SlotLedgerModel::Object& a_object, std::string& a_why)
+    {
+        if (a_object.textures.empty()) {
+            return StringsFor(a_slot, a_object, a_why);  // a ledger written before the strings were kept: made again, as before
+        }
+        const auto* source = a_slot.source ? a_slot.source->As<RE::BGSTextureSet>() : nullptr;
+        if (!source) {
+            a_why = "no source texture set";
+            return std::nullopt;
+        }
+        const auto fields = CC::TxstSourceFields(SlotKeys::TxstInput(SingleLaunch::Inputs(), *source));
+        auto out = SlotTxstPaths::RestoredStrings(a_object.keyText, fields, RawOf(*source), a_object.textures, a_object.deps, a_why);
+        if (out && !a_object.idsRule.empty() && a_object.idsRule != RuleName()) {
+            logger::info("BlackFlame: slots: TXST slot {:X} ({}): the textureFileIDs rule was '{}' when it was published, '{}' now: "
+                "the IDs are made by this session's", a_slot.localId, a_slot.sourceText, a_object.idsRule, RuleName());
+        }
+        return out;
+    }
+
+    std::string RuleName()
+    {
+        return RuleTag(TheRule());
     }
 
     bool RuleUsable(std::string& a_why)
