@@ -1,0 +1,68 @@
+SUMMARY: Heart of Magic Librarian 애드온. 독 태그가 붙은 마법에 즐겨찾기 맨 위 독약의 효과를 실어 보냅니다. 주문을 맞혀도 독약은 줄지 않으며, 독 마법에 매지카를 100 쓸 때마다 한 병씩 소모됩니다.
+FILE: Heart of Magic Librarian - Toxicology 1.0.0 - Skyrim SE/AE용 SKSE 플러그인과 ESL 플래그 ESP.
+PAGE:
+[size=4][b]Heart of Magic Librarian - Toxicology[/b][/size]
+[i]버전 1.0.0, 제작 Iwillbewarlock[/i]
+
+공들여 만든 독을 왜 무기에만 발라야 할까요? 주문에 직접 실어 보내면 됩니다. [b]Heart of Magic Librarian - Toxicology[/b](독물학)는 [b]Heart of Magic Librarian[/b](Heart of Magic 포크)의 애드온으로, 연금술과 마법을 하나로 엮습니다. Librarian이 주문을 스캔하며 붙인 독 태그를 읽어, 지니고 있는 독약의 효과를 독 마법으로 대상에게 전달합니다.
+
+[i]중요: 이 애드온은 원작 Heart of Magic과 [b]호환되지 않습니다[/b]. Heart of Magic Librarian의 주문 스캔이 만드는 독 태그가 있어야 동작합니다.[/i]
+
+[size=3][b]동작 방식[/b][/size]
+[list]
+[*][b]능력 배우기:[/b] 리프튼의 엘그림 상점(Elgrim's Elixirs)에서 [i]Spell Tome: Toxicology[/i](350 골드)를 사서 읽으면 [b]Toxicology[/b] 능력을 얻습니다. 이 능력은 주문 목록이 아니라 활성 효과 창에 표시됩니다.
+[*][b]주문으로 독 전달하기:[/b] Toxicology 능력이 있으면 Librarian이 독으로 분류한 주문에 즐겨찾기 맨 위 독약의 효과가 실립니다. 이런 주문에 맞은 대상에게는 그 독약을 직접 쓴 것처럼 효과가 걸립니다. 해독이나 독 저항 강화처럼 이로운 주문은 Librarian이 "독"으로 분류하더라도 제외됩니다.
+[*][b]독약 고르는 방식:[/b] 즐겨찾기한 독약 중 이름순으로 가장 앞에 오는 것을 씁니다. SkyUI 즐겨찾기 메뉴에 보이는 순서와 같습니다. 직접 만든 독약이든 모드로 추가된 독약이든, 실제 독약 아이템이면 모두 쓸 수 있습니다.
+[*][b]매지카와 독약 소모:[/b] 주문을 맞힐 때마다 독약이 줄지는 않습니다. 대신 독 마법을 시전하는 데 매지카를 100 쓸 때마다 지금 주문에 실리는 독약이 한 병씩 소모됩니다(매지카 양은 설정에서 바꿀 수 있습니다). 그 독약이 다 떨어지면 즐겨찾기의 다음 독약이 자동으로 이어받고, 남은 독약이 없으면 주문에 독이 실리지 않습니다.
+[*][b]대상의 면역:[/b] 독 효과가 끝나면 그 대상은 한동안 같은 독에 면역이 됩니다. 면역 시간은 기본적으로 효과가 지속된 시간과 같고 최소 5초이며, 이 시간이 지나야 다시 중독시킬 수 있습니다. 면역 상태에서는 주문에 맞아도 독이 걸리지 않으므로, 마비 독으로 대상을 계속 묶어 둘 수는 없습니다.
+[*][b]연금술 퍽:[/b] 독을 만들 때 위력을 높이는 퍽은 완성된 독약에 이미 반영되어 있습니다. 무기 독의 사용 횟수를 늘리는 퍽은 무기에 독을 바르는 과정이 없으므로 적용되지 않습니다.
+[*][b]인벤토리 아이콘(선택):[/b] [b]Inventory Interface Information Injector(I4)[/b]가 설치되어 있으면, 인벤토리와 즐겨찾기 메뉴에서 지금 주문에 실리는 독약에 "마법진 앞의 독약병" 모양의 초록색 아이콘이 붙습니다.
+[/list]
+
+[size=3][b]설정[/b][/size]
+[i]SKSE/Plugins/HeartOfMagic_Toxicology.json[/i]에서 바꿀 수 있습니다.
+[list]
+[*][b]enabled[/b] – 모드를 켜거나 끕니다.
+[*][b]showIcon[/b] – I4 아이콘을 표시하거나 숨깁니다.
+[*][b]magickaPerDose[/b] – 독약 한 병이 소모되기까지 독 마법에 써야 하는 매지카(기본 100).
+[*][b]immunityMultiplier[/b] – 효과가 끝난 뒤 면역 시간의 배율(기본 1.0).
+[*][b]minImmunitySeconds[/b] – 최소 면역 시간(초, 기본 5).
+[/list]
+
+[size=3][b]필수 모드[/b][/size]
+[list]
+[*]SKSE
+[*]Address Library for SKSE Plugins
+[*]Heart of Magic Librarian 1.5.0 이상(전체 주문 스캔을 한 번 해 두어야 합니다)
+[*][i]선택:[/i] 아이콘용 Inventory Interface Information Injector(I4)
+[*][i]지원 버전:[/i] Address Library를 통해 Skyrim SE 1.5.97과 AE 1.6.x를 지원합니다(실제 게임에서는 AE 1.6.1170으로 테스트했습니다). VR은 지원하지 않습니다.
+[/list]
+
+[size=3][b]설치와 로드 오더[/b][/size]
+모드 관리자로 설치한 뒤 [b]HeartOfMagic_Toxicology.esp[/b]를 활성화하세요(ESL 플래그가 붙어 있어 로드 오더 슬롯을 차지하지 않습니다). I4를 쓴다면 HeartOfMagic_Toxicology.esp를 [b]I4IconAddon.esp[/b]보다 뒤에 두세요(새 플러그인은 기본적으로 맨 뒤에 로드됩니다).
+
+[size=3][b]알려진 한계[/b][/size]
+[list]
+[*]면역 기록은 메모리에만 남으므로, 세이브를 불러오면 모든 대상을 다시 중독시킬 수 있습니다.
+[*]그 세이브에서 이미 엘그림 상점(Elgrim's Elixirs)과 거래한 적이 있다면, 상인 재고가 갱신된 뒤(약 48시간)에 주문서가 진열됩니다.
+[*]InventoryInjectorImproved(I5)를 쓰면 인벤토리 아이콘이 늦게 바뀔 수 있습니다. 즐겨찾기 메뉴는 항상 정확하며, 콘솔에서 [i]i5 purge[/i]를 입력하면 갱신됩니다.
+[*]룬, 폭발, 망토 주문으로도 독이 걸리는지는 아직 게임에서 확인하지 못했습니다. 조준해서 쏘는 투사체 주문과 집중 시전으로 뿜는 분사 주문은 독이 걸리는 것을 확인했습니다.
+[*]대기, 수면, 빠른 이동으로 게임 시간이 흐르면 면역이 일찍 끝납니다.
+[*]NPC가 쓰는 독 마법에는 적용되지 않습니다.
+[/list]
+
+[size=3][b]같이 쓰면 좋은 독 마법 모드[/b][/size]
+Librarian이 독으로 분류하는 주문을 추가하는 모드입니다.
+[list]
+[*]Venomancy
+[*]Plague - Poison Spells Mysticism Addon
+[*]Poison Spells
+[*][i]효과음(선택):[/i] Mordant - Poison Magic SFX
+[/list]
+
+[size=3][b]크레딧[/b][/size]
+[list]
+[*]Heart of Magic 원작자, 그리고 Heart of Magic Librarian 포크
+[*]CommonLibSSE-NG
+[*]아이콘 프레임워크를 만든 I4 제작자들
+[/list]
