@@ -73,7 +73,8 @@ Gemini Argon from a fact sheet and checked line by line against it.
 ## Korean ESL
 
 `data/ko/HeartOfMagic_Toxicology.esp` is the English file with five text subrecords in Korean, stored as UTF-8
-(as the Korean translation plugins in the TAKEALOOK load order store theirs). It has the same file name, because the
+(as most Korean translation plugins in the TAKEALOOK load order store their text; many Korean translations there
+use DSD JSON or STRINGS files instead). It has the same file name, because the
 DLL looks the records up by it; the release puts it in `HeartOfMagic-Librarian-Toxicology_<version>_KO.zip`
 (`plugins/cmake/DistributionToxicology.cmake`) and `.\DeployDev.ps1 -ToxicologyOnly -ToxicologyKorean` deploys it.
 
