@@ -3,7 +3,7 @@
 The addon's plugin: an ESL-flagged `.esp` with four new records at fixed local FormIDs. The DLL looks them up
 with `TESDataHandler::LookupForm(<local id>, "HeartOfMagic_Toxicology.esp")`, so the FormIDs below must not
 change. The committed copy is `data/HeartOfMagic_Toxicology.esp`; `data/HeartOfMagic_Toxicology.json` holds the
-default settings.
+default settings. The Korean copy is `data/ko/HeartOfMagic_Toxicology.esp` (section "Korean ESL").
 
 ## Header
 
@@ -69,6 +69,37 @@ Gemini Argon from a fact sheet and checked line by line against it.
   after the poison wears off (spec 5.4, which replaced once per target and poison). Same method and checks as the
   entry above: only the `0x801` `DNAM` and the `0x803` `DESC` changed (with the MGEF and BOOK record and group
   sizes), header and FormIDs byte-identical; read back with `housecarl_records` from the dev mod folder.
+
+## Korean ESL
+
+`data/ko/HeartOfMagic_Toxicology.esp` is the English file with five text subrecords in Korean, stored as UTF-8
+(as the Korean translation plugins in the TAKEALOOK load order store theirs). It has the same file name, because the
+DLL looks the records up by it; the release puts it in `HeartOfMagic-Librarian-Toxicology_<version>_KO.zip`
+(`plugins/cmake/DistributionToxicology.cmake`) and `.\DeployDev.ps1 -ToxicologyOnly -ToxicologyKorean` deploys it.
+
+| Record | Subrecord | Korean |
+|---|---|---|
+| `0x801` MGEF | `FULL` | 독물학 |
+| `0x801` MGEF | `DNAM` | the effect description below |
+| `0x802` SPEL | `FULL` | 독물학 |
+| `0x803` BOOK | `FULL` | 마법책: 독물학 (the glossary's "마법책:" tome form) |
+| `0x803` BOOK | `DESC` | the same markup with the title 독물학 and the four paragraphs in Korean |
+
+Effect description:
+
+> 독 주문에 즐겨찾기 맨 위에 있는 독의 효과가 함께 실린다. 독이 풀리면 대상은 한동안 그 독에 내성이 생긴다. 독 주문에
+> 매지카를 100 소모할 때마다 독이 한 병씩 줄고, 병이 비면 다음 독으로 넘어간다.
+
+The text was translated from the English text above and given the translation final review by Gemini Argon and GPT
+(Codex) in two rounds (first round: Argon 10 lines, Codex 10; second round: Argon 3, Codex 3, two of them the same
+line). The effect description follows the plain "~한다" style of the vanilla Korean effect descriptions; the tome stays
+in-world and names no menu.
+
+Made with a byte edit like the changes above: only those five subrecords differ from the English file, with the MGEF,
+SPEL and BOOK record sizes and their group sizes recomputed; the TES4 header and FormIDs `0x800`-`0x803` are
+byte-identical. Read back with `housecarl_records` from the dev mod folder after a `-ToxicologyKorean` deploy: the
+names, the description and the book text equal the reviewed text, value 350. **When the English text changes, the
+Korean file has to be made again from the new English file.**
 
 ## How it was made (houseCARL)
 

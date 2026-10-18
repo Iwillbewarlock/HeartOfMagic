@@ -56,7 +56,7 @@ The design and its reasons are in `docs/superpowers/specs/2026-10-17-toxicology-
 
 | File | Role |
 |---|---|
-| `HeartOfMagic_Toxicology.esp` | ESL-flagged plugin: the keyword, the ability's effect, the ability, the tome (`ESL.md`) |
+| `HeartOfMagic_Toxicology.esp` | ESL-flagged plugin: the keyword, the ability's effect, the ability, the tome (`ESL.md`); the `_KO` archive has the Korean one under the same name |
 | `SKSE/Plugins/HeartOfMagic_Toxicology.dll` | The addon |
 | `SKSE/Plugins/HeartOfMagic_Toxicology.json` | Settings |
 | `SKSE/Plugins/InventoryInjector/HeartOfMagic_Toxicology.json` | I4 rule for the icon |
@@ -189,7 +189,8 @@ record), and the tome placed in Elgrim's chest was only in memory. The co-save r
   assembles `dist/HeartOfMagic-Librarian-Toxicology_<version>.zip`, rooted at Data, with its PDB in
   `dist/HeartOfMagic-Librarian-Toxicology_<version>_DebugSymbols.zip` (`plugins/cmake/DistributionToxicology.cmake`;
   the notice comes from `plugins/Toxicology/THIRD-PARTY-NOTICES.md.in`, source tag `toxicology-v<version>`). The dev
-  self test file and `art/` never go into the zip.
+  self test file and `art/` never go into the zip. `dist/HeartOfMagic-Librarian-Toxicology_<version>_KO.zip` is the
+  same files with the Korean ESL (`data/ko/`, `ESL.md` section "Korean ESL").
 - **Offline harness**: `build/tools/Release/toxicology-test.exe --self-test` checks the pure core
   (`src/core/ToxCore.*`: settings, catalog parsing, catalog keys, the hit and cost spell sets, the poison choice,
   the bottle arithmetic and which stack loses a bottle, the immunity window, the interval check of the Magicka
@@ -201,6 +202,7 @@ record), and the tome placed in Elgrim's chest was only in memory. The co-save r
   .\DeployDev.ps1 -ToxicologyOnly                       # DLL, ESL, I4 rule, SWF; the settings JSON only if the install has none
   .\DeployDev.ps1 -ToxicologyOnly -Force                # the same, the install's settings JSON replaced
   .\DeployDev.ps1 -ToxicologyOnly -ToxicologySelfTest   # plus the dev self test file
+  .\DeployDev.ps1 -ToxicologyOnly -ToxicologyKorean     # the Korean ESL instead of the English one
   .\DeployDev.ps1 -ToxicologyOnly -ToxicologyModPath <folder>
   ```
 

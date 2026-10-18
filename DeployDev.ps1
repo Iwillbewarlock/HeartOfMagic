@@ -22,6 +22,7 @@
     .\DeployDev.ps1 -ToxicologyOnly   # the Toxicology addon only: DLL, ESL, settings JSON (an existing one is kept), I4 rule, icon SWF
     .\DeployDev.ps1 -ToxicologyOnly -Force   # the same, the install's settings JSON replaced with the shipped one
     .\DeployDev.ps1 -ToxicologyOnly -ToxicologySelfTest # the same plus the dev self test file (it gives items and spawns targets after a load)
+    .\DeployDev.ps1 -ToxicologyOnly -ToxicologyKorean   # the same with the Korean ESL (plugins\Toxicology\data\ko, as in the _KO release zip)
 
     The Toxicology self test file is opt-in: every deploy without -ToxicologySelfTest (-ToxicologyOnly or the plain
     one) removes it from the Toxicology install ($ToxicologyModPath) and says so, because the dev mod may be enabled
@@ -42,6 +43,7 @@ param(
     [string]$ToxicologyModPath = 'D:\TAKEALOOK\mods\HeartOfMagic-Toxicology-Dev',
     [switch]$ToxicologyOnly,
     [switch]$ToxicologySelfTest,
+    [switch]$ToxicologyKorean,
     [switch]$Force
 )
 
@@ -62,6 +64,9 @@ function Get-ToxSelfTestNote {
 if ($Force -and -not $ToxicologyOnly) {
     throw ('-Force replaces the Toxicology settings JSON and goes with -ToxicologyOnly. Nothing was copied.' + (Get-ToxSelfTestNote))
 }
+if ($ToxicologyKorean -and -not $ToxicologyOnly) {
+    throw ('-ToxicologyKorean deploys the Korean Toxicology ESL and goes with -ToxicologyOnly. Nothing was copied.' + (Get-ToxSelfTestNote))
+}
 if ($ToxicologySelfTest -and -not $ToxicologyOnly) {
     throw ('-ToxicologySelfTest deploys the Toxicology self test file and goes with -ToxicologyOnly. Nothing was copied.' + (Get-ToxSelfTestNote))
 }
@@ -75,7 +80,9 @@ if ($ToxicologyOnly) {
     }
     $toxData = Join-Path $toxRepo 'plugins\Toxicology\data'
     $toxDll = Join-Path $toxRepo 'build\plugins\Toxicology\Release\HeartOfMagic_Toxicology.dll'
-    $toxEsl = Join-Path $toxData 'HeartOfMagic_Toxicology.esp'
+    # The Korean ESL differs only in its text (plugins\Toxicology\ESL.md); same file name, the DLL looks it up by name
+    $toxEslLang = if ($ToxicologyKorean) { 'Korean' } else { 'English' }
+    $toxEsl = if ($ToxicologyKorean) { Join-Path $toxData 'ko\HeartOfMagic_Toxicology.esp' } else { Join-Path $toxData 'HeartOfMagic_Toxicology.esp' }
     $toxJson = Join-Path $toxData 'HeartOfMagic_Toxicology.json'
     $toxI4 = Join-Path $toxData 'SKSE\Plugins\InventoryInjector\HeartOfMagic_Toxicology.json'
     $toxSwf = Join-Path $toxData 'Interface\HeartOfMagicToxicology\icons.swf'
@@ -120,7 +127,7 @@ if ($ToxicologyOnly) {
     foreach ($pair in $copies) {
         if ((Get-FileHash $pair[0]).Hash -ne (Get-FileHash $pair[1]).Hash) { throw "Copy did not take: $($pair[1])" }
     }
-    Write-Host "toxicology dll, esl, I4 rule, icon swf -> $ToxicologyModPath (enable HeartOfMagic_Toxicology.esp in MO2, after I4IconAddon.esp)"
+    Write-Host "toxicology dll, esl ($toxEslLang), I4 rule, icon swf -> $ToxicologyModPath (enable HeartOfMagic_Toxicology.esp in MO2, after I4IconAddon.esp)"
     if ($toxJsonKept) {
         Write-Host "toxicology settings json kept as it is in the install (pass -Force to replace it with the shipped one)"
     } else {

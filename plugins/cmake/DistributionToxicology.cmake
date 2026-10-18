@@ -13,6 +13,8 @@
 # tag toxicology-v<version>) and the licence texts of only the libraries this DLL links. Its PDB goes to
 # HeartOfMagic-Librarian-Toxicology_<version>_DebugSymbols.zip, rooted at Data the same way
 # (SKSE/Plugins/HeartOfMagic_Toxicology.pdb).
+# The Korean archive HeartOfMagic-Librarian-Toxicology_<version>_KO.zip is the same files with the Korean ESL
+# (plugins/Toxicology/data/ko/HeartOfMagic_Toxicology.esp, same file name; only its text differs, ESL.md).
 if(NOT DEFINED DIST_DIR)
     return()
 endif()
@@ -21,6 +23,8 @@ set(TOXICOLOGY_DIST_DIR "${DIST_DIR}/${TOXICOLOGY_DIST_NAME}_${TOXICOLOGY_VERSIO
 set(TOXICOLOGY_PDB_DIR "${TOXICOLOGY_DIST_DIR}_DebugSymbols")
 set(TOXICOLOGY_ZIP "${DIST_DIR}/${TOXICOLOGY_DIST_NAME}_${TOXICOLOGY_VERSION}.zip")
 set(TOXICOLOGY_PDB_ZIP "${DIST_DIR}/${TOXICOLOGY_DIST_NAME}_${TOXICOLOGY_VERSION}_DebugSymbols.zip")
+set(TOXICOLOGY_KO_DIR "${TOXICOLOGY_DIST_DIR}_KO")
+set(TOXICOLOGY_KO_ZIP "${DIST_DIR}/${TOXICOLOGY_DIST_NAME}_${TOXICOLOGY_VERSION}_KO.zip")
 set(TOXICOLOGY_DOC_DIR "${TOXICOLOGY_DIST_DIR}/SKSE/Plugins/HeartOfMagic_Toxicology")
 set(TOXICOLOGY_DATA "${CMAKE_SOURCE_DIR}/plugins/Toxicology/data")
 
@@ -44,8 +48,8 @@ endforeach()
 add_custom_target(assemble_toxicology ALL COMMENT "Assembling the Toxicology addon...")
 add_dependencies(assemble_toxicology HeartOfMagic_Toxicology)
 add_custom_command(TARGET assemble_toxicology POST_BUILD
-    COMMAND "${CMAKE_COMMAND}" -E rm -rf "${TOXICOLOGY_DIST_DIR}" "${TOXICOLOGY_PDB_DIR}"
-    COMMAND "${CMAKE_COMMAND}" -E rm -f "${TOXICOLOGY_ZIP}" "${TOXICOLOGY_PDB_ZIP}"
+    COMMAND "${CMAKE_COMMAND}" -E rm -rf "${TOXICOLOGY_DIST_DIR}" "${TOXICOLOGY_PDB_DIR}" "${TOXICOLOGY_KO_DIR}"
+    COMMAND "${CMAKE_COMMAND}" -E rm -f "${TOXICOLOGY_ZIP}" "${TOXICOLOGY_PDB_ZIP}" "${TOXICOLOGY_KO_ZIP}"
     COMMAND "${CMAKE_COMMAND}" -E make_directory
     "${TOXICOLOGY_DOC_DIR}/licenses/CommonLibSSE-NG"
     "${TOXICOLOGY_DIST_DIR}/SKSE/Plugins/InventoryInjector"
@@ -70,6 +74,16 @@ add_custom_command(TARGET assemble_toxicology POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E echo "Creating ${TOXICOLOGY_DIST_NAME}_${TOXICOLOGY_VERSION}.zip..."
     COMMAND "${CMAKE_COMMAND}" -E tar cf "${TOXICOLOGY_ZIP}" --format=zip -- HeartOfMagic_Toxicology.esp SKSE Interface
     WORKING_DIRECTORY "${TOXICOLOGY_DIST_DIR}"
+    VERBATIM)
+# The Korean staging folder: a copy of the English one with the Korean ESL over it
+add_custom_command(TARGET assemble_toxicology POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory "${TOXICOLOGY_DIST_DIR}" "${TOXICOLOGY_KO_DIR}"
+    COMMAND "${CMAKE_COMMAND}" -E copy "${TOXICOLOGY_DATA}/ko/HeartOfMagic_Toxicology.esp" "${TOXICOLOGY_KO_DIR}/"
+    VERBATIM)
+add_custom_command(TARGET assemble_toxicology POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E echo "Creating ${TOXICOLOGY_DIST_NAME}_${TOXICOLOGY_VERSION}_KO.zip..."
+    COMMAND "${CMAKE_COMMAND}" -E tar cf "${TOXICOLOGY_KO_ZIP}" --format=zip -- HeartOfMagic_Toxicology.esp SKSE Interface
+    WORKING_DIRECTORY "${TOXICOLOGY_KO_DIR}"
     VERBATIM)
 add_custom_command(TARGET assemble_toxicology POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E tar cf "${TOXICOLOGY_PDB_ZIP}" --format=zip -- SKSE
