@@ -103,17 +103,23 @@ namespace BlackFlame::SlotKeys
         }
 
         // The builder's output identity (its RCDATA resource, CopyContractIdentity.h), checked against this DLL's
-        // kBuilderOutputVersion; false with prefixWhy and builderIdentityWhy set when it is missing, malformed or another version
+        // kBuilderOutputVersion; false with prefixWhy and builderIdentityWhy set when it does not read, is malformed or is of
+        // another version (builderKind tells the two apart for the player's line). A dev build is taken, with a warning
         bool ReadBuilderIdentity(Inputs& a_out)
         {
             const auto resource = CC::ReadIdentityResource(a_out.builderExe);
             const auto fault = resource.text ? CC::BuilderIdentityFault(*resource.text) : std::optional<std::string>(resource.why);
-            if (fault) {
-                a_out.builderIdentityWhy = *fault;
-                a_out.prefixWhy = "the builder exe " + *fault + ": no key this session";
+            a_out.builderKind = BuilderControl::ClassifyIdentity(true, resource.text);
+            if (fault || !BuilderControl::IdentityTaken(a_out.builderKind)) {
+                a_out.builderIdentityWhy = fault.value_or("has an output identity this DLL does not take");
+                a_out.prefixWhy = "the builder exe " + a_out.builderIdentityWhy + ": no key this session";
                 return false;
             }
             a_out.builderIdentity = *resource.text;
+            if (a_out.builderKind == BuilderControl::BuilderIdentityKind::kDev) {
+                logger::warn("BlackFlame: slots: the builder is a dev build (output identity {}): its copies use dev keys",
+                    a_out.builderIdentity);
+            }
             return true;
         }
 

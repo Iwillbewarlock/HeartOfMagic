@@ -32,6 +32,7 @@
 #    include <optional>
 #    include <string>
 #    include <string_view>
+#    include <system_error>
 
 namespace BlackFlame::CopyContract
 {
@@ -45,8 +46,23 @@ namespace BlackFlame::CopyContract
         std::string why;                  // nullopt text: why, worded after "the builder exe" ("has no ...")
     };
 
-    /// The identity resource of the exe at a_exe, its bytes verbatim (SizeofResource, never a NUL search); the module
-    /// is released however the read ends
+    /// a_path as LoadLibraryExW takes it (review E2 #4): absolute, so a relative path never goes through the module
+    /// search, with '\' separators (LoadLibraryExW does not take '/'); empty when a_path is empty or does not resolve
+    [[nodiscard]] inline std::filesystem::path DataFileLoadPath(const std::filesystem::path& a_path)
+    {
+        if (a_path.empty()) {
+            return {};
+        }
+        std::error_code ec;
+        auto absolute = std::filesystem::absolute(a_path, ec);
+        if (ec) {
+            return {};
+        }
+        return absolute.make_preferred();
+    }
+
+    /// The identity resource of the exe at a_exe (DataFileLoadPath first), its bytes verbatim (SizeofResource, never a
+    /// NUL search); the module is released however the read ends
     [[nodiscard]] inline IdentityResource ReadIdentityResource(const std::filesystem::path& a_exe)
     {
         struct Module
@@ -60,7 +76,12 @@ namespace BlackFlame::CopyContract
             }
         };
         IdentityResource out;
-        const Module module{ ::LoadLibraryExW(a_exe.c_str(), nullptr, LOAD_LIBRARY_AS_DATAFILE | LOAD_LIBRARY_AS_IMAGE_RESOURCE) };
+        const auto path = DataFileLoadPath(a_exe);
+        if (path.empty()) {
+            out.why = "has a path that does not resolve to an absolute one";  // no path text: u8string differs in C++17 and 20
+            return out;
+        }
+        const Module module{ ::LoadLibraryExW(path.c_str(), nullptr, LOAD_LIBRARY_AS_DATAFILE | LOAD_LIBRARY_AS_IMAGE_RESOURCE) };
         if (!module.handle) {
             const DWORD error = ::GetLastError();
             out.why = "does not load as a data file (Windows error " + std::to_string(error) + ")";

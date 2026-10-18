@@ -70,11 +70,7 @@ namespace BlackFlame::SingleLaunch
         // The slot route did not start: one line at the main menu, in plain words (the log has the details)
         void ShowRouteOff(std::string a_why)
         {
-            if (!TheInputs().builderExeFound) {
-                a_why += "; the grey copy builder was not found either";
-            } else if (!TheInputs().builderIdentityWhy.empty()) {
-                a_why += "; the grey copy builder is from another version too";
-            }
+            a_why += BuilderControl::BuilderRouteOffClause(TheInputs().builderKind);  // not found / could not be read / another version
             const auto line = "Black Flame: grey copies are off this session (" + a_why + ")";
             logger::warn("BlackFlame: single launch: the slot route did not start: \"{}\" at the main menu", line);
             MenuWatch::OnMainMenuOpen([line]() { SlotNotice::Show(line); });
@@ -82,11 +78,12 @@ namespace BlackFlame::SingleLaunch
 
         void OnMainMenu()
         {
-            if (!TheInputs().builderExeFound) {
-                SlotNotice::Show("Black Flame: the grey copy builder was not found; only copies built before are shown");
-            } else if (const auto& why = TheInputs().builderIdentityWhy; !why.empty()) {
-                logger::warn("BlackFlame: single launch: the grey copy builder {}: no key this session", why);
-                SlotNotice::Show("Black Flame: the grey copy builder is from another version; only copies built before are shown");
+            const auto& inputs = TheInputs();
+            if (const auto notice = BuilderControl::BuilderNotice(inputs.builderKind); !notice.empty()) {
+                if (!inputs.builderIdentityWhy.empty()) {
+                    logger::warn("BlackFlame: single launch: the grey copy builder {}: no key this session", inputs.builderIdentityWhy);
+                }
+                SlotNotice::Show(notice);
             }
             NotifyProgress();
         }

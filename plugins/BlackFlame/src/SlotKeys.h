@@ -20,6 +20,7 @@
 
 #include "Common.h"
 
+#include "BuilderControl.h"
 #include "CopyContractKeys.h"
 #include "CopyRequestData.h"
 #include "CopyRequestDump.h"
@@ -49,6 +50,7 @@ namespace BlackFlame::SlotKeys
         bool builderExeFound = false;                               // the exe opens (its identity taken or not)
         std::string builderIdentity;                                // its output identity, when taken
         std::string builderIdentityWhy;                             // found but refused: why (worded after "the builder exe")
+        BuilderControl::BuilderIdentityKind builderKind = BuilderControl::BuilderIdentityKind::kMissing;  // the player's line
         std::vector<CC::AddnRecord> addnRecords;                    // every ADDN record not ours
         std::set<std::uint32_t> valueNodeIndices;                   // AddOnNode values the closure's NIFs name
         std::size_t valueNodeUnparsed = 0;                          // closure NIFs with BSValueNode whose header did not parse

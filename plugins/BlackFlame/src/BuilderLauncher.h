@@ -11,10 +11,13 @@
 //   - a job object with JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE and JOB_OBJECT_LIMIT_JOB_MEMORY (config builderJobMemoryMiB, the
 //     same number passed as --job-memory), the process assigned to it, then resumed; --parent-pid as a second guard
 //   - before it: builder.log of the last launch renamed to builder.prev.log (an older prev replaced), and the throttle
-//     event (BuilderSignal.h, manual reset, unset) created for the builder to open
+//     event (BuilderSignal.h, manual reset, unset) created for the builder to open. A builder.log another process holds
+//     for write (BuilderLogProbe.h: a live builder of an earlier session or of a second game on the same SKSE folder)
+//     is left alone and no builder starts (logged "the builder was not started: builder.log in ... is held for write")
 //   - the thread handle is closed after the resume; the process handle is kept for the session (its exit code, logged
-//     once when it ends: BuilderControl.h ExitCodeText); the job handle is owned by a static for the whole session and
-//     never closed by us, so kill-on-close fires only when the game process ends
+//     once when it ends: BuilderControl.h ExitCodeText; the wait on its end is released by its callback, UnregisterWait
+//     without waiting); the job handle is owned by a static for the whole session and never closed by us, so
+//     kill-on-close fires only when the game process ends
 // When the publish window closes (MenuWatch::Close), ThrottleAfterWindow: the job gets JOB_OBJECT_LIMIT_PRIORITY_CLASS
 // (idle) and a CPU hard cap of one logical CPU, and the throttle event is set (the builder then drops its GPU device and
 // runs OpenMP on one thread); what it finishes after that is used only at the next launch.
@@ -87,8 +90,9 @@ namespace BlackFlame::BuilderLauncher
     /// "not started (why)", "running (pid N)", "ended (exit <ExitCodeText>)" - for the log
     [[nodiscard]] std::string Status();
 
-    /// The publish window closed (any thread; returns at once - a few job and event calls, no wait): idle priority and a
-    /// CPU hard cap of one logical CPU on the job, the throttle event set; logged with what was read back. Once a session;
-    /// no builder, or one that already ended: nothing (debug level)
+    /// The publish window closed (any thread; returns at once - a few job and event calls, never a wait on the launcher's
+    /// lock: when it is busy the throttle goes to a thread-pool thread): idle priority and a CPU hard cap of one logical
+    /// CPU on the job, the throttle event set; logged with what was read back. Once a session; no builder, or one that
+    /// already ended: nothing (debug level)
     void ThrottleAfterWindow();
 }
