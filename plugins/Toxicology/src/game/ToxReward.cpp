@@ -6,8 +6,6 @@
 
 #include <atomic>
 #include <exception>
-#include <format>
-#include <string>
 #include <thread>
 
 namespace
@@ -24,7 +22,6 @@ namespace
     std::thread::id g_mainThread;                 // written once by RegisterQuestStageSink, before the sink exists
 
     constexpr std::int32_t kTomesGiven = 1;
-    constexpr const char* kAddedFallback = "Added";  // sAddItemtoInventory's English text, when the setting is missing
 
     // =========================================================================
     // Task
@@ -102,16 +99,6 @@ namespace
     // Grant
     // =========================================================================
 
-    // The game's own "added" word (localized by the installed strings), or kAddedFallback
-    std::string AddedText()
-    {
-        auto* settings = RE::GameSettingCollection::GetSingleton();  // RE/G/GameSettingCollection.h:25
-        const auto* setting = settings ? settings->GetSetting("sAddItemtoInventory") : nullptr;  // :27
-        // RE/S/Setting.h:67,75; GetType reads the name's first letter ('s': a string)
-        const char* text = setting && setting->GetType() == RE::Setting::Type::kString ? setting->GetString() : nullptr;
-        return text && *text ? text : kAddedFallback;
-    }
-
     void Grant(RE::PlayerCharacter& a_player, RE::TESObjectBOOK& a_tome, std::int32_t a_before)
     {
         a_player.AddObjectToContainer(&a_tome, nullptr, kTomesGiven, nullptr);  // RE/T/TESObjectREFR.h:270
@@ -122,11 +109,12 @@ namespace
             return;
         }
         ToxGame::SetRewardSatisfied(true);
+        // The game's own "<name> <sAddItemtoInventory>" line and pick-up sound (RE/S/SendHUDMessage.h:10,
+        // src/RE/S/SendHUDMessage.cpp:21-38), as an AddItem that is not silent shows
+        RE::SendHUDMessage::ShowInventoryChangeMessage(&a_tome, kTomesGiven, true, true);
         const char* name = a_tome.GetName();  // RE/T/TESForm.h:308
-        const auto text = std::format("{}: {}", AddedText(), name ? name : "");
-        RE::SendHUDMessage::ShowHUDMessage(text.c_str());  // RE/S/SendHUDMessage.h:9
-        logger::info("Toxicology: tome reward: {} [{:08X}] given (tomes held {} -> {}), reward satisfied; HUD '{}'",
-            name ? name : "", a_tome.GetFormID(), a_before, after, text);
+        logger::info("Toxicology: tome reward: {} [{:08X}] given (tomes held {} -> {}), reward satisfied",
+            name ? name : "", a_tome.GetFormID(), a_before, after);
     }
 }
 
