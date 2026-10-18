@@ -35,7 +35,11 @@
 //               deaths go back to 0, and its strike too when the call was on the carried texture, so a second encode of
 //               that source later in the run (another tint's slot) starts at strike 1 (review round 2). Older forms
 //               read: one with no <deaths> line has deaths 1 (its strike rule as before); one with no <texture> line is
-//               strike 1 and deaths 1, never carried and never disabling, whatever its count (review round 2). A marker
+//               strike 1 and deaths 1, its strike never carried (it counts as one death) and never disabling by itself,
+//               whatever its count (review round 2). Stated limit (review round 3): a fault that lets one Compress return
+//               in a run before it kills the builder on another texture is caught only by the same-texture strike; the
+//               cost is a builder death per session in the background, never the game's (no reset would instead let
+//               plain game exits during a main-menu build add up to a permanent CPU fallback). A marker
 //               that names another adapter or driver is dropped with its counts; one that exists but does not read
 //               counts as strike 1 and deaths 1 (never carried: no texture) and is left in place (its count is not lost).
 //               gpu.disabled is cleared, with any marker, only at a start whose adapter (description, ids, driver

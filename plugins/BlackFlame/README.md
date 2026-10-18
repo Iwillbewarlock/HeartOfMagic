@@ -1114,14 +1114,18 @@ from the Windows SDK, the builder only). In key mode a BC7 target is encoded by 
   event;
 - the crash guard allows it: `staging\gpu.inflight` (`<strikes>`, the adapter, the texture being encoded and `<deaths>`,
   one a line) exists only while device creation or a GPU encode runs. A start that finds it keeps the GPU; the strike
-  carries only when the next GPU call is on the same texture (a game exit kills the builder in a kill-on-close job, so a
-  death on another texture is no evidence against the GPU), the death count carries whatever the texture. Strike 2 (two
-  starts in a row ended inside a GPU call on one texture) or 4 deaths in a row on any textures writes
-  `staging\gpu.disabled` (adapter with its driver version, output identity) and from then BC7 is encoded on the CPU; a
-  GPU encode that returns sets the death count back to 0, and one on the carried texture the strike too. A marker with no
-  texture line (an older builder's) counts as strike 1 and never disables; on an adapter whose driver version does not
-  read, either limit puts only that run on the CPU and no `gpu.disabled` is written (it could never be cleared by a driver
-  update). The marker stays until the disable write succeeds (a failed write leaves the counts for the next start). A marker naming another adapter or driver is dropped with its strikes; one that does not read is one strike and
+  is carried only into that texture's GPU calls (a game exit kills the builder in a kill-on-close job, so a death on
+  another texture is no evidence against the GPU), the death count whatever the texture. Strike 2 (two starts in a row
+  ended inside a GPU call on one texture) or 4 deaths in a row on any textures writes `staging\gpu.disabled` (adapter
+  with its driver version, output identity) and from then BC7 is encoded on the CPU; a GPU encode that returns sets the
+  death count back to 0, and one on the carried texture the strike too. Stated limit: a fault that lets one encode
+  return in a run before it kills the builder on another texture is caught only by the same-texture strike (the cost is
+  a builder death per session in the background; without the reset, plain game exits during a main-menu build would add
+  up to a permanent CPU fallback). A marker with no texture line (an older builder's) counts as strike 1 and one death,
+  its strike never carried, and never disables by itself; on an adapter whose driver version does not read, either limit
+  puts only that run on the CPU and no `gpu.disabled` is written (it could never be cleared by a driver update). The
+  marker stays until the disable write succeeds (a failed write leaves the counts for the next start). A marker naming
+  another adapter or driver is dropped with its counts; one that does not read counts as strike 1 and one death and
   stays. `gpu.disabled` is cleared, with any marker, only at a start whose adapter, driver or output identity differs, and
   only when it is whole (both lines there and non-empty, the output a valid identity); one that does not read, or is
   malformed, keeps the GPU off and is never deleted, and a stale one that cannot be removed keeps the GPU off for that run.

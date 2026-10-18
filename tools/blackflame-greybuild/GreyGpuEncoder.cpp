@@ -503,7 +503,8 @@ namespace GreyBuild
         start.texture = texture;
         start.deaths = deaths;
         start.note = fmt::format("{} found (the last run ended inside a GPU call on {}, texture {}; a game exit can do that): the "
-                                 "GPU is kept, {}; {} more such start(s) ending in any GPU call turn it off", kGpuInflightFile,
+                                 "GPU is kept, {}; {} more such start(s) ending inside a GPU call before any GPU encode returns turn it off",
+                                 kGpuInflightFile,
             inCall.empty() ? "an unnamed adapter" : inCall, texture.empty() ? std::string("unnamed") : texture,
             texture.empty() ? std::string("the strike is not carried (no texture named: the old marker form)") :
                               fmt::format("{} more such start(s) ending in that texture's call turn it off", kGpuDisableStrikes - found),
