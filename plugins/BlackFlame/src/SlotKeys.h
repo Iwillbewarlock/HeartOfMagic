@@ -84,4 +84,7 @@ namespace BlackFlame::SlotKeys
 
     /// a_texture's state by its raw slot text (the plan's table, or one read now when the plan has no entry)
     [[nodiscard]] CC::FileHash TextureHash(const Inputs& a_inputs, std::string_view a_raw);
+
+    /// A texture set's TXST key input: its eight record strings, TX00 / TX03's hashes, DODT (no prefix needed)
+    [[nodiscard]] CC::TxstKeyInput TxstInput(const Inputs& a_inputs, const RE::BGSTextureSet& a_source);
 }

@@ -12,6 +12,7 @@
 #include "CopySwap.h"
 #include "FormCopies.h"
 #include "Forms.h"
+#include "SelfTestJudge.h"
 #include "SelfTestLog.h"
 #include "SelfTestText.h"
 
@@ -116,6 +117,12 @@ namespace BlackFlame::SelfTest
                 "projectiles) while stoked {}, after the toggle {} - one each means the stream held", spellId,
                 projectileBase ? projectileBase->GetFormID() : 0, copy ? copy->GetFormID() : 0, g_flames.launches,
                 stokedStreams.size(), afterStreams.size()));
+            if (const auto use = !copy ? SlotUseOf(projectileBase) : std::nullopt; use && use->closed) {
+                SelfTestLog::Info("E2", "Flames not judged: " + use->how);
+                return;
+            } else if (use) {
+                SelfTestLog::Fail("E2", "Flames without its copy: " + use->how);
+            }
             SelfTestLog::Check("E2", stoked > 0 && stokedSwapped == stoked && afterOriginal > 0 && hitsStoked > 0 &&
                 !g_flames.redispelled, std::format("stoked launches {} ({} with the copy); after the buff went off {} ({} with the "
                     "original); hits on the target {} ({} while stoked, {} naming the copy as the projectile); the first dispel "

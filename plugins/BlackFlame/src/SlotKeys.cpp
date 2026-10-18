@@ -288,11 +288,8 @@ namespace BlackFlame::SlotKeys
         return text ? std::optional(Key{ CC::KeyOf(*text), *text }) : std::nullopt;
     }
 
-    std::optional<Key> TxstKey(const Inputs& a_inputs, const RE::BGSTextureSet& a_source)
+    CC::TxstKeyInput TxstInput(const Inputs& a_inputs, const RE::BGSTextureSet& a_source)
     {
-        if (!a_inputs.prefix) {
-            return std::nullopt;
-        }
         CC::TxstKeyInput input;
         for (const auto& texture : a_source.textures) {  // TX00..TX07, the record's bytes
             const char* text = texture.textureName.c_str();
@@ -301,7 +298,15 @@ namespace BlackFlame::SlotKeys
         input.tx00 = TextureHash(a_inputs, input.slotsRaw[CC::kTxstDiffuseSlot]);
         input.tx03 = TextureHash(a_inputs, input.slotsRaw[CC::kTxstGlowSlot]);
         input.dodt = a_source.decalData != nullptr;
-        const auto text = CC::TxstKeyString(*a_inputs.prefix, input);
+        return input;
+    }
+
+    std::optional<Key> TxstKey(const Inputs& a_inputs, const RE::BGSTextureSet& a_source)
+    {
+        if (!a_inputs.prefix) {
+            return std::nullopt;
+        }
+        const auto text = CC::TxstKeyString(*a_inputs.prefix, TxstInput(a_inputs, a_source));
         return text ? std::optional(Key{ CC::KeyOf(*text), *text }) : std::nullopt;
     }
 }

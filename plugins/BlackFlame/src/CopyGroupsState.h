@@ -60,10 +60,11 @@ namespace BlackFlame::CopyGroups::Detail
 
     struct Verify
     {
-        std::string path;  // record form (Demand's)
+        std::string path;  // record form (Demand's); "" for a TXST object (its textures are deps)
         std::uint64_t key = 0;
         LM::Object object;
         bool registered = false;
+        bool demand = true;  // false: a TXST object, registered only (a DDS is not Demanded through the model database)
     };
 
     struct Group

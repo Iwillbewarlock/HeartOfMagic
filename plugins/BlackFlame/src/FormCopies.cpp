@@ -448,6 +448,16 @@ namespace BlackFlame
         return it->second;
     }
 
+    RE::TESForm* PoolCopyOf(const RE::TESForm* a_source) noexcept
+    {
+        if (!a_source || !SlotAssign::Active()) {
+            return nullptr;
+        }
+        const auto& map = TheCopies().bySource;
+        const auto it = map.find(a_source->GetFormID());
+        return it != map.end() ? it->second : nullptr;
+    }
+
     std::vector<std::string> CopyGreyTexturePaths()
     {
         return TheCopies().greyTexturePaths;

@@ -330,6 +330,7 @@ namespace BlackFlame::SelfTest
                 }
                 a_c.mark = SelfTestProbe::Mark();
                 a_c.t3Mark = a_c.mark;
+                NoteSlotSummaryOnce("T3");
                 a_c.swapsAtT3 = ImpactSwapCount();
                 a_c.mappedAtT3 = ImpactMappedSeenCount();
                 a_c.waitingFor = "the player's Firebolt projectile in the hook";
@@ -350,6 +351,12 @@ namespace BlackFlame::SelfTest
                 a_c.t3Recolored = verdict.pass && observed;
                 SelfTestLog::Check("T3", verdict.pass && observed, std::format("{}{} | {}", verdict.how,
                     observed ? "" : "; NOT INSPECTED: no 3D at the hook", DescribeProjectile(*r)));
+            } else if (const auto use = SlotUseOf(r->base)) {  // slot route: closed is INFO, an open slot not taken or none a FAIL
+                if (use->closed) {
+                    SelfTestLog::Info("T3", use->how + " | " + DescribeProjectile(*r));
+                } else {
+                    SelfTestLog::Fail("T3", use->how + " | " + DescribeProjectile(*r));
+                }
             } else {
                 SelfTestLog::Info("T3", verdict.how + " | " + DescribeProjectile(*r));
             }

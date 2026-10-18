@@ -23,7 +23,8 @@
 // whose members are all ready open at once (W1); the drains go on while the publish window is open and the main-thread
 // proof holds (W1 drains and W2); each publish step re-checks the close flag right before SetModel and RegisterLoose. A
 // group unfinished when the window closes stays as it was. A Demand that faults stops publication for the session. TXST
-// slots are filled (keyed and built only with the config slotTxst) but never published here: design v2 §1 keeps the original decal until SetTexturePath and its textureFileIDs are proven.
+// slots (config slotTxst) are members like the others: their txst object's DDS deps are registered (no Demand), and the
+// open writes TX00 / TX03 (SlotTxst.h) before the gates open; off, they are left and the decals keep the source's sets.
 
 #include "Common.h"
 
@@ -65,4 +66,29 @@ namespace BlackFlame::CopyGroups
 
     /// T0-W2's evidence
     [[nodiscard]] PublishLog GetPublishLog();
+
+    /// A slot's place in the publish groups: its group's state (or "left", "in no group", "not usable") and the reason its
+    /// member (or the slot) states, "" when none
+    struct SlotState
+    {
+        bool inGroup = false;
+        bool groupOpen = false;
+        bool left = false;  // the member never published this session
+        std::string state;
+        std::string why;
+    };
+
+    /// Main thread (CopyGroupsNotes.cpp)
+    [[nodiscard]] SlotState SlotStateOf(std::uint16_t a_slot);
+
+    /// Main thread: the slot's gate is closed inside an OPEN group, its member not left, and no reason is stated - a fault;
+    /// every other closed slot has a state that says why (still building, failed, left, not usable, not written: why)
+    [[nodiscard]] bool ClosedUnexplained(std::uint16_t a_slot);
+
+    /// Main thread: a slot's group state and its member's reason in words ("waiting (still building)", "failed", "left: why",
+    /// "open"), "in no group" when no group holds it - for the self-test's slot lines
+    [[nodiscard]] std::string SlotNote(std::uint16_t a_slot);
+
+    /// Main thread: "N of M assigned slots open; closed: <state> <count>, ..." (the self-test's summary line)
+    [[nodiscard]] std::string SlotSummary();
 }

@@ -22,6 +22,7 @@
 #include "FormCopies.h"
 #include "SelfTestLog.h"
 #include "SelfTestText.h"
+#include "SlotAssign.h"
 
 #include <array>
 #include <format>
@@ -150,8 +151,13 @@ namespace BlackFlame::SelfTest
     bool StepV2Cover(Ctx&, bool)
     {
         const auto& fresh = GetFreshness();
-        SelfTestLog::Check("T0-fresh", fresh.state == CopyFreshness::kFresh, std::format("copies {}: {}", FreshnessName(fresh.state),
-            fresh.detail));
+        if (SlotAssign::Active()) {
+            // the slot route has no copies map to be stale: the slots are filled from the live closure at every start
+            SelfTestLog::Info("T0-fresh", std::format("slot route: no copies map to check ({})", fresh.detail));
+        } else {
+            SelfTestLog::Check("T0-fresh", fresh.state == CopyFreshness::kFresh, std::format("copies {}: {}", FreshnessName(fresh.state),
+                fresh.detail));
+        }
 
         const auto& closure = LastFireClosure();
         std::size_t missing = 0;
@@ -159,9 +165,14 @@ namespace BlackFlame::SelfTest
         std::size_t dropped = 0;  // J2: taken out by the copy model probe ("drop"), counted apart from "no copy"
         std::string droppedLines;
         std::size_t unused = 0;
+        std::size_t closed = 0;  // slot route: a slot whose group is not published this session (not missing)
         std::string lines;
         std::string absentLines;
         for (const auto& form : closure.forms) {
+            if (!CopyOf(form.form) && PoolCopyOf(form.form)) {
+                ++closed;
+                continue;
+            }
             if (!CopyOf(form.form) && IsSourceMeshAbsent(form.form)) {
                 // H1: excluded with its reason - the source's own mesh is in no mod or archive (FormCopies.h)
                 if (++absent <= kMaxMissingLines) {
@@ -189,6 +200,10 @@ namespace BlackFlame::SelfTest
         }
         SelfTestLog::Check("T0-cover", missing == 0 && !closure.forms.empty(), std::format("{} closure forms, {} excluded, {} without a "
             "copy{}{}", closure.forms.size(), closure.excluded.size() + absent, missing, missing ? ": " : "", lines));
+        if (closed > 0) {
+            SelfTestLog::Info("T0-cover", std::format("{} closure form(s) have a slot whose group is closed this session (not published: "
+                "the source stays; T0-slots and the group lines say why)", closed));
+        }
         if (absent > 0) {
             SelfTestLog::Info("T0-cover", std::format("{} closure form(s) excluded: source mesh absent in this load order: {}",
                 absent, absentLines));

@@ -16,6 +16,8 @@
 #include "FireClosure.h"
 #include "FormCopies.h"
 #include "SelfTestLog.h"
+#include "SelfTestSlotDecal.h"
+#include "SlotAssign.h"
 
 #include <format>
 
@@ -103,6 +105,9 @@ namespace BlackFlame::SelfTest
 
     bool StepDecalCover(Ctx&, bool)
     {
+        if (SlotAssign::Active()) {
+            return StepDecalSlots();  // the slot route: the slots' strings, not the copies map's (SelfTestSlotDecal.h)
+        }
         DecalTally tally;
         std::size_t idsSet = 0;
         std::size_t idSlots = 0;

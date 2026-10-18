@@ -6,9 +6,11 @@
 #include "CopyGroupsState.h"
 
 #include "BuildProgress.h"
+#include "Config.h"
 #include "FileIndex.h"
 #include "FormCopiesFillModel.h"
 #include "SlotAssign.h"
+#include "SlotTxst.h"
 
 #include <algorithm>
 #include <map>
@@ -30,6 +32,33 @@ namespace BlackFlame::CopyGroups::Detail
             return object;
         }
 
+        // A TXST slot (slotTxst on): its txst object as the other members' objects; a candidate only when its deps map onto
+        // TX00 / TX03 and the textureFileIDs rule is usable (SlotTxst.h). Off: left, the decal keeps the source
+        Slot PlanTxst(const State& a_state, const SlotAssign::Slot& a_slot, const LM::Entry* a_entry)
+        {
+            Slot out{ a_slot.localId };
+            if (!GetConfig().slotTxst) {
+                out.state = Member::kLeft;
+                out.model.why = "slotTxst off: the decal keeps the source";
+                return out;
+            }
+            out.model = PlanObject(a_state, LM::Role::kTxst, a_slot.txstKey, a_slot.publishedTxst, a_entry);
+            if (out.model.candidate) {
+                std::string why;
+                if (CC::Hex16(out.model.candidate->key) == a_slot.publishedTxst) {
+                    out.model.candidate.reset();  // written already this session (W1 from the ledger)
+                    out.model.state = Member::kReady;
+                } else if (!SlotTxst::RuleUsable(why) || !SlotTxst::StringsFor(a_slot, *out.model.candidate, why)) {
+                    out.model.candidate.reset();
+                    out.model.state = a_slot.publishedTxst.empty() ? Member::kLeft : Member::kReady;
+                    out.model.why = why;
+                    logger::info("BlackFlame: slots: TXST slot {:X} ({}): not published: {}", a_slot.localId, a_slot.sourceText, why);
+                }
+            }
+            out.state = out.model.state;
+            return out;
+        }
+
         // The member's objects and their worst state (a muzzle that will not be grey only keeps the source's muzzle)
         Slot PlanSlot(const State& a_state, std::uint16_t a_id)
         {
@@ -37,10 +66,7 @@ namespace BlackFlame::CopyGroups::Detail
             const auto* entry = LM::FindSlot(a_state.ledger, a_id);
             Slot out{ a_id };
             if (slot.type == CC::SlotType::kTXST) {
-                out.state = Member::kLeft;
-                out.model.why = "a decal texture set slot stays unpublished (design v2 §1 TXST: no proof yet that SetTexturePath and "
-                                "its textureFileIDs hold; the decal keeps the source)";
-                return out;
+                return PlanTxst(a_state, slot, entry);
             }
             if (!slot.sourceModel.empty()) {
                 out.model = PlanObject(a_state, LM::Role::kModel, slot.modelKey, slot.publishedModel, entry);
@@ -106,7 +132,9 @@ namespace BlackFlame::CopyGroups::Detail
                 pending = pending || m.state == Member::kPending;
                 any = any || m.state != Member::kLeft;
                 for (const auto* plan : { &m.model, &m.muzzle }) {
-                    if (m.state != Member::kLeft && plan->candidate) {
+                    if (m.state != Member::kLeft && plan->candidate && plan->candidate->role == LM::Role::kTxst) {
+                        a_group.verify.push_back({ "", plan->candidate->key, *plan->candidate, false, false });  // registered only
+                    } else if (m.state != Member::kLeft && plan->candidate) {
                         a_group.verify.push_back({ FormCopies::RecordModelPath(plan->candidate->path), plan->candidate->key, *plan->candidate });
                     }
                 }

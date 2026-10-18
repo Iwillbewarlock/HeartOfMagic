@@ -8,7 +8,8 @@
 //       "state": "active|tombstone|conflict", "since": n, ["conflict": "plugin|id" | "conflictHex": "<bytes as hex>"],
 //       "published": [ { "role": "model|muzzle|mps|txst", "key": "<16 hex>", "keyString": "...", "path": "...", "bytes": n,
 //                        "fnv64": "<16 hex>",
-//                        "deps": [ { "path": "...", "fnv64": "<16 hex>" } | { "addn": 40012 } ] } ],
+//                        "deps": [ { "path": "...", "fnv64": "<16 hex>" } | { "addn": 40012 } ],
+//                        txst only, optional: "textures": [ 8 x "..." | { "hex": "<bytes as hex>" } ], "idsRule": "prefixed" } ],
 //       "parseFailures": [ { "key": "<16 hex>", "count": n, "session": n } ], "terminal": [ "<16 hex>" ] } ] }
 // A plugin name with a byte outside printable ASCII is written as pluginHex, a key string or a dep path likewise as
 // keyStringHex / pathHex (JSON text must be UTF-8; the engine's names and paths are
@@ -84,6 +85,31 @@ namespace BlackFlame::SlotLedgerModel
                 }
             }
             return std::nullopt;
+        }
+
+        // A txst object's stored strings: absent = an older ledger (accepted); there = exactly 8 texts and an idsRule text,
+        // on a txst object only
+        [[nodiscard]] inline bool ReadTextures(const Json& a_object, Object& a_out)
+        {
+            const auto textures = a_object.find("textures");
+            const auto rule = a_object.find("idsRule");
+            if (textures == a_object.end() && rule == a_object.end()) {
+                return true;
+            }
+            if (a_out.role != Role::kTxst || textures == a_object.end() || rule == a_object.end() || !rule->is_string() ||
+                !textures->is_array() || textures->size() != CC::kTxstSlots) {
+                return false;
+            }
+            for (const auto& item : *textures) {
+                const auto hex = item.is_object() && item.size() == 1 ? item.find("hex") : item.end();
+                const auto bytes = hex != item.end() && hex->is_string() ? DataPathRule::FromHex(hex->get<std::string>()) : std::nullopt;
+                if (!item.is_string() && !bytes) {
+                    return false;
+                }
+                a_out.textures.push_back(item.is_string() ? item.get<std::string>() : *bytes);
+            }
+            a_out.idsRule = rule->get<std::string>();
+            return true;
         }
 
         [[nodiscard]] inline Json DepsJson(const std::vector<Dep>& a_deps)
@@ -175,6 +201,14 @@ namespace BlackFlame::SlotLedgerModel
                 // review agy redo 2.1: a key string names source paths, which may hold the code page's bytes
                 p[PrintableAscii(object.keyText) ? "keyString" : "keyStringHex"] =
                     PrintableAscii(object.keyText) ? object.keyText : CC::LowerHex(object.keyText);
+                if (object.role == Role::kTxst && !object.textures.empty()) {
+                    Json textures = Json::array();
+                    for (const auto& text : object.textures) {  // TX01 etc. keep the source's bytes: the code page's
+                        textures.push_back(PrintableAscii(text) ? Json(text) : Json{ { "hex", CC::LowerHex(text) } });
+                    }
+                    p["textures"] = std::move(textures);
+                    p["idsRule"] = object.idsRule;
+                }
                 item["published"].push_back(std::move(p));
             }
             item["parseFailures"] = Json::array();
@@ -316,6 +350,9 @@ namespace BlackFlame::SlotLedgerModel
                     }
                     if (PublishedOf(entry, object.role)) {
                         return refuse("slot " + HexId(entry.slot) + ": two published objects of one role");  // review agy redo 2.8
+                    }
+                    if (!ReadTextures(p, object)) {
+                        return refuse("slot " + HexId(entry.slot) + ": a published object's textures or idsRule is not valid");
                     }
                     object.bytes = p["bytes"].get<std::uint64_t>();
                     // a path the DLL would hash, register and set as a model must be a copy path (a TXST object has none);
