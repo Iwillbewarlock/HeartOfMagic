@@ -117,7 +117,8 @@ namespace BlackFlame::MenuWatch
                 const auto stats = MainQueue::GetStats();
                 const auto* main = RE::Main::GetSingleton();
                 const auto mainId = main ? main->threadID : stats.mainThreadId;
-                const auto decided = MainThreadProof::Decide(MainQueue::Installed(), stats.frames, stats.thread, mainId);
+                const auto decided = MainThreadProof::Decide(MainQueue::Installed(), stats.frames, stats.thread, mainId,
+                    REX::W32::GetCurrentThreadId());
                 if (decided == Verdict::kPending || !g_verdict.compare_exchange_strong(verdict, decided)) {
                     return g_verdict.load();
                 }
@@ -177,6 +178,11 @@ namespace BlackFlame::MenuWatch
     bool DrainsMayProve() noexcept
     {
         return Proof() != Verdict::kRefused;
+    }
+
+    bool ProofPending() noexcept
+    {
+        return Proof() == Verdict::kPending;
     }
 
     std::string ProofText()

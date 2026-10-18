@@ -13,19 +13,21 @@ namespace BlackFlame::MainThreadProof
 {
     enum class Verdict
     {
-        kPending,  // no drain yet, or Main::threadID not set yet: decided at a later drain
+        kPending,  // no drain yet, its thread not stored yet, Main::threadID not set yet, or the caller is not that drain
         kProven,
         kRefused,
     };
 
-    /// a_frames: drains run so far; a_firstDrainThread: the first drain's thread; a_mainThreadId: RE::Main::threadID now
+    /// a_frames: drains run so far; a_firstDrainThread: the first drain's thread (0 until the drain stores it - the frame count
+    /// is bumped first); a_mainThreadId: RE::Main::threadID now; a_callerThread: who asks. Only a caller on the drain's thread
+    /// decides (review: kDataLoaded's thread asking between the bump and the store must not freeze a refusal)
     [[nodiscard]] constexpr Verdict Decide(bool a_queueInstalled, std::uint64_t a_frames, std::uint32_t a_firstDrainThread,
-        std::uint32_t a_mainThreadId) noexcept
+        std::uint32_t a_mainThreadId, std::uint32_t a_callerThread) noexcept
     {
         if (!a_queueInstalled) {
             return Verdict::kRefused;
         }
-        if (a_frames == 0 || a_mainThreadId == 0) {
+        if (a_frames == 0 || a_firstDrainThread == 0 || a_mainThreadId == 0 || a_callerThread != a_firstDrainThread) {
             return Verdict::kPending;
         }
         return a_firstDrainThread == a_mainThreadId ? Verdict::kProven : Verdict::kRefused;

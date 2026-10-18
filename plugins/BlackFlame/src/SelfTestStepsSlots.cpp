@@ -7,7 +7,8 @@
 //             and the mirror (their union, read now without main, holds every reservation of the ledger in use); the BFSL
 //             record round-trips in memory, and the loaded save's BFSL matched this session's pairs; no Demand was made of a
 //             gated slot's model (CopyModelProbeVerify's counter: 0); the file index state (INFO)
-//   T0-W2     every publish step ran on RE::Main's thread and none while a load was under way; every open slot's model and
+//   T0-W2     every publish step of the main-thread drains ran on RE::Main's thread and none while a load was under way (W1's
+//             steps at kDataLoaded itself run on the kDataLoaded thread and are only counted, INFO); every open slot's model and
 //             PROJ muzzle strings are the ones its publication set and the ledger records (the kPostLoadGame refresh did
 //             not write them); how many publish steps ran with the main menu open (SetModel at the main menu: INFO, the
 //             look is the player's eye check)
@@ -136,10 +137,12 @@ namespace BlackFlame::SelfTest
                 return true;
             }
             const auto log = CopyGroups::GetPublishLog();
+            SelfTestLog::Info("T0-W2", std::format("{} W1 publish step(s) at kDataLoaded itself (thread {}, not judged: the kDataLoaded "
+                "thread)", log.syncSteps, log.syncThread));
             if (log.steps == 0) {
-                SelfTestLog::Skip("T0-W2", "no publish step ran this session (nothing was ready): the threads cannot be judged");
+                SelfTestLog::Skip("T0-W2", "no publish step ran in a drain this session (nothing was ready): the threads cannot be judged");
             } else {
-                SelfTestLog::Check("T0-W2", log.allOnMainThread && !log.loadDuringPublish, std::format("{} publish step(s): every one "
+                SelfTestLog::Check("T0-W2", log.allOnMainThread && !log.loadDuringPublish, std::format("{} drain publish step(s): every one "
                     "on Main's thread: {}; a load under way during one: {}", log.steps, log.allOnMainThread ? "yes" : "NO",
                     log.loadDuringPublish ? "YES" : "no"));
             }

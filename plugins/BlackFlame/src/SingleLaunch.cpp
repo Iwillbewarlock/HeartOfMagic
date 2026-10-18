@@ -93,9 +93,21 @@ namespace BlackFlame::SingleLaunch
         // out", so the self-test's wait for it ends at once
         DisableCopiesForSession({}, {});
         auto& inputs = TheInputs();
-        inputs = SlotKeys::Read(a_closure);
         std::string offWhy;
-        if (!SlotAssign::AssignAndFill(a_closure, inputs, offWhy)) {
+        bool assigned = false;
+        // review: a throw in the route's start still tells the player (SlotLedger::Load runs in Main.cpp's guard; a throw
+        // there leaves the ledger unavailable, which AssignAndFill reports as "no ledger")
+        try {
+            inputs = SlotKeys::Read(a_closure);
+            assigned = SlotAssign::AssignAndFill(a_closure, inputs, offWhy);
+        } catch (const std::exception& e) {
+            logger::error("BlackFlame: single launch: the slot route's start threw: {}", e.what());
+            offWhy = "the slots could not be set up";
+        } catch (...) {
+            logger::error("BlackFlame: single launch: the slot route's start threw an exception of an unknown type");
+            offWhy = "the slots could not be set up";
+        }
+        if (!assigned) {
             for (auto& nif : inputs.nifs) {
                 std::vector<std::byte>().swap(nif.bytes);  // no slots, no dump: not kept for the session
             }

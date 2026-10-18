@@ -25,7 +25,11 @@
 // GlobalLocations found, and a FindRecord of a shipped path finding its record. Otherwise Available() is false with the
 // reason, and copies written into Data are seen only by the next start's startup index (the next-launch fallback).
 // Checked at every start. Lifted from the spike's FileProbeEngine (feature/black-flame-spike-s1 f79ae0c, run 3 on
-// 1.6.1170 with CRDW on); the probe's tests stay on that branch. Main thread only.
+// 1.6.1170 with CRDW on); the probe's tests stay on that branch.
+// Threads: Init and W1's registrations (FormCopies::ApplyLastPublished, CopyGroups' groups opened at kDataLoaded) run on the
+// kDataLoaded thread, which on 1.6.1170 under MO2 (run 2026-10-18) is the loader thread, not RE::Main's; W2's run in the
+// main-thread drains. Every Find and Register runs under the engine's own IndexGuard, which takes the archive index lock -
+// that lock, not the thread, is what W1 relies on.
 
 #include "Common.h"
 
@@ -36,7 +40,7 @@
 
 namespace BlackFlame::FileIndex
 {
-    /// kDataLoaded, main thread, once: the ids, the scans, GlobalLocations and the shipped-path lookup; logs whether
+    /// kDataLoaded (its thread), once: the ids, the scans, GlobalLocations and the shipped-path lookup; logs whether
     /// usvfs_x64.dll is loaded and the Data folder the game's exe resolves. A second call does nothing
     void Init();
 
@@ -85,7 +89,7 @@ namespace BlackFlame::FileIndex
         std::string note;  // every step, for the log
     };
 
-    /// Main thread. FindRecord first (one guard): a loose record -> kAlreadyLoose, RegisterLoose not called; an archive
+    /// kDataLoaded thread (W1) or a main-thread drain (W2), under the IndexGuard's lock. FindRecord first (one guard): a loose record -> kAlreadyLoose, RegisterLoose not called; an archive
     /// record -> kArchiveClash; none -> the loose stream of a_dataPath (GlobalLocations, readOnly false), its size against
     /// a_expectedSize, RegisterLoose, then FindRecord again. Counted (GetCounters); the first registration of a session
     /// logs FindRecord before and after in full

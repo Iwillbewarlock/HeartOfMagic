@@ -44,22 +44,31 @@ namespace BlackFlame::SlotLedgerFiles
         return a_main.parent_path() / name;
     }
 
-    /// The folder of the path PrepareFileSavePath(a_name) returned: the path must be absolute and its file name must start
-    /// with a_name (ASCII case folded) - the engine appends ".ess" (1.6.1170 in game: "...\__MO_Saves\HoMBF_slots.json.ess");
-    /// nullopt with a_why otherwise. The caller joins its own file name to the folder
+    /// The folder of the path PrepareFileSavePath(a_name) returned: absolute, and its file name exactly a_name or a_name +
+    /// ".ess" (ASCII case folded) - the engine appends ".ess" (1.6.1170 in game: "...\__MO_Saves\HoMBF_slots.json.ess");
+    /// lexically normalised, and refused if a ".." is left. nullopt with a_why otherwise. The caller joins its own file name
     [[nodiscard]] inline std::optional<fs::path> SaveFolderFromPrepared(std::string_view a_returned, std::string_view a_name, std::string& a_why)
     {
+        constexpr std::string_view kSaveSuffix = ".ess";
         const auto fold = [](char a_c) { return a_c >= 'A' && a_c <= 'Z' ? static_cast<char>(a_c - 'A' + 'a') : a_c; };
+        const auto same = [&](std::string_view a_l, std::string_view a_r) {
+            return a_l.size() == a_r.size() && std::equal(a_l.begin(), a_l.end(), a_r.begin(), [&](char a_x, char a_y) { return fold(a_x) == fold(a_y); });
+        };
         const auto slash = a_returned.find_last_of("\\/");
         const auto file = slash == std::string_view::npos ? a_returned : a_returned.substr(slash + 1);
-        const fs::path path(a_returned);
+        const bool named = !a_name.empty() && file.size() >= a_name.size() && same(file.substr(0, a_name.size()), a_name) &&
+                           (file.size() == a_name.size() || same(file.substr(a_name.size()), kSaveSuffix));
+        const auto path = fs::path(a_returned).lexically_normal();
+        const bool dotDot = std::any_of(path.begin(), path.end(), [](const fs::path& a_part) { return a_part == ".."; });
+        const std::string shown = "it gave '" + std::string(a_returned) + "'";
         if (a_returned.empty()) {
             a_why = "it gave an empty path";
         } else if (!path.is_absolute()) {
-            a_why = "it gave '" + std::string(a_returned) + "', which is not an absolute path";
-        } else if (a_name.empty() || file.size() < a_name.size() ||
-                   !std::equal(a_name.begin(), a_name.end(), file.begin(), [&](char a_l, char a_r) { return fold(a_l) == fold(a_r); })) {
-            a_why = "it gave '" + std::string(a_returned) + "', whose file name does not start with '" + std::string(a_name) + "'";
+            a_why = shown + ", which is not an absolute path";
+        } else if (!named) {
+            a_why = shown + ", whose file name is neither '" + std::string(a_name) + "' nor that with '.ess'";
+        } else if (dotDot) {
+            a_why = shown + ", which keeps a '..' after normalising";
         } else {
             return path.parent_path();
         }

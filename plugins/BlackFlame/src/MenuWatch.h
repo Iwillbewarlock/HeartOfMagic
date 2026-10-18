@@ -40,13 +40,17 @@ namespace BlackFlame::MenuWatch
     /// The proof is made or still to be made (false once refused, or with no main-thread queue): kDataLoaded plans for the drains
     [[nodiscard]] bool DrainsMayProve() noexcept;
 
+    /// The proof is not made yet (no drain asked on its own thread yet, or Main::threadID still 0): a step waits for a later drain
+    [[nodiscard]] bool ProofPending() noexcept;
+
     /// The proof as one line (both thread ids and what it allows)
     [[nodiscard]] std::string ProofText();
 
     /// The publish window is open: Install ran and nothing closed it yet (any thread)
     [[nodiscard]] bool PublishOpen() noexcept;
 
-    /// A drain may publish now: the window is open, the proof holds, and the caller is the main thread
+    /// A drain may publish now: the window is open, the proof holds, and the caller is the main thread (false while the proof
+    /// is pending too: ProofPending tells the two apart)
     [[nodiscard]] bool DrainMayPublish() noexcept;
 
     /// The main menu has opened this session (W2 began)

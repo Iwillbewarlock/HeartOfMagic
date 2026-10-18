@@ -95,6 +95,7 @@ namespace BlackFlame::CopyGroups::Detail
         LM::Ledger ledger;                      // a copy, taken when the generation moved
         bool canVerify = false;
         bool stopped = false;
+        bool proofWaitLogged = false;           // "waits for the main-thread proof", once
         bool ledgerDirty = false;               // something to save (written at most every kLedgerWriteGap, and at the end)
         std::optional<Clock::time_point> lastLedgerWrite;
     };
