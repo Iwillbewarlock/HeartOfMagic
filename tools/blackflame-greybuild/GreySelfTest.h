@@ -73,6 +73,11 @@ namespace GreyBuild::SelfTest
     /// fails when a_required, else that part is skipped (a tester package has no fixtures)
     void CheckGolden(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_goldenDir, bool a_required);
 
+    /// The GPU BC7 encoder's guards (GreySelfTestGpu.cpp): the crash marker, the output check's limits, the over-cap
+    /// retry, the throttle event, and guard 5 (the BC7 fixtures of a_goldenDir, else stand-ins, on the GPU against the
+    /// CPU's result; INFO, not FAIL, without a hardware device)
+    void CheckGpu(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_goldenDir);
+
     /// --self-test --print-golden: the fixture's run, printed as the table source for kBuilderOutputVersion. Returns 0/1.
     [[nodiscard]] int PrintGolden(const std::filesystem::path& a_dir, const std::filesystem::path& a_goldenDir);
 }

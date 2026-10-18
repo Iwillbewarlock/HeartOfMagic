@@ -16,7 +16,11 @@
 #include "GreyTexStats.h"
 #include "GreyTexture.h"
 
+#include "../../plugins/BlackFlame/src/BuilderSignal.h"
+
 #include <windows.h>
+
+#include <omp.h>
 
 #include <DirectXTex.h>
 #include <psapi.h>
@@ -140,12 +144,27 @@ namespace GreyBuild
     Admission Budget::Acquire(std::uint64_t a_estimate, std::string& a_why, bool a_mayClear)
     {
         bool evicted = false;
+        bool released = false;
         bool paused = false;
         for (unsigned waited = 0;;) {
             // Not measurable: the cap alone decides, with the cache this process holds (the job object still caps it)
             const MemoryState unknown{ m_cache ? m_cache->CachedBytes() : 0, UINT64_MAX };
             const MemoryState state = m_probe ? m_probe().value_or(unknown) : unknown;
             const Admission admission = Admit(a_estimate, state.inUse, m_cap, state.availableCommit, m_reserve);
+            // over the cap: a GPU device this process holds goes first, with the cache, then it is measured again (the
+            // device is made again later when there is room; GreyGpuEncoder.h). Never a too_large: that is the estimate alone
+            if (admission == Admission::kOverCap && !released && m_releaseDevice) {
+                released = true;
+                if (m_releaseDevice()) {
+                    ++m_deviceReleases;
+                    if (a_mayClear && !evicted && m_cache && m_cache->CachedBytes() > 0) {
+                        m_cache->Clear();
+                        ++m_evictions;
+                        evicted = true;
+                    }
+                    continue;
+                }
+            }
             // over the cap, or short of commit: the cache this process holds goes first (it is commit too)
             if ((admission == Admission::kOverCap || admission == Admission::kPause) && a_mayClear && !evicted && m_cache &&
                 m_cache->CachedBytes() > 0) {
@@ -204,6 +223,32 @@ namespace GreyBuild
         if (!::SetPriorityClass(::GetCurrentProcess(), BELOW_NORMAL_PRIORITY_CLASS)) {
             std::cout << fmt::format("NOTE  the builder's priority could not be lowered (Windows error {})\n", ::GetLastError());
         }
+    }
+
+    void OneOpenMpThread()
+    {
+        ::omp_set_num_threads(1);
+    }
+
+    ThrottleSignal::~ThrottleSignal()
+    {
+        if (m_event) {
+            ::CloseHandle(m_event);
+        }
+    }
+
+    bool ThrottleSignal::Open(std::uint32_t a_parentPid)
+    {
+        if (m_event) {
+            ::CloseHandle(m_event);
+        }
+        m_event = ::OpenEventW(SYNCHRONIZE, FALSE, BlackFlame::BuilderSignal::ThrottleEventName(a_parentPid).c_str());
+        return m_event != nullptr;
+    }
+
+    bool ThrottleSignal::IsSet() const noexcept
+    {
+        return m_event && ::WaitForSingleObject(m_event, 0) == WAIT_OBJECT_0;
     }
 
     ParentWatch::~ParentWatch()

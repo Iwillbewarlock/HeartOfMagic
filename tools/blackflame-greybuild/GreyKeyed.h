@@ -27,6 +27,7 @@
 
 #include "GreyBudget.h"
 #include "GreyForms.h"
+#include "GreyGpuEncoder.h"
 #include "GreyProgress.h"
 #include "GreyTexStats.h"
 #include "GreyTexture.h"
@@ -53,7 +54,10 @@ namespace GreyBuild
         std::filesystem::path staging;
         std::uint64_t jobMemory = kDefaultJobMemoryMiB * kBytesPerMiB;
         std::uint64_t commitReserve = kDefaultCommitReserveMiB * kBytesPerMiB;
-        std::uint32_t parentPid = 0;  // 0: no parent to watch
+        std::uint32_t parentPid = 0;  // 0: no parent to watch (and no throttle event: BuilderSignal.h)
+        // BC7 targets on the GPU (GreyGpuEncoder.h): main sets kAuto (BLACKFLAME_GREYBUILD_GPU=off: kOff); off by default,
+        // so a self-test run is on the CPU encoder unless it asks
+        GpuUse gpu = GpuUse::kOff;
         MemoryProbe memoryProbe = MeasureMemory;  // the self-test's seam (a cap below what any process holds)
         // The self-test's seam, never set from the command line: the output identity the run keys with in place of this
         // build's own (the golden test keys its fixture with the release identity, so a dev build compares the same bytes)

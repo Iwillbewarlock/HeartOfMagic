@@ -22,6 +22,7 @@ namespace GreyBuild::Golden
     inline constexpr const char* kGlowNif = "meshes\\golden\\glow.nif";          // glow rules: additive warm glow, glow map
     inline constexpr const char* kPaletteNif = "meshes\\golden\\palette.nif";    // the self-test source: palette shaders
     inline constexpr const char* kMpsNif = "meshes\\golden\\mps.nif";            // an MPS with AddOnNode 9
+    inline constexpr const char* kPaletteSrgbNif = "meshes\\golden\\palettesrgb.nif";  // an additive palette shader, sRGB palette
 
     // The textures, Data-relative
     inline constexpr const char* kBc7 = "textures\\golden\\bc7.dds";
@@ -37,6 +38,9 @@ namespace GreyBuild::Golden
     inline constexpr const char* kFxFire01 = "textures\\effects\\fxfire01.dds";   // the self-test source's names
     inline constexpr const char* kFxFire02 = "textures\\effects\\fxfire02.dds";
     inline constexpr const char* kGradFlame = "textures\\effects\\gradients\\gradflame01.dds";
+    // A source palette stored sRGB (B8G8R8A8_UNORM_SRGB, exact bytes) on an additive palette shader: the derived palette's
+    // sRGB branch (GreyPalette.cpp Desaturate: decoded to linear, luminance, encoded back)
+    inline constexpr const char* kPaletteSrgb = "textures\\golden\\palettesrgb.dds";
 
     /// A texture one 8-bit step (or one texel) to either side of a threshold of the recolour decision at tint 1
     /// (RecolourDds: kGreyscaleChroma, kColouredShare; IsColouredTexture: kStatColouredFrac, kStatMeanSat); uncompressed
@@ -66,6 +70,7 @@ namespace GreyBuild::Golden
     inline constexpr std::uint64_t kKeyPalette = 0x601D000000000004ull;   // forms[2] model
     inline constexpr std::uint64_t kKeyTxst = 0x601D000000000005ull;      // forms[3], txst[0]
     inline constexpr std::uint64_t kKeyMps = 0x601D000000000006ull;       // addnMps[0], ADDN 9's slot
+    inline constexpr std::uint64_t kKeyPaletteSrgb = 0x601D000000000007ull;  // forms[4] model
 
     struct GoldenFile
     {

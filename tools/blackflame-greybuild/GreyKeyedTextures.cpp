@@ -219,7 +219,10 @@ namespace GreyBuild
             return child;  // failed
         }
         const auto temp = TempPathOf(StagedFile(m_log.Staging(), *slot));
-        const auto result = RecolourDds(*source, temp, a_tint);
+        const auto result = RecolourDds(*source, temp, a_tint, m_textures.gpu);
+        if (!result.gpuNote.empty()) {  // once per texture: each is recoloured once per run
+            std::cout << fmt::format("GPU   {} {}: {}\n", result.gpu ? "BC7" : "CPU", a_path, result.gpuNote);
+        }
         switch (result.outcome) {
         case RecolourOutcome::kRecoloured:
             child = Commit(temp, *slot, key);

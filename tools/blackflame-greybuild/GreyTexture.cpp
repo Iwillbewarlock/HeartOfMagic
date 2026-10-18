@@ -10,6 +10,7 @@
 #endif
 
 #include "GreyTexture.h"
+#include "GreyGpuEncoder.h"
 #include "GreyTexStats.h"
 
 #include "../../plugins/BlackFlame/src/DataPathRule.h"  // T7: the DLL's own path rule, not a copy
@@ -32,6 +33,9 @@ namespace GreyBuild
         // T5: legacy luminance formats (L8, A8L8, L16) come in as RGBA with r = g = b, so they read as grey and are left
         constexpr auto kLoadFlags = static_cast<DirectX::DDS_FLAGS>(DirectX::DDS_FLAGS_PERMISSIVE | DirectX::DDS_FLAGS_EXPAND_LUMINANCE);
         constexpr std::uint64_t kMiB = 1024ull * 1024ull;
+        // The CPU overload's float: BC1's alpha threshold (DirectX::TEX_THRESHOLD_DEFAULT, 0.5; the other encoders ignore
+        // it). The GPU overload's float in the same place is the BC7 alpha weight (kGpuAlphaWeight, GreyGpuEncoder.h)
+        constexpr float kCpuEncodeThreshold = DirectX::TEX_THRESHOLD_DEFAULT;
 
         using DirectX::XMVECTOR;
 
@@ -220,7 +224,8 @@ namespace GreyBuild
             a_textureDataPath.substr(std::char_traits<char>::length(kTexturesRoot)));
     }
 
-    RecolourResult RecolourDds(const std::filesystem::path& a_source, const std::filesystem::path& a_target, float a_tint)
+    RecolourResult RecolourDds(const std::filesystem::path& a_source, const std::filesystem::path& a_target, float a_tint,
+        GpuEncoder* a_gpu)
     {
         RecolourResult result;
         DirectX::TexMetadata meta{};
@@ -300,12 +305,30 @@ namespace GreyBuild
 
         DirectX::ScratchImage encoded;
         const DirectX::ScratchImage* out = &grey;
-        if (compressed) {
+        if (compressed && a_gpu && (format == DXGI_FORMAT_BC7_UNORM || format == DXGI_FORMAT_BC7_UNORM_SRGB)) {
+            std::string gpuWhy;
+            if (a_gpu->Encode(grey, static_cast<unsigned>(format), encoded, gpuWhy)) {
+                const auto check = CheckGpuOutput(grey, encoded);
+                if (check.ok) {
+                    result.gpu = true;
+                    result.gpuNote = fmt::format("worst subresource {} at {:.1f} dB, largest alpha difference {}", check.worstImage,
+                        check.worstPsnr, check.maxAlphaDiff);
+                    out = &encoded;
+                } else {
+                    a_gpu->NoteRejected();
+                    result.gpuNote = fmt::format("the GPU's result is over a limit ({}): encoded on the CPU", check.why);
+                    encoded.Release();
+                }
+            } else if (!gpuWhy.empty()) {
+                result.gpuNote = gpuWhy + ": encoded on the CPU";
+            }
+        }
+        if (compressed && !result.gpu) {
             // BC7_QUICK: mode 6 only, seconds instead of minutes for a large BC7; the other encoders ignore it
             const auto flags = static_cast<DirectX::TEX_COMPRESS_FLAGS>(DirectX::TEX_COMPRESS_DEFAULT | DirectX::TEX_COMPRESS_BC7_QUICK |
                                                                         DirectX::TEX_COMPRESS_PARALLEL);
             if (const HRESULT hr = DirectX::Compress(grey.GetImages(), grey.GetImageCount(), grey.GetMetadata(), format, flags,
-                    DirectX::TEX_THRESHOLD_DEFAULT, encoded);
+                    kCpuEncodeThreshold, encoded);
                 FAILED(hr)) {
                 return Fail(result, fmt::format("encoding {} failed: {}", result.format, HrText(hr)), IsTransientResult(hr));
             }

@@ -447,6 +447,7 @@ namespace GreyBuild
             SelfTest::CheckSlotsAndProgress(check, dir);
             SelfTest::CheckKeyed(check, dir, source);
             SelfTest::CheckGolden(check, dir, golden, a_options.goldenRequired);
+            SelfTest::CheckGpu(check, dir, golden);
         } catch (const std::exception& e) {
             check.Check(false, fmt::format("exception: {}", e.what()));
         }

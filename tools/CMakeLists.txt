@@ -163,10 +163,12 @@ target_link_libraries(tree-save-check PRIVATE
 # the grey ADDN indices. nifly (GPL-3.0) is linked here only - never into a DLL.
 
 find_package(nifly CONFIG REQUIRED)
-# DirectXTex (MIT): the texture copies (GreyTexture.cpp) decode, recolour and encode DDS files; linked here only
+# DirectXTex (MIT): the texture copies (GreyTexture.cpp) decode, recolour and encode DDS files; linked here only. Its
+# dx11 feature (vcpkg.json) adds the DirectCompute BC6H/BC7 encoder the builder uses for BC7 targets (GreyGpuEncoder.h)
 find_package(directxtex CONFIG REQUIRED)
 
-set(BLACKFLAME_IDENTITY_DIR "${CMAKE_CURRENT_BINARY_DIR}/blackflame-greybuild-identity")
+# One folder per configuration: a Debug and a Release build at the same time each embed their own identity
+set(BLACKFLAME_IDENTITY_DIR "${CMAKE_CURRENT_BINARY_DIR}/blackflame-greybuild-identity/$<CONFIG>")
 
 add_executable(blackflame-greybuild
     blackflame-greybuild/main.cpp
@@ -212,6 +214,9 @@ add_executable(blackflame-greybuild
     # Output identity (CopyContractKeys.h kBuilderOutputVersion) and its golden-output test
     blackflame-greybuild/GreySelfTestGolden.cpp
     blackflame-greybuild/GreyGoldenFixtures.cpp
+    # BC7 on the GPU (DirectXTex's dx11 feature) with its guards, and their self-test
+    blackflame-greybuild/GreyGpuEncoder.cpp
+    blackflame-greybuild/GreySelfTestGpu.cpp
     ${BLACKFLAME_IDENTITY_DIR}/GreyIdentity.rc
 )
 
@@ -226,7 +231,6 @@ add_custom_target(blackflame-greybuild-identity
     COMMENT "Black Flame builder: output identity"
     VERBATIM
 )
-set_source_files_properties(${BLACKFLAME_IDENTITY_DIR}/GreyIdentity.rc PROPERTIES GENERATED TRUE)
 add_dependencies(blackflame-greybuild blackflame-greybuild-identity)
 target_include_directories(blackflame-greybuild PRIVATE ${BLACKFLAME_IDENTITY_DIR})
 
@@ -258,10 +262,13 @@ target_compile_definitions(blackflame-greybuild PRIVATE
 find_package(fmt CONFIG REQUIRED)
 set_target_properties(blackflame-greybuild PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 
-# shell32 / ole32: SHGetKnownFolderPath and CoTaskMemFree (--from-game finds Documents); Windows SDK, no new package
+# shell32 / ole32: SHGetKnownFolderPath and CoTaskMemFree (--from-game finds Documents); d3d11 / dxgi: the GPU BC7
+# encoder's device and adapter (GreyGpuEncoder.cpp). Windows SDK, no new package; the builder only, never a DLL
 target_link_libraries(blackflame-greybuild PRIVATE
     shell32
     ole32
+    d3d11
+    dxgi
     nifly
     Microsoft::DirectXTex
     fmt::fmt

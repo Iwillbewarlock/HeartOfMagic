@@ -469,7 +469,10 @@ start the game once to the main menu with this release (the DLL then dumps the t
 - **Recolour** (DirectXTex, MIT, linked into the builder only): decode (BCn to 8-bit RGBA in the source's colour space, so
   sRGB stays sRGB), each pixel set to its Rec. 709 luminance (the builder's own `Luminance`) x the role's tint, alpha kept,
   encoded again in the **source format** (BC1/BC2/BC3/BC7 or the uncompressed format; BC7 with `TEX_COMPRESS_BC7_QUICK`)
-  with the same size, mip count and array size. Tints: diffuse = the run's `--tint` (default 0.6; lighting shaders are
+  with the same size, mip count and array size. In key mode a BC7 target (BC7_UNORM, BC7_UNORM_SRGB) goes to the GPU
+  first (DirectXTex's DirectCompute encoder, "GPU BC7 encode" below); its result is decoded and checked on every
+  subresource, and anything over a limit, a refusal or a failure is encoded on the CPU from the same grey image. The other
+  routes (`--from-game --out`, `--forms`) encode on the CPU only. Tints: diffuse = the run's `--tint` (default 0.6; lighting shaders are
   otherwise left alone, so the diffuse carries the darkening), glow `kTextureTintGlow` 1.0 (a brightness mask), effect
   source `kTextureTintEffect` 1.0 (the base colour already carries the tint). HDR (BC6H), float, typeless, planar,
   palettized and video formats are refused with a reason (a float texture is not clamped).
@@ -941,10 +944,13 @@ could not delete) counts as not there.
 the exe's hash, so a builder rebuilt from the same committed sources keys every object as before, and a mod update that
 does not change the builder's output rebuilds nothing. `tools/blackflame-greybuild/GreyIdentity.cmake` writes the
 identity at build time (a custom target the builder depends on; it rewrites its two files, the builder's
-`GreyIdentityText.h` and the RCDATA `GreyIdentity.rc`, only when the text changes): `<n>` = `kBuilderOutputVersion` when
-the build is not Debug and the output-affecting sources (`tools/blackflame-greybuild/**` with the golden fixtures,
-`plugins/BlackFlame/src/CopyContract*.h`, `DataPathRule.h`, `tools/CMakeLists.txt`, `vcpkg.json`,
-`vcpkg-configuration.json`) are git HEAD's; else `<n>+dev<16 hex>` (Debug, a modified, staged or untracked source, or git
+`GreyIdentityText.h` and the RCDATA `GreyIdentity.rc`, only when the text changes, in a folder per configuration -
+`build/tools/blackflame-greybuild-identity/<config>/` - so a Debug and a Release build at once each embed their own):
+`<n>` = `kBuilderOutputVersion` when the build is not Debug and the output-affecting sources
+(`tools/blackflame-greybuild/**` with the golden fixtures, `plugins/BlackFlame/src/CopyContract*.h`, `DataPathRule.h`,
+and what sets the builder's compile options and libraries: `tools/CMakeLists.txt`, the root `CMakeLists.txt`,
+`plugins/cmake/*.cmake`, `CMakePresets.json`, `vcpkg.json`, `vcpkg-configuration.json`; only the folder pattern recurses)
+are git HEAD's; else `<n>+dev<16 hex>` (Debug, a modified, staged or untracked source, or git
 not there), the hex the first 16 digits of a SHA-256 over those files (not FNV-1a: a CMake script has no unsigned 64-bit
 arithmetic). A dev build so gets keys of its own and never writes into a release's. The release identity is a promise
 that the output did not change, kept by hand (bump `kBuilderOutputVersion` whenever any output byte or progress line
@@ -952,11 +958,14 @@ changes) and checked by the golden test in `--self-test` (`GreySelfTestGolden.cp
 `blackflame-greybuild` on every build of it (`GreySelfTestGate.cmake`: the whole `--self-test`, about 3 s, its output in
 `build/tools/Release/blackflame-greybuild-selftest.log`, the summary and FAIL lines in the build output); a failure fails
 the build and moves the exe to `blackflame-greybuild.gate-failed.exe`, which still runs `--print-golden`. The test runs the
-key mode with the release identity and the CPU encoder on committed inputs (`tools/blackflame-greybuild/golden/input`,
+key mode with the release identity and the CPU encoder forced (`GpuUse::kOff`, checked: no crash marker in its staging;
+GPU bytes are not fixed, guard 5 checks the GPU by tolerance) on committed inputs (`tools/blackflame-greybuild/golden/input`,
 about 180 KB, written once by `--make-golden-fixtures`): BC7, sRGB BC7, BC3, BC1, B8G8R8A8, a 16 x 4 BC7 down to 1 x 1,
 an already grey BC1, a B8G8R8A8 texture one step to either side of `kGreyscaleChroma`, `kColouredShare`,
 `kStatColouredFrac` and `kStatMeanSat` (each checked to land on its side), a BC5, a palette shader NIF, glow shapes and a
-glow map shader, an MPS with AddOnNode 9 and a TXST. It compares every output file's size and fnv64, every progress
+glow map shader, an MPS with AddOnNode 9, a TXST, and an additive palette shader on a B8G8R8A8_UNORM_SRGB source palette
+(the derived palette's sRGB branch; checked to come out sRGB; added to version 1 before its release, every earlier row
+unchanged). It compares every output file's size and fnv64, every progress
 line's kind, key, outcome and deps (not its reason) and a digest of the output-affecting constants the headers expose
 (hex-float text, `DIRECTX_TEX_VERSION`, the DirectXTex and nifly vcpkg port versions) with the table of that version in
 `GreyGoldenTable.h`; a difference fails with "bump kBuilderOutputVersion in CopyContractKeys.h and regenerate the table
@@ -1046,17 +1055,51 @@ only while its `cap` field is not below this run's (the cap is no part of the ke
 is the builder's cache: the DLL's copy worker must copy into Data, never move, or every start rebuilds.
 
 **Memory** (`GreyBudget.h`): before a texture is recoloured its peak is estimated from the DDS header (the decoded RGBA
-chain x 5: RecolourDds holds the source, the decoded chain, the pixel copy for the risk measure, the grey chain and the
-encoded chain at once); before the glow rules or a palette read one, the read's own peak (the file and mip 0 decoded x 2).
-Too large alone: `too_large`. The system's available commit (commit limit - commit total, not the job's own remainder)
-under `--commit-reserve` (default 4096 MiB) plus the estimate: the builder waits, a line a minute, at most 30 minutes.
-The process's committed bytes plus the estimate over `--job-memory` (default 1536 MiB, the job object's cap the DLL
-sets): before a recolour the texture cache the glow rules keep is cleared once and it is measured again (never during the
-glow rules' reads, while a texture of that cache is in use); still over: `failed`. The cache is also cleared between
-objects past 256 MiB. One worker builds one object at a time (the texture, palette and progress state is not
-thread-safe), so `TEX_COMPRESS_PARALLEL` is only used with one worker; the DirectXTex the builder links has no OpenMP
-(vcpkg `directxtex` without default features, the exe imports no vcomp), so there are no OpenMP threads to cap. The
-process runs at `BELOW_NORMAL_PRIORITY_CLASS`.
+chain x 5: RecolourDds holds the source, the decoded chain, the risk check's copy of mip 0, the grey chain and the
+encoded chain at once, plus, for a GPU result, one decoded subresource for its check); before the glow rules or a palette
+read one, the read's own peak (the file and mip 0 decoded x 2).
+Too large alone: `too_large` (the estimate alone: the GPU device never makes one). The system's available commit (commit
+limit - commit total, not the job's own remainder) under `--commit-reserve` (default 4096 MiB) plus the estimate: the
+builder waits, a line a minute, at most 30 minutes. The process's committed bytes plus the estimate over `--job-memory`
+(default 1536 MiB, the job object's cap the DLL sets): a GPU device the run holds is released with the texture cache, else
+before a recolour the texture cache the glow rules keep is cleared once (never during the glow rules' reads, while a
+texture of that cache is in use), and it is measured again; still over: `failed` (retryable). The cache is also cleared
+between objects past 256 MiB. One worker builds one object at a time (the texture, palette and progress state is not
+thread-safe). Inside an object OpenMP runs on every logical CPU: vcpkg's DirectXTex links OpenMP, so the builder is built
+with `/openmp` and imports `vcomp140.dll`; `TEX_COMPRESS_PARALLEL` (the CPU encoder) and `ComputeStats`'s row loops use
+it. The process runs at `BELOW_NORMAL_PRIORITY_CLASS`.
+
+**GPU BC7 encode** (`GreyGpuEncoder.h`, proposal Step 1, 2026-10-18; DirectXTex's `dx11` feature, `d3d11` and `dxgi`
+from the Windows SDK, the builder only). In key mode a BC7 target is encoded by DirectXTex's DirectCompute encoder
+(`DEFAULT | BC7_QUICK`, alpha weight 1.0; the CPU overload's float in the same place is BC1's threshold 0.5) when:
+- an adapter: `IDXGIFactory6::EnumAdapterByGpuPreference(HIGH_PERFORMANCE)` (else `EnumAdapters1`), the first that is not
+  a software adapter, logged once at the start (`GPU   adapter <description> (vendor, device, driver <version>), LUID,
+  dedicated memory`); none: the CPU;
+- a device: `D3D11CreateDevice` on that adapter (`D3D_DRIVER_TYPE_UNKNOWN`, feature level 11_0), made at the first BC7
+  texture only while the job memory cap minus the process's committed bytes is at least 448 MiB (`kGpuDeviceShareBytes`:
+  the GPU path's peak addition on the real request, 979 MiB against 563 MiB forced to the CPU, one exe); `SetGPUThreadPriority(-7)` (whether WDDM honours it is not known). It is released, with its
+  context, at the first failure (the rest of the run is CPU), before an object would fail over the cap (made again later
+  when there is room), and for the rest of the run on the throttle event;
+- the crash guard allows it: `staging\gpu.inflight` (`<strikes>` and the adapter) exists only while device creation or a
+  GPU encode runs; a start that finds it keeps the GPU and carries the strike, a marker of strike 2 (two starts in a row
+  ended inside a GPU call) writes `staging\gpu.disabled` (adapter with its driver version, output identity) and from then
+  BC7 is encoded on the CPU; `gpu.disabled` is cleared only at a start whose adapter, driver or output identity differs. A
+  CPU run (`BLACKFLAME_GREYBUILD_GPU=off`, or the golden test) neither reads nor writes either file. The DLL never walks
+  staging (it copies what progress lines name), so the two files reach nothing else.
+- Output check (`CheckGpuOutput`): the result is decoded one subresource at a time and compared with the grey image:
+  every subresource at 24 dB PSNR or more (all four channels) and no texel's alpha off by more than 96 steps. The real run-2
+  request's 52 BC7 textures gave 30.1 dB at worst (mostly on small mips; mip 0 at 37.6 or more) and 50 steps of alpha on
+  this machine (RTX 3070 Laptop, driver 32.0.16.1664). Over a limit: that texture is encoded on the CPU and a `GPU   CPU`
+  line says why; a passed one gets a `GPU   BC7` line with its worst subresource. A small local defect under the limits is
+  not caught. The run ends with a `gpu    ...` line (textures on the GPU, refused by the check, devices made, memory
+  releases). GPU bytes are not the CPU's and can change with the driver: same key, other bytes is the stated limit of
+  proposal 3.1 (a rebuild of an object whose staging file is gone).
+
+**Throttle** (`plugins/BlackFlame/src/BuilderSignal.h`): with `--parent-pid <pid>` the builder opens the named,
+manual-reset event `Local\HoMBlackFlame_Throttle_<pid>` (SYNCHRONIZE only; not there: never throttled, one `THROTTLE`
+line) and reads it between objects. Once the DLL sets it (after the publish window closes; the DLL side is separate
+work), the GPU device is released for the rest of the run and OpenMP drops to one thread (`omp_set_num_threads(1)`),
+logged once.
 
 **Order**: objects whose NIF names no texture the rule recolours (that the dump has) first, MPS before the rest, then by
 the texture estimate. The visual-risk check does not run in key mode (it is the dev mode's report).
@@ -1064,7 +1107,8 @@ the texture estimate. The visual-risk check does not run in key mode (it is the 
 **`--parent-pid <pid>`**: a thread waits on that process; when it ends the run stops after the object in hand (exit 3)
 and is terminated 30 s later if it is still going. A pid that names no process stops the run at once (exit 3); one that
 does not open for another reason is exit 1. Known limit: a pid Windows gave to another process before the builder opened
-it is watched instead (the job object's kill-on-close is the first guard).
+it is watched instead (the job object's kill-on-close is the first guard). The same pid names the throttle event
+("Throttle" above).
 
 Exit codes: 0 every object got a line (whatever its outcome), 1 the run could not go on (staging, the key prefix, a line
 not written), 2 bad arguments or a request that is not version 5, 3 the parent is gone.
@@ -1076,8 +1120,14 @@ the progress file (compaction, append, reuse, a changed file not reused, temp fi
 `IsTransientResult`, `VerifyKeyPrefix` and the palettes' notdumped state, and key runs on made-up NIFs and DDS files
 (outcomes, CopyPath files with their fnv64, deps, order, the AddOnNode remap, a second run reusing everything, a changed
 copy rebuilt to the same bytes, a tiny cap, a missing palette and a BC5 decal, a texture outside the dump caps, refused
-requests and prefixes, the CLI refusals, and `--from-game --out` on the same v5 request). Not checked: a request written
-by the game (P2), the job object's own limit, a real pause for commit, a transient read failure.
+requests and prefixes, the CLI refusals, and `--from-game --out` on the same v5 request); the GPU encoder's guards (the
+crash marker: fresh, one marker, two starts in a row, another driver or output identity, a CPU run leaving both files; the
+output check: a good result, one texel's alpha off, a zeroed mip, alpha lost, another mip count; the device released
+before an over-cap failure, none to release, too large untouched; the throttle event absent, unset, set) and guard 5
+(with a hardware device: the BC7, sRGB BC7 and 16 x 4 BC7 fixtures on the GPU against the CPU's result - format, mips,
+size, the check's limits; without one an INFO line). Not checked: a request written by the game (P2), the job object's
+own limit, a real pause for commit, a transient read failure, a driver that kills the process or resets (TDR), another
+GPU, an iGPU-only machine, the throttle event set by the real DLL.
 
 
 ### Single launch: the DLL side (P2): `SingleLaunch.h`

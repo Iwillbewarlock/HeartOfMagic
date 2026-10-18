@@ -33,6 +33,7 @@ namespace nifly
 namespace GreyBuild
 {
     class KeyedOutputs;  // GreyKeyed.h
+    class GpuEncoder;    // GreyGpuEncoder.h
 
     inline constexpr const char* kTexturesRoot = "textures\\";
     // Every texture copy lives here (a NIF slot names it with textures\ in front, as kPalettePath does)
@@ -116,6 +117,8 @@ namespace GreyBuild
         std::size_t mips = 0;
         std::uint64_t bytes = 0;  // kRecoloured: the copy's file size
         bool transient = false;   // kFailed by an I/O error or out of memory (the same bytes may work later), not the texture
+        bool gpu = false;         // kRecoloured: encoded on the GPU (GreyGpuEncoder.h), its output check passed
+        std::string gpuNote;      // the GPU's part for a BC7 target it was given: its check's figures, or why the CPU encoded it
     };
 
     /// An HRESULT that says the machine, not the file, failed (out of memory, a file locked, gone, unreadable or a full disk):
@@ -131,8 +134,10 @@ namespace GreyBuild
     /// An already grey texture is left (kGreyscale, nothing written) at a tint of 1 only; at another tint it is copied
     /// darkened like any other (U7: the diffuse carries --tint). A one-channel format is left at any tint. Float and HDR
     /// formats are refused, not clamped. Never writes a_source.
+    /// a_gpu (key mode; null: the CPU only): a BC7 target goes to it first and its result through CheckGpuOutput; a
+    /// refusal, a failure or a result over a limit is encoded on the CPU from the same grey image (never a failure)
     [[nodiscard]] RecolourResult RecolourDds(const std::filesystem::path& a_source, const std::filesystem::path& a_target,
-        float a_tint);
+        float a_tint, GpuEncoder* a_gpu = nullptr);
 
     struct TextureTotals
     {
@@ -173,6 +178,7 @@ namespace GreyBuild
         std::map<std::string, PathState> paths;  // by TextureDataPath
         TextureTotals totals;
         KeyedOutputs* keyed = nullptr;  // key mode: each texture copy at copies\<key16>\ with its progress line (GreyKeyed.h)
+        GpuEncoder* gpu = nullptr;      // key mode: the BC7 targets' GPU encoder (null: the CPU only)
     };
 
     /// One slot (a NIF slot, or a TXST copy's TX00 / TX03, GreyFormsTxst.h): its texture recoloured with a_role's tint the

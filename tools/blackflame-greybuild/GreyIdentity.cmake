@@ -7,8 +7,11 @@
 #                       untracked), or one where git cannot tell: <16 hex> is a digest of those sources
 # Output-affecting sources: tools/blackflame-greybuild/** (this script, the golden fixtures included), the contract
 # headers the builder compiles (plugins/BlackFlame/src/CopyContract*.h, DataPathRule.h), and what picks its compiler
-# flags and library versions (tools/CMakeLists.txt, vcpkg.json, vcpkg-configuration.json). Over-inclusion only gives a
-# dev build its own keys (a rebuild), never a release key for other output.
+# flags and library versions: tools/CMakeLists.txt (its target), the root CMakeLists.txt and plugins/cmake/*.cmake
+# (CompilerFlags.cmake appends /GL, /EHa, /Gw ... to every target's flags), CMakePresets.json (the base flags, the
+# standard, the runtime and the triplet), vcpkg.json and vcpkg-configuration.json (the library versions and features;
+# /openmp reaches the builder through DirectXTex's OpenMP dependency). Over-inclusion only gives a dev build its own keys
+# (a rebuild), never a release key for other output.
 # Digest: SHA-256 of "<path>\t<SHA-256 of its bytes>\n" over those files in sorted path order, its first 16 hex digits.
 # Not FNV-1a 64: a CMake script has no unsigned 64-bit arithmetic and a byte loop over the sources takes minutes; the
 # digest only has to tell two source states apart, the DLL copies it verbatim.
@@ -37,6 +40,9 @@ set(source_globs
     "plugins/BlackFlame/src/CopyContract*.h"
     "plugins/BlackFlame/src/DataPathRule.h"
     "tools/CMakeLists.txt"
+    "CMakeLists.txt"
+    "plugins/cmake/*.cmake"
+    "CMakePresets.json"
     "vcpkg.json"
     "vcpkg-configuration.json")
 
@@ -71,7 +77,13 @@ if(dev_why STREQUAL "")
 else()
     set(files "")
     foreach(pattern IN LISTS source_globs)
-        file(GLOB_RECURSE matched LIST_DIRECTORIES false RELATIVE "${ROOT}" "${ROOT}/${pattern}")
+        # Only a folder pattern ("<folder>/*") recurses: GLOB_RECURSE on "CMakeLists.txt" or "vcpkg.json" would also take
+        # every file of that name below ROOT (plugins/external, build/ scratch), as git status's pathspecs do not
+        if(pattern MATCHES "/\\*$")
+            file(GLOB_RECURSE matched LIST_DIRECTORIES false RELATIVE "${ROOT}" "${ROOT}/${pattern}")
+        else()
+            file(GLOB matched LIST_DIRECTORIES false RELATIVE "${ROOT}" "${ROOT}/${pattern}")
+        endif()
         list(APPEND files ${matched})
     endforeach()
     list(REMOVE_DUPLICATES files)

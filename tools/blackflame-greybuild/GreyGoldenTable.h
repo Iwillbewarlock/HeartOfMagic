@@ -13,7 +13,9 @@
 namespace GreyBuild::Golden
 {
     // ---- version 1: made 2026-10-18 on one machine (the first table; to be confirmed on a second machine
-    // before it is relied on as a gate)
+    // before it is relied on as a gate). Regenerated in place the same day, before version 1 was released, for the
+    // sRGB source palette fixture (GreyGolden.h kPaletteSrgb, kKeyPaletteSrgb): two files and two lines added, every
+    // earlier row and the constant digest unchanged
     // constants:
     //   kGreyscaleChroma=0x1.99999ap-5
     //   kLitFloor=0x1.99999ap-4
@@ -76,6 +78,7 @@ namespace GreyBuild::Golden
         { "meshes\\heartofmagic\\blackflame\\copies\\601d000000000003\\copy.nif", 1176, 0x9e279bab79dd71edull },
         { "meshes\\heartofmagic\\blackflame\\copies\\601d000000000004\\copy.nif", 2259, 0xc2258f3268cd5c8cull },
         { "meshes\\heartofmagic\\blackflame\\copies\\601d000000000006\\copy.nif", 697, 0xa36a9e8e9028df33ull },
+        { "meshes\\heartofmagic\\blackflame\\copies\\601d000000000007\\copy.nif", 608, 0x8e5872452912ead3ull },
         { "textures\\heartofmagic\\blackflame\\copies\\00968a124d75c834\\copy.dds", 5616, 0xba44603ee46bdfa3ull },
         { "textures\\heartofmagic\\blackflame\\copies\\1a2585f0a5cff507\\copy.dds", 4224, 0x676620e88d1c2a62ull },
         { "textures\\heartofmagic\\blackflame\\copies\\2314c43fbafec4cc\\copy.dds", 5616, 0x77a3dd431277a76full },
@@ -88,6 +91,7 @@ namespace GreyBuild::Golden
         { "textures\\heartofmagic\\blackflame\\copies\\a3278ff9b05297ce\\copy.dds", 5616, 0x77a3dd431277a76full },
         { "textures\\heartofmagic\\blackflame\\copies\\aac0eb7a5313f41b\\copy.dds", 5636, 0xdfaebdcd40dffc0aull },
         { "textures\\heartofmagic\\blackflame\\copies\\b30491fcec3e1aa1\\copy.dds", 21972, 0xc6197c51fcc575a6ull },
+        { "textures\\heartofmagic\\blackflame\\copies\\b9ffb04893f937fc\\palette.dds", 660, 0xf26c2e84a2d05f8dull },
         { "textures\\heartofmagic\\blackflame\\copies\\bdce7db14964ec14\\palette.dds", 16512, 0x1946a11c03863b79ull },
         { "textures\\heartofmagic\\blackflame\\copies\\e55f2e4bb75bfdff\\copy.dds", 2872, 0xc934bfb9c2b6fb82ull },
         { "textures\\heartofmagic\\blackflame\\copies\\ef695c0bd6368ba8\\copy.dds", 5636, 0xb10b5705e9cc4244ull },
@@ -105,6 +109,7 @@ namespace GreyBuild::Golden
         { "dds", "a3278ff9b05297ce", "ok", "" },
         { "dds", "aac0eb7a5313f41b", "ok", "" },
         { "dds", "b30491fcec3e1aa1", "ok", "" },
+        { "dds", "b9ffb04893f937fc", "ok", "" },
         { "dds", "bdce7db14964ec14", "ok", "" },
         { "dds", "e55f2e4bb75bfdff", "ok", "" },
         { "dds", "ef695c0bd6368ba8", "ok", "" },
@@ -113,6 +118,7 @@ namespace GreyBuild::Golden
         { "nif", "601d000000000002", "fallback", "" },
         { "nif", "601d000000000003", "ok", "textures\\heartofmagic\\blackflame\\copies\\a3278ff9b05297ce\\copy.dds@77a3dd431277a76f textures\\heartofmagic\\blackflame\\copies\\aac0eb7a5313f41b\\copy.dds@dfaebdcd40dffc0a textures\\heartofmagic\\blackflame\\copies\\e55f2e4bb75bfdff\\copy.dds@c934bfb9c2b6fb82" },
         { "nif", "601d000000000004", "fallback", "addn:40012 textures\\heartofmagic\\blackflame\\copies\\2314c43fbafec4cc\\copy.dds@77a3dd431277a76f textures\\heartofmagic\\blackflame\\copies\\7d74829f8362922a\\palette.dds@7611ee4bcc6a5079 textures\\heartofmagic\\blackflame\\copies\\bdce7db14964ec14\\palette.dds@1946a11c03863b79" },
+        { "nif", "601d000000000007", "ok", "textures\\heartofmagic\\blackflame\\copies\\b9ffb04893f937fc\\palette.dds@f26c2e84a2d05f8d" },
         { "txst", "601d000000000005", "ok", "textures\\heartofmagic\\blackflame\\copies\\00968a124d75c834\\copy.dds@ba44603ee46bdfa3 textures\\heartofmagic\\blackflame\\copies\\95d90c23f3e69c62\\copy.dds@c934bfb9c2b6fb82" },
     };
 

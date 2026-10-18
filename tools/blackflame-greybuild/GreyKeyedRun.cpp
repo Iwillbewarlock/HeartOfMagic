@@ -370,6 +370,16 @@ namespace GreyBuild
         TextureSource textureSource({ dump }, request.base.texturesNotDumped, a_options.staging);
         textureSource.SetListed(request.base.texturesDumped);
         Budget budget(a_options.jobMemory, a_options.commitReserve, &textureSource, watch.Flag(), a_options.memoryProbe);
+        // BC7 targets on the GPU when its guards allow (GreyGpuEncoder.h); its device goes first when a texture is over the cap
+        GpuEncoder gpu(a_options.gpu, a_options.staging, prefix->outputIdentity, a_options.jobMemory, a_options.memoryProbe);
+        gpu.Start();
+        budget.SetDeviceRelease([&gpu]() { return gpu.ReleaseForMemory(); });
+        // The DLL's throttle event (BuilderSignal.h): absent (a run by hand) means never throttled
+        ThrottleSignal throttle;
+        if (a_options.parentPid != 0 && !throttle.Open(a_options.parentPid)) {
+            std::cout << "THROTTLE no throttle event from the parent: this run is never throttled\n";
+        }
+        bool throttled = false;
         TextureJob textures;
         textures.inputs = { dump };
         textures.out = a_options.staging;
@@ -377,6 +387,7 @@ namespace GreyBuild
         textures.notDumped = request.base.texturesNotDumped;
         KeyedOutputs outputs(log, budget, *prefix, textures, request.base.texturesDumped, request.base.textureStates);
         textures.keyed = &outputs;
+        textures.gpu = &gpu;
         // The glow rules' and palettes' reads decode too: admitted like a recolour, without clearing the cache (a TextureLook
         // may be alive); too large or over the cap makes the object too_large or failed (Codex review 1)
         textureSource.SetReadGate([&](const std::filesystem::path& a_file, std::string& a_why) {
@@ -457,6 +468,13 @@ namespace GreyBuild
                 stopped = true;
                 break;
             }
+            if (!throttled && throttle.IsSet()) {
+                throttled = true;
+                gpu.Throttle();
+                OneOpenMpThread();
+                std::cout << "THROTTLE the publish window closed (the parent's event is set): the GPU device is released for the "
+                             "rest of the run and OpenMP runs on one thread\n";
+            }
             budget.BetweenObjects(spec.cost);
             auto line = BuildObject(spec, run);
             if (std::string why; !log.Broken() && !log.Append(line, why) && !log.Broken()) {
@@ -484,7 +502,7 @@ namespace GreyBuild
         const auto reads = textureSource.Counts();
         std::cout << fmt::format("reads  texture decodes {} of {} path(s); statistics answered without a decode {}\n", reads.decodes,
             reads.paths, reads.statsAnswers);
-        std::cout << TextureTotalsLine(textures.totals) << "\n" << PaletteTotalsLine(palettes) << "\n";
+        std::cout << TextureTotalsLine(textures.totals) << "\n" << PaletteTotalsLine(palettes) << "\n" << gpu.SummaryLine() << "\n";
         return stopped ? kExitParentGone : kOk;
     }
 }

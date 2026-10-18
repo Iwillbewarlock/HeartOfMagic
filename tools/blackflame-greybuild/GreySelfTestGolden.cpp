@@ -3,8 +3,9 @@
 // =============================================================================
 // The release identity "<n>" promises that every input's output is what version n made. This test holds the promise
 // for a fixed fixture (GreyGolden.h): its committed input files, a request written around them, the key mode run with
-// the release identity (so a dev build keys and compares the same bytes) and, today, the only encoder there is, the CPU
-// one (a GPU encoder added later must be off in this run). Compared with the table of kBuilderOutputVersion
+// the release identity (so a dev build keys and compares the same bytes) and the CPU encoder forced (GpuUse::kOff: the
+// GPU's BC7 bytes may change with the driver; guard 5, GreySelfTestGpu.cpp, checks the GPU by tolerance instead).
+// Compared with the table of kBuilderOutputVersion
 // (GreyGoldenTable.h): every output file's size and fnv64, every progress line's kind, key, outcome and deps (not its
 // reason), and a digest of the output-affecting constants. A difference with the same version fails with the
 // instruction to bump the version and add a table. The table was made on one machine (FMA3 off, RunSelfTest): it is to
@@ -55,6 +56,7 @@ namespace GreyBuild::SelfTest
         constexpr std::uint32_t kSlotTextures = 2048;  // PROJ slots
         constexpr std::uint32_t kSlotGlow = 2049;
         constexpr std::uint32_t kSlotPalette = 2050;
+        constexpr std::uint32_t kSlotPaletteSrgb = 2051;
         constexpr std::uint32_t kSlotTxst = 3744;      // a TXST slot
         constexpr std::uint32_t kSlotMps = 0xF0C;      // an ADDN slot: index 40012
         constexpr int kMpsIndex = 9;
@@ -212,8 +214,9 @@ namespace GreyBuild::SelfTest
             forms.push_back({ { "source", "Skyrim.esm|0A0004" }, { "type", "TXST" }, { "editorId", "GoldenDecal" }, { "model", "" },
                 { "bounds", { 0, 0, 0, 0, 0, 0 } }, { "data", { { "flags", 0 } } }, { "hasDecal", true }, { "textures", slots },
                 { "texturesRaw", raw }, { "viaSpell", "Skyrim.esm|0A0000" }, { "costliest", true }, { "slot", kSlotTxst } });
+            forms.push_back(Proj("Skyrim.esm|0A0005", kPaletteSrgbNif, "", kSlotPaletteSrgb, kKeyPaletteSrgb));
             nlohmann::json nifs = nlohmann::json::array();
-            for (const char* nif : { kTexturesNif, kBc5Nif, kGlowNif, kPaletteNif, kMpsNif }) {
+            for (const char* nif : { kTexturesNif, kBc5Nif, kGlowNif, kPaletteNif, kMpsNif, kPaletteSrgbNif }) {
                 nifs.push_back({ { "path", nif }, { "size", std::filesystem::file_size(a_data / nif) },
                     { "fnv64", CC::Hex16(Fnv(a_data / nif)) }, { "ok", true } });
             }
@@ -344,9 +347,38 @@ namespace GreyBuild::SelfTest
             options.commitReserve = 0;
             options.memoryProbe = []() { return std::optional<MemoryState>(MemoryState{ 0, UINT64_MAX }); };
             options.identityOverride = std::to_string(CC::kBuilderOutputVersion);
+            // The CPU encoder, whatever GPU the build machine has: the table holds bytes, and only the CPU's are fixed
+            // (GPU output can change with the driver). Explicit, though kOff is KeyedOptions' default
+            options.gpu = GpuUse::kOff;
             run.exit = RunKeyed(folder, options);
             run.seen = Observe(run.staging);
             return run;
+        }
+
+        /// The CPU encoder ran (no crash marker in staging), and the sRGB source palette's derived copy is sRGB (the
+        /// Desaturate branch that decodes to linear and back, GreyPalette.cpp, was reached)
+        void CheckCpuAndSrgb(Checker& a_check, const GoldenRun& a_run)
+        {
+            std::error_code ec;
+            a_check.Check(!std::filesystem::exists(a_run.staging / kGpuInflightFile, ec) && !std::filesystem::exists(a_run.staging / kGpuDisabledFile, ec),
+                "golden: the run used the CPU encoder only (GpuUse::kOff: no gpu.inflight or gpu.disabled in staging)");
+            const auto line = a_run.seen.lines.find(fmt::format("nif {}", CC::Hex16(kKeyPaletteSrgb)));
+            std::string palette;
+            if (line != a_run.seen.lines.end()) {
+                std::istringstream deps(line->second.substr(line->second.find(" | ") + 3));
+                for (std::string dep; deps >> dep;) {
+                    if (const auto at = dep.find("palette.dds@"); at != std::string::npos) {
+                        palette = dep.substr(0, at + std::char_traits<char>::length("palette.dds"));
+                    }
+                }
+            }
+            DirectX::TexMetadata meta{};
+            const bool read = !palette.empty() &&
+                              SUCCEEDED(DirectX::GetMetadataFromDDSFile((a_run.staging / std::filesystem::path(palette)).c_str(),
+                                  DirectX::DDS_FLAGS_NONE, meta));
+            a_check.Check(read && meta.format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
+                fmt::format("golden: the additive shader on the sRGB source palette got a derived palette stored sRGB ({}, format {})",
+                    palette.empty() ? std::string("no palette dep") : palette, read ? static_cast<int>(meta.format) : -1));
         }
 
         void CheckIdentity(Checker& a_check)
@@ -456,6 +488,7 @@ namespace GreyBuild::SelfTest
                 fmt::format("golden: the key mode ran the fixture (exit {}; {} files, {} lines; the textures NIF has {} texture copies, "
                             "{} expected: the under-threshold and grey ones none)", run.exit, run.seen.files.size(), run.seen.lines.size(),
                     run.seen.texturesCopies, kTexturesNifCopies));
+            CheckCpuAndSrgb(a_check, run);
             const auto* table = FindTable(CC::kBuilderOutputVersion);
             if (!table) {
                 a_check.Check(false, fmt::format("golden: no table for output version {} in GreyGoldenTable.h: add the one "

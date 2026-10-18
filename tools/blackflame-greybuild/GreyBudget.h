@@ -5,22 +5,27 @@
 // =============================================================================
 // The DLL runs the builder in a job object whose JOB_OBJECT_LIMIT_JOB_MEMORY is the cap (--job-memory, default 1.5 GiB;
 // the same value both sides). Before a texture is recoloured its peak is estimated from the DDS header: the decoded
-// RGBA chain x kEncoderImages (RecolourDds holds the source, the decoded chain, the ReadRgba copy, the grey chain and the
-// encoded chain at once, GreyTexture.cpp:207-276). Then (Admit):
-//   - the estimate alone over the cap: too_large, terminal for that texture's key while the cap stays;
+// RGBA chain x kEncoderImages. RecolourDds (GreyTexture.cpp:227-360) holds at once the source (BCn: a quarter to an
+// eighth of that), the decoded chain, the risk check's RGBA copy of mip 0, the grey chain and the encoded chain; a BC7
+// target encoded on the GPU adds, one subresource at a time, the output check's decode (at most mip 0's RGBA), and the
+// GPU device's own commit (GreyGpuEncoder.h kGpuDeviceShareBytes) is in PrivateUsage once it is made. Then (Admit):
+//   - the estimate alone over the cap: too_large, terminal for that texture's key while the cap stays (never because of
+//     the GPU device: it is not in the estimate);
 //   - the system's available commit (GetPerformanceInfo: commit limit - commit total, not the job's own remainder) under
 //     the reserve (--commit-reserve, default 4 GiB) plus the estimate: the builder waits (kPauseStepMs steps) - the game
 //     keeps its commit;
-//   - the process's committed bytes (PrivateUsage, what the job limit counts) plus the estimate over the cap: the
-//     texture cache (TextureSource, decoded mip 0 images the glow rules keep) is cleared once and it is measured again;
-//     still over: that object fails (retryable).
+//   - the process's committed bytes (PrivateUsage, what the job limit counts) plus the estimate over the cap: a GPU
+//     device the run holds is released with the texture cache (SetDeviceRelease), else the texture cache (TextureSource,
+//     decoded mip 0 images the glow rules keep) is cleared once, and it is measured again; still over: that object fails
+//     (retryable).
 // The cache is also cleared between objects once it holds over kTextureCacheKeepBytes. Clearing happens only where no
 // TextureLook is alive: between objects, and inside a texture slot's recolour (the glow rules are done by then).
 // One worker: objects are built one at a time (TextureJob, PaletteJob, TextureSource and the progress log are not
-// thread-safe), so TEX_COMPRESS_PARALLEL in RecolourDds is only ever used with one worker. The DirectXTex this build links
-// has no OpenMP (vcpkg "directxtex" with default-features false; the exe imports no vcomp), so PARALLEL runs on one thread
-// and there are no OpenMP threads to cap. Upgrade path for more workers: a lock round those four, then cap the workers at
-// min(cores / 2 - 1, cap / the largest estimate).
+// thread-safe). Inside one object OpenMP runs: the DirectXTex this build links has it (vcpkg "directxtex" links
+// OpenMP::OpenMP_CXX, so the builder is compiled with /openmp and the exe imports VCOMP140.DLL), so TEX_COMPRESS_PARALLEL
+// in RecolourDds's CPU encode and ComputeStats's row loops (GreyTexStats.cpp) use every logical CPU. After the throttle
+// event (ThrottleSignal) OneOpenMpThread caps them at one thread. Upgrade path for more workers: a lock round those four,
+// one GPU submitter, then cap the workers at min(cores / 2 - 1, cap / the largest estimate).
 
 #include <atomic>
 #include <cstdint>
@@ -98,9 +103,14 @@ namespace GreyBuild
         /// object's texture estimate a_nextCost would not fit the cap together (OCR review 6)
         void BetweenObjects(std::uint64_t a_nextCost = 0);
 
+        /// Over the cap, before an object fails: a_release frees a GPU device the run holds (true when one was held and
+        /// is now released; GreyGpuEncoder.h) and the texture cache is cleared with it, then it is measured again
+        void SetDeviceRelease(std::function<bool()> a_release) { m_releaseDevice = std::move(a_release); }
+
         [[nodiscard]] std::uint64_t Cap() const noexcept { return m_cap; }
         [[nodiscard]] int Pauses() const noexcept { return m_pauses; }
         [[nodiscard]] int Evictions() const noexcept { return m_evictions; }
+        [[nodiscard]] int DeviceReleases() const noexcept { return m_deviceReleases; }
 
     private:
         std::uint64_t m_cap;
@@ -109,13 +119,39 @@ namespace GreyBuild
         const std::atomic<bool>* m_stop;
         MemoryProbe m_probe;
         Sleeper m_sleep;
+        std::function<bool()> m_releaseDevice;
         int m_pauses = 0;
+        int m_deviceReleases = 0;
         int m_evictions = 0;
         unsigned m_pausedSteps = 0;  // every wait step of the run (kMaxRunPauseSteps)
     };
 
     /// BELOW_NORMAL_PRIORITY_CLASS (no background mode: it would also lower I/O and memory priority)
     void LowerOwnPriority();
+
+    /// Every later OpenMP parallel region of this process on one thread (omp_set_num_threads(1) on the thread that runs
+    /// them: the object loop's; vcomp140 is process-wide, so DirectXTex's PARALLEL encoder and ComputeStats both follow)
+    void OneOpenMpThread();
+
+    /// The DLL's throttle event (plugins/BlackFlame/src/BuilderSignal.h), opened with SYNCHRONIZE and read between objects
+    class ThrottleSignal
+    {
+    public:
+        ThrottleSignal() = default;
+        ~ThrottleSignal();
+        ThrottleSignal(const ThrottleSignal&) = delete;
+        ThrottleSignal& operator=(const ThrottleSignal&) = delete;
+
+        /// Local\HoMBlackFlame_Throttle_<a_parentPid>; false when there is none (the run is never throttled: a run by hand,
+        /// or a DLL without the event)
+        [[nodiscard]] bool Open(std::uint32_t a_parentPid);
+        [[nodiscard]] bool Opened() const noexcept { return m_event != nullptr; }
+        /// true while the event is set (manual reset: once the DLL sets it, it stays set)
+        [[nodiscard]] bool IsSet() const noexcept;
+
+    private:
+        void* m_event = nullptr;  // HANDLE
+    };
 
     /// --parent-pid: a thread waits on the parent; when it ends, Gone() turns true (the run stops after the object in
     /// hand) and, should the run still be going kParentGraceMs later, the process exits with kExitParentGone. Known limit:

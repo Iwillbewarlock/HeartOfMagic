@@ -386,6 +386,8 @@ namespace
         keyed.jobMemory = a_options.jobMemoryMiB * GreyBuild::kBytesPerMiB;
         keyed.commitReserve = a_options.commitReserveMiB * GreyBuild::kBytesPerMiB;
         keyed.parentPid = a_options.parentPid;
+        // the GPU for BC7 targets (GreyGpuEncoder.h); BLACKFLAME_GREYBUILD_GPU=off forces the CPU (tests only)
+        keyed.gpu = GreyBuild::GpuUseFromEnvironment(GreyBuild::GpuUse::kAuto);
         try {
             return GreyBuild::RunKeyed(a_options.fromGameDir, keyed);
         } catch (const std::exception& e) {

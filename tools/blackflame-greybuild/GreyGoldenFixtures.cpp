@@ -4,9 +4,12 @@
 // Run once to make <dir>\input; the files are then committed (tools\blackflame-greybuild\golden\input) and the test
 // only reads them, so a change to the library under test cannot quietly change its own inputs. Textures: the self-test's
 // 64 x 64 orange / grey ones with a full mip chain (WriteTestTexture) in BC7, sRGB BC7, BC3, BC1, B8G8R8A8 and BC5, a
-// 16 x 4 BC7 down to 1 x 1, and small B8G8R8A8 ones on either side of each colour threshold (exact 8-bit values).
+// 16 x 4 BC7 down to 1 x 1, small B8G8R8A8 ones on either side of each colour threshold (exact 8-bit values), and a
+// B8G8R8A8_UNORM_SRGB source palette (exact stored bytes, no conversion).
 // NIFs: one lighting diffuse and effect shaders on every texture, a two-channel source, glow shapes, the self-test's
-// palette source (MakeSourceNif) and an MPS with AddOnNode 9.
+// palette source (MakeSourceNif), an MPS with AddOnNode 9 and an additive palette shader on the sRGB palette.
+// The sRGB palette and its NIF were added to version 1's fixtures before that version was released (2026-10-18): they
+// were written by this code into a fresh folder and copied in, every other input file kept as committed.
 
 #ifndef WIN32_LEAN_AND_MEAN
 #    define WIN32_LEAN_AND_MEAN
@@ -61,6 +64,8 @@ namespace GreyBuild
         constexpr std::uint16_t kAlphaNormal = 0x12ED;    // blending on, SRC_ALPHA -> INV_SRC_ALPHA, alpha test
         constexpr std::uint16_t kAlphaAdditive = 0x000D;  // blending on, SRC_ALPHA -> ONE
         constexpr int kMpsAddon = 9;
+        constexpr std::size_t kSrgbPaletteWidth = 32;   // the sRGB source palette: an orange ramp along u, alpha down u and v
+        constexpr std::size_t kSrgbPaletteHeight = 4;
         const nifly::Color4 kWarm{ 1.0f, 0.5f, 0.2f, 1.0f };
         const nifly::Vector3 kOrangeEmissive{ 1.0f, 0.5f, 0.0f };
 
@@ -110,6 +115,31 @@ namespace GreyBuild
             return [=](std::size_t a_x, std::size_t a_y) { return a_y * a_width + a_x < a_count ? a_some : a_rest; };
         }
 
+        /// One mip of B8G8R8A8_UNORM_SRGB whose stored bytes are a_at's values as given (no Convert: that would apply
+        /// the sRGB curve to them)
+        void WriteStoredSrgb(const std::filesystem::path& a_file, std::size_t a_width, std::size_t a_height, const TexelAt& a_at)
+        {
+            DirectX::ScratchImage image;
+            if (FAILED(image.Initialize2D(DXGI_FORMAT_B8G8R8A8_UNORM_SRGB, a_width, a_height, 1, 1))) {
+                Fail(PathText(a_file) + ": no image");
+            }
+            const DirectX::Image& target = *image.GetImage(0, 0, 0);
+            for (std::size_t y = 0; y < a_height; ++y) {
+                for (std::size_t x = 0; x < a_width; ++x) {
+                    const Texel texel = a_at(x, y);
+                    std::uint8_t* to = target.pixels + y * target.rowPitch + x * 4;
+                    to[0] = texel[2];  // B, G, R, A
+                    to[1] = texel[1];
+                    to[2] = texel[0];
+                    to[3] = texel[3];
+                }
+            }
+            std::filesystem::create_directories(a_file.parent_path());
+            if (FAILED(DirectX::SaveToDDSFile(target, DirectX::DDS_FLAGS_NONE, a_file.c_str()))) {
+                Fail(PathText(a_file) + ": not written");
+            }
+        }
+
         void Test(const std::filesystem::path& a_file, unsigned a_format, bool a_orange)
         {
             if (!SelfTest::WriteTestTexture(a_file, a_format, a_orange)) {
@@ -149,6 +179,10 @@ namespace GreyBuild
             WriteTexels(a_in / t[5].path, kShareSide, kShareSide, bgra, Counted(kShareSide, kFracOver, kFracTexel, kMidGrey), false);
             WriteTexels(a_in / t[6].path, kMeanSatSide, kMeanSatSide, bgra, Counted(kMeanSatSide, kMeanSatUnder, kMeanSatHigh, kMeanSatLow), false);
             WriteTexels(a_in / t[7].path, kMeanSatSide, kMeanSatSide, bgra, Counted(kMeanSatSide, kMeanSatOver, kMeanSatHigh, kMeanSatLow), false);
+            WriteStoredSrgb(a_in / Golden::kPaletteSrgb, kSrgbPaletteWidth, kSrgbPaletteHeight, [](std::size_t a_x, std::size_t a_y) {
+                return Texel{ 255, static_cast<std::uint8_t>(64 + 6 * a_x), static_cast<std::uint8_t>(16 + 2 * a_x),
+                    static_cast<std::uint8_t>(255 - 6 * a_x - 10 * a_y) };
+            });
         }
 
         template <class T>
@@ -245,6 +279,15 @@ namespace GreyBuild
             mps.GetRootNode()->childRefs.AddBlockRef(mps.GetHeader().AddBlock(std::move(node)));
             AddShape(mps, AddEffect(mps, "Embers", Golden::kBgra, kWarm), kAlphaAdditive);
             Save(mps, a_in / Golden::kMpsNif);
+
+            // an additive palette shader on the sRGB source palette (its source texture already grey: no texture copy)
+            auto srgb = NewNif();
+            const auto paletteId = AddEffect(srgb, "FlameSrgb", Golden::kFxFire02, kWarm);
+            auto* palette = srgb.GetHeader().GetBlock<nifly::BSEffectShaderProperty>(paletteId);
+            palette->shaderFlags1 |= kSlsf1GreyscaleToPaletteColor;
+            palette->greyscaleTexture.get() = Golden::kPaletteSrgb;
+            AddShape(srgb, paletteId, kAlphaAdditive);
+            Save(srgb, a_in / Golden::kPaletteSrgbNif);
         }
     }
 
