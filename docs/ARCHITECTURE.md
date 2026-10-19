@@ -694,8 +694,8 @@ plugin list opens (`migrateLoweredWhitelist`). The Spell Research patch (`Librar
 **Edit mode copies and the prerequisite map** (2026-10-17): `sendTreePrerequisites` (treeLoad.js) leaves out a
 second copy of a spell (`<formId>_dup_<n>`, edit mode's Spawn) when the tree has the spell's own node, sends only
 the first copy, under the spell's formId, when it has none, and makes every prerequisite id its spell's (each once);
-C++ `OnSetTreePrerequisites` skips a formId text it cannot parse to the end. Before, `stoul` read a copy's id as the
-original's formId and the copy's empty lists erased the original's requirements. Limit: C++ keeps one requirement
+C++ `OnSetTreePrerequisites` skips a formId text it cannot parse to the end (`FormIdText::Parse` takes the whole
+text or nothing). Before, `stoul` read a copy's id as the original's formId and the copy's empty lists erased the original's requirements. Limit: C++ keeps one requirement
 entry per spell and cannot say "this copy's links or the spell's", so links drawn to a copy reach C++ only when the
 spell has no node of its own; the panel (`recalculateNodeAvailability`, per node) may show such a copy open while a
 tome of the spell is still judged by the spell's own links.
@@ -1821,8 +1821,9 @@ Load spell_tree.json → For each node:
     persistentId (saved under another FormID) now resolves to it: that was the other spell's
     slot, the persistentId names the record, and the legacy node goes
   → A node that is not an object or has no string formId goes (logged with a count)
-  → FormIDs are compared as "0x%08X" (TreeRemap::NormalizeFormId), so "0xfe905800" in a link
-    and "0xFE905800" on a node are one spell; kept nodes and links come out in that form
+  → FormIDs are compared as "0x%08X" (TreeRemap::NormalizeFormId, through FormIdText.h), so
+    "0xfe905800" in a link and "0xFE905800" on a node are one spell; kept nodes and links come
+    out in that form
   → Then, after every school: every node's link lists (children, prerequisites, hardPrereqs,
     softPrereqs), its Pre Req Master locks[].nodeId, the school root and the tree's bridges
     follow the new FormIDs; an entry naming a dropped node goes (softNeeded is held to the
@@ -1970,6 +1971,7 @@ HeartOfMagic/
 │   │   │   ├── PapyrusAPI.h                 ✅ Papyrus native function header
 │   │   │   ├── PassiveLearningSource.h      ✅ Passive learning source header
 │   │   │   ├── FormIdBits.h                 ✅ form id bit layout: load index, light index, local id masks (no game types)
+│   │   │   ├── FormIdText.h                 ✅ formId text: Parse (hex, 0x optional, whole text, max 8 digits) and Format "0x%08X" (no game types)
 │   │   │   ├── PluginNames.h                ✅ persistentId plugin names: UTF-8 key, memoised lookup (no game types)
 │   │   │   ├── TreeRemap.h                  ✅ a saved tree's FormIDs and links after a load order change (no game types)
 │   │   │   ├── CoSave.h                     ✅ SKSE serialization callbacks (save, load, revert)

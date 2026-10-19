@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "FormIdText.h"
 #include "JsonText.h"
 #include "SpellScanner.h"
 #include "EncodingUtils.h"
@@ -243,7 +244,7 @@ namespace SpellScanner
             MarkGate(spellJson, spell);
             if (unreachable.contains(spell->GetFormID())) spellJson["tomeUnreachable"] = true;
             if (auto it = duplicates.find(spell->GetFormID()); it != duplicates.end()) {
-                spellJson["duplicateOf"] = std::format("0x{:08X}", it->second);
+                spellJson["duplicateOf"] = FormIdText::Format(it->second);
             }
             spellArray.push_back(std::move(spellJson));
             scannedCount++;
@@ -379,7 +380,7 @@ namespace SpellScanner
             json spellJson = BuildSpellJson(spell, spellFormId, fields);
 
             // Also include tome info for reference (sanitize - mods like DynDOLOD can have invalid UTF-8 in book names)
-            spellJson["tomeFormId"] = std::format("0x{:08X}", book->GetFormID());
+            spellJson["tomeFormId"] = FormIdText::Format(book->GetFormID());
             spellJson["tomeName"] = EncodingUtils::SanitizeToUTF8(book->GetFullName());
             if (fields.effectDetails) {
                 // tomeFormId above shifts with the load order; this one does not.
@@ -411,33 +412,13 @@ namespace SpellScanner
 
     json GetSpellInfoJsonByFormId(const std::string& formIdStr)
     {
-        // Parse formId from hex string (e.g., "0x00012FCC" or "00012FCC")
-        RE::FormID formId = 0;
-        try {
-            std::string cleanId = formIdStr;
-            if (cleanId.length() >= 2 && (cleanId.substr(0, 2) == "0x" || cleanId.substr(0, 2) == "0X")) {
-                cleanId = cleanId.substr(2);
-            }
-
-            // Validate: FormIDs should be max 8 hex characters
-            if (cleanId.length() > 8) {
-                logger::error("SpellScanner: FormId too long ({} chars), rejecting: {}", cleanId.length(), formIdStr);
-                return {};
-            }
-
-            // Validate hex characters only
-            for (char c : cleanId) {
-                if (!std::isxdigit(static_cast<unsigned char>(c))) {
-                    logger::error("SpellScanner: Invalid hex character in formId: {}", formIdStr);
-                    return {};
-                }
-            }
-
-            formId = std::stoul(cleanId, nullptr, 16);
-        } catch (const std::exception& e) {
-            logger::error("SpellScanner: Invalid formId format: {} ({})", formIdStr, e.what());
+        // A hex formId ("0x00012FCC" or "00012FCC")
+        const auto parsedId = FormIdText::Parse(formIdStr);
+        if (!parsedId) {
+            logger::error("SpellScanner: '{}' is not a formId (hex, 0x optional, at most 8 digits)", formIdStr);
             return {};
         }
+        const RE::FormID formId = *parsedId;
 
         // Look up the spell form
         auto* form = RE::TESForm::LookupByID(formId);

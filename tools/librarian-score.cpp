@@ -3,6 +3,7 @@
 // ============================================================================
 
 #include "Common.h"
+#include "FormIdText.h"
 #include "LibrarianScore.h"
 
 #include <algorithm>
@@ -27,11 +28,7 @@ namespace
 
     std::uint32_t ParseLocalId(const std::string& formId)
     {
-        try {
-            return static_cast<std::uint32_t>(std::stoul(formId, nullptr, 16)) & LOCAL_FORM_ID_MASK;
-        } catch (const std::exception&) {
-            return 0;
-        }
+        return FormIdText::Parse(formId).value_or(0) & LOCAL_FORM_ID_MASK;
     }
     struct AxisScore
     {

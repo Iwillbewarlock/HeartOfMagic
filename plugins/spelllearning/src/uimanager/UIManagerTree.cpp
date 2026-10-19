@@ -101,12 +101,9 @@ void UIManager::OnLoadSpellTree([[maybe_unused]] const char* argument)
                                         if (node.contains("requiredXP") && node["requiredXP"].is_number()) {
                                             float reqXP = node["requiredXP"].get<float>();
                                             if (reqXP > 0) {
-                                                try {
-                                                    RE::FormID formId = std::stoul(formIdStr, nullptr, 0);
-                                                    pm->SetRequiredXP(formId, reqXP);
+                                                if (const auto formId = ParsePanelFormId(formIdStr, "LoadSpellTree XP sync")) {
+                                                    pm->SetRequiredXP(*formId, reqXP);
                                                     xpSyncCount++;
-                                                } catch (const std::exception& e) {
-                                                    logger::warn("UIManager: Failed to parse formId '{}' for XP sync: {}", formIdStr, e.what());
                                                 }
                                             }
                                         }
@@ -227,18 +224,7 @@ void UIManager::OnGetSpellInfoBatch(const char* argument)
                 }
                 std::string formIdStr = formIdJson.get<std::string>();
 
-                // Validate formId format (should be 0x followed by 8 hex chars)
-                if (formIdStr.length() < 3 || formIdStr.substr(0, 2) != "0x") {
-                    logger::warn("UIManager: Invalid formId format: {}", formIdStr);
-                    json notFound;
-                    notFound["formId"] = formIdStr;
-                    notFound["notFound"] = true;
-                    resultArray.push_back(notFound);
-                    notFoundCount++;
-                    continue;
-                }
-
-                // Built as JSON and kept that way - no text round trip per spell
+                // Built as JSON (a text that is not a formId comes back null: not found) and kept that way - no text round trip per spell
                 json spellInfo = SpellScanner::GetSpellInfoJsonByFormId(formIdStr);
 
                 if (!spellInfo.is_null()) {

@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "ProgressionManager.h"
+#include "FormIdText.h"
 #include "ProgressionMath.h"
 #include "SpellEffectivenessHook.h"
 
@@ -11,13 +12,12 @@ float ProgressionManager::AddXPNoGrant(const std::string& formIdStr, float amoun
     // ISL compatibility: Record XP progress without triggering early spell grant.
     // ISL's scripts call AddSpell when study is complete — we must not AddSpell
     // before that or ISL thinks the player already knows the spell.
-    RE::FormID formId = 0;
-    try {
-        formId = std::stoul(formIdStr, nullptr, 16);
-    } catch (const std::exception& e) {
-        logger::error("ProgressionManager: Failed to parse formId '{}': {}", formIdStr, e.what());
+    const auto parsedId = FormIdText::Parse(formIdStr);
+    if (!parsedId) {
+        logger::error("ProgressionManager: '{}' is not a formId", formIdStr);
         return 0.0f;
     }
+    const RE::FormID formId = *parsedId;
 
     auto& progress = EnsureProgress(formId);
 

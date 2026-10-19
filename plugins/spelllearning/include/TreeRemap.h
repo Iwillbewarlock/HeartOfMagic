@@ -1,9 +1,10 @@
 #pragma once
 
+#include "FormIdText.h"
+
 #include <nlohmann/json.hpp>
 
 #include <array>
-#include <charconv>
 #include <cstddef>
 #include <cstdint>
 #include <format>
@@ -86,15 +87,8 @@ namespace TreeRemap
     /// "0x%08X" for a hex formId ("0x" optional, any case); any other text as it is
     [[nodiscard]] inline std::string NormalizeFormId(std::string_view text)
     {
-        constexpr int kHexBase = 16;
-        constexpr std::size_t kMaxHexDigits = 8;
-        std::string_view digits = text;
-        if (digits.size() >= 2 && digits[0] == '0' && (digits[1] == 'x' || digits[1] == 'X')) digits.remove_prefix(2);
-        std::uint32_t value = 0;
-        if (digits.empty() || digits.size() > kMaxHexDigits) return std::string(text);
-        const auto [end, error] = std::from_chars(digits.data(), digits.data() + digits.size(), value, kHexBase);
-        if (error != std::errc() || end != digits.data() + digits.size()) return std::string(text);
-        return std::format("0x{:08X}", value);
+        const auto value = FormIdText::Parse(text);
+        return value ? FormIdText::Format(*value) : std::string(text);
     }
 
     namespace Detail

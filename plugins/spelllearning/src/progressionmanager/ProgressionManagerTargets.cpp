@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "ProgressionManager.h"
+#include "FormIdText.h"
 #include "uimanager/UIManager.h"
 #include "SpellEffectivenessHook.h"
 #include "SpellScanner.h"
@@ -392,13 +393,12 @@ void ProgressionManager::SetLearningTargetFromTome(const std::string& formIdStr,
 {
     if (!spell) {
         // Try to look up by form ID
-        RE::FormID formId = 0;
-        try {
-            formId = std::stoul(formIdStr, nullptr, 16);
-        } catch (const std::exception& e) {
-            logger::error("ProgressionManager: Failed to parse formId '{}': {}", formIdStr, e.what());
+        const auto parsedId = FormIdText::Parse(formIdStr);
+        if (!parsedId) {
+            logger::error("ProgressionManager: '{}' is not a formId", formIdStr);
             return;
         }
+        const RE::FormID formId = *parsedId;
         spell = RE::TESForm::LookupByID<RE::SpellItem>(formId);
         if (!spell) {
             logger::error("ProgressionManager: Could not find spell for formId {}", formIdStr);

@@ -1,4 +1,5 @@
 #include "librarian/SpellResearchPatch.h"
+#include "FormIdText.h"
 #include "librarian/Librarian.h"
 #include "librarian/LibrarianInternal.h"
 #include "librarian/LoadOrderSource.h"
@@ -157,14 +158,12 @@ namespace Librarian::SpellResearchPatch
             return text;
         }
 
-        // "plugin|<local id as a number>" for a plugin name and a hex local id ("0x00080B" or "00080b")
+        // "plugin|<local id as a number>" for a plugin name and a hex local id ("0x00080B" or "00080b");
+        // empty when the id is missing or not hex (the entry is then read by its formId)
         std::string LocalKey(const std::string& plugin, const std::string& localHex)
         {
-            try {
-                return Lower(plugin) + "|" + std::to_string(std::stoul(localHex, nullptr, 16));
-            } catch (const std::exception&) {
-                return {};
-            }
+            const auto localId = FormIdText::Parse(localHex);
+            return localId ? Lower(plugin) + "|" + std::to_string(*localId) : std::string();
         }
 
         PlayerFilter ReadPlayerFilter()
@@ -184,10 +183,10 @@ namespace Librarian::SpellResearchPatch
                         filter.blacklisted.insert(key);
                     } else if (const auto id = SpellScanner::ResolvePersistentFormId(text(entry, "formId")); id) {
                         filter.blacklistedIds.insert(id);
+                    } else if (const auto formId = FormIdText::Parse(text(entry, "formId"))) {
+                        filter.blacklistedIds.insert(*formId);
                     } else {
-                        try {
-                            filter.blacklistedIds.insert(static_cast<RE::FormID>(std::stoul(text(entry, "formId"), nullptr, 16)));
-                        } catch (const std::exception&) {}
+                        logger::warn("SpellResearchPatch: spellBlacklist entry with no usable plugin, persistentId or formId - ignored");
                     }
                 }
             }

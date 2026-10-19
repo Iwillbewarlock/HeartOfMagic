@@ -1,4 +1,5 @@
 #include "SpellTomeHook.h"
+#include "FormIdText.h"
 #include "HudNotify.h"
 #include "ProgressionManager.h"
 #include "SpellEffectivenessHook.h"
@@ -121,8 +122,7 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
         logger::info("SpellTomeHook: ISL/DEST active — checking requirements before delegation");
 
         RE::FormID spellFormId = a_spell->GetFormID();
-        char formIdStr[32];
-        snprintf(formIdStr, sizeof(formIdStr), "0x%08X", spellFormId);
+        const std::string formIdStr = FormIdText::Format(spellFormId);
 
         auto* pm = ProgressionManager::GetSingleton();
 
@@ -196,8 +196,7 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
     // =========================================================================
     logger::info("SpellTomeHook: Using PROGRESSION mode for spell '{}'", a_spell->GetName());
 
-    char formIdStr[32];
-    snprintf(formIdStr, sizeof(formIdStr), "0x%08X", a_spell->GetFormID());
+    const std::string formIdStr = FormIdText::Format(a_spell->GetFormID());
 
     auto* pm = ProgressionManager::GetSingleton();
     if (!pm) {

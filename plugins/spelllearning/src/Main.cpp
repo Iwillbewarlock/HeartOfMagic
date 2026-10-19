@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "FormIdText.h"
 #include "CoSave.h"
 #include "HudNotify.h"
 #include "uimanager/UIManager.h"
@@ -116,9 +117,7 @@ public:
             auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(
                 static_cast<RE::FormID>(spellFormID));
             if (spell) {
-                std::stringstream ss;
-                ss << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << spellFormID;
-                ProgressionManager::GetSingleton()->SetLearningTargetFromTome(ss.str(), spell);
+                ProgressionManager::GetSingleton()->SetLearningTargetFromTome(FormIdText::Format(spellFormID), spell);
             }
         });
     }

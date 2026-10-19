@@ -1,4 +1,5 @@
 #include "AsciiText.h"
+#include "FormIdText.h"
 #include "Common.h"
 #include "EncodingUtils.h"
 #include "FormIdBits.h"
@@ -272,9 +273,12 @@ namespace SpellScanner
             const auto text = entry.get<std::string>();
             const auto colon = text.rfind(':');
             if (colon == std::string::npos) continue;
-            try {
-                kept.insert(Lower(text.substr(0, colon)) + "|" + std::to_string(std::stoul(text.substr(colon + 1), nullptr, 16)));
-            } catch (const std::exception&) {}
+            const auto localId = FormIdText::Parse(std::string_view(text).substr(colon + 1));
+            if (!localId) {
+                logger::warn("SpellScanner: gateReviewed entry '{}' has no hex local id after ':' - ignored", text);
+                continue;
+            }
+            kept.insert(Lower(text.substr(0, colon)) + "|" + std::to_string(*localId));
         }
         return kept;
     }

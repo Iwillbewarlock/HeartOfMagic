@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "FormIdText.h"
 #include "FormIdBits.h"
 #include "PluginNames.h"
 #include "SpellScanner.h"
@@ -95,17 +96,12 @@ namespace SpellScanner
             std::string pluginName = persistentId.substr(0, pipePos);
             std::string localIdStr = persistentId.substr(pipePos + 1);
 
-            // Parse local FormID
-            uint32_t localFormId = 0;
-            try {
-                if (localIdStr.length() >= 2 && (localIdStr.substr(0, 2) == "0x" || localIdStr.substr(0, 2) == "0X")) {
-                    localIdStr = localIdStr.substr(2);
-                }
-                localFormId = std::stoul(localIdStr, nullptr, 16);
-            } catch (const std::exception& e) {
-                logger::warn("SpellScanner: Invalid local FormID in persistent ID: {} ({})", persistentId, e.what());
+            const auto parsedLocal = FormIdText::Parse(localIdStr);
+            if (!parsedLocal) {
+                logger::warn("SpellScanner: Invalid local FormID in persistent ID: {}", persistentId);
                 return 0;
             }
+            const std::uint32_t localFormId = *parsedLocal;
 
             // Look up plugin by name
             auto* dataHandler = RE::TESDataHandler::GetSingleton();
@@ -156,18 +152,8 @@ namespace SpellScanner
     {
         if (formIdStr.empty()) return false;
 
-        RE::FormID formId = 0;
-        try {
-            std::string cleanId = formIdStr;
-            if (cleanId.length() >= 2 && (cleanId.substr(0, 2) == "0x" || cleanId.substr(0, 2) == "0X")) {
-                cleanId = cleanId.substr(2);
-            }
-            formId = std::stoul(cleanId, nullptr, 16);
-        } catch (...) {
-            return false;
-        }
-
-        return IsFormIdValid(formId);
+        const auto formId = FormIdText::Parse(formIdStr);
+        return formId && IsFormIdValid(*formId);
     }
 
     namespace
@@ -179,13 +165,9 @@ namespace SpellScanner
         // rule came in still holds spells the rule leaves out (2026-10-05).
         bool IsPlayerSpell(const std::string& formIdStr, const std::unordered_set<std::string>& gateKept)
         {
-            RE::FormID formId = 0;
-            try {
-                formId = static_cast<RE::FormID>(std::stoul(formIdStr, nullptr, 16));
-            } catch (...) {
-                return false;
-            }
-            auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(formId);
+            const auto formId = FormIdText::Parse(formIdStr);
+            if (!formId) return false;
+            auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(*formId);
             if (!spell) return false;
             const char* name = spell->GetFullName();
             return name && *name && !GateLeavesOut(spell, gateKept) && !IsEquippedInVoiceSlot(spell);
@@ -236,7 +218,7 @@ namespace SpellScanner
                 ResolveFailure failure = ResolveFailure::kNone;
                 const RE::FormID resolvedId = ResolveWith(persistentId, lookup, failure);
                 if (resolvedId != 0 && IsFormIdValid(resolvedId)) {
-                    verdict.formId = std::format("0x{:08X}", resolvedId);
+                    verdict.formId = FormIdText::Format(resolvedId);
                     isValid = true;
                     if (TreeRemap::NormalizeFormId(saved) != verdict.formId) {
                         logger::info("SpellScanner: Resolved {} -> {} from persistent ID {}", saved, verdict.formId,

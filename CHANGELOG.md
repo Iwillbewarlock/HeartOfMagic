@@ -45,6 +45,11 @@
 - **The spell card's Optional requirements show how many are needed again** ("need 2 of 3"), and in edit mode
   the box to change that number is back; the LOCK badge next to Locks shows again. The panel's text setup at
   start had been erasing them.
+- **A tree imported or edited by hand with formIds written without "0x" no longer mixes spells up.** Learning,
+  unlocking, the cheat buttons and the tree's prerequisites read `"00012345"` as octal and `"12345678"` as a
+  decimal number, so those spells were taken for others or not found. Every formId is now read as hex (with or without
+  "0x"); text that is not a formId is skipped with a line in SpellLearning.log instead of stopping the request,
+  so one bad prerequisite no longer keeps a spell from becoming the learning target.
 - **Settings > Spell Tome Learning:** the Spell Research line says "1 spell added" instead of "1 spells added"
   (and in Polish no longer gets the word for "spells" wrong for 2-4 of them).
 

@@ -1,4 +1,5 @@
 #include "ISLIntegration.h"
+#include "FormIdText.h"
 #include "HudNotify.h"
 #include "ThreadUtils.h"
 #include "ProgressionManager.h"
@@ -147,8 +148,7 @@ namespace DESTIntegration {
         logger::info("DESTIntegration::OnSpellTomeRead — {} ({})",
                      book->GetName(), spell->GetName());
 
-        char formIdStr[32];
-        snprintf(formIdStr, sizeof(formIdStr), "0x%08X", spell->GetFormID());
+        const std::string formIdStr = FormIdText::Format(spell->GetFormID());
 
         auto* pm = ProgressionManager::GetSingleton();
         if (!pm->IsSpellAvailableToLearn(formIdStr)) {
@@ -312,8 +312,7 @@ namespace DESTIntegration {
             AddTaskToGameThread("ISL.OnStudyProgress", [a_spell, a_hoursStudied, a_totalStudied, a_hoursToMaster]() {
 
                 RE::FormID formId = a_spell->GetFormID();
-                char formIdStr[32];
-                snprintf(formIdStr, sizeof(formIdStr), "0x%08X", formId);
+                const std::string formIdStr = FormIdText::Format(formId);
 
                 auto* pm = ProgressionManager::GetSingleton();
                 auto* effectHook = SpellEffectivenessHook::GetSingleton();
@@ -357,8 +356,7 @@ namespace DESTIntegration {
             AddTaskToGameThread("ISL.OnStudyComplete", [a_spell]() {
 
                 RE::FormID formId = a_spell->GetFormID();
-                char formIdStr[32];
-                snprintf(formIdStr, sizeof(formIdStr), "0x%08X", formId);
+                const std::string formIdStr = FormIdText::Format(formId);
 
                 auto* effectHook = SpellEffectivenessHook::GetSingleton();
                 if (!effectHook) return;

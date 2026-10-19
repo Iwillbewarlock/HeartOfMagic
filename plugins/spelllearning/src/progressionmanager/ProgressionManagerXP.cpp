@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "ProgressionManager.h"
+#include "FormIdText.h"
 #include "HudNotify.h"
 #include "uimanager/UIManager.h"
 #include "SpellEffectivenessHook.h"
@@ -396,13 +397,12 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
 void ProgressionManager::AddXP(const std::string& formIdStr, float amount)
 {
     // Parse hex string to FormID (supports "0x" prefix)
-    RE::FormID formId = 0;
-    try {
-        formId = std::stoul(formIdStr, nullptr, 16);
-    } catch (const std::exception& e) {
-        logger::error("ProgressionManager: Failed to parse formId '{}': {}", formIdStr, e.what());
+    const auto parsedId = FormIdText::Parse(formIdStr);
+    if (!parsedId) {
+        logger::error("ProgressionManager: '{}' is not a formId", formIdStr);
         return;
     }
+    const RE::FormID formId = *parsedId;
 
     AddXP(formId, amount);
 }
@@ -414,13 +414,12 @@ void ProgressionManager::AddXP(const std::string& formIdStr, float amount)
 float ProgressionManager::GetRequiredXP(const std::string& formIdStr) const
 {
     // Parse hex string to FormID (supports "0x" prefix)
-    RE::FormID formId = 0;
-    try {
-        formId = std::stoul(formIdStr, nullptr, 16);
-    } catch (const std::exception& e) {
-        logger::error("ProgressionManager: Failed to parse formId '{}': {}", formIdStr, e.what());
+    const auto parsedId = FormIdText::Parse(formIdStr);
+    if (!parsedId) {
+        logger::error("ProgressionManager: '{}' is not a formId", formIdStr);
         return 0.0f;
     }
+    const RE::FormID formId = *parsedId;
 
     return GetRequiredXP(formId);
 }
@@ -482,13 +481,12 @@ float ProgressionManager::GetReverseUnlockXPShare(const std::string& tier) const
 
 bool ProgressionManager::IsSpellAvailableToLearn(const std::string& formIdStr) const
 {
-    RE::FormID formId = 0;
-    try {
-        formId = std::stoul(formIdStr, nullptr, 16);
-    } catch (const std::exception& e) {
-        logger::error("ProgressionManager: Failed to parse formId '{}': {}", formIdStr, e.what());
+    const auto parsedId = FormIdText::Parse(formIdStr);
+    if (!parsedId) {
+        logger::error("ProgressionManager: '{}' is not a formId", formIdStr);
         return false;
     }
+    const RE::FormID formId = *parsedId;
 
     return IsSpellAvailableToLearn(formId);
 }

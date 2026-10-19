@@ -1,4 +1,5 @@
 #include "treebuilder/TreeBuilderInternal.h"
+#include "FormIdText.h"
 #include "SimdKernels.h"
 
 #include <hwy/aligned_allocator.h>
@@ -130,12 +131,8 @@ TreeBuilder::BuildConfig TreeBuilder::BuildConfig::FromJson(const json& config)
 
 bool TreeBuilder::Internal::IsVanillaFormId(const std::string& formIdStr)
 {
-    try {
-        auto val = std::stoul(formIdStr, nullptr, 16);
-        return (val >> 24) < 0x05;
-    } catch (...) {
-        return false;
-    }
+    const auto formId = FormIdText::Parse(formIdStr);
+    return formId && (*formId >> 24) < 0x05;
 }
 
 const json* TreeBuilder::Internal::PickRoot(

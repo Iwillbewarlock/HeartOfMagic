@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "FormIdText.h"
 #include "SpellScanner.h"
 #include "PathText.h"
 
@@ -72,12 +73,12 @@ namespace SpellScanner
             if (tilde != std::string::npos) {
                 auto* dataHandler = RE::TESDataHandler::GetSingleton();
                 if (!dataHandler) return nullptr;
-                try {
-                    const auto localId = static_cast<RE::FormID>(std::stoul(reference.substr(0, tilde), nullptr, 16));
-                    return dataHandler->LookupForm<RE::SpellItem>(localId, Trim(reference.substr(tilde + 1)));
-                } catch (const std::exception&) {
+                const auto localId = FormIdText::Parse(Trim(reference.substr(0, tilde)));
+                if (!localId) {
+                    logger::warn("SpellScanner: SPID reference '{}' has no hex form id before '~'", reference);
                     return nullptr;
                 }
+                return dataHandler->LookupForm<RE::SpellItem>(*localId, Trim(reference.substr(tilde + 1)));
             }
             return RE::TESForm::LookupByEditorID<RE::SpellItem>(reference);
         }

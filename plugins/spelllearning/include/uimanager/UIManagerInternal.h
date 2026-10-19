@@ -1,11 +1,14 @@
 #pragma once
 
 #include "Common.h"
+#include "FormIdText.h"
 #include "ProgressionManager.h"
 
 #include <chrono>
 #include <filesystem>
 #include <mutex>
+#include <optional>
+#include <string_view>
 
 // =============================================================================
 // Internal helpers shared across UIManager implementation files.
@@ -24,6 +27,15 @@ T SafeJsonValue(const nlohmann::json& j, const std::string& key, const T& defaul
         }
     }
     return defaultValue;
+}
+
+// The formId a panel message names (FormIdText::Parse: hex, "0x" optional), or
+// nullopt with a warning naming the handler and the text it got
+inline std::optional<RE::FormID> ParsePanelFormId(std::string_view text, std::string_view handler)
+{
+    const auto formId = FormIdText::Parse(text);
+    if (!formId) logger::warn("UIManager: {} - '{}' is not a formId", handler, text);
+    return formId;
 }
 
 // Milliseconds since `started`, for the timing lines in the log

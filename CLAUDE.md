@@ -329,7 +329,8 @@ This project does not have a C++ test framework. Validation is done through:
   persistentId (following a copy, colliding, gone), the same spell kept in one school and dropped in another, a
   spell that resolves but is no player's spell, links to removed spells, formIds in another letter case, roots no
   node has, broken shapes - every link read back by spell name, and a second pass must change nothing; exit 1 on a
-  failure) and `progression-check` (`progression-check --self-test`: the co-save's
+  failure; also `include/FormIdText.h`, the one reader of formId text - hex, `0x` optional, any case; junk, a sign,
+  a space, empty or more than 8 digits rejected - and its `0x%08X` writer) and `progression-check` (`progression-check --self-test`: the co-save's
   progress (SLPR v1-v3, written as v2), cap tracker (SLPX) and tome XP (SLTX) records, `include/ProgressionCoSave.h`,
   written and read in byte buffers - cut short, over the limits, SLPX without an SLPR entry - and the XP cap, study, SetSpellXP and mastery arithmetic of `include/ProgressionMath.h`;
   exit 1 on a failure)

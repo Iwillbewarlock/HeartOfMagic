@@ -12,6 +12,9 @@
 // ones that went, and no formId names two spells; and a second pass over the
 // fixed tree (the next load) changes nothing.
 //
+// Also FormIdText.h, the one reader and writer of formId text (hex, "0x" optional;
+// junk, empty and more than 8 digits rejected), which NormalizeFormId uses.
+//
 // Exit 0 when every case passes, 1 on a failure, 2 on a bad argument.
 
 #include "TreeRemap.h"
@@ -19,6 +22,7 @@
 #include <cstdio>
 #include <format>
 #include <map>
+#include <optional>
 #include <nlohmann/json.hpp>
 #include <set>
 #include <string>
@@ -270,6 +274,53 @@ namespace
         return check.failed;
     }
 
+    /// FormIdText (include/FormIdText.h), the one reader of formId text: hex with "0x" optional, nothing else
+    int RunFormIdTextCase()
+    {
+        std::printf("  formId text: hex with or without 0x, any case; junk, empty and overflow rejected\n");
+        Checker check;
+        struct Expect
+        {
+            const char* text;
+            std::optional<std::uint32_t> value;
+        };
+        const Expect cases[] = {
+            { "0x0001ABCD", 0x0001ABCD },          // normal: what the scanner writes
+            { "0001ABCD", 0x0001ABCD },            // no prefix (a hand-edited tree)
+            { "0x0001abcd", 0x0001ABCD },          // lowercase digits
+            { "0X0001ABCD", 0x0001ABCD },          // uppercase prefix
+            { "00012345", 0x00012345 },            // hex, not octal (std::stoul base 0 read it as octal)
+            { "12345678", 0x12345678 },            // hex, not decimal
+            { "0xFE000800", 0xFE000800 },          // light plugin range, top bit set
+            { "0x00000000", 0x00000000 },          // zero is a formId text (callers decide what 0 means)
+            { "0x0001ABCD_dup_17", std::nullopt },  // an edit mode copy is not its original
+            { "0x12zz", std::nullopt },            // trailing junk
+            { " 0x1", std::nullopt },              // leading space
+            { "-1", std::nullopt },                // a sign
+            { "+1", std::nullopt },
+            { "0x", std::nullopt },                // prefix only
+            { "", std::nullopt },                  // empty
+            { "0x1FFFFFFFF", std::nullopt },       // overflow: 9 digits
+            { "000000001", std::nullopt },         // 9 digits even when the value fits
+        };
+        for (const auto& c : cases) {
+            const auto got = FormIdText::Parse(c.text);
+            check.Check(got == c.value, std::format("Parse(\"{}\") is {}", c.text,
+                c.value ? std::format("0x{:08X}", *c.value) : std::string("rejected")));
+        }
+        check.Check(FormIdText::Format(0x0001ABCD) == "0x0001ABCD" && FormIdText::Format(0) == "0x00000000" &&
+                        FormIdText::Format(0xFE000800) == "0xFE000800",
+            "Format writes 0x and 8 uppercase digits");
+        for (const auto& c : cases) {
+            if (!c.value) continue;
+            check.Check(FormIdText::Format(*FormIdText::Parse(c.text)) == TreeRemap::NormalizeFormId(c.text),
+                std::format("NormalizeFormId(\"{}\") is Format(Parse())", c.text));
+        }
+        check.Check(TreeRemap::NormalizeFormId("0x0001ABCD_dup_17") == "0x0001ABCD_dup_17",
+            "NormalizeFormId leaves a text that is no formId as it is");
+        return check.failed;
+    }
+
     // ------------------------------------------------------------------------
     // The cases (trees as JSON text: every link holds the saved formIds)
     // ------------------------------------------------------------------------
@@ -375,12 +426,14 @@ namespace
 
     int SelfTest()
     {
+        constexpr std::size_t kExtraCases = 2;  // RunShapeCase and RunFormIdTextCase
         int failedCases = RunShapeCase() > 0 ? 1 : 0;
+        if (RunFormIdTextCase() > 0) ++failedCases;
         const auto cases = Cases();
         for (const auto& c : cases) {
             if (RunCase(c) > 0) ++failedCases;
         }
-        std::printf("self-test: %d of %zu cases failed\n", failedCases, cases.size() + 1);
+        std::printf("self-test: %d of %zu cases failed\n", failedCases, cases.size() + kExtraCases);
         return failedCases == 0 ? kExitOk : kExitFailed;
     }
 }
