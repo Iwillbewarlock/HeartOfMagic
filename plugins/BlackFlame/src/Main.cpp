@@ -34,6 +34,7 @@
 #include "HitArt.h"
 #include "HitEvents.h"
 #include "HitEffectHook.h"
+#include "HitPathAttribution.h"
 #include "HitPathObserve.h"
 #include "ImpactSwap.h"
 #include "Palette.h"
@@ -122,6 +123,13 @@ namespace
         guarded("InstallHazardHook", [] { BlackFlame::InstallHazardHook(); });
         guarded("InstallHitEffectHooks", [] { BlackFlame::InstallHitEffectHooks(); });
         guarded("HitPath::Install", [] { BlackFlame::HitPath::Install(); });  // log only, 1.6.1170 only (HitPathObserve.h)
+        // log only, any runtime: the fire MGEFs' shader fields now, and again when the main menu first opens (MenuWatch's
+        // listener, on the menu event's thread), at each kPostLoadGame and the first stoke window (HitEffectHook)
+        guarded("hit shader probe", [] {
+            // inside our own kDataLoaded handler: the plugins whose handlers run after ours have not changed anything yet
+            BlackFlame::HitPath::LogHitShaderProbe("kDataLoaded, inside BlackFlame's handler");
+            BlackFlame::MenuWatch::OnMainMenuOpen([] { BlackFlame::HitPath::LogHitShaderProbe("main menu"); });
+        });
         guarded("InstallImpactSwap", [] { BlackFlame::InstallImpactSwap(); });
         guarded("InstallCopySwaps", [] { BlackFlame::InstallCopySwaps(); });  // v2: after the copies are filled (CopySwap.h)
         guarded("InstallHazardSwap", [] { BlackFlame::InstallHazardSwap(); });
@@ -189,6 +197,9 @@ namespace
             BlackFlame::RetryNativeWrappers();
             BlackFlame::Tester::Write("save load");  // G5: the wrappers have bound by now
             BlackFlame::RequestRecomputeBuff("game loaded");
+            (void)BlackFlame::PlayerHandleNative();  // log only: the corpse lines' killer test reads it, cached here on this thread
+            BlackFlame::HitPath::LogHitShaderProbe("kPostLoadGame");
+            BlackFlame::HitPath::Detail::ResetIdleResolves();  // log only: resolves spent while the save was read come back
             // SKSE passes the load's success flag as the data pointer's value, dataLen 1 (SKSE PluginAPI.h:
             // "data contains a bool"); anything else is read as success
             BlackFlame::SelfTest::OnGameLoaded(a_msg.dataLen != 1 || reinterpret_cast<std::uintptr_t>(a_msg.data) != 0);

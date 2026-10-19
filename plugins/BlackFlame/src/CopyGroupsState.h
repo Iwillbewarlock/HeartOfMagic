@@ -154,4 +154,8 @@ namespace BlackFlame::CopyGroups::Detail
 
     /// The counts the HUD-less progress lines and the dev auto-load read (CopyGroups::Progress)
     [[nodiscard]] Progress CountProgress(const State& a_state);
+
+    /// Trace (Fire Rune glyph): kDataLoaded, after the W1 openings, one line per TXST slot - its plan, group, write and gate
+    /// (CopyGroupsNotes.cpp)
+    void LogTxstSlotsAtW1(const State& a_state);
 }

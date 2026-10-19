@@ -20,6 +20,16 @@
 //   2. The two 34092 -> 34094 calls and the 19872 -> 34910 call are redirected through
 //      write_call<5> to thunks that call the original with the same arguments, return its
 //      result and count; the first lines of each stoke window are logged.
+//   3. (2026-10-20) Corpse attribution: an ApplyEffectShader line on an actor also carries its
+//      life state, its killer handle (the player or not), the shader's fill / edge colours, and
+//      how long ago the player's fire effect of a fire spell last hit it (a 32-target memory
+//      fed from the 0x0D thunk, NoteFireHit, the oldest hit replaced); lines on actors that are
+//      not alive or were killed by the player, once the windowed pool is full, have a cap of 48
+//      of their own that no stoke window gives back (HitPathAttribution.h).
+//   4. (2026-10-20) LogHitShaderProbe: a few fire MGEFs' shader fields (and whether each
+//      effectShader is in the kDataLoaded fire-shader set) and the null / set count over every
+//      fire effect of a fire spell, at kDataLoaded (inside BlackFlame's own handler), the main
+//      menu, each kPostLoadGame and each load's first stoke window (any runtime: form reads).
 // AE 1.6.1170 only (the offsets come from its code); any other runtime logs one line and
 // installs nothing. Each site's bytes are checked first; a mismatch is logged and skipped.
 
@@ -34,4 +44,15 @@ namespace BlackFlame::HitPath
 
     /// One "hit path stats" line (window end, and every 30 s while stoked, with the 0x0D / 0x0C stats lines)
     void LogStats(const char* a_when, double a_seconds, const char* a_reason);
+
+    /// Any thread (HitEffectHook's 0x0D thunk): the player's fire effect of a fire spell was asked for a_target's hit shader;
+    /// a_stoked is IsStoked() then. Log only: read back by the ApplyEffectShader line on that target
+    void NoteFireHit(RE::FormID a_target, bool a_stoked);
+
+    /// kPreLoadGame / kNewGame (ResetHitEffectState): the remembered fire hits are forgotten (FF refs are reused)
+    void ClearFireHits() noexcept;
+
+    /// Log only, any runtime: the probe MGEFs' shader fields and the fire effects' data.effectShader null / set count,
+    /// each line tagged with a_point; a fault or a std::exception skips the probe (logged) and never reaches the caller
+    void LogHitShaderProbe(const char* a_point);
 }

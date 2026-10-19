@@ -398,12 +398,13 @@ namespace BlackFlame
                 std::int64_t perfTicks = 0;
                 bool open = false;
                 bool copyOpen = false;
+                const RE::TESForm* base = nullptr;  // also named in the copy window's impact trace lines
                 try {
                     if (a_this) {
                         (void)Guarded("explosion impact window", [&]() {
                             // v2: an explosion whose base is a copy opens the copy window (its impacts take the impact
                             // copies); the round-10 model window is for explosions without a copy
-                            const auto* base = a_this->GetBaseObject();
+                            base = a_this->GetBaseObject();
                             copyOpen = base && IsCopy(base);
                             open = !copyOpen && OpensImpactWindow(a_this);
                         });
@@ -418,7 +419,7 @@ namespace BlackFlame
                         trace.emplace("Explosion::Update (copy window)");
                         MainQueue::NoteJobSideHook();  // G1
                     }
-                    const CopyWindow copyWindow(copyOpen);
+                    const CopyWindow copyWindow(copyOpen, copyOpen ? base : nullptr);
                     const ImpactWindow window(open);
                     perfTicks += Perf::Now() - perfStart;
                     func(a_this, a_delta);

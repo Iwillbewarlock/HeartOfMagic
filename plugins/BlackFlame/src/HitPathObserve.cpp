@@ -3,6 +3,7 @@
 #include "BuffState.h"
 #include "FireSet.h"
 #include "HitEffectHook.h"
+#include "HitPathAttribution.h"
 #include "Patch.h"
 #include "SehGuard.h"
 
@@ -100,7 +101,6 @@ namespace BlackFlame::HitPath
         std::uintptr_t g_ownedVtable = 0;
         std::uintptr_t g_cameraVtable = 0;
         std::uintptr_t g_effectControllerVtable = 0;
-        std::vector<RE::FormID> g_fireShaders;  // sorted: data.effectShader of every fire effect of a fire spell
         std::atomic<bool> g_failureReported{ false };
 
         void ReportFailure()
@@ -274,38 +274,10 @@ namespace BlackFlame::HitPath
             }
         }
 
-        void BuildFireShaderSet()
-        {
-            for (auto* spell : FireSpellList()) {
-                if (!spell) {
-                    continue;
-                }
-                for (const auto* effect : spell->effects) {
-                    const auto* base = effect ? effect->baseEffect : nullptr;
-                    if (base && base->data.effectShader && IsBurnable(base, spell)) {
-                        g_fireShaders.push_back(base->data.effectShader->GetFormID());
-                    }
-                }
-            }
-            std::ranges::sort(g_fireShaders);
-            const auto [first, last] = std::ranges::unique(g_fireShaders);
-            g_fireShaders.erase(first, last);
-        }
-
-        bool IsFireShader(const RE::TESEffectShader* a_shader)
-        {
-            return a_shader && std::ranges::binary_search(g_fireShaders, a_shader->GetFormID());
-        }
 
         std::uint32_t PlayerHandle()
         {
             return PlayerHandleNative();
-        }
-
-        const char* EditorIdOf(const RE::TESForm* a_form)
-        {
-            const char* id = a_form ? a_form->GetFormEditorID() : nullptr;
-            return id && *id ? id : "-";
         }
 
         RE::FormID FormIdOfHandle(std::uint32_t a_handle)
@@ -316,6 +288,7 @@ namespace BlackFlame::HitPath
             const auto ref = RE::TESObjectREFR::LookupByHandle(a_handle);
             return ref ? ref->GetFormID() : 0;
         }
+
 
         void LogStart(Site a_site, int a_line, RE::ActiveEffect* a_effect, const RE::EffectSetting* a_base, bool a_casterPlayer,
             bool a_targetPlayer, bool a_fire, std::uint32_t a_flagsBefore)
@@ -331,7 +304,7 @@ namespace BlackFlame::HitPath
             logger::info("BlackFlame: hit path effect start [{} {}]: MGEF {:08X} '{}' (MGEF flags 0x{:08X}, kNoHitEffect {}, "
                          "effectShader {:08X}, fire effect of a fire spell {}), spell {:08X} '{}', caster {} {:08X}, target {:08X}{}, "
                          "AE flags 0x{:08X} -> 0x{:08X}, controller vtable {}, stoked {}, thread {}",
-                kSiteNames[a_site], a_line, a_base->GetFormID(), EditorIdOf(a_base), mgefFlags,
+                kSiteNames[a_site], a_line, a_base->GetFormID(), Detail::EditorIdOf(a_base), mgefFlags,
                 (mgefFlags & kNoHitEffectBit) ? "set" : "clear", a_base->data.effectShader->GetFormID(), a_fire ? "yes" : "no",
                 spell ? spell->GetFormID() : 0, spell ? spell->GetName() : "", a_casterPlayer ? "player" : "other",
                 caster ? caster->GetFormID() : 0, targetRef ? targetRef->GetFormID() : 0, a_targetPlayer ? " (player)" : "",
@@ -415,7 +388,7 @@ namespace BlackFlame::HitPath
             const auto* shader = *reinterpret_cast<RE::TESEffectShader* const*>(address + kOwnedShader);
             const auto targetHandle = *reinterpret_cast<const std::uint32_t*>(address + kOwnedTargetHandle);
             const auto facingHandle = *reinterpret_cast<const std::uint32_t*>(address + kOwnedFacingHandle);
-            const bool fire = IsFireShader(shader);
+            const bool fire = Detail::IsFireShader(shader);
             const auto playerHandle = PlayerHandle();
             const bool onPlayer = playerHandle != 0 && targetHandle == playerHandle;
             if (fire) {
@@ -425,13 +398,41 @@ namespace BlackFlame::HitPath
                 g_apply.onPlayer.fetch_add(1, std::memory_order_relaxed);
             }
             const bool notable = fire || onPlayer;
-            if (!TakeLine(notable ? g_applyLines : g_applyOtherLines, notable ? kMaxApplyLines : kMaxApplyOtherLines, line)) {
+            auto& usual = notable ? g_applyLines : g_applyOtherLines;
+            const int usualCap = notable ? kMaxApplyLines : kMaxApplyOtherLines;
+            const bool usualRoom = usual.load(std::memory_order_relaxed) < usualCap;
+            // the session-wide actor pool takes it only when the usual pool is full and the target proves corpse-notable
+            // (not alive or killed by the player, HitPathAttribution.h)
+            const bool actorRoom = !usualRoom && !onPlayer && Detail::ActorPoolOpen();
+            if (!usualRoom && !actorRoom) {
+                if (!onPlayer) {
+                    Detail::NoteActorClosed();
+                }
+                return;  // no pool that could take the line has room: the target is not resolved
+            }
+            // resolved once, as FormIdOfHandle always did for this line (the NiPointer holds the ref while it is read)
+            const auto target = targetHandle ? RE::TESObjectREFR::LookupByHandle(targetHandle) : RE::NiPointer<RE::TESObjectREFR>{};
+            auto* actor = target ? target->As<RE::Actor>() : nullptr;
+            const auto targetId = target ? target->GetFormID() : 0;
+            const auto facts = Detail::ReadActorFacts(actor, targetId, playerHandle);  // the defaults for a non-actor
+            const bool corpse = actor && !onPlayer && facts.CorpseNotable();
+            const char* pool = nullptr;
+            if (usualRoom && TakeLine(usual, usualCap, line)) {
+                pool = notable ? "fire/player" : "other";
+            } else if (corpse && Detail::TakeActorLine(targetId, line)) {
+                pool = "actor";  // the windowed pool is full: a corpse line from the session's own 48
+            }
+            if (!pool) {
+                if (!usualRoom) {
+                    Detail::NoteIdleResolve();  // resolved for the actor pool alone: not corpse-notable, or its target or the pool capped
+                }
                 return;
             }
             logger::info("BlackFlame: hit path ApplyEffectShader [{} {}]: OwnedController 0x{:X}, shader {:08X} '{}' (a fire "
-                         "MGEF's hit shader {}), target {:08X}{}, facing {:08X}, stoked {}, thread {}",
-                notable ? "fire/player" : "other", line, address, shader ? shader->GetFormID() : 0, EditorIdOf(shader),
-                fire ? "yes" : "no", FormIdOfHandle(targetHandle), onPlayer ? " (player)" : "", FormIdOfHandle(facingHandle),
+                         "MGEF's hit shader {}{}), target {:08X}{}{}, facing {:08X}, stoked {}, thread {}",
+                pool, line, address, shader ? shader->GetFormID() : 0, Detail::EditorIdOf(shader), fire ? "yes" : "no",
+                Detail::ShaderColours(shader), targetId, onPlayer ? " (player)" : "",
+                actor ? Detail::ActorAttribution(facts) : std::string(), FormIdOfHandle(facingHandle),
                 IsStoked() ? "yes" : "no", REX::W32::GetCurrentThreadId());
         }
 
@@ -526,7 +527,7 @@ namespace BlackFlame::HitPath
             logger::info("BlackFlame: hit path observation: site A {}, site B {}, ApplyEffectShader {}; trampoline {} bytes free "
                          "before, {} after; {} fire MGEF hit shaders",
                 okA ? "hooked" : "skipped", okB ? "hooked" : "skipped", okApply ? "hooked" : "skipped", freeBefore,
-                SKSE::GetTrampoline().free_size(), g_fireShaders.size());
+                SKSE::GetTrampoline().free_size(), Detail::FireShaderCount());
         }
     }
 
@@ -546,7 +547,7 @@ namespace BlackFlame::HitPath
         g_ownedVtable = Patch::AddressOf(kOwnedVtableId);
         g_cameraVtable = Patch::AddressOf(kCameraVtableId);
         g_effectControllerVtable = REL::Relocation<std::uintptr_t>{ RE::ActiveEffectReferenceEffectController::VTABLE[0] }.address();
-        BuildFireShaderSet();
+        Detail::BuildFireShaderSet();
         ReportForeignHooks();
         HookSites();
     }
@@ -563,6 +564,7 @@ namespace BlackFlame::HitPath
                  &g_apply.other, &g_apply.null }) {
             counter->store(0);
         }
+        Detail::ResetIdleResolves();
         if (a_capsReset) {
             g_startLines.store(0);
             g_applyLines.store(0);
@@ -588,8 +590,9 @@ namespace BlackFlame::HitPath
                                                                "player {}), camera {}, other {}, null {}",
                                                        g_apply.calls.load(), g_apply.owned.load(), g_apply.fireShader.load(),
                                                        g_apply.onPlayer.load(), g_apply.camera.load(), g_apply.other.load(),
-                                                       g_apply.null.load());
+                                                       g_apply.null.load()) + "; " + Detail::ActorPoolStats();
         logger::info("BlackFlame: hit path stats (stoke window {} {:.1f} s, {}): effect start site A {}; site B {}; "
                      "ApplyEffectShader {}", a_when, a_seconds, a_reason, site(kSiteA), site(kSiteB), apply);
     }
+
 }

@@ -31,7 +31,9 @@ namespace BlackFlame
         constexpr std::array<int, 2> kHands{ RE::Actor::SlotTypes::kLeftHand, RE::Actor::SlotTypes::kRightHand };
         constexpr int kMaxRetryTicks = 50;       // ~5 s of unpaused ticks at the ticker's 100 ms: drawing, no 3D
         constexpr int kMaxCastWaitTicks = 600;   // ~60 s: a concentration spell held, a charge kept
-        constexpr int kMaxLines = 60;
+        // up to three lines per hand and request: its first outcome, the give-up or "cleared after" line, and "unfinished"
+        // (cleared by a new request or a load); a buff change with the hands down gives two "not drawn" lines
+        constexpr int kMaxLines = 200;
 
         using DetachFn = void (*)(RE::ActorMagicCaster*, bool);
         using SetArtFn = void (*)(RE::ActorMagicCaster*, RE::BGSArtObject*);
@@ -43,6 +45,7 @@ namespace BlackFlame
         std::atomic<std::uint32_t> g_pending{ 0 };  // bit (1 << slot) per hand
         std::array<std::atomic<int>, 2> g_retries{};    // drawing, no 3D
         std::array<std::atomic<int>, 2> g_castWaits{};  // charging, casting
+        std::array<std::atomic<bool>, 2> g_logged{};    // this request's first non-refresh outcome was logged
         std::atomic<const char*> g_reason{ "" };
         std::atomic<std::uint64_t> g_refreshed{ 0 }, g_wasPending{ 0 }, g_gaveUp{ 0 };
         std::atomic<int> g_lines{ 0 };
@@ -65,29 +68,115 @@ namespace BlackFlame
             return a_form ? a_form->GetFormID() : 0;
         }
 
-        Outcome RefreshHand(RE::PlayerCharacter* a_player, int a_slot, std::string& a_line)
+        const char* WeaponStateName(RE::WEAPON_STATE a_state) noexcept
         {
+            switch (a_state) {
+            case RE::WEAPON_STATE::kSheathed:
+                return "sheathed";
+            case RE::WEAPON_STATE::kWantToDraw:
+                return "want to draw";
+            case RE::WEAPON_STATE::kDrawing:
+                return "drawing";
+            case RE::WEAPON_STATE::kDrawn:
+                return "drawn";
+            case RE::WEAPON_STATE::kWantToSheathe:
+                return "want to sheathe";
+            case RE::WEAPON_STATE::kSheathing:
+                return "sheathing";
+            default:
+                return "?";
+            }
+        }
+
+        // What RefreshHand had read when it stopped, for the one line per hand and request (log only: nothing here
+        // decides anything). Filled as the steps go; a value not reached stays 0 / "-".
+        struct HandSnapshot
+        {
+            RE::WEAPON_STATE weapon = RE::WEAPON_STATE::kSheathed;
+            bool stoked = false;
+            bool casterRead = false;
+            std::uint32_t casterState = 0;
+            bool attached = false;
+            std::uint32_t spell = 0, castingArt = 0, source = 0, engineArt = 0, wanted = 0;
+        };
+
+        // The caster's own fields (the ones RefreshHand reads further on), same thread, same pointer
+        void ReadCaster(HandSnapshot& a_snap, const RE::ActorMagicCaster* a_caster)
+        {
+            if (!a_caster) {
+                return;
+            }
+            a_snap.casterRead = true;
+            a_snap.casterState = static_cast<std::uint32_t>(a_caster->state.get());
+            a_snap.attached = a_caster->flags.all(RE::ActorMagicCaster::Flags::kCastingArtAttached);
+            a_snap.castingArt = FormIdOf(a_caster->castingArt);
+            a_snap.source = a_caster->castingArt ? FormIdOf(SourceOf(a_caster->castingArt)) : 0;
+        }
+
+        std::string Describe(int a_slot, const char* a_tag, const HandSnapshot& a_snap)
+        {
+            return std::format("hand {}, {}: weapon state {} ({}), spell {:08X}, castingArt {:08X} (source {:08X}), engine art {:08X}, "
+                               "wanted {:08X}, caster state {}, attached {}, buff {}",
+                a_slot, a_tag, static_cast<std::uint32_t>(a_snap.weapon), WeaponStateName(a_snap.weapon), a_snap.spell, a_snap.castingArt,
+                a_snap.source, a_snap.engineArt, a_snap.wanted, a_snap.casterRead ? std::to_string(a_snap.casterState) : std::string("-"),
+                a_snap.casterRead ? (a_snap.attached ? "yes" : "no") : "-", a_snap.stoked ? "on" : "off");
+        }
+
+        // a_line: the refresh made, or what a wait is waiting for (the give-up warning); a_why: every outcome but a refresh,
+        // as Describe's tag and values (TickHandArtRefresh logs the first one per hand and request)
+        Outcome RefreshHand(RE::PlayerCharacter* a_player, int a_slot, std::string& a_line, std::string& a_why)
+        {
+            HandSnapshot snap;
+            snap.stoked = IsStoked();  // once: the value printed is the one PickCastingArtImpl gets
+            const auto why = [&](const char* a_tag) { a_why = Describe(a_slot, a_tag, snap); };
             const auto* actorState = a_player->AsActorState();
             const auto weapon = actorState ? actorState->GetWeaponState() : RE::WEAPON_STATE::kSheathed;
+            snap.weapon = weapon;
             if (weapon == RE::WEAPON_STATE::kWantToDraw || weapon == RE::WEAPON_STATE::kDrawing) {
                 a_line = std::format("hand {}, the hands are being drawn (weapon state {})", a_slot, static_cast<std::uint32_t>(weapon));
+                why("retry drawing");
                 return Outcome::kRetry;  // the ready branch may run with the old art before the hands are drawn
             }
             if (weapon != RE::WEAPON_STATE::kDrawn) {
+                why("not drawn");  // GetMagicCaster not called here, as before: the caster fields stay "-"
                 return Outcome::kNotApplicable;
             }
             auto* caster = skyrim_cast<RE::ActorMagicCaster*>(a_player->GetMagicCaster(static_cast<RE::MagicSystem::CastingSource>(a_slot)));
             auto* spell = a_player->GetActorRuntimeData().selectedSpells[a_slot];
-            if (!caster || !spell || !IsFireSpell(spell)) {
+            snap.spell = FormIdOf(spell);
+            ReadCaster(snap, caster);
+            if (!caster) {
+                why("no caster");
+                return Outcome::kNotApplicable;
+            }
+            if (!spell) {
+                why("no spell");
+                return Outcome::kNotApplicable;
+            }
+            if (!IsFireSpell(spell)) {
+                why("not fire");
                 return Outcome::kNotApplicable;
             }
             auto* engineArt = CostliestCastingArtOf(spell);
             auto* current = caster->castingArt;
-            if (!engineArt || !current || (current != engineArt && SourceOf(current) != engineArt)) {
+            snap.engineArt = FormIdOf(engineArt);
+            // pure (CopySwap.h): picked before the gate only so the gate's lines can print it
+            auto* wanted = engineArt ? PickCastingArtImpl(a_player, a_slot, spell, engineArt, snap.stoked) : nullptr;
+            snap.wanted = FormIdOf(wanted);
+            if (!engineArt) {
+                why("no engine art");
                 return Outcome::kNotApplicable;
             }
-            auto* wanted = PickCastingArtImpl(a_player, a_slot, spell, engineArt, IsStoked());
+            if (!current) {
+                why("no castingArt");
+                return Outcome::kNotApplicable;
+            }
+            if (current != engineArt && SourceOf(current) != engineArt) {
+                why("art foreign");
+                return Outcome::kNotApplicable;
+            }
             if (current == wanted) {
+                why("already wanted");
                 return Outcome::kDone;
             }
             const auto castState = caster->state.get();
@@ -96,10 +185,12 @@ namespace BlackFlame
             if (castState != RE::MagicCaster::State::kNone) {
                 a_line = std::format("hand {}, spell {:08X}, not idle (caster state {}: ready, charging or casting)", a_slot, spell->GetFormID(),
                     static_cast<std::uint32_t>(castState));
+                why("cast wait");
                 return Outcome::kCastWait;
             }
             if (!a_player->Get3D()) {
                 a_line = std::format("hand {}, spell {:08X}, the player has no 3D", a_slot, spell->GetFormID());
+                why("retry no 3D");
                 return Outcome::kRetry;
             }
             const bool attached = caster->flags.all(RE::ActorMagicCaster::Flags::kCastingArtAttached);
@@ -126,6 +217,22 @@ namespace BlackFlame
                 logger::warn("BlackFlame: hand art refresh ({}): {}", g_reason.load(), a_text);
             } else {
                 logger::info("BlackFlame: hand art refresh ({}): {}", g_reason.load(), a_text);
+            }
+        }
+
+        // A pending hand dropped before any tick finished it (a new request, a load): the line names the old request
+        void LogUnfinished(const char* a_by)
+        {
+            const auto pending = g_pending.load();
+            for (const auto slot : kHands) {
+                if ((pending & Bit(slot)) == 0) {
+                    continue;
+                }
+                const auto hand = static_cast<std::size_t>(slot);
+                const int retries = g_retries[hand].load();
+                const int castWaits = g_castWaits[hand].load();
+                LogLine(false, std::format("hand {}, cleared by {} after {} ticks (retry {}, cast wait {}), no refresh", slot, a_by,
+                    retries + castWaits, retries, castWaits));
             }
         }
 
@@ -192,9 +299,11 @@ namespace BlackFlame
         if (!g_installed.load()) {
             return;
         }
+        LogUnfinished("a new request");  // before g_reason changes
         for (std::size_t i = 0; i < kHands.size(); ++i) {
             g_retries[i].store(0);
             g_castWaits[i].store(0);
+            g_logged[i].store(false);
         }
         g_reason.store(a_reason);
         g_pending.store(Bit(kHands[0]) | Bit(kHands[1]));  // the tick that follows (BuffState.cpp Tick) tries them
@@ -215,12 +324,20 @@ namespace BlackFlame
                 continue;
             }
             std::string line;
+            std::string why;
             auto outcome = Outcome::kNotApplicable;
-            if (!Guarded("hand art refresh", [&]() { outcome = RefreshHand(player, slot, line); })) {
-                outcome = Outcome::kNotApplicable;  // the guard logged the fault and turned the step off
+            if (!Guarded("hand art refresh", [&]() { outcome = RefreshHand(player, slot, line, why); })) {
+                outcome = Outcome::kNotApplicable;  // the guard logged the fault and turned the step off (why may be empty)
             }
             const auto hand = static_cast<std::size_t>(slot);
+            const int retries = g_retries[hand].load();
+            const int castWaits = g_castWaits[hand].load();
+            // one line per hand and request at its first outcome that is not a refresh (log only)
+            const bool first = !why.empty() && !g_logged[hand].exchange(true);
             if (outcome == Outcome::kRetry || outcome == Outcome::kCastWait) {
+                if (first) {
+                    LogLine(false, why);
+                }
                 auto& count = outcome == Outcome::kRetry ? g_retries[hand] : g_castWaits[hand];
                 const int limit = outcome == Outcome::kRetry ? kMaxRetryTicks : kMaxCastWaitTicks;
                 if (count.fetch_add(1) + 1 < limit) {
@@ -230,6 +347,11 @@ namespace BlackFlame
                 LogLine(true, std::format("gave up after {} ticks: {} (the next ready gives the right art)", limit, line));
             } else if (!line.empty()) {
                 LogLine(false, line);
+            } else if (!why.empty() && retries + castWaits > 0) {
+                LogLine(false, std::format("cleared after {} ticks waiting (retry {}, cast wait {}), no refresh: {}", retries + castWaits,
+                    retries, castWaits, why));
+            } else if (first) {
+                LogLine(false, why);
             }
             g_pending.fetch_and(~Bit(slot));
         }
@@ -242,10 +364,12 @@ namespace BlackFlame
 
     void ResetHandArtRefresh()
     {
+        LogUnfinished("a load or new game");
         g_pending.store(0);
         for (std::size_t i = 0; i < kHands.size(); ++i) {
             g_retries[i].store(0);
             g_castWaits[i].store(0);
+            g_logged[i].store(false);
         }
     }
 

@@ -6,6 +6,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <string_view>
@@ -68,6 +69,38 @@ namespace BlackFlame
 
         static constexpr std::size_t kMaxFirstTime = 256;
 
+        static constexpr int kTracePerKey = 6;           // PerKey: lines per key
+        static constexpr std::size_t kTraceKeys = 32;    // keys a kind tracks; a key past them gets no line
+        static constexpr int kTraceLines = 120;          // lines a kind writes in all
+
+        /// Trace caps per key (a concentration cast cannot use up a kind's lines before another source shows): true for the
+        /// first kTracePerKey asks of each key of a kind, while the kind tracks fewer than kTraceKeys keys and has written
+        /// fewer than kTraceLines lines; a_line is the kind's line number and a_keyLine the key's (1-based). Any thread
+        [[nodiscard]] static bool PerKey(std::string_view a_kind, std::uint64_t a_key, int& a_line, int& a_keyLine)
+        {
+            const Perf::Scope perf(Perf::kLogLimit);
+            static TrackedMutex mutex;
+            static auto* kinds = std::make_unique<std::unordered_map<std::string, TraceKind>>().release();  // hooks may run at exit
+            std::lock_guard lock(mutex);
+            auto& kind = (*kinds)[std::string(a_kind)];
+            if (kind.lines >= kTraceLines) {
+                return false;
+            }
+            auto it = kind.keys.find(a_key);
+            if (it == kind.keys.end()) {
+                if (kind.keys.size() >= kTraceKeys) {
+                    return false;
+                }
+                it = kind.keys.emplace(a_key, 0).first;
+            }
+            if (it->second >= kTracePerKey) {
+                return false;
+            }
+            a_keyLine = ++it->second;
+            a_line = ++kind.lines;
+            return true;
+        }
+
     private:
         [[nodiscard]] static bool Once(std::string_view a_kind, RE::FormID a_form, bool a_mark)
         {
@@ -84,6 +117,12 @@ namespace BlackFlame
             }
             return true;
         }
+
+        struct TraceKind
+        {
+            int lines = 0;
+            std::unordered_map<std::uint64_t, int> keys;
+        };
 
         struct Entry
         {

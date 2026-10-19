@@ -7,6 +7,7 @@
 
 #include "Config.h"
 #include "FormCopies.h"
+#include "LogLimit.h"
 #include "MainThreadQueue.h"
 #include "SehGuard.h"
 #include "ThreadTrace.h"
@@ -40,10 +41,57 @@ namespace BlackFlame
 
         // Saved and restored by each CopyWindow: the innermost decision wins
         thread_local bool t_copyWindow = false;
+        thread_local const RE::TESForm* t_copyWindowBase = nullptr;  // the trace lines only: the base that opened the window
         std::atomic<std::uint64_t> g_windowCalls{ 0 }, g_copies{ 0 };
         std::atomic<bool> g_failureReported{ false };
         CopySwapStatus g_status;  // written once at kDataLoaded
         std::array<bool, 2> g_siteHooked{};  // which GetImpactDataHook<I> has its func set
+        // Trace (Fire Rune glyph): one line per impact lookup in a copy window, the first ones per call site and IPDS
+        // (LogLimit::PerKey: a concentration cast's impacts cannot use up the lines before a rune's show)
+        std::atomic<bool> g_impactTraceFull{ false }, g_impactTraceFailure{ false };
+
+        RE::FormID IdOf(const RE::TESForm* a_form) noexcept
+        {
+            return a_form ? a_form->GetFormID() : 0;
+        }
+
+        // The copy window's impact and the one it replaces (a_copy null: the original is used), with their decal sets
+        // Its own guard (a fault skips the line only) and no throw out: the swap decision never depends on it
+        void TraceImpact(std::size_t a_site, const RE::BGSImpactDataSet* a_set, const RE::BGSImpactData* a_original,
+            const RE::BGSImpactData* a_copy, const char* a_siteName) noexcept
+        {
+            if (!a_original || g_impactTraceFull.load()) {
+                return;
+            }
+            try {
+                (void)GuardedKeep("copy impact (trace)", [&]() {
+                    int line = 0, keyLine = 0;
+                    if (!LogLimit::PerKey("impact trace", (static_cast<std::uint64_t>(a_site) << 32) | IdOf(a_set), line, keyLine)) {
+                        return;
+                    }
+                    if (line >= LogLimit::kTraceLines) {
+                        // the kind's total cap reached: later lookups return before PerKey's lock (one stopped by the
+                        // per-key or key-count cap still takes it)
+                        g_impactTraceFull.store(true);
+                    }
+                    const auto* used = a_copy ? a_copy : a_original;
+                    const auto* base = t_copyWindowBase;
+                    logger::info("BlackFlame: impact trace {}/{} ({} of this site and IPDS): {} in a copy window (base {:08X} {}): "
+                                 "IPDS {:08X}, IPCT {:08X} -> {:08X} ({}); decal TXST {} / {} (source IPCT's {:08X} / {:08X})",
+                        line, LogLimit::kTraceLines, keyLine, a_siteName, IdOf(base),
+                        base ? RE::FormTypeToString(base->GetFormType()) : std::string_view("none: the synthetic impact self-test's window"),
+                        IdOf(a_set), IdOf(a_original), IdOf(used), a_copy ? "copy" : "NO COPY: the original is used",
+                        CopySwapDetail::TxstText(used->decalTextureSet), CopySwapDetail::TxstText(used->decalTextureSet2),
+                        IdOf(a_original->decalTextureSet), IdOf(a_original->decalTextureSet2));
+                });
+            } catch (...) {  // (...) as this file's thunks: noexcept, and SehGuard passes every non-fault throw on to here
+                if (!g_impactTraceFailure.exchange(true)) {
+                    logger::warn("BlackFlame: the copy impact trace threw; the line was dropped (the impact is unchanged); further "
+                                 "failures are not logged");
+                }
+            }
+        }
+
 
         template <std::size_t I>
         struct GetImpactDataHook
@@ -60,6 +108,7 @@ namespace BlackFlame
                 try {
                     RE::BGSImpactData* copy = nullptr;
                     (void)Guarded("copy impact", [&]() { copy = CopyOfAs(original); });
+                    TraceImpact(I, a_set, original, copy, kCallers[I].name);
                     if (copy) {
                         g_copies.fetch_add(1);
                         return copy;
@@ -130,15 +179,17 @@ namespace BlackFlame
         }
     }
 
-    CopyWindow::CopyWindow(bool a_open) noexcept :
-        m_previous(t_copyWindow)
+    CopyWindow::CopyWindow(bool a_open, const RE::TESForm* a_base) noexcept :
+        m_previous(t_copyWindow), m_previousBase(t_copyWindowBase)
     {
         t_copyWindow = a_open;
+        t_copyWindowBase = a_open ? a_base : nullptr;
     }
 
     CopyWindow::~CopyWindow()
     {
         t_copyWindow = m_previous;
+        t_copyWindowBase = m_previousBase;
     }
 
     bool CopyWindowOpen() noexcept

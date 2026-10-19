@@ -576,6 +576,7 @@ namespace BlackFlame::CopyGroups
         }
         SaveLedger(state, true);
         UpdateProgress(state);
+        LogTxstSlotsAtW1(state);  // trace (CopyGroupsNotes.cpp)
         logger::info("BlackFlame: slots: {} groups, {} opened at kDataLoaded on the generations their forms show ({} of them verify newer "
                      "objects for the next start); {}", state.groups.size(), opened, upgrading,
             state.canVerify ? "groups with nothing shown yet are published on the main thread as they are verified" :

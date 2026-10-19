@@ -86,11 +86,12 @@ namespace BlackFlame
             {
                 bool open = false;
                 bool copyOpen = false;
+                const RE::TESForm* base = nullptr;  // also named in the copy window's impact trace lines
                 try {
                     (void)Guarded("impact window", [&]() {
                         // v2: a projectile whose base is a copy opens the copy window (only the player's fire launches
                         // with a copy); the round-10 model window is for chains without copies
-                        const auto* base = a_this ? a_this->GetBaseObject() : nullptr;
+                        base = a_this ? a_this->GetBaseObject() : nullptr;
                         copyOpen = base && IsCopy(base);
                         open = !copyOpen && OpensWindow(a_this);
                     });
@@ -103,7 +104,7 @@ namespace BlackFlame
                 if (open || copyOpen) {
                     trace.emplace("SpawnCollisionEffects (window open)");
                 }
-                const CopyWindow copyWindow(copyOpen);
+                const CopyWindow copyWindow(copyOpen, copyOpen ? base : nullptr);
                 const ImpactWindow window(open);
                 return func(a_this, a_collidee, a_point, a_normal, a_material, a_flag);
             }

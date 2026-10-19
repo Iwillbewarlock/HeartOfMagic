@@ -10,6 +10,7 @@
 #include "FormCopies.h"
 #include "Forms.h"
 #include "HitArt.h"
+#include "HitPathAttribution.h"
 #include "HitPathObserve.h"
 #include "LogLimit.h"
 #include "SehGuard.h"
@@ -121,8 +122,19 @@ namespace BlackFlame
             }
         }
 
+        std::atomic<bool> g_noteFailureReported{ false };
+
+        void ReportNoteFailure()
+        {
+            if (!g_noteFailureReported.exchange(true)) {
+                logger::warn("BlackFlame: hit effect hook: the fire hit note threw; the shader was not changed by it; "
+                             "further failures are not logged");
+            }
+        }
+
         // The player's reference handle, read once per loaded world (cleared by ResetHitEffectState)
         std::atomic<std::uint32_t> g_playerHandle{ 0 };
+        std::atomic<bool> g_hitShaderProbePending{ true };  // log only: the next stoke window logs the probe (each load's first)
 
         std::uint32_t PlayerHandleValue()
         {
@@ -359,6 +371,20 @@ namespace BlackFlame
             HitPath::LogStats(a_when, seconds, a_reason);  // the 34094 / ApplyEffectShader observation (HitPathObserve.h)
         }
 
+        // Log only: the player's fire effect of a fire spell asked for this target's hit shader (whatever the engine answered:
+        // a null answer counts too). The target from the effect's MagicTarget, a pointer read (no handle resolved here)
+        void NoteFireHit(Controller* a_this)
+        {
+            auto* effect = a_this->effect;
+            if (!IsPlayerFireEffect(effect)) {
+                return;
+            }
+            auto* ref = effect->target ? effect->target->GetTargetStatsObject() : nullptr;
+            if (ref) {
+                HitPath::NoteFireHit(ref->GetFormID(), IsStoked());
+            }
+        }
+
         RE::TESEffectShader* ChooseShader(Controller* a_this, RE::TESEffectShader* a_original)
         {
             const Outcome outcome = Decide(kShaderSlot, a_this, a_original);
@@ -420,6 +446,15 @@ namespace BlackFlame
                     result = original;
                     ReportFailure();
                 }
+                // log only, after the result is decided and in a guard of its own: a fault here skips this note only and
+                // can never change the shader handed back or turn the swap step off; nothing may throw out either
+                try {
+                    if (a_this) {
+                        (void)GuardedKeep("hit effect shader (fire hit note)", [&]() { NoteFireHit(a_this); });
+                    }
+                } catch (...) {
+                    ReportNoteFailure();
+                }
                 return result;
             }
 
@@ -466,6 +501,9 @@ namespace BlackFlame
     void ResetHitEffectState()
     {
         g_playerHandle.store(0);
+        HitPath::ClearFireHits();  // log only: FF refs are reused across loads
+        HitPath::Detail::ResetIdleResolves();  // log only: the corpse lines' resolve budget, each load and new game
+        g_hitShaderProbePending.store(true);   // log only: the probe runs again at this load's first stoke window
     }
 
     void ResetHitDiagnostics() noexcept
@@ -480,7 +518,13 @@ namespace BlackFlame
             // in the hook's threads, and a session of many stokes would otherwise add 160 lines a window (review)
             constexpr int kWindowCapResets = 3;
             static std::atomic<int> s_capResets{ 0 };
-            const bool capsReset = s_capResets.fetch_add(1) < kWindowCapResets;
+            const int window = s_capResets.fetch_add(1);
+            const bool capsReset = window < kWindowCapResets;
+            // log only: the player handle the corpse lines compare killers with, read here on the game thread
+            (void)PlayerHandleValue();
+            if (g_hitShaderProbePending.exchange(false)) {
+                HitPath::LogHitShaderProbe("first stoke window of this load");
+            }
             if (capsReset) {
                 ResetDiagnosticLines();
             }

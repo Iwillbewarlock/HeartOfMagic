@@ -17,6 +17,7 @@
 #include "PlayerArt.h"
 #include "SehGuard.h"
 #include "SelfTestProbe.h"
+#include "SlotAssign.h"
 #include "ThreadTrace.h"
 
 #include <atomic>
@@ -88,6 +89,98 @@ namespace BlackFlame
                          "the Black Flame builder to add it)", a_what, a_form->GetFormID(), FreshnessName(fresh.state), fresh.detail);
         }
 
+        // Trace (Fire Rune glyph): the player's fire launches while stoked, swapped or not, the first ones per source PROJ
+        // (LogLimit::PerKey: a Flames concentration cast cannot use up the lines before a rune's launch shows)
+        std::atomic<bool> g_launchTraceFull{ false }, g_launchTraceFailure{ false };
+
+        // What PostLaunch read of the launched projectile, for the trace line (log only)
+        struct LaunchExplosion
+        {
+            bool read = false;    // PostLaunch's guarded body got that far
+            bool inHand = false;  // the result handle gave a Projectile
+            RE::FormID before = 0, after = 0;
+        };
+
+        RE::FormID IdOf(const RE::TESForm* a_form) noexcept
+        {
+            return a_form ? a_form->GetFormID() : 0;
+        }
+
+        // Why the launch keeps its base (null: it launches a copy); LaunchThunk's checks in its order. a_stepRan: the
+        // "copy launch" Guarded body ran to its end (false: the step is off after a fault, or faulted or threw now)
+        const char* KeptWhy(bool a_stepRan, bool a_playerFire, const RE::BGSProjectile* a_asked, const RE::BGSProjectile* a_copy)
+        {
+            if (a_copy || (a_asked && IsCopy(a_asked))) {
+                return nullptr;
+            }
+            if (!a_stepRan) {
+                return "the copy launch step did not run (off after a fault, or it faulted or threw on this launch)";
+            }
+            if (!a_playerFire) {
+                return "a fire launch not linked to the player (LinkToPlayer said no)";
+            }
+            if (!a_asked) {
+                return "no projectile base";
+            }
+            if (!GetConfig().copyLaunch) {
+                return "copyLaunch off";
+            }
+            if (IsDroppedByProbe(a_asked)) {
+                return "its copy was dropped by the copy model probe";
+            }
+            return PoolCopyOf(a_asked) ? "its slot's gate is closed" : "no copy and no slot";
+        }
+
+        // Its own guard (a fault skips the line only) and no throw out: nothing of the launch depends on it. The player's
+        // fire launches only (IsPlayerFireLaunch), and a stoked player's fire spell launch that LinkToPlayer refused
+        void TraceLaunch(const RE::Projectile::LaunchData& a_data, bool a_stepRan, bool a_playerFire, const RE::BGSProjectile* a_asked,
+            const RE::BGSProjectile* a_copy, bool a_made, const LaunchExplosion& a_runtime) noexcept
+        {
+            if (g_launchTraceFull.load()) {
+                return;
+            }
+            try {
+                (void)GuardedKeep("copy launch (trace)", [&]() {
+                    if (!a_playerFire && !(a_data.spell && IsStoked() && a_data.shooter == RE::PlayerCharacter::GetSingleton() &&
+                                             IsFireLaunch(a_data.spell, a_data.enchantItem, a_data.weaponSource))) {
+                        return;
+                    }
+                    int line = 0, keyLine = 0;
+                    if (!LogLimit::PerKey("launch trace", IdOf(a_asked), line, keyLine)) {
+                        return;
+                    }
+                    if (line >= LogLimit::kTraceLines) {
+                        // the kind's total cap reached: later launches return before PerKey's lock (one stopped by the
+                        // per-key or key-count cap still takes it)
+                        g_launchTraceFull.store(true);
+                    }
+                    const auto* chosen = a_copy ? a_copy : a_asked;
+                    const char* kept = KeptWhy(a_stepRan, a_playerFire, a_asked, a_copy);
+                    const auto* slot = kept && a_asked ? PoolCopyOf(a_asked) : nullptr;
+                    const auto* explosion = chosen ? chosen->data.explosionType : nullptr;
+                    // a base object in a TESObjectREFR* field (CopyGroupsPlan LinksOf): a TXST when the explosion places a decal
+                    const auto* placed = explosion ? reinterpret_cast<const RE::TESForm*>(explosion->data.impactPlacedObject) : nullptr;
+                    const std::string runtime = !a_runtime.read  ? std::string("not read (the after step faulted or is off)") :
+                                                !a_runtime.inHand ? std::string("no projectile in hand") :
+                                                                    std::format("{:08X} -> {:08X}", a_runtime.before, a_runtime.after);
+                    logger::info("BlackFlame: launch trace {}/{} ({} of this source PROJ): spell {:08X}, source PROJ {:08X} (decal TXST "
+                                 "{:08X}) -> {} PROJ {:08X}{}{}{}: decal TXST {}, explosion {:08X} (placed object {}), model '{}'; "
+                                 "projectile made {}, its runtime explosion after the launch {}",
+                        line, LogLimit::kTraceLines, keyLine, IdOf(a_data.spell), IdOf(a_asked),
+                        a_asked ? IdOf(a_asked->data.decalData) : 0, chosen && IsCopy(chosen) ? "copy" : "SOURCE", IdOf(chosen),
+                        kept ? " - not swapped: " : "", kept ? kept : "",
+                        slot ? std::format(" (slot {:08X})", slot->GetFormID()) : std::string(),
+                        CopySwapDetail::TxstText(chosen ? chosen->data.decalData : nullptr), IdOf(explosion),
+                        CopySwapDetail::TxstText(placed), chosen ? chosen->model.c_str() : "", a_made ? "yes" : "NO", runtime);
+                });
+            } catch (...) {  // (...) as LaunchThunk's: noexcept, and SehGuard passes every non-fault throw on to here
+                if (!g_launchTraceFailure.exchange(true)) {
+                    logger::warn("BlackFlame: the launch trace threw; the line was dropped (the launch is unchanged); further "
+                                 "failures are not logged");
+                }
+            }
+        }
+
         bool IsPlayerFireLaunch(const RE::Projectile::LaunchData& a_data)
         {
             if (!IsStoked() || !IsFireLaunch(a_data.spell, a_data.enchantItem, a_data.weaponSource)) {
@@ -99,7 +192,7 @@ namespace BlackFlame
 
         // After Launch: the new projectile's explosion to its copy (the MGEF explosion case, e.g. Fireball)
         void PostLaunch(RE::ProjectileHandle* a_result, const RE::Projectile::LaunchData& a_data, bool a_playerFire,
-            RE::BGSProjectile* a_asked, RE::BGSProjectile* a_copy)
+            RE::BGSProjectile* a_asked, RE::BGSProjectile* a_copy, LaunchExplosion& a_trace)
         {
             const auto projectile = a_result ? a_result->get() : RE::NiPointer<RE::Projectile>{};
             RE::BGSExplosion* before = nullptr;
@@ -117,6 +210,7 @@ namespace BlackFlame
                 }
                 after = runtime.explosion;
             }
+            a_trace = { true, projectile.get() != nullptr, before ? before->GetFormID() : 0, after ? after->GetFormID() : 0 };  // copies only
             if (!SelfTestProbe::Recording()) {
                 return;
             }
@@ -142,8 +236,9 @@ namespace BlackFlame
             RE::BGSProjectile* asked = a_data.projectileBase;
             RE::BGSProjectile* copy = nullptr;
             bool playerFire = false;
+            bool stepRan = false;  // the trace line only: false when the step is off after a fault, faulted or threw
             try {
-                (void)Guarded("copy launch", [&]() {
+                stepRan = Guarded("copy launch", [&]() {
                     playerFire = IsPlayerFireLaunch(a_data);
                     if (!playerFire || !asked || IsCopy(asked)) {
                         return;
@@ -160,6 +255,7 @@ namespace BlackFlame
                 });
             } catch (...) {
                 copy = nullptr;
+                stepRan = false;
                 ReportOnce(g_launchFailure, "the Launch detour");
             }
             if (copy) {
@@ -184,11 +280,13 @@ namespace BlackFlame
                     ReportOnce(g_launchFailure, "the Launch detour (first-launch line)");
                 }
             }
+            LaunchExplosion runtime;  // log only: what PostLaunch read, for the trace line after it
             try {
-                (void)Guarded("copy launch (after)", [&]() { PostLaunch(result, a_data, playerFire, asked, copy); });
+                (void)Guarded("copy launch (after)", [&]() { PostLaunch(result, a_data, playerFire, asked, copy, runtime); });
             } catch (...) {
                 ReportOnce(g_launchFailure, "the Launch detour (after)");
             }
+            TraceLaunch(a_data, stepRan, playerFire, asked, copy, result && *result, runtime);
             Perf::Add(Perf::kLaunch, perfBefore + (Perf::Now() - perfStart));
             return result;
         }
@@ -312,6 +410,22 @@ namespace BlackFlame
 
     namespace CopySwapDetail
     {
+        std::string TxstText(const RE::TESForm* a_form)
+        {
+            if (!a_form) {
+                return "00000000";
+            }
+            const auto slot = SlotAssign::SlotOf(a_form);
+            const char* gate = !slot ? "not a slot form" : SlotAssign::GateOpen(*slot) ? "slot gate open" : "slot gate CLOSED";
+            const auto* set = a_form->As<RE::BGSTextureSet>();
+            if (!set) {
+                return std::format("{:08X} (a {}, not a TXST; {})", a_form->GetFormID(), RE::FormTypeToString(a_form->GetFormType()),
+                    gate);
+            }
+            const char* tx00 = set->textures[0].textureName.c_str();
+            return std::format("{:08X} (TX00 '{}', {})", a_form->GetFormID(), tx00 ? tx00 : "", gate);
+        }
+
         void InstallLaunchDetours(CopySwapStatus& a_status)
         {
             const auto& config = GetConfig();

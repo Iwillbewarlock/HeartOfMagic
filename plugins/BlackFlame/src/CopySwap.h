@@ -45,13 +45,15 @@ namespace BlackFlame
     class CopyWindow
     {
     public:
-        explicit CopyWindow(bool a_open) noexcept;
+        /// a_base: the projectile or explosion base that opened it, for the impact trace lines only (null: the self-test)
+        explicit CopyWindow(bool a_open, const RE::TESForm* a_base = nullptr) noexcept;
         ~CopyWindow();
         CopyWindow(const CopyWindow&) = delete;
         CopyWindow& operator=(const CopyWindow&) = delete;
 
     private:
         bool m_previous;
+        const RE::TESForm* m_previousBase;
     };
 
     [[nodiscard]] bool CopyWindowOpen() noexcept;
@@ -144,6 +146,10 @@ namespace BlackFlame
         /// F1: records a_name as skipped on SE; in testerMode also the first 32 bytes at the SE candidate a_seId (read
         /// only, no hook) so its identity can be checked offline later (CopySwapLaunch.cpp)
         void RecordSeCandidate(const char* a_name, std::uint64_t a_seId);
+
+        /// Trace lines only: "{:08X} (TX00 '..', slot gate open)", a decal or placed form, its first texture path and its
+        /// slot's gate ("00000000" for null; CopySwapLaunch.cpp)
+        [[nodiscard]] std::string TxstText(const RE::TESForm* a_form);
 
         /// F3: *a_slot holds a_to for this scope and gets its old value back however the scope ends (no swap when a_to is null)
         template <class T>
