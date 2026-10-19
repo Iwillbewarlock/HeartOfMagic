@@ -381,7 +381,7 @@ namespace BlackFlame::HitPath
                 const auto result = func(a_effect);
                 try {
                     (void)Guarded("hit path effect start", [&]() { ObserveStart(S, a_effect, flagsBefore); });
-                } catch (...) {
+                } catch (const std::exception&) {  // not catch (...): /EHa would swallow SEH codes SehGuard passes on (review)
                     ReportFailure();
                 }
                 return result;
@@ -443,7 +443,7 @@ namespace BlackFlame::HitPath
                 auto* result = func(a_effect, a_controller);
                 try {
                     (void)Guarded("hit path ApplyEffectShader", [&]() { ObserveApply(a_controller); });
-                } catch (...) {
+                } catch (const std::exception&) {
                     ReportFailure();
                 }
                 return result;
@@ -495,20 +495,31 @@ namespace BlackFlame::HitPath
             if (freeBefore < needed) {
                 logger::error("BlackFlame: hit path observation: the SKSE trampoline has {} free bytes, {} needed - no site hooked",
                     freeBefore, needed);
+                for (const auto& [ok, name, site] : { std::tuple{ okA, kNameA, update + kSiteAOffset },
+                         std::tuple{ okB, kNameB, update + kSiteBOffset }, std::tuple{ okApply, kNameApply, apply + kApplySiteOffset } }) {
+                    if (ok) {
+                        Patch::RecordHook(name, false, site, Patch::HexBytes(site, Patch::kRel32Size), "trampoline short");
+                    }
+                }
                 return;
             }
             if (okA) {
-                StartVisualsHook<kSiteA>::func = Patch::WriteCall(kNameA, update + kSiteAOffset, StartVisualsHook<kSiteA>::thunk,
+                // the original first, then the E8: a thread at the site never calls an unset func (review); VerifySite proved
+                // the site's target is that callee
+                StartVisualsHook<kSiteA>::func = decltype(StartVisualsHook<kSiteA>::func){ startVisuals };
+                (void)Patch::WriteCall(kNameA, update + kSiteAOffset, StartVisualsHook<kSiteA>::thunk,
                     "log only: the original is called with the same argument");
                 g_startHooked[kSiteA] = true;
             }
             if (okB) {
-                StartVisualsHook<kSiteB>::func = Patch::WriteCall(kNameB, update + kSiteBOffset, StartVisualsHook<kSiteB>::thunk,
+                StartVisualsHook<kSiteB>::func = decltype(StartVisualsHook<kSiteB>::func){ startVisuals };
+                (void)Patch::WriteCall(kNameB, update + kSiteBOffset, StartVisualsHook<kSiteB>::thunk,
                     "log only: the original is called with the same argument");
                 g_startHooked[kSiteB] = true;
             }
             if (okApply) {
-                ShaderEffectCtorHook::func = Patch::WriteCall(kNameApply, apply + kApplySiteOffset, ShaderEffectCtorHook::thunk,
+                ShaderEffectCtorHook::func = decltype(ShaderEffectCtorHook::func){ ctor };
+                (void)Patch::WriteCall(kNameApply, apply + kApplySiteOffset, ShaderEffectCtorHook::thunk,
                     "log only: the original is called with the same arguments");
                 g_applyHooked = true;
             }
@@ -527,7 +538,7 @@ namespace BlackFlame::HitPath
             return;
         }
         if (!Patch::HasIds({ 40508, kUpdateId, kStartVisualsId, 34761, kShaderEffectCtorId, kApplyShaderId, 34833, 34154,
-                               kOwnedVtableId, kCameraVtableId },
+                               kOwnedVtableId, kCameraVtableId, 205809 },  // 205809: the controller vtable read below (review)
                 "hit path observation")) {
             logger::warn("BlackFlame: hit path observation off (Address Library ids missing)");
             return;

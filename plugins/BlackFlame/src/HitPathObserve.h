@@ -7,9 +7,12 @@
 // =============================================================================
 // Why run 5's player fire spells damaged NPCs while no 0x0D / 0x0C call (HitEffectHook)
 // carried a fire MGEF. Decrypted 1.6.1170 code: a target's hit ShaderReferenceEffect for an
-// ActiveEffect is made only through 34094 (asked from ActiveEffect::Update 34092 at +0x23E
-// "site A" and +0x4CD "site B"), which asks 0x0C, then 0x0D, the gate 40508, SetTarget 34833
-// and ReferenceEffectController::Start 34761; ApplyEffectShader 19872 (Papyrus, console,
+// ActiveEffect starts in 34094 (asked from ActiveEffect::Update 34092 at +0x23E "site A" and
+// +0x4CD "site B"), which asks 0x0C, then 0x0D, the gate 40508, SetTarget 34833 and either runs
+// ReferenceEffectController::Start 34761 inline or queues it (36907 -> 36991 -> 34065 -> 34761;
+// a site line does not tell the two apart, its thread does: main or not); 34761 is also run by
+// 26275 and 34154, and 34910 by LoadGame 34071 - those paths are not observed here (review);
+// ApplyEffectShader 19872 (Papyrus, console,
 // enchantments) builds an OwnedController and calls the ShaderReferenceEffect constructor
 // 34910 at +0x1AC. The decrypted image showed another plugin's jump at 40508's entry.
 //   1. kDataLoaded: one line per function of that path with its first 16 bytes and, when it
