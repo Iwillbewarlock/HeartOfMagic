@@ -16,7 +16,7 @@ namespace
     using Toxicology::TomeRewardAction;
     using Toxicology::TomeRewardInputs;
 
-    // A player who finished the quest and has neither the ability nor a tome: the one row that grants
+    // A player who finished the quest, the reward not yet given: the one row that grants
     TomeRewardInputs Fresh()
     {
         TomeRewardInputs in;
@@ -31,8 +31,7 @@ namespace
         if (got == a_want) return {};
         return std::string("got ") + Toxicology::TomeRewardActionName(got) + ", expected " +
                Toxicology::TomeRewardActionName(a_want) + " (forms " + std::to_string(a_in.formsPresent) + ", enabled " +
-               std::to_string(a_in.enabled) + ", satisfied " + std::to_string(a_in.rewardSatisfied) + ", knows " +
-               std::to_string(a_in.knowsAbility) + ", tomes " + std::to_string(a_in.tomesHeld) + ")";
+               std::to_string(a_in.enabled) + ", satisfied " + std::to_string(a_in.rewardSatisfied) + ")";
     }
 
     std::string RewardGrant()
@@ -48,47 +47,23 @@ namespace
         if (auto detail = ExpectAction(in, TomeRewardAction::kRetryLater); !detail.empty()) return detail;
         in.enabled = false;
         in.rewardSatisfied = true;
-        in.knowsAbility = true;
-        in.tomesHeld = 1;
         return ExpectAction(in, TomeRewardAction::kRetryLater);
     }
 
-    // Off: nothing given and the flag left alone, even for a player who knows the ability
+    // Off: nothing given and the flag left alone
     std::string RewardDisabled()
     {
         auto in = Fresh();
         in.enabled = false;
-        if (auto detail = ExpectAction(in, TomeRewardAction::kSkip); !detail.empty()) return detail;
-        in.knowsAbility = true;
         return ExpectAction(in, TomeRewardAction::kSkip);
     }
 
-    // Satisfied: never again, also when the tome was sold unread (no ability, no tome)
+    // Satisfied: never again, also when the tome was sold unread
     std::string RewardAlreadySatisfied()
     {
         auto in = Fresh();
         in.rewardSatisfied = true;
-        if (auto detail = ExpectAction(in, TomeRewardAction::kSkip); !detail.empty()) return detail;
-        in.knowsAbility = true;
-        in.tomesHeld = 2;
         return ExpectAction(in, TomeRewardAction::kSkip);
-    }
-
-    std::string RewardKnowsAbility()
-    {
-        auto in = Fresh();
-        in.knowsAbility = true;
-        return ExpectAction(in, TomeRewardAction::kMarkSatisfied);
-    }
-
-    // One tome held is enough (a tome bought in the shop build); a count of 0 or below is none
-    std::string RewardHoldsTome()
-    {
-        auto in = Fresh();
-        in.tomesHeld = 1;
-        if (auto detail = ExpectAction(in, TomeRewardAction::kMarkSatisfied); !detail.empty()) return detail;
-        in.tomesHeld = -1;
-        return ExpectAction(in, TomeRewardAction::kGrant);
     }
 
     std::string ExpectFlag(const std::vector<std::uint8_t>& a_data, std::optional<bool> a_want)
@@ -127,8 +102,6 @@ std::vector<std::pair<const char*, std::string (*)()>> RewardChecks()
         { "RewardFormsMissing", RewardFormsMissing },
         { "RewardDisabled", RewardDisabled },
         { "RewardAlreadySatisfied", RewardAlreadySatisfied },
-        { "RewardKnowsAbility", RewardKnowsAbility },
-        { "RewardHoldsTome", RewardHoldsTome },
         { "RewardFlagZeroOne", RewardFlagZeroOne },
         { "RewardFlagBadByte", RewardFlagBadByte },
         { "RewardFlagWrongLength", RewardFlagWrongLength },

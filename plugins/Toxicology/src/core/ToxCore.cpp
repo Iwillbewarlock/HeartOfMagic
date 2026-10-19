@@ -242,7 +242,6 @@ namespace Toxicology
     {
         if (!a_in.formsPresent) return TomeRewardAction::kRetryLater;
         if (!a_in.enabled || a_in.rewardSatisfied) return TomeRewardAction::kSkip;
-        if (a_in.knowsAbility || a_in.tomesHeld > 0) return TomeRewardAction::kMarkSatisfied;
         return TomeRewardAction::kGrant;
     }
 
@@ -251,8 +250,6 @@ namespace Toxicology
         switch (a_action) {
         case TomeRewardAction::kGrant:
             return "Grant";
-        case TomeRewardAction::kMarkSatisfied:
-            return "MarkSatisfied";
         case TomeRewardAction::kSkip:
             return "Skip";
         case TomeRewardAction::kRetryLater:

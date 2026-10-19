@@ -187,19 +187,17 @@ Toxicology::TomeRewardAction ToxGame::TryGrantTome(RewardPath a_path)
     in.formsPresent = player && tome && ability && g_quest;
     in.enabled = GetSettings().enabled;
     in.rewardSatisfied = RewardSatisfied();
-    in.knowsAbility = player && ability && player->HasSpell(ability);  // RE/A/Actor.h:620
-    in.tomesHeld = PlayerTomeCount();
+    // For the log only: the reward is given whether or not the player knows the ability or holds a tome
+    const bool knowsAbility = player && ability && player->HasSpell(ability);  // RE/A/Actor.h:620
+    const std::int32_t tomesHeld = PlayerTomeCount();
     const auto action = Toxicology::DecideTomeReward(in);  // core/ToxCore.h, checked by tools/toxicology-test
     logger::info("Toxicology: tome reward ({}): {} - player {}, tome {}, ability {}, quest {}, enabled {}, satisfied {}, "
         "knows the ability {}, tomes held {}", RewardPathName(a_path), Toxicology::TomeRewardActionName(action),
         player ? "yes" : "no", tome ? "yes" : "no", ability ? "yes" : "no", g_quest ? "yes" : "no", in.enabled,
-        in.rewardSatisfied, in.knowsAbility, in.tomesHeld);
+        in.rewardSatisfied, knowsAbility, tomesHeld);
     switch (action) {
     case Toxicology::TomeRewardAction::kGrant:
-        Grant(*player, *tome, in.tomesHeld);
-        break;
-    case Toxicology::TomeRewardAction::kMarkSatisfied:
-        SetRewardSatisfied(true);
+        Grant(*player, *tome, tomesHeld);
         break;
     case Toxicology::TomeRewardAction::kSkip:
     case Toxicology::TomeRewardAction::kRetryLater:

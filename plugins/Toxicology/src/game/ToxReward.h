@@ -64,7 +64,7 @@ namespace ToxGame
 
     // Main thread. Reads the inputs, decides (core DecideTomeReward), logs the decision with every
     // input and acts: kGrant adds one tome to the player, and only when the count went up sets the
-    // flag and shows the game's own "<tome name> <sAddItemtoInventory>" line with the pick-up sound; kMarkSatisfied sets the flag.
+    // flag and shows the game's own "<tome name> <sAddItemtoInventory>" line with the pick-up sound.
     // Returns the decision.
     Toxicology::TomeRewardAction TryGrantTome(RewardPath a_path);
 

@@ -70,9 +70,9 @@ The log is `HeartOfMagic_Toxicology.log` in the SKSE log folder (`Documents/My G
 
 **Spell Tome: Toxicology** is Ingun Black-Briar's reward for her quest **Few and Far Between** (Riften): the DLL
 gives it when the quest reaches its success stage, 200, with the game's "added" notice on screen; no vanilla record
-is overridden. A save that finished the quest before the addon was installed gets the tome at its next load. Once
-the reward is satisfied - the tome given, or the ability already known or a tome already carried at that moment -
-it is never given again (the co-save keeps that), so a tome sold or dropped unread is gone; the console
+is overridden. A save that finished the quest before the addon was installed gets the tome at its next load. It is
+given even when the ability is already known or a tome is already carried (it is the quest's reward). Once
+given it is never given again (the co-save keeps that), so a tome sold or dropped unread is gone; the console
 (`player.additem` with the tome's form ID) is the way back. With `enabled` off (read at game start) nothing is
 given and the reward stays open, so turning it on later gives the tome at the next load. Reading the tome teaches
 the ability at once and the tome is used up, as with any vanilla tome that teaches an ability (Heart of Magic's tome study does not apply

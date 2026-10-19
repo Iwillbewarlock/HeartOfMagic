@@ -146,10 +146,9 @@ namespace Toxicology
     // The tome as the quest reward (game/ToxReward.h): what one grant attempt does
     enum class TomeRewardAction
     {
-        kGrant,          // give one tome, then mark the reward satisfied
-        kMarkSatisfied,  // nothing given: the player already knows the ability or holds a tome
-        kSkip,           // nothing given, the flag unchanged: "enabled" is off, or the reward is already satisfied
-        kRetryLater      // nothing given, the flag unchanged: the player or a form is missing
+        kGrant,      // give one tome, then mark the reward satisfied
+        kSkip,       // nothing given, the flag unchanged: "enabled" is off, or the reward is already satisfied
+        kRetryLater  // nothing given, the flag unchanged: the player or a form is missing
     };
 
     // The inputs, read on the game's main thread just before the decision
@@ -158,15 +157,14 @@ namespace Toxicology
         bool formsPresent = false;     // the player, the tome, the ability and the quest
         bool enabled = false;          // the setting "enabled"
         bool rewardSatisfied = false;  // the co-saved flag
-        bool knowsAbility = false;
-        std::int32_t tomesHeld = 0;    // in the player's inventory
     };
 
     // First match: a form missing -> kRetryLater; "enabled" off -> kSkip; already satisfied -> kSkip;
-    // the ability known or a tome held -> kMarkSatisfied; otherwise kGrant.
+    // otherwise kGrant. The reward is the quest's, so a player who already knows the ability or holds
+    // a tome gets it too (user 2026-10-19).
     TomeRewardAction DecideTomeReward(const TomeRewardInputs& a_in);
 
-    // "Grant", "MarkSatisfied", "Skip", "RetryLater" (for the log)
+    // "Grant", "Skip", "RetryLater" (for the log)
     const char* TomeRewardActionName(TomeRewardAction a_action);
 
     // The co-save record TOMG's data (game/ToxSave.h): exactly one byte, 0 or 1. nullopt for any
