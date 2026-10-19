@@ -1,0 +1,15 @@
+{
+  "_comment": [
+    "Marks the conflict stage reads (docs/librarian/LIBRARIAN.md, 'Evidence conflicts').",
+    "unspecifiedDamageKeywords: MGEF keywords saying an effect deals magic damage of no engine",
+    "element. On an effect that carries one, a framework keyword naming fire, frost, shock or",
+    "poison is contradicted by the record, and an element resting only on such keywords is",
+    "dropped. ResistMagic alone is NOT such a mark: the engine has no water, air or earth",
+    "resistance, so most mod elemental spells are resisted by ResistMagic.",
+    "Both names are one keyword (Update.esm|0x1EA6002, defined by Apostasy and by Ascension):",
+    "the load order's winning plugin decides its editor ID. The scan records keywords by",
+    "editor ID only, so it is named both ways here."
+  ],
+  "unspecifiedDamageKeywords": ["APO_MagicDamageUnspecified", "DAR_UnspecificMagicDamage"],
+  "rules": []
+}

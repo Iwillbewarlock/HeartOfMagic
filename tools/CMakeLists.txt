@@ -55,6 +55,7 @@ set_source_files_properties(${SL_SRC_DIR}/treebuilder/SimdKernels.cpp PROPERTIES
 
 add_executable(librarian-test
     librarian-test.cpp
+    librarian-selftest.cpp
     librarian-score.cpp
     librarian-vocab-check.cpp
     librarian-adapters.cpp

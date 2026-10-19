@@ -6,6 +6,8 @@
  *   node tools/librarian-check.js --update   write the current figures as the new baseline
  *   node tools/librarian-check.js --log <SpellLearning.log>   also read the game's timings
  *
+ * First librarian-test --self-test (made-up spells: conflict stage, evidence tiers);
+ * a failure stops the check (exit 1) and no baseline is written.
  * Accuracy (a drop fails the check, exit 1):
  *   - the Spell Research answer set, all rules and the vanilla-structure tier alone
  *     (librarian-test -a, -t mgef): precision, recall, F1
@@ -89,6 +91,12 @@ function measureIn(tmp, paths, logPath) {
     var catalog = path.join(tmp, 'catalog.json');
     var merged = path.join(tmp, 'merged.json');
     var figures = { accuracy: {}, judge: {}, speed: {}, info: {} };
+
+    // The classifier on made-up spells (conflict stage, evidence tiers): a failure
+    // stops the check, --update included
+    var selfTest = run('librarian-test.exe', ['--self-test']);
+    if (selfTest.status !== 0) throw new Error('librarian-test --self-test failed:\n' + selfTest.out);
+    figures.info.selfTestPassed = need(number(selfTest.out, /(\d+) passed, 0 failed/), 'self-test result', selfTest.out);
 
     var full = run('librarian-test.exe', ['-i', paths.dump, '-r', RULES, '-o', catalog, '-m', merged]
         .concat(paths.answers ? ['-a', paths.answers] : []));

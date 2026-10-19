@@ -278,13 +278,22 @@ namespace Librarian
             }
             // A file of framework rules should not repeat its tier on every line.
             ReadString(document, "tier", defaultSource);
+            // The conflict stage's marks of unspecified magic damage, from any file
+            std::vector<std::string> unspecified;
+            ReadStringList(document, "unspecifiedDamageKeywords", unspecified);
+            for (auto& keyword : unspecified) {
+                if (keyword.empty()) continue;
+                auto& known = target.unspecifiedDamageKeywords;
+                if (std::find(known.begin(), known.end(), keyword) == known.end()) known.push_back(std::move(keyword));
+            }
         }
 
         if (!ruleArray) {
             // The keyword patch keeps its adapter table in this same directory
-            // and it is not a rule file. Anything else without rules is a
-            // mistake worth mentioning.
-            if (!document.is_object() || document.find("adapters") == document.end()) {
+            // and it is not a rule file; a file of conflict marks alone is
+            // fine too. Anything else without rules is a mistake worth mentioning.
+            if (!document.is_object() || (document.find("adapters") == document.end()
+                    && document.find("unspecifiedDamageKeywords") == document.end())) {
                 logger::warn("Librarian: '{}' has no rules array - ignored", originFile);
             }
             return;
@@ -342,8 +351,14 @@ namespace Librarian
                 ruleSet.rules.size() - before, name);
         }
 
-        logger::info("Librarian: {} rules from {} files ({} skipped, {} tags outside the vocabulary)",
-            ruleSet.rules.size(), ruleSet.files.size(), ruleSet.skipped, ruleSet.rejectedTags);
+        logger::info("Librarian: {} rules from {} files ({} skipped, {} tags outside the vocabulary, "
+            "{} unspecified-damage keywords)",
+            ruleSet.rules.size(), ruleSet.files.size(), ruleSet.skipped, ruleSet.rejectedTags,
+            ruleSet.unspecifiedDamageKeywords.size());
+        if (!ruleSet.rules.empty() && ruleSet.unspecifiedDamageKeywords.empty()) {
+            logger::warn("Librarian: no unspecifiedDamageKeywords in any rule file - conflict (a) disabled "
+                "(20_conflict.json missing?); only the same-effect test runs");
+        }
 
         return ruleSet;
     }

@@ -271,7 +271,7 @@ node tools/librarian-check.js --log <SpellLearning.log>   # also the game's adap
 ```
 
 Run it after any change to the librarian rules, the scanner fields they read, the perk adapters or the
-tree builder. It scores the pinned dump (`lab/librarian-judge/dumps/`, not in git) against the Spell
+tree builder. It first runs `librarian-test --self-test` (a failure stops the check, no baseline is written), then scores the pinned dump (`lab/librarian-judge/dumps/`, not in git) against the Spell
 Research answer set (all rules and the vanilla-structure tier), every AI-judged round
 (`lab/librarian-judge/<round>/verdicts.json`) and the share of untagged spells, and fails (exit 1) when
 any of them gets worse; timings over the baseline's budgets only warn. Local paths (the answer set, another
@@ -290,7 +290,9 @@ This project does not have a C++ test framework. Validation is done through:
   branching, maxChildren, maxDepth, nonStringLinks` - and exits 2 on a link that is not a formId or a school of 10+
   spells that never branches), `librarian-test` (spell tag librarian; `--adapters <dir> --catalog <file>` plans the perk adapter
   keyword writes with the plugin's own planner; `--spellresearch <file> --catalog <file> [-a <answers>]` counts the
-  Spell Research registrations and scores their labels), `tome-reach-test` (which tree spells have tomes nothing hands
+  Spell Research registrations and scores their labels; `librarian-test --self-test` classifies made-up spells - the
+  evidence conflict stage, per-element evidence tiers, the axis source after removals - no dump needed, exit 1 on a
+  failure, and `librarian-check.js` runs it first), `tome-reach-test` (which tree spells have tomes nothing hands
   out: `tome-reach-test -i inputs.json -s spell_scan_output.json [-v]`, inputs from `lab/tome-reach/make_inputs.py`;
   `tome-reach-test --self-test` checks the reader on made-up plugins, no game or load order needed, exit 1 on a failure;
   it must list what `lab/tome-reach/expected-*.txt` lists on the same load order) and `declutter-test`

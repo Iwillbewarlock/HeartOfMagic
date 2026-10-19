@@ -8,3 +8,6 @@
 - Predates later decisions, so these verdicts count as wrong what is now intended:
   - `blood` on vampire drains and absorbs (7) - blood takes in vampiric magic since the same day
   - `creature` on summons was judged wrong already, as now decided
+- 2026-10-20: two `fire` verdicts marked stale and moved from `correct` to `wrong` (Desecration 0x000819, 0x0009A1):
+  the damage is unspecified magic damage, the fire came from the OCF/ADAR NecroticFire composite keywords
+  (docs/librarian/LIBRARIAN.md, "AI 채점의 낡은 판정 다섯")

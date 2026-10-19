@@ -17,7 +17,7 @@
     { "match": { "mgefKeyword": "KIT_MagicElement_Astral" },   "add": { "elements": ["holy"] } },
     { "_": "KIT puts Blood and Vampiric on vampire summons, reanimations and defences too; only the effect that works on Health is blood (2026-10-10)",
       "match": { "mgefKeyword": "KIT_MagicElement_Blood", "primaryAV": "Health" },    "add": { "elements": ["blood"] } },
-    { "_": "ColdFire is KIT's label for a blue flame's look: the fire is real, the cold is not",
+    { "_": "ColdFire is KIT's label for a blue flame, put on two kinds of spell: blue fire whose record is fire (FireResist, MagicDamageFire) or plain magic damage (Vigilant's holy flames), and cold fire whose record is frost damage (Flames of Coldharbour: MagicDamageFrost, FrostResist, 'frost damage'). Cold fire is frost, the blue flame is its look only (user, 2026-10-20). This rule still gives fire, and where the same effect's record says frost the conflict stage takes it off (LIBRARIAN.md, 'Evidence conflicts') - giving frost here instead would turn the holy flames frost",
       "match": { "mgefKeyword": "KIT_MagicElement_ColdFire" }, "add": { "elements": ["fire"] } },
     { "match": { "mgefKeyword": "KIT_MagicElement_Creature" }, "add": { "elements": ["creature"] } },
     { "match": { "mgefKeyword": "KIT_MagicElement_Daedric" },  "add": { "elements": ["daedra"] } },

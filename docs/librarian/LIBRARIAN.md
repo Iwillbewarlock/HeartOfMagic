@@ -56,6 +56,7 @@ creature·human·armor·health 같은 대상 쪽 원소는 스캐너의 `kind.*`
 | 경로 | 내용 |
 |---|---|
 | `SKSE/Plugins/SpellLearning/librarian/*.json` | 분류 룰. 파일명 순으로 병합 |
+| `SKSE/Plugins/SpellLearning/librarian/20_conflict.json` | 룰 없이 증거 충돌 단계가 읽는 표식만(`unspecifiedDamageKeywords`, 3절 "증거 충돌") |
 | `SKSE/Plugins/SpellLearning/spell_catalog.json` | 산출물. `persistentId` 키 |
 | `src/librarian/LibrarianRules.cpp` | 룰 로드·검증·병합 |
 | `src/librarian/LibrarianClassify.cpp` | `Classify(spell, rules) -> TagSet`. 순수 함수 |
@@ -163,7 +164,7 @@ Bloodmoon 혈의 변이체·혈류의 변이체 소환. **AI 채점의 낡은 �
 같은 기준으로 프레임워크 키워드를 다시 읽었다(2026-09-30, 에이전트 전수 점검): NSV 의 `Tag_Undead`·
 `Tag_Vampiric`·`Magic_Teleport` 는 NPC AI 에게 "누구에게 쓰라, 누가 쓴다" 를 알리는 표시라 원소를 주지
 않는다. KIT 의 `MagicElement_Undead` 는 참나무 피부에까지 붙어 있어 지웠고, `ColdFire` 는 파란 불꽃이라는
-겉모습이라 화염만 준다. 흡혈(`MagicElement_Vampiric`)은 언데드가 아니라 혈이다. ADAR `Necromancy_` 는
+겉모습이라 화염만 준다(기록이 서리 피해인 냉기 화염에서는 증거 충돌 단계가 그 화염을 뗀다, 아래 "증거 충돌"). 흡혈(`MagicElement_Vampiric`)은 언데드가 아니라 혈이다. ADAR `Necromancy_` 는
 괴저만(언데드는 되살리는 쪽 키워드가 준다). `MagicSummonFire/Frost/Shock` 는 아트로나크 퍽의 고리라 모드가
 따라 붙이므로, 같은 이펙트에 KIT 가 데이드라·언데드·엘드리치·흡혈 소환이라 하면 그 원소를 뗀다. 소울 트랩은
 함정(`trap`)이 아니다.
@@ -217,6 +218,73 @@ archetype 과 resistance 는 그 룰이 말하는 것의 증거가 아니기 때
 
 `confidence` 는 **증거가 남의 환경에도 존재할 가능성**이지 태그가 맞을 확률이 아니다.
 정확도 숫자는 `MEASURED.md` 에 있다. 한 항목의 confidence 는 두 축 중 **약한 쪽**을 따른다.
+
+**한 축의 등급은 그 축에 남은 태그를 준 가장 강한 등급이다 (2026-10-20).** 강한 순서는 `mgef` > `manual` >
+`framework` > 모르는 등급(사용자 파일이 붙인 제 이름의 tier)이고(`TIER_RANK_*`), 같은 순위면 병합 순서에서 먼저 오는 룰이 정한다
+(태그 이름 순이 아니다). 전에는 **처음 맞은 룰**의 등급이었다. 파일 순서가 `00_mgef` → `10_*` → `70_mods`·`80_manual` 이라
+프레임워크와 수동 룰이 같이 준 태그가 `framework` 로 남았고, `remove` 로 뗀 태그를 준 룰의 등급이 그대로 남았다(예: 데이드라
+소환에서 뗀 `soul` 의 `mgef`). 이제 등급은 빼기와 충돌 단계가 끝난 뒤 남은 태그로만 다시 계산한다. **축의 등급은 가장 강한
+태그 하나의 등급일 뿐이다:** `mgef` 화염과 `framework` 괴저를 가진 주문의 `source.elements` 는 `mgef` 다. 태그 하나가 남의 환경에도
+있을지는 카탈로그의 `elementSources` 에서 태그마다 읽는다(4절).
+
+### 증거 충돌 (2026-10-20)
+
+`remove` 는 어느 룰이 붙인 태그든 떼고, 룰 문법에는 "이 주문의 기록이 그 원소를 부정한다" 는 조건이 없다. 그래서
+프레임워크 키워드가 기록과 어긋나는 원소를 붙여도 JSON 룰로는 뗄 수 없었다(Desecration 의 "괴저 화염" 주문 25개가
+`OCF_MgefSpellDamage_NecroticFire`·`ADAR_SPEL_NecroticFire_` 로 화염을 받았다. 이 주문들의 피해는 마법 저항이 막는
+"지정되지 않은 마법 피해"다). 모든 룰이 붙이고 뗀 뒤, `noElement` 룰 전에 도는 단계가 이것을 맡는다
+(`LibrarianClassify.cpp` 의 `DropContradicted`).
+
+- **떼는 원소는 엔진이 아는 피해 원소 넷뿐이다:** `fire`·`frost`·`shock`·`poison`(`ENGINE_DAMAGE_ELEMENTS`). 엔진에
+  저항이 따로 있는 것(FireResist·FrostResist·ElectricResist·PoisonResist)만 기록이 "아니다" 라고 말할 수 있다. 물·바람·흙·
+  괴저 같은 원소는 저항이 없어 모드 주문이 대개 `MagicResist` 로 막으므로 기록에 그것을 부정하는 것이 없다.
+  **`MagicResist` 자체는 표식이 아니다**
+- **증거 조각 단위로 본다:** 룰 하나가 원소 하나에 준 것이 증거 조각 하나다(등급, 룰 순서, 맞은 이펙트들). 기록 등급
+  (`mgef`·`manual`)보다 낮은 조각 — `framework` 와 사용자 파일의 제 이름 tier — 은 **맞은 이펙트가 모두** 반박될 때 빠진다.
+  조각이 하나도 남지 않으면 원소가 빠진다. 기록 등급 조각, 주문 레벨 조각(SPEL 키워드처럼 이펙트에 묶이지 않은 룰),
+  반박되지 않은 이펙트에도 맞은 조각은 남는다. 그래서 주문 어디에든 그 원소의 기록 증거가 있으면 원소는 남고, 빠진 조각은
+  등급 계산에도 들지 않는다
+- **이펙트 하나가 반박되는 조건:**
+  - (a) 그 이펙트에 "지정되지 않은 마법 피해" 표식 키워드가 있다(`unspecifiedDamageKeywords`)
+  - (b) 기록 등급 룰이 **그 같은 이펙트에** 다른 엔진 피해 원소를 주었다(서리 피해 이펙트에 붙은 KIT 화염). **이펙트 조건이
+    있는 기록 룰만** 반박할 수 있다: `spell`·`pluginContains` 처럼 이펙트 조건이 없는 수동 룰은 이펙트에 묶이지 않아 반박하지
+    않는다(80_manual 의 저항 강화 룰처럼 이펙트 조건이 있는 수동 룰은 반박한다). `remove` 로 뗀 기록 원소도 반박하지 않는다
+    (뗀 태그의 증거는 함께 지워진다)
+- **이펙트마다 따로, 망토는 거는 피해로 (2026-10-20 리뷰 수정):** 주문의 이펙트와 그것이 남에게 거는 이펙트(`applies`)는
+  각자 제 번호를 가진다(`ForEachEvidenceEffect`, 룰과 같은 번호). 형제 이펙트는 서로를 반박하지 않는다: 망토가 거는 두 이펙트
+  중 하나의 서리나 표식은 다른 하나의 KIT 화염을 떼지 않는다. 예외는 **스스로 피해를 주지 않는 운반체**(스스로는 실제로 해치지 않고
+  실제로 해치는 `applies` 이펙트가 있는 것. "실제로 해친다" 는 숨김 이펙트를 근거로 칠 때와 같은 기준이다: 해로움, 수치 > 0, archetype 이 ValueModifier·DualValueModifier·PeakValueModifier·Absorb. 함께 거는 회복은 피해가 아니라 셈에 들지 않는다 — 망토 몸체, 장판,
+  폭발)다. 운반체에 붙은 키워드는 운반체 자신이 반박되거나, **피해를 주는 거는 이펙트 전부가** 반박할 때 반박된다. Desecration
+  괴저 불꽃 망토(`0x00081C`, `0x0009A6`)는 화염 키워드가 망토 몸체에, 표식이 거는 피해에 있어 이 길로 화염을 잃는다. 근거가 되는
+  이펙트는 룰과 같은 기준이다(3절 "어떤 이펙트가 근거가 되나"). 숨김 보조 이펙트에 붙은 표식은 근거가 아니다
+- **표식은 데이터다:** 룰 파일 최상위의 `"unspecifiedDamageKeywords": [...]`(어느 파일이든 합쳐진다, 지금은 `20_conflict.json`).
+  표식은 룰이 아니라 `-t <tier>` 로 걸러지지 않는다. `APO_MagicDamageUnspecified` 와 `DAR_UnspecificMagicDamage` 는 같은 키워드
+  (`Update.esm|0x1EA6002`)를 Apostasy·Ascension 이 각자 이름으로 정의한 것이라 로드오더에서 이긴 쪽 이름이 스캔에 남는다. **스캔은
+  키워드를 에디터 ID 로만 적어**(`SpellScannerJson.cpp`) FormID 로는 대 볼 수 없다. 둘 다 적었다. 고정 덤프와 TAKEALOOK 덤프에는
+  APO 이름만 있어 `DAR_` 이름은 자가 시험으로만 확인했다. 표식이 하나도 로드되지 않으면 경고한다(`conflict (a) disabled`)
+- 단계가 원소를 모두 떼면 그 주문은 원소 없는 주문이라 `noElement` 룰(`MagicDamageResist` → `arcane`)이 이어서 본다.
+  `remove` 로 뗀 태그는 `noElement` 룰도 다시 붙이지 않는다(2026-10-20)
+- 뗀 것은 게임 로그에 남는다: 주문마다 debug 한 줄(`lost [...] - framework keywords the record contradicts`), 카탈로그를 쓸 때
+  info 한 줄(`conflict stage dropped contradicted framework elements from N spells {...}`). 하네스는 `CONFLICT STAGE` 줄에 같은
+  집계를 찍는다
+
+**냉기 화염은 서리다 (2026-10-20, 사용자 결정).** Flames of Coldharbour 의 "냉기 화염" 같은 주문은 기록이 서리 피해다
+(`MagicDamageFrost`·`FrostResist`, 설명 "냉기 피해"). 파란 불꽃은 겉모습일 뿐이라 서리만 남고, (b) 가 프레임워크
+(`ColdFire`·`FrostFire`)가 준 화염을 뗀다. **`10_kit.json` 의 `KIT_MagicElement_ColdFire` 룰은 그대로 화염을 준다.** KIT 는 이
+키워드를 세 종류에 붙이기 때문이다(TAKEALOOK 덤프, 이 키워드가 있는 근거 이펙트 기준 56개 주문): 기록이 서리인 냉기 화염 31개
+(전부 화염을 잃고 서리를 지킨다), 기록이 화염인 파란 불꽃 15개(mihail 11, Lucien 3, Glenmoril 1), 표식 없이 `MagicResist` 인
+Vigilant 성스러운 불꽃·불화살 10개(이 25개는 화염 그대로, 서리 0). 그 밖에 mihail·Lucien 의 파란 불꽃 망토 4개는
+`KIT_MagicDamageType_DispelColdFireCloak` 같은 ColdFire 망토·피해 키워드만 있다(역시 화염 그대로). 룰을 서리로 바꾸면 파란 불꽃은
+(b) 가 다시 서리를 떼어 결과가 같지만, 기록에 원소가 없는 성스러운 불꽃이 서리가 된다. 지금처럼 화염을 주고 기록이 서리라고
+말하는 이펙트에서만 단계가 떼는 쪽이 세 종류 모두 맞는다. 숫자는 `MEASURED.md` 7절.
+
+**AI 채점의 낡은 판정 다섯 (2026-10-20 고침).** 두 회차가 이 단계 전에 효과 설명을 읽고 `fire` 를 "맞음" 으로 매긴 주문 다섯이 있다:
+1회차(`2026-09-30`) Desecration 괴저 화염구(`Desecration.esp|0x000819`)·괴저 연소(`0x0009A1`), 2회차(`2026-09-30b`) Desecration 괴저 불꽃
+손길(`0x00082F`)과 Flames of Coldharbour 냉기 화염의 손길(`Flames of Coldharbour.esp|0x00082F`)·냉기 작열(`0x000833`). Desecration 셋은
+설명이 "마법 피해"이고 표식이 있으며, Flames of Coldharbour 둘은 위 결정으로 서리다. 혈의 낡은 판정(위 "소환·되살림·방어는 혈이
+아니다")은 적어 두기만 했지만, 이번에는 `verdicts.json` 에서 `fire` 를 `correct` 에서 `wrong` 으로 옮기고 까닭(`stale (judged before
+2026-10-20)...`)을 달았다. 화염이 다시 붙으면 틀린 태그로 센다. 지금 카탈로그에는 화염이 없어 이 판정은 점수에 들지 않고, 회차마다
+맞은 태그가 그만큼 준다(1회차 246/275 → 244/273, 89.45 → 89.38%, 2회차 272/295 → 269/292, 92.20 → 92.12%).
 
 ### 수동 룰 (`80_manual.json`, 2026-09-27)
 
@@ -300,13 +368,16 @@ librarian-test --check-vocab -r <룰 디렉터리> -j <tagVocabulary.js>
       "casting": "fireforget", "targeting": ["actor", "aoe"],
       "elements": ["fire"], "techniques": [],
       "source": { "elements": "mgef", "techniques": "" },
+      "elementSources": { "fire": "mgef" },
       "confidence": 1.0
     }
   }
 }
 ```
 
-키는 `persistentId` 라 로드오더가 바뀌어도 안전하다.
+키는 `persistentId` 라 로드오더가 바뀌어도 안전하다. `elementSources`(2026-10-20)는 원소마다 그것을 준 가장 강한
+등급이다(3절 "증거 등급"). 더한 필드라 `version` 은 1 그대로이고, 옛 카탈로그를 읽는 쪽은 이 필드가 없을 수 있다.
+`source.elements` 는 이 값들 중 가장 강한 등급이다.
 
 ### 네 축은 룰이 아니라 도출이다
 
@@ -336,7 +407,16 @@ Firebolt · Flames · Fear · Ice Spike 로 실측했고 초기 추측이 틀렸
 librarian-test -i <덤프> -r <룰> -a <정답셋>            # 전체
 librarian-test -i <덤프> -r <룰> -a <정답셋> -t mgef    # 프레임워크 없는 환경
 librarian-test --catalog <카탈로그> -a <정답셋>          # 게임이 쓴 카탈로그를 채점
+librarian-test --self-test                               # 만든 주문으로 충돌 단계·등급 확인, 실패 시 종료 코드 1
 ```
+
+자가 시험(`tools/librarian-selftest.cpp`, 2026-10-20, 42개)은 덤프 없이 작은 룰과 주문을 만들어 증거 충돌 단계(표식 두 이름,
+서리·전격·독, 같은 이펙트의 서리, 이펙트 조건이 있는 수동 룰, 사용자 tier, 기법은 그대로, 비워진 주문의 `arcane`, 이펙트가 전부
+숨김인 주문), `applies`(망토 몸체의 화염과 거는 피해의 표식·서리, 거는 피해 둘 중 하나만 표식, 표식 붙은 피해와 함께 거는 회복, 형제 이펙트끼리는 서로 반박하지
+않음), 떼지 않는 경우(다른 이펙트, 한 룰이 반박된 이펙트와 아닌 이펙트에 함께 맞음, 기록 화염, 수동 화염, 주문 레벨, 물, 재(ash)의
+흙, 숨김 보조 이펙트, 표식 없는 룰), 등급과 빼기(가장 강한 등급, 같은 순위는 룰 순서, 빼기 뒤 재계산, `noElement` 를 지나도 뗀 태그는
+떨어진 채, 섞인 기법 축, 카탈로그의 `elementSources`·confidence·통계), 잘못된 입력(표식만 있는 파일이 경고 없이 읽힘 포함)을 본다.
+`node tools/librarian-check.js` 가 이것부터 돌린다.
 
 **2026-09-10 확인**: 게임이 쓴 카탈로그와 하네스가 만든 카탈로그가 1440건 전부 항목 단위로
 동일했다(`generated` 만 다름). 게임 안 경로와 게임 밖 경로가 같은 결과를 낸다.

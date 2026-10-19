@@ -192,13 +192,16 @@
   "id": "Desecration.esp|0x000819",
   "name": "괴저 화염구",
   "correct": [
-   "fire",
    "necrotic"
   ],
   "wrong": [
    {
     "tag": "resistance",
     "why": "lowers weapon damage, not a resistance"
+   },
+   {
+    "tag": "fire",
+    "why": "stale (judged before 2026-10-20): the damage is unspecified magic damage (APO_MagicDamageUnspecified, MagicResist, description says magic damage); fire came from the OCF/ADAR NecroticFire composite keywords"
    }
   ],
   "missing": []
@@ -1037,13 +1040,16 @@
   "id": "Desecration.esp|0x0009A1",
   "name": "괴저 연소",
   "correct": [
-   "fire",
    "necrotic"
   ],
   "wrong": [
    {
     "tag": "resistance",
     "why": "lowers weapon damage, not a resistance"
+   },
+   {
+    "tag": "fire",
+    "why": "stale (judged before 2026-10-20): the damage is unspecified magic damage (APO_MagicDamageUnspecified, MagicResist, description says magic damage); fire came from the OCF/ADAR NecroticFire composite keywords"
    }
   ],
   "missing": []
