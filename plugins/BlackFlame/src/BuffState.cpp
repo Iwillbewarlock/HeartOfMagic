@@ -8,6 +8,7 @@
 #include "HandArtRefresh.h"
 #include "HazardHook.h"
 #include "HitArt.h"
+#include "HitEffectHook.h"
 #include "MainThreadQueue.h"
 #include "PlayerArt.h"
 #include "ScriptTags.h"
@@ -83,6 +84,7 @@ namespace BlackFlame
             TickHazards();          // layer 3: hazards whose owner was not set yet
             TickScriptTags();       // what scripts of the player's fire effects placed
             if (IsStoked()) {
+                TickHitEffectStats();  // layer 1 diagnostics: the window's stats line every 30 s
                 TickCasterArt();  // layer 4
                 TickPlayerArt();  // layer 4: bound fire weapons, fire light effects
             }
@@ -135,6 +137,7 @@ namespace BlackFlame
         const bool before = g_stoked.exchange(now, std::memory_order_acq_rel);
         if (now != before) {
             logger::info("BlackFlame: buff flag {} ({})", now ? "ON" : "off", a_reason);
+            OnStokeWindowChanged(now, a_reason);  // layer 1 diagnostics: a fresh window, or its stats lines
             OnBuffChanged(now);  // the hand flames: grey at once, or put back
             OnPlayerArtBuffChanged(now);
             RequestHandArtRefresh(now ? "buff on" : "buff off");  // the drawn hands: copy or original art at the next tick
@@ -145,6 +148,7 @@ namespace BlackFlame
     {
         if (g_stoked.exchange(false, std::memory_order_acq_rel)) {
             logger::info("BlackFlame: buff flag off (world torn down; recomputed after the load)");
+            OnStokeWindowChanged(false, "world torn down");  // the window's stats lines before the load
         }
     }
 

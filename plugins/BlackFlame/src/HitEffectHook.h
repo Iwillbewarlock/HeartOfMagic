@@ -51,4 +51,12 @@ namespace BlackFlame
 
     /// H7: the per-call diagnostic lines start counting again (each self-test step start, so a late step's lines show)
     void ResetHitDiagnostics() noexcept;
+
+    /// Phase 0, game thread, when the stoke buff flag changes (RecomputeBuff) or is dropped by a load (ResetBuffFlag).
+    /// On: the diagnostic lines' caps and the window's counts by outcome start again (GetHitSlotStats is not reset).
+    /// Off: one "hit shader stats" and one "hit art stats" line for the window that ends.
+    void OnStokeWindowChanged(bool a_on, const char* a_reason);
+
+    /// Game thread, each tick while stoked: the same stats lines every 30 s of the window
+    void TickHitEffectStats();
 }

@@ -16,6 +16,7 @@
 
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <format>
 #include <memory>
 #include <mutex>
@@ -45,13 +46,16 @@ namespace BlackFlame
 
         constexpr std::array<const char*, kSlotCount> kSlotNames{ "GetHitEffectShader", "GetHitEffectArt" };
 
-        // S3 (hit shader research, 2026-10-16): slot 0x0D (AE 34846 / SE 34049) is the engine's only read of
-        // MGEF data.effectShader (or hitVisuals +0x28, dual cast +0x40); it returns null when the active
-        // effect's flags (+0x7C) have bit 1 set (written only by the cloak callback). ReferenceEffectController::
-        // Start (34761) and the ShaderReferenceEffect constructor (34910) call it. So the hook stays where it is.
+        // S3 (hit shader research, 2026-10-16): slot 0x0D (AE 34846 / SE 34049) reads MGEF data.effectShader (or
+        // hitVisuals +0x28, dual cast +0x40); it returns null when the active effect's flags (+0x7C) have bit 1 set
+        // (written only by the cloak callback). Decrypted 1.6.1170 disassembly (2026-10-19): it is reached only through
+        // the vtable, twice per ShaderReferenceEffect - ReferenceEffectController::Start (34761) and the
+        // ShaderReferenceEffect constructor (34910) both `call [rax+68h]` (no direct call to 34846). So every counter
+        // and line here is per call, not per hit: one shader hit is normally two 0x0D calls. The hook stays where it is.
         constexpr std::uint32_t kNoHitShaderBit = 1u << 1;
         constexpr int kMaxAnyLines = 20;     // lines per slot for casters other than the player
         constexpr int kMaxPlayerLines = 60;  // lines per slot for the player's effects, a cap of their own
+        constexpr int kWindowStatsTicks = 300;  // periodic stats line while stoked: every 300 ticks of 100 ms (30 s)
 
         enum class Outcome
         {
@@ -64,7 +68,8 @@ namespace BlackFlame
             kNotFire,        // not a fire effect of a fire spell (IsBurnable)
             kNoBurnShader,
             kAlreadyOurs,
-            kConfigOff       // burnShader false (shader slot) / hitArt false (art slot: no later recolour)
+            kConfigOff,      // burnShader false (shader slot) / hitArt false (art slot: no later recolour)
+            kOutcomeCount
         };
 
         const char* OutcomeText(Outcome a_outcome)
@@ -100,7 +105,12 @@ namespace BlackFlame
         };
 
         std::array<std::array<std::atomic<int>, kKindCount>, kSlotCount> g_diagnostics{};
-        std::array<SlotStats, kSlotCount> g_stats;
+        std::array<SlotStats, kSlotCount> g_stats;  // since the game started (the self-test reads deltas of these)
+        // Phase 0: every call by outcome (the other casters' included), zeroed when a stoke window starts; separate from
+        // g_stats so the self-test's before/after reads never see a reset
+        std::array<std::array<std::atomic<std::uint64_t>, static_cast<std::size_t>(Outcome::kOutcomeCount)>, kSlotCount> g_window{};
+        std::atomic<std::int64_t> g_windowStart{ 0 };  // steady_clock ticks at the window's start, 0: no window
+        std::atomic<int> g_windowTicks{ 0 };           // ticks since the last stats line (TickHitEffectStats)
         std::atomic<bool> g_failureReported{ false };
 
         void ReportFailure()
@@ -126,19 +136,49 @@ namespace BlackFlame
         }
 
 
-        // How often the engine asks one controller: counted while the diagnostic lines last (bounded
-        // by them), so the log shows whether a call comes once per effect or again and again
-        int CallNumber(const Controller* a_this)
+        // How often the engine asks one controller: counted while the diagnostic lines last (bounded by them, and
+        // cleared with their caps), so the log shows whether a call comes once per effect or again and again
+        struct CallCounts
         {
-            static TrackedMutex mutex;
-            static auto* counts = std::make_unique<std::unordered_map<const Controller*, int>>().release();
-            std::lock_guard lock(mutex);
-            return ++(*counts)[a_this];
+            TrackedMutex mutex;
+            std::unordered_map<const Controller*, int> counts;
+        };
+
+        CallCounts& GetCallCounts()
+        {
+            static auto* calls = std::make_unique<CallCounts>().release();  // never destroyed: hooks may run at exit
+            return *calls;
         }
 
-        // The first kMaxAnyLines calls of a slot with something to show (the engine's answer or the MGEF's own
-        // field not null) whose caster is not the player, and apart from them the first kMaxPlayerLines calls of
-        // a slot whose caster is the player, whatever the outcome: the "any" lines can never use the player's up
+        int CallNumber(const Controller* a_this)
+        {
+            auto& calls = GetCallCounts();
+            std::lock_guard lock(calls.mutex);
+            return ++calls.counts[a_this];
+        }
+
+        // The diagnostic lines start counting again (their caps and the per-controller call numbers)
+        void ResetDiagnosticLines() noexcept
+        {
+            for (auto& slot : g_diagnostics) {
+                for (auto& counter : slot) {
+                    counter.store(0);
+                }
+            }
+            try {
+                auto& calls = GetCallCounts();
+                std::lock_guard lock(calls.mutex);
+                calls.counts.clear();
+            } catch (const std::exception& e) {
+                // only the call numbers count on; the caps above are reset
+                logger::warn("BlackFlame: hit diagnostics: the per-controller call numbers were not cleared ({})", e.what());
+            }
+        }
+
+        // The first kMaxAnyLines calls of a slot whose caster is not the player and, with a cap of their own, the
+        // first kMaxPlayerLines calls whose caster is the player - both only with something to show (the engine's
+        // answer or the MGEF's own field not null): an always-on ability with no shader (FE2D6812 in the live log of
+        // 2026-10-18) used the whole player cap at load. The calls skipped here are still counted (g_stats, g_window).
         void Diagnose(Slot a_slot, Controller* a_this, const RE::TESForm* a_original, Outcome a_outcome)
         {
             auto* effect = a_this->effect;
@@ -146,11 +186,11 @@ namespace BlackFlame
             const RE::TESForm* field = !base ? nullptr :
                                        a_slot == kShaderSlot ? static_cast<const RE::TESForm*>(base->data.effectShader) :
                                                                static_cast<const RE::TESForm*>(base->data.hitEffectArt);
-            const auto playerHandle = PlayerHandleValue();
-            const bool player = effect && playerHandle != 0 && effect->caster.native_handle() == playerHandle;
-            if (!player && !a_original && !field) {
+            if (!a_original && !field) {
                 return;
             }
+            const auto playerHandle = PlayerHandleValue();
+            const bool player = effect && playerHandle != 0 && effect->caster.native_handle() == playerHandle;
             auto& counter = g_diagnostics[a_slot][player ? kPlayerEffect : kAnyEffect];
             const int cap = player ? kMaxPlayerLines : kMaxAnyLines;
             if (counter.load() >= cap) {
@@ -253,6 +293,7 @@ namespace BlackFlame
 
         void Count(Slot a_slot, Outcome a_outcome)
         {
+            g_window[a_slot][static_cast<std::size_t>(a_outcome)].fetch_add(1, std::memory_order_relaxed);
             if (a_outcome == Outcome::kNotPlayer) {
                 return;
             }
@@ -281,6 +322,34 @@ namespace BlackFlame
             default:
                 stats.otherRejected.fetch_add(1);
                 break;
+            }
+        }
+
+        // Phase 0: one line per slot with the window's calls by outcome (per call: 0x0D is asked twice per
+        // ShaderReferenceEffect, see the S3 note at the top)
+        void LogWindowStats(const char* a_when, const char* a_reason)
+        {
+            const auto start = g_windowStart.load();
+            const auto elapsed = start == 0 ? std::chrono::steady_clock::duration::zero() :
+                                              std::chrono::steady_clock::now().time_since_epoch() -
+                                                  std::chrono::steady_clock::duration(start);
+            const double seconds = std::chrono::duration<double>(elapsed).count();
+            for (const Slot slot : { kShaderSlot, kArtSlot }) {
+                const auto& window = g_window[slot];
+                const auto n = [&](Outcome a_outcome) { return window[static_cast<std::size_t>(a_outcome)].load(); };
+                const std::uint64_t engineNull = n(Outcome::kEngineNull) + n(Outcome::kEngineNullFlag);
+                const std::uint64_t playerCalls = n(Outcome::kSwapped) + n(Outcome::kCopied) + engineNull +
+                                                  n(Outcome::kNotStoked) + n(Outcome::kNotFire) + n(Outcome::kNoBurnShader) +
+                                                  n(Outcome::kAlreadyOurs) + n(Outcome::kConfigOff);
+                const bool shader = slot == kShaderSlot;
+                logger::info("BlackFlame: hit {} stats (stoke window {} {:.1f} s, {}; per call{}): player calls {}: {} {}, "
+                             "copied {}, engine null {} (flags bit 1: {}), not stoked {}, not fire {}, config off {}, "
+                             "already ours {}, no burn shader {}; not the player's {}",
+                    shader ? "shader 0x0D" : "art 0x0C", a_when, seconds, a_reason,
+                    shader ? ", two per shader effect" : "", playerCalls, shader ? "swapped" : "kept for the recolour",
+                    n(Outcome::kSwapped), n(Outcome::kCopied), engineNull, n(Outcome::kEngineNullFlag),
+                    n(Outcome::kNotStoked), n(Outcome::kNotFire), n(Outcome::kConfigOff), n(Outcome::kAlreadyOurs),
+                    n(Outcome::kNoBurnShader), n(Outcome::kNotPlayer));
             }
         }
 
@@ -390,11 +459,38 @@ namespace BlackFlame
 
     void ResetHitDiagnostics() noexcept
     {
-        for (auto& slot : g_diagnostics) {
-            for (auto& counter : slot) {
-                counter.store(0);
+        ResetDiagnosticLines();
+    }
+
+    void OnStokeWindowChanged(bool a_on, const char* a_reason)
+    {
+        if (a_on) {
+            ResetDiagnosticLines();
+            for (auto& slot : g_window) {
+                for (auto& counter : slot) {
+                    counter.store(0);
+                }
             }
+            g_windowTicks.store(0);
+            g_windowStart.store(std::chrono::steady_clock::now().time_since_epoch().count());
+            logger::info("BlackFlame: hit shader/art diagnostics: stoke window started ({}): line caps and window counts reset",
+                a_reason);
+            return;
         }
+        if (g_windowStart.load() == 0) {
+            return;  // no window was open (a load before any buff)
+        }
+        LogWindowStats("ended after", a_reason);
+        g_windowStart.store(0);
+    }
+
+    void TickHitEffectStats()
+    {
+        if (g_windowStart.load() == 0 || g_windowTicks.fetch_add(1) + 1 < kWindowStatsTicks) {
+            return;
+        }
+        g_windowTicks.store(0);
+        LogWindowStats("running for", "periodic");
     }
 
     HitSlotStats GetHitSlotStats(bool a_shader) noexcept
