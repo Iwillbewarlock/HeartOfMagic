@@ -19,6 +19,15 @@
     .\DeployDev.ps1 -WithISLPatch # also the ISL patch's scripts (otherwise only if the install has them)
     .\DeployDev.ps1 -WithBookXP   # also the BookXP script (otherwise only if the install has BookXP)
     .\DeployDev.ps1 -NoScripts    # plugin and panel without the Papyrus scripts (left as they are)
+    .\DeployDev.ps1 -ToxicologyOnly   # the Toxicology addon only: DLL, ESL, settings JSON (an existing one is kept), I4 rule, icon SWF
+    .\DeployDev.ps1 -ToxicologyOnly -Force   # the same, the install's settings JSON replaced with the shipped one
+    .\DeployDev.ps1 -ToxicologyOnly -ToxicologySelfTest # the same plus the dev self test file (it gives items and spawns targets after a load)
+    .\DeployDev.ps1 -ToxicologyOnly -ToxicologyKorean   # the same with the Korean ESL (plugins\Toxicology\data\ko, as in the _KO release zip); it stops first if build\tools\Release\toxicology-esl-check.exe finds it no longer matches the English one
+
+    The Toxicology self test file is opt-in: every deploy without -ToxicologySelfTest (-ToxicologyOnly or the plain
+    one) removes it from the Toxicology install ($ToxicologyModPath) and says so, because the dev mod may be enabled
+    in a profile used for real play. A -ToxicologyOnly deploy that stops before copying says whether the file is still
+    installed (the plain deploy removes it only once its own preflight has passed).
 
     Everything it will copy is checked before anything is copied (the plugin, the
     panel, each compiled script there and newer than its source), so a missing or
@@ -30,7 +39,12 @@ param(
     [switch]$PanelOnly,
     [switch]$WithISLPatch,
     [switch]$WithBookXP,
-    [switch]$NoScripts
+    [switch]$NoScripts,
+    [string]$ToxicologyModPath = 'D:\TAKEALOOK\mods\HeartOfMagic-Toxicology-Dev',
+    [switch]$ToxicologyOnly,
+    [switch]$ToxicologySelfTest,
+    [switch]$ToxicologyKorean,
+    [switch]$Force
 )
 
 $ErrorActionPreference = 'Stop'
@@ -38,6 +52,122 @@ $ErrorActionPreference = 'Stop'
 if (Get-Process SkyrimSE -ErrorAction SilentlyContinue) {
     throw 'SkyrimSE is running. Close the game first: the panel files are open and a copy would leave the mod half written.'
 }
+# The Toxicology dev self test file in the install (plugins\Toxicology\src\game\ToxSelfTest.h): it makes the DLL
+# give the player the ability and poisons and spawn targets after a load, so a -ToxicologyOnly deploy that stops
+# says whether it is still there. Its state file (HeartOfMagic_Toxicology_selftest_state.json, written by the test) is inert
+# without it and is left alone.
+$toxSelfTestDst = Join-Path $ToxicologyModPath 'SKSE\Plugins\HeartOfMagic_Toxicology_selftest.json'
+function Get-ToxSelfTestNote {
+    if (Test-Path $toxSelfTestDst) { return " The Toxicology self test file is STILL INSTALLED: $toxSelfTestDst" }
+    return ''
+}
+if ($Force -and -not $ToxicologyOnly) {
+    throw ('-Force replaces the Toxicology settings JSON and goes with -ToxicologyOnly. Nothing was copied.' + (Get-ToxSelfTestNote))
+}
+if ($ToxicologyKorean -and -not $ToxicologyOnly) {
+    throw ('-ToxicologyKorean deploys the Korean Toxicology ESL and goes with -ToxicologyOnly. Nothing was copied.' + (Get-ToxSelfTestNote))
+}
+if ($ToxicologySelfTest -and -not $ToxicologyOnly) {
+    throw ('-ToxicologySelfTest deploys the Toxicology self test file and goes with -ToxicologyOnly. Nothing was copied.' + (Get-ToxSelfTestNote))
+}
+
+if ($ToxicologyOnly) {
+    # The same order as the main path: every check before the first copy, so a missing or stale build
+    # leaves the install as it was. The mod folder is not created here (a typo would make a stray folder).
+    $toxRepo = $PSScriptRoot
+    if (-not (Test-Path $ToxicologyModPath)) {
+        throw "Mod folder not found: $ToxicologyModPath - create the mod in MO2 first, or pass -ToxicologyModPath."
+    }
+    $toxData = Join-Path $toxRepo 'plugins\Toxicology\data'
+    $toxDll = Join-Path $toxRepo 'build\plugins\Toxicology\Release\HeartOfMagic_Toxicology.dll'
+    # The Korean ESL differs only in its text (plugins\Toxicology\ESL.md); same file name, the DLL looks it up by name
+    $toxEslLang = if ($ToxicologyKorean) { 'Korean' } else { 'English' }
+    $toxEsl = if ($ToxicologyKorean) { Join-Path $toxData 'ko\HeartOfMagic_Toxicology.esp' } else { Join-Path $toxData 'HeartOfMagic_Toxicology.esp' }
+    $toxJson = Join-Path $toxData 'HeartOfMagic_Toxicology.json'
+    $toxI4 = Join-Path $toxData 'SKSE\Plugins\InventoryInjector\HeartOfMagic_Toxicology.json'
+    $toxSwf = Join-Path $toxData 'Interface\HeartOfMagicToxicology\icons.swf'
+    # Dev only, never in the release zip (plugins\cmake\DistributionToxicology.cmake)
+    $toxSelfTest = Join-Path $toxData 'dev\HeartOfMagic_Toxicology_selftest.json'
+    $required = @($toxDll, $toxEsl, $toxJson, $toxI4, $toxSwf)
+    if ($ToxicologySelfTest) { $required += $toxSelfTest }
+    foreach ($f in $required) {
+        if (-not (Test-Path $f)) { throw ("Missing $f - nothing was copied. Run .\BuildRelease.ps1 -preset Release-2026 first." + (Get-ToxSelfTestNote)) }
+    }
+    # Stale: the DLL older than a source it is built from (the addon's src and the shared files its
+    # CMakeLists.txt and includes name). The ESL, the JSONs and the SWF are committed files, copied as they are.
+    $dllSources = @(Get-ChildItem (Join-Path $toxRepo 'plugins\Toxicology\src') -Recurse -File -Include '*.cpp', '*.h') + @(
+        'plugins\Toxicology\CMakeLists.txt', 'plugins\PCH.h', 'plugins\Common.h', 'plugins\WideFileSink.h',
+        'plugins\spelllearning\src\EncodingUtils.cpp', 'plugins\spelllearning\include\EncodingUtils.h',
+        'plugins\spelllearning\include\PluginNames.h', 'plugins\spelllearning\include\AsciiText.h' | ForEach-Object { Get-Item (Join-Path $toxRepo $_) })
+    $built = (Get-Item $toxDll).LastWriteTime
+    $newest = $dllSources | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($newest.LastWriteTime -gt $built) {
+        throw ("Stale: HeartOfMagic_Toxicology.dll is older than $($newest.FullName) - nothing was copied. Run .\BuildRelease.ps1 -preset Release-2026 first." + (Get-ToxSelfTestNote))
+    }
+    # The Korean ESL must still be the English one outside its five text subrecords (ESL.md "Korean ESL"): the same
+    # check the release zips get (plugins\cmake\DistributionToxicology.cmake), so a stale one does not reach the dev install
+    if ($ToxicologyKorean) {
+        $eslCheck = Join-Path $toxRepo 'build\tools\Release\toxicology-esl-check.exe'
+        if (-not (Test-Path $eslCheck)) {
+            throw ("Missing $eslCheck - nothing was copied. Run .\BuildRelease.ps1 -preset Release-2026 first." + (Get-ToxSelfTestNote))
+        }
+        $checkSources = 'tools\toxicology-esl-check.cpp', 'tools\toxicology-esl-compare.cpp', 'tools\toxicology-esl-compare.h' |
+            ForEach-Object { Get-Item (Join-Path $toxRepo $_) }
+        $newest = $checkSources | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if ($newest.LastWriteTime -gt (Get-Item $eslCheck).LastWriteTime) {
+            throw ("Stale: toxicology-esl-check.exe is older than $($newest.FullName) - nothing was copied. Run .\BuildRelease.ps1 -preset Release-2026 first." + (Get-ToxSelfTestNote))
+        }
+        # 'Continue' while it runs: under 'Stop', Windows PowerShell 5.1 turns its stderr line into a terminating
+        # error before the exit code and the output can be reported ("$_" keeps that line's text, not the error record)
+        $ErrorActionPreference = 'Continue'
+        $eslCheckOut = & $eslCheck (Join-Path $toxData 'HeartOfMagic_Toxicology.esp') $toxEsl 2>&1 | ForEach-Object { "$_" } | Out-String
+        $ErrorActionPreference = 'Stop'
+        if ($LASTEXITCODE -ne 0) {
+            throw ("toxicology-esl-check failed (exit $LASTEXITCODE) - nothing was copied.`n$($eslCheckOut.TrimEnd())" + (Get-ToxSelfTestNote))
+        }
+        Write-Host $eslCheckOut.TrimEnd()
+    }
+
+    # The settings JSON is the player's to edit: an existing one is kept unless -Force
+    $toxPluginsDst = Join-Path $ToxicologyModPath 'SKSE\Plugins'
+    $toxJsonDst = Join-Path $toxPluginsDst 'HeartOfMagic_Toxicology.json'
+    $copies = @(
+        @($toxDll, (Join-Path $toxPluginsDst 'HeartOfMagic_Toxicology.dll')),
+        @($toxEsl, (Join-Path $ToxicologyModPath 'HeartOfMagic_Toxicology.esp')),
+        @($toxI4, (Join-Path $toxPluginsDst 'InventoryInjector\HeartOfMagic_Toxicology.json')),
+        @($toxSwf, (Join-Path $ToxicologyModPath 'Interface\HeartOfMagicToxicology\icons.swf')))
+    $toxJsonKept = (Test-Path $toxJsonDst) -and -not $Force
+    if (-not $toxJsonKept) { $copies += , @($toxJson, $toxJsonDst) }
+    if ($ToxicologySelfTest) { $copies += , @($toxSelfTest, $toxSelfTestDst) }
+
+    # The checks passed: the self test file goes first, so a copy that fails below cannot leave it behind
+    $toxSelfTestRemoved = (-not $ToxicologySelfTest) -and (Test-Path $toxSelfTestDst)
+    if ($toxSelfTestRemoved) { Remove-Item $toxSelfTestDst -Force }
+    foreach ($pair in $copies) {
+        New-Item -ItemType Directory -Force -Path (Split-Path $pair[1] -Parent) | Out-Null
+        Copy-Item $pair[0] $pair[1] -Force
+    }
+    foreach ($pair in $copies) {
+        if ((Get-FileHash $pair[0]).Hash -ne (Get-FileHash $pair[1]).Hash) { throw "Copy did not take: $($pair[1])" }
+    }
+    Write-Host "toxicology dll, esl ($toxEslLang), I4 rule, icon swf -> $ToxicologyModPath (enable HeartOfMagic_Toxicology.esp in MO2, after I4IconAddon.esp)"
+    if ($toxJsonKept) {
+        Write-Host "toxicology settings json kept as it is in the install (pass -Force to replace it with the shipped one)"
+    } else {
+        Write-Host "toxicology settings json -> $toxJsonDst"
+    }
+    if ($ToxicologySelfTest) {
+        Write-Host "toxicology self test ON -> $toxSelfTestDst (runs once per session after a save load settles; gives the ability and poisons, spawns targets; use a disposable save; SELFTEST lines in HeartOfMagic_Toxicology.log)"
+        Write-Host "toxicology REMINDER: after the run, deploy again without -ToxicologySelfTest to remove it (.\DeployDev.ps1 -ToxicologyOnly)"
+    } elseif ($toxSelfTestRemoved) {
+        Write-Host "toxicology self test file REMOVED from the install: $toxSelfTestDst (pass -ToxicologySelfTest to deploy it)"
+    } else {
+        Write-Host "toxicology self test off: no HeartOfMagic_Toxicology_selftest.json in the install (pass -ToxicologySelfTest to deploy it)"
+    }
+    Write-Host 'toxicology verified'
+    return
+}
+
 if (-not (Test-Path $ModPath)) {
     throw "Mod folder not found: $ModPath"
 }
@@ -93,6 +223,13 @@ if ($deployScripts) {
             throw "Stale: $name.pex is older than $name.psc - nothing was copied. Run .\BuildRelease.ps1 first, or pass -NoScripts."
         }
     }
+}
+
+# The preflight passed. The Toxicology dev self test file is opt-in (-ToxicologyOnly -ToxicologySelfTest):
+# this deploy removes it from the Toxicology install too
+if (Test-Path $toxSelfTestDst) {
+    Remove-Item $toxSelfTestDst -Force
+    Write-Host "toxicology self test file REMOVED from the install: $toxSelfTestDst (.\DeployDev.ps1 -ToxicologyOnly -ToxicologySelfTest deploys it)"
 }
 
 if (-not $PanelOnly) {

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Heart of Magic Librarian - Toxicology: mimic poison icon (I4 label potion_mimic).
+     Drawn by hand from icon-concept-gpt.png, in that image's pixel grid (1254 px).
+     Rings: centre (627,600); outer 394-440, inner 260-304. Both open where the gap circle
+     around the flask (centre (627,842), r 273 = body r 241 + 32 gap) cuts them.
+     White fill, no stroke; I4 colours it with iconColor. See ICON.md. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="94px" height="94px" viewBox="0 0 94 94">
+  <!-- FFDec 18.5 ignores viewBox, so the concept grid is scaled into 94 px by this transform. -->
+  <g fill="#ffffff" stroke="none" transform="matrix(0.1 0 0 0.1 -15.7 -15.15)">
+    <!-- outer ring -->
+    <path d="M384.3 967 A440 440 0 1 1 869.7 967 A273 273 0 0 0 896.1 887.8 A394 394 0 1 0 357.9 887.8 A273 273 0 0 0 384.3 967 Z"/>
+    <!-- inner ring -->
+    <path d="M367.3 758 A304 304 0 1 1 886.7 758 A273 273 0 0 0 864.1 706.7 A260 260 0 1 0 389.9 706.7 A273 273 0 0 0 367.3 758 Z"/>
+    <!-- diamonds: top, left, right -->
+    <path d="M627 217 L661 251 L627 285 L593 251 Z"/>
+    <path d="M280.5 607.7 L314.5 641.7 L280.5 675.7 L246.5 641.7 Z"/>
+    <path d="M973.5 607.7 L1007.5 641.7 L973.5 675.7 L939.5 641.7 Z"/>
+    <!-- dots -->
+    <path d="M306.5 409.5 A28 28 0 1 1 362.5 409.5 A28 28 0 1 1 306.5 409.5 Z"/>
+    <path d="M891.5 409.5 A28 28 0 1 1 947.5 409.5 A28 28 0 1 1 891.5 409.5 Z"/>
+    <!-- flask: neck and round body -->
+    <path d="M545 550 L709 550 L709 596 Q710 614 734 626.1 A241 241 0 1 1 520 626.1 Q544 614 545 596 Z"/>
+    <!-- collar -->
+    <path d="M552 474 L702 474 A33 33 0 0 1 702 540 L552 540 A33 33 0 0 1 552 474 Z"/>
+    <!-- cork, tapered -->
+    <path d="M541 398 Q541 390 549 390 L705 390 Q713 390 713 398 L689 466 L565 466 Z"/>
+  </g>
+</svg>

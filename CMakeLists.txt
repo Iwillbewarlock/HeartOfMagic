@@ -61,10 +61,13 @@ set(DIST_DIR "${CMAKE_SOURCE_DIR}/dist")
 # The release's folder and zip: HeartOfMagic-Librarian_<version> (the DLLs keep their names)
 set(DIST_NAME "HeartOfMagic-Librarian")
 set(DIST_VERSION_DIR "${DIST_DIR}/${DIST_NAME}_${PROJECT_VERSION}")
+# The Toxicology addon is released on its own (own Nexus page), with its own version
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/plugins/Toxicology/VERSION" TOXICOLOGY_VERSION)
 
 add_subdirectory(plugins/spelllearning)
 add_subdirectory(plugins/DummyDEST)
 add_subdirectory(plugins/BookXP)
+add_subdirectory(plugins/Toxicology)
 add_subdirectory(tools)
 
 # Generate fomod/info.xml from template with current version
@@ -79,3 +82,4 @@ include(Papyrus)
 
 # Distribution folder assembly
 include(Distribution)
+include(DistributionToxicology)

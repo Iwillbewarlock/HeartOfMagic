@@ -1,0 +1,7 @@
+{
+    "enabled": true,
+    "showIcon": true,
+    "magickaPerDose": 100,
+    "immunityMultiplier": 1.0,
+    "minImmunitySeconds": 5.0
+}

@@ -193,3 +193,49 @@ target_compile_features(progression-check PRIVATE cxx_std_23)
 target_include_directories(progression-check PRIVATE
     ${SL_INCLUDE_DIR}
 )
+
+# =============================================================================
+# toxicology-test  -  offline harness for the Toxicology addon core
+# =============================================================================
+# The addon's own core (src/core, no game types): settings, poison spell keys,
+# top poison, magicka per dose, coat interval, catalog key split, hit and cost spell sets,
+# the tome reward decision and its co-save flag (toxicology-test-reward.cpp), and the English / Korean
+# ESL check on the committed pair and on broken copies (toxicology-test-esl.cpp).
+# --self-test, exit 1 on a FAIL.
+
+set(TOXICOLOGY_SRC_DIR "${CMAKE_SOURCE_DIR}/plugins/Toxicology/src")
+
+add_executable(toxicology-test
+    toxicology-test.cpp
+    toxicology-test-reward.cpp
+    toxicology-test-esl.cpp
+    toxicology-esl-compare.cpp
+    ${TOXICOLOGY_SRC_DIR}/core/ToxCore.cpp
+)
+
+target_compile_features(toxicology-test PRIVATE cxx_std_23)
+
+target_include_directories(toxicology-test PRIVATE
+    ${TOXICOLOGY_SRC_DIR}
+)
+
+target_compile_definitions(toxicology-test PRIVATE
+    TOXICOLOGY_DATA_DIR="${CMAKE_SOURCE_DIR}/plugins/Toxicology/data"
+)
+
+target_link_libraries(toxicology-test PRIVATE
+    nlohmann_json::nlohmann_json
+)
+
+# =============================================================================
+# toxicology-esl-check  -  the Korean Toxicology ESL still matches the English one
+# =============================================================================
+# toxicology-esl-check <english.esp> <korean.esp>: the two must be byte-identical outside the five text
+# subrecords of plugins/Toxicology/ESL.md "Korean ESL". DistributionToxicology.cmake runs it before the zips.
+
+add_executable(toxicology-esl-check
+    toxicology-esl-check.cpp
+    toxicology-esl-compare.cpp
+)
+
+target_compile_features(toxicology-esl-check PRIVATE cxx_std_23)

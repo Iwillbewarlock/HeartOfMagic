@@ -8,6 +8,8 @@ Heart of Magic is an SKSE plugin (DLL) that transforms spell learning into an XP
 
 **Key design**: All NLP runs natively in C++—no external Python or server dependencies. The build produces three release DLLs: `SpellLearning.dll` (main plugin), `DontEatSpellTomes.dll` (inert DEST compatibility shim), and `SL_BookXP.dll` (BookXP addon). The UI is rendered through PrismaUI (CEF/Ultralight-based web views).
 
+The Toxicology addon (`HeartOfMagic_Toxicology.dll`, `plugins/Toxicology/`) is built with them but released on its own: own version, ESL and zip, own Nexus page.
+
 ## Documentation Decision Tree
 
 **Find the right doc based on your task:**
@@ -45,6 +47,12 @@ What are you doing?
 │
 ├─► Working with BookXP addon?
 │   └─► plugins/BookXP/README.md
+│
+└─► Working with the Toxicology addon (poison spells apply the favorited poison)?
+    ├─► Behaviour, settings, known limits, dev deploy, in-game self test → plugins/Toxicology/README.md
+    ├─► The ESL's records and how it was made → plugins/Toxicology/ESL.md
+    ├─► The I4 icon and its SWF → plugins/Toxicology/art/ICON.md
+    └─► Design (Korean) → docs/superpowers/specs/2026-10-17-toxicology-addon-design.md
 ```
 
 ## Critical Rules (MUST Follow)
@@ -134,6 +142,8 @@ When launching sub-agents via the Task tool, choose the correct `subagent_type` 
 
 The build also assembles the release: `dist/HeartOfMagic-Librarian_<VERSION>/` and its `.zip` (FOMOD, DLLs, Papyrus, runtime data, the PrismaUI views, `LICENSE`), and the DLLs' debug symbols apart in `dist/HeartOfMagic-Librarian_<VERSION>_DebugSymbols.zip` (`SKSE/Plugins/*.pdb`, an optional file on Nexus for crash logs, and `SKSE/Plugins/SpellLearning/debug.json` from `debug/`: with it the panel's full scan also writes `spell_scan_output.json`; `DeployDev.ps1` puts the same file in the dev install). The panel's development files stay out of it - the dev harness, `run-tests.js`, `test-runner.html`, `test-data/` and `modules/*Test.js` (`plugins/cmake/Distribution.cmake`; a new test module is picked up at the next configure).
 
+The Toxicology addon (`HeartOfMagic_Toxicology.dll`, which stays out of that archive) gets its own, under its own version (`plugins/Toxicology/VERSION`; Heart of Magic's `VERSION` does not apply to it): `dist/HeartOfMagic-Librarian-Toxicology_<TOXICOLOGY_VERSION>.zip`, no FOMOD, rooted at Data (`HeartOfMagic_Toxicology.esp`; `SKSE/Plugins/` with the DLL, the settings JSON and `InventoryInjector/HeartOfMagic_Toxicology.json`; `Interface/HeartOfMagicToxicology/icons.swf`; and `SKSE/Plugins/HeartOfMagic_Toxicology/` with `LICENSE`, `licenses/` for only the libraries that DLL links, and its own `THIRD-PARTY-NOTICES.md` from `plugins/Toxicology/THIRD-PARTY-NOTICES.md.in`, naming the source tag `toxicology-v<version>`; `plugins/cmake/DistributionToxicology.cmake`) and its `_DebugSymbols.zip` (the PDB), rooted at Data too, and `_KO.zip`, the same files with the Korean ESL `plugins/Toxicology/data/ko/HeartOfMagic_Toxicology.esp` (same file name; `plugins/Toxicology/ESL.md` section "Korean ESL"). The dev self test file (`plugins/Toxicology/data/dev/`) and `plugins/Toxicology/art/` never go in. The main archive's notice does not mention the addon.
+
 License files in the release: the project's own code is MIT (`LICENSE` at the zip root), but the DLLs statically
 link CommonLibSSE-NG (GPL-3.0-or-later with the Modding and Linking Exceptions), so they ship as a GPL combined
 work. `THIRD-PARTY-NOTICES.md` at the zip root (from `THIRD-PARTY-NOTICES.md.in`, version filled in at configure)
@@ -149,6 +159,7 @@ statically linked library needs its port in `_vcpkg_license_ports` (Distribution
 .\DeployDev.ps1 -PanelOnly   # UI only, no rebuild needed
 .\DeployDev.ps1 -WithISLPatch  # also the ISL patch's scripts; -WithBookXP the BookXP script
 .\DeployDev.ps1 -NoScripts     # plugin + panel, the install's Papyrus scripts left as they are
+.\DeployDev.ps1 -ToxicologyOnly   # Toxicology addon: DLL, ESL, I4 rule, icon SWF, settings JSON (an existing one kept; -Force replaces it); the dev self test file only with -ToxicologySelfTest (every deploy without it, the plain one too, removes that file from the Toxicology install, and a -ToxicologyOnly deploy that stops says whether it is still there) -> D:\TAKEALOOK\mods\HeartOfMagic-Toxicology-Dev (must exist; -ToxicologyModPath for another); -ToxicologyKorean deploys the Korean ESL instead of the English one
 ```
 
 **ALWAYS use `DeployDev.ps1`**—never copy the panel by hand. It refuses to run while SkyrimSE is
@@ -297,16 +308,27 @@ This project does not have a C++ test framework. Validation is done through:
   must match `LayoutDeclutter.apply` in `modules/layoutDeclutter.js` on the same tree - see
   docs/TREE_BUILDING_SYSTEM.md, "Decluttering before save"), `tree-save-check` (SaveSpellTree's no-spells guard,
   `include/uimanager/TreeSaveCheck.h`: `--self-test` on made-up trees, or `tree-save-check <tree.json>...` against a
-  full parse; exit 1 on a disagreement) and `tree-remap-check` (a saved tree's FormIDs and links after a load order
+  full parse; exit 1 on a disagreement), `tree-remap-check` (a saved tree's FormIDs and links after a load order
   change, `include/TreeRemap.h`, the part of `ValidateAndFixTree` with no game types: `tree-remap-check --self-test`
   on made-up trees - light plugin removed and the rest shifted, two plugins swapping indices, legacy nodes without a
   persistentId (following a copy, colliding, gone), the same spell kept in one school and dropped in another, a
   spell that resolves but is no player's spell, links to removed spells, formIds in another letter case, roots no
   node has, broken shapes - every link read back by spell name, and a second pass must change nothing; exit 1 on a
-  failure) and `progression-check` (`progression-check --self-test`: the co-save's
+  failure), `progression-check` (`progression-check --self-test`: the co-save's
   progress (SLPR v1-v3, written as v2), cap tracker (SLPX) and tome XP (SLTX) records, `include/ProgressionCoSave.h`,
   written and read in byte buffers - cut short, over the limits, SLPX without an SLPR entry - and the XP cap, study, SetSpellXP and mastery arithmetic of `include/ProgressionMath.h`;
-  exit 1 on a failure)
+  exit 1 on a failure) and `toxicology-test` (the Toxicology addon's RE-free core,
+  `plugins/Toxicology/src/core/ToxCore.h`: `toxicology-test --self-test` checks settings parsing, the catalog's poison
+  spell keys and key splitting, the favorited poison choice, the Magicka-per-bottle arithmetic, the immunity window
+  after a poison wears off, which stack loses a
+  bottle, the Magicka drain queue's interval check, whether the quest reward gives the tome and its co-save flag
+  record, and the English / Korean ESL check; exit 1 on a failure) and `toxicology-esl-check` (`<english.esp>
+  <korean.esp>`: the Korean Toxicology ESL is the English one outside its five text subrecords, plugins/Toxicology/ESL.md
+  "Korean ESL"; the Toxicology distribution step runs it before the zips, exit 1 on a mismatch)
+- The Toxicology addon's dev-only in-game self test (`plugins/Toxicology/src/game/ToxSelfTest.h`: runs when
+  `SKSE/Plugins/HeartOfMagic_Toxicology_selftest.json` is installed, `.\DeployDev.ps1 -ToxicologyOnly
+  -ToxicologySelfTest`; `SELFTEST PASS|FAIL|INFO|DONE` lines in `HeartOfMagic_Toxicology.log`; see
+  plugins/Toxicology/README.md, "Development"; it sets Few and Far Between to stage 200, so use a disposable save)
 
 ## Code Style
 
@@ -348,6 +370,7 @@ This project does not have a C++ test framework. Validation is done through:
 | Public C++ API | `plugins/spelllearning/src/SpellLearningAPI.h` |
 | DEST compatibility shim | `plugins/DummyDEST/` |
 | BookXP addon | `plugins/BookXP/` |
+| Toxicology addon (own release) | `plugins/Toxicology/` (shipped data files in `data/`, dev-only files in `data/dev/`) |
 | Shared CMake modules | `plugins/cmake/` |
 | CommonLibSSE-NG | `plugins/external/commonlibsse-ng/` |
 | PrismaUI frontend | `PrismaUI/views/SpellLearning/SpellLearningPanel/` |
@@ -482,3 +505,4 @@ Did I add a new system?                 → Create new doc AND update decision t
 | [docs/PLAN-PUBLIC-MODDER-API.md](docs/PLAN-PUBLIC-MODDER-API.md) | Public modder API reference and design |
 | [docs/DEST-IMPROVEMENTS.md](docs/DEST-IMPROVEMENTS.md) | DEST compatibility comparison |
 | [plugins/BookXP/README.md](plugins/addons/BookXP/README.md) | BookXP addon documentation |
+| [plugins/Toxicology/README.md](plugins/Toxicology/README.md) | Toxicology addon: what it does, requirements, settings, load order, known limits, development |

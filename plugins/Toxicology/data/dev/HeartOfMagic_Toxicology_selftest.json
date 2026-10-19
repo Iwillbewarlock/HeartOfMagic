@@ -1,0 +1,10 @@
+{
+    "startDelayMs": 30000,
+    "spawnWaitMs": 10000,
+    "hitWaitMs": 4000,
+    "targetDistance": 120,
+    "maxPoisonSeconds": 30,
+    "disableTargetAI": false,
+    "reloadCheck": true,
+    "targetBase": "0510C2:Skyrim.esm"
+}
