@@ -1,5 +1,7 @@
 #pragma once
 
+#include "AsciiText.h"
+
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -74,14 +76,6 @@ namespace Environment
             { "water", "steam", "river", "ocaen", "sea" } };
     }
 
-    [[nodiscard]] inline std::string LowerAscii(std::string_view text)
-    {
-        std::string lowered(text);
-        std::transform(lowered.begin(), lowered.end(), lowered.begin(),
-            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        return lowered;
-    }
-
     // One pattern file's lines as Frostwalker keeps them: trimmed (spaces,
     // tabs, CR, LF), blank lines and lines starting with '#' dropped, lower-cased.
     inline void AppendPatternLines(std::string_view fileText, std::vector<std::string>& out)
@@ -96,7 +90,7 @@ namespace Environment
             if (first != std::string_view::npos) {
                 const std::size_t last = line.find_last_not_of(kSpace);
                 line = line.substr(first, last - first + 1);
-                if (line.front() != '#') out.push_back(LowerAscii(line));
+                if (line.front() != '#') out.push_back(AsciiText::ToLower(line));
             }
             start = end + 1;
         }
@@ -122,7 +116,7 @@ namespace Environment
     [[nodiscard]] inline FrostwalkerClass ClassifyText(std::string_view text, const FrostwalkerPatterns& patterns)
     {
         if (text.empty()) return FrostwalkerClass::kUnknown;
-        const std::string lower = LowerAscii(text);
+        const std::string lower = AsciiText::ToLower(text);
         if (MatchesAnyPattern(lower, patterns.neutral)) return FrostwalkerClass::kNeutral;
         if (MatchesAnyPattern(lower, patterns.cold)) return FrostwalkerClass::kCold;
         if (MatchesAnyPattern(lower, patterns.fire)) return FrostwalkerClass::kFire;
@@ -223,7 +217,7 @@ namespace Environment
 
     [[nodiscard]] inline bool SameFileName(std::string_view a, std::string_view b)
     {
-        return a.size() == b.size() && LowerAscii(a) == LowerAscii(b);
+        return AsciiText::EqualsIgnoreCase(a, b);
     }
 
     // `lastFile`: the last entry of the effect's source-file list (TESForm::GetFile(-1)), empty if it has none

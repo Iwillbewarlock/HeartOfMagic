@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <string>
 #include <string_view>
 
 /**
@@ -23,6 +24,14 @@ namespace AsciiText
     [[nodiscard]] constexpr char ToLower(char c) noexcept
     {
         return (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c;
+    }
+
+    /// A copy with A-Z lowered; every other byte (UTF-8, code-page letters) as it is
+    [[nodiscard]] inline std::string ToLower(std::string_view text)
+    {
+        std::string lowered(text);
+        for (char& c : lowered) c = ToLower(c);
+        return lowered;
     }
 
     /// Equal ignoring the case of A-Z; every other byte must match exactly

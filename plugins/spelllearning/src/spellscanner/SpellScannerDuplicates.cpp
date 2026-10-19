@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "AsciiText.h"
 #include "FormIdText.h"
 #include "EncodingUtils.h"
 #include "ProgressionManager.h"
@@ -68,9 +69,7 @@ namespace SpellScanner
             const RE::ActorValue school = GetSpellSchool(spell);
             if (!IsValidMagicSchool(school) || IsEquippedInVoiceSlot(spell)) return {};
 
-            std::string key = editorId;
-            std::transform(key.begin(), key.end(), key.begin(),
-                [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            std::string key = AsciiText::ToLower(editorId);
             key += '|';
             key += std::to_string(static_cast<int>(school));
             return key;

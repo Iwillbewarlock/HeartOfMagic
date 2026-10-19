@@ -1,4 +1,5 @@
 #include "treebuilder/TreeBuilderInternal.h"
+#include "AsciiText.h"
 #include "treebuilder/TreeNLP.h"
 
 #include <unordered_set>
@@ -23,7 +24,7 @@ std::string TreeBuilder::Internal::SpellPlugin(const json& spell)
         const auto persistentId = spell.value("persistentId", std::string(""));
         plugin = persistentId.substr(0, persistentId.find('|'));
     }
-    return TreeNLP::ToLower(plugin);
+    return AsciiText::ToLower(plugin);
 }
 
 bool TreeBuilder::Internal::IsBaseGamePlugin(const std::string& lowerPlugin)

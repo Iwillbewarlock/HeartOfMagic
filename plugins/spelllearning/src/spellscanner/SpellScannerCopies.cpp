@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "AsciiText.h"
 #include "EncodingUtils.h"
 #include "SpellScanner.h"
 #include "librarian/PerkAdapterPatch.h"
@@ -44,9 +45,7 @@ namespace SpellScanner
         // Same spell to a player: same name (ASCII case ignored) in the same school.
         std::string CopyKey(RE::SpellItem* spell)
         {
-            std::string key = spell->GetFullName();
-            std::transform(key.begin(), key.end(), key.begin(),
-                [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            std::string key = AsciiText::ToLower(spell->GetFullName());
             key += '|';
             key += std::to_string(static_cast<int>(GetSpellSchool(spell)));
             return key;

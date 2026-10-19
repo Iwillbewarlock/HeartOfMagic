@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "AsciiText.h"
 #include "SpellScanner.h"
 #include "environment/EnvironmentTwins.h"
 #include "librarian/PerkAdapterPatch.h"
@@ -264,11 +265,9 @@ namespace SpellScanner
             }
             if (!best) return;
 
-            std::string name = GetActorValueName(best->baseEffect->data.primaryAV);
+            const std::string name = GetActorValueName(best->baseEffect->data.primaryAV);
             if (name.empty() || name == "None") return;
-            std::transform(name.begin(), name.end(), name.begin(),
-                [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-            traits.push_back("value." + name);
+            traits.push_back("value." + AsciiText::ToLower(name));
         }
     }
 

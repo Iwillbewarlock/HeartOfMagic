@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "AsciiText.h"
 #include "FormIdText.h"
 #include "SpellScanner.h"
 #include "librarian/PerkAdapterPatch.h"
@@ -153,10 +154,7 @@ namespace SpellScanner
         };
 
         if (!keyword) return false;
-        std::string plugin = GetPluginName(keyword->GetFormID());
-        std::transform(plugin.begin(), plugin.end(), plugin.begin(),
-            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        return kOfficialPlugins.contains(plugin);
+        return kOfficialPlugins.contains(AsciiText::ToLower(GetPluginName(keyword->GetFormID())));
     }
 
     // =============================================================================

@@ -1,4 +1,5 @@
 #include "treebuilder/TreeNLP.h"
+#include "AsciiText.h"
 
 #include <rapidfuzz/distance/Levenshtein.hpp>
 #include <rapidfuzz/fuzz.hpp>
@@ -53,14 +54,6 @@ static const std::unordered_set<std::string> kStopWords = {
 // UTILITY
 // =============================================================================
 
-std::string TreeNLP::ToLower(const std::string& s)
-{
-    std::string result = s;
-    std::transform(result.begin(), result.end(), result.begin(),
-        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return result;
-}
-
 bool TreeNLP::IsStopWord(const std::string& word)
 {
     return kStopWords.contains(word);
@@ -74,7 +67,7 @@ std::vector<std::string> TreeNLP::Tokenize(const std::string& text)
 {
     if (text.empty()) return {};
 
-    std::string lower = ToLower(text);
+    std::string lower = AsciiText::ToLower(text);
 
     // Replace non-alphanumeric with spaces
     for (auto& c : lower) {
@@ -356,8 +349,8 @@ float TreeNLP::CosineSimilarity(const SparseVector& a, const SparseVector& b)
 
 float TreeNLP::CharNgramSimilarity(const std::string& a, const std::string& b, int n)
 {
-    auto la = ToLower(a);
-    auto lb = ToLower(b);
+    auto la = AsciiText::ToLower(a);
+    auto lb = AsciiText::ToLower(b);
 
     // Strip whitespace
     auto isSpace = [](unsigned char c) { return std::isspace(c) != 0; };
@@ -409,7 +402,7 @@ int TreeNLP::FuzzyRatio(const std::string& a, const std::string& b)
     if (a.empty() || b.empty()) return 0;
 
     return static_cast<int>(std::round(
-        rapidfuzz::fuzz::ratio(ToLower(a), ToLower(b))));
+        rapidfuzz::fuzz::ratio(AsciiText::ToLower(a), AsciiText::ToLower(b))));
 }
 
 int TreeNLP::FuzzyPartialRatio(const std::string& shorter, const std::string& longer)
@@ -418,7 +411,7 @@ int TreeNLP::FuzzyPartialRatio(const std::string& shorter, const std::string& lo
 
     // rapidfuzz handles shorter/longer swap internally
     return static_cast<int>(std::round(
-        rapidfuzz::fuzz::partial_ratio(ToLower(shorter), ToLower(longer))));
+        rapidfuzz::fuzz::partial_ratio(AsciiText::ToLower(shorter), AsciiText::ToLower(longer))));
 }
 
 int TreeNLP::FuzzyTokenSetRatio(const std::string& a, const std::string& b)
@@ -427,7 +420,7 @@ int TreeNLP::FuzzyTokenSetRatio(const std::string& a, const std::string& b)
     if (a.empty() || b.empty()) return 0;
 
     return static_cast<int>(std::round(
-        rapidfuzz::fuzz::token_set_ratio(ToLower(a), ToLower(b))));
+        rapidfuzz::fuzz::token_set_ratio(AsciiText::ToLower(a), AsciiText::ToLower(b))));
 }
 
 // =============================================================================
@@ -436,7 +429,7 @@ int TreeNLP::FuzzyTokenSetRatio(const std::string& a, const std::string& b)
 
 int TreeNLP::CalculateThemeScore(const json& spellData, const std::string& theme)
 {
-    std::string text = ToLower(BuildThemeText(spellData));
+    std::string text = AsciiText::ToLower(BuildThemeText(spellData));
     // The spell's own wording, weighed heavier than the rest of its text below.
     // The editor id is what that has to be on a translated load order: themes
     // are English words, and a Korean name can never contain one.
@@ -446,8 +439,8 @@ int TreeNLP::CalculateThemeScore(const json& spellData, const std::string& theme
     } else {
         spelling = SplitIdentifier(spelling);
     }
-    std::string spellName = ToLower(spelling);
-    std::string themeLower = ToLower(theme);
+    std::string spellName = AsciiText::ToLower(spelling);
+    std::string themeLower = AsciiText::ToLower(theme);
 
     // Strategy 1: Substring check (exact match bonus)
     int substringBonus = 0;

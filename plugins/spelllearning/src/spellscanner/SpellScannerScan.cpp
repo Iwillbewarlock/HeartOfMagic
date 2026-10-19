@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "AsciiText.h"
 #include "FormIdText.h"
 #include "JsonText.h"
 #include "SpellScanner.h"
@@ -38,10 +39,7 @@ namespace SpellScanner
 
         // Helper function to check if editorId indicates a non-player spell
         auto isNonPlayerSpell = [](const std::string& editorId) -> bool {
-            // Lowercase for comparison
-            std::string lower = editorId;
-            std::transform(lower.begin(), lower.end(), lower.begin(),
-                [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            const std::string lower = AsciiText::ToLower(editorId);
 
             // Skip trap spells
             if (lower.find("trap") != std::string::npos) return true;
@@ -189,9 +187,7 @@ namespace SpellScanner
 
             // When no EditorID available, use name-based heuristics to filter junk
             if (!hasEditorId) {
-                std::string lowerName = name;
-                std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(),
-                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                const std::string lowerName = AsciiText::ToLower(name);
 
                 // Skip obvious non-player spells by name patterns
                 if (lowerName.find("\xD9\x81\xD8\xAE") != std::string::npos) { filteredCount++; continue; }  // trap (Arabic: فخ)

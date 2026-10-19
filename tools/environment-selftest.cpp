@@ -6,11 +6,13 @@
 // Frostwalker's explosion matcher and pattern file reading, which magic
 // effects may take a twin, and the in-game mysticism-patch verdict. The same cases as tools/frostwalker-twin-check.js
 // for the matcher, so the C++ and the JavaScript copies cannot drift apart
-// unnoticed. Needs no dump and no game.
+// unnoticed. Also AsciiText::ToLower, which the pattern lines go through.
+// Needs no dump and no game.
 
 #include "Common.h"
 #include "LibrarianSelfTest.h"
 
+#include "AsciiText.h"
 #include "environment/EnvironmentMatch.h"
 
 #include <cstdio>
@@ -74,6 +76,18 @@ namespace
         lines.clear();
         Environment::AppendPatternLines("   \r\n# only comments\n\t\n", lines);
         Check(lines.empty(), "pattern file fail: a file of comments and blanks adds no pattern (no empty pattern matching everything)");
+    }
+
+    // AsciiText::ToLower, the one lower-casing of text (pattern lines, plugin keys, editor ids)
+    void AsciiFold()
+    {
+        Check(AsciiText::ToLower("MAG_BlizzardForce01.ESP") == "mag_blizzardforce01.esp",
+            "ascii fold: A-Z lowered, digits and punctuation kept");
+        // \xED\x95\x9C is UTF-8 for a Korean syllable, \xC4 A-umlaut in Windows-1252, \xD0\x9F Cyrillic Pe in UTF-8
+        Check(AsciiText::ToLower("\xED\x95\x9C-ABC-\xC4-\xD0\x9F") == "\xED\x95\x9C-abc-\xC4-\xD0\x9F",
+            "ascii fold edge: UTF-8 and code-page bytes stay as they are (no locale)");
+        Check(AsciiText::ToLower("").empty() && AsciiText::ToLower(std::string_view()).empty(),
+            "ascii fold fail: empty text gives empty text");
     }
 
     Environment::EffectFacts ShakeEffect()
@@ -267,6 +281,7 @@ void RunEnvironmentSelfTest(int& passed, int& failed)
     g_failed = &failed;
     Matcher();
     PatternFiles();
+    AsciiFold();
     Eligibility();
     Switching();
     PatternFolders();

@@ -314,7 +314,8 @@ This project does not have a C++ test framework. Validation is done through:
   evidence conflict stage, per-element evidence tiers, the axis source after removals - and plans adapter lines on
   made-up catalogs - `tierMin`, `requires.config` and `requires.dlls`, the per-effect `damage` lines (`tools/librarian-adapters-selftest.cpp`) -
   and checks the explosion twin rules - Frostwalker's matcher and pattern files, which effects take a twin, the
-  in-game `mysticism-patch` verdict (`tools/environment-selftest.cpp`, `include/environment/EnvironmentMatch.h`) - no dump needed, exit 1 on a failure, and `librarian-check.js` runs it first; `--adapters ... -v` lists every planned
+  in-game `mysticism-patch` verdict (`tools/environment-selftest.cpp`, `include/environment/EnvironmentMatch.h`) and
+  `AsciiText::ToLower` (A-Z only, other bytes kept) - no dump needed, exit 1 on a failure, and `librarian-check.js` runs it first; `--adapters ... -v` lists every planned
   effect write with the spells using it), `tome-reach-test` (which tree spells have tomes nothing hands
   out: `tome-reach-test -i inputs.json -s spell_scan_output.json [-v]`, inputs from `lab/tome-reach/make_inputs.py`;
   `tome-reach-test --self-test` checks the reader on made-up plugins, no game or load order needed, exit 1 on a failure;

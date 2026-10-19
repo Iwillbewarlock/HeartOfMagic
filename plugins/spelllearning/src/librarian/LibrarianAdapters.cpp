@@ -1,4 +1,5 @@
 #include "librarian/PerkAdapters.h"
+#include "AsciiText.h"
 #include "librarian/AdapterMatch.h"
 #include "librarian/Librarian.h"
 #include "librarian/LibrarianInternal.h"
@@ -374,8 +375,7 @@ namespace Librarian::Adapters
     {
         std::string key = Field(effect, "form");
         if (key.empty()) {
-            key = Field(effect, "editorId");
-            std::ranges::transform(key, key.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            key = AsciiText::ToLower(Field(effect, "editorId"));
         }
         return key;
     }

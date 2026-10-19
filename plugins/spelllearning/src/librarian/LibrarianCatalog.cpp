@@ -186,12 +186,12 @@ namespace Librarian
         // school and tier are the scanner's own words, only cased differently
         const std::string school = ReadField(spell, "school");
         if (!school.empty() && school != "Unknown") {
-            axes.school = Lowered(school);
+            axes.school = AsciiText::ToLower(school);
         }
 
         const std::string tier = ReadField(spell, "skillLevel");
         if (!tier.empty() && tier != "Unknown") {
-            axes.tier = Lowered(tier);
+            axes.tier = AsciiText::ToLower(tier);
         }
 
         // "Fire and Forget" is one word to every consumer of this catalog

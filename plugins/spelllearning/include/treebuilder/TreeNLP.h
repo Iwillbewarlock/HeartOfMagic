@@ -125,11 +125,4 @@ namespace TreeNLP
 
     // Process a full PRM scoring request
     json ProcessPRMRequest(const json& request);
-
-    // =========================================================================
-    // UTILITY
-    // =========================================================================
-
-    // Lowercase a string (ASCII-safe, sufficient for English spell names)
-    std::string ToLower(const std::string& s);
 }

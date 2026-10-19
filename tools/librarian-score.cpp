@@ -3,6 +3,7 @@
 // ============================================================================
 
 #include "Common.h"
+#include "AsciiText.h"
 #include "FormIdText.h"
 #include "LibrarianScore.h"
 
@@ -19,13 +20,6 @@ using json = nlohmann::json;
 
 namespace
 {
-    std::string Lowered(std::string text)
-    {
-        std::transform(text.begin(), text.end(), text.begin(),
-            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        return text;
-    }
-
     std::uint32_t ParseLocalId(const std::string& formId)
     {
         return FormIdText::Parse(formId).value_or(0) & LOCAL_FORM_ID_MASK;
@@ -222,7 +216,7 @@ void ReportScore(const json& answers, const std::map<JoinKey, Librarian::TagSet>
             continue;
         }
 
-        JoinKey key{ Lowered(esp->get<std::string>()),
+        JoinKey key{ AsciiText::ToLower(esp->get<std::string>()),
             ParseLocalId(formId->get<std::string>()) };
 
         const auto found = tagged.find(key);
@@ -298,7 +292,7 @@ std::map<JoinKey, json> IndexCatalog(const json& catalog)
         if (bar == std::string::npos) {
             continue;
         }
-        entries[JoinKey{ Lowered(persistentId.substr(0, bar)),
+        entries[JoinKey{ AsciiText::ToLower(persistentId.substr(0, bar)),
             ParseLocalId(persistentId.substr(bar + 1)) }] = entry;
     }
     return entries;
@@ -350,7 +344,7 @@ void ReportAxes(const json& answers, const std::map<JoinKey, json>& entries)
             continue;
         }
 
-        const auto found = entries.find(JoinKey{ Lowered(esp->get<std::string>()),
+        const auto found = entries.find(JoinKey{ AsciiText::ToLower(esp->get<std::string>()),
             ParseLocalId(formId->get<std::string>()) });
         if (found == entries.end()) {
             continue;

@@ -1,4 +1,5 @@
 #include "librarian/SpellResearchPatch.h"
+#include "AsciiText.h"
 #include "FormIdText.h"
 #include "librarian/Librarian.h"
 #include "librarian/LibrarianInternal.h"
@@ -152,18 +153,12 @@ namespace Librarian::SpellResearchPatch
             std::unordered_set<std::string> pluginsOff;        // lowercase
         };
 
-        std::string Lower(std::string text)
-        {
-            std::ranges::transform(text, text.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-            return text;
-        }
-
         // "plugin|<local id as a number>" for a plugin name and a hex local id ("0x00080B" or "00080b");
         // empty when the id is missing or not hex (the entry is then read by its formId)
         std::string LocalKey(const std::string& plugin, const std::string& localHex)
         {
             const auto localId = FormIdText::Parse(localHex);
-            return localId ? Lower(plugin) + "|" + std::to_string(*localId) : std::string();
+            return localId ? AsciiText::ToLower(plugin) + "|" + std::to_string(*localId) : std::string();
         }
 
         PlayerFilter ReadPlayerFilter()
@@ -194,7 +189,7 @@ namespace Librarian::SpellResearchPatch
                 for (const auto& entry : *list) {
                     const auto enabled = entry.is_object() ? entry.find("enabled") : entry.end();
                     if (entry.is_object() && enabled != entry.end() && enabled->is_boolean() && !enabled->get<bool>()) {
-                        filter.pluginsOff.insert(Lower(text(entry, "plugin")));
+                        filter.pluginsOff.insert(AsciiText::ToLower(text(entry, "plugin")));
                     }
                 }
             }
@@ -206,7 +201,7 @@ namespace Librarian::SpellResearchPatch
             const auto pipe = persistentId.find('|');
             if (pipe == std::string::npos) return filter.blacklistedIds.contains(formId);
             const std::string plugin = persistentId.substr(0, pipe);
-            return filter.pluginsOff.contains(Lower(plugin)) || filter.blacklistedIds.contains(formId) ||
+            return filter.pluginsOff.contains(AsciiText::ToLower(plugin)) || filter.blacklistedIds.contains(formId) ||
                 filter.blacklisted.contains(LocalKey(plugin, persistentId.substr(pipe + 1)));
         }
 

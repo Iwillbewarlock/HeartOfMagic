@@ -126,10 +126,10 @@ namespace Librarian
             const auto pluginField = matchObject.find("pluginContains");
             if (pluginField != matchObject.end()) {
                 if (pluginField->is_string()) {
-                    match.pluginContains.push_back(Detail::Lowered(pluginField->get<std::string>()));
+                    match.pluginContains.push_back(AsciiText::ToLower(pluginField->get<std::string>()));
                 } else if (pluginField->is_array()) {
                     for (const auto& entry : *pluginField) {
-                        if (entry.is_string()) match.pluginContains.push_back(Detail::Lowered(entry.get<std::string>()));
+                        if (entry.is_string()) match.pluginContains.push_back(AsciiText::ToLower(entry.get<std::string>()));
                     }
                 }
             }

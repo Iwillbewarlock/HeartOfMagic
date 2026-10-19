@@ -188,7 +188,7 @@ namespace Librarian
                     const std::string id = ReadField(spell, "persistentId");
                     plugin = id.substr(0, id.find('|'));
                 }
-                plugin = Detail::Lowered(plugin);
+                plugin = AsciiText::ToLower(plugin);
                 const bool named = std::any_of(match.pluginContains.begin(), match.pluginContains.end(),
                     [&plugin](const std::string& part) { return plugin.find(part) != std::string::npos; });
                 if (!named) return false;

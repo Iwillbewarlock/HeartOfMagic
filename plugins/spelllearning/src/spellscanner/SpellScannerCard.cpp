@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "AsciiText.h"
 #include "SpellScanner.h"
 #include "librarian/PerkAdapterPatch.h"
 #include "PathText.h"
@@ -169,9 +170,7 @@ namespace SpellScanner
     {
         std::string LowerSchoolName(RE::SpellItem* spell)
         {
-            std::string school = GetSchoolName(GetSpellSchool(spell));
-            std::transform(school.begin(), school.end(), school.begin(),
-                [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            const std::string school = AsciiText::ToLower(GetSchoolName(GetSpellSchool(spell)));
             return IsPlainName(school) ? school : std::string();
         }
 

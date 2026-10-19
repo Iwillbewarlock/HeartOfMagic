@@ -469,7 +469,8 @@ stores FormIDs and resolves them with SKSE's `ResolveFormID`). The key is made a
 `include/PluginNames.h` (no game types): `MakePersistentId` converts the name, and `PluginNames::Lookup` tries
 `TESDataHandler::LookupModByName` with the text first (the game's own bytes, every ASCII name) and, for a name
 with a non-ASCII byte that it misses, the converted names of the loaded files that have a non-ASCII byte
-(`AsciiText::EqualsIgnoreCase`, A-Z folding only; `include/AsciiText.h` also holds the shared `HasNonAscii`).
+(`AsciiText::EqualsIgnoreCase`, A-Z folding only; `include/AsciiText.h` also holds the shared `HasNonAscii` and
+`ToLower`, the one lower-casing of text in the plugin and the tools - A-Z only, never the C locale's `tolower`).
 A `Lookup` remembers every answer, misses included, and converts the file list at most once;
 `ValidateAndFixTree` keeps one for its whole pass over the tree, so a tree full of one Korean-named plugin's
 spells costs one walk of the file list, not one per node. The key depends on the ANSI code page: a player who
@@ -688,8 +689,8 @@ an unknown source - takes it as new (true, `SourceRegistered`, the panel row) wi
 shows the saved on/off (`NotifyModdedSourceRegistered` sends `enabled`; docs/PLAN-PUBLIC-MODDER-API.md).
 Plugin list entries an older panel saved with `toLowerCase` (non-ASCII capitals: "заклинания.esp") still turn their
 plugin off in a build (`filterWhitelistedSpells` also compares the lowered name) and take the scanned name when the
-plugin list opens (`migrateLoweredWhitelist`). The Spell Research patch (`LibrarianSpellResearchPatch.cpp`, ASCII
-`tolower`) does not match such an entry until it is renamed.
+plugin list opens (`migrateLoweredWhitelist`). The Spell Research patch (`LibrarianSpellResearchPatch.cpp`,
+`AsciiText::ToLower`, A-Z only) does not match such an entry until it is renamed.
 
 **Edit mode copies and the prerequisite map** (2026-10-17): `sendTreePrerequisites` (treeLoad.js) leaves out a
 second copy of a spell (`<formId>_dup_<n>`, edit mode's Spawn) when the tree has the spell's own node, sends only
@@ -1965,7 +1966,7 @@ HeartOfMagic/
 │   ├── spelllearning/             # Main SpellLearning plugin
 │   │   ├── CMakeLists.txt
 │   │   ├── include/
-│   │   │   ├── AsciiText.h                  ✅ HasNonAscii, A-Z-only case-insensitive compare (no game types)
+│   │   │   ├── AsciiText.h                  ✅ HasNonAscii, A-Z-only ToLower and case-insensitive compare (no game types)
 │   │   │   ├── ISLIntegration.h             ✅ DEST mod integration header
 │   │   │   ├── JsonText.h                   ✅ JsonText::Dump - dump that replaces bytes that are not UTF-8 (no game types)
 │   │   │   ├── PapyrusAPI.h                 ✅ Papyrus native function header
