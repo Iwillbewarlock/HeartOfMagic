@@ -5,6 +5,8 @@
 // librarian-test --adapters: plans the perk adapter keyword writes for a scan
 // dump and its catalog with the plugin's own planner (LibrarianAdapters.cpp)
 // and prints the per-line numbers. Every plugin in the files' "requires" is
-// taken as loaded and every keyword as defined, so all files run.
+// taken as loaded, every config gate as on and every keyword as defined, so all
+// files run. With `verbose`, every planned effect write is listed with the
+// spells that use that effect.
 int RunAdapters(const std::string& dumpPath, const std::string& catalogPath,
-    const std::string& adaptersDir, const std::string& reportPath);
+    const std::string& adaptersDir, const std::string& reportPath, bool verbose);

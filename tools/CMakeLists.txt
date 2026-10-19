@@ -56,12 +56,15 @@ set_source_files_properties(${SL_SRC_DIR}/treebuilder/SimdKernels.cpp PROPERTIES
 add_executable(librarian-test
     librarian-test.cpp
     librarian-selftest.cpp
+    librarian-adapters-selftest.cpp
     librarian-score.cpp
     librarian-vocab-check.cpp
     librarian-adapters.cpp
     librarian-spellresearch.cpp
     ${SL_SRC_DIR}/librarian/LibrarianRules.cpp
     ${SL_SRC_DIR}/librarian/LibrarianAdapters.cpp
+    ${SL_SRC_DIR}/librarian/LibrarianAdapterMatch.cpp
+    ${SL_SRC_DIR}/librarian/LibrarianAdapterDamage.cpp
     ${SL_SRC_DIR}/librarian/LibrarianSpellResearch.cpp
     ${SL_SRC_DIR}/librarian/LibrarianClassify.cpp
     ${SL_SRC_DIR}/librarian/LibrarianCatalog.cpp

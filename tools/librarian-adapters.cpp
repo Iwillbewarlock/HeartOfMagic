@@ -24,7 +24,7 @@ using json = nlohmann::json;
 namespace Adapters = Librarian::Adapters;
 
 int RunAdapters(const std::string& dumpPath, const std::string& catalogPath,
-    const std::string& adaptersDir, const std::string& reportPath)
+    const std::string& adaptersDir, const std::string& reportPath, bool verbose)
 {
     try {
         const json dump = ReadDumpJson(dumpPath);
@@ -89,12 +89,30 @@ int RunAdapters(const std::string& dumpPath, const std::string& catalogPath,
             for (std::size_t l = 0; l < files[f].lines.size(); ++l) {
                 const auto& line = files[f].lines[l];
                 const auto& s = plan.stats[f][l];
-                const std::string label = !line.castingPerk.empty() ? "castingPerk " + line.castingPerk
+                std::string label = !line.castingPerk.empty() ? "castingPerk " + line.castingPerk
                     : !line.formList.empty() ? line.formList : line.keyword;
+                if (!line.damageElements.empty()) label += " (damage)";
                 std::cout << "  " << (line.enabled ? "" : "(off) ") << std::left << std::setw(36) << label
                           << " agree=" << std::setw(4) << s.agree << " writes=" << std::setw(4) << s.writes
                           << " gain=" << std::setw(4) << s.gain << " leaks=" << std::setw(4) << s.leaks
                           << " conditioned=" << s.conditioned << "\n";
+            }
+        }
+        if (plan.entriesWithoutSources > 0) {
+            std::cout << "catalog entries without elementSources (taken as framework): "
+                      << plan.entriesWithoutSources << "\n";
+        }
+        if (verbose) {
+            std::cout << "\nWRITES (file | keyword | effect | spells using it)\n";
+            for (const auto& write : plan.writes) {
+                std::cout << "  " << files[write.file].name << " | " << write.keyword << " | " << write.effectKey << " |";
+                const auto found = users.find(write.effectKey);
+                if (found != users.end()) {
+                    for (const json* spell : found->second) {
+                        std::cout << " " << spell->value("name", std::string()) << " [" << idOf(*spell) << "]";
+                    }
+                }
+                std::cout << "\n";
             }
         }
         std::cout << "planned writes: " << plan.writes.size() << "\n";

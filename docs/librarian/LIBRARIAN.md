@@ -377,7 +377,8 @@ librarian-test --check-vocab -r <룰 디렉터리> -j <tagVocabulary.js>
 
 키는 `persistentId` 라 로드오더가 바뀌어도 안전하다. `elementSources`(2026-10-20)는 원소마다 그것을 준 가장 강한
 등급이다(3절 "증거 등급"). 더한 필드라 `version` 은 1 그대로이고, 옛 카탈로그를 읽는 쪽은 이 필드가 없을 수 있다.
-`source.elements` 는 이 값들 중 가장 강한 등급이다.
+`source.elements` 는 이 값들 중 가장 강한 등급이다. 퍽 어댑터 줄의 `tierMin`(`PERK_ADAPTERS.md` 3절, 환경 파일은 6-5절)이
+원소마다 이 값을 읽는다 — 이 필드가 없는 옛 카탈로그는 framework 로 본다.
 
 ### 네 축은 룰이 아니라 도출이다
 

@@ -6,9 +6,19 @@
 
 - **Paths of Empyrean support.** Spells from other spell mods now get the Lost Grimoire poison, sun, disease
   and kinetic keywords and the PoE daedra summon keyword its perks look for, so those perks work on them too.
+- **Environment mods see modded spells' elements.** Fire, frost and shock damage effects of spell mods get the
+  keywords that Rain Extinguishes Fires, Water Douses Fire, Sneak Tools, DISDD, Elementally Reactive Waters, Ice is
+  Slick and SIM look for, plus the own keywords of the OIF rule packs (Dynamic Torches NG, Fires Off, Melt The Ice,
+  Burn The Hay and the rest), Dynamic Candles, Put Out The Fires and Frostwalker's frost and fire cloaks - only where
+  the spell's record says the element, not its name. Turn it off with `"environment": { "enabled": false }` in
+  `config.json`.
 
 ### Changed
 
+- **Balance: perk mods boost more of a spell's fire, frost and shock damage.** The vanilla element keywords now go on
+  every effect whose record deals that damage, not only the first, and perk overhauls (Adamant, Ordinator, Mysticism
+  and the others) read the same keywords - so on those spells their element perks apply to the extra effects too.
+  Load orders with SkyPatcher Keyword Framework already had most of these.
 - **A spell's element follows what its own record says when a keyword framework guesses otherwise.** Spells
   whose damage is plain magic damage (Desecration's necrotic flames) or frost (Flames of Coldharbour's cold
   fire) no longer count as fire because their names contain "fire"; they leave the fire group of the tree.

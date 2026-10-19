@@ -62,6 +62,16 @@
 //     half-cost perk of its own the vanilla one for its catalog school and tier
 //     (DestructionNovice00 ...): the same conditions, no leak check (the perk
 //     sits on the spell record). A spell with a perk of its own counts as agree
+//   - "tierMin" ("mgef" | "manual" | "framework"): every element the line's tags
+//     ask for (all: each one, any: the one that matches) must rest on evidence
+//     of at least that rank in the catalog's elementSources (TierRank: mgef >
+//     manual > framework). Techniques have no per-tag tier and are not checked.
+//     A catalog entry without elementSources (written before 1.6), or with
+//     no tier for that element, counts as framework
+//   - a file with "requires": {"config": "a.b"} runs only while that config.json
+//     boolean is not false (missing: on), on top of "always" / "any"
+//   - a "damage" keyword line ({"elements": [...]}) plans per effect instead of
+//     per spell (LibrarianAdapterDamage.cpp, "DAMAGE LINES" below)
 // =============================================================================
 
 namespace Librarian::Adapters
@@ -135,6 +145,17 @@ namespace Librarian::Adapters
         // FormLists (persistent ids) that earlier formList lines of this plan
         // must not have picked the spell for
         std::vector<std::string> formListsNone;
+        // Lowest evidence tier the tags' elements may rest on ("tierMin"),
+        // as a TierRank; unset: any tier
+        std::optional<int> tierMinRank;
+        std::string tierMin;
+        // "damage": {"elements": [...]} - the keyword goes on every effect of a
+        // picked spell that deals damage of one of these elements (see
+        // "DAMAGE LINES"). Empty: an ordinary line.
+        std::vector<std::string> damageElements;
+        // "damage": {"keywordsNone": [...]} - an effect carrying any of these
+        // (a mark that says the damage is of no element) is not written
+        std::vector<std::string> damageKeywordsNone;
     };
 
     struct File
@@ -143,8 +164,21 @@ namespace Librarian::Adapters
         std::string perkMod;
         bool always = false;                // requires {"always": true}
         std::vector<std::string> requiresAny;
+        // requires {"config": "section.key"}: a config.json boolean that must
+        // not be false. Empty: no such gate.
+        std::string requiresConfig;
         std::vector<Line> lines;
     };
+
+    // Whether a dotted config path ("environment.enabled") is on in a parsed
+    // config.json: true unless every part is there and the last one is the
+    // boolean false - a player who never opens the settings gets the default.
+    [[nodiscard]] bool ConfigFlagOn(const json& config, const std::string& dottedPath);
+
+    // Whether a file's requires holds: the config gate (if any) and then
+    // "always" or one of "any" loaded. `pluginLoaded` answers by file name.
+    [[nodiscard]] bool FileApplies(const File& file, const json& config,
+        const std::function<bool(const std::string&)>& pluginLoaded);
 
     // Parses one adapter document. A line with a key this code does not know
     // is kept but disabled, and every problem is appended to `problems` - an
@@ -173,8 +207,10 @@ namespace Librarian::Adapters
     // is judged on its structure). `carried` must already include keywords
     // added by earlier lines; the "already carries the keyword" skip is the
     // caller's. Returns the index into spell["effects"] of the target effect.
+    // `withoutSources`, when given, is set when a tierMin check met a catalog
+    // entry without elementSources (taken as framework).
     std::optional<std::size_t> PickTarget(const json& spell, const json* catalogEntry,
-        const Line& line, const std::unordered_set<std::string>& carried);
+        const Line& line, const std::unordered_set<std::string>& carried, bool* withoutSources = nullptr);
 
     // =========================================================================
     // PLAN
@@ -255,9 +291,65 @@ namespace Librarian::Adapters
         std::vector<ListWrite> listWrites;
         std::vector<CastingPerkWrite> castingPerkWrites;
         std::vector<std::vector<LineStats>> stats;   // [file][line]
+        // Catalog entries a tierMin line read without elementSources (a
+        // catalog written before 1.6): taken as framework. Counted once per
+        // entry and line.
+        std::size_t entriesWithoutSources = 0;
     };
 
     Plan BuildPlan(const std::vector<File>& files, const PlanSource& source);
+
+    // =========================================================================
+    // DAMAGE LINES
+    // =========================================================================
+    //
+    // A "damage" keyword line gives the keyword to effects, not spells: every
+    // effect (hidden ones too, not what a cloak applies) of a picked catalog
+    // spell that deals damage of the line's elements. The spell is picked by
+    // the line's spell level conditions (tags with tierMin, spell, spellHas,
+    // spellLacks, keywordsNone, formListsNone) and by having at least one of
+    // the line's elements in its catalog at tierMin - the matched elements M.
+    // An effect deals that damage when:
+    //   - it is detrimental with magnitude > 0 (this spell's entry), and its
+    //     archetype is ValueModifier, DualValueModifier or PeakValueModifier on
+    //     Health, or Script with the resistance of an element in M (scripted
+    //     damage has no actor value to read). Absorb is not damage of an element
+    //   - its own record says M: its resistance is the engine resistance of an
+    //     element in M (FireResist, FrostResist, ElectricResist, PoisonResist -
+    //     "resisted as M"). A neutral resistance (None, MagicResist) is no word
+    //     on fire, frost, shock or poison - in a fire spell it is the tentacle,
+    //     arcane or sun part - so it counts only for an element with no
+    //     resistance of its own (water, air ...) in M, on a visible effect, in a
+    //     spell the catalog gives no engine damage element outside M. Any
+    //     other resistance (another element's, DamageResist ...) never counts
+    //   - a hidden Script effect never counts (a perk's fear or disintegrate
+    //     check resisted by FireResist): the librarian takes hidden effects as
+    //     evidence only when they change a value, and so does this
+    //   - it carries none of the line's damage.keywordsNone, matches the line's
+    //     "effect" block, if any, and its item has no conditions (a perk bonus)
+    // An effect that already has the keyword (from its plugin or an earlier
+    // line) is left alone. An effect is written only when every item using it
+    // is a catalog spell this line picks for which that same effect's record
+    // passes the tests above (so the same elements at tierMin; that spell's
+    // own magnitude and conditions do not matter - a fire spell using the fire
+    // effect as a perk bonus, or at magnitude 0, still uses fire damage).
+    // Another spell, an enchantment, scroll, potion or ingredient blocks it,
+    // and is named in the leak examples. An effect only ever used with
+    // conditions is not written (counted in "conditioned").
+    // "sharedEffects": "allow" skips that check. Stats: agree - picked spells
+    // whose damage effects (items with conditions aside) all have the keyword
+    // already; writes - effects; gain - spells that carry the keyword nowhere
+    // before and now do; conditioned - effects lacking the keyword that picked
+    // spells use only with conditions.
+
+    // Effects (key) that have each keyword now: what the plugins wrote plus
+    // what earlier lines of this plan wrote.
+    using EffectKeywords = std::unordered_map<std::string, std::unordered_set<std::string>>;
+
+    void PlanDamageLine(std::size_t fileIndex, std::size_t lineIndex, const Line& line, bool live,
+        const PlanSource& source, EffectKeywords& effectKeywords,
+        std::unordered_map<std::string, std::unordered_set<std::string>>& carriedCache,
+        Plan& plan);
 
     // Report of a plan, the shape both the game and the harness write.
     json PlanReport(const std::vector<File>& files, const Plan& plan);

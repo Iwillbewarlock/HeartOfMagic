@@ -72,9 +72,10 @@ namespace
             << "      the numbers the offline run produces.\n"
             << "\n"
             << "Perk adapters (no rules needed):\n"
-            << "  -i <dump> --catalog <spell_catalog.json> --adapters <dir> [-o <report.json>]\n"
+            << "  -i <dump> --catalog <spell_catalog.json> --adapters <dir> [-o <report.json>] [-v]\n"
             << "      Plans the perk adapter keyword writes with the plugin's own\n"
-            << "      planner and prints agree / writes / gain / leaks per line.\n"
+            << "      planner and prints agree / writes / gain / leaks per line;\n"
+            << "      -v lists every effect write with the spells using that effect.\n"
             << "\n"
             << "Spell Research (no rules needed):\n"
             << "  -i <dump> --catalog <spell_catalog.json> --spellresearch <file> [-a <answers>] [-o <report.json>]\n"
@@ -84,7 +85,9 @@ namespace
             << "Self-test (no dump needed):\n"
             << "  --self-test\n"
             << "      Classifies small made-up spells: the conflict stage, per-element\n"
-            << "      evidence tiers, the axis source after removals. Exit 1 on a failure.\n"
+            << "      evidence tiers, the axis source after removals; plans adapter\n"
+            << "      lines on made-up catalogs: tierMin, requires.config, damage lines.\n"
+            << "      Exit 1 on a failure.\n"
             << "\n"
             << "Vocabulary check (no dump needed):\n"
             << "  --check-vocab -r <dir> [-j <tagVocabulary.js>]\n"
@@ -188,7 +191,7 @@ int main(int argc, char* argv[])
             PrintUsage(argv[0]);
             return 1;
         }
-        return RunAdapters(inputPath, catalogPath, adaptersPath, outputPath);
+        return RunAdapters(inputPath, catalogPath, adaptersPath, outputPath, verbose);
     }
 
     if (!catalogPath.empty()) {

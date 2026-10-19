@@ -58,18 +58,16 @@ namespace Librarian::PerkAdapters
             return formId ? RE::TESForm::LookupByID<RE::BGSListForm>(formId) : nullptr;
         }
 
-        bool FileApplies(RE::TESDataHandler* dataHandler, const Plan::File& file)
-        {
-            if (file.always) return true;
-            return std::ranges::any_of(file.requiresAny,
-                [&](const std::string& name) { return PluginLoaded(dataHandler, name); });
-        }
-
         std::vector<Plan::File> LoadFiles(RE::TESDataHandler* dataHandler, json& report)
         {
             std::vector<Plan::File> files;
             std::vector<std::string> problems;
             const auto directory = RulesPath() / ADAPTER_SUBDIR;
+            // A file's "requires": {"config": ...} reads config.json the way
+            // perkAdapters.enabled is read: unreadable or missing means on
+            json config;
+            if (!ReadJsonFile(DataPath("config.json"), config)) config = json::object();
+            const auto pluginLoaded = [&](const std::string& name) { return PluginLoaded(dataHandler, name); };
 
             std::error_code error;
             for (const auto& entry : std::filesystem::directory_iterator(directory, error)) {
@@ -82,7 +80,7 @@ namespace Librarian::PerkAdapters
                 }
                 Plan::File file;
                 if (!Plan::ParseFile(document, name, file, problems)) continue;
-                if (!FileApplies(dataHandler, file)) {
+                if (!Plan::FileApplies(file, config, pluginLoaded)) {
                     report["filesNotApplying"].push_back(name);
                     continue;
                 }
@@ -395,6 +393,7 @@ namespace Librarian::PerkAdapters
             report["castingPerkRemoved"] = perks.removed;
             report["castingPerkFailed"] = perks.failed;
             report["elapsedMs"] = elapsed;
+            report["entriesWithoutSources"] = plan.entriesWithoutSources;
             report["files"] = Plan::PlanReport(files, plan);
             WriteReport(report);
 
