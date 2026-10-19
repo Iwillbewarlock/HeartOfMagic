@@ -271,42 +271,45 @@ namespace SpellScanner
     // MAIN SCAN FUNCTIONS
     // =============================================================================
 
+    namespace
+    {
+        // The envelope both scans return: UTC timestamp, the scan mode (the tome
+        // scan's "spell_tomes"; none for the full scan), the spells and the prompt
+        // (the player's tree rules, then the system instructions)
+        json BuildScanOutput(json spellArray, const ScanConfig& config, std::string_view scanMode)
+        {
+            auto now = std::chrono::system_clock::now();
+            auto time = std::chrono::system_clock::to_time_t(now);
+            std::tm tmBuf{};
+            gmtime_s(&tmBuf, &time);
+            std::stringstream ss;
+            ss << std::put_time(&tmBuf, "%Y-%m-%dT%H:%M:%SZ");
+
+            json output;
+            output["scanTimestamp"] = ss.str();
+            if (!scanMode.empty()) {
+                output["scanMode"] = scanMode;
+            }
+            output["spellCount"] = spellArray.size();
+            output["spells"] = std::move(spellArray);
+
+            std::string combinedPrompt;
+            if (!config.treeRulesPrompt.empty()) {
+                combinedPrompt += "## TREE CREATION RULES\n\n";
+                combinedPrompt += config.treeRulesPrompt;
+                combinedPrompt += "\n\n";
+            }
+            combinedPrompt += GetSystemInstructions();
+            output["llmPrompt"] = EncodingUtils::SanitizeToUTF8(combinedPrompt);  // the player's text, made valid UTF-8
+            return output;
+        }
+    }
+
     json CollectAllSpells(const ScanConfig& config)
     {
         logger::info("SpellScanner: Starting spell scan with ScanConfig...");
 
-        json spellArray = ScanSpellsToJson(config.fields);
-
-        // Build timestamp
-        auto now = std::chrono::system_clock::now();
-        auto time = std::chrono::system_clock::to_time_t(now);
-        std::tm tmBuf{};
-        gmtime_s(&tmBuf, &time);
-        std::stringstream ss;
-        ss << std::put_time(&tmBuf, "%Y-%m-%dT%H:%M:%SZ");
-
-        // Build output JSON
-        json output;
-        output["scanTimestamp"] = ss.str();
-        output["spellCount"] = spellArray.size();
-        output["spells"] = std::move(spellArray);
-
-        // Combine prompts: User's tree rules + System instructions + Spell data
-        std::string combinedPrompt;
-
-        // Add user's tree rules prompt (visible/editable)
-        if (!config.treeRulesPrompt.empty()) {
-            combinedPrompt += "## TREE CREATION RULES\n\n";
-            combinedPrompt += config.treeRulesPrompt;
-            combinedPrompt += "\n\n";
-        }
-
-        // Add system instructions (hidden from user)
-        combinedPrompt += GetSystemInstructions();
-
-        output["llmPrompt"] = EncodingUtils::SanitizeToUTF8(combinedPrompt);  // Sanitize user prompt for valid UTF-8 JSON
-
-        return output;
+        return BuildScanOutput(ScanSpellsToJson(config.fields), config, {});
     }
 
     std::string ScanAllSpells(const ScanConfig& config)
@@ -394,32 +397,7 @@ namespace SpellScanner
         logger::info("SpellScanner: Found {} unique spells from tomes, skipped {} duplicates",
                      tomeCount, skippedDuplicates);
 
-        // Build timestamp
-        auto now = std::chrono::system_clock::now();
-        auto time = std::chrono::system_clock::to_time_t(now);
-        std::tm tmBuf{};
-        gmtime_s(&tmBuf, &time);
-        std::stringstream ss;
-        ss << std::put_time(&tmBuf, "%Y-%m-%dT%H:%M:%SZ");
-
-        // Build output JSON
-        json output;
-        output["scanTimestamp"] = ss.str();
-        output["scanMode"] = "spell_tomes";
-        output["spellCount"] = spellArray.size();
-        output["spells"] = std::move(spellArray);
-
-        // Combine prompts
-        std::string combinedPrompt;
-        if (!config.treeRulesPrompt.empty()) {
-            combinedPrompt += "## TREE CREATION RULES\n\n";
-            combinedPrompt += config.treeRulesPrompt;
-            combinedPrompt += "\n\n";
-        }
-        combinedPrompt += GetSystemInstructions();
-        output["llmPrompt"] = EncodingUtils::SanitizeToUTF8(combinedPrompt);  // Sanitize user prompt for valid UTF-8 JSON
-
-        return output;
+        return BuildScanOutput(std::move(spellArray), config, "spell_tomes");
     }
 
     std::string ScanSpellTomes(const ScanConfig& config)
