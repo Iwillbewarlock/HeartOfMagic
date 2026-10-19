@@ -24,7 +24,10 @@ var SpellResearchStatus = {
         upToDate: ['settings.tomeLearning.srUpToDate',
             'All tome spells are in Spell Research ({{total}} spells, checked at {{time}}).'],
         added: ['settings.tomeLearning.srAdded',
-            '{{added}} spells added at {{time}} ({{total}} spells in Spell Research).']
+            '{{added}} spells added at {{time}} ({{total}} spells in Spell Research).'],
+        // One spell added: its own line ("1 spell"), picked by text()
+        addedOne: ['settings.tomeLearning.srAddedOne',
+            '1 spell added at {{time}} ({{total}} spells in Spell Research).']
     },
 
     _last: null,
@@ -39,11 +42,18 @@ var SpellResearchStatus = {
         this.render();
     },
 
-    /** The line's text for a state, in the panel's language. */
+    /**
+     * The line's text for a state, in the panel's language. One spell added has its
+     * own line; a language without it gets its plural line before English.
+     */
     text: function(data) {
-        var entry = this.TEXTS[data.state];
+        var entry = (data.state === 'added' && data.added === 1) ? this.TEXTS.addedOne : this.TEXTS[data.state];
         var params = { added: data.added || 0, total: data.srSpells || 0, time: data.time || '' };
         var text = (typeof t === 'function') ? t(entry[0], params) : entry[0];
+        if (text === entry[0] && entry === this.TEXTS.addedOne && typeof t === 'function') {
+            var plural = t(this.TEXTS.added[0], params);
+            if (plural !== this.TEXTS.added[0]) return plural;
+        }
         if (text === entry[0]) {
             text = entry[1];
             for (var name in params) {

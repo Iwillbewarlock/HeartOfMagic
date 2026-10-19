@@ -89,6 +89,8 @@ function updateDetailsProgression(node, opts) {
                     var newXP = Math.max(0, parseInt(this.value) || 0);
                     this.value = newXP;
                     progress.xp = newXP;
+                    // The share the card's weakened power reads (spellWeakenedPower)
+                    progress.progress = requiredXP > 0 ? newXP / requiredXP : 0;
                     state.spellProgress[canonId] = progress;
                     // Update progress bar
                     var percent = requiredXP > 0 ? (newXP / requiredXP) * 100 : 0;
@@ -116,6 +118,7 @@ function updateDetailsProgression(node, opts) {
                     this.classList.add('has-override');
                     setI18n(this, 'details.xpOverride', { xp: tierXP }, 'Custom (tier default: {{xp}})', 'title');
                     progress.required = newRequired;
+                    progress.progress = (progress.xp || 0) / newRequired;
                     // Update progress bar
                     var percent = newRequired > 0 ? (progress.xp / newRequired) * 100 : 0;
                     progressBar.style.width = Math.min(percent, 100) + '%';

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **The spell card shows "Weakened (N%)" for a spell learned early and not yet mastered**, with the power it
+  casts at for its current XP. It never showed before. Once the spell is mastered the badge goes away.
+- **The spell card's Optional requirements show how many are needed again** ("need 2 of 3"), and in edit mode
+  the box to change that number is back; the LOCK badge next to Locks shows again. The panel's text setup at
+  start had been erasing them.
+- **Settings > Spell Tome Learning:** the Spell Research line says "1 spell added" instead of "1 spells added"
+  (and in Polish no longer gets the word for "spells" wrong for 2-4 of them).
+
 ## Heart of Magic Librarian 1.5.1
 
 ### New

@@ -92,6 +92,7 @@ loadModule('starCadenceTest', './modules/starCadenceTest.js');
 loadModule('treeGrowthStatus', './modules/treeGrowthStatus.js');
 loadModule('statusLineTest', './modules/statusLineTest.js');
 loadModule('spellNamesTest', './modules/spellNamesTest.js');
+loadModule('spellCardWeakenedTest', './modules/spellCardWeakenedTest.js');
 loadModule('levelFilterTest', './modules/levelFilterTest.js');
 loadModule('tomeFilterTest', './modules/tomeFilterTest.js');
 loadModule('newSpellsTest', './modules/newSpellsTest.js');

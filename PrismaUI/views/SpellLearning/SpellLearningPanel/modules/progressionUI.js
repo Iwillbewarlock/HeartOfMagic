@@ -495,6 +495,7 @@ function onUnlockClick() {
                 unlocked: true,
                 ready: true
             };
+            if (typeof ProgressUpdates !== 'undefined') ProgressUpdates.forgetWeakened(canonId, node.formId);
             node.state = 'unlocked';
             if (typeof syncDuplicateState === 'function') syncDuplicateState(node);
             // Its children open now, as they do when C++ says the spell was unlocked
@@ -745,6 +746,7 @@ window.onSpellUnlocked = function(dataStr) {
             }
             state.spellProgress[canonId].unlocked = true;
             state.spellProgress[canonId].xp = state.spellProgress[canonId].required || 100;
+            if (typeof ProgressUpdates !== 'undefined') ProgressUpdates.forgetWeakened(canonId, data.formId);
 
             // Update ALL nodes matching canonical ID (including duplicates)
             if (state.treeData) {

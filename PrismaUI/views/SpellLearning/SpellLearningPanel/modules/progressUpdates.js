@@ -58,6 +58,16 @@ var ProgressUpdates = {
     },
 
     /**
+     * The spell is no longer early-learned (mastered, unlocked, taken back): out of
+     * the known spells' weakened list until the next panel open sends it again.
+     */
+    forgetWeakened: function(canonId, formId) {
+        if (!state.weakenedSpells) return;
+        state.weakenedSpells.delete(canonId);
+        if (formId) state.weakenedSpells.delete(formId);
+    },
+
+    /**
      * A spell's state changed (mastered, unlocked, taken back): the whole tree layer
      * repaints with its discovery set and learning paths. WheelRenderer alone (the SVG
      * tree) holds no nodes while the canvas tree is in use, so it draws nothing then.
@@ -106,6 +116,7 @@ var ProgressUpdates = {
         var isMastered = typeof isSpellMastered === 'function' && isSpellMastered(canonId);
         var stateChanged = false;
         if (isMastered) {
+            this.forgetWeakened(canonId, data.formId);
             nodes.forEach(function(n) {
                 if (n.state === 'unlocked') return;
                 n.state = 'unlocked';
@@ -191,10 +202,7 @@ window.onSpellRelocked = function(dataStr) {
                 if (targetCanon === canonId || target === data.formId) delete state.learningTargets[school];
             }
         }
-        if (state.weakenedSpells) {
-            state.weakenedSpells.delete(canonId);
-            state.weakenedSpells.delete(data.formId);
-        }
+        ProgressUpdates.forgetWeakened(canonId, data.formId);
         ProgressUpdates.nodesFor(canonId).forEach(function(n) {
             if (n.state === 'unlocked') n.state = 'available';
             if (typeof syncDuplicateState === 'function') syncDuplicateState(n);

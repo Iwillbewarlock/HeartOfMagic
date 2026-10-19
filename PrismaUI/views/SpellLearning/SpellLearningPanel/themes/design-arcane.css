@@ -214,6 +214,8 @@ body, button, input, select, textarea, .btn { font-family: var(--arcane-body); }
     --alteration: #2f6b3a;
     --conjuration: #5a3a8a;
     --illusion: #1d5f8a;
+    /* A weakened spell's badges, power line and effects (the theme's is a pale rust) */
+    --weakened-color: #8a4e2a;
     color: var(--arcane-ink);
 }
 
@@ -250,10 +252,6 @@ body, button, input, select, textarea, .btn { font-family: var(--arcane-body); }
     background: rgba(90, 58, 20, 0.15);
 }
 
-.learning-status-badge.weakened {
-    color: #8a4e2a;
-}
-
 .details-panel .btn,
 .details-panel .header-btn {
     color: var(--arcane-ink);
@@ -267,6 +265,7 @@ body, button, input, select, textarea, .btn { font-family: var(--arcane-body); }
 .details-panel .state-badge.learning  { color: #1d6f8a; border-color: #1d6f8a; }
 .details-panel .state-badge.unlocked  { color: #7a5a14; border-color: #7a5a14; }
 .details-panel .state-badge.locked    { color: #6b5a45; border-color: #6b5a45; }
+.details-panel .state-badge.weakened  { color: var(--weakened-color); border-color: var(--weakened-color); }
 
 /* School badge: the tree's school colours are written into an inline stylesheet
    (.school-badge.<school>), pale for a dark card; on the page they are inks */

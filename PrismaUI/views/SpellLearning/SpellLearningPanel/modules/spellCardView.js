@@ -77,6 +77,35 @@ function spellStateLabel(nodeState) {
 }
 
 /**
+ * The power a weakened spell casts at, in percent, or null when it is not
+ * weakened. Weakened = early-learned and not mastered: the list comes with the
+ * known spells on every panel open (onPlayerKnownSpells -> state.weakenedSpells).
+ * A spell mastered since (its node 'unlocked', its progress unlocked - C++ sets
+ * that only on mastery) or at full power is not weakened, whatever the list says.
+ * The power follows the spell's XP by the power steps C++ nerfs it with
+ * (calculateCurrentEffectiveness, the progress section's "N% Power"); the spell
+ * info's figure, read once a session, only when there is no XP to go by.
+ * @param {Object} node
+ * @returns {number|null}
+ */
+function spellWeakenedPower(node) {
+    var weak = state.weakenedSpells;
+    if (!node || !weak || !weak.size || node.state === 'unlocked') return null;
+    var canonId = typeof getCanonicalFormId === 'function' ? getCanonicalFormId(node) : node.formId;
+    if (!weak.has(canonId) && !weak.has(node.formId)) return null;
+    var progress = state.spellProgress ? state.spellProgress[canonId] : null;
+    if (progress && progress.unlocked === true) return null;
+    var frac = null;
+    if (progress && typeof progress.progress === 'number') frac = progress.progress;
+    else if (progress && progress.required > 0) frac = (progress.xp || 0) / progress.required;
+    var el = (typeof settings !== 'undefined' && settings) ? settings.earlySpellLearning : null;
+    var power = (frac !== null && el && typeof calculateCurrentEffectiveness === 'function')
+        ? Math.round(calculateCurrentEffectiveness(frac * 100, el))
+        : Math.round(Number(node.effectiveness) || 100);
+    return power >= 100 ? null : power;
+}
+
+/**
  * Fill the details panel with a spell's card. Draws only: nothing here
  * changes the selection, reveals a lock or talks to C++.
  * @param {Object} node
@@ -211,9 +240,10 @@ function renderSpellCard(node, opts) {
     var effectsList = document.getElementById('spell-effects');
     effectsList.innerHTML = '';
     
-    // Check if spell is weakened (effectiveness < 100%)
-    var isWeakened = node.isWeakened === true || (node.effectiveness && node.effectiveness < 100);
-    var effectiveness = node.effectiveness || 100;
+    // Early-learned and not mastered yet: the spell casts at part of its power
+    var weakenedPower = spellWeakenedPower(node);
+    var isWeakened = weakenedPower !== null;
+    var effectiveness = isWeakened ? weakenedPower : 100;
     
     if (showFigures) {
         // Show effectiveness warning if weakened
@@ -221,14 +251,13 @@ function renderSpellCard(node, opts) {
             var weakenedLi = document.createElement('li');
             weakenedLi.className = 'weakened-warning';
             weakenedLi.textContent = '! ' + tOr('details.weakenedPower', { pct: effectiveness }, '{{pct}}% Power (practicing...)');
-            weakenedLi.style.color = '#f59e0b';
-            weakenedLi.style.fontWeight = 'bold';
             effectsList.appendChild(weakenedLi);
         }
-        
-        // Use scaledEffects if available (from C++ for weakened spells)
+
+        // The spell info's scaledEffects (read once a session, only for a spell weakened then)
+        // carry the full magnitudes; the magnitude shown is worked out at the badge's power
         var effectsToShow = (isWeakened && node.scaledEffects) ? node.scaledEffects : (Array.isArray(node.effects) ? node.effects : []);
-        
+
         if (effectsToShow.length === 0) {
             var noEffLi = document.createElement('li');
             noEffLi.textContent = tOr('details.noEffects', null, 'No effects');
@@ -238,26 +267,20 @@ function renderSpellCard(node, opts) {
                 var li = document.createElement('li');
                 if (typeof e === 'string') {
                     li.textContent = e;
-                } else if (e.scaledMagnitude !== undefined) {
-                    // Scaled effect from C++
-                    var text = e.name || tOr('details.effect', null, 'Effect');
-                    if (e.scaledMagnitude > 0) {
-                        text += ' (' + e.scaledMagnitude + ')';
-                        if (e.originalMagnitude && e.originalMagnitude !== e.scaledMagnitude) {
-                            setI18n(li, 'details.fullPower', { value: e.originalMagnitude }, 'Full power: {{value}}', 'title');
-                        }
-                    }
-                    if (e.duration > 0) {
-                        text += ' for ' + e.duration + 's';
-                    }
-                    li.textContent = text;
-                    if (isWeakened) li.style.color = '#fbbf24';
                 } else {
-                    // Plain effect from C++: name, then magnitude and duration when it has them
-                    var plainText = e.name || JSON.stringify(e);
-                    if (e.magnitude > 0) plainText += ' (' + Math.round(e.magnitude) + ')';
-                    if (e.duration > 0) plainText += ' ' + e.duration + 's';
-                    li.textContent = plainText;
+                    // Name, then magnitude and duration when it has them
+                    var scaled = e.scaledMagnitude !== undefined;
+                    var full = Number(scaled ? e.originalMagnitude : e.magnitude) || 0;
+                    // Weakened: cut as C++ cuts it (whole numbers, rounded down)
+                    var shown = isWeakened ? Math.floor(full * effectiveness / 100) : Math.round(full);
+                    var text = e.name || (scaled ? tOr('details.effect', null, 'Effect') : JSON.stringify(e));
+                    if (shown > 0) text += ' (' + shown + ')';
+                    if (isWeakened && shown !== Math.round(full)) {
+                        setI18n(li, 'details.fullPower', { value: Math.round(full) }, 'Full power: {{value}}', 'title');
+                    }
+                    if (e.duration > 0) text += ' ' + e.duration + 's';
+                    li.textContent = text;
+                    if (isWeakened) li.className = 'weakened-effect';
                 }
                 effectsList.appendChild(li);
             });
@@ -517,8 +540,8 @@ function renderSpellCard(node, opts) {
     var stateText = spellStateLabel(node.state);
     var stateClass = node.state;
 
-    // Show "Weakened" for early-learned spells
-    if (isWeakened && node.state === 'unlocked') {
+    // Show "Weakened" for early-learned spells (the known spells keep them 'available')
+    if (isWeakened) {
         stateText = tOr('details.stateWeakened', { pct: effectiveness }, 'Weakened ({{pct}}%)');
         stateClass = 'weakened';
     }

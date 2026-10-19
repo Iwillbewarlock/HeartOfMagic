@@ -538,6 +538,11 @@ var TreeParser = {
             node.iconKey = spellData.iconKey || '';
             node.schoolIconKey = spellData.schoolIconKey || '';
             if (spellData.school) node.school = spellData.school;
+            // An early-learned spell's power and its effects at that power, as C++ had them
+            // when this info was read (SpellCache keeps it the session long). Whether the
+            // spell is weakened now comes with the known spells (onPlayerKnownSpells).
+            node.effectiveness = Number(spellData.effectiveness) || 100;
+            node.scaledEffects = Array.isArray(spellData.scaledEffects) ? spellData.scaledEffects : null;
             // The name may have changed: the card's lists count shared names again
             if (typeof SpellNames !== 'undefined') SpellNames.invalidate();
             // Every reply from C++ comes through here and changes the nodes in place

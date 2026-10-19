@@ -3,7 +3,9 @@
  * "Spell Research" (spellResearchStatus.js, run-tests.js).
  *
  * Checks: the row stays hidden until the plugin sends a state, each state's
- * line with its numbers (JSON text or an object), the English text when the
+ * line with its numbers (JSON text or an object), one spell added in its own
+ * line ("1 spell", not "1 spells"; a language without that line uses its plural
+ * line before English), the English text when the
  * language has no key, an unknown state or bad JSON hiding the row again, and
  * window.onSpellResearchStatus reaching the module.
  *
@@ -47,9 +49,12 @@ var SpellResearchStatusTest = {
                     return id === 'spellResearchStatusRow' ? row : (id === 'spellResearchStatusText' ? out : null);
                 }
             };
-            // A language with one key: the others fall back to English
+            // A language with one key (and, when oneKey, the one-spell key; with noKeys, none):
+            // the others fall back to English
+            var oneKey = false, noKeys = false;
             g.t = function(key, params) {
-                if (key !== 'settings.tomeLearning.srAdded') return key;
+                if (oneKey && key === 'settings.tomeLearning.srAddedOne') return params.time + ' - one/' + params.total;
+                if (noKeys || key !== 'settings.tomeLearning.srAdded') return key;
                 return params.time + ' - ' + params.added + '/' + params.total;
             };
             var S = g.SpellResearchStatus;
@@ -61,6 +66,21 @@ var SpellResearchStatusTest = {
             S.receive('{"state":"added","added":1408,"srSpells":1530,"time":"20:26","reason":"import"}');
             this.check(row.style.display === '' && out.textContent === '20:26 - 1408/1530',
                 'added: shown in the language, with its numbers (JSON text)');
+
+            S.receive({ state: 'added', added: 2, srSpells: 1530, time: '20:30' });
+            this.check(out.textContent === '20:30 - 2/1530', 'two spells added: the plural line');
+            S.receive({ state: 'added', added: 1, srSpells: 1530, time: '20:31' });
+            this.check(out.textContent === '20:31 - 1/1530',
+                'one spell added, the language lacks the one-spell key: its plural line, not English');
+            oneKey = true;
+            S.receive({ state: 'added', added: 1, srSpells: 1530, time: '20:32' });
+            this.check(out.textContent === '20:32 - one/1530', 'one spell added: the language\'s one-spell key');
+            oneKey = false;
+            noKeys = true;
+            S.receive({ state: 'added', added: 1, srSpells: 1530, time: '20:33' });
+            this.check(out.textContent === '1 spell added at 20:33 (1530 spells in Spell Research).',
+                'one spell added, the language has neither key: English "1 spell"');
+            noKeys = false;
 
             S.receive({ state: 'upToDate', srSpells: 1530, time: '21:02' });
             this.check(out.textContent === 'All tome spells are in Spell Research (1530 spells, checked at 21:02).',

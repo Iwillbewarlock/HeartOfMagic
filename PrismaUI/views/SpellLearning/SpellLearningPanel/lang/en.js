@@ -571,6 +571,7 @@ window._i18nPreload = {
     "settings.tomeLearning.srNoCatalog": "Waiting for a full scan: run one and the spells go in.",
     "settings.tomeLearning.srUpToDate": "All tome spells are in Spell Research ({{total}} spells, checked at {{time}}).",
     "settings.tomeLearning.srAdded": "{{added}} spells added at {{time}} ({{total}} spells in Spell Research).",
+    "settings.tomeLearning.srAddedOne": "1 spell added at {{time}} ({{total}} spells in Spell Research).",
     "settings.tomeLearning.inventoryBoost": "Inventory Boost",
     "settings.tomeLearning.inventoryBoostDesc": "Bonus XP while carrying tome",
     "settings.tomeLearning.learningReqs": "Learning Requirements",

@@ -30,7 +30,12 @@
     --status-working: #E8A84C;
     --status-done: #7CC474;
     --status-error: #E86A5C;
-    
+
+    /* A weakened (early-learned, not mastered) spell on the card: its badges, the
+       power line and its effects */
+    --weakened-color: #C89878;
+    --weakened-bg: rgba(184, 136, 120, 0.15);
+
     /* UI Elements */
     --btn-bg: rgba(255, 255, 255, 0.06);
     --btn-bg-hover: rgba(255, 255, 255, 0.12);
@@ -1561,6 +1566,21 @@ body {
     color: var(--accent-blue);
 }
 
+.state-badge.weakened {
+    background: var(--weakened-bg);
+    color: var(--weakened-color);
+}
+
+/* The card's effects list while the spell is weakened: the power line, the cut effects */
+.detail-list li.weakened-warning {
+    color: var(--weakened-color);
+    font-weight: bold;
+}
+
+.detail-list li.weakened-effect {
+    color: var(--weakened-color);
+}
+
 .btn-unlock {
     padding: 4px 10px;
     background: rgba(136, 168, 120, 0.2);
@@ -1645,8 +1665,8 @@ body {
 }
 
 .learning-status-badge.weakened {
-    background: rgba(184, 136, 120, 0.15);
-    color: #C89878;
+    background: var(--weakened-bg);
+    color: var(--weakened-color);
     border: 1px solid rgba(184, 136, 120, 0.3);
 }
 
