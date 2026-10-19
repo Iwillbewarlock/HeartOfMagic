@@ -167,17 +167,31 @@ namespace BlackFlame
                 why("no engine art");
                 return Outcome::kNotApplicable;
             }
-            if (!current) {
-                why("no castingArt");
-                return Outcome::kNotApplicable;
-            }
-            if (current != engineArt && SourceOf(current) != engineArt) {
-                why("art foreign");
-                return Outcome::kNotApplicable;
-            }
-            if (current == wanted) {
-                why("already wanted");
-                return Outcome::kDone;
+            // run 7 (2026-10-20): a drawn, idle hand (caster state kNone) has castingArt null with the art attached, so the
+            // current art cannot be read: refreshed without the foreign and "already wanted" tests (a refresh to the same
+            // art is harmless: a few bare-hand frames until CheckAttachCastingArt attaches it; requests come only on a buff
+            // change). The proxy for "our art": the selected fire spell's engine art has a copy. 38784's own
+            // unready branch calls 34152 on this state at every sheathe; the notes show 34152 reading castingArtData, the
+            // light, the enchantment controller and the clone task, not castingArt.
+            const bool unset = !current;
+            if (unset) {
+                if (!snap.attached) {
+                    why("no castingArt");
+                    return Outcome::kNotApplicable;
+                }
+                if (!CopyOf(engineArt)) {
+                    why("castingArt unset, no copy");
+                    return Outcome::kNotApplicable;
+                }
+            } else {
+                if (current != engineArt && SourceOf(current) != engineArt) {
+                    why("art foreign");
+                    return Outcome::kNotApplicable;
+                }
+                if (current == wanted) {
+                    why("already wanted");
+                    return Outcome::kDone;
+                }
             }
             const auto castState = caster->state.get();
             // HB1: kNone only, until a log shows which state an idle drawn hand is in; kReady waits like a charge or a cast
@@ -200,11 +214,21 @@ namespace BlackFlame
             g_detach(caster, true);
             g_setArt(caster, wanted);  // not attached now: stores it with kStartCloneTask; Update's CheckAttachCastingArt attaches it
             g_refreshed.fetch_add(1);
+            // read back: SetCastingArt stores the art only when 34152 cleared kCastingArtAttached (not shown in code; run 8 shows it)
+            const std::string after = std::format("; after: castingArt {:08X}, attached {}", FormIdOf(caster->castingArt),
+                caster->flags.all(RE::ActorMagicCaster::Flags::kCastingArtAttached) ? "yes (SetCastingArt stored nothing)" : "no");
             if (!attached) {
                 g_wasPending.fetch_add(1);
             }
-            a_line = std::format("hand {}, spell {:08X}, art {:08X} -> {:08X}, was attached {}, caster state {}", a_slot,
-                spell->GetFormID(), FormIdOf(current), FormIdOf(wanted), attached ? "yes" : "no", static_cast<std::uint32_t>(castState));
+            if (unset) {
+                a_line = std::format("hand {}, castingArt unset, refreshed: spell {:08X}, engine art {:08X} -> {:08X}, was attached {}, "
+                                     "caster state {}",
+                    a_slot, spell->GetFormID(), FormIdOf(engineArt), FormIdOf(wanted), attached ? "yes" : "no",
+                    static_cast<std::uint32_t>(castState)) + after;
+            } else {
+                a_line = std::format("hand {}, spell {:08X}, art {:08X} -> {:08X}, was attached {}, caster state {}", a_slot,
+                    spell->GetFormID(), FormIdOf(current), FormIdOf(wanted), attached ? "yes" : "no", static_cast<std::uint32_t>(castState)) + after;
+            }
             return Outcome::kDone;
         }
 

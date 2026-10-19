@@ -13,7 +13,8 @@
 // when ActorMagicCaster flag kCastingArtAttached, 1 << 3, is set: 1.6.1170 code read 2026-10-17). So hands readied
 // before the buff kept the original art for the whole buff, and hands readied during it kept the copy after it.
 // When the buff flag changes, each drawn hand of the player whose selected spell is a fire spell, and whose
-// castingArt is that spell's costliest effect's art or its copy, gets the art PickCastingArtImpl picks now, by the
+// castingArt is that spell's costliest effect's art or its copy (or unset with an art attached - an idle drawn hand,
+// run 7 2026-10-20 - when that effect's art has a copy), gets the art PickCastingArtImpl picks now, by the
 // engine's own unready/ready steps (38784): DetachCastingArt (34152, with true, as 38784's unready branch calls it
 // whatever the flags), then SetCastingArt (34150). ActorMagicCaster::Update's first call, CheckAttachCastingArt
 // (34185), clones and attaches the new art over the next frames. Only from the main-thread queue (MainThreadQueue.h:
