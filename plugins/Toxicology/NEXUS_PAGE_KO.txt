@@ -70,6 +70,6 @@ Librarian이 독으로 분류하는 주문을 추가하는 모드입니다.
 [/list]
 
 [size=3][b]소스와 라이선스[/b][/size]
-소스 코드는 [url=https://github.com/Iwillbewarlock/HeartOfMagic]https://github.com/Iwillbewarlock/HeartOfMagic[/url]의 [i]plugins/Toxicology[/i] 폴더에 있습니다. 이번 릴리스의 전체 소스는 [b]toxicology-v1.0.0[/b] 태그에서 확인할 수 있으며, Heart of Magic Librarian과 같은 [i]BuildRelease.ps1[/i]로 빌드했습니다.
+소스 코드는 [url=https://github.com/Iwillbewarlock/HeartOfMagic]https://github.com/Iwillbewarlock/HeartOfMagic[/url]의 [i]plugins/Toxicology[/i] 폴더에 있습니다. 이번 릴리스의 전체 소스는 [b]toxicology-v1.0.0[/b] 태그에서 확인할 수 있으며, Heart of Magic Librarian과 같은 [i]BuildRelease.ps1[/i]로 빌드했습니다. 이번 릴리스의 전체 소스 코드는 이 페이지에 옵션 파일인 [i]Toxicology - Source Code[/i](압축 파일 [i]HeartOfMagic-Librarian-Toxicology_1.0.0_Source.zip[/i])로도 올라와 있습니다. 이 파일에는 toxicology-v1.0.0 태그 기준의 저장소와 DLL 빌드에 사용된 버전인 CommonLibSSE-NG(v10.0.0)가 함께 들어 있어서, 빌드 과정에서 받아오는 vcpkg 패키지를 제외하면 GitHub에서 다른 파일을 추가로 다운로드하지 않고도 바로 빌드할 수 있습니다.
 
 프로젝트 자체 소스 파일에는 MIT 라이선스가 적용됩니다. DLL은 CommonLibSSE-NG(Modding Exception과 GPL-3.0 Linking Exception이 적용된 GPL-3.0-or-later)를 정적으로 링크하므로, GPL-3.0-or-later가 적용되는 결합 저작물입니다. 자세한 내용은 다운로드한 파일의 [i]SKSE/Plugins/HeartOfMagic_Toxicology/[/i] 경로에 있는 [i]THIRD-PARTY-NOTICES.md[/i], [i]LICENSE[/i] 파일과 [i]licenses[/i] 폴더를 참고해 주세요. GPL의 요구 사항에 따라 이 페이지의 권한 설정에서도 해당 조건에 따른 DLL 수정과 재배포를 허용합니다.
