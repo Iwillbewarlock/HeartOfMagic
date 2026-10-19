@@ -1,9 +1,10 @@
 # HeartOfMagic.esp and explosion twins
 
-Heart of Magic's only plugin, `HeartOfMagic.esp`, exists for one job (1.6): give hidden, harmless spell effects an
-explosion that mods reading explosions by name do not take for an element. This page holds the plugin's record
-values, how the file was made, the twin map, the offline check, what the DLL does with them, and the in-game
-self-test.
+Heart of Magic's plugin, `HeartOfMagic.esp`, exists for one job (1.6): give hidden, harmless spell effects an
+explosion that mods reading explosions by name do not take for an element. A second, optional plugin,
+`HeartOfMagic_Mysticism.esp`, makes Mysticism's screen-shake script use it (see "The Mysticism patch"). This page
+holds the plugins' record values, how the files were made, the twin map, the offline check, what the DLL does with
+them, and the in-game self-test.
 
 ## Why
 
@@ -40,6 +41,20 @@ Charged Nova and Black Marsh. Mysticism's Domination spell does not carry it; in
 with houseCARL 2026-10-20; Hysteria and Harmony confirmed freezing water in game 2026-10-20). Real Blizzard's
 hazard effect `MAG_FrostDamageFFHazardArea` (`Skyrim.esm|0x0B79FE`, SpawnHazard) uses the same explosion and must keep
 freezing water. (`MAG_Blizzard` also carries the shake effect; that entry moves to the twin, its hazard does not.)
+
+**What places the explosion: the script, not the Explosion field** (found 2026-10-20). The first fix repointed the
+effect's own Explosion field (`data.explosion`) to the twin. In game, with `HeartOfMagic.esp` enabled and the DLL of
+`0c2ec7fc`, Hysteria, Harmony and Fire Storm still froze water, although `SpellLearning.log` showed that side working
+as designed (`MysticismMagic.esp|0xBDE626` took the twin, self-test pass=9 fail=0). The effect runs the vanilla script
+`magicPlaceActivatorScript` (VMAD) with the property `ExplosionRef = Skyrim.esm|0x0B7A05` `MAG_BlizzardForceExplosion`.
+The script (UOSC's source, `scripts\source\magicplaceactivatorscript.psc`) does `akCaster.PlaceAtMe(PlacedActivator)`,
+then `ActivatorRef.PlaceAtMe(ExplosionRef)` at `OnEffectStart` and again every 0.65 s (`OnUpdate`) until the effect
+ends. Frostwalker's explosion hook classifies every placed explosion by its base EXPL, so the property's Blizzard
+explosion still reads cold. The field repoint alone does not stop the freeze; the script property has to name the
+twin, which the optional Mysticism patch does (user decision: a patch plugin, not a runtime edit of script
+properties). Of the 15 records that reference `0x0B7A05` (houseCARL reverse references), the shake effect is the only
+one that is not a frost hazard; the others keep the original. The DLL's field repoint stays (harmless; the twin is now
+also what the patch names).
 
 Runtime forms were ruled out: `BGSExplosion` has no `Copy()`, and a form made at runtime does not survive in a save.
 A record in a light plugin is save-safe and costs no load order slot.
@@ -134,6 +149,44 @@ the original reaches the twin without remaking the file. The EditorID and the (e
    light plugin's object IDs from `0x800` are all this file needs. Read back by parsing (HEDR 1.70, size 334) and with
    `tools/frostwalker-twin-check.js` (header and field checks below). `.gitattributes` marks `*.esp binary`.
 
+## The Mysticism patch
+
+`HeartOfMagic_Mysticism.esp` at the repo root: optional, for load orders with Mysticism - A Magic Overhaul. 817 bytes,
+SHA-256 `2f3c12915807944e4fa6f10028ff8f0d91e96dfcbbdcb6170da06502a955e995`. The release ships it under
+`optional/MysticismPatch/` (`Distribution.cmake`, step 4b; not at the Data root, so a zip extracted by hand without
+Mysticism does not bring a plugin with a missing master); the FOMOD's "Compatibility Patches" step installs it to the
+Data root, Recommended when `MysticismMagic.esp` is active and not installable otherwise; `DeployDev.ps1` always
+copies it (hash-checked), since the dev install has Mysticism.
+
+| Field | Value |
+|---|---|
+| Flags | `0x200` (ESL / light) |
+| HEDR | version 1.70 (bytes `9A 99 D9 3F`) |
+| Masters | `Skyrim.esm`, `Update.esm`, `MysticismMagic.esp`, `HeartOfMagic.esp` |
+| Records | one: an override of `MysticismMagic.esp|0xBDE626` `MAG_ScreenShakeEffect` (MGEF, FormID `0x02BDE626` in this file) |
+
+The record is Mysticism's own (2.4.2.0, `MysticismMagic.esp` SHA-256 `41b9309e...`, as above) with one change: the VMAD
+property `magicPlaceActivatorScript.ExplosionRef` names `HeartOfMagic.esp|0x000800` (`0x03000800` here) instead of
+`Skyrim.esm|0x0B7A05`. Byte compare with Mysticism's record (both 372 bytes, record flags 0, form version 44,
+version-control 0, Version2 0; subrecords EDID VMAD FULL MDOB KSIZ KWDA DATA SNDD DNAM): exactly two byte differences,
+`ExplosionRef` `0x000B7A05` -> `0x03000800`, and DATA's casting art master index `05` -> `02` (the same
+`MysticismMagic.esp` form under this file's master list). The Explosion field in DATA keeps `Skyrim.esm|0x0B7A05`; the
+DLL repoints it at runtime as before.
+
+How it was made (2026-10-20, houseCARL, build folder in the session scratchpad, never enabled in MO2):
+
+1. `housecarl_create_plugin` `esl=true`.
+2. `housecarl_forward` `source=MysticismMagic.esp` for `MysticismMagic.esp|0xBDE626` (an override copied from
+   Mysticism's version, not from the TAKEALOOK winner).
+3. `housecarl_apply` `Set VirtualMachineAdapter.Scripts[0].Properties[0].Object = 000800:HeartOfMagic.esp`.
+4. HEDR lowered from 1.71 to 1.70 at file offset 30, as for `HeartOfMagic.esp`. `Update.esm` stays a master (houseCARL
+   adds it; it is always present, and removing it would mean re-indexing every FormID).
+
+**Load order: it must be the effect's last override.** A plugin loaded after it that also edits `MAG_ScreenShakeEffect`
+brings back its own copy of the VMAD and with it the Blizzard explosion. In TAKEALOOK the winner before the patch is
+`Synthesis - Sound and Combat.esp` (it changed only the projectile, to an Audio Overhaul one; the effect is Self, so the
+projectile is not used): the patch goes after it. The self-test's `mysticism-patch` line names the file that wins.
+
 ## The twin map
 
 `SKSE/Plugins/SpellLearning/librarian/environment/twins.json` (shipped with the rest of `SKSE/Plugins/SpellLearning`;
@@ -169,6 +222,29 @@ of this plugin, not an override), and every subrecord after the EDID equals, in 
 cleared, HEDR 1.71, the record re-indexed to `0x00000800`, one DATA byte changed, or the master renamed each fail with
 their own line. The C++ copy of the matcher (`include/environment/EnvironmentMatch.h`) is checked on the same cases by
 `librarian-test --self-test`.
+
+Then the Mysticism patch (`tools/mysticism-patch-check.js`, both scripts reading with `tools/plugin-reader.js`, which
+throws on a file that is not a plugin or whose sizes run past their ends):
+
+```powershell
+node tools/frostwalker-twin-check.js --mysticism "<Mysticism mod folder>\MysticismMagic.esp"   # also compare with the source
+node tools/frostwalker-twin-check.js --patch <a copy of HeartOfMagic_Mysticism.esp>
+```
+
+Without `--mysticism`: the file exists and parses, light flag, HEDR 1.70, masters exactly the four above, exactly one
+record, an uncompressed MGEF with FormID `MysticismMagic.esp|0xBDE626` under the master list (an override, not a new
+record), EditorID `MAG_ScreenShakeEffect`, one VMAD with `magicPlaceActivatorScript` whose `ExplosionRef` is a single
+object resolving to the twin `twins.json` gives `Skyrim.esm|0x0B7A05`. With `--mysticism`: also the source record
+(`MysticismMagic.esp`'s own `0xBDE626`): same record flags and form version, same subrecords in the same order, and
+each subrecord byte for byte equal after mapping its FormIDs from the source's master list (and the source itself) to
+the patch's - MGEF DATA's 16 FormID fields, MDOB, KWDA, ESCE, SNDD's sound FormIDs and every VMAD object property -
+with one allowed difference: the source's `ExplosionRef` must be `Skyrim.esm|0x0B7A05` and the patch's the twin. Any
+other difference fails with the subrecord, the byte offset and both values. Run 2026-10-20 with TAKEALOOK's Mysticism
+2.4.2.0: PASS (9 subrecords, 14 FormIDs mapped, 0 differing). Copies with the light flag cleared, HEDR 1.71,
+`ExplosionRef` back on the original, DATA's casting art left on index `05`, one DATA or KWDA byte changed, a master
+renamed, the record made a new record (index `04`), a truncated file, a non-plugin file and a missing file each fail
+with their own line. Not a C++ harness case: the only C++ plugin reader in `tools/` is tome-reach-test's, built for book and
+container records, so the file check is JavaScript only; the self-test's verdict logic is in `librarian-test --self-test`.
 
 ## What the DLL does (1.6, `src/environment/EnvironmentTwins.cpp`)
 
@@ -265,12 +341,13 @@ in-memory edit the perk adapters make - and puts it back at once.
 | `twins-shake` | `MAG_ScreenShakeEffect`'s explosion, and what the scan would record | at least one effect recorded; the twin while the switch the DLL applied (game start or last settings save, not config.json as edited since) is on, the original while off; the scan records the original |
 | `twins-hazard` | `MAG_FrostDamageFFHazardArea`'s explosion | the original |
 | `twins-values` | twin vs original: `BGSExplosionData` (all but the pad), bounds, enchantment, image space modifier, model path, twin name | all equal, name empty |
+| `mysticism-patch` | whether `MysticismMagic.esp` and `HeartOfMagic_Mysticism.esp` are loaded, and `MAG_ScreenShakeEffect`'s source files in load order (`TESForm::sourceFiles`; the last, `GetFile(-1)`, is the version the game uses). An INFO line gives the effect's Explosion field | PASS: the last file is `HeartOfMagic_Mysticism.esp` (name compared case-insensitively). FAIL: Mysticism loaded without the patch ("install the optional Mysticism patch"), or another file after it ("load HeartOfMagic_Mysticism.esp after <file>"). SKIP: no `MysticismMagic.esp`. The verdict is `Environment::JudgeMysticismPatch` (`EnvironmentMatch.h`), checked by `librarian-test --self-test` |
 | `frostwalker` | Frostwalker's matcher (`EnvironmentMatch.h`) on the installed `Data/SKSE/Plugins/Frostwalker/*Sources/` (every file, as Frostwalker reads them), with EditorIDs from `SpellScanner::GetEditorId` (po3 Tweaks' `GetFormEditorID`, as Frostwalker) | PASS: twin unknown and the original cold. FAIL: the twin reads as an element. SKIP: no Frostwalker folder, or the original is not cold with the installed lists (a user list that makes "blizzard" neutral, or no EditorIDs) - then the twin is not needed. The original's class is always in the line |
 | `adapters-<file>` | for `env-elements.json`, `env-oif.json`, `env-candles.json`, `frostwalker.json`: their `requires` against the live config, load order and `Data/SKSE/Plugins` (`requires.dlls`, through `FileApplies`' default `DllInstalled`), and `perk_adapters_report.json` | listed under `files` when they apply, under `filesNotApplying` when not. The config gate is taken as the report's run judged it (`configJudged` in the report, written by the adapters for every `requires.config` path), so a config.json edited since the last game start or full scan is named in the line, not counted as a fault |
 | `adapters-desecration` | every effect of every `DAR_Necrotic*` spell (Desecration.esp) | none got `MagicDamageFire` from the adapters (`PerkAdapters::IsInjected`). SKIP without Desecration.esp or EditorIDs |
 
 Without HeartOfMagic.esp the twin checks write one `twins SKIP` line ("the explosion twin fix is inactive, nothing
-checked"); without MysticismMagic.esp `twins-shake` is a SKIP.
+checked"); without MysticismMagic.esp `twins-shake` and `mysticism-patch` are a SKIP.
 
 The two H2 lines are an experiment, not a check of HoM's code: `ANSWER no` means "the spell's virtual `HasKeyword`
 does not see its effects' keywords" (then env-oif.json / env-candles.json would need spell-record targets, if those
@@ -282,13 +359,14 @@ What the self-test cannot judge is what the water looks like. Steps:
 
 1. Close the game. `.\BuildRelease.ps1 -preset Release-2026`, then `.\DeployDev.ps1 -WithSelfTest`.
 2. In MO2, enable `HeartOfMagic.esp` in the dev mod (`HeartOfMagic-Librarian-Dev`; a new plugin starts unchecked). It is
-   light: no slot, anywhere in the order.
+   light: no slot, anywhere in the order. Enable `HeartOfMagic_Mysticism.esp` too and move it below
+   `Synthesis - Sound and Combat.esp` (and below any other plugin that edits `MAG_ScreenShakeEffect`).
 3. Start the game, load a save near open water (Riverwood's river, or the lake by Helgen), play for 30 seconds
    unpaused, then quit (or keep playing).
 4. Read `SpellLearning.log` (SKSE's log folder: `Documents\My Games\Skyrim Special Edition\SKSE\` on the Steam
    runtime): the `EnvironmentTwins:` lines from the game start (expected above) and the `[selftest-1.6]` lines;
-   The pass is `DONE ... fail=0` **and** no `twins`, `twins-shake`, `twins-hazard` or `twins-values` line is a SKIP
-   (a SKIP there means HeartOfMagic.esp or Mysticism was not loaded and nothing was checked); the two H2 `ANSWER` lines
+   The pass is `DONE ... fail=0` **and** no `twins`, `twins-shake`, `twins-hazard`, `twins-values` or `mysticism-patch`
+   line is a SKIP (a SKIP there means HeartOfMagic.esp or Mysticism was not loaded and nothing was checked); the two H2 `ANSWER` lines
    are the finding to report, not a pass or a fail. Claude can read the log and judge it.
 5. Only then, by eye (console `player.addspell <id>`, Skyrim.esm ids): cast Hysteria (`7E8DE`) and Harmony (`7E8DB`)
    standing at the water's edge - the water must **not** freeze; cast Blizzard (`7E8E4`) over water - it **must**
@@ -301,8 +379,10 @@ says `environment.enabled off: 1 effects on their original`, and Hysteria freeze
 
 ## Not verified
 
-- In game: everything in "Self-test" and the user's steps above (written 2026-10-20, not run yet). The repoint count
-  above is read from the records with houseCARL, not from a game log.
+- In game: the 2026-10-20 run (DLL of `0c2ec7fc`, HeartOfMagic.esp enabled, no patch) showed the DLL side as designed
+  (self-test pass=9 fail=0) and Hysteria, Harmony and Fire Storm still freezing water, which led to the patch. The
+  patch itself and the `mysticism-patch` line have not run in game yet: whether the water stays unfrozen with the
+  patch loaded last is the user's step 5 above. The repoint count above is read from the records with houseCARL.
 - The model path guard (the twin keeps its own model when the live original's path reads as an element) only acts
   when a mod changes the original's model; in TAKEALOOK both are `Effects\FXEmptyObject.nif`, so it is untested there.
 - That nothing else in the effect changes with the twin (screen shake, the image space modifier within 1760 units,
@@ -315,7 +395,8 @@ says `environment.enabled off: 1 effects on their original`, and Hysteria freeze
 - Frostwalker's projectile path (`GetProjectileType`, which reads the spell and its effects' names and the projectile
   `FrostStormProjectile_AOS`) is not touched by the twin; the shake effect is a Self effect, which launches no
   projectile, so it is not expected to matter.
-- The FOMOD was checked as well-formed XML and against the ModConfig 5.0 element order by hand, not with the XSD.
+- The FOMOD (with the Mysticism patch group) was checked as well-formed XML and against the ModConfig 5.0 element order
+  by hand, not with the XSD, and not run in a mod manager.
 
 ## Adapters: keywords for environment mods (1.6 step 2)
 

@@ -37,7 +37,9 @@
 ### Fixed
 
 - **Mysticism's screen-shake effect no longer makes Fire Storm, Hysteria, Harmony and the other master spells freeze
-  water with Frostwalker** (needs HeartOfMagic.esp enabled).
+  water with Frostwalker.** Needs HeartOfMagic.esp and the new optional Mysticism patch, `HeartOfMagic_Mysticism.esp`
+  (offered by the installer when Mysticism is active), loaded after HeartOfMagic.esp and after any other plugin that
+  edits Mysticism's screen-shake effect: the effect's script places the explosion, and only the patch changes that.
 - **The spell card shows "Weakened (N%)" for a spell learned early and not yet mastered**, with the power it
   casts at for its current XP. It never showed before. Once the spell is mastered the badge goes away.
 - **The spell card's Optional requirements show how many are needed again** ("need 2 of 3"), and in edit mode

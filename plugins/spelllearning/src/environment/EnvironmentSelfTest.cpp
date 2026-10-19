@@ -85,7 +85,8 @@ namespace Environment::SelfTest
             logger::info("{} START after {:.0f} s of unpaused play (selftest.json delaySeconds)", kPrefix, g_delaySeconds);
             FlushLog();
             const std::pair<const char*, void (*)()> checks[] = {
-                { "H2", CheckH2 }, { "twins", CheckTwins }, { "frostwalker", CheckFrostwalker }, { "adapters", CheckAdapters }
+                { "H2", CheckH2 }, { "twins", CheckTwins }, { "mysticism-patch", CheckMysticismPatch },
+                { "frostwalker", CheckFrostwalker }, { "adapters", CheckAdapters }
             };
             for (const auto& [name, check] : checks) {
                 try {

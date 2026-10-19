@@ -2126,12 +2126,13 @@ MO2/mods/HeartOfMagic_RELEASE/
 │       └── SpellLearning/
 │           ├── presets/
 │           └── librarian/environment/twins.json   # explosion twin map
-└── HeartOfMagic.esp                    # light plugin (ESL-flagged), one EXPL record
+├── HeartOfMagic.esp                    # light plugin (ESL-flagged), one EXPL record
+└── HeartOfMagic_Mysticism.esp          # optional (FOMOD, with Mysticism): light plugin, one MGEF override
 ```
 
 ### HeartOfMagic.esp and explosion twins (1.6)
 
-The mod's only plugin, `HeartOfMagic.esp` (committed at the repo root, which mirrors Data), is a light plugin
+The mod's main plugin, `HeartOfMagic.esp` (committed at the repo root, which mirrors Data), is a light plugin
 mastering only `Skyrim.esm`. It holds explosion "twins": copies of an explosion with a neutral EditorID, which the
 DLL gives at `kDataLoaded` to hidden, harmless effects whose explosion name-matching mods (Frostwalker) read as an
 element. The map is `SKSE/Plugins/SpellLearning/librarian/environment/twins.json`; `tools/frostwalker-twin-check.js`
@@ -2143,6 +2144,13 @@ originals back or the twins again. The scanner reads an effect's explosion throu
 scans record the original. A dev-only in-game self-test (`EnvironmentSelfTest*.cpp`, `selftest.json`) checks it and
 the adapters' H2 question. Record values, how the file was made, the DLL's behaviour and the self-test:
 [ENVIRONMENT.md](ENVIRONMENT.md).
+
+The effect's Explosion field is not what Mysticism's screen shake places: its script (`magicPlaceActivatorScript`)
+places its `ExplosionRef` property. So a second, optional plugin, `HeartOfMagic_Mysticism.esp` (repo root; shipped
+under `optional/MysticismPatch/`, installed by the FOMOD when `MysticismMagic.esp` is active), overrides
+`MAG_ScreenShakeEffect` with that property pointed at the twin. It must be the effect's last override; the self-test's
+`mysticism-patch` line checks that, `tools/frostwalker-twin-check.js` checks the file (ENVIRONMENT.md, "The Mysticism
+patch").
 
 ---
 

@@ -27,6 +27,7 @@ namespace Environment::SelfTest
     // The checks (EnvironmentSelfTestChecks.cpp), game thread, each writes its own lines.
     void CheckH2();
     void CheckTwins();
+    void CheckMysticismPatch();
     void CheckFrostwalker();
     void CheckAdapters();
 

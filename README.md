@@ -99,11 +99,17 @@ Control exactly which mods contribute spells. Uses stable `plugin:formId` keys t
    no load order slot, needs only `Skyrim.esm`, and can go anywhere in the order. It holds one record: a copy, under a
    neutral name, of the base-game explosion Mysticism's screen shake uses, with Mysticism's values (see
    [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)); without it the rest of the mod still runs
+5. With Mysticism - A Magic Overhaul: also enable the optional Mysticism patch, `HeartOfMagic_Mysticism.esp` (the
+   installer offers it when `MysticismMagic.esp` is active; a light plugin with one record, masters
+   `MysticismMagic.esp` and `HeartOfMagic.esp`). Load it after `HeartOfMagic.esp` and after every other plugin that
+   edits Mysticism's `MAG_ScreenShakeEffect` (Synthesis or sound patches, for example). Without it, Mysticism's
+   master-level spells (Hysteria, Harmony, Fire Storm and others) freeze water when Frostwalker is installed
 
 ### Folder Structure
 ```
 Data/
 ├── HeartOfMagic.esp      (light plugin, one record)
+├── HeartOfMagic_Mysticism.esp   (optional, with Mysticism only: light plugin, one record)
 ├── Scripts/
 │   └── *.pex             (SpellLearning, DEST/ISL handlers, BookXP)
 ├── SKSE/

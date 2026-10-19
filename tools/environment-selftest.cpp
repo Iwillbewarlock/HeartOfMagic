@@ -3,8 +3,8 @@
 // =============================================================================
 //
 // The pure half of EnvironmentTwins (include/environment/EnvironmentMatch.h):
-// Frostwalker's explosion matcher and pattern file reading, and which magic
-// effects may take a twin. The same cases as tools/frostwalker-twin-check.js
+// Frostwalker's explosion matcher and pattern file reading, which magic
+// effects may take a twin, and the in-game mysticism-patch verdict. The same cases as tools/frostwalker-twin-check.js
 // for the matcher, so the C++ and the JavaScript copies cannot drift apart
 // unnoticed. Needs no dump and no game.
 
@@ -238,6 +238,27 @@ namespace
                   Environment::JudgeTwin(FrostwalkerClass::kUnknown, FrostwalkerClass::kFire) == TwinVerdict::kFail,
             "twin verdict fail: a twin that reads as an element fails, whatever the original");
     }
+
+    // The in-game mysticism-patch check's verdict (EnvironmentSelfTestChecks.cpp CheckMysticismPatch)
+    void MysticismPatchVerdicts()
+    {
+        using Environment::PatchVerdict;
+        const auto judge = [](bool mysticism, bool patch, const char* last) {
+            return Environment::JudgeMysticismPatch(mysticism, patch, last);
+        };
+        Check(judge(false, false, "") == PatchVerdict::kNoMysticism,
+            "mysticism patch: no MysticismMagic.esp - SKIP, nothing to patch");
+        Check(judge(true, true, "HeartOfMagic_Mysticism.esp") == PatchVerdict::kPass &&
+                  judge(true, true, "heartofmagic_mysticism.ESP") == PatchVerdict::kPass,
+            "mysticism patch: the patch is the effect's last file - PASS (file name case ignored)");
+        Check(judge(true, false, "Synthesis - Sound and Combat.esp") == PatchVerdict::kMissing,
+            "mysticism patch fail: Mysticism without the patch - FAIL, install it");
+        Check(judge(true, true, "Synthesis - Sound and Combat.esp") == PatchVerdict::kNotLast &&
+                  judge(true, true, "MysticismMagic.esp") == PatchVerdict::kNotLast &&
+                  judge(true, true, "") == PatchVerdict::kNotLast &&
+                  judge(true, true, "HeartOfMagic_Mysticism.esp.bak") == PatchVerdict::kNotLast,
+            "mysticism patch fail: another file after the patch, no file, or a longer name - FAIL, load it last");
+    }
 }
 
 void RunEnvironmentSelfTest(int& passed, int& failed)
@@ -250,4 +271,5 @@ void RunEnvironmentSelfTest(int& passed, int& failed)
     Switching();
     PatternFolders();
     TwinVerdicts();
+    MysticismPatchVerdicts();
 }

@@ -202,6 +202,39 @@ namespace Environment
     }
 
     // =========================================================================
+    // The Mysticism patch (HeartOfMagic_Mysticism.esp)
+    // =========================================================================
+    //
+    // MAG_ScreenShakeEffect's script (magicPlaceActivatorScript) places its
+    // ExplosionRef property, not the effect's Explosion field; the patch points
+    // that property at the twin. It works only as the last file to override
+    // the effect: a later override brings the Blizzard explosion back.
+
+    inline constexpr std::string_view kMysticismPlugin = "MysticismMagic.esp";
+    inline constexpr std::string_view kMysticismPatchPlugin = "HeartOfMagic_Mysticism.esp";
+
+    enum class PatchVerdict
+    {
+        kNoMysticism,   // SKIP: nothing to patch
+        kMissing,       // FAIL: Mysticism loaded, the patch not
+        kNotLast,       // FAIL: another file overrides the effect after the patch (or no file is known)
+        kPass           // the patch is the effect's last override
+    };
+
+    [[nodiscard]] inline bool SameFileName(std::string_view a, std::string_view b)
+    {
+        return a.size() == b.size() && LowerAscii(a) == LowerAscii(b);
+    }
+
+    // `lastFile`: the last entry of the effect's source-file list (TESForm::GetFile(-1)), empty if it has none
+    [[nodiscard]] inline PatchVerdict JudgeMysticismPatch(bool mysticismLoaded, bool patchLoaded, std::string_view lastFile)
+    {
+        if (!mysticismLoaded) return PatchVerdict::kNoMysticism;
+        if (!patchLoaded) return PatchVerdict::kMissing;
+        return SameFileName(lastFile, kMysticismPatchPlugin) ? PatchVerdict::kPass : PatchVerdict::kNotLast;
+    }
+
+    // =========================================================================
     // Which effects take the twin
     // =========================================================================
 

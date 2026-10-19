@@ -54,6 +54,9 @@ $dllDst = Join-Path $ModPath 'SKSE\Plugins\SpellLearning.dll'
 # The light plugin (docs/ENVIRONMENT.md), committed at the repo root, goes to the mod folder's root
 $espSrc = Join-Path $repo 'HeartOfMagic.esp'
 $espDst = Join-Path $ModPath 'HeartOfMagic.esp'
+# The optional Mysticism patch (docs/ENVIRONMENT.md, "The Mysticism patch"): always copied, the dev install has Mysticism
+$patchSrc = Join-Path $repo 'HeartOfMagic_Mysticism.esp'
+$patchDst = Join-Path $ModPath 'HeartOfMagic_Mysticism.esp'
 
 # =============================================================================
 # Preflight: every source this run copies, checked before the first copy. A
@@ -64,6 +67,7 @@ if (-not (Test-Path (Join-Path $panelSrc 'index.html'))) { throw "No panel at $p
 if (-not $PanelOnly) {
     if (-not (Test-Path $dllSrc)) { throw "No built plugin at $dllSrc. Run .\BuildRelease.ps1 -preset Release-2026 first." }
     if (-not (Test-Path $espSrc)) { throw "No $espSrc - nothing was copied." }
+    if (-not (Test-Path $patchSrc)) { throw "No $patchSrc - nothing was copied." }
 }
 # The in-game self-test switch: dev only, never in a release (Distribution.cmake ships debug\debug.json alone)
 $selfTestSrc = Join-Path $repo 'debug\selftest.json'
@@ -112,6 +116,10 @@ if (-not $PanelOnly) {
     Copy-Item $espSrc $espDst -Force
     if ((Get-FileHash $espSrc).Hash -ne (Get-FileHash $espDst).Hash) { throw 'Copy did not take: HeartOfMagic.esp' }
     Write-Host 'esp     HeartOfMagic.esp (enable it in MO2 once: a new plugin starts unchecked)'
+    Copy-Item $patchSrc $patchDst -Force
+    if ((Get-FileHash $patchSrc).Hash -ne (Get-FileHash $patchDst).Hash) { throw 'Copy did not take: HeartOfMagic_Mysticism.esp' }
+    Write-Host ('esp     HeartOfMagic_Mysticism.esp (enable it in MO2 once and load it after every other plugin that edits ' +
+                'MAG_ScreenShakeEffect - in TAKEALOOK, Synthesis - Sound and Combat.esp)')
 }
 
 # The design presets shipped with the mod (Night Grimoire, Chalkboard, Skald): data

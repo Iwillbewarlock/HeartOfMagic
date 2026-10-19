@@ -295,12 +295,16 @@ This project does not have a C++ test framework. Validation is done through:
   `[selftest-1.6] <id> PASS|FAIL|SKIP|ANSWER <values>` lines and `[selftest-1.6] DONE pass= fail= skip= answer=` to
   SpellLearning.log (FAIL = a defect; ANSWER yes|no = H2's finding):
   H2 (does a spell's virtual `HasKeyword` see keywords on its effects, also one added at runtime), the explosion twin
-  (MAG_ScreenShakeEffect on the twin, the Blizzard hazard on the original, values equal), Frostwalker's matcher on the
+  (MAG_ScreenShakeEffect on the twin, the Blizzard hazard on the original, values equal), the Mysticism patch
+  (`HeartOfMagic_Mysticism.esp` is MAG_ScreenShakeEffect's last override), Frostwalker's matcher on the
   installed lists, the env adapter files in `perk_adapters_report.json`, Desecration's necrotic spells. Claude reads the
   log and judges it; docs/ENVIRONMENT.md, "Self-test"
-- `node tools/frostwalker-twin-check.js [--patterns <Data>/SKSE/Plugins/Frostwalker]`: HeartOfMagic.esp's header (light
-  flag, HEDR 1.70, masters), each twin's record (a new record, fields equal to the original's bytes) and its strings
-  against Frostwalker's matcher; exit 1 on a failure
+- `node tools/frostwalker-twin-check.js [--patterns <Data>/SKSE/Plugins/Frostwalker] [--mysticism <MysticismMagic.esp>]`:
+  HeartOfMagic.esp's header (light flag, HEDR 1.70, masters), each twin's record (a new record, fields equal to the
+  original's bytes) and its strings against Frostwalker's matcher; then `HeartOfMagic_Mysticism.esp`
+  (`tools/mysticism-patch-check.js`: header, the one MGEF override, `ExplosionRef` resolving to the twin; with
+  `--mysticism`, every subrecord equal to Mysticism's own after FormID mapping but `ExplosionRef`); exit 1 on a failure.
+  Both read plugins with `tools/plugin-reader.js`
 - Offline harnesses in `tools/` built by `BuildRelease.ps1` into `build/tools/Release/`:
   `treebuilder-test` (the Classic tree builder; it prints each school's shape - `Structure <school>: nodes, links,
   branching, maxChildren, maxDepth, nonStringLinks` - and exits 2 on a link that is not a formId or a school of 10+
@@ -309,8 +313,8 @@ This project does not have a C++ test framework. Validation is done through:
   Spell Research registrations and scores their labels; `librarian-test --self-test` classifies made-up spells - the
   evidence conflict stage, per-element evidence tiers, the axis source after removals - and plans adapter lines on
   made-up catalogs - `tierMin`, `requires.config` and `requires.dlls`, the per-effect `damage` lines (`tools/librarian-adapters-selftest.cpp`) -
-  and checks the explosion twin rules - Frostwalker's matcher and pattern files, which effects take a twin
-  (`tools/environment-selftest.cpp`, `include/environment/EnvironmentMatch.h`) - no dump needed, exit 1 on a failure, and `librarian-check.js` runs it first; `--adapters ... -v` lists every planned
+  and checks the explosion twin rules - Frostwalker's matcher and pattern files, which effects take a twin, the
+  in-game `mysticism-patch` verdict (`tools/environment-selftest.cpp`, `include/environment/EnvironmentMatch.h`) - no dump needed, exit 1 on a failure, and `librarian-check.js` runs it first; `--adapters ... -v` lists every planned
   effect write with the spells using it), `tome-reach-test` (which tree spells have tomes nothing hands
   out: `tome-reach-test -i inputs.json -s spell_scan_output.json [-v]`, inputs from `lab/tome-reach/make_inputs.py`;
   `tome-reach-test --self-test` checks the reader on made-up plugins, no game or load order needed, exit 1 on a failure;

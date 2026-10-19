@@ -21,6 +21,7 @@
 //                keywords, including one added to an effect at runtime? Decides
 //                whether the OIF / candle adapter packs need spell-record targets
 //   twins        HeartOfMagic.esp's twin is where it should be, with the original's values
+//   mysticism-patch  HeartOfMagic_Mysticism.esp is MAG_ScreenShakeEffect's last override
 //   frostwalker  Frostwalker's own matcher on the installed lists: original cold, twin unknown
 //   adapters     perk_adapters_report.json lists the env-* files as config and plugins say;
 //                Desecration's necrotic spells got no MagicDamageFire from here
@@ -285,6 +286,55 @@ namespace Environment::SelfTest
                         "twin name empty={} (radius {} force {} damage {})",
                 YesNo(dataSame), YesNo(boundsSame), YesNo(linksSame), YesNo(modelSame), ModelOf(twin),
                 YesNo(shake->modelCopied), YesNo(nameless), twin->data.radius, twin->data.force, twin->data.damage));
+    }
+
+    // =========================================================================
+    // The Mysticism patch
+    // =========================================================================
+
+    void CheckMysticismPatch()
+    {
+        const bool mysticism = PluginLoaded(std::string(kMysticismPlugin).c_str());
+        const bool patch = PluginLoaded(std::string(kMysticismPatchPlugin).c_str());
+        auto* effect = mysticism ? Resolve<RE::EffectSetting>(kShakeEffectId) : nullptr;
+        if (mysticism && !effect) {
+            Report("mysticism-patch", Outcome::kFail, std::format("{} not found though {} is loaded", kShakeEffectId, kMysticismPlugin));
+            return;
+        }
+        // The files that hold the record, in load order; the last one is the version the game uses
+        std::string files;
+        std::string lastFile;
+        if (effect) {
+            if (const auto* array = effect->sourceFiles.array) {
+                for (const auto* file : *array) {
+                    files += (files.empty() ? "" : ", ") + std::string(file ? file->GetFilename() : std::string_view("(null)"));
+                }
+            }
+            const auto* last = effect->GetFile(-1);
+            lastFile = last ? std::string(last->GetFilename()) : std::string();
+            Note("mysticism-patch", std::format("MAG_ScreenShakeEffect Explosion field={} (the DLL's repoint; the script's "
+                                                "ExplosionRef property is what places the explosion)",
+                                        IdOf(effect->data.explosion)));
+        }
+        const std::string observed = std::format("{} loaded={} {} loaded={}; MAG_ScreenShakeEffect files: {}",
+            kMysticismPlugin, YesNo(mysticism), kMysticismPatchPlugin, YesNo(patch), files.empty() ? "(none)" : files);
+        switch (JudgeMysticismPatch(mysticism, patch, lastFile)) {
+            case PatchVerdict::kNoMysticism:
+                Report("mysticism-patch", Outcome::kSkip, observed + " - nothing to patch");
+                break;
+            case PatchVerdict::kMissing:
+                Report("mysticism-patch", Outcome::kFail,
+                    observed + " - install the optional Mysticism patch (HeartOfMagic_Mysticism.esp): without it "
+                               "Mysticism's screen shake still places the Blizzard explosion");
+                break;
+            case PatchVerdict::kNotLast:
+                Report("mysticism-patch", Outcome::kFail,
+                    observed + std::format(" - load {} after {}", kMysticismPatchPlugin, lastFile.empty() ? "(no file)" : lastFile));
+                break;
+            case PatchVerdict::kPass:
+                Report("mysticism-patch", Outcome::kPass, observed);
+                break;
+        }
     }
 
     // =========================================================================

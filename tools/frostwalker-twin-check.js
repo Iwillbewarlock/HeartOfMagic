@@ -4,6 +4,11 @@
  *   node tools/frostwalker-twin-check.js
  *   node tools/frostwalker-twin-check.js --patterns "<Data>/SKSE/Plugins/Frostwalker"
  *   node tools/frostwalker-twin-check.js --esp <plugin> --twins <twins.json>
+ *   node tools/frostwalker-twin-check.js --mysticism "<Mysticism mod folder>/MysticismMagic.esp"
+ *   node tools/frostwalker-twin-check.js --patch <HeartOfMagic_Mysticism.esp copy>
+ *
+ * It also checks the optional Mysticism patch, HeartOfMagic_Mysticism.esp (mysticism-patch-check.js; with
+ * --mysticism, byte for byte against MysticismMagic.esp's own record). The plugin reader is plugin-reader.js.
  *
  * Frostwalker (Nexus 184628) decides an explosion's element from its EditorID, then its name, then its
  * model path: lower-cased, each tested against NeutralSources, FrostSources, FireSources, WaterSources (in
@@ -31,10 +36,16 @@
  */
 var fs = require('fs');
 var path = require('path');
+var reader = require('./plugin-reader');
+var checkMysticismPatch = require('./mysticism-patch-check').checkMysticismPatch;
 
 var ROOT = path.resolve(__dirname, '..');
 var DEFAULT_ESP = path.join(ROOT, 'HeartOfMagic.esp');
 var DEFAULT_TWINS = path.join(ROOT, 'SKSE', 'Plugins', 'SpellLearning', 'librarian', 'environment', 'twins.json');
+var DEFAULT_PATCH = path.join(ROOT, 'HeartOfMagic_Mysticism.esp');
+
+var readPlugin = reader.readPlugin;
+var parsePersistentId = reader.parsePersistentId;
 
 // Frostwalker 2.2's Default.ini lists (SKSE/Plugins/Frostwalker/<folder>/Default.ini)
 var BUILT_IN_PATTERNS = {
@@ -47,8 +58,8 @@ var PATTERN_FOLDERS = { neutral: 'NeutralSources', cold: 'FrostSources', fire: '
 var CLASS_ORDER = ['neutral', 'cold', 'fire', 'water'];
 var UNKNOWN = 'unknown';
 
-var LIGHT_FLAG = 0x200;
-var HEDR_VERSION_HEX = '9a99d93f';   // 1.70 as a little-endian float
+var LIGHT_FLAG = reader.LIGHT_FLAG;
+var HEDR_VERSION_HEX = reader.HEDR_VERSION_HEX;
 var EXPECTED_MASTERS = ['Skyrim.esm'];
 
 // Every subrecord after EDID, in file order, as hex: the values of MysticismMagic.esp 2.4.2.0's
@@ -119,67 +130,6 @@ function readPatternDir(root) {
 }
 
 // ============================================================================
-// Plugin reader (uncompressed records; the twins are plain)
-// ============================================================================
-
-function cString(data) {
-    var end = data.indexOf(0);
-    return data.toString('latin1', 0, end === -1 ? data.length : end);
-}
-
-/**
- * The plugin's header ({ flags, hedr: hex of HEDR's version, masters }) and every record by local FormID:
- * { type, formId, strings: {EDID, FULL, MODL}, subrecords: [[type, hex]...] }
- */
-function readPlugin(file) {
-    var buf = fs.readFileSync(file);
-    if (buf.toString('latin1', 0, 4) !== 'TES4') throw new Error(file + ' is not a plugin (no TES4 header)');
-    var headerSize = buf.readUInt32LE(4);
-    var header = { flags: buf.readUInt32LE(8), hedr: '', masters: [] };
-    for (var h = 24; h < 24 + headerSize;) {
-        var hType = buf.toString('latin1', h, h + 4);
-        var hLen = buf.readUInt16LE(h + 4);
-        if (hType === 'HEDR') header.hedr = buf.subarray(h + 6, h + 6 + Math.min(4, hLen)).toString('hex');
-        if (hType === 'MAST') header.masters.push(cString(buf.subarray(h + 6, h + 6 + hLen)));
-        h += 6 + hLen;
-    }
-    var records = {};
-    (function walk(start, end) {
-        var p = start;
-        while (p < end) {
-            var type = buf.toString('latin1', p, p + 4);
-            var size = buf.readUInt32LE(p + 4);
-            if (type === 'GRUP') { walk(p + 24, p + size); p += size; continue; }
-            var flags = buf.readUInt32LE(p + 8);
-            var formId = buf.readUInt32LE(p + 12);
-            var localId = formId & 0xFFFFFF;
-            var entry = { type: type, formId: formId, compressed: (flags & 0x40000) !== 0, strings: {}, subrecords: [] };
-            if (!entry.compressed) {
-                for (var q = p + 24; q < p + 24 + size;) {
-                    var sub = buf.toString('latin1', q, q + 4);
-                    var len = buf.readUInt16LE(q + 4);
-                    if (sub === 'EDID' || sub === 'FULL' || sub === 'MODL') {
-                        entry.strings[sub] = cString(buf.subarray(q + 6, q + 6 + len));
-                    }
-                    entry.subrecords.push([sub, buf.subarray(q + 6, q + 6 + len).toString('hex')]);
-                    q += 6 + len;
-                }
-            }
-            records[localId] = entry;
-            p += 24 + size;
-        }
-    })(24 + headerSize, buf.length);
-    records.header = header;
-    return records;
-}
-
-function parsePersistentId(id) {
-    var m = /^(.+)\|0x([0-9A-Fa-f]{1,8})$/.exec(id || '');
-    if (!m) throw new Error('Bad persistentId "' + id + '" (expected "Plugin.esp|0xLOCALID")');
-    return { plugin: m[1], localId: parseInt(m[2], 16) };
-}
-
-// ============================================================================
 // Checks
 // ============================================================================
 
@@ -222,11 +172,12 @@ function checkTwinRecord(id, record, masterCount, fail) {
 
 function main() {
     var args = process.argv.slice(2);
-    var opt = { esp: DEFAULT_ESP, twins: DEFAULT_TWINS, patterns: process.env.FROSTWALKER_DIR || '' };
+    var opt = { esp: DEFAULT_ESP, twins: DEFAULT_TWINS, patterns: process.env.FROSTWALKER_DIR || '', patch: DEFAULT_PATCH, mysticism: '' };
     for (var i = 0; i < args.length; i++) {
         var key = args[i].replace(/^--/, '');
         if (!(key in opt) || i + 1 >= args.length) {
-            console.error('Usage: node tools/frostwalker-twin-check.js [--esp <plugin>] [--twins <twins.json>] [--patterns <Frostwalker dir>]');
+            console.error('Usage: node tools/frostwalker-twin-check.js [--esp <plugin>] [--twins <twins.json>] [--patterns <Frostwalker dir>] ' +
+                '[--patch <HeartOfMagic_Mysticism.esp>] [--mysticism <MysticismMagic.esp>]');
             process.exit(2);
         }
         opt[key] = args[++i];
@@ -282,7 +233,15 @@ function main() {
         checkTwinRecord(entry.twin, record, header.masters.length, fail);
     });
 
-    console.log(failures === 0 ? 'PASS ' + twins.length + ' twin(s)' : failures + ' failure(s)');
+    console.log('Mysticism patch: ' + opt.patch + (opt.mysticism ? ' against ' + opt.mysticism : ' (no --mysticism: not compared with the source)'));
+    try {
+        checkMysticismPatch(opt, twins, fail);
+    } catch (e) {
+        fail(path.basename(opt.patch) + ': ' + e.message);
+    }
+
+    console.log(failures === 0 ? 'PASS ' + twins.length + ' twin(s), Mysticism patch' + (opt.mysticism ? ' (compared with the source)' : '') :
+        failures + ' failure(s)');
     process.exit(failures === 0 ? 0 : 1);
 }
 
