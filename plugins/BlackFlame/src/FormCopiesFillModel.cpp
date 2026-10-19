@@ -181,7 +181,8 @@ namespace BlackFlame::FormCopies
         };
         // (publication fix, 2026-10-19) the last published object, else the previous generation (an upgrade recorded but
         // not shown may fail here: the one shown before it stands in, and the ledger swaps them). a_usable: the caller's
-        // check before anything is hashed or registered (the ADDN slots it names; a TXST's strings come after)
+        // check before anything is hashed or registered (the ADDN slots it names). A TXST slot's loop below does the same with
+        // its strings and the write after the files (review round 1)
         struct Picked
         {
             const LM::Object* object = nullptr;
@@ -204,7 +205,6 @@ namespace BlackFlame::FormCopies
                 restored.emplace_back(a_id, a_role);
             }
         };
-        const auto any = [](const LM::Object* a_object) { return a_object != nullptr; };
         std::size_t applied = 0;
         // ADDN slots first: a NIF naming an ADDN slot index is used only when that slot's MPS is (design v3.2 §3)
         // an MPS may name other ADDN slots too (contract v4): the ADDN pass runs again until nothing more opens
@@ -220,18 +220,27 @@ namespace BlackFlame::FormCopies
                     continue;
                 }
                 if (slot.type == CopyContract::SlotType::kTXST) {
-                    // slotTxst: its last published txst object written now (gate closed until its group opens); off: unpublished
-                    std::string why;
-                    const auto picked = GetConfig().slotTxst ? pick(*entry, LM::Role::kTxst, slot, any) : Picked{};
-                    const auto* txst = picked.object;
-                    const auto strings = txst ? SlotTxst::RestoredFor(slot, *txst, why) : std::nullopt;
-                    if (strings && SlotTxst::Write(slot, *strings, why)) {
-                        slot.publishedTxst = CopyContract::Hex16(txst->key);
-                        shown(picked, slot, id, LM::Role::kTxst);
-                        ++applied;
-                    } else if (txst) {
-                        logger::info("BlackFlame: slots: TXST slot {:X} ({}): its last published set is not used: {}", slot.localId,
-                            slot.sourceText, why);
+                    // slotTxst: its last published txst object written now (gate closed until its group opens); off: unpublished.
+                    // review round 1 (Codex P2 / D1 / Gemini): a set whose strings cannot be restored or written is like one
+                    // whose files fail - the previous set stands in (Write sets nothing when it fails)
+                    for (const bool previous : { false, true }) {
+                        const char* which = previous ? "previous" : "last published";
+                        const auto* object = !GetConfig().slotTxst ? nullptr :
+                                             previous             ? LM::PreviousOf(*entry, LM::Role::kTxst) :
+                                                                    LM::PublishedOf(*entry, LM::Role::kTxst);
+                        const auto* txst = intactObject(object, LM::Role::kTxst, slot, which);
+                        std::string why;
+                        const auto strings = txst ? SlotTxst::RestoredFor(slot, *txst, why) : std::nullopt;
+                        if (strings && SlotTxst::Write(slot, *strings, why)) {
+                            slot.publishedTxst = CopyContract::Hex16(txst->key);
+                            shown({ txst, previous }, slot, id, LM::Role::kTxst);
+                            ++applied;
+                            break;
+                        }
+                        if (txst) {
+                            logger::info("BlackFlame: slots: TXST slot {:X} ({}): its {} set is not used: {}", slot.localId,
+                                slot.sourceText, which, why);
+                        }
                     }
                     continue;
                 }
@@ -251,14 +260,19 @@ namespace BlackFlame::FormCopies
                     });
                 };
                 const auto role = addnPass ? LM::Role::kMps : LM::Role::kModel;
-                // review Gemini 9: the ADDN slots first, before any file is hashed or registered for an object not applied now
-                const auto picked = pick(*entry, role, slot, addnReady);
-                const auto* model = picked.object;
-                if (!model || !SetFormModel(slot.form, RecordModelPath(model->path))) {
-                    continue;
+                // review round 1 (Codex P2 / B2): a slot without a source model (a projectile with only a muzzle) has no
+                // model object: its muzzle is restored by itself
+                const bool muzzleOnly = !addnPass && slot.sourceModel.empty();
+                if (!muzzleOnly) {
+                    // review Gemini 9: the ADDN slots first, before any file is hashed or registered for an object not applied now
+                    const auto picked = pick(*entry, role, slot, addnReady);
+                    const auto* model = picked.object;
+                    if (!model || !SetFormModel(slot.form, RecordModelPath(model->path))) {
+                        continue;
+                    }
+                    shown(picked, slot, id, role);
+                    slot.publishedModel = RecordModelPath(model->path);
                 }
-                shown(picked, slot, id, role);
-                slot.publishedModel = RecordModelPath(model->path);
                 if (addnPass) {
                     const auto* source = slot.source ? slot.source->As<RE::BGSAddonNode>() : nullptr;
                     if (auto* addon = slot.form->As<RE::BGSAddonNode>(); addon && source) {
@@ -270,6 +284,9 @@ namespace BlackFlame::FormCopies
                         slot.publishedMuzzle = RecordModelPath(muzzle.object->path);
                         shown(muzzle, slot, id, LM::Role::kMuzzle);
                     }
+                }
+                if (muzzleOnly && slot.publishedMuzzle.empty()) {
+                    continue;  // nothing of it restored: it shows its source
                 }
                 ++applied;
             }

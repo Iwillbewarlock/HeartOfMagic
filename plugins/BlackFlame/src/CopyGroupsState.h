@@ -46,7 +46,10 @@ namespace BlackFlame::CopyGroups::Detail
         Member state = Member::kPending;
         Plan model;
         Plan muzzle;
-        bool fresh = false;  // Decide::AtW1::kFresh: nothing to show yet; in a group opened at W1, gated for this session
+        // Decide::AtW1Of: kFresh (nothing to show yet) is, in a group opened at W1, gated for this session; kSource opens with
+        // the group but does not open it (review round 1 B2)
+        Decide::AtW1 atW1 = Decide::AtW1::kShown;
+        [[nodiscard]] bool Fresh() const noexcept { return atW1 == Decide::AtW1::kFresh; }
     };
 
     enum class GroupState : std::uint8_t

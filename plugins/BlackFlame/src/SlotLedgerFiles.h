@@ -81,7 +81,8 @@ namespace BlackFlame::SlotLedgerFiles
         return std::string(text.begin(), text.end());
     }
 
-    /// The ledger in a_file, or nullopt with a_why ("missing" when there is no file)
+    /// The ledger in a_file, or nullopt with a_why ("missing" when there is no file); read, a_why may note dropped
+    /// previous objects (FromJson)
     [[nodiscard]] inline std::optional<Ledger> ReadOne(const fs::path& a_file, std::string& a_why)
     {
         std::error_code ec;
@@ -146,7 +147,8 @@ namespace BlackFlame::SlotLedgerFiles
             auto ledger = ReadOne(file, why);
             if (ledger) {
                 out.notes.push_back(what + " '" + PathText(file) + "': version " + std::to_string(ledger->version) + ", " +
-                                    std::to_string(ledger->entries.size()) + " slots, epoch " + CopyContract::Hex16(ledger->epoch));
+                                    std::to_string(ledger->entries.size()) + " slots, epoch " + CopyContract::Hex16(ledger->epoch) +
+                                    (why.empty() ? "" : "; " + why));  // review round 1 D2: previous objects dropped
                 out.mainReadable = out.mainReadable || what == "main";
                 reads.push_back({ what, std::move(*ledger) });
                 ++out.readable;

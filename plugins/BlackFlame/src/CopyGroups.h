@@ -54,6 +54,7 @@ namespace BlackFlame::CopyGroups
         std::size_t groupsOpen = 0;
         std::size_t groupsFailed = 0;  // a NIF did not parse: not opened this session
         std::size_t left = 0;          // members that left their group
+        std::size_t fresh = 0;         // of left: fresh members a group opened at W1 left for this session (review round 1)
         std::size_t addnOpen = 0;      // ADDN slots whose MPS is published
         std::size_t verifying = 0;     // groups being verified now
         // (publication fix, 2026-10-19) groups opened at W1 that still verify newer objects for the next start (counted in

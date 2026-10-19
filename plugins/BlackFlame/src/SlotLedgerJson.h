@@ -16,7 +16,8 @@
 // keyStringHex / pathHex (JSON text must be UTF-8; the engine's names and paths are
 // the system code page's bytes); a conflict text likewise as conflictHex. FromJson is strict: an unknown format, a slot
 // outside its type's pool, a slot twice, or a field that is there but of the wrong kind (since, conflict, keyString, a
-// parse failure, a terminal key) refuses the whole file (the caller then reads a backup or the mirror).
+// parse failure, a terminal key) refuses the whole file (the caller then reads a backup or the mirror). Only a "previous"
+// list that is not valid is dropped alone (the entry and its published objects kept; FromJson's a_why names it).
 
 #include "SlotLedgerModel.h"
 
@@ -186,6 +187,47 @@ namespace BlackFlame::SlotLedgerModel
             }
             return true;
         }
+
+        /// One published (or previous) object; "" when it reads, else why not
+        [[nodiscard]] inline std::string ReadObject(const Json& a_p, Object& a_out)
+        {
+            const auto role = a_p.is_object() && a_p.contains("role") && a_p["role"].is_string() ? a_p["role"].get<std::string>() : std::string();
+            const auto key = a_p.is_object() && a_p.contains("key") ? Key(a_p["key"]) : std::nullopt;
+            const auto fnv = a_p.is_object() && a_p.contains("fnv64") ? Key(a_p["fnv64"]) : std::nullopt;
+            const auto path = a_p.is_object() && a_p.contains("path") && a_p["path"].is_string();
+            const bool known = role == "model" || role == "muzzle" || role == "mps" || role == "txst";
+            // review agy redo 2.3: bytes read as written (64 bits)
+            const bool bytes = a_p.is_object() && a_p.contains("bytes") && a_p["bytes"].is_number_unsigned();
+            if (!known || !key || !fnv || !path || !bytes || !a_p.contains("deps") || !ReadDeps(a_p["deps"], a_out.deps)) {
+                return "a published object is not valid";
+            }
+            a_out.role = role == "muzzle" ? Role::kMuzzle : role == "mps" ? Role::kMps : role == "txst" ? Role::kTxst : Role::kModel;
+            a_out.key = *key;
+            a_out.fnv64 = *fnv;
+            a_out.path = a_p["path"].get<std::string>();
+            const auto text = a_p.find("keyString");
+            const auto textHex = a_p.find("keyStringHex");
+            if (text != a_p.end() && textHex != a_p.end()) {
+                return "both keyString and keyStringHex";
+            }
+            if (text != a_p.end()) {
+                if (!text->is_string()) {
+                    return "a keyString is not text";
+                }
+                a_out.keyText = text->get<std::string>();
+            } else if (textHex != a_p.end()) {
+                const auto keyBytes = textHex->is_string() ? DataPathRule::FromHex(textHex->get<std::string>()) : std::nullopt;
+                if (!keyBytes) {
+                    return "a keyStringHex is not hex";
+                }
+                a_out.keyText = *keyBytes;
+            }
+            if (!ReadTextures(a_p, a_out)) {
+                return "a published object's textures or idsRule is not valid";
+            }
+            a_out.bytes = a_p["bytes"].get<std::uint64_t>();
+            return {};
+        }
     }
 
     [[nodiscard]] inline Json ToJson(const Ledger& a_ledger)
@@ -236,6 +278,7 @@ namespace BlackFlame::SlotLedgerModel
         return root;
     }
 
+    /// The ledger, or nullopt with a_why. Read with previous objects dropped (review round 1 D2): a_why says which
     [[nodiscard]] inline std::optional<Ledger> FromJson(const Json& a_root, std::string& a_why)
     {
         using namespace JsonDetail;
@@ -247,6 +290,7 @@ namespace BlackFlame::SlotLedgerModel
             return refuse("not a format 1 ledger");
         }
         Ledger ledger;
+        std::string dropped;  // the slots whose previous objects were not valid (dropped, the entries kept)
         const auto epoch = a_root.contains("epoch") ? Key(a_root["epoch"]) : std::nullopt;
         const auto version = Count(a_root, "version");
         const auto sessions = Count(a_root, "sessions");
@@ -323,64 +367,37 @@ namespace BlackFlame::SlotLedgerModel
                 }
                 entry.conflict = *bytes;
             }
-            // (publication fix, 2026-10-19) "previous" (optional) is read as "published" is, into its own list
+            // (publication fix, 2026-10-19) "previous" (optional) is read as "published" is, into its own list. Review round 1
+            // D2: a previous list that is not valid drops that slot's previous objects only (a fallback; noted in a_why)
             for (const bool previous : { false, true }) {
                 const char* name = previous ? "previous" : "published";
-                const auto published = item.find(name);
-                if (published == item.end()) {
+                const auto list = item.find(name);
+                if (list == item.end()) {
                     continue;
                 }
-                if (!published->is_array()) {
-                    return refuse("slot " + HexId(entry.slot) + ": " + name + " is not an array");
-                }
-                const auto holds = [&](Role a_role) { return previous ? PreviousOf(entry, a_role) : PublishedOf(entry, a_role); };
-                for (const auto& p : *published) {
+                auto& objects = previous ? entry.previous : entry.published;
+                std::string bad = list->is_array() ? std::string() : std::string(name) + " is not an array";
+                for (std::size_t i = 0; bad.empty() && list->is_array() && i < list->size(); ++i) {
                     Object object;
-                    const auto role = p.is_object() && p.contains("role") && p["role"].is_string() ? p["role"].get<std::string>() : std::string();
-                    const auto key = p.is_object() && p.contains("key") ? Key(p["key"]) : std::nullopt;
-                    const auto fnv = p.is_object() && p.contains("fnv64") ? Key(p["fnv64"]) : std::nullopt;
-                    const auto path = p.is_object() && p.contains("path") && p["path"].is_string();
-                    const bool known = role == "model" || role == "muzzle" || role == "mps" || role == "txst";
-                    // review agy redo 2.3: bytes read as written (64 bits)
-                    const bool bytes = p.is_object() && p.contains("bytes") && p["bytes"].is_number_unsigned();
-                    if (!known || !key || !fnv || !path || !bytes || !p.contains("deps") || !ReadDeps(p["deps"], object.deps)) {
-                        return refuse("slot " + HexId(entry.slot) + ": a published object is not valid");
+                    bad = ReadObject((*list)[i], object);
+                    if (bad.empty() && std::any_of(objects.begin(), objects.end(), [&](const Object& a_o) { return a_o.role == object.role; })) {
+                        bad = std::string("two ") + name + " objects of one role";  // review agy redo 2.8
                     }
-                    object.role = role == "muzzle" ? Role::kMuzzle : role == "mps" ? Role::kMps : role == "txst" ? Role::kTxst : Role::kModel;
-                    object.key = *key;
-                    object.fnv64 = *fnv;
-                    object.path = p["path"].get<std::string>();
-                    const auto text = p.find("keyString");
-                    const auto textHex = p.find("keyStringHex");
-                    if (text != p.end() && textHex != p.end()) {
-                        return refuse("slot " + HexId(entry.slot) + ": both keyString and keyStringHex");
-                    }
-                    if (text != p.end()) {
-                        if (!text->is_string()) {
-                            return refuse("slot " + HexId(entry.slot) + ": a keyString is not text");
-                        }
-                        object.keyText = text->get<std::string>();
-                    } else if (textHex != p.end()) {
-                        const auto keyBytes = textHex->is_string() ? DataPathRule::FromHex(textHex->get<std::string>()) : std::nullopt;
-                        if (!keyBytes) {
-                            return refuse("slot " + HexId(entry.slot) + ": a keyStringHex is not hex");
-                        }
-                        object.keyText = *keyBytes;
-                    }
-                    if (holds(object.role)) {
-                        return refuse("slot " + HexId(entry.slot) + ": two " + name + " objects of one role");  // review agy redo 2.8
-                    }
-                    if (!ReadTextures(p, object)) {
-                        return refuse("slot " + HexId(entry.slot) + ": a published object's textures or idsRule is not valid");
-                    }
-                    object.bytes = p["bytes"].get<std::uint64_t>();
                     // a path the DLL would hash, register and set as a model must be a copy path (a TXST object has none);
                     // one that is not is dropped (the slot shows its source until a new generation is published)
                     const bool pathOk = object.role == Role::kTxst ? object.path.empty() : DataPathRule::ParseCopyPath(object.path).has_value();
-                    if (pathOk) {
-                        (previous ? entry.previous : entry.published).push_back(std::move(object));
+                    if (bad.empty() && pathOk) {
+                        objects.push_back(std::move(object));
                     }
                 }
+                if (bad.empty()) {
+                    continue;
+                }
+                if (!previous) {
+                    return refuse("slot " + HexId(entry.slot) + ": " + bad);
+                }
+                entry.previous.clear();
+                dropped += (dropped.empty() ? "" : "; ") + ("slot " + HexId(entry.slot) + ": " + bad);
             }
             if (const auto failures = item.find("parseFailures"); failures != item.end()) {
                 if (!failures->is_array()) {
@@ -414,6 +431,9 @@ namespace BlackFlame::SlotLedgerModel
                 return refuse("slot " + HexId(entry.slot) + " listed twice");
             }
             Insert(ledger, std::move(entry));
+        }
+        if (!dropped.empty()) {
+            a_why = "previous objects dropped (" + dropped + ")";
         }
         return ledger;
     }

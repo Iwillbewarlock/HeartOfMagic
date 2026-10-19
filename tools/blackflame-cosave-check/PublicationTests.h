@@ -105,20 +105,38 @@ namespace PublicationTests
         a_check(D::DecideObject(Facts(true, D::Found::kInData, false, false, false)).state == M::kReady &&
                     D::DecideObject(Facts(false, D::Found::kInData, false, false, false)).state == M::kLeft,
             "publication: no main-thread proof: the older generation (ready) or the source (left), never a candidate");
-        auto replaced = Facts(true, D::Found::kInData, false, true);
-        replaced.replacedNow = true;
+        // review round 1 (Gemini): a new key's object (not the one shown) whose file replaced another this session - without
+        // the replacedNow rule both would be candidates
+        auto replacedOlder = Facts(true, D::Found::kInData);
+        replacedOlder.replacedNow = true;
+        auto replacedNew = Facts(false, D::Found::kInData);
+        replacedNew.replacedNow = true;
+        const auto replacedOlderDecision = D::DecideObject(replacedOlder);
+        a_check(replacedOlderDecision.state == M::kReady && !replacedOlderDecision.waiting && !WorkOf(replacedOlder).verify &&
+                    !WorkOf(replacedOlder).wait && D::DecideObject(replacedNew).state == M::kLeft,
+            "publication: a new object whose file replaced another at its path this session is not a candidate: the older "
+            "generation stays (nothing to verify or wait for), without one the source");
         auto noIndex = Facts(false, D::Found::kInData);
         noIndex.enteredNoIndex = true;
-        a_check(D::DecideObject(replaced).state == M::kReady && D::DecideObject(noIndex).state == M::kLeft &&
-                    D::DecideObject(Facts(false, D::Found::kNoKey)).state == M::kLeft &&
+        a_check(D::DecideObject(noIndex).state == M::kLeft && D::DecideObject(Facts(false, D::Found::kNoKey)).state == M::kLeft &&
                     D::DecideObject(Facts(true, D::Found::kTerminalKey)).state == M::kReady &&
                     D::DecideObject(Facts(false, D::Found::kStaging, true)).state == M::kLeft,
-            "publication: a file replaced this session, no index for a new file, no key, a terminal key, files that did not reach "
-            "Data: the older generation or the source");
-        a_check(D::AtW1Of(M::kReady, M::kLeft, false) == D::AtW1::kShown && D::AtW1Of(M::kLeft, M::kReady, true) == D::AtW1::kLeft &&
-                    D::AtW1Of(M::kPending, M::kCandidate, true) == D::AtW1::kShown,
-            "publication: a muzzle-only slot is shown as before; a left member stays left; a member waiting for an ADDN slot "
-            "with an older model shown is shown");
+            "publication: no index for a new file, no key, a terminal key, files that did not reach Data: the older generation "
+            "or the source");
+        a_check(D::AtW1Of(M::kLeft, M::kReady, true) == D::AtW1::kLeft && D::AtW1Of(M::kPending, M::kCandidate, true) == D::AtW1::kShown,
+            "publication: a left member stays left; a member waiting for an ADDN slot with an older model shown is shown");
+        // review round 1 (Codex P2 / B2): a slot without a source model - its muzzle is its main object
+        const auto muzzleLeft = Facts(false, D::Found::kFailed);
+        const auto muzzleShown = Facts(true, D::Found::kInData, false, true);
+        const auto source = D::AtW1Of(M::kReady, D::DecideObject(muzzleLeft).state, false);  // the member: ready on its source
+        a_check(source == D::AtW1::kSource && !D::OpensAtW1({ source }) && !D::OpensAtW1({ source, AtW1(txst) }) &&
+                    D::OpensAtW1({ source, AtW1(neighbour) }),
+            "publication: a muzzle-only slot whose muzzle is not grey shows only its source: it never opens its group at W1 "
+            "(alone or with a fresh member), but opens with a shown neighbour");
+        a_check(D::AtW1Of(M::kReady, D::DecideObject(muzzleShown).state, true) == D::AtW1::kShown &&
+                    D::AtW1Of(M::kPending, M::kPending, false) == D::AtW1::kFresh,
+            "publication: a muzzle-only slot showing its last published muzzle is shown (it opens its group at W1); one whose "
+            "muzzle is still coming with none shown is fresh");
         a_check(D::WorkOf(M::kPending, { M::kCandidate, true, false }, {}).wait && !D::WorkOf(M::kPending, { M::kCandidate, true, false }, {}).verify &&
                     !D::WorkOf(M::kLeft, { M::kCandidate, true, false }, {}).verify,
             "publication: a member still pending (an ADDN slot it names) is not verified yet; a left member has no work");
@@ -181,12 +199,31 @@ namespace PublicationTests
         const auto oldRead = LM::FromJson(older, why);
         a_check(oldRead && LM::FindSlot(*oldRead, 0x800) && LM::FindSlot(*oldRead, 0x800)->previous.empty(),
             "publication ledger: a ledger without previous (an older build's) reads");
+        // review round 1 D2: a damaged previous list (a fallback) is dropped alone; the entry and its published objects read
+        const auto dropsPrevious = [&](const LM::Json& a_root) {
+            std::string note;
+            const auto read = LM::FromJson(a_root, note);
+            const auto* slot = read ? LM::FindSlot(*read, 0x800) : nullptr;
+            return slot && slot->previous.empty() && slot->published.size() == 2 && note.find("previous objects dropped") != std::string::npos &&
+                   note.find("800") != std::string::npos;
+        };
         auto twice = LM::ToJson(ledger);
         twice["slots"][0]["previous"].push_back(twice["slots"][0]["previous"][0]);
         auto notArray = LM::ToJson(ledger);
         notArray["slots"][0]["previous"] = 5;
-        a_check(!LM::FromJson(twice, why) && !LM::FromJson(notArray, why),
-            "publication ledger: two previous objects of one role, or a previous that is not an array, refuse the file");
+        auto badObject = LM::ToJson(ledger);
+        badObject["slots"][0]["previous"][0].erase("fnv64");
+        a_check(dropsPrevious(twice) && dropsPrevious(notArray) && dropsPrevious(badObject),
+            "publication ledger: two previous objects of one role, a previous that is not an array, or a damaged previous object "
+            "drop that slot's previous objects only (noted), the file and the entry read");
+        auto badPublished = LM::ToJson(ledger);
+        badPublished["slots"][0]["published"][0].erase("fnv64");
+        auto publishedTwice = LM::ToJson(ledger);
+        publishedTwice["slots"][0]["published"].push_back(publishedTwice["slots"][0]["published"][0]);
+        std::string clean;
+        a_check(!LM::FromJson(badPublished, why) && !LM::FromJson(publishedTwice, why) && LM::FromJson(LM::ToJson(ledger), clean) &&
+                    clean.empty(),
+            "publication ledger: a damaged published object, or two of one role, still refuse the file; a clean file notes nothing");
         // the previous object is the rebuilt 0x22 (fnv64 0x99) after the swap
         a_check(LM::PublishedHolds(ledger, Model(0x22).path, 0x99) && !LM::PublishedHolds(ledger, Model(0x22).path, Model(0x22).fnv64) &&
                     LM::PublishedFiles(ledger).count(Model(0x22).path) == 1,

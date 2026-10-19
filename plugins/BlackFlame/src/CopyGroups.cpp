@@ -196,7 +196,7 @@ namespace BlackFlame::CopyGroups
                 return;
             }
             for (const auto& member : a_group.members) {
-                if (member.state != Member::kLeft && !member.fresh && !SlotAssign::At(member.id).form) {
+                if (member.state != Member::kLeft && !member.Fresh() && !SlotAssign::At(member.id).form) {
                     a_group.state = GroupState::kFailed;
                     logger::warn("BlackFlame: slots: a group of {} is not opened: slot {:X} has no form", a_group.ids.size(), member.id);
                     return;
@@ -206,8 +206,8 @@ namespace BlackFlame::CopyGroups
             a_group.leftForNow.clear();
             for (const auto& member : a_group.members) {
                 const auto& slot = SlotAssign::At(member.id);
-                if (member.state == Member::kLeft || member.fresh) {
-                    if (member.fresh) {
+                if (member.state == Member::kLeft || member.Fresh()) {
+                    if (member.Fresh()) {
                         a_group.leftForNow.push_back(member.id);
                     }
                     continue;
@@ -222,7 +222,7 @@ namespace BlackFlame::CopyGroups
             }
             for (const auto& member : a_group.members) {  // the links now that the shown members' gates are open
                 const auto& slot = SlotAssign::At(member.id);
-                if (member.state != Member::kLeft && !member.fresh) {
+                if (member.state != Member::kLeft && !member.Fresh()) {
                     (void)CopyFill::Refill(slot.form, slot.source, true);
                 }
             }
@@ -374,6 +374,9 @@ namespace BlackFlame::CopyGroups
                     a_state.addns.clear();
                     opened = true;  // re-plan: their NIFs no longer wait
                 }
+                // review round 1 B3: a slot dropped from the list without opening changes its NIFs' plan too (kWait becomes
+                // kReady): re-plan after every pass that changed the list (it only shrinks, so this ends)
+                opened = opened || pass.changed;
                 pass = {};
             }
             if (opened) {

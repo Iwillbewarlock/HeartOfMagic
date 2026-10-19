@@ -34,7 +34,8 @@ namespace BlackFlame::SingleLaunch
 
     /// The progress log line (main thread; nothing on screen: the player is never asked to wait, bf-no-wait-proposal.md
     /// section 5): "progress: N of M grey copies ready" when the main menu is open and the count moved (at most every 10 s),
-    /// "all M grey copies are ready" once; nothing before the main menu or after the publish window closed
+    /// "all M grey copies that can open this session are ready" with the left and fresh counts once; nothing before the main
+    /// menu or after the publish window closed
     void NotifyProgress();
 
     /// The dev auto-load may go: publication settled (nothing more can open or be recorded for the next start this session:

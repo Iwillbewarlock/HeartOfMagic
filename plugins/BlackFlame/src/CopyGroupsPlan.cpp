@@ -108,7 +108,7 @@ namespace BlackFlame::CopyGroups::Detail
             auto out = PlanSlotObjects(a_state, a_id);
             const auto& slot = SlotAssign::At(a_id);
             const auto& main = slot.type == CC::SlotType::kTXST || !slot.sourceModel.empty() ? out.model : out.muzzle;
-            out.fresh = Decide::AtW1Of(out.state, main.state, main.older) == Decide::AtW1::kFresh;
+            out.atW1 = Decide::AtW1Of(out.state, main.state, main.older);
             return out;
         }
 
@@ -290,6 +290,11 @@ namespace BlackFlame::CopyGroups::Detail
             } else if (group.state == GroupState::kUpgrading && group.verifyNext >= group.verify.size()) {
                 PlanOpenGroup(a_state, group, true);  // one verifying finishes its list first (StepVerify plans it again then)
             } else {
+                if (group.state == GroupState::kUpgrading) {
+                    // review round 1 B1: a re-plan round (the progress moved, or an ADDN MPS opened or left the list) while it
+                    // verifies: planned again once its list is done (StepVerify), even when the generation came back the same
+                    group.plannedFrom = kNoGeneration;
+                }
                 group.plannedAt = a_state.generation;
             }
         }
@@ -300,7 +305,7 @@ namespace BlackFlame::CopyGroups::Detail
     {
         std::vector<Decide::AtW1> members;
         for (const auto& member : a_group.members) {
-            members.push_back(member.state == Member::kLeft ? Decide::AtW1::kLeft : member.fresh ? Decide::AtW1::kFresh : Decide::AtW1::kShown);
+            members.push_back(member.state == Member::kLeft ? Decide::AtW1::kLeft : member.atW1);
         }
         return Decide::OpensAtW1(members);
     }
@@ -375,8 +380,10 @@ namespace BlackFlame::CopyGroups::Detail
             }
             for (const auto& member : group.members) {
                 // a failed group's members, and those an open group left for this session, cannot open this session
-                if (member.state == Member::kLeft || group.state == GroupState::kFailed || (open && LeftForNow(group, member.id))) {
+                const bool fresh = open && LeftForNow(group, member.id);
+                if (member.state == Member::kLeft || group.state == GroupState::kFailed || fresh) {
                     ++progress.left;  // ("all ready" can show)
+                    progress.fresh += fresh && member.state != Member::kLeft ? 1 : 0;
                     continue;
                 }
                 ++progress.slots;

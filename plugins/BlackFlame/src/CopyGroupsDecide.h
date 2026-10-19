@@ -9,8 +9,9 @@
 //   AtW1Of        what a member shows at W1: the generation its form already has (ApplyLastPublished) - shown -, nothing yet
 //                 while its own object is still coming or not verified - fresh: gated for this session, links to it go to
 //                 the source, its object recorded for the next start once verified -, or left
-//   OpensAtW1     a group opens at W1 when one member is shown; fresh members never keep it closed. A group with no shown
-//                 member (a first start) waits, is verified and opens in the drains as before
+//   OpensAtW1     a group opens at W1 when one member is shown; fresh members never keep it closed, and a member showing only
+//                 its source never opens it. A group with no shown member (a first start) waits, is verified and opens in the
+//                 drains as before
 //   WorkOf        a member of an open group: newer objects to verify and record for the next start, or still to come
 
 #include <cstdint>
@@ -99,13 +100,16 @@ namespace BlackFlame::CopyGroups::Decide
 
     enum class AtW1 : std::uint8_t
     {
-        kShown,  // its form shows a verified generation (or a muzzle-only slot's source): its gate opens with the group
-        kFresh,  // nothing to show yet: gated this session, its object recorded for the next start once verified
+        kShown,   // its form shows a verified generation: its gate opens with the group, and it opens the group at W1
+        kFresh,   // nothing to show yet: gated this session, its object recorded for the next start once verified
+        kSource,  // review round 1 (Codex P2 / B2): a slot without a source model whose muzzle is not grey (left, no older)
+                  // shows only its source: its gate opens with the group, but it never opens one at W1
         kLeft,
     };
 
     /// a_member: the member's worst state; a_main / a_mainOlder: its main object's (the model, a TXST's set; a slot without a
-    /// source model: its muzzle) state and whether an older generation of it is shown
+    /// source model: its muzzle) state and whether an older generation of it is shown. A main object left with the member not
+    /// left is only a slot without a source model (a model or a TXST set left leaves the member)
     [[nodiscard]] inline AtW1 AtW1Of(Member a_member, Member a_main, bool a_mainOlder) noexcept
     {
         if (a_member == Member::kLeft) {
@@ -113,6 +117,9 @@ namespace BlackFlame::CopyGroups::Decide
         }
         if ((a_main == Member::kPending || a_main == Member::kCandidate) && !a_mainOlder) {
             return AtW1::kFresh;
+        }
+        if (a_main == Member::kLeft && !a_mainOlder) {
+            return AtW1::kSource;
         }
         return AtW1::kShown;
     }
