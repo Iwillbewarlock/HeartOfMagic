@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### New
+
+- **Paths of Empyrean support.** Spells from other spell mods now get the Lost Grimoire poison, sun, disease
+  and kinetic keywords and the PoE daedra summon keyword its perks look for, so those perks work on them too.
+
+### Changed
+
+- **A spell's element follows what its own record says when a keyword framework guesses otherwise.** Spells
+  whose damage is plain magic damage (Desecration's necrotic flames) or frost (Flames of Coldharbour's cold
+  fire) no longer count as fire because their names contain "fire"; they leave the fire group of the tree.
+- **A tidier panel.** Settings rows are no longer boxed in bands and underlines (the row under the pointer is
+  lit faintly instead); fewer descriptions that only repeated their label; "Side Details Panel" is now "Spell
+  Card in Right Sidebar". The version moved from the title bar to the foot of the Settings page, and Import
+  moved from the tree footer to the Scan tab, next to Scan Spells.
+- **Reset to Defaults** (the Settings button and the power steps one) now asks for a second click; a
+  double-click does not count as the confirmation.
+- **The tree footer shows the spell count once;** "Loaded N spells" and "Tree saved" clear to "Ready" after
+  a few seconds, while warnings and errors stay - an Import that finds unreachable spells now keeps that
+  warning on screen.
+
 ### Fixed
 
 - **The spell card shows "Weakened (N%)" for a spell learned early and not yet mastered**, with the power it
