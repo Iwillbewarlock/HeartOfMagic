@@ -178,7 +178,7 @@ namespace Librarian::SpellResearchPatch
                         filter.blacklisted.insert(key);
                     } else if (const auto id = SpellScanner::ResolvePersistentFormId(text(entry, "formId")); id) {
                         filter.blacklistedIds.insert(id);
-                    } else if (const auto formId = FormIdText::Parse(text(entry, "formId"))) {
+                    } else if (const auto formId = FormIdText::ParseSpellOf(text(entry, "formId"))) {  // a copy's "_dup_" id (Shift+Eraser) names its spell
                         filter.blacklistedIds.insert(*formId);
                     } else {
                         logger::warn("SpellResearchPatch: spellBlacklist entry {} has no usable plugin, persistentId "
