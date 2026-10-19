@@ -68,3 +68,8 @@ These mods add spells that the Librarian tags as poison:
 [*]CommonLibSSE-NG
 [*]I4 authors for the icon framework
 [/list]
+
+[size=3][b]Source and License[/b][/size]
+The source code is available at [url=https://github.com/Iwillbewarlock/HeartOfMagic]https://github.com/Iwillbewarlock/HeartOfMagic[/url] in the [i]plugins/Toxicology[/i] folder. The tag [b]toxicology-v1.0.0[/b] is the complete source of this release, built with the same [i]BuildRelease.ps1[/i] as Heart of Magic Librarian.
+
+The project's own source files are licensed under MIT. The DLL statically links CommonLibSSE-NG (GPL-3.0-or-later with the Modding Exception and the GPL-3.0 Linking Exception), so the DLL is a GPL-3.0-or-later combined work. Please see [i]THIRD-PARTY-NOTICES.md[/i], [i]LICENSE[/i], and the [i]licenses[/i] folder in [i]SKSE/Plugins/HeartOfMagic_Toxicology/[/i] of the download for the details. As the GPL requires, this page's permissions allow modifying and redistributing the DLL under those terms.
