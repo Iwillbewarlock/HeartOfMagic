@@ -137,10 +137,10 @@ namespace BlackFlame
         const bool before = g_stoked.exchange(now, std::memory_order_acq_rel);
         if (now != before) {
             logger::info("BlackFlame: buff flag {} ({})", now ? "ON" : "off", a_reason);
-            OnStokeWindowChanged(now, a_reason);  // layer 1 diagnostics: a fresh window, or its stats lines
             OnBuffChanged(now);  // the hand flames: grey at once, or put back
             OnPlayerArtBuffChanged(now);
             RequestHandArtRefresh(now ? "buff on" : "buff off");  // the drawn hands: copy or original art at the next tick
+            OnStokeWindowChanged(now, a_reason);  // layer 1 diagnostics last: a fresh window, or its stats lines (review)
         }
     }
 

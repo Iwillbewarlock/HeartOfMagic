@@ -335,8 +335,12 @@ namespace BlackFlame
                                                   std::chrono::steady_clock::duration(start);
             const double seconds = std::chrono::duration<double>(elapsed).count();
             for (const Slot slot : { kShaderSlot, kArtSlot }) {
-                const auto& window = g_window[slot];
-                const auto n = [&](Outcome a_outcome) { return window[static_cast<std::size_t>(a_outcome)].load(); };
+                // one load per counter, so the total and its parts agree while the hook keeps counting (review)
+                std::uint64_t snapshot[std::size(g_window[0])]{};
+                for (std::size_t i = 0; i < std::size(snapshot); ++i) {
+                    snapshot[i] = g_window[slot][i].load();
+                }
+                const auto n = [&](Outcome a_outcome) { return snapshot[static_cast<std::size_t>(a_outcome)]; };
                 const std::uint64_t engineNull = n(Outcome::kEngineNull) + n(Outcome::kEngineNullFlag);
                 const std::uint64_t playerCalls = n(Outcome::kSwapped) + n(Outcome::kCopied) + engineNull +
                                                   n(Outcome::kNotStoked) + n(Outcome::kNotFire) + n(Outcome::kNoBurnShader) +
@@ -465,7 +469,14 @@ namespace BlackFlame
     void OnStokeWindowChanged(bool a_on, const char* a_reason)
     {
         if (a_on) {
-            ResetDiagnosticLines();
+            // the line caps come back for the first windows of a session only: the lines are written synchronously
+            // in the hook's threads, and a session of many stokes would otherwise add 160 lines a window (review)
+            constexpr int kWindowCapResets = 3;
+            static std::atomic<int> s_capResets{ 0 };
+            const bool capsReset = s_capResets.fetch_add(1) < kWindowCapResets;
+            if (capsReset) {
+                ResetDiagnosticLines();
+            }
             for (auto& slot : g_window) {
                 for (auto& counter : slot) {
                     counter.store(0);
@@ -473,8 +484,8 @@ namespace BlackFlame
             }
             g_windowTicks.store(0);
             g_windowStart.store(std::chrono::steady_clock::now().time_since_epoch().count());
-            logger::info("BlackFlame: hit shader/art diagnostics: stoke window started ({}): line caps and window counts reset",
-                a_reason);
+            logger::info("BlackFlame: hit shader/art diagnostics: stoke window started ({}): window counts reset{}", a_reason,
+                capsReset ? ", line caps reset" : ", line caps kept (only the first 3 windows of a session reset them)");
             return;
         }
         if (g_windowStart.load() == 0) {
