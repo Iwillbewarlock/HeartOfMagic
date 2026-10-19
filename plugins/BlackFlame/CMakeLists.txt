@@ -46,6 +46,13 @@ set(BLACKFLAME_SOURCES
     src/HitEffectHook.cpp
     src/HitPathObserve.cpp
     src/HitPathAttribution.cpp
+    src/HitPathAddress.cpp
+    src/CorpseMark.cpp
+    src/MagicApplySink.cpp
+    src/CorpseGrey.cpp
+    src/CorpsePalettes.cpp
+    src/SreProbe.cpp
+    src/GameClock.cpp
     src/HitArt.cpp
     src/CloneWatch.cpp
     src/CopyModelProbe.cpp

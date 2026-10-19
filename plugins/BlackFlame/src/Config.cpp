@@ -59,6 +59,7 @@ namespace BlackFlame
             BoolKey{ "slotPreflight", &Config::slotPreflight },
             BoolKey{ "selfTestSlots", &Config::selfTestSlots },
             BoolKey{ "slotTxst", &Config::slotTxst },
+            BoolKey{ "greyCorpseShaders", &Config::greyCorpseShaders },
         };
 
         // Single launch: the tints the builder bakes (GreyBuild.h --tint / --tint-add take 0..2) and the job memory cap
@@ -66,6 +67,8 @@ namespace BlackFlame
         constexpr double kMaxTint = 2.0;
         constexpr std::uint32_t kMinJobMemoryMiB = 256;
         constexpr std::uint32_t kMaxJobMemoryMiB = 16384;
+        constexpr double kMinCorpseWindow = 1.0;  // corpseWindowGameSeconds (CorpseMark.h)
+        constexpr double kMaxCorpseWindow = 3600.0;
 
         // C6: keys of the retired runtime recolour (and burnMode before it). An old json keeps loading: each is logged
         // once as retired and ignored, not as an unknown key
@@ -80,7 +83,8 @@ namespace BlackFlame
         bool IsKnownKey(std::string_view key)
         {
             if (key == "lightColor" || key == "selfTestDelaySeconds" || key == "devAutoLoad" || key == "copyModelProbe" ||
-                key == "tint" || key == "tintAdd" || key == "paletteMode" || key == "builderJobMemoryMiB") {
+                key == "tint" || key == "tintAdd" || key == "paletteMode" || key == "builderJobMemoryMiB" ||
+                key == "corpseWindowGameSeconds") {
                 return true;
             }
             for (const auto& b : kBoolKeys) {
@@ -232,6 +236,20 @@ namespace BlackFlame
             }
         }
 
+        void ReadCorpseWindow(const nlohmann::json& j, Config& out)
+        {
+            const auto it = j.find("corpseWindowGameSeconds");
+            if (it == j.end()) {
+                return;
+            }
+            if (!it->is_number() || !(it->get<double>() >= kMinCorpseWindow && it->get<double>() <= kMaxCorpseWindow)) {
+                logger::warn("BlackFlame: config 'corpseWindowGameSeconds' {} is not a number in {}..{} - keeping {}", it->dump(),
+                    kMinCorpseWindow, kMaxCorpseWindow, out.corpseWindowGameSeconds);
+                return;
+            }
+            out.corpseWindowGameSeconds = it->get<double>();
+        }
+
         void ReadLightColor(const nlohmann::json& j, Config& out)
         {
             const auto it = j.find("lightColor");
@@ -277,6 +295,8 @@ namespace BlackFlame
                          "tintAdd={} paletteMode={} builderJobMemoryMiB={}", g_config.singleLaunch, g_config.launchBuilder,
                 g_config.slotPreflight, g_config.selfTestSlots, g_config.slotTxst, g_config.tint, g_config.tintAdd,
                 g_config.paletteGodskin ? "godskin" : "derived", g_config.builderJobMemoryMiB);
+            logger::info("BlackFlame: config greyCorpseShaders={} corpseWindowGameSeconds={}", g_config.greyCorpseShaders,
+                g_config.corpseWindowGameSeconds);
         }
     }
 
@@ -310,6 +330,7 @@ namespace BlackFlame
         ReadSelfTestDelay(j, next);
         ReadLightColor(j, next);
         ReadSingleLaunch(j, next);
+        ReadCorpseWindow(j, next);
         if (next.testerMode) {
             // the tester package: the self-test and the copy request on; every info line reaches disk at once (a crash keeps it)
             next.selfTest = true;

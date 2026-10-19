@@ -37,6 +37,8 @@
 //   the slot is empty.
 // Texture copy (builder): <prefix>|kind=texture|role=<diffuse|glow|effect>|src=<path>|srchash=<h>
 // Palette copy (builder): <prefix>|kind=palette|blend=<add|normal>|src=<path>|srchash=<h>
+// EFSH palette copy (the DLL keys it, the builder checks it against the dump's bytes; contract 6):
+//   <prefix>|kind=efshpalette|grey=luma|src=<path>|srchash=<h>
 // ADDN table (AddnTableString):
 //   format=BFA2|addn=<index>|src=<plugin>:<local id hex>|model=<path>|modelhash=<h>...|slot=<local id hex>|src=...
 //   ADDN records sorted by (index, src field text, model field text, model hash text), ledger pairs by (slot, src field
@@ -63,7 +65,8 @@ namespace BlackFlame::CopyContract
     // The builder's output version, bumped by hand whenever any input's output bytes or progress line change (a rule, a
     // threshold, a tint, an encoder or a library version); the golden test names the bump when it is missing.
     // 1: BFK4, the first output identity (BFK3 keys carried the builder exe's FNV-1a 64 instead).
-    inline constexpr std::uint32_t kBuilderOutputVersion = 1;
+    // 2: contract 6, the effect shader palettes' grey copies (request efshPalettes[]).
+    inline constexpr std::uint32_t kBuilderOutputVersion = 2;
     inline constexpr std::string_view kDevIdentityTag = "+dev";  // <n>+dev<16 lower-case hex>
     inline constexpr std::string_view kAddnTableFormat = "BFA2";
     inline constexpr std::string_view kValueNodeBlockType = "BSValueNode";
@@ -408,6 +411,13 @@ namespace BlackFlame::CopyContract
         const ChildKeyInput& a_input)
     {
         return Detail::ChildKeyString(a_prefix, "palette", "blend", PaletteBlendText(a_blend), a_input);
+    }
+
+    /// An effect shader palette's grey copy key string (contract 6): the source palette at its luminance, alpha and rows
+    /// kept (GreyKeyedEfsh.cpp); nullopt for a source Normalize refuses or a refused prefix
+    [[nodiscard]] inline std::optional<std::string> EfshPaletteKeyString(const KeyPrefix& a_prefix, const ChildKeyInput& a_input)
+    {
+        return Detail::ChildKeyString(a_prefix, "efshpalette", "grey", "luma", a_input);
     }
 
     /// The ADDN part's string: every ADDN record of the closure and every ADDN slot ledger pair, in one total order, an

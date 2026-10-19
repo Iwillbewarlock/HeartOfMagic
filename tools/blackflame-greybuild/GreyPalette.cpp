@@ -154,6 +154,16 @@ namespace GreyBuild
         return it->second;
     }
 
+    void DesaturatePalette(RgbaImage& a_image)
+    {
+        Desaturate(a_image);
+    }
+
+    bool WritePaletteDds(const RgbaImage& a_image, const std::filesystem::path& a_file, std::string& a_why)
+    {
+        return Write(a_image, a_file, a_why);
+    }
+
     std::string PaletteTotalsLine(const PaletteJob& a_job)
     {
         const auto& t = a_job.totals;

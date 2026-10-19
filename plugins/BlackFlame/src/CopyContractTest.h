@@ -2,7 +2,7 @@
 
 // =============================================================================
 // COPY CONTRACT TEST - the shared test table (keys and tints here; copy paths and the progress line in
-// CopyContractTestPaths.h and CopyContractTestProgress.h)
+// CopyContractTestPaths.h and CopyContractTestProgress.h; the effect shader palettes in CopyContractTestEfsh.h)
 // =============================================================================
 // Run by tools/blackflame-cosave-check --self-test and the builder's --self-test, so both sides check the same frozen
 // contract against the same code (included, not copied). Not compiled into the DLL. a_check is any callable taking
@@ -13,6 +13,7 @@
 // published vectors). The golden prefix carries the longest identity form, <n>+dev<16 hex>.
 
 #include "CopyContractKeys.h"
+#include "CopyContractTestEfsh.h"
 #include "CopyContractTestPaths.h"
 #include "CopyContractTestProgress.h"
 
@@ -457,6 +458,7 @@ namespace BlackFlame::CopyContractTest
             Detail::CheckOtherKeys(check);
             CheckCopyPaths(check);
             CheckProgress(check);
+            CheckEfsh(check);
         } catch (const std::exception& e) {
             counted(false, std::string("threw: ") + e.what());
         }

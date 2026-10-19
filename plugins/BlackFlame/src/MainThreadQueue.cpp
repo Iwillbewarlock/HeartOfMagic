@@ -2,6 +2,7 @@
 #include "Perf.h"
 
 #include "BuffState.h"
+#include "GameClock.h"
 #include "GameThread.h"
 #include "Patch.h"
 #include "SehGuard.h"
@@ -111,6 +112,7 @@ namespace BlackFlame::MainQueue
             auto* ui = RE::UI::GetSingleton();  // the main thread, after the frame's jobs: a safe read
             const bool paused = ui && ui->GameIsPaused();
             g_lastPaused.store(paused);
+            GameClock::OnDrainFrame(paused);  // the corpse mark's unpaused seconds (GameClock.h)
             if (paused) {
                 g_pausedFrames.fetch_add(1);
                 if (!g_pausedLogged) {

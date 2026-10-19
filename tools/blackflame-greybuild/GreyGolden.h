@@ -11,6 +11,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 
 namespace GreyBuild::Golden
 {
@@ -103,6 +104,15 @@ namespace GreyBuild::Golden
         const GoldenLine* lines;
         std::size_t lineCount;
     };
+
+    /// The output-affecting constants the headers expose, as hex-float text, and its FNV-1a 64 (GreySelfTestGoldenConstants.cpp)
+    struct Constants
+    {
+        std::string text;
+        std::string digest;
+    };
+
+    [[nodiscard]] Constants ConstantDigest();
 
     /// A released version's pin (GreyGoldenTable.h kReleasedPins): the fnv64 (16 lower-case hex digits) of its table's
     /// text (GreySelfTestGolden.cpp TableText). Kept apart from the tables, which --print-golden prints, so pasting a

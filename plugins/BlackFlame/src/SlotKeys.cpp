@@ -73,6 +73,40 @@ namespace BlackFlame::SlotKeys
             a_out.nifMs = MsSince(start);
         }
 
+        // Contract 6: the palettes the effect shaders use (the SRE takes NAM8 / NAM9 only with these flags: design v2 C10, C11)
+        void ReadEfshPalettes(Inputs& a_out)
+        {
+            using Flag = RE::EffectShaderData::Flags;
+            auto* dh = RE::TESDataHandler::GetSingleton();
+            if (!dh) {
+                return;
+            }
+            std::vector<CC::EfshPaletteSource> sources;
+            for (const auto* shader : dh->GetFormArray<RE::TESEffectShader>()) {
+                if (!shader || IsOwnPluginForm(shader)) {
+                    continue;
+                }
+                ++a_out.efshShaders;
+                const auto& flags = shader->data.flags;
+                const auto text = [](const RE::TESTexture& a_texture) {
+                    const char* name = a_texture.textureName.c_str();
+                    return std::string(name ? name : "");
+                };
+                const auto roles = CC::EfshPaletteRoles({ .disableParticleShader = flags.any(Flag::kDisableParticleShader),
+                    .particleGreyscaleColor = flags.any(Flag::kParticleGreyscaleColor),
+                    .particleGreyscaleAlpha = flags.any(Flag::kParticleGreyscaleAlpha),
+                    .disableTextureShader = flags.any(Flag::kDisableTextureShader), .greyscaleToColor = flags.any(Flag::kGreyscaleToColor),
+                    .greyscaleToAlpha = flags.any(Flag::kGreyscaleToAlpha) });
+                if (CC::EfshRoleHas(roles, CC::EfshRole::kParticle)) {
+                    sources.push_back({ text(shader->particlePaletteTexture), CC::EfshRole::kParticle });
+                }
+                if (CC::EfshRoleHas(roles, CC::EfshRole::kMembrane)) {
+                    sources.push_back({ text(shader->membranePaletteTexture), CC::EfshRole::kMembrane });
+                }
+            }
+            a_out.efsh = CC::MergeEfshPalettes(sources);
+        }
+
         void HashTextures(const FireClosure& a_closure, Inputs& a_out)
         {
             const auto start = Clock::now();
@@ -82,7 +116,11 @@ namespace BlackFlame::SlotKeys
                     bytes.push_back(&nif.bytes);
                 }
             }
-            a_out.textures = CopyRequestData::PlanTextures(bytes, CopyRequestData::FormTexturePaths(a_closure));
+            std::vector<std::string> palettes;
+            for (const auto& palette : a_out.efsh.palettes) {
+                palettes.push_back(palette.path);
+            }
+            a_out.textures = CopyRequestData::PlanTextures(bytes, CopyRequestData::FormTexturePaths(a_closure), palettes);
             for (const auto& texture : a_out.textures) {
                 CC::FileHash hash = CC::FileHash::Missing();
                 if (texture.own && !texture.planned) {
@@ -230,9 +268,30 @@ namespace BlackFlame::SlotKeys
         Inputs out;
         std::set<std::string> closurePaths;
         ReadNifs(a_closure, out, closurePaths);
+        ReadEfshPalettes(out);
         HashTextures(a_closure, out);
         ReadPrefix(out);
         ReadAddns(out, closurePaths);
+        std::size_t efshHashed = 0;
+        std::size_t efshUnread = 0;
+        std::unordered_map<std::string_view, const CopyRequestData::Texture*> planned;
+        for (const auto& texture : out.textures) {
+            planned.emplace(texture.path, &texture);
+        }
+        for (auto& palette : out.efsh.palettes) {
+            palette.hash = TextureHash(out, palette.path);  // in the plan: its state there
+            efshHashed += palette.hash.state == CC::FileState::kHashed ? 1 : 0;
+            // review round 1: planned but not read is "missing" in efshPalettes (no key) yet "unread" in textures[]: counted apart
+            const auto it = planned.find(palette.path);
+            efshUnread += it != planned.end() && TextureStateOf(out, *it->second) == CC::Request::TextureState::kUnread ? 1 : 0;
+        }
+        if (out.prefix) {
+            CC::KeyEfshPalettes(out.efsh.palettes, *out.prefix);
+        }
+        logger::info("BlackFlame: slots: effect shader palettes: {} shaders, {} palettes ({} in the dump{}; {} planned but not read: "
+                     "missing here, unread in textures[]); left out: {} paths refused, {} not plain ASCII, {} of ours",
+            out.efshShaders, out.efsh.palettes.size(), efshHashed, out.prefix ? ", keyed" : ", no key this session", efshUnread,
+            out.efsh.refused, out.efsh.nonAscii, out.efsh.own);
         const auto exe = out.builderExe.u8string();
         logger::info("BlackFlame: slots: key inputs: {} NIFs ({} not read) in {} ms; {} textures planned, {} MiB hashed in {} ms; "
                      "builder '{}' {}{}; {} ADDN records, {} AddOnNode indices named by the closure ({} NIF headers not parsed)",
@@ -269,6 +328,17 @@ namespace BlackFlame::SlotKeys
         }
         const auto blob = NifDump::ReadModel(*path, nullptr);  // not in the plan (one of ours): read it now
         return blob.ok ? CC::FileHash::Hashed(blob.fnv64) : CC::FileHash::Missing();
+    }
+
+    CC::Request::TextureState TextureStateOf(const Inputs& a_inputs, const CopyRequestData::Texture& a_texture)
+    {
+        using State = CC::Request::TextureState;
+        if (a_texture.planned) {
+            const auto it = a_inputs.textureHash.find(a_texture.path);
+            const bool hashed = it != a_inputs.textureHash.end() && it->second.state == CC::FileState::kHashed;
+            return hashed && !a_texture.readFailed ? State::kOk : State::kUnread;
+        }
+        return a_texture.probe.opened ? State::kNotDumped : State::kMissing;
     }
 
     std::optional<std::uint64_t> AddnTableHash(const Inputs& a_inputs, const std::vector<CC::LedgerPair>& a_pairs)

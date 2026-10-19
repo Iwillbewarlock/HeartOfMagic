@@ -1,5 +1,6 @@
 #include "CopyRequestData.h"
 
+#include "CopyContractEfsh.h"
 #include "DataPathRule.h"
 #include "EncodingUtils.h"
 
@@ -161,23 +162,15 @@ namespace BlackFlame::CopyRequestData
     }
 
     std::vector<Texture> PlanTextures(const std::vector<const std::vector<std::byte>*>& a_nifBytes,
-        const std::vector<std::string>& a_formTextures)
+        const std::vector<std::string>& a_formTextures, const std::vector<std::string>& a_lateTextures)
     {
-        constexpr std::string_view kOwnTextureRoot = "textures\\heartofmagic\\blackflame\\";  // the palettes, texture copies
-        std::set<std::string> paths;
-        const auto add = [&](const std::string& a_raw) {
-            if (const auto path = NifDump::NormalizeTexturePath(a_raw); path && !path->starts_with(kOwnTextureRoot)) {
-                paths.insert(*path);
-            }
-        };
+        std::vector<std::string> first(a_formTextures);
         for (const auto* bytes : a_nifBytes) {
-            for (const auto& raw : NifDump::TexturePathsIn(*bytes)) {
-                add(raw);
-            }
+            const auto raws = NifDump::TexturePathsIn(*bytes);
+            first.insert(first.end(), raws.begin(), raws.end());
         }
-        for (const auto& raw : a_formTextures) {
-            add(raw);
-        }
+        // contract 6: the effect shader palettes after every other one, never a path twice (CopyContractEfsh.h, tested there)
+        const auto order = CopyContract::TexturePlanOrder(first, a_lateTextures);
         std::vector<Texture> textures;
         std::uint64_t total = 0;
         // Our two fixed palettes first (small), read whole for their hash: the builder's risk check judges with them
@@ -193,8 +186,8 @@ namespace BlackFlame::CopyRequestData
             }
             textures.push_back(std::move(texture));
         }
-        for (const auto& path : paths) {
-            Texture texture{ path, NifDump::ProbeModel(path), false, {} };
+        const auto plan = [&](const std::string& a_path) {
+            Texture texture{ a_path, NifDump::ProbeModel(a_path), false, {} };
             const std::uint64_t size = texture.probe.totalSize;
             if (!texture.probe.opened) {
                 texture.error = texture.probe.error;
@@ -207,6 +200,9 @@ namespace BlackFlame::CopyRequestData
                 total += size;
             }
             textures.push_back(std::move(texture));
+        };
+        for (const auto& path : order) {
+            plan(path);
         }
         return textures;
     }

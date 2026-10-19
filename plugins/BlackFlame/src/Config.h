@@ -74,6 +74,11 @@ namespace BlackFlame
         double tintAdd = 0.9;         // additive palette shaders' base colour scale (kDefaultTintAdd)
         bool paletteGodskin = false;  // "paletteMode": "derived" (false, the builder's default) or "godskin"
         std::uint32_t builderJobMemoryMiB = 1536;  // the builder's job object memory cap (JOB_OBJECT_LIMIT_JOB_MEMORY)
+        // CorpseMark.h: the FEC shaders on a corpse the player's stoked fire killed get SRE flags bit 24, and CorpseGrey.h swaps
+        // their palettes for grey ones at attach; false: the decision is logged only, no bit set, the attach hooks forward
+        // unchanged. The window: game seconds (unpaused, GameClock.h) after the last stoked hit
+        bool greyCorpseShaders = true;
+        double corpseWindowGameSeconds = 45.0;
     };
 
     inline constexpr const char* kConfigPath = "Data/SKSE/Plugins/HeartOfMagic_BlackFlame.json";

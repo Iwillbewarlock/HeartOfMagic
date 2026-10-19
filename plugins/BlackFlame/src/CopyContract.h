@@ -10,6 +10,7 @@
 //                          request.json v5 names
 //   CopyContractKeys.h     the key strings of every model object (form NIF, muzzle, ADDN MPS, TXST, texture, palette)
 //   CopyContractProgress.h the builder's progress.jsonl line: outcome states, writer and tolerant parser
+//   CopyContractEfsh.h     request efshPalettes[]: its merge, writer and reader (contract 6)
 //   CopyContractTest.h     the shared test table both self-tests run (cosave-check and the builder)
 // The copies output path rule lives in DataPathRule.h (CopyPath, ParseCopyPath); the co-save record in SlotCoSave.h.
 
@@ -33,7 +34,9 @@ namespace BlackFlame::CopyContract
     // 4: derived palettes named palette.dds (IsOurPalettePath), request textures[].state and addnMps[].index, addn deps
     //    on mps lines, the too_large line's cap field.
     // 5: key format BFK4: the prefix's out=<output identity> in place of exe=<builder exe fnv64> (CopyContractKeys.h).
-    inline constexpr std::uint32_t kContractVersion = 5;
+    // 6: request efshPalettes[] (CopyContractEfsh.h: the effect shader palettes the builder greys for the corpse rule, each
+    //    one's dds line at its key's palette.dds), required; builder output version 2.
+    inline constexpr std::uint32_t kContractVersion = 6;
 
     // =========================================================================
     // Slot pool (the slot ESL's local ids 0x800-0xFFF): fixed types, contiguous, never reused
@@ -446,6 +449,9 @@ namespace BlackFlame::CopyContract
         inline constexpr std::string_view kTextureStateMissing = "missing";     // does not open (FileHash::Missing)
         inline constexpr std::string_view kTextureStateUnread = "unread";       // opened, its read failed: no copy this run
         inline constexpr const char* kTextureSize = "size";         // the stream's size (number), for notdumped:<size>
+        // contract 6: [{ path, role, state, key (state ok only) }] (CopyContractEfsh.h EfshPalettesJson / ParseEfshPalettes)
+        inline constexpr const char* kEfshPalettes = "efshPalettes";
+        inline constexpr const char* kRole = "role";                // "particle" | "membrane" | "both"
 
         enum class TextureState : std::uint8_t
         {

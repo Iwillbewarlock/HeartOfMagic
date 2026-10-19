@@ -6,6 +6,10 @@
 
 #include "GreyBuild.h"
 
+#include "../../plugins/BlackFlame/src/CopyContractKeys.h"
+
+#include <nlohmann/json.hpp>
+
 #include <iostream>
 #include <string>
 
@@ -62,6 +66,15 @@ namespace GreyBuild::SelfTest
     /// The key mode end to end (GreySelfTestKeyed.cpp): request v5, a run into staging, the cache, terminal and fallback
     /// outcomes, the CLI refusals - on made-up NIFs (a_sourceNif) and DDS files in a_dir
     void CheckKeyed(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_sourceNif);
+
+    /// The effect shader palettes of the key mode (GreySelfTestEfsh.cpp, contract 6): the request's efshPalettes written by
+    /// the DLL's own writer (CopyContractEfsh.h), a fire palette greyed, a non-fire one and a missing one skipped, the key
+    /// check, the cache, the refusals
+    void CheckEfsh(Checker& a_check, const std::filesystem::path& a_dir);
+
+    /// The golden request's efshPalettes (GreySelfTestEfsh.cpp): its gradflame01 (fire), its grey.dds (not fire) and a
+    /// missing palette, through the DLL's writer with hashes of the files in a_data
+    [[nodiscard]] nlohmann::json GoldenEfshPalettes(const std::filesystem::path& a_data, const BlackFlame::CopyContract::KeyPrefix& a_prefix);
 
     /// The self-test's made-up source NIF (GreySelfTest.cpp: AddOnNodes 9 and 24, effect shaders on and off the palette,
     /// normal and additive palette shapes, a lighting shader, a colour modifier and two colour controllers)

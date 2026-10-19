@@ -32,6 +32,7 @@
 #include "GreyTexStats.h"
 #include "GreyTexture.h"
 
+#include "../../plugins/BlackFlame/src/CopyContractEfsh.h"
 #include "../../plugins/BlackFlame/src/CopyContractKeys.h"
 #include "../../plugins/BlackFlame/src/CopyContractProgress.h"
 
@@ -90,8 +91,50 @@ namespace GreyBuild
         std::map<int, int> addnSlots;    // original ADDN index -> slot ADDN index (40000 + place)
         std::map<std::string, std::uint64_t> nifHashes;  // nifs[] the game read: Data-relative path -> fnv64
         std::set<std::string> unreadNifs;                // nifs[] ok false, MeshDataPath like nifHashes and the objects' sources
+        std::vector<BlackFlame::CopyContract::EfshPalette> efshPalettes;  // contract 6 (CopyContractEfsh.h ParseEfshPalettes)
         std::vector<std::string> warnings;
     };
+
+    // =========================================================================
+    // Effect shader palettes (contract 6, GreyKeyedEfsh.cpp): no objects of the scheduler; each keyed one before them
+    // =========================================================================
+    // A palette is fire when, of its lit texels (brightest channel over kStatLitWeight; alpha not looked at: it is a
+    // separate channel the shader reads only with greyscale-to-alpha), kEfshFireShare or more are fire coloured: hue in
+    // 0..kEfshFireHueMax or from kEfshFireHueWrap (red to yellow), HSV saturation and value at least kEfshFireMinSat and
+    // kEfshFireMinValue (the EFSH census's numbers, scratchpad efsh_fire_census.py). The whole palette is judged, not the
+    // rows a shader samples (design v2 section 2's sampled coordinates: not done). Fire: its grey copy (DesaturatePalette:
+    // luminance, alpha and rows kept) at PaletteCopyPath(key16) and an ok dds line. Not fire, or a format that does not
+    // decode: no line, counted (the source palette stays). The key is checked against the dump's bytes first (a failed
+    // line when they differ, like a NIF's).
+    inline constexpr double kEfshFireHueMax = 55.0 / 360.0;
+    inline constexpr double kEfshFireHueWrap = 345.0 / 360.0;
+    inline constexpr double kEfshFireMinSat = 0.45;
+    inline constexpr double kEfshFireMinValue = 0.30;
+    inline constexpr double kEfshFireShare = 0.20;
+
+    struct EfshTotals
+    {
+        std::size_t listed = 0;
+        std::size_t grey = 0;       // written this run (ok line)
+        std::size_t reused = 0;     // an ok line staging still matches
+        std::size_t notFire = 0;    // skipped: no line
+        std::size_t unreadable = 0; // skipped: the format does not decode (no line)
+        std::size_t missing = 0;    // the game has no such file (no key)
+        std::size_t notDumped = 0;  // outside the dump caps (no key)
+        std::size_t unread = 0;     // keyed, the dump's read failed this start (textures[] unread): no line, the next start
+        std::size_t failed = 0;     // a failed line (the next run tries again)
+        std::size_t tooLarge = 0;
+    };
+
+    /// The fire test's share of a palette image (0 when it has no lit texel)
+    [[nodiscard]] double EfshFireShare(const RgbaImage& a_image) noexcept;
+
+    /// Every keyed palette of a_request: its line, or a count (see above). a_stop: the parent is gone (stop before the next)
+    [[nodiscard]] EfshTotals BuildEfshPalettes(const KeyedRequest& a_request, const std::filesystem::path& a_dump, ProgressLog& a_log,
+        Budget& a_budget, const BlackFlame::CopyContract::KeyPrefix& a_prefix, const std::function<bool()>& a_stop);
+
+    /// "efsh   ..." for a run's end
+    [[nodiscard]] std::string EfshTotalsLine(const EfshTotals& a_totals);
 
     /// request.json version 5 (LoadFormsRequestFile for the v4 parts, then options, keys, muzzles, addnMps, txst).
     /// Throws std::runtime_error naming the field (a version other than 5 included).

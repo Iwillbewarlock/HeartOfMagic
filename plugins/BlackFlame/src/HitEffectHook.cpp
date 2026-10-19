@@ -371,20 +371,6 @@ namespace BlackFlame
             HitPath::LogStats(a_when, seconds, a_reason);  // the 34094 / ApplyEffectShader observation (HitPathObserve.h)
         }
 
-        // Log only: the player's fire effect of a fire spell asked for this target's hit shader (whatever the engine answered:
-        // a null answer counts too). The target from the effect's MagicTarget, a pointer read (no handle resolved here)
-        void NoteFireHit(Controller* a_this)
-        {
-            auto* effect = a_this->effect;
-            if (!IsPlayerFireEffect(effect)) {
-                return;
-            }
-            auto* ref = effect->target ? effect->target->GetTargetStatsObject() : nullptr;
-            if (ref) {
-                HitPath::NoteFireHit(ref->GetFormID(), IsStoked());
-            }
-        }
-
         RE::TESEffectShader* ChooseShader(Controller* a_this, RE::TESEffectShader* a_original)
         {
             const Outcome outcome = Decide(kShaderSlot, a_this, a_original);
@@ -447,10 +433,11 @@ namespace BlackFlame
                     ReportFailure();
                 }
                 // log only, after the result is decided and in a guard of its own: a fault here skips this note only and
-                // can never change the shader handed back or turn the swap step off; nothing may throw out either
+                // can never change the shader handed back or turn the swap step off; nothing may throw out either. Every
+                // caster's fire effect, whatever the engine answered (a null answer counts too; HitPath::NoteFireEffect)
                 try {
                     if (a_this) {
-                        (void)GuardedKeep("hit effect shader (fire hit note)", [&]() { NoteFireHit(a_this); });
+                        (void)GuardedKeep("hit effect shader (fire hit note)", [&]() { HitPath::NoteFireEffect(a_this->effect); });
                     }
                 } catch (...) {
                     ReportNoteFailure();

@@ -441,6 +441,12 @@ namespace GreyBuild
             run.map.addons[index] = AddonEntry{ index, grey };
         }
 
+        // contract 6: the effect shader palettes first (small, no scheduler)
+        const auto efsh = BuildEfshPalettes(request, dump, log, budget, *prefix, [&watch]() { return watch.Gone(); });
+        if (log.Broken()) {
+            std::cerr << "writing progress.jsonl failed at an effect shader palette. Stopping; the next run builds it again.\n";
+            return kFail;
+        }
         std::vector<KeyedSpec> pending;
         int hits = 0;
         for (const auto& spec : request.objects) {
@@ -505,7 +511,8 @@ namespace GreyBuild
         const auto reads = textureSource.Counts();
         std::cout << fmt::format("reads  texture decodes {} of {} path(s); statistics answered without a decode {}\n", reads.decodes,
             reads.paths, reads.statsAnswers);
-        std::cout << TextureTotalsLine(textures.totals) << "\n" << PaletteTotalsLine(palettes) << "\n" << gpu.SummaryLine() << "\n";
+        std::cout << TextureTotalsLine(textures.totals) << "\n" << PaletteTotalsLine(palettes) << "\n" << EfshTotalsLine(efsh) << "\n"
+                  << gpu.SummaryLine() << "\n";
         return stopped ? kExitParentGone : kOk;
     }
 }

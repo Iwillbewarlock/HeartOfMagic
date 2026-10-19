@@ -60,6 +60,13 @@ namespace GreyBuild
     [[nodiscard]] std::string DerivedPalette(PaletteJob& a_job, const std::string& a_sourcePalette, bool a_additive,
         std::string& a_why);
 
+    /// P2 alone (the effect shader palettes' grey, GreyKeyedEfsh.cpp): every texel's colour to its luminance, alpha and
+    /// rows untouched
+    void DesaturatePalette(RgbaImage& a_image);
+
+    /// a_image as an 8-bit RGBA DDS, one mip, sRGB as it is (the derived palettes' format); false with a_why
+    [[nodiscard]] bool WritePaletteDds(const RgbaImage& a_image, const std::filesystem::path& a_file, std::string& a_why);
+
     /// "palettes  ..." for a run's end
     [[nodiscard]] std::string PaletteTotalsLine(const PaletteJob& a_job);
 }

@@ -67,9 +67,11 @@ namespace BlackFlame::CopyRequestData
     /// Every texture path a_nifBytes name inline (NifDump::TexturePathsIn: the builder picks the slots it recolours) and
     /// a_formTextures (TXST colour slots), our own (textures\heartofmagic\blackflame\) left out, each opened for its size
     /// and planned in path order within the caps; reads no texture byte of those. Then our two fixed palettes (own, sized
-    /// first so the caps never drop them), each read whole for its FNV. kDataLoaded thread (BSResource).
+    /// first so the caps never drop them), each read whole for its FNV. Last a_lateTextures (contract 6: the effect shader
+    /// palettes), planned after all of those within what the caps leave, so they never push a NIF's texture out of the dump;
+    /// one already in the plan is not listed again. kDataLoaded thread (BSResource).
     [[nodiscard]] std::vector<Texture> PlanTextures(const std::vector<const std::vector<std::byte>*>& a_nifBytes,
-        const std::vector<std::string>& a_formTextures = {});
+        const std::vector<std::string>& a_formTextures = {}, const std::vector<std::string>& a_lateTextures = {});
 
     /// The dump's texture part (path, size, planned): sizes only, so a texture replaced by one of the same size is not dumped
     /// again. Kept apart from the request fingerprint, whose formula the players' freshness check shares.

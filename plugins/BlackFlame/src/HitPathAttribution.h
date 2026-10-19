@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Common.h"
+#include "ElementalHitRules.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -9,9 +10,10 @@
 
 // =============================================================================
 // HIT PATH ATTRIBUTION - the log-only parts of the hit path observation that are not hooks
-// (HitPathObserve.h items 3 and 4): the fire MGEF hit shader set, the player's fire hits per
-// target, the corpse attribution of an ApplyEffectShader line, the hit shader probe.
-// Nothing here decides a swap; HitPathObserve.cpp and HitEffectHook.cpp only read it.
+// (HitPathObserve.h items 3 and 4): the fire MGEF hit shader set, the last elemental hit per target
+// (any caster, with its source and element), the corpse attribution of an ApplyEffectShader line, the hit
+// shader probe. Nothing here decides a swap; the corpse mark (CorpseMark.h) reads the fire hits. FireSource, Element,
+// HitOrigin, FireHit and the record rule itself: ElementalHitRules.h (pure, tested offline).
 // =============================================================================
 
 namespace BlackFlame::HitPath::Detail
@@ -31,14 +33,35 @@ namespace BlackFlame::HitPath::Detail
     /// "; fill #.. / #.. / #.., edge #.., shader flags 0x..", or empty for null
     [[nodiscard]] std::string ShaderColours(const RE::TESEffectShader* a_shader);
 
-    /// The player's last fire hit on one target (NoteFireHit): steady clock ticks, 0: none
-    struct FireHit
-    {
-        RE::FormID target = 0;
-        std::int64_t lastAt = 0;
-        std::int64_t lastStokedAt = 0;
-        bool lastStoked = false;
-    };
+    /// Any thread (NoteFireEffect, the apply sink): the target's slot takes this hit, unless the target is down (dying or
+    /// dead), its last hit is the player's stoked fire and this one is the player's fire, not stoked (Flame Cloak, an
+    /// enchanted weapon on the corpse): then the stoked record is kept, one capped "kept stoked" line. Except when this is the
+    /// effect start of the MGEF whose apply event made that record: the effect start knows the spell (a scroll, staff or
+    /// enchantment sharing a fire spell's MGEF is not stoked), so it re-judges the same effect and overwrites. NPC fire and
+    /// the player's frost or shock always overwrite (ElementalHitRules.h DecideRecord). Returns false when the record was kept
+    bool RecordElementalHit(RE::FormID a_target, Element a_element, FireSource a_source, bool a_targetDown, HitOrigin a_origin,
+        RE::FormID a_mgef);
+
+    /// Why a non-player elemental effect is not recorded (nullptr: it is): no caster, the caster is the target itself, the
+    /// caster is not an Actor (counted for the stats line)
+    [[nodiscard]] const char* WhyNotRecorded(const RE::TESObjectREFR* a_caster, const RE::TESObjectREFR* a_target);
+
+    /// The actor is dying or dead (plain field read)
+    [[nodiscard]] bool IsDown(const RE::Actor* a_actor) noexcept;
+
+    /// Any thread: the target's slot, copied under the lock (nullopt: not among the remembered targets)
+    [[nodiscard]] std::optional<FireHit> FindFireHit(RE::FormID a_target);
+
+    /// Any thread (the corpse mark): the target's window stays open until a_untilGame (GameClock seconds) whatever its last
+    /// hit's age, while its last fire hit stays the player's stoked one; nothing when the target has no slot
+    void ExtendCorpseWindow(RE::FormID a_target, double a_untilGame);
+
+    /// Any thread: some remembered target's last elemental hit (any source) is at most a_window game seconds before a_now, or a
+    /// mark keeps its window open: the corpse mark resolves its target only then (or while its log lines last)
+    [[nodiscard]] bool AnyFireHitOpen(double a_now, double a_window);
+
+    /// "N NPC fire hits on dying or dead actors (..), N elemental hits not recorded (..), N stoked records kept" (the stats line)
+    [[nodiscard]] std::string FireHitStats();
 
     /// An actor's corpse attribution, read once per line: plain field reads (no handle resolved) and one look in the fire
     /// hit memory

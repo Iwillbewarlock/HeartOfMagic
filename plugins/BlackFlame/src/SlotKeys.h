@@ -16,11 +16,15 @@
 //             can still be shown (it needs no new key)
 //   ADDN      the BSValueNode values of the closure's form and muzzle NIFs (NifValueNodes.h): only the ADDN records the
 //             engine's addonNodes table gives for those indices get an ADDN slot
+//   EFSH      contract 6: every effect shader's particle palette (NAM9, while its particle shader is on and takes the
+//             palette: kParticleGreyscaleColor or Alpha) and membrane palette (NAM8, membrane on, kGreyscaleToColor or Alpha),
+//             merged by path (CopyContractEfsh.h), planned into the dump after the rest, hashed and keyed
 // The key functions turn those into CopyContract key strings; both sides hash the same strings (the contract's test table).
 
 #include "Common.h"
 
 #include "BuilderControl.h"
+#include "CopyContractEfsh.h"
 #include "CopyContractKeys.h"
 #include "CopyRequestData.h"
 #include "CopyRequestDump.h"
@@ -54,6 +58,8 @@ namespace BlackFlame::SlotKeys
         std::vector<CC::AddnRecord> addnRecords;                    // every ADDN record not ours
         std::set<std::uint32_t> valueNodeIndices;                   // AddOnNode values the closure's NIFs name
         std::size_t valueNodeUnparsed = 0;                          // closure NIFs with BSValueNode whose header did not parse
+        CC::EfshMerge efsh;                                         // the effect shader palettes (keys when there is a prefix)
+        std::size_t efshShaders = 0;                                // effect shaders read (ours left out)
         std::size_t nifsFailed = 0;
         long long nifMs = 0;
         long long textureMs = 0;
@@ -90,6 +96,11 @@ namespace BlackFlame::SlotKeys
 
     /// a_texture's state by its raw slot text (the plan's table, or one read now when the plan has no entry)
     [[nodiscard]] CC::FileHash TextureHash(const Inputs& a_inputs, std::string_view a_raw);
+
+    /// A planned texture's textures[] state (contract v4): ok (in the dump and hashed), unread (planned, its read failed: here
+    /// or in the dump), notdumped (opened, over a cap), missing (no file). An effect shader palette has no unread state: it is
+    /// missing in efshPalettes then, so the logs count those apart by this
+    [[nodiscard]] CC::Request::TextureState TextureStateOf(const Inputs& a_inputs, const CopyRequestData::Texture& a_texture);
 
     /// A texture set's TXST key input: its eight record strings, TX00 / TX03's hashes, DODT (no prefix needed)
     [[nodiscard]] CC::TxstKeyInput TxstInput(const Inputs& a_inputs, const RE::BGSTextureSet& a_source);

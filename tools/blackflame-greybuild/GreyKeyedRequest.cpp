@@ -8,6 +8,7 @@
 //   "muzzles"          [{ path, key }]
 //   "addnMps"          [{ slot, path, key[, index] }]: slot an ADDN slot's local id (0xF00-0xFCF)
 //   "txst"             [{ slot, key, dodt }]: matched to the TXST form with that forms[].slot
+//   "efshPalettes"     contract 6, required: CopyContractEfsh.h ParseEfshPalettes (the reader the contract shares)
 // A key is 16 lower-case hex digits. Anything malformed refuses the request (the DLL wrote it; nothing is guessed).
 
 #include "GreyKeyed.h"
@@ -220,6 +221,11 @@ namespace GreyBuild
         const auto root = Json::ReadFile(a_file);
         ReadOptions(a_file, root, request);
         ReadObjects(a_file, root, request);
+        if (auto efsh = CC::ParseEfshPalettes(root); efsh.error.empty()) {
+            request.efshPalettes = std::move(efsh.palettes);
+        } else {
+            Json::Fail(a_file, efsh.error);
+        }
         ReadNifHashes(root, request);
         // every NIF object's bytes are listed (nifs[] with its fnv64), or the game could not read it (nifs[] ok false). A NIF
         // in neither is the DLL's slip about one object: warned here, and that object alone gets a failed line

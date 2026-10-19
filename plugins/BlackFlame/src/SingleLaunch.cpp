@@ -10,9 +10,11 @@
 #include "CopyGroups.h"
 #include "CopyRequest.h"
 #include "CopyRequestV5.h"
+#include "CorpsePalettes.h"
 #include "DataFiles.h"
 #include "FormCopies.h"
 #include "FormCopiesFillModel.h"
+#include "MainThreadQueue.h"
 #include "MenuWatch.h"
 #include "SlotAssign.h"
 #include "SlotNotice.h"
@@ -77,8 +79,31 @@ namespace BlackFlame::SingleLaunch
             MenuWatch::OnMainMenuOpen([line]() { SlotNotice::Show(line); });
         }
 
+        // The grey effect shader palettes (CorpsePalettes.h) on RE::Main's thread at the next drain: W1 (queued at kDataLoaded,
+        // whose thread is not Main's on 1.6.1170) and W2 (the main menu). Later copies are shown from the next start
+        void PostPaletteGate(const char* a_name)
+        {
+            const bool queued = MainQueue::Post(a_name, []() {
+                if (!MenuWatch::PublishOpen()) {
+                    logger::info("BlackFlame: corpse palettes: the publish window closed before this gate ({}): none loaded at it",
+                        MenuWatch::CloseReason());
+                    return;
+                }
+                try {
+                    (void)CorpsePalettes::LoadAtGate();
+                } catch (const std::exception& e) {
+                    logger::error("BlackFlame: corpse palettes: the gate threw ({}): the palettes it had not taken stay the source's",
+                        e.what());
+                }
+            });
+            if (!queued) {
+                logger::warn("BlackFlame: corpse palettes: {} not queued (the main-thread queue refused it)", a_name);
+            }
+        }
+
         void OnMainMenu()
         {
+            PostPaletteGate("corpse palettes W2");
             const auto& inputs = TheInputs();
             if (const auto notice = BuilderControl::BuilderNotice(inputs.builderKind); !notice.empty()) {
                 if (!inputs.builderIdentityWhy.empty()) {
@@ -140,6 +165,7 @@ namespace BlackFlame::SingleLaunch
             BuildProgress::SkipWorker();  // nothing more is read this session: the start's read is caught up (before W1 plans)
         }
         CopyGroups::Start();  // W1: the groups ready from the ledger open now; the rest on the main thread as verified
+        PostPaletteGate("corpse palettes W1");
         if (!otherGame) {
             LaunchBuilder(inputs, request.written);
             BuildProgress::StartWorker();  // tails the progress and copies finished files into Data while the window is open

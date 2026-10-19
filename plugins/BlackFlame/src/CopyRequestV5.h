@@ -13,6 +13,7 @@
 //   addnMps[]    { slot, path (the source ADDN's model), key, index (the source ADDN's AddOnNode index the copies'
 //                AddOnNodes are remapped from; contract v4 names it), source (information) }
 //   txst[]       { slot, key, dodt }
+//   efshPalettes[] contract 6 (CopyContractEfsh.h EfshPalettesJson): { path, role, state, key (state ok) }
 // The dump (data\meshes, data\textures, dump-manifest.json; CopyRequestDump.h) holds the very bytes the keys hashed (the
 // NIFs read at kDataLoaded, the planned textures); it is rewritten only when its fingerprint changed. With the config's
 // tint or tintAdd outside 0..2 there is no key prefix (SlotKeys) and no request is written (logged).
@@ -35,6 +36,9 @@ namespace BlackFlame::CopyRequestV5
         std::size_t muzzles = 0;
         std::size_t addnMps = 0;
         std::size_t txst = 0;
+        std::size_t efshPalettes = 0;  // listed
+        std::size_t efshKeyed = 0;     // of them, keyed (in the dump)
+        std::size_t efshUnread = 0;    // of them, unread in textures[] (the game could not read it this start)
         long long ms = 0;
     };
 

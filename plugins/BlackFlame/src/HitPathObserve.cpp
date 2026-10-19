@@ -1,11 +1,15 @@
 #include "HitPathObserve.h"
 
 #include "BuffState.h"
+#include "CorpseGrey.h"
+#include "CorpseMark.h"
 #include "FireSet.h"
 #include "HitEffectHook.h"
+#include "HitPathAddress.h"
 #include "HitPathAttribution.h"
 #include "Patch.h"
 #include "SehGuard.h"
+#include "SreProbe.h"
 
 #ifndef NOMINMAX
 #    define NOMINMAX
@@ -57,15 +61,7 @@ namespace BlackFlame::HitPath
         constexpr std::uint32_t kSiteBOffset = 0x5AE77D - 0x5AE2B0;      // +0x4CD
         constexpr std::uint32_t kApplySiteOffset = 0x2F0FCC - 0x2F0E20;  // +0x1AC
 
-        // OwnedController (2F0F18..2F0F7D): +0x08 target handle (34825 from the ref ApplyEffectShader runs on),
-        // +0x10 the TESEffectShader, +0x20 the facing ref's handle. OwnedCameraEffectController (2F0E9C..2F0EC8): +0x10 = 0
-        constexpr std::size_t kOwnedTargetHandle = 0x08;
-        constexpr std::size_t kOwnedShader = 0x10;
-        constexpr std::size_t kOwnedFacingHandle = 0x20;
-
         constexpr std::uint32_t kNoHitEffectBit = 1u << 27;  // EffectSettingData::Flag::kNoHitEffect (34092 at 5AE4B8)
-        constexpr std::size_t kReportBytes = 16;
-        constexpr int kMaxHops = 8;
         constexpr int kMaxStartLines = 40;       // sites A and B together, per stoke window
         constexpr int kMaxApplyLines = 40;       // ApplyEffectShader with a fire MGEF's shader or on the player
         constexpr int kMaxApplyOtherLines = 20;  // every other ApplyEffectShader call (Papyrus ambience), a cap of its own
@@ -119,156 +115,10 @@ namespace BlackFlame::HitPath
             return a_line <= a_cap;
         }
 
-        // Committed, readable, no guard page, for all a_size bytes (across regions)
-        bool IsReadable(std::uintptr_t a_address, std::size_t a_size)
-        {
-            constexpr DWORD kReadable = PAGE_READONLY | PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READ |
-                                        PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY;
-            auto at = a_address;
-            const auto end = a_address + a_size;
-            while (at < end) {
-                MEMORY_BASIC_INFORMATION info{};
-                if (at == 0 || VirtualQuery(reinterpret_cast<const void*>(at), &info, sizeof(info)) != sizeof(info) ||
-                    info.State != MEM_COMMIT || (info.Protect & kReadable) == 0 || (info.Protect & PAGE_GUARD) != 0) {
-                    return false;
-                }
-                at = reinterpret_cast<std::uintptr_t>(info.BaseAddress) + info.RegionSize;
-            }
-            return true;
-        }
-
-        std::string Hex(const std::uint8_t* a_bytes, std::size_t a_count)
-        {
-            std::string out;
-            for (std::size_t i = 0; i < a_count; ++i) {
-                out += std::format("{}{:02X}", i ? " " : "", a_bytes[i]);
-            }
-            return out;
-        }
-
-        // "name.dll+0x1234", or empty when no module holds the address (VirtualAlloc'd memory: a trampoline)
-        std::string ModuleOffset(std::uintptr_t a_address)
-        {
-            HMODULE module = nullptr;
-            if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                    reinterpret_cast<LPCWSTR>(a_address), &module) || !module) {
-                return {};
-            }
-            std::array<wchar_t, MAX_PATH> path{};
-            const DWORD length = GetModuleFileNameW(module, path.data(), static_cast<DWORD>(path.size()));
-            std::wstring name = length ? std::wstring(path.data(), length) : std::wstring(L"(unnamed module)");
-            if (const auto slash = name.find_last_of(L"\\/"); slash != std::wstring::npos) {
-                name.erase(0, slash + 1);
-            }
-            std::string utf8;
-            if (const int size = WideCharToMultiByte(CP_UTF8, 0, name.c_str(), static_cast<int>(name.size()), nullptr, 0,
-                    nullptr, nullptr); size > 0) {
-                utf8.resize(static_cast<std::size_t>(size));
-                (void)WideCharToMultiByte(CP_UTF8, 0, name.c_str(), static_cast<int>(name.size()), utf8.data(), size, nullptr,
-                    nullptr);
-            }
-            return std::format("{}+0x{:X}", utf8, a_address - reinterpret_cast<std::uintptr_t>(module));
-        }
-
-        // The destination of the jump at a_at (E9, EB, FF 25 [rip], mov rax/r11 imm64 + jmp, push + mov [rsp+4] + ret), or 0
-        std::uintptr_t JumpTarget(std::uintptr_t a_at)
-        {
-            constexpr std::size_t kWindow = 16;
-            if (!IsReadable(a_at, kWindow)) {
-                return 0;
-            }
-            std::array<std::uint8_t, kWindow> b{};
-            std::memcpy(b.data(), reinterpret_cast<const void*>(a_at), b.size());
-            std::int32_t rel = 0;
-            if (b[0] == 0xE9) {
-                std::memcpy(&rel, &b[1], sizeof(rel));
-                return a_at + 5 + rel;
-            }
-            if (b[0] == 0xEB) {
-                return a_at + 2 + static_cast<std::int8_t>(b[1]);
-            }
-            if (b[0] == 0xFF && b[1] == 0x25) {
-                std::memcpy(&rel, &b[2], sizeof(rel));
-                const std::uintptr_t slot = a_at + 6 + rel;
-                if (!IsReadable(slot, sizeof(std::uintptr_t))) {
-                    return 0;
-                }
-                std::uintptr_t to = 0;
-                std::memcpy(&to, reinterpret_cast<const void*>(slot), sizeof(to));
-                return to;
-            }
-            std::uintptr_t imm = 0;
-            if (b[0] == 0x48 && b[1] == 0xB8 && b[10] == 0xFF && b[11] == 0xE0) {  // mov rax, imm64; jmp rax
-                std::memcpy(&imm, &b[2], sizeof(imm));
-                return imm;
-            }
-            if (b[0] == 0x49 && b[1] == 0xBB && b[10] == 0x41 && b[11] == 0xFF && b[12] == 0xE3) {  // mov r11, imm64; jmp r11
-                std::memcpy(&imm, &b[2], sizeof(imm));
-                return imm;
-            }
-            if (b[0] == 0x68 && b[5] == 0xC7 && b[6] == 0x44 && b[7] == 0x24 && b[8] == 0x04 && b[13] == 0xC3) {
-                std::uint32_t lo = 0, hi = 0;  // push imm32; mov dword [rsp+4], imm32; ret
-                std::memcpy(&lo, &b[1], sizeof(lo));
-                std::memcpy(&hi, &b[9], sizeof(hi));
-                return (static_cast<std::uintptr_t>(hi) << 32) | lo;
-            }
-            return 0;
-        }
-
-        void ReportOne(const Watched& a_watched)
-        {
-            const auto base = REL::Module::get().base();
-            const auto entry = Patch::AddressOf(a_watched.id);
-            const auto rva = entry - base;
-            if (!IsReadable(entry, kReportBytes)) {
-                logger::warn("BlackFlame: hit path foreign hooks: {} {} at +0x{:X}: not readable memory", a_watched.id,
-                    a_watched.name, rva);
-                return;
-            }
-            std::array<std::uint8_t, kReportBytes> bytes{};
-            std::memcpy(bytes.data(), reinterpret_cast<const void*>(entry), bytes.size());
-            std::vector<std::uintptr_t> hops;
-            for (auto at = entry; static_cast<int>(hops.size()) < kMaxHops;) {
-                const auto to = JumpTarget(at);
-                if (to == 0 || std::ranges::find(hops, to) != hops.end() || to == entry) {
-                    break;
-                }
-                hops.push_back(to);
-                at = to;
-            }
-            if (hops.empty()) {
-                logger::info("BlackFlame: hit path foreign hooks: {} {} at SkyrimSE.exe+0x{:X}: {}: not hooked", a_watched.id,
-                    a_watched.name, rva, Hex(bytes.data(), bytes.size()));
-                return;
-            }
-            std::string chain;
-            for (const auto hop : hops) {
-                const auto where = ModuleOffset(hop);
-                chain += std::format(" -> {:X} ({})", hop, where.empty() ? "no module" : where);
-            }
-            const auto last = hops.back();
-            const auto owner = ModuleOffset(last);
-            HMODULE lastModule = nullptr;
-            (void)GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                reinterpret_cast<LPCWSTR>(last), &lastModule);
-            std::string verdict;
-            if (owner.empty()) {
-                verdict = std::format("jumps to {:X}, memory no module owns (a trampoline or allocated code)", last);
-            } else if (reinterpret_cast<std::uintptr_t>(lastModule) == base) {
-                verdict = std::format("jumps within SkyrimSE.exe to +0x{:X} (the engine's own thunk, or a hook's gateway placed "
-                                      "there)", last - base);
-            } else {
-                const auto plus = owner.rfind('+');
-                verdict = std::format("hooked by {} at {}", owner.substr(0, plus), owner);
-            }
-            logger::info("BlackFlame: hit path foreign hooks: {} {} at SkyrimSE.exe+0x{:X}: {}: {} (chain{})", a_watched.id,
-                a_watched.name, rva, Hex(bytes.data(), bytes.size()), verdict, chain);
-        }
-
         void ReportForeignHooks()
         {
             for (const auto& watched : kWatched) {
-                if (!GuardedKeep("hit path foreign hook report", [&]() { ReportOne(watched); })) {
+                if (!GuardedKeep("hit path foreign hook report", [&]() { Detail::ReportJumpChain(watched.id, watched.name); })) {
                     logger::warn("BlackFlame: hit path foreign hooks: {} {}: the read faulted - skipped", watched.id, watched.name);
                 }
             }
@@ -385,9 +235,9 @@ namespace BlackFlame::HitPath
                 return;
             }
             g_apply.owned.fetch_add(1, std::memory_order_relaxed);
-            const auto* shader = *reinterpret_cast<RE::TESEffectShader* const*>(address + kOwnedShader);
-            const auto targetHandle = *reinterpret_cast<const std::uint32_t*>(address + kOwnedTargetHandle);
-            const auto facingHandle = *reinterpret_cast<const std::uint32_t*>(address + kOwnedFacingHandle);
+            const auto* shader = *reinterpret_cast<RE::TESEffectShader* const*>(address + Detail::kOwnedShader);
+            const auto targetHandle = *reinterpret_cast<const std::uint32_t*>(address + Detail::kOwnedTargetHandle);
+            const auto facingHandle = *reinterpret_cast<const std::uint32_t*>(address + Detail::kOwnedFacingHandle);
             const bool fire = Detail::IsFireShader(shader);
             const auto playerHandle = PlayerHandle();
             const bool onPlayer = playerHandle != 0 && targetHandle == playerHandle;
@@ -447,37 +297,13 @@ namespace BlackFlame::HitPath
                 } catch (const std::exception&) {
                     ReportFailure();
                 }
+                // after the ctor (it zeroes +0x130) and before 34762 publishes the SRE; guarded on its own (CorpseMark.h)
+                Detail::MarkCorpseEffect(result, a_controller, g_ownedVtable);
                 return result;
             }
 
             static inline REL::Relocation<decltype(thunk)> func;
         };
-
-        // An E8 at a_site whose target is a_callee; else the reason (logged, recorded) and false
-        bool VerifySite(const char* a_name, std::uintptr_t a_site, std::uintptr_t a_callee)
-        {
-            const auto base = REL::Module::get().base();
-            std::string why;
-            if (!Patch::IsExecutable(a_site, Patch::kRel32Size)) {
-                why = "not readable executable memory";
-            } else if (*reinterpret_cast<const std::uint8_t*>(a_site) != Patch::kCallOpcode) {
-                why = "not an E8 call";
-            } else if (const auto target = Patch::Rel32Target(a_site); target != a_callee) {
-                const auto where = ModuleOffset(target);
-                why = std::format("an E8 to {:X} ({}), not to the expected callee at +0x{:X} (another plugin redirected it?)",
-                    target, where.empty() ? "no module" : where, a_callee - base);
-            }
-            const auto bytes = Patch::HexBytes(a_site, Patch::kRel32Size);
-            if (!why.empty()) {
-                logger::warn("BlackFlame: hit path observation: {} at SkyrimSE.exe+0x{:X}: {} (bytes {}) - skipped", a_name,
-                    a_site - base, why, bytes);
-                Patch::RecordHook(a_name, false, a_site, bytes, why);
-                return false;
-            }
-            logger::info("BlackFlame: hit path observation: {} at SkyrimSE.exe+0x{:X} verified (bytes {}, E8 to +0x{:X})", a_name,
-                a_site - base, bytes, a_callee - base);
-            return true;
-        }
 
         void HookSites()
         {
@@ -488,9 +314,9 @@ namespace BlackFlame::HitPath
             constexpr const char* kNameA = "hit path site A (34092 -> 34094)";
             constexpr const char* kNameB = "hit path site B (34092 -> 34094)";
             constexpr const char* kNameApply = "hit path ApplyEffectShader (19872 -> 34910)";
-            const bool okA = VerifySite(kNameA, update + kSiteAOffset, startVisuals);
-            const bool okB = VerifySite(kNameB, update + kSiteBOffset, startVisuals);
-            const bool okApply = VerifySite(kNameApply, apply + kApplySiteOffset, ctor);
+            const bool okA = Detail::VerifyCallSite(kNameA, update + kSiteAOffset, startVisuals);
+            const bool okB = Detail::VerifyCallSite(kNameB, update + kSiteBOffset, startVisuals);
+            const bool okApply = Detail::VerifyCallSite(kNameApply, apply + kApplySiteOffset, ctor);
             const std::size_t needed = kBytesPerCall * ((okA ? 1 : 0) + (okB ? 1 : 0) + (okApply ? 1 : 0));
             const auto freeBefore = SKSE::GetTrampoline().free_size();
             if (freeBefore < needed) {
@@ -539,7 +365,8 @@ namespace BlackFlame::HitPath
             return;
         }
         if (!Patch::HasIds({ 40508, kUpdateId, kStartVisualsId, 34761, kShaderEffectCtorId, kApplyShaderId, 34833, 34154,
-                               kOwnedVtableId, kCameraVtableId, 205809 },  // 205809: the controller vtable read below (review)
+                               kOwnedVtableId, kCameraVtableId, 205809,  // 205809: the controller vtable read below (review)
+                               34933, 34934, 17325, 206059, 105640, 34912, 34913, 34920, 34921 },  // CorpseGrey.h, SreProbe.h
                 "hit path observation")) {
             logger::warn("BlackFlame: hit path observation off (Address Library ids missing)");
             return;
@@ -550,6 +377,13 @@ namespace BlackFlame::HitPath
         Detail::BuildFireShaderSet();
         ReportForeignHooks();
         HookSites();
+        Detail::InstallCorpseGrey();   // hooks A and B (CorpseGrey.h): both sites checked, both hooked or neither
+        Detail::ArmSreProbes();        // H8 now, H6 and H8 again at the main menu (SreProbe.h)
+    }
+
+    bool CorpseMarkInstalled() noexcept
+    {
+        return g_applyHooked;
     }
 
     void ResetWindow(bool a_capsReset) noexcept
@@ -565,6 +399,7 @@ namespace BlackFlame::HitPath
             counter->store(0);
         }
         Detail::ResetIdleResolves();
+        Detail::ClearPostLoad();  // the attach probe's "after a load" ends with the first stoke window
         if (a_capsReset) {
             g_startLines.store(0);
             g_applyLines.store(0);
@@ -592,7 +427,8 @@ namespace BlackFlame::HitPath
                                                        g_apply.onPlayer.load(), g_apply.camera.load(), g_apply.other.load(),
                                                        g_apply.null.load()) + "; " + Detail::ActorPoolStats();
         logger::info("BlackFlame: hit path stats (stoke window {} {:.1f} s, {}): effect start site A {}; site B {}; "
-                     "ApplyEffectShader {}", a_when, a_seconds, a_reason, site(kSiteA), site(kSiteB), apply);
+                     "ApplyEffectShader {}; {}", a_when, a_seconds, a_reason, site(kSiteA), site(kSiteB), apply,
+            Detail::CorpseStats());
     }
 
 }

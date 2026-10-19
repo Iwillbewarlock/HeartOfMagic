@@ -1,8 +1,12 @@
 #include "HitPathAttribution.h"
 
 #include "FireSet.h"
+#include "BuffState.h"
+#include "GameClock.h"
+#include "HitEffectHook.h"
 #include "HitPathObserve.h"
 #include "LogLimit.h"
+#include "MagicApplySink.h"
 #include "SehGuard.h"
 #include "TrackedMutex.h"
 
@@ -22,7 +26,10 @@ namespace BlackFlame::HitPath
     namespace
     {
         constexpr std::size_t kMaxListedShaders = 64;  // the fire MGEF hit shader list line: the first ids, then "+N more"
-        constexpr std::size_t kFireHitSlots = 32;      // targets the player's fire hits are remembered for (FireHits)
+        constexpr std::size_t kFireHitSlots = 128;     // targets the last elemental hit is remembered for (FireHits; 32 before
+                                                       // NPC fire, frost and shock were recorded too, 2026-10-20; a linear scan
+                                                       // under the lock per hit - a map if fights ever need more)
+        constexpr int kMaxNpcCorpseLines = 20;         // "NPC fire on a corpse" lines a session
         constexpr int kMaxActorLines = 48;             // the actor pool's lines a session (ActorPoolOpen)
         constexpr int kMaxIdleResolves = 256;          // its idle resolves between resets (ActorPoolOpen)
         // used-up idle resolves come back this long after the last reset (steady clock ticks)
@@ -35,12 +42,20 @@ namespace BlackFlame::HitPath
         std::atomic<std::int64_t> g_idleResolvesResetAt{ 0 };  // steady clock ticks of the last reset (0: none yet)
         std::atomic<int> g_actorClosed{ 0 };         // calls skipped unresolved: the windowed pool full, the actor pool closed
         std::atomic<int> g_idleResets{ 0 };          // ActorPoolOpen's own 60 s resets
+        std::atomic<int> g_npcCorpseLines{ 0 };      // never reset
+        std::atomic<std::uint64_t> g_npcCorpseHits{ 0 };  // NPC fire effects asked for a dying or dead target's shader
+        // non-player fire effects not recorded (NoteFireEffect): no caster, the target itself, a caster that is not an Actor
+        std::atomic<std::uint64_t> g_noCaster{ 0 }, g_selfCaster{ 0 }, g_nonActorCaster{ 0 };
+        constexpr int kMaxKeptLines = 16;            // "kept stoked" lines a session
+        std::atomic<int> g_keptLines{ 0 };           // never reset
+        std::atomic<std::uint64_t> g_keptStoked{ 0 };  // player non-stoked fire on a down target that kept its stoked record
 
         // Written once at kDataLoaded before any write_call; read-only afterwards
         std::vector<RE::FormID> g_fireShaders;  // sorted: data.effectShader of every fire effect of a fire spell
         bool g_fireShadersBuilt = false;
 
-        // The last hit of the player's fire effects of fire spells per target (HitEffectHook's 0x0D thunk, any thread):
+        // The last elemental hit per target, any caster (HitEffectHook's 0x0D thunk through NoteFireEffect, and the magic
+        // effect apply sink, MagicApplySink.h; any thread):
         // kFireHitSlots targets, a target already held updated in place, else the slot with the oldest hit (an empty one
         // first) replaced; under the mutex for the copy only (never while logging)
         struct FireHits
@@ -63,21 +78,6 @@ namespace BlackFlame::HitPath
         double SecondsSince(std::int64_t a_ticks, std::int64_t a_now)
         {
             return std::chrono::duration<double>(std::chrono::steady_clock::duration(a_now - a_ticks)).count();
-        }
-
-        std::optional<Detail::FireHit> FindFireHit(RE::FormID a_target)
-        {
-            if (a_target == 0) {
-                return std::nullopt;
-            }
-            auto& hits = GetFireHits();
-            std::lock_guard lock(hits.mutex);
-            for (const auto& hit : hits.slots) {
-                if (hit.target == a_target) {
-                    return hit;
-                }
-            }
-            return std::nullopt;
         }
 
         std::string Rgb(const RE::Color& a_color)
@@ -110,6 +110,37 @@ namespace BlackFlame::HitPath
             default:
                 return "unknown";
             }
+        }
+
+        // One "NPC fire on a corpse" line (capped); a_caster as NoteFireEffect resolved it, a_notRecorded its reason or null
+        void LogNpcFireOnCorpse(RE::ActiveEffect* a_effect, const RE::EffectSetting* a_base, const RE::TESObjectREFR* a_target,
+            RE::Actor* a_actor, bool a_burnable, const RE::TESObjectREFR* a_caster, const char* a_notRecorded)
+        {
+            const auto* state = a_actor->AsActorState();
+            const auto life = state ? state->GetLifeState() : RE::ACTOR_LIFE_STATE::kAlive;
+            if (life != RE::ACTOR_LIFE_STATE::kDying && life != RE::ACTOR_LIFE_STATE::kDead) {
+                return;
+            }
+            g_npcCorpseHits.fetch_add(1, std::memory_order_relaxed);
+            if (g_npcCorpseLines.load(std::memory_order_relaxed) >= kMaxNpcCorpseLines) {
+                return;
+            }
+            const int line = g_npcCorpseLines.fetch_add(1) + 1;
+            if (line > kMaxNpcCorpseLines) {
+                return;
+            }
+            const auto killer = a_actor->GetActorRuntimeData().myKiller.native_handle();
+            const auto playerHandle = PlayerHandleNative();
+            const auto* spell = a_effect->spell;
+            logger::info("BlackFlame: hit path NPC fire on a corpse [{}]: MGEF {:08X} '{}' (fire effect of a fire spell {}), spell "
+                         "{:08X}, caster {:08X} ({}), target {:08X} life state {} ({}), killer handle 0x{:X} ({}), effect flags "
+                         "0x{:08X}, effectShader {:08X}, game {:.1f} s, thread {}",
+                line, a_base->GetFormID(), Detail::EditorIdOf(a_base), a_burnable ? "yes" : "no", spell ? spell->GetFormID() : 0,
+                a_caster ? a_caster->GetFormID() : 0, a_notRecorded ? a_notRecorded : "recorded as an NPC's hit",
+                a_target->GetFormID(), static_cast<std::uint32_t>(life), LifeStateName(life),
+                killer, killer != 0 && killer == playerHandle ? "the player" : "not the player", a_effect->flags.underlying(),
+                a_base->data.effectShader ? a_base->data.effectShader->GetFormID() : 0, GameClock::Seconds(),
+                REX::W32::GetCurrentThreadId());
         }
 
         // " (in the kDataLoaded fire-shader set: yes)": whether the hit path's fire test would count this shader now
@@ -256,11 +287,12 @@ namespace BlackFlame::HitPath
             std::string hit = std::format("none remembered (the last {} targets are kept)", kFireHitSlots);
             if (const auto& found = a_facts.hit) {
                 const auto now = SteadyNow();
-                hit = std::format("{:.1f} s ago (stoked {}), last stoked one {}", SecondsSince(found->lastAt, now),
-                    found->lastStoked ? "yes" : "no",
+                hit = std::format("{:.1f} s ago, {:.1f} game s ago ({} {}), last player-stoked one {}",
+                    SecondsSince(found->lastAt, now), GameClock::Seconds() - found->lastGameAt, FireSourceName(found->source),
+                    ElementName(found->element),
                     found->lastStokedAt ? std::format("{:.1f} s ago", SecondsSince(found->lastStokedAt, now)) : std::string("none"));
             }
-            return std::format(", life state {} ({}), killer handle 0x{:X} ({}), last player fire hit on it: {}",
+            return std::format(", life state {} ({}), killer handle 0x{:X} ({}), last elemental hit on it: {}",
                 static_cast<std::uint32_t>(a_facts.life), LifeStateName(a_facts.life), killer, killerText, hit);
         }
 
@@ -313,6 +345,117 @@ namespace BlackFlame::HitPath
                 g_idleResets.load(), g_actorClosed.load());
         }
 
+        // FEC may apply an effect to the corpse itself, which must not turn that corpse's last hit into "NPC" (run 8 probe
+        // report)
+        const char* WhyNotRecorded(const RE::TESObjectREFR* a_caster, const RE::TESObjectREFR* a_target)
+        {
+            if (!a_caster) {
+                g_noCaster.fetch_add(1, std::memory_order_relaxed);
+                return "not recorded: no caster";
+            }
+            if (a_caster == a_target) {
+                g_selfCaster.fetch_add(1, std::memory_order_relaxed);
+                return "not recorded: the caster is the target itself";
+            }
+            if (!a_caster->IsActor()) {
+                g_nonActorCaster.fetch_add(1, std::memory_order_relaxed);
+                return "not recorded: the caster is not an Actor";
+            }
+            return nullptr;
+        }
+
+        bool IsDown(const RE::Actor* a_actor) noexcept
+        {
+            const auto* state = a_actor ? a_actor->AsActorState() : nullptr;
+            const auto life = state ? state->GetLifeState() : RE::ACTOR_LIFE_STATE::kAlive;
+            return life == RE::ACTOR_LIFE_STATE::kDying || life == RE::ACTOR_LIFE_STATE::kDead;
+        }
+
+        bool RecordElementalHit(RE::FormID a_target, Element a_element, FireSource a_source, bool a_targetDown, HitOrigin a_origin,
+            RE::FormID a_mgef)
+        {
+            if (a_target == 0 || a_element == Element::kNone) {
+                return true;
+            }
+            const ElementalHit hit{ a_target, a_element, a_source, a_targetDown, a_origin, a_mgef };
+            const auto now = SteadyNow();
+            const auto game = GameClock::Seconds();
+            double stokedAge = 0.0;
+            {
+                auto& hits = GetFireHits();
+                std::lock_guard lock(hits.mutex);
+                auto it = std::ranges::find(hits.slots, a_target, &FireHit::target);
+                const bool found = it != hits.slots.end();
+                const auto decision = DecideRecord(found ? &*it : nullptr, hit);  // ElementalHitRules.h: keep, re-judge, proxy
+                if (decision.action == RecordAction::kIgnore) {
+                    return true;  // not reached: the test above
+                }
+                if (decision.action == RecordAction::kWrite) {
+                    if (!found) {
+                        it = std::ranges::min_element(hits.slots, {}, &FireHit::lastAt);  // an empty slot has lastAt 0
+                        *it = FireHit{ a_target };
+                    }
+                    ApplyRecord(*it, hit, decision, now, game);
+                    return true;
+                }
+                stokedAge = game - it->lastGameAt;
+            }
+            g_keptStoked.fetch_add(1, std::memory_order_relaxed);  // logged outside the lock
+            int line = 0;
+            if (g_keptLines.load(std::memory_order_relaxed) < kMaxKeptLines && (line = g_keptLines.fetch_add(1) + 1) <= kMaxKeptLines) {
+                logger::info("BlackFlame: kept stoked [{}]: target {:08X} (dying or dead), its last hit the player's stoked fire "
+                             "{:.1f} game s ago; the player's fire, not stoked (MGEF {:08X}, by the {}), does not replace it, game "
+                             "{:.1f} s, thread {}", line, a_target, stokedAge, a_mgef,
+                    a_origin == HitOrigin::kApplyEvent ? "apply event" : "effect start", game, REX::W32::GetCurrentThreadId());
+            }
+            return false;
+        }
+
+        std::optional<FireHit> FindFireHit(RE::FormID a_target)
+        {
+            if (a_target == 0) {
+                return std::nullopt;
+            }
+            auto& hits = GetFireHits();
+            std::lock_guard lock(hits.mutex);
+            for (const auto& hit : hits.slots) {
+                if (hit.target == a_target) {
+                    return hit;
+                }
+            }
+            return std::nullopt;
+        }
+
+        void ExtendCorpseWindow(RE::FormID a_target, double a_untilGame)
+        {
+            if (a_target == 0) {
+                return;
+            }
+            auto& hits = GetFireHits();
+            std::lock_guard lock(hits.mutex);
+            if (const auto it = std::ranges::find(hits.slots, a_target, &FireHit::target); it != hits.slots.end()) {
+                ExtendWindow(*it, a_untilGame);
+            }
+        }
+
+        bool AnyFireHitOpen(double a_now, double a_window)
+        {
+            auto& hits = GetFireHits();
+            std::lock_guard lock(hits.mutex);
+            return std::ranges::any_of(hits.slots, [&](const FireHit& a_hit) {
+                return a_hit.lastAt != 0 && WindowOpen(a_hit, a_now, a_window);
+            });
+        }
+
+        std::string FireHitStats()
+        {
+            return std::format("{} non-player fire hits on dying or dead actors ({} of {} lines); non-player elemental hits not "
+                               "recorded: no caster {}, the target itself {}, not an Actor {}; stoked records kept {} ({} of {} "
+                               "lines)", g_npcCorpseHits.load(), std::min(g_npcCorpseLines.load(), kMaxNpcCorpseLines),
+                kMaxNpcCorpseLines, g_noCaster.load(), g_selfCaster.load(), g_nonActorCaster.load(), g_keptStoked.load(),
+                std::min(g_keptLines.load(), kMaxKeptLines), kMaxKeptLines);
+        }
+
         void ResetIdleResolves() noexcept
         {
             g_idleResolvesResetAt.store(SteadyNow());
@@ -320,23 +463,47 @@ namespace BlackFlame::HitPath
         }
     }
 
-    void NoteFireHit(RE::FormID a_target, bool a_stoked)
+    void NoteFireEffect(RE::ActiveEffect* a_effect)
     {
-        if (a_target == 0) {
+        if (!a_effect) {
             return;
         }
-        const auto now = SteadyNow();
-        auto& hits = GetFireHits();
-        std::lock_guard lock(hits.mutex);
-        auto it = std::ranges::find(hits.slots, a_target, &Detail::FireHit::target);
-        if (it == hits.slots.end()) {
-            it = std::ranges::min_element(hits.slots, {}, &Detail::FireHit::lastAt);  // an empty slot has lastAt 0
-            *it = Detail::FireHit{ a_target };
+        const auto* base = a_effect->GetBaseObject();
+        const bool burnable = IsBurnable(base, a_effect->spell);
+        using Detail::Element;
+        const auto element = burnable ? Element::kFire : ElementOf(base);  // fire, frost or shock (MagicApplySink.h)
+        if (!base || element == Element::kNone) {
+            return;
         }
-        it->lastAt = now;
-        it->lastStoked = a_stoked;
-        if (a_stoked) {
-            it->lastStokedAt = now;
+        auto* ref = a_effect->target ? a_effect->target->GetTargetStatsObject() : nullptr;
+        const auto target = ref ? ref->GetFormID() : 0;
+        if (target == 0) {
+            return;
+        }
+        const auto playerHandle = PlayerHandleNative();
+        const auto casterHandle = a_effect->caster.native_handle();
+        bool byPlayer = playerHandle != 0 && casterHandle == playerHandle;
+        // a non-player caster only (the player's path stays a value compare): resolved and held while it is compared
+        RE::NiPointer<RE::TESObjectREFR> caster;
+        const char* notRecorded = nullptr;
+        if (!byPlayer) {
+            caster = casterHandle != 0 ? RE::TESObjectREFR::LookupByHandle(casterHandle) : RE::NiPointer<RE::TESObjectREFR>{};
+            byPlayer = caster && caster.get() == RE::PlayerCharacter::GetSingleton();  // the player's handle not cached yet
+            notRecorded = byPlayer ? nullptr : Detail::WhyNotRecorded(caster.get(), ref);
+        }
+        using Detail::FireSource;
+        const auto source = !byPlayer                ? FireSource::kNpc :
+                            burnable && IsStoked()   ? FireSource::kPlayerStoked :
+                                                       FireSource::kPlayerPlain;
+        auto* actor = ref->As<RE::Actor>();
+        if (!notRecorded) {
+            (void)Detail::RecordElementalHit(target, element, source, Detail::IsDown(actor), Detail::HitOrigin::kEffectStart,
+                base->GetFormID());
+        }
+        if (!byPlayer && element == Element::kFire) {
+            if (actor) {
+                LogNpcFireOnCorpse(a_effect, base, ref, actor, burnable, caster.get(), notRecorded);
+            }
         }
     }
 

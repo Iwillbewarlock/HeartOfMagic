@@ -36,6 +36,9 @@
 #include "HitEffectHook.h"
 #include "HitPathAttribution.h"
 #include "HitPathObserve.h"
+#include "CorpseMark.h"
+#include "MagicApplySink.h"
+#include "SreProbe.h"
 #include "ImpactSwap.h"
 #include "Palette.h"
 #include "ProjectileHook.h"
@@ -123,6 +126,9 @@ namespace
         guarded("InstallHazardHook", [] { BlackFlame::InstallHazardHook(); });
         guarded("InstallHitEffectHooks", [] { BlackFlame::InstallHitEffectHooks(); });
         guarded("HitPath::Install", [] { BlackFlame::HitPath::Install(); });  // log only, 1.6.1170 only (HitPathObserve.h)
+        // corpse mark only: the elemental hits before FEC's Papyrus handlers run (MagicApplySink.h); after BuildFireSets (it
+        // reads the fire sets) and HitPath::Install (added only when the corpse mark's hook was written)
+        guarded("RegisterMagicApplySink", [] { BlackFlame::HitPath::RegisterMagicApplySink(); });
         // log only, any runtime: the fire MGEFs' shader fields now, and again when the main menu first opens (MenuWatch's
         // listener, on the menu event's thread), at each kPostLoadGame and the first stoke window (HitEffectHook)
         guarded("hit shader probe", [] {
@@ -130,6 +136,8 @@ namespace
             BlackFlame::HitPath::LogHitShaderProbe("kDataLoaded, inside BlackFlame's handler");
             BlackFlame::MenuWatch::OnMainMenuOpen([] { BlackFlame::HitPath::LogHitShaderProbe("main menu"); });
         });
+        // log only, 1.6.1170 (armed by HitPath::Install): the SRE vtable again and the GetTexture probe (SreProbe.h)
+        guarded("SRE probes", [] { BlackFlame::MenuWatch::OnMainMenuOpen([] { BlackFlame::HitPath::RunMainMenuProbes(); }); });
         guarded("InstallImpactSwap", [] { BlackFlame::InstallImpactSwap(); });
         guarded("InstallCopySwaps", [] { BlackFlame::InstallCopySwaps(); });  // v2: after the copies are filled (CopySwap.h)
         guarded("InstallHazardSwap", [] { BlackFlame::InstallHazardSwap(); });
@@ -200,6 +208,7 @@ namespace
             (void)BlackFlame::PlayerHandleNative();  // log only: the corpse lines' killer test reads it, cached here on this thread
             BlackFlame::HitPath::LogHitShaderProbe("kPostLoadGame");
             BlackFlame::HitPath::Detail::ResetIdleResolves();  // log only: resolves spent while the save was read come back
+            BlackFlame::HitPath::Detail::NotePostLoad();       // log only: the corpse attach lines say "after a load" (CorpseMark.h)
             // SKSE passes the load's success flag as the data pointer's value, dataLen 1 (SKSE PluginAPI.h:
             // "data contains a bool"); anything else is read as success
             BlackFlame::SelfTest::OnGameLoaded(a_msg.dataLen != 1 || reinterpret_cast<std::uintptr_t>(a_msg.data) != 0);
@@ -279,8 +288,9 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
     // The trampoline holds the impact swap's three call redirects (ImpactSwap.cpp, 14 bytes each), the two v2
     // GetImpactData redirects (14 each), the SetCastingArt redirect (14), the four v2 prologue detours (Launch, explosion
     // creation, hazard creation, the spawn-hazard window: a 14-byte jump plus a gateway of up to 16 + 14 bytes each,
-    // CopySwap.h), the main-thread queue's call (14, MainThreadQueue.h) and the hit path observation's three call
-    // redirects (1.6.1170 only, 14 each, HitPathObserve.h): 316 bytes at most; the rest is headroom
+    // CopySwap.h), the main-thread queue's call (14, MainThreadQueue.h), the hit path observation's three call
+    // redirects and the corpse grey hooks A and B (1.6.1170 only, 14 each, HitPathObserve.h, CorpseGrey.h): 344 bytes at
+    // most; the rest is headroom
     constexpr std::size_t kTrampolineSize = 512;
     SKSE::Init(a_skse, { .log = false, .trampoline = true, .trampolineSize = kTrampolineSize });
     // Info lines are buffered (plugins/Common.h): warnings and errors, game load, save, new game

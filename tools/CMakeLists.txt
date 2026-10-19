@@ -209,10 +209,14 @@ add_executable(blackflame-greybuild
     blackflame-greybuild/GreyBudget.cpp
     blackflame-greybuild/GreyKeyedRequest.cpp
     blackflame-greybuild/GreyKeyedTextures.cpp
+    blackflame-greybuild/GreyKeyedEfsh.cpp
+    blackflame-greybuild/GreySelfTestEfsh.cpp
     blackflame-greybuild/GreySelfTestSlots.cpp
     blackflame-greybuild/GreySelfTestKeyed.cpp
+    blackflame-greybuild/GreySelfTestKeyedRuns.cpp
     # Output identity (CopyContractKeys.h kBuilderOutputVersion) and its golden-output test
     blackflame-greybuild/GreySelfTestGolden.cpp
+    blackflame-greybuild/GreySelfTestGoldenConstants.cpp
     blackflame-greybuild/GreyGoldenFixtures.cpp
     # BC7 on the GPU (DirectXTex's dx11 feature) with its guards, and their self-test
     blackflame-greybuild/GreyGpuEncoder.cpp

@@ -4,6 +4,8 @@
 
 #include "CopyRequestV5.h"
 
+#include "CopyContractEfsh.h"
+
 #include "Config.h"
 #include "CopyRequest.h"
 #include "CopyRequestData.h"
@@ -69,18 +71,6 @@ namespace BlackFlame::CopyRequestV5
                                      Dump(a_folder, a_inputs.nifs, a_inputs.textures, a_fingerprint, textureFingerprint, failures);
             a_complete = failures == 0;
             return state;
-        }
-
-        // ok: in the dump and hashed; unread: planned but its read failed; notdumped: opened, over a cap; missing: no file
-        CC::Request::TextureState TextureStateOf(const SlotKeys::Inputs& a_inputs, const CopyRequestData::Texture& a_texture)
-        {
-            using State = CC::Request::TextureState;
-            if (a_texture.planned) {
-                const auto it = a_inputs.textureHash.find(a_texture.path);
-                const bool hashed = it != a_inputs.textureHash.end() && it->second.state == CC::FileState::kHashed;
-                return hashed && !a_texture.readFailed ? State::kOk : State::kUnread;
-            }
-            return a_texture.probe.opened ? State::kNotDumped : State::kMissing;
         }
 
         Json Options(const SlotKeys::Inputs& a_inputs)
@@ -169,6 +159,10 @@ namespace BlackFlame::CopyRequestV5
             root[CC::Request::kOptions] = Options(a_inputs);
             root["forms"] = Forms(a_closure, a_out);
             SlotObjects(root, a_out);
+            const auto& palettes = a_inputs.efsh.palettes;  // Write demoted any entry the writer would refuse
+            root[CC::Request::kEfshPalettes] = CC::EfshPalettesJson<Json>(palettes);  // the builder's self-test writes with it too
+            a_out.efshPalettes = palettes.size();
+            a_out.efshKeyed = static_cast<std::size_t>(std::ranges::count_if(palettes, [](const auto& a_p) { return a_p.key.has_value(); }));
             root["excluded"] = Json::array();
             for (const auto& excluded : a_closure.excluded) {
                 root["excluded"].push_back({ { "source", SourceText(excluded.form) },
@@ -187,9 +181,17 @@ namespace BlackFlame::CopyRequestV5
             if (root["textures"].size() != a_inputs.textures.size()) {  // review agy 5 #3: one entry a texture, in its order
                 throw std::runtime_error("the texture list and its JSON differ in length");
             }
+            std::set<std::string> unread;
             for (std::size_t i = 0; i < a_inputs.textures.size(); ++i) {  // contract v4: each one's state
-                root["textures"][i][CC::Request::kTextureState] = std::string(CC::Request::TextureStateText(TextureStateOf(a_inputs, a_inputs.textures[i])));
+                const auto state = SlotKeys::TextureStateOf(a_inputs, a_inputs.textures[i]);
+                root["textures"][i][CC::Request::kTextureState] = std::string(CC::Request::TextureStateText(state));
+                if (state == CC::Request::TextureState::kUnread) {
+                    unread.insert(a_inputs.textures[i].path);
+                }
             }
+            // review round 1: a palette the game could not read is unread in textures[] (missing in efshPalettes when its
+            // hash failed, ok when only the dump's read did): the log names how many, as the builder counts them
+            a_out.efshUnread = static_cast<std::size_t>(std::ranges::count_if(palettes, [&](const auto& a_p) { return unread.contains(a_p.path); }));
             root["textureCaps"] = { { "perTexture", CopyRequestData::kMaxTextureBytes }, { "total", CopyRequestData::kMaxTextureDumpBytes } };
             return root;
         }
@@ -204,6 +206,11 @@ namespace BlackFlame::CopyRequestV5
             logger::warn("BlackFlame: slots: request v5 not written: {}", !folder ? "no SKSE log folder" : a_inputs.prefixWhy);
             return out;
         }
+        // review round 1: an entry the writer would refuse is written as missing (logged), never the whole request lost; in
+        // the inputs themselves, so nothing after the request still holds a key the request does not carry
+        for (const auto& note : CC::DemoteUnwritableEfsh(a_inputs.efsh.palettes)) {
+            logger::warn("BlackFlame: slots: effect shader palette {}", Utf8(note));
+        }
         try {
             std::filesystem::create_directories(*folder);
             const auto fingerprint = DumpFingerprint(a_inputs);
@@ -217,9 +224,9 @@ namespace BlackFlame::CopyRequestV5
             logger::error("BlackFlame: slots: request v5 or its dump failed: {}", e.what());
         }
         out.ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
-        logger::info("BlackFlame: slots: request v5 {}: {} form keys, {} muzzles, {} ADDN MPS, {} TXST; dump {}{}; {} ms",
-            out.written ? "written" : "NOT written", out.forms, out.muzzles, out.addnMps, out.txst, out.dumpState,
-            out.dumpComplete ? "" : " (incomplete)", out.ms);
+        logger::info("BlackFlame: slots: request v5 {}: {} form keys, {} muzzles, {} ADDN MPS, {} TXST, {} effect shader palettes "
+                     "({} keyed, {} unread this start as textures[] says); dump {}{}; {} ms", out.written ? "written" : "NOT written",
+            out.forms, out.muzzles, out.addnMps, out.txst, out.efshPalettes, out.efshKeyed, out.efshUnread, out.dumpState, out.dumpComplete ? "" : " (incomplete)", out.ms);
         return out;
     }
 }
