@@ -259,8 +259,10 @@ namespace GreyBuild::Golden
     // table cannot overwrite one) and never removed. A version with no row here builds as <n>+dev (GreyIdentity.cmake reads
     // this block), so a forgotten bump never ships as a released number; Make-TesterPackage.ps1 refuses it too. Procedure:
     // run --self-test, add the row its "NOTE golden table v<n> fnv64 <hex>" line gives ({ <n>, "<hex>" },), commit, build
-    // Release again, package. Version 1 pinned 2026-10-19 (review round 1), before any copy was keyed out=1 in game
+    // Release again, package. Version 1 pinned 2026-10-19 (review round 1), before any copy was keyed out=1 in game;
+    // version 2 (effect shader palettes, contract v6) pinned 2026-10-20 after review round 2, before its first game run
     inline constexpr std::initializer_list<ReleasedPin> kReleasedPins = {
         { 1, "98c3bb9ade3ef20a" },
+        { 2, "f577894687626d1b" },
     };
 }
