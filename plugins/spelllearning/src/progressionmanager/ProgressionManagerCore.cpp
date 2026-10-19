@@ -17,21 +17,6 @@ ProgressionManager* ProgressionManager::GetSingleton()
     return &singleton;
 }
 
-std::filesystem::path ProgressionManager::GetProgressFilePath() const
-{
-    if (m_currentSaveName.empty()) {
-        logger::warn("ProgressionManager: Save name is empty, using fallback filename");
-    }
-    std::string safeName = EncodingUtils::SanitizeFilename(m_currentSaveName);
-    // Defense-in-depth: reject if sanitized name still contains ".."
-    if (safeName.find("..") != std::string::npos) {
-        logger::error("ProgressionManager: Rejected suspicious save name: {}", m_currentSaveName);
-        safeName = "_unnamed";
-    }
-    std::string filename = "progress_" + safeName + ".json";
-    return std::filesystem::path("Data/SKSE/Plugins/SpellLearning") / filename;
-}
-
 // =============================================================================
 // MOD EVENT HELPER
 // =============================================================================

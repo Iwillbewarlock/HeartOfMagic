@@ -523,8 +523,9 @@ config.json by a development build is read by nothing and does no harm.
 
 The public API (`SpellLearningAPIImpl` in Main.cpp) runs each call that changes state through `GuardApiCall`:
 an exception is logged and the caller gets `0`/`false`, it never crosses into the other plugin's DLL. The
-calls in `OnExternalPluginMessage` (the AddXP and RegisterSource messages) are guarded the same way; that
-handler is not registered as a listener at present.
+API is handed out only by the `kMessageType_APIReady` broadcast at kPostPostLoad; the AddXP and RegisterSource
+message types in `SpellLearningAPI.h` stay reserved, and nothing receives them (the never-registered
+`OnExternalPluginMessage` handler was removed in 1.6).
 
 `SetupLog` (`plugins/Common.h`, all three DLLs) never throws. CommonLib's `logger::init()` builds its file sink
 from `path->string()`, which throws for a Documents path the ANSI code page cannot hold; the plugin then did
@@ -920,7 +921,6 @@ Split across: SpellEffectivenessHookCore.cpp, SpellEffectivenessHookDisplay.cpp,
 - `SyncProgress(formId, progress)` - ProgressionManager's new progress for an early-learned spell
   (`AddXP`, `AddXPNoGrant`, `SetSpellXP`); see the effect hook's progress mirror under Threading Model
 - `ApplyEffectivenessScaling(effect)` - Scale magnitude on ActiveEffect
-- `GetModifiedSpellName(spell)` - Return "(Learning - X%)" name
 - `UpdateSpellDisplayCache(formId, spell)` - Update cached display data
 - `OnGameSaved/OnGameLoaded/OnRevert` - Serialization
 
@@ -1123,7 +1123,6 @@ the mod - always available. SpellTomeHook handles the core tome interception in 
 **Key Functions:**
 - `Initialize()` - Detect DEST/ISL plugins in the load order
 - `IsDESTInstalled()` / `IsISLInstalled()` / `IsActive()` - Status checks
-- `GetDESTPluginName()` - Return detected plugin name
 - `OnSpellTomeRead(book, spell, container)` - Legacy handler (non-ISL DEST setups)
 - `RegisterDESTAliasExtFunctions(vm)` / `RegisterPapyrusFunctions(vm)` - Papyrus native bindings
   (`SpellLearning_ISL.OnStudyProgress` / `OnStudyComplete` compute and apply the study XP)
@@ -1147,9 +1146,7 @@ panel. `openrouter_config.json` is no longer read or written.
 - Core NLP algorithms for spell tree generation and PRM scoring
 - TF-IDF vectorization with smoothed IDF and pre-computed L2 norms
 - Cosine similarity between sparse TF-IDF vectors
-- Character n-gram Jaccard similarity (morphological family detection)
-- Fuzzy string matching (Levenshtein distance, partial ratio, token set ratio)
-- Theme scoring for spell-to-theme assignment
+- Theme scoring for spell-to-theme assignment (rapidfuzz partial ratio and token set ratio)
 - PRM candidate scoring with proximity blending
 
 **Key Functions:**
@@ -1157,8 +1154,6 @@ panel. `openrouter_config.json` is no longer read or written.
 - `BuildSpellText(spell)` / `BuildThemeText(spell)` - Extract weighted text from spell JSON
 - `ComputeTfIdf(documents)` - TF-IDF vectorization with L2 norms
 - `CosineSimilarity(a, b)` - Dot product of sparse vectors
-- `CharNgramSimilarity(a, b)` - 3-char sliding window Jaccard
-- `LevenshteinDistance(a, b)` / `FuzzyRatio()` / `FuzzyPartialRatio()` / `FuzzyTokenSetRatio()` - Fuzzy matching
 - `CalculateThemeScore(spell, theme)` - Multi-strategy theme scoring (0-100)
 - `ScorePRMCandidates(spell, candidates, settings)` - PRM lock candidate scoring
 - `ProcessPRMRequest(request)` - Full PRM scoring request handler
@@ -1548,10 +1543,7 @@ A request without a command builds Classic; any other command (`build_tree`, `bu
 | Tokenization | `Tokenize()` | Lowercase, strip punctuation, filter words ≤ 2 chars |
 | TF-IDF vectorization | `ComputeTfIdf()` | Sparse dict vectors, smoothed IDF, L2 norms |
 | Cosine similarity | `CosineSimilarity()` | Dot product of sparse vectors / pre-computed norms |
-| Char n-gram similarity | `CharNgramSimilarity()` | 3-char sliding window Jaccard (e.g. "Firebolt"/"Fireball" ≈ 0.45) |
-| Levenshtein distance | `LevenshteinDistance()` | Single-row DP edit distance |
-| Fuzzy matching | `FuzzyRatio()`, `FuzzyPartialRatio()`, `FuzzyTokenSetRatio()` | Replaces Python `thefuzz` library |
-| Theme scoring | `CalculateThemeScore()` | Multi-strategy fuzzy scoring (0-100) |
+| Theme scoring | `CalculateThemeScore()` | Multi-strategy fuzzy scoring (0-100): rapidfuzz partial ratio and token set ratio, in place of Python's `thefuzz` |
 | PRM scoring | `ScorePRMCandidates()`, `ProcessPRMRequest()` | TF-IDF + proximity blending for lock candidates |
 
 ### Theme Discovery
@@ -2202,7 +2194,7 @@ patch").
 ### ✅ Recently Completed (Feb 14, 2026)
 
 #### Native C++ Tree Builders (Python Eliminated)
-- **`TreeNLP`** (`src/treebuilder/TreeNLP.cpp`, `include/treebuilder/TreeNLP.h`) — Core NLP engine: TF-IDF vectorization, cosine similarity, char n-gram similarity, Levenshtein distance, fuzzy matching (ratio, partial ratio, token set ratio), theme scoring, PRM candidate scoring
+- **`TreeNLP`** (`src/treebuilder/TreeNLP.cpp`, `include/treebuilder/TreeNLP.h`) — Core NLP engine: TF-IDF vectorization, cosine similarity, theme scoring (rapidfuzz partial ratio and token set ratio), PRM candidate scoring
 - **`TreeBuilder`** (`src/treebuilder/TreeBuilder*.cpp`, `include/treebuilder/TreeBuilder.h`) — Tree construction engine with 5 builder modes (Classic, Tree, Graph, Thematic, Oracle; all but Classic removed 2026-09-27), theme discovery, tree validation, unreachable node repair
 - **Python completely eliminated** — No PythonBridge, no PythonInstaller, no embedded Python, no server.py, no subprocess IPC
 - **All builder modes native** — TF-IDF, fuzzy matching, arborescence, LLM integration all in C++ (only Classic remains since 2026-09-27)

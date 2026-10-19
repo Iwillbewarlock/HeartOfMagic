@@ -49,11 +49,6 @@ namespace DESTIntegration {
 
     bool IsISLInstalled() { return g_islInstalled; }
 
-    const char* GetDESTPluginName()
-    {
-        return g_detectedPluginName ? g_detectedPluginName : "DEST_ISL.esp";
-    }
-
     bool IsActive()
     {
         return g_active && g_destInstalled && g_config.enabled;

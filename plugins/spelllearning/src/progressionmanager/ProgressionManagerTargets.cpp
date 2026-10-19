@@ -234,16 +234,6 @@ ProgressionManager::PrereqRequirements ProgressionManager::GetPrereqRequirements
     return PrereqRequirements{};
 }
 
-// Legacy compatibility
-std::vector<RE::FormID> ProgressionManager::GetTreePrerequisites(RE::FormID spellId) const
-{
-    auto reqs = GetPrereqRequirements(spellId);
-    // Return all prereqs combined for legacy code
-    std::vector<RE::FormID> all = reqs.hardPrereqs;
-    all.insert(all.end(), reqs.softPrereqs.begin(), reqs.softPrereqs.end());
-    return all;
-}
-
 bool ProgressionManager::IsOwnSpellMastered(RE::FormID spellId) const
 {
     // Check our progress tracking
@@ -355,34 +345,6 @@ bool ProgressionManager::AreTreePrerequisitesMet(RE::FormID spellId) const
     // its own prerequisites (a higher spell from a tome or a vendor opens the
     // step below it)
     return ownMet || IsUnlockedByKnownChild(spellId);
-}
-
-std::vector<RE::FormID> ProgressionManager::GetUnmetHardPrerequisites(RE::FormID spellId) const
-{
-    std::vector<RE::FormID> unmet;
-    auto reqs = GetPrereqRequirements(spellId);
-
-    for (RE::FormID prereqId : reqs.hardPrereqs) {
-        if (!IsSpellMastered(prereqId)) {
-            unmet.push_back(prereqId);
-        }
-    }
-
-    return unmet;
-}
-
-std::pair<int, int> ProgressionManager::GetSoftPrerequisiteStatus(RE::FormID spellId) const
-{
-    auto reqs = GetPrereqRequirements(spellId);
-
-    int masteredCount = 0;
-    for (RE::FormID prereqId : reqs.softPrereqs) {
-        if (IsSpellMastered(prereqId)) {
-            masteredCount++;
-        }
-    }
-
-    return { masteredCount, reqs.softNeeded };
 }
 
 // =============================================================================

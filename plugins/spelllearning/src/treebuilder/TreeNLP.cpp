@@ -1,7 +1,6 @@
 #include "treebuilder/TreeNLP.h"
 #include "AsciiText.h"
 
-#include <rapidfuzz/distance/Levenshtein.hpp>
 #include <rapidfuzz/fuzz.hpp>
 
 #include <algorithm>
@@ -345,82 +344,6 @@ float TreeNLP::CosineSimilarity(const SparseVector& a, const SparseVector& b)
     }
 
     return dot / (a.norm * b.norm);
-}
-
-float TreeNLP::CharNgramSimilarity(const std::string& a, const std::string& b, int n)
-{
-    auto la = AsciiText::ToLower(a);
-    auto lb = AsciiText::ToLower(b);
-
-    // Strip whitespace
-    auto isSpace = [](unsigned char c) { return std::isspace(c) != 0; };
-    la.erase(std::remove_if(la.begin(), la.end(), isSpace), la.end());
-    lb.erase(std::remove_if(lb.begin(), lb.end(), isSpace), lb.end());
-
-    if (static_cast<int>(la.size()) < n || static_cast<int>(lb.size()) < n) {
-        return 0.0f;
-    }
-
-    // Pack n-gram bytes into uint32_t to avoid string heap allocations
-    auto packNgram = [](const char* s, int len) -> uint32_t {
-        uint32_t h = 0;
-        for (int i = 0; i < len; ++i)
-            h = (h << 8) | static_cast<uint8_t>(s[i]);
-        return h;
-    };
-
-    // Generate n-gram sets using packed integers
-    std::unordered_set<uint32_t> gramsA, gramsB;
-    for (int i = 0; i <= static_cast<int>(la.size()) - n; ++i)
-        gramsA.insert(packNgram(la.data() + i, n));
-    for (int i = 0; i <= static_cast<int>(lb.size()) - n; ++i)
-        gramsB.insert(packNgram(lb.data() + i, n));
-
-    // Jaccard similarity: |intersection| / |union|
-    int intersection = 0;
-    for (auto g : gramsA) {
-        if (gramsB.contains(g))
-            ++intersection;
-    }
-
-    int unionSize = static_cast<int>(gramsA.size() + gramsB.size()) - intersection;
-    return (unionSize > 0) ? static_cast<float>(intersection) / static_cast<float>(unionSize) : 0.0f;
-}
-
-// =============================================================================
-// FUZZY STRING MATCHING
-// =============================================================================
-
-int TreeNLP::LevenshteinDistance(const std::string& a, const std::string& b)
-{
-    return static_cast<int>(rapidfuzz::levenshtein_distance(a, b));
-}
-
-int TreeNLP::FuzzyRatio(const std::string& a, const std::string& b)
-{
-    if (a.empty() && b.empty()) return 100;
-    if (a.empty() || b.empty()) return 0;
-
-    return static_cast<int>(std::round(
-        rapidfuzz::fuzz::ratio(AsciiText::ToLower(a), AsciiText::ToLower(b))));
-}
-
-int TreeNLP::FuzzyPartialRatio(const std::string& shorter, const std::string& longer)
-{
-    if (shorter.empty() || longer.empty()) return 0;
-
-    // rapidfuzz handles shorter/longer swap internally
-    return static_cast<int>(std::round(
-        rapidfuzz::fuzz::partial_ratio(AsciiText::ToLower(shorter), AsciiText::ToLower(longer))));
-}
-
-int TreeNLP::FuzzyTokenSetRatio(const std::string& a, const std::string& b)
-{
-    if (a.empty() && b.empty()) return 100;
-    if (a.empty() || b.empty()) return 0;
-
-    return static_cast<int>(std::round(
-        rapidfuzz::fuzz::token_set_ratio(AsciiText::ToLower(a), AsciiText::ToLower(b))));
 }
 
 // =============================================================================

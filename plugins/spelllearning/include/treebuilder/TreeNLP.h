@@ -67,28 +67,6 @@ namespace TreeNLP
     // Cosine similarity between two sparse TF-IDF vectors (0.0 to 1.0)
     float CosineSimilarity(const SparseVector& a, const SparseVector& b);
 
-    // Character n-gram Jaccard similarity between two strings (0.0 to 1.0)
-    // Catches morphological families: "Firebolt" vs "Fireball" ≈ 0.45
-    float CharNgramSimilarity(const std::string& a, const std::string& b, int n = 3);
-
-    // =========================================================================
-    // FUZZY STRING MATCHING
-    // =========================================================================
-
-    // Levenshtein edit distance between two strings
-    int LevenshteinDistance(const std::string& a, const std::string& b);
-
-    // Simple ratio: 1.0 - (editDistance / maxLength). Range [0, 100].
-    int FuzzyRatio(const std::string& a, const std::string& b);
-
-    // Partial ratio: best FuzzyRatio of shorter string against all
-    // same-length substrings of the longer string. Range [0, 100].
-    int FuzzyPartialRatio(const std::string& shorter, const std::string& longer);
-
-    // Token set ratio: tokenize both strings, compute ratio using
-    // intersection + remainder tokens. Range [0, 100].
-    int FuzzyTokenSetRatio(const std::string& a, const std::string& b);
-
     // =========================================================================
     // THEME SCORING (replaced former spell_grouper.py::calculate_theme_score)
     // =========================================================================
