@@ -16,6 +16,8 @@
 #include <algorithm>
 #include <cstring>
 #include <format>
+#include <functional>
+#include <utility>
 #include <vector>
 
 #include "FormCopies.h"
@@ -151,8 +153,8 @@ namespace BlackFlame::FormCopies
     {
         namespace LM = SlotLedgerModel;
         const auto ledger = SlotLedger::Copy();
-        const auto intact = [&](const LM::Entry& a_entry, LM::Role a_role, const SlotAssign::Slot& a_slot) -> const LM::Object* {
-            const auto* object = LM::PublishedOf(a_entry, a_role);
+        std::vector<std::pair<std::uint16_t, LM::Role>> restored;  // a previous generation shown: it becomes the published one
+        const auto intactObject = [&](const LM::Object* object, LM::Role a_role, const SlotAssign::Slot& a_slot, const char* a_which) -> const LM::Object* {
             std::string why;
             // the FNV-1a 64 collision guard: the same key with another key string is not this session's object
             const auto& current = a_role == LM::Role::kMuzzle ? a_slot.muzzleKey : a_role == LM::Role::kTxst ? a_slot.txstKey : a_slot.modelKey;
@@ -170,13 +172,39 @@ namespace BlackFlame::FormCopies
             }
             if (!object || !why.empty() || !ObjectIntact(*object, a_inputs, why) || !RegisterObject(*object, why)) {
                 if (object) {
-                    logger::info("BlackFlame: slots: slot {:X} ({}): its last published {} is not used: {}", a_slot.localId,
-                        a_slot.sourceText, LM::RoleText(a_role), why);
+                    logger::info("BlackFlame: slots: slot {:X} ({}): its {} {} is not used: {}", a_slot.localId, a_slot.sourceText,
+                        a_which, LM::RoleText(a_role), why);
                 }
                 return nullptr;
             }
             return object;
         };
+        // (publication fix, 2026-10-19) the last published object, else the previous generation (an upgrade recorded but
+        // not shown may fail here: the one shown before it stands in, and the ledger swaps them). a_usable: the caller's
+        // check before anything is hashed or registered (the ADDN slots it names; a TXST's strings come after)
+        struct Picked
+        {
+            const LM::Object* object = nullptr;
+            bool previous = false;
+        };
+        const auto pick = [&](const LM::Entry& a_entry, LM::Role a_role, const SlotAssign::Slot& a_slot,
+                              const std::function<bool(const LM::Object*)>& a_usable) -> Picked {
+            const auto* published = LM::PublishedOf(a_entry, a_role);
+            if (const auto* object = a_usable(published) ? intactObject(published, a_role, a_slot, "last published") : nullptr) {
+                return { object, false };
+            }
+            const auto* previous = LM::PreviousOf(a_entry, a_role);
+            return { a_usable(previous) ? intactObject(previous, a_role, a_slot, "previous") : nullptr, true };
+        };
+        // the caller set the picked object: a previous one becomes the ledger's published one (RestorePrevious below)
+        const auto shown = [&](const Picked& a_picked, const SlotAssign::Slot& a_slot, std::uint16_t a_id, LM::Role a_role) {
+            if (a_picked.previous) {
+                logger::info("BlackFlame: slots: slot {:X} ({}): its previous {} is shown instead of the last published one",
+                    a_slot.localId, a_slot.sourceText, LM::RoleText(a_role));
+                restored.emplace_back(a_id, a_role);
+            }
+        };
+        const auto any = [](const LM::Object* a_object) { return a_object != nullptr; };
         std::size_t applied = 0;
         // ADDN slots first: a NIF naming an ADDN slot index is used only when that slot's MPS is (design v3.2 §3)
         // an MPS may name other ADDN slots too (contract v4): the ADDN pass runs again until nothing more opens
@@ -193,14 +221,15 @@ namespace BlackFlame::FormCopies
                 }
                 if (slot.type == CopyContract::SlotType::kTXST) {
                     // slotTxst: its last published txst object written now (gate closed until its group opens); off: unpublished
-                    const auto* object = GetConfig().slotTxst ? LM::PublishedOf(*entry, LM::Role::kTxst) : nullptr;
                     std::string why;
-                    const auto* intactObject = object ? intact(*entry, LM::Role::kTxst, slot) : nullptr;
-                    const auto strings = intactObject ? SlotTxst::RestoredFor(slot, *intactObject, why) : std::nullopt;
+                    const auto picked = GetConfig().slotTxst ? pick(*entry, LM::Role::kTxst, slot, any) : Picked{};
+                    const auto* txst = picked.object;
+                    const auto strings = txst ? SlotTxst::RestoredFor(slot, *txst, why) : std::nullopt;
                     if (strings && SlotTxst::Write(slot, *strings, why)) {
-                        slot.publishedTxst = CopyContract::Hex16(intactObject->key);
+                        slot.publishedTxst = CopyContract::Hex16(txst->key);
+                        shown(picked, slot, id, LM::Role::kTxst);
                         ++applied;
-                    } else if (intactObject) {
+                    } else if (txst) {
                         logger::info("BlackFlame: slots: TXST slot {:X} ({}): its last published set is not used: {}", slot.localId,
                             slot.sourceText, why);
                     }
@@ -223,13 +252,12 @@ namespace BlackFlame::FormCopies
                 };
                 const auto role = addnPass ? LM::Role::kMps : LM::Role::kModel;
                 // review Gemini 9: the ADDN slots first, before any file is hashed or registered for an object not applied now
-                if (!addnReady(LM::PublishedOf(*entry, role))) {
-                    continue;
-                }
-                const auto* model = intact(*entry, role, slot);
+                const auto picked = pick(*entry, role, slot, addnReady);
+                const auto* model = picked.object;
                 if (!model || !SetFormModel(slot.form, RecordModelPath(model->path))) {
                     continue;
                 }
+                shown(picked, slot, id, role);
                 slot.publishedModel = RecordModelPath(model->path);
                 if (addnPass) {
                     const auto* source = slot.source ? slot.source->As<RE::BGSAddonNode>() : nullptr;
@@ -237,10 +265,10 @@ namespace BlackFlame::FormCopies
                         SetAddonFlagsFromSource(*addon, *source);
                     }
                     SlotAssign::OpenGate(id);  // an ADDN slot's gate: its MPS is published (CopyOf never hands one out)
-                } else if (const auto* published = LM::PublishedOf(*entry, LM::Role::kMuzzle);
-                           !slot.sourceMuzzle.empty() && addnReady(published)) {  // review B4: the muzzle's ADDN slots too
-                    if (const auto* muzzle = intact(*entry, LM::Role::kMuzzle, slot)) {
-                        slot.publishedMuzzle = RecordModelPath(muzzle->path);
+                } else if (!slot.sourceMuzzle.empty()) {  // review B4: the muzzle's ADDN slots too
+                    if (const auto muzzle = pick(*entry, LM::Role::kMuzzle, slot, addnReady); muzzle.object) {
+                        slot.publishedMuzzle = RecordModelPath(muzzle.object->path);
+                        shown(muzzle, slot, id, LM::Role::kMuzzle);
                     }
                 }
                 ++applied;
@@ -248,6 +276,16 @@ namespace BlackFlame::FormCopies
             if (addnPass && applied == before) {
                 pass = kAddnPasses - 1;  // no ADDN slot opened in this pass: on to the forms
             }
+        }
+        if (!restored.empty()) {
+            SlotLedger::Edit([&](LM::Ledger& a_ledger) {
+                for (const auto& [id, role] : restored) {
+                    if (auto* entry = LM::FindSlot(a_ledger, id)) {
+                        (void)LM::RestorePrevious(*entry, role);
+                    }
+                }
+            });
+            (void)SlotLedger::Save("kDataLoaded: previous generations shown");
         }
         logger::info("BlackFlame: slots: kDataLoaded: {} slot(s) took their last published generation (gates still closed until "
                      "their groups open)", applied);

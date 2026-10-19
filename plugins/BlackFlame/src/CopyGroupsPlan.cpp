@@ -1,7 +1,7 @@
 // =============================================================================
 // CopyGroupsPlan - which object each group member would show, and the groups (CopyGroupsState.h)
 // =============================================================================
-// Split out of CopyGroups.cpp (verify and open) for the 600-line limit.
+// Split out of CopyGroups.cpp (verify and open) for the 600-line limit; the progress counts too.
 
 #include "CopyGroupsState.h"
 
@@ -9,6 +9,7 @@
 #include "Config.h"
 #include "FileIndex.h"
 #include "FormCopiesFillModel.h"
+#include "MenuWatch.h"
 #include "SlotAssign.h"
 #include "SlotTxst.h"
 
@@ -60,7 +61,7 @@ namespace BlackFlame::CopyGroups::Detail
         }
 
         // The member's objects and their worst state (a muzzle that will not be grey only keeps the source's muzzle)
-        Slot PlanSlot(const State& a_state, std::uint16_t a_id)
+        Slot PlanSlotObjects(const State& a_state, std::uint16_t a_id)
         {
             const auto& slot = SlotAssign::At(a_id);
             const auto* entry = LM::FindSlot(a_state.ledger, a_id);
@@ -99,6 +100,15 @@ namespace BlackFlame::CopyGroups::Detail
                     out.state = Member::kPending;
                 }
             }
+            return out;
+        }
+
+        Slot PlanSlot(const State& a_state, std::uint16_t a_id)
+        {
+            auto out = PlanSlotObjects(a_state, a_id);
+            const auto& slot = SlotAssign::At(a_id);
+            const auto& main = slot.type == CC::SlotType::kTXST || !slot.sourceModel.empty() ? out.model : out.muzzle;
+            out.fresh = Decide::AtW1Of(out.state, main.state, main.older) == Decide::AtW1::kFresh;
             return out;
         }
 
@@ -183,67 +193,44 @@ namespace BlackFlame::CopyGroups::Detail
     Plan PlanObject(const State& a_state, LM::Role a_role, const std::optional<SlotKeys::Key>& a_key, const std::string& a_published,
         const LM::Entry* a_entry)
     {
-        Plan plan;
-        const bool older = !a_published.empty();
-        const auto fallback = [&](const char* a_why) {
-            plan.state = older ? Member::kReady : Member::kLeft;  // the older generation, or the source for this session
-            plan.why = a_why;
-            return plan;
-        };
+        // the decision is Decide::DecideObject's (publication fix, 2026-10-19: tested offline); the facts in its order
+        Decide::ObjectFacts facts;
+        facts.older = !a_published.empty();
+        const bool terminalKey = a_key && a_entry && a_entry->terminal.count(a_key->key) != 0;
+        const auto found = a_key && !terminalKey ? BuildProgress::Find(a_key->key) : std::nullopt;
+        std::optional<LM::Object> candidate;
         if (!a_key) {
-            return fallback("no key this session (no builder)");
-        }
-        if (a_entry && a_entry->terminal.count(a_key->key) != 0) {
-            return fallback("terminal: it failed to parse in two sessions");
-        }
-        const auto found = BuildProgress::Find(a_key->key);
-        const auto stillComing = [&]() {  // older: shown meanwhile, the ADDN queue keeps the slot (review Codex 1)
-            if (!older) {
-                return Plan{ Member::kPending, std::nullopt, "" };
+            facts.found = Decide::Found::kNoKey;
+        } else if (terminalKey) {
+            facts.found = Decide::Found::kTerminalKey;
+        } else if (!found) {
+            facts.found = Decide::Found::kNoLine;
+        } else {
+            switch (found->state) {
+            case BuildProgress::State::kTerminal: facts.found = Decide::Found::kTerminal; break;
+            case BuildProgress::State::kFailed: facts.found = Decide::Found::kFailed; break;
+            case BuildProgress::State::kStaging: facts.found = Decide::Found::kStaging; break;
+            case BuildProgress::State::kInData: facts.found = Decide::Found::kInData; break;
             }
-            auto meanwhile = fallback("");
-            meanwhile.waiting = true;
-            return meanwhile;
-        };
-        if (!found) {
-            // the builder ended (or never started) and every line it wrote is read: none will come this session
-            return BuildProgress::CaughtUp() ? fallback("the builder made no line for it this session") : stillComing();
         }
-        switch (found->state) {
-        case BuildProgress::State::kTerminal:
-            return fallback("terminal: too large or outside the dump caps");
-        case BuildProgress::State::kFailed:
-            return fallback("failed this session (tried again next start)");
-        case BuildProgress::State::kStaging:
-            if (BuildProgress::CaughtUp()) {
-                // the worker's pass after the builder ended copied all it could: a file still missing will not come this session
-                return fallback("its files did not all reach Data this session");
-            }
-            return stillComing();  // its files come into Data later
-        case BuildProgress::State::kInData:
-            break;
+        facts.caughtUp = (facts.found == Decide::Found::kNoLine || facts.found == Decide::Found::kStaging) && BuildProgress::CaughtUp();
+        if (facts.found == Decide::Found::kInData) {
+            // review Codex 3 P1: before any route to ready or candidate - an object standing on a file that replaced another
+            // at its path this session (its own or a copy dep's) is not published before the next start.
+            // A key's path is under its key folder. The CPU encoder gives one key one file; the GPU's bytes differ from build
+            // to build (review round 1 D1), so a rebuild of a published key keeps the Data file (BuildProgress KeepPublished,
+            // and Find names it by the Data file's fnv64); only a build no ledger object stands on, or a damaged file, is deferred
+            candidate = ObjectOf(a_role, found->line, a_key->text);
+            facts.replacedNow = BuildProgress::AnyReplacedNow(LM::FilesOf(*candidate));
+            facts.published = FormCopies::RecordModelPath(found->line.path) == a_published;  // ApplyLastPublished compared its string
+            facts.canVerify = a_state.canVerify;
+            facts.enteredNoIndex = !FileIndex::Available() && EnteredDataNow(*candidate);
         }
-        // review Codex 3 P1: before any route to ready or candidate - an object standing on a file that replaced another at
-        // its path this session (its own or a copy dep's) is not published before the next start
-        if (const auto files = LM::FilesOf(ObjectOf(a_role, found->line, a_key->text)); BuildProgress::AnyReplacedNow(files)) {
-            return fallback("a file of it replaced another at the same path this session: used from the next start");
+        const auto decision = Decide::DecideObject(facts);
+        Plan plan{ decision.state, std::nullopt, decision.why, decision.waiting, facts.older };
+        if (decision.state == Member::kCandidate) {
+            plan.candidate = std::move(candidate);
         }
-        if (older && FormCopies::RecordModelPath(found->line.path) == a_published) {
-            plan.state = Member::kReady;  // the ledger's generation is this key's (ApplyLastPublished compared its string)
-            return plan;
-        }
-        if (!a_state.canVerify) {
-            return fallback("no main-thread proof: verified at the next start");
-        }
-        // A key's path is under its key folder. The CPU encoder gives one key one file; the GPU's bytes differ from build to
-        // build (review round 1 D1), so a rebuild of a published key keeps the Data file (BuildProgress KeepPublished, and
-        // Find names it by the Data file's fnv64); only a build no ledger object stands on, or a damaged file, is deferred
-        auto candidate = ObjectOf(a_role, found->line, a_key->text);
-        if (!FileIndex::Available() && EnteredDataNow(candidate)) {
-            return fallback("in Data only since this session and no file index: the next start's index has it");
-        }
-        plan.state = Member::kCandidate;
-        plan.candidate = std::move(candidate);
         return plan;
     }
 
@@ -300,10 +287,106 @@ namespace BlackFlame::CopyGroups::Detail
             auto& group = a_state.groups[a_state.replanNext];
             if (group.state == GroupState::kWaiting) {
                 PlanGroup(a_state, group);
+            } else if (group.state == GroupState::kUpgrading && group.verifyNext >= group.verify.size()) {
+                PlanOpenGroup(a_state, group, true);  // one verifying finishes its list first (StepVerify plans it again then)
             } else {
                 group.plannedAt = a_state.generation;
             }
         }
         return true;
+    }
+
+    bool OpensAtW1(const Group& a_group)
+    {
+        std::vector<Decide::AtW1> members;
+        for (const auto& member : a_group.members) {
+            members.push_back(member.state == Member::kLeft ? Decide::AtW1::kLeft : member.fresh ? Decide::AtW1::kFresh : Decide::AtW1::kShown);
+        }
+        return Decide::OpensAtW1(members);
+    }
+
+    bool LeftForNow(const Group& a_group, std::uint16_t a_id)
+    {
+        return std::find(a_group.leftForNow.begin(), a_group.leftForNow.end(), a_id) != a_group.leftForNow.end();
+    }
+
+    void PlanOpenGroup(const State& a_state, Group& a_group, bool a_replan)
+    {
+        if (a_replan) {
+            a_group.members.clear();
+            for (const auto id : a_group.ids) {
+                a_group.members.push_back(PlanSlot(a_state, id));
+            }
+        }
+        a_group.verify.clear();
+        a_group.verifyNext = 0;
+        a_group.upgradeWaits = false;
+        const auto facts = [](const Plan& a_plan) { return Decide::PlanFacts{ a_plan.state, a_plan.candidate.has_value(), a_plan.waiting }; };
+        for (auto& member : a_group.members) {
+            for (auto* plan : { &member.model, &member.muzzle }) {
+                const auto done = plan->candidate ? a_group.upgrades.find({ member.id, plan->candidate->key }) : a_group.upgrades.end();
+                if (done != a_group.upgrades.end()) {
+                    plan->candidate.reset();  // verified this session already: recorded for the next start, or refused
+                    plan->state = Member::kReady;
+                    plan->why = done->second.why;
+                }
+            }
+            const auto work = Decide::WorkOf(member.state, facts(member.model), facts(member.muzzle));
+            a_group.upgradeWaits = a_group.upgradeWaits || work.wait;
+            for (const auto* plan : { &member.model, &member.muzzle }) {
+                if (work.verify && plan->candidate) {
+                    const bool txst = plan->candidate->role == LM::Role::kTxst;  // registered only
+                    a_group.verify.push_back({ txst ? std::string() : FormCopies::RecordModelPath(plan->candidate->path), plan->candidate->key,
+                        *plan->candidate, false, !txst, member.id });
+                }
+            }
+            if (LeftForNow(a_group, member.id) && member.model.why.empty() && member.muzzle.why.empty()) {
+                member.model.why = "no generation to show this session: its object is recorded for the next start once verified";
+            }
+        }
+        const bool was = a_group.state == GroupState::kUpgrading;
+        a_group.state = a_group.verify.empty() && !a_group.upgradeWaits ? GroupState::kOpen : GroupState::kUpgrading;
+        a_group.plannedAt = a_state.generation;
+        a_group.plannedFrom = a_state.generation;
+        if (was && a_group.state == GroupState::kOpen) {
+            std::size_t recorded = 0;
+            for (const auto& upgrade : a_group.upgrades) {
+                recorded += upgrade.second.recorded ? 1 : 0;
+            }
+            logger::info("BlackFlame: slots: group of {}: its newer objects are done ({} recorded for the next start, {} not used)",
+                a_group.ids.size(), recorded, a_group.upgrades.size() - recorded);
+        }
+    }
+
+    Progress CountProgress(const State& a_state)
+    {
+        Progress progress;
+        progress.groups = a_state.groups.size();
+        bool busy = !a_state.addns.empty();
+        for (const auto& group : a_state.groups) {
+            const bool open = group.state == GroupState::kOpen || group.state == GroupState::kUpgrading;
+            progress.groupsOpen += open ? 1 : 0;
+            progress.upgrading += group.state == GroupState::kUpgrading ? 1 : 0;
+            progress.groupsFailed += group.state == GroupState::kFailed ? 1 : 0;
+            progress.verifying += group.state == GroupState::kVerifying ? 1 : 0;
+            busy = busy || group.state == GroupState::kWaiting || group.state == GroupState::kVerifying || group.state == GroupState::kUpgrading;
+            for (const auto& upgrade : group.upgrades) {
+                (upgrade.second.recorded ? progress.recorded : progress.refused) += 1;
+            }
+            for (const auto& member : group.members) {
+                // a failed group's members, and those an open group left for this session, cannot open this session
+                if (member.state == Member::kLeft || group.state == GroupState::kFailed || (open && LeftForNow(group, member.id))) {
+                    ++progress.left;  // ("all ready" can show)
+                    continue;
+                }
+                ++progress.slots;
+                progress.open += SlotAssign::GateOpen(member.id) ? 1 : 0;
+            }
+        }
+        for (const auto id : SlotAssign::Assigned()) {
+            progress.addnOpen += SlotAssign::At(id).type == CC::SlotType::kADDN && SlotAssign::GateOpen(id) ? 1 : 0;
+        }
+        progress.settled = !busy || a_state.stopped || !MenuWatch::PublishOpen();
+        return progress;
     }
 }

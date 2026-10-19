@@ -8,13 +8,17 @@
 
 #include "Common.h"
 
+#include "CopyGroups.h"
+#include "CopyGroupsDecide.h"
 #include "SlotKeys.h"
 #include "SlotLedgerModel.h"
 
 #include <chrono>
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace BlackFlame::CopyGroups::Detail
@@ -25,13 +29,7 @@ namespace BlackFlame::CopyGroups::Detail
     inline constexpr auto kLedgerWriteGap = std::chrono::seconds(1);  // review: ledger writes at most this often while publishing
     inline constexpr std::uint64_t kNoGeneration = UINT64_MAX;    // "not planned yet" (BuildProgress' counter never reaches it)
 
-    enum class Member : std::uint8_t
-    {
-        kReady,      // shows a verified generation, or its source for this session (failed, terminal, keyless)
-        kCandidate,  // this session's object is in Data: verify, then open
-        kPending,    // its object is still coming: the group waits
-        kLeft,       // never published this session: gated, links to it go to the source
-    };
+    using Decide::Member;  // CopyGroupsDecide.h (no game types: tested offline)
 
     struct Plan
     {
@@ -39,6 +37,7 @@ namespace BlackFlame::CopyGroups::Detail
         std::optional<LM::Object> candidate;  // kCandidate: the object this session's key gave
         std::string why;
         bool waiting = false;                 // kReady on an older generation while the current key may still come
+        bool older = false;                   // the slot shows an older generation of this role (publication fix, 2026-10-19)
     };
 
     struct Slot
@@ -47,6 +46,7 @@ namespace BlackFlame::CopyGroups::Detail
         Member state = Member::kPending;
         Plan model;
         Plan muzzle;
+        bool fresh = false;  // Decide::AtW1::kFresh: nothing to show yet; in a group opened at W1, gated for this session
     };
 
     enum class GroupState : std::uint8_t
@@ -54,6 +54,7 @@ namespace BlackFlame::CopyGroups::Detail
         kWaiting,
         kVerifying,
         kOpen,
+        kUpgrading,  // open (W1, on the generations its forms show); newer objects verified and recorded for the next start
         kFailed,
         kGone,  // every member left
     };
@@ -65,6 +66,13 @@ namespace BlackFlame::CopyGroups::Detail
         LM::Object object;
         bool registered = false;
         bool demand = true;  // false: a TXST object, registered only (a DDS is not Demanded through the model database)
+        std::uint16_t slot = 0;  // kUpgrading: the member the object is recorded for
+    };
+
+    struct Upgrade  // kUpgrading: one object of a member verified this session (not verified again)
+    {
+        bool recorded = false;  // the ledger holds it for the next start; else refused (why)
+        std::string why;
     };
 
     struct Group
@@ -74,7 +82,13 @@ namespace BlackFlame::CopyGroups::Detail
         std::vector<Slot> members;
         std::vector<Verify> verify;
         std::size_t verifyNext = 0;
-        std::uint64_t plannedAt = kNoGeneration;  // the progress generation its plan was made at
+        std::uint64_t plannedAt = kNoGeneration;    // the progress generation its plan was made at (or looked at)
+        std::uint64_t plannedFrom = kNoGeneration;  // kUpgrading: the generation PlanOpenGroup last planned it from
+        // (publication fix, 2026-10-19) opened at W1 on what its forms show: its fresh members (gates closed this session),
+        // the objects verified for the next start by (slot, key), and whether a newer object may still come
+        std::vector<std::uint16_t> leftForNow;
+        std::map<std::pair<std::uint16_t, std::uint64_t>, Upgrade> upgrades;
+        bool upgradeWaits = false;
     };
 
     struct AddnPass  // one pass over State::addns, carried over the slices (StepAddn)
@@ -121,6 +135,20 @@ namespace BlackFlame::CopyGroups::Detail
 
     void BuildGroups(State& a_state);
 
-    /// Plans the waiting groups from the cursor until the slice ends; true when every group is planned for a_state.generation
+    /// Plans the waiting groups (and the upgrading ones not verifying now) from the cursor until the slice ends; true when
+    /// every group is planned for a_state.generation
     [[nodiscard]] bool Replan(State& a_state, Clock::time_point a_start, bool a_unbounded = false);
+
+    /// W1: one member is shown (Decide::OpensAtW1)
+    [[nodiscard]] bool OpensAtW1(const Group& a_group);
+
+    /// A member opened at W1 left for this session (fresh then)
+    [[nodiscard]] bool LeftForNow(const Group& a_group, std::uint16_t a_id);
+
+    /// (publication fix, 2026-10-19) An open group's verify list: every member's candidates not verified yet this session
+    /// (Decide::WorkOf); kUpgrading while one is listed or may still come, else kOpen. a_replan: its members planned again first
+    void PlanOpenGroup(const State& a_state, Group& a_group, bool a_replan);
+
+    /// The counts the HUD-less progress lines and the dev auto-load read (CopyGroups::Progress)
+    [[nodiscard]] Progress CountProgress(const State& a_state);
 }

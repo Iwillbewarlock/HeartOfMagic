@@ -8,7 +8,7 @@
 // the closure, active again when it comes back), a slot is never given to another source, and a reservation is never
 // discarded. This header is the logic, C++17 and nlohmann only, so tools/blackflame-cosave-check tests it offline:
 //   - JSON form (format 1): epoch, version (bumped at each write), sessions, slots[] { slot, type, plugin | pluginHex,
-//     localId, state active|tombstone|conflict, since, conflict, published[], parseFailures[], terminal[] }
+//     localId, state active|tombstone|conflict, since, conflict, published[], previous[] (optional), parseFailures[], terminal[] }
 //   - Merge: a backup, the mirror or a save's BFSL pairs added to a ledger - the union of reservations; one slot bound to
 //     two different sources is a conflict (both named, the slot never published again: CopyOf keeps the source)
 //   - Assign: a session's closure sources to slots - kept, re-activated, or the lowest never-used id of its pool
@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <initializer_list>
 #include <map>
 #include <optional>
 #include <set>
@@ -99,6 +100,10 @@ namespace BlackFlame::SlotLedgerModel
         std::uint32_t since = 0;    // the session it was assigned in
         std::string conflict;       // kConflict: the other binding, "plugin|localId"
         std::vector<Object> published;  // at most one per role
+        // (publication fix, 2026-10-19) at most one per role: the object a newer one of another generation replaced
+        // (SetPublished) - the fallback a later start shows when the newer one is not intact (ApplyLastPublished, which then
+        // swaps them: RestorePrevious). A newer object can be recorded without being shown (an open group's upgrade)
+        std::vector<Object> previous;
         std::map<std::uint64_t, ParseFailures> parseFailures;
         std::set<std::uint64_t> terminal;  // keys terminal "parse" (CopyContract::kLedgerParseState)
     };
@@ -182,13 +187,52 @@ namespace BlackFlame::SlotLedgerModel
         return nullptr;
     }
 
-    /// Replaces the slot's published object of a_object's role
+    [[nodiscard]] inline const Object* PreviousOf(const Entry& a_entry, Role a_role)
+    {
+        for (const auto& object : a_entry.previous) {
+            if (object.role == a_role) {
+                return &object;
+            }
+        }
+        return nullptr;
+    }
+
+    /// Drops a_role's object from a_objects (published or previous)
+    inline void EraseRole(std::vector<Object>& a_objects, Role a_role)
+    {
+        a_objects.erase(std::remove_if(a_objects.begin(), a_objects.end(), [&](const Object& a_o) { return a_o.role == a_role; }),
+            a_objects.end());
+    }
+
+    /// Replaces the slot's published object of a_object's role; the replaced one becomes the role's previous when it is
+    /// another generation (key or path), else the previous stays (publication fix, 2026-10-19)
     inline void SetPublished(Entry& a_entry, Object a_object)
     {
-        auto& objects = a_entry.published;
-        objects.erase(std::remove_if(objects.begin(), objects.end(), [&](const Object& a_o) { return a_o.role == a_object.role; }),
-            objects.end());
-        objects.push_back(std::move(a_object));
+        if (const auto* old = PublishedOf(a_entry, a_object.role); old && (old->key != a_object.key || old->path != a_object.path)) {
+            EraseRole(a_entry.previous, a_object.role);
+            a_entry.previous.push_back(*old);
+        }
+        EraseRole(a_entry.published, a_object.role);
+        a_entry.published.push_back(std::move(a_object));
+    }
+
+    /// a_role's previous becomes its published object and the published one (not intact) its previous; false without one
+    inline bool RestorePrevious(Entry& a_entry, Role a_role)
+    {
+        const auto* previous = PreviousOf(a_entry, a_role);
+        if (!previous) {
+            return false;
+        }
+        auto restored = *previous;
+        const auto* current = PublishedOf(a_entry, a_role);
+        auto replaced = current ? std::optional<Object>(*current) : std::nullopt;
+        EraseRole(a_entry.previous, a_role);
+        EraseRole(a_entry.published, a_role);
+        a_entry.published.push_back(std::move(restored));
+        if (replaced) {
+            a_entry.previous.push_back(std::move(*replaced));
+        }
+        return true;
     }
 
     /// One failed parse of a_key this session (counted once a session); true when it became terminal
@@ -344,6 +388,7 @@ namespace BlackFlame::SlotLedgerModel
                     mine->state = State::kConflict;
                     mine->conflict = other.conflict;
                     mine->published.clear();
+                    mine->previous.clear();
                     a_conflicts.push_back("slot " + HexId(other.slot) + " is a conflict in " + std::string(a_what) + " (" + other.conflict +
                                           "): refused, the slot is never published again");
                 }
@@ -387,6 +432,7 @@ namespace BlackFlame::SlotLedgerModel
                 mine->state = State::kConflict;
                 mine->conflict = SourceText(other.plugin, other.localId);
                 mine->published.clear();
+                mine->previous.clear();
             }
             a_conflicts.push_back("slot " + HexId(other.slot) + " (" + std::string(CC::SlotTypeTag(other.type)) + ") is " +
                                   SourceText(mine->plugin, mine->localId) + " here and " + SourceText(other.plugin, other.localId) +
@@ -398,56 +444,6 @@ namespace BlackFlame::SlotLedgerModel
             a_into.version = a_other.version;
         }
         return added;
-    }
-
-    /// The files an object stands on: its own (path, fnv64) when it has one, then each dep's that is a file (not an ADDN
-    /// slot), in order. The checks that a file entered or was replaced in Data this session look at every one
-    [[nodiscard]] inline std::vector<std::pair<std::string, std::uint64_t>> FilesOf(const Object& a_object)
-    {
-        std::vector<std::pair<std::string, std::uint64_t>> files;
-        if (!a_object.path.empty()) {
-            files.emplace_back(a_object.path, a_object.fnv64);
-        }
-        for (const auto& dep : a_object.deps) {
-            if (!dep.isAddn && !dep.path.empty()) {
-                files.emplace_back(dep.path, dep.fnv64);
-            }
-        }
-        return files;
-    }
-
-    /// review round 1 D1: some published object of a_ledger stands on a_path with a_fnv64 (FilesOf: its own file or a file
-    /// dep). A copy path names its key (the key16 folder), so that file is a verified build of the same key
-    [[nodiscard]] inline bool PublishedHolds(const Ledger& a_ledger, const std::string& a_path, std::uint64_t a_fnv64)
-    {
-        for (const auto& entry : a_ledger.entries) {
-            for (const auto& object : entry.published) {
-                for (const auto& [path, fnv] : FilesOf(object)) {
-                    if (fnv == a_fnv64 && path == a_path) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
-    /// Every file the published objects of a ledger stand on (FilesOf): by path, the fnv64s recorded for it
-    using PublishedFileMap = std::map<std::string, std::set<std::uint64_t>>;
-
-    /// (reviewer round 2) PublishedHolds for many paths: one walk of a_ledger, then a path is looked up before the file
-    /// there is hashed (a path no published object names needs no hash)
-    [[nodiscard]] inline PublishedFileMap PublishedFiles(const Ledger& a_ledger)
-    {
-        PublishedFileMap files;
-        for (const auto& entry : a_ledger.entries) {
-            for (const auto& object : entry.published) {
-                for (auto& [path, fnv] : FilesOf(object)) {
-                    files[std::move(path)].insert(fnv);
-                }
-            }
-        }
-        return files;
     }
 
     /// Co-saves' ledgers (FromSnapshot, each with its name) into a_into. Those of a_into's epoch are merged newest first
@@ -558,10 +554,12 @@ namespace BlackFlame::SlotLedgerModel
             entry->since = a_session;
             entry->conflict.clear();
             entry->published.clear();
+            entry->previous.clear();
             entry->parseFailures.clear();
             entry->terminal.clear();
         }
     }
 }
 
+#include "SlotLedgerPublished.h"
 #include "SlotLedgerJson.h"

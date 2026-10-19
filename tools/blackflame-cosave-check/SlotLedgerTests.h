@@ -59,12 +59,14 @@ namespace SlotLedgerTests
                 })) {
                 return false;
             }
-            for (std::size_t j = 0; j < l.published.size(); ++j) {
-                const auto& a = l.published[j];
-                const auto& b = r.published[j];
-                if (a.role != b.role || a.key != b.key || a.keyText != b.keyText || a.path != b.path || a.bytes != b.bytes || a.fnv64 != b.fnv64 || !(a.deps == b.deps)) {
-                    return false;
-                }
+            const auto sameObject = [](const LM::Object& a, const LM::Object& b) {
+                return a.role == b.role && a.key == b.key && a.keyText == b.keyText && a.path == b.path && a.bytes == b.bytes &&
+                       a.fnv64 == b.fnv64 && a.deps == b.deps;
+            };
+            // (publication fix, 2026-10-19) the previous objects too
+            if (!std::equal(l.published.begin(), l.published.end(), r.published.begin(), sameObject) ||
+                !std::equal(l.previous.begin(), l.previous.end(), r.previous.begin(), r.previous.end(), sameObject)) {
+                return false;
             }
         }
         return true;

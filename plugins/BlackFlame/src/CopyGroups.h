@@ -10,7 +10,7 @@
 //              member whose new object failed, is terminal, has no key, or got no line or not all its files once the
 //              builder's lines are all read and copied (BuildProgress::CaughtUp): it shows that older generation
 //   candidate  this session's key has an ok or fallback line and its files are in Data (BuildProgress kInData)
-//   pending    built later (or retried) while the builder may still write it: the group waits
+//   pending    built later (or retried) while the builder may still write it: a group with nothing shown waits
 //   left       the cases of ready without an older generation, or a TXST
 //              slot: the member leaves its group, stays gated, links to it go to its source. A terminal muzzle only keeps
 //              the source's muzzle
@@ -19,12 +19,20 @@
 // Verify, then open (v3.2 §1): every candidate path registered (FileIndex), Demanded one at a time in 8 ms slices on the
 // main thread (CopyModelProbeVerify.h); only when all parse: SetModel (model, muzzle), the gates of the group, its links
 // (CopyFill::Refill pointers only), and the ledger's lastPublished (temp + rename). A parse failure counts that key in the
-// ledger and the group is not opened this session; there is no re-close. Windows (MenuWatch.h): at kDataLoaded the groups
-// whose members are all ready open at once (W1); the drains go on while the publish window is open and the main-thread
-// proof holds (W1 drains and W2); each publish step re-checks the close flag right before SetModel and RegisterLoose. A
-// group unfinished when the window closes stays as it was. A Demand that faults stops publication for the session. TXST
-// slots (config slotTxst) are members like the others: their txst object's DDS deps are registered (no Demand), and the
-// open writes TX00 / TX03 (SlotTxst.h) before the gates open; off, they are left and the decals keep the source's sets.
+// ledger and the group is not opened this session; there is no re-close. Windows (MenuWatch.h): the drains go on while
+// the publish window is open and the main-thread proof holds (W1 drains and W2); each publish step re-checks the close
+// flag right before SetModel and RegisterLoose. A group unfinished when the window closes stays as it was. A Demand that
+// faults stops publication for the session. TXST slots (config slotTxst) are members like the others: their txst object's
+// DDS deps are registered (no Demand), and the open writes TX00 / TX03 (SlotTxst.h) before the gates open; off, they are
+// left and the decals keep the source's sets.
+// W1 (publication fix, 2026-10-19; CopyGroupsDecide.h): at kDataLoaded a group one of whose members shows a generation
+// opens on what its forms show (the shown members' gates and links, nothing set but the muzzle ApplyLastPublished took).
+// A fresh member (no generation shown, its object still coming or a candidate) stays gated for the session - links to it
+// go to its source - and never keeps the group closed. The open group is "upgrading" while a member's newer object (or a
+// fresh member's) is a candidate or may still come: verified in the drains like the others, a verified one is only
+// recorded in the ledger (the shown one kept as its previous) for the next start's ApplyLastPublished; no SetModel, TXST
+// write, gate or link change in an open group, and a failure refuses that object only. A group with no member shown (a
+// first start) waits, is verified and opens whole in the drains as above.
 
 #include "Common.h"
 
@@ -48,7 +56,12 @@ namespace BlackFlame::CopyGroups
         std::size_t left = 0;          // members that left their group
         std::size_t addnOpen = 0;      // ADDN slots whose MPS is published
         std::size_t verifying = 0;     // groups being verified now
-        bool settled = false;          // nothing more can open this session (all open, failed or the window closed)
+        // (publication fix, 2026-10-19) groups opened at W1 that still verify newer objects for the next start (counted in
+        // groupsOpen too), the objects recorded so, and those refused (a parse or registration failure, a TXST not mapped)
+        std::size_t upgrading = 0;
+        std::size_t recorded = 0;
+        std::size_t refused = 0;
+        bool settled = false;          // nothing more can open or be recorded this session (or the window closed, or stopped)
     };
 
     [[nodiscard]] Progress GetProgress();

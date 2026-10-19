@@ -10,6 +10,7 @@
 //                        "fnv64": "<16 hex>",
 //                        "deps": [ { "path": "...", "fnv64": "<16 hex>" } | { "addn": 40012 } ],
 //                        txst only, optional: "textures": [ 8 x "..." | { "hex": "<bytes as hex>" } ], "idsRule": "prefixed" } ],
+//       optional: "previous": [ objects as in published: the fallback generation of a role (publication fix, 2026-10-19) ],
 //       "parseFailures": [ { "key": "<16 hex>", "count": n, "session": n } ], "terminal": [ "<16 hex>" ] } ] }
 // A plugin name with a byte outside printable ASCII is written as pluginHex, a key string or a dep path likewise as
 // keyStringHex / pathHex (JSON text must be UTF-8; the engine's names and paths are
@@ -124,6 +125,24 @@ namespace BlackFlame::SlotLedgerModel
             return deps;
         }
 
+        [[nodiscard]] inline Json ObjectJson(const Object& a_object)
+        {
+            Json p{ { "role", RoleText(a_object.role) }, { "key", CC::Hex16(a_object.key) }, { "path", a_object.path },
+                { "bytes", a_object.bytes }, { "fnv64", CC::Hex16(a_object.fnv64) }, { "deps", DepsJson(a_object.deps) } };
+            // review agy redo 2.1: a key string names source paths, which may hold the code page's bytes
+            p[PrintableAscii(a_object.keyText) ? "keyString" : "keyStringHex"] =
+                PrintableAscii(a_object.keyText) ? a_object.keyText : CC::LowerHex(a_object.keyText);
+            if (a_object.role == Role::kTxst && !a_object.textures.empty()) {
+                Json textures = Json::array();
+                for (const auto& text : a_object.textures) {  // TX01 etc. keep the source's bytes: the code page's
+                    textures.push_back(PrintableAscii(text) ? Json(text) : Json{ { "hex", CC::LowerHex(text) } });
+                }
+                p["textures"] = std::move(textures);
+                p["idsRule"] = a_object.idsRule;
+            }
+            return p;
+        }
+
         [[nodiscard]] inline bool ReadDeps(const Json& a_value, std::vector<Dep>& a_out)
         {
             if (!a_value.is_array()) {
@@ -196,20 +215,13 @@ namespace BlackFlame::SlotLedgerModel
             }
             item["published"] = Json::array();
             for (const auto& object : entry.published) {
-                Json p{ { "role", RoleText(object.role) }, { "key", CC::Hex16(object.key) }, { "path", object.path },
-                    { "bytes", object.bytes }, { "fnv64", CC::Hex16(object.fnv64) }, { "deps", DepsJson(object.deps) } };
-                // review agy redo 2.1: a key string names source paths, which may hold the code page's bytes
-                p[PrintableAscii(object.keyText) ? "keyString" : "keyStringHex"] =
-                    PrintableAscii(object.keyText) ? object.keyText : CC::LowerHex(object.keyText);
-                if (object.role == Role::kTxst && !object.textures.empty()) {
-                    Json textures = Json::array();
-                    for (const auto& text : object.textures) {  // TX01 etc. keep the source's bytes: the code page's
-                        textures.push_back(PrintableAscii(text) ? Json(text) : Json{ { "hex", CC::LowerHex(text) } });
-                    }
-                    p["textures"] = std::move(textures);
-                    p["idsRule"] = object.idsRule;
+                item["published"].push_back(ObjectJson(object));
+            }
+            if (!entry.previous.empty()) {  // (publication fix, 2026-10-19) an older build ignores it
+                item["previous"] = Json::array();
+                for (const auto& object : entry.previous) {
+                    item["previous"].push_back(ObjectJson(object));
                 }
-                item["published"].push_back(std::move(p));
             }
             item["parseFailures"] = Json::array();
             for (const auto& [key, failures] : entry.parseFailures) {
@@ -311,10 +323,17 @@ namespace BlackFlame::SlotLedgerModel
                 }
                 entry.conflict = *bytes;
             }
-            if (const auto published = item.find("published"); published != item.end()) {
-                if (!published->is_array()) {
-                    return refuse("slot " + HexId(entry.slot) + ": published is not an array");
+            // (publication fix, 2026-10-19) "previous" (optional) is read as "published" is, into its own list
+            for (const bool previous : { false, true }) {
+                const char* name = previous ? "previous" : "published";
+                const auto published = item.find(name);
+                if (published == item.end()) {
+                    continue;
                 }
+                if (!published->is_array()) {
+                    return refuse("slot " + HexId(entry.slot) + ": " + name + " is not an array");
+                }
+                const auto holds = [&](Role a_role) { return previous ? PreviousOf(entry, a_role) : PublishedOf(entry, a_role); };
                 for (const auto& p : *published) {
                     Object object;
                     const auto role = p.is_object() && p.contains("role") && p["role"].is_string() ? p["role"].get<std::string>() : std::string();
@@ -348,8 +367,8 @@ namespace BlackFlame::SlotLedgerModel
                         }
                         object.keyText = *keyBytes;
                     }
-                    if (PublishedOf(entry, object.role)) {
-                        return refuse("slot " + HexId(entry.slot) + ": two published objects of one role");  // review agy redo 2.8
+                    if (holds(object.role)) {
+                        return refuse("slot " + HexId(entry.slot) + ": two " + name + " objects of one role");  // review agy redo 2.8
                     }
                     if (!ReadTextures(p, object)) {
                         return refuse("slot " + HexId(entry.slot) + ": a published object's textures or idsRule is not valid");
@@ -359,7 +378,7 @@ namespace BlackFlame::SlotLedgerModel
                     // one that is not is dropped (the slot shows its source until a new generation is published)
                     const bool pathOk = object.role == Role::kTxst ? object.path.empty() : DataPathRule::ParseCopyPath(object.path).has_value();
                     if (pathOk) {
-                        SetPublished(entry, std::move(object));
+                        (previous ? entry.previous : entry.published).push_back(std::move(object));
                     }
                 }
             }

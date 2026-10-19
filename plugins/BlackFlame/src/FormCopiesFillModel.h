@@ -51,7 +51,9 @@ namespace BlackFlame::FormCopies
 
     /// W1 (kDataLoaded): each active usable slot's last published generation (the ledger), when intact and every ADDN slot
     /// it names has an intact MPS too, is registered and set as the slot's model; the PROJ muzzle object is recorded for the
-    /// group's opening (Slot::publishedMuzzle). Gates stay closed: CopyGroups opens whole groups. Returns how many slots took
-    /// a generation
+    /// group's opening (Slot::publishedMuzzle). Gates stay closed: CopyGroups opens whole groups. A role whose last published
+    /// object is not usable takes the ledger's previous one of that role when that is (publication fix, 2026-10-19: an
+    /// upgrade recorded for this start that fails here); the ledger then holds that one as published (RestorePrevious,
+    /// saved). Returns how many slots took a generation
     std::size_t ApplyLastPublished(const SlotKeys::Inputs& a_inputs);
 }

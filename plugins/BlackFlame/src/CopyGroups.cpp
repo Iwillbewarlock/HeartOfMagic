@@ -185,6 +185,89 @@ namespace BlackFlame::CopyGroups
                 MenuWatch::MainMenuOpened() ? "W2" : "after kDataLoaded", recorded.size());
         }
 
+        // (publication fix, 2026-10-19) W1: a group one of whose members shows a generation (ApplyLastPublished set it) opens
+        // on what its forms show: the shown members' gates and links. A fresh member (nothing to show yet: its object is
+        // still coming or not verified) stays gated for this session - links to it go to its source - and its object, like
+        // a shown member's newer one, is verified in the drains and only recorded for the next start (StepVerify). Nothing
+        // is set here but the muzzle ApplyLastPublished took (it keeps the string only)
+        void OpenShown(State& a_state, Group& a_group)
+        {
+            if (!WindowOpen(true)) {
+                return;
+            }
+            for (const auto& member : a_group.members) {
+                if (member.state != Member::kLeft && !member.fresh && !SlotAssign::At(member.id).form) {
+                    a_group.state = GroupState::kFailed;
+                    logger::warn("BlackFlame: slots: a group of {} is not opened: slot {:X} has no form", a_group.ids.size(), member.id);
+                    return;
+                }
+            }
+            NoteStep(true);
+            a_group.leftForNow.clear();
+            for (const auto& member : a_group.members) {
+                const auto& slot = SlotAssign::At(member.id);
+                if (member.state == Member::kLeft || member.fresh) {
+                    if (member.fresh) {
+                        a_group.leftForNow.push_back(member.id);
+                    }
+                    continue;
+                }
+                if (auto* projectile = slot.form->As<RE::BGSProjectile>()) {  // review agy 11: the form and the slot agree
+                    const auto& muzzle = slot.publishedMuzzle.empty() ? slot.sourceMuzzle : slot.publishedMuzzle;
+                    if (!muzzle.empty()) {
+                        projectile->muzzleFlashModel.SetModel(muzzle.c_str());
+                    }
+                }
+                SlotAssign::OpenGate(member.id);
+            }
+            for (const auto& member : a_group.members) {  // the links now that the shown members' gates are open
+                const auto& slot = SlotAssign::At(member.id);
+                if (member.state != Member::kLeft && !member.fresh) {
+                    (void)CopyFill::Refill(slot.form, slot.source, true);
+                }
+            }
+            PlanOpenGroup(a_state, a_group, false);
+            logger::info("BlackFlame: slots: group of {} opened at kDataLoaded on what its forms show ({} member(s) left for this "
+                         "session; {} newer object(s) to verify for the next start{})", a_group.ids.size(), a_group.leftForNow.size(),
+                a_group.verify.size(), a_group.upgradeWaits ? ", more still coming" : "");
+        }
+
+        // (publication fix, 2026-10-19) kUpgrading: a verified object goes into the ledger only, for the next start's
+        // ApplyLastPublished - no SetModel, no TXST write, no gate or link change in an open group. A TXST set is recorded
+        // with its strings and the IDs rule (as Open keeps them), and only while the rule is usable (none: not recorded)
+        bool RecordUpgrade(State& a_state, const Verify& a_item, std::string& a_why)
+        {
+            auto object = a_item.object;
+            if (object.role == LM::Role::kTxst) {
+                const auto strings = SlotTxst::RuleUsable(a_why) ? SlotTxst::StringsFor(SlotAssign::At(a_item.slot), object, a_why) : std::nullopt;
+                if (!strings) {
+                    return false;
+                }
+                object.textures.assign(strings->begin(), strings->end());
+                object.idsRule = SlotTxst::RuleName();
+            }
+            bool recorded = false;
+            SlotLedger::Edit([&](LM::Ledger& a_ledger) {
+                if (auto* entry = LM::FindSlot(a_ledger, a_item.slot)) {
+                    LM::SetPublished(*entry, std::move(object));  // the generation shown now becomes its previous (a fallback)
+                    recorded = true;
+                }
+            });
+            a_state.ledgerDirty = a_state.ledgerDirty || recorded;
+            a_why = recorded ? "" : "the slot has no ledger entry";
+            return recorded;
+        }
+
+        void NoteUpgrade(Group& a_group, const Verify& a_item, bool a_recorded, const std::string& a_why)
+        {
+            a_group.upgrades[{ a_item.slot, a_item.key }] = { a_recorded, a_recorded ? "its newer object is recorded for the next start" :
+                                                                                       "its newer object is not used: " + a_why };
+            if (!a_recorded) {
+                logger::warn("BlackFlame: slots: slot {:X}'s newer {} is not recorded for the next start: {} (it keeps what it shows; "
+                             "its group stays open)", a_item.slot, LM::RoleText(a_item.object.role), a_why);
+            }
+        }
+
         // review agy dc 5: a Demand that faulted may have left the model DB's lock or state behind: nothing more this session
         void StopOnFault(State& a_state, const std::string& a_path, const CopyModelProbe::VerifyResult& a_result)
         {
@@ -301,27 +384,7 @@ namespace BlackFlame::CopyGroups
 
         void UpdateProgress(const State& a_state)
         {
-            Progress progress;
-            progress.groups = a_state.groups.size();
-            bool busy = !a_state.addns.empty();
-            for (const auto& group : a_state.groups) {
-                progress.groupsOpen += group.state == GroupState::kOpen ? 1 : 0;
-                progress.groupsFailed += group.state == GroupState::kFailed ? 1 : 0;
-                progress.verifying += group.state == GroupState::kVerifying ? 1 : 0;
-                busy = busy || group.state == GroupState::kWaiting || group.state == GroupState::kVerifying;
-                for (const auto& member : group.members) {
-                    if (member.state == Member::kLeft || group.state == GroupState::kFailed) {
-                        ++progress.left;  // a failed group's members cannot open this session either ("all ready" can show)
-                        continue;
-                    }
-                    ++progress.slots;
-                    progress.open += SlotAssign::GateOpen(member.id) ? 1 : 0;
-                }
-            }
-            for (const auto id : SlotAssign::Assigned()) {
-                progress.addnOpen += SlotAssign::At(id).type == CC::SlotType::kADDN && SlotAssign::GateOpen(id) ? 1 : 0;
-            }
-            progress.settled = !busy || a_state.stopped || !MenuWatch::PublishOpen();
+            const auto progress = CountProgress(a_state);  // CopyGroupsPlan.cpp
             std::lock_guard lock(g_mutex);
             g_progress = progress;
         }
@@ -333,42 +396,63 @@ namespace BlackFlame::CopyGroups
             });
         }
 
-        // A verifying group's next objects: each registered (FindRecord first), then Demanded, within the slice
+        // A verifying (or upgrading) group's next objects: each registered (FindRecord first), then Demanded, within the slice.
+        // Verifying: a failure leaves the group closed for the session (FailGroup), all verified opens it. Upgrading
+        // (publication fix, 2026-10-19): the group is open and stays so; a failure refuses that object only (a parse failure
+        // counted as a verifying group's), a verified one is recorded for the next start
         void StepVerify(State& a_state, Group& a_group, Clock::time_point a_start)
         {
-            while (a_group.state == GroupState::kVerifying && a_group.verifyNext < a_group.verify.size() && Clock::now() - a_start < kSlice) {
+            const auto stepping = a_group.state;
+            const bool upgrading = stepping == GroupState::kUpgrading;
+            const auto fail = [&](const Verify& a_item, std::optional<std::uint64_t> a_parseKey, const std::string& a_what) {
+                if (!upgrading) {
+                    FailGroup(a_state, a_group, a_item.path, a_parseKey, a_what);
+                    return;
+                }
+                const bool terminal = a_parseKey && CountParseFailure(a_state, a_group.ids, *a_parseKey);
+                NoteUpgrade(a_group, a_item, false, a_what + (terminal ? "; its key is now terminal \"parse\"" : ""));
+                ++a_group.verifyNext;
+            };
+            while (a_group.state == stepping && a_group.verifyNext < a_group.verify.size() && Clock::now() - a_start < kSlice) {
                 auto& item = a_group.verify[a_group.verifyNext];
                 std::string why;
                 if (!item.registered && !FileIndex::Available() && EnteredDataNow(item.object)) {
                     // review N1: the index turned off after the plan; never Demanded (no parse failure counted)
-                    FailGroup(a_state, a_group, item.path, std::nullopt, "its files entered Data this session and the file index is off "
-                                                                         "now (the next start's index has them)");
-                    return;
+                    fail(item, std::nullopt, "its files entered Data this session and the file index is off now (the next start's index has them)");
+                    continue;
                 }
                 if (!item.registered) {
                     item.registered = FormCopies::RegisterObject(item.object, why);
                     if (!item.registered) {
-                        FailGroup(a_state, a_group, item.path, std::nullopt, "a file did not register: " + why);
-                        return;
+                        fail(item, std::nullopt, "a file did not register: " + why);
+                        continue;
                     }
                 }
-                if (!item.demand) {
-                    ++a_group.verifyNext;  // a TXST object: its DDS deps registered, nothing to Demand
-                    continue;
+                if (item.demand) {  // a TXST object: its DDS deps registered, nothing to Demand
+                    const auto result = CopyModelProbe::DemandOnce(item.path);
+                    if (result.fault) {
+                        StopOnFault(a_state, item.path, result);
+                        return;
+                    }
+                    if (!result.ok) {
+                        fail(item, item.key, CopyModelProbe::Describe(item.path, result));
+                        continue;
+                    }
                 }
-                const auto result = CopyModelProbe::DemandOnce(item.path);
-                if (result.fault) {
-                    StopOnFault(a_state, item.path, result);
-                    return;
-                }
-                if (!result.ok) {
-                    FailGroup(a_state, a_group, item.path, item.key, CopyModelProbe::Describe(item.path, result));
-                    return;
+                if (upgrading) {
+                    NoteUpgrade(a_group, item, RecordUpgrade(a_state, item, why), why);
                 }
                 ++a_group.verifyNext;
             }
-            if (a_group.state == GroupState::kVerifying && a_group.verifyNext == a_group.verify.size()) {
+            if (a_group.state != stepping || a_group.verifyNext < a_group.verify.size()) {
+                return;
+            }
+            if (!upgrading) {
                 Open(a_state, a_group, false);
+            } else {
+                // the list is done: kOpen unless more may come; planned again first when the progress moved meanwhile (Replan
+                // left the group alone while it verified)
+                PlanOpenGroup(a_state, a_group, a_group.plannedFrom != a_state.generation);
             }
         }
 
@@ -427,7 +511,7 @@ namespace BlackFlame::CopyGroups
                 }
                 if (group.state == GroupState::kWaiting && AllReady(group)) {
                     Open(a_state, group, false);  // every member ready (an ADDN dep opened, or the rest left)
-                } else if (group.state == GroupState::kVerifying) {
+                } else if (group.state == GroupState::kVerifying || group.state == GroupState::kUpgrading) {
                     StepVerify(a_state, group, start);
                 }
             }
@@ -455,8 +539,13 @@ namespace BlackFlame::CopyGroups
                     logger::warn("BlackFlame: slots: the publish stepper could not be queued again: nothing more is published this session");
                 }
             } else {
-                logger::info("BlackFlame: slots: publication settled: {} of {} slots open, {} groups open, {} failed, {} ADDN MPS open",
-                    progress.open, progress.slots, progress.groupsOpen, progress.groupsFailed, progress.addnOpen);
+                // (publication fix, 2026-10-19) whether the open groups' newer objects were all verified for the next start
+                logger::info("BlackFlame: slots: publication settled: {} of {} slots open, {} groups open, {} failed, {} ADDN MPS open; "
+                             "for the next start {} object(s) recorded, {} not used, {}", progress.open, progress.slots, progress.groupsOpen,
+                    progress.groupsFailed, progress.addnOpen, progress.recorded, progress.refused,
+                    progress.upgrading == 0 ? std::string("every open group's upgrades done") :
+                                              std::format("{} open group(s) with upgrades NOT finished ({})", progress.upgrading,
+                                                  !MenuWatch::PublishOpen() ? "the publish window closed" : "publication stopped"));
             }
         }
     }
@@ -472,17 +561,22 @@ namespace BlackFlame::CopyGroups
         state.ledger = SlotLedger::Copy();
         (void)Replan(state, Clock::now(), true);  // kDataLoaded: the whole plan at once (no frame to keep)
         std::size_t opened = 0;
+        std::size_t upgrading = 0;
         for (auto& group : state.groups) {
-            if (group.state == GroupState::kWaiting && AllReady(group)) {
-                Open(state, group, true);
-                opened += group.state == GroupState::kOpen ? 1 : 0;
+            // (publication fix, 2026-10-19) a member showing a generation opens its group now; fresh members never keep it
+            // closed (a group with none shown - a first start - waits, is verified and opens in the drains)
+            if ((group.state == GroupState::kWaiting || group.state == GroupState::kVerifying) && OpensAtW1(group)) {
+                OpenShown(state, group);
+                opened += group.state == GroupState::kOpen || group.state == GroupState::kUpgrading ? 1 : 0;
+                upgrading += group.state == GroupState::kUpgrading ? 1 : 0;
             }
         }
         SaveLedger(state, true);
         UpdateProgress(state);
-        logger::info("BlackFlame: slots: {} groups, {} opened at kDataLoaded from their last published generations; {}", state.groups.size(),
-            opened, state.canVerify ? "the rest are published on the main thread as they are verified" :
-                                       "no main-thread drain: nothing more is published this session (" + MenuWatch::ProofText() + ")");
+        logger::info("BlackFlame: slots: {} groups, {} opened at kDataLoaded on the generations their forms show ({} of them verify newer "
+                     "objects for the next start); {}", state.groups.size(), opened, upgrading,
+            state.canVerify ? "groups with nothing shown yet are published on the main thread as they are verified" :
+                              "no main-thread drain: nothing more is published or recorded this session (" + MenuWatch::ProofText() + ")");
         if (state.canVerify && !GetProgress().settled && !QueueTask(kTaskName, &Step)) {
             logger::warn("BlackFlame: slots: the publish stepper could not be queued: nothing more is published this session");
         }

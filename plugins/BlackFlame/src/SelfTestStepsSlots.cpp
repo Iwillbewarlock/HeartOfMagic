@@ -163,13 +163,22 @@ namespace BlackFlame::SelfTest
                 const auto* model = FormCopies::ModelOf(slot.form);
                 const char* now = model ? model->GetModel() : nullptr;
                 const auto* entry = LM::FindSlot(ledger, id);
-                const auto* recorded = entry ? LM::PublishedOf(*entry, slot.type == CopyContract::SlotType::kADDN ? LM::Role::kMps : LM::Role::kModel) : nullptr;
+                const auto role = slot.type == CopyContract::SlotType::kADDN ? LM::Role::kMps : LM::Role::kModel;
+                const auto* recorded = entry ? LM::PublishedOf(*entry, role) : nullptr;
+                // (publication fix, 2026-10-19) an open group's upgrade is recorded for the next start, not shown: the ledger's
+                // previous object is then the one the slot shows
+                const auto holds = [&](LM::Role a_role, const std::string& a_shown) {
+                    const auto* published = entry ? LM::PublishedOf(*entry, a_role) : nullptr;
+                    const auto* previous = entry ? LM::PreviousOf(*entry, a_role) : nullptr;
+                    return (published && FormCopies::RecordModelPath(published->path) == a_shown) ||
+                           (previous && FormCopies::RecordModelPath(previous->path) == a_shown);
+                };
                 std::string why;
                 // the model pool hands back the first spelling of a path (case-blind): compared as the engine compares them
                 const auto differs = [](const std::string& a_ours, const char* a_engine) { return !a_engine || _stricmp(a_ours.c_str(), a_engine) != 0; };
                 if (!slot.publishedModel.empty() && differs(slot.publishedModel, now)) {
                     why = std::format("model '{}', published '{}'", now ? now : "", slot.publishedModel);
-                } else if (recorded ? FormCopies::RecordModelPath(recorded->path) != slot.publishedModel : !slot.publishedModel.empty()) {
+                } else if (recorded ? !holds(role, slot.publishedModel) : !slot.publishedModel.empty()) {
                     why = std::format("the ledger records '{}', the slot shows '{}'", recorded ? recorded->path : std::string("nothing"),
                         slot.publishedModel);
                 }
@@ -178,7 +187,7 @@ namespace BlackFlame::SelfTest
                     const auto* recordedMuzzle = entry ? LM::PublishedOf(*entry, LM::Role::kMuzzle) : nullptr;
                     if (differs(slot.publishedMuzzle, muzzle)) {
                         why = std::format("muzzle '{}', published '{}'", muzzle ? muzzle : "", slot.publishedMuzzle);
-                    } else if (!recordedMuzzle || FormCopies::RecordModelPath(recordedMuzzle->path) != slot.publishedMuzzle) {
+                    } else if (!holds(LM::Role::kMuzzle, slot.publishedMuzzle)) {
                         why = std::format("the ledger records the muzzle '{}', the slot shows '{}'",
                             recordedMuzzle ? recordedMuzzle->path : std::string("nothing"), slot.publishedMuzzle);
                     }

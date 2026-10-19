@@ -24,6 +24,7 @@ namespace BlackFlame::CopyGroups
             case GroupState::kWaiting: return "waiting (its objects still building or coming into Data)";
             case GroupState::kVerifying: return "verifying";
             case GroupState::kOpen: return "open";
+            case GroupState::kUpgrading: return "open (newer objects verified for the next start)";
             case GroupState::kFailed: return "failed";
             case GroupState::kGone: return "left";
             }
@@ -40,8 +41,9 @@ namespace BlackFlame::CopyGroups
                     continue;
                 }
                 out.inGroup = true;
-                out.groupOpen = group.state == GroupState::kOpen;
-                out.left = member.state == Member::kLeft;
+                out.groupOpen = group.state == GroupState::kOpen || group.state == GroupState::kUpgrading;
+                // (publication fix, 2026-10-19) a member its group opened at W1 without (fresh) is left for this session
+                out.left = member.state == Member::kLeft || (out.groupOpen && LeftForNow(group, a_slot));
                 out.state = out.left && group.state != GroupState::kFailed ? "left" : GroupStateText(group.state);
                 out.why = !member.model.why.empty() ? member.model.why : member.muzzle.why;
                 return out;

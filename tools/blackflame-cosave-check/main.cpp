@@ -11,7 +11,8 @@
 // SlotLedgerTests.h - its file cases use a folder under the system temp folder, removed after) and the BSValueNode reader
 // (NifValueNodes.h; NifValueNodesTests.h), the progress.jsonl tail (ProgressTail.h; ProgressTailTests.h) and the DLL's
 // read of the builder's output identity (CopyContractIdentity.h; IdentityTests.h, on the builder built beside this exe), and
-// the builder launcher's pure parts (BuilderControl.h; BuilderControlTests.h: the throttle's CPU rate, the exit code text).
+// the builder launcher's pure parts (BuilderControl.h; BuilderControlTests.h: the throttle's CPU rate, the exit code text),
+// and the publication plan's decisions and the ledger's previous generation (CopyGroupsDecide.h; PublicationTests.h).
 // --cosave and --nif-values (SkseFile.cpp): the DLL's readers on real files.
 // Exit 0 when every check (or every file) passes, 1 on a failure, 2 on a usage error. No game.
 
@@ -22,6 +23,7 @@
 #include "IdentityTests.h"
 #include "NifValueNodesTests.h"
 #include "ProgressTailTests.h"
+#include "PublicationTests.h"
 #include "RouteStartTests.h"
 #include "TxstPathsTests.h"
 #include "TxstRuleTests.h"
@@ -452,6 +454,7 @@ int main(int a_argc, char** a_argv)
     suite("txst paths", [](auto&& a_check) { TxstPathsTests::Run(a_check); });
     suite("txst rule", [](auto&& a_check) { TxstRuleTests::Run(a_check); });
     suite("builder control", [](auto&& a_check) { BuilderControlTests::Run(a_check); });
+    suite("publication", [](auto&& a_check) { PublicationTests::Run(a_check); });
     suite("identity", [&](auto&& a_check) {
         auto skip = [&](const std::string& a_what) { check.Skip(a_what); };
         IdentityTests::Run(a_check, skip);
