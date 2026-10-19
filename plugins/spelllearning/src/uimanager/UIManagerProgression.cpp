@@ -506,10 +506,14 @@ void UIManager::OnSetTreePrerequisites(const char* argument)
                 std::string formIdStr = entry.value("formId", "");
                 if (formIdStr.empty()) continue;
 
-                // The whole text must be the id: an edit mode copy ("0x0001ABCD_dup_17...") is
-                // not its original, whose requirements the copy's empty lists would then erase
-                const auto parsedId = ParsePanelFormId(formIdStr, "SetTreePrerequisites");
-                if (!parsedId) continue;
+                // The whole text must be the id (FormIdText::Parse, not ParseSpellOf): an edit
+                // mode copy ("0x0001ABCD_dup_17...") is not its original, whose requirements the
+                // copy's empty lists would then erase. Its prerequisite lists below name spells.
+                const auto parsedId = FormIdText::Parse(formIdStr);
+                if (!parsedId) {
+                    logger::warn("UIManager: SetTreePrerequisites - '{}' is not a formId - skipping", formIdStr);
+                    continue;
+                }
                 const RE::FormID formId = *parsedId;
 
                 if (formId == 0) {

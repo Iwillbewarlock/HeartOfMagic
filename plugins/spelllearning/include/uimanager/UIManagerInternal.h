@@ -29,11 +29,12 @@ T SafeJsonValue(const nlohmann::json& j, const std::string& key, const T& defaul
     return defaultValue;
 }
 
-// The formId a panel message names (FormIdText::Parse: hex, "0x" optional), or
-// nullopt with a warning naming the handler and the text it got
+// The spell a panel message names (FormIdText::ParseSpellOf: hex, "0x" optional; an
+// edit mode copy's "<formId>_dup_<n>" is its spell, as the panel's own getCanonicalFormId
+// reads it), or nullopt with a warning naming the handler and the text it got
 inline std::optional<RE::FormID> ParsePanelFormId(std::string_view text, std::string_view handler)
 {
-    const auto formId = FormIdText::Parse(text);
+    const auto formId = FormIdText::ParseSpellOf(text);
     if (!formId) logger::warn("UIManager: {} - '{}' is not a formId", handler, text);
     return formId;
 }

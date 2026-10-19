@@ -18,6 +18,11 @@
 // decimal. Anything else - empty, a space, a sign, trailing text such as an edit
 // mode copy's "_dup_", more than 8 digits - is no formId. The caller logs what it
 // dropped; this header has no logger so the offline checks can use it.
+//
+// A tree node of an edit mode copy (EditMode.spawnSpell) is "<formId>_dup_<n>":
+// ParseSpellOf reads the spell such a node stands for, as the panel's
+// getCanonicalFormId does (the text before the first "_dup_"). Saved trees and the
+// panel's learn, unlock and XP messages carry such ids.
 namespace FormIdText
 {
     inline constexpr int kHexBase = 16;
@@ -33,6 +38,15 @@ namespace FormIdText
         const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), value, kHexBase);
         if (error != std::errc() || end != text.data() + text.size()) return std::nullopt;
         return value;
+    }
+
+    /// What an edit mode copy's node id adds to its spell's formId
+    inline constexpr std::string_view kCopySuffix = "_dup_";
+
+    /// The spell a tree node id names: Parse of the text before an edit mode copy's "_dup_..." (all of it when none)
+    [[nodiscard]] inline std::optional<std::uint32_t> ParseSpellOf(std::string_view nodeId) noexcept
+    {
+        return Parse(nodeId.substr(0, nodeId.find(kCopySuffix)));
     }
 
     /// "0x%08X": the one form formIds are written in (scan output, panel messages, progress JSON)

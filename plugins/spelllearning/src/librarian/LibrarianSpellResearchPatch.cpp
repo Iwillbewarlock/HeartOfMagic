@@ -181,7 +181,8 @@ namespace Librarian::SpellResearchPatch
                     } else if (const auto formId = FormIdText::Parse(text(entry, "formId"))) {
                         filter.blacklistedIds.insert(*formId);
                     } else {
-                        logger::warn("SpellResearchPatch: spellBlacklist entry with no usable plugin, persistentId or formId - ignored");
+                        logger::warn("SpellResearchPatch: spellBlacklist entry {} has no usable plugin, persistentId "
+                                     "or formId - ignored", JsonText::Dump(entry));
                     }
                 }
             }

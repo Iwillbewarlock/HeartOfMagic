@@ -13,6 +13,7 @@
 // fixed tree (the next load) changes nothing.
 //
 // Also FormIdText.h, the one reader and writer of formId text (hex, "0x" optional;
+// ParseSpellOf reads an edit mode copy's "<formId>_dup_<n>" as its spell;
 // junk, empty and more than 8 digits rejected), which NormalizeFormId uses.
 //
 // Exit 0 when every case passes, 1 on a failure, 2 on a bad argument.
@@ -306,6 +307,20 @@ namespace
         for (const auto& c : cases) {
             const auto got = FormIdText::Parse(c.text);
             check.Check(got == c.value, std::format("Parse(\"{}\") is {}", c.text,
+                c.value ? std::format("0x{:08X}", *c.value) : std::string("rejected")));
+        }
+        // ParseSpellOf: an edit mode copy's node id ("<formId>_dup_<n>") names its spell, as the
+        // panel's getCanonicalFormId reads it; a plain formId as Parse; junk still rejected
+        const Expect spellOf[] = {
+            { "0x0001ABCD_dup_1729000000000", 0x0001ABCD },  // a saved copy (EditMode.spawnSpell)
+            { "0x0001ABCD", 0x0001ABCD },                    // no copy: Parse
+            { "0001abcd_dup_", 0x0001ABCD },                 // edge: no number after _dup_, no 0x
+            { "_dup_17", std::nullopt },                     // nothing before _dup_
+            { "0x12zz_dup_1", std::nullopt },                // junk before _dup_
+            { "0x0001ABCD_copy", std::nullopt },             // another suffix is junk
+        };
+        for (const auto& c : spellOf) {
+            check.Check(FormIdText::ParseSpellOf(c.text) == c.value, std::format("ParseSpellOf(\"{}\") is {}", c.text,
                 c.value ? std::format("0x{:08X}", *c.value) : std::string("rejected")));
         }
         check.Check(FormIdText::Format(0x0001ABCD) == "0x0001ABCD" && FormIdText::Format(0) == "0x00000000" &&

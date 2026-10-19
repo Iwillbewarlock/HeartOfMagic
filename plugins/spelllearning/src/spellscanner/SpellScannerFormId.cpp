@@ -152,7 +152,8 @@ namespace SpellScanner
     {
         if (formIdStr.empty()) return false;
 
-        const auto formId = FormIdText::Parse(formIdStr);
+        // A tree node's id: an edit mode copy ("<formId>_dup_<n>") stands for its spell
+        const auto formId = FormIdText::ParseSpellOf(formIdStr);
         return formId && IsFormIdValid(*formId);
     }
 
@@ -165,7 +166,7 @@ namespace SpellScanner
         // rule came in still holds spells the rule leaves out (2026-10-05).
         bool IsPlayerSpell(const std::string& formIdStr, const std::unordered_set<std::string>& gateKept)
         {
-            const auto formId = FormIdText::Parse(formIdStr);
+            const auto formId = FormIdText::ParseSpellOf(formIdStr);  // a copy's node id names its spell
             if (!formId) return false;
             auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(*formId);
             if (!spell) return false;

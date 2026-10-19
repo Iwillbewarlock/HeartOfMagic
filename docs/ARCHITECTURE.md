@@ -697,7 +697,8 @@ plugin list opens (`migrateLoweredWhitelist`). The Spell Research patch (`Librar
 second copy of a spell (`<formId>_dup_<n>`, edit mode's Spawn) when the tree has the spell's own node, sends only
 the first copy, under the spell's formId, when it has none, and makes every prerequisite id its spell's (each once);
 C++ `OnSetTreePrerequisites` skips a formId text it cannot parse to the end (`FormIdText::Parse` takes the whole
-text or nothing). Before, `stoul` read a copy's id as the original's formId and the copy's empty lists erased the original's requirements. Limit: C++ keeps one requirement
+text or nothing); the other panel handlers and the saved tree's load check read a copy's id as its spell
+(`FormIdText::ParseSpellOf`, the panel's `getCanonicalFormId` rule), so a copy's node stays in the tree. Before, `stoul` read a copy's id as the original's formId and the copy's empty lists erased the original's requirements. Limit: C++ keeps one requirement
 entry per spell and cannot say "this copy's links or the spell's", so links drawn to a copy reach C++ only when the
 spell has no node of its own; the panel (`recalculateNodeAvailability`, per node) may show such a copy open while a
 tome of the spell is still judged by the spell's own links.
@@ -1964,7 +1965,7 @@ HeartOfMagic/
 │   │   │   ├── PapyrusAPI.h                 ✅ Papyrus native function header
 │   │   │   ├── PassiveLearningSource.h      ✅ Passive learning source header
 │   │   │   ├── FormIdBits.h                 ✅ form id bit layout: load index, light index, local id masks (no game types)
-│   │   │   ├── FormIdText.h                 ✅ formId text: Parse (hex, 0x optional, whole text, max 8 digits) and Format "0x%08X" (no game types)
+│   │   │   ├── FormIdText.h                 ✅ formId text: Parse (hex, 0x optional, whole text, max 8 digits), ParseSpellOf (an edit mode copy's "_dup_" id as its spell) and Format "0x%08X" (no game types)
 │   │   │   ├── PluginNames.h                ✅ persistentId plugin names: UTF-8 key, memoised lookup (no game types)
 │   │   │   ├── TreeRemap.h                  ✅ a saved tree's FormIDs and links after a load order change (no game types)
 │   │   │   ├── CoSave.h                     ✅ SKSE serialization callbacks (save, load, revert)
