@@ -57,6 +57,7 @@ add_executable(librarian-test
     librarian-test.cpp
     librarian-selftest.cpp
     librarian-adapters-selftest.cpp
+    environment-selftest.cpp
     librarian-score.cpp
     librarian-vocab-check.cpp
     librarian-adapters.cpp

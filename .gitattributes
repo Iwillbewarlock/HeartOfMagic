@@ -1,0 +1,2 @@
+# Plugin files are byte-exact records (docs/ENVIRONMENT.md): no line-ending or text conversion
+*.esp binary

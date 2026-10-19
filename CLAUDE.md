@@ -40,6 +40,9 @@ What are you doing?
 │   ├─► Spell Research archetype lists (compat/spellresearch.json) → docs/librarian/SPELL_RESEARCH.md
 │   └─► Why it exists, what is left → docs/librarian/Concept.md, docs/librarian/ToDo.md
 │
+├─► Working with HeartOfMagic.esp, explosion twins, environment mods (Frostwalker)?
+│   └─► docs/ENVIRONMENT.md (record values, src/environment/, the 1.6 self-test)
+│
 ├─► Working with DEST/ISL compatibility?
 │   └─► docs/DEST-IMPROVEMENTS.md
 │
@@ -149,6 +152,7 @@ statically linked library needs its port in `_vcpkg_license_ports` (Distribution
 .\DeployDev.ps1 -PanelOnly   # UI only, no rebuild needed
 .\DeployDev.ps1 -WithISLPatch  # also the ISL patch's scripts; -WithBookXP the BookXP script
 .\DeployDev.ps1 -NoScripts     # plugin + panel, the install's Papyrus scripts left as they are
+.\DeployDev.ps1 -WithSelfTest  # also selftest.json: the in-game 1.6 self-test runs (any deploy without it removes it)
 ```
 
 **ALWAYS use `DeployDev.ps1`**—never copy the panel by hand. It refuses to run while SkyrimSE is
@@ -285,6 +289,18 @@ This project does not have a C++ test framework. Validation is done through:
 - JavaScript unit tests (above)
 - In-game testing by manual play (the old autoTest.js harness and its `test_config.json` went with the
   JS tree builders it ran, 2026-09-27)
+- The in-game 1.6 self-test (`src/environment/EnvironmentSelfTest*.cpp`, dev only): on while
+  `Data/SKSE/Plugins/SpellLearning/selftest.json` holds `{"enabled": true}` (`DeployDev.ps1 -WithSelfTest` puts
+  `debug/selftest.json` there; never shipped). After `delaySeconds` (30) of unpaused play following a load it writes
+  `[selftest-1.6] <id> PASS|FAIL|SKIP|ANSWER <values>` lines and `[selftest-1.6] DONE pass= fail= skip= answer=` to
+  SpellLearning.log (FAIL = a defect; ANSWER yes|no = H2's finding):
+  H2 (does a spell's virtual `HasKeyword` see keywords on its effects, also one added at runtime), the explosion twin
+  (MAG_ScreenShakeEffect on the twin, the Blizzard hazard on the original, values equal), Frostwalker's matcher on the
+  installed lists, the env adapter files in `perk_adapters_report.json`, Desecration's necrotic spells. Claude reads the
+  log and judges it; docs/ENVIRONMENT.md, "Self-test"
+- `node tools/frostwalker-twin-check.js [--patterns <Data>/SKSE/Plugins/Frostwalker]`: HeartOfMagic.esp's header (light
+  flag, HEDR 1.70, masters), each twin's record (a new record, fields equal to the original's bytes) and its strings
+  against Frostwalker's matcher; exit 1 on a failure
 - Offline harnesses in `tools/` built by `BuildRelease.ps1` into `build/tools/Release/`:
   `treebuilder-test` (the Classic tree builder; it prints each school's shape - `Structure <school>: nodes, links,
   branching, maxChildren, maxDepth, nonStringLinks` - and exits 2 on a link that is not a formId or a school of 10+
@@ -292,8 +308,9 @@ This project does not have a C++ test framework. Validation is done through:
   keyword writes with the plugin's own planner; `--spellresearch <file> --catalog <file> [-a <answers>]` counts the
   Spell Research registrations and scores their labels; `librarian-test --self-test` classifies made-up spells - the
   evidence conflict stage, per-element evidence tiers, the axis source after removals - and plans adapter lines on
-  made-up catalogs - `tierMin`, `requires.config`, the per-effect `damage` lines (`tools/librarian-adapters-selftest.cpp`) -
-  no dump needed, exit 1 on a failure, and `librarian-check.js` runs it first; `--adapters ... -v` lists every planned
+  made-up catalogs - `tierMin`, `requires.config` and `requires.dlls`, the per-effect `damage` lines (`tools/librarian-adapters-selftest.cpp`) -
+  and checks the explosion twin rules - Frostwalker's matcher and pattern files, which effects take a twin
+  (`tools/environment-selftest.cpp`, `include/environment/EnvironmentMatch.h`) - no dump needed, exit 1 on a failure, and `librarian-check.js` runs it first; `--adapters ... -v` lists every planned
   effect write with the spells using it), `tome-reach-test` (which tree spells have tomes nothing hands
   out: `tome-reach-test -i inputs.json -s spell_scan_output.json [-v]`, inputs from `lab/tome-reach/make_inputs.py`;
   `tome-reach-test --self-test` checks the reader on made-up plugins, no game or load order needed, exit 1 on a failure;
@@ -486,4 +503,5 @@ Did I add a new system?                 → Create new doc AND update decision t
 | [docs/TRANSLATING.md](docs/TRANSLATING.md) | Translation guide for localizing the mod |
 | [docs/PLAN-PUBLIC-MODDER-API.md](docs/PLAN-PUBLIC-MODDER-API.md) | Public modder API reference and design |
 | [docs/DEST-IMPROVEMENTS.md](docs/DEST-IMPROVEMENTS.md) | DEST compatibility comparison |
+| [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) | HeartOfMagic.esp, explosion twins (Frostwalker), environment adapters, the 1.6 in-game self-test |
 | [plugins/BookXP/README.md](plugins/addons/BookXP/README.md) | BookXP addon documentation |

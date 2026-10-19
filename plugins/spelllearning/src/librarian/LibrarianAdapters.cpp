@@ -22,6 +22,14 @@ namespace Librarian::Adapters
     namespace
     {
         constexpr const char* VANILLA_FILE = "vanilla.json";
+        constexpr const char* SKSE_PLUGIN_DIR = "Data/SKSE/Plugins";
+
+        // A "dlls" entry is looked up in SKSE_PLUGIN_DIR: a name with a path in
+        // it could point anywhere
+        bool PlainFileName(const std::string& name)
+        {
+            return !name.empty() && name != "." && name != ".." && name.find_first_of("/\\:") == std::string::npos;
+        }
 
         // ---------------------------------------------------------------------
         // Parsing
@@ -265,6 +273,12 @@ namespace Librarian::Adapters
             read.Optional("always", always, &json::is_boolean);
             file.always = always.value_or(false);
             read.List("any", file.requiresAny);
+            read.List("dlls", file.requiresDlls);
+            for (const auto& dll : file.requiresDlls) {
+                if (PlainFileName(dll)) continue;
+                problems.push_back(name + ".requires: \"dlls\" entry '" + dll + "' is not a plain file name");
+                read.ok = false;
+            }
             std::optional<std::string> config;
             read.Optional("config", config, &json::is_string);
             file.requiresConfig = config.value_or("");
@@ -272,12 +286,13 @@ namespace Librarian::Adapters
                 problems.push_back(name + ".requires: \"config\" is empty");
                 read.ok = false;
             }
-            read.RejectUnknown({ "always", "any", "config" });
+            read.RejectUnknown({ "always", "any", "dlls", "config" });
             // A requires it cannot read in full (a mistyped gate) keeps the file off,
             // never on without its gate
             if (!read.ok) {
                 file.always = false;
                 file.requiresAny.clear();
+                file.requiresDlls.clear();
             }
         }
 
@@ -321,11 +336,19 @@ namespace Librarian::Adapters
         return !(node->is_boolean() && !node->get<bool>());
     }
 
-    bool FileApplies(const File& file, const json& config, const std::function<bool(const std::string&)>& pluginLoaded)
+    bool DllInstalled(const std::string& name)
+    {
+        if (!PlainFileName(name)) return false;
+        std::error_code error;
+        return std::filesystem::is_regular_file(std::filesystem::path(SKSE_PLUGIN_DIR) / name, error);
+    }
+
+    bool FileApplies(const File& file, const json& config, const std::function<bool(const std::string&)>& pluginLoaded,
+        const std::function<bool(const std::string&)>& dllPresent)
     {
         if (!file.requiresConfig.empty() && !ConfigFlagOn(config, file.requiresConfig)) return false;
         if (file.always) return true;
-        return std::ranges::any_of(file.requiresAny, pluginLoaded);
+        return std::ranges::any_of(file.requiresAny, pluginLoaded) || std::ranges::any_of(file.requiresDlls, dllPresent);
     }
 
     // =========================================================================

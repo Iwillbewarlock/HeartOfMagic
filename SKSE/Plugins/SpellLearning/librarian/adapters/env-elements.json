@@ -19,12 +19,18 @@
     "effects lacked it there, 7 / 1 / 1 of them beyond what vanilla.json's one-effect lines give.",
     "Perk mods read the same keywords: a spell that gains MagicDamageFire on another effect is boosted by the",
     "fire perks on that effect too. That is the perk mods' intent for real fire damage, but it changes",
-    "balance for those spells (CHANGELOG).",
-    "Off with config.json \"environment\": { \"enabled\": false }."
+    "balance for those spells (CHANGELOG), so the file runs only when one of those mods is installed: one of",
+    "their plugins loaded, or Ice is Slick's / Rain Extinguishes Fires' DLL in SKSE/Plugins (Ice is Slick has",
+    "no plugin). Off with config.json \"environment\": { \"enabled\": false } as well."
   ],
   "perkMod": "environment mods reading the vanilla element keywords",
   "measured": "2026-10-20",
-  "requires": { "always": true, "config": "environment.enabled" },
+  "requires": {
+    "any": ["RainExtinguishesFires.esp", "Water Douses Fire.esp", "Sneak Tools.esp", "JBMod.esp",
+      "ElementallyReactiveWaters.esp", "SIMP.esp"],
+    "dlls": ["IceIsSlick.dll", "RainExtinguishesFires.dll"],
+    "config": "environment.enabled"
+  },
   "adapters": [
     { "keyword": "MagicDamageFire", "keywordForm": "Skyrim.esm|0x01CEAD", "why": "fire damage effects",
       "damage": { "elements": ["fire"],

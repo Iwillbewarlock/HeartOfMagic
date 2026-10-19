@@ -359,6 +359,7 @@ int RunLibrarianSelfTest()
     Sources(rules);
     BadInput(rules);
     RunAdapterSelfTest(g_passed, g_failed);
+    RunEnvironmentSelfTest(g_passed, g_failed);
     std::printf("\n%d passed, %d failed\n", g_passed, g_failed);
     return g_failed == 0 ? 0 : 1;
 }

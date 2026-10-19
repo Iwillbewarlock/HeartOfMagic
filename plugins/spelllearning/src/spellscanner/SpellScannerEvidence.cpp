@@ -1,5 +1,6 @@
 #include "Common.h"
 #include "SpellScanner.h"
+#include "environment/EnvironmentTwins.h"
 #include "librarian/PerkAdapterPatch.h"
 
 #include <set>
@@ -13,6 +14,10 @@
 // merged or guessed. A consumer that wants to decide "this is an area spell"
 // does that itself from what is written down. That keeps the scan identical on
 // every load order and in every language.
+//
+// An effect's own explosion is read through Environment::ScannedExplosion: an
+// effect HeartOfMagic.esp's twin stands in for is recorded with the original
+// explosion its plugin wrote (docs/ENVIRONMENT.md).
 
 namespace SpellScanner
 {
@@ -72,15 +77,16 @@ namespace SpellScanner
         const char* HazardSource(const RE::EffectSetting* baseEffect)
         {
             const auto& data = baseEffect->data;
+            const RE::BGSExplosion* explosion = Environment::ScannedExplosion(baseEffect);
             const RE::BGSExplosion* projectileExplosion =
                 data.projectileBase ? data.projectileBase->data.explosionType : nullptr;
 
             if (data.associatedForm && data.associatedForm->Is(RE::FormType::Hazard)) return "effect";
 
-            if (PlacedObjectIsHazard(data.explosion) || PlacedObjectIsHazard(projectileExplosion)) return "explosion";
+            if (PlacedObjectIsHazard(explosion) || PlacedObjectIsHazard(projectileExplosion)) return "explosion";
 
             if (ImpactSetHasHazard(data.impactDataSet)) return "impact";
-            if (data.explosion && ImpactSetHasHazard(data.explosion->data.impactDataSet)) return "impact";
+            if (explosion && ImpactSetHasHazard(explosion->data.impactDataSet)) return "impact";
             if (projectileExplosion && ImpactSetHasHazard(projectileExplosion->data.impactDataSet)) return "impact";
 
             return nullptr;
@@ -210,7 +216,7 @@ namespace SpellScanner
                 add(data.associatedForm->As<RE::MagicItem>(), "cloak");
             }
             addHazard(data.associatedForm, "hazard");
-            addExplosion(data.explosion);
+            addExplosion(Environment::ScannedExplosion(baseEffect));
             if (data.projectileBase) addExplosion(data.projectileBase->data.explosionType);
             return applies;
         }
@@ -316,8 +322,8 @@ namespace SpellScanner
         }
 
         // The effect's own explosion wins; otherwise the one its projectile sets off.
-        if (data.explosion) {
-            effectJson["explosion"] = BuildExplosionJson(data.explosion, "effect");
+        if (const RE::BGSExplosion* explosion = Environment::ScannedExplosion(baseEffect)) {
+            effectJson["explosion"] = BuildExplosionJson(explosion, "effect");
         } else if (data.projectileBase && data.projectileBase->data.explosionType) {
             effectJson["explosion"] = BuildExplosionJson(data.projectileBase->data.explosionType, "projectile");
         }

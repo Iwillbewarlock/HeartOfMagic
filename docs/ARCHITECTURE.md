@@ -1986,6 +1986,10 @@ HeartOfMagic/
 │   │   │   ├── SpellTomeHookSites.h         ✅ Tome hook offsets and site checks (no game types)
 │   │   │   ├── ThreadUtils.h                ✅ Game-thread dispatch utilities
 │   │   │   ├── XPSource.h                   ✅ XP source interface
+│   │   │   ├── environment/
+│   │   │   │   ├── EnvironmentMatch.h       ✅ Frostwalker's explosion matcher, which effects take a twin (no game types)
+│   │   │   │   ├── EnvironmentTwins.h       ✅ HeartOfMagic.esp explosion twins: kDataLoaded repoint, switch, scanner map
+│   │   │   │   └── EnvironmentSelfTest.h    ✅ In-game 1.6 self-test (dev only, selftest.json)
 │   │   │   ├── treebuilder/
 │   │   │   │   ├── TreeBuilder.h            ✅ Tree construction engine header
 │   │   │   │   ├── TreeBuilderInternal.h    ✅ Internal tree builder helpers
@@ -2011,6 +2015,10 @@ HeartOfMagic/
 │   │       ├── PapyrusAPI.cpp               ✅ Papyrus native function bindings
 │   │       ├── ISLIntegration.cpp           ✅ DEST mod integration (bundled)
 │   │       ├── PassiveLearningSource.cpp    ✅ Passive learning source
+│   │       ├── environment/                 ✅ HeartOfMagic.esp explosion twins (docs/ENVIRONMENT.md)
+│   │       │   ├── EnvironmentTwins.cpp         (twins.json, copy the original into the twin, repoint at kDataLoaded / settings save, revert)
+│   │       │   ├── EnvironmentSelfTest.cpp      (selftest.json switch, wait for unpaused play, run, [selftest-1.6] lines)
+│   │       │   └── EnvironmentSelfTestChecks.cpp (H2 keyword reads, twins, Frostwalker matcher, adapter report)
 │   │       ├── spellscanner/                ✅ Spell enumeration, FormID persistence
 │   │       │   ├── SpellScannerScan.cpp         (main scan logic)
 │   │       │   ├── SpellScannerJson.cpp         (scan JSON shape, MGEF fields, dump writing)
@@ -2116,9 +2124,25 @@ MO2/mods/HeartOfMagic_RELEASE/
 │   └── Plugins/
 │       ├── SpellLearning.dll
 │       └── SpellLearning/
-│           └── presets/
-└── (ESP if applicable)
+│           ├── presets/
+│           └── librarian/environment/twins.json   # explosion twin map
+└── HeartOfMagic.esp                    # light plugin (ESL-flagged), one EXPL record
 ```
+
+### HeartOfMagic.esp and explosion twins (1.6)
+
+The mod's only plugin, `HeartOfMagic.esp` (committed at the repo root, which mirrors Data), is a light plugin
+mastering only `Skyrim.esm`. It holds explosion "twins": copies of an explosion with a neutral EditorID, which the
+DLL gives at `kDataLoaded` to hidden, harmless effects whose explosion name-matching mods (Frostwalker) read as an
+element. The map is `SKSE/Plugins/SpellLearning/librarian/environment/twins.json`; `tools/frostwalker-twin-check.js`
+checks it against the plugin file. The C++ side is `src/environment/EnvironmentTwins.cpp`: `Environment::Initialize`
+runs at `kDataLoaded` after the perk adapters, copies the live original's values into each twin, records the effects
+that may take it (hidden harmless Script effects no item gives a magnitude) and points them at the twin while
+`config.json` `environment.enabled` is not false; `Environment::OnConfigApplied` (settings save, game thread) puts the
+originals back or the twins again. The scanner reads an effect's explosion through `Environment::ScannedExplosion`, so
+scans record the original. A dev-only in-game self-test (`EnvironmentSelfTest*.cpp`, `selftest.json`) checks it and
+the adapters' H2 question. Record values, how the file was made, the DLL's behaviour and the self-test:
+[ENVIRONMENT.md](ENVIRONMENT.md).
 
 ---
 
@@ -2313,6 +2337,7 @@ MO2/mods/HeartOfMagic_RELEASE/
 | **TREE_LAYOUT_DESIGN.md** | Layout options (zone reservation, round-robin) |
 | **SHAPE-AND-GROWTH-ASSESSMENT.md** | Shape/growth assessment; backlog placement; spell-count–scaled shapes |
 | **TECHNICAL_RESEARCH.md** | API and integration research |
+| **ENVIRONMENT.md** | HeartOfMagic.esp, the explosion twins (Frostwalker water freezing) and their check |
 
 ---
 

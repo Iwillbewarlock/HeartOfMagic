@@ -70,6 +70,9 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/librarian/LibrarianAdapterMatch.cpp
     src/librarian/LibrarianAdapterDamage.cpp
     src/librarian/LibrarianPerkAdapterPatch.cpp
+    src/environment/EnvironmentTwins.cpp
+    src/environment/EnvironmentSelfTest.cpp
+    src/environment/EnvironmentSelfTestChecks.cpp
     src/HudNotify.cpp
     src/librarian/LibrarianLoadOrderSource.cpp
     src/librarian/LibrarianSpellResearch.cpp

@@ -16,6 +16,29 @@
     <!-- INSTALL STEPS — optional user choices                               -->
     <!-- ================================================================== -->
     <installSteps order="Explicit">
+        <installStep name="Core Files">
+            <optionalFileGroups order="Explicit">
+                <group name="Heart of Magic Librarian" type="SelectAll">
+                    <plugins order="Explicit">
+                        <plugin name="HeartOfMagic.esp (required)">
+                            <description>
+The SKSE plugin, the spell panel and the Papyrus scripts are always installed. This page adds HeartOfMagic.esp.
+
+HeartOfMagic.esp is a light plugin (ESL-flagged .esp): it takes no load order slot, needs only Skyrim.esm and can go anywhere in your load order. Enable it in your plugin list after installing.
+
+It holds one record: a copy, under a neutral name, of the base-game explosion Mysticism's screen shake uses, with Mysticism's values. Heart of Magic gives that copy to hidden, harmless spell effects whose explosion other mods read as frost by its name (Mysticism's screen shake, which made Frostwalker freeze water under spells such as Hysteria and Harmony). Real frost spells keep the original.
+                            </description>
+                            <files>
+                                <file source="HeartOfMagic.esp" destination="HeartOfMagic.esp" priority="0"/>
+                            </files>
+                            <typeDescriptor>
+                                <type name="Required"/>
+                            </typeDescriptor>
+                        </plugin>
+                    </plugins>
+                </group>
+            </optionalFileGroups>
+        </installStep>
         <installStep name="Compatibility Patches">
             <optionalFileGroups order="Explicit">
                 <group name="ISL / DEST / Sit Down and Read / GTS CE Bookworm" type="SelectAny">

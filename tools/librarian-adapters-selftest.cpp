@@ -4,6 +4,7 @@
 //
 // What a dump cannot pin down one case at a time: tierMin on the catalog's
 // per-element tiers (and a catalog without them), the requires.config gate,
+// requires.dlls (a mod with only an SKSE plugin),
 // and the per-effect damage lines - which effects deal an element's damage,
 // the leak check against every item using the effect, effects an earlier line
 // already wrote. Needs no dump, no adapter directory.
@@ -317,6 +318,38 @@ namespace
             "fail: an unknown tierMin, damage on a formList line, no elements, an unknown damage key - each line off");
         Check(bad.lines[4].enabled && bad.lines[4].tierMinRank == 1 && problems.size() == 4, "a good line beside them stays on");
     }
+
+    // env-elements.json's gate: one of the environment mods, by plugin or by DLL
+    void RequiresDlls()
+    {
+        const json on = json::parse(R"({ "environment": { "enabled": true } })");
+        const json off = json::parse(R"({ "environment": { "enabled": false } })");
+        const auto none = [](const std::string&) { return false; };
+        const auto all = [](const std::string&) { return true; };
+        const auto only = [](const char* wanted) {
+            return [wanted](const std::string& name) { return name == wanted; };
+        };
+
+        std::vector<std::string> problems;
+        const Adapters::File env = ParseOne(R"({ "requires": { "any": ["Sneak Tools.esp", "SIMP.esp"],
+            "dlls": ["IceIsSlick.dll", "RainExtinguishesFires.dll"], "config": "environment.enabled" }, "adapters": [] })", problems);
+        Check(problems.empty() && env.requiresDlls.size() == 2 && !env.always, "requires.dlls is read");
+        Check(Adapters::FileApplies(env, on, only("SIMP.esp"), none), "dlls: a listed plugin loaded, no DLL - on");
+        Check(Adapters::FileApplies(env, on, none, only("IceIsSlick.dll")), "dlls: only a listed DLL present - on");
+        Check(!Adapters::FileApplies(env, on, none, none) && !Adapters::FileApplies(env, on, only("Other.esp"), only("Other.dll")),
+            "dlls: none of the plugins or DLLs - off");
+        Check(!Adapters::FileApplies(env, off, all, all), "dlls: config false keeps it off with every plugin and DLL there");
+
+        std::vector<std::string> badProblems;
+        const Adapters::File notString = ParseOne(R"({ "requires": { "always": true, "dlls": [5] }, "adapters": [] })", badProblems);
+        const Adapters::File withPath = ParseOne(R"({ "requires": { "always": true, "dlls": ["../IceIsSlick.dll"] }, "adapters": [] })", badProblems);
+        const Adapters::File drive = ParseOne(R"({ "requires": { "any": ["A.esp"], "dlls": ["C:IceIsSlick.dll"] }, "adapters": [] })", badProblems);
+        Check(!Adapters::FileApplies(notString, on, all, all) && !Adapters::FileApplies(withPath, on, all, all) &&
+                !Adapters::FileApplies(drive, on, all, all) && badProblems.size() == 3,
+            "fail: a dlls entry that is not a string or holds a path keeps the file off, with a problem each");
+        Check(!Adapters::DllInstalled("../IceIsSlick.dll") && !Adapters::DllInstalled(""),
+            "DllInstalled turns down a path or an empty name without looking");
+    }
 }
 
 void RunAdapterSelfTest(int& passed, int& failed)
@@ -327,4 +360,5 @@ void RunAdapterSelfTest(int& passed, int& failed)
     DamageSpells();
     DamageLeaks();
     TierAndConfig();
+    RequiresDlls();
 }

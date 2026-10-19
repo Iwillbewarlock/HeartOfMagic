@@ -1,5 +1,6 @@
 #include "Common.h"
 #include "SpellScanner.h"
+#include "environment/EnvironmentTwins.h"
 #include "librarian/PerkAdapterPatch.h"
 #include "librarian/Librarian.h"
 
@@ -335,8 +336,9 @@ namespace SpellScanner
             }
             // An explosion record alone is not an area: plenty are there for the
             // flash and have no radius.
-            const RE::BGSExplosion* explosion = data.explosion
-                ? data.explosion
+            const RE::BGSExplosion* own = Environment::ScannedExplosion(effect->baseEffect);   // the original, not a twin
+            const RE::BGSExplosion* explosion = own
+                ? own
                 : (data.projectileBase ? data.projectileBase->data.explosionType : nullptr);
             if (effect->effectItem.area > 0 || (explosion && explosion->data.radius > 0.0f)) {
                 blast = true;

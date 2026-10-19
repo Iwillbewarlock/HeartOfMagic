@@ -80,6 +80,11 @@ namespace Librarian::PerkAdapters
                 }
                 Plan::File file;
                 if (!Plan::ParseFile(document, name, file, problems)) continue;
+                // The config gate as this run judged it, for readers that compare
+                // the report with a config.json edited since (the 1.6 self-test)
+                if (!file.requiresConfig.empty()) {
+                    report["configJudged"][file.requiresConfig] = Plan::ConfigFlagOn(config, file.requiresConfig);
+                }
                 if (!Plan::FileApplies(file, config, pluginLoaded)) {
                     report["filesNotApplying"].push_back(name);
                     continue;

@@ -15,10 +15,12 @@
 
 ### Changed
 
-- **Balance: perk mods boost more of a spell's fire, frost and shock damage.** The vanilla element keywords now go on
-  every effect whose record deals that damage, not only the first, and perk overhauls (Adamant, Ordinator, Mysticism
-  and the others) read the same keywords - so on those spells their element perks apply to the extra effects too.
-  Load orders with SkyPatcher Keyword Framework already had most of these.
+- **Balance: with an environment mod installed, perk mods boost more of a spell's fire, frost and shock damage.**
+  When Rain Extinguishes Fires, Water Douses Fire, Sneak Tools, DISDD, Elementally Reactive Waters, SIM or Ice is
+  Slick is installed, the vanilla element keywords go on every effect whose record deals that damage, not only the
+  first, and perk overhauls (Adamant, Ordinator, Mysticism and the others) read the same keywords - so on those
+  spells their element perks apply to the extra effects too. Without one of those mods nothing changes. Load orders
+  with SkyPatcher Keyword Framework already had most of these.
 - **A spell's element follows what its own record says when a keyword framework guesses otherwise.** Spells
   whose damage is plain magic damage (Desecration's necrotic flames) or frost (Flames of Coldharbour's cold
   fire) no longer count as fire because their names contain "fire"; they leave the fire group of the tree.
@@ -34,6 +36,8 @@
 
 ### Fixed
 
+- **Mysticism's screen-shake effect no longer makes Fire Storm, Hysteria, Harmony and the other master spells freeze
+  water with Frostwalker** (needs HeartOfMagic.esp enabled).
 - **The spell card shows "Weakened (N%)" for a spell learned early and not yet mastered**, with the power it
   casts at for its current XP. It never showed before. Once the spell is mastered the badge goes away.
 - **The spell card's Optional requirements show how many are needed again** ("need 2 of 3"), and in edit mode

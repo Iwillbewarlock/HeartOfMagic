@@ -158,6 +158,19 @@ add_custom_command(TARGET assemble_dist POST_BUILD
 )
 
 # ============================================================================
+# 4b. The plugin: HeartOfMagic.esp, ESL-flagged, at the Data root (committed at
+#     the repo root; docs/ENVIRONMENT.md). The FOMOD installs it in its core step.
+# ============================================================================
+
+add_custom_command(TARGET assemble_dist POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy
+    "${CMAKE_SOURCE_DIR}/HeartOfMagic.esp"
+    "${DIST_VERSION_DIR}/"
+    COMMAND "${CMAKE_COMMAND}" -E echo "Copying HeartOfMagic.esp..."
+    VERBATIM
+)
+
+# ============================================================================
 # 5. Copy PrismaUI views
 # ============================================================================
 

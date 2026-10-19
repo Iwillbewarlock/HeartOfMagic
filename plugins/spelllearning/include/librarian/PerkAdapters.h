@@ -29,7 +29,9 @@
 // SEMANTICS (the offline evaluator measured exactly these):
 //   - files run vanilla.json first, then by name; lines in file order
 //   - a file runs when its "requires" holds: {"always": true}, or any plugin
-//     in {"any": [...]} is loaded
+//     in {"any": [...]} is loaded, or any SKSE plugin in {"dlls": [...]} is in
+//     Data/SKSE/Plugins (a mod with no .esp). A DLL on disk counts even when
+//     SKSE refused to load it (wrong runtime): the file cannot tell
 //   - a line is skipped when "enabled" is false or its keyword is not defined
 //   - catalog spells only. A spell that already carries the keyword - on the
 //     spell record, on any effect, or added by an earlier line - is left alone
@@ -69,7 +71,7 @@
 //     A catalog entry without elementSources (written before 1.6), or with
 //     no tier for that element, counts as framework
 //   - a file with "requires": {"config": "a.b"} runs only while that config.json
-//     boolean is not false (missing: on), on top of "always" / "any"
+//     boolean is not false (missing: on), on top of "always" / "any" / "dlls"
 //   - a "damage" keyword line ({"elements": [...]}) plans per effect instead of
 //     per spell (LibrarianAdapterDamage.cpp, "DAMAGE LINES" below)
 // =============================================================================
@@ -164,6 +166,8 @@ namespace Librarian::Adapters
         std::string perkMod;
         bool always = false;                // requires {"always": true}
         std::vector<std::string> requiresAny;
+        // requires {"dlls": [...]}: plain file names in Data/SKSE/Plugins
+        std::vector<std::string> requiresDlls;
         // requires {"config": "section.key"}: a config.json boolean that must
         // not be false. Empty: no such gate.
         std::string requiresConfig;
@@ -175,10 +179,18 @@ namespace Librarian::Adapters
     // boolean false - a player who never opens the settings gets the default.
     [[nodiscard]] bool ConfigFlagOn(const json& config, const std::string& dottedPath);
 
+    // Whether an SKSE plugin file is in Data/SKSE/Plugins (relative to the game
+    // folder, the working directory in game). Case-insensitive the way the
+    // file system and MO2's VFS are. `name` is a plain file name (ParseFile
+    // turns down anything with a path in it).
+    [[nodiscard]] bool DllInstalled(const std::string& name);
+
     // Whether a file's requires holds: the config gate (if any) and then
-    // "always" or one of "any" loaded. `pluginLoaded` answers by file name.
+    // "always", one of "any" loaded or one of "dlls" present. `pluginLoaded`
+    // and `dllPresent` answer by file name.
     [[nodiscard]] bool FileApplies(const File& file, const json& config,
-        const std::function<bool(const std::string&)>& pluginLoaded);
+        const std::function<bool(const std::string&)>& pluginLoaded,
+        const std::function<bool(const std::string&)>& dllPresent = DllInstalled);
 
     // Parses one adapter document. A line with a key this code does not know
     // is kept but disabled, and every problem is appended to `problems` - an

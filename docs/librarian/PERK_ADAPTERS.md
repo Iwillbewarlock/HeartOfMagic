@@ -69,7 +69,7 @@ Study 목록)과 보조 이펙트(Adamant 의 Impact·Firebrand). 둘 다 아직
 
 | 키 | 뜻 |
 |---|---|
-| `requires` | `{"always": true}` 또는 `{"any": [플러그인...]}` — 하나라도 로드되면 파일이 켜진다(대소문자 무시, ESL 포함). `"config": "a.b"` 를 더하면 `config.json` 의 그 불리언(점으로 이은 경로)이 `false` 가 아닐 때만 켜진다 — 키가 없거나 불리언이 아니거나 파일을 못 읽으면 켜짐(`perkAdapters.enabled` 와 같은 읽기). `always` 나 `any` 와 함께 쓰고 둘 다 성립해야 한다. 환경 파일 넷이 `environment.enabled` 를 쓴다(2026-10-20, 패널 토글은 아직 없음). 오프라인 평가기는 `requires` 를 보지 않는다 |
+| `requires` | `{"always": true}` 또는 `{"any": [플러그인...]}` — 하나라도 로드되면 파일이 켜진다(대소문자 무시, ESL 포함). `"config": "a.b"` 를 더하면 `config.json` 의 그 불리언(점으로 이은 경로)이 `false` 가 아닐 때만 켜진다 — 키가 없거나 불리언이 아니거나 파일을 못 읽으면 켜짐(`perkAdapters.enabled` 와 같은 읽기). `always` 나 `any`/`dlls` 와 함께 쓰고 둘 다 성립해야 한다. 환경 파일 넷이 `environment.enabled` 를 쓴다(2026-10-20, 패널 토글은 아직 없음). `"dlls": [파일 이름...]` 은 플러그인(.esp) 없이 SKSE DLL 만 있는 모드용이다: `any` 의 플러그인 하나가 로드됐거나 **또는** `dlls` 의 DLL 하나가 `Data/SKSE/Plugins` 에 있으면 성립한다(대소문자 무시, MO2 VFS 안에서도 파일 확인으로 보인다). 디스크에 있으면 SKSE 가 거부한 DLL(런타임 불일치)도 있는 것으로 친다. 경로가 들어간 이름(`/`, `\`, `:`)이나 문자열이 아닌 항목은 형식 오류로 파일이 꺼진다(2026-10-20, `env-elements.json`). 오프라인 평가기는 `requires` 를 보지 않는다(플러그인·DLL 모두 있는 것으로 본다) |
 | `keyword` | 붙일 키워드의 EditorID. 로드오더에 없으면 그 줄은 쉰다 |
 | `keywordForm` | `keyword` 와 함께: 그 키워드의 영구 id(예 `Update.esm\|0x1EA6002`). 여러 모드가 한 FormID 를 서로 다른 EditorID 로 주입할 때 쓴다 — 게임에서는 로드된 폼이 가진 이름이 `keyword` 를 대신한다(마지막에 로드된 플러그인의 이름). 오프라인 평가는 `keyword` 를 그대로 쓴다 |
 | `formList` | `keyword` 대신: 조건에 맞는 주문을 넣을 퍽 모드의 FormList(영구 id, 예 `Adamant.esp\|0x9DEF54`). 목록에 이미 든 주문은 건너뛰고, 누출 검사는 없다(목록은 주문 자체를 가리킨다) |
@@ -384,7 +384,7 @@ PoE 는 바닐라 반값 퍽 25개를 덮어쓰지도 트리에 두지도 않으
 
 | 파일 (`requires`) | 읽는 모드 | 키워드 | 줄 |
 |---|---|---|---|
-| `env-elements.json` (`always`) | Rain Extinguishes Fires, Water Douses Fire, Sneak Tools, DISDD, Elementally Reactive Waters, Ice is Slick, SIM | `MagicDamageFire/Frost/Shock` (`Skyrim.esm` `01CEAD/AE/AF`) | 피해 줄 |
+| `env-elements.json` (`any` 6 + `dlls` 2, 아래) | Rain Extinguishes Fires, Water Douses Fire, Sneak Tools, DISDD, Elementally Reactive Waters, Ice is Slick, SIM | `MagicDamageFire/Frost/Shock` (`Skyrim.esm` `01CEAD/AE/AF`) | 피해 줄 |
 | `env-oif.json` (팩 ESP 14개 중 하나) | kuroishitam 계열 OIF 규칙 팩 | 불 14, 끄기(냉기·물·바람) 3, 냉기 전용 2, 전격 3 | 피해 줄 |
 | `env-candles.json` (`DynamicCandles.esp`, `PutOutTheFires.esp`) | Dynamic Candles, Put Out The Fires | `DC_Fire/DC_Frost`, `POF_Fire/POF_Frost` | 피해 줄 |
 | `frostwalker.json` (`Frostwalker.esp`) | Frostwalker | `Frostwalker_FrostCloak_Keyword`(`0x800`), `Frostwalker_FireCloak_Keyword`(`0x802`) | 보통 줄(망토 이펙트) |
@@ -418,7 +418,7 @@ manual 원소를 가진 TAKEALOOK 주문 19개는 대부분 방어막(해롭지 
 
 **OIF 팩 키워드는 게임 확인이 필요하다 (H2).** OIF 는 맞은 주문(attackSource)에 `HasKeyword` 를 묻는다. CommonLib 의 `MagicItem` 이
 `BGSKeywordForm::HasKeyword` 를 재정의하므로 주문이 이펙트 키워드까지 답할 가능성이 높지만, 런타임에 이펙트에만 붙인 키워드가 그 답에
-보이는지는 **게임에서 확인되지 않았다**. 다음 단계의 게임 안 자가 테스트가 확인한다. 거짓이면 이 파일들에 주문 레코드 대상(설계 v2 의
+보이는지는 **게임에서 확인되지 않았다**. 게임 안 자가 테스트(1.6, `selftest.json`)의 `[selftest-1.6] H2-record`·`H2-runtime`·`H2-answer` 줄이 확인한다(`docs/ENVIRONMENT.md` "Self-test", 아직 실행 전). 거짓이면 이 파일들에 주문 레코드 대상(설계 v2 의
 `target: "spell"`)이 필요하다. DC·POF 는 이펙트의 `OnMagicEffectApply` 도 읽으므로 이펙트 대상이 맞다. KID 가 이름으로 붙인 키워드는 떼지
 않는다(1.6 범위 밖).
 
@@ -435,7 +435,10 @@ manual 원소를 가진 TAKEALOOK 주문 19개는 대부분 방어막(해롭지 
 등급이라 넣지 않았다. Frostwalker 의 이름 판정(폭발·투사체)은 이 파일과 무관하다(`docs/ENVIRONMENT.md`).
 
 **퍽 밸런스 (CHANGELOG).** `env-elements.json` 의 바닐라 키워드는 퍽 모드도 읽는다. 원소 피해 이펙트 하나가 더 키워드를 받으면 그 이펙트도
-화염·냉기·전격 퍽의 증강을 받는다. 레코드가 그 원소 피해라고 말하는 이펙트라 퍽 의도와 같지만, 그 주문들의 밸런스는 바뀐다.
+화염·냉기·전격 퍽의 증강을 받는다. 레코드가 그 원소 피해라고 말하는 이펙트라 퍽 의도와 같지만, 그 주문들의 밸런스는 바뀐다. 그래서
+2026-10-20 부터 이 파일은 `always` 가 아니라 그 키워드를 읽는 환경 모드가 하나라도 있을 때만 켜진다(사용자 결정): `requires.any` =
+`RainExtinguishesFires.esp`, `Water Douses Fire.esp`, `Sneak Tools.esp`, `JBMod.esp`(DISDD), `ElementallyReactiveWaters.esp`, `SIMP.esp`(SIM),
+`requires.dlls` = `IceIsSlick.dll`(플러그인 없음), `RainExtinguishesFires.dll`. 그 모드가 없는 로드오더에서는 퍽 밸런스가 그대로다.
 
 **측정.** TAKEALOOK 스캔(2026-10-14, 3,983 주문), 카탈로그는 지금 룰로 `librarian-test` 가 새로 만든 것, `librarian-test -i <스캔> --catalog
 <카탈로그> --adapters <vanilla.json + 그 파일 하나> -v`. 오프라인 평가기는 `requires` 를 보지 않고 모든 키워드를 정의된 것으로 본다. TAKEALOOK 에는
