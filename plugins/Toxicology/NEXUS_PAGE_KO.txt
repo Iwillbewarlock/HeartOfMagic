@@ -5,7 +5,7 @@ PAGE:
 [size=4][b]Heart of Magic Librarian - Toxicology[/b][/size]
 [i]버전 1.0.0, 제작 Iwillbewarlock[/i]
 
-공들여 만든 독을 왜 무기에만 발라야 할까요? 주문에 직접 실어 보내면 됩니다. [b]Heart of Magic Librarian - Toxicology[/b](독물학)는 [b]Heart of Magic Librarian[/b](Heart of Magic 포크)의 애드온으로, 연금술과 마법을 하나로 엮습니다. Librarian이 주문을 스캔하며 붙인 독 태그를 읽어, 지니고 있는 독약의 효과를 독 마법으로 대상에게 전달합니다.
+연금술은 본래 지식의 영역에 속하는 학자의 학문이지만, 사람들은 미련하게도 그저 칼날에 독을 바르는 데만 써 왔습니다. 학식 있는 마법사라면 그 지식을 독 마법에도 응용해, 연금술로 독 마법 자체를 강화할 생각을 할 것입니다. [b]Heart of Magic Librarian - Toxicology[/b](독물학)은 [b]Heart of Magic Librarian[/b](Heart of Magic의 포크)의 애드온입니다. Librarian이 주문을 스캔할 때 기록한 독 태그를 읽어, 소지 중인 독약의 효과를 독 마법에 실어 전달할 수 있게 해 줍니다.
 
 [i]중요: 이 애드온은 원작 Heart of Magic과 [b]호환되지 않습니다[/b]. Heart of Magic Librarian의 주문 스캔이 만드는 독 태그가 있어야 동작합니다.[/i]
 
