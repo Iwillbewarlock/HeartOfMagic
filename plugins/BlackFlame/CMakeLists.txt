@@ -44,6 +44,7 @@ set(BLACKFLAME_SOURCES
     src/BuffState.cpp
     src/EffectEvents.cpp
     src/HitEffectHook.cpp
+    src/HitPathObserve.cpp
     src/HitArt.cpp
     src/CloneWatch.cpp
     src/CopyModelProbe.cpp

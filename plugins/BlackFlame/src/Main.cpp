@@ -34,6 +34,7 @@
 #include "HitArt.h"
 #include "HitEvents.h"
 #include "HitEffectHook.h"
+#include "HitPathObserve.h"
 #include "ImpactSwap.h"
 #include "Palette.h"
 #include "ProjectileHook.h"
@@ -120,6 +121,7 @@ namespace
         guarded("InstallExplosionHook", [] { BlackFlame::InstallExplosionHook(); });
         guarded("InstallHazardHook", [] { BlackFlame::InstallHazardHook(); });
         guarded("InstallHitEffectHooks", [] { BlackFlame::InstallHitEffectHooks(); });
+        guarded("HitPath::Install", [] { BlackFlame::HitPath::Install(); });  // log only, 1.6.1170 only (HitPathObserve.h)
         guarded("InstallImpactSwap", [] { BlackFlame::InstallImpactSwap(); });
         guarded("InstallCopySwaps", [] { BlackFlame::InstallCopySwaps(); });  // v2: after the copies are filled (CopySwap.h)
         guarded("InstallHazardSwap", [] { BlackFlame::InstallHazardSwap(); });
@@ -266,7 +268,8 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
     // The trampoline holds the impact swap's three call redirects (ImpactSwap.cpp, 14 bytes each), the two v2
     // GetImpactData redirects (14 each), the SetCastingArt redirect (14), the four v2 prologue detours (Launch, explosion
     // creation, hazard creation, the spawn-hazard window: a 14-byte jump plus a gateway of up to 16 + 14 bytes each,
-    // CopySwap.h) and the main-thread queue's call (14, MainThreadQueue.h): 274 bytes at most; the rest is headroom
+    // CopySwap.h), the main-thread queue's call (14, MainThreadQueue.h) and the hit path observation's three call
+    // redirects (1.6.1170 only, 14 each, HitPathObserve.h): 316 bytes at most; the rest is headroom
     constexpr std::size_t kTrampolineSize = 512;
     SKSE::Init(a_skse, { .log = false, .trampoline = true, .trampolineSize = kTrampolineSize });
     // Info lines are buffered (plugins/Common.h): warnings and errors, game load, save, new game

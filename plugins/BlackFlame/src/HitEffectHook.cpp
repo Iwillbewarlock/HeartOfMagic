@@ -10,6 +10,7 @@
 #include "FormCopies.h"
 #include "Forms.h"
 #include "HitArt.h"
+#include "HitPathObserve.h"
 #include "LogLimit.h"
 #include "SehGuard.h"
 #include "SelfTestProbe.h"
@@ -355,6 +356,7 @@ namespace BlackFlame
                     n(Outcome::kNotStoked), n(Outcome::kNotFire), n(Outcome::kConfigOff), n(Outcome::kAlreadyOurs),
                     n(Outcome::kNoBurnShader), n(Outcome::kNotPlayer));
             }
+            HitPath::LogStats(a_when, seconds, a_reason);  // the 34094 / ApplyEffectShader observation (HitPathObserve.h)
         }
 
         RE::TESEffectShader* ChooseShader(Controller* a_this, RE::TESEffectShader* a_original)
@@ -456,6 +458,11 @@ namespace BlackFlame
         return IsBurnable(a_effect->GetBaseObject(), a_effect->spell);
     }
 
+    std::uint32_t PlayerHandleNative()
+    {
+        return PlayerHandleValue();
+    }
+
     void ResetHitEffectState()
     {
         g_playerHandle.store(0);
@@ -482,6 +489,7 @@ namespace BlackFlame
                     counter.store(0);
                 }
             }
+            HitPath::ResetWindow(capsReset);
             g_windowTicks.store(0);
             g_windowStart.store(std::chrono::steady_clock::now().time_since_epoch().count());
             logger::info("BlackFlame: hit shader/art diagnostics: stoke window started ({}): window counts reset{}", a_reason,

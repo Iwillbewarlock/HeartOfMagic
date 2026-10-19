@@ -46,6 +46,9 @@ namespace BlackFlame
 
     [[nodiscard]] HitSlotStats GetHitSlotStats(bool a_shader) noexcept;
 
+    /// Any thread: the player's reference handle (cached; 0 before the player exists)
+    [[nodiscard]] std::uint32_t PlayerHandleNative();
+
     /// At kPreLoadGame / kNewGame: forgets the cached player handle (read again on the next call)
     void ResetHitEffectState();
 
