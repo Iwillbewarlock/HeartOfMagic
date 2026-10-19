@@ -178,7 +178,8 @@ namespace BlackFlame::SelfTest
                 const auto differs = [](const std::string& a_ours, const char* a_engine) { return !a_engine || _stricmp(a_ours.c_str(), a_engine) != 0; };
                 if (!slot.publishedModel.empty() && differs(slot.publishedModel, now)) {
                     why = std::format("model '{}', published '{}'", now ? now : "", slot.publishedModel);
-                } else if (recorded ? !holds(role, slot.publishedModel) : !slot.publishedModel.empty()) {
+                } else if ((role == LM::Role::kMps || !slot.sourceModel.empty()) &&  // a muzzle-only PROJ restores no model,
+                           (recorded ? !holds(role, slot.publishedModel) : !slot.publishedModel.empty())) {  // a stale model object stays (review round 2)
                     why = std::format("the ledger records '{}', the slot shows '{}'", recorded ? recorded->path : std::string("nothing"),
                         slot.publishedModel);
                 }
