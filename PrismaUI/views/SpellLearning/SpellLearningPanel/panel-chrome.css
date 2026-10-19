@@ -133,6 +133,36 @@
 }
 #contentSettings .settings-block-header { background: transparent; border: 0; }
 #contentSettings .settings-block-content { background: transparent; }
+/* Rows are set apart by spacing and alignment, not bands and underlines (styles-skyrim.css gives
+   .setting-row, .setting-row-inline and .slider-compact a band, a bottom line and a 2px gap; the Scan
+   page's Pre Req Master rows keep them). The rule above each group stays. A faint highlight under the
+   pointer ties a label to its control across a wide row (long labels wrap). None on focus: a clicked switch
+   or slider keeps focus, which would leave a second row lit, and Tab closes the panel, so no row is
+   reached by the keyboard */
+#contentSettings .setting-row,
+#contentSettings .setting-row-inline,
+#contentSettings .slider-compact {
+    background: transparent;
+    border-bottom: 0;
+    margin-bottom: 0;
+}
+#contentSettings .setting-row:hover,
+#contentSettings .setting-row-inline:hover,
+#contentSettings .slider-compact:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+/* A Reset to Defaults waiting for its second click (modules/resetConfirm.js): red like .btn-danger */
+#contentSettings .btn.armed {
+    color: var(--accent-red, #b5523b);
+    border-bottom-color: currentColor;
+}
+/* The plugin's version at the foot of Settings (cppCallbacks.js onPrismaReady fills .version-tag);
+   the designs style .version-tag itself */
+.settings-version {
+    flex-shrink: 0;
+    text-align: right;
+    padding: 0 4px 10px;
+}
 
 /* "Advanced options" is a note, not a red pill */
 .cheat-warning { background: transparent; border: 0; padding: 0; }

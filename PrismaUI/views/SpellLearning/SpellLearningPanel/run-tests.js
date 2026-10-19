@@ -164,6 +164,7 @@ loadModule('iconSlotsTest', './modules/iconSlotsTest.js');
 // These run settingsPanel.js, progressionUI.js and others into the global scope: last
 loadModule('configSaveTest', './modules/configSaveTest.js');
 loadModule('panelRefreshTest', './modules/panelRefreshTest.js');
+loadModule('panelTidyTest', './modules/panelTidyTest.js');
 loadModule('unificationTest', './modules/unificationTest.js');
 
 console.log('');

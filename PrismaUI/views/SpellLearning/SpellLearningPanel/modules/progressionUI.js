@@ -11,7 +11,8 @@
  * - initializeHowToPanel(), updateHowToContent()
  * - updateLearningStatusBadge(node, progress), calculateCurrentEffectiveness()
  * - getRequiredXPForNode(node), getReverseUnlockXPShare(level), getXPForTier(level)
- * - setTreeStatus(msg), onLearnClick(), onUnlockClick(), autoAdvanceLearningTarget()
+ * - onLearnClick(), onUnlockClick(), autoAdvanceLearningTarget()
+ *   (setTreeStatus / setTreeStatusKey moved to treeStatusLine.js, 1.6)
  * - window.onSpellReady, onSpellUnlocked, onLearningTargetSet, onProgressData (C++ callbacks)
  */
 
@@ -303,19 +304,6 @@ function getXPForTier(level) {
         case 'master': return settings.xpMaster;
         default: return settings.xpNovice;
     }
-}
-
-function setTreeStatus(msg) {
-    var el = document.getElementById('tree-status-text');
-    if (!el) return;
-    if (typeof clearI18n === 'function') clearI18n(el);
-    el.textContent = msg;
-}
-
-/** The status line in the panel's language, written again by a language switch (setI18n) */
-function setTreeStatusKey(key, params, fallback) {
-    var el = document.getElementById('tree-status-text');
-    if (el) setI18n(el, key, params, fallback);
 }
 
 // =============================================================================

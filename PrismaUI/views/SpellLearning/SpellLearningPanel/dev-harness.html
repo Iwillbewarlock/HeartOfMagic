@@ -102,7 +102,6 @@
         <div class="panel-header" id="panelHeader">
             <div class="header-left">
                 <span class="panel-title" data-i18n="header.panelTitle">HEART OF MAGIC</span>
-                <span class="version-tag">Librarian</span>
             </div>
             <div class="header-right">
                 <button class="header-btn header-btn-wide" id="returnToTreeBtn" style="display:none;" title="Return to Spell Tree" data-i18n="tabs.return" data-i18n-title="tabs.returnTitle">Return</button>
@@ -145,6 +144,10 @@
                     <!-- Raw scan dump (mod keyword names and all): a modder's tool, so Developer Mode only -->
                         <button id="saveBtn" class="btn btn-secondary dev-only hidden" style="display:none;" disabled>
                         <span class="hom-label" data-i18n-html="buttons.exportScan">Export Scan</span>
+                    </button>
+                    <!-- Import a tree's JSON (treeViewerUI.js showImportModal); here in both Easy and Complex -->
+                    <button id="import-btn" class="btn btn-secondary scan-import-btn">
+                        <span class="hom-icon" data-icon="import" aria-hidden="true"></span><span class="hom-label" data-i18n="footer.import">Import</span>
                     </button>
                 </div>
 
@@ -803,9 +806,6 @@
                 <!-- Tree Footer -->
                 <div class="tree-footer">
                     <div class="footer-left">
-                        <button id="import-btn" class="btn btn-secondary btn-sm">
-                            <span class="hom-icon" data-icon="import" aria-hidden="true"></span><span class="hom-label" data-i18n="footer.import">Import</span>
-                        </button>
                         <span class="spell-count">
                             <span id="total-count">0</span> <span data-i18n="footer.spellsLabel">spells</span> |
                             <span id="unlocked-count">0</span> <span data-i18n="footer.unlockedLabel">unlocked</span>
@@ -1008,8 +1008,7 @@
                                 </div>
                                 <div class="setting-row">
                                     <div class="setting-info">
-                                        <span class="setting-label" data-i18n="settings.ui.sideDetails">Side Details Panel</span>
-                                        <span class="setting-desc" data-i18n="settings.ui.sideDetailsDesc">Show spell details in a right sidebar instead of the bar under the tree</span>
+                                        <span class="setting-label" data-i18n="settings.ui.sideDetails">Spell Card in Right Sidebar</span>
                                     </div>
                                     <label class="toggle-switch">
                                         <input type="checkbox" id="sideDetailsToggle">
@@ -1019,7 +1018,7 @@
                                 <div class="setting-row">
                                     <div class="setting-info">
                                         <span class="setting-label" data-i18n="settings.ui.hoverDetails">Preview on Hover</span>
-                                        <span class="setting-desc" data-i18n="settings.ui.hoverDetailsDesc">Rest the cursor on a spell to see its card; click to select it. The panel stays open</span>
+                                        <span class="setting-desc" data-i18n="settings.ui.hoverDetailsDesc">The card panel stays open, even with no spell selected</span>
                                     </div>
                                     <label class="toggle-switch">
                                         <input type="checkbox" id="hoverDetailsToggle" checked>
@@ -1175,7 +1174,6 @@
                         <div class="setting-row slider-row">
                             <div class="setting-info">
                                 <span class="setting-label" data-i18n="settings.progression.overallXpMultiplier">Overall XP Multiplier</span>
-                                <span class="setting-desc" data-i18n="settings.progression.overallXpMultiplierDesc">Multiply all XP gains (for faster/slower progression)</span>
                             </div>
                             <div class="slider-container">
                                 <input type="range" id="xpGlobalMultiplierSlider" min="1" max="1000" value="1" class="setting-slider">
@@ -1430,7 +1428,6 @@
                             <div class="setting-row-inline" style="margin-top: 6px;">
                                 <div class="setting-info">
                                     <span class="setting-label" data-i18n="settings.progression.passiveAppliesTo">Applies To</span>
-                                    <span class="setting-desc" data-i18n="settings.progression.passiveAppliesToDesc">Which spells gain passive XP</span>
                                 </div>
                                 <div class="inline-controls">
                                     <div id="passiveScopeToggle" class="segmented-toggle">
@@ -1444,7 +1441,6 @@
                             <div class="setting-row slider-row">
                                 <div class="setting-info">
                                     <span class="setting-label" data-i18n="settings.progression.xpPerGameHour">XP per Game Hour</span>
-                                    <span class="setting-desc" data-i18n="settings.progression.xpPerGameHourDesc">Passive XP gained each in-game hour</span>
                                 </div>
                                 <div class="slider-container">
                                     <input type="range" id="passiveXpPerHourSlider" min="1" max="50" value="5" step="1" class="setting-slider">
@@ -1533,7 +1529,6 @@
                             <div class="setting-row">
                                 <div class="setting-info">
                                     <span class="setting-label" data-i18n="settings.earlyLearning.enable">Enable Early Learning</span>
-                                    <span class="setting-desc" data-i18n="settings.earlyLearning.enableDesc">Spells granted early but weakened</span>
                                 </div>
                                 <label class="toggle-switch">
                                     <input type="checkbox" id="earlyLearningEnabledToggle" checked>
@@ -1663,7 +1658,6 @@
                     <div class="settings-block-content">
                         <div class="settings-subsection">
                             <span class="subsection-title" data-i18n="settings.tomeLearning.subtitle">Tome Behavior</span>
-                            <span class="setting-desc" style="display: block; margin-bottom: 8px;" data-i18n="settings.tomeLearning.desc">Configure how spell tomes work with the progression system.</span>
                         </div>
 
                         <!-- Spell Research: what Heart of Magic added to its lists (modules/spellResearchStatus.js; hidden without SR) -->
@@ -1797,6 +1791,9 @@
                         
                     </div>
                 </div>
+
+                <!-- The plugin's version (cppCallbacks.js onPrismaReady); hidden until the game sends it -->
+                <div class="settings-version hidden" id="settingsVersion"><span class="version-tag"></span></div>
 
                 <!-- Save/Reset - Sticky at bottom of settings panel -->
                 <div class="settings-actions-sticky">
@@ -2108,10 +2105,12 @@
     <script src="modules/designEffectsSetting.js"></script>
     <script src="modules/renderSettings.js"></script>
     <script src="modules/hoverOverlay.js"></script>
+    <script src="modules/resetConfirm.js"></script>
     <script src="modules/settingsPanel.js"></script>
     <script src="modules/gateReview.js"></script>
     <script src="modules/spellCard.js"></script>
     <script src="modules/treeViewerUI.js"></script>
+    <script src="modules/treeStatusLine.js"></script>
     <script src="modules/treeLoad.js"></script>
     <script src="modules/spellCardView.js"></script>
     <script src="modules/spellProgressView.js"></script>

@@ -43,7 +43,7 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
 │    │(on click)│             │  Panel     │   │
 │    └─────────┘              └────────────┘   │
 ├──────────────────────────────────────────────┤
-│ [Import] Spells: 247  Legend                 │
+│ 247 spells | 0 unlocked  Legend      Ready   │
 └──────────────────────────────────────────────┘
 ```
 
@@ -1157,6 +1157,57 @@ watches the game's input too: Escape with the panel open calls `onNativeEscape` 
 `UIManager::OnEscapePressed`). One press can arrive both ways: the plugin's copy waits 80 ms and does nothing when the view's own keydown came meanwhile (only the view knows which field or dialog the press was for); the second arrival within 250 ms is ignored.
 The Find Spell dropdown or an open dialog takes the press whichever arrival comes first (Find Spell hides; other dialogs close through their own keys), so the panel never closes behind one; a dialog field that uses the press itself marks it too.
 
+### Panel tidy-up (1.6, 2026-10-20)
+
+Five changes from a review of the panel against "every function within two clicks; no always-visible
+information, frame lines or explanations it does not need" (the rest went to the 2.0 list). Each works the
+same in all six designs: the rules are in the shared sheets, and the designs restyle only what they already did.
+
+- **Settings rows without bands.** `.setting-row`, `.setting-row-inline` and `.slider-compact` had a faint band,
+  a bottom line and a 2px gap each (`styles-skyrim.css`). On the Settings page (`panel-chrome.css`,
+  `#contentSettings ...`) they are now set apart by their spacing and alignment only; the rule above each
+  group (`.settings-block` border-top) and the group and subsection titles stay. A faint highlight under the
+  pointer (`:hover`) ties a label to its control across a wide row when a long label wraps (German, Russian).
+  There is none on focus: a clicked switch or slider keeps focus, so a `:focus-within` highlight left a second
+  row lit, and Tab closes the panel, so no row is reached from the keyboard. Field outlines, switch frames,
+  focus and the selected tab are untouched.
+  The Scan page's Pre Req Master rows keep their bands (not part of this change).
+- **Descriptions that repeated their label are gone**: Overall XP Multiplier, Applies To and XP per Game Hour
+  (Passive Learning), Enable Early Learning (the line above the toggles says it), and "Configure how spell
+  tomes work..." under Tome Behavior. *Side Details Panel* and its line became one label, **Spell Card in
+  Right Sidebar**; *Preview on Hover* keeps only what the label does not say ("The card panel stays open, even
+  with no spell selected"). Every line that explains a learning rule, an XP cap, a requirement or a
+  troubleshooting step stays, and so does the Language hint (`#uiLanguageHint`, which also shows a language
+  that failed to load). No explanation moved into a hover title: Tab closes the panel, so hover-only help
+  would be out of reach from the keyboard. The keys went from all 13 languages.
+- **The tree footer shows the count once.** The left side keeps "753 spells | 0 unlocked"; the status on the
+  right said "Loaded 753 spells" as well. `setTreeStatus` / `setTreeStatusKey` moved from `progressionUI.js` to
+  `modules/treeStatusLine.js`, so one rule covers every caller (`TreeStatusLine`). A success line that repeats
+  the footer (`BRIEF_KEYS`: `status.loadedSpells`, `status.loadedTrustedTree`, `status.treeSavedCount`, and
+  `status.treeSaved`, the save's answer from C++ through `updateTreeStatus`) goes back to "Ready" after
+  `SHOW_MS` (4 s). Any other write cancels that timer, so a line that came in meanwhile is never wiped. A
+  warning or error (`KEEP_KEYS`: unreachable spells, spells not found, a tree not saved, build and save
+  failures, a damaged tree, config.json unreadable, a failed unlock, a root not deleted; and plain text, a DLL
+  message without a key) is not covered by a success line within `KEEP_WINDOW_MS` (10 s) of it: an Import that
+  finds unreachable spells keeps its warning through "Loaded" and "Tree saved" (before 1.6 those wrote over it).
+  The step is told by time, so a success later than that (a new action) replaces the old warning. Steps still
+  running and every other line are written as before and stay.
+- **Reset to Defaults asks first** - the page's button and Early Learning's power steps reset alike. The
+  first click turns the button red and its label to "Click again to reset" (`settings.actions.resetConfirm`);
+  a second click from `ResetConfirm.MIN_CONFIRM_MS` (0.4 s: sooner is the second half of a double-click and is
+  ignored) to `ARM_MS` (3 s) resets, otherwise the button's own label comes back (`modules/resetConfirm.js`,
+  the second-click pattern of deleting a preset, but with the words on the button rather than in a hover
+  title). One button is armed at a time, and switching tabs or hiding the panel disarms it.
+  `resetSettings()` and `resetPowerStepsToDefaults()` themselves are unchanged.
+- **The version and Import moved.** The "Librarian x.y.z" badge left the title bar for the foot of the
+  Settings page (`#settingsVersion`, right-aligned above the Save/Reset bar, hidden until `onPrismaReady`
+  brings the version). It is reference information for bug reports, and Settings is a page every design
+  styles in full; the How-to-Learn panel was the other candidate, but it is a collapsed tab on the tree
+  page only. Import (`#import-btn`, same handler `showImportModal`) moved from the tree footer to the Scan
+  page's shared action bar beside Scan Spells, the one bar shown in both Easy and Complex mode, so it stays
+  two clicks away (Scan, Import); the Build/Apply/Clear bar is in Complex mode only. It is as wide as its
+  label (`.scan-import-btn`), so Scan Spells stays the bar's main button.
+
 ## New spells and next goals (2026-10-02)
 
 `modules/newSpells.js` (`NewSpells`) adds two things to the tree page's footer, both meant to show the
@@ -1404,7 +1455,7 @@ Where players scan spells and build their tree. Has two modes: **Easy** and **Co
 │       [EASY]  [COMPLEX]  ← mode toggle       │
 ├──────────────────────────────────────────────┤
 │ Status: Ready to scan                        │
-│ [Scan Spells] [Export Scan]                  │
+│ [Scan Spells] [Export Scan] [Import]         │
 ├──────────────────────────────────────────────┤
 │ Total: 247 │ Mods: 12 │ Primed: 0           │
 │ [Blacklist] [Whitelist]                      │
@@ -1545,6 +1596,7 @@ All mod configuration. Split-row layout for space efficiency.
 │  Inventory boost     │  Debug options        │
 │  Require prereqs     │  (hidden by default)  │
 ├──────────────────────┴───────────────────────┤
+│                          Librarian 1.6.0     │
 │         [Save Settings]  [Reset Defaults]    │
 └──────────────────────────────────────────────┘
 ```
@@ -1596,7 +1648,7 @@ Reset to Defaults turns it on; a settings preset never changes it (like XP Alert
 | Preset Name | Save Preset button | `uiHelpers.js` |
 | Blacklist | Blacklist button | `buttonHandlers.js` (its lower lists are `gateReview.js`: "Spells to look over", spells the spell gate marked "review", with the reasons, Leave out / Keep; "Left out by itself", the "out" ones, Include) |
 | Whitelist | Whitelist button | `buttonHandlers.js` |
-| Import Tree | Import button (tree page) | `treeViewerUI.js` |
+| Import Tree | Import button (Scan page, the shared bar by Scan Spells; the tree footer until 1.6) | `treeViewerUI.js` |
 | Spawn Spell | Edit mode | `editMode.js` |
 | Color Picker | Color swatches | `colorPicker.js` |
 
@@ -1779,6 +1831,8 @@ Visual-First builds that used them.
 | `buttonHandlers.js` | Scan/build/apply button handlers |
 | `buildProgress.js` | Build progress modal |
 | `progressionUI.js` | Progression UI (learning targets, XP) |
+| `resetConfirm.js` | A Reset to Defaults button (Settings, Early Learning power steps) asks for a second click (`ResetConfirm`, 1.6) |
+| `treeStatusLine.js` | The tree footer's status line: `setTreeStatus` / `setTreeStatusKey`; a success line goes back to "Ready" after a few seconds, a warning or error is not covered (`TreeStatusLine`, 1.6) |
 | `prereqMaster.js` | Pre Req Master system |
 | `editMode.js` | Tree edit mode |
 | `colorPicker.js` | Color picker component |

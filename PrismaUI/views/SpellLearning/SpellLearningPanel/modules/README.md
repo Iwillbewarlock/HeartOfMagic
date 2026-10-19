@@ -27,8 +27,10 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `spellNames.js` | 138 | `SpellNames` / `spellDisplayName(id, node, shown)`: a spell's name in the card's lists (Unlocks, prerequisites, Locks, paths to other schools); a name more than one different spell in the tree carries (locked ones counted; an edit-mode duplicate is its original) gets its plugin, `불씨조각 (NoviceBoltSpells.esp)`; `???` while hidden |
 | `wheelRenderer.js` | 2757 | SVG radial tree rendering engine |
 | `settingsPanel.js` | 3005 | Settings UI initialization and persistence |
-| `treeViewerUI.js` | 508 | Tree viewer setup, node lookup cache, SmartRenderer, Import dialog and tree merge |
+| `resetConfirm.js` | 87 | `ResetConfirm`: a Reset to Defaults button (Settings, Early Learning power steps) asks for a second click: the label says so for `ARM_MS`, a click within `MIN_CONFIRM_MS` (double-click) is ignored, one button armed at a time, disarmed on tab switch and panel hide; tests in `panelTidyTest.js` |
+| `treeViewerUI.js` | 505 | Tree viewer setup, node lookup cache, SmartRenderer, Import dialog and tree merge |
 | `treeLoad.js` | 595 | Loading a tree: the trusted fast path (`_loadTrustedTree`) and `loadTreeData`; `sendTreePrerequisites` (the tree's prerequisites to C++, also after edit mode; an edit mode copy `_dup_` sent as its spell or not at all) |
+| `treeStatusLine.js` | 98 | The tree footer's status line: `setTreeStatus` / `setTreeStatusKey` (moved from `progressionUI.js`) and `TreeStatusLine`: a success line that repeats the footer (`BRIEF_KEYS`: loaded, tree saved) goes back to "Ready" after `SHOW_MS`; any other write cancels that; a warning or error (`KEEP_KEYS`, plain DLL text) is not covered by a success line within `KEEP_WINDOW_MS`; tests in `panelTidyTest.js` |
 | `spellCardView.js` | 565 | Selecting a spell and drawing the spell card (`showSpellDetails`, `renderSpellCard`, `clearSpellSelection`); `spellWeakenedPower`, the "Weakened (N%)" badge's power (none once mastered) |
 | `spellProgressView.js` | 221 | The card's progress bar and Learn/Unlock buttons, `selectNodeById` |
 | `findSpell.js` | 300 | Find Spell (the tool bar's magnifier toggles it): dropdown under the bar, list, keyboard navigation, pan to the spell; `dismissFindSpell` (tab switch, panel close, tree load) |
@@ -57,6 +59,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `starCadenceTest.js` | 181 | Node tests for the stars' own pace (`Starfield.advance` every `STAR_FRAME_MS`, never while still, drawing moves nothing, a move under one opacity step), `_syncStarfield`, and `_drawTree` leaving the tree canvas alone after a key's first frame (one repaint per change) |
 | `pageBuildTest.js` | 210 | Node tests for the design page painted over frames (`TreeStyle.stepPage`): step order, bands adding up to the one rect, what stands in meanwhile, look changes, frames asked for without marking the tree, the idle timer |
 | `layoutDeclutterTest.js` | 362 | Node tests for `LayoutDeclutter`, run by `run-tests.js` |
+| `panelTidyTest.js` | 347 | Node tests for the 1.6 tidy-up: Reset to Defaults confirm (`ResetConfirm`: double-click ignored, own label back, one armed, disarm on tab switch/hide), the status line (`TreeStatusLine`: success back to Ready, also C++ "Tree saved"; a warning or error not covered), the version at the foot of Settings and Import on the Scan page (index.html), the removed description keys gone from every language |
 | `wheelScroll.js` | 71 | `WheelScroll`: the mouse wheel scrolls the nearest scrollable box `SPEED` (3) times as far as the game browser would; the tree and previews keep their wheel zoom |
 | `logGate.js` | 43 | `LogGate`: `console.log`/`console.info` go nowhere unless developer mode is on (they used to cross into the plugin to be dropped there) |
 | `canvasRendererV2.js` | 584 | `CanvasRenderer`, the tree's canvas renderer: its state and constants, start-up, canvas size, render loop (its frames with nothing to draw, not while panning or within `INPUT_QUIET_MS` of an input, give a slice to `LayerBuild.warmIdle`), public calls, the `_needsRender` accessor. The methods live in the `canvasRenderer*.js` files below, each an IIFE that copies a table of functions onto `CanvasRenderer` (loaded right after this file) |
@@ -92,10 +95,10 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `designEffectsSetting.js` | 120 | Render popup chips for a design's page, drawn lines, sigil, learning glow, heart runes (`TreeStyle.setEffectsOff`); greys out what the design lacks and the starfield under a page |
 | `requiredXPSync.js` | 80 | `RequiredXPSync`: sends C++ the panel's required XP for learning targets when C++ reports another number (after a load, or when a known higher spell or a share slider changes it) |
 | `learningTargetKeys.js` | 61 | `LearningTargetKeys`: the school key holding a spell, looked up by id (Learn button, spell card); `onLearningTargetDropped` |
-| `progressionUI.js` | 943 | How-to-Learn panel, learning status badges |
+| `progressionUI.js` | 931 | How-to-Learn panel, learning status badges |
 | `buttonHandlers.js` | 149 | Scan, learn, import/export button handlers |
 | `cppStatusKeys.js` | 25 | `CPP_STATUS_KEYS` / `cppStatusKey`: the language key of each English status message the DLL sends (scan bar, tree status line) |
-| `cppCallbacks.js` | 1285 | C++ SKSE plugin callback handlers |
+| `cppCallbacks.js` | 1291 | C++ SKSE plugin callback handlers |
 | `proceduralTreeBuilder.js` | 252 | The tome filter (`isTaughtByTome`, `filterTomeSpells`: the tree takes only spells a tome teaches, whose tome something hands out, that are not in the voice slot and not another plugin's copy of a spell - `duplicateOf`, the kept record's formId, set by the scan, SpellScannerDuplicates.cpp; edit mode's spawn list leaves the copies out too, so one spell is never put on the tree twice, while the blacklist list keeps them, where picking one does no harm), spell blacklist / plugin whitelist filters and `onProceduralTreeComplete`, which hands the C++ build to the Classic growth mode (`classic/`) and ignores a `busy` answer |
 | `spellTreeSave.js` | 75 | `SpellTreeSave`: the one way the panel writes `spell_tree.json` - `send(tree, source)` refuses a tree with no spell node (`status.treeNoSpellsNotSaved` on the tree status line), ends a run of the build at game start first unless it is that run's save (`AutoBuild.yieldTo`), and sends a build's Apply to `SaveBuiltSpellTree` (records the load order) and an edit, import or orphan repair to `SaveSpellTree` |
 | `autoBuildSetting.js` | 78 | `AutoBuildSetting`: Settings > Hotkey > "Build Spell Tree at Start" (`settings.autoBuild`: `whenMissing` default, `off`); not in settings presets; `notRead` when C++ sent its defaults for a `config.json` it could not read (`configNotRead`) |
@@ -146,8 +149,10 @@ Modules must load in dependency order before `script.js` (abridged - `index.html
 <script src="modules/wheelRenderer.js"></script>
 
 <!-- 5. UI Panels -->
+<script src="modules/resetConfirm.js"></script>
 <script src="modules/settingsPanel.js"></script>
 <script src="modules/treeViewerUI.js"></script>
+<script src="modules/treeStatusLine.js"></script>
 <script src="modules/treeLoad.js"></script>
 <script src="modules/spellCardView.js"></script>
 <script src="modules/spellProgressView.js"></script>

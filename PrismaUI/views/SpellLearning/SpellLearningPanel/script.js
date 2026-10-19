@@ -232,6 +232,7 @@ function switchTab(tabId) {
 
     state.currentTab = tabId;
     if (typeof dismissFindSpell === 'function') dismissFindSpell();   // not left open behind another tab
+    if (typeof ResetConfirm !== 'undefined') ResetConfirm.disarm();   // an armed Reset does not wait behind it
 
     // The tree is only drawn while its tab is in front (CanvasRenderer.startRenderLoop
     // refuses otherwise); it used to go on animating behind the settings page
@@ -588,7 +589,8 @@ function initializeEarlyLearningSettings() {
     var resetPowerStepsBtn = document.getElementById('resetPowerStepsBtn');
     if (resetPowerStepsBtn) {
         resetPowerStepsBtn.addEventListener('click', function() {
-            resetPowerStepsToDefaults();
+            // A second click confirms, like the page's Reset to Defaults (resetConfirm.js)
+            ResetConfirm.click(resetPowerStepsBtn, resetPowerStepsToDefaults);
         });
     }
     

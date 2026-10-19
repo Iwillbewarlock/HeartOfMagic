@@ -644,11 +644,11 @@ function initializeSettings() {
         });
     }
     
-    // Reset settings button
+    // Reset settings button: a second click confirms (resetConfirm.js)
     var resetSettingsBtn = document.getElementById('resetSettingsBtn');
     if (resetSettingsBtn) {
         resetSettingsBtn.addEventListener('click', function() {
-            resetSettings();
+            ResetConfirm.click(resetSettingsBtn, resetSettings);
         });
     }
     

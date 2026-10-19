@@ -3898,6 +3898,11 @@ body {
     flex: 1;
 }
 
+/* Import (a tree's JSON) beside Scan Spells: as wide as its label, Scan Spells keeps the bar */
+.scan-actions-sticky .scan-import-btn {
+    flex: 0 0 auto;
+}
+
 /* Bottom sticky variant - sticks to bottom of scroll area */
 .scan-actions-bottom {
     position: sticky;
