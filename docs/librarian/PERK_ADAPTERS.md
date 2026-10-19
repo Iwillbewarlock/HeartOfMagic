@@ -44,6 +44,9 @@ Path of Sorcery 3.2, Vokrii 3.8.2, Ordinator 9.35.0, Vokriinator Black 6.15.3).
   `BloodmoonDestruction`·`DesecrationDestruction` 은 그 모드 자신의 이펙트에만 있고 어느 퍽도 읽지 않는다 — 새 파일 없음
 - **Custom Skills 마법 트리**(2026-10-08): Hydromancy·Atromancy·Hemomancy·Venomancy 는 자기 키워드를 읽어 파일을 새로 만들었고, Subclasses 는 Adamant·Ascension 파일을 켜고, 나머지는
   바닐라 키워드만 읽는다. 아래 6-2절
+- **Paths of Empyrean 1.0**(2026-10-19): 바닐라 키워드 + Lost Grimoire 의 `GRIM_K_MagicDamagePoison/Sun/Disease/Kinetic` +
+  자기 `SF_K_MagicSummonDaedra`. `MAG_MagicDamagePoison/Sun` 도 묻지만 언제나 GRIM_K 쌍둥이와 같은 OR 묶음이다.
+  `pathsofempyrean.json`, 아래 6-4절
 
 키워드가 아닌 방법도 있다 — 주문 목록(FormList: Adamant 의 집중 화염·전기 목록, PoS 의 Advanced
 Study 목록)과 보조 이펙트(Adamant 의 Impact·Firebrand). 둘 다 아직 다루지 않는다(7절).
@@ -287,6 +290,87 @@ FEC 만 읽는 둘을 맡는다(`requires`: `FEC.esp`):
 - `holy` 는 넣지 않았다. FEC 에 신성 사망이 없고, 태양 사망(불붙어 재가 됨)은 신성 피해의 모습이 아니다.
 - 측정: TAKEALOOK 스캔(2026-10-07, 3776 주문), `librarian-test -i <덤프> --catalog <master 룰로 만든 카탈로그> --adapters`.
   게임: 누출 차단은 2026-10-13 에 확인했다. allow 를 넣은 뒤의 사망 효과는 아직 확인하지 않았다.
+
+## 6-4. Paths of Empyrean (2026-10-19)
+
+Paths of Empyrean 1.0(넥서스 58656, 2026-10-17 파일)은 18개 스킬 트리를 모두 바꾸는 퍽 모드다. Ordinator·Adamant·Vokriinator 와
+함께 쓰지 않고, Mysticism 은 필요 없다. 마법 레코드는 `PathsOfEmpyrean.esp` 하나에 있고, 그 하드 마스터가 Lost Grimoire
+(`LostGrimoire.esp`)라서 `GRIM_K_*` 키워드는 PoE 와 언제나 함께 있다. 퍽 561개(자기 432, 덮어쓰기 129)의 조건을 덤프했다.
+
+**퍽이 묻는 것.** 주문 쪽 조건(엔트리 포인트 탭 1)은 `EPMagic_SpellHasSkill`(학파, 키워드 불필요), `EPMagic_SpellHasKeyword`,
+`SpellHasCastingPerk`, `IsInList` 다. "있어야 한다"(cmp=1)로 묻는 이펙트 키워드:
+
+| 키워드 | 정의 | 묻는 퍽 | 결과 |
+|---|---|---|---|
+| `MagicDamageFire/Frost/Shock`, `MagicSummon*`, `MagicInfluence*`, `MagicRune`, `MagicWard`, `MagicRestoreHealth`, `MagicTurnUndead` | 바닐라 | Elementalist, Conductivity, Rune Mage, Mage Ward, Urgency, Fear The Dawn 등 | `vanilla.json` |
+| `GRIM_K_MagicDamagePoison` (`17F246`) | Lost Grimoire | Druid, Spell Aegis, Aetherial Shield, 피해 배율 OR 목록 | 새 줄 |
+| `GRIM_K_MagicDamageSun` (`14FA41`) | Lost Grimoire | Fear The Dawn(이것만, `MagicDamageFire` 와 OR), 피해 OR 목록 | 새 줄 |
+| `GRIM_K_MagicDamageDisease` (`17F247`) | Lost Grimoire | Druid, 피해 OR 목록 | 새 줄 |
+| `GRIM_K_MagicDamageKinetic` (`1364C5`) | Lost Grimoire | Telekinetic(이것만), 피해 OR 목록 | 새 줄 |
+| `SF_K_MagicSummonDaedra` (`000809`) | PoE | Legion of Souls, Summoner 30/70, Twin Souls (모두 다른 소환 키워드와 OR) | 새 줄 |
+| `MAG_MagicDamagePoison/Sun` (`Update.esm` `ADA001/ADA002`, PoE 가 레코드 사본을 가짐) | Mysticism 대역 | 위 OR 목록 | 붙이지 않음 |
+| `PoE_K_MagicTransformation` (`000803`) | PoE | Metamorphosis 하나 | 붙이지 않음 |
+
+**파일.** `adamant.json` 의 `requires` 에 PoE 를 넣지 않고 `pathsofempyrean.json` 을 따로 만들었다(`requires`: `PathsOfEmpyrean.esp`).
+PoE 퍽 조건을 OR 묶음으로 풀어 보면 `MAG_MagicDamagePoison/Sun` 을 묻는 조건 58개(엔트리마다 센 수, 독·태양 합계)가 전부 같은 묶음에서 GRIM_K 쌍둥이도 묻고,
+Fear The Dawn 은 `GRIM_K_MagicDamageSun` 만 묻는다. 그래서 GRIM_K 넷이면 모든 퍽을 덮고 MAG_ 줄은 더하는 것이 없다.
+`adamant.json` 을 켜면 PoE 가 읽지 않는 `MAG_` 보호막·원·벽·영향 키워드까지 붙는다. 키워드는 모두 `keywordForm` 으로 FormID 를 적었다.
+
+| 줄 | 조건 (재사용한 모양) |
+|---|---|
+| `GRIM_K_MagicDamagePoison` | `adamant.json` 독과 같다: `poison` + 해로움·`PoisonResist`·체력 |
+| `GRIM_K_MagicDamageSun` | `adamant.json` 태양과 같다: `sun` 또는 `holy` + 해로움·체력 |
+| `GRIM_K_MagicDamageDisease` | `pathofsorcery.json` 질병과 같다: `disease` + 해로움·`DiseaseResist`(Horrid Affliction 은 Script 이펙트라 AV 를 묻지 않는다) |
+| `GRIM_K_MagicDamageKinetic` | `force` 이고 화염·냉기·전격·독·태양·신성·질병 태그가 없음 + 해로움·체력·저항 `None`·ValueModifier/DualValueModifier, 이미 원소 피해 키워드가 있으면 제외. Lost Grimoire 의 운반자 넷(Force Wave, Concussive Blast, Earthquake, Blasting Rune)이 모두 이 모양 |
+| `SF_K_MagicSummonDaedra` ×2 | `pathofsorcery.json` 의 데이드라 두 줄(종족 `ActorTypeDaedra`, 그다음 `daedra` 태그). 제외 키워드에 `MagicSummonUndead`·`MagicSummonFamiliar` 를 더했다 |
+
+`force` 태그(TAGS.md: 물리적 밀어냄·충격)는 Lost Grimoire 의 키네틱 피해와 뜻이 맞는다. 저항 조건을 빼면 더 붙는 것은 유령 화살(Trevas,
+마법 저항·소환계) 하나뿐이라 넣지 않았다. 데이드라 줄의 제외 키워드: PoE 가 `SF_K_MagicSummonDaedra` 를 묻는 조건은 모두 같은 OR 묶음에서
+`MagicSummonFamiliar` 와 `Fire/Frost/Shock` 도 묻으므로 그것을 이미 가진 주문은 잃는 것이 없다(CC 골든 세인트·다크 세듀서, 시커는 원작자가
+Familiar 를 달았다 — 제외를 셋으로 줄이면 gain 이 23 → 95 로 늘지만 퍽 효과는 같다). Summoner 30/70 은 Undead 를 묻지 않는데, 언데드 소환이
+이 퍽을 받지 않는 것은 바닐라와 같아서 데이드라 종족 해골(Rune Peryite Skeletons)·괴저 밴시는 언데드로 둔다. PoE 는 드레모라에서
+`MagicSummonShock` 을 떼고 데이드라를 주지만, 어댑터는 키워드를 떼지 않으므로 다른 모드의 드레모라는 Shock 으로 같은 퍽을 받는다.
+
+**측정.** TAKEALOOK 스캔(2026-10-14, 3983 주문, Lost Grimoire 포함, PoE 없음), `librarian-test -i <스캔> --catalog <카탈로그>
+--adapters <vanilla.json + pathsofempyrean.json 만 든 폴더>`. 오프라인 평가기는 `PlanSource.keywordDefined` 를 주지 않아 모든 키워드를
+정의된 것으로 보므로(헤더: 없으면 always), PoE 가 없는 로드오더에서도 `SF_K_MagicSummonDaedra` 줄이 평가된다.
+agree 는 Lost Grimoire(와 TAKEALOOK 패치)가 직접 단 키워드와의 일치다.
+
+| 줄 | agree | writes | gain | 누출 | 예 |
+|---|---:|---:|---:|---:|---|
+| `GRIM_K_MagicDamagePoison` | 29 | 88 | 130 | 0 | 스프리건 분사(바닐라·Dawnguard·Amalgam), Necrom, BSAssets 독 |
+| `GRIM_K_MagicDamageSun` | 6 | 69 | 83 (holy 만으로 9) | 0 | Dawnguard 태양 불꽃·스텐다르의 오라, Lightpower, Stellaris, Lunaris, Ordinator 거룩한 손길 |
+| `GRIM_K_MagicDamageDisease` | 6 | 15 | 22 | 0 | Vigilant 촉수의 벽, Necromancer's Magic 역병 가시, Ordinator 역신의 안개 |
+| `GRIM_K_MagicDamageKinetic` | 8 | 0 | 0 | 0 | — (Lost Grimoire 운반자 8 모두 일치) |
+| `SF_K_MagicSummonDaedra` (종족) | 0 | 23 | 23 | 0 | CC 골든 세인트·다크 세듀서 전사, Mihail 루이나크·화산재 골렘, Vigilant 베르나쿠스, Dragonborn 시커 |
+| `SF_K_MagicSummonDaedra` (태그) | 23 | 2 | 2 | 0 | Mihail 콜드하버·데드랜드 베인킨 |
+
+Lost Grimoire 운반자 중 줄이 고르지 않는 것: 독 36 중 7(Poison Seed 감시·Toxic Cloud 장판 생성·독 망토 같은 Script/SpawnHazard/Cloak 보조
+이펙트, 숨김 이펙트), 태양 8 중 2(Sun Shard 장판 생성, 숨김 장판 이펙트). 이미 키워드를 가졌으니 손해는 없다.
+gain 은 PoE 로드오더에서는 상한이다: PoE 가 플러그인에서 이미 붙이는 Dawnguard 태양 이펙트 4(GRIM_K Sun), Dragonborn 독 룬 2(GRIM_K Poison),
+드레모라 군주·시커·화산재 수호자·Lost Grimoire 데이드라 8(SF_K)은 게임에서 agree 가 된다. 덤프에 주문서·마법부여가 없으므로 누출 0 은 하한이다(6-3절).
+PoE 의 KID·SPID·SkyPatcher ini 는 주문·이펙트에 키워드를 주지 않는다(SkyPatcher 는 함성 이펙트에만 `PoE_K_MagicShoutScale*`·`MagicShout`).
+
+**시전 퍽.** 다섯 학파의 Student 퍽(비용 -25/-50%)은 그 학파의 바닐라 반값 퍽 다섯을 `SpellHasCastingPerk` 로 묻고, 변화·소환(지속)·환영·회복
+(위력) 배율도 같은 조건이다. Polymath 는 Novice00/Apprentice25, Advanced Study 는 스크립트가 `sp.GetPerk()`(반값 퍽)로 학파를 정한다.
+PoE 는 바닐라 반값 퍽 25개를 덮어쓰지도 트리에 두지도 않으므로, 그 퍽들은 학파·등급 표시로만 쓰인다. 그래서 `vanilla.json` 의 시전 퍽 줄
+(`requires: always`, PoE 에서도 켜짐)이 마법책 주문 중 퍽이 빈 것을 이 퍽들에 닿게 한다 — PoE 자신의 Telepathy 마법책 주문(반값 퍽 없음)이
+정확히 그 경우다. Student: Destruction 의 위력 배율만 `EPMagic_SpellHasSkill(Destruction)` 이라 키워드도 퍽도 필요 없다.
+
+**다루지 않는 것.**
+- `PoE_K_MagicTransformation`(Metamorphosis, 지속 +50%): Lost Grimoire 의 변신 주문은 카탈로그에서 `creature` 이거나 태그가 없고, `transform`
+  기법은 결속 무기·평형 같은 것이라(TAGS.md) 변신을 가를 태그도 스캔 필드도 없다
+- `MAG_MagicDamagePoison/Sun`: 위 OR 묶음 이유. Mysticism 이 함께 깔리면 `adamant.json` 이 따로 켜져 붙인다
+- `GRIM_K_RES_Cocoon`, `GRIM_K_CON_FamiliarBoosted`(Lost Grimoire 자체 기능), `PoE_K_DruidScaleDur`·`PoE_K_MagicDestructionNoScale`(PoE 표식,
+  뒤의 것은 제외 조건), 함성·노래·무기·물약 키워드, `DLC2MagicAshSpawn`
+- 주문 탭의 일반 `HasKeyword`: Ahzidal's Arcana(`DLC2dunKolbjornHelmPerk`, PoE 가 덮어씀)가 `MagicRune`·`MagicSummon*` 을, 여러 퍽이 `MagicShout` 를
+  `EPMagic_SpellHasKeyword` 대신 `HasKeyword` 로 묻는다. CommonLib 은 `MagicItem` 이 `BGSKeywordForm::HasKeyword` 를 재정의한다고 적고,
+  바닐라에서 룬·소환 키워드는 이펙트에만 있으므로 이펙트 키워드를 읽을 가능성이 높다 — 그렇다면 어댑터가 붙인 키워드도 보인다. 확인 필요(게임)
+- 게임 중에 채워지는 FormList: Advanced Study 75개(`PoE_LIST_ALT_AdvancedStudy<학파>01..15`, 스크립트가 시전 횟수로 옮긴다), Spell Charging,
+  Witch's Familiar·Spirit Guide 저장 주문, Blood Mage 장착 주문(7-1절과 같은 이유)
+- PoE 가 Detect Life·Detect Dead 의 반값 퍽을 변화 → 환영(Adept50·Expert75)으로 옮긴다. PoE 로드오더의 스캔에서는 두 주문이 환영으로
+  분류된다. 어댑터와 무관하고, 스캔이 플러그인에 적힌 대로 따른다
+- 게임에서는 확인하지 않았다. PoE 로드오더로 스캔한 적도 없다
 
 ## 7. 붙이지 않는 것과 이유
 
