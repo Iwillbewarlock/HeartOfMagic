@@ -121,6 +121,12 @@ Skyrim AE 1.6.1170, the developer's load order (with Mysticism and Apothecary), 
 - **Mod-added poisons**: vanilla poisons overridden by Apothecary work. **Icon**: shows in the inventory.
 - **Runtime 1.6.629 and later**: the crash when reading a target's active effects was fixed (the list is now
   reached through `Actor::AsMagicTarget()`).
+- **The tome reward** (2026-10-19/20, Korean ESL): turning in Few and Far Between in a real playthrough raised the
+  stage 200 event and gave the tome to a player who already knew the ability (`Grant ... tomes held 0 -> 1`), with
+  the game's "added" line on screen. A save made after that and loaded again read the reward flag back
+  (`tome reward satisfied true saved` / `... loaded`), read the stopped quest as stage 200 after the load
+  (`reads stage 200 after the load (finished)`, so the load check's two premises hold) and gave nothing more
+  (`Skip`, one tome held).
 
 ### Not yet confirmed in game
 
@@ -129,12 +135,10 @@ Skyrim AE 1.6.1170, the developer's load order (with Mysticism and Apothecary), 
   applies nothing.
 - **Dual casting**: counted once per cast (fire-and-forget: one release; concentration: only the right hand while
   both hands cast the same spell, `kCountOneHandWhenDual`); not measured.
-- **The tome reward** given in a real playthrough of Few and Far Between (the dev self test sets the stage through
-  Papyrus instead), and the look of its on-screen "added" line; the I5 inventory icon refresh after the favorite
-  changes.
-- **The tome for a save that finished the quest earlier**: the load check relies on the stopped quest still reading
-  stage 200 after a save and load, and on SKSE's kPostLoadGame passing the load's success as its data pointer. The
-  self test's reload check (step 4a) measures the first; neither has run in game yet.
+- **The I5 inventory icon refresh** after the favorite changes.
+- **The tome given at load** to a save that finished the quest before the addon was installed: the check it rests on
+  ran in game (above) and chose Skip because the reward was already given; the Grant branch at load has not run
+  in game.
 - **Text**: the ability's description under Active Effects and the tome's text (both rewritten for the immunity
   window) have not been looked at in game.
 
