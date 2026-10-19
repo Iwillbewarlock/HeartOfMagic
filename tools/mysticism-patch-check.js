@@ -48,7 +48,9 @@ function fileOfIndex(index, masters, self) {
     return index === masters.length ? self : null;
 }
 
+/** 'none' for a null FormID (0 or 0xFFFFFFFF); throws for an index past the master list */
 function persistentIdOf(formId, masters, self) {
+    if (formId === 0 || formId === 0xFFFFFFFF) return 'none';
     var file = fileOfIndex(formId >>> 24, masters, self);
     if (file === null) throw new Error('FormID 0x' + formId.toString(16) + ' names no master of ' + self);
     var local = (formId & 0xFFFFFF).toString(16).toUpperCase();
@@ -120,9 +122,12 @@ function formIdOffsets(type, data) {
         if (data.length !== MGEF_DATA_SIZE) throw new Error('MGEF DATA is ' + data.length + ' bytes, expected ' + MGEF_DATA_SIZE);
         return MGEF_DATA_FORMIDS.slice();
     }
+    if (type === 'MDOB' && data.length !== 4) throw new Error('MDOB is ' + data.length + ' bytes, expected 4');
     if (type === 'MDOB') return [0];
-    if (type === 'KWDA' || type === 'ESCE') { for (i = 0; i + 4 <= data.length; i += 4) offsets.push(i); }
-    if (type === 'SNDD') { for (i = 0; i + 8 <= data.length; i += 8) offsets.push(i + 4); }
+    if ((type === 'KWDA' || type === 'ESCE') && data.length % 4 !== 0) throw new Error(type + ' is ' + data.length + ' bytes, not a multiple of 4');
+    if (type === 'SNDD' && data.length % 8 !== 0) throw new Error('SNDD is ' + data.length + ' bytes, not a multiple of 8');
+    if (type === 'KWDA' || type === 'ESCE') { for (i = 0; i < data.length; i += 4) offsets.push(i); }
+    if (type === 'SNDD') { for (i = 0; i < data.length; i += 8) offsets.push(i + 4); }
     if (type === 'VMAD') {
         parseVmad(data).scripts.forEach(function (script) {
             script.props.forEach(function (prop) { prop.objects.forEach(function (o) { offsets.push(o.at); }); });
@@ -152,8 +157,9 @@ function compareWithSource(record, patchMasters, patchName, twinId, sourceFile, 
         fail(label + ': ' + e.message);
         return;
     }
-    var srcName = path.basename(sourceFile);
-    if (!sameName(srcName, PATCH_TARGET.plugin)) fail(label + ': the file is not named ' + PATCH_TARGET.plugin);
+    // A renamed copy still stands for MysticismMagic.esp: its own records map to that master of the patch
+    var srcName = PATCH_TARGET.plugin;
+    if (!sameName(path.basename(sourceFile), srcName)) console.log('  note: ' + path.basename(sourceFile) + ' read as ' + srcName);
     var srcMasters = source.header.masters;
     var srcFormId = ((srcMasters.length << 24) | PATCH_TARGET.localId) >>> 0;
     var srcRecord = source.list.filter(function (r) { return r.formId === srcFormId && r.type === 'MGEF'; })[0];
@@ -256,9 +262,13 @@ function checkMysticismPatch(opt, twins, fail) {
     }
     if (typeof ref === 'string') { fail(patchName + ': ' + ref); return; }
     var resolved = persistentIdOf(ref.object.formId, header.masters, patchName);
-    var data = record.raw.filter(function (s) { return s[0] === 'DATA'; })[0];
-    var fieldExplosion = data && data[1].length === MGEF_DATA_SIZE ?
-        persistentIdOf(data[1].readUInt32LE(MGEF_DATA_EXPLOSION), header.masters, patchName) : '(no DATA)';
+    var data = record.raw.filter(function (s) { return s[0] === 'DATA'; });
+    if (data.length !== 1 || data[0][1].length !== MGEF_DATA_SIZE) {
+        fail(patchName + ': ' + data.length + ' DATA subrecord(s)' + (data.length ? ' of ' + data[0][1].length + ' bytes' : '') +
+            ', expected one of ' + MGEF_DATA_SIZE);
+        return;
+    }
+    var fieldExplosion = persistentIdOf(data[0][1].readUInt32LE(MGEF_DATA_EXPLOSION), header.masters, patchName);
     console.log('  ' + targetId + ' (' + record.strings.EDID + ') override: ' + PATCH_SCRIPT + '.' + PATCH_PROPERTY +
         ' -> ' + resolved + '; Explosion field ' + fieldExplosion + ' (the DLL repoints it at runtime)');
     if (!samePersistentId(resolved, twinEntry.twin)) {
