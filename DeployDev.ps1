@@ -22,7 +22,7 @@
     .\DeployDev.ps1 -ToxicologyOnly   # the Toxicology addon only: DLL, ESL, settings JSON (an existing one is kept), I4 rule, icon SWF
     .\DeployDev.ps1 -ToxicologyOnly -Force   # the same, the install's settings JSON replaced with the shipped one
     .\DeployDev.ps1 -ToxicologyOnly -ToxicologySelfTest # the same plus the dev self test file (it gives items and spawns targets after a load)
-    .\DeployDev.ps1 -ToxicologyOnly -ToxicologyKorean   # the same with the Korean ESL (plugins\Toxicology\data\ko, as in the _KO release zip)
+    .\DeployDev.ps1 -ToxicologyOnly -ToxicologyKorean   # the same with the Korean ESL (plugins\Toxicology\data\ko, as in the _KO release zip); it stops first if build\tools\Release\toxicology-esl-check.exe finds it no longer matches the English one
 
     The Toxicology self test file is opt-in: every deploy without -ToxicologySelfTest (-ToxicologyOnly or the plain
     one) removes it from the Toxicology install ($ToxicologyModPath) and says so, because the dev mod may be enabled
@@ -103,6 +103,29 @@ if ($ToxicologyOnly) {
     $newest = $dllSources | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if ($newest.LastWriteTime -gt $built) {
         throw ("Stale: HeartOfMagic_Toxicology.dll is older than $($newest.FullName) - nothing was copied. Run .\BuildRelease.ps1 -preset Release-2026 first." + (Get-ToxSelfTestNote))
+    }
+    # The Korean ESL must still be the English one outside its five text subrecords (ESL.md "Korean ESL"): the same
+    # check the release zips get (plugins\cmake\DistributionToxicology.cmake), so a stale one does not reach the dev install
+    if ($ToxicologyKorean) {
+        $eslCheck = Join-Path $toxRepo 'build\tools\Release\toxicology-esl-check.exe'
+        if (-not (Test-Path $eslCheck)) {
+            throw ("Missing $eslCheck - nothing was copied. Run .\BuildRelease.ps1 -preset Release-2026 first." + (Get-ToxSelfTestNote))
+        }
+        $checkSources = 'tools\toxicology-esl-check.cpp', 'tools\toxicology-esl-compare.cpp', 'tools\toxicology-esl-compare.h' |
+            ForEach-Object { Get-Item (Join-Path $toxRepo $_) }
+        $newest = $checkSources | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if ($newest.LastWriteTime -gt (Get-Item $eslCheck).LastWriteTime) {
+            throw ("Stale: toxicology-esl-check.exe is older than $($newest.FullName) - nothing was copied. Run .\BuildRelease.ps1 -preset Release-2026 first." + (Get-ToxSelfTestNote))
+        }
+        # 'Continue' while it runs: under 'Stop', Windows PowerShell 5.1 turns its stderr line into a terminating
+        # error before the exit code and the output can be reported ("$_" keeps that line's text, not the error record)
+        $ErrorActionPreference = 'Continue'
+        $eslCheckOut = & $eslCheck (Join-Path $toxData 'HeartOfMagic_Toxicology.esp') $toxEsl 2>&1 | ForEach-Object { "$_" } | Out-String
+        $ErrorActionPreference = 'Stop'
+        if ($LASTEXITCODE -ne 0) {
+            throw ("toxicology-esl-check failed (exit $LASTEXITCODE) - nothing was copied.`n$($eslCheckOut.TrimEnd())" + (Get-ToxSelfTestNote))
+        }
+        Write-Host $eslCheckOut.TrimEnd()
     }
 
     # The settings JSON is the player's to edit: an existing one is kept unless -Force

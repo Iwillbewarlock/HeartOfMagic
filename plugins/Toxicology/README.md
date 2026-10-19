@@ -222,6 +222,10 @@ DLL. As always, test removal on a separate save.
 
   Every deploy without `-ToxicologySelfTest` (the plain Heart of Magic deploy too) removes the self test file from
   the Toxicology install and says so. Every copy is checked by hash.
+  `-ToxicologyKorean` first runs `build/tools/Release/toxicology-esl-check.exe` on the English and Korean ESLs, as
+  the release build does before the zips (`ESL.md`, "Korean ESL"): a mismatch, or a check that is missing or older
+  than its source, stops the deploy with its output and nothing copied (build first with
+  `.\BuildRelease.ps1 -preset Release-2026`).
 - **In-game self test** (dev only): with `data/dev/HeartOfMagic_Toxicology_selftest.json` installed as
   `SKSE/Plugins/HeartOfMagic_Toxicology_selftest.json`, the DLL runs a test once per session, `startDelayMs`
   (default 30 s) after a save load settles: it checks the tome record and the tome reward (the save's ability and
