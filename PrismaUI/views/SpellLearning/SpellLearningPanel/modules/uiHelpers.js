@@ -12,6 +12,11 @@
 
 var _scanStatus = null;   // {key, params, type} of the last keyed message
 
+// Lines the Scan page's summary already says (scanStage.js: "No scan yet", "Scanning all spells...",
+// "753 spells found"): the bar keeps them out of sight instead of saying them twice. Errors, the
+// build at game start and every other line still show.
+var SCAN_STATUS_IN_SUMMARY = { 'scanner.readyToScan': true, 'status.scanningAllSpells': true, 'status.scannedSpellsSchools': true };
+
 /**
  * @param {string} message
  * @param {string} [type] - 'working', 'success', 'error' (the bar's class)
@@ -30,6 +35,9 @@ function updateScanStatus(message, type, i18nKey, params) {
     text.removeAttribute('data-i18n');
     bar.className = 'scan-status-bar';
     if (type) bar.classList.add(type);
+    if (i18nKey && SCAN_STATUS_IN_SUMMARY[i18nKey] === true) bar.classList.add('scan-status-said');
+    // The Scan page reads the line's key (a scan C++ reports running, then its end or failure): follow it
+    if (typeof ScanStage !== 'undefined' && ScanStage.refresh) ScanStage.refresh();
 }
 
 // English for keys newer than some community translations, so a missing key shows this, not the key
@@ -50,6 +58,9 @@ function scanStatusText(key, params) {
     return (text === key && fallback !== undefined) ? fallback : text;
 }
 
+/** The language key of the bar's last keyed message, or null (scanStage.js: a scan C++ reports running) */
+function scanStatusKey() { return _scanStatus ? _scanStatus.key : null; }
+
 /** After a language switch (languageSetting.js): a keyed message in the new language. */
 function relabelScanStatus() {
     var s = _scanStatus;
@@ -63,6 +74,7 @@ function restoreScanButton() {
         scanBtn.disabled = false;
         HomIcons.setLabel(scanBtn, t('buttons.scanSpells'));
     }
+    if (typeof ScanStage !== 'undefined') ScanStage.refresh();
 }
 
 /**
@@ -342,6 +354,8 @@ function updatePrimedCount() {
         });
         breakdownEl.innerHTML = html;
     }
+    // The summary line and the filter lines read the same filters (scanStage.js)
+    if (typeof ScanStage !== 'undefined') ScanStage.refresh();
 }
 
 // =============================================================================

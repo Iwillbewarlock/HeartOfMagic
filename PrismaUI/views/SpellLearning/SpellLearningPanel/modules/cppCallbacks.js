@@ -163,6 +163,8 @@ window.updateSpellData = function(jsonStr) {
         console.warn('[Timing] updateSpellData: ' + jsonStr.length + ' chars parsed in ' + (Date.now() - parseStarted) + ' ms');
         state.lastSpellData = data;
         ScanRef.reset(data);
+        // The Scan page: a draft from before this scan is stale, nothing is applied (scanStage.js)
+        if (typeof ScanStage !== 'undefined') ScanStage.onScanned();
         // Spell gate keys saved before 2026-10-17 become the DLL's (gateReview.js)
         if (typeof GateReview !== 'undefined') GateReview.migrateKeys(data.spells);
         
@@ -266,8 +268,8 @@ window.updateSpellData = function(jsonStr) {
     if (prmSection) prmSection.style.display = '';
 
     // Notify growth modes that spells are available for building
-    if (state.lastSpellData && state.lastSpellData.spells && state.lastSpellData.spells.length > 0) {
-        if (typeof TreeGrowth !== 'undefined') TreeGrowth.updateScanStatus(true);
+    if (typeof TreeGrowth !== 'undefined') {
+        TreeGrowth.updateScanStatus(!!(state.lastSpellData && state.lastSpellData.spells && state.lastSpellData.spells.length > 0));
     }
 
     // Update scan stats + status outside try-catch (guaranteed to run)

@@ -50,6 +50,15 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         
+        // The node states key behind the footer's "?" (treeLegend.js)
+        if (typeof TreeLegend !== 'undefined') TreeLegend.init();
+
+        // The spell card's "Leads to N later spells" fold (spellCardNeeds.js)
+        if (typeof SpellCardNeeds !== 'undefined') SpellCardNeeds.init();
+
+        // Settings' categories: one page at a time (settingsCategories.js)
+        if (typeof SettingsCategories !== 'undefined') SettingsCategories.init();
+
         // Heart settings popup (initialized independently to survive settings init errors)
         if (typeof initializeHeartSettings === 'function') {
             try {
@@ -74,6 +83,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Easy Mode (scanner tab sub-mode)
         if (typeof initializeEasyMode === 'function') initializeEasyMode();
+        // The Scan tab's summary line and stage button (scanStage.js)
+        if (typeof ScanStage !== 'undefined') ScanStage.init();
         
         // Textarea enter key handling
         if (typeof initializeTextareaEnterKey === 'function') initializeTextareaEnterKey();

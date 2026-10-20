@@ -170,6 +170,8 @@ var StatusLineTest = {
             this.check(tg() === '스캔 대기 중...' && easy() === '스캔 대기 중...', 'a cleared tree: both lines idle, current language');
             switchTo('en'); grow.relabelStatus();
             this.check(tg() === 'Waiting for scan...', '...and a switch after it does not bring "Tree built" back');
+            this._checkReady(g, grow, tg, easy, switchTo);
+            this._checkScanWiring();
 
             var params = {schools: 5, spells: 1428};
             g.updateScanStatus(g.t('status.treeBuildComplete', params), 'success', 'status.treeBuildComplete', params);
@@ -182,6 +184,7 @@ var StatusLineTest = {
             g.updateScanStatus('Saved from C++', '');
             lang = 'en'; g.relabelScanStatus();
             this.check(bar().textContent === 'Saved from C++', 'a scan message with no key is left as written');
+            this._checkSaidBySummary(g, page, function(code) { lang = code; });
             this._checkScanFailed(g, page, function(code) { lang = code; });
             this._checkMissingKeys(g, page, grow, function(code) { switchTo(code); });
             this._checkCost(g);
@@ -191,6 +194,105 @@ var StatusLineTest = {
             if (typeof g.updateScanStatus === 'function') g._scanStatus = null;
         }
         return { passed: this.passed, failed: this.failed };
+    },
+
+    /**
+     * The builder line after a scan (onSpellsScanned, resetStatus): "Ready to build" instead of "Waiting for
+     * scan..." on both pages, in the current language; not over a built tree or a line someone wrote.
+     */
+    _checkReady: function(g, grow, tg, easy, switchTo) {
+        var oldTOr = g.tOr;
+        g.tOr = function(k, p, f) { var s = g.t(k, p); return s === k ? f : s; };
+        this.STRINGS.en['treeGrowth.readyToBuild'] = 'Ready to build';
+        this.STRINGS.ko['treeGrowth.readyToBuild'] = '구축 준비 완료';
+        try {
+            grow._hasSpells = true; grow._treeBuilt = false; grow._building = false;
+            grow.onSpellsScanned();
+            this.check(tg() === 'Ready to build' && easy() === 'Ready to build', 'After a scan: both lines say "Ready to build", not "Waiting for scan..."');
+            switchTo('ko'); grow.relabelStatus();
+            this.check(tg() === '구축 준비 완료' && easy() === tg(), '...in the new language after a switch');
+            grow.setStatusText('Automatic tree build failed: x', 'error', 'status.autoBuildFailed');
+            grow.onSpellsScanned();
+            this.check(tg() === 'Automatic tree build failed: x', 'A new scan leaves a line someone wrote (an error) as it is');
+            grow.showBuilt(); grow._treeBuilt = true;
+            grow.onSpellsScanned();
+            this.check(tg().indexOf('트리 구축 완료') === 0, 'A new scan over a built tree leaves "Tree built"');
+            grow._treeBuilt = false;
+            grow.resetStatus();
+            this.check(tg() === '구축 준비 완료' && easy() === tg(), 'Clear with spells scanned: "Ready to build", not "Waiting for scan..."');
+            grow._hasSpells = false;
+            grow.resetStatus();
+            this.check(tg() === '스캔 대기 중...', 'Clear with no scan: "Waiting for scan..."');
+            switchTo('en'); grow.relabelStatus();
+        } finally {
+            g.tOr = oldTOr;
+            grow._hasSpells = false;
+            delete this.STRINGS.en['treeGrowth.readyToBuild'];
+            delete this.STRINGS.ko['treeGrowth.readyToBuild'];
+        }
+    },
+
+    /** treeGrowth.js's own updateScanStatus (what cppCallbacks.js calls after every scan) writes "Ready to build" and takes it back */
+    _checkScanWiring: function() {
+        if (typeof require !== 'function') return;
+        var vm = require('vm'), fs = require('fs'), path = require('path');
+        var none = function() { return null; };
+        var box = { window: {}, console: { log: none, warn: none, error: none }, settings: {},
+            document: { getElementById: none, querySelector: none }, tOr: function(k, p, f) { return f; } };
+        vm.createContext(box);
+        ['treeGrowth.js', 'treeGrowthStatus.js'].forEach(function(f) {
+            vm.runInContext(fs.readFileSync(path.join(__dirname, f), 'utf8'), box, { filename: f });
+        });
+        var G = box.TreeGrowth, written = [], resets = 0;
+        G.setStatusText = function(text, tone, key) { written.push(key); this._status = { key: key }; };
+        var realReset = G.resetStatus;
+        G.resetStatus = function() { resets++; this._status = null; };
+        G.updateScanStatus(true);
+        this.check(written.join() === 'treeGrowth.readyToBuild', 'TreeGrowth.updateScanStatus(true): "Ready to build" (the call cppCallbacks.js makes)');
+        G.updateScanStatus(false);
+        this.check(resets === 1 && G._status === null, 'TreeGrowth.updateScanStatus(false), a scan with no spell: "Ready to build" goes');
+        written = []; G._treeBuilt = true;
+        G.updateScanStatus(true);
+        this.check(written.length === 0, 'TreeGrowth.updateScanStatus(true) over a built tree writes nothing');
+        G.resetStatus = realReset;
+    },
+
+    /**
+     * The scan bar and the Scan page's summary (uiHelpers.js SCAN_STATUS_IN_SUMMARY): a line the summary
+     * already says - the scan's count, Ready to scan, Scanning - is kept out of sight; an error, the
+     * build at game start's lines and a line with no key still show; a language switch keeps it out.
+     */
+    _checkSaidBySummary: function(g, page, setLang) {
+        var said = function() { return page.byId.scanStatusBar.className.indexOf('scan-status-said') !== -1; };
+        var params = { count: 753, schools: 5 };
+        setLang('en');
+        g.updateScanStatus(g.t('status.scannedSpellsSchools', params), 'success', 'status.scannedSpellsSchools', params);
+        this.check(said() && page.byId.scanStatusBar.className.indexOf('success') !== -1,
+            'Scan bar: the scan count is out of sight (the summary says it), its class kept');
+        setLang('ko'); g.relabelScanStatus();
+        this.check(said() && page.byId.scanStatusText.textContent === '5개 학파에서 753개 주문 스캔됨',
+            'Scan bar: a language switch writes it in the new language and keeps it out of sight');
+        g.updateScanStatus('Ready to scan', '', 'scanner.readyToScan');
+        this.check(said(), 'Scan bar: "Ready to scan" is out of sight (the summary says "No scan yet")');
+        g.updateScanStatus('Scan failed: x', 'error', 'status.scanFailed', { error: 'x' });
+        this.check(!said(), 'Scan bar: an error shows');
+        g.updateScanStatus('The spell tree will finish building when you open this panel.', '', 'status.autoBuildHeld');
+        this.check(!said(), 'Scan bar: the lines of the build at game start show');
+        g.updateScanStatus('Saved from C++', '');
+        this.check(!said(), 'Scan bar: a line with no key shows');
+        var oldStage = g.ScanStage, refreshes = 0;
+        g.ScanStage = { refresh: function() { refreshes++; } };
+        try {
+            g.updateScanStatus('Scan failed: x', 'error', 'status.scanFailed', { error: 'x' });
+            this.check(refreshes === 1, 'Scan bar: every write refreshes the Scan page (a failed scan after "Scanning all spells..." gives the main button back)');
+        } finally {
+            g.ScanStage = oldStage;
+        }
+        if (typeof require === 'function') {
+            var html = require('fs').readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
+            this.check(/class="scan-status-bar scan-status-said" id="scanStatusBar"/.test(html), 'Scan bar: the page opens with its "Ready to scan" out of sight too (index.html)');
+        }
+        setLang('en');
     },
 
     /**

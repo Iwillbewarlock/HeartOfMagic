@@ -540,9 +540,11 @@ function renderSpellCard(node, opts) {
     var stateText = spellStateLabel(node.state);
     var stateClass = node.state;
 
-    // Show "Weakened" for early-learned spells (the known spells keep them 'available')
+    // Show "Weakened" for early-learned spells (the known spells keep them 'available'). The word
+    // alone: the state line says "casts at N% power" (spellCardNeeds.js); pct stays for a
+    // translation that still has it
     if (isWeakened) {
-        stateText = tOr('details.stateWeakened', { pct: effectiveness }, 'Weakened ({{pct}}%)');
+        stateText = tOr('details.stateWeakened', { pct: effectiveness }, 'Weakened');
         stateClass = 'weakened';
     }
     
@@ -560,6 +562,12 @@ function renderSpellCard(node, opts) {
         if (learnBtnEl) learnBtnEl.disabled = true;
         if (unlockBtnEl) unlockBtnEl.disabled = true;
     } else if (learnBtnEl) {
-        learnBtnEl.disabled = false;
+        // A locked spell's Learn stays off (spellProgressView.js shows it, with the reason)
+        learnBtnEl.disabled = node.state === 'locked';
+    }
+
+    // Last: the state line, "Still needed" / "Met", why Learn is off, the folded Unlocks (spellCardNeeds.js)
+    if (typeof SpellCardNeeds !== 'undefined') {
+        SpellCardNeeds.render(node, { preview: preview, progressPercent: progressPercent, weakenedPower: isWeakened ? effectiveness : null });
     }
 }

@@ -1439,6 +1439,9 @@
 
         // Update the PRM preview canvas
         renderPreview();
+
+        // New or cleared locks change the draft: it is not the applied tree any more (scanStage.js)
+        if (typeof ScanStage !== 'undefined') ScanStage.onDraftChanged();
     }
 
     // =========================================================================

@@ -16,7 +16,7 @@
     --panel-border: rgba(255, 255, 255, 0.1);
     --text-primary: #e4e4e7;
     --text-secondary: #a1a1aa;
-    --text-muted: #71717a;
+    --text-muted: #888890;   /* 4.6:1 on a chip (#71717a was 3.4:1; 2.0 audit) */
     --text-bright: #fafafa;
     --accent-gold: #fbbf24;
     --accent-gold-hover: #f59e0b;

@@ -12,6 +12,9 @@
  * scaled bottom (TreeNav.placeUnder).
  *
  * Saved as settings.treeToolsScale in the panel config; Reset to Defaults sets 1.
+ * A design whose page has corner drawings moves the tools right past the top-left one,
+ * at their usual top, and keeps them as far from the right edge (setCornerArt, called by
+ * TreeStyle.renderPage with TreeStyle.hasCornerArt; CanvasRenderer.hide puts them back).
  * The grip takes its own mouse presses: the tree does not pan from them. A
  * release the page never hears (a move with no button held, the page losing
  * focus) ends the drag too, so the bar does not keep following the pointer.
@@ -28,6 +31,28 @@ var TreeToolsScale = {
     STEP: 0.05,
 
     _drag: null,
+    EDGE_PX: 14,      // .tree-top-tools' top and left in patch-tree-tools.css
+    // Beside corner drawings: the tools' left, and their room kept from the right edge. TreeStyle draws the
+    // corners at most ORNAMENT_MAX (112) px; 16 px more keeps the tools clear of them (the GPT comparison build's
+    // margin). The top stays EDGE_PX: past the drawing's width nothing is under them.
+    CORNER_ART_PX: 128,
+    _corners: false,
+
+    /**
+     * Beside a page's corner drawings (true) or at the stylesheet's own place. Called every frame: only a
+     * change writes to the page; the bar's room is worked out again.
+     */
+    setCornerArt: function(on) {
+        on = !!on;
+        if (on === this._corners) return;
+        this._corners = on;
+        var tools = document.querySelector ? document.querySelector('.tree-top-tools') : null;
+        if (tools && tools.style) {
+            tools.style.left = on ? this.CORNER_ART_PX + 'px' : '';
+            tools.style.maxWidth = on ? 'calc(100% - ' + (2 * this.CORNER_ART_PX) + 'px)' : '';
+        }
+        this.apply();
+    },
 
     /** A saved or dragged value as a scale: a number in [MIN, MAX] on STEP, else DEFAULT */
     clamp: function(value) {
@@ -79,7 +104,8 @@ var TreeToolsScale = {
         var s = this.current();
         var host = bar.parentElement && bar.parentElement.parentElement;
         // The bar's unscaled width: what the tree has room for at this scale
-        var room = host && host.clientWidth ? Math.floor((host.clientWidth - 28) / s) : 0;
+        var side = this._corners ? this.CORNER_ART_PX : this.EDGE_PX;
+        var room = host && host.clientWidth ? Math.floor((host.clientWidth - 2 * side) / s) : 0;
         bar.style.maxWidth = room > 0 ? room + 'px' : '';
         bar.style.transformOrigin = 'top left';
         bar.style.transform = s === 1 ? '' : 'scale(' + s + ')';

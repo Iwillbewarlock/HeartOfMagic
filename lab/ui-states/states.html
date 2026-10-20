@@ -1,0 +1,176 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>HoM panel states</title>
+<!--
+  Every state of the spell card and of the Scan page's stage block on one page, in one design
+  (2.0 audit, item 2). Development only: it loads the panel's dev harness in one frame per state
+  and shows the part that matters; nothing here ships (lab/ is not in the release).
+
+  Open (Chrome with file access, e.g. headless with --allow-file-access-from-files):
+    states.html?design=classic&group=card&lang=en
+  design: classic | modern | arcane | night-grimoire | chalkboard | skald
+  group:  card (the bar under the tree) | side (the right sidebar) | scan (the Scan page's top)
+  lang:   any of the panel's 13 (en by default)
+  window.__ready is true once every frame has its state (for a headless screenshot).
+-->
+<style>
+  :root { --bg: #2a2a2a; --ink: #f0d890; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.3 sans-serif; }
+  h1 { margin: 0; padding: 8px 12px; font-size: 14px; font-weight: normal; }
+  #cells { display: flex; flex-wrap: wrap; gap: 10px; padding: 0 10px 10px; align-items: flex-start; }
+  .cell { background: #000; }
+  .cell b { display: block; padding: 4px 6px; font-weight: normal; background: #111; }
+  .crop { position: relative; overflow: hidden; }
+  .crop iframe { position: absolute; border: 0; width: 1600px; height: 1000px; transform-origin: 0 0; }
+</style></head>
+<body>
+<h1 id="title"></h1>
+<div id="cells"></div>
+<script>
+var Q = {};
+location.search.slice(1).split('&').forEach(function(kv) { if (kv) { var a = kv.split('='); Q[a[0]] = decodeURIComponent(a[1] || ''); } });
+var DESIGN = Q.design || 'classic', GROUP = Q.group || 'card', LANG = Q.lang || 'en';
+var PANEL = '../../PrismaUI/views/SpellLearning/SpellLearningPanel/dev-harness.html';
+var PRESETS = '../../SKSE/Plugins/SpellLearning/presets/design/';
+var JSON_DESIGNS = { 'night-grimoire': 'NightGrimoire', 'chalkboard': 'Chalkboard', 'skald': 'Skald' };
+// What each group shows of the 1600 x 1000 harness: x, y, width, height, scale
+var CROPS = { card: [0, 682, 1520, 216, 0.72], side: [1248, 120, 260, 778, 0.78], scan: [0, 104, 1520, 400, 0.58] };
+var STATES = {
+    card: ['hidden', 'locked', 'available', 'learning', 'weakened', 'mastered', 'edit'],
+    side: ['hidden', 'locked', 'available', 'learning', 'weakened', 'mastered', 'edit'],
+    scan: ['noscan', 'scanned', 'gap', 'building', 'built', 'applied', 'failed', 'zero']
+};
+document.getElementById('title').textContent = DESIGN + ' · ' + GROUP + ' · ' + LANG;
+
+function button(w, label) {
+    var b = [].slice.call(w.document.querySelectorAll('#harness-toolbar button')).filter(function(x) { return x.textContent.trim() === label; })[0];
+    if (b) b.click();
+}
+function nodes(w) { return (w.state.treeData && w.state.treeData.nodes) || []; }
+function find(w, pred) { return nodes(w).filter(pred)[0] || null; }
+function later(ms, fn) { setTimeout(fn, ms); }
+
+/** The design, as the panel takes it at start (a JSON design through DesignPresets.onLoaded) */
+function design(w, done) {
+    w.settings.designPreset = DESIGN;
+    if (!JSON_DESIGNS[DESIGN]) { try { w.DesignPresets.apply(DESIGN); } catch (e) {} done(); return; }
+    fetch(PRESETS + JSON_DESIGNS[DESIGN] + '.json').then(function(r) { return r.json(); }).then(function(d) {
+        w.DesignPresets.onLoaded([{ key: JSON_DESIGNS[DESIGN], data: d }]);
+        try { w.DesignPresets.apply(DESIGN); } catch (e) {}
+        done();
+    });
+}
+function language(w) {
+    w.settings.language = LANG;
+    if (w.applySavedLanguage) w.applySavedLanguage();
+}
+
+/** One spell card state, on the harness's built tree */
+function cardState(w, st) {
+    w.settings.cheatMode = false;
+    w.settings.discoveryMode = true;
+    if (GROUP === 'side') { var t = w.document.getElementById('sideDetailsToggle'); if (t && !t.checked) t.click(); }
+    var n = find(w, function(x) { return x.state === 'available' && x.name && (x.prerequisites || []).length > 0; }) ||
+        find(w, function(x) { return x.state === 'available' && x.name; });
+    if (st === 'hidden') n = find(w, function(x) { return x.state === 'locked' && (x.prerequisites || []).length > 0; });
+    if (st === 'locked') {
+        // Locked, its names known (discovery off): a required spell met, one not, and a lock from another school
+        w.settings.discoveryMode = false;
+        n = find(w, function(x) { return x.state === 'locked' && x.school === 'Destruction'; });
+        var same = nodes(w).filter(function(x) { return x !== n && x.school === n.school; });
+        var far = find(w, function(x) { return x.school === 'Restoration' && x.name; });
+        same[0].state = 'unlocked';
+        n.hardPrereqs = [same[0].id, same[1].id, far.id];
+        n.softPrereqs = [same[2].id, same[3].id, same[4].id];
+        n.softNeeded = 2;
+        var locks = w.PreReqMaster.getLocksForNode;
+        w.PreReqMaster.getLocksForNode = function(id) { return id === n.id ? [{ nodeId: far.id, revealed: true, name: far.name }] : locks(id); };
+    }
+    if (st === 'learning' || st === 'weakened') {
+        n.state = 'learning';
+        w.state.spellProgress[n.formId] = { xp: 62, required: 100, progress: 0.62 };
+        if (st === 'weakened') { w.state.playerKnownSpells.add(n.formId); w.state.weakenedSpells = new Set([n.formId]); }
+    }
+    if (st === 'mastered') {
+        n.state = 'unlocked';
+        w.state.spellProgress[n.formId] = { xp: 100, required: 100, progress: 1, unlocked: true };
+        w.state.playerKnownSpells.add(n.formId);
+    }
+    if (st === 'edit') { w.settings.discoveryMode = false; w.EditMode.activate(); }
+    w.showSpellDetails(n);
+}
+
+/** One Scan stage: what the page shows after the panel's own path got there */
+function scanStage(w, st, done) {
+    var scan = w.document.getElementById('tabSpellScan');
+    if (scan) scan.click();
+    if (st === 'noscan') { done(); return; }
+    if (st === 'failed') { w.onScanFailed(JSON.stringify({ mode: 'all', reason: 'The game did not answer in time' })); done(); return; }
+    if (st === 'zero') {
+        w._mockSpellData = [];
+        w.updateSpellData(JSON.stringify({ scanMode: 'all_spells', spellCount: 0, spells: [] }));
+        later(800, done);
+        return;
+    }
+    button(w, 'Load Test Data');
+    later(2500, function() {
+        if (st === 'gap') {
+            var sp = w.state.lastSpellData.spells;
+            w.settings.spellBlacklist = sp.slice(0, 12).map(function(x) { return { formId: x.formId, name: x.name }; });
+            for (var q = 20; q < 30; q++) sp[q].taughtByTome = false;
+            w.updatePrimedCount();
+        }
+        // What classicMain.js does when a build goes out (the harness's mock never answers this one)
+        if (st === 'building') {
+            w.ClassicSettings.setStatusText(w.t('buildProgress.statusBuilding'), 'working', 'buildProgress.statusBuilding');
+            w.TreeGrowth.setBuilding(true);
+        }
+        if (st === 'built' || st === 'applied') {
+            button(w, 'Build Tree');
+            later(2500, function() {
+                if (st === 'applied') w.ScanStage.markApplied();
+                w.document.getElementById('tabSpellScan').click();
+                w.ScanStage.refresh();
+                done();
+            });
+            return;
+        }
+        w.ScanStage.refresh();
+        done();
+    });
+}
+
+function cell(st, onReady) {
+    var c = CROPS[GROUP];
+    var box = document.createElement('div'); box.className = 'cell';
+    var label = document.createElement('b'); label.textContent = st; box.appendChild(label);
+    var crop = document.createElement('div'); crop.className = 'crop';
+    crop.style.width = Math.round(c[2] * c[4]) + 'px'; crop.style.height = Math.round(c[3] * c[4]) + 'px';
+    var f = document.createElement('iframe');
+    f.style.left = Math.round(-c[0] * c[4]) + 'px'; f.style.top = Math.round(-c[1] * c[4]) + 'px';
+    f.style.transform = 'scale(' + c[4] + ')';
+    crop.appendChild(f); box.appendChild(crop);
+    document.getElementById('cells').appendChild(box);
+    f.onload = function() {
+        later(2000, function() {
+            var w = f.contentWindow;
+            design(w, function() {
+                language(w);
+                if (GROUP === 'scan') { later(500, function() { scanStage(w, st, function() { later(1500, onReady); }); }); return; }
+                button(w, 'Load Test Data');
+                later(1200, function() {
+                    button(w, 'Build Tree');
+                    later(2500, function() {
+                        try { cardState(w, st); } catch (e) { label.textContent = st + ' - ERROR ' + e; }
+                        later(1500, onReady);
+                    });
+                });
+            });
+        });
+    };
+    f.src = PANEL;
+}
+
+var waiting = STATES[GROUP].length;
+STATES[GROUP].forEach(function(st) { cell(st, function() { if (--waiting === 0) window.__ready = true; }); });
+</script>
+</body></html>

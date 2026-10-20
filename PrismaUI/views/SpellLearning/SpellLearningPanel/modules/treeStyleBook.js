@@ -40,6 +40,13 @@
         PAGE_MAX_SKIPS: 8,        // frames in a row with no time left for a step: then one step anyway
         PAGE_BLOTCHES: 40,
         PAGE_SEED: 1234567,       // the grain is seeded, so the page looks the same every time it is painted
+        // The corner drawing's side: this share of the page's short side, between MIN and MAX px. MAX is kept
+        // small enough (the GPT comparison build's 96-112) that the tools stay at their usual top with only
+        // their left moved past it (TreeToolsScale.CORNER_ART_PX, 16 px more); it was up to 200 px, with the
+        // tools pushed in and down onto it
+        ORNAMENT_RATIO: 0.24,
+        ORNAMENT_MIN: 96,
+        ORNAMENT_MAX: 112,
 
         _page: null,              // the finished texture
         _pageKey: '',             // its size, "w x h"
@@ -69,6 +76,7 @@
          */
         renderPage: function(ctx, w, h) {
             var t = this.tokens;
+            if (typeof TreeToolsScale !== 'undefined' && TreeToolsScale.setCornerArt) TreeToolsScale.setCornerArt(this.hasCornerArt());
             if (!t.pageColor) return false;
             // (the same colour only: an add-on design sharing another's colour shows
             // that one's texture for the few frames its own is painted)
@@ -305,11 +313,25 @@
             return entry.ok ? entry.img : null;
         },
 
+        /** The corner drawing's side on a w x h page, css px */
+        ornamentSize: function(w, h) {
+            return Math.round(Math.max(this.ORNAMENT_MIN, Math.min(this.ORNAMENT_MAX, Math.min(w, h) * this.ORNAMENT_RATIO)));
+        },
+
+        /**
+         * Does this design draw a page with corner drawings? Read from the tokens (an add-on design with its own
+         * pageOrnament too), not from the picture having loaded: the tools take their place at once and stay.
+         */
+        hasCornerArt: function() {
+            var t = this.tokens;
+            return !!(t && t.pageColor && t.pageOrnament);
+        },
+
         /** The page's corner drawing, mirrored into all four corners of the page texture. */
         _drawOrnaments: function(g, w, h) {
             var img = this._image(this.tokens.pageOrnament);
             if (!img) return;
-            var size = Math.round(Math.max(96, Math.min(200, Math.min(w, h) * 0.24)));
+            var size = this.ornamentSize(w, h);
             var corners = [[1, 1, 0, 0], [-1, 1, w, 0], [1, -1, 0, h], [-1, -1, w, h]];
             for (var i = 0; i < corners.length; i++) {
                 var c = corners[i];

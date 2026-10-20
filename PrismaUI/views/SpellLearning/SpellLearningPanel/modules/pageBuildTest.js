@@ -62,6 +62,7 @@ var PageBuildTest = {
             require('./treeStyle.js');
             require('./treeStyleBook.js');
             this._tests(g.TreeStyle, cr, log, timers);
+            this._insetTests(g.TreeStyle);
         } catch (e) {
             this.check(false, 'page tests ran: ' + (e && e.stack || e));
         } finally {
@@ -69,6 +70,40 @@ var PageBuildTest = {
             if (g.LayerBuild) { g.LayerBuild._unmeasured = saved.unm; g.LayerBuild._textCold = saved.cold; }
         }
         return { passed: this.passed, failed: this.failed };
+    },
+
+    /** The corner drawings' size, and whether the tree's tools move past them (hasCornerArt, read by TreeToolsScale.setCornerArt) */
+    _insetTests: function(T) {
+        var keep = T._images['corner.png'];
+        T.set({ pageColor: '#e6d6b0', pageOrnament: 'corner.png' });
+        T._images['corner.png'] = { img: {}, ok: true };
+        this.check(T.ornamentSize(1486, 779) === 112 && T.ornamentSize(400, 300) === 96 && T.ornamentSize(3000, 2000) === 112 &&
+            T.ornamentSize(440, 440) === 106, 'Corner drawings: 24% of the short side, between 96 and 112 px (112 on a 1486 x 779 tree, was 187)');
+        var g = (typeof global !== 'undefined') ? global : window;
+        var tools = g.TreeToolsScale || (require('./treeToolsScale.js'), g.TreeToolsScale);
+        this.check(tools.CORNER_ART_PX >= T.ORNAMENT_MAX + tools.EDGE_PX,
+            'Corner drawings: the tools start past the largest drawing (' + tools.CORNER_ART_PX + ' px), with at least their usual edge between');
+        this.check(T.hasCornerArt(), 'Corner drawings: a page with a corner drawing has them');
+        T._images['corner.png'] = { img: {}, ok: false };
+        this.check(T.hasCornerArt(), 'Corner drawings: read from the design, not from the picture having loaded (the tools do not jump when it arrives)');
+        T._images['corner.png'] = { img: {}, ok: true };
+        T.set({ pageColor: '#e6d6b0' });
+        this.check(!T.hasCornerArt(), 'Corner drawings: none for a page without corner drawings');
+        T.set({ pageOrnament: 'corner.png' });
+        this.check(!T.hasCornerArt(), 'Corner drawings: none without a page (the starfield designs, or the page effect turned off)');
+        var oldTools = g.TreeToolsScale, got = [];
+        var ctx = { drawImage: function() {}, fillRect: function() {} };
+        g.TreeToolsScale = { setCornerArt: function(on) { got.push(on); } };
+        try {
+            T.set({ pageColor: '#e6d6b0', pageOrnament: 'corner.png' });
+            T.renderPage(ctx, 1486, 779);
+            T.set({});
+            T.renderPage(ctx, 1486, 779);
+            this.check(got.join() === 'true,false', 'Corner drawings: renderPage hands it to TreeToolsScale every frame - true with a corner drawing, false for a design with no page');
+        } finally {
+            g.TreeToolsScale = oldTools;
+        }
+        if (keep) T._images['corner.png'] = keep; else delete T._images['corner.png'];
     },
 
     _tests: function(T, cr, log, timers) {

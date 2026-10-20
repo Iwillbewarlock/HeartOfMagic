@@ -1,0 +1,176 @@
+/* =============================================================================
+   panel-tree.css - the tree in one thin frame (2.0 review, item 9). Linked last
+   of the panel's own sheets; the designs' sheets come later (they keep their
+   frame colour, the frame stays one line: design-*.css).
+
+   The tree's frame is the one boundary: the panel's padding, then the canvas's
+   1px border - no margin, gutter ring or shadow between. The tools float on the
+   canvas without a box round them; the school jump buttons are small labels in
+   their school's colour; the footer is one quiet line under the frame (count,
+   new spells, status) with the node states key behind "?" (treeLegend.js).
+   FOOTER_H (26px) is the room under the frame: the panels drawn over the tree
+   (spell card, How to learn) stop at the frame's inner edge, 1px in.
+   ============================================================================= */
+
+#contentSpellTree .tree-container {
+    margin: 0 0 26px;
+}
+
+/* The panels over the tree, inside its frame */
+#contentSpellTree #details-panel {
+    top: 1px;
+    right: 1px;
+    bottom: 27px;
+}
+
+#contentSpellTree.details-bottom #details-panel {
+    top: auto;
+    left: 1px;
+    right: 1px;
+    bottom: 27px;
+}
+
+#contentSpellTree .howto-panel {
+    top: 1px;
+    bottom: 27px;
+}
+
+#contentSpellTree .tree-instructions { bottom: 38px; }
+
+/* The spell card is part of the tree's frame, not a second box in it: one line where it meets the tree */
+#contentSpellTree #details-panel {
+    border: 0;
+    border-left: 1px solid var(--divider, rgba(255, 255, 255, 0.08));
+    outline: 0;
+}
+
+#contentSpellTree.details-bottom #details-panel {
+    border: 0;
+    border-top: 1px solid var(--divider, rgba(255, 255, 255, 0.08));
+}
+
+/* ---- Tools on the canvas: no box, each control on its own small backing ---- */
+#contentSpellTree .tree-top-tools .zoom-controls {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    gap: 3px;
+}
+
+#contentSpellTree .tree-top-tools .zoom-btn,
+#contentSpellTree .tree-top-tools #zoom-level {
+    background: var(--panel-bg, rgba(0, 0, 0, 0.6));
+}
+
+#contentSpellTree .tree-top-tools .zoom-btn:hover {
+    background: var(--btn-bg-hover, rgba(255, 255, 255, 0.12));
+}
+
+#contentSpellTree .tree-top-tools #zoom-level {
+    min-width: 0;
+    padding: 2px 6px;
+    line-height: 1.6;
+}
+
+#contentSpellTree .edit-tools {
+    border-left: 0;
+    padding-left: 0;
+}
+
+/* ---- School jumps: small labels in their colour (treeNav.js colours them), the chosen one underlined ---- */
+#contentSpellTree .tree-top-tools #tree-school-tabs {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    gap: 3px;
+}
+
+#contentSpellTree #tree-school-tabs .school-tab {
+    padding: 2px 7px;
+    font-size: 0.75em;
+    letter-spacing: 0.12em;
+    background: var(--panel-bg, rgba(0, 0, 0, 0.6));
+    border-bottom-style: none;
+}
+
+#contentSpellTree #tree-school-tabs .school-tab:hover {
+    background: var(--btn-bg-hover, rgba(255, 255, 255, 0.12));
+}
+
+#contentSpellTree #tree-school-tabs .school-tab.active {
+    border-bottom-style: solid;
+    background: var(--panel-bg, rgba(0, 0, 0, 0.6));
+}
+
+/* ---- The footer: one line under the frame, no band ---- */
+#contentSpellTree .tree-footer {
+    height: 26px;
+    padding: 0 4px;
+    background: transparent;
+    border-top: 0;
+    box-sizing: border-box;
+}
+
+#contentSpellTree .footer-center { margin: 0 10px; }
+
+#contentSpellTree .footer-chip { padding: 0 8px; }
+
+#contentSpellTree .footer-right {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* The status keeps its place and its colour (a warning stays until a new step: treeStatusLine.js) */
+#contentSpellTree .footer-right .status-text { white-space: nowrap; }
+
+.tree-legend-btn {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--divider, rgba(255, 255, 255, 0.2));
+    background: transparent;
+    color: var(--text-secondary, #9A9A8A);
+    font-family: inherit;
+    font-size: 0.75em;
+    line-height: 18px;
+    text-align: center;
+    cursor: pointer;
+}
+
+.tree-legend-btn:hover,
+.tree-legend-btn.active {
+    color: var(--accent-gold, #B8A878);
+    border-color: var(--accent-gold, #B8A878);
+}
+
+/* The key: above the "?" at the right, over the tree */
+.tree-legend {
+    position: absolute;
+    right: 0;
+    bottom: 26px;
+    padding: 10px 12px;
+    background: var(--panel-bg-solid, #0a0a0a);
+    border: 1px solid var(--divider, rgba(255, 255, 255, 0.12));
+    z-index: 310;
+}
+
+.tree-legend.hidden { display: none; }
+
+.tree-legend .state-legend {
+    flex-direction: column;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+/* The canvas hint centred in the part of the tree the sidebar card leaves free, never under it
+   (Skald at the 900 px default panel: the Russian hint ran under the card's Unlock button, 2.0
+   audit). 19.65em of the hint's own 0.8em font = the sidebar's 15.72em. */
+#contentSpellTree.details-open:not(.details-bottom) .tree-instructions {
+    left: calc((100% - 19.65em) / 2);
+    max-width: calc(100% - 19.65em - 40px);
+    box-sizing: border-box;
+    text-align: center;
+}
