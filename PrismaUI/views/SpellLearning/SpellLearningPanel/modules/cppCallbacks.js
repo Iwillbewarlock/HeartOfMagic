@@ -268,8 +268,8 @@ window.updateSpellData = function(jsonStr) {
     if (prmSection) prmSection.style.display = '';
 
     // Notify growth modes that spells are available for building
-    if (state.lastSpellData && state.lastSpellData.spells && state.lastSpellData.spells.length > 0) {
-        if (typeof TreeGrowth !== 'undefined') TreeGrowth.updateScanStatus(true);
+    if (typeof TreeGrowth !== 'undefined') {
+        TreeGrowth.updateScanStatus(!!(state.lastSpellData && state.lastSpellData.spells && state.lastSpellData.spells.length > 0));
     }
 
     // Update scan stats + status outside try-catch (guaranteed to run)

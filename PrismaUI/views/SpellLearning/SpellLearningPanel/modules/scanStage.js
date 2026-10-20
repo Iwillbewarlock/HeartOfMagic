@@ -79,8 +79,12 @@ var ScanStage = {
      * @param {string} stage
      * @param {Object} c - counts()
      * @param {number} placed - spells the built draft placed (TreeGrowth._nodeCount)
+     * @param {number} [treeCount] - spells in the saved tree (before a scan)
+     * @param {boolean} [scanned] - a scan came in, even one with no spell
      */
-    summary: function(stage, c, placed, treeCount) {
+    summary: function(stage, c, placed, treeCount, scanned) {
+        // A scan that found no spell: say so (the bar's "0 spells scanned" is out of sight), not "No scan yet"
+        if (stage === 'scan' && scanned) return { parts: [['scan.summaryFound', { count: c.found }, '{{count}} spells found']], gap: [] };
         if (stage === 'scan') {
             // A saved tree came in with the game, but no scan this session (the build at game start only
             // scans when there is no tree): say the tree is there, not that nothing is
@@ -188,7 +192,11 @@ var ScanStage = {
         var scanBtn = this._el('scanBtn');
         var growth = (typeof TreeGrowth !== 'undefined') ? TreeGrowth : null;
         return {
-            scanning: !!(scanBtn && scanBtn.disabled),
+            // The Scan button's own scan, or one C++ says is running (edit mode's spawn list asks for one
+            // without the button; its "Scanning all spells..." line in the bar is out of sight)
+            scanning: !!(scanBtn && scanBtn.disabled) ||
+                (typeof scanStatusKey === 'function' && scanStatusKey() === 'status.scanningAllSpells'),
+            scanned: !!(data && Array.isArray(data.spells)),
             hasSpells: !!(data && data.spells && data.spells.length > 0),
             building: !!(growth && growth._building),
             built: !!(growth && growth._treeBuilt),
@@ -262,7 +270,7 @@ var ScanStage = {
         var c = this.counts(spells);
         var placed = (typeof TreeGrowth !== 'undefined' && TreeGrowth._nodeCount) || 0;
         var tree = (typeof state !== 'undefined' && state && state.treeData && state.treeData.nodes) ? state.treeData.nodes.length : 0;
-        var s = this.summary(stage, c, placed, tree);
+        var s = this.summary(stage, c, placed, tree, inputs.scanned);
 
         this._writeParts(this._el('scanSummary'), s.parts, this.SEPARATOR);
         var gapEl = this._el('scanSummaryGap');

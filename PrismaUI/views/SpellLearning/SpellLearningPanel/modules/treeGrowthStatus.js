@@ -78,6 +78,8 @@ var TreeGrowthStatus = {
      */
     onSpellsScanned: function() {
         if (this._hasSpells && !this._treeBuilt && !this._building && (!this._status || this._status.key === this.READY_KEY)) this.showReady();
+        // A scan with no spell: "Ready to build" goes (nothing to build)
+        else if (!this._hasSpells && this._status && this._status.key === this.READY_KEY) this.resetStatus();
     },
 
     _builtLabel: function() {

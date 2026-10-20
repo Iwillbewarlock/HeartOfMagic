@@ -56,6 +56,9 @@ function scanStatusText(key, params) {
     return (text === key && fallback !== undefined) ? fallback : text;
 }
 
+/** The language key of the bar's last keyed message, or null (scanStage.js: a scan C++ reports running) */
+function scanStatusKey() { return _scanStatus ? _scanStatus.key : null; }
+
 /** After a language switch (languageSetting.js): a keyed message in the new language. */
 function relabelScanStatus() {
     var s = _scanStatus;

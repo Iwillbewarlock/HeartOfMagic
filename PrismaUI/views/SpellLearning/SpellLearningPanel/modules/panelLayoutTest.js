@@ -260,22 +260,24 @@ var PanelLayoutTest = {
      */
     _checkGapLanguages: function(S) {
         var fs = require('fs'), path = require('path'), dir = path.join(__dirname, '..', 'lang');
-        var files = fs.readdirSync(dir).filter(function(f) { return /^[a-z-]+.json$/.test(f); });
+        var files = fs.readdirSync(dir).filter(function(f) { return /^[a-z-]+\.json$/.test(f); });
         var fill = function(s, p) { for (var k in (p || {})) s = s.split('{{' + k + '}}').join(p[k]); return s; };
         var alone = [], repeats = [];
         // The stem each language names the excluded list with (scan.gapExcluded, scan.excludedCount)
         var EXCLUDED_WORD = { en: 'exclu', de: 'sperr', es: 'exclu', fr: 'exclu', it: 'esclu', ja: '除外', ko: '제외', pl: 'wyklucz',
             'pt-br': 'exclu', ru: 'исключ', tr: 'dışlan', 'zh-cn': '排除', 'zh-tw': '排除' };
+        // The gap is keys, the same in every language: the excluded list as the whole gap is that one line
         var one = S.summary('apply', { found: 753, tomeOut: 0, excluded: 12, pluginsOut: 0, inTree: 741 }, 741).gap;
+        this.check(one.length === 1 && one[0][0] === 'scan.gapExcluded', 'Gap line: the excluded list as the whole gap (after a build too) is one line, no lead');
         files.forEach(function(f) {
             var L = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
-            var lines = one.map(function(g) { return fill(L[g[0]] || g[2], g[1]); });
-            if (lines.length !== 1 || lines[0] !== fill(L['scan.gapExcluded'], { count: 12 })) alone.push(f);
+            // ...which, standing alone, must carry the number itself
+            if (typeof L['scan.gapExcluded'] !== 'string' || L['scan.gapExcluded'].indexOf('{{count}}') === -1) alone.push(f);
             var lead = fill(L['scan.gapLeftOut'] || '', { count: 15 }).toLowerCase();
             var word = EXCLUDED_WORD[f.slice(0, -5)];
             if (!word || lead.indexOf(word) !== -1) repeats.push(f + ' (' + lead + ')');
         });
-        this.check(files.length === 13 && alone.length === 0, 'Gap line, every language: the excluded list alone says "12 on your excluded list" once' + (alone.length ? ': ' + alone.join(', ') : ''));
+        this.check(files.length === 13 && alone.length === 0, 'Gap line, every language: scan.gapExcluded is there and holds its {{count}} (it stands alone)' + (alone.length ? ': ' + alone.join(', ') : ''));
         this.check(repeats.length === 0, 'Gap line, every language: "N left out:" does not reuse the word of the excluded list' + (repeats.length ? ': ' + repeats.join(', ') : ''));
     },
 
@@ -364,6 +366,20 @@ var PanelLayoutTest = {
         box.state.treeData = null;
         els.scanStageBtn.click();
         this.check(els.scanBtn.clicks === 1, 'Page: the main button presses the real Scan button');
+        // A scan C++ reports running without the Scan button (edit mode's spawn list): the bar's line is out of sight
+        box.scanStatusKey = function() { return 'status.scanningAllSpells'; };
+        S.refresh();
+        this.check(S.stage() === 'scanning' && els.scanSummary.text() === 'Scanning all spells...',
+            'Page: a scan C++ says is running (edit mode asked, the Scan button untouched) reads as scanning');
+        box.scanStatusKey = function() { return 'status.scannedSpellsSchools'; };
+        box.state.lastSpellData = { spells: [] };
+        box.state.treeData = { nodes: [{}, {}, {}] };
+        S.refresh();
+        this.check(els.scanSummary.text() === '0 spells found' && S.stage() === 'scan',
+            'Page: a scan that found no spell says "0 spells found", not "No scan yet" or the saved tree (the bar\'s count is out of sight)');
+        box.state.lastSpellData = null;
+        box.state.treeData = null;
+        delete box.scanStatusKey;
 
         box.state.lastSpellData = { spells: this._spells() };
         box.settings.spellBlacklist = [{ formId: '0x00010003' }];
@@ -483,6 +499,8 @@ var PanelLayoutTest = {
             'Frame: the tool bar has no box, the footer no band');
         var status = this._file('treeStatusLine.js');
         this.check(/getElementById\('tree-status-text'\)/.test(status), 'Status: TreeStatusLine still writes the footer status (its rules: panelTidyTest)');
+        this.check(/hide: function\(\) \{[^}]*TreeToolsScale\.setInset\(0\)/.test(this._file('canvasRendererV2.js')),
+            'Tools: the canvas taken away (CanvasRenderer.hide) puts them back in their corner, no inset left behind');
         var arcane = this._file('../themes/design-arcane.css');
         this.check(/#howto-tab \{\s*--accent-gold: #C9A25A;\s*--accent-gold-hover: #DDB86C;/.test(arcane),
             'Arcane: the How to learn tab takes the gold of the leather back (inside .howto-panel the golds are ink, brown on brown)');

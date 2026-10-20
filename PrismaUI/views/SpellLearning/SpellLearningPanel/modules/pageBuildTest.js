@@ -87,6 +87,18 @@ var PageBuildTest = {
         this.check(T.toolsInset(1486, 779) === 0, 'Tools inset: none for a page without corner drawings');
         T.set({ pageOrnament: 'corner.png' });
         this.check(T.toolsInset(1486, 779) === 0, 'Tools inset: none without a page (the starfield designs)');
+        var g = (typeof global !== 'undefined') ? global : window, oldTools = g.TreeToolsScale, got = [];
+        var ctx = { drawImage: function() {}, fillRect: function() {} };
+        g.TreeToolsScale = { setInset: function(px) { got.push(px); } };
+        try {
+            T.set({ pageColor: '#e6d6b0', pageOrnament: 'corner.png' });
+            T.renderPage(ctx, 1486, 779);
+            T.set({});
+            T.renderPage(ctx, 1486, 779);
+            this.check(got.join() === '84,0', 'Tools inset: renderPage hands it to TreeToolsScale every frame - 84 with a corner drawing, 0 for a design with no page');
+        } finally {
+            g.TreeToolsScale = oldTools;
+        }
         if (keep) T._images['corner.png'] = keep; else delete T._images['corner.png'];
     },
 

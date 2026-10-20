@@ -171,6 +171,7 @@ var StatusLineTest = {
             switchTo('en'); grow.relabelStatus();
             this.check(tg() === 'Waiting for scan...', '...and a switch after it does not bring "Tree built" back');
             this._checkReady(g, grow, tg, easy, switchTo);
+            this._checkScanWiring();
 
             var params = {schools: 5, spells: 1428};
             g.updateScanStatus(g.t('status.treeBuildComplete', params), 'success', 'status.treeBuildComplete', params);
@@ -229,6 +230,31 @@ var StatusLineTest = {
             delete this.STRINGS.en['treeGrowth.readyToBuild'];
             delete this.STRINGS.ko['treeGrowth.readyToBuild'];
         }
+    },
+
+    /** treeGrowth.js's own updateScanStatus (what cppCallbacks.js calls after every scan) writes "Ready to build" and takes it back */
+    _checkScanWiring: function() {
+        if (typeof require !== 'function') return;
+        var vm = require('vm'), fs = require('fs'), path = require('path');
+        var none = function() { return null; };
+        var box = { window: {}, console: { log: none, warn: none, error: none }, settings: {},
+            document: { getElementById: none, querySelector: none }, tOr: function(k, p, f) { return f; } };
+        vm.createContext(box);
+        ['treeGrowth.js', 'treeGrowthStatus.js'].forEach(function(f) {
+            vm.runInContext(fs.readFileSync(path.join(__dirname, f), 'utf8'), box, { filename: f });
+        });
+        var G = box.TreeGrowth, written = [], resets = 0;
+        G.setStatusText = function(text, tone, key) { written.push(key); this._status = { key: key }; };
+        var realReset = G.resetStatus;
+        G.resetStatus = function() { resets++; this._status = null; };
+        G.updateScanStatus(true);
+        this.check(written.join() === 'treeGrowth.readyToBuild', 'TreeGrowth.updateScanStatus(true): "Ready to build" (the call cppCallbacks.js makes)');
+        G.updateScanStatus(false);
+        this.check(resets === 1 && G._status === null, 'TreeGrowth.updateScanStatus(false), a scan with no spell: "Ready to build" goes');
+        written = []; G._treeBuilt = true;
+        G.updateScanStatus(true);
+        this.check(written.length === 0, 'TreeGrowth.updateScanStatus(true) over a built tree writes nothing');
+        G.resetStatus = realReset;
     },
 
     /**
