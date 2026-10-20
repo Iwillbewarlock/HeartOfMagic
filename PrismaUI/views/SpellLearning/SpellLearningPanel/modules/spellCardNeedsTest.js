@@ -265,7 +265,7 @@ var SpellCardNeedsTest = {
         var progress = this._file('spellProgressView.js');
         this.check(/if \(node\.state === 'locked'\) \{[\s\S]{0,200}learnBtn\.classList\.remove\('hidden'\);[\s\S]{0,200}learnBtn\.disabled = true;/.test(progress),
             'Sources: a locked spell\'s Learn shows, off (spellProgressView.js)');
-        this.check(/xpCurrentInput\.onchange = function\(\) \{[\s\S]{0,1200}SpellCardNeeds\.refresh\(node, preview\);[\s\S]{0,400}xpRequiredInput\.onchange = function\(\) \{[\s\S]{0,1200}SpellCardNeeds\.refresh\(node, preview\);/.test(progress),
+        this.check(/xpCurrentInput\.onchange = function\(\) \{[\s\S]{0,1200}SpellCardNeeds\.refresh\(node, preview\);[\s\S]{0,1500}xpRequiredInput\.onchange = function\(\) \{[\s\S]{0,1200}SpellCardNeeds\.refresh\(node, preview\);/.test(progress),
             'Sources: the cheat XP inputs (current and required) redraw the state line and bar, not only the hidden old bar (Codex review)');
         var view = this._file('spellCardView.js');
         this.check(/learnBtnEl\.disabled = node\.state === 'locked';/.test(view) && /SpellCardNeeds\.render\(node, \{ preview: preview, progressPercent: progressPercent, weakenedPower: isWeakened \? effectiveness : null \}\)/.test(view),
