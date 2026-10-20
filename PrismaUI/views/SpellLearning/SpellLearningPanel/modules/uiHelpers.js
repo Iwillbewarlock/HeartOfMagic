@@ -36,6 +36,8 @@ function updateScanStatus(message, type, i18nKey, params) {
     bar.className = 'scan-status-bar';
     if (type) bar.classList.add(type);
     if (i18nKey && SCAN_STATUS_IN_SUMMARY[i18nKey] === true) bar.classList.add('scan-status-said');
+    // The Scan page reads the line's key (a scan C++ reports running, then its end or failure): follow it
+    if (typeof ScanStage !== 'undefined' && ScanStage.refresh) ScanStage.refresh();
 }
 
 // English for keys newer than some community translations, so a missing key shows this, not the key

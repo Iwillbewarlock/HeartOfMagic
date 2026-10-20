@@ -280,6 +280,14 @@ var StatusLineTest = {
         this.check(!said(), 'Scan bar: the lines of the build at game start show');
         g.updateScanStatus('Saved from C++', '');
         this.check(!said(), 'Scan bar: a line with no key shows');
+        var oldStage = g.ScanStage, refreshes = 0;
+        g.ScanStage = { refresh: function() { refreshes++; } };
+        try {
+            g.updateScanStatus('Scan failed: x', 'error', 'status.scanFailed', { error: 'x' });
+            this.check(refreshes === 1, 'Scan bar: every write refreshes the Scan page (a failed scan after "Scanning all spells..." gives the main button back)');
+        } finally {
+            g.ScanStage = oldStage;
+        }
         if (typeof require === 'function') {
             var html = require('fs').readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
             this.check(/class="scan-status-bar scan-status-said" id="scanStatusBar"/.test(html), 'Scan bar: the page opens with its "Ready to scan" out of sight too (index.html)');
