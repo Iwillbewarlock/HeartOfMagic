@@ -40,8 +40,13 @@
         PAGE_MAX_SKIPS: 8,        // frames in a row with no time left for a step: then one step anyway
         PAGE_BLOTCHES: 40,
         PAGE_SEED: 1234567,       // the grain is seeded, so the page looks the same every time it is painted
-        ORNAMENT_POCKET: 0.45,    // the tree's tools sit this far into the corner drawing (TreeToolsScale.setInset): the
-                                  // knot, compass and medallion of the four designs end inside it, the edge lines well before
+        // The corner drawing's side: this share of the page's short side, between MIN and MAX px. MAX is kept
+        // small enough (the GPT comparison build's 96-112) that the tools stay at their usual top with only
+        // their left moved past it (TreeToolsScale.CORNER_ART_PX, 16 px more); it was up to 200 px, with the
+        // tools pushed in and down onto it
+        ORNAMENT_RATIO: 0.24,
+        ORNAMENT_MIN: 96,
+        ORNAMENT_MAX: 112,
 
         _page: null,              // the finished texture
         _pageKey: '',             // its size, "w x h"
@@ -71,7 +76,7 @@
          */
         renderPage: function(ctx, w, h) {
             var t = this.tokens;
-            if (typeof TreeToolsScale !== 'undefined' && TreeToolsScale.setInset) TreeToolsScale.setInset(this.toolsInset(w, h));
+            if (typeof TreeToolsScale !== 'undefined' && TreeToolsScale.setCornerArt) TreeToolsScale.setCornerArt(this.hasCornerArt());
             if (!t.pageColor) return false;
             // (the same colour only: an add-on design sharing another's colour shows
             // that one's texture for the few frames its own is painted)
@@ -309,12 +314,17 @@
         },
 
         /** The corner drawing's side on a w x h page, css px */
-        ornamentSize: function(w, h) { return Math.round(Math.max(96, Math.min(200, Math.min(w, h) * 0.24))); },
+        ornamentSize: function(w, h) {
+            return Math.round(Math.max(this.ORNAMENT_MIN, Math.min(this.ORNAMENT_MAX, Math.min(w, h) * this.ORNAMENT_RATIO)));
+        },
 
-        /** Where the tree's tools sit in from the top-left corner so the corner drawing stays clear (0: no drawing) */
-        toolsInset: function(w, h) {
+        /**
+         * Does this design draw a page with corner drawings? Read from the tokens (an add-on design with its own
+         * pageOrnament too), not from the picture having loaded: the tools take their place at once and stay.
+         */
+        hasCornerArt: function() {
             var t = this.tokens;
-            return (t.pageColor && t.pageOrnament && this._image(t.pageOrnament)) ? Math.round(this.ornamentSize(w, h) * this.ORNAMENT_POCKET) : 0;
+            return !!(t && t.pageColor && t.pageOrnament);
         },
 
         /** The page's corner drawing, mirrored into all four corners of the page texture. */

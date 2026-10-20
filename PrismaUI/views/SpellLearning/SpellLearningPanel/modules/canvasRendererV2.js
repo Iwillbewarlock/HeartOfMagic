@@ -475,8 +475,8 @@ var CanvasRenderer = {
     
     hide: function() {
         this.stopRenderLoop();
-        // No page drawn: the tools go back to their corner (TreeStyle.renderPage moved them off a corner drawing)
-        if (typeof TreeToolsScale !== 'undefined' && TreeToolsScale.setInset) TreeToolsScale.setInset(0);
+        // No page drawn: the tools go back to their corner (TreeStyle.renderPage moved them past a corner drawing)
+        if (typeof TreeToolsScale !== 'undefined' && TreeToolsScale.setCornerArt) TreeToolsScale.setCornerArt(false);
         if (typeof FxLayer !== 'undefined') FxLayer.hideAll();
         
         // Clear any pending resize timeout

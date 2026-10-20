@@ -1298,7 +1298,14 @@ have their own keys (`details.whyLeftOne`, `details.leadsToOne`).
 
 **One frame round the tree** (`panel-tree.css`, `modules/treeLegend.js`). The canvas has one thin border; the
 gutter ring, the second outline and the inner shadow went (Arcane and the dark books keep their edge colour as
-that one line, and their corner art; Skald its knotwork). The spell card meets the tree with one line instead of
+that one line, and their corner art; Skald its knotwork). The corner drawings (`pageOrnament`) are drawn at 24% of
+the page's short side between 96 and 112 px (`TreeStyle.ORNAMENT_MIN/MAX`; it was up to 200 px), and the tools stay
+at their usual top with their left at 128 px and as much kept from the right edge (`TreeToolsScale.CORNER_ART_PX`,
+`setCornerArt`, called by `TreeStyle.renderPage` from `hasCornerArt` - the design's tokens, so add-on designs with a
+`pageOrnament` get it too, and no jump when the picture arrives; `CanvasRenderer.hide` puts them back). This is the
+GPT comparison build's way (its 96-112 px corners and 128 px margin, there by design name in CSS); it replaced
+moving the tools in and down onto 45% of a larger drawing. The footer's count and status sit under the frame, off
+the bottom corners. The spell card meets the tree with one line instead of
 a second box. The tool bar floats on the canvas without a box (each control on a small backing); the renderer
 badge shows only in Developer Mode. The school jump buttons stay translated short labels, each in its school's
 colour (`TreeNav`), the chosen one underlined. The footer is one quiet line under the frame: the count at the

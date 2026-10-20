@@ -499,8 +499,8 @@ var PanelLayoutTest = {
             'Frame: the tool bar has no box, the footer no band');
         var status = this._file('treeStatusLine.js');
         this.check(/getElementById\('tree-status-text'\)/.test(status), 'Status: TreeStatusLine still writes the footer status (its rules: panelTidyTest)');
-        this.check(/hide: function\(\) \{[^}]*TreeToolsScale\.setInset\(0\)/.test(this._file('canvasRendererV2.js')),
-            'Tools: the canvas taken away (CanvasRenderer.hide) puts them back in their corner, no inset left behind');
+        this.check(/hide: function\(\) \{[^}]*TreeToolsScale\.setCornerArt\(false\)/.test(this._file('canvasRendererV2.js')),
+            'Tools: the canvas taken away (CanvasRenderer.hide) puts them back in their corner, not left beside corner drawings no longer drawn');
         var arcane = this._file('../themes/design-arcane.css');
         this.check(/#howto-tab \{\s*--accent-gold: #C9A25A;\s*--accent-gold-hover: #DDB86C;/.test(arcane),
             'Arcane: the How to learn tab takes the gold of the leather back (inside .howto-panel the golds are ink, brown on brown)');

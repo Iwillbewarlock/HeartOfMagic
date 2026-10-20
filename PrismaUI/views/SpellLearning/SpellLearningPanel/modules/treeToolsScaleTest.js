@@ -155,7 +155,7 @@ TreeToolsScaleTest._dragTests = function(g, T, saveCount) {
     }
 };
 
-/** setInset: the tools moved in off a page's corner drawing, the bar's room made smaller to match */
+/** setCornerArt: the tools moved right past a page's corner drawing at their usual top, the bar's room made smaller to match */
 TreeToolsScaleTest._insetTests = function(g, T) {
     var oldDoc = g.document;
     var host = { clientWidth: 1000 };
@@ -164,20 +164,20 @@ TreeToolsScaleTest._insetTests = function(g, T) {
     g.document = { querySelector: function(sel) { return sel === '.tree-top-tools' ? tools : sel === '.tree-top-tools .zoom-controls' ? bar : null; } };
     try {
         g.settings = { treeToolsScale: 1 };
-        T._inset = 0;
-        T.setInset(84);
-        this.check(tools.style.left === '84px' && tools.style.top === '84px' && tools.style.maxWidth === 'calc(100% - 98px)',
-            'Inset: the tools sit 84 px in, their column narrower by as much');
-        this.check(bar.style.maxWidth === '902px', 'Inset: the room of the bar is the tree less the inset and the right edge');
-        T.setInset(10);
+        T._corners = false;
+        T.setCornerArt(true);
+        this.check(tools.style.left === '128px' && tools.style.top === '' && tools.style.maxWidth === 'calc(100% - 256px)',
+            'Corner drawings: the tools start 128 px from the left at their usual top, kept as far from the right');
+        this.check(bar.style.maxWidth === '744px', 'Corner drawings: the room of the bar is the tree less both margins');
+        T.setCornerArt(false);
         this.check(tools.style.left === '' && tools.style.top === '' && tools.style.maxWidth === '' && bar.style.maxWidth === '972px',
-            'Inset: less than the 14 px of the stylesheet (or none) puts its own place back');
+            'Corner drawings: none puts the place of the stylesheet back');
         tools.style.left = 'kept';
-        T.setInset(0);
-        this.check(tools.style.left === 'kept', 'Inset: no change, nothing written (called every frame)');
+        T.setCornerArt(false);
+        this.check(tools.style.left === 'kept', 'Corner drawings: no change, nothing written (called every frame)');
     } finally {
         g.document = oldDoc;
-        T._inset = 0;
+        T._corners = false;
     }
 };
 

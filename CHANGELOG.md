@@ -46,7 +46,8 @@
   are needed - "need 1 of 2" -, and locks from another school marked as such), what is already met ("Requirements
   met" once nothing is left), why Learn cannot be pressed yet, and the spells it leads to folded into one line.
 - **The tree has one thin frame:** the tools float on the canvas, the schools are small coloured labels, and
-  the footer is one quiet line; the colour key opens from its "?".
+  the footer is one quiet line; the colour key opens from its "?". In Arcane, Night Grimoire, Chalkboard and
+  Skald the page's corner drawings are smaller, and the tools sit at the top beside them.
 
 ### Fixed
 
