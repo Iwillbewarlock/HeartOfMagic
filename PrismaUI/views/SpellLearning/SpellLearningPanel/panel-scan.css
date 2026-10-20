@@ -57,6 +57,9 @@
 #contentSpellScan .scan-status-bar.success,
 #contentSpellScan .scan-status-bar.error { background: transparent; }
 
+/* A line the summary above already says (uiHelpers.js SCAN_STATUS_IN_SUMMARY): not said twice */
+#contentSpellScan .scan-status-bar.scan-status-said { display: none; }
+
 /* ---- The stage row ---- */
 #contentSpellScan #scanStageRow {
     align-items: center;

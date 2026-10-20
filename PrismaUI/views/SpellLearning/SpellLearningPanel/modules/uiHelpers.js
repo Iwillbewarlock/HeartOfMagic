@@ -12,6 +12,11 @@
 
 var _scanStatus = null;   // {key, params, type} of the last keyed message
 
+// Lines the Scan page's summary already says (scanStage.js: "No scan yet", "Scanning all spells...",
+// "753 spells found"): the bar keeps them out of sight instead of saying them twice. Errors, the
+// build at game start and every other line still show.
+var SCAN_STATUS_IN_SUMMARY = { 'scanner.readyToScan': true, 'status.scanningAllSpells': true, 'status.scannedSpellsSchools': true };
+
 /**
  * @param {string} message
  * @param {string} [type] - 'working', 'success', 'error' (the bar's class)
@@ -30,6 +35,7 @@ function updateScanStatus(message, type, i18nKey, params) {
     text.removeAttribute('data-i18n');
     bar.className = 'scan-status-bar';
     if (type) bar.classList.add(type);
+    if (i18nKey && SCAN_STATUS_IN_SUMMARY[i18nKey] === true) bar.classList.add('scan-status-said');
 }
 
 // English for keys newer than some community translations, so a missing key shows this, not the key

@@ -1,6 +1,6 @@
 # SpellLearning JavaScript Mo573ules
 
-Mo333ular JavaScript architecture for LLM maintainability. The original 8000+ line monolithic `script.js` was split into mo933ules; the table lists the main ones (`index.html` loads them all).
+Mo333ular JavaScript architecture for LLM maintainability. The original 8000+ line monolithic `script.js` was split into mo933ules; the table lists the main ones (`in587ex.html` loads them all).
 
 ## Architecture Goals
 

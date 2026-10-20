@@ -182,6 +182,7 @@ var StatusLineTest = {
             g.updateScanStatus('Saved from C++', '');
             lang = 'en'; g.relabelScanStatus();
             this.check(bar().textContent === 'Saved from C++', 'a scan message with no key is left as written');
+            this._checkSaidBySummary(g, page, function(code) { lang = code; });
             this._checkScanFailed(g, page, function(code) { lang = code; });
             this._checkMissingKeys(g, page, grow, function(code) { switchTo(code); });
             this._checkCost(g);
@@ -191,6 +192,32 @@ var StatusLineTest = {
             if (typeof g.updateScanStatus === 'function') g._scanStatus = null;
         }
         return { passed: this.passed, failed: this.failed };
+    },
+
+    /**
+     * The scan bar and the Scan page's summary (uiHelpers.js SCAN_STATUS_IN_SUMMARY): a line the summary
+     * already says - the scan's count, Ready to scan, Scanning - is kept out of sight; an error, the
+     * build at game start's lines and a line with no key still show; a language switch keeps it out.
+     */
+    _checkSaidBySummary: function(g, page, setLang) {
+        var said = function() { return page.byId.scanStatusBar.className.indexOf('scan-status-said') !== -1; };
+        var params = { count: 753, schools: 5 };
+        setLang('en');
+        g.updateScanStatus(g.t('status.scannedSpellsSchools', params), 'success', 'status.scannedSpellsSchools', params);
+        this.check(said() && page.byId.scanStatusBar.className.indexOf('success') !== -1,
+            'Scan bar: the scan count is out of sight (the summary says it), its class kept');
+        setLang('ko'); g.relabelScanStatus();
+        this.check(said() && page.byId.scanStatusText.textContent === '5개 학파에서 753개 주문 스캔됨',
+            'Scan bar: a language switch writes it in the new language and keeps it out of sight');
+        g.updateScanStatus('Ready to scan', '', 'scanner.readyToScan');
+        this.check(said(), 'Scan bar: "Ready to scan" is out of sight (the summary says "No scan yet")');
+        g.updateScanStatus('Scan failed: x', 'error', 'status.scanFailed', { error: 'x' });
+        this.check(!said(), 'Scan bar: an error shows');
+        g.updateScanStatus('The spell tree will finish building when you open this panel.', '', 'status.autoBuildHeld');
+        this.check(!said(), 'Scan bar: the lines of the build at game start show');
+        g.updateScanStatus('Saved from C++', '');
+        this.check(!said(), 'Scan bar: a line with no key shows');
+        setLang('en');
     },
 
     /**
