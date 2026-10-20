@@ -1268,9 +1268,14 @@ vertical rules between stats and filters and between actions and preview are gon
 
 **Spell card around "can I learn this now"** (`modules/spellCardNeeds.js`; the bar under the tree and the right
 sidebar alike). Top: name, then school (in its colour), level, Magicka and type on one line, then the effect
-line (the description, revealed by progress as before) and the keyword chips. The state line: the state word
-(the 1.6 "Weakened (N%)" from `spellWeakenedPower` included), "62% learned" and "casts at 50% power" while
-weakened, with a thin bar (the "45 / 100 XP" figures and the Studying/Practicing badge are no longer shown in
+line (the description, revealed by progress as before) and the keyword chips. The state line is one sentence in
+the card's main column, wrapping as text: the state word (the 1.6 "Weakened (N%)" from `spellWeakenedPower`
+included), the XP share and "casts at 50% power" while weakened - "Weakened · 62% learned · casts at 50% power",
+"Locked · 0% learned", a mastered spell "100% learned" - with a thin bar under it in every state (the form from
+the GPT comparison build, which showed a weakened spell as Learning; the states are ours). The word is a word,
+not a stamp: no box or capitals, the card's ink, the state's colour on a dot before it as the school name has it
+(`#spell-state` in `panel-card.css`, by id over the designs' `.state-badge` stamps, which the hover card's tag
+keeps) (the "45 / 100 XP" figures and the Studying/Practicing badge are no longer shown in
 play; cheat mode keeps its XP boxes). Every redraw of only the progress part (`updateDetailsProgression`: an XP
 update, Learn, a progress reload, cheat unlock) redraws the card's lower part too (`SpellCardNeeds.refresh`), so
 a spell that opened meanwhile gets its Learn back and loses its reason. "Still needed:" lists only what is not met, as chips that select their spell:
@@ -1329,7 +1334,8 @@ the spell card in each state (hidden name, locked with a lock from another schoo
 mastered, edit mode) in the bar or the sidebar, and the Scan page's stage block in each stage (no scan, scanned, a
 gap, building, built, applied, failed, 0 spells), one frame of the dev harness per state. Found with it: the
 Learning badge had no style and Unlocked (mastered) a background token no theme defines, so both were bare words
-beside the boxed Locked, Available and Weakened; both are boxes now (`panel-card.css`, the tree's learning colours).
+beside the boxed Locked, Available and Weakened; both are boxes now (`panel-card.css`, the tree's learning colours;
+the hover card's tag keeps them; the spell card's state line has since become a sentence with a dot, see above).
 
 **Contrast and text size, computed.** Every visible text run in TREE, SCAN and SETTINGS in the six designs, its
 computed colour against the paint stack under it (the screenshot's pixels where the tree canvas or a picture lies

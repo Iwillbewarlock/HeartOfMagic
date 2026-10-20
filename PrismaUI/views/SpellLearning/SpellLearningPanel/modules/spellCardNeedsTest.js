@@ -195,9 +195,9 @@ var SpellCardNeedsTest = {
             'Render: an open spell whose own requirements are not all mastered (opened by a known higher spell) keeps "Met:", not "Requirements met"');
         box.PreReqMaster = withLocks;
         N.render(open, { preview: false, progressPercent: 62.4, weakenedPower: 50 });
-        this.check(els['spell-needs'].classList.contains('hidden') && els['spell-state-detail'].text() === '62% learned · casts at 50% power' &&
+        this.check(els['spell-needs'].classList.contains('hidden') && els['spell-state-detail'].text() === ' · 62% learned · casts at 50% power' &&
             els['spell-state-fill'].style.width === '62%' && !els['spell-state-bar'].classList.contains('hidden'),
-            'Render: an open, weakened spell - nothing still needed, "62% learned · casts at 50% power" and its bar');
+            'Render: an open, weakened spell - nothing still needed, the word then " · 62% learned · casts at 50% power" on one line, and its bar');
         box.spellWeakenedPower = function() { return 65; };
         box.tOr = function(k, p, f) { var t = f; for (var q in (p || {})) t = t.split('{{' + q + '}}').join(p[q]); return t; };
         var badge = L.el('span', { id: 'spell-state' });
@@ -206,7 +206,7 @@ var SpellCardNeedsTest = {
         box.getCanonicalFormId = function() { return '0xY'; };
         box.getRequiredXPForNode = function() { return 100; };
         N.refresh(open, false);
-        this.check(els['spell-state-detail'].text() === '71% learned · casts at 65% power' && els['spell-state-fill'].style.width === '71%' &&
+        this.check(els['spell-state-detail'].text() === ' · 71% learned · casts at 65% power' && els['spell-state-fill'].style.width === '71%' &&
             badge.textContent === 'Weakened', 'Progress-only redraw (refresh): the state line and its bar follow the XP, the badge says "Weakened" with no second figure');
         var wasLocked = { id: 'w', school: 'Destruction', state: 'locked', hardPrereqs: ['d'] };
         N.refresh(wasLocked, false);
@@ -218,9 +218,18 @@ var SpellCardNeedsTest = {
             'Progress-only redraw: a spell opened since the card was drawn loses its reason and "Still needed"');
         nodes.d.state = 'locked';
         delete box.spellWeakenedPower;
-        N.render({ id: 'z', state: 'unlocked' }, { progressPercent: 100, weakenedPower: null });
-        this.check(els['spell-state-detail'].text() === '' && els['spell-state-bar'].classList.contains('hidden'),
-            'Render: a mastered spell - the state word alone, no bar, no power');
+        N.render({ id: 'z', state: 'unlocked' }, { progressPercent: 0, weakenedPower: null });
+        this.check(els['spell-state-detail'].text() === ' · 100% learned' && els['spell-state-fill'].style.width === '100%' &&
+            !els['spell-state-bar'].classList.contains('hidden'),
+            'Render: a mastered spell - "100% learned" whatever its record holds, a full bar, no power');
+        N.render({ id: 'q', state: 'locked', hardPrereqs: ['d'] }, { progressPercent: 0, weakenedPower: null });
+        this.check(els['spell-state-detail'].text() === ' · 0% learned' && els['spell-state-fill'].style.width === '0%' &&
+            !els['spell-state-bar'].classList.contains('hidden'),
+            'Render: a locked spell reads the same way - "0% learned" after the word, the empty bar under it');
+        var cardCss = this._file('../panel-card.css');
+        this.check(/\.spell-state-line \{\s*display: block;/.test(cardCss) && /#spell-state \{[^}]*background: none;[^}]*border: 0;[^}]*text-transform: none;[^}]*color: var\(--text-primary/.test(cardCss) &&
+            /#spell-state\.weakened::before \{ background: var\(--weakened-color/.test(cardCss),
+            'CSS: the state line flows as one sentence; the state word on the card has no box or capitals, in the ink of the card, its colour on a dot (by id, over the stamps of the designs)');
 
         this.check(els['spell-unlocks'].classList.contains('hidden') && els['spell-unlocks-label'].textContent === 'Leads to 2 later spells' &&
             !els['details-unlocks-section'].classList.contains('hidden'), 'Unlocks: folded to "Leads to 2 later spells"');

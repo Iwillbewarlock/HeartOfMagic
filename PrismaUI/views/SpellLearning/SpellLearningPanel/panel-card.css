@@ -64,16 +64,48 @@
 
 .details-header .spell-chips { margin: 6px 0 0; }
 
-/* ---- The state line and its bar ---- */
+/* ---- The state line and its bar ----
+   One sentence: "Weakened · 62% learned · casts at 50% power" (spellCardNeeds.js writes the " · "),
+   wrapping as text. The state word is a word, not a stamp: no box, no capitals, in the card's ink
+   with the state's colour on a dot before it, as the school name above it. By id, so it outranks the
+   designs' .state-badge stamps (Arcane's inks and box), which the hover card's tag and the rest keep;
+   the learning colour is the player's pick and read under 3:1 as text on some pages (2.0 audit). */
 .spell-state-line {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 4px 10px;
+    display: block;
+    font-size: 0.85em;
+    line-height: 1.5;
 }
 
+#spell-state {
+    display: inline;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 0;
+    font-size: 1em;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--text-primary, #C8C8B8);
+}
+
+#spell-state::before {
+    content: '';
+    display: inline-block;
+    width: 0.62em;
+    height: 0.62em;
+    margin-right: 0.45em;
+    border-radius: 50%;
+    vertical-align: 0.05em;
+    background: var(--text-secondary, #9A9A8A);
+}
+
+#spell-state.available::before { background: var(--accent-green, #88A878); }
+#spell-state.learning::before { background: var(--learning-color, #7890A8); }
+#spell-state.unlocked::before { background: var(--accent-gold, #B8A878); }
+#spell-state.weakened::before { background: var(--weakened-color, #C89878); }
+
 .spell-state-detail {
-    font-size: 0.85em;
     color: var(--text-primary, #C8C8B8);
 }
 

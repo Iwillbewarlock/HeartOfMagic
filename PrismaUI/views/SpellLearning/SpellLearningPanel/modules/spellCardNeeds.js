@@ -3,8 +3,11 @@
  *
  * renderSpellCard (spellCardView.js) draws the card's top - name, school, level, Magicka, the
  * effect line - and calls render() last. This module draws:
- *  - the state line: the state word (#spell-state, the 1.6 "Weakened" included), the XP
- *    share ("62% learned"), "casts at N% power" while weakened - the card's one figure for the
+ *  - the state line, one sentence in the card's main column ("Weakened · 62% learned · casts at
+ *    50% power", "Locked · 0% learned"; the form from the GPT comparison build, the states ours):
+ *    the state word (#spell-state, the 1.6 "Weakened" included; a word with its state's colour on a
+ *    dot, no box: panel-card.css), the XP share (a mastered spell 100%), "casts at N% power" while
+ *    weakened - the card's one figure for the
  *    power: the word and the hint under the bar leave it out -, and a thin progress bar (the XP
  *    figures "45 / 100 XP" stay in the hidden progress section; cheat mode shows its XP boxes);
  *  - "Still needed:" - only what is not met yet, as chips: required spells, optional ones with
@@ -208,17 +211,17 @@ var SpellCardNeeds = {
         var detail = this._el('spell-state-detail');
         var fill = this._el('spell-state-fill');
         var bar = this._el('spell-state-bar');
-        var pct = Math.max(0, Math.min(100, Math.round(info.progressPercent || 0)));
-        var learning = node.state === 'available' || node.state === 'learning';
+        // A mastered spell is learned whole, whatever its progress record holds
+        var pct = node.state === 'unlocked' ? 100 : Math.max(0, Math.min(100, Math.round(info.progressPercent || 0)));
         if (detail) {
             detail.innerHTML = '';
-            var parts = [];
-            if (learning || (node.state === 'locked' && pct > 0)) parts.push(['details.statePct', { pct: pct }, '{{pct}}% learned']);
+            // Every state with its share, so the line reads the same way for each (the word comes first)
+            var parts = [['details.statePct', { pct: pct }, '{{pct}}% learned']];
             if (info.weakenedPower !== null && info.weakenedPower !== undefined) {
                 parts.push(['details.castsAtPower', { pct: info.weakenedPower }, 'casts at {{pct}}% power']);
             }
             for (var i = 0; i < parts.length; i++) {
-                if (i > 0) detail.appendChild(this._doc().createTextNode(' · '));
+                detail.appendChild(this._doc().createTextNode(' · '));
                 var span = this._doc().createElement('span');
                 if (parts[i][0] === 'details.castsAtPower') span.className = 'spell-state-power';
                 setI18n(span, parts[i][0], parts[i][1], parts[i][2]);
@@ -226,7 +229,8 @@ var SpellCardNeeds = {
             }
         }
         if (fill) fill.style.width = pct + '%';
-        if (bar) bar.classList.toggle('hidden', !(learning || pct > 0) || node.state === 'unlocked');
+        // The bar under the line in every state (an empty track for a locked spell at 0%)
+        if (bar) bar.classList.remove('hidden');
     },
 
     _chip: function(c, needText) {
