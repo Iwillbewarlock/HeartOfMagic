@@ -15,6 +15,7 @@
     /* The page row is at least its content (min-content): it pushes the version and the sticky
        Save/Reset bar below it, so the bar sticks to the scroller's foot instead of scrolling away
        with a page that overflowed a 1fr row; a short page still leaves the bar at the foot (1fr) */
+    grid-template-rows: auto auto auto;   /* an engine without min-content in minmax() keeps this */
     grid-template-rows: minmax(min-content, 1fr) auto auto;
     column-gap: 24px;
     row-gap: 0;
@@ -107,6 +108,7 @@
 /* ---- Narrow: the list as a row on top ---- */
 #contentSettings.settings-narrow.active {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto;
     grid-template-rows: auto minmax(min-content, 1fr) auto auto;
 }
 
