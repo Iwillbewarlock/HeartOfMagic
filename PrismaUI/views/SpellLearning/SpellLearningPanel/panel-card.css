@@ -111,10 +111,15 @@
     gap: 6px;
 }
 
+/* An inline box, not a flex row: a long name or school wraps as text inside the chip, which never
+   gets wider than the card (a lock chip in German pushed the sidebar sideways, 2.0 audit) */
 .spell-need-chip {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 5px;
+    display: inline-block;
+    max-width: 100%;
+    box-sizing: border-box;
+    text-align: left;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
     padding: 3px 10px;
     font-family: inherit;
     font-size: 0.8em;
@@ -138,6 +143,8 @@ span.spell-need-chip {
 .spell-need-chip.spell-need-lock { border-color: var(--accent-gold, #B8A878); }
 
 .spell-need-lockmark {
+    display: inline-block;
+    margin-right: 5px;
     padding: 0 4px;
     font-size: 0.8em;
     letter-spacing: 0.08em;
@@ -149,6 +156,8 @@ span.spell-need-chip {
 
 .spell-need-school,
 .spell-need-count { color: var(--text-secondary, #9A9A8A); }
+
+.spell-need-school { margin-left: 5px; }
 
 .spell-need-count { font-size: 0.8em; }
 
@@ -173,6 +182,14 @@ span.spell-need-chip {
 .details-panel .progress-section .progress-bar-container { display: none; }
 
 .details-panel .progress-section:not(.cheat-xp) .progress-label { display: none; }
+
+/* Cheat mode's XP boxes drop under their label in the narrow sidebar instead of running past it */
+.details-panel .progress-section.cheat-xp .progress-label {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+}
 
 /* ---- Edit mode: the lists with their controls instead of the chips ---- */
 .details-panel:not(.card-editing) .details-col-links { display: none; }

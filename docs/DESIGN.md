@@ -1301,6 +1301,25 @@ stage and its button, the summary's numbers, filter lines, the scan markup and h
 `spellCardNeedsTest.js` (chip grouping, hidden names, "need 2 of 3", locks, the reason, the state line, the
 folded Unlocks).
 
+### The 2.0 audit pass (2026-10-20)
+
+Checked by measurement in headless Chrome, not by eye: an overflow check (text wider than its box, cut by a
+clipping parent, off the panel, or lying over other text or a control) over the six designs, English, German and
+Russian, at the full-size panel and the game's 900 x 700 default, with bad data (a 60-character spell name, a long
+plugin name, 11 prerequisites of every kind, no description, no Magicka, 0 and 4000 spells).
+
+**Long words and the default size.** Settings rows wrap: a row's text takes the room it needs and its control
+drops under it when the two do not fit side by side; no description is clamped and no compact slider label ends
+in "..." (neither end could be read anywhere). The category column is as wide as its longest name. Below
+`SettingsCategories.ONE_COLUMN_PX` (1100 px of page, so the 900 px default panel) the side-by-side blocks and the
+paired settings go one under another (`.settings-onecol`). The last power step's figures span the input and unit
+columns of the rows above (`.power-step-final`, no spacer cells). The card's Still needed chips are inline boxes
+no wider than the card: a long name or school wraps inside the chip (a German lock chip pushed the sidebar
+sideways). The canvas hint stays in the part of the tree the sidebar card leaves free. The Complex page's bar at
+the foot is solid (the page scrolled under it showed through its Presets row).
+
+Tests: `panelAuditTest.js`.
+
 ## New spells and next goals (2026-10-02)
 
 `modules/newSpells.js` (`NewSpells`) adds two things to the tree page's footer, both meant to show the

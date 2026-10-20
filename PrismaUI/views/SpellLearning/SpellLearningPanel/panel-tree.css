@@ -164,3 +164,13 @@
     gap: 6px;
     white-space: nowrap;
 }
+
+/* The canvas hint centred in the part of the tree the sidebar card leaves free, never under it
+   (Skald at the 900 px default panel: the Russian hint ran under the card's Unlock button, 2.0
+   audit). 19.65em of the hint's own 0.8em font = the sidebar's 15.72em. */
+#contentSpellTree.details-open:not(.details-bottom) .tree-instructions {
+    left: calc((100% - 19.65em) / 2);
+    max-width: calc(100% - 19.65em - 40px);
+    box-sizing: border-box;
+    text-align: center;
+}

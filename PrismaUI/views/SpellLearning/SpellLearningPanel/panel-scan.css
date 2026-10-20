@@ -178,3 +178,7 @@
 }
 
 /* Alternate Pathways is not made yet: its tab only shows in Developer Mode (.dev-only) */
+
+/* The bar at the foot of the Complex page is solid: its upper part faded to nothing, and the page
+   scrolled under it showed through its Presets row (2.0 audit) */
+#contentSpellScan .scan-actions-bottom { background: var(--panel-bg-solid, #0a0a0a); }

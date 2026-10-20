@@ -697,7 +697,8 @@ function renderPowerSteps() {
     
     // Add "Mastered" row (readonly)
     var masteredRow = document.createElement('div');
-    masteredRow.className = 'power-step-row';
+    // Its figures span the input and unit columns of the rows above (panel-settings.css)
+    masteredRow.className = 'power-step-row power-step-final';
     masteredRow.style.opacity = '0.7';
     
     var masteredLabel = document.createElement('span');
@@ -708,23 +709,18 @@ function renderPowerSteps() {
     var masteredXp = document.createElement('span');
     masteredXp.className = 'power-step-unit';
     masteredXp.textContent = t('progression.fullXp');
-    masteredXp.style.marginLeft = '10px';
     
     var masteredPower = document.createElement('span');
     masteredPower.className = 'power-step-unit';
     masteredPower.textContent = t('progression.fullPower');
-    masteredPower.style.marginLeft = '20px';
     
     var masteredName = document.createElement('span');
     masteredName.className = 'power-step-unit';
     masteredName.textContent = t('progression.masteredFixed');
-    masteredName.style.marginLeft = '20px';
     
     masteredRow.appendChild(masteredLabel);
     masteredRow.appendChild(masteredXp);
-    masteredRow.appendChild(document.createElement('span')); // spacer
     masteredRow.appendChild(masteredPower);
-    masteredRow.appendChild(document.createElement('span')); // spacer  
     masteredRow.appendChild(masteredName);
     
     container.appendChild(masteredRow);

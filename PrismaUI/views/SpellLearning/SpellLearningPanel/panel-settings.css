@@ -137,3 +137,67 @@
 #contentSettings.settings-narrow .settings-version { grid-column: 1; grid-row: 3; }
 #contentSettings.settings-narrow .settings-actions-sticky { grid-column: 1; grid-row: 4; }
 #contentSettings.settings-narrow .settings-split { grid-template-columns: minmax(0, 1fr); }
+
+/* ---- Long labels (de, ru) and the 900 px default panel: nothing cut or laid over its neighbour.
+   Measured with the audit's overflow check (2.0 audit, item 1): a row's text takes the room it
+   needs and its control drops under it when the two do not fit side by side; no clamped
+   description (its end could not be reached); the category list as wide as its longest name ---- */
+#contentSettings.active {
+    grid-template-columns: 10.5em minmax(0, 1fr);
+    grid-template-columns: minmax(10.5em, max-content) minmax(0, 1fr);
+}
+
+#contentSettings .setting-row:not(.slider-row),
+#contentSettings .setting-row-inline {
+    flex-wrap: wrap;
+    gap: 6px 12px;
+}
+
+#contentSettings .setting-row:not(.slider-row) > .setting-info,
+#contentSettings .setting-row-inline > .setting-info {
+    flex: 1 1 12em;
+    min-width: 0;
+}
+
+#contentSettings .setting-row:not(.slider-row) > :not(.setting-info) {
+    flex: 0 0 auto;
+    max-width: 100%;
+}
+
+#contentSettings .setting-row-inline .inline-controls {
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    row-gap: 6px;
+}
+
+#contentSettings .setting-pair .setting-desc {
+    display: block;
+    overflow: visible;
+}
+
+/* A page narrower than SettingsCategories.ONE_COLUMN_PX: the blocks and pairs one under another */
+#contentSettings.settings-onecol .settings-split,
+#contentSettings.settings-onecol .setting-pair {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+/* Early Learning's last power step: its figures span the input and unit columns of the rows above */
+.power-step-row.power-step-final .power-step-unit { grid-column: span 2; }
+.power-step-row.power-step-final .power-step-unit:last-child { grid-column: auto; }
+
+/* Slider grids: columns that may shrink, and a label that wraps instead of ending in "..." (its end
+   could not be read anywhere) */
+#contentSettings .slider-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#contentSettings .slider-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+#contentSettings .slider-compact-label {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+/* Power steps: a unit column as wide as its longest word ("% мощности" in a book face); every row has
+   the same words, so the rows still line up */
+#contentSettings .power-step-row {
+    grid-template-columns: 4.6em 3.6em minmax(5.1em, max-content) 3.6em minmax(5.1em, max-content) 1fr;
+}

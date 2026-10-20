@@ -3,7 +3,7 @@
  *
  * Display, Learning, Spell Tomes and Advanced (developer and debug options: never mixed
  * with learning). A list at the page's left picks one (a row on top when the page is
- * narrower than NARROW_PX); only that category's page (.settings-cat-page) shows. Every
+ * narrower than NARROW_PX; the side-by-side blocks one under another below ONE_COLUMN_PX); only that category's page (.settings-cat-page) shows. Every
  * category keeps its own scroll position for the panel session: picked again, or the
  * Settings tab opened again, it comes back where it was left. Not saved between game
  * sessions (no config key): a new session opens on DEFAULT at the top.
@@ -25,6 +25,9 @@ var SettingsCategories = {
     PRESET_CATEGORIES: ['learning', 'tomes'],
     /** Narrower than this (px), the Settings page puts its category list on top as a row */
     NARROW_PX: 720,
+    /** Narrower than this (px), the side-by-side settings blocks and pairs go one under another
+     *  (the 900 px default panel: two columns of long German or Russian labels cut their rows) */
+    ONE_COLUMN_PX: 1100,
 
     current: 'display',
     _scroll: {},
@@ -103,12 +106,14 @@ var SettingsCategories = {
         this._restore();
     },
 
-    /** The list as a column at the left, or as a row on top when the page is narrow */
+    /** The list as a column at the left, or as a row on top when the page is narrow; the
+     *  blocks in one column below ONE_COLUMN_PX */
     layout: function() {
         var content = this._content();
         if (!content || !content.classList.contains('active')) return;
         var width = content.clientWidth || 0;
         content.classList.toggle('settings-narrow', width > 0 && width < this.NARROW_PX);
+        content.classList.toggle('settings-onecol', width > 0 && width < this.ONE_COLUMN_PX);
     },
 
     _restore: function() {
