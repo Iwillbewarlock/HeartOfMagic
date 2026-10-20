@@ -808,6 +808,7 @@
 
     "treeGrowth.nodesPlaced": "{{placed}}/{{total}} nodi posizionati",
     "treeGrowth.treeBuilt": "Albero costruito",
+    "treeGrowth.readyToBuild": "Pronto per la costruzione",
 
     "treeViewer.noSettingsAvailable": "Nessuna impostazione disponibile",
     "treeViewer.treeGrowthPreview": "Anteprima Crescita Albero"

@@ -516,6 +516,7 @@ var TreeGrowth = {
     updateScanStatus: function(hasSpells) {
         this._hasSpells = hasSpells;
         this.updateBuildButton();
+        if (this.onSpellsScanned) this.onSpellsScanned();
         if (typeof ScanStage !== 'undefined') ScanStage.refresh();
     }
 };

@@ -780,6 +780,7 @@ window._i18nPreload = {
     "tree.orphanRepairTitle": "{{orphans}} unreachable spells, {{missing}} missing prerequisite links",
     "treeGrowth.nodesPlaced": "{{placed}}/{{total}} nodes placed",
     "treeGrowth.treeBuilt": "Tree built",
+    "treeGrowth.readyToBuild": "Ready to build",
     "treeViewer.noSettingsAvailable": "No settings available",
     "treeViewer.treeGrowthPreview": "Tree Growth Preview"
 };

@@ -780,6 +780,7 @@ window._i18nPreload = {
     "tree.orphanRepairTitle": "{{orphans}} incantesimi irraggiungibili, {{missing}} collegamenti ai prerequisiti mancanti",
     "treeGrowth.nodesPlaced": "{{placed}}/{{total}} nodi posizionati",
     "treeGrowth.treeBuilt": "Albero costruito",
+    "treeGrowth.readyToBuild": "Pronto per la costruzione",
     "treeViewer.noSettingsAvailable": "Nessuna impostazione disponibile",
     "treeViewer.treeGrowthPreview": "Anteprima Crescita Albero"
 };

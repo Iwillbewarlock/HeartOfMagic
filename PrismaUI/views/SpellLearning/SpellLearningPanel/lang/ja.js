@@ -780,6 +780,7 @@ window._i18nPreload = {
     "tree.orphanRepairTitle": "到達できない呪文 {{orphans}} 個、切れた前提リンク {{missing}} 個",
     "treeGrowth.nodesPlaced": "{{placed}}/{{total}} ノード配置済み",
     "treeGrowth.treeBuilt": "ツリー構築完了",
+    "treeGrowth.readyToBuild": "構築の準備完了",
     "treeViewer.noSettingsAvailable": "利用可能な設定がありません",
     "treeViewer.treeGrowthPreview": "ツリー成長プレビュー"
 };

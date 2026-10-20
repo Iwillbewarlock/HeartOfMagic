@@ -780,6 +780,7 @@ window._i18nPreload = {
     "tree.orphanRepairTitle": "{{orphans}} unerreichbare Zauber, {{missing}} fehlende Voraussetzungsverbindungen",
     "treeGrowth.nodesPlaced": "{{placed}}/{{total}} Knoten platziert",
     "treeGrowth.treeBuilt": "Baum erstellt",
+    "treeGrowth.readyToBuild": "Bereit zum Erstellen",
     "treeViewer.noSettingsAvailable": "Keine Einstellungen verfügbar",
     "treeViewer.treeGrowthPreview": "Baumwuchs-Vorschau"
 };

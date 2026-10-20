@@ -170,6 +170,7 @@ var StatusLineTest = {
             this.check(tg() === '스캔 대기 중...' && easy() === '스캔 대기 중...', 'a cleared tree: both lines idle, current language');
             switchTo('en'); grow.relabelStatus();
             this.check(tg() === 'Waiting for scan...', '...and a switch after it does not bring "Tree built" back');
+            this._checkReady(g, grow, tg, easy, switchTo);
 
             var params = {schools: 5, spells: 1428};
             g.updateScanStatus(g.t('status.treeBuildComplete', params), 'success', 'status.treeBuildComplete', params);
@@ -192,6 +193,42 @@ var StatusLineTest = {
             if (typeof g.updateScanStatus === 'function') g._scanStatus = null;
         }
         return { passed: this.passed, failed: this.failed };
+    },
+
+    /**
+     * The builder line after a scan (onSpellsScanned, resetStatus): "Ready to build" instead of "Waiting for
+     * scan..." on both pages, in the current language; not over a built tree or a line someone wrote.
+     */
+    _checkReady: function(g, grow, tg, easy, switchTo) {
+        var oldTOr = g.tOr;
+        g.tOr = function(k, p, f) { var s = g.t(k, p); return s === k ? f : s; };
+        this.STRINGS.en['treeGrowth.readyToBuild'] = 'Ready to build';
+        this.STRINGS.ko['treeGrowth.readyToBuild'] = '구축 준비 완료';
+        try {
+            grow._hasSpells = true; grow._treeBuilt = false; grow._building = false;
+            grow.onSpellsScanned();
+            this.check(tg() === 'Ready to build' && easy() === 'Ready to build', 'After a scan: both lines say "Ready to build", not "Waiting for scan..."');
+            switchTo('ko'); grow.relabelStatus();
+            this.check(tg() === '구축 준비 완료' && easy() === tg(), '...in the new language after a switch');
+            grow.setStatusText('Automatic tree build failed: x', 'error', 'status.autoBuildFailed');
+            grow.onSpellsScanned();
+            this.check(tg() === 'Automatic tree build failed: x', 'A new scan leaves a line someone wrote (an error) as it is');
+            grow.showBuilt(); grow._treeBuilt = true;
+            grow.onSpellsScanned();
+            this.check(tg().indexOf('트리 구축 완료') === 0, 'A new scan over a built tree leaves "Tree built"');
+            grow._treeBuilt = false;
+            grow.resetStatus();
+            this.check(tg() === '구축 준비 완료' && easy() === tg(), 'Clear with spells scanned: "Ready to build", not "Waiting for scan..."');
+            grow._hasSpells = false;
+            grow.resetStatus();
+            this.check(tg() === '스캔 대기 중...', 'Clear with no scan: "Waiting for scan..."');
+            switchTo('en'); grow.relabelStatus();
+        } finally {
+            g.tOr = oldTOr;
+            grow._hasSpells = false;
+            delete this.STRINGS.en['treeGrowth.readyToBuild'];
+            delete this.STRINGS.ko['treeGrowth.readyToBuild'];
+        }
     },
 
     /**

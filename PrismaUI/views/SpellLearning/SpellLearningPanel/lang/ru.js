@@ -780,6 +780,7 @@ window._i18nPreload = {
     "tree.orphanRepairTitle": "Недоступных заклинаний: {{orphans}}, пропавших связей требований: {{missing}}",
     "treeGrowth.nodesPlaced": "{{placed}}/{{total}} узлов размещено",
     "treeGrowth.treeBuilt": "Дерево построено",
+    "treeGrowth.readyToBuild": "Можно строить",
     "treeViewer.noSettingsAvailable": "Настройки недоступны",
     "treeViewer.treeGrowthPreview": "Предпросмотр роста дерева"
 };

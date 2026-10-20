@@ -808,6 +808,7 @@
 
     "treeGrowth.nodesPlaced": "{{placed}}/{{total}} 节点已放置",
     "treeGrowth.treeBuilt": "树构建完成",
+    "treeGrowth.readyToBuild": "可以构建",
 
     "treeViewer.noSettingsAvailable": "无可用设置",
     "treeViewer.treeGrowthPreview": "树生长预览"

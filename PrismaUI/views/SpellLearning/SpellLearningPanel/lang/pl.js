@@ -780,6 +780,7 @@ window._i18nPreload = {
     "tree.orphanRepairTitle": "Nieosiągalne zaklęcia: {{orphans}}, brakujące powiązania wymagań: {{missing}}",
     "treeGrowth.nodesPlaced": "{{placed}}/{{total}} węzłów umieszczonych",
     "treeGrowth.treeBuilt": "Drzewo zbudowane",
+    "treeGrowth.readyToBuild": "Gotowe do zbudowania",
     "treeViewer.noSettingsAvailable": "Brak dostępnych ustawień",
     "treeViewer.treeGrowthPreview": "Podgląd wzrostu drzewa"
 };

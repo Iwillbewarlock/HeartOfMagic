@@ -780,6 +780,7 @@ window._i18nPreload = {
     "tree.orphanRepairTitle": "{{orphans}} magias inalcançáveis, {{missing}} ligações de pré-requisito ausentes",
     "treeGrowth.nodesPlaced": "{{placed}}/{{total}} nós posicionados",
     "treeGrowth.treeBuilt": "Árvore construída",
+    "treeGrowth.readyToBuild": "Pronto para construir",
     "treeViewer.noSettingsAvailable": "Nenhuma configuração disponível",
     "treeViewer.treeGrowthPreview": "Pré-visualização do Crescimento da Árvore"
 };

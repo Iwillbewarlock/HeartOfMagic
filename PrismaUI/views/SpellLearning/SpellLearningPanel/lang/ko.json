@@ -781,6 +781,7 @@
     "tree.orphanRepairTitle": "닿지 않는 주문 {{orphans}}개, 끊긴 선행 연결 {{missing}}개",
     "treeGrowth.nodesPlaced": "{{placed}}/{{total}} 노드 배치됨",
     "treeGrowth.treeBuilt": "트리 구축 완료",
+    "treeGrowth.readyToBuild": "구축 준비 완료",
     "treeViewer.noSettingsAvailable": "사용 가능한 설정 없음",
     "treeViewer.treeGrowthPreview": "트리 성장 미리보기"
 }

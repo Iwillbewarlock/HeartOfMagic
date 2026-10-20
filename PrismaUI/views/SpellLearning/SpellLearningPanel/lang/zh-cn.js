@@ -780,6 +780,7 @@ window._i18nPreload = {
     "tree.orphanRepairTitle": "{{orphans}} 个无法到达的法术，{{missing}} 个缺失的前置链接",
     "treeGrowth.nodesPlaced": "{{placed}}/{{total}} 节点已放置",
     "treeGrowth.treeBuilt": "树构建完成",
+    "treeGrowth.readyToBuild": "可以构建",
     "treeViewer.noSettingsAvailable": "无可用设置",
     "treeViewer.treeGrowthPreview": "树生长预览"
 };

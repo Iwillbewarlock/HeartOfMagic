@@ -808,6 +808,7 @@
 
     "treeGrowth.nodesPlaced": "{{placed}}/{{total}} Knoten platziert",
     "treeGrowth.treeBuilt": "Baum erstellt",
+    "treeGrowth.readyToBuild": "Bereit zum Erstellen",
 
     "treeViewer.noSettingsAvailable": "Keine Einstellungen verfügbar",
     "treeViewer.treeGrowthPreview": "Baumwuchs-Vorschau"

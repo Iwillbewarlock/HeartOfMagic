@@ -780,6 +780,7 @@ window._i18nPreload = {
     "tree.orphanRepairTitle": "{{orphans}} ulaşılamayan büyü, {{missing}} eksik ön koşul bağlantısı",
     "treeGrowth.nodesPlaced": "{{placed}}/{{total}} düğüm yerleştirildi",
     "treeGrowth.treeBuilt": "Ağaç oluşturuldu",
+    "treeGrowth.readyToBuild": "Oluşturmaya hazır",
     "treeViewer.noSettingsAvailable": "Ayar mevcut değil",
     "treeViewer.treeGrowthPreview": "Ağaç Büyüme Önizleme"
 };
