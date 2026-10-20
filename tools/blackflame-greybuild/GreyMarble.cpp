@@ -7,6 +7,7 @@
 #include <Shaders.hpp>
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 #include <map>
 #include <set>
 #include <stdexcept>
@@ -17,7 +18,8 @@ namespace GreyBuild
     {
         constexpr float kDark = 0.006f;
         constexpr float kAngle = 0.384f; // 22 degrees; independent random rotation remains enabled
-        constexpr std::uint16_t kNormalUnsorted = 0x30ED; // 12525: normal blend, test disabled, No_Sorter (bit 13).
+        // No_Sorter (0x2000) is not Bethesda's object-order control. The ordered parent owns that.
+        constexpr std::uint16_t kNormalBlend = 0x10ED; // 4333: SrcAlpha / InvSrcAlpha, alpha test disabled.
         using Remap = std::map<std::uint32_t, std::uint32_t>;
 
         void ChildRefs(nifly::NiObject& block, std::set<nifly::NiRef*>& refs)
@@ -167,11 +169,52 @@ namespace GreyBuild
         void Attach(nifly::NiHeader& dst, nifly::NiHeader& src, std::uint32_t root,
             std::uint32_t added, const std::string& name)
         {
+            const auto* flame = src.GetBlock<nifly::NiParticleSystem>(root);
+            bool masterManaged = false;
+            for (std::uint32_t id = 0; id < src.GetNumBlocks(); ++id) {
+                if (auto* master = src.GetBlock<nifly::BSMasterParticleSystem>(id)) {  // nifly's ref arrays iterate non-const only
+                    for (const auto& ref : master->childRefs) masterManaged |= ref.index == root;
+                    for (const auto& ref : master->particleSysRefs) masterManaged |= ref.index == root;
+                }
+            }
+            auto orderedId = nifly::NIF_NPOS;
+            if (masterManaged) {
+                // Masters reference systems directly; an intervening ordered node's engine
+                // update/render behavior is unverified. Retain direct siblings for this pair.
+                std::cout << "NOTE  marble " << name <<
+                    ": ordered wrapper skipped; BSMasterParticleSystem direct-reference wrapping is unverified\n";
+            } else {
+                auto ordered = std::make_unique<nifly::BSOrderedNode>();
+                ordered->name.get() = name + " Order";
+                ordered->transform.Clear();
+                // The identity wrapper occupies the flame's old parent slot. Keep both particle
+                // transforms and all emitter pointers untouched; move only the bound into parent CS.
+                auto bound = flame->bounds;
+                if (!src.GetVersion().IsSSE()) {
+                    if (const auto* data = src.GetBlock<nifly::NiGeometryData>(flame->dataRef))
+                        bound = data->GetBounds();
+                }
+                const auto center = flame->transform.ApplyTransform(bound.center);
+                ordered->alphaSortBound = nifly::Vector4(center.x, center.y, center.z,
+                    std::abs(flame->transform.scale) * bound.radius);
+                // An authored radius does not prove invariance as the hand/emitter moves.
+                // Always use live child bounds (including the scaled marble), especially in
+                // world space. No static path is retained without an invariance proof.
+                ordered->isStaticBound = false;
+                ordered->flags = 0x8000E; // AVObject fixed-bound bit 13 stays clear.
+                ordered->childRefs.AddBlockRef(added);
+                ordered->childRefs.AddBlockRef(root);
+                orderedId = dst.AddBlock(std::move(ordered));
+            }
             bool attached = false;
             for (std::uint32_t id = 0; id < src.GetNumBlocks(); ++id) {
                 if (auto* node = dst.GetBlock<nifly::NiNode>(id)) {
-                    for (auto& ref : node->childRefs) attached |= ref.index == root;
-                    Before(node->childRefs, root, added);
+                    for (auto& ref : node->childRefs) {
+                        if (ref.index != root) continue;
+                        if (!masterManaged) ref.index = orderedId;
+                        attached = true;
+                    }
+                    if (masterManaged) Before(node->childRefs, root, added);
                 }
                 if (auto* master = dst.GetBlock<nifly::BSMasterParticleSystem>(id))
                     Before(master->particleSysRefs, root, added);
@@ -249,7 +292,7 @@ namespace GreyBuild
             shader->baseColor.a *= alphaScale;
             shader->baseColorScale = 1.0f;
             auto* alpha = hdr.GetBlock<nifly::NiAlphaProperty>(system->alphaPropertyRef);
-            alpha->flags = kNormalUnsorted; // SrcAlpha / InvSrcAlpha; alpha test off; No_Sorter on
+            alpha->flags = kNormalBlend;
             alpha->threshold = 0;
 
             // A new emitter instance draws its own random samples; never share mutable modifier/controller state.
@@ -397,12 +440,6 @@ namespace GreyBuild
             RemapPointers(dst, map);
             Configure(dst, map, added, static_cast<float>(opacity), static_cast<float>(scale));
             Attach(dst, src, id, added, name);
-            // Also suppress sorting on the paired additive pass; child order expresses dark then light.
-            // Skyrim can regroup render passes regardless: engine draw order still needs in-game validation.
-            auto* bright = dst.GetBlock<nifly::NiParticleSystem>(id);
-            auto brightAlpha = dst.GetBlock<nifly::NiAlphaProperty>(bright->alphaPropertyRef)->Clone();
-            brightAlpha->flags |= 1u << 13; // Preserve the source test function (bits 10-12).
-            bright->alphaPropertyRef.index = dst.AddBlock(std::move(brightAlpha));
             ++totals.systems;
             totals.sourceParticles += data->GetNumVertices();
             totals.addedParticles += data->GetNumVertices();

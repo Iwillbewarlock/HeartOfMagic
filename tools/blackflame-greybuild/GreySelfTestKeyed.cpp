@@ -264,7 +264,7 @@ namespace GreyBuild::SelfTest::Keyed
             hand[CC::Request::kHandMarbleScale] = 1.15;
             const std::string handKey = handRequest["options"]["keyPrefix"].get<std::string>() +
                 "|kind=model|nif=meshes\\magic\\keyed.nif|nifhash=" + CC::Hex16(Fnv(fixture.dump / "meshes/magic/keyed.nif")) +
-                "|addn=none|hands=1.400000|handmarbleopacity=0.900000|handmarblescale=1.150000";
+                "|addn=none|hands=1.400000|handmarbleopacity=0.900000|handmarblescale=1.150000|marbleorder=1";
             hand[CC::Request::kKeyString] = handKey;
             hand["key"] = CC::Key16Of(handKey);
             a_check.Check(!refusedText("req_hands", handRequest.dump()), "request v5: casting art carries a verified object tint/key");
@@ -316,6 +316,12 @@ namespace GreyBuild::SelfTest::Keyed
             malformed["forms"][0][CC::Request::kTintAddHands] = 1.5;
             a_check.Check(refusedText("req_handkey", malformed.dump(), "disagree"),
                 "request v5: hand tint that disagrees with its key is refused");
+            malformed = handRequest;
+            const auto oldHandKey = handKey.substr(0, handKey.rfind("|marbleorder="));
+            malformed["forms"][0][CC::Request::kKeyString] = oldHandKey;
+            malformed["forms"][0]["key"] = CC::Key16Of(oldHandKey);
+            a_check.Check(refusedText("req_handorder", malformed.dump(), "disagree"),
+                "request v5: old unordered hand key is refused even when its hash matches");
             malformed = handRequest;
             malformed["forms"][0]["data"]["artType"] = 1;
             a_check.Check(refusedText("req_handrole", malformed.dump(), "another object role"),

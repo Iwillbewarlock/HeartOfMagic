@@ -92,14 +92,18 @@ its original palette sampling remain intact. Disconnected controller blocks rema
 in the file: nifly deletion renumbers blocks but omits persisted blend interpolator
 children from reference enumeration, so deleting these orphans could corrupt live links.
 
-`NiAlphaProperty.flags = 12525 (0x30ED)` enables SrcAlpha / InvSrcAlpha blending,
-disables alpha test, and sets No_Sorter (bit 13, `0x2000`). Bits 10-12 encode the
-alpha test function, not sorting. ZBuffer_Test (SLSF1 bit31) is on;
-ZBuffer_Write (SLSF2 bit0) is off. The dark child immediately precedes the source in
-each parent; both paired alpha properties set No_Sorter. The source flame's test
-function bits stay unchanged. No extra sorting node or
-depth offset changes the source coordinate system. Skyrim can still regroup passes:
-only an in-game capture establishes actual draw order, overlap and appearance.
+The marble's `NiAlphaProperty.flags = 4333 (0x10ED)`: SrcAlpha / InvSrcAlpha blending,
+alpha test off. Bits 10-12 encode the alpha test function; No_Sorter (bit 13, `0x2000`)
+is not set - the Skyrim effect path does not read it (1.6.1170 image, build/ordered/REPORT.md).
+The source flame's alpha property is left exactly as it was. ZBuffer_Test (SLSF1 bit31) is on;
+ZBuffer_Write (SLSF2 bit0) is off. Draw order comes from a new `BSOrderedNode` put in the
+flame's place in its parent: children `[marble, flame]`, identity transform, always a dynamic
+bound (flags `0x8000E`, no fixed bound - the particles move with the hand), so the pair keeps
+that order whatever the camera angle; the node itself sorts against other objects by its
+bound. A pair that a `BSMasterParticleSystem` references directly (`childRefs` /
+`particleSysRefs`) is not wrapped (an ordered node there is unverified): the marble stays the
+flame's direct preceding sibling and the reason is recorded. The casting-art key carries
+`|marbleorder=1`. Only an in-game capture establishes the final look.
 
 ## Verification and preview
 
@@ -125,7 +129,7 @@ selected pool 40 -> 80. Concrete particle/data types are preserved: the latter
 uses its original fire-palette-coloured strip atlas, not Fireball's atlas.
 The Fireball and Firestorm copies each re-read with zero unknown blocks, all
 840/473 dumped references in range and byte-identical roundtrips (34,344/58,030 bytes).
-All three marble alpha properties are 12525. Both radius and alpha paths have separate
+All three marble alpha properties were 12525 in round 2; the ordered-node round set them to 4333 and wraps each pair (build/ordered/rebuilt). Both radius and alpha paths have separate
 animation data, including sequence links; the shared-alpha fixture retains rate/lifetime
 17 after opacity normalisation. I/O failures are non-reusable and recover on retry;
 unsupported marble animation is explicitly a ramp-only `kFallback`. Normal smoke

@@ -468,14 +468,14 @@ namespace GreyBuild::SelfTest
         const auto* alpha = hdr.GetBlock<nifly::NiAlphaProperty>(marble->alphaPropertyRef);
         const auto* shader = hdr.GetBlock<nifly::BSEffectShaderProperty>(marble->shaderPropertyRef);
         a_check.Check(alpha && (alpha->flags & 1) && ((alpha->flags >> 1) & 15) == 6 &&
-            ((alpha->flags >> 5) & 15) == 7 && !(alpha->flags & 512) && (alpha->flags & (1u << 13)) &&
+            ((alpha->flags >> 5) & 15) == 7 && !(alpha->flags & 512) && !(alpha->flags & (1u << 13)) &&
             ((alpha->flags >> 10) & 7) == 4,
-            "marble blend: SrcAlpha/InvSrcAlpha, alpha test off, no-sorter flag on");
+            "marble blend: SrcAlpha/InvSrcAlpha, alpha test off, unused no-sorter flag off");
         const auto* bright = hdr.GetBlock<nifly::NiParticleSystem>(f.system);
         const auto* brightAlpha = hdr.GetBlock<nifly::NiAlphaProperty>(bright->alphaPropertyRef);
-        a_check.Check((brightAlpha->flags & (1u << 13)) &&
-            (brightAlpha->flags & (7u << 10)) == (source.GetHeader().GetBlock<nifly::NiAlphaProperty>(f.alpha)->flags & (7u << 10)),
-            "marble source alpha: bit 13 set while test function bits 10-12 remain unchanged");
+        a_check.Check(brightAlpha->flags == source.GetHeader().GetBlock<nifly::NiAlphaProperty>(f.alpha)->flags &&
+            bright->alphaPropertyRef.index == f.alpha,
+            "marble source alpha: original property reference and every flag remain unchanged");
         a_check.Check(shader && (shader->shaderFlags1 & (1u << 31)) && !(shader->shaderFlags2 & 1),
             "marble depth: z-test on and z-write off");
         const auto* sourceShader = source.GetHeader().GetBlock<nifly::BSEffectShaderProperty>(f.shader);
@@ -539,8 +539,10 @@ namespace GreyBuild::SelfTest
         }
         a_check.Check(linked, "marble animation: sequence-only rate interpolator/data cloned, target/name remapped, emission rate kept");
         const auto& children = saved.GetRootNode()->childRefs;
-        a_check.Check(children.GetSize() == 3 && children.GetBlockRef(1) == marbleId && children.GetBlockRef(2) == f.system,
-            "marble order: layer immediately precedes the source flame in its parent children");
+        const auto* ordered = hdr.GetBlock<nifly::BSOrderedNode>(children.GetBlockRef(1));
+        a_check.Check(children.GetSize() == 2 && ordered && ordered->childRefs.GetSize() == 2 &&
+            ordered->childRefs.GetBlockRef(0) == marbleId && ordered->childRefs.GetBlockRef(1) == f.system,
+            "marble order: source parent slot contains BSOrderedNode children [marble, flame]");
         std::ostringstream dump;
         auto* previous = std::cout.rdbuf(dump.rdbuf());
         const auto dumpResult = DumpNif(outputPath);
@@ -589,5 +591,6 @@ namespace GreyBuild::SelfTest
             "marble animation: name-only controller binding resolves to the cloned target after saving and re-reading");
         CheckRoleRequest(a_check, a_dir, source, f);
         CheckBindings(a_check, source, f, textures);
+        CheckMarbleOrder(a_check, a_dir);
     }
 }

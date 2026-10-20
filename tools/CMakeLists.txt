@@ -216,6 +216,7 @@ add_executable(blackflame-greybuild
     blackflame-greybuild/GreySelfTestKeyed.cpp
     blackflame-greybuild/GreySelfTestHands.cpp
     blackflame-greybuild/GreySelfTestMarble.cpp
+    blackflame-greybuild/GreySelfTestMarbleOrder.cpp
     blackflame-greybuild/GreySelfTestKeyedRuns.cpp
     # Output identity (CopyContractKeys.h kBuilderOutputVersion) and its golden-output test
     blackflame-greybuild/GreySelfTestGolden.cpp

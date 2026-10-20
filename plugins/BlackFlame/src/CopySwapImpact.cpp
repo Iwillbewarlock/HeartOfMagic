@@ -1,6 +1,6 @@
 // =============================================================================
-// COPY SWAP - the copy window and the GetImpactData call sites (CopySwap.h, device 3);
-// the install entry point and the status
+// COPY SWAP - the copy window and the GetImpactData call sites (CopySwap.h, device 3), with
+// the rune decal window (AE34452's AE44186 call); the install entry point and the status
 // =============================================================================
 
 #include "CopySwap.h"
@@ -14,6 +14,9 @@
 
 #include <array>
 #include <atomic>
+#include <cstring>
+#include <format>
+#include <optional>
 
 namespace BlackFlame
 {
@@ -37,15 +40,32 @@ namespace BlackFlame
             // 0x7FC on 1.7.104, but 43851 differs on 1.6.1170 (pdata size 0x135D vs 0x139D, other unwind codes): no
             // fallback offset, the scan alone finds its call
             Caller{ "the explosion's impact function", 42679, 43851, 0 },
+            // The projectile decal helper's own lookup, reached only when its IPCT argument is null: in .text only from the
+            // rune placement in MagicCaster's launch helper AE34452 (SpawnCollisionEffects' call at 7ED1CB passes the IPCT
+            // it looked up). AE only (no SE id read), scan only; 1.6.1170: one E8 at +0xB5 (RVA 7E9C95, E8 86 E3 B2 FF)
+            Caller{ "rune decal (AE44186 via AE34452)", 0, 44186, 0 },
         };
+        constexpr std::size_t kRuneLookup = 2;  // kCallers index with its own status (runeLookup), not in impactSites
+
+        // The rune decal window: AE34452 (MagicCaster's launch helper) places a rune's waiting glyph right after Launch by
+        // calling AE44186 at +0x52F with a null IPCT (RVA 5C028F, 1.6.1170 image read 2026-10-20, build/rune-decal); the
+        // impact call sites never see it. Only on 1.6.1170, only with the argument setup and the E8 below
+        constexpr std::uint64_t kRuneLauncherAe = 34452, kDecalHelperAe = 44186;
+        constexpr std::uintptr_t kRuneDecalCallAe = 0x52F;
+        // mov qword [rsp+28], 0 (the IPCT: null); mov byte [rsp+20], 1; mov r9d, edi; lea r8, [rsp+58]; mov rdx, rsi;
+        // mov rcx, rbx (the projectile)
+        constexpr std::array<std::uint8_t, 28> kRuneDecalArgs{ 0x48, 0xC7, 0x44, 0x24, 0x28, 0x00, 0x00, 0x00, 0x00, 0xC6,
+            0x44, 0x24, 0x20, 0x01, 0x44, 0x8B, 0xCF, 0x4C, 0x8D, 0x44, 0x24, 0x58, 0x48, 0x8B, 0xD6, 0x48, 0x8B, 0xCB };
+        constexpr const char* kRuneWindowName = "rune decal window (AE44186 call in AE34452)";
 
         // Saved and restored by each CopyWindow: the innermost decision wins
         thread_local bool t_copyWindow = false;
         thread_local const RE::TESForm* t_copyWindowBase = nullptr;  // the trace lines only: the base that opened the window
         std::atomic<std::uint64_t> g_windowCalls{ 0 }, g_copies{ 0 };
-        std::atomic<bool> g_failureReported{ false };
+        std::atomic<std::uint64_t> g_runeCalls{ 0 }, g_runeWindows{ 0 };
+        std::atomic<bool> g_failureReported{ false }, g_runeFailure{ false };
         CopySwapStatus g_status;  // written once at kDataLoaded
-        std::array<bool, 2> g_siteHooked{};  // which GetImpactDataHook<I> has its func set
+        std::array<bool, kCallers.size()> g_siteHooked{};  // which GetImpactDataHook<I> has its func set
         // Trace (Fire Rune glyph): one line per impact lookup in a copy window, the first ones per call site and IPDS
         // (LogLimit::PerKey: a concentration cast's impacts cannot use up the lines before a rune's show)
         std::atomic<bool> g_impactTraceFull{ false }, g_impactTraceFailure{ false };
@@ -169,13 +189,140 @@ namespace BlackFlame
                 return;
             }
             chained = chained || Patch::Rel32Target(site) != a_callee;
+            const auto before = Patch::HexBytes(site, Patch::kRel32Size);
             GetImpactDataHook<I>::func = Patch::WriteCall(kCallers[I].name, site, GetImpactDataHook<I>::thunk,
                 chained ? "GetImpactData call, chained onto another plugin's redirect" : "GetImpactData call (scan and target check)");
-            ++g_status.impactSites;
             g_siteHooked[I] = true;
-            g_status.impactChained += chained ? 1 : 0;
+            if constexpr (I == kRuneLookup) {
+                auto& status = g_status.runeLookup;
+                status.hooked = true;
+                status.chained = chained;
+                status.offset = site - Patch::AddressOf(Patch::IdFor(kCallers[I].se, kCallers[I].ae));
+                status.note = std::format("caller +0x{:X}{} (bytes before {})", status.offset, chained ? ", chained" : "", before);
+            } else {
+                ++g_status.impactSites;
+                g_status.impactChained += chained ? 1 : 0;
+            }
             logger::info("BlackFlame: copy impacts: the GetImpactData call in {} at {:X} hooked{}", kCallers[I].name,
                 site - REL::Module::get().base(), chained ? " (chained onto another plugin's redirect)" : "");
+        }
+
+        // A few lines per copy base (LogLimit::PerKey): the rune decal window opened, with the IPCT argument (null: AE44186
+        // looks it up itself, through the rune decal lookup site) and the thread (which thread runs AE34452 is not proven)
+        void TraceRuneWindow(const RE::TESForm* a_base, const RE::BGSImpactData* a_impact) noexcept
+        {
+            try {
+                int line = 0, keyLine = 0;
+                if (LogLimit::PerKey("rune decal window", IdOf(a_base), line, keyLine)) {
+                    logger::info("BlackFlame: rune decal window {}/{} ({} of this base): copy window open around AE44186 for base "
+                                 "{:08X}, IPCT argument {:08X}, thread {}", line, LogLimit::kTraceLines, keyLine, IdOf(a_base),
+                        IdOf(a_impact), REX::W32::GetCurrentThreadId());
+                }
+            } catch (...) {
+                (void)g_runeFailure.exchange(true);
+            }
+        }
+
+        // AE44186 at AE34452+0x52F: (projectile, position*, direction*, material, bool, IPCT (null here), decal group, bool force).
+        // All eight forwarded as they came (integer registers and stack slots; no float argument); rax passed back
+        struct RuneDecalHook
+        {
+            static std::uintptr_t thunk(RE::Projectile* a_projectile, std::uintptr_t a_position, std::uintptr_t a_direction,
+                std::uintptr_t a_material, std::uintptr_t a_flag, RE::BGSImpactData* a_impact, std::uintptr_t a_decalGroup,
+                std::uintptr_t a_force)
+            {
+                g_runeCalls.fetch_add(1);
+                bool copyOpen = false;
+                const RE::TESForm* base = nullptr;
+                try {
+                    (void)Guarded("rune decal window", [&]() {
+                        base = a_projectile ? a_projectile->GetBaseObject() : nullptr;
+                        copyOpen = base && IsCopy(base);
+                    });
+                } catch (...) {
+                    copyOpen = false;
+                    if (!g_runeFailure.exchange(true)) {
+                        logger::error("BlackFlame: the rune decal window thunk threw; no window, the engine's decal; not logged again");
+                    }
+                }
+                std::optional<ThreadTrace::Scope> trace;
+                if (copyOpen) {
+                    g_runeWindows.fetch_add(1);
+                    trace.emplace("rune decal (copy window open)");
+                    TraceRuneWindow(base, a_impact);
+                }
+                // As the impact call sites: a non-copy base closes the window (the innermost call decides)
+                const CopyWindow window(copyOpen, copyOpen ? base : nullptr);
+                return func(a_projectile, a_position, a_direction, a_material, a_flag, a_impact, a_decalGroup, a_force);
+            }
+
+            static inline REL::Relocation<decltype(thunk)> func;
+        };
+
+        // 1.6.1170 only (the build whose AE34452 was read): the call at +0x52F must be an E8 to AE44186 after the argument
+        // setup kRuneDecalArgs; anything else (another build, another plugin's rewrite) is logged and left alone
+        void InstallRuneWindow()
+        {
+            auto& site = g_status.runeWindow;
+            if (REL::Module::get().version() != REL::Version(1, 6, 1170, 0)) {
+                site.note = std::format("AE 1.6.1170 only (its AE34452 is the one read; running {}): the rune glyph keeps its "
+                                        "original colour, the lookup site alone does not change it", REL::Module::get().version().string("."));
+                logger::info("BlackFlame: copy impacts: {} not installed: {}", kRuneWindowName, site.note);
+                Patch::RecordHook(kRuneWindowName, false, 0, {}, site.note);
+                return;
+            }
+            const auto caller = Patch::AddressOf(kRuneLauncherAe);
+            const auto helper = Patch::AddressOf(kDecalHelperAe);
+            const auto at = caller + kRuneDecalCallAe;
+            const auto from = at - kRuneDecalArgs.size();
+            const auto before = Patch::HexBytes(from, kRuneDecalArgs.size() + Patch::kRel32Size);
+            const bool args = Patch::IsExecutable(from, kRuneDecalArgs.size() + Patch::kRel32Size) &&
+                              std::memcmp(reinterpret_cast<const void*>(from), kRuneDecalArgs.data(), kRuneDecalArgs.size()) == 0;
+            const bool call = args && *reinterpret_cast<const std::uint8_t*>(at) == Patch::kCallOpcode && Patch::Rel32Target(at) == helper;
+            if (!call) {
+                site.note = std::format("AE34452 +0x{:X} is not the null-IPCT argument setup and an E8 to AE44186 (bytes from -{}: {}) "
+                                        "- left alone; the rune glyph keeps its original colour", kRuneDecalCallAe, kRuneDecalArgs.size(), before);
+                logger::warn("BlackFlame: copy impacts: {}: {}", kRuneWindowName, site.note);
+                Patch::RecordHook(kRuneWindowName, false, at, before, site.note);
+                return;
+            }
+            RuneDecalHook::func = Patch::WriteCall(kRuneWindowName, at, RuneDecalHook::thunk,
+                std::format("AE34452 +0x{:X}; bytes from -{}: {}", kRuneDecalCallAe, kRuneDecalArgs.size(), before));
+            site.hooked = true;
+            site.offset = kRuneDecalCallAe;
+            site.note = std::format("AE34452 +0x{:X} (bytes from -{}: {})", kRuneDecalCallAe, kRuneDecalArgs.size(), before);
+            logger::info("BlackFlame: copy impacts: {} at {:X} hooked (bytes from -{}: {})", kRuneWindowName,
+                at - REL::Module::get().base(), kRuneDecalArgs.size(), before);
+        }
+
+        // The rune decal's two parts: the lookup inside AE44186 (any AE build, by scan) and the window around its null-IPCT
+        // call (1.6.1170). Either alone changes nothing: a closed window returns the original, an unhooked lookup too
+        // Neither rune decal part installed: both notes and both hook records say why the rune glyph keeps its colour
+        void NoteRuneDecalOff(const std::string& a_reason)
+        {
+            const auto note = std::format("not installed: {}; the rune glyph keeps its original colour", a_reason);
+            g_status.runeLookup.note = g_status.runeWindow.note = note;
+            Patch::RecordHook(kCallers[kRuneLookup].name, false, 0, {}, note);
+            Patch::RecordHook(kRuneWindowName, false, 0, {}, note);
+            logger::info("BlackFlame: copy impacts: rune decal lookup and window {}", note);
+        }
+
+        void InstallRuneDecal(std::uintptr_t a_lookupCallee)
+        {
+            if (!REL::Module::IsAE()) {
+                NoteRuneDecalOff(CopySwapDetail::kSeNotVerified);
+                return;
+            }
+            if (!Patch::HasIds({ kDecalHelperAe, kRuneLauncherAe }, "copy impacts (rune decal)")) {
+                NoteRuneDecalOff("an Address Library id is missing (AE 44186 or 34452)");
+                return;
+            }
+            HookSite<kRuneLookup>(a_lookupCallee);
+            if (!g_siteHooked[kRuneLookup] && g_status.runeLookup.note.empty()) {
+                g_status.runeLookup.note = "no single E8 to GetImpactData in AE44186 - left alone; the rune glyph keeps its original colour";
+                Patch::RecordHook(kCallers[kRuneLookup].name, false, 0, {}, g_status.runeLookup.note);
+            }
+            InstallRuneWindow();
         }
     }
 
@@ -203,30 +350,39 @@ namespace BlackFlame
         {
             if (!GetConfig().copyImpacts) {
                 a_status.impactNote = "copyImpacts false";
+                NoteRuneDecalOff(a_status.impactNote);
                 return;
             }
             const auto calleeId = Patch::IdFor(kGetImpactDataSe, kGetImpactDataAe);
             if (!Patch::HasIds({ calleeId, Patch::IdFor(kCallers[0].se, kCallers[0].ae), Patch::IdFor(kCallers[1].se, kCallers[1].ae) },
                     "copy impacts")) {
                 a_status.impactNote = "an Address Library id is missing";
+                NoteRuneDecalOff("an Address Library id of GetImpactData or its impact call sites is missing");
                 return;
             }
             constexpr std::size_t kBytesPerSite = 14;
-            if (SKSE::GetTrampoline().free_size() < kCallers.size() * kBytesPerSite) {
+            constexpr std::size_t kSites = kCallers.size() + 1;  // + the rune decal window
+            if (SKSE::GetTrampoline().free_size() < kSites * kBytesPerSite) {
                 a_status.impactNote = "the SKSE trampoline has no room";
                 logger::error("BlackFlame: copy impacts: the SKSE trampoline has no room - left off");
+                NoteRuneDecalOff(a_status.impactNote);
                 return;
             }
             const auto callee = Patch::AddressOf(calleeId);
             HookSite<0>(callee);
             HookSite<1>(callee);
-            a_status.impactNote = std::format("{} of {} call sites hooked", a_status.impactSites, kCallers.size());
+            InstallRuneDecal(callee);
+            a_status.impactNote = std::format("{} of {} call sites hooked; rune decal lookup {}, window {}", a_status.impactSites,
+                kRuneLookup, a_status.runeLookup.hooked ? "hooked" : a_status.runeLookup.note,
+                a_status.runeWindow.hooked ? "hooked" : a_status.runeWindow.note);
         }
 
         void AddImpactCounters(CopySwapCounters& a_out) noexcept
         {
             a_out.impactWindowCalls = g_windowCalls.load();
             a_out.impactCopies = g_copies.load();
+            a_out.runeDecalCalls = g_runeCalls.load();
+            a_out.runeDecalWindows = g_runeWindows.load();
         }
     }
 

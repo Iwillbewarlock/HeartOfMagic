@@ -266,9 +266,13 @@ namespace BlackFlame::CopyContractTest
             hands.tintAddHands = 1.4;
             const auto brightHands = CC::NifKeyString(prefix, hands);
             a_check(ordinary && brightHands && *brightHands == *ordinary +
-                        "|hands=1.400000|handmarbleopacity=0.900000|handmarblescale=1.150000" &&
+                        "|hands=1.400000|handmarbleopacity=0.900000|handmarblescale=1.150000|marbleorder=1" &&
                         Same(CC::NifKeyString(prefix, Muzzle()), golden),
                 "hands key: only the casting-art model appends its object override; other keys stay byte-identical");
+            const auto oldHands = ordinary.value_or("") +
+                "|hands=1.400000|handmarbleopacity=0.900000|handmarblescale=1.150000";
+            a_check(brightHands && CC::KeyOf(*brightHands) != CC::KeyOf(oldHands),
+                "hands key: ordered marble changes the previous hand copy key under output version 2");
             hands.tintAddHands = 1.5;
             a_check(Differs(brightHands, CC::NifKeyString(prefix, hands)), "hands key: changing hand tint changes its key");
             hands.kind = CC::NifKind::kMuzzle;

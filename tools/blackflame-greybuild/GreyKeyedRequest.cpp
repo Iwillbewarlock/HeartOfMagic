@@ -123,7 +123,8 @@ namespace GreyBuild
                 const auto text = Json::ReadString(a_file, a_item, CC::Request::kKeyString, "forms casting art");
                 const std::string suffix = "|hands=" + *CC::TintText(tint) +
                     "|handmarbleopacity=" + *CC::TintText(*a_spec.handMarbleOpacity, 0.0, 1.0) +
-                    "|handmarblescale=" + *CC::TintText(a_spec.handMarbleScale, CC::kMinHandMarbleScale, CC::kMaxHandMarbleScale);
+                    "|handmarblescale=" + *CC::TintText(a_spec.handMarbleScale, CC::kMinHandMarbleScale, CC::kMaxHandMarbleScale) +
+                    "|marbleorder=1";
                 const auto start = a_prefix + "|kind=model|";
                 if (text.compare(0, start.size(), start) != 0 || text.size() < suffix.size() ||
                     text.compare(text.size() - suffix.size(), suffix.size(), suffix) != 0 || CC::Key16Of(text) != a_form.key) {

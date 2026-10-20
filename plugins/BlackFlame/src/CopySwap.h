@@ -30,6 +30,12 @@
 //      SpawnCollisionEffects (43022 / 44213) and the explosion's impact function
 //      (42679 / 43851) return the impact copy for the impact they would return. No
 //      IPDS copy and no hash map insert. An impact copy's hazard is the hazard copy.
+//      Rune decal (AE only): a rune's waiting glyph is placed right after Launch by
+//      MagicCaster's launch helper (AE 34452 +0x52F) calling the projectile decal helper
+//      (AE 44186) with a null IPCT, which then looks it up itself (its GetImpactData E8,
+//      1.6.1170 +0xB5). That lookup is a third site (by scan, any AE build), and a copy
+//      window opens around the +0x52F call when the projectile's base is a copy (1.6.1170
+//      only, argument setup and E8 target checked; anything else is left alone).
 //   5. Casting art (CopySwapArt.cpp): the one E8 to ActorMagicCaster::SetCastingArt
 //      (AE 34150, in AE 38784; the SE ids 33369 / 37830 are unverified and not used on SE):
 //      the art becomes its copy when the caster is the player's, a hand, the hand's
@@ -83,6 +89,8 @@ namespace BlackFlame
             std::uintptr_t offset = 0;  // in its caller
             std::string note;
         } castingArt;
+        CallSite runeLookup;  // the GetImpactData call in AE 44186 (AE only, scan; not in impactSites)
+        CallSite runeWindow;  // the copy window around AE 34452's AE 44186 call (1.6.1170 only)
         Patch::Detour hazardCreate;
         Patch::Detour spawnHazard;
     };
@@ -104,6 +112,8 @@ namespace BlackFlame
         std::uint64_t createNotSpell = 0;         // the self-area spell slot held another MagicItem (valid, not judged)
         std::uint64_t impactWindowCalls = 0;  // GetImpactData calls inside a copy window
         std::uint64_t impactCopies = 0;       // of those, the impact copy returned
+        std::uint64_t runeDecalCalls = 0;     // AE 44186 calls through the rune decal window site
+        std::uint64_t runeDecalWindows = 0;   // of those, the projectile's base a copy (window opened)
         std::uint64_t castingArtCalls = 0;    // SetCastingArt calls through the site
         std::uint64_t castingArtSwaps = 0;    // of those, the art's copy handed on
         std::uint64_t castingArtRejected = 0; // a caster or art that failed its vtable check

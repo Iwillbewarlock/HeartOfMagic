@@ -66,7 +66,7 @@ namespace BlackFlame::CopyContract
     // threshold, a tint, an encoder or a library version); the golden test names the bump when it is missing.
     // 1: BFK4, the first output identity (BFK3 keys carried the builder exe's FNV-1a 64 instead).
     // 2: contract 6, the effect shader palettes' grey copies (request efshPalettes[]).
-    // Casting-art output also changed under out=2: hands/handmarbleopacity/handmarblescale make new keys, so old copies
+    // Casting-art output also changed under out=2: hands/handmarbleopacity/handmarblescale/marbleorder make new keys, so old copies
     // cannot collide. The golden fixture does not cover hands yet; their dedicated self-tests verify this output.
     inline constexpr std::uint32_t kBuilderOutputVersion = 2;
     inline constexpr std::string_view kDevIdentityTag = "+dev";  // <n>+dev<16 lower-case hex>
@@ -357,6 +357,7 @@ namespace BlackFlame::CopyContract
             Detail::Field(*out, "hands", *tint);
             Detail::Field(*out, "handmarbleopacity", *opacity);
             Detail::Field(*out, "handmarblescale", *scale);
+            Detail::Field(*out, "marbleorder", "1");
         }
         return out;
     }

@@ -35,11 +35,32 @@ namespace GreyBuild
         {
             auto* block = a_hdr.GetBlock<nifly::NiObject>(a_id);
             if (!block) return;
+            if (const auto* av = dynamic_cast<nifly::NiAVObject*>(block)) {
+                const auto& t = av->transform;
+                std::cout << fmt::format("      transform [{}] '{}' flags {} translation ({:.6g}, {:.6g}, {:.6g}) scale {:.6g}"
+                    " rotation ({:.6g}, {:.6g}, {:.6g}; {:.6g}, {:.6g}, {:.6g}; {:.6g}, {:.6g}, {:.6g})\n",
+                    a_id, NameOf(*av), av->flags, t.translation.x, t.translation.y, t.translation.z, t.scale,
+                    t.rotation[0].x, t.rotation[0].y, t.rotation[0].z, t.rotation[1].x, t.rotation[1].y,
+                    t.rotation[1].z, t.rotation[2].x, t.rotation[2].y, t.rotation[2].z);
+            }
+            if (auto* node = dynamic_cast<nifly::NiNode*>(block)) {
+                std::cout << fmt::format("  [{}] {} '{}' children", a_id, block->GetBlockName(), NameOf(*node));
+                for (const auto& child : node->childRefs) std::cout << ' ' << child.index;
+                std::cout << '\n';
+                if (const auto* ordered = dynamic_cast<const nifly::BSOrderedNode*>(node)) {
+                    const auto& b = ordered->alphaSortBound;
+                    std::cout << fmt::format("      alphaSortBound ({:.9g}, {:.9g}, {:.9g}, {:.9g}) staticBound {}\n",
+                        b.x, b.y, b.z, b.w, ordered->isStaticBound);
+                }
+            }
             if (const auto* system = dynamic_cast<nifly::NiParticleSystem*>(block)) {
                 std::cout << fmt::format("  [{}] {} '{}' data {} psysData {} shader {} alpha {} controller {} worldSpace {}\n",
                     a_id, block->GetBlockName(), NameOf(*system), system->dataRef.index, system->psysDataRef.index,
                     system->shaderPropertyRef.index, system->alphaPropertyRef.index, system->controllerRef.index,
                     system->isWorldSpace);
+                const auto& b = system->bounds;
+                std::cout << fmt::format("      particleBound ({:.9g}, {:.9g}, {:.9g}, {:.9g})\n",
+                    b.center.x, b.center.y, b.center.z, b.radius);
             } else if (const auto* data = dynamic_cast<nifly::NiPSysData*>(block)) {
                 std::cout << fmt::format("  [{}] {} particle pool {} active {} atlas cells {}\n", a_id,
                     block->GetBlockName(), data->GetNumVertices(), data->numActive, data->subtexOffsets.size());
@@ -80,6 +101,10 @@ namespace GreyBuild
                 std::cout << fmt::format("  [{}] NiAlphaProperty flags {} (blend {}, src {}, dst {}, test {}, no-sorter {})\n",
                     a_id, alpha->flags, (alpha->flags & 1) != 0, (alpha->flags >> 1) & 15,
                     (alpha->flags >> 5) & 15, (alpha->flags & 512) != 0, (alpha->flags & 8192) != 0);
+            } else if (auto* palette = dynamic_cast<nifly::NiDefaultAVObjectPalette*>(block)) {
+                std::cout << fmt::format("  [{}] NiDefaultAVObjectPalette objects {}\n", a_id, palette->objects.size());
+                for (const auto& object : palette->objects)
+                    std::cout << fmt::format("      '{}' object {}\n", object.name.get(), object.objectRef.index);
             }
             // Include every block and link so a saved dump can independently audit graph remapping.
             std::set<nifly::NiRef*> refs;
