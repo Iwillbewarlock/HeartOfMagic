@@ -448,6 +448,8 @@ namespace GreyBuild
             CheckMapRefusals(check, dir);
             SelfTest::CheckSlotsAndProgress(check, dir);
             SelfTest::CheckKeyed(check, dir, source);
+            SelfTest::CheckHands(check, dir, source);
+            SelfTest::CheckMarble(check, dir);
             SelfTest::CheckEfsh(check, dir);
             SelfTest::CheckGolden(check, dir, golden, a_options.goldenRequired);
             SelfTest::CheckGpu(check, dir, golden);

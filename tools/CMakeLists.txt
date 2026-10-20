@@ -200,6 +200,7 @@ add_executable(blackflame-greybuild
     blackflame-greybuild/GreyRisk.cpp
     blackflame-greybuild/GreyGlow.cpp
     blackflame-greybuild/GreyPalette.cpp
+    blackflame-greybuild/GreyMarble.cpp
     blackflame-greybuild/GreySelfTestRisk.cpp
     blackflame-greybuild/GreySelfTestDecal.cpp
     # Single launch (P1 owns these files; P0 added the entries)
@@ -213,6 +214,8 @@ add_executable(blackflame-greybuild
     blackflame-greybuild/GreySelfTestEfsh.cpp
     blackflame-greybuild/GreySelfTestSlots.cpp
     blackflame-greybuild/GreySelfTestKeyed.cpp
+    blackflame-greybuild/GreySelfTestHands.cpp
+    blackflame-greybuild/GreySelfTestMarble.cpp
     blackflame-greybuild/GreySelfTestKeyedRuns.cpp
     # Output identity (CopyContractKeys.h kBuilderOutputVersion) and its golden-output test
     blackflame-greybuild/GreySelfTestGolden.cpp

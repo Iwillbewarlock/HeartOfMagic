@@ -110,7 +110,7 @@ namespace GreyBuild
         bool TakeDerivedPalette(nifly::NifFile& a_copy, std::uint32_t a_shader, const std::vector<const EffectShape*>& a_users,
             GlowContext& a_ctx, const std::string& a_rel)
         {
-            if (!a_ctx.palettes || a_ctx.palettes->mode != PaletteMode::kDerived) {
+            if (!a_ctx.palettes || (!a_ctx.tintAddHands && a_ctx.palettes->mode != PaletteMode::kDerived)) {
                 return false;
             }
             const auto* first = a_users.front();
@@ -347,7 +347,7 @@ namespace GreyBuild
             }
             if (IsPaletteShape(*users.front()) && TakeDerivedPalette(a_copy, shader, users, a_ctx, a_rel)) {
                 rules[shader].red = true;
-                if (AnyAdditive(users)) {
+                if (AnyAdditive(users) && !a_ctx.tintAddHands) {
                     emissiveShaders.insert(shader);
                 }
             }

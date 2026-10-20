@@ -260,6 +260,61 @@ namespace BlackFlame::CopyContractTest
         {
             const auto prefix = Prefix();
             const auto golden = CC::NifKeyString(prefix, Muzzle());
+            auto hands = Muzzle();
+            hands.kind = CC::NifKind::kModel;
+            const auto ordinary = CC::NifKeyString(prefix, hands);
+            hands.tintAddHands = 1.4;
+            const auto brightHands = CC::NifKeyString(prefix, hands);
+            a_check(ordinary && brightHands && *brightHands == *ordinary +
+                        "|hands=1.400000|handmarbleopacity=0.900000|handmarblescale=1.150000" &&
+                        Same(CC::NifKeyString(prefix, Muzzle()), golden),
+                "hands key: only the casting-art model appends its object override; other keys stay byte-identical");
+            hands.tintAddHands = 1.5;
+            a_check(Differs(brightHands, CC::NifKeyString(prefix, hands)), "hands key: changing hand tint changes its key");
+            hands.kind = CC::NifKind::kMuzzle;
+            a_check(!CC::NifKeyString(prefix, hands), "hands key: a muzzle cannot carry the casting-art override");
+            hands.kind = CC::NifKind::kModel;
+            hands.tintAddHands = 2.1;
+            a_check(!CC::NifKeyString(prefix, hands), "hands key: out-of-range hand tint gives no key");
+            const CC::ChildKeyInput handPalette{ kAnchorTexturePath, kAnchorTextureFnv64 };
+            const auto oldPalette = CC::PaletteKeyString(prefix, CC::PaletteBlend::kAdd, handPalette);
+            const auto newPalette = CC::PaletteKeyString(prefix, CC::PaletteBlend::kAdd, handPalette, 1.4);
+            a_check(oldPalette && newPalette && *newPalette == *oldPalette + "|hands=1.400000",
+                "hands key: the palette child is isolated from other roles with the same source");
+            a_check(CC::ClampTintAddHands(-1.0) == 0.0 && CC::ClampTintAddHands(3.0) == 2.0 &&
+                        CC::ClampTintAddHands(0.0) == 0.0 && CC::ClampTintAddHands(2.0) == 2.0,
+                "config tintAddHands: clamps below zero and above two, keeping both endpoints");
+            a_check(CC::ClampTintAddHands(1.4000004) == 1.4 && CC::ClampTintAddHands(1.4000006) == 1.400001 &&
+                        CC::ClampTintAddHands(std::numeric_limits<double>::infinity()) == 1.4 &&
+                        CC::ClampTintAddHands(std::numeric_limits<double>::quiet_NaN()) == 1.4,
+                "config tintAddHands: six decimal quantisation and non-finite default 1.4");
+            a_check(CC::ClampHandMarbleOpacity(-1.0) == 0.0 && CC::ClampHandMarbleOpacity(2.0) == 1.0 &&
+                        CC::ClampHandMarbleOpacity(0.0) == 0.0 && CC::ClampHandMarbleOpacity(1.0) == 1.0,
+                "config handMarbleOpacity: clamp 0..1 and keep endpoints");
+            a_check(CC::ClampHandMarbleScale(-1.0) == 0.1 && CC::ClampHandMarbleScale(5.0) == 4.0 &&
+                        CC::ClampHandMarbleScale(0.1) == 0.1 && CC::ClampHandMarbleScale(4.0) == 4.0,
+                "config handMarbleScale: clamp 0.1..4 and keep endpoints");
+            a_check(CC::ClampHandMarbleOpacity(0.9000004) == 0.9 && CC::ClampHandMarbleOpacity(0.9000006) == 0.900001 &&
+                        CC::ClampHandMarbleScale(1.1500004) == 1.15 && CC::ClampHandMarbleScale(1.1500006) == 1.150001,
+                "config marble: the same six decimal quantisation as tintAdd");
+            a_check(CC::ClampHandMarbleOpacity(std::numeric_limits<double>::infinity()) == 0.9 &&
+                        CC::ClampHandMarbleOpacity(std::numeric_limits<double>::quiet_NaN()) == 0.9 &&
+                        CC::ClampHandMarbleScale(std::numeric_limits<double>::infinity()) == 1.15 &&
+                        CC::ClampHandMarbleScale(std::numeric_limits<double>::quiet_NaN()) == 1.15,
+                "config marble: non-finite values keep defaults");
+            hands.tintAddHands = 1.4;
+            hands.handMarbleOpacity = 0.8;
+            a_check(Differs(brightHands, CC::NifKeyString(prefix, hands)), "marble key: opacity changes the casting-art key");
+            hands.handMarbleOpacity = 0.9;
+            hands.handMarbleScale = 4.0;
+            a_check(Differs(brightHands, CC::NifKeyString(prefix, hands)), "marble key: scale above two remains valid and changes the key");
+            hands.handMarbleScale = 4.1;
+            a_check(!CC::NifKeyString(prefix, hands), "marble key: scale outside bounds gives no key");
+            hands.handMarbleScale = 1.15;
+            hands.handMarbleOpacity = 1.1;
+            a_check(!CC::NifKeyString(prefix, hands), "marble key: opacity outside bounds gives no key");
+            hands.tintAddHands.reset();
+            a_check(Same(ordinary, CC::NifKeyString(prefix, hands)), "marble key: settings never affect non-casting copies");
             a_check(golden && *golden == kGoldenNif && CC::Key16Of(*golden) == kGoldenNifKey16,
                 "key: the golden muzzle string and key16 (" + golden.value_or("refused") + ")");
             auto rotated = Muzzle();

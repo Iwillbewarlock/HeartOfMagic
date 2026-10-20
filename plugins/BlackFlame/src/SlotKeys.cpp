@@ -347,13 +347,17 @@ namespace BlackFlame::SlotKeys
     }
 
     std::optional<Key> NifKey(const Inputs& a_inputs, CC::NifKind a_kind, const std::string& a_recordModel,
-        const std::optional<std::uint64_t>& a_addnTableHash)
+        const std::optional<std::uint64_t>& a_addnTableHash, std::optional<double> a_tintAddHands,
+        double a_handMarbleOpacity, double a_handMarbleScale)
     {
         if (!a_inputs.prefix || a_recordModel.empty()) {
             return std::nullopt;
         }
         CC::NifKeyInput input;
         input.kind = a_kind;
+        input.tintAddHands = a_tintAddHands;
+        input.handMarbleOpacity = a_handMarbleOpacity;
+        input.handMarbleScale = a_handMarbleScale;
         input.path = a_recordModel;
         input.nif = NifHash(a_inputs, a_recordModel);
         const auto path = NifDump::NormalizeModelPath(a_recordModel);

@@ -95,11 +95,22 @@ namespace BlackFlame::CopyRequestV5
                 Json item = CopyRequestData::FormJson(form.form, form.kind);
                 item["viaSpell"] = SourceText(RE::TESForm::LookupByID(form.viaSpell));
                 item["costliest"] = form.reachedByCostliest;
+                const auto* art = form.form->As<RE::BGSArtObject>();
+                const bool hands = art && art->data.artType.underlying() == 0;
+                if (hands) {
+                    item[CC::Request::kRole] = CC::Request::kCastingArtRole;
+                    item[CC::Request::kTintAddHands] = *CC::QuantizedTint(GetConfig().tintAddHands);
+                    item[CC::Request::kHandMarbleOpacity] = GetConfig().handMarbleOpacity;
+                    item[CC::Request::kHandMarbleScale] = GetConfig().handMarbleScale;
+                }
                 if (const auto it = slotOf.find(form.form->GetFormID()); it != slotOf.end()) {
                     const auto& slot = SlotAssign::At(it->second);
                     item[CC::Request::kSlot] = it->second;
                     if (slot.modelKey) {
                         item[CC::Request::kKey] = CC::Hex16(slot.modelKey->key);
+                        if (hands) {
+                            item[CC::Request::kKeyString] = slot.modelKey->text;
+                        }
                         ++a_out.forms;
                     }
                 }

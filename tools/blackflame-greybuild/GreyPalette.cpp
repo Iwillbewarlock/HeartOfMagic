@@ -104,6 +104,10 @@ namespace GreyBuild
         // P2 (additive) or P1 (normal blend) from the source image; false with a_why when our palette does not read
         using Made = KeyedOutputs::Made;
         const auto make = [&](RgbaImage& a_image, std::string& a_makeWhy) {
+            if (a_additive && a_job.tintAddHands) {
+                MakeHandPalette(a_image, static_cast<float>(*a_job.tintAddHands));
+                return Made::kMade;
+            }
             if (a_additive) {
                 Desaturate(a_image);
                 return Made::kMade;
@@ -157,6 +161,32 @@ namespace GreyBuild
     void DesaturatePalette(RgbaImage& a_image)
     {
         Desaturate(a_image);
+    }
+
+    void MakeHandPalette(RgbaImage& a_image, float a_tint)
+    {
+        const auto luminance = [&](std::size_t a_x, std::size_t a_y) {
+            const auto p = a_image.At(a_x, a_y);
+            const auto linear = [&](double a_v) {
+                return a_image.srgb ? SrgbToLinear(static_cast<float>(a_v)) : static_cast<float>(a_v);
+            };
+            return Luminance(linear(p[0]), linear(p[1]), linear(p[2]));
+        };
+        for (std::size_t y = 0; y < a_image.height; ++y) {
+            float peak = 0.0f;
+            for (std::size_t x = 0; x < a_image.width; ++x) {
+                peak = std::max(peak, luminance(x, y));
+            }
+            for (std::size_t x = 0; x < a_image.width; ++x) {
+                const float u = a_image.width > 1 ? static_cast<float>(x) / static_cast<float>(a_image.width - 1) : 1.0f;
+                const float t = std::clamp((u - 0.30f) / 0.40f, 0.0f, 1.0f);
+                const float row = peak > 0.0f ? luminance(x, y) / peak : 0.0f;
+                const float value = std::clamp(a_tint * t * t * (3.0f - 2.0f * t) * row, 0.0f, 1.0f);
+                const auto grey = Byte(a_image.srgb ? LinearToSrgb(value) : value);
+                auto* pixel = a_image.pixels.data() + (y * a_image.width + x) * 4;
+                pixel[0] = pixel[1] = pixel[2] = grey;
+            }
+        }
     }
 
     bool WritePaletteDds(const RgbaImage& a_image, const std::filesystem::path& a_file, std::string& a_why)

@@ -10,6 +10,7 @@
 #include "GreyKeyed.h"
 
 #include "GreyGlow.h"
+#include "GreyMarble.h"
 #include "GreyFormsTxst.h"
 
 #include "../../plugins/BlackFlame/src/DataPathRule.h"
@@ -143,6 +144,49 @@ namespace GreyBuild
                 a_object.fallbacks.push_back(fmt::format("{} AddOnNode value(s) bound to no slot kept (first: {})", result.keptValues.size(),
                     result.keptValues.front()));
             }
+            if (result.ok && a_spec.handMarbleOpacity) {
+                const auto marbleTemp = std::filesystem::path(temp.wstring() + L".marble.tmp");
+                TempGuard marbleGuard{ marbleTemp };
+                // Only deterministic graph operations may retain a reusable ramp-only copy.
+                const auto graphStep = [&](const auto& step) {
+                    try {
+                        step();
+                        return true;
+                    } catch (const std::bad_alloc&) {
+                        throw;
+                    } catch (const std::runtime_error& e) {
+                        const auto why = fmt::format("marble skipped; ramp-only copy retained: {}", e.what());
+                        a_object.fallbacks.push_back(why);
+                        std::cout << fmt::format("WARN  {}: {}\n", a_spec.source, why);
+                        return false;
+                    }
+                };
+                try {
+                    nifly::NifFile original, marble;
+                    LoadNif(original, *source);
+                    LoadNif(marble, temp);
+                    MarbleTotals count;
+                    const bool added = graphStep([&] {
+                        count = AddHandMarble(marble, original, *a_run.glow.textures,
+                            *a_spec.handMarbleOpacity, a_spec.handMarbleScale);
+                    });
+                    if (added && count.systems) {
+                        SaveNif(marble, marbleTemp);
+                        nifly::NifFile reread;
+                        LoadNif(reread, marbleTemp);
+                        if (graphStep([&] { ValidateMarbleRefs(reread); })) {
+                            std::string why;
+                            if (!CommitTemp(marbleTemp, temp, why)) a_object.failed = why;
+                        }
+                    }
+                    std::cout << fmt::format("marble {}: {} system(s), source pool {}, added pool {}\n",
+                        a_spec.source, count.systems, count.sourceParticles, count.addedParticles);
+                } catch (const std::bad_alloc&) {
+                    throw; // GuardObject records kFailed, never a reusable fallback.
+                } catch (const std::exception& e) {
+                    a_object.failed = e.what();
+                }
+            }
             auto [outcome, reason] = ClassifyObject(a_object);
             if (!CC::IsPublishable(outcome)) {
                 RemoveQuietly(temp);
@@ -213,7 +257,9 @@ namespace GreyBuild
         [[nodiscard]] CC::ProgressLine BuildObject(const KeyedSpec& a_spec, Run& a_run)
         {
             KeyedObject object;
-            a_run.outputs.Begin(&object);
+            a_run.outputs.Begin(&object, a_spec.tintAddHands);
+            a_run.glow.tintAddHands = a_spec.tintAddHands;
+            a_run.glow.palettes->tintAddHands = a_spec.tintAddHands;
             auto line = GuardObject(a_spec, [&]() {
                 return a_spec.kind == CC::ProgressKind::kTxst ? BuildTxstObject(a_spec, object, a_run) : BuildNifObject(a_spec, object, a_run);
             });
@@ -306,6 +352,7 @@ namespace GreyBuild
     CC::ProgressLine GuardObject(const KeyedSpec& a_spec, const std::function<CC::ProgressLine()>& a_build)
     {
         try {
+            if (!a_spec.requestFailure.empty()) return Line(a_spec, CC::Outcome::kFailed, a_spec.requestFailure);
             return a_build();
         } catch (const std::bad_alloc&) {
             return Line(a_spec, CC::Outcome::kFailed, "out of memory (bad_alloc)");
@@ -454,7 +501,7 @@ namespace GreyBuild
                 std::cerr << "the parent process is gone: stopping before the first object\n";
                 return kExitParentGone;
             }
-            if (log.Reusable(spec.key, budget.Cap())) {
+            if (spec.requestFailure.empty() && log.Reusable(spec.key, budget.Cap())) {
                 ++hits;
                 continue;
             }

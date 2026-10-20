@@ -77,6 +77,10 @@ namespace GreyBuild
         std::size_t form = kNoForm;  // txst: the TXST form in the request's forms (kNoForm: none has the key)
         std::uint64_t cost = 0;      // the scheduler's texture estimate
         bool textured = false;       // names a texture the rule recolours that the dump has
+        std::optional<double> tintAddHands;  // casting-art object override, absent for every other role
+        std::optional<double> handMarbleOpacity;  // absent for every non-casting role
+        double handMarbleScale = BlackFlame::CopyContract::kDefaultHandMarbleScale;
+        std::string requestFailure;  // per-object validation failure; GuardObject reports it without building
     };
 
     struct KeyedRequest
@@ -176,7 +180,11 @@ namespace GreyBuild
         KeyedOutputs(ProgressLog& a_log, Budget& a_budget, BlackFlame::CopyContract::KeyPrefix a_prefix, TextureJob& a_textures,
             std::set<std::string> a_listed, std::map<std::string, BlackFlame::CopyContract::Request::TextureState> a_states);
 
-        void Begin(KeyedObject* a_object) noexcept { m_object = a_object; }
+        void Begin(KeyedObject* a_object, std::optional<double> a_tintAddHands = std::nullopt) noexcept
+        {
+            m_object = a_object;
+            m_tintAddHands = a_tintAddHands;
+        }
 
         /// The object in hand has failed: its remaining slots, palettes and reads are not tried (second OCR review 4)
         [[nodiscard]] bool ObjectFailed() const noexcept { return m_object && !m_object->failed.empty(); }
@@ -241,6 +249,7 @@ namespace GreyBuild
         std::set<std::string> m_listed;
         std::map<std::string, BlackFlame::CopyContract::Request::TextureState> m_states;  // request v5 textures[].state
         KeyedObject* m_object = nullptr;
+        std::optional<double> m_tintAddHands;
         std::map<std::string, Child> m_children;  // "<role|blend>|<source path>" -> what it gave
         std::map<std::string, bool> m_paletteBlends;
     };

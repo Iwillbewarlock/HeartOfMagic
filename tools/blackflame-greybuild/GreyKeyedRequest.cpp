@@ -14,6 +14,7 @@
 #include "GreyKeyed.h"
 
 #include "GreyJson.h"
+#include "GreyFormsTxst.h"
 
 #include <algorithm>
 #include <charconv>
@@ -78,6 +79,72 @@ namespace GreyBuild
                 a_where);
         }
 
+        std::optional<double> ReadHands(const std::filesystem::path& a_file, const nlohmann::json& a_item,
+            const FormSource& a_form, const std::string& a_prefix, KeyedSpec& a_spec)
+        {
+            const auto type = a_form.data.find("artType");
+            const bool casting = a_form.type == CopyType::kArtObject &&
+                (type == a_form.data.end() || type->second == 0.0);
+            const bool field = a_item.contains(CC::Request::kTintAddHands);
+            const auto role = a_item.find(CC::Request::kRole);
+            if (!casting) {
+                if (field || role != a_item.end() || a_item.contains(CC::Request::kKeyString) ||
+                    a_item.contains(CC::Request::kHandMarbleOpacity) || a_item.contains(CC::Request::kHandMarbleScale)) {
+                    Json::Fail(a_file, "forms: casting-art override on another object role");
+                }
+                return std::nullopt;
+            }
+            if (!field || role == a_item.end() || !role->is_string() || *role != CC::Request::kCastingArtRole) {
+                Json::Fail(a_file, "forms: casting art requires role castingArt and tintAddHands");
+            }
+            const auto tint = ReadTint(a_file, a_item, CC::Request::kTintAddHands);
+            if (CC::QuantizedTint(tint) != tint) {
+                Json::Fail(a_file, "forms: tintAddHands must already be quantised to six decimals");
+            }
+            for (const auto* name : { CC::Request::kHandMarbleOpacity, CC::Request::kHandMarbleScale }) {
+                const bool opacity = std::string_view(name) == CC::Request::kHandMarbleOpacity;
+                const auto it = a_item.find(name);
+                if (it == a_item.end() || !it->is_number()) {
+                    Json::Fail(a_file, std::string("forms: casting art requires numeric ") + name);
+                }
+                const double value = it->get<double>();
+                const auto quantised = CC::QuantizedTint(value, opacity ? 0.0 : CC::kMinHandMarbleScale,
+                    opacity ? 1.0 : CC::kMaxHandMarbleScale);
+                if (!quantised || *quantised != value) {
+                    Json::Fail(a_file, std::string("forms: ") + name + " must be in range and quantised to six decimals");
+                }
+                if (opacity) {
+                    a_spec.handMarbleOpacity = value;
+                } else {
+                    a_spec.handMarbleScale = value;
+                }
+            }
+            if (!a_form.key.empty()) {
+                const auto text = Json::ReadString(a_file, a_item, CC::Request::kKeyString, "forms casting art");
+                const std::string suffix = "|hands=" + *CC::TintText(tint) +
+                    "|handmarbleopacity=" + *CC::TintText(*a_spec.handMarbleOpacity, 0.0, 1.0) +
+                    "|handmarblescale=" + *CC::TintText(a_spec.handMarbleScale, CC::kMinHandMarbleScale, CC::kMaxHandMarbleScale);
+                const auto start = a_prefix + "|kind=model|";
+                if (text.compare(0, start.size(), start) != 0 || text.size() < suffix.size() ||
+                    text.compare(text.size() - suffix.size(), suffix.size(), suffix) != 0 || CC::Key16Of(text) != a_form.key) {
+                    Json::Fail(a_file, "forms: casting-art keyString/key/prefix/model/hand settings disagree");
+                }
+                // SlotKeys hashes raw record bytes. FormJson preserves valid UTF-8, otherwise converts ACP to UTF-8.
+                // Test both lossless representations, using the JSON text before path normalization touches DBCS bytes.
+                const auto model = Json::ReadString(a_file, a_item, "model", "forms casting art");
+                const auto matches = [&](const std::string& bytes) {
+                    const auto path = CC::Detail::PathField("nif", bytes, BlackFlame::DataPathRule::kMeshesRoot, true);
+                    const auto expected = start + path.value_or("") + "|nifhash=";
+                    return path && text.compare(0, expected.size(), expected) == 0;
+                };
+                const auto raw = Utf8ToAnsiExact(model);
+                if (!matches(model) && (!raw || !matches(*raw))) {
+                    a_spec.requestFailure = "casting-art model does not match the key's original path bytes";
+                }
+            }
+            return tint;
+        }
+
         /// Adds a_spec unless its key is there already (the same object twice is quiet; another one with that key is warned)
         void AddObject(KeyedRequest& a_request, std::map<std::uint64_t, std::size_t>& a_byKey, KeyedSpec a_spec, const std::string& a_where)
         {
@@ -87,7 +154,8 @@ namespace GreyBuild
                 return;
             }
             const auto& first = a_request.objects[it->second];
-            if (first.kind != a_spec.kind || first.source != a_spec.source) {  // one key, two objects: the DLL's mistake
+            if (first.kind != a_spec.kind || first.source != a_spec.source || first.tintAddHands != a_spec.tintAddHands ||
+                first.handMarbleOpacity != a_spec.handMarbleOpacity || first.handMarbleScale != a_spec.handMarbleScale) {
                 throw std::runtime_error(fmt::format("{}: key {} names another object as well ({} {})", a_where, CC::Hex16(a_spec.key),
                     CC::ProgressKindText(first.kind), first.source));
             }
@@ -96,10 +164,23 @@ namespace GreyBuild
         void ReadObjects(const std::filesystem::path& a_file, const nlohmann::json& a_root, KeyedRequest& a_request)
         {
             std::map<std::uint64_t, std::size_t> byKey;
+            for (const auto* collection : { CC::Request::kMuzzles, CC::Request::kAddnMps, CC::Request::kTxst }) {
+                for (const auto& item : Json::RequireArray(a_file, a_root, collection)) {
+                    if (item.contains(CC::Request::kTintAddHands) || item.contains(CC::Request::kRole) ||
+                        item.contains(CC::Request::kKeyString) || item.contains(CC::Request::kHandMarbleOpacity) ||
+                        item.contains(CC::Request::kHandMarbleScale)) {
+                        Json::Fail(a_file, std::string(collection) + ": casting-art override on another object role");
+                    }
+                }
+            }
             const auto& forms = a_request.base.forms;
             std::set<std::string> unread;  // nifs[] ok false: the game could not read them
             for (const auto& nif : a_request.base.failedNifs) {
                 unread.insert(MeshDataPath(nif));
+            }
+            std::map<std::string, const nlohmann::json*> formJson;
+            for (const auto& item : Json::RequireArray(a_file, a_root, "forms")) {
+                formJson.emplace(NormalizeSource(Json::ReadString(a_file, item, "source", "forms")), &item);
             }
             std::set<int> txstSlots;
             for (const auto& form : forms) {
@@ -112,6 +193,8 @@ namespace GreyBuild
                 }
             }
             for (std::size_t i = 0; i < forms.size(); ++i) {
+                KeyedSpec spec;
+                const auto hands = ReadHands(a_file, *formJson.at(forms[i].source), forms[i], a_request.keyPrefix, spec);
                 if (forms[i].type == CopyType::kTextureSet || forms[i].model.empty()) {
                     continue;  // a TXST is built through txst[]; a form with no model has nothing to copy
                 }
@@ -125,7 +208,11 @@ namespace GreyBuild
                                                             : "the game read the NIF, yet the DLL gave it no key (SlotKeys::NifKey)"));
                     continue;
                 }
-                AddObject(a_request, byKey, { CC::ProgressKind::kNif, *CC::ParseHex16(forms[i].key), forms[i].model }, "forms");
+                spec.kind = CC::ProgressKind::kNif;
+                spec.key = *CC::ParseHex16(forms[i].key);
+                spec.source = forms[i].model;
+                spec.tintAddHands = hands;
+                AddObject(a_request, byKey, std::move(spec), "forms");
             }
             const auto& muzzles = Json::RequireArray(a_file, a_root, CC::Request::kMuzzles);
             for (std::size_t i = 0; i < muzzles.size(); ++i) {

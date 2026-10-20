@@ -66,6 +66,8 @@ namespace BlackFlame::CopyContract
     // threshold, a tint, an encoder or a library version); the golden test names the bump when it is missing.
     // 1: BFK4, the first output identity (BFK3 keys carried the builder exe's FNV-1a 64 instead).
     // 2: contract 6, the effect shader palettes' grey copies (request efshPalettes[]).
+    // Casting-art output also changed under out=2: hands/handmarbleopacity/handmarblescale make new keys, so old copies
+    // cannot collide. The golden fixture does not cover hands yet; their dedicated self-tests verify this output.
     inline constexpr std::uint32_t kBuilderOutputVersion = 2;
     inline constexpr std::string_view kDevIdentityTag = "+dev";  // <n>+dev<16 lower-case hex>
     inline constexpr std::string_view kAddnTableFormat = "BFA2";
@@ -147,6 +149,9 @@ namespace BlackFlame::CopyContract
         FileHash nif;
         std::vector<TextureRef> textures;  // TexturePathsIn of the NIF's bytes
         std::optional<std::uint64_t> addnTable;  // nullopt: no BSValueNode (addn=none); else AddnTableHash
+        std::optional<double> tintAddHands;  // casting-art model only; absence preserves pre-contract-7 bytes
+        double handMarbleOpacity = kDefaultHandMarbleOpacity;  // included only with tintAddHands
+        double handMarbleScale = kDefaultHandMarbleScale;
     };
 
     struct TxstKeyInput
@@ -342,6 +347,17 @@ namespace BlackFlame::CopyContract
             out->append(textures[i].first).append("=").append(textures[i].second);
         }
         Detail::Field(*out, "addn", a_input.addnTable ? Hex16(*a_input.addnTable) : std::string(kSentinelNone));
+        if (a_input.tintAddHands) {
+            const auto tint = TintText(*a_input.tintAddHands);
+            const auto opacity = TintText(a_input.handMarbleOpacity, 0.0, 1.0);
+            const auto scale = TintText(a_input.handMarbleScale, kMinHandMarbleScale, kMaxHandMarbleScale);
+            if (a_input.kind != NifKind::kModel || !tint || !opacity || !scale) {
+                return std::nullopt;
+            }
+            Detail::Field(*out, "hands", *tint);
+            Detail::Field(*out, "handmarbleopacity", *opacity);
+            Detail::Field(*out, "handmarblescale", *scale);
+        }
         return out;
     }
 
@@ -408,9 +424,17 @@ namespace BlackFlame::CopyContract
 
     /// The builder's derived palette key string; nullopt for a source Normalize refuses or an unknown blend
     [[nodiscard]] inline std::optional<std::string> PaletteKeyString(const KeyPrefix& a_prefix, PaletteBlend a_blend,
-        const ChildKeyInput& a_input)
+        const ChildKeyInput& a_input, std::optional<double> a_tintAddHands = std::nullopt)
     {
-        return Detail::ChildKeyString(a_prefix, "palette", "blend", PaletteBlendText(a_blend), a_input);
+        auto out = Detail::ChildKeyString(a_prefix, "palette", "blend", PaletteBlendText(a_blend), a_input);
+        if (out && a_tintAddHands) {
+            const auto tint = TintText(*a_tintAddHands);
+            if (!tint) {
+                return std::nullopt;
+            }
+            Detail::Field(*out, "hands", *tint);
+        }
+        return out;
     }
 
     /// An effect shader palette's grey copy key string (contract 6): the source palette at its luminance, alpha and rows

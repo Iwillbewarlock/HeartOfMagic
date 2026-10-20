@@ -89,7 +89,8 @@ namespace BlackFlame::SlotKeys
     /// A NIF object's key (form model, PROJ muzzle, ADDN MPS); nullopt without a prefix, for a path Normalize refuses, or a
     /// NIF with BSValueNode while the ADDN table has no hash
     [[nodiscard]] std::optional<Key> NifKey(const Inputs& a_inputs, CC::NifKind a_kind, const std::string& a_recordModel,
-        const std::optional<std::uint64_t>& a_addnTableHash);
+        const std::optional<std::uint64_t>& a_addnTableHash, std::optional<double> a_tintAddHands = std::nullopt,
+        double a_handMarbleOpacity = CC::kDefaultHandMarbleOpacity, double a_handMarbleScale = CC::kDefaultHandMarbleScale);
 
     /// A TXST slot's key from its source's eight slots, TX00 / TX03's states and its DODT; nullopt without a prefix
     [[nodiscard]] std::optional<Key> TxstKey(const Inputs& a_inputs, const RE::BGSTextureSet& a_source);

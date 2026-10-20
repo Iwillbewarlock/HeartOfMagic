@@ -10,6 +10,7 @@
 // and the throttle.
 
 #include "GreySelfTestKeyed.h"
+#include "GreyFormsTxst.h"
 
 #include "../../plugins/BlackFlame/src/DataPathRule.h"
 
@@ -21,6 +22,7 @@
 #include <fmt/format.h>
 #include <fstream>
 #include <memory>
+#include <nlohmann/json.hpp>
 
 namespace GreyBuild::SelfTest::Keyed
 {
@@ -251,6 +253,113 @@ namespace GreyBuild::SelfTest::Keyed
                     return !a_why || std::string(e.what()).find(a_why) != std::string::npos;
                 }
             };
+            auto handRequest = nlohmann::json::parse(ReadAll(fixture.folder / "request.json"));
+            auto& hand = handRequest["forms"][0];
+            hand["type"] = "ARTO";
+            hand["data"] = { { "artType", 0 } };
+            hand["slot"] = 0xD00;
+            hand[CC::Request::kRole] = CC::Request::kCastingArtRole;
+            hand[CC::Request::kTintAddHands] = 1.4;
+            hand[CC::Request::kHandMarbleOpacity] = 0.9;
+            hand[CC::Request::kHandMarbleScale] = 1.15;
+            const std::string handKey = handRequest["options"]["keyPrefix"].get<std::string>() +
+                "|kind=model|nif=meshes\\magic\\keyed.nif|nifhash=" + CC::Hex16(Fnv(fixture.dump / "meshes/magic/keyed.nif")) +
+                "|addn=none|hands=1.400000|handmarbleopacity=0.900000|handmarblescale=1.150000";
+            hand[CC::Request::kKeyString] = handKey;
+            hand["key"] = CC::Key16Of(handKey);
+            a_check.Check(!refusedText("req_hands", handRequest.dump()), "request v5: casting art carries a verified object tint/key");
+            // FormJson sanitizes raw ACP paths to UTF-8; SlotKeys hashes the original bytes.
+            for (const std::string utf8 : { "magic\\\xED\x9A\xA8\xEA\xB3\xBC.nif", "magic\\\xC3\xA9.nif" }) {
+                const auto raw = Utf8ToAnsiExact(utf8);
+                for (const auto& bytes : { std::optional<std::string>(utf8), raw }) {
+                    if (!bytes) continue;
+                    auto encoded = handRequest;
+                    auto& form = encoded["forms"][0];
+                    form["model"] = utf8;
+                    auto key = handKey;
+                    const std::string ascii = "nif=meshes\\magic\\keyed.nif";
+                    key.replace(key.find(ascii), ascii.size(), *CC::Detail::PathField("nif", *bytes,
+                        BlackFlame::DataPathRule::kMeshesRoot, true));
+                    form[CC::Request::kKeyString] = key;
+                    form["key"] = CC::Key16Of(key);
+                    const auto file = Write(a_dir / "req_hand_encoding" / "request.json", encoded.dump());
+                    bool accepted = false;
+                    try {
+                        const auto read = LoadKeyedRequest(file);
+                        accepted = read.objects.size() == request.objects.size() && read.objects[0].requestFailure.empty();
+                    } catch (const std::runtime_error&) {}
+                    a_check.Check(accepted, "request v5: non-ASCII hand model compares the original UTF-8 or ACP key bytes");
+                }
+            }
+            auto badModel = handRequest;
+            badModel["forms"][0]["model"] = "magic\\wrong.nif";
+            bool isolated = false;
+            try {
+                const auto read = LoadKeyedRequest(Write(a_dir / "req_hand_badmodel" / "request.json", badModel.dump()));
+                bool built = false;
+                const auto line = GuardObject(read.objects[0], [&]() { built = true; return CC::ProgressLine{}; });
+                isolated = read.objects.size() == request.objects.size() && !built && line.outcome == CC::Outcome::kFailed &&
+                    line.reason.find("model") != std::string::npos && read.objects[1].requestFailure.empty();
+            } catch (const std::runtime_error&) {}
+            a_check.Check(isolated, "request v5: one hand model/key mismatch fails only that object, before building");
+            const auto originalRequest = ReadAll(fixture.folder / "request.json");
+            Write(fixture.folder / "request.json", badModel.dump());
+            const int isolatedExit = Run(fixture);
+            const auto isolatedProgress = Progress(fixture);
+            Write(fixture.folder / "request.json", originalRequest);
+            const auto* badLine = Find(isolatedProgress, CC::KeyOf(handKey));
+            const auto* goodLine = Find(isolatedProgress, kPlain);
+            a_check.Check(isolatedExit == 0 && badLine && badLine->outcome == CC::Outcome::kFailed &&
+                goodLine && goodLine->outcome == CC::Outcome::kOk,
+                "key run: a hand model/key mismatch fails alone while another NIF is written successfully");
+            auto malformed = handRequest;
+            malformed["forms"][0][CC::Request::kTintAddHands] = 1.5;
+            a_check.Check(refusedText("req_handkey", malformed.dump(), "disagree"),
+                "request v5: hand tint that disagrees with its key is refused");
+            malformed = handRequest;
+            malformed["forms"][0]["data"]["artType"] = 1;
+            a_check.Check(refusedText("req_handrole", malformed.dump(), "another object role"),
+                "request v5: a hit-art object cannot request a casting-art override");
+            malformed = handRequest;
+            malformed["forms"][0].erase(CC::Request::kTintAddHands);
+            a_check.Check(refusedText("req_handmissing", malformed.dump(), "requires role"),
+                "request v5: casting art without its required override is refused");
+            malformed = handRequest;
+            malformed["forms"][0][CC::Request::kTintAddHands] = 1.4000004;
+            a_check.Check(refusedText("req_handround", malformed.dump(), "quantised"),
+                "request v5: an unquantised hand override is refused");
+            malformed = handRequest;
+            malformed["forms"][0]["key"] = "0000000000000001";
+            a_check.Check(refusedText("req_handhash", malformed.dump(), "disagree"),
+                "request v5: a hand key that is not its canonical text hash is refused");
+            malformed = handRequest;
+            malformed["muzzles"][0][CC::Request::kTintAddHands] = 1.4;
+            a_check.Check(refusedText("req_handmuzzle", malformed.dump(), "another object role"),
+                "request v5: muzzle objects cannot carry a casting-art override");
+            struct MarbleCase { const char* field; double value; const char* reason; };
+            const MarbleCase marbleCases[] = {
+                { CC::Request::kHandMarbleOpacity, 0.8, "disagree" },
+                { CC::Request::kHandMarbleScale, 1.2, "disagree" },
+                { CC::Request::kHandMarbleOpacity, -0.01, "in range" },
+                { CC::Request::kHandMarbleOpacity, 1.01, "in range" },
+                { CC::Request::kHandMarbleScale, CC::kMinHandMarbleScale - 0.01, "in range" },
+                { CC::Request::kHandMarbleScale, CC::kMaxHandMarbleScale + 0.01, "in range" },
+                { CC::Request::kHandMarbleOpacity, 0.9000004, "quantised" },
+                { CC::Request::kHandMarbleScale, 1.1500004, "quantised" }
+            };
+            int marbleCase = 0;
+            for (const auto& test : marbleCases) {
+                malformed = handRequest;
+                malformed["forms"][0][test.field] = test.value;
+                a_check.Check(refusedText("req_marble_" + std::to_string(marbleCase++), malformed.dump(), test.reason),
+                    "request v5: " + std::string(test.field) + " rejects key mismatch, unclamped or unquantised value " + std::to_string(test.value));
+            }
+            for (const auto* field : { CC::Request::kHandMarbleOpacity, CC::Request::kHandMarbleScale }) {
+                malformed = handRequest;
+                malformed["forms"][0].erase(field);
+                a_check.Check(refusedText("req_missing_" + std::string(field), malformed.dump(), "requires numeric"),
+                    "request v5: casting art requires " + std::string(field));
+            }
             auto unlisted = ReadAll(fixture.folder / "request.json");
             const std::string keyedNif = R"({"path":"meshes\\magic\\keyed.nif")";
             unlisted.replace(unlisted.find(keyedNif), keyedNif.size(), R"({"path":"meshes\\magic\\other.nif")");

@@ -66,6 +66,8 @@ namespace GreyBuild::SelfTest
     /// The key mode end to end (GreySelfTestKeyed.cpp): request v5, a run into staging, the cache, terminal and fallback
     /// outcomes, the CLI refusals - on made-up NIFs (a_sourceNif) and DDS files in a_dir
     void CheckKeyed(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_sourceNif);
+    void CheckHands(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_sourceNif);
+    void CheckMarble(Checker& a_check, const std::filesystem::path& a_dir);
 
     /// The effect shader palettes of the key mode (GreySelfTestEfsh.cpp, contract 6): the request's efshPalettes written by
     /// the DLL's own writer (CopyContractEfsh.h), a fire palette greyed, a non-fire one and a missing one skipped, the key

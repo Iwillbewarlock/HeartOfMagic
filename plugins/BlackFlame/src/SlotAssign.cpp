@@ -218,7 +218,11 @@ namespace BlackFlame::SlotAssign
                     continue;
                 }
                 const auto kind = slot.type == CC::SlotType::kADDN ? CC::NifKind::kMps : CC::NifKind::kModel;
-                slot.modelKey = SlotKeys::NifKey(a_inputs, kind, slot.sourceModel, addnTable);
+                const auto* art = slot.source->As<RE::BGSArtObject>();
+                const auto hands = art && art->data.artType.underlying() == 0 ?
+                    CC::QuantizedTint(GetConfig().tintAddHands) : std::nullopt;
+                slot.modelKey = SlotKeys::NifKey(a_inputs, kind, slot.sourceModel, addnTable, hands,
+                    GetConfig().handMarbleOpacity, GetConfig().handMarbleScale);
                 if (!slot.sourceMuzzle.empty()) {
                     slot.muzzleKey = SlotKeys::NifKey(a_inputs, CC::NifKind::kMuzzle, slot.sourceMuzzle, addnTable);
                 }

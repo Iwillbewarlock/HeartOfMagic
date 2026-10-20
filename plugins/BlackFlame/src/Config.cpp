@@ -1,6 +1,7 @@
 #include "Config.h"
 
 #include "OldCopiesRule.h"
+#include "CopyContract.h"
 
 #include <nlohmann/json.hpp>
 
@@ -86,7 +87,8 @@ namespace BlackFlame
         bool IsKnownKey(std::string_view key)
         {
             if (key == "lightColor" || key == "selfTestDelaySeconds" || key == "devAutoLoad" || key == "copyModelProbe" ||
-                key == "tint" || key == "tintAdd" || key == "paletteMode" || key == "builderJobMemoryMiB" ||
+                key == "tint" || key == "tintAdd" || key == "tintAddHands" || key == "paletteMode" || key == "builderJobMemoryMiB" ||
+                key == "handMarbleOpacity" || key == "handMarbleScale" ||
                 key == "corpseWindowGameSeconds" || key == "oldCopiesGraceDays") {
                 return true;
             }
@@ -219,6 +221,33 @@ namespace BlackFlame
         {
             ReadTint(j, "tint", out.tint);
             ReadTint(j, "tintAdd", out.tintAdd);
+            if (const auto it = j.find("tintAddHands"); it != j.end()) {
+                if (it->is_number()) {
+                    out.tintAddHands = CopyContract::ClampTintAddHands(it->get<double>());
+                    if (out.tintAddHands != it->get<double>()) {
+                        logger::warn("BlackFlame: config tintAddHands {} clamped/quantised to {}", it->dump(), out.tintAddHands);
+                    }
+                } else {
+                    logger::warn("BlackFlame: config tintAddHands {} is not a number - keeping {}", it->dump(), out.tintAddHands);
+                }
+            }
+            for (const auto* key : { "handMarbleOpacity", "handMarbleScale" }) {
+                const auto it = j.find(key);
+                if (it == j.end()) {
+                    continue;
+                }
+                const bool opacity = std::string_view(key) == "handMarbleOpacity";
+                auto& value = opacity ? out.handMarbleOpacity : out.handMarbleScale;
+                if (!it->is_number()) {
+                    logger::warn("BlackFlame: config {} {} is not a number - keeping {}", key, it->dump(), value);
+                    continue;
+                }
+                value = opacity ? CopyContract::ClampHandMarbleOpacity(it->get<double>()) :
+                    CopyContract::ClampHandMarbleScale(it->get<double>());
+                if (value != it->get<double>()) {
+                    logger::warn("BlackFlame: config {} {} clamped/quantised to {}", key, it->dump(), value);
+                }
+            }
             if (const auto it = j.find("paletteMode"); it != j.end()) {
                 const std::string text = it->is_string() ? it->get<std::string>() : std::string();
                 if (text == "derived" || text == "godskin") {
@@ -303,9 +332,10 @@ namespace BlackFlame
                 g_config.copyHitArt, ProbeModeName(g_config.copyModelProbe), g_config.copyModelProbeAlways, g_config.copyCastingArt, g_config.refreshCastingArt, g_config.copyHazardCreate, g_config.copyPlaced, g_config.writeRequest, g_config.testerMode, g_config.devAutoLoad, g_config.devAutoE3, g_config.devAutoQuit, g_config.selfTestDelaySeconds,
                 g_config.lightColor.red, g_config.lightColor.green, g_config.lightColor.blue);
             logger::info("BlackFlame: config singleLaunch={} launchBuilder={} slotPreflight={} selfTestSlots={} slotTxst={} tint={} "
-                         "tintAdd={} paletteMode={} builderJobMemoryMiB={} cleanOldCopies={} oldCopiesGraceDays={}", g_config.singleLaunch,
+                         "tintAdd={} tintAddHands={} handMarbleOpacity={} handMarbleScale={} paletteMode={} builderJobMemoryMiB={} cleanOldCopies={} oldCopiesGraceDays={}", g_config.singleLaunch,
                 g_config.launchBuilder, g_config.slotPreflight, g_config.selfTestSlots, g_config.slotTxst, g_config.tint,
-                g_config.tintAdd, g_config.paletteGodskin ? "godskin" : "derived", g_config.builderJobMemoryMiB, g_config.cleanOldCopies,
+                g_config.tintAdd, g_config.tintAddHands, g_config.handMarbleOpacity, g_config.handMarbleScale,
+                g_config.paletteGodskin ? "godskin" : "derived", g_config.builderJobMemoryMiB, g_config.cleanOldCopies,
                 g_config.oldCopiesGraceDays);
             logger::info("BlackFlame: config greyCorpseShaders={} corpseWindowGameSeconds={}", g_config.greyCorpseShaders,
                 g_config.corpseWindowGameSeconds);

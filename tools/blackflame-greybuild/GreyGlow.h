@@ -61,6 +61,7 @@ namespace GreyBuild
         GlowTotals totals;
         std::set<std::string> haloKept;  // Y7: NIFs (source paths) where G1 would have emptied the effect: kept at G2
         std::map<std::string, std::map<std::uint32_t, std::string>> mixed;  // Z4: NIF -> shader -> why it is not G1
+        std::optional<double> tintAddHands;  // reset for every keyed request object
     };
 
     /// The rules above on a_copy (GreyEffects already ran on it) from a_source; prints a NOTE per thing it could not do

@@ -273,7 +273,7 @@ namespace GreyBuild
         std::string why;
         const auto digest = a_source.file.empty() ? std::nullopt : DigestFile(a_source.file, why);
         const auto keyText = digest ? CC::PaletteKeyString(m_prefix, a_additive ? CC::PaletteBlend::kAdd : CC::PaletteBlend::kNormal,
-                                          { a_source.path, digest->fnv64 }) :
+                                          { a_source.path, digest->fnv64 }, a_additive ? m_tintAddHands : std::nullopt) :
                                       std::nullopt;
         if (!keyText) {
             child.why = fmt::format("source palette {}: {}", a_source.path, digest ? "the contract gives it no key" :
@@ -343,7 +343,15 @@ namespace GreyBuild
             a_why = m_object->failed;
             return {};
         }
-        const std::string id = fmt::format("{}|{}", a_additive ? "add" : "normal", a_source.path);
+        const auto handTint = a_additive ? m_tintAddHands : std::nullopt;
+        const auto hands = handTint ? CC::TintText(*handTint) : std::optional<std::string>("");
+        if (!hands) {
+            a_why = fmt::format("source palette {}: the contract gives it no key", a_source.path);
+            Failed(a_why);
+            return {};
+        }
+        const std::string id = fmt::format("{}|{}{}", a_additive ? "add" : "normal", a_source.path,
+            handTint ? "|hands=" + *hands : std::string());
         auto it = m_children.find(id);
         if (it == m_children.end()) {
             auto child = MakePalette(a_source, a_additive, a_make, a_write);

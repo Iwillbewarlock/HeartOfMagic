@@ -73,6 +73,9 @@ namespace BlackFlame
         bool cleanOldCopies = true;   // OldCopies.h: copies\<key16>\ folders nothing keeps removed once a session; false: counts logged only
         std::uint32_t oldCopiesGraceDays = 14;  // OldCopies.h: a key folder whose newest file is younger than this is kept (1..3650)
         double tint = 0.6;            // the copies' base colour scale (the builder's kDefaultTint), into the key and request v5
+        double handMarbleOpacity = 0.9;  // casting-art dark layer: clamp 0..1, six decimals
+        double handMarbleScale = 1.15;   // relative particle radius: clamp 0.1..4, six decimals
+        double tintAddHands = 1.4;    // casting-art cores only: clamp 0..2, quantised to six decimals
         double tintAdd = 0.9;         // additive palette shaders' base colour scale (kDefaultTintAdd)
         bool paletteGodskin = false;  // "paletteMode": "derived" (false, the builder's default) or "godskin"
         std::uint32_t builderJobMemoryMiB = 1536;  // the builder's job object memory cap (JOB_OBJECT_LIMIT_JOB_MEMORY)

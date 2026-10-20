@@ -16,6 +16,7 @@
 
 #include "DataPathRule.h"
 
+#include <algorithm>
 #include <array>
 #include <charconv>
 #include <cmath>
@@ -36,7 +37,8 @@ namespace BlackFlame::CopyContract
     // 5: key format BFK4: the prefix's out=<output identity> in place of exe=<builder exe fnv64> (CopyContractKeys.h).
     // 6: request efshPalettes[] (CopyContractEfsh.h: the effect shader palettes the builder greys for the corpse rule, each
     //    one's dds line at its key's palette.dds), required; builder output version 2.
-    inline constexpr std::uint32_t kContractVersion = 6;
+    // 7: casting-art objects carry tintAddHands and marble opacity/scale, keyed independently of other copies.
+    inline constexpr std::uint32_t kContractVersion = 7;
 
     // =========================================================================
     // Slot pool (the slot ESL's local ids 0x800-0xFFF): fixed types, contiguous, never reused
@@ -305,9 +307,9 @@ namespace BlackFlame::CopyContract
 
     /// a_value as std::to_chars fixed with 6 decimals (locale-free), "-0.000000" written as "0.000000"; nullopt for NaN,
     /// infinity or a value outside kMinTint..kMaxTint (checked before rounding: 2.0000004 is refused, -0.0 taken)
-    [[nodiscard]] inline std::optional<std::string> TintText(double a_value)
+    [[nodiscard]] inline std::optional<std::string> TintText(double a_value, double a_min = kMinTint, double a_max = kMaxTint)
     {
-        if (!std::isfinite(a_value) || !(a_value >= kMinTint && a_value <= kMaxTint)) {
+        if (!std::isfinite(a_value) || !(a_value >= a_min && a_value <= a_max)) {
             return std::nullopt;
         }
         char buffer[32];
@@ -324,9 +326,9 @@ namespace BlackFlame::CopyContract
 
     /// The tint the DLL writes into request.json and builds the key prefix from: TintText's decimal read back
     /// (std::from_chars), so the JSON number, the key text and what the builder renders are one value; -0 is 0
-    [[nodiscard]] inline std::optional<double> QuantizedTint(double a_value)
+    [[nodiscard]] inline std::optional<double> QuantizedTint(double a_value, double a_min = kMinTint, double a_max = kMaxTint)
     {
-        const auto text = TintText(a_value);
+        const auto text = TintText(a_value, a_min, a_max);
         if (!text) {
             return std::nullopt;
         }
@@ -336,6 +338,33 @@ namespace BlackFlame::CopyContract
             return std::nullopt;
         }
         return value == 0.0 ? 0.0 : value;
+    }
+
+    inline constexpr double kDefaultHandMarbleOpacity = 0.9;
+    inline constexpr double kDefaultHandMarbleScale = 1.15;
+    inline constexpr double kMinHandMarbleScale = 0.1;
+    inline constexpr double kMaxHandMarbleScale = 4.0;
+
+    [[nodiscard]] inline double ClampHandMarbleOpacity(double a_value)
+    {
+        return std::isfinite(a_value) ? QuantizedTint(std::clamp(a_value, 0.0, 1.0)).value() : kDefaultHandMarbleOpacity;
+    }
+
+    [[nodiscard]] inline double ClampHandMarbleScale(double a_value)
+    {
+        return std::isfinite(a_value) ? QuantizedTint(std::clamp(a_value, kMinHandMarbleScale, kMaxHandMarbleScale),
+            kMinHandMarbleScale, kMaxHandMarbleScale).value() : kDefaultHandMarbleScale;
+    }
+
+    inline constexpr double kDefaultTintAddHands = 1.4;
+
+    /// Config policy for hand cores: finite values clamp to 0..2, then use the key's six decimals.
+    [[nodiscard]] inline double ClampTintAddHands(double a_value)
+    {
+        if (!std::isfinite(a_value)) {
+            return kDefaultTintAddHands;
+        }
+        return QuantizedTint(a_value < kMinTint ? kMinTint : a_value > kMaxTint ? kMaxTint : a_value).value_or(kDefaultTintAddHands);
     }
 
     // =========================================================================
@@ -425,6 +454,11 @@ namespace BlackFlame::CopyContract
         inline constexpr const char* kContractVersion = "contractVersion";
         inline constexpr const char* kOptions = "options";          // { tint, tintAdd, paletteMode, keyPrefix }
         inline constexpr const char* kTint = "tint";                // number: QuantizedTint of the DLL's config value
+        inline constexpr const char* kHandMarbleOpacity = "handMarbleOpacity";
+        inline constexpr const char* kHandMarbleScale = "handMarbleScale";
+        inline constexpr const char* kTintAddHands = "tintAddHands";  // casting-art object override only
+        inline constexpr const char* kKeyString = "keyString";      // canonical casting-art object key, checked by builder
+        inline constexpr const char* kCastingArtRole = "castingArt";
         inline constexpr const char* kTintAdd = "tintAdd";          // number: QuantizedTint as well
         inline constexpr const char* kPaletteMode = "paletteMode";  // "derived" | "godskin"
         // The key prefix the DLL built (KeyPrefixString). The builder rebuilds it from options, its compiled output

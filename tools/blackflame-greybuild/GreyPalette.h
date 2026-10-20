@@ -18,6 +18,7 @@
 
 #include <filesystem>
 #include <map>
+#include <optional>
 #include <string>
 
 namespace GreyBuild
@@ -53,6 +54,7 @@ namespace GreyBuild
         std::map<std::string, std::string> made;  // "add|path" / "normal|path" -> the slot text ("" when it failed)
         PaletteTotals totals;
         KeyedOutputs* keyed = nullptr;  // key mode: each palette at its own key's copies folder, with its line (GreyKeyed.h)
+        std::optional<double> tintAddHands;  // this object's casting-art override, never a run-wide tint
     };
 
     /// The greyscale texture slot a palette shader's copy takes for a_sourcePalette (its slot text), made once per run;
@@ -63,6 +65,9 @@ namespace GreyBuild
     /// P2 alone (the effect shader palettes' grey, GreyKeyedEfsh.cpp): every texel's colour to its luminance, alpha and
     /// rows untouched
     void DesaturatePalette(RgbaImage& a_image);
+
+    /// Casting art: dark low indices, white core; preserve each row's relative luminance and every alpha byte.
+    void MakeHandPalette(RgbaImage& a_image, float a_tint);
 
     /// a_image as an 8-bit RGBA DDS, one mip, sRGB as it is (the derived palettes' format); false with a_why
     [[nodiscard]] bool WritePaletteDds(const RgbaImage& a_image, const std::filesystem::path& a_file, std::string& a_why);
