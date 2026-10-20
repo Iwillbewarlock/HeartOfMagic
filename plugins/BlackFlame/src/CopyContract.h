@@ -11,6 +11,7 @@
 //   CopyContractKeys.h     the key strings of every model object (form NIF, muzzle, ADDN MPS, TXST, texture, palette)
 //   CopyContractProgress.h the builder's progress.jsonl line: outcome states, writer and tolerant parser
 //   CopyContractEfsh.h     request efshPalettes[]: its merge, writer and reader (contract 6)
+//   CopyContractEfshBase.h request efshBases[]: the non-palette fill / particle base textures and their key (contract 8)
 //   CopyContractTest.h     the shared test table both self-tests run (cosave-check and the builder)
 // The copies output path rule lives in DataPathRule.h (CopyPath, ParseCopyPath); the co-save record in SlotCoSave.h.
 
@@ -38,7 +39,10 @@ namespace BlackFlame::CopyContract
     // 6: request efshPalettes[] (CopyContractEfsh.h: the effect shader palettes the builder greys for the corpse rule, each
     //    one's dds line at its key's palette.dds), required; builder output version 2.
     // 7: casting-art objects carry tintAddHands and marble opacity/scale, keyed independently of other copies.
-    inline constexpr std::uint32_t kContractVersion = 7;
+    // 8: request efshBases[] (CopyContractEfshBase.h: the effect shaders' non-palette membrane fill and particle base
+    //    textures the builder greys for the corpse rule, each one's dds line at its key's copy.dds, key kind efshbase),
+    //    required; builder output version stays 2 (a new kind: no earlier key string or output byte changes).
+    inline constexpr std::uint32_t kContractVersion = 8;
 
     // =========================================================================
     // Slot pool (the slot ESL's local ids 0x800-0xFFF): fixed types, contiguous, never reused
@@ -486,6 +490,9 @@ namespace BlackFlame::CopyContract
         // contract 6: [{ path, role, state, key (state ok only) }] (CopyContractEfsh.h EfshPalettesJson / ParseEfshPalettes)
         inline constexpr const char* kEfshPalettes = "efshPalettes";
         inline constexpr const char* kRole = "role";                // "particle" | "membrane" | "both"
+        // contract 8: [{ path, role, state, key (state ok only) }], role "membrane-fill" | "particle-base" | "both"
+        // (CopyContractEfshBase.h EfshBasesJson / ParseEfshBases)
+        inline constexpr const char* kEfshBases = "efshBases";
 
         enum class TextureState : std::uint8_t
         {

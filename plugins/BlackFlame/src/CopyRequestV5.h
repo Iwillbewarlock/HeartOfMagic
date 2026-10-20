@@ -14,6 +14,7 @@
 //                AddOnNodes are remapped from; contract v4 names it), source (information) }
 //   txst[]       { slot, key, dodt }
 //   efshPalettes[] contract 6 (CopyContractEfsh.h EfshPalettesJson): { path, role, state, key (state ok) }
+//   efshBases[]    contract 8 (CopyContractEfshBase.h EfshBasesJson): the same shape, role membrane-fill / particle-base / both
 // The dump (data\meshes, data\textures, dump-manifest.json; CopyRequestDump.h) holds the very bytes the keys hashed (the
 // NIFs read at kDataLoaded, the planned textures); it is rewritten only when its fingerprint changed. With the config's
 // tint or tintAdd outside 0..2 there is no key prefix (SlotKeys) and no request is written (logged).
@@ -23,6 +24,7 @@
 #include "FireClosure.h"
 #include "SlotKeys.h"
 
+#include <set>
 #include <string>
 
 namespace BlackFlame::CopyRequestV5
@@ -39,9 +41,15 @@ namespace BlackFlame::CopyRequestV5
         std::size_t efshPalettes = 0;  // listed
         std::size_t efshKeyed = 0;     // of them, keyed (in the dump)
         std::size_t efshUnread = 0;    // of them, unread in textures[] (the game could not read it this start)
+        std::size_t efshBases = 0;     // contract 8: base textures listed
+        std::size_t efshBasesKeyed = 0;
         long long ms = 0;
     };
 
     /// kDataLoaded (singleLaunch), after the slots and their keys: the dump, then request.json v5 (temp + rename)
     Result Write(const FireClosure& a_closure, SlotKeys::Inputs& a_inputs);
+
+    /// kDataLoaded, before the plan (SlotKeys): the base texture paths the last request.json keyed (efshBases with state ok;
+    /// the dump plan puts them first in their tier). Empty when there is no such request, it does not parse or is older
+    [[nodiscard]] std::set<std::string> LastKeyedBases();
 }

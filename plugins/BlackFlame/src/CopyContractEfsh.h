@@ -18,6 +18,7 @@
 //                      (no key: nothing to build); DemoteUnwritableEfsh first turns an entry it would refuse
 //                      (EfshEntryFault) into a missing one, so one slip never costs the whole request
 //   ParseEfshPalettes  the builder's reader of the same array: anything malformed refuses the request (the DLL wrote it)
+// The writer, reader and keying run over an EfshListSpec, so efshBases[] (contract 8, CopyContractEfshBase.h) shares them.
 // C++17, no game types (DLL, builder, cosave-check).
 
 #include "CopyContractKeys.h"
@@ -152,29 +153,35 @@ namespace BlackFlame::CopyContract
         return out;
     }
 
-    /// The dump plan's path order (CopyRequestData PlanTextures, contract 6): a_first (the NIF and TXST texture texts) under
-    /// textures\, refused and our own (kEfshOwnFolder) left out, sorted, each once; then a_late (the effect shader palettes)
-    /// the same way, without a path a_first already has. Planned in this order, the palettes take only what the caps leave
-    /// and never push a NIF's texture out of the dump, and no path is planned twice
+    /// The dump plan's path order (CopyRequestData PlanTextures): each tier's texts under textures\, refused and our own
+    /// (kEfshOwnFolder) left out, sorted, each once, without a path an earlier tier has; the tiers one after another (the
+    /// NIF and TXST textures, contract 6 the palettes, contract 8 the base textures). Planned in this order, a later tier
+    /// takes only what the caps leave and never pushes an earlier one out of the dump, and no path is planned twice
+    template <class LeadByte = DataPathRule::SystemLeadByte>
+    [[nodiscard]] std::vector<std::string> TexturePlanTiers(const std::vector<std::vector<std::string>>& a_tiers, LeadByte a_isLeadByte = {})
+    {
+        std::set<std::string> seen;
+        std::vector<std::string> out;
+        for (const auto& tier : a_tiers) {
+            std::set<std::string> paths;
+            for (const auto& text : tier) {
+                auto path = DataPathRule::NormalizeWith(text, DataPathRule::kTexturesRoot, a_isLeadByte);
+                if (path && !DataPathRule::StartsWith(*path, kEfshOwnFolder) && seen.count(*path) == 0) {
+                    paths.insert(std::move(*path));
+                }
+            }
+            seen.insert(paths.begin(), paths.end());
+            out.insert(out.end(), paths.begin(), paths.end());
+        }
+        return out;
+    }
+
+    /// TexturePlanTiers of two tiers: a_first (the NIF and TXST textures), then a_late (the palettes)
     template <class LeadByte = DataPathRule::SystemLeadByte>
     [[nodiscard]] std::vector<std::string> TexturePlanOrder(const std::vector<std::string>& a_first, const std::vector<std::string>& a_late,
         LeadByte a_isLeadByte = {})
     {
-        const auto normalised = [&](const std::vector<std::string>& a_texts, const std::set<std::string>& a_skip) {
-            std::set<std::string> paths;
-            for (const auto& text : a_texts) {
-                auto path = DataPathRule::NormalizeWith(text, DataPathRule::kTexturesRoot, a_isLeadByte);
-                if (path && !DataPathRule::StartsWith(*path, kEfshOwnFolder) && a_skip.count(*path) == 0) {
-                    paths.insert(std::move(*path));
-                }
-            }
-            return paths;
-        };
-        const auto first = normalised(a_first, {});
-        const auto late = normalised(a_late, first);
-        std::vector<std::string> out(first.begin(), first.end());
-        out.insert(out.end(), late.begin(), late.end());
-        return out;
+        return TexturePlanTiers({ a_first, a_late }, a_isLeadByte);
     }
 
     /// Why a_palette cannot be written as an efshPalettes entry (no state, no role, or a key that does not go with its state:
@@ -215,18 +222,40 @@ namespace BlackFlame::CopyContract
         return notes;
     }
 
-    /// Each hashed palette's key; the others' keys cleared
-    inline void KeyEfshPalettes(std::vector<EfshPalette>& a_palettes, const KeyPrefix& a_prefix)
+    using EfshKeyStringFn = std::optional<std::string> (*)(const KeyPrefix&, const ChildKeyInput&);
+
+    /// Each hashed entry's key by a_keyString; the others' keys cleared
+    inline void KeyEfshEntries(std::vector<EfshPalette>& a_entries, const KeyPrefix& a_prefix, EfshKeyStringFn a_keyString)
     {
-        for (auto& palette : a_palettes) {
-            palette.key.reset();
-            if (palette.hash.state == FileState::kHashed) {
-                if (const auto text = EfshPaletteKeyString(a_prefix, { palette.path, palette.hash.fnv64 })) {
-                    palette.key = KeyOf(*text);
+        for (auto& entry : a_entries) {
+            entry.key.reset();
+            if (entry.hash.state == FileState::kHashed) {
+                if (const auto text = a_keyString(a_prefix, { entry.path, entry.hash.fnv64 })) {
+                    entry.key = KeyOf(*text);
                 }
             }
         }
     }
+
+    /// Each hashed palette's key; the others' keys cleared
+    inline void KeyEfshPalettes(std::vector<EfshPalette>& a_palettes, const KeyPrefix& a_prefix)
+    {
+        KeyEfshEntries(a_palettes, a_prefix, &EfshPaletteKeyString);
+    }
+
+    /// One request array of effect shader entries (efshPalettes, contract 6; efshBases, contract 8): its name and how its
+    /// roles are written. Both arrays share one entry shape, writer and reader
+    struct EfshListSpec
+    {
+        const char* name;
+        std::string_view (*roleText)(EfshRole) noexcept;
+        std::optional<EfshRole> (*roleFromText)(std::string_view) noexcept;
+        const char* roleHelp;  // the reader's refusal: "role must be <roleHelp>, ..."
+        const char* since;     // "contract 6"
+    };
+
+    inline constexpr EfshListSpec kEfshPaletteList{ Request::kEfshPalettes, &EfshRoleText, &EfshRoleFromText,
+        "particle, membrane or both", "contract 6" };
 
     namespace Detail
     {
@@ -246,15 +275,15 @@ namespace BlackFlame::CopyContract
     /// std::runtime_error for an entry no reader would take (an unset hash, a hashed one without a key): the DLL's slip,
     /// never written
     template <class Json>
-    [[nodiscard]] Json EfshPalettesJson(const std::vector<EfshPalette>& a_palettes)
+    [[nodiscard]] Json EfshListJson(const EfshListSpec& a_spec, const std::vector<EfshPalette>& a_palettes)
     {
         Json list = Json::array();
         for (const auto& palette : a_palettes) {
             if (const auto fault = EfshEntryFault(palette)) {
-                throw std::runtime_error("efshPalettes: " + palette.path + ": " + *fault);
+                throw std::runtime_error(std::string(a_spec.name) + ": " + palette.path + ": " + *fault);
             }
             const auto state = Detail::EfshStateText(palette.hash.state);
-            const auto role = EfshRoleText(palette.role);
+            const auto role = a_spec.roleText(palette.role);
             Json item = Json::object();
             item[Request::kPath] = palette.path;
             item[Request::kRole] = std::string(role);
@@ -267,15 +296,21 @@ namespace BlackFlame::CopyContract
         return list;
     }
 
+    template <class Json>
+    [[nodiscard]] Json EfshPalettesJson(const std::vector<EfshPalette>& a_palettes)
+    {
+        return EfshListJson<Json>(kEfshPaletteList, a_palettes);
+    }
+
     struct EfshParse
     {
         std::vector<EfshPalette> palettes;  // hash: its state only (the builder hashes the dump itself)
         std::string error;                  // "" when read
     };
 
-    /// a_root[efshPalettes] read back (see the header); error names the entry and field
+    /// a_root[a_spec.name] read back (see the header); error names the entry and field
     template <class Json>
-    [[nodiscard]] EfshParse ParseEfshPalettes(const Json& a_root)
+    [[nodiscard]] EfshParse ParseEfshList(const Json& a_root, const EfshListSpec& a_spec)
     {
         EfshParse out;
         const auto fail = [&](const std::string& a_why) {
@@ -283,14 +318,14 @@ namespace BlackFlame::CopyContract
             out.error = a_why;
             return out;
         };
-        if (!a_root.is_object() || !a_root.contains(Request::kEfshPalettes) || !a_root[Request::kEfshPalettes].is_array()) {
-            return fail("'efshPalettes' must be an array (contract 6)");
+        if (!a_root.is_object() || !a_root.contains(a_spec.name) || !a_root[a_spec.name].is_array()) {
+            return fail("'" + std::string(a_spec.name) + "' must be an array (" + a_spec.since + ")");
         }
         std::set<std::string> seen;
-        const auto& list = a_root[Request::kEfshPalettes];
+        const auto& list = a_root[a_spec.name];
         for (std::size_t i = 0; i < list.size(); ++i) {
             const auto& item = list[i];
-            const std::string where = "efshPalettes[" + std::to_string(i) + "]";
+            const std::string where = std::string(a_spec.name) + "[" + std::to_string(i) + "]";
             const auto text = [&](const char* a_name) -> std::optional<std::string> {
                 if (!item.is_object() || !item.contains(a_name) || !item[a_name].is_string()) {
                     return std::nullopt;
@@ -306,11 +341,11 @@ namespace BlackFlame::CopyContract
                 return fail(where + ": " + *path + " is listed twice");
             }
             const auto roleText = text(Request::kRole);
-            const auto role = roleText ? EfshRoleFromText(*roleText) : std::nullopt;
+            const auto role = roleText ? a_spec.roleFromText(*roleText) : std::nullopt;
             const auto stateText = text(Request::kTextureState);
             const auto state = stateText ? Request::TextureStateFromText(*stateText) : std::nullopt;
             if (!role || !state || *state == Request::TextureState::kUnread) {
-                return fail(where + ": role must be particle, membrane or both, state ok, notdumped or missing");
+                return fail(where + ": role must be " + a_spec.roleHelp + ", state ok, notdumped or missing");
             }
             EfshPalette palette{ *path, *role, {}, std::nullopt };
             palette.hash.state = *state == Request::TextureState::kOk ? FileState::kHashed :
@@ -326,5 +361,11 @@ namespace BlackFlame::CopyContract
             out.palettes.push_back(std::move(palette));
         }
         return out;
+    }
+
+    template <class Json>
+    [[nodiscard]] EfshParse ParseEfshPalettes(const Json& a_root)
+    {
+        return ParseEfshList(a_root, kEfshPaletteList);
     }
 }

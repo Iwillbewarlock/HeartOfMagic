@@ -39,6 +39,8 @@
 // Palette copy (builder): <prefix>|kind=palette|blend=<add|normal>|src=<path>|srchash=<h>
 // EFSH palette copy (the DLL keys it, the builder checks it against the dump's bytes; contract 6):
 //   <prefix>|kind=efshpalette|grey=luma|src=<path>|srchash=<h>
+// EFSH base texture copy (the same way; contract 8, CopyContractEfshBase.h EfshBaseKeyString):
+//   <prefix>|kind=efshbase|grey=luma<recipe n>|src=<path>|srchash=<h>   (kEfshBaseRecipe, bumped with the recipe)
 // ADDN table (AddnTableString):
 //   format=BFA2|addn=<index>|src=<plugin>:<local id hex>|model=<path>|modelhash=<h>...|slot=<local id hex>|src=...
 //   ADDN records sorted by (index, src field text, model field text, model hash text), ledger pairs by (slot, src field
@@ -66,7 +68,7 @@ namespace BlackFlame::CopyContract
     // threshold, a tint, an encoder or a library version); the golden test names the bump when it is missing.
     // 1: BFK4, the first output identity (BFK3 keys carried the builder exe's FNV-1a 64 instead).
     // 2: contract 6, the effect shader palettes' grey copies (request efshPalettes[]).
-    // Casting-art output also changed under out=2: hands/handmarbleopacity/handmarblescale/marbleorder make new keys, so old copies
+    // Casting-art output also changed under out=2: hands/handmarbleopacity/handmarblescale/handfx make new keys, so old copies
     // cannot collide. The golden fixture does not cover hands yet; their dedicated self-tests verify this output.
     inline constexpr std::uint32_t kBuilderOutputVersion = 2;
     inline constexpr std::string_view kDevIdentityTag = "+dev";  // <n>+dev<16 lower-case hex>
@@ -357,7 +359,7 @@ namespace BlackFlame::CopyContract
             Detail::Field(*out, "hands", *tint);
             Detail::Field(*out, "handmarbleopacity", *opacity);
             Detail::Field(*out, "handmarblescale", *scale);
-            Detail::Field(*out, "marbleorder", "1");
+            Detail::Field(*out, "handfx", "2");
         }
         return out;
     }

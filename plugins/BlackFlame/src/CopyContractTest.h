@@ -14,6 +14,7 @@
 
 #include "CopyContractKeys.h"
 #include "CopyContractTestEfsh.h"
+#include "CopyContractTestEfshBase.h"
 #include "CopyContractTestPaths.h"
 #include "CopyContractTestProgress.h"
 
@@ -30,7 +31,7 @@
 
 namespace BlackFlame::CopyContractTest
 {
-    inline constexpr int kMinChecks = 64;  // every check the table makes today but the one that may SKIP (the locale)
+    inline constexpr int kMinChecks = 74;  // every check the table makes today but the one that may SKIP (the locale)
 
     namespace Detail
     {
@@ -266,13 +267,14 @@ namespace BlackFlame::CopyContractTest
             hands.tintAddHands = 1.4;
             const auto brightHands = CC::NifKeyString(prefix, hands);
             a_check(ordinary && brightHands && *brightHands == *ordinary +
-                        "|hands=1.400000|handmarbleopacity=0.900000|handmarblescale=1.150000|marbleorder=1" &&
+                        "|hands=1.400000|handmarbleopacity=0.900000|handmarblescale=1.150000|handfx=2" &&
                         Same(CC::NifKeyString(prefix, Muzzle()), golden),
                 "hands key: only the casting-art model appends its object override; other keys stay byte-identical");
             const auto oldHands = ordinary.value_or("") +
                 "|hands=1.400000|handmarbleopacity=0.900000|handmarblescale=1.150000";
-            a_check(brightHands && CC::KeyOf(*brightHands) != CC::KeyOf(oldHands),
-                "hands key: ordered marble changes the previous hand copy key under output version 2");
+            a_check(brightHands && CC::KeyOf(*brightHands) != CC::KeyOf(oldHands) &&
+                        CC::KeyOf(*brightHands) != CC::KeyOf(oldHands + "|marbleorder=1"),
+                "hands key: handfx changes both previous hand copy keys under output version 2");
             hands.tintAddHands = 1.5;
             a_check(Differs(brightHands, CC::NifKeyString(prefix, hands)), "hands key: changing hand tint changes its key");
             hands.kind = CC::NifKind::kMuzzle;
@@ -518,6 +520,7 @@ namespace BlackFlame::CopyContractTest
             CheckCopyPaths(check);
             CheckProgress(check);
             CheckEfsh(check);
+            CheckEfshBases(check);
         } catch (const std::exception& e) {
             counted(false, std::string("threw: ") + e.what());
         }

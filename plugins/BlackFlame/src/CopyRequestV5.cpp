@@ -5,6 +5,7 @@
 #include "CopyRequestV5.h"
 
 #include "CopyContractEfsh.h"
+#include "CopyContractEfshBase.h"
 
 #include "Config.h"
 #include "CopyRequest.h"
@@ -19,6 +20,7 @@
 #include <algorithm>
 #include <chrono>
 #include <format>
+#include <fstream>
 #include <set>
 #include <stdexcept>
 #include <unordered_map>
@@ -174,6 +176,10 @@ namespace BlackFlame::CopyRequestV5
             root[CC::Request::kEfshPalettes] = CC::EfshPalettesJson<Json>(palettes);  // the builder's self-test writes with it too
             a_out.efshPalettes = palettes.size();
             a_out.efshKeyed = static_cast<std::size_t>(std::ranges::count_if(palettes, [](const auto& a_p) { return a_p.key.has_value(); }));
+            const auto& bases = a_inputs.efshBase.palettes;  // contract 8, demoted by Write like the palettes
+            root[CC::Request::kEfshBases] = CC::EfshBasesJson<Json>(bases);
+            a_out.efshBases = bases.size();
+            a_out.efshBasesKeyed = static_cast<std::size_t>(std::ranges::count_if(bases, [](const auto& a_b) { return a_b.key.has_value(); }));
             root["excluded"] = Json::array();
             for (const auto& excluded : a_closure.excluded) {
                 root["excluded"].push_back({ { "source", SourceText(excluded.form) },
@@ -222,6 +228,9 @@ namespace BlackFlame::CopyRequestV5
         for (const auto& note : CC::DemoteUnwritableEfsh(a_inputs.efsh.palettes)) {
             logger::warn("BlackFlame: slots: effect shader palette {}", Utf8(note));
         }
+        for (const auto& note : CC::DemoteUnwritableEfsh(a_inputs.efshBase.palettes)) {
+            logger::warn("BlackFlame: slots: effect shader base texture {}", Utf8(note));
+        }
         try {
             std::filesystem::create_directories(*folder);
             const auto fingerprint = DumpFingerprint(a_inputs);
@@ -236,8 +245,35 @@ namespace BlackFlame::CopyRequestV5
         }
         out.ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
         logger::info("BlackFlame: slots: request v5 {}: {} form keys, {} muzzles, {} ADDN MPS, {} TXST, {} effect shader palettes "
-                     "({} keyed, {} unread this start as textures[] says); dump {}{}; {} ms", out.written ? "written" : "NOT written",
-            out.forms, out.muzzles, out.addnMps, out.txst, out.efshPalettes, out.efshKeyed, out.efshUnread, out.dumpState, out.dumpComplete ? "" : " (incomplete)", out.ms);
+                     "({} keyed, {} unread this start as textures[] says), {} effect shader base textures ({} keyed); dump {}{}; {} ms",
+            out.written ? "written" : "NOT written", out.forms, out.muzzles, out.addnMps, out.txst, out.efshPalettes, out.efshKeyed,
+            out.efshUnread, out.efshBases, out.efshBasesKeyed, out.dumpState, out.dumpComplete ? "" : " (incomplete)", out.ms);
+        return out;
+    }
+
+    std::set<std::string> LastKeyedBases()
+    {
+        std::set<std::string> out;
+        const auto folder = RequestFolder();
+        std::ifstream in(folder ? *folder / kRequestName : std::filesystem::path(), std::ios::binary);
+        if (!folder || !in) {
+            return out;  // no earlier request: every base is new
+        }
+        const auto root = nlohmann::json::parse(in, nullptr, false);  // no exceptions: a broken file is no earlier request
+        if (root.is_discarded()) {
+            logger::warn("BlackFlame: slots: the last request.json does not parse: every base texture is planned as new");
+            return out;
+        }
+        const auto parsed = CC::ParseEfshBases(root);  // an older request (no efshBases) gives none
+        if (root.contains(CC::Request::kEfshBases) && !parsed.error.empty()) {
+            logger::warn("BlackFlame: slots: the last request.json's efshBases do not read ({}): every base texture is planned as new",
+                parsed.error);
+        }
+        for (const auto& base : parsed.palettes) {
+            if (base.key) {
+                out.insert(base.path);
+            }
+        }
         return out;
     }
 }

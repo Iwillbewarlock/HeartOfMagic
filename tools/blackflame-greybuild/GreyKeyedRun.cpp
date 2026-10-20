@@ -170,7 +170,7 @@ namespace GreyBuild
                         count = AddHandMarble(marble, original, *a_run.glow.textures,
                             *a_spec.handMarbleOpacity, a_spec.handMarbleScale);
                     });
-                    if (added && count.systems) {
+                    if (added && (count.systems || count.emberSystems)) {
                         SaveNif(marble, marbleTemp);
                         nifly::NifFile reread;
                         LoadNif(reread, marbleTemp);
@@ -179,8 +179,8 @@ namespace GreyBuild
                             if (!CommitTemp(marbleTemp, temp, why)) a_object.failed = why;
                         }
                     }
-                    std::cout << fmt::format("marble {}: {} system(s), source pool {}, added pool {}\n",
-                        a_spec.source, count.systems, count.sourceParticles, count.addedParticles);
+                    std::cout << fmt::format("hand fx {}: {} marble, {} dark ember system(s), source pool {}, added pool {}\n",
+                        a_spec.source, count.systems, count.emberSystems, count.sourceParticles, count.addedParticles);
                 } catch (const std::bad_alloc&) {
                     throw; // GuardObject records kFailed, never a reusable fallback.
                 } catch (const std::exception& e) {
@@ -494,6 +494,12 @@ namespace GreyBuild
             std::cerr << "writing progress.jsonl failed at an effect shader palette. Stopping; the next run builds it again.\n";
             return kFail;
         }
+        // contract 8: the effect shader base textures after them (no scheduler)
+        const auto bases = BuildEfshBases(request, dump, log, budget, *prefix, [&watch]() { return watch.Gone(); }, a_options.baseCopyCap);
+        if (log.Broken()) {
+            std::cerr << "writing progress.jsonl failed at an effect shader base texture. Stopping; the next run builds it again.\n";
+            return kFail;
+        }
         std::vector<KeyedSpec> pending;
         int hits = 0;
         for (const auto& spec : request.objects) {
@@ -558,7 +564,7 @@ namespace GreyBuild
         const auto reads = textureSource.Counts();
         std::cout << fmt::format("reads  texture decodes {} of {} path(s); statistics answered without a decode {}\n", reads.decodes,
             reads.paths, reads.statsAnswers);
-        std::cout << TextureTotalsLine(textures.totals) << "\n" << PaletteTotalsLine(palettes) << "\n" << EfshTotalsLine(efsh) << "\n"
+        std::cout << TextureTotalsLine(textures.totals) << "\n" << PaletteTotalsLine(palettes) << "\n" << EfshTotalsLine(efsh) << "\n" << EfshBaseTotalsLine(bases) << "\n"
                   << gpu.SummaryLine() << "\n";
         return stopped ? kExitParentGone : kOk;
     }

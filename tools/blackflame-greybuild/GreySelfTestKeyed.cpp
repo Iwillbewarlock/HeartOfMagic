@@ -142,7 +142,7 @@ namespace GreyBuild::SelfTest::Keyed
  {{"source":"Skyrim.esm|0ABCE1","type":"IPCT","editorId":"","model":"","data":{{"flags":1}},"viaSpell":"Skyrim.esm|012FCE","costliest":true,"slot":2601}}],
 "muzzles":[{{"path":"magic\\plain.nif","key":"{}"}}],
 "addnMps":[{{"slot":{},"path":"mps\\a.nif","key":"{}","index":9}}],
-"txst":[{{"slot":3744,"key":"{}","dodt":true}}],"efshPalettes":[],
+"txst":[{{"slot":3744,"key":"{}","dodt":true}}],"efshPalettes":[],"efshBases":[],
 "addons":[{{"index":9,"model":"mps\\a.nif","source":"Skyrim.esm|000009","masterParticleCap":0,"dnamFlags":1,"own":false}},
  {{"index":40001,"model":"x\\collide.nif","source":"Other.esp|000801","own":false}}],
 "nifs":[{{"path":"meshes\\magic\\missing.nif","size":0,"fnv64":"0000000000000000","ok":false,"error":"does not open"}},
@@ -264,7 +264,7 @@ namespace GreyBuild::SelfTest::Keyed
             hand[CC::Request::kHandMarbleScale] = 1.15;
             const std::string handKey = handRequest["options"]["keyPrefix"].get<std::string>() +
                 "|kind=model|nif=meshes\\magic\\keyed.nif|nifhash=" + CC::Hex16(Fnv(fixture.dump / "meshes/magic/keyed.nif")) +
-                "|addn=none|hands=1.400000|handmarbleopacity=0.900000|handmarblescale=1.150000|marbleorder=1";
+                "|addn=none|hands=1.400000|handmarbleopacity=0.900000|handmarblescale=1.150000|handfx=2";
             hand[CC::Request::kKeyString] = handKey;
             hand["key"] = CC::Key16Of(handKey);
             a_check.Check(!refusedText("req_hands", handRequest.dump()), "request v5: casting art carries a verified object tint/key");
@@ -317,11 +317,11 @@ namespace GreyBuild::SelfTest::Keyed
             a_check.Check(refusedText("req_handkey", malformed.dump(), "disagree"),
                 "request v5: hand tint that disagrees with its key is refused");
             malformed = handRequest;
-            const auto oldHandKey = handKey.substr(0, handKey.rfind("|marbleorder="));
+            const auto oldHandKey = handKey.substr(0, handKey.rfind("|handfx=")) + "|marbleorder=1";
             malformed["forms"][0][CC::Request::kKeyString] = oldHandKey;
             malformed["forms"][0]["key"] = CC::Key16Of(oldHandKey);
             a_check.Check(refusedText("req_handorder", malformed.dump(), "disagree"),
-                "request v5: old unordered hand key is refused even when its hash matches");
+                "request v5: old marbleorder hand key is refused even when its hash matches");
             malformed = handRequest;
             malformed["forms"][0]["data"]["artType"] = 1;
             a_check.Check(refusedText("req_handrole", malformed.dump(), "another object role"),

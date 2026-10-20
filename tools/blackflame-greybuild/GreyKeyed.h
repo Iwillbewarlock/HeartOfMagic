@@ -33,6 +33,7 @@
 #include "GreyTexture.h"
 
 #include "../../plugins/BlackFlame/src/CopyContractEfsh.h"
+#include "../../plugins/BlackFlame/src/CopyContractEfshBase.h"
 #include "../../plugins/BlackFlame/src/CopyContractKeys.h"
 #include "../../plugins/BlackFlame/src/CopyContractProgress.h"
 
@@ -63,6 +64,8 @@ namespace GreyBuild
         // The self-test's seam, never set from the command line: the output identity the run keys with in place of this
         // build's own (the golden test keys its fixture with the release identity, so a dev build compares the same bytes)
         std::string identityOverride;
+        // The self-test's seam, never set from the command line: the base copies' total cap (GreyKeyedBases.cpp)
+        std::uint64_t baseCopyCap = BlackFlame::CopyContract::kMaxBaseCopyBytes;
     };
 
     /// This build's output identity ("<n>" or "<n>+dev<digest>"), compiled in from GreyIdentity.cmake's GreyIdentityText.h:
@@ -96,6 +99,7 @@ namespace GreyBuild
         std::map<std::string, std::uint64_t> nifHashes;  // nifs[] the game read: Data-relative path -> fnv64
         std::set<std::string> unreadNifs;                // nifs[] ok false, MeshDataPath like nifHashes and the objects' sources
         std::vector<BlackFlame::CopyContract::EfshPalette> efshPalettes;  // contract 6 (CopyContractEfsh.h ParseEfshPalettes)
+        std::vector<BlackFlame::CopyContract::EfshPalette> efshBases;     // contract 8 (CopyContractEfshBase.h ParseEfshBases)
         std::vector<std::string> warnings;
     };
 
@@ -139,6 +143,65 @@ namespace GreyBuild
 
     /// "efsh   ..." for a run's end
     [[nodiscard]] std::string EfshTotalsLine(const EfshTotals& a_totals);
+
+    // =========================================================================
+    // Effect shader base textures (contract 8, GreyKeyedBases.cpp): the membrane fills and particle bases the DLL lists
+    // (CopyContractEfshBase.h EfshBaseRoles), each keyed one after the palettes, before the scheduled objects
+    // =========================================================================
+    // Fire test for a base (EfshBaseFireShare): alpha-weighted over its visible lit texels (alpha > 0, brightest channel over
+    // kStatLitWeight), the share at HSV saturation kEfshFireMinSat and value kEfshFireMinValue or more whose hue is orange
+    // to yellow (kEfshBaseOrangeHueMin..kEfshFireHueMax), or red (under kEfshBaseOrangeHueMin or from kEfshFireHueWrap) at
+    // value kEfshBaseRedMinValue or more. A base is fire at kEfshBaseFireShare or more. Measured on the full top mip of the
+    // FEC census (build/fec-base, 2026-10-20; the v2.1 agent's measure.py / sens.py): animalburnshader 11.27%, burnshader
+    // 23.01%, FXFireAtlas02 94.87%; fx_blooddrip 0.00% (its reds peak at value 0.451, under the red floor), the blood
+    // splatters, smoke, soot, frost, shock and the rest 0.00% (the highest 0.008%). The threshold is under half the weakest
+    // fire base and far over every non-fire one; the red floor is 0.1 over the brightest blood red.
+    // Fire: a grey copy at CopyPath(textures\, key16, source) = copies\<key16>\copy.dds: every image of the chain decoded to
+    // R8G8B8A8_UNORM, RGB to its Rec. 709 luminance in the encoded domain (Luminance, rounded), alpha bytes untouched, saved
+    // RGBA8 with every mip (never recompressed: BC7 changed alpha by up to 140/255), read back and checked (size, mip count,
+    // alpha exact, R = G = B on every mip) before its ok dds line. Not fire, or a format left out (sRGB for now, float/HDR,
+    // typeless, planar, palettized, video, one or two channels, a cube map, an array or a volume): no line, counted and
+    // logged (the source stays). These constants govern the new kind only: they are not in the golden constant digest; the
+    // copy recipe is in its key (CopyContractEfshBase.h kEfshBaseRecipe), the fire test's numbers in the not-fire cache's tag.
+    // Only the top mip is decoded for the test; a base that is not fire goes into a staging cache (builder only) so later
+    // runs skip it unread. Copies stop at kMaxBaseCopyBytes together (the ones staging holds count first).
+    inline constexpr double kEfshBaseOrangeHueMin = 15.0 / 360.0;
+    inline constexpr double kEfshBaseRedMinValue = 0.55;
+    inline constexpr double kEfshBaseFireShare = 0.05;
+    // Raise when the fire test's code changes (EfshBaseFireShare, its hue rule, the top-mip pick, the accepted formats):
+    // the not-fire cache's tag carries it, so an old "not fire" is judged again.
+    inline constexpr int kEfshBaseFireTestVersion = 1;
+
+    struct EfshBaseTotals
+    {
+        std::size_t listed = 0;
+        std::size_t grey = 0;       // written this run (ok line)
+        std::size_t reused = 0;
+        std::size_t notFire = 0;    // skipped: no line
+        std::size_t notFireCached = 0;  // of notFire, known from the staging cache (nothing read)
+        std::size_t overCopyCap = 0;    // fire, skipped: the base copies would pass their cap (kMaxBaseCopyBytes)
+        std::size_t leftOut = 0;    // skipped: a format left out (sRGB included) or one that does not decode
+        std::size_t srgb = 0;       // of leftOut, sRGB sources
+        std::size_t missing = 0;
+        std::size_t notDumped = 0;
+        std::size_t unread = 0;
+        std::size_t failed = 0;
+        std::size_t tooLarge = 0;
+        std::uint64_t bytes = 0;      // the copies written this run
+        std::uint64_t copyBytes = 0;  // every base copy of this request staging holds after the run (reused and written)
+    };
+
+    /// The base fire test's share of an image (0 when it has no visible lit texel)
+    [[nodiscard]] double EfshBaseFireShare(const RgbaImage& a_image) noexcept;
+
+    /// Every keyed base of a_request: its line, or a count (see above). a_stop: the parent is gone (stop before the next).
+    /// a_copyCap: the base copies' total (the self-test's seam; kMaxBaseCopyBytes otherwise)
+    [[nodiscard]] EfshBaseTotals BuildEfshBases(const KeyedRequest& a_request, const std::filesystem::path& a_dump, ProgressLog& a_log,
+        Budget& a_budget, const BlackFlame::CopyContract::KeyPrefix& a_prefix, const std::function<bool()>& a_stop,
+        std::uint64_t a_copyCap = BlackFlame::CopyContract::kMaxBaseCopyBytes);
+
+    /// "bases  ..." for a run's end
+    [[nodiscard]] std::string EfshBaseTotalsLine(const EfshBaseTotals& a_totals);
 
     /// request.json version 5 (LoadFormsRequestFile for the v4 parts, then options, keys, muzzles, addnMps, txst).
     /// Throws std::runtime_error naming the field (a version other than 5 included).

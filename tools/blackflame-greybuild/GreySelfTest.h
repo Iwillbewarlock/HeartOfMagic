@@ -69,11 +69,17 @@ namespace GreyBuild::SelfTest
     void CheckHands(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_sourceNif);
     void CheckMarble(Checker& a_check, const std::filesystem::path& a_dir);
     void CheckMarbleOrder(Checker& a_check, const std::filesystem::path& a_dir);
+    void CheckHandFx(Checker& a_check, const std::filesystem::path& a_dir);
 
     /// The effect shader palettes of the key mode (GreySelfTestEfsh.cpp, contract 6): the request's efshPalettes written by
     /// the DLL's own writer (CopyContractEfsh.h), a fire palette greyed, a non-fire one and a missing one skipped, the key
     /// check, the cache, the refusals
     void CheckEfsh(Checker& a_check, const std::filesystem::path& a_dir);
+
+    /// The effect shader base textures of the key mode (GreySelfTestBases.cpp, contract 8): the request's efshBases made by
+    /// the DLL's chain from shader flags (CopyContractEfshBase.h), the fire test's boundaries, a fire base greyed with every
+    /// mip and its alpha exact, the skips, the cache, the refusals (no efshBases, contract 7)
+    void CheckEfshBases(Checker& a_check, const std::filesystem::path& a_dir);
 
     /// The golden request's efshPalettes (GreySelfTestEfsh.cpp): its gradflame01 (fire), its grey.dds (not fire) and a
     /// missing palette, through the DLL's writer with hashes of the files in a_data

@@ -9,6 +9,7 @@
 //   "addnMps"          [{ slot, path, key[, index] }]: slot an ADDN slot's local id (0xF00-0xFCF)
 //   "txst"             [{ slot, key, dodt }]: matched to the TXST form with that forms[].slot
 //   "efshPalettes"     contract 6, required: CopyContractEfsh.h ParseEfshPalettes (the reader the contract shares)
+//   "efshBases"        contract 8, required: CopyContractEfshBase.h ParseEfshBases (the same entry shape)
 // A key is 16 lower-case hex digits. Anything malformed refuses the request (the DLL wrote it; nothing is guessed).
 
 #include "GreyKeyed.h"
@@ -124,7 +125,7 @@ namespace GreyBuild
                 const std::string suffix = "|hands=" + *CC::TintText(tint) +
                     "|handmarbleopacity=" + *CC::TintText(*a_spec.handMarbleOpacity, 0.0, 1.0) +
                     "|handmarblescale=" + *CC::TintText(a_spec.handMarbleScale, CC::kMinHandMarbleScale, CC::kMaxHandMarbleScale) +
-                    "|marbleorder=1";
+                    "|handfx=2";
                 const auto start = a_prefix + "|kind=model|";
                 if (text.compare(0, start.size(), start) != 0 || text.size() < suffix.size() ||
                     text.compare(text.size() - suffix.size(), suffix.size(), suffix) != 0 || CC::Key16Of(text) != a_form.key) {
@@ -313,6 +314,11 @@ namespace GreyBuild
             request.efshPalettes = std::move(efsh.palettes);
         } else {
             Json::Fail(a_file, efsh.error);
+        }
+        if (auto bases = CC::ParseEfshBases(root); bases.error.empty()) {
+            request.efshBases = std::move(bases.palettes);
+        } else {
+            Json::Fail(a_file, bases.error);
         }
         ReadNifHashes(root, request);
         // every NIF object's bytes are listed (nifs[] with its fnv64), or the game could not read it (nifs[] ok false). A NIF

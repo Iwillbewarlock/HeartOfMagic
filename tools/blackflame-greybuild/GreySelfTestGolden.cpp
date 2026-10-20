@@ -164,7 +164,9 @@ namespace GreyBuild::SelfTest
                 { "txst", { { { "slot", kSlotTxst }, { "key", CC::Hex16(kKeyTxst) }, { "dodt", true } } } },
                 { "addons", { { { "index", kMpsIndex }, { "model", ModelText(kMpsNif) }, { "source", "Skyrim.esm|000009" },
                                   { "masterParticleCap", 0 }, { "dnamFlags", 1 }, { "own", false } } } },
-                { "nifs", nifs }, { "textures", textures }, { "excluded", nlohmann::json::array() }, { "efshPalettes", GoldenEfshPalettes(a_data, prefix) } };
+                { "nifs", nifs }, { "textures", textures }, { "excluded", nlohmann::json::array() }, { "efshPalettes", GoldenEfshPalettes(a_data, prefix) },
+                // contract 8: no base texture in the golden fixture, so its outputs (and kBuilderOutputVersion) stay as they were
+                { "efshBases", nlohmann::json::array() } };
             return root.dump();
         }
 

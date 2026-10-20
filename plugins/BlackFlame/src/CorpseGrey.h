@@ -12,14 +12,17 @@
 //   the bit while greyCorpseShaders is on: CorpsePalettes::Find for the paths its effectData (TESEffectShader) holds,
 //   NAM9 particlePaletteTexture (loaded into SRE +0xD8 by Init 34912) and NAM8 membranePaletteTexture (+0xF0); each one
 //   found replaces that NiPointer member (reset: the grey gains a reference, the source loses one; the dtor releases
-//   it). Pop 34925 refills the membrane data from the members, so the grey survives it. When +0xD8 was replaced a
+//   it). v2.1 (contract 8): CorpsePalettes::FindBase the same way for the base textures this SRE's own shader draws as
+//   colour (CopyContractEfshBase.h EfshBaseRoles on its flags, checked again here): ICON fillTexture (+0xE0) and ICO2
+//   particleShaderTexture (+0xD0); a stage with greyscale to colour keeps its base (its green is the palette coordinate).
+//   Pop 34925 refills the membrane data from the members, so the grey survives it. When +0xD8 or +0xD0 was replaced a
 //   thread_local "private particles" flag is up for the original call only (a scope guard). No grey for either: the
 //   original runs unchanged and "corpse kept [n]: no grey palette for '<path>'" is logged (48 a session). The line
 //   "corpse attach [n]: ..." (48 a session) says what was swapped and what was kept.
 // Hook B, write_call at 34934 +0x2EC (5D1F1C), 17325's only caller (rcx effectData, rdx SRE +0xD0, r8 SRE +0xD8 read just
 //   before the call, r9b share): while the flag is up, the original runs with share false, so the particle property is
 //   this SRE's own and the shader's shared cache (TESEffectShader +0x210 / +0x218) is neither read nor filled; r8 is
-//   already the grey palette (hook A replaced +0xD8). Otherwise forwarded unchanged. "corpse particles private [n]"
+//   already the grey palette and rdx the grey base when hook A replaced them. Otherwise forwarded unchanged. "corpse particles private [n]"
 //   (20 a session) logs the cache before and after.
 // Both sites' bytes (the E8 and the argument loads before it) are checked first; AE 1.6.1170 only. Any mismatch installs
 // neither (a grey +0xD8 with share true would be cached for every SRE of that shader), and the mark then has no effect.

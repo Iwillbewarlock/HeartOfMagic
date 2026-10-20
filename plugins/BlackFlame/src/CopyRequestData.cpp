@@ -162,17 +162,21 @@ namespace BlackFlame::CopyRequestData
     }
 
     std::vector<Texture> PlanTextures(const std::vector<const std::vector<std::byte>*>& a_nifBytes,
-        const std::vector<std::string>& a_formTextures, const std::vector<std::string>& a_lateTextures)
+        const std::vector<std::string>& a_formTextures, const std::vector<std::string>& a_lateTextures,
+        const std::vector<std::string>& a_baseKept, const std::vector<std::string>& a_baseNew)
     {
         std::vector<std::string> first(a_formTextures);
         for (const auto* bytes : a_nifBytes) {
             const auto raws = NifDump::TexturePathsIn(*bytes);
             first.insert(first.end(), raws.begin(), raws.end());
         }
-        // contract 6: the effect shader palettes after every other one, never a path twice (CopyContractEfsh.h, tested there)
-        const auto order = CopyContract::TexturePlanOrder(first, a_lateTextures);
+        // contract 6: the effect shader palettes after every other one, contract 8: their base textures after those (the
+        // ones the last request keyed first), never a path twice (CopyContractEfsh.h, tested there)
+        const auto order = CopyContract::TexturePlanTiers({ first, a_lateTextures, a_baseKept, a_baseNew });
+        const auto basesFrom = CopyContract::TexturePlanTiers({ first, a_lateTextures }).size();  // the base tier's first index
         std::vector<Texture> textures;
         std::uint64_t total = 0;
+        std::uint64_t baseTotal = 0;
         // Our two fixed palettes first (small), read whole for their hash: the builder's risk check judges with them
         for (const auto palette : { DataPathRule::kOurPalette, DataPathRule::kOurPaletteAdd }) {
             Texture texture{ std::string(palette), NifDump::ReadModel(std::string(palette), nullptr), false, {} };
@@ -186,7 +190,7 @@ namespace BlackFlame::CopyRequestData
             }
             textures.push_back(std::move(texture));
         }
-        const auto plan = [&](const std::string& a_path) {
+        const auto plan = [&](const std::string& a_path, bool a_base) {
             Texture texture{ a_path, NifDump::ProbeModel(a_path), false, {} };
             const std::uint64_t size = texture.probe.totalSize;
             if (!texture.probe.opened) {
@@ -195,14 +199,17 @@ namespace BlackFlame::CopyRequestData
                 texture.error = std::format("over the per-texture cap ({} bytes > {})", size, kMaxTextureBytes);
             } else if (total + size > kMaxTextureDumpBytes) {
                 texture.error = std::format("over the dump's total cap ({} bytes)", kMaxTextureDumpBytes);
+            } else if (a_base && baseTotal + size > kMaxBaseDumpBytes) {
+                texture.error = std::format("over the base textures' cap ({} bytes)", kMaxBaseDumpBytes);
             } else {
                 texture.planned = true;
                 total += size;
+                baseTotal += a_base ? size : 0;
             }
             textures.push_back(std::move(texture));
         };
-        for (const auto& path : order) {
-            plan(path);
+        for (std::size_t i = 0; i < order.size(); ++i) {
+            plan(order[i], i >= basesFrom);
         }
         return textures;
     }

@@ -564,11 +564,14 @@ namespace GreyBuild::SelfTest
             if (variant == 1) rejectHdr.GetBlock<nifly::BSEffectShaderProperty>(f.shader)->shaderFlags1 &= ~kSlsf1GreyscaleToPaletteColor;
             if (variant == 2) rejectHdr.GetBlock<nifly::BSEffectShaderProperty>(f.shader)->greyscaleTexture.get() = "textures\\missing.dds";
             if (variant == 3) rejectHdr.GetBlock<nifly::BSEffectShaderProperty>(f.shader)->greyscaleTexture.get() = "textures\\selftest\\low-fire.dds";
-            if (variant == 4) rejectHdr.GetBlock<nifly::NiPSysData>(originalPs->psysDataRef)->subtexOffsets.resize(1);
+            if (variant == 4) { // A large single-cell glow is neither a marble nor a small ember.
+                rejectHdr.GetBlock<nifly::NiPSysData>(originalPs->psysDataRef)->subtexOffsets.resize(1);
+                rejectHdr.GetBlock<nifly::NiPSysEmitter>(f.emitter)->radius = 10;
+            }
             nifly::NifFile untouched(rejected);
             a_check.Check(AddHandMarble(untouched, rejected, textures, variant == 5 ? 0 : 0.9, 1.15).systems == 0 &&
                 untouched.GetHeader().GetNumBlocks() == rejected.GetHeader().GetNumBlocks(),
-                "marble detection: normal/non-palette/missing/<20% fire/single-cell/zero-opacity excluded (case " + std::to_string(variant) + ")");
+                "marble detection: normal/non-palette/missing/<20% fire/large-single-cell/zero-opacity excluded (case " + std::to_string(variant) + ")");
         }
         nifly::NifFile namedSource(source);
         namedSource.GetHeader().GetBlock<nifly::NiControllerSequence>(f.sequence)->controlledBlocks[0].controllerRef.Clear();

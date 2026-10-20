@@ -19,12 +19,16 @@
 //   EFSH      contract 6: every effect shader's particle palette (NAM9, while its particle shader is on and takes the
 //             palette: kParticleGreyscaleColor or Alpha) and membrane palette (NAM8, membrane on, kGreyscaleToColor or Alpha),
 //             merged by path (CopyContractEfsh.h), planned into the dump after the rest, hashed and keyed
+//   EFSH base contract 8: every effect shader's membrane fill (ICON, membrane on, not greyscale to colour) and particle
+//             base (ICO2, particle on, not particle greyscale to colour) by CopyContractEfshBase.h EfshBaseRoles, merged
+//             the same way, planned after the palettes (the largest last), hashed and keyed (kind efshbase)
 // The key functions turn those into CopyContract key strings; both sides hash the same strings (the contract's test table).
 
 #include "Common.h"
 
 #include "BuilderControl.h"
 #include "CopyContractEfsh.h"
+#include "CopyContractEfshBase.h"
 #include "CopyContractKeys.h"
 #include "CopyRequestData.h"
 #include "CopyRequestDump.h"
@@ -59,10 +63,13 @@ namespace BlackFlame::SlotKeys
         std::set<std::uint32_t> valueNodeIndices;                   // AddOnNode values the closure's NIFs name
         std::size_t valueNodeUnparsed = 0;                          // closure NIFs with BSValueNode whose header did not parse
         CC::EfshMerge efsh;                                         // the effect shader palettes (keys when there is a prefix)
+        CC::EfshMerge efshBase;                                     // contract 8: their base textures (CopyContractEfshBase.h)
+        std::size_t efshBaseKept = 0;                               // of them, keyed by the last request (planned first)
         std::size_t efshShaders = 0;                                // effect shaders read (ours left out)
         std::size_t nifsFailed = 0;
         long long nifMs = 0;
         long long textureMs = 0;
+        long long baseTextureMs = 0;                                // of textureMs, reading the planned base textures
         std::uint64_t textureBytesHashed = 0;
     };
 

@@ -2,6 +2,7 @@
 
 #include "Config.h"
 #include "CorpseMark.h"
+#include "CopyContractEfshBase.h"
 #include "CorpsePalettes.h"
 #include "GameClock.h"
 #include "HitPathAddress.h"
@@ -9,6 +10,7 @@
 #include "Patch.h"
 #include "SehGuard.h"
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cstring>
@@ -27,7 +29,8 @@ namespace BlackFlame::HitPath::Detail
         constexpr std::uint32_t kAttachSiteOffset = 0x5D1B8D - 0x5D1A60;   // +0x12D, 34934's only caller (findings C6)
         constexpr std::uint32_t kFactorySiteOffset = 0x5D1F1C - 0x5D1C30;  // +0x2EC, 17325's only caller (Follow-up 2)
         // The bytes before each E8 (1.6.1170 image): A `mov rcx, rbx` (the SRE); B `movzx r9d, r15b` (share),
-        // `mov r8, [rsi+0xD8]`, `mov rdx, [rsi+0xD0]`, `mov rcx, [rsi+0x108]` (rsi = the SRE): r8 is the member hook A sets
+        // `mov r8, [rsi+0xD8]`, `mov rdx, [rsi+0xD0]`, `mov rcx, [rsi+0x108]` (rsi = the SRE): r8 (+0xD8, the particle palette)
+        // and rdx (+0xD0, the particle base, contract 8) are members hook A may set; read here, after it
         constexpr std::array<std::uint8_t, 3> kAttachLead{ 0x48, 0x8B, 0xCB };
         constexpr std::array<std::uint8_t, 25> kFactoryLead{ 0x45, 0x0F, 0xB6, 0xCF, 0x4C, 0x8B, 0x86, 0xD8, 0x00, 0x00, 0x00,
             0x48, 0x8B, 0x96, 0xD0, 0x00, 0x00, 0x00, 0x48, 0x8B, 0x8E, 0x08, 0x01, 0x00, 0x00 };
@@ -39,7 +42,8 @@ namespace BlackFlame::HitPath::Detail
         struct Counts
         {
             std::atomic<std::uint64_t> attachCalls{ 0 }, attachMarked{ 0 }, swapped{ 0 }, particleSwaps{ 0 }, membraneSwaps{ 0 },
-                keptNoGrey{ 0 }, keptNoPalette{ 0 }, keptOff{ 0 }, factoryCalls{ 0 }, privateCreated{ 0 };
+                fillSwaps{ 0 }, particleBaseSwaps{ 0 }, keptNoGrey{ 0 }, keptNoBaseCopy{ 0 }, keptNoPalette{ 0 }, keptOff{ 0 },
+                factoryCalls{ 0 }, privateCreated{ 0 };
         };
 
         Counts g_counts;  // the session's; never reset
@@ -90,12 +94,16 @@ namespace BlackFlame::HitPath::Detail
 
         enum class MemberResult : std::uint8_t
         {
-            kNoPath,    // the shader has no such palette (empty TESTexture)
+            kNoPath,    // the shader has no such texture (empty TESTexture)
+            kNotUsed,   // a base texture whose RGB this shader does not draw (its stage off, or greyscale to colour): left alone
             kNotLoaded, // the path is set but the member is null (the texture did not load): left alone
-            kNoGrey,    // CorpsePalettes has none for the path
+            kNoGrey,    // CorpsePalettes has no grey palette for the path (a fire palette not built or not loaded yet)
+            kNoCopy,    // a base texture with no copy: not built yet, or not fire (the builder writes no line for those)
             kSwapped,
             kAlready    // the member already holds the grey texture
         };
+
+        using FindGrey = RE::NiSourceTexture* (*)(std::string_view) noexcept;
 
         struct MemberSwap
         {
@@ -113,13 +121,24 @@ namespace BlackFlame::HitPath::Detail
             bool marked = false;
             bool off = false;        // greyCorpseShaders false
             bool noShader = false;   // effectData null
-            bool privateParticles = false;  // set before +0xD8 is written: a fault after it still forces share false
+            bool privateParticles = false;  // set before +0xD0 / +0xD8 is written: a fault after it still forces share false
             MemberSwap particle{ "particle palette" };
             MemberSwap membrane{ "membrane palette" };
+            MemberSwap particleBase{ "particle base" };  // contract 8: SRE +0xD0
+            MemberSwap fill{ "fill" };                   // contract 8: SRE +0xE0
+
+            [[nodiscard]] std::array<const MemberSwap*, 4> Members() const noexcept { return { &particle, &membrane, &particleBase, &fill }; }
+
+            [[nodiscard]] bool AnyGrey() const noexcept
+            {
+                return std::ranges::any_of(Members(), [](const MemberSwap* a_m) { return a_m->Grey(); });
+            }
         };
 
-        // Decides one member without writing it
-        void Look(MemberSwap& a_out, const RE::NiPointer<RE::NiSourceTexture>& a_member, const RE::TESTexture& a_source)
+        // Decides one member without writing it; a_used false: a base texture this shader does not draw as colour; a_none:
+        // the result when a_find has nothing (kNoCopy for a base)
+        void Look(MemberSwap& a_out, const RE::NiPointer<RE::NiSourceTexture>& a_member, const RE::TESTexture& a_source,
+            FindGrey a_find, bool a_used = true, MemberResult a_none = MemberResult::kNoGrey)
         {
             const char* path = a_source.textureName.c_str();
             a_out.source = path ? path : "";
@@ -128,12 +147,16 @@ namespace BlackFlame::HitPath::Detail
                 a_out.result = MemberResult::kNoPath;
                 return;
             }
+            if (!a_used) {
+                a_out.result = MemberResult::kNotUsed;
+                return;
+            }
             if (!a_member) {
                 a_out.result = MemberResult::kNotLoaded;
                 return;
             }
-            a_out.grey = CorpsePalettes::Find(a_out.source);
-            a_out.result = !a_out.grey                   ? MemberResult::kNoGrey :
+            a_out.grey = a_find(a_out.source);
+            a_out.result = !a_out.grey                   ? a_none :
                            a_member.get() == a_out.grey ? MemberResult::kAlready :
                                                            MemberResult::kSwapped;
         }
@@ -154,14 +177,28 @@ namespace BlackFlame::HitPath::Detail
                 a_swap.noShader = true;
                 return;
             }
-            Look(a_swap.particle, a_sre->particlePaletteTexture, shader->particlePaletteTexture);
-            Look(a_swap.membrane, a_sre->paletteTexture, shader->membranePaletteTexture);
+            Look(a_swap.particle, a_sre->particlePaletteTexture, shader->particlePaletteTexture, &CorpsePalettes::Find);
+            Look(a_swap.membrane, a_sre->paletteTexture, shader->membranePaletteTexture, &CorpsePalettes::Find);
+            // contract 8: this SRE's own shader decides again (one path can be another shader's palette-coordinate base)
+            const auto bases = CopyContract::EfshBaseRoles(CorpsePalettes::FlagsOf(shader->data));
+            Look(a_swap.particleBase, a_sre->particleShaderTexture, shader->particleShaderTexture, &CorpsePalettes::FindBase,
+                CopyContract::EfshRoleHas(bases, CopyContract::EfshRole::kParticle), MemberResult::kNoCopy);
+            Look(a_swap.fill, a_sre->fillTexture, shader->fillTexture, &CorpsePalettes::FindBase,
+                CopyContract::EfshRoleHas(bases, CopyContract::EfshRole::kMembrane), MemberResult::kNoCopy);
+            if (a_swap.particle.Grey() || a_swap.particleBase.Grey()) {
+                a_swap.privateParticles = true;  // first: hook B must see it whenever +0xD0 or +0xD8 holds a grey texture
+            }
             if (a_swap.particle.Grey()) {
-                a_swap.privateParticles = true;  // first: hook B must see it whenever +0xD8 holds the grey
                 a_sre->particlePaletteTexture.reset(a_swap.particle.grey);
+            }
+            if (a_swap.particleBase.Grey()) {
+                a_sre->particleShaderTexture.reset(a_swap.particleBase.grey);
             }
             if (a_swap.membrane.Grey()) {
                 a_sre->paletteTexture.reset(a_swap.membrane.grey);
+            }
+            if (a_swap.fill.Grey()) {
+                a_sre->fillTexture.reset(a_swap.fill.grey);
             }
         }
 
@@ -170,10 +207,15 @@ namespace BlackFlame::HitPath::Detail
             switch (a_member.result) {
             case MemberResult::kNoPath:
                 return std::format("{}: none on the shader", a_member.label);
+            case MemberResult::kNotUsed:
+                return std::format("{} '{}': not drawn as colour (stage off or greyscale to colour), kept", a_member.label,
+                    a_member.source);
             case MemberResult::kNotLoaded:
                 return std::format("{} '{}': not loaded (member null), kept", a_member.label, a_member.source);
             case MemberResult::kNoGrey:
                 return std::format("{} '{}' {}: kept, no grey palette", a_member.label, a_member.source, a_member.before);
+            case MemberResult::kNoCopy:
+                return std::format("{} '{}' {}: kept, no copy (not built or not fire)", a_member.label, a_member.source, a_member.before);
             case MemberResult::kAlready:
                 return std::format("{} '{}': already grey {}", a_member.label, a_member.source, a_member.before);
             default:
@@ -190,8 +232,8 @@ namespace BlackFlame::HitPath::Detail
             if (a_swap.noShader) {
                 return "not swapped: no effectData";
             }
-            return std::format("{}; {}; particles private {}", MemberText(a_swap.particle), MemberText(a_swap.membrane),
-                a_swap.privateParticles ? "yes" : "no");
+            return std::format("{}; {}; {}; {}; particles private {}", MemberText(a_swap.particle), MemberText(a_swap.membrane),
+                MemberText(a_swap.particleBase), MemberText(a_swap.fill), a_swap.privateParticles ? "yes" : "no");
         }
 
         void CountAndKeep(const SRE* a_sre, const Swap& a_swap)
@@ -200,21 +242,26 @@ namespace BlackFlame::HitPath::Detail
                 g_counts.keptOff.fetch_add(1, std::memory_order_relaxed);
                 return;
             }
-            if (a_swap.particle.Grey() || a_swap.membrane.Grey()) {
+            if (a_swap.AnyGrey()) {  // a base-only swap counts as a swap, never as "no palette"
                 g_counts.swapped.fetch_add(1, std::memory_order_relaxed);
                 g_counts.particleSwaps.fetch_add(a_swap.particle.Grey() ? 1 : 0, std::memory_order_relaxed);
                 g_counts.membraneSwaps.fetch_add(a_swap.membrane.Grey() ? 1 : 0, std::memory_order_relaxed);
+                g_counts.particleBaseSwaps.fetch_add(a_swap.particleBase.Grey() ? 1 : 0, std::memory_order_relaxed);
+                g_counts.fillSwaps.fetch_add(a_swap.fill.Grey() ? 1 : 0, std::memory_order_relaxed);
                 return;
             }
-            const bool noGrey = a_swap.particle.result == MemberResult::kNoGrey || a_swap.membrane.result == MemberResult::kNoGrey;
-            (noGrey ? g_counts.keptNoGrey : g_counts.keptNoPalette).fetch_add(1, std::memory_order_relaxed);
+            const auto members = a_swap.Members();
+            const bool noGrey = std::ranges::any_of(members, [](const MemberSwap* a_m) { return a_m->result == MemberResult::kNoGrey; });
+            const bool noCopy = std::ranges::any_of(members, [](const MemberSwap* a_m) { return a_m->result == MemberResult::kNoCopy; });
+            // a fire palette missing is the gap to chase; a base without a copy is usually not fire (no line by design)
+            (noGrey ? g_counts.keptNoGrey : noCopy ? g_counts.keptNoBaseCopy : g_counts.keptNoPalette).fetch_add(1, std::memory_order_relaxed);
             int line = 0;
             if (!TakeLine(g_keptLines, kMaxKeptLines, line)) {
                 return;
             }
             std::string paths;
-            for (const auto* member : { &a_swap.particle, &a_swap.membrane }) {
-                if (member->result == MemberResult::kNoGrey) {
+            for (const auto* member : members) {
+                if (member->result == (noGrey ? MemberResult::kNoGrey : MemberResult::kNoCopy)) {
                     paths += std::format("{}'{}' ({})", paths.empty() ? "" : " and ", member->source, member->label);
                 }
             }
@@ -222,7 +269,8 @@ namespace BlackFlame::HitPath::Detail
             logger::info("BlackFlame: corpse kept [{}]: {}, SRE 0x{:X}, shader {:08X} '{}'", line,
                 a_swap.noShader ? std::string("no effectData") :
                 noGrey          ? std::format("no grey palette for {}", paths) :
-                                  std::format("no palette to grey ({}; {})", MemberText(a_swap.particle), MemberText(a_swap.membrane)),
+                noCopy          ? std::format("no copy (not built or not fire) for {}", paths) :
+                                  std::format("nothing to grey ({})", SwapText(a_swap)),
                 reinterpret_cast<std::uintptr_t>(a_sre), shader ? shader->GetFormID() : 0, EditorIdOf(shader));
         }
 
@@ -289,16 +337,16 @@ namespace BlackFlame::HitPath::Detail
             static inline REL::Relocation<decltype(thunk)> func;
         };
 
-        void LogPrivate(const RE::TESEffectShader* a_shader, const RE::NiSourceTexture* a_palette, const void* a_property,
-            const void* a_cacheBefore, const void* a_cacheAfter)
+        void LogPrivate(const RE::TESEffectShader* a_shader, const RE::NiSourceTexture* a_base, const RE::NiSourceTexture* a_palette,
+            const void* a_property, const void* a_cacheBefore, const void* a_cacheAfter)
         {
             int line = 0;
             if (!TakeLine(g_privateLines, kMaxPrivateLines, line)) {
                 return;
             }
-            logger::info("BlackFlame: corpse particles private [{}]: shader {:08X} '{}', palette {}, property 0x{:X} (share "
+            logger::info("BlackFlame: corpse particles private [{}]: shader {:08X} '{}', base {}, palette {}, property 0x{:X} (share "
                          "false), the shader's shared cache 0x{:X} -> 0x{:X} ({}), thread {}", line,
-                a_shader ? a_shader->GetFormID() : 0, EditorIdOf(a_shader), TextureText(a_palette),
+                a_shader ? a_shader->GetFormID() : 0, EditorIdOf(a_shader), TextureText(a_base), TextureText(a_palette),
                 reinterpret_cast<std::uintptr_t>(a_property), reinterpret_cast<std::uintptr_t>(a_cacheBefore),
                 reinterpret_cast<std::uintptr_t>(a_cacheAfter), a_cacheBefore == a_cacheAfter ? "unchanged" : "CHANGED",
                 REX::W32::GetCurrentThreadId());
@@ -319,7 +367,7 @@ namespace BlackFlame::HitPath::Detail
                 g_counts.privateCreated.fetch_add(1, std::memory_order_relaxed);
                 try {
                     if (!GuardedKeep("corpse particles private line", [&]() {
-                            LogPrivate(a_shader, a_palette, property, cacheBefore, a_shader ? a_shader->unk210 : nullptr);
+                            LogPrivate(a_shader, a_base, a_palette, property, cacheBefore, a_shader ? a_shader->unk210 : nullptr);
                         })) {
                         ReportFailure("the private particles line (a fault)");
                     }
@@ -384,7 +432,7 @@ namespace BlackFlame::HitPath::Detail
         FactoryHook::func = decltype(FactoryHook::func){ factory };
         (void)Patch::WriteCall(kNameB, siteB, FactoryHook::thunk, "share false while hook A's private flag is up");
         AttachHook::func = decltype(AttachHook::func){ attach };
-        (void)Patch::WriteCall(kNameA, siteA, AttachHook::thunk, "grey palettes into a marked SRE before the original");
+        (void)Patch::WriteCall(kNameA, siteA, AttachHook::thunk, "grey palettes and base textures into a marked SRE before the original");
         g_hooked = true;
         logger::info("BlackFlame: corpse grey hooked (A 34933 +0x12D, B 34934 +0x2EC); greyCorpseShaders {}: {}",
             GetConfig().greyCorpseShaders ? "true" : "false",
@@ -397,10 +445,12 @@ namespace BlackFlame::HitPath::Detail
             return "corpse grey not hooked";
         }
         const auto& c = g_counts;
-        return std::format("attach 34934 {} calls, {} with the bit: greyed {} (particle palette {}, membrane palette {}), kept "
-                           "with no grey palette {}, kept with no palette {}, kept with greyCorpseShaders false {}; particle "
-                           "factory {} calls, {} private; {}", c.attachCalls.load(), c.attachMarked.load(), c.swapped.load(),
-            c.particleSwaps.load(), c.membraneSwaps.load(), c.keptNoGrey.load(), c.keptNoPalette.load(), c.keptOff.load(),
-            c.factoryCalls.load(), c.privateCreated.load(), CorpsePalettes::Stats());
+        return std::format("attach 34934 {} calls, {} with the bit: greyed {} (particle palette {}, membrane palette {}, particle "
+                           "base {}, fill {}), kept with no grey palette {}, kept with no base copy (not built or not fire) {}, kept "
+                           "with nothing to grey {}, kept with greyCorpseShaders false {}; particle factory {} calls, {} private; {}",
+            c.attachCalls.load(), c.attachMarked.load(), c.swapped.load(), c.particleSwaps.load(), c.membraneSwaps.load(),
+            c.particleBaseSwaps.load(), c.fillSwaps.load(), c.keptNoGrey.load(), c.keptNoBaseCopy.load(), c.keptNoPalette.load(),
+            c.keptOff.load(), c.factoryCalls.load(), c.privateCreated.load(),
+            CorpsePalettes::Stats());
     }
 }

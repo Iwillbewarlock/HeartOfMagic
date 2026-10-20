@@ -51,6 +51,9 @@ namespace BlackFlame::CopyRequestData
     // Every texture of one dump together at most; a texture that no longer fits is left out (named in the request), smaller
     // ones after it in path order still go in
     inline constexpr std::uint64_t kMaxTextureDumpBytes = 768 * kMiB;
+    // Contract 8: the effect shader base textures together at most (inside the total cap): each is read whole at kDataLoaded
+    // for its key, so this bounds that read as well
+    inline constexpr std::uint64_t kMaxBaseDumpBytes = 256 * kMiB;
 
     struct Texture
     {
@@ -69,9 +72,14 @@ namespace BlackFlame::CopyRequestData
     /// and planned in path order within the caps; reads no texture byte of those. Then our two fixed palettes (own, sized
     /// first so the caps never drop them), each read whole for its FNV. Last a_lateTextures (contract 6: the effect shader
     /// palettes), planned after all of those within what the caps leave, so they never push a NIF's texture out of the dump;
-    /// one already in the plan is not listed again. kDataLoaded thread (BSResource).
+    /// one already in the plan is not listed again. After them the effect shader base textures (contract 8, larger than
+    /// the palettes, so a base never pushes a palette out): a_baseKept (the ones the last request keyed: a base that got a
+    /// copy is never evicted by a newcomer; a kept base that grows, or kept bases ahead of it in path order, can still push
+    /// it past the sub-cap, and then it loses its key and OldCopies' keepset: the SlotKeys line counts those as outside the
+    /// dump caps) then a_baseNew, together within kMaxBaseDumpBytes as well. kDataLoaded thread (BSResource).
     [[nodiscard]] std::vector<Texture> PlanTextures(const std::vector<const std::vector<std::byte>*>& a_nifBytes,
-        const std::vector<std::string>& a_formTextures = {}, const std::vector<std::string>& a_lateTextures = {});
+        const std::vector<std::string>& a_formTextures = {}, const std::vector<std::string>& a_lateTextures = {},
+        const std::vector<std::string>& a_baseKept = {}, const std::vector<std::string>& a_baseNew = {});
 
     /// The dump's texture part (path, size, planned): sizes only, so a texture replaced by one of the same size is not dumped
     /// again. Kept apart from the request fingerprint, whose formula the players' freshness check shares.

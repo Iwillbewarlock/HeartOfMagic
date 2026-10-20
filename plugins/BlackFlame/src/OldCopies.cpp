@@ -141,9 +141,9 @@ namespace BlackFlame::OldCopies
                     }
                 }
             }
-            for (const auto& palette : SingleLaunch::Inputs().efsh.palettes) {
-                if (palette.key) {
-                    keys.push_back(*palette.key);
+            for (const auto* list : { &SingleLaunch::Inputs().efsh.palettes, &SingleLaunch::Inputs().efshBase.palettes }) {
+                for (const auto& entry : *list) {  // contract 8: the base textures' copies are this session's too
+                    if (entry.key) keys.push_back(*entry.key);
                 }
             }
             return keys;

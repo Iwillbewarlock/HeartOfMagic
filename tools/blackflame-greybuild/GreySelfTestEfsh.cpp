@@ -209,7 +209,7 @@ namespace GreyBuild::SelfTest
                                { "bounds", { 0, 0, 0, 0, 0, 0 } }, { "data", nlohmann::json::object() }, { "viaSpell", "Skyrim.esm|0E0000" },
                                { "costliest", true } } } },
                 { "muzzles", nlohmann::json::array() }, { "addnMps", nlohmann::json::array() }, { "txst", nlohmann::json::array() },
-                { "efshPalettes", CC::EfshPalettesJson<nlohmann::json>(fixture.merge.palettes) },
+                { "efshPalettes", CC::EfshPalettesJson<nlohmann::json>(fixture.merge.palettes) }, { "efshBases", nlohmann::json::array() },
                 { "addons", { { { "index", 9 }, { "model", "mps\\a.nif" }, { "source", "Skyrim.esm|000009" }, { "masterParticleCap", 0 },
                                   { "dnamFlags", 1 }, { "own", false } } } },
                 { "nifs", nlohmann::json::array() }, { "textures", textures }, { "excluded", nlohmann::json::array() } };

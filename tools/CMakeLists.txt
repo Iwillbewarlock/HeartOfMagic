@@ -201,6 +201,8 @@ add_executable(blackflame-greybuild
     blackflame-greybuild/GreyGlow.cpp
     blackflame-greybuild/GreyPalette.cpp
     blackflame-greybuild/GreyMarble.cpp
+    blackflame-greybuild/GreyParticleGraph.cpp
+    blackflame-greybuild/GreyHandFx.cpp
     blackflame-greybuild/GreySelfTestRisk.cpp
     blackflame-greybuild/GreySelfTestDecal.cpp
     # Single launch (P1 owns these files; P0 added the entries)
@@ -212,11 +214,15 @@ add_executable(blackflame-greybuild
     blackflame-greybuild/GreyKeyedTextures.cpp
     blackflame-greybuild/GreyKeyedEfsh.cpp
     blackflame-greybuild/GreySelfTestEfsh.cpp
+    # Black Flame v2.1: the effect shader base textures (contract 8)
+    blackflame-greybuild/GreyKeyedBases.cpp
+    blackflame-greybuild/GreySelfTestBases.cpp
     blackflame-greybuild/GreySelfTestSlots.cpp
     blackflame-greybuild/GreySelfTestKeyed.cpp
     blackflame-greybuild/GreySelfTestHands.cpp
     blackflame-greybuild/GreySelfTestMarble.cpp
     blackflame-greybuild/GreySelfTestMarbleOrder.cpp
+    blackflame-greybuild/GreySelfTestHandFx.cpp
     blackflame-greybuild/GreySelfTestKeyedRuns.cpp
     # Output identity (CopyContractKeys.h kBuilderOutputVersion) and its golden-output test
     blackflame-greybuild/GreySelfTestGolden.cpp
