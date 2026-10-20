@@ -83,6 +83,7 @@ function toggleFullscreen() {
     settings.isFullscreen = state.isFullscreen;
     autoSaveSettings();
     if (typeof PanelSnap !== 'undefined') PanelSnap.apply();
+    if (typeof SettingsCategories !== 'undefined') SettingsCategories.layout();
     
     // Re-render tree if on tree tab
     if (state.currentTab === 'spellTree' && WheelRenderer.svg) {
@@ -228,11 +229,14 @@ function switchTab(tabId) {
     // Auto-save settings when leaving settings tab
     if (state.currentTab === 'settings' && tabId !== 'settings') {
         autoSaveSettings();
+        // The category's scroll position, for when the tab opens again (settingsCategories.js)
+        if (typeof SettingsCategories !== 'undefined') SettingsCategories.remember();
     }
 
     state.currentTab = tabId;
     if (typeof dismissFindSpell === 'function') dismissFindSpell();   // not left open behind another tab
     if (typeof ResetConfirm !== 'undefined') ResetConfirm.disarm();   // an armed Reset does not wait behind it
+    if (typeof TreeLegend !== 'undefined') TreeLegend.close();         // the node states key does not stay open behind it
 
     // The tree is only drawn while its tab is in front (CanvasRenderer.startRenderLoop
     // refuses otherwise); it used to go on animating behind the settings page
@@ -262,6 +266,7 @@ function switchTab(tabId) {
 
     if (tabId === 'spellScan') {
         document.getElementById('contentSpellScan').classList.add('active');
+        if (typeof ScanStage !== 'undefined') ScanStage.refresh();
         // The tree preview was measured while the page was hidden: a redraw measures it again
         if (typeof PreReqMaster !== 'undefined' && PreReqMaster.renderPreview) PreReqMaster.renderPreview();
     } else if (tabId === 'spellTree') {
@@ -278,6 +283,7 @@ function switchTab(tabId) {
         }
     } else if (tabId === 'settings') {
         document.getElementById('contentSettings').classList.add('active');
+        if (typeof SettingsCategories !== 'undefined') SettingsCategories.onShow();
     }
 }
 
@@ -423,6 +429,8 @@ function initializeResizing() {
         console.log('[SpellLearning] Window size saved:', settings.windowWidth, 'x', settings.windowHeight);
         autoSaveSettings();
         if (typeof PanelSnap !== 'undefined') PanelSnap.apply();
+        // Settings' category list: a column, or a row on top of a narrow page
+        if (typeof SettingsCategories !== 'undefined') SettingsCategories.layout();
     }
 }
 

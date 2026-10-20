@@ -150,21 +150,13 @@ body, button, input, select, textarea, .btn { font-family: var(--arcane-body); }
 
 /* ----------------------------------------------------------- the tree page */
 
-/* A page set in the cover: gold edge, a dark gutter, shadow where it curls */
+/* A page set in the cover: its gold edge, one line (2.0: the gutter ring and the shadow went, panel-tree.css) */
 .tree-container {
     border: 1px solid rgba(201, 162, 90, 0.55);
-    box-shadow:
-        0 0 0 3px rgba(20, 12, 6, 0.9),
-        0 0 0 4px rgba(201, 162, 90, 0.28),
-        inset 0 0 22px rgba(60, 36, 12, 0.5);
+    box-shadow: none;
 }
 
-/* Tools laid on the page and the strip under it: leather, like the cover */
-.zoom-controls,
-.tree-footer {
-    background: rgba(36, 24, 14, 0.94);
-    border-color: rgba(201, 162, 90, 0.35);
-}
+/* The tools laid on the page float without a box: each sits on the cover's leather (--panel-bg, panel-tree.css) */
 
 #howto-tab {
     background: rgba(36, 24, 14, 0.94);
@@ -393,8 +385,7 @@ body, button, input, select, textarea, .btn { font-family: var(--arcane-body); }
 
 /* ------------------------------------------------------ tools on the cover */
 
-/* The school tabs and the trait filter sit on the page like the zoom tools: leather */
-#tree-school-tabs,
+/* The trait filter sits on the page like the tools: leather (the school labels: panel-tree.css) */
 #tree-trait-filter {
     background: rgba(36, 24, 14, 0.94);
     border-color: rgba(201, 162, 90, 0.35);
@@ -442,12 +433,10 @@ body, button, input, select, textarea, .btn { font-family: var(--arcane-body); }
     background: var(--preview-bg);
 }
 
-/* Under the opaque tree canvas the inner shadow is never seen, but was
-   worked out again on every change of the canvas: only the frame while it
-   shows, as an outline (no box shadow at all, see .spell-panel) */
+/* Under the opaque tree canvas: the gold edge alone, no shadow and no second outline (one frame, 2.0) */
 .tree-container.canvas-shown {
     box-shadow: none;
-    outline: 3px solid rgba(20, 12, 6, 0.9);
+    outline: 0;
 }
 
 /* ---------------------------------------------------------------- empty tree

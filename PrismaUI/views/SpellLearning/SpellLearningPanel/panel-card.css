@@ -1,0 +1,256 @@
+/* =============================================================================
+   panel-card.css - the spell card around "can I learn this now" (2.0 review,
+   item 8; modules/spellCardNeeds.js). Both layouts: the right sidebar (the
+   theme's .details-panel) and the bar under the tree (patch-ui.css,
+   #contentSpellTree.details-bottom). Linked after panel-scan.css; the designs'
+   sheets come later. Theme variables only.
+   ============================================================================= */
+
+/* ---- The top: school (its colour as a dot), level, Magicka, type ---- */
+.spell-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 12px;
+    margin-top: 4px;
+    font-size: 0.75em;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary, #9A9A8A);
+}
+
+.details-panel .spell-meta .school-badge {
+    padding: 0;
+    background: transparent;
+    font-size: 1em;
+    letter-spacing: inherit;
+}
+
+.spell-meta .school-badge::before {
+    content: '';
+    display: inline-block;
+    width: 0.62em;
+    height: 0.62em;
+    margin-right: 0.45em;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.spell-meta .school-badge:empty { display: none; }
+
+.spell-meta .detail-value {
+    font-size: 1em;
+    color: var(--text-primary, #C8C8B8);
+}
+
+.spell-meta-key { color: var(--text-muted, #6A6A5A); }
+
+/* The effect line: the description, upright, right under the name */
+.details-header #details-desc-section { margin-top: 6px; }
+
+.details-header .detail-desc {
+    margin: 0;
+    font-style: normal;
+    font-size: 0.85em;
+    line-height: 1.35;
+    color: var(--text-primary, #C8C8B8);
+}
+
+.details-header .spell-chips { margin: 6px 0 0; }
+
+/* ---- The state line and its bar ---- */
+.spell-state-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+}
+
+.spell-state-detail {
+    font-size: 0.85em;
+    color: var(--text-primary, #C8C8B8);
+}
+
+.spell-state-power { color: var(--weakened-color, #C89878); }
+
+.spell-state-bar {
+    height: 3px;
+    margin-top: 6px;
+    background: var(--divider, rgba(255, 255, 255, 0.08));
+}
+
+.spell-state-bar.hidden { display: none; }
+
+.spell-state-fill {
+    width: 0;
+    height: 100%;
+    background: var(--accent-gold, #B8A878);
+}
+
+/* ---- Still needed: chips; Met: one quiet line ---- */
+.spell-needs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    margin-top: 10px;
+}
+
+.spell-needs.hidden,
+.spell-met.hidden { display: none; }
+
+.spell-needs-label {
+    font-size: 0.8em;
+    color: var(--text-secondary, #9A9A8A);
+}
+
+.spell-needs-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.spell-need-chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+    padding: 3px 10px;
+    font-family: inherit;
+    font-size: 0.8em;
+    line-height: 1.3;
+    color: var(--text-primary, #C8C8B8);
+    background: var(--btn-bg, rgba(255, 255, 255, 0.06));
+    border: 1px solid var(--divider, rgba(255, 255, 255, 0.12));
+    border-radius: 12px;
+    cursor: pointer;
+}
+
+button.spell-need-chip:hover { border-color: var(--accent-gold, #B8A878); }
+
+/* A spell whose name is hidden: "???", nothing to press */
+span.spell-need-chip {
+    cursor: default;
+    color: var(--text-muted, #6A6A5A);
+    font-style: italic;
+}
+
+.spell-need-chip.spell-need-lock { border-color: var(--accent-gold, #B8A878); }
+
+.spell-need-lockmark {
+    padding: 0 4px;
+    font-size: 0.8em;
+    letter-spacing: 0.08em;
+    font-style: normal;
+    color: var(--accent-gold, #B8A878);
+    border: 1px solid currentColor;
+    border-radius: 2px;
+}
+
+.spell-need-school,
+.spell-need-count { color: var(--text-secondary, #9A9A8A); }
+
+.spell-need-count { font-size: 0.8em; }
+
+.spell-met {
+    margin-top: 6px;
+    font-size: 0.8em;
+    color: var(--text-muted, #6A6A5A);
+}
+
+.spell-met-label { color: var(--text-secondary, #9A9A8A); }
+.spell-met-tick { color: var(--accent-green, #88A878); }
+
+/* ---- The old progress block: its hint, note and cheat XP boxes stay; its badge and bar are the
+   state line's now (cheat mode keeps the XP line with its boxes: .cheat-xp) ---- */
+.details-panel .progress-section {
+    margin-top: 8px;
+    padding: 0;
+    border-top: 0;
+}
+
+.details-panel .progress-section .learning-status-container,
+.details-panel .progress-section .progress-bar-container { display: none; }
+
+.details-panel .progress-section:not(.cheat-xp) .progress-label { display: none; }
+
+/* ---- Edit mode: the lists with their controls instead of the chips ---- */
+.details-panel:not(.card-editing) .details-col-links { display: none; }
+
+/* ---- Learn / Unlock, why one is off, and the folded Unlocks ---- */
+.details-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+}
+
+#contentSpellTree .details-panel .btn-learn:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.learn-why {
+    font-size: 0.8em;
+    line-height: 1.35;
+    color: var(--text-secondary, #9A9A8A);
+}
+
+.learn-why.hidden { display: none; }
+
+#details-unlocks-section {
+    width: 100%;
+    margin-top: 4px;
+}
+
+#details-unlocks-section.hidden { display: none; }
+
+.spell-fold-btn {
+    padding: 2px 0;
+    background: transparent;
+    border: 0;
+    font-family: inherit;
+    font-size: 0.85em;
+    text-align: left;
+    color: var(--accent-gold, #B8A878);
+    cursor: pointer;
+}
+
+.spell-fold-btn:hover { color: var(--accent-gold-hover, #C8B888); }
+#spell-unlocks.hidden { display: none; }
+
+/* ---- The bar under the tree: the top (name to chips) at the left, can-I-learn in the middle,
+   the buttons and Unlocks at the right; no rules between them ---- */
+#contentSpellTree.details-bottom .details-header {
+    width: auto;
+    flex: 0 1 19em;
+    min-width: 12em;
+    justify-content: flex-start;
+    overflow-y: auto;
+    border-right: 0;
+}
+
+#contentSpellTree.details-bottom .details-col-main { flex: 1 1 0; }
+
+#contentSpellTree.details-bottom .details-col-main .progress-section {
+    width: auto;
+    display: block;
+    margin-top: 8px;
+    padding: 0;
+    border-left: 0;
+}
+
+#contentSpellTree.details-bottom .details-col-main .progress-section.hidden { display: none; }
+
+#contentSpellTree.details-bottom .details-footer {
+    flex: 0 0 14em;
+    min-width: 0;
+    justify-content: flex-start;
+    align-items: stretch;
+    overflow-y: auto;
+    border-left: 0;
+    /* clear of the close button in the bar's top right corner */
+    padding-top: 2.8em;
+}
+
+#contentSpellTree.details-bottom .details-actions .btn { width: 100%; }

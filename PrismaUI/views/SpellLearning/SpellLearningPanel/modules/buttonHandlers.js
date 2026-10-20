@@ -59,6 +59,7 @@ function startScan(options) {
         scanBtn.disabled = true;
         HomIcons.setLabel(scanBtn, t('status.scanning'));
     }
+    if (typeof ScanStage !== 'undefined') ScanStage.refresh();
 
     // Always include plugin field — needed for whitelist filtering even if user preset doesn't show it
     var scanFields = {};

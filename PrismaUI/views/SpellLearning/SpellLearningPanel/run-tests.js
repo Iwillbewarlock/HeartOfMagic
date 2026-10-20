@@ -165,6 +165,8 @@ loadModule('iconSlotsTest', './modules/iconSlotsTest.js');
 loadModule('configSaveTest', './modules/configSaveTest.js');
 loadModule('panelRefreshTest', './modules/panelRefreshTest.js');
 loadModule('panelTidyTest', './modules/panelTidyTest.js');
+loadModule('panelLayoutTest', './modules/panelLayoutTest.js');
+loadModule('spellCardNeedsTest', './modules/spellCardNeedsTest.js');
 loadModule('unificationTest', './modules/unificationTest.js');
 
 console.log('');

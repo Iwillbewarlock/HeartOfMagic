@@ -1,0 +1,137 @@
+/* =============================================================================
+   panel-settings.css - Settings in categories (2.0 review, item 6;
+   modules/settingsCategories.js). Linked after patch-tree-tools.css; the
+   designs' sheets come later and may restyle it. Theme variables only.
+
+   #contentSettings stays the one scroller: the category list in a column at the
+   left (stuck to the top while the page scrolls), the shown page beside it, the
+   version and the Save/Reset bar under the page. Narrow (.settings-narrow, set by
+   SettingsCategories.layout): the list is a row on top.
+   ============================================================================= */
+
+#contentSettings.active {
+    display: grid;
+    grid-template-columns: 10.5em minmax(0, 1fr);
+    /* The page row is at least its content (min-content): it pushes the version and the sticky
+       Save/Reset bar below it, so the bar sticks to the scroller's foot instead of scrolling away
+       with a page that overflowed a 1fr row; a short page still leaves the bar at the foot (1fr) */
+    grid-template-rows: minmax(min-content, 1fr) auto auto;
+    column-gap: 24px;
+    row-gap: 0;
+}
+
+/* ---- The category list ---- */
+.settings-cats {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+    align-self: start;
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-top: 6px;
+    z-index: 2;
+}
+
+.settings-cat-btn {
+    background: transparent;
+    border: 0;
+    border-left: 2px solid transparent;
+    color: var(--text-secondary, #9A9A8A);
+    font-family: inherit;
+    font-size: 0.85em;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 10px 14px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.settings-cat-btn:hover {
+    color: var(--text-primary, #C8C8B8);
+    background: var(--btn-bg, rgba(255, 255, 255, 0.04));
+}
+
+.settings-cat-btn.active {
+    color: var(--accent-gold-hover, var(--accent-gold, #C8B888));
+    border-left-color: var(--accent-gold, #B8A878);
+    background: var(--btn-bg, rgba(255, 255, 255, 0.05));
+}
+
+/* Plain :focus, not :focus-visible - the in-game engine is an old WebKit */
+.settings-cat-btn:focus {
+    outline: 1px solid var(--accent-gold, #B8A878);
+    outline-offset: -1px;
+}
+
+/* ---- The pages: one at a time ---- */
+.settings-cat-page {
+    display: none;
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+}
+
+.settings-cat-page.active {
+    display: block;
+}
+
+#contentSettings .settings-version {
+    grid-column: 2;
+    grid-row: 2;
+}
+
+/* ---- Save / Reset: small text buttons at the foot (Save stays: several Early Learning
+   controls save only on Save, a tab switch or closing the panel - script.js) ---- */
+#contentSettings .settings-actions-sticky {
+    grid-column: 2;
+    grid-row: 3;
+    justify-content: flex-end;
+    gap: 22px;
+    padding: 8px 4px;
+}
+
+#contentSettings .settings-actions-sticky .btn {
+    flex: 0 0 auto;
+    padding: 4px 2px;
+    font-size: 0.85em;
+}
+
+#contentSettings .settings-actions-sticky .hom-icon {
+    width: 1.2em;
+    height: 1.2em;
+}
+
+/* ---- Narrow: the list as a row on top ---- */
+#contentSettings.settings-narrow.active {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(min-content, 1fr) auto auto;
+}
+
+#contentSettings.settings-narrow .settings-cats {
+    grid-column: 1;
+    grid-row: 1;
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 0 0 6px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--divider, rgba(255, 255, 255, 0.08));
+    background: var(--panel-bg-solid, #0a0a0a);
+}
+
+#contentSettings.settings-narrow .settings-cat-btn {
+    border-left: 0;
+    border-bottom: 2px solid transparent;
+    padding: 8px 12px;
+}
+
+#contentSettings.settings-narrow .settings-cat-btn.active {
+    border-bottom-color: var(--accent-gold, #B8A878);
+}
+
+#contentSettings.settings-narrow .settings-cat-page { grid-column: 1; grid-row: 2; }
+#contentSettings.settings-narrow .settings-version { grid-column: 1; grid-row: 3; }
+#contentSettings.settings-narrow .settings-actions-sticky { grid-column: 1; grid-row: 4; }
+#contentSettings.settings-narrow .settings-split { grid-template-columns: minmax(0, 1fr); }

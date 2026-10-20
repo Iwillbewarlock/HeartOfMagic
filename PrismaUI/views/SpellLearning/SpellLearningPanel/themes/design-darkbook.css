@@ -137,18 +137,14 @@
 
 /* ------------------------------------------------------------ the tree page */
 
+/* The page's edge, one line (2.0: the gutter ring and the shadow went, panel-tree.css) */
 .tree-container {
     border: 1px solid var(--book-edge);
-    box-shadow:
-        0 0 0 3px rgba(0, 0, 0, 0.6),
-        0 0 0 4px var(--book-edge),
-        inset 0 0 22px rgba(0, 0, 0, 0.5);
+    box-shadow: none;
 }
 
-/* Tools on the page: the cover's leather */
-.zoom-controls,
-.tree-footer,
-#tree-school-tabs,
+/* Tools on the page: the cover's leather. The zoom tools and school labels float without a box,
+   each on --panel-bg (panel-tree.css); the footer is a line under the frame */
 #tree-trait-filter,
 #howto-tab {
     background: var(--book-tools);
@@ -223,10 +219,8 @@
     background: var(--book-edge);
 }
 
-/* Under the opaque tree canvas the inner shadow is never seen, but was
-   worked out again on every change of the canvas: only the frame while it
-   shows, as an outline (no box shadow at all, see .spell-panel) */
+/* Under the opaque tree canvas: the edge alone, no shadow and no second outline (one frame, 2.0) */
 .tree-container.canvas-shown {
     box-shadow: none;
-    outline: 3px solid rgba(0, 0, 0, 0.6);
+    outline: 0;
 }

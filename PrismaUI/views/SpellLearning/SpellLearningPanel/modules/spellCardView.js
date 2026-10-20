@@ -560,6 +560,12 @@ function renderSpellCard(node, opts) {
         if (learnBtnEl) learnBtnEl.disabled = true;
         if (unlockBtnEl) unlockBtnEl.disabled = true;
     } else if (learnBtnEl) {
-        learnBtnEl.disabled = false;
+        // A locked spell's Learn stays off (spellProgressView.js shows it, with the reason)
+        learnBtnEl.disabled = node.state === 'locked';
+    }
+
+    // Last: the state line, "Still needed" / "Met", why Learn is off, the folded Unlocks (spellCardNeeds.js)
+    if (typeof SpellCardNeeds !== 'undefined') {
+        SpellCardNeeds.render(node, { preview: preview, progressPercent: progressPercent, weakenedPower: isWeakened ? effectiveness : null });
     }
 }

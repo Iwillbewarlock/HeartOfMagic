@@ -5,7 +5,9 @@
  */
 
 /**
- * The progress bar and the Learn/Unlock buttons for the spell on the card.
+ * The progress bar and the Learn/Unlock buttons for the spell on the card, then the card's
+ * state line, "Still needed" and the reason beside Learn (SpellCardNeeds.refresh): many callers
+ * (an XP update, Learn, a reload, cheat unlock) redraw only this part, not the whole card.
  * @param {Object} node
  * @param {{preview?: boolean}} [opts] preview = hover peek, see renderSpellCard
  */
@@ -15,6 +17,11 @@ function updateDetailsProgression(node, opts) {
     // its progress under the wrong card; the selected card is redrawn whole
     // when the cursor leaves
     if (!preview && typeof DetailsPeek !== 'undefined' && DetailsPeek.isPeeking() && node === state.selectedNode) return;
+    _drawDetailsProgression(node, preview);
+    if (typeof SpellCardNeeds !== 'undefined') SpellCardNeeds.refresh(node, preview);
+}
+
+function _drawDetailsProgression(node, preview) {
     var progressSection = document.getElementById('progress-section');
     var learnBtn = document.getElementById('learn-btn');
     var unlockBtn = document.getElementById('unlock-btn');
@@ -164,7 +171,11 @@ function updateDetailsProgression(node, opts) {
     
     // NORMAL MODE
     if (node.state === 'locked') {
-        // Locked - can't do anything
+        // Locked: Learn shows, off, and the card says why beside it (spellCardNeeds.js)
+        learnBtn.classList.remove('hidden');
+        learnBtn.classList.remove('active');
+        learnBtn.textContent = tOr('details.learnThis', null, 'Learn This');
+        learnBtn.disabled = true;
         return;
     }
     
@@ -180,6 +191,8 @@ function updateDetailsProgression(node, opts) {
     var percent = progress.required > 0 ? (progress.xp / progress.required) * 100 : 0;
     progressBar.style.width = Math.min(percent, 100) + '%';
     progressText.textContent = Math.floor(progress.xp) + ' / ' + Math.floor(progress.required) + ' ' + tOr('details.xpUnit', null, 'XP');
+    // A spell that was locked when the card was drawn: its Learn comes back on (not on a preview)
+    learnBtn.disabled = preview;
     
     if (progress.ready || progress.xp >= progress.required) {
         // Ready to unlock - show unlock button

@@ -453,6 +453,8 @@ var TreeGrowthClassic = {
             var appliedSchoolCount = Object.keys(output.schools).length;
             ClassicSettings.setStatusText(t('buildProgress.statusApplied', {count: posCount}), 'done', 'buildProgress.statusApplied', {count: posCount});
             if (typeof updateScanStatus === 'function') updateScanStatus(t('status.treeApplied', {schools: appliedSchoolCount}), 'success', 'status.treeApplied', {schools: appliedSchoolCount});
+            // The Scan page says the draft is the tree now (scanStage.js); the build at game start too
+            if (typeof ScanStage !== 'undefined') ScanStage.markApplied();
 
             if (auto) {
                 if (options.onSaved) options.onSaved(spellCount);

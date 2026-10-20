@@ -63,6 +63,7 @@ function restoreScanButton() {
         scanBtn.disabled = false;
         HomIcons.setLabel(scanBtn, t('buttons.scanSpells'));
     }
+    if (typeof ScanStage !== 'undefined') ScanStage.refresh();
 }
 
 /**
@@ -342,6 +343,8 @@ function updatePrimedCount() {
         });
         breakdownEl.innerHTML = html;
     }
+    // The summary line and the filter lines read the same filters (scanStage.js)
+    if (typeof ScanStage !== 'undefined') ScanStage.refresh();
 }
 
 // =============================================================================
