@@ -1328,8 +1328,8 @@ beside the boxed Locked, Available and Weakened; both are boxes now (`panel-card
 
 **Contrast and text size, computed.** Every visible text run in TREE, SCAN and SETTINGS in the six designs, its
 computed colour against the paint stack under it (the screenshot's pixels where the tree canvas or a picture lies
-under it), WCAG 2: 4.5:1 for text, 3:1 for 24px or 18.66px bold, nothing pressable under 11px. 149 selector fails
-before, none after but the inactive controls WCAG exempts (a locked Learn, the hidden Roguelike preview tab). Fixed in
+under it), WCAG 2: 4.5:1 for text, 3:1 for 24px or 18.66px bold, nothing pressable under 11px. 153 selector fails
+before (the audit's `contrast-audit.md` table, cards in every state included), none after but the inactive controls WCAG exempts (a locked Learn, the hidden Roguelike preview tab). Fixed in
 each design's own tokens: quiet text (`--text-muted`) lighter in Classic (#81816D), Modern Dark (#888890) and
 Arcane's leather (#9A8462), Arcane's faint and gold inks darker on the page (#655239, #744E16, green #365F29); the dark
 books read quiet text and the idle status from `--book-text-soft` (the presets' faint ink is under 4.5:1 on
