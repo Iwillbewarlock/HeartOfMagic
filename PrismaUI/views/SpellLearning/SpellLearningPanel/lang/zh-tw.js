@@ -443,7 +443,7 @@ window._i18nPreload = {
     "scan.summaryBuilding": "正在建構",
     "scan.summaryNotApplied": "尚未套用",
     "scan.summaryApplied": "已套用",
-    "scan.gapLeftOut": "排除了 {{count}} 個：",
+    "scan.gapLeftOut": "未進入樹的 {{count}} 個：",
     "scan.gapNotPlayer": "{{count}} 個不是玩家法術（沒有魔法書、種族能力、副本）",
     "scan.gapExcluded": "排除清單中 {{count}} 個",
     "scan.gapPlugins": "已關閉插件中的 {{count}} 個",

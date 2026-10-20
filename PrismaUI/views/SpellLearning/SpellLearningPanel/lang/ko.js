@@ -443,7 +443,7 @@ window._i18nPreload = {
     "scan.summaryBuilding": "만드는 중",
     "scan.summaryNotApplied": "아직 적용 전",
     "scan.summaryApplied": "적용됨",
-    "scan.gapLeftOut": "{{count}}개 제외:",
+    "scan.gapLeftOut": "트리에서 빠진 주문 {{count}}개:",
     "scan.gapNotPlayer": "플레이어 주문이 아닌 것 {{count}}개 (마법서 없음, 권능, 복제본)",
     "scan.gapExcluded": "제외 목록에 {{count}}개",
     "scan.gapPlugins": "끈 플러그인의 주문 {{count}}개",

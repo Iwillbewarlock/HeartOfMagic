@@ -254,6 +254,31 @@ var PanelLayoutTest = {
         return box;
     },
 
+    /**
+     * The gap line in every language file: the excluded list as the whole gap reads as that reason alone, and the
+     * lead of two or more ("15 left out:") does not reuse the excluded list's own word ("12개 제외: 제외 목록에 12개")
+     */
+    _checkGapLanguages: function(S) {
+        var fs = require('fs'), path = require('path'), dir = path.join(__dirname, '..', 'lang');
+        var files = fs.readdirSync(dir).filter(function(f) { return /^[a-z-]+.json$/.test(f); });
+        var fill = function(s, p) { for (var k in (p || {})) s = s.split('{{' + k + '}}').join(p[k]); return s; };
+        var alone = [], repeats = [];
+        // The stem each language names the excluded list with (scan.gapExcluded, scan.excludedCount)
+        var EXCLUDED_WORD = { en: 'exclu', de: 'sperr', es: 'exclu', fr: 'exclu', it: 'esclu', ja: '除外', ko: '제외', pl: 'wyklucz',
+            'pt-br': 'exclu', ru: 'исключ', tr: 'dışlan', 'zh-cn': '排除', 'zh-tw': '排除' };
+        var one = S.summary('apply', { found: 753, tomeOut: 0, excluded: 12, pluginsOut: 0, inTree: 741 }, 741).gap;
+        files.forEach(function(f) {
+            var L = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+            var lines = one.map(function(g) { return fill(L[g[0]] || g[2], g[1]); });
+            if (lines.length !== 1 || lines[0] !== fill(L['scan.gapExcluded'], { count: 12 })) alone.push(f);
+            var lead = fill(L['scan.gapLeftOut'] || '', { count: 15 }).toLowerCase();
+            var word = EXCLUDED_WORD[f.slice(0, -5)];
+            if (!word || lead.indexOf(word) !== -1) repeats.push(f + ' (' + lead + ')');
+        });
+        this.check(files.length === 13 && alone.length === 0, 'Gap line, every language: the excluded list alone says "12 on your excluded list" once' + (alone.length ? ': ' + alone.join(', ') : ''));
+        this.check(repeats.length === 0, 'Gap line, every language: "N left out:" does not reuse the word of the excluded list' + (repeats.length ? ': ' + repeats.join(', ') : ''));
+    },
+
     _spells: function() {
         var s = [];
         for (var i = 0; i < 10; i++) s.push({ formId: '0x0001000' + i, name: 'A' + i, school: 'Destruction', plugin: 'Skyrim.esm' });
@@ -305,6 +330,7 @@ var PanelLayoutTest = {
         var one = S.summary('build', { found: 20, tomeOut: 0, excluded: 12, pluginsOut: 0, inTree: 8 }, 0);
         this.check(one.gap.length === 1 && one.gap[0][0] === 'scan.gapExcluded' && one.gap[0][1].count === 12,
             'Summary: one reason that is the whole gap says it alone ("12 on your excluded list", no "12 left out:")');
+        this._checkGapLanguages(S);
 
         var p = S.pluginState(spells, box.settings.pluginWhitelist);
         this.check(p.total === 2 && p.off === 1 && S.pluginLine(p)[0] === 'scan.pluginsSome' && S.pluginLine(p)[1].on === 1,

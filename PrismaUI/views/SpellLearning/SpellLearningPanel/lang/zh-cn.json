@@ -463,7 +463,7 @@
     "scan.summaryBuilding": "正在构建",
     "scan.summaryNotApplied": "尚未应用",
     "scan.summaryApplied": "已应用",
-    "scan.gapLeftOut": "排除了 {{count}} 个：",
+    "scan.gapLeftOut": "未进入树的 {{count}} 个：",
     "scan.gapNotPlayer": "{{count}} 个不是玩家法术（没有魔法书、种族能力、副本）",
     "scan.gapExcluded": "排除列表中 {{count}} 个",
     "scan.gapPlugins": "已关闭插件中的 {{count}} 个",

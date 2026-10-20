@@ -463,7 +463,7 @@
     "scan.summaryBuilding": "in costruzione",
     "scan.summaryNotApplied": "non ancora applicato",
     "scan.summaryApplied": "applicato",
-    "scan.gapLeftOut": "{{count}} esclusi:",
+    "scan.gapLeftOut": "{{count}} lasciati fuori:",
     "scan.gapNotPlayer": "{{count}} non sono incantesimi del giocatore (senza tomo, poteri, copie)",
     "scan.gapExcluded": "{{count}} nella tua lista degli esclusi",
     "scan.gapPlugins": "{{count}} da plugin disattivati",

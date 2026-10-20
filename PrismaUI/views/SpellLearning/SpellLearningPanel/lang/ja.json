@@ -463,7 +463,7 @@
     "scan.summaryBuilding": "構築中",
     "scan.summaryNotApplied": "未適用",
     "scan.summaryApplied": "適用済み",
-    "scan.gapLeftOut": "{{count}}個は除外：",
+    "scan.gapLeftOut": "ツリーに入らない呪文{{count}}個：",
     "scan.gapNotPlayer": "プレイヤー用ではない呪文が{{count}}個（魔導書なし、パワー、複製）",
     "scan.gapExcluded": "除外リストに{{count}}個",
     "scan.gapPlugins": "オフにしたプラグインの呪文{{count}}個",
