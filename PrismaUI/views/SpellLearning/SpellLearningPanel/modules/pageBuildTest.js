@@ -62,6 +62,7 @@ var PageBuildTest = {
             require('./treeStyle.js');
             require('./treeStyleBook.js');
             this._tests(g.TreeStyle, cr, log, timers);
+            this._insetTests(g.TreeStyle);
         } catch (e) {
             this.check(false, 'page tests ran: ' + (e && e.stack || e));
         } finally {
@@ -69,6 +70,24 @@ var PageBuildTest = {
             if (g.LayerBuild) { g.LayerBuild._unmeasured = saved.unm; g.LayerBuild._textCold = saved.cold; }
         }
         return { passed: this.passed, failed: this.failed };
+    },
+
+    /** Where the tree's tools sit off a page's corner drawing (toolsInset, read by TreeToolsScale.setInset) */
+    _insetTests: function(T) {
+        var keep = T._images['corner.png'];
+        T.set({ pageColor: '#e6d6b0', pageOrnament: 'corner.png' });
+        T._images['corner.png'] = { img: {}, ok: true };
+        this.check(T.ornamentSize(1486, 779) === 187 && T.toolsInset(1486, 779) === 84,
+            'Tools inset: 45% into the corner drawing (187 px on a 1486 x 779 tree: 84 px)');
+        this.check(T.ornamentSize(400, 300) === 96 && T.ornamentSize(3000, 2000) === 200, 'Tools inset: the drawing between 96 and 200 px, as drawn');
+        T._images['corner.png'] = { img: {}, ok: false };
+        this.check(T.toolsInset(1486, 779) === 0, 'Tools inset: none while the drawing has not loaded (nothing drawn yet)');
+        T._images['corner.png'] = { img: {}, ok: true };
+        T.set({ pageColor: '#e6d6b0' });
+        this.check(T.toolsInset(1486, 779) === 0, 'Tools inset: none for a page without corner drawings');
+        T.set({ pageOrnament: 'corner.png' });
+        this.check(T.toolsInset(1486, 779) === 0, 'Tools inset: none without a page (the starfield designs)');
+        if (keep) T._images['corner.png'] = keep; else delete T._images['corner.png'];
     },
 
     _tests: function(T, cr, log, timers) {

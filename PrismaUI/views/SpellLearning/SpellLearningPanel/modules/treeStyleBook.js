@@ -40,6 +40,8 @@
         PAGE_MAX_SKIPS: 8,        // frames in a row with no time left for a step: then one step anyway
         PAGE_BLOTCHES: 40,
         PAGE_SEED: 1234567,       // the grain is seeded, so the page looks the same every time it is painted
+        ORNAMENT_POCKET: 0.45,    // the tree's tools sit this far into the corner drawing (TreeToolsScale.setInset): the
+                                  // knot, compass and medallion of the four designs end inside it, the edge lines well before
 
         _page: null,              // the finished texture
         _pageKey: '',             // its size, "w x h"
@@ -69,6 +71,7 @@
          */
         renderPage: function(ctx, w, h) {
             var t = this.tokens;
+            if (typeof TreeToolsScale !== 'undefined' && TreeToolsScale.setInset) TreeToolsScale.setInset(this.toolsInset(w, h));
             if (!t.pageColor) return false;
             // (the same colour only: an add-on design sharing another's colour shows
             // that one's texture for the few frames its own is painted)
@@ -305,11 +308,20 @@
             return entry.ok ? entry.img : null;
         },
 
+        /** The corner drawing's side on a w x h page, css px */
+        ornamentSize: function(w, h) { return Math.round(Math.max(96, Math.min(200, Math.min(w, h) * 0.24))); },
+
+        /** Where the tree's tools sit in from the top-left corner so the corner drawing stays clear (0: no drawing) */
+        toolsInset: function(w, h) {
+            var t = this.tokens;
+            return (t.pageColor && t.pageOrnament && this._image(t.pageOrnament)) ? Math.round(this.ornamentSize(w, h) * this.ORNAMENT_POCKET) : 0;
+        },
+
         /** The page's corner drawing, mirrored into all four corners of the page texture. */
         _drawOrnaments: function(g, w, h) {
             var img = this._image(this.tokens.pageOrnament);
             if (!img) return;
-            var size = Math.round(Math.max(96, Math.min(200, Math.min(w, h) * 0.24)));
+            var size = this.ornamentSize(w, h);
             var corners = [[1, 1, 0, 0], [-1, 1, w, 0], [1, -1, 0, h], [-1, -1, w, h]];
             for (var i = 0; i < corners.length; i++) {
                 var c = corners[i];

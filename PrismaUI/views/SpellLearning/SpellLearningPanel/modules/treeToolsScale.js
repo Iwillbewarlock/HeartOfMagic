@@ -12,6 +12,8 @@
  * scaled bottom (TreeNav.placeUnder).
  *
  * Saved as settings.treeToolsScale in the panel config; Reset to Defaults sets 1.
+ * A design whose page has corner drawings moves the tools in off the top-left one
+ * (setInset, called by TreeStyle.renderPage with TreeStyle.toolsInset).
  * The grip takes its own mouse presses: the tree does not pan from them. A
  * release the page never hears (a move with no button held, the page losing
  * focus) ends the drag too, so the bar does not keep following the pointer.
@@ -28,6 +30,25 @@ var TreeToolsScale = {
     STEP: 0.05,
 
     _drag: null,
+    EDGE_PX: 14,      // .tree-top-tools' top and left in patch-tree-tools.css
+    _inset: 0,
+
+    /**
+     * The tools' corner: px from the tree's top left (0 or less than EDGE_PX: the stylesheet's own place).
+     * Only a change writes to the page; the bar's room is worked out again.
+     */
+    setInset: function(px) {
+        var inset = px > this.EDGE_PX ? Math.round(px) : 0;
+        if (inset === this._inset) return;
+        this._inset = inset;
+        var tools = document.querySelector ? document.querySelector('.tree-top-tools') : null;
+        if (tools && tools.style) {
+            tools.style.left = inset ? inset + 'px' : '';
+            tools.style.top = inset ? inset + 'px' : '';
+            tools.style.maxWidth = inset ? 'calc(100% - ' + (inset + this.EDGE_PX) + 'px)' : '';
+        }
+        this.apply();
+    },
 
     /** A saved or dragged value as a scale: a number in [MIN, MAX] on STEP, else DEFAULT */
     clamp: function(value) {
@@ -79,7 +100,8 @@ var TreeToolsScale = {
         var s = this.current();
         var host = bar.parentElement && bar.parentElement.parentElement;
         // The bar's unscaled width: what the tree has room for at this scale
-        var room = host && host.clientWidth ? Math.floor((host.clientWidth - 28) / s) : 0;
+        var left = this._inset || this.EDGE_PX;
+        var room = host && host.clientWidth ? Math.floor((host.clientWidth - left - this.EDGE_PX) / s) : 0;
         bar.style.maxWidth = room > 0 ? room + 'px' : '';
         bar.style.transformOrigin = 'top left';
         bar.style.transform = s === 1 ? '' : 'scale(' + s + ')';

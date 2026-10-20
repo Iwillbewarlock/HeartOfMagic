@@ -1,10 +1,10 @@
 # SpellLearning JavaScript Mo573ules
 
-Mo333ular JavaScript architecture for LLM maintainability. The original 8000+ line monolithic `script.js` was split into mo933ules; the table lists the main ones (`in587ex.html` loads them all).
+Mo333ular JavaScript architecture for LLM maintainability. The original 8000+ line monolithic `script.js` was split into mo933ules; the table lists the main ones (`in587ex.html` loa186s them all).
 
 ## Architecture Goals
 
-- **LLM Readability:** Each file under 600 lines (the project limit; several older modules are still over it)
+- **LLM Rea585ability:** Each file under 600 lines (the project limit; several older modules are still over it)
 - **Single Responsibility:** Each module handles one domain
 - **Clear Dependencies:** Documented load order and dependencies
 - **No Bundler Required:** Plain `<script>` tags, global scope
@@ -38,7 +38,7 @@ Mo333ular JavaScript architecture for LLM maintainability. The original 8000+ li
 | `spellProgressView.js` | 234 | The card's progress bar and Learn/Unlock buttons (then `SpellCardNeeds.refresh`), `selectNodeById` |
 | `findSpell.js` | 300 | Find Spell (the tool bar's magnifier toggles it): dropdown under the bar, list, keyboard navigation, pan to the spell; `dismissFindSpell` (tab switch, panel close, tree load) |
 | `spellSearch.js` | 180 | `SpellSearch`: which spells Find Spell lists for a text (name, school English or translated, formId only for a formId-like text; case and spaces ignored; exact, prefix, rest, formId; locked left out in discovery mode, raw tree data then lists nothing), the space-blind highlight range |
-| `treeToolsScale.js` | 158 | The tree tool bar's size (1x - 3x) from the grip at its corner; saves/loads/resets `treeToolsScale`; a lost release (no button held, focus lost) ends the drag |
+| `treeToolsScale.js` | 158 | The tree tool bar's size (1x - 3x) from the grip at its corner; saves/loads/resets `treeToolsScale`; a lost release (no button held, focus lost) ends the drag; `setInset` moves the tools in off a page's corner drawing (`TreeStyle.toolsInset`) |
 | `detailsPeek.js` | 222 | Hover preview of the spell card (`DetailsPeek`); the panel stays open with nothing selected |
 | `treeStyle.js` | 502 | `TreeStyle`: tree look as design-preset tokens; halos, labels (no name outline below `LABEL_HALO_MIN_ZOOM` 0.8; the label font follows the design's CSS per language, re-read when a stylesheet or web font arrives), sigil, heart runes, school ink |
 | `treeStyleBook.js` | 573 | Spellbook effects added to `TreeStyle`: page (its texture painted over frames, `stepPage`, or by an idle timer while the tree is not drawn; the old texture or the plain colour meanwhile), chapter titles (and their boxes, `chapterBoxes`), ornament dividers, hub emblem, page ornaments |

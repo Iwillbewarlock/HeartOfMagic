@@ -76,6 +76,7 @@ var TreeToolsScaleTest = {
             this.check(g.settings.treeToolsScale === 1 && T.current() === 1, 'Reset to Defaults: 1x');
 
             this._dragTests(g, T, function() { return saves; });
+            this._insetTests(g, T);
         } finally {
             g.settings = oldSettings;
             g.autoSaveSettings = oldSave;
@@ -151,6 +152,32 @@ TreeToolsScaleTest._dragTests = function(g, T, saveCount) {
         g.addEventListener = oldAdd;
         g.removeEventListener = oldRemove;
         T._drag = null;
+    }
+};
+
+/** setInset: the tools moved in off a page's corner drawing, the bar's room made smaller to match */
+TreeToolsScaleTest._insetTests = function(g, T) {
+    var oldDoc = g.document;
+    var host = { clientWidth: 1000 };
+    var tools = { style: { left: '', top: '', maxWidth: '' }, parentElement: host };
+    var bar = { style: {}, parentElement: tools, offsetHeight: 24, offsetWidth: 230 };
+    g.document = { querySelector: function(sel) { return sel === '.tree-top-tools' ? tools : sel === '.tree-top-tools .zoom-controls' ? bar : null; } };
+    try {
+        g.settings = { treeToolsScale: 1 };
+        T._inset = 0;
+        T.setInset(84);
+        this.check(tools.style.left === '84px' && tools.style.top === '84px' && tools.style.maxWidth === 'calc(100% - 98px)',
+            'Inset: the tools sit 84 px in, their column narrower by as much');
+        this.check(bar.style.maxWidth === '902px', 'Inset: the room of the bar is the tree less the inset and the right edge');
+        T.setInset(10);
+        this.check(tools.style.left === '' && tools.style.top === '' && tools.style.maxWidth === '' && bar.style.maxWidth === '972px',
+            'Inset: less than the 14 px of the stylesheet (or none) puts its own place back');
+        tools.style.left = 'kept';
+        T.setInset(0);
+        this.check(tools.style.left === 'kept', 'Inset: no change, nothing written (called every frame)');
+    } finally {
+        g.document = oldDoc;
+        T._inset = 0;
     }
 };
 

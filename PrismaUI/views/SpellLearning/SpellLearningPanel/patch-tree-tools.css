@@ -13,7 +13,9 @@
 
 /* The bar, the school tabs and the trait filter in one column at the tree's top
    left (index.html .tree-top-tools): a bar that wraps pushes the rows under it
-   down instead of covering them. Each keeps its own look (designs style them by id). */
+   down instead of covering them. Each keeps its own look (designs style them by id).
+   A design whose page has corner drawings moves it in off the top-left one
+   (TreeToolsScale.setInset writes left, top and max-width). */
 .tree-top-tools {
     position: absolute;
     top: 14px;
