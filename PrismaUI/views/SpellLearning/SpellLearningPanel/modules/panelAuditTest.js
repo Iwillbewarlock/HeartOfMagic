@@ -8,6 +8,8 @@
  * name, the last power step's figures over two columns (no spacer cells), the spell card's chips as
  * wrapping inline boxes no wider than the card, cheat mode's XP boxes wrapping, the canvas hint
  * clear of the sidebar card, the Complex page's bar at the foot solid.
+ * Item 2, every state on one page (lab/ui-states/states.html): every state the card's badge can take
+ * (locked, available, learning, unlocked, weakened) is a filled box, none a bare word.
  *
  * Depends on: settingsCategories.js (in a sandbox with a fake document), the panel's CSS and
  * script.js read as text.
@@ -54,7 +56,8 @@ var PanelAuditTest = {
         this.failed = 0;
         if (typeof require !== 'function') return { passed: 0, failed: 0 };
         var parts = [['Settings one column', this._oneColumn], ['Settings rows', this._settingsRows],
-            ['Power steps', this._powerSteps], ['Spell card', this._card], ['Tree and Scan', this._treeScan]];
+            ['Power steps', this._powerSteps], ['Spell card', this._card], ['Tree and Scan', this._treeScan],
+            ['State badges', this._badges]];
         for (var i = 0; i < parts.length; i++) {
             try { parts[i][1].call(this); } catch (e) { this.check(false, parts[i][0] + ' threw: ' + (e && e.stack ? e.stack : e)); }
         }
@@ -142,6 +145,24 @@ var PanelAuditTest = {
         var bar = this._rule(scan, /#contentSpellScan \.scan-actions-bottom$/);
         this.check(/background:\s*var\(--panel-bg-solid/.test(bar) && !/gradient/.test(bar), 'the Complex page\'s bar at the foot is solid');
     }
+};
+
+// ======================================================================= item 2
+
+/** Every state the card's badge can take is a filled box (Learning had no rule, Unlocked an undefined token) */
+PanelAuditTest._badges = function() {
+    var css = this._file('../styles-skyrim.css') + '\n' + this._file('../panel-card.css');
+    var self = this;
+    ['locked', 'available', 'learning', 'unlocked', 'weakened'].forEach(function(st) {
+        var re = new RegExp('\\.state-badge\\.' + st + ' \\{[^}]*background:\\s*var\\(--[\\w-]+', 'g');
+        var found = css.match(re) || [];
+        self.check(found.length > 0, 'the ' + st + ' badge has a background (' + found.length + ' rule' + (found.length === 1 ? '' : 's') + ')');
+    });
+    var card = this._file('../panel-card.css');
+    this.check(/\.state-badge\.unlocked \{ background: var\(--node-unlocked-bg, var\(--node-learning-bg/.test(card),
+        'Unlocked falls back to a token the theme defines (none defines --node-unlocked-bg)');
+    var learning = this._rule(card, /^\.state-badge\.learning$/);
+    this.check(/color:\s*var\(--learning-color/.test(learning), 'Learning in the tree\'s learning colour');
 };
 
 if (typeof window !== 'undefined') window.PanelAuditTest = PanelAuditTest;

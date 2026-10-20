@@ -73,6 +73,16 @@
 
 .spell-state-power { color: var(--weakened-color, #C89878); }
 
+/* Every state's badge a filled box like Locked, Available and Weakened: Learning had no rule and
+   Unlocked (mastered) a background token no theme defines, so both showed as bare words (2.0 audit,
+   every state on one page). The tree's own learning colours; a design's rules come later and win. */
+.state-badge.learning {
+    background: var(--node-learning-bg, rgba(120, 144, 168, 0.2));
+    color: var(--learning-color, #7890A8);
+}
+
+.state-badge.unlocked { background: var(--node-unlocked-bg, var(--node-learning-bg, rgba(120, 144, 168, 0.2))); }
+
 .spell-state-bar {
     height: 3px;
     margin-top: 6px;

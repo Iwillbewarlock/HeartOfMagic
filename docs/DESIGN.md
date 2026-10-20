@@ -1318,6 +1318,13 @@ no wider than the card: a long name or school wraps inside the chip (a German lo
 sideways). The canvas hint stays in the part of the tree the sidebar card leaves free. The Complex page's bar at
 the foot is solid (the page scrolled under it showed through its Presets row).
 
+**Every state on one page** (`lab/ui-states/states.html?design=&group=card|side|scan&lang=`, development only):
+the spell card in each state (hidden name, locked with a lock from another school, available, learning, weakened,
+mastered, edit mode) in the bar or the sidebar, and the Scan page's stage block in each stage (no scan, scanned, a
+gap, building, built, applied, failed, 0 spells), one frame of the dev harness per state. Found with it: the
+Learning badge had no style and Unlocked (mastered) a background token no theme defines, so both were bare words
+beside the boxed Locked, Available and Weakened; both are boxes now (`panel-card.css`, the tree's learning colours).
+
 Tests: `panelAuditTest.js`.
 
 ## New spells and next goals (2026-10-02)
