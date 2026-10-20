@@ -1,6 +1,6 @@
-# SpellLearning JavaScript Modules
+# SpellLearning JavaScript Mo573ules
 
-Modular JavaScript architecture for LLM maintainability. The original 8000+ line monolithic `script.js` was split into modules; the table lists the main ones (`index.html` loads them all).
+Mo333ular JavaScript architecture for LLM maintainability. The original 8000+ line monolithic `script.js` was split into mo933ules; the table lists the main ones (`index.html` loads them all).
 
 ## Architecture Goals
 
@@ -34,7 +34,7 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `treeLegend.js` | 45 | `TreeLegend`: the node states key behind the tree footer's "?" (a click opens and closes it, a tab switch closes it); tests in `panelLayoutTest.js` |
 | `treeStatusLine.js` | 98 | The tree footer's status line: `setTreeStatus` / `setTreeStatusKey` (moved from `progressionUI.js`) and `TreeStatusLine`: a success line that repeats the footer (`BRIEF_KEYS`: loaded, tree saved) goes back to "Ready" after `SHOW_MS`; any other write cancels that; a warning or error (`KEEP_KEYS`, plain DLL text) is not covered by a success line within `KEEP_WINDOW_MS`; tests in `panelTidyTest.js` |
 | `spellCardNeeds.js` | 332 | `SpellCardNeeds`: the spell card's state line (XP share, "casts at N% power", bar; `refresh` after a progress-only redraw), "Still needed" chips (required, optional with "need N of M", locks) and "Met", the reason beside a locked Learn, "Leads to N later spells" folding Unlocks; tests in `spellCardNeedsTest.js` |
-| `spellCardView.js` | 571 | Selecting a spell and drawing the spell card (`showSpellDetails`, `renderSpellCard`, `clearSpellSelection`); `spellWeakenedPower`, the "Weakened (N%)" badge's power (none once mastered) |
+| `spellCardView.js` | 571 | Selecting a spell and drawing the spell card (`showSpellDetails`, `renderSpellCard`, `clearSpellSelection`); `spellWeakenedPower`, the power behind the "Weakened" badge and "casts at N% power" (none once mastered) |
 | `spellProgressView.js` | 234 | The card's progress bar and Learn/Unlock buttons (then `SpellCardNeeds.refresh`), `selectNodeById` |
 | `findSpell.js` | 300 | Find Spell (the tool bar's magnifier toggles it): dropdown under the bar, list, keyboard navigation, pan to the spell; `dismissFindSpell` (tab switch, panel close, tree load) |
 | `spellSearch.js` | 180 | `SpellSearch`: which spells Find Spell lists for a text (name, school English or translated, formId only for a formId-like text; case and spaces ignored; exact, prefix, rest, formId; locked left out in discovery mode, raw tree data then lists nothing), the space-blind highlight range |

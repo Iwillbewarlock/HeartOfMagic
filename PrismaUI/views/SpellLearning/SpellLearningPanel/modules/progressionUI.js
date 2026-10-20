@@ -187,6 +187,8 @@ function updateLearningStatusBadge(node, progress) {
         stage = 'weakened';
         effectivenessPercent = calculateCurrentEffectiveness(progressPercent, el);
         effectivenessClass = 'weak';
+        // What to do, not the power: the state line says "casts at N% power" (spellCardNeeds.js);
+        // percent stays for a translation that still has it
         hintText = t('progression.hint.weakened', {percent: Math.round(effectivenessPercent)});
     } else if (progressPercent < 100) {
         // PRACTICING - selfCastRequiredAt to 99%

@@ -1,5 +1,5 @@
 /**
- * SpellCardWeakenedTest - node tests for the spell card's "Weakened (N%)" badge
+ * SpellCardWeakenedTest - node tests for the spell card's "Weakened" badge and its power
  * (spellWeakenedPower in spellCardView.js, run-tests.js).
  *
  * Checks: a spell is weakened only when the known spells list it as early-learned

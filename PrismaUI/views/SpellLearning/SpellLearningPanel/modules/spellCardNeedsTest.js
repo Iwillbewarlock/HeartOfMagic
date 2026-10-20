@@ -188,7 +188,7 @@ var SpellCardNeedsTest = {
         box.getRequiredXPForNode = function() { return 100; };
         N.refresh(open, false);
         this.check(els['spell-state-detail'].text() === '71% learned · casts at 65% power' && els['spell-state-fill'].style.width === '71%' &&
-            badge.textContent === 'Weakened (65%)', 'Progress-only redraw (refresh): the state line, its bar and "Weakened (N%)" follow the XP');
+            badge.textContent === 'Weakened', 'Progress-only redraw (refresh): the state line and its bar follow the XP, the badge says "Weakened" with no second figure');
         var wasLocked = { id: 'w', school: 'Destruction', state: 'locked', hardPrereqs: ['d'] };
         N.refresh(wasLocked, false);
         var whyBefore = !els['learn-why'].classList.contains('hidden');

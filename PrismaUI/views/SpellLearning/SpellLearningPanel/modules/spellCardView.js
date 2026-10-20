@@ -540,9 +540,11 @@ function renderSpellCard(node, opts) {
     var stateText = spellStateLabel(node.state);
     var stateClass = node.state;
 
-    // Show "Weakened" for early-learned spells (the known spells keep them 'available')
+    // Show "Weakened" for early-learned spells (the known spells keep them 'available'). The word
+    // alone: the state line says "casts at N% power" (spellCardNeeds.js); pct stays for a
+    // translation that still has it
     if (isWeakened) {
-        stateText = tOr('details.stateWeakened', { pct: effectiveness }, 'Weakened ({{pct}}%)');
+        stateText = tOr('details.stateWeakened', { pct: effectiveness }, 'Weakened');
         stateClass = 'weakened';
     }
     

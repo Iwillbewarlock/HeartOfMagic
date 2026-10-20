@@ -3,8 +3,9 @@
  *
  * renderSpellCard (spellCardView.js) draws the card's top - name, school, level, Magicka, the
  * effect line - and calls render() last. This module draws:
- *  - the state line: the state word (#spell-state, the 1.6 "Weakened (N%)" included), the XP
- *    share ("62% learned"), "casts at N% power" while weakened, and a thin progress bar (the XP
+ *  - the state line: the state word (#spell-state, the 1.6 "Weakened" included), the XP
+ *    share ("62% learned"), "casts at N% power" while weakened - the card's one figure for the
+ *    power: the word and the hint under the bar leave it out -, and a thin progress bar (the XP
  *    figures "45 / 100 XP" stay in the hidden progress section; cheat mode shows its XP boxes);
  *  - "Still needed:" - only what is not met yet, as chips: required spells, optional ones with
  *    "(need 2 of 3)" once after them, Pre Req Master locks as lock chips with the lock's school
@@ -174,7 +175,7 @@ var SpellCardNeeds = {
 
     /**
      * The card's lower part again after a redraw of only the progress part (updateDetailsProgression:
-     * an XP update, Learn, a progress reload, cheat unlock): the state line and bar, "Weakened (N%)",
+     * an XP update, Learn, a progress reload, cheat unlock): the state line and bar, "Weakened",
      * "Still needed" / "Met" and the reason beside Learn follow, as a full render would draw them.
      * The XP share is read as updateDetailsProgression reads it (the canonical id's progress over
      * getRequiredXPForNode); renderSpellCard draws the card once more with its own figure after it.
@@ -190,7 +191,7 @@ var SpellCardNeeds = {
         var power = (typeof spellWeakenedPower === 'function') ? spellWeakenedPower(node) : null;
         var badge = this._el('spell-state');
         if (badge && power !== null) {
-            badge.textContent = tOr('details.stateWeakened', { pct: power }, 'Weakened ({{pct}}%)');
+            badge.textContent = tOr('details.stateWeakened', { pct: power }, 'Weakened');
             badge.className = 'state-badge weakened';
         }
         this.render(node, { preview: !!preview, progressPercent: percent, weakenedPower: power });
