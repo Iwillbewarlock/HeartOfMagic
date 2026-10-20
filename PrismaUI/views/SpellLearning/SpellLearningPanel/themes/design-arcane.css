@@ -18,7 +18,7 @@
     --panel-border: rgba(201, 162, 90, 0.35);
     --text-primary: #E6D8B8;
     --text-secondary: #BCA882;
-    --text-muted: #8A7658;
+    --text-muted: #9A8462;   /* 4.6:1 on the leather (#8A7658 was 3.8:1; 2.0 audit) */
     --text-bright: #F6ECD4;
     --accent-gold: #C9A25A;
     --accent-gold-hover: #DDB86C;
@@ -33,7 +33,7 @@
     --arcane-parchment-edge: #dccb9f;
     --arcane-ink: #2a1c0c;
     --arcane-ink-soft: #5a4326;
-    --arcane-ink-faint: #7d6647;
+    --arcane-ink-faint: #655239;   /* 4.6:1 on the page's edge (#7d6647 was 3.4:1; 2.0 audit) */
     --arcane-rule: rgba(90, 58, 20, 0.25);
     --arcane-rubric: #8a2f1c;
 
@@ -199,10 +199,10 @@ body, button, input, select, textarea, .btn { font-family: var(--arcane-body); }
     --input-bg: rgba(255, 250, 235, 0.6);
     --btn-bg: rgba(90, 58, 20, 0.08);
     --btn-bg-hover: rgba(90, 58, 20, 0.16);
-    --accent-gold: #8b5e1a;
+    --accent-gold: #744e16;        /* 4.6:1 on the page's edge (#8b5e1a was 3.9:1; 2.0 audit) */
     --accent-gold-hover: #6b4410;
     --accent-blue: #1d6f8a;
-    --accent-green: #3d6b2e;
+    --accent-green: #365f29;       /* was #3d6b2e, 4.3:1 */
     --accent-red: #9a2a1a;
     /* School colours as inks: the theme's are pale, made for a dark card */
     --destruction: #9a2a1a;
@@ -257,7 +257,7 @@ body, button, input, select, textarea, .btn { font-family: var(--arcane-body); }
 .details-panel .state-badge {
     background: rgba(90, 58, 20, 0.08);
 }
-.details-panel .state-badge.available { color: #3d6b2e; border-color: #3d6b2e; }
+.details-panel .state-badge.available { color: var(--accent-green); border-color: var(--accent-green); }
 .details-panel .state-badge.learning  { color: #1d6f8a; border-color: #1d6f8a; }
 .details-panel .state-badge.unlocked  { color: #7a5a14; border-color: #7a5a14; }
 .details-panel .state-badge.locked    { color: #6b5a45; border-color: #6b5a45; }
@@ -482,3 +482,23 @@ body, button, input, select, textarea, .btn { font-family: var(--arcane-body); }
 .modal-content .hom-icon[data-icon="close"] {
     background-image: url("arcane/icons-ink/close.png") !important;
 }
+
+/* ------------------------------------------------- 2.0 audit (contrast) */
+
+/* The school labels on the page: the name in the cover's ink on its leather backing, the school's colour on a
+   dot before it. Arcane's school colours are inks for parchment; Conjuration's read 2.8:1 on the leather. */
+#contentSpellTree #tree-school-tabs .school-tab { -webkit-text-fill-color: var(--text-primary); }
+
+#contentSpellTree #tree-school-tabs .school-tab::before {
+    content: '';
+    display: inline-block;
+    width: 0.55em;
+    height: 0.55em;
+    margin-right: 0.4em;
+    border-radius: 50%;
+    background: currentColor;
+    vertical-align: 0.05em;
+}
+
+/* The canvas hint on solid leather: on the half-clear black over the parchment its quiet ink read 2.9:1 */
+.tree-instructions { background: var(--panel-bg-solid); }

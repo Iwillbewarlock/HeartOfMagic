@@ -34,7 +34,9 @@
     --panel-border: var(--book-edge);
     --text-primary: var(--book-text);
     --text-secondary: var(--book-text-soft);
-    --text-muted: var(--book-text-faint);
+    /* Quiet text reads the soft ink: the faint one is under 4.5:1 on Chalkboard's slate and on Night
+       Grimoire's cards (2.0 audit). The faint ink stays for what is not text. */
+    --text-muted: var(--book-text-soft);
     --text-bright: var(--book-text-bright);
     --accent-gold: var(--book-gold);
     --accent-gold-hover: var(--book-gold-bright);
@@ -47,7 +49,10 @@
     --preview-bg: var(--book-page-edge);
     /* The tree builder's status line (TreeGrowth.STATUS_COLORS); a preset may
        set its own like the palette */
-    --status-idle: var(--book-text-faint);
+    --status-idle: var(--book-text-soft);   /* the faint ink was 4.3:1 on Chalkboard (2.0 audit) */
+    /* The theme's blue and red, lighter: made for black, they read 3.3:1 on Chalkboard's slate */
+    --accent-blue: #97AABC;
+    --accent-red: #C19F9F;
     --status-working: #F0B04C;
     --status-done: #8CCF84;
     --status-error: #EE7E6E;

@@ -1325,6 +1325,21 @@ gap, building, built, applied, failed, 0 spells), one frame of the dev harness p
 Learning badge had no style and Unlocked (mastered) a background token no theme defines, so both were bare words
 beside the boxed Locked, Available and Weakened; both are boxes now (`panel-card.css`, the tree's learning colours).
 
+**Contrast and text size, computed.** Every visible text run in TREE, SCAN and SETTINGS in the six designs, its
+computed colour against the paint stack under it (the screenshot's pixels where the tree canvas or a picture lies
+under it), WCAG 2: 4.5:1 for text, 3:1 for 24px or 18.66px bold, nothing pressable under 11px. 149 selector fails
+before, none after but the inactive controls WCAG exempts (a locked Learn, the hidden Roguelike preview tab). Fixed in
+each design's own tokens: quiet text (`--text-muted`) lighter in Classic (#81816D), Modern Dark (#888890) and
+Arcane's leather (#9A8462), Arcane's faint and gold inks darker on the page (#655239, #744E16, green #365F29); the dark
+books read quiet text and the idle status from `--book-text-soft` (the presets' faint ink is under 4.5:1 on
+Chalkboard's slate and Night Grimoire's cards, and the presets cannot change) and get a lighter blue and red.
+Segmented switches take the theme's colours (an option not chosen was gold at 40%, 2.2:1); the Locked badge reads
+`--text-secondary`; hidden info is no longer faded to half; Classic's How to learn tab is a shade darker; the LOCK mark
+is 11px. A school's colour need not read as text (a player picks it; red on Chalkboard was 3:1): the card's school
+name is in the card's ink with the colour on its dot, and Arcane's school labels on the page do the same (its school
+colours are inks for parchment). Arcane's canvas hint sits on solid leather. The table: `contrast-audit.md` of the
+audit (outside the repo).
+
 Tests: `panelAuditTest.js`.
 
 ## New spells and next goals (2026-10-02)

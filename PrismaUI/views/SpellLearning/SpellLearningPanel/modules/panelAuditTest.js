@@ -10,6 +10,10 @@
  * clear of the sidebar card, the Complex page's bar at the foot solid.
  * Item 2, every state on one page (lab/ui-states/states.html): every state the card's badge can take
  * (locked, available, learning, unlocked, weakened) is a filled box, none a bare word.
+ * Item 3, contrast and size: every design's quiet text, faint and gold inks and the dark books' blue and red at
+ * 4.5:1 on their own backgrounds (worked out here from the tokens, the dark presets' JSON palettes read too), the
+ * dark books' quiet text from the soft ink, switches and badges on the theme's colours, the LOCK mark 11px, the
+ * school name in the card's ink with the colour on its dot.
  *
  * Depends on: settingsCategories.js (in a sandbox with a fake document), the panel's CSS and
  * script.js read as text.
@@ -57,7 +61,7 @@ var PanelAuditTest = {
         if (typeof require !== 'function') return { passed: 0, failed: 0 };
         var parts = [['Settings one column', this._oneColumn], ['Settings rows', this._settingsRows],
             ['Power steps', this._powerSteps], ['Spell card', this._card], ['Tree and Scan', this._treeScan],
-            ['State badges', this._badges]];
+            ['State badges', this._badges], ['Quiet text', this._quietText], ['Controls', this._controls]];
         for (var i = 0; i < parts.length; i++) {
             try { parts[i][1].call(this); } catch (e) { this.check(false, parts[i][0] + ' threw: ' + (e && e.stack ? e.stack : e)); }
         }
@@ -163,6 +167,79 @@ PanelAuditTest._badges = function() {
         'Unlocked falls back to a token the theme defines (none defines --node-unlocked-bg)');
     var learning = this._rule(card, /^\.state-badge\.learning$/);
     this.check(/color:\s*var\(--learning-color/.test(learning), 'Learning in the tree\'s learning colour');
+};
+
+// ======================================================================= item 3
+
+/** WCAG 2 contrast of two #rrggbb colours */
+PanelAuditTest._contrast = function(a, b) {
+    var lum = function(hex) {
+        var c = [1, 3, 5].map(function(i) {
+            var v = parseInt(hex.slice(i, i + 2), 16) / 255;
+            return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+        });
+        return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    };
+    var x = lum(a), y = lum(b);
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+};
+
+/** A custom property's #rrggbb value in a sheet (the first one), or null */
+PanelAuditTest._token = function(css, name) {
+    var m = new RegExp('--' + name + ':\\s*(#[0-9a-fA-F]{6})').exec(css);
+    return m ? m[1].toLowerCase() : null;
+};
+
+/** The quiet text of every design reads 4.5:1 on its own panel colour (the computed audit's fixes, pinned) */
+PanelAuditTest._quietText = function() {
+    var self = this, need = 4.5;
+    var classic = this._file('../styles-skyrim.css'), modern = this._file('../themes/design-modern.css');
+    var arcane = this._file('../themes/design-arcane.css'), dark = this._file('../themes/design-darkbook.css');
+    var pairs = [
+        ['Classic quiet text on the panel', this._token(classic, 'text-muted'), this._token(classic, 'panel-bg-solid')],
+        ['Classic quiet text on a chip (#141414)', this._token(classic, 'text-muted'), '#141414'],
+        ['Modern Dark quiet text on the panel', this._token(modern, 'text-muted'), this._token(modern, 'panel-bg-solid')],
+        ['Arcane quiet text on the leather', this._token(arcane, 'text-muted'), this._token(arcane, 'panel-bg-solid')],
+        ['Arcane faint ink on the page\'s edge', this._token(arcane, 'arcane-ink-faint'), this._token(arcane, 'arcane-parchment-edge')],
+        ['Arcane gold ink on the page\'s edge', (/\.details-panel,[\s\S]*?--accent-gold:\s*(#[0-9a-f]{6})/i.exec(arcane) || [])[1], this._token(arcane, 'arcane-parchment-edge')],
+        ['Dark books\' blue on Chalkboard\'s slate', this._token(dark, 'accent-blue'), '#353e37'],
+        ['Dark books\' red on Chalkboard\'s slate', this._token(dark, 'accent-red'), '#353e37']
+    ];
+    pairs.forEach(function(p) {
+        var ok = !!(p[1] && p[2]);
+        var r = ok ? self._contrast(p[1].toLowerCase(), p[2].toLowerCase()) : 0;
+        self.check(ok && r >= need, p[0] + ': ' + (ok ? r.toFixed(2) + ':1 (' + p[1] + ' on ' + p[2] + ')' : 'token not found'));
+    });
+    // The dark books read their quiet text and idle status from the soft ink: every shipped dark preset's soft
+    // ink on its page and cover (the presets' palettes cannot be changed here)
+    this.check(/--text-muted:\s*var\(--book-text-soft\)/.test(dark) && /--status-idle:\s*var\(--book-text-soft\)/.test(dark),
+        'design-darkbook.css: quiet text and the idle status from --book-text-soft');
+    var fs = require('fs'), path = require('path');
+    var dir = path.join(__dirname, '../../../../../SKSE/Plugins/SpellLearning/presets/design');
+    ['Chalkboard', 'NightGrimoire', 'Skald'].forEach(function(name) {
+        var data = JSON.parse(fs.readFileSync(path.join(dir, name + '.json'), 'utf8'));
+        var css = Array.isArray(data.css) ? data.css.join('\n') : String(data.css || '');
+        var soft = self._token(css, 'book-text-soft'), page = self._token(css, 'book-page'), cover = self._token(css, 'book-cover-bottom');
+        var worst = Math.min(self._contrast(soft, page), self._contrast(soft, cover));
+        self.check(worst >= need, name + ': soft ink ' + soft + ' on its page and cover, worst ' + worst.toFixed(2) + ':1');
+    });
+};
+
+/** Controls take the theme's colours (no gold at 40%), the LOCK mark is 11px, the school name keeps the card's ink */
+PanelAuditTest._controls = function() {
+    var classic = this._file('../styles-skyrim.css'), card = this._file('../panel-card.css');
+    var seg = this._rule(classic, /^\.segmented-toggle \.seg-btn$/);
+    this.check(/color:\s*var\(--text-secondary\)/.test(seg) && !/color:\s*rgba/.test(seg), 'an option not chosen in a segmented switch reads --text-secondary');
+    this.check(/color:\s*var\(--accent-gold-hover\)/.test(this._rule(classic, /^\.segmented-toggle \.seg-btn\.active$/)), 'the chosen option reads --accent-gold-hover');
+    this.check(/color:\s*var\(--text-secondary\)/.test(this._rule(classic, /^\.state-badge\.locked$/)), 'the Locked badge reads --text-secondary on its grey box');
+    this.check(!/opacity/.test(this._rule(classic, /^\.hidden-info$/)), 'hidden info ("???") is not faded below its colour');
+    var mark = this._rule(card, /^\.spell-need-lockmark$/), chip = this._rule(card, /^\.spell-need-chip$/);
+    var size = parseFloat((/font-size:\s*([\d.]+)em/.exec(mark) || [])[1]) * parseFloat((/font-size:\s*([\d.]+)em/.exec(chip) || [])[1]) * 16;
+    this.check(size >= 11, 'the LOCK mark in a chip is ' + size.toFixed(1) + 'px at the 16px body font (pressable, at least 11px)');
+    this.check(/-webkit-text-fill-color:\s*var\(--text-primary/.test(this._rule(card, /^\.spell-meta \.school-badge$/)), 'the card\'s school name in its ink, the colour on the dot');
+    var arcane = this._file('../themes/design-arcane.css');
+    this.check(/#tree-school-tabs \.school-tab \{ -webkit-text-fill-color: var\(--text-primary\); \}/.test(arcane) && /#tree-school-tabs \.school-tab::before \{[^}]*background: currentColor/.test(arcane),
+        'Arcane\'s school labels: the name in the cover\'s ink, the school colour on a dot');
 };
 
 if (typeof window !== 'undefined') window.PanelAuditTest = PanelAuditTest;

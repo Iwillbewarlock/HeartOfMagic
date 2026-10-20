@@ -26,6 +26,12 @@
     letter-spacing: inherit;
 }
 
+.spell-meta .school-badge {
+    /* The name in the card's ink, the school's colour on the dot: a player's or a design's school
+       colour need not read as text on every card (red on Chalkboard's slate was 3:1; 2.0 audit) */
+    -webkit-text-fill-color: var(--text-primary, #C8C8B8);
+}
+
 .spell-meta .school-badge::before {
     content: '';
     display: inline-block;
@@ -156,7 +162,7 @@ span.spell-need-chip {
     display: inline-block;
     margin-right: 5px;
     padding: 0 4px;
-    font-size: 0.8em;
+    font-size: 0.86em;      /* 11px in the 12.8px chip: nothing pressable under 11px (2.0 audit) */
     letter-spacing: 0.08em;
     font-style: normal;
     color: var(--accent-gold, #B8A878);
