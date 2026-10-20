@@ -2,12 +2,14 @@
  * SpellCardNeedsTest - node tests for the spell card's "can I learn this now" parts (spellCardNeeds.js,
  * 2.0 review item 8; run-tests.js).
  *
- * requirements(): required spells, optional ones only while too few are mastered (with their "need N of M"),
+ * requirements(): required spells, optional ones only while too few are mastered (with their "need N of M",
+ * counted on what is left: how many more out of the optional ones not mastered yet),
  * a lock shown once as a lock chip with its school when it is another one, a lock the hard list lacks still
  * counted, met ones apart, hidden names "???" (a lock's name only once revealed), a spell listed as its own
  * prerequisite ignored, a tree with only `prerequisites` split as the tree's availability splits it.
  * whyText(): "Master X first" for one named requirement, a count otherwise, nothing for an open spell.
- * render(): the chips and the "(need 2 of 3)" after the optional ones, "Met:" with ticks, the reason beside a
+ * render(): the chips and the "(need 1 of 2)" after the optional ones, "Met:" with ticks ("Requirements met:"
+ * once nothing is left on an open spell), the reason beside a
  * locked spell's Learn (not in cheat mode, not on a preview), edit mode's lists instead of chips, the state
  * line's XP share and "casts at N% power" with the 1.6 weakened power, the Unlocks fold and its memory.
  * Markup and sources: the ids other modules and tests use are kept, a locked spell's Learn shows off.
@@ -80,7 +82,9 @@ var SpellCardNeedsTest = {
         this.check(ids(r.unmet) === 'd:req b:opt e:opt' && ids(r.met) === 'a:req c:opt',
             'Requirements: the unmastered required spell, the optional ones while too few are mastered; met ones apart');
         this.check(r.softNeeded === 2 && r.softTotal === 3 && r.softMet === 1 && r.left === 2,
-            'Requirements: "need 2 of 3", 1 met, so 2 more spells left (1 required, 1 optional)');
+            'Requirements: need 2 of the 3 optional spells, 1 met, so 2 more spells left (1 required, 1 optional)');
+        this.check(r.softLeft === 1 && r.softOpen === 2,
+            'Requirements: the card counts what is left - "need 1 of 2" (1 more, out of the 2 optional spells not mastered yet)');
 
         nodes.e.state = 'unlocked';
         r = N.requirements(spell, this._ctx(nodes));
@@ -112,8 +116,11 @@ var SpellCardNeedsTest = {
         this.check(why('locked', { left: 1, unmet: [{ name: '???', hidden: true }] }) === 'details.whyLeftOne' &&
             why('locked', { left: 3, unmet: [{}, {}] }) === 'details.whyLeft{"count":3}', 'Why: a hidden name or several: the count ("1 requirement left" in its own key, "3 requirements left")');
         r = N.requirements({ id: 'x', school: 'Destruction', hardPrereqs: ['d'], softPrereqs: ['b', 'b', 'd', 'c'], softNeeded: 3 }, this._ctx(nodes));
-        this.check(r.softTotal === 2 && r.softNeeded === 2 && r.softMet === 1 && r.left === 2,
-            'Requirements: an optional spell listed twice or also required counts once, and no more are needed than there are (need 2 of 2)');
+        this.check(r.softTotal === 2 && r.softNeeded === 2 && r.softMet === 1 && r.left === 2 && r.softLeft === 1 && r.softOpen === 1,
+            'Requirements: an optional spell listed twice or also required counts once, and no more are needed than there are (need 1 of 1 left)');
+        r = N.requirements({ id: 'x', school: 'Destruction', hardPrereqs: [], softPrereqs: ['h', 'e', 'c', 'b'], softNeeded: 3 }, this._ctx(nodes));
+        this.check(r.softLeft === 2 && r.softOpen === 3 && ids(r.unmet) === 'h:opt e:opt b:opt' && r.unmet[0].hidden && r.unmet[0].name === '???',
+            'Requirements: a hidden optional spell is "???" and still counted (need 3 of 4, 1 mastered: "need 2 of 3")');
         var metLock = N.requirements({ id: 'x', school: 'Destruction', hardPrereqs: ['c'] }, this._ctx(nodes, [{ nodeId: 'c', revealed: false, name: 'Frostbite' }]));
         this.check(metLock.met.length === 1 && metLock.met[0].name === 'Frostbite' && !metLock.met[0].hidden,
             'Requirements: a mastered lock shows its name in "Met:" even before it is revealed');
@@ -150,8 +157,8 @@ var SpellCardNeedsTest = {
         N.render(spell, { preview: false, progressPercent: 0, weakenedPower: null });
         var chips = els['spell-needs-chips'].children;
         var names = chips.map(function(c) { return c.text(); });
-        this.check(!els['spell-needs'].classList.contains('hidden') && names.join(' | ') === 'Ice Spike | LOCKLesser Ward(Restoration) | Flames | Firebolt | (need 2 of 3)',
-            'Render: "Still needed" - required, the lock with its school, the optional ones and "(need 2 of 3)" after them');
+        this.check(!els['spell-needs'].classList.contains('hidden') && names.join(' | ') === 'Ice Spike | LOCKLesser Ward(Restoration) | Flames | Firebolt | (need 1 of 2)',
+            'Render: "Still needed" - required, the lock with its school, the optional ones and "(need 1 of 2)" after them (Frostbite mastered: 1 more of the 2 left)');
         this.check(/spell-need-lock/.test(chips[1].className) && chips[1].tagName === 'BUTTON', 'Render: the lock is its own kind of chip, pressable once revealed');
         chips[0].click();
         this.check(selected[0] === 'd', 'Render: a chip goes to its spell');
@@ -175,6 +182,18 @@ var SpellCardNeedsTest = {
         box.EditMode.isActive = false;
 
         var open = { id: 'y', school: 'Destruction', state: 'learning', hardPrereqs: ['a'] };
+        N.render(open, { preview: false, progressPercent: 62.4, weakenedPower: 50 });
+        this.check(els['spell-met'].text() === 'Met: Sparks ✓', 'Render: an open spell with a lock still unmastered keeps "Met:" (the lock is a requirement)');
+        var withLocks = box.PreReqMaster;
+        box.PreReqMaster = { getLocksForNode: function() { return []; } };
+        N.render(open, { preview: false, progressPercent: 62.4, weakenedPower: 50 });
+        this.check(!els['spell-met'].classList.contains('hidden') && els['spell-met'].text() === 'Requirements met: Sparks ✓' &&
+            els['spell-met'].children[0].getAttribute('data-i18n') === 'details.requirementsMet',
+            'Render: an open spell with nothing left says "Requirements met:" where "Still needed" stands, its own key');
+        N.render({ id: 'v', school: 'Destruction', state: 'available', hardPrereqs: ['a', 'd'] }, { preview: false, progressPercent: 0, weakenedPower: null });
+        this.check(els['spell-met'].text() === 'Met: Sparks ✓' && els['spell-needs'].classList.contains('hidden'),
+            'Render: an open spell whose own requirements are not all mastered (opened by a known higher spell) keeps "Met:", not "Requirements met"');
+        box.PreReqMaster = withLocks;
         N.render(open, { preview: false, progressPercent: 62.4, weakenedPower: 50 });
         this.check(els['spell-needs'].classList.contains('hidden') && els['spell-state-detail'].text() === '62% learned · casts at 50% power' &&
             els['spell-state-fill'].style.width === '62%' && !els['spell-state-bar'].classList.contains('hidden'),

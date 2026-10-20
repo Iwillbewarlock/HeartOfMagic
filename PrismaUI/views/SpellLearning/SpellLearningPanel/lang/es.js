@@ -169,6 +169,7 @@ window._i18nPreload = {
     "details.learnThis": "Aprender Este",
     "details.stillNeeded": "Aún falta:",
     "details.met": "Cumplidos:",
+    "details.requirementsMet": "Requisitos cumplidos:",
     "details.statePct": "{{pct}}% aprendido",
     "details.castsAtPower": "se lanza al {{pct}}% de poder",
     "details.whyMasterFirst": "Domina primero {{name}}",

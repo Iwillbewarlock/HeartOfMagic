@@ -169,6 +169,7 @@ window._i18nPreload = {
     "details.learnThis": "Изучить",
     "details.stillNeeded": "Ещё нужно:",
     "details.met": "Выполнено:",
+    "details.requirementsMet": "Требования выполнены:",
     "details.statePct": "изучено на {{pct}}%",
     "details.castsAtPower": "действует на {{pct}}% силы",
     "details.whyMasterFirst": "Сначала освойте: {{name}}",

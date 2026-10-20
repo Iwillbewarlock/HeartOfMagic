@@ -169,6 +169,7 @@ window._i18nPreload = {
     "details.learnThis": "これを学ぶ",
     "details.stillNeeded": "あと必要：",
     "details.met": "達成済み：",
+    "details.requirementsMet": "条件達成：",
     "details.statePct": "習得度 {{pct}}%",
     "details.castsAtPower": "威力{{pct}}%で発動",
     "details.whyMasterFirst": "先に{{name}}を習得してください",

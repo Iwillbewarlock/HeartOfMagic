@@ -169,6 +169,7 @@ window._i18nPreload = {
     "details.learnThis": "Bunu Öğren",
     "details.stillNeeded": "Hâlâ gerekli:",
     "details.met": "Karşılananlar:",
+    "details.requirementsMet": "Koşullar karşılandı:",
     "details.statePct": "%{{pct}} öğrenildi",
     "details.castsAtPower": "%{{pct}} güçle yapılır",
     "details.whyMasterFirst": "Önce {{name}} büyüsünde ustalaş",

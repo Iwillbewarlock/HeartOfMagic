@@ -8,11 +8,14 @@
  *    power: the word and the hint under the bar leave it out -, and a thin progress bar (the XP
  *    figures "45 / 100 XP" stay in the hidden progress section; cheat mode shows its XP boxes);
  *  - "Still needed:" - only what is not met yet, as chips: required spells, optional ones with
- *    "(need 2 of 3)" once after them, Pre Req Master locks as lock chips with the lock's school
+ *    "(need 1 of 2)" once after them - counted on what is left: how many more of the optional spells
+ *    not mastered yet (need 2 of 3 with one mastered reads "need 1 of 2", the two chips shown) -,
+ *    Pre Req Master locks as lock chips with the lock's school
  *    when it is another one. A lock is also one of the spell's required spells (classicTreeOutput.js
  *    bakes locks into hardPrereqs): it shows once, as the lock chip. Shown only for a locked spell:
  *    an open one (prerequisites met, or opened by a known higher spell) needs nothing;
- *  - "Met:" - the requirements already mastered, in one quiet line;
+ *  - "Met:" - the requirements already mastered, in one quiet line; "Requirements met:" in its place
+ *    once nothing is left (an open spell whose own requirements are all mastered);
  *  - why Learn cannot be pressed: a locked spell's Learn button shows, off, with the reason
  *    beside it ("Master Frostbite first", "3 requirements left");
  *  - "Leads to N later spells" folding the Unlocks list (open or shut stays for the session).
@@ -45,9 +48,12 @@ var SpellCardNeeds = {
      * @param {Object} node - hardPrereqs, softPrereqs, softNeeded, prerequisites, school
      * @param {{find:function(string):Object, isMet:function(string):boolean, locks:Array,
      *          shown:function(Object):boolean, name:function(string, Object, boolean):string}} ctx
-     * @returns {{unmet:Array, met:Array, softNeeded:number, softTotal:number, softMet:number, left:number}}
-     *   each chip { id, name, hidden, kind: 'req'|'opt'|'lock', school }; left = how many more must
-     *   be mastered (every unmet required spell and lock, and the optional ones still short)
+     * @returns {{unmet:Array, met:Array, softNeeded:number, softTotal:number, softMet:number,
+     *            softLeft:number, softOpen:number, left:number}}
+     *   each chip { id, name, hidden, kind: 'req'|'opt'|'lock', school }; softLeft of softOpen = how many
+     *   more optional spells must be mastered, out of the optional ones not mastered yet (the card's
+     *   "need N of M"); left = how many more must be mastered (every unmet required spell and lock,
+     *   and softLeft)
      */
     requirements: function(node, ctx) {
         var self = node || {};
@@ -105,7 +111,8 @@ var SpellCardNeeds = {
         // Optional spells are needed only while too few are mastered
         if (short > 0) unmet = unmet.concat(softOpen);
         var hardLeft = unmet.filter(function(c) { return c.kind !== 'opt'; }).length;
-        return { unmet: unmet, met: met, softNeeded: need, softTotal: softTotal, softMet: softMet, left: hardLeft + short };
+        return { unmet: unmet, met: met, softNeeded: need, softTotal: softTotal, softMet: softMet,
+                 softLeft: short, softOpen: softOpen.length, left: hardLeft + short };
     },
 
     /**
@@ -263,7 +270,8 @@ var SpellCardNeeds = {
             if (optCount > 0) {
                 var count = doc.createElement('span');
                 count.className = 'spell-need-count';
-                count.textContent = '(' + tOr('details.softNeed', { need: req.softNeeded, total: req.softTotal }, 'need {{need}} of {{total}}') + ')';
+                // Counted on what is left: the optional chips shown are the ones not mastered yet
+                count.textContent = '(' + tOr('details.softNeed', { need: req.softLeft, total: req.softOpen }, 'need {{need}} of {{total}}') + ')';
                 // The optional chips come last (requirements() puts them after the required ones and locks)
                 chips.appendChild(count);
             }
@@ -275,7 +283,10 @@ var SpellCardNeeds = {
             if (showMet) {
                 var label = doc.createElement('span');
                 label.className = 'spell-met-label';
-                setI18n(label, 'details.met', null, 'Met:');
+                // Nothing left on an open spell: the line says so where "Still needed" stands on a locked one
+                // (not on one a known higher spell opened while its own requirements are still unmet)
+                if (node.state !== 'locked' && req.left === 0) setI18n(label, 'details.requirementsMet', null, 'Requirements met:');
+                else setI18n(label, 'details.met', null, 'Met:');
                 met.appendChild(label);
                 req.met.forEach(function(c, i) {
                     var item = doc.createElement('span');

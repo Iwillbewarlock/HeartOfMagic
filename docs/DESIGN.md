@@ -1274,11 +1274,16 @@ weakened, with a thin bar (the "45 / 100 XP" figures and the Studying/Practicing
 play; cheat mode keeps its XP boxes). Every redraw of only the progress part (`updateDetailsProgression`: an XP
 update, Learn, a progress reload, cheat unlock) redraws the card's lower part too (`SpellCardNeeds.refresh`), so
 a spell that opened meanwhile gets its Learn back and loses its reason. "Still needed:" lists only what is not met, as chips that select their spell:
-required spells, optional ones followed once by "(need 2 of 3)" while too few are mastered (an optional spell
-listed twice or also required counts once, and never more are needed than there are), and Pre Req Master locks
+required spells, optional ones followed once by "(need 1 of 2)" while too few are mastered - counted on what is
+left: how many more must be mastered, out of the optional spells not mastered yet, which are the chips shown
+(need 2 of 3 with one already mastered reads "need 1 of 2"; an optional spell listed twice or also required counts
+once, and never more are needed than there are) -, and Pre Req Master locks
 as their own chip with the LOCK badge and the lock's school when it is another one. A lock is also one of the
 spell's required spells (the build bakes locks into `hardPrereqs`): it shows once, as the lock chip. "Met:"
-lists the mastered ones with a tick in one quiet line. Names follow the card's rules: an undiscovered spell is
+lists the mastered ones with a tick in one quiet line; on an open spell with nothing left (its own requirements
+and locks all mastered) the line reads "Requirements met:" instead (`details.requirementsMet`), so the place of
+"Still needed" is not left blank. A spell a known higher spell opened while its own requirements are still unmet
+keeps "Met:"; a spell with no requirements shows neither. Names follow the card's rules: an undiscovered spell is
 "???" and cannot be pressed; a lock's name shows once revealed or mastered. A locked spell's Learn button
 shows, off, with the reason beside it ("Master Frostbite first", "3 requirements left"; not in cheat mode,
 not on a hover preview). The Unlocks list folds to "Leads to N later spells ▸" (open or shut stays for the
@@ -1298,7 +1303,7 @@ it on a second click or a tab switch.
 
 Tests: `panelLayoutTest.js` (categories and their memory, the settings markup and every setting's page, the
 stage and its button, the summary's numbers, filter lines, the scan markup and hooks, the legend, the frame),
-`spellCardNeedsTest.js` (chip grouping, hidden names, "need 2 of 3", locks, the reason, the state line, the
+`spellCardNeedsTest.js` (chip grouping, hidden names, "need 1 of 2" counted on what is left, "Requirements met", locks, the reason, the state line, the
 folded Unlocks).
 
 ### The 2.0 audit pass (2026-10-20)

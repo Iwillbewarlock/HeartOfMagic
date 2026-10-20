@@ -169,6 +169,7 @@ window._i18nPreload = {
     "details.learnThis": "이것 배우기",
     "details.stillNeeded": "아직 필요:",
     "details.met": "충족:",
+    "details.requirementsMet": "조건 충족:",
     "details.statePct": "{{pct}}% 습득",
     "details.castsAtPower": "위력 {{pct}}%로 시전",
     "details.whyMasterFirst": "먼저 익힐 주문: {{name}}",

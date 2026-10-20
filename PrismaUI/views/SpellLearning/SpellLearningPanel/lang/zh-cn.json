@@ -173,6 +173,7 @@
     "details.learnThis": "学习此项",
     "details.stillNeeded": "仍需：",
     "details.met": "已满足：",
+    "details.requirementsMet": "条件已满足：",
     "details.statePct": "已学习 {{pct}}%",
     "details.castsAtPower": "以 {{pct}}% 威力施放",
     "details.whyMasterFirst": "请先掌握 {{name}}",

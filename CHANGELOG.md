@@ -42,9 +42,9 @@
   under "Scan details"; the excluded spells and the plugin list read as lines with their state ("Excluded
   spells: 12", "Plugins: all"). Replay sits under the preview. The unfinished Alternate Pathways tab is hidden.
 - **The spell card answers "can I learn this now":** the state with its XP share and the power a weakened spell
-  casts at, "Still needed" with only what is missing (required spells, "need 2 of 3" optional ones, and locks
-  from another school marked as such), what is already met, why Learn cannot be pressed yet, and the spells it
-  leads to folded into one line.
+  casts at, "Still needed" with only what is missing (required spells, optional ones with how many more of them
+  are needed - "need 1 of 2" -, and locks from another school marked as such), what is already met ("Requirements
+  met" once nothing is left), why Learn cannot be pressed yet, and the spells it leads to folded into one line.
 - **The tree has one thin frame:** the tools float on the canvas, the schools are small coloured labels, and
   the footer is one quiet line; the colour key opens from its "?".
 
