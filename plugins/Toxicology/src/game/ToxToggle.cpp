@@ -67,6 +67,7 @@ namespace
         tasks->AddTask([a_what, generation, body = std::forward<F>(a_body)]() {
             if (generation != ToxGame::SessionGeneration()) {
                 logger::info("Toxicology: power: {} task queued before a load or new game - dropped", a_what);
+                FlushLog();  // every power outcome reaches the disk (TogglePower flushes the others)
                 return;
             }
             try {
