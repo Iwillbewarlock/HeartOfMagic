@@ -103,6 +103,8 @@ function _drawDetailsProgression(node, preview) {
                     var percent = requiredXP > 0 ? (newXP / requiredXP) * 100 : 0;
                     progressBar.style.width = Math.min(percent, 100) + '%';
                     progressBar.classList.toggle('ready', newXP >= requiredXP);
+                    // The card's state line and bar read the same progress (cheat XP edits too)
+                    if (typeof SpellCardNeeds !== 'undefined') SpellCardNeeds.refresh(node, preview);
                     // Tell C++ about the XP change (send canonical ID)
                     if (window.callCpp) {
                         window.callCpp('SetSpellXP', JSON.stringify({ formId: canonId, xp: newXP }));
@@ -130,6 +132,7 @@ function _drawDetailsProgression(node, preview) {
                     var percent = newRequired > 0 ? (progress.xp / newRequired) * 100 : 0;
                     progressBar.style.width = Math.min(percent, 100) + '%';
                     progressBar.classList.toggle('ready', progress.xp >= newRequired);
+                    if (typeof SpellCardNeeds !== 'undefined') SpellCardNeeds.refresh(node, preview);
                     // Save overrides
                     autoSaveSettings();
                 };
