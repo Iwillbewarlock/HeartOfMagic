@@ -43,9 +43,12 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
 │    │(on click)│             │  Panel     │   │
 │    └─────────┘              └────────────┘   │
 ├──────────────────────────────────────────────┤
-│ 247 spells | 0 unlocked  Legend      Ready   │
+│ 247 spells | 0 unlocked             Ready  ? │
 └──────────────────────────────────────────────┘
 ```
+
+Since 2026-10-20 the canvas has one thin frame, the tools float on it without a box and the node states key
+opens from the footer's "?" (*Panel layout 2.0* below).
 
 ### Features
 - **Canvas 2D renderer** — primary renderer for 200+ node trees
@@ -76,7 +79,9 @@ The main gameplay page. Shows the interactive spell tree after it's been built.
   is listed). Enter or a click centres the tree on the spell and selects it; the status line says "Found:
   <name>" (`tree.findFound`). Its CSS is in `patch-tree-tools.css` with the tool bar's
 - **Details sidebar** — spell name, school, tier, effects, prerequisites, learning controls
-- **Spell card** — the details panel reads top to bottom as a card: name (+ school badge) →
+- **Spell card** — since 2026-10-20 grouped around "can I learn this now" (*Panel layout 2.0* below:
+  state line, "Still needed" chips, the reason beside Learn, folded Unlocks); what follows is how its
+  top reveals. The details panel reads top to bottom as a card: name (+ school badge) →
   keyword chips → description → figures (cost, type, effects with magnitude and duration).
   It opens in that order as learning progress grows: name at `revealName`, chips at
   `revealEffects`, description and figures together at `revealDescription`. Tier is always
@@ -1208,6 +1213,94 @@ same in all six designs: the rules are in the shared sheets, and the designs res
   two clicks away (Scan, Import); the Build/Apply/Clear bar is in Complex mode only. It is as wide as its
   label (`.scan-import-btn`), so Scan Spells stays the bar's main button.
 
+### Panel layout 2.0: settings categories, scan stage, spell card, one tree frame (2026-10-20)
+
+Items 6-9 of the same review (items 1-5 above shipped first). The web prototype the direction was approved
+from is `lab/ui-2.0/prototype.html`. The rules are in shared sheets loaded after `patch-tree-tools.css`, one per
+page (`panel-settings.css`, `panel-scan.css`, `panel-card.css`, `panel-tree.css`), so the six designs get them
+the same way; Arcane and the dark books (`design-arcane.css`, `design-darkbook.css`) only lost the extra rings
+round the tree. Help is never behind a hover: Tab closes the panel.
+
+**Settings in categories** (`modules/settingsCategories.js`). One level: Display, Learning, Spell Tomes,
+Advanced, picked from a slim column at the page's left (a row on top when `#contentSettings` is narrower than
+`NARROW_PX`, 720 px). Only the chosen category's page (`.settings-cat-page`) shows. Each category keeps its
+own scroll position for the panel session: switching categories, or leaving Settings and coming back
+(`switchTab` calls `remember()` and `onShow()`), returns to where it was left. Nothing is saved between game
+sessions: a new session opens on Display at the top. The Presets row drives Learning and Spell Tomes settings,
+so it moves to the top of whichever of the two is shown (`PRESET_CATEGORIES`). Developer and debug options are
+only under Advanced. `#contentSettings` stays the one scroller and becomes a grid: the column, the page (a row
+of at least its content, `minmax(min-content, 1fr)`, so a long page pushes the sticky Save/Reset bar down
+instead of scrolling it away), the version line and the Save/Reset bar. Save stays (several Early Learning
+controls save only on Save, a tab switch or closing the panel) but is a small text button now. Switching
+category disarms a waiting Reset to Defaults. Where each setting sits: *Page 3: Settings* below.
+
+**Scan page by stage** (`modules/scanStage.js`). One summary line from the panel's own numbers:
+"753 spells found · 681 go in the tree · not built yet" (then "in the new tree · not applied yet", "in your
+tree · applied"). "Go in the tree" is the build's own filter result (`isTaughtByTome`, the excluded list, the
+plugin list, in `getPrimedSpells`' order), and a difference from "found" is never hidden: a second line says
+"72 left out:" with the reasons (not player spells, on your excluded list, from plugins turned off, and after a
+build the ones the builder did not place); one reason that is the whole gap stands alone. Before any scan the
+line says so, or, with a saved tree and no scan this session (the build at game start only scans when there is
+no tree), "Your tree has N spells · scan to build a new one". The scan status bar under it stays for the
+scan's and the DLL's messages and errors and the build at game start.
+
+One main button follows the stage: Scan Spells, Build Tree, Apply Tree, then a pressed-out "Tree applied". It
+presses the real button of its stage (`#scanBtn`, Easy's `#easyBuildBtn` - it applies the chosen preset first -
+or Complex's `#tgBuildBtn`, and `#tgApplyBtn`), which stay in the page out of sight (`.scan-relay-target`), so
+their handlers, guards and the build at game start are unchanged; it is off while that button is. Build and
+Apply stay two steps: the player looks at the preview before applying. Small text buttons beside it: Scan
+again, Import, Clear draft tree (it clears the built draft, never progress; shown while a draft exists). The
+"applied" mark is ScanStage's own: set by Apply and by the build at game start (`TreeGrowthClassic.applyTree`
+calls `markApplied`), dropped by a new or cleared draft (`TreeGrowth.setTreeBuilt`), changed locks
+(Pre Req Master's `onLocksChanged`), an Import, or a new scan (`updateSpellData` calls `onScanned`). A built
+draft keeps the real Build off until it is cleared (`TreeGrowth.updateBuildButton`, as before), so while a
+draft exists the stage is Apply and Clear draft tree is the way back to Build.
+
+"Scan details ▸" folds the totals and spells per school (hidden before a scan). The filters are lines that
+say their state and open their lists: "Excluded spells: 12 ›" (the blacklist) and "Plugins: all ›" / "Plugins:
+40 of 41 ›" / "Plugins: none (no spell goes in the tree) ›" (the whitelist, counting plugins with player
+spells). The plugin list's own info line now says how it works: checked plugins go in, an unchecked one is
+left out, a plugin installed later comes in by itself (`modals.whitelist.info`; that is what
+`filterWhitelistedSpells` does - only an entry turned off excludes, so "nothing picked means all" would have been
+wrong). Replay sits under the preview it plays in. The Alternate Pathways tab (not made) shows only in Developer
+Mode. EASY / COMPLEX stays one click at the top right; Complex keeps all its tree generation controls. The
+vertical rules between stats and filters and between actions and preview are gone.
+
+**Spell card around "can I learn this now"** (`modules/spellCardNeeds.js`; the bar under the tree and the right
+sidebar alike). Top: name, then school (in its colour), level, Magicka and type on one line, then the effect
+line (the description, revealed by progress as before) and the keyword chips. The state line: the state word
+(the 1.6 "Weakened (N%)" from `spellWeakenedPower` included), "62% learned" and "casts at 50% power" while
+weakened, with a thin bar (the "45 / 100 XP" figures and the Studying/Practicing badge are no longer shown in
+play; cheat mode keeps its XP boxes). Every redraw of only the progress part (`updateDetailsProgression`: an XP
+update, Learn, a progress reload, cheat unlock) redraws the card's lower part too (`SpellCardNeeds.refresh`), so
+a spell that opened meanwhile gets its Learn back and loses its reason. "Still needed:" lists only what is not met, as chips that select their spell:
+required spells, optional ones followed once by "(need 2 of 3)" while too few are mastered (an optional spell
+listed twice or also required counts once, and never more are needed than there are), and Pre Req Master locks
+as their own chip with the LOCK badge and the lock's school when it is another one. A lock is also one of the
+spell's required spells (the build bakes locks into `hardPrereqs`): it shows once, as the lock chip. "Met:"
+lists the mastered ones with a tick in one quiet line. Names follow the card's rules: an undiscovered spell is
+"???" and cannot be pressed; a lock's name shows once revealed or mastered. A locked spell's Learn button
+shows, off, with the reason beside it ("Master Frostbite first", "3 requirements left"; not in cheat mode,
+not on a hover preview). The Unlocks list folds to "Leads to N later spells ▸" (open or shut stays for the
+session). Entering edit mode redraws the open card. Edit mode (`.card-editing`) shows the old prerequisite lists with their hard/soft switch, delete and
+"need N" box, the locks and the effects instead of the chips; cheat mode keeps its XP boxes. Singular texts
+have their own keys (`details.whyLeftOne`, `details.leadsToOne`).
+
+**One frame round the tree** (`panel-tree.css`, `modules/treeLegend.js`). The canvas has one thin border; the
+gutter ring, the second outline and the inner shadow went (Arcane and the dark books keep their edge colour as
+that one line, and their corner art; Skald its knotwork). The spell card meets the tree with one line instead of
+a second box. The tool bar floats on the canvas without a box (each control on a small backing); the renderer
+badge shows only in Developer Mode. The school jump buttons stay translated short labels, each in its school's
+colour (`TreeNav`), the chosen one underlined. The footer is one quiet line under the frame: the count at the
+left (new spells and next goals after it), the status at the right (`TreeStatusLine` rules unchanged: a success
+line goes back to Ready, warnings and errors stay) and a "?" that opens the node states key on a click and closes
+it on a second click or a tab switch.
+
+Tests: `panelLayoutTest.js` (categories and their memory, the settings markup and every setting's page, the
+stage and its button, the summary's numbers, filter lines, the scan markup and hooks, the legend, the frame),
+`spellCardNeedsTest.js` (chip grouping, hidden names, "need 2 of 3", locks, the reason, the state line, the
+folded Unlocks).
+
 ## New spells and next goals (2026-10-02)
 
 `modules/newSpells.js` (`NewSpells`) adds two things to the tree page's footer, both meant to show the
@@ -1452,19 +1545,21 @@ Where players scan spells and build their tree. Has two modes: **Easy** and **Co
 
 ```
 ┌──────────────────────────────────────────────┐
-│       [EASY]  [COMPLEX]  ← mode toggle       │
+│                          EASY  COMPLEX       │
+│ 753 spells found · 681 go in the tree · not  │
+│   built yet       (72 left out: ...)         │
+│ (scan status bar: scan / DLL messages)       │
+│ [Build Tree]  Scan again  Import  Clear draft│
+│ Scan details ▸                               │
+│ Excluded spells: 12 ›                        │
+│ Plugins: all ›                               │
 ├──────────────────────────────────────────────┤
-│ Status: Ready to scan                        │
-│ [Scan Spells] [Export Scan] [Import]         │
-├──────────────────────────────────────────────┤
-│ Total: 247 │ Mods: 12 │ Primed: 0           │
-│ [Blacklist] [Whitelist]                      │
-├──────────────────────────────────────────────┤
-│                                              │
 │         Mode-specific content below          │
-│                                              │
 └──────────────────────────────────────────────┘
 ```
+
+The summary, the stage button and the filter lines: `modules/scanStage.js`, *Panel layout 2.0* above. Export
+Scan (Developer Mode) sits with the small buttons.
 
 ### Easy Mode (`scannerEasyContent`)
 
@@ -1476,13 +1571,14 @@ Simplified one-click workflow.
 │  [DEFAULT] [Easy]   │   PRM Preview Canvas   │
 │  [Hard] [Custom]    │   (shows tree + locks  │
 │                     │    after build)         │
-│  [Build Tree]       │                        │
-│  [Apply Tree]       │                        │
-│  [Clear Tree]       │                        │
 │                     │                        │
 │  Status: ...        │                        │
+│                     │                Replay  │
 └─────────────────────┴────────────────────────┘
 ```
+
+Build, Apply and Clear Tree are still here (`#easyBuildBtn` ...), out of sight: the stage button above
+presses them (`scanStage.js`), `_syncEasyButtonStates` mirrors the Complex buttons' state onto them.
 
 The buttons and the preview take what is left of the page under the scan results
 (`#scannerEasyContent` and `.easy-panel-split` grow, 320 px at least; a shorter page scrolls; the
@@ -1526,7 +1622,7 @@ Full control over tree generation.
 │  │  (scrollable)      │  Canvas         │    │
 │  └────────────────────┴─────────────────┘    │
 │                                              │
-│  [Build Tree] [Apply Tree] [Clear]           │
+│  (Build / Apply / Clear: the stage button)   │
 └──────────────────────────────────────────────┘
 ```
 
@@ -1562,44 +1658,50 @@ Globe position and radius controls. Radius writes to `spell_tree.json` and is us
 - H Offset, V Offset, Radius sliders
 
 #### Alternate Pathways (`prmTabAltPaths`)
-A "Not Yet Implemented" placeholder. Its greyed-out Bidirectional Soft Prerequisites toggle (nothing
+A "Not Yet Implemented" placeholder, shown only in Developer Mode since 2026-10-20 (`.dev-only`). Its greyed-out Bidirectional Soft Prerequisites toggle (nothing
 applied the flag) and the empty stats line were removed on 2026-09-28, with `settings.treeGeneration`.
 
 ---
 
 ## Page 3: Settings (`contentSettings`)
 
-All mod configuration. Split-row layout for space efficiency.
+All mod configuration, in four categories (Display, Learning, Spell Tomes, Advanced).
 
-**Modules:** `settingsPanel.js`, `settingsPresets.js`
+**Modules:** `settingsPanel.js`, `settingsPresets.js`, `settingsCategories.js`
 
 ### Layout
 
+One category at a time (`modules/settingsCategories.js`, *Panel layout 2.0* above): the list in a slim column at
+the left, a row on top when the page is narrow.
+
 ```
-┌──────────────────────┬───────────────────────┐
-│  Hotkey Settings     │  UI Display           │
-│  Panel key: F8       │  Theme, Colors, Font  │
-│  Pause game on open  │                       │
-├──────────────────────┴───────────────────────┤
-│  [DEFAULT] [Easy] [Hard] [Save Preset]       │
-├──────────────────────┬───────────────────────┤
-│  Progression         │  Early Spell Learning │
-│  Learning mode       │  Enable toggle        │
-│  XP multipliers      │  Unlock threshold     │
-│  XP caps per source  │  Self-cast required at│
-│  XP per tier         │  Power steps          │
-│  Reveal thresholds   │  Binary effect thresh │
-├──────────────────────┬───────────────────────┤
-│  Spell Tome Learning │  Developer & Debug    │
-│  Progression toggle  │  Dev mode toggle      │
-│  XP grant on read    │  Cheat mode toggle    │
-│  Inventory boost     │  Debug options        │
-│  Require prereqs     │  (hidden by default)  │
-├──────────────────────┴───────────────────────┤
-│                          Librarian 1.6.0     │
-│         [Save Settings]  [Reset Defaults]    │
-└──────────────────────────────────────────────┘
+┌────────────┬─────────────────────────────────┐
+│ DISPLAY    │  (the chosen category's page)   │
+│ LEARNING   │  Presets row (Learning / Tomes) │
+│ SPELL TOMES│  ...settings blocks...          │
+│ ADVANCED   │                                 │
+│            │               Librarian 1.6.0   │
+│            │   Save Settings  Reset Defaults │
+└────────────┴─────────────────────────────────┘
 ```
+
+### Every setting and its category
+
+| Category | Block | Settings (control id) |
+|----------|-------|-----------------------|
+| Display | Hotkey | Panel Toggle Key with Change / Reset / None (`hotkeyInput`, `changeHotkeyBtn`, `resetHotkeyBtn`, `noHotkeyBtn`), Pause Game on Open (`pauseGameOnFocusToggle`), Build Spell Tree at Start (`autoBuildToggle`) |
+| Display | Tree View | Center on Click (`focus-on-click`), Zoom on Click (`focus-zoom-on-click`), Focus Zoom (`tree-focus-zoom`), Rotate Wheel on Focus (`focus-rotate`), Dim Others (`focus-dim-others`), Selection Path (`show-selection-path`), Curved edges (`edge-style-toggle`), Spell Name Size (`tree-node-font-size`) |
+| Display | UI Display | Language (`uiLanguageSelect`), Design (`designPresetSelect`), Learning Color (`learningColorPicker`), Font Size (`fontSizeSlider`), Spell Card in Right Sidebar (`sideDetailsToggle`), Preview on Hover (`hoverDetailsToggle`) |
+| Learning / Spell Tomes | Presets | the settings presets row (`settingsPresetsRow`, Save `saveSettingsPresetBtn`), at the top of whichever of the two pages shows |
+| Learning | Progression | Learning Mode (`learningModeToggle`), Discovery Mode (`discoveryModeToggle`), Show Root Spell Names (`showRootSpellNamesToggle`), Auto-Advance Target and its mode (`autoAdvanceLearningToggle`, `autoAdvanceModeToggle`), Overall XP Multiplier and Direct / Same School / Any Spell XP (`xpGlobalMultiplierSlider`, `xpDirectSlider`, `xpSchoolSlider`, `xpAnySlider`), XP Caps (`xpCapAnySlider`, `xpCapSchoolSlider`, `xpCapDirectSlider`), XP Required by Spell Tier (`xpNoviceInput` ... `xpMasterInput`), Open the Spells Below (`reverseUnlockToggle`), Down to the Root (`reverseUnlockToRootToggle`), XP for Opened Spells (`reverseUnlockXpNoviceSlider` ... `reverseUnlockXpMasterSlider`), Own XP Gain Rates and its multipliers and caps (`reverseXpSeparateToggle`, `reverseXpGlobalMultiplierSlider`, `reverseXpDirectSlider`, `reverseXpSchoolSlider`, `reverseXpAnySlider`, `reverseXpCapAnySlider`, `reverseXpCapSchoolSlider`, `reverseXpCapDirectSlider`), Passive Learning (`passiveLearningToggle`, `passiveScopeToggle`, `passiveXpPerHourSlider`, the caps `passiveMaxNovice` ... `passiveMaxMaster`), Detail Reveal Thresholds (`revealNameSlider`, `revealEffectsSlider`, `revealDescSlider`), the modded XP sources (`moddedXPSourcesSection`) |
+| Learning | Early Spell Learning | Enable Early Learning (`earlyLearningEnabledToggle`), Modify Game Display (`modifyGameDisplayToggle`), Unlock Threshold (`unlockThresholdSlider`), Self-Cast Required At (`selfCastRequiredSlider`), Self-Cast XP Bonus (`selfCastMultiplierSlider`), Binary Effect Threshold (`binaryThresholdSlider`), XP Alerts (`showNotificationsToggle`), Notification Language (`notificationLanguageSelect`), Weakened Spell Alerts and their interval (`weakenedNotificationsToggle`, `notificationIntervalSlider`), Power Step Configuration and its reset (`powerStepsContainer`, `resetPowerStepsBtn`) |
+| Spell Tomes | Spell Tome Learning | the Spell Research line (`spellResearchStatusRow`), Use Progression System (`useProgressionSystemToggle`), XP Grant on Read (`tomeXpGrantSlider`), Inventory Boost (`tomeInventoryBoostToggle`, `tomeInventoryBoostSlider`), Require Prereqs (`tomeRequirePrereqsToggle`), Require ALL (`tomeRequireAllPrereqsToggle`), Require Skill (`tomeRequireSkillLevelToggle`), Skill XP from Studying (`tomeStudySkillXPToggle`) |
+| Advanced | Developer & Debug | Developer Mode (`developerModeToggle`), Cheat Mode (`cheatModeToggle`), and with Developer Mode on: Verbose Logging (`verboseLogToggle`), Show Debug Grid (`debugGridToggle`) |
+| Advanced | Tree Generation (Developer Mode) | Aggressive Path Validation (`aggressivePathValidationToggle`) |
+| (under every page) | | the version line (`settingsVersion`), Save Settings (`saveSettingsBtn`), Reset to Defaults (`resetSettingsBtn`) |
+
+`panelLayoutTest.js` checks that each of these ids is on its page and that no control in Settings sits outside
+the four pages.
 
 ### Key Settings Groups
 
@@ -1832,6 +1934,10 @@ Visual-First builds that used them.
 | `buildProgress.js` | Build progress modal |
 | `progressionUI.js` | Progression UI (learning targets, XP) |
 | `resetConfirm.js` | A Reset to Defaults button (Settings, Early Learning power steps) asks for a second click (`ResetConfirm`, 1.6) |
+| `settingsCategories.js` | Settings one category at a time (Display, Learning, Spell Tomes, Advanced), each category's scroll kept for the session (`SettingsCategories`, 2.0 layout) |
+| `scanStage.js` | The Scan page's summary line, its one stage button (Scan / Build / Apply, pressing the real hidden buttons), the small actions, Scan details and the filter lines (`ScanStage`, 2.0 layout) |
+| `spellCardNeeds.js` | The spell card's state line, "Still needed" / "Met" chips, the reason beside a locked Learn and the folded Unlocks (`SpellCardNeeds`, 2.0 layout) |
+| `treeLegend.js` | The node states key behind the tree footer's "?" (`TreeLegend`, 2.0 layout) |
 | `treeStatusLine.js` | The tree footer's status line: `setTreeStatus` / `setTreeStatusKey`; a success line goes back to "Ready" after a few seconds, a warning or error is not covered (`TreeStatusLine`, 1.6) |
 | `prereqMaster.js` | Pre Req Master system |
 | `editMode.js` | Tree edit mode |

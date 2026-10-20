@@ -33,6 +33,20 @@
 - **The tree footer shows the spell count once;** "Loaded N spells" and "Tree saved" clear to "Ready" after
   a few seconds, while warnings and errors stay - an Import that finds unreachable spells now keeps that
   warning on screen.
+- **Settings in four categories:** Display, Learning, Spell Tomes and Advanced (developer and debug options
+  only there), picked from a slim list at the left; each keeps its scroll position while the game runs. Save
+  Settings and Reset to Defaults are small buttons at the foot.
+- **The Scan tab says where you are in one line** ("753 spells found · 681 go in the tree · not applied yet",
+  with what was left out and why) and has one main button that follows the step: Scan Spells, Build Tree,
+  Apply Tree. Scan again, Import and Clear draft tree are small buttons beside it; the counts per school fold
+  under "Scan details"; the excluded spells and the plugin list read as lines with their state ("Excluded
+  spells: 12", "Plugins: all"). Replay sits under the preview. The unfinished Alternate Pathways tab is hidden.
+- **The spell card answers "can I learn this now":** the state with its XP share and the power a weakened spell
+  casts at, "Still needed" with only what is missing (required spells, "need 2 of 3" optional ones, and locks
+  from another school marked as such), what is already met, why Learn cannot be pressed yet, and the spells it
+  leads to folded into one line.
+- **The tree has one thin frame:** the tools float on the canvas, the schools are small coloured labels, and
+  the footer is one quiet line; the colour key opens from its "?".
 
 ### Fixed
 
