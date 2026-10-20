@@ -1,0 +1,490 @@
+<title>Heart of Magic 2.0 Panel</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@300;400;600&family=Cinzel:wght@500;600&display=swap">
+<style>
+/* Layout: one game panel (header tabs, one framed work area), Classic design tokens from styles-skyrim.css */
+:root {
+  color-scheme: dark;
+  --page: #050505;
+  --panel: #0c0b09;
+  --raise: #15130f;
+  --line: rgba(184,168,120,.28);
+  --hair: rgba(255,255,255,.07);
+  --fg: #C8C8B8;
+  --fg-dim: #9A9A8A;
+  --fg-mute: #6A6A5A;
+  --fg-bright: #E8E8D8;
+  --gold: #B8A878;
+  --gold-hi: #D8C898;
+  --learn: #7890A8;
+  --weak: #C89878;
+  --warn: #E8A84C;
+  --bad: #E86A5C;
+  --ok: #7CC474;
+  --des: #C85050; --res: #C8B850; --alt: #50A868; --con: #9068C8; --ill: #5098C8;
+  --display: 'Cinzel', 'Trajan Pro', Georgia, serif;
+  --body: 'Roboto Condensed', 'Futura Condensed', 'Arial Narrow', sans-serif;
+}
+* { box-sizing: border-box; }
+body { background: var(--page); color: var(--fg); font-family: var(--body); font-size: 15px; letter-spacing: .02em;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px; }
+.note { max-width: 1240px; margin: 0 auto 10px; color: var(--fg-mute); font-size: 13px; display: flex; gap: 12px; flex-wrap: wrap; align-items: baseline; }
+.note b { color: var(--gold); font-weight: 600; letter-spacing: .08em; }
+.panel { max-width: 1240px; margin: 0 auto; background: var(--panel); border: 1px solid var(--line); display: flex; flex-direction: column; min-height: 720px; }
+header { display: flex; align-items: center; gap: 16px; padding: 14px 24px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+header h1 { font-family: var(--display); font-weight: 500; font-size: 26px; letter-spacing: .32em; color: var(--fg-bright); margin: 0; flex: 1; min-width: 0; text-wrap: balance; }
+nav { display: flex; gap: 4px; align-items: center; }
+nav button { background: none; border: 0; color: var(--fg-dim); font: 600 13px var(--body); letter-spacing: .22em; text-transform: uppercase; padding: 8px 12px; cursor: pointer; border-bottom: 2px solid transparent; }
+nav button[aria-selected="true"] { color: var(--fg-bright); border-bottom-color: var(--gold); }
+nav button:focus-visible, button:focus-visible, .chip:focus-visible { outline: 1px solid var(--gold-hi); outline-offset: 2px; }
+.icon-btn { background: none; border: 0; color: var(--fg-dim); font-size: 18px; width: 34px; height: 34px; cursor: pointer; }
+main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.view[hidden] { display: none !important; }
+button { font-family: var(--body); }
+
+/* TREE */
+.tree-wrap { position: relative; flex: 1; min-height: 430px; margin: 14px; border: 1px solid var(--line); background: #030303; }
+#tree { width: 100%; height: 100%; display: block; position: absolute; inset: 0; cursor: pointer; }
+.float-tools { position: absolute; top: 12px; left: 14px; display: flex; flex-direction: column; gap: 8px; }
+.tools { display: flex; gap: 2px; }
+.tools button { width: 32px; height: 30px; background: rgba(0,0,0,.35); border: 0; color: var(--fg); font-size: 16px; cursor: pointer; border-radius: 3px; }
+.tools button:hover { color: var(--gold-hi); background: rgba(184,168,120,.12); }
+.schools { display: flex; gap: 12px; flex-wrap: wrap; }
+.schools button { background: none; border: 0; padding: 0; font: 600 12px var(--body); letter-spacing: .14em; cursor: pointer; }
+.corner-count { position: absolute; left: 14px; bottom: 10px; font-size: 13px; color: var(--fg-mute); font-variant-numeric: tabular-nums; }
+.corner-status { position: absolute; right: 54px; bottom: 10px; font-size: 13px; color: var(--fg-dim); }
+.corner-status.warn { color: var(--warn); }
+.legend-btn { position: absolute; right: 12px; bottom: 6px; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); background: rgba(0,0,0,.5); color: var(--fg); cursor: pointer; }
+.legend { position: absolute; right: 12px; bottom: 42px; background: rgba(10,10,8,.95); border: 1px solid var(--line); padding: 12px 14px; display: grid; gap: 6px; font-size: 13px; }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: -1px; }
+.lg-locked::before { background: #252525; border: 1px solid #555; }
+.lg-avail::before { background: #2a2a2a; border: 1px solid var(--fg-dim); }
+.lg-learn::before { background: rgba(120,144,168,.35); border: 1px solid var(--learn); }
+.lg-unl::before { background: var(--gold); }
+
+/* spell card */
+.card { margin: 0 14px 14px; padding: 18px 22px; border-top: 1px solid var(--line); display: grid; gap: 12px; }
+.card-empty { color: var(--fg-mute); font-size: 14px; padding: 6px 0; }
+.card-head { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: baseline; }
+.card-name { font-family: var(--display); font-size: 26px; color: var(--fg-bright); letter-spacing: .08em; margin: 0; }
+.meta { display: flex; gap: 14px; align-items: center; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--fg-dim); flex-wrap: wrap; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+.effect { color: var(--fg); font-size: 16px; }
+.state { display: grid; gap: 6px; max-width: 640px; }
+.state-line { font-size: 15px; }
+.state-line .w { color: var(--weak); }
+.bar { height: 4px; background: var(--hair); }
+.bar i { display: block; height: 100%; background: var(--gold); }
+.needed { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.needed > span { color: var(--fg-dim); min-width: 92px; }
+.chip { background: var(--raise); border: 1px solid var(--hair); color: var(--fg); padding: 6px 12px; border-radius: 14px; font-size: 14px; cursor: pointer; }
+.chip:hover { border-color: var(--line); }
+.chip .k { color: var(--fg-mute); margin-left: 4px; }
+.chip.lock { border-color: rgba(200,184,80,.35); }
+.chip.lock::before { content: "\1F512"; font-size: 11px; margin-right: 6px; filter: grayscale(1); }
+.met { color: var(--fg-mute); font-size: 13px; }
+.met b { color: var(--ok); font-weight: 400; }
+.actions { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+.btn-main { background: linear-gradient(#8a7a4c, #6a5c36); border: 1px solid var(--gold-hi); color: #f3ead0; font: 600 14px var(--body); letter-spacing: .16em; text-transform: uppercase; padding: 11px 22px; cursor: pointer; }
+.btn-main[disabled] { background: var(--raise); border-color: var(--hair); color: var(--fg-mute); cursor: not-allowed; }
+.why { color: var(--fg-dim); font-size: 13px; }
+.link { background: none; border: 0; color: var(--gold); font-size: 14px; cursor: pointer; padding: 0; }
+.later { color: var(--fg-dim); font-size: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* SCAN */
+.scan { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 360px); gap: 32px; padding: 34px 40px; flex: 1; }
+.summary { font-size: 24px; color: var(--fg-bright); margin: 0 0 22px; font-variant-numeric: tabular-nums; text-wrap: balance; }
+.summary .gap { color: var(--warn); font-size: 15px; display: block; margin-top: 6px; }
+.stage { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; margin-bottom: 30px; }
+.small { background: none; border: 0; border-bottom: 1px solid rgba(184,168,120,.45); color: var(--fg); font-size: 15px; padding: 2px 0; cursor: pointer; }
+.rows { display: grid; gap: 14px; }
+.row-link { background: none; border: 0; color: var(--fg); font-size: 16px; text-align: left; cursor: pointer; padding: 0; display: flex; gap: 10px; }
+.row-link small { color: var(--fg-mute); font-size: 13px; align-self: center; }
+.details { display: grid; grid-template-columns: max-content 4ch; gap: 4px 18px; padding: 4px 0 4px 14px; font-size: 14px; color: var(--fg-dim); font-variant-numeric: tabular-nums; }
+.preview { display: grid; gap: 10px; align-content: start; }
+.preview canvas { width: 100%; max-width: 360px; aspect-ratio: 1; }
+.preview .cap { color: var(--fg-mute); font-size: 13px; }
+
+/* SETTINGS */
+.settings { display: grid; grid-template-columns: 200px minmax(0, 1fr); flex: 1; min-height: 0; }
+.cats { border-right: 1px solid var(--hair); padding: 18px 0; display: flex; flex-direction: column; }
+.cats button { background: none; border: 0; text-align: left; color: var(--fg); font: 600 13px var(--body); letter-spacing: .22em; text-transform: uppercase; padding: 14px 24px; cursor: pointer; }
+.cats button[aria-selected="true"] { background: rgba(184,168,120,.08); color: var(--gold-hi); box-shadow: inset 2px 0 0 var(--gold); }
+.cat-body { padding: 22px 36px; display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.cat-body h2 { font-family: var(--display); font-weight: 500; font-size: 22px; letter-spacing: .18em; color: var(--fg-bright); margin: 0; }
+.group { display: grid; gap: 4px; }
+.group h3 { margin: 0 0 4px; font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--fg-mute); font-weight: 600; }
+.srow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(140px, 260px) 4.5ch; gap: 18px; align-items: center; padding: 7px 8px; border-radius: 3px; }
+.srow:hover { background: rgba(255,255,255,.025); }
+.srow label { min-width: 0; }
+.srow .d { display: block; color: var(--fg-mute); font-size: 13px; margin-top: 2px; }
+.srow output { color: var(--fg-dim); font-variant-numeric: tabular-nums; text-align: right; }
+input[type=range] { width: 100%; accent-color: var(--gold); }
+.tiers { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; padding: 4px 8px; }
+.tiers label { display: grid; gap: 4px; font-size: 13px; color: var(--fg-dim); }
+.tiers input { background: rgba(0,0,0,.5); border: 1px solid var(--hair); color: var(--fg); padding: 6px 8px; font: 15px var(--body); width: 100%; }
+.toggle { justify-self: end; width: 18px; height: 18px; accent-color: var(--gold); }
+.foot { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--hair); font-size: 13px; }
+.saved { color: var(--fg-mute); }
+.reset { background: none; border: 0; color: var(--gold); font-size: 14px; cursor: pointer; }
+.reset.armed { color: var(--bad); }
+.version { color: var(--fg-mute); font-size: 12px; }
+
+@media (max-width: 760px) {
+  header { padding: 12px 14px; }
+  header h1 { font-size: 18px; letter-spacing: .2em; flex-basis: 100%; }
+  .scan { grid-template-columns: 1fr; padding: 22px 16px; }
+  .settings { grid-template-columns: 1fr; }
+  .cats { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--hair); padding: 0; }
+  .cats button { padding: 12px 14px; white-space: nowrap; }
+  .cats button[aria-selected="true"] { box-shadow: inset 0 -2px 0 var(--gold); }
+  .cat-body { padding: 18px 12px; }
+  .srow { grid-template-columns: minmax(0, 1fr) 4.5ch; }
+  .srow input[type=range] { grid-column: 1 / -1; grid-row: 2; }
+  .tiers { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .card { padding: 14px 4px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="note"><b>HoM 2.0 UI 프로토타입</b><span>6 설정 분류 · 7 스캔 요약 · 8 주문 카드 · 9 트리 단일 테두리. Classic 디자인 색. 숫자와 주문은 예시입니다. 노드를 누르면 카드가 바뀝니다.</span></div>
+
+<div class="panel">
+  <header>
+    <h1>Heart of Magic</h1>
+    <nav role="tablist" aria-label="Panel">
+      <button role="tab" id="tab-tree" aria-selected="true" data-view="tree">Tree</button>
+      <button role="tab" id="tab-scan" aria-selected="false" data-view="scan">Scan</button>
+      <button role="tab" id="tab-settings" aria-selected="false" data-view="settings">Settings</button>
+    </nav>
+    <button class="icon-btn" aria-label="Fullscreen">&#x2922;</button>
+    <button class="icon-btn" aria-label="Close">&#x2715;</button>
+  </header>
+
+  <main>
+    <!-- TREE -->
+    <section class="view" id="view-tree">
+      <div class="tree-wrap">
+        <canvas id="tree" aria-label="Spell tree"></canvas>
+        <div class="float-tools">
+          <div class="tools">
+            <button aria-label="Zoom in">+</button><button aria-label="Zoom out">&minus;</button>
+            <button aria-label="Home view">&#x2302;</button><button aria-label="Find spell">&#x2315;</button><button aria-label="Edit tree">&#x270E;</button>
+          </div>
+          <div class="schools" id="schools"></div>
+        </div>
+        <div class="corner-count" id="count"></div>
+        <div class="corner-status" id="status">Ready</div>
+        <button class="legend-btn" id="legend-btn" aria-expanded="false" aria-controls="legend" aria-label="Node states">?</button>
+        <div class="legend" id="legend" hidden>
+          <span class="lg-locked">Locked</span><span class="lg-avail">Available</span><span class="lg-learn">Learning</span><span class="lg-unl">Unlocked</span>
+        </div>
+      </div>
+      <div class="card" id="card"></div>
+    </section>
+
+    <!-- SCAN -->
+    <section class="view" id="view-scan" hidden>
+      <div class="scan">
+        <div>
+          <p class="summary" id="scan-summary"></p>
+          <div class="stage">
+            <button class="btn-main" id="stage-btn"></button>
+            <button class="small" id="scan-again">Scan again</button>
+            <button class="small">Import</button>
+            <button class="small" id="clear-draft" hidden>Clear draft tree</button>
+          </div>
+          <div class="rows">
+            <button class="row-link" id="details-btn" aria-expanded="false">Scan details <span>&#x25B8;</span></button>
+            <div class="details" id="details" hidden></div>
+            <button class="row-link">Excluded spells: 12 <span>&rsaquo;</span></button>
+            <button class="row-link">Plugins: all <span>&rsaquo;</span> <small>none picked means every plugin is in</small></button>
+            <button class="row-link">Tree generation <span>&rsaquo;</span> <small>layout, tiers, grouping</small></button>
+          </div>
+        </div>
+        <div class="preview">
+          <canvas id="roots" width="360" height="360" aria-label="Root layout preview"></canvas>
+          <div class="cap">Where each school's first spell sits. <button class="small">Replay</button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="view" id="view-settings" hidden>
+      <div class="settings">
+        <div class="cats" role="tablist" aria-label="Settings categories" id="cats"></div>
+        <div class="cat-body" id="cat-body"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+(function () {
+  var SCHOOLS = [
+    { key: 'alt', name: 'Alteration', short: 'Alter.', color: '#50A868' },
+    { key: 'con', name: 'Conjuration', short: 'Conj.', color: '#9068C8' },
+    { key: 'des', name: 'Destruction', short: 'Destr.', color: '#C85050' },
+    { key: 'ill', name: 'Illusion', short: 'Illus.', color: '#5098C8' },
+    { key: 'res', name: 'Restoration', short: 'Resto.', color: '#C8B850' }
+  ];
+  var TIERS = ['Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
+  var NAMES = {
+    alt: ['Oakflesh', 'Candlelight', 'Detect Life', 'Stoneflesh', 'Telekinesis', 'Waterbreathing', 'Ironflesh', 'Paralyze', 'Ebonyflesh', 'Mass Paralysis', 'Dragonhide', 'Transmute'],
+    con: ['Conjure Familiar', 'Bound Sword', 'Raise Zombie', 'Flame Atronach', 'Soul Trap', 'Frost Atronach', 'Bound Bow', 'Storm Atronach', 'Dread Zombie', 'Dremora Lord', 'Flame Thrall', 'Banish Daedra'],
+    des: ['Flames', 'Frostbite', 'Sparks', 'Firebolt', 'Ice Spike', 'Lightning Bolt', 'Ice Storm', 'Fireball', 'Chain Lightning', 'Icy Spear', 'Wall of Frost', 'Blizzard', 'Fire Storm', 'Lightning Storm'],
+    ill: ['Clairvoyance', 'Courage', 'Fury', 'Calm', 'Muffle', 'Fear', 'Rally', 'Invisibility', 'Frenzy', 'Pacify', 'Mayhem', 'Harmony', 'Hysteria'],
+    res: ['Healing', 'Lesser Ward', 'Fast Healing', 'Turn Lesser Undead', 'Healing Hands', 'Steadfast Ward', 'Close Wounds', 'Heal Other', 'Greater Ward', 'Grand Healing', 'Guardian Circle', 'Bane of the Undead']
+  };
+  var seed = 1979;
+  function rnd() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }
+
+  // procedural tree: each school a sector, branches out by tier
+  var nodes = [], edges = [];
+  SCHOOLS.forEach(function (s, si) {
+    var base = -Math.PI / 2 + si * (2 * Math.PI / 5);
+    var root = { id: nodes.length, school: si, tier: 0, a: base, r: 0.17, name: NAMES[s.key][0], state: 'unl' };
+    nodes.push(root);
+    var frontier = [root];
+    for (var ring = 1; ring <= 7; ring++) {
+      var next = [];
+      var count = 5 + ring * 5;
+      for (var i = 0; i < count; i++) {
+        var spread = (2 * Math.PI / 5) * 0.86;
+        var a = base - spread / 2 + spread * ((i + 0.5) / count) + (rnd() - .5) * .02;
+        var parent = frontier[Math.floor(i * frontier.length / count)];
+        var nm = NAMES[s.key][(ring * 3 + i) % NAMES[s.key].length];
+        var n = { id: nodes.length, school: si, tier: Math.min(4, Math.floor(ring / 1.6)), a: a, r: 0.17 + ring * 0.115, name: nm, parent: parent.id, state: 'locked' };
+        nodes.push(n); edges.push([parent.id, n.id]); next.push(n);
+      }
+      frontier = next;
+    }
+  });
+  // learned paths
+  nodes.forEach(function (n) {
+    if (n.parent === undefined) return;
+    var p = nodes[n.parent];
+    if (p.state === 'unl' && rnd() < (n.r < .4 ? .55 : .18)) n.state = 'unl';
+    else if (p.state === 'unl' && rnd() < .5) n.state = 'avail';
+  });
+  var target = nodes.filter(function (n) { return n.school === 2 && n.state === 'avail' && n.r > .5; })[0] || nodes[30];
+  target.state = 'learn'; target.name = 'Ice Storm';
+  var selected = target;
+
+  var unlocked = nodes.filter(function (n) { return n.state === 'unl'; }).length;
+  document.getElementById('count').textContent = nodes.length + ' spells · ' + unlocked + ' unlocked';
+
+  var schoolsEl = document.getElementById('schools');
+  SCHOOLS.forEach(function (s) {
+    var b = document.createElement('button');
+    b.textContent = s.short.toUpperCase(); b.style.color = s.color; b.title = 'Go to ' + s.name;
+    schoolsEl.appendChild(b);
+  });
+
+  var canvas = document.getElementById('tree'), ctx = canvas.getContext('2d');
+  var geo = { cx: 0, cy: 0, R: 0 };
+  function pos(n) { return { x: geo.cx + Math.cos(n.a) * n.r * geo.R, y: geo.cy + Math.sin(n.a) * n.r * geo.R }; }
+  function draw() {
+    var dpr = window.devicePixelRatio || 1, w = canvas.clientWidth, h = canvas.clientHeight;
+    canvas.width = w * dpr; canvas.height = h * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    geo.cx = w / 2; geo.cy = h / 2 + 6; geo.R = Math.min(w, h) * 0.5;
+    // sector lines
+    ctx.strokeStyle = 'rgba(184,168,120,.08)'; ctx.lineWidth = 1;
+    for (var i = 0; i < 5; i++) { var a = -Math.PI / 2 + (i + .5) * 2 * Math.PI / 5; ctx.beginPath(); ctx.moveTo(geo.cx, geo.cy); ctx.lineTo(geo.cx + Math.cos(a) * geo.R, geo.cy + Math.sin(a) * geo.R); ctx.stroke(); }
+    // path to selected
+    var onPath = {}; var c = selected; while (c) { onPath[c.id] = true; c = c.parent !== undefined ? nodes[c.parent] : null; }
+    edges.forEach(function (e) {
+      var p = nodes[e[0]], q = nodes[e[1]], A = pos(p), B = pos(q);
+      var learned = p.state === 'unl' && (q.state === 'unl' || q.state === 'avail' || q.state === 'learn');
+      var path = onPath[q.id];
+      ctx.strokeStyle = path ? 'rgba(232,232,216,.85)' : learned ? hexA(SCHOOLS[q.school].color, .55) : 'rgba(255,255,255,.045)';
+      ctx.lineWidth = path ? 1.8 : learned ? 1.2 : 1;
+      ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
+    });
+    nodes.forEach(function (n) {
+      var P = pos(n), col = SCHOOLS[n.school].color, rad = n.parent === undefined ? 9 : 3.4 + n.tier * .45;
+      ctx.beginPath(); ctx.arc(P.x, P.y, rad, 0, 2 * Math.PI);
+      if (n.state === 'unl') { ctx.fillStyle = col; ctx.fill(); }
+      else if (n.state === 'learn') { ctx.fillStyle = 'rgba(120,144,168,.35)'; ctx.fill(); ctx.strokeStyle = '#9ab0c8'; ctx.lineWidth = 1.6; ctx.stroke(); }
+      else if (n.state === 'avail') { ctx.fillStyle = '#2a2a2a'; ctx.fill(); ctx.strokeStyle = hexA(col, .9); ctx.lineWidth = 1.2; ctx.stroke(); }
+      else { ctx.fillStyle = '#1c1c1c'; ctx.fill(); ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 1; ctx.stroke(); }
+      if (n === selected) { ctx.beginPath(); ctx.arc(P.x, P.y, rad + 5, 0, 2 * Math.PI); ctx.strokeStyle = '#E8E8D8'; ctx.lineWidth = 1.2; ctx.stroke(); }
+    });
+    // centre seal
+    ctx.beginPath(); ctx.arc(geo.cx, geo.cy, geo.R * .09, 0, 2 * Math.PI); ctx.strokeStyle = 'rgba(184,168,120,.7)'; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.beginPath(); ctx.arc(geo.cx, geo.cy, geo.R * .065, 0, 2 * Math.PI); ctx.strokeStyle = 'rgba(184,168,120,.35)'; ctx.stroke();
+    for (var k = 0; k < 5; k++) { var ang = -Math.PI / 2 + k * 4 * Math.PI / 5, ang2 = ang + 4 * Math.PI / 5; ctx.beginPath(); ctx.moveTo(geo.cx + Math.cos(ang) * geo.R * .06, geo.cy + Math.sin(ang) * geo.R * .06); ctx.lineTo(geo.cx + Math.cos(ang2) * geo.R * .06, geo.cy + Math.sin(ang2) * geo.R * .06); ctx.stroke(); }
+    // school names
+    ctx.font = '600 12px "Roboto Condensed", sans-serif'; ctx.textAlign = 'center';
+    SCHOOLS.forEach(function (s, si) { var a = -Math.PI / 2 + si * 2 * Math.PI / 5; ctx.fillStyle = hexA(s.color, .85); ctx.fillText(s.name.toUpperCase(), geo.cx + Math.cos(a) * geo.R * .14 * 1.0 + Math.cos(a) * 22, geo.cy + Math.sin(a) * geo.R * .14 + Math.sin(a) * 22 + 4); });
+  }
+  function hexA(hex, a) { var n = parseInt(hex.slice(1), 16); return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')'; }
+  canvas.addEventListener('click', function (ev) {
+    var r = canvas.getBoundingClientRect(), x = ev.clientX - r.left, y = ev.clientY - r.top, best = null, bd = 18 * 18;
+    nodes.forEach(function (n) { var P = pos(n), d = (P.x - x) * (P.x - x) + (P.y - y) * (P.y - y); if (d < bd) { bd = d; best = n; } });
+    if (best) { selected = best; draw(); renderCard(); }
+  });
+  window.addEventListener('resize', draw);
+
+  // spell card
+  function prereqs(n) {
+    var out = [];
+    if (n.parent !== undefined) out.push({ name: nodes[n.parent].name, met: nodes[n.parent].state === 'unl', kind: 'req' });
+    if (n.tier >= 2) out.push({ name: n.school === 2 ? 'Ice Spike' : 'Lesser Ward', met: false, kind: 'opt', need: '2 of 3' });
+    if (n.tier >= 2) out.push({ name: n.school === 4 ? 'Muffle' : 'Steadfast Ward', school: n.school === 4 ? 'Illusion' : 'Restoration', met: false, kind: 'lock' });
+    return out;
+  }
+  function kids(n) { return nodes.filter(function (m) { return m.parent === n.id; }); }
+  function renderCard() {
+    var n = selected, s = SCHOOLS[n.school], card = document.getElementById('card');
+    var pre = prereqs(n), unmet = pre.filter(function (p) { return !p.met; }), met = pre.filter(function (p) { return p.met; });
+    var cost = 18 + n.tier * 34 + (n.r * 40 | 0), tier = TIERS[n.tier];
+    var xp = n.state === 'learn' ? 62 : n.state === 'unl' ? 100 : 0;
+    var stateTxt = n.state === 'learn' ? 'Learning — ' + xp + '% <span class="w">· casts at 60% power</span>' :
+      n.state === 'unl' ? 'Mastered' : n.state === 'avail' ? 'Available' : 'Locked';
+    var canLearn = n.state === 'avail' && unmet.length === 0;
+    var btnTxt = n.state === 'learn' ? 'Stop learning' : n.state === 'unl' ? 'Mastered' : 'Set as learning target';
+    var why = n.state === 'locked' ? 'Learn ' + (unmet[0] ? unmet[0].name : 'its prerequisites') + ' first' :
+      (n.state === 'avail' && unmet.length) ? unmet.length + ' requirement' + (unmet.length > 1 ? 's' : '') + ' left' : '';
+    var later = kids(n);
+    var h = '<div class="card-head"><h2 class="card-name">' + n.name + '</h2>' +
+      '<div class="meta"><span><i class="dot" style="background:' + s.color + '"></i>' + s.name + ' · ' + tier + '</span><span>Magicka ' + cost + '</span></div></div>' +
+      '<div class="effect">' + effectLine(n) + '</div>' +
+      '<div class="state"><div class="state-line">' + stateTxt + '</div><div class="bar"><i style="width:' + xp + '%"></i></div></div>';
+    if (unmet.length) {
+      h += '<div class="needed"><span>Still needed:</span>' + unmet.map(function (p) {
+        if (p.kind === 'lock') return '<button class="chip lock" title="Cross-school requirement">Lock: ' + p.name + ' <span class="k">(' + p.school + ')</span></button>';
+        if (p.kind === 'opt') return '<button class="chip">' + p.name + ' <span class="k">(need ' + p.need + ')</span></button>';
+        return '<button class="chip">' + p.name + '</button>';
+      }).join('') + '</div>';
+    }
+    if (met.length) h += '<div class="met">Met: ' + met.map(function (p) { return p.name + ' <b>✓</b>'; }).join(', ') + '</div>';
+    h += '<div class="actions"><button class="btn-main" ' + (n.state === 'unl' || (n.state !== 'learn' && !canLearn) ? 'disabled' : '') + '>' + btnTxt + '</button>' +
+      (why ? '<span class="why">' + why + '</span>' : '') +
+      (later.length ? '<button class="link" id="later-btn" aria-expanded="false">Leads to ' + later.length + ' later spell' + (later.length > 1 ? 's' : '') + ' ▸</button>' : '') + '</div>' +
+      '<div class="later" id="later" hidden>' + later.map(function (k) { return '<button class="chip">' + k.name + '</button>'; }).join('') + '</div>';
+    card.innerHTML = h;
+    var lb = document.getElementById('later-btn');
+    if (lb) lb.addEventListener('click', function () { var l = document.getElementById('later'); l.hidden = !l.hidden; lb.setAttribute('aria-expanded', String(!l.hidden)); lb.innerHTML = lb.innerHTML.replace(l.hidden ? '▾' : '▸', l.hidden ? '▸' : '▾'); });
+  }
+  function effectLine(n) {
+    var map = { alt: 'Armor rating raised for 60 s', con: 'Summons an ally for 60 s', des: n.name.indexOf('Ice') >= 0 || n.name.indexOf('Frost') >= 0 ? 'Frost damage in a cone, 40 pts' : 'Fire damage to one target, 25 pts', ill: 'Calms creatures up to level 9', res: 'Heals 25 points per second' };
+    return map[SCHOOLS[n.school].key];
+  }
+
+  document.getElementById('legend-btn').addEventListener('click', function () {
+    var l = document.getElementById('legend'); l.hidden = !l.hidden; this.setAttribute('aria-expanded', String(!l.hidden));
+  });
+
+  // SCAN stages
+  var stage = 0, STAGES = [
+    { sum: 'No scan yet · the tree is built from your spells', btn: 'Scan spells' },
+    { sum: '753 spells found · 681 go in the tree · not built yet', gap: '72 left out: 60 NPC-only, 12 on your excluded list', btn: 'Build tree' },
+    { sum: '753 spells found · 681 in the new tree · not applied yet', gap: '72 left out: 60 NPC-only, 12 on your excluded list', btn: 'Apply tree' },
+    { sum: '753 spells found · 681 in your tree · applied', gap: '', btn: 'Applied' }
+  ];
+  function renderScan() {
+    var st = STAGES[stage], sum = document.getElementById('scan-summary'), b = document.getElementById('stage-btn');
+    sum.innerHTML = st.sum + (st.gap ? '<span class="gap">' + st.gap + '</span>' : '');
+    b.textContent = st.btn; b.disabled = stage === 3;
+    document.getElementById('scan-again').hidden = stage === 0;
+    document.getElementById('clear-draft').hidden = stage !== 2;
+  }
+  document.getElementById('stage-btn').addEventListener('click', function () { if (stage < 3) { stage++; renderScan(); drawRoots(); } });
+  document.getElementById('scan-again').addEventListener('click', function () { stage = 1; renderScan(); });
+  document.getElementById('clear-draft').addEventListener('click', function () { stage = 1; renderScan(); });
+  var details = document.getElementById('details');
+  details.innerHTML = [['Destruction', 229], ['Conjuration', 169], ['Restoration', 137], ['Alteration', 115], ['Illusion', 103], ['From 41 plugins', '']].map(function (r) { return '<span>' + r[0] + '</span><span>' + r[1] + '</span>'; }).join('');
+  document.getElementById('details-btn').addEventListener('click', function () { details.hidden = !details.hidden; this.setAttribute('aria-expanded', String(!details.hidden)); this.querySelector('span').innerHTML = details.hidden ? '&#x25B8;' : '&#x25BE;'; });
+  function drawRoots() {
+    var c = document.getElementById('roots'), x = c.getContext('2d'), W = c.width, cx = W / 2, cy = W / 2;
+    x.clearRect(0, 0, W, W);
+    x.strokeStyle = 'rgba(184,168,120,.12)'; [60, 105, 150].forEach(function (r) { x.beginPath(); x.arc(cx, cy, r, 0, 2 * Math.PI); x.stroke(); });
+    SCHOOLS.forEach(function (s, i) {
+      var a = -Math.PI / 2 + i * 2 * Math.PI / 5, px = cx + Math.cos(a) * 105, py = cy + Math.sin(a) * 105;
+      x.strokeStyle = hexA(s.color, .45); x.beginPath(); x.moveTo(cx, cy); x.lineTo(px, py); x.stroke();
+      x.fillStyle = stage >= 2 ? s.color : hexA(s.color, .4); x.beginPath(); x.arc(px, py, 7, 0, 2 * Math.PI); x.fill();
+      x.fillStyle = '#9A9A8A'; x.font = '12px "Roboto Condensed", sans-serif'; x.textAlign = 'center'; x.fillText(s.name, cx + Math.cos(a) * 140, cy + Math.sin(a) * 140 + 4);
+    });
+    x.strokeStyle = 'rgba(184,168,120,.6)'; x.beginPath(); x.arc(cx, cy, 14, 0, 2 * Math.PI); x.stroke();
+  }
+
+  // SETTINGS categories
+  var CATS = {
+    Display: [
+      { h: 'Language and look', rows: [['Language', 'select', 'English'], ['Design', 'select', 'Classic'], ['Font size', 'range', 1.0, 'x'], ['Learning colour', 'colour', '#7890A8']] },
+      { h: 'Tree', rows: [['Center on click', 'check', true], ['Zoom on click', 'check', true], ['Dim others', 'check', true], ['Selection path', 'check', true], ['Curved edges', 'check', false], ['Spell name size', 'range', 12, '']] },
+      { h: 'Spell card', rows: [['Spell card in right sidebar', 'check', false], ['Preview on hover', 'check', true, 'The card panel stays open, even with no spell selected']] }
+    ],
+    Learning: [
+      { h: 'Where XP comes from', rows: [['Casting the spell', 'range', 100, '%'], ['Direct prerequisites', 'range', 100, '%'], ['Same school', 'range', 50, '%'], ['Any spell', 'range', 10, '%'], ['Overall XP multiplier', 'range', 1.0, 'x']] },
+      { h: 'XP caps', note: 'A cap limits how much of a spell one source can give; the rest must come from casting the spell itself.', rows: [['Other spells', 'range', 5, '%'], ['Same school', 'range', 15, '%'], ['Direct prerequisites', 'range', 50, '%']] },
+      { h: 'XP required by tier', tiers: [100, 200, 400, 800, 1500] },
+      { h: 'Early learning', rows: [['Learn spells early, weakened', 'check', true, 'A spell learned early casts at reduced power until mastered'], ['Starting power', 'range', 20, '%']] }
+    ],
+    'Spell Tomes': [
+      { h: 'Reading a tome', rows: [['Use the progression system', 'check', true, 'Tomes give XP and an early, weakened spell instead of teaching it at once'], ['XP on reading', 'range', 25, '%'], ['Bonus while carrying the tome', 'range', 25, '%']] },
+      { h: 'Requirements', rows: [['Prerequisites learned first', 'check', true], ['All prerequisites, not one', 'check', true], ['School skill level', 'check', false]] }
+    ],
+    Advanced: [
+      { h: 'Developer', rows: [['Developer mode', 'check', false, 'Shows tree generation internals'], ['Cheat mode', 'check', false, 'Unlock and relock any spell'], ['Verbose logging', 'check', false]] },
+      { h: 'Modded XP sources', rows: [['Book Reading multiplier', 'range', 100, '%'], ['Book Reading cap', 'range', 25, '%']] }
+    ]
+  };
+  var catNames = Object.keys(CATS), currentCat = 'Learning', armed = null;
+  var catsEl = document.getElementById('cats'), body = document.getElementById('cat-body');
+  catNames.forEach(function (c) {
+    var b = document.createElement('button'); b.setAttribute('role', 'tab'); b.textContent = c; b.id = 'cat-' + c.replace(/\s/g, '');
+    b.addEventListener('click', function () { currentCat = c; renderCats(); });
+    catsEl.appendChild(b);
+  });
+  function renderCats() {
+    Array.prototype.forEach.call(catsEl.children, function (b) { b.setAttribute('aria-selected', String(b.textContent === currentCat)); });
+    var h = '<h2>' + currentCat + '</h2>';
+    CATS[currentCat].forEach(function (g, gi) {
+      h += '<div class="group"><h3>' + g.h + '</h3>' + (g.note ? '<div class="srow"><label><span class="d" style="margin:0">' + g.note + '</span></label></div>' : '');
+      if (g.tiers) h += '<div class="tiers">' + TIERS.map(function (t, i) { return '<label>' + t + '<input type="number" id="tier-' + i + '" value="' + g.tiers[i] + '" min="1" max="99999"></label>'; }).join('') + '</div>';
+      (g.rows || []).forEach(function (r, ri) {
+        var id = 's-' + currentCat.replace(/\s/g, '') + '-' + gi + '-' + ri, ctl = '', out = '';
+        if (r[1] === 'range') { var max = r[3] === 'x' ? 3 : r[3] === '%' ? 100 : 24, step = r[3] === 'x' ? .1 : 1; ctl = '<input type="range" id="' + id + '" min="0" max="' + max + '" step="' + step + '" value="' + r[2] + '">'; out = '<output for="' + id + '">' + (r[3] === 'x' ? 'x' + r[2] : r[2] + r[3]) + '</output>'; }
+        else if (r[1] === 'check') { ctl = '<span></span>'; out = '<input class="toggle" type="checkbox" id="' + id + '"' + (r[2] ? ' checked' : '') + '>'; }
+        else if (r[1] === 'colour') { ctl = '<span></span>'; out = '<span style="display:inline-block;width:26px;height:16px;background:' + r[2] + ';justify-self:end"></span>'; }
+        else { ctl = '<span style="color:var(--fg-dim);text-align:right">' + r[2] + ' ▾</span>'; out = '<span></span>'; }
+        h += '<div class="srow"><label for="' + id + '">' + r[0] + (r[3] && r[1] === 'check' ? '<span class="d">' + r[3] + '</span>' : '') + '</label>' + ctl + out + '</div>';
+      });
+      h += '</div>';
+    });
+    h += '<div class="foot"><span class="saved" id="saved">Saved</span><span class="version">Librarian 2.0.0 (prototype)</span><button class="reset" id="reset">Reset to Defaults</button></div>';
+    body.innerHTML = h;
+    body.querySelectorAll('input[type=range]').forEach(function (inp) {
+      inp.addEventListener('input', function () { var o = body.querySelector('output[for="' + inp.id + '"]'); var x = o.textContent.charAt(0) === 'x'; o.textContent = x ? 'x' + (+inp.value).toFixed(1) : inp.value + (o.textContent.slice(-1) === '%' ? '%' : ''); flashSaved(); });
+    });
+    body.querySelectorAll('input[type=checkbox],input[type=number]').forEach(function (i) { i.addEventListener('change', flashSaved); });
+    var rb = document.getElementById('reset');
+    rb.addEventListener('click', function () {
+      if (armed && Date.now() - armed > 400) { armed = null; rb.textContent = 'Reset to Defaults'; rb.classList.remove('armed'); flashSaved('Defaults restored'); return; }
+      if (armed) return;
+      armed = Date.now(); rb.textContent = 'Click again to reset'; rb.classList.add('armed');
+      setTimeout(function () { if (armed) { armed = null; rb.textContent = 'Reset to Defaults'; rb.classList.remove('armed'); } }, 3000);
+    });
+  }
+  var savedTimer = null;
+  function flashSaved(msg) { var s = document.getElementById('saved'); if (!s) return; s.textContent = msg || 'Saving…'; clearTimeout(savedTimer); savedTimer = setTimeout(function () { s.textContent = 'Saved'; }, 600); }
+
+  // tabs
+  document.querySelectorAll('nav [role=tab]').forEach(function (t) {
+    t.addEventListener('click', function () {
+      document.querySelectorAll('nav [role=tab]').forEach(function (o) { o.setAttribute('aria-selected', String(o === t)); });
+      ['tree', 'scan', 'settings'].forEach(function (v) { document.getElementById('view-' + v).hidden = v !== t.dataset.view; });
+      armed = null;
+      if (t.dataset.view === 'tree') draw();
+      if (t.dataset.view === 'scan') drawRoots();
+    });
+  });
+  var hash = (location.hash || '').slice(1);
+  renderScan(); renderCats(); renderCard();
+  if (hash === 'scan' || hash === 'settings') document.getElementById('tab-' + hash).click(); else draw();
+})();
+</script>
