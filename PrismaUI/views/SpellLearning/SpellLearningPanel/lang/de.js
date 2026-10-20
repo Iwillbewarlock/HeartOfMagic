@@ -401,7 +401,7 @@ window._i18nPreload = {
     "progression.hint.setTarget": "Als Lernziel setzen, um zu beginnen.",
     "progression.hint.studying": "Wirke vorausgesetzte Zauber, um EP zu erhalten.",
     "progression.hint.studyingThreshold": "Wirke vorausgesetzte Zauber, um diesen Zauber bei {{threshold}}% freizuschalten.",
-    "progression.hint.weakened": "Du kennst diesen Zauber. Wirke seine Voraussetzungen, um seine Kraft zu steigern.",
+    "progression.hint.weakened": "Du kennst diesen Zauber. Wirke die vorausgesetzten Zauber, um seine Kraft zu steigern.",
     "progression.howto.anySpell": "Beliebiger Zauber: {{value}}% EP",
     "progression.howto.clickUnlock": "Klicke ‚Zauber freischalten' wenn bereit",
     "progression.howto.combatTip": "Kampfeinsatz gibt mehr EP als Übung",
