@@ -297,6 +297,7 @@ namespace
             return;
         case Step::kSetup:
             s.begun = true;
+            SelfTest::NoteAbilityBeforeSetup(s);
             if (!SelfTest::Setup(s)) {
                 FinishNormally(s);
                 return;

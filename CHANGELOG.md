@@ -8,7 +8,9 @@ The Toxicology addon (`plugins/Toxicology/`) is released on its own; 1.0.0 was i
 
 - **Turn Toxicology on and off with a lesser power.** The tome now teaches the power **Toxicology** (Powers tab).
   Using it turns the feature on (the ability appears under Active Effects, with a notification); using it again
-  turns it off, and the mimicked poison loses its icon at once. A new reader starts with it off.
+  turns it off, and the mimic keyword comes off the mimicked poison at once (whether I5's cached inventory icon
+  refreshes at once is not yet confirmed in game; see the addon README's known limits). A new reader starts with it
+  off.
 - **1.0 saves stay on:** a save that already knows the ability gets the power at its next load.
 
 ### Notes

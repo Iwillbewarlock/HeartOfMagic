@@ -11,8 +11,13 @@
 //   phase 1: up to kToggleWaitMs for the ability to flip. No flip: FAIL, with
 //            which event paths fired (ToxToggle.h PowerTrace).
 //   phase 2: kToggleGapMs (longer than the repeat window): one cast made one
-//            toggle (a second event of the same cast was dropped), and the
-//            ability is still flipped. Then the power is cast again.
+//            toggle, and the ability is still flipped. CastSpellImmediate sends
+//            no TESSpellCastEvent (plugins/spelllearning/src/
+//            SpellCastImmediateHook.cpp:8), so usually only the effect apply
+//            event arrives and the debounce is not exercised (an INFO line; a
+//            real Z cast is checked from the log). When both events arrive,
+//            the second must have been dropped as a repeat. Then the power is
+//            cast again.
 //   phase 3: up to kToggleWaitMs for the ability to flip back.
 //   phase 4: kToggleGapMs again, the second cast's toggle count, then the 1.0
 //            save migration (ToxToggle.h MigratePower) on three states: the
@@ -46,8 +51,7 @@ namespace
 
     constexpr std::string_view kStep = "4b power";
     constexpr double kToggleWaitMs = 5000.0;  // a cast's toggle task, from the cast
-    constexpr double kToggleGapMs = 1000.0;   // between the casts: past ToxToggle.h's repeat window
-    static_assert(kToggleGapMs > ToxGame::kRepeatToggleSeconds * 1000.0);
+    constexpr double kToggleGapMs = ToxGame::kRepeatToggleSeconds * 1000.0 + 500.0;  // between the casts: past the repeat window
     constexpr RE::FormID kVoiceEquipSlotId = 0x025BEE;  // VoiceEquip, Skyrim.esm: a power's equip slot
     constexpr std::uint32_t kOneToggle = 1;
 
@@ -163,7 +167,10 @@ namespace
         const auto trace = TraceSince(s.powerTraceBefore);
         if (now == a_want) {
             SelfTest::Pass(s, kStep, std::format("{} cast: ability {} after {} ticks ({})", a_which, Held(now), s.phaseTicks, trace));
-            if (!now) {
+            if (!now && !ToxGame::GetSettings().enabled) {
+                // "enabled" off: CurrentPoison is none whatever the ability, so the check would prove nothing
+                SelfTest::Info(kStep, std::format("{} cast, off: CurrentPoison check skipped: enabled off", a_which));
+            } else if (!now) {
                 // Off: the gates follow at once (no poison to copy, so no hit, icon or Magicka count)
                 const auto* poison = ToxGame::CurrentPoison(true);
                 SelfTest::Check(s, kStep, poison == nullptr, std::format("{} cast, off: CurrentPoison {} (none expected)", a_which,
@@ -179,13 +186,25 @@ namespace
         return true;
     }
 
-    // Phases 2 and 4: after the gap, one cast must have made exactly one toggle
+    // Phases 2 and 4: after the gap, one cast must have made exactly one toggle. When both event paths fired, the
+    // second was dropped by the debounce; the instant caster sends no TESSpellCastEvent, so usually only one fires
     void CheckOneToggle(State& s, std::string_view a_which)
     {
+        const auto& before = s.powerTraceBefore;
         const auto now = ToxGame::PowerTraceNow();
-        const auto toggles = now.toggles - s.powerTraceBefore.toggles;
+        const auto toggles = now.toggles - before.toggles;
+        const auto repeats = now.repeats - before.repeats;
+        const bool bothPaths = now.castEvents != before.castEvents && now.applyEvents != before.applyEvents;
+        if (bothPaths) {
+            SelfTest::Check(s, kStep, toggles == kOneToggle && repeats >= 1, std::format("{} cast, {:.0f} ms later, both events: "
+                "{} toggle(s), {} repeat(s) dropped ({} toggle and at least 1 repeat expected; {})", a_which, kToggleGapMs,
+                toggles, repeats, kOneToggle, TraceSince(before)));
+            return;
+        }
         SelfTest::Check(s, kStep, toggles == kOneToggle, std::format("{} cast, {:.0f} ms later: {} toggle(s) ({} expected; {})",
-            a_which, kToggleGapMs, toggles, kOneToggle, TraceSince(s.powerTraceBefore)));
+            a_which, kToggleGapMs, toggles, kOneToggle, TraceSince(before)));
+        SelfTest::Info(kStep, std::format("{} cast: debounce not exercised (instant caster sends no TESSpellCastEvent); a real "
+            "Z cast is checked from the log", a_which));
     }
 
     // The 1.0 save migration on three states of the save (ToxToggle.h MigratePower)
@@ -233,6 +252,7 @@ namespace
         }
         s.toggleHadAbility = ToxGame::PlayerHasAbility();
         s.toggleTaken = true;
+        s.toggleNoted = true;
         SelfTest::Info(kStep, std::format("before: ability {}, power {}, setting \"enabled\" {}", Held(s.toggleHadAbility),
             ToxGame::PlayerHasPower() ? "known" : "not known", ToxGame::GetSettings().enabled));
         if (!CastPower(s, "first")) {
@@ -300,4 +320,12 @@ void SelfTest::UndoToggle(State& s)
     Info(kStep, std::format("put back: ability {} (the save had it {}), power {} (the save had it {})",
         Held(ToxGame::PlayerHasAbility()), Held(s.toggleHadAbility), ToxGame::PlayerHasPower() ? "known" : "not known",
         hadPower ? "known" : "not known"));
+}
+
+void SelfTest::NoteAbilityBeforeSetup(const State& s)
+{
+    if (!s.toggleNoted) return;
+    const bool now = ToxGame::PlayerHasAbility();
+    Info(kStep, std::format("before step 1: ability {}, step 4b started with it {} ({})", Held(now), Held(s.toggleHadAbility),
+        now == s.toggleHadAbility ? "the same" : "differs: a toggle task that ran after the put back flipped it"));
 }

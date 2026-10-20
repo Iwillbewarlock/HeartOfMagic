@@ -173,6 +173,7 @@ namespace ToxGame::SelfTest
         // Step 4b
         bool toggleTaken = false;           // the casts may change the ability; UndoToggle puts it back
         bool toggleHadAbility = false;
+        bool toggleNoted = false;           // toggleHadAbility was read (NoteAbilityBeforeSetup compares it before step 1)
         bool migrationTaken = false;        // the migration check takes the power; UndoToggle puts it back
         bool migrationHadPower = false;
         PowerTrace powerTraceBefore;        // ToxToggle.h's counters before the current cast
@@ -207,6 +208,7 @@ namespace ToxGame::SelfTest
     void UndoReward(State& s);    // puts back the ability and tomes step 4a took, if it has not yet
     void TickToggle(State& s);    // ToxSelfTestToggle.cpp (step 4b; ends with NextStep(kSetup))
     void UndoToggle(State& s);    // puts back the ability and the power step 4b changed, if it has not yet
+    void NoteAbilityBeforeSetup(const State& s);  // log only: a 4b toggle task that ran after UndoToggle shows here
     void ProbeQuestStages(std::string_view a_when);  // log only: the quest's executedStages entries
     void StepDoses(State& s);  // ToxSelfTestDoses.cpp
 

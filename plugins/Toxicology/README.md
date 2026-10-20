@@ -81,7 +81,8 @@ that teaches a power (Heart of Magic's tome study does not apply to powers, and 
 tree). The power is in the **Powers** tab of the magic menu and is used like any lesser power (equip it, then the
 shout key, Z by default). Using it turns Toxicology on: the ability **Toxicology** is added (it shows under
 **Active Effects**) and a notification says so. Using it again turns Toxicology off: the ability is removed, with
-the other notification, and the poison being mimicked loses its icon at once. A reader of the tome starts with
+the other notification, and the mimic keyword comes off the poison being mimicked at once (whether the inventory
+icon refreshes at once, I5's cache, is not yet confirmed in game: see "Known limits"). A reader of the tome starts with
 Toxicology off. A save from 1.0 that already knows the ability gets the power at its next load and stays on. With
 `enabled` off the power still adds and removes the ability, but the feature does nothing (the log says so).
 Whether Toxicology is on is the ability itself, so it is kept in the game's own save.
@@ -255,8 +256,11 @@ DLL. As always, test removal on a separate save.
   check runs - the tome must be given once and not a second time, then the ability and tomes are put back; the
   quest stays at stage 200 and the reward stays given, so the save is changed for good), then the power (step
   `4b power`: its records; the power cast on the player through the player's instant caster must flip the ability,
-  once per cast, and a second cast must flip it back - a FAIL names which of the two events arrived; the 1.0 save
-  migration on three ability / power states; the save's ability and power are put back), gives the ability and two
+  once per cast, and a second cast 1.5 s later (past the 1 s repeat window) must flip it back - a FAIL names which of
+  the two events arrived; the instant caster sends no `TESSpellCastEvent`, so usually only the effect apply event
+  arrives and the repeat window is not exercised (an INFO line says so; a real Z use is checked from the log), and
+  when both arrive the second must be dropped as a repeat; the 1.0 save migration on three ability / power states;
+  the save's ability and power are put back), gives the ability and two
   poisons, spawns targets, casts the load
   order's poison spells at them (one per delivery), checks what the addon did, hits one target again inside its
   immunity window and once after it (it waits up to about 90 s for that and compares the window's game clock with

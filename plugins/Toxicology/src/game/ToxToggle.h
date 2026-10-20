@@ -39,7 +39,9 @@
 
 namespace ToxGame
 {
-    inline constexpr double kRepeatToggleSeconds = 0.3;
+    // The power's charge time is 0.5 s (ESL.md), so the two events of one real cast may be further apart than
+    // a short window; a deliberate second use within 1 s is not possible with the power's cast animation
+    inline constexpr double kRepeatToggleSeconds = 1.0;
 
     // Which event queued a toggle
     enum class PowerPath

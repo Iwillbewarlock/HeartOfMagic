@@ -24,7 +24,7 @@
 | FormID | 종류 | EditorID | 내용 |
 |---|---|---|---|
 | `0x804` | MGEF | `HoMTox_TogglePowerEffect` | 이름 "Toxicology". 아키타입 Script(스크립트 없음), Fire and Forget, Self, 마법 계열 None, 적대·해로움 플래그 없음, No Duration·No Magnitude·No Area, 설명문 = 권능 설명 |
-| `0x805` | SPEL | `HoMTox_ToxicologyPower` | 이름 "Toxicology". 타입 Lesser Power, Fire and Forget, Self, 비용 0(수동 비용), 시전 시간 0, 효과 `0x804` 하나(크기·범위·지속 0) |
+| `0x805` | SPEL | `HoMTox_ToxicologyPower` | 이름 "Toxicology". 타입 Lesser Power, Fire and Forget, Self, 비용 0(수동 비용), 충전 시간(charge time) 0.5(바닐라 `PowerKhajiitNightEye`를 본뜸), 시전 지속(cast duration) 0, 효과 `0x804` 하나(크기·범위·지속 0) |
 | `0x806` | MESG | `HoMTox_MsgOn` | 알림 문구 "Toxicology on" 류(문구는 Argon 초안). 문구는 FULL(이름)에 둔다, DESC 는 비움 |
 | `0x807` | MESG | `HoMTox_MsgOff` | 알림 문구 "Toxicology off" 류. 문구는 FULL |
 
@@ -32,8 +32,8 @@
 
 - BOOK `0x803`의 가르치는 주문을 `0x802`에서 `0x805`로 바꾼다. HoM 주문서 훅은 권능을 가르치는 책을 바닐라
   방식으로 처리한다(`plugins/spelllearning/src/SpellTomeHook.cpp:81-88`, 1.0 설계 4a).
-- 문구 변경: `0x801` DNAM(활성 효과 설명), `0x803` DESC(책 본문, 권능으로 켜고 끈다는 내용 추가), 새 `0x804` DNAM,
-  `0x806`/`0x807` FULL(알림 문구; DESC 는 비움). 영어 초안은 Gemini Argon이 사실표에서 쓰고 Claude가 줄마다 대조한다. 한국어판은 같은
+- 문구 변경: `0x803` DESC(책 본문, 권능으로 켜고 끈다는 내용 추가), 새 `0x804` DNAM, `0x806`/`0x807` FULL(알림
+  문구; DESC 는 비움). `0x801` DNAM(활성 효과 설명)은 바꾸지 않았다(1.1에서도 맞는 내용). 영어 초안은 Gemini Argon이 사실표에서 쓰고 Claude가 줄마다 대조한다. 한국어판은 같은
   레코드들을 한국어로, 번역 최종 검수(Argon·GPT).
 - 만드는 법: houseCARL로 다시 쓰면 `Update.esm` 제거·재색인을 또 해야 하므로, 1.0의 문구 변경처럼 node 바이트
   편집으로 만든다(기존 `0x801`/`0x802` 레코드를 본으로 복사해 필드만 바꾸고, MESG 그룹은 새로 만든다). 헤더의
@@ -51,9 +51,11 @@
   싱크는 어느 스레드에서나 올 수 있어 FormID 비교는 원자 변수로 하고, 자가 테스트용으로 길별 이벤트 수를 센다.
   실제 Z 키 시전이 어느 이벤트를 내는지는 게임 안 확인 필요다(로그의 `power used (spell cast event)` /
   `(effect apply event)` 줄로 판정).
-- **디바운스**: 한 번 쓴 권능이 두 이벤트를 다 낼 수 있으므로, 마지막으로 받아들인 토글 뒤 0.3초(steady clock,
-  실시간) 안의 토글은 반복으로 보고 버린다(로그). 정확히 0.3초 뒤는 새 토글이다. 시각은 `kPreLoadGame`과
-  `kNewGame`에서 지운다(로드 뒤 첫 사용은 반복이 아님).
+- **디바운스**: 한 번 쓴 권능이 두 이벤트를 다 낼 수 있으므로, 마지막으로 받아들인 토글 뒤 1초(steady clock,
+  실시간) 안의 토글은 반복으로 보고 버린다(로그). 정확히 1초 뒤는 새 토글이다. 권능의 충전 시간이 0.5초라 실제
+  시전 한 번의 두 이벤트가 0.3초보다 멀리 떨어질 수 있어 1초로 잡았다(리뷰 반영, 2026-10-20). 권능의 시전 동작
+  때문에 1초 안에 일부러 두 번 쓰는 것은 불가능하다. 시각은 `kPreLoadGame`과 `kNewGame`에서 지운다(로드 뒤 첫
+  사용은 반복이 아님).
 - **토글**: 능력이 있으면 `RemoveSpell(0x802)`, 없으면 `AddSpell(0x802)`. 그 뒤 `HasSpell`을 다시 읽어 실제로
   바뀐 상태만 로그와 알림으로 낸다. 바뀌지 않았으면 오류 로그만, 알림 없음. 알림은 MESG `0x806`/`0x807`의
   FULL(이름) 문구를 `RE::SendHUDMessage::ShowHUDMessage`로 띄운다(설치된 ESL의 언어 그대로). CommonLibSSE-NG
@@ -85,8 +87,13 @@
   - 토글(비동기): 능력 유무를 기록하고 플레이어 instant caster로 `CastSpellImmediate(power, false, player, 1.0, false,
     0.0, player)` → 자가 테스트 자신의 틱(100 ms)마다 `HasSpell(0x802)`가 뒤집혔는지 본다(메인 스레드를 막지 않음).
     5초 안에 안 뒤집히면 FAIL "no toggle (neither event arrived)"(또는 이벤트는 왔는데 안 바뀜), 길별 이벤트 수를 함께
-    적는다. 1초(디바운스보다 김) 기다려 한 번 시전에 토글이 정확히 한 번이었는지 보고, 다시 시전해 되돌아오는지 본다.
-    꺼진 직후에는 `CurrentPoison`이 없음인지도 본다.
+    적는다. 1.5초(디바운스 1초보다 김) 기다려 한 번 시전에 토글이 정확히 한 번이었는지 보고, 다시 시전해 되돌아오는지
+    본다. `CastSpellImmediate`는 `TESSpellCastEvent`를 보내지 않으므로(`plugins/spelllearning/src/SpellCastImmediateHook.cpp:8`)
+    보통 효과 적용 이벤트만 오고 디바운스는 시험되지 않는다: 두 길이 다 왔으면 토글 1회와 반복 버림 1회 이상을
+    판정하고, 한 길만 왔으면 토글 1회만 판정한 뒤 INFO "debounce not exercised ..."를 남긴다(실제 Z 시전은 로그로
+    판정). 꺼진 직후에는 `CurrentPoison`이 없음인지도 본다(`enabled`가 꺼져 있으면 능력과 상관없이 없음이므로
+    INFO "skipped: enabled off"). 1단계 직전에 능력 상태가 4b 시작 때와 같은지 INFO로 남긴다(시간 초과 뒤 늦게 온
+    토글 태스크가 되돌린 뒤의 능력을 뒤집었는지).
   - 이전: 권능 유무를 기록하고 능력을 둔 채 권능을 빼고 이전 함수를 부름 → `GrantPower`, 권능이 생김. 둘 다 있을 때
     → `Nothing`. 능력을 빼고 권능만 있을 때 → `Nothing`, 능력이 생기지 않음.
   - 끝에(그리고 도중에 끝날 때도) 세이브의 능력과 권능을 원래대로 되돌린다(`UndoToggle`). 로드·새 게임이 오면 기존
