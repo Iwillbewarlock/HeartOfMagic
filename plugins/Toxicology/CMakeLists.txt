@@ -26,12 +26,14 @@ set(TOXICOLOGY_SOURCES
     src/game/ToxCheck.cpp
     src/game/ToxSave.cpp
     src/game/ToxReward.cpp
+    src/game/ToxToggle.cpp
     src/game/ToxSelfTest.cpp
     src/game/ToxSelfTestSetup.cpp
     src/game/ToxSelfTestHits.cpp
     src/game/ToxSelfTestDoses.cpp
     src/game/ToxSelfTestReload.cpp
     src/game/ToxSelfTestReward.cpp
+    src/game/ToxSelfTestToggle.cpp
     ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/EncodingUtils.cpp
 )
 

@@ -104,7 +104,7 @@ if ($ToxicologyOnly) {
     if ($newest.LastWriteTime -gt $built) {
         throw ("Stale: HeartOfMagic_Toxicology.dll is older than $($newest.FullName) - nothing was copied. Run .\BuildRelease.ps1 -preset Release-2026 first." + (Get-ToxSelfTestNote))
     }
-    # The Korean ESL must still be the English one outside its five text subrecords (ESL.md "Korean ESL"): the same
+    # The Korean ESL must still be the English one outside its ten text subrecords (ESL.md "Korean ESL"): the same
     # check the release zips get (plugins\cmake\DistributionToxicology.cmake), so a stale one does not reach the dev install
     if ($ToxicologyKorean) {
         $eslCheck = Join-Path $toxRepo 'build\tools\Release\toxicology-esl-check.exe'

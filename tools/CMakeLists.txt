@@ -230,7 +230,7 @@ target_link_libraries(toxicology-test PRIVATE
 # =============================================================================
 # toxicology-esl-check  -  the Korean Toxicology ESL still matches the English one
 # =============================================================================
-# toxicology-esl-check <english.esp> <korean.esp>: the two must be byte-identical outside the five text
+# toxicology-esl-check <english.esp> <korean.esp>: the two must be byte-identical outside the ten text
 # subrecords of plugins/Toxicology/ESL.md "Korean ESL". DistributionToxicology.cmake runs it before the zips.
 
 add_executable(toxicology-esl-check

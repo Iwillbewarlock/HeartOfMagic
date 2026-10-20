@@ -1,6 +1,6 @@
 // toxicology-test - offline checks of the Toxicology addon's pure core
 // (plugins/Toxicology/src/core/ToxCore.h), the immunity window of spec 5.4 included;
-// the tome reward's checks are in toxicology-test-reward.cpp, the English / Korean ESL check's in toxicology-test-esl.cpp.
+// the tome reward's and the power toggle's checks are in toxicology-test-reward.cpp, the English / Korean ESL check's in toxicology-test-esl.cpp.
 //
 //   toxicology-test --self-test    every check, "PASS <name>" / "FAIL <name>: <detail>"
 //
@@ -20,7 +20,7 @@
 #include <utility>
 #include <vector>
 
-// toxicology-test-reward.cpp: name and check, run after kChecks
+// toxicology-test-reward.cpp (the tome reward and the power toggle): name and check, run after kChecks
 std::vector<std::pair<const char*, std::string (*)()>> RewardChecks();
 // toxicology-test-esl.cpp: the English / Korean ESL check, run after the reward checks
 std::vector<std::pair<const char*, std::string (*)()>> EslChecks();

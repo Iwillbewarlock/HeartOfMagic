@@ -32,17 +32,26 @@ namespace ToxGame
     // Reads kSettingsPath once; a missing file or a bad value keeps the default and is logged.
     void LoadSettings();
 
-    // The ESL's keyword, ability and tome (local FormIDs 0x800, 0x802, 0x803), looked up by
-    // LoadForms at kDataLoaded. Null when the ESL is not loaded.
+    // The ESL's keyword, ability and tome (local FormIDs 0x800, 0x802, 0x803) and, since 1.1, the
+    // power's effect, the power and its two notifications (0x804, 0x805, 0x806 on, 0x807 off), looked
+    // up by LoadForms at kDataLoaded. Null when the ESL is not loaded (the 1.1 ones also with a 1.0 ESL).
     RE::BGSKeyword* MimicKeyword();
     RE::SpellItem* Ability();
     RE::TESObjectBOOK* Tome();
+    RE::EffectSetting* PowerEffect();
+    RE::SpellItem* Power();
+    RE::BGSMessage* MessageOn();
+    RE::BGSMessage* MessageOff();
 
     // Looks the ESL's forms up and logs whether the ESL is loaded. Call once at kDataLoaded.
     void LoadForms();
 
-    // True when the player has the Toxicology ability (false without the ESL).
+    // True when the player has the Toxicology ability (false without the ESL). The feature is on
+    // exactly while this holds (the power adds and removes it, game/ToxToggle.h).
     bool PlayerHasAbility();
+
+    // True when the player knows the power (false without the ESL or with a 1.0 ESL).
+    bool PlayerHasPower();
 
     // The poison spell sets (core BuildPoisonSets), from every catalog spell tagged "poison" and
     // the spell each of its cloak effects casts (one level), counting only spells with at least

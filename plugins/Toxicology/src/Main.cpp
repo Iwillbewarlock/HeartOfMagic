@@ -8,6 +8,7 @@
 // game/ToxSelection.h. Hits: game/ToxHits.h;
 // applying the poison and its immunity window: game/ToxApply.h. Magicka spent on poison
 // spells uses up bottles: game/ToxMagicka.h, kept in the co-save: game/ToxSave.h.
+// The lesser power turns the feature on and off (1.1): game/ToxToggle.h.
 // A dev-only self test (game/ToxSelfTest.h) runs after a save load when its file is present.
 // =============================================================================
 
@@ -20,6 +21,7 @@
 #include "game/ToxSave.h"
 #include "game/ToxSelection.h"
 #include "game/ToxSelfTest.h"
+#include "game/ToxToggle.h"
 
 namespace
 {
@@ -42,6 +44,7 @@ namespace
             ToxGame::RegisterMenuSink();
             ToxGame::RegisterContainerSink();
             ToxGame::RegisterHitSink();
+            ToxGame::RegisterPowerSinks();
             ToxGame::InstallMagickaTracking();
             FlushLog();
             break;
@@ -51,6 +54,7 @@ namespace
             ToxGame::ClearApplications();
             // The keyword added to a static form stays in memory across loads (spec 12)
             ToxGame::ResetSelection();
+            ToxGame::ResetPowerToggle();  // the first use after the load is never a repeat
             ToxGame::OnSelfTestPreLoad(static_cast<const char*>(a_msg->data), a_msg->dataLen);
             FlushLog();
             break;
@@ -65,6 +69,7 @@ namespace
             ToxGame::SetRewardSatisfied(false);  // spec 4a: no reward given yet (co-save Revert does the same)
             // No kPreLoadGame before a new game: take the keyword off the last game's poison here
             ToxGame::ResetSelection();
+            ToxGame::ResetPowerToggle();
             [[fallthrough]];
         case SKSE::MessagingInterface::kPostLoadGame:
             // A full scan in game rewrites the catalog: read again only when the file changed
@@ -79,7 +84,11 @@ namespace
             // succeeded: kPostLoadGame's data pointer is the result (non-null = success, never dereferenced). That is
             // skse64's convention (PluginAPI.h, Hooks_SaveLoad.cpp passes the load's bool as data); CommonLibSSE-NG does
             // not document it. Not yet confirmed in game: the first run's log should show "reads stage ... after the load"
-            if (a_msg->type == SKSE::MessagingInterface::kPostLoadGame && a_msg->data) ToxGame::QueueFinishedQuestCheck();
+            if (a_msg->type == SKSE::MessagingInterface::kPostLoadGame && a_msg->data) {
+                ToxGame::QueueFinishedQuestCheck();
+                // 1.1: a 1.0 save that knows the ability gets the power and stays on (a new game: nothing)
+                ToxGame::QueuePowerMigration();
+            }
             FlushLog();
             break;
         default:

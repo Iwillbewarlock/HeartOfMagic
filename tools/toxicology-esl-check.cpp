@@ -48,7 +48,7 @@ int main(int argc, char** argv)
 
     const auto problems = ToxicologyEsl::CompareToxicologyEsl(*english, *korean);
     if (problems.empty()) {
-        std::printf("PASS toxicology-esl-check: %s matches %s outside the five text subrecords\n", argv[2], argv[1]);
+        std::printf("PASS toxicology-esl-check: %s matches %s outside the ten text subrecords\n", argv[2], argv[1]);
         return kExitOk;
     }
     for (const auto& problem : problems) std::printf("FAIL toxicology-esl-check: %s\n", problem.c_str());

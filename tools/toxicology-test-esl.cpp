@@ -26,6 +26,8 @@ namespace
 
     constexpr std::uint32_t kEffectId = 0x801;
     constexpr std::uint32_t kBookId = 0x803;
+    constexpr std::uint32_t kPowerId = 0x805;
+    constexpr std::uint32_t kMessageOnId = 0x806;
     constexpr std::uint8_t kNotUtf8 = 0xFF;
     // 24-byte record and GRUP headers: type, size, then a record's flags or a GRUP's label
     constexpr std::size_t kHeaderSize = 24;
@@ -130,12 +132,25 @@ namespace
     std::string EslNonTextByteFails()
     {
         return ExpectFailure(kBookId, "DATA", [](std::uint8_t a_b) { return std::uint8_t(a_b ^ 0x01); },
-            { "BOOK 0x01000803", "DATA", "byte 0 is", "not one of the five" });
+            { "BOOK 0x01000803", "DATA", "byte 0 is", "not one of the text subrecords" });
     }
 
     std::string EslFullNotUtf8Fails()
     {
         return ExpectFailure(kEffectId, "FULL", [](std::uint8_t) { return kNotUtf8; }, { "MGEF 0x01000801", "FULL", "not valid UTF-8" });
+    }
+
+    // A text subrecord added in 1.1: the message's FULL no longer UTF-8
+    std::string EslMessageFullNotUtf8Fails()
+    {
+        return ExpectFailure(kMessageOnId, "FULL", [](std::uint8_t) { return kNotUtf8; }, { "MESG 0x01000806", "FULL", "not valid UTF-8" });
+    }
+
+    // A non-text subrecord of a 1.1 record: the power's SPIT (its base cost) changed in the Korean copy only
+    std::string EslPowerSpitByteFails()
+    {
+        return ExpectFailure(kPowerId, "SPIT", [](std::uint8_t a_b) { return std::uint8_t(a_b ^ 0x01); },
+            { "SPEL 0x01000805", "SPIT", "byte 0 is", "not one of the text subrecords" });
     }
 
     std::string EslTextInnerNulFails()
@@ -250,6 +265,8 @@ std::vector<std::pair<const char*, std::string (*)()>> EslChecks()
         { "EslCommittedPairMatches", EslCommittedPairMatches },
         { "EslNonTextByteFails", EslNonTextByteFails },
         { "EslFullNotUtf8Fails", EslFullNotUtf8Fails },
+        { "EslMessageFullNotUtf8Fails", EslMessageFullNotUtf8Fails },
+        { "EslPowerSpitByteFails", EslPowerSpitByteFails },
         { "EslTextInnerNulFails", EslTextInnerNulFails },
         { "EslRecordSizeMismatchFails", EslRecordSizeMismatchFails },
         { "EslRecordHeaderFails", EslRecordHeaderFails },

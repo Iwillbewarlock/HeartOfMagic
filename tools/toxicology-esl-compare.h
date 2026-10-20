@@ -1,7 +1,7 @@
 #pragma once
 
 // The Toxicology addon's English and Korean ESL (plugins/Toxicology/data/HeartOfMagic_Toxicology.esp and
-// data/ko/HeartOfMagic_Toxicology.esp, ESL.md section "Korean ESL") must be the same file except for five
+// data/ko/HeartOfMagic_Toxicology.esp, ESL.md section "Korean ESL") must be the same file except for ten
 // text subrecords. CompareToxicologyEsl checks that rule on the two files' bytes; toxicology-esl-check runs it
 // before the Korean zip is made, toxicology-test runs it on the committed pair and on broken copies.
 

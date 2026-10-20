@@ -190,6 +190,7 @@ namespace
         if (s.addedAbility && player && ToxGame::Ability()) {
             player->RemoveSpell(ToxGame::Ability());  // RE/A/Actor.h:678
         }
+        SelfTest::UndoToggle(s);  // step 4b ended early: the save's own ability and power back
         SelfTest::UndoReward(s);  // step 4a ended early: the save's own ability and tomes back
         ToxGame::OnSelectionMaybeChanged();  // the keyword back on the player's own choice (or on none)
         const auto* choice = ToxGame::CurrentPoison(true);
@@ -290,6 +291,9 @@ namespace
                 s.originalAccumulated = ToxGame::Accumulated();  // first: Undo puts it back whatever happens below
             }
             SelfTest::TickReward(s);
+            return;
+        case Step::kToggle:
+            SelfTest::TickToggle(s);
             return;
         case Step::kSetup:
             s.begun = true;

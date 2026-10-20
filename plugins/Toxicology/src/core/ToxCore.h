@@ -5,8 +5,8 @@
 // tools/toxicology-test: settings, the poison spell list from the librarian's
 // catalog, the top favorited poison, the magicka-per-dose count, the immunity
 // window after a poison wears off, the interval check the Magicka drain
-// queue uses, and whether the quest reward gives the tome (with the co-saved
-// flag's record).
+// queue uses, whether the quest reward gives the tome (with the co-saved
+// flag's record), and the power toggle's decisions (1.1).
 // =============================================================================
 
 #include <cstddef>
@@ -170,4 +170,35 @@ namespace Toxicology
     // The co-save record TOMG's data (game/ToxSave.h): exactly one byte, 0 or 1. nullopt for any
     // other length or byte.
     std::optional<bool> ParseRewardFlag(const std::vector<std::uint8_t>& a_data);
+
+    // The lesser power that turns the feature on and off (game/ToxToggle.h). On = the player has the ability.
+    enum class ToggleAction
+    {
+        kAdd,    // the ability is not held: add it (on)
+        kRemove  // the ability is held: remove it (off)
+    };
+
+    ToggleAction DecideToggle(bool a_hasAbility);
+
+    // "Add", "Remove" (for the log)
+    const char* ToggleActionName(ToggleAction a_action);
+
+    // A 1.0 save at its first 1.1 load: the ability without the power gets the power (it stays on).
+    enum class MigrationAction
+    {
+        kGrantPower,  // the ability is held and the power is not
+        kNothing      // every other case: neither (a new reader starts off), the power only (off), or both
+    };
+
+    MigrationAction DecideMigration(bool a_hasAbility, bool a_hasPower);
+
+    // "GrantPower", "Nothing" (for the log)
+    const char* MigrationActionName(MigrationAction a_action);
+
+    // One power cast may raise both of the events the toggle listens to: a toggle less than a_windowSeconds
+    // after the last accepted one is a repeat. Exactly a_windowSeconds after it is not (the edge counts as a
+    // new toggle, as in IntervalElapsed). Never a repeat: no accepted toggle yet (nullopt), a non-finite
+    // input, a window that is not above 0, or a_nowSeconds before the last accepted one (a clock that went
+    // back must not lock the power).
+    bool IsRepeatToggle(std::optional<double> a_lastAcceptedSeconds, double a_nowSeconds, double a_windowSeconds);
 }

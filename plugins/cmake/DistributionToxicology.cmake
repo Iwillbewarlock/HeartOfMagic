@@ -48,7 +48,7 @@ endforeach()
 
 add_custom_target(assemble_toxicology ALL COMMENT "Assembling the Toxicology addon...")
 add_dependencies(assemble_toxicology HeartOfMagic_Toxicology)
-# The Korean ESL must still be the English one with only its five text subrecords changed (tools/toxicology-esl-check,
+# The Korean ESL must still be the English one with only its ten text subrecords changed (tools/toxicology-esl-check,
 # ESL.md "Korean ESL"). A mismatch stops the build here: after the old staging folders and zips are removed, so none
 # is left to pass for this build, and before anything is staged or zipped.
 add_dependencies(assemble_toxicology toxicology-esl-check)
