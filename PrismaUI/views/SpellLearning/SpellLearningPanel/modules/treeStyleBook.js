@@ -40,6 +40,9 @@
         PAGE_MAX_SKIPS: 8,        // frames in a row with no time left for a step: then one step anyway
         PAGE_BLOTCHES: 40,
         PAGE_SEED: 1234567,       // the grain is seeded, so the page looks the same every time it is painted
+        PAGE_ORNAMENT_MIN: 96,
+        PAGE_ORNAMENT_MAX: 112,   // panelFrames.css reserves 128px before the floating tools
+        PAGE_ORNAMENT_RATIO: 0.24,
 
         _page: null,              // the finished texture
         _pageKey: '',             // its size, "w x h"
@@ -309,7 +312,8 @@
         _drawOrnaments: function(g, w, h) {
             var img = this._image(this.tokens.pageOrnament);
             if (!img) return;
-            var size = Math.round(Math.max(96, Math.min(200, Math.min(w, h) * 0.24)));
+            var size = Math.round(Math.max(this.PAGE_ORNAMENT_MIN,
+                Math.min(this.PAGE_ORNAMENT_MAX, Math.min(w, h) * this.PAGE_ORNAMENT_RATIO)));
             var corners = [[1, 1, 0, 0], [-1, 1, w, 0], [1, -1, 0, h], [-1, -1, w, h]];
             for (var i = 0; i < corners.length; i++) {
                 var c = corners[i];

@@ -121,7 +121,11 @@
                         // The panel's own path, as a tree the game sends: loadTreeData
                         // (treeLoad.js) parses it and draws it with the canvas renderer
                         loadTreeData(treeData, true, false);
-                        if (typeof TreeGrowth !== 'undefined' && TreeGrowth.setTreeBuilt) {
+                        // Populate the draft too: its Apply action needs the builder's
+                        // data, not only the viewer and a manually enabled button.
+                        if (typeof TreeGrowthClassic !== 'undefined' && TreeGrowthClassic.loadTreeData) {
+                            TreeGrowthClassic.loadTreeData(treeData);
+                        } else if (typeof TreeGrowth !== 'undefined' && TreeGrowth.setTreeBuilt) {
                             TreeGrowth.setTreeBuilt(true, totalNodes, totalNodes);
                         }
                     } else {

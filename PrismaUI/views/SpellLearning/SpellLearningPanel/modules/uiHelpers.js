@@ -342,6 +342,7 @@ function updatePrimedCount() {
         });
         breakdownEl.innerHTML = html;
     }
+    if (typeof ScanStage !== 'undefined') ScanStage.refresh();
 }
 
 // =============================================================================
@@ -527,14 +528,18 @@ window.onPresetsLoaded = function(resultStr) {
  * theme switch shows up within that.
  * @returns {string} CSS colour
  */
-var _previewBg = { value: '', readAt: 0 };
+var _previewBg = { value: '', text: '#e8e4d9', readAt: 0 };
 var PREVIEW_BG_DEFAULT = '#0a0a0f';
 var PREVIEW_BG_REREAD_MS = 1000;
 function getPreviewBackground() {
     var now = Date.now();
     if (!_previewBg.value || now - _previewBg.readAt > PREVIEW_BG_REREAD_MS) {
         var v = '';
-        try { v = getComputedStyle(document.documentElement).getPropertyValue('--preview-bg').trim(); } catch (e) {}
+        try {
+            var previewStyle = getComputedStyle(document.documentElement);
+            v = previewStyle.getPropertyValue('--preview-bg').trim();
+            _previewBg.text = previewStyle.getPropertyValue('--text-primary').trim() || '#e8e4d9';
+        } catch (e) {}
         // An engine may hand back a variable pointing at another one unresolved
         // ("var(--book-page)"), which a canvas would ignore: the default then
         _previewBg.value = (v && v.indexOf('var(') < 0) ? v : PREVIEW_BG_DEFAULT;
@@ -542,6 +547,8 @@ function getPreviewBackground() {
     }
     return _previewBg.value;
 }
+/** Preview labels share the cached design read, at full opacity for readable text. */
+function getPreviewTextColor() { getPreviewBackground(); return _previewBg.text; }
 
 /**
  * Editor id as words: "LUN_MoonFire" -> "moon fire". Names are translated and

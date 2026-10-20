@@ -428,6 +428,7 @@ var TreeGrowth = {
         this._treeBuilt = built;
         this._nodeCount = nodeCount || 0;
         this._totalPool = totalPool || 0;
+        if (typeof ScanStage !== 'undefined') ScanStage.markDraft(built);
 
         var applyBtn = document.getElementById('tgApplyBtn');
         var clearBtn = document.getElementById('tgClearBtn');
@@ -498,6 +499,7 @@ var TreeGrowth = {
         this._building = !!building;
         this.updateBuildButton();
         if (typeof _syncEasyButtonStates === 'function') _syncEasyButtonStates();
+        if (typeof ScanStage !== 'undefined') ScanStage.refresh();
     },
 
     updateBuildButton: function() {

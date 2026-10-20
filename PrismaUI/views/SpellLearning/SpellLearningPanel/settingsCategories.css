@@ -1,0 +1,111 @@
+/* One level of navigation; existing setting rows retain their quiet appearance. */
+#contentSettings.has-settings-categories.active {
+    overflow: hidden !important;
+    min-height: 0;
+    gap: 10px;
+}
+
+.settings-categories {
+    display: flex;
+    flex: 1 1 0;
+    min-height: 0;
+    min-width: 0;
+    gap: 20px;
+}
+
+.settings-category-nav {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 150px;
+    gap: 5px;
+    padding-top: 6px;
+}
+
+.settings-category-button {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 2px;
+    padding: 12px 10px;
+    color: var(--text-primary, #e0e0e0);
+    font: inherit;
+    text-align: left;
+    white-space: normal;
+    overflow-wrap: break-word;
+    cursor: pointer;
+}
+
+.settings-category-button[aria-selected="true"] {
+    border-color: var(--accent-gold, #c0a76a);
+    color: var(--text-primary, #e0e0e0);
+}
+
+.settings-category-button:hover,
+.settings-category-button:focus-visible {
+    color: var(--text-primary, #e0e0e0);
+    background: var(--hover-bg, rgba(255, 255, 255, 0.06));
+}
+
+.settings-category-viewport {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 8px;
+}
+
+.settings-category-page[hidden] { display: none !important; }
+.settings-category-nav-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+}
+#contentSettings .settings-category-page .settings-block { margin: 0 0 16px; }
+#contentSettings .settings-category-page .settings-block-header { padding-top: 10px; }
+#contentSettings.has-settings-categories .settings-presets-header { flex-shrink: 0; }
+#contentSettings.has-settings-categories .settings-actions-sticky {
+    position: relative;
+    flex-shrink: 0;
+    margin-top: 0;
+    padding: 8px 10px;
+}
+#contentSettings.has-settings-categories .settings-actions-sticky .btn {
+    flex: 0 1 auto;
+    padding: 9px 16px;
+    white-space: normal;
+}
+#contentSettings.has-settings-categories .setting-info { min-width: 0; }
+#contentSettings.has-settings-categories .setting-label,
+#contentSettings.has-settings-categories .setting-desc { overflow-wrap: break-word; }
+#contentSettings.has-settings-categories .settings-version { flex-shrink: 0; margin: 0; }
+#contentSettings.has-settings-categories .segmented-toggle .seg-btn,
+#contentSettings.has-settings-categories .segmented-toggle .seg-btn:hover,
+#contentSettings.has-settings-categories .segmented-toggle .seg-btn.active {
+    color: var(--text-primary, #e0e0e0);
+}
+#contentSettings.has-settings-categories .power-step-row:last-child {
+    opacity: 1 !important;
+    color: var(--text-primary, #e0e0e0);
+}
+#contentSettings.has-settings-categories .subsection-title,
+#contentSettings.has-settings-categories .cheat-warning {
+    color: var(--text-primary, #e0e0e0);
+}
+
+.settings-categories-narrow .settings-categories { flex-direction: column; gap: 8px; }
+.settings-categories-narrow .settings-category-nav {
+    flex: 0 0 auto; flex-direction: row; flex-wrap: wrap; padding: 0;
+}
+.settings-categories-narrow .settings-category-button {
+    flex: 1 1 100px; text-align: center; padding: 8px;
+}
+
+@media (max-width: 1280px) {
+    .settings-categories { flex-direction: column; gap: 8px; }
+    .settings-category-nav { flex: 0 0 auto; flex-direction: row; flex-wrap: wrap; padding: 0; }
+    .settings-category-button { flex: 1 1 100px; text-align: center; padding: 8px; }
+    #contentSettings.has-settings-categories .setting-pair { flex-wrap: wrap; }
+    #contentSettings.has-settings-categories .setting-pair > .setting-row { min-width: 240px; }
+}

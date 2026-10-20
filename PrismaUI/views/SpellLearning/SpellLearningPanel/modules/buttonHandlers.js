@@ -46,6 +46,7 @@ function startScan(options) {
     }
     _lastScanTime = now;
     if (!auto && typeof AutoBuild !== 'undefined') AutoBuild.yieldTo('scan');
+    if (typeof ScanStage !== 'undefined') ScanStage.markDraft();
 
     // Always scan ALL spells - tome toggle is a client-side filter for primed count
     var statusMsg = t('status.scanningAllSpells');

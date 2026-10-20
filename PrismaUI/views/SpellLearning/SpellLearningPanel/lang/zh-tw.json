@@ -772,5 +772,36 @@
     "treeGrowth.treeBuilt": "樹建構完成",
 
     "treeViewer.noSettingsAvailable": "無可用設定",
-    "treeViewer.treeGrowthPreview": "樹生長預覽"
+    "treeViewer.treeGrowthPreview": "樹生長預覽",
+
+    "card.stillNeeded": "尚需滿足：",
+    "card.requirementsMet": "條件已滿足",
+    "card.met": "已滿足：",
+    "card.laterOne": "通向1個後續法術",
+    "card.laterMany": "通向{{count}}個後續法術",
+    "card.castsPower": "以{{pct}}%威力施放",
+    "card.finishRequirements": "滿足以上條件後，即可學習此法術。",
+    "card.mastered": "你已精通此法術。",
+    "footer.legendTitle": "法術狀態",
+
+    "settings.categories.display": "顯示",
+    "settings.categories.learning": "學習",
+    "settings.categories.tomes": "法術書",
+    "settings.categories.advanced": "進階",
+    "settings.categories.label": "設定分類",
+    "scanStage.ready": "掃描可加入法術樹的法術",
+    "scanStage.summary": "發現 {{found}} 個法術 · {{eligible}} 個可加入法術樹 · {{state}}",
+    "scanStage.pending": "尚未套用",
+    "scanStage.applied": "已套用",
+    "scanStage.excluded": "未納入：無法取得的法術書 / 語音法術 / 重複法術 / 法術篩選共 {{tomes}} 個；排除清單中的法術 {{blacklist}} 個；已停用外掛的法術 {{plugins}} 個。",
+    "scanStage.details": "掃描詳情",
+    "scanStage.scanAgain": "重新掃描",
+    "scanStage.clearDraft": "清空法術樹草稿",
+    "scanStage.excludedSpells": "已排除的法術：{{count}} 個",
+    "scanStage.pluginsAll": "外掛：全部",
+    "scanStage.pluginsDisabled": "外掛：已停用 {{count}} 個",
+    "scanStage.pluginsHint": "僅排除已停用的外掛。新外掛會自動納入。",
+    "scanStage.generation": "產生法術樹",
+    "scanStage.builtCount": "草稿：已放置 {{placed}} 個法術，共 {{eligible}} 個符合條件。",
+    "scanStage.filtersChanged": "篩選條件已變更。請清除草稿樹並重新建立，以套用新條件。"
 }

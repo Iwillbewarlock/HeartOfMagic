@@ -43,6 +43,10 @@ function showLanguageHint(key, fallback) {
  * field's "press a key".
  */
 var LANGUAGE_REFRESH_STEPS = [
+    ['scan stage', function() { if (typeof ScanStage !== 'undefined') ScanStage.refresh(); }],
+    ['selected spell card', function() {
+        if (typeof state !== 'undefined' && state.selectedNode && typeof showSpellDetails === 'function') showSpellDetails(state.selectedNode);
+    }],
     ['design description', function() { if (typeof DesignPresets !== 'undefined') DesignPresets._syncSelector(); }],
     ['easy preset box', function() { if (typeof updateEasyPresetChips === 'function') updateEasyPresetChips(); }],
     ['builder status line', function() { if (typeof TreeGrowth !== 'undefined' && TreeGrowth.relabelStatus) TreeGrowth.relabelStatus(); }],

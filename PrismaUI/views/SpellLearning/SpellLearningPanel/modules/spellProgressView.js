@@ -9,7 +9,7 @@
  * @param {Object} node
  * @param {{preview?: boolean}} [opts] preview = hover peek, see renderSpellCard
  */
-function updateDetailsProgression(node, opts) {
+function updateDetailsProgressionControls(node, opts) {
     var preview = !!(opts && opts.preview);
     // A refresh of the selected spell while another one is previewed would put
     // its progress under the wrong card; the selected card is redrawn whole
@@ -218,4 +218,10 @@ function selectNodeById(id) {
 
     WheelRenderer.selectNode(node);
     WheelRenderer.rotateSchoolToTop(node.school);
+}
+
+/** Sync the compact state and disabled reason on XP-only updates too. */
+function updateDetailsProgression(node, opts) {
+    updateDetailsProgressionControls(node, opts);
+    if (typeof SpellCardLayout !== "undefined") SpellCardLayout.syncProgress(node, opts);
 }

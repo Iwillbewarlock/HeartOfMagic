@@ -13,13 +13,23 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 
 | Module | Lines | Purpose |
 |--------|------:|---------|
+| `settingsCategories.js` | 138 | One-level Settings navigation; original controls moved intact; session category and per-category scroll memory. Initializes at DOMContentLoaded before main.js. |
+| `scanStage.js` | 243 | Scan/Build/Apply representative action; real filter counts, omission reasons, click details, plugin breakdown and draft state. Loads before easyMode.js. |
+| `spellPrereqEditor.js` | 184 | Original hard/soft prerequisite editor extracted from spellCardView.js; loads before spellRequirements.js. |
+| `spellRequirements.js` | 111 | Unmet/met/optional-quota/lock chip grouping, hidden names and clickable visible prerequisites; loads before spellCardLayout.js. |
+| `spellCardLayout.js` | 117 | Shared bottom/sidebar reading order, state and power line, visible disabled reasons, click-operated later-spell disclosure; loads before spellCardView.js. |
+| `treeLegend.js` | 27 | Click/ARIA state legend; never hides or owns TreeStatusLine; loads after treeNav.js. |
+| `settingsCategoriesTest.js` | 140 | Category switching, remembered scroll and retained original setting nodes. |
+| `scanStageTest.js` | 158 | Stage relays, actual filtering, applied/draft state, details and preserved status. |
+| `spellCardLayoutTest.js` | 181 | Requirement grouping, discovery, weakened power line, disabled reasons, real disclosure clicks and all 13 locale key substitutions. |
+| `treeLegendTest.js` | 145 | Click/ARIA toggle, success/warning/error status retention and six-design school-label contrast. |
 | `constants.js` | 154 | Default tree rules and colour palette; the default text sizes, the Font Size and Spell Name Size slider ranges and `clampSetting` (a saved value held to them at load); the XP cap range and defaults (`XP_CAP_*`); `foldPluginName` (plugin names compared A-Z folded only, as the DLL does) |
 | `tagVocabulary.js` | 97 | Closed tag list for the librarian; mirrors `include/librarian/TagVocabulary.h` |
 | `state.js` | 281 | Settings object, app state, XP overrides |
 | `config.js` | 132 | Tree layout and visual configuration, hotkey key codes |
 | `spellCache.js` | 141 | Async spell data caching |
 | `colorUtils.js` | 227 | School colors, dynamic CSS generation |
-| `uiHelpers.js` | 577 | Scan status bar (and its message again after a language switch), `restoreScanButton`, `onScanFailed` (a scan that threw, `{mode, reason}`: a full scan gives the button back and puts the reason in the bar and in edit mode's wait line; a `tomes` failure is only logged - the panel has asked for no tome scan since the tome filter went, 2026-09-30), the primed spell count (blacklist and plugin whitelist), `escapeHtml` (names into innerHTML), `schoolText` / `levelText` (a school's and a level's names in the panel's language) |
+| `uiHelpers.js` | 585 | Scan status bar (and its message again after a language switch), `restoreScanButton`, `onScanFailed` (a scan that threw, `{mode, reason}`: a full scan gives the button back and puts the reason in the bar and in edit mode's wait line; a `tomes` failure is only logged - the panel has asked for no tome scan since the tome filter went, 2026-09-30), the primed spell count (blacklist and plugin whitelist), `escapeHtml` (names into innerHTML), `schoolText` / `levelText` (a school's and a level's names in the panel's language) |
 | `panelSnap.js` | 44 | `PanelSnap`: keeps the panel on whole pixels (a canvas on a fractional position is resampled at every paint) |
 | `treeParser.js` | 551 | Tree JSON parsing, validation, cycle detection; drops a spell listed as its own child or prerequisite, and any link that is not a formId string, from `children`, `prerequisites`, `hardPrereqs` and `softPrereqs` (`withoutId`, always a new array, and `clampSoftNeeded`, also used by `treeLoad.js`), keeps `persistentId`; `updateNodeFromCache` fills a node from the spell info (every spell-info reply comes through it) and drops the level filter's counts when its level changes, the names' idle warm-up job when its name changes (`LayerBuild._glyphs`) and the culling index when its school changes (`CanvasRenderer._cullDirty`, for `_turnsOf`) |
 | `prereqEdit.js` | 240 | `PrereqEdit`: a spell's `hardPrereqs`, `softPrereqs` and `prerequisites` (the drawn lines) as edit mode changes them - `add`, `remove`/`restore`, `toggle`/`setType`, `repair` (a tree saved by 1.2.0, with a link in both hard and soft; a lock on the parent lowers `softNeeded`), `copyTo` (a repair into the saved tree), `forget`/`forgetInTree` (a deleted spell out of every node's lists, children and locks, and the saved tree's bridges: edit mode's `deleteNode`, which refuses a school's root, so `root` never names a deleted spell); an id once, in one of hard and soft, every list its own array; tests in `prereqEditTest.js` |
@@ -31,16 +41,16 @@ Modular JavaScript architecture for LLM maintainability. The original 8000+ line
 | `treeViewerUI.js` | 505 | Tree viewer setup, node lookup cache, SmartRenderer, Import dialog and tree merge |
 | `treeLoad.js` | 595 | Loading a tree: the trusted fast path (`_loadTrustedTree`) and `loadTreeData`; `sendTreePrerequisites` (the tree's prerequisites to C++, also after edit mode; an edit mode copy `_dup_` sent as its spell or not at all) |
 | `treeStatusLine.js` | 98 | The tree footer's status line: `setTreeStatus` / `setTreeStatusKey` (moved from `progressionUI.js`) and `TreeStatusLine`: a success line that repeats the footer (`BRIEF_KEYS`: loaded, tree saved) goes back to "Ready" after `SHOW_MS`; any other write cancels that; a warning or error (`KEEP_KEYS`, plain DLL text) is not covered by a success line within `KEEP_WINDOW_MS`; tests in `panelTidyTest.js` |
-| `spellCardView.js` | 565 | Selecting a spell and drawing the spell card (`showSpellDetails`, `renderSpellCard`, `clearSpellSelection`); `spellWeakenedPower`, the "Weakened (N%)" badge's power (none once mastered) |
-| `spellProgressView.js` | 221 | The card's progress bar and Learn/Unlock buttons, `selectNodeById` |
+| `spellCardView.js` | 385 | Selecting a spell and drawing the spell card (`showSpellDetails`, `renderSpellCard`, `clearSpellSelection`); `spellWeakenedPower`, the "Weakened (N%)" badge's power (none once mastered) |
+| `spellProgressView.js` | 227 | The card's progress bar and Learn/Unlock buttons, `selectNodeById` |
 | `findSpell.js` | 300 | Find Spell (the tool bar's magnifier toggles it): dropdown under the bar, list, keyboard navigation, pan to the spell; `dismissFindSpell` (tab switch, panel close, tree load) |
 | `spellSearch.js` | 180 | `SpellSearch`: which spells Find Spell lists for a text (name, school English or translated, formId only for a formId-like text; case and spaces ignored; exact, prefix, rest, formId; locked left out in discovery mode, raw tree data then lists nothing), the space-blind highlight range |
 | `treeToolsScale.js` | 158 | The tree tool bar's size (1x - 3x) from the grip at its corner; saves/loads/resets `treeToolsScale`; a lost release (no button held, focus lost) ends the drag |
 | `detailsPeek.js` | 222 | Hover preview of the spell card (`DetailsPeek`); the panel stays open with nothing selected |
 | `treeStyle.js` | 502 | `TreeStyle`: tree look as design-preset tokens; halos, labels (no name outline below `LABEL_HALO_MIN_ZOOM` 0.8; the label font follows the design's CSS per language, re-read when a stylesheet or web font arrives), sigil, heart runes, school ink |
-| `treeStyleBook.js` | 573 | Spellbook effects added to `TreeStyle`: page (its texture painted over frames, `stepPage`, or by an idle timer while the tree is not drawn; the old texture or the plain colour meanwhile), chapter titles (and their boxes, `chapterBoxes`), ornament dividers, hub emblem, page ornaments |
+| `treeStyleBook.js` | 577 | Spellbook effects added to `TreeStyle`: page (its texture painted over frames, `stepPage`, or by an idle timer while the tree is not drawn; the old texture or the plain colour meanwhile), chapter titles (and their boxes, `chapterBoxes`), ornament dividers, hub emblem, page ornaments |
 | `treeStyleInk.js` | 259 | Drawn lines added to `TreeStyle`: hand-drawn shapes (their bow in two parts, `edgeBowUnit`/`edgeBowFrom`, for the culling index), stippled, broken and engraved lines, the inset outline |
-| `designPresets.js` | 390 | `DesignPresets`: built-in and `presets/design/*.json` looks, selector, preset CSS |
+| `designPresets.js` | 398 | `DesignPresets`: built-in and `presets/design/*.json` looks, selector, preset CSS |
 | `notificationSetting.js` | 166 | Settings > Early Learning > Show Notifications (every corner message of the mod), Notification Language (the panel's or English) and the weakened spell alerts under it (greyed out while it is off); saves/loads/resets `config.notifications` |
 | `panelOpenSetting.js` | 141 | Settings > Hotkey: the toggle key (Change, Reset, None = `hotkeyCode` 0) and the letter key warning; saves/loads/resets them; tests in `panelOpenSettingTest.js` |
 | `spellResearchStatus.js` | 80 | Settings > Spell Tome Learning > "Spell Research": what the plugin last added to Spell Research's lists (`window.onSpellResearchStatus`), hidden without SR; redrawn after a language switch |
@@ -154,6 +164,9 @@ Modules must load in dependency order before `script.js` (abridged - `index.html
 <script src="modules/treeViewerUI.js"></script>
 <script src="modules/treeStatusLine.js"></script>
 <script src="modules/treeLoad.js"></script>
+<script src="modules/spellPrereqEditor.js"></script>
+<script src="modules/spellRequirements.js"></script>
+<script src="modules/spellCardLayout.js"></script>
 <script src="modules/spellCardView.js"></script>
 <script src="modules/spellProgressView.js"></script>
 <script src="modules/spellSearch.js"></script>
@@ -166,6 +179,12 @@ Modules must load in dependency order before `script.js` (abridged - `index.html
 <!-- 6. Integrations -->
 <script src="modules/cppStatusKeys.js"></script>
 <script src="modules/cppCallbacks.js"></script>
+
+<!-- Panel workflow: scanStage before easyMode; treeLegend after treeNav -->
+<script src="modules/scanStage.js"></script>
+<script src="modules/easyMode.js"></script>
+<script src="modules/treeLegend.js"></script>
+<script src="modules/settingsCategories.js"></script>
 
 <!-- 7. Main Application -->
 <script src="script.js"></script>

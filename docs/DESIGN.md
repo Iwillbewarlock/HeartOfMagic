@@ -1,6 +1,169 @@
 # Heart of Magic — UI & Feature Design
 
-> Last updated: 2026-02-09
+> Last updated: 2026-10-20
+
+## Panel 2.0: current layout for items 6–9 (2026-10-20)
+
+This section supersedes the older layout sketches below. The reference is
+`lab/ui-2.0/prototype.html` and concept images 1–4; no artwork was copied.
+The Classic, Modern Dark, Arcane, Night Grimoire, Chalkboard and Skald presets
+are unchanged. The panel still uses its existing scan, build, save, progression
+and discovery rules.
+
+### Settings: one level, four categories
+
+`SettingsCategories` moves existing DOM blocks, preserving every input ID,
+listener and preset binding. Learning opens first. Selected category and the
+scroll offset of each category live in memory for the panel session, including
+tab switches and close/reopen. No extra config field is written. A slim left
+navigation changes to a wrapping top row on narrow panels. Only the selected
+category is visible; all controls stay in the DOM for save, reset and presets.
+The existing quiet rows retain their hover treatment, without bands or rules.
+Preset selection/save/update/delete/rename, Save Settings and Reset to Defaults
+remain outside the category viewport. Save is retained: not every handler has
+been established to autosave.
+
+Complete existing-control inventory (IDs are also useful when checking a preset):
+
+| Category / group | Controls retained |
+|---|---|
+| Display / language and appearance | `uiLanguageSelect`, `designPresetSelect`, `learningColorPicker`, `fontSizeSlider`, `sideDetailsToggle`, `hoverDetailsToggle` |
+| Display / panel opening | `hotkeyInput`, `changeHotkeyBtn`, `resetHotkeyBtn`, `noHotkeyBtn`, `pauseGameOnFocusToggle`, `autoBuildToggle` |
+| Display / tree view | `focus-on-click`, `focus-zoom-on-click`, `tree-focus-zoom`, `focus-rotate`, `focus-dim-others`, `show-selection-path`, `edge-style-toggle`, `tree-node-font-size` |
+| Learning / mode and discovery | `learningModeToggle`, `discoveryModeToggle`, `showRootSpellNamesToggle`, `autoAdvanceLearningToggle`, `autoAdvanceModeToggle` |
+| Learning / XP sources and caps | `xpGlobalMultiplierSlider`, `xpDirectSlider`, `xpSchoolSlider`, `xpAnySlider`, `xpCapAnySlider`, `xpCapSchoolSlider`, `xpCapDirectSlider` |
+| Learning / required XP per tier | `xpNoviceInput`, `xpApprenticeInput`, `xpAdeptInput`, `xpExpertInput`, `xpMasterInput` |
+| Learning / reverse unlocking | `reverseUnlockToggle`, `reverseUnlockToRootToggle`, `reverseUnlockXpNoviceSlider`, `reverseUnlockXpApprenticeSlider`, `reverseUnlockXpAdeptSlider`, `reverseUnlockXpExpertSlider`, `reverseUnlockXpMasterSlider` |
+| Learning / separate reverse XP | `reverseXpSeparateToggle`, `reverseXpGlobalMultiplierSlider`, `reverseXpDirectSlider`, `reverseXpSchoolSlider`, `reverseXpAnySlider`, `reverseXpCapAnySlider`, `reverseXpCapSchoolSlider`, `reverseXpCapDirectSlider` |
+| Learning / passive XP | `passiveLearningToggle`, `passiveScopeToggle`, `passiveXpPerHourSlider`, `passiveMaxNovice`, `passiveMaxApprentice`, `passiveMaxAdept`, `passiveMaxExpert`, `passiveMaxMaster` |
+| Learning / progressive reveal | `revealNameSlider`, `revealEffectsSlider`, `revealDescSlider` |
+| Learning / early learning | `earlyLearningEnabledToggle`, `modifyGameDisplayToggle`, `unlockThresholdSlider`, `selfCastRequiredSlider`, `selfCastMultiplierSlider`, `binaryThresholdSlider`, `resetPowerStepsBtn`; each dynamic power-step row's XP threshold, power and name |
+| Learning / notifications | `showNotificationsToggle`, `notificationLanguageSelect`, `weakenedNotificationsToggle`, `notificationIntervalSlider` |
+| Spell Tomes | `useProgressionSystemToggle`, `tomeXpGrantSlider`, `tomeInventoryBoostToggle`, `tomeInventoryBoostSlider`, `tomeRequirePrereqsToggle`, `tomeRequireAllPrereqsToggle`, `tomeRequireSkillLevelToggle`, `tomeStudySkillXPToggle`; read-only Spell Research status |
+| Advanced / developer and validation | `developerModeToggle`, `cheatModeToggle`, `verboseLogToggle`, `debugGridToggle`, `aggressivePathValidationToggle` |
+| Advanced / registered modded XP sources | `moddedEnabled_<sourceId>`, `moddedMult_<sourceId>`, `moddedCap_<sourceId>` (only when a source registers) |
+| Common to all categories | `saveSettingsPresetBtn`, `saveSettingsBtn`, `resetSettingsBtn`; dynamic `settingsPresetChips` selection, Update, Delete and rename input |
+
+There are 90 static controls: Display 20, Learning 54, Spell Tomes 8,
+Advanced 5 and common actions 3, plus the dynamic controls listed above.
+Build at Start remains in Display's panel-opening group, matching its existing
+Hotkey section. Developer/debug controls are exclusively in Advanced.
+
+### Scan: summary, then the next action
+
+`ScanStage` exposes one prominent button: Scan Spells → Build Tree → Apply Tree.
+It relays existing buttons, so Easy presets, Complex generation options, native
+build guards and AutoBuild ownership remain authoritative. Build never applies
+implicitly. Apply changes the summary only after a successful save request.
+Scan again resets that applied indication. Clear draft tree relays the builder's
+clear operation; it does not erase character progress or delete the saved tree.
+Replay sits by the preview. Import and the other valid actions are text buttons.
+Tree generation opens Complex in one click, and the existing mode tabs remain.
+
+The summary counts actual scanned spells and eligible spells using the very same
+`filterTomeSpells` → `filterBlacklistedSpells` → `filterWhitelistedSpells`
+chain used by the builder. A separate visible explanation accounts for each
+removed spell exactly once: tome/voice/duplicate/spell-gate eligibility, explicit
+spell exclusions, then disabled plugins. When the built count differs from
+eligible, another line reports placed versus eligible. “Plugins: all” means no
+plugin is disabled: the whitelist is actually a list of enable/disable overrides;
+unlisted or newly added plugins remain included. “Plugins: N disabled” counts
+plugin entries, whereas the omission explanation counts their removed spells.
+“Excluded spells: N” counts configured spell exclusions. A changed eligible
+spell set after building leaves the draft intact and explicitly asks the player
+to clear and rebuild it to use the new filters.
+
+Scan details opens school counts and a sorted per-plugin count list on click.
+Status messages remain visible when details are folded. The old Easy status is
+retained in the shared overview so auto-build pauses, progress and failures remain
+visible. The unimplemented Alternate Pathways tab is hidden. Vertical dividers
+between counts/filters and actions/preview are removed.
+
+### Spell card: readiness before reference information
+
+The same card structure is used in the bottom bar and right sidebar. Name,
+school colour, tier and Magicka cost precede the core description. Long modded
+spell descriptions and translations may wrap rather than being cut off. The
+state line says state, XP percentage and, only for an early-learned weakened
+spell, “casts at N% power”; a thin XP bar follows. `spellWeakenedPower` remains
+the source of truth, including canonical IDs and mastery. Older duplicate power
+badges/hints are hidden. Cheat mode retains editable XP, and edit mode retains
+its raw effects and the original hard/soft prerequisite controls in
+`spellPrereqEditor.js`.
+
+`SpellRequirements` puts only unmet required prerequisites and outstanding
+cross-school locks in Still needed. A lock is a distinct chip with its badge,
+deduplicated against required links. Optional prerequisites use the remaining
+quota and remaining choices (2 of 3 becomes 1 of 2 after one is mastered);
+when the quota is met, unused choices disappear from Still needed. Met spells
+have their own row. Prerequisites require mastery, not merely possessing a
+weakened spell. SpellNames continues to hide undiscovered names and disambiguate
+shared names. Hidden chips cannot navigate to reveal a spell. The concept's
+satisfied Frostbite chip under Still needed is deliberately corrected.
+
+Learn/Unlock remains visible when unavailable, with an adjacent reason. Hover
+previews cannot invoke either action. Later spells are folded behind a click
+button, with a separate singular translation for one; choosing another spell
+resets the disclosure, while progress refreshes preserve it. Neither this nor
+the legend relies on hover or the Tab key (Tab closes the game panel).
+No Skyrim dragon/logo artwork is introduced; existing school icons remain.
+
+### Tree: one boundary and accessible floating controls
+
+`panelFrames.css` leaves one thin canvas boundary. Zoom/home/find/edit controls
+and translated school jump labels float without a boxed toolbar. Arcane book
+edges and the Skald/Night Grimoire/Chalkboard decoration remain. Their canvas
+corner ornaments are reduced to 96–112px and tools leave 128px at the corners.
+School labels use light ink on dark designs and dark ink on Arcane parchment.
+The footer is a small count and status; it is not another framed strip.
+The question-mark button opens/closes the state legend on click with
+`aria-expanded` and a translated accessible name. `TreeStatusLine` still owns
+status duration: success returns to Ready, warnings/errors persist.
+
+Compared with the concept, existing new-spell/next-goal links, How to Learn and
+toolbar scaling are preserved. Card descriptions and category labels can wrap
+in long languages. The outer design cover and book/knotwork identity are kept
+rather than flattened to the Classic concept. No preset JSON was edited.
+
+### Modules, translation and verification
+
+New production modules are `settingsCategories.js`, `scanStage.js`,
+`spellPrereqEditor.js`, `spellRequirements.js`, `spellCardLayout.js` and
+`treeLegend.js`; each is below 600 lines. CSS is split by feature. Existing
+large historical files and generated HTML/locale dictionaries are not expanded
+with a second implementation. Script order is documented in modules/README.md;
+the desktop harness is regenerated from index.html.
+
+New language keys, supplied in all 13 JSON dictionaries and generated preloads:
+
+- `settings.categories.display`, `learning`, `tomes`, `advanced`, `label` (same prefix).
+- `scanStage.ready`, `summary`, `pending`, `applied`, `excluded`, `details`,
+  `scanAgain`, `clearDraft`, `excludedSpells`, `pluginsAll`, `pluginsDisabled`,
+  `pluginsHint`, `generation`, `builtCount`, `filtersChanged` (same prefix).
+- `card.stillNeeded`, `requirementsMet`, `met`, `laterOne`, `laterMany`,
+  `castsPower`, `finishRequirements`, `mastered` (same prefix).
+- `footer.legendTitle`.
+
+Regression suites: `settingsCategoriesTest` (selection, scroll, original nodes),
+`scanStageTest` (real filters, stage relays, applied state, details),
+`spellCardLayoutTest` (unmet/met/quota/lock/discovery grouping, disclosure,
+action reasons, weakened line, all locale keys/placeholders), `treeLegendTest`
+(click/ARIA, status duration and contrast palettes). Existing auto-build,
+weakened spell, prerequisite editing and status tests remain part of run-tests.js.
+
+Validation for this implementation: 1086 assertions passed in 46 suites via
+`node run-tests.js`, including 107 new assertions across the four workflow suites.
+Headless Chrome screenshots cover all six designs, all Settings categories, three
+Scan stages, both card placements, Korean/Russian, and German/Russian at 1280×720.
+Artifacts live under `SpellLearningPanel/ui20-qa/` (local verification artifacts, excluded from the intended commits).
+The requested E: destination is outside this session's writable roots. Chrome
+needed `--no-sandbox` in addition to the requested headless flags; this changes
+Chrome's internal sandbox, not the workspace filesystem permissions.
+Computed CSS contrast checks passed the sampled Settings and Scan states; school
+label palettes meet 4.5:1 in six designs. Textured/gradient backgrounds and canvas
+pixels are also visually checked, not exhaustively pixel-audited.
+`BuildRelease.ps1` could not start: the configured Visual Studio 2022 Dev Shell
+path is absent. Actual Skyrim/Ultralight execution remains unverified.
 
 ## UI Structure
 
@@ -1562,14 +1725,14 @@ Globe position and radius controls. Radius writes to `spell_tree.json` and is us
 - H Offset, V Offset, Radius sliders
 
 #### Alternate Pathways (`prmTabAltPaths`)
-A "Not Yet Implemented" placeholder. Its greyed-out Bidirectional Soft Prerequisites toggle (nothing
+Hidden from players in Panel 2.0. The old "Not Yet Implemented" placeholder's greyed-out Bidirectional Soft Prerequisites toggle (nothing
 applied the flag) and the empty stats line were removed on 2026-09-28, with `settings.treeGeneration`.
 
 ---
 
 ## Page 3: Settings (`contentSettings`)
 
-All mod configuration. Split-row layout for space efficiency.
+All mod configuration. One-level category navigation; see the current Panel 2.0 layout and full control inventory above.
 
 **Modules:** `settingsPanel.js`, `settingsPresets.js`
 

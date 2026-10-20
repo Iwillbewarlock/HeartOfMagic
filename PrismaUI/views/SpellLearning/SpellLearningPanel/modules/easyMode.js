@@ -96,6 +96,7 @@ function initializeEasyMode() {
 
     // Move PRM preview to Easy placeholder on startup (it lives in hidden Complex tab)
     _movePrmPreview('easy');
+    if (typeof ScanStage !== 'undefined') ScanStage.init();
 
     console.log('[EasyMode] Initialized');
 }
@@ -131,6 +132,7 @@ function switchScannerMode(mode) {
         _syncEasyButtonStates();
         _syncEasyStatus();
     }
+    if (typeof ScanStage !== 'undefined') ScanStage.refresh();
 }
 
 // =============================================================================

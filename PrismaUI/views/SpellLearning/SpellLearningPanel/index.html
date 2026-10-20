@@ -11,6 +11,10 @@
     <link rel="stylesheet" href="panel-chrome.css">
     <!-- The tree's top-left tools (tool bar size, Find Spell dropdown): after patch-ui.css, which it continues -->
     <link rel="stylesheet" href="patch-tree-tools.css">
+    <link rel="stylesheet" href="panelFrames.css">
+    <link rel="stylesheet" href="settingsCategories.css">
+    <link rel="stylesheet" href="scan-stage.css">
+    <link rel="stylesheet" href="spell-card.css">
 </head>
 <body>
     <!-- Full-screen overlay to block clicks on SWF UI when panel has focus -->
@@ -738,7 +742,7 @@
                             <span class="footer-goals-label" data-i18n="footer.nextGoals">Next</span>
                             <span id="footer-goals"></span>
                         </div>
-                        <div class="state-legend">
+                        <div class="state-legend" id="tree-legend" hidden>
                             <span class="legend-item locked"><span class="legend-dot"></span><span data-i18n="footer.legendLocked">Locked</span></span>
                             <span class="legend-item available"><span class="legend-dot"></span><span data-i18n="footer.legendAvailable">Available</span></span>
                             <span class="legend-item learning"><span class="legend-dot"></span><span data-i18n="footer.legendLearning">Learning</span></span>
@@ -746,6 +750,7 @@
                         </div>
                     </div>
                     <div class="footer-right">
+                        <button type="button" id="tree-legend-btn" aria-controls="tree-legend" aria-expanded="false" aria-labelledby="tree-legend-label">?<span id="tree-legend-label" class="legend-accessible-label" data-i18n="footer.legendTitle">Node states</span></button>
                         <span id="tree-status-text" class="status-text" data-i18n="footer.statusReady">Ready</span>
                     </div>
                 </div>
@@ -1842,7 +1847,7 @@
             </div>
             <div class="modal-body">
                 <div class="whitelist-info">
-                    <span class="whitelist-info-text" data-i18n="modals.whitelist.info">Select plugins to include in spell scanning. If none selected, all plugins are scanned.</span>
+                    <span class="whitelist-info-text" data-i18n="scanStage.pluginsHint">Only disabled plugins are excluded. New plugins are included.</span>
                 </div>
                 <div class="whitelist-search-section">
                     <input type="text" id="whitelist-search" class="spawn-search" placeholder="Filter plugins..." data-i18n-placeholder="modals.whitelist.filterPlaceholder">
@@ -2031,18 +2036,23 @@
     <script src="modules/treeViewerUI.js"></script>
     <script src="modules/treeStatusLine.js"></script>
     <script src="modules/treeLoad.js"></script>
+    <script src="modules/spellPrereqEditor.js"></script>
+    <script src="modules/spellRequirements.js"></script>
+    <script src="modules/spellCardLayout.js"></script>
     <script src="modules/spellCardView.js"></script>
     <script src="modules/spellProgressView.js"></script>
     <script src="modules/spellSearch.js"></script>
     <script src="modules/treeToolsScale.js"></script>
     <script src="modules/findSpell.js"></script>
     <script src="modules/treeNav.js"></script>
+    <script src="modules/treeLegend.js"></script>
     <script src="modules/detailsPeek.js"></script>
     <script src="modules/learningTargetKeys.js"></script>
     <script src="modules/progressionUI.js"></script>
     <script src="modules/progressUpdates.js"></script>
     <script src="modules/settingsPresets.js"></script>
     <script src="modules/scannerPresets.js"></script>
+    <script src="modules/scanStage.js"></script>
     <script src="modules/easyMode.js"></script>
     <script src="modules/buttonHandlers.js"></script>
     
@@ -2096,6 +2106,7 @@
     <script src="script.js"></script>
 
     <!-- 9. Main Entry Point (initialization, module verification) -->
+    <script src="modules/settingsCategories.js"></script>
     <script src="modules/main.js"></script>
 </body>
 </html>

@@ -1655,7 +1655,7 @@
         }
 
         // HUD overlay (outside transform)
-        ctx.fillStyle = 'rgba(184, 168, 120, 0.4)';
+        ctx.fillStyle = getPreviewTextColor();
         ctx.font = '10px sans-serif';
         ctx.textAlign = 'right';
         ctx.fillText(Math.round(_previewZoom * 100) + '%', w - 8, h - 8);
@@ -2014,7 +2014,7 @@
 
             // Stats overlay
             var lockCount = (_activeTab === 'locks') ? getAllLockEdges().length : 0;
-            ctx.fillStyle = 'rgba(184, 168, 120, 0.4)';
+            ctx.fillStyle = getPreviewTextColor();
             ctx.font = '10px sans-serif';
             ctx.textAlign = 'left';
             ctx.fillText(tOr('prm.lockCount', { count: lockCount }, '{{count}} locks'), 8, h - 8);
@@ -2035,7 +2035,7 @@
                 } else if (animFrame) {
                     statusText = 'Building... ' + animFrame.nodes.length + '/' + animFrame.total;
                 }
-                ctx.fillStyle = 'rgba(184, 168, 120, 0.5)';
+                ctx.fillStyle = getPreviewTextColor();
                 ctx.font = '10px sans-serif';
                 ctx.textAlign = 'center';
                 ctx.fillText(statusText, w / 2, h - 8);
@@ -2050,7 +2050,7 @@
                 _markPreview();
             }
         } else {
-            ctx.fillStyle = 'rgba(184, 168, 120, 0.3)';
+            ctx.fillStyle = getPreviewTextColor();
             ctx.font = '11px sans-serif';
             ctx.textAlign = 'center';
             ctx.fillText(tOr('prm.buildTreeFirst', null, 'Build a tree first'), w / 2, h / 2);

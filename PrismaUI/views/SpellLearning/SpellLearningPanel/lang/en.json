@@ -773,5 +773,36 @@
     "treeGrowth.treeBuilt": "Tree built",
 
     "treeViewer.noSettingsAvailable": "No settings available",
-    "treeViewer.treeGrowthPreview": "Tree Growth Preview"
+    "treeViewer.treeGrowthPreview": "Tree Growth Preview",
+
+    "card.stillNeeded": "Still needed:",
+    "card.requirementsMet": "Requirements met",
+    "card.met": "Met:",
+    "card.laterOne": "Leads to 1 later spell",
+    "card.laterMany": "Leads to {{count}} later spells",
+    "card.castsPower": "casts at {{pct}}% power",
+    "card.finishRequirements": "Meet the requirements above to learn this spell.",
+    "card.mastered": "This spell is already mastered.",
+    "footer.legendTitle": "Node states",
+
+    "settings.categories.display": "Display",
+    "settings.categories.learning": "Learning",
+    "settings.categories.tomes": "Spell Tomes",
+    "settings.categories.advanced": "Advanced",
+    "settings.categories.label": "Settings categories",
+    "scanStage.ready": "Scan to find spells for your tree",
+    "scanStage.summary": "{{found}} spells found · {{eligible}} go in the tree · {{state}}",
+    "scanStage.pending": "not applied yet",
+    "scanStage.applied": "applied",
+    "scanStage.excluded": "Left out: {{tomes}} unavailable tomes / voice spells / duplicates / spell gate; {{blacklist}} excluded spells; {{plugins}} spells from disabled plugins.",
+    "scanStage.details": "Scan details",
+    "scanStage.scanAgain": "Scan again",
+    "scanStage.clearDraft": "Clear draft tree",
+    "scanStage.excludedSpells": "Excluded spells: {{count}}",
+    "scanStage.pluginsAll": "Plugins: all",
+    "scanStage.pluginsDisabled": "Plugins: {{count}} disabled",
+    "scanStage.pluginsHint": "Only disabled plugins are excluded. New plugins are included.",
+    "scanStage.generation": "Tree generation",
+    "scanStage.builtCount": "Draft: {{placed}} of {{eligible}} eligible spells placed.",
+    "scanStage.filtersChanged": "Filters changed; clear the draft and build again to use them."
 }

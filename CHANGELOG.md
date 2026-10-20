@@ -54,6 +54,13 @@
 - **Settings > Spell Tome Learning:** the Spell Research line says "1 spell added" instead of "1 spells added"
   (and in Polish no longer gets the word for "spells" wrong for 2-4 of them).
 
+### Panel
+
+- **Settings categories:** Display, Learning, Spell Tomes and Advanced, with a remembered position in each category. Presets, Save and Reset stay available.
+- **Scan workflow:** one Scan / Build / Apply action, real included/excluded counts, foldable school/plugin details and compact filters. Clear explicitly clears the draft; Build and Apply remain separate.
+- **Spell readiness card:** unmet prerequisite chips, a separate met row, remaining optional quotas, distinct cross-school locks, one weakened-power line, visible action reasons and foldable later spells. Discovery and editing remain supported.
+- **A quieter tree frame:** floating tools, translated school labels, a click-operated legend and a compact count/status footer across all six designs, with 13-language copy.
+
 ## Heart of Magic Librarian 1.5.1
 
 ### New

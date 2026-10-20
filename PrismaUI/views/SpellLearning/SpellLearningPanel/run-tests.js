@@ -167,6 +167,11 @@ loadModule('panelRefreshTest', './modules/panelRefreshTest.js');
 loadModule('panelTidyTest', './modules/panelTidyTest.js');
 loadModule('unificationTest', './modules/unificationTest.js');
 
+loadModule('settingsCategoriesTest', './modules/settingsCategoriesTest.js');
+loadModule('scanStageTest', './modules/scanStageTest.js');
+loadModule('treeLegendTest', './modules/treeLegendTest.js');
+loadModule('spellCardLayoutTest', './modules/spellCardLayoutTest.js');
+
 console.log('');
 console.log('Running tests...');
 console.log('');

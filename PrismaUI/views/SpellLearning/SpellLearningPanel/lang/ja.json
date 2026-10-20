@@ -772,5 +772,36 @@
     "treeGrowth.treeBuilt": "ツリー構築完了",
 
     "treeViewer.noSettingsAvailable": "利用可能な設定がありません",
-    "treeViewer.treeGrowthPreview": "ツリー成長プレビュー"
+    "treeViewer.treeGrowthPreview": "ツリー成長プレビュー",
+
+    "card.stillNeeded": "未達成の条件：",
+    "card.requirementsMet": "条件達成",
+    "card.met": "達成済み：",
+    "card.laterOne": "後続の呪文1個につながる",
+    "card.laterMany": "後続の呪文{{count}}個につながる",
+    "card.castsPower": "威力{{pct}}%で詠唱",
+    "card.finishRequirements": "上の条件を満たすと、この呪文を学習できます。",
+    "card.mastered": "この呪文は習得済みです。",
+    "footer.legendTitle": "呪文の状態",
+
+    "settings.categories.display": "表示",
+    "settings.categories.learning": "学習",
+    "settings.categories.tomes": "呪文の書",
+    "settings.categories.advanced": "詳細設定",
+    "settings.categories.label": "設定カテゴリー",
+    "scanStage.ready": "ツリーに追加する呪文を検索してください",
+    "scanStage.summary": "{{found}}個の呪文を発見 · {{eligible}}個をツリーに含む · {{state}}",
+    "scanStage.pending": "未適用",
+    "scanStage.applied": "適用済み",
+    "scanStage.excluded": "除外理由：入手不能な呪文の書 / 声の呪文 / 重複 / 呪文フィルター {{tomes}}個、除外リストの呪文 {{blacklist}}個、無効にしたプラグインの呪文 {{plugins}}個。",
+    "scanStage.details": "検索の詳細",
+    "scanStage.scanAgain": "再検索",
+    "scanStage.clearDraft": "ツリーの下書きを消去",
+    "scanStage.excludedSpells": "除外した呪文：{{count}}個",
+    "scanStage.pluginsAll": "プラグイン：すべて",
+    "scanStage.pluginsDisabled": "プラグイン：{{count}}個を無効化",
+    "scanStage.pluginsHint": "無効にしたプラグインのみ除外します。新しいプラグインは含まれます。",
+    "scanStage.generation": "ツリー生成",
+    "scanStage.builtCount": "下書き：対象の呪文{{eligible}}個中{{placed}}個を配置。",
+    "scanStage.filtersChanged": "フィルターが変更されました。反映するには下書きツリーを消去し、再構築してください。"
 }

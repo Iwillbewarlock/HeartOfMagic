@@ -772,5 +772,36 @@
     "treeGrowth.treeBuilt": "Albero costruito",
 
     "treeViewer.noSettingsAvailable": "Nessuna impostazione disponibile",
-    "treeViewer.treeGrowthPreview": "Anteprima Crescita Albero"
+    "treeViewer.treeGrowthPreview": "Anteprima Crescita Albero",
+
+    "card.stillNeeded": "Ancora necessario:",
+    "card.requirementsMet": "Requisiti soddisfatti",
+    "card.met": "Soddisfatti:",
+    "card.laterOne": "Porta a 1 incantesimo successivo",
+    "card.laterMany": "Porta a {{count}} incantesimi successivi",
+    "card.castsPower": "lanciato al {{pct}}% di potenza",
+    "card.finishRequirements": "Soddisfa i requisiti indicati sopra per imparare questo incantesimo.",
+    "card.mastered": "Hai già padroneggiato questo incantesimo.",
+    "footer.legendTitle": "Stati degli incantesimi",
+
+    "settings.categories.display": "Aspetto",
+    "settings.categories.learning": "Apprendimento",
+    "settings.categories.tomes": "Tomi magici",
+    "settings.categories.advanced": "Avanzate",
+    "settings.categories.label": "Categorie delle impostazioni",
+    "scanStage.ready": "Cerca gli incantesimi per il tuo albero",
+    "scanStage.summary": "{{found}} incantesimi trovati · {{eligible}} per l’albero · {{state}}",
+    "scanStage.pending": "non ancora applicato",
+    "scanStage.applied": "applicato",
+    "scanStage.excluded": "Omissi: {{tomes}} per tomi non ottenibili / incantesimi vocali / duplicati / filtro incantesimi; {{blacklist}} incantesimi esclusi; {{plugins}} incantesimi di plugin disattivati.",
+    "scanStage.details": "Dettagli della ricerca",
+    "scanStage.scanAgain": "Cerca di nuovo",
+    "scanStage.clearDraft": "Svuota la bozza dell’albero",
+    "scanStage.excludedSpells": "Incantesimi esclusi: {{count}}",
+    "scanStage.pluginsAll": "Plugin: tutti",
+    "scanStage.pluginsDisabled": "Plugin: {{count}} disattivati",
+    "scanStage.pluginsHint": "Sono esclusi solo i plugin disattivati. I nuovi plugin sono inclusi.",
+    "scanStage.generation": "Generazione dell’albero",
+    "scanStage.builtCount": "Bozza: {{placed}} incantesimi collocati su {{eligible}} idonei.",
+    "scanStage.filtersChanged": "I filtri sono cambiati. Cancella la bozza e ricrea l’albero per applicarli."
 }

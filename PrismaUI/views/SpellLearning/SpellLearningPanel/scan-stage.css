@@ -1,0 +1,88 @@
+/* Scan summary and one staged action; preserve the designs' outer ornament. */
+#contentSpellScan.scan-stage-page { overflow-y: auto; }
+.scan-stage-page .scan-overview {
+    display: flex;
+    gap: 24px;
+    padding: 18px 24px;
+    min-height: 300px;
+    flex: 1 0 auto;
+}
+.scan-overview-main { flex: 1 1 58%; min-width: 0; }
+.scan-overview-preview { flex: 1 1 42%; min-width: 220px; display: flex; flex-direction: column; }
+.scan-overview-preview #easyPreviewPlaceholder { min-height: 280px; flex: 1; }
+.scan-overview-preview #easyReplayBtn { align-self: center; margin: 8px; }
+.scan-stage-page #prmPreviewWrap > #easyReplayBtn { position: absolute; right: 12px; bottom: 24px; z-index: 2; }
+.scan-summary { font-size: 18px; line-height: 1.5; margin: 0 0 10px; color: var(--text-primary); }
+.scan-exclusions, .scan-filter-hint { color: var(--text-primary); font-size: 12px; line-height: 1.5; margin: 4px 0 10px; }
+.scan-exclusions:empty { display: none; }
+.scan-stage-page .scan-builder-status { display: block; margin: 0 0 12px; color: var(--text-primary); font-size: 12px; line-height: 1.5; }
+.scan-stage-page .scan-builder-status #easyStatus { color: var(--text-primary) !important; }
+.scan-stage-page .scan-actions-sticky {
+    position: static; flex-wrap: wrap; padding: 10px 0 16px;
+    border: 0; background: none; box-shadow: none; gap: 14px;
+}
+.scan-stage-page .scan-actions-sticky::after { display: none; }
+.scan-stage-page .scan-actions-sticky #scanStageBtn {
+    flex: 0 1 auto; min-width: 150px; padding: 10px 18px; font-size: 14px;
+    background: var(--accent-gold); color: var(--panel-bg-solid);
+    border: 1px solid var(--accent-gold); font-weight: 600;
+}
+.scan-stage-page .scan-actions-sticky #scanStageBtn:hover:not(:disabled) { background: var(--accent-gold-hover); }
+.scan-stage-page .scan-actions-sticky #scanStageBtn:disabled { background: var(--btn-bg); color: var(--text-primary); opacity: 1; }
+.scan-stage-page .scan-actions-sticky .scan-text-action { flex: 0 1 auto; }
+.scan-stage-page .scan-text-action,
+.scan-stage-page .scan-import-btn,
+.scan-stage-page .scan-row-action,
+.scan-stage-page .btn-filter {
+    background: none; border: 0; box-shadow: none; color: var(--text-primary);
+    text-shadow: none; cursor: pointer; min-height: 28px; font-size: 13px;
+    padding: 4px 0; text-align: left; white-space: normal; line-height: 1.45;
+}
+.scan-stage-page .scan-text-action:hover,
+.scan-stage-page .scan-import-btn:hover,
+.scan-stage-page .scan-row-action:hover,
+.scan-stage-page .btn-filter:hover { color: var(--accent-gold); }
+.scan-stage-page .scan-text-action:disabled,
+.scan-stage-page .btn-filter:disabled { opacity: 1; color: var(--text-primary); cursor: default; }
+.scan-stage-page #scanResultsSection { display: flex; flex-direction: column; gap: 8px; padding: 0; border: 0; }
+.scan-stage-page .scan-split-left,
+.scan-stage-page .scan-split-right { width: auto; min-width: 0; padding: 0; border: 0; background: none; }
+.scan-stage-page .scan-filter-controls { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.scan-stage-page .scan-stats-header { display: none; }
+.scan-stage-page #scanDetailCounts { padding: 4px 10px; }
+.scan-stage-page .scan-stats-grid { margin-bottom: 8px; }
+.scan-stage-page .scan-mod-breakdown { margin-top: 10px; max-height: 140px; overflow-y: auto; }
+.scan-stage-page .scan-school-name { overflow-wrap: anywhere; }
+.scan-stage-page .scan-school-count { color: var(--text-primary); }
+.scan-stage-page #scannerEasyContent { display: none !important; }
+.scan-stage-page #easyBuildBtn,
+.scan-stage-page #easyApplyBtn,
+.scan-stage-page #easyClearBtn,
+.scan-stage-page #tgBuildBtn,
+.scan-stage-page #tgApplyBtn,
+.scan-stage-page #tgClearBtn { display: none; }
+.scan-stage-page .easy-presets-section { padding: 16px 0 0; }
+.scan-stage-page .easy-preset-chip { color: var(--text-primary); }
+.scan-stage-page .scan-complex-overview { min-height: 0; flex: 0 0 auto; }
+.scan-complex-overview .scan-overview-preview { display: none; }
+.scan-stage-page .easy-panel-left,
+.scan-stage-page .tree-preview-left,
+.scan-stage-page .tree-preview-right,
+.scan-stage-page .prm-split-left,
+.scan-stage-page .prm-split-right { border-right: 0; border-left: 0; }
+.scan-stage-page #treeGrowthSettings span,
+.scan-stage-page #treeGrowthSettings label,
+.scan-stage-page #treeGrowthSettings button,
+.scan-stage-page #treeGrowthSettings [style*="color"],
+.scan-stage-page #tgClassicMatchDesc { color: var(--text-primary) !important; }
+.scan-stage-page #treeGrowthSettings .classic-tier-pct { color: var(--text-bright) !important; background: var(--panel-bg-solid); }
+.scan-stage-page [data-prm-tab="altpaths"] { display: none !important; }
+@media (max-width: 1050px) {
+    .scan-stage-page .scan-overview { padding: 12px 16px; gap: 16px; }
+    .scan-summary { font-size: 16px; }
+    .scan-overview-preview { min-width: 180px; }
+}
+@media (max-width: 700px) {
+    .scan-stage-page .scan-overview { flex-direction: column; }
+    .scan-overview-preview #easyPreviewPlaceholder { min-height: 220px; }
+}

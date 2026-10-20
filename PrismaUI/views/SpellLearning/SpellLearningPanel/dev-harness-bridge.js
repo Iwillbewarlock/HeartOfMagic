@@ -9,9 +9,7 @@ window._DEV_HARNESS = true;
 window._cppLog = [];
 window._mockSpellData = null;
 
-// ============================================================================
 // LOGGING
-// ============================================================================
 
 function logCppCall(direction, method, data) {
     var entry = {
@@ -119,9 +117,7 @@ function mockTreeFromSpells(spells) {
     return mockTree;
 }
 
-// ============================================================================
 // SPELL INFO - what C++'s GetSpellInfo / GetSpellInfoBatch send, from the test spells
-// ============================================================================
 
 function mockSpellInfo(formId) {
     var spell = (window._mockSpellData || []).find(function(s) { return s.formId === formId; });
@@ -137,9 +133,7 @@ function mockSpellInfo(formId) {
     };
 }
 
-// ============================================================================
 // MOCK callCpp
-// ============================================================================
 
 window.callCpp = function(method, data) {
     logCppCall('out', method, data);
@@ -275,6 +269,10 @@ window.callCpp = function(method, data) {
             })();
             break;
 
+        case 'PreReqMasterScore':
+            // Use the panel's real JS fallback; an unanswered request leaves Apply waiting forever.
+            setTimeout(function() { window.onPreReqMasterComplete({ success: false, error: 'No native scorer in dev harness' }); }, 0);
+            break;
         case 'ProceduralTreeGenerate':
             // Try dev server first (localhost:5556), fall back to a mock tree
             (function() {

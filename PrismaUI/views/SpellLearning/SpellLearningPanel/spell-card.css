@@ -1,0 +1,176 @@
+/* Both card placements share a reading order. The design supplies the palette. */
+#contentSpellTree #details-panel.compact-card {
+    width: 23em;
+    max-width: calc(100% - 20px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    border: 0;
+    border-left: 1px solid var(--divider);
+    outline: none;
+    box-shadow: none;
+}
+#contentSpellTree.details-bottom #details-panel.compact-card {
+    width: auto;
+    height: 19em;
+    max-height: 52%;
+    flex-direction: column;
+    border-left: 0;
+    border-top: 1px solid var(--divider);
+}
+#contentSpellTree #details-panel.compact-card > * { flex-shrink: 0; }
+#contentSpellTree #details-panel.compact-card .details-header {
+    width: auto;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: flex-start;
+    gap: 6px 18px;
+    padding: 12px 42px 6px 16px;
+    border: 0;
+    background: transparent;
+}
+#contentSpellTree #details-panel.compact-card .spell-title {
+    font-size: 1.25em;
+    margin: 0;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    overflow-wrap: anywhere;
+}
+#details-panel .card-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+#details-panel .card-meta .detail-row { padding: 0; border: 0; gap: 6px; font-size: .85em; }
+#details-panel .card-meta .detail-label { color: var(--text-primary); }
+#details-panel .card-meta .school-badge { background: transparent; padding: 0; }
+#details-panel .card-meta .school-badge::before {
+    content: "";
+    display: inline-block;
+    width: .5em;
+    height: .5em;
+    margin-right: .4em;
+    border-radius: 50%;
+    background: currentColor;
+}
+#contentSpellTree #details-panel.compact-card #details-desc-section {
+    flex-basis: 100%;
+    margin: 0;
+}
+#details-panel.compact-card #details-desc-section > .detail-label { display: none; }
+#details-panel.compact-card #spell-description { margin: 0; color: var(--text-primary); line-height: 1.4; }
+#contentSpellTree #details-panel.compact-card .progress-section {
+    width: auto;
+    padding: 6px 16px;
+    margin: 0;
+    border: 0;
+    background: transparent;
+}
+#details-panel.compact-card .card-state-line { color: var(--text-primary); line-height: 1.5; }
+#details-panel.compact-card .card-state-line.weakened { color: var(--weakened-color, var(--text-primary)); }
+#details-panel.compact-card .progress-bar-container { height: 3px; margin-top: 4px; border: 0; }
+#details-panel.compact-card .progress-label { font-size: .8em; margin: 4px 0; }
+#details-panel.compact-card:not(.card-cheating) .progress-label { display: none; }
+#details-panel.compact-card .progress-label > span:first-child,
+#details-panel.compact-card #learning-status-container,
+#details-panel.compact-card #learning-status-hint,
+#details-panel.compact-card #spell-state,
+#details-panel.compact-card #details-peek-hint { display: none; }
+#details-panel.compact-card:not(.card-editing) .prereq-section,
+#details-panel.compact-card:not(.card-editing) #locks-section,
+#details-panel.compact-card:not(.card-editing) .details-col-effects { display: none !important; }
+#contentSpellTree #details-panel.compact-card .details-body {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 auto;
+    gap: 4px;
+    padding: 4px 16px;
+    overflow: visible;
+}
+#contentSpellTree #details-panel.compact-card .details-col { flex: 0 0 auto; }
+#details-panel.compact-card #spell-chips { margin: 0; }
+#contentSpellTree #details-panel.compact-card .detail-section { margin: 0; }
+#details-panel .card-requirements { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; padding: 6px 16px; }
+#details-panel .requirement-label { margin-right: 4px; color: var(--text-primary); }
+#details-panel .requirement-chip {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    font: inherit;
+    font-size: .85em;
+    line-height: 1.35;
+    color: var(--text-primary);
+    background: var(--btn-bg);
+    border: 1px solid var(--divider);
+    border-radius: 12px;
+    padding: 4px 9px;
+    max-width: 100%;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    cursor: pointer;
+}
+#details-panel .requirement-chip:disabled { opacity: 1; cursor: default; }
+#details-panel .requirement-chip:hover:not(:disabled) { border-color: var(--text-primary); }
+#details-panel .requirement-lock { border-color: var(--accent-gold); }
+#details-panel .requirement-lock-badge { font-size: .8em; }
+#details-panel .requirement-options { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px; }
+#details-panel .requirement-options > span { font-size: .85em; }
+#details-panel .requirements-met { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px; width: 100%; font-size: .9em; }
+#details-panel .requirements-met .requirement-chip { border-color: transparent; background: transparent; padding: 2px 4px; }
+#details-panel .requirements-met .requirement-chip::after { content: "\2713"; }
+#details-panel .card-unlocks-toggle {
+    border: 0;
+    background: transparent;
+    color: var(--text-primary);
+    font: inherit;
+    font-size: .9em;
+    padding: 4px 0;
+    text-align: left;
+    cursor: pointer;
+}
+#contentSpellTree #details-panel.compact-card .details-footer {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 8px 14px;
+    padding: 6px 16px 12px;
+    border: 0;
+    background: transparent;
+}
+#contentSpellTree #details-panel.compact-card .details-footer .btn {
+    width: auto;
+    max-width: 100%;
+    white-space: normal;
+    font-size: .85em;
+}
+#details-panel .card-disabled-reason { font-size: .85em; color: var(--text-primary); }
+#contentSpellTree #details-panel.compact-card .details-footer .btn:disabled {
+    opacity: 1;
+    color: var(--text-primary);
+    background: var(--btn-bg);
+}
+#details-panel.compact-card .spell-chip,
+#details-panel.compact-card .spell-chip.hidden-info {
+    opacity: 1;
+    color: var(--text-primary);
+}
+#details-panel.compact-card .weakened-warning { display: none; }
+#details-panel.compact-card .school-badge.destruction { color: var(--panel-school-destruction); }
+#details-panel.compact-card .school-badge.restoration { color: var(--panel-school-restoration); }
+#details-panel.compact-card .school-badge.alteration { color: var(--panel-school-alteration); }
+#details-panel.compact-card .school-badge.conjuration { color: var(--panel-school-conjuration); }
+#details-panel.compact-card .school-badge.illusion { color: var(--panel-school-illusion); }
+html[data-panel-design="arcane"] #details-panel {
+    --panel-school-destruction: #8b342e;
+    --panel-school-restoration: #6d520d;
+    --panel-school-alteration: #2a5d36;
+    --panel-school-conjuration: #633d8d;
+    --panel-school-illusion: #2d557c;
+}
+#contentSpellTree #details-panel.is-empty > .card-requirements { display: none; }
+#details-panel .hidden { display: none !important; }
+@media (max-width: 1280px) {
+    #contentSpellTree #details-panel.compact-card { width: 21em; }
+    #contentSpellTree.details-bottom #details-panel.compact-card { height: 18em; max-height: 55%; }
+}

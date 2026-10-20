@@ -772,5 +772,36 @@
     "treeGrowth.treeBuilt": "Ağaç oluşturuldu",
 
     "treeViewer.noSettingsAvailable": "Ayar mevcut değil",
-    "treeViewer.treeGrowthPreview": "Ağaç Büyüme Önizleme"
+    "treeViewer.treeGrowthPreview": "Ağaç Büyüme Önizleme",
+
+    "card.stillNeeded": "Hâlâ gerekenler:",
+    "card.requirementsMet": "Koşullar karşılandı",
+    "card.met": "Karşılananlar:",
+    "card.laterOne": "Sonraki 1 büyüye yol açar",
+    "card.laterMany": "Sonraki {{count}} büyüye yol açar",
+    "card.castsPower": "%{{pct}} güçle kullanılır",
+    "card.finishRequirements": "Bu büyüyü öğrenmek için yukarıdaki koşulları karşılayın.",
+    "card.mastered": "Bu büyüde zaten ustalaştınız.",
+    "footer.legendTitle": "Büyü durumları",
+
+    "settings.categories.display": "Görünüm",
+    "settings.categories.learning": "Öğrenme",
+    "settings.categories.tomes": "Büyü Kitapları",
+    "settings.categories.advanced": "Gelişmiş",
+    "settings.categories.label": "Ayar kategorileri",
+    "scanStage.ready": "Ağacınız için büyü arayın",
+    "scanStage.summary": "{{found}} büyü bulundu · {{eligible}} büyü ağaca uygun · {{state}}",
+    "scanStage.pending": "henüz uygulanmadı",
+    "scanStage.applied": "uygulandı",
+    "scanStage.excluded": "Dışarıda kalanlar: erişilemeyen kitaplar / ses büyüleri / kopyalar / büyü filtresi nedeniyle {{tomes}}; hariç tutulan büyüler: {{blacklist}}; devre dışı eklentilerden büyüler: {{plugins}}.",
+    "scanStage.details": "Tarama ayrıntıları",
+    "scanStage.scanAgain": "Yeniden tara",
+    "scanStage.clearDraft": "Ağaç taslağını temizle",
+    "scanStage.excludedSpells": "Hariç tutulan büyüler: {{count}}",
+    "scanStage.pluginsAll": "Eklentiler: tümü",
+    "scanStage.pluginsDisabled": "Devre dışı eklentiler: {{count}}",
+    "scanStage.pluginsHint": "Yalnızca devre dışı bırakılan eklentiler hariç tutulur. Yeni eklentiler dahil edilir.",
+    "scanStage.generation": "Ağaç oluşturma",
+    "scanStage.builtCount": "Taslak: {{eligible}} uygun büyüden {{placed}} tanesi yerleştirildi.",
+    "scanStage.filtersChanged": "Filtreler değişti. Uygulamak için taslağı temizleyip ağacı yeniden oluşturun."
 }

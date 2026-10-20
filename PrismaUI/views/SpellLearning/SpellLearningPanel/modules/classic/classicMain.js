@@ -109,7 +109,7 @@ var TreeGrowthClassic = {
             // No base data — show placeholder message
             ctx.save();
             ctx.font = '13px sans-serif';
-            ctx.fillStyle = 'rgba(184, 168, 120, 0.5)';
+            ctx.fillStyle = getPreviewTextColor();
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(t('preview.scanToPreview'), w / 2, h / 2);
@@ -438,6 +438,7 @@ var TreeGrowthClassic = {
                 return;
             }
             if (!SpellTreeSave.send(output, auto ? 'auto build' : 'apply')) return;
+            if (typeof ScanStage !== 'undefined') ScanStage.markApplied();
 
             // Load into the spell tree viewer so it displays immediately. The build at
             // game start with the panel closed leaves progress and known spells to the

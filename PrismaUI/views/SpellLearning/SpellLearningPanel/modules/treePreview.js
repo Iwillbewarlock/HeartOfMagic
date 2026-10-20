@@ -476,7 +476,7 @@ var TreePreview = {
 
         // Draw zoom level indicator
         ctx.font = '10px sans-serif';
-        ctx.fillStyle = 'rgba(184, 168, 120, 0.4)';
+        ctx.fillStyle = getPreviewTextColor();
         ctx.textAlign = 'right';
         ctx.fillText(Math.round(this.zoom * 100) + '%', w - 8, h - 8);
     },

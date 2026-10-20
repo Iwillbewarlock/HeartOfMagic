@@ -1,0 +1,221 @@
+/* Panel 2.0: one canvas boundary, floating controls, click-operated state key.
+   IDs deliberately outrank design sheets loaded later; all surfaces still use
+   the applied design's tokens. Page ornaments and the panel's cover stay intact. */
+.spell-panel {
+    /* The former muted ink failed normal-text contrast in Classic/Modern.
+       Inherit each design's secondary text, including preset palette changes. */
+    --text-muted: var(--text-secondary);
+    --panel-cover-text: var(--text-primary);
+    --panel-school-destruction: #f2a0a0;
+    --panel-school-restoration: #e2d181;
+    --panel-school-alteration: #9bd3a5;
+    --panel-school-conjuration: #c6afe8;
+    --panel-school-illusion: #9ccbe9;
+}
+
+/* Book typefaces and translated labels must keep their own button width. */
+#panelHeader .header-right { gap: 8px; flex-shrink: 0; }
+#panelHeader .header-btn { flex-shrink: 0; }
+#panelHeader .header-btn[data-tab].active {
+    /* The selected tab's light surface appears immediately. Do not animate its
+       formerly light lettering through low-contrast intermediate colours. */
+    color: var(--panel-bg-solid);
+    transition: none;
+}
+
+#contentSpellTree .tree-container,
+#contentSpellTree .tree-container.canvas-shown {
+    border-width: 1px;
+    outline: none;
+    box-shadow: none;
+}
+
+/* Selecting a spell opens its card; the click-operated How to learn tab stays
+   available, while this redundant canvas hint would run underneath a sidebar. */
+#contentSpellTree.details-open .tree-instructions { display: none; }
+
+#contentSpellTree .tree-top-tools {
+    top: 14px;
+    left: 16px;
+    max-width: calc(100% - 32px);
+}
+
+/* These designs draw corner art into the canvas itself. Its 112px maximum in
+   TreeStyleBook leaves a 16px gap before the tools; the opposite corner is clear too. */
+html[data-panel-design="arcane"] #contentSpellTree .tree-top-tools,
+html[data-panel-design="night-grimoire"] #contentSpellTree .tree-top-tools,
+html[data-panel-design="chalkboard"] #contentSpellTree .tree-top-tools,
+html[data-panel-design="skald"] #contentSpellTree .tree-top-tools {
+    left: 128px;
+    max-width: calc(100% - 256px);
+}
+
+#contentSpellTree .tree-top-tools .zoom-controls,
+#contentSpellTree #tree-school-tabs,
+#contentSpellTree #tree-trait-filter {
+    border: 0;
+    outline: 0;
+    box-shadow: none;
+    background: transparent;
+    border-radius: 0;
+    padding: 0;
+}
+
+#contentSpellTree .zoom-controls { gap: 4px; }
+#contentSpellTree .zoom-btn {
+    border: 0;
+    background: transparent;
+    color: var(--text-primary);
+    min-width: 28px;
+    min-height: 28px;
+}
+#contentSpellTree .zoom-btn:hover {
+    color: var(--text-bright);
+    background: var(--btn-bg-hover);
+}
+#contentSpellTree #zoom-level { color: var(--text-secondary); }
+#contentSpellTree #tree-school-tabs {
+    gap: 12px;
+    flex-wrap: wrap;
+    overflow: visible;
+    white-space: normal;
+}
+#contentSpellTree .school-tab {
+    background: transparent;
+    border: 0;
+    padding: 3px 0;
+    min-height: 24px;
+    font-size: 0.8em;
+    color: var(--text-primary);
+}
+#contentSpellTree .school-tab[data-school="Destruction"] { color: var(--panel-school-destruction); }
+#contentSpellTree .school-tab[data-school="Restoration"] { color: var(--panel-school-restoration); }
+#contentSpellTree .school-tab[data-school="Alteration"] { color: var(--panel-school-alteration); }
+#contentSpellTree .school-tab[data-school="Conjuration"] { color: var(--panel-school-conjuration); }
+#contentSpellTree .school-tab[data-school="Illusion"] { color: var(--panel-school-illusion); }
+#contentSpellTree .school-tab.active { text-decoration: underline; text-underline-offset: 3px; }
+#contentSpellTree .school-tab:hover { text-decoration: underline; }
+
+/* At 720p, the book's chapter headings reach the second tools row. One compact
+   row keeps both labels readable without covering the page in a toolbar box. */
+@media (max-height: 800px) and (min-width: 1100px) {
+    #contentSpellTree .tree-top-tools {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+    }
+}
+
+/* Arcane floats on parchment, so its tools use page ink, not cover lettering.
+   Keep these scoped to the tools: the footer remains on the dark cover. */
+html[data-panel-design="arcane"] #contentSpellTree .tree-top-tools {
+    --text-primary: var(--arcane-ink);
+    --text-secondary: var(--arcane-ink-soft);
+    --text-bright: var(--arcane-ink);
+    --panel-school-destruction: #8b342e;
+    --panel-school-restoration: #6d520d;
+    --panel-school-alteration: #2a5d36;
+    --panel-school-conjuration: #633d8d;
+    --panel-school-illusion: #2d557c;
+}
+html[data-panel-design="arcane"] #contentSpellTree .renderer-badge {
+    color: var(--arcane-ink-soft);
+    background: transparent;
+}
+html[data-panel-design="arcane"] #howto-tab {
+    /* This tab belongs to the dark cover, but is nested inside the ink page. */
+    color: var(--panel-cover-text);
+}
+
+/* A compact bottom row, with no second frame. Preserve new-spell/goal shortcuts.
+   Long translated warnings get their own line rather than ellipsis or clipping. */
+#contentSpellTree .tree-footer {
+    border: 0;
+    outline: none;
+    box-shadow: none;
+    background: transparent;
+    padding: 4px 14px;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+#contentSpellTree .footer-left { flex: 0 0 auto; }
+#contentSpellTree .footer-left,
+#contentSpellTree .footer-right {
+    /* The canvas extends under this row. Local backplates keep text legible on
+       Arcane parchment without adding a full-width footer band. */
+    background: var(--panel-bg-solid);
+    padding: 2px 5px;
+}
+#contentSpellTree .spell-count { color: var(--text-secondary); }
+#contentSpellTree .footer-center { margin: 0; min-width: 0; }
+#contentSpellTree .footer-right {
+    display: flex;
+    flex: 0 1 auto;
+    max-width: 55%;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    min-width: 0;
+}
+#contentSpellTree #tree-status-text {
+    display: block;
+    white-space: normal;
+    overflow-wrap: break-word;
+    text-align: right;
+}
+#contentSpellTree #tree-legend-btn {
+    width: 26px;
+    height: 26px;
+    flex: 0 0 26px;
+    border-radius: 50%;
+    border: 1px solid var(--panel-border);
+    background: var(--panel-bg-solid);
+    color: var(--text-primary);
+    font: inherit;
+    cursor: pointer;
+}
+#contentSpellTree #tree-legend-btn[aria-expanded="true"] { border-color: var(--accent-gold); }
+#contentSpellTree #tree-legend {
+    position: absolute;
+    right: 14px;
+    bottom: calc(100% + 6px);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 16px;
+    background: var(--panel-bg-solid);
+    border: 1px solid var(--panel-border);
+    color: var(--text-primary);
+    white-space: normal;
+    max-width: calc(100% - 28px);
+}
+#contentSpellTree #tree-legend[hidden] { display: none; }
+html[data-panel-design="arcane"] #contentSpellTree .tree-footer,
+html[data-panel-design="night-grimoire"] #contentSpellTree .tree-footer,
+html[data-panel-design="chalkboard"] #contentSpellTree .tree-footer,
+html[data-panel-design="skald"] #contentSpellTree .tree-footer {
+    left: 128px;
+    right: 128px;
+}
+#tree-legend-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+}
+
+/* The two scan columns are separated by space, never vertical framing. */
+#contentSpellScan .easy-panel-left,
+#contentSpellScan .easy-panel-right,
+#contentSpellScan .prm-split-left,
+#contentSpellScan .prm-split-right,
+#contentSpellScan .scan-stats-left,
+#contentSpellScan .scan-stats-right {
+    border-left: 0;
+    border-right: 0;
+}

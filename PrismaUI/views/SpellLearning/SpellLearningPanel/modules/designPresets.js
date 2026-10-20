@@ -263,6 +263,8 @@ var DesignPresets = {
         var key = (id || '').toLowerCase();
         var preset = all[key] || all[this.DEFAULT_ID];
         var appliedKey = all[key] ? key : this.DEFAULT_ID;
+        // Shared panel chrome needs the applied design (including fallback), not the saved request.
+        if (document.documentElement) document.documentElement.setAttribute('data-panel-design', appliedKey);
 
         TreeStyle.set(preset.tree || {});
         this._applyCss(preset);

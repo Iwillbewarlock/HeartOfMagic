@@ -106,6 +106,7 @@ var TreeNav = {
             tab.setAttribute('data-school', name);
             var full = self._schoolLabel(name);
             tab.textContent = self._schoolShort(name, full);
+            tab.setAttribute('aria-label', full);
             tab.title = full + ' - ' + ((typeof t === 'function') ? t('tree.schoolTabsHint') : 'Jump to school');
             tab.style.borderBottomColor = CanvasRenderer._getSchoolColor(name);
             tab.addEventListener('click', function() { self.focusSchool(name); });
@@ -154,7 +155,9 @@ var TreeNav = {
         if (!bar) return;
         var tabs = bar.querySelectorAll('.school-tab');
         for (var i = 0; i < tabs.length; i++) {
-            tabs[i].classList.toggle('active', !!schoolName && tabs[i].getAttribute('data-school') === schoolName);
+            var active = !!schoolName && tabs[i].getAttribute('data-school') === schoolName;
+            tabs[i].classList.toggle('active', active);
+            tabs[i].setAttribute('aria-pressed', active ? 'true' : 'false');
         }
     },
 
