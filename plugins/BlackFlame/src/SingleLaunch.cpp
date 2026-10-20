@@ -16,6 +16,7 @@
 #include "FormCopiesFillModel.h"
 #include "MainThreadQueue.h"
 #include "MenuWatch.h"
+#include "OldCopies.h"
 #include "SlotAssign.h"
 #include "SlotNotice.h"
 #include "TrackedMutex.h"
@@ -111,6 +112,7 @@ namespace BlackFlame::SingleLaunch
                 }
                 SlotNotice::Show(notice);
             }
+            OldCopies::Arm();  // its poll waits on the main thread until publication settled (OldCopies.h)
             NotifyProgress();
         }
     }

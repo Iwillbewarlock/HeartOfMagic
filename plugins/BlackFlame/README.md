@@ -79,6 +79,8 @@ too, all as UTF-8 text and sorted), and reused. Only a complete probe without fa
 | `launchBuilder` | `true` | With `singleLaunch`: start the builder at kDataLoaded (`false`: only copies already built are published) |
 | `slotPreflight` | `false` | With `singleLaunch`: at kPreLoadGame read the save's co-save from disk and refill the slots whose pairs differ (their data only, no SetModel) before the engine reads the save. Off: only logged (the message's save name format and refilling at that point are unverified in game). On or off, a co-save that is there but cannot be read, or whose BFSL record does not read, closes every slot gate for the session (log and HUD line); a save without a Black Flame block (made before the mod or the slot route) is normal |
 | `slotTxst` | `false` | With `singleLaunch`: compute TXST keys, ask the builder for TXST copies in request v5, and publish the TXST slots like the other members of their groups (W1 from the ledger, W2 as their lines come): TX00 / TX03 set to the builder's grey copies (`SlotTxst.h`), the gate opened, and the PROJ / IPCT copies' decal links then point at the slot. Off, no TXST build is requested and the decals keep the source's sets |
+| `cleanOldCopies` | `true` | With `singleLaunch`: once a session, at the main menu after publication settled (the ledger read whole, no ledger write of the session failed on main or the mirror, the builder ended and its lines read, the ledger written, no load yet), remove the `copies\<key16>\` folders under Data's and staging's `meshes|textures\heartofmagic\blackflame\copies\` that nothing keeps: kept are every key a ledger object (published or previous, its file deps, a TXST's texture strings) of this ledger or of any ledger mirror in the log folder stands on, every key of every ledger epoch's keep set file (`staging\keepsets\<epoch>.json`, so MO2 profiles that share one mirror name still keep theirs; a registered epoch without one stops the cleanup), what the slots were published with, and every kept key and this session's request keys with what their progress lines need (`OldCopies.h`, `OldCopiesRule.h`, `OldCopiesKeepsets.h`). Only 16-lower-case-hex folders holding plain files, no links on the way down from Data or staging, older than `oldCopiesGraceDays`, the staging folder before the Data folder, at most 2000 a session, stopped by a load; under MO2 a Data folder only when its files' real paths are under the overwrite folder (else counted only). One summary line `old copies: ...`. `false`: the same counts logged as a dry run, nothing removed |
+| `oldCopiesGraceDays` | `14` | With `cleanOldCopies`: a key folder whose newest file (Data or staging) was written within this many days is kept (1..3650; 0 or another value keeps the default, logged: a grace of at least a day) |
 | `selfTestSlots` | `false` | With `selfTest` and `singleLaunch`: the self-test steps T0-slots and T0-W2 |
 | `tint`, `tintAdd` | `0.6`, `0.9` | With `singleLaunch`: the copies' base colour scales (0..2; another value keeps the default, logged), quantised to 6 decimals into the keys and request.json v5 (the builder takes them only from there) |
 | `paletteMode` | `"derived"` | With `singleLaunch`: `"derived"` or `"godskin"`, into the keys and request.json v5 |
@@ -88,6 +90,27 @@ too, all as UTF-8 text and sorted), and reused. Only a complete probe without fa
 
 Retired keys (C6): `projectile`, `explosion`, `hazard`, `forcePalette`, `particleColors`, `tintScale` (and the older
 `burnMode`). An old json keeps loading; each is logged once as `retired, ignored` with the reason, never as an unknown key.
+
+**Old copies and other MO2 profiles** (`cleanOldCopies`). Under MO2 every profile with its own saves writes one ledger
+mirror name (`HoMBF_slots.<8 hex>.json` hashes the virtual `__MO_Saves` path), so a profile's cleanup cannot see another's
+keys from the mirror alone; each ledger epoch therefore keeps `staging\keepsets\<epoch>.json`, listed in
+`staging\keepsets\registry.json`. A profile that ran an older build has neither: at each start, before the session's
+first ledger or mirror write, every mirror in the log folder whose epoch is not this ledger's is registered and its keys
+merged into that epoch's keep set file (`OldCopies::NoteSessionStart`, `OldCopiesKeepsets.h` `AdoptMirrors`), so its
+copies are protected from then on. A profile that never ran with a mirror visible to this one (its mirror was replaced
+before any session of this build read it) is protected only by `oldCopiesGraceDays`. What the cleanup then removes of its
+copies is rebuilt, never broken: at that profile's next start a slot whose ledger object is not in Data with its
+recorded size and fnv64 is not used (`ObjectIntact`, `src/FormCopiesFillModel.cpp:86`, the Data check at `:91`; the
+caller at `:173` logs "is not used": that object is not published), and the builder makes the copy again.
+
+**A cleanup stopped by a keep set** (`old copies: not cleaned this session: ledger epoch <hex> is registered but its keep
+set file is missing`, or `... the keep set '...' does not read`, or `the registry '...' does not read`). Nothing is
+removed while it says so. To recover (the game closed): delete `staging\keepsets\registry.json`, and the named
+`<epoch>.json` when that one does not read. What stays protected: every other keep set file (each is read whether or not
+the registry lists it), every ledger mirror in the log folder, this profile's ledger, and the grace. This session's epoch
+is registered again at its next ledger write, and any epoch whose mirror is still in the log folder is adopted again at
+the next start. Only an epoch with no mirror left and its keep set file deleted loses its keys; its copies are then
+rebuilt as above.
 
 ## How it works
 

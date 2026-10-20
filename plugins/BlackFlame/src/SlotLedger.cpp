@@ -6,6 +6,7 @@
 
 #include "Config.h"
 #include "CoSaveFile.h"
+#include "OldCopies.h"
 #include "SlotLedgerFiles.h"
 #include "SlotNotice.h"
 #include "TrackedMutex.h"
@@ -42,6 +43,9 @@ namespace BlackFlame::SlotLedger
         LoadedSave g_loaded;
         std::atomic<std::uint32_t> g_session{ 0 };
         bool g_rotated = false;  // the backups were rolled this session (once: five backups are five sessions)
+        // another epoch's mirror not adopted at start (OldCopies::NoteSessionStart false): the mirror is left as it is this
+        // session, so the next one tries again; a save without it counts as failed, so no cleanup runs (Codex final review)
+        bool g_holdMirror = false;
         std::function<void(const std::vector<Mismatch>&, MismatchWhen)> g_handler;
 
         std::string Text(const fs::path& a_path) { return SlotLedgerFiles::PathText(a_path); }
@@ -201,10 +205,21 @@ namespace BlackFlame::SlotLedger
             ++g_ledger.version;
             std::string mainWhy;
             std::string mirrorWhy;
-            const bool ok = SlotLedgerFiles::SaveAll(g_ledger, g_status.main, g_status.mirror, mainWhy, mirrorWhy, !g_rotated);
+            bool mirrorOk = false;
+            const bool ok = SlotLedgerFiles::SaveAll(g_ledger, g_status.main, g_holdMirror ? std::filesystem::path() : g_status.mirror,
+                mainWhy, mirrorWhy, !g_rotated, &mirrorOk);
+            if (g_holdMirror) {
+                mirrorWhy = "mirror held: another ledger's mirror was not adopted at start";
+            }
             g_rotated = true;  // review agy 16 #4: one roll a session even when main's write failed after it (no second roll)
             if (!ok) {
                 --g_ledger.version;  // what a BFSL records next is a version some file holds
+            }
+            // review Gemini 1: a write counts for the old-copies cleanup only when main and the mirror both took it (other
+            // profiles' cleanups read the mirror); the return stays main's
+            ++(ok && mirrorOk ? g_status.saves : g_status.saveFailures);
+            if (ok) {
+                OldCopies::NoteLedgerWritten(g_ledger);  // this epoch's keep set file and the registry (OldCopiesKeepsets.h)
             }
             if (ok) {
                 logger::info("BlackFlame: slots: ledger version {} written ({}): {} slots{}{}", g_ledger.version, a_reason,
@@ -393,6 +408,8 @@ namespace BlackFlame::SlotLedger
         }
         ++g_ledger.sessions;
         g_session.store(g_ledger.sessions);
+        // review round 2 (Codex P1): another epoch's mirror is adopted before this session's first write can replace it
+        g_holdMirror = !OldCopies::NoteSessionStart(g_ledger.epoch);
         g_status.available = true;
         logger::info("BlackFlame: slots: ledger in use: {} slots, epoch {:016x}, version {}, session {}{}{}; save folder '{}', mirror "
                      "'{}', {} ms", g_ledger.entries.size(), g_ledger.epoch, g_ledger.version, g_ledger.sessions,

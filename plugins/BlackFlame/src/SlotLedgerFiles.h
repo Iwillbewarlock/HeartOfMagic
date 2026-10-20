@@ -234,10 +234,14 @@ namespace BlackFlame::SlotLedgerFiles
 
     /// Rolls the backups (.4 -> .5 ... main -> .1, main copied) when a_rotate, writes main, then the mirror (a_mirror may be
     /// empty). The DLL rotates once a session, so five backups are five sessions, not five writes of one. a_mainWhy /
-    /// a_mirrorWhy say what failed; the return is main's result (the mirror is best effort)
+    /// a_mirrorWhy say what failed; the return is main's result (the mirror is best effort). a_mirrorOk (when given): the
+    /// mirror was written (false with no mirror path)
     [[nodiscard]] inline bool SaveAll(const Ledger& a_ledger, const fs::path& a_main, const fs::path& a_mirror,
-        std::string& a_mainWhy, std::string& a_mirrorWhy, bool a_rotate = true)
+        std::string& a_mainWhy, std::string& a_mirrorWhy, bool a_rotate = true, bool* a_mirrorOk = nullptr)
     {
+        if (a_mirrorOk) {
+            *a_mirrorOk = false;
+        }
         std::string text;
         try {
             text = SlotLedgerModel::ToJson(a_ledger).dump(kJsonIndent) + "\n";
@@ -282,7 +286,11 @@ namespace BlackFlame::SlotLedgerFiles
         const bool mainOk = !mainRefused && WriteReplacing(a_main, text, writeWhy);
         a_mainWhy += writeWhy;
         if (!a_mirror.empty()) {
-            if (!WriteReplacing(a_mirror, text, a_mirrorWhy)) {
+            const bool mirrorOk = WriteReplacing(a_mirror, text, a_mirrorWhy);
+            if (a_mirrorOk) {
+                *a_mirrorOk = mirrorOk;
+            }
+            if (!mirrorOk) {
                 a_mirrorWhy = "mirror: " + a_mirrorWhy;
             } else if (!mainOk) {
                 a_mirrorWhy = "the mirror was written";  // the log names which copy holds this version

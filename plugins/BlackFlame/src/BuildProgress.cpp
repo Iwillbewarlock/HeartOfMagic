@@ -4,11 +4,11 @@
 
 #include "BuildProgress.h"
 
+#include "BuildProgressCopy.h"
 #include "BuilderLauncher.h"
 #include "DataFiles.h"
 #include "FileIndex.h"
 #include "MenuWatch.h"
-#include "NifDump.h"
 #include "ProgressTail.h"
 #include "SlotLedger.h"
 #include "TrackedMutex.h"
@@ -40,8 +40,6 @@ namespace BlackFlame::BuildProgress
         constexpr auto kPoll = std::chrono::milliseconds(500);
         constexpr std::size_t kReadChunk = 1 << 16;
         constexpr std::size_t kMaxLoggedErrors = 20;
-        constexpr const char* kDeferredName = "deferred-copies.txt";  // path, bytes, fnv64 of the copies renamed in next start
-        constexpr const char* kNextSuffix = ".next";
 
         using PathHash = std::pair<std::string, std::uint64_t>;  // a copy path and the fnv64 it must hold
 
@@ -58,6 +56,7 @@ namespace BlackFlame::BuildProgress
             Stats stats;
             ProgressTail::Tail tail;
             std::size_t errorsLogged = 0;
+            std::size_t copyWarnings = 0;  // "not copied into Data" lines logged (at most kMaxLoggedErrors)
         };
         Shared& The()
         {
@@ -181,89 +180,6 @@ namespace BlackFlame::BuildProgress
             return Read::kRead;
         }
 
-        fs::path DeferredList()
-        {
-            return StagingFolder().parent_path() / kDeferredName;
-        }
-
-        // staging -> Data through the VFS: the staging bytes checked against the line, a temporary file, a replacing rename,
-        // the Data file read back. Copies, never moves (the builder's compaction and cache need the staging files)
-        bool CopyIn(const CC::ProgressLine& a_line, bool& a_deferred, std::string& a_why)
-        {
-            const auto data = FileIndex::DataFolder();
-            if (!data || !DataPathRule::ParseCopyPath(a_line.path)) {
-                a_why = "no Data folder, or not a copy path";
-                return false;
-            }
-            std::ifstream in(StagingFolder() / fs::path(a_line.path), std::ios::binary);
-            if (!in) {
-                a_why = "not in staging";
-                return false;
-            }
-            std::vector<char> bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-            if (bytes.size() != a_line.bytes || NifDump::Fnv64(bytes.data(), bytes.size()) != a_line.fnv64) {
-                a_why = "the staging file is not the line's (size or fnv64)";
-                return false;
-            }
-            const auto target = *data / fs::path(a_line.path);
-            std::error_code ec;
-            fs::create_directories(target.parent_path(), ec);
-            if (ec) {
-                a_why = "its Data folder could not be made: " + ec.message();
-                return false;
-            }
-            auto temp = target;
-            temp += ".tmp";
-            {
-                std::ofstream out(temp, std::ios::binary | std::ios::trunc);
-                out.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
-                out.flush();
-                if (!out) {
-                    a_why = "writing the temporary file failed";
-                    out.close();
-                    fs::remove(temp, ec);
-                    return false;
-                }
-            }
-            if (!MenuWatch::PublishOpen()) {  // closed while the bytes were written: nothing enters Data during a load
-                a_why = "the publish window closed during the copy";
-                fs::remove(temp, ec);
-                return false;
-            }
-            // review N3: a file there now is neither the line's nor a published build of its key (Settle: Matches, then
-            // KeepPublished): it is never replaced while the game runs. The copy waits beside it as <path>.next and the next
-            // start renames it in before anything uses the path (ApplyDeferred). A damaged or cut file, or (review round 1 D1:
-            // GPU bytes differ from build to build, so one key no longer gives one file) a build of the key no ledger object
-            // stands on
-            if (fs::exists(target, ec) || ec) {
-                auto next = target;
-                next += kNextSuffix;
-                if (!::MoveFileExW(temp.c_str(), next.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
-                    a_why = std::format("the deferred copy could not be put beside it (Windows error {})", ::GetLastError());
-                    fs::remove(temp, ec);
-                    return false;
-                }
-                std::ofstream list(DeferredList(), std::ios::binary | std::ios::app);
-                list << a_line.path << '\t' << a_line.bytes << '\t' << CC::Hex16(a_line.fnv64) << '\n';
-                list.flush();
-                a_deferred = true;
-                a_why = list ? "another file is at its path: the copy is renamed in at the next start" :
-                               "another file is at its path, and the deferred list could not be written";
-                return false;
-            }
-            if (!::MoveFileExW(temp.c_str(), target.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
-                a_why = std::format("the rename failed (Windows error {})", ::GetLastError());
-                fs::remove(temp, ec);
-                return false;
-            }
-            DataFiles::Forget(a_line.path);
-            if (!DataFiles::Matches(a_line.path, a_line.bytes, a_line.fnv64)) {
-                a_why = "the Data file does not read back as the line's";
-                return false;
-            }
-            return true;
-        }
-
         // review round 1 D1: with the GPU encoder a rebuild of a key (its staging file lost, another encoder mix) gives other
         // bytes at the same copy path. When the Data file there is one a published object of the ledger stands on, it is kept,
         // not deferred (ApplyDeferred would replace it at the next start and every slot on it would show its source for that
@@ -356,8 +272,9 @@ namespace BlackFlame::BuildProgress
                         }
                         if (deferred) {
                             logger::info("BlackFlame: slots: '{}': {}", line.path, why);
-                        } else {
-                            logger::warn("BlackFlame: slots: '{}' not copied into Data: {}", line.path, why);
+                        } else if (s.copyWarnings++ < kMaxLoggedErrors) {
+                            logger::warn("BlackFlame: slots: '{}' not copied into Data: {}{}", line.path, why,
+                                s.copyWarnings == kMaxLoggedErrors ? " (further failed copies are counted, not logged)" : "");
                         }
                     }
                 }
@@ -427,6 +344,44 @@ namespace BlackFlame::BuildProgress
             s.stats.inData = inData;
         }
 
+        // ReadAtStart, after Settle(false) (reviewer round 1 of the old-copies cleanup): a staging line whose file is neither
+        // in Data nor in staging any more (the cleanup removed its key folders, or staging was cleared) is dropped from the
+        // table, as if it had no line: copying it would fail once a line, and its copyFailed entry would pin the key kFailed
+        // when the builder writes the same line again this session (Take keeps a same line's state). A line whose staging
+        // file cannot be looked at stays. The builder's compaction drops such lines from the file at its start
+        std::size_t DropUnstaged()
+        {
+            auto& s = The();
+            std::vector<std::pair<std::uint64_t, std::string>> candidates;
+            {
+                std::lock_guard lock(s.mutex);
+                for (const auto& [key, object] : s.objects) {
+                    if (object.state == State::kStaging && !object.line.path.empty() &&
+                        !s.inData.contains({ object.line.path, object.line.fnv64 })) {
+                        candidates.emplace_back(key, object.line.path);
+                    }
+                }
+            }
+            std::size_t dropped = 0;
+            for (const auto& [key, path] : candidates) {
+                std::error_code ec;
+                if (fs::exists(StagingFolder() / fs::path(path), ec) || ec) {
+                    continue;
+                }
+                std::lock_guard lock(s.mutex);
+                if (const auto it = s.objects.find(key); it != s.objects.end() && it->second.state == State::kStaging &&
+                                                         it->second.line.path == path) {
+                    s.objects.erase(it);
+                    --s.stats.lines;
+                    ++dropped;
+                }
+            }
+            if (dropped > 0) {
+                g_generation.fetch_add(1);
+            }
+            return dropped;
+        }
+
         void Worker()
         {
             std::size_t failures = 0;
@@ -467,11 +422,13 @@ namespace BlackFlame::BuildProgress
     void ReadAtStart()
     {
         const auto start = std::chrono::steady_clock::now();
+        std::size_t dropped = 0;
         try {
             if (ReadNew() == Read::kFailed) {  // to its end, before the builder starts (it compacts only at its own start)
                 logger::warn("BlackFlame: slots: progress.jsonl could not be read at the start - the worker tries again");
             }
             Settle(false);   // what earlier sessions copied into Data counts now; copying is the worker's, after W1
+            dropped = DropUnstaged();
         } catch (const std::exception& e) {
             logger::error("BlackFlame: slots: reading progress.jsonl at the start failed ({}) - the worker tries again", e.what());
         } catch (...) {
@@ -479,8 +436,8 @@ namespace BlackFlame::BuildProgress
                           "worker tries again");
         }
         const auto stats = GetStats();
-        logger::info("BlackFlame: slots: progress.jsonl at the start: {} keys ({} in Data), {} lines refused, {} ms", stats.lines,
-            stats.inData, stats.badLines,
+        logger::info("BlackFlame: slots: progress.jsonl at the start: {} keys ({} in Data), {} lines refused, {} dropped (their "
+                     "file neither in Data nor in staging), {} ms", stats.lines, stats.inData, stats.badLines, dropped,
             std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count());
     }
 

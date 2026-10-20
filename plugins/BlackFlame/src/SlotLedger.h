@@ -56,6 +56,8 @@ namespace BlackFlame::SlotLedger
         std::size_t coSavesBad = 0;       // co-saves that could not be read whole
         std::vector<std::string> conflicts;
         bool restoredFromBackup = false;  // main was missing or refused, a backup or the mirror gave the ledger
+        std::size_t saves = 0;            // ledger writes this session that main and the mirror both took (Save)
+        std::size_t saveFailures = 0;     // and those that failed (the old-copies cleanup runs only with none, OldCopies.h)
     };
 
     /// kDataLoaded (singleLaunch): the paths, the files, the total-loss union; the session counter bumped. False: no slots

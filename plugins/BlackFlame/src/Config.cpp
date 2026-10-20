@@ -1,5 +1,7 @@
 #include "Config.h"
 
+#include "OldCopiesRule.h"
+
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
@@ -59,6 +61,7 @@ namespace BlackFlame
             BoolKey{ "slotPreflight", &Config::slotPreflight },
             BoolKey{ "selfTestSlots", &Config::selfTestSlots },
             BoolKey{ "slotTxst", &Config::slotTxst },
+            BoolKey{ "cleanOldCopies", &Config::cleanOldCopies },
             BoolKey{ "greyCorpseShaders", &Config::greyCorpseShaders },
         };
 
@@ -84,7 +87,7 @@ namespace BlackFlame
         {
             if (key == "lightColor" || key == "selfTestDelaySeconds" || key == "devAutoLoad" || key == "copyModelProbe" ||
                 key == "tint" || key == "tintAdd" || key == "paletteMode" || key == "builderJobMemoryMiB" ||
-                key == "corpseWindowGameSeconds") {
+                key == "corpseWindowGameSeconds" || key == "oldCopiesGraceDays") {
                 return true;
             }
             for (const auto& b : kBoolKeys) {
@@ -211,7 +214,7 @@ namespace BlackFlame
             a_out = it->get<double>();
         }
 
-        // Single launch: tint, tintAdd, paletteMode, builderJobMemoryMiB
+        // Single launch: tint, tintAdd, paletteMode, builderJobMemoryMiB, oldCopiesGraceDays
         void ReadSingleLaunch(const nlohmann::json& j, Config& out)
         {
             ReadTint(j, "tint", out.tint);
@@ -232,6 +235,14 @@ namespace BlackFlame
                         it->dump(), kMinJobMemoryMiB, kMaxJobMemoryMiB, out.builderJobMemoryMiB);
                 } else {
                     out.builderJobMemoryMiB = static_cast<std::uint32_t>(it->get<std::uint64_t>());
+                }
+            }
+            if (const auto it = j.find("oldCopiesGraceDays"); it != j.end()) {
+                if (!it->is_number_unsigned() || !OldCopiesRule::GraceDaysValid(it->get<std::uint64_t>())) {
+                    logger::warn("BlackFlame: config 'oldCopiesGraceDays' {} is not a whole number in {}..{} - keeping {}", it->dump(),
+                        OldCopiesRule::kMinGraceDays, OldCopiesRule::kMaxGraceDays, out.oldCopiesGraceDays);
+                } else {
+                    out.oldCopiesGraceDays = static_cast<std::uint32_t>(it->get<std::uint64_t>());
                 }
             }
         }
@@ -292,9 +303,10 @@ namespace BlackFlame
                 g_config.copyHitArt, ProbeModeName(g_config.copyModelProbe), g_config.copyModelProbeAlways, g_config.copyCastingArt, g_config.refreshCastingArt, g_config.copyHazardCreate, g_config.copyPlaced, g_config.writeRequest, g_config.testerMode, g_config.devAutoLoad, g_config.devAutoE3, g_config.devAutoQuit, g_config.selfTestDelaySeconds,
                 g_config.lightColor.red, g_config.lightColor.green, g_config.lightColor.blue);
             logger::info("BlackFlame: config singleLaunch={} launchBuilder={} slotPreflight={} selfTestSlots={} slotTxst={} tint={} "
-                         "tintAdd={} paletteMode={} builderJobMemoryMiB={}", g_config.singleLaunch, g_config.launchBuilder,
-                g_config.slotPreflight, g_config.selfTestSlots, g_config.slotTxst, g_config.tint, g_config.tintAdd,
-                g_config.paletteGodskin ? "godskin" : "derived", g_config.builderJobMemoryMiB);
+                         "tintAdd={} paletteMode={} builderJobMemoryMiB={} cleanOldCopies={} oldCopiesGraceDays={}", g_config.singleLaunch,
+                g_config.launchBuilder, g_config.slotPreflight, g_config.selfTestSlots, g_config.slotTxst, g_config.tint,
+                g_config.tintAdd, g_config.paletteGodskin ? "godskin" : "derived", g_config.builderJobMemoryMiB, g_config.cleanOldCopies,
+                g_config.oldCopiesGraceDays);
             logger::info("BlackFlame: config greyCorpseShaders={} corpseWindowGameSeconds={}", g_config.greyCorpseShaders,
                 g_config.corpseWindowGameSeconds);
         }
