@@ -234,6 +234,7 @@ bool ToxGame::TogglePower(PowerPath a_path)
         ++g_repeats;
         logger::info("Toxicology: power used ({}): {:.3f} s after the last toggle - the same use, dropped as a repeat",
             PowerPathName(a_path), now - *g_lastToggleAt);
+        FlushLog();  // rare and user-driven: a crash later must not take the line with it (2026-10-20 run)
         return false;
     }
     g_lastToggleAt = now;

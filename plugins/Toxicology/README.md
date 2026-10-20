@@ -256,7 +256,7 @@ DLL. As always, test removal on a separate save.
   check runs - the tome must be given once and not a second time, then the ability and tomes are put back; the
   quest stays at stage 200 and the reward stays given, so the save is changed for good), then the power (step
   `4b power`: its records; the power cast on the player through the player's instant caster must flip the ability,
-  once per cast, and a second cast 1.5 s later (past the 1 s repeat window) must flip it back - a FAIL names which of
+  once per cast, and a second cast 0.75 s later (past the 0.25 s repeat window) must flip it back - a FAIL names which of
   the two events arrived; the instant caster sends no `TESSpellCastEvent`, so usually only the effect apply event
   arrives and the repeat window is not exercised (an INFO line says so; a real Z use is checked from the log), and
   when both arrive the second must be dropped as a repeat; the 1.0 save migration on three ability / power states;

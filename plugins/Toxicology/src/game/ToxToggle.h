@@ -39,9 +39,10 @@
 
 namespace ToxGame
 {
-    // The power's charge time is 0.5 s (ESL.md), so the two events of one real cast may be further apart than
-    // a short window; a deliberate second use within 1 s is not possible with the power's cast animation
-    inline constexpr double kRepeatToggleSeconds = 1.0;
+    // In game (2026-10-20, AE 1.6.1170, a real Z cast) the two events of one cast came 3 ms apart (apply event
+    // first). The power's charge time is 0.5 s (ESL.md), so two real uses are at least 0.5 s apart: a window
+    // well under that keeps a quick second use from being dropped (1.0 s could swallow one)
+    inline constexpr double kRepeatToggleSeconds = 0.25;
 
     // Which event queued a toggle
     enum class PowerPath
