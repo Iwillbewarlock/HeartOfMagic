@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## Heart of Magic Librarian 1.6.0
 
 ### New
 
@@ -57,7 +57,8 @@
   edits Mysticism's screen-shake effect: the effect's script places the explosion, and only the patch changes that.
 - **The spell card shows "Weakened (N%)" for a spell learned early and not yet mastered**, with the power it
   casts at for its current XP. It never showed before. Once the spell is mastered the badge goes away.
-- **The spell card's Optional requirements show how many are needed again** ("need 2 of 3"), and in edit mode
+- **The spell card's Optional requirements show how many are needed again** (now counted on what is still
+  missing, see the spell card above), and in edit mode
   the box to change that number is back; the LOCK badge next to Locks shows again. The panel's text setup at
   start had been erasing them.
 - **A tree imported or edited by hand with formIds written without "0x" no longer mixes spells up.** Learning,
