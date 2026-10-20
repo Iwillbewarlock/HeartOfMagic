@@ -101,6 +101,11 @@ var PanelAuditTest = {
         this.check(/flex-wrap:\s*wrap/.test(rows), 'a settings row wraps its control under its text when both do not fit');
         var info = this._rule(css, /\.setting-row:not\(\.slider-row\) > \.setting-info,/);
         this.check(/flex:\s*1 1 12em/.test(info) && /min-width:\s*0/.test(info), 'the row text takes the room and may shrink (no fixed max-content width)');
+        // Item 4: in a three-up row the text stacks over its switch, so a flex basis there is a height
+        var triple = this._rule(css, /#contentSettings \.setting-triple > \.setting-row > \.setting-info$/);
+        this.check(/flex:\s*0 0 auto/.test(triple), 'a three-up row\'s text takes no 12em height (its switches sat far below their labels at 2560 x 1440)');
+        this.check(/\.setting-triple > \.setting-row \{[^}]*flex-direction: column/.test(this._file('../styles-skyrim.css')),
+            'three-up rows still stack (else the rule above is moot)');
         var ctl = this._rule(css, /\.setting-row:not\(\.slider-row\) > :not\(\.setting-info\)$/);
         this.check(/flex:\s*0 0 auto/.test(ctl), 'a row\'s control keeps its size (a segmented switch is never cut)');
         var pair = this._rule(css, /#contentSettings \.setting-pair \.setting-desc$/);

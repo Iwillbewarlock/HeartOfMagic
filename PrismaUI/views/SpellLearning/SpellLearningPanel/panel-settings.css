@@ -164,6 +164,10 @@
     max-width: 100%;
 }
 
+/* A three-up row stacks its text over its switch (styles-skyrim.css): a 12em flex basis there is a height, which
+   pushed the switches far below their labels (seen at 2560 x 1440, 2.0 audit item 4) */
+#contentSettings .setting-triple > .setting-row > .setting-info { flex: 0 0 auto; }
+
 #contentSettings .setting-row-inline .inline-controls {
     flex: 1 1 auto;
     flex-wrap: wrap;

@@ -1340,6 +1340,16 @@ name is in the card's ink with the colour on its dot, and Arcane's school labels
 colours are inks for parchment). Arcane's canvas hint sits on solid leather. The table: `contrast-audit.md` of the
 audit (outside the repo).
 
+**Small and large screens.** The same overflow check at 1280 x 720, 1280 x 800 and 2560 x 1440, the panel at the game's
+900 x 700 default (held to 90% of the height) and full screen, in Classic and the designs with the most ornament
+(Arcane and Night Grimoire: the most page decorations; Skald too, for its knotwork): TREE with the card in both
+places, SCAN's Complex page after a scan and every Settings category at its top and foot. Nothing cut, overlapping
+or out of reach after item 1's fixes (54 of the 264 scenes had something before them, all in Settings: the Early
+Learning descriptions cut or off the panel, the power steps' units spilling); one fault they had made themselves was found by eye at 2560: a three-up
+settings row stacks its text over its switch, so the rows' 12em flex basis became a height there (fixed in
+`panel-settings.css`). The default panel stays 900 x 700 at 2560 x 1440 (small, not broken: it can be resized or
+made full screen).
+
 Tests: `panelAuditTest.js`.
 
 ## New spells and next goals (2026-10-02)
