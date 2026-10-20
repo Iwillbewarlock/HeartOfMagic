@@ -81,13 +81,25 @@
 
 /* Every state's badge a filled box like Locked, Available and Weakened: Learning had no rule and
    Unlocked (mastered) a background token no theme defines, so both showed as bare words (2.0 audit,
-   every state on one page). The tree's own learning colours; a design's rules come later and win. */
-.state-badge.learning {
+   every state on one page). The words in the card's ink, the state's colour on the box's left edge:
+   the learning colour is the player's pick (Settings, applyLearningColor) and on the dark books' pages
+   it read under 3:1 as text. Learning in the learning colour, Unlocked (mastered) in gold. The hover
+   card's state tag the same. A design's rules come later and win (Arcane's inks). */
+.state-badge.learning,
+.tooltip-state.learning {
     background: var(--node-learning-bg, rgba(120, 144, 168, 0.2));
-    color: var(--learning-color, #7890A8);
+    color: var(--text-primary, #C8C8B8);
+    border-left: 3px solid var(--learning-color, #7890A8);
 }
 
-.state-badge.unlocked { background: var(--node-unlocked-bg, var(--node-learning-bg, rgba(120, 144, 168, 0.2))); }
+.state-badge.unlocked,
+.tooltip-state.unlocked {
+    background: var(--btn-bg, rgba(255, 255, 255, 0.06));
+    color: var(--text-primary, #C8C8B8);
+    border-left: 3px solid var(--accent-gold, #B8A878);
+}
+
+.tooltip-state.locked { color: var(--text-secondary, #9A9A8A); }
 
 .spell-state-bar {
     height: 3px;
@@ -162,7 +174,7 @@ span.spell-need-chip {
     display: inline-block;
     margin-right: 5px;
     padding: 0 4px;
-    font-size: 0.86em;      /* 11px in the 12.8px chip: nothing pressable under 11px (2.0 audit) */
+    font-size: 0.86em;      /* 11px in the 12.8px chip at Font Size 1.0x: nothing pressable under 11px (2.0 audit) */
     letter-spacing: 0.08em;
     font-style: normal;
     color: var(--accent-gold, #B8A878);

@@ -699,7 +699,6 @@ function renderPowerSteps() {
     var masteredRow = document.createElement('div');
     // Its figures span the input and unit columns of the rows above (panel-settings.css)
     masteredRow.className = 'power-step-row power-step-final';
-    masteredRow.style.opacity = '0.7';
     
     var masteredLabel = document.createElement('span');
     masteredLabel.className = 'power-step-label';

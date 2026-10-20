@@ -25,8 +25,8 @@ var SettingsCategories = {
     PRESET_CATEGORIES: ['learning', 'tomes'],
     /** Narrower than this (px), the Settings page puts its category list on top as a row */
     NARROW_PX: 720,
-    /** Narrower than this (px), the side-by-side settings blocks and pairs go one under another
-     *  (the 900 px default panel: two columns of long German or Russian labels cut their rows) */
+    /** Narrower than this (px at Font Size 1.0x), the side-by-side settings blocks and pairs go one under
+     *  another (the 900 px default panel: two columns of long German or Russian labels cut their rows) */
     ONE_COLUMN_PX: 1100,
 
     current: 'display',
@@ -59,6 +59,9 @@ var SettingsCategories = {
         });
         this.show(this.current);
         this.layout();
+        // A new Font Size is applied on the slider's release (settingsPanel.js); lay the page out for it after
+        var font = this._doc().getElementById('fontSizeSlider');
+        if (font) font.addEventListener('change', function() { setTimeout(function() { self.layout(); }, 0); });
     },
 
     /**
@@ -111,7 +114,9 @@ var SettingsCategories = {
     layout: function() {
         var content = this._content();
         if (!content || !content.classList.contains('active')) return;
-        var width = content.clientWidth || 0;
+        // Both widths are at Font Size 1.0x: a bigger font needs more room (the text grows, the page does not)
+        var scale = (typeof settings !== 'undefined' && settings && settings.fontSizeMultiplier > 0) ? settings.fontSizeMultiplier : 1;
+        var width = (content.clientWidth || 0) / scale;
         content.classList.toggle('settings-narrow', width > 0 && width < this.NARROW_PX);
         content.classList.toggle('settings-onecol', width > 0 && width < this.ONE_COLUMN_PX);
     },

@@ -71,7 +71,7 @@ var PanelAuditTest = {
     // ======================================================================= item 1
 
     _oneColumn: function() {
-        var vm = require('vm'), box = { window: {}, console: { log: function() {} } };
+        var vm = require('vm'), box = { window: {}, console: { log: function() {} }, settings: { fontSizeMultiplier: 1 } };
         vm.createContext(box);
         vm.runInContext(this._file('settingsCategories.js'), box);
         var S = box.SettingsCategories;
@@ -90,6 +90,10 @@ var PanelAuditTest = {
         this.check(!unset[0] && !unset[1], 'a page not laid out yet (width 0) gets neither');
         var edge = at(S.ONE_COLUMN_PX - 1), over = at(S.ONE_COLUMN_PX);
         this.check(edge[1] && !over[1], 'one column below ONE_COLUMN_PX only');
+        box.settings.fontSizeMultiplier = 1.5;
+        var big = at(1490);
+        box.settings.fontSizeMultiplier = 1;
+        this.check(!big[0] && big[1], 'Font Size 1.5x: the full-size page (1490 px = 993 px of 1.0x text) goes to one column');
         var css = this._file('../panel-settings.css');
         var onecol = this._rule(css, /settings-onecol \.settings-split[\s\S]*settings-onecol \.setting-pair/);
         this.check(/grid-template-columns:\s*minmax\(0,\s*1fr\)/.test(onecol), 'panel-settings.css: .settings-onecol puts the split blocks and the pairs in one column');
@@ -126,8 +130,10 @@ var PanelAuditTest = {
         var body = src.slice(start, end === -1 ? undefined : end);
         this.check(/masteredRow\.className = 'power-step-row power-step-final'/.test(body), 'the last power step row is marked power-step-final');
         this.check(!/spacer/.test(body) && !/style\.marginLeft/.test(body), 'no spacer cells or pushed-in figures (they ran into the next column)');
+        this.check(!/masteredRow\.style\.opacity/.test(body), 'the last row is not faded (its quiet figures read 3:1 at 70%)');
         var css = this._file('../panel-settings.css');
-        this.check(/\.power-step-row\.power-step-final \.power-step-unit \{ grid-column: span 2; \}/.test(css), 'its figures span the input and unit columns');
+        this.check(/\.power-step-row\.power-step-final \.power-step-unit \{ grid-column: span 2; color: var\(--text-secondary\); \}/.test(css),
+            'its figures span the input and unit columns, in the secondary ink (not faded quiet ink)');
         this.check(/minmax\(5\.1em, max-content\) 3\.6em minmax\(5\.1em, max-content\)/.test(css), 'the unit columns grow to their longest word');
     },
 
@@ -163,15 +169,19 @@ PanelAuditTest._badges = function() {
     var css = this._file('../styles-skyrim.css') + '\n' + this._file('../panel-card.css');
     var self = this;
     ['locked', 'available', 'learning', 'unlocked', 'weakened'].forEach(function(st) {
-        var re = new RegExp('\\.state-badge\\.' + st + ' \\{[^}]*background:\\s*var\\(--[\\w-]+', 'g');
+        // a background from a token the theme defines (not --node-unlocked-bg, which none does)
+        var re = new RegExp('\\.state-badge\\.' + st + '[^{]*\\{[^}]*background:\\s*var\\(--(?!node-unlocked-bg)[\\w-]+', 'g');
         var found = css.match(re) || [];
-        self.check(found.length > 0, 'the ' + st + ' badge has a background (' + found.length + ' rule' + (found.length === 1 ? '' : 's') + ')');
+        self.check(found.length > 0, 'the ' + st + ' badge has a background from a defined token (' + found.length + ' rule' + (found.length === 1 ? '' : 's') + ')');
     });
     var card = this._file('../panel-card.css');
-    this.check(/\.state-badge\.unlocked \{ background: var\(--node-unlocked-bg, var\(--node-learning-bg/.test(card),
-        'Unlocked falls back to a token the theme defines (none defines --node-unlocked-bg)');
-    var learning = this._rule(card, /^\.state-badge\.learning$/);
-    this.check(/color:\s*var\(--learning-color/.test(learning), 'Learning in the tree\'s learning colour');
+    var learning = this._rule(card, /^\.state-badge\.learning,\s*\.tooltip-state\.learning$/);
+    var unlocked = this._rule(card, /^\.state-badge\.unlocked,\s*\.tooltip-state\.unlocked$/);
+    this.check(/border-left:\s*3px solid var\(--learning-color/.test(learning) && /color:\s*var\(--text-primary/.test(learning),
+        'Learning: the player\'s learning colour on the edge, the word in the card\'s ink (the colour read 2.9:1 as text on Chalkboard)');
+    this.check(/border-left:\s*3px solid var\(--accent-gold/.test(unlocked) && /background:\s*var\(--btn-bg/.test(unlocked),
+        'Unlocked (mastered): a filled box with a gold edge, apart from Learning\'s');
+    this.check(/\.tooltip-state\.locked \{ color: var\(--text-secondary/.test(card), 'the hover card\'s Locked tag reads --text-secondary like the badge');
 };
 
 // ======================================================================= item 3
@@ -207,8 +217,14 @@ PanelAuditTest._quietText = function() {
         ['Arcane quiet text on the leather', this._token(arcane, 'text-muted'), this._token(arcane, 'panel-bg-solid')],
         ['Arcane faint ink on the page\'s edge', this._token(arcane, 'arcane-ink-faint'), this._token(arcane, 'arcane-parchment-edge')],
         ['Arcane gold ink on the page\'s edge', (/\.details-panel,[\s\S]*?--accent-gold:\s*(#[0-9a-f]{6})/i.exec(arcane) || [])[1], this._token(arcane, 'arcane-parchment-edge')],
-        ['Dark books\' blue on Chalkboard\'s slate', this._token(dark, 'accent-blue'), '#353e37'],
-        ['Dark books\' red on Chalkboard\'s slate', this._token(dark, 'accent-red'), '#353e37']
+        // #353e37: Chalkboard's settings sub-heading band over its page, as the audit measured it (a
+        // translucent band, so in no file); the lightest slate the blue and red sit on
+        ['Dark books\' blue on Chalkboard\'s sub-heading band', this._token(dark, 'accent-blue'), '#353e37'],
+        ['Dark books\' red on Chalkboard\'s sub-heading band', this._token(dark, 'accent-red'), '#353e37'],
+        // #3f413c: the Weakened badge's own tint over Chalkboard's card, as measured
+        ['Dark books\' Weakened on its badge (Chalkboard)', this._token(dark, 'weakened-color'), '#3f413c'],
+        ['Arcane\'s Learning badge ink on the page\'s edge', (/\.state-badge\.learning\s+\{ color: (#[0-9a-f]{6})/.exec(arcane) || [])[1], this._token(arcane, 'arcane-parchment-edge')],
+        ['Arcane\'s Unlocked badge ink on the page\'s edge', (/\.state-badge\.unlocked\s+\{ color: (#[0-9a-f]{6})/.exec(arcane) || [])[1], this._token(arcane, 'arcane-parchment-edge')]
     ];
     pairs.forEach(function(p) {
         var ok = !!(p[1] && p[2]);

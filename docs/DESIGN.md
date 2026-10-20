@@ -1311,7 +1311,8 @@ plugin name, 11 prerequisites of every kind, no description, no Magicka, 0 and 4
 **Long words and the default size.** Settings rows wrap: a row's text takes the room it needs and its control
 drops under it when the two do not fit side by side; no description is clamped and no compact slider label ends
 in "..." (neither end could be read anywhere). The category column is as wide as its longest name. Below
-`SettingsCategories.ONE_COLUMN_PX` (1100 px of page, so the 900 px default panel) the side-by-side blocks and the
+`SettingsCategories.ONE_COLUMN_PX` (1100 px of page at Font Size 1.0x, so the 900 px default panel; both widths
+there are divided by the Font Size, and the page is laid out again when the slider is let go) the side-by-side blocks and the
 paired settings go one under another (`.settings-onecol`). The last power step's figures span the input and unit
 columns of the rows above (`.power-step-final`, no spacer cells). The card's Still needed chips are inline boxes
 no wider than the card: a long name or school wraps inside the chip (a German lock chip pushed the sidebar
@@ -1335,7 +1336,10 @@ books read quiet text and the idle status from `--book-text-soft` (the presets' 
 Chalkboard's slate and Night Grimoire's cards, and the presets cannot change) and get a lighter blue and red.
 Segmented switches take the theme's colours (an option not chosen was gold at 40%, 2.2:1); the Locked badge reads
 `--text-secondary`; hidden info is no longer faded to half; Classic's How to learn tab is a shade darker; the LOCK mark
-is 11px. A school's colour need not read as text (a player picks it; red on Chalkboard was 3:1): the card's school
+is 11px at the default Font Size. The Learning and Unlocked badges (and the hover card's state tags) carry their
+colour on the box's left edge with the words in the card's ink: the learning colour is the player's pick, and as
+text it read under 3:1 on the dark books' pages. Early Learning's last power step is no longer faded to 70%. The dark books' Weakened is lighter (#CFA589) and Arcane's Learning and Unlocked
+badge inks a shade darker on the page. A school's colour need not read as text (a player picks it; red on Chalkboard was 3:1): the card's school
 name is in the card's ink with the colour on its dot, and Arcane's school labels on the page do the same (its school
 colours are inks for parchment). Arcane's canvas hint sits on solid leather. The table: `contrast-audit.md` of the
 audit (outside the repo).
@@ -1495,10 +1499,10 @@ variable, else the old near-black. They repaint every frame, so the value is rea
 each have a token of their own - `--status-idle`, `--status-working`, `--status-done`, `--status-error`
 (`TreeGrowth.STATUS_COLORS`, 2026-09-28). They used to be `--accent-gold/green/red`, and in Classic the
 working gold was the idle text's own colour and the muted green and red hard to tell apart. Defaults in
-`styles-skyrim.css` (amber, green, red; idle the old faint khaki), set again by `design-modern.css`,
-`design-arcane.css` (on the leather) and `design-darkbook.css` (Night Grimoire; Chalkboard's preset sets
-chalk tones for working, done and error; its idle follows its own `--book-text-faint`, which
-`design-darkbook.css`'s `--status-idle` reads); the hex in `STATUS_COLORS` is the fallback for a design that sets none. The idle colour
+`styles-skyrim.css` (amber, green, red; idle the quiet text, `--text-muted`, since the 2.0 audit), set again by
+`design-modern.css`, `design-arcane.css` (on the leather) and `design-darkbook.css` (Night Grimoire; Chalkboard's
+preset sets chalk tones for working, done and error; its idle follows its own `--book-text-soft`, which
+`design-darkbook.css`'s `--status-idle` reads since the 2.0 audit: the faint ink was 4.3:1 on the slate); the hex in `STATUS_COLORS` is the fallback for a design that sets none. The idle colour
 comes from the stylesheet (`#tgStatus, #easyStatus` in `styles-skyrim.css`), not an inline style: the
 language strings (`scanner.complexStatusWrap`, `easyMode.statusWrap`) rebuild both elements at start-up.
 Until 2026-09-28 `scanner.complexStatusWrap` carried the old khaki inline, and `easyMode.js`, which copies

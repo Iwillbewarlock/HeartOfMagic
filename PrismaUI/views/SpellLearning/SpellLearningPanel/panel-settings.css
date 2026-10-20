@@ -12,6 +12,8 @@
 #contentSettings.active {
     display: grid;
     grid-template-columns: 10.5em minmax(0, 1fr);
+    /* The category list as wide as its longest name ("Дополнительно" spilled out of 10.5em; 2.0 audit) */
+    grid-template-columns: minmax(10.5em, max-content) minmax(0, 1fr);
     /* The page row is at least its content (min-content): it pushes the version and the sticky
        Save/Reset bar below it, so the bar sticks to the scroller's foot instead of scrolling away
        with a page that overflowed a 1fr row; a short page still leaves the bar at the foot (1fr) */
@@ -139,14 +141,9 @@
 #contentSettings.settings-narrow .settings-split { grid-template-columns: minmax(0, 1fr); }
 
 /* ---- Long labels (de, ru) and the 900 px default panel: nothing cut or laid over its neighbour.
-   Measured with the audit's overflow check (2.0 audit, item 1): a row's text takes the room it
-   needs and its control drops under it when the two do not fit side by side; no clamped
+   Measured with the audit's overflow check (2.0 audit, item 1): a row's text wraps beside its
+   control and the control drops under it when 12em of text and the control do not fit side by side; no clamped
    description (its end could not be reached); the category list as wide as its longest name ---- */
-#contentSettings.active {
-    grid-template-columns: 10.5em minmax(0, 1fr);
-    grid-template-columns: minmax(10.5em, max-content) minmax(0, 1fr);
-}
-
 #contentSettings .setting-row:not(.slider-row),
 #contentSettings .setting-row-inline {
     flex-wrap: wrap;
@@ -157,6 +154,8 @@
 #contentSettings .setting-row-inline > .setting-info {
     flex: 1 1 12em;
     min-width: 0;
+    overflow-wrap: break-word;   /* a long German compound breaks rather than run under the control */
+    word-wrap: break-word;
 }
 
 #contentSettings .setting-row:not(.slider-row) > :not(.setting-info) {
@@ -186,7 +185,7 @@
 }
 
 /* Early Learning's last power step: its figures span the input and unit columns of the rows above */
-.power-step-row.power-step-final .power-step-unit { grid-column: span 2; }
+.power-step-row.power-step-final .power-step-unit { grid-column: span 2; color: var(--text-secondary); }
 .power-step-row.power-step-final .power-step-unit:last-child { grid-column: auto; }
 
 /* Slider grids: columns that may shrink, and a label that wraps instead of ending in "..." (its end
@@ -203,5 +202,6 @@
 /* Power steps: a unit column as wide as its longest word ("% мощности" in a book face); every row has
    the same words, so the rows still line up */
 #contentSettings .power-step-row {
+    grid-template-columns: 4.6em 3.6em 5.1em 3.6em 5.1em 1fr;   /* an engine without max-content in minmax() */
     grid-template-columns: 4.6em 3.6em minmax(5.1em, max-content) 3.6em minmax(5.1em, max-content) 1fr;
 }
