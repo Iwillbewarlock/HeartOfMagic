@@ -254,6 +254,10 @@ var StatusLineTest = {
         this.check(!said(), 'Scan bar: the lines of the build at game start show');
         g.updateScanStatus('Saved from C++', '');
         this.check(!said(), 'Scan bar: a line with no key shows');
+        if (typeof require === 'function') {
+            var html = require('fs').readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
+            this.check(/class="scan-status-bar scan-status-said" id="scanStatusBar"/.test(html), 'Scan bar: the page opens with its "Ready to scan" out of sight too (index.html)');
+        }
         setLang('en');
     },
 

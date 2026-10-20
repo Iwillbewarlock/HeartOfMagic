@@ -158,7 +158,11 @@ body, button, input, select, textarea, .btn { font-family: var(--arcane-body); }
 
 /* The tools laid on the page float without a box: each sits on the cover's leather (--panel-bg, panel-tree.css) */
 
+/* The how-to tab sits on the leather but inside .howto-panel, which re-points the golds to ink below:
+   the leather's gold again, or it reads brown on brown */
 #howto-tab {
+    --accent-gold: #C9A25A;
+    --accent-gold-hover: #DDB86C;
     background: rgba(36, 24, 14, 0.94);
     border-color: rgba(201, 162, 90, 0.45);
     color: var(--accent-gold-hover);
