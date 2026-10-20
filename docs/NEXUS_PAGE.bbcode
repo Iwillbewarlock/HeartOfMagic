@@ -5,7 +5,7 @@ A rebuild of [url=https://www.nexusmods.com/skyrimspecialedition/mods/171146]Hea
 released with the original author's permission to improve and re-release it.[/center]
 [center][color=#ffff00][size=6]PLZ read change log. [/size]
 [/color][/center]
-[center]Source code: [url=https://github.com/Iwillbewarlock/HeartOfMagic/tree/v1.5.1]https://github.com/Iwillbewarlock/HeartOfMagic/tree/v1.5.1[/url][/center]
+[center]Source code: [url=https://github.com/Iwillbewarlock/HeartOfMagic/tree/v1.6.0]https://github.com/Iwillbewarlock/HeartOfMagic/tree/v1.6.0[/url][/center]
 [center][youtube]fyMM1G6eWow[/youtube]
 
 [img]{{IMG_02}}[/img][/center]
@@ -22,6 +22,21 @@ No spell lists to maintain and no patches per spell mod: the tree is built from 
 
 [line]
 
+[size=5][b]New in 1.6.0[/b][/size]
+[list]
+[*][b]Paths of Empyrean support:[/b] Spells from other spell mods now get the Lost Grimoire poison, sun, disease and kinetic keywords and the Paths of Empyrean daedra summon keyword that its perks look for, so those perks work on them too.
+[*][b]Environment mods support:[/b] Fire, frost and shock damage effects of spell mods get the keywords that Rain Extinguishes Fires, Water Douses Fire, Sneak Tools, DISDD, Elementally Reactive Waters, Ice is Slick and SIM look for. They also get the own keywords of the OIF rule packs (Dynamic Torches NG, Fires Off, Melt The Ice, Burn The Hay and the rest), Dynamic Candles, Put Out The Fires and Frostwalker's frost and fire cloaks. Keywords are added only where the spell's record says the element, not from its name. You can turn this off with [b]"environment": { "enabled": false }[/b] in config.json.
+[*][b]Element detection and balance:[/b] A spell's element now follows what its own record says when a keyword framework guesses otherwise. Desecration's necrotic flames (plain magic damage) and Flames of Coldharbour's cold fire (frost) no longer count as fire because their names contain "fire", and they leave the fire group of the tree (a tree built before keeps its layout until you Scan, Build and Apply again). For balance, when Rain Extinguishes Fires, Water Douses Fire, Sneak Tools, DISDD, Elementally Reactive Waters, SIM or Ice is Slick is installed, the vanilla element keywords go on every effect whose record deals that damage, not only the first. Because perk overhauls (Adamant, Ordinator, Mysticism and others) read the same keywords, their element perks apply to the extra effects too. Without one of those mods, nothing changes.
+[*][b]New plugin and Frostwalker + Mysticism fix:[/b] Added a required light (ESL) plugin, [b]HeartOfMagic.esp[/b] (one record and only Skyrim.esm as master), and an optional Mysticism patch, [b]HeartOfMagic_Mysticism.esp[/b], offered by the installer when Mysticism is active. Load HeartOfMagic_Mysticism.esp after HeartOfMagic.esp and after any other plugin that edits Mysticism's screen-shake effect. With Frostwalker and Mysticism, Fire Storm, Hysteria, Harmony and Mysticism's other master spells no longer freeze water (Mysticism's hidden screen-shake effect placed the vanilla Blizzard explosion, which Frostwalker reads as frost; HeartOfMagic.esp holds a neutral copy of that explosion). Note: Blizzard itself does not freeze water with this fix, because its storm is a hazard effect Frostwalker does not react to (it only froze through the borrowed explosion).
+[*][b]Settings:[/b] Split into four categories - [b]Display[/b], [b]Learning[/b], [b]Spell Tomes[/b] and [b]Advanced[/b] (developer and debug options are only there) - picked from a slim list at the left, and each keeps its scroll position while the game runs. Rows are no longer boxed in bands and underlines, and the version moved to the foot of the Settings page. [b]Reset to Defaults[/b] (and the power steps reset) now asks for a second click. In Settings > Spell Tome Learning, the message now says "1 spell added" instead of "1 spells added" (with correct Polish plurals).
+[*][b]Scan tab:[/b] One line says where you are ("753 spells found · 681 go in the tree · not applied yet", with what was left out and why), and one main button follows the step: [b]Scan Spells[/b], [b]Build Tree[/b], [b]Apply Tree[/b]. [b]Scan again[/b], [b]Import[/b] (moved here from the tree footer) and [b]Clear draft tree[/b] are small buttons beside it. Per-school counts fold under "Scan details", excluded spells and the plugin list read as lines with their state, and the unfinished Alternate Pathways tab is hidden.
+[*][b]Spell card:[/b] Built to answer "can I learn this now". One line shows the state, XP share and, for a weakened spell, the power it casts at ("Weakened · 62% learned · casts at 50% power" - fixed so "Weakened" and the casting power show for a spell learned early and not yet mastered). "Still needed" lists only what is missing (required spells, optional ones with how many more are needed, e.g. "need 1 of 2", and locks from another school marked as such), switching to "Requirements met" once nothing is left. It also shows why [b]Learn[/b] cannot be pressed yet and folds the spells it leads to into one line. Optional requirement counts, the edit mode box to change that number, and the [b]LOCK[/b] badge are back.
+[*][b]Tree view and import fixes:[/b] The tree now has one thin frame, tools floating on the canvas, schools as small coloured labels, a one-line footer that shows the spell count once, and a "?" button that opens the colour key. In Arcane, Night Grimoire, Chalkboard and Skald, the corner drawings are smaller. Texts were checked for contrast in all six designs and for long German and Russian words and small screens (1280x720). A tree imported or edited by hand with formIds written without "0x" no longer mixes spells up, and text that is not a formId is skipped with a line in SpellLearning.log instead of stopping the request.
+[/list]
+[b]After updating:[/b] enable [b]HeartOfMagic.esp[/b] in your mod manager (and the Mysticism patch, [b]HeartOfMagic_Mysticism.esp[/b], if offered - load it after HeartOfMagic.esp and after any other plugin that edits Mysticism's screen-shake effect). Your saved tree and saves keep working. Spells whose element changed move to their new group only after Scan, Build and Apply.
+
+[spoiler]
+
 [size=5][b]New in 1.5.1[/b][/size]
 
 [list]
@@ -35,8 +50,6 @@ No spell lists to maintain and no patches per spell mod: the tree is built from 
 [*][b]For mod authors:[/b] SetSpellXP is limited to 0-100%. Another mod's XP source cannot use the names Heart of Magic uses itself (such as "passive"), and very long source names are refused.
 [/list]
 [b]After updating:[/b] nothing to do - your saved tree and saves keep working, no rebuild needed. On a save from 1.5.0 the XP caps start counting from zero once. Saves made with 1.5.1 still load in 1.5.0 with all progress; only the new cap counters are lost there.
-
-[spoiler]
 
 [size=5][b]New in 1.5.0[/b][/size]
 
@@ -228,7 +241,7 @@ The full list of changes is in the Changelog.
 [*][url=https://www.nexusmods.com/skyrimspecialedition/mods/32444]Address Library for SKSE Plugins[/url] (on 1.7.x, a version that includes your game version)
 [*][url=https://www.nexusmods.com/skyrimspecialedition/mods/148718]Prisma UI[/url]
 [/list]
-No ESP, no Python, no API key. Safe to add to an existing save.
+One light plugin (HeartOfMagic.esp, ESL-flagged, one record, Skyrim.esm as its only master); no Python, no API key. Safe to add to an existing save.
 
 [b]Works with[/b]
 [list]
@@ -266,7 +279,7 @@ Install with your mod manager (MO2 or Vortex) and run the installer. Then in gam
 
 [b]Coming from Heart of Magic v2.5:[/b]
 [list=1]
-[*][b]Disable or remove Heart of Magic first[/b] - do not install over it. The files have the same names, and your mod manager will show this as a new mod with its own version number (1.5.0 at the time of writing).
+[*][b]Disable or remove Heart of Magic first[/b] - do not install over it. The files have the same names, and your mod manager will show this as a new mod with its own version number (1.6.0 at the time of writing).
 [*]Your saves, settings and saved tree carry over.
 [*][b]Scan and build your tree once more[/b] to get tags, school links and load-order-safe spell IDs.
 [*]If you had entered an OpenRouter key, delete [i]SKSE/Plugins/SpellLearning/openrouter_config.json[/i] and the "llm" block in [i]config.json[/i] - nothing reads them any more.
@@ -282,7 +295,7 @@ The next goal is to connect magic mods to each other. Today every spell mod is i
 
 [size=5][b]Source code[/b][/size]
 
-The full source (C++ plugin, PrismaUI panel, Papyrus scripts, tagging rule files, build scripts) is public at [url=https://github.com/Iwillbewarlock/HeartOfMagic]github.com/Iwillbewarlock/HeartOfMagic[/url]; the tag [i]v1.5.0[/i] is the complete source of this release (each release has its own tag), and it is also the [i]Source[/i] file on the Files tab. The project's own source is MIT. The released DLLs are GPL-3.0-or-later, as a combined work with CommonLibSSE-NG (see License below). Build it with [i]BuildRelease.ps1[/i] (see the README); CommonLibSSE-NG comes in as a git submodule (tag v10.0.0).
+The full source (C++ plugin, PrismaUI panel, Papyrus scripts, tagging rule files, build scripts) is public at [url=https://github.com/Iwillbewarlock/HeartOfMagic]github.com/Iwillbewarlock/HeartOfMagic[/url]; the tag [i]v1.6.0[/i] is the complete source of this release (each release has its own tag), and it is also the [i]Source[/i] file on the Files tab. The project's own source is MIT. The released DLLs are GPL-3.0-or-later, as a combined work with CommonLibSSE-NG (see License below). Build it with [i]BuildRelease.ps1[/i] (see the README); CommonLibSSE-NG comes in as a git submodule (tag v10.0.0).
 
 [line]
 
