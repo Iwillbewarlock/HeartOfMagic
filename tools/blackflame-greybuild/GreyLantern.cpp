@@ -10,6 +10,7 @@
 #endif
 
 #include "GreyLantern.h"
+#include "GreyParticleGraph.h"
 #include "GreyShapes.h"
 #include "GreyTexture.h"
 
@@ -18,6 +19,7 @@
 #include <Geometry.hpp>
 #include <NifFile.hpp>
 #include <Nodes.hpp>
+#include <Particles.hpp>
 #include <Shaders.hpp>
 #include <Skin.hpp>
 
@@ -187,29 +189,6 @@ namespace GreyBuild
                 }
             }
             return nullptr;
-        }
-
-        /// Every controller on a_shape's shader aimed at that shader again (a clone keeps the source file's index)
-        std::vector<std::string> RetargetShaderControllers(nifly::NifFile& a_nif, nifly::NiShape& a_shape)
-        {
-            std::vector<std::string> lines;
-            auto& hdr = a_nif.GetHeader();
-            const std::uint32_t shaderId = a_shape.ShaderPropertyRef()->index;
-            auto* shader = hdr.GetBlock<nifly::NiShader>(shaderId);
-            if (!shader) {
-                return lines;
-            }
-            std::set<std::uint32_t> seen;
-            for (std::uint32_t id = shader->controllerRef.index; id != nifly::NIF_NPOS; ) {
-                auto* controller = hdr.GetBlock<nifly::NiTimeController>(id);
-                if (!controller || !seen.insert(id).second) {
-                    break;
-                }
-                lines.push_back(fmt::format("{} target {} -> {}", controller->GetBlockName(), controller->targetRef.index, shaderId));
-                controller->targetRef.index = shaderId;
-                id = controller->nextControllerRef.index;
-            }
-            return lines;
         }
 
         /// a_shape skinned 100% to a_boneId (the file's bone node at a_boneGlobal), global-to-skin identity, one
@@ -802,6 +781,331 @@ namespace GreyBuild
     // Read-back
     // =========================================================================
 
+    namespace
+    {
+        constexpr std::size_t kKeysShown = 6;  // keys a printed controller line lists before "..."
+
+        [[nodiscard]] const char* CycleName(std::uint16_t a_flags) noexcept
+        {
+            // NiTimeController flags bits 1-2 (nif.xml TimeControllerFlags): the cycle type
+            switch ((a_flags >> 1) & 3u) {
+            case 0:
+                return "loop";
+            case 1:
+                return "reverse";
+            case 2:
+                return "clamp";
+            default:
+                return "?";
+            }
+        }
+
+        [[nodiscard]] const char* KeyTypeName(std::uint32_t a_type) noexcept
+        {
+            constexpr std::array<const char*, 6> kNames{ "none", "linear", "quadratic", "tbc", "xyz", "const" };
+            return a_type < kNames.size() ? kNames[a_type] : "?";
+        }
+
+        [[nodiscard]] std::string FloatValueText(float a_value)
+        {
+            return a_value <= kUnusedKeyValue ? std::string("unset") : fmt::format("{:.4f}", a_value);
+        }
+
+        [[nodiscard]] std::string NameOfBlock(const nifly::NiHeader& a_hdr, std::uint32_t a_id)
+        {
+            if (auto* net = a_hdr.GetBlock<nifly::NiObjectNET>(a_id)) {
+                return net->name.get();
+            }
+            if (auto* modifier = a_hdr.GetBlock<nifly::NiPSysModifier>(a_id)) {
+                return modifier->name.get();
+            }
+            return {};
+        }
+
+        /// An interpolator's values into a_c (float keys, transform keys) and its text
+        [[nodiscard]] std::string ReadInterpolator(const nifly::NiHeader& a_hdr, std::uint32_t a_id, LanternController& a_c)
+        {
+            auto* object = a_hdr.GetBlock<nifly::NiObject>(a_id);
+            if (!object) {
+                return "no interpolator";
+            }
+            a_c.interpolator = object->GetBlockName();
+            std::string text = a_c.interpolator;
+            if (auto* f = a_hdr.GetBlock<nifly::NiFloatInterpolator>(a_id)) {
+                a_c.value = f->floatValue;
+                text += " value " + FloatValueText(f->floatValue);
+                if (auto* data = a_hdr.GetBlock<nifly::NiFloatData>(f->dataRef)) {
+                    const auto& keys = data->data;
+                    text += fmt::format(", {} {} keys", keys.GetNumKeys(), KeyTypeName(keys.GetInterpolationType()));
+                    for (std::uint32_t k = 0; k < keys.GetNumKeys(); ++k) {
+                        const auto key = keys.GetKey(static_cast<int>(k));
+                        a_c.keys.push_back({ key.time, key.value });
+                        if (k < kKeysShown) {
+                            text += fmt::format(" ({:.4f}, {:.4f})", key.time, key.value);
+                        }
+                    }
+                    if (keys.GetNumKeys() > kKeysShown) {
+                        text += " ...";
+                    }
+                }
+            } else if (auto* b = a_hdr.GetBlock<nifly::NiBoolInterpolator>(a_id)) {
+                text += fmt::format(" value {}", static_cast<int>(b->boolValue));
+                if (auto* data = a_hdr.GetBlock<nifly::NiBoolData>(b->dataRef)) {
+                    text += fmt::format(", {} keys", data->data.GetNumKeys());
+                }
+            } else if (auto* t = a_hdr.GetBlock<nifly::NiTransformInterpolator>(a_id)) {
+                text += fmt::format(" translation {} rotation ({:.4f}, {:.4f}, {:.4f}, {:.4f}) scale {:.4f}", Text(ToArray(t->translation)),
+                    t->rotation.w, t->rotation.x, t->rotation.y, t->rotation.z, t->scale);
+                if (auto* data = a_hdr.GetBlock<nifly::NiTransformData>(t->dataRef)) {
+                    a_c.rotationType = data->rotationType;
+                    const auto& tr = data->translations;
+                    text += fmt::format("; translation keys {} {}", tr.GetNumKeys(), KeyTypeName(tr.GetInterpolationType()));
+                    for (std::uint32_t k = 0; k < tr.GetNumKeys(); ++k) {
+                        const auto key = tr.GetKey(static_cast<int>(k));
+                        a_c.translations.push_back({ key.time, key.value.x, key.value.y, key.value.z });
+                        if (k < kKeysShown) {
+                            text += fmt::format(" ({:.4f}: {:.4f}, {:.4f}, {:.4f})", key.time, key.value.x, key.value.y, key.value.z);
+                        }
+                    }
+                    if (tr.GetNumKeys() > kKeysShown) {
+                        text += " ...";
+                    }
+                    text += fmt::format("; rotation type {} ({} quaternion keys)", KeyTypeName(data->rotationType), data->quaternionKeys.size());
+                    const std::array<std::pair<char, const nifly::NiAnimationKeyGroup<float>*>, 3> groups{ { { 'X', &data->xRotations },
+                        { 'Y', &data->yRotations }, { 'Z', &data->zRotations } } };
+                    for (const auto& [axis, group] : groups) {
+                        if (group->GetNumKeys() == 0) {
+                            continue;
+                        }
+                        text += fmt::format(", {} rotation keys {} {}", axis, group->GetNumKeys(), KeyTypeName(group->GetInterpolationType()));
+                        for (std::uint32_t k = 0; k < group->GetNumKeys(); ++k) {
+                            const auto key = group->GetKey(static_cast<int>(k));
+                            if (axis == 'Z') {
+                                a_c.zRotations.push_back({ key.time, key.value });
+                            }
+                            if (k < kKeysShown) {
+                                text += fmt::format(" ({:.4f}: {:.4f})", key.time, key.value);
+                            }
+                        }
+                        if (group->GetNumKeys() > kKeysShown) {
+                            text += " ...";
+                        }
+                    }
+                    text += fmt::format("; scale keys {}", data->scales.GetNumKeys());
+                }
+            }
+            return text;
+        }
+
+        /// The controller a_id read out (its type's fields, its interpolator; a manager's sequences)
+        [[nodiscard]] LanternController ReadController(const nifly::NiHeader& a_hdr, std::uint32_t a_id)
+        {
+            LanternController c;
+            auto* ctrl = a_hdr.GetBlock<nifly::NiTimeController>(a_id);
+            if (!ctrl) {
+                c.type = "<missing>";
+                c.text = fmt::format("block {} is no controller", a_id);
+                return c;
+            }
+            c.type = ctrl->GetBlockName();
+            c.flags = ctrl->flags;
+            c.frequency = ctrl->frequency;
+            c.phase = ctrl->phase;
+            c.start = ctrl->startTime;
+            c.stop = ctrl->stopTime;
+            c.target = ctrl->targetRef.index;
+            std::string extra;
+            if (auto* effect = dynamic_cast<nifly::BSEffectShaderPropertyFloatController*>(ctrl)) {
+                c.variable = effect->typeOfControlledVariable;
+            } else if (auto* lit = dynamic_cast<nifly::BSLightingShaderPropertyFloatController*>(ctrl)) {
+                c.variable = lit->typeOfControlledVariable;
+            }
+            if (c.variable != 0xFFFFFFFF) {
+                extra += fmt::format(" variable {}", c.variable);
+            }
+            if (auto* modifier = dynamic_cast<nifly::NiPSysModifierCtlr*>(ctrl)) {
+                extra += fmt::format(" modifier '{}'", modifier->modifierName.get());
+            }
+            if (auto* single = dynamic_cast<nifly::NiSingleInterpController*>(ctrl)) {
+                extra += "; " + ReadInterpolator(a_hdr, single->interpolatorRef.index, c);
+            }
+            if (auto* multi = dynamic_cast<nifly::NiMultiTargetTransformController*>(ctrl)) {
+                extra += fmt::format("; {} targets", multi->targetRefs.GetSize());
+            }
+            if (auto* manager = dynamic_cast<nifly::NiControllerManager*>(ctrl)) {
+                for (const auto& ref : manager->controllerSequenceRefs) {
+                    auto* sequence = a_hdr.GetBlock<nifly::NiControllerSequence>(ref);
+                    if (!sequence) {
+                        continue;
+                    }
+                    extra += fmt::format("; sequence '{}' cycle {} frequency {:.4f} {:.4f}..{:.4f}, {} controlled blocks", sequence->name.get(),
+                        static_cast<std::uint32_t>(sequence->cycleType), sequence->frequency, sequence->startTime, sequence->stopTime,
+                        sequence->controlledBlocks.size());
+                    for (const auto& link : sequence->controlledBlocks) {
+                        extra += fmt::format(" ['{}' {} {}: {}]", link.nodeName.get(), link.ctrlType.get(), link.propType.get(),
+                            ReadInterpolator(a_hdr, link.interpolatorRef.index, c));
+                    }
+                }
+            }
+            c.text = fmt::format("{} flags 0x{:04X} ({}{}) frequency {:.4f} phase {:.4f} time {:.4f}..{:.4f} target {}", c.type, c.flags, CycleName(c.flags), (c.flags & 8u) != 0 ? ", active" : ", inactive", c.frequency, c.phase, c.start, c.stop, c.target);
+            c.text += extra;
+            return c;
+        }
+
+        /// Every particle system of a_nif read out
+        [[nodiscard]] std::vector<LanternParticleInfo> ReadParticles(nifly::NifFile& a_nif)
+        {
+            std::vector<LanternParticleInfo> out;
+            auto& hdr = a_nif.GetHeader();
+            for (std::uint32_t id = 0; id < hdr.GetNumBlocks(); ++id) {
+                auto* system = hdr.GetBlock<nifly::NiParticleSystem>(id);
+                if (!system) {
+                    continue;
+                }
+                LanternParticleInfo p;
+                p.name = system->name.get();
+                p.type = system->GetBlockName();
+                p.worldSpace = system->isWorldSpace;
+                const std::uint32_t parent = ParentOf(a_nif, id);
+                p.parent = parent == nifly::NIF_NPOS ? std::string("<none>") : NameOfBlock(hdr, parent);
+                auto* data = hdr.GetBlock<nifly::NiPSysData>(system->psysDataRef);
+                if (!data) {
+                    data = hdr.GetBlock<nifly::NiPSysData>(system->dataRef);
+                }
+                p.pool = data ? data->GetNumVertices() : 0;
+                if (auto* strip = dynamic_cast<nifly::BSStripPSysData*>(data)) {
+                    p.lines.push_back(fmt::format("strip data: max points {}, start cap {}, end cap {}", strip->maxPointCount, strip->startCapSize,
+                        strip->endCapSize));
+                }
+                if (auto* shader = hdr.GetBlock<nifly::BSEffectShaderProperty>(system->shaderPropertyRef)) {
+                    p.flags1 = shader->shaderFlags1;
+                    p.flags2 = shader->shaderFlags2;
+                    p.source = shader->sourceTexture.get();
+                    p.greyscale = shader->greyscaleTexture.get();
+                    p.baseColor = { shader->baseColor.r, shader->baseColor.g, shader->baseColor.b, shader->baseColor.a };
+                }
+                if (auto* alpha = hdr.GetBlock<nifly::NiAlphaProperty>(system->alphaPropertyRef)) {
+                    p.hasAlpha = true;
+                    p.alphaFlags = alpha->flags;
+                }
+                bool firstEmitter = true;
+                for (const auto& ref : system->modifierRefs) {
+                    auto* modifier = hdr.GetBlock<nifly::NiPSysModifier>(ref);
+                    if (!modifier) {
+                        p.modifiers.push_back(fmt::format("<missing block {}>", ref.index));
+                        continue;
+                    }
+                    p.modifiers.push_back(fmt::format("{} '{}'{}", modifier->GetBlockName(), modifier->name.get(), modifier->isActive ? "" : " (inactive)"));
+                    std::string line = fmt::format("modifier {} '{}' order {}", modifier->GetBlockName(), modifier->name.get(), modifier->order);
+                    if (auto* emitter = dynamic_cast<nifly::NiPSysEmitter*>(modifier)) {
+                        if (firstEmitter) {
+                            p.radius = emitter->radius;
+                            p.radiusVariation = emitter->radiusVariation;
+                            p.speed = emitter->speed;
+                            p.lifeSpan = emitter->lifeSpan;
+                            firstEmitter = false;
+                        }
+                        line += fmt::format(": radius {:.4f} +/- {:.4f}, speed {:.4f} +/- {:.4f}, declination {:.4f} +/- {:.4f}, life {:.4f} +/- "
+                                            "{:.4f}",
+                            emitter->radius, emitter->radiusVariation, emitter->speed, emitter->speedVariation, emitter->declination,
+                            emitter->declinationVariation, emitter->lifeSpan, emitter->lifeSpanVariation);
+                        if (auto* mesh = dynamic_cast<nifly::NiPSysMeshEmitter*>(emitter)) {
+                            line += fmt::format(", velocity type {}, emit from {}, axis {}", static_cast<std::uint32_t>(mesh->velocityType),
+                                static_cast<std::uint32_t>(mesh->emissionType), Text(ToArray(mesh->emissionAxis)));
+                            for (const auto& meshRef : mesh->meshRefs) {
+                                p.emitterMeshes.push_back(NameOfBlock(hdr, meshRef.index));
+                                line += fmt::format(", mesh [{}] '{}'", meshRef.index, p.emitterMeshes.back());
+                            }
+                        }
+                    } else if (auto* gravity = dynamic_cast<nifly::NiPSysGravityModifier*>(modifier)) {
+                        line += fmt::format(": object [{}] '{}', axis {}, strength {:.4f}, decay {:.4f}, force {}, turbulence {:.4f} scale {:.4f}",
+                            gravity->gravityObjRef.index, NameOfBlock(hdr, gravity->gravityObjRef.index), Text(ToArray(gravity->gravityAxis)),
+                            gravity->strength, gravity->decay, static_cast<std::uint32_t>(gravity->forceType), gravity->turbulence,
+                            gravity->turbulenceScale);
+                    } else if (auto* bomb = dynamic_cast<nifly::NiPSysBombModifier*>(modifier)) {
+                        line += fmt::format(": node [{}] '{}', delta V {:.4f}, decay {:.4f}", bomb->bombNodeRef.index,
+                            NameOfBlock(hdr, bomb->bombNodeRef.index), bomb->deltaV, bomb->decay);
+                    } else if (auto* scale = dynamic_cast<nifly::BSPSysScaleModifier*>(modifier)) {
+                        line += ": scales";
+                        for (const float f : scale->floats) {
+                            line += fmt::format(" {:.4f}", f);
+                        }
+                    } else if (auto* colour = dynamic_cast<nifly::BSPSysSimpleColorModifier*>(modifier)) {
+                        line += fmt::format(": fade in {:.4f} out {:.4f}, colours ({:.4f}, {:.4f}, {:.4f}, {:.4f}) ({:.4f}, {:.4f}, {:.4f}, {:.4f}) ({:.4f}, "
+                                            "{:.4f}, {:.4f}, {:.4f})",
+                            colour->fadeInPercent, colour->fadeOutPercent, colour->color1.r, colour->color1.g, colour->color1.b, colour->color1.a,
+                            colour->color2.r, colour->color2.g, colour->color2.b, colour->color2.a, colour->color3.r, colour->color3.g,
+                            colour->color3.b, colour->color3.a);
+                    } else if (auto* rotation = dynamic_cast<nifly::NiPSysRotationModifier*>(modifier)) {
+                        line += fmt::format(": speed {:.4f} +/- {:.4f}, angle {:.4f} +/- {:.4f}", rotation->initialSpeed,
+                            rotation->initialSpeedVariation, rotation->initialAngle, rotation->initialAngleVariation);
+                    } else if (auto* spawn = dynamic_cast<nifly::NiPSysSpawnModifier*>(modifier)) {
+                        line += fmt::format(": generations {}, spawned {}..{} ({:.4f}), life {:.4f} +/- {:.4f}", spawn->numSpawnGenerations,
+                            spawn->minSpawned, spawn->maxSpawned, spawn->percentSpawned, spawn->lifeSpan, spawn->lifeSpanVariation);
+                    }
+                    p.lines.push_back(std::move(line));
+                }
+                std::set<std::uint32_t> seen;
+                for (std::uint32_t c = system->controllerRef.index; c != nifly::NIF_NPOS && seen.insert(c).second;) {
+                    const auto controller = ReadController(hdr, c);
+                    if (controller.type == "NiPSysEmitterCtlr" && p.birthRate < 0.0f) {
+                        p.birthRate = controller.keys.empty() ? controller.value : controller.keys.front()[1];
+                    }
+                    p.lines.push_back("controller " + controller.text);
+                    auto* ctrl = hdr.GetBlock<nifly::NiTimeController>(c);
+                    c = ctrl ? ctrl->nextControllerRef.index : nifly::NIF_NPOS;
+                }
+                // the graph the system owns (its children that are no scene objects), and what it names outside that
+                std::set<std::uint32_t> graph{ id };
+                std::vector<std::uint32_t> todo{ id };
+                while (!todo.empty()) {
+                    const std::uint32_t at = todo.back();
+                    todo.pop_back();
+                    auto* block = hdr.GetBlock<nifly::NiObject>(at);
+                    if (!block) {
+                        continue;
+                    }
+                    std::set<nifly::NiRef*> refs;
+                    HandGraph::ChildRefs(*block, refs);
+                    for (auto* ref : refs) {
+                        if (ref->index != nifly::NIF_NPOS && !hdr.GetBlock<nifly::NiAVObject>(ref->index) && graph.insert(ref->index).second) {
+                            todo.push_back(ref->index);
+                        }
+                    }
+                }
+                for (const auto at : graph) {
+                    auto* block = hdr.GetBlock<nifly::NiObject>(at);
+                    if (!block) {
+                        p.outside.push_back(fmt::format("block {} missing", at));
+                        continue;
+                    }
+                    std::set<nifly::NiRef*> refs;
+                    std::set<nifly::NiPtr*> ptrs;
+                    HandGraph::ChildRefs(*block, refs);
+                    block->GetPtrs(ptrs);
+                    std::vector<std::uint32_t> named;
+                    for (auto* ref : refs) {
+                        named.push_back(ref->index);
+                    }
+                    for (auto* ptr : ptrs) {
+                        named.push_back(ptr->index);
+                    }
+                    std::sort(named.begin(), named.end());
+                    for (const auto target : named) {
+                        if (target == nifly::NIF_NPOS || graph.count(target) != 0) {
+                            continue;
+                        }
+                        auto* other = hdr.GetBlock<nifly::NiObject>(target);
+                        p.outside.push_back(fmt::format("{} [{}] -> [{}] {} '{}'", block->GetBlockName(), at, target,
+                            other ? other->GetBlockName() : "<past the block list>", NameOfBlock(hdr, target)));
+                    }
+                }
+                out.push_back(std::move(p));
+            }
+            return out;
+        }
+    }
+
     LanternNifInfo InspectLanternNif(const std::filesystem::path& a_file)
     {
         nifly::NifFile nif;
@@ -828,6 +1132,12 @@ namespace GreyBuild
             }
             if (auto* node = hdr.GetBlock<nifly::NiNode>(id)) {
                 info.nodeNames.push_back(node->name.get());
+                std::set<std::uint32_t> seen;
+                for (std::uint32_t c = node->controllerRef.index; c != nifly::NIF_NPOS && seen.insert(c).second;) {
+                    info.nodeControllers.emplace_back(node->name.get(), ReadController(hdr, c));
+                    auto* ctrl = hdr.GetBlock<nifly::NiTimeController>(c);
+                    c = ctrl ? ctrl->nextControllerRef.index : nifly::NIF_NPOS;
+                }
                 if (auto* value = dynamic_cast<nifly::BSValueNode*>(node)) {
                     LanternValueNode entry;
                     entry.name = value->name.get();
@@ -853,6 +1163,7 @@ namespace GreyBuild
             LanternShapeInfo s;
             s.name = shape->name.get();
             s.type = shape->GetBlockName();
+            s.avFlags = shape->flags;
             s.vertices = shape->GetNumVertices();
             const std::uint32_t shapeId = hdr.GetBlockID(shape);
             const std::uint32_t shaderId = shape->ShaderPropertyRef() ? shape->ShaderPropertyRef()->index : nifly::NIF_NPOS;
@@ -871,6 +1182,14 @@ namespace GreyBuild
                 if (auto* effect = dynamic_cast<nifly::BSEffectShaderProperty*>(shader)) {
                     s.textures.push_back("source " + effect->sourceTexture.get());
                     s.textures.push_back("greyscale " + effect->greyscaleTexture.get());
+                    s.effect = true;
+                    s.baseColor = { effect->baseColor.r, effect->baseColor.g, effect->baseColor.b, effect->baseColor.a };
+                    s.emissiveMultiple = effect->baseColorScale;
+                    s.falloff = { effect->falloffStartAngle, effect->falloffStopAngle, effect->falloffStartOpacity, effect->falloffStopOpacity };
+                    s.softFalloffDepth = effect->softFalloffDepth;
+                    s.clampMode = effect->textureClampMode;
+                    s.uvOffset = { effect->uvOffset.u, effect->uvOffset.v };
+                    s.uvScale = { effect->uvScale.u, effect->uvScale.v };
                 } else if (auto* set = hdr.GetBlock<nifly::BSShaderTextureSet>(shader->TextureSetRef())) {
                     for (std::uint32_t slot = 0; slot < set->textures.size(); ++slot) {
                         if (!set->textures[slot].get().empty()) {
@@ -886,8 +1205,17 @@ namespace GreyBuild
                     }
                     s.controllers.push_back(fmt::format("{} -> target {} ({})", controller->GetBlockName(), controller->targetRef.index,
                         controller->targetRef.index == shaderId ? "its shader" : "WRONG"));
+                    s.controllerInfo.push_back(ReadController(hdr, id));
                     id = controller->nextControllerRef.index;
                 }
+            }
+            if (auto* alpha = shape->AlphaPropertyRef() ? hdr.GetBlock<nifly::NiAlphaProperty>(*shape->AlphaPropertyRef()) : nullptr) {
+                s.hasAlpha = true;
+                s.alphaFlags = alpha->flags;
+            }
+            {
+                const std::uint32_t parent = ParentOf(nif, shapeId);
+                s.parent = parent == nifly::NIF_NPOS ? std::string("<none>") : NameOfBlock(hdr, parent);
             }
             if (shape->HasSkinInstance()) {
                 auto* skin = hdr.GetBlock<nifly::NiBoneContainer>(shape->SkinInstanceRef());
@@ -974,6 +1302,7 @@ namespace GreyBuild
             }
             info.shapes.push_back(std::move(s));
         }
+        info.particles = ReadParticles(nif);
         return info;
     }
 
@@ -1017,8 +1346,29 @@ namespace GreyBuild
             if (s.uvMin[0] <= s.uvMax[0]) {
                 std::cout << fmt::format("    UVs u {:.4f}..{:.4f} v {:.4f}..{:.4f}\n", s.uvMin[0], s.uvMax[0], s.uvMin[1], s.uvMax[1]);
             }
-            for (const auto& controller : s.controllers) {
-                std::cout << "    controller " << controller << "\n";
+            if (s.effect) {
+                std::cout << fmt::format("    effect: base colour ({:.4f}, {:.4f}, {:.4f}, {:.4f}) x emissive multiple {:.4f}; falloff angles {:.4f} -> "
+                                         "{:.4f}, opacities {:.4f} -> {:.4f}; soft falloff depth {:.4f}; texture clamp mode {}; UV offset ({:.4f}, "
+                                         "{:.4f}) scale ({:.4f}, {:.4f})\n",
+                    s.baseColor[0], s.baseColor[1], s.baseColor[2], s.baseColor[3], s.emissiveMultiple, s.falloff[0], s.falloff[1], s.falloff[2],
+                    s.falloff[3], s.softFalloffDepth, s.clampMode, s.uvOffset[0], s.uvOffset[1], s.uvScale[0], s.uvScale[1]);
+            }
+            if (s.hasAlpha) {
+                std::cout << fmt::format("    alpha property flags 0x{:04X} (blend {}, source {}, destination {}, test {})\n", s.alphaFlags,
+                    (s.alphaFlags & 1u) != 0 ? "on" : "off", (s.alphaFlags >> 1) & 15u, (s.alphaFlags >> 5) & 15u,
+                    (s.alphaFlags & kAlphaTestOn) != 0 ? "on" : "off");
+            }
+            if (s.parent != a_info.rootName) {
+                std::cout << "    under node '" << s.parent << "'\n";
+            }
+            if ((s.avFlags & 1u) != 0) {
+                std::cout << fmt::format("    hidden (flags 0x{:X})\n", s.avFlags);
+            }
+            for (std::size_t c = 0; c < s.controllers.size(); ++c) {
+                std::cout << "    controller " << s.controllers[c] << "\n";
+                if (c < s.controllerInfo.size()) {
+                    std::cout << "      " << s.controllerInfo[c].text << "\n";
+                }
             }
             if (!s.skinType.empty()) {
                 std::string bones;
@@ -1043,6 +1393,23 @@ namespace GreyBuild
             }
             if (!IsEmpty(s.bounds)) {
                 std::cout << "    vertex bounds " << BoxText(s.bounds) << "\n";
+            }
+        }
+        for (const auto& [node, controller] : a_info.nodeControllers) {
+            std::cout << fmt::format("  node '{}' controller {}\n", node, controller.text);
+        }
+        for (const auto& p : a_info.particles) {
+            std::cout << fmt::format("  particles '{}' {} under '{}', world space {}, pool {}, shader SLSF1 0x{:08X} SLSF2 0x{:08X} source '{}' "
+                                     "greyscale '{}' base ({:.4f}, {:.4f}, {:.4f}, {:.4f}), alpha {}\n",
+                p.name, p.type, p.parent, p.worldSpace ? "yes" : "no", p.pool, p.flags1, p.flags2, p.source, p.greyscale, p.baseColor[0],
+                p.baseColor[1], p.baseColor[2], p.baseColor[3], p.hasAlpha ? fmt::format("0x{:04X}", p.alphaFlags) : std::string("none"));
+            std::cout << fmt::format("    first emitter radius {:.4f} +/- {:.4f}, speed {:.4f}, life {:.4f}, birth rate {:.4f}\n", p.radius,
+                p.radiusVariation, p.speed, p.lifeSpan, p.birthRate);
+            for (const auto& line : p.lines) {
+                std::cout << "    " << line << "\n";
+            }
+            for (const auto& line : p.outside) {
+                std::cout << "    names outside its graph: " << line << "\n";
             }
         }
         if (!IsEmpty(a_info.bounds)) {
@@ -1637,6 +2004,488 @@ namespace GreyBuild
             return mesh;
         }
 
+        // ---- The wisp
+
+        constexpr std::uint32_t kClampWrapST = 3;  // BSEffectShaderProperty texture clamp mode WRAP_S_WRAP_T (scrolled UVs)
+        constexpr std::uint32_t kAvHidden = 0x8000F;  // NiAVObject flags of the vanilla wisp's hidden emitter shapes (524303)
+
+        /// A UV sphere of a_radius round the origin: a_segments round Z, a_rings from the +Z pole down; U round, V down;
+        /// outward normals; one triangle per quad at each pole
+        [[nodiscard]] LanternMesh MakeSphere(float a_radius, int a_segments, int a_rings)
+        {
+            if (!(a_radius > 0.0f) || a_segments < 3 || a_rings < 2) {
+                throw std::runtime_error(fmt::format("a sphere of radius {} with {} segments and {} rings", a_radius, a_segments, a_rings));
+            }
+            LanternMesh mesh;
+            for (int j = 0; j <= a_rings; ++j) {
+                const float theta = kPi * static_cast<float>(j) / static_cast<float>(a_rings);
+                for (int i = 0; i <= a_segments; ++i) {
+                    const float phi = 2.0f * kPi * static_cast<float>(i) / static_cast<float>(a_segments);
+                    const Vector3 n(std::sin(theta) * std::cos(phi), std::sin(theta) * std::sin(phi), std::cos(theta));
+                    (void)mesh.Add(n * a_radius, n, static_cast<float>(i) / static_cast<float>(a_segments),
+                        static_cast<float>(j) / static_cast<float>(a_rings));
+                }
+            }
+            const auto at = [a_segments](int a_i, int a_j) { return static_cast<std::uint16_t>(a_j * (a_segments + 1) + a_i); };
+            for (int j = 0; j < a_rings; ++j) {
+                for (int i = 0; i < a_segments; ++i) {
+                    if (j == 0) {
+                        mesh.Face(at(i, j), at(i + 1, j + 1), at(i, j + 1));  // at(i, 0) and at(i + 1, 0) are the pole
+                    } else if (j == a_rings - 1) {
+                        mesh.Face(at(i, j), at(i + 1, j), at(i + 1, j + 1));  // the bottom row is the other pole
+                    } else {
+                        mesh.Quad(at(i, j), at(i + 1, j), at(i + 1, j + 1), at(i, j + 1));
+                    }
+                }
+            }
+            return mesh;
+        }
+
+        /// One wisp sphere's look (GreyLantern.h, the wisp constants)
+        struct WispLook
+        {
+            const char* name = "";
+            float radius = 0.0f;
+            std::uint32_t flags1 = 0;
+            const char* source = "";
+            const char* greyscale = "";        // "" with the palette off
+            std::array<float, 4> base{};
+            float emissive = 1.0f;
+            std::array<float, 4> falloff{};
+            std::uint16_t alpha = 0;
+            std::array<float, 2> scroll{};     // seconds per U / V repeat, the sign the direction; 0: no controller
+            bool pulse = false;                // the emissive multiple's pulse
+        };
+
+        [[nodiscard]] std::array<WispLook, 3> WispLooks()
+        {
+            const float dark = kLanternWispShellColour;
+            return { { { kLanternWispCoreName, kLanternWispCoreRadius, kLanternWispFlags1Palette, kLanternWispNoise, kPalettePath,
+                           { 1.0f, 1.0f, 1.0f, 1.0f }, kLanternWispCoreEmissive, kLanternWispCoreFalloff, kLanternWispAdditive,
+                           kLanternWispCoreScroll, true },
+                { kLanternWispShellName, kLanternWispShellRadius, kLanternWispFlags1Dark, kLanternWispNoise, "",
+                    { dark, dark, dark, kLanternWispShellAlpha }, 1.0f, kLanternWispShellFalloff, kLanternWispNormal,
+                    { -kLanternWispShellScroll[0], -kLanternWispShellScroll[1] }, false },
+                { kLanternWispHaloName, kLanternWispHaloRadius, kLanternWispFlags1Palette, kLanternWispHaloTexture, kPalettePath,
+                    { 1.0f, 1.0f, 1.0f, kLanternWispHaloAlpha }, kLanternWispHaloEmissive, kLanternWispHaloFalloff, kLanternWispAdditive,
+                    { 0.0f, 0.0f }, false } } };
+        }
+
+        /// a_id taken out of every node's children and made a child of a_parent
+        void Reparent(nifly::NifFile& a_nif, std::uint32_t a_id, nifly::NiNode& a_parent)
+        {
+            auto& hdr = a_nif.GetHeader();
+            for (std::uint32_t id = 0; id < hdr.GetNumBlocks(); ++id) {
+                if (auto* node = hdr.GetBlock<nifly::NiNode>(id)) {
+                    std::vector<std::uint32_t> children;
+                    node->childRefs.GetIndices(children);
+                    const auto end = std::remove(children.begin(), children.end(), a_id);
+                    if (end != children.end()) {
+                        children.erase(end, children.end());
+                        node->childRefs.SetIndices(children);
+                    }
+                }
+            }
+            a_parent.childRefs.AddBlockRef(a_id);
+        }
+
+        /// A looping float controller's keys (time, value), linear
+        using FloatKeys = std::vector<std::array<float, 2>>;
+
+        /// a_controllers (controlled variable, keys) as BSEffectShaderPropertyFloatControllers chained on the shader a_shaderId,
+        /// each looping over its keys' span (kLanternWispControllerFlags), its interpolator's own value unset as the
+        /// vanilla wisp's
+        void AddShaderControllers(nifly::NifFile& a_nif, std::uint32_t a_shaderId, const std::vector<std::pair<std::uint32_t, FloatKeys>>& a_controllers)
+        {
+            auto& hdr = a_nif.GetHeader();
+            auto* shader = hdr.GetBlock<nifly::NiObjectNET>(a_shaderId);
+            if (!shader) {
+                throw std::runtime_error(fmt::format("block {} is no shader", a_shaderId));
+            }
+            nifly::NiBlockRef<nifly::NiTimeController>* link = &shader->controllerRef;
+            for (const auto& [variable, keys] : a_controllers) {
+                if (keys.size() < 2) {
+                    throw std::runtime_error("a looping controller needs two keys");
+                }
+                auto data = std::make_unique<nifly::NiFloatData>();
+                data->data.SetInterpolationType(nifly::LINEAR_KEY);
+                for (const auto& [time, value] : keys) {
+                    nifly::NiAnimationKey<float> key;
+                    key.type = nifly::LINEAR_KEY;
+                    key.time = time;
+                    key.value = value;
+                    data->data.AddKey(key);
+                }
+                auto interp = std::make_unique<nifly::NiFloatInterpolator>();
+                interp->floatValue = nifly::NiFloatMin;
+                interp->dataRef.index = hdr.AddBlock(std::move(data));
+                auto ctrl = std::make_unique<nifly::BSEffectShaderPropertyFloatController>();
+                ctrl->flags = kLanternWispControllerFlags;
+                ctrl->frequency = 1.0f;
+                ctrl->phase = 0.0f;
+                ctrl->startTime = keys.front()[0];
+                ctrl->stopTime = keys.back()[0];
+                ctrl->targetRef.index = a_shaderId;
+                ctrl->typeOfControlledVariable = variable;
+                ctrl->interpolatorRef.index = hdr.AddBlock(std::move(interp));
+                const std::uint32_t id = hdr.AddBlock(std::move(ctrl));
+                link->index = id;
+                link = &hdr.GetBlock<nifly::BSEffectShaderPropertyFloatController>(id)->nextControllerRef;
+            }
+        }
+
+        /// The emissive multiple's pulse (kLanternWispCoreEmissive, kLanternWispPulseAmplitude, kLanternWispPulseHz): one
+        /// period of a sine in kLanternWispPulseKeys linear steps, its last key its first
+        [[nodiscard]] FloatKeys PulseKeys()
+        {
+            FloatKeys keys;
+            const float period = 1.0f / kLanternWispPulseHz;
+            for (int k = 0; k <= kLanternWispPulseKeys; ++k) {
+                const float share = static_cast<float>(k) / static_cast<float>(kLanternWispPulseKeys);
+                const float wave = k == kLanternWispPulseKeys ? 0.0f : std::sin(2.0f * kPi * share);
+                keys.push_back({ period * share, kLanternWispCoreEmissive + kLanternWispPulseAmplitude * wave });
+            }
+            return keys;
+        }
+
+        /// a_look's shader controllers in chain order: the U and V offset scroll (0 -> +-1 over its seconds), the core's pulse
+        [[nodiscard]] std::vector<std::pair<std::uint32_t, FloatKeys>> WispControllers(const WispLook& a_look)
+        {
+            std::vector<std::pair<std::uint32_t, FloatKeys>> controllers;
+            for (int axis = 0; axis < 2; ++axis) {
+                const float seconds = a_look.scroll[axis];
+                if (seconds != 0.0f) {
+                    controllers.push_back({ axis == 0 ? kLanternWispVarUOffset : kLanternWispVarVOffset,
+                        { { 0.0f, 0.0f }, { std::fabs(seconds), seconds > 0.0f ? 1.0f : -1.0f } } });
+                }
+            }
+            if (a_look.pulse) {
+                controllers.push_back({ kLanternWispVarEmissive, PulseKeys() });
+            }
+            return controllers;
+        }
+
+        /// a_mesh (moved by a_at) as a wisp shape of a_look under a_parent: its BSEffectShaderProperty, NiAlphaProperty and
+        /// controllers (U and V offset scroll, the core's pulse)
+        nifly::NiShape* AddWispShape(nifly::NifFile& a_nif, nifly::NiNode& a_parent, const WispLook& a_look, const Vector3& a_at)
+        {
+            auto& hdr = a_nif.GetHeader();
+            LanternMesh mesh = MakeSphere(a_look.radius, kLanternWispSegments, kLanternWispRings);
+            for (auto& v : mesh.verts) {
+                v += a_at;
+            }
+            auto* shape = a_nif.CreateShapeFromData(a_look.name, &mesh.verts, &mesh.tris, &mesh.uvs, &mesh.normals);
+            auto* tri = dynamic_cast<nifly::BSTriShape*>(shape);
+            if (!tri) {
+                throw std::runtime_error(fmt::format("nifly made no BSTriShape for '{}'", a_look.name));
+            }
+            tri->SetNormals(true);
+            tri->SetNormals(mesh.normals);
+            a_nif.DeleteShader(shape);
+            auto prop = std::make_unique<nifly::BSEffectShaderProperty>();
+            prop->shaderFlags1 = a_look.flags1;
+            prop->shaderFlags2 = kLanternWispFlags2;
+            prop->sourceTexture.get() = a_look.source;
+            prop->greyscaleTexture.get() = a_look.greyscale;
+            prop->textureClampMode = kClampWrapST;
+            prop->baseColor = nifly::Color4(a_look.base[0], a_look.base[1], a_look.base[2], a_look.base[3]);
+            prop->baseColorScale = a_look.emissive;
+            prop->falloffStartAngle = a_look.falloff[0];
+            prop->falloffStopAngle = a_look.falloff[1];
+            prop->falloffStartOpacity = a_look.falloff[2];
+            prop->falloffStopOpacity = a_look.falloff[3];
+            prop->softFalloffDepth = kLanternWispSoftDepth;
+            const std::uint32_t shaderId = hdr.AddBlock(std::move(prop));
+            shape->ShaderPropertyRef()->index = shaderId;
+            auto alpha = std::make_unique<nifly::NiAlphaProperty>();
+            alpha->flags = a_look.alpha;
+            alpha->threshold = 0;
+            (void)a_nif.AssignAlphaProperty(shape, std::move(alpha));
+            AddShaderControllers(a_nif, shaderId, WispControllers(a_look));
+            Reparent(a_nif, hdr.GetBlockID(shape), a_parent);
+            return shape;
+        }
+
+        /// The smallest distance from a_point to the triangles a_tris over a_verts
+        [[nodiscard]] float NearestTriangle(const std::vector<Vector3>& a_verts, const std::vector<nifly::Triangle>& a_tris, const Vector3& a_point)
+        {
+            float nearest = kFloatMax;
+            for (const auto& t : a_tris) {
+                if (t.p1 >= a_verts.size() || t.p2 >= a_verts.size() || t.p3 >= a_verts.size()) {
+                    throw std::runtime_error("a frame triangle names a vertex past the list");
+                }
+                nearest = std::min(nearest, ClosestOnTriangle(a_point, a_verts[t.p1], a_verts[t.p2], a_verts[t.p3]).DistanceTo(a_point));
+            }
+            return nearest;
+        }
+
+        /// The bob and turn keys (kLanternWispBob*, kLanternWispKeyRate): one cycle of kLanternWispBobsPerTurn bobs and a turn
+        struct WispMotion
+        {
+            float cycle = 0.0f;
+            std::vector<std::array<float, 4>> translations;  // time, x, y, z
+        };
+
+        [[nodiscard]] WispMotion MakeWispMotion(const Vector3& a_centre)
+        {
+            WispMotion motion;
+            const float bobPeriod = 1.0f / kLanternWispBobHz;
+            motion.cycle = bobPeriod * static_cast<float>(kLanternWispBobsPerTurn);
+            const int keys = static_cast<int>(std::lround(motion.cycle * kLanternWispKeyRate));
+            for (int k = 0; k <= keys; ++k) {
+                const float share = static_cast<float>(k) / static_cast<float>(keys);
+                const float wave = k == keys ? 0.0f : std::sin(2.0f * kPi * static_cast<float>(kLanternWispBobsPerTurn) * share);
+                motion.translations.push_back({ motion.cycle * share, a_centre.x, a_centre.y, a_centre.z + kLanternWispBobAmplitude * wave });
+            }
+            return motion;
+        }
+
+        /// a_motion on a_node as one looping NiTransformController (apohoverlight01.nif's pattern: the interpolator's own
+        /// values unset, linear translation keys, XYZ rotation keys; here Z turns once, 0 -> 2 pi, linear)
+        void AddWispMotion(nifly::NifFile& a_nif, nifly::NiNode& a_node, const WispMotion& a_motion)
+        {
+            auto& hdr = a_nif.GetHeader();
+            auto data = std::make_unique<nifly::NiTransformData>();
+            data->translations.SetInterpolationType(nifly::LINEAR_KEY);
+            for (const auto& t : a_motion.translations) {
+                nifly::NiAnimationKey<Vector3> key;
+                key.type = nifly::LINEAR_KEY;
+                key.time = t[0];
+                key.value = Vector3(t[1], t[2], t[3]);
+                data->translations.AddKey(key);
+            }
+            data->rotationType = nifly::XYZ_ROTATION_KEY;
+            const std::array<std::pair<nifly::NiAnimationKeyGroup<float>*, float>, 3> axes{ { { &data->xRotations, 0.0f },
+                { &data->yRotations, 0.0f }, { &data->zRotations, 2.0f * kPi } } };
+            for (const auto& [group, turn] : axes) {
+                group->SetInterpolationType(nifly::LINEAR_KEY);
+                for (const auto& [time, value] : { std::pair<float, float>{ 0.0f, 0.0f }, std::pair<float, float>{ a_motion.cycle, turn } }) {
+                    nifly::NiAnimationKey<float> key;
+                    key.type = nifly::LINEAR_KEY;
+                    key.time = time;
+                    key.value = value;
+                    group->AddKey(key);
+                }
+            }
+            auto interp = std::make_unique<nifly::NiTransformInterpolator>();
+            interp->translation = nifly::NiVec3Min;
+            interp->rotation.w = interp->rotation.x = interp->rotation.y = interp->rotation.z = nifly::NiFloatMin;
+            interp->scale = nifly::NiFloatMin;
+            interp->dataRef.index = hdr.AddBlock(std::move(data));
+            auto ctrl = std::make_unique<nifly::NiTransformController>();
+            ctrl->flags = kLanternWispControllerFlags;
+            ctrl->frequency = 1.0f;
+            ctrl->phase = 0.0f;
+            ctrl->startTime = 0.0f;
+            ctrl->stopTime = a_motion.cycle;
+            ctrl->targetRef.index = hdr.GetBlockID(&a_node);
+            ctrl->interpolatorRef.index = hdr.AddBlock(std::move(interp));
+            a_node.controllerRef.index = hdr.AddBlock(std::move(ctrl));
+        }
+
+        /// fxwispparticleattach.nif's puffs and strips (kLanternWispParticles) cloned into a_nif under a_node, scaled
+        /// (kLanternWispParticleScale), emitting from a_emitter, their gravity about a_node, their bombs left out, their
+        /// palette GradBlackFlame.dds. Each system's reach (the emitter sphere + speed x life + gravity x life^2 / 2 + its
+        /// radius) into a_reach. Throws when a system is missing or a clone names a block outside itself, a_node and a_emitter.
+        void AddWispParticles(nifly::NifFile& a_nif, const std::filesystem::path& a_source, nifly::NiNode& a_node, std::uint32_t a_emitter,
+            std::array<float, 2>& a_reach, std::vector<std::string>& a_log)
+        {
+            nifly::NifFile source;
+            LoadNif(source, a_source);
+            auto& sh = source.GetHeader();
+            auto& dh = a_nif.GetHeader();
+            const std::uint32_t nodeId = dh.GetBlockID(&a_node);
+            const float s = kLanternWispParticleScale;
+            for (std::size_t n = 0; n < kLanternWispParticles.size(); ++n) {
+                std::uint32_t id = nifly::NIF_NPOS;
+                for (std::uint32_t b = 0; b < sh.GetNumBlocks(); ++b) {
+                    if (auto* system = sh.GetBlock<nifly::NiParticleSystem>(b); system && system->name.get() == kLanternWispParticles[n]) {
+                        id = b;
+                        break;
+                    }
+                }
+                if (id == nifly::NIF_NPOS) {
+                    throw std::runtime_error(fmt::format("{} has no particle system '{}'", kLanternWispSource, kLanternWispParticles[n]));
+                }
+                auto* system = sh.GetBlock<nifly::NiParticleSystem>(id);
+                // the bombs out of the source copy before the clone: the modifiers and the controllers that switch them
+                std::set<std::string> bombs;
+                std::vector<std::uint32_t> kept;
+                for (const auto& ref : system->modifierRefs) {
+                    if (auto* bomb = sh.GetBlock<nifly::NiPSysBombModifier>(ref)) {
+                        bombs.insert(bomb->name.get());
+                    } else {
+                        kept.push_back(ref.index);
+                    }
+                }
+                system->modifierRefs.SetIndices(kept);
+                int switches = 0;
+                for (nifly::NiBlockRef<nifly::NiTimeController>* link = &system->controllerRef;;) {
+                    auto* ctrl = sh.GetBlock<nifly::NiTimeController>(*link);
+                    if (!ctrl) {
+                        break;
+                    }
+                    auto* active = dynamic_cast<nifly::NiPSysModifierActiveCtlr*>(ctrl);
+                    if (active && bombs.count(active->modifierName.get()) != 0) {
+                        link->index = ctrl->nextControllerRef.index;
+                        ++switches;
+                    } else {
+                        link = &ctrl->nextControllerRef;
+                    }
+                }
+                HandGraph::Remap map;
+                const std::uint32_t added = HandGraph::CloneGraph(dh, sh, id, id, map);
+                HandGraph::RemapPointers(dh, map);
+                std::set<std::uint32_t> clone;
+                for (const auto& [oldId, newId] : map) {
+                    clone.insert(newId);
+                }
+                float speed = 0.0f;
+                float life = 0.0f;
+                float radius = 0.0f;
+                float gravity = 0.0f;
+                std::string emitterLine;
+                for (const auto newId : clone) {
+                    if (auto* emitter = dh.GetBlock<nifly::NiPSysEmitter>(newId)) {
+                        emitter->radius *= s;
+                        emitter->radiusVariation *= s;
+                        emitter->speed *= s;
+                        emitter->speedVariation *= s;
+                        speed = std::max(speed, emitter->speed);
+                        life = std::max(life, emitter->lifeSpan);
+                        radius = std::max(radius, emitter->radius);
+                        emitterLine += fmt::format(" emitter '{}' radius {:.4f} +/- {:.4f}, speed {:.4f} +/- {:.4f}, life {:.4f};", emitter->name.get(),
+                            emitter->radius, emitter->radiusVariation, emitter->speed, emitter->speedVariation, emitter->lifeSpan);
+                        if (auto* mesh = dynamic_cast<nifly::NiPSysMeshEmitter*>(emitter)) {
+                            mesh->meshRefs.SetIndices({ a_emitter });
+                        }
+                    }
+                    if (auto* g = dh.GetBlock<nifly::NiPSysGravityModifier>(newId)) {
+                        g->strength *= s;
+                        g->gravityObjRef.index = nodeId;
+                        gravity = std::max(gravity, std::fabs(g->strength));
+                        emitterLine += fmt::format(" gravity '{}' strength {:.4f} about '{}';", g->name.get(), g->strength, kLanternWispNode);
+                    }
+                    if (auto* shader = dh.GetBlock<nifly::BSEffectShaderProperty>(newId)) {
+                        emitterLine += fmt::format(" palette '{}' -> '{}';", shader->greyscaleTexture.get(), kPalettePath);
+                        shader->greyscaleTexture.get() = kPalettePath;
+                        shader->shaderFlags1 |= kSlsf1GreyscaleToPaletteColor;
+                    }
+                }
+                // nothing else outside the clone
+                for (const auto newId : clone) {
+                    auto* block = dh.GetBlock<nifly::NiObject>(newId);
+                    std::set<nifly::NiRef*> refs;
+                    std::set<nifly::NiPtr*> ptrs;
+                    HandGraph::ChildRefs(*block, refs);
+                    block->GetPtrs(ptrs);
+                    std::vector<std::uint32_t> named;
+                    for (auto* ref : refs) {
+                        named.push_back(ref->index);
+                    }
+                    for (auto* ptr : ptrs) {
+                        named.push_back(ptr->index);
+                    }
+                    for (const auto target : named) {
+                        if (target != nifly::NIF_NPOS && clone.count(target) == 0 && target != a_emitter && target != nodeId) {
+                            throw std::runtime_error(fmt::format("the copy of '{}': its {} names block {} outside the copy", kLanternWispParticles[n],
+                                block->GetBlockName(), target));
+                        }
+                    }
+                }
+                auto* copy = dh.GetBlock<nifly::NiParticleSystem>(added);
+                copy->transform.Clear();
+                a_node.childRefs.AddBlockRef(added);
+                a_reach[n] = kLanternWispCoreRadius + speed * life + 0.5f * gravity * life * life + radius;
+                a_log.push_back(fmt::format("wisp particles '{}' ({}): {} blocks copied, {} bomb modifiers and {} controllers switching them left out, "
+                                            "x {} (kLanternWispParticleScale):{} reach about {:.3f} from the centre",
+                    kLanternWispParticles[n], copy->GetBlockName(), clone.size(), bombs.size(), switches, s, emitterLine, a_reach[n]));
+            }
+        }
+
+        /// The ground model's wisp (GreyLantern.h, the wisp constants) in a_nif: HoMBF_Wisp at the cage centre with the three
+        /// spheres round its origin, the hidden emitter sphere, the bob and turn, the particles; BSXFlags Animated. a_frame and
+        /// a_tris: the frame in root space, for the clearance (at every bob key) and the particles' reach. Throws on a failure.
+        void AddGroundWisp(nifly::NifFile& a_nif, const std::vector<std::filesystem::path>& a_inputs, const std::vector<Vector3>& a_frame,
+            const std::vector<nifly::Triangle>& a_tris, LanternBuildResult& a_result)
+        {
+            auto& log = a_result.log;
+            auto& hdr = a_nif.GetHeader();
+            auto* root = a_nif.GetRootNode();
+            const Vector3 centre = ToVector(a_result.cageCentre);
+            MatTransform at;
+            at.translation = centre;
+            auto* node = a_nif.AddNode(kLanternWispNode, at, root);
+            if (!node || ParentOf(a_nif, hdr.GetBlockID(node)) != hdr.GetBlockID(root)) {
+                throw std::runtime_error(fmt::format("nifly did not add the node '{}' under the root", kLanternWispNode));
+            }
+            for (const auto& look : WispLooks()) {
+                (void)AddWispShape(a_nif, *node, look, Vector3());
+            }
+            // the hidden emitter: a plain sphere without a shader, as the vanilla wisp's EmitGeo shapes
+            LanternMesh emit = MakeSphere(kLanternWispCoreRadius, kLanternWispEmitterSegments, kLanternWispEmitterRings);
+            auto* emitter = a_nif.CreateShapeFromData(kLanternWispEmitterName, &emit.verts, &emit.tris, &emit.uvs, &emit.normals);
+            auto* emitterTri = dynamic_cast<nifly::BSTriShape*>(emitter);
+            if (!emitterTri) {
+                throw std::runtime_error(fmt::format("nifly made no BSTriShape for '{}'", kLanternWispEmitterName));
+            }
+            emitterTri->SetNormals(true);
+            emitterTri->SetNormals(emit.normals);
+            a_nif.DeleteShader(emitter);
+            emitter->flags = kAvHidden;
+            const std::uint32_t emitterId = hdr.GetBlockID(emitter);
+            Reparent(a_nif, emitterId, *node);
+
+            // the bob and the turn, and the halo's clearance at every bob key (the keys 1 / kLanternWispKeyRate s apart sample
+            // the bob's path to well under 0.1 unit)
+            const WispMotion motion = MakeWispMotion(centre);
+            AddWispMotion(a_nif, *node, motion);
+            float nearest = kFloatMax;
+            a_result.wispGroundClearance = kFloatMax;
+            float low = kFloatMax;
+            float high = -kFloatMax;
+            for (const auto& t : motion.translations) {
+                const float d = NearestTriangle(a_frame, a_tris, Vector3(t[1], t[2], t[3]));
+                nearest = std::min(nearest, d);
+                low = std::min(low, t[3]);
+                high = std::max(high, t[3]);
+            }
+            a_result.wispGroundClearance = nearest - kLanternWispHaloRadius;
+            const float restNearest = NearestTriangle(a_frame, a_tris, centre);
+            log.push_back(fmt::format("wisp (ground): node '{}' at {}; {} translation keys over {:.4f} s (bob {} at {} Hz, z {:.4f}..{:.4f}; one turn "
+                                      "about Z every {} bobs; flags 0x{:04X}, the pattern of vanilla meshes\\dlc02\\dungeons\\apocrypha\\clutter\\"
+                                      "apohoverlight01.nif); the frame's nearest triangle {:.4f} from the halo's centre along the bob, {:.4f} off the halo "
+                                      "(kLanternWispClearance {})",
+                kLanternWispNode, Text(a_result.cageCentre), motion.translations.size(), motion.cycle, kLanternWispBobAmplitude, kLanternWispBobHz,
+                low, high, kLanternWispBobsPerTurn, kLanternWispControllerFlags, nearest, a_result.wispGroundClearance, kLanternWispClearance));
+            if (a_result.wispGroundClearance < kLanternWispClearance) {
+                throw std::runtime_error(fmt::format("the ground wisp's halo comes within {:.4f} of the frame along its bob (kLanternWispClearance {})",
+                    a_result.wispGroundClearance, kLanternWispClearance));
+            }
+
+            // the particles, which must stay inside the cage on their mean values
+            AddWispParticles(a_nif, Need(a_inputs, kLanternWispSource), *node, emitterId, a_result.particleReach, log);
+            for (std::size_t n = 0; n < kLanternWispParticles.size(); ++n) {
+                log.push_back(fmt::format("wisp particles '{}': reach {:.4f} from the centre, the frame's nearest triangle {:.4f} from it",
+                    kLanternWispParticles[n], a_result.particleReach[n], restNearest));
+                if (a_result.particleReach[n] + kLanternWispBobAmplitude > restNearest) {
+                    throw std::runtime_error(fmt::format("the wisp particles '{}' reach {:.4f} (+ the bob {}) from the centre, past the frame's nearest "
+                                                         "triangle {:.4f}: lower kLanternWispParticleScale",
+                        kLanternWispParticles[n], a_result.particleReach[n], kLanternWispBobAmplitude, restNearest));
+                }
+            }
+
+            auto* bsx = FindBsx(a_nif);
+            if (!bsx) {
+                throw std::runtime_error(fmt::format("{} has no BSXFlags on its root", kLanternFrameSource));
+            }
+            const std::uint32_t before = bsx->integerData;
+            bsx->integerData |= kBsxAnimated;
+            log.push_back(fmt::format("ground BSXFlags {} -> {} (Animated bit 0x{:X}, as the animated vanilla statics carry it; no Addon bit: no "
+                                      "addon node)",
+                before, bsx->integerData, kBsxAnimated));
+        }
+
         struct LanternLugs
         {
             LanternMesh mesh;
@@ -1767,82 +2616,10 @@ namespace GreyBuild
             a_shape.transform.Clear();
         }
 
-        /// a_shape cut down to a_piece's vertices and triangles (remapped); skinning must be gone already
-        void KeepPiece(nifly::NiShape& a_shape, const LanternPiece& a_piece, const std::vector<nifly::Triangle>& a_tris)
-        {
-            auto* tri = dynamic_cast<nifly::BSTriShape*>(&a_shape);
-            if (!tri) {
-                throw std::runtime_error(fmt::format("shape '{}' is not a BSTriShape", a_shape.name.get()));
-            }
-            std::vector<int> remap(tri->vertData.size(), -1);
-            std::vector<nifly::BSVertexData> kept;
-            for (const auto v : a_piece.vertices) {
-                remap[v] = static_cast<int>(kept.size());
-                kept.push_back(tri->vertData[v]);
-            }
-            std::vector<nifly::Triangle> tris;
-            for (const auto i : a_piece.triangles) {
-                const auto& t = a_tris[i];
-                tris.emplace_back(static_cast<std::uint16_t>(remap[t.p1]), static_cast<std::uint16_t>(remap[t.p2]),
-                    static_cast<std::uint16_t>(remap[t.p3]));
-            }
-            tri->SetVertexData(kept);
-            tri->SetTriangles(tris);
-        }
-
-        /// The volume both boxes share (0 when apart)
-        [[nodiscard]] float Overlap(const LanternBox& a_a, const LanternBox& a_b) noexcept
-        {
-            float volume = 1.0f;
-            for (int axis = 0; axis < 3; ++axis) {
-                volume *= std::max(0.0f, std::min(a_a.max[axis], a_b.max[axis]) - std::max(a_a.min[axis], a_b.min[axis]));
-            }
-            return volume;
-        }
-
         [[nodiscard]] std::string GapText(const LanternGap& a_gap)
         {
             return fmt::format("{} points, {} inside, nearest {:.3f} at {}", a_gap.points, a_gap.inside, a_gap.nearest,
                 Text(a_gap.nearestPoint));
-        }
-
-        /// Scales every float key of a lighting shader controller that animates the refraction strength (nif.xml
-        /// LightingShaderControlledFloat 0) by a_ratio; one log line per controller
-        void ScaleRefractionKeys(nifly::NifFile& a_nif, nifly::NiShader& a_shader, float a_ratio, std::vector<std::string>& a_log)
-        {
-            constexpr std::uint32_t kRefractionStrength = 0;
-            auto& hdr = a_nif.GetHeader();
-            std::set<std::uint32_t> seen;
-            for (std::uint32_t id = a_shader.controllerRef.index; id != nifly::NIF_NPOS;) {
-                auto* controller = hdr.GetBlock<nifly::NiTimeController>(id);
-                if (!controller || !seen.insert(id).second) {
-                    break;
-                }
-                if (auto* lit = dynamic_cast<nifly::BSLightingShaderPropertyFloatController*>(controller)) {
-                    std::string what = fmt::format("controls variable {}", lit->typeOfControlledVariable);
-                    if (lit->typeOfControlledVariable == kRefractionStrength) {
-                        auto* interp = hdr.GetBlock<nifly::NiFloatInterpolator>(lit->interpolatorRef);
-                        auto* data = interp ? hdr.GetBlock<nifly::NiFloatData>(interp->dataRef) : nullptr;
-                        if (interp) {
-                            interp->floatValue *= a_ratio;
-                        }
-                        if (data) {
-                            for (std::uint32_t k = 0; k < data->data.GetNumKeys(); ++k) {
-                                auto key = data->data.GetKey(static_cast<int>(k));
-                                key.value *= a_ratio;
-                                key.forward *= a_ratio;
-                                key.backward *= a_ratio;
-                                data->data.SetKey(static_cast<int>(k), key);
-                            }
-                        }
-                        what += fmt::format(" (refraction strength): its keys x {:.4f}", a_ratio);
-                    } else {
-                        what += " (not the refraction strength): left";
-                    }
-                    a_log.push_back(fmt::format("FireStripWarp controller {}", what));
-                }
-                id = controller->nextControllerRef.index;
-            }
         }
 
         /// The worn model (GreyLantern.h, the worn constants) into a_dataDir; throws on any failure
@@ -1976,97 +2753,15 @@ namespace GreyBuild
                 }
             }
 
-            // the flame: one connected piece of each strip at rest, both into the cage under one transform
-            nifly::NifFile flame;
-            LoadNif(flame, Need(a_inputs, kLanternFlameSource));
-            struct Strip
-            {
-                nifly::NiShape* shape = nullptr;
-                MatTransform toGlobal;
-                std::vector<nifly::Triangle> tris;
-                std::vector<LanternPiece> pieces;
-                std::size_t chosen = 0;
-            };
-            std::array<Strip, 2> strips;
-            for (std::size_t s = 0; s < kLanternFlameStrips.size(); ++s) {
-                const char* name = kLanternFlameStrips[s];
-                auto& strip = strips[s];
-                strip.shape = FindShape(flame, name);
-                auto* tri = strip.shape ? dynamic_cast<nifly::BSTriShape*>(strip.shape) : nullptr;
-                if (!tri || !strip.shape->HasSkinInstance()) {
-                    throw std::runtime_error(fmt::format("{} has no skinned BSTriShape '{}'", kLanternFlameSource, name));
-                }
-                MatTransform globalToSkin;
-                if (!flame.CalcShapeTransformGlobalToSkin(strip.shape, globalToSkin)) {
-                    throw std::runtime_error(fmt::format("'{}': no global-to-skin transform", name));
-                }
-                strip.toGlobal = globalToSkin.InverseTransform();
-                strip.tris = tri->triangles;
-                std::vector<Vector3> rest;
-                for (const auto& vertex : tri->vertData) {
-                    rest.push_back(strip.toGlobal.ApplyTransform(vertex.vert));
-                }
-                strip.pieces = LanternPieces(rest, strip.tris);
-                if (strip.pieces.empty()) {
-                    throw std::runtime_error(fmt::format("'{}' has no triangles", name));
-                }
-                if (s == 0) {
-                    // the most triangles, then the tallest, then the first
-                    for (std::size_t p = 1; p < strip.pieces.size(); ++p) {
-                        const auto& a = strip.pieces[p];
-                        const auto& b = strip.pieces[strip.chosen];
-                        if (a.triangles.size() > b.triangles.size() ||
-                            (a.triangles.size() == b.triangles.size() && a.bounds.Size(2) > b.bounds.Size(2) + kLanternWeld)) {
-                            strip.chosen = p;
-                        }
-                    }
-                } else {
-                    // the warp piece over the chosen flame piece
-                    const auto& fire = strips[0].pieces[strips[0].chosen].bounds;
-                    for (std::size_t p = 1; p < strip.pieces.size(); ++p) {
-                        if (Overlap(strip.pieces[p].bounds, fire) > Overlap(strip.pieces[strip.chosen].bounds, fire)) {
-                            strip.chosen = p;
-                        }
-                    }
-                    if (Overlap(strip.pieces[strip.chosen].bounds, fire) <= 0.0f) {
-                        throw std::runtime_error("no FireStripWarp piece overlaps the chosen FireStrip08 piece");
-                    }
-                }
-                const auto& piece = strip.pieces[strip.chosen];
-                log.push_back(fmt::format("flame strip '{}': {} vertices, {} triangles in {} connected pieces; piece {} kept ({} triangles, "
-                                          "{} vertices), rest-pose {}",
-                    name, rest.size(), strip.tris.size(), strip.pieces.size(), strip.chosen, piece.triangles.size(), piece.vertices.size(),
-                    BoxText(piece.bounds)));
-            }
-            LanternBox flameBox = strips[0].pieces[strips[0].chosen].bounds;
-            Grow(flameBox, strips[1].pieces[strips[1].chosen].bounds);
-            const std::array<float, 3> cageSize{ a_walls.Size(0), a_walls.Size(1), a_result.frameBounds.Size(2) };
-            float fit = kFloatMax;
-            for (int a = 0; a < 3; ++a) {
-                if (flameBox.Size(a) > 0.0f) {
-                    fit = std::min(fit, kLanternFlameFill * cageSize[a] / flameBox.Size(a));
-                }
-            }
-            const Vector3 flameCentre = ToVector(flameBox.Centre());
-            const Vector3 cage = ToVector(a_result.cageCentre);
-            const auto flameRoot = [&](const Strip& a_strip, const Vector3& a_skin) {
-                return cage + (a_strip.toGlobal.ApplyTransform(a_skin) - flameCentre) * fit;
-            };
-            log.push_back(fmt::format("flame pieces together {}, scaled x {:.5f} (kLanternFlameFill {} of the cage's {:.4f} x {:.4f} x "
-                                      "{:.4f}) onto the cage centre",
-                BoxText(flameBox), fit, kLanternFlameFill, cageSize[0], cageSize[1], cageSize[2]));
-
             // the lantern's points before the translation onto the ring (it hangs vertically: no tilt)
             std::vector<Vector3> framePoints;
             for (std::size_t i = 0; i < frameRoot.size(); ++i) {
                 framePoints.push_back(shapeA(frameRoot[i], isHandle[i]));
             }
-            std::vector<Vector3> flamePoints;
-            for (const auto& strip : strips) {
-                auto* tri = dynamic_cast<nifly::BSTriShape*>(strip.shape);
-                for (const auto v : strip.pieces[strip.chosen].vertices) {
-                    flamePoints.push_back(shapeA(flameRoot(strip, tri->vertData[v].vert), false));
-                }
+            // the wisp at the cage centre: its halo's vertices stand for it in the body clearance (the largest sphere)
+            std::vector<Vector3> wispPoints;
+            for (const auto& v : MakeSphere(kLanternWispHaloRadius, kLanternWispSegments, kLanternWispRings).verts) {
+                wispPoints.push_back(cageA + v);
             }
             // the lugs under the handle's feet (before the translation, like the points above)
             auto lugs = MakeLugs(framePoints, frameTri->triangles, isHandle, frameTri->UpdateRawUvs());
@@ -2108,8 +2803,8 @@ namespace GreyBuild
                 auto tryBracket = MakeBracket(BracketPath(strap.y, strap.outerBottomX, gripZ, barZ, tryRing.x, tipZ));
                 auto tryRingMesh = MakeRing(tryRing, ringUvMin, ringUvMax);
                 std::vector<Vector3> lantern;
-                lantern.reserve(framePoints.size() + flamePoints.size() + lugs.mesh.verts.size());
-                for (const auto* points : { &framePoints, &flamePoints, &lugs.mesh.verts }) {
+                lantern.reserve(framePoints.size() + wispPoints.size() + lugs.mesh.verts.size());
+                for (const auto* points : { &framePoints, &wispPoints, &lugs.mesh.verts }) {
                     for (const auto& p : *points) {
                         lantern.push_back(p + tryMove);
                     }
@@ -2170,33 +2865,10 @@ namespace GreyBuild
 
             const auto place = [&](const Vector3& a_root, bool a_handle) { return shapeA(a_root, a_handle) + move; };
             const auto placeNormal = [&](const Vector3& a_n, bool a_handle) { return normalA(a_n, a_handle); };
-            const auto placeFlame = [&](const Vector3& a_root) { return shapeA(a_root, false) + move; };
-            {
-                // the flame inside the cage: every flame point within the cage walls' X/Y and the frame's height
-                LanternBox inside = EmptyBox();
-                for (const float x : { a_walls.min[0], a_walls.max[0] }) {
-                    for (const float y : { a_walls.min[1], a_walls.max[1] }) {
-                        for (const float z : { a_result.frameBounds.min[2], a_result.frameBounds.max[2] }) {
-                            Grow(inside, place(Vector3(x, y, z), false));
-                        }
-                    }
-                }
-                LanternBox flameInCage = EmptyBox();
-                for (const auto& p : flamePoints) {
-                    Grow(flameInCage, p + move);
-                }
-                bool within = true;
-                for (int a = 0; a < 3; ++a) {
-                    within = within && flameInCage.min[a] >= inside.min[a] && flameInCage.max[a] <= inside.max[a];
-                }
-                log.push_back(fmt::format("flame {}; the cage {}", BoxText(flameInCage), BoxText(inside)));
-                if (!within) {
-                    throw std::runtime_error("the flame reaches out of the cage: lower kLanternFlameFill");
-                }
-            }
             a_result.wornCage = ToArray(cageA + move);
+            a_result.wispWorn = a_result.wornCage;
             log.push_back(fmt::format("lantern: hangs vertically (no tilt) from the ring, its handle's top wire on the ring's bottom tube "
-                                      "at {}; cage centre {}; the flame moved with it",
+                                      "at {}; cage centre {}; the wisp moved with it",
                 Text(a_result.contact), Text(a_result.wornCage)));
 
             // the worn file
@@ -2225,32 +2897,27 @@ namespace GreyBuild
             BakeEach(*wornFrame, [&](std::size_t a_i, const Vector3& a_v) { return place(frameToRoot.ApplyTransform(a_v), isHandle[a_i]); },
                 [&](std::size_t a_i, const Vector3& a_n) { return placeNormal(frameToRoot.rotation * a_n, isHandle[a_i]); });
 
-            // the flame pieces
-            for (auto& strip : strips) {
-                const std::string name = strip.shape->name.get();
-                flame.DeleteSkinning(strip.shape);
-                auto* tri = dynamic_cast<nifly::BSTriShape*>(strip.shape);
-                if (tri->vertData.size() <= strip.pieces[strip.chosen].vertices.back()) {
-                    throw std::runtime_error(fmt::format("'{}' lost vertices with its skinning", name));
+            // the wisp: core, shell and halo at the cage centre, the frame's nearest triangle at least kLanternWispClearance off the
+            // halo's sphere
+            {
+                auto* tri = dynamic_cast<nifly::BSTriShape*>(wornFrame);
+                std::vector<Vector3> placed;
+                for (const auto& vertex : tri->vertData) {
+                    placed.push_back(vertex.vert);
                 }
-                KeepPiece(*strip.shape, strip.pieces[strip.chosen], strip.tris);
-                const MatTransform toGlobal = strip.toGlobal;
-                BakeEach(*strip.shape, [&](std::size_t, const Vector3& a_v) { return placeFlame(flameRoot(strip, a_v)); },
-                    [&](std::size_t, const Vector3& a_n) { return normalA(toGlobal.rotation * a_n, false); });
-                auto* clone = adopt(worn.CloneShape(strip.shape, name, &flame));
-                for (const auto& line : RetargetShaderControllers(worn, *clone)) {
-                    log.push_back(fmt::format("flame strip '{}': controller {}", name, line));
+                const Vector3 centre = ToVector(a_result.wispWorn);
+                const float nearest = NearestTriangle(placed, tri->triangles, centre);
+                a_result.wispWornClearance = nearest - kLanternWispHaloRadius;
+                log.push_back(fmt::format("wisp (worn): centre {}, radii core {} / shell {} / halo {} (kLanternWispCore/Shell/HaloRadius); the "
+                                          "frame's nearest triangle {:.4f} from the centre, {:.4f} off the halo (kLanternWispClearance {})",
+                    Text(a_result.wispWorn), kLanternWispCoreRadius, kLanternWispShellRadius, kLanternWispHaloRadius, nearest,
+                    a_result.wispWornClearance, kLanternWispClearance));
+                if (a_result.wispWornClearance < kLanternWispClearance) {
+                    throw std::runtime_error(fmt::format("the worn wisp's halo comes within {:.4f} of the frame (kLanternWispClearance {})",
+                        a_result.wispWornClearance, kLanternWispClearance));
                 }
-                if (name == kLanternFlameStrips[1]) {
-                    auto* lit = hdr.GetBlock<nifly::BSLightingShaderProperty>(clone->ShaderPropertyRef());
-                    if (!lit) {
-                        throw std::runtime_error("FireStripWarp has no lighting shader");
-                    }
-                    const float before = lit->refractionStrength;
-                    lit->refractionStrength = kLanternWarpRefraction;
-                    log.push_back(fmt::format("FireStripWarp refraction strength {:.4f} -> {} (kLanternWarpRefraction)", before,
-                        kLanternWarpRefraction));
-                    ScaleRefractionKeys(worn, *lit, before > 0.0f ? kLanternWarpRefraction / before : 1.0f, log);
+                for (const auto& look : WispLooks()) {
+                    (void)adopt(AddWispShape(worn, *root, look, centre));
                 }
             }
 
@@ -2322,14 +2989,7 @@ namespace GreyBuild
                 }
                 log.push_back(fmt::format("worn frame (character space) {}", BoxText(a_result.wornFrame)));
             }
-            std::vector<std::string> notes;
-            const GreyStats stats = GreyEffects(worn, kDefaultTint, kDefaultTintAdd, &notes);
-            log.push_back(fmt::format("worn effect shaders {}: palette normal {} (GradBlackFlame.dds), additive {}, left {}; "
-                                      "lighting shaders {} left alone; base colour x tint {}",
-                stats.effectShaders, stats.paletted, stats.palettedAdd, stats.paletteLeft, stats.lightingShaders, kDefaultTint));
-            for (const auto& note : notes) {
-                log.push_back("worn: " + note);
-            }
+            // no GreyEffects pass: it would put GradBlackFlameAdd.dds on the additive core; the wisp takes kPalettePath as made
             SaveNew(worn, a_dataDir / kLanternWornNif);
 
             const Vector3 ringBottom = ring - Vector3(0.0f, 0.0f, kLanternRingRadius);
@@ -2361,13 +3021,8 @@ namespace GreyBuild
             }
             a_result.summary.push_back(fmt::format("strap textures {} / {} (vanilla leather); bracket, ring and lugs {} / {}", kLanternStrapDiffuse,
                 kLanternStrapNormal, kLanternDiffuse, frameNormal));
-            for (const auto& strip : strips) {
-                const auto& piece = strip.pieces[strip.chosen];
-                a_result.summary.push_back(fmt::format("flame piece '{}' #{}: {} triangles, {} vertices, rest-pose size ({:.4f}, {:.4f}, "
-                                                       "{:.4f}), worn size x {:.5f} x {:.5f}",
-                    strip.shape->name.get(), strip.chosen, piece.triangles.size(), piece.vertices.size(), piece.bounds.Size(0),
-                    piece.bounds.Size(1), piece.bounds.Size(2), fit, scale));
-            }
+            a_result.summary.push_back(fmt::format("wisp (worn): centre {}, the frame {:.4f} off the halo (kLanternWispClearance {})",
+                Text(a_result.wispWorn), a_result.wispWornClearance, kLanternWispClearance));
         }
     }
 
@@ -2461,19 +3116,23 @@ namespace GreyBuild
                 }
             }
             log.push_back(fmt::format("ground frame vertex bounds (root space) {}", BoxText(result.frameBounds)));
-            log.push_back(fmt::format("cage centre (walls' X/Y, bounds' middle Z) {} -> AddOnNode{} (value flags {})", Text(result.cageCentre),
-                kLanternFlameAddon, kLanternFlameValueFlags));
+            log.push_back(fmt::format("cage centre (walls' X/Y, bounds' middle Z) {} -> the wisp node '{}'", Text(result.cageCentre),
+                kLanternWispNode));
 
-            auto* root = ground.GetRootNode();
-            (void)AddValueNode(ground, *root, kLanternFlameAddon, kLanternFlameValueFlags, ToVector(result.cageCentre));
-            if (auto* bsx = FindBsx(ground)) {
-                const std::uint32_t before = bsx->integerData;
-                bsx->integerData |= kBsxAddon;
-                log.push_back(fmt::format("ground BSXFlags {} -> {} (Addon bit 0x{:X})", before, bsx->integerData, kBsxAddon));
-            } else {
-                throw std::runtime_error(fmt::format("{} has no BSXFlags on its root", kLanternFrameSource));
+            // the wisp goes into the copy that is saved: the worn step clones the frame from the original, which stays without it
+            // (SaveNif's string-table pass also writes through the file it saves)
+            nifly::NifFile copy = ground;
+            {
+                std::vector<Vector3> frameRoot;
+                for (const auto& v : verts) {
+                    frameRoot.push_back(toRoot.ApplyTransform(v));
+                }
+                std::vector<nifly::Triangle> tris;
+                if (!frame->GetTriangles(tris) || tris.empty()) {
+                    throw std::runtime_error("the frame has no triangles");
+                }
+                AddGroundWisp(copy, a_inputs, frameRoot, tris, result);
             }
-            nifly::NifFile copy = ground;  // SaveNif's string-table pass writes through the file: the worn step reads the original
             SaveNif(copy, a_dataDir / kLanternGroundNif);
             groundOk = true;
         } catch (const std::exception& e) {
@@ -2521,6 +3180,25 @@ namespace GreyBuild
         return result;
     }
 
+    namespace
+    {
+        /// The ground model's frame: its one shape with a lighting shader (the wisp's are effect shaders or none); nullptr
+        /// when there is not exactly one
+        [[nodiscard]] nifly::NiShape* GroundFrame(const nifly::NifFile& a_nif)
+        {
+            nifly::NiShape* found = nullptr;
+            for (auto* shape : a_nif.GetShapes()) {
+                if (a_nif.GetHeader().GetBlock<nifly::BSLightingShaderProperty>(shape->ShaderPropertyRef())) {
+                    if (found) {
+                        return nullptr;
+                    }
+                    found = shape;
+                }
+            }
+            return found;
+        }
+    }
+
     std::vector<LanternClearance> WornClearances(const std::vector<std::filesystem::path>& a_inputs, const std::filesystem::path& a_dataDir)
     {
         nifly::NifFile worn;
@@ -2531,8 +3209,10 @@ namespace GreyBuild
             std::vector<std::string> shapes;
             float margin;
         };
-        const std::array<Part, 4> parts{ { { "lantern", { kLanternWornFrameName, kLanternFlameStrips[0], kLanternFlameStrips[1], kLanternLugName },
-                                                 kLanternBodyMargin },
+        const std::array<Part, 4> parts{ { { "lantern",
+                                               { kLanternWornFrameName, kLanternWispCoreName, kLanternWispShellName, kLanternWispHaloName,
+                                                   kLanternLugName },
+                                               kLanternBodyMargin },
             { "strap", { kLanternStrapName }, kLanternStrapMargin }, { "bracket", { kLanternBracketName }, kLanternStrapMargin },
             { "ring", { kLanternRingName }, kLanternStrapMargin } } };
         std::vector<LanternClearance> out;
@@ -2618,19 +3298,220 @@ namespace GreyBuild
         LoadNif(ground, a_dataDir / kLanternGroundNif);
         nifly::NifFile worn;
         LoadNif(worn, a_dataDir / kLanternWornNif);
-        const auto shapes = ground.GetShapes();
+        auto* groundFrame = GroundFrame(ground);
         auto* wornFrame = FindShape(worn, kLanternWornFrameName);
         std::vector<Vector3> groundVerts;
         std::vector<Vector3> wornVerts;
-        if (shapes.size() != 1 || !wornFrame || !ground.GetVertsForShape(shapes.front(), groundVerts) ||
-            !worn.GetVertsForShape(wornFrame, wornVerts)) {
+        if (!groundFrame || !wornFrame || !ground.GetVertsForShape(groundFrame, groundVerts) || !worn.GetVertsForShape(wornFrame, wornVerts)) {
             throw std::runtime_error("the axis check finds no frame in lantern_gnd.nif or lantern_worn.nif");
         }
-        const MatTransform toRoot = ToRootSpace(ground, ground.GetHeader().GetBlockID(shapes.front()));
+        const MatTransform toRoot = ToRootSpace(ground, ground.GetHeader().GetBlockID(groundFrame));
         for (auto& v : groundVerts) {
             v = toRoot.ApplyTransform(v);
         }
         return LanternAxisTiltDeg(groundVerts, wornVerts);  // worn: skin space = character space (global-to-skin identity)
+    }
+
+    LanternWispReadBack WispReadBack(const std::filesystem::path& a_dataDir)
+    {
+        LanternWispReadBack out;
+        // the worn wisp: the common bounds centre of its three spheres, against the worn frame's triangles
+        {
+            nifly::NifFile worn;
+            LoadNif(worn, a_dataDir / kLanternWornNif);
+            auto* frame = FindShape(worn, kLanternWornFrameName);
+            std::vector<Vector3> verts;
+            std::vector<nifly::Triangle> tris;
+            if (!frame || !worn.GetVertsForShape(frame, verts) || !frame->GetTriangles(tris)) {
+                throw std::runtime_error(fmt::format("lantern_worn.nif has no frame '{}'", kLanternWornFrameName));
+            }
+            LanternBox box = EmptyBox();
+            for (const char* name : { kLanternWispCoreName, kLanternWispShellName, kLanternWispHaloName }) {
+                std::vector<Vector3> sphere;
+                auto* shape = FindShape(worn, name);
+                if (!shape || !worn.GetVertsForShape(shape, sphere) || sphere.empty()) {
+                    throw std::runtime_error(fmt::format("lantern_worn.nif has no wisp shape '{}'", name));
+                }
+                for (const auto& v : sphere) {
+                    Grow(box, v);  // skin space = character space
+                }
+            }
+            out.wornCentre = box.Centre();
+            out.wornClearance = NearestTriangle(verts, tris, ToVector(out.wornCentre)) - kLanternWispHaloRadius;
+        }
+        // the ground wisp: the node's translation keys (its centre at each), against the ground frame in root space
+        {
+            nifly::NifFile ground;
+            LoadNif(ground, a_dataDir / kLanternGroundNif);
+            auto& hdr = ground.GetHeader();
+            auto* frame = GroundFrame(ground);
+            std::vector<Vector3> verts;
+            std::vector<nifly::Triangle> tris;
+            if (!frame || !ground.GetVertsForShape(frame, verts) || !frame->GetTriangles(tris)) {
+                throw std::runtime_error("lantern_gnd.nif has no frame");
+            }
+            const MatTransform toRoot = ToRootSpace(ground, hdr.GetBlockID(frame));
+            for (auto& v : verts) {
+                v = toRoot.ApplyTransform(v);
+            }
+            nifly::NiNode* node = nullptr;
+            for (std::uint32_t id = 0; id < hdr.GetNumBlocks() && !node; ++id) {
+                if (auto* n = hdr.GetBlock<nifly::NiNode>(id); n && n->name.get() == kLanternWispNode) {
+                    node = n;
+                }
+            }
+            if (!node) {
+                throw std::runtime_error(fmt::format("lantern_gnd.nif has no node '{}'", kLanternWispNode));
+            }
+            const MatTransform nodeToRoot = ToRootSpace(ground, hdr.GetBlockID(node));
+            out.groundCentre = ToArray(nodeToRoot.translation);
+            const auto controller = ReadController(hdr, node->controllerRef.index);
+            if (controller.translations.empty()) {
+                throw std::runtime_error(fmt::format("the node '{}' has no translation keys", kLanternWispNode));
+            }
+            // the keys are the node's translation in its parent's space; the parent is the root (checked by VerifyLantern)
+            out.groundClearance = kFloatMax;
+            out.bobLow = kFloatMax;
+            out.bobHigh = -kFloatMax;
+            for (const auto& t : controller.translations) {
+                out.groundClearance = std::min(out.groundClearance, NearestTriangle(verts, tris, Vector3(t[1], t[2], t[3])));
+                out.bobLow = std::min(out.bobLow, t[3]);
+                out.bobHigh = std::max(out.bobHigh, t[3]);
+            }
+            out.groundClearance -= kLanternWispHaloRadius;
+        }
+        return out;
+    }
+
+    std::array<float, 2> StrapLayerGap(const std::filesystem::path& a_dataDir)
+    {
+        nifly::NifFile worn;
+        LoadNif(worn, a_dataDir / kLanternWornNif);
+        auto* strap = FindShape(worn, kLanternStrapName);
+        std::vector<Vector3> verts;
+        if (!strap || !worn.GetVertsForShape(strap, verts) || verts.empty()) {
+            throw std::runtime_error(fmt::format("lantern_worn.nif has no strap '{}'", kLanternStrapName));
+        }
+        LanternBox box = EmptyBox();
+        for (const auto& v : verts) {
+            Grow(box, v);
+        }
+        const float centreY = box.Centre()[1];
+        const float band = kLanternStrapWidth * 0.25f;
+        std::array<float, 2> gap{ kFloatMax, -kFloatMax };
+        // windows kLanternStrapStep tall (each layer has a ring of vertices every kLanternStrapStep, on grids of their own), below
+        // the fold. In a window the broad faces' vertices (within a quarter of the width of the centre) fall into clusters of X
+        // (kFaceMerge apart at most): four clusters are the two layers' faces in -X order, the outer layer's outer and inner
+        // face, the inner layer's outer and inner face, and the gap is between the second and the third. Other windows (one
+        // layer, an end cap's centre vertex) are skipped. Limit: a layer sloping in X spreads its clusters over the window, which
+        // narrows the gap read by up to its slope x the window (the made-up hip of the self-test is flat: exact there). Upgrade
+        // path: the gap from one layer's vertices to the other's triangles.
+        constexpr float kFaceMerge = 0.15f;  // half the narrowest separation of two faces (the 0.3 gap)
+        const float foldBottom = box.max[2] - 2.0f * kLanternStrapThickness - kLanternStrapBeltGap;
+        for (float z = box.min[2]; z <= foldBottom; z += kLanternStrapStep * 0.5f) {
+            std::vector<float> xs;
+            for (const auto& v : verts) {
+                if (std::fabs(v.z - z) <= kLanternStrapStep * 0.5f && std::fabs(v.y - centreY) <= band) {
+                    xs.push_back(v.x);
+                }
+            }
+            std::sort(xs.begin(), xs.end());
+            std::vector<std::array<float, 2>> clusters;  // min, max
+            for (const float x : xs) {
+                if (clusters.empty() || x - clusters.back()[1] > kFaceMerge) {
+                    clusters.push_back({ x, x });
+                } else {
+                    clusters.back()[1] = x;
+                }
+            }
+            if (clusters.size() != 4) {
+                continue;
+            }
+            const float between = clusters[2][0] - clusters[1][1];
+            gap[0] = std::min(gap[0], between);
+            gap[1] = std::max(gap[1], between);
+        }
+        if (gap[0] > gap[1]) {
+            throw std::runtime_error("no height of the strap has both layers");
+        }
+        return gap;
+    }
+
+    namespace
+    {
+        /// The wisp's three spheres in a_info (GreyLantern.h, the wisp constants): each an effect shader with its look and its
+        /// controllers, of its radius, all round one centre, under the root (a_skinned: the worn copies, Skinned flag on) or
+        /// under HoMBF_Wisp
+        void CheckWisp(std::vector<std::string>& a_problems, const std::string& a_what, const LanternNifInfo& a_info, bool a_skinned)
+        {
+            constexpr float kValueTolerance = 1e-4f;
+            constexpr float kRadiusTolerance = 1e-2f;  // the vertex positions as the file stores them
+            const auto within = [](float a_l, float a_r, float a_t) { return std::fabs(a_l - a_r) <= a_t; };
+            std::array<float, 3> centre{};
+            bool first = true;
+            for (const auto& look : WispLooks()) {
+                const auto it = std::find_if(a_info.shapes.begin(), a_info.shapes.end(), [&](const auto& a_s) { return a_s.name == look.name; });
+                if (it == a_info.shapes.end()) {
+                    Check(a_problems, false, fmt::format("{}: no wisp shape '{}'", a_what, look.name));
+                    continue;
+                }
+                const auto& s = *it;
+                const std::uint32_t flags1 = look.flags1 | (a_skinned ? kSlsf1Skinned : 0u);
+                Check(a_problems, s.shader == "BSEffectShaderProperty" && s.flags1 == flags1 && s.flags2 == kLanternWispFlags2,
+                    fmt::format("{} '{}': {} SLSF1 0x{:08X} SLSF2 0x{:08X}, expected BSEffectShaderProperty 0x{:08X} 0x{:08X}", a_what, s.name, s.shader,
+                        s.flags1, s.flags2, flags1, kLanternWispFlags2));
+                const std::string source = std::string("source ") + look.source;
+                const std::string greyscale = std::string("greyscale ") + look.greyscale;
+                Check(a_problems, s.textures.size() == 2 && s.textures[0] == source && s.textures[1] == greyscale,
+                    fmt::format("{} '{}': textures '{}' / '{}', expected '{}' / '{}'", a_what, s.name, s.textures.empty() ? "" : s.textures[0],
+                        s.textures.size() > 1 ? s.textures[1] : "", source, greyscale));
+                Check(a_problems, s.hasAlpha && s.alphaFlags == look.alpha,
+                    fmt::format("{} '{}': alpha flags 0x{:04X}, expected 0x{:04X}", a_what, s.name, s.alphaFlags, look.alpha));
+                bool values = within(s.emissiveMultiple, look.emissive, kValueTolerance) &&
+                              within(s.softFalloffDepth, kLanternWispSoftDepth, kValueTolerance) && s.clampMode == kClampWrapST;
+                for (int i = 0; i < 4; ++i) {
+                    values = values && within(s.baseColor[i], look.base[i], kValueTolerance) && within(s.falloff[i], look.falloff[i], kValueTolerance);
+                }
+                Check(a_problems, values,
+                    fmt::format("{} '{}': base colour ({:.4f}, {:.4f}, {:.4f}, {:.4f}) x {:.4f}, falloff {:.4f} {:.4f} {:.4f} {:.4f}, soft depth {:.4f}, "
+                                "clamp {}: not the wisp constants",
+                        a_what, s.name, s.baseColor[0], s.baseColor[1], s.baseColor[2], s.baseColor[3], s.emissiveMultiple, s.falloff[0],
+                        s.falloff[1], s.falloff[2], s.falloff[3], s.softFalloffDepth, s.clampMode));
+                const std::string parent = a_skinned ? a_info.rootName : std::string(kLanternWispNode);
+                Check(a_problems, s.parent == parent && (s.skinType.empty() != a_skinned),
+                    fmt::format("{} '{}': under '{}', skinned {}; expected under '{}', skinned {}", a_what, s.name, s.parent, !s.skinType.empty(),
+                        parent, a_skinned));
+                bool round = true;
+                for (int a = 0; a < 3; ++a) {
+                    round = round && within(s.bounds.Size(a) * 0.5f, look.radius, kRadiusTolerance);
+                }
+                const auto at = s.bounds.Centre();
+                if (first) {
+                    centre = at;
+                    first = false;
+                }
+                Check(a_problems, round && within(at[0], centre[0], kRadiusTolerance) && within(at[1], centre[1], kRadiusTolerance) &&
+                                      within(at[2], centre[2], kRadiusTolerance),
+                    fmt::format("{} '{}': bounds {}, expected a sphere of radius {} round {}", a_what, s.name, BoxText(s.bounds), look.radius,
+                        Text(centre)));
+                const auto expected = WispControllers(look);
+                bool controllers = s.controllerInfo.size() == expected.size() && s.controllers.size() == expected.size();
+                for (std::size_t c = 0; controllers && c < expected.size(); ++c) {
+                    const auto& got = s.controllerInfo[c];
+                    const auto& [variable, keys] = expected[c];
+                    controllers = got.type == "BSEffectShaderPropertyFloatController" && got.variable == variable &&
+                                  got.flags == kLanternWispControllerFlags && within(got.frequency, 1.0f, kValueTolerance) &&
+                                  within(got.start, keys.front()[0], kValueTolerance) && within(got.stop, keys.back()[0], kValueTolerance) &&
+                                  got.keys.size() == keys.size() && s.controllers[c].find("its shader") != std::string::npos;
+                    for (std::size_t k = 0; controllers && k < keys.size(); ++k) {
+                        controllers = within(got.keys[k][0], keys[k][0], kValueTolerance) && within(got.keys[k][1], keys[k][1], kValueTolerance);
+                    }
+                }
+                Check(a_problems, controllers,
+                    fmt::format("{} '{}': {} controllers, expected {} (U / V offset scroll, the core's pulse) looping on its own shader", a_what,
+                        s.name, s.controllerInfo.size(), expected.size()));
+            }
+        }
     }
 
     std::vector<std::string> VerifyLantern(const std::vector<std::filesystem::path>& a_inputs, const std::filesystem::path& a_dataDir)
@@ -2639,11 +3520,23 @@ namespace GreyBuild
         try {
             // the ground model
             const auto gnd = InspectLanternNif(a_dataDir / kLanternGroundNif);
-            Check(problems, gnd.shapes.size() == 1, fmt::format("gnd: {} shapes, expected the frame alone", gnd.shapes.size()));
-            if (!gnd.shapes.empty()) {
-                const auto& frame = gnd.shapes.front();
-                Check(problems, frame.type == "BSTriShape" && frame.shader == "BSLightingShaderProperty",
-                    fmt::format("gnd: frame '{}' is {} with {}", frame.name, frame.type, frame.shader));
+            const auto gndShape = [&](const std::string& a_name) -> const LanternShapeInfo* {
+                const auto it = std::find_if(gnd.shapes.begin(), gnd.shapes.end(), [&](const auto& a_s) { return a_s.name == a_name; });
+                return it == gnd.shapes.end() ? nullptr : &*it;
+            };
+            const LanternShapeInfo* gndFrame = nullptr;
+            for (const auto& s : gnd.shapes) {
+                if (s.shader == "BSLightingShaderProperty") {
+                    Check(problems, gndFrame == nullptr, fmt::format("gnd: a second lit shape '{}' beside the frame", s.name));
+                    gndFrame = &s;
+                }
+            }
+            Check(problems, gnd.shapes.size() == 5 && gndFrame,
+                fmt::format("gnd: {} shapes, expected the frame, the wisp's core, shell and halo and its emitter", gnd.shapes.size()));
+            if (gndFrame) {
+                const auto& frame = *gndFrame;
+                Check(problems, frame.type == "BSTriShape" && frame.parent == gnd.rootName,
+                    fmt::format("gnd: frame '{}' is {} under '{}'", frame.name, frame.type, frame.parent));
                 const std::string diffuse = fmt::format("[{}] {}", kSlotDiffuse, kLanternDiffuse);
                 Check(problems, !frame.textures.empty() && frame.textures.front() == diffuse,
                     fmt::format("gnd: diffuse is '{}', expected '{}'", frame.textures.empty() ? "" : frame.textures.front(), diffuse));
@@ -2663,23 +3556,98 @@ namespace GreyBuild
                 }
             }
             Check(problems, gnd.hasCollision, "gnd: the collision is gone");
-            Check(problems, gnd.valueNodes.size() == 1 && gnd.valueNodes.front().name == fmt::format("AddOnNode{}", kLanternFlameAddon) &&
-                                gnd.valueNodes.front().value == kLanternFlameAddon && gnd.valueNodes.front().parent == gnd.rootName,
-                fmt::format("gnd: expected one BSValueNode AddOnNode{} value {} under the root ({} found)", kLanternFlameAddon,
-                    kLanternFlameAddon, gnd.valueNodes.size()));
-            Check(problems, gnd.hasBsx && (gnd.bsx & kBsxAddon) != 0, fmt::format("gnd: BSXFlags {} without the Addon bit", gnd.bsx));
+            Check(problems, gnd.valueNodes.empty(), fmt::format("gnd: {} addon nodes, expected none (the wisp replaced AddOnNode9100)",
+                                                        gnd.valueNodes.size()));
+            Check(problems, gnd.hasBsx && (gnd.bsx & kBsxAnimated) != 0 && (gnd.bsx & kBsxAddon) == 0,
+                fmt::format("gnd: BSXFlags 0x{:X}, expected the Animated bit and no Addon bit", gnd.bsx));
+            CheckWisp(problems, "gnd", gnd, false);
+            {
+                const auto* emitter = gndShape(kLanternWispEmitterName);
+                Check(problems, emitter && emitter->shader.empty() && (emitter->avFlags & 1u) != 0 && emitter->parent == kLanternWispNode &&
+                                    emitter->skinType.empty(),
+                    fmt::format("gnd: the emitter '{}' is a hidden shape without a shader under '{}'", kLanternWispEmitterName, kLanternWispNode));
+                // the node's motion: one looping NiTransformController, the bob's keys and one turn
+                std::vector<const LanternController*> motions;
+                for (const auto& [node, controller] : gnd.nodeControllers) {
+                    if (node == kLanternWispNode) {
+                        motions.push_back(&controller);
+                    }
+                }
+                const float cycle = static_cast<float>(kLanternWispBobsPerTurn) / kLanternWispBobHz;
+                const auto* motion = motions.size() == 1 ? motions.front() : nullptr;
+                Check(problems, motion && motion->type == "NiTransformController" && motion->flags == kLanternWispControllerFlags &&
+                                    std::fabs(motion->start) <= 1e-6f && std::fabs(motion->stop - cycle) <= 1e-4f && std::fabs(motion->frequency - 1.0f) <= 1e-6f,
+                    fmt::format("gnd: '{}' has {} controllers; expected one NiTransformController, flags 0x{:04X} (loop, active), time 0..{:.4f}",
+                        kLanternWispNode, motions.size(), kLanternWispControllerFlags, cycle));
+                if (motion) {
+                    const auto& t = motion->translations;
+                    float low = kFloatMax;
+                    float high = -kFloatMax;
+                    for (const auto& key : t) {
+                        low = std::min(low, key[3]);
+                        high = std::max(high, key[3]);
+                    }
+                    constexpr float kKeyTolerance = 1e-3f;
+                    const bool loops = t.size() > 2 && std::fabs(t.front()[0]) <= 1e-6f && std::fabs(t.back()[0] - cycle) <= 1e-4f &&
+                                       std::fabs(t.front()[3] - t.back()[3]) <= 1e-5f && std::fabs(t.front()[1] - t.back()[1]) <= 1e-5f &&
+                                       std::fabs(t.front()[2] - t.back()[2]) <= 1e-5f;
+                    Check(problems, loops && std::fabs((high - low) - 2.0f * kLanternWispBobAmplitude) <= kKeyTolerance,
+                        fmt::format("gnd: the bob's {} translation keys from {:.4f} to {:.4f} s, z {:.4f}..{:.4f}: expected a loop over 0..{:.4f} "
+                                    "of {} up and down (kLanternWispBobAmplitude)",
+                            t.size(), t.empty() ? 0.0f : t.front()[0], t.empty() ? 0.0f : t.back()[0], low, high, cycle, kLanternWispBobAmplitude));
+                    const auto& z = motion->zRotations;
+                    Check(problems, motion->rotationType == nifly::XYZ_ROTATION_KEY && z.size() == 2 && std::fabs(z.front()[1]) <= 1e-6f &&
+                                        std::fabs(z.back()[1] - 2.0f * kPi) <= 1e-5f && std::fabs(z.back()[0] - cycle) <= 1e-4f,
+                        "gnd: the wisp turns once about Z (XYZ rotation, 0 -> 2 pi) over the cycle");
+                }
+                // the particles: both systems under the node, their palette ours, emitting from the emitter, no bombs, scaled
+                nifly::NifFile source;
+                LoadNif(source, Need(a_inputs, kLanternWispSource));
+                const auto sourceParticles = ReadParticles(source);
+                Check(problems, gnd.particles.size() == kLanternWispParticles.size(),
+                    fmt::format("gnd: {} particle systems, expected {}", gnd.particles.size(), kLanternWispParticles.size()));
+                for (const char* name : kLanternWispParticles) {
+                    const auto it = std::find_if(gnd.particles.begin(), gnd.particles.end(), [&](const auto& a_p) { return a_p.name == name; });
+                    const auto from = std::find_if(sourceParticles.begin(), sourceParticles.end(), [&](const auto& a_p) { return a_p.name == name; });
+                    if (it == gnd.particles.end() || from == sourceParticles.end()) {
+                        Check(problems, false, fmt::format("gnd: no particle system '{}' (or none in the source)", name));
+                        continue;
+                    }
+                    const auto& p = *it;
+                    Check(problems, p.parent == kLanternWispNode && p.type == from->type && p.pool == from->pool,
+                        fmt::format("gnd particles '{}': {} pool {} under '{}', expected the source's {} pool {} under '{}'", name, p.type, p.pool,
+                            p.parent, from->type, from->pool, kLanternWispNode));
+                    Check(problems, p.greyscale == kPalettePath && (p.flags1 & kSlsf1GreyscaleToPaletteColor) != 0,
+                        fmt::format("gnd particles '{}': palette '{}' (palette colour {}), expected '{}'", name, p.greyscale,
+                            (p.flags1 & kSlsf1GreyscaleToPaletteColor) != 0 ? "on" : "off", kPalettePath));
+                    Check(problems, p.emitterMeshes.size() == 1 && p.emitterMeshes.front() == kLanternWispEmitterName,
+                        fmt::format("gnd particles '{}': emits from {} meshes, expected '{}' alone", name, p.emitterMeshes.size(), kLanternWispEmitterName));
+                    const bool bombs = std::any_of(p.modifiers.begin(), p.modifiers.end(),
+                        [](const std::string& a_m) { return a_m.find("NiPSysBombModifier") != std::string::npos; });
+                    Check(problems, !bombs, fmt::format("gnd particles '{}': a bomb modifier is left", name));
+                    for (const auto& line : p.outside) {
+                        Check(problems, line.find(std::string("'") + kLanternWispEmitterName + "'") != std::string::npos ||
+                                            line.find(std::string("'") + kLanternWispNode + "'") != std::string::npos,
+                            fmt::format("gnd particles '{}': names {}", name, line));
+                    }
+                    constexpr float kScaleTolerance = 1e-4f;
+                    Check(problems, std::fabs(p.radius - from->radius * kLanternWispParticleScale) <= kScaleTolerance &&
+                                        std::fabs(p.speed - from->speed * kLanternWispParticleScale) <= kScaleTolerance,
+                        fmt::format("gnd particles '{}': radius {:.4f}, speed {:.4f}; expected the source's {:.4f}, {:.4f} x {}", name, p.radius,
+                            p.speed, from->radius, from->speed, kLanternWispParticleScale));
+                }
+            }
 
             // the worn model
             const auto worn = InspectLanternNif(a_dataDir / kLanternWornNif);
             Check(problems, !worn.hasCollision, "worn: has a collision object");
-            Check(problems, worn.valueNodes.empty(), "worn: has an addon node (the flame is the strips)");
+            Check(problems, worn.valueNodes.empty(), "worn: has an addon node (the flame is the wisp)");
             Check(problems, worn.sseCompatible, "worn: nifly says it is not SSE-compatible");
-            std::vector<std::string> expected{ kLanternWornFrameName };
-            expected.insert(expected.end(), kLanternFlameStrips.begin(), kLanternFlameStrips.end());
-            expected.push_back(kLanternStrapName);
-            expected.push_back(kLanternBracketName);
-            expected.push_back(kLanternRingName);
-            expected.push_back(kLanternLugName);
+            Check(problems, worn.nodeControllers.empty() && worn.particles.empty(),
+                fmt::format("worn: {} node controllers and {} particle systems, expected none (skinned: the shaders' controllers alone)",
+                    worn.nodeControllers.size(), worn.particles.size()));
+            std::vector<std::string> expected{ kLanternWornFrameName, kLanternStrapName, kLanternBracketName, kLanternRingName, kLanternLugName,
+                kLanternWispCoreName, kLanternWispShellName, kLanternWispHaloName };
             const auto shapeNamed = [&](const std::string& a_name) -> const LanternShapeInfo* {
                 const auto it = std::find_if(worn.shapes.begin(), worn.shapes.end(), [&](const auto& a_s) { return a_s.name == a_name; });
                 return it == worn.shapes.end() ? nullptr : &*it;
@@ -2687,11 +3655,11 @@ namespace GreyBuild
             const auto slot = [](const LanternShapeInfo* a_s, std::size_t a_i) {
                 return a_s && a_s->textures.size() > a_i ? a_s->textures[a_i] : std::string();
             };
+            CheckWisp(problems, "worn", worn, true);
             {
                 const auto* frame = shapeNamed(kLanternWornFrameName);
                 const auto* strap = shapeNamed(kLanternStrapName);
                 const auto* ring = shapeNamed(kLanternRingName);
-                const auto* warp = shapeNamed(kLanternFlameStrips[1]);
                 const std::string strapDiffuse = fmt::format("[{}] {}", kSlotDiffuse, kLanternStrapDiffuse);
                 const std::string strapNormal = fmt::format("[{}] {}", kNormalSlot, kLanternStrapNormal);
                 const std::string soot = fmt::format("[{}] {}", kSlotDiffuse, kLanternDiffuse);
@@ -2727,15 +3695,11 @@ namespace GreyBuild
                         strap ? strap->glossiness : -1.0f, strap ? strap->specularStrength : -1.0f,
                         strap ? Text(strap->specularColor) : std::string("-"), kLanternStrapGlossiness, kLanternStrapSpecularStrength,
                         Text(kLanternStrapSpecularColor)));
-                Check(problems, warp && std::fabs(warp->refraction - kLanternWarpRefraction) <= 1e-6f,
-                    fmt::format("worn FireStripWarp: refraction strength {}, expected {} (kLanternWarpRefraction)",
-                        warp ? warp->refraction : -1.0f, kLanternWarpRefraction));
             }
             Check(problems, worn.shapes.size() == expected.size(),
                 fmt::format("worn: {} shapes, expected {}", worn.shapes.size(), expected.size()));
             for (const auto& name : expected) {
-                const auto it = std::find_if(worn.shapes.begin(), worn.shapes.end(), [&](const auto& a_s) { return a_s.name == name; });
-                Check(problems, it != worn.shapes.end(), fmt::format("worn: no shape '{}'", name));
+                Check(problems, shapeNamed(name) != nullptr, fmt::format("worn: no shape '{}'", name));
             }
             for (const auto& s : worn.shapes) {
                 Check(problems, s.skinType == "BSDismemberSkinInstance" && s.skinned,
@@ -2768,6 +3732,23 @@ namespace GreyBuild
                     Check(problems, s.textures.size() > 1 && s.textures[1] == palette,
                         fmt::format("worn '{}': palette '{}', expected '{}'", s.name, s.textures.size() > 1 ? s.textures[1] : "", palette));
                 }
+            }
+            // the wisp inside the cage on both models
+            {
+                const auto wisp = WispReadBack(a_dataDir);
+                Check(problems, wisp.wornClearance >= kLanternWispClearance,
+                    fmt::format("worn: the frame comes within {:.4f} of the wisp's halo (kLanternWispClearance {})", wisp.wornClearance,
+                        kLanternWispClearance));
+                Check(problems, wisp.groundClearance >= kLanternWispClearance,
+                    fmt::format("gnd: the frame comes within {:.4f} of the wisp's halo along its bob (kLanternWispClearance {})",
+                        wisp.groundClearance, kLanternWispClearance));
+            }
+            // the strap's layers lie on each other
+            {
+                const auto gap = StrapLayerGap(a_dataDir);
+                Check(problems, gap[0] >= kLanternStrapLayerGapMin - 1e-3f && gap[0] <= kLanternStrapLayerGapMax + 1e-3f,
+                    fmt::format("worn strap: the layers {:.4f}..{:.4f} apart, the narrowest expected {}..{} (kLanternStrapLayerGapMin/Max)", gap[0],
+                        gap[1], kLanternStrapLayerGapMin, kLanternStrapLayerGapMax));
             }
 
             // the worn parts against the bodies (each body an --in folder has)
@@ -2934,6 +3915,23 @@ namespace GreyBuild
         std::cout << "worn clearances (read back):\n";
         for (const auto& c : WornClearances(a_inputs, a_dataDir)) {
             std::cout << fmt::format("  {} / {}: {} (margin {})\n", c.part, c.body, GapText(c.gap), c.margin);
+        }
+        {
+            const auto wisp = WispReadBack(a_dataDir);
+            std::cout << fmt::format("wisp (read back): worn centre {}, the worn frame {:.4f} off the halo (radius {}); ground node at {}, bob z "
+                                     "{:.4f}..{:.4f} ({:.4f} up and down), the ground frame {:.4f} off the halo along the bob (kLanternWispClearance {})\n",
+                Text(wisp.wornCentre), wisp.wornClearance, kLanternWispHaloRadius, Text(wisp.groundCentre), wisp.bobLow, wisp.bobHigh,
+                (wisp.bobHigh - wisp.bobLow) * 0.5f, wisp.groundClearance, kLanternWispClearance);
+            for (std::size_t n = 0; n < kLanternWispParticles.size(); ++n) {
+                std::cout << fmt::format("wisp particles '{}' (build): reach about {:.4f} from the centre on their mean values\n",
+                    kLanternWispParticles[n], result.particleReach[n]);
+            }
+            const auto gap = StrapLayerGap(a_dataDir);
+            std::cout << fmt::format("worn strap layers (read back): {:.4f}..{:.4f} apart (kLanternStrapBeltGap {}; the narrowest expected "
+                                     "{}..{}); the outer layer's inner face {:.4f} off the band where they are narrowest (the inner layer {} off "
+                                     "it, {} thick)\n",
+                gap[0], gap[1], kLanternStrapBeltGap, kLanternStrapLayerGapMin, kLanternStrapLayerGapMax,
+                kLanternStrapBodyGap + kLanternStrapThickness + gap[0], kLanternStrapBodyGap, kLanternStrapThickness);
         }
         std::cout << "lantern: 3 NIFs and 1 texture written and read back\n";
         return kExitOk;

@@ -259,25 +259,38 @@ blackflame-greybuild --inspect-lantern <file.nif> [...]   (that read-back for an
 ```
 
 `--write-lantern` reads loose vanilla files from the `--in` folders: `meshes\clutter\common\candlelantern01.nif`,
-`meshes\actors\character\character assets\skeleton.nif` and `meshes\actors\atronachflame\character
-assets\atronachflame.nif` (Skyrim - Meshes0.bsa), `textures\clutter\common\lampgeneric01.dds` (Skyrim - Textures3.bsa),
+`meshes\actors\character\character assets\skeleton.nif` and `meshes\actors\wisp\character
+assets\fxwispparticleattach.nif` (Skyrim - Meshes0.bsa), `textures\clutter\common\lampgeneric01.dds` (Skyrim - Textures3.bsa),
 and `malebody_1.nif` / `femalebody_1.nif` from the same folder as the skeleton (Skyrim - Meshes0.bsa; required: the worn
 model's belt strap is laid on both bodies and every worn part is checked against them). Extract them from the game's own
-BSAs, not a replacer. The worn model (round 4, belt-mounted on an iron hook) is a leather strap (0.6 thick, rounded
+BSAs, not a replacer. The flame in both models (round 5) is a will-o'-the-wisp: a ball of black flame floating at the
+cage centre, three spheres round one point: a bright additive core (radius 1.6, `textures\effects\DarkSwirls.dds` through
+`GradBlackFlame.dds`, soft falloff edge, its UVs scrolling and its emissive multiple pulsing at 0.6 Hz), a near-black
+alpha-blended shell (radius 2.1, the same noise scrolling the other way and slower, so dark parts drift over the core: the
+hand marble copies' dark companion rule) and a faint additive halo (radius 3, `FXpuffsTile.dds`). In the ground model they
+sit under a node `HoMBF_Wisp` that bobs 0.6 up and down at 0.3 Hz and turns once about Z every four bobs through one
+looping `NiTransformController` (the pattern of vanilla `apohoverlight01.nif`; BSXFlags gets the Animated bit, and no
+addon node is left), with a scaled-down copy (x 0.015) of the vanilla wisp's trailing particles (its puffs and strips, on
+`GradBlackFlame.dds`, emitting from a hidden sphere at the core, their bomb modifiers left out); in the worn model they are
+skinned to the pelvis with the rest, without the node motion. The build and the read-back keep the halo at least 0.5 off
+the frame's triangles (the ground's anywhere along the bob) and the particles' mean reach inside the cage. The worn model
+(belt-mounted on an iron hook) is a leather strap (0.6 thick, rounded
 edges, a slight bulge on its outer face, hand-cut edges) looped over the vanilla belt band at the left hip: the builder
 measures the band's top and bottom on each body's underwear shape (`MaleUnderwear_1`, `FemaleUnderwear`) and puts the
-fold's top 1.2 over the highest band top and the strap's inner end 1 under the lowest band bottom (vanilla
+fold's top 1.2 over the highest band top and the strap's inner end 1 under the lowest band bottom, the inner layer 0.35 off
+the band and the outer layer lying on it 0.3 off the inner layer (round 5; the read-back checks the narrowest gap between
+the layers is 0.2-0.4) (vanilla
 `textures\clutter\common\leatherstrips01.dds` / `_n.dds`, Skyrim - Textures3.bsa, with the specular of vanilla
 `leatherstrips01.nif`; the NIF names them, the builder logs whether an `--in` folder has them); a flat forged iron bracket
 (bevelled edges, tapering toward the tip) coming out of the strap's lower end and reaching out sideways with an iron ring
 welded to its down-turned tip; and the lantern (0.8 of round 1, handle turned upright over the cage axis and set 6 tall,
-an iron lug on the lid under each of its feet) hanging vertically from the ring by its handle with an upright flame from
-one connected piece of each atronach fire strip. The bracket starts 6 units long; where the cage would come within 1 unit
+an iron lug on the lid under each of its feet) hanging vertically from the ring by its handle with the wisp in its cage.
+The bracket starts 6 units long; where the cage would come within 1 unit
 of a body (both vanilla thighs reach out under the hip in the reference pose) it grows in 0.5 steps up to 9, past which
 the build fails; the build logs every length tried and the clearances (strap, bracket and ring 0.3, lantern 1.0), and the
 read-back checks that the cage axis is world Z within 0.5 degrees, the handle's height, the lugs touching lid and feet and
 the strap's top over the band. The ring and the bracket take a plain iron area of the lamp texture (u 0.80-0.98, v
-0.60-0.80), the lugs the lid's own. The placement, size, shader and darkening constants are named in
+0.60-0.80), the lugs the lid's own. The placement, size, shader, motion, particle and darkening constants are named in
 `tools/blackflame-greybuild/GreyLantern.h`.
 
 `--in` folders hold loose files laid out as Data (`meshes\...`), searched in the order given: the first that has

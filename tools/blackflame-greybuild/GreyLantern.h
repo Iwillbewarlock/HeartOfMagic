@@ -5,17 +5,19 @@
 // =============================================================================
 // docs/superpowers/specs/2026-10-21-black-flame-lantern-design.md, section 6 and records 0x80D / 0x80E / 0x815. From
 // vanilla files in the --in folders (loose, Data layout; extract Skyrim - Meshes0.bsa / Skyrim - Textures*.bsa first):
-//   lantern_gnd.nif    candlelantern01.nif's frame and collision, diffuse = the soot copy, normal map kept, and an
-//                      AddOnNode9100 (grey ADDN 0x804 MPSFireSmall01) at the cage centre (the frame's vertex bounds)
+//   lantern_gnd.nif    candlelantern01.nif's frame and collision, diffuse = the soot copy, normal map kept, and the wisp
+//                      (round 5): a NiNode HoMBF_Wisp at the cage centre (the frame's vertex bounds) holding the black
+//                      flame orb (core, shell, halo, see the wisp constants), a hidden emitter sphere and a scaled-down
+//                      copy of the vanilla wisp's trailing particles (fxwispparticleattach.nif's puffs and strips, on
+//                      GradBlackFlame.dds), bobbing and turning slowly through a looping NiTransformController (the
+//                      vanilla hover light apohoverlight01.nif's pattern; BSXFlags Animated)
 //   lantern_worn.nif   belt-mounted at the left hip, every shape 100% on NPC Pelvis [Pelv] (BSDismemberSkinInstance, one
 //                      partition, body part 60): a leather strap looped over the vanilla belt band (made here, vanilla
 //                      leather textures), an iron hook bracket out of its lower end with an iron ring welded to its tip
 //                      (made here, the soot lamp texture), and the frame without collision (handle turned upright and
-//                      shortened, iron lugs under its feet) hanging vertically from the ring, with one connected piece of each
-//                      of the Flame Atronach's fire strips FireStrip08 and FireStripWarp (with their shader controllers)
-//                      upright in the cage; FireStrip08's palette shader takes GradBlackFlame.dds through GreyEffects
-//                      (FireStripWarp is a lighting-shader refraction strip on a normal map: no colour; its refraction
-//                      strength lowered to kLanternWarpRefraction)
+//                      shortened, iron lugs under its feet) hanging vertically from the ring, with the wisp's core, shell
+//                      and halo (round 5) floating at the cage centre: no node animation (skinned), the shaders' own
+//                      UV-scroll and pulse controllers
 //   lantern_smoke.nif  an empty BSFadeNode with BSXFlags and one AddOnNode9123 (grey ADDN 0x809 MPSFireSmSmoke01)
 //   LampGenericSoot01.dds  LampGeneric01.dds with RGB x kLanternSootDarken, alpha kept, same format and mips
 // An AddOnNode is a BSValueNode whose value is the ADDN index (what the engine reads; vanilla candlelanternwithcandle01.nif
@@ -41,7 +43,8 @@ namespace GreyBuild
     // Sources (Data-relative, as FindSource looks them up in the --in folders)
     inline constexpr const char* kLanternFrameSource = "meshes\\clutter\\common\\candlelantern01.nif";
     inline constexpr const char* kLanternSkeletonSource = "meshes\\actors\\character\\character assets\\skeleton.nif";
-    inline constexpr const char* kLanternFlameSource = "meshes\\actors\\atronachflame\\character assets\\atronachflame.nif";
+    // the vanilla wisp's trailing particles (Skyrim - Meshes0.bsa), copied scaled down into the ground model
+    inline constexpr const char* kLanternWispSource = "meshes\\actors\\wisp\\character assets\\fxwispparticleattach.nif";
     inline constexpr const char* kLanternDiffuseSource = "textures\\clutter\\common\\lampgeneric01.dds";
 
     // Outputs (Data-relative, under the --write-lantern folder)
@@ -51,14 +54,13 @@ namespace GreyBuild
     // The texture's file and the text the NIF slot names (the slot keeps the case the other addon paths use)
     inline constexpr const char* kLanternDiffuse = "textures\\HeartOfMagic\\BlackFlame\\Lantern\\LampGenericSoot01.dds";
 
-    // The grey ADDN indices the lantern's addon nodes name (shipped records 0x804 MPSFireSmall01, 0x809 MPSFireSmSmoke01)
-    inline constexpr int kLanternFlameAddon = 9100;
+    // The grey ADDN index the smoke static's addon node names (shipped record 0x809 MPSFireSmSmoke01; 0x804 stays in the
+    // ESP for other features, the lantern no longer names it)
     inline constexpr int kLanternSmokeAddon = 9123;
-    // BSValueNode value flags as the precedent of each role has them: the vanilla candle lantern's flame nodes 1
-    // (BSVN_BILLBOARD_WORLD_Z), the vanilla smoke static fxsmokechimney01.nif's AddOnNode56 0
-    inline constexpr std::uint8_t kLanternFlameValueFlags = 1;
+    // BSValueNode value flags as the precedent has them: the vanilla smoke static fxsmokechimney01.nif's AddOnNode56 0
     inline constexpr std::uint8_t kLanternSmokeValueFlags = 0;
-    // BSXFlags bit 4, Addon (nif.xml BSXFlags): set on a model that carries addon nodes
+    // BSXFlags bit 0, Animated, and bit 4, Addon (nif.xml BSXFlags)
+    inline constexpr std::uint32_t kBsxAnimated = 1u << 0;
     inline constexpr std::uint32_t kBsxAddon = 1u << 4;
     // lantern_smoke.nif's BSXFlags: the value the vanilla effect statics with an AddOnNode carry, fxsmokechimney01.nif and
     // fxfire01new.nif (read 2026-10-21 from Skyrim - Meshes0.bsa): 0x31 = Animated | Addon | EditorMarker. Copied as it is;
@@ -68,10 +70,9 @@ namespace GreyBuild
     inline constexpr const char* kLanternWornRootName = "HoMBF_LanternWorn";
     inline constexpr const char* kLanternWornFrameName = "HoMBF_LanternFrame";
 
-    // The worn mesh: the bone, its body part and the shapes copied from the Flame Atronach
+    // The worn mesh: the bone and its body part
     inline constexpr const char* kLanternBone = "NPC Pelvis [Pelv]";
     inline constexpr std::uint16_t kLanternBodyPart = 60;
-    inline constexpr std::array<const char*, 2> kLanternFlameStrips{ "FireStrip08", "FireStripWarp" };
     // SLSF1 bit 1, Skinned (CommonLibSSE-NG BSShaderProperty.h EShaderPropertyFlag kSkinned = 1)
     inline constexpr std::uint32_t kSlsf1Skinned = 1u << 1;
 
@@ -138,8 +139,11 @@ namespace GreyBuild
     // kLanternStrapEdgeSegments segments each). It sits on the belt band of both bodies: the inner layer rises on the body
     // (kLanternStrapBodyGap off it) from kLanternStrapUnderBand below the lowest band bottom (wrapped round the belt), folds
     // over the top with its top kLanternStrapOverBand above the highest band top, and the outer layer hangs down
-    // kLanternStrapBeltGap further out (the belt's room) kLanternStrapOuterLength below the top (round 3's length; the
-    // bracket comes out of its lower end), draping (never moving back in towards the body as it goes down).
+    // kLanternStrapBeltGap off the inner layer kLanternStrapOuterLength below the top (round 3's length; the bracket comes
+    // out of its lower end), draping (never moving back in towards the body as it goes down). Round 5: the gap between
+    // the layers 0.3 (was 1.0, "the belt's room", which left the outer layer floating 2.25 off the band at its centreline):
+    // the vanilla belt band is the body's own surface, so the outer layer lies on the inner one, which lies on the band;
+    // StrapLayerGap reads it back (kLanternStrapLayerGapMin..Max).
     inline constexpr float kLanternStrapY = 3.0f;              // a little forward of the pelvis; the arm hangs at y <= -2 from z 76
     inline constexpr float kLanternStrapOverBand = 1.2f;
     inline constexpr float kLanternStrapUnderBand = 1.0f;
@@ -149,7 +153,9 @@ namespace GreyBuild
     inline constexpr float kLanternStrapEdgeRadius = 0.25f;    // below half the thickness: the broad faces stay flat
     inline constexpr int kLanternStrapEdgeSegments = 3;
     inline constexpr float kLanternStrapBodyGap = 0.35f;       // the inner layer off the band (0.2-0.4; kLanternStrapMargin 0.3)
-    inline constexpr float kLanternStrapBeltGap = 1.0f;
+    inline constexpr float kLanternStrapBeltGap = 0.3f;
+    inline constexpr float kLanternStrapLayerGapMin = 0.2f;   // the read-back's range for the narrowest gap between the layers
+    inline constexpr float kLanternStrapLayerGapMax = 0.4f;
     inline constexpr float kLanternStrapStep = 0.5f;           // path samples along Z
     inline constexpr int kLanternStrapFoldSegments = 8;        // the half circle over the top
     // The outer face (the loop's outside) bulges by this at the middle of the width (a parabola across it, 0 at the
@@ -218,7 +224,7 @@ namespace GreyBuild
     inline constexpr std::array<float, 2> kLanternIronUvMax{ 0.98f, 0.80f };
 
     // The lantern hangs vertically, its handle's top wire resting on the ring's bottom tube, no tilt
-    inline constexpr float kLanternBodyMargin = 1.0f;          // the lantern: frame, flame and lugs
+    inline constexpr float kLanternBodyMargin = 1.0f;          // the lantern: frame, wisp and lugs
     inline constexpr float kLanternStrapMargin = 0.3f;         // the strap (its inner layer is the nearest), the bracket, the ring
     // The read-back's vertical check: the worn frame's cage axis (LanternAxisTiltDeg) within this of world Z
     inline constexpr float kLanternVerticalToleranceDeg = 0.5f;
@@ -227,12 +233,83 @@ namespace GreyBuild
     inline constexpr float kLanternAxisLowShare = 0.3f;
     inline constexpr float kLanternAxisTopShare = 0.8f;
 
-    // The flame: one connected piece of each strip (the one with the most triangles, then the tallest), the FireStripWarp
-    // piece the one whose rest-pose bounds overlap the chosen FireStrip08 piece most; both under one transform scaled to
-    // kLanternFlameFill of the cage (the smallest of width, depth, height wins) and centred on it
-    inline constexpr float kLanternFlameFill = 0.5f;
-    // FireStripWarp's refraction strength (0.15 on the atronach, whose flame is ~10x this one)
-    inline constexpr float kLanternWarpRefraction = 0.05f;
+    // ---- The wisp (round 5, 2026-10-21: "a will-o'-the-wisp floating inside"): a ball of black flame at the cage centre,
+    // three UV spheres round one point. The black flame look (the addon's rule): additive alone cannot paint dark, so a
+    // bright additive core on GradBlackFlame.dds (kPalettePath) is paired with a darker alpha-blended shell, as the hand
+    // marble copies pair their additive fire with a near-black normal-blend companion (GreyMarble.cpp: palette off, base
+    // colour 0.006, the texture's alpha). The same radii in both models (the task's game units; the ground cage is 1/0.63
+    // of the worn one, so the ground orb fills less of it).
+    inline constexpr const char* kLanternWispNode = "HoMBF_Wisp";            // the ground model's node
+    inline constexpr const char* kLanternWispCoreName = "HoMBF_WispCore";
+    inline constexpr const char* kLanternWispShellName = "HoMBF_WispShell";
+    inline constexpr const char* kLanternWispHaloName = "HoMBF_WispHalo";
+    inline constexpr const char* kLanternWispEmitterName = "HoMBF_WispEmitter";  // the ground's hidden particle emitter
+    inline constexpr float kLanternWispCoreRadius = 1.6f;
+    inline constexpr float kLanternWispShellRadius = 2.1f;
+    inline constexpr float kLanternWispHaloRadius = 3.0f;
+    inline constexpr int kLanternWispSegments = 24;          // round the axis
+    inline constexpr int kLanternWispRings = 16;             // pole to pole
+    inline constexpr int kLanternWispEmitterSegments = 12;   // the hidden emitter sphere (core radius)
+    inline constexpr int kLanternWispEmitterRings = 8;
+    // The frame (its triangles) at least this far from every point of the halo (the ground: anywhere along its bob)
+    inline constexpr float kLanternWispClearance = 0.5f;
+    // The sources the shaders scroll: the vanilla wisp's own glow noise (wisp.nif ArmMagic01 / SideViewMagic) on the core
+    // and the shell, its soft puffs (wisp.nif SkirtMagic) on the halo
+    inline constexpr const char* kLanternWispNoise = "textures\\effects\\DarkSwirls.dds";
+    inline constexpr const char* kLanternWispHaloTexture = "textures\\effects\\FXpuffsTile.dds";
+    // Shader flags. SLSF1: 31 ZBuffer_Test, 30 Soft_Effect, 6 Use_Falloff, 5 palette alpha, 4 palette colour (the vanilla
+    // wisp glows' 0xE000007A without Vertex_Alpha and External_Emittance: these spheres have no vertex colours and emit
+    // themselves; the worn copies add Skinned); SLSF2 0: no ZBuffer_Write (blended), no vertex colours, no effect lighting
+    inline constexpr std::uint32_t kLanternWispFlags1Palette = 0xC0000070;   // core and halo
+    inline constexpr std::uint32_t kLanternWispFlags1Dark = 0xC0000040;      // the shell: palette off (the marble's rule)
+    inline constexpr std::uint32_t kLanternWispFlags2 = 0;
+    inline constexpr float kLanternWispSoftDepth = 2.0f;                     // the vanilla wisp glows' soft falloff depth
+    // NiAlphaProperty flags: additive (blend on, source SRC_ALPHA, destination ONE; 4109, as the hand copies' tests) and
+    // normal (SRC_ALPHA / INV_SRC_ALPHA, the vanilla wisp glows' 0x10ED)
+    inline constexpr std::uint16_t kLanternWispAdditive = 0x100D;
+    inline constexpr std::uint16_t kLanternWispNormal = 0x10ED;
+    // Falloff (start angle cosine, stop angle cosine, start opacity, stop opacity): the core fades from 30 to 75 degrees off
+    // the view, the shell as the vanilla wisp glows (75 to 85 degrees), the halo over the whole half sphere
+    inline constexpr std::array<float, 4> kLanternWispCoreFalloff{ 0.8660f, 0.2588f, 1.0f, 0.0f };
+    inline constexpr std::array<float, 4> kLanternWispShellFalloff{ 0.2588f, 0.0872f, 1.0f, 0.0f };
+    inline constexpr std::array<float, 4> kLanternWispHaloFalloff{ 1.0f, 0.0f, 1.0f, 0.0f };
+    // The core: GradBlackFlame.dds tops out at grey 0.5, so its emissive multiple carries the brightness, pulsing as a
+    // sine about kLanternWispCoreEmissive by kLanternWispPulseAmplitude at kLanternWispPulseHz (kLanternWispPulseKeys
+    // linear keys a period)
+    inline constexpr float kLanternWispCoreEmissive = 2.5f;
+    inline constexpr float kLanternWispPulseAmplitude = 0.6f;
+    inline constexpr float kLanternWispPulseHz = 0.6f;
+    inline constexpr int kLanternWispPulseKeys = 16;
+    // The shell: near black (the hand marble's 0.006) at this alpha
+    inline constexpr float kLanternWispShellColour = 0.006f;
+    inline constexpr float kLanternWispShellAlpha = 0.9f;
+    // The halo: faint
+    inline constexpr float kLanternWispHaloAlpha = 0.15f;
+    inline constexpr float kLanternWispHaloEmissive = 1.0f;
+    // UV scroll: seconds per U and V repeat (U offset and V offset 0 -> 1, linear, looping). The shell runs the other way
+    // (0 -> -1) and slower, so its dark parts drift across the core
+    inline constexpr std::array<float, 2> kLanternWispCoreScroll{ 6.0f, 10.0f };
+    inline constexpr std::array<float, 2> kLanternWispShellScroll{ 9.0f, 15.0f };
+    // BSEffectShaderPropertyFloatController controlled variables (nif.xml EffectShaderControlledVariable; vanilla
+    // apohoverlight01.nif's keys sit round 0 on 6 / 8 and round 1 on 7 / 9): 0 emissive multiple, 6 U offset, 8 V offset
+    inline constexpr std::uint32_t kLanternWispVarEmissive = 0;
+    inline constexpr std::uint32_t kLanternWispVarUOffset = 6;
+    inline constexpr std::uint32_t kLanternWispVarVOffset = 8;
+    // Every wisp controller's flags: vanilla apohoverlight01.nif's and wisp.nif's 0x0048 (cycle loop, active)
+    inline constexpr std::uint16_t kLanternWispControllerFlags = 0x0048;
+    // The ground's motion (one NiTransformController on HoMBF_Wisp, as apohoverlight01.nif's on 'lLight01'): a bob of
+    // kLanternWispBobAmplitude up and down at kLanternWispBobHz and one turn about Z every kLanternWispBobsPerTurn bobs (both
+    // in one looping cycle), translation keys linear at kLanternWispKeyRate a second (the precedent's 1/30 s)
+    inline constexpr float kLanternWispBobAmplitude = 0.6f;
+    inline constexpr float kLanternWispBobHz = 0.3f;
+    inline constexpr int kLanternWispBobsPerTurn = 4;
+    inline constexpr float kLanternWispKeyRate = 30.0f;
+    // The particles: fxwispparticleattach.nif's puffs (NiParticleSystem 'PArray02') and strips (BSStripParticleSystem
+    // 'PArray01'), their sizes, speeds and gravity x kLanternWispParticleScale, emitting from the hidden emitter sphere, their
+    // gravity about HoMBF_Wisp, their bomb modifiers (and the controllers that switch them) left out (their nodes stand 60-190
+    // units round the vanilla wisp), their palette GradBlackFlame.dds (normal blend: the dark part of the flame)
+    inline constexpr std::array<const char*, 2> kLanternWispParticles{ "PArray02", "PArray01" };
+    inline constexpr float kLanternWispParticleScale = 0.015f;
 
     // The read-back's skin checks: bone bind pose x skin-to-bone = identity within this, and the bone-space bounds and
     // vertices back through the bind pose within kLanternBoundsTolerance of the skin-space ones
@@ -252,6 +329,52 @@ namespace GreyBuild
             return { (min[0] + max[0]) * 0.5f, (min[1] + max[1]) * 0.5f, (min[2] + max[2]) * 0.5f };
         }
         [[nodiscard]] float Size(int a_axis) const noexcept { return max[a_axis] - min[a_axis]; }
+    };
+
+    /// One controller as a read-back prints it (a shader's, a node's or a particle system's)
+    struct LanternController
+    {
+        std::string type;
+        std::uint32_t variable = 0xFFFFFFFF;  // a shader float controller's controlled variable (else 0xFFFFFFFF)
+        std::uint16_t flags = 0;
+        float frequency = 0.0f;
+        float phase = 0.0f;
+        float start = 0.0f;
+        float stop = 0.0f;
+        std::uint32_t target = 0xFFFFFFFF;
+        std::string interpolator;                    // the interpolator's block type, "" when none
+        float value = 0.0f;                          // an NiFloatInterpolator's value
+        std::vector<std::array<float, 2>> keys;      // its NiFloatData's keys (time, value)
+        std::vector<std::array<float, 4>> translations;  // an NiTransformData's translation keys (time, x, y, z)
+        std::vector<std::array<float, 2>> zRotations;    // ... its Z rotation keys (time, radians; XYZ rotation)
+        std::uint32_t rotationType = 0;              // ... its rotation type (nifly NiKeyType)
+        std::string text;                            // the printed line
+    };
+
+    /// One particle system as a read-back prints it
+    struct LanternParticleInfo
+    {
+        std::string name;
+        std::string type;
+        std::string parent;
+        bool worldSpace = false;
+        std::uint32_t pool = 0;             // its NiPSysData's particle pool
+        std::uint32_t flags1 = 0;
+        std::uint32_t flags2 = 0;
+        std::string source;
+        std::string greyscale;
+        std::array<float, 4> baseColor{};
+        std::uint16_t alphaFlags = 0;
+        bool hasAlpha = false;
+        float radius = 0.0f;                // the first emitter's particle radius, its variation, speed, life span
+        float radiusVariation = 0.0f;
+        float speed = 0.0f;
+        float lifeSpan = 0.0f;
+        float birthRate = -1.0f;            // the emitter controller's interpolator value (-1: none read)
+        std::vector<std::string> emitterMeshes;  // a mesh emitter's meshes by name
+        std::vector<std::string> modifiers;      // "type 'name'" per modifier
+        std::vector<std::string> outside;        // a modifier or controller reference naming a block outside the system's graph
+        std::vector<std::string> lines;          // the printed detail lines
     };
 
     /// What one shape of a NIF holds, as a read-back prints it
@@ -282,6 +405,20 @@ namespace GreyBuild
         std::uint32_t skinDataWeights = 0;      // NiSkinData's weight list of bone 0
         bool allWeightsOne = false;             // every vertex: bone 0 weight 1 and no other (vertex data and NiSkinData)
         std::vector<std::string> controllers;   // the shader's controller chain, "type -> target ok|wrong"
+        std::vector<LanternController> controllerInfo;  // the same chain, read out
+        // an effect shader's values (effect true)
+        bool effect = false;
+        std::array<float, 4> baseColor{};
+        float emissiveMultiple = 0.0f;          // baseColorScale
+        std::array<float, 4> falloff{};         // start angle, stop angle, start opacity, stop opacity
+        float softFalloffDepth = 0.0f;
+        std::uint32_t clampMode = 0;            // the texture clamp mode (3: wrap S and T)
+        std::array<float, 2> uvOffset{};
+        std::array<float, 2> uvScale{};
+        bool hasAlpha = false;                  // an NiAlphaProperty on the shape
+        std::uint16_t alphaFlags = 0;
+        std::string parent;                     // the node whose children name the shape
+        std::uint32_t avFlags = 0;              // the shape's NiAVObject flags (bit 0: hidden)
         LanternBox bounds;                      // vertex bounds in the root's space (skinned: skin space)
         float refraction = -1.0f;               // a lighting shader's refraction strength (-1: not a lighting shader)
         // skinned on one bone: B = the bone node's transform to the root, S = the skin-to-bone transform of bone 0
@@ -308,6 +445,8 @@ namespace GreyBuild
         std::vector<std::string> nodeNames;   // every NiNode-derived block's name
         std::vector<LanternValueNode> valueNodes;
         std::vector<LanternShapeInfo> shapes;
+        std::vector<LanternParticleInfo> particles;
+        std::vector<std::pair<std::string, LanternController>> nodeControllers;  // node name, each controller on it
         bool hasBsx = false;
         std::uint32_t bsx = 0;
         bool hasCollision = false;            // any NiAVObject with a collision object
@@ -442,6 +581,25 @@ namespace GreyBuild
     };
     [[nodiscard]] LanternHandleReadBack WornHandle(const std::filesystem::path& a_dataDir);
 
+    /// The wisp read back from both files: its centre (the shapes' common bounds centre; the ground's node translation) and
+    /// the frame's nearest triangle to the halo's sphere (radius kLanternWispHaloRadius about the centre; the ground's at
+    /// every bob key's height). Throws std::runtime_error when a file, the frame or a wisp shape is missing.
+    struct LanternWispReadBack
+    {
+        std::array<float, 3> wornCentre{};
+        float wornClearance = 0.0f;
+        std::array<float, 3> groundCentre{};
+        float groundClearance = 0.0f;
+        float bobLow = 0.0f;    // the lowest and highest bob key (node Z)
+        float bobHigh = 0.0f;
+    };
+    [[nodiscard]] LanternWispReadBack WispReadBack(const std::filesystem::path& a_dataDir);
+
+    /// The gap between the strap's layers read back: at each kLanternStrapStep height both layers cross (the strap's
+    /// vertices within a quarter of its width of its centre Y), the largest jump in X between the inner layer's outer face
+    /// and the outer layer's inner face; the narrowest and the widest. Throws std::runtime_error when no height has both.
+    [[nodiscard]] std::array<float, 2> StrapLayerGap(const std::filesystem::path& a_dataDir);
+
     struct LanternBuildResult
     {
         bool ok = false;
@@ -467,13 +625,17 @@ namespace GreyBuild
         float strapBottom = 0.0f;           // the outer layer's lower end: strapTop - kLanternStrapOuterLength
         float strapOuterBottomX = 0.0f;     // the strap's outer layer centreline X at strapBottom
         float axisTiltDeg = -1.0f;          // the worn frame's cage axis off world Z, read back (LanternAxisTiltDeg)
+        std::array<float, 3> wispWorn{};    // the worn wisp's centre (character space)
+        float wispWornClearance = 0.0f;     // the worn frame's nearest triangle to the halo's sphere
+        float wispGroundClearance = 0.0f;   // the ground frame's nearest triangle to the halo's sphere anywhere along the bob
+        std::array<float, 2> particleReach{};  // puffs, strips: the emitter sphere + speed x life + gravity x life^2 / 2 + radius
         std::vector<std::string> summary;   // the lines RunWriteLantern prints after the read-back
     };
 
     /// One worn part against one body
     struct LanternClearance
     {
-        std::string part;   // "lantern" (frame + flame + lugs), "strap", "bracket", "ring"
+        std::string part;   // "lantern" (frame + wisp + lugs), "strap", "bracket", "ring"
         std::string body;
         float margin = 0.0f;
         LanternGap gap;

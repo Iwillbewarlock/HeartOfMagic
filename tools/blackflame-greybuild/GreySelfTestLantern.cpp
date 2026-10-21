@@ -2,16 +2,20 @@
 // GreySelfTestLantern - --self-test for --write-lantern (GreyLantern.h) on made-up sources (no game files)
 // =============================================================================
 // A frame NIF (BSFadeNode, BSXFlags, collision, one lit BSTriShape with a hook out in +Y at the top, its hinge a little above
-// the box's top: the lid), a skeleton with
-// NPC Pelvis [Pelv], an atronach stand-in whose FireStrip08 (palette effect shader, float controller) and FireStripWarp
-// (lighting shader, float controller) are skinned half and half to two bones (each strip a box plus a stray shorter box),
-// a 64 x 64 BC3 diffuse with 7 mips, and body stand-ins (a hip box and a belt band box named as the vanilla band shape).
-// The build runs on them; the outputs are read back and checked (the measured band, the strap on it with its bulge and
-// wobbled edges and its leather shader, the bevelled and tapered bracket, ring, the upright handle at its height with a
-// lug under each foot, vertical lantern, one strip piece, bind pose, the Vertex_Colors flag, clearances and the strap's
-// gap), then the failures and edge cases: a missing source, body or band shape, a thigh that lengthens the bracket, one
-// no length up to the maximum clears, a body part through the strap, a handle foot too far above the lid, a wrong inverse
-// bind, an addon node with the wrong value, a darken factor out of range. LanternPieces' weld and LanternAxisTiltDeg have their own checks.
+// the box's top: the lid, and two rings of the cage walls), a skeleton with NPC Pelvis [Pelv], a stand-in of the vanilla
+// wisp's particles (fxwispparticleattach.nif: puffs on an NiParticleSystem and strips on a BSStripParticleSystem, each with
+// a mesh emitter on a hidden shape, a gravity modifier on a node, the strips two bomb modifiers on nodes switched by
+// NiPSysModifierActiveCtlrs), a 64 x 64 BC3 diffuse with 7 mips, and body stand-ins (a hip box and a belt band box named as
+// the vanilla band shape). The build runs on them; the outputs are read back and checked (the measured band, the strap on
+// it with its bulge, wobbled edges, its leather shader and its layers lying on each other, the bevelled and tapered bracket,
+// ring, the upright handle at its height with a lug under each foot, vertical lantern, the wisp in both models: shaders,
+// palettes, blends, scroll and pulse controllers, radii and centre, its clearance in the cage; the ground's bob and turn,
+// BSXFlags, particles copied, scaled, on our palette, emitting from the wisp's emitter, their bombs gone; bind pose, the
+// Vertex_Colors flag, clearances and the strap's gap), then the failures and edge cases: a missing source (the particles
+// too), body or band shape, a thigh that lengthens the bracket, one no length up to the maximum clears, a body part through
+// the strap, a handle foot too far above the lid, a cage bar through the wisp, a wrong inverse bind, a wisp palette or
+// motion taken away, an addon node with the wrong value, a darken factor out of range. LanternPieces' weld and
+// LanternAxisTiltDeg have their own checks.
 
 #include "GreyLantern.h"
 #include "GreySelfTest.h"
@@ -22,11 +26,13 @@
 #include <Geometry.hpp>
 #include <NifFile.hpp>
 #include <Nodes.hpp>
+#include <Particles.hpp>
 #include <Shaders.hpp>
 #include <Skin.hpp>
 #include <bhk.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <fmt/format.h>
 #include <memory>
@@ -58,8 +64,11 @@ namespace GreyBuild::SelfTest
         constexpr float kBandTop = 77.0f;
         constexpr std::uint32_t kFrameBsx = 0xC2;  // candlelantern01.nif's value
         constexpr const char* kSourceNormal = "textures\\clutter\\common\\lampgeneric01_n.dds";
-        constexpr const char* kOrangePalette = "textures\\effects\\gradients\\gradfireatronach.dds";
+        constexpr const char* kWispPalette = "textures\\effects\\gradients\\GradWisp.dds";
         constexpr std::uint16_t kAlphaNormalBlend = 0x10ED;
+        // the cage walls' two rings at these shares of the frame box's height (the halo, 3 + the bob, clears them in both models)
+        constexpr std::array<float, 2> kRingShares{ 0.28f, 0.72f };
+        constexpr float kPi = 3.14159265358979f;
 
         using nifly::MatTransform;
         using nifly::Vector3;
@@ -86,7 +95,7 @@ namespace GreyBuild::SelfTest
 
         /// a_extra: a second, disconnected and shorter box above (the strips' stray piece the build must leave out)
         nifly::NiShape* MakeShape(nifly::NifFile& a_nif, const std::string& a_name, const Vector3& a_lo, const Vector3& a_hi,
-            bool a_hook, bool a_extra = false)
+            bool a_hook, bool a_extra = false, const std::vector<float>& a_rings = { kRingShares[0], kRingShares[1] })
         {
             std::vector<Vector3> verts;
             std::vector<nifly::Triangle> tris;
@@ -95,8 +104,8 @@ namespace GreyBuild::SelfTest
                 AddBox(verts, tris, Vector3(-5.0f, -3.0f, a_hi.z + 10.0f), Vector3(5.0f, 3.0f, a_hi.z + 20.0f));
             }
             if (a_hook) {
-                // two rings of the cage walls at a third and two thirds of the height, and the hook out in +Y at the top
-                for (const float share : { 1.0f / 3.0f, 2.0f / 3.0f }) {
+                // the rings of the cage walls (a_rings: shares of the height), and the hook out in +Y at the top
+                for (const float share : a_rings) {
                     const float z = a_lo.z + (a_hi.z - a_lo.z) * share;
                     AddBox(verts, tris, Vector3(a_lo.x, a_lo.y, z - 0.5f), Vector3(a_hi.x, a_hi.y, z + 0.5f));
                 }
@@ -119,8 +128,9 @@ namespace GreyBuild::SelfTest
             return shape;
         }
 
-        /// a_boxTop: the top of the frame's box (the lid under the hook's feet)
-        void MakeFrame(const std::filesystem::path& a_file, float a_boxTop = kFrameBoxTop)
+        /// a_boxTop: the top of the frame's box (the lid under the hook's feet); a_rings: the cage walls' rings
+        void MakeFrame(const std::filesystem::path& a_file, float a_boxTop = kFrameBoxTop,
+            const std::vector<float>& a_rings = { kRingShares[0], kRingShares[1] })
         {
             nifly::NifFile nif;
             nif.Create(nifly::NiVersion::getSSE());
@@ -134,7 +144,7 @@ namespace GreyBuild::SelfTest
             root->extraDataRefs.AddBlockRef(hdr.AddBlock(std::move(bsx)));
             root->collisionRef.index = hdr.AddBlock(std::make_unique<nifly::bhkCollisionObject>());
             auto* shape = MakeShape(nif, "CandleLantern01:11", Vector3(-kFrameHalfX, -kFrameHalfY, 0.0f),
-                Vector3(kFrameHalfX, kFrameHalfY, a_boxTop), true);
+                Vector3(kFrameHalfX, kFrameHalfY, a_boxTop), true, false, a_rings);
             auto* shader = hdr.GetBlock<nifly::NiShader>(shape->ShaderPropertyRef());
             auto* set = shader ? hdr.GetBlock<nifly::BSShaderTextureSet>(shader->TextureSetRef()) : nullptr;
             if (!set) {
@@ -160,79 +170,133 @@ namespace GreyBuild::SelfTest
             SaveNif(nif, a_file);
         }
 
-        void AddFloatController(nifly::NifFile& a_nif, nifly::NiShader& a_shader, std::unique_ptr<nifly::NiFloatInterpController> a_ctrl)
+        /// One stand-in particle system of the wisp's (made-up values, small enough that the copy stays in the made-up cage)
+        struct StandInSystem
         {
-            auto& hdr = a_nif.GetHeader();
-            auto data = std::make_unique<nifly::NiFloatData>();
-            nifly::NiAnimationKey<float> key;
-            key.time = 0.0f;
-            key.value = 0.0f;
-            data->data.AddKey(key);
-            key.time = 1.0f;
-            key.value = 1.0f;
-            data->data.AddKey(key);
-            const std::uint32_t dataId = hdr.AddBlock(std::move(data));
-            auto interp = std::make_unique<nifly::NiFloatInterpolator>();
-            interp->dataRef.index = dataId;
-            const std::uint32_t interpId = hdr.AddBlock(std::move(interp));
-            a_ctrl->interpolatorRef.index = interpId;
-            a_ctrl->targetRef.index = hdr.GetBlockID(&a_shader);
-            a_shader.controllerRef.index = hdr.AddBlock(std::move(a_ctrl));
-        }
+            const char* name;
+            bool strip;
+            float radius;
+            float speed;
+            float life;
+            float gravity;
+            float birth;
+            int bombs;
+        };
+        constexpr std::array<StandInSystem, 2> kStandIns{ { { "PArray02", false, 40.0f, 20.0f, 2.0f, 4.0f, 30.0f, 0 },
+            { "PArray01", true, 50.0f, 40.0f, 1.5f, 20.0f, 9.0f, 2 } } };
 
-        /// The stand-in Flame Atronach: two bones and the two strips skinned half and half to them (body part 32)
-        void MakeAtronach(const std::filesystem::path& a_file)
+        /// The stand-in of the vanilla wisp's particles (kLanternWispSource): each system of kStandIns with its NiPSysData (or
+        /// BSStripPSysData), a palette effect shader on GradWisp.dds, normal blend, a mesh emitter on a hidden shape of its
+        /// own, a gravity modifier on a node, a position modifier, bomb modifiers on nodes of their own each switched by an
+        /// NiPSysModifierActiveCtlr, and an NiPSysEmitterCtlr
+        void MakeWispParticles(const std::filesystem::path& a_file)
         {
             nifly::NifFile nif;
             nif.Create(nifly::NiVersion::getSSE());
             auto& hdr = nif.GetHeader();
+            (void)hdr.ReplaceBlock(0, std::make_unique<nifly::BSFadeNode>());
             auto* root = nif.GetRootNode();
-            MatTransform pelvis;
-            pelvis.translation = Vector3(0.0f, 0.0f, 70.0f);
-            MatTransform spine;
-            spine.translation = Vector3(0.0f, 0.0f, 90.0f);
-            const std::uint32_t boneA = hdr.GetBlockID(nif.AddNode("FireAtronach_Pelvis [Pelv]", pelvis, root));
-            const std::uint32_t boneB = hdr.GetBlockID(nif.AddNode("FireAtronach_Spine [Spn0]", spine, root));
-            for (const char* name : kLanternFlameStrips) {
-                const bool effect = std::string(name) == kLanternFlameStrips[0];
-                auto* shape = MakeShape(nif, name, Vector3(-20.0f, -10.0f, 0.0f), Vector3(20.0f, 6.0f, 130.0f), false, true);
-                if (effect) {
-                    nif.DeleteShader(shape);
-                    auto prop = std::make_unique<nifly::BSEffectShaderProperty>();
-                    prop->shaderFlags1 |= kSlsf1Skinned | kSlsf1GreyscaleToPaletteColor | kSlsf1GreyscaleToPaletteAlpha;
-                    prop->sourceTexture.get() = "textures\\effects\\fxfirescrolltile02.dds";
-                    prop->greyscaleTexture.get() = kOrangePalette;
-                    shape->ShaderPropertyRef()->index = hdr.AddBlock(std::move(prop));
-                    auto alpha = std::make_unique<nifly::NiAlphaProperty>();
-                    alpha->flags = kAlphaNormalBlend;
-                    (void)nif.AssignAlphaProperty(shape, std::move(alpha));
-                }
-                auto* shader = hdr.GetBlock<nifly::NiShader>(shape->ShaderPropertyRef());
-                if (effect) {
-                    AddFloatController(nif, *shader, std::make_unique<nifly::BSEffectShaderPropertyFloatController>());
+            root->name.get() = "FXWispParticleAttach";
+            const auto node = [&](const std::string& a_name, const Vector3& a_at) {
+                MatTransform t;
+                t.translation = a_at;
+                return hdr.GetBlockID(nif.AddNode(a_name, t, root));
+            };
+            for (const auto& standIn : kStandIns) {
+                const std::string name = standIn.name;
+                auto* emitShape = MakeShape(nif, "EmitGeo" + name + ":0", Vector3(-30.0f, -30.0f, 50.0f), Vector3(30.0f, 30.0f, 70.0f), false);
+                nif.DeleteShader(emitShape);
+                emitShape->flags = 0x8000F;
+                const std::uint32_t emitId = hdr.GetBlockID(emitShape);
+                const std::uint32_t gravityNode = node("Gravity" + name, Vector3(60.0f, -100.0f, 0.0f));
+                std::unique_ptr<nifly::NiPSysData> data;
+                if (standIn.strip) {
+                    data = std::make_unique<nifly::BSStripPSysData>();
                 } else {
-                    if (auto* lit = dynamic_cast<nifly::BSShaderProperty*>(shader)) {
-                        lit->shaderFlags1 |= kSlsf1Skinned;
-                    }
-                    AddFloatController(nif, *shader, std::make_unique<nifly::BSLightingShaderPropertyFloatController>());
+                    data = std::make_unique<nifly::NiPSysData>();
                 }
-                nif.CreateSkinning(shape);
-                std::vector<int> bones{ static_cast<int>(boneA), static_cast<int>(boneB) };
-                nif.SetShapeBoneIDList(shape, bones);
-                nif.SetShapeTransformGlobalToSkin(shape, MatTransform());
-                nif.SetShapeTransformSkinToBone(shape, 0, pelvis.InverseTransform());
-                nif.SetShapeTransformSkinToBone(shape, 1, spine.InverseTransform());
-                std::unordered_map<std::uint16_t, float> half;
-                for (std::uint16_t i = 0; i < shape->GetNumVertices(); ++i) {
-                    std::vector<std::uint8_t> ids{ 0, 1 };
-                    std::vector<float> weights{ 0.5f, 0.5f };
-                    nif.SetShapeVertWeights(name, i, ids, weights);
-                    half[i] = 0.5f;
+                const std::uint32_t dataId = hdr.AddBlock(std::move(data));
+                auto shader = std::make_unique<nifly::BSEffectShaderProperty>();
+                shader->shaderFlags1 = 0x80000000u | kSlsf1GreyscaleToPaletteColor;
+                shader->shaderFlags2 = kSlsf2VertexColors;
+                shader->sourceTexture.get() = "textures\\effects\\FXSmokeSoftSub01.dds";
+                shader->greyscaleTexture.get() = kWispPalette;
+                const std::uint32_t shaderId = hdr.AddBlock(std::move(shader));
+                auto alpha = std::make_unique<nifly::NiAlphaProperty>();
+                alpha->flags = kAlphaNormalBlend;
+                const std::uint32_t alphaId = hdr.AddBlock(std::move(alpha));
+                std::unique_ptr<nifly::NiParticleSystem> system;
+                if (standIn.strip) {
+                    system = std::make_unique<nifly::BSStripParticleSystem>();
+                } else {
+                    system = std::make_unique<nifly::NiParticleSystem>();
                 }
-                nif.SetShapeBoneWeights(name, 0, half);
-                nif.SetShapeBoneWeights(name, 1, half);
-                nif.SetDefaultPartition(shape);
-                nif.UpdateSkinPartitions(shape);
+                system->name.get() = name;
+                system->dataRef.index = dataId;
+                system->psysDataRef.index = dataId;
+                system->shaderPropertyRef.index = shaderId;
+                system->alphaPropertyRef.index = alphaId;
+                system->isWorldSpace = true;
+                const std::uint32_t systemId = hdr.AddBlock(std::move(system));
+                root->childRefs.AddBlockRef(systemId);
+                std::vector<std::uint32_t> modifiers;
+                const auto modifier = [&](std::unique_ptr<nifly::NiPSysModifier> a_modifier, const std::string& a_name, std::uint32_t a_order) {
+                    a_modifier->name.get() = a_name;
+                    a_modifier->order = a_order;
+                    a_modifier->targetRef.index = systemId;
+                    a_modifier->isActive = true;
+                    modifiers.push_back(hdr.AddBlock(std::move(a_modifier)));
+                };
+                auto emitter = std::make_unique<nifly::NiPSysMeshEmitter>();
+                emitter->radius = standIn.radius;
+                emitter->radiusVariation = standIn.radius * 0.2f;
+                emitter->speed = standIn.speed;
+                emitter->speedVariation = standIn.speed * 0.5f;
+                emitter->lifeSpan = standIn.life;
+                emitter->meshRefs.AddBlockRef(emitId);
+                emitter->emissionAxis = Vector3(1.0f, 0.0f, 0.0f);
+                modifier(std::move(emitter), "NiPSysMeshEmitter:0", 1000);
+                auto gravity = std::make_unique<nifly::NiPSysGravityModifier>();
+                gravity->gravityObjRef.index = gravityNode;
+                gravity->gravityAxis = Vector3(0.0f, 0.0f, 1.0f);
+                gravity->strength = standIn.gravity;
+                gravity->forceType = nifly::FORCE_PLANAR;
+                modifier(std::move(gravity), "NiPSysGravityModifier:9", 4000);
+                std::vector<std::string> bombs;
+                for (int b = 0; b < standIn.bombs; ++b) {
+                    auto bomb = std::make_unique<nifly::NiPSysBombModifier>();
+                    bomb->bombNodeRef.index = node(fmt::format("PBomb{}{}", name, b), Vector3(50.0f, 40.0f * static_cast<float>(b), 100.0f));
+                    bomb->deltaV = -450.0f;
+                    bomb->decay = 60.0f;
+                    bombs.push_back(fmt::format("NiPSysBombModifier:1{}", b));
+                    modifier(std::move(bomb), bombs.back(), 4000);
+                }
+                modifier(std::make_unique<nifly::NiPSysPositionModifier>(), "NiPSysPositionModifier:7", 6000);
+                auto* made = hdr.GetBlock<nifly::NiParticleSystem>(systemId);
+                for (const auto id : modifiers) {
+                    made->modifierRefs.AddBlockRef(id);
+                }
+                // the controller chain: each bomb's switch, then the emitter's
+                nifly::NiBlockRef<nifly::NiTimeController>* link = &made->controllerRef;
+                const auto chain = [&](std::unique_ptr<nifly::NiPSysModifierCtlr> a_ctrl, const std::string& a_modifier, std::uint32_t a_interp) {
+                    a_ctrl->modifierName.get() = a_modifier;
+                    a_ctrl->targetRef.index = systemId;
+                    a_ctrl->flags = 0x0048;
+                    a_ctrl->stopTime = 33.3333f;
+                    a_ctrl->startTime = 0.0f;
+                    a_ctrl->interpolatorRef.index = a_interp;
+                    const std::uint32_t id = hdr.AddBlock(std::move(a_ctrl));
+                    link->index = id;
+                    link = &hdr.GetBlock<nifly::NiTimeController>(id)->nextControllerRef;
+                };
+                for (const auto& bomb : bombs) {
+                    auto on = std::make_unique<nifly::NiBoolInterpolator>();
+                    on->boolValue = 1;
+                    chain(std::make_unique<nifly::NiPSysModifierActiveCtlr>(), bomb, hdr.AddBlock(std::move(on)));
+                }
+                auto rate = std::make_unique<nifly::NiFloatInterpolator>();
+                rate->floatValue = standIn.birth;
+                chain(std::make_unique<nifly::NiPSysEmitterCtlr>(), "NiPSysMeshEmitter:0", hdr.AddBlock(std::move(rate)));
             }
             SaveNif(nif, a_file);
         }
@@ -274,6 +338,146 @@ namespace GreyBuild::SelfTest
     }
 
     void CheckLanternRuns(Checker& a_check, const std::filesystem::path& a_dir);
+
+    namespace
+    {
+        /// One wisp sphere's expected look in a model: its palette (core, halo) or none (shell), its blend, its controllers
+        struct WispExpect
+        {
+            const char* name;
+            float radius;
+            bool palette;
+            std::uint16_t alpha;
+            std::vector<std::uint32_t> variables;  // the controllers' controlled variables in chain order
+            std::vector<float> stops;              // their cycle lengths
+            std::vector<float> ends;               // their last key's value
+        };
+
+        [[nodiscard]] std::array<WispExpect, 3> WispExpects()
+        {
+            const float pulse = 1.0f / kLanternWispPulseHz;
+            return { { { kLanternWispCoreName, kLanternWispCoreRadius, true, kLanternWispAdditive, { 6, 8, 0 },
+                           { kLanternWispCoreScroll[0], kLanternWispCoreScroll[1], pulse }, { 1.0f, 1.0f, kLanternWispCoreEmissive } },
+                { kLanternWispShellName, kLanternWispShellRadius, false, kLanternWispNormal, { 6, 8 },
+                    { kLanternWispShellScroll[0], kLanternWispShellScroll[1] }, { -1.0f, -1.0f } },
+                { kLanternWispHaloName, kLanternWispHaloRadius, true, kLanternWispAdditive, {}, {}, {} } } };
+        }
+
+        /// The three spheres in a_info round a_centre: shader, palette, blend, controllers, radius; a_skinned for the worn copies
+        void CheckWispSpheres(Checker& a_check, const std::string& a_what, const LanternNifInfo& a_info, const std::array<float, 3>& a_centre,
+            bool a_skinned)
+        {
+            for (const auto& e : WispExpects()) {
+                const auto* s = Shape(a_info, e.name);
+                const std::uint32_t flags1 = (e.palette ? kLanternWispFlags1Palette : kLanternWispFlags1Dark) | (a_skinned ? kSlsf1Skinned : 0u);
+                const std::string greyscale = std::string("greyscale ") + (e.palette ? kPalettePath : "");
+                a_check.Check(s && s->shader == "BSEffectShaderProperty" && s->flags1 == flags1 && s->textures.size() == 2 &&
+                                  s->textures[1] == greyscale && s->hasAlpha && s->alphaFlags == e.alpha,
+                    fmt::format("lantern {} wisp '{}': effect shader 0x{:08X}, palette '{}', alpha 0x{:04X} ({})", a_what, e.name, flags1, greyscale,
+                        e.alpha, e.alpha == kLanternWispAdditive ? "additive" : "normal blend"));
+                bool round = s != nullptr;
+                for (int a = 0; round && a < 3; ++a) {
+                    round = Near(s->bounds.Size(a) * 0.5f, e.radius, 0.01f) && Near(s->bounds.Centre()[a], a_centre[a], 0.01f);
+                }
+                a_check.Check(round, fmt::format("lantern {} wisp '{}': a sphere of radius {} round ({:.3f}, {:.3f}, {:.3f}) ({})", a_what, e.name,
+                                         e.radius, a_centre[0], a_centre[1], a_centre[2], s ? fmt::format("size {:.4f}, centre ({:.3f}, {:.3f}, {:.3f})",
+                                                                                                s->bounds.Size(0), s->bounds.Centre()[0],
+                                                                                                s->bounds.Centre()[1], s->bounds.Centre()[2]) :
+                                                                                            std::string("missing")));
+                bool controllers = s && s->controllerInfo.size() == e.variables.size();
+                for (std::size_t c = 0; controllers && c < e.variables.size(); ++c) {
+                    const auto& got = s->controllerInfo[c];
+                    controllers = got.variable == e.variables[c] && got.flags == kLanternWispControllerFlags && Near(got.stop, e.stops[c]) &&
+                                  got.keys.size() >= 2 && Near(got.keys.back()[1], e.ends[c]) && Near(got.keys.front()[1], e.variables[c] == 0 ? e.ends[c] : 0.0f) &&
+                                  s->controllers[c].find("its shader") != std::string::npos;
+                }
+                a_check.Check(controllers, fmt::format("lantern {} wisp '{}': {} looping controllers on its own shader (U / V offset over {} s, pulse "
+                                                       "{} Hz)", a_what, e.name, e.variables.size(),
+                                               e.stops.empty() ? std::string("-") : fmt::format("{} / {}", e.stops[0], e.stops.size() > 1 ? e.stops[1] : 0.0f),
+                                               kLanternWispPulseHz));
+            }
+        }
+
+        /// The ground model's wisp: the spheres under HoMBF_Wisp, the hidden emitter, the bob and turn, the particles copied
+        void CheckLanternGroundWisp(Checker& a_check, const LanternNifInfo& a_gnd, const std::filesystem::path& a_out)
+        {
+            const std::array<float, 3> centre{ 0.0f, 0.0f, kFrameHeight * 0.5f };
+            CheckWispSpheres(a_check, "gnd", a_gnd, centre, false);
+            bool parents = true;
+            for (const auto& e : WispExpects()) {
+                const auto* s = Shape(a_gnd, e.name);
+                parents = parents && s && s->parent == kLanternWispNode && s->skinType.empty();
+            }
+            const auto* emitter = Shape(a_gnd, kLanternWispEmitterName);
+            a_check.Check(parents && emitter && emitter->parent == kLanternWispNode && emitter->shader.empty() && (emitter->avFlags & 1u) != 0,
+                "lantern gnd: the spheres (unskinned) and a hidden emitter without a shader under the wisp node");
+            const float cycle = static_cast<float>(kLanternWispBobsPerTurn) / kLanternWispBobHz;
+            const LanternController* motion = nullptr;
+            int controllers = 0;
+            for (const auto& [node, controller] : a_gnd.nodeControllers) {
+                if (node == kLanternWispNode) {
+                    motion = &controller;
+                    ++controllers;
+                }
+            }
+            bool bob = controllers == 1 && motion->type == "NiTransformController" && motion->flags == kLanternWispControllerFlags &&
+                       Near(motion->stop, cycle) && motion->translations.size() == static_cast<std::size_t>(std::lround(cycle * kLanternWispKeyRate)) + 1;
+            float low = 1e9f;
+            float high = -1e9f;
+            if (bob) {
+                for (const auto& t : motion->translations) {
+                    low = std::min(low, t[3]);
+                    high = std::max(high, t[3]);
+                    bob = bob && Near(t[1], centre[0]) && Near(t[2], centre[1]);
+                }
+                bob = bob && Near(low, centre[2] - kLanternWispBobAmplitude) && Near(high, centre[2] + kLanternWispBobAmplitude) &&
+                      Near(motion->translations.front()[3], motion->translations.back()[3]) && motion->zRotations.size() == 2 &&
+                      Near(motion->zRotations.back()[1], 2.0f * kPi) && Near(motion->zRotations.back()[0], cycle);
+            }
+            a_check.Check(bob, fmt::format("lantern gnd: the wisp node bobs {} round z {} (z {:.3f}..{:.3f}) and turns once about Z in one looping "
+                                           "{:.3f} s cycle ({} controllers)", kLanternWispBobAmplitude, centre[2], low, high, cycle, controllers));
+            const auto wisp = WispReadBack(a_out);
+            a_check.Check(wisp.groundClearance >= kLanternWispClearance && Near(wisp.groundCentre[2], centre[2]) &&
+                              Near(wisp.bobLow, centre[2] - kLanternWispBobAmplitude) && Near(wisp.bobHigh, centre[2] + kLanternWispBobAmplitude),
+                fmt::format("lantern gnd: the halo clears the frame by {:.4f} anywhere along the bob (kLanternWispClearance {})", wisp.groundClearance,
+                    kLanternWispClearance));
+            a_check.Check(a_gnd.particles.size() == kStandIns.size(), fmt::format("lantern gnd: {} particle systems copied", a_gnd.particles.size()));
+            for (const auto& standIn : kStandIns) {
+                const auto it = std::find_if(a_gnd.particles.begin(), a_gnd.particles.end(), [&](const auto& a_p) { return a_p.name == standIn.name; });
+                if (it == a_gnd.particles.end()) {
+                    a_check.Check(false, fmt::format("lantern gnd: no particle system '{}'", standIn.name));
+                    continue;
+                }
+                const auto& p = *it;
+                const bool bombs = std::any_of(p.modifiers.begin(), p.modifiers.end(),
+                    [](const std::string& a_m) { return a_m.find("NiPSysBombModifier") != std::string::npos; });
+                const bool switches = std::any_of(p.lines.begin(), p.lines.end(),
+                    [](const std::string& a_l) { return a_l.find("NiPSysModifierActiveCtlr") != std::string::npos; });
+                a_check.Check(p.parent == kLanternWispNode && p.type == (standIn.strip ? "BSStripParticleSystem" : "NiParticleSystem") &&
+                                  p.greyscale == kPalettePath && (p.flags1 & kSlsf1GreyscaleToPaletteColor) != 0 && p.emitterMeshes.size() == 1 &&
+                                  p.emitterMeshes.front() == kLanternWispEmitterName && !bombs && !switches && p.outside.size() == 2,
+                    fmt::format("lantern gnd particles '{}': under the wisp node, on GradBlackFlame.dds, emitting from '{}', no bombs nor their "
+                                "switches, naming only the emitter and the node outside itself ({} outside)", standIn.name, kLanternWispEmitterName,
+                        p.outside.size()));
+                a_check.Check(Near(p.radius, standIn.radius * kLanternWispParticleScale, 1e-5f) &&
+                                  Near(p.speed, standIn.speed * kLanternWispParticleScale, 1e-5f) && Near(p.birthRate, standIn.birth, 1e-5f),
+                    fmt::format("lantern gnd particles '{}': radius {:.4f}, speed {:.4f} (x kLanternWispParticleScale {}), birth rate {} kept", standIn.name,
+                        p.radius, p.speed, kLanternWispParticleScale, p.birthRate));
+            }
+        }
+
+        /// The worn model's wisp: the spheres skinned round the cage centre, clear of the frame
+        void CheckLanternWornWisp(Checker& a_check, const LanternNifInfo& a_worn, const LanternBuildResult& a_result, const std::filesystem::path& a_out)
+        {
+            CheckWispSpheres(a_check, "worn", a_worn, a_result.wornCage, true);
+            const auto wisp = WispReadBack(a_out);
+            a_check.Check(wisp.wornClearance >= kLanternWispClearance && Near(wisp.wornClearance, a_result.wispWornClearance) &&
+                              Near(wisp.wornCentre[0], a_result.wornCage[0]) && Near(wisp.wornCentre[1], a_result.wornCage[1]) &&
+                              Near(wisp.wornCentre[2], a_result.wornCage[2]),
+                fmt::format("lantern worn: the wisp at the cage centre, its halo {:.4f} off the frame (build {:.4f}; kLanternWispClearance {})",
+                    wisp.wornClearance, a_result.wispWornClearance, kLanternWispClearance));
+        }
+    }
 
     /// LanternAxisTiltDeg: a pure yaw, scale and move reads 0, a 10 degree lean reads 10 (also with a yaw on top), the handle
     /// above kLanternAxisTopShare may move freely, different vertex counts throw
@@ -360,7 +564,7 @@ namespace GreyBuild::SelfTest
         const auto out = a_dir / "lantern" / "out";
         MakeFrame(in / kLanternFrameSource);
         MakeSkeleton(in / kLanternSkeletonSource);
-        MakeAtronach(in / kLanternFlameSource);
+        MakeWispParticles(in / kLanternWispSource);
         a_check.Check(WriteTestTexture(in / kLanternDiffuseSource, kDxgiBc3, true), "lantern: made-up sources written");
 
         // the bodies: a hip box whose left side is at x -kHipHalfX and the belt band kBandProud proud of it (both body paths)
@@ -392,31 +596,25 @@ namespace GreyBuild::SelfTest
         // the ground model
         const auto gnd = InspectLanternNif(out / kLanternGroundNif);
         const auto* frame = gnd.shapes.empty() ? nullptr : &gnd.shapes.front();
-        a_check.Check(gnd.shapes.size() == 1 && frame && frame->type == "BSTriShape" && !frame->textures.empty() &&
-                          frame->textures.front() == fmt::format("[0] {}", kLanternDiffuse),
-            fmt::format("lantern gnd: one frame shape whose diffuse is '{}'", kLanternDiffuse));
+        a_check.Check(gnd.shapes.size() == 5 && frame && frame->type == "BSTriShape" && frame->shader == "BSLightingShaderProperty" &&
+                          !frame->textures.empty() && frame->textures.front() == fmt::format("[0] {}", kLanternDiffuse),
+            fmt::format("lantern gnd: the frame (first, diffuse '{}') and the wisp's four shapes ({} shapes)", kLanternDiffuse, gnd.shapes.size()));
         a_check.Check(frame && frame->textures.size() > 1 && frame->textures[1] == fmt::format("[1] {}", kSourceNormal),
             "lantern gnd: the normal map kept as the source names it");
         a_check.Check(gnd.hasCollision && gnd.rootType == "BSFadeNode", "lantern gnd: collision and the BSFadeNode root kept");
-        a_check.Check(gnd.hasBsx && gnd.bsx == (kFrameBsx | kBsxAddon), fmt::format("lantern gnd: BSXFlags {} = source | Addon", gnd.bsx));
-        const bool gndNode = gnd.valueNodes.size() == 1 && gnd.valueNodes.front().name == "AddOnNode9100" &&
-                             gnd.valueNodes.front().value == kLanternFlameAddon && gnd.valueNodes.front().flags == kLanternFlameValueFlags &&
-                             gnd.valueNodes.front().parent == gnd.rootName;
-        a_check.Check(gndNode, "lantern gnd: exactly one BSValueNode named 'AddOnNode9100' with value 9100, under the root");
-        a_check.Check(gndNode && Near(gnd.valueNodes.front().translation[0], 0.0f) && Near(gnd.valueNodes.front().translation[1], 0.0f) &&
-                          Near(gnd.valueNodes.front().translation[2], kFrameHeight * 0.5f),
-            fmt::format("lantern gnd: the addon node at the cage centre (0, 0, {}), the hook at +Y left out (at {})", kFrameHeight * 0.5f,
-                gndNode ? fmt::format("{}, {}, {}", gnd.valueNodes.front().translation[0], gnd.valueNodes.front().translation[1],
-                              gnd.valueNodes.front().translation[2]) : std::string("-")));
+        a_check.Check(gnd.hasBsx && gnd.bsx == (kFrameBsx | kBsxAnimated) && gnd.valueNodes.empty(),
+            fmt::format("lantern gnd: BSXFlags 0x{:X} = source | Animated (no Addon bit), no addon node ({})", gnd.bsx, gnd.valueNodes.size()));
+        CheckLanternGroundWisp(a_check, gnd, out);
         a_check.Check(Near(result.frameBounds.max[1], kHookY) && Near(result.frameBounds.Size(2), kFrameHeight),
             "lantern gnd: the frame bounds reported with the hook, for the record's ObjectBounds");
 
         // the worn model
         const auto worn = InspectLanternNif(out / kLanternWornNif);
-        a_check.Check(worn.shapes.size() == 7 && Shape(worn, kLanternWornFrameName) && Shape(worn, "FireStrip08") &&
-                          Shape(worn, "FireStripWarp") && Shape(worn, kLanternStrapName) && Shape(worn, kLanternBracketName) &&
-                          Shape(worn, kLanternRingName) && Shape(worn, kLanternLugName),
-            fmt::format("lantern worn: the frame, both strips, the strap, the bracket, the ring and the lugs ({} shapes)", worn.shapes.size()));
+        a_check.Check(worn.shapes.size() == 8 && Shape(worn, kLanternWornFrameName) && Shape(worn, kLanternWispCoreName) &&
+                          Shape(worn, kLanternWispShellName) && Shape(worn, kLanternWispHaloName) && Shape(worn, kLanternStrapName) &&
+                          Shape(worn, kLanternBracketName) && Shape(worn, kLanternRingName) && Shape(worn, kLanternLugName),
+            fmt::format("lantern worn: the frame, the wisp's core, shell and halo, the strap, the bracket, the ring and the lugs ({} shapes)",
+                worn.shapes.size()));
         bool allOneBone = !worn.shapes.empty();
         bool allPart60 = !worn.shapes.empty();
         bool allWeights = !worn.shapes.empty();
@@ -435,14 +633,7 @@ namespace GreyBuild::SelfTest
         a_check.Check(worn.nodeNames.size() == 2 && worn.nodeNames[0] == kLanternWornRootName && worn.nodeNames[1] == kLanternBone &&
                           worn.valueNodes.empty() && !worn.hasCollision,
             fmt::format("lantern worn: nodes are the root and the bone alone ({}), no addon node, no collision", worn.nodeNames.size()));
-        const auto* fire = Shape(worn, "FireStrip08");
-        const auto* warp = Shape(worn, "FireStripWarp");
-        a_check.Check(fire && fire->textures.size() > 1 && fire->textures[1] == std::string("greyscale ") + kPalettePath,
-            "lantern worn: FireStrip08's palette is GradBlackFlame.dds");
-        a_check.Check(fire && warp && fire->controllers.size() == 1 && warp->controllers.size() == 1 &&
-                          fire->controllers[0].find("its shader") != std::string::npos &&
-                          warp->controllers[0].find("its shader") != std::string::npos,
-            "lantern worn: each strip's float controller copied and aimed at its own shader");
+        CheckLanternWornWisp(a_check, worn, result, out);
         const auto* wornFrame = Shape(worn, kLanternWornFrameName);
         const float scale = kLanternWornHeight / kFrameHeight;
         // the hook (z kHookZ0..kFrameHeight, out to y kHookY) turned up about its hinge (y kFrameHalfY, z kHookHinge) and
@@ -595,24 +786,6 @@ namespace GreyBuild::SelfTest
                           strap->textures[1] == fmt::format("[1] {}", kLanternStrapNormal) && ring->textures.size() > 1 &&
                           ring->textures[0] == fmt::format("[0] {}", kLanternDiffuse) && ring->textures[1] == fmt::format("[1] {}", kSourceNormal),
             "lantern worn: strap on the vanilla leather and normal map, ring on the soot lamp texture and the lamp's normal map");
-        a_check.Check(fire && warp && fire->vertices == 8 && warp->vertices == 8,
-            fmt::format("lantern worn: one connected piece of each strip kept, the stray box left out ({} / {} vertices, expected 8)",
-                fire ? fire->vertices : 0, warp ? warp->vertices : 0));
-        a_check.Check(warp && Near(warp->refraction, kLanternWarpRefraction, 1e-6f),
-            fmt::format("lantern worn: FireStripWarp's refraction strength {} (kLanternWarpRefraction)", warp ? warp->refraction : -1.0f));
-        if (fire && warp) {
-            LanternBox strips = fire->bounds;
-            for (int axis = 0; axis < 3; ++axis) {
-                strips.min[axis] = std::min(strips.min[axis], warp->bounds.min[axis]);
-                strips.max[axis] = std::max(strips.max[axis], warp->bounds.max[axis]);
-            }
-            const auto centre = strips.Centre();
-            a_check.Check(Near(centre[0], result.wornCage[0]) && Near(centre[1], result.wornCage[1]) && Near(centre[2], result.wornCage[2]),
-                fmt::format("lantern worn: the strips centred in the cage ({:.3f}, {:.3f}, {:.3f}; cage {:.3f}, {:.3f}, {:.3f})", centre[0],
-                    centre[1], centre[2], result.wornCage[0], result.wornCage[1], result.wornCage[2]));
-        } else {
-            a_check.Check(false, "lantern worn: the strips centred in the cage (no strips)");
-        }
         bool allBind = !worn.shapes.empty();
         for (const auto& s : worn.shapes) {
             allBind = allBind && s.bindRead && s.bindError <= kLanternBindTolerance && s.sphereError <= kLanternBoundsTolerance &&
@@ -636,6 +809,12 @@ namespace GreyBuild::SelfTest
                                              "margins ({})", text));
             a_check.Check(innerGap, fmt::format("lantern worn: the strap's inner layer 0.2..0.4 off the band and the hip on both bodies "
                                                 "(kLanternStrapBodyGap {}; {})", kLanternStrapBodyGap, text));
+            // round 5: the outer layer lies on the inner one (the made-up hip is flat: the read-back is exact on it)
+            const auto gap = StrapLayerGap(out);
+            a_check.Check(Near(gap[0], kLanternStrapBeltGap) && Near(gap[1], kLanternStrapBeltGap) && gap[0] >= kLanternStrapLayerGapMin &&
+                              gap[0] <= kLanternStrapLayerGapMax,
+                fmt::format("lantern worn: the strap's layers {:.4f}..{:.4f} apart (kLanternStrapBeltGap {}, within {}..{})", gap[0], gap[1],
+                    kLanternStrapBeltGap, kLanternStrapLayerGapMin, kLanternStrapLayerGapMax));
         }
 
         // the smoke static
@@ -666,13 +845,21 @@ namespace GreyBuild::SelfTest
             const auto missing = BuildLantern({ empty }, a_dir / "lantern" / "out_missing");
             a_check.Check(!missing.ok && Mentions(missing.problems, kLanternFrameSource) && Mentions(missing.problems, kLanternDiffuseSource),
                 "lantern: missing sources fail, each named");
+            // the wisp's particles missing: the ground fails, the source named
+            const auto noWisp = a_dir / "lantern" / "in_nowisp";
+            std::filesystem::remove_all(noWisp);
+            std::filesystem::copy(in, noWisp, std::filesystem::copy_options::recursive);
+            std::filesystem::remove(noWisp / kLanternWispSource);
+            const auto wispless = BuildLantern({ noWisp, bodies }, a_dir / "lantern" / "out_nowisp");
+            a_check.Check(!wispless.ok && Mentions(wispless.problems, kLanternWispSource),
+                "lantern: the wisp's particle source missing fails the ground model, named");
         }
         {
             // a thigh box beside the hanging cage: the bracket grows until the lantern clears it, and the read-back agrees. The
             // cage's inboard edge is the ring x + kFrameHalfY x 20/30 (the frame's half depth, yawed, scaled) = outerX - L + 5.333
-            // = -9.617 - L; with the thigh's side at kThighX it clears by kLanternBodyMargin from L = -8.617 - kThighX = 7.333,
-            // so the loop lands on 7.5 (7.0 misses by 0.333)
-            constexpr float kThighX = -15.95f;
+            // = -8.917 - L (round 5: the strap's layers 0.3 apart); with the thigh's side at kThighX it clears by kLanternBodyMargin
+            // from L = -7.917 - kThighX = 7.333, so the loop lands on 7.5 (7.0 misses by 0.333)
+            constexpr float kThighX = -15.25f;
             const float thighLength = std::ceil((kLanternBodyMargin - kThighX + outerX + kFrameHalfY * scale) / kLanternBracketLengthStep) *
                                       kLanternBracketLengthStep;
             const auto thigh = a_dir / "lantern" / "bodies_thigh";
@@ -710,6 +897,42 @@ namespace GreyBuild::SelfTest
             const auto floating = BuildLantern({ high, bodies }, a_dir / "lantern" / "out_high");
             a_check.Check(!floating.ok && Mentions(floating.problems, "above the lid"),
                 "lantern: a handle foot further above the lid than a lug bridges fails the build");
+        }
+        {
+            // a ring of the cage walls through the middle of the cage: the halo would touch it, the build refuses it
+            const auto crowded = a_dir / "lantern" / "in_crowded";
+            std::filesystem::remove_all(crowded);
+            std::filesystem::copy(in, crowded, std::filesystem::copy_options::recursive);
+            MakeFrame(crowded / kLanternFrameSource, kFrameBoxTop, { 0.45f, 0.72f });
+            const auto bar = BuildLantern({ crowded, bodies }, a_dir / "lantern" / "out_crowded");
+            a_check.Check(!bar.ok && Mentions(bar.problems, "wisp's halo comes within"),
+                "lantern: a cage bar within kLanternWispClearance of the wisp's halo fails the build");
+        }
+        {
+            // the core's palette and the node's motion taken away in a copy: the read-back refuses each
+            const auto bare = a_dir / "lantern" / "out_bare";
+            std::filesystem::remove_all(bare);
+            std::filesystem::copy(out, bare, std::filesystem::copy_options::recursive);
+            nifly::NifFile bareGnd;
+            LoadNif(bareGnd, bare / kLanternGroundNif);
+            auto& hdr = bareGnd.GetHeader();
+            for (std::uint32_t id = 0; id < hdr.GetNumBlocks(); ++id) {
+                if (auto* node = hdr.GetBlock<nifly::NiNode>(id); node && node->name.get() == kLanternWispNode) {
+                    node->controllerRef.index = nifly::NIF_NPOS;
+                }
+            }
+            for (auto* shape : bareGnd.GetShapes()) {
+                if (shape->name.get() == kLanternWispCoreName) {
+                    if (auto* effect = hdr.GetBlock<nifly::BSEffectShaderProperty>(shape->ShaderPropertyRef())) {
+                        effect->greyscaleTexture.get() = kPaletteAddPath;
+                    }
+                }
+            }
+            SaveNif(bareGnd, bare / kLanternGroundNif);
+            const auto problems = VerifyLantern(inputs, bare);
+            a_check.Check(Mentions(problems, fmt::format("gnd '{}': textures", kLanternWispCoreName)) &&
+                              Mentions(problems, fmt::format("gnd: '{}' has 0 controllers", kLanternWispNode)),
+                "lantern: the read-back refuses a wisp core off GradBlackFlame.dds and a wisp node without its motion");
         }
         {
             // a wrong inverse bind on the frame: the read-back refuses it
