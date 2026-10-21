@@ -115,7 +115,8 @@ override `Ansilvund02` (lighting template, music, water, image space). So the DL
 
 Log lines (exact prefixes): `lantern place: ok lantern=<id> journal=<id> smoke=<id> at (x,y,z) lab=(x,y,z)`,
 `lantern place: skipped (<reason>)`, `lantern place: keyframed <id> ok|failed` (at placement after the ok line),
-`lantern smoke: disabled <n>`.
+`lantern place: nothing of ours to keyframe again (...)` (a later load found none within 64 units),
+`lantern place: the lantern was picked up before its placement finished ...` (step 7), `lantern smoke: disabled <n>`.
 
 Limit: an existing save that already visited Ansilvund02 gets the lantern on the next visit (the cell must reload).
 
