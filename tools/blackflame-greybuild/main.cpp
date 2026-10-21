@@ -9,6 +9,8 @@
 //   blackflame-greybuild --write-empty-esls <folder>
 //   blackflame-greybuild --write-slot-pool <file.esp>
 //   blackflame-greybuild --collisions <request.json>
+//   blackflame-greybuild --write-lantern <data folder> --in <dir> [--in <dir> ...]
+//   blackflame-greybuild --inspect-lantern <file.nif> [...]
 //   blackflame-greybuild --dump <file.nif> [...]
 //   blackflame-greybuild --roundtrip <file.nif> [...]
 //   blackflame-greybuild --self-test [--golden-dir <dir>] [--print-golden]
@@ -26,6 +28,8 @@
 // --staging is the single launch's key mode (GreyKeyed.h): request v5's objects at the DLL's keys in a staging folder,
 // with progress.jsonl; tint, tintAdd and the palette mode come from the request only. --write-slot-pool writes the slot
 // pool ESL, --collisions lists a request's ADDN indices in the pool's range (GreySlotPool.h).
+// --write-lantern writes the lantern's three NIFs and its soot texture into the data folder from vanilla files in the --in
+// folders and prints their read-back (GreyLantern.h); --inspect-lantern prints that read-back for any NIF.
 // --self-test also runs the golden-output test (GreySelfTestGolden.cpp) on the committed fixtures in --golden-dir (the
 // repository's tools\blackflame-greybuild\golden; given, it must exist; not given, that part is skipped: no developer's
 // folder is compiled in); --print-golden runs that part alone and prints this build's table as source (it needs
@@ -40,6 +44,7 @@
 #include "GreyBuild.h"
 #include "GreyForms.h"
 #include "GreyKeyed.h"
+#include "GreyLantern.h"
 #include "GreySlotPool.h"
 
 #include <charconv>
@@ -89,6 +94,8 @@ namespace
         bool selfTestOnlySet = false;
         std::filesystem::path goldenFixtures;        // --make-golden-fixtures
         bool identity = false;                       // --identity
+        std::filesystem::path lantern;               // --write-lantern <data folder>
+        std::vector<std::filesystem::path> lanternFiles;  // --inspect-lantern
     };
 
     void PrintUsage()
@@ -114,6 +121,10 @@ namespace
                      "  blackflame-greybuild --write-empty-esls <folder>\n"
                      "  blackflame-greybuild --write-slot-pool <file.esp>\n"
                      "  blackflame-greybuild --collisions <request.json>   (exit 0 none, 1 some, 2 the request does not read)\n"
+                     "  blackflame-greybuild --write-lantern <data folder> --in <dir> [--in <dir> ...]\n"
+                     "      (the lantern's meshes and soot texture from vanilla candlelantern01.nif, skeleton.nif, atronachflame.nif\n"
+                     "       and LampGeneric01.dds, extracted from Skyrim - Meshes0.bsa / Skyrim - Textures3.bsa into an --in folder)\n"
+                     "  blackflame-greybuild --inspect-lantern <file.nif> [...]\n"
                      "  blackflame-greybuild --dump <file.nif> [...]\n"
                      "  blackflame-greybuild --roundtrip <file.nif> [...]\n"
                      "  blackflame-greybuild --self-test [--golden-dir <dir>] [--print-golden]\n"
@@ -229,6 +240,14 @@ namespace
             } else if (arg == "--collisions" && hasValue) {
                 if (!TakePath("--collisions", a_argv[++i], a_options.collisions)) {
                     return false;
+                }
+            } else if (arg == "--write-lantern" && hasValue) {
+                if (!TakePath("--write-lantern", a_argv[++i], a_options.lantern)) {
+                    return false;
+                }
+            } else if (arg == "--inspect-lantern" && hasValue) {
+                while (i + 1 < a_argc && !GreyBuild::StartsWith(a_argv[i + 1], "--")) {
+                    a_options.lanternFiles.emplace_back(a_argv[++i]);
                 }
             } else if (arg == "--write-empty-esls" && hasValue) {
                 a_options.emptyEsls = a_argv[++i];
@@ -443,6 +462,33 @@ int main(int a_argc, char** a_argv)
                 std::cout << "wrote " << GreyBuild::PathText(options.emptyEsls / name) << "\n";
             }
             return kExitOk;
+        } catch (const std::exception& e) {
+            std::cerr << e.what() << "\n";
+            return kExitFail;
+        }
+    }
+    // the lantern: --write-lantern takes --in folders only; --inspect-lantern runs alone
+    if (!options.lantern.empty() || !options.lanternFiles.empty()) {
+        const bool lanternOther = options.fromGame || !options.staging.empty() || options.keyedOnlySet || !options.out.empty() ||
+                                  !options.map.empty() || !options.request.empty() || !options.forms.empty() || !options.files.empty() ||
+                                  options.optionsSet || options.noTextures || options.reclaimRetired || options.retireLeftOut ||
+                                  !options.slotPool.empty() || !options.collisions.empty();
+        if (lanternOther || (!options.lantern.empty() && !options.lanternFiles.empty()) ||
+            (!options.lantern.empty() && options.inputs.empty()) || (!options.lanternFiles.empty() && !options.inputs.empty())) {
+            std::cerr << "--write-lantern <data folder> takes --in folders and nothing else; --inspect-lantern <file.nif> [...] runs "
+                         "alone\n";
+            return kExitUsage;
+        }
+        try {
+            if (!options.lanternFiles.empty()) {
+                return GreyBuild::RunInspectLantern(options.lanternFiles);
+            }
+            Options folders = options;
+            folders.out = options.lantern;
+            if (!CheckFolders(folders)) {
+                return kExitUsage;
+            }
+            return GreyBuild::RunWriteLantern(options.lantern, options.inputs);
         } catch (const std::exception& e) {
             std::cerr << e.what() << "\n";
             return kExitFail;

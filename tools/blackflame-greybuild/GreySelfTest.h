@@ -71,6 +71,10 @@ namespace GreyBuild::SelfTest
     void CheckMarbleOrder(Checker& a_check, const std::filesystem::path& a_dir);
     void CheckHandFx(Checker& a_check, const std::filesystem::path& a_dir);
 
+    /// The lantern (GreySelfTestLantern.cpp, --write-lantern): made-up frame, skeleton, atronach strips and diffuse in a_dir,
+    /// the build and its read-back, and its failures (missing sources, a body inside the worn frame, a wrong addon value)
+    void CheckLantern(Checker& a_check, const std::filesystem::path& a_dir);
+
     /// The effect shader palettes of the key mode (GreySelfTestEfsh.cpp, contract 6): the request's efshPalettes written by
     /// the DLL's own writer (CopyContractEfsh.h), a fire palette greyed, a non-fire one and a missing one skipped, the key
     /// check, the cache, the refusals

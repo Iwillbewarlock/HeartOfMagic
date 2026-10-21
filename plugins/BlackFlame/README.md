@@ -252,7 +252,18 @@ blackflame-greybuild --self-test [--golden-dir <dir>] [--print-golden]
                                                     --golden-dir tools\blackflame-greybuild\golden; exit 0 = pass)
 blackflame-greybuild --make-golden-fixtures <dir>   (the golden test's input files, written once and committed)
 blackflame-greybuild --identity                     (the output identity this exe keys with: <n> or <n>+dev<hex>)
+blackflame-greybuild --write-lantern <data folder> --in <dir> [...]
+                                                    (the lantern's lantern_gnd / lantern_worn / lantern_smoke NIFs and
+                                                    LampGenericSoot01.dds, GreyLantern.h; prints their read-back)
+blackflame-greybuild --inspect-lantern <file.nif> [...]   (that read-back for any NIF)
 ```
+
+`--write-lantern` reads loose vanilla files from the `--in` folders: `meshes\clutter\common\candlelantern01.nif`,
+`meshes\actors\character\character assets\skeleton.nif` and `meshes\actors\atronachflame\character
+assets\atronachflame.nif` (Skyrim - Meshes0.bsa), `textures\clutter\common\lampgeneric01.dds` (Skyrim - Textures3.bsa),
+and, when present, `malebody_1.nif` / `femalebody_1.nif` from the same folder as the skeleton for the worn model's body
+clearance check. Extract them from the game's own BSAs, not a replacer. The placement and darkening constants are named
+in `tools/blackflame-greybuild/GreyLantern.h`.
 
 `--in` folders hold loose files laid out as Data (`meshes\...`), searched in the order given: the first that has
 a file wins, so list them in MO2 priority order, highest first, then extracted BSAs, then the vanilla

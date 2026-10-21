@@ -231,6 +231,9 @@ add_executable(blackflame-greybuild
     # BC7 on the GPU (DirectXTex's dx11 feature) with its guards, and their self-test
     blackflame-greybuild/GreyGpuEncoder.cpp
     blackflame-greybuild/GreySelfTestGpu.cpp
+    # The Black Flame lantern's meshes and soot texture (--write-lantern) and their self-test
+    blackflame-greybuild/GreyLantern.cpp
+    blackflame-greybuild/GreySelfTestLantern.cpp
     ${BLACKFLAME_IDENTITY_DIR}/GreyIdentity.rc
 )
 
