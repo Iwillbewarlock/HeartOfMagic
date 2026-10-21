@@ -6,7 +6,10 @@ resistance-ignoring part is *extra* damage (the spell itself is still resisted);
 writes dates ("제4시대 175년"); "매장실" -> "매장묘실" (the cell's Korean name); one English sentence with no Korean
 counterpart and no fact behind it was cut (year 22); "Year N since" -> "The Nth year since".
 
-## Item name candidates (one is picked for `HoMBF_Lantern`)
+Picked (user 2026-10-21): item name #1 사엘의 철창 등불 / Saeel's Iron Cage Lantern. The worn effect (MGEF 0x810) and
+the old stoke buff (0x802/0x803) are named 갈망 / Longing (user 2026-10-21; "흑염 달구기" retired).
+
+## Item name candidates
 
 | # | Korean | English | Idea |
 |---|---|---|---|

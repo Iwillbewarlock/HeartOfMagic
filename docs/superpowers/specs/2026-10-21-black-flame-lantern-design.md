@@ -141,10 +141,15 @@ reason gets `lantern` when the 0x810 effect is the one found (review R3).
   of `LampGeneric01.dds` made by a script (normal map kept); a child `NiNode` `AddOnNode9100` (grey ADDN 0x804
   `MPSFireSmall01`) at the cage centre.
 - `lantern_worn.nif`: the frame skinned 100% to `NPC Pelvis [Pelv]` with a `BSDismemberSkinInstance` partition 60 at
-  the left hip, built by a new `blackflame-greybuild` step with nifly. The flame: the same `AddOnNode9100`. Whether an
-  addon node in a worn armor follows the body is not known (review R9): before writing the step, look for a worn
-  armor in the load order that does this (`nif_inspect` over ARMA models holding `AddOnNode`); if none, the DLL
-  attaches the flame on equip as an art object at the pelvis instead.
+  the left hip, built by a new `blackflame-greybuild` step with nifly. The flame (review R9, checked 2026-10-21): no
+  worn armor in the load order carries particles or an addon node (the 8 worn lanterns found - Armors of the Velothi,
+  evgnn SMP backpacks - are skinned shapes with a glow map), and the vanilla Flame Atronach body
+  (`Actors/AtronachFlame/Character Assets/AtronachFlame.nif`) puts its fire on the body as skinned
+  `BSEffectShaderProperty` strips (`FireStrip08`, `FireStripWarp`) with `BSEffectShaderPropertyFloatController` UV
+  scroll. So the worn flame is two such strips copied from that NIF, skinned to the pelvis inside the cage, with the
+  addon's grey palette (`GradBlackFlame.dds`) - no particles, no addon node, no DLL art object.
+- Buff name (user 2026-10-21): MGEF 0x802, SPEL 0x803 and MGEF 0x810 are named "갈망" in the ESP (English "Longing");
+  "흑염 달구기" is retired.
 - Text: `plugins/BlackFlame/docs/lantern-text.md` (Gemini Argon draft from the fact sheet, checked line by line).
   Names in Korean follow the installed translation: 루'아 알-스케이븐, 사엘, 피우스 브룩시우스, 《매니마코, 벌레들의 왕》.
 
