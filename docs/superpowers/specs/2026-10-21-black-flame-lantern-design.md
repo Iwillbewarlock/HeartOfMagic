@@ -71,7 +71,7 @@ whether perk magnitude perks (Augmented Flames) scale a `magnitudeOverride`.
 | 0x813 | MGEF | `HoMBF_LanternBurnEffect` | Value Modifier, Health, a damage over time (v3: No Duration off); Hostile + Detrimental, Recover off; No Area, FX Persist, Painless, Hide In UI, No Hit Effect off (the burn shader must show; the DLL passes noHitEffectArt=false); **No Hit Event off** (the hit event is what registers the attack; the sink skips our own spell by FormID instead - Codex 2026-10-21); Power Affects Magnitude off; magic skill None, resist value None; no keywords (so no Augmented Flames, no "fire" in FireSet); hit shader `HoMBF_BurnShader` 0x800 with FX Persist, so the target burns grey for the 2 s (a load order with Glow Be Gone nulls it at kDataLoaded; respected, user 2026-10-20) |
 | 0x814 | BOOK | `HoMBF_LuahJournal` | note model (vanilla `clutter/books/...` note, chosen at build), text from section 6, no skill, value 5 |
 | 0x815 | MSTT | `HoMBF_LanternSmoke` | model `heartofmagic/blackflame/lantern/lantern_smoke.nif`: an empty `BSFadeNode` with one child `NiNode` named `AddOnNode9123` (the node index of the existing grey ADDN 0x809 `HoMBF_GreyAddon_MPSFireSmSmoke01`) - the MPS copies are `BSMasterParticleSystem` roots and only emit through an addon node, as the vanilla `candlelanternwithcandle01.nif` does with `AddOnNode49` (review R3) |
-| 0x816 | GLOB | `HoMBF_LanternPlaced` | short, 0, **Constant off** (a constant global is not saved); 1 once every placed object is ready |
+| 0x816 | GLOB | `HoMBF_LanternPlaced` | short, 0, **Constant off** (a constant global is not saved); 1 as soon as the lantern, journal and smoke refs are created (section 4; the keyframe is best effort and does not gate it) |
 
 The stoke SPEL/MGEF (0x802/0x803) stay in the ESP with the keyword, because the self tests cast them; nothing in the
 game hands them out (console only), so the lantern is the only player-facing trigger. README/docs say so.
@@ -211,7 +211,7 @@ One bundled in-game run by the user, judged from `HeartOfMagic_BlackFlame.log`:
 
 | What | Pass |
 |---|---|
-| Enter Ansilvund02 | `lantern place: ok`, then `keyframed ... ok` twice; lab and lantern coordinates as configured |
+| Enter Ansilvund02 | `lantern place: ok`, then a `candidate` line and `keyframed ... ok` for the lantern and the journal; lab and lantern coordinates as configured |
 | Pick it up | `lantern smoke: disabled 1` |
 | Equip / unequip | `buff flag ON (... lantern)` / `buff flag off`; `lantern cost` lines: worn = 1.3 x off for keyword fire spells |
 | Firebolt on a target, then nothing for 3 s | one `lantern burn`, rate = (2% of max + 20) / 2 per second, `effects=1`, `magnitude` = rate |
