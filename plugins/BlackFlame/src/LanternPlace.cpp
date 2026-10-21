@@ -20,12 +20,12 @@ namespace BlackFlame
         using Clock = std::chrono::steady_clock;
 
         constexpr RE::FormID kCellLocalId = 0x01F358;  // CELL Ansilvund02 (Skyrim.esm)
-        constexpr RE::FormID kLabLocalId = 0x0C0090;   // the Alchemy Lab ref in it
-        constexpr auto kMaxWait = std::chrono::seconds(10);  // for the refs' 3D before a keyframe, and for the lab's after a load
+        constexpr RE::FormID kTableLocalId = 0x03DFA0;  // the UpperTable01 ref in it (user 2026-10-21: on this table, not the alchemy table)
+        constexpr auto kMaxWait = std::chrono::seconds(10);  // for the refs' 3D before a keyframe, and for the table's after a load
         constexpr float kPlaced = 1.0f;
         constexpr float kDegToRad = std::numbers::pi_v<float> / 180.0f;
         constexpr std::size_t kYaw = 3;
-        // A later load keyframes only a lantern or journal this close to its configured place next to the lab (review 1
+        // A later load keyframes only a lantern or journal this close to its configured place next to the table (review 1
         // R4): ours, not one the player dropped elsewhere in the cell. A placement that settled before its keyframe moves
         // far less
         constexpr float kNearTarget = 64.0f;
@@ -65,10 +65,10 @@ namespace BlackFlame
         }
 
         // A temporary ref: only in the form map while its cell is loaded, so looked up each time
-        RE::TESObjectREFR* LabRef()
+        RE::TESObjectREFR* TableRef()
         {
             auto* dh = RE::TESDataHandler::GetSingleton();
-            return dh ? dh->LookupForm<RE::TESObjectREFR>(kLabLocalId, kSkyrimMaster) : nullptr;
+            return dh ? dh->LookupForm<RE::TESObjectREFR>(kTableLocalId, kSkyrimMaster) : nullptr;
         }
 
         bool OnGameThreadOrWarn()
@@ -82,30 +82,30 @@ namespace BlackFlame
             return false;
         }
 
-        // Lab-local offset to world. Assumed convention (not verified in game): the z angle turns clockwise seen from
-        // above, a ref's forward (+y) is (sin a, cos a) and its right (+x) (cos a, -sin a); the ok line prints the lab's
+        // Table-local offset to world. Assumed convention (not verified in game): the z angle turns clockwise seen from
+        // above, a ref's forward (+y) is (sin a, cos a) and its right (+x) (cos a, -sin a); the ok line prints the table's
         // and the lantern's coordinates, which settles it on the first run
-        RE::NiPoint3 LabToWorld(const RE::TESObjectREFR& a_lab, float a_x, float a_y, float a_z)
+        RE::NiPoint3 TableToWorld(const RE::TESObjectREFR& a_table, float a_x, float a_y, float a_z)
         {
-            const float angle = a_lab.data.angle.z;
+            const float angle = a_table.data.angle.z;
             const float c = std::cos(angle);
             const float s = std::sin(angle);
-            const auto lab = a_lab.GetPosition();
-            return { lab.x + a_x * c + a_y * s, lab.y - a_x * s + a_y * c, lab.z + a_z };
+            const auto table = a_table.GetPosition();
+            return { table.x + a_x * c + a_y * s, table.y - a_x * s + a_y * c, table.z + a_z };
         }
 
-        // Where the lantern and the journal belong next to the lab (the config offsets)
+        // Where the lantern and the journal belong next to the table (the config offsets)
         struct Targets
         {
             RE::NiPoint3 lantern;
             RE::NiPoint3 journal;
         };
 
-        Targets TargetsOf(const RE::TESObjectREFR& a_lab)
+        Targets TargetsOf(const RE::TESObjectREFR& a_table)
         {
             const auto& lo = GetConfig().lanternOffset;
             const auto& jo = GetConfig().journalOffset;
-            return { LabToWorld(a_lab, lo[0], lo[1], lo[2]), LabToWorld(a_lab, jo[0], jo[1], jo[2]) };
+            return { TableToWorld(a_table, lo[0], lo[1], lo[2]), TableToWorld(a_table, jo[0], jo[1], jo[2]) };
         }
 
         std::vector<RE::NiPointer<RE::TESObjectREFR>> RefsOf(const RE::TESObjectCELL* a_cell,
@@ -176,12 +176,12 @@ namespace BlackFlame
         void Rekeyframe(const RE::TESObjectCELL* a_cell)
         {
             const auto& forms = GetForms();
-            const auto* lab = LabRef();
-            if (!lab || lab->GetParentCell() != a_cell) {
-                logger::warn("BlackFlame: lantern place: keyframe again skipped (lab ref 0C0090 {})", !lab ? "not found" : "not in cell 01F358");
+            const auto* table = TableRef();
+            if (!table || table->GetParentCell() != a_cell) {
+                logger::warn("BlackFlame: lantern place: keyframe again skipped (table ref 03DFA0 {})", !table ? "not found" : "not in cell 01F358");
                 return;
             }
-            const auto targets = TargetsOf(*lab);
+            const auto targets = TargetsOf(*table);
             std::vector<RE::ObjectRefHandle> found;
             for (const auto& ref : RefsOf(a_cell, { forms.lantern, forms.luahJournal })) {
                 if (IsOursToKeyframe(*ref, a_cell, targets)) {
@@ -232,40 +232,40 @@ namespace BlackFlame
             }
         }
 
-        // Empty when the lab may take the objects, else why not
-        std::string LabProblem(const RE::TESObjectREFR* a_lab, const RE::TESObjectCELL* a_cell)
+        // Empty when the table may take the objects, else why not
+        std::string TableProblem(const RE::TESObjectREFR* a_table, const RE::TESObjectCELL* a_cell)
         {
             if (!a_cell) {
                 return "cell 01F358 not found";
             }
-            if (!a_lab) {
-                return "lab ref 0C0090 not found";
+            if (!a_table) {
+                return "table ref 03DFA0 not found";
             }
-            if (a_lab->IsDeleted()) {
-                return "lab ref deleted";
+            if (a_table->IsDeleted()) {
+                return "table ref deleted";
             }
-            if (a_lab->IsDisabled()) {
-                return "lab ref disabled";
+            if (a_table->IsDisabled()) {
+                return "table ref disabled";
             }
-            if (a_lab->GetParentCell() != a_cell) {
-                return "lab ref not in cell 01F358";
+            if (a_table->GetParentCell() != a_cell) {
+                return "table ref not in cell 01F358";
             }
-            if (!a_lab->Is3DLoaded()) {
-                return "lab 3D not loaded";
+            if (!a_table->Is3DLoaded()) {
+                return "table 3D not loaded";
             }
             return {};
         }
 
-        RE::ObjectRefHandle Create(RE::TESBoundObject* a_base, RE::TESObjectREFR& a_lab, const RE::NiPoint3& a_at, float a_yawDeg)
+        RE::ObjectRefHandle Create(RE::TESBoundObject* a_base, RE::TESObjectREFR& a_table, const RE::NiPoint3& a_at, float a_yawDeg)
         {
             auto* dh = RE::TESDataHandler::GetSingleton();
             if (!dh || !a_base) {
                 return {};
             }
-            const RE::NiPoint3 angle{ 0.0f, 0.0f, a_lab.data.angle.z + a_yawDeg * kDegToRad };
+            const RE::NiPoint3 angle{ 0.0f, 0.0f, a_table.data.angle.z + a_yawDeg * kDegToRad };
             // As TESObjectREFR::PlaceObjectAtMe calls it, at the final position (moving a placed object later lets
-            // Havok push it out of the lab's mesh, review R2)
-            return dh->CreateReferenceAtLocation(a_base, a_at, angle, a_lab.GetParentCell(), a_lab.GetWorldspace(), nullptr,
+            // Havok push it out of the table's mesh, review R2)
+            return dh->CreateReferenceAtLocation(a_base, a_at, angle, a_table.GetParentCell(), a_table.GetWorldspace(), nullptr,
                 nullptr, RE::ObjectRefHandle(), true, true);
         }
 
@@ -291,17 +291,17 @@ namespace BlackFlame
         // returned. The global becomes 1 here, in the same task, whatever the keyframe does later, so no save and no later
         // load can make a second lantern. A creation that failed part-way keeps what was made and still sets the global
         // (a retry could double the made ones); only when nothing was made does the global stay 0
-        void Place(RE::TESObjectREFR& a_lab, const RE::TESObjectCELL* a_cell)
+        void Place(RE::TESObjectREFR& a_table, const RE::TESObjectCELL* a_cell)
         {
             const auto& forms = GetForms();
             const auto& config = GetConfig();
-            const auto targets = TargetsOf(a_lab);
+            const auto targets = TargetsOf(a_table);
             const auto& lo = config.lanternOffset;
             const auto& jo = config.journalOffset;
             const auto& so = config.smokeOffset;
-            const auto lantern = Create(forms.lantern, a_lab, targets.lantern, lo[kYaw]);
-            const auto journal = Create(forms.luahJournal, a_lab, targets.journal, jo[kYaw]);
-            const auto smoke = Create(forms.lanternSmoke, a_lab, LabToWorld(a_lab, so[0], so[1], so[2]), 0.0f);
+            const auto lantern = Create(forms.lantern, a_table, targets.lantern, lo[kYaw]);
+            const auto journal = Create(forms.luahJournal, a_table, targets.journal, jo[kYaw]);
+            const auto smoke = Create(forms.lanternSmoke, a_table, TableToWorld(a_table, so[0], so[1], so[2]), 0.0f);
             const RE::FormID lanternId = IdOf(lantern);
             const RE::FormID journalId = IdOf(journal);
             const RE::FormID smokeId = IdOf(smoke);
@@ -310,15 +310,15 @@ namespace BlackFlame
                 return;
             }
             forms.lanternPlaced->value = kPlaced;
-            const auto lab = a_lab.GetPosition();
+            const auto table = a_table.GetPosition();
             if (lanternId != 0 && journalId != 0 && smokeId != 0) {
                 logger::info("BlackFlame: lantern place: ok lantern={:08X} journal={:08X} smoke={:08X} at ({:.1f},{:.1f},{:.1f}) "
-                             "lab=({:.1f},{:.1f},{:.1f})",
-                    lanternId, journalId, smokeId, targets.lantern.x, targets.lantern.y, targets.lantern.z, lab.x, lab.y, lab.z);
+                             "table=({:.1f},{:.1f},{:.1f})",
+                    lanternId, journalId, smokeId, targets.lantern.x, targets.lantern.y, targets.lantern.z, table.x, table.y, table.z);
             } else {
                 logger::warn("BlackFlame: lantern place: partial lantern={:08X} journal={:08X} smoke={:08X} at ({:.1f},{:.1f},{:.1f}) "
-                             "lab=({:.1f},{:.1f},{:.1f}) (could not create the {}; what was made is kept, global set to 1)",
-                    lanternId, journalId, smokeId, targets.lantern.x, targets.lantern.y, targets.lantern.z, lab.x, lab.y, lab.z,
+                             "table=({:.1f},{:.1f},{:.1f}) (could not create the {}; what was made is kept, global set to 1)",
+                    lanternId, journalId, smokeId, targets.lantern.x, targets.lantern.y, targets.lantern.z, table.x, table.y, table.z,
                     MissingNames(lanternId, journalId, smokeId));
             }
             // The made handles directly, not a scan of the cell: whether CreateReferenceAtLocation has put a new ref in the
@@ -346,15 +346,15 @@ namespace BlackFlame
                 Rekeyframe(cell);
                 return;
             }
-            auto* lab = LabRef();
-            if (const auto problem = LabProblem(lab, cell); !problem.empty()) {
+            auto* table = TableRef();
+            if (const auto problem = TableProblem(table, cell); !problem.empty()) {
                 logger::warn("BlackFlame: lantern place: skipped ({})", problem);
                 return;
             }
-            Place(*lab, cell);
+            Place(*table, cell);
         }
 
-        // After a game load: the player's cell, once the lab's 3D is there (or 10 s passed: the skip line names it)
+        // After a game load: the player's cell, once the table's 3D is there (or 10 s passed: the skip line names it)
         void TickPostLoad()
         {
             auto* player = RE::PlayerCharacter::GetSingleton();
@@ -363,8 +363,8 @@ namespace BlackFlame
                 g_postLoad.reset();
                 return;
             }
-            const auto* lab = LabRef();
-            if (!(lab && lab->Is3DLoaded()) && Clock::now() - g_postLoad->started < kMaxWait) {
+            const auto* table = TableRef();
+            if (!(table && table->Is3DLoaded()) && Clock::now() - g_postLoad->started < kMaxWait) {
                 return;
             }
             g_postLoad.reset();
@@ -477,7 +477,7 @@ namespace BlackFlame
         holder->AddEventSink<RE::TESCellFullyLoadedEvent>(CellSink::GetSingleton());
         holder->AddEventSink<RE::TESContainerChangedEvent>(ContainerSink::GetSingleton());
         g_enabled.store(true);
-        logger::info("BlackFlame: lantern place on (cell {:06X}, lab ref {:06X} of {})", kCellLocalId, kLabLocalId, kSkyrimMaster);
+        logger::info("BlackFlame: lantern place on (cell {:06X}, table ref {:06X} of {})", kCellLocalId, kTableLocalId, kSkyrimMaster);
     }
 
     void OnLanternGameLoaded()

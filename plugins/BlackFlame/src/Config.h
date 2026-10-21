@@ -86,7 +86,7 @@ namespace BlackFlame
         // unchanged. The window: game seconds (unpaused, GameClock.h) after the last stoked hit
         bool greyCorpseShaders = true;
         double corpseWindowGameSeconds = 45.0;
-        // The lantern (README "Lantern"; LanternPlace.h, LanternDamage.h). Offsets are lab-local game units (x right, y
+        // The lantern (README "Lantern"; LanternPlace.h, LanternDamage.h). Offsets are table-local game units (x right, y
         // forward, z up) and a yaw in degrees; the defaults are first-run estimates, tuned from the "lantern place: ok" line
         bool lanternPlace = true;    // place the lantern, the journal and the smoke in Ansilvund02 (off without the main-thread queue)
         bool lanternDamage = true;   // the black flame on the player's fire hits while the lantern is worn (same)
@@ -99,9 +99,9 @@ namespace BlackFlame
         double lanternBurnFlat = LanternRules::Settings{}.burnFlat;        // health per burn on top (0..10000)
         double lanternReapply = LanternRules::Settings{}.reapplySeconds;  // seconds between two casts on one target
                                                                            // (0.02..LanternRules::kMaxReapplySeconds)
-        std::array<float, 4> lanternOffset{ -25.0f, 0.0f, 75.0f, 0.0f };
-        std::array<float, 4> journalOffset{ 25.0f, 0.0f, 75.0f, 90.0f };
-        std::array<float, 3> smokeOffset{ -25.0f, 0.0f, 87.0f };
+        std::array<float, 4> lanternOffset{ -20.0f, 0.0f, 59.5f, 0.0f };  // UpperTable01: top at z 59, 194 x 114
+        std::array<float, 4> journalOffset{ 20.0f, 0.0f, 60.0f, 90.0f };
+        std::array<float, 3> smokeOffset{ -20.0f, 0.0f, 71.5f };
     };
 
     inline constexpr const char* kConfigPath = "Data/SKSE/Plugins/HeartOfMagic_BlackFlame.json";

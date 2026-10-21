@@ -84,7 +84,7 @@ namespace BlackFlame
         constexpr double kMaxLanternFlat = 10000.0;
         constexpr double kMinLanternReapply = 0.02;  // lanternReapply, seconds
         constexpr double kMaxLanternReapply = LanternRules::kMaxReapplySeconds;
-        constexpr float kMaxLanternOffset = 1000.0f;  // game units from the lab, each axis
+        constexpr float kMaxLanternOffset = 1000.0f;  // game units from the table, each axis
         constexpr float kMaxLanternYaw = 360.0f;      // degrees
         constexpr std::size_t kYawIndex = 3;
 
