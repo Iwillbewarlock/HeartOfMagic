@@ -261,9 +261,16 @@ blackflame-greybuild --inspect-lantern <file.nif> [...]   (that read-back for an
 `--write-lantern` reads loose vanilla files from the `--in` folders: `meshes\clutter\common\candlelantern01.nif`,
 `meshes\actors\character\character assets\skeleton.nif` and `meshes\actors\atronachflame\character
 assets\atronachflame.nif` (Skyrim - Meshes0.bsa), `textures\clutter\common\lampgeneric01.dds` (Skyrim - Textures3.bsa),
-and, when present, `malebody_1.nif` / `femalebody_1.nif` from the same folder as the skeleton for the worn model's body
-clearance check. Extract them from the game's own BSAs, not a replacer. The placement and darkening constants are named
-in `tools/blackflame-greybuild/GreyLantern.h`.
+and `malebody_1.nif` / `femalebody_1.nif` from the same folder as the skeleton (Skyrim - Meshes0.bsa; required: the worn
+model's belt strap is laid on both bodies and every worn part is checked against them). Extract them from the game's own
+BSAs, not a replacer. The worn model (round 2, belt-mounted) is a leather strap looped over the belt line at the left
+hip (vanilla `textures\clutter\common\leatherstrips01.dds` / `_n.dds`, Skyrim - Textures3.bsa; the NIF names them, the
+builder logs whether an `--in` folder has them), an iron ring in its lower end, and the lantern (0.8 of round 1, handle
+turned upright) hanging from the ring by its handle with an upright flame from one connected piece of each atronach
+fire strip. Where the cage would come within 1 unit of a body (both vanilla thighs reach past the ring in the reference
+pose) the lantern is tilted outwards about the ring by the smallest whole degree that clears both; the build logs the
+tilt and the clearances (strap and ring 0.3, lantern 1.0). The placement, size and darkening constants are named in
+`tools/blackflame-greybuild/GreyLantern.h`.
 
 `--in` folders hold loose files laid out as Data (`meshes\...`), searched in the order given: the first that has
 a file wins, so list them in MO2 priority order, highest first, then extracted BSAs, then the vanilla

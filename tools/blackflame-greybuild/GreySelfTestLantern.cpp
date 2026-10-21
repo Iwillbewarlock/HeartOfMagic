@@ -3,9 +3,11 @@
 // =============================================================================
 // A frame NIF (BSFadeNode, BSXFlags, collision, one lit BSTriShape with a hook out in +Y at the top), a skeleton with
 // NPC Pelvis [Pelv], an atronach stand-in whose FireStrip08 (palette effect shader, float controller) and FireStripWarp
-// (lighting shader, float controller) are skinned half and half to two bones, and a 64 x 64 BC3 diffuse with 7 mips.
-// The build runs on them; the outputs are read back and checked, then the failures: a missing source, a body inside the
-// worn frame, an addon node with the wrong value, a darken factor out of range.
+// (lighting shader, float controller) are skinned half and half to two bones (each strip a box plus a stray shorter box),
+// a 64 x 64 BC3 diffuse with 7 mips, and body stand-ins (a hip box). The build runs on them; the outputs are read back
+// and checked (strap, ring, upright handle, one strip piece, bind pose, clearances), then the failures and edge cases: a
+// missing source or body, a thigh that tilts the lantern, one no tilt clears, a body part through the strap, a wrong
+// inverse bind, an addon node with the wrong value, a darken factor out of range. LanternPieces' weld has its own checks.
 
 #include "GreyLantern.h"
 #include "GreySelfTest.h"
@@ -36,6 +38,7 @@ namespace GreyBuild::SelfTest
         constexpr float kFrameHeight = 30.0f;
         constexpr float kHookY = 15.0f;   // the hook's reach in +Y at the top (the band rule must leave it out)
         constexpr float kPelvisZ = 68.9f;
+        constexpr float kHipHalfX = 8.0f;  // the body stand-in's hip box: x -8..8
         constexpr std::uint32_t kFrameBsx = 0xC2;  // candlelantern01.nif's value
         constexpr const char* kSourceNormal = "textures\\clutter\\common\\lampgeneric01_n.dds";
         constexpr const char* kOrangePalette = "textures\\effects\\gradients\\gradfireatronach.dds";
@@ -64,12 +67,16 @@ namespace GreyBuild::SelfTest
             }
         }
 
+        /// a_extra: a second, disconnected and shorter box above (the strips' stray piece the build must leave out)
         nifly::NiShape* MakeShape(nifly::NifFile& a_nif, const std::string& a_name, const Vector3& a_lo, const Vector3& a_hi,
-            bool a_hook)
+            bool a_hook, bool a_extra = false)
         {
             std::vector<Vector3> verts;
             std::vector<nifly::Triangle> tris;
             AddBox(verts, tris, a_lo, a_hi);
+            if (a_extra) {
+                AddBox(verts, tris, Vector3(-5.0f, -3.0f, a_hi.z + 10.0f), Vector3(5.0f, 3.0f, a_hi.z + 20.0f));
+            }
             if (a_hook) {
                 // two rings of the cage walls at a third and two thirds of the height, and the hook out in +Y at the top
                 for (const float share : { 1.0f / 3.0f, 2.0f / 3.0f }) {
@@ -166,7 +173,7 @@ namespace GreyBuild::SelfTest
             const std::uint32_t boneB = hdr.GetBlockID(nif.AddNode("FireAtronach_Spine [Spn0]", spine, root));
             for (const char* name : kLanternFlameStrips) {
                 const bool effect = std::string(name) == kLanternFlameStrips[0];
-                auto* shape = MakeShape(nif, name, Vector3(-20.0f, -10.0f, 0.0f), Vector3(20.0f, 6.0f, 130.0f), false);
+                auto* shape = MakeShape(nif, name, Vector3(-20.0f, -10.0f, 0.0f), Vector3(20.0f, 6.0f, 130.0f), false, true);
                 if (effect) {
                     nif.DeleteShader(shape);
                     auto prop = std::make_unique<nifly::BSEffectShaderProperty>();
@@ -208,13 +215,24 @@ namespace GreyBuild::SelfTest
             SaveNif(nif, a_file);
         }
 
-        /// A body stand-in: one unskinned box at a_lo..a_hi
-        void MakeBody(const std::filesystem::path& a_file, const Vector3& a_lo, const Vector3& a_hi)
+        /// A body stand-in: one unskinned box shape per lo..hi pair
+        void MakeBody(const std::filesystem::path& a_file, const std::vector<std::pair<Vector3, Vector3>>& a_boxes)
         {
             nifly::NifFile nif;
             nif.Create(nifly::NiVersion::getSSE());
-            (void)MakeShape(nif, "Body", a_lo, a_hi, false);
+            int n = 0;
+            for (const auto& [lo, hi] : a_boxes) {
+                (void)MakeShape(nif, fmt::format("Body{}", n++), lo, hi, false);
+            }
             SaveNif(nif, a_file);
+        }
+
+        /// Both body stand-ins (male and female paths) as the same boxes
+        void MakeBodies(const std::filesystem::path& a_dir, const std::vector<std::pair<Vector3, Vector3>>& a_boxes)
+        {
+            for (const char* body : kLanternBodySources) {
+                MakeBody(a_dir / body, a_boxes);
+            }
         }
 
         [[nodiscard]] bool Mentions(const std::vector<std::string>& a_lines, const std::string& a_text)
@@ -231,9 +249,38 @@ namespace GreyBuild::SelfTest
 
     void CheckLanternRuns(Checker& a_check, const std::filesystem::path& a_dir);
 
+    /// LanternPieces' weld: two triangles touching only through a vertex pair within kLanternWeld are one piece, also when
+    /// the pair straddles a grid cell boundary; a pair two weld distances apart stays two pieces; a bad index throws
+    void CheckLanternPieces(Checker& a_check)
+    {
+        const auto twoTriangles = [](float a_left, float a_right) {
+            std::vector<Vector3> verts{ Vector3(a_left, 0.0f, 0.0f), Vector3(-1.0f, 1.0f, 0.0f), Vector3(-1.0f, 0.0f, 1.0f),
+                Vector3(a_right, 0.0f, 0.0f), Vector3(1.0f, 1.0f, 0.0f), Vector3(1.0f, 0.0f, 1.0f) };
+            std::vector<nifly::Triangle> tris{ nifly::Triangle(0, 1, 2), nifly::Triangle(3, 4, 5) };
+            return LanternPieces(verts, tris);
+        };
+        // 0.99 and 1.01 weld cells: floor puts them in cells 0 and 1, 0.02 weld apart
+        const auto straddle = twoTriangles(kLanternWeld * 0.99f, kLanternWeld * 1.01f);
+        a_check.Check(straddle.size() == 1 && straddle.front().triangles.size() == 2,
+            fmt::format("lantern pieces: a vertex pair within the weld across a cell boundary joins ({} pieces)", straddle.size()));
+        const auto same = twoTriangles(0.0f, 0.0f);
+        a_check.Check(same.size() == 1 && same.front().vertices.size() == 6, "lantern pieces: a pair at the same position joins");
+        const auto apart = twoTriangles(0.0f, kLanternWeld * 2.0f);
+        a_check.Check(apart.size() == 2 && apart[0].triangles.size() == 1 && apart[1].triangles.size() == 1,
+            fmt::format("lantern pieces: a pair two weld distances apart stays two pieces ({})", apart.size()));
+        bool threw = false;
+        try {
+            (void)LanternPieces({ Vector3() }, { nifly::Triangle(0, 0, 5) });
+        } catch (const std::runtime_error&) {
+            threw = true;
+        }
+        a_check.Check(threw, "lantern pieces: a triangle naming a vertex past the list throws");
+    }
+
     void CheckLantern(Checker& a_check, const std::filesystem::path& a_dir)
     {
         try {
+            CheckLanternPieces(a_check);
             CheckLanternRuns(a_check, a_dir);
         } catch (const std::exception& e) {
             a_check.Check(false, fmt::format("lantern: exception {}", e.what()));
@@ -249,12 +296,21 @@ namespace GreyBuild::SelfTest
         MakeAtronach(in / kLanternFlameSource);
         a_check.Check(WriteTestTexture(in / kLanternDiffuseSource, kDxgiBc3, true), "lantern: made-up sources written");
 
-        const auto result = BuildLantern({ in }, out);
+        // the bodies: a hip box whose left side is at x -kHipHalfX (both body paths)
+        const auto bodies = a_dir / "lantern" / "bodies";
+        MakeBodies(bodies, { { Vector3(-kHipHalfX, -6.0f, 30.0f), Vector3(kHipHalfX, 6.0f, 100.0f) } });
+        const std::vector<std::filesystem::path> inputs{ in, bodies };
+
+        const auto result = BuildLantern(inputs, out);
         for (const auto& problem : result.problems) {
             std::cout << "      " << problem << "\n";
         }
         a_check.Check(result.ok, fmt::format("lantern: the build passes its own read-back ({} problem(s))", result.problems.size()));
-        a_check.Check(Mentions(result.log, "not checked"), "lantern: no body in the --in folders is logged as not checked");
+        {
+            const auto noBody = BuildLantern({ in }, a_dir / "lantern" / "out_nobody");
+            a_check.Check(!noBody.ok && Mentions(noBody.problems, kLanternBodySources[0]),
+                "lantern: the worn model needs the bodies (a missing body fails, named)");
+        }
 
         // the ground model
         const auto gnd = InspectLanternNif(out / kLanternGroundNif);
@@ -280,9 +336,9 @@ namespace GreyBuild::SelfTest
 
         // the worn model
         const auto worn = InspectLanternNif(out / kLanternWornNif);
-        a_check.Check(worn.shapes.size() == 3 && Shape(worn, kLanternWornFrameName) && Shape(worn, "FireStrip08") &&
-                          Shape(worn, "FireStripWarp"),
-            fmt::format("lantern worn: the frame and both strips ({} shapes)", worn.shapes.size()));
+        a_check.Check(worn.shapes.size() == 5 && Shape(worn, kLanternWornFrameName) && Shape(worn, "FireStrip08") &&
+                          Shape(worn, "FireStripWarp") && Shape(worn, kLanternStrapName) && Shape(worn, kLanternRingName),
+            fmt::format("lantern worn: the frame, both strips, the strap and the ring ({} shapes)", worn.shapes.size()));
         bool allOneBone = !worn.shapes.empty();
         bool allPart60 = !worn.shapes.empty();
         bool allWeights = !worn.shapes.empty();
@@ -310,11 +366,36 @@ namespace GreyBuild::SelfTest
                           warp->controllers[0].find("its shader") != std::string::npos,
             "lantern worn: each strip's float controller copied and aimed at its own shader");
         const auto* wornFrame = Shape(worn, kLanternWornFrameName);
-        const float top = kPelvisZ + kLanternWornHipOffset[2];
-        a_check.Check(wornFrame && Near(wornFrame->bounds.Size(2), kLanternWornHeight) && Near(wornFrame->bounds.max[2], top) &&
-                          Near(result.wornScale, kLanternWornHeight / kFrameHeight),
-            fmt::format("lantern worn: the frame {} units tall, its top at the pelvis + offset (z {})", kLanternWornHeight, top));
-        const float cageZ = top - kFrameHeight * 0.5f * result.wornScale;
+        const float scale = kLanternWornHeight / kFrameHeight;
+        // the hook (z 27..29, out to y kHookY) turned up about its hinge (y kFrameHalfY, z 28): its top at z 28 + (kHookY - 8)
+        const float turnedTop = (kFrameHeight - 2.0f) + (kHookY - kFrameHalfY);
+        a_check.Check(Near(result.wornScale, scale) && Near(result.tiltDeg, 0.0f), fmt::format("lantern worn: scale {:.5f} = {} / {}, no tilt "
+                                                                                             "needed beside the hip box ({} deg)",
+                                                                                     result.wornScale, kLanternWornHeight, kFrameHeight, result.tiltDeg));
+        a_check.Check(wornFrame && Near(wornFrame->bounds.Size(2), turnedTop * scale) &&
+                          Near(wornFrame->bounds.max[2], result.contact[2] + result.handleWire),
+            fmt::format("lantern worn: the handle stands up (frame {:.3f} tall, expected {:.3f}) and its top wire is the contact (top {:.3f}, "
+                        "contact + wire {:.3f})", wornFrame ? wornFrame->bounds.Size(2) : 0.0f, turnedTop * scale,
+                wornFrame ? wornFrame->bounds.max[2] : 0.0f, result.contact[2] + result.handleWire));
+        a_check.Check(Near(result.contact[0], result.ringCentre[0]) && Near(result.contact[1], result.ringCentre[1]) &&
+                          Near(result.contact[2], result.ringCentre[2] - kLanternRingRadius + kLanternRingTube + result.handleWire),
+            "lantern worn: the handle's top wire rests on the ring's bottom tube, inside the ring");
+        const auto* strap = Shape(worn, kLanternStrapName);
+        const auto* ring = Shape(worn, kLanternRingName);
+        a_check.Check(strap && ring && Near(strap->bounds.max[2], kLanternStrapTop) && Near(strap->bounds.min[2], kLanternStrapBottom) &&
+                          Near(strap->bounds.Size(1), kLanternStrapWidth) && strap->bounds.max[0] <= -kHipHalfX - kLanternStrapBodyGap + kTolerance &&
+                          Near(ring->bounds.max[2], kLanternStrapBottom + 2.0f * kLanternRingTube),
+            fmt::format("lantern worn: the strap from z {} to {} ({} wide) outside the hip at x {}, the ring's top in its lower end",
+                kLanternStrapBottom, kLanternStrapTop, kLanternStrapWidth, -kHipHalfX));
+        a_check.Check(strap && ring && strap->textures.size() > 1 && strap->textures[0] == fmt::format("[0] {}", kLanternStrapDiffuse) &&
+                          strap->textures[1] == fmt::format("[1] {}", kLanternStrapNormal) && ring->textures.size() > 1 &&
+                          ring->textures[0] == fmt::format("[0] {}", kLanternDiffuse) && ring->textures[1] == fmt::format("[1] {}", kSourceNormal),
+            "lantern worn: strap on the vanilla leather and normal map, ring on the soot lamp texture and the lamp's normal map");
+        a_check.Check(fire && warp && fire->vertices == 8 && warp->vertices == 8,
+            fmt::format("lantern worn: one connected piece of each strip kept, the stray box left out ({} / {} vertices, expected 8)",
+                fire ? fire->vertices : 0, warp ? warp->vertices : 0));
+        a_check.Check(warp && Near(warp->refraction, kLanternWarpRefraction, 1e-6f),
+            fmt::format("lantern worn: FireStripWarp's refraction strength {} (kLanternWarpRefraction)", warp ? warp->refraction : -1.0f));
         if (fire && warp) {
             LanternBox strips = fire->bounds;
             for (int axis = 0; axis < 3; ++axis) {
@@ -322,11 +403,28 @@ namespace GreyBuild::SelfTest
                 strips.max[axis] = std::max(strips.max[axis], warp->bounds.max[axis]);
             }
             const auto centre = strips.Centre();
-            a_check.Check(Near(centre[0], kLanternWornHipOffset[0]) && Near(centre[1], kLanternWornHipOffset[1]) && Near(centre[2], cageZ),
-                fmt::format("lantern worn: the strips centred in the cage ({:.3f}, {:.3f}, {:.3f}; expected z {:.3f})", centre[0], centre[1],
-                    centre[2], cageZ));
+            a_check.Check(Near(centre[0], result.wornCage[0]) && Near(centre[1], result.wornCage[1]) && Near(centre[2], result.wornCage[2]),
+                fmt::format("lantern worn: the strips centred in the cage ({:.3f}, {:.3f}, {:.3f}; cage {:.3f}, {:.3f}, {:.3f})", centre[0],
+                    centre[1], centre[2], result.wornCage[0], result.wornCage[1], result.wornCage[2]));
         } else {
             a_check.Check(false, "lantern worn: the strips centred in the cage (no strips)");
+        }
+        bool allBind = !worn.shapes.empty();
+        for (const auto& s : worn.shapes) {
+            allBind = allBind && s.bindRead && s.bindError <= kLanternBindTolerance && s.sphereError <= kLanternBoundsTolerance &&
+                      s.vertexError <= kLanternBoundsTolerance;
+        }
+        a_check.Check(allBind, "lantern worn: on every shape the pelvis bind pose x skin-to-bone is the identity and the bone-space "
+                               "bounds and vertices land back on the skin-space ones");
+        {
+            const auto clearances = WornClearances(inputs, out);
+            bool clear = clearances.size() == 6;
+            std::string text;
+            for (const auto& c : clearances) {
+                clear = clear && c.gap.points > 0 && c.gap.inside == 0 && c.gap.nearest >= c.margin;
+                text += fmt::format(" {} {:.3f};", c.part, c.gap.nearest);
+            }
+            a_check.Check(clear, fmt::format("lantern worn: lantern, strap and ring clear of both bodies by their margins ({})", text));
         }
 
         // the smoke static
@@ -359,14 +457,43 @@ namespace GreyBuild::SelfTest
                 "lantern: missing sources fail, each named");
         }
         {
-            const auto bodies = a_dir / "lantern" / "bodies";
-            // a body box reaching into the worn frame (which sits outside x = offset + half its width)
-            MakeBody(bodies / kLanternBodySources[0], Vector3(-30.0f, -5.0f, 50.0f), Vector3(30.0f, 5.0f, 70.0f));
-            const auto clash = BuildLantern({ in, bodies }, a_dir / "lantern" / "out_clash");
-            a_check.Check(!clash.ok && Mentions(clash.problems, "inside the worn frame"), "lantern: a body inside the worn frame fails the build");
-            MakeBody(bodies / kLanternBodySources[0], Vector3(-8.0f, -5.0f, 50.0f), Vector3(8.0f, 5.0f, 70.0f));
-            const auto clear = BuildLantern({ in, bodies }, a_dir / "lantern" / "out_clear");
-            a_check.Check(clear.ok && Mentions(clear.log, "0 inside"), "lantern: a body clear of the frame passes and is logged");
+            // a thigh box beside the hanging cage: the lantern tilts out until it clears it, and the read-back agrees
+            const auto thigh = a_dir / "lantern" / "bodies_thigh";
+            MakeBodies(thigh, { { Vector3(-kHipHalfX, -6.0f, 30.0f), Vector3(kHipHalfX, 6.0f, 100.0f) },
+                                  { Vector3(-14.0f, -20.0f, 0.0f), Vector3(kHipHalfX, 20.0f, 56.0f) } });
+            const auto tilted = BuildLantern({ in, thigh }, a_dir / "lantern" / "out_tilt");
+            a_check.Check(tilted.ok && tilted.tiltDeg > 0.0f && tilted.tiltDeg <= kLanternTiltMaxDeg,
+                fmt::format("lantern: a thigh beside the cage tilts the lantern out ({} deg) and the build's read-back passes", tilted.tiltDeg));
+            // a thigh reaching far out: no tilt clears it
+            const auto wide = a_dir / "lantern" / "bodies_wide";
+            MakeBodies(wide, { { Vector3(-kHipHalfX, -6.0f, 30.0f), Vector3(kHipHalfX, 6.0f, 100.0f) },
+                                 { Vector3(-60.0f, -30.0f, 0.0f), Vector3(kHipHalfX, 30.0f, 60.0f) } });
+            const auto clash = BuildLantern({ in, wide }, a_dir / "lantern" / "out_clash");
+            a_check.Check(!clash.ok && Mentions(clash.problems, "at every tilt"), "lantern: a body no tilt clears fails the build");
+            // a body part across the hip window's edge (x pelvis - kLanternHipWindow) in the strap's band: the strap placed on its
+            // window-clipped side ends up inside it, which the clearance check must catch
+            const auto deep = a_dir / "lantern" / "bodies_deep";
+            MakeBodies(deep, { { Vector3(-kHipHalfX, -6.0f, 30.0f), Vector3(kHipHalfX, 6.0f, 100.0f) },
+                                 { Vector3(-30.0f, 0.0f, 76.0f), Vector3(-kLanternHipWindow + 1.0f, 6.0f, 80.0f) } });
+            const auto buried = BuildLantern({ in, deep }, a_dir / "lantern" / "out_deep");
+            a_check.Check(!buried.ok && Mentions(buried.problems, "the strap comes within"),
+                "lantern: a body part through the strap fails the build");
+        }
+        {
+            // a wrong inverse bind on the frame: the read-back refuses it
+            const auto badBind = a_dir / "lantern" / "out_badbind";
+            std::filesystem::remove_all(badBind);
+            std::filesystem::copy(out, badBind, std::filesystem::copy_options::recursive);
+            nifly::NifFile bad;
+            LoadNif(bad, badBind / kLanternWornNif);
+            for (auto* shape : bad.GetShapes()) {
+                if (shape->name.get() == kLanternWornFrameName) {
+                    bad.SetShapeTransformSkinToBone(shape, 0, MatTransform());
+                }
+            }
+            SaveNif(bad, badBind / kLanternWornNif);
+            a_check.Check(Mentions(VerifyLantern(inputs, badBind), "bind pose x skin-to-bone"),
+                "lantern: the read-back refuses a skin-to-bone transform that is not the bone's inverse bind");
         }
         {
             nifly::NifFile bad;
