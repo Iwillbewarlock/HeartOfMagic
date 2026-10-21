@@ -2,17 +2,19 @@
 // GreySelfTestLantern - --self-test for --write-lantern (GreyLantern.h) on made-up sources (no game files)
 // =============================================================================
 // A frame NIF (BSFadeNode, BSXFlags, collision, one lit BSTriShape with a hook out in +Y at the top, its hinge a little above
-// the box's top: the lid, and two rings of the cage walls), a skeleton with NPC Pelvis [Pelv], an atronach stand-in whose
-// FireStrip08 (palette effect shader, normal blend or additive, float controller) and FireStripWarp (lighting shader, float
-// controller) are skinned half and half to two bones (each strip a box plus a stray shorter box), a 64 x 64 BC3 diffuse with
-// 7 mips, and body stand-ins (a hip box above the lantern's lid and a belt band box named as the vanilla band shape).
-// The build runs on them; the outputs are read back and checked (the ground's fire strips at a third of the cage's height
-// and their palette, no addon node, the measured band, the ring at its top beside the hip, the upright handle at its height
-// with a lug under each foot, vertical lantern, the worn fire, bind pose, the Vertex_Colors flag, clearances), then the
-// failures and edge cases: an additive strip's palette, a missing source, body or band shape, a thigh that walks the ring
-// out, one no step up to the maximum clears, a frame wire at the flame's base, a handle foot too far above the lid, a
-// wrong inverse bind, a leaned frame, an addon node with the wrong value, a darken factor out of range. LanternPieces' weld
-// and LanternAxisTiltDeg have their own checks.
+// the box's top: the lid, and two hollow rings of the cage walls), a skeleton with NPC Pelvis [Pelv], an atronach stand-in
+// whose FireStrip08 (palette effect shader with palette alpha, falloff and the decal bits on, normal blend or additive, float
+// controller) is skinned half and half to two bones, a 64 x 64 BC3 diffuse with 7 mips, and body stand-ins (a hip box above
+// the lantern's lid and a belt band box named as the vanilla band shape).
+// The build runs on them; the outputs are read back and checked (the ground's two flame layers: counts, base heights, on the
+// cage axis inside the walls with the clearance, shader flags, blends, base alphas, palettes, vertex alpha, controllers on
+// their own shaders and no block shared; no addon node, the measured band, the ring at its top beside the hip, the upright
+// handle at its height with a lug under each foot, vertical lantern, the worn layers skinned to the pelvis, bind pose, the
+// Vertex_Colors flag, clearances), then the failures and edge cases: an additive template (the layers keep their own blends),
+// a missing source, body or band shape, a thigh that walks the ring out, one no step up to the maximum clears, a frame bar
+// through the flame, a cage too small for the flame, a handle foot too far above the lid, a wrong inverse bind, a leaned
+// frame, an addon node with the wrong value, a darken factor out of range. LanternPieces' weld and LanternAxisTiltDeg have
+// their own checks.
 
 #include "GreyLantern.h"
 #include "GreySelfTest.h"
@@ -52,8 +54,10 @@ namespace GreyBuild::SelfTest
         constexpr float kHookHinge = (kHookZ0 + kFrameHeight) * 0.5f;
         constexpr float kFrameBoxTop = 29.4f;
         // the cage walls' rings at these shares of the frame's height: inside kLanternCageBand's window and clear of the
-        // flame's base (kLanternFlameBaseShare)
+        // flame's base (kLanternFlameBaseShare); each ring four bars kRingBar thick round the box's outline (hollow, as the
+        // vanilla cage's wire rings: the flame stands inside them)
         constexpr std::array<float, 2> kRingShares{ 0.28f, 0.72f };
+        constexpr float kRingBar = 0.5f;
         constexpr float kPelvisZ = 68.9f;
         constexpr float kHipHalfX = 12.5f;  // the body stand-in's hip box: x -12.5..12.5 (the band window is x -17..-12)
         // the body stand-in's belt band: a box kBandProud proud of the hip, z kBandBottom..kBandTop, named as the vanilla
@@ -90,22 +94,27 @@ namespace GreyBuild::SelfTest
             }
         }
 
-        /// a_extra: a second, disconnected and shorter box above (the strips' stray piece the build must leave out); a_hook:
-        /// the cage walls' rings at a_rings of the height and the hook
+        /// a_hook: the cage walls' rings at a_rings of the height and the hook; a_barZ (when not negative): a bar kRingBar
+        /// thick straight across the cage in X through its axis at that height
         nifly::NiShape* MakeShape(nifly::NifFile& a_nif, const std::string& a_name, const Vector3& a_lo, const Vector3& a_hi,
-            bool a_hook, bool a_extra = false, const std::array<float, 2>& a_rings = kRingShares)
+            bool a_hook, const std::array<float, 2>& a_rings = kRingShares, float a_barZ = -1.0f)
         {
             std::vector<Vector3> verts;
             std::vector<nifly::Triangle> tris;
             AddBox(verts, tris, a_lo, a_hi);
-            if (a_extra) {
-                AddBox(verts, tris, Vector3(-5.0f, -3.0f, a_hi.z + 10.0f), Vector3(5.0f, 3.0f, a_hi.z + 20.0f));
-            }
             if (a_hook) {
-                // two rings of the cage walls, and the hook out in +Y at the top
+                // two hollow rings of the cage walls, and the hook out in +Y at the top
                 for (const float share : a_rings) {
-                    const float z = a_lo.z + (a_hi.z - a_lo.z) * share;
-                    AddBox(verts, tris, Vector3(a_lo.x, a_lo.y, z - 0.5f), Vector3(a_hi.x, a_hi.y, z + 0.5f));
+                    const float z0 = a_lo.z + (a_hi.z - a_lo.z) * share - 0.5f;
+                    const float z1 = z0 + 1.0f;
+                    AddBox(verts, tris, Vector3(a_lo.x, a_lo.y, z0), Vector3(a_hi.x, a_lo.y + kRingBar, z1));
+                    AddBox(verts, tris, Vector3(a_lo.x, a_hi.y - kRingBar, z0), Vector3(a_hi.x, a_hi.y, z1));
+                    AddBox(verts, tris, Vector3(a_lo.x, a_lo.y, z0), Vector3(a_lo.x + kRingBar, a_hi.y, z1));
+                    AddBox(verts, tris, Vector3(a_hi.x - kRingBar, a_lo.y, z0), Vector3(a_hi.x, a_hi.y, z1));
+                }
+                if (a_barZ >= 0.0f) {
+                    AddBox(verts, tris, Vector3(a_lo.x, -kRingBar * 0.5f, a_barZ - kRingBar * 0.5f),
+                        Vector3(a_hi.x, kRingBar * 0.5f, a_barZ + kRingBar * 0.5f));
                 }
                 AddBox(verts, tris, Vector3(-kHookHalfX, a_hi.y, kHookZ0), Vector3(kHookHalfX, kHookY, kFrameHeight));
             }
@@ -126,8 +135,10 @@ namespace GreyBuild::SelfTest
             return shape;
         }
 
-        /// a_boxTop: the top of the frame's box (the lid under the hook's feet); a_rings: its rings' height shares
-        void MakeFrame(const std::filesystem::path& a_file, float a_boxTop = kFrameBoxTop, const std::array<float, 2>& a_rings = kRingShares)
+        /// a_boxTop: the top of the frame's box (the lid under the hook's feet); a_rings: its rings' height shares; a_barZ: a bar
+        /// across the cage at that height (none when negative); a_halfX, a_halfY: the box's half sizes (the cage walls)
+        void MakeFrame(const std::filesystem::path& a_file, float a_boxTop = kFrameBoxTop, const std::array<float, 2>& a_rings = kRingShares,
+            float a_barZ = -1.0f, float a_halfX = kFrameHalfX, float a_halfY = kFrameHalfY)
         {
             nifly::NifFile nif;
             nif.Create(nifly::NiVersion::getSSE());
@@ -140,8 +151,8 @@ namespace GreyBuild::SelfTest
             bsx->integerData = kFrameBsx;
             root->extraDataRefs.AddBlockRef(hdr.AddBlock(std::move(bsx)));
             root->collisionRef.index = hdr.AddBlock(std::make_unique<nifly::bhkCollisionObject>());
-            auto* shape = MakeShape(nif, "CandleLantern01:11", Vector3(-kFrameHalfX, -kFrameHalfY, 0.0f),
-                Vector3(kFrameHalfX, kFrameHalfY, a_boxTop), true, false, a_rings);
+            auto* shape = MakeShape(nif, "CandleLantern01:11", Vector3(-a_halfX, -a_halfY, 0.0f), Vector3(a_halfX, a_halfY, a_boxTop), true,
+                a_rings, a_barZ);
             auto* shader = hdr.GetBlock<nifly::NiShader>(shape->ShaderPropertyRef());
             auto* set = shader ? hdr.GetBlock<nifly::BSShaderTextureSet>(shader->TextureSetRef()) : nullptr;
             if (!set) {
@@ -187,8 +198,8 @@ namespace GreyBuild::SelfTest
             a_shader.controllerRef.index = hdr.AddBlock(std::move(a_ctrl));
         }
 
-        /// The stand-in Flame Atronach: two bones and the two strips skinned half and half to them (body part 32); FireStrip08
-        /// blends by a_alpha
+        /// The stand-in Flame Atronach: two bones and FireStrip08 (the flame layers' shader template: palette alpha, falloff and
+        /// the decal bits on as on the vanilla body, no SLSF2 flags) skinned half and half to them; it blends by a_alpha
         void MakeAtronach(const std::filesystem::path& a_file, std::uint16_t a_alpha = kAlphaNormalBlend)
         {
             nifly::NifFile nif;
@@ -201,29 +212,22 @@ namespace GreyBuild::SelfTest
             spine.translation = Vector3(0.0f, 0.0f, 90.0f);
             const std::uint32_t boneA = hdr.GetBlockID(nif.AddNode("FireAtronach_Pelvis [Pelv]", pelvis, root));
             const std::uint32_t boneB = hdr.GetBlockID(nif.AddNode("FireAtronach_Spine [Spn0]", spine, root));
-            for (const char* name : kLanternFlameStrips) {
-                const bool effect = std::string(name) == kLanternFlameStrips[0];
-                auto* shape = MakeShape(nif, name, Vector3(-20.0f, -10.0f, 0.0f), Vector3(20.0f, 6.0f, 130.0f), false, true);
-                if (effect) {
-                    nif.DeleteShader(shape);
-                    auto prop = std::make_unique<nifly::BSEffectShaderProperty>();
-                    prop->shaderFlags1 |= kSlsf1Skinned | kSlsf1GreyscaleToPaletteColor | kSlsf1GreyscaleToPaletteAlpha;
-                    prop->sourceTexture.get() = "textures\\effects\\fxfirescrolltile02.dds";
-                    prop->greyscaleTexture.get() = kOrangePalette;
-                    shape->ShaderPropertyRef()->index = hdr.AddBlock(std::move(prop));
-                    auto alpha = std::make_unique<nifly::NiAlphaProperty>();
-                    alpha->flags = a_alpha;
-                    (void)nif.AssignAlphaProperty(shape, std::move(alpha));
-                }
+            {
+                const char* name = kLanternFlameTemplate;
+                auto* shape = MakeShape(nif, name, Vector3(-20.0f, -10.0f, 0.0f), Vector3(20.0f, 6.0f, 130.0f), false);
+                nif.DeleteShader(shape);
+                auto prop = std::make_unique<nifly::BSEffectShaderProperty>();
+                prop->shaderFlags1 |= kSlsf1Skinned | kSlsf1GreyscaleToPaletteColor | kSlsf1GreyscaleToPaletteAlpha | kSlsf1Falloff |
+                                      kSlsf1Decal | kSlsf1DynamicDecal;
+                prop->shaderFlags2 = 0;
+                prop->sourceTexture.get() = "textures\\effects\\fxfirescrolltile02.dds";
+                prop->greyscaleTexture.get() = kOrangePalette;
+                shape->ShaderPropertyRef()->index = hdr.AddBlock(std::move(prop));
+                auto alpha = std::make_unique<nifly::NiAlphaProperty>();
+                alpha->flags = a_alpha;
+                (void)nif.AssignAlphaProperty(shape, std::move(alpha));
                 auto* shader = hdr.GetBlock<nifly::NiShader>(shape->ShaderPropertyRef());
-                if (effect) {
-                    AddFloatController(nif, *shader, std::make_unique<nifly::BSEffectShaderPropertyFloatController>());
-                } else {
-                    if (auto* lit = dynamic_cast<nifly::BSShaderProperty*>(shader)) {
-                        lit->shaderFlags1 |= kSlsf1Skinned;
-                    }
-                    AddFloatController(nif, *shader, std::make_unique<nifly::BSLightingShaderPropertyFloatController>());
-                }
+                AddFloatController(nif, *shader, std::make_unique<nifly::BSEffectShaderPropertyFloatController>());
                 nif.CreateSkinning(shape);
                 std::vector<int> bones{ static_cast<int>(boneA), static_cast<int>(boneB) };
                 nif.SetShapeBoneIDList(shape, bones);
@@ -281,6 +285,51 @@ namespace GreyBuild::SelfTest
         {
             const auto it = std::find_if(a_info.shapes.begin(), a_info.shapes.end(), [&](const auto& a_s) { return a_s.name == a_name; });
             return it == a_info.shapes.end() ? nullptr : &*it;
+        }
+
+        /// The flame layers of a model as the build must write them: names, counts, shader flags (a_worn: Skinned on, else
+        /// off), blend, base alpha, palette for the blend, vertex alpha up to 255 with 0 at the tip, one controller each on its
+        /// own shader, no shader, alpha property, controller, interpolator or key block shared. "" when it holds, else what failed
+        [[nodiscard]] std::string FlameLayersWrong(const LanternNifInfo& a_info, bool a_worn)
+        {
+            constexpr std::uint32_t kOff = kSlsf1GreyscaleToPaletteAlpha | kSlsf1Falloff | kSlsf1Decal | kSlsf1DynamicDecal;
+            constexpr std::uint32_t kOn = kSlsf1GreyscaleToPaletteColor | kSlsf1VertexAlpha;
+            constexpr std::uint32_t kOn2 = kSlsf2DoubleSided | kSlsf2VertexColors;
+            std::vector<std::uint32_t> blocks;
+            for (std::size_t l = 0; l < kLanternFlameLayers.size(); ++l) {
+                const auto& layer = kLanternFlameLayers[l];
+                const auto* s = Shape(a_info, layer.name);
+                if (!s) {
+                    return fmt::format("no '{}'", layer.name);
+                }
+                const char* palette = l == 0 ? kPalettePath : kPaletteAddPath;  // the outer layer normal, the core additive
+                const bool skinned = (s->flags1 & kSlsf1Skinned) != 0;
+                if (s->vertices != kLanternFlameVertices || s->triangles != kLanternFlameTriangles) {
+                    return fmt::format("'{}': {} vertices, {} triangles", s->name, s->vertices, s->triangles);
+                }
+                if (s->shader != "BSEffectShaderProperty" || (s->flags1 & kOff) != 0 || (s->flags1 & kOn) != kOn || (s->flags2 & kOn2) != kOn2 ||
+                    skinned != a_worn) {
+                    return fmt::format("'{}': {} SLSF1 0x{:08X} SLSF2 0x{:08X}", s->name, s->shader, s->flags1, s->flags2);
+                }
+                if (!s->hasAlpha || s->alphaFlags != layer.alphaFlags || s->additive != (l == 1) || !Near(s->baseAlpha, layer.baseAlpha, 1e-6f) ||
+                    s->textures.size() < 2 || s->textures[1] != std::string("greyscale ") + palette) {
+                    return fmt::format("'{}': alpha 0x{:04X}, base alpha {}, {}", s->name, s->alphaFlags, s->baseAlpha,
+                        s->textures.size() > 1 ? s->textures[1] : std::string("no palette"));
+                }
+                if (!s->vertexColors || s->alphaMax != 255 || s->alphaTop != 0) {
+                    return fmt::format("'{}': vertex alpha up to {}, {} at the tip", s->name, s->alphaMax, s->alphaTop);
+                }
+                if (s->controllers.size() != 1 || s->controllers[0].find("its shader") == std::string::npos) {
+                    return fmt::format("'{}': {} controllers", s->name, s->controllers.size());
+                }
+                for (const auto id : s->blockIds) {
+                    if (std::find(blocks.begin(), blocks.end(), id) != blocks.end()) {
+                        return fmt::format("'{}': block {} shared", s->name, id);
+                    }
+                    blocks.push_back(id);
+                }
+            }
+            return "";
         }
     }
 
@@ -400,12 +449,12 @@ namespace GreyBuild::SelfTest
             fmt::format("lantern: the belt band measured on both bodies (top z {}, bottom z {}: {})", kBandTop, kBandBottom,
                 result.bands.empty() ? std::string("none") : fmt::format("{:.3f} / {:.3f}", result.bands.front().top, result.bands.front().bottom)));
 
-        // the ground model: the frame and the fire strips, no addon node
+        // the ground model: the frame and the flame layers, no addon node
         const auto gnd = InspectLanternNif(out / kLanternGroundNif);
         const auto* frame = Shape(gnd, "CandleLantern01:11");
         a_check.Check(gnd.shapes.size() == 3 && frame && frame->type == "BSTriShape" && !frame->textures.empty() &&
                           frame->textures.front() == fmt::format("[0] {}", kLanternDiffuse),
-            fmt::format("lantern gnd: the frame (diffuse '{}') and two flame strips ({} shapes)", kLanternDiffuse, gnd.shapes.size()));
+            fmt::format("lantern gnd: the frame (diffuse '{}') and two flame layers ({} shapes)", kLanternDiffuse, gnd.shapes.size()));
         a_check.Check(frame && frame->textures.size() > 1 && frame->textures[1] == fmt::format("[1] {}", kSourceNormal),
             "lantern gnd: the normal map kept as the source names it");
         a_check.Check(gnd.hasCollision && gnd.rootType == "BSFadeNode", "lantern gnd: collision and the BSFadeNode root kept");
@@ -416,35 +465,86 @@ namespace GreyBuild::SelfTest
             "lantern gnd: the frame bounds reported with the hook, for the record's ObjectBounds");
         const auto flame = FlameReadBack(out);
         const float gndBase = kFrameHeight * kLanternFlameBaseShare;
+        const float gndHeight = kFrameHeight * kLanternFlameHeightShare;
+        // the walls 18 x 16 (the rings' outline): the widest radius from the smaller
+        const float gndRadius = kLanternFlameRadiusShare * 2.0f * std::min(kFrameHalfX, kFrameHalfY);
         {
-            const auto* fire = Shape(gnd, "FireStrip08");
-            const auto* warp = Shape(gnd, "FireStripWarp");
-            a_check.Check(fire && warp && fire->skinType.empty() && warp->skinType.empty() && fire->vertices == 8 && warp->vertices == 8,
-                "lantern gnd: one piece of each strip (the stray box left out), not skinned");
-            a_check.Check(fire && !fire->additive && fire->textures.size() > 1 && fire->textures[1] == std::string("greyscale ") + kPalettePath &&
-                              (fire->flags1 & kSlsf1GreyscaleToPaletteColor) != 0,
-                "lantern gnd: FireStrip08 (normal blend) on the black flame palette GradBlackFlame.dds");
-            a_check.Check(fire && warp && fire->controllers.size() == 1 && warp->controllers.size() == 1 &&
-                              fire->controllers[0].find("its shader") != std::string::npos &&
-                              warp->controllers[0].find("its shader") != std::string::npos && Near(warp->refraction, kLanternWarpRefraction, 1e-6f),
-                "lantern gnd: each strip's float controller aimed at its own shader, FireStripWarp's refraction kLanternWarpRefraction");
-            // the strips' X/Y centre on the cage axis (0, 0: the walls are symmetric), FireStrip08's base a third of the height up
-            LanternBox both = flame.groundFire;
-            for (int axis = 0; axis < 3; ++axis) {
-                both.min[axis] = std::min(both.min[axis], flame.groundWarp.min[axis]);
-                both.max[axis] = std::max(both.max[axis], flame.groundWarp.max[axis]);
+            const std::string wrong = FlameLayersWrong(gnd, false);
+            a_check.Check(wrong.empty() && Shape(gnd, kLanternFlameLayers[0].name)->skinType.empty() &&
+                              Shape(gnd, kLanternFlameLayers[1].name)->skinType.empty(),
+                fmt::format("lantern gnd: both flame layers ({} vertices, {} triangles each, not skinned) with palette alpha, falloff, the "
+                            "decal bits and Skinned cleared, palette colour, vertex alpha, double-sided and vertex colours on; the outer "
+                            "0x{:04X} on GradBlackFlame.dds base alpha {}, the core 0x{:04X} on GradBlackFlameAdd.dds base alpha {}; vertex "
+                            "alpha up to 255, 0 at the tip; each controller on its own shader, no block shared ({})",
+                    kLanternFlameVertices, kLanternFlameTriangles, kLanternFlameLayers[0].alphaFlags, kLanternFlameLayers[0].baseAlpha,
+                    kLanternFlameLayers[1].alphaFlags, kLanternFlameLayers[1].baseAlpha, wrong.empty() ? std::string("ok") : wrong));
+            bool placed = true;
+            std::string text;
+            for (std::size_t l = 0; l < kLanternFlameLayers.size(); ++l) {
+                const auto& layer = kLanternFlameLayers[l];
+                const auto& box = flame.ground[l];
+                const float low = gndBase + layer.lift * gndHeight;
+                const float r = layer.radiusShare * gndRadius;
+                placed = placed && Near(box.min[2], low, kTolerance) && Near(box.max[2], low + layer.heightShare * gndHeight, kTolerance) &&
+                         Near(box.Size(0), 2.0f * r, kTolerance) && Near(box.Size(1), 2.0f * r, kTolerance) &&
+                         Near(box.Centre()[0], 0.0f, kTolerance) && Near(box.Centre()[1], 0.0f, kTolerance);
+                text += fmt::format(" '{}' z {:.4f}..{:.4f} size ({:.4f}, {:.4f}) centre ({:.4f}, {:.4f});", layer.name, box.min[2], box.max[2],
+                    box.Size(0), box.Size(1), box.Centre()[0], box.Centre()[1]);
             }
-            a_check.Check(Near(flame.groundFire.min[2], gndBase) && Near(result.flameBase[2], gndBase) && Near(both.Centre()[0], 0.0f) &&
-                              Near(both.Centre()[1], 0.0f),
-                fmt::format("lantern gnd: FireStrip08's base at z {:.4f} = kLanternFlameBaseShare x the frame's height ({:.4f}), the strips on the "
-                            "cage axis ({:.4f}, {:.4f})", flame.groundFire.min[2], gndBase, both.Centre()[0], both.Centre()[1]));
+            a_check.Check(placed && Near(result.flameBase[2], gndBase) && Near(result.flameHeight, gndHeight) && Near(result.flameRadius, gndRadius),
+                fmt::format("lantern gnd: the outer layer from z {:.4f} (kLanternFlameBaseShare x the frame's height) {:.4f} tall, radius "
+                            "{:.4f}; the core lifted, shorter and narrower by its shares; both on the cage axis ({})", gndBase, gndHeight,
+                    gndRadius, text));
+            // every flame vertex inside the cage walls (x +-kFrameHalfX, y +-kFrameHalfY) by the worn clearance at the ground scale
+            const float clearance = kLanternFlameClearance * kFrameHeight / kLanternWornHeight;
+            bool inside = true;
+            for (const auto& box : flame.ground) {
+                inside = inside && box.max[0] + clearance <= kFrameHalfX && box.min[0] - clearance >= -kFrameHalfX &&
+                         box.max[1] + clearance <= kFrameHalfY && box.min[1] - clearance >= -kFrameHalfY;
+            }
+            a_check.Check(inside, fmt::format("lantern gnd: every flame vertex inside the cage walls by kLanternFlameClearance at the ground "
+                                              "scale ({:.4f})", clearance));
+        }
+        {
+            // the layers' normals point out from the axis (0, 0), the triangles wind outward, tangents are there (nifly's
+            // CalcTangentSpace)
+            nifly::NifFile nif;
+            LoadNif(nif, out / kLanternGroundNif);
+            int checked = 0;
+            int wrong = 0;
+            for (const auto& layer : kLanternFlameLayers) {
+                auto* tri = dynamic_cast<nifly::BSTriShape*>(nif.FindBlockByName<nifly::NiShape>(layer.name));
+                if (!tri) {
+                    ++wrong;
+                    continue;
+                }
+                ++checked;
+                wrong += tri->HasTangents() ? 0 : 1;
+                const auto& normals = tri->UpdateRawNormals();
+                for (std::size_t i = 0; i < tri->vertData.size(); ++i) {
+                    const Vector3& v = tri->vertData[i].vert;
+                    ++checked;
+                    wrong += normals[i].dot(Vector3(v.x, v.y, 0.0f)) > 0.0f ? 0 : 1;
+                }
+                for (const auto& t : tri->triangles) {
+                    const Vector3& a = tri->vertData[t.p1].vert;
+                    const Vector3& b = tri->vertData[t.p2].vert;
+                    const Vector3& c = tri->vertData[t.p3].vert;
+                    const Vector3 centre = (a + b + c) / 3.0f;
+                    ++checked;
+                    wrong += (b - a).cross(c - a).dot(Vector3(centre.x, centre.y, 0.0f)) > 0.0f ? 0 : 1;
+                }
+            }
+            a_check.Check(checked > 0 && wrong == 0,
+                fmt::format("lantern gnd: the flame layers' normals point out from the axis, their triangles wind outward, they have "
+                            "tangents ({} of {} wrong)", wrong, checked));
         }
 
         // the worn model
         const auto worn = InspectLanternNif(out / kLanternWornNif);
-        a_check.Check(worn.shapes.size() == 5 && Shape(worn, kLanternWornFrameName) && Shape(worn, "FireStrip08") &&
-                          Shape(worn, "FireStripWarp") && Shape(worn, kLanternRingName) && Shape(worn, kLanternLugName),
-            fmt::format("lantern worn: the frame, both strips, the ring and the lugs, nothing else ({} shapes)", worn.shapes.size()));
+        a_check.Check(worn.shapes.size() == 5 && Shape(worn, kLanternWornFrameName) && Shape(worn, kLanternFlameLayers[0].name) &&
+                          Shape(worn, kLanternFlameLayers[1].name) && Shape(worn, kLanternRingName) && Shape(worn, kLanternLugName),
+            fmt::format("lantern worn: the frame, both flame layers, the ring and the lugs, nothing else ({} shapes)", worn.shapes.size()));
         bool allOneBone = !worn.shapes.empty();
         bool allPart60 = !worn.shapes.empty();
         bool allWeights = !worn.shapes.empty();
@@ -458,19 +558,17 @@ namespace GreyBuild::SelfTest
         a_check.Check(allOneBone, "lantern worn: every shape skinned to exactly one bone, NPC Pelvis [Pelv], by a BSDismemberSkinInstance");
         a_check.Check(allPart60, "lantern worn: every shape has one partition, body part 60");
         a_check.Check(allWeights, "lantern worn: every vertex weight 1 on the pelvis, none on another bone (vertex data and NiSkinData; "
-                                  "the source strips were half and half)");
+                                  "the flame template was half and half)");
         a_check.Check(allSkinnedFlag, "lantern worn: vertex skinned flag and shader Skinned flag on every shape");
         a_check.Check(worn.nodeNames.size() == 2 && worn.nodeNames[0] == kLanternWornRootName && worn.nodeNames[1] == kLanternBone &&
                           worn.valueNodes.empty() && !worn.hasCollision,
             fmt::format("lantern worn: nodes are the root and the bone alone ({}), no addon node, no collision", worn.nodeNames.size()));
-        const auto* fire = Shape(worn, "FireStrip08");
-        const auto* warp = Shape(worn, "FireStripWarp");
-        a_check.Check(fire && !fire->additive && fire->textures.size() > 1 && fire->textures[1] == std::string("greyscale ") + kPalettePath,
-            "lantern worn: FireStrip08 (normal blend) on the black flame palette GradBlackFlame.dds");
-        a_check.Check(fire && warp && fire->controllers.size() == 1 && warp->controllers.size() == 1 &&
-                          fire->controllers[0].find("its shader") != std::string::npos &&
-                          warp->controllers[0].find("its shader") != std::string::npos,
-            "lantern worn: each strip's float controller copied and aimed at its own shader");
+        {
+            const std::string wrong = FlameLayersWrong(worn, true);
+            a_check.Check(wrong.empty(), fmt::format("lantern worn: both flame layers as on the ground (counts, flags with Skinned on, "
+                                                     "blends, base alphas, palettes, vertex alpha, own controllers, no block shared; {})",
+                                             wrong.empty() ? std::string("ok") : wrong));
+        }
         const auto* wornFrame = Shape(worn, kLanternWornFrameName);
         const float scale = kLanternWornHeight / kFrameHeight;
         // the hook (z kHookZ0..kFrameHeight, out to y kHookY) turned up about its hinge (y kFrameHalfY, z kHookHinge) and
@@ -552,24 +650,22 @@ namespace GreyBuild::SelfTest
             a_check.Check(madeCleared && wornFrame && wornFrame->vertexColors && (wornFrame->flags2 & kSlsf2VertexColors) != 0,
                 "lantern worn: Vertex_Colors cleared on the made shapes (no colours), kept on the frame (colours)");
         }
-        a_check.Check(fire && warp && fire->vertices == 8 && warp->vertices == 8,
-            fmt::format("lantern worn: one connected piece of each strip kept, the stray box left out ({} / {} vertices, expected 8)",
-                fire ? fire->vertices : 0, warp ? warp->vertices : 0));
-        a_check.Check(warp && Near(warp->refraction, kLanternWarpRefraction, 1e-6f),
-            fmt::format("lantern worn: FireStripWarp's refraction strength {} (kLanternWarpRefraction)", warp ? warp->refraction : -1.0f));
         {
-            // the fire as on the ground at the worn scale: FireStrip08's base a third of the frame's height above its bottom, the
-            // strips on the cage axis below the handle's top wire; clear of the frame by kLanternFlameClearance
-            LanternBox both = flame.wornFire;
-            for (int axis = 0; axis < 3; ++axis) {
-                both.min[axis] = std::min(both.min[axis], flame.wornWarp.min[axis]);
-                both.max[axis] = std::max(both.max[axis], flame.wornWarp.max[axis]);
+            // the fire as on the ground at the worn scale: each layer's base and top above the frame's bottom by the ground
+            // heights x scale, on the cage axis below the handle's top wire; clear of the frame by kLanternFlameClearance
+            bool placed = wornFrame != nullptr;
+            std::string text;
+            for (std::size_t l = 0; l < kLanternFlameLayers.size() && wornFrame; ++l) {
+                const auto& layer = kLanternFlameLayers[l];
+                const auto& box = flame.worn[l];
+                const float low = wornFrame->bounds.min[2] + (gndBase + layer.lift * gndHeight) * scale;
+                placed = placed && Near(box.min[2], low, kTolerance) &&
+                         Near(box.max[2], low + layer.heightShare * gndHeight * scale, kTolerance) &&
+                         Near(box.Centre()[0], result.wornCage[0], kTolerance) && Near(box.Centre()[1], result.wornCage[1], kTolerance);
+                text += fmt::format(" '{}' z {:.4f}..{:.4f};", layer.name, box.min[2], box.max[2]);
             }
-            const float base = wornFrame ? wornFrame->bounds.min[2] + gndBase * scale : 0.0f;
-            a_check.Check(wornFrame && Near(flame.wornFire.min[2], base) && Near(both.Centre()[0], result.wornCage[0]) &&
-                              Near(both.Centre()[1], result.wornCage[1]),
-                fmt::format("lantern worn: FireStrip08's base at z {:.4f} (the frame's bottom + {:.4f} x scale), the strips on the cage axis",
-                    flame.wornFire.min[2], gndBase));
+            a_check.Check(placed, fmt::format("lantern worn: the flame layers at the ground heights x scale above the frame's bottom, on the "
+                                              "cage axis ({})", text));
             a_check.Check(flame.wornClearance >= kLanternFlameClearance && Near(flame.wornClearance, result.wornFlameClearance) &&
                               flame.groundClearance >= kLanternFlameClearance && Near(flame.groundClearance, result.groundFlameClearance),
                 fmt::format("lantern: the flame clear of the frame by kLanternFlameClearance {} (worn {:.4f}, ground {:.4f}; build and read-back "
@@ -614,7 +710,8 @@ namespace GreyBuild::SelfTest
                           Near(static_cast<float>(copyMean), static_cast<float>(sourceMean) * kLanternSootDarken, 0.02f),
             fmt::format("lantern texture: darker on average ({:.4f} -> {:.4f}, factor {})", sourceMean, copyMean, kLanternSootDarken));
 
-        // an additive FireStrip08 takes the additive black flame palette in both models
+        // an additive template: the layers keep their own blends (outer normal on GradBlackFlame.dds, core additive on
+        // GradBlackFlameAdd.dds) in both models
         {
             const auto additive = a_dir / "lantern" / "in_additive";
             std::filesystem::remove_all(additive);
@@ -622,15 +719,12 @@ namespace GreyBuild::SelfTest
             MakeAtronach(additive / kLanternFlameSource, kAlphaAdditive);
             const auto addOut = a_dir / "lantern" / "out_additive";
             const auto added = BuildLantern({ additive, bodies }, addOut);
-            bool both = added.ok;
-            for (const char* rel : { kLanternGroundNif, kLanternWornNif }) {
-                const auto info = InspectLanternNif(addOut / rel);
-                const auto* strip = Shape(info, "FireStrip08");
-                both = both && strip && strip->additive && strip->textures.size() > 1 &&
-                       strip->textures[1] == std::string("greyscale ") + kPaletteAddPath;
-            }
-            a_check.Check(both, "lantern: an additive FireStrip08 takes GradBlackFlameAdd.dds in both models (GreyEffects' blend rule) and the "
-                                "read-back passes");
+            const std::string gndWrong = FlameLayersWrong(InspectLanternNif(addOut / kLanternGroundNif), false);
+            const std::string wornWrong = FlameLayersWrong(InspectLanternNif(addOut / kLanternWornNif), true);
+            a_check.Check(added.ok && gndWrong.empty() && wornWrong.empty(),
+                fmt::format("lantern: an additive template still gives the outer layer 0x10ED on GradBlackFlame.dds and the core 0x100D on "
+                            "GradBlackFlameAdd.dds in both models, and the read-back passes ({} / {})",
+                    gndWrong.empty() ? std::string("ok") : gndWrong, wornWrong.empty() ? std::string("ok") : wornWrong));
         }
 
         // failures
@@ -668,14 +762,27 @@ namespace GreyBuild::SelfTest
                             "({})", clash.problems.empty() ? std::string("no problem") : clash.problems.front()));
         }
         {
-            // the frame's lower ring at the flame's base (a third of the height): the flame comes within the clearance
-            const auto ringed = a_dir / "lantern" / "in_ringed";
-            std::filesystem::remove_all(ringed);
-            std::filesystem::copy(in, ringed, std::filesystem::copy_options::recursive);
-            MakeFrame(ringed / kLanternFrameSource, kFrameBoxTop, { 1.0f / 3.0f, 2.0f / 3.0f });
-            const auto touching = BuildLantern({ ringed, bodies }, a_dir / "lantern" / "out_ringed");
+            // a frame bar across the cage through its axis at the outer layer's widest ring: the flame comes within the clearance
+            const auto barred = a_dir / "lantern" / "in_barred";
+            std::filesystem::remove_all(barred);
+            std::filesystem::copy(in, barred, std::filesystem::copy_options::recursive);
+            MakeFrame(barred / kLanternFrameSource, kFrameBoxTop, kRingShares, gndBase + kLanternFlameProfile[2][0] * gndHeight);
+            const auto touching = BuildLantern({ barred, bodies }, a_dir / "lantern" / "out_barred");
             a_check.Check(!touching.ok && Mentions(touching.problems, "the flame comes within"),
-                "lantern: a frame wire at the flame's base fails the build (kLanternFlameClearance)");
+                "lantern: a frame bar through the flame fails the build (kLanternFlameClearance)");
+        }
+        {
+            // a cage 2.4 x 2.4: the widest ring (radius 0.66) and the clearance at the ground scale (0.75) reach past its walls (1.2)
+            const auto narrow = a_dir / "lantern" / "in_narrow";
+            std::filesystem::remove_all(narrow);
+            std::filesystem::copy(in, narrow, std::filesystem::copy_options::recursive);
+            MakeFrame(narrow / kLanternFrameSource, kFrameBoxTop, kRingShares, -1.0f, 1.2f, 1.2f);
+            std::filesystem::remove_all(a_dir / "lantern" / "out_narrow");
+            const auto small = BuildLantern({ narrow, bodies }, a_dir / "lantern" / "out_narrow");
+            a_check.Check(!small.ok && Mentions(small.problems, "the cage is too small for the flame") &&
+                              !std::filesystem::exists(a_dir / "lantern" / "out_narrow" / kLanternGroundNif),
+                fmt::format("lantern: a cage too small for the flame fails the build, nothing written for the ground model ({})",
+                    small.problems.empty() ? std::string("no problem") : small.problems.front()));
         }
         {
             // the frame's box 1 lower: the hook's feet stand (kHookHinge - kFrameBoxTop + 1) x scale = 0.93 above the lid, more than

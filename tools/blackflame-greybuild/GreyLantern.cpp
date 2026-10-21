@@ -136,6 +136,13 @@ namespace GreyBuild
             return nullptr;
         }
 
+        /// a_name is one of kLanternFlameLayers
+        [[nodiscard]] bool IsFlameLayer(const std::string& a_name)
+        {
+            return std::any_of(kLanternFlameLayers.begin(), kLanternFlameLayers.end(),
+                [&](const LanternFlameLayer& a_layer) { return a_name == a_layer.name; });
+        }
+
         [[nodiscard]] std::filesystem::path Need(const std::vector<std::filesystem::path>& a_inputs, const char* a_rel)
         {
             auto found = FindSource(a_inputs, a_rel);
@@ -869,10 +876,12 @@ namespace GreyBuild
             s.name = shape->name.get();
             s.type = shape->GetBlockName();
             s.vertices = shape->GetNumVertices();
+            s.triangles = shape->GetNumTriangles();
             const std::uint32_t shapeId = hdr.GetBlockID(shape);
             const std::uint32_t shaderId = shape->ShaderPropertyRef() ? shape->ShaderPropertyRef()->index : nifly::NIF_NPOS;
             if (auto* shader = hdr.GetBlock<nifly::NiShader>(shaderId)) {
                 s.shader = shader->GetBlockName();
+                s.blockIds.push_back(shaderId);
                 if (auto* bs = dynamic_cast<nifly::BSShaderProperty*>(shader)) {
                     s.flags1 = bs->shaderFlags1;
                     s.flags2 = bs->shaderFlags2;
@@ -884,6 +893,7 @@ namespace GreyBuild
                     s.specularColor = ToArray(lit->specularColor);
                 }
                 if (auto* effect = dynamic_cast<nifly::BSEffectShaderProperty*>(shader)) {
+                    s.baseAlpha = effect->baseColor.a;
                     s.textures.push_back("source " + effect->sourceTexture.get());
                     s.textures.push_back("greyscale " + effect->greyscaleTexture.get());
                 } else if (auto* set = hdr.GetBlock<nifly::BSShaderTextureSet>(shader->TextureSetRef())) {
@@ -901,6 +911,17 @@ namespace GreyBuild
                     }
                     s.controllers.push_back(fmt::format("{} -> target {} ({})", controller->GetBlockName(), controller->targetRef.index,
                         controller->targetRef.index == shaderId ? "its shader" : "WRONG"));
+                    s.blockIds.push_back(id);
+                    // its interpolator and the interpolator's keys
+                    if (auto* single = dynamic_cast<nifly::NiSingleInterpController*>(controller)) {
+                        const std::uint32_t interpId = single->interpolatorRef.index;
+                        if (interpId != nifly::NIF_NPOS) {
+                            s.blockIds.push_back(interpId);
+                            if (auto* interp = hdr.GetBlock<nifly::NiFloatInterpolator>(interpId); interp && interp->dataRef.index != nifly::NIF_NPOS) {
+                                s.blockIds.push_back(interp->dataRef.index);
+                            }
+                        }
+                    }
                     id = controller->nextControllerRef.index;
                 }
             }
@@ -908,6 +929,7 @@ namespace GreyBuild
                 s.hasAlpha = true;
                 s.alphaFlags = alpha->flags;
                 s.additive = BlendOfAlpha(alpha) == ShapeBlend::kAdditive;
+                s.blockIds.push_back(shape->AlphaPropertyRef()->index);
             }
             if (shape->HasSkinInstance()) {
                 auto* skin = hdr.GetBlock<nifly::NiBoneContainer>(shape->SkinInstanceRef());
@@ -974,6 +996,30 @@ namespace GreyBuild
                 }
             }
             s.vertexColors = shape->HasVertexColors();
+            if (auto* tri = dynamic_cast<nifly::BSTriShape*>(shape); tri && s.vertexColors && !tri->vertData.empty()) {
+                constexpr float kEndTolerance = 1e-3f;  // the highest and the lowest ring
+                float top = -kFloatMax;
+                float bottom = kFloatMax;
+                for (const auto& vertex : tri->vertData) {
+                    top = std::max(top, vertex.vert.z);
+                    bottom = std::min(bottom, vertex.vert.z);
+                }
+                s.alphaMin = 255;
+                s.alphaMax = 0;
+                s.alphaTop = 0;
+                s.alphaBottom = 0;
+                for (const auto& vertex : tri->vertData) {
+                    const int a = vertex.colorData[3];
+                    s.alphaMin = std::min(s.alphaMin, a);
+                    s.alphaMax = std::max(s.alphaMax, a);
+                    if (vertex.vert.z >= top - kEndTolerance) {
+                        s.alphaTop = std::max(s.alphaTop, a);
+                    }
+                    if (vertex.vert.z <= bottom + kEndTolerance) {
+                        s.alphaBottom = std::max(s.alphaBottom, a);
+                    }
+                }
+            }
             if (auto* tri = dynamic_cast<nifly::BSTriShape*>(shape); tri && tri->HasUVs() && !tri->vertData.empty()) {
                 s.uvMin = { kFloatMax, kFloatMax };
                 s.uvMax = { -kFloatMax, -kFloatMax };
@@ -1022,8 +1068,16 @@ namespace GreyBuild
                 Text(value.translation), value.parent);
         }
         for (const auto& s : a_info.shapes) {
-            std::cout << fmt::format("  shape '{}' {} vertices {} shader {} SLSF1 0x{:08X} SLSF2 0x{:08X}, vertex colours {}\n", s.name,
-                s.type, s.vertices, s.shader.empty() ? "<none>" : s.shader, s.flags1, s.flags2, s.vertexColors ? "yes" : "no");
+            std::cout << fmt::format("  shape '{}' {} vertices {} triangles {} shader {} SLSF1 0x{:08X} SLSF2 0x{:08X}, vertex colours {}\n",
+                s.name, s.type, s.vertices, s.triangles, s.shader.empty() ? "<none>" : s.shader, s.flags1, s.flags2,
+                s.vertexColors ? "yes" : "no");
+            if (s.alphaMax >= 0) {
+                std::cout << fmt::format("    vertex alpha {}..{}, at the highest vertices {}, at the lowest {}\n", s.alphaMin, s.alphaMax,
+                    s.alphaTop, s.alphaBottom);
+            }
+            if (s.baseAlpha >= 0.0f) {
+                std::cout << fmt::format("    effect shader base alpha {:.4f}\n", s.baseAlpha);
+            }
             for (const auto& texture : s.textures) {
                 std::cout << "    texture " << texture << "\n";
             }
@@ -1523,264 +1577,248 @@ namespace GreyBuild
             a_shape.transform.Clear();
         }
 
-        /// a_shape cut down to a_piece's vertices and triangles (remapped); skinning must be gone already
-        void KeepPiece(nifly::NiShape& a_shape, const LanternPiece& a_piece, const std::vector<nifly::Triangle>& a_tris)
-        {
-            auto* tri = dynamic_cast<nifly::BSTriShape*>(&a_shape);
-            if (!tri) {
-                throw std::runtime_error(fmt::format("shape '{}' is not a BSTriShape", a_shape.name.get()));
-            }
-            std::vector<int> remap(tri->vertData.size(), -1);
-            std::vector<nifly::BSVertexData> kept;
-            for (const auto v : a_piece.vertices) {
-                remap[v] = static_cast<int>(kept.size());
-                kept.push_back(tri->vertData[v]);
-            }
-            std::vector<nifly::Triangle> tris;
-            for (const auto i : a_piece.triangles) {
-                const auto& t = a_tris[i];
-                tris.emplace_back(static_cast<std::uint16_t>(remap[t.p1]), static_cast<std::uint16_t>(remap[t.p2]),
-                    static_cast<std::uint16_t>(remap[t.p3]));
-            }
-            tri->SetVertexData(kept);
-            tri->SetTriangles(tris);
-        }
-
-        /// The volume both boxes share (0 when apart)
-        [[nodiscard]] float Overlap(const LanternBox& a_a, const LanternBox& a_b) noexcept
-        {
-            float volume = 1.0f;
-            for (int axis = 0; axis < 3; ++axis) {
-                volume *= std::max(0.0f, std::min(a_a.max[axis], a_b.max[axis]) - std::max(a_a.min[axis], a_b.min[axis]));
-            }
-            return volume;
-        }
-
         [[nodiscard]] std::string GapText(const LanternGap& a_gap)
         {
             return fmt::format("{} points, {} inside, nearest {:.3f} at {}", a_gap.points, a_gap.inside, a_gap.nearest,
                 Text(a_gap.nearestPoint));
         }
 
-        /// Scales every float key of a lighting shader controller that animates the refraction strength (nif.xml
-        /// LightingShaderControlledFloat 0) by a_ratio; one log line per controller
-        void ScaleRefractionKeys(nifly::NifFile& a_nif, nifly::NiShader& a_shader, float a_ratio, std::vector<std::string>& a_log)
+        /// One flame layer made here (GreyLantern.h, the flame constants) in the ground model's root space: its mesh (normals
+        /// outward from the axis with the profile's slope, U round the axis, V up) and each vertex's alpha
+        struct LanternFlameMesh
         {
-            constexpr std::uint32_t kRefractionStrength = 0;
-            auto& hdr = a_nif.GetHeader();
-            std::set<std::uint32_t> seen;
-            for (std::uint32_t id = a_shader.controllerRef.index; id != nifly::NIF_NPOS;) {
-                auto* controller = hdr.GetBlock<nifly::NiTimeController>(id);
-                if (!controller || !seen.insert(id).second) {
-                    break;
-                }
-                if (auto* lit = dynamic_cast<nifly::BSLightingShaderPropertyFloatController*>(controller)) {
-                    std::string what = fmt::format("controls variable {}", lit->typeOfControlledVariable);
-                    if (lit->typeOfControlledVariable == kRefractionStrength) {
-                        auto* interp = hdr.GetBlock<nifly::NiFloatInterpolator>(lit->interpolatorRef);
-                        auto* data = interp ? hdr.GetBlock<nifly::NiFloatData>(interp->dataRef) : nullptr;
-                        if (interp) {
-                            interp->floatValue *= a_ratio;
-                        }
-                        if (data) {
-                            for (std::uint32_t k = 0; k < data->data.GetNumKeys(); ++k) {
-                                auto key = data->data.GetKey(static_cast<int>(k));
-                                key.value *= a_ratio;
-                                key.forward *= a_ratio;
-                                key.backward *= a_ratio;
-                                data->data.SetKey(static_cast<int>(k), key);
-                            }
-                        }
-                        what += fmt::format(" (refraction strength): its keys x {:.4f}", a_ratio);
-                    } else {
-                        what += " (not the refraction strength): left";
-                    }
-                    a_log.push_back(fmt::format("FireStripWarp controller {}", what));
-                }
-                id = controller->nextControllerRef.index;
-            }
-        }
-
-        /// The fire (GreyLantern.h, the flame constants): the atronach's two strips cut to one piece each and where they go
-        /// in the ground model's root space. AddFlame changes its shapes in place: one LanternFlame per model that takes it.
-        struct LanternFlame
-        {
-            struct Strip
-            {
-                nifly::NiShape* shape = nullptr;
-                MatTransform toGlobal;
-                std::vector<nifly::Triangle> tris;
-                std::vector<LanternPiece> pieces;
-                std::size_t chosen = 0;
-            };
-            nifly::NifFile nif;
-            std::array<Strip, 2> strips;
-            float fit = 0.0f;
-            Vector3 anchor;  // the pieces' X/Y centre at FireStrip08's piece's lowest point (the source's global space)
-            Vector3 base;    // where the anchor goes (ground root space)
-
-            /// a strip's skin-space vertex in the ground model's root space
-            [[nodiscard]] Vector3 ToRoot(const Strip& a_strip, const Vector3& a_skin) const
-            {
-                return base + (a_strip.toGlobal.ApplyTransform(a_skin) - anchor) * fit;
-            }
+            const LanternFlameLayer* layer = nullptr;
+            LanternMesh mesh;
+            std::vector<std::uint8_t> alpha;
+            float base = 0.0f;    // its lowest ring's z
+            float height = 0.0f;
+            float radius = 0.0f;  // its widest ring's
         };
 
-        /// Loads the strips into a_flame and places them in the cage (a_result's frame bounds and cage centre, a_walls);
-        /// a_log (when set) gets what was chosen and where
+        /// a_layer's spindle round the vertical line through a_axis (its X and Y), its lowest ring at z a_base
+        [[nodiscard]] LanternFlameMesh MakeFlameLayer(const LanternFlameLayer& a_layer, const Vector3& a_axis, float a_base, float a_height,
+            float a_radius)
+        {
+            LanternFlameMesh out;
+            out.layer = &a_layer;
+            out.base = a_base;
+            out.height = a_height;
+            out.radius = a_radius;
+            const std::size_t rings = kLanternFlameProfile.size();
+            for (std::size_t k = 0; k < rings; ++k) {
+                const auto& ring = kLanternFlameProfile[k];
+                // the profile's slope dr/dz at this ring, from its neighbours (one-sided at the ends)
+                const auto& below = kLanternFlameProfile[k == 0 ? 0 : k - 1];
+                const auto& above = kLanternFlameProfile[std::min(k + 1, rings - 1)];
+                const float slope = (above[1] - below[1]) * a_radius / ((above[0] - below[0]) * a_height);
+                const auto alpha = static_cast<std::uint8_t>(std::lround(std::clamp(ring[2], 0.0f, 1.0f) * 255.0f));
+                for (int s = 0; s <= kLanternFlameSegments; ++s) {
+                    const float u = static_cast<float>(s) / static_cast<float>(kLanternFlameSegments);
+                    const float angle = 2.0f * kPi * u;
+                    const Vector3 radial(std::cos(angle), std::sin(angle), 0.0f);
+                    // V falls with the height, as on vanilla FireStrip08 (1.23 at its base, 0.94 at its top): the template's
+                    // controller raises the V offset, so the fire then scrolls up
+                    (void)out.mesh.Add(Vector3(a_axis.x, a_axis.y, a_base + ring[0] * a_height) + radial * (ring[1] * a_radius),
+                        radial - Vector3(0.0f, 0.0f, slope), u, 1.0f - ring[0]);
+                    out.alpha.push_back(alpha);
+                }
+            }
+            const auto at = [](std::size_t a_k, int a_s) { return static_cast<std::uint16_t>(a_k * (kLanternFlameSegments + 1) + a_s); };
+            for (std::size_t k = 0; k + 1 < rings; ++k) {
+                for (int s = 0; s < kLanternFlameSegments; ++s) {
+                    out.mesh.Quad(at(k, s), at(k, s + 1), at(k + 1, s + 1), at(k + 1, s));
+                }
+            }
+            return out;
+        }
+
+        /// The fire (GreyLantern.h, the flame constants): the atronach NIF holding the shader template (its skinning removed)
+        /// and the two layers made for the cage. AddFlame clones the template from it: one LanternFlame per model.
+        struct LanternFlame
+        {
+            nifly::NifFile nif;
+            nifly::NiShape* shader = nullptr;  // kLanternFlameTemplate
+            std::array<LanternFlameMesh, 2> layers;
+        };
+
+        /// Loads the template into a_flame and makes the layers in the cage (a_result's frame bounds and cage centre, a_walls);
+        /// a_log (when set) gets their sizes and where they stand. Throws when the template is not a BSTriShape with an effect
+        /// shader and a float controller on it, or when the outer layer's widest ring is not kLanternFlameClearance (at the
+        /// ground scale) inside the cage walls.
         void LoadFlame(LanternFlame& a_flame, const std::vector<std::filesystem::path>& a_inputs, const LanternBox& a_walls,
             LanternBuildResult& a_result, std::vector<std::string>* a_log)
         {
             LoadNif(a_flame.nif, Need(a_inputs, kLanternFlameSource));
-            auto& strips = a_flame.strips;
-            for (std::size_t s = 0; s < kLanternFlameStrips.size(); ++s) {
-                const char* name = kLanternFlameStrips[s];
-                auto& strip = strips[s];
-                strip.shape = FindShape(a_flame.nif, name);
-                auto* tri = strip.shape ? dynamic_cast<nifly::BSTriShape*>(strip.shape) : nullptr;
-                if (!tri || !strip.shape->HasSkinInstance()) {
-                    throw std::runtime_error(fmt::format("{} has no skinned BSTriShape '{}'", kLanternFlameSource, name));
-                }
-                MatTransform globalToSkin;
-                if (!a_flame.nif.CalcShapeTransformGlobalToSkin(strip.shape, globalToSkin)) {
-                    throw std::runtime_error(fmt::format("'{}': no global-to-skin transform", name));
-                }
-                strip.toGlobal = globalToSkin.InverseTransform();
-                strip.tris = tri->triangles;
-                std::vector<Vector3> rest;
-                for (const auto& vertex : tri->vertData) {
-                    rest.push_back(strip.toGlobal.ApplyTransform(vertex.vert));
-                }
-                strip.pieces = LanternPieces(rest, strip.tris);
-                if (strip.pieces.empty()) {
-                    throw std::runtime_error(fmt::format("'{}' has no triangles", name));
-                }
-                if (s == 0) {
-                    // the most triangles, then the tallest, then the first
-                    for (std::size_t p = 1; p < strip.pieces.size(); ++p) {
-                        const auto& a = strip.pieces[p];
-                        const auto& b = strip.pieces[strip.chosen];
-                        if (a.triangles.size() > b.triangles.size() ||
-                            (a.triangles.size() == b.triangles.size() && a.bounds.Size(2) > b.bounds.Size(2) + kLanternWeld)) {
-                            strip.chosen = p;
-                        }
-                    }
-                } else {
-                    // the warp piece over the chosen flame piece
-                    const auto& fire = strips[0].pieces[strips[0].chosen].bounds;
-                    for (std::size_t p = 1; p < strip.pieces.size(); ++p) {
-                        if (Overlap(strip.pieces[p].bounds, fire) > Overlap(strip.pieces[strip.chosen].bounds, fire)) {
-                            strip.chosen = p;
-                        }
-                    }
-                    if (Overlap(strip.pieces[strip.chosen].bounds, fire) <= 0.0f) {
-                        throw std::runtime_error("no FireStripWarp piece overlaps the chosen FireStrip08 piece");
-                    }
-                }
-                const auto& piece = strip.pieces[strip.chosen];
-                if (a_log) {
-                    a_log->push_back(fmt::format("flame strip '{}': {} vertices, {} triangles in {} connected pieces; piece {} kept ({} "
-                                                 "triangles, {} vertices), rest-pose {}",
-                        name, rest.size(), strip.tris.size(), strip.pieces.size(), strip.chosen, piece.triangles.size(), piece.vertices.size(),
-                        BoxText(piece.bounds)));
-                }
+            auto& hdr = a_flame.nif.GetHeader();
+            a_flame.shader = FindShape(a_flame.nif, kLanternFlameTemplate);
+            auto* effect = a_flame.shader ? hdr.GetBlock<nifly::BSEffectShaderProperty>(a_flame.shader->ShaderPropertyRef()) : nullptr;
+            if (!dynamic_cast<nifly::BSTriShape*>(a_flame.shader) || !effect) {
+                throw std::runtime_error(fmt::format("{} has no BSTriShape '{}' with a BSEffectShaderProperty", kLanternFlameSource,
+                    kLanternFlameTemplate));
             }
-            const LanternBox& fireBox = strips[0].pieces[strips[0].chosen].bounds;
-            LanternBox flameBox = fireBox;
-            Grow(flameBox, strips[1].pieces[strips[1].chosen].bounds);
-            const std::array<float, 3> cageSize{ a_walls.Size(0), a_walls.Size(1), a_result.frameBounds.Size(2) };
-            a_flame.fit = kFloatMax;
-            for (int a = 0; a < 3; ++a) {
-                if (flameBox.Size(a) > 0.0f) {
-                    a_flame.fit = std::min(a_flame.fit, kLanternFlameFill * cageSize[a] / flameBox.Size(a));
+            bool scroll = false;
+            std::set<std::uint32_t> seen;
+            for (std::uint32_t id = effect->controllerRef.index; id != nifly::NIF_NPOS && !scroll && seen.insert(id).second;) {
+                auto* controller = hdr.GetBlock<nifly::NiTimeController>(id);
+                if (!controller) {
+                    break;
                 }
+                scroll = dynamic_cast<nifly::BSEffectShaderPropertyFloatController*>(controller) != nullptr;
+                id = controller->nextControllerRef.index;
             }
-            a_flame.anchor = Vector3(flameBox.Centre()[0], flameBox.Centre()[1], fireBox.min[2]);
-            a_flame.base = Vector3(a_result.cageCentre[0], a_result.cageCentre[1],
-                a_result.frameBounds.min[2] + kLanternFlameBaseShare * a_result.frameBounds.Size(2));
-            a_result.flameFit = a_flame.fit;
-            a_result.flameBase = ToArray(a_flame.base);
+            if (!scroll) {
+                throw std::runtime_error(fmt::format("'{}' in {} has no BSEffectShaderPropertyFloatController (the UV scroll)",
+                    kLanternFlameTemplate, kLanternFlameSource));
+            }
+            a_flame.nif.DeleteSkinning(a_flame.shader);
+
+            const float frameHeight = a_result.frameBounds.Size(2);
+            const float wallSize = std::min(a_walls.Size(0), a_walls.Size(1));
+            const float height = kLanternFlameHeightShare * frameHeight;
+            const float radius = kLanternFlameRadiusShare * wallSize;
+            const float base = a_result.frameBounds.min[2] + kLanternFlameBaseShare * frameHeight;
+            const Vector3 axis(a_result.cageCentre[0], a_result.cageCentre[1], 0.0f);
+            // the worn clearance at the ground scale; the cage centre is the walls' centre
+            const float clearance = kLanternFlameClearance * frameHeight / kLanternWornHeight;
+            if (radius + clearance > wallSize * 0.5f) {
+                throw std::runtime_error(fmt::format("the cage is too small for the flame: its widest ring (radius {:.4f} = "
+                                                     "kLanternFlameRadiusShare {:.4f} x the walls' smaller size {:.4f}) and "
+                                                     "kLanternFlameClearance {} ({:.4f} at the ground scale) reach {:.4f} from the cage "
+                                                     "axis, the walls {:.4f}",
+                    radius, kLanternFlameRadiusShare, wallSize, kLanternFlameClearance, clearance, radius + clearance, wallSize * 0.5f));
+            }
+            for (std::size_t l = 0; l < kLanternFlameLayers.size(); ++l) {
+                const auto& layer = kLanternFlameLayers[l];
+                a_flame.layers[l] = MakeFlameLayer(layer, axis, base + layer.lift * height, layer.heightShare * height, layer.radiusShare * radius);
+            }
+            a_result.flameBase = { axis.x, axis.y, base };
+            a_result.flameHeight = height;
+            a_result.flameRadius = radius;
             if (a_log) {
-                a_log->push_back(fmt::format("flame pieces together {}, scaled x {:.5f} (kLanternFlameFill {} of the cage's {:.4f} x {:.4f} x "
-                                             "{:.4f}); FireStrip08's lowest point (the fire's base) on the cage axis at {} = the frame's "
-                                             "bottom z {:.4f} + {:.4f} (kLanternFlameBaseShare) x its height {:.4f}; the fire reaches z {:.4f}, "
-                                             "the warp z {:.4f}..{:.4f}",
-                    BoxText(flameBox), a_flame.fit, kLanternFlameFill, cageSize[0], cageSize[1], cageSize[2], Text(a_result.flameBase),
-                    a_result.frameBounds.min[2], kLanternFlameBaseShare, a_result.frameBounds.Size(2),
-                    a_flame.base.z + (fireBox.max[2] - fireBox.min[2]) * a_flame.fit,
-                    a_flame.base.z + (flameBox.min[2] - fireBox.min[2]) * a_flame.fit, a_flame.base.z + (flameBox.max[2] - fireBox.min[2]) * a_flame.fit));
+                a_log->push_back(fmt::format("flame: the outer layer {:.4f} tall (kLanternFlameHeightShare {} x the frame's height {:.4f}), "
+                                             "widest radius {:.4f} (kLanternFlameRadiusShare {:.4f} x the walls' smaller size {:.4f}; "
+                                             "{:.4f} inside the walls, kLanternFlameClearance at the ground scale {:.4f}); its base on "
+                                             "the cage axis at {} = the frame's bottom z {:.4f} + {:.4f} (kLanternFlameBaseShare) x its "
+                                             "height",
+                    height, kLanternFlameHeightShare, frameHeight, radius, kLanternFlameRadiusShare, wallSize, wallSize * 0.5f - radius,
+                    clearance, Text(a_result.flameBase), a_result.frameBounds.min[2], kLanternFlameBaseShare));
+                for (const auto& layer : a_flame.layers) {
+                    a_log->push_back(fmt::format("flame layer '{}': {} vertices, {} triangles (kLanternFlameSegments {}, {} rings), z {:.4f}"
+                                                 "..{:.4f}, widest radius {:.4f}, tip radius {:.4f}; alpha flags 0x{:04X}, base alpha {}",
+                        layer.layer->name, layer.mesh.verts.size(), layer.mesh.tris.size(), kLanternFlameSegments,
+                        kLanternFlameProfile.size(), layer.base, layer.base + layer.height, layer.radius,
+                        layer.radius * kLanternFlameProfile.back()[1], layer.layer->alphaFlags, layer.layer->baseAlpha));
+                }
             }
         }
 
-        using FlameMap = std::function<Vector3(const LanternFlame::Strip&, const Vector3&)>;
+        using FlameMap = std::function<Vector3(const Vector3&)>;
 
-        /// a_flame's strips cut to their pieces, their vertices through a_point and normals through a_normal (both given the
-        /// skin-space value), cloned into a_dst with their shader controllers aimed at their own shaders and FireStripWarp's
-        /// refraction at kLanternWarpRefraction. The clones (not yet in a_dst's scene: the caller places them)
-        std::vector<nifly::NiShape*> AddFlame(nifly::NifFile& a_dst, LanternFlame& a_flame, const FlameMap& a_point,
-            const FlameMap& a_normal, std::vector<std::string>& a_log, const char* a_model)
+        /// a_flame's layers as shapes in a_dst: each a clone of the template (its shader with the controllers aimed at that
+        /// shader, its alpha property) carrying the layer's mesh, the vertices through a_point and the normals through a_normal
+        /// (both given the ground root-space value), tangents made from the UVs, and the shader flags, base alpha and blend of
+        /// GreyLantern.h's flame constants. The clones (not yet in a_dst's scene: the caller places them)
+        std::vector<nifly::NiShape*> AddFlame(nifly::NifFile& a_dst, LanternFlame& a_flame, const FlameMap& a_point, const FlameMap& a_normal,
+            std::vector<std::string>& a_log, const char* a_model)
         {
+            constexpr std::uint8_t kColourFull = 255;
+            auto& hdr = a_dst.GetHeader();
             std::vector<nifly::NiShape*> clones;
-            for (auto& strip : a_flame.strips) {
-                const std::string name = strip.shape->name.get();
-                a_flame.nif.DeleteSkinning(strip.shape);
-                auto* tri = dynamic_cast<nifly::BSTriShape*>(strip.shape);
-                if (tri->vertData.size() <= strip.pieces[strip.chosen].vertices.back()) {
-                    throw std::runtime_error(fmt::format("'{}' lost vertices with its skinning", name));
+            for (const auto& layer : a_flame.layers) {
+                const char* name = layer.layer->name;
+                auto* clone = a_dst.CloneShape(a_flame.shader, name, &a_flame.nif);
+                auto* tri = dynamic_cast<nifly::BSTriShape*>(clone);
+                if (!tri) {
+                    throw std::runtime_error(fmt::format("nifly did not clone '{}' into the {} model as '{}'", kLanternFlameTemplate, a_model, name));
                 }
-                KeepPiece(*strip.shape, strip.pieces[strip.chosen], strip.tris);
-                BakeEach(*strip.shape, [&](std::size_t, const Vector3& a_v) { return a_point(strip, a_v); },
-                    [&](std::size_t, const Vector3& a_n) { return a_normal(strip, a_n); });
-                auto* clone = a_dst.CloneShape(strip.shape, name, &a_flame.nif);
-                if (!clone) {
-                    throw std::runtime_error(fmt::format("nifly did not clone '{}' into the {} model", name, a_model));
+                const auto& mesh = layer.mesh;
+                std::vector<nifly::BSVertexData> data(mesh.verts.size());
+                std::vector<Vector3> normals;
+                for (std::size_t i = 0; i < mesh.verts.size(); ++i) {
+                    Vector3 n = a_normal(mesh.normals[i]);
+                    n.Normalize();
+                    data[i].vert = a_point(mesh.verts[i]);
+                    data[i].uv = mesh.uvs[i];
+                    data[i].colorData[0] = data[i].colorData[1] = data[i].colorData[2] = kColourFull;
+                    data[i].colorData[3] = layer.alpha[i];
+                    normals.push_back(n);
                 }
+                tri->SetSkinned(false);
+                tri->SetVertices(true);
+                tri->SetUVs(true);
+                tri->SetVertexColors(true);
+                tri->SetVertexData(data);
+                tri->SetTriangles(mesh.tris);
+                tri->SetNormals(normals);
+                tri->CalcTangentSpace();  // from the UVs, as the ring and the lugs (AddMeshShape)
+                clone->transform.Clear();
+                tri->UpdateBounds();
                 for (const auto& line : RetargetShaderControllers(a_dst, *clone)) {
-                    a_log.push_back(fmt::format("{} flame strip '{}': controller {}", a_model, name, line));
+                    a_log.push_back(fmt::format("{} flame layer '{}': controller {}", a_model, name, line));
                 }
-                if (name == kLanternFlameStrips[1]) {
-                    auto* lit = a_dst.GetHeader().GetBlock<nifly::BSLightingShaderProperty>(clone->ShaderPropertyRef());
-                    if (!lit) {
-                        throw std::runtime_error("FireStripWarp has no lighting shader");
-                    }
-                    const float before = lit->refractionStrength;
-                    lit->refractionStrength = kLanternWarpRefraction;
-                    a_log.push_back(fmt::format("{} FireStripWarp refraction strength {:.4f} -> {} (kLanternWarpRefraction)", a_model, before,
-                        kLanternWarpRefraction));
-                    ScaleRefractionKeys(a_dst, *lit, before > 0.0f ? kLanternWarpRefraction / before : 1.0f, a_log);
+                auto* effect = hdr.GetBlock<nifly::BSEffectShaderProperty>(clone->ShaderPropertyRef());
+                if (!effect) {
+                    throw std::runtime_error(fmt::format("the {} flame layer '{}' has no effect shader", a_model, name));
                 }
+                const std::uint32_t flags1 = effect->shaderFlags1;
+                const std::uint32_t flags2 = effect->shaderFlags2;
+                effect->shaderFlags1 = (flags1 & ~kLanternFlameFlags1Off) | kLanternFlameFlags1On;
+                effect->shaderFlags2 = flags2 | kLanternFlameFlags2On;
+                effect->baseColor.a = layer.layer->baseAlpha;
+                auto* alpha = clone->AlphaPropertyRef() ? hdr.GetBlock<nifly::NiAlphaProperty>(*clone->AlphaPropertyRef()) : nullptr;
+                if (!alpha) {
+                    auto made = std::make_unique<nifly::NiAlphaProperty>();
+                    alpha = made.get();
+                    (void)a_dst.AssignAlphaProperty(clone, std::move(made));
+                }
+                alpha->flags = layer.layer->alphaFlags;
+                a_log.push_back(fmt::format("{} flame layer '{}': {} vertices, {} triangles; SLSF1 0x{:08X} -> 0x{:08X} (palette colour and "
+                                            "vertex alpha on; palette alpha, falloff, decal, dynamic decal, skinned off), SLSF2 0x{:08X} -> "
+                                            "0x{:08X} (double-sided, vertex colours on); base alpha {}, alpha flags 0x{:04X} ({})",
+                    a_model, name, data.size(), mesh.tris.size(), flags1, effect->shaderFlags1, flags2, effect->shaderFlags2,
+                    effect->baseColor.a, alpha->flags, BlendOfAlpha(alpha) == ShapeBlend::kAdditive ? "additive" : "normal blend"));
                 clones.push_back(clone);
             }
             return clones;
         }
 
-        /// GreyEffects on a_nif (the black flame palettes), then one line per strip: its shader, its blend and the palette it
-        /// took
-        void BlackFlameStrips(nifly::NifFile& a_nif, const std::vector<nifly::NiShape*>& a_strips, std::vector<std::string>& a_log,
+        /// GreyEffects on a_nif (the black flame palettes; it reads each layer's blend from its alpha property), then one line
+        /// per layer: its blend and the palette it took. GreyEffects changes no shader flags; throws when a layer's were changed.
+        void BlackFlameLayers(nifly::NifFile& a_nif, const std::vector<nifly::NiShape*>& a_layers, std::vector<std::string>& a_log,
             const char* a_model)
         {
+            auto& hdr = a_nif.GetHeader();
+            std::vector<std::pair<std::uint32_t, std::uint32_t>> flags;
+            for (auto* shape : a_layers) {
+                const auto* effect = hdr.GetBlock<nifly::BSEffectShaderProperty>(shape->ShaderPropertyRef());
+                flags.emplace_back(effect ? effect->shaderFlags1 : 0u, effect ? effect->shaderFlags2 : 0u);
+            }
             std::vector<std::string> notes;
             const GreyStats stats = GreyEffects(a_nif, kDefaultTint, kDefaultTintAdd, &notes);
             a_log.push_back(fmt::format("{} effect shaders {}: palette normal {} ({}), additive {} ({}), left {}; lighting shaders {} left "
-                                        "alone; base colour x tint {}",
+                                        "alone; base colour x tint {} (additive {})",
                 a_model, stats.effectShaders, stats.paletted, kPalettePath, stats.palettedAdd, kPaletteAddPath, stats.paletteLeft,
-                stats.lightingShaders, kDefaultTint));
+                stats.lightingShaders, kDefaultTint, kDefaultTintAdd));
             for (const auto& note : notes) {
                 a_log.push_back(fmt::format("{}: {}", a_model, note));
             }
-            auto& hdr = a_nif.GetHeader();
-            for (auto* shape : a_strips) {
+            for (std::size_t i = 0; i < a_layers.size(); ++i) {
+                auto* shape = a_layers[i];
                 auto* effect = hdr.GetBlock<nifly::BSEffectShaderProperty>(shape->ShaderPropertyRef());
                 auto* alpha = shape->AlphaPropertyRef() ? hdr.GetBlock<nifly::NiAlphaProperty>(*shape->AlphaPropertyRef()) : nullptr;
-                if (effect) {
-                    a_log.push_back(fmt::format("{} '{}': effect shader, alpha {} ({}), palette '{}' (greyscale-to-palette {})", a_model,
-                        shape->name.get(), alpha ? fmt::format("0x{:04X}", alpha->flags) : std::string("none"),
-                        BlendOfAlpha(alpha) == ShapeBlend::kAdditive ? "additive" : "not additive", effect->greyscaleTexture.get(),
-                        UsesPalette(*effect) ? "on" : "off"));
-                } else {
-                    a_log.push_back(fmt::format("{} '{}': {} (no palette)", a_model, shape->name.get(),
-                        shape->ShaderPropertyRef() ? hdr.GetBlock<nifly::NiObject>(shape->ShaderPropertyRef()->index)->GetBlockName() : "no shader"));
+                if (!effect) {
+                    throw std::runtime_error(fmt::format("the {} flame layer '{}' lost its effect shader", a_model, shape->name.get()));
                 }
+                if (effect->shaderFlags1 != flags[i].first || effect->shaderFlags2 != flags[i].second) {
+                    throw std::runtime_error(fmt::format("GreyEffects changed the {} flame layer '{}' shader flags: SLSF1 0x{:08X} -> 0x{:08X}, "
+                                                         "SLSF2 0x{:08X} -> 0x{:08X}",
+                        a_model, shape->name.get(), flags[i].first, effect->shaderFlags1, flags[i].second, effect->shaderFlags2));
+                }
+                a_log.push_back(fmt::format("{} '{}': alpha 0x{:04X} ({}), base colour ({:.4f}, {:.4f}, {:.4f}, {:.4f}), palette '{}'; "
+                                            "SLSF1 0x{:08X} SLSF2 0x{:08X} kept by GreyEffects",
+                    a_model, shape->name.get(), alpha ? alpha->flags : 0, BlendOfAlpha(alpha) == ShapeBlend::kAdditive ? "additive" : "normal blend",
+                    effect->baseColor.r, effect->baseColor.g, effect->baseColor.b, effect->baseColor.a, effect->greyscaleTexture.get(),
+                    effect->shaderFlags1, effect->shaderFlags2));
             }
         }
 
@@ -1907,10 +1945,9 @@ namespace GreyBuild
                 framePoints.push_back(shapeA(frameRoot[i], isHandle[i]));
             }
             std::vector<Vector3> flamePoints;
-            for (const auto& strip : flame.strips) {
-                auto* tri = dynamic_cast<nifly::BSTriShape*>(strip.shape);
-                for (const auto v : strip.pieces[strip.chosen].vertices) {
-                    flamePoints.push_back(shapeA(flame.ToRoot(strip, tri->vertData[v].vert), false));
+            for (const auto& layer : flame.layers) {
+                for (const auto& v : layer.mesh.verts) {
+                    flamePoints.push_back(shapeA(v, false));
                 }
             }
             a_result.wornFlameClearance = LanternNearestTriangle(flamePoints, framePoints, frameTri->triangles);
@@ -2079,12 +2116,10 @@ namespace GreyBuild
                 [&](std::size_t a_i, const Vector3& a_n) { return placeNormal(frameToRoot.rotation * a_n, isHandle[a_i]); });
 
             // the fire
-            const auto strips = AddFlame(worn, flame,
-                [&](const LanternFlame::Strip& a_strip, const Vector3& a_v) { return place(flame.ToRoot(a_strip, a_v), false); },
-                [&](const LanternFlame::Strip& a_strip, const Vector3& a_n) { return normalA(a_strip.toGlobal.rotation * a_n, false); }, log,
-                "worn");
-            for (auto* strip : strips) {
-                (void)adopt(strip);
+            const auto layers = AddFlame(worn, flame, [&](const Vector3& a_v) { return place(a_v, false); },
+                [&](const Vector3& a_n) { return normalA(a_n, false); }, log, "worn");
+            for (auto* layer : layers) {
+                (void)adopt(layer);
             }
 
             // the ring and the lugs (made in character space already)
@@ -2104,7 +2139,7 @@ namespace GreyBuild
             for (auto* shape : wornShapes) {
                 SkinToBone(worn, *shape, boneId, pelvis);
             }
-            // CloneShape brings nodes of the source file along as root children (the atronach's bones): only the bone and the
+            // CloneShape brings nodes of the source file along as root children (the atronach's nodes): only the bone and the
             // shapes stay; the save drops what is then unreferenced
             {
                 std::set<std::uint32_t> keep{ boneId };
@@ -2130,7 +2165,7 @@ namespace GreyBuild
                 }
                 log.push_back(fmt::format("worn frame (character space) {}", BoxText(a_result.wornFrame)));
             }
-            BlackFlameStrips(worn, strips, log, "worn");
+            BlackFlameLayers(worn, layers, log, "worn");
             SaveNew(worn, a_dataDir / kLanternWornNif);
 
             const Vector3 ringBottom = ring - Vector3(0.0f, 0.0f, kLanternRingRadius);
@@ -2157,14 +2192,13 @@ namespace GreyBuild
                     side, Text(foot.centre), foot.footZ, foot.footZ - foot.lidZ, foot.lidZ, BoxText(foot.lug)));
             }
             a_result.summary.push_back(fmt::format("ring and lugs {} / {}", kLanternDiffuse, frameNormal));
-            for (const auto& strip : flame.strips) {
-                const auto& piece = strip.pieces[strip.chosen];
-                a_result.summary.push_back(fmt::format("flame piece '{}' #{}: {} triangles, {} vertices, rest-pose size ({:.4f}, {:.4f}, "
-                                                       "{:.4f}), x {:.5f} into the ground model, x {:.5f} worn",
-                    strip.shape->name.get(), strip.chosen, piece.triangles.size(), piece.vertices.size(), piece.bounds.Size(0),
-                    piece.bounds.Size(1), piece.bounds.Size(2), flame.fit, scale));
+            for (const auto& layer : flame.layers) {
+                a_result.summary.push_back(fmt::format("flame layer '{}': {} vertices, {} triangles, ground z {:.4f}..{:.4f}, widest radius "
+                                                       "{:.4f}; x {:.5f} worn",
+                    layer.layer->name, layer.mesh.verts.size(), layer.mesh.tris.size(), layer.base, layer.base + layer.height, layer.radius,
+                    scale));
             }
-            a_result.summary.push_back(fmt::format("flame base (ground) {} (kLanternFlameBaseShare {:.4f}); the strips' nearest frame triangle: "
+            a_result.summary.push_back(fmt::format("flame base (ground) {} (kLanternFlameBaseShare {:.4f}); the layers' nearest frame triangle: "
                                                    "ground {:.4f}, worn {:.4f} (kLanternFlameClearance {})",
                 Text(a_result.flameBase), kLanternFlameBaseShare, a_result.groundFlameClearance, a_result.wornFlameClearance,
                 kLanternFlameClearance));
@@ -2264,10 +2298,9 @@ namespace GreyBuild
             log.push_back(fmt::format("cage centre (walls' X/Y, bounds' middle Z) {}", Text(result.cageCentre)));
 
             // the fire goes into the copy that is saved: the worn step clones the frame from the original, which stays without
-            // it (SaveNif's string-table pass also writes through the file it saves). Round 6: the strips, not AddOnNode9100 -
-            // the grey copy behind ADDN 0x804 (mps\mpsfiresmall01.nif) is three additive particle systems on GradBlackFlame.dds
-            // without the dark layer the casting-art copies get; the strips take the black flame palette here as in the worn
-            // model, one fire for both
+            // it (SaveNif's string-table pass also writes through the file it saves). Round 6: no AddOnNode9100 - the grey copy
+            // behind ADDN 0x804 (mps\mpsfiresmall01.nif) is three additive particle systems on GradBlackFlame.dds without the
+            // dark layer the casting-art copies get; round 7: the two flame layers made here, the same fire as the worn model
             nifly::NifFile copy = ground;
             {
                 LanternFlame flame;
@@ -2275,19 +2308,18 @@ namespace GreyBuild
                 auto* root = copy.GetRootNode();
                 std::vector<std::uint32_t> children;
                 root->childRefs.GetIndices(children);
-                const auto strips = AddFlame(copy, flame,
-                    [&](const LanternFlame::Strip& a_strip, const Vector3& a_v) { return flame.ToRoot(a_strip, a_v); },
-                    [&](const LanternFlame::Strip& a_strip, const Vector3& a_n) { return a_strip.toGlobal.rotation * a_n; }, log, "ground");
-                // the root keeps its own children and the strips (the clones bring the atronach's bones along; SaveNew drops them,
+                const auto same = [](const Vector3& a_v) { return a_v; };
+                const auto layers = AddFlame(copy, flame, same, same, log, "ground");
+                // the root keeps its own children and the layers (the clones bring the atronach's nodes along; SaveNew drops them,
                 // and every other block nothing references)
                 std::vector<Vector3> points;
-                for (auto* strip : strips) {
-                    children.push_back(copy.GetHeader().GetBlockID(strip));
-                    std::vector<Vector3> stripVerts;
-                    if (!copy.GetVertsForShape(strip, stripVerts)) {
-                        throw std::runtime_error(fmt::format("the ground strip '{}' has no vertices", strip->name.get()));
+                for (auto* layer : layers) {
+                    children.push_back(copy.GetHeader().GetBlockID(layer));
+                    std::vector<Vector3> layerVerts;
+                    if (!copy.GetVertsForShape(layer, layerVerts)) {
+                        throw std::runtime_error(fmt::format("the ground flame layer '{}' has no vertices", layer->name.get()));
                     }
-                    points.insert(points.end(), stripVerts.begin(), stripVerts.end());
+                    points.insert(points.end(), layerVerts.begin(), layerVerts.end());
                 }
                 root->childRefs.SetIndices(children);
                 std::vector<Vector3> frameRoot;
@@ -2300,11 +2332,11 @@ namespace GreyBuild
                 }
                 result.groundFlameClearance = LanternNearestTriangle(points, frameRoot, tris);
                 log.push_back(fmt::format("ground flame: its vertices' nearest frame triangle {:.4f}", result.groundFlameClearance));
-                BlackFlameStrips(copy, strips, log, "ground");
+                BlackFlameLayers(copy, layers, log, "ground");
                 if (auto* bsx = FindBsx(copy)) {
                     const std::uint32_t before = bsx->integerData;
                     bsx->integerData |= kBsxAnimated;
-                    log.push_back(fmt::format("ground BSXFlags {} -> {} (Animated bit 0x{:X}: the strips' shader controllers; no Addon bit)", before,
+                    log.push_back(fmt::format("ground BSXFlags {} -> {} (Animated bit 0x{:X}: the layers' shader controllers; no Addon bit)", before,
                         bsx->integerData, kBsxAnimated));
                 } else {
                     throw std::runtime_error(fmt::format("{} has no BSXFlags on its root", kLanternFrameSource));
@@ -2359,13 +2391,12 @@ namespace GreyBuild
 
     namespace
     {
-        /// The ground model's frame: its one shape that is not a flame strip; nullptr when there is not exactly one
+        /// The ground model's frame: its one shape that is not a flame layer; nullptr when there is not exactly one
         [[nodiscard]] nifly::NiShape* GroundFrame(nifly::NifFile& a_nif)
         {
             nifly::NiShape* found = nullptr;
             for (auto* shape : a_nif.GetShapes()) {
-                const std::string name = shape->name.get();
-                if (std::find(kLanternFlameStrips.begin(), kLanternFlameStrips.end(), name) == kLanternFlameStrips.end()) {
+                if (!IsFlameLayer(shape->name.get())) {
                     if (found) {
                         return nullptr;
                     }
@@ -2386,7 +2417,8 @@ namespace GreyBuild
             std::vector<std::string> shapes;
             float margin;
         };
-        const std::array<Part, 2> parts{ { { "lantern", { kLanternWornFrameName, kLanternFlameStrips[0], kLanternFlameStrips[1], kLanternLugName },
+        const std::array<Part, 2> parts{ { { "lantern", { kLanternWornFrameName, kLanternFlameLayers[0].name, kLanternFlameLayers[1].name,
+                                                            kLanternLugName },
                                                  kLanternBodyMargin },
             { "ring", { kLanternRingName }, kLanternRingMargin } } };
         std::vector<LanternClearance> out;
@@ -2507,26 +2539,23 @@ namespace GreyBuild
                 v = frameToRoot.ApplyTransform(v);
             }
             std::vector<Vector3> points;
-            std::array<LanternBox, 2> boxes;
-            for (std::size_t s = 0; s < kLanternFlameStrips.size(); ++s) {
-                auto* strip = FindShape(nif, kLanternFlameStrips[s]);
-                std::vector<Vector3> stripVerts;
-                if (!strip || !nif.GetVertsForShape(strip, stripVerts) || stripVerts.empty()) {
-                    throw std::runtime_error(fmt::format("{} has no flame strip '{}'", ground ? kLanternGroundNif : kLanternWornNif,
-                        kLanternFlameStrips[s]));
+            auto& boxes = ground ? out.ground : out.worn;
+            for (std::size_t l = 0; l < kLanternFlameLayers.size(); ++l) {
+                auto* layer = FindShape(nif, kLanternFlameLayers[l].name);
+                std::vector<Vector3> layerVerts;
+                if (!layer || !nif.GetVertsForShape(layer, layerVerts) || layerVerts.empty()) {
+                    throw std::runtime_error(fmt::format("{} has no flame layer '{}'", ground ? kLanternGroundNif : kLanternWornNif,
+                        kLanternFlameLayers[l].name));
                 }
-                const MatTransform stripToRoot = toRoot(strip);
-                boxes[s] = EmptyBox();
-                for (auto& v : stripVerts) {
-                    v = stripToRoot.ApplyTransform(v);
-                    Grow(boxes[s], v);
+                const MatTransform layerToRoot = toRoot(layer);
+                boxes[l] = EmptyBox();
+                for (auto& v : layerVerts) {
+                    v = layerToRoot.ApplyTransform(v);
+                    Grow(boxes[l], v);
                     points.push_back(v);
                 }
             }
-            const float clearance = LanternNearestTriangle(points, verts, tris);
-            (ground ? out.groundFire : out.wornFire) = boxes[0];
-            (ground ? out.groundWarp : out.wornWarp) = boxes[1];
-            (ground ? out.groundClearance : out.wornClearance) = clearance;
+            (ground ? out.groundClearance : out.wornClearance) = LanternNearestTriangle(points, verts, tris);
         }
         return out;
     }
@@ -2539,38 +2568,62 @@ namespace GreyBuild
                 const auto it = std::find_if(a_info.shapes.begin(), a_info.shapes.end(), [&](const auto& a_s) { return a_s.name == a_name; });
                 return it == a_info.shapes.end() ? nullptr : &*it;
             };
-            // the fire in a model: both strips, FireStrip08 on the black flame palette for its blend, FireStripWarp's refraction,
-            // every controller on its own shader
-            const auto checkFlame = [&](const LanternNifInfo& a_info, const char* a_model) {
-                const auto* fire = shapeIn(a_info, kLanternFlameStrips[0]);
-                const auto* warp = shapeIn(a_info, kLanternFlameStrips[1]);
-                Check(problems, fire && warp, fmt::format("{}: the flame strips '{}' and '{}' are not both there", a_model, kLanternFlameStrips[0],
-                    kLanternFlameStrips[1]));
-                if (fire) {
-                    const std::string palette = std::string("greyscale ") + (fire->additive ? kPaletteAddPath : kPalettePath);
-                    Check(problems, fire->shader == "BSEffectShaderProperty" && (fire->flags1 & kSlsf1GreyscaleToPaletteColor) != 0 &&
-                                        fire->textures.size() > 1 && fire->textures[1] == palette,
-                        fmt::format("{} {}: shader {}, palette '{}', expected '{}' for its blend ({})", a_model, fire->name, fire->shader,
-                            fire->textures.size() > 1 ? fire->textures[1] : "", palette, fire->additive ? "additive" : "not additive"));
-                }
-                Check(problems, warp && std::fabs(warp->refraction - kLanternWarpRefraction) <= 1e-6f,
-                    fmt::format("{} FireStripWarp: refraction strength {}, expected {} (kLanternWarpRefraction)", a_model,
-                        warp ? warp->refraction : -1.0f, kLanternWarpRefraction));
-                for (const auto* strip : { fire, warp }) {
-                    Check(problems, strip && !strip->controllers.empty(), fmt::format("{}: a flame strip without its shader controller", a_model));
-                    for (const auto& controller : strip ? strip->controllers : std::vector<std::string>{}) {
+            // the fire in a model: both layers, each an effect shader with palette colour, vertex alpha, double-sided and vertex
+            // colours on and palette alpha, falloff, the decal bits (and Skinned on the ground) off; its blend, base alpha and the
+            // black flame palette for that blend; its counts; vertex alpha up to 255, the tip and the bottom ring at the profile's; every controller on
+            // its own shader, and no shader, alpha property, controller, interpolator or key block shared between the layers
+            const auto checkFlame = [&](const LanternNifInfo& a_info, const char* a_model, bool a_worn) {
+                std::set<std::uint32_t> blocks;
+                for (const auto& layer : kLanternFlameLayers) {
+                    const auto* s = shapeIn(a_info, layer.name);
+                    Check(problems, s != nullptr, fmt::format("{}: no flame layer '{}'", a_model, layer.name));
+                    if (!s) {
+                        continue;
+                    }
+                    // the worn model's layers have Skinned back on (SkinToBone)
+                    const std::uint32_t off = a_worn ? kLanternFlameFlags1Off & ~kSlsf1Skinned : kLanternFlameFlags1Off;
+                    const std::uint32_t on = kLanternFlameFlags1On | (a_worn ? kSlsf1Skinned : 0u);
+                    const std::uint32_t on2 = kLanternFlameFlags2On;
+                    Check(problems, s->shader == "BSEffectShaderProperty" && (s->flags1 & off) == 0 && (s->flags1 & on) == on &&
+                                        (s->flags2 & on2) == on2,
+                        fmt::format("{} '{}': shader {} SLSF1 0x{:08X} SLSF2 0x{:08X}, expected SLSF1 0x{:08X} on and 0x{:08X} off, SLSF2 "
+                                    "0x{:08X} on", a_model, s->name, s->shader, s->flags1, s->flags2, on, off, on2));
+                    const std::string palette = std::string("greyscale ") + (s->additive ? kPaletteAddPath : kPalettePath);
+                    Check(problems, s->hasAlpha && s->alphaFlags == layer.alphaFlags && s->textures.size() > 1 && s->textures[1] == palette,
+                        fmt::format("{} '{}': alpha 0x{:04X} (expected 0x{:04X}), palette '{}' (expected '{}' for its blend)", a_model, s->name,
+                            s->alphaFlags, layer.alphaFlags, s->textures.size() > 1 ? s->textures[1] : "", palette));
+                    Check(problems, std::fabs(s->baseAlpha - layer.baseAlpha) <= 1e-6f,
+                        fmt::format("{} '{}': base alpha {}, expected {}", a_model, s->name, s->baseAlpha, layer.baseAlpha));
+                    Check(problems, s->vertices == kLanternFlameVertices && s->triangles == kLanternFlameTriangles,
+                        fmt::format("{} '{}': {} vertices, {} triangles, expected {} and {}", a_model, s->name, s->vertices, s->triangles,
+                            kLanternFlameVertices, kLanternFlameTriangles));
+                    const auto profileAlpha = [](std::size_t a_ring) {
+                        return static_cast<int>(std::lround(kLanternFlameProfile[a_ring][2] * 255.0f));
+                    };
+                    Check(problems, s->vertexColors && s->alphaMax == 255 && s->alphaTop == profileAlpha(kLanternFlameProfile.size() - 1) &&
+                                        s->alphaBottom == profileAlpha(0),
+                        fmt::format("{} '{}': vertex colours {}, vertex alpha up to {}, {} at the tip and {} at the bottom ring (expected 255, {} "
+                                    "and {})", a_model, s->name, s->vertexColors, s->alphaMax, s->alphaTop, s->alphaBottom,
+                            profileAlpha(kLanternFlameProfile.size() - 1), profileAlpha(0)));
+                    Check(problems, !s->controllers.empty(), fmt::format("{} '{}': no shader controller (the UV scroll)", a_model, s->name));
+                    for (const auto& controller : s->controllers) {
                         Check(problems, controller.find("WRONG") == std::string::npos,
-                            fmt::format("{} '{}': controller {}", a_model, strip->name, controller));
+                            fmt::format("{} '{}': controller {}", a_model, s->name, controller));
+                    }
+                    for (const auto id : s->blockIds) {
+                        Check(problems, blocks.insert(id).second,
+                            fmt::format("{} '{}': block {} shared with the other flame layer", a_model, s->name, id));
                     }
                 }
             };
 
             // the ground model
             const auto gnd = InspectLanternNif(a_dataDir / kLanternGroundNif);
-            Check(problems, gnd.shapes.size() == 3, fmt::format("gnd: {} shapes, expected the frame and the two flame strips", gnd.shapes.size()));
+            Check(problems, gnd.shapes.size() == 1 + kLanternFlameLayers.size(),
+                fmt::format("gnd: {} shapes, expected the frame and the two flame layers", gnd.shapes.size()));
             const LanternShapeInfo* frame = nullptr;
             for (const auto& s : gnd.shapes) {
-                if (std::find(kLanternFlameStrips.begin(), kLanternFlameStrips.end(), s.name) == kLanternFlameStrips.end()) {
+                if (!IsFlameLayer(s.name)) {
                     frame = &s;
                 }
                 Check(problems, s.skinType.empty(), fmt::format("gnd: '{}' is skinned", s.name));
@@ -2597,19 +2650,21 @@ namespace GreyBuild
                 }
             }
             Check(problems, gnd.hasCollision, "gnd: the collision is gone");
-            Check(problems, gnd.valueNodes.empty(), fmt::format("gnd: {} addon nodes (the fire is the strips)", gnd.valueNodes.size()));
+            Check(problems, gnd.valueNodes.empty(), fmt::format("gnd: {} addon nodes (the fire is the flame layers)", gnd.valueNodes.size()));
             Check(problems, gnd.nodeNames.size() == 1, fmt::format("gnd: {} nodes, expected the root alone (no source bones)", gnd.nodeNames.size()));
             Check(problems, gnd.hasBsx && (gnd.bsx & kBsxAnimated) != 0 && (gnd.bsx & kBsxAddon) == 0,
                 fmt::format("gnd: BSXFlags {}, expected the Animated bit and no Addon bit", gnd.bsx));
-            checkFlame(gnd, "gnd");
+            checkFlame(gnd, "gnd", false);
 
             // the worn model
             const auto worn = InspectLanternNif(a_dataDir / kLanternWornNif);
             Check(problems, !worn.hasCollision, "worn: has a collision object");
-            Check(problems, worn.valueNodes.empty(), "worn: has an addon node (the flame is the strips)");
+            Check(problems, worn.valueNodes.empty(), "worn: has an addon node (the flame is the flame layers)");
             Check(problems, worn.sseCompatible, "worn: nifly says it is not SSE-compatible");
             std::vector<std::string> expected{ kLanternWornFrameName };
-            expected.insert(expected.end(), kLanternFlameStrips.begin(), kLanternFlameStrips.end());
+            for (const auto& layer : kLanternFlameLayers) {
+                expected.emplace_back(layer.name);
+            }
             expected.push_back(kLanternRingName);
             expected.push_back(kLanternLugName);
             const auto slot = [](const LanternShapeInfo* a_s, std::size_t a_i) {
@@ -2634,7 +2689,7 @@ namespace GreyBuild
                         ring ? ring->uvMax[0] : 0.0f, ring ? ring->uvMin[1] : 0.0f, ring ? ring->uvMax[1] : 0.0f, kLanternIronUvMin[0],
                         kLanternIronUvMax[0], kLanternIronUvMin[1], kLanternIronUvMax[1]));
             }
-            checkFlame(worn, "worn");
+            checkFlame(worn, "worn", true);
             Check(problems, worn.shapes.size() == expected.size(),
                 fmt::format("worn: {} shapes, expected {}", worn.shapes.size(), expected.size()));
             for (const auto& name : expected) {
@@ -2672,10 +2727,17 @@ namespace GreyBuild
                         flame.groundClearance, flame.wornClearance, kLanternFlameClearance));
                 if (frame) {
                     constexpr float kBaseTolerance = 1e-3f;
+                    const float height = kLanternFlameHeightShare * frame->bounds.Size(2);
                     const float base = frame->bounds.min[2] + kLanternFlameBaseShare * frame->bounds.Size(2);
-                    Check(problems, std::fabs(flame.groundFire.min[2] - base) <= kBaseTolerance,
-                        fmt::format("gnd: FireStrip08's base at z {:.4f}, expected the frame's bottom + kLanternFlameBaseShare x its height = {:.4f}",
-                            flame.groundFire.min[2], base));
+                    for (std::size_t l = 0; l < kLanternFlameLayers.size(); ++l) {
+                        const auto& layer = kLanternFlameLayers[l];
+                        const float low = base + layer.lift * height;
+                        const float high = low + layer.heightShare * height;
+                        Check(problems, std::fabs(flame.ground[l].min[2] - low) <= kBaseTolerance && std::fabs(flame.ground[l].max[2] - high) <= kBaseTolerance,
+                            fmt::format("gnd '{}': z {:.4f}..{:.4f}, expected {:.4f}..{:.4f} (the frame's bottom + kLanternFlameBaseShare x its "
+                                        "height, the layer's lift and height share of kLanternFlameHeightShare x it)",
+                                layer.name, flame.ground[l].min[2], flame.ground[l].max[2], low, high));
+                    }
                 }
             }
             // the worn parts against the bodies (each body an --in folder has)
@@ -2801,17 +2863,21 @@ namespace GreyBuild
         }
         {
             const auto flame = FlameReadBack(a_dataDir);
-            std::cout << fmt::format("flame (read back): ground FireStrip08 {}, FireStripWarp {}, the strips' nearest frame triangle {:.4f}; "
-                                     "worn FireStrip08 {}, FireStripWarp {}, nearest frame triangle {:.4f} (kLanternFlameClearance {})\n",
-                BoxText(flame.groundFire), BoxText(flame.groundWarp), flame.groundClearance, BoxText(flame.wornFire), BoxText(flame.wornWarp),
-                flame.wornClearance, kLanternFlameClearance);
+            for (std::size_t l = 0; l < kLanternFlameLayers.size(); ++l) {
+                std::cout << fmt::format("flame '{}' (read back): ground {}; worn {}\n", kLanternFlameLayers[l].name, BoxText(flame.ground[l]),
+                    BoxText(flame.worn[l]));
+            }
+            std::cout << fmt::format("flame (read back): the layers' nearest frame triangle ground {:.4f}, worn {:.4f} (kLanternFlameClearance {})\n",
+                flame.groundClearance, flame.wornClearance, kLanternFlameClearance);
             std::cout << fmt::format("flame base (read back): ground z {:.4f} = the frame's bottom {:.4f} + {:.4f} x {:.4f} (expected {:.4f})\n",
-                flame.groundFire.min[2], b.min[2], kLanternFlameBaseShare, b.Size(2), b.min[2] + kLanternFlameBaseShare * b.Size(2));
+                flame.ground[0].min[2], b.min[2], kLanternFlameBaseShare, b.Size(2), b.min[2] + kLanternFlameBaseShare * b.Size(2));
             for (const char* rel : { kLanternGroundNif, kLanternWornNif }) {
                 for (const auto& s : InspectLanternNif(a_dataDir / rel).shapes) {
-                    if (s.name == kLanternFlameStrips[0]) {
-                        std::cout << fmt::format("{} {} (read back): {}, alpha 0x{:04X} ({}), {}\n", rel, s.name, s.shader, s.alphaFlags,
-                            s.additive ? "additive" : "not additive", s.textures.size() > 1 ? s.textures[1] : std::string("no palette"));
+                    if (IsFlameLayer(s.name)) {
+                        std::cout << fmt::format("{} {} (read back): {} SLSF1 0x{:08X} SLSF2 0x{:08X}, alpha 0x{:04X} ({}), base alpha {:.4f}, {}, "
+                                                 "vertex alpha {}..{} (tip {})\n",
+                            rel, s.name, s.shader, s.flags1, s.flags2, s.alphaFlags, s.additive ? "additive" : "normal blend", s.baseAlpha,
+                            s.textures.size() > 1 ? s.textures[1] : std::string("no palette"), s.alphaMin, s.alphaMax, s.alphaTop);
                     }
                 }
             }

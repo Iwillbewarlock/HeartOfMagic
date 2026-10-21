@@ -6,23 +6,26 @@
 // docs/superpowers/specs/2026-10-21-black-flame-lantern-design.md, section 6 and records 0x80D / 0x80E / 0x815. From
 // vanilla files in the --in folders (loose, Data layout; extract Skyrim - Meshes0.bsa / Skyrim - Textures*.bsa first):
 //   lantern_gnd.nif    candlelantern01.nif's frame and collision, diffuse = the soot copy, normal map kept, and the fire
-//                      (round 6): one connected piece of each of the Flame Atronach's fire strips FireStrip08 and
-//                      FireStripWarp (with their shader controllers) upright in the cage, FireStrip08's base at
-//                      kLanternFlameBaseShare of the frame's height; BSXFlags Animated (the strips' controllers), no Addon
+//                      (round 7): two closed spindles made here on the cage axis (kLanternFlameLayers), the outer layer's
+//                      base at kLanternFlameBaseShare of the frame's height; BSXFlags Animated (the layers' controllers), no
+//                      Addon
 //   lantern_worn.nif   at the left hip, every shape 100% on NPC Pelvis [Pelv] (BSDismemberSkinInstance, one partition, body
 //                      part 60): an iron ring (made here, the soot lamp texture) beside the hip at the belt band's height, and
 //                      the frame without collision (handle turned upright and shortened, iron lugs under its feet) hanging
 //                      vertically from it, with the same fire as the ground model in its cage. Nothing lies on the body
 //                      (round 6, user: no clipping with whatever the wearer has on)
-// The fire's shaders: FireStrip08's palette shader (normal blend) takes GradBlackFlame.dds through GreyEffects;
-// FireStripWarp is a lighting-shader refraction strip on a normal map (no colour), its refraction strength lowered to
-// kLanternWarpRefraction
+// The fire's shaders: each layer a copy of the Flame Atronach's FireStrip08 effect shader and its UV scroll controller
+// (kLanternFlameTemplate, the atronach NIF is read for nothing else), palette colour on and palette alpha off (with it on,
+// the opacity is the palette's alpha alone and our palettes' rows are all alike), so the opacity is texture alpha x vertex
+// alpha x base alpha; the outer layer blends normally and takes GradBlackFlame.dds through GreyEffects, the core is
+// additive and takes GradBlackFlameAdd.dds
 //   lantern_smoke.nif  an empty BSFadeNode with BSXFlags and one AddOnNode9123 (grey ADDN 0x809 MPSFireSmSmoke01)
 //   LampGenericSoot01.dds  LampGeneric01.dds with RGB x kLanternSootDarken, alpha kept, same format and mips
 // An AddOnNode is a BSValueNode whose value is the ADDN index (what the engine reads; vanilla candlelanternwithcandle01.nif
 // AddOnNode49 = BSValueNode value 49), named AddOnNode<index> as the vanilla files name theirs.
 
 #include "GreyBuild.h"
+#include "GreyShapes.h"
 
 #include <Object3d.hpp>
 
@@ -54,11 +57,11 @@ namespace GreyBuild
 
     // The grey ADDN index the smoke static's addon node names (shipped record 0x809 MPSFireSmSmoke01). The ground model no
     // longer names 0x804 MPSFireSmall01 (round 6: that grey copy is all additive on GradBlackFlame.dds without the dark
-    // layer; the fire is the strips instead)
+    // layer; the fire is the flame layers instead)
     inline constexpr int kLanternSmokeAddon = 9123;
     // BSValueNode value flags as the precedent has them: the vanilla smoke static fxsmokechimney01.nif's AddOnNode56 0
     inline constexpr std::uint8_t kLanternSmokeValueFlags = 0;
-    // BSXFlags bit 0, Animated (nif.xml BSXFlags): the ground model's strips run shader controllers, as the animated vanilla
+    // BSXFlags bit 0, Animated (nif.xml BSXFlags): the ground model's flame layers run shader controllers, as the animated vanilla
     // effect static fxfirewithembers01_lite.nif (0x1); bit 4, Addon: a model that carries addon nodes (the ground no longer)
     inline constexpr std::uint32_t kBsxAnimated = 1u << 0;
     inline constexpr std::uint32_t kBsxAddon = 1u << 4;
@@ -70,12 +73,20 @@ namespace GreyBuild
     inline constexpr const char* kLanternWornRootName = "HoMBF_LanternWorn";
     inline constexpr const char* kLanternWornFrameName = "HoMBF_LanternFrame";
 
-    // The worn mesh: the bone, its body part and the shapes copied from the Flame Atronach
+    // The worn mesh: the bone and its body part
     inline constexpr const char* kLanternBone = "NPC Pelvis [Pelv]";
     inline constexpr std::uint16_t kLanternBodyPart = 60;
-    inline constexpr std::array<const char*, 2> kLanternFlameStrips{ "FireStrip08", "FireStripWarp" };
     // SLSF1 bit 1, Skinned (CommonLibSSE-NG BSShaderProperty.h EShaderPropertyFlag kSkinned = 1)
     inline constexpr std::uint32_t kSlsf1Skinned = 1u << 1;
+    // SLSF1 bit 3, Vertex_Alpha (EShaderPropertyFlag kVertexAlpha = 3)
+    inline constexpr std::uint32_t kSlsf1VertexAlpha = 1u << 3;
+    // SLSF1 bit 6, Use_Falloff (EShaderPropertyFlag kFalloff = 6)
+    inline constexpr std::uint32_t kSlsf1Falloff = 1u << 6;
+    // SLSF1 bits 26 and 27, Decal and Dynamic_Decal (EShaderPropertyFlag kDecal = 26, kDynamicDecal = 27): the atronach body's
+    inline constexpr std::uint32_t kSlsf1Decal = 1u << 26;
+    inline constexpr std::uint32_t kSlsf1DynamicDecal = 1u << 27;
+    // SLSF2 bit 4, Double_Sided (EShaderPropertyFlag kTwoSided = 36, the second word's bit 4)
+    inline constexpr std::uint32_t kSlsf2DoubleSided = 1u << 4;
 
     // The cage centre: X and Y from the vertex bounds of the frame's vertices in this middle share of its height (the
     // cage walls; candlelantern01's hook at the top reaches out in +Y and would pull a whole-bounds centre off the cage),
@@ -174,17 +185,55 @@ namespace GreyBuild
     inline constexpr float kLanternAxisLowShare = 0.3f;
     inline constexpr float kLanternAxisTopShare = 0.8f;
 
-    // The flame: one connected piece of each strip (the one with the most triangles, then the tallest), the FireStripWarp
-    // piece the one whose rest-pose bounds overlap the chosen FireStrip08 piece most; both under one transform scaled to
-    // kLanternFlameFill of the cage (the smallest of width, depth, height wins: the cage the walls' X/Y and the frame's
-    // height), on the cage axis with FireStrip08's lowest point (the visible fire's base) kLanternFlameBaseShare of the
-    // frame's height above its lowest point (round 6: the fire rises inside the cage from about a third of its height).
-    // Every flame vertex at least kLanternFlameClearance (worn units) from the worn frame's triangles
-    inline constexpr float kLanternFlameFill = 0.5f;
+    // The flame (round 7, 2026-10-21, user: two layers, seen from every angle, the same on the ground, worn and in the
+    // inventory): two closed spindles (lathe shapes, Z up) on the cage axis in the ground model's root space, the worn model
+    // taking them through the lantern's own transform. The outer layer kLanternFlameHeightShare of the frame's height tall and
+    // kLanternFlameRadiusShare x the smaller of the cage walls' X and Y sizes at its widest, its base kLanternFlameBaseShare
+    // of the frame's height above the frame's bottom (the fire rises inside the cage from about a third of its height); each
+    // layer scales that by its own shares. Every flame vertex at least kLanternFlameClearance (worn units) from the worn
+    // frame's triangles, and the outer layer's widest ring that much (at the ground scale) inside the cage walls
+    inline constexpr float kLanternFlameHeightShare = 0.40f;
+    inline constexpr float kLanternFlameRadiusShare = 0.5f * 0.55f;
     inline constexpr float kLanternFlameBaseShare = 1.0f / 3.0f;
     inline constexpr float kLanternFlameClearance = 0.5f;
-    // FireStripWarp's refraction strength (0.15 on the atronach, whose flame is ~10x this one)
-    inline constexpr float kLanternWarpRefraction = 0.05f;
+    // Around the axis: this many segments, the seam duplicated so U runs 0..1 (it wraps on the scrolling tile)
+    inline constexpr int kLanternFlameSegments = 12;
+    // The profile, bottom to top: { share of the height (V = 1 - it), share of the widest radius, vertex alpha }. The 0.15 and 0.60
+    // rings' alphas are the linear blend of their neighbours; the tip is a ring (no degenerate point); no bottom cap
+    inline constexpr std::array<std::array<float, 3>, 6> kLanternFlameProfile{ { { 0.00f, 0.55f, 0.5f }, { 0.15f, 0.90f, 0.75f },
+        { 0.30f, 1.00f, 1.0f }, { 0.60f, 0.70f, 0.782f }, { 0.85f, 0.35f, 0.6f }, { 1.00f, 0.02f, 0.0f } } };
+    inline constexpr std::uint16_t kLanternFlameVertices =
+        static_cast<std::uint16_t>((kLanternFlameSegments + 1) * kLanternFlameProfile.size());
+    inline constexpr std::uint32_t kLanternFlameTriangles =
+        static_cast<std::uint32_t>(2 * kLanternFlameSegments * (kLanternFlameProfile.size() - 1));
+    // The shape the layers' shader and its controller are copied from (the V-offset UV scroll)
+    inline constexpr const char* kLanternFlameTemplate = "FireStrip08";
+
+    /// One flame layer: its shape name, height and widest radius as shares of the outer layer's, its base this share of the
+    /// outer layer's height above the outer base, its NiAlphaProperty flags and its shader's base alpha
+    struct LanternFlameLayer
+    {
+        const char* name;
+        float heightShare;
+        float radiusShare;
+        float lift;
+        std::uint16_t alphaFlags;
+        float baseAlpha;
+    };
+    // Alpha flags: 0x10ED blend on, SRC_ALPHA / INV_SRC_ALPHA (normal); 0x100D SRC_ALPHA / ONE (additive); no alpha test.
+    // Base alpha 1 on both: FXFireScrollTile02's alpha averages 0.34 (p90 0.60), which already keeps the outer layer thin
+    inline constexpr std::array<LanternFlameLayer, 2> kLanternFlameLayers{ {
+        { "HoMBF_FlameOuter", 1.0f, 1.0f, 0.0f, 0x10ED, 1.0f },
+        { "HoMBF_FlameCore", 0.65f, 0.45f, 0.05f, 0x100D, 1.0f },
+    } };
+    // The layers' shader flags (the template's others kept): SLSF1 palette colour and vertex alpha on; palette alpha off
+    // (Community Shaders' Effect.hlsl, as vanilla: with it on the alpha is palette.a(texture alpha, accumulated alpha), and
+    // our palettes' rows are all alike, so vertex and base alpha would do nothing), falloff off, the atronach body's decal
+    // bits off, Skinned off (SkinToBone sets it again on the worn model); SLSF2 double-sided and vertex colours on
+    inline constexpr std::uint32_t kLanternFlameFlags1On = kSlsf1GreyscaleToPaletteColor | kSlsf1VertexAlpha;
+    inline constexpr std::uint32_t kLanternFlameFlags1Off =
+        kSlsf1GreyscaleToPaletteAlpha | kSlsf1Falloff | kSlsf1Decal | kSlsf1DynamicDecal | kSlsf1Skinned;
+    inline constexpr std::uint32_t kLanternFlameFlags2On = kSlsf2DoubleSided | kSlsf2VertexColors;
 
     // The read-back's skin checks: bone bind pose x skin-to-bone = identity within this, and the bone-space bounds and
     // vertices back through the bind pose within kLanternBoundsTolerance of the skin-space ones
@@ -230,10 +279,20 @@ namespace GreyBuild
         std::vector<std::string> bones;
         std::vector<std::uint16_t> partitions;  // BSDismember body parts
         std::uint32_t vertices = 0;
+        std::uint32_t triangles = 0;
         std::uint32_t weightedOnFirstBone = 0;  // vertices with a weight on bone 0 (the shape's vertex data)
         std::uint32_t skinDataWeights = 0;      // NiSkinData's weight list of bone 0
         bool allWeightsOne = false;             // every vertex: bone 0 weight 1 and no other (vertex data and NiSkinData)
         std::vector<std::string> controllers;   // the shader's controller chain, "type -> target ok|wrong"
+        // the shader's, the alpha property's, the controllers' and their interpolators' and key data's block ids
+        std::vector<std::uint32_t> blockIds;
+        float baseAlpha = -1.0f;                // an effect shader's base colour alpha (-1: not an effect shader)
+        // the vertex colours' alpha (0..255; -1: no colours): the smallest, the largest, the largest at the highest vertices
+        // and at the lowest
+        int alphaMin = -1;
+        int alphaMax = -1;
+        int alphaTop = -1;
+        int alphaBottom = -1;
         bool hasAlpha = false;                  // an NiAlphaProperty on the shape: its flags and whether it blends additively
         std::uint16_t alphaFlags = 0;
         bool additive = false;
@@ -326,20 +385,19 @@ namespace GreyBuild
 
     /// The smallest distance from any of a_points to a_tris over a_verts (exact point-to-triangle). Throws
     /// std::runtime_error on a triangle naming a vertex past the list.
-    /// Limit: only the points are tested (a frame wire passing between two flame vertices is not seen); the strips' pieces
-    /// are a few quads. Upgrade path: test the triangles against each other.
+    /// Limit: only the points are tested (a frame wire passing between two flame vertices is not seen); the flame layers'
+    /// vertices are a ring every 15-30% of their height, 12 round. Upgrade path: test the triangles against each other.
     [[nodiscard]] float LanternNearestTriangle(const std::vector<nifly::Vector3>& a_points, const std::vector<nifly::Vector3>& a_verts,
         const std::vector<nifly::Triangle>& a_tris);
 
-    /// The flame read back: in each model the strips' bounds and their vertices' nearest frame triangle (the ground in root
-    /// space, the worn in character space). Throws std::runtime_error when a file, its frame or a strip is missing.
+    /// The flame read back: in each model the layers' bounds (kLanternFlameLayers order) and their vertices' nearest frame
+    /// triangle (the ground in root space, the worn in character space). Throws std::runtime_error when a file, its frame or
+    /// a layer is missing.
     struct LanternFlameReadBack
     {
-        LanternBox groundFire;           // FireStrip08's vertex bounds
-        LanternBox groundWarp;           // FireStripWarp's
+        std::array<LanternBox, 2> ground{};
         float groundClearance = 0.0f;
-        LanternBox wornFire;
-        LanternBox wornWarp;
+        std::array<LanternBox, 2> worn{};
         float wornClearance = 0.0f;
     };
     [[nodiscard]] LanternFlameReadBack FlameReadBack(const std::filesystem::path& a_dataDir);
@@ -424,9 +482,10 @@ namespace GreyBuild
         std::vector<std::string> log;       // the constants used and what was measured
         LanternBox frameBounds;             // the ground frame's vertex bounds (root space)
         std::array<float, 3> cageCentre{};
-        std::array<float, 3> flameBase{};   // FireStrip08's lowest point on the cage axis (ground root space)
-        float flameFit = 0.0f;              // the strips' scale into the ground model
-        float groundFlameClearance = 0.0f;  // the strips' nearest ground frame triangle
+        std::array<float, 3> flameBase{};   // the outer layer's base centre on the cage axis (ground root space)
+        float flameHeight = 0.0f;           // the outer layer's height and widest radius (ground units)
+        float flameRadius = 0.0f;
+        float groundFlameClearance = 0.0f;  // the layers' nearest ground frame triangle
         float wornFlameClearance = 0.0f;    // ... worn frame triangle
         float wornScale = 0.0f;
         std::array<float, 3> pelvis{};      // the pelvis bone's origin (character space)
@@ -465,8 +524,8 @@ namespace GreyBuild
     [[nodiscard]] LanternBuildResult BuildLantern(const std::vector<std::filesystem::path>& a_inputs,
         const std::filesystem::path& a_dataDir);
 
-    /// The checks the build and the self-test run on the written outputs: frame shape and texture path, the fire strips in
-    /// both models (palette, refraction, clearance), the smoke's addon node, every worn shape skinned to exactly kLanternBone
+    /// The checks the build and the self-test run on the written outputs: frame shape and texture path, the flame layers in
+    /// both models (shader flags, blend, base alpha, palette, vertex alpha, controllers, base height, clearance), the smoke's addon node, every worn shape skinned to exactly kLanternBone
     /// with weight 1 and body part kLanternBodyPart, the ring's height, the clearances, the BSXFlags. Empty = it holds.
     /// a_inputs: the sources, for what must match them (texture size and mips, darker; the kept normal map).
     [[nodiscard]] std::vector<std::string> VerifyLantern(const std::vector<std::filesystem::path>& a_inputs,

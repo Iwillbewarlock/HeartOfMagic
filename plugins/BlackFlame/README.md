@@ -263,18 +263,25 @@ blackflame-greybuild --inspect-lantern <file.nif> [...]   (that read-back for an
 assets\atronachflame.nif` (Skyrim - Meshes0.bsa), `textures\clutter\common\lampgeneric01.dds` (Skyrim - Textures3.bsa),
 and `malebody_1.nif` / `femalebody_1.nif` from the same folder as the skeleton (Skyrim - Meshes0.bsa; required: the worn
 model is placed on both bodies and checked against them). Extract them from the game's own BSAs, not a replacer. The fire
-in both models (round 6, back from round 5's will-o'-the-wisp) is one connected piece of each of the Flame Atronach's fire
-strips `FireStrip08` and `FireStripWarp` with their shader controllers, scaled to half the cage (round 4's fill) and stood
-on the cage axis with `FireStrip08`'s base a third of the frame's height above its bottom (z 10.58 of 31.74 on the ground
-model), so it rises inside the cage; the build and the read-back keep every strip vertex at least 0.5 off the frame's
-triangles (read 2.94 on the ground, 1.85 worn). Its colour is the black flame's by GreyEffects' palette rule:
-`FireStrip08` blends normally (alpha 0x10ED), so it takes `GradBlackFlame.dds`, whose dark band paints the dark parts of
-the flame itself (an additive strip would take `GradBlackFlameAdd.dds`); `FireStripWarp` is a lighting-shader refraction
-strip without colour (strength lowered to 0.05). No dark marble layer is added: the casting-art copies' dark companion
-(`AddHandMarble`) is for additive palette particle systems, which cannot paint dark, and the strips are neither. The ground
-model carries the strips itself and BSXFlags gets the Animated bit (0xC3); it no longer names an addon node, because the
-grey copy behind ADDN 0x804 (`mps\mpsfiresmall01.nif`) is three additive particle systems on `GradBlackFlame.dds`
-without that dark layer. The worn model (round 6, user: nothing lies on the body, so it cannot clip with what the wearer
+(round 7: round 6's two cut atronach strips, about 20 vertices each, did not show in game) is the same in the ground
+model, the worn model and the inventory: two closed spindles the builder makes on the cage axis (lathe shapes, 12
+segments round, 6 rings, open at the bottom, seen from every side). `HoMBF_FlameOuter` is 0.40 x the frame's height tall
+and 0.55 x the smaller cage wall size wide, its base a third of the frame's height above its bottom (z 10.58 to 23.27 of
+31.74 on the ground model, radius 4.77); `HoMBF_FlameCore` is 0.65 x as tall and 0.45 x as wide, its base 0.05 x the
+outer height higher. Vertex alpha runs 0.5 at the bottom ring, 1 at the widest, 0 at the tip. Each layer takes a copy of
+the Flame Atronach's `FireStrip08` effect shader with its UV scroll controller (the atronach NIF is read for nothing else)
+with Greyscale_To_PaletteColor, Vertex_Alpha, Double_Sided and Vertex_Colors on and Greyscale_To_PaletteAlpha,
+Use_Falloff and the atronach body's Decal and Dynamic_Decal bits off: with palette alpha on, Community Shaders (as
+vanilla) takes the alpha from `palette.a(u = texture alpha, v = accumulated alpha)`, and our palettes' 64 rows are all
+alike, so vertex and base alpha would do nothing; with it off the opacity is texture alpha x vertex alpha x base alpha.
+`HoMBF_FlameOuter` blends normally (alpha 0x10ED, base alpha 1), so GreyEffects gives it `GradBlackFlame.dds`, whose
+dark band paints the dark parts of the flame; `HoMBF_FlameCore` is additive (0x100D, base alpha 1) and takes
+`GradBlackFlameAdd.dds`. The build and the read-back keep every flame vertex at least 0.5 off the frame's triangles
+(read 3.35 on the ground, 2.11 worn). No dark marble layer is added: the casting-art copies' dark companion
+(`AddHandMarble`) is for additive palette particle systems, and the outer layer paints dark itself. The ground model
+carries the layers itself and BSXFlags gets the Animated bit (0xC3); it no longer names an addon node, because the grey
+copy behind ADDN 0x804 (`mps\mpsfiresmall01.nif`) is three additive particle systems on `GradBlackFlame.dds` without
+that dark layer. The worn model (round 6, user: nothing lies on the body, so it cannot clip with what the wearer
 has on) is an iron ring and the lantern only, every shape on NPC Pelvis [Pelv] (body part 60): the builder measures the
 belt band's top on each body's underwear shape (`MaleUnderwear_1`, `FemaleUnderwear`) and puts the ring's centre at the
 highest of them (z 77.15, the male band), 3 forward of the pelvis, starting with its inner side 0.3 off the hip's outermost point; the lantern (0.8

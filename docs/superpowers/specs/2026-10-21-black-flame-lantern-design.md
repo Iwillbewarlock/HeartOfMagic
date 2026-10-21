@@ -184,16 +184,26 @@ reason gets `lantern` when the 0x810 effect is the one found (review R3).
 ## 6. Meshes and text
 
 - `lantern_gnd.nif`: `candlelantern01.nif` frame (one BSTriShape, collision kept); diffuse swapped to a darkened copy
-  of `LampGeneric01.dds` made by a script (normal map kept); a child `NiNode` `AddOnNode9100` (grey ADDN 0x804
-  `MPSFireSmall01`) at the cage centre.
+  of `LampGeneric01.dds` made by a script (normal map kept); the same two flame layers as the worn model (below) in the
+  cage, BSXFlags Animated for their controllers. No addon node (round 6: the grey ADDN 0x804 `MPSFireSmall01` copy is
+  all additive, without the dark layer).
 - `lantern_worn.nif`: the frame skinned 100% to `NPC Pelvis [Pelv]` with a `BSDismemberSkinInstance` partition 60 at
   the left hip, built by a new `blackflame-greybuild` step with nifly. The flame (review R9, checked 2026-10-21): no
   worn armor in the load order carries particles or an addon node (the 8 worn lanterns found - Armors of the Velothi,
   evgnn SMP backpacks - are skinned shapes with a glow map), and the vanilla Flame Atronach body
   (`Actors/AtronachFlame/Character Assets/AtronachFlame.nif`) puts its fire on the body as skinned
   `BSEffectShaderProperty` strips (`FireStrip08`, `FireStripWarp`) with `BSEffectShaderPropertyFloatController` UV
-  scroll. So the worn flame is two such strips copied from that NIF, skinned to the pelvis inside the cage, with the
-  addon's grey palette (`GradBlackFlame.dds`) - no particles, no addon node, no DLL art object.
+  scroll. Round 7 (2026-10-21; round 6's cut strips, about 20 vertices each, did not show in game): the flame is two
+  closed spindles (lathe shapes, 12 segments, 6 rings, open at the bottom) made by the builder on the cage axis, the same
+  in the ground model, the worn model and the inventory, skinned to the pelvis in the worn one - `HoMBF_FlameOuter`
+  0.40 x the frame's height tall and 0.55 x the smaller cage wall size wide, its base a third of the frame's height up,
+  and `HoMBF_FlameCore` 0.65 x as tall and 0.45 x as wide, 0.05 x the outer height above the outer base; vertex alpha
+  0.5 at the bottom ring, 1 at the widest, 0 at the tip. Each takes a copy of `FireStrip08`'s effect shader and its UV
+  scroll controller (the atronach NIF is read for nothing else; `FireStripWarp` is dropped) with Greyscale_To_PaletteAlpha,
+  Use_Falloff and the Decal bits cleared and Greyscale_To_PaletteColor, Vertex_Alpha, Double_Sided and Vertex_Colors on:
+  with palette alpha on, the opacity is the palette's alpha alone and our palettes' 64 rows are alike, so vertex and base
+  alpha did nothing. The outer layer blends normally (0x10ED, base alpha 1.0) on `GradBlackFlame.dds`, the core
+  additively (0x100D, base alpha 1) on `GradBlackFlameAdd.dds` - no particles, no addon node, no DLL art object.
 - Buff name (user 2026-10-21): MGEF 0x802, SPEL 0x803 and MGEF 0x810 are named "갈망" in the ESP (English "Longing");
   "흑염 달구기" is retired.
 - Text: `plugins/BlackFlame/docs/lantern-text.md` (Gemini Argon draft from the fact sheet, checked line by line).
