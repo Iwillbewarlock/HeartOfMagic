@@ -9,14 +9,14 @@
 // So the objects are created at run time: TESCellFullyLoadedEvent for cell 01F358 (Skyrim.esm), and the player's cell
 // after a game load (checked on the tick until the lab's 3D is there, 10 s at most), queue a game-thread task. While
 // HoMBF_LanternPlaced (GLOB 0x816) is 0 and the lab ref 0C0090 passes its checks, the three refs are created at their
-// final position (lab position + config offset turned by the lab's z angle, forcePersist), the tick waits for the
-// lantern's and the journal's 3D (10 s at most, else everything made is deleted and the next load of the cell tries
-// again; a ref the player already carries is never deleted), keyframes them and sets the global to 1. Each later load of
-// the cell keyframes them again (the motion type is not known to survive a save): only a lantern or journal within 64
-// units of its configured place, once its 3D is there (10 s at most). Picking the lantern up (TESContainerChangedEvent
-// from the world to the player) sets the global to 1 at once (no second lantern later), ends a placement still waiting,
-// and disables the smoke in the player's cell. Off without the lantern records, with lanternPlace false, or without the
-// main-thread queue (DisableEngineWrites).
+// final position (lab position + config offset turned by the lab's z angle, forcePersist) and the global becomes 1 in the
+// same task: the placement is done at creation (a part-way failure keeps what was made and still sets it; only when
+// nothing was made does it stay 0). The keyframe is best effort: the made lantern and journal, and at each later load of
+// the cell the lantern or journal of ours (base object, not disabled, in the cell, within 64 units of its configured
+// place), are keyframed through TESObjectREFR::SetMotionType once their 3D is there (10 s at most); a failure only logs.
+// Picking the lantern up (TESContainerChangedEvent from the world to the player) disables the smoke in the player's cell
+// (and sets the global, which matters only for a console AddItem before any visit). Off without the lantern records,
+// with lanternPlace false, or without the main-thread queue (DisableEngineWrites).
 
 namespace BlackFlame
 {
@@ -26,7 +26,7 @@ namespace BlackFlame
     /// kPostLoadGame: arms the check of the player's cell on the next ticks
     void OnLanternGameLoaded();
 
-    /// Ticker task: the placed refs waiting for their 3D, the post-load check
+    /// Ticker task: the refs waiting for their 3D to be keyframed, the post-load check
     void TickLanternPlace();
 
     /// Any thread: something waits on the tick (the ticker then stays at 100 ms)

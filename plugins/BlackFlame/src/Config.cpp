@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -341,13 +342,15 @@ namespace BlackFlame
             std::array<float, N> values{};
             for (std::size_t i = 0; i < N; ++i) {
                 const auto& v = (*it)[i];
-                const float limit = i == kYawIndex ? kMaxLanternYaw : kMaxLanternOffset;
-                if (!v.is_number() || !(v.get<float>() >= -limit && v.get<float>() <= limit)) {
+                // Review 2 R5: checked as a double, then narrowed (a value past the float range never reaches the cast)
+                const double limit = i == kYawIndex ? kMaxLanternYaw : kMaxLanternOffset;
+                const double value = v.is_number() ? v.get<double>() : std::nan("");
+                if (!(value >= -limit && value <= limit)) {
                     keep(i == kYawIndex ? "has a yaw that is not a number in -360..360 degrees" :
                                           "has a value that is not a number in -1000..1000 game units");
                     return;
                 }
-                values[i] = v.get<float>();
+                values[i] = static_cast<float>(value);
             }
             a_out = values;
         }

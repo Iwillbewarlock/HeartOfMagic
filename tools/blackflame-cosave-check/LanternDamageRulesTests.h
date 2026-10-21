@@ -78,9 +78,14 @@ namespace LanternDamageRulesTests
     template <class Check>
     void RunRate(Check&& a_check)
     {
+        // Config.h initialises lanternBurnPct, lanternBurnFlat and lanternReapply from Settings{} (review 2 I2: one source),
+        // so these are the defaults the DLL uses; burnSeconds is replaced at kDataLoaded by the ESP's effect duration
         const L::Settings s;
         a_check(s.burnPct == 0.02 && s.burnFlat == 20.0 && s.reapplySeconds == 0.1 && s.burnSeconds == 2.0,
-            "lantern: defaults 2% + 20 over 2 s, re-apply 0.1 s");
+            "lantern: defaults (Config.h takes them from Settings) 2% + 20 over 2 s, re-apply 0.1 s");
+        a_check(s.reapplySeconds >= 0.02 && s.reapplySeconds <= L::kMaxReapplySeconds && s.burnPct >= 0.0 && s.burnPct <= 1.0 &&
+                    s.burnFlat >= 0.0 && s.burnFlat <= 10000.0,
+            "lantern: the defaults are inside the ranges Config.cpp accepts for the json keys");
         const double r100 = L::RateFor(100.0, s.burnPct, s.burnFlat, s.burnSeconds);
         const double r1000 = L::RateFor(1000.0, s.burnPct, s.burnFlat, s.burnSeconds);
         a_check(Near(r100, 11.0) && Near(r100 * s.burnSeconds, 22.0),

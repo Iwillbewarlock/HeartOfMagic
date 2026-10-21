@@ -99,24 +99,43 @@ override `Ansilvund02` (lighting template, music, water, image space). So the DL
 4. Create the lantern, journal and smoke with `TESDataHandler::CreateReferenceAtLocation` (forcePersist) at the final
    position: lab position + config offset rotated by the lab's z angle; angle = lab angle + config yaw (review R2:
    placing at the lab origin and moving later lets Havok throw the object out of the lab mesh).
-5. Wait for 3D (on the tick, like `TickHitArt`), then `SetMotionType(kKeyframed)` on the lantern and journal; when
-   both succeed, set the global to 1. A ref whose 3D does not come within 10 s: log it, delete what was made, retry on
-   the next cell load.
-6. Every later load of the cell: find the placed lantern/journal by base object in the cell, standing in it (not
-   disabled, deleted or carried) and within 64 units of its configured place next to the lab (review 1 code R4: only the
-   refs this addon placed, not one the player dropped elsewhere), and set keyframed again once its 3D is there (the same
-   tick retry, 10 s at most); the motion type is not known to survive a save (review R1).
+5. Done at creation (coordinator decision 2026-10-21, review 2): as soon as the three `CreateReferenceAtLocation`
+   calls have returned, in the same task, `HoMBF_LanternPlaced` becomes 1 and the `ok` line is written. Nothing that
+   happens later (3D, Havok, a save) can undo it, so no later load places a second lantern and no leftover ever has
+   to be removed or deleted (the old leftover removal and the 10 s delete-on-timeout are gone, and with them review 2
+   B1, R2, R3). A creation that fails part-way (one or two of the three refs null): the `partial` warning names which,
+   what was made is kept, and the global is still set to 1 - a retry could double the refs that were made, and a
+   second lantern is the worse outcome (a missing journal or smoke is only cosmetic; a missing lantern means that save
+   gets none). Only when none of the three was made does the global stay 0 (nothing exists that a retry could double).
+6. Keyframe, best effort (a failure only logs): the lantern and the journal are set keyframed through
+   `TESObjectREFR::SetMotionType(kKeyframed)` (CommonLib: it calls the node's `SetMotionType(type, true, false, true)`
+   and adds the `kHavokMoved` change flag, so the state is saved with the ref; review 2 I1), once the ref's 3D is there
+   (on the tick, 10 s window from the last ref queued). A false result is tried again on the next ticks inside the window
+   (the Havok body can come a tick after the 3D root) and its last value is logged as is. Which refs: right after
+   creation, the handles just made (not a scan of the cell: whether a new ref is in the cell's reference list when
+   `CreateReferenceAtLocation` returns is not known); at every later load of the cell (global 1), each lantern or journal
+   in the cell with our base object, not disabled, parent cell 01F358 and within 64 units of its configured place next to
+   lab 0C0090 (review 1 code R4: only the refs this addon placed, not one the player dropped elsewhere). Each candidate
+   gets one `candidate` line (first-run diagnostics). A handle is queued once even when the post-load check and the
+   cell event both fire for the same load (review 2 R4).
 7. Pickup: `TESContainerChangedEvent` (old container 0, new container the player, base `HoMBF_Lantern`) queues a task
-   that sets `HoMBF_LanternPlaced` to 1 (review 1 code R3: a pickup before the placement finished must not leave the
-   global 0, or the next load places a second lantern), ends a placement still waiting (its journal is keyframed on the
-   tick), and disables every `HoMBF_LanternSmoke` ref in the player's cell. A console `AddItem` also passes: the global
-   then becomes 1 without a visit, so that save never gets the placed lantern - it already has one. The leftover
-   removal of step 3's retry and the 10 s give-up delete only refs standing in the cell (never one the player carries).
+   that disables every `HoMBF_LanternSmoke` ref in the player's cell. It also sets `HoMBF_LanternPlaced` to 1: for a
+   placed lantern the global is already 1; the line only matters for a lantern from a console `AddItem` before any
+   visit, which then never gets the placed one - it already has one.
 
-Log lines (exact prefixes): `lantern place: ok lantern=<id> journal=<id> smoke=<id> at (x,y,z) lab=(x,y,z)`,
-`lantern place: skipped (<reason>)`, `lantern place: keyframed <id> ok|failed` (at placement after the ok line),
+Log lines (exact prefixes, every `lantern place` line `LanternPlace.cpp` writes):
+`lantern place on (cell <id>, lab ref <id> of <plugin>)` and `lantern place off (<reason>)` (kDataLoaded),
+`lantern place: ok lantern=<id> journal=<id> smoke=<id> at (x,y,z) lab=(x,y,z)` (all three made, global set to 1),
+`lantern place: partial lantern=<id> journal=<id> smoke=<id> at (x,y,z) lab=(x,y,z) (could not create the <names>; ...)`
+(warning, a null ref shows as 00000000, global set to 1),
+`lantern place: skipped (<reason>)` (a lab check failed, or none of the three could be created; global stays 0),
+`lantern place: candidate <id> base=<id> disabled=<b> cell=<id> has3D=<b> dist=<d>` (each ref looked at for a keyframe,
+`dist` from its configured place),
+`lantern place: keyframed <id> ok|failed` (the `SetMotionType` result as is),
+`lantern place: keyframed <id> failed (no 3D within 10 s)`,
+`lantern place: keyframe again skipped (lab ref 0C0090 not found|not in cell 01F358)` (a later load),
 `lantern place: nothing of ours to keyframe again (...)` (a later load found none within 64 units),
-`lantern place: the lantern was picked up before its placement finished ...` (step 7), `lantern smoke: disabled <n>`.
+`lantern place: a task ran off the main thread - nothing placed or changed` (once), `lantern smoke: disabled <n>`.
 
 Limit: an existing save that already visited Ansilvund02 gets the lantern on the next visit (the cell must reload).
 
@@ -143,7 +162,8 @@ FormID work and a mutex-guarded re-apply check happen; everything that reads the
    tgt=<id> t=<ms>` for every accepted event that burns - written by the task after its checks, just before the cast
    (review 1 item 7b: a hit with only the console stoke spell, a dead target or a non-actor passes the sink but must not
    count as a lantern hit; `t` is still the sink's time), and `lantern hit: rejected src=<id> type=<t> (<why>)` once per
-   source id; `lantern burn: tgt=<id> max=<m> rate=<r>/s for <s> s effects=<n> magnitude=<x> difficulty=<d>`, where `n` is
+   source id, written whatever `lanternLog` says (review 2 I4: one line per source id for the session, cheap, and the
+   only record of why a hit did not burn); `lantern burn: tgt=<id> max=<m> rate=<r>/s for <s> s effects=<n> magnitude=<x> difficulty=<d>`, where `n` is
    the number of active 0x813 effects on the target after the cast (expected 1) and `magnitude` is that effect's
    magnitude as the engine stored it (expected = rate: a resistance or a magnitude perk would show as a smaller or
    larger number - this replaces the old before/after health read, which a damage over time cannot use); a

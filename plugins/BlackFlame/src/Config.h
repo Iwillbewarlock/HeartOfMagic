@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Common.h"
+#include "LanternDamageRules.h"
 
 #include <array>
 #include <string>
@@ -92,10 +93,12 @@ namespace BlackFlame
         bool lanternLog = true;      // a line per burning hit, per burn cast and per kill while burning (not rate-limited)
         // The black flame (design v3): each fire hit burns the target for the burn spell's duration (2 s) with max health x
         // lanternBurnPct + lanternBurnFlat in all; a hit while it burns restarts it, so a stream of hits deals at most that
-        // per duration
-        double lanternBurnPct = 0.02;     // share of the target's max health per burn (0..1)
-        double lanternBurnFlat = 20.0;    // health per burn on top (0..10000)
-        double lanternReapply = 0.1;      // seconds between two casts on one target (0.02..LanternRules::kMaxReapplySeconds)
+        // per duration. The defaults are LanternRules::Settings' (one source; review 2 I2: tools/blackflame-cosave-check
+        // tests those values)
+        double lanternBurnPct = LanternRules::Settings{}.burnPct;          // share of the target's max health per burn (0..1)
+        double lanternBurnFlat = LanternRules::Settings{}.burnFlat;        // health per burn on top (0..10000)
+        double lanternReapply = LanternRules::Settings{}.reapplySeconds;  // seconds between two casts on one target
+                                                                           // (0.02..LanternRules::kMaxReapplySeconds)
         std::array<float, 4> lanternOffset{ -25.0f, 0.0f, 75.0f, 0.0f };
         std::array<float, 4> journalOffset{ 25.0f, 0.0f, 75.0f, 90.0f };
         std::array<float, 3> smokeOffset{ -25.0f, 0.0f, 87.0f };

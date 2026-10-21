@@ -443,13 +443,13 @@ player's, the flame and the damage are player-only).
 
 Placement (`LanternPlace.h`): no CELL record (13 plugins override Ansilvund02 in TAKEALOOK). When cell 01F358 finishes
 loading, or after a game load in it, and the global is 0, the lantern, the journal and the smoke are created at the alchemy
-lab ref 0C0090 (lab position + the config offset turned by the lab's z angle), the lantern and the journal are keyframed
-once their 3D is there (10 s at most, else everything made is deleted and the next load of the cell tries again), and the
-global becomes 1. Refs of ours left in the cell while the global is 0 (a save inside those 10 s) are removed first, only
-those standing in the cell (not disabled, deleted or carried). Every later load of the cell keyframes them again: only a
-lantern or journal within 64 units of its configured place (not one the player dropped elsewhere), once its 3D is there
-(10 s at most). Picking the lantern up sets the global to 1 at once (no second lantern on a later load, even when the
-placement had not finished) and disables the smoke in the player's cell. A save that
+lab ref 0C0090 (lab position + the config offset turned by the lab's z angle) and the global becomes 1 at once: the
+placement is done when the refs are made, so no save or later load can make a second lantern. If one or two of the three
+could not be made, what was made is kept and the global is still 1 (`partial` warning); only when none was made does it
+stay 0. Keyframing is best effort (a failure only logs): the made lantern and journal, and at every later load of the cell
+the lantern or journal of ours (not disabled, in the cell, within 64 units of its configured place, so not one the player
+dropped elsewhere), are keyframed through `TESObjectREFR::SetMotionType` (which marks the ref's Havok state for the save)
+once their 3D is there (10 s at most). Picking the lantern up disables the smoke in the player's cell. A save that
 already visited Ansilvund02 gets the lantern at its next visit. The offset's turn assumes the z angle runs clockwise seen
 from above (forward = (sin a, cos a)); not checked in game, the ok line's two coordinates settle it.
 
@@ -457,15 +457,19 @@ Log lines (`HeartOfMagic_BlackFlame.log`, all prefixed `BlackFlame: `):
 
 | Line | When |
 |---|---|
-| `lantern place: ok lantern=<id> journal=<id> smoke=<id> at (x,y,z) lab=(x,y,z)` | placed and keyframed (`at` is the lantern); the two `keyframed ... ok` lines follow |
-| `lantern place: skipped (<reason>)` | a lab check failed, a ref could not be created, or no 3D within 10 s |
-| `lantern place: keyframed <id> ok\|failed` | each keyframe, at placement (after the ok line) and at each later load |
+| `lantern place on (cell <id>, lab ref <id> of <plugin>)` / `lantern place off (<reason>)` | at kDataLoaded |
+| `lantern place: ok lantern=<id> journal=<id> smoke=<id> at (x,y,z) lab=(x,y,z)` | all three made, global set to 1 (`at` is the lantern); the keyframe lines follow |
+| `lantern place: partial lantern=<id> journal=<id> smoke=<id> at (x,y,z) lab=(x,y,z) (could not create the <names>; ...)` | warning: one or two refs not made (shown as 00000000), the rest kept, global set to 1 |
+| `lantern place: skipped (<reason>)` | a lab check failed, or none of the three refs could be created (global stays 0) |
+| `lantern place: candidate <id> base=<id> disabled=<b> cell=<id> has3D=<b> dist=<d>` | each lantern or journal looked at for a keyframe (`dist` from its configured place) |
+| `lantern place: keyframed <id> ok\|failed` | each keyframe (the `SetMotionType` result as is), after creation and at each later load; `failed (no 3D within 10 s)` when the 3D never came |
+| `lantern place: keyframe again skipped (lab ref 0C0090 <why>)` | a later load without the lab ref in the cell |
 | `lantern place: nothing of ours to keyframe again (...)` | a later load found no lantern or journal within 64 units of its place |
-| `lantern place: the lantern was picked up before its placement finished ...` | the pickup ended a waiting placement (global 1) |
+| `lantern place: a task ran off the main thread - nothing placed or changed` | once, if a task ran off the game thread |
 | `lantern smoke: disabled <n>` | the lantern picked up |
 | `lantern burn spell <id>: effect duration <s> s` | at load: the burn's length the rate is divided by |
 | `lantern hit: src=<id> proj=<id> tgt=<id> t=<ms>` | a hit that burns: written by the task after its checks (actor, alive, the lantern worn), so a hit with only the console stoke spell is not counted (`t`: the hit event's time from kDataLoaded) |
-| `lantern hit: rejected src=<id> type=<casting type\|none> (<why>)` | once per source id: own spell, not a spell, cloak, not a fire spell |
+| `lantern hit: rejected src=<id> type=<casting type\|none> (<why>)` | once per source id, written whatever `lanternLog` says: own spell, not a spell, cloak, not a fire spell |
 | `lantern burn: tgt=<id> max=<m> rate=<r>/s for <s> s effects=<n> magnitude=<x> difficulty=<d>` | each cast: `n` the burn effects active on the target after it (expected 1), `x` the newest one's magnitude as the engine stored it (expected = rate) |
 | `lantern kill: tgt=<id> killer=<id>` | a death while burning (within the burn's 2 s + 1 s after the last cast) |
 | `lantern cost: <spell id> <cost>` | at each buff flag change, every fire spell the player knows |
