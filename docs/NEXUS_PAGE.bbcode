@@ -244,17 +244,56 @@ The full list of changes is in the Changelog.
 One light plugin (HeartOfMagic.esp, ESL-flagged, one record, Skyrim.esm as its only master); no Python, no API key. Safe to add to an existing save.
 
 [b]Works with[/b]
+
+[u]Spell mods and languages[/u]
 [list]
-[*][b]Any spell mod.[/b] Nothing is hard-coded per mod; the tree and the tags come from what is installed. Vanilla, Creation Club and mod spells all go in one tree.
-[*][b]Any game language.[/b] Grouping reads scan data and editor IDs before names, and the panel has fonts for Latin, Cyrillic, Korean, Japanese and Chinese.
-[*][b]ISL-DESTified / Don't Eat Spell Tomes, I Just Want to Sit Down and Read, Gate to Sovngarde CE (Bookworm trait)[/b] - the installer offers a merged compatibility patch (and picks it by itself when it finds ISL or DEST). Load Heart of Magic Librarian after them.
-[*][b]Keyword frameworks[/b] (ADAR, KIT, NSV, OCF) - their tagging rules switch on by themselves.
-[*][b]Spell Research[/b] - your mods' tome spells join its research lists, the same ones your tree has; no patch.
-[*][b]Perk overhauls[/b] - vanilla perks, Adamant, Mysticism, Path of Sorcery, Ascension, Paragon, Vokrii, Ordinator: modded spells get the keywords they read, with no patch.
-[*][b]Distribution mods[/b] (SPID, KID, FormList Manipulator, Base Object Swapper, SkyPatcher, CDF) - a tome they hand out counts as one you can find.
-[*][b]powerofthree's Tweaks[/b] with "Load EditorIDs" - lets the tree group spells by their editor IDs as well as their names.
-[*][b]An icon set[/b] (for example Kome's Inventory Tweaks, or Wheeler icon packs) gives the spell card its icons.
+[*][b]Any spell mod[/b] - Nothing is hard-coded per mod; the tree and the tags come from what is installed, and vanilla, Creation Club and mod spells all go in one tree.
+[*][b]Any game language[/b] - Grouping reads scan data and editor IDs before names, and the panel has fonts for Latin, Cyrillic, Korean, Japanese and Chinese.
 [/list]
+
+[u]Spell learning mods[/u]
+[list]
+[*][b]ISL-DESTified / Don't Eat Spell Tomes, I Just Want to Sit Down and Read, Gate to Sovngarde CE (Bookworm trait)[/b] - The installer offers a merged compatibility patch (and picks it by itself when it finds ISL or DEST) whose study scene also uses Improved Camera SE and True Directional Movement when they are installed; load Heart of Magic Librarian after them.
+[*][b]Spell Research[/b] - Your mods' tome spells join its research lists, the same ones your tree has, with no patch.
+[/list]
+
+[u]Perk overhauls and magic perk mods[/u]
+[list]
+[*][b]Vanilla perks[/b] - Modded spells get the vanilla keywords that vanilla perks (and any perk mod that reads them, such as Ordinator) read, in memory with no patch.
+[*][b]Adamant, Mysticism, Vokriinator Black, Paragon, Subclasses of Skyrim 2[/b] - Modded spells get their poison, sun, reanimate and other magic keywords in memory with no patch, switching on by itself when each plugin is loaded.
+[*][b]Ascension, Path of Sorcery, Vokrii[/b] - Modded spells get the keywords these mods' perks read in memory with no patch, switching on by itself when each plugin is loaded.
+[*][b]Paths of Empyrean (new in 1.6.0)[/b] - Modded spells get the Lost Grimoire poison, sun, disease and kinetic keywords and the Paths of Empyrean daedra summon keyword in memory with no patch when its plugin is loaded.
+[*][b]Atromancy, Hydromancy, Hemomancy - Blood Magic, Venomancy, Everdamned[/b] - Modded spells get their element and summon keywords (water, earth, wind, shadow, blood, poison and so on) in memory with no patch on every spell that fits, not only the spells their own patches list.
+[/list]
+
+[u]Keyword frameworks[/u]
+[list]
+[*][b]ADAR, KIT, NSV, OCF[/b] - Their tagging rules switch on by themselves.
+[*][b]Sacrilege - Minimalistic Vampires of Skyrim, Hemomancy, Everdamned[/b] - Their blood magic keywords are read as the blood element.
+[/list]
+
+[u]Environment mods (new in 1.6.0)[/u]
+[list]
+[*][b]Rain Extinguishes Fires, Water Douses Fire, Sneak Tools, DISDD, Elementally Reactive Waters, Ice is Slick, SIM[/b] - Fire, frost and shock damage effects of spell mods get the vanilla fire, frost and shock keywords on every effect that deals that damage where the spell's record says the element (not its name), all on by themselves unless you turn them all off with "environment": { "enabled": false } in config.json.
+[*][b]OIF rule packs: Dynamic Torches NG, Melt The Ice, Flammable Alcohol, Turn The Salt, Fires Off, Dynamic Fire Sconce, Burn The Hay, Burn Those Insects, Burn Those Books, Build A Campfire, Cooking with Fire, Cast and Cook, Water Conduct Electricity, Switch Them On[/b] - Fire, frost and shock damage effects of spell mods get each pack's own keywords automatically, where the spell's record says the element, not its name.
+[*][b]Dynamic Candles, Put Out The Fires[/b] - Fire and frost damage effects of spell mods get their own fire and frost keywords automatically, where the spell's record says the element, not its name.
+[*][b]Frostwalker[/b] - Cloak spells from spell mods get its frost and fire cloak keywords (by the spell's record, not its name), and Mysticism's master spells (Fire Storm, Hysteria, Harmony and others) no longer freeze water with the required HeartOfMagic.esp and the optional Mysticism patch HeartOfMagic_Mysticism.esp from the installer.
+[/list]
+
+[u]Effects, menus and icons[/u]
+[list]
+[*][b]Frozen Electrocuted Combustion (FEC)[/b] - Sun-tagged spells get FEC's sun death, air damage spells get its suffocation (where a mod defines MagicDamageWind), and scrolls and staffs that share the damage effect get the same death.
+[*][b]Risa's All In One Menu (5.4 or newer)[/b] - A button in Risa opens and closes the panel, and Heart of Magic's hotkey is turned off meanwhile.
+[*][b]powerofthree's Tweaks with "Load EditorIDs"[/b] - Lets the tree group spells by their editor IDs as well as their names.
+[*][b]An icon set (for example Kome's Inventory Tweaks, or Wheeler icon packs)[/b] - Gives the spell card its icons.
+[/list]
+
+[u]Distribution mods[/u]
+[list]
+[*][b]SPID, KID, FormList Manipulator, Base Object Swapper, SkyPatcher, CDF, Container Item Distributor[/b] - A tome they hand out counts as one you can find.
+[/list]
+
+The environment and Paths of Empyrean keywords are checked against each mod's records, but not every mod's reaction has been tried in game yet - if one does not react, tell me which.
 
 [b]Notes[/b]
 [list]
