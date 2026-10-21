@@ -13,18 +13,9 @@ namespace TomeReach
     // NAMES
     // =============================================================================
 
-    std::string LowerAscii(std::string_view text)
-    {
-        std::string out(text);
-        std::transform(out.begin(), out.end(), out.begin(), [](unsigned char c) {
-            return static_cast<char>(c < 0x80 ? std::tolower(c) : c);
-        });
-        return out;
-    }
-
     std::uint32_t NameTable::Id(std::string_view fileName)
     {
-        auto lower = LowerAscii(fileName);
+        auto lower = AsciiText::ToLower(fileName);
         if (auto it = m_ids.find(lower); it != m_ids.end()) return it->second;
         const auto id = static_cast<std::uint32_t>(m_names.size());
         const bool eslName = lower.size() > 4 && lower.ends_with(".esl");

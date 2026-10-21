@@ -3,6 +3,7 @@
 #include "Common.h"
 
 #include <filesystem>
+#include <map>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <set>
@@ -53,6 +54,39 @@ namespace Librarian
     inline constexpr double CONFIDENCE_MANUAL = 1.0;
     inline constexpr double CONFIDENCE_NONE = 0.0;
 
+    // How strong a tier is when two of them gave the same tag: the record
+    // (mgef) and a person's reading (manual) over a framework's keyword. An
+    // unknown tier from a user's file ranks below all three. Equal ranks keep
+    // the piece of evidence whose rule comes first in merge order (mgef files
+    // before manual ones).
+    inline constexpr int TIER_RANK_MGEF = 3;
+    inline constexpr int TIER_RANK_MANUAL = 2;
+    inline constexpr int TIER_RANK_FRAMEWORK = 1;
+    inline constexpr int TIER_RANK_UNKNOWN = 0;
+    // From this rank up a tier is the record itself (mgef, manual): it can
+    // contradict a framework keyword and is never contradicted. Below it
+    // (framework, a user's own tier name) evidence can be contradicted.
+    inline constexpr int TIER_RANK_RECORD = TIER_RANK_MANUAL;
+
+    [[nodiscard]] int TierRank(const std::string& tier);
+
+    // =========================================================================
+    // EVIDENCE CONFLICTS
+    // =========================================================================
+    //
+    // The elements the engine itself knows as damage, each with its own
+    // resistance (FireResist, FrostResist, ElectricResist, PoisonResist). Only
+    // these can be contradicted by a record: a damage effect resisted by one of
+    // them, or marked as unspecified magic damage, is not another of them. Water,
+    // air, earth, necrotic and the rest have no resistance of their own, so a
+    // mod's spell of theirs is resisted by ResistMagic and nothing in the record
+    // speaks against them.
+    inline constexpr std::string_view ENGINE_DAMAGE_ELEMENTS[] = {
+        "fire", "frost", "shock", "poison",
+    };
+
+    [[nodiscard]] bool IsEngineDamageElement(std::string_view element);
+
     // =========================================================================
     // TAGS
     // =========================================================================
@@ -62,10 +96,20 @@ namespace Librarian
         std::set<std::string> elements;
         std::set<std::string> techniques;
 
-        // Strongest tier that contributed to each axis, empty when the axis got
-        // no tags at all.
+        // Strongest tier behind any tag left on each axis (TierRank), after
+        // every removal and the conflict stage; empty when the axis has no tags.
+        // How portable one tag is reads from elementSources, not from this.
         std::string elementSource;
         std::string techniqueSource;
+
+        // Strongest tier behind each element, one entry per element above.
+        // (Techniques get no per-tag map: nothing reads one, and the conflict
+        // stage never touches techniques.)
+        std::map<std::string, std::string> elementSources;
+
+        // Elements the conflict stage took off: every piece of their evidence
+        // below the record tiers sat on an effect the spell's record contradicts.
+        std::vector<std::string> conflictDropped;
 
         [[nodiscard]] bool Empty() const
         {
@@ -169,6 +213,13 @@ namespace Librarian
         // Files that were read, in the order they were merged.
         std::vector<std::string> files;
 
+        // MGEF keywords that say an effect deals magic damage of no engine
+        // element (a rule file's top-level "unspecifiedDamageKeywords", merged
+        // from every file). The conflict stage reads them: on an effect that
+        // carries one, a framework keyword naming fire, frost, shock or poison
+        // is contradicted by the record.
+        std::vector<std::string> unspecifiedDamageKeywords;
+
         // Rules skipped because they had no conditions or added no tags.
         std::size_t skipped = 0;
 
@@ -197,7 +248,15 @@ namespace Librarian
     // for callers that keep rules somewhere other than a directory.
     void AppendRules(const json& document, const std::string& originFile, RuleSet& target);
 
-    // Tags one spell object from the scan dump.
+    // Tags one spell object from the scan dump: every rule adds, then every
+    // "remove" takes off, then the conflict stage takes away each piece of
+    // evidence below the record tiers for an engine damage element whose
+    // effect the record contradicts (that effect carries an
+    // unspecifiedDamageKeywords mark, or mgef/manual rules gave that same
+    // effect a different engine damage element; a cloak-like carrier that
+    // deals no damage is judged by the damage it applies) and drops the
+    // element when no evidence is left, then the noElement rules run (a tag
+    // a "remove" took stays off). Sources are settled last, over the tags left.
     TagSet Classify(const json& spell, const RuleSet& rules);
 
     // Whether one effect satisfies a rule's effect level conditions. Exposed
@@ -239,6 +298,8 @@ namespace Librarian
         std::size_t spells = 0;      // entries written
         std::size_t tagged = 0;      // entries with at least one tag
         std::size_t skipped = 0;     // scan entries with no persistentId to key on
+        std::size_t conflictSpells = 0;   // entries the conflict stage changed
+        std::map<std::string, std::size_t> conflictDropped;  // element -> entries that lost it
     };
 
     // Classifies every spell in a parsed scan dump. Pure: no file access, so

@@ -1,4 +1,5 @@
 #include "PapyrusAPI.h"
+#include "FormIdText.h"
 #include "uimanager/UIManager.h"
 #include "ProgressionManager.h"
 #include "SpellScanner.h"
@@ -37,11 +38,6 @@ namespace PapyrusAPI
     auto Ask(const char* name, F&& work)
     {
         return RunOnGameThreadAndWait(name, std::forward<F>(work), kPapyrusWait);
-    }
-
-    static std::string FormIdString(RE::FormID formId)
-    {
-        return std::format("0x{:08X}", formId);
     }
 
     // =========================================================================
@@ -275,7 +271,7 @@ namespace PapyrusAPI
         AddTaskToGameThread("Papyrus.SetLearningTarget", [spell]() {
             logger::info("PapyrusAPI: SetLearningTarget({:08X})", spell->GetFormID());
             // Use the tome-reading path which auto-determines school
-            ProgressionManager::GetSingleton()->SetLearningTargetFromTome(FormIdString(spell->GetFormID()), spell);
+            ProgressionManager::GetSingleton()->SetLearningTargetFromTome(FormIdText::Format(spell->GetFormID()), spell);
         });
     }
 

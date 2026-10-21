@@ -184,6 +184,11 @@ var EditMode = {
         // Clear undo stack on fresh activation
         this.undoStack = [];
 
+        // The open card shows its edit controls (prerequisite lists, locks, effects) at once (spellCardNeeds.js)
+        if (state.selectedNode && typeof showSpellDetails === 'function') {
+            showSpellDetails(state.selectedNode);
+        }
+
         console.log('[EditMode] Activated');
     },
 

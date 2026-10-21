@@ -36,17 +36,18 @@ void UIManager::OnSetLearningTarget(const char* argument)
                 return;
             }
 
-            // Parse formId (handle 0x prefix)
-            RE::FormID formId = std::stoul(formIdStr, nullptr, 0);
+            const auto parsedId = ParsePanelFormId(formIdStr, "SetLearningTarget");
+            if (!parsedId) return;
+            const RE::FormID formId = *parsedId;
 
-            // Parse prerequisites array if provided
+            // Parse prerequisites array if provided; one that is not a formId is skipped
             std::vector<RE::FormID> prereqs;
             if (request.contains("prerequisites") && request["prerequisites"].is_array()) {
                 for (const auto& prereqJson : request["prerequisites"]) {
                     std::string prereqStr = prereqJson.get<std::string>();
-                    RE::FormID prereqId = std::stoul(prereqStr, nullptr, 0);
-                    if (prereqId != 0) {
-                        prereqs.push_back(prereqId);
+                    const auto prereqId = ParsePanelFormId(prereqStr, "SetLearningTarget prerequisite");
+                    if (prereqId && *prereqId != 0) {
+                        prereqs.push_back(*prereqId);
                     }
                 }
                 logger::info("UIManager: Received {} direct prerequisites for {:08X}", prereqs.size(), formId);
@@ -100,7 +101,9 @@ void UIManager::OnClearLearningTarget(const char* argument)
             // The spell the panel means: cleared under whatever key holds it (the
             // panel's school key and the plugin's could differ in a save from before)
             const std::string formIdStr = request.value("formId", "");
-            const RE::FormID spellId = formIdStr.empty() ? 0 : static_cast<RE::FormID>(std::stoul(formIdStr, nullptr, 0));
+            const auto parsedId = formIdStr.empty() ? std::optional<RE::FormID>(0) : ParsePanelFormId(formIdStr, "ClearLearningTarget");
+            if (!parsedId) return;
+            const RE::FormID spellId = *parsedId;
 
             if (!school.empty()) {
                 // Get the current learning target formId BEFORE clearing
@@ -110,10 +113,9 @@ void UIManager::OnClearLearningTarget(const char* argument)
 
                 // Update UI to show spell is no longer in learning state
                 if (targetId != 0) {
-                    std::stringstream ss;
-                    ss << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << targetId;
-                    instance->UpdateSpellState(ss.str(), "available");
-                    logger::info("UIManager: Cleared learning target {} - set to available", ss.str());
+                    const auto targetText = FormIdText::Format(targetId);
+                    instance->UpdateSpellState(targetText, "available");
+                    logger::info("UIManager: Cleared learning target {} - set to available", targetText);
                 }
             }
             if (spellId != 0) {
@@ -149,7 +151,9 @@ void UIManager::OnUnlockSpell(const char* argument)
                 return;
             }
 
-            RE::FormID formId = std::stoul(formIdStr, nullptr, 0);
+            const auto parsedId = ParsePanelFormId(formIdStr, "UnlockSpell");
+            if (!parsedId) return;
+            const RE::FormID formId = *parsedId;
 
             bool success = ProgressionManager::GetSingleton()->UnlockSpell(formId);
 
@@ -246,7 +250,7 @@ void UIManager::OnGetPlayerKnownSpells([[maybe_unused]] const char* argument)
                 return;
             }
             foundSpells.insert(spell->GetFormID());
-            std::string formIdStr = std::format("0x{:08X}", spell->GetFormID());
+            std::string formIdStr = FormIdText::Format(spell->GetFormID());
 
             // Check if this spell is weakened (early-learned)
             const bool weakened = effectivenessHook && effectivenessHook->IsEarlyLearnedSpell(spell->GetFormID());
@@ -307,7 +311,9 @@ void UIManager::OnCheatUnlockSpell(const char* argument)
                 return;
             }
 
-            RE::FormID formId = std::stoul(formIdStr, nullptr, 0);
+            const auto parsedId = ParsePanelFormId(formIdStr, "CheatUnlockSpell");
+            if (!parsedId) return;
+            const RE::FormID formId = *parsedId;
 
             // Get player and spell
             auto* player = RE::PlayerCharacter::GetSingleton();
@@ -356,7 +362,9 @@ void UIManager::OnRelockSpell(const char* argument)
                 return;
             }
 
-            RE::FormID formId = std::stoul(formIdStr, nullptr, 0);
+            const auto parsedId = ParsePanelFormId(formIdStr, "RelockSpell");
+            if (!parsedId) return;
+            const RE::FormID formId = *parsedId;
 
             // Get player and spell
             auto* player = RE::PlayerCharacter::GetSingleton();
@@ -376,9 +384,7 @@ void UIManager::OnRelockSpell(const char* argument)
 
             // Notify UI that spell was relocked
             json notify;
-            std::stringstream ss;
-            ss << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << formId;
-            notify["formId"] = ss.str();
+            notify["formId"] = FormIdText::Format(formId);
             notify["success"] = true;
             notify["relocked"] = true;
 
@@ -412,7 +418,9 @@ void UIManager::OnSetSpellXP(const char* argument)
                 return;
             }
 
-            RE::FormID formId = std::stoul(formIdStr, nullptr, 0);
+            const auto parsedId = ParsePanelFormId(formIdStr, "SetSpellXP");
+            if (!parsedId) return;
+            const RE::FormID formId = *parsedId;
             if (formId == 0) {
                 logger::warn("UIManager: SetSpellXP - formId resolved to 0 for '{}', ignoring", formIdStr);
                 return;
@@ -441,7 +449,9 @@ void UIManager::OnSetRequiredXP(const char* argument)
             json request = json::parse(argStr);
             std::string formIdStr = request.value("formId", "");
             float requiredXP = request.value("requiredXP", 0.0f);
-            RE::FormID formId = formIdStr.empty() ? 0 : std::stoul(formIdStr, nullptr, 0);
+            const auto parsedId = formIdStr.empty() ? std::optional<RE::FormID>(0) : ParsePanelFormId(formIdStr, "SetRequiredXP");
+            if (!parsedId) return;
+            const RE::FormID formId = *parsedId;
             if (formId == 0 || requiredXP <= 0.0f) return;
             ProgressionManager::GetSingleton()->SetRequiredXP(formId, requiredXP);
             GetSingleton()->NotifyProgressUpdate(formIdStr);
@@ -496,21 +506,15 @@ void UIManager::OnSetTreePrerequisites(const char* argument)
                 std::string formIdStr = entry.value("formId", "");
                 if (formIdStr.empty()) continue;
 
-                RE::FormID formId = 0;
-                try {
-                    // The whole text must be the id: stoul stops at "_dup_" (an edit mode copy,
-                    // "0x0001ABCD_dup_17...") and would give the original's formId, whose
-                    // requirements the copy's empty lists would then erase
-                    std::size_t parsed = 0;
-                    formId = std::stoul(formIdStr, &parsed, 0);
-                    if (parsed != formIdStr.size()) {
-                        logger::warn("UIManager: SetTreePrerequisites - '{}' is not a formId - skipping", formIdStr);
-                        continue;
-                    }
-                } catch (const std::exception& e) {
-                    logger::warn("UIManager: Could not parse formId '{}' ({}) - skipping", formIdStr, e.what());
+                // The whole text must be the id (FormIdText::Parse, not ParseSpellOf): an edit
+                // mode copy ("0x0001ABCD_dup_17...") is not its original, whose requirements the
+                // copy's empty lists would then erase. Its prerequisite lists below name spells.
+                const auto parsedId = FormIdText::Parse(formIdStr);
+                if (!parsedId) {
+                    logger::warn("UIManager: SetTreePrerequisites - '{}' is not a formId - skipping", formIdStr);
                     continue;
                 }
+                const RE::FormID formId = *parsedId;
 
                 if (formId == 0) {
                     logger::warn("UIManager: SetTreePrerequisites - formId resolved to 0 for '{}', skipping", formIdStr);
@@ -526,18 +530,14 @@ void UIManager::OnSetTreePrerequisites(const char* argument)
                     if (!entry.contains(key) || !entry[key].is_array()) return;
                     for (const auto& prereqStr : entry[key]) {
                         if (!prereqStr.is_string()) continue;
-                        try {
-                            RE::FormID prereqId = std::stoul(prereqStr.get<std::string>(), nullptr, 0);
-                            if (prereqId == formId) {
-                                logger::warn("UIManager: spell {:08X} listed as its own prerequisite ({}) - skipped",
-                                    formId, key);
-                                continue;
-                            }
-                            out.push_back(prereqId);
-                        } catch (const std::exception& e) {
-                            logger::warn("UIManager: Could not parse {} '{}' for spell {:08X}: {}",
-                                key, prereqStr.get<std::string>(), formId, e.what());
+                        const auto prereqId = ParsePanelFormId(prereqStr.get<std::string>(), key);
+                        if (!prereqId) continue;
+                        if (*prereqId == formId) {
+                            logger::warn("UIManager: spell {:08X} listed as its own prerequisite ({}) - skipped",
+                                formId, key);
+                            continue;
                         }
+                        out.push_back(*prereqId);
                     }
                 };
 

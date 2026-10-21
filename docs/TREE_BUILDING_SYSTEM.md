@@ -30,8 +30,8 @@ The tree building pipeline has four layers, each with a distinct responsibility:
 │  │   └─ "build_tree_classic"  → BuildClassic()  (Tier-first)           │
 │  │                                                                      │
 │  │ NLP Engine (TreeNLP):                                                │
-│  │   TF-IDF, cosine similarity, char n-grams, Levenshtein,            │
-│  │   fuzzy matching, theme scoring, PRM scoring                        │
+│  │   TF-IDF, cosine similarity, theme scoring (rapidfuzz partial        │
+│  │   and token set ratio), PRM scoring                                  │
 │  └──────────────────────────────────────────────────────────────────────┘
 └─────────────────────────────────────────────────────────────────────────┘
 ```

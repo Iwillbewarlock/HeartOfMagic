@@ -1,4 +1,6 @@
 #include "Common.h"
+#include "AsciiText.h"
+#include "FormIdText.h"
 #include "SpellScanner.h"
 #include "PathText.h"
 
@@ -50,13 +52,6 @@ namespace SpellScanner
         std::once_flag g_vampireOnce;
         std::unordered_set<RE::FormID> g_vampireSpells;
 
-        std::string Lower(std::string text)
-        {
-            std::transform(text.begin(), text.end(), text.begin(),
-                [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-            return text;
-        }
-
         std::string Trim(const std::string& text)
         {
             const auto first = text.find_first_not_of(" \t\r");
@@ -72,12 +67,12 @@ namespace SpellScanner
             if (tilde != std::string::npos) {
                 auto* dataHandler = RE::TESDataHandler::GetSingleton();
                 if (!dataHandler) return nullptr;
-                try {
-                    const auto localId = static_cast<RE::FormID>(std::stoul(reference.substr(0, tilde), nullptr, 16));
-                    return dataHandler->LookupForm<RE::SpellItem>(localId, Trim(reference.substr(tilde + 1)));
-                } catch (const std::exception&) {
+                const auto localId = FormIdText::Parse(Trim(reference.substr(0, tilde)));
+                if (!localId) {
+                    logger::warn("SpellScanner: SPID reference '{}' has no hex form id before '~'", reference);
                     return nullptr;
                 }
+                return dataHandler->LookupForm<RE::SpellItem>(*localId, Trim(reference.substr(tilde + 1)));
             }
             return RE::TESForm::LookupByEditorID<RE::SpellItem>(reference);
         }
@@ -92,7 +87,7 @@ namespace SpellScanner
             while (std::getline(file, line)) {
                 const auto equals = line.find('=');
                 if (equals == std::string::npos || line.starts_with(";")) continue;
-                if (Lower(Trim(line.substr(0, equals))) != kSpellLine) continue;
+                if (AsciiText::ToLower(Trim(line.substr(0, equals))) != kSpellLine) continue;
 
                 const std::string rest = line.substr(equals + 1);
                 const auto bar = rest.find(kFieldSeparator);
@@ -105,7 +100,7 @@ namespace SpellScanner
                 while (start <= filters.size()) {
                     const auto end = filters.find_first_of(",+", start);
                     const std::string token = Trim(filters.substr(start, end == std::string::npos ? std::string::npos : end - start));
-                    if (Lower(token) == Lower(std::string(kVampireKeyword))) vampire = true;
+                    if (AsciiText::EqualsIgnoreCase(token, kVampireKeyword)) vampire = true;
                     if (end == std::string::npos) break;
                     start = end + 1;
                 }
@@ -133,7 +128,7 @@ namespace SpellScanner
             while (!error && it != end) {
                 try {
                     if (it->is_regular_file() &&
-                        Lower(PathText::Utf8(it->path().filename())).ends_with(kDistrSuffix)) {
+                        AsciiText::ToLower(PathText::Utf8(it->path().filename())).ends_with(kDistrSuffix)) {
                         added += ReadDistrFile(it->path());
                     }
                 } catch (const std::exception& e) {
@@ -178,7 +173,7 @@ namespace SpellScanner
             if (!race) return VampireRace::kNo;
             if (race->HasKeywordString(kVampireKeyword)) return VampireRace::kKeyword;
             const char* editorId = race->GetFormEditorID();
-            if (editorId && Lower(editorId).contains(kVampireRaceName)) return VampireRace::kName;
+            if (editorId && AsciiText::ToLower(editorId).contains(kVampireRaceName)) return VampireRace::kName;
             return VampireRace::kNo;
         }
 

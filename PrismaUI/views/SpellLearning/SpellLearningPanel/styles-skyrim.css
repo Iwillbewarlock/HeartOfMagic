@@ -12,7 +12,7 @@
     /* Text - Warm parchment tones, not pure white */
     --text-primary: #C8C8B8;
     --text-secondary: #9A9A8A;
-    --text-muted: #6A6A5A;
+    --text-muted: #81816D;          /* 4.6:1 on a chip over the panel (#6A6A5A was 3.4:1; 2.0 audit) */
     --text-bright: #E8E8D8;
     
     /* Accent - Muted cream/gold, not saturated */
@@ -26,11 +26,16 @@
     /* The tree builder's status line (TreeGrowth.STATUS_COLORS): idle, working,
        done, error - kept apart from each other and from the idle text, where
        the muted accents above are too close (gold is the idle text's colour) */
-    --status-idle: rgba(184, 168, 120, 0.5);
+    --status-idle: var(--text-muted);   /* was gold at half strength: 2.8:1 */
     --status-working: #E8A84C;
     --status-done: #7CC474;
     --status-error: #E86A5C;
-    
+
+    /* A weakened (early-learned, not mastered) spell on the card: its badges, the
+       power line and its effects */
+    --weakened-color: #C89878;
+    --weakened-bg: rgba(184, 136, 120, 0.15);
+
     /* UI Elements */
     --btn-bg: rgba(255, 255, 255, 0.06);
     --btn-bg-hover: rgba(255, 255, 255, 0.12);
@@ -1548,7 +1553,7 @@ body {
 
 .state-badge.locked {
     background: var(--node-locked-bg);
-    color: var(--text-muted);
+    color: var(--text-secondary);
 }
 
 .state-badge.available {
@@ -1559,6 +1564,21 @@ body {
 .state-badge.unlocked {
     background: var(--node-unlocked-bg);
     color: var(--accent-blue);
+}
+
+.state-badge.weakened {
+    background: var(--weakened-bg);
+    color: var(--weakened-color);
+}
+
+/* The card's effects list while the spell is weakened: the power line, the cut effects */
+.detail-list li.weakened-warning {
+    color: var(--weakened-color);
+    font-weight: bold;
+}
+
+.detail-list li.weakened-effect {
+    color: var(--weakened-color);
 }
 
 .btn-unlock {
@@ -1645,8 +1665,8 @@ body {
 }
 
 .learning-status-badge.weakened {
-    background: rgba(184, 136, 120, 0.15);
-    color: #C89878;
+    background: var(--weakened-bg);
+    color: var(--weakened-color);
     border: 1px solid rgba(184, 136, 120, 0.3);
 }
 
@@ -1719,7 +1739,8 @@ body {
     min-height: 90px;           /* grows with the text (Font Size), never shorter than before */
     padding: 6px 0;
     box-sizing: border-box;
-    background: linear-gradient(135deg, rgba(120, 144, 168, 0.9), rgba(80, 100, 120, 0.9));
+    /* A shade darker than before: its pale text read at 4.3:1 (2.0 audit) */
+    background: linear-gradient(135deg, rgba(84, 102, 120, 0.95), rgba(64, 80, 96, 0.95));
     border: 1px solid rgba(120, 144, 168, 0.5);
     border-left: none;
     border-radius: 0 4px 4px 0;
@@ -3104,7 +3125,8 @@ body {
     border: 1px solid rgba(184,168,120,0.3);
     transition: background 0.15s, color 0.15s;
     background: transparent;
-    color: rgba(184,168,120,0.4);
+    /* The theme's colours, not gold at 40%: an option not chosen is still a button to read (2.2:1 before) */
+    color: var(--text-secondary);
     white-space: nowrap;
     user-select: none;
 }
@@ -3119,11 +3141,11 @@ body {
 }
 .segmented-toggle .seg-btn.active {
     background: rgba(184,168,120,0.25);
-    color: rgba(184,168,120,0.9);
+    color: var(--accent-gold-hover);
 }
 .segmented-toggle .seg-btn:hover:not(.active) {
     background: rgba(184,168,120,0.1);
-    color: rgba(184,168,120,0.6);
+    color: var(--text-primary);
 }
 /* ===== END DISABLED FEATURES ===== */
 
@@ -3446,7 +3468,6 @@ body {
 .hidden-info {
     color: var(--text-muted);
     font-style: italic;
-    opacity: 0.5;
 }
 
 /* Tier XP Input Grid */
@@ -3876,6 +3897,11 @@ body {
 
 .scan-actions-sticky .btn-secondary {
     flex: 1;
+}
+
+/* Import (a tree's JSON) beside Scan Spells: as wide as its label, Scan Spells keeps the bar */
+.scan-actions-sticky .scan-import-btn {
+    flex: 0 0 auto;
 }
 
 /* Bottom sticky variant - sticks to bottom of scroll area */

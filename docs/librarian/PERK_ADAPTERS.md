@@ -3,6 +3,7 @@
 > 사서가 태그를 붙인 주문에, 각 퍽 모드가 찾는 키워드를 게임 시작 때 메모리에서 붙여 주는 층.
 > 퍽 모드마다 어댑터 파일 하나. 마법 모드 쪽 호환 패치는 필요 없다.
 > 코드: `include/librarian/PerkAdapters.h`(순수 판정), `src/librarian/LibrarianAdapters.cpp`,
+> `src/librarian/LibrarianAdapterMatch.cpp`(조건 검사, `include/librarian/AdapterMatch.h`), `src/librarian/LibrarianAdapterDamage.cpp`(피해 줄),
 > `include/librarian/PerkAdapterPatch.h` · `src/librarian/LibrarianPerkAdapterPatch.cpp`(게임 쪽).
 > 파일: `SKSE/Plugins/SpellLearning/librarian/adapters/*.json`. 측정: 2026-09-30.
 
@@ -44,6 +45,9 @@ Path of Sorcery 3.2, Vokrii 3.8.2, Ordinator 9.35.0, Vokriinator Black 6.15.3).
   `BloodmoonDestruction`·`DesecrationDestruction` 은 그 모드 자신의 이펙트에만 있고 어느 퍽도 읽지 않는다 — 새 파일 없음
 - **Custom Skills 마법 트리**(2026-10-08): Hydromancy·Atromancy·Hemomancy·Venomancy 는 자기 키워드를 읽어 파일을 새로 만들었고, Subclasses 는 Adamant·Ascension 파일을 켜고, 나머지는
   바닐라 키워드만 읽는다. 아래 6-2절
+- **Paths of Empyrean 1.0**(2026-10-19): 바닐라 키워드 + Lost Grimoire 의 `GRIM_K_MagicDamagePoison/Sun/Disease/Kinetic` +
+  자기 `SF_K_MagicSummonDaedra`. `MAG_MagicDamagePoison/Sun` 도 묻지만 언제나 GRIM_K 쌍둥이와 같은 OR 묶음이다.
+  `pathsofempyrean.json`, 아래 6-4절
 
 키워드가 아닌 방법도 있다 — 주문 목록(FormList: Adamant 의 집중 화염·전기 목록, PoS 의 Advanced
 Study 목록)과 보조 이펙트(Adamant 의 Impact·Firebrand). 둘 다 아직 다루지 않는다(7절).
@@ -65,7 +69,7 @@ Study 목록)과 보조 이펙트(Adamant 의 Impact·Firebrand). 둘 다 아직
 
 | 키 | 뜻 |
 |---|---|
-| `requires` | `{"always": true}` 또는 `{"any": [플러그인...]}` — 하나라도 로드되면 파일이 켜진다(대소문자 무시, ESL 포함) |
+| `requires` | `{"always": true}` 또는 `{"any": [플러그인...]}` — 하나라도 로드되면 파일이 켜진다(대소문자 무시, ESL 포함). `"config": "a.b"` 를 더하면 `config.json` 의 그 불리언(점으로 이은 경로)이 `false` 가 아닐 때만 켜진다 — 키가 없거나 불리언이 아니거나 파일을 못 읽으면 켜짐(`perkAdapters.enabled` 와 같은 읽기). `always` 나 `any`/`dlls` 와 함께 쓰고 둘 다 성립해야 한다. 환경 파일 넷이 `environment.enabled` 를 쓴다(2026-10-20, 패널 토글은 아직 없음). `"dlls": [파일 이름...]` 은 플러그인(.esp) 없이 SKSE DLL 만 있는 모드용이다: `any` 의 플러그인 하나가 로드됐거나 **또는** `dlls` 의 DLL 하나가 `Data/SKSE/Plugins` 에 있으면 성립한다(대소문자 무시, MO2 VFS 안에서도 파일 확인으로 보인다). 디스크에 있으면 SKSE 가 거부한 DLL(런타임 불일치)도 있는 것으로 친다. 경로가 들어간 이름(`/`, `\`, `:`)이나 문자열이 아닌 항목은 형식 오류로 파일이 꺼진다(2026-10-20, `env-elements.json`). 오프라인 평가기는 `requires` 를 보지 않는다(플러그인·DLL 모두 있는 것으로 본다) |
 | `keyword` | 붙일 키워드의 EditorID. 로드오더에 없으면 그 줄은 쉰다 |
 | `keywordForm` | `keyword` 와 함께: 그 키워드의 영구 id(예 `Update.esm\|0x1EA6002`). 여러 모드가 한 FormID 를 서로 다른 EditorID 로 주입할 때 쓴다 — 게임에서는 로드된 폼이 가진 이름이 `keyword` 를 대신한다(마지막에 로드된 플러그인의 이름). 오프라인 평가는 `keyword` 를 그대로 쓴다 |
 | `formList` | `keyword` 대신: 조건에 맞는 주문을 넣을 퍽 모드의 FormList(영구 id, 예 `Adamant.esp\|0x9DEF54`). 목록에 이미 든 주문은 건너뛰고, 누출 검사는 없다(목록은 주문 자체를 가리킨다) |
@@ -77,6 +81,8 @@ Study 목록)과 보조 이펙트(Adamant 의 Impact·Firebrand). 둘 다 아직
 | `effect` | 스캔 이펙트 필드. 맞는 **첫 번째 보이는 이펙트**가 키워드를 받는다(없으면 첫 보이는 이펙트) |
 | `spellHas` / `spellLacks` | 주문의 어떤 이펙트가(숨김 포함) 맞아야 / 하나도 맞으면 안 된다 |
 | `keywordsNone` | 주문에 이 키워드가 하나도 없어야 한다 — 앞선 줄이 붙인 것까지 센다. 제외 조건 |
+| `tierMin` | `"mgef"` · `"manual"` · `"framework"`. 태그 조건이 요구하는 원소(`all` 은 각각, `any` 는 맞은 것)가 카탈로그 `elementSources` 에서 그 등급 이상이어야 한다(`TierRank`: mgef 3 > manual 2 > framework 1). `"manual"` 은 레코드 등급(mgef·manual, `TIER_RANK_RECORD`)이라는 뜻이 된다. 기법(techniques)에는 등급이 없어 보지 않고, `none` 은 등급과 상관없이 뺀다. `elementSources` 가 없는 카탈로그(1.6 전)는 framework 로 보고 로그에 한 번 남긴다. 모르는 값이면 그 줄은 꺼진다(2026-10-20) |
+| `damage` | `keyword` 줄에서 `{"elements": [...], "keywordsNone": [...]}`. 주문의 첫 이펙트 하나가 아니라, 고른 주문의 **그 원소 피해 이펙트 전부**에 붙인다. 규칙은 6-5절과 헤더의 "DAMAGE LINES". `keywordsNone` 은 그 키워드 중 하나를 가진 이펙트를 뺀다(무속성 표식) |
 | `formListsNone` | 같은 판정에서 앞선(켜진) `formList` 줄이 이 FormList(영구 id)들로 고른 주문이 아니어야 한다. 레코드나 다른 모드가 목록에 이미 넣은 주문은 보지 않는다(그 주문이 앞선 줄에도 맞았으면 센다). Spell Research 의 "SR 원소가 없는 주문" 차집합에 쓴다(2026-10-03) |
 
 이펙트 조건 키: `archetype`, `archetypeAny`, `archetypeNone`, `primaryAV`, `primaryAVAny`,
@@ -105,7 +111,8 @@ Study 목록)과 보조 이펙트(Adamant 의 Impact·Firebrand). 둘 다 아직
 
 1. `config.json` 의 `perkAdapters.enabled` 가 `false` 거나(없으면 켜짐) 카탈로그가 없거나 맞는
    파일이 없으면, 지난번에 붙인 것을 전부 거두고 끝
-2. 카탈로그를 읽고, `requires` 가 맞는 파일만 읽는다
+2. 카탈로그를 읽고, `requires` 가 맞는 파일만 읽는다(`requires.config` 는 이때 `config.json` 을 한 번 읽는다 — 꺼진
+   파일이 붙였던 쌍은 이번 판정에 없으므로 5번이 거둔다)
 3. 판정용 주문 JSON 은 스캐너로 만든다 — 스캐너가 붙인 키워드를 빼므로, 지난 실행의 결과가 판정에
    섞이지 않는다
 4. 판정(`BuildPlan`, 헤더에 적힌 규칙 그대로):
@@ -287,6 +294,189 @@ FEC 만 읽는 둘을 맡는다(`requires`: `FEC.esp`):
 - `holy` 는 넣지 않았다. FEC 에 신성 사망이 없고, 태양 사망(불붙어 재가 됨)은 신성 피해의 모습이 아니다.
 - 측정: TAKEALOOK 스캔(2026-10-07, 3776 주문), `librarian-test -i <덤프> --catalog <master 룰로 만든 카탈로그> --adapters`.
   게임: 누출 차단은 2026-10-13 에 확인했다. allow 를 넣은 뒤의 사망 효과는 아직 확인하지 않았다.
+
+## 6-4. Paths of Empyrean (2026-10-19)
+
+Paths of Empyrean 1.0(넥서스 58656, 2026-10-17 파일)은 18개 스킬 트리를 모두 바꾸는 퍽 모드다. Ordinator·Adamant·Vokriinator 와
+함께 쓰지 않고, Mysticism 은 필요 없다. 마법 레코드는 `PathsOfEmpyrean.esp` 하나에 있고, 그 하드 마스터가 Lost Grimoire
+(`LostGrimoire.esp`)라서 `GRIM_K_*` 키워드는 PoE 와 언제나 함께 있다. 퍽 561개(자기 432, 덮어쓰기 129)의 조건을 덤프했다.
+
+**퍽이 묻는 것.** 주문 쪽 조건(엔트리 포인트 탭 1)은 `EPMagic_SpellHasSkill`(학파, 키워드 불필요), `EPMagic_SpellHasKeyword`,
+`SpellHasCastingPerk`, `IsInList` 다. "있어야 한다"(cmp=1)로 묻는 이펙트 키워드:
+
+| 키워드 | 정의 | 묻는 퍽 | 결과 |
+|---|---|---|---|
+| `MagicDamageFire/Frost/Shock`, `MagicSummon*`, `MagicInfluence*`, `MagicRune`, `MagicWard`, `MagicRestoreHealth`, `MagicTurnUndead` | 바닐라 | Elementalist, Conductivity, Rune Mage, Mage Ward, Urgency, Fear The Dawn 등 | `vanilla.json` |
+| `GRIM_K_MagicDamagePoison` (`17F246`) | Lost Grimoire | Druid, Spell Aegis, Aetherial Shield, 피해 배율 OR 목록 | 새 줄 |
+| `GRIM_K_MagicDamageSun` (`14FA41`) | Lost Grimoire | Fear The Dawn(이것만, `MagicDamageFire` 와 OR), 피해 OR 목록 | 새 줄 |
+| `GRIM_K_MagicDamageDisease` (`17F247`) | Lost Grimoire | Druid, 피해 OR 목록 | 새 줄 |
+| `GRIM_K_MagicDamageKinetic` (`1364C5`) | Lost Grimoire | Telekinetic(이것만), 피해 OR 목록 | 새 줄 |
+| `SF_K_MagicSummonDaedra` (`000809`) | PoE | Legion of Souls, Summoner 30/70, Twin Souls (모두 다른 소환 키워드와 OR) | 새 줄 |
+| `MAG_MagicDamagePoison/Sun` (`Update.esm` `ADA001/ADA002`, PoE 가 레코드 사본을 가짐) | Mysticism 대역 | 위 OR 목록 | 붙이지 않음 |
+| `PoE_K_MagicTransformation` (`000803`) | PoE | Metamorphosis 하나 | 붙이지 않음 |
+
+**파일.** `adamant.json` 의 `requires` 에 PoE 를 넣지 않고 `pathsofempyrean.json` 을 따로 만들었다(`requires`: `PathsOfEmpyrean.esp`).
+PoE 퍽 조건을 OR 묶음으로 풀어 보면 `MAG_MagicDamagePoison/Sun` 을 묻는 조건 58개(엔트리마다 센 수, 독·태양 합계)가 전부 같은 묶음에서 GRIM_K 쌍둥이도 묻고,
+Fear The Dawn 은 `GRIM_K_MagicDamageSun` 만 묻는다. 그래서 GRIM_K 넷이면 모든 퍽을 덮고 MAG_ 줄은 더하는 것이 없다.
+`adamant.json` 을 켜면 PoE 가 읽지 않는 `MAG_` 보호막·원·벽·영향 키워드까지 붙는다. 키워드는 모두 `keywordForm` 으로 FormID 를 적었다.
+
+| 줄 | 조건 (재사용한 모양) |
+|---|---|
+| `GRIM_K_MagicDamagePoison` | `adamant.json` 독과 같다: `poison` + 해로움·`PoisonResist`·체력 |
+| `GRIM_K_MagicDamageSun` | `adamant.json` 태양과 같다: `sun` 또는 `holy` + 해로움·체력 |
+| `GRIM_K_MagicDamageDisease` | `pathofsorcery.json` 질병과 같다: `disease` + 해로움·`DiseaseResist`(Horrid Affliction 은 Script 이펙트라 AV 를 묻지 않는다) |
+| `GRIM_K_MagicDamageKinetic` | `force` 이고 화염·냉기·전격·독·태양·신성·질병 태그가 없음 + 해로움·체력·저항 `None`·ValueModifier/DualValueModifier, 이미 원소 피해 키워드가 있으면 제외. Lost Grimoire 의 운반자 넷(Force Wave, Concussive Blast, Earthquake, Blasting Rune)이 모두 이 모양 |
+| `SF_K_MagicSummonDaedra` ×2 | `pathofsorcery.json` 의 데이드라 두 줄(종족 `ActorTypeDaedra`, 그다음 `daedra` 태그). 제외 키워드에 `MagicSummonUndead`·`MagicSummonFamiliar` 를 더했다 |
+
+`force` 태그(TAGS.md: 물리적 밀어냄·충격)는 Lost Grimoire 의 키네틱 피해와 뜻이 맞는다. 저항 조건을 빼면 더 붙는 것은 유령 화살(Trevas,
+마법 저항·소환계) 하나뿐이라 넣지 않았다. 데이드라 줄의 제외 키워드: PoE 가 `SF_K_MagicSummonDaedra` 를 묻는 조건은 모두 같은 OR 묶음에서
+`MagicSummonFamiliar` 와 `Fire/Frost/Shock` 도 묻으므로 그것을 이미 가진 주문은 잃는 것이 없다(CC 골든 세인트·다크 세듀서, 시커는 원작자가
+Familiar 를 달았다 — 제외를 셋으로 줄이면 gain 이 23 → 95 로 늘지만 퍽 효과는 같다). Summoner 30/70 은 Undead 를 묻지 않는데, 언데드 소환이
+이 퍽을 받지 않는 것은 바닐라와 같아서 데이드라 종족 해골(Rune Peryite Skeletons)·괴저 밴시는 언데드로 둔다. PoE 는 드레모라에서
+`MagicSummonShock` 을 떼고 데이드라를 주지만, 어댑터는 키워드를 떼지 않으므로 다른 모드의 드레모라는 Shock 으로 같은 퍽을 받는다.
+
+**측정.** TAKEALOOK 스캔(2026-10-14, 3983 주문, Lost Grimoire 포함, PoE 없음), `librarian-test -i <스캔> --catalog <카탈로그>
+--adapters <vanilla.json + pathsofempyrean.json 만 든 폴더>`. 오프라인 평가기는 `PlanSource.keywordDefined` 를 주지 않아 모든 키워드를
+정의된 것으로 보므로(헤더: 없으면 always), PoE 가 없는 로드오더에서도 `SF_K_MagicSummonDaedra` 줄이 평가된다.
+agree 는 Lost Grimoire(와 TAKEALOOK 패치)가 직접 단 키워드와의 일치다.
+
+| 줄 | agree | writes | gain | 누출 | 예 |
+|---|---:|---:|---:|---:|---|
+| `GRIM_K_MagicDamagePoison` | 29 | 88 | 130 | 0 | 스프리건 분사(바닐라·Dawnguard·Amalgam), Necrom, BSAssets 독 |
+| `GRIM_K_MagicDamageSun` | 6 | 69 | 83 (holy 만으로 9) | 0 | Dawnguard 태양 불꽃·스텐다르의 오라, Lightpower, Stellaris, Lunaris, Ordinator 거룩한 손길 |
+| `GRIM_K_MagicDamageDisease` | 6 | 15 | 22 | 0 | Vigilant 촉수의 벽, Necromancer's Magic 역병 가시, Ordinator 역신의 안개 |
+| `GRIM_K_MagicDamageKinetic` | 8 | 0 | 0 | 0 | — (Lost Grimoire 운반자 8 모두 일치) |
+| `SF_K_MagicSummonDaedra` (종족) | 0 | 23 | 23 | 0 | CC 골든 세인트·다크 세듀서 전사, Mihail 루이나크·화산재 골렘, Vigilant 베르나쿠스, Dragonborn 시커 |
+| `SF_K_MagicSummonDaedra` (태그) | 23 | 2 | 2 | 0 | Mihail 콜드하버·데드랜드 베인킨 |
+
+Lost Grimoire 운반자 중 줄이 고르지 않는 것: 독 36 중 7(Poison Seed 감시·Toxic Cloud 장판 생성·독 망토 같은 Script/SpawnHazard/Cloak 보조
+이펙트, 숨김 이펙트), 태양 8 중 2(Sun Shard 장판 생성, 숨김 장판 이펙트). 이미 키워드를 가졌으니 손해는 없다.
+gain 은 PoE 로드오더에서는 상한이다: PoE 가 플러그인에서 이미 붙이는 Dawnguard 태양 이펙트 4(GRIM_K Sun), Dragonborn 독 룬 2(GRIM_K Poison),
+드레모라 군주·시커·화산재 수호자·Lost Grimoire 데이드라 8(SF_K)은 게임에서 agree 가 된다. 덤프에 주문서·마법부여가 없으므로 누출 0 은 하한이다(6-3절).
+PoE 의 KID·SPID·SkyPatcher ini 는 주문·이펙트에 키워드를 주지 않는다(SkyPatcher 는 함성 이펙트에만 `PoE_K_MagicShoutScale*`·`MagicShout`).
+
+**시전 퍽.** 다섯 학파의 Student 퍽(비용 -25/-50%)은 그 학파의 바닐라 반값 퍽 다섯을 `SpellHasCastingPerk` 로 묻고, 변화·소환(지속)·환영·회복
+(위력) 배율도 같은 조건이다. Polymath 는 Novice00/Apprentice25, Advanced Study 는 스크립트가 `sp.GetPerk()`(반값 퍽)로 학파를 정한다.
+PoE 는 바닐라 반값 퍽 25개를 덮어쓰지도 트리에 두지도 않으므로, 그 퍽들은 학파·등급 표시로만 쓰인다. 그래서 `vanilla.json` 의 시전 퍽 줄
+(`requires: always`, PoE 에서도 켜짐)이 마법책 주문 중 퍽이 빈 것을 이 퍽들에 닿게 한다 — PoE 자신의 Telepathy 마법책 주문(반값 퍽 없음)이
+정확히 그 경우다. Student: Destruction 의 위력 배율만 `EPMagic_SpellHasSkill(Destruction)` 이라 키워드도 퍽도 필요 없다.
+
+**다루지 않는 것.**
+- `PoE_K_MagicTransformation`(Metamorphosis, 지속 +50%): Lost Grimoire 의 변신 주문은 카탈로그에서 `creature` 이거나 태그가 없고, `transform`
+  기법은 결속 무기·평형 같은 것이라(TAGS.md) 변신을 가를 태그도 스캔 필드도 없다
+- `MAG_MagicDamagePoison/Sun`: 위 OR 묶음 이유. Mysticism 이 함께 깔리면 `adamant.json` 이 따로 켜져 붙인다
+- `GRIM_K_RES_Cocoon`, `GRIM_K_CON_FamiliarBoosted`(Lost Grimoire 자체 기능), `PoE_K_DruidScaleDur`·`PoE_K_MagicDestructionNoScale`(PoE 표식,
+  뒤의 것은 제외 조건), 함성·노래·무기·물약 키워드, `DLC2MagicAshSpawn`
+- 주문 탭의 일반 `HasKeyword`: Ahzidal's Arcana(`DLC2dunKolbjornHelmPerk`, PoE 가 덮어씀)가 `MagicRune`·`MagicSummon*` 을, 여러 퍽이 `MagicShout` 를
+  `EPMagic_SpellHasKeyword` 대신 `HasKeyword` 로 묻는다. CommonLib 은 `MagicItem` 이 `BGSKeywordForm::HasKeyword` 를 재정의한다고 적고,
+  바닐라에서 룬·소환 키워드는 이펙트에만 있으므로 이펙트 키워드를 읽을 가능성이 높다 — 그렇다면 어댑터가 붙인 키워드도 보인다. 확인 필요(게임)
+- 게임 중에 채워지는 FormList: Advanced Study 75개(`PoE_LIST_ALT_AdvancedStudy<학파>01..15`, 스크립트가 시전 횟수로 옮긴다), Spell Charging,
+  Witch's Familiar·Spirit Guide 저장 주문, Blood Mage 장착 주문(7-1절과 같은 이유)
+- PoE 가 Detect Life·Detect Dead 의 반값 퍽을 변화 → 환영(Adept50·Expert75)으로 옮긴다. PoE 로드오더의 스캔에서는 두 주문이 환영으로
+  분류된다. 어댑터와 무관하고, 스캔이 플러그인에 적힌 대로 따른다
+- 게임에서는 확인하지 않았다. PoE 로드오더로 스캔한 적도 없다
+
+## 6-5. 환경 상호작용 모드 (2026-10-20)
+
+마법이 주변을 바꾸는 모드들(불 끄기·켜기, 물·얼음, 소금·건초·책 태우기)도 퍽 모드처럼 맞은 이펙트나 주문의 키워드로 원소를 가른다.
+조사: `E:\Users\qtuna\hom-1.6\env-mods\SYNTHESIS.md`, `C-oif/report.md`, `D-misc/report.md`, 설계는 `DESIGN-1.6.md` v2. 환경 쪽 전체 그림은
+`docs/ENVIRONMENT.md`. 파일 넷, 모두 `requires.config` = `environment.enabled`(기본 켬)로 함께 꺼진다:
+
+| 파일 (`requires`) | 읽는 모드 | 키워드 | 줄 |
+|---|---|---|---|
+| `env-elements.json` (`any` 6 + `dlls` 2, 아래) | Rain Extinguishes Fires, Water Douses Fire, Sneak Tools, DISDD, Elementally Reactive Waters, Ice is Slick, SIM | `MagicDamageFire/Frost/Shock` (`Skyrim.esm` `01CEAD/AE/AF`) | 피해 줄 |
+| `env-oif.json` (팩 ESP 14개 중 하나) | kuroishitam 계열 OIF 규칙 팩 | 불 14, 끄기(냉기·물·바람) 3, 냉기 전용 2, 전격 3 | 피해 줄 |
+| `env-candles.json` (`DynamicCandles.esp`, `PutOutTheFires.esp`) | Dynamic Candles, Put Out The Fires | `DC_Fire/DC_Frost`, `POF_Fire/POF_Frost` | 피해 줄 |
+| `frostwalker.json` (`Frostwalker.esp`) | Frostwalker | `Frostwalker_FrostCloak_Keyword`(`0x800`), `Frostwalker_FireCloak_Keyword`(`0x802`) | 보통 줄(망토 이펙트) |
+
+**피해 줄 (`damage`).** 바닐라 원소 키워드는 "이 이펙트가 그 원소 피해다"라는 뜻이라, 주문의 이펙트 하나(`vanilla.json` 의 원소 줄)가 아니라
+그 원소 피해를 주는 이펙트마다 있어야 한다. BuildPlan 은 이 일에 맞지 않는다: 주문의 어떤 이펙트든 키워드가 있으면 주문을 건너뛰고, 첫
+번째 보이는 이펙트 하나만 고르고, 누출 검사를 "그 주문의 어떤 이펙트가 조건에 맞는가"로 한다. 그래서 줄 종류를 따로 두었다
+(`PlanDamageLine`). 주문은 줄의 주문 조건과, 줄 원소 중 하나가 카탈로그에 `tierMin` 이상으로 있는 것(맞은 원소 M)으로 고른다. 이펙트는
+**그 이펙트 레코드가** M 의 피해라고 말할 때만 받는다:
+
+- 해로움, 이 주문 항목의 수치 > 0, archetype 이 체력의 ValueModifier·DualValueModifier·PeakValueModifier 이거나 보이는 Script. Absorb 는 아니다
+- 저항이 M 원소의 엔진 저항(FireResist·FrostResist·ElectricResist·PoisonResist). 마법 저항·저항 없음은 불·냉기·전격을 말하지 않는다 — 불
+  주문 안의 그런 이펙트는 촉수·비전·태양 부분이었다(Glenmoril 예언자의 촉수 피해, Mysticism 의 강력한 빛). 엔진 저항이 없는 원소(물·바람)만
+  보이는 중립 저항 이펙트가 대신하고, 그때도 카탈로그가 주문에 M 밖의 엔진 원소를 주지 않아야 한다. 그 밖의 저항(DamageResist 등)은 안 된다
+- 숨김 Script 는 안 된다(Intense Flames 의 공포 검사, Disintegrate 검사가 FireResist·ElectricResist 를 달고 숨어서 탄다). 사서가 숨김 이펙트를
+  근거로 보는 기준과 같다
+- 줄의 `damage.keywordsNone` 이 없을 것. 불·냉기·전격 줄에는 무속성 표식 `APO_MagicDamageUnspecified`·`DAR_UnspecificMagicDamage` 를 넣었다 —
+  Natura 의 바위·물·바람 룬은 바닐라 룬을 본떠 FireResist 를 달았지만 표식이 있다. 끄기 줄에는 넣지 않는다(물 피해 이펙트가 표식을 단다).
+  `MagicDamageResist` 는 넣지 않았다: TAKEALOOK 의 SkyPatcher Keyword Framework 가 마법 저항 피해 전부에 붙이므로, 넣으면 로드오더마다 결과가 갈린다
+- 이미 그 키워드가 있는 이펙트(플러그인이나 앞 줄)는 그대로 둔다
+- **누출 검사**: 그 이펙트를 쓰는 모든 항목이 이 줄이 고른 주문이고, 그 주문에서도 이 이펙트의 레코드가 위 검사를 통과해야 한다. 그 주문
+  항목의 수치·조건은 보지 않는다 — SPERG 의 화염 폭풍, Lost Grimoire 의 화염구는 바닐라 화염 피해 이펙트를 조건 걸어 쓰지만 그래도 화염
+  피해다. 다른 주문, 카탈로그 밖 주문, 마법부여·스크롤·물약·재료는 막고, 막은 항목을 `leakExamples` 에 적는다. 조건으로만 쓰이는 이펙트는
+  쓰지 않는다(`conditioned`)
+- 망토·장판이 남에게 거는 이펙트(`applies`)는 보지 않는다(그 주문은 카탈로그 밖이라 어차피 막힌다). CC 원소 폭발처럼 피해가 폭발에만
+  있는 주문은 받지 않는다
+
+**tierMin = manual.** 모든 환경 줄이 레코드 등급(mgef·manual)을 요구한다. 이름으로 붙은 프레임워크 원소(KIT·OCF·ADAR)는 퍼뜨리지 않는다.
+manual 원소를 가진 TAKEALOOK 주문 19개는 대부분 방어막(해롭지 않은 PeakValueModifier)이라 피해 줄에 걸리지 않고, 걸리는 것은 Natura 물
+튀김(끄기 키워드) 하나다. 물·바람은 TAKEALOOK 에서 거의 framework 등급이라(물 41/42, 바람 57/62) 끄기 키워드는 대부분 냉기 주문이 받는다.
+
+**OIF 팩 키워드는 게임 확인이 필요하다 (H2).** OIF 는 맞은 주문(attackSource)에 `HasKeyword` 를 묻는다. CommonLib 의 `MagicItem` 이
+`BGSKeywordForm::HasKeyword` 를 재정의하므로 주문이 이펙트 키워드까지 답할 가능성이 높지만, 런타임에 이펙트에만 붙인 키워드가 그 답에
+보이는지는 **게임에서 확인되지 않았다**. 게임 안 자가 테스트(1.6, `selftest.json`)의 `[selftest-1.6] H2-record`·`H2-runtime`·`H2-answer` 줄이 확인한다(`docs/ENVIRONMENT.md` "Self-test", 아직 실행 전). 거짓이면 이 파일들에 주문 레코드 대상(설계 v2 의
+`target: "spell"`)이 필요하다. DC·POF 는 이펙트의 `OnMagicEffectApply` 도 읽으므로 이펙트 대상이 맞다. KID 가 이름으로 붙인 키워드는 떼지
+않는다(1.6 범위 밖).
+
+**키워드 FormID.** 팩 ESP(모두 ESL 플래그)에서 직접 읽었다: `Dynamic Torch NG.esp` `805/806`, `Melt The Ice.esp` `899`,
+`Flammable Alcohol.esp` `803`, `Turn The Salt.esp` `800/801/802`, `Fires Off.esp` `837/838`(받은 세 판 같음), `DFS.esp` `91A/91B`(두 판 같음),
+`BTH.esp` `804`, `Burn Those Insects.esp` `810`, `Burn Those Books.esp` `800`, `BACF.esp` `801`, `Cooking with Fire.esp` `802`,
+`Cast and Cook.esp` `800/801`, `waterconductelectricity.esp` `805`, `STO.esp` `808`, `DynamicCandles.esp` `8FB/8FC`, `PutOutTheFires.esp` `803/804`,
+`Frostwalker.esp` `800/802`, 바닐라 셋은 `Skyrim.esm`. `firebearingnf`(DFS 의 NFDR 패치 규칙)와 `fireidf`(DFS 의 Fires Off 패치 규칙)는 받은
+어떤 ESP 에도 정의가 없어 EditorID 만 적었다 — 정의하는 모드가 없으면 줄이 쉰다.
+
+**Frostwalker 망토.** Frostwalker 는 액터에게 그 키워드를 가진 활성 이펙트가 있는지 묻는다(소스 `include/Manager.h`,
+`HasMagicEffectWithKeyword`). 시전자에게 남는 것은 망토 이펙트(Cloak)이므로 보통 키워드 줄로 충분하다: `tags.all` 냉기(화염) + `none`
+화염(냉기) + `tierMin` manual + `effect.archetype` Cloak. `Frostwalker_WaterCloak_Keyword`(용암 굳히기)는 요청 범위 밖이고 물이 거의 framework
+등급이라 넣지 않았다. Frostwalker 의 이름 판정(폭발·투사체)은 이 파일과 무관하다(`docs/ENVIRONMENT.md`).
+
+**퍽 밸런스 (CHANGELOG).** `env-elements.json` 의 바닐라 키워드는 퍽 모드도 읽는다. 원소 피해 이펙트 하나가 더 키워드를 받으면 그 이펙트도
+화염·냉기·전격 퍽의 증강을 받는다. 레코드가 그 원소 피해라고 말하는 이펙트라 퍽 의도와 같지만, 그 주문들의 밸런스는 바뀐다. 그래서
+2026-10-20 부터 이 파일은 `always` 가 아니라 그 키워드를 읽는 환경 모드가 하나라도 있을 때만 켜진다(사용자 결정): `requires.any` =
+`RainExtinguishesFires.esp`, `Water Douses Fire.esp`, `Sneak Tools.esp`, `JBMod.esp`(DISDD), `ElementallyReactiveWaters.esp`, `SIMP.esp`(SIM),
+`requires.dlls` = `IceIsSlick.dll`(플러그인 없음), `RainExtinguishesFires.dll`. 그 모드가 없는 로드오더에서는 퍽 밸런스가 그대로다.
+
+**측정.** TAKEALOOK 스캔(2026-10-14, 3,983 주문), 카탈로그는 지금 룰로 `librarian-test` 가 새로 만든 것, `librarian-test -i <스캔> --catalog
+<카탈로그> --adapters <vanilla.json + 그 파일 하나> -v`. 오프라인 평가기는 `requires` 를 보지 않고 모든 키워드를 정의된 것으로 본다. TAKEALOOK 에는
+OIF 팩·DC·POF 가 깔려 있지 않다(Frostwalker 는 깔림): 그 줄들은 키워드 이름만으로 잰 것이고 그래서 agree 가 0 이다. 덤프에는 주문서·마법부여가
+없으므로 누출 0 은 하한이다(6-3절: 게임에서는 FEC 줄이 주문서·지팡이 공유로 많이 막혔다).
+
+| 줄 (같은 원소의 줄은 수가 같다) | agree | writes | gain | 누출 | conditioned | 예 |
+|---|---:|---:|---:|---:|---:|---|
+| `MagicDamageFire` (env-elements) | 359 | 0 | 0 | 0 | 0 | 아래 |
+| `MagicDamageFrost` | 217 | 0 | 0 | 0 | 0 | |
+| `MagicDamageShock` | 252 | 0 | 0 | 0 | 0 | |
+| 불 16줄 (`firebearing*` 8, `firebth`, `firebti`, `fireidf`, `Firethewood`, `CwF_Fire`, `CnC_Fire`, `DC_Fire`, `POF_Fire`) | 0 | 231 | 368 | 0 | 6 | 바닐라 화염·불씨조각, Glenmoril 화염 망령, Vigilant 성스러운 불꽃·성화의 폭풍 |
+| 끄기 5줄 (`waterbearing*` 3, `DC_Frost`, `POF_Frost`; 냉기·물·바람) | 0 | 133 | 224 | 0 | 1 | Dragonborn 빙결, CC 된서리, 서리의 벽, Flames of Coldharbour, Natura 물 튀김, Mihail 하피 돌풍·바람 룬·토네이도 |
+| 냉기 전용 2줄 (`coldbearingtts`, `CnC_Frost`) | 0 | 129 | 220 | 0 | 1 | 위에서 물·바람 넷을 뺀 것 |
+| 전격 3줄 (`electricbearingtts`, `WCEspell`, `STOzap`) | 0 | 151 | 258 | 0 | 11 | Arclight 뇌광 주문, Vigilant 전격·뇌격, 바닐라 번개 망토 흡수 |
+| `Frostwalker_FrostCloak_Keyword` | 13 | 2 | 2 | 0 | 9 | Dragonborn 카스태그의 얼음 망토, CC 속박 풀린 빙결 |
+| `Frostwalker_FireCloak_Keyword` | 17 | 4 | 4 | 0 | 16 | Vulcano 화산의 오라·화산암재, 텔바니 영혼 망토 |
+
+- **env-elements 가 TAKEALOOK 에서 0 인 이유**: SkyPatcher Keyword Framework(`MKF_DamageTypes.ini`)가 해로운 체력 ValueModifier·DualValueModifier
+  에 저항 종류대로 바닐라 원소 키워드를 이미 붙이고, 스캔은 그 뒤의 상태를 본다(게임에서도 SkyPatcher 가 어댑터보다 먼저 돈다, 5절). 그 층이
+  없을 때를 houseCARL 레코드 읽기로 쟀다: 불 줄이 고른 피해 이펙트 231개 중 24, 냉기 129 중 5, 전격 151 중 6 이 플러그인 레코드에 키워드가
+  없다. 덤프에서 그 키워드만 빼고 다시 재면 `vanilla.json` 원소 줄이 17/4/5 이펙트, `env-elements.json` 이 그 위에 7/1/1(gain 10/2/1)을
+  더한다 — Adamant 의 발화·연소(숨은 FireResist 피해), Dragonborn 화산재 분사, Adamant 마력 쇄도(냉기), 바닐라 kilkreath 빛 줄기(전격)
+- **확인한 주문** (불·냉기 전용·전격 키워드 줄의 `-v` 쓰기 목록으로): Desecration 괴저 주문 40개 — 불 0(카탈로그 원소가 framework necrotic 뿐).
+  Flames of Coldharbour 27개 — 불 0, 냉기 전용 24(나머지 셋은 망토·소환). Vigilant 레코드 원소 주문 111개 — 불 31·냉기 7·전격 32(나머지는
+  소환·망토·보조 스크립트). CC 레코드 원소 25개 — 불 4·냉기 4·전격 2(CC 원소 폭발·파열·화살은 피해가 폭발 `applies` 에만 있어 받지 않는다).
+  Arclight 26개 — 전격 23
+- 첫 판의 규칙에서 바꾼 것과 근거: 중립 저항 이펙트를 원소 피해로 보던 규칙은 Glenmoril 예언자의 촉수 피해, Vigilant 카인의 바람의 칼날에
+  원소 키워드를 주려 했다. 숨김 Script 를 받던 규칙은 Intense Flames 공포·Disintegrate 검사(바닐라 퍽 보조 이펙트)를 골랐다. 항목의
+  수치·조건까지 보던 누출 검사는 같은 화염 피해를 조건 걸어 쓰는 화염 주문(SPERG 화염 폭풍, Lost Grimoire 화염구, 수치 0 인 Vigilant 율리우스의
+  부활) 때문에 바닐라 화염폭풍·화염구 이펙트를 막았다. 셋 다 위 규칙으로 고쳤다
+- 고정 덤프(2026-09-30)에서 `librarian-check` 의 `adapterWrites` 는 1347 → 5284: 새 파일 넷이 3937(불 16줄 × 174, 끄기 5 × 111, 냉기 전용
+  2 × 107, 전격 3 × 126, Frostwalker 6). 기존 파일의 줄 수치는 그대로다(6-4절 PoE 표를 같은 스캔으로 다시 재어 모두 같음)
+- 피해 줄의 agree 는 조건 걸린 항목을 빼고 센다. conditioned 는 고른 주문들이 조건 걸어서만 쓰는(그래서 쓰지 않는) 이펙트의 수다
+- **Frostwalker 망토는 대부분 막힌다**: 바닐라·CC·Glenmoril·Unslaad·Vigilant 망토 주문의 Cloak 효과 항목에 조건이 둘 있어(conditioned 9/16),
+  보통 줄의 규칙(조건 걸린 대상은 건너뛰고, 조건 걸어 쓰는 주문이 있으면 누출로 막음)에 걸린다. 그 조건이 퍽 보너스가 아니라 망토끼리의
+  겹침 방지라면 Frostwalker 는 활성 이펙트만 읽으므로 새는 길이 없다 — 조건 내용 확인 뒤 줄 단위 허용 옵션을 둘지 정한다(미정)
+- 게임에서는 확인하지 않았다
 
 ## 7. 붙이지 않는 것과 이유
 

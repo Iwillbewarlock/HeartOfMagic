@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "AsciiText.h"
 #include "SpellScanner.h"
 #include "EncodingUtils.h"
 #include "librarian/PerkAdapterPatch.h"
@@ -235,9 +236,7 @@ You MUST return ONLY valid JSON matching this exact schema. No explanations, no 
         const std::string id = GetEditorId(perk);
         if (id.empty()) return "";
 
-        std::string lower = id;
-        std::transform(lower.begin(), lower.end(), lower.begin(),
-            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        const std::string lower = AsciiText::ToLower(id);
 
         // The vanilla pattern is {School}{Tier}{Number}, e.g. DestructionMaster100,
         // so only the END of the name counts: a tier word followed by nothing but

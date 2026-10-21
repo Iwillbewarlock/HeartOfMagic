@@ -11,6 +11,7 @@
 //                answer is the plugin's; lab/tome-reach/expected-*.txt holds what
 //                the Python measurement found on the same load order.
 
+#include "FormIdText.h"
 #include "tomereach/TomeReachConfig.h"
 #include "tomereach/TomeReachPass.h"
 
@@ -116,9 +117,9 @@ int main(int argc, char** argv)
             if (s.value("taughtByTome", false) != true || s.value("voiceSlot", false) || s.value("freeSpell", false) || s.contains("duplicateOf")) continue;
             const auto id = s.value("persistentId", std::string());
             const auto bar = id.find('|');
-            if (bar == std::string::npos) continue;
-            const auto key = TomeReach::MakeKey(names.Id(id.substr(0, bar)),
-                static_cast<std::uint32_t>(std::stoul(id.substr(bar + 1), nullptr, 16)));
+            const auto localId = bar == std::string::npos ? std::nullopt : FormIdText::Parse(std::string_view(id).substr(bar + 1));
+            if (!localId) continue;
+            const auto key = TomeReach::MakeKey(names.Id(id.substr(0, bar)), *localId);
             ++checked;
             const auto it = tomesOf.find(key);
             if (it == tomesOf.end()) {

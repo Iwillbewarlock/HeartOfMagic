@@ -186,12 +186,12 @@ namespace Librarian
         // school and tier are the scanner's own words, only cased differently
         const std::string school = ReadField(spell, "school");
         if (!school.empty() && school != "Unknown") {
-            axes.school = Lowered(school);
+            axes.school = AsciiText::ToLower(school);
         }
 
         const std::string tier = ReadField(spell, "skillLevel");
         if (!tier.empty() && tier != "Unknown") {
-            axes.tier = Lowered(tier);
+            axes.tier = AsciiText::ToLower(tier);
         }
 
         // "Fire and Forget" is one word to every consumer of this catalog
@@ -267,12 +267,21 @@ namespace Librarian
             entry["techniques"] = tags.techniques;
             entry["source"] = { { "elements", tags.elementSource },
                 { "techniques", tags.techniqueSource } };
+            // Per element, what it rests on: a reader can trust a fire from the
+            // record and a fire from a framework keyword differently
+            entry["elementSources"] = tags.elementSources;
             entry["confidence"] = EntryConfidence(tags);
 
             catalog["spells"][persistentId] = entry;
             ++stats.spells;
             if (!tags.Empty()) {
                 ++stats.tagged;
+            }
+            if (!tags.conflictDropped.empty()) {
+                ++stats.conflictSpells;
+                for (const auto& element : tags.conflictDropped) ++stats.conflictDropped[element];
+                logger::debug("Librarian: {} lost {} - framework keywords the record contradicts",
+                    persistentId, json(tags.conflictDropped).dump());
             }
         }
 
@@ -339,6 +348,8 @@ namespace Librarian
 
             logger::info("Librarian: wrote {} ({} spells, {} tagged, {} without a persistentId)",
                 PathText::Utf8(path), stats.spells, stats.tagged, stats.skipped);
+            logger::info("Librarian: conflict stage dropped contradicted framework elements from {} spells {}",
+                stats.conflictSpells, json(stats.conflictDropped).dump());
             return true;
         } catch (const std::exception& e) {
             logger::error("Librarian: catalog build failed - {}", e.what());

@@ -485,6 +485,8 @@ var TreeGrowth = {
             var replayBtn = document.getElementById('easyReplayBtn');
             if (replayBtn) replayBtn.style.display = 'none';
         }
+        // A new, re-laid or cleared draft: the Scan page's summary and main button (scanStage.js)
+        if (typeof ScanStage !== 'undefined') ScanStage.onDraftChanged();
     },
 
     // The status line (setStatusText, STATUS_COLORS, relabelStatus, resetStatus):
@@ -498,6 +500,7 @@ var TreeGrowth = {
         this._building = !!building;
         this.updateBuildButton();
         if (typeof _syncEasyButtonStates === 'function') _syncEasyButtonStates();
+        if (typeof ScanStage !== 'undefined') ScanStage.refresh();
     },
 
     updateBuildButton: function() {
@@ -513,6 +516,8 @@ var TreeGrowth = {
     updateScanStatus: function(hasSpells) {
         this._hasSpells = hasSpells;
         this.updateBuildButton();
+        if (this.onSpellsScanned) this.onSpellsScanned();
+        if (typeof ScanStage !== 'undefined') ScanStage.refresh();
     }
 };
 

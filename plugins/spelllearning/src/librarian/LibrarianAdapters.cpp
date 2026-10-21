@@ -1,4 +1,7 @@
 #include "librarian/PerkAdapters.h"
+#include "AsciiText.h"
+#include "librarian/AdapterMatch.h"
+#include "librarian/Librarian.h"
 #include "librarian/LibrarianInternal.h"
 #include "librarian/VanillaCastingPerks.h"
 
@@ -15,10 +18,19 @@
 
 namespace Librarian::Adapters
 {
+    using namespace Match;
+
     namespace
     {
         constexpr const char* VANILLA_FILE = "vanilla.json";
-        constexpr std::size_t MAX_EXAMPLES = 8;
+        constexpr const char* SKSE_PLUGIN_DIR = "Data/SKSE/Plugins";
+
+        // A "dlls" entry is looked up in SKSE_PLUGIN_DIR: a name with a path in
+        // it could point anywhere
+        bool PlainFileName(const std::string& name)
+        {
+            return !name.empty() && name != "." && name != ".." && name.find_first_of("/\\:") == std::string::npos;
+        }
 
         // ---------------------------------------------------------------------
         // Parsing
@@ -169,7 +181,33 @@ namespace Librarian::Adapters
             read.List("keywordsNone", line.keywordsNone);
             read.List("formListsNone", line.formListsNone);
 
+            std::optional<std::string> tierMin;
+            read.Optional("tierMin", tierMin, &json::is_string);
+            if (tierMin) {
+                if (*tierMin != SOURCE_MGEF && *tierMin != SOURCE_MANUAL && *tierMin != SOURCE_FRAMEWORK) {
+                    problems.push_back(where + ": \"tierMin\" is \"mgef\", \"manual\" or \"framework\"");
+                    return false;
+                }
+                line.tierMin = *tierMin;
+                line.tierMinRank = TierRank(*tierMin);
+            }
+
             bool ok = true;
+            if (const auto damage = object.find("damage"); damage != object.end()) {
+                if (!damage->is_object() || line.keyword.empty()) {
+                    problems.push_back(where + ": \"damage\" is an object, on a \"keyword\" line only");
+                    return false;
+                }
+                Reader damageRead{ *damage, problems, where + ".damage" };
+                damageRead.List("elements", line.damageElements);
+                damageRead.List("keywordsNone", line.damageKeywordsNone);
+                damageRead.RejectUnknown({ "elements", "keywordsNone" });
+                if (line.damageElements.empty()) {
+                    problems.push_back(where + ": \"damage\" needs \"elements\"");
+                    damageRead.ok = false;
+                }
+                ok = damageRead.ok && ok;
+            }
             if (const auto tags = object.find("tags"); tags != object.end()) {
                 if (tags->is_object()) {
                     Reader tagRead{ *tags, problems, where + ".tags" };
@@ -208,134 +246,10 @@ namespace Librarian::Adapters
             ok = ParseEffectList(object, "spellLacks", where, line.spellLacks, problems) && ok;
 
             read.RejectUnknown({ "keyword", "keywordForm", "formList", "castingPerk", "why", "enabled", "sharedEffects", "tags", "spell",
-                "effect", "spellHas", "spellLacks", "keywordsNone", "formListsNone" });
+                "effect", "spellHas", "spellLacks", "keywordsNone", "formListsNone", "tierMin", "damage" });
             return read.ok && ok;
         }
 
-        // ---------------------------------------------------------------------
-        // Matching
-        // ---------------------------------------------------------------------
-
-        std::string Field(const json& object, const char* key)
-        {
-            const auto found = object.find(key);
-            return (found != object.end() && found->is_string()) ? found->get<std::string>() : std::string();
-        }
-
-        bool Flag(const json& object, const char* key)
-        {
-            const auto found = object.find(key);
-            return found != object.end() && found->is_boolean() && found->get<bool>();
-        }
-
-        bool Contains(const std::vector<std::string>& list, const std::string& value)
-        {
-            return std::ranges::find(list, value) != list.end();
-        }
-
-        bool IsVisible(const json& effect)
-        {
-            const auto flags = effect.find("flags");
-            return !(flags != effect.end() && flags->is_object() && Flag(*flags, "hideInUI"));
-        }
-
-        bool HasConditions(const json& effect)
-        {
-            const auto found = effect.find("conditions");
-            return found != effect.end() && found->is_number() && found->get<double>() > 0;
-        }
-
-        bool EffectMatches(const json& effect, const EffectCondition& c)
-        {
-            const std::string archetype = Field(effect, "archetype");
-            const std::string primaryAV = Field(effect, "primaryAV");
-            if (c.archetype && archetype != *c.archetype) return false;
-            if (!c.archetypeAny.empty() && !Contains(c.archetypeAny, archetype)) return false;
-            if (Contains(c.archetypeNone, archetype)) return false;
-            if (c.primaryAV && primaryAV != *c.primaryAV) return false;
-            if (!c.primaryAVAny.empty() && !Contains(c.primaryAVAny, primaryAV)) return false;
-            if (c.resistance && Field(effect, "resistance") != *c.resistance) return false;
-            if (c.detrimental && Flag(effect, "detrimental") != *c.detrimental) return false;
-            if (c.delivery && Field(effect, "delivery") != *c.delivery) return false;
-            if (c.minDuration) {
-                const auto duration = effect.find("duration");
-                const double value = (duration != effect.end() && duration->is_number()) ? duration->get<double>() : 0.0;
-                if (value < *c.minDuration) return false;
-            }
-            if (c.noDuration) {
-                const auto flags = effect.find("flags");
-                const bool value = flags != effect.end() && flags->is_object() && Flag(*flags, "noDuration");
-                if (value != *c.noDuration) return false;
-            }
-            if (!c.hazardSource.empty() && !Contains(c.hazardSource, Field(effect, "hazardSource"))) return false;
-            if (c.explodes) {
-                const auto projectile = effect.find("projectile");
-                const bool value = projectile != effect.end() && projectile->is_object() && Flag(*projectile, "explodes");
-                if (value != *c.explodes) return false;
-            }
-            if (c.visible && IsVisible(effect) != *c.visible) return false;
-            return Detail::SummonedMatches(effect, c.summonedAny, c.summonedNone);
-        }
-
-        bool HasTag(const json& catalogEntry, const std::string& tag)
-        {
-            for (const char* axis : { "elements", "techniques" }) {
-                const auto list = catalogEntry.find(axis);
-                if (list == catalogEntry.end() || !list->is_array()) continue;
-                for (const auto& value : *list) {
-                    if (value.is_string() && value.get<std::string>() == tag) return true;
-                }
-            }
-            return false;
-        }
-
-        bool TagsMatch(const json& catalogEntry, const TagCondition& c)
-        {
-            for (const auto& tag : c.all) {
-                if (!HasTag(catalogEntry, tag)) return false;
-            }
-            if (!c.any.empty() && std::ranges::none_of(c.any, [&](const auto& tag) { return HasTag(catalogEntry, tag); })) {
-                return false;
-            }
-            return std::ranges::none_of(c.none, [&](const auto& tag) { return HasTag(catalogEntry, tag); });
-        }
-
-        bool SpellMatches(const json& spell, const SpellCondition& c)
-        {
-            const std::string school = Field(spell, "school");
-            if (c.school && school != *c.school) return false;
-            if (c.notSchool && school == *c.notSchool) return false;
-            if (c.tier && Field(spell, "skillLevel") != *c.tier) return false;
-            if (c.casting && Field(spell, "castingType") != *c.casting) return false;
-            if (c.twoHanded && Flag(spell, "twoHanded") != *c.twoHanded) return false;
-            if (c.taughtByTome && Flag(spell, "taughtByTome") != *c.taughtByTome) return false;
-            return true;
-        }
-
-        const json& EffectsOf(const json& spell)
-        {
-            static const json kEmpty = json::array();
-            const auto found = spell.find("effects");
-            return (found != spell.end() && found->is_array()) ? *found : kEmpty;
-        }
-
-        void AddExample(std::vector<std::string>& examples, std::string text)
-        {
-            if (examples.size() < MAX_EXAMPLES) examples.push_back(std::move(text));
-        }
-
-        std::string SpellLabel(const json& spell, const std::string& id)
-        {
-            const std::string name = Field(spell, "name");
-            return name.empty() ? id : name + " [" + id + "]";
-        }
-
-        // A formList line's pick, kept among the spell's carried keywords so
-        // formListsNone reads it like keywordsNone. No editor id has a '@'.
-        std::string ListMark(const std::string& formList)
-        {
-            return "@list:" + formList;
-        }
     }
 
     // =========================================================================
@@ -360,7 +274,27 @@ namespace Librarian::Adapters
             read.Optional("always", always, &json::is_boolean);
             file.always = always.value_or(false);
             read.List("any", file.requiresAny);
-            read.RejectUnknown({ "always", "any" });
+            read.List("dlls", file.requiresDlls);
+            for (const auto& dll : file.requiresDlls) {
+                if (PlainFileName(dll)) continue;
+                problems.push_back(name + ".requires: \"dlls\" entry '" + dll + "' is not a plain file name");
+                read.ok = false;
+            }
+            std::optional<std::string> config;
+            read.Optional("config", config, &json::is_string);
+            file.requiresConfig = config.value_or("");
+            if (config && config->empty()) {
+                problems.push_back(name + ".requires: \"config\" is empty");
+                read.ok = false;
+            }
+            read.RejectUnknown({ "always", "any", "dlls", "config" });
+            // A requires it cannot read in full (a mistyped gate) keeps the file off,
+            // never on without its gate
+            if (!read.ok) {
+                file.always = false;
+                file.requiresAny.clear();
+                file.requiresDlls.clear();
+            }
         }
 
         std::size_t index = 0;
@@ -386,6 +320,38 @@ namespace Librarian::Adapters
         });
     }
 
+    bool ConfigFlagOn(const json& config, const std::string& dottedPath)
+    {
+        const json* node = &config;
+        std::size_t start = 0;
+        while (start <= dottedPath.size()) {
+            const std::size_t dot = dottedPath.find('.', start);
+            const std::string part = dottedPath.substr(start, dot == std::string::npos ? std::string::npos : dot - start);
+            if (!node->is_object()) return true;
+            const auto found = node->find(part);
+            if (found == node->end()) return true;
+            node = &*found;
+            if (dot == std::string::npos) break;
+            start = dot + 1;
+        }
+        return !(node->is_boolean() && !node->get<bool>());
+    }
+
+    bool DllInstalled(const std::string& name)
+    {
+        if (!PlainFileName(name)) return false;
+        std::error_code error;
+        return std::filesystem::is_regular_file(std::filesystem::path(SKSE_PLUGIN_DIR) / name, error);
+    }
+
+    bool FileApplies(const File& file, const json& config, const std::function<bool(const std::string&)>& pluginLoaded,
+        const std::function<bool(const std::string&)>& dllPresent)
+    {
+        if (!file.requiresConfig.empty() && !ConfigFlagOn(config, file.requiresConfig)) return false;
+        if (file.always) return true;
+        return std::ranges::any_of(file.requiresAny, pluginLoaded) || std::ranges::any_of(file.requiresDlls, dllPresent);
+    }
+
     // =========================================================================
     // MATCHING
     // =========================================================================
@@ -409,32 +375,20 @@ namespace Librarian::Adapters
     {
         std::string key = Field(effect, "form");
         if (key.empty()) {
-            key = Field(effect, "editorId");
-            std::ranges::transform(key, key.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            key = AsciiText::ToLower(Field(effect, "editorId"));
         }
         return key;
     }
 
     std::optional<std::size_t> PickTarget(const json& spell, const json* catalogEntry, const Line& line,
-        const std::unordered_set<std::string>& carried)
+        const std::unordered_set<std::string>& carried, bool* withoutSources)
     {
-        if (catalogEntry && !TagsMatch(*catalogEntry, line.tags)) return std::nullopt;
-        if (!SpellMatches(spell, line.spell)) return std::nullopt;
+        bool noSources = false;
+        const bool spellMatches = SpellLevelMatch(spell, catalogEntry, line, carried, noSources);
+        if (withoutSources) *withoutSources = noSources;
+        if (!spellMatches) return std::nullopt;
 
         const json& effects = EffectsOf(spell);
-        for (const auto& condition : line.spellHas) {
-            if (std::ranges::none_of(effects, [&](const json& e) { return EffectMatches(e, condition); })) return std::nullopt;
-        }
-        for (const auto& condition : line.spellLacks) {
-            if (std::ranges::any_of(effects, [&](const json& e) { return EffectMatches(e, condition); })) return std::nullopt;
-        }
-        for (const auto& keyword : line.keywordsNone) {
-            if (carried.contains(keyword)) return std::nullopt;
-        }
-        for (const auto& formList : line.formListsNone) {
-            if (carried.contains(ListMark(formList))) return std::nullopt;
-        }
-
         static const EffectCondition kAnyEffect;
         const EffectCondition& target = line.effect ? *line.effect : kAnyEffect;
         for (std::size_t i = 0; i < effects.size(); ++i) {
@@ -451,6 +405,9 @@ namespace Librarian::Adapters
     {
         Plan plan;
         plan.stats.resize(files.size());
+        // (effect, keyword) pairs earlier lines of this plan wrote: a damage
+        // line reads them with what the plugins wrote
+        EffectKeywords effectKeywords;
 
         // Keywords each spell carries, by persistent id: what the records say
         // (read once) plus what earlier lines gave it.
@@ -477,10 +434,18 @@ namespace Librarian::Adapters
                 stats.ran = live;
                 if (!live && !(source.measureDisabled && defined)) continue;
 
+                if (!line.damageElements.empty()) {
+                    PlanDamageLine(f, l, line, live, source, effectKeywords, carriedCache, plan);
+                    continue;
+                }
+
                 if (isCastingPerk) {
                     source.forEachCatalogSpell([&](const std::string& id, const json& spell, const json& entry) {
                         // The perk sits on the spell record: no target effect to find
-                        if (!TagsMatch(entry, line.tags) || !SpellMatches(spell, line.spell)) return;
+                        bool noSources = false;
+                        const bool tagsMatch = TagsMatch(entry, line.tags, line.tierMinRank, noSources);
+                        if (noSources) ++plan.entriesWithoutSources;
+                        if (!tagsMatch || !SpellMatches(spell, line.spell)) return;
                         if (!Field(spell, "castingPerk").empty()) {
                             ++stats.agree;
                             return;
@@ -496,7 +461,10 @@ namespace Librarian::Adapters
 
                 if (isList) {
                     source.forEachCatalogSpell([&](const std::string& id, const json& spell, const json& entry) {
-                        if (!PickTarget(spell, &entry, line, carriedBy(id, spell))) return;
+                        bool noSources = false;
+                        const auto target = PickTarget(spell, &entry, line, carriedBy(id, spell), &noSources);
+                        if (noSources) ++plan.entriesWithoutSources;
+                        if (!target) return;
                         // In the list either way now: later lines' formListsNone see it
                         // (not a line measured while off - it changes nothing)
                         if (live) carriedCache[id].insert(ListMark(line.formList));
@@ -515,7 +483,9 @@ namespace Librarian::Adapters
                 std::unordered_map<std::string, std::vector<std::string>> wanting;
                 source.forEachCatalogSpell([&](const std::string& id, const json& spell, const json& entry) {
                     const auto& carried = carriedBy(id, spell);
-                    const auto target = PickTarget(spell, &entry, line, carried);
+                    bool noSources = false;
+                    const auto target = PickTarget(spell, &entry, line, carried, &noSources);
+                    if (noSources) ++plan.entriesWithoutSources;
                     if (!target) return;
                     if (carried.contains(line.keyword)) {
                         ++stats.agree;
@@ -562,7 +532,10 @@ namespace Librarian::Adapters
                     }
 
                     ++stats.writes;
-                    if (live) plan.writes.push_back({ f, l, line.keyword, key });
+                    if (live) {
+                        plan.writes.push_back({ f, l, line.keyword, key });
+                        effectKeywords[key].insert(line.keyword);
+                    }
                     for (const auto& user : users) {
                         if (!user.spell) continue;
                         if (carriedBy(user.id, *user.spell).contains(line.keyword)) continue;
@@ -572,6 +545,16 @@ namespace Librarian::Adapters
                     }
                 }
             }
+        }
+
+        // A catalog from before 1.6: the tierMin lines judged its elements as
+        // framework. Said once per session - every plan would repeat it.
+        static bool s_toldWithoutSources = false;
+        if (plan.entriesWithoutSources > 0 && !s_toldWithoutSources) {
+            s_toldWithoutSources = true;
+            logger::warn("PerkAdapters: the catalog has no elementSources (written before 1.6) - {} spell checks of "
+                         "tierMin lines took its elements as framework evidence; a full scan writes a new catalog",
+                plan.entriesWithoutSources);
         }
         return plan;
     }
@@ -586,13 +569,15 @@ namespace Librarian::Adapters
                 const LineStats& s = plan.stats[f][l];
                 lines.push_back({
                     { "keyword", line.keyword }, { "keywordForm", line.keywordForm }, { "formList", line.formList },
-                    { "castingPerk", line.castingPerk }, { "enabled", line.enabled }, { "ran", s.ran },
+                    { "castingPerk", line.castingPerk }, { "damage", line.damageElements }, { "tierMin", line.tierMin },
+                    { "enabled", line.enabled }, { "ran", s.ran },
                     { "agree", s.agree }, { "writes", s.writes }, { "gain", s.gain }, { "leaks", s.leaks },
                     { "conditioned", s.conditioned }, { "blockedByItem", s.blockedByItem },
                     { "gainExamples", s.gainExamples }, { "leakExamples", s.leakExamples },
                 });
             }
-            report.push_back({ { "file", files[f].name }, { "perkMod", files[f].perkMod }, { "lines", lines } });
+            report.push_back({ { "file", files[f].name }, { "perkMod", files[f].perkMod },
+                { "requiresConfig", files[f].requiresConfig }, { "lines", lines } });
         }
         return report;
     }

@@ -1,0 +1,207 @@
+/* =============================================================================
+   panel-settings.css - Settings in categories (2.0 review, item 6;
+   modules/settingsCategories.js). Linked after patch-tree-tools.css; the
+   designs' sheets come later and may restyle it. Theme variables only.
+
+   #contentSettings stays the one scroller: the category list in a column at the
+   left (stuck to the top while the page scrolls), the shown page beside it, the
+   version and the Save/Reset bar under the page. Narrow (.settings-narrow, set by
+   SettingsCategories.layout): the list is a row on top.
+   ============================================================================= */
+
+#contentSettings.active {
+    display: grid;
+    grid-template-columns: 10.5em minmax(0, 1fr);
+    /* The category list as wide as its longest name ("Дополнительно" spilled out of 10.5em; 2.0 audit) */
+    grid-template-columns: minmax(10.5em, max-content) minmax(0, 1fr);
+    /* The page row is at least its content (min-content): it pushes the version and the sticky
+       Save/Reset bar below it, so the bar sticks to the scroller's foot instead of scrolling away
+       with a page that overflowed a 1fr row; a short page still leaves the bar at the foot (1fr) */
+    grid-template-rows: auto auto auto;   /* an engine without min-content in minmax() keeps this */
+    grid-template-rows: minmax(min-content, 1fr) auto auto;
+    column-gap: 24px;
+    row-gap: 0;
+}
+
+/* ---- The category list ---- */
+.settings-cats {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+    align-self: start;
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-top: 6px;
+    z-index: 2;
+}
+
+.settings-cat-btn {
+    background: transparent;
+    border: 0;
+    border-left: 2px solid transparent;
+    color: var(--text-secondary, #9A9A8A);
+    font-family: inherit;
+    font-size: 0.85em;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 10px 14px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.settings-cat-btn:hover {
+    color: var(--text-primary, #C8C8B8);
+    background: var(--btn-bg, rgba(255, 255, 255, 0.04));
+}
+
+.settings-cat-btn.active {
+    color: var(--accent-gold-hover, var(--accent-gold, #C8B888));
+    border-left-color: var(--accent-gold, #B8A878);
+    background: var(--btn-bg, rgba(255, 255, 255, 0.05));
+}
+
+/* Plain :focus, not :focus-visible - the in-game engine is an old WebKit */
+.settings-cat-btn:focus {
+    outline: 1px solid var(--accent-gold, #B8A878);
+    outline-offset: -1px;
+}
+
+/* ---- The pages: one at a time ---- */
+.settings-cat-page {
+    display: none;
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+}
+
+.settings-cat-page.active {
+    display: block;
+}
+
+#contentSettings .settings-version {
+    grid-column: 2;
+    grid-row: 2;
+}
+
+/* ---- Save / Reset: small text buttons at the foot (Save stays: several Early Learning
+   controls save only on Save, a tab switch or closing the panel - script.js) ---- */
+#contentSettings .settings-actions-sticky {
+    grid-column: 2;
+    grid-row: 3;
+    justify-content: flex-end;
+    gap: 22px;
+    padding: 8px 4px;
+}
+
+#contentSettings .settings-actions-sticky .btn {
+    flex: 0 0 auto;
+    padding: 4px 2px;
+    font-size: 0.85em;
+}
+
+#contentSettings .settings-actions-sticky .hom-icon {
+    width: 1.2em;
+    height: 1.2em;
+}
+
+/* ---- Narrow: the list as a row on top ---- */
+#contentSettings.settings-narrow.active {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto;
+    grid-template-rows: auto minmax(min-content, 1fr) auto auto;
+}
+
+#contentSettings.settings-narrow .settings-cats {
+    grid-column: 1;
+    grid-row: 1;
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 0 0 6px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--divider, rgba(255, 255, 255, 0.08));
+    background: var(--panel-bg-solid, #0a0a0a);
+}
+
+#contentSettings.settings-narrow .settings-cat-btn {
+    border-left: 0;
+    border-bottom: 2px solid transparent;
+    padding: 8px 12px;
+}
+
+#contentSettings.settings-narrow .settings-cat-btn.active {
+    border-bottom-color: var(--accent-gold, #B8A878);
+}
+
+#contentSettings.settings-narrow .settings-cat-page { grid-column: 1; grid-row: 2; }
+#contentSettings.settings-narrow .settings-version { grid-column: 1; grid-row: 3; }
+#contentSettings.settings-narrow .settings-actions-sticky { grid-column: 1; grid-row: 4; }
+#contentSettings.settings-narrow .settings-split { grid-template-columns: minmax(0, 1fr); }
+
+/* ---- Long labels (de, ru) and the 900 px default panel: nothing cut or laid over its neighbour.
+   Measured with the audit's overflow check (2.0 audit, item 1): a row's text wraps beside its
+   control and the control drops under it when 12em of text and the control do not fit side by side; no clamped
+   description (its end could not be reached); the category list as wide as its longest name ---- */
+#contentSettings .setting-row:not(.slider-row),
+#contentSettings .setting-row-inline {
+    flex-wrap: wrap;
+    gap: 6px 12px;
+}
+
+#contentSettings .setting-row:not(.slider-row) > .setting-info,
+#contentSettings .setting-row-inline > .setting-info {
+    flex: 1 1 12em;
+    min-width: 0;
+    overflow-wrap: break-word;   /* a long German compound breaks rather than run under the control */
+    word-wrap: break-word;
+}
+
+#contentSettings .setting-row:not(.slider-row) > :not(.setting-info) {
+    flex: 0 0 auto;
+    max-width: 100%;
+}
+
+/* A three-up row stacks its text over its switch (styles-skyrim.css): a 12em flex basis there is a height, which
+   pushed the switches far below their labels (seen at 2560 x 1440, 2.0 audit item 4) */
+#contentSettings .setting-triple > .setting-row > .setting-info { flex: 0 0 auto; }
+
+#contentSettings .setting-row-inline .inline-controls {
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    row-gap: 6px;
+}
+
+#contentSettings .setting-pair .setting-desc {
+    display: block;
+    overflow: visible;
+}
+
+/* A page narrower than SettingsCategories.ONE_COLUMN_PX: the blocks and pairs one under another */
+#contentSettings.settings-onecol .settings-split,
+#contentSettings.settings-onecol .setting-pair {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+/* Early Learning's last power step: its figures span the input and unit columns of the rows above */
+.power-step-row.power-step-final .power-step-unit { grid-column: span 2; color: var(--text-secondary); }
+.power-step-row.power-step-final .power-step-unit:last-child { grid-column: auto; }
+
+/* Slider grids: columns that may shrink, and a label that wraps instead of ending in "..." (its end
+   could not be read anywhere) */
+#contentSettings .slider-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#contentSettings .slider-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+#contentSettings .slider-compact-label {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+/* Power steps: a unit column as wide as its longest word ("% мощности" in a book face); every row has
+   the same words, so the rows still line up */
+#contentSettings .power-step-row {
+    grid-template-columns: 4.6em 3.6em 5.1em 3.6em 5.1em 1fr;   /* an engine without max-content in minmax() */
+    grid-template-columns: 4.6em 3.6em minmax(5.1em, max-content) 3.6em minmax(5.1em, max-content) 1fr;
+}

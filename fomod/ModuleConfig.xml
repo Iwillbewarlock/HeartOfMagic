@@ -16,6 +16,29 @@
     <!-- INSTALL STEPS — optional user choices                               -->
     <!-- ================================================================== -->
     <installSteps order="Explicit">
+        <installStep name="Core Files">
+            <optionalFileGroups order="Explicit">
+                <group name="Heart of Magic Librarian" type="SelectAll">
+                    <plugins order="Explicit">
+                        <plugin name="HeartOfMagic.esp (required)">
+                            <description>
+The SKSE plugin, the spell panel and the Papyrus scripts are always installed. This page adds HeartOfMagic.esp.
+
+HeartOfMagic.esp is a light plugin (ESL-flagged .esp): it takes no load order slot, needs only Skyrim.esm and can go anywhere in your load order. Enable it in your plugin list after installing.
+
+It holds one record: a copy, under a neutral name, of the base-game explosion Mysticism's screen shake uses, with Mysticism's values. Heart of Magic gives that copy to hidden, harmless spell effects whose explosion other mods read as frost by its name (Mysticism's screen shake, which made Frostwalker freeze water under spells such as Hysteria and Harmony). Real frost spells keep the original. With Mysticism, the fix also needs the Mysticism Patch on the next page.
+                            </description>
+                            <files>
+                                <file source="HeartOfMagic.esp" destination="HeartOfMagic.esp" priority="0"/>
+                            </files>
+                            <typeDescriptor>
+                                <type name="Required"/>
+                            </typeDescriptor>
+                        </plugin>
+                    </plugins>
+                </group>
+            </optionalFileGroups>
+        </installStep>
         <installStep name="Compatibility Patches">
             <optionalFileGroups order="Explicit">
                 <group name="ISL / DEST / Sit Down and Read / GTS CE Bookworm" type="SelectAny">
@@ -53,6 +76,37 @@ Auto-selected if ISL or DEST is detected. If you don't use ISL, leave this unche
                                                 <fileDependency file="DEST_ISL.esp" state="Active"/>
                                                 <fileDependency file="DontEatSpellTomes.esp" state="Active"/>
                                                 <fileDependency file="SKSE\Plugins\DontEatSpellTomes.dll" state="Active"/>
+                                            </dependencies>
+                                            <type name="Recommended"/>
+                                        </pattern>
+                                    </patterns>
+                                </dependencyType>
+                            </typeDescriptor>
+                        </plugin>
+                    </plugins>
+                </group>
+                <group name="Mysticism - A Magic Overhaul" type="SelectAny">
+                    <plugins order="Explicit">
+                        <plugin name="Mysticism Patch (HeartOfMagic_Mysticism.esp)">
+                            <description>
+For Mysticism - A Magic Overhaul. Without it, Mysticism's master-level spells (Hysteria, Harmony, Fire Storm and others) freeze water when Frostwalker is installed: their hidden screen-shake effect places the Blizzard explosion from its script.
+
+HeartOfMagic_Mysticism.esp is a light plugin (ESL-flagged .esp) with one record, Mysticism's MAG_ScreenShakeEffect, changed only to place HeartOfMagic.esp's neutral copy of that explosion. It needs MysticismMagic.esp and HeartOfMagic.esp.
+
+Load it after HeartOfMagic.esp and after every other plugin that edits MAG_ScreenShakeEffect (Synthesis or sound patches, for example): the last plugin to edit the effect decides.
+
+Only installable when MysticismMagic.esp is active.
+                            </description>
+                            <files>
+                                <file source="optional\MysticismPatch\HeartOfMagic_Mysticism.esp" destination="HeartOfMagic_Mysticism.esp" priority="0"/>
+                            </files>
+                            <typeDescriptor>
+                                <dependencyType>
+                                    <defaultType name="NotUsable"/>
+                                    <patterns>
+                                        <pattern>
+                                            <dependencies operator="And">
+                                                <fileDependency file="MysticismMagic.esp" state="Active"/>
                                             </dependencies>
                                             <type name="Recommended"/>
                                         </pattern>

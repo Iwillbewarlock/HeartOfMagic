@@ -34,7 +34,10 @@
     --panel-border: var(--book-edge);
     --text-primary: var(--book-text);
     --text-secondary: var(--book-text-soft);
-    --text-muted: var(--book-text-faint);
+    /* Quiet text reads the soft ink: the faint one is under 4.5:1 on Chalkboard's slate and on Night
+       Grimoire's cards (2.0 audit). So quiet and secondary text are one ink in the dark books; the
+       sheet reads the faint ink nowhere now (the presets still set it). */
+    --text-muted: var(--book-text-soft);
     --text-bright: var(--book-text-bright);
     --accent-gold: var(--book-gold);
     --accent-gold-hover: var(--book-gold-bright);
@@ -47,7 +50,12 @@
     --preview-bg: var(--book-page-edge);
     /* The tree builder's status line (TreeGrowth.STATUS_COLORS); a preset may
        set its own like the palette */
-    --status-idle: var(--book-text-faint);
+    --status-idle: var(--book-text-soft);   /* the faint ink was 4.3:1 on Chalkboard (2.0 audit) */
+    /* The theme's blue and red, lighter: made for black, they read 3.3:1 on Chalkboard's slate */
+    --accent-blue: #97AABC;
+    --accent-red: #F09488;
+    /* Weakened, lighter: the theme's #C89878 read 4.0:1 on Chalkboard's card */
+    --weakened-color: #CFA589;
     --status-working: #F0B04C;
     --status-done: #8CCF84;
     --status-error: #EE7E6E;
@@ -137,18 +145,14 @@
 
 /* ------------------------------------------------------------ the tree page */
 
+/* The page's edge, one line (2.0: the gutter ring and the shadow went, panel-tree.css) */
 .tree-container {
     border: 1px solid var(--book-edge);
-    box-shadow:
-        0 0 0 3px rgba(0, 0, 0, 0.6),
-        0 0 0 4px var(--book-edge),
-        inset 0 0 22px rgba(0, 0, 0, 0.5);
+    box-shadow: none;
 }
 
-/* Tools on the page: the cover's leather */
-.zoom-controls,
-.tree-footer,
-#tree-school-tabs,
+/* Tools on the page: the cover's leather. The zoom tools and school labels float without a box,
+   each on --panel-bg (panel-tree.css); the footer is a line under the frame */
 #tree-trait-filter,
 #howto-tab {
     background: var(--book-tools);
@@ -223,10 +227,8 @@
     background: var(--book-edge);
 }
 
-/* Under the opaque tree canvas the inner shadow is never seen, but was
-   worked out again on every change of the canvas: only the frame while it
-   shows, as an outline (no box shadow at all, see .spell-panel) */
+/* Under the opaque tree canvas: the edge alone, no shadow and no second outline (one frame, 2.0) */
 .tree-container.canvas-shown {
     box-shadow: none;
-    outline: 3px solid rgba(0, 0, 0, 0.6);
+    outline: 0;
 }

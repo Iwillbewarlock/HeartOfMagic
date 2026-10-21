@@ -1,0 +1,51 @@
+Heart of Magic Librarian 1.6.0 - text for the Nexus upload
+(The page itself: docs/NEXUS_PAGE.bbcode, "New in 1.6.0" section. Full list: CHANGELOG.md. First draft by Gemini Argon from a fact sheet, checked line by line against CHANGELOG 1.6.0.)
+
+=====================================================================
+1. Files tab - main file
+=====================================================================
+
+Name: Heart of Magic Librarian
+Version: 1.6.0
+
+Description:
+Main file. Run the installer (it installs the required HeartOfMagic.esp light plugin and offers the optional HeartOfMagic_Mysticism.esp patch when Mysticism is active). After updating, enable HeartOfMagic.esp in your mod manager (and HeartOfMagic_Mysticism.esp if offered, loaded after HeartOfMagic.esp and any other plugin that edits Mysticism's screen-shake effect): your saved tree and saves keep working, and spells whose element changed move to their new group only after Scan, Build and Apply.
+
+Debug Symbols file description (same version):
+Optional. Puts function names into Crash Logger reports. Install it only if you want to send a crash log.
+
+
+=====================================================================
+2. Changelogs tab - version 1.6.0 (one line per entry)
+=====================================================================
+
+New: Paths of Empyrean support - spells from other spell mods get the Lost Grimoire poison, sun, disease and kinetic keywords and the Paths of Empyrean daedra summon keyword its perks look for, so those perks work on them too.
+New: Environment mods see modded spells' elements - fire, frost and shock damage effects of spell mods get the keywords that Rain Extinguishes Fires, Water Douses Fire, Sneak Tools, DISDD, Elementally Reactive Waters, Ice is Slick and SIM look for, plus the own keywords of the OIF rule packs (Dynamic Torches NG, Fires Off, Melt The Ice, Burn The Hay and the rest), Dynamic Candles, Put Out The Fires and Frostwalker's frost and fire cloaks, only where the spell's record says the element, not its name (can be turned off with "environment": { "enabled": false } in config.json).
+New: Required light (ESL) plugin HeartOfMagic.esp with one record and only Skyrim.esm as master, holding a neutral copy of the Blizzard explosion used by the Frostwalker fix.
+New: Optional Mysticism patch HeartOfMagic_Mysticism.esp, offered by the installer when Mysticism is active (load it after HeartOfMagic.esp and after any other plugin that edits Mysticism's screen-shake effect).
+Changed: Balance - with Rain Extinguishes Fires, Water Douses Fire, Sneak Tools, DISDD, Elementally Reactive Waters, SIM or Ice is Slick installed, the vanilla element keywords go on every effect whose record deals that damage, not only the first, so element perks from perk overhauls (Adamant, Ordinator, Mysticism and others) apply to the extra effects too (without one of those mods nothing changes).
+Changed: A spell's element follows what its own record says when a keyword framework guesses otherwise - Desecration's necrotic flames (plain magic damage) and Flames of Coldharbour's cold fire (frost) no longer count as fire because their names contain "fire" and leave the fire group of the tree (a tree built before keeps its layout until you Scan, Build and Apply again).
+Changed: Panel, Settings - four categories (Display, Learning, Spell Tomes, Advanced, with developer and debug options only there) picked from a slim list at the left that keeps each scroll position while the game runs; rows are no longer boxed in bands and underlines, the version moved to the foot of the Settings page, and Reset to Defaults (and the power steps reset) now asks for a second click.
+Changed: Panel, Scan tab - one line says where you are ("753 spells found · 681 go in the tree · not applied yet", with what was left out and why) and one main button follows the step (Scan Spells, Build Tree, Apply Tree), with Scan again, Import (moved here from the tree footer) and Clear draft tree as small buttons beside it; per-school counts fold under "Scan details", excluded spells and the plugin list read as lines with their state, and the unfinished Alternate Pathways tab is hidden.
+Changed: Panel, spell card - answers "can I learn this now" with the state, XP share and weakened casting power in one line ("Weakened · 62% learned · casts at 50% power"), "Still needed" listing only what is missing (required spells, optional ones such as "need 1 of 2", and locks from another school marked as such), "Requirements met" once nothing is left, why Learn cannot be pressed yet, and the spells it leads to folded into one line.
+Changed: Panel, tree - one thin frame, tools floating on the canvas, schools as small coloured labels, a one-line footer that shows the spell count once, colour key opened from its "?", smaller corner drawings in Arcane, Night Grimoire, Chalkboard and Skald, and text contrast and layout checked across all six designs, long German and Russian words, and small screens (1280x720).
+Fixed: With Frostwalker and Mysticism, Fire Storm, Hysteria, Harmony and Mysticism's other master spells no longer freeze water (Mysticism's hidden screen-shake effect placed the vanilla Blizzard explosion, which Frostwalker reads as frost; needs HeartOfMagic.esp and the Mysticism patch; note that Blizzard itself does not freeze water with this fix because its storm is a hazard effect Frostwalker does not react to).
+Fixed: The spell card shows "Weakened" for a spell learned early and not yet mastered, with the power it casts at; it never showed before.
+Fixed: The spell card's optional requirements show how many are needed again, and the edit mode box to change that number and the LOCK badge are back.
+Fixed: A tree imported or edited by hand with formIds written without "0x" no longer mixes spells up, and a text that is not a formId is skipped with a line in SpellLearning.log instead of stopping the request.
+Fixed: Settings > Spell Tome Learning shows "1 spell added" instead of "1 spells added" (and correct Polish plurals).
+
+
+=====================================================================
+3. Posts tab - announcement (optional)
+=====================================================================
+
+1.6.0 is up.
+
+- Paths of Empyrean support: spells from other spell mods get the Lost Grimoire poison, sun, disease and kinetic keywords and the Paths of Empyrean daedra summon keyword its perks look for.
+- Environment mods support: fire, frost and shock damage effects of spell mods get the keywords used by Rain Extinguishes Fires, Water Douses Fire, Sneak Tools, DISDD, Elementally Reactive Waters, Ice is Slick, SIM, OIF rule packs (Dynamic Torches NG, Fires Off, Melt The Ice, Burn The Hay and the rest), Dynamic Candles, Put Out The Fires and Frostwalker's frost and fire cloaks.
+- Frostwalker and Mysticism fix: with the new required HeartOfMagic.esp light plugin and the optional HeartOfMagic_Mysticism.esp patch, Fire Storm, Hysteria, Harmony and Mysticism's other master spells no longer freeze water.
+- Record-based spell elements: a spell's element follows its own record instead of its name, so Desecration's necrotic flames (plain magic damage) and Flames of Coldharbour's cold fire (frost) no longer count as fire and leave the fire group of the tree.
+- Panel updates and fixes: four categories in Settings (Display, Learning, Spell Tomes, Advanced), a single step flow on the Scan tab (Scan Spells, Build Tree, Apply Tree), a clearer spell card that shows "Weakened" casting power and missing requirements under "Still needed", and a cleaner tree view.
+
+After updating: enable HeartOfMagic.esp in your mod manager (and the Mysticism patch, HeartOfMagic_Mysticism.esp, if offered - load it after HeartOfMagic.esp and after any other plugin that edits Mysticism's screen-shake effect). Your saved tree and saves keep working. Spells whose element changed move to their new group only after Scan, Build and Apply.

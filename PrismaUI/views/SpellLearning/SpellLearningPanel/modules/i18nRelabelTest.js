@@ -3,9 +3,10 @@
  * a language switch (initI18n + applyI18nToDOM, what switchLocale runs) writes it
  * again in the new language, with its {{values}}, as text or as a title; text
  * written after clearI18n stays as written; a key the language lacks shows the
- * English fallback.
+ * English fallback. And no element in index.html that a switch rewrites (data-i18n)
+ * holds another element, which the rewrite would drop.
  *
- * Depends on: i18n.js - run in its own sandbox with a few fake elements.
+ * Depends on: i18n.js - run in its own sandbox with a few fake elements; index.html.
  */
 
 var I18nRelabelTest = {
@@ -69,7 +70,25 @@ var I18nRelabelTest = {
         } catch (e) {
             this.check(false, 'i18n.js relabel checked: ' + e.message);
         }
+        this._markup(fs, path);
         return { passed: this.passed, failed: this.failed };
+    },
+
+    /**
+     * applyI18nToDOM writes a data-i18n element's textContent, which drops every
+     * element inside it: the spell card's "(need 2 of 3)" count and LOCK badge
+     * never showed while they sat inside their labels. data-i18n-html is meant
+     * to have its children replaced, so it is not checked.
+     */
+    _markup: function(fs, path) {
+        var html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+        // The element's own text up to the next tag; a tag that is not a closing one is a child
+        var re = /<([a-z0-9]+)\b[^>]*\sdata-i18n="([^"]*)"[^>]*>[^<]*<(?!\/)/g, m, nested = [];
+        while ((m = re.exec(html))) nested.push(m[2]);
+        this.check(nested.length === 0, 'no element in index.html a translation rewrites holds another element' +
+            (nested.length ? ' (' + nested.join(', ') + ')' : ''));
+        this.check(/<span id="soft-needed-count">/.test(html) && /class="lock-label"/.test(html),
+            'the optional count and the LOCK badge are still in index.html');
     }
 };
 

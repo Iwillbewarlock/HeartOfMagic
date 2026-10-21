@@ -35,6 +35,8 @@ var TreeGrowthStatus = {
 
     /** The built line is two strings ("Tree built - 10/20 nodes placed") under this key */
     BUILT_KEY: 'treeGrowth.treeBuilt',
+    /** Spells scanned, no draft: what the line says instead of "Waiting for scan..." */
+    READY_KEY: 'treeGrowth.readyToBuild',
 
     /** [span id, the language string that holds it] */
     IDLE_LINES: [['tgStatus', 'scanner.complexStatusWrap'], ['easyStatus', 'easyMode.statusWrap']],
@@ -65,6 +67,21 @@ var TreeGrowthStatus = {
         this.setStatusText(this._builtLabel(), 'done', this.BUILT_KEY);
     },
 
+    /** "Ready to build": a scan is in and no tree is built or being built */
+    showReady: function() {
+        this.setStatusText(typeof tOr === 'function' ? tOr(this.READY_KEY, null, 'Ready to build') : 'Ready to build', 'idle', this.READY_KEY);
+    },
+
+    /**
+     * Spells came in (TreeGrowth.updateScanStatus): "Ready to build" over "Waiting for scan..." while no
+     * tree is built or being built. A line someone wrote - an error, the build at game start's - stays.
+     */
+    onSpellsScanned: function() {
+        if (this._hasSpells && !this._treeBuilt && !this._building && (!this._status || this._status.key === this.READY_KEY)) this.showReady();
+        // A scan with no spell: "Ready to build" goes (nothing to build)
+        else if (!this._hasSpells && this._status && this._status.key === this.READY_KEY) this.resetStatus();
+    },
+
     _builtLabel: function() {
         var label = t(this.BUILT_KEY);
         if (this._nodeCount > 0) {
@@ -87,7 +104,7 @@ var TreeGrowthStatus = {
         this.setStatusText(text, s.tone, s.key, s.params);
     },
 
-    /** Back to the idle "Waiting for scan..." in the current language (a cleared tree). */
+    /** Back to the idle "Waiting for scan..." in the current language (a cleared tree); "Ready to build" when spells are scanned. */
     resetStatus: function() {
         this._status = null;
         for (var i = 0; i < this.IDLE_LINES.length; i++) {
@@ -103,6 +120,7 @@ var TreeGrowthStatus = {
                 el.style.color = '';
             }
         }
+        if (this._hasSpells && !this._treeBuilt && !this._building) this.showReady();
     },
 
     /** Give an object (TreeGrowth, or a test's stand-in) these methods. */

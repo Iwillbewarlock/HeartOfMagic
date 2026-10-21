@@ -70,8 +70,8 @@ namespace TomeReach
 
     bool IsDistributionConfig(const std::filesystem::path& file)
     {
-        const auto name = LowerAscii(file.filename().string());
-        const auto dir = LowerAscii(file.parent_path().string());
+        const auto name = AsciiText::ToLower(file.filename().string());
+        const auto dir = AsciiText::ToLower(file.parent_path().string());
         for (auto skipped : kSkippedFolders) {
             if (Contains(dir, skipped)) return false;
         }
@@ -114,7 +114,7 @@ namespace TomeReach
         if (!in) return;
         std::ostringstream buffer;
         buffer << in.rdbuf();
-        m_text += LowerAscii(buffer.str());
+        m_text += AsciiText::ToLower(buffer.str());
         m_text += '\n';
         ++m_files;
     }
@@ -122,7 +122,7 @@ namespace TomeReach
     bool ConfigText::Names(std::string_view pluginLower, std::uint32_t local, std::string_view editorId) const
     {
         if (!editorId.empty()) {
-            const auto id = LowerAscii(editorId);
+            const auto id = AsciiText::ToLower(editorId);
             for (auto at = m_text.find(id); at != std::string::npos; at = m_text.find(id, at + 1)) {
                 const bool before = at == 0 || !Word(static_cast<unsigned char>(m_text[at - 1]));
                 const std::size_t after = at + id.size();

@@ -26,39 +26,6 @@
 // DISPLAY CACHE MANAGEMENT
 // =============================================================================
 
-std::string SpellEffectivenessHook::GetModifiedSpellName(RE::SpellItem* spell)
-{
-    if (!spell) {
-        return "";
-    }
-
-    RE::FormID spellId = spell->GetFormID();
-
-    // Check if not early-learned - return original name
-    if (!IsEarlyLearnedSpell(spellId)) {
-        return spell->GetName();
-    }
-
-    // Check cache (read-only)
-    {
-        std::shared_lock<std::shared_mutex> lock(m_mutex);
-        auto it = m_displayCache.find(spellId);
-        if (it != m_displayCache.end() && !it->second.modifiedName.empty()) {
-            return it->second.modifiedName;
-        }
-    }
-
-    // Build modified name - update cache
-    UpdateSpellDisplayCache(spellId, spell);
-
-    std::shared_lock<std::shared_mutex> lock(m_mutex);
-    auto it = m_displayCache.find(spellId);
-    if (it != m_displayCache.end()) {
-        return it->second.modifiedName;
-    }
-    return "";
-}
-
 void SpellEffectivenessHook::UpdateSpellDisplayCache(RE::FormID spellFormId, RE::SpellItem* spell)
 {
     if (!spell) {
@@ -511,39 +478,10 @@ void SpellEffectivenessHook::RestoreOriginalDescriptions(RE::FormID spellFormId)
     }
 }
 
-void SpellEffectivenessHook::RefreshAllDescriptions()
-{
-    logger::info("SpellEffectivenessHook: Refreshing all spell descriptions...");
-
-    std::unordered_set<RE::FormID> spellsCopy;
-    {
-        std::shared_lock<std::shared_mutex> lock(m_mutex);
-        spellsCopy = m_earlyLearnedSpells;
-    }
-
-    for (RE::FormID spellId : spellsCopy) {
-        ApplyModifiedDescriptions(spellId);
-    }
-
-    logger::info("SpellEffectivenessHook: Refreshed {} spell descriptions", spellsCopy.size());
-}
-
 // =============================================================================
 // DESCRIPTION SCALING HELPERS
 // =============================================================================
 // Helper functions for generating scaled description text.
-
-float SpellEffectivenessHook::GetScaledMagnitude(RE::SpellItem* spell, float originalMagnitude) const
-{
-    if (!spell || !m_settingsEnabled.load(std::memory_order_acquire)) {
-        return originalMagnitude;
-    }
-
-    RE::FormID spellId = spell->GetFormID();
-    float effectiveness = CalculateEffectiveness(spellId);
-
-    return originalMagnitude * effectiveness;
-}
 
 std::string SpellEffectivenessHook::GetScaledSpellDescription(RE::SpellItem* spell)
 {

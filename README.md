@@ -95,11 +95,21 @@ Control exactly which mods contribute spells. Uses stable `plugin:formId` keys t
 1. Download the latest release
 2. Install through your mod manager (MO2, Vortex, etc.)
 3. Ensure PrismaUI loads before Heart of Magic
-4. Enable the mod
+4. Enable the mod, and enable `HeartOfMagic.esp` in the plugin list. It is a light (ESL-flagged) plugin: it takes
+   no load order slot, needs only `Skyrim.esm`, and can go anywhere in the order. It holds one record: a copy, under a
+   neutral name, of the base-game explosion Mysticism's screen shake uses, with Mysticism's values (see
+   [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md)); without it the rest of the mod still runs
+5. With Mysticism - A Magic Overhaul: also enable the optional Mysticism patch, `HeartOfMagic_Mysticism.esp` (the
+   installer offers it when `MysticismMagic.esp` is active; a light plugin with one record, masters
+   `MysticismMagic.esp` and `HeartOfMagic.esp`). Load it after `HeartOfMagic.esp` and after every other plugin that
+   edits Mysticism's `MAG_ScreenShakeEffect` (Synthesis or sound patches, for example). Without it, Mysticism's
+   master-level spells (Hysteria, Harmony, Fire Storm and others) freeze water when Frostwalker is installed
 
 ### Folder Structure
 ```
 Data/
+├── HeartOfMagic.esp      (light plugin, one record)
+├── HeartOfMagic_Mysticism.esp   (optional, with Mysticism only: light plugin, one record)
 ├── Scripts/
 │   └── *.pex             (SpellLearning, DEST/ISL handlers, BookXP)
 ├── SKSE/

@@ -11,7 +11,8 @@
  * - initializeHowToPanel(), updateHowToContent()
  * - updateLearningStatusBadge(node, progress), calculateCurrentEffectiveness()
  * - getRequiredXPForNode(node), getReverseUnlockXPShare(level), getXPForTier(level)
- * - setTreeStatus(msg), onLearnClick(), onUnlockClick(), autoAdvanceLearningTarget()
+ * - onLearnClick(), onUnlockClick(), autoAdvanceLearningTarget()
+ *   (setTreeStatus / setTreeStatusKey moved to treeStatusLine.js, 1.6)
  * - window.onSpellReady, onSpellUnlocked, onLearningTargetSet, onProgressData (C++ callbacks)
  */
 
@@ -305,19 +306,6 @@ function getXPForTier(level) {
     }
 }
 
-function setTreeStatus(msg) {
-    var el = document.getElementById('tree-status-text');
-    if (!el) return;
-    if (typeof clearI18n === 'function') clearI18n(el);
-    el.textContent = msg;
-}
-
-/** The status line in the panel's language, written again by a language switch (setI18n) */
-function setTreeStatusKey(key, params, fallback) {
-    var el = document.getElementById('tree-status-text');
-    if (el) setI18n(el, key, params, fallback);
-}
-
 // =============================================================================
 // PROGRESSION SYSTEM
 // =============================================================================
@@ -495,6 +483,7 @@ function onUnlockClick() {
                 unlocked: true,
                 ready: true
             };
+            if (typeof ProgressUpdates !== 'undefined') ProgressUpdates.forgetWeakened(canonId, node.formId);
             node.state = 'unlocked';
             if (typeof syncDuplicateState === 'function') syncDuplicateState(node);
             // Its children open now, as they do when C++ says the spell was unlocked
@@ -745,6 +734,7 @@ window.onSpellUnlocked = function(dataStr) {
             }
             state.spellProgress[canonId].unlocked = true;
             state.spellProgress[canonId].xp = state.spellProgress[canonId].required || 100;
+            if (typeof ProgressUpdates !== 'undefined') ProgressUpdates.forgetWeakened(canonId, data.formId);
 
             // Update ALL nodes matching canonical ID (including duplicates)
             if (state.treeData) {

@@ -1,4 +1,5 @@
 #include "SpellEffectivenessHook.h"
+#include "FormIdText.h"
 #include "HudNotify.h"
 #include "ProgressionManager.h"
 #include "uimanager/UIManager.h"
@@ -57,7 +58,7 @@ void SpellEffectivenessHook::GrantEarlySpell(RE::SpellItem* spell)
 
         // Notify UI
         UIManager::GetSingleton()->UpdateSpellState(
-            std::format("0x{:08X}", formId), "weakened");
+            FormIdText::Format(formId), "weakened");
     } else {
         logger::trace("SpellEffectivenessHook: Spell {} ({:08X}) already tracked as early-learned",
             spell->GetName(), formId);
@@ -100,7 +101,7 @@ void SpellEffectivenessHook::RegisterISLPendingSpell(RE::SpellItem* spell)
 
     // Notify UI of the new tracked state (no name change yet)
     UIManager::GetSingleton()->UpdateSpellState(
-        std::format("0x{:08X}", formId), "studying");
+        FormIdText::Format(formId), "studying");
 }
 
 void SpellEffectivenessHook::MarkMastered(RE::FormID spellFormId)
@@ -121,7 +122,7 @@ void SpellEffectivenessHook::MarkMastered(RE::FormID spellFormId)
 
     // Notify UI
     UIManager::GetSingleton()->UpdateSpellState(
-        std::format("0x{:08X}", spellFormId), "mastered");
+        FormIdText::Format(spellFormId), "mastered");
 }
 
 // =============================================================================
@@ -173,7 +174,7 @@ void SpellEffectivenessHook::RemoveEarlySpellFromPlayer(RE::FormID spellFormId)
 
     // Notify UI
     UIManager::GetSingleton()->UpdateSpellState(
-        std::format("0x{:08X}", spellFormId), "available");
+        FormIdText::Format(spellFormId), "available");
 }
 
 void SpellEffectivenessHook::CheckAndRegrantSpell(RE::FormID spellFormId)
@@ -224,7 +225,7 @@ void SpellEffectivenessHook::CheckAndRegrantSpell(RE::FormID spellFormId)
 
             // Notify UI
             UIManager::GetSingleton()->UpdateSpellState(
-                std::format("0x{:08X}", spellFormId), "weakened");
+                FormIdText::Format(spellFormId), "weakened");
         }
     }
 }

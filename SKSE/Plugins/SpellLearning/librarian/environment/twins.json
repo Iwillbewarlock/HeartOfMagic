@@ -1,0 +1,17 @@
+{
+  "_comment": [
+    "Explosion twins (docs/ENVIRONMENT.md). Each 'twin' is a copy in HeartOfMagic.esp of the 'original' explosion",
+    "with every field the same except a neutral EditorID, so name-matching mods (Frostwalker) do not read it as an",
+    "element. At kDataLoaded the plugin points a magic effect from 'original' to 'twin' only when the effect is by",
+    "record a hidden Script effect (no damage) that carries 'original'. The scanner keeps recording 'original'.",
+    "Ids are persistentIds ('Plugin|0xLOCALID'). tools/frostwalker-twin-check.js checks every twin here against the",
+    "plugin file and Frostwalker's pattern lists; a twin added here needs its record in HeartOfMagic.esp first."
+  ],
+  "explosions": [
+    {
+      "original": "Skyrim.esm|0x0B7A05",
+      "twin": "HeartOfMagic.esp|0x000800",
+      "why": "MAG_BlizzardForceExplosion ('blizzard' reads as cold to Frostwalker) is the explosion of Mysticism's hidden screen-shake effect MAG_ScreenShakeEffect (MysticismMagic.esp|0xBDE626), so Fire Storm, Hysteria, Harmony, Mayhem, Paralysis and Bane of the Undead froze water. The twin HoM_ShakeBlastTwin has the same fields from MysticismMagic.esp 2.4.2.0. Real Blizzard (MAG_FrostDamageFFHazardArea, a SpawnHazard effect) keeps the original."
+    }
+  ]
+}

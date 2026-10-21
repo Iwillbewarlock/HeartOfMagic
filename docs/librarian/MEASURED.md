@@ -126,6 +126,7 @@ F1 은 사실상 같고(74.5 → 74.9), 정밀도는 4pt 내리고 재현율은 
 같은 날 OCF·Arcanum 혈 키워드가 주던 소환의 혈도 뗐고(`SummonCreature` remove) 수동 혈 8개를 더했다(LIBRARIAN.md 3절): 혈 115 → 109 → 117,
 정답셋·AI 채점 숫자는 소수 한 자리로 그대로(채점 회차마다 낡은 "맞음" 판정 하나가 빠진다, LIBRARIAN.md 3절).
 같은 날 Daughter of Coldharbor 박쥐 둘(수동)과 통째로 혈마법인 모드의 플러그인 이름 룰(`70_mods.json`)을 더했다: 혈 117 → 119(박쥐 둘만), 정답셋·AI 채점 그대로. 이름 룰은 프레임워크 없이(`10_*.json` 제외) 잴 때만 바뀐다: Bloodmoon 혈 5 → 21/24, Sacrilege 9 → 10/12(LIBRARIAN.md 3절 "통째로 혈마법인 모드").
+2026-10-20 증거 충돌 단계 뒤 기준선: AI 채점 89.5 → 89.4%, 92.2 → 92.1%(낡은 `fire` 판정 다섯, 7절), 나머지 그대로.
 
 **AI 판정 2회차 (2026-09-30, 새 덤프, `lab/librarian-judge/2026-09-30b`).** 모드 주문 120개: 규칙 반영 전 85.4%
 (270/316, 한 주문 — Mysticism 해제 — 이 오답 15개), 반영 후 **90.6%** (270/298). 정답셋 점수는 그대로다.
@@ -232,3 +233,64 @@ Stoneflesh 와 Ironflesh 는 MGEF 구조가 **완전히 동일하다.** archetyp
 - (a) 에 남은 최대 오탐은 `human`(13적중 12오탐) 과 `flesh`(13/10) · `armor`(5/9) ·
   `strengthen`(3/9) · `courage`(2/8) 이다. 더 짜낼 여지는 있으나 과적합 위험과 맞바꾸는 구간
 - `resistance` 는 여전히 2오탐 0적중이다. 어휘에는 남겼다 (M3 판단)
+
+## 7. 증거 충돌 단계 (2026-10-20)
+
+> 입력 TAKEALOOK 덤프 `D:\TAKEALOOK\overwrite\SKSE\Plugins\SpellLearning\spell_scan_output.json`(스캔 2026-10-14 16:53 UTC,
+> 주문 3983), 룰 426개 + `20_conflict.json`(표식만). 전: `release/1.6` `898892d9` 의 `librarian-test`(사서 소스는 2026-10-10 이후
+> 그대로), 후: 이 변경. 메커니즘은 `LIBRARIAN.md` 3절 "증거 충돌".
+> ```
+> librarian-test -i <덤프> -r SKSE/Plugins/SpellLearning/librarian -o after.json   # 출력의 CONFLICT STAGE 줄
+> ```
+> 두 카탈로그를 주문마다 비교한 스크립트는 세션 스크래치(저장소 밖)에 두었다.
+
+**바뀐 것은 화염뿐이다.** 60개 주문이 `fire` 를 잃고(621 → 561), 다른 원소는 하나도 붙거나 떨어지지 않았다. 원소를
+전부 잃어 `arcane` 으로 넘어간 주문은 없다(`arcane` 212 그대로, 태그 0개 296 그대로). 물·바람·흙은 엔진 피해 원소가 아니라
+단계가 건드리지 않는다: `water` 42, `air` 62, `earth` 73 전후 같음.
+
+| 갈래 | 조건 | 주문 | 무엇 |
+|---|---|---:|---|
+| Desecration 괴저 화염 | (a) 표식 | 25 | `APO_MagicDamageUnspecified` + `MagicResist`. 화염은 OCF `NecroticFire`·ADAR `NecroticFire_` 복합 룰이 줬다(KIT `MagicElement_Fire` 는 이 이펙트에 없다) |
+| 냉기 화염(ColdFire·FrostFire) | (b) 같은 이펙트의 서리 | 31 | Flames of Coldharbour 27, Unslaad 냉염 파동 2, 네크로 아츠 냉화염 강타 1, Blasphemous Revenants 냉화염 피해 1. 기록은 `MagicDamageFrost`·`FrostResist`, 설명 "냉기 피해" — 냉기 화염은 서리(사용자 결정 2026-10-20) |
+| KIT 화염이 붙은 다른 원소 | (b) | 4 | BSHeartland 서리 아트로나크 소환 2(`MagicSummonFrost` 에 KIT 화염)와 서리불꽃 환경 냉기 피해 1(`MagicDamageFrost`), mihail 폭풍 아트로나크 공격 `crAtronachStormAreaAttackFIRE` 1(`MagicDamageShock`·`ElectricResist`, 에디터 ID 만 FIRE) |
+
+**Desecration.** 괴저 원소를 가진 40개 중 25개가 화염을 잃었고 나머지 15개는 원래 화염이 없었다. 지금 Desecration 의 어느 주문에도
+화염이 없고 40개 모두 괴저를 지킨다.
+
+**Shockballmihail 은 화염을 지킨다.** 이 주문(`mihailskeletalrevenants.esp|0x000A13`)의 기록은 에디터 ID(`SHOCKDamageFFAimedArea2`)
+말고는 전부 화염이다: `MagicDamageFire`, `FireResist`, 설명 "화염 피해", 이름 "파이어볼". 등급은 `mgef` 라 단계가 볼 대상이 아니다.
+전격으로 기록된 것은 숨김 보조 이펙트(`PerkDisintegrateFFAimedArea`, Script, 근거 아님)뿐이다. 같은 모드에서 기록이 실제로
+전격인 것은 위 표의 폭풍 아트로나크 공격이다.
+
+**냉기 화염은 서리 (2026-10-20, 사용자 결정).** 기록이 서리 피해이고 파란 불꽃은 겉모습이라 31개는 서리만 남는다(기록을 따르는
+지금 동작 그대로). 검토했다가 버린 대안: "같은 프레임워크 룰이 서리도 함께 준 경우는 반박이 아니다"(OCF `MgefSpellDamage_FrostFire*`,
+ADAR `FrostFire_` 복합 키워드)는 19개가 화염을 지키고 12개만 잃어 같은 모드 안에서 갈렸다.
+`KIT_MagicElement_ColdFire` 가 있는 근거 이펙트로 주문을 나누면(56개): 기록이 서리 31(화염 31 → 0, 서리 31 유지), 기록이 화염 15
+(mihail 11, Lucien 3, Glenmoril 1 — 화염 그대로, 서리 0), 기록에 원소 없음 10(Vigilant 성스러운 불꽃·불화살, `MagicResist` — 화염 그대로).
+그 밖의 ColdFire 키워드(`KIT_MagicDamageType_DispelColdFireCloak` 등)만 있는 mihail·Lucien 파란 불꽃 망토 4개도 기록이 화염이라 그대로다.
+그래서 `10_kit.json` 의 `ColdFire` → `fire` 룰은 바꾸지 않고 주석만 고쳤다. 서리로 바꾸면 Vigilant 10개가 서리가 된다.
+
+**등급(`source.elements`)이 바뀐 주문 34개, confidence 가 바뀐 주문 33개.** 원소는 그대로다.
+- `framework` → `manual` 25: Bloodmoon 20(`70_mods.json` 의 이름 룰이 manual 등급), Vigilant 2, MysticismMagic 1, SPERG 1, AX ValSerano 1.
+  confidence 0.8 → 1.0(SPERG 하나는 기법 축이 프레임워크라 0.8 그대로)
+- `mgef` → `framework` 9: 데이드라 소환. 유일한 mgef 태그가 `remove` 로 뗀 `soul` 이었는데 등급이 남아 있던 것(빼기 뒤 재계산).
+  confidence 1.0 → 0.8
+
+**프레임워크 없는 환경(`-t mgef`).** 단계가 떼는 주문 0개. 프레임워크 증거가 없으면 단계는 아무것도 하지 않는다.
+**`-t framework` 로 재도** (a) 는 돈다: 표식은 룰이 아니라 등급으로 걸러지지 않는다. 이 덤프에서 25개(Desecration 괴저 화염 전부)가
+화염을 잃는다. (b) 는 반박할 기록 룰이 없어 돌지 않는다.
+
+**리뷰 수정(2026-10-20 같은 날) 뒤 다시 잼.** 이펙트마다 따로 판정(형제 이펙트는 서로 반박하지 않음, 운반체는 거는 피해로), 같은
+순위 등급은 룰 순서, 반박된 조각만 지우기, 뗀 태그가 `noElement` 로 돌아오지 않게 — 네 가지를 고친 뒤 TAKEALOOK 덤프와 고정 덤프의
+카탈로그가 고치기 전과 항목 단위로 같다(`generated` 말고 0건 차이). 이 덤프들에는 형제 이펙트끼리 엇갈리는 주문도, 같은 순위 등급이
+겹치는 주문도, `noElement` 가 뗀 태그를 되돌리는 주문도 없다는 뜻이다. 바뀐 동작은 자가 시험이 잡는다(2차 리뷰의 "함께 거는 회복을 피해로 센" 버그 수정까지 42개, 그 수정 뒤에도 두 덤프 카탈로그 차이 0).
+
+**회귀 검사(`node tools/librarian-check.js`, 고정 덤프 2026-09-30, 53개 주문이 화염을 잃는다).** 정답셋 F1 83.2(구조 등급 80.8),
+Spell Research 83.9, 태그 0개 6.7% — 기준선 그대로. AI 채점 두 회차는 0.1pt 씩 내렸다: 1회차 89.5 → 89.4,
+2회차 92.2 → 92.1. 차이는 전부 이 단계 이전에 효과 설명을 읽고 "맞음" 으로 매긴 `fire` 판정 다섯이다. 1회차 Desecration 괴저 화염구
+(`0x000819`)·괴저 연소(`0x0009A1`), 2회차 Desecration 괴저 불꽃 손길(`0x00082F`)과 Flames of Coldharbour 냉기 화염의 손길(`0x00082F`)·
+냉기 작열(`0x000833`). 확인 방법: 새 카탈로그에서 이 다섯에만 화염을 되돌리면 옛 판정으로 89.45%(246/275)·92.20%(272/295), 곧 옛
+기준선이 그대로 나온다. 채점 표본 안에서 화염이 바뀐 다른 주문은 없다. 다섯 판정은 `fire` 를 `wrong` 으로 옮겨 고쳤다(LIBRARIAN.md 3절
+"AI 채점의 낡은 판정 다섯"). 고친 판정으로 옛 카탈로그(다섯에 화염)를 채점하면 88.73%·91.19% 라, 새 판정 기준으로는 이 변경이
+0.65pt·0.93pt 나아진 것이다. 다른 숫자는 하나도 바뀌지 않아 `--update` 로 기준선을 새로 썼다(판정 두 값만 바뀜, 자가 시험 통과가
+검사 첫 단계로 들어감, 지금 42개). 고친 뒤 검사는 OK.

@@ -158,6 +158,33 @@ add_custom_command(TARGET assemble_dist POST_BUILD
 )
 
 # ============================================================================
+# 4b. The plugins: HeartOfMagic.esp, ESL-flagged, at the Data root (committed at
+#     the repo root; docs/ENVIRONMENT.md). The FOMOD installs it in its core step.
+#     HeartOfMagic_Mysticism.esp below.
+# ============================================================================
+
+add_custom_command(TARGET assemble_dist POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy
+    "${CMAKE_SOURCE_DIR}/HeartOfMagic.esp"
+    "${DIST_VERSION_DIR}/"
+    COMMAND "${CMAKE_COMMAND}" -E echo "Copying HeartOfMagic.esp..."
+    VERBATIM
+)
+
+# The optional Mysticism patch, HeartOfMagic_Mysticism.esp (masters MysticismMagic.esp
+# and HeartOfMagic.esp), under optional/ like the ISL patch: a copy of the zip
+# extracted by hand into Data without Mysticism would otherwise get a plugin with a
+# missing master. The FOMOD installs it to the Data root when MysticismMagic.esp is active.
+add_custom_command(TARGET assemble_dist POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${DIST_VERSION_DIR}/optional/MysticismPatch"
+    COMMAND "${CMAKE_COMMAND}" -E copy
+    "${CMAKE_SOURCE_DIR}/HeartOfMagic_Mysticism.esp"
+    "${DIST_VERSION_DIR}/optional/MysticismPatch/"
+    COMMAND "${CMAKE_COMMAND}" -E echo "Copying HeartOfMagic_Mysticism.esp..."
+    VERBATIM
+)
+
+# ============================================================================
 # 5. Copy PrismaUI views
 # ============================================================================
 

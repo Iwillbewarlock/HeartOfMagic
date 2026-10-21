@@ -92,6 +92,7 @@ loadModule('starCadenceTest', './modules/starCadenceTest.js');
 loadModule('treeGrowthStatus', './modules/treeGrowthStatus.js');
 loadModule('statusLineTest', './modules/statusLineTest.js');
 loadModule('spellNamesTest', './modules/spellNamesTest.js');
+loadModule('spellCardWeakenedTest', './modules/spellCardWeakenedTest.js');
 loadModule('levelFilterTest', './modules/levelFilterTest.js');
 loadModule('tomeFilterTest', './modules/tomeFilterTest.js');
 loadModule('newSpellsTest', './modules/newSpellsTest.js');
@@ -163,6 +164,10 @@ loadModule('iconSlotsTest', './modules/iconSlotsTest.js');
 // These run settingsPanel.js, progressionUI.js and others into the global scope: last
 loadModule('configSaveTest', './modules/configSaveTest.js');
 loadModule('panelRefreshTest', './modules/panelRefreshTest.js');
+loadModule('panelTidyTest', './modules/panelTidyTest.js');
+loadModule('panelLayoutTest', './modules/panelLayoutTest.js');
+loadModule('spellCardNeedsTest', './modules/spellCardNeedsTest.js');
+loadModule('panelAuditTest', './modules/panelAuditTest.js');
 loadModule('unificationTest', './modules/unificationTest.js');
 
 console.log('');

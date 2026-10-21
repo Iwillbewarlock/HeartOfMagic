@@ -67,14 +67,12 @@ public:
 
     // Power steps management (configurable)
     void SetPowerSteps(const std::vector<PowerStep>& steps);
-    std::vector<PowerStep> GetPowerSteps() const;
     int GetNumPowerSteps() const;
     
     // Early-learned spell tracking
     void AddEarlyLearnedSpell(RE::FormID formId);
     void RemoveEarlyLearnedSpell(RE::FormID formId);  // Called at 100% mastery
     bool IsEarlyLearnedSpell(RE::FormID formId) const;
-    std::unordered_set<RE::FormID> GetEarlyLearnedSpells() const;
     
     // Power step calculations
     int GetCurrentPowerStep(RE::FormID spellFormId) const;
@@ -128,14 +126,8 @@ public:
     // Fast path for effectiveness scaling (player check already done)
     void ApplyEffectivenessScalingFast(RE::ActiveEffect* a_effect);
     
-    // Get/update modified name for early-learned spell
-    std::string GetModifiedSpellName(RE::SpellItem* spell);
-    
     // Get modified description showing scaled values
     std::string GetScaledSpellDescription(RE::SpellItem* spell);
-    
-    // Format a magnitude value with effectiveness scaling
-    float GetScaledMagnitude(RE::SpellItem* spell, float originalMagnitude) const;
     
     // Update display cache for a spell (called when step changes)
     void UpdateSpellDisplayCache(RE::FormID spellFormId, RE::SpellItem* spell = nullptr);
@@ -154,7 +146,6 @@ public:
     // Directly modify effect descriptions to show scaled values
     void ApplyModifiedDescriptions(RE::FormID spellFormId);
     void RestoreOriginalDescriptions(RE::FormID spellFormId);
-    void RefreshAllDescriptions();  // Update all tracked spell descriptions
     
     // Serialization for SKSE co-save
     static constexpr uint32_t kEarlyLearnedRecord = 'SLEL';  // Spell Learning Early Learned

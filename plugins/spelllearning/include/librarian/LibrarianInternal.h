@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Common.h"
+#include "AsciiText.h"
 #include "PathText.h"
 
 #include <algorithm>
@@ -24,13 +25,6 @@ namespace Librarian::Detail
     // Where the librarian's data lives, under the game's Data directory.
     inline constexpr const char* DATA_DIR = "Data/SKSE/Plugins/SpellLearning";
     inline constexpr const char* RULE_SUBDIR = "librarian";
-
-    [[nodiscard]] inline std::string Lowered(std::string text)
-    {
-        std::transform(text.begin(), text.end(), text.begin(),
-            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        return text;
-    }
 
     // A string field, or an empty string when it is missing or not a string.
     // A scan written with a narrower preset simply lacks some fields, and a

@@ -43,9 +43,6 @@ namespace DESTIntegration {
     /// Is ISL specifically installed (DEST_ISL.esp)?
     bool IsISLInstalled();
 
-    /// Detected plugin file name (for logging).
-    const char* GetDESTPluginName();
-
     // -------------------------------------------------------------------------
     // Lifecycle
     // -------------------------------------------------------------------------

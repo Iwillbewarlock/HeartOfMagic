@@ -1,4 +1,5 @@
 #include "treebuilder/TreeBuilderInternal.h"
+#include "AsciiText.h"
 
 #include <algorithm>
 #include <set>
@@ -70,7 +71,7 @@ std::string TreeBuilder::LeadingIdWordOf(const std::string& editorId)
             }
             // camelCase boundary: "madAbsorb" leads with "mad"
             if (!word.empty() && std::isupper(current) && std::islower(previous)) break;
-            word += static_cast<char>(std::tolower(current));
+            word += AsciiText::ToLower(c);
             previous = current;
         }
         return word;
@@ -238,10 +239,10 @@ TreeBuilder::MergeWithHints(
             (void)maxThemes;
             std::vector<std::string> result(themes.begin(), themes.end());
             std::unordered_set<std::string> present;
-            for (const auto& t : result) present.insert(TreeNLP::ToLower(t));
+            for (const auto& t : result) present.insert(AsciiText::ToLower(t));
 
             for (const auto& h : hintIt->second) {
-                if (present.insert(TreeNLP::ToLower(h)).second) {
+                if (present.insert(AsciiText::ToLower(h)).second) {
                     result.push_back(h);
                 }
             }
@@ -443,7 +444,7 @@ std::vector<std::string> TreeBuilder::GetSpellThemes(const json& spell, const st
     const auto words = TreeNLP::Tokenize(TreeNLP::BuildThemeText(spell));
     const std::unordered_set<std::string> wordSet(words.begin(), words.end());
     for (const auto& theme : themes) {
-        if (wordSet.contains(TreeNLP::ToLower(theme))) add(theme);
+        if (wordSet.contains(AsciiText::ToLower(theme))) add(theme);
     }
 
     return result;

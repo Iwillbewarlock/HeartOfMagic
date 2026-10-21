@@ -76,6 +76,7 @@ var TreeToolsScaleTest = {
             this.check(g.settings.treeToolsScale === 1 && T.current() === 1, 'Reset to Defaults: 1x');
 
             this._dragTests(g, T, function() { return saves; });
+            this._insetTests(g, T);
         } finally {
             g.settings = oldSettings;
             g.autoSaveSettings = oldSave;
@@ -151,6 +152,32 @@ TreeToolsScaleTest._dragTests = function(g, T, saveCount) {
         g.addEventListener = oldAdd;
         g.removeEventListener = oldRemove;
         T._drag = null;
+    }
+};
+
+/** setCornerArt: the tools moved right past a page's corner drawing at their usual top, the bar's room made smaller to match */
+TreeToolsScaleTest._insetTests = function(g, T) {
+    var oldDoc = g.document;
+    var host = { clientWidth: 1000 };
+    var tools = { style: { left: '', top: '', maxWidth: '' }, parentElement: host };
+    var bar = { style: {}, parentElement: tools, offsetHeight: 24, offsetWidth: 230 };
+    g.document = { querySelector: function(sel) { return sel === '.tree-top-tools' ? tools : sel === '.tree-top-tools .zoom-controls' ? bar : null; } };
+    try {
+        g.settings = { treeToolsScale: 1 };
+        T._corners = false;
+        T.setCornerArt(true);
+        this.check(tools.style.left === '128px' && tools.style.top === '' && tools.style.maxWidth === 'calc(100% - 256px)',
+            'Corner drawings: the tools start 128 px from the left at their usual top, kept as far from the right');
+        this.check(bar.style.maxWidth === '744px', 'Corner drawings: the room of the bar is the tree less both margins');
+        T.setCornerArt(false);
+        this.check(tools.style.left === '' && tools.style.top === '' && tools.style.maxWidth === '' && bar.style.maxWidth === '972px',
+            'Corner drawings: none puts the place of the stylesheet back');
+        tools.style.left = 'kept';
+        T.setCornerArt(false);
+        this.check(tools.style.left === 'kept', 'Corner drawings: no change, nothing written (called every frame)');
+    } finally {
+        g.document = oldDoc;
+        T._corners = false;
     }
 };
 

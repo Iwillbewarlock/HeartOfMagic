@@ -1,4 +1,6 @@
 #include "Common.h"
+#include "AsciiText.h"
+#include "FormIdText.h"
 #include "JsonText.h"
 #include "SpellScanner.h"
 #include "EncodingUtils.h"
@@ -37,10 +39,7 @@ namespace SpellScanner
 
         // Helper function to check if editorId indicates a non-player spell
         auto isNonPlayerSpell = [](const std::string& editorId) -> bool {
-            // Lowercase for comparison
-            std::string lower = editorId;
-            std::transform(lower.begin(), lower.end(), lower.begin(),
-                [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            const std::string lower = AsciiText::ToLower(editorId);
 
             // Skip trap spells
             if (lower.find("trap") != std::string::npos) return true;
@@ -188,9 +187,7 @@ namespace SpellScanner
 
             // When no EditorID available, use name-based heuristics to filter junk
             if (!hasEditorId) {
-                std::string lowerName = name;
-                std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(),
-                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                const std::string lowerName = AsciiText::ToLower(name);
 
                 // Skip obvious non-player spells by name patterns
                 if (lowerName.find("\xD9\x81\xD8\xAE") != std::string::npos) { filteredCount++; continue; }  // trap (Arabic: فخ)
@@ -243,7 +240,7 @@ namespace SpellScanner
             MarkGate(spellJson, spell);
             if (unreachable.contains(spell->GetFormID())) spellJson["tomeUnreachable"] = true;
             if (auto it = duplicates.find(spell->GetFormID()); it != duplicates.end()) {
-                spellJson["duplicateOf"] = std::format("0x{:08X}", it->second);
+                spellJson["duplicateOf"] = FormIdText::Format(it->second);
             }
             spellArray.push_back(std::move(spellJson));
             scannedCount++;
@@ -271,42 +268,45 @@ namespace SpellScanner
     // MAIN SCAN FUNCTIONS
     // =============================================================================
 
+    namespace
+    {
+        // The envelope both scans return: UTC timestamp, the scan mode (the tome
+        // scan's "spell_tomes"; none for the full scan), the spells and the prompt
+        // (the player's tree rules, then the system instructions)
+        json BuildScanOutput(json spellArray, const ScanConfig& config, std::string_view scanMode)
+        {
+            auto now = std::chrono::system_clock::now();
+            auto time = std::chrono::system_clock::to_time_t(now);
+            std::tm tmBuf{};
+            gmtime_s(&tmBuf, &time);
+            std::stringstream ss;
+            ss << std::put_time(&tmBuf, "%Y-%m-%dT%H:%M:%SZ");
+
+            json output;
+            output["scanTimestamp"] = ss.str();
+            if (!scanMode.empty()) {
+                output["scanMode"] = scanMode;
+            }
+            output["spellCount"] = spellArray.size();
+            output["spells"] = std::move(spellArray);
+
+            std::string combinedPrompt;
+            if (!config.treeRulesPrompt.empty()) {
+                combinedPrompt += "## TREE CREATION RULES\n\n";
+                combinedPrompt += config.treeRulesPrompt;
+                combinedPrompt += "\n\n";
+            }
+            combinedPrompt += GetSystemInstructions();
+            output["llmPrompt"] = EncodingUtils::SanitizeToUTF8(combinedPrompt);  // the player's text, made valid UTF-8
+            return output;
+        }
+    }
+
     json CollectAllSpells(const ScanConfig& config)
     {
         logger::info("SpellScanner: Starting spell scan with ScanConfig...");
 
-        json spellArray = ScanSpellsToJson(config.fields);
-
-        // Build timestamp
-        auto now = std::chrono::system_clock::now();
-        auto time = std::chrono::system_clock::to_time_t(now);
-        std::tm tmBuf{};
-        gmtime_s(&tmBuf, &time);
-        std::stringstream ss;
-        ss << std::put_time(&tmBuf, "%Y-%m-%dT%H:%M:%SZ");
-
-        // Build output JSON
-        json output;
-        output["scanTimestamp"] = ss.str();
-        output["spellCount"] = spellArray.size();
-        output["spells"] = std::move(spellArray);
-
-        // Combine prompts: User's tree rules + System instructions + Spell data
-        std::string combinedPrompt;
-
-        // Add user's tree rules prompt (visible/editable)
-        if (!config.treeRulesPrompt.empty()) {
-            combinedPrompt += "## TREE CREATION RULES\n\n";
-            combinedPrompt += config.treeRulesPrompt;
-            combinedPrompt += "\n\n";
-        }
-
-        // Add system instructions (hidden from user)
-        combinedPrompt += GetSystemInstructions();
-
-        output["llmPrompt"] = EncodingUtils::SanitizeToUTF8(combinedPrompt);  // Sanitize user prompt for valid UTF-8 JSON
-
-        return output;
+        return BuildScanOutput(ScanSpellsToJson(config.fields), config, {});
     }
 
     std::string ScanAllSpells(const ScanConfig& config)
@@ -376,7 +376,7 @@ namespace SpellScanner
             json spellJson = BuildSpellJson(spell, spellFormId, fields);
 
             // Also include tome info for reference (sanitize - mods like DynDOLOD can have invalid UTF-8 in book names)
-            spellJson["tomeFormId"] = std::format("0x{:08X}", book->GetFormID());
+            spellJson["tomeFormId"] = FormIdText::Format(book->GetFormID());
             spellJson["tomeName"] = EncodingUtils::SanitizeToUTF8(book->GetFullName());
             if (fields.effectDetails) {
                 // tomeFormId above shifts with the load order; this one does not.
@@ -394,32 +394,7 @@ namespace SpellScanner
         logger::info("SpellScanner: Found {} unique spells from tomes, skipped {} duplicates",
                      tomeCount, skippedDuplicates);
 
-        // Build timestamp
-        auto now = std::chrono::system_clock::now();
-        auto time = std::chrono::system_clock::to_time_t(now);
-        std::tm tmBuf{};
-        gmtime_s(&tmBuf, &time);
-        std::stringstream ss;
-        ss << std::put_time(&tmBuf, "%Y-%m-%dT%H:%M:%SZ");
-
-        // Build output JSON
-        json output;
-        output["scanTimestamp"] = ss.str();
-        output["scanMode"] = "spell_tomes";
-        output["spellCount"] = spellArray.size();
-        output["spells"] = std::move(spellArray);
-
-        // Combine prompts
-        std::string combinedPrompt;
-        if (!config.treeRulesPrompt.empty()) {
-            combinedPrompt += "## TREE CREATION RULES\n\n";
-            combinedPrompt += config.treeRulesPrompt;
-            combinedPrompt += "\n\n";
-        }
-        combinedPrompt += GetSystemInstructions();
-        output["llmPrompt"] = EncodingUtils::SanitizeToUTF8(combinedPrompt);  // Sanitize user prompt for valid UTF-8 JSON
-
-        return output;
+        return BuildScanOutput(std::move(spellArray), config, "spell_tomes");
     }
 
     std::string ScanSpellTomes(const ScanConfig& config)
@@ -433,33 +408,13 @@ namespace SpellScanner
 
     json GetSpellInfoJsonByFormId(const std::string& formIdStr)
     {
-        // Parse formId from hex string (e.g., "0x00012FCC" or "00012FCC")
-        RE::FormID formId = 0;
-        try {
-            std::string cleanId = formIdStr;
-            if (cleanId.length() >= 2 && (cleanId.substr(0, 2) == "0x" || cleanId.substr(0, 2) == "0X")) {
-                cleanId = cleanId.substr(2);
-            }
-
-            // Validate: FormIDs should be max 8 hex characters
-            if (cleanId.length() > 8) {
-                logger::error("SpellScanner: FormId too long ({} chars), rejecting: {}", cleanId.length(), formIdStr);
-                return {};
-            }
-
-            // Validate hex characters only
-            for (char c : cleanId) {
-                if (!std::isxdigit(static_cast<unsigned char>(c))) {
-                    logger::error("SpellScanner: Invalid hex character in formId: {}", formIdStr);
-                    return {};
-                }
-            }
-
-            formId = std::stoul(cleanId, nullptr, 16);
-        } catch (const std::exception& e) {
-            logger::error("SpellScanner: Invalid formId format: {} ({})", formIdStr, e.what());
+        // A hex formId ("0x00012FCC" or "00012FCC")
+        const auto parsedId = FormIdText::Parse(formIdStr);
+        if (!parsedId) {
+            logger::error("SpellScanner: '{}' is not a formId (hex, 0x optional, at most 8 digits)", formIdStr);
             return {};
         }
+        const RE::FormID formId = *parsedId;
 
         // Look up the spell form
         auto* form = RE::TESForm::LookupByID(formId);

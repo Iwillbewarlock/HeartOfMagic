@@ -56,7 +56,7 @@ namespace TomeReach
         // the SachilDebug cell); on the author's load order every BOOK with "debug" in
         // its editor id is one (3 of them)
         for (const auto& [book, editorId] : editorIds) {  // the winning override's editor id
-            if (tomes.contains(book) && LowerAscii(editorId).find("debug") != std::string::npos &&
+            if (tomes.contains(book) && AsciiText::ToLower(editorId).find("debug") != std::string::npos &&
                 result.reached.erase(book)) {
                 ++result.byDebug;
             }

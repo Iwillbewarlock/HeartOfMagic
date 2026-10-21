@@ -1,4 +1,5 @@
 #include "treebuilder/TreeBuilderInternal.h"
+#include "AsciiText.h"
 #include "SimdKernels.h"
 
 #include <hwy/aligned_allocator.h>
@@ -272,7 +273,7 @@ TreeBuilder::SimilarityMatrix TreeBuilder::ComputeSimilarityMatrix(const std::ve
         std::vector<std::vector<uint32_t>> cachedNameGrams(n);
         for (size_t i = 0; i < n; ++i) {
             if (names[i].empty()) continue;
-            auto lower = TreeNLP::ToLower(names[i]);
+            auto lower = AsciiText::ToLower(names[i]);
             lower.erase(std::remove_if(lower.begin(), lower.end(),
                 [](unsigned char c) { return std::isspace(c) != 0; }), lower.end());
 
@@ -329,7 +330,7 @@ TreeBuilder::SimilarityMatrix TreeBuilder::ComputeSimilarityMatrix(const std::ve
         std::vector<std::vector<std::vector<uint32_t>>> cachedEffectGrams(n);
         for (size_t i = 0; i < n; ++i) {
             for (const auto& ename : effectNames[i]) {
-                auto lower = TreeNLP::ToLower(ename);
+                auto lower = AsciiText::ToLower(ename);
                 lower.erase(std::remove_if(lower.begin(), lower.end(),
                     [](unsigned char c) { return std::isspace(c) != 0; }), lower.end());
 

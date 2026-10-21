@@ -1,0 +1,26 @@
+{
+  "_comment": [
+    "Environment adapter: Frostwalker (Nexus 184628). Besides reading explosion and projectile names,",
+    "Frostwalker asks whether an actor has an active magic effect with Frostwalker_FrostCloak_Keyword",
+    "(freeze water where it walks) or Frostwalker_FireCloak_Keyword (melt ice): include/Manager.h,",
+    "ShouldFreezeWater / ShouldMeltIce, actor->HasMagicEffectWithKeyword. A cloak's own effect (archetype",
+    "Cloak) is what stays active on the caster, so these lines put the keyword there: an ordinary keyword",
+    "line, the cloak spell's catalog frost or fire resting on the record (tierMin manual - a cloak's",
+    "element comes from the damage it applies), not both. Frostwalker's own KID ini gives them to a few",
+    "vanilla cloaks only. Frostwalker_WaterCloak_Keyword (hardens lava) is left out: it was not asked for,",
+    "and water rests on framework keywords alone on every TAKEALOOK spell but one (2026-10-20).",
+    "keywordForm ids read from Frostwalker.esp (ESL-flagged).",
+    "Off with config.json \"environment\": { \"enabled\": false }."
+  ],
+  "perkMod": "Frostwalker",
+  "measured": "2026-10-20",
+  "requires": { "config": "environment.enabled", "any": ["Frostwalker.esp"] },
+  "adapters": [
+    { "keyword": "Frostwalker_FrostCloak_Keyword", "keywordForm": "Frostwalker.esp|0x000800", "why": "frost cloaks freeze water underfoot",
+      "tags": { "all": ["frost"], "none": ["fire"] }, "tierMin": "manual",
+      "effect": { "archetype": "Cloak" } },
+    { "keyword": "Frostwalker_FireCloak_Keyword", "keywordForm": "Frostwalker.esp|0x000802", "why": "fire cloaks melt ice underfoot",
+      "tags": { "all": ["fire"], "none": ["frost"] }, "tierMin": "manual",
+      "effect": { "archetype": "Cloak" } }
+  ]
+}

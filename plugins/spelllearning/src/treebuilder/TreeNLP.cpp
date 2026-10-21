@@ -1,6 +1,6 @@
 #include "treebuilder/TreeNLP.h"
+#include "AsciiText.h"
 
-#include <rapidfuzz/distance/Levenshtein.hpp>
 #include <rapidfuzz/fuzz.hpp>
 
 #include <algorithm>
@@ -53,14 +53,6 @@ static const std::unordered_set<std::string> kStopWords = {
 // UTILITY
 // =============================================================================
 
-std::string TreeNLP::ToLower(const std::string& s)
-{
-    std::string result = s;
-    std::transform(result.begin(), result.end(), result.begin(),
-        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return result;
-}
-
 bool TreeNLP::IsStopWord(const std::string& word)
 {
     return kStopWords.contains(word);
@@ -74,7 +66,7 @@ std::vector<std::string> TreeNLP::Tokenize(const std::string& text)
 {
     if (text.empty()) return {};
 
-    std::string lower = ToLower(text);
+    std::string lower = AsciiText::ToLower(text);
 
     // Replace non-alphanumeric with spaces
     for (auto& c : lower) {
@@ -354,89 +346,13 @@ float TreeNLP::CosineSimilarity(const SparseVector& a, const SparseVector& b)
     return dot / (a.norm * b.norm);
 }
 
-float TreeNLP::CharNgramSimilarity(const std::string& a, const std::string& b, int n)
-{
-    auto la = ToLower(a);
-    auto lb = ToLower(b);
-
-    // Strip whitespace
-    auto isSpace = [](unsigned char c) { return std::isspace(c) != 0; };
-    la.erase(std::remove_if(la.begin(), la.end(), isSpace), la.end());
-    lb.erase(std::remove_if(lb.begin(), lb.end(), isSpace), lb.end());
-
-    if (static_cast<int>(la.size()) < n || static_cast<int>(lb.size()) < n) {
-        return 0.0f;
-    }
-
-    // Pack n-gram bytes into uint32_t to avoid string heap allocations
-    auto packNgram = [](const char* s, int len) -> uint32_t {
-        uint32_t h = 0;
-        for (int i = 0; i < len; ++i)
-            h = (h << 8) | static_cast<uint8_t>(s[i]);
-        return h;
-    };
-
-    // Generate n-gram sets using packed integers
-    std::unordered_set<uint32_t> gramsA, gramsB;
-    for (int i = 0; i <= static_cast<int>(la.size()) - n; ++i)
-        gramsA.insert(packNgram(la.data() + i, n));
-    for (int i = 0; i <= static_cast<int>(lb.size()) - n; ++i)
-        gramsB.insert(packNgram(lb.data() + i, n));
-
-    // Jaccard similarity: |intersection| / |union|
-    int intersection = 0;
-    for (auto g : gramsA) {
-        if (gramsB.contains(g))
-            ++intersection;
-    }
-
-    int unionSize = static_cast<int>(gramsA.size() + gramsB.size()) - intersection;
-    return (unionSize > 0) ? static_cast<float>(intersection) / static_cast<float>(unionSize) : 0.0f;
-}
-
-// =============================================================================
-// FUZZY STRING MATCHING
-// =============================================================================
-
-int TreeNLP::LevenshteinDistance(const std::string& a, const std::string& b)
-{
-    return static_cast<int>(rapidfuzz::levenshtein_distance(a, b));
-}
-
-int TreeNLP::FuzzyRatio(const std::string& a, const std::string& b)
-{
-    if (a.empty() && b.empty()) return 100;
-    if (a.empty() || b.empty()) return 0;
-
-    return static_cast<int>(std::round(
-        rapidfuzz::fuzz::ratio(ToLower(a), ToLower(b))));
-}
-
-int TreeNLP::FuzzyPartialRatio(const std::string& shorter, const std::string& longer)
-{
-    if (shorter.empty() || longer.empty()) return 0;
-
-    // rapidfuzz handles shorter/longer swap internally
-    return static_cast<int>(std::round(
-        rapidfuzz::fuzz::partial_ratio(ToLower(shorter), ToLower(longer))));
-}
-
-int TreeNLP::FuzzyTokenSetRatio(const std::string& a, const std::string& b)
-{
-    if (a.empty() && b.empty()) return 100;
-    if (a.empty() || b.empty()) return 0;
-
-    return static_cast<int>(std::round(
-        rapidfuzz::fuzz::token_set_ratio(ToLower(a), ToLower(b))));
-}
-
 // =============================================================================
 // THEME SCORING
 // =============================================================================
 
 int TreeNLP::CalculateThemeScore(const json& spellData, const std::string& theme)
 {
-    std::string text = ToLower(BuildThemeText(spellData));
+    std::string text = AsciiText::ToLower(BuildThemeText(spellData));
     // The spell's own wording, weighed heavier than the rest of its text below.
     // The editor id is what that has to be on a translated load order: themes
     // are English words, and a Korean name can never contain one.
@@ -446,8 +362,8 @@ int TreeNLP::CalculateThemeScore(const json& spellData, const std::string& theme
     } else {
         spelling = SplitIdentifier(spelling);
     }
-    std::string spellName = ToLower(spelling);
-    std::string themeLower = ToLower(theme);
+    std::string spellName = AsciiText::ToLower(spelling);
+    std::string themeLower = AsciiText::ToLower(theme);
 
     // Strategy 1: Substring check (exact match bonus)
     int substringBonus = 0;

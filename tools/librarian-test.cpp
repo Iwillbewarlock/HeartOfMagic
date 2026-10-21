@@ -21,6 +21,7 @@
 #include "JsonFile.h"
 #include "LibrarianAdapterRun.h"
 #include "LibrarianScore.h"
+#include "LibrarianSelfTest.h"
 #include "LibrarianSpellResearchRun.h"
 #include "LibrarianVocabCheck.h"
 
@@ -71,14 +72,22 @@ namespace
             << "      the numbers the offline run produces.\n"
             << "\n"
             << "Perk adapters (no rules needed):\n"
-            << "  -i <dump> --catalog <spell_catalog.json> --adapters <dir> [-o <report.json>]\n"
+            << "  -i <dump> --catalog <spell_catalog.json> --adapters <dir> [-o <report.json>] [-v]\n"
             << "      Plans the perk adapter keyword writes with the plugin's own\n"
-            << "      planner and prints agree / writes / gain / leaks per line.\n"
+            << "      planner and prints agree / writes / gain / leaks per line;\n"
+            << "      -v lists every effect write with the spells using that effect.\n"
             << "\n"
             << "Spell Research (no rules needed):\n"
             << "  -i <dump> --catalog <spell_catalog.json> --spellresearch <file> [-a <answers>] [-o <report.json>]\n"
             << "      Counts the spells each SR list gets with the plugin's own code\n"
             << "      and, with -a, scores the SR elements and techniques.\n"
+            << "\n"
+            << "Self-test (no dump needed):\n"
+            << "  --self-test\n"
+            << "      Classifies small made-up spells: the conflict stage, per-element\n"
+            << "      evidence tiers, the axis source after removals; plans adapter\n"
+            << "      lines on made-up catalogs: tierMin, requires.config, damage lines.\n"
+            << "      Exit 1 on a failure.\n"
             << "\n"
             << "Vocabulary check (no dump needed):\n"
             << "  --check-vocab -r <dir> [-j <tagVocabulary.js>]\n"
@@ -103,6 +112,7 @@ int main(int argc, char* argv[])
     std::string spellResearchPath;
     bool verbose = false;
     bool checkVocabulary = false;
+    bool selfTest = false;
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
@@ -128,6 +138,8 @@ int main(int argc, char* argv[])
             adaptersPath = argv[++i];
         } else if (arg == "--spellresearch" && hasNext) {
             spellResearchPath = argv[++i];
+        } else if (arg == "--self-test") {
+            selfTest = true;
         } else if (arg == "--check-vocab") {
             checkVocabulary = true;
         } else if (arg == "-v" || arg == "--verbose") {
@@ -140,6 +152,15 @@ int main(int argc, char* argv[])
             PrintUsage(argv[0]);
             return 1;
         }
+    }
+
+    // The self-test runs first; a failure stops here, and with nothing else
+    // asked for its result is the exit code. Other options then run as usual.
+    if (selfTest) {
+        const int result = RunLibrarianSelfTest();
+        const bool more = checkVocabulary || !inputPath.empty() || !rulesPath.empty() || !catalogPath.empty();
+        if (result != 0 || !more) return result;
+        std::cout << "\n";
     }
 
     if (checkVocabulary) {
@@ -170,7 +191,7 @@ int main(int argc, char* argv[])
             PrintUsage(argv[0]);
             return 1;
         }
-        return RunAdapters(inputPath, catalogPath, adaptersPath, outputPath);
+        return RunAdapters(inputPath, catalogPath, adaptersPath, outputPath, verbose);
     }
 
     if (!catalogPath.empty()) {
@@ -238,6 +259,11 @@ int main(int argc, char* argv[])
 
         const auto entries = IndexCatalog(catalog);
         ReportCoverage(entries);
+
+        std::cout << "\nCONFLICT STAGE  " << stats.conflictSpells
+                  << " spells lost a framework element the record contradicts";
+        for (const auto& [element, count] : stats.conflictDropped) std::cout << "  " << element << "(" << count << ")";
+        std::cout << "\n";
 
         if (!answersPath.empty()) {
             const json answers = ReadJsonFile(answersPath);

@@ -1,0 +1,45 @@
+{
+  "_comment": [
+    "Environment adapter: the vanilla element damage keywords on every effect that deals that damage.",
+    "Rain Extinguishes Fires, Water Douses Fire, Sneak Tools, DISDD, Elementally Reactive Waters, Ice is",
+    "Slick and SIM (Simply Immersive Materials) ask whether the effect that hit carries MagicDamageFire,",
+    "MagicDamageFrost or MagicDamageShock. Modded damage spells often lack them on some effects, or on all.",
+    "vanilla.json gives the keyword to one effect of a spell that has none; these \"damage\" lines give it to",
+    "every effect of the spell that really deals that damage (docs/librarian/PERK_ADAPTERS.md 6-5):",
+    "  the effect's own record says so: detrimental, magnitude > 0, resisted by the element's resistance",
+    "  (FireResist, FrostResist, ElectricResist), a value modifier on Health or a visible Script effect.",
+    "  A MagicResist or unresisted effect is not called fire, nor is Absorb, a hidden script (a perk's fear",
+    "  check) or an effect with the unspecified-damage mark (keywordsNone)",
+    "  the spell's catalog element rests on the record (tierMin manual: mgef or manual evidence), not on a",
+    "  framework keyword alone (KIT/OCF/ADAR names: Desecration's necrotic flames are not fire)",
+    "  every item using the effect is a spell this line picks (a scroll, staff, enchantment or another spell",
+    "  blocks it)",
+    "In a load order with SkyPatcher Keyword Framework (MKF_DamageTypes.ini) every such value modifier has the",
+    "keyword already (TAKEALOOK 2026-10-20: nothing left to add); without it, 24 fire, 5 frost and 6 shock",
+    "effects lacked it there, 7 / 1 / 1 of them beyond what vanilla.json's one-effect lines give.",
+    "Perk mods read the same keywords: a spell that gains MagicDamageFire on another effect is boosted by the",
+    "fire perks on that effect too. That is the perk mods' intent for real fire damage, but it changes",
+    "balance for those spells (CHANGELOG), so the file runs only when one of those mods is installed: one of",
+    "their plugins loaded, or Ice is Slick's / Rain Extinguishes Fires' DLL in SKSE/Plugins (Ice is Slick has",
+    "no plugin). Off with config.json \"environment\": { \"enabled\": false } as well."
+  ],
+  "perkMod": "environment mods reading the vanilla element keywords",
+  "measured": "2026-10-20",
+  "requires": {
+    "any": ["RainExtinguishesFires.esp", "Water Douses Fire.esp", "Sneak Tools.esp", "JBMod.esp",
+      "ElementallyReactiveWaters.esp", "SIMP.esp"],
+    "dlls": ["IceIsSlick.dll", "RainExtinguishesFires.dll"],
+    "config": "environment.enabled"
+  },
+  "adapters": [
+    { "keyword": "MagicDamageFire", "keywordForm": "Skyrim.esm|0x01CEAD", "why": "fire damage effects",
+      "damage": { "elements": ["fire"],
+        "keywordsNone": ["APO_MagicDamageUnspecified", "DAR_UnspecificMagicDamage"] }, "tierMin": "manual" },
+    { "keyword": "MagicDamageFrost", "keywordForm": "Skyrim.esm|0x01CEAE", "why": "frost damage effects",
+      "damage": { "elements": ["frost"],
+        "keywordsNone": ["APO_MagicDamageUnspecified", "DAR_UnspecificMagicDamage"] }, "tierMin": "manual" },
+    { "keyword": "MagicDamageShock", "keywordForm": "Skyrim.esm|0x01CEAF", "why": "shock damage effects",
+      "damage": { "elements": ["shock"],
+        "keywordsNone": ["APO_MagicDamageUnspecified", "DAR_UnspecificMagicDamage"] }, "tierMin": "manual" }
+  ]
+}

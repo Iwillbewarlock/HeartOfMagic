@@ -67,10 +67,14 @@
   "id": "Flames of Coldharbour.esp|0x00082F",
   "name": "냉기 화염의 손길",
   "correct": [
-   "fire",
    "frost"
   ],
-  "wrong": [],
+  "wrong": [
+   {
+    "tag": "fire",
+    "why": "stale (judged before 2026-10-20): cold fire is frost (user 2026-10-20) - the record is frost damage (MagicDamageFrost, FrostResist, description says frost damage); the blue flame is look only"
+   }
+  ],
   "missing": []
  },
  {
@@ -246,10 +250,14 @@
   "id": "Flames of Coldharbour.esp|0x000833",
   "name": "냉기 작열",
   "correct": [
-   "fire",
    "frost"
   ],
-  "wrong": [],
+  "wrong": [
+   {
+    "tag": "fire",
+    "why": "stale (judged before 2026-10-20): cold fire is frost (user 2026-10-20) - the record is frost damage (MagicDamageFrost, FrostResist, description says frost damage); the blue flame is look only"
+   }
+  ],
   "missing": []
  },
  {
@@ -1128,10 +1136,14 @@
   "id": "Desecration.esp|0x00082F",
   "name": "괴저 불꽃 손길",
   "correct": [
-   "fire",
    "necrotic"
   ],
-  "wrong": [],
+  "wrong": [
+   {
+    "tag": "fire",
+    "why": "stale (judged before 2026-10-20): the damage is unspecified magic damage (APO_MagicDamageUnspecified, MagicResist, description says magic damage); fire came from the OCF/ADAR NecroticFire composite keywords"
+   }
+  ],
   "missing": []
  },
  {

@@ -592,8 +592,6 @@ Builders use shared NLP infrastructure from `TreeNLP.h`:
 | `TreeNLP::BuildSpellText()` | Extract weighted text from spell JSON |
 | `TreeNLP::ComputeTfIdf()` | TF-IDF vectorization with L2 norms |
 | `TreeNLP::CosineSimilarity()` | Cosine similarity between sparse vectors |
-| `TreeNLP::CharNgramSimilarity()` | Character n-gram Jaccard similarity |
-| `TreeNLP::FuzzyRatio()` / `FuzzyPartialRatio()` / `FuzzyTokenSetRatio()` | Fuzzy string matching |
 | `TreeNLP::CalculateThemeScore()` | Multi-strategy theme scoring (0-100) |
 
 ### Shared Tree Functions (TreeBuilder)

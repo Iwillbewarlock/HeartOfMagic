@@ -1,5 +1,7 @@
 #include "Common.h"
+#include "AsciiText.h"
 #include "SpellScanner.h"
+#include "environment/EnvironmentTwins.h"
 #include "librarian/PerkAdapterPatch.h"
 #include "librarian/Librarian.h"
 
@@ -263,11 +265,9 @@ namespace SpellScanner
             }
             if (!best) return;
 
-            std::string name = GetActorValueName(best->baseEffect->data.primaryAV);
+            const std::string name = GetActorValueName(best->baseEffect->data.primaryAV);
             if (name.empty() || name == "None") return;
-            std::transform(name.begin(), name.end(), name.begin(),
-                [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-            traits.push_back("value." + name);
+            traits.push_back("value." + AsciiText::ToLower(name));
         }
     }
 
@@ -335,8 +335,9 @@ namespace SpellScanner
             }
             // An explosion record alone is not an area: plenty are there for the
             // flash and have no radius.
-            const RE::BGSExplosion* explosion = data.explosion
-                ? data.explosion
+            const RE::BGSExplosion* own = Environment::ScannedExplosion(effect->baseEffect);   // the original, not a twin
+            const RE::BGSExplosion* explosion = own
+                ? own
                 : (data.projectileBase ? data.projectileBase->data.explosionType : nullptr);
             if (effect->effectItem.area > 0 || (explosion && explosion->data.radius > 0.0f)) {
                 blast = true;

@@ -91,8 +91,6 @@ public:
     // a prerequisite (hard or soft) is mastered - or, with reverseUnlockToRoot,
     // any spell further up that chain
     bool IsUnlockedByKnownChild(RE::FormID spellId) const;
-    std::vector<RE::FormID> GetUnmetHardPrerequisites(RE::FormID spellId) const;
-    std::pair<int, int> GetSoftPrerequisiteStatus(RE::FormID spellId) const;  // (mastered, needed)
     bool IsSpellMastered(RE::FormID spellId) const;  // 100% progress or explicitly unlocked
     // Another plugin's copy of this spell (SpellScanner::DuplicateGroupOf) that the
     // player knows, learned before the copies were merged or from outside the tree:
@@ -102,7 +100,6 @@ public:
     
     // Legacy compatibility
     void SetTreePrerequisites(RE::FormID spellId, const std::vector<RE::FormID>& prereqs);
-    std::vector<RE::FormID> GetTreePrerequisites(RE::FormID spellId) const;
 
     // XP tracking
     // a_path: which way the cast was seen ("cast event", "cast hook"), for the XP log
@@ -304,8 +301,6 @@ private:
     ~ProgressionManager() = default;
     ProgressionManager(const ProgressionManager&) = delete;
     ProgressionManager& operator=(const ProgressionManager&) = delete;
-
-    std::filesystem::path GetProgressFilePath() const;
 
     // The spell's progress entry, made on first use with the spell's own required
     // XP (GetRequiredXP: tier, reverse unlock share) - not the struct's 100, which

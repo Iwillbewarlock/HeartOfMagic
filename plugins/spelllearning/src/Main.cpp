@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "FormIdText.h"
 #include "CoSave.h"
 #include "HudNotify.h"
 #include "uimanager/UIManager.h"
@@ -15,6 +16,8 @@
 #include "RisaMenu.h"
 #include "SpellLearningAPI.h"
 #include "ThreadUtils.h"
+#include "environment/EnvironmentSelfTest.h"
+#include "environment/EnvironmentTwins.h"
 #include "librarian/PerkAdapterPatch.h"
 #include "librarian/SpellResearchPatch.h"
 #include "tomereach/TomeReach.h"
@@ -114,9 +117,7 @@ public:
             auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(
                 static_cast<RE::FormID>(spellFormID));
             if (spell) {
-                std::stringstream ss;
-                ss << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << spellFormID;
-                ProgressionManager::GetSingleton()->SetLearningTargetFromTome(ss.str(), spell);
+                ProgressionManager::GetSingleton()->SetLearningTargetFromTome(FormIdText::Format(spellFormID), spell);
             }
         });
     }
@@ -158,72 +159,6 @@ public:
 private:
     SpellLearningAPIImpl() = default;
 };
-
-// Handle incoming SKSE messages from other plugins. The calls into
-// ProgressionManager go through GuardApiCall like the API's. Not registered
-// as a listener at present (the API is handed out by the kPostPostLoad
-// broadcast), so nothing reaches it yet.
-void OnExternalPluginMessage(SKSE::MessagingInterface::Message* a_msg)
-{
-    if (!a_msg) return;
-
-    switch (a_msg->type) {
-        case SpellLearning::kMessageType_RequestAPI: {
-            logger::info("SpellLearning: API requested by external plugin");
-            auto* api = SpellLearningAPIImpl::GetSingleton();
-            SKSE::GetMessagingInterface()->Dispatch(
-                SpellLearning::kMessageType_RequestAPI,
-                api, sizeof(void*), nullptr);
-            break;
-        }
-        case SpellLearning::kMessageType_AddXP: {
-            if (a_msg->dataLen >= sizeof(SpellLearning::AddXPMessage)) {
-                auto* msg = static_cast<SpellLearning::AddXPMessage*>(a_msg->data);
-                std::string sourceName;
-
-                switch (msg->sourceType) {
-                    case SpellLearning::XPSourceType::Any:    sourceName = "any"; break;
-                    case SpellLearning::XPSourceType::School: sourceName = "school"; break;
-                    case SpellLearning::XPSourceType::Direct: sourceName = "direct"; break;
-                    case SpellLearning::XPSourceType::Self:   sourceName = "self"; break;
-                    case SpellLearning::XPSourceType::Raw:
-                        GuardApiCall("AddXP message (raw)", [&] {
-                            return ProgressionManager::GetSingleton()->AddRawXP(
-                                static_cast<RE::FormID>(msg->spellFormID), msg->amount);
-                        });
-                        return;
-                    case SpellLearning::XPSourceType::Custom:
-                        sourceName = msg->sourceName;
-                        break;
-                    default:
-                        logger::warn("SpellLearning: External AddXP with unknown sourceType {}",
-                            static_cast<uint32_t>(msg->sourceType));
-                        return;
-                }
-
-                GuardApiCall("AddXP message", [&] {
-                    return ProgressionManager::GetSingleton()->AddSourcedXP(
-                        static_cast<RE::FormID>(msg->spellFormID), msg->amount, sourceName);
-                });
-                logger::info("SpellLearning: External AddXP({:08X}, {:.1f}, '{}')",
-                    msg->spellFormID, msg->amount, sourceName);
-            }
-            break;
-        }
-        case SpellLearning::kMessageType_RegisterSource: {
-            if (a_msg->dataLen >= sizeof(SpellLearning::RegisterSourceMessage)) {
-                auto* msg = static_cast<SpellLearning::RegisterSourceMessage*>(a_msg->data);
-                GuardApiCall("RegisterSource message", [&] {
-                    return ProgressionManager::GetSingleton()->RegisterModdedXPSource(
-                        msg->sourceId, msg->displayName);
-                });
-                logger::info("SpellLearning: External RegisterSource('{}', '{}')",
-                    msg->sourceId, msg->displayName);
-            }
-            break;
-        }
-    }
-}
 
 // =============================================================================
 // INPUT HANDLER - Configurable Hotkey
@@ -369,6 +304,10 @@ void OnDataLoaded()
     // in memory, from the catalog the last scan left)
     Librarian::PerkAdapters::Apply(Librarian::PerkAdapters::kDataLoadedReason);
 
+    // HeartOfMagic.esp's explosion twins: hidden harmless effects off an explosion
+    // Frostwalker reads as frost by name (docs/ENVIRONMENT.md)
+    Environment::Initialize();
+
     // Spell Research learns the catalog spells after its Import (docs/librarian/SPELL_RESEARCH.md)
     Librarian::SpellResearchPatch::Install();
 
@@ -395,6 +334,7 @@ void OnNewGame()
     logger::info("New game started - progression will be cleared");
     Librarian::SpellResearchPatch::OnNewGame();
     Librarian::PerkAdapters::Reassert("new game");
+    Environment::SelfTest::OnGameLoaded();   // dev only: selftest.json
     // Progress is automatically cleared by OnRevert callback
 
     // Fix input lock if UI was open in main menu
@@ -420,6 +360,7 @@ void OnPostLoadGame()
     // Spell Research's lists are the loaded save's: register what they lack
     Librarian::SpellResearchPatch::OnGameLoaded();
     Librarian::PerkAdapters::Reassert("save loaded");
+    Environment::SelfTest::OnGameLoaded();   // dev only: selftest.json
 
     // Fix input/focus state that may be left bad by other mods or previous session
     if (UIManager::GetSingleton()->IsInitialized()) {

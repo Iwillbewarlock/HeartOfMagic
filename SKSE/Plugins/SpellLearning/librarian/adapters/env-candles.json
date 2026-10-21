@@ -1,0 +1,26 @@
+{
+  "_comment": [
+    "Environment adapter: Dynamic Candles and Put Out The Fires. Each defines a fire and a frost keyword and",
+    "gives them to spells by name through KID; its scripts light or put out candles and fires when a spell",
+    "carrying one hits (and also read OnMagicEffectApply on the effect). These \"damage\" lines give the",
+    "keyword to the spell's fire damage effects (DC_Fire, POF_Fire) and to its frost, water or air damage",
+    "effects (DC_Frost, POF_Frost - the putting-out keyword), like env-elements.json",
+    "(docs/librarian/PERK_ADAPTERS.md 6-5). keywordForm ids read from DynamicCandles.esp and",
+    "PutOutTheFires.esp (ESL-flagged). Off with config.json \"environment\": { \"enabled\": false }."
+  ],
+  "perkMod": "Dynamic Candles, Put Out The Fires",
+  "measured": "2026-10-20",
+  "requires": { "config": "environment.enabled", "any": ["DynamicCandles.esp", "PutOutTheFires.esp"] },
+  "adapters": [
+    { "keyword": "DC_Fire", "keywordForm": "DynamicCandles.esp|0x0008FB", "why": "Dynamic Candles: light candles",
+      "damage": { "elements": ["fire"],
+        "keywordsNone": ["APO_MagicDamageUnspecified", "DAR_UnspecificMagicDamage"] }, "tierMin": "manual" },
+    { "keyword": "DC_Frost", "keywordForm": "DynamicCandles.esp|0x0008FC", "why": "Dynamic Candles: put candles out",
+      "damage": { "elements": ["frost", "water", "air"] }, "tierMin": "manual" },
+    { "keyword": "POF_Fire", "keywordForm": "PutOutTheFires.esp|0x000803", "why": "Put Out The Fires: light fires",
+      "damage": { "elements": ["fire"],
+        "keywordsNone": ["APO_MagicDamageUnspecified", "DAR_UnspecificMagicDamage"] }, "tierMin": "manual" },
+    { "keyword": "POF_Frost", "keywordForm": "PutOutTheFires.esp|0x000804", "why": "Put Out The Fires: put fires out",
+      "damage": { "elements": ["frost", "water", "air"] }, "tierMin": "manual" }
+  ]
+}

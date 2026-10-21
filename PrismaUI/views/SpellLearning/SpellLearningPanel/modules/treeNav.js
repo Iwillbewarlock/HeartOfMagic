@@ -107,7 +107,10 @@ var TreeNav = {
             var full = self._schoolLabel(name);
             tab.textContent = self._schoolShort(name, full);
             tab.title = full + ' - ' + ((typeof t === 'function') ? t('tree.schoolTabsHint') : 'Jump to school');
-            tab.style.borderBottomColor = CanvasRenderer._getSchoolColor(name);
+            // A label in its school's colour (panel-tree.css underlines the chosen one in it)
+            var schoolColor = CanvasRenderer._getSchoolColor(name);
+            tab.style.borderBottomColor = schoolColor;
+            tab.style.color = schoolColor;
             tab.addEventListener('click', function() { self.focusSchool(name); });
             bar.appendChild(tab);
         });

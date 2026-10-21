@@ -1,0 +1,5 @@
+{
+  "_comment": "Dev only, never shipped. Copied into the dev install by DeployDev.ps1 -WithSelfTest (removed by any deploy without it). Turns on the 1.6 environment self-test: after delaySeconds of unpaused play following a save load or a new game, SpellLearning.log gets one [selftest-1.6] line per check (docs/ENVIRONMENT.md, Self-test).",
+  "enabled": true,
+  "delaySeconds": 30
+}

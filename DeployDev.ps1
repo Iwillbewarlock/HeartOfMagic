@@ -28,6 +28,8 @@
     one) removes it from the Toxicology install ($ToxicologyModPath) and says so, because the dev mod may be enabled
     in a profile used for real play. A -ToxicologyOnly deploy that stops before copying says whether the file is still
     installed (the plain deploy removes it only once its own preflight has passed).
+    .\DeployDev.ps1 -WithSelfTest # also selftest.json: the 1.6 environment self-test runs in game
+                                  # (docs/ENVIRONMENT.md); any deploy without the switch removes it
 
     Everything it will copy is checked before anything is copied (the plugin, the
     panel, each compiled script there and newer than its source), so a missing or
@@ -44,7 +46,8 @@ param(
     [switch]$ToxicologyOnly,
     [switch]$ToxicologySelfTest,
     [switch]$ToxicologyKorean,
-    [switch]$Force
+    [switch]$Force,
+    [switch]$WithSelfTest
 )
 
 $ErrorActionPreference = 'Stop'
@@ -69,6 +72,9 @@ if ($ToxicologyKorean -and -not $ToxicologyOnly) {
 }
 if ($ToxicologySelfTest -and -not $ToxicologyOnly) {
     throw ('-ToxicologySelfTest deploys the Toxicology self test file and goes with -ToxicologyOnly. Nothing was copied.' + (Get-ToxSelfTestNote))
+}
+if ($WithSelfTest -and $ToxicologyOnly) {
+    throw ('-WithSelfTest deploys the 1.6 self-test for the main plugin and does not go with -ToxicologyOnly. Nothing was copied.' + (Get-ToxSelfTestNote))
 }
 
 if ($ToxicologyOnly) {
@@ -178,6 +184,12 @@ $panelSrc = Join-Path $repo 'PrismaUI\views\SpellLearning\SpellLearningPanel'
 $panelDst = Join-Path $ModPath 'PrismaUI\views\SpellLearning\SpellLearningPanel'
 $dllSrc = Join-Path $repo 'build\plugins\spelllearning\Release\SpellLearning.dll'
 $dllDst = Join-Path $ModPath 'SKSE\Plugins\SpellLearning.dll'
+# The light plugin (docs/ENVIRONMENT.md), committed at the repo root, goes to the mod folder's root
+$espSrc = Join-Path $repo 'HeartOfMagic.esp'
+$espDst = Join-Path $ModPath 'HeartOfMagic.esp'
+# The optional Mysticism patch (docs/ENVIRONMENT.md, "The Mysticism patch"): always copied, the dev install has Mysticism
+$patchSrc = Join-Path $repo 'HeartOfMagic_Mysticism.esp'
+$patchDst = Join-Path $ModPath 'HeartOfMagic_Mysticism.esp'
 
 # =============================================================================
 # Preflight: every source this run copies, checked before the first copy. A
@@ -187,7 +199,13 @@ $dllDst = Join-Path $ModPath 'SKSE\Plugins\SpellLearning.dll'
 if (-not (Test-Path (Join-Path $panelSrc 'index.html'))) { throw "No panel at $panelSrc" }
 if (-not $PanelOnly) {
     if (-not (Test-Path $dllSrc)) { throw "No built plugin at $dllSrc. Run .\BuildRelease.ps1 -preset Release-2026 first." }
+    if (-not (Test-Path $espSrc)) { throw "No $espSrc - nothing was copied." }
+    if (-not (Test-Path $patchSrc)) { throw "No $patchSrc - nothing was copied." }
 }
+# The in-game self-test switch: dev only, never in a release (Distribution.cmake ships debug\debug.json alone)
+$selfTestSrc = Join-Path $repo 'debug\selftest.json'
+$selfTestDst = Join-Path $ModPath 'SKSE\Plugins\SpellLearning\selftest.json'
+if ($WithSelfTest -and -not (Test-Path $selfTestSrc)) { throw "No $selfTestSrc - nothing was copied." }
 
 # The compiled Papyrus scripts (BuildRelease.ps1 puts them in build\Scripts\output),
 # laid out as the release has them (plugins/cmake/Papyrus.cmake, Distribution.cmake):
@@ -235,6 +253,13 @@ if (Test-Path $toxSelfTestDst) {
 if (-not $PanelOnly) {
     Copy-Item $dllSrc $dllDst -Force
     Write-Host ("plugin  {0}" -f (Split-Path $dllDst -Leaf))
+    Copy-Item $espSrc $espDst -Force
+    if ((Get-FileHash $espSrc).Hash -ne (Get-FileHash $espDst).Hash) { throw 'Copy did not take: HeartOfMagic.esp' }
+    Write-Host 'esp     HeartOfMagic.esp (enable it in MO2 once: a new plugin starts unchecked)'
+    Copy-Item $patchSrc $patchDst -Force
+    if ((Get-FileHash $patchSrc).Hash -ne (Get-FileHash $patchDst).Hash) { throw 'Copy did not take: HeartOfMagic_Mysticism.esp' }
+    Write-Host ('esp     HeartOfMagic_Mysticism.esp (enable it in MO2 once and load it after every other plugin that edits ' +
+                'MAG_ScreenShakeEffect - in TAKEALOOK, Synthesis - Sound and Combat.esp)')
 }
 
 # The design presets shipped with the mod (Night Grimoire, Chalkboard, Skald): data
@@ -282,6 +307,14 @@ if (Test-Path $rulesSrc) {
         Copy-Item (Join-Path $compatSrc '*.json') $compatDst -Force
         Write-Host ("compat  {0}" -f ((Get-ChildItem $compatSrc -Filter '*.json').Count))
     }
+    # The explosion twin map (environment/twins.json, docs/ENVIRONMENT.md): read at kDataLoaded
+    $envSrc = Join-Path $rulesSrc 'environment'
+    if (Test-Path $envSrc) {
+        $envDst = Join-Path $rulesDst 'environment'
+        New-Item -ItemType Directory -Force -Path $envDst | Out-Null
+        Copy-Item (Join-Path $envSrc '*.json') $envDst -Force
+        Write-Host ("environment {0}" -f ((Get-ChildItem $envSrc -Filter '*.json').Count))
+    }
 }
 
 # The spell gate's rules (SpellScannerGate.cpp)
@@ -301,6 +334,17 @@ if (Test-Path $debugSrc) {
     New-Item -ItemType Directory -Force -Path $debugDst | Out-Null
     Copy-Item $debugSrc $debugDst -Force
     Write-Host "debug   debug.json (panel scans write spell_scan_output.json)"
+}
+
+# The 1.6 environment self-test (docs/ENVIRONMENT.md, "Self-test"): on only while the install
+# has selftest.json, which -WithSelfTest puts in and every other deploy takes out
+if ($WithSelfTest) {
+    New-Item -ItemType Directory -Force -Path (Split-Path $selfTestDst) | Out-Null
+    Copy-Item $selfTestSrc $selfTestDst -Force
+    Write-Host 'selftest selftest.json (self-test ON - deploy again without -WithSelfTest to turn it off)'
+} elseif (Test-Path $selfTestDst) {
+    Remove-Item $selfTestDst -Force
+    Write-Host 'selftest selftest.json removed (self-test off)'
 }
 
 # The scripts checked in the preflight above

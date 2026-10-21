@@ -6,6 +6,7 @@
 #include "uimanager/UIManagerInternal.h"
 #include "ProgressionManager.h"
 #include "ThreadUtils.h"
+#include "environment/EnvironmentTwins.h"
 
 #include <condition_variable>
 #include <deque>
@@ -69,6 +70,9 @@ namespace
 
         // Apply early learning, tome, passive, and notification settings
         ApplySettingsFromConfig(config);
+
+        // environment.enabled: the explosion twins on or back to the originals
+        Environment::OnConfigApplied(config);
     }
 
     // Worker thread: the panel is told on the game thread (CallView) that nothing was written.

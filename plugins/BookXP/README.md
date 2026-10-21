@@ -4,7 +4,7 @@ Pure SKSE DLL plugin (no ESP) that grants spell learning XP when the player read
 
 ## What It Does
 
-1. On `kPostLoad`: Requests `ISpellLearningAPI*` from SpellLearning via SKSE messaging
+1. At `kPostPostLoad`: receives `ISpellLearningAPI*` from SpellLearning's `kMessageType_APIReady` broadcast (SKSE messaging)
 2. On `kDataLoaded`: Registers "Book Reading" as a custom XP source (creates UI controls)
 3. On `BookMenu` open: Queries all active learning targets via API, grants XP to each, and shows
    "+XP to N spell(s)" with `api->ShowNotification("hud.bookXpGranted", ...)` (API v2) - the XP the spells
@@ -19,9 +19,9 @@ Pure SKSE DLL plugin (no ESP) that grants spell learning XP when the player read
 
 | API Call | Stage | Purpose |
 |----------|-------|---------|
-| `Dispatch(kMessageType_RequestAPI, ...)` | kPostLoad | Request API interface pointer |
-| `OnSpellLearningMessage` → `ISpellLearningAPI*` | Response | Receive full API access |
-| `Dispatch(kMessageType_RegisterSource, ...)` | kDataLoaded | Register source → creates UI controls |
+| `RegisterListener("SpellLearning", OnSpellLearningMessage)` | Plugin load | Listen for SpellLearning's broadcast |
+| `kMessageType_APIReady` → `ISpellLearningAPI*` | kPostPostLoad | Receive full API access |
+| `api->RegisterXPSource("book_reading", ...)` | kDataLoaded | Register source → creates UI controls |
 | `api->GetLearningTarget(school)` | BookMenu | Query active learning targets |
 | `api->AddSourcedXP(formId, 15.0, "book_reading")` | BookMenu | Grant XP through cap system |
 
@@ -30,10 +30,9 @@ Pure SKSE DLL plugin (no ESP) that grants spell learning XP when the player read
 ```
 SL_BookXP.dll                              SpellLearning.dll
     │                                           │
-    ├─kPostLoad──►Dispatch(RequestAPI)────────►│ OnExternalPluginMessage
-    │◄─────────────ISpellLearningAPI*───────────┤ Returns API pointer
+    │◄──kPostPostLoad: APIReady broadcast───────┤ ISpellLearningAPI* as data
     │                                           │
-    ├─kDataLoaded─►Dispatch(RegisterSource)───►│ RegisterModdedXPSource()
+    ├─kDataLoaded─►api->RegisterXPSource()────►│ RegisterModdedXPSource()
     │              "book_reading"                │ → UI creates slider controls
     │                                           │
     ├─BookMenu opens────────────────────────────│

@@ -297,12 +297,6 @@ SpellEffectivenessHook::EarlyLearningSettings SpellEffectivenessHook::GetSetting
     return m_settings;
 }
 
-std::vector<SpellEffectivenessHook::PowerStep> SpellEffectivenessHook::GetPowerSteps() const
-{
-    std::shared_lock<std::shared_mutex> lock(m_mutex);
-    return m_powerSteps;
-}
-
 int SpellEffectivenessHook::GetNumPowerSteps() const
 {
     std::shared_lock<std::shared_mutex> lock(m_mutex);
@@ -376,12 +370,6 @@ bool SpellEffectivenessHook::IsEarlyLearnedSpell(RE::FormID formId) const
         return false;
     }
     return m_earlyLearnedSpells.find(formId) != m_earlyLearnedSpells.end();
-}
-
-std::unordered_set<RE::FormID> SpellEffectivenessHook::GetEarlyLearnedSpells() const
-{
-    std::shared_lock<std::shared_mutex> lock(m_mutex);
-    return m_earlyLearnedSpells;
 }
 
 bool SpellEffectivenessHook::NeedsNerfing(RE::FormID spellFormId) const

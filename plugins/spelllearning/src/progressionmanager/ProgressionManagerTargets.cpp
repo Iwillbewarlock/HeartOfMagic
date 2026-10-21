@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "ProgressionManager.h"
+#include "FormIdText.h"
 #include "uimanager/UIManager.h"
 #include "SpellEffectivenessHook.h"
 #include "SpellScanner.h"
@@ -233,16 +234,6 @@ ProgressionManager::PrereqRequirements ProgressionManager::GetPrereqRequirements
     return PrereqRequirements{};
 }
 
-// Legacy compatibility
-std::vector<RE::FormID> ProgressionManager::GetTreePrerequisites(RE::FormID spellId) const
-{
-    auto reqs = GetPrereqRequirements(spellId);
-    // Return all prereqs combined for legacy code
-    std::vector<RE::FormID> all = reqs.hardPrereqs;
-    all.insert(all.end(), reqs.softPrereqs.begin(), reqs.softPrereqs.end());
-    return all;
-}
-
 bool ProgressionManager::IsOwnSpellMastered(RE::FormID spellId) const
 {
     // Check our progress tracking
@@ -356,34 +347,6 @@ bool ProgressionManager::AreTreePrerequisitesMet(RE::FormID spellId) const
     return ownMet || IsUnlockedByKnownChild(spellId);
 }
 
-std::vector<RE::FormID> ProgressionManager::GetUnmetHardPrerequisites(RE::FormID spellId) const
-{
-    std::vector<RE::FormID> unmet;
-    auto reqs = GetPrereqRequirements(spellId);
-
-    for (RE::FormID prereqId : reqs.hardPrereqs) {
-        if (!IsSpellMastered(prereqId)) {
-            unmet.push_back(prereqId);
-        }
-    }
-
-    return unmet;
-}
-
-std::pair<int, int> ProgressionManager::GetSoftPrerequisiteStatus(RE::FormID spellId) const
-{
-    auto reqs = GetPrereqRequirements(spellId);
-
-    int masteredCount = 0;
-    for (RE::FormID prereqId : reqs.softPrereqs) {
-        if (IsSpellMastered(prereqId)) {
-            masteredCount++;
-        }
-    }
-
-    return { masteredCount, reqs.softNeeded };
-}
-
 // =============================================================================
 // SET LEARNING TARGET FROM TOME
 // =============================================================================
@@ -392,13 +355,12 @@ void ProgressionManager::SetLearningTargetFromTome(const std::string& formIdStr,
 {
     if (!spell) {
         // Try to look up by form ID
-        RE::FormID formId = 0;
-        try {
-            formId = std::stoul(formIdStr, nullptr, 16);
-        } catch (const std::exception& e) {
-            logger::error("ProgressionManager: Failed to parse formId '{}': {}", formIdStr, e.what());
+        const auto parsedId = FormIdText::Parse(formIdStr);
+        if (!parsedId) {
+            logger::error("ProgressionManager: '{}' is not a formId", formIdStr);
             return;
         }
+        const RE::FormID formId = *parsedId;
         spell = RE::TESForm::LookupByID<RE::SpellItem>(formId);
         if (!spell) {
             logger::error("ProgressionManager: Could not find spell for formId {}", formIdStr);

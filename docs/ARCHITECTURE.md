@@ -480,7 +480,8 @@ stores FormIDs and resolves them with SKSE's `ResolveFormID`). The key is made a
 `include/PluginNames.h` (no game types): `MakePersistentId` converts the name, and `PluginNames::Lookup` tries
 `TESDataHandler::LookupModByName` with the text first (the game's own bytes, every ASCII name) and, for a name
 with a non-ASCII byte that it misses, the converted names of the loaded files that have a non-ASCII byte
-(`AsciiText::EqualsIgnoreCase`, A-Z folding only; `include/AsciiText.h` also holds the shared `HasNonAscii`).
+(`AsciiText::EqualsIgnoreCase`, A-Z folding only; `include/AsciiText.h` also holds the shared `HasNonAscii` and
+`ToLower`, the one lower-casing of text in the plugin and the tools - A-Z only, never the C locale's `tolower`).
 A `Lookup` remembers every answer, misses included, and converts the file list at most once;
 `ValidateAndFixTree` keeps one for its whole pass over the tree, so a tree full of one Korean-named plugin's
 spells costs one walk of the file list, not one per node. The key depends on the ANSI code page: a player who
@@ -533,8 +534,9 @@ config.json by a development build is read by nothing and does no harm.
 
 The public API (`SpellLearningAPIImpl` in Main.cpp) runs each call that changes state through `GuardApiCall`:
 an exception is logged and the caller gets `0`/`false`, it never crosses into the other plugin's DLL. The
-calls in `OnExternalPluginMessage` (the AddXP and RegisterSource messages) are guarded the same way; that
-handler is not registered as a listener at present.
+API is handed out only by the `kMessageType_APIReady` broadcast at kPostPostLoad; the AddXP and RegisterSource
+message types in `SpellLearningAPI.h` stay reserved, and nothing receives them (the never-registered
+`OnExternalPluginMessage` handler was removed in 1.6).
 
 `SetupLog` (`plugins/Common.h`, all three DLLs) never throws. CommonLib's `logger::init()` builds its file sink
 from `path->string()`, which throws for a Documents path the ANSI code page cannot hold; the plugin then did
@@ -699,14 +701,15 @@ an unknown source - takes it as new (true, `SourceRegistered`, the panel row) wi
 shows the saved on/off (`NotifyModdedSourceRegistered` sends `enabled`; docs/PLAN-PUBLIC-MODDER-API.md).
 Plugin list entries an older panel saved with `toLowerCase` (non-ASCII capitals: "заклинания.esp") still turn their
 plugin off in a build (`filterWhitelistedSpells` also compares the lowered name) and take the scanned name when the
-plugin list opens (`migrateLoweredWhitelist`). The Spell Research patch (`LibrarianSpellResearchPatch.cpp`, ASCII
-`tolower`) does not match such an entry until it is renamed.
+plugin list opens (`migrateLoweredWhitelist`). The Spell Research patch (`LibrarianSpellResearchPatch.cpp`,
+`AsciiText::ToLower`, A-Z only) does not match such an entry until it is renamed.
 
 **Edit mode copies and the prerequisite map** (2026-10-17): `sendTreePrerequisites` (treeLoad.js) leaves out a
 second copy of a spell (`<formId>_dup_<n>`, edit mode's Spawn) when the tree has the spell's own node, sends only
 the first copy, under the spell's formId, when it has none, and makes every prerequisite id its spell's (each once);
-C++ `OnSetTreePrerequisites` skips a formId text it cannot parse to the end. Before, `stoul` read a copy's id as the
-original's formId and the copy's empty lists erased the original's requirements. Limit: C++ keeps one requirement
+C++ `OnSetTreePrerequisites` skips a formId text it cannot parse to the end (`FormIdText::Parse` takes the whole
+text or nothing); the other panel handlers and the saved tree's load check read a copy's id as its spell
+(`FormIdText::ParseSpellOf`, the panel's `getCanonicalFormId` rule), so a copy's node stays in the tree. Before, `stoul` read a copy's id as the original's formId and the copy's empty lists erased the original's requirements. Limit: C++ keeps one requirement
 entry per spell and cannot say "this copy's links or the spell's", so links drawn to a copy reach C++ only when the
 spell has no node of its own; the panel (`recalculateNodeAvailability`, per node) may show such a copy open while a
 tome of the spell is still judged by the spell's own links.
@@ -930,7 +933,6 @@ Split across: SpellEffectivenessHookCore.cpp, SpellEffectivenessHookDisplay.cpp,
 - `SyncProgress(formId, progress)` - ProgressionManager's new progress for an early-learned spell
   (`AddXP`, `AddXPNoGrant`, `SetSpellXP`); see the effect hook's progress mirror under Threading Model
 - `ApplyEffectivenessScaling(effect)` - Scale magnitude on ActiveEffect
-- `GetModifiedSpellName(spell)` - Return "(Learning - X%)" name
 - `UpdateSpellDisplayCache(formId, spell)` - Update cached display data
 - `OnGameSaved/OnGameLoaded/OnRevert` - Serialization
 
@@ -1133,7 +1135,6 @@ the mod - always available. SpellTomeHook handles the core tome interception in 
 **Key Functions:**
 - `Initialize()` - Detect DEST/ISL plugins in the load order
 - `IsDESTInstalled()` / `IsISLInstalled()` / `IsActive()` - Status checks
-- `GetDESTPluginName()` - Return detected plugin name
 - `OnSpellTomeRead(book, spell, container)` - Legacy handler (non-ISL DEST setups)
 - `RegisterDESTAliasExtFunctions(vm)` / `RegisterPapyrusFunctions(vm)` - Papyrus native bindings
   (`SpellLearning_ISL.OnStudyProgress` / `OnStudyComplete` compute and apply the study XP)
@@ -1157,9 +1158,7 @@ panel. `openrouter_config.json` is no longer read or written.
 - Core NLP algorithms for spell tree generation and PRM scoring
 - TF-IDF vectorization with smoothed IDF and pre-computed L2 norms
 - Cosine similarity between sparse TF-IDF vectors
-- Character n-gram Jaccard similarity (morphological family detection)
-- Fuzzy string matching (Levenshtein distance, partial ratio, token set ratio)
-- Theme scoring for spell-to-theme assignment
+- Theme scoring for spell-to-theme assignment (rapidfuzz partial ratio and token set ratio)
 - PRM candidate scoring with proximity blending
 
 **Key Functions:**
@@ -1167,8 +1166,6 @@ panel. `openrouter_config.json` is no longer read or written.
 - `BuildSpellText(spell)` / `BuildThemeText(spell)` - Extract weighted text from spell JSON
 - `ComputeTfIdf(documents)` - TF-IDF vectorization with L2 norms
 - `CosineSimilarity(a, b)` - Dot product of sparse vectors
-- `CharNgramSimilarity(a, b)` - 3-char sliding window Jaccard
-- `LevenshteinDistance(a, b)` / `FuzzyRatio()` / `FuzzyPartialRatio()` / `FuzzyTokenSetRatio()` - Fuzzy matching
 - `CalculateThemeScore(spell, theme)` - Multi-strategy theme scoring (0-100)
 - `ScorePRMCandidates(spell, candidates, settings)` - PRM lock candidate scoring
 - `ProcessPRMRequest(request)` - Full PRM scoring request handler
@@ -1558,10 +1555,7 @@ A request without a command builds Classic; any other command (`build_tree`, `bu
 | Tokenization | `Tokenize()` | Lowercase, strip punctuation, filter words ≤ 2 chars |
 | TF-IDF vectorization | `ComputeTfIdf()` | Sparse dict vectors, smoothed IDF, L2 norms |
 | Cosine similarity | `CosineSimilarity()` | Dot product of sparse vectors / pre-computed norms |
-| Char n-gram similarity | `CharNgramSimilarity()` | 3-char sliding window Jaccard (e.g. "Firebolt"/"Fireball" ≈ 0.45) |
-| Levenshtein distance | `LevenshteinDistance()` | Single-row DP edit distance |
-| Fuzzy matching | `FuzzyRatio()`, `FuzzyPartialRatio()`, `FuzzyTokenSetRatio()` | Replaces Python `thefuzz` library |
-| Theme scoring | `CalculateThemeScore()` | Multi-strategy fuzzy scoring (0-100) |
+| Theme scoring | `CalculateThemeScore()` | Multi-strategy fuzzy scoring (0-100): rapidfuzz partial ratio and token set ratio, in place of Python's `thefuzz` |
 | PRM scoring | `ScorePRMCandidates()`, `ProcessPRMRequest()` | TF-IDF + proximity blending for lock candidates |
 
 ### Theme Discovery
@@ -1832,8 +1826,9 @@ Load spell_tree.json → For each node:
     persistentId (saved under another FormID) now resolves to it: that was the other spell's
     slot, the persistentId names the record, and the legacy node goes
   → A node that is not an object or has no string formId goes (logged with a count)
-  → FormIDs are compared as "0x%08X" (TreeRemap::NormalizeFormId), so "0xfe905800" in a link
-    and "0xFE905800" on a node are one spell; kept nodes and links come out in that form
+  → FormIDs are compared as "0x%08X" (TreeRemap::NormalizeFormId, through FormIdText.h), so
+    "0xfe905800" in a link and "0xFE905800" on a node are one spell; kept nodes and links come
+    out in that form
   → Then, after every school: every node's link lists (children, prerequisites, hardPrereqs,
     softPrereqs), its Pre Req Master locks[].nodeId, the school root and the tree's bridges
     follow the new FormIDs; an entry naming a dropped node goes (softNeeded is held to the
@@ -1975,12 +1970,13 @@ HeartOfMagic/
 │   ├── spelllearning/             # Main SpellLearning plugin
 │   │   ├── CMakeLists.txt
 │   │   ├── include/
-│   │   │   ├── AsciiText.h                  ✅ HasNonAscii, A-Z-only case-insensitive compare (no game types)
+│   │   │   ├── AsciiText.h                  ✅ HasNonAscii, A-Z-only ToLower and case-insensitive compare (no game types)
 │   │   │   ├── ISLIntegration.h             ✅ DEST mod integration header
 │   │   │   ├── JsonText.h                   ✅ JsonText::Dump - dump that replaces bytes that are not UTF-8 (no game types)
 │   │   │   ├── PapyrusAPI.h                 ✅ Papyrus native function header
 │   │   │   ├── PassiveLearningSource.h      ✅ Passive learning source header
 │   │   │   ├── FormIdBits.h                 ✅ form id bit layout: load index, light index, local id masks (no game types)
+│   │   │   ├── FormIdText.h                 ✅ formId text: Parse (hex, 0x optional, whole text, max 8 digits), ParseSpellOf (an edit mode copy's "_dup_" id as its spell) and Format "0x%08X" (no game types)
 │   │   │   ├── PluginNames.h                ✅ persistentId plugin names: UTF-8 key, memoised lookup (no game types)
 │   │   │   ├── TreeRemap.h                  ✅ a saved tree's FormIDs and links after a load order change (no game types)
 │   │   │   ├── CoSave.h                     ✅ SKSE serialization callbacks (save, load, revert)
@@ -1997,6 +1993,10 @@ HeartOfMagic/
 │   │   │   ├── SpellTomeHookSites.h         ✅ Tome hook offsets and site checks (no game types)
 │   │   │   ├── ThreadUtils.h                ✅ Game-thread dispatch utilities
 │   │   │   ├── XPSource.h                   ✅ XP source interface
+│   │   │   ├── environment/
+│   │   │   │   ├── EnvironmentMatch.h       ✅ Frostwalker's explosion matcher, which effects take a twin (no game types)
+│   │   │   │   ├── EnvironmentTwins.h       ✅ HeartOfMagic.esp explosion twins: kDataLoaded repoint, switch, scanner map
+│   │   │   │   └── EnvironmentSelfTest.h    ✅ In-game 1.6 self-test (dev only, selftest.json)
 │   │   │   ├── treebuilder/
 │   │   │   │   ├── TreeBuilder.h            ✅ Tree construction engine header
 │   │   │   │   ├── TreeBuilderInternal.h    ✅ Internal tree builder helpers
@@ -2022,6 +2022,10 @@ HeartOfMagic/
 │   │       ├── PapyrusAPI.cpp               ✅ Papyrus native function bindings
 │   │       ├── ISLIntegration.cpp           ✅ DEST mod integration (bundled)
 │   │       ├── PassiveLearningSource.cpp    ✅ Passive learning source
+│   │       ├── environment/                 ✅ HeartOfMagic.esp explosion twins (docs/ENVIRONMENT.md)
+│   │       │   ├── EnvironmentTwins.cpp         (twins.json, copy the original into the twin, repoint at kDataLoaded / settings save, revert)
+│   │       │   ├── EnvironmentSelfTest.cpp      (selftest.json switch, wait for unpaused play, run, [selftest-1.6] lines)
+│   │       │   └── EnvironmentSelfTestChecks.cpp (H2 keyword reads, twins, Frostwalker matcher, adapter report)
 │   │       ├── spellscanner/                ✅ Spell enumeration, FormID persistence
 │   │       │   ├── SpellScannerScan.cpp         (main scan logic)
 │   │       │   ├── SpellScannerJson.cpp         (scan JSON shape, MGEF fields, dump writing)
@@ -2131,9 +2135,33 @@ MO2/mods/HeartOfMagic_RELEASE/
 │   └── Plugins/
 │       ├── SpellLearning.dll
 │       └── SpellLearning/
-│           └── presets/
-└── (ESP if applicable)
+│           ├── presets/
+│           └── librarian/environment/twins.json   # explosion twin map
+├── HeartOfMagic.esp                    # light plugin (ESL-flagged), one EXPL record
+└── HeartOfMagic_Mysticism.esp          # optional (FOMOD, with Mysticism): light plugin, one MGEF override
 ```
+
+### HeartOfMagic.esp and explosion twins (1.6)
+
+The mod's main plugin, `HeartOfMagic.esp` (committed at the repo root, which mirrors Data), is a light plugin
+mastering only `Skyrim.esm`. It holds explosion "twins": copies of an explosion with a neutral EditorID, which the
+DLL gives at `kDataLoaded` to hidden, harmless effects whose explosion name-matching mods (Frostwalker) read as an
+element. The map is `SKSE/Plugins/SpellLearning/librarian/environment/twins.json`; `tools/frostwalker-twin-check.js`
+checks it against the plugin file. The C++ side is `src/environment/EnvironmentTwins.cpp`: `Environment::Initialize`
+runs at `kDataLoaded` after the perk adapters, copies the live original's values into each twin, records the effects
+that may take it (hidden harmless Script effects no item gives a magnitude) and points them at the twin while
+`config.json` `environment.enabled` is not false; `Environment::OnConfigApplied` (settings save, game thread) puts the
+originals back or the twins again. The scanner reads an effect's explosion through `Environment::ScannedExplosion`, so
+scans record the original. A dev-only in-game self-test (`EnvironmentSelfTest*.cpp`, `selftest.json`) checks it and
+the adapters' H2 question. Record values, how the file was made, the DLL's behaviour and the self-test:
+[ENVIRONMENT.md](ENVIRONMENT.md).
+
+The effect's Explosion field is not what Mysticism's screen shake places: its script (`magicPlaceActivatorScript`)
+places its `ExplosionRef` property. So a second, optional plugin, `HeartOfMagic_Mysticism.esp` (repo root; shipped
+under `optional/MysticismPatch/`, installed by the FOMOD when `MysticismMagic.esp` is active), overrides
+`MAG_ScreenShakeEffect` with that property pointed at the twin. It must be the effect's last override; the self-test's
+`mysticism-patch` line checks that, `tools/frostwalker-twin-check.js` checks the file (ENVIRONMENT.md, "The Mysticism
+patch").
 
 ---
 
@@ -2182,7 +2210,7 @@ MO2/mods/HeartOfMagic_RELEASE/
 ### ✅ Recently Completed (Feb 14, 2026)
 
 #### Native C++ Tree Builders (Python Eliminated)
-- **`TreeNLP`** (`src/treebuilder/TreeNLP.cpp`, `include/treebuilder/TreeNLP.h`) — Core NLP engine: TF-IDF vectorization, cosine similarity, char n-gram similarity, Levenshtein distance, fuzzy matching (ratio, partial ratio, token set ratio), theme scoring, PRM candidate scoring
+- **`TreeNLP`** (`src/treebuilder/TreeNLP.cpp`, `include/treebuilder/TreeNLP.h`) — Core NLP engine: TF-IDF vectorization, cosine similarity, theme scoring (rapidfuzz partial ratio and token set ratio), PRM candidate scoring
 - **`TreeBuilder`** (`src/treebuilder/TreeBuilder*.cpp`, `include/treebuilder/TreeBuilder.h`) — Tree construction engine with 5 builder modes (Classic, Tree, Graph, Thematic, Oracle; all but Classic removed 2026-09-27), theme discovery, tree validation, unreachable node repair
 - **Python completely eliminated** — No PythonBridge, no PythonInstaller, no embedded Python, no server.py, no subprocess IPC
 - **All builder modes native** — TF-IDF, fuzzy matching, arborescence, LLM integration all in C++ (only Classic remains since 2026-09-27)
@@ -2328,6 +2356,7 @@ MO2/mods/HeartOfMagic_RELEASE/
 | **TREE_LAYOUT_DESIGN.md** | Layout options (zone reservation, round-robin) |
 | **SHAPE-AND-GROWTH-ASSESSMENT.md** | Shape/growth assessment; backlog placement; spell-count–scaled shapes |
 | **TECHNICAL_RESEARCH.md** | API and integration research |
+| **ENVIRONMENT.md** | HeartOfMagic.esp, the explosion twins (Frostwalker water freezing) and their check |
 
 ---
 

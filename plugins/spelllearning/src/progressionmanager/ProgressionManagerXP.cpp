@@ -3,6 +3,8 @@
 // =============================================================================
 
 #include "ProgressionManager.h"
+#include "AsciiText.h"
+#include "FormIdText.h"
 #include "HudNotify.h"
 #include "uimanager/UIManager.h"
 #include "SpellEffectivenessHook.h"
@@ -37,9 +39,7 @@ void ProgressionManager::SetXPSettings(const XPSettings& settings)
 
 float ProgressionManager::GetXPForTier(const std::string& tier) const
 {
-    std::string tierLower = tier;
-    std::transform(tierLower.begin(), tierLower.end(), tierLower.begin(),
-        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    const std::string tierLower = AsciiText::ToLower(tier);
 
     if (tierLower == "novice") return m_xpSettings.xpNovice;
     if (tierLower == "apprentice") return m_xpSettings.xpApprentice;
@@ -396,13 +396,12 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
 void ProgressionManager::AddXP(const std::string& formIdStr, float amount)
 {
     // Parse hex string to FormID (supports "0x" prefix)
-    RE::FormID formId = 0;
-    try {
-        formId = std::stoul(formIdStr, nullptr, 16);
-    } catch (const std::exception& e) {
-        logger::error("ProgressionManager: Failed to parse formId '{}': {}", formIdStr, e.what());
+    const auto parsedId = FormIdText::Parse(formIdStr);
+    if (!parsedId) {
+        logger::error("ProgressionManager: '{}' is not a formId", formIdStr);
         return;
     }
+    const RE::FormID formId = *parsedId;
 
     AddXP(formId, amount);
 }
@@ -414,13 +413,12 @@ void ProgressionManager::AddXP(const std::string& formIdStr, float amount)
 float ProgressionManager::GetRequiredXP(const std::string& formIdStr) const
 {
     // Parse hex string to FormID (supports "0x" prefix)
-    RE::FormID formId = 0;
-    try {
-        formId = std::stoul(formIdStr, nullptr, 16);
-    } catch (const std::exception& e) {
-        logger::error("ProgressionManager: Failed to parse formId '{}': {}", formIdStr, e.what());
+    const auto parsedId = FormIdText::Parse(formIdStr);
+    if (!parsedId) {
+        logger::error("ProgressionManager: '{}' is not a formId", formIdStr);
         return 0.0f;
     }
+    const RE::FormID formId = *parsedId;
 
     return GetRequiredXP(formId);
 }
@@ -467,8 +465,7 @@ ProgressionManager::XPGainRates ProgressionManager::GetGainRates(RE::FormID targ
 
 float ProgressionManager::GetReverseUnlockXPShare(const std::string& tier) const
 {
-    std::string t = tier;
-    std::transform(t.begin(), t.end(), t.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    const std::string t = AsciiText::ToLower(tier);
     if (t == "apprentice") return m_xpSettings.reverseUnlockXPApprentice;
     if (t == "adept") return m_xpSettings.reverseUnlockXPAdept;
     if (t == "expert") return m_xpSettings.reverseUnlockXPExpert;
@@ -482,13 +479,12 @@ float ProgressionManager::GetReverseUnlockXPShare(const std::string& tier) const
 
 bool ProgressionManager::IsSpellAvailableToLearn(const std::string& formIdStr) const
 {
-    RE::FormID formId = 0;
-    try {
-        formId = std::stoul(formIdStr, nullptr, 16);
-    } catch (const std::exception& e) {
-        logger::error("ProgressionManager: Failed to parse formId '{}': {}", formIdStr, e.what());
+    const auto parsedId = FormIdText::Parse(formIdStr);
+    if (!parsedId) {
+        logger::error("ProgressionManager: '{}' is not a formId", formIdStr);
         return false;
     }
+    const RE::FormID formId = *parsedId;
 
     return IsSpellAvailableToLearn(formId);
 }

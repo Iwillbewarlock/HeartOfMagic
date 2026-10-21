@@ -163,6 +163,8 @@ window.updateSpellData = function(jsonStr) {
         console.warn('[Timing] updateSpellData: ' + jsonStr.length + ' chars parsed in ' + (Date.now() - parseStarted) + ' ms');
         state.lastSpellData = data;
         ScanRef.reset(data);
+        // The Scan page: a draft from before this scan is stale, nothing is applied (scanStage.js)
+        if (typeof ScanStage !== 'undefined') ScanStage.onScanned();
         // Spell gate keys saved before 2026-10-17 become the DLL's (gateReview.js)
         if (typeof GateReview !== 'undefined') GateReview.migrateKeys(data.spells);
         
@@ -266,8 +268,8 @@ window.updateSpellData = function(jsonStr) {
     if (prmSection) prmSection.style.display = '';
 
     // Notify growth modes that spells are available for building
-    if (state.lastSpellData && state.lastSpellData.spells && state.lastSpellData.spells.length > 0) {
-        if (typeof TreeGrowth !== 'undefined') TreeGrowth.updateScanStatus(true);
+    if (typeof TreeGrowth !== 'undefined') {
+        TreeGrowth.updateScanStatus(!!(state.lastSpellData && state.lastSpellData.spells && state.lastSpellData.spells.length > 0));
     }
 
     // Update scan stats + status outside try-catch (guaranteed to run)
@@ -1118,9 +1120,14 @@ window.onPlayerKnownSpells = function(dataStr) {
 
 window.onPrismaReady = function(version) {
     console.log('[SpellLearning] Prisma connection established');
-    // The plugin's own version (index.html carries none, so a release cannot leave an old one there)
+    // The plugin's own version (index.html carries none, so a release cannot leave an old one there),
+    // at the foot of Settings: its row stays hidden until the version is known
     var versionTag = document.querySelector('.version-tag');
-    if (versionTag && version) versionTag.textContent = 'Librarian ' + version;
+    if (versionTag && version) {
+        versionTag.textContent = 'Librarian ' + version;
+        var versionRow = document.getElementById('settingsVersion');
+        if (versionRow) versionRow.classList.remove('hidden');
+    }
     // Only the game calls this, and the plugin creates the view hidden without
     // telling the page (onPanelHiding comes only after a first open and close).
     // Left "visible", the tree loaded below would start its render loop and the
@@ -1239,6 +1246,7 @@ window.onPanelHiding = function() {
     console.log('[SpellLearning] Panel hiding - stopping rendering');
     window._panelVisible = false;
     if (typeof dismissFindSpell === 'function') dismissFindSpell();   // closed by the hotkey too
+    if (typeof ResetConfirm !== 'undefined') ResetConfirm.disarm();   // an armed Reset is not armed on reopening
     if (document.body) document.body.classList.add('panel-hidden');   // CSS animations pause (patch-ui.css)
     // What the tree shows now: opening again repaints it only if that changed
     if (typeof OpenRefreshGate !== 'undefined') OpenRefreshGate.onHide();

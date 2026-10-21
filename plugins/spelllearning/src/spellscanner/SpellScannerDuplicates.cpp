@@ -1,4 +1,6 @@
 #include "Common.h"
+#include "AsciiText.h"
+#include "FormIdText.h"
 #include "EncodingUtils.h"
 #include "ProgressionManager.h"
 #include "SpellScanner.h"
@@ -67,9 +69,7 @@ namespace SpellScanner
             const RE::ActorValue school = GetSpellSchool(spell);
             if (!IsValidMagicSchool(school) || IsEquippedInVoiceSlot(spell)) return {};
 
-            std::string key = editorId;
-            std::transform(key.begin(), key.end(), key.begin(),
-                [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            std::string key = AsciiText::ToLower(editorId);
             key += '|';
             key += std::to_string(static_cast<int>(school));
             return key;
@@ -143,7 +143,7 @@ namespace SpellScanner
         const auto duplicates = FindDuplicateSpells(spells, SpellsTaughtByTomes(), unreachable);
         for (std::size_t i = 0; i < spells.size() && i < spellArray.size(); ++i) {
             if (auto it = duplicates.find(spells[i]->GetFormID()); it != duplicates.end()) {
-                spellArray[i]["duplicateOf"] = std::format("0x{:08X}", it->second);
+                spellArray[i]["duplicateOf"] = FormIdText::Format(it->second);
             }
         }
     }

@@ -14,6 +14,7 @@
 // run the same code. See docs/ARCHITECTURE.md, "Tomes nothing hands out".
 
 #include "FormIdBits.h"
+#include "AsciiText.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -67,8 +68,6 @@ namespace TomeReach
         std::vector<std::string> m_names;
         std::vector<bool> m_light;
     };
-
-    std::string LowerAscii(std::string_view text);
 
     // One BOOK record: the tome, the spell it teaches (0 when none) and its editor id
     struct BookRecord

@@ -2,6 +2,7 @@
 #include "JsonText.h"
 #include "EncodingUtils.h"
 #include "uimanager/UIManager.h"
+#include "uimanager/UIManagerInternal.h"
 #include "librarian/SpellResearchPatch.h"
 #include "ProgressionManager.h"
 
@@ -141,9 +142,8 @@ void UIManager::NotifyProgressUpdate(RE::FormID formId, float currentXP, float r
     auto progress = ProgressionManager::GetSingleton()->GetProgress(formId);
 
     json update;
-    std::stringstream ss;
-    ss << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << formId;
-    update["formId"] = ss.str();
+    const auto formIdText = FormIdText::Format(formId);
+    update["formId"] = formIdText;
     update["currentXP"] = currentXP;
     update["requiredXP"] = requiredXP;
     update["progress"] = requiredXP > 0 ? (currentXP / requiredXP) : 0.0f;
@@ -152,23 +152,18 @@ void UIManager::NotifyProgressUpdate(RE::FormID formId, float currentXP, float r
 
     // PERFORMANCE: Use trace for frequent progress updates
     logger::trace("UIManager: Sending progress update to UI - formId: {}, XP: {:.1f}/{:.1f}, unlocked: {}",
-        ss.str(), currentXP, requiredXP, progress.unlocked);
+        formIdText, currentXP, requiredXP, progress.unlocked);
     CallView("onProgressUpdate", JsonText::Dump(update).c_str());
 }
 
 void UIManager::NotifyProgressUpdate(const std::string& formIdStr)
 {
     // Get progress from ProgressionManager and send to UI
-    RE::FormID formId = 0;
-    try {
-        formId = std::stoul(formIdStr, nullptr, 16);
-    } catch (const std::exception& e) {
-        logger::error("UIManager: Failed to parse formId '{}': {}", formIdStr, e.what());
-        return;
-    }
+    const auto formId = ParsePanelFormId(formIdStr, "NotifyProgressUpdate");
+    if (!formId) return;
 
-    auto progress = ProgressionManager::GetSingleton()->GetProgress(formId);
-    NotifyProgressUpdate(formId, progress.GetCurrentXP(), progress.requiredXP);
+    auto progress = ProgressionManager::GetSingleton()->GetProgress(*formId);
+    NotifyProgressUpdate(*formId, progress.GetCurrentXP(), progress.requiredXP);
 }
 
 void UIManager::NotifySpellReady(RE::FormID formId)
@@ -183,9 +178,7 @@ void UIManager::NotifySpellReady(RE::FormID formId)
     }
 
     json notify;
-    std::stringstream ss;
-    ss << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << formId;
-    notify["formId"] = ss.str();
+    notify["formId"] = FormIdText::Format(formId);
     notify["ready"] = true;
 
     CallView("onSpellReady", JsonText::Dump(notify).c_str());
@@ -198,9 +191,7 @@ void UIManager::NotifySpellUnlocked(RE::FormID formId, bool success)
     }
 
     json notify;
-    std::stringstream ss;
-    ss << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << formId;
-    notify["formId"] = ss.str();
+    notify["formId"] = FormIdText::Format(formId);
     notify["success"] = success;
 
     CallView("onSpellUnlocked", JsonText::Dump(notify).c_str());
@@ -213,9 +204,7 @@ void UIManager::NotifyLearningTargetSet(const std::string& school, RE::FormID fo
     }
 
     json notify;
-    std::stringstream ss;
-    ss << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << formId;
-    std::string formIdStr = ss.str();
+    const std::string formIdStr = FormIdText::Format(formId);
 
     notify["school"] = school;
     notify["formId"] = formIdStr;
@@ -241,9 +230,7 @@ void UIManager::NotifyLearningTargetCleared(RE::FormID formId)
         return;
     }
 
-    std::stringstream ss;
-    ss << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << formId;
-    std::string formIdStr = ss.str();
+    const std::string formIdStr = FormIdText::Format(formId);
 
     logger::info("UIManager: Learning target cleared: {} - setting to available", formIdStr);
 
@@ -258,7 +245,7 @@ void UIManager::NotifyLearningTargetDropped(const std::string& school, RE::FormI
     }
     json notify;
     notify["school"] = school;
-    notify["formId"] = std::format("0x{:08X}", formId);
+    notify["formId"] = FormIdText::Format(formId);
     CallView("onLearningTargetDropped", JsonText::Dump(notify).c_str());
 }
 

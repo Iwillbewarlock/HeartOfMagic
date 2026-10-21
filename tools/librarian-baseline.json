@@ -1,7 +1,7 @@
 {
   "_comment": "Written by tools/librarian-check.js --update. Accuracy may not drop; budgets only warn.",
   "dump": "takealook-2026-09-30.json",
-  "updated": "2026-10-10",
+  "updated": "2026-10-19",
   "accuracy": {
     "noTagsPct": 6.7,
     "all": {
@@ -22,8 +22,8 @@
     }
   },
   "judge": {
-    "2026-09-30": 89.5,
-    "2026-09-30b": 92.2
+    "2026-09-30": 89.4,
+    "2026-09-30b": 92.1
   },
   "budgets": {
     "classifyMs": 15000,

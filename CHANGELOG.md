@@ -1,5 +1,75 @@
 # Changelog
 
+## Heart of Magic Librarian 1.6.0
+
+### New
+
+- **Paths of Empyrean support.** Spells from other spell mods now get the Lost Grimoire poison, sun, disease
+  and kinetic keywords and the PoE daedra summon keyword its perks look for, so those perks work on them too.
+- **Environment mods see modded spells' elements.** Fire, frost and shock damage effects of spell mods get the
+  keywords that Rain Extinguishes Fires, Water Douses Fire, Sneak Tools, DISDD, Elementally Reactive Waters, Ice is
+  Slick and SIM look for, plus the own keywords of the OIF rule packs (Dynamic Torches NG, Fires Off, Melt The Ice,
+  Burn The Hay and the rest), Dynamic Candles, Put Out The Fires and Frostwalker's frost and fire cloaks - only where
+  the spell's record says the element, not its name. Turn it off with `"environment": { "enabled": false }` in
+  `config.json`.
+
+### Changed
+
+- **Balance: with an environment mod installed, perk mods boost more of a spell's fire, frost and shock damage.**
+  When Rain Extinguishes Fires, Water Douses Fire, Sneak Tools, DISDD, Elementally Reactive Waters, SIM or Ice is
+  Slick is installed, the vanilla element keywords go on every effect whose record deals that damage, not only the
+  first, and perk overhauls (Adamant, Ordinator, Mysticism and the others) read the same keywords - so on those
+  spells their element perks apply to the extra effects too. Without one of those mods nothing changes. Load orders
+  with SkyPatcher Keyword Framework already had most of these.
+- **A spell's element follows what its own record says when a keyword framework guesses otherwise.** Spells
+  whose damage is plain magic damage (Desecration's necrotic flames) or frost (Flames of Coldharbour's cold
+  fire) no longer count as fire because their names contain "fire"; they leave the fire group of the tree.
+- **A tidier panel.** Settings rows are no longer boxed in bands and underlines (the row under the pointer is
+  lit faintly instead); fewer descriptions that only repeated their label; "Side Details Panel" is now "Spell
+  Card in Right Sidebar". The version moved from the title bar to the foot of the Settings page, and Import
+  moved from the tree footer to the Scan tab, next to Scan Spells.
+- **Reset to Defaults** (the Settings button and the power steps one) now asks for a second click; a
+  double-click does not count as the confirmation.
+- **The tree footer shows the spell count once;** "Loaded N spells" and "Tree saved" clear to "Ready" after
+  a few seconds, while warnings and errors stay - an Import that finds unreachable spells now keeps that
+  warning on screen.
+- **Settings in four categories:** Display, Learning, Spell Tomes and Advanced (developer and debug options
+  only there), picked from a slim list at the left; each keeps its scroll position while the game runs. Save
+  Settings and Reset to Defaults are small buttons at the foot.
+- **The Scan tab says where you are in one line** ("753 spells found · 681 go in the tree · not applied yet",
+  with what was left out and why) and has one main button that follows the step: Scan Spells, Build Tree,
+  Apply Tree. Scan again, Import and Clear draft tree are small buttons beside it; the counts per school fold
+  under "Scan details"; the excluded spells and the plugin list read as lines with their state ("Excluded
+  spells: 12", "Plugins: all"). Replay sits under the preview. The unfinished Alternate Pathways tab is hidden.
+- **The spell card answers "can I learn this now":** the state with its XP share and the power a weakened spell
+  casts at in one line ("Weakened · 62% learned · casts at 50% power"), "Still needed" with only what is missing (required spells, optional ones with how many more of them
+  are needed - "need 1 of 2" -, and locks from another school marked as such), what is already met ("Requirements
+  met" once nothing is left), why Learn cannot be pressed yet, and the spells it leads to folded into one line.
+- **The tree has one thin frame:** the tools float on the canvas, the schools are small coloured labels, and
+  the footer is one quiet line; the colour key opens from its "?". In Arcane, Night Grimoire, Chalkboard and
+  Skald the page's corner drawings are smaller, and the tools sit at the top beside them.
+
+### Fixed
+
+- **Mysticism's screen-shake effect no longer makes Fire Storm, Hysteria, Harmony and the other master spells freeze
+  water with Frostwalker.** Needs HeartOfMagic.esp and the new optional Mysticism patch, `HeartOfMagic_Mysticism.esp`
+  (offered by the installer when Mysticism is active), loaded after HeartOfMagic.esp and after any other plugin that
+  edits Mysticism's screen-shake effect: the effect's script places the explosion, and only the patch changes that.
+- **The spell card shows "Weakened (N%)" for a spell learned early and not yet mastered**, with the power it
+  casts at for its current XP. It never showed before. Once the spell is mastered the badge goes away.
+- **The spell card's Optional requirements show how many are needed again** (now counted on what is still
+  missing, see the spell card above), and in edit mode
+  the box to change that number is back; the LOCK badge next to Locks shows again. The panel's text setup at
+  start had been erasing them.
+- **A tree imported or edited by hand with formIds written without "0x" no longer mixes spells up.** Learning,
+  unlocking, the cheat buttons and the tree's prerequisites read `"00012345"` as octal and `"12345678"` as a
+  decimal number, so those spells were taken for others or not found. Every formId is now read as hex (with or without
+  "0x"; an edit mode copy's node stands for its spell as before); text that is not a formId is skipped with a
+  line in SpellLearning.log instead of stopping the request, so one bad prerequisite no longer keeps a spell from
+  becoming the learning target.
+- **Settings > Spell Tome Learning:** the Spell Research line says "1 spell added" instead of "1 spells added"
+  (and in Polish no longer gets the word for "spells" wrong for 2-4 of them).
+
 ## Heart of Magic Librarian 1.5.1
 
 ### New

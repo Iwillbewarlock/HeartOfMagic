@@ -381,7 +381,11 @@ function importTreeFromModal() {
     hideImportModal();
 
     // Save to file via C++; a tree without spells is refused and the status line says so (SpellTreeSave)
-    if (SpellTreeSave.send(data, 'import')) setTreeStatusKey('status.treeSavedCount', {count: parsed.nodes.length});
+    if (SpellTreeSave.send(data, 'import')) {
+        setTreeStatusKey('status.treeSavedCount', {count: parsed.nodes.length});
+        // The imported tree is the game's now: the Scan page's draft is not the applied one (scanStage.js)
+        if (typeof ScanStage !== 'undefined') ScanStage.onDraftChanged();
+    }
 }
 
 /**

@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "ProgressionManager.h"
+#include "FormIdText.h"
 #include "ProgressionCoSave.h"
 #include "SpellEffectivenessHook.h"
 #include "JsonText.h"
@@ -306,18 +307,14 @@ std::string ProgressionManager::GetProgressJSON() const
     // Learning targets
     json targets = json::object();
     for (auto& [school, formId] : m_learningTargets) {
-        std::stringstream ss;
-        ss << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << formId;
-        targets[school] = ss.str();
+        targets[school] = FormIdText::Format(formId);
     }
     j["learningTargets"] = targets;
 
     // Spell progress
     json progress = json::object();
     for (auto& [formId, data] : m_spellProgress) {
-        std::stringstream ss;
-        ss << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << formId;
-        std::string formIdStr = ss.str();
+        const std::string formIdStr = FormIdText::Format(formId);
 
         float currentXP = data.GetCurrentXP();
         progress[formIdStr] = {

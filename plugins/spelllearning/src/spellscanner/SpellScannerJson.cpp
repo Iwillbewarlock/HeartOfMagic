@@ -1,4 +1,6 @@
 #include "Common.h"
+#include "AsciiText.h"
+#include "FormIdText.h"
 #include "SpellScanner.h"
 #include "librarian/PerkAdapterPatch.h"
 #include "librarian/SpellResearchPatch.h"
@@ -152,10 +154,7 @@ namespace SpellScanner
         };
 
         if (!keyword) return false;
-        std::string plugin = GetPluginName(keyword->GetFormID());
-        std::transform(plugin.begin(), plugin.end(), plugin.begin(),
-            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        return kOfficialPlugins.contains(plugin);
+        return kOfficialPlugins.contains(AsciiText::ToLower(GetPluginName(keyword->GetFormID())));
     }
 
     // =============================================================================
@@ -251,7 +250,7 @@ namespace SpellScanner
         json spellJson;
 
         // Essential fields (always included)
-        spellJson["formId"] = std::format("0x{:08X}", formId);
+        spellJson["formId"] = FormIdText::Format(formId);
         spellJson["persistentId"] = GetPersistentFormId(formId);  // Load order resilient ID
         spellJson["name"] = EncodingUtils::SanitizeToUTF8(spell->GetFullName());  // Sanitize for valid UTF-8 JSON
         spellJson["school"] = GetSchoolName(GetSpellSchool(spell));
