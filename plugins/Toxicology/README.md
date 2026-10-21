@@ -149,10 +149,12 @@ Skyrim AE 1.6.1170, the developer's load order (with Mysticism and Apothecary), 
   in game.
 - **Text**: the ability's description under Active Effects and the tome's text (both rewritten for the immunity
   window) have not been looked at in game.
-- **The power (1.1)**: turning Toxicology on and off with a real use of the power (the Z key); whether a real use
-  raises the events the addon listens to (`TESSpellCastEvent` and `TESMagicEffectApplyEvent`; the log line
-  `power used (spell cast event)` or `(effect apply event)` tells which); the on and off notification text on
-  screen; the tome teaching the power when it is really read. The in-game self test casts the power through the
+- **The power (1.1)**: one real use of the power (the Z key) ran in game on 2026-10-20 (AE 1.6.1170, Korean ESL): it
+  raised both events the addon listens to 3 ms apart (`TESMagicEffectApplyEvent` first, then `TESSpellCastEvent`),
+  toggled once and turned Toxicology off, and a 1.0 save got the power at load. Still open: turning it on again
+  with the Z key (the developer saw the on notification on screen, but the log holds no line for that use); the
+  0.25 s repeat window (set after that run) with real uses; the tome teaching the power when it is really read.
+  The in-game self test casts the power through the
   player's instant caster, which is not the same path as the Z key.
 
 ### Other limits

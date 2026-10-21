@@ -15,9 +15,10 @@ The Toxicology addon (`plugins/Toxicology/`) is released on its own; 1.0.0 was i
 
 ### Notes
 
-- Not yet confirmed in game: a real use of the power (the Z key), its notification text on screen, and the tome
-  teaching the power when read. Using the power while a dual cast is being charged may disturb that cast (not
-  tested).
+- Tested in game (2026-10-20, AE 1.6.1170): a 1.0 save got the power at load, and a real use (the Z key) turned
+  Toxicology off. Not yet confirmed: turning it back on with the Z key (the notification was seen, the log has no
+  line for it) and the tome teaching the power when read. Using the power while a dual cast is being charged may
+  disturb that cast (not tested).
 
 ## Heart of Magic Librarian 1.5.1
 
