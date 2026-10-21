@@ -6,10 +6,13 @@
 // Spec 9. Runs only when Data/SKSE/Plugins/HeartOfMagic_Toxicology_selftest.json
 // exists (the file never ships; the code is in the DLL, idle without it). Once
 // per session, startDelayMs (default 30 s) after the player stands loaded in a
-// save, it checks the tome (teaches the ability, value 350) and its reward:
+// save, it checks the tome (teaches the power, value 350) and its reward:
 // the save's ability and tomes are taken, Few and Far Between is set to stage
 // 200 through Papyrus (or, already there, the load path runs) and the tome must
-// be given once and only once; the ability and tomes are put back. Then it gives
+// be given once and only once; the ability and tomes are put back. Step 4b (1.1)
+// checks the power's records, casts the power twice through the player's
+// instant caster (the ability must flip each time, one toggle per cast) and runs
+// the 1.0 save migration; the ability and the power are put back. Then it gives
 // the ability and two poisons, spawns targets in front of the
 // player, casts the load order's poison spells at them (one per delivery) and
 // checks what the addon did; then the bottles and the saved Magicka count.

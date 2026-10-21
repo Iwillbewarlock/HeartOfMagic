@@ -27,19 +27,24 @@ namespace ToxicologyEsl
         constexpr int kMasterIndexShift = 24;
         constexpr std::uint32_t kMaxMasters = 0xFF;  // index 0xFF is the file itself when it has 255 masters
 
-        // The five subrecords that hold text and may differ (ESL.md "Korean ESL"): local FormID and type
+        // The subrecords that hold text and may differ (ESL.md "Korean ESL"): local FormID and type
         struct TextSubrecord
         {
             std::uint32_t localId;
             std::string_view type;
         };
 
-        constexpr std::array<TextSubrecord, 5> kTextSubrecords{ {
+        constexpr std::array<TextSubrecord, 10> kTextSubrecords{ {
             { 0x801, "FULL" },
             { 0x801, "DNAM" },
             { 0x802, "FULL" },
             { 0x803, "FULL" },
             { 0x803, "DESC" },
+            { 0x804, "FULL" },
+            { 0x804, "DNAM" },
+            { 0x805, "FULL" },
+            { 0x806, "FULL" },
+            { 0x807, "FULL" },
         } };
 
         std::uint32_t ReadU32(std::span<const std::uint8_t> a_bytes, std::size_t a_at)
@@ -86,7 +91,7 @@ namespace ToxicologyEsl
                 const auto flags = ReadU32(bytes, a_at + kFlagsOffset);
                 const auto formId = ReadU32(bytes, a_at + kFormIdOffset);
                 const auto where = type + " " + HexU32(formId) + " at " + Hex(a_at);
-                // Only the file header is a TES4, and its FormID is 0, so it can never be taken for one of the five
+                // Only the file header is a TES4, and its FormID is 0, so it can never be taken for one of the text records
                 if ((type == "TES4") != (a_at == 0)) return where + ": a TES4 record belongs only at the start of the file";
                 if (type == "TES4" && formId != 0) return where + ": the TES4 header's FormID must be 0";
                 if (flags & kCompressedFlag) return where + " is compressed (flag 0x00040000); this check reads uncompressed records only";
@@ -187,7 +192,7 @@ namespace ToxicologyEsl
                     continue;
                 }
                 if (en.size != ko.size) {
-                    a_problems.push_back(sub + ": " + std::to_string(en.size) + " bytes in English, " + std::to_string(ko.size) + " in Korean (not one of the five text subrecords)");
+                    a_problems.push_back(sub + ": " + std::to_string(en.size) + " bytes in English, " + std::to_string(ko.size) + " in Korean (not one of the text subrecords)");
                     continue;
                 }
                 const auto enData = a_en.subspan(en.dataOffset, en.size);
@@ -195,12 +200,12 @@ namespace ToxicologyEsl
                 const auto [enAt, koAt] = std::ranges::mismatch(enData, koData);
                 if (enAt != enData.end()) {
                     const auto i = static_cast<std::size_t>(enAt - enData.begin());
-                    a_problems.push_back(sub + ": byte " + std::to_string(i) + " is " + Hex(*enAt) + " in English, " + Hex(*koAt) + " in Korean (not one of the five text subrecords)");
+                    a_problems.push_back(sub + ": byte " + std::to_string(i) + " is " + Hex(*enAt) + " in English, " + Hex(*koAt) + " in Korean (not one of the text subrecords)");
                 }
             }
         }
 
-        // Each of the five must be in each file exactly once, so a text subrecord the English file dropped,
+        // Each text subrecord must be in each file exactly once, so a text subrecord the English file dropped,
         // or one of them moved to another record, is a failure rather than nothing to compare
         void CountTextSubrecords(const Plugin& a_plugin, std::string_view a_file, std::vector<std::string>& a_problems)
         {
@@ -305,10 +310,10 @@ namespace ToxicologyEsl
         if (en.nodes.size() != ko.nodes.size()) {
             problems.push_back("structure differs: " + std::to_string(en.nodes.size()) + " records and group bounds in English, " + std::to_string(ko.nodes.size()) + " in Korean");
         }
-        // The rule lets the five differ, but all five the same as in English means the English file was copied over
+        // The rule lets the text subrecords differ, but all of them the same as in English means the English file was copied over
         // the Korean one (a merge resolved the wrong way), which would ship English text in the Korean zip
         if (sameText == kTextSubrecords.size()) {
-            problems.push_back("all five text subrecords are the same as in the English file: the Korean file holds the English text");
+            problems.push_back("all " + std::to_string(kTextSubrecords.size()) + " text subrecords are the same as in the English file: the Korean file holds the English text");
         }
         return problems;
     }

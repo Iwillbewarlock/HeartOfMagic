@@ -2,8 +2,8 @@
 
 ## What it does
 
-An addon to Heart of Magic Librarian. Once you have learned the ability **Toxicology**, every poison spell you cast
-also delivers one of your own poisons: when a poison spell hits a living target, the poison you have favorited
+An addon to Heart of Magic Librarian. While **Toxicology** is turned on (with its lesser power, see "Getting the
+ability"), every poison spell you cast also delivers one of your own poisons: when a poison spell hits a living target, the poison you have favorited
 first is applied to that target, at the poison's own strength and duration, with you as the caster. The poison is
 cast by your instant magic caster onto the target and lands on the target, not on you (confirmed in game; what was
 tested and what was not is under "Tested in game" and "Not yet confirmed in game" below).
@@ -36,8 +36,8 @@ tested and what was not is under "Tested in game" and "Not yet confirmed in game
 - **Icon**: with Inventory Interface Information Injector (I4) installed, the poison being mimicked shows a
   "flask before a magic circle" icon in green (`#62A636`) in the inventory and favorites menus.
 
-With no favorited poison, with the ability not learned, or with `enabled` off, nothing happens and no Magicka is
-counted. The addon writes nothing to the game's own save; the SKSE co-save (ID `HMTX`) holds the Magicka total
+With no favorited poison, with Toxicology turned off (the ability not held), or with `enabled` off, nothing happens
+and no Magicka is counted. The addon writes nothing to the game's own save; the SKSE co-save (ID `HMTX`) holds the Magicka total
 (record `ACCM`) and whether the tome reward has been given (record `TOMG`, see "Getting the ability").
 
 The design and its reasons are in `docs/superpowers/specs/2026-10-17-toxicology-addon-design.md` (Korean).
@@ -57,7 +57,7 @@ The design and its reasons are in `docs/superpowers/specs/2026-10-17-toxicology-
 
 | File | Role |
 |---|---|
-| `HeartOfMagic_Toxicology.esp` | ESL-flagged plugin: the keyword, the ability's effect, the ability, the tome (`ESL.md`); the `_KO` archive has the Korean one under the same name |
+| `HeartOfMagic_Toxicology.esp` | ESL-flagged plugin: the keyword, the ability's effect, the ability, the tome, the power and its effect, the on and off messages (`ESL.md`); the `_KO` archive has the Korean one under the same name |
 | `SKSE/Plugins/HeartOfMagic_Toxicology.dll` | The addon |
 | `SKSE/Plugins/HeartOfMagic_Toxicology.json` | Settings |
 | `SKSE/Plugins/InventoryInjector/HeartOfMagic_Toxicology.json` | I4 rule for the icon |
@@ -74,10 +74,18 @@ is overridden. A save that finished the quest before the addon was installed get
 given even when the ability is already known or a tome is already carried (it is the quest's reward). Once
 given it is never given again (the co-save keeps that), so a tome sold or dropped unread is gone; the console
 (`player.additem` with the tome's form ID) is the way back. With `enabled` off (read at game start) nothing is
-given and the reward stays open, so turning it on later gives the tome at the next load. Reading the tome teaches
-the ability at once and the tome is used up, as with any vanilla tome that teaches an ability (Heart of Magic's tome study does not apply
-to abilities, and the ability is not in the spell tree). The ability shows under **Active Effects** in the magic
-menu, not in the spell list.
+given and the reward stays open, so turning it on later gives the tome at the next load.
+
+Reading the tome teaches the lesser power **Toxicology** at once and the tome is used up, as with any vanilla tome
+that teaches a power (Heart of Magic's tome study does not apply to powers, and the power is not in the spell
+tree). The power is in the **Powers** tab of the magic menu and is used like any lesser power (equip it, then the
+shout key, Z by default). Using it turns Toxicology on: the ability **Toxicology** is added (it shows under
+**Active Effects**) and a notification says so. Using it again turns Toxicology off: the ability is removed, with
+the other notification, and the mimic keyword comes off the poison being mimicked at once (whether the inventory
+icon refreshes at once, I5's cache, is not yet confirmed in game: see "Known limits"). A reader of the tome starts with
+Toxicology off. A save from 1.0 that already knows the ability gets the power at its next load and stays on. With
+`enabled` off the power still adds and removes the ability, but the feature does nothing (the log says so).
+Whether Toxicology is on is the ability itself, so it is kept in the game's own save.
 
 ## Settings
 
@@ -141,6 +149,13 @@ Skyrim AE 1.6.1170, the developer's load order (with Mysticism and Apothecary), 
   in game.
 - **Text**: the ability's description under Active Effects and the tome's text (both rewritten for the immunity
   window) have not been looked at in game.
+- **The power (1.1)**: one real use of the power (the Z key) ran in game on 2026-10-20 (AE 1.6.1170, Korean ESL): it
+  raised both events the addon listens to 3 ms apart (`TESMagicEffectApplyEvent` first, then `TESSpellCastEvent`),
+  toggled once and turned Toxicology off, and a 1.0 save got the power at load. Still open: turning it on again
+  with the Z key (the developer saw the on notification on screen, but the log holds no line for that use); the
+  0.25 s repeat window (set after that run) with real uses; the tome teaching the power when it is really read.
+  The in-game self test casts the power through the
+  player's instant caster, which is not the same path as the Z key.
 
 ### Other limits
 
@@ -193,11 +208,16 @@ Skyrim AE 1.6.1170, the developer's load order (with Mysticism and Apothecary), 
   non-hostile target is not checked.
 - If the first favorited poison changes while an effect is running, that effect runs to its end and the next hit
   applies the new poison (with its own immunity window, as above).
+- **Using the power while a dual cast is being charged**: the ability is added or removed with the engine's
+  AddSpell / RemoveSpell, which can disturb a dual cast in progress (see Dual Casting Fix,
+  https://www.nexusmods.com/skyrimspecialedition/mods/92454). Not tested.
+- **Another mod removing the ability** (for example one that clears the player's spells) turns Toxicology off: on
+  and off is whether the ability is held. Use the power to turn it on again.
 
 ## Uninstalling
 
-Remove the mod. The ability record disappears with the ESL (a save that had it loses it, like any removed plugin's
-record). The co-save records (ID `HMTX`: the Magicka total and the tome reward flag) are ignored by SKSE without the
+Remove the mod. The ability and power records disappear with the ESL (a save that had them loses them, like any
+removed plugin's records). The co-save records (ID `HMTX`: the Magicka total and the tome reward flag) are ignored by SKSE without the
 DLL. As always, test removal on a separate save.
 
 ## Development
@@ -212,7 +232,8 @@ DLL. As always, test removal on a separate save.
 - **Offline harness**: `build/tools/Release/toxicology-test.exe --self-test` checks the pure core
   (`src/core/ToxCore.*`: settings, catalog parsing, catalog keys, the hit and cost spell sets, the poison choice,
   the bottle arithmetic and which stack loses a bottle, the immunity window, the interval check of the Magicka
-  drain queue, whether the tome reward is given and the co-save record of that flag) and the English / Korean ESL
+  drain queue, whether the tome reward is given and the co-save record of that flag, and the power's decisions:
+  on or off, the 1.0 save migration and the repeat window that keeps one use from toggling twice) and the English / Korean ESL
   check (`ESL.md`, "Korean ESL"); every check prints PASS or FAIL, exit 1 on a failure.
 - **Dev deploy** (game closed; the dev mod folder must exist, default `D:\TAKEALOOK\mods\HeartOfMagic-Toxicology-Dev`):
 
@@ -235,7 +256,13 @@ DLL. As always, test removal on a separate save.
   (default 30 s) after a save load settles: it checks the tome record and the tome reward (the save's ability and
   tomes are taken, Few and Far Between is set to stage 200 through Papyrus - or, when it is already there, the load
   check runs - the tome must be given once and not a second time, then the ability and tomes are put back; the
-  quest stays at stage 200 and the reward stays given, so the save is changed for good), gives the ability and two
+  quest stays at stage 200 and the reward stays given, so the save is changed for good), then the power (step
+  `4b power`: its records; the power cast on the player through the player's instant caster must flip the ability,
+  once per cast, and a second cast 0.75 s later (past the 0.25 s repeat window) must flip it back - a FAIL names which of
+  the two events arrived; the instant caster sends no `TESSpellCastEvent`, so usually only the effect apply event
+  arrives and the repeat window is not exercised (an INFO line says so; a real Z use is checked from the log), and
+  when both arrive the second must be dropped as a repeat; the 1.0 save migration on three ability / power states;
+  the save's ability and power are put back), gives the ability and two
   poisons, spawns targets, casts the load
   order's poison spells at them (one per delivery), checks what the addon did, hits one target again inside its
   immunity window and once after it (it waits up to about 90 s for that and compares the window's game clock with

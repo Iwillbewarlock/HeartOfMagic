@@ -1,9 +1,9 @@
-SUMMARY: An addon for Heart of Magic Librarian that lets your poison-tagged spells apply the effect of your top favorited poison. Hits use no bottles; instead, every 100 Magicka spent casting poison spells consumes one bottle.
-FILE: Heart of Magic Librarian - Toxicology 1.0.0 - SKSE plugin and ESL-flagged ESP for Skyrim SE/AE.
-FILE_KO: Heart of Magic Librarian - Toxicology 1.0.0 (Korean) - SKSE plugin and ESL-flagged ESP for Skyrim SE/AE, with Korean in-game text.
+SUMMARY: An addon for Heart of Magic Librarian that lets your poison-tagged spells apply the effect of your top favorited poison, turned on and off with a lesser power. Hits use no bottles; instead, every 100 Magicka spent casting poison spells consumes one bottle.
+FILE: Heart of Magic Librarian - Toxicology 1.1.0 - SKSE plugin and ESL-flagged ESP for Skyrim SE/AE.
+FILE_KO: Heart of Magic Librarian - Toxicology 1.1.0 (Korean) - SKSE plugin and ESL-flagged ESP for Skyrim SE/AE, with Korean in-game text.
 PAGE:
 [size=4][b]Heart of Magic Librarian - Toxicology[/b][/size]
-[i]Version 1.0.0 by Iwillbewarlock[/i]
+[i]Version 1.1.0 by Iwillbewarlock[/i]
 
 Alchemy belongs to the realm of knowledge—a scholar's art—yet people have foolishly wasted it by just smearing poisons on blades. A learned mage would think to put that knowledge into their poison spells too, using their alchemy as a way to strengthen poison magic itself. [b]Heart of Magic Librarian - Toxicology[/b] is an addon for [b]Heart of Magic Librarian[/b] (a fork of Heart of Magic). It reads the poison tags written during the Librarian's spell scan and lets your poison spells deliver the effects of the poisons you carry.
 
@@ -11,8 +11,10 @@ Alchemy belongs to the realm of knowledge—a scholar's art—yet people have fo
 
 [size=3][b]How It Works[/b][/size]
 [list]
-[*][b]Learning the Ability:[/b] Complete the vanilla quest "Few and Far Between" from Ingun Black-Briar in Riften (she spends her time at Elgrim's Elixirs)—bring her 20 nirnroot, 20 nightshade and 20 deathbell—to receive [i]Spell Tome: Toxicology[/i] in addition to the quest's own reward (a save that already completed the quest before the addon was installed receives the tome when that save is loaded; the addon does not edit the quest and only reacts to its completion). Reading the tome teaches the [b]Toxicology[/b] ability, which appears under your Active Effects rather than in your spell list.
-[*][b]Delivering Poison by Spell:[/b] With the Toxicology ability active, spells that the Librarian tags as poison carry the effect of your top favorited poison. When such a spell hits a creature, that poison's effect is applied to the target as if you had poisoned it. Helpful spells that the Librarian also tags as "poison" (such as Cure Poison or poison resistance buffs) are skipped.
+[*][b]Learning the Ability:[/b] Complete the vanilla quest "Few and Far Between" from Ingun Black-Briar in Riften (she spends her time at Elgrim's Elixirs)—bring her 20 nirnroot, 20 nightshade and 20 deathbell—to receive [i]Spell Tome: Toxicology[/i] in addition to the quest's own reward (a save that already completed the quest before the addon was installed receives the tome when that save is loaded; the addon does not edit the quest and only reacts to its completion). Reading the tome uses it up (like any vanilla tome that teaches a power) and teaches the lesser power [b]Toxicology[/b], which appears in the Powers tab of the magic menu rather than in your spell list and is not part of the Librarian's spell tree.
+[*][b]Turning It On and Off:[/b] After reading the tome, Toxicology starts off; use the power once to turn it on. The power is used like any lesser power: equip it, then press the shout key (Z by default). Using the power turns Toxicology on: the ability "Toxicology" is added and shows under Active Effects, and a notification says "Toxicology is now active." Using it again turns Toxicology off: the ability is removed and a notification says "Toxicology is no longer active." While off, poison spells carry no poison, no bottles are used and no Magicka is counted, and the inventory icon comes off the poison. Whether Toxicology is on is kept in the game's own save (it is whether you have the ability). With the setting "enabled" set to false, the power still turns the ability on and off, but the addon does nothing.
+[*][b]Saves from 1.0:[/b] A save from 1.0 that already knows the Toxicology ability gets the power at its next load and stays on.
+[*][b]Delivering Poison by Spell:[/b] While Toxicology is turned on, spells that the Librarian tags as poison carry the effect of your top favorited poison. When such a spell hits a creature, that poison's effect is applied to the target as if you had poisoned it. Helpful spells that the Librarian also tags as "poison" (such as Cure Poison or poison resistance buffs) are skipped.
 [*][b]Which Poison Is Chosen:[/b] Among your favorited poisons, the mod selects the first by name—matching the alphabetical order shown in SkyUI's favorites menu. Any real poison item works, including player-made and mod-added poisons.
 [*][b]Magicka & Bottle Consumption:[/b] Spell hits themselves use no bottles. Instead, every 100 Magicka you spend casting poison spells uses up one bottle of the poison being copied (the Magicka amount is configurable). When that poison runs out, the next favorited poison automatically takes over; if you have none left, your spells carry no poison.
 [*][b]Target Immunity:[/b] After a poison's effect wears off, that creature resists the same poison for a while—by default for as long as the effect lasted, and at least 5 seconds—before it can be poisoned again. Hits during this immunity window do nothing, so a paralysis poison cannot hold a target forever.
@@ -41,7 +43,7 @@ You can configure the mod via [i]SKSE/Plugins/HeartOfMagic_Toxicology.json[/i]:
 
 [size=3][b]Installation & Load Order[/b][/size]
 Install with a mod manager and enable [b]HeartOfMagic_Toxicology.esp[/b] (it is ESL-flagged and takes no load order slot). If you use I4, load HeartOfMagic_Toxicology.esp after [b]I4IconAddon.esp[/b] (a new plugin loads last by default).
-There is an English main file ([b]HeartOfMagic-Librarian-Toxicology_1.0.0.zip[/b]) and a Korean main file ([b]HeartOfMagic-Librarian-Toxicology_1.0.0_KO.zip[/b]); install only one of them, not both. The Korean file is the same except that the in-game names, effect description, and tome text in HeartOfMagic_Toxicology.esp are in Korean (the tome is "마법책: 독물학" there), with the same plugin file name, install steps, and load order.
+There is an English main file ([b]HeartOfMagic-Librarian-Toxicology_1.1.0.zip[/b]) and a Korean main file ([b]HeartOfMagic-Librarian-Toxicology_1.1.0_KO.zip[/b]); install only one of them, not both. The Korean file is the same except that the in-game names, descriptions, notifications, and tome text in HeartOfMagic_Toxicology.esp are in Korean (the tome is "마법책: 독물학" there), with the same plugin file name, install steps, and load order.
 
 [size=3][b]Known Limits[/b][/size]
 [list]
@@ -51,6 +53,9 @@ There is an English main file ([b]HeartOfMagic-Librarian-Toxicology_1.0.0.zip[/b
 [*]Runes, explosions, and cloak spells are not yet confirmed in game to trigger the poison. Aimed bolts and concentration sprays are confirmed.
 [*]Waiting, sleeping, or fast travel moves game time forward and ends immunity early.
 [*]NPCs' poison spells do not use this.
+[*]Another mod that removes the ability (for example one that clears the player's spells) turns Toxicology off; use the power to turn it on again.
+[*]Using the power while a dual cast is being charged may disturb that cast (not tested).
+[*]The tome teaching the power when really read has not yet been tested in game (a 1.0 save receiving the power at load, and turning Toxicology off with the Z key, were tested).
 [/list]
 
 [size=3][b]Recommended Poison Spell Mods[/b][/size]
@@ -70,6 +75,6 @@ These mods add spells that the Librarian tags as poison:
 [/list]
 
 [size=3][b]Source and License[/b][/size]
-The source code is available at [url=https://github.com/Iwillbewarlock/HeartOfMagic]https://github.com/Iwillbewarlock/HeartOfMagic[/url] in the [i]plugins/Toxicology[/i] folder. The tag [b]toxicology-v1.0.0[/b] is the complete source of this release, built with the same [i]BuildRelease.ps1[/i] as Heart of Magic Librarian. The complete source of this release is also on this page as an optional file named [i]Toxicology - Source Code[/i] (archive [i]HeartOfMagic-Librarian-Toxicology_1.0.0_Source.zip[/i]), which contains the repository at the tag toxicology-v1.0.0 together with CommonLibSSE-NG at the version the DLL was built with (v10.0.0), so it can be built without downloading anything else from GitHub except the vcpkg packages the build fetches.
+The source code is available at [url=https://github.com/Iwillbewarlock/HeartOfMagic]https://github.com/Iwillbewarlock/HeartOfMagic[/url] in the [i]plugins/Toxicology[/i] folder. The tag [b]toxicology-v1.1.0[/b] is the complete source of this release, built with the same [i]BuildRelease.ps1[/i] as Heart of Magic Librarian. The complete source of this release is also on this page as an optional file named [i]Toxicology - Source Code[/i] (archive [i]HeartOfMagic-Librarian-Toxicology_1.1.0_Source.zip[/i]), which contains the repository at the tag toxicology-v1.1.0 together with CommonLibSSE-NG at the version the DLL was built with (v10.0.0), so it can be built without downloading anything else from GitHub except the vcpkg packages the build fetches.
 
 The project's own source files are licensed under MIT. The DLL statically links CommonLibSSE-NG (GPL-3.0-or-later with the Modding Exception and the GPL-3.0 Linking Exception), so the DLL is a GPL-3.0-or-later combined work. Please see [i]THIRD-PARTY-NOTICES.md[/i], [i]LICENSE[/i], and the [i]licenses[/i] folder in [i]SKSE/Plugins/HeartOfMagic_Toxicology/[/i] of the download for the details. As the GPL requires, this page's permissions allow modifying and redistributing the DLL under those terms.

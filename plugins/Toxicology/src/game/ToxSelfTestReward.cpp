@@ -5,7 +5,7 @@
 // Spec 4a: the tome is the reward of Few and Far Between at stage 200
 // (game/ToxReward.h). Runs first, before step 1 gives the ability, so the
 // ability and tomes it finds are the save's own:
-//   phase 0: the tome teaches the ability, value 350. The save's ability and
+//   phase 0: the tome teaches the power (1.1; the ability in 1.0), value 350. The save's ability and
 //            tomes are recorded and taken, the reward flag set to false. Quest
 //            below stage 200: Quest.SetStage(200) through the Papyrus VM (the
 //            real path: the stage event's task gives the tome). At 200: the
@@ -14,7 +14,7 @@
 //            stage 200 and the quest stopped (its fragment calls Stop()).
 //   phase 2: the given tome taken again (the ability still not known), the load
 //            path run once more: nothing may be given.
-// Then the save's ability and tomes are put back. The quest stays at stage 200
+// Then the save's ability and tomes are put back and step 4b (the power) runs. The quest stays at stage 200
 // with what its fragment did (Ingun's key, the thane count, her relationship)
 // and the flag stays set: the save is changed for good (a disposable save, as
 // the whole self test asks). The reload check (ToxSelfTestReload.cpp) later
@@ -176,23 +176,23 @@ namespace
             ToxGame::PlayerTomeCount(), ToxGame::RewardSatisfied());
     }
 
-    // Spec 4a's record checks (teaches the ability, value 350)
+    // Spec 4a's record checks (since 1.1 the tome teaches the power, not the ability; value 350)
     void CheckTomeRecord(State& s, RE::TESObjectBOOK& a_tome)
     {
         auto* teaches = a_tome.GetSpell();  // RE/T/TESObjectBOOK.h:106,112: null unless the teaches-spell flag is set
-        SelfTest::Check(s, kStep, a_tome.TeachesSpell() && teaches && teaches == ToxGame::Ability(), std::format("{} teaches "
-            "spell {}: {} (the ability is {})", SelfTest::FormText(&a_tome), a_tome.TeachesSpell() ? "yes" : "no",
-            SelfTest::FormText(teaches), SelfTest::FormText(ToxGame::Ability())));
+        SelfTest::Check(s, kStep, a_tome.TeachesSpell() && teaches && teaches == ToxGame::Power(), std::format("{} teaches "
+            "spell {}: {} (the power is {})", SelfTest::FormText(&a_tome), a_tome.TeachesSpell() ? "yes" : "no",
+            SelfTest::FormText(teaches), SelfTest::FormText(ToxGame::Power())));
         // RE/T/TESValueForm.h:25 (the record's value, no perks or barter)
         SelfTest::Check(s, kStep, a_tome.value == kTomeValue, std::format("{} value {} ({} expected)", SelfTest::FormText(&a_tome),
             a_tome.value, kTomeValue));
     }
 
-    // Step 4a is over: the save's ability and tomes back, then step 1
+    // Step 4a is over: the save's ability and tomes back, then step 4b (the power)
     void EndReward(State& s)
     {
         SelfTest::UndoReward(s);
-        SelfTest::NextStep(s, SelfTest::Step::kSetup);
+        SelfTest::NextStep(s, SelfTest::Step::kToggle);
     }
 
     // Phase 0 at stage 200, and phase 2: the load path once

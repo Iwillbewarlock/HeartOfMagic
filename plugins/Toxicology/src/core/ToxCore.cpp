@@ -263,4 +263,46 @@ namespace Toxicology
         if (a_data.size() != 1 || a_data[0] > 1) return std::nullopt;
         return a_data[0] == 1;
     }
+
+    ToggleAction DecideToggle(bool a_hasAbility)
+    {
+        return a_hasAbility ? ToggleAction::kRemove : ToggleAction::kAdd;
+    }
+
+    const char* ToggleActionName(ToggleAction a_action)
+    {
+        switch (a_action) {
+        case ToggleAction::kAdd:
+            return "Add";
+        case ToggleAction::kRemove:
+            return "Remove";
+        }
+        return "?";
+    }
+
+    MigrationAction DecideMigration(bool a_hasAbility, bool a_hasPower)
+    {
+        return a_hasAbility && !a_hasPower ? MigrationAction::kGrantPower : MigrationAction::kNothing;
+    }
+
+    const char* MigrationActionName(MigrationAction a_action)
+    {
+        switch (a_action) {
+        case MigrationAction::kGrantPower:
+            return "GrantPower";
+        case MigrationAction::kNothing:
+            return "Nothing";
+        }
+        return "?";
+    }
+
+    bool IsRepeatToggle(std::optional<double> a_lastAcceptedSeconds, double a_nowSeconds, double a_windowSeconds)
+    {
+        if (!a_lastAcceptedSeconds || !std::isfinite(*a_lastAcceptedSeconds) || !std::isfinite(a_nowSeconds) ||
+            !std::isfinite(a_windowSeconds) || a_windowSeconds <= 0.0) {
+            return false;
+        }
+        const double elapsed = a_nowSeconds - *a_lastAcceptedSeconds;
+        return elapsed >= 0.0 && elapsed < a_windowSeconds;
+    }
 }

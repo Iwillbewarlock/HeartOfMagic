@@ -12,6 +12,8 @@
 //                       step 7's count and step 4a's reward flag
 // ToxSelfTestReward.cpp step 4a, the tome as the reward of Few and Far Between
 //                       (changes the save for good: the quest reaches stage 200)
+// ToxSelfTestToggle.cpp step 4b, the power (1.1): its records, two casts that turn
+//                       the feature on and off, the 1.0 save migration
 // Every member is touched on the game's main thread (SKSE tasks and messages)
 // except the atomics, which the worker thread reads (and SetStageCall's, which
 // the Papyrus VM's callback writes).
@@ -19,6 +21,7 @@
 
 #include "game/ToxApply.h"
 #include "game/ToxHits.h"
+#include "game/ToxToggle.h"
 
 #include <atomic>
 #include <cstddef>
@@ -73,6 +76,7 @@ namespace ToxGame::SelfTest
     {
         kWaitPlayer,
         kReward,      // step 4a (before step 1: its ability and tomes are the save's own)
+        kToggle,      // step 4b (before step 1 too: it casts the power on the save's own ability state)
         kSetup,       // step 1 (+ the picks, step 5)
         kDeliveries,  // steps 2 and 6
         kSecondHit,   // step 3
@@ -166,6 +170,14 @@ namespace ToxGame::SelfTest
         bool rewardGiven = false;           // the tome was given: the reload check wants the flag back true
         std::shared_ptr<SetStageCall> setStageCall;  // the Quest.SetStage dispatch, null on the load path
 
+        // Step 4b
+        bool toggleTaken = false;           // the casts may change the ability; UndoToggle puts it back
+        bool toggleHadAbility = false;
+        bool toggleNoted = false;           // toggleHadAbility was read (NoteAbilityBeforeSetup compares it before step 1)
+        bool migrationTaken = false;        // the migration check takes the power; UndoToggle puts it back
+        bool migrationHadPower = false;
+        PowerTrace powerTraceBefore;        // ToxToggle.h's counters before the current cast
+
         std::atomic<bool> queued{ false };
         std::atomic<bool> finished{ false };
     };
@@ -194,6 +206,9 @@ namespace ToxGame::SelfTest
     void StepI5();
     void TickReward(State& s);    // ToxSelfTestReward.cpp (step 4a; ends with NextStep(kSetup))
     void UndoReward(State& s);    // puts back the ability and tomes step 4a took, if it has not yet
+    void TickToggle(State& s);    // ToxSelfTestToggle.cpp (step 4b; ends with NextStep(kSetup))
+    void UndoToggle(State& s);    // puts back the ability and the power step 4b changed, if it has not yet
+    void NoteAbilityBeforeSetup(const State& s);  // log only: a 4b toggle task that ran after UndoToggle shows here
     void ProbeQuestStages(std::string_view a_when);  // log only: the quest's executedStages entries
     void StepDoses(State& s);  // ToxSelfTestDoses.cpp
 

@@ -1,5 +1,25 @@
 # Changelog
 
+## Heart of Magic Librarian - Toxicology 1.1.0
+
+The Toxicology addon (`plugins/Toxicology/`) is released on its own; 1.0.0 was its first release.
+
+### New
+
+- **Turn Toxicology on and off with a lesser power.** The tome now teaches the power **Toxicology** (Powers tab).
+  Using it turns the feature on (the ability appears under Active Effects, with a notification); using it again
+  turns it off, and the mimic keyword comes off the mimicked poison at once (whether I5's cached inventory icon
+  refreshes at once is not yet confirmed in game; see the addon README's known limits). A new reader starts with it
+  off.
+- **1.0 saves stay on:** a save that already knows the ability gets the power at its next load.
+
+### Notes
+
+- Tested in game (2026-10-20, AE 1.6.1170): a 1.0 save got the power at load, and a real use (the Z key) turned
+  Toxicology off. Not yet confirmed: turning it back on with the Z key (the notification was seen, the log has no
+  line for it) and the tome teaching the power when read. Using the power while a dual cast is being charged may
+  disturb that cast (not tested).
+
 ## Heart of Magic Librarian 1.6.0
 
 ### New

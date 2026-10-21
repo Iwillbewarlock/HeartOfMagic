@@ -25,6 +25,10 @@ namespace
     constexpr RE::FormID kMimicKeywordId = 0x800;
     constexpr RE::FormID kAbilityId = 0x802;
     constexpr RE::FormID kTomeId = 0x803;
+    constexpr RE::FormID kPowerEffectId = 0x804;  // 1.1: the power (spec 2026-10-20)
+    constexpr RE::FormID kPowerId = 0x805;
+    constexpr RE::FormID kMessageOnId = 0x806;
+    constexpr RE::FormID kMessageOffId = 0x807;
 
     constexpr std::uint8_t kNotLoadedCompileIndex = 0xFF;  // RE/T/TESDataHandler.cpp:128, LookupFormID's "not loaded" test
     constexpr std::uint32_t kMaxLightLocalId = 0xFFF;      // a light plugin's local id: 12 bits
@@ -37,6 +41,10 @@ namespace
     RE::BGSKeyword* g_mimicKeyword = nullptr;
     RE::SpellItem* g_ability = nullptr;
     RE::TESObjectBOOK* g_tome = nullptr;
+    RE::EffectSetting* g_powerEffect = nullptr;
+    RE::SpellItem* g_power = nullptr;
+    RE::BGSMessage* g_messageOn = nullptr;
+    RE::BGSMessage* g_messageOff = nullptr;
     std::unordered_set<RE::FormID> g_poisonSpells;  // the hit set (ToxData.h)
     // The cost set, replaced whole by LoadPoisonSpells; read from any thread (ToxData.h PoisonCostSnapshot)
     std::atomic<std::shared_ptr<const std::unordered_set<RE::FormID>>> g_costSnapshot{
@@ -191,6 +199,10 @@ void ToxGame::LoadSettings()
 RE::BGSKeyword* ToxGame::MimicKeyword() { return g_mimicKeyword; }
 RE::SpellItem* ToxGame::Ability() { return g_ability; }
 RE::TESObjectBOOK* ToxGame::Tome() { return g_tome; }
+RE::EffectSetting* ToxGame::PowerEffect() { return g_powerEffect; }
+RE::SpellItem* ToxGame::Power() { return g_power; }
+RE::BGSMessage* ToxGame::MessageOn() { return g_messageOn; }
+RE::BGSMessage* ToxGame::MessageOff() { return g_messageOff; }
 
 void ToxGame::LoadForms()
 {
@@ -203,14 +215,21 @@ void ToxGame::LoadForms()
     g_mimicKeyword = dh->LookupForm<RE::BGSKeyword>(kMimicKeywordId, kEslName);
     g_ability = dh->LookupForm<RE::SpellItem>(kAbilityId, kEslName);
     g_tome = dh->LookupForm<RE::TESObjectBOOK>(kTomeId, kEslName);
-    if (!g_mimicKeyword && !g_ability && !g_tome) {
-        logger::warn("Toxicology: {} is not loaded - no ability, no tome, no icon keyword; the addon does nothing", kEslName);
+    g_powerEffect = dh->LookupForm<RE::EffectSetting>(kPowerEffectId, kEslName);
+    g_power = dh->LookupForm<RE::SpellItem>(kPowerId, kEslName);
+    g_messageOn = dh->LookupForm<RE::BGSMessage>(kMessageOnId, kEslName);
+    g_messageOff = dh->LookupForm<RE::BGSMessage>(kMessageOffId, kEslName);
+    if (!g_mimicKeyword && !g_ability && !g_tome && !g_powerEffect && !g_power && !g_messageOn && !g_messageOff) {
+        logger::warn("Toxicology: {} is not loaded - no ability, no power, no tome, no icon keyword; the addon does nothing", kEslName);
         return;
     }
-    logger::info("Toxicology: {} loaded: keyword {:08X}, ability {:08X}, tome {:08X}", kEslName,
-        g_mimicKeyword ? g_mimicKeyword->GetFormID() : 0, g_ability ? g_ability->GetFormID() : 0, g_tome ? g_tome->GetFormID() : 0);
-    if (!g_mimicKeyword || !g_ability || !g_tome) {
-        logger::error("Toxicology: {} is loaded but a record is missing (00000000 above) - the ESL is not this version's", kEslName);
+    const auto id = [](const RE::TESForm* a_form) { return a_form ? a_form->GetFormID() : 0; };
+    logger::info("Toxicology: {} loaded: keyword {:08X}, ability {:08X}, tome {:08X}, power effect {:08X}, power {:08X}, "
+        "on message {:08X}, off message {:08X}", kEslName, id(g_mimicKeyword), id(g_ability), id(g_tome), id(g_powerEffect),
+        id(g_power), id(g_messageOn), id(g_messageOff));
+    if (!g_mimicKeyword || !g_ability || !g_tome || !g_powerEffect || !g_power || !g_messageOn || !g_messageOff) {
+        logger::error("Toxicology: {} is loaded but a record is missing (00000000 above) - the ESL is not this version's "
+            "(a 1.0 ESL has no power: the feature cannot be turned on or off)", kEslName);
     }
 }
 
@@ -218,6 +237,12 @@ bool ToxGame::PlayerHasAbility()
 {
     auto* player = RE::PlayerCharacter::GetSingleton();
     return g_ability && player && player->HasSpell(g_ability);  // RE/A/Actor.h:620
+}
+
+bool ToxGame::PlayerHasPower()
+{
+    auto* player = RE::PlayerCharacter::GetSingleton();
+    return g_power && player && player->HasSpell(g_power);  // RE/A/Actor.h:620
 }
 
 // =============================================================================
