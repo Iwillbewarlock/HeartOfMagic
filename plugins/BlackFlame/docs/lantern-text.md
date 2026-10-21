@@ -1,5 +1,8 @@
 # Black Flame lantern - in-game text
 
+**2026-10-21: the journal (BOOK 0x814) is removed from the ESP and the placement** - the user leaves the story to the
+player's imagination. Its text below is kept only as a record; nothing in the game shows it.
+
 First draft: Gemini Argon (`gemini-4-argon-high`, 2026-10-21) from the fact sheet in the design doc, section 6.
 Checked line by line by Claude against the fact sheet. Changes from the draft: the descriptions now say the
 resistance-ignoring part is *extra* damage (the spell itself is still resisted); "4E 175" written as the Korean game

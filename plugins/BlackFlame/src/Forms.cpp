@@ -42,15 +42,14 @@ namespace BlackFlame
             LookupLantern(dh, kLanternPerkLocalId, "PERK", f.lanternPerk, missing);
             LookupLantern(dh, kLanternBurnSpellLocalId, "SPEL", f.lanternBurnSpell, missing);
             LookupLantern(dh, kLanternBurnEffectLocalId, "MGEF", f.lanternBurnEffect, missing);
-            LookupLantern(dh, kLuahJournalLocalId, "BOOK", f.luahJournal, missing);
             LookupLantern(dh, kLanternSmokeLocalId, "MSTT", f.lanternSmoke, missing);
             LookupLantern(dh, kLanternPlacedLocalId, "GLOB", f.lanternPlaced, missing);
             f.lanternForms = missing.empty();
             if (f.lanternForms) {
                 logger::info("BlackFlame: lantern records found ({}|0x{:03X}..0x{:03X}): lantern {:08X}, burn spell {:08X}, "
-                             "effect {:08X}, journal {:08X}, smoke {:08X}, placed global {:08X}",
+                             "effect {:08X}, smoke {:08X}, placed global {:08X}",
                     kPluginName, kLanternLocalId, kLanternPlacedLocalId, f.lantern->GetFormID(), f.lanternBurnSpell->GetFormID(),
-                    f.lanternEffect->GetFormID(), f.luahJournal->GetFormID(), f.lanternSmoke->GetFormID(),
+                    f.lanternEffect->GetFormID(), f.lanternSmoke->GetFormID(),
                     f.lanternPlaced->GetFormID());
             } else {
                 logger::warn("BlackFlame: lantern records missing in {} ({}) - the lantern features (placement, extra damage, "

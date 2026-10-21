@@ -118,7 +118,7 @@ namespace BlackFlame
                 key == "tint" || key == "tintAdd" || key == "tintAddHands" || key == "paletteMode" || key == "builderJobMemoryMiB" ||
                 key == "handMarbleOpacity" || key == "handMarbleScale" ||
                 key == "corpseWindowGameSeconds" || key == "oldCopiesGraceDays" || key == "lanternOffset" ||
-                key == "journalOffset" || key == "smokeOffset") {
+                key == "smokeOffset") {
                 return true;
             }
             for (const auto& n : kLanternNumbers) {
@@ -370,7 +370,6 @@ namespace BlackFlame
                 out.*n.field = it->get<double>();
             }
             ReadOffset(j, "lanternOffset", out.lanternOffset);
-            ReadOffset(j, "journalOffset", out.journalOffset);
             ReadOffset(j, "smokeOffset", out.smokeOffset);
         }
 
@@ -424,11 +423,10 @@ namespace BlackFlame
             logger::info("BlackFlame: config greyCorpseShaders={} corpseWindowGameSeconds={}", g_config.greyCorpseShaders,
                 g_config.corpseWindowGameSeconds);
             logger::info("BlackFlame: config lanternPlace={} lanternDamage={} lanternLog={} lanternBurnPct={} lanternBurnFlat={} "
-                         "lanternReapply={} lanternOffset={} journalOffset={} smokeOffset={}",
+                         "lanternReapply={} lanternOffset={} smokeOffset={}",
                 g_config.lanternPlace, g_config.lanternDamage, g_config.lanternLog, g_config.lanternBurnPct,
                 g_config.lanternBurnFlat, g_config.lanternReapply,
-                nlohmann::json(g_config.lanternOffset).dump(), nlohmann::json(g_config.journalOffset).dump(),
-                nlohmann::json(g_config.smokeOffset).dump());
+                nlohmann::json(g_config.lanternOffset).dump(), nlohmann::json(g_config.smokeOffset).dump());
         }
     }
 

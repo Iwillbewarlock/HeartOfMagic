@@ -22,7 +22,7 @@ namespace BlackFlame
     inline constexpr RE::FormID kLanternPerkLocalId = 0x811;        // PERK HoMBF_LanternPerk (fire spell cost x1.3)
     inline constexpr RE::FormID kLanternBurnSpellLocalId = 0x812;   // SPEL HoMBF_LanternBurnSpell (the hidden extra damage)
     inline constexpr RE::FormID kLanternBurnEffectLocalId = 0x813;  // MGEF HoMBF_LanternBurnEffect
-    inline constexpr RE::FormID kLuahJournalLocalId = 0x814;        // BOOK HoMBF_LuahJournal
+    // 0x814 was BOOK HoMBF_LuahJournal, removed (user 2026-10-21: the player's own imagination tells the story better)
     inline constexpr RE::FormID kLanternSmokeLocalId = 0x815;       // MSTT HoMBF_LanternSmoke
     inline constexpr RE::FormID kLanternPlacedLocalId = 0x816;      // GLOB HoMBF_LanternPlaced (1 once placed)
     inline constexpr const char* kSkyrimMaster = "Skyrim.esm";
@@ -44,7 +44,6 @@ namespace BlackFlame
         RE::BGSPerk* lanternPerk = nullptr;
         RE::SpellItem* lanternBurnSpell = nullptr;
         RE::EffectSetting* lanternBurnEffect = nullptr;
-        RE::TESObjectBOOK* luahJournal = nullptr;
         RE::BGSMovableStatic* lanternSmoke = nullptr;
         RE::TESGlobal* lanternPlaced = nullptr;
     };

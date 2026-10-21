@@ -25,7 +25,7 @@ namespace BlackFlame
         constexpr float kPlaced = 1.0f;
         constexpr float kDegToRad = std::numbers::pi_v<float> / 180.0f;
         constexpr std::size_t kYaw = 3;
-        // A later load keyframes only a lantern or journal this close to its configured place next to the table (review 1
+        // A later load keyframes only a lantern this close to its configured place on the table (review 1
         // R4): ours, not one the player dropped elsewhere in the cell. A placement that settled before its keyframe moves
         // far less
         constexpr float kNearTarget = 64.0f;
@@ -36,8 +36,8 @@ namespace BlackFlame
             std::uint32_t generation = 0;
         };
 
-        // The lantern and the journal to keyframe (right after creation, and at each later load of the cell): each waits
-        // for its 3D on the tick, 10 s at most. Best effort: the placement is done without it (GLOB set at creation)
+        // The lantern to keyframe (right after creation, and at each later load of the cell): it waits for its 3D on the
+        // tick, 10 s at most. Best effort: the placement is done without it (GLOB set at creation)
         struct PendingRekey
         {
             std::vector<RE::ObjectRefHandle> refs;
@@ -94,18 +94,11 @@ namespace BlackFlame
             return { table.x + a_x * c + a_y * s, table.y - a_x * s + a_y * c, table.z + a_z };
         }
 
-        // Where the lantern and the journal belong next to the table (the config offsets)
-        struct Targets
-        {
-            RE::NiPoint3 lantern;
-            RE::NiPoint3 journal;
-        };
-
-        Targets TargetsOf(const RE::TESObjectREFR& a_table)
+        // Where the lantern belongs on the table (the config offset)
+        RE::NiPoint3 LanternTarget(const RE::TESObjectREFR& a_table)
         {
             const auto& lo = GetConfig().lanternOffset;
-            const auto& jo = GetConfig().journalOffset;
-            return { TableToWorld(a_table, lo[0], lo[1], lo[2]), TableToWorld(a_table, jo[0], jo[1], jo[2]) };
+            return TableToWorld(a_table, lo[0], lo[1], lo[2]);
         }
 
         std::vector<RE::NiPointer<RE::TESObjectREFR>> RefsOf(const RE::TESObjectCELL* a_cell,
@@ -129,21 +122,19 @@ namespace BlackFlame
             return refs;
         }
 
-        // One lantern or journal looked at for a keyframe: logged (first-run diagnostics), true when it is ours to keyframe -
-        // its base, not disabled, parent cell a_cell, within kNearTarget of its place
-        bool IsOursToKeyframe(const RE::TESObjectREFR& a_ref, const RE::TESObjectCELL* a_cell, const Targets& a_targets)
+        // One lantern looked at for a keyframe: logged (first-run diagnostics), true when it is ours to keyframe - its base,
+        // not disabled, parent cell a_cell, within kNearTarget of its place
+        bool IsOursToKeyframe(const RE::TESObjectREFR& a_ref, const RE::TESObjectCELL* a_cell, const RE::NiPoint3& a_target)
         {
-            const auto& forms = GetForms();
             const auto* base = a_ref.GetBaseObject();
-            const bool lantern = base == forms.lantern;
-            const bool journal = base == forms.luahJournal;
+            const bool lantern = base == GetForms().lantern;
             const auto* cell = a_ref.GetParentCell();
             const bool disabled = a_ref.IsDisabled();
-            const float dist = a_ref.GetPosition().GetDistance(lantern ? a_targets.lantern : a_targets.journal);
+            const float dist = a_ref.GetPosition().GetDistance(a_target);
             logger::info("BlackFlame: lantern place: candidate {:08X} base={:08X} disabled={} cell={:08X} has3D={} dist={:.1f}",
                 a_ref.GetFormID(), base ? base->GetFormID() : 0, disabled, cell ? cell->GetFormID() : 0, a_ref.Get3D() != nullptr,
                 dist);
-            return (lantern || journal) && !disabled && cell == a_cell && dist <= kNearTarget;
+            return lantern && !disabled && cell == a_cell && dist <= kNearTarget;
         }
 
         // Review 2 R4: the post-load check and the cell event can both queue the same refs; each handle is queued once,
@@ -170,21 +161,20 @@ namespace BlackFlame
             UpdateWaiting();
         }
 
-        // GLOB 1, a later load of the cell: the lantern and the journal this addon placed, keyframed again once their 3D is
-        // there (the motion type is not known to survive a save). Told from a lantern or journal the player dropped in the
-        // cell by their distance to the configured place
+        // GLOB 1, a later load of the cell: the lantern this addon placed, keyframed again once its 3D is there (the motion
+        // type is not known to survive a save). Told from a lantern the player dropped in the cell by its distance to the
+        // configured place
         void Rekeyframe(const RE::TESObjectCELL* a_cell)
         {
-            const auto& forms = GetForms();
             const auto* table = TableRef();
             if (!table || table->GetParentCell() != a_cell) {
                 logger::warn("BlackFlame: lantern place: keyframe again skipped (table ref 03DFA0 {})", !table ? "not found" : "not in cell 01F358");
                 return;
             }
-            const auto targets = TargetsOf(*table);
+            const auto target = LanternTarget(*table);
             std::vector<RE::ObjectRefHandle> found;
-            for (const auto& ref : RefsOf(a_cell, { forms.lantern, forms.luahJournal })) {
-                if (IsOursToKeyframe(*ref, a_cell, targets)) {
+            for (const auto& ref : RefsOf(a_cell, { GetForms().lantern })) {
+                if (IsOursToKeyframe(*ref, a_cell, target)) {
                     found.push_back(ref->GetHandle());
                 }
             }
@@ -276,10 +266,10 @@ namespace BlackFlame
         }
 
         // The names of the refs that could not be created, comma separated
-        std::string MissingNames(RE::FormID a_lantern, RE::FormID a_journal, RE::FormID a_smoke)
+        std::string MissingNames(RE::FormID a_lantern, RE::FormID a_smoke)
         {
             std::string names;
-            for (const auto& [id, name] : { std::pair{ a_lantern, "lantern" }, std::pair{ a_journal, "journal" }, std::pair{ a_smoke, "smoke" } }) {
+            for (const auto& [id, name] : { std::pair{ a_lantern, "lantern" }, std::pair{ a_smoke, "smoke" } }) {
                 if (id == 0) {
                     names += names.empty() ? name : std::string(", ") + name;
                 }
@@ -295,43 +285,35 @@ namespace BlackFlame
         {
             const auto& forms = GetForms();
             const auto& config = GetConfig();
-            const auto targets = TargetsOf(a_table);
+            const auto target = LanternTarget(a_table);
             const auto& lo = config.lanternOffset;
-            const auto& jo = config.journalOffset;
             const auto& so = config.smokeOffset;
-            const auto lantern = Create(forms.lantern, a_table, targets.lantern, lo[kYaw]);
-            const auto journal = Create(forms.luahJournal, a_table, targets.journal, jo[kYaw]);
+            const auto lantern = Create(forms.lantern, a_table, target, lo[kYaw]);
             const auto smoke = Create(forms.lanternSmoke, a_table, TableToWorld(a_table, so[0], so[1], so[2]), 0.0f);
             const RE::FormID lanternId = IdOf(lantern);
-            const RE::FormID journalId = IdOf(journal);
             const RE::FormID smokeId = IdOf(smoke);
-            if (lanternId == 0 && journalId == 0 && smokeId == 0) {
-                logger::warn("BlackFlame: lantern place: skipped (could not create the lantern, journal and smoke)");
+            if (lanternId == 0 && smokeId == 0) {
+                logger::warn("BlackFlame: lantern place: skipped (could not create the lantern and smoke)");
                 return;
             }
             forms.lanternPlaced->value = kPlaced;
             const auto table = a_table.GetPosition();
-            if (lanternId != 0 && journalId != 0 && smokeId != 0) {
-                logger::info("BlackFlame: lantern place: ok lantern={:08X} journal={:08X} smoke={:08X} at ({:.1f},{:.1f},{:.1f}) "
+            if (lanternId != 0 && smokeId != 0) {
+                logger::info("BlackFlame: lantern place: ok lantern={:08X} smoke={:08X} at ({:.1f},{:.1f},{:.1f}) "
                              "table=({:.1f},{:.1f},{:.1f})",
-                    lanternId, journalId, smokeId, targets.lantern.x, targets.lantern.y, targets.lantern.z, table.x, table.y, table.z);
+                    lanternId, smokeId, target.x, target.y, target.z, table.x, table.y, table.z);
             } else {
-                logger::warn("BlackFlame: lantern place: partial lantern={:08X} journal={:08X} smoke={:08X} at ({:.1f},{:.1f},{:.1f}) "
+                logger::warn("BlackFlame: lantern place: partial lantern={:08X} smoke={:08X} at ({:.1f},{:.1f},{:.1f}) "
                              "table=({:.1f},{:.1f},{:.1f}) (could not create the {}; what was made is kept, global set to 1)",
-                    lanternId, journalId, smokeId, targets.lantern.x, targets.lantern.y, targets.lantern.z, table.x, table.y, table.z,
-                    MissingNames(lanternId, journalId, smokeId));
+                    lanternId, smokeId, target.x, target.y, target.z, table.x, table.y, table.z, MissingNames(lanternId, smokeId));
             }
-            // The made handles directly, not a scan of the cell: whether CreateReferenceAtLocation has put a new ref in the
-            // cell's list by the time it returns is not known here. They are ours by construction, so queued whatever the
+            // The made handle directly, not a scan of the cell: whether CreateReferenceAtLocation has put a new ref in the
+            // cell's list by the time it returns is not known here. It is ours by construction, so queued whatever the
             // candidate test says (its line is the diagnostic)
-            std::vector<RE::ObjectRefHandle> toKey;
-            for (const auto& handle : { lantern, journal }) {
-                if (const auto ref = handle.get()) {
-                    (void)IsOursToKeyframe(*ref, a_cell, targets);
-                    toKey.push_back(handle);
-                }
+            if (const auto ref = lantern.get()) {
+                (void)IsOursToKeyframe(*ref, a_cell, target);
+                QueueRekey({ lantern });
             }
-            QueueRekey(toKey);
         }
 
         // Game thread: the cell is loaded (the event, or the player's cell after a game load)

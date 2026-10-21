@@ -90,13 +90,13 @@ too, all as UTF-8 text and sorted), and reused. Only a complete probe without fa
 | `greyCorpseShaders` | `true` | Run 8 probe (`CorpseMark.h`, AE 1.6.1170 only): a Papyrus-applied effect shader (`EffectShader.Play`, an OwnedController: FEC's, but any other mod's or script's too) started on a dying or dead actor the player killed, whose last elemental hit (fire, frost or shock) was the player's stoked fire within `corpseWindowGameSeconds`, gets ShaderReferenceEffect flags bit 24, and at attach its NAM9 / NAM8 palettes are swapped for the builder's grey ones (`CorpseGrey.h`) - only the palettes that passed the builder's fire test have a grey copy, so a non-fire shader on that corpse keeps its own. `false`: the decision is logged only, no bit, and the attach hooks forward unchanged (a bit saved earlier is ignored) |
 | `corpseWindowGameSeconds` | `45` | The corpse mark's window (1..3600): unpaused game seconds (`GameClock.h`) after that last stoked hit; each mark keeps the target's window open this long again |
 | `builderJobMemoryMiB` | `1536` | With `singleLaunch`: the builder's job memory cap (256..16384), also passed as `--job-memory` |
-| `lanternPlace` | `true` | Place the lantern, Luah's journal and the smoke on the alchemy lab of Ansilvund02 (section "Lantern"). Off for the session without the main-thread queue |
+| `lanternPlace` | `true` | Place the lantern and the smoke on the table (UpperTable01) of Ansilvund02 (section "Lantern"). Off for the session without the main-thread queue |
 | `lanternDamage` | `true` | The worn lantern's black flame on the player's fire hits (section "Lantern"). Off for the session without the main-thread queue |
 | `lanternLog` | `true` | One line per hit that burns (`lantern hit:`), per burn cast (`lantern burn:`) and per kill of a burning target (`lantern kill:`), not rate-limited (on for the first run). The `rejected` line (once per source) and the placement lines are written either way |
 | `lanternBurnPct`, `lanternBurnFlat` | `0.02`, `20` | One burn's damage: the share of the target's maximum health (0..1) plus a flat amount (0..10000), dealt over the burn spell's duration (2 s, from the ESP record, not a key) |
 | `lanternReapply` | `0.1` | Seconds between two burn casts on one target (0.02..2). Changes nothing in the damage (a re-cast only restarts the burn); it keeps a 60-hits-a-second Flames from casting 60 times a second |
-| `lanternOffset`, `journalOffset` | `[-25, 0, 75, 0]`, `[25, 0, 75, 90]` | Where the lantern and the journal stand: `[x, y, z, yaw]` in game units from the lab ref (x right, y forward, z up, turned with the lab; -1000..1000) and a yaw in degrees added to the lab's (-360..360). **First-run estimates**: read the `lantern place: ok` line and correct them |
-| `smokeOffset` | `[-25, 0, 87]` | The smoke's `[x, y, z]`, the same way (estimate) |
+| `lanternOffset` | `[0, 0, 59.5, 0]` | Where the lantern stands: `[x, y, z, yaw]` in game units from the table ref (x right, y forward, z up, turned with the table; -1000..1000) and a yaw in degrees added to the table's (-360..360). The default is the table top's centre (its bounds reach z 59) |
+| `smokeOffset` | `[0, 0, 71.5]` | The smoke's `[x, y, z]`, the same way |
 
 Retired keys (C6): `projectile`, `explosion`, `hazard`, `forcePalette`, `particleColors`, `tintScale` (and the older
 `burnMode`). An old json keeps loading; each is logged once as `retired, ignored` with the reason, never as an unknown key.
@@ -445,8 +445,8 @@ and slots hooked); the self-test repeats them as T0-grey and counts swaps at T6-
 Design: [docs/superpowers/specs/2026-10-21-black-flame-lantern-design.md](../../docs/superpowers/specs/2026-10-21-black-flame-lantern-design.md).
 Records (this ESL, 0x80D-0x816): ARMO `HoMBF_Lantern`, ARMA `HoMBF_LanternAA`, ENCH `HoMBF_LanternEnch`, MGEF
 `HoMBF_LanternEffect` "갈망" 0x810 (keyword `HoMBF_StokedKeyword`, perk 0x811), PERK `HoMBF_LanternPerk`, SPEL
-`HoMBF_LanternBurnSpell` 0x812, MGEF `HoMBF_LanternBurnEffect`, BOOK `HoMBF_LuahJournal`, MSTT `HoMBF_LanternSmoke`, GLOB
-`HoMBF_LanternPlaced`. When any of them is missing the DLL logs one warning (`lantern records missing ...`) and only the
+`HoMBF_LanternBurnSpell` 0x812, MGEF `HoMBF_LanternBurnEffect`, MSTT `HoMBF_LanternSmoke`, GLOB `HoMBF_LanternPlaced`
+(0x814 was the journal BOOK, removed 2026-10-21: the user leaves the story to the player's imagination). When any of them is missing the DLL logs one warning (`lantern records missing ...`) and only the
 lantern features are off.
 
 The worn lantern is the only player-facing trigger: its effect carries the stoke keyword, so the whole Black Flame look
@@ -471,14 +471,14 @@ Scrolls are out of both the damage and the look. A follower wearing the lantern 
 player's, the flame and the damage are player-only).
 
 Placement (`LanternPlace.h`): no CELL record (13 plugins override Ansilvund02 in TAKEALOOK). When cell 01F358 finishes
-loading, or after a game load in it, and the global is 0, the lantern, the journal and the smoke are created at the alchemy
-lab ref 0C0090 (lab position + the config offset turned by the lab's z angle) and the global becomes 1 at once: the
-placement is done when the refs are made, so no save or later load can make a second lantern. If one or two of the three
-could not be made, what was made is kept and the global is still 1 (`partial` warning); only when none was made does it
-stay 0. Keyframing is best effort (a failure only logs): the made lantern and journal, and at every later load of the cell
-the lantern or journal of ours (not disabled, in the cell, within 64 units of its configured place, so not one the player
-dropped elsewhere), are keyframed through `TESObjectREFR::SetMotionType` (which marks the ref's Havok state for the save)
-once their 3D is there (10 s at most). Picking the lantern up disables the smoke in the player's cell (and sets the global, which matters only
+loading, or after a game load in it, and the global is 0, the lantern and the smoke are created on the table ref 03DFA0
+(UpperTable01; table position + the config offset turned by the table's z angle) and the global becomes 1 at once: the
+placement is done when the refs are made, so no save or later load can make a second lantern. If one of the two could
+not be made, what was made is kept and the global is still 1 (`partial` warning); only when none was made does it stay
+0. Keyframing is best effort (a failure only logs): the made lantern, and at every later load of the cell the lantern of
+ours (not disabled, in the cell, within 64 units of its configured place, so not one the player dropped elsewhere), is
+keyframed through `TESObjectREFR::SetMotionType` (which marks the ref's Havok state for the save) once its 3D is there
+(10 s at most). Picking the lantern up disables the smoke in the player's cell (and sets the global, which matters only
 for a lantern from a console `AddItem` before any visit). A save that
 already visited Ansilvund02 gets the lantern at its next visit. The offset's turn assumes the z angle runs clockwise seen
 from above (forward = (sin a, cos a)); not checked in game, the ok line's two coordinates settle it.
@@ -487,14 +487,14 @@ Log lines (`HeartOfMagic_BlackFlame.log`, all prefixed `BlackFlame: `):
 
 | Line | When |
 |---|---|
-| `lantern place on (cell <id>, lab ref <id> of <plugin>)` / `lantern place off (<reason>)` | at kDataLoaded |
-| `lantern place: ok lantern=<id> journal=<id> smoke=<id> at (x,y,z) lab=(x,y,z)` | all three made, global set to 1 (`at` is the lantern); the keyframe lines follow |
-| `lantern place: partial lantern=<id> journal=<id> smoke=<id> at (x,y,z) lab=(x,y,z) (could not create the <names>; ...)` | warning: one or two refs not made (shown as 00000000), the rest kept, global set to 1 |
-| `lantern place: skipped (<reason>)` | a lab check failed, or none of the three refs could be created (global stays 0) |
-| `lantern place: candidate <id> base=<id> disabled=<b> cell=<id> has3D=<b> dist=<d>` | each lantern or journal looked at for a keyframe (`dist` from its configured place) |
+| `lantern place on (cell <id>, table ref <id> of <plugin>)` / `lantern place off (<reason>)` | at kDataLoaded |
+| `lantern place: ok lantern=<id> smoke=<id> at (x,y,z) table=(x,y,z)` | both made, global set to 1 (`at` is the lantern); the keyframe lines follow |
+| `lantern place: partial lantern=<id> smoke=<id> at (x,y,z) table=(x,y,z) (could not create the <names>; ...)` | warning: one ref not made (shown as 00000000), the other kept, global set to 1 |
+| `lantern place: skipped (<reason>)` | a table check failed, or neither ref could be created (global stays 0) |
+| `lantern place: candidate <id> base=<id> disabled=<b> cell=<id> has3D=<b> dist=<d>` | each lantern looked at for a keyframe (`dist` from its configured place) |
 | `lantern place: keyframed <id> ok\|failed` | each keyframe (the `SetMotionType` result as is), after creation and at each later load; `failed (no 3D within 10 s)` when the 3D never came |
-| `lantern place: keyframe again skipped (lab ref 0C0090 <why>)` | a later load without the lab ref in the cell |
-| `lantern place: nothing of ours to keyframe again (...)` | a later load found no lantern or journal within 64 units of its place |
+| `lantern place: keyframe again skipped (table ref 03DFA0 <why>)` | a later load without the table ref in the cell |
+| `lantern place: nothing of ours to keyframe again (...)` | a later load found no lantern within 64 units of its place |
 | `lantern place: a task ran off the main thread - nothing placed or changed` | once, if a task ran off the game thread |
 | `lantern smoke: disabled <n>` | the lantern picked up |
 | `lantern burn spell <id>: effect duration <s> s` | at load: the burn's length the rate is divided by |
