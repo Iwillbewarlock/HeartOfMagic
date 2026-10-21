@@ -122,7 +122,7 @@ namespace
                      "  blackflame-greybuild --write-slot-pool <file.esp>\n"
                      "  blackflame-greybuild --collisions <request.json>   (exit 0 none, 1 some, 2 the request does not read)\n"
                      "  blackflame-greybuild --write-lantern <data folder> --in <dir> [--in <dir> ...]\n"
-                     "      (the lantern's meshes and soot texture from vanilla candlelantern01.nif, skeleton.nif, fxwispparticleattach.nif,\n"
+                     "      (the lantern's meshes and soot texture from vanilla candlelantern01.nif, skeleton.nif, atronachflame.nif,\n"
                      "       malebody_1.nif, femalebody_1.nif and LampGeneric01.dds, extracted from Skyrim - Meshes0.bsa /\n"
                      "       Skyrim - Textures3.bsa into an --in folder)\n"
                      "  blackflame-greybuild --inspect-lantern <file.nif> [...]\n"
