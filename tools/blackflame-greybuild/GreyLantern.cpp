@@ -2398,6 +2398,23 @@ namespace GreyBuild
             fail(kLanternSmokeNif, e);
         }
 
+        // 5. the empty model (LanternIed.h: the ARMA's biped model while IED shows the lantern): a BSFadeNode root, as the vanilla
+        // biped NIFs and lantern_smoke.nif have, named, and nothing else
+        try {
+            nifly::NifFile empty;
+            empty.Create(nifly::NiVersion::getSSE());
+            (void)empty.GetHeader().ReplaceBlock(0, std::make_unique<nifly::BSFadeNode>());
+            auto* root = empty.GetRootNode();
+            if (!root || empty.GetHeader().GetBlockID(root) != 0 || std::string(root->GetBlockName()) != "BSFadeNode") {
+                throw std::runtime_error("the root could not be made a BSFadeNode");
+            }
+            root->name.get() = kLanternEmptyRootName;
+            log.push_back(fmt::format("empty: BSFadeNode '{}' only (no geometry, no BSXFlags)", kLanternEmptyRootName));
+            SaveNew(empty, a_dataDir / kLanternEmptyNif);
+        } catch (const std::exception& e) {
+            fail(kLanternEmptyNif, e);
+        }
+
         if (result.problems.empty()) {
             for (const auto& problem : VerifyLantern(a_inputs, a_dataDir)) {
                 result.problems.push_back("read-back: " + problem);
@@ -2841,6 +2858,20 @@ namespace GreyBuild
             Check(problems, smoke.hasBsx && smoke.bsx == kLanternSmokeBsx, fmt::format("smoke: BSXFlags {} (expected {})", smoke.bsx, kLanternSmokeBsx));
             Check(problems, smoke.nodeNames.size() == 2, fmt::format("smoke: {} nodes, expected the root and the addon node", smoke.nodeNames.size()));
 
+            // the empty model: one block, the root BSFadeNode, named
+            const auto empty = InspectLanternNif(a_dataDir / kLanternEmptyNif);
+            std::string emptyBlocks;
+            for (const auto& type : empty.blockTypes) {
+                emptyBlocks += emptyBlocks.empty() ? type : ", " + type;
+            }
+            Check(problems, empty.sseCompatible && empty.rootType == "BSFadeNode" && empty.rootName == kLanternEmptyRootName,
+                fmt::format("empty: root {} '{}' (SSE {}), expected an SSE BSFadeNode '{}'", empty.rootType, empty.rootName, empty.sseCompatible,
+                    kLanternEmptyRootName));
+            Check(problems, empty.blockTypes.size() == 1 && empty.blockTypes.front() == "BSFadeNode x1" && empty.shapes.empty() && !empty.hasBsx &&
+                                !empty.hasCollision && empty.unknownBlocks == 0,
+                fmt::format("empty: blocks [{}], {} shapes, BSXFlags {}, expected the root BSFadeNode alone", emptyBlocks, empty.shapes.size(),
+                    empty.hasBsx));
+
             // the texture
             double sourceMean = 0.0;
             double copyMean = 0.0;
@@ -2871,7 +2902,7 @@ namespace GreyBuild
             return kExitFail;
         }
         std::cout << "\nread-back (each output opened again with nifly):\n";
-        for (const char* rel : { kLanternGroundNif, kLanternWornNif, kLanternSmokeNif }) {
+        for (const char* rel : { kLanternGroundNif, kLanternWornNif, kLanternSmokeNif, kLanternEmptyNif }) {
             PrintLanternNif(rel, InspectLanternNif(a_dataDir / rel));
         }
         double mean = 0.0;
@@ -2946,7 +2977,7 @@ namespace GreyBuild
         for (const auto& c : WornClearances(a_inputs, a_dataDir)) {
             std::cout << fmt::format("  {} / {}: {} (margin {})\n", c.part, c.body, GapText(c.gap), c.margin);
         }
-        std::cout << "lantern: 3 NIFs and 1 texture written and read back\n";
+        std::cout << "lantern: 4 NIFs and 1 texture written and read back\n";
         return kExitOk;
     }
 

@@ -20,6 +20,8 @@
 // alpha x vertex alpha x base alpha x falloff (fading the outline edge-on); U texture scale kLanternFlameUScale; the outer layer blends normally and takes GradBlackFlame.dds through GreyEffects, the core is
 // additive and takes GradBlackFlameAdd.dds
 //   lantern_smoke.nif  an empty BSFadeNode with BSXFlags and one AddOnNode9123 (grey ADDN 0x809 MPSFireSmSmoke01)
+//   lantern_empty.nif  a root BSFadeNode HoMBF_LanternEmpty and nothing else (no geometry, no BSXFlags): the ARMA's biped model
+//                      while Immersive Equipment Displays shows the lantern (plugins/BlackFlame/src/LanternIed.h)
 //   LampGenericSoot01.dds  LampGeneric01.dds with RGB x kLanternSootDarken, alpha kept, same format and mips
 // An AddOnNode is a BSValueNode whose value is the ADDN index (what the engine reads; vanilla candlelanternwithcandle01.nif
 // AddOnNode49 = BSValueNode value 49), named AddOnNode<index> as the vanilla files name theirs.
@@ -52,6 +54,7 @@ namespace GreyBuild
     inline constexpr const char* kLanternGroundNif = "meshes\\heartofmagic\\blackflame\\lantern\\lantern_gnd.nif";
     inline constexpr const char* kLanternWornNif = "meshes\\heartofmagic\\blackflame\\lantern\\lantern_worn.nif";
     inline constexpr const char* kLanternSmokeNif = "meshes\\heartofmagic\\blackflame\\lantern\\lantern_smoke.nif";
+    inline constexpr const char* kLanternEmptyNif = "meshes\\heartofmagic\\blackflame\\lantern\\lantern_empty.nif";
     // The texture's file and the text the NIF slot names (the slot keeps the case the other addon paths use)
     inline constexpr const char* kLanternDiffuse = "textures\\HeartOfMagic\\BlackFlame\\Lantern\\LampGenericSoot01.dds";
 
@@ -70,6 +73,7 @@ namespace GreyBuild
     // the EditorMarker bit names a shape this model does not have, which leaves nothing for it to hide
     inline constexpr std::uint32_t kLanternSmokeBsx = 0x31;
     inline constexpr const char* kLanternSmokeRootName = "HoMBF_LanternSmoke";
+    inline constexpr const char* kLanternEmptyRootName = "HoMBF_LanternEmpty";
     inline constexpr const char* kLanternWornRootName = "HoMBF_LanternWorn";
     inline constexpr const char* kLanternWornFrameName = "HoMBF_LanternFrame";
 
@@ -537,13 +541,13 @@ namespace GreyBuild
     [[nodiscard]] std::vector<LanternClearance> WornClearances(const std::vector<std::filesystem::path>& a_inputs,
         const std::filesystem::path& a_dataDir);
 
-    /// Builds the four outputs from the --in folders into a_dataDir (Data layout), reading each NIF back and checking it.
+    /// Builds the five outputs from the --in folders into a_dataDir (Data layout), reading each NIF back and checking it.
     /// Never writes into an --in folder (the caller checks).
     [[nodiscard]] LanternBuildResult BuildLantern(const std::vector<std::filesystem::path>& a_inputs,
         const std::filesystem::path& a_dataDir);
 
     /// The checks the build and the self-test run on the written outputs: frame shape and texture path, the flame layers in
-    /// both models (shader flags, blend, base alpha, palette, vertex alpha, controllers, base height, clearance), the smoke's addon node, every worn shape skinned to exactly kLanternBone
+    /// both models (shader flags, blend, base alpha, palette, vertex alpha, controllers, base height, clearance), the smoke's addon node, the empty model's lone root node, every worn shape skinned to exactly kLanternBone
     /// with weight 1 and body part kLanternBodyPart, the ring's height, the clearances, the BSXFlags. Empty = it holds.
     /// a_inputs: the sources, for what must match them (texture size and mips, darker; the kept normal map).
     [[nodiscard]] std::vector<std::string> VerifyLantern(const std::vector<std::filesystem::path>& a_inputs,

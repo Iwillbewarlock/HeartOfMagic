@@ -14,7 +14,8 @@
 // the builder launcher's pure parts (BuilderControl.h; BuilderControlTests.h: the throttle's CPU rate, the exit code text),
 // and the publication plan's decisions and the ledger's previous generation (CopyGroupsDecide.h; PublicationTests.h), and the
 // last elemental hit record and corpse mark decisions (ElementalHitRules.h; ElementalHitRulesTests.h), the lantern's
-// black flame rules (LanternDamageRules.h; LanternDamageRulesTests.h: classification, burn rate, re-apply throttle edges, pruning), and the old-copies
+// black flame rules (LanternDamageRules.h; LanternDamageRulesTests.h: classification, burn rate, re-apply throttle edges, pruning), the worn lantern's IED hip
+// transform (LanternIedRules.h; LanternIedRulesTests.h: presets, unknown preset, override, length, ranges), and the old-copies
 // cleanup's keep set, name rule, plan, grace and root check (OldCopiesRule.h; OldCopiesTests.h) and its file side and keep set
 // files in a temporary folder with junctions (OldCopiesFiles.h, OldCopiesKeepsets.h; OldCopiesFilesTests.h).
 // --cosave and --nif-values (SkseFile.cpp): the DLL's readers on real files.
@@ -27,6 +28,7 @@
 #include "ElementalHitRulesTests.h"
 #include "IdentityTests.h"
 #include "LanternDamageRulesTests.h"
+#include "LanternIedRulesTests.h"
 #include "NifValueNodesTests.h"
 #include "OldCopiesFilesTests.h"
 #include "OldCopiesTests.h"
@@ -465,6 +467,7 @@ int main(int a_argc, char** a_argv)
     suite("publication", [](auto&& a_check) { PublicationTests::Run(a_check); });
     suite("elemental hit rules", [](auto&& a_check) { ElementalHitRulesTests::Run(a_check); });
     suite("lantern damage rules", [](auto&& a_check) { LanternDamageRulesTests::Run(a_check); });
+    suite("lantern ied rules", [](auto&& a_check) { LanternIedRulesTests::Run(a_check); });
     suite("old copies", [](auto&& a_check) { OldCopiesTests::Run(a_check); });
     suite("old copies files", [&](auto&& a_check) {
         auto skip = [&](const std::string& a_what) { check.Skip(a_what); };

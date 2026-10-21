@@ -97,6 +97,12 @@ too, all as UTF-8 text and sorted), and reused. Only a complete probe without fa
 | `lanternReapply` | `0.1` | Seconds between two burn casts on one target (0.02..2). Changes nothing in the damage (a re-cast only restarts the burn); it keeps a 60-hits-a-second Flames from casting 60 times a second |
 | `lanternOffset` | `[0, 0, 59.5, 0]` | Where the lantern stands: `[x, y, z, yaw]` in game units from the table ref (x right, y forward, z up, turned with the table; -1000..1000) and a yaw in degrees added to the table's (-360..360). The default is the table top's centre (its bounds reach z 59) |
 | `smokeOffset` | `[0, 0, 71.5]` | The smoke's `[x, y, z]`, the same way |
+| `lanternIed` | `true` | With Immersive Equipment Displays installed, the worn lantern is shown by IED at the hip (section "Lantern on IED"); without IED the key does nothing and the skinned worn mesh is used. Off for the session without the main-thread queue |
+| `lanternIedPreset` | `"frontLeft"` | Where IED hangs it: `"frontLeft"`, `"frontRight"`, `"backLeft"` or `"backRight"` (Lights On's four IED profiles); anything else is frontLeft with a warning |
+| `lanternIedTransform` | none | Overrides the preset: `[px, py, pz, rx, ry, rz, scale]`, position in game units from NPC Pelvis [Pelv] (-1000..1000), rotation in degrees (-360..360), scale 0.05..5. A wrong length or value is a warning and the preset is used |
+
+The config is read once when the game starts: a change to `lanternIed`, `lanternIedPreset` or `lanternIedTransform` (as to
+any key) needs a game restart.
 
 Retired keys (C6): `projectile`, `explosion`, `hazard`, `forcePalette`, `particleColors`, `tintScale` (and the older
 `burnMode`). An old json keeps loading; each is logged once as `retired, ignored` with the reason, never as an unknown key.
@@ -253,8 +259,9 @@ blackflame-greybuild --self-test [--golden-dir <dir>] [--print-golden]
 blackflame-greybuild --make-golden-fixtures <dir>   (the golden test's input files, written once and committed)
 blackflame-greybuild --identity                     (the output identity this exe keys with: <n> or <n>+dev<hex>)
 blackflame-greybuild --write-lantern <data folder> --in <dir> [...]
-                                                    (the lantern's lantern_gnd / lantern_worn / lantern_smoke NIFs and
-                                                    LampGenericSoot01.dds, GreyLantern.h; prints their read-back)
+                                                    (the lantern's lantern_gnd / lantern_worn / lantern_smoke /
+                                                    lantern_empty NIFs and LampGenericSoot01.dds, GreyLantern.h;
+                                                    prints their read-back)
 blackflame-greybuild --inspect-lantern <file.nif> [...]   (that read-back for any NIF)
 ```
 
@@ -299,6 +306,8 @@ which the build fails rather than tilting it; on the vanilla bodies it settles 7
 checks that the cage axis is world Z within 0.5 degrees, the handle's height, the lugs touching lid and feet, the ring's
 height and the clearances. The ring takes a plain iron area of the lamp texture (u 0.80-0.98, v 0.60-0.80), the lugs the
 lid's own. The placement, size, shader and darkening constants are named in `tools/blackflame-greybuild/GreyLantern.h`.
+`lantern_empty.nif` is one block, a root BSFadeNode `HoMBF_LanternEmpty` (as the vanilla biped NIFs; no geometry, no BSXFlags): the ARMA's biped model
+while IED shows the lantern (section "Lantern on IED"); the read-back refuses anything else in it.
 
 `--in` folders hold loose files laid out as Data (`meshes\...`), searched in the order given: the first that has
 a file wins, so list them in MO2 priority order, highest first, then extracted BSAs, then the vanilla
@@ -509,6 +518,99 @@ Log lines (`HeartOfMagic_BlackFlame.log`, all prefixed `BlackFlame: `):
 | `lantern burn: tgt=<id> max=<m> rate=<r>/s for <s> s effects=<n> magnitude=<x> difficulty=<d>` | each cast: `n` the burn effects active on the target after it (expected 1), `x` the newest one's magnitude as the engine stored it (expected = rate) |
 | `lantern kill: tgt=<id> killer=<id>` | a death while burning (within the burn's 2 s + 1 s after the last cast) |
 | `lantern cost: <spell id> <cost>` | at each buff flag change, every fire spell the player knows |
+
+### Lantern on IED
+
+When Immersive Equipment Displays (IED 1.7.4, SlavicPotato; optional) is installed, the worn lantern hangs from the hip
+through IED's own Papyrus API (`LanternIed.h`), with no setup by the player; without it the skinned `lantern_worn.nif`
+stays. IED counts as installed when `ImmersiveEquipmentDisplays.dll` is loaded, the Papyrus VM knows the script type
+`IED` and `IED.GetVersion()` can be sent (checked once at kDataLoaded).
+
+- With IED and `lanternIed` true, at kDataLoaded (before any save loads, so no lantern 3D exists yet) the ARMA
+  `HoMBF_LanternAA` 0x80E's male and female biped models become `HeartOfMagic\BlackFlame\Lantern\lantern_empty.nif`
+  (a root BSFadeNode only; its first-person models too when they are set). The worn ARMO still takes slot 60; only IED's
+  copy shows.
+- At each game load (one that succeeded) and new game, one IED entry is set up for the player under this plugin's key
+  (`HeartOfMagic_BlackFlame.esp`, name `Lantern`): `CreateItemActor` once (male; a false means it exists from an earlier
+  load, or IED refused it, and the setup goes on), both sexes disabled, then for each sex `SetItemFormActor` (ARMO 0x80D),
+  `SetItemInventoryActor` (true), `SetItemNodeActor` (NPC Pelvis [Pelv]), `SetItemAttachmentModeActor` (1 = parent, no
+  reference sync: the Lights On profiles' mode, flags 0x900010, so the preset numbers mean what they mean there),
+  `SetItemUseWorldModelActor` (true), `SetItemDisableHavokActor` (true), position, rotation and scale from the config,
+  then both sexes enabled as the player wears the lantern at that moment, then the check (below). IED shows a non-shield
+  ARMO's world model (`lantern_gnd.nif`, with its flame; the other sex's when one is empty) whether or not the world model
+  flag is set (IED `IModel.cpp`), so `SetItemUseWorldModelActor` changes nothing here and is kept as harmless. Because the
+  setup disables both sexes before it sets them, a worn lantern goes off for a moment at each load and comes back with the
+  enable step (the setup's 26 calls, the check included, take a frame or more each).
+- The calls run one after another: each is sent on the main thread once the one before it returned, every result is
+  logged, a call whose result has not come back in 5 s is given up on (the ticker checks; its result counts as unknown,
+  never as false), and a result that comes after its timeout is ignored.
+- Equipping or unequipping the lantern (the player's `TESEquipEvent` for ARMO 0x80D) sets both sexes enabled or disabled,
+  then the check.
+- The check: after the setup's enable step and after each equip toggle, `ItemExistsActor` and `ItemEnabledActor` for both
+  sexes; one `lantern ied check PASS|FAIL` line per sex (PASS: the entry exists and enabled equals `sent`, the state the
+  enable call sent - the worn state at the setup, the event's state at an equip). A PASS means IED's config holds what
+  was sent; it does not prove the model is attached at the hip (that is the look in game). A PASS/FAIL line also says
+  whether both biped models are the empty model: at kDataLoaded after the swap, and again at the first game load (after
+  every plugin's kDataLoaded, so a later change by another plugin shows there).
+- Fallback: when the entry cannot be made the ARMA's original model paths are put back, `setup failed` is logged, no entry
+  is set up for the rest of the session and the entry is deleted at once and, as with `lanternIed` false, at each load
+  (so neither this session nor a save with an enabled entry shows the IED copy beside the skinned mesh). A lantern worn at that moment shows again
+  after it is re-equipped. It is decided only on results that came back: `CreateItemActor` and `SetItemFormActor male`
+  both returned false, the setup's `ItemExistsActor` returned false, or `IED.GetVersion()` gave no int. A result that did
+  not come back (a slow VM after a load) never counts as a failure: when the setup's `ItemExistsActor` gives no result a
+  warning is logged and IED is kept.
+- With IED and `lanternIed` false nothing is swapped and the entry is deleted at each load (`DeleteItemActor`), so a save
+  that had it loses it. Without IED nothing is called at all.
+
+Limits:
+
+- A follower wearing the lantern shows nothing while IED is on: the ARMA is empty and only the player is registered.
+- The entry is an inventory form without equipment mode, so to IED it shows while the lantern is carried; this DLL turns
+  it on only while the lantern is worn. Remove the DLL only with the lantern unequipped and the game saved after that
+  (unequip, save, then remove): the entry's last state stays in the save, so after removing only the DLL a lantern that
+  was worn at the last save stays at the hip even when unequipped, next to the skinned worn mesh while worn. Removing the
+  ESP makes IED purge the entries itself.
+- Without the main-thread queue (`lanternIed` forced false for the session) no IED call is made, the delete included: a
+  save that already had an enabled entry can show both the IED copy and the skinned mesh until a normal session deletes
+  or sets it.
+- The entry is not editable in IED's own UI (its custom editor edits IED's own key only).
+- What is not proven without the game: the attached look (position on both bodies, the flame and its animation on the
+  world model with Havok off), and that a root-only NIF is safe as a biped model.
+
+Log lines (all prefixed `BlackFlame: lantern ied`):
+
+| Line | When |
+|---|---|
+| `: IED detected (ImmersiveEquipmentDisplays.dll loaded, script type IED known)` | kDataLoaded |
+| `: script type IED loaded by GetScriptObjectType (TypeIsValid said no)` | kDataLoaded, when the type was not loaded yet |
+| `: IED found (version <a.b.c>, IED.GetVersion() = <n>)` | when the VM returns `IED.GetVersion()` (possibly only after the first load) |
+| `: IED not found (<why>) - the skinned worn mesh is used` | kDataLoaded, without IED |
+| `: IED.GetVersion() not sent (the VM refused the call) - IED is not used, the skinned worn mesh is used` | warning, kDataLoaded |
+| ` off (lantern records missing) - the skinned worn mesh is used` | kDataLoaded, without the lantern records |
+| `: ARMA <id> <male\|female> biped model '<old>' -> '<new>'` | kDataLoaded, the swap (first-person models: the same, or `first-person model empty - left`) |
+| ` check PASS\|FAIL: ARMA <id> biped models are the empty model at kDataLoaded\|the first game load (male '<path>', female '<path>')` | kDataLoaded after the swap, and the first game load |
+| ` on: <preset> preset\|overridden by lanternIedTransform pos (...) rot (...) deg scale <s> on NPC Pelvis [Pelv], parent attachment` | kDataLoaded, IED and `lanternIed` |
+| `: lanternIed false - the skinned worn mesh is used; the player's IED entry is deleted at each load` | kDataLoaded |
+| `: setting up the player's entry (the game load\|the new game)` | at each load / new game |
+| `: <native> [male\|female] [on\|off [(worn now)]] -> true\|false` | each call's result, e.g. `SetItemPositionActor female -> true`, `CreateItemActor male -> false (exists or refused)`, `DeleteItemActor -> false (nothing to delete)` |
+| ` check PASS\|FAIL: <male\|female> exists=<b> enabled=<b> sent=<b>[ (a result did not come back)]` | after the setup's enable step and after each equip toggle (`sent`: the state the enable call sent; a PASS is IED's config, not the look) |
+| `: the setup's ItemExistsActor gave no result - IED kept (the next load sets up again)` | warning, the setup's check without a result |
+| `: <native> ... not sent (no player\|the VM refused the call)` | warning: a call that could not be sent; the next one goes on |
+| `: <native> ... (call #<n>) gave no result in 5 s - going on` | warning, from the ticker |
+| `: the result of call #<n> ignored (it came after its timeout; ...)` | a late result |
+| `: <native> ... result not queued for the main thread - the next call waits for the 5 s timeout` | warning |
+| `: task <name> not queued for the main thread` | warning |
+| `: ARMA <id> <model> restored '<path>'` | the fallback, each model put back |
+| `: setup failed - the skinned worn mesh is back (re-equip the lantern to see it); cause: <why>; the player's IED entry is deleted now and at each load` | warning, the fallback (a `DeleteItemActor -> ...` line follows) |
+| `: setup failed off the main thread (<why>) - nothing restored` | warning, a fallback reached off the main thread |
+| `: equipped\|unequipped before this load's setup started - its enable step reads the worn state` | an equip before this load's setup was queued |
+| `: equipped\|unequipped during the setup, before its enable step - that step reads the worn state` | an equip during the setup |
+| `: the game load failed - no IED call` | warning, a failed load |
+| `: a task ran off the main thread - no IED call sent` | warning, once |
+
+Credits: the default hip transforms come from GiraPomba's Lights On - Wearable Lanterns for Immersive Equipment Displays
+IED presets (https://www.nexusmods.com/skyrimspecialedition/mods/85575), used under its asset-use permission with
+credit.
 
 ## Runtimes and Address Library ids
 

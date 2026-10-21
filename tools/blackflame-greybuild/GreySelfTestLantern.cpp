@@ -726,6 +726,14 @@ namespace GreyBuild::SelfTest
                           smoke.valueNodes.front().value == kLanternSmokeAddon && smoke.valueNodes.front().parent == kLanternSmokeRootName,
             "lantern smoke: exactly one BSValueNode named 'AddOnNode9123' with value 9123, a child of the root");
 
+        // the empty model (the ARMA's biped model while IED shows the lantern)
+        const auto emptyNif = InspectLanternNif(out / kLanternEmptyNif);
+        a_check.Check(emptyNif.sseCompatible && emptyNif.rootType == "BSFadeNode" && emptyNif.rootName == kLanternEmptyRootName &&
+                          emptyNif.blockTypes.size() == 1 && emptyNif.nodeNames.size() == 1 && emptyNif.shapes.empty() && !emptyNif.hasBsx &&
+                          !emptyNif.hasCollision,
+            fmt::format("lantern empty: an SSE NIF of one block, the root BSFadeNode '{}' (no geometry, no BSXFlags, no collision)",
+                kLanternEmptyRootName));
+
         // the texture
         double sourceMean = 0.0;
         double copyMean = 0.0;
@@ -888,6 +896,31 @@ namespace GreyBuild::SelfTest
             SaveNif(bad, out / kLanternSmokeNif);
             a_check.Check(Mentions(VerifyLantern({ in }, out), "smoke: expected one BSValueNode AddOnNode9123"),
                 "lantern: the read-back refuses an addon node whose value is not its index");
+        }
+        {
+            // the empty model with a child node under its root: no longer the root alone
+            nifly::NifFile bad;
+            LoadNif(bad, out / kLanternEmptyNif);
+            auto child = std::make_unique<nifly::NiNode>();
+            child->name.get() = "Extra";
+            const auto id = bad.GetHeader().AddBlock(std::move(child));
+            bad.GetRootNode()->childRefs.AddBlockRef(id);
+            SaveNif(bad, out / kLanternEmptyNif);
+            a_check.Check(Mentions(VerifyLantern({ in }, out), "expected the root BSFadeNode alone"),
+                "lantern: the read-back refuses an empty model with anything under its root");
+            nifly::NifFile named;
+            named.Create(nifly::NiVersion::getSSE());
+            (void)named.GetHeader().ReplaceBlock(0, std::make_unique<nifly::BSFadeNode>());
+            named.GetRootNode()->name.get() = "Other";
+            SaveNif(named, out / kLanternEmptyNif);
+            a_check.Check(Mentions(VerifyLantern({ in }, out), "expected an SSE BSFadeNode 'HoMBF_LanternEmpty'"),
+                "lantern: the read-back refuses an empty model whose root has another name");
+            nifly::NifFile plain;
+            plain.Create(nifly::NiVersion::getSSE());
+            plain.GetRootNode()->name.get() = kLanternEmptyRootName;
+            SaveNif(plain, out / kLanternEmptyNif);
+            a_check.Check(Mentions(VerifyLantern({ in }, out), "root NiNode 'HoMBF_LanternEmpty'"),
+                "lantern: the read-back refuses an empty model whose root is a plain NiNode");
         }
         a_check.Check(!DarkenDds(in / kLanternDiffuseSource, a_dir / "lantern" / "x.dds", 1.5f).ok,
             "lantern: a darken factor above 1 is refused");

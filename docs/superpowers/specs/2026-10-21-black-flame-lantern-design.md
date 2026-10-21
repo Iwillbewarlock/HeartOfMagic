@@ -239,3 +239,45 @@ One bundled in-game run by the user, judged from `HeartOfMagic_BlackFlame.log`:
 
 Left to the eye (no log can judge them): the lantern sitting on the lab (the log proves the coordinates, not that it
 looks right), the worn lantern's place on the hip, the flame inside the cage.
+
+## 8. Worn lantern on Immersive Equipment Displays (2026-10-22, user decision of 2026-10-21)
+
+IED (1.7.4, SlavicPotato, optional) shows the worn lantern at the hip through its Papyrus API, with no setup by the
+player; without IED the skinned `lantern_worn.nif` above stays. `LanternIed.cpp/.h`, the transform rules in
+`LanternIedRules.h` (tested in `blackflame-cosave-check`), README "Lantern on IED".
+
+- Detection at kDataLoaded: `ImmersiveEquipmentDisplays.dll` loaded, the VM knows the script type `IED`
+  (`TypeIsValid`, else `GetScriptObjectType`) and `IED.GetVersion()` can be sent (its result logged).
+- With IED and `lanternIed`: ARMA 0x80E's biped models (first-person ones when set) swapped to `lantern_empty.nif` (a root
+  BSFadeNode only, written by `--write-lantern`) before any save loads, with a PASS/FAIL line that both are (again at the first game load). Without IED or
+  with `lanternIed` false: no swap; with IED and `lanternIed` false the player's entry is deleted at each load
+  (`DeleteItemActor`, which has no sex argument).
+- At each successful load and new game, one entry `Lantern` under the plugin's key: `CreateItemActor` once (male; IED
+  refuses a second create of the name before it sets the other sex's form, inventory flag and node, so the setters do
+  both sexes), both sexes disabled, then for each sex form ARMO 0x80D, inventory form, node NPC Pelvis [Pelv], parent
+  attachment (mode 1, no reference sync: Lights On's flags 0x900010), world model (no effect for a non-shield ARMO, kept
+  as harmless), Havok off, position, rotation (degrees), scale, then both enabled from the worn state at that moment, then
+  the check: `ItemExistsActor` and `ItemEnabledActor` per sex, a PASS/FAIL line each (`sent=`: IED's config against what
+  was sent, not proof of the attached model). The calls are chained (each
+  `DispatchStaticCall` sent on the main thread from the task its predecessor's result queued; dispatch acceptance is not
+  the native's success, so every result is logged); a call without a result for 5 s is given up on from the ticker, and
+  each call carries a sequence number so a late result is ignored.
+- `TESEquipEvent` of the player and ARMO 0x80D: both sexes enabled or disabled and the check (after the setup's enable
+  step).
+- Fallback, on received results only (a timeout is unknown, never a false): `CreateItemActor` and `SetItemFormActor male`
+  both returned false, the setup's `ItemExistsActor` returned false, or `GetVersion` without an int: the ARMA's original
+  paths back, `setup failed`, no entry set up for the session and the entry deleted at once and at each load. The setup's
+  `ItemExistsActor` without a result: a warning, IED kept.
+- Config `lanternIed` (true), `lanternIedPreset` (`frontLeft` | `frontRight` | `backLeft` | `backRight`), optional
+  `lanternIedTransform` `[px, py, pz, rx, ry, rz, scale]` (+-1000, +-360 degrees, 0.05..5), read once at start (a change
+  needs a restart). The presets are the IED profiles of GiraPomba's Lights On - Wearable Lanterns for IED (Nexus SSE
+  85575, asset use allowed with credit): frontLeft pos (-18, 13, -8.5) rot (15, 31, 23.5); frontRight (13.5, 13.5, -8.5)
+  (-14.5, -29.5, 10); backLeft (-14.5, -10, -12) (-7.5, 136.5, -8.5); backRight (13, -14, -12) (4.5, 215, -5); scale 0.6.
+- Limits: a follower wearing the lantern shows nothing while IED is on (empty ARMA, only the player registered); the entry
+  is an inventory form (to IED it shows while carried) and only this DLL ties it to the worn state, so removing only the
+  DLL keeps its last state (unequip, save, then remove; removing the ESP makes IED purge it); without the main-thread
+  queue no call is made, so a save with an enabled entry can show both copies until a normal session; a short off/on of
+  the worn lantern at each load while the setup runs.
+- In game, left to the eye: the place on both bodies, the world model's flame with Havok off; judged from the log: the
+  ARMA check, every setter `-> true`, the `lantern ied check PASS` lines after the setup and each equip toggle, the delete
+  with `lanternIed` false.

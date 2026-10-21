@@ -3,6 +3,7 @@
 #include "OldCopiesRule.h"
 #include "CopyContract.h"
 #include "LanternDamageRules.h"
+#include "LanternIedRules.h"
 
 #include <nlohmann/json.hpp>
 
@@ -69,6 +70,7 @@ namespace BlackFlame
             BoolKey{ "lanternPlace", &Config::lanternPlace },
             BoolKey{ "lanternDamage", &Config::lanternDamage },
             BoolKey{ "lanternLog", &Config::lanternLog },
+            BoolKey{ "lanternIed", &Config::lanternIed },
         };
 
         // Single launch: the tints the builder bakes (GreyBuild.h --tint / --tint-add take 0..2) and the job memory cap
@@ -118,7 +120,7 @@ namespace BlackFlame
                 key == "tint" || key == "tintAdd" || key == "tintAddHands" || key == "paletteMode" || key == "builderJobMemoryMiB" ||
                 key == "handMarbleOpacity" || key == "handMarbleScale" ||
                 key == "corpseWindowGameSeconds" || key == "oldCopiesGraceDays" || key == "lanternOffset" ||
-                key == "smokeOffset") {
+                key == "smokeOffset" || key == "lanternIedPreset" || key == "lanternIedTransform") {
                 return true;
             }
             for (const auto& n : kLanternNumbers) {
@@ -373,6 +375,34 @@ namespace BlackFlame
             ReadOffset(j, "smokeOffset", out.smokeOffset);
         }
 
+        // lanternIedPreset and lanternIedTransform reduced to the rules' input (a value that is not a number as NaN, so the
+        // rules name it); the choice and its warnings are LanternIedRules::Choose's
+        void ReadLanternIed(const nlohmann::json& j, Config& out)
+        {
+            LanternIedRules::Input input;
+            if (const auto it = j.find("lanternIedPreset"); it != j.end()) {
+                input.presetGiven = true;
+                input.presetIsString = it->is_string();
+                input.preset = input.presetIsString ? it->get<std::string>() : it->dump();
+            }
+            if (const auto it = j.find("lanternIedTransform"); it != j.end()) {
+                input.transformGiven = true;
+                input.transformIsArray = it->is_array();
+                if (input.transformIsArray) {
+                    for (const auto& v : *it) {
+                        input.transform.push_back(v.is_number() ? v.get<double>() : std::nan(""));
+                    }
+                }
+            }
+            auto choice = LanternIedRules::Choose(input);
+            for (const auto& warning : choice.warnings) {
+                logger::warn("BlackFlame: config {}", warning);
+            }
+            out.lanternIedPreset = std::move(choice.preset);
+            out.lanternIedOverride = choice.overridden;
+            out.lanternIedTransform = choice.transform;
+        }
+
         void ReadLightColor(const nlohmann::json& j, Config& out)
         {
             const auto it = j.find("lightColor");
@@ -427,6 +457,10 @@ namespace BlackFlame
                 g_config.lanternPlace, g_config.lanternDamage, g_config.lanternLog, g_config.lanternBurnPct,
                 g_config.lanternBurnFlat, g_config.lanternReapply,
                 nlohmann::json(g_config.lanternOffset).dump(), nlohmann::json(g_config.smokeOffset).dump());
+            const auto& t = g_config.lanternIedTransform;
+            logger::info("BlackFlame: config lanternIed={} lanternIedPreset={} lanternIedTransform=pos {} rot {} scale {} ({})",
+                g_config.lanternIed, g_config.lanternIedPreset, nlohmann::json(t.position).dump(), nlohmann::json(t.rotationDeg).dump(),
+                t.scale, g_config.lanternIedOverride ? "lanternIedTransform" : "the preset");
         }
     }
 
@@ -462,6 +496,7 @@ namespace BlackFlame
         ReadSingleLaunch(j, next);
         ReadCorpseWindow(j, next);
         ReadLantern(j, next);
+        ReadLanternIed(j, next);
         if (next.testerMode) {
             // the tester package: the self-test and the copy request on; every info line reaches disk at once (a crash keeps it)
             next.selfTest = true;
@@ -484,8 +519,9 @@ namespace BlackFlame
         g_config.refreshCastingArt = false;  // Detach + SetCastingArt only from the main-thread queue (HandArtRefresh.h)
         g_config.lanternPlace = false;       // reference creation, Havok motion type, Disable: main thread only (LanternPlace.h)
         g_config.lanternDamage = false;      // CastSpellImmediate from a task (LanternDamage.h)
+        g_config.lanternIed = false;         // IED's natives from a task; without them the ARMA swap would hide the lantern (LanternIed.h)
         logger::warn("BlackFlame: config overridden for this session ({}): hitArt, handArt, boundWeapon, light, refreshCastingArt, "
-                     "lanternPlace and lanternDamage false; the copies and the per-call swaps stay on", a_why);
+                     "lanternPlace, lanternDamage and lanternIed false; the copies and the per-call swaps stay on", a_why);
     }
 
     const char* ProbeModeName(ProbeMode a_mode) noexcept

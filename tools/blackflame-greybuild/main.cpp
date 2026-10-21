@@ -28,7 +28,7 @@
 // --staging is the single launch's key mode (GreyKeyed.h): request v5's objects at the DLL's keys in a staging folder,
 // with progress.jsonl; tint, tintAdd and the palette mode come from the request only. --write-slot-pool writes the slot
 // pool ESL, --collisions lists a request's ADDN indices in the pool's range (GreySlotPool.h).
-// --write-lantern writes the lantern's three NIFs and its soot texture into the data folder from vanilla files in the --in
+// --write-lantern writes the lantern's four NIFs and its soot texture into the data folder from vanilla files in the --in
 // folders and prints their read-back (GreyLantern.h); --inspect-lantern prints that read-back for any NIF.
 // --self-test also runs the golden-output test (GreySelfTestGolden.cpp) on the committed fixtures in --golden-dir (the
 // repository's tools\blackflame-greybuild\golden; given, it must exist; not given, that part is skipped: no developer's

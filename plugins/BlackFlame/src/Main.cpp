@@ -38,6 +38,7 @@
 #include "HitPathAttribution.h"
 #include "HitPathObserve.h"
 #include "LanternDamage.h"
+#include "LanternIed.h"
 #include "LanternPlace.h"
 #include "CorpseMark.h"
 #include "MagicApplySink.h"
@@ -117,6 +118,8 @@ namespace
         // The lantern (README "Lantern"): after BuildFireSets (the hazard spells read IsFireHazard), before the hit sink
         guarded("LanternDamage::Init", [] { BlackFlame::LanternDamage::Init(); });
         guarded("InitLanternPlace", [] { BlackFlame::InitLanternPlace(); });
+        // before any save loads: the ARMA's models swapped while no lantern 3D exists (LanternIed.h)
+        guarded("LanternIed::Init", [] { BlackFlame::LanternIed::Init(); });
         guarded("event sinks", [] {
             BlackFlame::EffectEventSink::GetSingleton()->Register();
             BlackFlame::HitEventSink::GetSingleton()->Register();
@@ -204,7 +207,10 @@ namespace
         case SKSE::MessagingInterface::kDataLoaded:
             OnDataLoaded();
             break;
-        case SKSE::MessagingInterface::kPostLoadGame:
+        case SKSE::MessagingInterface::kPostLoadGame: {
+            // SKSE passes the load's success flag as the data pointer's value, dataLen 1 (SKSE PluginAPI.h:
+            // "data contains a bool"); anything else is read as success
+            const bool loaded = a_msg.dataLen != 1 || reinterpret_cast<std::uintptr_t>(a_msg.data) != 0;
             BlackFlame::Watchdog::NoteLoadEnded();
             BlackFlame::RefreshCopies("save load");  // C5: copies that no longer match their source, re-filled
             BlackFlame::NotifyFreshnessOnce();
@@ -213,16 +219,16 @@ namespace
             BlackFlame::Tester::Write("save load");  // G5: the wrappers have bound by now
             BlackFlame::RequestRecomputeBuff("game loaded");
             BlackFlame::OnLanternGameLoaded();  // the player's cell, once the lab's 3D is there
+            BlackFlame::LanternIed::OnGameReady("the game load", loaded);  // the player's IED entry (LanternIed.h)
             (void)BlackFlame::PlayerHandleNative();  // log only: the corpse lines' killer test reads it, cached here on this thread
             BlackFlame::HitPath::LogHitShaderProbe("kPostLoadGame");
             BlackFlame::HitPath::Detail::ResetIdleResolves();  // log only: resolves spent while the save was read come back
             BlackFlame::HitPath::Detail::NotePostLoad();       // log only: the corpse attach lines say "after a load" (CorpseMark.h)
-            // SKSE passes the load's success flag as the data pointer's value, dataLen 1 (SKSE PluginAPI.h:
-            // "data contains a bool"); anything else is read as success
-            BlackFlame::SelfTest::OnGameLoaded(a_msg.dataLen != 1 || reinterpret_cast<std::uintptr_t>(a_msg.data) != 0);
+            BlackFlame::SelfTest::OnGameLoaded(loaded);
             BlackFlame::DevAutomation::OnPostLoadGame();
             FlushLog();
             break;
+        }
         case SKSE::MessagingInterface::kNewGame:
             BlackFlame::MenuWatch::Close("kNewGame");
             BlackFlame::Watchdog::NoteLoadEnded();
@@ -233,6 +239,7 @@ namespace
             BlackFlame::SelfTest::OnNewGame();
             BlackFlame::RetryNativeWrappers();
             BlackFlame::RequestRecomputeBuff("new game");
+            BlackFlame::LanternIed::OnGameReady("the new game", true);
             FlushLog();
             break;
         case SKSE::MessagingInterface::kSaveGame:

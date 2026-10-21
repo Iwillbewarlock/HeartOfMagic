@@ -73,6 +73,7 @@ set(BLACKFLAME_SOURCES
     src/HitEvents.cpp
     src/LanternDamage.cpp
     src/LanternPlace.cpp
+    src/LanternIed.cpp
     src/HazardSwap.cpp
     src/GreyCheck.cpp
     src/Recolor.cpp

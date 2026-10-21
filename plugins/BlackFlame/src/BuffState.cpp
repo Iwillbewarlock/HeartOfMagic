@@ -10,6 +10,7 @@
 #include "HazardHook.h"
 #include "HitArt.h"
 #include "HitEffectHook.h"
+#include "LanternIed.h"
 #include "LanternPlace.h"
 #include "MainThreadQueue.h"
 #include "PlayerArt.h"
@@ -112,6 +113,7 @@ namespace BlackFlame
             TickHazards();          // layer 3: hazards whose owner was not set yet
             TickScriptTags();       // what scripts of the player's fire effects placed
             TickLanternPlace();     // the lantern's placed objects waiting for their 3D, the check after a load
+            LanternIed::Tick();     // an IED call whose result did not come back in time (LanternIed.h)
             if (IsStoked()) {
                 TickHitEffectStats();  // layer 1 diagnostics: the window's stats line every 30 s
                 TickCasterArt();  // layer 4
@@ -126,7 +128,7 @@ namespace BlackFlame
             for (;;) {
                 std::this_thread::sleep_for(kTickInterval);
                 ++ticks;
-                if (!IsStoked() && !HasPendingHandArtRefresh() && !SelfTest::WantsFastTicks() && !HasPendingHitArt() && !CloneWatchActive() && !HasPendingHazards() && !HasScriptTags() && !HasPendingLanternPlace() && ticks % kIdleTicksPerCheck != 0) {
+                if (!IsStoked() && !HasPendingHandArtRefresh() && !SelfTest::WantsFastTicks() && !HasPendingHitArt() && !CloneWatchActive() && !HasPendingHazards() && !HasScriptTags() && !HasPendingLanternPlace() && !LanternIed::HasPending() && ticks % kIdleTicksPerCheck != 0) {
                     continue;
                 }
                 // A throw here would end the thread (and std::terminate the game): keep looping

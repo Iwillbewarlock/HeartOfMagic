@@ -2,6 +2,7 @@
 
 #include "Common.h"
 #include "LanternDamageRules.h"
+#include "LanternIedRules.h"
 
 #include <array>
 #include <string>
@@ -101,6 +102,13 @@ namespace BlackFlame
                                                                            // (0.02..LanternRules::kMaxReapplySeconds)
         std::array<float, 4> lanternOffset{ 0.0f, 0.0f, 59.5f, 0.0f };  // UpperTable01: top at z 59, 194 x 114; the centre
         std::array<float, 3> smokeOffset{ 0.0f, 0.0f, 71.5f };
+        // The worn lantern through Immersive Equipment Displays when it is installed (LanternIed.h; README "Lantern on IED"):
+        // the hip transform from lanternIedPreset, or lanternIedTransform when given and valid (LanternIedRules::Choose).
+        // Read once at start like every key: a change needs a game restart
+        bool lanternIed = true;
+        std::string lanternIedPreset = LanternIedRules::kPresets[LanternIedRules::kDefaultPreset].name;
+        bool lanternIedOverride = false;  // lanternIedTransform replaced the preset's transform
+        LanternIedRules::Transform lanternIedTransform = LanternIedRules::kPresets[LanternIedRules::kDefaultPreset].transform;
     };
 
     inline constexpr const char* kConfigPath = "Data/SKSE/Plugins/HeartOfMagic_BlackFlame.json";
@@ -112,8 +120,9 @@ namespace BlackFlame
     [[nodiscard]] const Config& GetConfig() noexcept;
 
     /// E6: SKSEPlugin_Load, when the main-thread queue could not be installed: the layers that change engine data from a
-    /// task (the kept runtime recolours hitArt, handArt, boundWeapon, the light writes, the hand art refresh and the lantern's
-    /// placement and extra damage) are switched off for the
+    /// task (the kept runtime recolours hitArt, handArt, boundWeapon, the light writes, the hand art refresh, the lantern's
+    /// placement and extra damage, and lanternIed: its calls go through the queue, and the ARMA swap at kDataLoaded without
+    /// them would leave the lantern invisible) are switched off for the
     /// session; the per-call swaps (copies, hit shader, impact and hazard models) keep working. Logs a_why.
     void DisableEngineWrites(const char* a_why);
 }
