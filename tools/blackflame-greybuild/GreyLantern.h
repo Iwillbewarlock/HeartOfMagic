@@ -9,8 +9,9 @@
 //                      AddOnNode9100 (grey ADDN 0x804 MPSFireSmall01) at the cage centre (the frame's vertex bounds)
 //   lantern_worn.nif   belt-mounted at the left hip, every shape 100% on NPC Pelvis [Pelv] (BSDismemberSkinInstance, one
 //                      partition, body part 60): a leather strap looped over the belt line (made here, vanilla leather
-//                      textures), an iron ring in its lower end (made here, the soot lamp texture), and the frame
-//                      without collision (handle turned upright) hanging from the ring, with one connected piece of each
+//                      textures), an iron hook bracket out of its lower end with an iron ring welded to its tip (made
+//                      here, the soot lamp texture), and the frame without collision (handle turned upright) hanging
+//                      vertically from the ring, with one connected piece of each
 //                      of the Flame Atronach's fire strips FireStrip08 and FireStripWarp (with their shader controllers)
 //                      upright in the cage; FireStrip08's palette shader takes GradBlackFlame.dds through GreyEffects
 //                      (FireStripWarp is a lighting-shader refraction strip on a normal map: no colour; its refraction
@@ -79,37 +80,49 @@ namespace GreyBuild
     // Z the middle of the whole bounds' height
     inline constexpr float kLanternCageBand = 0.5f;
 
-    // ---- The worn model (round 2, 2026-10-21: belt-mounted). Character space in the skeleton's reference pose: +Y
-    // forward, -X the wearer's left, Z up. A leather strap loops over the belt line at the left hip, an iron ring hangs
-    // in its lower end, and the lantern hangs from the ring by its handle. Every part is placed on the vanilla male and
-    // female bodies (kLanternBodySources, required) and checked against both.
+    // ---- The worn model (round 3, 2026-10-21: belt-mounted on an iron hook). Character space in the skeleton's reference
+    // pose: +Y forward, -X the wearer's left, Z up. A leather strap loops over the belt line at the left hip, a forged iron
+    // bracket comes out of its lower end and reaches out sideways (-X), its down-turned tip welded to an iron ring, and the
+    // lantern hangs vertically (its cage axis world Z) from the ring by its upright handle. Every part is placed on the
+    // vanilla male and female bodies (kLanternBodySources, required) and checked against both.
     inline constexpr std::array<const char*, 2> kLanternBodySources{ "meshes\\actors\\character\\character assets\\malebody_1.nif",
         "meshes\\actors\\character\\character assets\\femalebody_1.nif" };
 
     // The frame: scaled so its height before the handle turn is this (0.8 x round 1's 25)
     inline constexpr float kLanternWornHeight = 20.0f;
     // The handle: the one frame piece (LanternPieces) that reaches past the cage walls in +Y (candlelantern01's flat
-    // loop, z 27.2-28.3), turned about +X by this around its hinge (the piece's -Y edge at its middle height) so it stands up
+    // loop, z 27.2-28.3), turned about +X by this around its hinge (the piece's -Y edge at its middle height) so it stands
+    // up. Its hinge is first moved in Y onto the cage axis (candlelantern01's sits 2.5 units off it): a lantern hanging
+    // vertically under gravity has its centre of mass, the cage axis, straight below the handle's top
     inline constexpr float kLanternHandleTurnDeg = 90.0f;
     // Then the whole lantern turned about Z (around the cage's vertical axis) by this: the upright loop lies along the body
     // side (the YZ plane; across X it would reach 3.6 units into the hip) and the cage sits outboard of its hinge
     inline constexpr float kLanternWornYawDeg = -90.0f;
 
-    // The strap: a centreline path in the XZ plane at Y = pelvis + kLanternStrapY, extruded kLanternStrapWidth along Y
-    // and kLanternStrapThickness across. The inner layer rises from kLanternStrapInnerBottom on the body
+    // The strap: a centreline path in the XZ plane at Y = pelvis + kLanternStrapY, swept with a kLanternStrapWidth (Y) x
+    // kLanternStrapThickness (across) cross-section whose four edges are rounded (radius kLanternStrapEdgeRadius,
+    // kLanternStrapEdgeSegments segments each). The inner layer rises from kLanternStrapInnerBottom on the body
     // (kLanternStrapBodyGap off it), folds over the top at kLanternStrapTop, and the outer layer hangs down
     // kLanternStrapBeltGap further out (the belt's room) to kLanternStrapBottom, draping (never moving back in towards
-    // the body as it goes down). Z values are absolute in the reference pose (malebody_1's belt top at the hip ~z 81.25).
+    // the body as it goes down). Z values are absolute in the reference pose.
     inline constexpr float kLanternStrapY = 3.0f;              // a little forward of the pelvis; the arm hangs at y <= -2 from z 76
-    inline constexpr float kLanternStrapTop = 86.0f;
+    inline constexpr float kLanternStrapTop = 82.75f;          // malebody_1's belt band top at the hip ~z 81.25, + 1.5
     inline constexpr float kLanternStrapInnerBottom = 79.0f;
-    inline constexpr float kLanternStrapBottom = 73.0f;        // round 1's frame top (72.9)
+    inline constexpr float kLanternStrapBottom = 76.0f;        // the bracket comes out of the strap's lower end here
     inline constexpr float kLanternStrapWidth = 3.0f;
-    inline constexpr float kLanternStrapThickness = 0.4f;
+    inline constexpr float kLanternStrapThickness = 0.6f;
+    inline constexpr float kLanternStrapEdgeRadius = 0.25f;    // below half the thickness: the broad faces stay flat
+    inline constexpr int kLanternStrapEdgeSegments = 3;
     inline constexpr float kLanternStrapBodyGap = 0.5f;
     inline constexpr float kLanternStrapBeltGap = 1.0f;
     inline constexpr float kLanternStrapStep = 0.5f;           // path samples along Z
     inline constexpr int kLanternStrapFoldSegments = 8;        // the half circle over the top
+    // The strap's lighting shader as the vanilla mesh of the same texture has it: meshes\clutter\common\leatherstrips01.nif
+    // (Skyrim - Meshes0.bsa, read 2026-10-21 with houseCARL). Vanilla leather dims its highlight by the specular colour,
+    // not the strength (the lamp frame whose shader the strap copies: glossiness 90, strength 1, white)
+    inline constexpr float kLanternStrapGlossiness = 80.0f;
+    inline constexpr float kLanternStrapSpecularStrength = 1.0f;
+    inline constexpr std::array<float, 3> kLanternStrapSpecularColor{ 0.4078432f, 0.3843138f, 0.3647059f };
     // The body's left side is read within this X of the pelvis origin (the hanging forearm at x -21..-29 is outside it)
     inline constexpr float kLanternHipWindow = 20.0f;
     // Vanilla leather (Skyrim - Textures3.bsa): leatherstrips01 is rows of strap leather; the strap's width takes the
@@ -121,22 +134,49 @@ namespace GreyBuild
     inline constexpr float kLanternStrapUvSpan = 45.0f;        // strap length per U repeat (the row is 256 x 17 px: 15:1)
     inline constexpr const char* kLanternStrapName = "HoMBF_LanternStrap";
 
-    // The ring: a torus in the XZ plane (its hole along Y, the handle's loop through it), its top tube in the strap's
-    // lower end (the tube centre kLanternRingTube above kLanternStrapBottom), on the soot lamp texture at the handle's UVs
+    // The bracket: a flat forged iron bar (kLanternBracketWidth along Y, kLanternBracketThickness across) swept along a
+    // path in the XZ plane at the strap's Y. Its inboard end is a plate held in the strap's lower end (on the outer
+    // layer's centreline, kLanternBracketGrip up into it); it runs down to kLanternBracketBelow under the strap's end, bends
+    // out (radius kLanternBracketBend) and runs out in -X, bends down again and its tip runs down kLanternBracketDrop to the
+    // ring's top tube centre, where the ring is welded on. Welded, not hung: the ring's hole is along Y (the handle's loop,
+    // which lies along the body side, runs through it), so no bar running out in X can pass through it to hang it on.
+    // The ring centre sits kLanternBracketLength out from the strap's outer layer at its lower end (round 2's ring
+    // position); where the lantern would come nearer than kLanternBodyMargin to a body the length grows by
+    // kLanternBracketLengthStep up to kLanternBracketLengthMax, past which the build fails
+    inline constexpr float kLanternBracketWidth = 1.2f;
+    inline constexpr float kLanternBracketThickness = 0.5f;
+    inline constexpr float kLanternBracketGrip = 1.0f;
+    inline constexpr float kLanternBracketBelow = 1.2f;        // the bar's centreline below kLanternStrapBottom
+    inline constexpr float kLanternBracketBend = 0.5f;         // centreline radius of both bends
+    inline constexpr int kLanternBracketBendSegments = 4;
+    inline constexpr float kLanternBracketDrop = 1.5f;         // the bar's centreline to the ring's top tube centre
+    inline constexpr float kLanternBracketLength = 6.0f;
+    inline constexpr float kLanternBracketLengthStep = 0.5f;
+    inline constexpr float kLanternBracketLengthMax = 9.0f;
+    inline constexpr const char* kLanternBracketName = "HoMBF_LanternBracket";
+
+    // The ring: a torus in the XZ plane (its hole along Y, the handle's loop through it), welded to the bracket's tip
     inline constexpr float kLanternRingRadius = 1.4f;
     inline constexpr float kLanternRingTube = 0.3f;
     inline constexpr int kLanternRingSegments = 24;
     inline constexpr int kLanternRingSides = 8;
     inline constexpr const char* kLanternRingName = "HoMBF_LanternRing";
 
-    // The lantern hangs with its handle's top wire resting on the ring's bottom tube. When it would come nearer than
-    // kLanternBodyMargin to a body, it is tilted about Y around that contact (bottom outwards, as a hanging lantern rests
-    // against a thigh) in kLanternTiltStepDeg steps up to kLanternTiltMaxDeg; more than that fails the build. The flame does
-    // not tilt: it moves with the cage centre and stays upright.
+    // The ring's and the bracket's UVs on LampGeneric01.dds (the soot copy): the plainest iron of the atlas, no rod or rim
+    // crossing it in the diffuse or the normal map (luminance std 10.5 of 0..255, normal map std <= 8; the handle's box
+    // round 2 reused, 0.05-0.85 x 0.66-0.98, crosses four embossed rods)
+    inline constexpr std::array<float, 2> kLanternIronUvMin{ 0.80f, 0.60f };
+    inline constexpr std::array<float, 2> kLanternIronUvMax{ 0.98f, 0.80f };
+
+    // The lantern hangs vertically, its handle's top wire resting on the ring's bottom tube, no tilt
     inline constexpr float kLanternBodyMargin = 1.0f;          // the lantern: frame and flame
-    inline constexpr float kLanternStrapMargin = 0.3f;         // the strap (its inner layer is the nearest) and the ring
-    inline constexpr float kLanternTiltStepDeg = 1.0f;
-    inline constexpr float kLanternTiltMaxDeg = 45.0f;
+    inline constexpr float kLanternStrapMargin = 0.3f;         // the strap (its inner layer is the nearest), the bracket, the ring
+    // The read-back's vertical check: the worn frame's cage axis (LanternAxisTiltDeg) within this of world Z
+    inline constexpr float kLanternVerticalToleranceDeg = 0.5f;
+    // LanternAxisTiltDeg's reference vertices: the frame's lowest kLanternAxisLowShare of its height, and the vertices
+    // above that up to kLanternAxisTopShare (below candlelantern01's handle, which starts at 86% of the height)
+    inline constexpr float kLanternAxisLowShare = 0.3f;
+    inline constexpr float kLanternAxisTopShare = 0.8f;
 
     // The flame: one connected piece of each strip (the one with the most triangles, then the tallest), the FireStripWarp
     // piece the one whose rest-pose bounds overlap the chosen FireStrip08 piece most; both under one transform scaled to
@@ -172,6 +212,15 @@ namespace GreyBuild
         std::string type;    // block type
         std::string shader;  // shader block type, "" when none
         std::uint32_t flags1 = 0;
+        std::uint32_t flags2 = 0;
+        bool vertexColors = false;          // the shape's vertex data has colours
+        // a lighting shader's specular (glossiness -1: not a lighting shader)
+        float glossiness = -1.0f;
+        float specularStrength = 0.0f;
+        std::array<float, 3> specularColor{};
+        // the UV bounds over every vertex (u, v), empty (min > max) when the shape has none
+        std::array<float, 2> uvMin{ 1.0f, 1.0f };
+        std::array<float, 2> uvMax{ 0.0f, 0.0f };
         std::vector<std::string> textures;  // the texture set's slots, or an effect shader's source and greyscale
         bool skinned = false;               // a skin instance and the vertex skinned flag
         std::string skinType;               // skin instance block type
@@ -269,6 +318,18 @@ namespace GreyBuild
     /// The smallest X of a_surface within a_window (X, Y and Z ranges); FLT_MAX when none
     [[nodiscard]] float SurfaceLeft(const LanternSurface& a_surface, const LanternBox& a_window);
 
+    /// How far the lantern's cage axis in a_worn leans off world Z (degrees). a_ground and a_worn are the frame's vertices
+    /// in the same order, a_ground as the source has them (its axis +Z), a_worn after any rotation, uniform scale and
+    /// translation of them (the handle's vertices, above kLanternAxisTopShare, may move otherwise). The rotation is found
+    /// exactly from two reference vectors over the means of index-matched vertex groups (low against high, -X half against
+    /// +X half, all at or below kLanternAxisTopShare of the height): a mean maps exactly through such a transform.
+    /// Throws std::runtime_error on different sizes or reference vectors too short or parallel.
+    [[nodiscard]] float LanternAxisTiltDeg(const std::vector<nifly::Vector3>& a_ground, const std::vector<nifly::Vector3>& a_worn);
+
+    /// LanternAxisTiltDeg of the written files in a_dataDir: lantern_gnd.nif's frame (root space) against
+    /// lantern_worn.nif's (skin space = character space). Throws std::runtime_error when either does not read.
+    [[nodiscard]] float WornAxisTiltDeg(const std::filesystem::path& a_dataDir);
+
     /// Reads a NIF the way the read-back prints it. Throws std::runtime_error when nifly cannot load it.
     [[nodiscard]] LanternNifInfo InspectLanternNif(const std::filesystem::path& a_file);
 
@@ -310,14 +371,17 @@ namespace GreyBuild
         std::array<float, 3> ringCentre{};
         std::array<float, 3> contact{};     // the handle's top wire centre (on the ring's bottom tube)
         float handleWire = 0.0f;            // the handle wire's radius (scaled)
-        float tiltDeg = 0.0f;
+        float bracketLength = 0.0f;         // the length the clearance loop settled on
+        LanternBox bracket;                 // the bracket's vertex bounds (character space)
+        float strapOuterBottomX = 0.0f;     // the strap's outer layer centreline X at kLanternStrapBottom
+        float axisTiltDeg = -1.0f;          // the worn frame's cage axis off world Z, read back (LanternAxisTiltDeg)
         std::vector<std::string> summary;   // the lines RunWriteLantern prints after the read-back
     };
 
     /// One worn part against one body
     struct LanternClearance
     {
-        std::string part;   // "lantern" (frame + flame), "strap", "ring"
+        std::string part;   // "lantern" (frame + flame), "strap", "bracket", "ring"
         std::string body;
         float margin = 0.0f;
         LanternGap gap;

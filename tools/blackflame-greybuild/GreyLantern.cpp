@@ -10,6 +10,7 @@
 #endif
 
 #include "GreyLantern.h"
+#include "GreyShapes.h"
 #include "GreyTexture.h"
 
 #include <Animation.hpp>
@@ -550,6 +551,80 @@ namespace GreyBuild
         return left;
     }
 
+    float LanternAxisTiltDeg(const std::vector<Vector3>& a_ground, const std::vector<Vector3>& a_worn)
+    {
+        if (a_ground.empty() || a_ground.size() != a_worn.size()) {
+            throw std::runtime_error(fmt::format("the axis check needs the same vertices twice ({} ground, {} worn)", a_ground.size(),
+                a_worn.size()));
+        }
+        LanternBox box = EmptyBox();
+        for (const auto& v : a_ground) {
+            Grow(box, v);
+        }
+        const float lowZ = box.min[2] + box.Size(2) * kLanternAxisLowShare;
+        const float topZ = box.min[2] + box.Size(2) * kLanternAxisTopShare;
+        double centreX = 0.0;
+        int reference = 0;
+        for (const auto& v : a_ground) {
+            if (v.z <= topZ) {
+                centreX += v.x;
+                ++reference;
+            }
+        }
+        centreX /= std::max(reference, 1);
+        // the four groups: low, high, -X half, +X half (all at or below topZ)
+        using D3 = std::array<double, 3>;
+        std::array<D3, 4> ground{};
+        std::array<D3, 4> worn{};
+        std::array<int, 4> counts{};
+        for (std::size_t i = 0; i < a_ground.size(); ++i) {
+            const Vector3& g = a_ground[i];
+            if (g.z > topZ) {
+                continue;
+            }
+            for (const int group : { g.z <= lowZ ? 0 : 1, g.x < centreX ? 2 : 3 }) {
+                ground[group] = { ground[group][0] + g.x, ground[group][1] + g.y, ground[group][2] + g.z };
+                worn[group] = { worn[group][0] + a_worn[i].x, worn[group][1] + a_worn[i].y, worn[group][2] + a_worn[i].z };
+                ++counts[group];
+            }
+        }
+        if (std::find(counts.begin(), counts.end(), 0) != counts.end()) {
+            throw std::runtime_error("the axis check found an empty reference group (low, high, -X or +X)");
+        }
+        const auto sub = [](const D3& a, const D3& b) { return D3{ a[0] - b[0], a[1] - b[1], a[2] - b[2] }; };
+        const auto dot = [](const D3& a, const D3& b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; };
+        const auto scaled = [](const D3& a, double k) { return D3{ a[0] * k, a[1] * k, a[2] * k }; };
+        const auto cross = [](const D3& a, const D3& b) {
+            return D3{ a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0] };
+        };
+        const auto mean = [&](const std::array<D3, 4>& a_sums, int a_group) { return scaled(a_sums[a_group], 1.0 / counts[a_group]); };
+        // an orthonormal frame from two vectors (Gram-Schmidt): a rotation and a uniform scale carry it exactly
+        const auto frame = [&](const D3& a_up, const D3& a_side) {
+            constexpr double kShortest = 1e-6;
+            const double upLength = std::sqrt(dot(a_up, a_up));
+            if (upLength < kShortest) {
+                throw std::runtime_error("the axis check's low-to-high vector is too short");
+            }
+            const D3 e1 = scaled(a_up, 1.0 / upLength);
+            const D3 side = sub(a_side, scaled(e1, dot(e1, a_side)));
+            const double sideLength = std::sqrt(dot(side, side));
+            if (sideLength < kShortest * std::max(1.0, upLength)) {
+                throw std::runtime_error("the axis check's reference vectors are parallel");
+            }
+            const D3 e2 = scaled(side, 1.0 / sideLength);
+            return std::array<D3, 3>{ e1, e2, cross(e1, e2) };
+        };
+        const auto g = frame(sub(mean(ground, 1), mean(ground, 0)), sub(mean(ground, 3), mean(ground, 2)));
+        const auto w = frame(sub(mean(worn, 1), mean(worn, 0)), sub(mean(worn, 3), mean(worn, 2)));
+        // R = W G^T; R applied to +Z: the worn image of the ground's vertical
+        D3 up{};
+        for (int k = 0; k < 3; ++k) {
+            up = { up[0] + w[k][0] * g[k][2], up[1] + w[k][1] * g[k][2], up[2] + w[k][2] * g[k][2] };
+        }
+        constexpr double kRadToDeg = 180.0 / 3.14159265358979323846;
+        return static_cast<float>(std::atan2(std::hypot(up[0], up[1]), up[2]) * kRadToDeg);
+    }
+
     // =========================================================================
     // Read-back
     // =========================================================================
@@ -612,9 +687,13 @@ namespace GreyBuild
                 s.shader = shader->GetBlockName();
                 if (auto* bs = dynamic_cast<nifly::BSShaderProperty*>(shader)) {
                     s.flags1 = bs->shaderFlags1;
+                    s.flags2 = bs->shaderFlags2;
                 }
                 if (auto* lit = dynamic_cast<nifly::BSLightingShaderProperty*>(shader)) {
                     s.refraction = lit->refractionStrength;
+                    s.glossiness = lit->glossiness;
+                    s.specularStrength = lit->specularStrength;
+                    s.specularColor = ToArray(lit->specularColor);
                 }
                 if (auto* effect = dynamic_cast<nifly::BSEffectShaderProperty*>(shader)) {
                     s.textures.push_back("source " + effect->sourceTexture.get());
@@ -701,6 +780,15 @@ namespace GreyBuild
                     }
                 }
             }
+            s.vertexColors = shape->HasVertexColors();
+            if (auto* tri = dynamic_cast<nifly::BSTriShape*>(shape); tri && tri->HasUVs() && !tri->vertData.empty()) {
+                s.uvMin = { kFloatMax, kFloatMax };
+                s.uvMax = { -kFloatMax, -kFloatMax };
+                for (const auto& uv : tri->UpdateRawUvs()) {
+                    s.uvMin = { std::min(s.uvMin[0], uv.u), std::min(s.uvMin[1], uv.v) };
+                    s.uvMax = { std::max(s.uvMax[0], uv.u), std::max(s.uvMax[1], uv.v) };
+                }
+            }
             s.bounds = EmptyBox();
             std::vector<Vector3> verts;
             if (nif.GetVertsForShape(shape, verts)) {
@@ -741,13 +829,20 @@ namespace GreyBuild
                 Text(value.translation), value.parent);
         }
         for (const auto& s : a_info.shapes) {
-            std::cout << fmt::format("  shape '{}' {} vertices {} shader {} SLSF1 0x{:08X}\n", s.name, s.type, s.vertices,
-                s.shader.empty() ? "<none>" : s.shader, s.flags1);
+            std::cout << fmt::format("  shape '{}' {} vertices {} shader {} SLSF1 0x{:08X} SLSF2 0x{:08X}, vertex colours {}\n", s.name,
+                s.type, s.vertices, s.shader.empty() ? "<none>" : s.shader, s.flags1, s.flags2, s.vertexColors ? "yes" : "no");
             for (const auto& texture : s.textures) {
                 std::cout << "    texture " << texture << "\n";
             }
             if (s.refraction >= 0.0f) {
                 std::cout << fmt::format("    refraction strength {:.4f}\n", s.refraction);
+            }
+            if (s.glossiness >= 0.0f) {
+                std::cout << fmt::format("    specular strength {:.4f}, glossiness {:.4f}, specular colour {}\n", s.specularStrength,
+                    s.glossiness, Text(s.specularColor));
+            }
+            if (s.uvMin[0] <= s.uvMax[0]) {
+                std::cout << fmt::format("    UVs u {:.4f}..{:.4f} v {:.4f}..{:.4f}\n", s.uvMin[0], s.uvMax[0], s.uvMin[1], s.uvMax[1]);
             }
             for (const auto& controller : s.controllers) {
                 std::cout << "    controller " << controller << "\n";
@@ -991,6 +1086,121 @@ namespace GreyBuild
             return left;
         }
 
+        /// One point of a cross-section: s along the path's side normal, a along +Y, and its outward normal there
+        struct SectionPoint
+        {
+            float s = 0.0f;
+            float a = 0.0f;
+            float ns = 0.0f;
+            float na = 0.0f;
+        };
+
+        /// A cross-section: runs of points joined in order (closed: the last back to the first; a hard edge is where one
+        /// run ends and the next begins) and the outline the end caps fan over
+        struct Section
+        {
+            std::vector<std::vector<SectionPoint>> runs;
+            bool closed = false;
+            std::vector<SectionPoint> outline;
+        };
+
+        /// a_halfS x a_halfA with its four edges rounded at a_radius, a_segments segments each, one smooth closed run
+        [[nodiscard]] Section RoundedSection(float a_halfS, float a_halfA, float a_radius, int a_segments)
+        {
+            if (!(a_radius > 0.0f && a_radius < a_halfS && a_radius < a_halfA) || a_segments < 1) {
+                throw std::runtime_error(fmt::format("an edge radius {} with {} segments does not fit a {} x {} section", a_radius,
+                    a_segments, a_halfS * 2.0f, a_halfA * 2.0f));
+            }
+            Section section;
+            section.closed = true;
+            section.runs.emplace_back();
+            constexpr std::array<std::array<float, 2>, 4> kCorners{ { { 1.0f, 1.0f }, { -1.0f, 1.0f }, { -1.0f, -1.0f }, { 1.0f, -1.0f } } };
+            for (std::size_t c = 0; c < kCorners.size(); ++c) {
+                const float cs = kCorners[c][0] * (a_halfS - a_radius);
+                const float ca = kCorners[c][1] * (a_halfA - a_radius);
+                for (int i = 0; i <= a_segments; ++i) {
+                    const float angle = 0.5f * kPi * (static_cast<float>(c) + static_cast<float>(i) / static_cast<float>(a_segments));
+                    const SectionPoint p{ cs + a_radius * std::cos(angle), ca + a_radius * std::sin(angle), std::cos(angle), std::sin(angle) };
+                    section.runs.front().push_back(p);
+                }
+            }
+            section.outline = section.runs.front();
+            return section;
+        }
+
+        /// a_halfS x a_halfA with hard edges: four flat runs of two points
+        [[nodiscard]] Section BoxSection(float a_halfS, float a_halfA)
+        {
+            Section section;
+            const SectionPoint c0{ a_halfS, -a_halfA }, c1{ a_halfS, a_halfA }, c2{ -a_halfS, a_halfA }, c3{ -a_halfS, -a_halfA };
+            const auto face = [&](SectionPoint a_a, SectionPoint a_b, float a_ns, float a_na) {
+                a_a.ns = a_b.ns = a_ns;
+                a_a.na = a_b.na = a_na;
+                section.runs.push_back({ a_a, a_b });
+            };
+            face(c0, c1, 1.0f, 0.0f);
+            face(c1, c2, 0.0f, 1.0f);
+            face(c2, c3, -1.0f, 0.0f);
+            face(c3, c0, 0.0f, -1.0f);
+            section.outline = { c0, c1, c2, c3 };
+            return section;
+        }
+
+        /// a_section swept along a_path (in an XZ plane: the section's s axis is the path's side normal there, its tangent
+        /// turned a quarter about Y; its a axis +Y), both ends capped. U from a_u(arc length), V from a_v(a). The path's
+        /// length.
+        float Sweep(LanternMesh& a_mesh, const std::vector<Vector3>& a_path, const Section& a_section,
+            const std::function<float(float)>& a_u, const std::function<float(float)>& a_v)
+        {
+            const std::size_t count = a_path.size();
+            if (count < 2) {
+                throw std::runtime_error("a swept path needs two points");
+            }
+            std::vector<Vector3> tangent(count);
+            std::vector<Vector3> side(count);
+            std::vector<float> arc(count, 0.0f);
+            for (std::size_t k = 0; k < count; ++k) {
+                tangent[k] = a_path[std::min(k + 1, count - 1)] - a_path[k == 0 ? 0 : k - 1];
+                tangent[k].Normalize();
+                side[k] = Vector3(tangent[k].z, 0.0f, -tangent[k].x);
+                if (k > 0) {
+                    arc[k] = arc[k - 1] + a_path[k].DistanceTo(a_path[k - 1]);
+                }
+            }
+            const Vector3 across(0.0f, 1.0f, 0.0f);
+            const auto at = [&](std::size_t a_k, const SectionPoint& a_p) { return a_path[a_k] + side[a_k] * a_p.s + across * a_p.a; };
+            for (const auto& run : a_section.runs) {
+                std::vector<std::vector<std::uint16_t>> rows;
+                for (std::size_t k = 0; k < count; ++k) {
+                    std::vector<std::uint16_t> row;
+                    for (const auto& p : run) {
+                        row.push_back(a_mesh.Add(at(k, p), side[k] * p.ns + across * p.na, a_u(arc[k]), a_v(p.a)));
+                    }
+                    rows.push_back(std::move(row));
+                }
+                const std::size_t points = run.size();
+                const std::size_t joins = a_section.closed ? points : points - 1;
+                for (std::size_t k = 0; k + 1 < count; ++k) {
+                    for (std::size_t j = 0; j < joins; ++j) {
+                        const std::size_t next = (j + 1) % points;
+                        a_mesh.Quad(rows[k][j], rows[k + 1][j], rows[k + 1][next], rows[k][next]);
+                    }
+                }
+            }
+            for (const std::size_t k : { std::size_t{ 0 }, count - 1 }) {
+                const Vector3 normal = k == 0 ? tangent[k] * -1.0f : tangent[k];
+                const std::uint16_t centre = a_mesh.Add(a_path[k], normal, a_u(arc[k]), a_v(0.0f));
+                std::vector<std::uint16_t> rim;
+                for (const auto& p : a_section.outline) {
+                    rim.push_back(a_mesh.Add(at(k, p), normal, a_u(arc[k]), a_v(p.a)));
+                }
+                for (std::size_t j = 0; j < rim.size(); ++j) {
+                    a_mesh.Face(centre, rim[j], rim[(j + 1) % rim.size()]);
+                }
+            }
+            return arc.back();
+        }
+
         struct LanternStrap
         {
             LanternMesh mesh;
@@ -1056,72 +1266,65 @@ namespace GreyBuild
                 strap.y, kLanternStrapY, kLanternStrapInnerBottom, foldZ, kLanternStrapBodyGap, r, kLanternStrapTop, kLanternStrapBeltGap,
                 kLanternStrapBottom, innerTopX, outerTopX, strap.outerBottomX));
 
-            // tangents, the side normal in the XZ plane (pointing out of the fold's U), arc length
-            const std::size_t count = path.size();
-            std::vector<Vector3> side(count);
-            std::vector<float> arc(count, 0.0f);
-            for (std::size_t k = 0; k < count; ++k) {
-                Vector3 tangent = path[std::min(k + 1, count - 1)] - path[k == 0 ? 0 : k - 1];
-                tangent.Normalize();
-                side[k] = Vector3(tangent.z, 0.0f, -tangent.x);
-                if (k > 0) {
-                    arc[k] = arc[k - 1] + path[k].DistanceTo(path[k - 1]);
-                }
-            }
-            strap.length = arc.back();
-            const Vector3 across(0.0f, 1.0f, 0.0f);
-            const float halfW = kLanternStrapWidth * 0.5f;
+            // the rounded section swept along it: V across the strap's width in the leather row (the edges' points land at
+            // the row's borders), U along its length
             const float bandV = kLanternStrapBandV1 - kLanternStrapBandV0;
-            auto& mesh = strap.mesh;
-            // the two broad faces (out of the U and into it) and the two edges
-            struct Face
-            {
-                float sideSign;    // which broad face (+1 out of the U, -1 into it), 0 for an edge
-                float acrossSign;  // which edge, 0 for a broad face
-            };
-            for (const Face face : { Face{ 1.0f, 0.0f }, Face{ -1.0f, 0.0f }, Face{ 0.0f, 1.0f }, Face{ 0.0f, -1.0f } }) {
-                std::vector<std::array<std::uint16_t, 2>> rows;
-                for (std::size_t k = 0; k < count; ++k) {
-                    const float u = arc[k] / kLanternStrapUvSpan;
-                    std::array<std::uint16_t, 2> row{};
-                    for (int e = 0; e < 2; ++e) {
-                        const float sign = e == 0 ? -1.0f : 1.0f;
-                        Vector3 at;
-                        Vector3 normal;
-                        float v = 0.0f;
-                        if (face.sideSign != 0.0f) {
-                            at = path[k] + side[k] * (face.sideSign * t * 0.5f) + across * (sign * halfW);
-                            normal = side[k] * face.sideSign;
-                            v = kLanternStrapBandV0 + bandV * (sign * 0.5f + 0.5f);
-                        } else {
-                            at = path[k] + side[k] * (sign * t * 0.5f) + across * (face.acrossSign * halfW);
-                            normal = across * face.acrossSign;
-                            v = kLanternStrapBandV0 + bandV * (t / kLanternStrapWidth) * (sign * 0.5f + 0.5f);
-                        }
-                        row[e] = mesh.Add(at, normal, u, v);
-                    }
-                    rows.push_back(row);
-                }
-                for (std::size_t k = 0; k + 1 < count; ++k) {
-                    mesh.Quad(rows[k][0], rows[k + 1][0], rows[k + 1][1], rows[k][1]);
-                }
-            }
-            // the two ends
-            for (const std::size_t k : { std::size_t{ 0 }, count - 1 }) {
-                Vector3 tangent = path[std::min(k + 1, count - 1)] - path[k == 0 ? 0 : k - 1];
-                tangent.Normalize();
-                const Vector3 normal = k == 0 ? tangent * -1.0f : tangent;
-                const float u = arc[k] / kLanternStrapUvSpan;
-                // round the cross-section: (-side, -across), (-side, +across), (+side, +across), (+side, -across)
-                std::array<std::uint16_t, 4> corner{};
-                constexpr std::array<std::array<float, 2>, 4> kCorners{ { { -1.0f, -1.0f }, { -1.0f, 1.0f }, { 1.0f, 1.0f }, { 1.0f, -1.0f } } };
-                for (std::size_t c = 0; c < kCorners.size(); ++c) {
-                    corner[c] = mesh.Add(path[k] + side[k] * (kCorners[c][0] * t * 0.5f) + across * (kCorners[c][1] * halfW), normal, u,
-                        kLanternStrapBandV0 + bandV * (kCorners[c][1] * 0.5f + 0.5f));
-                }
-                mesh.Quad(corner[0], corner[1], corner[2], corner[3]);
-            }
+            strap.length = Sweep(strap.mesh, path,
+                RoundedSection(t * 0.5f, kLanternStrapWidth * 0.5f, kLanternStrapEdgeRadius, kLanternStrapEdgeSegments),
+                [](float a_arc) { return a_arc / kLanternStrapUvSpan; },
+                [bandV](float a_a) { return kLanternStrapBandV0 + bandV * (a_a / kLanternStrapWidth + 0.5f); });
             return strap;
+        }
+
+        /// The bracket's centreline (GreyLantern.h, the bracket constants): down the plate at a_plateX from a_topZ, a bend
+        /// out to the bar at a_barZ, out to a_tipX, a bend down, the tip down to a_tipZ. Straight parts sampled every
+        /// kLanternStrapStep (the clearance check tests vertices).
+        [[nodiscard]] std::vector<Vector3> BracketPath(float a_y, float a_plateX, float a_topZ, float a_barZ, float a_tipX, float a_tipZ)
+        {
+            const float bend = kLanternBracketBend;
+            if (!(a_topZ > a_barZ + bend && a_plateX - a_tipX >= 2.0f * bend && a_barZ - bend > a_tipZ)) {
+                throw std::runtime_error(fmt::format("the bracket does not fit its bends (radius {}): plate z {:.3f} down to the bar at z "
+                                                     "{:.3f}, x {:.3f} out to {:.3f}, tip down to z {:.3f}",
+                    bend, a_topZ, a_barZ, a_plateX, a_tipX, a_tipZ));
+            }
+            std::vector<Vector3> path;
+            const auto line = [&](const Vector3& a_from, const Vector3& a_to) {  // a_to left for the next part
+                const int steps = std::max(1, static_cast<int>(std::ceil(a_from.DistanceTo(a_to) / kLanternStrapStep)));
+                for (int i = 0; i < steps; ++i) {
+                    path.push_back(a_from + (a_to - a_from) * (static_cast<float>(i) / static_cast<float>(steps)));
+                }
+            };
+            const auto bendArc = [&](float a_cx, float a_cz, float a_fromDeg, float a_toDeg) {  // the end left for the next part
+                for (int i = 0; i < kLanternBracketBendSegments; ++i) {
+                    const float deg = a_fromDeg + (a_toDeg - a_fromDeg) * static_cast<float>(i) / static_cast<float>(kLanternBracketBendSegments);
+                    path.emplace_back(a_cx + bend * std::cos(deg * kDegToRad), a_y, a_cz + bend * std::sin(deg * kDegToRad));
+                }
+            };
+            line(Vector3(a_plateX, a_y, a_topZ), Vector3(a_plateX, a_y, a_barZ + bend));
+            bendArc(a_plateX - bend, a_barZ + bend, 0.0f, -90.0f);
+            line(Vector3(a_plateX - bend, a_y, a_barZ), Vector3(a_tipX + bend, a_y, a_barZ));
+            bendArc(a_tipX + bend, a_barZ - bend, 90.0f, 180.0f);
+            line(Vector3(a_tipX, a_y, a_barZ - bend), Vector3(a_tipX, a_y, a_tipZ));
+            path.emplace_back(a_tipX, a_y, a_tipZ);
+            return path;
+        }
+
+        /// The bracket swept from its path, UVs in the iron box at one texel density along and across
+        [[nodiscard]] LanternMesh MakeBracket(const std::vector<Vector3>& a_path)
+        {
+            float length = 0.0f;
+            for (std::size_t k = 1; k < a_path.size(); ++k) {
+                length += a_path[k].DistanceTo(a_path[k - 1]);
+            }
+            const float perUnit = (kLanternIronUvMax[0] - kLanternIronUvMin[0]) / length;
+            if (kLanternBracketWidth * perUnit > kLanternIronUvMax[1] - kLanternIronUvMin[1]) {
+                throw std::runtime_error("the bracket's width does not fit the iron UV box at its length's texel density");
+            }
+            LanternMesh mesh;
+            (void)Sweep(mesh, a_path, BoxSection(kLanternBracketThickness * 0.5f, kLanternBracketWidth * 0.5f),
+                [perUnit](float a_arc) { return kLanternIronUvMin[0] + a_arc * perUnit; },
+                [perUnit](float a_a) { return kLanternIronUvMin[1] + (a_a + kLanternBracketWidth * 0.5f) * perUnit; });
+            return mesh;
         }
 
         /// A torus in the XZ plane round a_centre, UVs spread over a_uvMin..a_uvMax
@@ -1175,6 +1378,10 @@ namespace GreyBuild
             setCopy->textures[kNormalSlot].get() = a_normal;
             shaderCopy->TextureSetRef()->index = hdr.AddBlock(std::move(setCopy));
             shaderCopy->controllerRef.index = nifly::NIF_NPOS;
+            if (!tri->HasVertexColors()) {
+                // the template's Vertex_Colors flag (the lamp frame has colours) on a shape without them: cleared
+                shaderCopy->shaderFlags2 &= ~kSlsf2VertexColors;
+            }
             shape->ShaderPropertyRef()->index = hdr.AddBlock(std::move(shaderCopy));
             return shape;
         }
@@ -1332,27 +1539,19 @@ namespace GreyBuild
                 isHandle[v] = true;
             }
             const Vector3 hinge(0.0f, handle.bounds.min[1], handle.bounds.Centre()[2]);
-            const auto rawUvs = frameTri->UpdateRawUvs();
-            nifly::Vector2 uvMin(kFloatMax, kFloatMax);
-            nifly::Vector2 uvMax(-kFloatMax, -kFloatMax);
-            for (const auto v : handle.vertices) {
-                uvMin.u = std::min(uvMin.u, rawUvs[v].u);
-                uvMin.v = std::min(uvMin.v, rawUvs[v].v);
-                uvMax.u = std::max(uvMax.u, rawUvs[v].u);
-                uvMax.v = std::max(uvMax.v, rawUvs[v].v);
-            }
-            log.push_back(fmt::format("handle: frame piece {} of {} ({} triangles, {} vertices) {}; hinge y {:.4f} z {:.4f}, turned "
-                                      "{} deg about X (kLanternHandleTurnDeg); its UVs {:.4f},{:.4f}..{:.4f},{:.4f} (the ring takes them)",
+            const Vector3 hingeShift(0.0f, a_result.cageCentre[1] - hinge.y, 0.0f);
+            log.push_back(fmt::format("handle: frame piece {} of {} ({} triangles, {} vertices) {}; hinge y {:.4f} z {:.4f} moved {:.4f} in "
+                                      "Y onto the cage axis (y {:.4f}), turned {} deg about X (kLanternHandleTurnDeg)",
                 handles.front(), pieces.size(), handle.triangles.size(), handle.vertices.size(), BoxText(handle.bounds), hinge.y, hinge.z,
-                kLanternHandleTurnDeg, uvMin.u, uvMin.v, uvMax.u, uvMax.v));
+                hingeShift.y, a_result.cageCentre[1], kLanternHandleTurnDeg));
 
-            // the lantern's own transform: handle turn, yaw round the cage axis, scale (contact and tilt come after)
+            // the lantern's own transform: handle turn, yaw round the cage axis, scale (then only a translation onto the ring)
             const float scale = kLanternWornHeight / a_result.frameBounds.Size(2);
             a_result.wornScale = scale;
             const Vector3 axis(a_result.cageCentre[0], a_result.cageCentre[1], 0.0f);
             const auto shapeA = [&](Vector3 a_p, bool a_handle) {
                 if (a_handle) {
-                    a_p = hinge + TurnX(a_p - hinge, kLanternHandleTurnDeg);
+                    a_p = hinge + hingeShift + TurnX(a_p - hinge, kLanternHandleTurnDeg);
                 }
                 return (axis + TurnZ(a_p - axis, kLanternWornYawDeg)) * scale;
             };
@@ -1377,42 +1576,23 @@ namespace GreyBuild
                 }
             }
             const Vector3 apex(apexSum.x / static_cast<float>(apexCount), apexSum.y / static_cast<float>(apexCount), topZ - wire);
+            const Vector3 cageA = shapeA(ToVector(a_result.cageCentre), false);
             log.push_back(fmt::format("worn: pelvis '{}' at {} (skeleton.nif); frame height {:.4f} -> {} (kLanternWornHeight), scale "
                                       "{:.5f}; yaw {} deg (kLanternWornYawDeg); handle wire radius {:.4f}, its top wire centre (scaled "
-                                      "lantern space, {} vertices near the top) {}",
+                                      "lantern space, {} vertices near the top) {}, {:.4f} off the cage axis in XY",
                 kLanternBone, Text(a_result.pelvis), a_result.frameBounds.Size(2), kLanternWornHeight, scale, kLanternWornYawDeg, wire,
-                apexCount, Text(ToArray(apex))));
+                apexCount, Text(ToArray(apex)), std::hypot(apex.x - cageA.x, apex.y - cageA.y)));
 
-            // the strap on the bodies, the ring in its lower end
+            // the strap on the bodies
             auto strap = MakeStrap(bodies, pelvis.translation);
             log.insert(log.end(), strap.log.begin(), strap.log.end());
-            const float ringZ = kLanternStrapBottom + kLanternRingTube - kLanternRingRadius;
-            const float reach = kLanternRingRadius + kLanternRingTube;
-            const float ringLeft = HipLeft(bodies, pelvis.translation, strap.y, kLanternRingTube + kLanternStrapMargin, ringZ - reach,
-                ringZ + reach);
-            const float ringX = std::min(strap.outerBottomX, ringLeft - kLanternStrapBodyGap - reach);
-            const Vector3 ring(ringX, strap.y, ringZ);
-            a_result.ringCentre = ToArray(ring);
-            log.push_back(fmt::format("ring: centre {} (radius {}, tube {}); its top tube centre at z {:.4f}, the strap's lower end z {}; "
-                                      "ring x - the strap's outer bottom x = {:.4f}; the body's left at the ring {:.4f}",
-                Text(a_result.ringCentre), kLanternRingRadius, kLanternRingTube, ringZ + kLanternRingRadius, kLanternStrapBottom,
-                ringX - strap.outerBottomX, ringLeft));
-            const auto ringMesh = MakeRing(ring, uvMin, uvMax);
-            const Vector3 contact = ring - Vector3(0.0f, 0.0f, kLanternRingRadius - kLanternRingTube - wire);
-            a_result.contact = ToArray(contact);
-            a_result.handleWire = wire;
-            const Vector3 move = contact - apex;
-
-            // the strap and the ring against the bodies
-            for (const auto& [part, points] : { std::pair<const char*, const std::vector<Vector3>*>{ "strap", &strap.mesh.verts },
-                     std::pair<const char*, const std::vector<Vector3>*>{ "ring", &ringMesh.verts } }) {
-                for (const auto& body : bodies) {
-                    const auto gap = SurfaceGap(body, *points);
-                    log.push_back(fmt::format("clearance {} / {}: {}", part, body.name, GapText(gap)));
-                    if (gap.inside > 0 || gap.nearest < kLanternStrapMargin) {
-                        throw std::runtime_error(fmt::format("the {} comes within {:.3f} of {} ({} points inside; kLanternStrapMargin {})",
-                            part, gap.nearest, body.name, gap.inside, kLanternStrapMargin));
-                    }
+            a_result.strapOuterBottomX = strap.outerBottomX;
+            for (const auto& body : bodies) {
+                const auto gap = SurfaceGap(body, strap.mesh.verts);
+                log.push_back(fmt::format("clearance strap / {}: {}", body.name, GapText(gap)));
+                if (gap.inside > 0 || gap.nearest < kLanternStrapMargin) {
+                    throw std::runtime_error(fmt::format("the strap comes within {:.3f} of {} ({} points inside; kLanternStrapMargin {})",
+                        gap.nearest, body.name, gap.inside, kLanternStrapMargin));
                 }
             }
 
@@ -1496,87 +1676,130 @@ namespace GreyBuild
                                       "{:.4f}) onto the cage centre",
                 BoxText(flameBox), fit, kLanternFlameFill, cageSize[0], cageSize[1], cageSize[2]));
 
-            // the lantern's points before the tilt, then the smallest tilt that clears both bodies. The frame turns about
-            // the contact; the flame only moves with the cage centre and stays upright (a flame rises straight up)
-            const Vector3 cageA = shapeA(cage, false) + move;
-            const auto cageAt = [&](float a_deg) { return contact + TurnY(cageA - contact, a_deg); };
+            // the lantern's points before the translation onto the ring (it hangs vertically: no tilt)
             std::vector<Vector3> framePoints;
             for (std::size_t i = 0; i < frameRoot.size(); ++i) {
-                framePoints.push_back(shapeA(frameRoot[i], isHandle[i]) + move);
+                framePoints.push_back(shapeA(frameRoot[i], isHandle[i]));
             }
             std::vector<Vector3> flamePoints;
             for (const auto& strip : strips) {
                 auto* tri = dynamic_cast<nifly::BSTriShape*>(strip.shape);
                 for (const auto v : strip.pieces[strip.chosen].vertices) {
-                    flamePoints.push_back(shapeA(flameRoot(strip, tri->vertData[v].vert), false) + move);
+                    flamePoints.push_back(shapeA(flameRoot(strip, tri->vertData[v].vert), false));
                 }
             }
-            float tilt = -1.0f;
-            for (float deg = 0.0f; deg <= kLanternTiltMaxDeg + 1e-3f; deg += kLanternTiltStepDeg) {
-                std::vector<Vector3> tilted;
-                tilted.reserve(framePoints.size() + flamePoints.size());
-                for (const auto& p : framePoints) {
-                    tilted.push_back(contact + TurnY(p - contact, deg));
+
+            // the bracket, the ring welded to its tip and the lantern on the ring: the shortest bracket that clears both bodies
+            const float barZ = kLanternStrapBottom - kLanternBracketBelow;
+            const float tipZ = barZ - kLanternBracketDrop;  // the ring's top tube centre
+            const float ringZ = tipZ - kLanternRingRadius;
+            const float gripZ = kLanternStrapBottom + kLanternBracketGrip;
+            // the ring's UVs: the box's U round the ring, V round the tube at the same texel density
+            const nifly::Vector2 ringUvMin(kLanternIronUvMin[0], kLanternIronUvMin[1]);
+            const nifly::Vector2 ringUvMax(kLanternIronUvMax[0],
+                kLanternIronUvMin[1] + (kLanternIronUvMax[0] - kLanternIronUvMin[0]) * kLanternRingTube / kLanternRingRadius);
+            log.push_back(fmt::format("iron UV box (kLanternIronUvMin/Max) u {}..{} v {}..{} of {}: the ring u {:.4f}..{:.4f} v "
+                                      "{:.4f}..{:.4f}, the bracket from u {} v {} at its length's texel density",
+                kLanternIronUvMin[0], kLanternIronUvMax[0], kLanternIronUvMin[1], kLanternIronUvMax[1], kLanternDiffuseSource,
+                ringUvMin.u, ringUvMax.u, ringUvMin.v, ringUvMax.v, kLanternIronUvMin[0], kLanternIronUvMin[1]));
+            log.push_back(fmt::format("bracket: plate at the strap's outer layer centreline x {:.4f} from z {} (kLanternStrapBottom + "
+                                      "kLanternBracketGrip {}) down, bar at z {:.4f} (kLanternBracketBelow {}), bends radius {}, {} x {} "
+                                      "(kLanternBracketWidth x Thickness), tip down {} (kLanternBracketDrop) to the ring's top tube "
+                                      "centre z {:.4f}; ring centre z {:.4f}",
+                strap.outerBottomX, gripZ, kLanternBracketGrip, barZ, kLanternBracketBelow, kLanternBracketBend, kLanternBracketWidth,
+                kLanternBracketThickness, kLanternBracketDrop, tipZ, ringZ));
+            LanternMesh bracketMesh;
+            LanternMesh ringMesh;
+            Vector3 ring;
+            Vector3 contact;
+            Vector3 move;
+            float length = -1.0f;
+            for (int step = 0;; ++step) {
+                const float tryLength = kLanternBracketLength + static_cast<float>(step) * kLanternBracketLengthStep;
+                if (tryLength > kLanternBracketLengthMax + 1e-4f) {
+                    break;
                 }
-                const Vector3 shift = cageAt(deg) - cageA;
+                const Vector3 tryRing(strap.outerBottomX - tryLength, strap.y, ringZ);
+                const Vector3 tryContact = tryRing - Vector3(0.0f, 0.0f, kLanternRingRadius - kLanternRingTube - wire);
+                const Vector3 tryMove = tryContact - apex;
+                auto tryBracket = MakeBracket(BracketPath(strap.y, strap.outerBottomX, gripZ, barZ, tryRing.x, tipZ));
+                auto tryRingMesh = MakeRing(tryRing, ringUvMin, ringUvMax);
+                std::vector<Vector3> lantern;
+                lantern.reserve(framePoints.size() + flamePoints.size());
+                for (const auto& p : framePoints) {
+                    lantern.push_back(p + tryMove);
+                }
                 for (const auto& p : flamePoints) {
-                    tilted.push_back(p + shift);
+                    lantern.push_back(p + tryMove);
                 }
                 bool clear = true;
-                std::string line = fmt::format("lantern tilt {} deg:", deg);
-                for (const auto& body : bodies) {
-                    const auto gap = SurfaceGap(body, tilted);
-                    clear = clear && gap.inside == 0 && gap.nearest >= kLanternBodyMargin;
-                    line += fmt::format(" {}: {};", body.name, GapText(gap));
+                std::string line = fmt::format("bracket length {} (ring centre x {:.4f}):", tryLength, tryRing.x);
+                for (const auto& [part, points, margin] :
+                    { std::tuple<const char*, const std::vector<Vector3>*, float>{ "lantern", &lantern, kLanternBodyMargin },
+                        std::tuple<const char*, const std::vector<Vector3>*, float>{ "bracket", &tryBracket.verts, kLanternStrapMargin },
+                        std::tuple<const char*, const std::vector<Vector3>*, float>{ "ring", &tryRingMesh.verts, kLanternStrapMargin } }) {
+                    for (const auto& body : bodies) {
+                        const auto gap = SurfaceGap(body, *points);
+                        clear = clear && gap.inside == 0 && gap.nearest >= margin;
+                        line += fmt::format(" {} / {}: {};", part, body.name, GapText(gap));
+                    }
                 }
-                if (deg == 0.0f || clear || std::fmod(deg, 5.0f) < 1e-3f) {
-                    log.push_back(line);
-                }
+                log.push_back(line);
                 if (clear) {
-                    tilt = deg;
+                    length = tryLength;
+                    bracketMesh = std::move(tryBracket);
+                    ringMesh = std::move(tryRingMesh);
+                    ring = tryRing;
+                    contact = tryContact;
+                    move = tryMove;
                     break;
                 }
             }
-            if (tilt < 0.0f) {
-                throw std::runtime_error(fmt::format("the lantern hanging from the ring comes nearer than {} (kLanternBodyMargin) to a "
-                                                     "body at every tilt up to {} deg (kLanternTiltMaxDeg)", kLanternBodyMargin,
-                    kLanternTiltMaxDeg));
+            if (length < 0.0f) {
+                throw std::runtime_error(fmt::format("at every bracket length from {} to {} (kLanternBracketLength..Max, step {}) a part "
+                                                     "comes nearer to a body than its margin (lantern {}, bracket and ring {}): stopped",
+                    kLanternBracketLength, kLanternBracketLengthMax, kLanternBracketLengthStep, kLanternBodyMargin, kLanternStrapMargin));
             }
-            a_result.tiltDeg = tilt;
-            const Vector3 flameShift = cageAt(tilt) - cageA;
-            const auto place = [&](const Vector3& a_root, bool a_handle) {
-                return contact + TurnY(shapeA(a_root, a_handle) + move - contact, tilt);
-            };
-            const auto placeNormal = [&](const Vector3& a_n, bool a_handle) { return TurnY(normalA(a_n, a_handle), tilt); };
-            const auto placeFlame = [&](const Vector3& a_root) { return shapeA(a_root, false) + move + flameShift; };
+            a_result.bracketLength = length;
+            a_result.ringCentre = ToArray(ring);
+            a_result.contact = ToArray(contact);
+            a_result.handleWire = wire;
+            a_result.bracket = bracketMesh.Bounds();
+            log.push_back(fmt::format("bracket length {} (kLanternBracketLength {}): ring centre {}, {:.4f} out from the strap's outer "
+                                      "layer at its lower end (x {:.4f}); bracket {}",
+                length, kLanternBracketLength, Text(a_result.ringCentre), strap.outerBottomX - ring.x, strap.outerBottomX,
+                BoxText(a_result.bracket)));
+
+            const auto place = [&](const Vector3& a_root, bool a_handle) { return shapeA(a_root, a_handle) + move; };
+            const auto placeNormal = [&](const Vector3& a_n, bool a_handle) { return normalA(a_n, a_handle); };
+            const auto placeFlame = [&](const Vector3& a_root) { return shapeA(a_root, false) + move; };
             {
-                // the upright flame still inside the tilted cage: every flame point turned back into the cage's own frame lies
-                // within the cage walls' X/Y and the frame's height
+                // the flame inside the cage: every flame point within the cage walls' X/Y and the frame's height
                 LanternBox inside = EmptyBox();
                 for (const float x : { a_walls.min[0], a_walls.max[0] }) {
                     for (const float y : { a_walls.min[1], a_walls.max[1] }) {
                         for (const float z : { a_result.frameBounds.min[2], a_result.frameBounds.max[2] }) {
-                            Grow(inside, shapeA(Vector3(x, y, z), false) + move);
+                            Grow(inside, place(Vector3(x, y, z), false));
                         }
                     }
                 }
                 LanternBox flameInCage = EmptyBox();
                 for (const auto& p : flamePoints) {
-                    Grow(flameInCage, contact + TurnY(p + flameShift - contact, -tilt));
+                    Grow(flameInCage, p + move);
                 }
                 bool within = true;
                 for (int a = 0; a < 3; ++a) {
                     within = within && flameInCage.min[a] >= inside.min[a] && flameInCage.max[a] <= inside.max[a];
                 }
-                log.push_back(fmt::format("flame in the cage's own frame {}; the cage {}", BoxText(flameInCage), BoxText(inside)));
+                log.push_back(fmt::format("flame {}; the cage {}", BoxText(flameInCage), BoxText(inside)));
                 if (!within) {
-                    throw std::runtime_error("the upright flame reaches out of the tilted cage: lower kLanternFlameFill");
+                    throw std::runtime_error("the flame reaches out of the cage: lower kLanternFlameFill");
                 }
             }
-            a_result.wornCage = ToArray(cageAt(tilt));
-            log.push_back(fmt::format("lantern: tilted {} deg about Y round the contact {} (bottom outwards); cage centre {}; the "
-                                      "flame moved with it, upright",
-                tilt, Text(a_result.contact), Text(a_result.wornCage)));
+            a_result.wornCage = ToArray(cageA + move);
+            log.push_back(fmt::format("lantern: hangs vertically (no tilt) from the ring, its handle's top wire on the ring's bottom tube "
+                                      "at {}; cage centre {}; the flame moved with it",
+                Text(a_result.contact), Text(a_result.wornCage)));
 
             // the worn file
             nifly::NifFile worn;
@@ -1633,7 +1856,7 @@ namespace GreyBuild
                 }
             }
 
-            // the strap and the ring (made in character space already)
+            // the strap, the bracket and the ring (made in character space already)
             for (const char* texture : { kLanternStrapDiffuse, kLanternStrapNormal }) {
                 const auto found = FindSource(a_inputs, texture);
                 log.push_back(fmt::format("strap texture {} (vanilla, Skyrim - Textures3.bsa): {}", texture,
@@ -1645,10 +1868,27 @@ namespace GreyBuild
                 auto* set = shader ? hdr.GetBlock<nifly::BSShaderTextureSet>(shader->TextureSetRef()) : nullptr;
                 frameNormal = set && set->textures.size() > kNormalSlot ? set->textures[kNormalSlot].get() : std::string();
             }
-            (void)adopt(AddMeshShape(worn, kLanternStrapName, strap.mesh, *wornFrame, kLanternStrapDiffuse, kLanternStrapNormal));
+            auto* strapShape = adopt(AddMeshShape(worn, kLanternStrapName, strap.mesh, *wornFrame, kLanternStrapDiffuse, kLanternStrapNormal));
+            (void)adopt(AddMeshShape(worn, kLanternBracketName, bracketMesh, *wornFrame, kLanternDiffuse, frameNormal));
             (void)adopt(AddMeshShape(worn, kLanternRingName, ringMesh, *wornFrame, kLanternDiffuse, frameNormal));
+            {
+                auto* lit = hdr.GetBlock<nifly::BSLightingShaderProperty>(strapShape->ShaderPropertyRef());
+                if (!lit) {
+                    throw std::runtime_error("the strap has no lighting shader");
+                }
+                log.push_back(fmt::format("strap shader: glossiness {} -> {} (kLanternStrapGlossiness), specular strength {} -> {} "
+                                          "(kLanternStrapSpecularStrength), specular colour {} -> {} (kLanternStrapSpecularColor; "
+                                          "meshes\\clutter\\common\\leatherstrips01.nif)",
+                    lit->glossiness, kLanternStrapGlossiness, lit->specularStrength, kLanternStrapSpecularStrength,
+                    Text(ToArray(lit->specularColor)), Text(kLanternStrapSpecularColor)));
+                lit->glossiness = kLanternStrapGlossiness;
+                lit->specularStrength = kLanternStrapSpecularStrength;
+                lit->specularColor = ToVector(kLanternStrapSpecularColor);
+            }
             log.push_back(fmt::format("strap: {} vertices, {} triangles, centreline {:.3f} long, {}", strap.mesh.verts.size(),
                 strap.mesh.tris.size(), strap.length, BoxText(strap.mesh.Bounds())));
+            log.push_back(fmt::format("bracket: {} vertices, {} triangles, {}", bracketMesh.verts.size(), bracketMesh.tris.size(),
+                BoxText(bracketMesh.Bounds())));
             log.push_back(fmt::format("ring: {} vertices, {} triangles, {}", ringMesh.verts.size(), ringMesh.tris.size(),
                 BoxText(ringMesh.Bounds())));
 
@@ -1697,8 +1937,13 @@ namespace GreyBuild
                                                    "centre, {:.4f} off its vertical",
                 Text(a_result.contact), Text(a_result.ringCentre), Text(ToArray(ringBottom)), contact.z - ringBottom.z, kLanternRingTube,
                 wire, ring.z - contact.z, std::hypot(contact.x - ring.x, contact.y - ring.y)));
-            a_result.summary.push_back(fmt::format("lantern tilt {} deg; cage centre {}; scale {:.5f}", tilt, Text(a_result.wornCage), scale));
-            a_result.summary.push_back(fmt::format("strap textures {} / {} (vanilla leather); ring {} / {}", kLanternStrapDiffuse,
+            a_result.summary.push_back(fmt::format("lantern hung vertically (no tilt); cage centre {}; scale {:.5f}", Text(a_result.wornCage),
+                scale));
+            a_result.summary.push_back(fmt::format("bracket length {} (kLanternBracketLength {}, max {}): ring centre {:.4f} out from the "
+                                                   "strap's outer layer at its lower end (x {:.4f}); bracket bounds {}",
+                length, kLanternBracketLength, kLanternBracketLengthMax, strap.outerBottomX - ring.x, strap.outerBottomX,
+                BoxText(a_result.bracket)));
+            a_result.summary.push_back(fmt::format("strap textures {} / {} (vanilla leather); bracket and ring {} / {}", kLanternStrapDiffuse,
                 kLanternStrapNormal, kLanternDiffuse, frameNormal));
             for (const auto& strip : strips) {
                 const auto& piece = strip.pieces[strip.chosen];
@@ -1870,8 +2115,9 @@ namespace GreyBuild
             std::vector<std::string> shapes;
             float margin;
         };
-        const std::array<Part, 3> parts{ { { "lantern", { kLanternWornFrameName, kLanternFlameStrips[0], kLanternFlameStrips[1] }, kLanternBodyMargin },
-            { "strap", { kLanternStrapName }, kLanternStrapMargin }, { "ring", { kLanternRingName }, kLanternStrapMargin } } };
+        const std::array<Part, 4> parts{ { { "lantern", { kLanternWornFrameName, kLanternFlameStrips[0], kLanternFlameStrips[1] }, kLanternBodyMargin },
+            { "strap", { kLanternStrapName }, kLanternStrapMargin }, { "bracket", { kLanternBracketName }, kLanternStrapMargin },
+            { "ring", { kLanternRingName }, kLanternStrapMargin } } };
         std::vector<LanternClearance> out;
         std::vector<LanternSurface> bodies;
         for (const char* body : kLanternBodySources) {
@@ -1897,6 +2143,27 @@ namespace GreyBuild
             }
         }
         return out;
+    }
+
+    float WornAxisTiltDeg(const std::filesystem::path& a_dataDir)
+    {
+        nifly::NifFile ground;
+        LoadNif(ground, a_dataDir / kLanternGroundNif);
+        nifly::NifFile worn;
+        LoadNif(worn, a_dataDir / kLanternWornNif);
+        const auto shapes = ground.GetShapes();
+        auto* wornFrame = FindShape(worn, kLanternWornFrameName);
+        std::vector<Vector3> groundVerts;
+        std::vector<Vector3> wornVerts;
+        if (shapes.size() != 1 || !wornFrame || !ground.GetVertsForShape(shapes.front(), groundVerts) ||
+            !worn.GetVertsForShape(wornFrame, wornVerts)) {
+            throw std::runtime_error("the axis check finds no frame in lantern_gnd.nif or lantern_worn.nif");
+        }
+        const MatTransform toRoot = ToRootSpace(ground, ground.GetHeader().GetBlockID(shapes.front()));
+        for (auto& v : groundVerts) {
+            v = toRoot.ApplyTransform(v);
+        }
+        return LanternAxisTiltDeg(groundVerts, wornVerts);  // worn: skin space = character space (global-to-skin identity)
     }
 
     std::vector<std::string> VerifyLantern(const std::vector<std::filesystem::path>& a_inputs, const std::filesystem::path& a_dataDir)
@@ -1943,6 +2210,7 @@ namespace GreyBuild
             std::vector<std::string> expected{ kLanternWornFrameName };
             expected.insert(expected.end(), kLanternFlameStrips.begin(), kLanternFlameStrips.end());
             expected.push_back(kLanternStrapName);
+            expected.push_back(kLanternBracketName);
             expected.push_back(kLanternRingName);
             const auto shapeNamed = [&](const std::string& a_name) -> const LanternShapeInfo* {
                 const auto it = std::find_if(worn.shapes.begin(), worn.shapes.end(), [&](const auto& a_s) { return a_s.name == a_name; });
@@ -1962,9 +2230,31 @@ namespace GreyBuild
                 Check(problems, slot(strap, 0) == strapDiffuse && slot(strap, 1) == strapNormal,
                     fmt::format("worn strap: textures '{}' / '{}', expected '{}' / '{}'", slot(strap, 0), slot(strap, 1), strapDiffuse,
                         strapNormal));
-                Check(problems, slot(ring, 0) == soot && !slot(frame, 1).empty() && slot(ring, 1) == slot(frame, 1),
-                    fmt::format("worn ring: textures '{}' / '{}', expected '{}' / the frame's normal map '{}'", slot(ring, 0), slot(ring, 1),
-                        soot, slot(frame, 1)));
+                const auto* bracket = shapeNamed(kLanternBracketName);
+                for (const auto& [what, iron] : { std::pair<const char*, const LanternShapeInfo*>{ "ring", ring },
+                         std::pair<const char*, const LanternShapeInfo*>{ "bracket", bracket } }) {
+                    Check(problems, slot(iron, 0) == soot && !slot(frame, 1).empty() && slot(iron, 1) == slot(frame, 1),
+                        fmt::format("worn {}: textures '{}' / '{}', expected '{}' / the frame's normal map '{}'", what, slot(iron, 0),
+                            slot(iron, 1), soot, slot(frame, 1)));
+                    constexpr float kUvTolerance = 1e-3f;  // half-float UVs
+                    Check(problems, iron && iron->uvMin[0] >= kLanternIronUvMin[0] - kUvTolerance &&
+                                        iron->uvMin[1] >= kLanternIronUvMin[1] - kUvTolerance &&
+                                        iron->uvMax[0] <= kLanternIronUvMax[0] + kUvTolerance &&
+                                        iron->uvMax[1] <= kLanternIronUvMax[1] + kUvTolerance && iron->uvMin[0] <= iron->uvMax[0],
+                        fmt::format("worn {}: UVs u {}..{} v {}..{} outside the iron box u {}..{} v {}..{}", what, iron ? iron->uvMin[0] : 0.0f,
+                            iron ? iron->uvMax[0] : 0.0f, iron ? iron->uvMin[1] : 0.0f, iron ? iron->uvMax[1] : 0.0f, kLanternIronUvMin[0],
+                            kLanternIronUvMax[0], kLanternIronUvMin[1], kLanternIronUvMax[1]));
+                }
+                constexpr float kShaderTolerance = 1e-4f;
+                Check(problems, strap && std::fabs(strap->glossiness - kLanternStrapGlossiness) <= kShaderTolerance &&
+                                    std::fabs(strap->specularStrength - kLanternStrapSpecularStrength) <= kShaderTolerance &&
+                                    std::fabs(strap->specularColor[0] - kLanternStrapSpecularColor[0]) <= kShaderTolerance &&
+                                    std::fabs(strap->specularColor[1] - kLanternStrapSpecularColor[1]) <= kShaderTolerance &&
+                                    std::fabs(strap->specularColor[2] - kLanternStrapSpecularColor[2]) <= kShaderTolerance,
+                    fmt::format("worn strap: glossiness {}, specular strength {}, colour {}; expected {}, {}, {} (vanilla leatherstrips01.nif)",
+                        strap ? strap->glossiness : -1.0f, strap ? strap->specularStrength : -1.0f,
+                        strap ? Text(strap->specularColor) : std::string("-"), kLanternStrapGlossiness, kLanternStrapSpecularStrength,
+                        Text(kLanternStrapSpecularColor)));
                 Check(problems, warp && std::fabs(warp->refraction - kLanternWarpRefraction) <= 1e-6f,
                     fmt::format("worn FireStripWarp: refraction strength {}, expected {} (kLanternWarpRefraction)",
                         warp ? warp->refraction : -1.0f, kLanternWarpRefraction));
@@ -1986,6 +2276,8 @@ namespace GreyBuild
                     fmt::format("worn '{}': {} of {} vertices weighted 1 on the bone (NiSkinData {})", s.name, s.weightedOnFirstBone,
                         s.vertices, s.skinDataWeights));
                 Check(problems, (s.flags1 & kSlsf1Skinned) != 0, fmt::format("worn '{}': shader without the Skinned flag", s.name));
+                Check(problems, (s.flags2 & kSlsf2VertexColors) == 0 || s.vertexColors,
+                    fmt::format("worn '{}': SLSF2 Vertex_Colors (0x{:08X}) on a shape without vertex colours", s.name, s.flags2));
                 Check(problems, s.skinRoot == s.fileRoot,
                     fmt::format("worn '{}': the skin instance's skeleton root is block {}, not the file's root {}", s.name, s.skinRoot,
                         s.fileRoot));
@@ -2011,6 +2303,11 @@ namespace GreyBuild
                 Check(problems, c.gap.points > 0 && c.gap.inside == 0 && c.gap.nearest >= c.margin,
                     fmt::format("worn {} / {}: {} (margin {})", c.part, c.body, GapText(c.gap), c.margin));
             }
+            // the lantern hangs vertically
+            const float tilt = WornAxisTiltDeg(a_dataDir);
+            Check(problems, tilt <= kLanternVerticalToleranceDeg,
+                fmt::format("worn: the lantern's cage axis leans {:.4f} deg off world Z (kLanternVerticalToleranceDeg {})", tilt,
+                    kLanternVerticalToleranceDeg));
 
             // the smoke static
             const auto smoke = InspectLanternNif(a_dataDir / kLanternSmokeNif);
@@ -2071,6 +2368,26 @@ namespace GreyBuild
         for (const auto& line : result.summary) {
             std::cout << "  " << line << "\n";
         }
+        {
+            const auto worn = InspectLanternNif(a_dataDir / kLanternWornNif);
+            for (const auto& s : worn.shapes) {
+                if (s.name == kLanternStrapName) {
+                    std::cout << fmt::format("worn strap shader (read back): glossiness {:.4f}, specular strength {:.4f}, specular colour {} "
+                                             "(vanilla meshes\\clutter\\common\\leatherstrips01.nif: 80, 1, (0.4078, 0.3843, 0.3647))\n",
+                        s.glossiness, s.specularStrength, Text(s.specularColor));
+                }
+                if (s.name == kLanternBracketName) {
+                    std::cout << fmt::format("worn bracket (read back): bounds {}; UVs u {:.4f}..{:.4f} v {:.4f}..{:.4f}\n", BoxText(s.bounds),
+                        s.uvMin[0], s.uvMax[0], s.uvMin[1], s.uvMax[1]);
+                }
+                if (s.name == kLanternRingName) {
+                    std::cout << fmt::format("worn ring (read back): centre {}; UVs u {:.4f}..{:.4f} v {:.4f}..{:.4f}\n", Text(s.bounds.Centre()),
+                        s.uvMin[0], s.uvMax[0], s.uvMin[1], s.uvMax[1]);
+                }
+            }
+        }
+        std::cout << fmt::format("worn lantern axis (read back, LanternAxisTiltDeg): {:.4f} deg off world Z (tolerance {})\n",
+            WornAxisTiltDeg(a_dataDir), kLanternVerticalToleranceDeg);
         std::cout << "worn clearances (read back):\n";
         for (const auto& c : WornClearances(a_inputs, a_dataDir)) {
             std::cout << fmt::format("  {} / {}: {} (margin {})\n", c.part, c.body, GapText(c.gap), c.margin);

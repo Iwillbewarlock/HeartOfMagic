@@ -263,14 +263,18 @@ blackflame-greybuild --inspect-lantern <file.nif> [...]   (that read-back for an
 assets\atronachflame.nif` (Skyrim - Meshes0.bsa), `textures\clutter\common\lampgeneric01.dds` (Skyrim - Textures3.bsa),
 and `malebody_1.nif` / `femalebody_1.nif` from the same folder as the skeleton (Skyrim - Meshes0.bsa; required: the worn
 model's belt strap is laid on both bodies and every worn part is checked against them). Extract them from the game's own
-BSAs, not a replacer. The worn model (round 2, belt-mounted) is a leather strap looped over the belt line at the left
-hip (vanilla `textures\clutter\common\leatherstrips01.dds` / `_n.dds`, Skyrim - Textures3.bsa; the NIF names them, the
-builder logs whether an `--in` folder has them), an iron ring in its lower end, and the lantern (0.8 of round 1, handle
-turned upright) hanging from the ring by its handle with an upright flame from one connected piece of each atronach
-fire strip. Where the cage would come within 1 unit of a body (both vanilla thighs reach past the ring in the reference
-pose) the lantern is tilted outwards about the ring by the smallest whole degree that clears both; the build logs the
-tilt and the clearances (strap and ring 0.3, lantern 1.0). The placement, size and darkening constants are named in
-`tools/blackflame-greybuild/GreyLantern.h`.
+BSAs, not a replacer. The worn model (round 3, belt-mounted on an iron hook) is a leather strap (0.6 thick, rounded
+edges) looped over the belt line at the left hip, its fold just above the vanilla belt band (vanilla
+`textures\clutter\common\leatherstrips01.dds` / `_n.dds`, Skyrim - Textures3.bsa, with the specular of vanilla
+`leatherstrips01.nif`; the NIF names them, the builder logs whether an `--in` folder has them), a flat forged iron bracket
+coming out of the strap's lower end and reaching out sideways with an iron ring welded to its down-turned tip, and the
+lantern (0.8 of round 1, handle turned upright over the cage axis) hanging vertically from the ring by its handle with an
+upright flame from one connected piece of each atronach fire strip. The bracket starts 6 units long; where the cage would
+come within 1 unit of a body (both vanilla thighs reach out under the hip in the reference pose) it grows in 0.5 steps up
+to 9, past which the build fails; the build logs every length tried and the clearances (strap, bracket and ring 0.3,
+lantern 1.0), and the read-back checks that the cage axis is world Z within 0.5 degrees. The ring and the bracket take a
+plain iron area of the lamp texture (u 0.80-0.98, v 0.60-0.80). The placement, size, shader and darkening constants are
+named in `tools/blackflame-greybuild/GreyLantern.h`.
 
 `--in` folders hold loose files laid out as Data (`meshes\...`), searched in the order given: the first that has
 a file wins, so list them in MO2 priority order, highest first, then extracted BSAs, then the vanilla
