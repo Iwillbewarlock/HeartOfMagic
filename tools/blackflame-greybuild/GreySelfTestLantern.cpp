@@ -3,15 +3,15 @@
 // =============================================================================
 // A frame NIF (BSFadeNode, BSXFlags, collision, one lit BSTriShape with a hook out in +Y at the top, its hinge a little above
 // the box's top: the lid, and two hollow rings of the cage walls), a skeleton with NPC Pelvis [Pelv], an atronach stand-in
-// whose FireStrip08 (palette effect shader with palette alpha, falloff and the decal bits on, normal blend or additive, float
-// controller) is skinned half and half to two bones, a 64 x 64 BC3 diffuse with 7 mips, and body stand-ins (a hip box above
+// whose FireStrip08 (palette effect shader with palette alpha, falloff and the decal bits on, the vanilla falloff values and
+// wrapping clamp mode, normal blend or additive, float controller) is skinned half and half to two bones, a 64 x 64 BC3 diffuse with 7 mips, and body stand-ins (a hip box above
 // the lantern's lid and a belt band box named as the vanilla band shape).
 // The build runs on them; the outputs are read back and checked (the ground's two flame layers: counts, base heights, on the
 // cage axis inside the walls with the clearance, shader flags, blends, base alphas, palettes, vertex alpha, controllers on
 // their own shaders and no block shared; no addon node, the measured band, the ring at its top beside the hip, the upright
 // handle at its height with a lug under each foot, vertical lantern, the worn layers skinned to the pelvis, bind pose, the
 // Vertex_Colors flag, clearances), then the failures and edge cases: an additive template (the layers keep their own blends),
-// a missing source, body or band shape, a thigh that walks the ring out, one no step up to the maximum clears, a frame bar
+// a clamping template (the U-scaled tile would not wrap), a missing source, body or band shape, a thigh that walks the ring out, one no step up to the maximum clears, a frame bar
 // through the flame, a cage too small for the flame, a handle foot too far above the lid, a wrong inverse bind, a leaned
 // frame, an addon node with the wrong value, a darken factor out of range. LanternPieces' weld and LanternAxisTiltDeg have
 // their own checks.
@@ -70,6 +70,11 @@ namespace GreyBuild::SelfTest
         constexpr const char* kOrangePalette = "textures\\effects\\gradients\\gradfireatronach.dds";
         constexpr std::uint16_t kAlphaNormalBlend = 0x10ED;
         constexpr std::uint16_t kAlphaAdditive = 0x100D;  // blend on, SRC_ALPHA / ONE
+        // vanilla FireStrip08's falloff { start angle, stop angle, start opacity, stop opacity } and clamp mode word (wrap S
+        // wrap T, lighting influence 255); the build must replace the falloff values with each layer's
+        constexpr std::array<float, 4> kTemplateFalloff{ 0.6428f, 0.1736f, 1.0f, 0.0f };
+        constexpr std::uint32_t kTemplateClamp = 0x0000FF03;
+        constexpr std::uint32_t kClampClamp = 0x0000FF00;  // clamp S clamp T
 
         using nifly::MatTransform;
         using nifly::Vector3;
@@ -199,8 +204,10 @@ namespace GreyBuild::SelfTest
         }
 
         /// The stand-in Flame Atronach: two bones and FireStrip08 (the flame layers' shader template: palette alpha, falloff and
-        /// the decal bits on as on the vanilla body, no SLSF2 flags) skinned half and half to them; it blends by a_alpha
-        void MakeAtronach(const std::filesystem::path& a_file, std::uint16_t a_alpha = kAlphaNormalBlend)
+        /// the decal bits on as on the vanilla body, no SLSF2 flags, the vanilla falloff values) skinned half and half to them;
+        /// it blends by a_alpha and has clamp mode a_clamp
+        void MakeAtronach(const std::filesystem::path& a_file, std::uint16_t a_alpha = kAlphaNormalBlend,
+            std::uint32_t a_clamp = kTemplateClamp)
         {
             nifly::NifFile nif;
             nif.Create(nifly::NiVersion::getSSE());
@@ -220,6 +227,11 @@ namespace GreyBuild::SelfTest
                 prop->shaderFlags1 |= kSlsf1Skinned | kSlsf1GreyscaleToPaletteColor | kSlsf1GreyscaleToPaletteAlpha | kSlsf1Falloff |
                                       kSlsf1Decal | kSlsf1DynamicDecal;
                 prop->shaderFlags2 = 0;
+                prop->falloffStartAngle = kTemplateFalloff[0];
+                prop->falloffStopAngle = kTemplateFalloff[1];
+                prop->falloffStartOpacity = kTemplateFalloff[2];
+                prop->falloffStopOpacity = kTemplateFalloff[3];
+                prop->textureClampMode = a_clamp;
                 prop->sourceTexture.get() = "textures\\effects\\fxfirescrolltile02.dds";
                 prop->greyscaleTexture.get() = kOrangePalette;
                 shape->ShaderPropertyRef()->index = hdr.AddBlock(std::move(prop));
@@ -288,12 +300,16 @@ namespace GreyBuild::SelfTest
         }
 
         /// The flame layers of a model as the build must write them: names, counts, shader flags (a_worn: Skinned on, else
-        /// off), blend, base alpha, palette for the blend, vertex alpha up to 255 with 0 at the tip, one controller each on its
-        /// own shader, no shader, alpha property, controller, interpolator or key block shared. "" when it holds, else what failed
+        /// off), blend, base alpha, falloff values, U scale 2 on the template's wrapping clamp mode, palette for the blend,
+        /// vertex alpha up to 255 with 0 at the tip and the bottom ring, one controller each on its own shader, no shader,
+        /// alpha property, controller, interpolator or key block shared. "" when it holds, else what failed
         [[nodiscard]] std::string FlameLayersWrong(const LanternNifInfo& a_info, bool a_worn)
         {
-            constexpr std::uint32_t kOff = kSlsf1GreyscaleToPaletteAlpha | kSlsf1Falloff | kSlsf1Decal | kSlsf1DynamicDecal;
-            constexpr std::uint32_t kOn = kSlsf1GreyscaleToPaletteColor | kSlsf1VertexAlpha;
+            constexpr std::uint32_t kOff = kSlsf1GreyscaleToPaletteAlpha | kSlsf1Decal | kSlsf1DynamicDecal;
+            constexpr std::uint32_t kOn = kSlsf1GreyscaleToPaletteColor | kSlsf1VertexAlpha | kSlsf1Falloff;
+            // round 8: the outer layer fades from cos 1 to cos 0, the core from cos 1 to cos 0.2, both opacity 1 -> 0
+            constexpr std::array<std::array<float, 4>, 2> kFalloff{ { { 1.0f, 0.0f, 1.0f, 0.0f }, { 1.0f, 0.2f, 1.0f, 0.0f } } };
+            constexpr float kUScale = 2.0f;
             constexpr std::uint32_t kOn2 = kSlsf2DoubleSided | kSlsf2VertexColors;
             std::vector<std::uint32_t> blocks;
             for (std::size_t l = 0; l < kLanternFlameLayers.size(); ++l) {
@@ -316,8 +332,18 @@ namespace GreyBuild::SelfTest
                     return fmt::format("'{}': alpha 0x{:04X}, base alpha {}, {}", s->name, s->alphaFlags, s->baseAlpha,
                         s->textures.size() > 1 ? s->textures[1] : std::string("no palette"));
                 }
-                if (!s->vertexColors || s->alphaMax != 255 || s->alphaTop != 0) {
-                    return fmt::format("'{}': vertex alpha up to {}, {} at the tip", s->name, s->alphaMax, s->alphaTop);
+                for (std::size_t i = 0; i < kFalloff[l].size(); ++i) {
+                    if (!Near(s->falloff[i], kFalloff[l][i], 1e-6f)) {
+                        return fmt::format("'{}': falloff start angle {} opacity {}, stop angle {} opacity {}", s->name, s->falloff[0],
+                            s->falloff[2], s->falloff[1], s->falloff[3]);
+                    }
+                }
+                if (!Near(s->uvScale[0], kUScale, 1e-6f) || !Near(s->uvScale[1], 1.0f, 1e-6f) || s->clampMode != kTemplateClamp) {
+                    return fmt::format("'{}': UV scale {} x {}, clamp mode 0x{:08X}", s->name, s->uvScale[0], s->uvScale[1], s->clampMode);
+                }
+                if (!s->vertexColors || s->alphaMax != 255 || s->alphaTop != 0 || s->alphaBottom != 0) {
+                    return fmt::format("'{}': vertex alpha up to {}, {} at the tip, {} at the bottom ring", s->name, s->alphaMax, s->alphaTop,
+                        s->alphaBottom);
                 }
                 if (s->controllers.size() != 1 || s->controllers[0].find("its shader") == std::string::npos) {
                     return fmt::format("'{}': {} controllers", s->name, s->controllers.size());
@@ -472,10 +498,12 @@ namespace GreyBuild::SelfTest
             const std::string wrong = FlameLayersWrong(gnd, false);
             a_check.Check(wrong.empty() && Shape(gnd, kLanternFlameLayers[0].name)->skinType.empty() &&
                               Shape(gnd, kLanternFlameLayers[1].name)->skinType.empty(),
-                fmt::format("lantern gnd: both flame layers ({} vertices, {} triangles each, not skinned) with palette alpha, falloff, the "
-                            "decal bits and Skinned cleared, palette colour, vertex alpha, double-sided and vertex colours on; the outer "
-                            "0x{:04X} on GradBlackFlame.dds base alpha {}, the core 0x{:04X} on GradBlackFlameAdd.dds base alpha {}; vertex "
-                            "alpha up to 255, 0 at the tip; each controller on its own shader, no block shared ({})",
+                fmt::format("lantern gnd: both flame layers ({} vertices, {} triangles each, not skinned) with palette alpha, the decal "
+                            "bits and Skinned cleared, palette colour, vertex alpha, falloff, double-sided and vertex colours on; the outer "
+                            "0x{:04X} on GradBlackFlame.dds base alpha {} falloff cos 1 -> 0, the core 0x{:04X} on GradBlackFlameAdd.dds "
+                            "base alpha {} falloff cos 1 -> 0.2 (opacity 1 -> 0, the template's falloff replaced); U scale 2 on the "
+                            "template's wrap clamp mode; vertex alpha up to 255, 0 at the tip and the bottom ring; each controller on its "
+                            "own shader, no block shared ({})",
                     kLanternFlameVertices, kLanternFlameTriangles, kLanternFlameLayers[0].alphaFlags, kLanternFlameLayers[0].baseAlpha,
                     kLanternFlameLayers[1].alphaFlags, kLanternFlameLayers[1].baseAlpha, wrong.empty() ? std::string("ok") : wrong));
             bool placed = true;
@@ -566,7 +594,8 @@ namespace GreyBuild::SelfTest
         {
             const std::string wrong = FlameLayersWrong(worn, true);
             a_check.Check(wrong.empty(), fmt::format("lantern worn: both flame layers as on the ground (counts, flags with Skinned on, "
-                                                     "blends, base alphas, palettes, vertex alpha, own controllers, no block shared; {})",
+                                                     "blends, base alphas, falloff, U scale, palettes, vertex alpha, own controllers, no "
+                                                     "block shared; {})",
                                              wrong.empty() ? std::string("ok") : wrong));
         }
         const auto* wornFrame = Shape(worn, kLanternWornFrameName);
@@ -725,6 +754,18 @@ namespace GreyBuild::SelfTest
                 fmt::format("lantern: an additive template still gives the outer layer 0x10ED on GradBlackFlame.dds and the core 0x100D on "
                             "GradBlackFlameAdd.dds in both models, and the read-back passes ({} / {})",
                     gndWrong.empty() ? std::string("ok") : gndWrong, wornWrong.empty() ? std::string("ok") : wornWrong));
+        }
+
+        // a clamping template: the U-scaled tile would end at u 0.5 and smear, so the read-back fails naming the clamp mode
+        {
+            const auto clamped = a_dir / "lantern" / "in_clamped";
+            std::filesystem::remove_all(clamped);
+            std::filesystem::copy(in, clamped, std::filesystem::copy_options::recursive);
+            MakeAtronach(clamped / kLanternFlameSource, kAlphaNormalBlend, kClampClamp);
+            const auto clampOut = BuildLantern({ clamped, bodies }, a_dir / "lantern" / "out_clamped");
+            a_check.Check(!clampOut.ok && Mentions(clampOut.problems, "clamp mode 0x0000FF00"),
+                fmt::format("lantern: a template that clamps its texture fails the read-back, the clamp mode named ({} problems)",
+                    clampOut.problems.size()));
         }
 
         // failures

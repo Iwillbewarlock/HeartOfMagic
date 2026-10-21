@@ -198,11 +198,16 @@ reason gets `lantern` when the 0x810 effect is the one found (review R3).
   in the ground model, the worn model and the inventory, skinned to the pelvis in the worn one - `HoMBF_FlameOuter`
   0.40 x the frame's height tall and 0.55 x the smaller cage wall size wide, its base a third of the frame's height up,
   and `HoMBF_FlameCore` 0.65 x as tall and 0.45 x as wide, 0.05 x the outer height above the outer base; vertex alpha
-  0.5 at the bottom ring, 1 at the widest, 0 at the tip. Each takes a copy of `FireStrip08`'s effect shader and its UV
-  scroll controller (the atronach NIF is read for nothing else; `FireStripWarp` is dropped) with Greyscale_To_PaletteAlpha,
-  Use_Falloff and the Decal bits cleared and Greyscale_To_PaletteColor, Vertex_Alpha, Double_Sided and Vertex_Colors on:
-  with palette alpha on, the opacity is the palette's alpha alone and our palettes' 64 rows are alike, so vertex and base
-  alpha did nothing. The outer layer blends normally (0x10ED, base alpha 1.0) on `GradBlackFlame.dds`, the core
+  0 at the bottom ring, 0.7 at the 0.15 ring, 1 at the widest, 0 at the tip. Each takes a copy of `FireStrip08`'s effect
+  shader and its UV scroll controller (the atronach NIF is read for nothing else; `FireStripWarp` is dropped) with
+  Greyscale_To_PaletteAlpha and the Decal bits cleared and Greyscale_To_PaletteColor, Vertex_Alpha, Use_Falloff,
+  Double_Sided and Vertex_Colors on: with palette alpha on, the opacity is the palette's alpha alone and our palettes' 64
+  rows are alike, so vertex and base alpha did nothing; off, it is texture alpha x vertex alpha x base alpha x falloff.
+  Round 8 (2026-10-21, user: "a flame trapped inside a spindle-shaped mesh", the hard lathe outline read as glass): the
+  bottom ring's vertex alpha 0.5 -> 0 and the 0.15 ring's 0.75 -> 0.7 (the open rim showed as a line); falloff on, start
+  angle cos 1.0 opacity 1.0 to stop angle cos 0.0 opacity 0.0 on the outer layer and cos 1.0 / 1.0 to cos 0.2 / 0.0 on the
+  core, so the outline fades edge-on; U texture scale 2 on both (the scrolling tile twice round, more and narrower
+  tongues; the template's clamp mode 0x0000FF03 wraps, so the U 0..1 seam still meets). The outer layer blends normally (0x10ED, base alpha 1.0) on `GradBlackFlame.dds`, the core
   additively (0x100D, base alpha 1) on `GradBlackFlameAdd.dds` - no particles, no addon node, no DLL art object.
 - Buff name (user 2026-10-21): MGEF 0x802, SPEL 0x803 and MGEF 0x810 are named "갈망" in the ESP (English "Longing");
   "흑염 달구기" is retired.

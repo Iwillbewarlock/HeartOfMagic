@@ -885,6 +885,7 @@ namespace GreyBuild
                 if (auto* bs = dynamic_cast<nifly::BSShaderProperty*>(shader)) {
                     s.flags1 = bs->shaderFlags1;
                     s.flags2 = bs->shaderFlags2;
+                    s.uvScale = { bs->uvScale.u, bs->uvScale.v };
                 }
                 if (auto* lit = dynamic_cast<nifly::BSLightingShaderProperty*>(shader)) {
                     s.refraction = lit->refractionStrength;
@@ -894,6 +895,9 @@ namespace GreyBuild
                 }
                 if (auto* effect = dynamic_cast<nifly::BSEffectShaderProperty*>(shader)) {
                     s.baseAlpha = effect->baseColor.a;
+                    s.falloff = { effect->falloffStartAngle, effect->falloffStopAngle, effect->falloffStartOpacity,
+                        effect->falloffStopOpacity };
+                    s.clampMode = effect->textureClampMode;
                     s.textures.push_back("source " + effect->sourceTexture.get());
                     s.textures.push_back("greyscale " + effect->greyscaleTexture.get());
                 } else if (auto* set = hdr.GetBlock<nifly::BSShaderTextureSet>(shader->TextureSetRef())) {
@@ -909,8 +913,12 @@ namespace GreyBuild
                     if (!controller || !seen.insert(id).second) {
                         break;
                     }
-                    s.controllers.push_back(fmt::format("{} -> target {} ({})", controller->GetBlockName(), controller->targetRef.index,
-                        controller->targetRef.index == shaderId ? "its shader" : "WRONG"));
+                    // an effect shader float controller's variable (nif.xml EffectShaderControlledVariable: 6 U offset, 7 U scale,
+                    // 8 V offset, 9 V scale)
+                    const auto* effectFloat = dynamic_cast<nifly::BSEffectShaderPropertyFloatController*>(controller);
+                    s.controllers.push_back(fmt::format("{}{} -> target {} ({})", controller->GetBlockName(),
+                        effectFloat ? fmt::format(" variable {}", effectFloat->typeOfControlledVariable) : std::string(),
+                        controller->targetRef.index, controller->targetRef.index == shaderId ? "its shader" : "WRONG"));
                     s.blockIds.push_back(id);
                     // its interpolator and the interpolator's keys
                     if (auto* single = dynamic_cast<nifly::NiSingleInterpController*>(controller)) {
@@ -1076,7 +1084,9 @@ namespace GreyBuild
                     s.alphaTop, s.alphaBottom);
             }
             if (s.baseAlpha >= 0.0f) {
-                std::cout << fmt::format("    effect shader base alpha {:.4f}\n", s.baseAlpha);
+                std::cout << fmt::format("    effect shader base alpha {:.4f}, falloff start angle {:.4f} opacity {:.4f}, stop angle {:.4f} "
+                                         "opacity {:.4f}, UV scale {:.4f} x {:.4f}, clamp mode 0x{:08X}\n",
+                    s.baseAlpha, s.falloff[0], s.falloff[2], s.falloff[1], s.falloff[3], s.uvScale[0], s.uvScale[1], s.clampMode);
             }
             for (const auto& texture : s.textures) {
                 std::cout << "    texture " << texture << "\n";
@@ -1765,6 +1775,11 @@ namespace GreyBuild
                 effect->shaderFlags1 = (flags1 & ~kLanternFlameFlags1Off) | kLanternFlameFlags1On;
                 effect->shaderFlags2 = flags2 | kLanternFlameFlags2On;
                 effect->baseColor.a = layer.layer->baseAlpha;
+                effect->falloffStartAngle = layer.layer->falloff[0];
+                effect->falloffStopAngle = layer.layer->falloff[1];
+                effect->falloffStartOpacity = layer.layer->falloff[2];
+                effect->falloffStopOpacity = layer.layer->falloff[3];
+                effect->uvScale.u = kLanternFlameUScale;
                 auto* alpha = clone->AlphaPropertyRef() ? hdr.GetBlock<nifly::NiAlphaProperty>(*clone->AlphaPropertyRef()) : nullptr;
                 if (!alpha) {
                     auto made = std::make_unique<nifly::NiAlphaProperty>();
@@ -1772,11 +1787,14 @@ namespace GreyBuild
                     (void)a_dst.AssignAlphaProperty(clone, std::move(made));
                 }
                 alpha->flags = layer.layer->alphaFlags;
-                a_log.push_back(fmt::format("{} flame layer '{}': {} vertices, {} triangles; SLSF1 0x{:08X} -> 0x{:08X} (palette colour and "
-                                            "vertex alpha on; palette alpha, falloff, decal, dynamic decal, skinned off), SLSF2 0x{:08X} -> "
-                                            "0x{:08X} (double-sided, vertex colours on); base alpha {}, alpha flags 0x{:04X} ({})",
+                a_log.push_back(fmt::format("{} flame layer '{}': {} vertices, {} triangles; SLSF1 0x{:08X} -> 0x{:08X} (palette colour, "
+                                            "vertex alpha and falloff on; palette alpha, decal, dynamic decal, skinned off), SLSF2 0x{:08X} -> "
+                                            "0x{:08X} (double-sided, vertex colours on); base alpha {}, falloff start angle {} opacity {}, "
+                                            "stop angle {} opacity {}, UV scale {} x {} (clamp mode 0x{:08X}), alpha flags 0x{:04X} ({})",
                     a_model, name, data.size(), mesh.tris.size(), flags1, effect->shaderFlags1, flags2, effect->shaderFlags2,
-                    effect->baseColor.a, alpha->flags, BlendOfAlpha(alpha) == ShapeBlend::kAdditive ? "additive" : "normal blend"));
+                    effect->baseColor.a, effect->falloffStartAngle, effect->falloffStartOpacity, effect->falloffStopAngle,
+                    effect->falloffStopOpacity, effect->uvScale.u, effect->uvScale.v, effect->textureClampMode, alpha->flags,
+                    BlendOfAlpha(alpha) == ShapeBlend::kAdditive ? "additive" : "normal blend"));
                 clones.push_back(clone);
             }
             return clones;
@@ -2568,9 +2586,9 @@ namespace GreyBuild
                 const auto it = std::find_if(a_info.shapes.begin(), a_info.shapes.end(), [&](const auto& a_s) { return a_s.name == a_name; });
                 return it == a_info.shapes.end() ? nullptr : &*it;
             };
-            // the fire in a model: both layers, each an effect shader with palette colour, vertex alpha, double-sided and vertex
-            // colours on and palette alpha, falloff, the decal bits (and Skinned on the ground) off; its blend, base alpha and the
-            // black flame palette for that blend; its counts; vertex alpha up to 255, the tip and the bottom ring at the profile's; every controller on
+            // the fire in a model: both layers, each an effect shader with palette colour, vertex alpha, falloff, double-sided and
+            // vertex colours on and palette alpha, the decal bits (and Skinned on the ground) off; its blend, base alpha, falloff
+            // values, U scale (kLanternFlameUScale, on a wrapping clamp mode) and the black flame palette for that blend; its counts; vertex alpha up to 255, the tip and the bottom ring at the profile's; every controller on
             // its own shader, and no shader, alpha property, controller, interpolator or key block shared between the layers
             const auto checkFlame = [&](const LanternNifInfo& a_info, const char* a_model, bool a_worn) {
                 std::set<std::uint32_t> blocks;
@@ -2594,6 +2612,17 @@ namespace GreyBuild
                             s->alphaFlags, layer.alphaFlags, s->textures.size() > 1 ? s->textures[1] : "", palette));
                     Check(problems, std::fabs(s->baseAlpha - layer.baseAlpha) <= 1e-6f,
                         fmt::format("{} '{}': base alpha {}, expected {}", a_model, s->name, s->baseAlpha, layer.baseAlpha));
+                    bool falloff = true;
+                    for (std::size_t i = 0; i < layer.falloff.size(); ++i) {
+                        falloff = falloff && std::fabs(s->falloff[i] - layer.falloff[i]) <= 1e-6f;
+                    }
+                    Check(problems, falloff,
+                        fmt::format("{} '{}': falloff start angle {} opacity {}, stop angle {} opacity {}, expected {} {}, {} {}", a_model, s->name,
+                            s->falloff[0], s->falloff[2], s->falloff[1], s->falloff[3], layer.falloff[0], layer.falloff[2], layer.falloff[1],
+                            layer.falloff[3]));
+                    Check(problems, std::fabs(s->uvScale[0] - kLanternFlameUScale) <= 1e-6f && (s->clampMode & 0xFFu) == kLanternClampWrap,
+                        fmt::format("{} '{}': U scale {}, clamp mode 0x{:08X}, expected U scale {} and clamp mode {} (wrap S wrap T) in the low "
+                                    "byte", a_model, s->name, s->uvScale[0], s->clampMode, kLanternFlameUScale, kLanternClampWrap));
                     Check(problems, s->vertices == kLanternFlameVertices && s->triangles == kLanternFlameTriangles,
                         fmt::format("{} '{}': {} vertices, {} triangles, expected {} and {}", a_model, s->name, s->vertices, s->triangles,
                             kLanternFlameVertices, kLanternFlameTriangles));
@@ -2874,10 +2903,12 @@ namespace GreyBuild
             for (const char* rel : { kLanternGroundNif, kLanternWornNif }) {
                 for (const auto& s : InspectLanternNif(a_dataDir / rel).shapes) {
                     if (IsFlameLayer(s.name)) {
-                        std::cout << fmt::format("{} {} (read back): {} SLSF1 0x{:08X} SLSF2 0x{:08X}, alpha 0x{:04X} ({}), base alpha {:.4f}, {}, "
-                                                 "vertex alpha {}..{} (tip {})\n",
+                        std::cout << fmt::format("{} {} (read back): {} SLSF1 0x{:08X} SLSF2 0x{:08X}, alpha 0x{:04X} ({}), base alpha {:.4f}, "
+                                                 "falloff start angle {:.4f} opacity {:.4f} stop angle {:.4f} opacity {:.4f}, UV scale {:.4f} x "
+                                                 "{:.4f} (clamp mode 0x{:08X}), {}, vertex alpha {}..{} (tip {}, bottom {})\n",
                             rel, s.name, s.shader, s.flags1, s.flags2, s.alphaFlags, s.additive ? "additive" : "normal blend", s.baseAlpha,
-                            s.textures.size() > 1 ? s.textures[1] : std::string("no palette"), s.alphaMin, s.alphaMax, s.alphaTop);
+                            s.falloff[0], s.falloff[2], s.falloff[1], s.falloff[3], s.uvScale[0], s.uvScale[1], s.clampMode,
+                            s.textures.size() > 1 ? s.textures[1] : std::string("no palette"), s.alphaMin, s.alphaMax, s.alphaTop, s.alphaBottom);
                     }
                 }
             }

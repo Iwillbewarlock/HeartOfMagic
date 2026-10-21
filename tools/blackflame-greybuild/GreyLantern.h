@@ -16,8 +16,8 @@
 //                      (round 6, user: no clipping with whatever the wearer has on)
 // The fire's shaders: each layer a copy of the Flame Atronach's FireStrip08 effect shader and its UV scroll controller
 // (kLanternFlameTemplate, the atronach NIF is read for nothing else), palette colour on and palette alpha off (with it on,
-// the opacity is the palette's alpha alone and our palettes' rows are all alike), so the opacity is texture alpha x vertex
-// alpha x base alpha; the outer layer blends normally and takes GradBlackFlame.dds through GreyEffects, the core is
+// the opacity is the palette's alpha alone and our palettes' rows are all alike) and falloff on, so the opacity is texture
+// alpha x vertex alpha x base alpha x falloff (fading the outline edge-on); U texture scale kLanternFlameUScale; the outer layer blends normally and takes GradBlackFlame.dds through GreyEffects, the core is
 // additive and takes GradBlackFlameAdd.dds
 //   lantern_smoke.nif  an empty BSFadeNode with BSXFlags and one AddOnNode9123 (grey ADDN 0x809 MPSFireSmSmoke01)
 //   LampGenericSoot01.dds  LampGeneric01.dds with RGB x kLanternSootDarken, alpha kept, same format and mips
@@ -198,9 +198,11 @@ namespace GreyBuild
     inline constexpr float kLanternFlameClearance = 0.5f;
     // Around the axis: this many segments, the seam duplicated so U runs 0..1 (it wraps on the scrolling tile)
     inline constexpr int kLanternFlameSegments = 12;
-    // The profile, bottom to top: { share of the height (V = 1 - it), share of the widest radius, vertex alpha }. The 0.15 and 0.60
-    // rings' alphas are the linear blend of their neighbours; the tip is a ring (no degenerate point); no bottom cap
-    inline constexpr std::array<std::array<float, 3>, 6> kLanternFlameProfile{ { { 0.00f, 0.55f, 0.5f }, { 0.15f, 0.90f, 0.75f },
+    // The profile, bottom to top: { share of the height (V = 1 - it), share of the widest radius, vertex alpha }. The 0.60
+    // ring's alpha is the linear blend of its neighbours; the tip is a ring (no degenerate point); no bottom cap, and the open
+    // bottom ring at alpha 0 (round 8: at 0.5 its rim showed as a hard horizontal line), the 0.15 ring 0.7 so the fade is
+    // short and the body stays full
+    inline constexpr std::array<std::array<float, 3>, 6> kLanternFlameProfile{ { { 0.00f, 0.55f, 0.0f }, { 0.15f, 0.90f, 0.7f },
         { 0.30f, 1.00f, 1.0f }, { 0.60f, 0.70f, 0.782f }, { 0.85f, 0.35f, 0.6f }, { 1.00f, 0.02f, 0.0f } } };
     inline constexpr std::uint16_t kLanternFlameVertices =
         static_cast<std::uint16_t>((kLanternFlameSegments + 1) * kLanternFlameProfile.size());
@@ -210,7 +212,8 @@ namespace GreyBuild
     inline constexpr const char* kLanternFlameTemplate = "FireStrip08";
 
     /// One flame layer: its shape name, height and widest radius as shares of the outer layer's, its base this share of the
-    /// outer layer's height above the outer base, its NiAlphaProperty flags and its shader's base alpha
+    /// outer layer's height above the outer base, its NiAlphaProperty flags, its shader's base alpha and its falloff
+    /// { start angle, stop angle, start opacity, stop opacity } (the angles as cosines of the view-to-normal angle)
     struct LanternFlameLayer
     {
         const char* name;
@@ -219,20 +222,30 @@ namespace GreyBuild
         float lift;
         std::uint16_t alphaFlags;
         float baseAlpha;
+        std::array<float, 4> falloff;
     };
     // Alpha flags: 0x10ED blend on, SRC_ALPHA / INV_SRC_ALPHA (normal); 0x100D SRC_ALPHA / ONE (additive); no alpha test.
-    // Base alpha 1 on both: FXFireScrollTile02's alpha averages 0.34 (p90 0.60), which already keeps the outer layer thin
+    // Base alpha 1 on both: FXFireScrollTile02's alpha averages 0.34 (p90 0.60), which already keeps the outer layer thin.
+    // Falloff (round 8, user: the hard lathe silhouette read as a glass spindle holding the fire): opacity 1 facing the
+    // camera down to 0 edge-on, so the outline fades instead of ending in a line; the core reaches 0 earlier (cos 0.2, 78
+    // degrees) so it stays a glow inside the outer layer. Effect.hlsl: smoothstep of (|N.V| - start) / (stop - start)
     inline constexpr std::array<LanternFlameLayer, 2> kLanternFlameLayers{ {
-        { "HoMBF_FlameOuter", 1.0f, 1.0f, 0.0f, 0x10ED, 1.0f },
-        { "HoMBF_FlameCore", 0.65f, 0.45f, 0.05f, 0x100D, 1.0f },
+        { "HoMBF_FlameOuter", 1.0f, 1.0f, 0.0f, 0x10ED, 1.0f, { 1.0f, 0.0f, 1.0f, 0.0f } },
+        { "HoMBF_FlameCore", 0.65f, 0.45f, 0.05f, 0x100D, 1.0f, { 1.0f, 0.2f, 1.0f, 0.0f } },
     } };
-    // The layers' shader flags (the template's others kept): SLSF1 palette colour and vertex alpha on; palette alpha off
-    // (Community Shaders' Effect.hlsl, as vanilla: with it on the alpha is palette.a(texture alpha, accumulated alpha), and
-    // our palettes' rows are all alike, so vertex and base alpha would do nothing), falloff off, the atronach body's decal
-    // bits off, Skinned off (SkinToBone sets it again on the worn model); SLSF2 double-sided and vertex colours on
-    inline constexpr std::uint32_t kLanternFlameFlags1On = kSlsf1GreyscaleToPaletteColor | kSlsf1VertexAlpha;
+    // The layers' U texture scale (round 8): the scrolling fire tile twice round the spindle, more and narrower tongues; U runs
+    // 0..1 over the segments and the template's clamp mode is wrap (FireStrip08's 0x0000FF03, low byte 3 = wrap S wrap T,
+    // checked by the read-back), so the seam still meets itself. V scale kept (the template's 1)
+    inline constexpr float kLanternFlameUScale = 2.0f;
+    // the texture clamp mode word's low byte: wrap S wrap T
+    inline constexpr std::uint32_t kLanternClampWrap = 3;
+    // The layers' shader flags (the template's others kept): SLSF1 palette colour, vertex alpha and falloff on; palette alpha
+    // off (Community Shaders' Effect.hlsl, as vanilla: with it on the alpha is palette.a(texture alpha, accumulated alpha), and
+    // our palettes' rows are all alike, so vertex and base alpha would do nothing), the atronach body's decal bits off,
+    // Skinned off (SkinToBone sets it again on the worn model); SLSF2 double-sided and vertex colours on
+    inline constexpr std::uint32_t kLanternFlameFlags1On = kSlsf1GreyscaleToPaletteColor | kSlsf1VertexAlpha | kSlsf1Falloff;
     inline constexpr std::uint32_t kLanternFlameFlags1Off =
-        kSlsf1GreyscaleToPaletteAlpha | kSlsf1Falloff | kSlsf1Decal | kSlsf1DynamicDecal | kSlsf1Skinned;
+        kSlsf1GreyscaleToPaletteAlpha | kSlsf1Decal | kSlsf1DynamicDecal | kSlsf1Skinned;
     inline constexpr std::uint32_t kLanternFlameFlags2On = kSlsf2DoubleSided | kSlsf2VertexColors;
 
     // The read-back's skin checks: bone bind pose x skin-to-bone = identity within this, and the bone-space bounds and
@@ -287,6 +300,11 @@ namespace GreyBuild
         // the shader's, the alpha property's, the controllers' and their interpolators' and key data's block ids
         std::vector<std::uint32_t> blockIds;
         float baseAlpha = -1.0f;                // an effect shader's base colour alpha (-1: not an effect shader)
+        // an effect shader's falloff: start angle, stop angle (cosines), start opacity, stop opacity; and its texture clamp
+        // mode word (the low byte the mode, 3 = wrap S wrap T)
+        std::array<float, 4> falloff{};
+        std::uint32_t clampMode = 0;
+        std::array<float, 2> uvScale{ 1.0f, 1.0f };  // a BSShaderProperty's UV scale (u, v)
         // the vertex colours' alpha (0..255; -1: no colours): the smallest, the largest, the largest at the highest vertices
         // and at the lowest
         int alphaMin = -1;
