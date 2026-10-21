@@ -449,7 +449,8 @@ could not be made, what was made is kept and the global is still 1 (`partial` wa
 stay 0. Keyframing is best effort (a failure only logs): the made lantern and journal, and at every later load of the cell
 the lantern or journal of ours (not disabled, in the cell, within 64 units of its configured place, so not one the player
 dropped elsewhere), are keyframed through `TESObjectREFR::SetMotionType` (which marks the ref's Havok state for the save)
-once their 3D is there (10 s at most). Picking the lantern up disables the smoke in the player's cell. A save that
+once their 3D is there (10 s at most). Picking the lantern up disables the smoke in the player's cell (and sets the global, which matters only
+for a lantern from a console `AddItem` before any visit). A save that
 already visited Ansilvund02 gets the lantern at its next visit. The offset's turn assumes the z angle runs clockwise seen
 from above (forward = (sin a, cos a)); not checked in game, the ok line's two coordinates settle it.
 
