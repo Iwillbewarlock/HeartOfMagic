@@ -596,6 +596,31 @@ namespace GreyBuild::SelfTest
                 "lantern: the read-back refuses a skin-to-bone transform that is not the bone's inverse bind");
         }
         {
+            // the worn frame leaned 5 deg about Y round its first vertex: the read-back's vertical check refuses it
+            const auto leaned = a_dir / "lantern" / "out_lean";
+            std::filesystem::remove_all(leaned);
+            std::filesystem::copy(out, leaned, std::filesystem::copy_options::recursive);
+            nifly::NifFile bad;
+            LoadNif(bad, leaned / kLanternWornNif);
+            constexpr float kLeanDeg = 5.0f;
+            const float c = std::cos(kLeanDeg * 3.14159265358979f / 180.0f);
+            const float s = std::sin(kLeanDeg * 3.14159265358979f / 180.0f);
+            for (auto* shape : bad.GetShapes()) {
+                auto* tri = dynamic_cast<nifly::BSTriShape*>(shape);
+                if (shape->name.get() == kLanternWornFrameName && tri && !tri->vertData.empty()) {
+                    const Vector3 pivot = tri->vertData.front().vert;
+                    for (auto& vertex : tri->vertData) {
+                        const Vector3 d = vertex.vert - pivot;
+                        vertex.vert = pivot + Vector3(d.x * c + d.z * s, d.y, -d.x * s + d.z * c);
+                    }
+                }
+            }
+            SaveNif(bad, leaned / kLanternWornNif);
+            const float tilt = WornAxisTiltDeg(leaned);
+            a_check.Check(Near(tilt, kLeanDeg, 0.01f) && Mentions(VerifyLantern(inputs, leaned), "leans"),
+                fmt::format("lantern: the read-back refuses a worn frame leaned {} deg off world Z (read {:.4f})", kLeanDeg, tilt));
+        }
+        {
             nifly::NifFile bad;
             LoadNif(bad, out / kLanternSmokeNif);
             for (std::uint32_t id = 0; id < bad.GetHeader().GetNumBlocks(); ++id) {
