@@ -71,8 +71,10 @@ namespace GreyBuild::SelfTest
         constexpr std::uint16_t kAlphaNormalBlend = 0x10ED;
         constexpr std::uint16_t kAlphaAdditive = 0x100D;  // blend on, SRC_ALPHA / ONE
         // vanilla FireStrip08's falloff { start angle, stop angle, start opacity, stop opacity } and clamp mode word (wrap S
-        // wrap T, lighting influence 255); the build must replace the falloff values with each layer's
+        // wrap T, lighting influence 255) and base colour scale; the build must replace the falloff values and the scale with
+        // each layer's
         constexpr std::array<float, 4> kTemplateFalloff{ 0.6428f, 0.1736f, 1.0f, 0.0f };
+        constexpr float kTemplateColourScale = 2.0f;
         constexpr std::uint32_t kTemplateClamp = 0x0000FF03;
         constexpr std::uint32_t kClampClamp = 0x0000FF00;  // clamp S clamp T
 
@@ -204,7 +206,8 @@ namespace GreyBuild::SelfTest
         }
 
         /// The stand-in Flame Atronach: two bones and FireStrip08 (the flame layers' shader template: palette alpha, falloff and
-        /// the decal bits on as on the vanilla body, no SLSF2 flags, the vanilla falloff values) skinned half and half to them;
+        /// the decal bits on as on the vanilla body, no SLSF2 flags, the vanilla falloff values and base colour scale) skinned
+        /// half and half to them;
         /// it blends by a_alpha and has clamp mode a_clamp
         void MakeAtronach(const std::filesystem::path& a_file, std::uint16_t a_alpha = kAlphaNormalBlend,
             std::uint32_t a_clamp = kTemplateClamp)
@@ -232,6 +235,7 @@ namespace GreyBuild::SelfTest
                 prop->falloffStartOpacity = kTemplateFalloff[2];
                 prop->falloffStopOpacity = kTemplateFalloff[3];
                 prop->textureClampMode = a_clamp;
+                prop->baseColorScale = kTemplateColourScale;
                 prop->sourceTexture.get() = "textures\\effects\\fxfirescrolltile02.dds";
                 prop->greyscaleTexture.get() = kOrangePalette;
                 shape->ShaderPropertyRef()->index = hdr.AddBlock(std::move(prop));
@@ -300,16 +304,21 @@ namespace GreyBuild::SelfTest
         }
 
         /// The flame layers of a model as the build must write them: names, counts, shader flags (a_worn: Skinned on, else
-        /// off), blend, base alpha, falloff values, U scale 2 on the template's wrapping clamp mode, palette for the blend,
-        /// vertex alpha up to 255 with 0 at the tip and the bottom ring, one controller each on its own shader, no shader,
-        /// alpha property, controller, interpolator or key block shared. "" when it holds, else what failed
+        /// off), blend, base alpha, base colour scale, falloff values, UV scale 2 x 2.5 on the template's wrapping clamp mode,
+        /// palette for the blend, vertex alpha up to 255 with 0 at the tip and the bottom ring, the jag on the 0.60 ring (0.3),
+        /// one controller each on its own shader, no shader, alpha property, controller, interpolator or key block shared. ""
+        /// when it holds, else what failed
         [[nodiscard]] std::string FlameLayersWrong(const LanternNifInfo& a_info, bool a_worn)
         {
             constexpr std::uint32_t kOff = kSlsf1GreyscaleToPaletteAlpha | kSlsf1Decal | kSlsf1DynamicDecal;
             constexpr std::uint32_t kOn = kSlsf1GreyscaleToPaletteColor | kSlsf1VertexAlpha | kSlsf1Falloff;
-            // round 8: the outer layer fades from cos 1 to cos 0, the core from cos 1 to cos 0.2, both opacity 1 -> 0
-            constexpr std::array<std::array<float, 4>, 2> kFalloff{ { { 1.0f, 0.0f, 1.0f, 0.0f }, { 1.0f, 0.2f, 1.0f, 0.0f } } };
-            constexpr float kUScale = 2.0f;
+            // round 9: the outer layer fades from cos 0.6 to cos 0, the core from cos 0.8 to cos 0.2, both opacity 1 -> 0; base
+            // colour scale 0.6 and 1.6; UV scale 2 x 2.5; the jag 0.3 (199 -> 60 of 255 on the 0.60 ring, about 0.3015)
+            constexpr std::array<std::array<float, 4>, 2> kFalloff{ { { 0.6f, 0.0f, 1.0f, 0.0f }, { 0.8f, 0.2f, 1.0f, 0.0f } } };
+            constexpr std::array<float, 2> kColourScale{ 0.6f, 1.6f };
+            constexpr std::array<float, 2> kUvScale{ 2.0f, 2.5f };
+            constexpr float kJag = 0.3f;
+            constexpr float kJagTolerance = 0.01f;
             constexpr std::uint32_t kOn2 = kSlsf2DoubleSided | kSlsf2VertexColors;
             std::vector<std::uint32_t> blocks;
             for (std::size_t l = 0; l < kLanternFlameLayers.size(); ++l) {
@@ -338,7 +347,13 @@ namespace GreyBuild::SelfTest
                             s->falloff[2], s->falloff[1], s->falloff[3]);
                     }
                 }
-                if (!Near(s->uvScale[0], kUScale, 1e-6f) || !Near(s->uvScale[1], 1.0f, 1e-6f) || s->clampMode != kTemplateClamp) {
+                if (!Near(s->colourScale, kColourScale[l], 1e-6f)) {
+                    return fmt::format("'{}': base colour scale {}", s->name, s->colourScale);
+                }
+                if (!Near(s->alphaJag, kJag, kJagTolerance)) {
+                    return fmt::format("'{}': jag {} on the 0.60 ring", s->name, s->alphaJag);
+                }
+                if (!Near(s->uvScale[0], kUvScale[0], 1e-6f) || !Near(s->uvScale[1], kUvScale[1], 1e-6f) || s->clampMode != kTemplateClamp) {
                     return fmt::format("'{}': UV scale {} x {}, clamp mode 0x{:08X}", s->name, s->uvScale[0], s->uvScale[1], s->clampMode);
                 }
                 if (!s->vertexColors || s->alphaMax != 255 || s->alphaTop != 0 || s->alphaBottom != 0) {
@@ -500,10 +515,11 @@ namespace GreyBuild::SelfTest
                               Shape(gnd, kLanternFlameLayers[1].name)->skinType.empty(),
                 fmt::format("lantern gnd: both flame layers ({} vertices, {} triangles each, not skinned) with palette alpha, the decal "
                             "bits and Skinned cleared, palette colour, vertex alpha, falloff, double-sided and vertex colours on; the outer "
-                            "0x{:04X} on GradBlackFlame.dds base alpha {} falloff cos 1 -> 0, the core 0x{:04X} on GradBlackFlameAdd.dds "
-                            "base alpha {} falloff cos 1 -> 0.2 (opacity 1 -> 0, the template's falloff replaced); U scale 2 on the "
-                            "template's wrap clamp mode; vertex alpha up to 255, 0 at the tip and the bottom ring; each controller on its "
-                            "own shader, no block shared ({})",
+                            "0x{:04X} on GradBlackFlame.dds base alpha {} colour scale 0.6 falloff cos 0.6 -> 0, the core 0x{:04X} on "
+                            "GradBlackFlameAdd.dds base alpha {} colour scale 1.6 falloff cos 0.8 -> 0.2 (opacity 1 -> 0, the template's "
+                            "falloff and colour scale 2 replaced); UV scale 2 x 2.5 on the template's wrap clamp mode; vertex alpha up to "
+                            "255, 0 at the tip and the bottom ring, the 0.60 ring's alternate segments 0.3 of the others; each controller "
+                            "on its own shader, no block shared ({})",
                     kLanternFlameVertices, kLanternFlameTriangles, kLanternFlameLayers[0].alphaFlags, kLanternFlameLayers[0].baseAlpha,
                     kLanternFlameLayers[1].alphaFlags, kLanternFlameLayers[1].baseAlpha, wrong.empty() ? std::string("ok") : wrong));
             bool placed = true;
@@ -594,8 +610,8 @@ namespace GreyBuild::SelfTest
         {
             const std::string wrong = FlameLayersWrong(worn, true);
             a_check.Check(wrong.empty(), fmt::format("lantern worn: both flame layers as on the ground (counts, flags with Skinned on, "
-                                                     "blends, base alphas, falloff, U scale, palettes, vertex alpha, own controllers, no "
-                                                     "block shared; {})",
+                                                     "blends, base alphas, colour scales, falloff, UV scale, palettes, vertex alpha and "
+                                                     "the jag (turned with the lantern), own controllers, no block shared; {})",
                                              wrong.empty() ? std::string("ok") : wrong));
         }
         const auto* wornFrame = Shape(worn, kLanternWornFrameName);

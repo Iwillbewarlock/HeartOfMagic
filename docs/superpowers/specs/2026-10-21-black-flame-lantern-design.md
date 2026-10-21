@@ -197,7 +197,7 @@ reason gets `lantern` when the 0x810 effect is the one found (review R3).
   closed spindles (lathe shapes, 12 segments, 6 rings, open at the bottom) made by the builder on the cage axis, the same
   in the ground model, the worn model and the inventory, skinned to the pelvis in the worn one - `HoMBF_FlameOuter`
   0.40 x the frame's height tall and 0.55 x the smaller cage wall size wide, its base a third of the frame's height up,
-  and `HoMBF_FlameCore` 0.65 x as tall and 0.45 x as wide, 0.05 x the outer height above the outer base; vertex alpha
+  and `HoMBF_FlameCore` 0.55 x as tall and 0.35 x as wide (round 9), 0.05 x the outer height above the outer base; vertex alpha
   0 at the bottom ring, 0.7 at the 0.15 ring, 1 at the widest, 0 at the tip. Each takes a copy of `FireStrip08`'s effect
   shader and its UV scroll controller (the atronach NIF is read for nothing else; `FireStripWarp` is dropped) with
   Greyscale_To_PaletteAlpha and the Decal bits cleared and Greyscale_To_PaletteColor, Vertex_Alpha, Use_Falloff,
@@ -207,7 +207,15 @@ reason gets `lantern` when the 0x810 effect is the one found (review R3).
   bottom ring's vertex alpha 0.5 -> 0 and the 0.15 ring's 0.75 -> 0.7 (the open rim showed as a line); falloff on, start
   angle cos 1.0 opacity 1.0 to stop angle cos 0.0 opacity 0.0 on the outer layer and cos 1.0 / 1.0 to cos 0.2 / 0.0 on the
   core, so the outline fades edge-on; U texture scale 2 on both (the scrolling tile twice round, more and narrower
-  tongues; the template's clamp mode 0x0000FF03 wraps, so the U 0..1 seam still meets). The outer layer blends normally (0x10ED, base alpha 1.0) on `GradBlackFlame.dds`, the core
+  tongues; the template's clamp mode 0x0000FF03 wraps, so the U 0..1 seam still meets). Round 9 (2026-10-22, matched in
+  a Blender preview of Community Shaders' effect maths: colour = palette.rgb(texture green) x base colour scale, alpha =
+  texture alpha x vertex alpha x falloff): base colour scale 0.6 on the outer layer and 1.6 on the core (the template's
+  2.0 on both read as a white marbled blob; now a dark smoky envelope round a brighter core); UV scale 2 x 2.5 on both
+  (V 2.5 for finer tongues, the V offset scroll unchanged); falloff cos 0.6 / 1.0 to cos 0.0 / 0.0 on the outer layer
+  (more body before the edge fades) and cos 0.8 / 1.0 to cos 0.2 / 0.0 on the core; the core 0.55 x 0.35 (was 0.65 x
+  0.45); a jagged top, every odd segment's vertex alpha x 0.3 on the 0.60 and 0.85 rings and the tip (the seam column
+  copies segment 0, both even, so the seam stays continuous; the read-back checks the 0.60 ring's alternate segments at
+  0.3 of the others). The outer layer blends normally (0x10ED, base alpha 1.0) on `GradBlackFlame.dds`, the core
   additively (0x100D, base alpha 1) on `GradBlackFlameAdd.dds` - no particles, no addon node, no DLL art object.
 - Buff name (user 2026-10-21): MGEF 0x802, SPEL 0x803 and MGEF 0x810 are named "갈망" in the ESP (English "Longing");
   "흑염 달구기" is retired.

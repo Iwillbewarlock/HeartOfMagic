@@ -274,19 +274,25 @@ model is placed on both bodies and checked against them). Extract them from the 
 model, the worn model and the inventory: two closed spindles the builder makes on the cage axis (lathe shapes, 12
 segments round, 6 rings, open at the bottom, seen from every side). `HoMBF_FlameOuter` is 0.40 x the frame's height tall
 and 0.55 x the smaller cage wall size wide, its base a third of the frame's height above its bottom (z 10.58 to 23.27 of
-31.74 on the ground model, radius 4.77); `HoMBF_FlameCore` is 0.65 x as tall and 0.45 x as wide, its base 0.05 x the
-outer height higher. Vertex alpha runs 0 at the bottom ring (round 8: at 0.5 the open rim showed as a hard line), 0.7 at
-the 0.15 ring, 1 at the widest, 0 at the tip. Each layer takes a copy of the Flame Atronach's `FireStrip08` effect shader
+31.74 on the ground model, radius 4.77); `HoMBF_FlameCore` is 0.55 x as tall and 0.35 x as wide (round 9, was 0.65 and
+0.45; z 11.21 to 18.20, radius 1.67), its base 0.05 x the outer height higher. Vertex alpha runs 0 at the bottom ring
+(round 8: at 0.5 the open rim showed as a hard line), 0.7 at the 0.15 ring, 1 at the widest, 0 at the tip; from the 0.60
+ring up (0.60, 0.85 and the tip) every odd segment of the 12 is x 0.3 (round 9: a jagged top that breaks into tongues;
+the seam column copies segment 0, both even, so the seam stays continuous; the read-back checks the 0.60 ring's alternate
+segments at 0.3 of the others). Each layer takes a copy of the Flame Atronach's `FireStrip08` effect shader
 with its UV scroll controller (the atronach NIF is read for nothing else) with Greyscale_To_PaletteColor, Vertex_Alpha,
 Use_Falloff, Double_Sided and Vertex_Colors on and Greyscale_To_PaletteAlpha and the atronach body's Decal and
 Dynamic_Decal bits off: with palette alpha on, Community Shaders (as vanilla) takes the alpha from
 `palette.a(u = texture alpha, v = accumulated alpha)`, and our palettes' 64 rows are all alike, so vertex and base alpha
-would do nothing; with it off the opacity is texture alpha x vertex alpha x base alpha x falloff. The falloff (round 8,
-user: the hard lathe outline read as a glass spindle holding the fire) fades the outline: opacity 1 where the surface
-faces the camera down to 0 edge-on, start angle cos 1.0 opacity 1.0 and stop angle cos 0.0 opacity 0.0 on the outer
-layer, stop angle cos 0.2 on the core (so it is gone by 78 degrees and stays a glow inside the outer layer). The U texture
-scale is 2 on both (more, narrower tongues: the scrolling tile twice round; U runs 0..1 and the template's clamp mode is
-wrap, 0x0000FF03, which the read-back checks, so the seam still meets itself).
+would do nothing; with it off the opacity is texture alpha x vertex alpha x base alpha x falloff, and the colour is
+`palette.rgb(texture green)` x the base colour scale. The base colour scale (round 9; the template's 2.0 on both read as a
+white marbled blob) is 0.6 on the outer layer, a dark smoky envelope, and 1.6 on the core, brighter inside it. The
+falloff (round 8, user: the hard lathe outline read as a glass spindle holding the fire; round 9 values) fades the
+outline: on the outer layer opacity 1.0 up to start angle cos 0.6 (53 degrees off facing the camera, more body before the
+edge fades) and 0.0 at stop angle cos 0.0 (edge-on); on the core 1.0 up to cos 0.8 (37 degrees) and 0.0 at cos 0.2 (78
+degrees), so it stays a glow inside the outer layer. The UV scale is 2 x 2.5 on both (U 2: the scrolling tile twice
+round, more and narrower tongues; V 2.5: finer tongues up the flame, the V offset scroll unchanged; U runs 0..1 and the
+template's clamp mode is wrap, 0x0000FF03, which the read-back checks, so the seam still meets itself).
 `HoMBF_FlameOuter` blends normally (alpha 0x10ED, base alpha 1), so GreyEffects gives it `GradBlackFlame.dds`, whose
 dark band paints the dark parts of the flame; `HoMBF_FlameCore` is additive (0x100D, base alpha 1) and takes
 `GradBlackFlameAdd.dds`. The build and the read-back keep every flame vertex at least 0.5 off the frame's triangles

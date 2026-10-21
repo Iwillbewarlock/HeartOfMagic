@@ -898,6 +898,7 @@ namespace GreyBuild
                     s.falloff = { effect->falloffStartAngle, effect->falloffStopAngle, effect->falloffStartOpacity,
                         effect->falloffStopOpacity };
                     s.clampMode = effect->textureClampMode;
+                    s.colourScale = effect->baseColorScale;
                     s.textures.push_back("source " + effect->sourceTexture.get());
                     s.textures.push_back("greyscale " + effect->greyscaleTexture.get());
                 } else if (auto* set = hdr.GetBlock<nifly::BSShaderTextureSet>(shader->TextureSetRef())) {
@@ -1027,6 +1028,36 @@ namespace GreyBuild
                         s.alphaBottom = std::max(s.alphaBottom, a);
                     }
                 }
+                // the jag (GreyLantern.h kLanternFlameJagRing): that ring's vertices at its share of the height, each put in
+                // the segment its angle round the ring's centre (the bounds' middle; the seam's copy would pull a mean) is nearest
+                if (IsFlameLayer(s.name) && top > bottom) {
+                    constexpr double kTurn = 6.283185307179586;
+                    const float ringZ = bottom + kLanternFlameProfile[kLanternFlameJagRing][0] * (top - bottom);
+                    std::vector<const nifly::BSVertexData*> ring;
+                    LanternBox box = EmptyBox();
+                    for (const auto& vertex : tri->vertData) {
+                        if (std::fabs(vertex.vert.z - ringZ) <= kEndTolerance) {
+                            ring.push_back(&vertex);
+                            Grow(box, vertex.vert);
+                        }
+                    }
+                    std::array<double, 2> sum{};
+                    std::array<int, 2> count{};
+                    const auto centre = box.Centre();
+                    for (const auto* vertex : ring) {
+                        const double angle = std::atan2(vertex->vert.y - centre[1], vertex->vert.x - centre[0]);
+                        const long segment = std::lround(angle / (kTurn / kLanternFlameSegments));
+                        const std::size_t parity = static_cast<std::size_t>(((segment % 2) + 2) % 2);
+                        sum[parity] += vertex->colorData[3];
+                        ++count[parity];
+                    }
+                    if (count[0] > 0 && count[1] > 0) {
+                        const double even = sum[0] / count[0];
+                        const double odd = sum[1] / count[1];
+                        const double brighter = std::max(even, odd);
+                        s.alphaJag = brighter > 0.0 ? static_cast<float>(std::min(even, odd) / brighter) : -1.0f;
+                    }
+                }
             }
             if (auto* tri = dynamic_cast<nifly::BSTriShape*>(shape); tri && tri->HasUVs() && !tri->vertData.empty()) {
                 s.uvMin = { kFloatMax, kFloatMax };
@@ -1083,10 +1114,15 @@ namespace GreyBuild
                 std::cout << fmt::format("    vertex alpha {}..{}, at the highest vertices {}, at the lowest {}\n", s.alphaMin, s.alphaMax,
                     s.alphaTop, s.alphaBottom);
             }
+            if (s.alphaJag >= 0.0f) {
+                std::cout << fmt::format("    jag: on the {:.2f} ring the dimmer alternate segments' mean vertex alpha {:.4f} x the brighter's\n",
+                    kLanternFlameProfile[kLanternFlameJagRing][0], s.alphaJag);
+            }
             if (s.baseAlpha >= 0.0f) {
-                std::cout << fmt::format("    effect shader base alpha {:.4f}, falloff start angle {:.4f} opacity {:.4f}, stop angle {:.4f} "
-                                         "opacity {:.4f}, UV scale {:.4f} x {:.4f}, clamp mode 0x{:08X}\n",
-                    s.baseAlpha, s.falloff[0], s.falloff[2], s.falloff[1], s.falloff[3], s.uvScale[0], s.uvScale[1], s.clampMode);
+                std::cout << fmt::format("    effect shader base alpha {:.4f}, base colour scale {:.4f}, falloff start angle {:.4f} opacity "
+                                         "{:.4f}, stop angle {:.4f} opacity {:.4f}, UV scale {:.4f} x {:.4f}, clamp mode 0x{:08X}\n",
+                    s.baseAlpha, s.colourScale, s.falloff[0], s.falloff[2], s.falloff[1], s.falloff[3], s.uvScale[0], s.uvScale[1],
+                    s.clampMode);
             }
             for (const auto& texture : s.textures) {
                 std::cout << "    texture " << texture << "\n";
@@ -1621,8 +1657,11 @@ namespace GreyBuild
                 const auto& below = kLanternFlameProfile[k == 0 ? 0 : k - 1];
                 const auto& above = kLanternFlameProfile[std::min(k + 1, rings - 1)];
                 const float slope = (above[1] - below[1]) * a_radius / ((above[0] - below[0]) * a_height);
-                const auto alpha = static_cast<std::uint8_t>(std::lround(std::clamp(ring[2], 0.0f, 1.0f) * 255.0f));
+                const float ringAlpha = std::clamp(ring[2], 0.0f, 1.0f);
                 for (int s = 0; s <= kLanternFlameSegments; ++s) {
+                    // the jagged top: odd segments dimmed from kLanternFlameJagRing up (the seam column is even)
+                    const float jag = k >= kLanternFlameJagRing && s % 2 == 1 ? kLanternFlameJagFactor : 1.0f;
+                    const auto alpha = static_cast<std::uint8_t>(std::lround(ringAlpha * jag * 255.0f));
                     const float u = static_cast<float>(s) / static_cast<float>(kLanternFlameSegments);
                     const float angle = 2.0f * kPi * u;
                     const Vector3 radial(std::cos(angle), std::sin(angle), 0.0f);
@@ -1779,7 +1818,10 @@ namespace GreyBuild
                 effect->falloffStopAngle = layer.layer->falloff[1];
                 effect->falloffStartOpacity = layer.layer->falloff[2];
                 effect->falloffStopOpacity = layer.layer->falloff[3];
-                effect->uvScale.u = kLanternFlameUScale;
+                effect->uvScale.u = kLanternFlameUvScale[0];
+                effect->uvScale.v = kLanternFlameUvScale[1];
+                const float templateScale = effect->baseColorScale;
+                effect->baseColorScale = layer.layer->colourScale;
                 auto* alpha = clone->AlphaPropertyRef() ? hdr.GetBlock<nifly::NiAlphaProperty>(*clone->AlphaPropertyRef()) : nullptr;
                 if (!alpha) {
                     auto made = std::make_unique<nifly::NiAlphaProperty>();
@@ -1789,10 +1831,11 @@ namespace GreyBuild
                 alpha->flags = layer.layer->alphaFlags;
                 a_log.push_back(fmt::format("{} flame layer '{}': {} vertices, {} triangles; SLSF1 0x{:08X} -> 0x{:08X} (palette colour, "
                                             "vertex alpha and falloff on; palette alpha, decal, dynamic decal, skinned off), SLSF2 0x{:08X} -> "
-                                            "0x{:08X} (double-sided, vertex colours on); base alpha {}, falloff start angle {} opacity {}, "
-                                            "stop angle {} opacity {}, UV scale {} x {} (clamp mode 0x{:08X}), alpha flags 0x{:04X} ({})",
+                                            "0x{:08X} (double-sided, vertex colours on); base alpha {}, base colour scale {} -> {}, falloff "
+                                            "start angle {} opacity {}, stop angle {} opacity {}, UV scale {} x {} (clamp mode 0x{:08X}), "
+                                            "alpha flags 0x{:04X} ({})",
                     a_model, name, data.size(), mesh.tris.size(), flags1, effect->shaderFlags1, flags2, effect->shaderFlags2,
-                    effect->baseColor.a, effect->falloffStartAngle, effect->falloffStartOpacity, effect->falloffStopAngle,
+                    effect->baseColor.a, templateScale, effect->baseColorScale, effect->falloffStartAngle, effect->falloffStartOpacity, effect->falloffStopAngle,
                     effect->falloffStopOpacity, effect->uvScale.u, effect->uvScale.v, effect->textureClampMode, alpha->flags,
                     BlendOfAlpha(alpha) == ShapeBlend::kAdditive ? "additive" : "normal blend"));
                 clones.push_back(clone);
@@ -2604,8 +2647,10 @@ namespace GreyBuild
                 return it == a_info.shapes.end() ? nullptr : &*it;
             };
             // the fire in a model: both layers, each an effect shader with palette colour, vertex alpha, falloff, double-sided and
-            // vertex colours on and palette alpha, the decal bits (and Skinned on the ground) off; its blend, base alpha, falloff
-            // values, U scale (kLanternFlameUScale, on a wrapping clamp mode) and the black flame palette for that blend; its counts; vertex alpha up to 255, the tip and the bottom ring at the profile's; every controller on
+            // vertex colours on and palette alpha, the decal bits (and Skinned on the ground) off; its blend, base alpha, base
+            // colour scale, falloff values, UV scale (kLanternFlameUvScale, on a wrapping clamp mode) and the black flame palette
+            // for that blend; its counts; vertex alpha up to 255, the tip and the bottom ring at the profile's, the jag on
+            // kLanternFlameJagRing (the dimmer alternate segments kLanternFlameJagFactor x the brighter); every controller on
             // its own shader, and no shader, alpha property, controller, interpolator or key block shared between the layers
             const auto checkFlame = [&](const LanternNifInfo& a_info, const char* a_model, bool a_worn) {
                 std::set<std::uint32_t> blocks;
@@ -2637,9 +2682,13 @@ namespace GreyBuild
                         fmt::format("{} '{}': falloff start angle {} opacity {}, stop angle {} opacity {}, expected {} {}, {} {}", a_model, s->name,
                             s->falloff[0], s->falloff[2], s->falloff[1], s->falloff[3], layer.falloff[0], layer.falloff[2], layer.falloff[1],
                             layer.falloff[3]));
-                    Check(problems, std::fabs(s->uvScale[0] - kLanternFlameUScale) <= 1e-6f && (s->clampMode & 0xFFu) == kLanternClampWrap,
-                        fmt::format("{} '{}': U scale {}, clamp mode 0x{:08X}, expected U scale {} and clamp mode {} (wrap S wrap T) in the low "
-                                    "byte", a_model, s->name, s->uvScale[0], s->clampMode, kLanternFlameUScale, kLanternClampWrap));
+                    Check(problems, std::fabs(s->colourScale - layer.colourScale) <= 1e-6f,
+                        fmt::format("{} '{}': base colour scale {}, expected {}", a_model, s->name, s->colourScale, layer.colourScale));
+                    Check(problems, std::fabs(s->uvScale[0] - kLanternFlameUvScale[0]) <= 1e-6f &&
+                                        std::fabs(s->uvScale[1] - kLanternFlameUvScale[1]) <= 1e-6f && (s->clampMode & 0xFFu) == kLanternClampWrap,
+                        fmt::format("{} '{}': UV scale {} x {}, clamp mode 0x{:08X}, expected UV scale {} x {} and clamp mode {} (wrap S wrap T) "
+                                    "in the low byte", a_model, s->name, s->uvScale[0], s->uvScale[1], s->clampMode, kLanternFlameUvScale[0],
+                            kLanternFlameUvScale[1], kLanternClampWrap));
                     Check(problems, s->vertices == kLanternFlameVertices && s->triangles == kLanternFlameTriangles,
                         fmt::format("{} '{}': {} vertices, {} triangles, expected {} and {}", a_model, s->name, s->vertices, s->triangles,
                             kLanternFlameVertices, kLanternFlameTriangles));
@@ -2651,6 +2700,12 @@ namespace GreyBuild
                         fmt::format("{} '{}': vertex colours {}, vertex alpha up to {}, {} at the tip and {} at the bottom ring (expected 255, {} "
                                     "and {})", a_model, s->name, s->vertexColors, s->alphaMax, s->alphaTop, s->alphaBottom,
                             profileAlpha(kLanternFlameProfile.size() - 1), profileAlpha(0)));
+                    // the vertex alphas are whole steps of 1/255: on the jag ring's ~200 that is about 0.005 of the ratio
+                    constexpr float kJagTolerance = 0.01f;
+                    Check(problems, s->alphaJag >= 0.0f && std::fabs(s->alphaJag - kLanternFlameJagFactor) <= kJagTolerance,
+                        fmt::format("{} '{}': on the {:.2f} ring the dimmer alternate segments' vertex alpha {} x the brighter's, expected {} "
+                                    "(kLanternFlameJagFactor; -1: the ring not found)", a_model, s->name,
+                            kLanternFlameProfile[kLanternFlameJagRing][0], s->alphaJag, kLanternFlameJagFactor));
                     Check(problems, !s->controllers.empty(), fmt::format("{} '{}': no shader controller (the UV scroll)", a_model, s->name));
                     for (const auto& controller : s->controllers) {
                         Check(problems, controller.find("WRONG") == std::string::npos,
@@ -2935,11 +2990,13 @@ namespace GreyBuild
                 for (const auto& s : InspectLanternNif(a_dataDir / rel).shapes) {
                     if (IsFlameLayer(s.name)) {
                         std::cout << fmt::format("{} {} (read back): {} SLSF1 0x{:08X} SLSF2 0x{:08X}, alpha 0x{:04X} ({}), base alpha {:.4f}, "
-                                                 "falloff start angle {:.4f} opacity {:.4f} stop angle {:.4f} opacity {:.4f}, UV scale {:.4f} x "
-                                                 "{:.4f} (clamp mode 0x{:08X}), {}, vertex alpha {}..{} (tip {}, bottom {})\n",
+                                                 "base colour scale {:.4f}, falloff start angle {:.4f} opacity {:.4f} stop angle {:.4f} opacity "
+                                                 "{:.4f}, UV scale {:.4f} x {:.4f} (clamp mode 0x{:08X}), {}, vertex alpha {}..{} (tip {}, bottom "
+                                                 "{}), jag {:.4f}\n",
                             rel, s.name, s.shader, s.flags1, s.flags2, s.alphaFlags, s.additive ? "additive" : "normal blend", s.baseAlpha,
-                            s.falloff[0], s.falloff[2], s.falloff[1], s.falloff[3], s.uvScale[0], s.uvScale[1], s.clampMode,
-                            s.textures.size() > 1 ? s.textures[1] : std::string("no palette"), s.alphaMin, s.alphaMax, s.alphaTop, s.alphaBottom);
+                            s.colourScale, s.falloff[0], s.falloff[2], s.falloff[1], s.falloff[3], s.uvScale[0], s.uvScale[1], s.clampMode,
+                            s.textures.size() > 1 ? s.textures[1] : std::string("no palette"), s.alphaMin, s.alphaMax, s.alphaTop, s.alphaBottom,
+                            s.alphaJag);
                     }
                 }
             }
