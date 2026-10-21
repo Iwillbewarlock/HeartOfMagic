@@ -50,6 +50,9 @@ namespace BlackFlame
 
     [[nodiscard]] bool IsFireSpell(const RE::MagicItem* a_spell);
 
+    /// A fire cloak's associated spell (the damage spell the cloak casts on what comes near; R3 above), any thread
+    [[nodiscard]] bool IsCloakSpell(RE::FormID a_spell);
+
     /// F5: the casting art of a_spell's costliest effect (MagicItem::GetAVEffect -> data.castingArt) as BuildFireSets cached it
     /// for every fire spell, or null; any thread (the cache never changes after kDataLoaded)
     [[nodiscard]] RE::BGSArtObject* CostliestCastingArtOf(const RE::MagicItem* a_spell);

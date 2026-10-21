@@ -3,7 +3,7 @@
 #include "Common.h"
 
 // =============================================================================
-// BUFF STATE - is the player's Stoke buff ("흑염 달구기") active
+// BUFF STATE - is the player's buff "갈망" (Longing: the stoke spell, or the worn lantern) active
 // =============================================================================
 // One atomic flag, written by RecomputeBuff (a task) and cleared by ResetBuffFlag
 // (the message handler, at a load); hooks on any thread only read it (IsStoked). It is recomputed when an active effect is
@@ -14,6 +14,9 @@
 namespace BlackFlame
 {
     [[nodiscard]] bool IsStoked() noexcept;
+
+    /// Game thread: the player has an active, not dispelled HoMBF_LanternEffect (0x810), read now (not the cached flag)
+    [[nodiscard]] bool PlayerHasLanternEffect();
 
     /// From a task (RequestRecomputeBuff). Reads the player's active effects; logs a change of the flag.
     void RecomputeBuff(const char* a_reason);

@@ -3,12 +3,14 @@
 #include "CasterArt.h"
 #include "CloneWatch.h"
 #include "ExplosionHook.h"
+#include "FireSet.h"
 #include "Forms.h"
 #include "GameThread.h"
 #include "HandArtRefresh.h"
 #include "HazardHook.h"
 #include "HitArt.h"
 #include "HitEffectHook.h"
+#include "LanternPlace.h"
 #include "MainThreadQueue.h"
 #include "PlayerArt.h"
 #include "ScriptTags.h"
@@ -32,27 +34,34 @@ namespace BlackFlame
         std::atomic<bool> g_recomputePending{ false };  // one RecomputeBuff task queued at a time
         std::atomic<bool> g_loopFailureReported{ false };
 
+        struct StokeFound
+        {
+            bool any = false;      // an active effect with HoMBF_StokedKeyword
+            bool lantern = false;  // one of them is HoMBF_LanternEffect (0x810): the lantern is a reason
+        };
+
         // MagicTarget::HasMagicEffectWithKeyword would also count an effect that has
         // ended but is still in the list (a remove event can arrive before the engine
         // drops it); this walk skips dispelled, inactive and expired ones.
-        bool PlayerHasStokeEffect()
+        StokeFound FindStokeEffects()
         {
+            StokeFound found;
             auto* player = RE::PlayerCharacter::GetSingleton();
-            const auto* keyword = GetForms().stokedKeyword;
-            if (!player || !keyword) {
-                return false;
+            const auto& forms = GetForms();
+            if (!player || !forms.stokedKeyword) {
+                return found;
             }
             auto* target = player->AsMagicTarget();
             auto* effects = target ? target->GetActiveEffectList() : nullptr;
             if (!effects) {
-                return false;
+                return found;
             }
             for (const auto* effect : *effects) {
                 if (!effect) {
                     continue;
                 }
                 const auto* base = effect->GetBaseObject();
-                if (!base || !base->HasKeyword(keyword)) {
+                if (!base || !base->HasKeyword(forms.stokedKeyword)) {
                     continue;
                 }
                 if (effect->flags.any(RE::ActiveEffect::Flag::kDispelled, RE::ActiveEffect::Flag::kInactive)) {
@@ -61,9 +70,28 @@ namespace BlackFlame
                 if (effect->duration > 0.0f && effect->elapsedSeconds >= effect->duration) {
                     continue;
                 }
-                return true;
+                found.any = true;
+                if (forms.lanternEffect && base == forms.lanternEffect) {
+                    found.lantern = true;
+                    break;
+                }
             }
-            return false;
+            return found;
+        }
+
+        // Design section 5 "Cost line": the magicka cost of every fire spell the player knows, at each flag change (on and
+        // off), so the log holds the lantern perk's x1.3 next to the plain cost. Only with the lantern records loaded
+        void LogLanternCosts()
+        {
+            auto* player = RE::PlayerCharacter::GetSingleton();
+            if (!player || !GetForms().lanternForms) {
+                return;
+            }
+            for (auto* spell : FireSpellList()) {
+                if (spell->GetSpellType() == RE::MagicSystem::SpellType::kSpell && player->HasSpell(spell)) {
+                    logger::info("BlackFlame: lantern cost: {:08X} {}", spell->GetFormID(), spell->CalculateMagickaCost(player));
+                }
+            }
         }
 
         // D2: the tick's end is noted even when a layer throws out of Tick
@@ -83,6 +111,7 @@ namespace BlackFlame
             TickExplosionLights();  // layer 3: lights that did not exist at Set3D
             TickHazards();          // layer 3: hazards whose owner was not set yet
             TickScriptTags();       // what scripts of the player's fire effects placed
+            TickLanternPlace();     // the lantern's placed objects waiting for their 3D, the check after a load
             if (IsStoked()) {
                 TickHitEffectStats();  // layer 1 diagnostics: the window's stats line every 30 s
                 TickCasterArt();  // layer 4
@@ -97,7 +126,7 @@ namespace BlackFlame
             for (;;) {
                 std::this_thread::sleep_for(kTickInterval);
                 ++ticks;
-                if (!IsStoked() && !HasPendingHandArtRefresh() && !SelfTest::WantsFastTicks() && !HasPendingHitArt() && !CloneWatchActive() && !HasPendingHazards() && !HasScriptTags() && ticks % kIdleTicksPerCheck != 0) {
+                if (!IsStoked() && !HasPendingHandArtRefresh() && !SelfTest::WantsFastTicks() && !HasPendingHitArt() && !CloneWatchActive() && !HasPendingHazards() && !HasScriptTags() && !HasPendingLanternPlace() && ticks % kIdleTicksPerCheck != 0) {
                     continue;
                 }
                 // A throw here would end the thread (and std::terminate the game): keep looping
@@ -133,15 +162,22 @@ namespace BlackFlame
 
     void RecomputeBuff(const char* a_reason)
     {
-        const bool now = PlayerHasStokeEffect();
+        const auto found = FindStokeEffects();
+        const bool now = found.any;
         const bool before = g_stoked.exchange(now, std::memory_order_acq_rel);
         if (now != before) {
-            logger::info("BlackFlame: buff flag {} ({})", now ? "ON" : "off", a_reason);
+            logger::info("BlackFlame: buff flag {} ({}{})", now ? "ON" : "off", a_reason, found.lantern ? ", lantern" : "");
+            LogLanternCosts();
             OnBuffChanged(now);  // the hand flames: grey at once, or put back
             OnPlayerArtBuffChanged(now);
             RequestHandArtRefresh(now ? "buff on" : "buff off");  // the drawn hands: copy or original art at the next tick
             OnStokeWindowChanged(now, a_reason);  // layer 1 diagnostics last: a fresh window, or its stats lines (review)
         }
+    }
+
+    bool PlayerHasLanternEffect()
+    {
+        return FindStokeEffects().lantern;
     }
 
     void ResetBuffFlag()

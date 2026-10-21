@@ -1,9 +1,10 @@
 // =============================================================================
-// HeartOfMagic_BlackFlame - "흑염 달구기" prototype
+// HeartOfMagic_BlackFlame - "갈망" (Longing) prototype
 // =============================================================================
-// While the player's Stoke buff (HeartOfMagic_BlackFlame.esp) is active, the
-// visuals of the player's own fire spells turn grey-black. Each layer has its
-// own config switch (Config.h). See plugins/BlackFlame/README.md.
+// While the player's buff "갈망" (Longing: the stoke spell or the worn lantern,
+// HeartOfMagic_BlackFlame.esp) is active, the visuals of the player's own fire
+// spells turn grey-black. Each layer has its own config switch (Config.h). See
+// plugins/BlackFlame/README.md.
 // =============================================================================
 
 #include "Common.h"
@@ -36,6 +37,8 @@
 #include "HitEffectHook.h"
 #include "HitPathAttribution.h"
 #include "HitPathObserve.h"
+#include "LanternDamage.h"
+#include "LanternPlace.h"
 #include "CorpseMark.h"
 #include "MagicApplySink.h"
 #include "SreProbe.h"
@@ -111,6 +114,9 @@ namespace
             // verifies before it opens)
             guarded("QueueCopyModelProbe", [] { BlackFlame::QueueCopyModelProbe(); });
         }
+        // The lantern (README "Lantern"): after BuildFireSets (the hazard spells read IsFireHazard), before the hit sink
+        guarded("LanternDamage::Init", [] { BlackFlame::LanternDamage::Init(); });
+        guarded("InitLanternPlace", [] { BlackFlame::InitLanternPlace(); });
         guarded("event sinks", [] {
             BlackFlame::EffectEventSink::GetSingleton()->Register();
             BlackFlame::HitEventSink::GetSingleton()->Register();
@@ -161,6 +167,7 @@ namespace
         BlackFlame::ResetCasterArt();
         BlackFlame::ResetHandArtRefresh();
         BlackFlame::ResetRecolorState();
+        BlackFlame::LanternDamage::Reset();  // the placement's pending refs are dropped by the generation above
     }
 
     // Layers first, then the self-test abort (which does not touch the old handles either); each in
@@ -205,6 +212,7 @@ namespace
             BlackFlame::RetryNativeWrappers();
             BlackFlame::Tester::Write("save load");  // G5: the wrappers have bound by now
             BlackFlame::RequestRecomputeBuff("game loaded");
+            BlackFlame::OnLanternGameLoaded();  // the player's cell, once the lab's 3D is there
             (void)BlackFlame::PlayerHandleNative();  // log only: the corpse lines' killer test reads it, cached here on this thread
             BlackFlame::HitPath::LogHitShaderProbe("kPostLoadGame");
             BlackFlame::HitPath::Detail::ResetIdleResolves();  // log only: resolves spent while the save was read come back

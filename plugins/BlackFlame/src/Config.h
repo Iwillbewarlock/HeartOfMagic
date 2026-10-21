@@ -2,6 +2,7 @@
 
 #include "Common.h"
 
+#include <array>
 #include <string>
 
 // =============================================================================
@@ -84,6 +85,18 @@ namespace BlackFlame
         // unchanged. The window: game seconds (unpaused, GameClock.h) after the last stoked hit
         bool greyCorpseShaders = true;
         double corpseWindowGameSeconds = 45.0;
+        // The lantern (README "Lantern"; LanternPlace.h, LanternDamage.h). Offsets are lab-local game units (x right, y
+        // forward, z up) and a yaw in degrees; the defaults are first-run estimates, tuned from the "lantern place: ok" line
+        bool lanternPlace = true;    // place the lantern, the journal and the smoke in Ansilvund02 (off without the main-thread queue)
+        bool lanternDamage = true;   // the extra damage of the player's fire hits while the lantern is worn (same)
+        bool lanternLog = true;      // a line per accepted hit, per damage cast and per kill with lantern damage (not rate-limited)
+        double lanternSinglePct = 0.02;    // fire and forget: share of the target's max health per hit (0..1)
+        double lanternSingleIcd = 0.5;     // seconds between two such hits on one target (0.05..10)
+        double lanternConcPct = 0.004;     // concentration and fire hazards
+        double lanternConcIcd = 0.25;
+        std::array<float, 4> lanternOffset{ -25.0f, 0.0f, 75.0f, 0.0f };
+        std::array<float, 4> journalOffset{ 25.0f, 0.0f, 75.0f, 90.0f };
+        std::array<float, 3> smokeOffset{ -25.0f, 0.0f, 87.0f };
     };
 
     inline constexpr const char* kConfigPath = "Data/SKSE/Plugins/HeartOfMagic_BlackFlame.json";
@@ -95,7 +108,8 @@ namespace BlackFlame
     [[nodiscard]] const Config& GetConfig() noexcept;
 
     /// E6: SKSEPlugin_Load, when the main-thread queue could not be installed: the layers that change engine data from a
-    /// task (the kept runtime recolours hitArt, handArt, boundWeapon, the light writes and the hand art refresh) are switched off for the
+    /// task (the kept runtime recolours hitArt, handArt, boundWeapon, the light writes, the hand art refresh and the lantern's
+    /// placement and extra damage) are switched off for the
     /// session; the per-call swaps (copies, hit shader, impact and hazard models) keep working. Logs a_why.
     void DisableEngineWrites(const char* a_why);
 }

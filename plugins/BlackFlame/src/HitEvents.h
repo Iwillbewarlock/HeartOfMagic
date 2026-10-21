@@ -3,11 +3,12 @@
 #include "Common.h"
 
 // =============================================================================
-// HIT EVENTS (v2 self-test) - TESHitEvent records while the self-test runs
+// HIT EVENTS - TESHitEvent: self-test records and the lantern's extra damage
 // =============================================================================
-// Read only: the sink records (target, cause, source, projectile) into the self-test
-// probe while it records (E2: the damage path still fires with a projectile copy;
-// E4: whether the player's Firebolt hit the target). Nothing else listens here.
+// The sink records (target, cause, source, projectile) into the self-test probe
+// while it records (E2: the damage path still fires with a projectile copy;
+// E4: whether the player's Firebolt hit the target), and hands every event to
+// LanternDamage::OnHit (FormID work and a queued task only, LanternDamage.h).
 
 namespace BlackFlame
 {

@@ -64,6 +64,9 @@ namespace BlackFlame
             BoolKey{ "slotTxst", &Config::slotTxst },
             BoolKey{ "cleanOldCopies", &Config::cleanOldCopies },
             BoolKey{ "greyCorpseShaders", &Config::greyCorpseShaders },
+            BoolKey{ "lanternPlace", &Config::lanternPlace },
+            BoolKey{ "lanternDamage", &Config::lanternDamage },
+            BoolKey{ "lanternLog", &Config::lanternLog },
         };
 
         // Single launch: the tints the builder bakes (GreyBuild.h --tint / --tint-add take 0..2) and the job memory cap
@@ -73,6 +76,28 @@ namespace BlackFlame
         constexpr std::uint32_t kMaxJobMemoryMiB = 16384;
         constexpr double kMinCorpseWindow = 1.0;  // corpseWindowGameSeconds (CorpseMark.h)
         constexpr double kMaxCorpseWindow = 3600.0;
+        constexpr double kMinLanternPct = 0.0;  // lanternSinglePct / lanternConcPct: a share of max health
+        constexpr double kMaxLanternPct = 1.0;
+        constexpr double kMinLanternIcd = 0.05;  // lanternSingleIcd / lanternConcIcd, seconds
+        constexpr double kMaxLanternIcd = 10.0;
+        constexpr float kMaxLanternOffset = 1000.0f;  // game units from the lab, each axis
+        constexpr float kMaxLanternYaw = 360.0f;      // degrees
+        constexpr std::size_t kYawIndex = 3;
+
+        struct NumberKey
+        {
+            const char* name;
+            double Config::*field;
+            double min;
+            double max;
+        };
+
+        constexpr std::array kLanternNumbers{
+            NumberKey{ "lanternSinglePct", &Config::lanternSinglePct, kMinLanternPct, kMaxLanternPct },
+            NumberKey{ "lanternSingleIcd", &Config::lanternSingleIcd, kMinLanternIcd, kMaxLanternIcd },
+            NumberKey{ "lanternConcPct", &Config::lanternConcPct, kMinLanternPct, kMaxLanternPct },
+            NumberKey{ "lanternConcIcd", &Config::lanternConcIcd, kMinLanternIcd, kMaxLanternIcd },
+        };
 
         // C6: keys of the retired runtime recolour (and burnMode before it). An old json keeps loading: each is logged
         // once as retired and ignored, not as an unknown key
@@ -89,8 +114,14 @@ namespace BlackFlame
             if (key == "lightColor" || key == "selfTestDelaySeconds" || key == "devAutoLoad" || key == "copyModelProbe" ||
                 key == "tint" || key == "tintAdd" || key == "tintAddHands" || key == "paletteMode" || key == "builderJobMemoryMiB" ||
                 key == "handMarbleOpacity" || key == "handMarbleScale" ||
-                key == "corpseWindowGameSeconds" || key == "oldCopiesGraceDays") {
+                key == "corpseWindowGameSeconds" || key == "oldCopiesGraceDays" || key == "lanternOffset" ||
+                key == "journalOffset" || key == "smokeOffset") {
                 return true;
+            }
+            for (const auto& n : kLanternNumbers) {
+                if (key == n.name) {
+                    return true;
+                }
             }
             for (const auto& b : kBoolKeys) {
                 if (key == b.name) {
@@ -290,6 +321,54 @@ namespace BlackFlame
             out.corpseWindowGameSeconds = it->get<double>();
         }
 
+        // [x, y, z] or [x, y, z, yaw]: game units within +-kMaxLanternOffset, yaw in degrees within +-kMaxLanternYaw
+        template <std::size_t N>
+        void ReadOffset(const nlohmann::json& j, const char* a_key, std::array<float, N>& a_out)
+        {
+            const auto it = j.find(a_key);
+            if (it == j.end()) {
+                return;
+            }
+            const auto keep = [&](const char* why) {
+                logger::warn("BlackFlame: config '{}' {} ({}) - keeping {}", a_key, why, it->dump(), nlohmann::json(a_out).dump());
+            };
+            if (!it->is_array() || it->size() != N) {
+                keep(N == 4 ? "is not an array [x, y, z, yaw]" : "is not an array [x, y, z]");
+                return;
+            }
+            std::array<float, N> values{};
+            for (std::size_t i = 0; i < N; ++i) {
+                const auto& v = (*it)[i];
+                const float limit = i == kYawIndex ? kMaxLanternYaw : kMaxLanternOffset;
+                if (!v.is_number() || !(v.get<float>() >= -limit && v.get<float>() <= limit)) {
+                    keep(i == kYawIndex ? "has a yaw that is not a number in -360..360 degrees" :
+                                          "has a value that is not a number in -1000..1000 game units");
+                    return;
+                }
+                values[i] = v.get<float>();
+            }
+            a_out = values;
+        }
+
+        void ReadLantern(const nlohmann::json& j, Config& out)
+        {
+            for (const auto& n : kLanternNumbers) {
+                const auto it = j.find(n.name);
+                if (it == j.end()) {
+                    continue;
+                }
+                if (!it->is_number() || !(it->get<double>() >= n.min && it->get<double>() <= n.max)) {
+                    logger::warn("BlackFlame: config '{}' {} is not a number in {}..{} - keeping {}", n.name, it->dump(), n.min,
+                        n.max, out.*n.field);
+                    continue;
+                }
+                out.*n.field = it->get<double>();
+            }
+            ReadOffset(j, "lanternOffset", out.lanternOffset);
+            ReadOffset(j, "journalOffset", out.journalOffset);
+            ReadOffset(j, "smokeOffset", out.smokeOffset);
+        }
+
         void ReadLightColor(const nlohmann::json& j, Config& out)
         {
             const auto it = j.find("lightColor");
@@ -339,6 +418,12 @@ namespace BlackFlame
                 g_config.oldCopiesGraceDays);
             logger::info("BlackFlame: config greyCorpseShaders={} corpseWindowGameSeconds={}", g_config.greyCorpseShaders,
                 g_config.corpseWindowGameSeconds);
+            logger::info("BlackFlame: config lanternPlace={} lanternDamage={} lanternLog={} lanternSinglePct={} lanternSingleIcd={} "
+                         "lanternConcPct={} lanternConcIcd={} lanternOffset={} journalOffset={} smokeOffset={}",
+                g_config.lanternPlace, g_config.lanternDamage, g_config.lanternLog, g_config.lanternSinglePct,
+                g_config.lanternSingleIcd, g_config.lanternConcPct, g_config.lanternConcIcd,
+                nlohmann::json(g_config.lanternOffset).dump(), nlohmann::json(g_config.journalOffset).dump(),
+                nlohmann::json(g_config.smokeOffset).dump());
         }
     }
 
@@ -373,6 +458,7 @@ namespace BlackFlame
         ReadLightColor(j, next);
         ReadSingleLaunch(j, next);
         ReadCorpseWindow(j, next);
+        ReadLantern(j, next);
         if (next.testerMode) {
             // the tester package: the self-test and the copy request on; every info line reaches disk at once (a crash keeps it)
             next.selfTest = true;
@@ -393,8 +479,10 @@ namespace BlackFlame
         g_config.boundWeapon = false;
         g_config.light = false;
         g_config.refreshCastingArt = false;  // Detach + SetCastingArt only from the main-thread queue (HandArtRefresh.h)
-        logger::warn("BlackFlame: config overridden for this session ({}): hitArt, handArt, boundWeapon, light and refreshCastingArt false; the "
-                     "copies and the per-call swaps stay on", a_why);
+        g_config.lanternPlace = false;       // reference creation, Havok motion type, Disable: main thread only (LanternPlace.h)
+        g_config.lanternDamage = false;      // CastSpellImmediate from a task (LanternDamage.h)
+        logger::warn("BlackFlame: config overridden for this session ({}): hitArt, handArt, boundWeapon, light, refreshCastingArt, "
+                     "lanternPlace and lanternDamage false; the copies and the per-call swaps stay on", a_why);
     }
 
     const char* ProbeModeName(ProbeMode a_mode) noexcept

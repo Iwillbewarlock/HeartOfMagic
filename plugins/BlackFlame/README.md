@@ -1,7 +1,7 @@
-# Black Flame - "흑염 달구기" prototype
+# Black Flame - "갈망" (Longing) prototype
 
-An SKSE plugin plus a small ESL. The player casts the self buff **흑염 달구기** ("Stoke the Black Flame",
-60 s). While it lasts, the visuals of every fire spell the **player** casts turn grey-black: the burn
+An SKSE plugin plus a small ESL. The player casts the self buff **갈망** ("Longing",
+60 s), or wears the lantern (section "Lantern"). While it lasts, the visuals of every fire spell the **player** casts turn grey-black: the burn
 shader on targets, the projectile, the explosion, the casting art in the player's hands and the casting
 lights. NPC fire spells, projectile physics and damage do not change. The look follows the Black Flame
 mod's burn shader: the engine's additive blending stays, only the colour palette becomes a colourless
@@ -17,7 +17,7 @@ Design and decisions: [docs/superpowers/specs/2026-10-15-black-flame-proto-desig
 
 | File | What |
 |---|---|
-| `data/HeartOfMagic_BlackFlame.esp` | ESL (master Skyrim.esm; houseCARL dropped the unused Update.esm master when it added the ADDN records): EFSH `HoMBF_BurnShader` 0x800 (vanilla FireFXShader with both palettes grey; its edge effect colour, DATA +0x38, was the vanilla orange 146,65,5 and is grey 89,89,89 since 2026-10-19 - the grey of the same relative luminance, sRGB linear light; its other colour keys were already grey or white), KYWD `HoMBF_StokedKeyword` 0x801, MGEF `HoMBF_StokeEffect` 0x802, SPEL `HoMBF_StokeSpell` "흑염 달구기" 0x803, ADDN `HoMBF_GreyAddon_*` 0x804-0x80C (section "Grey duplicates") |
+| `data/HeartOfMagic_BlackFlame.esp` | ESL (master Skyrim.esm; houseCARL dropped the unused Update.esm master when it added the ADDN records): EFSH `HoMBF_BurnShader` 0x800 (vanilla FireFXShader with both palettes grey; its edge effect colour, DATA +0x38, was the vanilla orange 146,65,5 and is grey 89,89,89 since 2026-10-19 - the grey of the same relative luminance, sRGB linear light; its other colour keys were already grey or white), KYWD `HoMBF_StokedKeyword` 0x801, MGEF `HoMBF_StokeEffect` 0x802, SPEL `HoMBF_StokeSpell` "갈망" 0x803, ADDN `HoMBF_GreyAddon_*` 0x804-0x80C (section "Grey duplicates") |
 | `data/SKSE/Plugins/HeartOfMagic_BlackFlame_greymap.json` | the grey duplicate map (section "Grey duplicates") |
 | `data/HeartOfMagic_BlackFlame_Copies.esp`, `data/HeartOfMagic_BlackFlame_Local.esp` | empty ESLs (no masters, no records, HEDR 1.70; `blackflame-greybuild --write-empty-esls`): enabled from the start, so the builder's output - the same two file names in a mod placed after this one - takes over without changing the plugin list |
 | `data/HeartOfMagic_BlackFlame_Slots.esp` | single launch (work in progress): the slot pool ESL, 2000 placeholder records at 0x800-0xFCF (`blackflame-greybuild --write-slot-pool`; section "Single launch: the builder (P1)"). Not loaded by anything yet |
@@ -90,6 +90,13 @@ too, all as UTF-8 text and sorted), and reused. Only a complete probe without fa
 | `greyCorpseShaders` | `true` | Run 8 probe (`CorpseMark.h`, AE 1.6.1170 only): a Papyrus-applied effect shader (`EffectShader.Play`, an OwnedController: FEC's, but any other mod's or script's too) started on a dying or dead actor the player killed, whose last elemental hit (fire, frost or shock) was the player's stoked fire within `corpseWindowGameSeconds`, gets ShaderReferenceEffect flags bit 24, and at attach its NAM9 / NAM8 palettes are swapped for the builder's grey ones (`CorpseGrey.h`) - only the palettes that passed the builder's fire test have a grey copy, so a non-fire shader on that corpse keeps its own. `false`: the decision is logged only, no bit, and the attach hooks forward unchanged (a bit saved earlier is ignored) |
 | `corpseWindowGameSeconds` | `45` | The corpse mark's window (1..3600): unpaused game seconds (`GameClock.h`) after that last stoked hit; each mark keeps the target's window open this long again |
 | `builderJobMemoryMiB` | `1536` | With `singleLaunch`: the builder's job memory cap (256..16384), also passed as `--job-memory` |
+| `lanternPlace` | `true` | Place the lantern, Luah's journal and the smoke on the alchemy lab of Ansilvund02 (section "Lantern"). Off for the session without the main-thread queue |
+| `lanternDamage` | `true` | The worn lantern's extra damage on the player's fire hits (section "Lantern"). Off for the session without the main-thread queue |
+| `lanternLog` | `true` | One line per accepted hit (`lantern hit:`), per damage cast (`lantern damage:`) and per kill with recent lantern damage (`lantern kill:`), not rate-limited (on for the first run). The `rejected` line (once per source) and the placement lines are written either way |
+| `lanternSinglePct`, `lanternSingleIcd` | `0.02`, `0.5` | Fire-and-forget hits: the share of the target's maximum health (0..1) and the seconds between two such hits on one target (0.05..10) |
+| `lanternConcPct`, `lanternConcIcd` | `0.004`, `0.25` | Concentration hits and fire hazards' hits: the same two values |
+| `lanternOffset`, `journalOffset` | `[-25, 0, 75, 0]`, `[25, 0, 75, 90]` | Where the lantern and the journal stand: `[x, y, z, yaw]` in game units from the lab ref (x right, y forward, z up, turned with the lab; -1000..1000) and a yaw in degrees added to the lab's (-360..360). **First-run estimates**: read the `lantern place: ok` line and correct them |
+| `smokeOffset` | `[-25, 0, 87]` | The smoke's `[x, y, z]`, the same way (estimate) |
 
 Retired keys (C6): `projectile`, `explosion`, `hazard`, `forcePalette`, `particleColors`, `tintScale` (and the older
 `burnMode`). An old json keeps loading; each is logged once as `retired, ignored` with the reason, never as an unknown key.
@@ -392,6 +399,54 @@ and slots hooked); the self-test repeats them as T0-grey and counts swaps at T6-
 ### Single launch: the DLL side (P2): `SingleLaunch.h`
 
 [Read this section](docs/single-launch.md#single-launch-the-dll-side-p2-singlelaunchh).
+
+## Lantern
+
+Design: [docs/superpowers/specs/2026-10-21-black-flame-lantern-design.md](../../docs/superpowers/specs/2026-10-21-black-flame-lantern-design.md).
+Records (this ESL, 0x80D-0x816): ARMO `HoMBF_Lantern`, ARMA `HoMBF_LanternAA`, ENCH `HoMBF_LanternEnch`, MGEF
+`HoMBF_LanternEffect` "갈망" 0x810 (keyword `HoMBF_StokedKeyword`, perk 0x811), PERK `HoMBF_LanternPerk`, SPEL
+`HoMBF_LanternBurnSpell` 0x812, MGEF `HoMBF_LanternBurnEffect`, BOOK `HoMBF_LuahJournal`, MSTT `HoMBF_LanternSmoke`, GLOB
+`HoMBF_LanternPlaced`. When any of them is missing the DLL logs one warning (`lantern records missing ...`) and only the
+lantern features are off.
+
+The worn lantern is the only player-facing trigger: its effect carries the stoke keyword, so the whole Black Flame look
+switches on (`buff flag ON (<reason>, lantern)`). The stoke spell "갈망" 0x803 stays in the ESP for the self tests; nothing
+in the game hands it out (console only). While worn:
+
+- fire spells cost 30% more magicka (the perk's Mod Spell Cost entry, conditioned on `MagicDamageFire` and the player);
+- the player's fire hit on an actor adds damage that ignores resistance: `HoMBF_LanternBurnSpell` cast by the player
+  (kill credit kept) with magnitude = the target's maximum health x `lanternSinglePct` for fire-and-forget spells (one per
+  `lanternSingleIcd` per target) or x `lanternConcPct` for concentration spells and fire hazards (one per `lanternConcIcd`
+  per target, so 1.6% per second at most by default). Cloak hits, scrolls, staffs, shouts and powers get nothing.
+
+Limits (design section 3, "Fire-spell scope"): the extra damage uses the addon's own fire rule (`IsFireSpell`: the fire
+keyword, fire resistance or the catalog's fire tag, spell type Spell), so it matches what turns grey; the perk can only
+see keywords, so a spell that is fire only by the catalog's tag turns grey and gets the damage but not the +30% cost.
+Scrolls are out of both the damage and the look. A follower wearing the lantern gets nothing (the perk entry is the
+player's, the flame and the damage are player-only).
+
+Placement (`LanternPlace.h`): no CELL record (13 plugins override Ansilvund02 in TAKEALOOK). When cell 01F358 finishes
+loading, or after a game load in it, and the global is 0, the lantern, the journal and the smoke are created at the alchemy
+lab ref 0C0090 (lab position + the config offset turned by the lab's z angle), the lantern and the journal are keyframed
+once their 3D is there (10 s at most, else everything made is deleted and the next load of the cell tries again), and the
+global becomes 1. Refs of ours left in the cell while the global is 0 (a save inside those 10 s) are removed first. Every
+later load of the cell keyframes them again. Picking the lantern up disables the smoke in the player's cell. A save that
+already visited Ansilvund02 gets the lantern at its next visit. The offset's turn assumes the z angle runs clockwise seen
+from above (forward = (sin a, cos a)); not checked in game, the ok line's two coordinates settle it.
+
+Log lines (`HeartOfMagic_BlackFlame.log`, all prefixed `BlackFlame: `):
+
+| Line | When |
+|---|---|
+| `lantern place: ok lantern=<id> journal=<id> smoke=<id> at (x,y,z) lab=(x,y,z)` | placed and keyframed (`at` is the lantern) |
+| `lantern place: skipped (<reason>)` | a lab check failed, a ref could not be created, or no 3D within 10 s |
+| `lantern place: keyframed <id> ok\|failed` | each keyframe, at placement and at each later load |
+| `lantern smoke: disabled <n>` | the lantern picked up |
+| `lantern hit: src=<id> proj=<id> tgt=<id> bucket=single\|conc t=<ms>` | an accepted hit (`t` from kDataLoaded) |
+| `lantern hit: rejected src=<id> type=<casting type\|none> (<why>)` | once per source id: own spell, not a spell, cloak, not a fire spell, casting type |
+| `lantern damage: tgt=<id> max=<m> intended=<x> before=<a> after=<b> difficulty=<d>` | each cast; `after` is read in the same task |
+| `lantern kill: tgt=<id> killer=<id>` | a death within 2 s of lantern damage |
+| `lantern cost: <spell id> <cost>` | at each buff flag change, every fire spell the player knows |
 
 ## Runtimes and Address Library ids
 

@@ -71,6 +71,8 @@ set(BLACKFLAME_SOURCES
     src/HandArtRefresh.cpp
     src/CopySwapHazard.cpp
     src/HitEvents.cpp
+    src/LanternDamage.cpp
+    src/LanternPlace.cpp
     src/HazardSwap.cpp
     src/GreyCheck.cpp
     src/Recolor.cpp

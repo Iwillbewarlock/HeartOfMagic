@@ -35,6 +35,7 @@ namespace BlackFlame
         std::unordered_set<RE::FormID> g_fireExplosions;
         std::unordered_set<RE::FormID> g_fireEffects;  // fire MGEFs (keyword or fire resistance) of fire spells
         std::unordered_set<RE::FormID> g_fireHazards;  // hazards those MGEFs can leave
+        std::unordered_set<RE::FormID> g_cloakSpells;  // fire cloaks' associated spells (AddCloakSpells)
         std::unordered_map<RE::FormID, RE::BGSArtObject*> g_castingArts;  // F5: fire spell -> its costliest effect's casting art
         FireSetCounts g_counts;
         std::vector<BoundFireSeed> g_boundSeeds;          // bound-weapon stage 1
@@ -289,6 +290,7 @@ namespace BlackFlame
                     if (!g_fireSpells.insert(spell->GetFormID()).second) {
                         continue;  // two cloaks naming the same spell
                     }
+                    g_cloakSpells.insert(spell->GetFormID());
                     ++added;
                     grew = true;
                     // J4: the effects only - their explosions and hazards are not fire explosions or hazards (a frost
@@ -310,6 +312,7 @@ namespace BlackFlame
         g_fireExplosions.clear();
         g_fireEffects.clear();
         g_fireHazards.clear();
+        g_cloakSpells.clear();
         auto* dh = RE::TESDataHandler::GetSingleton();
         if (!dh) {
             logger::error("BlackFlame: TESDataHandler unavailable - no spell counts as fire");
@@ -456,6 +459,11 @@ namespace BlackFlame
     bool IsFireSpell(const RE::MagicItem* a_spell)
     {
         return a_spell && g_fireSpells.contains(a_spell->GetFormID());
+    }
+
+    bool IsCloakSpell(RE::FormID a_spell)
+    {
+        return g_cloakSpells.contains(a_spell);
     }
 
     bool IsFireHazard(const RE::BGSHazard* a_hazard)

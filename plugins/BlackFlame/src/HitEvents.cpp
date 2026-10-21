@@ -1,5 +1,6 @@
 #include "HitEvents.h"
 
+#include "LanternDamage.h"
 #include "SelfTestProbe.h"
 
 namespace BlackFlame
@@ -32,8 +33,11 @@ namespace BlackFlame
                 SelfTestProbe::RecordHit({ 0, a_event->target ? a_event->target->GetFormID() : 0,
                     a_event->cause ? a_event->cause->GetFormID() : 0, a_event->source, a_event->projectile });
             }
+            if (a_event) {
+                LanternDamage::OnHit(*a_event);
+            }
         } catch (...) {
-            // a record lost: the self-test then reports no hit
+            // a record lost: the self-test then reports no hit (or a hit gets no lantern damage)
         }
         return RE::BSEventNotifyControl::kContinue;
     }
