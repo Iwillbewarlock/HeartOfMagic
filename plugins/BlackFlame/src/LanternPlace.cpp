@@ -127,11 +127,21 @@ namespace BlackFlame
             }
         }
 
-        bool Keyframe(RE::TESObjectREFR& a_ref)
+        bool TryKeyframe(RE::TESObjectREFR& a_ref)
         {
             auto* root = a_ref.Get3D();
-            const bool ok = root && root->SetMotionType(RE::hkpMotion::MotionType::kKeyframed);
-            logger::info("BlackFlame: lantern place: keyframed {:08X} {}", a_ref.GetFormID(), ok ? "ok" : "failed");
+            return root && root->SetMotionType(RE::hkpMotion::MotionType::kKeyframed);
+        }
+
+        void LogKeyframe(const RE::TESObjectREFR& a_ref, bool a_ok)
+        {
+            logger::info("BlackFlame: lantern place: keyframed {:08X} {}", a_ref.GetFormID(), a_ok ? "ok" : "failed");
+        }
+
+        bool Keyframe(RE::TESObjectREFR& a_ref)
+        {
+            const bool ok = TryKeyframe(a_ref);
+            LogKeyframe(a_ref, ok);
             return ok;
         }
 
@@ -263,8 +273,16 @@ namespace BlackFlame
                 DeleteMade(made);
                 return;
             }
-            const bool lanternOk = Keyframe(*lantern);
-            const bool journalOk = Keyframe(*journal);
+            // A 3D root can come a tick before its Havok body is in the world: a failed keyframe is tried again on the next
+            // ticks until the wait ends, and only then logged as failed
+            const bool lanternOk = TryKeyframe(*lantern);
+            const bool journalOk = TryKeyframe(*journal);
+            if ((!lanternOk || !journalOk) && Clock::now() - made.started < kMaxWait) {
+                g_pending = made;
+                return;
+            }
+            LogKeyframe(*lantern, lanternOk);
+            LogKeyframe(*journal, journalOk);
             if (!lanternOk || !journalOk) {
                 return;  // the global stays 0: the next load of the cell removes these and places again
             }
