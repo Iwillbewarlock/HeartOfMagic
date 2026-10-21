@@ -21,25 +21,21 @@ namespace BlackFlame::LanternDamage
     {
         namespace L = LanternRules;
         using Clock = L::IcdTable::Clock;
-        using CT = RE::MagicSystem::CastingType;
 
-        static_assert(static_cast<std::uint32_t>(CT::kConstantEffect) == static_cast<std::uint32_t>(L::CastingType::kConstantEffect));
-        static_assert(static_cast<std::uint32_t>(CT::kFireAndForget) == static_cast<std::uint32_t>(L::CastingType::kFireAndForget));
-        static_assert(static_cast<std::uint32_t>(CT::kConcentration) == static_cast<std::uint32_t>(L::CastingType::kConcentration));
-        static_assert(static_cast<std::uint32_t>(CT::kScroll) == static_cast<std::uint32_t>(L::CastingType::kScroll));
-
-        constexpr auto kKillWindow = std::chrono::seconds(2);  // lantern damage this recent makes a death a "lantern kill"
+        constexpr auto kKillGrace = std::chrono::seconds(1);  // past the burn's end, for the death event to arrive
         constexpr float kEffectiveness = 1.0f;
+        constexpr bool kShowHitArt = false;                   // CastSpellImmediate's noHitEffectArt: the burn shader must show
         constexpr std::uint32_t kNoCastingType = 0xFFFFFFFF;  // the rejected line's type for a source that is no spell
 
         std::atomic<bool> g_enabled{ false };
         std::unordered_set<RE::FormID> g_hazardSpells;  // kDataLoaded, read-only afterwards
         L::Settings g_settings;                         // kDataLoaded, read-only afterwards
+        Clock::duration g_killWindow{};                 // kDataLoaded: burn seconds + kKillGrace
         Clock::time_point g_epoch;                      // the hit lines' t=<ms> counts from Init
 
         struct Cached
         {
-            L::Classified classified;
+            L::Reject why = L::Reject::kNone;  // kNone: accepted
             std::uint32_t castingType = kNoCastingType;
         };
 
@@ -48,8 +44,8 @@ namespace BlackFlame::LanternDamage
         struct State
         {
             std::unordered_map<RE::FormID, Cached> sources;
-            L::IcdTable icd;
-            std::unordered_map<RE::FormID, Clock::time_point> recent;  // target -> last lantern damage (the kill line)
+            L::IcdTable reapply;
+            std::unordered_map<RE::FormID, Clock::time_point> recent;  // target -> last burn (the kill line)
         };
 
         State& Shared()
@@ -69,12 +65,11 @@ namespace BlackFlame::LanternDamage
             Cached out;
             if (spell) {
                 out.castingType = static_cast<std::uint32_t>(spell->GetCastingType());
-                facts.castingType = out.castingType;
                 facts.cloak = IsCloakSpell(a_source);
                 facts.hazardSpell = g_hazardSpells.contains(a_source);
                 facts.fireSpell = IsFireSpell(spell);
             }
-            out.classified = L::Classify(facts);
+            out.why = L::Classify(facts);
             return out;
         }
 
@@ -94,12 +89,12 @@ namespace BlackFlame::LanternDamage
                 std::lock_guard lock(g_mutex);
                 inserted = Shared().sources.emplace(a_source, fresh).second;
             }
-            if (inserted && fresh.classified.bucket == L::Bucket::kNone) {
+            if (inserted && fresh.why != L::Reject::kNone) {
                 if (fresh.castingType == kNoCastingType) {
-                    logger::info("BlackFlame: lantern hit: rejected src={:08X} type=none ({})", a_source, L::RejectName(fresh.classified.why));
+                    logger::info("BlackFlame: lantern hit: rejected src={:08X} type=none ({})", a_source, L::RejectName(fresh.why));
                 } else {
                     logger::info("BlackFlame: lantern hit: rejected src={:08X} type={} ({})", a_source, fresh.castingType,
-                        L::RejectName(fresh.classified.why));
+                        L::RejectName(fresh.why));
                 }
             }
             return fresh;
@@ -110,19 +105,57 @@ namespace BlackFlame::LanternDamage
             return std::chrono::duration_cast<std::chrono::milliseconds>(a_now - g_epoch).count();
         }
 
-        void NoteDamage(RE::FormID a_target)
+        // Before the cast (review 1 R5): a kill inside CastSpellImmediate raises its death event before the cast returns
+        void NoteBurn(RE::FormID a_target)
         {
             const auto now = Clock::now();
             std::lock_guard lock(g_mutex);
             auto& recent = Shared().recent;
             for (auto it = recent.begin(); it != recent.end();) {
-                it = now - it->second > kKillWindow ? recent.erase(it) : std::next(it);
+                it = now - it->second > g_killWindow ? recent.erase(it) : std::next(it);
             }
             recent[a_target] = now;
         }
 
-        // Game thread (the task): the checks that read the world, then the cast
-        void Burn(RE::ObjectRefHandle a_target, L::Bucket a_bucket, std::uint32_t a_generation)
+        struct BurnEffects
+        {
+            int count = 0;
+            float magnitude = 0.0f;  // the newest one's (smallest elapsed time)
+        };
+
+        // The 0x813 effects on the target that are neither dispelled nor inactive (expected 1: no stacking)
+        BurnEffects CountBurnEffects(RE::Actor& a_actor, const RE::EffectSetting* a_burnEffect)
+        {
+            BurnEffects out;
+            auto* target = a_actor.AsMagicTarget();
+            auto* effects = target ? target->GetActiveEffectList() : nullptr;
+            if (!effects || !a_burnEffect) {
+                return out;
+            }
+            float newest = 0.0f;
+            for (const auto* effect : *effects) {
+                if (!effect || effect->GetBaseObject() != a_burnEffect ||
+                    effect->flags.any(RE::ActiveEffect::Flag::kDispelled, RE::ActiveEffect::Flag::kInactive)) {
+                    continue;
+                }
+                if (out.count == 0 || effect->elapsedSeconds <= newest) {
+                    newest = effect->elapsedSeconds;
+                    out.magnitude = effect->magnitude;
+                }
+                ++out.count;
+            }
+            return out;
+        }
+
+        struct HitFacts
+        {
+            RE::FormID source = 0;
+            RE::FormID projectile = 0;
+            Clock::time_point at;
+        };
+
+        // Game thread (the task): the checks that read the world, then the hit line, the burn noted, the cast
+        void Burn(RE::ObjectRefHandle a_target, HitFacts a_hit, std::uint32_t a_generation)
         {
             if (a_generation != WorldGeneration() || !IsOnGameThread()) {
                 return;
@@ -130,7 +163,8 @@ namespace BlackFlame::LanternDamage
             auto* player = RE::PlayerCharacter::GetSingleton();
             const auto ref = a_target.get();
             auto* actor = ref ? ref->As<RE::Actor>() : nullptr;
-            auto* spell = GetForms().lanternBurnSpell;
+            const auto& forms = GetForms();
+            auto* spell = forms.lanternBurnSpell;
             if (!player || !actor || actor == player || actor->IsDead() || !spell) {
                 return;
             }
@@ -139,26 +173,30 @@ namespace BlackFlame::LanternDamage
                 return;
             }
             auto* caster = player->GetMagicCaster(RE::MagicSystem::CastingSource::kInstant);
-            auto* values = actor->AsActorValueOwner();
-            if (!caster || !values) {
+            if (!caster) {
                 return;
             }
             const float max = actor->GetActorValueMax(RE::ActorValue::kHealth);
-            const auto intended = static_cast<float>(L::DamageFor(max, L::PctFor(a_bucket, g_settings)));
-            if (intended <= 0.0f) {
-                return;
+            const auto rate = static_cast<float>(L::RateFor(max, g_settings.burnPct, g_settings.burnFlat, g_settings.burnSeconds));
+            if (rate <= 0.0f) {
+                return;  // lanternBurnPct and lanternBurnFlat both 0
             }
-            const float before = values->GetActorValue(RE::ActorValue::kHealth);
-            caster->CastSpellImmediate(spell, true, actor, kEffectiveness, false, intended, player);
-            const float after = values->GetActorValue(RE::ActorValue::kHealth);
-            NoteDamage(actor->GetFormID());
-            if (GetConfig().lanternLog) {
-                logger::info("BlackFlame: lantern damage: tgt={:08X} max={} intended={} before={} after={} difficulty={}",
-                    actor->GetFormID(), max, intended, before, after, player->GetGameStatsData().difficulty);
+            const bool log = GetConfig().lanternLog;
+            if (log) {
+                logger::info("BlackFlame: lantern hit: src={:08X} proj={:08X} tgt={:08X} t={}", a_hit.source, a_hit.projectile,
+                    actor->GetFormID(), SinceEpochMs(a_hit.at));
+            }
+            NoteBurn(actor->GetFormID());
+            caster->CastSpellImmediate(spell, kShowHitArt, actor, kEffectiveness, false, rate, player);
+            if (log) {
+                const auto found = CountBurnEffects(*actor, forms.lanternBurnEffect);
+                logger::info("BlackFlame: lantern burn: tgt={:08X} max={} rate={}/s for {} s effects={} magnitude={} difficulty={}",
+                    actor->GetFormID(), max, rate, g_settings.burnSeconds, found.count, found.magnitude,
+                    player->GetGameStatsData().difficulty);
             }
         }
 
-        // The spells of the fire hazards (BGSHazard data.spell): the concentration bucket (design review R5)
+        // The spells of the fire hazards (BGSHazard data.spell): a hazard's spell need not be a fire spell itself
         void BuildHazardSpells()
         {
             g_hazardSpells.clear();
@@ -173,6 +211,21 @@ namespace BlackFlame::LanternDamage
             }
         }
 
+        // The burn's length: HoMBF_LanternBurnSpell's HoMBF_LanternBurnEffect entry (0 when it is missing)
+        std::uint32_t BurnSecondsFromRecord()
+        {
+            const auto& forms = GetForms();
+            if (!forms.lanternBurnSpell || !forms.lanternBurnEffect) {
+                return 0;
+            }
+            for (const auto* effect : forms.lanternBurnSpell->effects) {
+                if (effect && effect->baseEffect == forms.lanternBurnEffect) {
+                    return effect->effectItem.duration;
+                }
+            }
+            return 0;
+        }
+
         class DeathSink final : public RE::BSTEventSink<RE::TESDeathEvent>
         {
         public:
@@ -185,7 +238,7 @@ namespace BlackFlame::LanternDamage
             RE::BSEventNotifyControl ProcessEvent(const RE::TESDeathEvent* a_event, RE::BSTEventSource<RE::TESDeathEvent>*) override
             {
                 // Called from engine code: nothing may throw out of here. The event comes twice per death (dead false
-                // while dying, then true): the first one with a recent lantern hit logs, and its entry goes
+                // while dying, then true): the first one with a recent burn logs, and its entry goes
                 try {
                     if (!a_event || !a_event->actorDying) {
                         return RE::BSEventNotifyControl::kContinue;
@@ -197,7 +250,7 @@ namespace BlackFlame::LanternDamage
                         auto& table = Shared().recent;
                         const auto it = table.find(victim);
                         if (it != table.end()) {
-                            recent = Clock::now() - it->second <= kKillWindow;
+                            recent = Clock::now() - it->second <= g_killWindow;
                             table.erase(it);
                         }
                     }
@@ -224,7 +277,15 @@ namespace BlackFlame::LanternDamage
             logger::info("BlackFlame: lantern damage off ({})", !GetForms().lanternForms ? "lantern records missing" : "lanternDamage false");
             return;
         }
-        g_settings = { config.lanternSinglePct, config.lanternSingleIcd, config.lanternConcPct, config.lanternConcIcd };
+        const auto burnSeconds = BurnSecondsFromRecord();
+        logger::info("BlackFlame: lantern burn spell {:08X}: effect duration {} s", GetForms().lanternBurnSpell->GetFormID(), burnSeconds);
+        if (burnSeconds == 0) {
+            logger::warn("BlackFlame: lantern damage off (HoMBF_LanternBurnSpell's HoMBF_LanternBurnEffect entry has no duration "
+                         "above 0: the burn rate is per second over that duration - check the ESP record 0x812)");
+            return;
+        }
+        g_settings = { config.lanternBurnPct, config.lanternBurnFlat, config.lanternReapply, static_cast<double>(burnSeconds) };
+        g_killWindow = std::chrono::duration_cast<Clock::duration>(std::chrono::seconds(burnSeconds) + kKillGrace);
         g_epoch = Clock::now();
         BuildHazardSpells();
         if (auto* holder = RE::ScriptEventSourceHolder::GetSingleton()) {
@@ -233,44 +294,39 @@ namespace BlackFlame::LanternDamage
             logger::warn("BlackFlame: ScriptEventSourceHolder unavailable - no lantern kill lines");
         }
         g_enabled.store(true);
-        logger::info("BlackFlame: lantern damage on: single {} per hit every {} s, concentration and hazards {} every {} s; {} fire "
-                     "hazard spell(s) in the concentration bucket",
-            g_settings.singlePct, g_settings.singleIcd, g_settings.concPct, g_settings.concIcd, g_hazardSpells.size());
+        logger::info("BlackFlame: lantern damage on: black flame {} of max health + {} over {} s per hit, re-applied at most every "
+                     "{} s per target; {} fire hazard spell(s) count as fire",
+            g_settings.burnPct, g_settings.burnFlat, g_settings.burnSeconds, g_settings.reapplySeconds, g_hazardSpells.size());
     }
 
     void OnHit(const RE::TESHitEvent& a_event)
     {
-        // The buff flag is an atomic read: without it nothing is classified, timed or queued (the task checks the lantern)
-        if (!g_enabled.load(std::memory_order_relaxed) || !a_event.cause || !a_event.cause->IsPlayerRef() || !a_event.target ||
+        // The buff flag is an atomic read: without it nothing is classified, throttled or queued (the task checks the lantern)
+        if (!g_enabled.load(std::memory_order_acquire) || !a_event.cause || !a_event.cause->IsPlayerRef() || !a_event.target ||
             a_event.source == 0 || !IsStoked()) {
             return;
         }
-        const auto cached = Lookup(a_event.source);
-        const auto bucket = cached.classified.bucket;
-        if (bucket == L::Bucket::kNone) {
+        if (Lookup(a_event.source).why != L::Reject::kNone) {
             return;
         }
         const auto target = a_event.target->GetFormID();
         const auto now = Clock::now();
         {
             std::lock_guard lock(g_mutex);
-            if (!Shared().icd.TryAccept(target, bucket, now, L::IcdFor(bucket, g_settings))) {
+            if (!Shared().reapply.TryAccept(target, now, g_settings.reapplySeconds)) {
                 return;
             }
         }
-        if (GetConfig().lanternLog) {
-            logger::info("BlackFlame: lantern hit: src={:08X} proj={:08X} tgt={:08X} bucket={} t={}", a_event.source,
-                a_event.projectile, target, L::BucketName(bucket), SinceEpochMs(now));
-        }
         const auto handle = a_event.target->GetHandle();
         const auto generation = WorldGeneration();
-        (void)QueueTask("BlackFlameLanternBurn", [handle, bucket, generation]() { Burn(handle, bucket, generation); });
+        const HitFacts hit{ a_event.source, a_event.projectile, now };
+        (void)QueueTask("BlackFlameLanternBurn", [handle, hit, generation]() { Burn(handle, hit, generation); });
     }
 
     void Reset()
     {
         std::lock_guard lock(g_mutex);
-        Shared().icd.Clear();
+        Shared().reapply.Clear();
         Shared().recent.clear();
     }
 }

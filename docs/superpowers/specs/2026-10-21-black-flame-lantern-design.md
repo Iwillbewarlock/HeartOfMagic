@@ -102,13 +102,20 @@ override `Ansilvund02` (lighting template, music, water, image space). So the DL
 5. Wait for 3D (on the tick, like `TickHitArt`), then `SetMotionType(kKeyframed)` on the lantern and journal; when
    both succeed, set the global to 1. A ref whose 3D does not come within 10 s: log it, delete what was made, retry on
    the next cell load.
-6. Every later load of the cell: find the placed lantern/journal by base object in the cell and set keyframed again
-   (the motion type is not known to survive a save; review R1).
+6. Every later load of the cell: find the placed lantern/journal by base object in the cell, standing in it (not
+   disabled, deleted or carried) and within 64 units of its configured place next to the lab (review 1 code R4: only the
+   refs this addon placed, not one the player dropped elsewhere), and set keyframed again once its 3D is there (the same
+   tick retry, 10 s at most); the motion type is not known to survive a save (review R1).
 7. Pickup: `TESContainerChangedEvent` (old container 0, new container the player, base `HoMBF_Lantern`) queues a task
-   that disables every `HoMBF_LanternSmoke` ref in the player's cell. A console `AddItem` also passes; harmless.
+   that sets `HoMBF_LanternPlaced` to 1 (review 1 code R3: a pickup before the placement finished must not leave the
+   global 0, or the next load places a second lantern), ends a placement still waiting (its journal is keyframed on the
+   tick), and disables every `HoMBF_LanternSmoke` ref in the player's cell. A console `AddItem` also passes: the global
+   then becomes 1 without a visit, so that save never gets the placed lantern - it already has one. The leftover
+   removal of step 3's retry and the 10 s give-up delete only refs standing in the cell (never one the player carries).
 
 Log lines (exact prefixes): `lantern place: ok lantern=<id> journal=<id> smoke=<id> at (x,y,z) lab=(x,y,z)`,
-`lantern place: skipped (<reason>)`, `lantern place: keyframed <id> ok|failed`, `lantern smoke: disabled <n>`.
+`lantern place: skipped (<reason>)`, `lantern place: keyframed <id> ok|failed` (at placement after the ok line),
+`lantern smoke: disabled <n>`.
 
 Limit: an existing save that already visited Ansilvund02 gets the lantern on the next visit (the cell must reload).
 
@@ -132,12 +139,15 @@ FormID work and a mutex-guarded re-apply check happen; everything that reads the
    Not stacking relies on the engine replacing the same spell from the same caster on a target (vanilla behaviour,
    not proven here): the log line below counts our effects on the target after the cast.
 4. Log, not rate-limited while `lanternLog` is true (default true for the first run): `lantern hit: src=<id> proj=<id>
-   tgt=<id> t=<ms>` for every accepted event and `lantern hit: rejected src=<id> type=<t> (<why>)` once per source
-   id; `lantern burn: tgt=<id> max=<m> rate=<r>/s for <s> s effects=<n> magnitude=<x> difficulty=<d>`, where `n` is
+   tgt=<id> t=<ms>` for every accepted event that burns - written by the task after its checks, just before the cast
+   (review 1 item 7b: a hit with only the console stoke spell, a dead target or a non-actor passes the sink but must not
+   count as a lantern hit; `t` is still the sink's time), and `lantern hit: rejected src=<id> type=<t> (<why>)` once per
+   source id; `lantern burn: tgt=<id> max=<m> rate=<r>/s for <s> s effects=<n> magnitude=<x> difficulty=<d>`, where `n` is
    the number of active 0x813 effects on the target after the cast (expected 1) and `magnitude` is that effect's
    magnitude as the engine stored it (expected = rate: a resistance or a magnitude perk would show as a smaller or
    larger number - this replaces the old before/after health read, which a damage over time cannot use); a
-   `TESDeathEvent` whose victim burned in the last 2 s logs `lantern kill: tgt=<id> killer=<id>` (the burn is noted
+   `TESDeathEvent` whose victim burned in the last burn seconds + 1 s (3 s: the 2 s burn, plus a second for a kill at
+   its end to reach the death sink) logs `lantern kill: tgt=<id> killer=<id>` (the burn is noted
    before the cast, so a kill inside the cast is caught; review 1 R5).
 
 Config keys (`HeartOfMagic_BlackFlame.json`, documented in the README config table): `lanternPlace` (true),

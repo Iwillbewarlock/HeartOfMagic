@@ -77,10 +77,12 @@ namespace BlackFlame
         constexpr std::uint32_t kMaxJobMemoryMiB = 16384;
         constexpr double kMinCorpseWindow = 1.0;  // corpseWindowGameSeconds (CorpseMark.h)
         constexpr double kMaxCorpseWindow = 3600.0;
-        constexpr double kMinLanternPct = 0.0;  // lanternSinglePct / lanternConcPct: a share of max health
+        constexpr double kMinLanternPct = 0.0;  // lanternBurnPct: a share of max health
         constexpr double kMaxLanternPct = 1.0;
-        constexpr double kMinLanternIcd = 0.05;  // lanternSingleIcd / lanternConcIcd, seconds
-        constexpr double kMaxLanternIcd = LanternRules::kMaxIcdSeconds;
+        constexpr double kMinLanternFlat = 0.0;  // lanternBurnFlat: health per burn
+        constexpr double kMaxLanternFlat = 10000.0;
+        constexpr double kMinLanternReapply = 0.02;  // lanternReapply, seconds
+        constexpr double kMaxLanternReapply = LanternRules::kMaxReapplySeconds;
         constexpr float kMaxLanternOffset = 1000.0f;  // game units from the lab, each axis
         constexpr float kMaxLanternYaw = 360.0f;      // degrees
         constexpr std::size_t kYawIndex = 3;
@@ -94,10 +96,9 @@ namespace BlackFlame
         };
 
         constexpr std::array kLanternNumbers{
-            NumberKey{ "lanternSinglePct", &Config::lanternSinglePct, kMinLanternPct, kMaxLanternPct },
-            NumberKey{ "lanternSingleIcd", &Config::lanternSingleIcd, kMinLanternIcd, kMaxLanternIcd },
-            NumberKey{ "lanternConcPct", &Config::lanternConcPct, kMinLanternPct, kMaxLanternPct },
-            NumberKey{ "lanternConcIcd", &Config::lanternConcIcd, kMinLanternIcd, kMaxLanternIcd },
+            NumberKey{ "lanternBurnPct", &Config::lanternBurnPct, kMinLanternPct, kMaxLanternPct },
+            NumberKey{ "lanternBurnFlat", &Config::lanternBurnFlat, kMinLanternFlat, kMaxLanternFlat },
+            NumberKey{ "lanternReapply", &Config::lanternReapply, kMinLanternReapply, kMaxLanternReapply },
         };
 
         // C6: keys of the retired runtime recolour (and burnMode before it). An old json keeps loading: each is logged
@@ -419,10 +420,10 @@ namespace BlackFlame
                 g_config.oldCopiesGraceDays);
             logger::info("BlackFlame: config greyCorpseShaders={} corpseWindowGameSeconds={}", g_config.greyCorpseShaders,
                 g_config.corpseWindowGameSeconds);
-            logger::info("BlackFlame: config lanternPlace={} lanternDamage={} lanternLog={} lanternSinglePct={} lanternSingleIcd={} "
-                         "lanternConcPct={} lanternConcIcd={} lanternOffset={} journalOffset={} smokeOffset={}",
-                g_config.lanternPlace, g_config.lanternDamage, g_config.lanternLog, g_config.lanternSinglePct,
-                g_config.lanternSingleIcd, g_config.lanternConcPct, g_config.lanternConcIcd,
+            logger::info("BlackFlame: config lanternPlace={} lanternDamage={} lanternLog={} lanternBurnPct={} lanternBurnFlat={} "
+                         "lanternReapply={} lanternOffset={} journalOffset={} smokeOffset={}",
+                g_config.lanternPlace, g_config.lanternDamage, g_config.lanternLog, g_config.lanternBurnPct,
+                g_config.lanternBurnFlat, g_config.lanternReapply,
                 nlohmann::json(g_config.lanternOffset).dump(), nlohmann::json(g_config.journalOffset).dump(),
                 nlohmann::json(g_config.smokeOffset).dump());
         }

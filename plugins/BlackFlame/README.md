@@ -91,10 +91,10 @@ too, all as UTF-8 text and sorted), and reused. Only a complete probe without fa
 | `corpseWindowGameSeconds` | `45` | The corpse mark's window (1..3600): unpaused game seconds (`GameClock.h`) after that last stoked hit; each mark keeps the target's window open this long again |
 | `builderJobMemoryMiB` | `1536` | With `singleLaunch`: the builder's job memory cap (256..16384), also passed as `--job-memory` |
 | `lanternPlace` | `true` | Place the lantern, Luah's journal and the smoke on the alchemy lab of Ansilvund02 (section "Lantern"). Off for the session without the main-thread queue |
-| `lanternDamage` | `true` | The worn lantern's extra damage on the player's fire hits (section "Lantern"). Off for the session without the main-thread queue |
-| `lanternLog` | `true` | One line per accepted hit (`lantern hit:`), per damage cast (`lantern damage:`) and per kill with recent lantern damage (`lantern kill:`), not rate-limited (on for the first run). The `rejected` line (once per source) and the placement lines are written either way |
-| `lanternSinglePct`, `lanternSingleIcd` | `0.02`, `0.5` | Fire-and-forget hits: the share of the target's maximum health (0..1) and the seconds between two such hits on one target (0.05..10) |
-| `lanternConcPct`, `lanternConcIcd` | `0.004`, `0.25` | Concentration hits and fire hazards' hits: the same two values |
+| `lanternDamage` | `true` | The worn lantern's black flame on the player's fire hits (section "Lantern"). Off for the session without the main-thread queue |
+| `lanternLog` | `true` | One line per hit that burns (`lantern hit:`), per burn cast (`lantern burn:`) and per kill of a burning target (`lantern kill:`), not rate-limited (on for the first run). The `rejected` line (once per source) and the placement lines are written either way |
+| `lanternBurnPct`, `lanternBurnFlat` | `0.02`, `20` | One burn's damage: the share of the target's maximum health (0..1) plus a flat amount (0..10000), dealt over the burn spell's duration (2 s, from the ESP record, not a key) |
+| `lanternReapply` | `0.1` | Seconds between two burn casts on one target (0.02..2). Changes nothing in the damage (a re-cast only restarts the burn); it keeps a 60-hits-a-second Flames from casting 60 times a second |
 | `lanternOffset`, `journalOffset` | `[-25, 0, 75, 0]`, `[25, 0, 75, 90]` | Where the lantern and the journal stand: `[x, y, z, yaw]` in game units from the lab ref (x right, y forward, z up, turned with the lab; -1000..1000) and a yaw in degrees added to the lab's (-360..360). **First-run estimates**: read the `lantern place: ok` line and correct them |
 | `smokeOffset` | `[-25, 0, 87]` | The smoke's `[x, y, z]`, the same way (estimate) |
 
@@ -425,10 +425,15 @@ switches on (`buff flag ON (<reason>, lantern)`). The stoke spell "갈망" 0x803
 in the game hands it out (console only). While worn:
 
 - fire spells cost 30% more magicka (the perk's Mod Spell Cost entry, conditioned on `MagicDamageFire` and the player);
-- the player's fire hit on an actor adds damage that ignores resistance: `HoMBF_LanternBurnSpell` cast by the player
-  (kill credit kept) with magnitude = the target's maximum health x `lanternSinglePct` for fire-and-forget spells (one per
-  `lanternSingleIcd` per target) or x `lanternConcPct` for concentration spells and fire hazards (one per `lanternConcIcd`
-  per target, so 1.6% per second at most by default). Cloak hits, scrolls, staffs, shouts and powers get nothing.
+- the player's fire hit on an actor sets it on black flame, as Elden Ring's black flame does (design v3): damage over
+  2 s equal to `lanternBurnPct` (2%) of its maximum health + `lanternBurnFlat` (20), ignoring resistance.
+  `HoMBF_LanternBurnSpell` is cast by the player (kill credit kept) with a per-second magnitude of (max x pct + flat) /
+  the burn spell's duration, read from the ESP at load (logged; a duration not above 0 turns the damage off with one
+  warning). It does not stack: a further hit while it burns restarts the 2 s, so any stream of hits (Flames held,
+  Firebolt spam, Wall of Flames) burns at most 1% + 10 per second. Every casting type is treated the same; fire hazards'
+  spells count as fire. Casts on one target are at least `lanternReapply` (0.1 s) apart. Cloak hits, scrolls, staffs,
+  shouts and powers get nothing. Not stacking relies on the engine replacing the same spell from the same caster
+  (vanilla behaviour, not proven here): the `lantern burn` line counts the burn effects on the target after each cast.
 
 Limits (design section 3, "Fire-spell scope"): the extra damage uses the addon's own fire rule (`IsFireSpell`: the fire
 keyword, fire resistance or the catalog's fire tag, spell type Spell), so it matches what turns grey; the perk can only
@@ -440,8 +445,11 @@ Placement (`LanternPlace.h`): no CELL record (13 plugins override Ansilvund02 in
 loading, or after a game load in it, and the global is 0, the lantern, the journal and the smoke are created at the alchemy
 lab ref 0C0090 (lab position + the config offset turned by the lab's z angle), the lantern and the journal are keyframed
 once their 3D is there (10 s at most, else everything made is deleted and the next load of the cell tries again), and the
-global becomes 1. Refs of ours left in the cell while the global is 0 (a save inside those 10 s) are removed first. Every
-later load of the cell keyframes them again. Picking the lantern up disables the smoke in the player's cell. A save that
+global becomes 1. Refs of ours left in the cell while the global is 0 (a save inside those 10 s) are removed first, only
+those standing in the cell (not disabled, deleted or carried). Every later load of the cell keyframes them again: only a
+lantern or journal within 64 units of its configured place (not one the player dropped elsewhere), once its 3D is there
+(10 s at most). Picking the lantern up sets the global to 1 at once (no second lantern on a later load, even when the
+placement had not finished) and disables the smoke in the player's cell. A save that
 already visited Ansilvund02 gets the lantern at its next visit. The offset's turn assumes the z angle runs clockwise seen
 from above (forward = (sin a, cos a)); not checked in game, the ok line's two coordinates settle it.
 
@@ -449,14 +457,17 @@ Log lines (`HeartOfMagic_BlackFlame.log`, all prefixed `BlackFlame: `):
 
 | Line | When |
 |---|---|
-| `lantern place: ok lantern=<id> journal=<id> smoke=<id> at (x,y,z) lab=(x,y,z)` | placed and keyframed (`at` is the lantern) |
+| `lantern place: ok lantern=<id> journal=<id> smoke=<id> at (x,y,z) lab=(x,y,z)` | placed and keyframed (`at` is the lantern); the two `keyframed ... ok` lines follow |
 | `lantern place: skipped (<reason>)` | a lab check failed, a ref could not be created, or no 3D within 10 s |
-| `lantern place: keyframed <id> ok\|failed` | each keyframe, at placement and at each later load |
+| `lantern place: keyframed <id> ok\|failed` | each keyframe, at placement (after the ok line) and at each later load |
+| `lantern place: nothing of ours to keyframe again (...)` | a later load found no lantern or journal within 64 units of its place |
+| `lantern place: the lantern was picked up before its placement finished ...` | the pickup ended a waiting placement (global 1) |
 | `lantern smoke: disabled <n>` | the lantern picked up |
-| `lantern hit: src=<id> proj=<id> tgt=<id> bucket=single\|conc t=<ms>` | an accepted hit (`t` from kDataLoaded) |
-| `lantern hit: rejected src=<id> type=<casting type\|none> (<why>)` | once per source id: own spell, not a spell, cloak, not a fire spell, casting type |
-| `lantern damage: tgt=<id> max=<m> intended=<x> before=<a> after=<b> difficulty=<d>` | each cast; `after` is read in the same task |
-| `lantern kill: tgt=<id> killer=<id>` | a death within 2 s of lantern damage |
+| `lantern burn spell <id>: effect duration <s> s` | at load: the burn's length the rate is divided by |
+| `lantern hit: src=<id> proj=<id> tgt=<id> t=<ms>` | a hit that burns: written by the task after its checks (actor, alive, the lantern worn), so a hit with only the console stoke spell is not counted (`t`: the hit event's time from kDataLoaded) |
+| `lantern hit: rejected src=<id> type=<casting type\|none> (<why>)` | once per source id: own spell, not a spell, cloak, not a fire spell |
+| `lantern burn: tgt=<id> max=<m> rate=<r>/s for <s> s effects=<n> magnitude=<x> difficulty=<d>` | each cast: `n` the burn effects active on the target after it (expected 1), `x` the newest one's magnitude as the engine stored it (expected = rate) |
+| `lantern kill: tgt=<id> killer=<id>` | a death while burning (within the burn's 2 s + 1 s after the last cast) |
 | `lantern cost: <spell id> <cost>` | at each buff flag change, every fire spell the player knows |
 
 ## Runtimes and Address Library ids

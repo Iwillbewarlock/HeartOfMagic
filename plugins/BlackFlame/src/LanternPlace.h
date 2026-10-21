@@ -11,10 +11,12 @@
 // HoMBF_LanternPlaced (GLOB 0x816) is 0 and the lab ref 0C0090 passes its checks, the three refs are created at their
 // final position (lab position + config offset turned by the lab's z angle, forcePersist), the tick waits for the
 // lantern's and the journal's 3D (10 s at most, else everything made is deleted and the next load of the cell tries
-// again), keyframes them and sets the global to 1. Each later load of the cell keyframes them again (the motion type is
-// not known to survive a save). Picking the lantern up (TESContainerChangedEvent from the world to the player) disables
-// the smoke in the player's cell. Off without the lantern records, with lanternPlace false, or without the main-thread
-// queue (DisableEngineWrites).
+// again; a ref the player already carries is never deleted), keyframes them and sets the global to 1. Each later load of
+// the cell keyframes them again (the motion type is not known to survive a save): only a lantern or journal within 64
+// units of its configured place, once its 3D is there (10 s at most). Picking the lantern up (TESContainerChangedEvent
+// from the world to the player) sets the global to 1 at once (no second lantern later), ends a placement still waiting,
+// and disables the smoke in the player's cell. Off without the lantern records, with lanternPlace false, or without the
+// main-thread queue (DisableEngineWrites).
 
 namespace BlackFlame
 {

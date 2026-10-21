@@ -13,8 +13,8 @@
 // read of the builder's output identity (CopyContractIdentity.h; IdentityTests.h, on the builder built beside this exe), and
 // the builder launcher's pure parts (BuilderControl.h; BuilderControlTests.h: the throttle's CPU rate, the exit code text),
 // and the publication plan's decisions and the ledger's previous generation (CopyGroupsDecide.h; PublicationTests.h), and the
-// last elemental hit record and corpse mark decisions (ElementalHitRules.h; ElementalHitRulesTests.h), the lantern's extra
-// damage rules (LanternDamageRules.h; LanternDamageRulesTests.h: buckets, classification, ICD edges, pruning), and the old-copies
+// last elemental hit record and corpse mark decisions (ElementalHitRules.h; ElementalHitRulesTests.h), the lantern's
+// black flame rules (LanternDamageRules.h; LanternDamageRulesTests.h: classification, burn rate, re-apply throttle edges, pruning), and the old-copies
 // cleanup's keep set, name rule, plan, grace and root check (OldCopiesRule.h; OldCopiesTests.h) and its file side and keep set
 // files in a temporary folder with junctions (OldCopiesFiles.h, OldCopiesKeepsets.h; OldCopiesFilesTests.h).
 // --cosave and --nif-values (SkseFile.cpp): the DLL's readers on real files.

@@ -24,6 +24,10 @@ namespace BlackFlame
         constexpr float kPlaced = 1.0f;
         constexpr float kDegToRad = std::numbers::pi_v<float> / 180.0f;
         constexpr std::size_t kYaw = 3;
+        // A later load keyframes only a lantern or journal this close to its configured place next to the lab (review 1
+        // R4): ours, not one the player dropped elsewhere in the cell. The keyframed refs do not move; a placement that
+        // settled before its keyframe moves far less
+        constexpr float kNearTarget = 64.0f;
 
         struct PendingPlace
         {
@@ -42,9 +46,19 @@ namespace BlackFlame
             std::uint32_t generation = 0;
         };
 
+        // Placed refs to keyframe again (a later load of the cell, or the journal of a placement the pickup ended): each
+        // waits for its 3D on the tick like FinishPending, 10 s at most
+        struct PendingRekey
+        {
+            std::vector<RE::ObjectRefHandle> refs;
+            Clock::time_point started;
+            std::uint32_t generation = 0;
+        };
+
         // Game thread only (tasks and the tick); g_waiting is what other threads may read
         std::optional<PendingPlace> g_pending;
         std::optional<PostLoadCheck> g_postLoad;
+        std::optional<PendingRekey> g_rekey;
         std::atomic<bool> g_waiting{ false };
         std::atomic<bool> g_enabled{ false };
         std::atomic<bool> g_threadWarned{ false };
@@ -52,7 +66,7 @@ namespace BlackFlame
 
         void UpdateWaiting()
         {
-            g_waiting.store(g_pending.has_value() || g_postLoad.has_value());
+            g_waiting.store(g_pending.has_value() || g_postLoad.has_value() || g_rekey.has_value());
         }
 
         RE::TESObjectCELL* LanternCell()
@@ -112,6 +126,15 @@ namespace BlackFlame
             return refs;
         }
 
+        // A ref standing in the cell's world: not disabled, not deleted, parent cell a_cell, and not held by a container.
+        // The last test assumes a world ref taken into an inventory keeps an ExtraReferenceHandle to its container
+        // (CommonLib names the field containerRef; not checked in game) - skipping such a ref is the safe side
+        bool InWorldOf(const RE::TESObjectREFR& a_ref, const RE::TESObjectCELL* a_cell)
+        {
+            return !a_ref.IsDisabled() && !a_ref.IsDeleted() && !a_ref.IsMarkedForDeletion() && a_ref.GetParentCell() == a_cell &&
+                   !a_ref.extraList.HasType(RE::ExtraDataType::kReferenceHandle);
+        }
+
         void DeleteRef(RE::TESObjectREFR* a_ref)
         {
             if (a_ref) {
@@ -120,10 +143,15 @@ namespace BlackFlame
             }
         }
 
+        // Only what still stands in the cell: a made lantern the player already carries is never deleted
         void DeleteMade(const PendingPlace& a_made)
         {
+            const auto* cell = LanternCell();
             for (const auto& handle : { a_made.lantern, a_made.journal, a_made.smoke }) {
-                DeleteRef(handle.get().get());
+                const auto ref = handle.get();
+                if (ref && InWorldOf(*ref, cell)) {
+                    DeleteRef(ref.get());
+                }
             }
         }
 
@@ -138,35 +166,88 @@ namespace BlackFlame
             logger::info("BlackFlame: lantern place: keyframed {:08X} {}", a_ref.GetFormID(), a_ok ? "ok" : "failed");
         }
 
-        bool Keyframe(RE::TESObjectREFR& a_ref)
+        void QueueRekey(std::vector<RE::ObjectRefHandle> a_refs)
         {
-            const bool ok = TryKeyframe(a_ref);
-            LogKeyframe(a_ref, ok);
-            return ok;
+            if (a_refs.empty()) {
+                return;
+            }
+            if (g_rekey && g_rekey->generation == WorldGeneration()) {
+                g_rekey->refs.insert(g_rekey->refs.end(), a_refs.begin(), a_refs.end());
+                g_rekey->started = Clock::now();
+            } else {
+                g_rekey = PendingRekey{ std::move(a_refs), Clock::now(), WorldGeneration() };
+            }
+            UpdateWaiting();
         }
 
-        // GLOB 1: the lantern and the journal that are still in the cell keyframed again
+        // GLOB 1: the lantern and the journal this addon placed, keyframed again once their 3D is there (review 1 R4). They
+        // are told from a lantern or journal the player dropped in the cell by their distance to the configured place
         void Rekeyframe(const RE::TESObjectCELL* a_cell)
         {
             const auto& forms = GetForms();
+            const auto& config = GetConfig();
+            const auto* lab = LabRef();
+            if (!lab || lab->GetParentCell() != a_cell) {
+                logger::warn("BlackFlame: lantern place: keyframe again skipped (lab ref 0C0090 {})", !lab ? "not found" : "not in cell 01F358");
+                return;
+            }
+            const auto& lo = config.lanternOffset;
+            const auto& jo = config.journalOffset;
+            const RE::NiPoint3 lanternAt = LabToWorld(*lab, lo[0], lo[1], lo[2]);
+            const RE::NiPoint3 journalAt = LabToWorld(*lab, jo[0], jo[1], jo[2]);
+            std::vector<RE::ObjectRefHandle> found;
             for (const auto& ref : RefsOf(a_cell, { forms.lantern, forms.luahJournal })) {
-                if (!ref->IsDisabled()) {
-                    (void)Keyframe(*ref);
+                const auto& target = ref->GetBaseObject() == forms.lantern ? lanternAt : journalAt;
+                if (InWorldOf(*ref, a_cell) && ref->GetPosition().GetDistance(target) <= kNearTarget) {
+                    found.push_back(ref->GetHandle());
                 }
+            }
+            if (found.empty()) {
+                logger::info("BlackFlame: lantern place: nothing of ours to keyframe again (none within {} units of its place)", kNearTarget);
+                return;
+            }
+            QueueRekey(std::move(found));
+        }
+
+        // Tick: each waiting ref keyframed once its 3D (and Havok body) is there, or logged failed when the wait ends
+        void TickRekey()
+        {
+            const bool timedOut = Clock::now() - g_rekey->started >= kMaxWait;
+            auto& refs = g_rekey->refs;
+            for (auto it = refs.begin(); it != refs.end();) {
+                const auto ref = it->get();
+                if (!ref) {
+                    it = refs.erase(it);  // gone (picked up, deleted)
+                    continue;
+                }
+                const bool ok = TryKeyframe(*ref);
+                if (ok || timedOut) {
+                    LogKeyframe(*ref, ok);
+                    it = refs.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+            if (refs.empty()) {
+                g_rekey.reset();
             }
         }
 
         // GLOB 0 and refs of ours in the cell: a placement that did not finish (a save inside its 10 s, a keyframe that
-        // failed) - removed before the new one, so a retry cannot leave two lanterns
+        // failed) - removed before the new one, so a retry cannot leave two lanterns. Only refs standing in the cell's
+        // world (review 1 R3: never one that is disabled, deleted, carried or elsewhere)
         void RemoveLeftovers(const RE::TESObjectCELL* a_cell)
         {
             const auto& forms = GetForms();
-            const auto refs = RefsOf(a_cell, { forms.lantern, forms.luahJournal, forms.lanternSmoke });
-            for (const auto& ref : refs) {
-                DeleteRef(ref.get());
+            std::size_t removed = 0;
+            for (const auto& ref : RefsOf(a_cell, { forms.lantern, forms.luahJournal, forms.lanternSmoke })) {
+                if (InWorldOf(*ref, a_cell)) {
+                    DeleteRef(ref.get());
+                    ++removed;
+                }
             }
-            if (!refs.empty()) {
-                logger::info("BlackFlame: lantern place: removed {} ref(s) left by an unfinished placement", refs.size());
+            if (removed > 0) {
+                logger::info("BlackFlame: lantern place: removed {} ref(s) left by an unfinished placement", removed);
             }
         }
 
@@ -281,17 +362,20 @@ namespace BlackFlame
                 g_pending = made;
                 return;
             }
-            LogKeyframe(*lantern, lanternOk);
-            LogKeyframe(*journal, journalOk);
             if (!lanternOk || !journalOk) {
+                LogKeyframe(*lantern, lanternOk);
+                LogKeyframe(*journal, journalOk);
                 return;  // the global stays 0: the next load of the cell removes these and places again
             }
+            // Design section 7's order: the ok line, then the two keyframed lines
             GetForms().lanternPlaced->value = kPlaced;
             const auto smoke = made.smoke.get();
             logger::info("BlackFlame: lantern place: ok lantern={:08X} journal={:08X} smoke={:08X} at ({:.1f},{:.1f},{:.1f}) "
                          "lab=({:.1f},{:.1f},{:.1f})",
                 lantern->GetFormID(), journal->GetFormID(), smoke ? smoke->GetFormID() : 0, made.at.x, made.at.y, made.at.z,
                 made.lab.x, made.lab.y, made.lab.z);
+            LogKeyframe(*lantern, lanternOk);
+            LogKeyframe(*journal, journalOk);
         }
 
         // After a game load: the player's cell, once the lab's 3D is there (or 10 s passed: the skip line names it)
@@ -311,10 +395,22 @@ namespace BlackFlame
             OnCellReady();
         }
 
-        void DisableSmoke()
+        // Game thread: the player took the lantern (review 1 R3). The global becomes 1 at once, so no later load places a
+        // second one; a placement still waiting for its 3D ends here (its journal is keyframed on the tick), then the smoke
+        // in the player's cell goes out
+        void OnLanternPickedUp()
         {
             if (!g_enabled.load() || !OnGameThreadOrWarn()) {
                 return;
+            }
+            GetForms().lanternPlaced->value = kPlaced;
+            if (g_pending) {
+                const auto journal = g_pending->journal;
+                g_pending.reset();
+                logger::info("BlackFlame: lantern place: the lantern was picked up before its placement finished - global set "
+                             "to 1, the journal keyframed on its own");
+                QueueRekey({ journal });
+                UpdateWaiting();
             }
             auto* player = RE::PlayerCharacter::GetSingleton();
             int disabled = 0;
@@ -383,7 +479,7 @@ namespace BlackFlame
                     const auto* lantern = GetForms().lantern;
                     if (a_event && lantern && a_event->oldContainer == 0 && a_event->newContainer == kPlayerRef &&
                         a_event->baseObj == lantern->GetFormID()) {
-                        QueueGuarded("BlackFlameLanternSmoke", &DisableSmoke);
+                        QueueGuarded("BlackFlameLanternPickup", &OnLanternPickedUp);
                     }
                 } catch (...) {
                     // the smoke stays
@@ -422,6 +518,9 @@ namespace BlackFlame
             return;
         }
         QueueGuarded("BlackFlameLanternLoad", []() {
+            if (!OnGameThreadOrWarn()) {
+                return;
+            }
             g_postLoad = PostLoadCheck{ Clock::now(), WorldGeneration() };
             UpdateWaiting();
         });
@@ -429,7 +528,8 @@ namespace BlackFlame
 
     void TickLanternPlace()
     {
-        if (!g_waiting.load()) {
+        // g_pending, g_postLoad and g_rekey are the game thread's alone (review 1 7a): off it, nothing is touched
+        if (!g_waiting.load() || !IsOnGameThread()) {
             return;
         }
         const auto generation = WorldGeneration();
@@ -439,13 +539,17 @@ namespace BlackFlame
         if (g_pending && g_pending->generation != generation) {
             g_pending.reset();  // the world it was made in is gone (its refs went with it or were saved half done)
         }
-        if (IsOnGameThread()) {
-            if (g_postLoad) {
-                TickPostLoad();
-            }
-            if (g_pending) {
-                FinishPending();
-            }
+        if (g_rekey && g_rekey->generation != generation) {
+            g_rekey.reset();
+        }
+        if (g_postLoad) {
+            TickPostLoad();
+        }
+        if (g_pending) {
+            FinishPending();
+        }
+        if (g_rekey) {
+            TickRekey();
         }
         UpdateWaiting();
     }
