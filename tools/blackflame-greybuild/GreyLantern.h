@@ -114,6 +114,8 @@ namespace GreyBuild
         std::vector<std::string> textures;  // the texture set's slots, or an effect shader's source and greyscale
         bool skinned = false;               // a skin instance and the vertex skinned flag
         std::string skinType;               // skin instance block type
+        std::uint32_t skinRoot = 0xFFFFFFFF;  // the skin instance's skeleton root (block id; NIF_NPOS when none)
+        std::uint32_t fileRoot = 0;          // the file's root node block id
         std::vector<std::string> bones;
         std::vector<std::uint16_t> partitions;  // BSDismember body parts
         std::uint32_t vertices = 0;

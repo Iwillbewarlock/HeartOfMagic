@@ -424,6 +424,10 @@ namespace GreyBuild
             if (shape->HasSkinInstance()) {
                 auto* skin = hdr.GetBlock<nifly::NiBoneContainer>(shape->SkinInstanceRef());
                 s.skinType = skin ? skin->GetBlockName() : "<missing>";
+                s.fileRoot = hdr.GetBlockID(nif.GetRootNode());
+                if (auto* instance = dynamic_cast<nifly::NiSkinInstance*>(skin)) {
+                    s.skinRoot = instance->targetRef.index;
+                }
                 s.skinned = shape->IsSkinned();
                 (void)nif.GetShapeBoneList(shape, s.bones);
                 if (auto* dismember = dynamic_cast<nifly::BSDismemberSkinInstance*>(skin)) {
@@ -507,10 +511,10 @@ namespace GreyBuild
                 for (const auto part : s.partitions) {
                     parts += (parts.empty() ? "" : ", ") + std::to_string(part);
                 }
-                std::cout << fmt::format("    skin {} (vertex skinned flag {}), bones [{}], partitions [{}], weighted on bone 0: {} "
-                                         "(vertex data), {} (NiSkinData); all weights 1 on bone 0: {}\n",
-                    s.skinType, s.skinned ? "on" : "off", bones, parts, s.weightedOnFirstBone, s.skinDataWeights,
-                    s.allWeightsOne ? "yes" : "no");
+                std::cout << fmt::format("    skin {} (vertex skinned flag {}, skeleton root block {}{}), bones [{}], partitions [{}], "
+                                         "weighted on bone 0: {} (vertex data), {} (NiSkinData); all weights 1 on bone 0: {}\n",
+                    s.skinType, s.skinned ? "on" : "off", s.skinRoot, s.skinRoot == s.fileRoot ? " = the file's root" : " NOT the root",
+                    bones, parts, s.weightedOnFirstBone, s.skinDataWeights, s.allWeightsOne ? "yes" : "no");
             } else {
                 std::cout << "    not skinned\n";
             }
@@ -1049,6 +1053,9 @@ namespace GreyBuild
                     fmt::format("worn '{}': {} of {} vertices weighted 1 on the bone (NiSkinData {})", s.name, s.weightedOnFirstBone,
                         s.vertices, s.skinDataWeights));
                 Check(problems, (s.flags1 & kSlsf1Skinned) != 0, fmt::format("worn '{}': shader without the Skinned flag", s.name));
+                Check(problems, s.skinRoot == s.fileRoot,
+                    fmt::format("worn '{}': the skin instance's skeleton root is block {}, not the file's root {}", s.name, s.skinRoot,
+                        s.fileRoot));
                 for (const auto& controller : s.controllers) {
                     Check(problems, controller.find("WRONG") == std::string::npos,
                         fmt::format("worn '{}': controller {}", s.name, controller));
