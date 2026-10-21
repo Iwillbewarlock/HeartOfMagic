@@ -282,7 +282,12 @@ namespace BlackFlame
                     const auto* base = RE::TESForm::LookupByID<RE::EffectSetting>(id);
                     const auto* spell = base && base->HasArchetype(RE::EffectSetting::Archetype::kCloak) && base->data.associatedForm ?
                                             base->data.associatedForm->As<RE::SpellItem>() : nullptr;
-                    if (spell && spell != GetForms().stokeSpell && !g_fireSpells.contains(spell->GetFormID())) {
+                    if (!spell || spell == GetForms().stokeSpell) {
+                        continue;
+                    }
+                    // the lantern's cloak exclusion needs every cloak spell, also one already fire by its own keyword
+                    g_cloakSpells.insert(spell->GetFormID());
+                    if (!g_fireSpells.contains(spell->GetFormID())) {
                         found.push_back(spell);
                     }
                 }
@@ -290,7 +295,6 @@ namespace BlackFlame
                     if (!g_fireSpells.insert(spell->GetFormID()).second) {
                         continue;  // two cloaks naming the same spell
                     }
-                    g_cloakSpells.insert(spell->GetFormID());
                     ++added;
                     grew = true;
                     // J4: the effects only - their explosions and hazards are not fire explosions or hazards (a frost

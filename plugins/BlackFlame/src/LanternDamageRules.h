@@ -14,6 +14,9 @@
 
 namespace BlackFlame::LanternRules
 {
+    /// The longest ICD the config accepts (Config.cpp); the ICD table keeps an entry longer than this
+    inline constexpr double kMaxIcdSeconds = 10.0;
+
     /// RE::MagicSystem::CastingType's values (LanternDamage.cpp static_asserts that they match)
     enum class CastingType : std::uint32_t
     {
@@ -152,13 +155,14 @@ namespace BlackFlame::LanternRules
         return a_maxHealth > 0.0 ? a_maxHealth * a_pct : 0.0;
     }
 
-    /// The per-target cooldown: one accepted hit per (target, bucket) per ICD. Entries older than kPruneAfter are
-    /// dropped on each call (O(n) per call over the targets hit in the last 5 s: a handful in play)
+    /// The per-target cooldown: one accepted hit per (target, bucket) per ICD. Entries older than kPruneAfter (past the
+    /// longest ICD, so pruning never lets a hit through early) are dropped on each call (O(n) per call over the
+    /// targets hit in the last 11 s: a handful in play)
     class IcdTable
     {
     public:
         using Clock = std::chrono::steady_clock;
-        static constexpr auto kPruneAfter = std::chrono::seconds(5);
+        static constexpr auto kPruneAfter = std::chrono::seconds(static_cast<int>(kMaxIcdSeconds) + 1);
 
         /// True (and the time noted) when this target's bucket has no entry or its last accepted hit is at least
         /// a_icdSeconds ago; exactly the ICD passes (the run sheet asks damage lines >= 0.25 s apart)

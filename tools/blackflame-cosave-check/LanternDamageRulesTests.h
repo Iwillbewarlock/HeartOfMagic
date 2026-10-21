@@ -131,15 +131,24 @@ namespace LanternDamageRulesTests
                 "lantern ICD: Flames at 60 hit events/s for 5 s: " + std::to_string(accepted) + " accepted (20), at most 8% of max");
         }
         {
+            // the longest ICD the config accepts: pruning must not let a hit through before it ends (Codex review 1)
+            L::IcdTable table;
+            const bool first = table.TryAccept(kTarget, B::kSingle, t0, L::kMaxIcdSeconds);
+            const bool early = table.TryAccept(kTarget, B::kSingle, t0 + seconds(6), L::kMaxIcdSeconds);
+            const bool end = table.TryAccept(kTarget, B::kSingle, t0 + seconds(10), L::kMaxIcdSeconds);
+            a_check(first && !early && end, "lantern ICD: a 10 s ICD refuses a hit after 6 s and passes at 10 s");
+        }
+        {
+            const auto prune = L::IcdTable::kPruneAfter;
             L::IcdTable table;
             (void)table.TryAccept(kTarget, B::kSingle, t0, 0.5);
-            (void)table.TryAccept(kOther, B::kSingle, t0 + seconds(5), 0.5);
-            const bool kept = table.Size() == 2;  // the first is exactly 5 s old at the second call: kept
-            (void)table.TryAccept(kOther, B::kConcentration, t0 + seconds(5) + nanoseconds(1), 0.25);
-            const bool pruned = table.Size() == 2;  // now older than 5 s: dropped, the new entry added
-            const bool fresh = table.TryAccept(kTarget, B::kSingle, t0 + seconds(5) + nanoseconds(2), 0.5);
-            a_check(kept && pruned && fresh,
-                "lantern ICD: an entry exactly 5 s old is kept, one older is pruned on the next call (and the target then passes)");
+            (void)table.TryAccept(kOther, B::kSingle, t0 + prune, 0.5);
+            const bool kept = table.Size() == 2;  // the first is exactly kPruneAfter old at the second call: kept
+            (void)table.TryAccept(kOther, B::kConcentration, t0 + prune + nanoseconds(1), 0.25);
+            const bool pruned = table.Size() == 2;  // now older than kPruneAfter: dropped, the new entry added
+            const bool fresh = table.TryAccept(kTarget, B::kSingle, t0 + prune + nanoseconds(2), 0.5);
+            a_check(kept && pruned && fresh && prune > seconds(10),
+                "lantern ICD: an entry exactly kPruneAfter (11 s) old is kept, one older is pruned on the next call (and the target then passes)");
             table.Clear();
             a_check(table.Size() == 0 && table.TryAccept(kTarget, B::kSingle, t0, 0.5), "lantern ICD: Clear forgets every entry");
         }

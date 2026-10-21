@@ -1,6 +1,6 @@
 # Black Flame lantern (흑염 등불) - design
 
-Status: draft v2 after review round 1 (reviewer agent + Codex gpt-6-astra, 2026-10-21; findings checked against
+Status: draft v3 (Elden Ring black flame rules, user 2026-10-21) after review round 1 (reviewer agent + Codex gpt-6-astra, 2026-10-21; findings checked against
 the code, all taken), 2026-10-21. Branch `feature/black-flame-lantern` (from `feature/black-flame-single` 377c32b5).
 
 ## 1. What and why
@@ -11,9 +11,18 @@ not a light source. While it is worn:
 1. the player's fire spells take the existing Black Flame look (the whole addon: grey copies, burn shader, hands,
    runes, corpse fire). No visual work is new: the lantern only switches the existing pipeline on;
 2. fire spells cost 30% more magicka;
-3. a player's fire spell hit adds damage that ignores resistance: 2% of the target's maximum health per hit for
-   fire-and-forget spells (0.5 s per target), 0.4% per hit for concentration spells and their hazards (0.25 s per
-   target, so at most 1.6% per second). Cloak hits, scrolls, staffs, shouts and powers get nothing.
+3. a player's fire spell hit sets the target on black flame, as Elden Ring's black flame does (the user's model,
+   2026-10-21): damage over 2 s equal to 2% of the target's maximum health + 20, ignoring resistance. It does not
+   stack: a further hit while it burns only restarts the 2 s. So a single hit gives 2% + 20, and any stream of hits
+   (Flames held, Firebolt spam, Wall of Flames) burns at most 1% + 10 per second. Every casting type is treated the
+   same; the cast-type split and its ICDs (draft v2) are gone. Cloak hits, scrolls, staffs, shouts and powers get
+   nothing.
+
+   Elden Ring facts (checked 2026-10-21 on the Fandom wiki through its API, pages `Black_Flame` and `Blackflame`):
+   "20 + 2.0% of the target's maximum HP over 2 seconds"; "The effect does not stack, though further hits refresh its
+   2-second timer"; Shadow of the Erdtree bosses take 10 + 1.0% (Messmer, Bayle, Radahn 7 + 0.7%). Gemini also cited
+   SpEffectParam values (0.1% + 1 HP every 0.1 s for 2 s) and "ignores fire negation" from Reddit and soulsmodding
+   pages behind redirect links; not opened, not relied on. Skyrim has no boss tier, so no boss reduction here.
 
 User decisions (2026-10-21): built into this addon (same ESL, same DLL); the lantern is the only player-facing trigger;
 both combat effects in; the extra damage is a hidden spell the player casts (kill credit kept), not a direct actor
@@ -58,8 +67,8 @@ whether perk magnitude perks (Augmented Flames) scale a `magnitudeOverride`.
 | 0x80F | ENCH | `HoMBF_LanternEnch` | Enchantment, Constant Effect, delivery Self, no charge; effect 0x810 magnitude 0 duration 0 area 0 |
 | 0x810 | MGEF | `HoMBF_LanternEffect` | archetype Script (as the vanilla amulet effect), Constant Effect, Self; keywords `HoMBF_StokedKeyword` 0x801; Perk to Apply 0x811; not hostile, not detrimental; magic skill None; description = the item text |
 | 0x811 | PERK | `HoMBF_LanternPerk` | hidden, not playable; one entry point Mod Spell Cost, Multiply Value 1.3; spell condition `EPMagic_SpellHasKeyword MagicDamageFire` (01CEAD) |
-| 0x812 | SPEL | `HoMBF_LanternBurnSpell` | Spell, Fire and Forget, Target Actor; flags Manual Cost Calc (cost 0), Ignore Resistance, No Absorb/Reflect, No Dual Cast Modification; effect 0x813 magnitude 1 (overridden), duration 0, area 0 |
-| 0x813 | MGEF | `HoMBF_LanternBurnEffect` | Value Modifier, Health; Hostile + Detrimental, Recover off; No Duration, No Area, No Hit Effect, Painless, Hide In UI; **No Hit Event off** (the hit event is what registers the attack; the sink skips our own spell by FormID instead - Codex 2026-10-21); Power Affects Magnitude off; magic skill None, resist value None; no keywords (so no Augmented Flames, no "fire" in FireSet), no shaders, no art |
+| 0x812 | SPEL | `HoMBF_LanternBurnSpell` | Spell, Fire and Forget, Target Actor; flags Manual Cost Calc (cost 0), Ignore Resistance, No Absorb/Reflect, No Dual Cast Modification; effect 0x813 magnitude 1 (overridden per cast with the per-second rate), **duration 2** (v3: the black flame lasts 2 s), area 0 |
+| 0x813 | MGEF | `HoMBF_LanternBurnEffect` | Value Modifier, Health, a damage over time (v3: No Duration off); Hostile + Detrimental, Recover off; No Area, FX Persist, Painless, Hide In UI, No Hit Effect off (the burn shader must show; the DLL passes noHitEffectArt=false); **No Hit Event off** (the hit event is what registers the attack; the sink skips our own spell by FormID instead - Codex 2026-10-21); Power Affects Magnitude off; magic skill None, resist value None; no keywords (so no Augmented Flames, no "fire" in FireSet); hit shader `HoMBF_BurnShader` 0x800 with FX Persist, so the target burns grey for the 2 s (a load order with Glow Be Gone nulls it at kDataLoaded; respected, user 2026-10-20) |
 | 0x814 | BOOK | `HoMBF_LuahJournal` | note model (vanilla `clutter/books/...` note, chosen at build), text from section 6, no skill, value 5 |
 | 0x815 | MSTT | `HoMBF_LanternSmoke` | model `heartofmagic/blackflame/lantern/lantern_smoke.nif`: an empty `BSFadeNode` with one child `NiNode` named `AddOnNode9123` (the node index of the existing grey ADDN 0x809 `HoMBF_GreyAddon_MPSFireSmSmoke01`) - the MPS copies are `BSMasterParticleSystem` roots and only emit through an addon node, as the vanilla `candlelanternwithcandle01.nif` does with `AddOnNode49` (review R3) |
 | 0x816 | GLOB | `HoMBF_LanternPlaced` | short, 0, **Constant off** (a constant global is not saved); 1 once every placed object is ready |
@@ -103,33 +112,39 @@ Log lines (exact prefixes): `lantern place: ok lantern=<id> journal=<id> smoke=<
 
 Limit: an existing save that already visited Ansilvund02 gets the lantern on the next visit (the cell must reload).
 
-## 5. DLL: the extra damage (new `LanternDamage.cpp/.h`, pure rules in `LanternDamageRules.h`)
+## 5. DLL: the black flame (new `LanternDamage.cpp/.h`, pure rules in `LanternDamageRules.h`)
+
+v3 (2026-10-21, the user's Elden Ring model, section 1): one rule for every casting type.
 
 The always-registered `HitEventSink` (`HitEvents.cpp`) calls `LanternDamage::OnHit`. In the sink (any thread) only
-FormID work and a mutex-guarded ICD check happen; everything that reads the world runs in the queued task.
+FormID work and a mutex-guarded re-apply check happen; everything that reads the world runs in the queued task.
 
 1. Sink: `cause` is the player and `source` is not our 0x812; the source FormID is classified once per id and cached:
-   a `SpellItem` that `IsFireSpell` accepts, minus cloak secondaries (the set `AddCloakSpells` already walks,
-   `FireSet.cpp:274-304`, kept and exposed instead of a second walk), plus hazard spells (`BGSHazard::data.spell` of
-   fire hazards, put in the concentration bucket so a Wall of Flames hazard cannot reach 4%/s; review R5).
-2. Rule (pure, `LanternDamageRules.h`): casting type -> bucket (fire and forget -> single, 2%, 0.5 s; concentration or
-   hazard -> 0.4%, 0.25 s; anything else -> none). ICD keyed by (target FormID, bucket) on `steady_clock`, entries
-   older than 5 s dropped on each event.
-3. Task (game thread, same world generation): target is an `Actor`, alive, not the player; `IsStoked()` and the player
-   has an active `HoMBF_LanternEffect` (0x810), so the lantern is the reason, not the console stoke spell. Read health,
-   `CastSpellImmediate(burnSpell, true, target, 1.0f, false, GetActorValueMax(kHealth) * pct, player)`, read health
-   again in the same task.
+   a `SpellItem` that `IsFireSpell` accepts or a fire hazard's spell (`BGSHazard::data.spell`), minus cloak
+   secondaries (`IsCloakSpell`). Casting type does not matter any more.
+2. Rule (pure, `LanternDamageRules.h`): per-second rate = (max health x `lanternBurnPct` + `lanternBurnFlat`) /
+   burn seconds, where burn seconds is read from the 0x812 effect's duration at kDataLoaded (2 in the ESP; not a
+   config key, so the record and the maths cannot disagree). Re-apply throttle per target: `lanternReapply` (0.1 s)
+   - only to keep a 60-events-per-second Flames from casting 60 times a second; it changes nothing in the damage,
+   because a re-cast only restarts the 2 s.
+3. Task (game thread, same world generation): target is an `Actor`, alive, not the player; the player has an active
+   `HoMBF_LanternEffect` (0x810). `CastSpellImmediate(burnSpell, false, target, 1.0f, false, rate, player)`.
+   Not stacking relies on the engine replacing the same spell from the same caster on a target (vanilla behaviour,
+   not proven here): the log line below counts our effects on the target after the cast.
 4. Log, not rate-limited while `lanternLog` is true (default true for the first run): `lantern hit: src=<id> proj=<id>
-   tgt=<id> bucket=<b> t=<ms>` for every accepted event and `lantern hit: rejected src=<id> type=<t> (<why>)` once
-   per source id; `lantern damage: tgt=<id> max=<m> intended=<x> before=<a> after=<b> difficulty=<d>`; a
-   `TESDeathEvent` whose victim took lantern damage in the last 2 s logs `lantern kill: tgt=<id> killer=<id>`.
-   `after` read in the same task isolates the hidden spell only if the engine applies it inside the call; if
-   `after == before` on every line, the damage lands later and the separate check in section 7 is used instead.
+   tgt=<id> t=<ms>` for every accepted event and `lantern hit: rejected src=<id> type=<t> (<why>)` once per source
+   id; `lantern burn: tgt=<id> max=<m> rate=<r>/s for <s> s effects=<n> magnitude=<x> difficulty=<d>`, where `n` is
+   the number of active 0x813 effects on the target after the cast (expected 1) and `magnitude` is that effect's
+   magnitude as the engine stored it (expected = rate: a resistance or a magnitude perk would show as a smaller or
+   larger number - this replaces the old before/after health read, which a damage over time cannot use); a
+   `TESDeathEvent` whose victim burned in the last 2 s logs `lantern kill: tgt=<id> killer=<id>` (the burn is noted
+   before the cast, so a kill inside the cast is caught; review 1 R5).
 
 Config keys (`HeartOfMagic_BlackFlame.json`, documented in the README config table): `lanternPlace` (true),
-`lanternDamage` (true), `lanternLog` (true), `lanternSinglePct` (0.02), `lanternSingleIcd` (0.5), `lanternConcPct`
-(0.004), `lanternConcIcd` (0.25), `lanternOffset` [x,y,z,yaw], `journalOffset` [x,y,z,yaw], `smokeOffset` [x,y,z].
-The +30% cost lives in the perk.
+`lanternDamage` (true), `lanternLog` (true), `lanternBurnPct` (0.02), `lanternBurnFlat` (20), `lanternReapply`
+(0.1), `lanternOffset` [x,y,z,yaw], `journalOffset` [x,y,z,yaw], `smokeOffset` [x,y,z]. `lanternSinglePct`,
+`lanternSingleIcd`, `lanternConcPct`, `lanternConcIcd` (v2) are removed; an old JSON that still has them logs
+"unknown key" once and goes on. The +30% cost lives in the perk.
 
 Cost line: on every buff flag change `RecomputeBuff` logs `lantern cost: <spell id> <cost>` for the player's known
 fire spells via `MagicItem::CalculateMagickaCost`, off and on, so the log holds both values (review R7). The buff
@@ -155,8 +170,9 @@ reason gets `lantern` when the 0x810 effect is the one found (review R3).
 
 ## 7. Checks
 
-Offline: `LanternDamageRules.h` tests in `blackflame-cosave-check` (bucket per casting type and hazard, ICD edges at
-exactly 0.25/0.5 s, cloak and own-spell exclusion, pct maths, map pruning); houseCARL read-back of every new record;
+Offline: `LanternDamageRules.h` tests in `blackflame-cosave-check` (rate maths for 2% + 20 over 2 s, edge max health 0
+and huge, re-apply throttle edges at exactly 0.1 s, cloak / own-spell / non-fire exclusion, map pruning past the
+longest throttle); houseCARL read-back of every new record;
 `nif_inspect` of the three NIFs (shape list, skin partition 60, addon node names, texture paths). Reviews: reviewer
 agent + Codex, twice.
 
@@ -167,11 +183,12 @@ One bundled in-game run by the user, judged from `HeartOfMagic_BlackFlame.log`:
 | Enter Ansilvund02 | `lantern place: ok`, then `keyframed ... ok` twice; lab and lantern coordinates as configured |
 | Pick it up | `lantern smoke: disabled 1` |
 | Equip / unequip | `buff flag ON (... lantern)` / `buff flag off`; `lantern cost` lines: worn = 1.3 x off for keyword fire spells |
-| Firebolt, Fireball (direct and splash), Fire Rune, Incinerate | one `lantern damage` per 0.5 s per target, intended = 2% of max |
-| Flames held 5 s on one target | `lantern hit` count over 5 s, damage lines >= 0.25 s apart, sum <= 8% of max |
-| Wall of Flames | hazard hits in the 0.4% bucket |
+| Firebolt on a target, then nothing for 3 s | one `lantern burn`, rate = (2% of max + 20) / 2 per second, `effects=1`, `magnitude` = rate |
+| Firebolt twice within 1 s on one target | two `lantern burn` lines, `effects=1` after the second (no stacking) |
+| Flames held 5 s on one target | `lantern burn` lines about 0.1 s apart, `effects=1` on every line |
+| Fireball (direct and splash), Fire Rune, Wall of Flames | `lantern hit` lines name their source; Wall of Flames: none at all means its hazard hits do not carry the player as cause |
 | Flame Cloak | only `rejected ... (cloak)` |
-| Hidden spell vs resistance | `after - before == intended` on a fire-resistant target (if the same-task read works); otherwise one cast on a resistant target with nothing else hitting it, step written into the run sheet |
+| Resistance and magnitude perks | `magnitude` = rate on a fire-resistant target and with Augmented Flames |
 | A kill | `lantern kill: killer=00000014` |
 
 Left to the eye (no log can judge them): the lantern sitting on the lab (the log proves the coordinates, not that it

@@ -2,6 +2,7 @@
 
 #include "OldCopiesRule.h"
 #include "CopyContract.h"
+#include "LanternDamageRules.h"
 
 #include <nlohmann/json.hpp>
 
@@ -79,7 +80,7 @@ namespace BlackFlame
         constexpr double kMinLanternPct = 0.0;  // lanternSinglePct / lanternConcPct: a share of max health
         constexpr double kMaxLanternPct = 1.0;
         constexpr double kMinLanternIcd = 0.05;  // lanternSingleIcd / lanternConcIcd, seconds
-        constexpr double kMaxLanternIcd = 10.0;
+        constexpr double kMaxLanternIcd = LanternRules::kMaxIcdSeconds;
         constexpr float kMaxLanternOffset = 1000.0f;  // game units from the lab, each axis
         constexpr float kMaxLanternYaw = 360.0f;      // degrees
         constexpr std::size_t kYawIndex = 3;
