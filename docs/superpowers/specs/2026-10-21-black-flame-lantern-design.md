@@ -184,9 +184,20 @@ reason gets `lantern` when the 0x810 effect is the one found (review R3).
 ## 6. Meshes and text
 
 - `lantern_gnd.nif`: `candlelantern01.nif` frame (one BSTriShape, collision kept); diffuse swapped to a darkened copy
-  of `LampGeneric01.dds` made by a script (normal map kept); the same two flame layers as the worn model (below) in the
-  cage, BSXFlags Animated for their controllers. No addon node (round 6: the grey ADDN 0x804 `MPSFireSmall01` copy is
-  all additive, without the dark layer).
+  of `LampGeneric01.dds` made by a script (normal map kept). The fire (round 10, 2026-10-22, user: the vanilla torch
+  fire in the black flame colour instead of the made spindles; IED shows this model on the body with its addon nodes, so
+  it burns on the ground and worn): a `BSValueNode` `AddOnNode9146` (value 9146, value flags 1 as the frame's vanilla
+  `candlelanternwithcandle01.nif` AddOnNode49) under the root on the cage axis at a third of the frame's height (z 10.58),
+  uniform scale 0.4; BSXFlags 0xC2 -> 0xD3 (Animated and Addon, as the vanilla models with an addon node). Index 9146 is
+  ADDN 0x81D `HoMBF_GreyAddon_MPSTorchFire01` (9100 + vanilla `MPSTorchFire01` 08FC1B's 46, DNAM flags 1), model
+  `HeartOfMagic\BlackFlame\MPS\MPSTorchFire01.nif`: the builder's `--map` grey copy of the vanilla
+  `mps\mpstorchfire01.nif` (Skyrim - Meshes1.bsa; no third-party asset shipped), one normal-blend particle system on
+  `GradBlackFlame.dds`, so it paints dark where the all-additive 0x804 `MPSFireSmall01` copy (dropped in round 6) could
+  not. 9146 is not in the grey map: the map drives the DLL's swap of the player's fire effects, and the player's held
+  torch keeps its own fire. Scale 0.4 from the MPS file's numbers (sphere emitter 5, particle radius 13 up to x 1.16,
+  54 units/s for a third of a second): its quads reach about 21.8 off the axis, 29.4 above and 13.5 below the node
+  unscaled, x 0.4 = 8.72 (walls 8.67), top z 22.34 (lid underside 23.44), bottom z 5.18 (plate 4.01); 0.5 would pass
+  through walls, lid and plate. Rounds 7-9 had the two flame layers below in this model too.
 - `lantern_worn.nif`: the frame skinned 100% to `NPC Pelvis [Pelv]` with a `BSDismemberSkinInstance` partition 60 at
   the left hip, built by a new `blackflame-greybuild` step with nifly. The flame (review R9, checked 2026-10-21): no
   worn armor in the load order carries particles or an addon node (the 8 worn lanterns found - Armors of the Velothi,
@@ -194,8 +205,8 @@ reason gets `lantern` when the 0x810 effect is the one found (review R3).
   (`Actors/AtronachFlame/Character Assets/AtronachFlame.nif`) puts its fire on the body as skinned
   `BSEffectShaderProperty` strips (`FireStrip08`, `FireStripWarp`) with `BSEffectShaderPropertyFloatController` UV
   scroll. Round 7 (2026-10-21; round 6's cut strips, about 20 vertices each, did not show in game): the flame is two
-  closed spindles (lathe shapes, 12 segments, 6 rings, open at the bottom) made by the builder on the cage axis, the same
-  in the ground model, the worn model and the inventory, skinned to the pelvis in the worn one - `HoMBF_FlameOuter`
+  closed spindles (lathe shapes, 12 segments, 6 rings, open at the bottom) made by the builder on the cage axis, skinned
+  to the pelvis (in the ground model too until round 10; `lantern_worn.nif` is used only without IED) - `HoMBF_FlameOuter`
   0.40 x the frame's height tall and 0.55 x the smaller cage wall size wide, its base a third of the frame's height up,
   and `HoMBF_FlameCore` 0.55 x as tall and 0.35 x as wide (round 9), 0.05 x the outer height above the outer base; vertex alpha
   0 at the bottom ring, 0.7 at the 0.15 ring, 1 at the widest, 0 at the tip. Each takes a copy of `FireStrip08`'s effect
@@ -216,7 +227,8 @@ reason gets `lantern` when the 0x810 effect is the one found (review R3).
   0.45); a jagged top, every odd segment's vertex alpha x 0.3 on the 0.60 and 0.85 rings and the tip (the seam column
   copies segment 0, both even, so the seam stays continuous; the read-back checks the 0.60 ring's alternate segments at
   0.3 of the others). The outer layer blends normally (0x10ED, base alpha 1.0) on `GradBlackFlame.dds`, the core
-  additively (0x100D, base alpha 1) on `GradBlackFlameAdd.dds` - no particles, no addon node, no DLL art object.
+  additively (0x100D, base alpha 1) on `GradBlackFlameAdd.dds` - in the worn model no particles, no addon node, no DLL
+  art object.
 - Buff name (user 2026-10-21): MGEF 0x802, SPEL 0x803 and MGEF 0x810 are named "갈망" in the ESP (English "Longing");
   "흑염 달구기" is retired.
 - Text: `plugins/BlackFlame/docs/lantern-text.md` (Gemini Argon draft from the fact sheet, checked line by line).

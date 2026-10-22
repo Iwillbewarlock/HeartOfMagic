@@ -6,14 +6,17 @@
 // whose FireStrip08 (palette effect shader with palette alpha, falloff and the decal bits on, the vanilla falloff values and
 // wrapping clamp mode, normal blend or additive, float controller) is skinned half and half to two bones, a 64 x 64 BC3 diffuse with 7 mips, and body stand-ins (a hip box above
 // the lantern's lid and a belt band box named as the vanilla band shape).
-// The build runs on them; the outputs are read back and checked (the ground's two flame layers: counts, base heights, on the
-// cage axis inside the walls with the clearance, shader flags, blends, base alphas, palettes, vertex alpha, controllers on
-// their own shaders and no block shared; no addon node, the measured band, the ring at its top beside the hip, the upright
+// The build runs on them; the outputs are read back and checked (the ground's torch fire node AddOnNode9146: value, flags,
+// parent, place on the cage axis at the flame base, scale, BSXFlags Animated | Addon, no flame layer; the worn model's two
+// flame layers: counts, base heights and widths from the ground cage, on the cage axis with the clearance, normals and winding,
+// shader flags, blends, base alphas, palettes, vertex alpha, controllers on
+// their own shaders and no block shared; the measured band, the ring at its top beside the hip, the upright
 // handle at its height with a lug under each foot, vertical lantern, the worn layers skinned to the pelvis, bind pose, the
 // Vertex_Colors flag, clearances), then the failures and edge cases: an additive template (the layers keep their own blends),
 // a clamping template (the U-scaled tile would not wrap), a missing source, body or band shape, a thigh that walks the ring out, one no step up to the maximum clears, a frame bar
 // through the flame, a cage too small for the flame, a handle foot too far above the lid, a wrong inverse bind, a leaned
-// frame, an addon node with the wrong value, a darken factor out of range. LanternPieces' weld and LanternAxisTiltDeg have
+// frame, a torch fire node at the wrong scale or off the cage axis, an addon node with the wrong value, a darken factor out
+// of range. LanternPieces' weld and LanternAxisTiltDeg have
 // their own checks.
 
 #include "GreyLantern.h"
@@ -490,18 +493,19 @@ namespace GreyBuild::SelfTest
             fmt::format("lantern: the belt band measured on both bodies (top z {}, bottom z {}: {})", kBandTop, kBandBottom,
                 result.bands.empty() ? std::string("none") : fmt::format("{:.3f} / {:.3f}", result.bands.front().top, result.bands.front().bottom)));
 
-        // the ground model: the frame and the flame layers, no addon node
+        // the ground model: the frame and the torch fire node (round 10), no flame layer
         const auto gnd = InspectLanternNif(out / kLanternGroundNif);
         const auto* frame = Shape(gnd, "CandleLantern01:11");
-        a_check.Check(gnd.shapes.size() == 3 && frame && frame->type == "BSTriShape" && !frame->textures.empty() &&
-                          frame->textures.front() == fmt::format("[0] {}", kLanternDiffuse),
-            fmt::format("lantern gnd: the frame (diffuse '{}') and two flame layers ({} shapes)", kLanternDiffuse, gnd.shapes.size()));
+        a_check.Check(gnd.shapes.size() == 1 && frame && frame->type == "BSTriShape" && !frame->textures.empty() &&
+                          frame->textures.front() == fmt::format("[0] {}", kLanternDiffuse) && !Shape(gnd, kLanternFlameLayers[0].name) &&
+                          !Shape(gnd, kLanternFlameLayers[1].name),
+            fmt::format("lantern gnd: the frame (diffuse '{}') alone, no flame layer ({} shapes)", kLanternDiffuse, gnd.shapes.size()));
         a_check.Check(frame && frame->textures.size() > 1 && frame->textures[1] == fmt::format("[1] {}", kSourceNormal),
             "lantern gnd: the normal map kept as the source names it");
         a_check.Check(gnd.hasCollision && gnd.rootType == "BSFadeNode", "lantern gnd: collision and the BSFadeNode root kept");
-        a_check.Check(gnd.hasBsx && gnd.bsx == (kFrameBsx | kBsxAnimated) && gnd.valueNodes.empty() && gnd.nodeNames.size() == 1,
-            fmt::format("lantern gnd: BSXFlags {} = source | Animated (no Addon), no addon node ({} found), the root the only node (the "
-                        "atronach's bones left out; {} nodes)", gnd.bsx, gnd.valueNodes.size(), gnd.nodeNames.size()));
+        a_check.Check(gnd.hasBsx && gnd.bsx == (kFrameBsx | kBsxAnimated | kBsxAddon) && gnd.nodeNames.size() == 2,
+            fmt::format("lantern gnd: BSXFlags {} = source | Animated | Addon, the root and the torch fire node the only nodes (the "
+                        "atronach's bones left out; {} nodes)", gnd.bsx, gnd.nodeNames.size()));
         a_check.Check(Near(result.frameBounds.max[1], kHookY) && Near(result.frameBounds.Size(2), kFrameHeight),
             "lantern gnd: the frame bounds reported with the hook, for the record's ObjectBounds");
         const auto flame = FlameReadBack(out);
@@ -510,78 +514,20 @@ namespace GreyBuild::SelfTest
         // the walls 18 x 16 (the rings' outline): the widest radius from the smaller
         const float gndRadius = kLanternFlameRadiusShare * 2.0f * std::min(kFrameHalfX, kFrameHalfY);
         {
-            const std::string wrong = FlameLayersWrong(gnd, false);
-            a_check.Check(wrong.empty() && Shape(gnd, kLanternFlameLayers[0].name)->skinType.empty() &&
-                              Shape(gnd, kLanternFlameLayers[1].name)->skinType.empty(),
-                fmt::format("lantern gnd: both flame layers ({} vertices, {} triangles each, not skinned) with palette alpha, the decal "
-                            "bits and Skinned cleared, palette colour, vertex alpha, falloff, double-sided and vertex colours on; the outer "
-                            "0x{:04X} on GradBlackFlame.dds base alpha {} colour scale 0.6 falloff cos 0.6 -> 0, the core 0x{:04X} on "
-                            "GradBlackFlameAdd.dds base alpha {} colour scale 1.6 falloff cos 0.8 -> 0.2 (opacity 1 -> 0, the template's "
-                            "falloff and colour scale 2 replaced); UV scale 2 x 2.5 on the template's wrap clamp mode; vertex alpha up to "
-                            "255, 0 at the tip and the bottom ring, the 0.60 ring's alternate segments 0.3 of the others; each controller "
-                            "on its own shader, no block shared ({})",
-                    kLanternFlameVertices, kLanternFlameTriangles, kLanternFlameLayers[0].alphaFlags, kLanternFlameLayers[0].baseAlpha,
-                    kLanternFlameLayers[1].alphaFlags, kLanternFlameLayers[1].baseAlpha, wrong.empty() ? std::string("ok") : wrong));
-            bool placed = true;
-            std::string text;
-            for (std::size_t l = 0; l < kLanternFlameLayers.size(); ++l) {
-                const auto& layer = kLanternFlameLayers[l];
-                const auto& box = flame.ground[l];
-                const float low = gndBase + layer.lift * gndHeight;
-                const float r = layer.radiusShare * gndRadius;
-                placed = placed && Near(box.min[2], low, kTolerance) && Near(box.max[2], low + layer.heightShare * gndHeight, kTolerance) &&
-                         Near(box.Size(0), 2.0f * r, kTolerance) && Near(box.Size(1), 2.0f * r, kTolerance) &&
-                         Near(box.Centre()[0], 0.0f, kTolerance) && Near(box.Centre()[1], 0.0f, kTolerance);
-                text += fmt::format(" '{}' z {:.4f}..{:.4f} size ({:.4f}, {:.4f}) centre ({:.4f}, {:.4f});", layer.name, box.min[2], box.max[2],
-                    box.Size(0), box.Size(1), box.Centre()[0], box.Centre()[1]);
-            }
-            a_check.Check(placed && Near(result.flameBase[2], gndBase) && Near(result.flameHeight, gndHeight) && Near(result.flameRadius, gndRadius),
-                fmt::format("lantern gnd: the outer layer from z {:.4f} (kLanternFlameBaseShare x the frame's height) {:.4f} tall, radius "
-                            "{:.4f}; the core lifted, shorter and narrower by its shares; both on the cage axis ({})", gndBase, gndHeight,
-                    gndRadius, text));
-            // every flame vertex inside the cage walls (x +-kFrameHalfX, y +-kFrameHalfY) by the worn clearance at the ground scale
-            const float clearance = kLanternFlameClearance * kFrameHeight / kLanternWornHeight;
-            bool inside = true;
-            for (const auto& box : flame.ground) {
-                inside = inside && box.max[0] + clearance <= kFrameHalfX && box.min[0] - clearance >= -kFrameHalfX &&
-                         box.max[1] + clearance <= kFrameHalfY && box.min[1] - clearance >= -kFrameHalfY;
-            }
-            a_check.Check(inside, fmt::format("lantern gnd: every flame vertex inside the cage walls by kLanternFlameClearance at the ground "
-                                              "scale ({:.4f})", clearance));
-        }
-        {
-            // the layers' normals point out from the axis (0, 0), the triangles wind outward, tangents are there (nifly's
-            // CalcTangentSpace)
-            nifly::NifFile nif;
-            LoadNif(nif, out / kLanternGroundNif);
-            int checked = 0;
-            int wrong = 0;
-            for (const auto& layer : kLanternFlameLayers) {
-                auto* tri = dynamic_cast<nifly::BSTriShape*>(nif.FindBlockByName<nifly::NiShape>(layer.name));
-                if (!tri) {
-                    ++wrong;
-                    continue;
-                }
-                ++checked;
-                wrong += tri->HasTangents() ? 0 : 1;
-                const auto& normals = tri->UpdateRawNormals();
-                for (std::size_t i = 0; i < tri->vertData.size(); ++i) {
-                    const Vector3& v = tri->vertData[i].vert;
-                    ++checked;
-                    wrong += normals[i].dot(Vector3(v.x, v.y, 0.0f)) > 0.0f ? 0 : 1;
-                }
-                for (const auto& t : tri->triangles) {
-                    const Vector3& a = tri->vertData[t.p1].vert;
-                    const Vector3& b = tri->vertData[t.p2].vert;
-                    const Vector3& c = tri->vertData[t.p3].vert;
-                    const Vector3 centre = (a + b + c) / 3.0f;
-                    ++checked;
-                    wrong += (b - a).cross(c - a).dot(Vector3(centre.x, centre.y, 0.0f)) > 0.0f ? 0 : 1;
-                }
-            }
-            a_check.Check(checked > 0 && wrong == 0,
-                fmt::format("lantern gnd: the flame layers' normals point out from the axis, their triangles wind outward, they have "
-                            "tangents ({} of {} wrong)", wrong, checked));
+            // the torch fire node: AddOnNode9146 value 9146, the candle lantern's value flags, under the root, on the cage axis
+            // (0, 0: the hook is outside the walls' band) at kLanternFlameBaseShare x the frame's height, scaled
+            const auto* node = gnd.valueNodes.size() == 1 ? &gnd.valueNodes.front() : nullptr;
+            a_check.Check(node && node->name == "AddOnNode9146" && node->value == kLanternTorchAddon && kLanternTorchAddon == 9146 &&
+                              node->flags == kLanternTorchValueFlags && node->parent == gnd.rootName,
+                fmt::format("lantern gnd: exactly one BSValueNode 'AddOnNode9146' value 9146 flags {} under the root ({} found{})",
+                    kLanternTorchValueFlags, gnd.valueNodes.size(),
+                    node ? fmt::format(": '{}' value {} flags {} under '{}'", node->name, node->value, node->flags, node->parent) : std::string()));
+            a_check.Check(node && Near(node->translation[0], 0.0f) && Near(node->translation[1], 0.0f) && Near(node->translation[2], gndBase) &&
+                              Near(node->scale, kLanternTorchFireScale, 1e-6f) && Near(result.flameBase[2], gndBase),
+                fmt::format("lantern gnd: the torch fire node on the cage axis at z {:.4f} (kLanternFlameBaseShare x the frame's height), "
+                            "scale {} (kLanternTorchFireScale) ({})", gndBase, kLanternTorchFireScale,
+                    node ? fmt::format("{:.4f}, {:.4f}, {:.4f} scale {}", node->translation[0], node->translation[1], node->translation[2], node->scale) :
+                           std::string("none")));
         }
 
         // the worn model
@@ -609,10 +555,16 @@ namespace GreyBuild::SelfTest
             fmt::format("lantern worn: nodes are the root and the bone alone ({}), no addon node, no collision", worn.nodeNames.size()));
         {
             const std::string wrong = FlameLayersWrong(worn, true);
-            a_check.Check(wrong.empty(), fmt::format("lantern worn: both flame layers as on the ground (counts, flags with Skinned on, "
-                                                     "blends, base alphas, colour scales, falloff, UV scale, palettes, vertex alpha and "
-                                                     "the jag (turned with the lantern), own controllers, no block shared; {})",
-                                             wrong.empty() ? std::string("ok") : wrong));
+            a_check.Check(wrong.empty(),
+                fmt::format("lantern worn: both flame layers ({} vertices, {} triangles each) with palette alpha and the decal bits cleared, "
+                            "Skinned, palette colour, vertex alpha, falloff, double-sided and vertex colours on; the outer 0x{:04X} on "
+                            "GradBlackFlame.dds base alpha {} colour scale 0.6 falloff cos 0.6 -> 0, the core 0x{:04X} on GradBlackFlameAdd.dds "
+                            "base alpha {} colour scale 1.6 falloff cos 0.8 -> 0.2 (opacity 1 -> 0, the template's falloff and colour scale 2 "
+                            "replaced); UV scale 2 x 2.5 on the template's wrap clamp mode; vertex alpha up to 255, 0 at the tip and the bottom "
+                            "ring, the 0.60 ring's alternate segments 0.3 of the others (turned with the lantern); each controller on its own "
+                            "shader, no block shared ({})",
+                    kLanternFlameVertices, kLanternFlameTriangles, kLanternFlameLayers[0].alphaFlags, kLanternFlameLayers[0].baseAlpha,
+                    kLanternFlameLayers[1].alphaFlags, kLanternFlameLayers[1].baseAlpha, wrong.empty() ? std::string("ok") : wrong));
         }
         const auto* wornFrame = Shape(worn, kLanternWornFrameName);
         const float scale = kLanternWornHeight / kFrameHeight;
@@ -696,25 +648,65 @@ namespace GreyBuild::SelfTest
                 "lantern worn: Vertex_Colors cleared on the made shapes (no colours), kept on the frame (colours)");
         }
         {
-            // the fire as on the ground at the worn scale: each layer's base and top above the frame's bottom by the ground
-            // heights x scale, on the cage axis below the handle's top wire; clear of the frame by kLanternFlameClearance
-            bool placed = wornFrame != nullptr;
+            // the fire made in the ground frame's cage and taken to the worn scale: the outer layer from z gndBase
+            // (kLanternFlameBaseShare x the frame's height, where the ground model's torch fire node stands) gndHeight tall, radius
+            // gndRadius; each layer's base and top above the worn frame's bottom by those x scale, its width 2 x its radius x
+            // scale, on the cage axis below the handle's top wire; clear of the frame by kLanternFlameClearance
+            bool placed = wornFrame != nullptr && Near(result.flameBase[2], gndBase) && Near(result.flameHeight, gndHeight) &&
+                          Near(result.flameRadius, gndRadius);
             std::string text;
             for (std::size_t l = 0; l < kLanternFlameLayers.size() && wornFrame; ++l) {
                 const auto& layer = kLanternFlameLayers[l];
                 const auto& box = flame.worn[l];
                 const float low = wornFrame->bounds.min[2] + (gndBase + layer.lift * gndHeight) * scale;
+                const float width = 2.0f * layer.radiusShare * gndRadius * scale;
                 placed = placed && Near(box.min[2], low, kTolerance) &&
-                         Near(box.max[2], low + layer.heightShare * gndHeight * scale, kTolerance) &&
-                         Near(box.Centre()[0], result.wornCage[0], kTolerance) && Near(box.Centre()[1], result.wornCage[1], kTolerance);
-                text += fmt::format(" '{}' z {:.4f}..{:.4f};", layer.name, box.min[2], box.max[2]);
+                         Near(box.max[2], low + layer.heightShare * gndHeight * scale, kTolerance) && Near(box.Size(0), width, kTolerance) &&
+                         Near(box.Size(1), width, kTolerance) && Near(box.Centre()[0], result.wornCage[0], kTolerance) &&
+                         Near(box.Centre()[1], result.wornCage[1], kTolerance);
+                text += fmt::format(" '{}' z {:.4f}..{:.4f} size ({:.4f}, {:.4f});", layer.name, box.min[2], box.max[2], box.Size(0), box.Size(1));
             }
-            a_check.Check(placed, fmt::format("lantern worn: the flame layers at the ground heights x scale above the frame's bottom, on the "
-                                              "cage axis ({})", text));
-            a_check.Check(flame.wornClearance >= kLanternFlameClearance && Near(flame.wornClearance, result.wornFlameClearance) &&
-                              flame.groundClearance >= kLanternFlameClearance && Near(flame.groundClearance, result.groundFlameClearance),
-                fmt::format("lantern: the flame clear of the frame by kLanternFlameClearance {} (worn {:.4f}, ground {:.4f}; build and read-back "
-                            "agree)", kLanternFlameClearance, flame.wornClearance, flame.groundClearance));
+            a_check.Check(placed, fmt::format("lantern worn: the flame layers made at the ground base {:.4f}, {:.4f} tall, radius {:.4f}, and at "
+                                              "those heights and widths x scale above the worn frame's bottom, on the cage axis ({})",
+                                      gndBase, gndHeight, gndRadius, text));
+            a_check.Check(flame.wornClearance >= kLanternFlameClearance && Near(flame.wornClearance, result.wornFlameClearance),
+                fmt::format("lantern: the worn flame clear of the frame by kLanternFlameClearance {} ({:.4f}; build and read-back agree)",
+                    kLanternFlameClearance, flame.wornClearance));
+        }
+        {
+            // the worn layers' normals point out from the cage axis (result.wornCage), the triangles wind outward, tangents are
+            // there (nifly's CalcTangentSpace)
+            nifly::NifFile nif;
+            LoadNif(nif, out / kLanternWornNif);
+            const Vector3 axis(result.wornCage[0], result.wornCage[1], 0.0f);
+            int checked = 0;
+            int wrong = 0;
+            for (const auto& layer : kLanternFlameLayers) {
+                auto* tri = dynamic_cast<nifly::BSTriShape*>(nif.FindBlockByName<nifly::NiShape>(layer.name));
+                if (!tri) {
+                    ++wrong;
+                    continue;
+                }
+                ++checked;
+                wrong += tri->HasTangents() ? 0 : 1;
+                const auto& normals = tri->UpdateRawNormals();
+                for (std::size_t i = 0; i < tri->vertData.size(); ++i) {
+                    const Vector3 radial = tri->vertData[i].vert - axis;
+                    ++checked;
+                    wrong += normals[i].dot(Vector3(radial.x, radial.y, 0.0f)) > 0.0f ? 0 : 1;
+                }
+                for (const auto& t : tri->triangles) {
+                    const Vector3& a = tri->vertData[t.p1].vert;
+                    const Vector3& b = tri->vertData[t.p2].vert;
+                    const Vector3& c = tri->vertData[t.p3].vert;
+                    const Vector3 centre = (a + b + c) / 3.0f - axis;
+                    ++checked;
+                    wrong += (b - a).cross(c - a).dot(Vector3(centre.x, centre.y, 0.0f)) > 0.0f ? 0 : 1;
+                }
+            }
+            a_check.Check(checked > 0 && wrong == 0,
+                fmt::format("lantern worn: the flame layers' normals point out from the cage axis, their triangles wind outward, they have "
+                            "tangents ({} of {} wrong)", wrong, checked));
         }
         bool allBind = !worn.shapes.empty();
         for (const auto& s : worn.shapes) {
@@ -764,7 +756,7 @@ namespace GreyBuild::SelfTest
             fmt::format("lantern texture: darker on average ({:.4f} -> {:.4f}, factor {})", sourceMean, copyMean, kLanternSootDarken));
 
         // an additive template: the layers keep their own blends (outer normal on GradBlackFlame.dds, core additive on
-        // GradBlackFlameAdd.dds) in both models
+        // GradBlackFlameAdd.dds) in the worn model
         {
             const auto additive = a_dir / "lantern" / "in_additive";
             std::filesystem::remove_all(additive);
@@ -772,12 +764,10 @@ namespace GreyBuild::SelfTest
             MakeAtronach(additive / kLanternFlameSource, kAlphaAdditive);
             const auto addOut = a_dir / "lantern" / "out_additive";
             const auto added = BuildLantern({ additive, bodies }, addOut);
-            const std::string gndWrong = FlameLayersWrong(InspectLanternNif(addOut / kLanternGroundNif), false);
             const std::string wornWrong = FlameLayersWrong(InspectLanternNif(addOut / kLanternWornNif), true);
-            a_check.Check(added.ok && gndWrong.empty() && wornWrong.empty(),
-                fmt::format("lantern: an additive template still gives the outer layer 0x10ED on GradBlackFlame.dds and the core 0x100D on "
-                            "GradBlackFlameAdd.dds in both models, and the read-back passes ({} / {})",
-                    gndWrong.empty() ? std::string("ok") : gndWrong, wornWrong.empty() ? std::string("ok") : wornWrong));
+            a_check.Check(added.ok && wornWrong.empty(),
+                fmt::format("lantern: an additive template still gives the worn outer layer 0x10ED on GradBlackFlame.dds and the core 0x100D "
+                            "on GradBlackFlameAdd.dds, and the read-back passes ({})", wornWrong.empty() ? std::string("ok") : wornWrong));
         }
 
         // a clamping template: the U-scaled tile would end at u 0.5 and smear, so the read-back fails naming the clamp mode
@@ -844,9 +834,10 @@ namespace GreyBuild::SelfTest
             MakeFrame(narrow / kLanternFrameSource, kFrameBoxTop, kRingShares, -1.0f, 1.2f, 1.2f);
             std::filesystem::remove_all(a_dir / "lantern" / "out_narrow");
             const auto small = BuildLantern({ narrow, bodies }, a_dir / "lantern" / "out_narrow");
+            // (the worn model's flame; the ground model has the torch fire node, which no cage size stops)
             a_check.Check(!small.ok && Mentions(small.problems, "the cage is too small for the flame") &&
-                              !std::filesystem::exists(a_dir / "lantern" / "out_narrow" / kLanternGroundNif),
-                fmt::format("lantern: a cage too small for the flame fails the build, nothing written for the ground model ({})",
+                              !std::filesystem::exists(a_dir / "lantern" / "out_narrow" / kLanternWornNif),
+                fmt::format("lantern: a cage too small for the flame fails the build, nothing written for the worn model ({})",
                     small.problems.empty() ? std::string("no problem") : small.problems.front()));
         }
         {
@@ -900,6 +891,32 @@ namespace GreyBuild::SelfTest
             const float tilt = WornAxisTiltDeg(leaned);
             a_check.Check(Near(tilt, kLeanDeg, 0.01f) && Mentions(VerifyLantern(inputs, leaned), "leans"),
                 fmt::format("lantern: the read-back refuses a worn frame leaned {} deg off world Z (read {:.4f})", kLeanDeg, tilt));
+        }
+        {
+            // the ground's torch fire node at scale 1, then moved 1 off the cage axis: the read-back refuses each
+            const auto torch = a_dir / "lantern" / "out_torch";
+            std::filesystem::remove_all(torch);
+            std::filesystem::copy(out, torch, std::filesystem::copy_options::recursive);
+            const auto edit = [&](float a_scale, float a_dx) {
+                nifly::NifFile bad;
+                LoadNif(bad, torch / kLanternGroundNif);
+                for (std::uint32_t id = 0; id < bad.GetHeader().GetNumBlocks(); ++id) {
+                    if (auto* node = bad.GetHeader().GetBlock<nifly::BSValueNode>(id)) {
+                        MatTransform at = node->GetTransformToParent();
+                        at.scale = a_scale;
+                        at.translation.x += a_dx;
+                        node->SetTransformToParent(at);
+                    }
+                }
+                SaveNif(bad, torch / kLanternGroundNif);
+            };
+            edit(1.0f, 0.0f);
+            a_check.Check(Mentions(VerifyLantern(inputs, torch), "AddOnNode9146 scale 1, expected"),
+                "lantern: the read-back refuses a torch fire node not at kLanternTorchFireScale");
+            edit(kLanternTorchFireScale, 1.0f);
+            const auto moved = VerifyLantern(inputs, torch);
+            a_check.Check(Mentions(moved, "gnd: AddOnNode9146 at") && !Mentions(moved, "scale 1, expected"),
+                "lantern: the read-back refuses a torch fire node off the cage axis");
         }
         {
             nifly::NifFile bad;

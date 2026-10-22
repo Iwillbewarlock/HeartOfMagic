@@ -17,7 +17,7 @@ Design and decisions: [docs/superpowers/specs/2026-10-15-black-flame-proto-desig
 
 | File | What |
 |---|---|
-| `data/HeartOfMagic_BlackFlame.esp` | ESL (master Skyrim.esm; houseCARL dropped the unused Update.esm master when it added the ADDN records): EFSH `HoMBF_BurnShader` 0x800 (vanilla FireFXShader with both palettes grey; its edge effect colour, DATA +0x38, was the vanilla orange 146,65,5 and is grey 89,89,89 since 2026-10-19 - the grey of the same relative luminance, sRGB linear light; its other colour keys were already grey or white), KYWD `HoMBF_StokedKeyword` 0x801, MGEF `HoMBF_StokeEffect` 0x802, SPEL `HoMBF_StokeSpell` "갈망" 0x803, ADDN `HoMBF_GreyAddon_*` 0x804-0x80C (section "Grey duplicates") |
+| `data/HeartOfMagic_BlackFlame.esp` | ESL (master Skyrim.esm; houseCARL dropped the unused Update.esm master when it added the ADDN records): EFSH `HoMBF_BurnShader` 0x800 (vanilla FireFXShader with both palettes grey; its edge effect colour, DATA +0x38, was the vanilla orange 146,65,5 and is grey 89,89,89 since 2026-10-19 - the grey of the same relative luminance, sRGB linear light; its other colour keys were already grey or white), KYWD `HoMBF_StokedKeyword` 0x801, MGEF `HoMBF_StokeEffect` 0x802, SPEL `HoMBF_StokeSpell` "갈망" 0x803, ADDN `HoMBF_GreyAddon_*` 0x804-0x80C (section "Grey duplicates") and 0x81D `HoMBF_GreyAddon_MPSTorchFire01` (the lantern's fire, not in the grey map; section "Grey duplicates") |
 | `data/SKSE/Plugins/HeartOfMagic_BlackFlame_greymap.json` | the grey duplicate map (section "Grey duplicates") |
 | `data/HeartOfMagic_BlackFlame_Copies.esp`, `data/HeartOfMagic_BlackFlame_Local.esp` | empty ESLs (no masters, no records, HEDR 1.70; `blackflame-greybuild --write-empty-esls`): enabled from the start, so the builder's output - the same two file names in a mod placed after this one - takes over without changing the plugin list |
 | `data/HeartOfMagic_BlackFlame_Slots.esp` | single launch (work in progress): the slot pool ESL, 2000 placeholder records at 0x800-0xFCF (`blackflame-greybuild --write-slot-pool`; section "Single launch: the builder (P1)"). Not loaded by anything yet |
@@ -204,6 +204,18 @@ Coldharbour.esp ship recoloured MPS copies under their own ADDN indices.
 | MPSFireLg01 03E071 | 24 | 9124 | 0x80A | FXFire01New, Embers XD's FireWallFX01 |
 | MPSFireLgSmoke01 03E070 | 25 | 9125 | 0x80B | FXFire01New, Embers XD's FireWallFX01 |
 | MPSFireWaveFlames 0647BC | 64 | 9164 | 0x80C | Embers XD's FireWallFX01 |
+| MPSTorchFire01 08FC1B | 46 | 9146 | 0x81D | the lantern's ground model `lantern_gnd.nif` only (AddOnNode9146; not in the map) |
+
+The 0x81D row is the lantern's fire (section "Lantern", round 10), not part of the swap: 9146 is deliberately left out of
+the grey map, because the map makes the DLL swap the player's own fire effects to their grey copies and the player's held
+torch must keep its own fire. Its grey copy `mps\mpstorchfire01.nif` was made 2026-10-22 with `--map` (a one-entry map:
+index 46, grey 9146, tint 0.6) from the vanilla `meshes\mps\mpstorchfire01.nif` in Skyrim - Meshes1.bsa (SLSF2
+0x00000020), so the shipped file carries no third-party asset (the TAKEALOOK order's winning copy, CS Particle Patch's,
+differs only in SLSF2, 0x40000820; a setup that wants it can build its own copy the same way):
+one `NiParticleSystem` on `FXFireAtlas04.dds` (vanilla, Skyrim - Textures5.bsa), normal blend (alpha 0x12ED,
+SRC_ALPHA / INV_SRC_ALPHA, alpha test on), so it takes `GradBlackFlame.dds` with its dark band; base colour 1,1,1 ->
+0.6,0.6,0.6 (x 1.5 kept), palette colour and palette alpha on as in the source (0x80000030), the colour modifier's keys
+already grey.
 
 Each record: EditorID `HoMBF_GreyAddon_<original>`, DATA the grey index, MODL
 `HeartOfMagic\BlackFlame\MPS\<original>.nif`, DNAM copied (cap 0, flags 1 = master particle system, 3 = always
@@ -269,12 +281,31 @@ blackflame-greybuild --inspect-lantern <file.nif> [...]   (that read-back for an
 `meshes\actors\character\character assets\skeleton.nif` and `meshes\actors\atronachflame\character
 assets\atronachflame.nif` (Skyrim - Meshes0.bsa), `textures\clutter\common\lampgeneric01.dds` (Skyrim - Textures3.bsa),
 and `malebody_1.nif` / `femalebody_1.nif` from the same folder as the skeleton (Skyrim - Meshes0.bsa; required: the worn
-model is placed on both bodies and checked against them). Extract them from the game's own BSAs, not a replacer. The fire
-(round 7: round 6's two cut atronach strips, about 20 vertices each, did not show in game) is the same in the ground
-model, the worn model and the inventory: two closed spindles the builder makes on the cage axis (lathe shapes, 12
-segments round, 6 rings, open at the bottom, seen from every side). `HoMBF_FlameOuter` is 0.40 x the frame's height tall
-and 0.55 x the smaller cage wall size wide, its base a third of the frame's height above its bottom (z 10.58 to 23.27 of
-31.74 on the ground model, radius 4.77); `HoMBF_FlameCore` is 0.55 x as tall and 0.35 x as wide (round 9, was 0.65 and
+model is placed on both bodies and checked against them). Extract them from the game's own BSAs, not a replacer.
+
+The ground model's fire (round 10, 2026-10-22, user: the vanilla torch fire in the black flame colour, not the made
+spindles) is one `BSValueNode` `AddOnNode9146` (value 9146, value flags 1 as the same frame's vanilla
+`candlelanternwithcandle01.nif` has on its AddOnNode49) under the root, on the cage axis at a third of the frame's height
+(0, 0.33, 10.58 of 31.74), uniform scale 0.4 (`kLanternTorchFireScale`); BSXFlags 0xC2 -> 0xD3 (Animated and Addon, as
+the vanilla models carrying an addon node: candlelanternwithcandle01 0x9B, fxsmokechimney01 / fxfire01new 0x31). The engine
+emits ADDN 0x81D's grey torch fire (section "Grey duplicates") there. Immersive Equipment Displays shows this model on the
+body with its addon nodes, so the same fire burns on the ground and worn. Why 0.4 (measured on MPSTorchFire01, vanilla
+and CS Particle Patch alike): a sphere emitter of radius 5, particles of radius 13 scaled up to 1.16 at 37% of their life,
+rising at 54 units/s for a third of a second, alpha faded out over the last 40%; unscaled their quads reach about 21.8 off
+the axis, 29.4 above the node and 13.5 below it (`kLanternTorchFireReach`). The cage is 8.67 from the axis to the nearer
+walls, its base plate tops out at z 4.01 and the lid's underside is at z 23.44: at 0.4 that is 8.72 off the axis (the
+quads' transparent corners at the walls), z 22.34 at the top and z 5.18 at the bottom; at 0.5 it would be 10.9, 25.27 and
+3.85, through the walls, the lid and the plate. Precedent for a scaled fire addon node: the imperial chandelier candles'
+AddOnNode65 at 0.4. The build logs that reckoning; the read-back checks the node's name, value, flags, parent, place
+(the cage axis from the frame's wall vertices, the base from its bounds) and scale, the BSXFlags bits, and that no flame
+layer is left in the ground model.
+
+The worn model's fire (`lantern_worn.nif`, used only without IED; round 7: round 6's two cut atronach strips, about 20
+vertices each, did not show in game) is two closed spindles the builder makes on the cage axis (lathe shapes, 12
+segments round, 6 rings, open at the bottom, seen from every side), made in the ground frame's space and taken through
+the worn transform. `HoMBF_FlameOuter` is 0.40 x the frame's height tall
+and 0.55 x the smaller cage wall size wide, its base a third of the frame's height above its bottom where the ground
+model's torch fire node stands (z 10.58 to 23.27 of 31.74 in the ground frame's space, radius 4.77); `HoMBF_FlameCore` is 0.55 x as tall and 0.35 x as wide (round 9, was 0.65 and
 0.45; z 11.21 to 18.20, radius 1.67), its base 0.05 x the outer height higher. Vertex alpha runs 0 at the bottom ring
 (round 8: at 0.5 the open rim showed as a hard line), 0.7 at the 0.15 ring, 1 at the widest, 0 at the tip; from the 0.60
 ring up (0.60, 0.85 and the tip) every odd segment of the 12 is x 0.3 (round 9: a jagged top that breaks into tongues;
@@ -296,11 +327,11 @@ template's clamp mode is wrap, 0x0000FF03, which the read-back checks, so the se
 `HoMBF_FlameOuter` blends normally (alpha 0x10ED, base alpha 1), so GreyEffects gives it `GradBlackFlame.dds`, whose
 dark band paints the dark parts of the flame; `HoMBF_FlameCore` is additive (0x100D, base alpha 1) and takes
 `GradBlackFlameAdd.dds`. The build and the read-back keep every flame vertex at least 0.5 off the frame's triangles
-(read 3.35 on the ground, 2.11 worn). No dark marble layer is added: the casting-art copies' dark companion
-(`AddHandMarble`) is for additive palette particle systems, and the outer layer paints dark itself. The ground model
-carries the layers itself and BSXFlags gets the Animated bit (0xC3); it no longer names an addon node, because the grey
-copy behind ADDN 0x804 (`mps\mpsfiresmall01.nif`) is three additive particle systems on `GradBlackFlame.dds` without
-that dark layer. The worn model (round 6, user: nothing lies on the body, so it cannot clip with what the wearer
+(read 2.11 worn). No dark marble layer is added: the casting-art copies' dark companion
+(`AddHandMarble`) is for additive palette particle systems, and the outer layer paints dark itself. (Rounds 7-9 put the
+same layers in the ground model, BSXFlags 0xC3; round 6 had dropped AddOnNode9100, because the grey copy behind ADDN
+0x804, `mps\mpsfiresmall01.nif`, is three additive particle systems on `GradBlackFlame.dds` without that dark layer;
+round 10's torch fire is normal blend and paints dark.) The worn model (round 6, user: nothing lies on the body, so it cannot clip with what the wearer
 has on) is an iron ring and the lantern only, every shape on NPC Pelvis [Pelv] (body part 60): the builder measures the
 belt band's top on each body's underwear shape (`MaleUnderwear_1`, `FemaleUnderwear`) and puts the ring's centre at the
 highest of them (z 77.15, the male band), 3 forward of the pelvis, starting with its inner side 0.3 off the hip's outermost point; the lantern (0.8
@@ -359,7 +390,13 @@ separate byte reader).
 "Build tools"). The shipped grey meshes are derived from Bethesda's vanilla meshes, as mod meshes normally are.
 
 **Not verified in game:** that a grey MPS draws grey (palette on baked-colour replacer textures included); that
-the always-loaded grey 9109 behaves like 9; that an extra ADDN record from the local ESL works.
+the always-loaded grey 9109 behaves like 9; that an extra ADDN record from the local ESL works. The lantern's torch fire
+(0x81D, round 10): that it draws in the black flame colour (palette colour and alpha on as in the source: GradBlackFlame.dds's
+alpha is 0 up to u 0.10, so the sprite's clear corners stay clear); that the AddOnNode9146's scale 0.4 shrinks the
+particles as well as the emitter (mod precedent only, e.g. the imperial chandelier candles' AddOnNode65 at 0.4; no vanilla
+Meshes1 AddOnNode is scaled) and that the fire then stays inside the cage; that IED attaches the ground model's addon node on
+the body (its lantern presets also scale the model 0.6); the inventory menu is expected to show the lantern without fire
+(master particle systems are not known to emit there; the spindle layers of rounds 7-9 did show).
 
 ## Grey swap (the DLL side)
 
@@ -468,7 +505,8 @@ Records (this ESL, 0x80D-0x816): ARMO `HoMBF_Lantern`, ARMA `HoMBF_LanternAA`, E
 `HoMBF_LanternEffect` "갈망" 0x810 (keyword `HoMBF_StokedKeyword`, perk 0x811), PERK `HoMBF_LanternPerk`, SPEL
 `HoMBF_LanternBurnSpell` 0x812, MGEF `HoMBF_LanternBurnEffect`, MSTT `HoMBF_LanternSmoke`, GLOB `HoMBF_LanternPlaced`
 (0x814 was the journal BOOK, removed 2026-10-21: the user leaves the story to the player's imagination). When any of them is missing the DLL logs one warning (`lantern records missing ...`) and only the
-lantern features are off.
+lantern features are off. The ground model's fire also needs ADDN 0x81D `HoMBF_GreyAddon_MPSTorchFire01` (index 9146,
+section "Grey duplicates"); the engine reads it through the model's AddOnNode9146, the DLL does not look it up.
 
 The worn lantern is the only player-facing trigger: its effect carries the stoke keyword, so the whole Black Flame look
 switches on (`buff flag ON (<reason>, lantern)`). The stoke spell "갈망" 0x803 stays in the ESP for the self tests; nothing
@@ -543,7 +581,7 @@ stays. IED counts as installed when `ImmersiveEquipmentDisplays.dll` is loaded, 
   reference sync: the Lights On profiles' mode, flags 0x900010, so the preset numbers mean what they mean there),
   `SetItemUseWorldModelActor` (true), `SetItemDisableHavokActor` (true), position, rotation and scale from the config,
   then both sexes enabled as the player wears the lantern at that moment, then the check (below). IED shows a non-shield
-  ARMO's world model (`lantern_gnd.nif`, with its flame; the other sex's when one is empty) whether or not the world model
+  ARMO's world model (`lantern_gnd.nif`, with its torch fire AddOnNode9146; the other sex's when one is empty) whether or not the world model
   flag is set (IED `IModel.cpp`), so `SetItemUseWorldModelActor` changes nothing here and is kept as harmless. Because the
   setup disables both sexes before it sets them, a worn lantern goes off for a moment at each load and comes back with the
   enable step (the setup's 26 calls, the check included, take a frame or more each).

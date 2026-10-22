@@ -171,7 +171,7 @@ namespace GreyBuild
         }
 
         std::uint32_t AddValueNode(nifly::NifFile& a_nif, nifly::NiNode& a_parent, int a_index, std::uint8_t a_flags,
-            const Vector3& a_at)
+            const Vector3& a_at, float a_scale = 1.0f)
         {
             auto node = std::make_unique<nifly::BSValueNode>();
             node->name.get() = fmt::format("AddOnNode{}", a_index);
@@ -179,6 +179,7 @@ namespace GreyBuild
             node->valueFlags = static_cast<nifly::BSValueNodeFlags>(a_flags);
             MatTransform at;
             at.translation = a_at;
+            at.scale = a_scale;
             node->SetTransformToParent(at);
             const std::uint32_t id = a_nif.GetHeader().AddBlock(std::move(node));
             a_parent.childRefs.AddBlockRef(id);
@@ -856,6 +857,7 @@ namespace GreyBuild
                     entry.value = value->value;
                     entry.flags = static_cast<std::uint8_t>(value->valueFlags);
                     entry.translation = ToArray(value->GetTransformToParent().translation);
+                    entry.scale = value->GetTransformToParent().scale;
                     const std::uint32_t parent = ParentOf(nif, id);
                     auto* parentNode = hdr.GetBlock<nifly::NiNode>(parent);
                     entry.parent = parentNode ? parentNode->name.get() : std::string("<none>");
@@ -1103,8 +1105,8 @@ namespace GreyBuild
             std::cout << "  BSXFlags none\n";
         }
         for (const auto& value : a_info.valueNodes) {
-            std::cout << fmt::format("  value node '{}' value {} flags {} at {} under '{}'\n", value.name, value.value, value.flags,
-                Text(value.translation), value.parent);
+            std::cout << fmt::format("  value node '{}' value {} flags {} at {} scale {} under '{}'\n", value.name, value.value, value.flags,
+                Text(value.translation), value.scale, value.parent);
         }
         for (const auto& s : a_info.shapes) {
             std::cout << fmt::format("  shape '{}' {} vertices {} triangles {} shader {} SLSF1 0x{:08X} SLSF2 0x{:08X}, vertex colours {}\n",
@@ -1690,6 +1692,29 @@ namespace GreyBuild
             std::array<LanternFlameMesh, 2> layers;
         };
 
+        /// The fire's base in ground root space: on the cage axis (a_cageCentre's X and Y), kLanternFlameBaseShare of the frame's
+        /// height above its bottom. The ground model's torch fire node stands here, the worn outer layer's base before the worn
+        /// transform
+        [[nodiscard]] Vector3 FlameBaseOf(const LanternBox& a_frameBounds, const std::array<float, 3>& a_cageCentre)
+        {
+            return Vector3(a_cageCentre[0], a_cageCentre[1], a_frameBounds.min[2] + kLanternFlameBaseShare * a_frameBounds.Size(2));
+        }
+
+        /// The cage walls: the bounds of a_rootVerts (the frame in root space, a_bounds their bounds) in the middle
+        /// kLanternCageBand of its height; empty when no vertex is there
+        [[nodiscard]] LanternBox CageWallsOf(const std::vector<Vector3>& a_rootVerts, const LanternBox& a_bounds)
+        {
+            const float bandLow = a_bounds.min[2] + a_bounds.Size(2) * (1.0f - kLanternCageBand) * 0.5f;
+            const float bandHigh = a_bounds.max[2] - a_bounds.Size(2) * (1.0f - kLanternCageBand) * 0.5f;
+            LanternBox walls = EmptyBox();
+            for (const auto& p : a_rootVerts) {
+                if (p.z >= bandLow && p.z <= bandHigh) {
+                    Grow(walls, p);
+                }
+            }
+            return walls;
+        }
+
         /// Loads the template into a_flame and makes the layers in the cage (a_result's frame bounds and cage centre, a_walls);
         /// a_log (when set) gets their sizes and where they stand. Throws when the template is not a BSTriShape with an effect
         /// shader and a float controller on it, or when the outer layer's widest ring is not kLanternFlameClearance (at the
@@ -1725,8 +1750,9 @@ namespace GreyBuild
             const float wallSize = std::min(a_walls.Size(0), a_walls.Size(1));
             const float height = kLanternFlameHeightShare * frameHeight;
             const float radius = kLanternFlameRadiusShare * wallSize;
-            const float base = a_result.frameBounds.min[2] + kLanternFlameBaseShare * frameHeight;
-            const Vector3 axis(a_result.cageCentre[0], a_result.cageCentre[1], 0.0f);
+            const Vector3 baseCentre = FlameBaseOf(a_result.frameBounds, a_result.cageCentre);
+            const float base = baseCentre.z;
+            const Vector3 axis(baseCentre.x, baseCentre.y, 0.0f);
             // the worn clearance at the ground scale; the cage centre is the walls' centre
             const float clearance = kLanternFlameClearance * frameHeight / kLanternWornHeight;
             if (radius + clearance > wallSize * 0.5f) {
@@ -1996,9 +2022,10 @@ namespace GreyBuild
                 kLanternBone, Text(a_result.pelvis), a_result.frameBounds.Size(2), kLanternWornHeight, scale, kLanternWornYawDeg, wire,
                 apexCount, Text(ToArray(apex)), std::hypot(apex.x - cageA.x, apex.y - cageA.y)));
 
-            // the fire, placed as in the ground model and through the lantern's own transform
+            // the fire, made in the ground frame's cage (its base where the ground model's torch fire node stands) and taken
+            // through the lantern's own transform
             LanternFlame flame;
-            LoadFlame(flame, a_inputs, a_walls, a_result, nullptr);
+            LoadFlame(flame, a_inputs, a_walls, a_result, &log);
 
             // the lantern's points before the translation onto the ring (it hangs vertically: no tilt)
             std::vector<Vector3> framePoints;
@@ -2259,10 +2286,9 @@ namespace GreyBuild
                     layer.layer->name, layer.mesh.verts.size(), layer.mesh.tris.size(), layer.base, layer.base + layer.height, layer.radius,
                     scale));
             }
-            a_result.summary.push_back(fmt::format("flame base (ground) {} (kLanternFlameBaseShare {:.4f}); the layers' nearest frame triangle: "
-                                                   "ground {:.4f}, worn {:.4f} (kLanternFlameClearance {})",
-                Text(a_result.flameBase), kLanternFlameBaseShare, a_result.groundFlameClearance, a_result.wornFlameClearance,
-                kLanternFlameClearance));
+            a_result.summary.push_back(fmt::format("flame base (ground space) {} (kLanternFlameBaseShare {:.4f}); the layers' nearest worn "
+                                                   "frame triangle {:.4f} (kLanternFlameClearance {})",
+                Text(a_result.flameBase), kLanternFlameBaseShare, a_result.wornFlameClearance, kLanternFlameClearance));
         }
     }
 
@@ -2321,13 +2347,11 @@ namespace GreyBuild
             {
                 const float bandLow = result.frameBounds.min[2] + result.frameBounds.Size(2) * (1.0f - kLanternCageBand) * 0.5f;
                 const float bandHigh = result.frameBounds.max[2] - result.frameBounds.Size(2) * (1.0f - kLanternCageBand) * 0.5f;
-                LanternBox walls = EmptyBox();
+                std::vector<Vector3> rootVerts;
                 for (const auto& v : verts) {
-                    const Vector3 p = toRoot.ApplyTransform(v);
-                    if (p.z >= bandLow && p.z <= bandHigh) {
-                        Grow(walls, p);
-                    }
+                    rootVerts.push_back(toRoot.ApplyTransform(v));
                 }
+                LanternBox walls = CageWallsOf(rootVerts, result.frameBounds);
                 if (IsEmpty(walls)) {
                     log.push_back("cage walls: no frame vertex in the middle of its height, the whole bounds' centre used");
                     walls = result.frameBounds;
@@ -2361,47 +2385,32 @@ namespace GreyBuild
             // the fire goes into the copy that is saved: the worn step clones the frame from the original, which stays without
             // it (SaveNif's string-table pass also writes through the file it saves). Round 6: no AddOnNode9100 - the grey copy
             // behind ADDN 0x804 (mps\mpsfiresmall01.nif) is three additive particle systems on GradBlackFlame.dds without the
-            // dark layer the casting-art copies get; round 7: the two flame layers made here, the same fire as the worn model
+            // dark layer the casting-art copies get; round 7: two flame layers made here; round 10 (user, 2026-10-22): the
+            // vanilla torch fire's grey copy (ADDN 0x81D, normal blend on GradBlackFlame.dds) through AddOnNode9146 on the cage
+            // axis, as Immersive Equipment Displays shows this model on the body with its addon nodes
             nifly::NifFile copy = ground;
             {
-                LanternFlame flame;
-                LoadFlame(flame, a_inputs, cageWalls, result, &log);
-                auto* root = copy.GetRootNode();
-                std::vector<std::uint32_t> children;
-                root->childRefs.GetIndices(children);
-                const auto same = [](const Vector3& a_v) { return a_v; };
-                const auto layers = AddFlame(copy, flame, same, same, log, "ground");
-                // the root keeps its own children and the layers (the clones bring the atronach's nodes along; SaveNew drops them,
-                // and every other block nothing references)
-                std::vector<Vector3> points;
-                for (auto* layer : layers) {
-                    children.push_back(copy.GetHeader().GetBlockID(layer));
-                    std::vector<Vector3> layerVerts;
-                    if (!copy.GetVertsForShape(layer, layerVerts)) {
-                        throw std::runtime_error(fmt::format("the ground flame layer '{}' has no vertices", layer->name.get()));
-                    }
-                    points.insert(points.end(), layerVerts.begin(), layerVerts.end());
-                }
-                root->childRefs.SetIndices(children);
-                std::vector<Vector3> frameRoot;
-                for (const auto& v : verts) {
-                    frameRoot.push_back(toRoot.ApplyTransform(v));
-                }
-                std::vector<nifly::Triangle> tris;
-                if (!frame->GetTriangles(tris)) {
-                    throw std::runtime_error("the frame has no triangles");
-                }
-                result.groundFlameClearance = LanternNearestTriangle(points, frameRoot, tris);
-                log.push_back(fmt::format("ground flame: its vertices' nearest frame triangle {:.4f}", result.groundFlameClearance));
-                BlackFlameLayers(copy, layers, log, "ground");
-                if (auto* bsx = FindBsx(copy)) {
-                    const std::uint32_t before = bsx->integerData;
-                    bsx->integerData |= kBsxAnimated;
-                    log.push_back(fmt::format("ground BSXFlags {} -> {} (Animated bit 0x{:X}: the layers' shader controllers; no Addon bit)", before,
-                        bsx->integerData, kBsxAnimated));
-                } else {
+                auto* bsx = FindBsx(copy);
+                if (!bsx) {
                     throw std::runtime_error(fmt::format("{} has no BSXFlags on its root", kLanternFrameSource));
                 }
+                const Vector3 at = FlameBaseOf(result.frameBounds, result.cageCentre);
+                result.flameBase = ToArray(at);
+                (void)AddValueNode(copy, *copy.GetRootNode(), kLanternTorchAddon, kLanternTorchValueFlags, at, kLanternTorchFireScale);
+                const auto& reach = kLanternTorchFireReach;
+                log.push_back(fmt::format("ground fire: AddOnNode{} (value flags {}) at {} = the cage axis, the frame's bottom z {:.4f} + "
+                                          "{:.4f} (kLanternFlameBaseShare) x its height {:.4f}; scale {} (kLanternTorchFireScale): "
+                                          "MPSTorchFire01's particle quads reach about {} off the axis, {} above the node and {} below it "
+                                          "unscaled (kLanternTorchFireReach), {:.2f}, z {:.2f} and z {:.2f} here; the cage walls {:.4f} "
+                                          "off the axis",
+                    kLanternTorchAddon, kLanternTorchValueFlags, Text(result.flameBase), result.frameBounds.min[2], kLanternFlameBaseShare,
+                    result.frameBounds.Size(2), kLanternTorchFireScale, reach[0], reach[1], reach[2], reach[0] * kLanternTorchFireScale,
+                    at.z + reach[1] * kLanternTorchFireScale, at.z - reach[2] * kLanternTorchFireScale,
+                    std::min(cageWalls.Size(0), cageWalls.Size(1)) * 0.5f));
+                const std::uint32_t before = bsx->integerData;
+                bsx->integerData |= kBsxAnimated | kBsxAddon;
+                log.push_back(fmt::format("ground BSXFlags {} -> {} (Animated 0x{:X} and Addon 0x{:X}, as the vanilla models with an addon "
+                                          "node)", before, bsx->integerData, kBsxAnimated, kBsxAddon));
             }
             SaveNew(copy, a_dataDir / kLanternGroundNif);
             groundOk = true;
@@ -2599,42 +2608,29 @@ namespace GreyBuild
     LanternFlameReadBack FlameReadBack(const std::filesystem::path& a_dataDir)
     {
         LanternFlameReadBack out;
-        for (const bool ground : { true, false }) {
-            nifly::NifFile nif;
-            LoadNif(nif, a_dataDir / (ground ? kLanternGroundNif : kLanternWornNif));
-            auto* frame = ground ? GroundFrame(nif) : FindShape(nif, kLanternWornFrameName);
-            std::vector<Vector3> verts;
-            std::vector<nifly::Triangle> tris;
-            if (!frame || !nif.GetVertsForShape(frame, verts) || !frame->GetTriangles(tris)) {
-                throw std::runtime_error(fmt::format("{} has no frame with triangles", ground ? kLanternGroundNif : kLanternWornNif));
-            }
-            // the ground's shapes to its root space; the worn's are skinned (skin space = character space)
-            const auto toRoot = [&](nifly::NiShape* a_shape) {
-                return ground ? ToRootSpace(nif, nif.GetHeader().GetBlockID(a_shape)) : MatTransform();
-            };
-            const MatTransform frameToRoot = toRoot(frame);
-            for (auto& v : verts) {
-                v = frameToRoot.ApplyTransform(v);
-            }
-            std::vector<Vector3> points;
-            auto& boxes = ground ? out.ground : out.worn;
-            for (std::size_t l = 0; l < kLanternFlameLayers.size(); ++l) {
-                auto* layer = FindShape(nif, kLanternFlameLayers[l].name);
-                std::vector<Vector3> layerVerts;
-                if (!layer || !nif.GetVertsForShape(layer, layerVerts) || layerVerts.empty()) {
-                    throw std::runtime_error(fmt::format("{} has no flame layer '{}'", ground ? kLanternGroundNif : kLanternWornNif,
-                        kLanternFlameLayers[l].name));
-                }
-                const MatTransform layerToRoot = toRoot(layer);
-                boxes[l] = EmptyBox();
-                for (auto& v : layerVerts) {
-                    v = layerToRoot.ApplyTransform(v);
-                    Grow(boxes[l], v);
-                    points.push_back(v);
-                }
-            }
-            (ground ? out.groundClearance : out.wornClearance) = LanternNearestTriangle(points, verts, tris);
+        nifly::NifFile nif;
+        LoadNif(nif, a_dataDir / kLanternWornNif);
+        auto* frame = FindShape(nif, kLanternWornFrameName);
+        std::vector<Vector3> verts;
+        std::vector<nifly::Triangle> tris;
+        if (!frame || !nif.GetVertsForShape(frame, verts) || !frame->GetTriangles(tris)) {
+            throw std::runtime_error(fmt::format("{} has no frame with triangles", kLanternWornNif));
         }
+        // the worn shapes are skinned: skin space = character space
+        std::vector<Vector3> points;
+        for (std::size_t l = 0; l < kLanternFlameLayers.size(); ++l) {
+            auto* layer = FindShape(nif, kLanternFlameLayers[l].name);
+            std::vector<Vector3> layerVerts;
+            if (!layer || !nif.GetVertsForShape(layer, layerVerts) || layerVerts.empty()) {
+                throw std::runtime_error(fmt::format("{} has no flame layer '{}'", kLanternWornNif, kLanternFlameLayers[l].name));
+            }
+            out.worn[l] = EmptyBox();
+            for (const auto& v : layerVerts) {
+                Grow(out.worn[l], v);
+                points.push_back(v);
+            }
+        }
+        out.wornClearance = LanternNearestTriangle(points, verts, tris);
         return out;
     }
 
@@ -2720,10 +2716,11 @@ namespace GreyBuild
 
             // the ground model
             const auto gnd = InspectLanternNif(a_dataDir / kLanternGroundNif);
-            Check(problems, gnd.shapes.size() == 1 + kLanternFlameLayers.size(),
-                fmt::format("gnd: {} shapes, expected the frame and the two flame layers", gnd.shapes.size()));
+            Check(problems, gnd.shapes.size() == 1,
+                fmt::format("gnd: {} shapes, expected the frame alone (the fire is the torch fire node)", gnd.shapes.size()));
             const LanternShapeInfo* frame = nullptr;
             for (const auto& s : gnd.shapes) {
+                Check(problems, !IsFlameLayer(s.name), fmt::format("gnd: a flame layer '{}' (the fire is the torch fire node)", s.name));
                 if (!IsFlameLayer(s.name)) {
                     frame = &s;
                 }
@@ -2751,11 +2748,52 @@ namespace GreyBuild
                 }
             }
             Check(problems, gnd.hasCollision, "gnd: the collision is gone");
-            Check(problems, gnd.valueNodes.empty(), fmt::format("gnd: {} addon nodes (the fire is the flame layers)", gnd.valueNodes.size()));
-            Check(problems, gnd.nodeNames.size() == 1, fmt::format("gnd: {} nodes, expected the root alone (no source bones)", gnd.nodeNames.size()));
-            Check(problems, gnd.hasBsx && (gnd.bsx & kBsxAnimated) != 0 && (gnd.bsx & kBsxAddon) == 0,
-                fmt::format("gnd: BSXFlags {}, expected the Animated bit and no Addon bit", gnd.bsx));
-            checkFlame(gnd, "gnd", false);
+            // the torch fire node: one BSValueNode under the root, on the cage axis at the flame base, scaled
+            {
+                const std::string name = fmt::format("AddOnNode{}", kLanternTorchAddon);
+                const auto* node = gnd.valueNodes.size() == 1 ? &gnd.valueNodes.front() : nullptr;
+                Check(problems, node && node->name == name && node->value == kLanternTorchAddon && node->flags == kLanternTorchValueFlags &&
+                                    node->parent == gnd.rootName,
+                    fmt::format("gnd: {} addon nodes, expected one BSValueNode {} value {} flags {} under the root '{}'{}", gnd.valueNodes.size(),
+                        name, kLanternTorchAddon, kLanternTorchValueFlags, gnd.rootName,
+                        node ? fmt::format(" (read '{}' value {} flags {} under '{}')", node->name, node->value, node->flags, node->parent) :
+                               std::string()));
+                Check(problems, node && std::fabs(node->scale - kLanternTorchFireScale) <= 1e-6f,
+                    fmt::format("gnd: {} scale {}, expected {} (kLanternTorchFireScale)", name, node ? node->scale : 0.0f, kLanternTorchFireScale));
+                // its place: the cage axis from the frame's wall vertices, the base from its bounds (read back in root space)
+                nifly::NifFile file;
+                LoadNif(file, a_dataDir / kLanternGroundNif);
+                auto* shape = GroundFrame(file);
+                std::vector<Vector3> verts;
+                if (node && shape && file.GetVertsForShape(shape, verts) && !verts.empty()) {
+                    const MatTransform toRoot = ToRootSpace(file, file.GetHeader().GetBlockID(shape));
+                    for (auto& v : verts) {
+                        v = toRoot.ApplyTransform(v);
+                    }
+                    LanternBox bounds = EmptyBox();
+                    for (const auto& v : verts) {
+                        Grow(bounds, v);
+                    }
+                    LanternBox wallBox = CageWallsOf(verts, bounds);
+                    if (IsEmpty(wallBox)) {
+                        wallBox = bounds;  // as the build: no vertex in the band, the whole bounds' centre
+                    }
+                    const auto walls = wallBox.Centre();
+                    const Vector3 expected = FlameBaseOf(bounds, { walls[0], walls[1], 0.0f });
+                    constexpr float kPlaceTolerance = 1e-3f;
+                    Check(problems, std::fabs(node->translation[0] - expected.x) <= kPlaceTolerance &&
+                                        std::fabs(node->translation[1] - expected.y) <= kPlaceTolerance &&
+                                        std::fabs(node->translation[2] - expected.z) <= kPlaceTolerance,
+                        fmt::format("gnd: {} at {}, expected {} (the cage axis, the frame's bottom + kLanternFlameBaseShare x its height)", name,
+                            Text(node->translation), Text(ToArray(expected))));
+                } else {
+                    Check(problems, false, "gnd: the frame's vertices do not read for the torch fire node's place");
+                }
+            }
+            Check(problems, gnd.nodeNames.size() == 2,
+                fmt::format("gnd: {} nodes, expected the root and the torch fire node alone (no source bones)", gnd.nodeNames.size()));
+            Check(problems, gnd.hasBsx && (gnd.bsx & kBsxAnimated) != 0 && (gnd.bsx & kBsxAddon) != 0,
+                fmt::format("gnd: BSXFlags {}, expected the Animated and Addon bits", gnd.bsx));
 
             // the worn model
             const auto worn = InspectLanternNif(a_dataDir / kLanternWornNif);
@@ -2820,26 +2858,12 @@ namespace GreyBuild
                                 "shape's (tolerance {})", s.name, s.sphereError, s.vertexError, kLanternBoundsTolerance));
             }
 
-            // the fire in both cages: its base and its clearance to the frame
+            // the worn fire's clearance to the frame
             {
                 const auto flame = FlameReadBack(a_dataDir);
-                Check(problems, flame.groundClearance >= kLanternFlameClearance && flame.wornClearance >= kLanternFlameClearance,
-                    fmt::format("the flame comes within {:.4f} (ground) / {:.4f} (worn) of the frame (kLanternFlameClearance {})",
-                        flame.groundClearance, flame.wornClearance, kLanternFlameClearance));
-                if (frame) {
-                    constexpr float kBaseTolerance = 1e-3f;
-                    const float height = kLanternFlameHeightShare * frame->bounds.Size(2);
-                    const float base = frame->bounds.min[2] + kLanternFlameBaseShare * frame->bounds.Size(2);
-                    for (std::size_t l = 0; l < kLanternFlameLayers.size(); ++l) {
-                        const auto& layer = kLanternFlameLayers[l];
-                        const float low = base + layer.lift * height;
-                        const float high = low + layer.heightShare * height;
-                        Check(problems, std::fabs(flame.ground[l].min[2] - low) <= kBaseTolerance && std::fabs(flame.ground[l].max[2] - high) <= kBaseTolerance,
-                            fmt::format("gnd '{}': z {:.4f}..{:.4f}, expected {:.4f}..{:.4f} (the frame's bottom + kLanternFlameBaseShare x its "
-                                        "height, the layer's lift and height share of kLanternFlameHeightShare x it)",
-                                layer.name, flame.ground[l].min[2], flame.ground[l].max[2], low, high));
-                    }
-                }
+                Check(problems, flame.wornClearance >= kLanternFlameClearance,
+                    fmt::format("the flame comes within {:.4f} (worn) of the frame (kLanternFlameClearance {})", flame.wornClearance,
+                        kLanternFlameClearance));
             }
             // the worn parts against the bodies (each body an --in folder has)
             for (const auto& c : WornClearances(a_inputs, a_dataDir)) {
@@ -2977,16 +3001,19 @@ namespace GreyBuild
             std::cout << "  " << line << "\n";
         }
         {
+            for (const auto& node : InspectLanternNif(a_dataDir / kLanternGroundNif).valueNodes) {
+                std::cout << fmt::format("ground fire (read back): '{}' value {} flags {} at {} scale {} under '{}'; expected z {:.4f} = the "
+                                         "frame's bottom {:.4f} + {:.4f} x {:.4f}, scale {} (kLanternTorchFireScale)\n",
+                    node.name, node.value, node.flags, Text(node.translation), node.scale, node.parent,
+                    b.min[2] + kLanternFlameBaseShare * b.Size(2), b.min[2], kLanternFlameBaseShare, b.Size(2), kLanternTorchFireScale);
+            }
             const auto flame = FlameReadBack(a_dataDir);
             for (std::size_t l = 0; l < kLanternFlameLayers.size(); ++l) {
-                std::cout << fmt::format("flame '{}' (read back): ground {}; worn {}\n", kLanternFlameLayers[l].name, BoxText(flame.ground[l]),
-                    BoxText(flame.worn[l]));
+                std::cout << fmt::format("worn flame '{}' (read back): {}\n", kLanternFlameLayers[l].name, BoxText(flame.worn[l]));
             }
-            std::cout << fmt::format("flame (read back): the layers' nearest frame triangle ground {:.4f}, worn {:.4f} (kLanternFlameClearance {})\n",
-                flame.groundClearance, flame.wornClearance, kLanternFlameClearance);
-            std::cout << fmt::format("flame base (read back): ground z {:.4f} = the frame's bottom {:.4f} + {:.4f} x {:.4f} (expected {:.4f})\n",
-                flame.ground[0].min[2], b.min[2], kLanternFlameBaseShare, b.Size(2), b.min[2] + kLanternFlameBaseShare * b.Size(2));
-            for (const char* rel : { kLanternGroundNif, kLanternWornNif }) {
+            std::cout << fmt::format("worn flame (read back): the layers' nearest frame triangle {:.4f} (kLanternFlameClearance {})\n",
+                flame.wornClearance, kLanternFlameClearance);
+            for (const char* rel : { kLanternWornNif }) {
                 for (const auto& s : InspectLanternNif(a_dataDir / rel).shapes) {
                     if (IsFlameLayer(s.name)) {
                         std::cout << fmt::format("{} {} (read back): {} SLSF1 0x{:08X} SLSF2 0x{:08X}, alpha 0x{:04X} ({}), base alpha {:.4f}, "
