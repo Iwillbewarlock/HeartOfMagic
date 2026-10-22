@@ -586,14 +586,14 @@ namespace GreyBuild::SelfTest
                     node ? fmt::format("{:.4f}, {:.4f}, {:.4f} scale {}", node->translation[0], node->translation[1], node->translation[2], node->scale) :
                            std::string("none")));
             // round 11: the gap over the cage floor (kLanternFloorShare) a third of round 10's (kLanternFlameBaseShare); round 12:
-            // the emitter sphere's bottom (the fire's foot) where round 11's was, at the smaller scale 0.25
+            // the emitter sphere's bottom (the fire's foot) where round 11's was, at the smaller scale (round 13: 0.125)
             const float floor = kFrameHeight * kLanternFloorShare;
             const float round11 = kFrameHeight * kLanternTorchBaseShare;
             const float foot = torchBase - kLanternTorchEmitterRadius * kLanternTorchFireScale;
             const float round11Foot = round11 - kLanternTorchEmitterRadius * kLanternTorchRound11Scale;
             a_check.Check(Near(round11 - floor, (gndBase - floor) / 3.0f) && Near(foot, round11Foot) && foot > floor &&
-                              Near(kLanternTorchFireScale, 0.25f, 1e-6f),
-                fmt::format("lantern gnd: scale {} (round 12), the fire's foot z {:.4f} where round 11's was ({:.4f}), over the cage floor "
+                              Near(kLanternTorchFireScale, 0.125f, 1e-6f),
+                fmt::format("lantern gnd: scale {} (round 13), the fire's foot z {:.4f} where round 11's was ({:.4f}), over the cage floor "
                             "z {:.4f}; round 11's node {:.4f} over the floor, a third of round 10's {:.4f}",
                     kLanternTorchFireScale, foot, round11Foot, floor, round11 - floor, gndBase - floor));
         }

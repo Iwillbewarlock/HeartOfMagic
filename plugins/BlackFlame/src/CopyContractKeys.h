@@ -32,6 +32,7 @@
 //   <prefix>|kind=<model|muzzle|mps>|nif=<path>|nifhash=<h>|tex=<path>=<h>...|addn=<h|none>
 //   tex: every TexturePathsIn path, normalised under textures\, sorted by its field text and each once.
 //   addn: none for a NIF without the block type string "BSValueNode" (HasValueNodeBlock); else AddnTableHash.
+//   |seqcol=<n> after addn, only for a NIF HasSequenceColourBlocks finds (kSequenceColourRecipe; 2026-10-23).
 // TXST: <prefix>|kind=txst|slot0=<hex>...|slot7=<hex>|tx00=<h>|tx03=<h>|dodt=<0|1>
 //   slotN: TX0N's raw record bytes in lower-case hex (texturesRaw's bytes); tx00/tx03: the texture's state, none when
 //   the slot is empty.
@@ -74,6 +75,12 @@ namespace BlackFlame::CopyContract
     inline constexpr std::string_view kDevIdentityTag = "+dev";  // <n>+dev<16 lower-case hex>
     inline constexpr std::string_view kAddnTableFormat = "BFA2";
     inline constexpr std::string_view kValueNodeBlockType = "BSValueNode";
+    inline constexpr std::string_view kColourControllerBlockType = "BSEffectShaderPropertyColorController";
+    inline constexpr std::string_view kControllerSequenceBlockType = "NiControllerSequence";
+    inline constexpr std::string_view kBlendPoint3BlockType = "NiBlendPoint3Interpolator";
+    // The builder's rule for colour keys reached through controller sequences (GreyNif.cpp GreyEffects): bumped when it
+    // changes, so only those NIFs' copies are made again (not the whole output identity)
+    inline constexpr std::string_view kSequenceColourRecipe = "1";
     inline constexpr std::size_t kTxstSlots = 8;
     inline constexpr std::size_t kTxstDiffuseSlot = 0;  // TX00
     inline constexpr std::size_t kTxstGlowSlot = 3;     // TX03
@@ -154,6 +161,7 @@ namespace BlackFlame::CopyContract
         std::optional<double> tintAddHands;  // casting-art model only; absence preserves pre-contract-7 bytes
         double handMarbleOpacity = kDefaultHandMarbleOpacity;  // included only with tintAddHands
         double handMarbleScale = kDefaultHandMarbleScale;
+        bool sequenceColour = false;  // HasSequenceColourBlocks: seqcol=<kSequenceColourRecipe>; false keeps the old bytes
     };
 
     struct TxstKeyInput
@@ -349,6 +357,9 @@ namespace BlackFlame::CopyContract
             out->append(textures[i].first).append("=").append(textures[i].second);
         }
         Detail::Field(*out, "addn", a_input.addnTable ? Hex16(*a_input.addnTable) : std::string(kSentinelNone));
+        if (a_input.sequenceColour) {
+            Detail::Field(*out, "seqcol", kSequenceColourRecipe);
+        }
         if (a_input.tintAddHands) {
             const auto tint = TintText(*a_input.tintAddHands);
             const auto opacity = TintText(a_input.handMarbleOpacity, 0.0, 1.0);
@@ -505,6 +516,16 @@ namespace BlackFlame::CopyContract
     [[nodiscard]] inline bool HasValueNodeBlock(std::string_view a_nifBytes) noexcept
     {
         return a_nifBytes.find(kValueNodeBlockType) != std::string_view::npos;
+    }
+
+    /// A NIF whose bytes hold the block type string "BSEffectShaderPropertyColorController" and "NiControllerSequence" or
+    /// "NiBlendPoint3Interpolator": its key takes seqcol=<kSequenceColourRecipe>. The same plain byte scan: a stray match
+    /// only widens the key (a rebuild, never stale)
+    [[nodiscard]] inline bool HasSequenceColourBlocks(std::string_view a_nifBytes) noexcept
+    {
+        return a_nifBytes.find(kColourControllerBlockType) != std::string_view::npos &&
+               (a_nifBytes.find(kControllerSequenceBlockType) != std::string_view::npos ||
+                   a_nifBytes.find(kBlendPoint3BlockType) != std::string_view::npos);
     }
 
     /// A key string's key and key16

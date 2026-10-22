@@ -418,6 +418,8 @@ namespace BlackFlame::SlotKeys
                 }
                 input.addnTable = a_addnTableHash;
             }
+            input.sequenceColour =
+                CC::HasSequenceColourBlocks(std::string_view(reinterpret_cast<const char*>(bytes.data()), bytes.size()));
         }
         const auto text = CC::NifKeyString(*a_inputs.prefix, input);
         return text ? std::optional(Key{ CC::KeyOf(*text), *text }) : std::nullopt;

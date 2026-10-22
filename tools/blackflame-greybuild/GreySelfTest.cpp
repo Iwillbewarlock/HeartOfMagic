@@ -451,6 +451,7 @@ namespace GreyBuild
             SelfTest::CheckHands(check, dir, source);
             SelfTest::CheckMarble(check, dir);
             SelfTest::CheckHandFx(check, dir);
+            SelfTest::CheckSequenceColourKeys(check);
             SelfTest::CheckLantern(check, dir);
             SelfTest::CheckEfsh(check, dir);
             SelfTest::CheckEfshBases(check, dir);

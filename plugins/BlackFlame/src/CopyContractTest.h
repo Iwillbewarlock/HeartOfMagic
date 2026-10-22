@@ -282,6 +282,17 @@ namespace BlackFlame::CopyContractTest
             hands.kind = CC::NifKind::kModel;
             hands.tintAddHands = 2.1;
             a_check(!CC::NifKeyString(prefix, hands), "hands key: out-of-range hand tint gives no key");
+            auto seqCol = Muzzle();
+            seqCol.kind = CC::NifKind::kModel;
+            seqCol.sequenceColour = true;
+            const auto seqColKey = CC::NifKeyString(prefix, seqCol);
+            seqCol.tintAddHands = 1.4;
+            const auto seqColHands = CC::NifKeyString(prefix, seqCol);
+            a_check(ordinary && seqColKey && *seqColKey == *ordinary + "|seqcol=1" && seqColHands &&
+                        *seqColHands == *ordinary +
+                            "|seqcol=1|hands=1.400000|handmarbleopacity=0.900000|handmarblescale=1.150000|handfx=2" &&
+                        Same(CC::NifKeyString(prefix, Muzzle()), golden),
+                "seqcol key: a sequence-colour NIF appends seqcol=1 before hands; other keys stay byte-identical");
             const CC::ChildKeyInput handPalette{ kAnchorTexturePath, kAnchorTextureFnv64 };
             const auto oldPalette = CC::PaletteKeyString(prefix, CC::PaletteBlend::kAdd, handPalette);
             const auto newPalette = CC::PaletteKeyString(prefix, CC::PaletteBlend::kAdd, handPalette, 1.4);
@@ -480,6 +491,11 @@ namespace BlackFlame::CopyContractTest
             a_check(CC::HasValueNodeBlock(std::string_view("\x0b\0\0\0BSValueNode", 15)) &&
                         !CC::HasValueNodeBlock(std::string_view("\x0b\0\0\0BSValueNod", 14)) && !CC::HasValueNodeBlock("NiNode"),
                 "key: the BSValueNode byte scan (a cut name is no match)");
+            a_check(CC::HasSequenceColourBlocks("..BSEffectShaderPropertyColorController..NiControllerSequence") &&
+                        CC::HasSequenceColourBlocks("..BSEffectShaderPropertyColorController..NiBlendPoint3Interpolator") &&
+                        !CC::HasSequenceColourBlocks("BSEffectShaderPropertyColorController") &&
+                        !CC::HasSequenceColourBlocks("NiControllerSequence"),
+                "key: the sequence colour scan needs the colour controller and a sequence or blend point3 block");
 
             const CC::ChildKeyInput source{ kAnchorTexturePath, kAnchorTextureFnv64 };
             auto otherSource = source;

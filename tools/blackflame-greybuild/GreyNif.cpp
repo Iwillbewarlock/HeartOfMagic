@@ -108,28 +108,25 @@ namespace GreyBuild
             }
         }
 
-        /// The keys (and constant) of an effect colour controller's NiPoint3Interpolator: the same rule as the base colour it
-        /// drives (luminance x tint). a_tintOf gives the scale of a block (the interpolator, its data): the largest of the
-        /// controllers that share it (I12), so a block is greyed once.
+        /// The keys (and constant) of a NiPoint3Interpolator driving an effect colour controller (directly or through a
+        /// sequence link): luminance x tint. Returns true when a_interpRef is a NiPoint3Interpolator.
         template <class TintOf>
-        void GreyColorController(nifly::NifFile& a_nif, nifly::BSEffectShaderPropertyColorController& a_ctrl,
-            const TintOf& a_tintOf, std::set<std::uint32_t>& a_done, GreyStats& a_stats)
+        bool GreyPoint3Interpolator(nifly::NifFile& a_nif, const nifly::NiRef& a_interpRef,
+            const TintOf& a_tintOf, std::set<std::uint32_t>& a_done, int& a_keys)
         {
             auto& hdr = a_nif.GetHeader();
-            const nifly::NiRef& interpRef = a_ctrl.interpolatorRef;
-            auto* interp = hdr.GetBlock<nifly::NiPoint3Interpolator>(interpRef);
+            auto* interp = hdr.GetBlock<nifly::NiPoint3Interpolator>(a_interpRef);
             if (!interp) {
-                ++a_stats.controllersUnreached;  // e.g. a blend interpolator fed by controller sequences
-                return;
+                return false;
             }
-            if (!a_done.insert(interpRef.index).second) {
-                return;
+            if (!a_done.insert(a_interpRef.index).second) {
+                return true;
             }
-            Desaturate(interp->point3Value, a_tintOf(interpRef.index));
+            Desaturate(interp->point3Value, a_tintOf(a_interpRef.index));
             const nifly::NiRef& dataRef = interp->dataRef;
             auto* data = hdr.GetBlock<nifly::NiPosData>(dataRef);
             if (!data || !a_done.insert(dataRef.index).second) {
-                return;
+                return true;
             }
             const float tint = a_tintOf(dataRef.index);
             const auto keyCount = static_cast<int>(data->data.GetNumKeys());
@@ -139,7 +136,27 @@ namespace GreyBuild
                 Desaturate(key.forward, tint);  // tangents: the same linear map keeps the curve grey
                 Desaturate(key.backward, tint);
                 data->data.SetKey(i, key);
-                ++a_stats.controllerKeys;
+                ++a_keys;
+            }
+            return true;
+        }
+
+        /// The keys (and constant) of an effect colour controller's NiPoint3Interpolator: the same rule as the base colour it
+        /// drives (luminance x tint). a_tintOf gives the scale of a block (the interpolator, its data): the largest of the
+        /// controllers that share it (I12), so a block is greyed once.
+        template <class TintOf>
+        void GreyColorController(nifly::NifFile& a_nif, nifly::BSEffectShaderPropertyColorController& a_ctrl,
+            const TintOf& a_tintOf, std::set<std::uint32_t>& a_done, GreyStats& a_stats)
+        {
+            const nifly::NiRef& interpRef = a_ctrl.interpolatorRef;
+            if (GreyPoint3Interpolator(a_nif, interpRef, a_tintOf, a_done, a_stats.controllerKeys)) {
+                return;
+            }
+            ++a_stats.controllersUnreached;  // e.g. a blend interpolator fed by controller sequences
+            if (auto* blend = a_nif.GetHeader().GetBlock<nifly::NiBlendPoint3Interpolator>(interpRef)) {
+                if (blend->point.x > kUnusedKeyValue && a_done.insert(interpRef.index).second) {
+                    Desaturate(blend->point, a_tintOf(interpRef.index));
+                }
             }
         }
 
@@ -239,9 +256,12 @@ namespace GreyBuild
         // share takes the larger of their scales (noted when they differ)
         std::map<std::uint32_t, float> blockTint;
         std::set<std::uint32_t> mixed;
+        bool allControllersAdditive = true;
         ForEachBlock<nifly::BSEffectShaderPropertyColorController>(a_nif,
             [&](std::uint32_t, nifly::BSEffectShaderPropertyColorController& a_ctrl) {
-                const float tint = additive.count(a_ctrl.targetRef.index) != 0 ? a_tintAdd : a_tint;
+                const bool isAdd = additive.count(a_ctrl.targetRef.index) != 0;
+                allControllersAdditive = allControllersAdditive && isAdd;
+                const float tint = isAdd ? a_tintAdd : a_tint;
                 const auto note = [&](std::uint32_t a_block) {
                     if (a_block == nifly::NIF_NPOS) {
                         return;
@@ -267,11 +287,39 @@ namespace GreyBuild
             const auto it = blockTint.find(a_block);
             return it != blockTint.end() ? it->second : a_tint;
         };
+        std::set<std::uint32_t> unreached;
         ForEachBlock<nifly::BSEffectShaderPropertyColorController>(a_nif,
-            [&](std::uint32_t, nifly::BSEffectShaderPropertyColorController& a_ctrl) {
+            [&](std::uint32_t a_id, nifly::BSEffectShaderPropertyColorController& a_ctrl) {
                 ++stats.colorControllers;
                 GreyColorController(a_nif, a_ctrl, tintOf, done, stats);
+                if (!a_nif.GetHeader().GetBlock<nifly::NiPoint3Interpolator>(a_ctrl.interpolatorRef)) {
+                    unreached.insert(a_id);
+                }
             });
+        const float unlinkedTint = stats.colorControllers > 0 && allControllersAdditive ? a_tintAdd : a_tint;
+        ForEachBlock<nifly::NiControllerSequence>(a_nif,
+            [&](std::uint32_t, nifly::NiControllerSequence& a_seq) {
+                for (const auto& link : a_seq.controlledBlocks) {
+                    if (link.ctrlType.get() != "BSEffectShaderPropertyColorController") {
+                        continue;
+                    }
+                    const auto* ctrl =
+                        a_nif.GetHeader().GetBlock<nifly::BSEffectShaderPropertyColorController>(link.controllerRef);
+                    const float tint = ctrl
+                        ? (additive.count(ctrl->targetRef.index) != 0 ? a_tintAdd : a_tint)
+                        : unlinkedTint;
+                    if (!GreyPoint3Interpolator(
+                            a_nif, link.interpolatorRef, [&](std::uint32_t) { return tint; }, done, stats.sequenceKeys)) {
+                        continue;
+                    }
+                    if (ctrl) {
+                        unreached.erase(link.controllerRef.index);
+                    } else {
+                        unreached.clear();
+                    }
+                }
+            });
+        stats.controllersUnreached = static_cast<int>(unreached.size());
         ForEachBlock<nifly::NiPSysColorModifier>(a_nif,
             [&](std::uint32_t, nifly::NiPSysColorModifier& a_mod) { GreyColorData(a_nif, a_mod, done, stats); });
         return stats;

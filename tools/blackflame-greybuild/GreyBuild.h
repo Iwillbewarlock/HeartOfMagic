@@ -266,7 +266,8 @@ namespace GreyBuild
         int colorModifiers = 0;    // BSPSysSimpleColorModifier blocks desaturated
         int colorControllers = 0;  // BSEffectShaderPropertyColorController blocks
         int controllerKeys = 0;    // NiPosData keys of those controllers desaturated
-        int controllersUnreached = 0;  // controllers without a direct NiPoint3Interpolator: keys left
+        int sequenceKeys = 0;      // NiPosData keys desaturated through NiControllerSequence links
+        int controllersUnreached = 0;  // controllers whose keys were reached neither directly nor through sequences
         int psysColorData = 0;     // NiColorData blocks of NiPSysColorModifier desaturated
     };
 

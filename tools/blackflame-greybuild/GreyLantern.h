@@ -106,8 +106,9 @@ namespace GreyBuild
     // node lowered so the emitter sphere's bottom stays where round 11's was (TorchBaseOf, kLanternTorchEmitterRadius): z 5.45,
     // the top 12.80, 5.45 off the axis, the quads' lower part to z 2.08 behind the plate. Precedent for a scaled fire addon
     // node: the imperial chandelier candles' AddOnNode65 at 0.4 (impchandelliercandle01.nif). Whether the node's scale shrinks
-    // the particles themselves as well as the emitter is not checked in game
-    inline constexpr float kLanternTorchFireScale = 0.25f;
+    // the particles themselves as well as the emitter is not checked in game. Round 13 (2026-10-23, user: the fire half the
+    // size): 0.125, the emitter's bottom kept as above (z 4.83)
+    inline constexpr float kLanternTorchFireScale = 0.125f;
     // Round 11's scale, at which kLanternTorchBaseShare placed the node (round 12 keeps that emitter's bottom)
     inline constexpr float kLanternTorchRound11Scale = 0.4f;
     // MPSTorchFire01's NiPSysSphereEmitter radius, unscaled (above): where its particles are born around the node

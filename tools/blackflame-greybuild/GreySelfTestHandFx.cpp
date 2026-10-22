@@ -539,4 +539,69 @@ namespace GreyBuild::SelfTest
             !keptRotation->isActive && Near(keptRotation->initialSpeed, 9),
             "handfx old motion: clone replaces inactive modifiers and their disable controller; original white stays inactive");
     }
+
+    void CheckSequenceColourKeys(Checker& a_check)
+    {
+        for (const bool linked : { true, false }) {
+            nifly::NifFile source;
+            source.Create(nifly::NiVersion::getSSE());
+            auto& hdr = source.GetHeader();
+
+            const auto shaderId = Add(hdr, std::make_unique<nifly::BSEffectShaderProperty>());
+
+            auto blend = std::make_unique<nifly::NiBlendPoint3Interpolator>();
+            blend->point.x = 1.0f;
+            blend->point.y = 0.2f;
+            blend->point.z = 0.1f;
+            const auto blendId = Add(hdr, std::move(blend));
+
+            auto ctrl = std::make_unique<nifly::BSEffectShaderPropertyColorController>();
+            ctrl->targetRef.index = shaderId;
+            ctrl->interpolatorRef.index = blendId;
+            const auto ctrlId = Add(hdr, std::move(ctrl));
+            hdr.GetBlock<nifly::BSEffectShaderProperty>(shaderId)->controllerRef.index = ctrlId;
+
+            auto posData = std::make_unique<nifly::NiPosData>();
+            posData->data.SetInterpolationType(nifly::NiKeyType::LINEAR_KEY);
+            nifly::NiAnimationKey<nifly::Vector3> key;
+            key.time = 0.0f;
+            key.value.x = 1.0f;
+            key.value.y = 0.2f;
+            key.value.z = 0.1f;
+            posData->data.AddKey(key);
+            key.time = 1.0f;
+            posData->data.AddKey(key);
+            const auto dataId = Add(hdr, std::move(posData));
+
+            auto interp = std::make_unique<nifly::NiPoint3Interpolator>();
+            interp->point3Value = key.value;
+            interp->dataRef.index = dataId;
+            const auto interpId = Add(hdr, std::move(interp));
+
+            auto seq = std::make_unique<nifly::NiControllerSequence>();
+            seq->name.get() = "Fixture sequence";
+            nifly::ControllerLink link;
+            if (linked) {
+                link.controllerRef.index = ctrlId;
+            }
+            link.interpolatorRef.index = interpId;
+            link.ctrlType.get() = "BSEffectShaderPropertyColorController";
+            seq->controlledBlocks.push_back(link);
+            Add(hdr, std::move(seq));
+
+            const auto stats = GreyEffects(source, 0.7f, 0.85f, nullptr);
+            const auto* greyData = hdr.GetBlock<nifly::NiPosData>(dataId);
+            bool keysGrey = greyData && greyData->data.GetNumKeys() == 2;
+            for (unsigned i = 0; keysGrey && i < greyData->data.GetNumKeys(); ++i) {
+                const auto v = greyData->data.GetKey(i).value;
+                keysGrey = v.x > 0.0f && Near(v.x, v.y) && Near(v.y, v.z);
+            }
+            const auto* greyBlend = hdr.GetBlock<nifly::NiBlendPoint3Interpolator>(blendId);
+            const bool blendGrey = greyBlend && Near(greyBlend->point.x, greyBlend->point.y) &&
+                Near(greyBlend->point.y, greyBlend->point.z);
+            a_check.Check(keysGrey && blendGrey && stats.sequenceKeys == 2 && stats.controllersUnreached == 0,
+                linked ? "sequence colour keys: linked ControllerLink greys NiPosData keys and marks controller reached"
+                       : "sequence colour keys: null controllerRef greys NiPosData keys and clears unreached count");
+        }
+    }
 }

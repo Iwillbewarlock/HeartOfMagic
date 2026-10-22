@@ -70,6 +70,7 @@ namespace GreyBuild::SelfTest
     void CheckMarble(Checker& a_check, const std::filesystem::path& a_dir);
     void CheckMarbleOrder(Checker& a_check, const std::filesystem::path& a_dir);
     void CheckHandFx(Checker& a_check, const std::filesystem::path& a_dir);
+    void CheckSequenceColourKeys(Checker& a_check);
 
     /// The lantern (GreySelfTestLantern.cpp, --write-lantern): made-up frame, skeleton, atronach strips and diffuse in a_dir,
     /// the build and its read-back, and its failures (missing sources, a body no ring step clears, a frame wire at the flame,
