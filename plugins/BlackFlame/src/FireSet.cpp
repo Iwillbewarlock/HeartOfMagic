@@ -1,5 +1,7 @@
 #include "FireSet.h"
 
+#include "EquipAbilityRules.h"
+
 #include "FormCopies.h"
 #include "Forms.h"
 #include "PluginNames.h"
@@ -35,6 +37,7 @@ namespace BlackFlame
         std::unordered_set<RE::FormID> g_fireExplosions;
         std::unordered_set<RE::FormID> g_fireEffects;  // fire MGEFs (keyword or fire resistance) of fire spells
         std::unordered_set<RE::FormID> g_fireHazards;  // hazards those MGEFs can leave
+        std::unordered_set<RE::FormID> g_fireEquipAbilities;  // data.equipAbility of fire MGEFs (EquipAbilityRules.h)
         std::unordered_set<RE::FormID> g_cloakSpells;  // fire cloaks' associated spells (AddCloakSpells)
         std::unordered_map<RE::FormID, RE::BGSArtObject*> g_castingArts;  // F5: fire spell -> its costliest effect's casting art
         FireSetCounts g_counts;
@@ -317,6 +320,7 @@ namespace BlackFlame
         g_fireEffects.clear();
         g_fireHazards.clear();
         g_cloakSpells.clear();
+        g_fireEquipAbilities.clear();
         auto* dh = RE::TESDataHandler::GetSingleton();
         if (!dh) {
             logger::error("BlackFlame: TESDataHandler unavailable - no spell counts as fire");
@@ -354,6 +358,20 @@ namespace BlackFlame
         }
 
         const std::size_t associated = AddCloakSpells();
+        // The equip abilities of fire effects: their body art (Fire Storm's) counts as fire for the hit art swap (after the
+        // cloak pass, which adds fire effects too)
+        std::vector<EquipAbilityRules::ParentFacts> parents;
+        for (const auto* mgef : dh->GetFormArray<RE::EffectSetting>()) {
+            const auto* ability = mgef ? mgef->data.equipAbility : nullptr;
+            if (!ability) {
+                continue;
+            }
+            const bool hasHitArt = std::ranges::any_of(ability->effects, [](const auto* a_item) {
+                return a_item && a_item->baseEffect && a_item->baseEffect->data.hitEffectArt;
+            });
+            parents.push_back({ IsFireEffect(mgef), ability->GetFormID(), hasHitArt });
+        }
+        g_fireEquipAbilities = EquipAbilityRules::CollectFireEquipAbilities(parents);  // only those with a hit art
         // F5: the engine takes the casting art from the costliest effect; read here, on the kDataLoaded thread, once
         g_castingArts.clear();
         for (const auto id : g_fireSpells) {
@@ -366,10 +384,10 @@ namespace BlackFlame
 
         BuildBoundFireSeeds();
         logger::info("BlackFlame: fire spells (a fire MGEF, or the catalog's fire tag): {}; {} fire effects, {} fire "
-                     "explosions, {} fire hazards. Catalog {}: {} spells tagged fire, {} of them fire by the tag alone "
-                     "(every effect of those counts); {} added as a fire cloak's associated spell",
+                     "explosions, {} fire hazards, {} fire equip abilities. Catalog {}: {} spells tagged fire, {} of them "
+                     "fire by the tag alone (every effect of those counts); {} added as a fire cloak's associated spell",
             g_fireSpells.size(), g_fireEffects.size(), g_fireExplosions.size(), g_fireHazards.size(),
-            catalogRead ? "read" : "not read", catalog.fire, catalogOnly, associated);
+            g_fireEquipAbilities.size(), catalogRead ? "read" : "not read", catalog.fire, catalogOnly, associated);
         g_counts = { catalogRead, catalog.fire, catalogOnly, associated, g_fireSpells.size(), g_fireEffects.size(),
             g_fireExplosions.size(), g_fireHazards.size() };
     }
@@ -382,6 +400,11 @@ namespace BlackFlame
     bool IsBurnable(const RE::EffectSetting* a_effect, const RE::MagicItem* a_spell)
     {
         return a_effect && IsFireSpell(a_spell) && g_fireEffects.contains(a_effect->GetFormID());
+    }
+
+    bool IsFireEquipAbility(const RE::MagicItem* a_spell)
+    {
+        return a_spell && EquipAbilityRules::PassesArtFireCheck(false, a_spell->GetFormID(), g_fireEquipAbilities);
     }
 
     bool IsFireMgefAny(const RE::EffectSetting* a_effect)

@@ -227,6 +227,15 @@ namespace BlackFlame
                 // The hit art goes on a target only through IsBurnable effects (the 0x0C swap): fire MGEFs only
                 if (IsFireEffect(&a_mgef)) {
                     Push(d.hitEffectArt, a_v.via, a_v.costliest, kEdgeHitArt);
+                    // its equip ability's body art (Fire Storm's), swapped as a hit art (EquipAbilityRules.h)
+                    if (d.equipAbility) {
+                        for (const auto* item : d.equipAbility->effects) {
+                            const auto* base = item ? item->baseEffect : nullptr;
+                            if (base) {
+                                Push(base->data.hitEffectArt, a_v.via, a_v.costliest, kEdgeHitArt);
+                            }
+                        }
+                    }
                     if (d.hitVisuals) {
                         Push(d.hitVisuals, a_v.via, a_v.costliest);
                     }

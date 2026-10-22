@@ -281,10 +281,12 @@ namespace BlackFlame
             if (!IsStoked()) {
                 return Outcome::kNotStoked;
             }
-            if (!IsBurnable(effect->GetBaseObject(), effect->spell)) {
-                return Outcome::kNotFire;
-            }
+            const bool burnable = IsBurnable(effect->GetBaseObject(), effect->spell);
             if (a_slot == kArtSlot) {
+                // a fire effect's equip ability (Fire Storm's body art) passes for the art only (EquipAbilityRules.h)
+                if (!burnable && !IsFireEquipAbility(effect->spell)) {
+                    return Outcome::kNotFire;
+                }
                 // v2: the copy when one exists (its NIF is grey); the runtime recolour only for an art without one
                 if (IsCopy(a_original)) {
                     return Outcome::kAlreadyOurs;
@@ -293,6 +295,9 @@ namespace BlackFlame
                     return Outcome::kCopied;
                 }
                 return GetConfig().hitArt ? Outcome::kSwapped : Outcome::kConfigOff;
+            }
+            if (!burnable) {
+                return Outcome::kNotFire;
             }
             const auto* ours = GetForms().burnShader;
             if (!ours) {

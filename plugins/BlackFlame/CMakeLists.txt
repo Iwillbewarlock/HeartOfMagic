@@ -69,6 +69,7 @@ set(BLACKFLAME_SOURCES
     src/CopySwapImpact.cpp
     src/CopySwapArt.cpp
     src/HandArtRefresh.cpp
+    src/EquipAbilityRefresh.cpp
     src/CopySwapHazard.cpp
     src/HitEvents.cpp
     src/LanternDamage.cpp

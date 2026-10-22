@@ -64,6 +64,10 @@ namespace BlackFlame
     /// scroll, staff or enchantment carrying the same MGEF does not count (not a fire spell).
     [[nodiscard]] bool IsBurnable(const RE::EffectSetting* a_effect, const RE::MagicItem* a_spell);
 
+    /// The spell is the equip ability (EffectSetting data.equipAbility) of a fire effect; any thread (built at kDataLoaded).
+    /// Only the hit art swap and its refresh use it: its holder MGEF is not a fire effect (EquipAbilityRules.h)
+    [[nodiscard]] bool IsFireEquipAbility(const RE::MagicItem* a_spell);
+
     /// A fire MGEF of some fire spell
     [[nodiscard]] bool IsFireEffect(const RE::EffectSetting* a_effect);
 

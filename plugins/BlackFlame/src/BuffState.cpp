@@ -2,6 +2,7 @@
 
 #include "CasterArt.h"
 #include "CloneWatch.h"
+#include "EquipAbilityRefresh.h"
 #include "ExplosionHook.h"
 #include "FireSet.h"
 #include "Forms.h"
@@ -173,6 +174,7 @@ namespace BlackFlame
             OnBuffChanged(now);  // the hand flames: grey at once, or put back
             OnPlayerArtBuffChanged(now);
             RequestHandArtRefresh(now ? "buff on" : "buff off");  // the drawn hands: copy or original art at the next tick
+            RequestEquipAbilityRefresh(now);  // a fire spell's equip ability art (Fire Storm's body): asked again
             OnStokeWindowChanged(now, a_reason);  // layer 1 diagnostics last: a fresh window, or its stats lines (review)
         }
     }
