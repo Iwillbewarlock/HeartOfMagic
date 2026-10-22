@@ -8,8 +8,14 @@
 //   lantern_gnd.nif    candlelantern01.nif's frame and collision, diffuse = the soot copy, normal map kept, and the fire
 //                      (round 10, 2026-10-22, user): the vanilla torch fire in the black flame colour, an AddOnNode9146
 //                      (kLanternTorchAddon: ADDN 0x81D, the grey copy of MPSTorchFire01) on the cage axis at
-//                      kLanternFlameBaseShare of the frame's height, scaled kLanternTorchFireScale; BSXFlags Animated and
-//                      Addon. Immersive Equipment Displays shows this model on the body, addon nodes included
+//                      kLanternTorchBaseShare of the frame's height (round 11: a third of round 10's height over the cage
+//                      floor), scaled kLanternTorchFireScale; BSXFlags Animated and Addon. Immersive Equipment Displays shows
+//                      this model on the body, addon nodes included
+//   mps\mpstorchfire01.nif (under meshes\heartofmagic\blackflame\, round 11, 2026-10-22, user: the spells' shader on the
+//                      cage's fire) the grey copy ADDN 0x81D names, made here from the vanilla MPSTorchFire01 as the spells'
+//                      additive fire copies are: every blending alpha property's destination ONE (additive), then GreyEffects,
+//                      so its palette shader takes GradBlackFlameAdd.dds and the additive tint. Round 10's copy (a one-entry
+//                      --map run, normal blend on GradBlackFlame.dds) drew the fire all black in game
 //   lantern_worn.nif   at the left hip, every shape 100% on NPC Pelvis [Pelv] (BSDismemberSkinInstance, one partition, body
 //                      part 60): an iron ring (made here, the soot lamp texture) beside the hip at the belt band's height, and
 //                      the frame without collision (handle turned upright and shortened, iron lugs under its feet) hanging
@@ -52,12 +58,15 @@ namespace GreyBuild
     inline constexpr const char* kLanternSkeletonSource = "meshes\\actors\\character\\character assets\\skeleton.nif";
     inline constexpr const char* kLanternFlameSource = "meshes\\actors\\atronachflame\\character assets\\atronachflame.nif";
     inline constexpr const char* kLanternDiffuseSource = "textures\\clutter\\common\\lampgeneric01.dds";
+    inline constexpr const char* kLanternTorchSource = "meshes\\mps\\mpstorchfire01.nif";  // Skyrim - Meshes1.bsa
 
     // Outputs (Data-relative, under the --write-lantern folder)
     inline constexpr const char* kLanternGroundNif = "meshes\\heartofmagic\\blackflame\\lantern\\lantern_gnd.nif";
     inline constexpr const char* kLanternWornNif = "meshes\\heartofmagic\\blackflame\\lantern\\lantern_worn.nif";
     inline constexpr const char* kLanternSmokeNif = "meshes\\heartofmagic\\blackflame\\lantern\\lantern_smoke.nif";
     inline constexpr const char* kLanternEmptyNif = "meshes\\heartofmagic\\blackflame\\lantern\\lantern_empty.nif";
+    // ADDN 0x81D's model (MODL HeartOfMagic\BlackFlame\MPS\MPSTorchFire01.nif), the grey copy the ground model's fire emits
+    inline constexpr const char* kLanternTorchNif = "meshes\\heartofmagic\\blackflame\\mps\\mpstorchfire01.nif";
     // The texture's file and the text the NIF slot names (the slot keeps the case the other addon paths use)
     inline constexpr const char* kLanternDiffuse = "textures\\HeartOfMagic\\BlackFlame\\Lantern\\LampGenericSoot01.dds";
 
@@ -66,14 +75,21 @@ namespace GreyBuild
     // BSValueNode value flags as the precedent has them: the vanilla smoke static fxsmokechimney01.nif's AddOnNode56 0
     inline constexpr std::uint8_t kLanternSmokeValueFlags = 0;
     // The ground model's fire (round 10): ADDN 0x81D HoMBF_GreyAddon_MPSTorchFire01, index 9146 = 9100 + the vanilla
-    // MPSTorchFire01's 46 (Skyrim.esm 08FC1B), model HeartOfMagic\BlackFlame\MPS\MPSTorchFire01.nif: the grey copy made with
-    // --map from the vanilla mps\mpstorchfire01.nif (Skyrim - Meshes1.bsa, SLSF2 0x00000020; no third-party asset shipped:
-    // the TAKEALOOK winner, CS Particle Patch's, differs only in SLSF2 0x40000820), one normal-blend particle system (alpha 0x12ED, SRC_ALPHA / INV_SRC_ALPHA) on GradBlackFlame.dds,
-    // so it paints dark where round 6's all-additive 0x804 MPSFireSmall01 copy could not. Not in the grey map: the map makes
-    // the DLL swap the player's own fire effects, and the player's torch must stay as it is
+    // MPSTorchFire01's 46 (Skyrim.esm 08FC1B), model HeartOfMagic\BlackFlame\MPS\MPSTorchFire01.nif (kLanternTorchNif): the
+    // grey copy of the vanilla mps\mpstorchfire01.nif (Skyrim - Meshes1.bsa, SLSF2 0x00000020; no third-party asset shipped:
+    // the TAKEALOOK winner, CS Particle Patch's, differs only in SLSF2 0x40000820), one particle system on a palette shader,
+    // normal blend in the source (alpha 0x12ED, SRC_ALPHA / INV_SRC_ALPHA). Round 10 kept that blend and so took
+    // GradBlackFlame.dds, which drew the fire all black in game; round 11 (2026-10-22, user: the shader the spells get) writes
+    // the copy in --write-lantern as the spells' fire copies are: additive (0x12ED -> 0x120D, SRC_ALPHA / ONE, the alpha test
+    // kept), so GreyEffects gives it GradBlackFlameAdd.dds and kDefaultTintAdd. Not in the grey map: the map makes the DLL swap
+    // the player's own fire effects, and the player's torch must stay as it is
     inline constexpr int kLanternTorchAddon = 9146;
     // Value flags as the same frame's vanilla candle model has them: candlelanternwithcandle01.nif's AddOnNode49 (both) 1
     inline constexpr std::uint8_t kLanternTorchValueFlags = 1;
+    // NiAlphaProperty flags (nif.xml AlphaFlags): bit 0 blending on, bits 5-8 the destination blend (ONE = 0). The torch copy
+    // clears the destination bits of every alpha property with blending on (round 11)
+    inline constexpr std::uint16_t kLanternAlphaBlendOn = 1u;
+    inline constexpr std::uint16_t kLanternDestBlendBits = 0xFu << 5;
     // The torch fire's uniform scale. MPSTorchFire01 (read 2026-10-22, the same in vanilla and CS Particle Patch) is sized for
     // a torch head: NiPSysSphereEmitter volume radius 5, particle radius 13 +/- 0.65, BSPSysScaleModifier from 0.10 up to 1.16 at
     // 7/19 (37%) of the life and 0.65 at its end, speed 54 +/- 10.8 straight up (declination +/- 0.19 rad), life 0.333 +/- 0.067
@@ -81,16 +97,24 @@ namespace GreyBuild
     // out). Unscaled, at mean speed and life: a particle quad at its largest (radius 13 x 1.16 = 15.1, z 6.6) reaches 5 + 15.1
     // + 1.7 (sideways drift) = 21.8 off the axis and 13.5 below the node; at the start of the fade (60%: z 10.8, quad radius
     // 13.6) it stands 29.4 above it. The cage (candlelantern01, round 9 log): walls 17.34 across the smaller way (8.67 off the
-    // axis), the base plate up to z 4.01, the lid's underside z 23.44, the fire's base z 10.58. At 0.4: 8.72 off the axis (the
-    // quads' transparent corners at the walls), the top 10.58 + 11.75 = 22.33 (1.1 under the lid; faster, longer-lived
+    // axis), the base plate up to z 4.01, the lid's underside z 23.44, round 10's fire base z 10.58. At 0.4: 8.72 off the axis
+    // (the quads' transparent corners at the walls), the top 10.58 + 11.75 = 22.33 (1.1 under the lid; faster, longer-lived
     // particles pass it while fading), the bottom 10.58 - 5.40 = 5.18 (1.2 over the plate). At the 0.5 first tried the quads
-    // would reach 10.9 off the axis, the top 25.27 and the bottom 3.85, through the walls, the lid and the plate. Precedent for a
+    // would reach 10.9 off the axis, the top 25.27 and the bottom 3.85, through the walls, the lid and the plate. Round 11's base
+    // (kLanternTorchBaseShare) z 6.20: the top 17.95, the bottom 0.80 (the quads' faint lower part behind the plate). Precedent for a
     // scaled fire addon node: the imperial chandelier candles' AddOnNode65 at 0.4 (impchandelliercandle01.nif). Whether the
     // node's scale shrinks the particles themselves as well as the emitter is not checked in game
     inline constexpr float kLanternTorchFireScale = 0.4f;
     // That unscaled reach of MPSTorchFire01's particle quads (above, at mean speed and life): off the axis, above the node,
     // below it. The build logs it x kLanternTorchFireScale against the cage it measures
     inline constexpr std::array<float, 3> kLanternTorchFireReach{ 21.8f, 29.4f, 13.5f };
+    // The torch fire node's height (round 11, 2026-10-22, user: the gap between the fire and the lantern's floor cut to a third).
+    // The floor is candlelantern01's base plate top, z 4.01 of the frame's 31.74 (round 9 log), as a share of the height so the
+    // self-test's made-up frame keeps the rule; round 10's base was kLanternFlameBaseShare (z 10.58, 6.57 over the floor), so
+    // the node stands kLanternTorchGapShare of that over the floor: z 4.01 + 2.19 = 6.20. The worn model's spindles keep
+    // kLanternFlameBaseShare (their clearance to the frame is checked at that base)
+    inline constexpr float kLanternFloorShare = 4.01f / 31.74f;
+    inline constexpr float kLanternTorchGapShare = 1.0f / 3.0f;
     // BSXFlags bit 0, Animated, and bit 4, Addon (nif.xml BSXFlags): the ground model carries an addon node, and the vanilla
     // models that carry one set both (candlelanternwithcandle01.nif 0x9B, the effect statics fxsmokechimney01.nif and
     // fxfire01new.nif 0x31)
@@ -227,6 +251,7 @@ namespace GreyBuild
     inline constexpr float kLanternFlameHeightShare = 0.40f;
     inline constexpr float kLanternFlameRadiusShare = 0.5f * 0.55f;
     inline constexpr float kLanternFlameBaseShare = 1.0f / 3.0f;
+    inline constexpr float kLanternTorchBaseShare = kLanternFloorShare + (kLanternFlameBaseShare - kLanternFloorShare) * kLanternTorchGapShare;
     inline constexpr float kLanternFlameClearance = 0.5f;
     // Around the axis: this many segments, the seam duplicated so U runs 0..1 (it wraps on the scrolling tile)
     inline constexpr int kLanternFlameSegments = 12;
@@ -549,9 +574,10 @@ namespace GreyBuild
         std::vector<std::string> log;       // the constants used and what was measured
         LanternBox frameBounds;             // the ground frame's vertex bounds (root space)
         std::array<float, 3> cageCentre{};
-        // the fire's base on the cage axis (ground root space): the ground model's torch fire node, the worn outer layer's base
-        // before the worn transform
+        // on the cage axis (ground root space): the worn outer layer's base before the worn transform, and the ground model's
+        // torch fire node (kLanternTorchBaseShare, round 11)
         std::array<float, 3> flameBase{};
+        std::array<float, 3> torchBase{};
         float flameHeight = 0.0f;           // the worn outer layer's height and widest radius (ground units, before the worn scale)
         float flameRadius = 0.0f;
         float wornFlameClearance = 0.0f;    // the worn layers' nearest worn frame triangle
@@ -587,13 +613,14 @@ namespace GreyBuild
     [[nodiscard]] std::vector<LanternClearance> WornClearances(const std::vector<std::filesystem::path>& a_inputs,
         const std::filesystem::path& a_dataDir);
 
-    /// Builds the five outputs from the --in folders into a_dataDir (Data layout), reading each NIF back and checking it.
+    /// Builds the six outputs from the --in folders into a_dataDir (Data layout), reading each NIF back and checking it.
     /// Never writes into an --in folder (the caller checks).
     [[nodiscard]] LanternBuildResult BuildLantern(const std::vector<std::filesystem::path>& a_inputs,
         const std::filesystem::path& a_dataDir);
 
     /// The checks the build and the self-test run on the written outputs: frame shape and texture path, the ground model's torch
-    /// fire node (name, value, flags, parent, place on the cage axis, scale) and no flame layer in it, the worn model's flame
+    /// fire node (name, value, flags, parent, place on the cage axis, scale) and no flame layer in it, the torch fire copy (every
+    /// blending alpha property additive, every palette shader on GradBlackFlameAdd.dds, at least one), the worn model's flame
     /// layers (shader flags, blend, base alpha, palette, vertex alpha, controllers, clearance), the smoke's addon node, the empty model's lone root node, every worn shape skinned to exactly kLanternBone
     /// with weight 1 and body part kLanternBodyPart, the ring's height, the clearances, the BSXFlags. Empty = it holds.
     /// a_inputs: the sources, for what must match them (texture size and mips, darker; the kept normal map).

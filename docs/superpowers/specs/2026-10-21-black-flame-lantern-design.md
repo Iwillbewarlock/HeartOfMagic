@@ -187,17 +187,20 @@ reason gets `lantern` when the 0x810 effect is the one found (review R3).
   of `LampGeneric01.dds` made by a script (normal map kept). The fire (round 10, 2026-10-22, user: the vanilla torch
   fire in the black flame colour instead of the made spindles; IED shows this model on the body with its addon nodes, so
   it burns on the ground and worn): a `BSValueNode` `AddOnNode9146` (value 9146, value flags 1 as the frame's vanilla
-  `candlelanternwithcandle01.nif` AddOnNode49) under the root on the cage axis at a third of the frame's height (z 10.58),
-  uniform scale 0.4; BSXFlags 0xC2 -> 0xD3 (Animated and Addon, as the vanilla models with an addon node). Index 9146 is
+  `candlelanternwithcandle01.nif` AddOnNode49) under the root on the cage axis, uniform scale 0.4; round 10 put it at a
+  third of the frame's height (z 10.58), round 11 (2026-10-22, user: the gap between the fire and the lantern's floor cut to
+  a third) at z 6.20 (`kLanternTorchBaseShare`: the base plate's top z 4.01 + (10.58 - 4.01) / 3); BSXFlags 0xC2 -> 0xD3 (Animated and Addon, as the vanilla models with an addon node). Index 9146 is
   ADDN 0x81D `HoMBF_GreyAddon_MPSTorchFire01` (9100 + vanilla `MPSTorchFire01` 08FC1B's 46, DNAM flags 1), model
-  `HeartOfMagic\BlackFlame\MPS\MPSTorchFire01.nif`: the builder's `--map` grey copy of the vanilla
-  `mps\mpstorchfire01.nif` (Skyrim - Meshes1.bsa; no third-party asset shipped), one normal-blend particle system on
-  `GradBlackFlame.dds`, so it paints dark where the all-additive 0x804 `MPSFireSmall01` copy (dropped in round 6) could
-  not. 9146 is not in the grey map: the map drives the DLL's swap of the player's fire effects, and the player's held
+  `HeartOfMagic\BlackFlame\MPS\MPSTorchFire01.nif`: the grey copy of the vanilla `mps\mpstorchfire01.nif` (Skyrim -
+  Meshes1.bsa; no third-party asset shipped), one particle system, normal blend in the source. Round 10 (a `--map` copy)
+  kept the normal blend on `GradBlackFlame.dds` and the fire showed all black in game; round 11 (user: the spells' shader on
+  the cage's fire) writes it in `--write-lantern` as the spells' fire copies: additive (0x12ED -> 0x120D), then
+  `GreyEffects`, so `GradBlackFlameAdd.dds` and base colour x 0.9. 9146 is not in the grey map: the map drives the DLL's swap of the player's fire effects, and the player's held
   torch keeps its own fire. Scale 0.4 from the MPS file's numbers (sphere emitter 5, particle radius 13 up to x 1.16,
   54 units/s for a third of a second): its quads reach about 21.8 off the axis, 29.4 above and 13.5 below the node
-  unscaled, x 0.4 = 8.72 (walls 8.67), top z 22.34 (lid underside 23.44), bottom z 5.18 (plate 4.01); 0.5 would pass
-  through walls, lid and plate. Rounds 7-9 had the two flame layers below in this model too.
+  unscaled, x 0.4 = 8.72 (walls 8.67), top z 22.34 (lid underside 23.44), bottom z 5.18 (plate 4.01) from z 10.58; 0.5
+  would pass through walls, lid and plate. From round 11's z 6.20: top z 17.95, the quads' faint lower part to z 0.80,
+  behind the plate. Rounds 7-9 had the two flame layers below in this model too.
 - `lantern_worn.nif`: the frame skinned 100% to `NPC Pelvis [Pelv]` with a `BSDismemberSkinInstance` partition 60 at
   the left hip, built by a new `blackflame-greybuild` step with nifly. The flame (review R9, checked 2026-10-21): no
   worn armor in the load order carries particles or an addon node (the 8 worn lanterns found - Armors of the Velothi,

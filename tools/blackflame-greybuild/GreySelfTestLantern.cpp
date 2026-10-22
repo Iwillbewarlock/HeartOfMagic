@@ -4,10 +4,12 @@
 // A frame NIF (BSFadeNode, BSXFlags, collision, one lit BSTriShape with a hook out in +Y at the top, its hinge a little above
 // the box's top: the lid, and two hollow rings of the cage walls), a skeleton with NPC Pelvis [Pelv], an atronach stand-in
 // whose FireStrip08 (palette effect shader with palette alpha, falloff and the decal bits on, the vanilla falloff values and
-// wrapping clamp mode, normal blend or additive, float controller) is skinned half and half to two bones, a 64 x 64 BC3 diffuse with 7 mips, and body stand-ins (a hip box above
-// the lantern's lid and a belt band box named as the vanilla band shape).
+// wrapping clamp mode, normal blend or additive, float controller) is skinned half and half to two bones, a 64 x 64 BC3 diffuse with 7 mips, body stand-ins (a hip box above
+// the lantern's lid and a belt band box named as the vanilla band shape) and a torch fire stand-in (one shape on a palette effect
+// shader blending normally with the alpha test on, 0x12ED, as MPSTorchFire01).
 // The build runs on them; the outputs are read back and checked (the ground's torch fire node AddOnNode9146: value, flags,
-// parent, place on the cage axis at the flame base, scale, BSXFlags Animated | Addon, no flame layer; the worn model's two
+// parent, place on the cage axis at kLanternTorchBaseShare, scale, BSXFlags Animated | Addon, no flame layer; the torch fire copy
+// additive, 0x120D, on GradBlackFlameAdd.dds with the base colour x kDefaultTintAdd; the worn model's two
 // flame layers: counts, base heights and widths from the ground cage, on the cage axis with the clearance, normals and winding,
 // shader flags, blends, base alphas, palettes, vertex alpha, controllers on
 // their own shaders and no block shared; the measured band, the ring at its top beside the hip, the upright
@@ -15,7 +17,7 @@
 // Vertex_Colors flag, clearances), then the failures and edge cases: an additive template (the layers keep their own blends),
 // a clamping template (the U-scaled tile would not wrap), a missing source, body or band shape, a thigh that walks the ring out, one no step up to the maximum clears, a frame bar
 // through the flame, a cage too small for the flame, a handle foot too far above the lid, a wrong inverse bind, a leaned
-// frame, a torch fire node at the wrong scale or off the cage axis, an addon node with the wrong value, a darken factor out
+// frame, a torch fire node at the wrong scale or off the cage axis, a torch fire copy left normal blend, an addon node with the wrong value, a darken factor out
 // of range. LanternPieces' weld and LanternAxisTiltDeg have
 // their own checks.
 
@@ -73,6 +75,8 @@ namespace GreyBuild::SelfTest
         constexpr const char* kOrangePalette = "textures\\effects\\gradients\\gradfireatronach.dds";
         constexpr std::uint16_t kAlphaNormalBlend = 0x10ED;
         constexpr std::uint16_t kAlphaAdditive = 0x100D;  // blend on, SRC_ALPHA / ONE
+        constexpr std::uint16_t kAlphaTorchSource = 0x12ED;  // MPSTorchFire01: SRC_ALPHA / INV_SRC_ALPHA, alpha test on
+        constexpr std::uint16_t kAlphaTorchCopy = 0x120D;    // the same, destination ONE
         // vanilla FireStrip08's falloff { start angle, stop angle, start opacity, stop opacity } and clamp mode word (wrap S
         // wrap T, lighting influence 255) and base colour scale; the build must replace the falloff values and the scale with
         // each layer's
@@ -266,6 +270,53 @@ namespace GreyBuild::SelfTest
                 nif.UpdateSkinPartitions(shape);
             }
             SaveNif(nif, a_file);
+        }
+
+        /// The stand-in torch fire (MPSTorchFire01): one shape on a palette effect shader (palette colour on, a source texture,
+        /// an orange palette, base colour white) that blends normally with the alpha test on
+        void MakeTorch(const std::filesystem::path& a_file)
+        {
+            nifly::NifFile nif;
+            nif.Create(nifly::NiVersion::getSSE());
+            auto& hdr = nif.GetHeader();
+            auto* shape = MakeShape(nif, "pFireballCore05", Vector3(-5.0f, -5.0f, 0.0f), Vector3(5.0f, 5.0f, 10.0f), false);
+            nif.DeleteShader(shape);
+            auto prop = std::make_unique<nifly::BSEffectShaderProperty>();
+            prop->shaderFlags1 |= kSlsf1GreyscaleToPaletteColor;
+            prop->baseColor = nifly::Color4(1.0f, 1.0f, 1.0f, 1.0f);
+            prop->sourceTexture.get() = "textures\\effects\\fxfireatlas04.dds";
+            prop->greyscaleTexture.get() = kOrangePalette;
+            shape->ShaderPropertyRef()->index = hdr.AddBlock(std::move(prop));
+            auto alpha = std::make_unique<nifly::NiAlphaProperty>();
+            alpha->flags = kAlphaTorchSource;
+            (void)nif.AssignAlphaProperty(shape, std::move(alpha));
+            SaveNif(nif, a_file);
+        }
+
+        /// The torch fire copy's alpha flags, palette and base colour red (the first of each), as written
+        struct TorchCopy
+        {
+            std::uint16_t alphaFlags = 0;
+            std::string palette;
+            float red = -1.0f;
+        };
+
+        [[nodiscard]] TorchCopy ReadTorchCopy(const std::filesystem::path& a_file)
+        {
+            TorchCopy out;
+            nifly::NifFile nif;
+            LoadNif(nif, a_file);
+            auto& hdr = nif.GetHeader();
+            for (std::uint32_t id = 0; id < hdr.GetNumBlocks(); ++id) {
+                if (const auto* alpha = hdr.GetBlock<nifly::NiAlphaProperty>(id); alpha && out.alphaFlags == 0) {
+                    out.alphaFlags = alpha->flags;
+                }
+                if (const auto* shader = hdr.GetBlock<nifly::BSEffectShaderProperty>(id); shader && out.red < 0.0f) {
+                    out.palette = shader->greyscaleTexture.get();
+                    out.red = shader->baseColor.r;
+                }
+            }
+            return out;
         }
 
         /// A body stand-in: one unskinned box shape per lo..hi pair, and the belt band box named a_band (none when empty)
@@ -465,6 +516,7 @@ namespace GreyBuild::SelfTest
         MakeFrame(in / kLanternFrameSource);
         MakeSkeleton(in / kLanternSkeletonSource);
         MakeAtronach(in / kLanternFlameSource);
+        MakeTorch(in / kLanternTorchSource);
         a_check.Check(WriteTestTexture(in / kLanternDiffuseSource, kDxgiBc3, true), "lantern: made-up sources written");
 
         // the bodies: the hip box above the lantern's lid and the belt band kBandProud proud of it (both body paths)
@@ -510,24 +562,38 @@ namespace GreyBuild::SelfTest
             "lantern gnd: the frame bounds reported with the hook, for the record's ObjectBounds");
         const auto flame = FlameReadBack(out);
         const float gndBase = kFrameHeight * kLanternFlameBaseShare;
+        const float torchBase = kFrameHeight * kLanternTorchBaseShare;
         const float gndHeight = kFrameHeight * kLanternFlameHeightShare;
         // the walls 18 x 16 (the rings' outline): the widest radius from the smaller
         const float gndRadius = kLanternFlameRadiusShare * 2.0f * std::min(kFrameHalfX, kFrameHalfY);
         {
             // the torch fire node: AddOnNode9146 value 9146, the candle lantern's value flags, under the root, on the cage axis
-            // (0, 0: the hook is outside the walls' band) at kLanternFlameBaseShare x the frame's height, scaled
+            // (0, 0: the hook is outside the walls' band) at kLanternTorchBaseShare x the frame's height (round 11), scaled
             const auto* node = gnd.valueNodes.size() == 1 ? &gnd.valueNodes.front() : nullptr;
             a_check.Check(node && node->name == "AddOnNode9146" && node->value == kLanternTorchAddon && kLanternTorchAddon == 9146 &&
                               node->flags == kLanternTorchValueFlags && node->parent == gnd.rootName,
                 fmt::format("lantern gnd: exactly one BSValueNode 'AddOnNode9146' value 9146 flags {} under the root ({} found{})",
                     kLanternTorchValueFlags, gnd.valueNodes.size(),
                     node ? fmt::format(": '{}' value {} flags {} under '{}'", node->name, node->value, node->flags, node->parent) : std::string()));
-            a_check.Check(node && Near(node->translation[0], 0.0f) && Near(node->translation[1], 0.0f) && Near(node->translation[2], gndBase) &&
-                              Near(node->scale, kLanternTorchFireScale, 1e-6f) && Near(result.flameBase[2], gndBase),
-                fmt::format("lantern gnd: the torch fire node on the cage axis at z {:.4f} (kLanternFlameBaseShare x the frame's height), "
-                            "scale {} (kLanternTorchFireScale) ({})", gndBase, kLanternTorchFireScale,
+            a_check.Check(node && Near(node->translation[0], 0.0f) && Near(node->translation[1], 0.0f) && Near(node->translation[2], torchBase) &&
+                              Near(node->scale, kLanternTorchFireScale, 1e-6f) && Near(result.torchBase[2], torchBase),
+                fmt::format("lantern gnd: the torch fire node on the cage axis at z {:.4f} (kLanternTorchBaseShare x the frame's height), "
+                            "scale {} (kLanternTorchFireScale) ({})", torchBase, kLanternTorchFireScale,
                     node ? fmt::format("{:.4f}, {:.4f}, {:.4f} scale {}", node->translation[0], node->translation[1], node->translation[2], node->scale) :
                            std::string("none")));
+            // round 11: the gap over the cage floor (kLanternFloorShare) a third of round 10's (kLanternFlameBaseShare)
+            const float floor = kFrameHeight * kLanternFloorShare;
+            a_check.Check(Near(torchBase - floor, (gndBase - floor) / 3.0f) && torchBase > floor,
+                fmt::format("lantern gnd: the torch fire node {:.4f} over the cage floor z {:.4f}, a third of round 10's {:.4f}",
+                    torchBase - floor, floor, gndBase - floor));
+        }
+        {
+            // the torch fire copy (round 11): the source's normal blend made additive (alpha test kept), its palette shader on
+            // GradBlackFlameAdd.dds with the base colour's luminance x kDefaultTintAdd, as the spells' additive fire copies
+            const auto torch = ReadTorchCopy(out / kLanternTorchNif);
+            a_check.Check(torch.alphaFlags == kAlphaTorchCopy && torch.palette == kPaletteAddPath && Near(torch.red, kDefaultTintAdd, 1e-5f),
+                fmt::format("lantern torch fire: alpha 0x{:04X} -> 0x{:04X}, palette '{}', base colour {} (read 0x{:04X}, '{}', {})",
+                    kAlphaTorchSource, kAlphaTorchCopy, kPaletteAddPath, kDefaultTintAdd, torch.alphaFlags, torch.palette, torch.red));
         }
 
         // the worn model
@@ -787,7 +853,8 @@ namespace GreyBuild::SelfTest
             const auto empty = a_dir / "lantern" / "empty";
             std::filesystem::create_directories(empty);
             const auto missing = BuildLantern({ empty }, a_dir / "lantern" / "out_missing");
-            a_check.Check(!missing.ok && Mentions(missing.problems, kLanternFrameSource) && Mentions(missing.problems, kLanternDiffuseSource),
+            a_check.Check(!missing.ok && Mentions(missing.problems, kLanternFrameSource) && Mentions(missing.problems, kLanternDiffuseSource) &&
+                              Mentions(missing.problems, kLanternTorchSource),
                 "lantern: missing sources fail, each named");
         }
         {
@@ -917,6 +984,17 @@ namespace GreyBuild::SelfTest
             const auto moved = VerifyLantern(inputs, torch);
             a_check.Check(Mentions(moved, "gnd: AddOnNode9146 at") && !Mentions(moved, "scale 1, expected"),
                 "lantern: the read-back refuses a torch fire node off the cage axis");
+            // the torch fire copy put back to the source's normal blend: the read-back refuses it
+            nifly::NifFile normal;
+            LoadNif(normal, torch / kLanternTorchNif);
+            for (std::uint32_t id = 0; id < normal.GetHeader().GetNumBlocks(); ++id) {
+                if (auto* alpha = normal.GetHeader().GetBlock<nifly::NiAlphaProperty>(id)) {
+                    alpha->flags = kAlphaTorchSource;
+                }
+            }
+            SaveNif(normal, torch / kLanternTorchNif);
+            a_check.Check(Mentions(VerifyLantern(inputs, torch), "torch fire: alpha property block"),
+                "lantern: the read-back refuses a torch fire copy left normal blend");
         }
         {
             nifly::NifFile bad;

@@ -1700,6 +1700,79 @@ namespace GreyBuild
             return Vector3(a_cageCentre[0], a_cageCentre[1], a_frameBounds.min[2] + kLanternFlameBaseShare * a_frameBounds.Size(2));
         }
 
+        /// The ground model's torch fire node (round 11): on the cage axis, kLanternTorchBaseShare of the frame's height above its
+        /// bottom
+        [[nodiscard]] Vector3 TorchBaseOf(const LanternBox& a_frameBounds, const std::array<float, 3>& a_cageCentre)
+        {
+            return Vector3(a_cageCentre[0], a_cageCentre[1], a_frameBounds.min[2] + kLanternTorchBaseShare * a_frameBounds.Size(2));
+        }
+
+        /// The torch fire copy (round 11): a_source's every blending alpha property made additive (destination ONE), then
+        /// GreyEffects as the spells' fire copies, so its palette shaders take GradBlackFlameAdd.dds and kDefaultTintAdd. Throws
+        /// when the source has no blending alpha property or no palette shader
+        void BuildTorchFire(const std::filesystem::path& a_source, const std::filesystem::path& a_target, std::vector<std::string>& a_log)
+        {
+            nifly::NifFile nif;
+            LoadNif(nif, a_source);
+            auto& hdr = nif.GetHeader();
+            int blending = 0;
+            for (std::uint32_t id = 0; id < hdr.GetNumBlocks(); ++id) {
+                if (auto* alpha = hdr.GetBlock<nifly::NiAlphaProperty>(id); alpha && (alpha->flags & kLanternAlphaBlendOn) != 0) {
+                    const std::uint16_t before = alpha->flags;
+                    alpha->flags = static_cast<std::uint16_t>(alpha->flags & ~kLanternDestBlendBits);
+                    a_log.push_back(fmt::format("torch fire: alpha property block {} 0x{:04X} -> 0x{:04X} (destination ONE: additive, as "
+                                                "the spells' fire)", id, before, alpha->flags));
+                    ++blending;
+                }
+            }
+            if (blending == 0) {
+                throw std::runtime_error(fmt::format("{} has no alpha property with blending on", kLanternTorchSource));
+            }
+            std::vector<std::string> notes;
+            const GreyStats stats = GreyEffects(nif, kDefaultTint, kDefaultTintAdd, &notes);
+            for (auto& note : notes) {
+                a_log.push_back("torch fire: " + note);
+            }
+            if (stats.palettedAdd == 0) {
+                throw std::runtime_error(fmt::format("{}: no palette shader took the additive palette ({} effect shaders, {} normal-blend "
+                                                     "palette shaders)", kLanternTorchSource, stats.effectShaders, stats.paletted));
+            }
+            a_log.push_back(fmt::format("torch fire: {} effect shaders, {} on {} (base colour x {}, kDefaultTintAdd), {} normal palette, "
+                                        "{} left; {} colour modifiers to grey",
+                stats.effectShaders, stats.palettedAdd, kPaletteAddPath, kDefaultTintAdd, stats.paletted, stats.paletteLeft,
+                stats.colorModifiers));
+            SaveNif(nif, a_target);
+        }
+
+        /// What is wrong with a written torch fire copy: an alpha property with blending on that is not additive, a palette shader
+        /// not on GradBlackFlameAdd.dds, or none at all; empty when it holds
+        [[nodiscard]] std::vector<std::string> TorchFireWrong(const std::filesystem::path& a_file)
+        {
+            std::vector<std::string> problems;
+            nifly::NifFile nif;
+            LoadNif(nif, a_file);
+            auto& hdr = nif.GetHeader();
+            int palettes = 0;
+            for (std::uint32_t id = 0; id < hdr.GetNumBlocks(); ++id) {
+                if (const auto* alpha = hdr.GetBlock<nifly::NiAlphaProperty>(id);
+                    alpha && (alpha->flags & kLanternAlphaBlendOn) != 0 && BlendOfAlpha(alpha) != ShapeBlend::kAdditive) {
+                    problems.push_back(fmt::format("torch fire: alpha property block {} flags 0x{:04X}, expected additive (destination ONE)",
+                        id, alpha->flags));
+                }
+                if (const auto* shader = hdr.GetBlock<nifly::BSEffectShaderProperty>(id); shader && UsesPalette(*shader)) {
+                    ++palettes;
+                    if (Lower(shader->greyscaleTexture.get()) != Lower(kPaletteAddPath)) {
+                        problems.push_back(fmt::format("torch fire: effect shader block {} palette '{}', expected '{}'", id,
+                            shader->greyscaleTexture.get(), kPaletteAddPath));
+                    }
+                }
+            }
+            if (palettes == 0) {
+                problems.push_back("torch fire: no palette shader");
+            }
+            return problems;
+        }
+
         /// The cage walls: the bounds of a_rootVerts (the frame in root space, a_bounds their bounds) in the middle
         /// kLanternCageBand of its height; empty when no vertex is there
         [[nodiscard]] LanternBox CageWallsOf(const std::vector<Vector3>& a_rootVerts, const LanternBox& a_bounds)
@@ -2394,16 +2467,16 @@ namespace GreyBuild
                 if (!bsx) {
                     throw std::runtime_error(fmt::format("{} has no BSXFlags on its root", kLanternFrameSource));
                 }
-                const Vector3 at = FlameBaseOf(result.frameBounds, result.cageCentre);
-                result.flameBase = ToArray(at);
+                const Vector3 at = TorchBaseOf(result.frameBounds, result.cageCentre);
+                result.torchBase = ToArray(at);
                 (void)AddValueNode(copy, *copy.GetRootNode(), kLanternTorchAddon, kLanternTorchValueFlags, at, kLanternTorchFireScale);
                 const auto& reach = kLanternTorchFireReach;
                 log.push_back(fmt::format("ground fire: AddOnNode{} (value flags {}) at {} = the cage axis, the frame's bottom z {:.4f} + "
-                                          "{:.4f} (kLanternFlameBaseShare) x its height {:.4f}; scale {} (kLanternTorchFireScale): "
+                                          "{:.4f} (kLanternTorchBaseShare) x its height {:.4f}; scale {} (kLanternTorchFireScale): "
                                           "MPSTorchFire01's particle quads reach about {} off the axis, {} above the node and {} below it "
                                           "unscaled (kLanternTorchFireReach), {:.2f}, z {:.2f} and z {:.2f} here; the cage walls {:.4f} "
                                           "off the axis",
-                    kLanternTorchAddon, kLanternTorchValueFlags, Text(result.flameBase), result.frameBounds.min[2], kLanternFlameBaseShare,
+                    kLanternTorchAddon, kLanternTorchValueFlags, Text(result.torchBase), result.frameBounds.min[2], kLanternTorchBaseShare,
                     result.frameBounds.Size(2), kLanternTorchFireScale, reach[0], reach[1], reach[2], reach[0] * kLanternTorchFireScale,
                     at.z + reach[1] * kLanternTorchFireScale, at.z - reach[2] * kLanternTorchFireScale,
                     std::min(cageWalls.Size(0), cageWalls.Size(1)) * 0.5f));
@@ -2425,6 +2498,13 @@ namespace GreyBuild
             } catch (const std::exception& e) {
                 fail(kLanternWornNif, e);
             }
+        }
+
+        // 3b. the torch fire copy the ground model's AddOnNode9146 emits (ADDN 0x81D's model; round 11)
+        try {
+            BuildTorchFire(Need(a_inputs, kLanternTorchSource), a_dataDir / kLanternTorchNif, log);
+        } catch (const std::exception& e) {
+            fail(kLanternTorchNif, e);
         }
 
         // 4. the smoke static
@@ -2779,16 +2859,19 @@ namespace GreyBuild
                         wallBox = bounds;  // as the build: no vertex in the band, the whole bounds' centre
                     }
                     const auto walls = wallBox.Centre();
-                    const Vector3 expected = FlameBaseOf(bounds, { walls[0], walls[1], 0.0f });
+                    const Vector3 expected = TorchBaseOf(bounds, { walls[0], walls[1], 0.0f });
                     constexpr float kPlaceTolerance = 1e-3f;
                     Check(problems, std::fabs(node->translation[0] - expected.x) <= kPlaceTolerance &&
                                         std::fabs(node->translation[1] - expected.y) <= kPlaceTolerance &&
                                         std::fabs(node->translation[2] - expected.z) <= kPlaceTolerance,
-                        fmt::format("gnd: {} at {}, expected {} (the cage axis, the frame's bottom + kLanternFlameBaseShare x its height)", name,
+                        fmt::format("gnd: {} at {}, expected {} (the cage axis, the frame's bottom + kLanternTorchBaseShare x its height)", name,
                             Text(node->translation), Text(ToArray(expected))));
                 } else {
                     Check(problems, false, "gnd: the frame's vertices do not read for the torch fire node's place");
                 }
+            }
+            for (const auto& problem : TorchFireWrong(a_dataDir / kLanternTorchNif)) {
+                problems.push_back(problem);
             }
             Check(problems, gnd.nodeNames.size() == 2,
                 fmt::format("gnd: {} nodes, expected the root and the torch fire node alone (no source bones)", gnd.nodeNames.size()));
@@ -3005,7 +3088,7 @@ namespace GreyBuild
                 std::cout << fmt::format("ground fire (read back): '{}' value {} flags {} at {} scale {} under '{}'; expected z {:.4f} = the "
                                          "frame's bottom {:.4f} + {:.4f} x {:.4f}, scale {} (kLanternTorchFireScale)\n",
                     node.name, node.value, node.flags, Text(node.translation), node.scale, node.parent,
-                    b.min[2] + kLanternFlameBaseShare * b.Size(2), b.min[2], kLanternFlameBaseShare, b.Size(2), kLanternTorchFireScale);
+                    b.min[2] + kLanternTorchBaseShare * b.Size(2), b.min[2], kLanternTorchBaseShare, b.Size(2), kLanternTorchFireScale);
             }
             const auto flame = FlameReadBack(a_dataDir);
             for (std::size_t l = 0; l < kLanternFlameLayers.size(); ++l) {
