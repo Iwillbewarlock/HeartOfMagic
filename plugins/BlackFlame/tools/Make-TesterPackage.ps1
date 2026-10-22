@@ -281,6 +281,7 @@ if ($TesterMode) {
 > spells, toggles the effect and asks for a quicksave and quickload. After loading, wait about 30 seconds without pausing.
 > Also send back ``HeartOfMagic_BlackFlame_selftest.txt`` and ``HeartOfMagic_BlackFlame_tester.txt`` from the same SKSE folder.
 
+
 "@
     Set-Content -Encoding UTF8 $stagedReadme ($warn + (Get-Content $readme -Raw))
 } else {
