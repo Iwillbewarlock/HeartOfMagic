@@ -7,13 +7,14 @@
     The zip is one mod folder for MO2 or Vortex:
       HeartOfMagic_BlackFlame.esp, _Copies.esp, _Local.esp (the last two empty: the builder's output replaces them)
       SKSE\Plugins\HeartOfMagic_BlackFlame.dll and .pdb
-      SKSE\Plugins\HeartOfMagic_BlackFlame.json            (testerMode true: self-test, copy request, full log)
+      SKSE\Plugins\HeartOfMagic_BlackFlame.json            (writeRequest true, testerMode/selfTest false; -TesterMode sets testerMode true)
       SKSE\Plugins\HeartOfMagic_BlackFlame_greymap.json
       meshes\heartofmagic\blackflame\...                    (the grey meshes made from vanilla, as shipped)
       textures\HeartOfMagic\BlackFlame\GradBlackFlame.dds and GradBlackFlameAdd.dds (Godskin: additive palette shaders)
       optional\palettes\GradBlackFlameAdd_blackblade.dds, _messmer.dds (not loaded: copy one over GradBlackFlameAdd.dds)
       tools\BlackFlame\blackflame-greybuild.exe and "Build Black Flame copies.bat"
       README_TESTER.md
+      lantern-tester-ko.md                                 (Korean in-game checklist for the lantern)
       THIRD-PARTY-NOTICES.md (from THIRD-PARTY-NOTICES-TESTER.md.in: the DLL and the builder, their libraries with the
       versions vcpkg installed, the exact commit) and licenses\ (copied from the CommonLib submodule and vcpkg's installed
       copyright files at packaging time, so never an older build's copies)
@@ -37,12 +38,14 @@
 .EXAMPLE
     .\plugins\BlackFlame\tools\Make-TesterPackage.ps1
     .\plugins\BlackFlame\tools\Make-TesterPackage.ps1 -Version 1.5.0-t2
+    .\plugins\BlackFlame\tools\Make-TesterPackage.ps1 -TesterMode
     .\plugins\BlackFlame\tools\Make-TesterPackage.ps1 -AllowUnpublished
     .\plugins\BlackFlame\tools\Make-TesterPackage.ps1 -AllowDirty -AllowUnpublished
 #>
 [CmdletBinding()]
 param(
     [string]$Version,
+    [switch]$TesterMode,
     [switch]$AllowDirty,
     [switch]$AllowUnpublished
 )
@@ -53,6 +56,7 @@ $data = Join-Path $repo 'plugins\BlackFlame\data'
 $dllDir = Join-Path $repo 'build\plugins\BlackFlame\Release'
 $builder = Join-Path $repo 'build\tools\Release\blackflame-greybuild.exe'
 $readme = Join-Path $PSScriptRoot 'README_TESTER.md'
+$readmeKo = Join-Path $repo 'plugins\BlackFlame\docs\lantern-tester-ko.md'
 # T8, U2: the DLL statically links CommonLibSSE-NG (a GPL combined work) and the builder nifly (GPL-3.0): the package's
 # own notice (not the Librarian release's) names both binaries and the exact commit; the licence texts are copied from
 # their origins now (the CommonLib submodule, vcpkg's installed copyright files), so none can be an older build's
@@ -126,7 +130,7 @@ if (-not $published -and -not $AllowUnpublished) {
 }
 $withSource = $dirty -or -not $published
 
-foreach ($file in @((Join-Path $dllDir 'HeartOfMagic_BlackFlame.dll'), (Join-Path $dllDir 'HeartOfMagic_BlackFlame.pdb'), $builder, $readme,
+foreach ($file in @((Join-Path $dllDir 'HeartOfMagic_BlackFlame.dll'), (Join-Path $dllDir 'HeartOfMagic_BlackFlame.pdb'), $builder, $readme, $readmeKo,
         (Join-Path $data 'HeartOfMagic_BlackFlame.esp'), (Join-Path $data 'HeartOfMagic_BlackFlame_Copies.esp'),
         (Join-Path $data 'HeartOfMagic_BlackFlame_Local.esp'), (Join-Path $data 'SKSE\Plugins\HeartOfMagic_BlackFlame.json'))) {
     if (-not (Test-Path $file)) { Fail "$file is missing (run .\BuildRelease.ps1 -preset Release-2026 first)" }
@@ -228,10 +232,17 @@ $plugins = Join-Path $stage 'SKSE\Plugins'
 Copy-Item (Join-Path $dllDir 'HeartOfMagic_BlackFlame.dll') $plugins
 Copy-Item (Join-Path $dllDir 'HeartOfMagic_BlackFlame.pdb') $plugins
 
-# The tester config: the shipped one with testerMode on (it forces selfTest and writeRequest)
+# The tester config: writeRequest on (the builder needs the game's request), no self-test unless -TesterMode (it forces
+# selfTest and writeRequest itself)
 $configPath = Join-Path $plugins 'HeartOfMagic_BlackFlame.json'
 $config = Get-Content $configPath -Raw | ConvertFrom-Json
-$config.testerMode = $true
+if ($TesterMode) {
+    $config.testerMode = $true
+} else {
+    $config.testerMode = $false
+    $config.selfTest = $false
+    $config.writeRequest = $true
+}
 $config | ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 $configPath
 
 $tools = Join-Path $stage 'tools\BlackFlame'
@@ -263,7 +274,19 @@ pause
 exit /b %CODE%
 '@
 Set-Content -Encoding ASCII (Join-Path $tools 'Build Black Flame copies.bat') $bat
-Copy-Item $readme (Join-Path $stage 'README_TESTER.md')
+$stagedReadme = Join-Path $stage 'README_TESTER.md'
+if ($TesterMode) {
+    $warn = @"
+> **This build runs the scripted self-test (-TesterMode).** Use a throwaway save: it spawns two deer next to you, casts
+> spells, toggles the effect and asks for a quicksave and quickload. After loading, wait about 30 seconds without pausing.
+> Also send back ``HeartOfMagic_BlackFlame_selftest.txt`` and ``HeartOfMagic_BlackFlame_tester.txt`` from the same SKSE folder.
+
+"@
+    Set-Content -Encoding UTF8 $stagedReadme ($warn + (Get-Content $readme -Raw))
+} else {
+    Copy-Item $readme $stagedReadme
+}
+Copy-Item $readmeKo (Join-Path $stage 'lantern-tester-ko.md')
 # U2: licence texts from their origins, the notice filled in for this commit
 $stageLicenses = Join-Path $stage 'licenses'
 New-Item -ItemType Directory -Force (Join-Path $stageLicenses 'CommonLibSSE-NG') | Out-Null

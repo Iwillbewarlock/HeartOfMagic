@@ -1,13 +1,13 @@
 # Heart of Magic - Black Flame: tester build
 
-Thank you for testing. This build turns the player's own fire spells grey-black while the Stoke buff is on. It
-runs a scripted self-test and writes extra logs, so it is **for testing only**.
+Thank you for testing. This build turns the player's own fire spells grey-black while wearing the lantern
+**Saeel's Iron Cage Lantern** (사엘의 철창 등불). For the Korean in-game checklist, see `lantern-tester-ko.md` in this
+folder.
 
-**Use a throwaway save.** The self-test spawns two deer next to you, casts spells, toggles the buff and asks for a
-quicksave and quickload at the end. Do not keep playing from a save made during the test.
+**Use a save you do not need to keep.** Do not continue your normal playthrough from a save made while testing this
+build.
 
-**On SE and on AE builds other than 1.6.1170 / 1.7.104** this is a diagnostic run: SKIPPED hooks in the tester file
-and INFO / SKIP lines for devices in T0-hooks are expected there. FAIL lines are what to report. On SE the hand art copy,
+The main targets are AE 1.6.1170 and 1.7.104; some features are on only there. **On SE (1.5.97)** the hand art copy,
 the hazard creation copy swap and the explosion creation swap are off (their SE addresses are not verified yet); grey
 hazard models from the shipped grey map still apply, and the rest runs.
 
@@ -55,20 +55,20 @@ is not public yet its source is in the package as `source\HeartOfMagic-<version>
 3. Enable the output mod (it replaces the two empty plugins). In MO2, press F5 (refresh) if its new files do not show.
    If you use a loose-file cache mod (CRDW and the like), rebuild its cache after running the builder: a cache made
    before the builder ran does not know the new files, and the game then cannot load those grey copies (the plugin says
-   so on screen once, and in the tester file's "file index" line).
-   Start the game and load your throwaway save.
-4. Wait about 30 seconds without pausing. The self-test runs by itself; at the end it asks you to quicksave and
-   quickload once.
+   so on screen once).
+4. Load a save, wear Saeel's Iron Cage Lantern (사엘의 철창 등불), and go through the checklist in
+   `lantern-tester-ko.md`.
 
 ## Send back
 
-All from `Documents\My Games\Skyrim Special Edition\SKSE\` (`Skyrim Special Edition GOG` for the GOG version):
+All from `Documents\My Games\Skyrim Special Edition\SKSE\` (`Skyrim Special Edition GOG` for the GOG version) and your
+test run:
 - `HeartOfMagic_BlackFlame.log`
-- `HeartOfMagic_BlackFlame_selftest.txt`
-- `HeartOfMagic_BlackFlame_tester.txt`
 - `HeartOfMagic_BlackFlame\request.json` (in the same SKSE folder: what the game asked the builder for)
-- from the copies output mod: `SKSE\Plugins\HeartOfMagic_BlackFlame_copies.json`
-- a crash log if the game crashed (from your crash logger's folder)
+- from the copies output mod: `SKSE\Plugins\HeartOfMagic_BlackFlame_copies.json` and
+  `SKSE\Plugins\HeartOfMagic_BlackFlame_risk.txt` (with the builder's `T0 risk:` line)
 - the builder's window text (copy it, or run it from a command prompt and save the output)
+- a crash log if the game crashed (from your crash logger's folder)
+- the `lantern-tester-ko.md` checklist results and screenshots
 
 Also say which game version you use and whether you used MO2 or Vortex.
