@@ -469,6 +469,18 @@ and slots hooked); the self-test repeats them as T0-grey and counts swaps at T6-
 
 [Read this section](docs/black-flame-v2-copies.md#decal-texture-set-copies-txst-greyformstxsth-formcopiesfilltexturecpp).
 
+### Equip ability body art: `EquipAbilityRules.h`, `EquipAbilityRefresh.h`
+
+A ritual spell's body aura is not on the spell's own MGEF: Fire Storm's fire MGEF 07A82A names an equip ability
+(`data.equipAbility`, SPEL 080E34) whose holder MGEF 080E33 (no fire keyword) carries the aura as its hit art (ARTO
+080E32). Rule (2026-10-23): a fire effect's equip ability whose effects have a hit art is a fire equip ability; the copy
+closure walks that hit art (`kEdgeHitArt`), and HitEffectHook's art slot (only) lets its effects pass the fire check.
+`IsFireEffect` / `IsFireSpell` / `IsBurnable` are unchanged (cost and lantern damage). The Illusion master spell's
+ability (0225AE, parent not fire) stays out. The engine asks the art once when the ability starts (at spell equip), so
+on each buff edge `EquipAbilityRefresh` removes and adds again, on the main thread, each live fire equip ability that
+is in the actor's spell list (`HasSpell`); one that is not is left as is and logged (`AddSpell` would keep it for good).
+Not run in game yet (b0ca21d6).
+
 ### Glow rules: `GreyGlow.h`
 
 [Read this section](docs/black-flame-v2-rendering.md#glow-rules-greyglowh).
