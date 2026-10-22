@@ -101,18 +101,27 @@ namespace GreyBuild
     // (the quads' transparent corners at the walls), the top 10.58 + 11.75 = 22.33 (1.1 under the lid; faster, longer-lived
     // particles pass it while fading), the bottom 10.58 - 5.40 = 5.18 (1.2 over the plate). At the 0.5 first tried the quads
     // would reach 10.9 off the axis, the top 25.27 and the bottom 3.85, through the walls, the lid and the plate. Round 11's base
-    // (kLanternTorchBaseShare) z 6.20: the top 17.95, the bottom 0.80 (the quads' faint lower part behind the plate). Precedent for a
-    // scaled fire addon node: the imperial chandelier candles' AddOnNode65 at 0.4 (impchandelliercandle01.nif). Whether the
-    // node's scale shrinks the particles themselves as well as the emitter is not checked in game
-    inline constexpr float kLanternTorchFireScale = 0.4f;
+    // (kLanternTorchBaseShare) z 6.20 at 0.4: the top 17.95, the bottom 0.80 (the quads' faint lower part behind the plate).
+    // Round 12 (2026-10-22, user: the fire 70% lower, the node's scale 0.25, the flame's foot kept on the floor): 0.25, the
+    // node lowered so the emitter sphere's bottom stays where round 11's was (TorchBaseOf, kLanternTorchEmitterRadius): z 5.45,
+    // the top 12.80, 5.45 off the axis, the quads' lower part to z 2.08 behind the plate. Precedent for a scaled fire addon
+    // node: the imperial chandelier candles' AddOnNode65 at 0.4 (impchandelliercandle01.nif). Whether the node's scale shrinks
+    // the particles themselves as well as the emitter is not checked in game
+    inline constexpr float kLanternTorchFireScale = 0.25f;
+    // Round 11's scale, at which kLanternTorchBaseShare placed the node (round 12 keeps that emitter's bottom)
+    inline constexpr float kLanternTorchRound11Scale = 0.4f;
+    // MPSTorchFire01's NiPSysSphereEmitter radius, unscaled (above): where its particles are born around the node
+    inline constexpr float kLanternTorchEmitterRadius = 5.0f;
     // That unscaled reach of MPSTorchFire01's particle quads (above, at mean speed and life): off the axis, above the node,
     // below it. The build logs it x kLanternTorchFireScale against the cage it measures
     inline constexpr std::array<float, 3> kLanternTorchFireReach{ 21.8f, 29.4f, 13.5f };
     // The torch fire node's height (round 11, 2026-10-22, user: the gap between the fire and the lantern's floor cut to a third).
     // The floor is candlelantern01's base plate top, z 4.01 of the frame's 31.74 (round 9 log), as a share of the height so the
     // self-test's made-up frame keeps the rule; round 10's base was kLanternFlameBaseShare (z 10.58, 6.57 over the floor), so
-    // the node stands kLanternTorchGapShare of that over the floor: z 4.01 + 2.19 = 6.20. The worn model's spindles keep
-    // kLanternFlameBaseShare (their clearance to the frame is checked at that base)
+    // the node stood kLanternTorchGapShare of that over the floor: z 4.01 + 2.19 = 6.20 at round 11's scale. Round 12 lowers it by
+    // kLanternTorchEmitterRadius x (kLanternTorchRound11Scale - kLanternTorchFireScale), so the fire's foot (the emitter sphere's
+    // bottom, z 4.20) stays on the floor while the fire shrinks. The worn model's spindles keep kLanternFlameBaseShare (their
+    // clearance to the frame is checked at that base)
     inline constexpr float kLanternFloorShare = 4.01f / 31.74f;
     inline constexpr float kLanternTorchGapShare = 1.0f / 3.0f;
     // BSXFlags bit 0, Animated, and bit 4, Addon (nif.xml BSXFlags): the ground model carries an addon node, and the vanilla
@@ -575,7 +584,7 @@ namespace GreyBuild
         LanternBox frameBounds;             // the ground frame's vertex bounds (root space)
         std::array<float, 3> cageCentre{};
         // on the cage axis (ground root space): the worn outer layer's base before the worn transform, and the ground model's
-        // torch fire node (kLanternTorchBaseShare, round 11)
+        // torch fire node (TorchBaseOf: kLanternTorchBaseShare, lowered for the scale since round 12)
         std::array<float, 3> flameBase{};
         std::array<float, 3> torchBase{};
         float flameHeight = 0.0f;           // the worn outer layer's height and widest radius (ground units, before the worn scale)

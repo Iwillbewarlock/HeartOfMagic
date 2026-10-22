@@ -562,13 +562,16 @@ namespace GreyBuild::SelfTest
             "lantern gnd: the frame bounds reported with the hook, for the record's ObjectBounds");
         const auto flame = FlameReadBack(out);
         const float gndBase = kFrameHeight * kLanternFlameBaseShare;
-        const float torchBase = kFrameHeight * kLanternTorchBaseShare;
+        // round 12: lowered from round 11's place by what the smaller scale takes off the emitter's radius
+        const float torchBase = kFrameHeight * kLanternTorchBaseShare -
+                                kLanternTorchEmitterRadius * (kLanternTorchRound11Scale - kLanternTorchFireScale);
         const float gndHeight = kFrameHeight * kLanternFlameHeightShare;
         // the walls 18 x 16 (the rings' outline): the widest radius from the smaller
         const float gndRadius = kLanternFlameRadiusShare * 2.0f * std::min(kFrameHalfX, kFrameHalfY);
         {
             // the torch fire node: AddOnNode9146 value 9146, the candle lantern's value flags, under the root, on the cage axis
-            // (0, 0: the hook is outside the walls' band) at kLanternTorchBaseShare x the frame's height (round 11), scaled
+            // (0, 0: the hook is outside the walls' band) at kLanternTorchBaseShare x the frame's height lowered for the scale
+            // (rounds 11-12), scaled
             const auto* node = gnd.valueNodes.size() == 1 ? &gnd.valueNodes.front() : nullptr;
             a_check.Check(node && node->name == "AddOnNode9146" && node->value == kLanternTorchAddon && kLanternTorchAddon == 9146 &&
                               node->flags == kLanternTorchValueFlags && node->parent == gnd.rootName,
@@ -577,15 +580,22 @@ namespace GreyBuild::SelfTest
                     node ? fmt::format(": '{}' value {} flags {} under '{}'", node->name, node->value, node->flags, node->parent) : std::string()));
             a_check.Check(node && Near(node->translation[0], 0.0f) && Near(node->translation[1], 0.0f) && Near(node->translation[2], torchBase) &&
                               Near(node->scale, kLanternTorchFireScale, 1e-6f) && Near(result.torchBase[2], torchBase),
-                fmt::format("lantern gnd: the torch fire node on the cage axis at z {:.4f} (kLanternTorchBaseShare x the frame's height), "
+                fmt::format("lantern gnd: the torch fire node on the cage axis at z {:.4f} (kLanternTorchBaseShare x the frame's height, "
+                            "lowered for the scale), "
                             "scale {} (kLanternTorchFireScale) ({})", torchBase, kLanternTorchFireScale,
                     node ? fmt::format("{:.4f}, {:.4f}, {:.4f} scale {}", node->translation[0], node->translation[1], node->translation[2], node->scale) :
                            std::string("none")));
-            // round 11: the gap over the cage floor (kLanternFloorShare) a third of round 10's (kLanternFlameBaseShare)
+            // round 11: the gap over the cage floor (kLanternFloorShare) a third of round 10's (kLanternFlameBaseShare); round 12:
+            // the emitter sphere's bottom (the fire's foot) where round 11's was, at the smaller scale 0.25
             const float floor = kFrameHeight * kLanternFloorShare;
-            a_check.Check(Near(torchBase - floor, (gndBase - floor) / 3.0f) && torchBase > floor,
-                fmt::format("lantern gnd: the torch fire node {:.4f} over the cage floor z {:.4f}, a third of round 10's {:.4f}",
-                    torchBase - floor, floor, gndBase - floor));
+            const float round11 = kFrameHeight * kLanternTorchBaseShare;
+            const float foot = torchBase - kLanternTorchEmitterRadius * kLanternTorchFireScale;
+            const float round11Foot = round11 - kLanternTorchEmitterRadius * kLanternTorchRound11Scale;
+            a_check.Check(Near(round11 - floor, (gndBase - floor) / 3.0f) && Near(foot, round11Foot) && foot > floor &&
+                              Near(kLanternTorchFireScale, 0.25f, 1e-6f),
+                fmt::format("lantern gnd: scale {} (round 12), the fire's foot z {:.4f} where round 11's was ({:.4f}), over the cage floor "
+                            "z {:.4f}; round 11's node {:.4f} over the floor, a third of round 10's {:.4f}",
+                    kLanternTorchFireScale, foot, round11Foot, floor, round11 - floor, gndBase - floor));
         }
         {
             // the torch fire copy (round 11): the source's normal blend made additive (alpha test kept), its palette shader on

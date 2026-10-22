@@ -1700,11 +1700,14 @@ namespace GreyBuild
             return Vector3(a_cageCentre[0], a_cageCentre[1], a_frameBounds.min[2] + kLanternFlameBaseShare * a_frameBounds.Size(2));
         }
 
-        /// The ground model's torch fire node (round 11): on the cage axis, kLanternTorchBaseShare of the frame's height above its
-        /// bottom
+        /// The ground model's torch fire node: on the cage axis, kLanternTorchBaseShare of the frame's height above its bottom
+        /// (round 11, at kLanternTorchRound11Scale), lowered by what the smaller scale takes off the emitter sphere's radius, so its
+        /// bottom (the fire's foot) stays where round 11 had it (round 12)
         [[nodiscard]] Vector3 TorchBaseOf(const LanternBox& a_frameBounds, const std::array<float, 3>& a_cageCentre)
         {
-            return Vector3(a_cageCentre[0], a_cageCentre[1], a_frameBounds.min[2] + kLanternTorchBaseShare * a_frameBounds.Size(2));
+            const float lowered = kLanternTorchEmitterRadius * (kLanternTorchRound11Scale - kLanternTorchFireScale);
+            return Vector3(a_cageCentre[0], a_cageCentre[1],
+                a_frameBounds.min[2] + kLanternTorchBaseShare * a_frameBounds.Size(2) - lowered);
         }
 
         /// The torch fire copy (round 11): a_source's every blending alpha property made additive (destination ONE), then
@@ -2472,12 +2475,12 @@ namespace GreyBuild
                 (void)AddValueNode(copy, *copy.GetRootNode(), kLanternTorchAddon, kLanternTorchValueFlags, at, kLanternTorchFireScale);
                 const auto& reach = kLanternTorchFireReach;
                 log.push_back(fmt::format("ground fire: AddOnNode{} (value flags {}) at {} = the cage axis, the frame's bottom z {:.4f} + "
-                                          "{:.4f} (kLanternTorchBaseShare) x its height {:.4f}; scale {} (kLanternTorchFireScale): "
+                                          "{:.4f} (kLanternTorchBaseShare) x its height {:.4f} - {:.4f} (the emitter's foot kept); scale {} (kLanternTorchFireScale): "
                                           "MPSTorchFire01's particle quads reach about {} off the axis, {} above the node and {} below it "
                                           "unscaled (kLanternTorchFireReach), {:.2f}, z {:.2f} and z {:.2f} here; the cage walls {:.4f} "
                                           "off the axis",
                     kLanternTorchAddon, kLanternTorchValueFlags, Text(result.torchBase), result.frameBounds.min[2], kLanternTorchBaseShare,
-                    result.frameBounds.Size(2), kLanternTorchFireScale, reach[0], reach[1], reach[2], reach[0] * kLanternTorchFireScale,
+                    result.frameBounds.Size(2), kLanternTorchEmitterRadius * (kLanternTorchRound11Scale - kLanternTorchFireScale), kLanternTorchFireScale, reach[0], reach[1], reach[2], reach[0] * kLanternTorchFireScale,
                     at.z + reach[1] * kLanternTorchFireScale, at.z - reach[2] * kLanternTorchFireScale,
                     std::min(cageWalls.Size(0), cageWalls.Size(1)) * 0.5f));
                 const std::uint32_t before = bsx->integerData;
@@ -2864,7 +2867,7 @@ namespace GreyBuild
                     Check(problems, std::fabs(node->translation[0] - expected.x) <= kPlaceTolerance &&
                                         std::fabs(node->translation[1] - expected.y) <= kPlaceTolerance &&
                                         std::fabs(node->translation[2] - expected.z) <= kPlaceTolerance,
-                        fmt::format("gnd: {} at {}, expected {} (the cage axis, the frame's bottom + kLanternTorchBaseShare x its height)", name,
+                        fmt::format("gnd: {} at {}, expected {} (the cage axis, TorchBaseOf: the frame's bottom + kLanternTorchBaseShare x its height, lowered for the scale)", name,
                             Text(node->translation), Text(ToArray(expected))));
                 } else {
                     Check(problems, false, "gnd: the frame's vertices do not read for the torch fire node's place");
@@ -3085,10 +3088,12 @@ namespace GreyBuild
         }
         {
             for (const auto& node : InspectLanternNif(a_dataDir / kLanternGroundNif).valueNodes) {
+                const float lowered = kLanternTorchEmitterRadius * (kLanternTorchRound11Scale - kLanternTorchFireScale);
                 std::cout << fmt::format("ground fire (read back): '{}' value {} flags {} at {} scale {} under '{}'; expected z {:.4f} = the "
-                                         "frame's bottom {:.4f} + {:.4f} x {:.4f}, scale {} (kLanternTorchFireScale)\n",
+                                         "frame's bottom {:.4f} + {:.4f} x {:.4f} - {:.4f}, scale {} (kLanternTorchFireScale)\n",
                     node.name, node.value, node.flags, Text(node.translation), node.scale, node.parent,
-                    b.min[2] + kLanternTorchBaseShare * b.Size(2), b.min[2], kLanternTorchBaseShare, b.Size(2), kLanternTorchFireScale);
+                    b.min[2] + kLanternTorchBaseShare * b.Size(2) - lowered, b.min[2], kLanternTorchBaseShare, b.Size(2), lowered,
+                    kLanternTorchFireScale);
             }
             const auto flame = FlameReadBack(a_dataDir);
             for (std::size_t l = 0; l < kLanternFlameLayers.size(); ++l) {

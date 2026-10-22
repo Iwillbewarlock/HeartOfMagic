@@ -291,17 +291,20 @@ spindles) is one `BSValueNode` `AddOnNode9146` (value 9146, value flags 1 as the
 `candlelanternwithcandle01.nif` has on its AddOnNode49) under the root, on the cage axis at `kLanternTorchBaseShare` of the
 frame's height (0, 0.33, 6.20 of 31.74; round 11, user 2026-10-22: the gap between the fire and the lantern's floor cut to a
 third - the base plate tops out at z 4.01, round 10's node stood at a third of the height, z 10.58, so 6.57 over it, now
-2.19), uniform scale 0.4 (`kLanternTorchFireScale`); BSXFlags 0xC2 -> 0xD3 (Animated and Addon, as
+2.19, at scale 0.4), uniform scale 0.25 (`kLanternTorchFireScale`; round 12, user 2026-10-22: the fire 70% lower, node
+scale 0.25, its foot kept on the floor: the node is lowered by the emitter radius 5 x (0.4 - 0.25) = 0.75 to z 5.45, so the
+emitter sphere's bottom stays at round 11's z 4.20, 0.19 over the plate); BSXFlags 0xC2 -> 0xD3 (Animated and Addon, as
 the vanilla models carrying an addon node: candlelanternwithcandle01 0x9B, fxsmokechimney01 / fxfire01new 0x31). The engine
 emits ADDN 0x81D's grey torch fire (section "Grey duplicates") there. Immersive Equipment Displays shows this model on the
-body with its addon nodes, so the same fire burns on the ground and worn. Why 0.4 (measured on MPSTorchFire01, vanilla
+body with its addon nodes, so the same fire burns on the ground and worn. Why 0.4 in round 10 (measured on MPSTorchFire01, vanilla
 and CS Particle Patch alike): a sphere emitter of radius 5, particles of radius 13 scaled up to 1.16 at 37% of their life,
 rising at 54 units/s for a third of a second, alpha faded out over the last 40%; unscaled their quads reach about 21.8 off
 the axis, 29.4 above the node and 13.5 below it (`kLanternTorchFireReach`). The cage is 8.67 from the axis to the nearer
 walls, its base plate tops out at z 4.01 and the lid's underside is at z 23.44: at 0.4 that is 8.72 off the axis (the
 quads' transparent corners at the walls), z 22.34 at the top and z 5.18 at the bottom from round 10's z 10.58; at 0.5 it
 would be 10.9, 25.27 and 3.85, through the walls, the lid and the plate. From round 11's z 6.20 the top is z 17.95 and the
-quads' faint lower part reaches z 0.80, behind the plate. Precedent for a scaled fire addon node: the imperial chandelier candles'
+quads' faint lower part reaches z 0.80, behind the plate. Round 12's 0.25 at z 5.45: 5.45 off the axis, the top z 12.80,
+the lower part z 2.08 behind the plate. Precedent for a scaled fire addon node: the imperial chandelier candles'
 AddOnNode65 at 0.4. The build logs that reckoning; the read-back checks the node's name, value, flags, parent, place
 (the cage axis from the frame's wall vertices, the base from its bounds) and scale, the BSXFlags bits, the torch fire copy
 (every blending alpha property additive, every palette shader on `GradBlackFlameAdd.dds`), and that no flame
@@ -400,7 +403,7 @@ separate byte reader).
 the always-loaded grey 9109 behaves like 9; that an extra ADDN record from the local ESL works. The lantern's torch fire
 (0x81D, round 11): that it draws as the spells' black flame (round 10's normal-blend copy on GradBlackFlame.dds was all
 black; additive on GradBlackFlameAdd.dds, palette colour and alpha on as in the source, the palette's alpha 0 at u 0 keeps
-the sprite's clear corners clear); that the AddOnNode9146's scale 0.4 shrinks the
+the sprite's clear corners clear); that the AddOnNode9146's scale (0.25 since round 12) shrinks the
 particles as well as the emitter (mod precedent only, e.g. the imperial chandelier candles' AddOnNode65 at 0.4; no vanilla
 Meshes1 AddOnNode is scaled) and that the fire then stays inside the cage; that IED attaches the ground model's addon node on
 the body (its lantern presets also scale the model 0.6); the inventory menu is expected to show the lantern without fire
