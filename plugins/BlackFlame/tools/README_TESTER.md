@@ -27,15 +27,16 @@ is not public yet its source is in the package as `source\HeartOfMagic-<version>
 ## Install
 
 **Mod Organizer 2**
-1. Install the zip as a mod (Install a new mod from archive) and enable it with its three plugins
-   (`HeartOfMagic_BlackFlame.esp`, `HeartOfMagic_BlackFlame_Copies.esp`, `HeartOfMagic_BlackFlame_Local.esp`).
+1. Install the zip as a mod (Install a new mod from archive) and enable it with its four plugins
+   (`HeartOfMagic_BlackFlame.esp`, `HeartOfMagic_BlackFlame_Copies.esp`, `HeartOfMagic_BlackFlame_Local.esp`,
+   `HeartOfMagic_BlackFlame_Slots.esp`).
 2. Make an empty mod named `HeartOfMagic BlackFlame Copies` (right-click the mod list, Create empty mod) and place
    it **after** Heart of Magic - Black Flame.
 3. Add `tools\BlackFlame\blackflame-greybuild.exe` from the Black Flame mod folder as an executable with the
    arguments `--from-game --out "<your MO2 mods folder>\HeartOfMagic BlackFlame Copies"`.
 
 **Vortex**
-1. Install the zip as a mod and enable its three plugins.
+1. Install the zip as a mod and enable its four plugins.
 2. You will run `tools\BlackFlame\Build Black Flame copies.bat` from the mod's staging folder (step 2 of "Run"). With no
    argument it writes to `HeartOfMagic BlackFlame Copies` in your Documents folder; zip that folder and install the zip
    as a mod. Or give the bat a folder inside Vortex's staging folder as its argument.
