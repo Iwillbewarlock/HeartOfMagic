@@ -6,7 +6,7 @@
   **CommonLibSSE-NG @COMMONLIB_VERSION@**, which is licensed GPL-3.0-or-later with the **Modding Exception** and the
   **GPL-3.0 Linking Exception**, and is distributed under those terms: `licenses/CommonLibSSE-NG/COPYING.txt`
   (GNU GPL version 3) and `licenses/CommonLibSSE-NG/EXCEPTIONS.md` (the two exceptions).
-- **`tools/BlackFlame/blackflame-greybuild.exe` is a GPL-3.0 combined work.** It statically links **nifly**
+- **`SKSE/Plugins/HeartOfMagic_BlackFlame/blackflame-greybuild.exe` is a GPL-3.0 combined work.** It statically links **nifly**
   (GPL-3.0) and is distributed under the GNU GPL version 3 (`licenses/nifly.txt`).
 - **Heart of Magic's own source files are MIT** (the repository's `LICENSE`). MIT is compatible with the GPL; files
   you take from this project on their own stay MIT.
