@@ -43,9 +43,11 @@ namespace BlackFlame::CorpseColours
     template <class Data>  // TESEffectShader::Data
     [[nodiscard]] bool FireKeys(const Data& a_data, bool a_membraneDrawn, bool a_particlesDrawn)
     {
+        // review Codex: the rim's colour is edgeEffectColor (vanilla FireFXShader: grey/white fill keys, edge 146,65,5)
         const bool membrane = a_membraneDrawn && (FireColoured(a_data.fillTextureEffectColorKey1) ||
                                                      FireColoured(a_data.fillTextureEffectColorKey2) ||
-                                                     FireColoured(a_data.fillTextureEffectColorKey3));
+                                                     FireColoured(a_data.fillTextureEffectColorKey3) ||
+                                                     FireColoured(a_data.edgeEffectColor));
         const bool particles = a_particlesDrawn && (FireColoured(a_data.colorKey1) || FireColoured(a_data.colorKey2) ||
                                                        FireColoured(a_data.colorKey3));
         return membrane || particles;

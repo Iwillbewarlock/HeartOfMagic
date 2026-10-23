@@ -102,15 +102,19 @@ namespace CorpseColoursTests
         struct Data
         {
             Key fillTextureEffectColorKey1, fillTextureEffectColorKey2, fillTextureEffectColorKey3;
+            Key edgeEffectColor;
             Key colorKey1, colorKey2, colorKey3;
         };
-        const Key grey{ 0x80, 0x80, 0x80 }, orange{ 0xF2, 0x96, 0x64 };
-        const Data patched{ grey, grey, grey, grey, orange, orange };  // FE91A8E2 after FEC's Embers XD patch
+        const Key grey{ 0x80, 0x80, 0x80 }, white{ 0xFF, 0xFF, 0xFF }, orange{ 0xF2, 0x96, 0x64 }, edge{ 146, 65, 5 };
+        const Data patched{ grey, grey, grey, grey, grey, orange, orange };  // FE91A8E2 after FEC's Embers XD patch
         a_check(C::FireKeys(patched, true, true) && !C::FireKeys(patched, true, false),
             "corpse colours: orange particle keys make the shader fire only while its particle stage is drawn");
-        a_check(!C::FireKeys(Data{ grey, grey, grey, grey, grey, grey }, true, true) &&
-                    C::FireKeys(Data{ grey, orange, grey, grey, grey, grey }, true, false) &&
-                    !C::FireKeys(Data{ grey, orange, grey, grey, grey, grey }, false, true),
+        a_check(!C::FireKeys(Data{ grey, grey, grey, grey, grey, grey, grey }, true, true) &&
+                    C::FireKeys(Data{ grey, orange, grey, grey, grey, grey, grey }, true, false) &&
+                    !C::FireKeys(Data{ grey, orange, grey, grey, grey, grey, grey }, false, true),
             "corpse colours: a grey shader is not fire; a fire fill key counts only with the membrane drawn");
+        const Data fireFx{ grey, white, white, edge, grey, grey, grey };  // vanilla FireFXShader: only the rim is orange
+        a_check(C::FireKeys(fireFx, true, false) && !C::FireKeys(fireFx, false, true),
+            "corpse colours: an orange edge colour makes the shader fire while its membrane is drawn (review Codex)");
     }
 }
