@@ -50,6 +50,7 @@ set(BLACKFLAME_SOURCES
     src/CorpseMark.cpp
     src/MagicApplySink.cpp
     src/CorpseGrey.cpp
+    src/CorpseColours.cpp
     src/CorpsePalettes.cpp
     src/SreProbe.cpp
     src/GameClock.cpp

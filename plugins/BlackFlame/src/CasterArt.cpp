@@ -32,6 +32,11 @@ namespace BlackFlame
         {
             RE::FormID spell = 0;  // the fire spell being cast, 0 when none
             bool logged = false;   // this cast's first line written
+            std::uintptr_t lightObject = 0;
+            std::uintptr_t light = 0;
+            RE::NiColor lastTint;
+            bool lightSampled = false;
+            bool lightTinted = false;
         };
 
         struct Hand
@@ -139,12 +144,63 @@ namespace BlackFlame
 
     namespace
     {
-        // The caster's light, through the RTTI check, tinted; its first old colour remembered
-        bool TintCasterLight(RE::ActorMagicCaster* a_caster)
+        struct LightSample
         {
+            std::uintptr_t object = 0;
+            std::uintptr_t light = 0;
+            RE::NiColor before;
+            RE::NiColor after;
             bool tinted = false;
-            (void)Guarded("casting light", [&]() { tinted = TintRememberedLight(CheckedLight(a_caster->light.get(), "casting")); });
-            return tinted;
+        };
+
+        // The caster's light, through the RTTI check, tinted; its first old colour remembered.
+        // Sample each tick: a cast can create its light after the first hand-art log, or replace it.
+        LightSample TintCasterLight(RE::ActorMagicCaster* a_caster)
+        {
+            LightSample sample;
+            (void)Guarded("casting light", [&]() {
+                sample.object = reinterpret_cast<std::uintptr_t>(a_caster->light.get());
+                auto* light = CheckedLight(a_caster->light.get(), "casting");
+                sample.light = reinterpret_cast<std::uintptr_t>(light);
+                if (light) {
+                    sample.before = light->GetLightRuntimeData().diffuse;
+                    sample.tinted = TintRememberedLight(light);
+                    sample.after = light->GetLightRuntimeData().diffuse;
+                }
+            });
+            return sample;
+        }
+
+        void LogCasterLight(RE::ActorMagicCaster* a_caster, RE::MagicItem* a_spell, const Hand& a_hand,
+            HandState& a_state, const LightSample& a_sample)
+        {
+            const bool changed = !a_state.lightSampled || a_state.lightObject != a_sample.object || a_state.light != a_sample.light;
+            const bool rewritten = !changed && a_state.lightTinted && a_sample.before != a_state.lastTint;
+            int line = 0, keyLine = 0;
+            const auto key = (std::uint64_t(a_spell->GetFormID()) << 3) | static_cast<unsigned>(a_hand.source);
+            if ((changed || rewritten) && LogLimit::PerKey(rewritten ? "casting light rewritten" : "casting light instance", key, line, keyLine)) {
+                // CheckAttachCastingArt selects the light from selectedSpells[source]->GetAVEffect(),
+                // not currentSpell's costliest effect. This is today's candidate, not the light's birth record.
+                const auto source = static_cast<unsigned>(a_caster->castingSource);
+                auto* selected = a_caster->actor && source < RE::Actor::SlotTypes::kTotal ?
+                    a_caster->actor->GetActorRuntimeData().selectedSpells[source] : nullptr;
+                const auto* base = selected ? selected->GetAVEffect() : nullptr;
+                const auto* record = base ? base->data.light : nullptr;
+                logger::info("BlackFlame: casting light {} #{} key#{}: player {} source {} fire {:08X} selected {:08X} current {:08X} "
+                             "candidate MGEF {:08X} LIGH {:08X} object 0x{:X} NiLight 0x{:X}: diffuse ({:.4f},{:.4f},{:.4f}) -> "
+                             "({:.4f},{:.4f},{:.4f}), tinted {}",
+                    rewritten ? "rewritten" : (a_sample.light ? "instance" : "absent"), line, keyLine, a_hand.label,
+                    source, a_spell->GetFormID(), selected ? selected->GetFormID() : 0,
+                    a_caster->currentSpell ? a_caster->currentSpell->GetFormID() : 0,
+                    base ? base->GetFormID() : 0, record ? record->GetFormID() : 0, a_sample.object, a_sample.light,
+                    a_sample.before.red, a_sample.before.green, a_sample.before.blue,
+                    a_sample.after.red, a_sample.after.green, a_sample.after.blue, a_sample.tinted);
+            }
+            a_state.lightObject = a_sample.object;
+            a_state.light = a_sample.light;
+            a_state.lastTint = a_sample.after;
+            a_state.lightSampled = true;
+            a_state.lightTinted = a_sample.tinted;
         }
 
         // Entries only we still hold (the art or light is gone from the scene): restoring them is
@@ -296,7 +352,12 @@ namespace BlackFlame
                 !Guarded("hand art recolour", [&]() { places = RecolorHandArt(a_player, caster, a_hand, recolored); })) {
                 places = "hand art recolour faulted (step off)";
             }
-            const bool lightTinted = config.light && TintCasterLight(caster);
+            LightSample light;
+            if (config.light) {
+                light = TintCasterLight(caster);
+                LogCasterLight(caster, spell, a_hand, a_state, light);
+            }
+            const bool lightTinted = light.tinted;
 
             if (a_state.logged && recolored == 0) {
                 return;

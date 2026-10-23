@@ -35,15 +35,19 @@ namespace BlackFlame
         void Refresh(bool a_stoked)
         {
             const auto& config = GetConfig();
+            const char* state = a_stoked ? "buff on" : "buff off";
             if (!config.copyHitArt && !config.hitArt) {  // the art slot changes nothing then
+                logger::info("BlackFlame: equip ability refresh ({}): art disabled", state);
                 return;
             }
             auto* player = RE::PlayerCharacter::GetSingleton();
             if (!player) {
+                logger::info("BlackFlame: equip ability refresh ({}): no player", state);
                 return;
             }
-            const char* state = a_stoked ? "buff on" : "buff off";
-            for (auto* ability : LiveFireEquipAbilities(player)) {
+            const auto abilities = LiveFireEquipAbilities(player);
+            logger::info("BlackFlame: equip ability refresh ({}): {} live fire equip abilities", state, abilities.size());
+            for (auto* ability : abilities) {
                 const auto id = ability->GetFormID();
                 if (!player->HasSpell(ability)) {
                     logger::info("BlackFlame: equip ability refresh {:08X} ({}): not in the actor's spell list: left as is",

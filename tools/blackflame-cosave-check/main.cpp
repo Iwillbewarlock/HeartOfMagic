@@ -25,6 +25,7 @@
 #include "../../plugins/BlackFlame/src/SlotCoSave.h"
 #include "BuilderControlTests.h"
 #include "CoSaveFileTests.h"
+#include "CorpseColoursTests.h"
 #include "ElementalHitRulesTests.h"
 #include "EquipAbilityRulesTests.h"
 #include "IdentityTests.h"
@@ -467,6 +468,7 @@ int main(int a_argc, char** a_argv)
     suite("builder control", [](auto&& a_check) { BuilderControlTests::Run(a_check); });
     suite("publication", [](auto&& a_check) { PublicationTests::Run(a_check); });
     suite("elemental hit rules", [](auto&& a_check) { ElementalHitRulesTests::Run(a_check); });
+    suite("corpse colours", [](auto&& a_check) { CorpseColoursTests::Run(a_check); });
     suite("lantern damage rules", [](auto&& a_check) { LanternDamageRulesTests::Run(a_check); });
     suite("lantern ied rules", [](auto&& a_check) { LanternIedRulesTests::Run(a_check); });
     suite("equip ability rules", [](auto&& a_check) { EquipAbilityRulesTests::Run(a_check); });

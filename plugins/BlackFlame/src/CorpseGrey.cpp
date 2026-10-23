@@ -2,6 +2,8 @@
 
 #include "Config.h"
 #include "CorpseMark.h"
+#include "CorpseColourRules.h"
+#include "CorpseColours.h"
 #include "CopyContractEfshBase.h"
 #include "CorpsePalettes.h"
 #include "GameClock.h"
@@ -51,7 +53,7 @@ namespace BlackFlame::HitPath::Detail
         std::atomic<bool> g_failureReported{ false };
         bool g_hooked = false;  // written once at kDataLoaded before the write_calls; read-only afterwards
 
-        // Up for 34934's original call while this thread's SRE has its own grey particle palette (hook B reads it)
+        // Up for 34934's original call for every marked SRE: keys need greying even without a texture copy.
         thread_local bool t_privateParticles = false;
 
         class PrivateParticlesScope
@@ -185,9 +187,7 @@ namespace BlackFlame::HitPath::Detail
                 CopyContract::EfshRoleHas(bases, CopyContract::EfshRole::kParticle), MemberResult::kNoCopy);
             Look(a_swap.fill, a_sre->fillTexture, shader->fillTexture, &CorpsePalettes::FindBase,
                 CopyContract::EfshRoleHas(bases, CopyContract::EfshRole::kMembrane), MemberResult::kNoCopy);
-            if (a_swap.particle.Grey() || a_swap.particleBase.Grey()) {
-                a_swap.privateParticles = true;  // first: hook B must see it whenever +0xD0 or +0xD8 holds a grey texture
-            }
+            a_swap.privateParticles = true;  // hook B greys the live keys too, including palette-less sparks
             if (a_swap.particle.Grey()) {
                 a_sre->particlePaletteTexture.reset(a_swap.particle.grey);
             }
@@ -266,7 +266,7 @@ namespace BlackFlame::HitPath::Detail
                 }
             }
             const auto* shader = a_sre->effectData;
-            logger::info("BlackFlame: corpse kept [{}]: {}, SRE 0x{:X}, shader {:08X} '{}'", line,
+            logger::info("BlackFlame: corpse textures kept [{}]: {}, SRE 0x{:X}, shader {:08X} '{}' (instance colours handled separately)", line,
                 a_swap.noShader ? std::string("no effectData") :
                 noGrey          ? std::format("no grey palette for {}", paths) :
                 noCopy          ? std::format("no copy (not built or not fire) for {}", paths) :
@@ -324,6 +324,7 @@ namespace BlackFlame::HitPath::Detail
                     const PrivateParticlesScope scope(swap.privateParticles);
                     result = func(a_sre);
                 }
+                GreyCorpseMembrane(a_sre, "attach");
                 try {
                     if (!GuardedKeep("corpse attach line", [&]() { ObserveAttach(a_sre, swap); })) {
                         ReportFailure("the attach line (a fault)");
@@ -337,12 +338,12 @@ namespace BlackFlame::HitPath::Detail
             static inline REL::Relocation<decltype(thunk)> func;
         };
 
-        void LogPrivate(const RE::TESEffectShader* a_shader, const RE::NiSourceTexture* a_base, const RE::NiSourceTexture* a_palette,
+        bool LogPrivate(const RE::TESEffectShader* a_shader, const RE::NiSourceTexture* a_base, const RE::NiSourceTexture* a_palette,
             const void* a_property, const void* a_cacheBefore, const void* a_cacheAfter)
         {
             int line = 0;
             if (!TakeLine(g_privateLines, kMaxPrivateLines, line)) {
-                return;
+                return false;
             }
             logger::info("BlackFlame: corpse particles private [{}]: shader {:08X} '{}', base {}, palette {}, property 0x{:X} (share "
                          "false), the shader's shared cache 0x{:X} -> 0x{:X} ({}), thread {}", line,
@@ -350,6 +351,7 @@ namespace BlackFlame::HitPath::Detail
                 reinterpret_cast<std::uintptr_t>(a_property), reinterpret_cast<std::uintptr_t>(a_cacheBefore),
                 reinterpret_cast<std::uintptr_t>(a_cacheAfter), a_cacheBefore == a_cacheAfter ? "unchanged" : "CHANGED",
                 REX::W32::GetCurrentThreadId());
+            return true;
         }
 
         struct FactoryHook
@@ -359,15 +361,31 @@ namespace BlackFlame::HitPath::Detail
                 bool a_share)
             {
                 g_counts.factoryCalls.fetch_add(1, std::memory_order_relaxed);
-                if (!t_privateParticles || !a_share) {
+                if (!t_privateParticles) {
                     return func(a_shader, a_base, a_palette, a_share);
                 }
                 const void* cacheBefore = a_shader ? a_shader->unk210 : nullptr;
-                auto* property = func(a_shader, a_base, a_palette, false);
+                std::array<RE::NiColorA, 3> before{};
+                auto* property = CorpseColours::MakeParticles(true, a_share, [&](bool a_shared) {
+                    auto* result = static_cast<RE::BSParticleShaderProperty*>(func(a_shader, a_base, a_palette, a_shared));
+                    if (result) {
+                        before = { result->colorKey1, result->colorKey2, result->colorKey3 };
+                    }
+                    return result;
+                });
                 g_counts.privateCreated.fetch_add(1, std::memory_order_relaxed);
                 try {
                     if (!GuardedKeep("corpse particles private line", [&]() {
-                            LogPrivate(a_shader, a_base, a_palette, property, cacheBefore, a_shader ? a_shader->unk210 : nullptr);
+                            if (LogPrivate(a_shader, a_base, a_palette, property, cacheBefore, a_shader ? a_shader->unk210 : nullptr) && property) {
+                                const std::array after{ property->colorKey1, property->colorKey2, property->colorKey3 };
+                                logger::info("BlackFlame: corpse particle colours: shader {:08X}, property 0x{:X}, "
+                                             "key1 ({:.3f},{:.3f},{:.3f}) -> {:.3f}, key2 ({:.3f},{:.3f},{:.3f}) -> {:.3f}, "
+                                             "key3 ({:.3f},{:.3f},{:.3f}) -> {:.3f}; RGB equal, alpha kept, share false",
+                                    a_shader ? a_shader->GetFormID() : 0, reinterpret_cast<std::uintptr_t>(property),
+                                    before[0].red, before[0].green, before[0].blue, after[0].red,
+                                    before[1].red, before[1].green, before[1].blue, after[1].red,
+                                    before[2].red, before[2].green, before[2].blue, after[2].red);
+                            }
                         })) {
                         ReportFailure("the private particles line (a fault)");
                     }
@@ -428,6 +446,9 @@ namespace BlackFlame::HitPath::Detail
             }
             return;
         }
+        if (!InstallCorpseColours()) {
+            return;
+        }
         // B first: it forwards unchanged until A raises the flag; each original is set before its E8 is written
         FactoryHook::func = decltype(FactoryHook::func){ factory };
         (void)Patch::WriteCall(kNameB, siteB, FactoryHook::thunk, "share false while hook A's private flag is up");
@@ -436,7 +457,7 @@ namespace BlackFlame::HitPath::Detail
         g_hooked = true;
         logger::info("BlackFlame: corpse grey hooked (A 34933 +0x12D, B 34934 +0x2EC); greyCorpseShaders {}: {}",
             GetConfig().greyCorpseShaders ? "true" : "false",
-            GetConfig().greyCorpseShaders ? "a marked SRE takes the grey palettes" : "the hooks forward unchanged");
+            GetConfig().greyCorpseShaders ? "a marked SRE takes grey textures and private colours" : "the hooks forward unchanged");
     }
 
     std::string CorpseGreyStats()
@@ -445,7 +466,7 @@ namespace BlackFlame::HitPath::Detail
             return "corpse grey not hooked";
         }
         const auto& c = g_counts;
-        return std::format("attach 34934 {} calls, {} with the bit: greyed {} (particle palette {}, membrane palette {}, particle "
+        return std::format("attach 34934 {} calls, {} with the bit: textures greyed {} (particle palette {}, membrane palette {}, particle "
                            "base {}, fill {}), kept with no grey palette {}, kept with no base copy (not built or not fire) {}, kept "
                            "with nothing to grey {}, kept with greyCorpseShaders false {}; particle factory {} calls, {} private; {}",
             c.attachCalls.load(), c.attachMarked.load(), c.swapped.load(), c.particleSwaps.load(), c.membraneSwaps.load(),
