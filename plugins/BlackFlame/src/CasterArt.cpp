@@ -10,6 +10,7 @@
 
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <format>
 #include <memory>
 #include <mutex>
@@ -332,6 +333,60 @@ namespace BlackFlame
                 seen == 0 ? DescribePlace("casting art effects", artEffects) : "casting art effects: not searched");
         }
 
+        // Aura light probe (2026-10-23, log only): the Fire Storm aura's orange LIGHT on the body and floor is unexplained.
+        // Candidates the hand ticks do not cover: a caster other than the two hands (kOther, kInstant), a light under the
+        // player's 3D that is no caster's (art, LightPlacer), an orange ambient. While a hand holds a fire spell, every 2 s,
+        // 12 lines a session: each caster's light and every NiPointLight under the third-person 3D, diffuse and ambient.
+        constexpr std::int64_t kLightProbeEveryMs = 2000;
+        constexpr int kMaxLightProbeLines = 12;
+        constexpr std::size_t kMaxProbedLights = 16;
+        std::atomic<int> g_lightProbeLines{ 0 };
+        std::atomic<std::int64_t> g_lightProbeLast{ 0 };
+
+        std::string LightText(const RE::NiLight* a_light)
+        {
+            if (!a_light) {
+                return "none";
+            }
+            const auto& data = a_light->GetLightRuntimeData();
+            const auto* parent = a_light->parent;
+            return std::format("0x{:X} '{}' under '{}' diffuse ({:.3f},{:.3f},{:.3f}) ambient ({:.3f},{:.3f},{:.3f})",
+                reinterpret_cast<std::uintptr_t>(a_light), a_light->name.c_str(), parent ? parent->name.c_str() : "-",
+                data.diffuse.red, data.diffuse.green, data.diffuse.blue, data.ambient.red, data.ambient.green, data.ambient.blue);
+        }
+
+        void ProbePlayerLights(RE::PlayerCharacter* a_player)
+        {
+            const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count();
+            auto last = g_lightProbeLast.load();
+            if (g_lightProbeLines.load() >= kMaxLightProbeLines || now - last < kLightProbeEveryMs ||
+                !g_lightProbeLast.compare_exchange_strong(last, now)) {
+                return;
+            }
+            std::string casters;
+            for (const auto source : { RE::MagicSystem::CastingSource::kLeftHand, RE::MagicSystem::CastingSource::kRightHand,
+                     RE::MagicSystem::CastingSource::kOther, RE::MagicSystem::CastingSource::kInstant }) {
+                auto* caster = skyrim_cast<RE::ActorMagicCaster*>(a_player->GetMagicCaster(source));
+                const char* kind = "";
+                auto* light = caster ? AsNiLight(caster->light.get(), kind) : nullptr;
+                casters += std::format("{}source {}: {}{}", casters.empty() ? "" : "; ", static_cast<unsigned>(source),
+                    caster ? "" : "no caster ", LightText(light));
+            }
+            std::string scene;
+            std::size_t found = 0;
+            if (auto* root = a_player->Get3D(false)) {
+                RE::BSVisit::TraverseScenegraphLights(root, [&](RE::NiPointLight* a_light) {
+                    if (++found <= kMaxProbedLights) {
+                        scene += std::format(" | {}", LightText(a_light));
+                    }
+                    return RE::BSVisit::BSVisitControl::kContinue;
+                });
+            }
+            logger::info("BlackFlame: aura light probe [{}]: casters {}; lights under the player's 3D: {}{}",
+                g_lightProbeLines.fetch_add(1) + 1, casters, found, scene);
+        }
+
         void TickHand(RE::PlayerCharacter* a_player, const Hand& a_hand, HandState& a_state)
         {
             const auto& config = GetConfig();
@@ -430,6 +485,7 @@ namespace BlackFlame
             return;
         }
         PruneDead();
+        bool fireHeld = false;
         for (std::size_t i = 0; i < kHandCount; ++i) {
             HandState hand;
             const auto generation = g_restoreGeneration.load();
@@ -439,10 +495,14 @@ namespace BlackFlame
                 hand = State().hands[i];
             }
             TickHand(player, kHands[i], hand);
+            fireHeld = fireHeld || hand.spell != 0;
             std::lock_guard lock(g_mutex);
             if (generation == g_restoreGeneration.load()) {
                 State().hands[i] = hand;  // a restore in between already reset the hands: nothing stale goes back
             }
+        }
+        if (fireHeld) {
+            (void)Guarded("aura light probe", [&]() { ProbePlayerLights(player); });
         }
     }
 }

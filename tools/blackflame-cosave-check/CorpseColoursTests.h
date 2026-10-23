@@ -84,5 +84,33 @@ namespace CorpseColoursTests
         (void)C::GreyMembrane(true, &player);
         a_check(Grey(player.rimColor) && player.rimColor.red < 0.0f && player.rimColor.alpha == 0.7f,
             "corpse colours: subtractive rim RGB stays signed rather than clamped to black");
+
+        // review R1: the fire decision on the record's byte keys (values from the 2026-10-23 run's FEC and Embers XD records)
+        struct Key
+        {
+            int red, green, blue;
+        };
+        a_check(C::FireColoured(Key{ 0xF2, 0x96, 0x64 }) && C::FireColoured(Key{ 0xD5, 0x84, 0x5C }) &&
+                    C::FireColoured(Key{ 0xFF, 0xD0, 0x40 }),
+            "corpse colours: Embers XD's orange particle keys and a yellow flame are fire");
+        a_check(C::FireColoured(Key{ 0xFF, 0x20, 0x10 }) && !C::FireColoured(Key{ 0x60, 0x10, 0x08 }),
+            "corpse colours: a bright red is fire, a dark blood red under the red value floor is not");
+        a_check(!C::FireColoured(Key{ 0x80, 0x80, 0x80 }) && !C::FireColoured(Key{ 0xFF, 0xFF, 0xFF }) &&
+                    !C::FireColoured(Key{ 0x80, 0x80, 0xFF }) && !C::FireColoured(Key{ 0x40, 0xC0, 0x40 }) &&
+                    !C::FireColoured(Key{ 0, 0, 0 }),
+            "corpse colours: grey, white, blue, green and black keys are not fire (and black divides by nothing)");
+        struct Data
+        {
+            Key fillTextureEffectColorKey1, fillTextureEffectColorKey2, fillTextureEffectColorKey3;
+            Key colorKey1, colorKey2, colorKey3;
+        };
+        const Key grey{ 0x80, 0x80, 0x80 }, orange{ 0xF2, 0x96, 0x64 };
+        const Data patched{ grey, grey, grey, grey, orange, orange };  // FE91A8E2 after FEC's Embers XD patch
+        a_check(C::FireKeys(patched, true, true) && !C::FireKeys(patched, true, false),
+            "corpse colours: orange particle keys make the shader fire only while its particle stage is drawn");
+        a_check(!C::FireKeys(Data{ grey, grey, grey, grey, grey, grey }, true, true) &&
+                    C::FireKeys(Data{ grey, orange, grey, grey, grey, grey }, true, false) &&
+                    !C::FireKeys(Data{ grey, orange, grey, grey, grey, grey }, false, true),
+            "corpse colours: a grey shader is not fire; a fire fill key counts only with the membrane drawn");
     }
 }

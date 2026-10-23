@@ -8,4 +8,8 @@ namespace BlackFlame::HitPath::Detail
     // colours from the shared record; their chained vfuncs grey those values again after the original returns.
     [[nodiscard]] bool InstallCorpseColours();
     void GreyCorpseMembrane(RE::ShaderReferenceEffect* a_sre, const char* a_point);
+    // CorpseGrey's attach decides once per shader record whether it is fire (CorpseColourRules.h FireKeys, or a grey copy);
+    // Update and Pop grey only a marked SRE whose shader was decided fire. Records are never freed: their address is a key.
+    void NoteCorpseFireShader(const RE::TESEffectShader* a_shader, bool a_fire);
+    [[nodiscard]] bool IsCorpseFireShader(const RE::TESEffectShader* a_shader);
 }

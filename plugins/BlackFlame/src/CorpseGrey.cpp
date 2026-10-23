@@ -187,7 +187,13 @@ namespace BlackFlame::HitPath::Detail
                 CopyContract::EfshRoleHas(bases, CopyContract::EfshRole::kParticle), MemberResult::kNoCopy);
             Look(a_swap.fill, a_sre->fillTexture, shader->fillTexture, &CorpsePalettes::FindBase,
                 CopyContract::EfshRoleHas(bases, CopyContract::EfshRole::kMembrane), MemberResult::kNoCopy);
-            a_swap.privateParticles = true;  // hook B greys the live keys too, including palette-less sparks
+            // review R1: only a fire shader's live keys go grey (hook B, and CorpseColours' membrane hooks through the note)
+            const auto flags = CorpsePalettes::FlagsOf(shader->data);
+            const bool fire = a_swap.particle.Grey() || a_swap.particleBase.Grey() || a_swap.membrane.Grey() ||
+                              a_swap.fill.Grey() ||
+                              CorpseColours::FireKeys(shader->data, !flags.disableTextureShader, !flags.disableParticleShader);
+            NoteCorpseFireShader(shader, fire);
+            a_swap.privateParticles = fire;  // with it hook B greys the live keys too, including palette-less sparks
             if (a_swap.particle.Grey()) {
                 a_sre->particlePaletteTexture.reset(a_swap.particle.grey);
             }
@@ -447,6 +453,12 @@ namespace BlackFlame::HitPath::Detail
             return;
         }
         if (!InstallCorpseColours()) {
+            // review I3: all four or none, said as the site checks say it
+            constexpr const char* kWhy = "the corpse colours vtable check failed";
+            logger::error("BlackFlame: corpse grey not installed ({}): neither site hooked, the corpse mark has no effect", kWhy);
+            for (const auto& [name, site] : { std::pair{ kNameA, siteA }, std::pair{ kNameB, siteB } }) {
+                Patch::RecordHook(name, false, site, Patch::HexBytes(site, Patch::kRel32Size), kWhy);
+            }
             return;
         }
         // B first: it forwards unchanged until A raises the flag; each original is set before its E8 is written

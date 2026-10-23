@@ -7,6 +7,8 @@
 #include "SehGuard.h"
 
 #include <atomic>
+#include <shared_mutex>
+#include <unordered_map>
 
 namespace BlackFlame::HitPath::Detail
 {
@@ -17,8 +19,11 @@ namespace BlackFlame::HitPath::Detail
         constexpr std::size_t kPopSlot = 0x35;
         constexpr int kMaxAttachLines = 48;
         constexpr int kMaxRefillLines = 16;
-        std::atomic<int> g_attachLines{ 0 }, g_refillLines{ 0 };
+        // review I1: Update writes every frame, so it and Pop keep their own caps (Pop's lines are the stacked-Pop evidence)
+        std::atomic<int> g_attachLines{ 0 }, g_updateLines{ 0 }, g_popLines{ 0 };
         std::atomic<bool> g_failed{ false };
+        std::shared_mutex g_fireMutex;
+        std::unordered_map<const RE::TESEffectShader*, bool> g_fireShaders;  // a few dozen records at most
 
         struct UpdateHook
         {
@@ -42,9 +47,25 @@ namespace BlackFlame::HitPath::Detail
         };
     }
 
+    void NoteCorpseFireShader(const RE::TESEffectShader* a_shader, bool a_fire)
+    {
+        if (a_shader) {
+            std::unique_lock lock(g_fireMutex);
+            g_fireShaders[a_shader] = a_fire;
+        }
+    }
+
+    bool IsCorpseFireShader(const RE::TESEffectShader* a_shader)
+    {
+        std::shared_lock lock(g_fireMutex);
+        const auto it = g_fireShaders.find(a_shader);
+        return it != g_fireShaders.end() && it->second;  // not attached yet: left as it is
+    }
+
     void GreyCorpseMembrane(SRE* a_sre, const char* a_point)
     {
-        if (!a_sre || (a_sre->flags.underlying() & kCorpseGreyBit) == 0 || !GetConfig().greyCorpseShaders) {
+        if (!a_sre || (a_sre->flags.underlying() & kCorpseGreyBit) == 0 || !GetConfig().greyCorpseShaders ||
+            !IsCorpseFireShader(a_sre->effectData)) {
             return;
         }
         try {
@@ -57,7 +78,7 @@ namespace BlackFlame::HitPath::Detail
                 const auto rim = data->rimColor;
                 const bool changed = CorpseColours::GreyMembrane(true, data);
                 const bool attach = a_point[0] == 'a';
-                auto& lines = attach ? g_attachLines : g_refillLines;
+                auto& lines = attach ? g_attachLines : (a_point[0] == 'u' ? g_updateLines : g_popLines);
                 const int cap = attach ? kMaxAttachLines : kMaxRefillLines;
                 if ((!attach && !changed) || lines.load(std::memory_order_relaxed) >= cap || lines.fetch_add(1) >= cap) {
                     return;
@@ -89,7 +110,10 @@ namespace BlackFlame::HitPath::Detail
             logger::error("BlackFlame: corpse colours not installed: Update or Pop vtable target is not executable");
             return false;
         }
+        // review I4: each original is set before its slot is written (another thread may run the vfunc in between)
+        UpdateHook::func = decltype(UpdateHook::func){ entries[kUpdateSlot] };
         UpdateHook::func = Patch::WriteVfunc("corpse membrane colours (Update)", table, kUpdateSlot, UpdateHook::thunk);
+        PopHook::func = decltype(PopHook::func){ entries[kPopSlot] };
         PopHook::func = Patch::WriteVfunc("corpse membrane colours (Pop)", table, kPopSlot, PopHook::thunk);
         logger::info("BlackFlame: corpse colours hooked: private particle keys; membrane after attach, Update and Pop; "
                      "shared EFSH records kept");
