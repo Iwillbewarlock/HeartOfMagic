@@ -8,7 +8,9 @@
 #include "NifDump.h"
 #include "TrackedMutex.h"
 
+#include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <charconv>
 #include <chrono>
 #include <filesystem>
@@ -27,8 +29,9 @@ namespace BlackFlame::DataFiles
         namespace fs = std::filesystem;
         constexpr std::size_t kReadChunk = 1 << 16;
         constexpr const char* kFolderName = "HeartOfMagic_BlackFlame";  // as BuildProgress' and CopyRequest's
-        constexpr const char* kPersistName = "datafiles-hashes.tsv";
+        constexpr const char* kPersistStem = "datafiles-hashes";  // datafiles-hashes.<8 hex of the Data folder>.tsv
         constexpr std::string_view kPersistHeader = "HoMBF datafiles v1";
+        constexpr std::string_view kPersistTrailer = "end";  // "end\t<entries>\t<fnv64 of every line before it>"
         constexpr char kField = '\t';
 
         struct Cached
@@ -47,10 +50,19 @@ namespace BlackFlame::DataFiles
             std::uint64_t reused = 0;   // of them, used this session (no byte read)
         };
 
+        // review: one file per Data folder (installs and MO2 instances sharing the Documents folder keep their own), named
+        // as the ledger mirror is: the low 32 bits of the FNV-1a 64 of the lower-cased path
         std::optional<fs::path> PersistFile()
         {
             const auto log = SKSE::log::log_directory();
-            return log ? std::optional(*log / kFolderName / kPersistName) : std::nullopt;
+            const auto data = FileIndex::DataFolder();
+            if (!log || !data) {
+                return std::nullopt;
+            }
+            auto text = data->lexically_normal().string();
+            std::transform(text.begin(), text.end(), text.begin(), [](unsigned char a_c) { return static_cast<char>(std::tolower(a_c)); });
+            const auto id = static_cast<std::uint32_t>(NifDump::Fnv64(text.data(), text.size(), NifDump::kFnvOffset));
+            return *log / kFolderName / std::format("{}.{:08x}.tsv", kPersistStem, id);
         }
 
         template <class T>
@@ -92,7 +104,15 @@ namespace BlackFlame::DataFiles
                 return;  // none yet (or another format): everything is hashed
             }
             std::unordered_map<std::string, Cached> files;
+            std::uint64_t body = NifDump::Fnv64(line.data(), line.size(), NifDump::kFnvOffset);  // the header counts
+            bool ended = false;
             while (std::getline(in, line)) {
+                if (line.starts_with(kPersistTrailer)) {
+                    // review: a file cut short or spliced by two writers does not end with its own count and hash
+                    ended = line == std::format("{}{}{}{}{:016x}", kPersistTrailer, kField, files.size(), kField, body);
+                    break;
+                }
+                body = NifDump::Fnv64(line.data(), line.size(), body);
                 std::string path;
                 Cached cached;
                 if (!ParseLine(line, path, cached)) {
@@ -101,6 +121,11 @@ namespace BlackFlame::DataFiles
                     return;
                 }
                 files[std::move(path)] = cached;
+            }
+            if (!ended) {
+                logger::warn("BlackFlame: slots: {} does not end with its count and hash: ignored, every Data file is hashed this "
+                             "session", file->filename().string());
+                return;
             }
             a_cache.loaded = files.size();
             a_cache.files = std::move(files);
@@ -179,6 +204,14 @@ namespace BlackFlame::DataFiles
         if (in.bad() || read != size) {
             return std::nullopt;  // review Gemini dc 9: a read cut short is no hash (and is not cached)
         }
+        in.close();
+        // review: replaced between the size / time read and the open (a copy renamed in): the bytes are not those of the
+        // write time read first, so the hash is not cached (it outlives the session now)
+        const auto sizeAfter = fs::file_size(*file, ec);
+        const auto writtenAfter = ec ? fs::file_time_type{} : fs::last_write_time(*file, ec);
+        if (ec || sizeAfter != size || writtenAfter != written) {
+            return Hash{ read, hash };
+        }
         std::lock_guard lock(cache.mutex);
         cache.files[a_dataPath] = { read, written, hash, true };
         return Hash{ read, hash };
@@ -206,13 +239,15 @@ namespace BlackFlame::DataFiles
         cache.files.erase(a_dataPath);
     }
 
-    void Persist(const char* a_when)
+    void Persist(const char* a_when, bool a_final)
     {
         const auto file = PersistFile();
         if (!file) {
             return;
         }
+        std::lock_guard persist(g_persistMutex);  // review: before the snapshot, so a later snapshot is never renamed in first
         std::string text(kPersistHeader);
+        std::uint64_t body = NifDump::Fnv64(text.data(), text.size(), NifDump::kFnvOffset);
         text += '\n';
         std::uint64_t entries = 0;
         std::uint64_t loaded = 0;
@@ -223,33 +258,38 @@ namespace BlackFlame::DataFiles
             loaded = cache.loaded;
             reused = cache.reused;
             for (const auto& [path, cached] : cache.files) {
-                if (!cached.confirmed || path.find_first_of("\t\r\n") != std::string::npos) {
-                    continue;  // not seen this session (gone, or no longer used): not kept
+                // a loaded entry not checked yet is kept until the final write (the worker may still check it); then only
+                // what this session saw stays (gone, or no longer used: dropped)
+                if ((a_final && !cached.confirmed) || path.find_first_of("\t\r\n") != std::string::npos) {
+                    continue;
                 }
-                text += std::format("{:016x}{}{}{}{}{}{}\n", cached.fnv64, kField, cached.size, kField,
+                const auto line = std::format("{:016x}{}{}{}{}{}{}", cached.fnv64, kField, cached.size, kField,
                     cached.written.time_since_epoch().count(), kField, path);
+                body = NifDump::Fnv64(line.data(), line.size(), body);
+                text += line;
+                text += '\n';
                 ++entries;
             }
         }
-        std::lock_guard persist(g_persistMutex);
+        text += std::format("{}{}{}{}{:016x}\n", kPersistTrailer, kField, entries, kField, body);
         std::error_code ec;
         fs::create_directories(file->parent_path(), ec);
         auto temp = *file;
-        temp += ".tmp";
+        temp += std::format(".{}.tmp", ::GetCurrentProcessId());  // review: another game process has its own
         {
             std::ofstream out(temp, std::ios::binary | std::ios::trunc);
             out << text;
             out.close();
             if (!out) {
                 fs::remove(temp, ec);
-                logger::warn("BlackFlame: slots: {} not written ({}): the next start hashes again", kPersistName, a_when);
+                logger::warn("BlackFlame: slots: {} not written ({}): the next start hashes again", file->filename().string(), a_when);
                 return;
             }
         }
         fs::rename(temp, *file, ec);
         if (ec) {
             fs::remove(temp, ec);
-            logger::warn("BlackFlame: slots: {} not renamed in ({}): the next start hashes again", kPersistName, a_when);
+            logger::warn("BlackFlame: slots: {} not renamed in ({}): the next start hashes again", file->filename().string(), a_when);
             return;
         }
         logger::info("BlackFlame: slots: Data file hashes kept for the next start ({}): {} entries; this session took {} of the {} "

@@ -173,7 +173,9 @@ namespace BlackFlame::SingleLaunch
             BuildProgress::StartWorker();  // tails the progress and copies finished files into Data while the window is open
         }
         MenuWatch::OnMainMenuOpen(&OnMainMenu);
-        DataFiles::Persist("kDataLoaded");  // (persisted hashes, 2026-10-23) what this start confirmed, for the next one
+        if (!otherGame) {
+            DataFiles::Persist("kDataLoaded", false);  // (persisted hashes, 2026-10-23) for the next start; the other game's is its own
+        }
         const auto hashed = DataFiles::GetStats();  // review: the kDataLoaded hashing cost, by itself
         logger::info("BlackFlame: single launch: kDataLoaded part done in {} ms; {} Data file(s) hashed ({} KiB) in {} ms",
             std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - start).count(), hashed.files, hashed.bytes / 1024,

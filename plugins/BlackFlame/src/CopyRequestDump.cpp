@@ -300,6 +300,15 @@ namespace BlackFlame::CopyRequestDump
         int failed = 0;
         int kept = 0;
         DumpedFiles files;
+        // review: the last manifest no longer vouches for the dump once a file of it may change - a pass cut short (a write
+        // failure, a crash on the loading screen) must not leave stamps of bytes it replaced. Not removable: nothing kept
+        std::error_code removeEc;
+        std::filesystem::remove(LongPath(a_folder / kManifestName), removeEc);
+        if (removeEc) {
+            logger::warn("BlackFlame: copy request: the last dump manifest could not be removed before the dump: every file is "
+                         "written again");
+            a_reuse = nullptr;
+        }
         for (auto& nif : a_nifs) {
             std::filesystem::path file;
             try {
@@ -349,7 +358,7 @@ namespace BlackFlame::CopyRequestDump
             WriteManifest(a_folder, a_fingerprint, a_textureFingerprint, a_textures, files);
         }
         const auto counts = std::format("{} NIFs, {} textures ({} MiB){}", written, textures, textureBytes / kMiB,
-            a_reuse ? std::format(" written, {} files kept as they were", kept) : std::string());
+            a_reuse ? std::format("; {} files kept as they were", kept) : std::string());
         a_writeFailures = failed;
         return failed == 0 ? std::format("written ({})", counts) :
                              std::format("written with {} failure(s) ({}; the manifest not updated, so the next start "

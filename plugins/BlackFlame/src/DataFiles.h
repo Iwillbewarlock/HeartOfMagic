@@ -7,7 +7,7 @@
 // RegisterObject). A file is read whole at most once a session for its hash: the result is kept by (path, size, write time)
 // and read again only when one of those changed (our own copy into Data calls Forget). Through the Win32 path in-process, so
 // through MO2's VFS. Any thread (one lock).
-// (persisted hashes, 2026-10-23) The results also outlive the session: datafiles-hashes.tsv in
+// (persisted hashes, 2026-10-23) The results also outlive the session: datafiles-hashes.<8 hex of the Data folder>.tsv in
 // <SKSE log folder>\HeartOfMagic_BlackFlame holds each file's path, size, write time and FNV-1a 64 as this session confirmed them (Persist), and
 // the next session takes a file's hash from it while its size and write time are still those - the same rule as within
 // a session (copy files are written once per key path; a rebuild comes in by our own copy or a deferred rename, which
@@ -41,9 +41,10 @@ namespace BlackFlame::DataFiles
     /// a_dataPath was written: its cached hash is dropped
     void Forget(const std::string& a_dataPath);
 
-    /// The hashes confirmed this session (read, or taken from the last session's file and checked by size and write time)
-    /// written for the next session through a temporary file and a rename; any thread, one write at a time. Logs a failure
-    void Persist(const char* a_when);
+    /// The hashes written for the next session through a temporary file (this process's own) and a rename, with a trailer
+    /// of their count and hash; any thread, one write at a time. a_final false (kDataLoaded): the last session's entries not
+    /// checked yet are kept too; true (the progress worker's end): only those this session confirmed. Logs a failure
+    void Persist(const char* a_when, bool a_final);
 
     struct Stats
     {

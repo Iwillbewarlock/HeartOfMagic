@@ -329,7 +329,8 @@ namespace BlackFlame
                                        DumpIntact(*folder, nifs, textures, readFailed);
                 int writeFailures = 0;
                 g_state.dumpState = unchanged ?
-                                        RetryReadFailures(*folder, textures, readFailed, g_state.fingerprint, textureFingerprint, writeFailures) :
+                                        RetryReadFailures(*folder, textures, readFailed, g_state.fingerprint, textureFingerprint, writeFailures,
+                                            DumpedFilesOf(manifest)) :
                                         Dump(*folder, nifs, textures, g_state.fingerprint, textureFingerprint, writeFailures);
                 if (writeFailures > 0) {
                     // AC1: the request says its dump is incomplete; a map built from it reads stale whatever the fingerprint
