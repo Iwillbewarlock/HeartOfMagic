@@ -305,9 +305,29 @@ namespace BlackFlame::CopyRequestDump
         std::error_code removeEc;
         std::filesystem::remove(LongPath(a_folder / kManifestName), removeEc);
         if (removeEc) {
-            logger::warn("BlackFlame: copy request: the last dump manifest could not be removed before the dump: every file is "
-                         "written again");
-            a_reuse = nullptr;
+            // review Codex: a manifest left in place still vouches for the files, so none is changed (a manifest that then
+            // could not be replaced either would stamp bytes it no longer describes, and a later start would keep them).
+            // Nothing is dumped this session: every file is named as not dumped, as one write failure is (AA4)
+            for (auto& nif : a_nifs) {
+                if (nif.blob.ok) {
+                    ++failed;
+                    nif.blob.ok = false;
+                    nif.blob.error = kDumpWriteFailed;
+                    std::vector<std::byte>().swap(nif.bytes);
+                }
+            }
+            for (auto& texture : a_textures) {
+                if (texture.planned) {
+                    ++failed;
+                    texture.planned = false;
+                    texture.error = "the last dump manifest could not be removed (tried again at the next start)";
+                }
+            }
+            logger::warn("BlackFlame: copy request: the last dump manifest could not be removed before the dump ({}): nothing is "
+                         "dumped this session, the next start tries again", removeEc.message());
+            a_writeFailures = failed;
+            return std::format("not written: the last manifest could not be removed; {} file(s) not dumped (the next start "
+                               "dumps again)", failed);
         }
         for (auto& nif : a_nifs) {
             std::filesystem::path file;

@@ -50,8 +50,16 @@ namespace BlackFlame::DataFiles
             std::uint64_t reused = 0;   // of them, used this session (no byte read)
         };
 
+        // review Codex: UTF-8, never path::string() - that converts to the ANSI code page and throws for a character it
+        // cannot hold (a Data folder or log name outside it), which would end the progress worker at its Persist
+        std::string Text(const fs::path& a_path)
+        {
+            const auto text = a_path.u8string();
+            return std::string(text.begin(), text.end());
+        }
+
         // review: one file per Data folder (installs and MO2 instances sharing the Documents folder keep their own), named
-        // as the ledger mirror is: the low 32 bits of the FNV-1a 64 of the lower-cased path
+        // as the ledger mirror is: the low 32 bits of the FNV-1a 64 of the lower-cased path (UTF-8, ASCII case folded)
         std::optional<fs::path> PersistFile()
         {
             const auto log = SKSE::log::log_directory();
@@ -59,7 +67,7 @@ namespace BlackFlame::DataFiles
             if (!log || !data) {
                 return std::nullopt;
             }
-            auto text = data->lexically_normal().string();
+            auto text = Text(data->lexically_normal());
             std::transform(text.begin(), text.end(), text.begin(), [](unsigned char a_c) { return static_cast<char>(std::tolower(a_c)); });
             const auto id = static_cast<std::uint32_t>(NifDump::Fnv64(text.data(), text.size(), NifDump::kFnvOffset));
             return *log / kFolderName / std::format("{}.{:08x}.tsv", kPersistStem, id);
@@ -117,14 +125,14 @@ namespace BlackFlame::DataFiles
                 Cached cached;
                 if (!ParseLine(line, path, cached)) {
                     logger::warn("BlackFlame: slots: {} does not read (a line is not '<fnv64>\\t<size>\\t<time>\\t<path>'): ignored, "
-                                 "every Data file is hashed this session", file->filename().string());
+                                 "every Data file is hashed this session", Text(file->filename()));
                     return;
                 }
                 files[std::move(path)] = cached;
             }
             if (!ended) {
                 logger::warn("BlackFlame: slots: {} does not end with its count and hash: ignored, every Data file is hashed this "
-                             "session", file->filename().string());
+                             "session", Text(file->filename()));
                 return;
             }
             a_cache.loaded = files.size();
@@ -138,7 +146,14 @@ namespace BlackFlame::DataFiles
         {
             static auto* cache = []() {
                 auto* made = std::make_unique<Cache>().release();  // leaked: worker threads may use it at exit
-                Load(*made);  // the first use (kDataLoaded); a function-local static is made once, thread-safe
+                try {
+                    Load(*made);  // the first use (kDataLoaded); a function-local static is made once, thread-safe
+                } catch (const std::exception& e) {
+                    made->files.clear();  // review Codex: the last session's file is only a shortcut; hash everything
+                    made->loaded = 0;
+                    logger::warn("BlackFlame: slots: the Data file hashes of the last session could not be read ({}): every "
+                                 "Data file is hashed this session", e.what());
+                }
                 return made;
             }();
             return *cache;
@@ -239,7 +254,7 @@ namespace BlackFlame::DataFiles
         cache.files.erase(a_dataPath);
     }
 
-    void Persist(const char* a_when, bool a_final)
+    static void PersistUnchecked(const char* a_when, bool a_final)
     {
         const auto file = PersistFile();
         if (!file) {
@@ -282,17 +297,27 @@ namespace BlackFlame::DataFiles
             out.close();
             if (!out) {
                 fs::remove(temp, ec);
-                logger::warn("BlackFlame: slots: {} not written ({}): the next start hashes again", file->filename().string(), a_when);
+                logger::warn("BlackFlame: slots: {} not written ({}): the next start hashes again", Text(file->filename()), a_when);
                 return;
             }
         }
         fs::rename(temp, *file, ec);
         if (ec) {
             fs::remove(temp, ec);
-            logger::warn("BlackFlame: slots: {} not renamed in ({}): the next start hashes again", file->filename().string(), a_when);
+            logger::warn("BlackFlame: slots: {} not renamed in ({}): the next start hashes again", Text(file->filename()), a_when);
             return;
         }
         logger::info("BlackFlame: slots: Data file hashes kept for the next start ({}): {} entries; this session took {} of the {} "
                      "from the last one without reading them", a_when, entries, reused, loaded);
+    }
+
+    // review Codex: never throws - its callers are kDataLoaded and the progress worker's last step, outside its catch
+    void Persist(const char* a_when, bool a_final)
+    {
+        try {
+            PersistUnchecked(a_when, a_final);
+        } catch (const std::exception& e) {
+            logger::warn("BlackFlame: slots: the Data file hashes were not kept ({}: {}): the next start hashes again", a_when, e.what());
+        }
     }
 }
