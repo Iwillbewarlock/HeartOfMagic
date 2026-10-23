@@ -40,7 +40,7 @@ namespace BlackFlame::SingleLaunch
 
     /// The dev auto-load may go: publication settled (nothing more can open or be recorded for the next start this session:
     /// every group open with its upgrades done, failed or left once the builder ended and its lines are read, or the window
-    /// closed) or every slot open with no open group still verifying newer objects
+    /// closed) or every slot open with no open group still verifying newer objects or waiting to show them (showDue)
     [[nodiscard]] bool ReadyForLoad();
 
     /// What request v5's write did this session (T0-slots; written false off the route, and when another game holds the

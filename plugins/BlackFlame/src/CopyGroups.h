@@ -27,13 +27,14 @@
 // left and the decals keep the source's sets.
 // W1 (publication fix, 2026-10-19; CopyGroupsDecide.h): at kDataLoaded a group one of whose members shows a generation
 // opens on what its forms show (the shown members' gates and links, nothing set but the muzzle ApplyLastPublished took).
-// A fresh member (no generation shown, its object still coming or a candidate) stays gated for the session - links to it
-// go to its source - and never keeps the group closed. The open group is "upgrading" while a member's newer object (or a
+// A fresh member (no generation shown, its object still coming or a candidate) stays gated until its group's same-launch
+// turn below (or for the session) - links to it go to its source - and never keeps the group closed. The open group is "upgrading" while a member's newer object (or a
 // fresh member's) is a candidate or may still come: verified in the drains like the others, a verified one is only
 // recorded in the ledger (the shown one kept as its previous) for the next start's ApplyLastPublished, and a failure
 // refuses that object only. Same-launch upgrades (2026-10-23, config showUpgradesNow): once the group's list is done with
-// nothing more to wait for, its recorded objects are shown at the next drain while the publish window is open - the main
-// menu before the first load, when no reference uses the slots' forms - whole, the way Open shows a group: the models,
+// nothing more to wait for, its recorded objects are shown at the next drain while the publish window is open - before the
+// first load (the startup drains or the main menu), when no reference uses the slots' forms - the way Open shows a group
+// (member by member: one that cannot be set keeps what it shows): the models,
 // muzzles and TXST sets set, the fresh members whose main object was recorded opened, then the links of every open member
 // (CopyGroupsUpgrade.cpp ShowUpgrades). The window closed first (a quick load), or the option off: no SetModel, TXST write,
 // gate or link change in an open group, and the next start shows what was recorded, as before. A group with no member
@@ -68,6 +69,7 @@ namespace BlackFlame::CopyGroups
         std::size_t recorded = 0;
         std::size_t refused = 0;
         std::size_t shown = 0;         // (same-launch upgrades, 2026-10-23) of recorded, set on the forms this session (ShowUpgrades)
+        std::size_t showing = 0;       // groups whose recorded upgrades wait for their turn (showDue): the dev auto-load waits
         bool settled = false;          // nothing more can open or be recorded this session (or the window closed, or stopped)
     };
 

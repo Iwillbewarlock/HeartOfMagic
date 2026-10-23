@@ -165,8 +165,8 @@ namespace BlackFlame::SelfTest
                 const auto* entry = LM::FindSlot(ledger, id);
                 const auto role = slot.type == CopyContract::SlotType::kADDN ? LM::Role::kMps : LM::Role::kModel;
                 const auto* recorded = entry ? LM::PublishedOf(*entry, role) : nullptr;
-                // (publication fix, 2026-10-19) an open group's upgrade is recorded for the next start, not shown: the ledger's
-                // previous object is then the one the slot shows
+                // (publication fix, 2026-10-19) an open group's upgrade recorded but not shown (the window closed first, or
+                // showUpgradesNow off): the ledger's previous object is then the one the slot shows; shown: the published one
                 const auto holds = [&](LM::Role a_role, const std::string& a_shown) {
                     const auto* published = entry ? LM::PublishedOf(*entry, a_role) : nullptr;
                     const auto* previous = entry ? LM::PreviousOf(*entry, a_role) : nullptr;

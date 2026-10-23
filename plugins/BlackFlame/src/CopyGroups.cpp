@@ -187,9 +187,10 @@ namespace BlackFlame::CopyGroups
 
         // (publication fix, 2026-10-19) W1: a group one of whose members shows a generation (ApplyLastPublished set it) opens
         // on what its forms show: the shown members' gates and links. A fresh member (nothing to show yet: its object is
-        // still coming or not verified) stays gated for this session - links to it go to its source - and its object, like
-        // a shown member's newer one, is verified in the drains and only recorded for the next start (StepVerify). Nothing
-        // is set here but the muzzle ApplyLastPublished took (it keeps the string only)
+        // still coming or not verified) stays gated - links to it go to its source - and its object, like a shown member's
+        // newer one, is verified in the drains and recorded (StepVerify), then shown at the group's turn while the window is
+        // open (ShowUpgrades; else at the next start). Nothing is set here but the muzzle ApplyLastPublished took (it keeps
+        // the string only)
         void OpenShown(State& a_state, Group& a_group)
         {
             if (!WindowOpen(true)) {
@@ -227,8 +228,8 @@ namespace BlackFlame::CopyGroups
                 }
             }
             PlanOpenGroup(a_state, a_group, false);
-            logger::info("BlackFlame: slots: group of {} opened at kDataLoaded on what its forms show ({} member(s) left for this "
-                         "session; {} newer object(s) to verify for the next start{})", a_group.ids.size(), a_group.leftForNow.size(),
+            logger::info("BlackFlame: slots: group of {} opened at kDataLoaded on what its forms show ({} member(s) left for now; "
+                         "{} newer object(s) to verify{})", a_group.ids.size(), a_group.leftForNow.size(),
                 a_group.verify.size(), a_group.upgradeWaits ? ", more still coming" : "");
         }
 
@@ -366,7 +367,7 @@ namespace BlackFlame::CopyGroups
         // A verifying (or upgrading) group's next objects: each registered (FindRecord first), then Demanded, within the slice.
         // Verifying: a failure leaves the group closed for the session (FailGroup), all verified opens it. Upgrading
         // (publication fix, 2026-10-19): the group is open and stays so; a failure refuses that object only (a parse failure
-        // counted as a verifying group's), a verified one is recorded for the next start
+        // counted as a verifying group's), a verified one is recorded (shown at the group's turn: ShowUpgrades)
         void StepVerify(State& a_state, Group& a_group, Clock::time_point a_start)
         {
             const auto stepping = a_group.state;
@@ -514,9 +515,10 @@ namespace BlackFlame::CopyGroups
                              "newer objects: {} recorded ({} of them shown this session, the rest at the next start), {} not used, {}",
                     progress.open, progress.slots, progress.groupsOpen, progress.groupsFailed, progress.addnOpen, progress.recorded,
                     progress.shown, progress.refused,
-                    progress.upgrading == 0 ? std::string("every open group's upgrades done") :
-                                              std::format("{} open group(s) with upgrades NOT finished ({})", progress.upgrading,
-                                                  !MenuWatch::PublishOpen() ? "the publish window closed" : "publication stopped"));
+                    progress.upgrading == 0 && progress.showing == 0 ?
+                        std::string("every open group's upgrades done") :
+                        std::format("{} open group(s) with upgrades NOT finished, {} with recorded upgrades NOT shown ({})", progress.upgrading,
+                            progress.showing, !MenuWatch::PublishOpen() ? "the publish window closed" : "publication stopped"));
             }
         }
     }
@@ -546,7 +548,7 @@ namespace BlackFlame::CopyGroups
         UpdateProgress(state);
         LogTxstSlotsAtW1(state);  // trace (CopyGroupsNotes.cpp)
         logger::info("BlackFlame: slots: {} groups, {} opened at kDataLoaded on the generations their forms show ({} of them verify newer "
-                     "objects for the next start); {}", state.groups.size(), opened, upgrading,
+                     "objects); {}", state.groups.size(), opened, upgrading,
             state.canVerify ? "groups with nothing shown yet are published on the main thread as they are verified" :
                               "no main-thread drain: nothing more is published or recorded this session (" + MenuWatch::ProofText() + ")");
         if (state.canVerify && !GetProgress().settled && !QueueTask(kTaskName, &Step)) {

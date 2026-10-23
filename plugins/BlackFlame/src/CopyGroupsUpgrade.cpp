@@ -3,8 +3,9 @@
 // =============================================================================
 // RecordUpgrade / NoteUpgrade split out of CopyGroups.cpp for the 600-line limit (publication fix, 2026-10-19).
 // ShowUpgrades (same-launch upgrades, 2026-10-23): an open group whose newer objects are all verified and recorded is shown
-// in the same launch while the publish window is open - the main menu before the first load, when no reference uses the
-// slots' forms - the way Open shows a group with nothing shown: the models and muzzles set, the TXST sets written, the
+// in the same launch while the publish window is open - before the first load (the startup drains or the main menu), when
+// no reference uses the slots' forms - the way Open shows a group with nothing shown, member by member (one that cannot be
+// set keeps what it shows): the models and muzzles set, the TXST sets written, the
 // fresh members' gates opened, then the links of every open member (CopyFill::Refill, pointers only). The ledger already
 // holds what is shown (RecordUpgrade), so a load that closes the window first only leaves it for the next start, as before.
 
@@ -136,10 +137,16 @@ namespace BlackFlame::CopyGroups::Detail
             if (show == Decide::Show::kNothing) {
                 continue;
             }
-            const bool isTxst = slot.type == CC::SlotType::kTXST;
-            if (!slot.form || (!isTxst && mainRole == LM::Role::kModel && !FormCopies::ModelOf(slot.form))) {
+            const bool modelRecorded = std::any_of(recorded.begin(), recorded.end(), [](const Upgrade* a_u) { return a_u->object->role == LM::Role::kModel; });
+            if (!slot.form || (modelRecorded && !FormCopies::ModelOf(slot.form))) {
                 logger::warn("BlackFlame: slots: slot {:X}'s newer object(s) are not shown this session: no form or no model to set "
                              "(recorded for the next start)", member.id);
+                for (auto* upgrade : recorded) {
+                    upgrade->why = "recorded, not shown this session: no form or no model to set";
+                }
+                if (show == Decide::Show::kOpen) {
+                    member.model.why = "not shown this session (no form or no model to set): recorded for the next start";
+                }
                 kept += recorded.size();
                 continue;
             }
@@ -153,6 +160,7 @@ namespace BlackFlame::CopyGroups::Detail
                     ++shown;
                 } else {
                     ++kept;
+                    upgrade->why = "recorded, not shown this session: " + why;
                     logger::warn("BlackFlame: slots: slot {:X}'s newer {} is not shown this session ({}): recorded for the next start",
                         member.id, LM::RoleText(upgrade->object->role), why);
                 }
@@ -160,6 +168,8 @@ namespace BlackFlame::CopyGroups::Detail
             if (show == Decide::Show::kOpen && mainSet) {
                 SlotAssign::OpenGate(member.id);
                 opened.insert(member.id);
+            } else if (show == Decide::Show::kOpen) {
+                member.model.why = "its main object was not shown this session: gated, recorded for the next start";
             }
         }
         if (!opened.empty()) {

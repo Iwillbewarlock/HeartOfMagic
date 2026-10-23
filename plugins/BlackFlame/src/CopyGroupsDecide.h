@@ -7,8 +7,8 @@
 //   DecideObject  one member object's state from what PlanObject found (the ledger's older generation, the progress line,
 //                 the files, the window) - PlanObject's order of checks, unchanged
 //   AtW1Of        what a member shows at W1: the generation its form already has (ApplyLastPublished) - shown -, nothing yet
-//                 while its own object is still coming or not verified - fresh: gated for this session, links to it go to
-//                 the source, its object recorded for the next start once verified -, or left
+//                 while its own object is still coming or not verified - fresh: gated until its group's turn (ShowOf),
+//                 links to it go to the source, its object recorded once verified -, or left
 //   OpensAtW1     a group opens at W1 when one member is shown; fresh members never keep it closed, and a member showing only
 //                 its source never opens it. A group with no shown member (a first start) waits, is verified and opens in the
 //                 drains as before
@@ -106,7 +106,7 @@ namespace BlackFlame::CopyGroups::Decide
     enum class AtW1 : std::uint8_t
     {
         kShown,   // its form shows a verified generation: its gate opens with the group, and it opens the group at W1
-        kFresh,   // nothing to show yet: gated this session, its object recorded for the next start once verified
+        kFresh,   // nothing to show yet: gated until its group's turn (ShowOf; else this session), its object recorded once verified
         kSource,  // review round 1 (Codex P2 / B2): a slot without a source model whose muzzle is not grey (left, no older)
                   // shows only its source: its gate opens with the group, but it never opens one at W1
         kLeft,

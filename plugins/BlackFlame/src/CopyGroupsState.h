@@ -57,7 +57,7 @@ namespace BlackFlame::CopyGroups::Detail
         kWaiting,
         kVerifying,
         kOpen,
-        kUpgrading,  // open (W1, on the generations its forms show); newer objects verified and recorded for the next start
+        kUpgrading,  // open (W1, on the generations its forms show); newer objects verified and recorded (then shown: showDue)
         kFailed,
         kGone,  // every member left
     };

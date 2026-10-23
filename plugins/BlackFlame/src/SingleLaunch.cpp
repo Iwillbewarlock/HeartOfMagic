@@ -222,9 +222,10 @@ namespace BlackFlame::SingleLaunch
         // review Gemini / agy 14_00: no "caught up and nothing verifying" shortcut - between the worker's catch-up and the
         // main thread's re-plan nothing is verifying yet; settled waits for that re-plan (kStaging and keyless members leave)
         // (publication fix, 2026-10-19) every slot open is not enough while an open group still verifies newer objects for
-        // the next start: a load now would leave them to be verified again then
+        // the next start: a load now would leave them to be verified again then; (same-launch upgrades, 2026-10-23) nor while
+        // a group's recorded upgrades wait for their turn (showDue: its fresh members are outside slots)
         const auto progress = CopyGroups::GetProgress();
-        return progress.settled || (progress.open >= progress.slots && progress.upgrading == 0);
+        return progress.settled || (progress.open >= progress.slots && progress.upgrading == 0 && progress.showing == 0);
     }
 
     CopyRequestV5::Result Request()

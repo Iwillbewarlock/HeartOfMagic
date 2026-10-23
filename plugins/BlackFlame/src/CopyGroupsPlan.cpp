@@ -331,7 +331,7 @@ namespace BlackFlame::CopyGroups::Detail
             for (auto* plan : { &member.model, &member.muzzle }) {
                 const auto done = plan->candidate ? a_group.upgrades.find({ member.id, plan->candidate->key }) : a_group.upgrades.end();
                 if (done != a_group.upgrades.end()) {
-                    plan->candidate.reset();  // verified this session already: recorded for the next start, or refused
+                    plan->candidate.reset();  // verified this session already: recorded (shown at the group's turn), or refused
                     plan->state = Member::kReady;
                     plan->why = done->second.why;
                 }
@@ -346,7 +346,8 @@ namespace BlackFlame::CopyGroups::Detail
                 }
             }
             if (LeftForNow(a_group, member.id) && member.model.why.empty() && member.muzzle.why.empty()) {
-                member.model.why = "no generation to show this session: its object is recorded for the next start once verified";
+                member.model.why = "no generation to show yet: its object is shown with its group's upgrades once verified (else at "
+                                   "the next start)";
             }
         }
         const bool was = a_group.state == GroupState::kUpgrading;
@@ -355,15 +356,15 @@ namespace BlackFlame::CopyGroups::Detail
         a_group.plannedFrom = a_state.generation;
         if (was && a_group.state == GroupState::kOpen) {
             std::size_t recorded = 0;
+            std::size_t refused = 0;
             for (const auto& upgrade : a_group.upgrades) {
-                recorded += upgrade.second.recorded && !upgrade.second.shown ? 1 : 0;
+                (upgrade.second.recorded ? recorded : refused) += 1;
             }
             // (same-launch upgrades, 2026-10-23) shown at the next drain while the publish window is open (ShowUpgrades)
             a_group.showDue = Decide::ShowsNow(GetConfig().showUpgradesNow, MenuWatch::DrainMayPublish(), a_group.verify.empty(),
                 a_group.upgradeWaits, recorded);
             logger::info("BlackFlame: slots: group of {}: its newer objects are done ({} recorded, {} not used; {})", a_group.ids.size(),
-                recorded, a_group.upgrades.size() - recorded,
-                a_group.showDue ? "shown now" : recorded == 0 ? "nothing to show" :
+                recorded, refused, a_group.showDue ? "shown at the next drain" : recorded == 0 ? "nothing to show" :
                 !GetConfig().showUpgradesNow ? "shown at the next start: showUpgradesNow off" : "shown at the next start: the publish window closed");
         }
     }
@@ -385,6 +386,7 @@ namespace BlackFlame::CopyGroups::Detail
                 (upgrade.second.recorded ? progress.recorded : progress.refused) += 1;
                 progress.shown += upgrade.second.shown ? 1 : 0;
             }
+            progress.showing += group.showDue ? 1 : 0;
             for (const auto& member : group.members) {
                 // a failed group's members, and those an open group left for this session, cannot open this session
                 const bool fresh = open && LeftForNow(group, member.id);
