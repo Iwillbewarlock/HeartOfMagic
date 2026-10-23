@@ -410,6 +410,7 @@ namespace BlackFlame::BuildProgress
                     }
                 }
                 if (!MenuWatch::PublishOpen()) {
+                    DataFiles::Persist("progress worker done");  // the copies hashed after kDataLoaded too
                     logger::info("BlackFlame: slots: progress worker done ({} keys, {} in Data, {} copied this session, {} published "
                                  "copies kept)", GetStats().lines, GetStats().inData, GetStats().copied, GetStats().kept);
                     return;  // nothing can be published any more this session; later files wait for the next start

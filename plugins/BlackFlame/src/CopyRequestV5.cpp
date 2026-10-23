@@ -69,8 +69,17 @@ namespace BlackFlame::CopyRequestV5
                                    CopyRequestData::JsonString(manifest, kTextureFingerprintKey) == textureFingerprint &&
                                    DumpIntact(a_folder, a_inputs.nifs, a_inputs.textures, readFailed);
             int failures = 0;
-            auto state = unchanged ? RetryReadFailures(a_folder, a_inputs.textures, readFailed, a_fingerprint, textureFingerprint, failures) :
-                                     Dump(a_folder, a_inputs.nifs, a_inputs.textures, a_fingerprint, textureFingerprint, failures);
+            // (incremental dump, 2026-10-23) a changed dump writes only the files whose stamps changed: the keys read and
+            // hashed every planned texture already, so a kept one is not read a second time
+            Reuse reuse{ DumpedFilesOf(manifest), {} };
+            for (const auto& [path, hash] : a_inputs.textureHash) {
+                if (hash.state == CC::FileState::kHashed) {
+                    reuse.textureFnv.emplace(path, hash.fnv64);
+                }
+            }
+            auto state = unchanged ? RetryReadFailures(a_folder, a_inputs.textures, readFailed, a_fingerprint, textureFingerprint, failures,
+                                         reuse.previous) :
+                                     Dump(a_folder, a_inputs.nifs, a_inputs.textures, a_fingerprint, textureFingerprint, failures, &reuse);
             a_complete = failures == 0;
             return state;
         }

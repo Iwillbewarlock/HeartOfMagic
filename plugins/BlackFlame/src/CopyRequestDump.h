@@ -6,9 +6,12 @@
 #include "NifDump.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
+#include <map>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 // =============================================================================
@@ -23,6 +26,23 @@ namespace BlackFlame::CopyRequestDump
     inline constexpr const char* kTextureFingerprintKey = "textureFingerprint";
     inline constexpr const char* kTextureReadFailuresKey = "textureReadFailures";
     inline constexpr const char* kDumpWriteFailed = "writing the dump failed";  // a NIF's blob error when its dump write failed
+    inline constexpr const char* kFilesKey = "files";  // the manifest's per-file stamps (DumpedFiles), 2026-10-23
+
+    /// UTF-8 dump path -> "<size>:<fnv64 hex>" of the bytes the dump holds for it (the manifest's "files")
+    using DumpedFiles = std::map<std::string, std::string>;
+
+    /// (incremental dump, 2026-10-23) What lets Dump keep a file instead of reading and writing it again: the last manifest's
+    /// stamps, and each planned texture's FNV-1a 64 as the keys hashed it this start (SlotKeys). A NIF is kept when its
+    /// stamp (size and the one read's fnv64) is the last manifest's and the dumped file has that size; a texture when the
+    /// stamp of its size and the keys' fnv64 is, and the file has that size - neither read nor written again
+    struct Reuse
+    {
+        DumpedFiles previous;
+        std::unordered_map<std::string, std::uint64_t> textureFnv;  // Data path (as Texture::path) -> fnv64
+    };
+
+    /// The manifest's "files" (an older manifest without them: none, so everything is written)
+    [[nodiscard]] DumpedFiles DumpedFilesOf(const nlohmann::json& a_manifest);
 
     struct Nif
     {
@@ -48,11 +68,12 @@ namespace BlackFlame::CopyRequestDump
     /// the files it could not write (AC3)
     [[nodiscard]] std::string RetryReadFailures(const std::filesystem::path& a_folder, std::vector<CopyRequestData::Texture>& a_textures,
         const std::set<std::string>& a_readFailed, const std::string& a_fingerprint, const std::string& a_textureFingerprint,
-        int& a_writeFailures);
+        int& a_writeFailures, const DumpedFiles& a_previous = {});
 
     /// Every NIF's bytes and every planned texture written under data\, then the manifest; its state text. a_writeFailures:
-    /// the files that could not be written or whose path was refused (AC1: the request then says dumpComplete false)
+    /// the files that could not be written or whose path was refused (AC1: the request then says dumpComplete false).
+    /// a_reuse (the slot route): the files whose stamps match are kept as they are (Reuse)
     [[nodiscard]] std::string Dump(const std::filesystem::path& a_folder, std::vector<Nif>& a_nifs,
         std::vector<CopyRequestData::Texture>& a_textures, const std::string& a_fingerprint, const std::string& a_textureFingerprint,
-        int& a_writeFailures);
+        int& a_writeFailures, const Reuse* a_reuse = nullptr);
 }
