@@ -76,6 +76,9 @@ namespace BlackFlame::CopyGroups::Detail
     {
         bool recorded = false;  // the ledger holds it for the next start; else refused (why)
         std::string why;
+        // (same-launch upgrades, 2026-10-23) the object recorded (a TXST set with its strings), shown at the group's turn
+        std::optional<LM::Object> object;
+        bool shown = false;
     };
 
     struct Group
@@ -92,6 +95,7 @@ namespace BlackFlame::CopyGroups::Detail
         std::vector<std::uint16_t> leftForNow;
         std::map<std::pair<std::uint16_t, std::uint64_t>, Upgrade> upgrades;
         bool upgradeWaits = false;
+        bool showDue = false;  // (same-launch upgrades) its upgrades are done and recorded: shown at the next drain (ShowUpgrades)
     };
 
     struct AddnPass  // one pass over State::addns, carried over the slices (StepAddn)
@@ -151,6 +155,19 @@ namespace BlackFlame::CopyGroups::Detail
     /// (publication fix, 2026-10-19) An open group's verify list: every member's candidates not verified yet this session
     /// (Decide::WorkOf); kUpgrading while one is listed or may still come, else kOpen. a_replan: its members planned again first
     void PlanOpenGroup(const State& a_state, Group& a_group, bool a_replan);
+
+    /// (publication fix, 2026-10-19) kUpgrading: a verified object goes into the ledger only (the shown one becomes its
+    /// previous); the object recorded (a TXST set with its strings), else nullopt and a_why (CopyGroupsUpgrade.cpp)
+    [[nodiscard]] std::optional<LM::Object> RecordUpgrade(State& a_state, const Verify& a_item, std::string& a_why);
+
+    /// The verified object's outcome, kept by (slot, key) so it is not verified again this session; a recorded one is kept
+    /// for the group's turn (ShowUpgrades)
+    void NoteUpgrade(Group& a_group, const Verify& a_item, std::optional<LM::Object> a_recorded, const std::string& a_why);
+
+    /// (same-launch upgrades, 2026-10-23) A group whose upgrades are done (showDue), drain only, the window checked by the
+    /// caller right before: every member's recorded objects set, its fresh members opened, then every open member's links
+    /// (CopyGroupsDecide.h ShowOf). Returns the objects shown
+    std::size_t ShowUpgrades(Group& a_group);
 
     /// The counts the HUD-less progress lines and the dev auto-load read (CopyGroups::Progress)
     [[nodiscard]] Progress CountProgress(const State& a_state);

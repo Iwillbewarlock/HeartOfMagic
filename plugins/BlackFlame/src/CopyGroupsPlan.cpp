@@ -356,10 +356,15 @@ namespace BlackFlame::CopyGroups::Detail
         if (was && a_group.state == GroupState::kOpen) {
             std::size_t recorded = 0;
             for (const auto& upgrade : a_group.upgrades) {
-                recorded += upgrade.second.recorded ? 1 : 0;
+                recorded += upgrade.second.recorded && !upgrade.second.shown ? 1 : 0;
             }
-            logger::info("BlackFlame: slots: group of {}: its newer objects are done ({} recorded for the next start, {} not used)",
-                a_group.ids.size(), recorded, a_group.upgrades.size() - recorded);
+            // (same-launch upgrades, 2026-10-23) shown at the next drain while the publish window is open (ShowUpgrades)
+            a_group.showDue = Decide::ShowsNow(GetConfig().showUpgradesNow, MenuWatch::DrainMayPublish(), a_group.verify.empty(),
+                a_group.upgradeWaits, recorded);
+            logger::info("BlackFlame: slots: group of {}: its newer objects are done ({} recorded, {} not used; {})", a_group.ids.size(),
+                recorded, a_group.upgrades.size() - recorded,
+                a_group.showDue ? "shown now" : recorded == 0 ? "nothing to show" :
+                !GetConfig().showUpgradesNow ? "shown at the next start: showUpgradesNow off" : "shown at the next start: the publish window closed");
         }
     }
 
@@ -374,9 +379,11 @@ namespace BlackFlame::CopyGroups::Detail
             progress.upgrading += group.state == GroupState::kUpgrading ? 1 : 0;
             progress.groupsFailed += group.state == GroupState::kFailed ? 1 : 0;
             progress.verifying += group.state == GroupState::kVerifying ? 1 : 0;
-            busy = busy || group.state == GroupState::kWaiting || group.state == GroupState::kVerifying || group.state == GroupState::kUpgrading;
+            busy = busy || group.state == GroupState::kWaiting || group.state == GroupState::kVerifying || group.state == GroupState::kUpgrading ||
+                   group.showDue;
             for (const auto& upgrade : group.upgrades) {
                 (upgrade.second.recorded ? progress.recorded : progress.refused) += 1;
+                progress.shown += upgrade.second.shown ? 1 : 0;
             }
             for (const auto& member : group.members) {
                 // a failed group's members, and those an open group left for this session, cannot open this session

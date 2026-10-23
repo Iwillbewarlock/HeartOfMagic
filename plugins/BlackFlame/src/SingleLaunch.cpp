@@ -199,7 +199,7 @@ namespace BlackFlame::SingleLaunch
             if (!g_allReadyLogged.exchange(true)) {
                 // review round 1: the fresh and left members are not in slots - said so, not "all"
                 logger::info("BlackFlame: slots: progress: all {} grey copies that can open this session are ready; {} member(s) "
-                             "left for this session, {} of them fresh (recorded for the next start once verified) (log only)",
+                             "left for now, {} of them fresh (shown with their group at the main menu once verified, else at the next start) (log only)",
                     progress.slots, progress.left, progress.fresh);
             }
             return;

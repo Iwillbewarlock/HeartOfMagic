@@ -74,6 +74,7 @@ namespace BlackFlame
         bool selfTestSlots = false;   // self-test steps T0-slots and T0-W2 (with selfTest; SelfTestStepsSlots.cpp)
         bool slotTxst = false;        // decal texture set slots keyed, built and published (SlotTxst.h); off: the decals keep the source's
         bool cleanOldCopies = true;   // OldCopies.h: copies\<key16>\ folders nothing keeps removed once a session; false: counts logged only
+        bool showUpgradesNow = true;  // CopyGroups.h: an open group's newer objects shown at the main menu (same launch); false: next start
         std::uint32_t oldCopiesGraceDays = 14;  // OldCopies.h: a key folder whose newest file is younger than this is kept (1..3650)
         double tint = 0.6;            // the copies' base colour scale (the builder's kDefaultTint), into the key and request v5
         double handMarbleOpacity = 0.9;  // casting-art dark layer: clamp 0..1, six decimals

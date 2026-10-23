@@ -1,7 +1,8 @@
 #pragma once
 
 // =============================================================================
-// PUBLICATION TESTS - the publication fix (2026-10-19): W1 opens on the shown generation, upgrades are recorded
+// PUBLICATION TESTS - the publication fix (2026-10-19): W1 opens on the shown generation, upgrades are recorded; and the
+// same-launch upgrades (2026-10-23): recorded upgrades shown at the main menu (Decide::ShowsNow / ShowOf)
 // =============================================================================
 // plugins/BlackFlame/src/CopyGroupsDecide.h (the plan's decisions without game types: PlanObject's order of checks, what a
 // member shows at W1, when a group opens at W1, an open group's work) and the ledger's previous generation
@@ -243,10 +244,47 @@ namespace PublicationTests
             "publication ledger: a conflict and a save's rebind drop the previous objects with the published ones");
     }
 
+    // (same-launch upgrades, 2026-10-23) an open group's recorded newer objects shown at the main menu, whole
+    template <class Check>
+    void RunShow(Check&& a_check)
+    {
+        // the group's turn: on, window open, its list done, nothing more coming, something recorded
+        a_check(D::ShowsNow(true, true, true, false, 1) && D::ShowsNow(true, true, true, false, 7),
+            "same launch: a group whose newer objects are all verified and recorded is shown while the publish window is open");
+        a_check(!D::ShowsNow(true, false, true, false, 1),
+            "same launch: the window closed first (a quick load): nothing is set, the next start shows what was recorded");
+        a_check(!D::ShowsNow(false, true, true, false, 1), "same launch: showUpgradesNow off: shown at the next start only, as before");
+        a_check(!D::ShowsNow(true, true, false, false, 1) && !D::ShowsNow(true, true, true, true, 1),
+            "same launch: a group still verifying, or with a newer object still coming, waits: never shown in parts");
+        a_check(!D::ShowsNow(true, true, true, false, 0),
+            "same launch: every newer object refused (failed to parse or register): nothing to show, the older generation stays");
+        // the members at the group's turn
+        a_check(D::ShowOf(D::AtW1::kShown, true, true) == D::Show::kSet && D::ShowOf(D::AtW1::kShown, false, true) == D::Show::kSet,
+            "same launch: a shown member takes its recorded objects (its model, or only its muzzle when only that one is new)");
+        a_check(D::ShowOf(D::AtW1::kShown, false, false) == D::Show::kNothing,
+            "same launch: a shown member with nothing recorded (refused, or unchanged) keeps what it shows");
+        a_check(D::ShowOf(D::AtW1::kFresh, true, true) == D::Show::kOpen,
+            "same launch: a fresh member (a new effect joining a group with something shown) opens once its main object is recorded");
+        a_check(D::ShowOf(D::AtW1::kFresh, false, true) == D::Show::kNothing && D::ShowOf(D::AtW1::kFresh, false, false) == D::Show::kNothing,
+            "same launch: a fresh member whose main object was refused stays gated (a grey muzzle alone does not open it)");
+        a_check(D::ShowOf(D::AtW1::kSource, false, true) == D::Show::kSet && D::ShowOf(D::AtW1::kSource, false, false) == D::Show::kNothing,
+            "same launch: a member showing only its source (no source model) takes a recorded muzzle; its gate is open already");
+        a_check(D::ShowOf(D::AtW1::kLeft, true, true) == D::Show::kNothing, "same launch: a left member is never shown");
+        // the path from the object's decision: an older generation and the new key's object in Data, verified and recorded
+        const auto inData = Facts(true, D::Found::kInData);
+        const auto fresh = Facts(false, D::Found::kInData);
+        a_check(AtW1(inData) == D::AtW1::kShown && D::ShowOf(AtW1(inData), true, true) == D::Show::kSet &&
+                    AtW1(fresh) == D::AtW1::kFresh && D::ShowOf(AtW1(fresh), true, true) == D::Show::kOpen &&
+                    !WorkOf(inData, true).wait && !WorkOf(fresh, true).wait,
+            "same launch: a key change (older shown, new in Data) is set and a fresh member opens at the same turn, once both are "
+            "recorded and nothing more waits");
+    }
+
     template <class Check>
     void Run(Check&& a_check)
     {
         RunDecide(a_check);
         RunPrevious(a_check);
+        RunShow(a_check);
     }
 }

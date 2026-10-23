@@ -128,6 +128,7 @@ set(BLACKFLAME_SOURCES
     src/CopyRequestV5.cpp
     src/DataFiles.cpp
     src/CopyGroupsPlan.cpp
+    src/CopyGroupsUpgrade.cpp
     ${CMAKE_SOURCE_DIR}/plugins/spelllearning/src/EncodingUtils.cpp
 )
 

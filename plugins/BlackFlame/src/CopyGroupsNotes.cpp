@@ -27,7 +27,7 @@ namespace BlackFlame::CopyGroups
             case GroupState::kWaiting: return "waiting (its objects still building or coming into Data)";
             case GroupState::kVerifying: return "verifying";
             case GroupState::kOpen: return "open";
-            case GroupState::kUpgrading: return "open (newer objects verified for the next start)";
+            case GroupState::kUpgrading: return "open (newer objects being verified: shown at the main menu, else at the next start)";
             case GroupState::kFailed: return "failed";
             case GroupState::kGone: return "left";
             }

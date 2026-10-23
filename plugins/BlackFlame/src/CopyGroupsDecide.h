@@ -13,7 +13,12 @@
 //                 its source never opens it. A group with no shown member (a first start) waits, is verified and opens in the
 //                 drains as before
 //   WorkOf        a member of an open group: newer objects to verify and record for the next start, or still to come
+//   ShowsNow      (same-launch upgrades, 2026-10-23) an open group whose newer objects are all verified and recorded shows
+//   ShowOf        them while the publish window is open (the main menu before the first load), whole: each member takes its
+//                 recorded objects, a fresh member opens when its main object was recorded; the window closed first: they
+//                 stay recorded for the next start as before
 
+#include <cstddef>
 #include <cstdint>
 #include <initializer_list>
 #include <vector>
@@ -163,5 +168,36 @@ namespace BlackFlame::CopyGroups::Decide
             work.wait = work.wait || plan->state == Member::kPending || plan->waiting;
         }
         return work;
+    }
+
+    // (same-launch upgrades, 2026-10-23) The group's turn: an open group (kOpen again after kUpgrading) whose verify list is
+    // done with nothing more to wait for and at least one newer object recorded, while the publish window is open. Off
+    // (showUpgradesNow false) or the window closed: the recorded objects are shown by the next start's ApplyLastPublished
+    [[nodiscard]] inline bool ShowsNow(bool a_enabled, bool a_windowOpen, bool a_listDone, bool a_waits, std::size_t a_recorded) noexcept
+    {
+        return a_enabled && a_windowOpen && a_listDone && !a_waits && a_recorded > 0;
+    }
+
+    enum class Show : std::uint8_t
+    {
+        kNothing,  // left, nothing recorded for it, or a fresh member whose main object was not recorded (it stays gated)
+        kSet,      // its gate is open already (shown or source at W1): its recorded objects set (model, muzzle, TXST set)
+        kOpen,     // a fresh member: its recorded objects set, then its gate opened with the group's links
+    };
+
+    /// One member at its group's turn. a_atW1: what it showed at W1; a_mainRecorded: its main object (the model, a TXST's set;
+    /// a slot without a source model: its muzzle) is recorded this session; a_anyRecorded: any of its objects is
+    [[nodiscard]] inline Show ShowOf(AtW1 a_atW1, bool a_mainRecorded, bool a_anyRecorded) noexcept
+    {
+        switch (a_atW1) {
+        case AtW1::kLeft:
+            return Show::kNothing;
+        case AtW1::kFresh:
+            return a_mainRecorded ? Show::kOpen : Show::kNothing;  // a muzzle alone does not open a slot whose model is not grey
+        case AtW1::kShown:
+        case AtW1::kSource:
+            break;
+        }
+        return a_anyRecorded ? Show::kSet : Show::kNothing;
     }
 }

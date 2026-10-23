@@ -30,9 +30,14 @@
 // A fresh member (no generation shown, its object still coming or a candidate) stays gated for the session - links to it
 // go to its source - and never keeps the group closed. The open group is "upgrading" while a member's newer object (or a
 // fresh member's) is a candidate or may still come: verified in the drains like the others, a verified one is only
-// recorded in the ledger (the shown one kept as its previous) for the next start's ApplyLastPublished; no SetModel, TXST
-// write, gate or link change in an open group, and a failure refuses that object only. A group with no member shown (a
-// first start) waits, is verified and opens whole in the drains as above.
+// recorded in the ledger (the shown one kept as its previous) for the next start's ApplyLastPublished, and a failure
+// refuses that object only. Same-launch upgrades (2026-10-23, config showUpgradesNow): once the group's list is done with
+// nothing more to wait for, its recorded objects are shown at the next drain while the publish window is open - the main
+// menu before the first load, when no reference uses the slots' forms - whole, the way Open shows a group: the models,
+// muzzles and TXST sets set, the fresh members whose main object was recorded opened, then the links of every open member
+// (CopyGroupsUpgrade.cpp ShowUpgrades). The window closed first (a quick load), or the option off: no SetModel, TXST write,
+// gate or link change in an open group, and the next start shows what was recorded, as before. A group with no member
+// shown (a first start) waits, is verified and opens whole in the drains as above.
 
 #include "Common.h"
 
@@ -62,6 +67,7 @@ namespace BlackFlame::CopyGroups
         std::size_t upgrading = 0;
         std::size_t recorded = 0;
         std::size_t refused = 0;
+        std::size_t shown = 0;         // (same-launch upgrades, 2026-10-23) of recorded, set on the forms this session (ShowUpgrades)
         bool settled = false;          // nothing more can open or be recorded this session (or the window closed, or stopped)
     };
 

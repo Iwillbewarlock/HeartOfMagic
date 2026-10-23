@@ -232,42 +232,6 @@ namespace BlackFlame::CopyGroups
                 a_group.verify.size(), a_group.upgradeWaits ? ", more still coming" : "");
         }
 
-        // (publication fix, 2026-10-19) kUpgrading: a verified object goes into the ledger only, for the next start's
-        // ApplyLastPublished - no SetModel, no TXST write, no gate or link change in an open group. A TXST set is recorded
-        // with its strings and the IDs rule (as Open keeps them), and only while the rule is usable (none: not recorded)
-        bool RecordUpgrade(State& a_state, const Verify& a_item, std::string& a_why)
-        {
-            auto object = a_item.object;
-            if (object.role == LM::Role::kTxst) {
-                const auto strings = SlotTxst::RuleUsable(a_why) ? SlotTxst::StringsFor(SlotAssign::At(a_item.slot), object, a_why) : std::nullopt;
-                if (!strings) {
-                    return false;
-                }
-                object.textures.assign(strings->begin(), strings->end());
-                object.idsRule = SlotTxst::RuleName();
-            }
-            bool recorded = false;
-            SlotLedger::Edit([&](LM::Ledger& a_ledger) {
-                if (auto* entry = LM::FindSlot(a_ledger, a_item.slot)) {
-                    LM::SetPublished(*entry, std::move(object));  // the generation shown now becomes its previous (a fallback)
-                    recorded = true;
-                }
-            });
-            a_state.ledgerDirty = a_state.ledgerDirty || recorded;
-            a_why = recorded ? "" : "the slot has no ledger entry";
-            return recorded;
-        }
-
-        void NoteUpgrade(Group& a_group, const Verify& a_item, bool a_recorded, const std::string& a_why)
-        {
-            a_group.upgrades[{ a_item.slot, a_item.key }] = { a_recorded, a_recorded ? "its newer object is recorded for the next start" :
-                                                                                       "its newer object is not used: " + a_why };
-            if (!a_recorded) {
-                logger::warn("BlackFlame: slots: slot {:X}'s newer {} is not recorded for the next start: {} (it keeps what it shows; "
-                             "its group stays open)", a_item.slot, LM::RoleText(a_item.object.role), a_why);
-            }
-        }
-
         // review agy dc 5: a Demand that faulted may have left the model DB's lock or state behind: nothing more this session
         void StopOnFault(State& a_state, const std::string& a_path, const CopyModelProbe::VerifyResult& a_result)
         {
@@ -413,7 +377,7 @@ namespace BlackFlame::CopyGroups
                     return;
                 }
                 const bool terminal = a_parseKey && CountParseFailure(a_state, a_group.ids, *a_parseKey);
-                NoteUpgrade(a_group, a_item, false, a_what + (terminal ? "; its key is now terminal \"parse\"" : ""));
+                NoteUpgrade(a_group, a_item, std::nullopt, a_what + (terminal ? "; its key is now terminal \"parse\"" : ""));
                 ++a_group.verifyNext;
             };
             while (a_group.state == stepping && a_group.verifyNext < a_group.verify.size() && Clock::now() - a_start < kSlice) {
@@ -516,6 +480,9 @@ namespace BlackFlame::CopyGroups
                     Open(a_state, group, false);  // every member ready (an ADDN dep opened, or the rest left)
                 } else if (group.state == GroupState::kVerifying || group.state == GroupState::kUpgrading) {
                     StepVerify(a_state, group, start);
+                } else if (group.state == GroupState::kOpen && group.showDue && WindowOpen(false)) {
+                    NoteStep(false);  // (same-launch upgrades, 2026-10-23) its recorded newer objects shown now, whole
+                    (void)ShowUpgrades(group);
                 }
             }
         }
@@ -544,8 +511,9 @@ namespace BlackFlame::CopyGroups
             } else {
                 // (publication fix, 2026-10-19) whether the open groups' newer objects were all verified for the next start
                 logger::info("BlackFlame: slots: publication settled: {} of {} slots open, {} groups open, {} failed, {} ADDN MPS open; "
-                             "for the next start {} object(s) recorded, {} not used, {}", progress.open, progress.slots, progress.groupsOpen,
-                    progress.groupsFailed, progress.addnOpen, progress.recorded, progress.refused,
+                             "newer objects: {} recorded ({} of them shown this session, the rest at the next start), {} not used, {}",
+                    progress.open, progress.slots, progress.groupsOpen, progress.groupsFailed, progress.addnOpen, progress.recorded,
+                    progress.shown, progress.refused,
                     progress.upgrading == 0 ? std::string("every open group's upgrades done") :
                                               std::format("{} open group(s) with upgrades NOT finished ({})", progress.upgrading,
                                                   !MenuWatch::PublishOpen() ? "the publish window closed" : "publication stopped"));
