@@ -9,7 +9,10 @@ namespace CorpseColoursTests
     struct Colour
     {
         float red, green, blue, alpha;
-        bool operator==(const Colour&) const = default;
+        bool operator==(const Colour& a_other) const  // C++17 (this tool's standard): no defaulted comparison
+        {
+            return red == a_other.red && green == a_other.green && blue == a_other.blue && alpha == a_other.alpha;
+        }
     };
 
     struct Particles
