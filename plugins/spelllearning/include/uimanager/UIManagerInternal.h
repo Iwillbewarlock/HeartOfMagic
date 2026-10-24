@@ -5,7 +5,9 @@
 #include "ProgressionManager.h"
 
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
+#include <limits>
 #include <mutex>
 #include <optional>
 #include <string_view>
@@ -72,6 +74,46 @@ ProgressionManager::XPSettings ReadXPSettingsFromConfig(const nlohmann::json& co
 std::unordered_map<std::string, ProgressionManager::ModdedSourceConfig> ReadModdedSourcesFromConfig(const nlohmann::json& config);
 // Early learning, tome, passive learning and notification settings. Game thread.
 void ApplySettingsFromConfig(const nlohmann::json& config);
+// Everything a config changes in play: XP settings and modded sources (SetXPSettings),
+// then ApplySettingsFromConfig. The panel's load, its saves and game start. Game thread.
+void ApplyGameplayConfig(const nlohmann::json& config);
+// Every config key with its default value
+nlohmann::json GenerateDefaultConfig();
+// The pre-unified settings file, merged into a first config.json only
+std::filesystem::path GetSettingsFilePath();
+// That file's settings over `config` when it exists and parses; returns whether it merged.
+// The panel's load and game start both use it (UIManagerStartupConfig.cpp)
+bool MergeLegacySettings(nlohmann::json& config);
+
+// The tree's prerequisites from SetTreePrerequisites entries ({formId, hardPrereqs,
+// softPrereqs, softNeeded, legacy prereqs}) into ProgressionManager, then the tome
+// cache dropped. Logs the count. May throw on a malformed entry (as the panel path
+// always has: the caller catches). Returns the entries applied. Game thread.
+int ApplyTreePrerequisiteEntries(const nlohmann::json& entries);
+// Each tree node's requiredXP > 0 into ProgressionManager::SetRequiredXP. Throws on a
+// formId that is not a string, as OnLoadSpellTree always has. Game thread.
+void SyncRequiredXPFromTree(const nlohmann::json& tree);
+
+// spell_tree.json read whole (UIManagerTreeState.cpp), by OnLoadSpellTree and game start
+enum class TreeFileRead
+{
+    Ok,            ///< `text` holds the file
+    CouldNotOpen,
+    TooLarge,      ///< over the caller's maxBytes, not read
+};
+struct TreeFileText
+{
+    TreeFileRead outcome = TreeFileRead::CouldNotOpen;
+    std::string text;
+};
+inline constexpr std::uintmax_t kNoTreeFileCap = (std::numeric_limits<std::uintmax_t>::max)();
+TreeFileText ReadTreeFileText(const std::filesystem::path& path, std::uintmax_t maxBytes = kNoTreeFileCap);
+// Only spaces, tabs and line breaks: there is no saved tree
+bool IsBlankTreeText(std::string_view text);
+// SpellScanner::ValidateAndFixTree on the parsed saved tree, with OnLoadSpellTree's two log
+// lines. True when spells were resolved from persistent ids or dropped: the panel then gets
+// the validated tree's dump instead of the file's text. Throws as the validator does.
+bool ValidateTreeForPanel(nlohmann::json& tree);
 
 // Config saves are written by a background worker (UIManagerConfigSave.cpp).
 // Waits (bounded) for queued saves to reach the disk, then keeps new saves

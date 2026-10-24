@@ -58,7 +58,8 @@ public:
     void SendPrompt(const std::string& promptContent);
 
     // Send data to Tree Tab (same panel)
-    void SendTreeData(const std::string& jsonData);
+    // False when the view is not there and nothing was sent
+    bool SendTreeData(const std::string& jsonData);
     void SendSpellInfo(const std::string& jsonData);
     void SendSpellInfoBatch(const std::string& jsonData);
     void UpdateSpellState(const std::string& formId, const std::string& state);

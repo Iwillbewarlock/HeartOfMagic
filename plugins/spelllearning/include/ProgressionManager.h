@@ -82,9 +82,11 @@ public:
     
     void SetPrereqRequirements(RE::FormID spellId, const PrereqRequirements& reqs);
     void ClearAllTreePrerequisites();  // Called when tree reloads
-    // Whether the tree the panel sent (SetPrereqRequirements, roots included) has
-    // this spell as a node. Empty until the panel sends its tree.
+    // Whether the tree (SetPrereqRequirements, roots included) has this spell as a
+    // node. Filled at game start from spell_tree.json, then by the panel's tree load.
     bool IsTreeSpell(RE::FormID spellId) const;
+    // Every node of that tree, for a read-only look at the whole state (TreeParity)
+    const std::unordered_set<RE::FormID>& GetTreeSpells() const { return m_treeSpells; }
     PrereqRequirements GetPrereqRequirements(RE::FormID spellId) const;
     bool AreTreePrerequisitesMet(RE::FormID spellId) const;
     // True when XPSettings::reverseUnlock is on and a spell that lists this one as

@@ -46,15 +46,16 @@ void UIManager::SendPrompt(const std::string& promptContent)
 // SEND DATA TO TREE TAB
 // =============================================================================
 
-void UIManager::SendTreeData(const std::string& jsonData)
+bool UIManager::SendTreeData(const std::string& jsonData)
 {
     if (!m_prismaUI || !m_prismaUI->IsValid(m_view)) {
         logger::error("UIManager: Cannot send tree data - not initialized");
-        return;
+        return false;
     }
 
     logger::info("UIManager: Sending tree data to UI ({} bytes)", jsonData.size());
     CallView("updateTreeData", jsonData.c_str());
+    return true;
 }
 
 void UIManager::SendSpellInfo(const std::string& jsonData)

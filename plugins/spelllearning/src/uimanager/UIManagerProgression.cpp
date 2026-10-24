@@ -2,6 +2,7 @@
 #include "JsonText.h"
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
+#include "uimanager/StartupState.h"
 #include "ProgressionManager.h"
 #include "SpellEffectivenessHook.h"
 #include "SpellTomeHook.h"
@@ -472,8 +473,8 @@ void UIManager::OnSetTreePrerequisites(const char* argument)
     logger::info("UIManager: SetTreePrerequisites called");
 
     AddTaskToGameThread("SetTreePrerequisites", [argStr]() {
+        bool dataApply = false;
         try {
-            const auto started = std::chrono::steady_clock::now();
             json request = json::parse(argStr);
 
             // Check if this is a clear command
@@ -490,89 +491,13 @@ void UIManager::OnSetTreePrerequisites(const char* argument)
                 return;
             }
 
-            auto* pm = ProgressionManager::GetSingleton();
-            if (!pm) {
-                logger::error("UIManager: SetTreePrerequisites - ProgressionManager not available");
-                return;
-            }
-            int count = 0;
-
-            for (const auto& entry : request) {
-                if (!entry.is_object()) {
-                    logger::warn("UIManager: SetTreePrerequisites - non-object entry in array, skipping");
-                    continue;
-                }
-
-                std::string formIdStr = entry.value("formId", "");
-                if (formIdStr.empty()) continue;
-
-                // The whole text must be the id (FormIdText::Parse, not ParseSpellOf): an edit
-                // mode copy ("0x0001ABCD_dup_17...") is not its original, whose requirements the
-                // copy's empty lists would then erase. Its prerequisite lists below name spells.
-                const auto parsedId = FormIdText::Parse(formIdStr);
-                if (!parsedId) {
-                    logger::warn("UIManager: SetTreePrerequisites - '{}' is not a formId - skipping", formIdStr);
-                    continue;
-                }
-                const RE::FormID formId = *parsedId;
-
-                if (formId == 0) {
-                    logger::warn("UIManager: SetTreePrerequisites - formId resolved to 0 for '{}', skipping", formIdStr);
-                    continue;
-                }
-
-                // Parse hard/soft prerequisites (new unified system)
-                ProgressionManager::PrereqRequirements reqs;
-
-                // One list of formId strings. A spell is never its own prerequisite:
-                // a self id would make it wait for itself and never open, so it is skipped.
-                auto parsePrereqs = [&](const char* key, std::vector<RE::FormID>& out) {
-                    if (!entry.contains(key) || !entry[key].is_array()) return;
-                    for (const auto& prereqStr : entry[key]) {
-                        if (!prereqStr.is_string()) continue;
-                        const auto prereqId = ParsePanelFormId(prereqStr.get<std::string>(), key);
-                        if (!prereqId) continue;
-                        if (*prereqId == formId) {
-                            logger::warn("UIManager: spell {:08X} listed as its own prerequisite ({}) - skipped",
-                                formId, key);
-                            continue;
-                        }
-                        out.push_back(*prereqId);
-                    }
-                };
-
-                parsePrereqs("hardPrereqs", reqs.hardPrereqs);  // must have ALL
-                parsePrereqs("softPrereqs", reqs.softPrereqs);  // need softNeeded of these
-
-                // Never more than the soft list holds, or the spell could never open
-                reqs.softNeeded = (std::min)(entry.value("softNeeded", 0), static_cast<int>(reqs.softPrereqs.size()));
-
-                // Legacy fallback: parse old "prereqs" field as all hard
-                if (reqs.hardPrereqs.empty() && reqs.softPrereqs.empty()) {
-                    parsePrereqs("prereqs", reqs.hardPrereqs);
-                }
-
-                // No line per spell here. This runs on the game thread for every
-                // spell in the tree on every tree load - which is every game load -
-                // and it was looking the form up and fetching its name for the sake
-                // of the log alone: 1423 lookups and 1423 lines in 22 ms, two thirds
-                // of the whole log file. The count is logged once, below.
-                if (!reqs.hardPrereqs.empty() || !reqs.softPrereqs.empty()) {
-                    logger::trace("UIManager: prereqs {:08X}: {} hard, {} soft (need {})",
-                        formId, reqs.hardPrereqs.size(), reqs.softPrereqs.size(), reqs.softNeeded);
-                }
-
-                pm->SetPrereqRequirements(formId, reqs);
-                count++;
-            }
-
-            // The new tree's nodes decide which spell a copy's tome counts for
-            // (TreeSpellForTome): answers cached before they arrived start over
-            if (auto* tomeHook = SpellTomeHook::GetSingleton()) tomeHook->InvalidateTomeInventoryCache();
-            logger::info("UIManager: Set tree prerequisites for {} spells in {} ms (game thread)", count, MsSince(started));
-
+            dataApply = true;
+            ApplyTreePrerequisiteEntries(request);
+            // The tree game start applied against the panel's (once, after the saved tree's load)
+            TreeParity::AfterPanelApply(nullptr);
         } catch (const std::exception& e) {
             logger::error("UIManager: SetTreePrerequisites exception: {}", e.what());
+            if (dataApply) TreeParity::AfterPanelApply(e.what());
         }
     });
 }

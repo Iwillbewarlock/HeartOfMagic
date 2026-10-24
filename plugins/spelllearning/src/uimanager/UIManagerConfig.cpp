@@ -214,6 +214,18 @@ void ApplySettingsFromConfig(const nlohmann::json& config)
     }
 }
 
+void ApplyGameplayConfig(const nlohmann::json& config)
+{
+    ProgressionManager::XPSettings xpSettings = ReadXPSettingsFromConfig(config);
+    // The sources mods registered before this, with the player's saved settings for
+    // them (BookXP off, a multiplier) over them
+    xpSettings.moddedSources = ReadModdedSourcesFromConfig(config);
+    ProgressionManager::GetSingleton()->SetXPSettings(xpSettings);
+
+    // Early learning, tome, passive, and notification settings
+    ApplySettingsFromConfig(config);
+}
+
 std::filesystem::path GetSettingsFilePath()
 {
     return "Data/SKSE/Plugins/SpellLearning/settings.json";
@@ -359,9 +371,6 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
     // which would look like "no file" and have the defaults written over it.
     auto configFileLock = LockUnifiedConfigFile();
 
-    // Also check legacy paths and merge if needed
-    auto legacySettingsPath = GetSettingsFilePath();
-
     // Start with complete defaults - this ensures all fields exist
     json unifiedConfig = GenerateDefaultConfig();
 
@@ -392,6 +401,7 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
                     loaded.detail, PathText::Utf8(loaded.movedTo.filename()), loaded.backupDetail);
             }
             break;
+        case ConfigFile::State::Broken:   // Peek only: Load moves it (MovedAside) or keeps it (BrokenKept)
         case ConfigFile::State::BrokenKept:
             logger::error("UIManager: config.json is {} and could not be moved aside - left as it is, settings are the defaults "
                           "this session and are not saved", loaded.detail);
@@ -402,14 +412,8 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
     UIManager::SetConfigSaveMode(saveMode);
 
     // Migrate legacy settings only into a first config.json (never over a broken one)
-    std::error_code legacyError;
-    if (ConfigFile::MergesLegacy(loaded.state) && std::filesystem::exists(legacySettingsPath, legacyError)) {
-        try {
-            std::ifstream file(legacySettingsPath);
-            json legacySettings = json::parse(file);
-            MergeJsonNonNull(unifiedConfig, legacySettings);
-            logger::info("UIManager: Migrated legacy settings.json");
-        } catch (...) {}
+    if (ConfigFile::MergesLegacy(loaded.state) && MergeLegacySettings(unifiedConfig)) {
+        logger::info("UIManager: Migrated legacy settings.json");
     }
 
     // Create the file when there was none or the old one was moved aside
@@ -438,16 +442,9 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
     GetSingleton()->SetPauseGameOnFocus(pauseGame);
     logger::info("UIManager: Updated pauseGameOnFocus from config: {}", pauseGame);
 
-    // Update ProgressionManager with loaded XP settings
-    // All fields are guaranteed to exist from defaults, but use SafeJsonValue for extra safety
-    ProgressionManager::XPSettings xpSettings = ReadXPSettingsFromConfig(unifiedConfig);
-    // The sources mods registered before this load, with the player's saved settings
-    // for them (BookXP off, a multiplier); only the panel's next save applied them before
-    xpSettings.moddedSources = ReadModdedSourcesFromConfig(unifiedConfig);
-    ProgressionManager::GetSingleton()->SetXPSettings(xpSettings);
-
-    // Apply early learning, tome, passive, and notification settings
-    ApplySettingsFromConfig(unifiedConfig);
+    // XP settings, modded sources, early learning, tome, passive and notification settings
+    // (the same as at game start, UIManagerStartupConfig.cpp)
+    ApplyGameplayConfig(unifiedConfig);
 
     // The panel's language, for the page to read before it draws next time. Not
     // from a file that was never read: the defaults have no language, and ''

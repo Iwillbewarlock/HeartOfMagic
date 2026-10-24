@@ -3,6 +3,7 @@
 #include "CoSave.h"
 #include "HudNotify.h"
 #include "uimanager/UIManager.h"
+#include "uimanager/StartupState.h"
 #include "SpellScanner.h"
 #include "SpellCastHandler.h"
 #include "ProgressionManager.h"
@@ -315,6 +316,14 @@ void OnDataLoaded()
     // thread, ready for the scan (docs/ARCHITECTURE.md, "Tomes nothing hands out")
     TomeReach::StartAfterDataLoaded();
 
+    // The panel's settings and the saved tree's prerequisites, read from the same files
+    // the panel reads (never written) so learning follows them with no panel at all; the
+    // panel sends the same again once its page is ready (docs/ARCHITECTURE.md). After the
+    // XP sources (the config's modded source settings go over them) and after the keyword
+    // passes above, which the tree's validation gate may read, as it does for the panel
+    const auto startupConfig = LoadGameplayConfigAtStartup();
+    LoadTreeStateAtStartup(startupConfig);
+
     // One spell from two plugins: the groups a copy's tome reads by, worked out
     // on the game thread once that pass is done, never on a cast's tome check
     // (SpellScannerDuplicates.cpp). The wait is on a thread of its own.
@@ -337,6 +346,9 @@ void OnNewGame()
     Environment::SelfTest::OnGameLoaded();   // dev only: selftest.json
     // Progress is automatically cleared by OnRevert callback
 
+    // Game start's tree state is compared only with the panel's main menu tree load
+    TreeParity::Expire("a new game started before the panel's tree load was compared");
+
     // Fix input lock if UI was open in main menu
     if (UIManager::GetSingleton()->IsInitialized()) {
         UIManager::GetSingleton()->EnsureFocusReleased();
@@ -353,6 +365,9 @@ void OnPostLoadGame()
 {
     logger::info("Save game loaded - notifying UI to refresh player data");
     // Progress is automatically loaded by OnGameLoaded serialization callback
+
+    // Game start's tree state is compared only with the panel's main menu tree load
+    TreeParity::Expire("a save was loaded before the panel's tree load was compared");
 
     // The inventory is the loaded save's now, whatever was cached before
     SpellTomeHook::GetSingleton()->InvalidateTomeInventoryCache();

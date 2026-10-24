@@ -179,12 +179,12 @@ records with their plugins).
   ISL) a tome teaches what it names, copies included.
 - **The tree in use decides:** the groups come from the spells loaded now, so a plugin added after the tree
   was built can name a record the tree does not hold. `TreeSpellForTome` asks the tree first
-  (`ProgressionManager::IsTreeSpell`: every node the panel sent with `SetTreePrerequisites`, roots too,
-  cleared with the tree): a node's own tome always teaches that node, and another group member's tome reads
+  (`ProgressionManager::IsTreeSpell`: every node of the tree applied with `SetTreePrerequisites` - at game start
+  from `spell_tree.json`, then by the panel - roots too, cleared with the tree): a node's own tome always teaches that node, and another group member's tome reads
   as the tome of the one member that is a node - the kept spell, or the copy a tree built before the marks
   (or edited by hand) holds. With no member a node, or two, the tome teaches its own spell. The groups do not
-  depend on the player: the voice slot check reads the record's equip slot, not what is equipped. Until the panel sends a tree no spell is a node, so every tome reads
-  as itself. Game thread (the node set has no lock, like the rest of ProgressionManager).
+  depend on the player: the voice slot check reads the record's equip slot, not what is equipped. Until a tree is applied (game start's read of
+  `spell_tree.json`, or the panel) no spell is a node, so every tome reads as itself. Game thread (the node set has no lock, like the rest of ProgressionManager).
 - **When the groups are worked out:** `PrepareTreeSpellForTome`, on the game thread once the tome reach pass
   is done (Main.cpp: a thread waits with `TomeReach::WaitUntilDone`, then queues it), so a cast's tome
   inventory check (`PlayerHasSpellTome`) never walks every form. A tree node's tome costs one set lookup. A
@@ -639,7 +639,7 @@ Runtime FormID (e.g. 0x02001234) → "Skyrim.esm|0x001234"
 ```
 
 ### 2. **UIManager** (`plugins/spelllearning/src/uimanager/`, `plugins/spelllearning/include/uimanager/UIManager.h`)
-Split across: UIManagerCore.cpp, UIManagerNotify.cpp, UIManagerScanner.cpp, UIManagerTree.cpp, UIManagerAutoBuild.cpp, UIManagerPreReqMaster.cpp, UIManagerDeclutter.cpp, UIManagerIO.cpp, UIManagerProgression.cpp, UIManagerConfig.cpp, UIManagerConfigSave.cpp, UIManagerLocale.cpp
+Split across: UIManagerCore.cpp, UIManagerNotify.cpp, UIManagerScanner.cpp, UIManagerTree.cpp, UIManagerAutoBuild.cpp, UIManagerPreReqMaster.cpp, UIManagerDeclutter.cpp, UIManagerIO.cpp, UIManagerProgression.cpp, UIManagerConfig.cpp, UIManagerConfigSave.cpp, UIManagerLocale.cpp, UIManagerStartupConfig.cpp, UIManagerTreeState.cpp, UIManagerTreeParity.cpp
 **Status:** ✅ Implemented
 
 **Responsibilities:**
@@ -702,6 +702,58 @@ text or nothing); the other panel handlers and the saved tree's load check read 
 entry per spell and cannot say "this copy's links or the spell's", so links drawn to a copy reach C++ only when the
 spell has no node of its own; the panel (`recalculateNodeAvailability`, per node) may show such a copy open while a
 tome of the spell is still judged by the spell's own links.
+
+**Progression state at game start** (H1-0, 2026-10-24; `include/uimanager/StartupState.h`): the gameplay
+settings and the saved tree's prerequisites no longer wait for the panel's page (`onPrismaReady` →
+`LoadUnifiedConfig`, `SetTreePrerequisites`). `OnDataLoaded` (Main.cpp, game thread), after the XP sources, the perk
+adapters, the explosion twins, Spell Research and the tome reach start, and before the `PrepareTreeSpellForTome`
+thread, calls:
+- `LoadGameplayConfigAtStartup` (UIManagerStartupConfig.cpp): config.json picked as the panel's load picks it, read
+  only (`ConfigFile::Peek`, the classifying half of the panel's `ConfigFile::Load`, which adds only the move aside) -
+  an object is merged over `GenerateDefaultConfig()`; no file: the legacy `settings.json` over the defaults (in
+  memory); could not be opened: the defaults; not JSON or not an object ("broken"): `config.json.bak` if it is an
+  object, else the defaults (the file is not moved: the panel's load still moves it aside and writes the new one).
+  Then `ApplyGameplayConfig` - the one function the panel's load and every save (`ApplySavedConfig`, which adds
+  `Environment::OnConfigApplied`) call too: `ReadXPSettingsFromConfig` + `ReadModdedSourcesFromConfig` →
+  `SetXPSettings`, then `ApplySettingsFromConfig`. The hotkey and `pauseGameOnFocus` only matter to the panel and are
+  left to its load. No save mode, no panel language file, nothing written. The result says apart that config.json
+  is broken (`configBroken`) and that reading or applying it threw (`applyThrew`). One difference is left: a broken
+  config.json the panel then fails to move aside (`BrokenKept`) gets the defaults from the panel but the `.bak` at
+  game start, which cannot know the move will fail.
+- `LoadTreeStateAtStartup` (UIManagerTreeState.cpp, all of it under one `try`: the SKSE message handler must not
+  throw): skipped when config.json was broken or applying it threw (the tree's validation gate, `ReadGateKept`,
+  reads config.json, which the panel replaces and applies before it reads the tree), each with its own SKIP reason.
+  Otherwise `spell_tree.json` is read and validated with the same functions `OnLoadSpellTree` uses
+  (`ReadTreeFileText`, `IsBlankTreeText`, `ValidateTreeForPanel` → `SpellScanner::ValidateAndFixTree`, in memory, the
+  file never written; game start alone refuses a file over 64 MB and logs `Startup tree load: validating
+  spell_tree.json (the panel validates it again when it loads)` first, since the validator's lines then appear
+  twice), and the text the panel would get - the file's text, or the validated tree's
+  `JsonText::Dump` when spells were resolved from persistent ids or dropped - goes through
+  `TreePrereqEntries::BuildPrerequisiteEntries` (`include/TreePrereqEntries.h`, no game types): the array the panel's
+  fast path (`_loadTrustedTree` → `sendTreePrerequisites`) sends, rule by rule - self ids and non-strings out,
+  softNeeded held to the soft list, the fallback from `prerequisites`, roots emptied, `PrereqEdit.repair` with
+  object and string locks, `_dup_` copies, ids compared as exact strings, schools in the order JS walks the parsed
+  object (an `ordered_json`, array-index keys first). Then `ClearAllTreePrerequisites`,
+  `ApplyTreePrerequisiteEntries` (the panel handler's rules, moved out of `OnSetTreePrerequisites`, which calls it)
+  and `SyncRequiredXPFromTree` (moved out of `OnLoadSpellTree`). A tree the panel would send nothing for (no
+  schools, its own code throwing - also on a school named `hasOwnProperty`, and on a value its log lines or `isNaN`
+  cannot turn into a string, an object with its own `toString`), a slow-path tree (no `trustPrereqs` and no `x` on the first school's first node:
+  TreeParser is not ported) or a value the builder does not model (a non-string formId, a non-number softNeeded)
+  applies nothing; the panel still handles it as before. `tools/tree-prereq-check` runs the builder offline.
+- **TreeParity** (UIManagerTreeParity.cpp): when game start applied a tree it keeps the state (tree spells, each
+  one's sorted hard and soft lists and softNeeded); `OnLoadSpellTree` arms the check right after `SendTreeData`
+  really sent the saved tree (it returns false with no view), and right after the panel's next data
+  `SetTreePrerequisites` the state is read again. One line in SpellLearning.log per session:
+  `TreeParity PASS (n spells, m with prerequisites)`, `TreeParity FAIL (...)` with up to 5 spells that differ (both
+  sides), or `TreeParity SKIP (reason)`: game start applied nothing; no panel this session (logged right after the
+  baseline); the panel's next data apply came more than 30 s (`kPanelLoadWindow`) after the send; or a new game or
+  a save load (`TreeParity::Expire` from `OnNewGame`, `OnPostLoadGame`) came before the comparison. With a panel
+  that never loads the tree and the game quit at the main menu there is no line.
+
+With the panel the same state is applied twice (game start, then the panel a few seconds later); without it the
+settings, tree membership and prerequisites now hold all the same. Limits: prerequisites edited in edit mode and not
+saved are not in the file (the panel sends them again as before); requiredXP from the tree lives in the progress
+entries, which a save load clears, as on the panel path (generated trees carry none).
 
 **PrismaUI View Path:**
 ```
@@ -1968,6 +2020,7 @@ HeartOfMagic/
 │   │   │   ├── FormIdText.h                 ✅ formId text: Parse (hex, 0x optional, whole text, max 8 digits), ParseSpellOf (an edit mode copy's "_dup_" id as its spell) and Format "0x%08X" (no game types)
 │   │   │   ├── PluginNames.h                ✅ persistentId plugin names: UTF-8 key, memoised lookup (no game types)
 │   │   │   ├── TreeRemap.h                  ✅ a saved tree's FormIDs and links after a load order change (no game types)
+│   │   │   ├── TreePrereqEntries.h          ✅ the panel's fast-path SetTreePrerequisites array for a tree text, for game start (no game types)
 │   │   │   ├── CoSave.h                     ✅ SKSE serialization callbacks (save, load, revert)
 │   │   │   ├── ProgressionCoSave.h          ✅ SLPR (writes v2, reads v1-v3), SLPX and SLTX record layouts, templated on the stream (no game types)
 │   │   │   ├── ProgressionManager.h         ✅ XP tracking header
@@ -1994,8 +2047,9 @@ HeartOfMagic/
 │   │   │   │   ├── LayoutMath.h             ✅ fdlibm sin/cos/atan2 (bit-identical with V8's Math)
 │   │   │   │   └── TreeNLP.h                ✅ Core NLP header
 │   │   │   └── uimanager/
-│   │   │       ├── ConfigFile.h             ✅ config.json load: loaded / missing / unreadable / moved aside (no game types)
+│   │   │       ├── ConfigFile.h             ✅ config.json load: loaded / missing / unreadable / moved aside; Peek classifies with nothing moved (no game types)
 │   │   │       ├── PresetFiles.h            ✅ Preset file write/delete (no game types; closes a file before removing it)
+│   │   │       ├── StartupState.h           ✅ game start's config and tree load, TreeParity
 │   │   │       ├── TreeSaveCheck.h          ✅ SaveSpellTree's no-spells guard: a text scan, no parse (no game types)
 │   │   │       ├── UIManager.h              ✅ UI manager header
 │   │   │       └── UIManagerInternal.h      ✅ Internal UI manager helpers
@@ -2033,6 +2087,9 @@ HeartOfMagic/
 │   │       │   ├── UIManagerConfig.cpp          (unified config load/apply)
 │   │       │   ├── UIManagerConfigSave.cpp      (unified config save worker)
 │   │       │   ├── UIManagerLocale.cpp          (panel language file lang/user_locale.js)
+│   │       │   ├── UIManagerStartupConfig.cpp   (config.json read only at game start, ApplyGameplayConfig)
+│   │       │   ├── UIManagerTreeState.cpp       (tree prerequisites/requiredXP appliers, game start's tree load)
+│   │       │   ├── UIManagerTreeParity.cpp      (TreeParity: game start's tree state against the panel's)
 │   │       │   └── UIManagerIO.cpp              (clipboard, presets, auto-test I/O)
 │   │       ├── progressionmanager/          ✅ XP tracking, early grant/mastery, co-save (7 files)
 │   │       │   ├── ProgressionManagerCore.cpp       (singleton, core logic)

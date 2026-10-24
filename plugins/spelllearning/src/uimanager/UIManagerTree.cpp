@@ -4,6 +4,7 @@
 #include "FileUtils.h"
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
+#include "uimanager/StartupState.h"
 #include "SpellScanner.h"
 #include "EncodingUtils.h"
 #include "ProgressionManager.h"
@@ -45,16 +46,11 @@ void UIManager::OnLoadSpellTree([[maybe_unused]] const char* argument)
         }
 
         try {
-            std::ifstream file(treePath);
-            if (file.is_open()) {
-                std::stringstream buffer;
-                buffer << file.rdbuf();
-                file.close();
-
-                std::string treeContent = buffer.str();
+            auto treeFile = ReadTreeFileText(treePath);
+            if (treeFile.outcome == TreeFileRead::Ok) {
+                std::string treeContent = std::move(treeFile.text);
                 logger::info("UIManager: Loaded spell tree from file ({} bytes)", treeContent.size());
-                constexpr std::string_view kBlank = " \t\r\n";
-                if (treeContent.find_first_not_of(kBlank) == std::string::npos) {
+                if (IsBlankTreeText(treeContent)) {
                     logger::warn("UIManager: spell_tree.json is empty");
                     instance->UpdateTreeStatus("No saved tree - import one");
                     state = StartupTreeState::Empty;
@@ -68,54 +64,22 @@ void UIManager::OnLoadSpellTree([[maybe_unused]] const char* argument)
                     nodeCount = CountTreeNodes(treeData);
                     state = nodeCount > 0 ? StartupTreeState::Present : StartupTreeState::Empty;
 
-                    // Validate and fix form IDs using persistent IDs
-                    auto validationResult = SpellScanner::ValidateAndFixTree(treeData);
-                    if (validationResult.resolvedFromPersistent > 0) {
-                        logger::info("UIManager: Resolved {} spells from persistent IDs (load order changed)",
-                            validationResult.resolvedFromPersistent);
-                    }
-                    if (validationResult.invalidNodes > 0) {
-                        logger::warn("UIManager: {} spells could not be resolved (plugins may be missing)",
-                            validationResult.invalidNodes);
-                    }
-                    // The panel gets the fixed tree: new ids, and without the dropped nodes
-                    // and the links to them (the file on disk keeps the old one)
-                    if (validationResult.resolvedFromPersistent > 0 || validationResult.invalidNodes > 0) {
+                    // Validate and fix form IDs using persistent IDs. The panel gets the fixed
+                    // tree when that moved or dropped a spell: new ids, and without the dropped
+                    // nodes and the links to them (the file on disk keeps the old one)
+                    if (ValidateTreeForPanel(treeData)) {
                         treeContent = JsonText::Dump(treeData);
                     }
 
-                    // Send validated tree data to viewer
-                    instance->SendTreeData(treeContent);
+                    // Send validated tree data to viewer. When it went, the panel's next
+                    // SetTreePrerequisites is this tree's: game start's state is compared
+                    // with it then (TreeParity)
+                    if (instance->SendTreeData(treeContent)) {
+                        TreeParity::ArmForPanelLoad();
+                    }
 
                     // Sync requiredXP to ProgressionManager
-                    auto* pm = ProgressionManager::GetSingleton();
-                    int xpSyncCount = 0;
-
-                    if (treeData.contains("schools")) {
-                        for (auto& [schoolName, schoolData] : treeData["schools"].items()) {
-                            if (schoolData.contains("nodes")) {
-                                for (auto& node : schoolData["nodes"]) {
-                                    if (node.contains("formId")) {
-                                        std::string formIdStr = node["formId"].get<std::string>();
-                                        // Sync requiredXP from tree to ProgressionManager
-                                        if (node.contains("requiredXP") && node["requiredXP"].is_number()) {
-                                            float reqXP = node["requiredXP"].get<float>();
-                                            if (reqXP > 0) {
-                                                if (const auto formId = ParsePanelFormId(formIdStr, "LoadSpellTree XP sync")) {
-                                                    pm->SetRequiredXP(*formId, reqXP);
-                                                    xpSyncCount++;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if (xpSyncCount > 0) {
-                        logger::info("UIManager: Synced requiredXP for {} spells from tree to ProgressionManager", xpSyncCount);
-                    }
+                    SyncRequiredXPFromTree(treeData);
 
                     // No spell info is pushed from here. The panel asks for it
                     // (GetSpellInfoBatch) the moment it has the tree, on both of

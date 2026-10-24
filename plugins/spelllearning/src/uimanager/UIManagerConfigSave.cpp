@@ -62,14 +62,8 @@ namespace
             UIManager::GetSingleton()->SetPauseGameOnFocus(*pauseGameOnFocus);
         }
 
-        auto* progression = ProgressionManager::GetSingleton();
-        ProgressionManager::XPSettings xpSettings = ReadXPSettingsFromConfig(config);
-        // The saved settings over the registered sources (the same as at game start)
-        xpSettings.moddedSources = ReadModdedSourcesFromConfig(config);
-        progression->SetXPSettings(xpSettings);
-
-        // Apply early learning, tome, passive, and notification settings
-        ApplySettingsFromConfig(config);
+        // XP settings, modded sources, early learning, tome, passive and notification settings
+        ApplyGameplayConfig(config);
 
         // environment.enabled: the explosion twins on or back to the originals
         Environment::OnConfigApplied(config);

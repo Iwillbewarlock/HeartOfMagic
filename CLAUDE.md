@@ -335,7 +335,12 @@ This project does not have a C++ test framework. Validation is done through:
   node has, broken shapes - every link read back by spell name, and a second pass must change nothing; exit 1 on a
   failure; also `include/FormIdText.h`, the one reader of formId text - hex, `0x` optional, any case; junk, a sign,
   a space, empty or more than 8 digits rejected; `ParseSpellOf` reads an edit mode copy's `<formId>_dup_<n>` as its
-  spell - and its `0x%08X` writer) and `progression-check` (`progression-check --self-test`: the co-save's
+  spell - and its `0x%08X` writer), `tree-prereq-check` (the tree prerequisites game start applies,
+  `include/TreePrereqEntries.h`: `tree-prereq-check --self-test` on made-up trees - roots, the fallback from
+  `prerequisites`, lock repair with object and string locks, `_dup_` copies, a spell in two schools, school key
+  order, non-string entries, trees the panel sends nothing for; `tree-prereq-check <tree.json>` prints the array, which
+  must equal what the panel's `sendTreePrerequisites` sends for the same text; exit 1 on a failure, 3 when nothing
+  is sent; docs/ARCHITECTURE.md, "Progression state at game start") and `progression-check` (`progression-check --self-test`: the co-save's
   progress (SLPR v1-v3, written as v2), cap tracker (SLPX) and tome XP (SLTX) records, `include/ProgressionCoSave.h`,
   written and read in byte buffers - cut short, over the limits, SLPX without an SLPR entry - and the XP cap, study, SetSpellXP and mastery arithmetic of `include/ProgressionMath.h`;
   exit 1 on a failure)

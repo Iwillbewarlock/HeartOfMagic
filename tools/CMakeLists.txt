@@ -198,3 +198,24 @@ target_compile_features(progression-check PRIVATE cxx_std_23)
 target_include_directories(progression-check PRIVATE
     ${SL_INCLUDE_DIR}
 )
+
+# =============================================================================
+# tree-prereq-check  -  offline check of the tree prerequisites game start applies
+# =============================================================================
+# The plugin's own TreePrereqEntries.h (header only, no game types): the array the
+# panel's fast path sends to SetTreePrerequisites. --self-test on made-up trees, or
+# a tree file's array printed for a comparison with the panel's JS.
+
+add_executable(tree-prereq-check
+    tree-prereq-check.cpp
+)
+
+target_compile_features(tree-prereq-check PRIVATE cxx_std_23)
+
+target_include_directories(tree-prereq-check PRIVATE
+    ${SL_INCLUDE_DIR}
+)
+
+target_link_libraries(tree-prereq-check PRIVATE
+    nlohmann_json::nlohmann_json
+)

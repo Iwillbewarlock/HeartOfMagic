@@ -23,6 +23,9 @@
 // sync tool, blocked by its permissions), or a broken one that could not be
 // moved, is never moved or written over: the defaults hold for that session
 // and no save writes the file until a later load reads it.
+//
+// Peek classifies the same files with nothing moved or written (game start's
+// read only load, UIManagerStartupConfig.cpp); Load is Peek plus the move aside.
 namespace ConfigFile
 {
     enum class State
@@ -33,6 +36,8 @@ namespace ConfigFile
         MovedAside,   ///< did not parse / not an object, moved to `movedTo`: the .bak's object
                       ///< (`fromBackup`) or else the defaults written, legacy not merged
         BrokenKept,   ///< did not parse / not an object, could not be moved: defaults this session, file untouched, no saves
+        Broken,       ///< Peek only: did not parse / not an object, not moved; the .bak's object (`fromBackup`)
+                      ///< read as Load would read it after the move. Load never returns it
     };
 
     /// How the panel's saves treat config.json until the next load
@@ -116,7 +121,9 @@ namespace ConfigFile
         }
     }
 
-    [[nodiscard]] inline LoadResult Load(const std::filesystem::path& path)
+    /// What Load would find, with nothing moved or written: Loaded, Missing, Unreadable, or
+    /// Broken with the .bak read in its place (the state Load then moves aside)
+    [[nodiscard]] inline LoadResult Peek(const std::filesystem::path& path)
     {
         LoadResult result;
         std::error_code ec;
@@ -140,13 +147,7 @@ namespace ConfigFile
             result.state = State::Unreadable;
             return result;
         }
-
-        result.movedTo = FileUtils::MoveAside(path, ".broken");
-        if (result.movedTo.empty()) {
-            result.state = State::BrokenKept;
-            return result;
-        }
-        result.state = State::MovedAside;
+        result.state = State::Broken;
 
         // The last good save, if it is one: its settings instead of the defaults
         const auto backup = FileUtils::BackupPath(path);
@@ -155,6 +156,24 @@ namespace ConfigFile
         } else if (Detail::ReadObject(backup, result.config, result.backupDetail) == Detail::ReadOutcome::Object) {
             result.fromBackup = true;
         }
+        return result;
+    }
+
+    [[nodiscard]] inline LoadResult Load(const std::filesystem::path& path)
+    {
+        LoadResult result = Peek(path);
+        if (result.state != State::Broken) return result;
+
+        result.movedTo = FileUtils::MoveAside(path, ".broken");
+        if (result.movedTo.empty()) {
+            // Nothing of the .bak is used for a file left where it is
+            result.state = State::BrokenKept;
+            result.config = nlohmann::json();
+            result.fromBackup = false;
+            result.backupDetail.clear();
+            return result;
+        }
+        result.state = State::MovedAside;
         return result;
     }
 }

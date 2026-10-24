@@ -45,6 +45,9 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/uimanager/UIManagerConfig.cpp
     src/uimanager/UIManagerConfigSave.cpp
     src/uimanager/UIManagerLocale.cpp
+    src/uimanager/UIManagerStartupConfig.cpp
+    src/uimanager/UIManagerTreeState.cpp
+    src/uimanager/UIManagerTreeParity.cpp
     src/uimanager/UIManagerIO.cpp
     src/EncodingUtils.cpp
     src/spellscanner/SpellScannerHelpers.cpp
