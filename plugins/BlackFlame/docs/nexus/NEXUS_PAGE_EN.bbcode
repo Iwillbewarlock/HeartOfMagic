@@ -12,7 +12,7 @@ While you wear the lantern, you gain the worn effect [b]"Longing"[/b] (Korean: [
 [*][b]Grey-Black Fire Visuals:[/b] Your own fire spells look grey-black, including the projectile, the explosion, the casting effect in your hands, the body aura, the fire on targets you hit, and the casting light. "Your fire spells" means ordinary spells that Heart of Magic's spell catalog marks as fire. It is a glowing grey-black flame, not pitch black.
 [*][b]Increased Magicka Cost:[/b] Fire spells that have the fire keyword cost 30% more Magicka. A spell that counts as fire only in Heart of Magic's catalog may not get this cost increase.
 [*][b]Black Flame Burn Damage:[/b] Your fire hits add [b]"Black Flame"[/b] (Korean: [b]"흑염"[/b]) damage: 2% of the target's maximum Health over 2 seconds, ignoring resistance. Hitting again restarts the 2 seconds; it does not stack. The spell's own damage is still resisted as usual. This does not apply to cloak spells, scrolls, staffs, shouts or powers.
-[*][b]Grey Corpse Fire (AE 1.6.1170):[/b] On AE 1.6.1170, the corpse fire of Frozen Electrocuted Combustion (FEC) on enemies your Black Flame killed is grey too.
+[*][b]Grey Corpse Fire (AE 1.6.1170):[/b] On AE 1.6.1170, the corpse fire of Frozen Electrocuted Combustion (FEC) on enemies your fire killed while you wore the lantern is grey too.
 [/list]
 
 [b]What is not changed:[/b]
@@ -42,12 +42,13 @@ When the game starts, the add-on makes private grey copies of the fire visuals f
 [*]Install the archive with Mod Organizer 2 or Vortex.
 [*]There is a Korean and an English download. Install only one. They have the same files and FormIDs; only the in-game text differs.
 [*]Enable both plugins: [b]HeartOfMagic_BlackFlame.esp[/b] and [b]HeartOfMagic_BlackFlame_Slots.esp[/b].
+[*]Keep SKSE\Plugins\HeartOfMagic_BlackFlame.json: without it the plugin falls back to built-in settings that are not the release ones. If it is lost, reinstall the mod.
 [*]If you use a loose-file cache mod (such as CRDW), rebuild its cache (Force rebuild) after installing or updating. An old cache does not know the new files.
 [/list]
 
 [b]First Launch:[/b]
 [list]
-[*]Start the game and wait at the main menu. The first start takes longer than usual, because the add-on makes the grey copies then. Wait 1-2 minutes at the main menu before you load a save.
+[*]Start the game and wait at the main menu. The first start takes longer than usual, because the add-on makes the grey copies then. Wait at the main menu before you load a save: about 1-2 minutes on the author's PC (RTX 3070); a slower PC or a larger load order takes longer. Nothing on screen says when it is done; spells that still look orange after loading turn grey from the next start.
 [*]If Heart of Magic has no spell catalog yet, its automatic first-start scan makes one first; Black Flame waits for it.
 [*]If Heart of Magic's automatic scan is turned off, or you already have a saved tree so it does not scan by itself, run a full scan in Heart of Magic.
 [*]If you load a save or start a new game before the catalog is ready, Black Flame does not set itself up for that session. Finish the scan and restart the game.
@@ -60,15 +61,15 @@ When the game starts, the add-on makes private grey copies of the fire visuals f
 [size=4][b]Finding the Lantern[/b][/size]
 [list]
 [*][b]In-game location:[/b] You can find "Saeel's Iron Cage Lantern" (Korean: "사엘의 철창 등불") on a table on the upper level of [b]Ansilvund Burial Chambers[/b] (Korean: [b]안질푼트 매장묘실[/b]), with smoke rising next to it. A save that has already visited that place gets the lantern on the next visit.
-[*][b]Console commands:[/b] In English, the command [b]help "Saeel's Iron Cage Lantern" 4[/b] shows its FormID; then run [b]player.additem <FormID> 1[/b]. Its FormID is [b]FE[/b] + the 3-digit ESL number your mod manager shows for HeartOfMagic_BlackFlame.esp + [b]80D[/b] (example: ESL number FD3 gives FEFD380D). In the Korean version, [b]help 철창 4[/b] works if your console can type Korean.
+[*][b]Console commands:[/b] In English, the command [b]help Saeel 4[/b] shows its FormID; then run [b]player.additem <FormID> 1[/b]. Its FormID is [b]FE[/b] + the 3-digit ESL number your mod manager shows for HeartOfMagic_BlackFlame.esp + [b]80D[/b] (example: ESL number FD3 gives FEFD380D). In the Korean version, [b]help 철창 4[/b] works if your console can type Korean.
 [/list]
 
 [size=4][b]Game Versions[/b][/size]
 [list]
-[*][b]AE 1.6.1170 (Steam)[/b] - [b]Status:[/b] Tested in game. [b]Notes:[/b] Everything works. Copies are used in the same launch.
-[*][b]AE 1.7.104[/b] - [b]Status:[/b] Not tested in game. [b]Notes:[/b] The code addresses were checked by reading the game code, but it was never run. Off: the aura refresh of equipped master spells, the grey FEC corpse fire, the grey rune glyph and scorch marks. Copies may need one restart.
-[*][b]Other AE 1.6 versions (incl. GOG 1.6.1179)[/b] - [b]Status:[/b] Not tested. [b]Notes:[/b] Same features off as 1.7.104. Copies may need one restart.
-[*][b]SE 1.5.97[/b] - [b]Status:[/b] Not tested, never run. [b]Notes:[/b] Copies are used from the next launch (restart once). Also off: the grey hand casting effect, and the grey ground fire and explosions created by the game's own hazard/explosion code.
+[*][b]AE 1.6.1170 (Steam)[/b] - [b]Status:[/b] Tested in game. [b]Notes:[/b] Copies are used in the same launch.
+[*][b]AE 1.7.104[/b] - [b]Status:[/b] Not tested in game. [b]Notes:[/b] The code addresses were checked by reading the game code, but it was never run. Off: the instant aura refresh of spells that give an aura while equipped, the grey FEC corpse fire, the grey Fire Rune glyph. Scorch marks were checked only on 1.6.1170. Copies may need one restart.
+[*][b]Other AE 1.6 versions (incl. GOG 1.6.1179)[/b] - [b]Status:[/b] Not tested. [b]Notes:[/b] Same as 1.7.104, and also off: the instant hand casting effect refresh (your hands change on the next draw or cast instead). Copies may need one restart.
+[*][b]SE 1.5.97[/b] - [b]Status:[/b] Not tested, never run. [b]Notes:[/b] Copies are used from the next launch (restart once). Everything that is off on other AE versions is off, and also: the grey hand casting effect, and the grey ground fire and explosions created by the game's own hazard/explosion code.
 [*][b]Skyrim VR[/b] - [b]Status:[/b] Not supported.
 [/list]
 
@@ -76,8 +77,8 @@ When the game starts, the add-on makes private grey copies of the fire visuals f
 [list]
 [*]The flame is grey-black, not pitch black.
 [*]Death flames (an enemy burning to death) stay orange; that is hard-coded in the game engine.
-[*]The rune glyph on the ground (Fire Rune) and scorch marks turn grey only on AE 1.6.1170.
-[*]The aura refresh of equipped master spells (such as Fire Storm) when you put the lantern on or take it off works only on AE 1.6.1170.
+[*]The rune glyph on the ground (Fire Rune) turns grey only on AE 1.6.1170. Scorch marks were checked only on AE 1.6.1170.
+[*]The instant aura refresh of spells that give an aura while equipped (such as Fire Storm) when you put the lantern on or take it off works only on AE 1.6.1170.
 [*]The FEC corpse fire may stay orange in some cases (for example when your own frost or shock spell hits that corpse afterwards). The grey corpse fire is AE 1.6.1170 only.
 [*]With the lantern on, if you switch from a fire spell to a non-fire spell that shares the same equipped effect, that spell's light can stay tinted. It is harmless and goes back to normal when you take the lantern off.
 [*]Spells that are not in Heart of Magic's catalog keep their normal look, even if they look like fire. An effect shared by a fire spell and a non-fire spell may keep its original look.
@@ -95,6 +96,7 @@ When the game starts, the add-on makes private grey copies of the fire visuals f
 [*]In MO2's Overwrite folder (or in the game's Data folder without MO2): [b]meshes\heartofmagic\blackflame\copies[/b] and [b]textures\heartofmagic\blackflame\copies[/b]
 [*]The work folder: [b]Documents\My Games\Skyrim Special Edition\SKSE\HeartOfMagic_BlackFlame[/b] (GOG: [b]Skyrim Special Edition GOG[/b])
 [*][b]HoMBF_slots*.json[/b] in your saves folder (with MO2 profile-local saves: that profile's saves folder)
+[*][b]HeartOfMagic_BlackFlame.log[/b] and [b]HeartOfMagic_BlackFlame_tester.txt[/b] in the SKSE folder above (logs; attach them to bug reports)
 [/list]
 [/list]
 
@@ -107,6 +109,8 @@ When the game starts, the add-on makes private grey copies of the fire visuals f
 [*][b]powerofthree[/b] - address references, and Frozen Electrocuted Combustion, whose corpse effects this add-on turns grey.
 [*][b]Ershin[/b] - the main-thread hook location also used by Open Animation Replacer, Precision and True Directional Movement.
 [*][b]Khajiitistan[/b] - Black Flame (Nexus mod 192777): the colour reference for the look. No files from it are used.
+[*][b]The authors of MuIF and KillFeed[/b] - their call offsets for the SE 1.5.97 impact sites.
+[*][b]Community Shaders[/b] - its effect shader was the reference for the palette rules.
 [*][b]Bethesda[/b] - the grey effect meshes are made from Skyrim's own files.
 [*][b]Libraries:[/b] CommonLibSSE-NG (GPL-3.0 with exceptions), nifly (GPL-3.0), DirectXTex, DirectX Tool Kit, DirectXMath, spdlog, {fmt}, JSON for Modern C++ (all MIT).
 [/list]

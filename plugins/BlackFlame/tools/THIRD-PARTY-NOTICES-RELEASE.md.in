@@ -49,5 +49,10 @@ parallel texture statistics). It is not in this package: it comes with the Micro
 - **Immersive Equipment Displays** by SlavicPotato: the plugin calls IED's Papyrus API (as `IED.psc` declares it) when
   IED is installed. The lantern's position presets follow the IED profiles of **Lights On - Wearable Lanterns for
   IED** by GiraPomba.
-- Address references from **powerofthree**'s plugins, and the main-thread hook site also used by Open Animation
-  Replacer, Precision and True Directional Movement (Ershin).
+- Address references from **powerofthree**'s plugins; the corpse effects of powerofthree's **Frozen Electrocuted
+  Combustion** are turned grey at runtime (none of its files are shipped).
+- The main-thread hook site also used by Open Animation Replacer, Precision and True Directional Movement (Ershin), and
+  the SE 1.5.97 call offsets of the impact sites from **MuIF** and **KillFeed**.
+- **Community Shaders**' effect shader was the reference for the palette rules.
+- **Black Flame** by Khajiitistan (Nexus mod 192777) was the colour reference for the look; none of its files are used.
+- The grey meshes are made from Bethesda's Skyrim files.

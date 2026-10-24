@@ -1,5 +1,12 @@
 # Black Flame - "갈망" (Longing) prototype
 
+> **Release 1.0.0 (2026-10-24).** This file is the developer reference. Players: [docs/README_EN.md](docs/README_EN.md) /
+> [docs/README_KO.md](docs/README_KO.md). The release ships two plugins (`HeartOfMagic_BlackFlame.esp`, `HeartOfMagic_BlackFlame_Slots.esp`),
+> the builder started by the DLL at game start (single launch) and the config `tools/Make-ReleasePackage.ps1` writes. Sections below
+> that describe the stoke-buff prototype, installing `data/*` by hand, the Copies/Local ESLs, the copies-map route or a tester package
+> are development history, kept as written; the compiled defaults in `src/Config.h` (`singleLaunch` false, `lanternLog` true) are not
+> the release config.
+
 An SKSE plugin plus a small ESL. The player casts the self buff **갈망** ("Longing",
 60 s), or wears the lantern (section "Lantern"). While it lasts, eligible visuals of Heart of Magic catalog-fire spells the **player** casts turn grey-black (selection and shared-owner limits below): the burn
 shader on targets, the projectile, the explosion, the casting art in the player's hands and the casting
