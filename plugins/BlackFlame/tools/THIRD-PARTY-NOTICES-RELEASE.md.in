@@ -1,0 +1,53 @@
+# Third-party notices - Heart of Magic - Black Flame @VERSION@ (@LANGUAGE@)
+
+## Licenses
+
+- **`SKSE/Plugins/HeartOfMagic_BlackFlame.dll` is a GPL-3.0-or-later combined work.** It statically links
+  **CommonLibSSE-NG @COMMONLIB_VERSION@**, which is licensed GPL-3.0-or-later with the **Modding Exception** and the
+  **GPL-3.0 Linking Exception**, and is distributed under those terms: `licenses/CommonLibSSE-NG/COPYING.txt`
+  (GNU GPL version 3) and `licenses/CommonLibSSE-NG/EXCEPTIONS.md` (the two exceptions).
+- **`SKSE/Plugins/HeartOfMagic_BlackFlame/blackflame-greybuild.exe` is a GPL-3.0 combined work.** It statically links **nifly**
+  (GPL-3.0) and is distributed under the GNU GPL version 3 (`licenses/nifly.txt`).
+- **Heart of Magic's own source files are MIT** (`LICENSE`). MIT is compatible with the GPL; files you take from this
+  project on their own stay MIT.
+
+## Corresponding Source
+
+The source code is public at <https://github.com/Iwillbewarlock/HeartOfMagic>.
+
+- This package was made from commit `@COMMIT@`: <https://github.com/Iwillbewarlock/HeartOfMagic/tree/@COMMIT@>
+- Both binaries were built from commit `@BUILD_COMMIT@`. The packaging script checked that every file they are
+  compiled from is the same in both commits (the later commit changes only documents, data and packaging).
+- @COMMONLIB_SOURCE@
+- The other libraries come from the vcpkg manifest `vcpkg.json` (triplet `x64-windows-static`). Building:
+  `BuildRelease.ps1 -preset Release-2026` (see the repository's README and CLAUDE.md).
+
+## Libraries in the plugin DLL (`HeartOfMagic_BlackFlame.dll`)
+
+| Library | Version | License | License text |
+|---|---|---|---|
+| CommonLibSSE-NG | @COMMONLIB_VERSION@ | GPL-3.0-or-later + Modding Exception + GPL-3.0 Linking Exception | `licenses/CommonLibSSE-NG/COPYING.txt`, `licenses/CommonLibSSE-NG/EXCEPTIONS.md` |
+| CommonLibSSE (the original code CommonLibSSE-NG grew from) | - | MIT (kept for attribution) | `licenses/CommonLibSSE-NG/LICENSE-MIT.txt` |
+@DLL_ROWS@
+
+## Libraries in the builder (`blackflame-greybuild.exe`)
+
+| Library | Version | License | License text |
+|---|---|---|---|
+@BUILDER_ROWS@
+
+Both binaries link the Microsoft C/C++ runtime (CRT) statically under the Visual Studio redistribution terms. The
+builder also loads Microsoft's OpenMP runtime `vcomp140.dll` (DirectXTex's BC6H/BC7 encoder and the builder's own
+parallel texture statistics). It is not in this package: it comes with the Microsoft Visual C++ Redistributable
+2015-2022 (x64).
+
+## Knowledge from other mods (no code)
+
+- **Temp File Framework** by HDharder (GPL-3.0): the plugin uses its findings about the game's file index - Address
+  Library ids, function signatures and data layouts - to make files written while the game runs visible to the game.
+  None of its code is used.
+- **Immersive Equipment Displays** by SlavicPotato: the plugin calls IED's Papyrus API (as `IED.psc` declares it) when
+  IED is installed. The lantern's position presets follow the IED profiles of **Lights On - Wearable Lanterns for
+  IED** by GiraPomba.
+- Address references from **powerofthree**'s plugins, and the main-thread hook site also used by Open Animation
+  Replacer, Precision and True Directional Movement (Ershin).

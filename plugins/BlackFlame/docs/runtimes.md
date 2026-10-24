@@ -117,24 +117,19 @@ an INFO line of T9, fix F6), and the self-test's DONE lines. `testerMode` (confi
 and `writeRequest` and writes every log line through at once (a crash keeps it), during and after the self-test (fix F9);
 the self-test starts after `selfTestDelaySeconds` (30) of unpaused play.
 
-**Tester package.** `plugins\BlackFlame\tools\Make-TesterPackage.ps1` (after `BuildRelease.ps1`) writes
-`dist\HeartOfMagic-BlackFlame-Tester_<VERSION>-<commit>.zip`: the DLL and PDB, the ESP and the two empty ESLs, the shipped
-vanilla-derived grey meshes and palette, the grey map, the config with `testerMode` true, the builder with
-`Build Black Flame copies.bat` (no argument: `Documents\HeartOfMagic BlackFlame Copies`) under `tools\BlackFlame`, and
-[tools/README_TESTER.md](../tools/README_TESTER.md) (MO2 and Vortex steps, the files to send back, a throwaway save). The
-script refuses to package generated copies (a `copies` mesh folder, a copies map, a non-empty copies or local ESL).
-The package's `THIRD-PARTY-NOTICES.md` is its own (`tools/THIRD-PARTY-NOTICES-TESTER.md.in`, not the Librarian
-release's): the DLL (CommonLibSSE-NG) and the builder (nifly) as GPL combined works, each one's libraries with the
-version vcpkg installed, and the exact commit as the Corresponding Source. The licence texts are copied from the
-CommonLib submodule and vcpkg's installed copyright files when packaging (and checked byte for byte). The commit counts as
-published only when a branch or tag origin has now reaches it (`git fetch origin`, then `git ls-remote` and
-`merge-base --is-ancestor`; local tags and other remotes do not count, offline counts as unpublished). An unpublished
-commit is refused unless `-AllowUnpublished`, which puts `source\HeartOfMagic-<version>-source.zip` in the package:
-`git archive` of the commit (with `-AllowDirty`, which needs it, the tracked files' uncommitted changes too) and of the
-CommonLibSSE-NG submodule's commit at `plugins/external/commonlibsse-ng/`, in one zip; the notice then points into the
-zip. The zip is written with .NET's ZipArchive, which marks entries as made on Windows: the submodule's few symbolic
-links (documentation files) come out as small files holding their target (Y20). An untracked file under the DLL's or
-the builder's sources is refused always. The DLL's library table has no xbyak
-and no zlib: neither one's strings are in `HeartOfMagic_BlackFlame.dll` (both are in `SpellLearning.dll`, whose
-release notice lists them).
+**Release package.** `plugins\BlackFlame\tools\Make-ReleasePackage.ps1` (no build: it ships the tested binaries)
+writes `dist\BlackFlame-<version>\HeartOfMagic-BlackFlame_<version>_KO.zip` and `_EN.zip` (`<version>` from
+`plugins/BlackFlame/VERSION`): the DLL, the builder, the ESP of that language (KO from `data`, EN from
+`localization/en`; same FormIDs), the Slots ESL, the vanilla-derived grey meshes and palettes, the grey map, the config
+(the tested single-launch keys, `lanternLog` false, every test and automation key off), `README_<lang>.md`
+(`docs/README_<lang>.md`), `LICENSE`, `THIRD-PARTY-NOTICES.md` (`tools/THIRD-PARTY-NOTICES-RELEASE.md.in`), `licenses\`
+(copied from the CommonLib submodule and vcpkg's installed copyright files) and `PACKAGE-MANIFEST.json` (every file's
+size and sha256). It refuses a dirty tree, any shipped binary or ESP whose sha256 is not the tested build's (the table at
+the top of the script, with the build commit), a compiled input that differs between the build commit and HEAD, a dev or
+mismatched builder identity, a failed builder `--self-test` or an unpinned output version, generated copies, and
+anything outside the expected top level (no source snapshot, `lab`, `requests` or PDB). The notice names the public
+repository, the package commit and the build commit as the Corresponding Source, so that commit must be on origin: an
+unpushed commit is refused unless `-AllowUnpushed`, which warns to push before uploading. The DLL's library table has
+no xbyak and no zlib: neither one's strings are in `HeartOfMagic_BlackFlame.dll` (both are in `SpellLearning.dll`,
+whose release notice lists them).
 

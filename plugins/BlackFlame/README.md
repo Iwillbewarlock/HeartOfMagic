@@ -60,7 +60,7 @@ A missing file, bad JSON or a bad value keeps the default for what was wrong and
 | `copyLaunchExplosion` | `true` | v2: after that launch the projectile's explosion is set to its copy |
 | `copyExplosionCreate` | `true` | v2: explosion creation hands the explosion copy when the source projectile is a copy or the player's self-area fire cast made it |
 | `copyImpacts` | `true` | v2: impacts inside a copy window take the impact copies |
-| `writeRequest` | `false` | v2 expansion: write the copy request and the NIF dump for the builder at kDataLoaded (section "Copy request"). Off for players: then no NIF is read at startup; the tester package turns it on |
+| `writeRequest` | `false` | v2 expansion: write the copy request and the NIF dump for the builder at kDataLoaded (section "Copy request"). With it off no NIF is read at startup. The tested build and the release package run it on |
 | `testerMode` | `false` | the tester package: `selfTest` and `writeRequest` forced on, every log line written through at once (section "Runtimes and Address Library ids") |
 | `copyCastingArt` | `true` | v2 expansion C4: SetCastingArt's call gives the player's fire hand art its copy (section "Swap points") |
 | `refreshCastingArt` | `true` | when the buff turns on or off, the player's drawn hands that hold a fire spell get the copy or the original casting art at the next tick (~100 ms), without a re-ready (section "Swap points", hand art refresh). AE 1.6.1170 and 1.7.104 only (1.7.104 checked only by the install-time byte patterns), with `copyCastingArt`; off for the session without the main-thread queue |
@@ -555,8 +555,8 @@ separate verification step. Language variants and current item wording: [lantern
 ## Lantern
 
 Design: [docs/superpowers/specs/2026-10-21-black-flame-lantern-design.md](../../docs/superpowers/specs/2026-10-21-black-flame-lantern-design.md).
-Tester notes (Korean: requirements, how to get the lantern, the checklist, what to send back):
-[docs/lantern-tester-ko.md](docs/lantern-tester-ko.md).
+Player guides (requirements, install, how to get the lantern, game versions, limits, credits):
+[docs/README_KO.md](docs/README_KO.md), [docs/README_EN.md](docs/README_EN.md).
 Records (this ESL, 0x80D-0x816): ARMO `HoMBF_Lantern`, ARMA `HoMBF_LanternAA`, ENCH `HoMBF_LanternEnch`, MGEF
 `HoMBF_LanternEffect` "갈망" 0x810 (keyword `HoMBF_StokedKeyword`, perk 0x811), PERK `HoMBF_LanternPerk`, SPEL
 `HoMBF_LanternBurnSpell` 0x812, MGEF `HoMBF_LanternBurnEffect`, MSTT `HoMBF_LanternSmoke`, GLOB `HoMBF_LanternPlaced`

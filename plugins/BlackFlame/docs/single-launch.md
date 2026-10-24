@@ -106,14 +106,14 @@ line's kind, key, outcome and deps (not its reason) and a digest of the output-a
 (--self-test --print-golden)". A released table is never edited: a new version adds one. A released version is pinned:
 its row in `kReleasedPins` (`GreyGoldenTable.h`, apart from the tables, so a table pasted from `--print-golden` never
 overwrites a pin; that option prints no pin) holds the fnv64 of its table's text, and a pinned version whose table is
-missing or no longer hashes to its pin fails the self-test. `Make-TesterPackage.ps1` refuses a builder whose
+missing or no longer hashes to its pin fails the self-test. `Make-ReleasePackage.ps1` refuses a builder whose
 `kBuilderOutputVersion` has no pin and prints the row to add. Procedure: run `--self-test`, add the row its `NOTE golden
 table v<n> fnv64 <hex>` line gives (`{ <n>, "<hex>" },`), commit, build Release again, package. Version 1 is not pinned
 yet: it is pinned before the first tester package with BFK4 is made. The builder turns FMA3 off in the CRT's maths functions
 (`_set_FMA3_enable(0)`) at the start of every mode, so a shipped run gives the bytes the table holds. Version 1's table was
 made on one machine and has not been confirmed on a second one yet; it is the build's gate all the same (the POST_BUILD
-step above). Without `--golden-dir` the golden part is skipped (no developer's folder is compiled into the exe; a tester
-package has no fixtures); the POST_BUILD step and `Make-TesterPackage.ps1` pass the repository's
+step above). Without `--golden-dir` the golden part is skipped (no developer's folder is compiled into the exe; a release
+package has no fixtures); the POST_BUILD step and `Make-ReleasePackage.ps1` pass the repository's
 `tools/blackflame-greybuild/golden`, so there a missing folder fails. `--identity` prints the exe's output identity; the
 package script refuses a `+dev` one, one whose number is not `kBuilderOutputVersion`, and a builder whose `--self-test` has
 a FAIL. Not in the digest: constants inside `.cpp`
