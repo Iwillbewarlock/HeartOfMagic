@@ -12,9 +12,9 @@ not a light source. While it is worn:
    runes, corpse fire). No visual work is new: the lantern only switches the existing pipeline on;
 2. fire spells cost 30% more magicka;
 3. a player's fire spell hit sets the target on black flame, as Elden Ring's black flame does (the user's model,
-   2026-10-21): damage over 2 s equal to 2% of the target's maximum health + 20, ignoring resistance. It does not
-   stack: a further hit while it burns only restarts the 2 s. So a single hit gives 2% + 20, and any stream of hits
-   (Flames held, Firebolt spam, Wall of Flames) burns at most 1% + 10 per second. Every casting type is treated the
+   2026-10-21): damage over 2 s equal to 2% of the target's maximum health, ignoring resistance. It does not
+   stack: a further hit while it burns only restarts the 2 s. So a single hit gives 2%, and any stream of hits
+   (Flames held, Firebolt spam, Wall of Flames) burns at most 1% per second. Every casting type is treated the
    same; the cast-type split and its ICDs (draft v2) are gone. Cloak hits, scrolls, staffs, shouts and powers get
    nothing.
 
@@ -149,7 +149,7 @@ FormID work and a mutex-guarded re-apply check happen; everything that reads the
 1. Sink: `cause` is the player and `source` is not our 0x812; the source FormID is classified once per id and cached:
    a `SpellItem` that `IsFireSpell` accepts or a fire hazard's spell (`BGSHazard::data.spell`), minus cloak
    secondaries (`IsCloakSpell`). Casting type does not matter any more.
-2. Rule (pure, `LanternDamageRules.h`): per-second rate = (max health x `lanternBurnPct` + `lanternBurnFlat`) /
+2. Rule (pure, `LanternDamageRules.h`): per-second rate = (max health x `lanternBurnPct`) /
    burn seconds, where burn seconds is read from the 0x812 effect's duration at kDataLoaded (2 in the ESP; not a
    config key, so the record and the maths cannot disagree). Re-apply throttle per target: `lanternReapply` (0.1 s)
    - only to keep a 60-events-per-second Flames from casting 60 times a second; it changes nothing in the damage,
@@ -172,7 +172,7 @@ FormID work and a mutex-guarded re-apply check happen; everything that reads the
    before the cast, so a kill inside the cast is caught; review 1 R5).
 
 Config keys (`HeartOfMagic_BlackFlame.json`, documented in the README config table): `lanternPlace` (true),
-`lanternDamage` (true), `lanternLog` (true), `lanternBurnPct` (0.02), `lanternBurnFlat` (20), `lanternReapply`
+`lanternDamage` (true), `lanternLog` (true), `lanternBurnPct` (0.02), `lanternReapply`
 (0.1), `lanternOffset` [x,y,z,yaw], `journalOffset` [x,y,z,yaw], `smokeOffset` [x,y,z]. `lanternSinglePct`,
 `lanternSingleIcd`, `lanternConcPct`, `lanternConcIcd` (v2) are removed; an old JSON that still has them logs
 "unknown key" once and goes on. The +30% cost lives in the perk.
@@ -241,7 +241,7 @@ reason gets `lantern` when the 0x810 effect is the one found (review R3).
 
 ## 7. Checks
 
-Offline: `LanternDamageRules.h` tests in `blackflame-cosave-check` (rate maths for 2% + 20 over 2 s, edge max health 0
+Offline: `LanternDamageRules.h` tests in `blackflame-cosave-check` (rate maths for 2% over 2 s, edge max health 0
 and huge, re-apply throttle edges at exactly 0.1 s, cloak / own-spell / non-fire exclusion, map pruning past the
 longest throttle); houseCARL read-back of every new record;
 `nif_inspect` of the three NIFs (shape list, skin partition 60, addon node names, texture paths). Reviews: reviewer
@@ -254,7 +254,7 @@ One bundled in-game run by the user, judged from `HeartOfMagic_BlackFlame.log`:
 | Enter Ansilvund02 | `lantern place: ok`, then a `candidate` line and `keyframed ... ok` for the lantern and the journal; lab and lantern coordinates as configured |
 | Pick it up | `lantern smoke: disabled 1` |
 | Equip / unequip | `buff flag ON (... lantern)` / `buff flag off`; `lantern cost` lines: worn = 1.3 x off for keyword fire spells |
-| Firebolt on a target, then nothing for 3 s | one `lantern burn`, rate = (2% of max + 20) / 2 per second, `effects=1`, `magnitude` = rate |
+| Firebolt on a target, then nothing for 3 s | one `lantern burn`, rate = (2% of max) / 2 per second, `effects=1`, `magnitude` = rate |
 | Firebolt twice within 1 s on one target | two `lantern burn` lines, `effects=1` after the second (no stacking) |
 | Flames held 5 s on one target | `lantern burn` lines about 0.1 s apart, `effects=1` on every line |
 | Fireball (direct and splash), Fire Rune, Wall of Flames | `lantern hit` lines name their source; Wall of Flames: none at all means its hazard hits do not carry the player as cause |
@@ -306,3 +306,5 @@ player; without IED the skinned `lantern_worn.nif` above stays. `LanternIed.cpp/
 - In game, left to the eye: the place on both bodies, the world model's flame with Havok off; judged from the log: the
   ARMA check, every setter `-> true`, the `lantern ied check PASS` lines after the setup and each equip toggle, the delete
   with `lanternIed` false.
+
+2026-10-23 update: the user removed the flat damage component. The native rate is maximum Health × 0.02 / 2 seconds; legacy lanternBurnFlat settings are ignored. IgnoreResistance and NoAbsorb on the burn spell are unchanged.

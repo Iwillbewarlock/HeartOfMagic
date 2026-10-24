@@ -1,7 +1,7 @@
 # Black Flame - "갈망" (Longing) prototype
 
 An SKSE plugin plus a small ESL. The player casts the self buff **갈망** ("Longing",
-60 s), or wears the lantern (section "Lantern"). While it lasts, the visuals of every fire spell the **player** casts turn grey-black: the burn
+60 s), or wears the lantern (section "Lantern"). While it lasts, eligible visuals of Heart of Magic catalog-fire spells the **player** casts turn grey-black (selection and shared-owner limits below): the burn
 shader on targets, the projectile, the explosion, the casting art in the player's hands and the casting
 lights. NPC fire spells, projectile physics and damage do not change. The look follows the Black Flame
 mod's burn shader: the engine's additive blending stays, only the colour palette becomes a colourless
@@ -9,7 +9,8 @@ grey ramp, so the result is grey-black rather than pitch black.
 
 This is a **separate prototype**. It is built by the Heart of Magic super-build (`BuildRelease.ps1`)
 but is not in the Heart of Magic release: it is not in `plugins/cmake/Distribution.cmake` or the FOMOD.
-It does not link SpellLearning; it only reads Heart of Magic's `spell_catalog.json` when present.
+It does not link SpellLearning; it reads Heart of Magic's `spell_catalog.json`. The catalog is required
+for spell visual selection; missing or empty catalog input leaves spell visuals unchanged.
 
 Design and decisions: [docs/superpowers/specs/2026-10-15-black-flame-proto-design.md](../../docs/superpowers/specs/2026-10-15-black-flame-proto-design.md).
 
@@ -94,7 +95,7 @@ too, all as UTF-8 text and sorted), and reused. Only a complete probe without fa
 | `lanternPlace` | `true` | Place the lantern and the smoke on the table (UpperTable01) of Ansilvund02 (section "Lantern"). Off for the session without the main-thread queue |
 | `lanternDamage` | `true` | The worn lantern's black flame on the player's fire hits (section "Lantern"). Off for the session without the main-thread queue |
 | `lanternLog` | `true` | One line per hit that burns (`lantern hit:`), per burn cast (`lantern burn:`) and per kill of a burning target (`lantern kill:`), not rate-limited (on for the first run). The `rejected` line (once per source) and the placement lines are written either way |
-| `lanternBurnPct`, `lanternBurnFlat` | `0.02`, `20` | One burn's damage: the share of the target's maximum health (0..1) plus a flat amount (0..10000), dealt over the burn spell's duration (2 s, from the ESP record, not a key) |
+| `lanternBurnPct` | `0.02` | One burn's damage: the share of the target's maximum health (0..1), dealt over the burn spell's duration (2 s, from the ESP record, not a key). No flat damage; legacy `lanternBurnFlat` is ignored. |
 | `lanternReapply` | `0.1` | Seconds between two burn casts on one target (0.02..2). Changes nothing in the damage (a re-cast only restarts the burn); it keeps a 60-hits-a-second Flames from casting 60 times a second |
 | `lanternOffset` | `[0, 0, 59.5, 0]` | Where the lantern stands: `[x, y, z, yaw]` in game units from the table ref (x right, y forward, z up, turned with the table; -1000..1000) and a yaw in degrees added to the table's (-360..360). The default is the table top's centre (its bounds reach z 59) |
 | `smokeOffset` | `[0, 0, 71.5]` | The smoke's `[x, y, z]`, the same way |
@@ -131,21 +132,22 @@ rebuilt as above.
 
 ## How it works
 
-**Fire spells and fire effects** (built once at kDataLoaded; v2 rule, user decision 2026-10-16): a spell
-is fire when one of its effects is a fire MGEF - the vanilla `MagicDamageFire` keyword (Skyrim.esm 0x01CEAD)
-or fire resistance as its resist value - OR when Heart of Magic's `spell_catalog.json` tags it "fire". Only
-`SpellType::kSpell` counts. A fire-MGEF spell's fire effects are its fire MGEFs; a catalog-only fire spell's
-fire effects are all of its effects (it has no fire MGEF to pick; e.g. Vigilant's Script-archetype Blinding
-Fire). The v2 copies change only visuals, so a catalog false positive costs only a grey look (this reverses
-round 8b, where the catalog tag alone did nothing). The log says how many spells are fire by the tag alone. A fire
-Cloak-archetype MGEF's associated spell (the damage spell the cloak casts on whatever comes near) is a fire spell
-whatever its SpellType, with every effect of it a fire effect (v2 expansion R3; repeated until nothing is added; the
-log counts them), so what a player's cloak puts on a target counts as the player's fire. Those effects add no fire
-explosions or hazards (v2 fix J4: a frost sub-spell's shared explosion must not turn grey while stoked). The
-fire explosions are those the fire effects and their projectiles name; the fire hazards are those the fire
-effects can leave (their impact data sets' hazards, their explosions' impact hazards and placed
-objects, a spawn-hazard archetype's form) plus any hazard whose own spell carries a fire effect. The
-log gives the counts.
+**Visual selection** (2026-10-23, `VisualSet`): ordinary `SpellType::kSpell` roots tagged
+"fire" by Heart of Magic's `spell_catalog.json` qualify. Missing/empty catalog input leaves visuals
+unchanged. Every MGEF of a qualifying root is a visual copy candidate, including secondary effects without
+fire keywords; Cloak associated spells are followed recursively. Copy candidacy does not authorize use:
+a spell reachable from any non-catalog ordinary root stays original at runtime, even if it is also a catalog
+root. This avoids attributing a shared cloak child to the wrong origin. Equip abilities use current selected
+parent ownership as described below. Existing player/buff guards still apply. Shared records and source assets
+stay unchanged; only private copies or eligible effect instances are changed.
+
+**Fire spells and fire effects for gameplay** (`FireSet`): the existing rule remains a fire MGEF
+(`MagicDamageFire` or `ResistFire`) OR the catalog's fire tag. Fire-MGEF spells keep their fire MGEFs
+as gameplay fire effects; catalog-only fire spells use all their effects. The existing associated-cloak
+expansion remains. `IsFireSpell`, `IsFireEffect`, `IsBurnable`, mana cost, lantern damage and corpse
+kill attribution are not broadened by the visual set. A keyword-fire spell absent from the catalog may still
+qualify for gameplay rules while keeping its original spell visuals. See
+[visual-scope.md](docs/diagnostics/visual-scope.md) for coverage and conservative exclusions.
 
 **Whose it is** (projectiles, explosions, hazards): the player's when the owner or shooter is the
 player, OR a NonActorMagicCaster's `blameActor` is the player (an explosion's own caster, or the
@@ -470,17 +472,26 @@ and slots hooked); the self-test repeats them as T0-grey and counts swaps at T6-
 
 [Read this section](docs/black-flame-v2-copies.md#decal-texture-set-copies-txst-greyformstxsth-formcopiesfilltexturecpp).
 
-### Equip ability body art: `EquipAbilityRules.h`, `EquipAbilityRefresh.h`
+### Equip ability body art: `VisualEquipRules.h`, `VisualEquipContext.h`, `EquipAbilityRefresh.h`
 
-A ritual spell's body aura is not on the spell's own MGEF: Fire Storm's fire MGEF 07A82A names an equip ability
-(`data.equipAbility`, SPEL 080E34) whose holder MGEF 080E33 (no fire keyword) carries the aura as its hit art (ARTO
-080E32). Rule (2026-10-23): a fire effect's equip ability whose effects have a hit art is a fire equip ability; the copy
-closure walks that hit art (`kEdgeHitArt`), and HitEffectHook's art slot (only) lets its effects pass the fire check.
-`IsFireEffect` / `IsFireSpell` / `IsBurnable` are unchanged (cost and lantern damage). The Illusion master spell's
-ability (0225AE, parent not fire) stays out. The engine asks the art once when the ability starts (at spell equip), so
-on each buff edge `EquipAbilityRefresh` removes and adds again, on the main thread, each live fire equip ability that
-is in the actor's spell list (`HasSpell`); one that is not is left as is and logged (`AddSpell` would keep it for good).
-Not run in game yet (b0ca21d6).
+Every MGEF of a catalog-fire root can supply an equip ability, including a secondary non-fire MGEF.
+In the tested load order Fire Storm therefore reaches both 080E34 -> 080E32 and its secondary
+F3931 -> 225AE -> 22477 -> 22471 (the red Illusion ritual body art). These IDs explain the observed
+records; they are not hardcoded selection exceptions. The copy closure includes the ability's visuals.
+Hit art requires a private copy; an equip ability never falls back to untracked runtime art recolouring.
+
+A shared ability is eligible only when a currently selected owning root is visual and no selected
+nonvisual root owns that same ability. An unrelated nonvisual spell in the other hand does not veto it.
+Nonfire-only, mixed-owner, unknown-owner and NPC contexts retain the original. The getter reads current
+selected spell identities rather than a cached eligibility decision. Ordinary shared MGEFs are checked
+with their actual spell context; shared original ARTO/EFSH/MGEF records are not rewritten.
+
+On AE 1.6.1170, buff edges and selected-spell/world changes queue a visual-only refresh. Both listed
+and unlisted abilities retain their gameplay ActiveEffect: Stop/Detach old visual refs, then engine 34094
+asks the existing getters again. RemoveSpell/AddSpell, dispel and recast are not used. A previous copy or
+our burn shader can be restored after visual eligibility is lost. Other runtimes do not run this refresh.
+Queue, thread, generation, current buff, caster, target and controller guards remain. Engine evidence,
+offline test scope and remaining game checks: [equip-ability-refresh.md](docs/diagnostics/equip-ability-refresh.md).
 
 ### Glow rules: `GreyGlow.h`
 
@@ -522,6 +533,25 @@ Not run in game yet (b0ca21d6).
 
 [Read this section](docs/single-launch.md#single-launch-the-dll-side-p2-singlelaunchh).
 
+## Catalog startup (2026-10-23)
+
+Before building fire sets or private copies, `CatalogStartup` reads HoM's atomically published
+`spell_catalog.json`. A readable catalog with a `spells` object starts immediately (including zero fire spells).
+When missing or malformed, it waits for HoM's scan and checks at most twice a second on the proven main-thread
+queue. Sets, copies, hooks, the ticker and IED initialization start once, before the first game load. The
+original records remain untouched while waiting. Menu tracking and the slot ledger still initialize early.
+
+HoM's default `whenMissing` automation scans when its saved tree is missing or empty. Keep the initial main
+menu open until that scan and copy generation finish. If automatic building is disabled or an existing tree
+prevents it, perform a full HoM scan; BlackFlame does not override HoM settings. A ready existing catalog is
+reused; this change does not force a fresh scan or reload sets during play. If loading starts before readiness,
+runtime initialization is cancelled for that session: finish scanning, then restart. Main-thread proof or queue
+failure also cancels safely. The publication window is never reopened.
+
+Regression harness: `tools/blackflame-catalog-startup-check/run.ps1` compiles the production startup bodies,
+catalog parser and wait code; queue/menu/engine boundaries are fake. In-game first-install timing remains a
+separate verification step. Language variants and current item wording: [lantern-text](docs/lantern-text.md).
+
 ## Lantern
 
 Design: [docs/superpowers/specs/2026-10-21-black-flame-lantern-design.md](../../docs/superpowers/specs/2026-10-21-black-flame-lantern-design.md).
@@ -540,11 +570,11 @@ in the game hands it out (console only). While worn:
 
 - fire spells cost 30% more magicka (the perk's Mod Spell Cost entry, conditioned on `MagicDamageFire` and the player);
 - the player's fire hit on an actor sets it on black flame, as Elden Ring's black flame does (design v3): damage over
-  2 s equal to `lanternBurnPct` (2%) of its maximum health + `lanternBurnFlat` (20), ignoring resistance.
-  `HoMBF_LanternBurnSpell` is cast by the player (kill credit kept) with a per-second magnitude of (max x pct + flat) /
+  2 s equal to `lanternBurnPct` (2%) of its maximum health, ignoring resistance. There is no flat damage.
+  `HoMBF_LanternBurnSpell` is cast by the player (kill credit kept) with a per-second magnitude of max x pct /
   the burn spell's duration, read from the ESP at load (logged; a duration not above 0 turns the damage off with one
   warning). It does not stack: a further hit while it burns restarts the 2 s, so any stream of hits (Flames held,
-  Firebolt spam, Wall of Flames) burns at most 1% + 10 per second. Every casting type is treated the same; fire hazards'
+  Firebolt spam, Wall of Flames) burns at most 1% per second. Every casting type is treated the same; fire hazards'
   spells count as fire. Casts on one target are at least `lanternReapply` (0.1 s) apart. Cloak hits, scrolls, staffs,
   shouts and powers get nothing. Not stacking relies on the engine replacing the same spell from the same caster
   (vanilla behaviour, not proven here): the `lantern burn` line counts the burn effects on the target after each cast.

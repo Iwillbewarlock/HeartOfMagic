@@ -5,6 +5,28 @@ runtime identity is still unverified. The evidence below rules out the proposed 
 light and unconverted body colour keys; it does not establish a production light fix.
 No game, MO2, build or self-test was started for this investigation.
 
+## Later run: 19:51 through 20:00, 2026-10-23
+
+The original SKSE log has 900 lines, ending at 20:00:22.980 (83 more than the run1951 snapshot).
+Lines 670-672 keep original art 00080E32 for ability 00080E34 before stoke. Lines 714-715 then find
+one live fire equip ability but skip refresh because HasSpell is false. This establishes a refresh
+omission, not that two art models overlap or that this is the source of the reported red pixels.
+The earlier 17:04:49 copy/3D observation below remains valid evidence against treating every red
+aura as an old original clone.
+
+Lines 701/703, 724-725 and 727-728 show replacement casting lights tinted from orange to the
+configured (0.250,0.220,0.280); no `rewritten` was logged. Twelve probes (705-749) found no orange
+light in four caster slots or below the player's third-person root. That configured tint is slightly
+purple, not achromatic. World lights, other roots and changes between samples remain outside this
+evidence. The handoff's categorical "not light" conclusion is therefore too strong.
+
+The STALL at line 750 recovered at line 819 (`stall over`, 19:56:13.008). Its cause is unknown.
+Corpse hooks installed (492-493), but final counters at 899 still show zero marked kills/attaches:
+corpse colour and NPC preservation cannot be judged from this session.
+
+The fallback correction and next-run discriminators are documented in
+[equip-ability-refresh.md](equip-ability-refresh.md). Light tint and generated NIFs are unchanged.
+
 ## Records, including the winning overrides
 
 `docs/diagnostics/light-evidence.js records` reads the enabled profile plugins in load order, resolves their

@@ -20,13 +20,22 @@ the old stoke buff (0x802/0x803) are named 갈망 / Longing (user 2026-10-21; "�
 | 2 | 흑염의 등불 | Lantern of Black Flame | the wickless black flame itself, vanilla-style name |
 | 3 | 흑염의 족쇄 | Shackle of Black Flame | no longer a light, a shackle worn at the belt |
 
-## Item description (MGEF `HoMBF_LanternEffect` description)
+## Current item description (2026-10-23)
 
-| # | Korean | English |
-|---|---|---|
-| 1 | 착용 중 화염 마법이 흑염으로 타오르며 매지카 소모량이 30% 증가합니다. 화염 마법이 명중하면 저항을 무시하는 추가 피해로 대상 최대 체력의 2%(단발 시전) 또는 초당 최대 1.6%(집중 시전)를 줍니다. | While worn, fire spells burn as black flame and cost 30% more magicka. Fire spells that hit deal extra damage that ignores resistance: 2% of the target's maximum health per hit for single-cast spells, or up to 1.6% per second for concentration spells. |
-| 2 | 화염 마법이 흑염으로 변하며 매지카를 30% 더 소모합니다. 화염 마법이 명중하면 저항을 무시하는 추가 피해를 주며, 단발 시전은 타격당 대상 최대 체력의 2%, 집중 시전은 초당 최대 1.6%입니다. | Fire spells burn as black flame and cost 30% more magicka. Fire spell hits deal extra damage that ignores resistance: 2% of maximum health per hit for single-cast spells, up to 1.6% per second for concentration spells. |
-| 3 | 착용 시 화염 마법이 흑염을 일으키며 매지카 소모량이 30% 증가합니다. 명중한 화염 마법은 저항을 무시하는 추가 피해로, 단발 시전은 타격당 최대 체력의 2%, 집중 시전은 초당 최대 1.6%를 입힙니다. | While worn, fire spells burn as black flame and cost 30% more magicka. Fire spells that hit deal extra damage that ignores resistance: 2% of maximum health per hit for single-cast spells, up to 1.6% per second for concentration spells. |
+User-approved wording. The flat +20 damage has been removed from the damage rule; both languages describe 2% of maximum Health over 2 seconds.
+The displayed enchantment description is `MGEF HoMBF_LanternEffect` (local ID `0x810`), subrecord **DNAM**. The armor has no DESC; its EITM points to `HoMBF_LanternEnch`, whose effect is this MGEF. Do not alter ARMO DNAM: it is a numeric armor-rating field.
+
+| Korean | English |
+|---|---|
+| 착용자의 화염마법이 검게 물듭니다. 화염 마법의 매지카 소모량이 30% 증가합니다. 곪아썩은 마음에 비틀린 불꽃은 적중 시 2초에 걸쳐 대상 최대 체력의 2% 피해를 추가로 줍니다. | The wearer’s fire magic turns black. Fire spells cost 30% more Magicka. Twisted by a festering heart, the flames deal an additional 2% of the target’s maximum Health as damage over 2 seconds on hit. |
+
+### Package text mapping
+
+- Korean item/perk: `사엘의 철창 등불`; English: `Saeel's Iron Cage Lantern` (the existing name selected on 2026-10-21).
+- Stoke spell/effect and worn effect: `갈망` / `Longing`.
+- Burn spell/effect: `흑염` / `Black Flame`.
+- The English stoke effect description keeps the engine token: `Fire spells cast for <dur> seconds burn with black flame.`
+- These are alternate language variants of the same `HeartOfMagic_BlackFlame.esp`, with identical FormIDs, flags, masters and gameplay fields. Install one language variant.
 
 ## Book `HoMBF_LuahJournal`: 루'아의 그을린 연구 일지 / Lu'ah's Scorched Research Journal
 
