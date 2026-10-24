@@ -78,36 +78,35 @@ namespace LanternDamageRulesTests
     template <class Check>
     void RunRate(Check&& a_check)
     {
-        // Config.h initialises lanternBurnPct, lanternBurnFlat and lanternReapply from Settings{} (review 2 I2: one source),
+        // Config.h initialises lanternBurnPct and lanternReapply from Settings{} (review 2 I2: one source),
         // so these are the defaults the DLL uses; burnSeconds is replaced at kDataLoaded by the ESP's effect duration
         const L::Settings s;
-        a_check(s.burnPct == 0.02 && s.burnFlat == 20.0 && s.reapplySeconds == 0.1 && s.burnSeconds == 2.0,
-            "lantern: defaults (Config.h takes them from Settings) 2% + 20 over 2 s, re-apply 0.1 s");
-        a_check(s.reapplySeconds >= 0.02 && s.reapplySeconds <= L::kMaxReapplySeconds && s.burnPct >= 0.0 && s.burnPct <= 1.0 &&
-                    s.burnFlat >= 0.0 && s.burnFlat <= 10000.0,
+        a_check(s.burnPct == 0.02 && s.reapplySeconds == 0.1 && s.burnSeconds == 2.0,
+            "lantern: defaults (Config.h takes them from Settings) 2% over 2 s, re-apply 0.1 s");
+        a_check(s.reapplySeconds >= 0.02 && s.reapplySeconds <= L::kMaxReapplySeconds && s.burnPct >= 0.0 && s.burnPct <= 1.0,
             "lantern: the defaults are inside the ranges Config.cpp accepts for the json keys");
-        const double r100 = L::RateFor(100.0, s.burnPct, s.burnFlat, s.burnSeconds);
-        const double r1000 = L::RateFor(1000.0, s.burnPct, s.burnFlat, s.burnSeconds);
-        a_check(Near(r100, 11.0) && Near(r100 * s.burnSeconds, 22.0),
-            "lantern rate: max 100 -> 11/s, 22 over the 2 s burn (2 + 20), got " + std::to_string(r100));
-        a_check(Near(r1000, 20.0) && Near(r1000 * s.burnSeconds, 40.0),
-            "lantern rate: max 1000 -> 20/s, 40 over the burn (20 + 20), got " + std::to_string(r1000));
-        a_check(Near(L::RateFor(0.0, s.burnPct, s.burnFlat, s.burnSeconds), 10.0) &&
-                    Near(L::RateFor(-50.0, s.burnPct, s.burnFlat, s.burnSeconds), 10.0) &&
-                    Near(L::RateFor(std::nan(""), s.burnPct, s.burnFlat, s.burnSeconds), 10.0),
-            "lantern rate: max 0, negative or NaN counts as 0: the flat part still burns (10/s)");
+        const double r100 = L::RateFor(100.0, s.burnPct, s.burnSeconds);
+        const double r1000 = L::RateFor(1000.0, s.burnPct, s.burnSeconds);
+        a_check(Near(r100, 1.0) && Near(r100 * s.burnSeconds, 2.0),
+            "lantern rate: max 100 -> 1/s, 2 total over the 2 s burn (2%), got " + std::to_string(r100));
+        a_check(Near(r1000, 10.0) && Near(r1000 * s.burnSeconds, 20.0),
+            "lantern rate: max 1000 -> 10/s, 20 total over the burn (2%), got " + std::to_string(r1000));
+        a_check(Near(L::RateFor(0.0, s.burnPct, s.burnSeconds), 0.0) &&
+                    Near(L::RateFor(-50.0, s.burnPct, s.burnSeconds), 0.0) &&
+                    Near(L::RateFor(std::nan(""), s.burnPct, s.burnSeconds), 0.0),
+            "lantern rate: max 0, negative or NaN counts as 0: no damage");
         const double huge = 1.0e9;
-        a_check(Near(L::RateFor(huge, s.burnPct, s.burnFlat, s.burnSeconds), (huge * 0.02 + 20.0) / 2.0),
-            "lantern rate: max 1e9 -> 1e7 + 10 per second");
+        a_check(Near(L::RateFor(huge, s.burnPct, s.burnSeconds), (huge * 0.02) / 2.0),
+            "lantern rate: max 1e9 -> 1e7 per second");
         constexpr double kFloatMax = static_cast<double>(std::numeric_limits<float>::max());
-        const double capped = L::RateFor(kFloatMax, 1.0, 10000.0, 0.5);
+        const double capped = L::RateFor(kFloatMax, 1.0, 0.5);
         a_check(capped == kFloatMax && std::isfinite(static_cast<float>(capped)),
             "lantern rate: float max at 100% over 0.5 s is capped at the largest float (the magnitude stays finite)");
-        a_check(L::RateFor(100.0, 0.02, 20.0, 0.0) == 0.0 && L::RateFor(100.0, 0.02, 20.0, -2.0) == 0.0 &&
-                    L::RateFor(100.0, 0.02, 20.0, std::nan("")) == 0.0,
+        a_check(L::RateFor(100.0, 0.02, 0.0) == 0.0 && L::RateFor(100.0, 0.02, -2.0) == 0.0 &&
+                    L::RateFor(100.0, 0.02, std::nan("")) == 0.0,
             "lantern rate: burn seconds 0, negative or NaN gives 0 (the feature is off then)");
-        a_check(L::RateFor(100.0, -1.0, 0.0, 2.0) == 0.0 && L::RateFor(100.0, 0.0, 0.0, 2.0) == 0.0,
-            "lantern rate: a negative result gives 0, pct 0 and flat 0 give 0");
+        a_check(L::RateFor(100.0, -1.0, 2.0) == 0.0 && L::RateFor(100.0, 0.0, 2.0) == 0.0,
+            "lantern rate: a negative result gives 0, pct 0 gives 0");
     }
 
     template <class Check>

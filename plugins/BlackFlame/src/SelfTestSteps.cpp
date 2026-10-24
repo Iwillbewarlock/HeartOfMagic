@@ -4,6 +4,7 @@
 #include "Config.h"
 #include "CopyModelProbe.h"
 #include "FireSet.h"
+#include "VisualSet.h"
 #include "FormCopies.h"
 #include "Forms.h"
 #include "GameThread.h"
@@ -151,6 +152,11 @@ namespace BlackFlame::SelfTest
             const bool ok = PaletteReady() && forms.burnShader && forms.stokeSpell && forms.stokedKeyword && fireOk;
             SelfTestLog::Check("T0", ok, std::format("palette, ESP forms and vanilla forms{}; Firebolt and Fireball "
                 "counted as fire: {}", missing.empty() ? "" : " (missing: " + missing + ")", fireOk ? "yes" : "NO"));
+            const bool fireboltVisual = IsVisualSpell(a_c.forms.firebolt);
+            const bool fireballVisual = IsVisualSpell(a_c.forms.fireball);
+            SelfTestLog::Info("T0", std::format("HoM visual fixtures: Firebolt {}, Fireball {}. "
+                "A missing catalog entry or ambiguous shared origin keeps a fixture original; "
+                "positive vanilla visual steps require eligible fixtures.", fireboltVisual, fireballVisual));
             return true;
         }
 

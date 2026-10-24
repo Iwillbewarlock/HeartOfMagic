@@ -4,6 +4,7 @@
 #include "BuffState.h"
 #include "Config.h"
 #include "FireSet.h"
+#include "VisualSet.h"
 #include "GreyMap.h"
 #include "CopySwap.h"
 #include "FormCopies.h"
@@ -71,7 +72,7 @@ namespace BlackFlame
                 return false;
             }
             auto& data = a_projectile->GetProjectileRuntimeData();
-            if (!IsFireSpell(data.spell) && !IsBoundFireArrow(a_projectile)) {
+            if (!IsVisualSpell(data.spell) && !IsBoundFireArrow(a_projectile)) {
                 return false;
             }
             const auto shooter = data.shooter.get();

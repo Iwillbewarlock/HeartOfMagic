@@ -18,6 +18,7 @@ endif()
 # catalog's persistentIds), as plugins/spelllearning SpellScannerFormId.cpp.
 set(BLACKFLAME_SOURCES
     src/Main.cpp
+    src/CatalogStartup.cpp
     src/Config.cpp
     src/DevAutomation.cpp
     src/Forms.cpp
@@ -71,6 +72,8 @@ set(BLACKFLAME_SOURCES
     src/CopySwapArt.cpp
     src/HandArtRefresh.cpp
     src/EquipAbilityRefresh.cpp
+    src/VisualSet.cpp
+    src/VisualEquipContext.cpp
     src/CopySwapHazard.cpp
     src/HitEvents.cpp
     src/LanternDamage.cpp

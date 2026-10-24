@@ -12,7 +12,7 @@
 #include "Config.h"
 #include "CopyRequest.h"
 #include "CopySwap.h"
-#include "FireSet.h"
+#include "VisualSet.h"
 #include "FormCopies.h"
 #include "Forms.h"
 #include "GameThread.h"
@@ -129,15 +129,18 @@ namespace BlackFlame::SelfTest
 
         void CheckPredicate(const SelfTestWorld::VanillaForms& a_forms, const SelfTestWorld::V2Forms& a_v2)
         {
-            const bool fireOk = IsFireLaunch(a_forms.firebolt, nullptr, nullptr);
+            const bool fireboltExpected = IsVisualSpell(a_forms.firebolt);
+            const bool fireboltSelected = IsFireLaunch(a_forms.firebolt, nullptr, nullptr);
             const bool nothingOk = !IsFireLaunch(nullptr, nullptr, nullptr);
-            SelfTestLog::Check("T0-pred", fireOk && nothingOk, std::format("IsFireLaunch(Firebolt) {} (want true); "
-                "IsFireLaunch(no spell, no enchantment, no weapon) {} (want false)", fireOk, !nothingOk));
+            SelfTestLog::Check("T0-pred", fireboltSelected == fireboltExpected && nothingOk,
+                std::format("IsFireLaunch(Firebolt) {} (HoM visual eligibility {}); "
+                    "IsFireLaunch(no spell, no enchantment, no weapon) {} (want false)",
+                    fireboltSelected, fireboltExpected, !nothingOk));
             if (!a_v2.sparks) {
                 SelfTestLog::Info("T0-pred", "Sparks not found: the non-fire case is not checked");
-            } else if (IsFireSpell(a_v2.sparks)) {
-                SelfTestLog::Info("T0-pred", std::format("Sparks {:08X} counts as fire in this load order (catalog or a fire "
-                    "MGEF): not a non-fire prop here", a_v2.sparks->GetFormID()));
+            } else if (IsVisualSpell(a_v2.sparks)) {
+                SelfTestLog::Info("T0-pred", std::format("Sparks {:08X} is eligible for HoM visuals in this load order: "
+                    "not a negative visual fixture here", a_v2.sparks->GetFormID()));
             } else {
                 const bool sparksOk = !IsFireLaunch(a_v2.sparks, nullptr, nullptr);
                 SelfTestLog::Check("T0-pred", sparksOk, std::format("IsFireLaunch(Sparks {:08X}) {} (want false: a non-fire "

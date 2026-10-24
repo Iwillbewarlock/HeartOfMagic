@@ -6,6 +6,7 @@
 #include "BuffState.h"
 #include "Config.h"
 #include "FireSet.h"
+#include "VisualSet.h"
 #include "FormCopies.h"
 #include "GameThread.h"
 #include "LogLimit.h"
@@ -170,7 +171,7 @@ namespace BlackFlame
             auto& data = a_projectile->GetProjectileRuntimeData();
             // A fire spell's projectile, or an arrow of the player's bound fire weapon (PlayerArt.h)
             const bool arrow = a_kind == kArrowKind;
-            if (!IsFireSpell(data.spell) && !(arrow && IsBoundFireArrow(a_projectile))) {
+            if (!IsVisualSpell(data.spell) && !(arrow && IsBoundFireArrow(a_projectile))) {
                 return;
             }
             const auto shooter = data.shooter.get();

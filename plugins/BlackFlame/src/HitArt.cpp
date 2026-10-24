@@ -110,7 +110,7 @@ namespace BlackFlame
                 (void)GuardedKeep("hit art controller check", [&]() {
                     auto* controller = found.effect->finished ? nullptr :
                         skyrim_cast<RE::ActiveEffectReferenceEffectController*>(found.controller);
-                    stillPlayers = controller && IsPlayerFireEffect(controller->effect);
+                    stillPlayers = controller && IsPlayerVisualEffect(controller->effect);
                 });
                 if (!stillPlayers) {
                     return true;  // someone else's effect now, or gone: dropped

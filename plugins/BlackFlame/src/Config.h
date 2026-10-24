@@ -94,11 +94,10 @@ namespace BlackFlame
         bool lanternDamage = true;   // the black flame on the player's fire hits while the lantern is worn (same)
         bool lanternLog = true;      // a line per burning hit, per burn cast and per kill while burning (not rate-limited)
         // The black flame (design v3): each fire hit burns the target for the burn spell's duration (2 s) with max health x
-        // lanternBurnPct + lanternBurnFlat in all; a hit while it burns restarts it, so a stream of hits deals at most that
+        // lanternBurnPct in all (no flat damage); a hit while it burns restarts it, so a stream of hits deals at most that
         // per duration. The defaults are LanternRules::Settings' (one source; review 2 I2: tools/blackflame-cosave-check
         // tests those values)
         double lanternBurnPct = LanternRules::Settings{}.burnPct;          // share of the target's max health per burn (0..1)
-        double lanternBurnFlat = LanternRules::Settings{}.burnFlat;        // health per burn on top (0..10000)
         double lanternReapply = LanternRules::Settings{}.reapplySeconds;  // seconds between two casts on one target
                                                                            // (0.02..LanternRules::kMaxReapplySeconds)
         std::array<float, 4> lanternOffset{ 0.0f, 0.0f, 59.5f, 0.0f };  // UpperTable01: top at z 59, 194 x 114; the centre

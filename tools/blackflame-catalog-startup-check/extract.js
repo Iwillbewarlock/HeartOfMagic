@@ -1,0 +1,12 @@
+const fs = require('fs'), path = require('path'), crypto = require('crypto');
+const file = process.argv[2], out = process.argv[3];
+const text = fs.readFileSync(file, 'utf8');
+const start = text.search(/namespace\r?\n\{/);
+const end = text.indexOf('    // The world is torn down:', start);
+if (start < 0 || end < 0) throw Error('Main.cpp startup seam markers changed');
+const seam = text.slice(start, end) + '}\n';
+if (!seam.includes('void OnDataLoaded()')) throw Error('Missing production OnDataLoaded');
+fs.mkdirSync(out, {recursive:true});
+fs.writeFileSync(path.join(out, 'Seam.cpp'), seam);
+console.log('ACTUAL Main.cpp SHA256 ' + crypto.createHash('sha256').update(text).digest('hex'));
+console.log('Extracted exact anonymous-namespace startup functions through OnDataLoaded; no body substitutions.');

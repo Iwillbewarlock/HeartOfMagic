@@ -1,4 +1,6 @@
 #include "FireSet.h"
+#include "CatalogFile.h"
+#include "VisualSet.h"
 
 #include "EquipAbilityRules.h"
 
@@ -192,22 +194,12 @@ namespace BlackFlame
         // BuildFireSets). False without a readable catalog.
         bool ReadCatalog(RE::TESDataHandler* dh, std::unordered_set<RE::FormID>& a_fire, CatalogCounts& counts)
         {
-            std::ifstream file(kCatalogPath, std::ios::binary);
-            if (!file) {
+            const auto catalog = ReadCatalogFile();
+            if (!catalog) {
+                logger::warn("BlackFlame: '{}' has no readable catalog/spells object - ignored", kCatalogPath);
                 return false;
             }
-            std::stringstream text;
-            text << file.rdbuf();
-            const auto catalog = nlohmann::json::parse(text.str(), nullptr, false);
-            if (catalog.is_discarded() || !catalog.is_object()) {
-                logger::warn("BlackFlame: '{}' is not a JSON object - ignored", kCatalogPath);
-                return false;
-            }
-            const auto spells = catalog.find("spells");
-            if (spells == catalog.end() || !spells->is_object()) {
-                logger::warn("BlackFlame: '{}' has no \"spells\" object - ignored", kCatalogPath);
-                return false;
-            }
+            const auto spells = catalog->find("spells");
             PluginLookup lookup;
             for (const auto& [key, entry] : spells->items()) {
                 ++counts.entries;
@@ -330,6 +322,7 @@ namespace BlackFlame
         std::unordered_set<RE::FormID> catalogFire;
         CatalogCounts catalog;
         const bool catalogRead = ReadCatalog(dh, catalogFire, catalog);
+        BuildVisualSets(catalogFire);  // visual scope follows HoM; gameplay fire classification below is unchanged
 
         // Fire (v2, user decision 2026-10-16) = a fire MGEF (MagicDamageFire keyword or fire resistance),
         // OR the spell is tagged "fire" by Heart of Magic's catalog. A fire-MGEF spell's fire MGEFs are its

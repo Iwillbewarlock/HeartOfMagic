@@ -2,18 +2,18 @@
 
 #include "Common.h"
 
-// =============================================================================
-// EQUIP ABILITY REFRESH - the player's fire equip abilities (EquipAbilityRules.h) follow the buff
-// =============================================================================
-// The engine asks GetHitEffectArt once when an effect starts, so an equip ability applied before the buff (Fire Storm's
-// body art, applied when the spell is equipped) kept its original art for the whole buff (log 2026-10-23: "kept: not
-// stoked" at equip, never asked again). On each buff edge the abilities the player has in the actor's spell list are
-// removed and added again on the main thread, so the new effect asks again. An ability not in the spell list is left as
-// is: the engine applied it some other way, and AddSpell would leave it on the actor for good. Only with copyHitArt or
-// hitArt (otherwise the art slot keeps the engine's art either way).
+// Equip ability visuals follow buff edges and selected-parent/world changes.
+// VisualEquipContext checks the live selected roots and rejects ambiguous shared
+// ownership. On AE 1.6.1170, both listed and unlisted abilities keep their gameplay
+// ActiveEffect: retain visual refs, Stop/Detach, then restart through engine 34094.
+// A current eligible owner or an existing copy/our shader is required; the latter
+// permits restoring originals after ownership changes. No RemoveSpell/AddSpell,
+// dispel or recast. Requests recheck queue, thread, generation and buff state.
+// Requires copyHitArt, hitArt or burnShader; equip art itself requires a copy.
+// Engine evidence and limitations: docs/diagnostics/equip-ability-refresh.md.
 
 namespace BlackFlame
 {
-    /// Post the refresh to the main-thread queue (any thread)
+    /// Post the refresh to the main-thread queue (any thread).
     void RequestEquipAbilityRefresh(bool a_stoked);
 }

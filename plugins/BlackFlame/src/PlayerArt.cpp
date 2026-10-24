@@ -113,7 +113,7 @@ namespace BlackFlame
         {
             ForEachPlayerEffect([](RE::ActiveEffect* a_effect) {
                 auto* lightEffect = skyrim_cast<RE::LightEffect*>(a_effect);
-                if (!lightEffect || !IsPlayerFireEffect(a_effect)) {
+                if (!lightEffect || !IsPlayerVisualEffect(a_effect)) {
                     return;
                 }
                 const bool tinted = TintRememberedLight(CheckedLight(lightEffect->light.get(), "light effect"));

@@ -28,6 +28,7 @@
 #include "CorpseColoursTests.h"
 #include "ElementalHitRulesTests.h"
 #include "EquipAbilityRulesTests.h"
+#include "VisualEquipRulesTests.h"
 #include "IdentityTests.h"
 #include "LanternDamageRulesTests.h"
 #include "LanternIedRulesTests.h"
@@ -472,6 +473,7 @@ int main(int a_argc, char** a_argv)
     suite("lantern damage rules", [](auto&& a_check) { LanternDamageRulesTests::Run(a_check); });
     suite("lantern ied rules", [](auto&& a_check) { LanternIedRulesTests::Run(a_check); });
     suite("equip ability rules", [](auto&& a_check) { EquipAbilityRulesTests::Run(a_check); });
+    suite("visual equip ownership", [](auto&& a_check) { VisualEquipRulesTests::Run(a_check); });
     suite("old copies", [](auto&& a_check) { OldCopiesTests::Run(a_check); });
     suite("old copies files", [&](auto&& a_check) {
         auto skip = [&](const std::string& a_what) { check.Skip(a_what); };

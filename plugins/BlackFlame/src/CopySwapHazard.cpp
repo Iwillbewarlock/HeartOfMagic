@@ -110,7 +110,7 @@ namespace BlackFlame
                 g_swapsWindow.fetch_add(1);
                 return copy;
             }
-            if (t_spawnEffect && IsStoked() && SpawnedHazardOf(t_spawnEffect) == base && IsPlayerFireEffect(t_spawnEffect)) {
+            if (t_spawnEffect && IsStoked() && SpawnedHazardOf(t_spawnEffect) == base && IsPlayerVisualEffect(t_spawnEffect)) {
                 g_swapsSpawn.fetch_add(1);
                 return copy;
             }

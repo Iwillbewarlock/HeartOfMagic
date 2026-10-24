@@ -83,8 +83,6 @@ namespace BlackFlame
         constexpr double kMaxCorpseWindow = 3600.0;
         constexpr double kMinLanternPct = 0.0;  // lanternBurnPct: a share of max health
         constexpr double kMaxLanternPct = 1.0;
-        constexpr double kMinLanternFlat = 0.0;  // lanternBurnFlat: health per burn
-        constexpr double kMaxLanternFlat = 10000.0;
         constexpr double kMinLanternReapply = 0.02;  // lanternReapply, seconds
         constexpr double kMaxLanternReapply = LanternRules::kMaxReapplySeconds;
         constexpr float kMaxLanternOffset = 1000.0f;  // game units from the table, each axis
@@ -101,7 +99,6 @@ namespace BlackFlame
 
         constexpr std::array kLanternNumbers{
             NumberKey{ "lanternBurnPct", &Config::lanternBurnPct, kMinLanternPct, kMaxLanternPct },
-            NumberKey{ "lanternBurnFlat", &Config::lanternBurnFlat, kMinLanternFlat, kMaxLanternFlat },
             NumberKey{ "lanternReapply", &Config::lanternReapply, kMinLanternReapply, kMaxLanternReapply },
         };
 
@@ -453,10 +450,10 @@ namespace BlackFlame
                 g_config.oldCopiesGraceDays, g_config.showUpgradesNow);
             logger::info("BlackFlame: config greyCorpseShaders={} corpseWindowGameSeconds={}", g_config.greyCorpseShaders,
                 g_config.corpseWindowGameSeconds);
-            logger::info("BlackFlame: config lanternPlace={} lanternDamage={} lanternLog={} lanternBurnPct={} lanternBurnFlat={} "
+            logger::info("BlackFlame: config lanternPlace={} lanternDamage={} lanternLog={} lanternBurnPct={} "
                          "lanternReapply={} lanternOffset={} smokeOffset={}",
                 g_config.lanternPlace, g_config.lanternDamage, g_config.lanternLog, g_config.lanternBurnPct,
-                g_config.lanternBurnFlat, g_config.lanternReapply,
+                g_config.lanternReapply,
                 nlohmann::json(g_config.lanternOffset).dump(), nlohmann::json(g_config.smokeOffset).dump());
             const auto& t = g_config.lanternIedTransform;
             logger::info("BlackFlame: config lanternIed={} lanternIedPreset={} lanternIedTransform=pos {} rot {} scale {} ({})",

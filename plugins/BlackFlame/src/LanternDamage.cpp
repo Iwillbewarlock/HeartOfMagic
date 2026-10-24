@@ -177,9 +177,9 @@ namespace BlackFlame::LanternDamage
                 return;
             }
             const float max = actor->GetActorValueMax(RE::ActorValue::kHealth);
-            const auto rate = static_cast<float>(L::RateFor(max, g_settings.burnPct, g_settings.burnFlat, g_settings.burnSeconds));
+            const auto rate = static_cast<float>(L::RateFor(max, g_settings.burnPct, g_settings.burnSeconds));
             if (rate <= 0.0f) {
-                return;  // lanternBurnPct and lanternBurnFlat both 0
+                return;  // no positive percentage damage
             }
             const bool log = GetConfig().lanternLog;
             if (log) {
@@ -284,7 +284,7 @@ namespace BlackFlame::LanternDamage
                          "above 0: the burn rate is per second over that duration - check the ESP record 0x812)");
             return;
         }
-        g_settings = { config.lanternBurnPct, config.lanternBurnFlat, config.lanternReapply, static_cast<double>(burnSeconds) };
+        g_settings = { config.lanternBurnPct, config.lanternReapply, static_cast<double>(burnSeconds) };
         g_killWindow = std::chrono::duration_cast<Clock::duration>(std::chrono::seconds(burnSeconds) + kKillGrace);
         g_epoch = Clock::now();
         BuildHazardSpells();
@@ -294,9 +294,9 @@ namespace BlackFlame::LanternDamage
             logger::warn("BlackFlame: ScriptEventSourceHolder unavailable - no lantern kill lines");
         }
         g_enabled.store(true);
-        logger::info("BlackFlame: lantern damage on: black flame {} of max health + {} over {} s per hit, re-applied at most every "
+        logger::info("BlackFlame: lantern damage on: black flame {} of max health over {} s per hit, re-applied at most every "
                      "{} s per target; {} fire hazard spell(s) count as fire",
-            g_settings.burnPct, g_settings.burnFlat, g_settings.burnSeconds, g_settings.reapplySeconds, g_hazardSpells.size());
+            g_settings.burnPct, g_settings.burnSeconds, g_settings.reapplySeconds, g_hazardSpells.size());
     }
 
     void OnHit(const RE::TESHitEvent& a_event)

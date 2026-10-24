@@ -1,8 +1,8 @@
 // =============================================================================
 // SELF-TEST v2 STEPS - E6 / E6-npc: a cloak's hit art takes its ARTO copy (the art spike)
 // =============================================================================
-// The candidate is picked by data, not by name: a fire spell (FireSet, kSpell) cast fire and forget with a
-// Cloak-archetype effect that is one of its fire effects (IsBurnable), whose hit art - the engine's choice,
+// The candidate is picked by data, not by name: a runtime-eligible HoM visual spell cast fire and forget with a
+// Cloak-archetype effect that belongs to that spell, whose hit art - the engine's choice,
 // MGEF hitVisuals' art (RFCT data.artObject) when set, else MGEF hitEffectArt - has an ARTO copy; of those the
 // spell whose defining file comes last in TESDataHandler::files (a tie: the smaller FormID). Fire and forget only:
 // CastSpellImmediate of a concentration cloak lasts one tick. No candidate: SKIP.
@@ -21,7 +21,7 @@
 #include "BuffState.h"
 #include "Config.h"
 #include "CopySwap.h"
-#include "FireSet.h"
+#include "VisualSet.h"
 #include "FormCopies.h"
 #include "HitEffectHook.h"
 #include "SelfTestLog.h"
@@ -88,12 +88,12 @@ namespace BlackFlame::SelfTest
             int withCopy = 0;
             int notFireAndForget = 0;
             for (auto* spell : dh->GetFormArray<RE::SpellItem>()) {
-                if (!spell || !IsFireSpell(spell)) {
+                if (!spell || !IsVisualSpell(spell)) {
                     continue;
                 }
                 for (const auto* item : spell->effects) {
                     auto* effect = item ? item->baseEffect : nullptr;
-                    if (!effect || !effect->HasArchetype(RE::EffectSetting::Archetype::kCloak) || !IsBurnable(effect, spell)) {
+                    if (!effect || !effect->HasArchetype(RE::EffectSetting::Archetype::kCloak) || !IsVisualEffect(effect, spell)) {
                         continue;
                     }
                     auto* art = EngineHitArt(effect);
@@ -317,7 +317,10 @@ namespace BlackFlame::SelfTest
         const RE::SpellItem* spell = nullptr;
         RE::BGSArtObject* art = nullptr;
         for (const bool wantTwo : { true, false }) {
-            for (const auto* candidate : FireSpellList()) {
+            for (const auto* candidate : VisualSpellList()) {
+                if (!IsVisualSpell(candidate)) {
+                    continue;  // ambiguous copy candidates are not runtime test fixtures
+                }
                 const auto* costliest = candidate->GetAVEffect();
                 auto* own = costliest ? costliest->data.castingArt : nullptr;
                 if (!own || !CopyOf(own)) {
@@ -344,7 +347,7 @@ namespace BlackFlame::SelfTest
             site.hooked ? "hooked" : "NOT hooked", site.note, counters.castingArtCalls, counters.castingArtSwaps,
             counters.castingArtRejected));
         if (!spell) {
-            SelfTestLog::Skip("E5", "no fire spell whose costliest effect's casting art has a copy");
+            SelfTestLog::Skip("E5", "no runtime-eligible HoM fire spell whose costliest effect's casting art has a copy");
             return true;
         }
         auto* player = Player();

@@ -1,6 +1,7 @@
 #include "FireClosure.h"
 
 #include "FireSet.h"
+#include "VisualSet.h"
 
 #include "EncodingUtils.h"
 
@@ -68,11 +69,11 @@ namespace BlackFlame
         public:
             FireClosure Run()
             {
-                for (auto* spell : FireSpellList()) {
+                for (auto* spell : VisualSpellList()) {
                     ++m_out.spells;
                     for (const auto* item : spell->effects) {
                         auto* base = item ? item->baseEffect : nullptr;
-                        if (base && IsBurnable(base, spell)) {
+                        if (base) {
                             Push(base, spell->GetFormID(), false);  // (a)
                         }
                     }
@@ -173,8 +174,8 @@ namespace BlackFlame
                 }
             }
 
-            // J8: a hazard's spell as a seed of plan section 1 (a)/(b): its fire effects and its costliest effect, not every
-            // effect (the spell is not made a fire spell)
+            // A visual child spell contributes every effect. This only prepares private copies; it never adds a child
+            // to the gameplay fire set. Push deduplicates MGEFs, including cyclic associated/equip links.
             void PushSpellEffects(RE::MagicItem* a_spell, const Visit& a_from)
             {
                 if (!a_spell) {
@@ -182,7 +183,7 @@ namespace BlackFlame
                 }
                 for (const auto* item : a_spell->effects) {
                     auto* base = item ? item->baseEffect : nullptr;
-                    if (base && (IsFireEffect(base) || IsFireMgefAny(base))) {
+                    if (base) {
                         Push(base, a_from.via, a_from.costliest);
                     }
                 }
@@ -224,22 +225,12 @@ namespace BlackFlame
                     Push(d.associatedForm ? d.associatedForm->As<RE::BGSHazard>() : nullptr, a_v.via, a_v.costliest,
                         IsFireEffect(&a_mgef) ? kEdgeSpawnHazardFire : kEdgeSpawnHazard);
                 }
-                // The hit art goes on a target only through IsBurnable effects (the 0x0C swap): fire MGEFs only
-                if (IsFireEffect(&a_mgef)) {
-                    Push(d.hitEffectArt, a_v.via, a_v.costliest, kEdgeHitArt);
-                    // its equip ability's body art (Fire Storm's), swapped as a hit art (EquipAbilityRules.h)
-                    if (d.equipAbility) {
-                        for (const auto* item : d.equipAbility->effects) {
-                            const auto* base = item ? item->baseEffect : nullptr;
-                            if (base) {
-                                Push(base->data.hitEffectArt, a_v.via, a_v.costliest, kEdgeHitArt);
-                            }
-                        }
-                    }
-                    if (d.hitVisuals) {
-                        Push(d.hitVisuals, a_v.via, a_v.costliest);
-                    }
-                }
+                // Every effect of an eligible visual spell can contribute colour, including non-damage holders.
+                // Runtime ownership/spell checks decide whether a prepared private copy is selected.
+                Push(d.hitEffectArt, a_v.via, a_v.costliest, kEdgeHitArt);
+                Push(d.hitVisuals, a_v.via, a_v.costliest);
+                PushSpellEffects(d.equipAbility, a_v);
+                PushSpellEffects(d.associatedForm ? d.associatedForm->As<RE::SpellItem>() : nullptr, a_v);
             }
 
             void Expand(const Visit& a_v)

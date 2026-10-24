@@ -9,11 +9,11 @@
 #include <vector>
 
 // =============================================================================
-// FIRE CLOSURE (v2 expansion C1) - every form the player's fire magic can show
+// FIRE CLOSURE (private visual copies) - every form eligible magic can show
 // =============================================================================
 // Built at kDataLoaded from the ORIGINAL forms (the copies' links are not followed), after
-// the fire sets. Seeds, for every fire spell (FireSet, cloak-associated spells included):
-//   (a) its fire MGEFs (IsBurnable);
+// the gameplay fire and visual sets. Seeds, for every visual spell (VisualSet, catalog fire roots and their children):
+//   (a) every MGEF, including non-fire supplemental effects;
 //   (b) its costliest effect's MGEF (MagicItem::GetAVEffect, the one the engine takes the
 //       projectile and the casting art from), fire or not.
 // And for every bound fire weapon seed (FireSet.h BoundFireSeeds, bound-weapon stage 1; edge kEdgeBoundArrow, via = the
@@ -22,13 +22,15 @@
 // over-approximation, harmless: the Launch swap needs the player's bound fire weapon as the weapon source).
 // Edges, breadth first to a fixed point:
 //   MGEF  projectileBase, explosion, impactDataSet, castingArt, dualCastData, a spawn-hazard
-//         archetype's associated form; for a fire MGEF also hitEffectArt and hitVisuals' art
-//         (RFCT data.artObject - the engine prefers it)
+//         archetype's associated form; hitEffectArt and hitVisuals' art (RFCT data.artObject);
+//         all MGEFs of equipAbility and an associated SPEL, recursively
 //   DUAL  pProjectile, pExplosion, pImpactDataSet, pHitEffectArt
 //   PROJ  explosionType          EXPL  impactDataSet, impactPlacedObject, spawnProjectile
 //   IPDS  every impact            IPCT  hazard, decalTextureSet, decalTextureSet2
 //   PROJ  also decalData (its decal TXST; edge kEdgeDecal, as both IPCT texture sets)
-//   HAZD  impactDataSet, and its spell's MGEFs (as seeds, without making the spell fire)
+//   HAZD  impactDataSet, and all its spell's MGEFs (without making the spell gameplay fire)
+// Candidate copies do not authorize a swap: runtime ownership and originating-spell checks remain required.
+// Effect shaders are recoloured by runtime shader clones, not these supported form-copy types.
 // Copy types: PROJ, EXPL, IPCT, HAZD, ARTO, TXST (kCopyKindTraits). IPDS, DUAL, RFCT, SPEL and MGEF are passed through.
 // Excluded (with the reason): a form defined in one of our own plugins (HeartOfMagic_BlackFlame*),
 // a placed object that is not a copy type, an art with alternate textures (MODS: not copied).
@@ -92,7 +94,7 @@ namespace BlackFlame
         kEdgeOther = 1u << 0,
         kEdgeCastingArt = 1u << 1,           // MGEF.castingArt of an effect not reached from a costliest seed
         kEdgeCastingArtCostliest = 1u << 2,  // MGEF.castingArt from a costliest-effect seed (SetCastingArt shows it)
-        kEdgeHitArt = 1u << 3,               // a fire MGEF's hit art, RFCT art or DUAL hit art (the 0x0C swap)
+        kEdgeHitArt = 1u << 3,               // a visual MGEF's hit art, RFCT art or DUAL hit art (the 0x0C swap)
         kEdgeSpawnHazard = 1u << 4,          // a spawn-hazard MGEF that is not a fire effect (no swap point)
         kEdgeSpawnHazardFire = 1u << 5,      // a fire spawn-hazard MGEF (the spawn window)
         kEdgeBoundArrow = 1u << 6,           // a bound fire weapon's arrow PROJ (the Launch swap with the weapon as source)
@@ -128,7 +130,7 @@ namespace BlackFlame
         std::size_t boundArrowAmmo = 0;  // AMMO with the WeapTypeBoundArrow keyword (their PROJs pushed for bows)
     };
 
-    /// kDataLoaded thread, after BuildFireSets (also kept as LastFireClosure)
+    /// kDataLoaded thread, after BuildFireSets and BuildVisualSets (also kept as LastFireClosure)
     [[nodiscard]] FireClosure BuildFireClosure();
 
     /// The form's own model path as its record stores it (TESModel::model), or empty

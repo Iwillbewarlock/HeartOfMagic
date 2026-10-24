@@ -5,7 +5,7 @@
 // =============================================================================
 // FIRE SET - which spells and explosions count as the player's fire magic
 // =============================================================================
-// Built once on the game thread at kDataLoaded, before any hook is installed;
+// Built once before the first game load, after the HoM catalog is ready and before hooks;
 // immutable afterwards, so the hooks may read it from any thread.
 //
 // Fire (v2, user decision 2026-10-16, reversing round 8b): a spell is fire when one
@@ -29,8 +29,6 @@
 
 namespace BlackFlame
 {
-    inline constexpr const char* kCatalogPath = "Data/SKSE/Plugins/SpellLearning/spell_catalog.json";
-
     void BuildFireSets();
 
     struct FireSetCounts

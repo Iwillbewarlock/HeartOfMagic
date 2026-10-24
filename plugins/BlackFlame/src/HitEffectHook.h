@@ -30,6 +30,9 @@ namespace BlackFlame
     /// Any thread: a fire effect of a fire spell the player cast (caster compared by handle, cheap)
     [[nodiscard]] bool IsPlayerFireEffect(RE::ActiveEffect* a_effect);
 
+    /// Visual-only attribution; does not change damage/elemental-hit classification. Buff is gated by the caller.
+    [[nodiscard]] bool IsPlayerVisualEffect(RE::ActiveEffect* a_effect);
+
     /// S3 counters of one slot (true: GetHitEffectShader 0x0D, false: GetHitEffectArt 0x0C), calls on effects the
     /// player cast only, by outcome
     struct HitSlotStats

@@ -3,6 +3,7 @@
 #include "CasterArt.h"
 #include "CloneWatch.h"
 #include "EquipAbilityRefresh.h"
+#include "VisualEquipContext.h"
 #include "ExplosionHook.h"
 #include "FireSet.h"
 #include "Forms.h"
@@ -107,6 +108,7 @@ namespace BlackFlame
             const TickEndMark mark;
             g_tickPending.store(false);
             RecomputeBuff("tick");
+            TickVisualEquipContext();
             TickHandArtRefresh();  // the hands a buff change made pending: first try here, then again while they wait
             TickHitArt();  // layer 1: hit arts waiting for their 3D
             TickCloneWatch();  // cause B diagnostics: a copy hit art's clone task (CloneWatch.h)
@@ -186,6 +188,7 @@ namespace BlackFlame
 
     void ResetBuffFlag()
     {
+        ResetVisualEquipContext();
         if (g_stoked.exchange(false, std::memory_order_acq_rel)) {
             logger::info("BlackFlame: buff flag off (world torn down; recomputed after the load)");
             OnStokeWindowChanged(false, "world torn down");  // the window's stats lines before the load

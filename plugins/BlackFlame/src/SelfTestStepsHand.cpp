@@ -14,7 +14,7 @@
 
 #include "BuffState.h"
 #include "Config.h"
-#include "FireSet.h"
+#include "VisualSet.h"
 #include "Forms.h"
 #include "FormCopies.h"
 #include "HandArtRefresh.h"
@@ -102,7 +102,7 @@ namespace BlackFlame::SelfTest
             auto* player = Player();
             for (const int slot : { RE::Actor::SlotTypes::kRightHand, RE::Actor::SlotTypes::kLeftHand }) {
                 const auto* spell = player ? player->GetActorRuntimeData().selectedSpells[slot] : nullptr;
-                const auto* art = spell && IsFireSpell(spell) ? CostliestCastingArtOf(spell) : nullptr;
+                const auto* art = spell && IsVisualSpell(spell) ? CostliestVisualCastingArtOf(spell) : nullptr;
                 const auto* copy = art ? CopyOfAs<RE::BGSArtObject>(art) : nullptr;
                 if (copy) {
                     g_run.slot = slot;
@@ -159,7 +159,7 @@ namespace BlackFlame::SelfTest
                 return true;
             }
             if (!PickHand()) {
-                SelfTestLog::Skip("E5b", "no fire spell whose costliest effect's casting art has a copy in the player's hands (equip one, e.g. "
+                SelfTestLog::Skip("E5b", "no runtime-eligible HoM fire spell whose costliest effect's casting art has a copy in the player's hands (equip one, e.g. "
                     "Flames, to run E5b; the test equips nothing)");
                 return true;
             }

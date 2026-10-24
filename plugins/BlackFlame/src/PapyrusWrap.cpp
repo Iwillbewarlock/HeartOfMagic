@@ -5,6 +5,7 @@
 #include "BuffState.h"
 #include "Config.h"
 #include "FireSet.h"
+#include "VisualSet.h"
 #include "FormCopies.h"
 #include "GameThread.h"
 #include "HitEffectHook.h"
@@ -98,7 +99,7 @@ namespace BlackFlame
                 return false;
             }
             auto* policy = VM()->GetObjectHandlePolicy();
-            return IsPlayerFireEffect(static_cast<RE::ActiveEffect*>(policy->GetObjectForHandle(RE::ActiveEffect::VMTYPEID,
+            return IsPlayerVisualEffect(static_cast<RE::ActiveEffect*>(policy->GetObjectForHandle(RE::ActiveEffect::VMTYPEID,
                 a_handle)));
         }
 
@@ -130,15 +131,15 @@ namespace BlackFlame
 
         void Decide(const Decision& a_decision)
         {
-            // A reference already tagged calling in turn (a placed activator's own script): confirmed - tag at
-            // once; pending - the new tag waits on the same caller's judgement
+            // Only a tagged visual instance may pass its visual provenance to a placed child.
+            // Source attribution alone must not authorize unrelated effects created by its scripts.
             if (const auto ref = a_decision.callerRef.get(); ref) {
                 const auto info = TagInfoOf(ref.get());  // one lock: state and caller agree
-                if (info.state == TagState::kConfirmed) {
+                if (info.visualInstance && info.state == TagState::kConfirmed) {
                     Tag(a_decision);
                     return;
                 }
-                if (info.state == TagState::kPending) {
+                if (info.visualInstance && info.state == TagState::kPending) {
                     StorePending(a_decision, info.pendingCaller);
                     return;
                 }
@@ -195,7 +196,7 @@ namespace BlackFlame
         // the game thread an ActiveEffect the player cast whose MGEF is fire. A pending tag (a VM thread) is not settled.
         bool SettledNow(const Decision& a_decision)
         {
-            if (const auto ref = a_decision.callerRef.get(); ref && TagInfoOf(ref.get()).state == TagState::kConfirmed) {
+            if (const auto ref = a_decision.callerRef.get(); ref && IsTaggedVisualInstance(ref.get())) {
                 return true;
             }
             return IsOnGameThread() && CallerIsPlayersFireEffect(a_decision.caller);
@@ -239,19 +240,11 @@ namespace BlackFlame
             }
         }
 
-        // A spell with any fire MGEF (script-cast spells need not be counted kSpell spells). Spell
-        // records are immutable after load: safe on any thread
+        // The destination spell must independently belong to the catalog's visual scope.
+        // A script source tag alone must not authorize unrelated spells from that reference.
         bool CarriesFire(const RE::SpellItem* a_spell)
         {
-            if (!a_spell) {
-                return false;
-            }
-            for (const auto* effect : a_spell->effects) {
-                if (effect && IsFireMgefAny(effect->baseEffect)) {
-                    return true;
-                }
-            }
-            return false;
+            return IsVisualSpell(a_spell);
         }
 
         // The engine's own NativeFunctionBase::Call (RELOCATION_ID 97923/104651) runs for this object and

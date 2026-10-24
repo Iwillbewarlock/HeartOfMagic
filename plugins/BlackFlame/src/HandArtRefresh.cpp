@@ -4,6 +4,7 @@
 #include "Config.h"
 #include "CopySwap.h"
 #include "FireSet.h"
+#include "VisualSet.h"
 #include "FormCopies.h"
 #include "GameThread.h"
 #include "Patch.h"
@@ -153,11 +154,11 @@ namespace BlackFlame
                 why("no spell");
                 return Outcome::kNotApplicable;
             }
-            if (!IsFireSpell(spell)) {
+            if (!IsVisualSpell(spell)) {
                 why("not fire");
                 return Outcome::kNotApplicable;
             }
-            auto* engineArt = CostliestCastingArtOf(spell);
+            auto* engineArt = CostliestVisualCastingArtOf(spell);
             auto* current = caster->castingArt;
             snap.engineArt = FormIdOf(engineArt);
             // pure (CopySwap.h): picked before the gate only so the gate's lines can print it

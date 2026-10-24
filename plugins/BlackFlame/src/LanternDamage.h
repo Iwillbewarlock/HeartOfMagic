@@ -9,7 +9,7 @@
 // source classified once per id and cached, LanternDamageRules.h) and the per-target re-apply throttle under a mutex.
 // An accepted hit queues a game-thread task: target an Actor, alive, not the player; the buff on and the player's active
 // effect HoMBF_LanternEffect (0x810) the reason; then the hit line, the burn noted, and HoMBF_LanternBurnSpell (0x812,
-// Ignore Resistance, a 2 s damage over time) cast on it with (max health x lanternBurnPct + lanternBurnFlat) / burn
+// Ignore Resistance, a 2 s damage over time) cast on it with (max health x lanternBurnPct) / burn
 // seconds as its per-second magnitude, the player blamed (kill credit); the burn line counts the 0x813 effects on the
 // target after the cast. A re-cast only restarts the burn (the engine replaces the same spell from the same caster). A
 // TESDeathEvent of a target that burned in the last burn seconds + 1 s logs the kill. Off for the session without the

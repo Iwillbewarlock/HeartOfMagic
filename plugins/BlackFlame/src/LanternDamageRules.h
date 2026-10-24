@@ -74,26 +74,25 @@ namespace BlackFlame::LanternRules
         return Reject::kNone;
     }
 
-    /// Config values (Config.h lanternBurnPct, lanternBurnFlat, lanternReapply) and the burn spell's effect duration
+    /// Config values (Config.h lanternBurnPct, lanternReapply) and the burn spell's effect duration
     struct Settings
     {
         double burnPct = 0.02;
-        double burnFlat = 20.0;
         double reapplySeconds = 0.1;
         double burnSeconds = 2.0;  // HoMBF_LanternBurnSpell's effect duration, read at kDataLoaded (not a config key)
     };
 
-    /// The burn's per-second rate (the spell's magnitude override): (max health x pct + flat) / burn seconds, so one burn
-    /// deals max x pct + flat over its duration. A maximum at or below 0 (or NaN) counts as 0, so the flat part still
-    /// burns; burn seconds at or below 0 gives 0 (LanternDamage turns itself off then); a negative or NaN result gives 0;
-    /// the result is capped at the largest float, the magnitude's type
-    [[nodiscard]] inline double RateFor(double a_maxHealth, double a_pct, double a_flat, double a_burnSeconds) noexcept
+    /// The burn's per-second rate (the spell's magnitude override): max health x pct / burn seconds.
+    /// One complete burn deals max health x pct, with no flat damage. A maximum at or below 0 (or NaN)
+    /// counts as 0; burn seconds at or below 0 gives 0 (LanternDamage turns itself off then).
+    /// A negative or NaN result gives 0; the rate is capped at the largest float, the magnitude's type.
+    [[nodiscard]] inline double RateFor(double a_maxHealth, double a_pct, double a_burnSeconds) noexcept
     {
         if (!(a_burnSeconds > 0.0)) {
             return 0.0;
         }
         const double max = a_maxHealth > 0.0 ? a_maxHealth : 0.0;
-        const double rate = (max * a_pct + a_flat) / a_burnSeconds;
+        const double rate = (max * a_pct) / a_burnSeconds;
         constexpr double kMaxRate = static_cast<double>(std::numeric_limits<float>::max());
         if (!(rate >= 0.0)) {
             return 0.0;

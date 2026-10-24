@@ -7,6 +7,8 @@
 #include "CloneWatch.h"
 #include "Config.h"
 #include "FireSet.h"
+#include "VisualSet.h"
+#include "VisualEquipContext.h"
 #include "FormCopies.h"
 #include "Forms.h"
 #include "HitArt.h"
@@ -67,7 +69,7 @@ namespace BlackFlame
             kEngineNull,     // the engine's answer was null
             kEngineNullFlag, // null with flags bit 1 set (the engine's "no hit shader" bit)
             kNotStoked,
-            kNotFire,        // not a fire effect of a fire spell (IsBurnable)
+            kNotFire,        // outside the HoM visual spell/equip context
             kNoBurnShader,
             kAlreadyOurs,
             kConfigOff,      // burnShader false (shader slot) / hitArt false (art slot: no later recolour)
@@ -90,13 +92,13 @@ namespace BlackFlame
             case Outcome::kNotStoked:
                 return "kept: not stoked";
             case Outcome::kNotFire:
-                return "kept: not a fire effect of a fire spell";
+                return "kept: outside HoM visual spell/equip context";
             case Outcome::kNoBurnShader:
                 return "kept: no burn shader form";
             case Outcome::kAlreadyOurs:
                 return "kept: already ours";
             default:
-                return "kept: the config key is off";
+                return "kept: config off or no private equip-art copy";
             }
         }
 
@@ -281,10 +283,10 @@ namespace BlackFlame
             if (!IsStoked()) {
                 return Outcome::kNotStoked;
             }
-            const bool burnable = IsBurnable(effect->GetBaseObject(), effect->spell);
+            const bool visual = IsVisualEffect(effect->GetBaseObject(), effect->spell) || IsPlayerVisualEquipEffect(effect);
             if (a_slot == kArtSlot) {
                 // a fire effect's equip ability (Fire Storm's body art) passes for the art only (EquipAbilityRules.h)
-                if (!burnable && !IsFireEquipAbility(effect->spell)) {
+                if (!visual) {
                     return Outcome::kNotFire;
                 }
                 // v2: the copy when one exists (its NIF is grey); the runtime recolour only for an art without one
@@ -294,9 +296,14 @@ namespace BlackFlame
                 if (GetConfig().copyHitArt && CopyOf(a_original)) {
                     return Outcome::kCopied;
                 }
+                // A shared equip ability can survive an owner change. Runtime recolouring leaves
+                // no replaceable copy identity to restore then, so this path requires a private copy.
+                if (IsVisualEquipAbility(effect->spell)) {
+                    return Outcome::kConfigOff;
+                }
                 return GetConfig().hitArt ? Outcome::kSwapped : Outcome::kConfigOff;
             }
-            if (!burnable) {
+            if (!visual) {
                 return Outcome::kNotFire;
             }
             const auto* ours = GetForms().burnShader;
@@ -483,6 +490,13 @@ namespace BlackFlame
             return false;
         }
         return IsBurnable(a_effect->GetBaseObject(), a_effect->spell);
+    }
+
+    bool IsPlayerVisualEffect(RE::ActiveEffect* a_effect)
+    {
+        const auto player = PlayerHandleValue();
+        return a_effect && player != 0 && a_effect->caster.native_handle() == player &&
+            (IsVisualEffect(a_effect->GetBaseObject(), a_effect->spell) || IsPlayerVisualEquipEffect(a_effect));
     }
 
     std::uint32_t PlayerHandleNative()

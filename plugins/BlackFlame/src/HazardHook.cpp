@@ -109,7 +109,7 @@ namespace BlackFlame
             // a copy window, and a hazard whose base is a copy (only the player's fire chain reaches a copy)
             const auto* hazardBase = a_hazard->GetBaseObject();
             if (ImpactWindowOpen() || CopyWindowOpen() || (hazardBase && IsCopy(hazardBase))) {
-                TagSource(a_hazard);
+                TagPlaced(a_hazard);
             }
             if (!IsStoked() || !GetConfig().light || !a_hazard->Get3D()) {
                 return;
@@ -207,7 +207,7 @@ namespace BlackFlame
             }
             const auto* base = BaseOf(hazard);
             const auto link = LinkToPlayer("hazard", hazard, owner.get());
-            if (link != PlayerLink::kNone && IsFireHazard(base) && IsStoked()) {
+            if (link != PlayerLink::kNone && base && (IsCopy(base) || IsTaggedVisualInstance(hazard)) && IsStoked()) {
                 LogLinkOnce("hazard", link);
                 if (!TintHazardLight(hazard, base, link)) {
                     Unqueue(a_pending.handle);

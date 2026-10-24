@@ -39,6 +39,7 @@ namespace BlackFlame
     {
         TagState state = TagState::kNone;
         RE::VMHandle pendingCaller = 0;  // set when pending
+        bool visualInstance = false;  // this reference was placed by the visual chain, not merely used as a caster
     };
 
     /// State and pending caller read under one lock (any thread, never judges)
@@ -58,6 +59,9 @@ namespace BlackFlame
     /// Any thread, never judges: a live, confirmed source tag (or placed tag) names this reference; a
     /// pending one does not count (yet)
     [[nodiscard]] bool IsTaggedSource(const RE::TESObjectREFR* a_ref);
+
+    /// A source/caster tag alone must not recolour that reference or its unrelated later casts.
+    [[nodiscard]] bool IsTaggedVisualInstance(const RE::TESObjectREFR* a_ref);
 
     /// Ticker task: tints the lights of placed references whose 3D exists, drops expired tags
     void TickScriptTags();

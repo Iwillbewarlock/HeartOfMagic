@@ -230,7 +230,7 @@ namespace BlackFlame
             const auto* explosion = base ? base->As<RE::BGSExplosion>() : nullptr;
             auto& data = a_explosion->GetExplosionRuntimeData();
             const auto* casterSpell = data.magicCaster ? data.magicCaster->currentSpell : nullptr;
-            if (!IsFireExplosion(explosion)) {
+            if (!explosion) {
                 (void)MarkProcessed(a_explosion);
                 return;
             }
@@ -240,6 +240,15 @@ namespace BlackFlame
             // against the script tags too (a projectile from a tagged source may leave it there)
             RE::Actor* casterActor = nullptr;
             auto* casterRef = data.magicCaster ? data.magicCaster->GetCasterObjectReference(&casterActor) : nullptr;
+            // Copies are handed out only inside a validated player cast. A shared original base
+            // and player ownership alone cannot distinguish another spell using the same explosion.
+            const bool visualOrigin = IsCopy(explosion) || IsTaggedVisualInstance(a_explosion);
+            if (!visualOrigin && !IsFireExplosion(explosion) && !CopyOf(explosion)) {
+                if (TagStateOf(a_explosion) != TagState::kPending && TagStateOf(casterRef) != TagState::kPending) {
+                    (void)MarkProcessed(a_explosion);
+                }
+                return;
+            }
             // Attribution not set yet (no owner, blame or script tag; the cause is no rule): decided by a
             // later hook call, or given up after kUndecidedLimit
             const bool pendingTag = TagStateOf(a_explosion) == TagState::kPending || TagStateOf(casterRef) == TagState::kPending;
@@ -263,25 +272,8 @@ namespace BlackFlame
                 logger::info("BlackFlame: fire explosion {:08X} not the player's: owner {:08X}, cause actor {:08X}",
                     explosion->GetFormID(), owner ? owner->GetFormID() : 0, cause ? cause->GetFormID() : 0);
             }
-            // Explosion.h:87 magicCaster is the explosion's OWN NonActorMagicCaster (it applies the
-            // explosion's effect in its radius), not the player's caster, so it cannot name a spell the
-            // player cast later. A whitelist on its currentSpell (MagicCaster.h:105): none, a fire spell
-            // (kSpell), or an enchantment - the explosion's own, which cannot be told apart from a weapon
-            // enchantment here (README limit). Anything else (scroll, staff, power, potion...) is left.
-            using SpellType = RE::MagicSystem::SpellType;
-            const bool fireCast = !casterSpell ||
-                                  (casterSpell->GetSpellType() == SpellType::kSpell && IsFireSpell(casterSpell)) ||
-                                  casterSpell->GetSpellType() == SpellType::kEnchantment;
-            const bool notFireCast = !fireCast;
-            if (byPlayer && notFireCast) {
-                int suppressed = 0;
-                if (LogLimit::Allow("explosion skipped", casterSpell->GetFormID(), suppressed)) {
-                    logger::info("BlackFlame: explosion {:08X} left: its magicCaster's current spell {:08X} is not a fire "
-                                 "spell (type {})", explosion->GetFormID(), casterSpell->GetFormID(),
-                        static_cast<int>(casterSpell->GetSpellType()));
-                }
-            }
-            const bool tint = byPlayer && !notFireCast && IsStoked() && GetConfig().light;  // C6: the light only
+            // Keep NPC/original records for diagnostics; only proven per-instance origins may tint.
+            const bool tint = byPlayer && visualOrigin && IsStoked() && GetConfig().light;
             // G5: the material logs walk 3D in a task: not without the main-thread queue
             const bool logMaterials = MainQueue::Installed() && !byPlayer && g_npcMaterialLogs.fetch_add(1) < kMaxNpcMaterialLogs;
             if (!tint && !logMaterials && !SelfTestProbe::Recording()) {
@@ -378,7 +370,7 @@ namespace BlackFlame
                 return false;
             }
             auto* base = a_explosion->GetBaseObject();
-            if (!IsFireExplosion(base ? base->As<RE::BGSExplosion>() : nullptr)) {
+            if (!base || (!IsCopy(base) && !IsTaggedVisualInstance(a_explosion))) {
                 return false;
             }
             auto& data = a_explosion->GetExplosionRuntimeData();

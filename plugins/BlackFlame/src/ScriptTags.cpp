@@ -4,6 +4,7 @@
 #include "BuffState.h"
 #include "Config.h"
 #include "FireSet.h"
+#include "FormCopies.h"
 #include "GameThread.h"
 #include "HitEffectHook.h"
 #include "LogLimit.h"
@@ -36,6 +37,7 @@ namespace BlackFlame
             RE::ObjectRefHandle handle;
             Clock::time_point expires{};
             bool placed = false;  // waiting for its 3D (its light tinted)
+            bool visualInstance = false;
             std::uint32_t generation = 0;
             // Set by a call on a VM thread: the calling script's VM handle, not judged yet. Judged on the
             // game thread (the ActiveEffect is read only there) when the tag is first asked about or at
@@ -88,6 +90,7 @@ namespace BlackFlame
             tag.handle = handle;
             tag.expires = now + (a_placed ? kPlacedWindow : kSourceWindow);
             tag.placed = tag.placed || a_placed;
+            tag.visualInstance = tag.visualInstance || a_placed;
             tag.generation = WorldGeneration();
             tag.pendingCaller = wasConfirmed ? 0 : a_pendingCaller;
             g_count.store(tags.size());
@@ -104,7 +107,7 @@ namespace BlackFlame
                 auto* policy = vm ? vm->GetObjectHandlePolicy() : nullptr;
                 if (policy && policy->HandleIsType(RE::ActiveEffect::VMTYPEID, a_caller) &&
                     policy->IsHandleObjectAvailable(a_caller)) {
-                    confirmed = IsPlayerFireEffect(
+                    confirmed = IsPlayerVisualEffect(
                         static_cast<RE::ActiveEffect*>(policy->GetObjectForHandle(RE::ActiveEffect::VMTYPEID, a_caller)));
                 }
             });
@@ -144,9 +147,9 @@ namespace BlackFlame
             }
             switch (base->GetFormType()) {
             case RE::FormType::Explosion:
-                return IsFireExplosion(base->As<RE::BGSExplosion>());
+                return IsCopy(base) || IsTaggedVisualInstance(a_ref);
             case RE::FormType::Hazard:
-                return IsFireHazard(base->As<RE::BGSHazard>());
+                return IsCopy(base) || IsTaggedVisualInstance(a_ref);
             default:
                 break;
             }
@@ -210,7 +213,7 @@ namespace BlackFlame
             return {};
         }
         const auto caller = it->second.pendingCaller;
-        return { caller == 0 ? TagState::kConfirmed : TagState::kPending, caller };
+        return { caller == 0 ? TagState::kConfirmed : TagState::kPending, caller, it->second.visualInstance };
     }
 
     TagState TagStateOf(const RE::TESObjectREFR* a_ref)
@@ -221,6 +224,12 @@ namespace BlackFlame
     bool IsTaggedSource(const RE::TESObjectREFR* a_ref)
     {
         return TagStateOf(a_ref) == TagState::kConfirmed;  // never judges: hooks call this
+    }
+
+    bool IsTaggedVisualInstance(const RE::TESObjectREFR* a_ref)
+    {
+        const auto info = TagInfoOf(a_ref);
+        return info.state == TagState::kConfirmed && info.visualInstance;
     }
 
     bool ResolvePending(const RE::TESObjectREFR* a_ref)

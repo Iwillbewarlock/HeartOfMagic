@@ -76,13 +76,13 @@ namespace BlackFlame
             }
             auto* baseForm = a_hazard->GetBaseObject();
             a_base = baseForm ? baseForm->As<RE::BGSHazard>() : nullptr;
-            if (!a_base || !IsFireHazard(a_base)) {
+            if (!a_base || !(ImpactWindowOpen() || CopyWindowOpen() || IsCopy(a_base) || IsTaggedVisualInstance(a_hazard))) {
                 return nullptr;
             }
             // Made inside the player's impact (SpawnCollisionEffects creates the impact hazard): tagged, so
             // ownership is known here and for the per-instance layer (v2: also a copy window or a copy base)
             if (ImpactWindowOpen() || CopyWindowOpen() || IsCopy(a_base)) {
-                TagSource(a_hazard);
+                TagPlaced(a_hazard);
                 if (g_windowLogs.load() < kMaxWindowLogs && g_windowLogs.fetch_add(1) < kMaxWindowLogs) {
                     logger::info("BlackFlame: hazard {:08X} loaded inside the player's impact window: tagged",
                         a_base->GetFormID());

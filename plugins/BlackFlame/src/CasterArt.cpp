@@ -3,6 +3,7 @@
 
 #include "Config.h"
 #include "FireSet.h"
+#include "VisualSet.h"
 #include "LogLimit.h"
 #include "EffectLight.h"
 #include "Recolor.h"
@@ -217,12 +218,12 @@ namespace BlackFlame
         // The fire spell this hand casts now, or else the one it holds readied
         RE::MagicItem* FireSpellOfHand(RE::PlayerCharacter* a_player, RE::ActorMagicCaster* a_caster, const Hand& a_hand)
         {
-            if (a_caster && IsFireSpell(a_caster->currentSpell)) {
+            if (a_caster && IsVisualSpell(a_caster->currentSpell)) {
                 return a_caster->currentSpell;
             }
             auto* equipped = a_player->GetEquippedObject(a_hand.source == RE::MagicSystem::CastingSource::kLeftHand);
             auto* spell = equipped ? equipped->As<RE::SpellItem>() : nullptr;
-            return IsFireSpell(spell) ? spell : nullptr;
+            return IsVisualSpell(spell) ? spell : nullptr;
         }
 
         // What one place gave: whether it existed and what recolouring it did

@@ -11,6 +11,7 @@
 #include "Config.h"
 #include "CopyFreshness.h"
 #include "FireSet.h"
+#include "VisualSet.h"
 #include "FormCopies.h"
 #include "LogLimit.h"
 #include "MainThreadQueue.h"
@@ -352,7 +353,7 @@ namespace BlackFlame
                 return nullptr;
             }
             const auto* actor = static_cast<RE::ActorMagicCaster*>(caster)->GetCasterAsActor();
-            if (actor != RE::PlayerCharacter::GetSingleton() || !IsFireSpell(spell->As<RE::SpellItem>())) {
+            if (actor != RE::PlayerCharacter::GetSingleton() || !IsVisualSpell(spell->As<RE::SpellItem>())) {
                 return nullptr;
             }
             a_selfArea = true;
@@ -403,7 +404,7 @@ namespace BlackFlame
     bool IsFireLaunch(const RE::MagicItem* a_spell, const RE::EnchantmentItem*, const RE::TESObjectWEAP* a_weapon)
     {
         if (a_spell) {
-            return IsFireSpell(a_spell);  // a spell decides alone: a non-fire spell sharing a copied PROJ is never swapped
+            return IsVisualSpell(a_spell);  // a spell decides alone: a non-fire spell sharing a copied PROJ is never swapped
         }
         return a_weapon && IsBoundFireWeapon(a_weapon);
     }

@@ -1,0 +1,9 @@
+# Catalog startup regression seam
+
+Extracts the actual production Main.cpp anonymous-namespace startup functions, compiles their unchanged bodies, and calls actual OnDataLoaded. Copies and includes the complete production CatalogStartup.cpp, CatalogStartup.h, and CatalogFile.h without edits (hash-verified). File reads and JSON parsing use the real implementation. Only engine operations and menu/queue state are stubs; queue batches drain deterministically. The 500 ms production clock uses real time, with 510 ms fixture waits.
+
+From Visual Studio Developer PowerShell, run `./tools/blackflame-catalog-startup-check/run.ps1`. Requires Node and the repository's installed vcpkg nlohmann JSON headers. Defaults resolve relative to the repository's tools directory. For a workspace copy pass `-RepoRoot <repo> -BuildRoot <workspace-build-dir>`; `-Main <old-Main.cpp> -MissingOnly` compares the saved baseline with the same test. Each of 16 scenarios starts in a fresh process; production process-lifetime flags are never reset by test-only access. No game, MO2, SKSE process, or production source is changed.
+
+The current implementation passes 79 assertions: existing catalog (including empty spells object), missing or malformed data becoming valid, invalid root/fields, ignored .part staging file, closed or closing publication window, refused or pending main-thread proof, unavailable/failed queue, and repeated Begin/wakeups. The baseline Main.cpp fails because it captures empty fire sets and starts SingleLaunch before a catalog exists. The saved baseline and build outputs are local evidence, not files to copy into tools.
+
+This verifies startup ordering, actual catalog parsing, cancellation, and exactly-once wiring. It does not verify the real scanner's atomic rename, engine threading, MO2 virtual filesystem behavior, SKSE lifecycle callbacks, or game rendering.

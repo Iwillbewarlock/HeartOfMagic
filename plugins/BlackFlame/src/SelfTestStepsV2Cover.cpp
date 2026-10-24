@@ -6,8 +6,8 @@
 //             (FAIL lists the first 20 missing: type, FormID, the spell that reached it and its plugin). Per fire spell the
 //             costliest effect's projectile (and its dual cast projectile), that projectile's explosion and the casting
 //             art are counted apart. INFO: copies without a grey model (the builder kept the source's), and copies no
-//             swap point uses (a casting art reached only from an effect that is not a costliest one, a hazard reached
-//             only as a non-fire spawn-hazard effect's form).
+//             swap point uses (a casting art reached only from an effect that is not a costliest one).
+//             Spawn-hazard edge fire metadata does not decide runtime visual eligibility.
 //   E1m       a modded fire spell picked by data - its costliest effect's projectile has a copy, its defining file comes
 //             last in the load order (tie: the smaller FormID); INFO when only the five official masters qualify. The
 //             player launches it at the target (as E1a): the launch takes the projectile copy, and when its effect or
@@ -18,7 +18,7 @@
 #include "CopyFreshness.h"
 #include "CopySwap.h"
 #include "FireClosure.h"
-#include "FireSet.h"
+#include "VisualSet.h"
 #include "FormCopies.h"
 #include "SelfTestLog.h"
 #include "SelfTestText.h"
@@ -64,14 +64,11 @@ namespace BlackFlame::SelfTest
             return false;
         }
 
-        // A copy no swap point uses: ARTO only from non-costliest casting art edges; HAZD only from non-fire spawn-hazard edges
+        // ARTO reached only as non-costliest casting art has no swap point. Hazard eligibility is contextual.
         bool Unused(const ClosureForm& a_form)
         {
             if (a_form.kind == CopyKind::kArt) {
                 return (a_form.edges & ~kEdgeCastingArt) == 0;
-            }
-            if (a_form.kind == CopyKind::kHazard) {
-                return (a_form.edges & ~kEdgeSpawnHazard) == 0;
             }
             return false;
         }
@@ -224,7 +221,7 @@ namespace BlackFlame::SelfTest
         SelfTestLog::Info("T0-cover", std::format("bound fire weapon arrows (edge bound arrow, the Launch swap): {} of {} copied, from {} "
             "seed(s)", boundArrowsCopied, boundArrows, closure.boundSeeds));
         Part projectiles, dualProjectiles, explosions, castingArts;
-        for (const auto* spell : FireSpellList()) {
+        for (const auto* spell : VisualSpellList()) {
             const auto* costliest = spell->GetAVEffect();
             if (!costliest) {
                 continue;
@@ -235,7 +232,7 @@ namespace BlackFlame::SelfTest
             explosions.Add(ExpectedExplosion(spell));  // G2: the engine's rule, as E1m
             castingArts.Add(costliest->data.castingArt);
         }
-        SelfTestLog::Info("T0-cover", std::format("per fire spell, its costliest effect: projectiles {}, dual cast projectiles {}, "
+        SelfTestLog::Info("T0-cover", std::format("per visual copy-candidate spell, its costliest effect: projectiles {}, dual cast projectiles {}, "
             "explosions {}, casting arts {}", projectiles.Text(), dualProjectiles.Text(), explosions.Text(), castingArts.Text()));
         const auto counts = GetCopyCounts();
         SelfTestLog::Info("T0-cover", std::format("copied, not grey: {} (the builder kept the source's model); copies no swap point "
@@ -256,8 +253,8 @@ namespace BlackFlame::SelfTest
                 }
             }
             std::size_t bestAt = 0;
-            for (auto* spell : FireSpellList()) {
-                if (!LaunchesAtTarget(spell)) {
+            for (auto* spell : VisualSpellList()) {
+                if (!IsVisualSpell(spell) || !LaunchesAtTarget(spell)) {
                     continue;
                 }
                 const auto it = order.find(spell->GetFile(0));
@@ -270,7 +267,7 @@ namespace BlackFlame::SelfTest
                 }
             }
             if (!g_e1m.spell) {
-                SelfTestLog::Skip("E1m", "no aimed fire spell whose costliest effect's projectile has a copy");
+                SelfTestLog::Skip("E1m", "no aimed runtime-eligible HoM fire spell whose costliest effect's projectile has a copy");
                 return true;
             }
             if (IsOfficial(g_e1m.spell)) {

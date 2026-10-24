@@ -10,6 +10,7 @@
 #include "Common.h"
 
 #include "BuffState.h"
+#include "CatalogStartup.h"
 #include "CloneWatch.h"
 #include "CopyModelProbe.h"
 #include "CasterArt.h"
@@ -58,9 +59,10 @@
 
 namespace
 {
-    void OnDataLoaded()
+    std::atomic<bool> g_runtimeReady{ false };
+
+    void InstallRuntime()
     {
-        BlackFlame::g_dataLoadedThreadNativeId.store(REX::W32::GetCurrentThreadId());
         // W23: every step before the hook installs runs guarded, so a throw in one cannot skip the installs below
         const auto guarded = [](const char* a_step, auto&& a_work) {
             try {
@@ -72,22 +74,9 @@ namespace
                     a_step);
             }
         };
-        // Single launch: the main-thread proof and the menu sink before anything is scheduled (MenuWatch.h); always (the dev
-        // auto-load reads the main menu from it), guarded too (review Gemini / agy 10)
-        guarded("MenuWatch::Install", [] { BlackFlame::MenuWatch::Install(); });
-        if (!BlackFlame::LoadForms()) {
-            logger::error("BlackFlame: the addon ESP's forms are missing - nothing is installed");
-            BlackFlame::MarkFreshnessUnchecked("the addon ESP's forms are missing");
-            return;
-        }
         const bool singleLaunch = BlackFlame::GetConfig().singleLaunch;
-        if (singleLaunch) {
-            // Single launch: the engine's resource index first (RegisterLoose is gated on its structural checks), then the
-            // slot ledger (no ledger path: no slots this session). The copies map route below does not run (SingleLaunch.h)
-            guarded("FileIndex::Init", [] { BlackFlame::FileIndex::Init(); });
-            guarded("SlotLedger::Load", [] { (void)BlackFlame::SlotLedger::Load(); });
-        } else {
-            guarded("LoadAndFillCopies", [] { BlackFlame::LoadAndFillCopies(); });  // v2: before any hook reads the copies
+        if (!singleLaunch) {
+            guarded("LoadAndFillCopies", [] { BlackFlame::LoadAndFillCopies(); });
         }
         guarded("BuildFireSets", [] { BlackFlame::BuildFireSets(); });
         // v2 expansion C1: the closure from the original forms, the fingerprint, the request and the NIF dump. Its own
@@ -155,6 +144,41 @@ namespace
         guarded("DevAutomation::Install", [] { BlackFlame::DevAutomation::Install(); });  // dev only (DevAutomation.h)
     }
 
+    void OnDataLoaded()
+    {
+        BlackFlame::g_dataLoadedThreadNativeId.store(REX::W32::GetCurrentThreadId());
+        // W23: every step before the hook installs runs guarded, so a throw in one cannot skip the installs below
+        const auto guarded = [](const char* a_step, auto&& a_work) {
+            try {
+                a_work();
+            } catch (const std::exception& e) {
+                logger::error("BlackFlame: kDataLoaded: {} threw ({}) - going on to the hook installs", a_step, e.what());
+            } catch (...) {
+                logger::error("BlackFlame: kDataLoaded: {} threw an exception of an unknown type - going on to the hook installs",
+                    a_step);
+            }
+        };
+        // Single launch: the main-thread proof and the menu sink before anything is scheduled (MenuWatch.h); always (the dev
+        // auto-load reads the main menu from it), guarded too (review Gemini / agy 10)
+        guarded("MenuWatch::Install", [] { BlackFlame::MenuWatch::Install(); });
+        if (!BlackFlame::LoadForms()) {
+            logger::error("BlackFlame: the addon ESP's forms are missing - nothing is installed");
+            BlackFlame::MarkFreshnessUnchecked("the addon ESP's forms are missing");
+            return;
+        }
+        const bool singleLaunch = BlackFlame::GetConfig().singleLaunch;
+        if (singleLaunch) {
+            // Single launch: the engine's resource index first (RegisterLoose is gated on its structural checks), then the
+            // slot ledger (no ledger path: no slots this session). The copies map route below does not run (SingleLaunch.h)
+            guarded("FileIndex::Init", [] { BlackFlame::FileIndex::Init(); });
+            guarded("SlotLedger::Load", [] { (void)BlackFlame::SlotLedger::Load(); });
+        }
+        BlackFlame::CatalogStartup::Begin([] {
+            InstallRuntime();
+            g_runtimeReady.store(true);
+        });
+    }
+
     // The world is torn down: nothing tracked from it may be touched again
     void ResetLayers()
     {
@@ -212,6 +236,11 @@ namespace
             // "data contains a bool"); anything else is read as success
             const bool loaded = a_msg.dataLen != 1 || reinterpret_cast<std::uintptr_t>(a_msg.data) != 0;
             BlackFlame::Watchdog::NoteLoadEnded();
+            if (!g_runtimeReady.load()) {
+                logger::warn("BlackFlame: runtime initialization is not ready; skipping save-load runtime work");
+                FlushLog();
+                break;
+            }
             BlackFlame::RefreshCopies("save load");  // C5: copies that no longer match their source, re-filled
             BlackFlame::NotifyFreshnessOnce();
             BlackFlame::NotifyFileIndexOnce();  // a loose-file cache that does not know the copies (CopyModelProbe)
@@ -233,6 +262,11 @@ namespace
             BlackFlame::MenuWatch::Close("kNewGame");
             BlackFlame::Watchdog::NoteLoadEnded();
             TearDown("a new game started");
+            if (!g_runtimeReady.load()) {
+                logger::warn("BlackFlame: runtime initialization is not ready; skipping new-game runtime work");
+                FlushLog();
+                break;
+            }
             BlackFlame::RefreshCopies("new game");
             BlackFlame::NotifyFreshnessOnce();
             BlackFlame::NotifyFileIndexOnce();

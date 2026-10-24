@@ -17,6 +17,7 @@
 #include "BuffState.h"
 #include "Config.h"
 #include "FireSet.h"
+#include "VisualSet.h"
 #include "FormCopies.h"
 #include "HandArtRefresh.h"
 #include "LogLimit.h"
@@ -176,11 +177,11 @@ namespace BlackFlame
     {
         if (!a_art || !a_stoked || !a_actor || a_actor != RE::PlayerCharacter::GetSingleton() ||
             (a_slot != RE::Actor::SlotTypes::kLeftHand && a_slot != RE::Actor::SlotTypes::kRightHand) || !a_spell ||
-            !IsFireSpell(a_spell)) {
+            !IsVisualSpell(a_spell)) {
             return a_art;
         }
         // F5: the kDataLoaded cache, never GetAVEffect here (the thunk runs on job threads)
-        if (CostliestCastingArtOf(a_spell) != a_art) {
+        if (CostliestVisualCastingArtOf(a_spell) != a_art) {
             return a_art;  // only the art the engine takes from that spell's costliest effect
         }
         auto* copy = CopyOfAs<RE::BGSArtObject>(a_art);
