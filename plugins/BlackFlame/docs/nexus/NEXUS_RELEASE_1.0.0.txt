@@ -1,7 +1,7 @@
 Heart of Magic - Black Flame 1.0.0 - text for the Nexus upload (DRAFT, not uploaded)
 (The page: NEXUS_PAGE_EN.bbcode and NEXUS_PAGE_KO.bbcode in this folder. First drafts by Gemini Argon from a fact
 sheet, checked line by line against it; every addition not in the sheet was cut. Full list: ../../CHANGELOG.md.)
-{{COMMIT_URL}} in the pages: https://github.com/Iwillbewarlock/HeartOfMagic/tree/@PACKAGE_COMMIT@ once that commit is pushed.
+Source link in the pages: the package commit 803c5fab35bbf5cb63034ec1aa0001f0677191f1 (the commit THIRD-PARTY-NOTICES.md names); it must be pushed before upload.
 
 =====================================================================
 1. Mod page fields
