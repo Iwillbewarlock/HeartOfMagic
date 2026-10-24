@@ -1,0 +1,117 @@
+[center][size=5][b]Heart of Magic - 흑염 달구기 (Heart of Magic - Black Flame)[/b][/size]
+[b]버전 1.0.0 | 제작: Iwillbewarlock[/b]
+
+Heart of Magic Librarian 전용 애드온입니다. 허리에 차는 사엘의 철창 등불을 착용하면 플레이어의 화염 마법이 회흑색 불꽃으로 바뀌고, 저항을 무시하는 흑염 추가 피해를 줍니다.[/center]
+
+[size=4][b]무엇을 하나요[/b][/size]
+이 모드는 Iwillbewarlock의 Heart of Magic Librarian (Dinkel Zombie의 Heart of Magic - Spell Learning System을 다시 만든 모드)을 위한 애드온입니다.
+
+허리 왼쪽 앞에 차는 아이템인 [b]사엘의 철창 등불[/b] ("Saeel's Iron Cage Lantern") 하나를 추가합니다. 철창 안에 회흑색 불꽃이 떠 있는 모습이며, 주변을 밝히는 빛은 내지 않습니다.
+
+등불을 착용하면 [b]갈망[/b] ("Longing") 효과가 적용되며 다음 변화가 생깁니다.
+[list]
+[*][b]회흑색 화염 이펙트:[/b] 플레이어가 쓰는 화염 마법이 회흑색으로 바뀝니다. 투사체, 폭발, 손의 시전 이펙트, 몸의 오라, 적중한 대상에 붙는 불꽃, 시전 광원이 모두 바뀝니다. 여기서 화염 마법은 Heart of Magic의 마법 카탈로그에서 화염으로 분류된 일반 마법을 뜻합니다. 칠흑 같은 검은색이 아니라 은은하게 빛나는 회흑색 불꽃입니다.
+[*][b]매지카 소모 증가:[/b] 화염 키워드가 있는 화염 마법은 매지카를 30% 더 소모합니다. Heart of Magic의 마법 카탈로그에서만 화염으로 분류된 마법은 매지카 소모가 늘어나지 않을 수 있습니다.
+[*][b]흑염 추가 피해:[/b] 화염 마법이 적중하면 [b]흑염[/b] ("Black Flame") 피해가 추가됩니다. 저항을 무시하고 2초 동안 대상 최대 체력의 2%만큼 피해를 줍니다. 다시 적중하면 중첩되지 않고 2초 지속 시간이 처음부터 다시 흐릅니다. 마법 자체의 원래 피해는 평소처럼 저항의 영향을 받습니다. 망토 마법, 두루마리, 지팡이, 외침, 권능에는 적용되지 않습니다.
+[*][b]회색 시체 불꽃:[/b] AE 1.6.1170에서는 흑염으로 처치한 적에게 남는 Frozen Electrocuted Combustion (FEC)의 시체 불꽃도 회색으로 바뀝니다.
+[/list]
+
+[b]바뀌지 않는 것[/b]
+NPC의 화염 마법, 손에 든 횃불, 소환수가 쓰는 화염, 화염 함정은 바뀌지 않습니다. 투사체 속도, 사거리, 마법 자체의 피해량도 그대로입니다. 등불을 벗으면 화염 마법의 모습과 매지카 소모량이 원래대로 돌아옵니다.
+
+[b]작동 방식[/b]
+게임을 시작할 때 다운로드에 포함된 작은 보조 프로그램이 사용자의 로드 오더(바닐라와 모드 모두)에 있는 화염 시각 효과를 읽어 전용 회색 복사본을 만듭니다. 플레이어의 화염 마법만 이 복사본을 쓰며, NPC와 다른 마법은 원본 파일을 그대로 씁니다.
+
+[size=4][b]필요한 것[/b][/size]
+[list]
+[*][b]Skyrim Special Edition / Anniversary Edition:[/b] 인게임에서 테스트된 버전은 AE 1.6.1170뿐입니다(아래 게임 버전 항목 참고). Skyrim VR은 지원하지 않습니다.
+[*][b]SKSE:[/b] 사용하는 게임 버전에 맞는 버전.
+[*][b]Address Library for SKSE Plugins[/b]
+[*][b]Heart of Magic Librarian 1.5.0 이상 (1.6.0에서 테스트됨):[/b] Black Flame은 Heart of Magic이 마법을 스캔할 때 만드는 마법 카탈로그을 읽습니다. 1.5.0부터는 Heart of Magic이 처음 시작할 때 이 카탈로그를 자동으로 만듭니다.
+[*][b]Microsoft Visual C++ Redistributable 2015-2022 (x64):[/b] 보조 프로그램 실행에 필요합니다. 대부분의 스카이림 환경에는 이미 설치되어 있습니다.
+[*][b]선택 사항 - Immersive Equipment Displays (IED):[/b] IED가 있으면 IED가 등불을 허리에 걸어 주며, 없으면 등불 자체의 착용 모델을 사용합니다. IED를 쓰면 SKSE\Plugins\HeartOfMagic_BlackFlame.json 파일에 "lanternIedPreset": "frontLeft", "frontRight", "backLeft", "backRight" 중 하나를 추가해 위치를 바꿀 수 있습니다(기본값은 frontLeft이며, 변경 후 게임을 다시 시작해야 합니다).
+[*][b]디스크 공간:[/b] 생성되는 복사본과 작업 파일의 용량은 로드 오더에 따라 다릅니다. 제작자의 테스트 환경(모드 약 4,000개)에서는 총 2.6 GB 정도를 차지했습니다.
+[/list]
+
+[size=4][b]설치와 처음 실행[/b][/size]
+[b]설치[/b]
+[list=1]
+[*]Mod Organizer 2 (MO2)나 Vortex로 압축 파일을 설치합니다.
+[*]한국어 파일과 영어 파일이 따로 있습니다. 둘 중 하나만 설치하세요. 파일 구성과 FormID는 같고 인게임 텍스트만 다릅니다.
+[*]HeartOfMagic_BlackFlame.esp와 HeartOfMagic_BlackFlame_Slots.esp 두 플러그인을 모두 켭니다.
+[*]루즈 파일 캐시 모드(예: CRDW)를 쓴다면 설치하거나 업데이트한 뒤 캐시를 다시 만드세요(Force rebuild). 이전 캐시는 새로 생긴 파일을 인식하지 못합니다.
+[/list]
+
+[b]처음 실행[/b]
+[list]
+[*]게임을 켜고 메인 메뉴에서 기다립니다. 처음 시작할 때는 회색 복사본을 만들기 때문에 평소보다 시간이 더 걸립니다. 세이브를 불러오기 전에 메인 메뉴에서 1~2분 정도 기다려 주세요.
+[*]Heart of Magic에 아직 마법 카탈로그이 없다면 첫 실행 자동 스캔이 먼저 카탈로그를 만듭니다. Black Flame은 카탈로그가 준비될 때까지 기다립니다.
+[*]Heart of Magic의 자동 스캔을 꺼 두었거나 이미 저장된 트리가 있어 자동으로 스캔하지 않는다면, Heart of Magic에서 전체 스캔을 실행하세요.
+[*]마법 카탈로그이 준비되기 전에 세이브를 불러오거나 새 게임을 시작하면 그 세션에서는 Black Flame이 설정되지 않습니다. 스캔을 마친 뒤 게임을 다시 시작하세요.
+[*]AE 1.6.1170에서는 만들어진 복사본이 같은 실행에서 바로 적용됩니다. 다른 게임 버전에서는 다음 실행부터 적용될 수 있으니 게임을 한 번 다시 시작하세요.
+[*]로드 오더가 크면 처음 실행한 뒤에도 일부 마법이 여전히 주황색으로 보일 수 있습니다. 그럴 때는 게임을 한 번 더 다시 시작하세요.
+[*]이후 실행부터는 유효한 복사본을 그대로 재사용합니다.
+[*]생성된 복사본이나 마법 카탈로그을 다른 플레이어와 공유하지 마세요. 각자의 모드 파일에서 만들어진 결과물입니다.
+[/list]
+
+[size=4][b]등불 얻기[/b][/size]
+[list]
+[*][b]위치:[/b] [b]안질푼트 매장묘실[/b] (Ansilvund Burial Chambers) 위층 탁자 위에 놓여 있으며, 옆에서 연기가 피어오릅니다. 이미 그곳을 방문했던 세이브 파일이라도 다음에 다시 방문하면 등불이 나타납니다.
+[*][b]콘솔 (영어판):[/b] 콘솔에 help "Saeel's Iron Cage Lantern" 4를 입력해 FormID를 확인한 뒤 player.additem <FormID> 1을 입력합니다. FormID는 FE + 모드 매니저에 표시되는 HeartOfMagic_BlackFlame.esp의 3자리 ESL 번호 + 80D입니다(예: ESL 번호가 FD3이면 FEFD380D).
+[*][b]콘솔 (한국어판):[/b] 콘솔에 한글을 입력할 수 있다면 help 철창 4로 FormID를 찾을 수 있습니다.
+[/list]
+
+[size=4][b]게임 버전[/b][/size]
+[list]
+[*][b]AE 1.6.1170 (Steam) - 인게임 테스트 완료:[/b] 모든 기능이 작동합니다. 생성된 복사본이 같은 실행에서 바로 적용됩니다.
+[*][b]AE 1.7.104 - 인게임 미테스트:[/b] 게임 코드를 읽어 코드 주소는 확인했지만 실제로 실행해 보지는 않았습니다. 장착 중인 달인 마법의 오라 갱신, 회색 FEC 시체 불꽃, 회색 룬 문양과 그을음 자국 기능은 꺼져 있습니다. 복사본을 적용하려면 게임을 한 번 다시 시작해야 할 수 있습니다.
+[*][b]기타 AE 1.6 버전 (GOG 1.6.1179 포함) - 미테스트:[/b] 1.7.104와 같은 기능들이 꺼져 있습니다. 복사본을 적용하려면 게임을 한 번 다시 시작해야 할 수 있습니다.
+[*][b]SE 1.5.97 - 미테스트 (실행해 본 적 없음):[/b] 다음 실행부터 복사본이 적용됩니다(게임 1회 재시작 필요). 손의 회색 시전 이펙트와, 게임이 직접 만드는 바닥 화염과 폭발의 회색 처리도 꺼져 있습니다.
+[*][b]Skyrim VR - 지원하지 않음[/b]
+[/list]
+
+[size=4][b]알려진 제한[/b][/size]
+[list]
+[*]불꽃은 칠흑 같은 검은색이 아니라 회흑색입니다.
+[*]적이 불타 죽을 때 나오는 화염은 게임 엔진에 고정된 부분이라 주황색으로 남습니다.
+[*]바닥의 룬 문양(Fire Rune)과 그을음 자국은 AE 1.6.1170에서만 회색으로 바뀝니다.
+[*]등불을 착용하거나 벗을 때 장착 중인 달인 마법(예: 화염 폭풍)의 오라가 바로 갱신되는 기능은 AE 1.6.1170에서만 작동합니다.
+[*]FEC 시체 불꽃은 경우에 따라 주황색으로 남을 수 있습니다(예: 그 시체에 플레이어의 냉기나 전격 마법이 나중에 적중했을 때). 회색 시체 불꽃은 AE 1.6.1170 전용입니다.
+[*]등불을 낀 상태에서 같은 장착 이펙트를 공유하는 화염 마법에서 비화염 마법으로 바꾸면, 그 마법의 광원에 색이 남을 수 있습니다. 게임 진행에는 해가 없으며 등불을 벗으면 원래대로 돌아옵니다.
+[*]겉보기에 화염 같아도 Heart of Magic의 마법 카탈로그에 없는 마법은 원래 모습을 유지합니다. 화염 마법과 비화염 마법이 함께 쓰는 이펙트도 원래 모습을 유지할 수 있습니다.
+[*]등불을 끼고 있을 때 시작된 화상 이펙트는 등불을 벗더라도 끝날 때까지 회색으로 남습니다.
+[*]인벤토리 미리보기에서는 등불 안의 불꽃이 보이지 않을 수 있습니다(미리보기가 파티클을 그리지 않기 때문입니다). 정상적인 현상입니다.
+[*]IED를 쓸 때 동료에게 등불을 입혀도 외형이 표시되지 않습니다(플레이어만 설정되어 있습니다).
+[/list]
+
+[size=4][b]삭제[/b][/size]
+[list=1]
+[*]IED를 쓴다면 모드를 지우기 전에 등불을 벗고 저장하세요. 그러지 않으면 IED가 등불의 마지막 상태를 계속 표시합니다.
+[*]모드를 비활성화하고 삭제합니다. 플레이 도중에 플러그인을 빼면 세이브에 흔적이 남을 수 있으니 설치하기 전의 세이브를 보관해 두세요.
+[*]생성된 파일들을 삭제합니다:
+[list]
+[*]MO2의 Overwrite 폴더(MO2를 쓰지 않는다면 게임의 Data 폴더): meshes\heartofmagic\blackflame\copies 및 textures\heartofmagic\blackflame\copies
+[*]작업 폴더: Documents\My Games\Skyrim Special Edition\SKSE\HeartOfMagic_BlackFlame (GOG 버전: Skyrim Special Edition GOG)
+[*]세이브 폴더(MO2 프로필별 세이브를 쓴다면 해당 프로필의 세이브 폴더): HoMBF_slots*.json
+[/list]
+[/list]
+
+[size=4][b]크레딧[/b][/size]
+[list]
+[*][b]Dinkel Zombie[/b] - 원작 Heart of Magic.
+[*][b]HDharder[/b] - Temp File Framework (GPL-3.0): 게임이 실행 중일 때 새 파일을 인식하도록 게임 파일 인덱스(함수 주소, 시그니처, 데이터 레이아웃) 조사 결과를 참고했습니다. 코드는 사용하지 않았습니다.
+[*][b]SlavicPotato[/b] - Immersive Equipment Displays: 허리에 등불을 표시하는 데 Papyrus API를 사용했습니다.
+[*][b]GiraPomba[/b] - Lights On - Wearable Lanterns for IED: 이 모드의 IED 허리 위치를 등불 위치 프리셋으로 사용했습니다.
+[*][b]powerofthree[/b] - 주소 참고 자료, 그리고 Frozen Electrocuted Combustion(FEC, 이 애드온이 시체 이펙트를 회색으로 바꾸는 모드) 제작.
+[*][b]Ershin[/b] - Open Animation Replacer, Precision, True Directional Movement에서도 쓰이는 메인 스레드 후킹 위치.
+[*][b]Khajiitistan[/b] - Black Flame (Nexus mod 192777): 외형 색감 참고. 해당 모드의 파일은 사용하지 않았습니다.
+[*][b]Bethesda[/b] - 스카이림 원본 파일을 바탕으로 회색 이펙트 메쉬를 제작했습니다.
+[*][b]라이브러리:[/b] CommonLibSSE-NG (예외 조항이 있는 GPL-3.0), nifly (GPL-3.0), DirectXTex, DirectX Tool Kit, DirectXMath, spdlog, {fmt}, JSON for Modern C++ (모두 MIT).
+[/list]
+
+[size=4][b]소스 코드[/b][/size]
+[list]
+[*]SKSE 플러그인(HeartOfMagic_BlackFlame.dll)과 보조 프로그램(blackflame-greybuild.exe)은 GPL-3.0 결합 저작물입니다. Heart of Magic 자체의 소스 파일은 MIT 라이선스입니다.
+[*]소스 코드: [url=https://github.com/Iwillbewarlock/HeartOfMagic]https://github.com/Iwillbewarlock/HeartOfMagic[/url]
+[*]다운로드에 포함된 THIRD-PARTY-NOTICES.md에 정확한 커밋([url={{COMMIT_URL}}]{{COMMIT_URL}}[/url])과 라이선스 안내가 적혀 있습니다.
+[/list]

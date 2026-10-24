@@ -1,0 +1,53 @@
+Heart of Magic - Black Flame 1.0.0 - text for the Nexus upload (DRAFT, not uploaded)
+(The page: NEXUS_PAGE_EN.bbcode and NEXUS_PAGE_KO.bbcode in this folder. First drafts by Gemini Argon from a fact
+sheet, checked line by line against it; every addition not in the sheet was cut. Full list: ../../CHANGELOG.md.)
+{{COMMIT_URL}} in the pages: https://github.com/Iwillbewarlock/HeartOfMagic/tree/@PACKAGE_COMMIT@ once that commit is pushed.
+
+=====================================================================
+1. Mod page fields
+=====================================================================
+
+Mod name: Heart of Magic - Black Flame
+Version: 1.0.0
+Author: Iwillbewarlock
+Category: (decide; a magic or visuals category of Skyrim Special Edition - the exact Nexus category name is not checked here)
+Requirements tab: SKSE64; Address Library for SKSE Plugins; Heart of Magic Librarian (1.5.0 or newer); Microsoft Visual
+C++ Redistributable 2015-2022 x64 (off-site). Optional: Immersive Equipment Displays.
+Permissions and credits: see the Credits section of the page; the DLL and the builder are GPL-3.0 (source link required).
+
+=====================================================================
+2. Files tab - two main files
+=====================================================================
+
+File 1
+Name: Black Flame - English
+Version: 1.0.0
+Category: Main Files
+Archive: HeartOfMagic-BlackFlame_1.0.0_EN.zip
+Description:
+English version. An add-on for Heart of Magic Librarian 1.5.0 or newer: wear Saeel's Iron Cage Lantern and your own fire spells turn grey-black, fire-keyword spells cost 30% more Magicka, and your fire hits add Black Flame damage (2% of maximum Health over 2 seconds, ignoring resistance). Install only one language version and enable both plugins; wait 1-2 minutes at the main menu on the first launch while the included helper program makes the grey copies.
+
+File 2
+Name: Black Flame - Korean (한국어)
+Version: 1.0.0
+Category: Main Files
+Archive: HeartOfMagic-BlackFlame_1.0.0_KO.zip
+Description:
+한국어판입니다. Heart of Magic Librarian 1.5.0 이상 전용 애드온입니다. 사엘의 철창 등불을 착용하면 플레이어의 화염 마법이 회흑색으로 바뀌고, 화염 키워드가 있는 마법은 매지카 소모량이 30% 늘며, 적중 시 저항을 무시하는 흑염 추가 피해(2초 동안 최대 체력의 2%)를 줍니다. 한국어판과 영어판은 파일과 FormID가 같고 게임 안 글자만 다르니 하나만 설치하세요. 처음 실행할 때는 메인 메뉴에서 1~2분 기다려 주세요.
+
+=====================================================================
+3. Changelogs tab - version 1.0.0
+=====================================================================
+
+EN: First release: Saeel's Iron Cage Lantern - while worn, grey-black visuals for your own fire spells, +30% Magicka cost for fire-keyword spells and Black Flame burn damage (2% of maximum Health over 2 seconds, ignoring resistance). Tested in game on AE 1.6.1170 only.
+KO: 첫 배포: 사엘의 철창 등불 - 착용하면 플레이어의 화염 마법이 회흑색으로 바뀌고, 화염 키워드 마법의 매지카 소모 30% 증가, 흑염 추가 피해(2초 동안 최대 체력의 2%, 저항 무시). 게임 안 테스트는 AE 1.6.1170에서만 했습니다.
+
+=====================================================================
+4. Posts tab - announcement (optional)
+=====================================================================
+
+EN:
+Heart of Magic - Black Flame 1.0.0 is an add-on for Heart of Magic Librarian 1.5.0 or newer. It adds one wearable item, Saeel's Iron Cage Lantern, which you can find on a table on the upper level of Ansilvund Burial Chambers. While you wear it, your own fire spells from Heart of Magic's spell catalog turn into a glowing grey-black flame, fire spells with the fire keyword cost 30% more Magicka, and your fire hits add Black Flame damage equal to 2% of the target's maximum Health over 2 seconds, ignoring resistance. On the first start, wait 1-2 minutes at the main menu while the included helper program makes private grey copies of the fire visuals from your load order. It was tested in game on AE 1.6.1170 only: on other versions, please read the game version table and the known limits first. English and Korean downloads have the same files and FormIDs, so install only one and enable both HeartOfMagic_BlackFlame.esp and HeartOfMagic_BlackFlame_Slots.esp.
+
+KO:
+Heart of Magic Librarian 1.5.0 이상을 위한 애드온 Heart of Magic - 흑염 달구기 (Heart of Magic - Black Flame) 1.0.0 버전입니다. 안질푼트 매장묘실 위층 탁자에서 얻을 수 있는 사엘의 철창 등불을 착용하면, 플레이어의 화염 마법이 회흑색으로 바뀌고 적중한 대상에게 2초 동안 최대 체력의 2%만큼 저항을 무시하는 흑염 피해를 줍니다. 화염 키워드가 있는 마법은 매지카를 30% 더 소모하며, 등불을 벗으면 모습과 소모량이 원래대로 돌아옵니다. 게임을 처음 실행할 때 보조 프로그램이 로드 오더에 맞춰 회색 복사본을 만들므로, 세이브를 불러오기 전에 메인 메뉴에서 1~2분 정도 기다려 주세요. 게임 안 테스트는 AE 1.6.1170에서만 했으니 다른 버전을 쓰신다면 설명 페이지의 버전 안내와 알려진 제한을 먼저 확인해 주세요.
