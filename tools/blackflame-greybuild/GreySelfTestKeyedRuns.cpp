@@ -247,3 +247,70 @@ namespace GreyBuild::SelfTest::Keyed
         }
     }
 }
+
+namespace GreyBuild::SelfTest::Keyed
+{
+    // (disk trim, contract 9) the DLL's published.tsv end to end: a request naming the list's token reuses the objects whose
+    // staging files the DLL deleted (nothing rebuilt), a request without the token or another start's list rebuilds them,
+    // and a malformed token refuses the request
+    void CheckPublishedRun(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_sourceNif)
+    {
+        const auto fixture = MakeFixture(a_dir, "published", a_sourceNif, Variant::kNormal);
+        const int first = Run(fixture);
+        const auto built = Progress(fixture);
+        CC::PublishedList list;
+        for (const auto& line : built.lines) {
+            if (CC::IsPublishable(line.outcome) && !line.path.empty()) {
+                list[line.path] = { line.bytes, line.fnv64 };
+            }
+        }
+        constexpr std::uint64_t kToken = 0x00c0ffee00c0ffeeull;
+        const auto text = CC::WritePublished(list, kToken);
+        const auto request = ReadAll(fixture.folder / "request.json");
+        const auto withToken = [&](const std::string& a_token) {
+            return "{\"" + std::string(CC::kPublishedToken) + "\":\"" + a_token + "\"," + request.substr(request.find('{') + 1);
+        };
+        const auto trim = [&]() {
+            for (const auto& [path, file] : list) {
+                std::filesystem::remove(StagedFile(fixture.staging, path));
+            }
+        };
+        const auto stagedCount = [&]() {
+            std::size_t count = 0;
+            for (const auto& [path, file] : list) {
+                count += std::filesystem::exists(StagedFile(fixture.staging, path)) ? 1 : 0;
+            }
+            return count;
+        };
+        if (!text || list.empty() || first != 0) {
+            a_check.Check(false, fmt::format("published run: the first run built nothing to list (exit {}, {} file(s))", first, list.size()));
+            return;
+        }
+        Write(fixture.staging / CC::kPublishedFile, *text);
+        Write(fixture.folder / "request.json", withToken(CC::Hex16(kToken)));
+        trim();
+        const int reused = Run(fixture);
+        const auto after = Progress(fixture);
+        bool same = true;
+        for (const auto& line : built.lines) {
+            const auto* now = Find(after, line.key);
+            same = same && now && now->outcome == line.outcome && now->fnv64 == line.fnv64;
+        }
+        a_check.Check(reused == 0 && same && stagedCount() == 0,
+            fmt::format("published run: with the request's token, every object whose staging file the DLL deleted is reused, none "
+                        "rebuilt ({} of {} staging files back)", stagedCount(), list.size()));
+        Write(fixture.staging / CC::kPublishedFile, *CC::WritePublished(list, kToken + 1));
+        const int stale = Run(fixture);
+        a_check.Check(stale == 0 && stagedCount() == list.size(),
+            "published run: a list with another start's token is ignored: the objects are built again into staging");
+        trim();
+        Write(fixture.folder / "request.json", request);
+        Write(fixture.staging / CC::kPublishedFile, *text);
+        const int untold = Run(fixture);
+        a_check.Check(untold == 0 && stagedCount() == list.size(),
+            "published run: a request without publishedList (a DLL before contract 9 cannot send one) ignores the list");
+        Write(fixture.folder / "request.json", withToken("xyz"));
+        a_check.Check(Run(fixture) == 2, "published run: a publishedList that is not 16 lower-case hex digits refuses the request");
+        Write(fixture.folder / "request.json", request);
+    }
+}

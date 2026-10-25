@@ -71,8 +71,9 @@ namespace BlackFlame::BuildProgress
         }
 
         // The copies\<key16>\ folders under staging's two copies roots that are empty now and were last written before
-        // a_before (reviewer: a folder the running builder just made for its next file stays)
-        std::size_t RemoveEmptyKeyFolders(const fs::path& a_staging, fs::file_time_type a_before)
+        // a_before (reviewer: a folder the running builder just made for its next file stays), or that this trim emptied
+        // (a_emptied: deleting a file stamps its folder now; the builder never writes into a listed key's folder)
+        std::size_t RemoveEmptyKeyFolders(const fs::path& a_staging, fs::file_time_type a_before, const std::set<fs::path>& a_emptied)
         {
             std::size_t removed = 0;
             for (const auto root : { DataPathRule::kMeshesRoot, DataPathRule::kTexturesRoot }) {
@@ -82,7 +83,7 @@ namespace BlackFlame::BuildProgress
                 for (fs::directory_iterator it(copies, ec), end; !ec && it != end; it.increment(ec)) {
                     std::error_code typeEc;
                     if (it->is_directory(typeEc) && !it->is_symlink(typeEc) && fs::is_empty(it->path(), typeEc) && !typeEc &&
-                        fs::last_write_time(it->path(), typeEc) < a_before && !typeEc) {
+                        (a_emptied.count(it->path()) != 0 || (fs::last_write_time(it->path(), typeEc) < a_before && !typeEc))) {
                         empty.push_back(it->path());
                     }
                 }
@@ -108,6 +109,7 @@ namespace BlackFlame::BuildProgress
             std::size_t failures = 0;
             std::uint64_t bytes = 0;
             bool stopped = false;
+            std::set<fs::path> emptied;  // the key folders a deleted file was in
             if (staging.empty() || !data) {
                 return;
             }
@@ -145,8 +147,9 @@ namespace BlackFlame::BuildProgress
                 }
                 ++removed;
                 bytes += stagedNow->size;
+                emptied.insert(staged.parent_path());
             }
-            const auto folders = RemoveEmptyKeyFolders(staging, trimStart);
+            const auto folders = RemoveEmptyKeyFolders(staging, trimStart, emptied);
             logger::info("BlackFlame: disk trim: {} staging duplicate(s) of Data files deleted ({} MiB), {} empty folder(s) removed; "
                          "{} kept because a source names them, {} kept because Data or staging differs now, {} failed{}; {} ms",
                 removed, bytes / kMiB, folders, keptNamed, differs, failures,

@@ -76,4 +76,5 @@ namespace GreyBuild::SelfTest::Keyed
     void CheckCommandLine(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_sourceNif);
     void CheckDevMode(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_sourceNif);
     void CheckThrottleRun(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_sourceNif);
+    void CheckPublishedRun(Checker& a_check, const std::filesystem::path& a_dir, const std::filesystem::path& a_sourceNif);
 }

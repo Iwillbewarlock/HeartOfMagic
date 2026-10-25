@@ -593,6 +593,7 @@ namespace GreyBuild::SelfTest
             Keyed::CheckCommandLine(a_check, dir, a_sourceNif);
             Keyed::CheckDevMode(a_check, dir, a_sourceNif);
             Keyed::CheckThrottleRun(a_check, dir, a_sourceNif);
+            Keyed::CheckPublishedRun(a_check, dir, a_sourceNif);
         } catch (const std::exception& e) {
             a_check.Check(false, fmt::format("key mode: exception: {}", e.what()));
         }
