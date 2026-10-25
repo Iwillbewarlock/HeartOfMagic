@@ -319,16 +319,18 @@ namespace GreyBuild
 
     bool ProgressLog::StagedMatches(const std::string& a_relative, std::uint64_t a_fnv64, std::optional<std::uint64_t> a_bytes)
     {
+        // (disk trim) the DLL found these bytes in Data this start and may be deleting the staging duplicate: asked first, so
+        // the file is neither read nor held open while the DLL's trim removes it (reviewer). A listed path is a published
+        // key's own file: no run rebuilds a reusable key, so its staging bytes cannot change under the list this run
+        if (CC::PublishedHolds(m_published, a_relative, a_fnv64, a_bytes)) {
+            return true;
+        }
         auto it = m_digests.find(a_relative);
         if (it == m_digests.end()) {
             std::string why;
             it = m_digests.emplace(a_relative, DigestFile(StagedFile(m_staging, a_relative), why)).first;
         }
-        if (it->second && it->second->fnv64 == a_fnv64 && (!a_bytes || it->second->bytes == *a_bytes)) {
-            return true;
-        }
-        // (disk trim) the DLL found these bytes in Data this start and may have deleted the staging duplicate
-        return CC::PublishedHolds(m_published, a_relative, a_fnv64, a_bytes);
+        return it->second && it->second->fnv64 == a_fnv64 && (!a_bytes || it->second->bytes == *a_bytes);
     }
 
     void ProgressLog::LoadPublished()

@@ -70,8 +70,9 @@ namespace BlackFlame::BuildProgress
             return out;
         }
 
-        // The copies\<key16>\ folders under staging's two copies roots that are empty now
-        std::size_t RemoveEmptyKeyFolders(const fs::path& a_staging)
+        // The copies\<key16>\ folders under staging's two copies roots that are empty now and were last written before
+        // a_before (reviewer: a folder the running builder just made for its next file stays)
+        std::size_t RemoveEmptyKeyFolders(const fs::path& a_staging, fs::file_time_type a_before)
         {
             std::size_t removed = 0;
             for (const auto root : { DataPathRule::kMeshesRoot, DataPathRule::kTexturesRoot }) {
@@ -80,7 +81,8 @@ namespace BlackFlame::BuildProgress
                 std::vector<fs::path> empty;
                 for (fs::directory_iterator it(copies, ec), end; !ec && it != end; it.increment(ec)) {
                     std::error_code typeEc;
-                    if (it->is_directory(typeEc) && !it->is_symlink(typeEc) && fs::is_empty(it->path(), typeEc) && !typeEc) {
+                    if (it->is_directory(typeEc) && !it->is_symlink(typeEc) && fs::is_empty(it->path(), typeEc) && !typeEc &&
+                        fs::last_write_time(it->path(), typeEc) < a_before && !typeEc) {
                         empty.push_back(it->path());
                     }
                 }
@@ -96,6 +98,7 @@ namespace BlackFlame::BuildProgress
         {
             ::SetThreadPriority(::GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
             const auto start = std::chrono::steady_clock::now();
+            const auto trimStart = fs::file_time_type::clock::now();
             const auto list = Published();
             const auto staging = StagingFolder();
             const auto data = FileIndex::DataFolder();
@@ -127,7 +130,13 @@ namespace BlackFlame::BuildProgress
                     ++differs;  // Data changed since the list (or does not read): the staging file stays
                     continue;
                 }
-                const auto size = fs::file_size(staged, ec);
+                // reviewer: only a true duplicate goes - a staging file with other bytes (another build of the key, the builder
+                // rewriting it now) is what a line stands on, and the worker may still copy it
+                const auto stagedNow = HashNow(staged);
+                if (!stagedNow || stagedNow->size != file.bytes || stagedNow->fnv64 != file.fnv64) {
+                    ++differs;
+                    continue;
+                }
                 if (!fs::remove(staged, ec) || ec) {
                     if (failures++ < kMaxLoggedFailures) {
                         logger::warn("BlackFlame: disk trim: '{}' not deleted from staging: {}", path, ec.message());
@@ -135,11 +144,11 @@ namespace BlackFlame::BuildProgress
                     continue;
                 }
                 ++removed;
-                bytes += size;
+                bytes += stagedNow->size;
             }
-            const auto folders = RemoveEmptyKeyFolders(staging);
+            const auto folders = RemoveEmptyKeyFolders(staging, trimStart);
             logger::info("BlackFlame: disk trim: {} staging duplicate(s) of Data files deleted ({} MiB), {} empty folder(s) removed; "
-                         "{} kept because a source names them, {} kept because Data differs now, {} failed{}; {} ms",
+                         "{} kept because a source names them, {} kept because Data or staging differs now, {} failed{}; {} ms",
                 removed, bytes / kMiB, folders, keptNamed, differs, failures,
                 stopped ? "; stopped: a load began (the rest at the next start)" : "",
                 std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count());
@@ -180,12 +189,20 @@ namespace BlackFlame::BuildProgress
                 list.insert_or_assign(line.path, CC::PublishedFile{ line.bytes, line.fnv64 });
             }
         }
-        for (const auto& line : lines) {  // the deps after the own files: a file a line names wins its path
+        // the deps after the own files: a path some line names as its own file is that line's, listed or not (reviewer: a
+        // dep's other build of it must never list it, or the trim would delete the line's own staging file)
+        std::set<std::string> owned;
+        for (const auto& line : lines) {
+            if (!line.path.empty()) {
+                owned.insert(line.path);
+            }
+        }
+        for (const auto& line : lines) {
             if (!CC::IsPublishable(line.outcome)) {
                 continue;
             }
             for (const auto& dep : line.deps) {
-                if (dep.isAddn || list.contains(dep.path) || !DataPathRule::ParseCopyPath(dep.path)) {
+                if (dep.isAddn || owned.contains(dep.path) || list.contains(dep.path) || !DataPathRule::ParseCopyPath(dep.path)) {
                     continue;
                 }
                 if (const auto hash = DataFiles::HashOf(dep.path); hash && hash->fnv64 == dep.fnv64 && hash->size > 0) {

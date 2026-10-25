@@ -7,6 +7,9 @@
 #include "BuildProgress.h"
 #include "BuildProgressTrim.h"
 #include "CopyContractEfsh.h"
+#include "CopyRequest.h"
+#include "CopyRequestData.h"
+#include "CopyRequestDump.h"
 #include "NifDump.h"
 #include "SlotAssign.h"
 
@@ -114,7 +117,12 @@ namespace BlackFlame::CopyRequestNeeded
                 always.push_back(texture.path);
             }
         }
+        // the last dump's manifest: "all" (or none: a first start, a DLL before the trim) means it held every file
+        const auto folder = RequestFolder();
+        const auto manifest = folder ? CopyRequestData::ReadJsonObject(*folder / CopyRequestDump::kManifestName) : nlohmann::json();
+        const auto last = CopyRequestData::JsonString(manifest, CopyRequestDump::kNeededKey);
+        const bool lastWhole = last.empty() || last == CopyRequestDump::NeededText(nullptr);
         return DiskTrimRules::NeededFiles(Objects(a_inputs), &BuildProgress::LastLine, NotFire(), BuildProgress::Published(),
-            &BuildProgress::StagedSize, always);
+            &BuildProgress::StagedSize, always, lastWhole);
     }
 }

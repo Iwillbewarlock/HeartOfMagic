@@ -3,7 +3,7 @@
 // =============================================================================
 // COPY CONTRACT PUBLISHED - staging\published.tsv: the copies Data holds byte for byte (disk trim, 2026-10-26)
 // =============================================================================
-// Written whole by the DLL at kDataLoaded (BuildProgress::ReadAtStart), before the builder is launched: one line per copy
+// Written whole by the DLL at kDataLoaded (BuildProgress::WritePublished, after ReadAtStart), before the builder is launched: one line per copy
 // file a progress line (or one of its copy deps) names whose Data file has exactly the line's size and fnv64 this start.
 // The DLL then deletes those files' staging duplicates (BuildProgressTrim.h), and the builder's reuse check (GreyProgress.h
 // StagedMatches) takes a listed file as present, so a published object is not built again. Text, ASCII (copy paths are):

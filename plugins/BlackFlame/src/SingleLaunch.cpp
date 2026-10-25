@@ -58,12 +58,17 @@ namespace BlackFlame::SingleLaunch
         std::size_t g_lastLogged = SIZE_MAX;
 
         // The builder as a child, when the config wants it and request v5 was written for it
-        void LaunchBuilder(const SlotKeys::Inputs& a_inputs, bool a_requestWritten)
+        void LaunchBuilder(const SlotKeys::Inputs& a_inputs, bool a_requestWritten, bool a_listed)
         {
             const auto& config = GetConfig();
             const auto folder = RequestFolder();
             if (!config.launchBuilder) {
                 logger::info("BlackFlame: slots: builder not started (launchBuilder false)");
+            } else if (!a_listed) {
+                // (disk trim, reviewer) without this start's published list the builder would count staging alone and build
+                // every copy whose staging duplicate an earlier start deleted: nothing new this start, tried again next start
+                logger::warn("BlackFlame: slots: builder not started: progress.jsonl was not read whole or published.tsv was not "
+                             "written this start (the copies already built are still published)");
             } else if (!a_inputs.prefix) {
                 logger::info("BlackFlame: slots: builder not started: {}", a_inputs.prefixWhy);
             } else if (!folder || !a_requestWritten) {
@@ -161,7 +166,7 @@ namespace BlackFlame::SingleLaunch
         // to its end before the builder starts (it compacts the file at its own start). (disk trim, 2026-10-26) Before the
         // dump: the list of what Data holds (BuildProgressTrim.h) and each key's line decide which sources the dump keeps
         const bool startRead = BuildProgress::ReadAtStart();
-        const bool listed = !otherGame && BuildProgress::WritePublished();
+        const bool listed = !otherGame && startRead && BuildProgress::WritePublished();
         DiskTrimRules::Needed needed;
         if (!otherGame) {
             needed = CopyRequestNeeded::Compute(inputs, startRead, listed);
@@ -182,7 +187,7 @@ namespace BlackFlame::SingleLaunch
         CopyGroups::Start();  // W1: the groups ready from the ledger open now; the rest on the main thread as verified
         PostPaletteGate("corpse palettes W1");
         if (!otherGame) {
-            LaunchBuilder(inputs, request.written);
+            LaunchBuilder(inputs, request.written, listed);
             BuildProgress::StartWorker();  // tails the progress and copies finished files into Data while the window is open
             if (listed) {
                 BuildProgress::StartTrim(SlotKeys::OwnCopiesNamed());  // the list was on disk before the launch

@@ -28,6 +28,7 @@ namespace BlackFlame::CopyRequestDump
     inline constexpr const char* kDumpWriteFailed = "writing the dump failed";  // a NIF's blob error when its dump write failed
     inline constexpr const char* kFilesKey = "files";  // the manifest's per-file stamps (DumpedFiles), 2026-10-23
     inline constexpr const char* kNeededKey = "needed";  // (disk trim) the hash of the files the dump was limited to, or "all"
+    inline constexpr const char* kNeededRetry = "retry";  // a left-out file would not delete: never "unchanged" next start
 
     /// (disk trim, 2026-10-26) The files a dump is limited to (DiskTrimRules::Needed); null: every NIF and planned texture.
     /// A file outside it is not written, and its earlier dump file is deleted; the request still lists it as dumped

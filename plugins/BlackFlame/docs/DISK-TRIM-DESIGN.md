@@ -65,7 +65,10 @@ usvfs (other volume, virtual path), and the builder needs to know what is publis
    listed (with the line's bytes) or in staging (with its size), or not_dumped. too_large is never done (a larger job memory
    cap tries again). A base with no line that the builder's not-fire file names is done (keys only; a new fire test version
    makes the builder judge it again, find no source, record it failed, and the next start keeps everything).
-3. Any failed line at the start, a progress file not read to its end, or no list: the whole dump (as before).
+3. A failed line after a limited dump (it may be a file this rule left out), a progress file not read to its end, or no
+   list: the whole dump (as before). A failed line after a whole dump is the object's own failure (a NIF the builder cannot
+   read): only its files stay, so one such object does not keep the whole dump for good. A start without a whole progress
+   read or without its list does not launch the builder at all (it would count staging alone and rebuild every trimmed copy).
 4. `Dump` with `Only`: needed files are written or kept by their stamps; any other dumped file is deleted and left out of the
    manifest's stamps. The manifest's `needed` value (a hash of the set) is part of the "unchanged" test. The request is the
    same as before: a left-out texture is still listed as dumped, so a mapping gap gives a failed object (and a full dump at the
@@ -81,7 +84,23 @@ usvfs (other volume, virtual path), and the builder needs to know what is publis
 | Not-fire EFSH bases have no line and would stay in the dump (281 MiB measured) | yes | the DLL reads the not-fire file's keys |
 | Switching MO2 profiles A -> B -> A: B does not list A's trimmed files, the builder drops their lines, A rebuilds them | yes, accepted | one rebuild (about 1.5 minutes of GPU work on the author's PC) after such a switch; the Overwrite folder is shared by all profiles, so only copies moved into a profile-only mod are affected |
 
+## Code review (reviewer agent and GPT `review`, 2026-10-26)
+
+| Finding | What was done |
+|---|---|
+| GPT: an old list whose removal failed would still be read by the builder | the list carries a token made each start; request.json names it (`publishedList`), the builder takes only a matching list |
+| Reviewer 1: the trim deleted a staging file by its presence; a dep could list a path another line owns with other bytes (the keep case), and a builder rewrite in the same session could be deleted under the copy worker | the staging file is hashed too and must equal the listed bytes; a dep never lists a path some line names as its own file |
+| Reviewer 2: a partial progress read or an unwritten list still launched the builder, which then rebuilt every trimmed copy | such a start lists nothing and does not launch the builder |
+| Reviewer 3: a deterministically failing object kept the whole dump at every start | the whole dump comes back only after a limited dump (see Change B 3) |
+| Reviewer 4: the builder hashed the staging files the trim was deleting (930 MiB, possible sharing violations) | `StagedMatches` asks the list first |
+| Reviewer 5: removing empty key folders could race a folder the builder just made | only folders last written before the trim began |
+| Reviewer 7: a left-out dump file that would not delete was counted as gone | counted apart; the manifest says `retry`, so the next start dumps again |
+| Reviewer 6: a source that first names one of our copies in a later session, after its staging file was trimmed: the builder reads our copies from staging only and would judge without it | not changed (no such source on the author's setup; it needs a mod whose NIFs name Black Flame's own copies); listed under Limits |
+
 ## Limits
+
+- A source NIF that names one of Black Flame's own copies for the first time after that copy's staging file was trimmed is
+  built without reading it (the builder reads our copies from staging only). No mod is known to do this.
 
 - A trimmed copy that later leaves Data (the Overwrite cleared, moved into a mod another profile lacks) is rebuilt at the next
   start that cannot see it.

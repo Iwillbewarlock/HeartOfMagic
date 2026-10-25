@@ -103,7 +103,11 @@ namespace DiskTrimTests
         lines[kNew] = NifLine(CC::Outcome::kFailed);
         lines[kNew].key = kNew;
         needed = Rules::NeededFiles(objects, last, { kBase }, published, staged, always);
-        a_check(needed.all && needed.failed == 1, "disk trim: one failed line keeps the whole dump (the next start after it heals)");
+        a_check(needed.all && needed.failed == 1, "disk trim: one failed line after a limited dump brings the whole dump back");
+        needed = Rules::NeededFiles(objects, last, { kBase }, published, staged, always, true);
+        a_check(!needed.all && needed.failed == 1 && needed.pending == 1 && needed.files.count("meshes\\magic\\b.nif") != 0 &&
+                    needed.files.count("textures\\base.dds") == 0,
+            "disk trim: a failed line after a whole dump is the object's own failure: only its files stay (no whole dump for good)");
         lines.clear();
         needed = Rules::NeededFiles({}, last, {}, {}, staged, always);
         a_check(!needed.all && needed.pending == 0 && needed.files.size() == 1, "disk trim: no objects: our palettes alone");

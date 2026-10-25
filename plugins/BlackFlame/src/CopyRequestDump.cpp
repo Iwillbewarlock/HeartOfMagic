@@ -184,7 +184,8 @@ namespace BlackFlame::CopyRequestDump
     // (disk trim) a planned texture outside a_only is not written and its earlier file deleted (a_left); it stays planned,
     // so the request still lists it as dumped (DiskTrimRules.h)
     int DumpTextures(const std::filesystem::path& a_root, std::vector<Texture>& a_textures, int& a_written,
-        std::uint64_t& a_bytes, DumpedFiles& a_files, int& a_kept, const Reuse* a_reuse, const Only* a_only, int& a_left)
+        std::uint64_t& a_bytes, DumpedFiles& a_files, int& a_kept, const Reuse* a_reuse, const Only* a_only, int& a_left,
+        int& a_stuck)
     {
         int failed = 0;
         for (auto& texture : a_textures) {
@@ -195,7 +196,7 @@ namespace BlackFlame::CopyRequestDump
                 } catch (const std::runtime_error&) {
                     // a path the dump refuses has no file under it
                 }
-                ++a_left;
+                ++(ec ? a_stuck : a_left);  // reviewer: one that would not go is tried again at the next start
                 continue;
             }
             std::filesystem::path file;
@@ -306,9 +307,10 @@ namespace BlackFlame::CopyRequestDump
         int written = 0;
         int kept = 0;
         int left = 0;
+        int stuck = 0;
         std::uint64_t bytes = 0;
         auto files = a_previous;
-        const int failed = DumpTextures(a_folder / kDumpRoot, batch, written, bytes, files, kept, nullptr, nullptr, left);
+        const int failed = DumpTextures(a_folder / kDumpRoot, batch, written, bytes, files, kept, nullptr, nullptr, left, stuck);
         a_writeFailures = failed;  // AC3
         for (std::size_t i = 0; i < batch.size(); ++i) {
             *retry[i] = std::move(batch[i]);
@@ -330,6 +332,7 @@ namespace BlackFlame::CopyRequestDump
         int failed = 0;
         int kept = 0;
         int left = 0;  // (disk trim) outside a_only: not written, their earlier files deleted
+        int stuck = 0;  // of those, files that would not delete (the manifest then makes the next start dump again)
         DumpedFiles files;
         // review: the last manifest no longer vouches for the dump once a file of it may change - a pass cut short (a write
         // failure, a crash on the loading screen) must not leave stamps of bytes it replaced. Not removable: nothing kept
@@ -383,7 +386,7 @@ namespace BlackFlame::CopyRequestDump
             if (a_only && !a_only->contains(nif.path)) {
                 std::filesystem::remove(file, ec);
                 std::vector<std::byte>().swap(nif.bytes);
-                ++left;
+                ++(ec ? stuck : left);
                 continue;
             }
             const auto utf8 = Utf8(nif.path);
@@ -410,13 +413,16 @@ namespace BlackFlame::CopyRequestDump
         }
         int textures = 0;
         std::uint64_t textureBytes = 0;
-        failed += DumpTextures(root, a_textures, textures, textureBytes, files, kept, a_reuse, a_only, left);
+        failed += DumpTextures(root, a_textures, textures, textureBytes, files, kept, a_reuse, a_only, left, stuck);
         if (failed == 0) {
-            WriteManifest(a_folder, a_fingerprint, a_textureFingerprint, a_textures, files, NeededText(a_only));
+            WriteManifest(a_folder, a_fingerprint, a_textureFingerprint, a_textures, files,
+                stuck == 0 ? NeededText(a_only) : std::string(kNeededRetry));
         }
         const auto counts = std::format("{} NIFs, {} textures ({} MiB){}{}", written, textures, textureBytes / kMiB,
             a_reuse ? std::format("; {} files kept as they were", kept) : std::string(),
-            a_only ? std::format("; {} files left out (nothing to build reads them)", left) : std::string());
+            a_only ? std::format("; {} files left out (nothing to build reads them){}", left,
+                         stuck == 0 ? std::string() : std::format(", {} of them would not delete (tried again next start)", stuck)) :
+                     std::string());
         a_writeFailures = failed;
         return failed == 0 ? std::format("written ({})", counts) :
                              std::format("written with {} failure(s) ({}; the manifest not updated, so the next start "

@@ -13,7 +13,8 @@
 //            fallback - and the next start dumps everything)
 // "Done" mirrors the builder's reuse check (GreyProgress.h Reusable): an ok or fallback line whose own file and every copy
 // dep are listed in published.tsv with the line's bytes or are in staging with its size; a not_dumped line. too_large is
-// never done (a larger job memory cap tries again); failed is never done, and any failed line makes the whole dump stay.
+// never done (a larger job memory cap tries again); failed is never done, and a failed line after a limited dump brings the whole
+// dump back for one start (NeededFiles).
 
 #include "CopyContractProgress.h"
 #include "CopyContractPublished.h"
@@ -79,10 +80,14 @@ namespace BlackFlame::DiskTrimRules
         std::size_t failed = 0;         // objects whose last line is failed
     };
 
-    /// a_lastLine: a key's last progress line (as read at the start), or nullopt. a_always: files every run reads (our palettes)
+    /// a_lastLine: a key's last progress line (as read at the start), or nullopt. a_always: files every run reads (our palettes).
+    /// a_lastDumpWhole: the last dump held every file (its manifest says "all"). A failed line after a limited dump may be a
+    /// file this rule left out, so the whole dump comes back; after a whole dump the failure is the object's own (a NIF the
+    /// builder cannot read, say) and only its files stay (reviewer: else one such object keeps the whole dump for good)
     [[nodiscard]] inline Needed NeededFiles(const std::vector<NeedObject>& a_objects,
         const std::function<std::optional<CC::ProgressLine>(std::uint64_t)>& a_lastLine, const std::set<std::uint64_t>& a_notFire,
-        const CC::PublishedList& a_published, const StagedSize& a_staged, const std::vector<std::string>& a_always)
+        const CC::PublishedList& a_published, const StagedSize& a_staged, const std::vector<std::string>& a_always,
+        bool a_lastDumpWhole = false)
     {
         Needed out;
         out.files.insert(a_always.begin(), a_always.end());
@@ -100,7 +105,7 @@ namespace BlackFlame::DiskTrimRules
                 out.files.insert(object.files.begin(), object.files.end());
             }
         }
-        out.all = out.failed > 0;
+        out.all = out.failed > 0 && !a_lastDumpWhole;
         return out;
     }
 
