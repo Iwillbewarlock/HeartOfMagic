@@ -7,7 +7,7 @@ Run from a Visual Studio Developer PowerShell with C++20 tools enabled:
 ```
 
 The runner copies the actual production `EquipAbilityRefresh.cpp`,
-`VisualEquipContext.cpp`, and `VisualEquipRules.h` unchanged into
+`VisualEquipContext.cpp`, `VisualEquipRules.h`, and `CodeReadBuilds.h` unchanged into
 `build/blackflame-equip-refresh-check` and checks SHA256 equality for each file.
 The two CPP files compile as separate translation units against dependency shims.
 No production statements are rewritten or reproduced in test code. Optional
@@ -15,15 +15,17 @@ No production statements are rewritten or reproduced in test code. Optional
 
 ## Coverage
 
-The 64 checks exercise the actual public refresh request and selection-tick paths,
+The 69 checks exercise the actual public refresh request and selection-tick paths,
 current selected-spell ownership policy, restoration after a fire-to-nonfire or
 mixed-owner transition, old-copy and old-burn-shader restoration, shader-only
 effects, both buff edges, and gameplay preservation for both listed and unlisted
 abilities. Listed abilities now use only visual restart; RemoveSpell/AddSpell are
 never called. Checks also cover duplicate effects, scene detach ordering, stale
 generation/buff requests, engine-version guards (AE 1.6.1170 and 1.7.104 restart the
-visuals, AE 1.6.640 and SE 1.5.97 are refused; the shim restates Patch::IsCodeReadBuild's
-rule, it does not compile Patch.cpp), thread/queue guards, player
+visuals, AE 1.6.640 and SE 1.5.97 are refused; the shim's Patch::IsCodeReadBuild calls the
+copied `CodeReadBuilds.h` rule on the fake runtime version, it does not compile Patch.cpp),
+direct cases of that rule (`IsCodeReadVersion`: 1.6.1170 and 1.7.104 accepted, 1.6.640,
+1.7.99 and 1.5.97 refused), thread/queue guards, player
 caster/target requirements, inactive/dispelled effects, and partial detach failure.
 
 `VisualEquipContext.cpp` and the actual `VisualEquipRules.h` perform the ownership

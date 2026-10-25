@@ -48,7 +48,8 @@ engine/plugin-generated pixel has a known interception path.
 
 Equip hit art requires a private copy. Runtime recolouring without a copy is
 refused here because a surviving shared ability must be identifiable for later
-restoration. On AE 1.6.1170, both listed and unlisted abilities use Stop/Detach and
+restoration. On AE 1.6.1170 and 1.7.104 (the code-read builds, `Patch::IsCodeReadBuild`;
+1.7.104 not run in game), both listed and unlisted abilities use Stop/Detach and
 engine 34094 to rebuild only visuals on buff/selection/world changes. Current
 eligibility or an existing copy/our burn shader permits refresh; the latter
 restores a visual after ownership is lost. No RemoveSpell/AddSpell, gameplay

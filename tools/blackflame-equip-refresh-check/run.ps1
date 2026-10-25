@@ -9,7 +9,7 @@ if (-not (Get-Command cl.exe -ErrorAction SilentlyContinue)) {
 if (-not $BuildRoot) { $BuildRoot = Join-Path $RepoRoot 'build\blackflame-equip-refresh-check' }
 New-Item -ItemType Directory -Path $BuildRoot -Force | Out-Null
 $BuildRoot = (Resolve-Path -LiteralPath $BuildRoot).Path
-foreach ($file in @('EquipAbilityRefresh.cpp','VisualEquipContext.cpp','VisualEquipRules.h')) {
+foreach ($file in @('EquipAbilityRefresh.cpp','VisualEquipContext.cpp','VisualEquipRules.h','CodeReadBuilds.h')) {
     $original = Join-Path $RepoRoot "plugins\BlackFlame\src\$file"
     $copy = Join-Path $BuildRoot $file
     Copy-Item -LiteralPath $original -Destination $copy -Force
@@ -22,7 +22,7 @@ foreach ($header in @('EquipAbilityRefresh.h','VisualEquipContext.h','Config.h',
 }
 Push-Location $BuildRoot
 try {
-    & cl.exe /nologo /std:c++20 /EHsc /W4 "/I$PSScriptRoot" /Fe:refresh-regression.exe 'EquipAbilityRefresh.cpp' 'VisualEquipContext.cpp' (Join-Path $PSScriptRoot 'test.cpp')
+    & cl.exe /nologo /std:c++20 /EHsc /W4 "/I$PSScriptRoot" "/I$BuildRoot" /Fe:refresh-regression.exe 'EquipAbilityRefresh.cpp' 'VisualEquipContext.cpp' (Join-Path $PSScriptRoot 'test.cpp')
     if ($LASTEXITCODE -ne 0) { throw "Compile failed: $LASTEXITCODE" }
     & '.\refresh-regression.exe'
     $testExit = $LASTEXITCODE

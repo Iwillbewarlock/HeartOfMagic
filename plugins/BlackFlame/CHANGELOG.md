@@ -3,6 +3,19 @@
 The add-on's own version (`plugins/BlackFlame/VERSION`). Heart of Magic Librarian's version (`VERSION` at the
 repository root) is separate.
 
+## Unreleased
+
+- AE 1.7.104: the five features that ran only on AE 1.6.1170 now run on 1.7.104 too - the hit path observation
+  (corpse mark, magic effect apply sink, SRE probes), the grey FEC corpse fire (corpse grey hooks A/B with the corpse
+  colours), the Fire Rune glyph's copy window, the instant aura refresh of spells that give an aura while equipped
+  (equip ability visual restart), and the file index's 0x10-only stream count rule (copies used in the same session
+  when its checks pass). The game code they use was read on 1.7.104 and found the same as on 1.6.1170; not run in
+  game. Other AE builds and SE 1.5.97 are unchanged. The version rule moved to `src/CodeReadBuilds.h`, which the
+  equip refresh check compiles as it is.
+- Docs: the player guides and Nexus pages list 1.7.104 with every feature on (not tested in game) and name what is
+  off on other AE builds and on SE 1.5.97 without referring to other rows; Korean and English wording fixes from a
+  naturalness review; developer notes and code comments brought in line with the code.
+
 ## 1.0.0 (first public release)
 
 - New item: Saeel's Iron Cage Lantern (사엘의 철창 등불), worn at the hip, found on a table on the upper level of

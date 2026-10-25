@@ -33,8 +33,9 @@ namespace BlackFlame
 {
     namespace
     {
-        // Address Library ids (SE, AE). The AE ids map to 1.7.104 code (research-swap notes, 1.6.1170's
-        // .text is encrypted on disk); the SE ids are matched by algorithm. Checked at run time first.
+        // Address Library ids (SE, AE). The AE ids map to 1.7.104 code (research-swap notes) and to 1.6.1170's (its .text
+        // is encrypted on disk, but a decrypted 1.6.1170 image was read 2026-10-19; there 44123 +0x407 is an E8 into another
+        // plugin's trampoline, so its target is not readable); the SE ids are matched by algorithm. Checked at run time first.
         constexpr std::uint64_t kSpawnSe = 43022, kSpawnAe = 44213;  // Projectile::SpawnCollisionEffects
         struct Caller
         {

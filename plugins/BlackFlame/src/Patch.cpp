@@ -1,5 +1,7 @@
 #include "Patch.h"
 
+#include "CodeReadBuilds.h"
+
 #ifndef NOMINMAX
 #    define NOMINMAX
 #endif
@@ -34,8 +36,7 @@ namespace BlackFlame::Patch
 
     bool IsCodeReadBuild() noexcept
     {
-        const auto version = REL::Module::get().version();
-        return version == REL::Version(1, 6, 1170, 0) || version == REL::Version(1, 7, 104, 0);
+        return IsCodeReadVersion(REL::Module::get().version());
     }
 
     void RecordHook(std::string a_name, bool a_installed, std::uintptr_t a_address, std::string a_bytes, std::string a_note)

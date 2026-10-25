@@ -154,6 +154,8 @@ template<class T> struct Relocation {
     }
 };
 }
+// The production rule, copied beside the sources by run.ps1 (SHA256-checked) and compiled here as it is
+#include "CodeReadBuilds.h"
 namespace BlackFlame {
 struct Config { bool copyHitArt = true; bool hitArt = false; bool burnShader = false; };
 inline Config testConfig;
@@ -185,10 +187,8 @@ inline unsigned WorldGeneration() { return testGeneration; }
 namespace Patch {
 inline bool hasIds = true;
 inline bool HasIds(std::initializer_list<std::uint64_t>, const char*) { return hasIds; }
-// The rule of Patch.cpp's IsCodeReadBuild (restated here: the shim replaces Patch.h): 1.6.1170 or 1.7.104
-inline bool IsCodeReadBuild() {
-    return REL::runtime == REL::Version(1, 6, 1170, 0) || REL::runtime == REL::Version(1, 7, 104, 0);
-}
+// Patch.cpp's IsCodeReadBuild (the shim replaces Patch.h): the production rule of CodeReadBuilds.h on the fake runtime
+inline bool IsCodeReadBuild() { return IsCodeReadVersion(REL::Module::get().version()); }
 }
 namespace MainQueue {
 inline bool accepts = true;

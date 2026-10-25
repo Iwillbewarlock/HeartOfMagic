@@ -30,12 +30,17 @@ namespace BlackFlame::Patch
 
     [[nodiscard]] std::uintptr_t AddressOf(std::uint64_t a_id);
 
-    /// 1.6.1170 or 1.7.104: the two builds whose code was read (1.6.1170 from its decrypted image, 1.7.104 from the exe;
-    /// the 2026-10-25 audits found every constant of both uses below the same on the two). Two uses: a fixed in-function
-    /// offset is trusted as a fallback only there (every other build finds its sites by scan and target check), and the
-    /// features built on fixed sites or unscanned contracts (hit path, corpse mark and grey, rune decal window, equip
-    /// ability visual restart, the file index's measured count offset) run only there. The runtime checks after this one
-    /// still run on both.
+    /// 1.6.1170 or 1.7.104 (the rule itself: CodeReadBuilds.h): the two builds whose code was read (1.6.1170 from its
+    /// decrypted image, 1.7.104 from the exe). Two uses: a fixed in-function offset is trusted as a fallback only there
+    /// (every other build finds its sites by scan and target check), and the features built on fixed sites or unscanned
+    /// contracts (hit path, corpse mark and grey, rune decal window, equip ability visual restart, the file index's
+    /// measured count offset, the main-thread queue's 0x37 tail anchor) run or are enforced only there. The 2026-10-25
+    /// audit of 1.7.104 found the constants gated here the same on both builds, within these limits: the
+    /// main-thread queue's site offset is not gated here but chosen by version (+0xC26 before 1.7.99, +0xC38 from it;
+    /// MainThreadQueue.cpp SiteOffset); two 1.6.1170 fallback targets (36564 +0xC26, 44123 +0x407) are E8s into other
+    /// plugins' trampolines in the 1.6.1170 capture, so what they call could not be read there; 1.6.1170's casting-art
+    /// offsets were first matched by unwind equality (CopySwapArt.cpp kKnownOffsetAe), and the audit found the same bytes
+    /// at 38784 +0x91 / +0xB1 in the capture. The runtime checks after this one still run on both.
     [[nodiscard]] bool IsCodeReadBuild() noexcept;
 
     // Every hook's state for the tester file (Tester.h): installed or skipped, where, the bytes before, why

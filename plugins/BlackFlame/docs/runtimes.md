@@ -97,7 +97,11 @@ counterparts the research notes name; no SE executable was read, so their SE fun
 
 
 **Hook sites on every runtime** (2026-10-16; 1.7.104 added 2026-10-25): no fixed in-function offset is trusted outside the
-two builds whose code was read, AE 1.6.1170 (its decrypted image) and 1.7.104 (the exe), `Patch::IsCodeReadBuild`. Three
+two builds whose code was read, AE 1.6.1170 (its decrypted image) and 1.7.104 (the exe), `Patch::IsCodeReadBuild`, with two
+exceptions: the main-thread queue takes the community's fixed site offset on every runtime (`MainThreadQueue.cpp`
+`SiteOffset`: SE +0x748, AE +0xC26 before 1.7.99, +0xC38 from 1.7.99; the E8 and its target are checked everywhere, the
+0x37 tail anchor only on the two builds), and the impact window's known-offset fallback is also permitted on SE 1.5.97
+(`ImpactSwap.cpp`: Projectile::ProcessImpacts 42943 +0x410, MuIF / KillFeed). Three
 audits of 1.7.104's code (2026-10-25) found every id, offset, byte pattern, vtable slot and member layout the rows below
 rely on the same as on 1.6.1170, including the CommonLib layouts the corpse mark reads (Actor `myKiller` +0x108, the life
 state bits of +0xC8, `selectedSpells` +0x1C8, `TESMagicEffectApplyEvent` and its event source at holder +0x738). 1.7.104

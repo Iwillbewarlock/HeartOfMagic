@@ -23,7 +23,8 @@ namespace BlackFlame
     namespace
     {
         // BGSImpactDataSet's lookup: (BGSImpactDataSet*, BGSMaterialType*) -> BGSImpactData* (1.7.104 code at
-        // 0x31e680: CRC32 of the key, then the impactMap hash walk; same pdata size and unwind codes on 1.6.1170)
+        // 0x31e680: CRC32 of the key, then the impactMap hash walk; same pdata size and unwind codes on 1.6.1170, whose
+        // decrypted image was read 2026-10-19: 44213 +0xBC calls it there too)
         constexpr std::uint64_t kGetImpactDataSe = 20408, kGetImpactDataAe = 20860;
 
         struct Caller

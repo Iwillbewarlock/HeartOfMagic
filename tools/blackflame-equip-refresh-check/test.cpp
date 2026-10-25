@@ -111,6 +111,11 @@ int main() {
         f.run();
         check(f.effect.starts == 1 && !f.effect.oldVisualPresent && REL::lastRelocation == 34094, name);
     };
+    check(BlackFlame::Patch::IsCodeReadVersion(REL::Version(1, 6, 1170, 0)), "IsCodeReadVersion: AE 1.6.1170 is code read");
+    check(BlackFlame::Patch::IsCodeReadVersion(REL::Version(1, 7, 104, 0)), "IsCodeReadVersion: AE 1.7.104 is code read");
+    check(!BlackFlame::Patch::IsCodeReadVersion(REL::Version(1, 6, 640, 0)), "IsCodeReadVersion: AE 1.6.640 is not");
+    check(!BlackFlame::Patch::IsCodeReadVersion(REL::Version(1, 7, 99, 0)), "IsCodeReadVersion: AE 1.7.99 is not");
+    check(!BlackFlame::Patch::IsCodeReadVersion(REL::Version(1, 5, 97, 0)), "IsCodeReadVersion: SE 1.5.97 is not");
     restartsOn(REL::Version(1, 6, 1170, 0), "AE 1.6.1170 (code read) restarts visuals using AE34094");
     restartsOn(REL::Version(1, 7, 104, 0), "AE 1.7.104 (code read) restarts visuals using AE34094");
     skip("AE 1.6.640 (code not read) does not mutate", [](Fixture&) { REL::runtime = REL::Version(1, 6, 640, 0); });
