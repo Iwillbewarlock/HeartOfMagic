@@ -70,10 +70,10 @@ namespace BlackFlame::BuildProgress
             return out;
         }
 
-        // The copies\<key16>\ folders under staging's two copies roots that are empty now and were last written before
-        // a_before (reviewer: a folder the running builder just made for its next file stays), or that this trim emptied
-        // (a_emptied: deleting a file stamps its folder now; the builder never writes into a listed key's folder)
-        std::size_t RemoveEmptyKeyFolders(const fs::path& a_staging, fs::file_time_type a_before, const std::set<fs::path>& a_emptied)
+        // The copies\<key16>\ folders under staging's two copies roots that are empty now. Only before the builder is
+        // launched (WritePublished): a listed key can still be rebuilt (a dep gone), and a folder removed between the
+        // builder's create_directories and its open would fail that write (review Codex, reviewer)
+        std::size_t RemoveEmptyKeyFolders(const fs::path& a_staging)
         {
             std::size_t removed = 0;
             for (const auto root : { DataPathRule::kMeshesRoot, DataPathRule::kTexturesRoot }) {
@@ -82,8 +82,7 @@ namespace BlackFlame::BuildProgress
                 std::vector<fs::path> empty;
                 for (fs::directory_iterator it(copies, ec), end; !ec && it != end; it.increment(ec)) {
                     std::error_code typeEc;
-                    if (it->is_directory(typeEc) && !it->is_symlink(typeEc) && fs::is_empty(it->path(), typeEc) && !typeEc &&
-                        (a_emptied.count(it->path()) != 0 || (fs::last_write_time(it->path(), typeEc) < a_before && !typeEc))) {
+                    if (it->is_directory(typeEc) && !it->is_symlink(typeEc) && fs::is_empty(it->path(), typeEc) && !typeEc) {
                         empty.push_back(it->path());
                     }
                 }
@@ -99,7 +98,6 @@ namespace BlackFlame::BuildProgress
         {
             ::SetThreadPriority(::GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
             const auto start = std::chrono::steady_clock::now();
-            const auto trimStart = fs::file_time_type::clock::now();
             const auto list = Published();
             const auto staging = StagingFolder();
             const auto data = FileIndex::DataFolder();
@@ -109,7 +107,6 @@ namespace BlackFlame::BuildProgress
             std::size_t failures = 0;
             std::uint64_t bytes = 0;
             bool stopped = false;
-            std::set<fs::path> emptied;  // the key folders a deleted file was in
             if (staging.empty() || !data) {
                 return;
             }
@@ -147,12 +144,10 @@ namespace BlackFlame::BuildProgress
                 }
                 ++removed;
                 bytes += stagedNow->size;
-                emptied.insert(staged.parent_path());
             }
-            const auto folders = RemoveEmptyKeyFolders(staging, trimStart, emptied);
-            logger::info("BlackFlame: disk trim: {} staging duplicate(s) of Data files deleted ({} MiB), {} empty folder(s) removed; "
+            logger::info("BlackFlame: disk trim: {} staging duplicate(s) of Data files deleted ({} MiB); "
                          "{} kept because a source names them, {} kept because Data or staging differs now, {} failed{}; {} ms",
-                removed, bytes / kMiB, folders, keptNamed, differs, failures,
+                removed, bytes / kMiB, keptNamed, differs, failures,
                 stopped ? "; stopped: a load began (the rest at the next start)" : "",
                 std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count());
         }
@@ -171,6 +166,10 @@ namespace BlackFlame::BuildProgress
             Token() = 0;
         }
         std::error_code ec;
+        // the folders the last session's trim emptied (the builder is not running yet)
+        if (const auto folders = RemoveEmptyKeyFolders(staging); folders > 0) {
+            logger::info("BlackFlame: disk trim: {} empty staging folder(s) removed", folders);
+        }
         fs::remove(file, ec);  // an old list never vouches for this start's Data
         if (ec) {
             logger::warn("BlackFlame: disk trim: the last published.tsv could not be removed ({}): no list this start", ec.message());

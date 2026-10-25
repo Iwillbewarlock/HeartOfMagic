@@ -51,8 +51,8 @@ usvfs (other volume, virtual path), and the builder needs to know what is publis
    Compaction and `Reusable` both go through it, so a published object is never rebuilt for a missing staging file.
 3. `StartTrim` (after the launch, a below-normal detached thread) deletes the staging file of each listed path after hashing
    the Data file again without the cache; it keeps our copies a source names as a texture (`SlotKeys::OwnCopiesNamed`: the
-   builder reads those from staging only, GreyTexStats.cpp) and stops when a load begins. Empty `copies\<key16>\` folders go
-   too. Files copied this session are trimmed at the next start.
+   builder reads those from staging only, GreyTexStats.cpp) and stops when a load begins. The `copies\<key16>\` folders it
+   empties are removed at the next start, before the builder launch. Files copied this session are trimmed at the next start.
 4. Contract 9: a builder that does not read the list would rebuild every trimmed object at every launch, so an older builder
    refuses the request (`contractVersion`). Keys and output bytes are unchanged: no rebuild on update.
 
@@ -95,7 +95,7 @@ usvfs (other volume, virtual path), and the builder needs to know what is publis
 | Reviewer 3: a deterministically failing object kept the whole dump at every start | the whole dump comes back only for a source missing from a limited dump (see Change B 3) |
 | GPT (second review): "done" took a staged file by its size while the builder compares fnv64; and a lasting failure flipped the dump between limited and whole every other start | the staged file is hashed; only a "not in the dump" failure brings the whole dump back |
 | Reviewer 4: the builder hashed the staging files the trim was deleting (930 MiB, possible sharing violations) | `StagedMatches` asks the list first |
-| Reviewer 5: removing empty key folders could race a folder the builder just made | only folders last written before the trim began |
+| Reviewer 5, GPT (third review): removing empty key folders while the builder runs could remove a folder it is about to write into (a listed key is rebuilt when a dep is gone) | empty folders are removed only at kDataLoaded, before the builder launch |
 | Reviewer 7: a left-out dump file that would not delete was counted as gone | counted apart; the manifest says `retry`, so the next start dumps again |
 | Reviewer 6: a source that first names one of our copies in a later session, after its staging file was trimmed: the builder reads our copies from staging only and would judge without it | not changed (no such source on the author's setup; it needs a mod whose NIFs name Black Flame's own copies); listed under Limits |
 
