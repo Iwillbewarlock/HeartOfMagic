@@ -50,8 +50,8 @@ namespace BlackFlame::CopyContractTest
                 std::string("efsh base: the golden base key string and key16, now ") + (text ? CC::Key16Of(*text) : std::string("none")));
             const auto palette = CC::EfshPaletteKeyString(prefix, source);
             a_check(text && palette && *palette != *text && !CC::EfshBaseKeyString(prefix, { "..\\x.dds", 1 }) &&
-                        CC::kContractVersion == 8,
-                "efsh base: a base and a palette of one source are two keys (kind), a refused path has none; contract 8");
+                        CC::kContractVersion >= 8,
+                "efsh base: a base and a palette of one source are two keys (kind), a refused path has none; contract 8 or later");
             const auto nextRecipe = CC::EfshBaseKeyString(prefix, source, "luma2");
             a_check(text && nextRecipe && CC::KeyOf(*nextRecipe) != CC::KeyOf(*text) && CC::kEfshBaseRecipe == "luma1" &&
                         text->find("|grey=luma1|") != std::string::npos,

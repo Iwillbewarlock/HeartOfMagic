@@ -252,6 +252,43 @@ namespace GreyBuild::SelfTest
             a_check.Check(heldOpened && readerReads && first == '{' && whileHeld.LastCompaction().kept == 1,
                 fmt::format("progress: compaction renames over a progress.jsonl another handle holds with FILE_SHARE_DELETE (POSIX "
                             "rename), the holder still reads{}", heldWhy.empty() ? std::string() : " (" + heldWhy + ")"));
+
+            // (disk trim) staging\published.tsv as the DLL writes it (the contract's writer): a listed file counts as staged
+            {
+                const auto trim = a_dir / "progress-published";
+                std::filesystem::create_directories(trim);
+                const auto fnvC = CC::Fnv64("CCCC");
+                CC::ProgressLine dep = FileLine(kC, pathC, 4, fnvC);
+                dep.deps.push_back({ false, 0, pathB, CC::Fnv64("BBBB") });
+                Write(trim / CC::kProgressFile, LineText(FileLine(kA, pathA, 4, fnvA)) + LineText(FileLine(kB, pathB, 4, CC::Fnv64("BBBB"))) +
+                                                    LineText(dep));
+                const auto list = CC::WritePublished({ { pathA, { 4, fnvA } }, { pathB, { 4, CC::Fnv64("BBBB") } }, { pathC, { 4, fnvA } } });
+                Write(trim / CC::kPublishedFile, list.value_or(""));
+                ProgressLog listed;
+                std::string listedWhy;
+                const bool opened = listed.Open(trim, listedWhy);
+                a_check.Check(opened && list && listed.LastCompaction().kept == 2 && listed.Reusable(kA, kMiB) && listed.Reusable(kB, kMiB) &&
+                                  !listed.Reusable(kC, kMiB),
+                    fmt::format("progress: with no staging file, a line whose file published.tsv lists with its bytes is kept and reused; one "
+                                "listed with other bytes is dropped (kept {}{})", listed.LastCompaction().kept,
+                        listedWhy.empty() ? std::string() : "; " + listedWhy));
+                Write(StagedFile(trim, pathC), "CCCC");
+                ProgressLog staged;
+                a_check.Check(staged.Open(trim, listedWhy) && !staged.Reusable(kC, kMiB),
+                    "progress: a line dropped once does not come back when its staging file shows up again (the next run builds it)");
+                Write(trim / CC::kProgressFile, LineText(dep));
+                ProgressLog depListed;
+                a_check.Check(depListed.Open(trim, listedWhy) && depListed.Reusable(kC, kMiB),
+                    "progress: a staged file whose copy dep is only listed (its staging file trimmed) is reused");
+                Write(trim / CC::kPublishedFile, "# blackflame published v0\n" + pathB + "\t4\t" + CC::Hex16(CC::Fnv64("BBBB")) + "\n");
+                ProgressLog oldList;
+                a_check.Check(oldList.Open(trim, listedWhy) && !oldList.Reusable(kC, kMiB),
+                    "progress: a list with another header vouches for nothing (staging alone counts)");
+                std::filesystem::remove(trim / CC::kPublishedFile);
+                ProgressLog noList;
+                a_check.Check(noList.Open(trim, listedWhy) && !noList.Reusable(kC, kMiB),
+                    "progress: no published.tsv (a DLL before the disk trim): a dep missing from staging is rebuilt, as before");
+            }
         }
 
         void CheckBudget(Checker& a_check, const std::filesystem::path& a_dir)

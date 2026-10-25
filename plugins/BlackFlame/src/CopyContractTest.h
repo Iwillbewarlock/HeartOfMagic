@@ -2,7 +2,8 @@
 
 // =============================================================================
 // COPY CONTRACT TEST - the shared test table (keys and tints here; copy paths and the progress line in
-// CopyContractTestPaths.h and CopyContractTestProgress.h; the effect shader palettes in CopyContractTestEfsh.h)
+// CopyContractTestPaths.h and CopyContractTestProgress.h; staging\published.tsv in CopyContractTestPublished.h; the effect
+// shader palettes in CopyContractTestEfsh.h)
 // =============================================================================
 // Run by tools/blackflame-cosave-check --self-test and the builder's --self-test, so both sides check the same frozen
 // contract against the same code (included, not copied). Not compiled into the DLL. a_check is any callable taking
@@ -17,6 +18,7 @@
 #include "CopyContractTestEfshBase.h"
 #include "CopyContractTestPaths.h"
 #include "CopyContractTestProgress.h"
+#include "CopyContractTestPublished.h"
 
 #include <algorithm>
 #include <clocale>
@@ -31,7 +33,7 @@
 
 namespace BlackFlame::CopyContractTest
 {
-    inline constexpr int kMinChecks = 74;  // every check the table makes today but the one that may SKIP (the locale)
+    inline constexpr int kMinChecks = 81;  // every check the table makes today but the one that may SKIP (the locale)
 
     namespace Detail
     {
@@ -535,6 +537,7 @@ namespace BlackFlame::CopyContractTest
             Detail::CheckOtherKeys(check);
             CheckCopyPaths(check);
             CheckProgress(check);
+            CheckPublished(check);
             CheckEfsh(check);
             CheckEfshBases(check);
         } catch (const std::exception& e) {

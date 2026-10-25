@@ -185,11 +185,12 @@ namespace GreyBuild
             return line;
         }
 
-        // The builder's own memory of the bases that are not fire (staging, beside progress.jsonl; outside the contract, the
-        // DLL never reads it): "<key16> <tag>" a line. The key holds the source's bytes and the copy recipe; the tag the fire
-        // test's version and numbers, so a change to either judges the base again. Append-only, not atomic: a cut or foreign
-        // line never matches the tag and is ignored (the base is judged again). A missing or unreadable file is an empty cache
-        constexpr const char* kNotFireCacheFile = "efshbase-notfire.txt";
+        // The builder's own memory of the bases that are not fire (staging, beside progress.jsonl): "<key16> <tag>" a line.
+        // The key holds the source's bytes and the copy recipe; the tag the fire test's version and numbers, so a change to
+        // either judges the base again. Append-only, not atomic: a cut or foreign line never matches the tag and is ignored
+        // (the base is judged again). A missing or unreadable file is an empty cache. (disk trim, contract 9) The DLL reads
+        // its keys only, to leave those bases' sources out of the dump (CopyContractPublished.h kNotFireFile)
+        constexpr const char* kNotFireCacheFile = CC::kNotFireFile;
         constexpr std::uint64_t kDdsHeaderBytes = 148;  // magic, DDS_HEADER and DX10 header: the most an RGBA8 copy adds
 
         [[nodiscard]] std::string NotFireTag()

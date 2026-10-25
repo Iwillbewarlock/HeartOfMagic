@@ -5,10 +5,12 @@
 #include "SingleLaunch.h"
 
 #include "BuildProgress.h"
+#include "BuildProgressTrim.h"
 #include "BuilderLauncher.h"
 #include "Config.h"
 #include "CopyGroups.h"
 #include "CopyRequest.h"
+#include "CopyRequestNeeded.h"
 #include "CopyRequestV5.h"
 #include "CorpsePalettes.h"
 #include "DataFiles.h"
@@ -156,13 +158,24 @@ namespace BlackFlame::SingleLaunch
             BuildProgress::ApplyDeferred();  // before anything uses a copy path this session (review N3)
         }
         (void)FormCopies::ApplyLastPublished(inputs);
-        // the dump holds the bytes the keys hashed
-        const auto request = otherGame ? CopyRequestV5::Result{} : CopyRequestV5::Write(a_closure, inputs);
+        // to its end before the builder starts (it compacts the file at its own start). (disk trim, 2026-10-26) Before the
+        // dump: the list of what Data holds (BuildProgressTrim.h) and each key's line decide which sources the dump keeps
+        const bool startRead = BuildProgress::ReadAtStart();
+        const bool listed = !otherGame && BuildProgress::WritePublished();
+        DiskTrimRules::Needed needed;
+        if (!otherGame) {
+            needed = CopyRequestNeeded::Compute(inputs, startRead, listed);
+            logger::info("BlackFlame: disk trim: the dump keeps {}", needed.all ?
+                std::format("every file ({})", !startRead ? "progress.jsonl was not read whole" : !listed ? "no published list" :
+                                                             std::format("{} object(s) failed last run", needed.failed)) :
+                std::format("{} file(s): {} object(s) to build", needed.files.size(), needed.pending));
+        }
+        // the dump holds the bytes the keys hashed (those the builder reads this start)
+        const auto request = otherGame ? CopyRequestV5::Result{} : CopyRequestV5::Write(a_closure, inputs, needed);
         TheRequest() = request;
         for (auto& nif : inputs.nifs) {  // before any thread starts (review agy 14_00 #1); nothing after the dump reads them
             std::vector<std::byte>().swap(nif.bytes);  // the dump has them and the keys are made: the NIF bytes are not kept
         }
-        BuildProgress::ReadAtStart();  // to its end before the builder starts (it compacts the file at its own start)
         if (otherGame) {
             BuildProgress::SkipWorker();  // nothing more is read this session: the start's read is caught up (before W1 plans)
         }
@@ -171,6 +184,9 @@ namespace BlackFlame::SingleLaunch
         if (!otherGame) {
             LaunchBuilder(inputs, request.written);
             BuildProgress::StartWorker();  // tails the progress and copies finished files into Data while the window is open
+            if (listed) {
+                BuildProgress::StartTrim(SlotKeys::OwnCopiesNamed());  // the list was on disk before the launch
+            }
         }
         MenuWatch::OnMainMenuOpen(&OnMainMenu);
         if (!otherGame) {

@@ -105,6 +105,10 @@ namespace BlackFlame::SlotKeys
     /// a_texture's state by its raw slot text (the plan's table, or one read now when the plan has no entry)
     [[nodiscard]] CC::FileHash TextureHash(const Inputs& a_inputs, std::string_view a_raw);
 
+    /// (disk trim) Our copy paths a key's source named as a texture this session (TextureHash read them now): their
+    /// staging files stay (BuildProgressTrim.h)
+    [[nodiscard]] std::set<std::string> OwnCopiesNamed();
+
     /// A planned texture's textures[] state (contract v4): ok (in the dump and hashed), unread (planned, its read failed: here
     /// or in the dump), notdumped (opened, over a cap), missing (no file). An effect shader palette has no unread state: it is
     /// missing in efshPalettes then, so the logs count those apart by this

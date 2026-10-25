@@ -18,9 +18,12 @@
 // The dump (data\meshes, data\textures, dump-manifest.json; CopyRequestDump.h) holds the very bytes the keys hashed (the
 // NIFs read at kDataLoaded, the planned textures); it is rewritten only when its fingerprint changed. With the config's
 // tint or tintAdd outside 0..2 there is no key prefix (SlotKeys) and no request is written (logged).
+// (disk trim, 2026-10-26) The dump holds only the files a_needed names (CopyRequestNeeded.h: the sources of the objects the
+// builder will build this start), unless a_needed.all; the request is the same either way.
 
 #include "Common.h"
 
+#include "DiskTrimRules.h"
 #include "FireClosure.h"
 #include "SlotKeys.h"
 
@@ -47,7 +50,7 @@ namespace BlackFlame::CopyRequestV5
     };
 
     /// kDataLoaded (singleLaunch), after the slots and their keys: the dump, then request.json v5 (temp + rename)
-    Result Write(const FireClosure& a_closure, SlotKeys::Inputs& a_inputs);
+    Result Write(const FireClosure& a_closure, SlotKeys::Inputs& a_inputs, const DiskTrimRules::Needed& a_needed);
 
     /// kDataLoaded, before the plan (SlotKeys): the base texture paths the last request.json keyed (efshBases with state ok;
     /// the dump plan puts them first in their tier). Empty when there is no such request, it does not parse or is older

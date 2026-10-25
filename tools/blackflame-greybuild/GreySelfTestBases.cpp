@@ -400,7 +400,7 @@ namespace GreyBuild::SelfTest
             const auto role = write("ebase_role", [](nlohmann::json& a_r) { a_r[CC::Request::kEfshBases][0][CC::Request::kRole] = "membrane"; });
             const bool noneRefused = throws([&]() { (void)LoadKeyedRequest(none / "request.json"); }, "'efshBases' must be an array (contract 8)") &&
                                      Run(none, a_dir / "ebase_none_staging").exit == 2;
-            const bool cvRefused = throws([&]() { (void)LoadKeyedRequest(cv7 / "request.json"); }, "'contractVersion' must be 8") &&
+            const bool cvRefused = throws([&]() { (void)LoadKeyedRequest(cv7 / "request.json"); }, fmt::format("'contractVersion' must be {}", CC::kContractVersion).c_str()) &&
                                    Run(cv7, a_dir / "ebase_cv7_staging").exit == 2;
             const bool roleRefused = throws([&]() { (void)LoadKeyedRequest(role / "request.json"); }, "role must be membrane-fill, particle-base or both");
             a_check.Check(noneRefused && cvRefused && roleRefused,

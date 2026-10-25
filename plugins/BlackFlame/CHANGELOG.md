@@ -12,6 +12,13 @@ repository root) is separate.
   when its checks pass). The game code they use was read on 1.7.104 and found the same as on 1.6.1170; not run in
   game. Other AE builds and SE 1.5.97 are unchanged. The version rule moved to `src/CodeReadBuilds.h`, which the
   equip refresh check compiles as it is.
+- Less disk: the work folder (`<SKSE log folder>\HeartOfMagic_BlackFlame`) no longer holds a second copy of the grey
+  copies and of their sources. A copy Data already holds is deleted from `staging` (the builder now reads the list of
+  published copies, `staging\published.tsv`, and does not build them again), and the dump in `data` keeps only the
+  sources of what is still to be built. Copy contract 9 (an older builder refuses the request); keys and copies are
+  unchanged, so nothing is rebuilt on update. The first start after the update deletes the old duplicates itself. On the
+  author's ~4,000-mod setup this is expected to take the work folder from about 1.7 GB to under 0.1 GB (not yet run in
+  game). Design and limits: `docs/DISK-TRIM-DESIGN.md`.
 - Docs: the player guides and Nexus pages list 1.7.104 with every feature on (not tested in game) and name what is
   off on other AE builds and on SE 1.5.97 without referring to other rows; Korean and English wording fixes from a
   naturalness review; developer notes and code comments brought in line with the code.

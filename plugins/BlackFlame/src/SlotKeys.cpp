@@ -14,6 +14,7 @@
 #include <chrono>
 #include <format>
 #include <fstream>
+#include <mutex>
 #include <set>
 
 namespace BlackFlame::SlotKeys
@@ -28,6 +29,18 @@ namespace BlackFlame::SlotKeys
         long long MsSince(Clock::time_point a_start)
         {
             return std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - a_start).count();
+        }
+
+        std::mutex& OwnNamedMutex()
+        {
+            static std::mutex mutex;
+            return mutex;
+        }
+
+        std::set<std::string>& OwnNamed()  // our copy paths a source names as a texture (TextureHash)
+        {
+            static std::set<std::string> named;
+            return named;
         }
 
         std::string MuzzleOf(const RE::TESForm* a_form)
@@ -369,7 +382,19 @@ namespace BlackFlame::SlotKeys
             return it->second;
         }
         const auto blob = NifDump::ReadModel(*path, nullptr);  // not in the plan (one of ours): read it now
+        if (DataPathRule::ParseCopyPath(*path)) {
+            // (disk trim) a source names one of our copies: the builder reads it from staging only (GreyTexStats.cpp), so
+            // its staging file is never trimmed
+            std::lock_guard lock(OwnNamedMutex());
+            OwnNamed().insert(*path);
+        }
         return blob.ok ? CC::FileHash::Hashed(blob.fnv64) : CC::FileHash::Missing();
+    }
+
+    std::set<std::string> OwnCopiesNamed()
+    {
+        std::lock_guard lock(OwnNamedMutex());
+        return OwnNamed();
     }
 
     CC::Request::TextureState TextureStateOf(const Inputs& a_inputs, const CopyRequestData::Texture& a_texture)

@@ -123,6 +123,7 @@ set(BLACKFLAME_SOURCES
     src/BuilderLauncher.cpp
     src/BuildProgress.cpp
     src/BuildProgressCopy.cpp
+    src/BuildProgressTrim.cpp
     src/SelfTestStepsSlots.cpp
     # P2 additions: the slot route's kDataLoaded order and its key inputs
     src/SingleLaunch.cpp
@@ -130,6 +131,7 @@ set(BLACKFLAME_SOURCES
     src/OldCopiesVfs.cpp
     src/SlotKeys.cpp
     src/CopyRequestV5.cpp
+    src/CopyRequestNeeded.cpp
     src/DataFiles.cpp
     src/CopyGroupsPlan.cpp
     src/CopyGroupsUpgrade.cpp

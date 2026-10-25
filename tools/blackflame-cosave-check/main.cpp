@@ -26,6 +26,7 @@
 #include "BuilderControlTests.h"
 #include "CoSaveFileTests.h"
 #include "CorpseColoursTests.h"
+#include "DiskTrimTests.h"
 #include "ElementalHitRulesTests.h"
 #include "EquipAbilityRulesTests.h"
 #include "VisualEquipRulesTests.h"
@@ -475,6 +476,7 @@ int main(int a_argc, char** a_argv)
     suite("equip ability rules", [](auto&& a_check) { EquipAbilityRulesTests::Run(a_check); });
     suite("visual equip ownership", [](auto&& a_check) { VisualEquipRulesTests::Run(a_check); });
     suite("old copies", [](auto&& a_check) { OldCopiesTests::Run(a_check); });
+    suite("disk trim", [](auto&& a_check) { DiskTrimTests::Run(a_check); });
     suite("old copies files", [&](auto&& a_check) {
         auto skip = [&](const std::string& a_what) { check.Skip(a_what); };
         OldCopiesFilesTests::Run(a_check, skip);

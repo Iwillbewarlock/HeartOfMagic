@@ -270,6 +270,7 @@ namespace GreyBuild
         m_last.clear();
         m_digests.clear();
         m_broken = false;
+        LoadPublished();
         std::error_code ec;
         std::filesystem::create_directories(a_staging, ec);
         if (ec) {
@@ -323,7 +324,30 @@ namespace GreyBuild
             std::string why;
             it = m_digests.emplace(a_relative, DigestFile(StagedFile(m_staging, a_relative), why)).first;
         }
-        return it->second && it->second->fnv64 == a_fnv64 && (!a_bytes || it->second->bytes == *a_bytes);
+        if (it->second && it->second->fnv64 == a_fnv64 && (!a_bytes || it->second->bytes == *a_bytes)) {
+            return true;
+        }
+        // (disk trim) the DLL found these bytes in Data this start and may have deleted the staging duplicate
+        return CC::PublishedHolds(m_published, a_relative, a_fnv64, a_bytes);
+    }
+
+    void ProgressLog::LoadPublished()
+    {
+        m_published.clear();
+        bool exists = false;
+        const auto file = m_staging / CC::kPublishedFile;
+        const auto text = ReadText(file, exists);
+        if (!exists) {
+            return;  // a DLL before the disk trim, or none written this start: staging alone counts
+        }
+        const auto parsed = text ? CC::ParsePublished(*text) : CC::PublishedParse{};
+        if (!parsed.headerOk) {
+            std::cout << fmt::format("WARN  {} does not read: staging alone counts\n", PathText(file));
+            return;
+        }
+        m_published = parsed.list;
+        std::cout << fmt::format("published {} file(s) in Data listed by the DLL{}\n", m_published.size(),
+            parsed.refused == 0 ? std::string() : fmt::format(", {} line(s) refused", parsed.refused));
     }
 
     void ProgressLog::NoteWritten(const std::string& a_relative, const FileDigest& a_digest)

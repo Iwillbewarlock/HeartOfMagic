@@ -5,6 +5,7 @@
 #include "BuildProgress.h"
 
 #include "BuildProgressCopy.h"
+#include "BuildProgressShared.h"
 #include "BuilderLauncher.h"
 #include "DataFiles.h"
 #include "FileIndex.h"
@@ -41,28 +42,8 @@ namespace BlackFlame::BuildProgress
         constexpr std::size_t kReadChunk = 1 << 16;
         constexpr std::size_t kMaxLoggedErrors = 20;
 
-        using PathHash = std::pair<std::string, std::uint64_t>;  // a copy path and the fnv64 it must hold
-
-        // Everything the worker and the readers share; leaked on purpose (the detached worker may run while statics go)
-        struct Shared
-        {
-            TrackedMutex mutex;  // the members below but tail (the worker's, and ReadAtStart's before it starts)
-            std::unordered_map<std::uint64_t, Object> objects;  // by key: the last line of a key wins
-            std::set<PathHash> inData;                          // files known to be in Data with that fnv64 (or kept for it)
-            std::set<PathHash> copyFailed;                      // copies that failed once (tried again at the next start)
-            std::set<PathHash> copiedNow;                       // copied into Data this session
-            std::set<PathHash> replacedNow;                     // of them, over another file at that path
-            std::map<PathHash, DataFiles::Hash> kept;           // a line's file whose path holds the ledger's build of its key (KeepPublished)
-            Stats stats;
-            ProgressTail::Tail tail;
-            std::size_t errorsLogged = 0;
-            std::size_t copyWarnings = 0;  // "not copied into Data" lines logged (at most kMaxLoggedErrors)
-        };
-        Shared& The()
-        {
-            static auto* shared = std::make_unique<Shared>().release();
-            return *shared;
-        }
+        using Detail::PathHash;
+        using Detail::The;
         std::atomic<std::uint64_t> g_generation{ 0 };
         std::atomic<bool> g_workerStarted{ false };
         std::atomic<bool> g_caughtUp{ false };
@@ -420,19 +401,23 @@ namespace BlackFlame::BuildProgress
         }
     }
 
-    void ReadAtStart()
+    bool ReadAtStart()
     {
         const auto start = std::chrono::steady_clock::now();
         std::size_t dropped = 0;
+        bool whole = false;
         try {
-            if (ReadNew() == Read::kFailed) {  // to its end, before the builder starts (it compacts only at its own start)
+            whole = ReadNew() != Read::kFailed;
+            if (!whole) {  // to its end, before the builder starts (it compacts only at its own start)
                 logger::warn("BlackFlame: slots: progress.jsonl could not be read at the start - the worker tries again");
             }
             Settle(false);   // what earlier sessions copied into Data counts now; copying is the worker's, after W1
             dropped = DropUnstaged();
         } catch (const std::exception& e) {
+            whole = false;
             logger::error("BlackFlame: slots: reading progress.jsonl at the start failed ({}) - the worker tries again", e.what());
         } catch (...) {
+            whole = false;
             logger::error("BlackFlame: slots: reading progress.jsonl at the start threw an exception of an unknown type - the "
                           "worker tries again");
         }
@@ -440,6 +425,7 @@ namespace BlackFlame::BuildProgress
         logger::info("BlackFlame: slots: progress.jsonl at the start: {} keys ({} in Data), {} lines refused, {} dropped (their "
                      "file neither in Data nor in staging), {} ms", stats.lines, stats.inData, stats.badLines, dropped,
             std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count());
+        return whole;
     }
 
     void ApplyDeferred()

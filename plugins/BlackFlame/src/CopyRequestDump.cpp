@@ -103,8 +103,9 @@ namespace BlackFlame::CopyRequestDump
     // J6: "unchanged" holds only while every dumped NIF and planned texture (T1) is there with its size; a texture the
     // last dump could not read (a_readFailed, UTF-8 paths) is not expected
     bool DumpIntact(const std::filesystem::path& a_folder, const std::vector<Nif>& a_nifs, const std::vector<Texture>& a_textures,
-        const std::set<std::string>& a_readFailed)
+        const std::set<std::string>& a_readFailed, const Only* a_only)
     {
+        const auto wanted = [&](const std::string& a_path) { return !a_only || a_only->contains(a_path); };
         const auto root = a_folder / kDumpRoot;
         const auto sizeIs = [&](const std::string& a_path, std::uint64_t a_size) {
             std::error_code ec;
@@ -115,12 +116,13 @@ namespace BlackFlame::CopyRequestDump
             }
         };
         for (const auto& nif : a_nifs) {
-            if (nif.blob.ok && !sizeIs(nif.path, nif.blob.size)) {
+            if (nif.blob.ok && wanted(nif.path) && !sizeIs(nif.path, nif.blob.size)) {
                 return false;  // missing or another size
             }
         }
         for (const auto& texture : a_textures) {
-            if (texture.planned && !a_readFailed.contains(Utf8(texture.path)) && !sizeIs(texture.path, texture.probe.totalSize)) {
+            if (texture.planned && wanted(texture.path) && !a_readFailed.contains(Utf8(texture.path)) &&
+                !sizeIs(texture.path, texture.probe.totalSize)) {
                 return false;
             }
         }
@@ -179,11 +181,23 @@ namespace BlackFlame::CopyRequestDump
     // a disk error may pass). Either way it leaves the plan with its error for the request. Returns the write failures.
     // (incremental dump, 2026-10-23) a planned texture whose stamp (size, the keys' fnv64) the last manifest holds, and
     // whose file has that size, is kept: neither read nor written (a_kept). a_files: the stamps for the new manifest
+    // (disk trim) a planned texture outside a_only is not written and its earlier file deleted (a_left); it stays planned,
+    // so the request still lists it as dumped (DiskTrimRules.h)
     int DumpTextures(const std::filesystem::path& a_root, std::vector<Texture>& a_textures, int& a_written,
-        std::uint64_t& a_bytes, DumpedFiles& a_files, int& a_kept, const Reuse* a_reuse)
+        std::uint64_t& a_bytes, DumpedFiles& a_files, int& a_kept, const Reuse* a_reuse, const Only* a_only, int& a_left)
     {
         int failed = 0;
         for (auto& texture : a_textures) {
+            if (texture.planned && a_only && !a_only->contains(texture.path)) {
+                std::error_code ec;
+                try {
+                    std::filesystem::remove(LongPath(UnderRoot(a_root, texture.path)), ec);
+                } catch (const std::runtime_error&) {
+                    // a path the dump refuses has no file under it
+                }
+                ++a_left;
+                continue;
+            }
             std::filesystem::path file;
             try {
                 file = LongPath(UnderRoot(a_root, texture.path));
@@ -241,7 +255,8 @@ namespace BlackFlame::CopyRequestDump
 
     // The dump's manifest: both fingerprints, the textures that opened but could not be read, and each dumped file's stamp
     void WriteManifest(const std::filesystem::path& a_folder, const std::string& a_fingerprint,
-        const std::string& a_textureFingerprint, const std::vector<Texture>& a_textures, const DumpedFiles& a_files)
+        const std::string& a_textureFingerprint, const std::vector<Texture>& a_textures, const DumpedFiles& a_files,
+        const std::string& a_needed)
     {
         Json readFailures = Json::array();
         for (const auto& texture : a_textures) {
@@ -254,20 +269,33 @@ namespace BlackFlame::CopyRequestDump
             files[path] = stamp;
         }
         const Json manifest{ { kFingerprintKey, a_fingerprint }, { kTextureFingerprintKey, a_textureFingerprint },
-            { kTextureReadFailuresKey, std::move(readFailures) }, { kFilesKey, std::move(files) } };
+            { kTextureReadFailuresKey, std::move(readFailures) }, { kFilesKey, std::move(files) }, { kNeededKey, a_needed } };
         WriteWhole(a_folder / kManifestName, manifest.dump(kJsonIndent) + "\n");
+    }
+
+    std::string NeededText(const Only* a_only)
+    {
+        if (!a_only) {
+            return "all";
+        }
+        std::uint64_t hash = NifDump::kFnvOffset;
+        for (const auto& path : *a_only) {  // a set: sorted, each once
+            hash = NifDump::Fnv64(path.data(), path.size(), hash);
+            hash = NifDump::Fnv64("\n", 1, hash);
+        }
+        return std::format("{}:{:016x}", a_only->size(), hash);
     }
 
     // U10: an unchanged dump tries once more the textures the last dump could not read (only those; a read failure may
     // pass, e.g. a busy archive), and rewrites the manifest when one reads now (the last stamps kept, the new ones added)
     std::string RetryReadFailures(const std::filesystem::path& a_folder, std::vector<Texture>& a_textures,
         const std::set<std::string>& a_readFailed, const std::string& a_fingerprint, const std::string& a_textureFingerprint,
-        int& a_writeFailures, const DumpedFiles& a_previous)
+        int& a_writeFailures, const DumpedFiles& a_previous, const Only* a_only)
     {
         std::vector<Texture*> retry;
         std::vector<Texture> batch;
         for (auto& texture : a_textures) {
-            if (texture.planned && a_readFailed.contains(Utf8(texture.path))) {
+            if (texture.planned && a_readFailed.contains(Utf8(texture.path)) && (!a_only || a_only->contains(texture.path))) {
                 retry.push_back(&texture);
                 batch.push_back(texture);
             }
@@ -277,15 +305,16 @@ namespace BlackFlame::CopyRequestDump
         }
         int written = 0;
         int kept = 0;
+        int left = 0;
         std::uint64_t bytes = 0;
         auto files = a_previous;
-        const int failed = DumpTextures(a_folder / kDumpRoot, batch, written, bytes, files, kept, nullptr);
+        const int failed = DumpTextures(a_folder / kDumpRoot, batch, written, bytes, files, kept, nullptr, nullptr, left);
         a_writeFailures = failed;  // AC3
         for (std::size_t i = 0; i < batch.size(); ++i) {
             *retry[i] = std::move(batch[i]);
         }
         if (written > 0 && failed == 0) {
-            WriteManifest(a_folder, a_fingerprint, a_textureFingerprint, a_textures, files);
+            WriteManifest(a_folder, a_fingerprint, a_textureFingerprint, a_textures, files, NeededText(a_only));
         }
         return std::format("unchanged; {} of {} textures the last dump could not read read now", written, retry.size());
     }
@@ -293,12 +322,14 @@ namespace BlackFlame::CopyRequestDump
     // Every NIF's bytes from the one read written under data\ (a failed one's stale copy removed), then the textures (T1);
     // (incremental dump, 2026-10-23) with a_reuse a file the last manifest stamped as it is now stays as it is
     std::string Dump(const std::filesystem::path& a_folder, std::vector<Nif>& a_nifs, std::vector<Texture>& a_textures,
-        const std::string& a_fingerprint, const std::string& a_textureFingerprint, int& a_writeFailures, const Reuse* a_reuse)
+        const std::string& a_fingerprint, const std::string& a_textureFingerprint, int& a_writeFailures, const Reuse* a_reuse,
+        const Only* a_only)
     {
         const auto root = a_folder / kDumpRoot;
         int written = 0;
         int failed = 0;
         int kept = 0;
+        int left = 0;  // (disk trim) outside a_only: not written, their earlier files deleted
         DumpedFiles files;
         // review: the last manifest no longer vouches for the dump once a file of it may change - a pass cut short (a write
         // failure, a crash on the loading screen) must not leave stamps of bytes it replaced. Not removable: nothing kept
@@ -349,6 +380,12 @@ namespace BlackFlame::CopyRequestDump
                 std::filesystem::remove(file, ec);
                 continue;
             }
+            if (a_only && !a_only->contains(nif.path)) {
+                std::filesystem::remove(file, ec);
+                std::vector<std::byte>().swap(nif.bytes);
+                ++left;
+                continue;
+            }
             const auto utf8 = Utf8(nif.path);
             const auto stamp = Stamp(nif.blob.size, nif.blob.fnv64);
             if (Kept(a_reuse, utf8, stamp, file, nif.blob.size)) {
@@ -373,12 +410,13 @@ namespace BlackFlame::CopyRequestDump
         }
         int textures = 0;
         std::uint64_t textureBytes = 0;
-        failed += DumpTextures(root, a_textures, textures, textureBytes, files, kept, a_reuse);
+        failed += DumpTextures(root, a_textures, textures, textureBytes, files, kept, a_reuse, a_only, left);
         if (failed == 0) {
-            WriteManifest(a_folder, a_fingerprint, a_textureFingerprint, a_textures, files);
+            WriteManifest(a_folder, a_fingerprint, a_textureFingerprint, a_textures, files, NeededText(a_only));
         }
-        const auto counts = std::format("{} NIFs, {} textures ({} MiB){}", written, textures, textureBytes / kMiB,
-            a_reuse ? std::format("; {} files kept as they were", kept) : std::string());
+        const auto counts = std::format("{} NIFs, {} textures ({} MiB){}{}", written, textures, textureBytes / kMiB,
+            a_reuse ? std::format("; {} files kept as they were", kept) : std::string(),
+            a_only ? std::format("; {} files left out (nothing to build reads them)", left) : std::string());
         a_writeFailures = failed;
         return failed == 0 ? std::format("written ({})", counts) :
                              std::format("written with {} failure(s) ({}; the manifest not updated, so the next start "

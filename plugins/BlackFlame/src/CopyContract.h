@@ -42,7 +42,10 @@ namespace BlackFlame::CopyContract
     // 8: request efshBases[] (CopyContractEfshBase.h: the effect shaders' non-palette membrane fill and particle base
     //    textures the builder greys for the corpse rule, each one's dds line at its key's copy.dds, key kind efshbase),
     //    required; builder output version stays 2 (a new kind: no earlier key string or output byte changes).
-    inline constexpr std::uint32_t kContractVersion = 8;
+    // 9: staging\published.tsv (CopyContractPublished.h): a listed file counts as staged, and the DLL deletes its staging
+    //    duplicate - a builder that does not read the list would rebuild those objects every launch, so it must refuse the
+    //    request. No key string or output byte changes (the output version stays 2).
+    inline constexpr std::uint32_t kContractVersion = 9;
 
     // =========================================================================
     // Slot pool (the slot ESL's local ids 0x800-0xFFF): fixed types, contiguous, never reused

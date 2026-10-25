@@ -14,11 +14,15 @@
 //   - Reusable: an object the staging folder already holds - its key's last line is ok or fallback with its file there
 //     with the line's bytes and fnv64, and every path dep there with its fnv64 too; or the line is terminal (too_large
 //     only while its cap field is not below this run's cap).
+//   - (disk trim, 2026-10-26) "there" also means listed in staging\published.tsv (CopyContractPublished.h): the DLL found
+//     those bytes in Data before it launched the builder and deletes the staging duplicate, so a published object is kept
+//     by the compaction and reused, never built again for a missing staging file.
 // Copy files are written as <path>.tmp beside their place and renamed (CommitTemp); RemoveTempFiles clears what a run
 // that was killed left.
 
 #include "../../plugins/BlackFlame/src/CopyContract.h"
 #include "../../plugins/BlackFlame/src/CopyContractProgress.h"
+#include "../../plugins/BlackFlame/src/CopyContractPublished.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -88,7 +92,8 @@ namespace GreyBuild
         /// See the header comment; a_cap is this run's job memory cap
         [[nodiscard]] bool Reusable(std::uint64_t a_key, std::uint64_t a_cap);
 
-        /// a_relative in staging matches a_fnv64 (and a_bytes when given); digests are remembered for the run
+        /// a_relative in staging matches a_fnv64 (and a_bytes when given), or published.tsv lists it so; digests are remembered
+        /// for the run
         [[nodiscard]] bool StagedMatches(const std::string& a_relative, std::uint64_t a_fnv64, std::optional<std::uint64_t> a_bytes = {});
 
         /// a_relative was just written with a_digest (the remembered digest replaced)
@@ -99,12 +104,14 @@ namespace GreyBuild
 
     private:
         [[nodiscard]] bool Compact(const std::filesystem::path& a_file, std::string& a_why);
+        void LoadPublished();
 
         std::filesystem::path m_staging;
         void* m_handle = nullptr;  // HANDLE, closed by the destructor and by a second Open (INVALID_HANDLE_VALUE kept as null)
         bool m_broken = false;
         std::map<std::uint64_t, BlackFlame::CopyContract::ProgressLine> m_last;
         std::map<std::string, std::optional<FileDigest>> m_digests;
+        BlackFlame::CopyContract::PublishedList m_published;  // staging\published.tsv, read at Open
         Compaction m_compaction;
     };
 }

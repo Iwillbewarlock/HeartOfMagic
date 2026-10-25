@@ -59,15 +59,18 @@ namespace BlackFlame::CopyRequestV5
         }
 
         std::string WriteDump(const std::filesystem::path& a_folder, SlotKeys::Inputs& a_inputs, const std::string& a_fingerprint,
-            bool& a_complete)
+            const DiskTrimRules::Needed& a_needed, bool& a_complete)
         {
             using namespace CopyRequestDump;
+            const Only* only = a_needed.all ? nullptr : &a_needed.files;
             const auto textureFingerprint = CopyRequestData::TextureFingerprint(a_inputs.textures);
             const auto manifest = CopyRequestData::ReadJsonObject(a_folder / kManifestName);
             const auto readFailed = CopyRequestData::JsonStringSet(manifest, kTextureReadFailuresKey);
+            // (disk trim) a dump limited to other files (or a manifest from before the trim) is not unchanged
             const bool unchanged = CopyRequestData::JsonString(manifest, kFingerprintKey) == a_fingerprint &&
                                    CopyRequestData::JsonString(manifest, kTextureFingerprintKey) == textureFingerprint &&
-                                   DumpIntact(a_folder, a_inputs.nifs, a_inputs.textures, readFailed);
+                                   CopyRequestData::JsonString(manifest, kNeededKey) == NeededText(only) &&
+                                   DumpIntact(a_folder, a_inputs.nifs, a_inputs.textures, readFailed, only);
             int failures = 0;
             // (incremental dump, 2026-10-23) a changed dump writes only the files whose stamps changed: the keys read and
             // hashed every planned texture already, so a kept one is not read a second time
@@ -78,8 +81,9 @@ namespace BlackFlame::CopyRequestV5
                 }
             }
             auto state = unchanged ? RetryReadFailures(a_folder, a_inputs.textures, readFailed, a_fingerprint, textureFingerprint, failures,
-                                         reuse.previous) :
-                                     Dump(a_folder, a_inputs.nifs, a_inputs.textures, a_fingerprint, textureFingerprint, failures, &reuse);
+                                         reuse.previous, only) :
+                                     Dump(a_folder, a_inputs.nifs, a_inputs.textures, a_fingerprint, textureFingerprint, failures, &reuse,
+                                         only);
             a_complete = failures == 0;
             return state;
         }
@@ -223,7 +227,7 @@ namespace BlackFlame::CopyRequestV5
         }
     }
 
-    Result Write(const FireClosure& a_closure, SlotKeys::Inputs& a_inputs)
+    Result Write(const FireClosure& a_closure, SlotKeys::Inputs& a_inputs, const DiskTrimRules::Needed& a_needed)
     {
         const auto start = std::chrono::steady_clock::now();
         Result out;
@@ -243,7 +247,7 @@ namespace BlackFlame::CopyRequestV5
         try {
             std::filesystem::create_directories(*folder);
             const auto fingerprint = DumpFingerprint(a_inputs);
-            out.dumpState = WriteDump(*folder, a_inputs, fingerprint, out.dumpComplete);
+            out.dumpState = WriteDump(*folder, a_inputs, fingerprint, a_needed, out.dumpComplete);
             CopyRequestDump::WriteWhole(*folder / kRequestName,
                 RequestJson(a_closure, a_inputs, fingerprint, out.dumpComplete, out).dump(kJsonIndent, ' ', false,
                     Json::error_handler_t::replace) + "\n");  // review Gemini / agy 5: a name, reason or error in the code page's

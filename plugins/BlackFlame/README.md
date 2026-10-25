@@ -137,6 +137,15 @@ is registered again at its next ledger write, and any epoch whose mirror is stil
 the next start. Only an epoch with no mirror left and its keep set file deleted loses its keys; its copies are then
 rebuilt as above.
 
+**Disk use of the work folder** (contract 9, 2026-10-26; design and measurements in `docs/DISK-TRIM-DESIGN.md`). The work
+folder `<SKSE log folder>\HeartOfMagic_BlackFlame` no longer keeps a second copy of everything. `staging\` keeps a built copy
+only until Data holds the same bytes: each start writes `staging\published.tsv` (the copies Data holds exactly), the builder
+counts a listed copy as built, and a background thread deletes the staging duplicates (log line `disk trim: N staging
+duplicate(s) of Data files deleted`). `data\` (the dump) keeps only the sources of objects the builder still has to build
+(log lines `disk trim: the dump keeps ...` and the `request v5` line's `files left out`); a failed object last run keeps the
+whole dump for one start. Not configurable. A copy that later leaves Data (the Overwrite cleared, or moved into a mod
+another MO2 profile does not enable) is built again at the next start that cannot see it.
+
 ## How it works
 
 **Visual selection** (2026-10-23, `VisualSet`): ordinary `SpellType::kSpell` roots tagged

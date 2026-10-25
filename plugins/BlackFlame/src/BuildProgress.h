@@ -54,8 +54,9 @@ namespace BlackFlame::BuildProgress
 
     /// kDataLoaded (singleLaunch), before the builder is launched: progress.jsonl read to its end and each object's Data
     /// state checked (sizes first, a hash once a session); no file is copied on this thread (the worker does, after W1).
-    /// A line whose file is neither in Data nor in staging (the old-copies cleanup removed it) is dropped, counted in the log
-    void ReadAtStart();
+    /// A line whose file is neither in Data nor in staging (the old-copies cleanup removed it) is dropped, counted in the log.
+    /// False when the file could not be read to its end (the disk trim then keeps the whole dump: DiskTrimRules.h)
+    bool ReadAtStart();
 
     /// kDataLoaded, before anything uses a copy path (SingleLaunch, before ApplyLastPublished): the copies an earlier session
     /// could not put in place (another file was at the path) renamed in from <path>.next; they count as copied and replaced.
