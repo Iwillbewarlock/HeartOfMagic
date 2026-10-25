@@ -123,6 +123,6 @@ namespace BlackFlame::CopyRequestNeeded
         const auto last = CopyRequestData::JsonString(manifest, CopyRequestDump::kNeededKey);
         const bool lastWhole = last.empty() || last == CopyRequestDump::NeededText(nullptr);
         return DiskTrimRules::NeededFiles(Objects(a_inputs), &BuildProgress::LastLine, NotFire(), BuildProgress::Published(),
-            &BuildProgress::StagedSize, always, lastWhole);
+            &BuildProgress::StagedHash, always, lastWhole);
     }
 }

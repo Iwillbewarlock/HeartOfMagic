@@ -40,8 +40,9 @@ namespace BlackFlame::BuildProgress
     /// A key's last progress line as the builder wrote it (no kept file put in its place, unlike Find)
     [[nodiscard]] std::optional<CopyContract::ProgressLine> LastLine(std::uint64_t a_key);
 
-    /// A staging file's size, nullopt when it is not there
-    [[nodiscard]] std::optional<std::uint64_t> StagedSize(const std::string& a_path);
+    /// A staging file's size and fnv64 read now, nullopt when it is not there or does not read. Asked only for a line's file
+    /// the list lacks (not yet in Data): after the trim that is little
+    [[nodiscard]] std::optional<CopyContract::PublishedFile> StagedHash(const std::string& a_path);
 
     /// See the header (a_keep: our copies a source names, SlotKeys::OwnCopiesNamed)
     void StartTrim(std::set<std::string> a_keep);

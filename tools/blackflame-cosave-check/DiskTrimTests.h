@@ -47,8 +47,8 @@ namespace DiskTrimTests
     void Run(Check&& a_check)
     {
         const CC::PublishedList published{ { Mesh(kNif), { 100, 0xAAull } }, { Tex(kTex), { 50, 0xBBull } } };
-        std::map<std::string, std::uint64_t> stagedFiles;
-        const Rules::StagedSize staged = [&](const std::string& a_path) -> std::optional<std::uint64_t> {
+        std::map<std::string, CC::PublishedFile> stagedFiles;
+        const Rules::StagedSize staged = [&](const std::string& a_path) -> std::optional<CC::PublishedFile> {
             const auto it = stagedFiles.find(a_path);
             return it == stagedFiles.end() ? std::nullopt : std::optional(it->second);
         };
@@ -56,15 +56,20 @@ namespace DiskTrimTests
         a_check(Rules::LineDone(line, published, staged), "disk trim: an ok line whose own file and copy dep are listed is done (ADDN deps ignored)");
         a_check(!Rules::LineDone(line, { { Mesh(kNif), { 100, 0xAAull } } }, staged),
             "disk trim: a copy dep neither listed nor staged: not done (the builder rebuilds it)");
-        stagedFiles[Tex(kTex)] = 7;
-        a_check(Rules::LineDone(line, { { Mesh(kNif), { 100, 0xAAull } } }, staged), "disk trim: a dep in staging (any size) counts");
+        stagedFiles[Tex(kTex)] = { 7, 0xBCull };
+        a_check(!Rules::LineDone(line, { { Mesh(kNif), { 100, 0xAAull } } }, staged),
+            "disk trim: a dep staged with other bytes (another build): not done (review Codex: the builder compares fnv64)");
+        stagedFiles[Tex(kTex)] = { 7, 0xBBull };
+        a_check(Rules::LineDone(line, { { Mesh(kNif), { 100, 0xAAull } } }, staged), "disk trim: a dep in staging with its fnv64 counts");
         a_check(!Rules::LineDone(line, { { Mesh(kNif), { 101, 0xAAull } }, { Tex(kTex), { 50, 0xBBull } } }, staged) &&
                     !Rules::LineDone(line, { { Mesh(kNif), { 100, 0xACull } }, { Tex(kTex), { 50, 0xBBull } } }, staged),
             "disk trim: the own file listed with another size or fnv64 is not the line's (the keep case): not done");
-        stagedFiles[Mesh(kNif)] = 99;
+        stagedFiles[Mesh(kNif)] = { 99, 0xAAull };
         a_check(!Rules::LineDone(line, {}, staged), "disk trim: the own file staged with another size: not done");
-        stagedFiles[Mesh(kNif)] = 100;
-        a_check(Rules::LineDone(line, {}, staged), "disk trim: own file and dep in staging with the line's size: done (no list)");
+        stagedFiles[Mesh(kNif)] = { 100, 0xABull };
+        a_check(!Rules::LineDone(line, {}, staged), "disk trim: the own file staged with the line's size and other bytes: not done");
+        stagedFiles[Mesh(kNif)] = { 100, 0xAAull };
+        a_check(Rules::LineDone(line, {}, staged), "disk trim: own file and dep in staging with the line's bytes: done (no list)");
         a_check(!Rules::LineDone(NifLine(CC::Outcome::kFailed), published, staged) &&
                     !Rules::LineDone(NifLine(CC::Outcome::kTooLarge), published, staged) &&
                     Rules::LineDone(NifLine(CC::Outcome::kNotDumped), {}, [](const std::string&) { return std::nullopt; }) &&
@@ -102,12 +107,19 @@ namespace DiskTrimTests
             "disk trim: the not-fire file answers for effect shader bases only");
         lines[kNew] = NifLine(CC::Outcome::kFailed);
         lines[kNew].key = kNew;
+        lines[kNew].reason = "texture textures\\b2.dds is listed as dumped but not in the dump";
         needed = Rules::NeededFiles(objects, last, { kBase }, published, staged, always);
-        a_check(needed.all && needed.failed == 1, "disk trim: one failed line after a limited dump brings the whole dump back");
+        a_check(needed.all && needed.failed == 1 && needed.dumpMissing == 1,
+            "disk trim: a line that failed for a source not in a limited dump brings the whole dump back");
         needed = Rules::NeededFiles(objects, last, { kBase }, published, staged, always, true);
-        a_check(!needed.all && needed.failed == 1 && needed.pending == 1 && needed.files.count("meshes\\magic\\b.nif") != 0 &&
-                    needed.files.count("textures\\base.dds") == 0,
-            "disk trim: a failed line after a whole dump is the object's own failure: only its files stay (no whole dump for good)");
+        a_check(!needed.all && needed.pending == 1 && needed.files.count("meshes\\magic\\b.nif") != 0,
+            "disk trim: the same failure after a whole dump: only the object's files (a whole dump cannot do more)");
+        lines[kNew].reason = "meshes\\magic\\b.nif: nifly could not read it";
+        needed = Rules::NeededFiles(objects, last, { kBase }, published, staged, always);
+        a_check(!needed.all && needed.failed == 1 && needed.dumpMissing == 0 && needed.pending == 1 &&
+                    needed.files.count("meshes\\magic\\b.nif") != 0 && needed.files.count("textures\\base.dds") == 0,
+            "disk trim: a failure of the object's own (an unreadable NIF) keeps only its files, start after start (review Codex: "
+            "no whole dump every other start)");
         lines.clear();
         needed = Rules::NeededFiles({}, last, {}, {}, staged, always);
         a_check(!needed.all && needed.pending == 0 && needed.files.size() == 1, "disk trim: no objects: our palettes alone");

@@ -12,9 +12,10 @@
 //            out stays listed as dumped, so a missed mapping makes the builder record the object failed - never a silent
 //            fallback - and the next start dumps everything)
 // "Done" mirrors the builder's reuse check (GreyProgress.h Reusable): an ok or fallback line whose own file and every copy
-// dep are listed in published.tsv with the line's bytes or are in staging with its size; a not_dumped line. too_large is
-// never done (a larger job memory cap tries again); failed is never done, and a failed line after a limited dump brings the whole
-// dump back for one start (NeededFiles).
+// dep are listed in published.tsv or are in staging, each with the line's fnv64 (and size); a not_dumped line. too_large is
+// never done (a larger job memory cap tries again); failed is never done. A failed line whose reason says a source was not
+// in the dump (kDumpMissing: the builder's own words for it) brings the whole dump back for one start, unless the last dump
+// was whole already (NeededFiles).
 
 #include "CopyContractProgress.h"
 #include "CopyContractPublished.h"
@@ -31,8 +32,12 @@ namespace BlackFlame::DiskTrimRules
 {
     namespace CC = CopyContract;
 
-    /// A staged file's size, nullopt when it is not there
-    using StagedSize = std::function<std::optional<std::uint64_t>(const std::string& a_path)>;
+    /// A staged file's size and fnv64, nullopt when it is not there or does not read
+    using StagedSize = std::function<std::optional<CC::PublishedFile>(const std::string& a_path)>;
+
+    /// The words every builder failure for a source missing from the dump carries (GreyKeyedRun "is not in the dump",
+    /// GreyKeyedTextures / GreyKeyedEfsh / GreyKeyedBases "listed as dumped but not in the dump", GreyTexStats)
+    inline constexpr std::string_view kDumpMissing = "not in the dump";
 
     [[nodiscard]] inline bool FilePresent(const CC::PublishedList& a_published, const StagedSize& a_staged, const std::string& a_path,
         std::uint64_t a_fnv64, std::optional<std::uint64_t> a_bytes)
@@ -40,8 +45,8 @@ namespace BlackFlame::DiskTrimRules
         if (CC::PublishedHolds(a_published, a_path, a_fnv64, a_bytes)) {
             return true;
         }
-        const auto size = a_staged(a_path);
-        return size && (!a_bytes || *size == *a_bytes);
+        const auto staged = a_staged(a_path);  // review Codex: the hash, as the builder compares it (not the size alone)
+        return staged && staged->fnv64 == a_fnv64 && (!a_bytes || staged->bytes == *a_bytes);
     }
 
     /// a_line's object will not be built again by the builder (see the header)
@@ -78,12 +83,14 @@ namespace BlackFlame::DiskTrimRules
         std::set<std::string> files;    // otherwise: these and nothing else
         std::size_t pending = 0;        // objects not done
         std::size_t failed = 0;         // objects whose last line is failed
+        std::size_t dumpMissing = 0;    // of them, failed for a source not in the dump
     };
 
     /// a_lastLine: a key's last progress line (as read at the start), or nullopt. a_always: files every run reads (our palettes).
-    /// a_lastDumpWhole: the last dump held every file (its manifest says "all"). A failed line after a limited dump may be a
-    /// file this rule left out, so the whole dump comes back; after a whole dump the failure is the object's own (a NIF the
-    /// builder cannot read, say) and only its files stay (reviewer: else one such object keeps the whole dump for good)
+    /// a_lastDumpWhole: the last dump held every file (its manifest says "all"). A line that failed for a source not in a
+    /// limited dump may be a file this rule left out, so the whole dump comes back; any other failure is the object's own (a
+    /// NIF the builder cannot read, say) and only its files stay, so a lasting one never keeps or flips the whole dump
+    /// (reviewer, review Codex)
     [[nodiscard]] inline Needed NeededFiles(const std::vector<NeedObject>& a_objects,
         const std::function<std::optional<CC::ProgressLine>(std::uint64_t)>& a_lastLine, const std::set<std::uint64_t>& a_notFire,
         const CC::PublishedList& a_published, const StagedSize& a_staged, const std::vector<std::string>& a_always,
@@ -95,7 +102,10 @@ namespace BlackFlame::DiskTrimRules
             const auto line = a_lastLine(object.key);
             bool done = false;
             if (line) {
-                out.failed += line->outcome == CC::Outcome::kFailed ? 1 : 0;
+                if (line->outcome == CC::Outcome::kFailed) {
+                    ++out.failed;
+                    out.dumpMissing += line->reason.find(kDumpMissing) != std::string::npos ? 1 : 0;
+                }
                 done = LineDone(*line, a_published, a_staged);
             } else {
                 done = object.efshBase && a_notFire.count(object.key) != 0;
@@ -105,7 +115,7 @@ namespace BlackFlame::DiskTrimRules
                 out.files.insert(object.files.begin(), object.files.end());
             }
         }
-        out.all = out.failed > 0 && !a_lastDumpWhole;
+        out.all = out.dumpMissing > 0 && !a_lastDumpWhole;
         return out;
     }
 

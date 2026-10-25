@@ -253,12 +253,15 @@ namespace BlackFlame::BuildProgress
         return it == s.objects.end() ? std::nullopt : std::optional(it->second.line);
     }
 
-    std::optional<std::uint64_t> StagedSize(const std::string& a_path)
+    std::optional<CC::PublishedFile> StagedHash(const std::string& a_path)
     {
         const auto staging = StagingFolder();
         std::error_code ec;
-        const auto size = staging.empty() ? 0 : fs::file_size(staging / fs::path(a_path), ec);
-        return staging.empty() || ec ? std::nullopt : std::optional(size);
+        if (staging.empty() || !fs::is_regular_file(staging / fs::path(a_path), ec) || ec) {
+            return std::nullopt;
+        }
+        const auto hash = HashNow(staging / fs::path(a_path));
+        return hash ? std::optional(CC::PublishedFile{ hash->size, hash->fnv64 }) : std::nullopt;
     }
 
     void StartTrim(std::set<std::string> a_keep)

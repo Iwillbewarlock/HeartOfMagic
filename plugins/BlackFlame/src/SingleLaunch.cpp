@@ -172,7 +172,7 @@ namespace BlackFlame::SingleLaunch
             needed = CopyRequestNeeded::Compute(inputs, startRead, listed);
             logger::info("BlackFlame: disk trim: the dump keeps {}", needed.all ?
                 std::format("every file ({})", !startRead ? "progress.jsonl was not read whole" : !listed ? "no published list" :
-                                                             std::format("{} object(s) failed last run", needed.failed)) :
+                                                             std::format("{} object(s) failed last run for a source not in the dump", needed.dumpMissing)) :
                 std::format("{} file(s): {} object(s) to build", needed.files.size(), needed.pending));
         }
         // the dump holds the bytes the keys hashed (those the builder reads this start)

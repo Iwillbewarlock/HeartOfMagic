@@ -62,12 +62,13 @@ usvfs (other volume, virtual path), and the builder needs to know what is publis
    effect shader palette and base) and the dump files each reads: a model or muzzle its NIF and every texture it names
    (`NifDump::TexturePathsIn`, the plan's own rule), a TXST its slot textures, a palette or base its path. Our palettes always.
 2. An object is done (`DiskTrimRules::LineDone`) when its last line is ok or fallback with its own file and every copy dep
-   listed (with the line's bytes) or in staging (with its size), or not_dumped. too_large is never done (a larger job memory
+   listed or in staging with the line's fnv64 (and size), or not_dumped. too_large is never done (a larger job memory
    cap tries again). A base with no line that the builder's not-fire file names is done (keys only; a new fire test version
    makes the builder judge it again, find no source, record it failed, and the next start keeps everything).
-3. A failed line after a limited dump (it may be a file this rule left out), a progress file not read to its end, or no
-   list: the whole dump (as before). A failed line after a whole dump is the object's own failure (a NIF the builder cannot
-   read): only its files stay, so one such object does not keep the whole dump for good. A start without a whole progress
+3. A line that failed because a source was not in a limited dump (its reason carries the builder's words "not in the
+   dump": a file this rule may have left out), a progress file not read to its end, or no list: the whole dump (as before).
+   Any other failure (a NIF the builder cannot read) is the object's own: only its files stay, every start, so one such
+   object neither keeps the whole dump nor flips it on every other start. A start without a whole progress
    read or without its list does not launch the builder at all (it would count staging alone and rebuild every trimmed copy).
 4. `Dump` with `Only`: needed files are written or kept by their stamps; any other dumped file is deleted and left out of the
    manifest's stamps. The manifest's `needed` value (a hash of the set) is part of the "unchanged" test. The request is the
@@ -91,7 +92,8 @@ usvfs (other volume, virtual path), and the builder needs to know what is publis
 | GPT: an old list whose removal failed would still be read by the builder | the list carries a token made each start; request.json names it (`publishedList`), the builder takes only a matching list |
 | Reviewer 1: the trim deleted a staging file by its presence; a dep could list a path another line owns with other bytes (the keep case), and a builder rewrite in the same session could be deleted under the copy worker | the staging file is hashed too and must equal the listed bytes; a dep never lists a path some line names as its own file |
 | Reviewer 2: a partial progress read or an unwritten list still launched the builder, which then rebuilt every trimmed copy | such a start lists nothing and does not launch the builder |
-| Reviewer 3: a deterministically failing object kept the whole dump at every start | the whole dump comes back only after a limited dump (see Change B 3) |
+| Reviewer 3: a deterministically failing object kept the whole dump at every start | the whole dump comes back only for a source missing from a limited dump (see Change B 3) |
+| GPT (second review): "done" took a staged file by its size while the builder compares fnv64; and a lasting failure flipped the dump between limited and whole every other start | the staged file is hashed; only a "not in the dump" failure brings the whole dump back |
 | Reviewer 4: the builder hashed the staging files the trim was deleting (930 MiB, possible sharing violations) | `StagedMatches` asks the list first |
 | Reviewer 5: removing empty key folders could race a folder the builder just made | only folders last written before the trim began |
 | Reviewer 7: a left-out dump file that would not delete was counted as gone | counted apart; the manifest says `retry`, so the next start dumps again |

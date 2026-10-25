@@ -142,8 +142,8 @@ folder `<SKSE log folder>\HeartOfMagic_BlackFlame` no longer keeps a second copy
 only until Data holds the same bytes: each start writes `staging\published.tsv` (the copies Data holds exactly), the builder
 counts a listed copy as built, and a background thread deletes the staging duplicates (log line `disk trim: N staging
 duplicate(s) of Data files deleted`). `data\` (the dump) keeps only the sources of objects the builder still has to build
-(log lines `disk trim: the dump keeps ...` and the `request v5` line's `files left out`); an object that failed after a
-limited dump brings the whole dump back for one start (after a whole dump, a failed object keeps only its own sources). A
+(log lines `disk trim: the dump keeps ...` and the `request v5` line's `files left out`); an object that failed because a
+source was not in a limited dump brings the whole dump back for one start (any other failure keeps only its own sources). A
 start whose progress.jsonl does not read whole or whose list cannot be written does not start the builder (log line
 `builder not started: ...`; tried again next start). Not configurable. A copy that later leaves Data (the Overwrite
 cleared, or moved into a mod another MO2 profile does not enable) is built again at the next start that cannot see it.
