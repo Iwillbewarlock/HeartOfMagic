@@ -16,8 +16,8 @@
 //   Record            +0x0C int32: negative = an archive record, else a loose one
 //   Stream count      the engine's own inlined Stream::IncRef in 68483 / 69839 (`lock cmpxchg [rbx+disp8], ecx`):
 //                     0x0C on SE and AE before 1.6.1170, 0x10 from 1.6.1170 on; only the value expected for the running
-//                     build is accepted. Our streams are counted at the engine's offset, never through CommonLib's
-//                     BSTSmartPointer (its StreamBase::GetFlags uses 0x10 on every AE build)
+//                     build is accepted (0x10 alone on 1.6.1170 and 1.7.104, whose code was read). Our streams are
+//                     counted at the engine's offset, never through CommonLib's BSTSmartPointer (its StreamBase::GetFlags uses 0x10 on every AE build)
 //   GlobalLocations   found by its vtable in the game's .data, checked by walking its entry list;
 //                     DoCreateStream("data\\" + path, out, where, false) makes the loose stream the engine would make
 // Gate (single-launch v3 decision 6): RegisterLoose is used only when every structural check passed - the ids, the

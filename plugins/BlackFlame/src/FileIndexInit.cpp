@@ -46,15 +46,15 @@ namespace BlackFlame::FileIndex
         std::uintptr_t Base() { return REL::Module::get().base(); }
 
         // 0x0C on SE and on AE before 1.6.1170, 0x10 from 1.6.1170 on (Temp File Framework's reading of the engines)
-        // Review decision 13: probe run 3 measured 0x10 on 1.6.1170, so there it must be 0x10. On another AE build the scan's
+        // Review decision 13: probe run 3 measured 0x10 on 1.6.1170, so there it must be 0x10; the same on 1.7.104, whose
+        // CreateStream 69839 increments at +0xB8 `F0 0F B1 4B 10` (code read 2026-10-25). On another AE build the scan's
         // one offset is taken when it is 0x0C or 0x10 (Temp File Framework reads 0x0C before 1.6.1170; CommonLib's
         // StreamBase.h:56 GetFlags says 0x10 on every AE build - the two disagree, so neither is trusted there): the first
         // registration then checks the count before and after (FileIndex.cpp) and turns the index off when it is not +1
         bool CountOffsetAccepted(std::uint32_t a_offset, std::string& a_note)
         {
-            const auto version = REL::Module::get().version();
-            if (version == REL::Version(1, 6, 1170, 0)) {
-                a_note = "as probe run 3 measured on 1.6.1170";
+            if (Patch::IsCodeReadBuild()) {
+                a_note = "0x10 only: measured on 1.6.1170 (probe run 3), read in 1.7.104's CreateStream";
                 return a_offset == kAeLateCountOffset;
             }
             a_note = "not measured on this build: the first registration checks the count";

@@ -16,10 +16,11 @@ var own = [
   ['BGSImpactDataSet::GetImpactData (callee)', 20408, 20860],
   ['Projectile::SpawnCollisionEffects (GetImpactData site, impact window)', 43022, 44213],
   ['explosion impact function (GetImpactData site)', 42679, 43851],
-  // 1.6.1170 only, docs/black-flame-v2-rendering.md: 44186 RVA 0x7E9BE0 + 0xB5 calls 20860 (RVA 0x318020);
-  // 34452 RVA 0x5BFD60 + 0x52F calls 44186. Other runtimes' offsets are not inferred from these measurements.
+  // 1.6.1170, docs/black-flame-v2-rendering.md: 44186 RVA 0x7E9BE0 + 0xB5 calls 20860 (RVA 0x318020);
+  // 34452 RVA 0x5BFD60 + 0x52F calls 44186. 1.7.104 (code read 2026-10-25): 44186 RVA 0x7FE850 + 0xB5 calls 20860,
+  // 34452 RVA 0x5CE8B0 + 0x52F calls 44186. Other runtimes' offsets are not inferred from these measurements.
   ['projectile decal helper (rune decal GetImpactData site; no SE id, not used on SE)', null, 44186],
-  ['MagicCaster launch helper (rune decal window; 1.6.1170 only; no SE id)', null, 34452],
+  ['MagicCaster launch helper (rune decal window; 1.6.1170 and 1.7.104 only; no SE id)', null, 34452],
   ['Projectile::ProcessImpacts (impact window site)', 42943, 44123],
   ['Projectile::HandleHits caller (impact window site)', 43014, 44205],
   ['ConeProjectile::UpdateImpl (impact window site)', 42638, 43806],

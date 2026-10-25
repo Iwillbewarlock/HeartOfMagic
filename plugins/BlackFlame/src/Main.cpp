@@ -123,7 +123,7 @@ namespace
         guarded("InstallExplosionHook", [] { BlackFlame::InstallExplosionHook(); });
         guarded("InstallHazardHook", [] { BlackFlame::InstallHazardHook(); });
         guarded("InstallHitEffectHooks", [] { BlackFlame::InstallHitEffectHooks(); });
-        guarded("HitPath::Install", [] { BlackFlame::HitPath::Install(); });  // log only, 1.6.1170 only (HitPathObserve.h)
+        guarded("HitPath::Install", [] { BlackFlame::HitPath::Install(); });  // log only, 1.6.1170 / 1.7.104 only (HitPathObserve.h)
         // corpse mark only: the elemental hits before FEC's Papyrus handlers run (MagicApplySink.h); after BuildFireSets (it
         // reads the fire sets) and HitPath::Install (added only when the corpse mark's hook was written)
         guarded("RegisterMagicApplySink", [] { BlackFlame::HitPath::RegisterMagicApplySink(); });
@@ -134,7 +134,7 @@ namespace
             BlackFlame::HitPath::LogHitShaderProbe("kDataLoaded, inside BlackFlame's handler");
             BlackFlame::MenuWatch::OnMainMenuOpen([] { BlackFlame::HitPath::LogHitShaderProbe("main menu"); });
         });
-        // log only, 1.6.1170 (armed by HitPath::Install): the SRE vtable again and the GetTexture probe (SreProbe.h)
+        // log only, 1.6.1170 / 1.7.104 (armed by HitPath::Install): the SRE vtable again and the GetTexture probe (SreProbe.h)
         guarded("SRE probes", [] { BlackFlame::MenuWatch::OnMainMenuOpen([] { BlackFlame::HitPath::RunMainMenuProbes(); }); });
         guarded("InstallImpactSwap", [] { BlackFlame::InstallImpactSwap(); });
         guarded("InstallCopySwaps", [] { BlackFlame::InstallCopySwaps(); });  // v2: after the copies are filled (CopySwap.h)
@@ -338,7 +338,7 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
     // GetImpactData redirects (14 each), the SetCastingArt redirect (14), the four v2 prologue detours (Launch, explosion
     // creation, hazard creation, the spawn-hazard window: a 14-byte jump plus a gateway of up to 16 + 14 bytes each,
     // CopySwap.h), the main-thread queue's call (14, MainThreadQueue.h), the hit path observation's three call
-    // redirects and the corpse grey hooks A and B (1.6.1170 only, 14 each, HitPathObserve.h, CorpseGrey.h): 344 bytes at
+    // redirects and the corpse grey hooks A and B (1.6.1170 / 1.7.104 only, 14 each, HitPathObserve.h, CorpseGrey.h): 344 bytes at
     // most; the rest is headroom
     constexpr std::size_t kTrampolineSize = 512;
     SKSE::Init(a_skse, { .log = false, .trampoline = true, .trampolineSize = kTrampolineSize });

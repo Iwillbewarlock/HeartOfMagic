@@ -27,7 +27,7 @@
 // 2. The swap at attach (hooks A and B of design v2 §3, the run 8 attach probe turned into hook A):
 //    CorpseGrey.h. Its "corpse attach [n]" line also says whether a save was loaded with no stoke
 //    window and less than 60 s since (IsAfterLoad: the bit after a load, H4).
-// AE 1.6.1170 only (HitPath::Install's runtime and id gate).
+// AE 1.6.1170 and 1.7.104 only (HitPath::Install's runtime and id gate; 1.7.104: code read, not run in game).
 
 namespace BlackFlame::HitPath::Detail
 {

@@ -35,7 +35,7 @@
 //      (AE 44186) with a null IPCT, which then looks it up itself (its GetImpactData E8,
 //      1.6.1170 +0xB5). That lookup is a third site (by scan, any AE build), and a copy
 //      window opens around the +0x52F call when the projectile's base is a copy (1.6.1170
-//      only, argument setup and E8 target checked; anything else is left alone).
+//      and 1.7.104 only, argument setup and E8 target checked; anything else is left alone).
 //   5. Casting art (CopySwapArt.cpp): the one E8 to ActorMagicCaster::SetCastingArt
 //      (AE 34150, in AE 38784; the SE ids 33369 / 37830 are unverified and not used on SE):
 //      the art becomes its copy when the caster is the player's, a hand, the hand's
@@ -90,7 +90,7 @@ namespace BlackFlame
             std::string note;
         } castingArt;
         CallSite runeLookup;  // the GetImpactData call in AE 44186 (AE only, scan; not in impactSites)
-        CallSite runeWindow;  // the copy window around AE 34452's AE 44186 call (1.6.1170 only)
+        CallSite runeWindow;  // the copy window around AE 34452's AE 44186 call (1.6.1170 and 1.7.104 only)
         Patch::Detour hazardCreate;
         Patch::Detour spawnHazard;
     };

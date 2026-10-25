@@ -17,7 +17,8 @@ namespace BlackFlame
 {
     namespace
     {
-        constexpr std::uint64_t kStartVisualsAe = 34094;  // 1.6.1170: ActiveEffect*, see diagnostics/equip-ability-refresh.md
+        // 1.6.1170 and 1.7.104 (code read 2026-10-25): void(ActiveEffect*), see diagnostics/equip-ability-refresh.md
+        constexpr std::uint64_t kStartVisualsAe = 34094;
 
         void LogModels(RE::ActiveEffect* a_effect, const char* a_stage)
         {
@@ -37,8 +38,7 @@ namespace BlackFlame
         // An equip ability need not be in addedSpells. Keep its gameplay effect and replace only its visuals.
         void RefreshAbilityVisuals(RE::PlayerCharacter* a_player, RE::SpellItem* a_ability, const char* a_state)
         {
-            if (REL::Module::get().version() != REL::Version(1, 6, 1170, 0) ||
-                !Patch::HasIds({ kStartVisualsAe }, "equip ability visual refresh")) {
+            if (!Patch::IsCodeReadBuild() || !Patch::HasIds({ kStartVisualsAe }, "equip ability visual refresh")) {
                 logger::info("BlackFlame: equip ability refresh {:08X} ({}): visual restart unavailable on this runtime",
                     a_ability->GetFormID(), a_state);
                 return;

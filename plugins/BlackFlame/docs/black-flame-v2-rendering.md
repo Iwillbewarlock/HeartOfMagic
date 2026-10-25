@@ -202,7 +202,7 @@ left alone and logged with its bytes. 1.7.104 code (readable): Launch starts `48
 instruction), explosion creation `40 53 55 56 57` (four pushes). The GetImpactData sites are found by scanning each
 caller's function-table range for its one `E8`; only SpawnCollisionEffects has a fallback offset (+0xBC, AE, for a
 call another plugin rewrote): the explosion function differs between 1.7.104 and 1.6.1170 (see the ids table). The rune
-decal lookup in AE 44186 is found by the scan only; the rune decal window is a fixed offset checked by its bytes, 1.6.1170 only.
+decal lookup in AE 44186 is found by the scan only; the rune decal window is a fixed offset checked by its bytes, 1.6.1170 and 1.7.104 only.
 Trampoline: 512 bytes (186 at most used: the two rune decal sites add 28). Counters per device are in `GetCopySwapCounters` and the self-test.
 
 ### Ids and how each was checked (v2)
@@ -221,7 +221,7 @@ proof). No 1.5.97 exe is on disk: nothing inside an SE function is verified.
 | `Projectile::SpawnCollisionEffects` | 43022 / 44213 | 0x7ecd80 / 0x7531c0 | one E8 to 20860 at +0xBC (1.7.104); 1170 equal (size 0x7DA): the fallback offset is used only on AE and only when the site is an E8 into a trampoline stub |
 | the explosion's impact function | 42679 / 43851 | 0x7d1c40 / 0x739ee0 | one E8 to 20860 at +0x7FC on 1.7.104, but **not** 1170 equal (size 0x135D vs 0x139D, other unwind codes): found by the scan only, no fallback |
 | projectile decal helper (rune decal lookup site) | - / 44186 | 0x7e9be0 / - | 1.6.1170 image read 2026-10-20 (build/rune-decal): one pdata entry 0x7e9be0..0x7ea4b5 with one E8 to 20860, at +0xB5; reached with a null IPCT only from 34452 +0x52F in .text. Not read on 1.7.104 or other builds (the scan decides there); no SE id |
-| MagicCaster launch helper (rune decal window) | - / 34452 | 0x5bfd60 / - | 1.6.1170 image read 2026-10-20: one E8 to 44186 in its pdata range (0x5bfd60..0x5c02d2), at +0x52F after the null-IPCT setup; reached from FindTargets 34410 and from 34450 / 34451. Installed on 1.6.1170 only; no SE id |
+| MagicCaster launch helper (rune decal window) | - / 34452 | 0x5bfd60 / - | 1.6.1170 image read 2026-10-20: one E8 to 44186 in its pdata range (0x5bfd60..0x5c02d2), at +0x52F after the null-IPCT setup; reached from FindTargets 34410 and from 34450 / 34451. 1.7.104 (code read 2026-10-25): the same at 0x5ce8b0 + 0x52F (RVA 0x5ceddf), the same 28 bytes. Installed on 1.6.1170 and 1.7.104 only; no SE id |
 | `VTABLE_ActorMagicCaster[0]` | 257613 / 205828 | 0x187b8b0 / 0x1637490 | CommonLib; compared with the create data's caster vtable |
 | impact window call sites (round 10, now also the copy window) | 42943 / 44123, 43014 / 44205, 42638 / 43806 | present | 1170 equal: 44123 (0x4B1), 44205 (0x2AE), 43806 (0x49F) |
 | hit shader slot (S3, unchanged hook) | vtable slot 0x0D of `ActiveEffectReferenceEffectController` (function SE 34049 / AE 34846) | - | research 2026-10-16: the slot's only function, 1170 equal |

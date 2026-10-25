@@ -30,8 +30,12 @@ namespace BlackFlame::Patch
 
     [[nodiscard]] std::uintptr_t AddressOf(std::uint64_t a_id);
 
-    /// 1.6.1170 or 1.7.104: the builds whose code was read (1.7.104) or matched by pdata and unwind codes (1.6.1170).
-    /// A fixed in-function offset is trusted only there; every other build finds its sites by scan and target check.
+    /// 1.6.1170 or 1.7.104: the two builds whose code was read (1.6.1170 from its decrypted image, 1.7.104 from the exe;
+    /// the 2026-10-25 audits found every constant of both uses below the same on the two). Two uses: a fixed in-function
+    /// offset is trusted as a fallback only there (every other build finds its sites by scan and target check), and the
+    /// features built on fixed sites or unscanned contracts (hit path, corpse mark and grey, rune decal window, equip
+    /// ability visual restart, the file index's measured count offset) run only there. The runtime checks after this one
+    /// still run on both.
     [[nodiscard]] bool IsCodeReadBuild() noexcept;
 
     // Every hook's state for the tester file (Tester.h): installed or skipped, where, the bytes before, why

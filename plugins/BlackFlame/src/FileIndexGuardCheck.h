@@ -3,10 +3,11 @@
 // =============================================================================
 // FILE INDEX GUARD CHECK - the structural checks that gate RegisterLoose (from FileProbeGuardCheck)
 // =============================================================================
-// Is this the engine's IndexGuard? Structural checks, not byte patterns (no 1.6.1170 byte pattern is known here; its
-// .text is encrypted on disk). They keep two arbitrary functions from being called as the guard; they cannot prove the
-// functions right, and a wrong layout that passes them can still hang the game once the index lock is taken. Lifted
-// from the spike's FileProbeGuardCheck (branch feature/black-flame-spike-s1, run 3 passed them on 1.6.1170).
+// Is this the engine's IndexGuard? Structural checks, not byte patterns, so that they hold on builds whose code was not
+// read (1.7.104's code passes them on reading, 2026-10-25). They keep two arbitrary functions from being called as the
+// guard; they cannot prove the functions right, and a wrong layout that passes them can still hang the game once the
+// index lock is taken. Lifted from the spike's FileProbeGuardCheck (branch feature/black-flame-spike-s1, run 3 passed
+// them on 1.6.1170).
 
 #include "Common.h"
 

@@ -30,7 +30,8 @@ namespace BlackFlame::HitPath::Detail
         constexpr std::uint64_t kFactoryId = 17325;       // the particle property factory (findings C7, C8)
         constexpr std::uint32_t kAttachSiteOffset = 0x5D1B8D - 0x5D1A60;   // +0x12D, 34934's only caller (findings C6)
         constexpr std::uint32_t kFactorySiteOffset = 0x5D1F1C - 0x5D1C30;  // +0x2EC, 17325's only caller (Follow-up 2)
-        // The bytes before each E8 (1.6.1170 image): A `mov rcx, rbx` (the SRE); B `movzx r9d, r15b` (share),
+        // The bytes before each E8 (1.6.1170 image; the same bytes and offsets on 1.7.104, A 5E070A, B 5E0A83, code read
+        // 2026-10-25): A `mov rcx, rbx` (the SRE); B `movzx r9d, r15b` (share),
         // `mov r8, [rsi+0xD8]`, `mov rdx, [rsi+0xD0]`, `mov rcx, [rsi+0x108]` (rsi = the SRE): r8 (+0xD8, the particle palette)
         // and rdx (+0xD0, the particle base, contract 8) are members hook A may set; read here, after it
         constexpr std::array<std::uint8_t, 3> kAttachLead{ 0x48, 0x8B, 0xCB };
@@ -425,9 +426,9 @@ namespace BlackFlame::HitPath::Detail
     {
         constexpr const char* kNameA = "corpse grey A (34933 -> 34934)";
         constexpr const char* kNameB = "corpse grey B (34934 -> 17325)";
-        if (REL::Module::get().version() != REL::Version(1, 6, 1170, 0)) {
-            logger::info("BlackFlame: corpse grey not installed (runtime {}: the sites are 1.6.1170's); the corpse mark has no "
-                         "effect", REL::Module::get().version().string("."));
+        if (!Patch::IsCodeReadBuild()) {
+            logger::info("BlackFlame: corpse grey not installed (runtime {}: the sites are those of 1.6.1170 and 1.7.104); the "
+                         "corpse mark has no effect", REL::Module::get().version().string("."));
             return;
         }
         const auto siteA = Patch::AddressOf(kAttachCallerId) + kAttachSiteOffset;

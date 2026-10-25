@@ -24,7 +24,7 @@ counterparts the research notes name; no SE executable was read, so their SE fun
 | Projectile::SpawnCollisionEffects (GetImpactData site, impact window) | 43022 | 44213 | yes | yes | yes | yes | yes | yes | yes |
 | explosion impact function (GetImpactData site) | 42679 | 43851 | yes | yes | yes | yes | yes | yes | yes |
 | projectile decal helper (rune decal GetImpactData site; no SE id, not used on SE) | - | 44186 | - | yes | yes | yes | yes | yes | yes |
-| MagicCaster launch helper (rune decal window; 1.6.1170 only; no SE id) | - | 34452 | - | yes | yes | yes | yes | yes | yes |
+| MagicCaster launch helper (rune decal window; 1.6.1170 and 1.7.104 only; no SE id) | - | 34452 | - | yes | yes | yes | yes | yes | yes |
 | Projectile::ProcessImpacts (impact window site) | 42943 | 44123 | yes | yes | yes | yes | yes | yes | yes |
 | Projectile::HandleHits caller (impact window site) | 43014 | 44205 | yes | yes | yes | yes | yes | yes | yes |
 | ConeProjectile::UpdateImpl (impact window site) | 42638 | 43806 | yes | yes | yes | yes | yes | yes | yes |
@@ -96,14 +96,23 @@ counterparts the research notes name; no SE executable was read, so their SE fun
 | BSResourceNiBinaryStream dtor (CommonLib) | 69638 | 71016 | yes | yes | yes | yes | yes | yes | yes |
 
 
-**Hook sites on every runtime** (2026-10-16): no in-function offset measured only on 1.6.1170 is trusted elsewhere.
+**Hook sites on every runtime** (2026-10-16; 1.7.104 added 2026-10-25): no fixed in-function offset is trusted outside the
+two builds whose code was read, AE 1.6.1170 (its decrypted image) and 1.7.104 (the exe), `Patch::IsCodeReadBuild`. Three
+audits of 1.7.104's code (2026-10-25) found every id, offset, byte pattern, vtable slot and member layout the rows below
+rely on the same as on 1.6.1170, including the CommonLib layouts the corpse mark reads (Actor `myKiller` +0x108, the life
+state bits of +0xC8, `selectedSpells` +0x1C8, `TESMagicEffectApplyEvent` and its event source at holder +0x738). 1.7.104
+is code read, not run in game. The runtime checks of each row still run on both builds.
 
 | Site | How it is found and checked |
 |---|---|
 | main-thread queue | `Main::Update` (35565 / 36564) + 0x748 on SE, + 0xC26 on AE before 1.7.99, + 0xC38 from 1.7.99 (the offsets OAR, Precision and TDM use for every runtime); the site must be an E8 into the game image or a trampoline stub. The AE tail anchor (pdata end - site = 0x37) is enforced only on 1.6.1170 and 1.7.104, where it was measured; other AE builds log their distance. SE's SKSE task drain sits in the same function (+0x6B8), so the queue's reasoning holds there too |
 | Launch, explosion creation, hazard creation, SpawnHazardEffect start | prologue detours on every runtime whose first bytes the replay decoder takes (else left alone, logged, and the self-test says INFO). Explosion creation, hazard creation and the spawn window run on AE only (fix F1: their SE ids are unverified matches); their thunks forward all four argument registers and return rax (verified on 1.7.104: the functions take one or two pointer arguments and no float or stack argument); every pointer is checked by vtable or form type; a fault trips the SEH guard once and stops that swap decision for the session (the detour stays and calls the original). The SetCastingArt site is AE only too |
-| GetImpactData sites, impact window sites | scan of the caller's function-table range for its one E8 to the callee; a fixed offset only for a call another plugin already rewrote (an E8 into a trampoline stub), and only where the offset was confirmed: SE 1.5.97 (MuIF, KillFeed) and AE 1.6.1170 / 1.7.104. The rune decal lookup (44186) is scan only, AE only |
-| rune decal window | AE 34452 + 0x52F on **1.6.1170 only** (the only build whose 34452 was read): the 28 bytes before must be the null-IPCT argument setup and the call an E8 to 44186; other builds, SE and any mismatch: not installed, logged |
+| GetImpactData sites, impact window sites | scan of the caller's function-table range for its one E8 to the callee; a fixed offset only for a call another plugin already rewrote (an E8 into a trampoline stub), and only where the offset was confirmed. GetImpactData sites: AE 1.6.1170 / 1.7.104 only (SpawnCollisionEffects 44213 + 0xBC; the explosion's impact function 43851 has none), no fallback on SE. Impact window sites: Projectile::ProcessImpacts only, SE 1.5.97 + 0x410 (MuIF, KillFeed) and AE 1.6.1170 / 1.7.104 + 0x407. The rune decal lookup (44186) is scan only, AE only |
+| rune decal window | AE 34452 + 0x52F on **1.6.1170 and 1.7.104 only** (the builds whose 34452 was read; 1.7.104 RVA 0x5CEDDF): the 28 bytes before must be the null-IPCT argument setup and the call an E8 to 44186; other builds, SE and any mismatch: not installed, logged |
+| hit path observation, corpse mark | **1.6.1170 and 1.7.104 only** (`HitPathObserve.h`): 34092 + 0x23E and + 0x4CD (E8 to 34094; 1.7.104 RVA 0x5BD01E / 0x5BD2AD), 19872 + 0x1AC (E8 to 34910; 0x2F75CC); each checked as an E8 to its callee before it is written, the 20 ids in the database first. The magic effect apply sink is added only when the 19872 site was written. Other builds and SE: one log line, nothing installed |
+| corpse grey hooks A and B | **1.6.1170 and 1.7.104 only**, inside the hit path install: 34933 + 0x12D (E8 to 34934, after `48 8B CB`; 1.7.104 RVA 0x5E070D) and 34934 + 0x2EC (E8 to 17325, after its 25 argument bytes; 0x5E0A9C), with the SRE vtable slots 0x28 / 0x35; both sites pass or neither is written |
+| equip ability visual restart | **1.6.1170 and 1.7.104 only**: AE 34094 called as `void(ActiveEffect*)` (1.7.104 RVA 0x5BD6B0); elsewhere the refresh logs that the restart is unavailable and changes nothing |
+| file index stream count | AE only (SE stays on the next-launch fallback): the offset is read from the engine's own `lock cmpxchg [rbx+disp8]` in CreateStream 69839; on 1.6.1170 and 1.7.104 only 0x10 is accepted (1.6.1170 measured in game, 1.7.104 `F0 0F B1 4B 10` at CreateStream + 0xB8); other AE builds take 0x0C or 0x10; on every build the first registration checks that the count goes up by one |
 | vtable slots | CommonLib's vtable ids, checked in the database |
 
 Our jumps never use a hand-written rel32 into the DLL: call redirects and the prologue jump go through the SKSE trampoline

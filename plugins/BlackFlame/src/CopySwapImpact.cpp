@@ -49,7 +49,8 @@ namespace BlackFlame
 
         // The rune decal window: AE34452 (MagicCaster's launch helper) places a rune's waiting glyph right after Launch by
         // calling AE44186 at +0x52F with a null IPCT (RVA 5C028F, 1.6.1170 image read 2026-10-20, build/rune-decal); the
-        // impact call sites never see it. Only on 1.6.1170, only with the argument setup and the E8 below
+        // impact call sites never see it. Only on 1.6.1170 and 1.7.104 (Patch::IsCodeReadBuild; 1.7.104: the same +0x52F
+        // and 28 bytes at RVA 5CEDDF, code read 2026-10-25, not run in game), only with the argument setup and the E8 below
         constexpr std::uint64_t kRuneLauncherAe = 34452, kDecalHelperAe = 44186;
         constexpr std::uintptr_t kRuneDecalCallAe = 0x52F;
         // mov qword [rsp+28], 0 (the IPCT: null); mov byte [rsp+20], 1; mov r9d, edi; lea r8, [rsp+58]; mov rdx, rsi;
@@ -259,14 +260,14 @@ namespace BlackFlame
             static inline REL::Relocation<decltype(thunk)> func;
         };
 
-        // 1.6.1170 only (the build whose AE34452 was read): the call at +0x52F must be an E8 to AE44186 after the argument
-        // setup kRuneDecalArgs; anything else (another build, another plugin's rewrite) is logged and left alone
+        // 1.6.1170 and 1.7.104 only (the builds whose AE34452 was read): the call at +0x52F must be an E8 to AE44186 after
+        // the argument setup kRuneDecalArgs; anything else (another build, another plugin's rewrite) is logged and left alone
         void InstallRuneWindow()
         {
             auto& site = g_status.runeWindow;
-            if (REL::Module::get().version() != REL::Version(1, 6, 1170, 0)) {
-                site.note = std::format("AE 1.6.1170 only (its AE34452 is the one read; running {}): the rune glyph keeps its "
-                                        "original colour, the lookup site alone does not change it", REL::Module::get().version().string("."));
+            if (!Patch::IsCodeReadBuild()) {
+                site.note = std::format("AE 1.6.1170 and 1.7.104 only (their AE34452 is the one read; running {}): the rune glyph "
+                                        "keeps its original colour, the lookup site alone does not change it", REL::Module::get().version().string("."));
                 logger::info("BlackFlame: copy impacts: {} not installed: {}", kRuneWindowName, site.note);
                 Patch::RecordHook(kRuneWindowName, false, 0, {}, site.note);
                 return;
@@ -296,7 +297,8 @@ namespace BlackFlame
         }
 
         // The rune decal's two parts: the lookup inside AE44186 (any AE build, by scan) and the window around its null-IPCT
-        // call (1.6.1170). Either alone changes nothing: a closed window returns the original, an unhooked lookup too
+        // call (1.6.1170 and 1.7.104). Either alone changes nothing: a closed window returns the original, an unhooked lookup
+        // too
         // Neither rune decal part installed: both notes and both hook records say why the rune glyph keeps its colour
         void NoteRuneDecalOff(const std::string& a_reason)
         {

@@ -56,7 +56,8 @@ namespace BlackFlame::HitPath
             Watched{ 34154, "34154" },
         };
 
-        // Call sites, as offsets into their functions (1.6.1170: 34092 at 5AE2B0, 19872 at 2F0E20)
+        // Call sites, as offsets into their functions (1.6.1170: 34092 at 5AE2B0, 19872 at 2F0E20). The same offsets, bytes
+        // and ids on 1.7.104 (code read 2026-10-25: sites A 5BD01E, B 5BD2AD, ApplyEffectShader 2F75CC)
         constexpr std::uint32_t kSiteAOffset = 0x5AE4EE - 0x5AE2B0;      // +0x23E
         constexpr std::uint32_t kSiteBOffset = 0x5AE77D - 0x5AE2B0;      // +0x4CD
         constexpr std::uint32_t kApplySiteOffset = 0x2F0FCC - 0x2F0E20;  // +0x1AC
@@ -359,9 +360,9 @@ namespace BlackFlame::HitPath
 
     void Install()
     {
-        const auto version = REL::Module::get().version();
-        if (version != REL::Version(1, 6, 1170, 0)) {
-            logger::info("BlackFlame: hit path observation off (runtime {}: the offsets are 1.6.1170's)", version.string("."));
+        if (!Patch::IsCodeReadBuild()) {
+            logger::info("BlackFlame: hit path observation off (runtime {}: the offsets are those of 1.6.1170 and 1.7.104)",
+                REL::Module::get().version().string("."));
             return;
         }
         if (!Patch::HasIds({ 40508, kUpdateId, kStartVisualsId, 34761, kShaderEffectCtorId, kApplyShaderId, 34833, 34154,

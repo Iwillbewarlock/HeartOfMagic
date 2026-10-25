@@ -38,8 +38,10 @@
 //   6. (2026-10-20, design v2 §3) Not log only: the grey palette swap of a marked SRE at
 //      34933 -> 34934 (hook A, the former attach probe) and its private particle property at
 //      34934 -> 17325 (hook B): CorpseGrey.h, gated by greyCorpseShaders.
-// AE 1.6.1170 only (the offsets come from its code); any other runtime logs one line and
-// installs nothing. Each site's bytes are checked first; a mismatch is logged and skipped.
+// AE 1.6.1170 and 1.7.104 only (Patch::IsCodeReadBuild: the offsets come from 1.6.1170's code;
+// 1.7.104's code was read 2026-10-25 and has the same ids, offsets, bytes and layouts, not run
+// in game); any other runtime logs one line and installs nothing. Each site's bytes are checked
+// first; a mismatch is logged and skipped.
 
 namespace BlackFlame::HitPath
 {

@@ -28,15 +28,15 @@
 // CorpseColours.h: after attach and the chained Update/Pop vfuncs, grey the instance membrane's fill/rim RGB again.
 //   Update interpolates fill colour every frame; Pop refills both colours. effectData, its keys and its identity are
 //   never changed (other actors, saves, EffectShader.Stop and HasEffectShader still see the original EFSH).
-// Both sites' bytes (the E8 and the argument loads before it) are checked first; AE 1.6.1170 only. Any mismatch installs
-// neither (a grey +0xD8 with share true would be cached for every SRE of that shader), and the mark then has no effect.
+// Both sites' bytes (the E8 and the argument loads before it) are checked first; AE 1.6.1170 and 1.7.104 only. Any
+// mismatch installs neither (a grey +0xD8 with share true would be cached for every SRE of that shader), and the mark then has no effect.
 // Threads: 34934 runs where SRE Update runs (H1: logged on the first call); the flag is thread_local, the counters
 // atomic, CorpsePalettes::Find any thread.
 
 namespace BlackFlame::HitPath::Detail
 {
-    /// HitPath::Install after its sites (1.6.1170, ids checked there, 17325 included): checks both sites, then hooks both or
-    /// neither
+    /// HitPath::Install after its sites (1.6.1170 / 1.7.104, ids checked there, 17325 included): checks both sites, then
+    /// hooks both or neither
     void InstallCorpseGrey();
 
     /// "attach 34934 N calls, ..." for the corpse mark's stats line

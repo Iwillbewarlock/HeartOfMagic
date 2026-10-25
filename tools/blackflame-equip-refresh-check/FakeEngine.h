@@ -185,6 +185,10 @@ inline unsigned WorldGeneration() { return testGeneration; }
 namespace Patch {
 inline bool hasIds = true;
 inline bool HasIds(std::initializer_list<std::uint64_t>, const char*) { return hasIds; }
+// The rule of Patch.cpp's IsCodeReadBuild (restated here: the shim replaces Patch.h): 1.6.1170 or 1.7.104
+inline bool IsCodeReadBuild() {
+    return REL::runtime == REL::Version(1, 6, 1170, 0) || REL::runtime == REL::Version(1, 7, 104, 0);
+}
 }
 namespace MainQueue {
 inline bool accepts = true;

@@ -105,7 +105,16 @@ int main() {
         f.run();
         check(f.untouched(), name);
     };
-    skip("unsupported runtime does not mutate", [](Fixture&) { REL::runtime = REL::Version(1, 5, 97, 0); });
+    const auto restartsOn = [&](REL::Version a_runtime, const char* name) {
+        Fixture f;
+        REL::runtime = a_runtime;
+        f.run();
+        check(f.effect.starts == 1 && !f.effect.oldVisualPresent && REL::lastRelocation == 34094, name);
+    };
+    restartsOn(REL::Version(1, 6, 1170, 0), "AE 1.6.1170 (code read) restarts visuals using AE34094");
+    restartsOn(REL::Version(1, 7, 104, 0), "AE 1.7.104 (code read) restarts visuals using AE34094");
+    skip("AE 1.6.640 (code not read) does not mutate", [](Fixture&) { REL::runtime = REL::Version(1, 6, 640, 0); });
+    skip("SE 1.5.97 does not mutate", [](Fixture&) { REL::runtime = REL::Version(1, 5, 97, 0); });
     skip("missing relocation ID does not mutate", [](Fixture&) { BlackFlame::Patch::hasIds = false; });
     skip("foreign caster does not mutate", [](Fixture& f) { f.effect.caster.value = 2; });
     skip("null caster does not mutate", [](Fixture& f) { f.effect.caster.value = 0; });

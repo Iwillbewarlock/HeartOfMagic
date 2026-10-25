@@ -4,8 +4,8 @@
 
 namespace BlackFlame::HitPath::Detail
 {
-    // Installed with CorpseGrey's two checked sites, on 1.6.1170 only. Update and Pop refill the instance's membrane
-    // colours from the shared record; their chained vfuncs grey those values again after the original returns.
+    // Installed with CorpseGrey's two checked sites, on 1.6.1170 and 1.7.104 only. Update and Pop refill the instance's
+    // membrane colours from the shared record; their chained vfuncs grey those values again after the original returns.
     [[nodiscard]] bool InstallCorpseColours();
     void GreyCorpseMembrane(RE::ShaderReferenceEffect* a_sre, const char* a_point);
     // CorpseGrey's attach decides once per shader record whether it is fire (CorpseColourRules.h FireKeys, or a grey copy);

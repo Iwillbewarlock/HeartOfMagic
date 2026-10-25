@@ -17,7 +17,7 @@
 //     NiTexture name, NiSourceTexture or not, rendererTexture null or not (demand loaded at once
 //     or not), whether the name is the one asked for and whether the two missing paths came back
 //     as one shared texture (a fallback). The textures are released at the end of the probe.
-// AE 1.6.1170 only: armed by HitPath::Install after its runtime and id gate; otherwise nothing runs.
+// AE 1.6.1170 and 1.7.104 only: armed by HitPath::Install after its runtime and id gate; otherwise nothing runs.
 
 namespace BlackFlame::HitPath
 {

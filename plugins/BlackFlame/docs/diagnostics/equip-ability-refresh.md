@@ -6,7 +6,7 @@ The earlier art getter kept original 00080E32 before the buff (670-672). The act
 without HasSpell, so RemoveSpell/AddSpell cannot refresh it safely. This is independent of whether
 the reported red body/floor pixels come from that art; see [aura-light.md](aura-light.md).
 
-## Engine evidence (AE 1.6.1170 only)
+## Engine evidence (AE 1.6.1170; 1.7.104 below)
 
 The flat image, SHA256 and disassembler are the same inputs as [corpse-engine.md](corpse-engine.md).
 Read-only disassembly commands with that `skydis.py`: `id:34094 200`, `id:34761 300`,
@@ -25,6 +25,11 @@ The captured MRE Detach virtual slot already points outside the executable. Call
 preserves that chain, but the other DLL's runtime behaviour is not proven by this static inspection.
 The alternative engine stop 34050 uses a hooked visitor whose body was unavailable; it is not called.
 
+AE 1.7.104 (code read 2026-10-25 from the exe, not run in game): the same functions with the same instructions after
+normalisation - 34094 at 5BD6B0, 34761 at 5DB1A0, 34764 at 5DB5E0, 34843 at 5DC850, 34665 at 5D77D0 - and the same
+ActiveEffect, ReferenceEffect and ProcessLists offsets; 40508 (5BD6FB's callee) could be read there, not in the 1.6.1170
+capture. So the refresh runs on 1.6.1170 and 1.7.104 (`Patch::IsCodeReadBuild`) and nowhere else.
+
 ## Current change and bounds
 
 The earlier refresh-only build addressed HasSpell=false but the user still saw the red effect.
@@ -33,7 +38,7 @@ path. See [visual-scope.md](visual-scope.md): all MGEFs of catalog-fire roots ar
 and shared equip abilities require a currently selected visual owner without a competing selected
 nonvisual owner. A private copy is required for equip art; untracked runtime art recolouring is refused.
 
-On AE 1.6.1170 both listed and unlisted abilities use the same visual-only path:
+On AE 1.6.1170 and 1.7.104 both listed and unlisted abilities use the same visual-only path:
 
 1. Re-read live effects; require the matching ability, player target, nonzero player caster,
    active/not-dispelled flags and the effect's own controller with art or shader.

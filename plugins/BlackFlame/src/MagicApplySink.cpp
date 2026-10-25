@@ -151,8 +151,8 @@ namespace BlackFlame::HitPath
         const auto* shock = g_shockKeyword.load();
         if (!CorpseMarkInstalled()) {
             registered = true;
-            logger::info("BlackFlame: magic effect apply sink not registered (the corpse mark is not installed: AE 1.6.1170 and "
-                         "HitPath::Install's ApplyEffectShader hook only); keywords {} {:08X}, {} {:08X}", kFrostKeywordId,
+            logger::info("BlackFlame: magic effect apply sink not registered (the corpse mark is not installed: AE 1.6.1170 / 1.7.104 "
+                         "and HitPath::Install's ApplyEffectShader hook only); keywords {} {:08X}, {} {:08X}", kFrostKeywordId,
                 frost ? frost->GetFormID() : 0, kShockKeywordId, shock ? shock->GetFormID() : 0);
             return;
         }

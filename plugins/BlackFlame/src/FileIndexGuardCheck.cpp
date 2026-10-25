@@ -31,8 +31,9 @@ namespace BlackFlame::FileIndexGuardCheck
     // FQ4: IndexGuard's constructor and destructor must touch the ArchiveManager the way the guard's layout says (TFF: the
     // manager is kept at +0xB8 of the guard): within their first kGuardWindow bytes, a REX.W mov (8B / 89) that is either
     // rip-relative to the manager static or has a 32-bit displacement of +0xB8 (ModRM mod 10, with or without SIB).
-    // A structural check, not a byte pattern: no byte pattern of the 1.6.1170 image is known here (its .text is encrypted
-    // on disk). It cannot prove the functions right; it keeps two arbitrary functions from being called as the guard
+    // A structural check, not a byte pattern, so that it holds on builds whose code was not read (the ctor 69681 has both
+    // forms on 1.6.1170 and 1.7.104; 1.7.104 EC7F10 / EC7F3A). It cannot prove the functions right; it keeps two arbitrary
+    // functions from being called as the guard
     bool TouchesManager(std::uintptr_t a_function, std::uintptr_t a_manager)
     {
         if (!Patch::IsExecutable(a_function, kGuardWindow + kMovRcxRipSize)) {
