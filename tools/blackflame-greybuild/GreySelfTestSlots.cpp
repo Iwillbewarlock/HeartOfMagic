@@ -258,13 +258,15 @@ namespace GreyBuild::SelfTest
                 const auto trim = a_dir / "progress-published";
                 std::filesystem::create_directories(trim);
                 const auto fnvC = CC::Fnv64("CCCC");
+                constexpr std::uint64_t kToken = 0x1234;
                 CC::ProgressLine dep = FileLine(kC, pathC, 4, fnvC);
                 dep.deps.push_back({ false, 0, pathB, CC::Fnv64("BBBB") });
                 Write(trim / CC::kProgressFile, LineText(FileLine(kA, pathA, 4, fnvA)) + LineText(FileLine(kB, pathB, 4, CC::Fnv64("BBBB"))) +
                                                     LineText(dep));
-                const auto list = CC::WritePublished({ { pathA, { 4, fnvA } }, { pathB, { 4, CC::Fnv64("BBBB") } }, { pathC, { 4, fnvA } } });
+                const auto list = CC::WritePublished({ { pathA, { 4, fnvA } }, { pathB, { 4, CC::Fnv64("BBBB") } }, { pathC, { 4, fnvA } } }, kToken);
                 Write(trim / CC::kPublishedFile, list.value_or(""));
                 ProgressLog listed;
+                listed.SetPublishedToken(kToken);
                 std::string listedWhy;
                 const bool opened = listed.Open(trim, listedWhy);
                 a_check.Check(opened && list && listed.LastCompaction().kept == 2 && listed.Reusable(kA, kMiB) && listed.Reusable(kB, kMiB) &&
@@ -274,16 +276,26 @@ namespace GreyBuild::SelfTest
                         listedWhy.empty() ? std::string() : "; " + listedWhy));
                 Write(StagedFile(trim, pathC), "CCCC");
                 ProgressLog staged;
+                staged.SetPublishedToken(kToken);
                 a_check.Check(staged.Open(trim, listedWhy) && !staged.Reusable(kC, kMiB),
                     "progress: a line dropped once does not come back when its staging file shows up again (the next run builds it)");
                 Write(trim / CC::kProgressFile, LineText(dep));
                 ProgressLog depListed;
+                depListed.SetPublishedToken(kToken);
                 a_check.Check(depListed.Open(trim, listedWhy) && depListed.Reusable(kC, kMiB),
                     "progress: a staged file whose copy dep is only listed (its staging file trimmed) is reused");
                 Write(trim / CC::kPublishedFile, "# blackflame published v0\n" + pathB + "\t4\t" + CC::Hex16(CC::Fnv64("BBBB")) + "\n");
                 ProgressLog oldList;
+                oldList.SetPublishedToken(kToken);
                 a_check.Check(oldList.Open(trim, listedWhy) && !oldList.Reusable(kC, kMiB),
                     "progress: a list with another header vouches for nothing (staging alone counts)");
+                Write(trim / CC::kPublishedFile, CC::WritePublished({ { pathB, { 4, CC::Fnv64("BBBB") } } }, kToken + 1).value_or(""));
+                ProgressLog stale;
+                stale.SetPublishedToken(kToken);
+                ProgressLog untold;
+                a_check.Check(stale.Open(trim, listedWhy) && !stale.Reusable(kC, kMiB) && untold.Open(trim, listedWhy) && !untold.Reusable(kC, kMiB),
+                    "progress: a list with another start's token, or a request that names none, vouches for nothing (review Codex: a list "
+                    "whose removal failed)");
                 std::filesystem::remove(trim / CC::kPublishedFile);
                 ProgressLog noList;
                 a_check.Check(noList.Open(trim, listedWhy) && !noList.Reusable(kC, kMiB),

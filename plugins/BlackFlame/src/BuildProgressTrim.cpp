@@ -16,6 +16,7 @@
 #include <chrono>
 #include <fstream>
 #include <mutex>
+#include <random>
 #include <system_error>
 #include <thread>
 #include <vector>
@@ -40,6 +41,12 @@ namespace BlackFlame::BuildProgress
         {
             static CC::PublishedList list;
             return list;
+        }
+
+        std::uint64_t& Token()  // its token (0: none written)
+        {
+            static std::uint64_t token = 0;
+            return token;
         }
 
         // A file's size and FNV-1a 64 read now (no cache: the trim deletes on it), nullopt when it does not read
@@ -149,6 +156,7 @@ namespace BlackFlame::BuildProgress
         {
             std::lock_guard lock(ListMutex());
             List().clear();
+            Token() = 0;
         }
         std::error_code ec;
         fs::remove(file, ec);  // an old list never vouches for this start's Data
@@ -185,7 +193,11 @@ namespace BlackFlame::BuildProgress
                 }
             }
         }
-        const auto text = CC::WritePublished(list);
+        // a new token each start, also in request.json: a list an earlier start left behind never matches (review Codex)
+        std::random_device random;
+        const std::uint64_t token = ((static_cast<std::uint64_t>(random()) << 32) ^ random() ^
+                                        static_cast<std::uint64_t>(std::chrono::steady_clock::now().time_since_epoch().count())) | 1;
+        const auto text = CC::WritePublished(list, token);
         if (!text) {
             logger::warn("BlackFlame: disk trim: published.tsv refused by the contract's writer: no list this start");
             return false;
@@ -200,7 +212,14 @@ namespace BlackFlame::BuildProgress
         logger::info("BlackFlame: disk trim: published.tsv lists {} file(s) Data holds exactly", list.size());
         std::lock_guard lock(ListMutex());
         List() = std::move(list);
+        Token() = token;
         return true;
+    }
+
+    std::optional<std::uint64_t> PublishedToken()
+    {
+        std::lock_guard lock(ListMutex());
+        return Token() == 0 ? std::nullopt : std::optional(Token());
     }
 
     CC::PublishedList Published()

@@ -76,6 +76,9 @@ namespace GreyBuild
         ProgressLog(const ProgressLog&) = delete;
         ProgressLog& operator=(const ProgressLog&) = delete;
 
+        /// (disk trim) the request's published.tsv token; Open takes the list only when its header has it (none: no list)
+        void SetPublishedToken(std::optional<std::uint64_t> a_token) noexcept { m_publishedToken = a_token; }
+
         /// a_staging\progress.jsonl compacted and opened for appending (the folder made); false with a_why
         [[nodiscard]] bool Open(const std::filesystem::path& a_staging, std::string& a_why);
 
@@ -112,6 +115,7 @@ namespace GreyBuild
         std::map<std::uint64_t, BlackFlame::CopyContract::ProgressLine> m_last;
         std::map<std::string, std::optional<FileDigest>> m_digests;
         BlackFlame::CopyContract::PublishedList m_published;  // staging\published.tsv, read at Open
+        std::optional<std::uint64_t> m_publishedToken;
         Compaction m_compaction;
     };
 }

@@ -345,6 +345,12 @@ namespace GreyBuild
             std::cout << fmt::format("WARN  {} does not read: staging alone counts\n", PathText(file));
             return;
         }
+        if (!m_publishedToken || parsed.token != *m_publishedToken) {
+            // review Codex: a list an earlier start left behind (its removal failed) never vouches for this start's Data
+            std::cout << fmt::format("WARN  {} is not this start's list (token {}, the request's {}): staging alone counts\n",
+                PathText(file), CC::Hex16(parsed.token), m_publishedToken ? CC::Hex16(*m_publishedToken) : std::string("none"));
+            return;
+        }
         m_published = parsed.list;
         std::cout << fmt::format("published {} file(s) in Data listed by the DLL{}\n", m_published.size(),
             parsed.refused == 0 ? std::string() : fmt::format(", {} line(s) refused", parsed.refused));

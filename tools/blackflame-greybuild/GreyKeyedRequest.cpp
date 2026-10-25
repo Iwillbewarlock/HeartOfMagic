@@ -10,6 +10,7 @@
 //   "txst"             [{ slot, key, dodt }]: matched to the TXST form with that forms[].slot
 //   "efshPalettes"     contract 6, required: CopyContractEfsh.h ParseEfshPalettes (the reader the contract shares)
 //   "efshBases"        contract 8, required: CopyContractEfshBase.h ParseEfshBases (the same entry shape)
+//   "publishedList"    contract 9, optional: staging\published.tsv's token for this start (CopyContractPublished.h)
 // A key is 16 lower-case hex digits. Anything malformed refuses the request (the DLL wrote it; nothing is guessed).
 
 #include "GreyKeyed.h"
@@ -72,6 +73,14 @@ namespace GreyBuild
             a_request.paletteMode = *mode == CC::PaletteMode::kGodskin ? PaletteMode::kGodskin : PaletteMode::kDerived;
             a_request.paletteModeText = std::string(CC::PaletteModeText(*mode));
             a_request.keyPrefix = Json::ReadString(a_file, options, CC::Request::kKeyPrefix, "options");
+            if (a_root.contains(CC::kPublishedToken)) {  // contract 9, optional: absent when the DLL wrote no list this start
+                const auto text = Json::ReadString(a_file, a_root, CC::kPublishedToken, "the request");
+                const auto token = CC::ParseHex16(text);
+                if (!token || *token == 0) {
+                    Json::Fail(a_file, fmt::format("'{}' = '{}' is not 16 lower-case hex digits (not 0)", CC::kPublishedToken, text));
+                }
+                a_request.publishedToken = token;
+            }
         }
 
         [[nodiscard]] std::string NifPath(const std::filesystem::path& a_file, const nlohmann::json& a_item, const std::string& a_where)

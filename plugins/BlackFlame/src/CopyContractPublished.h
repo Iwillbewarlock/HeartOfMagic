@@ -7,9 +7,11 @@
 // file a progress line (or one of its copy deps) names whose Data file has exactly the line's size and fnv64 this start.
 // The DLL then deletes those files' staging duplicates (BuildProgressTrim.h), and the builder's reuse check (GreyProgress.h
 // StagedMatches) takes a listed file as present, so a published object is not built again. Text, ASCII (copy paths are):
-//   # blackflame published v1\n
+//   # blackflame published v1 <token: 16 lower-case hex, not 0>\n
 //   <copy path>\t<bytes>\t<fnv64 16 lower-case hex>\n   (one per file, path order)
-// The parser takes the file only with that first line; a line is taken only when its path is a copy path
+// The token is new each start and also written into request.json (kPublishedToken): the builder takes the list only when
+// the two match, so a list an earlier start left behind (its removal failed: a lock, a read-only file) never vouches for
+// this start's Data (review Codex). The parser takes the file only with that first line; a line is taken only when its path is a copy path
 // (DataPathRule::ParseCopyPath), bytes > 0 and fnv64 a non-zero Hex16; a path listed twice with other values is dropped
 // (neither is trusted); a last line without '\n' is a cut write and is dropped. A file that is absent lists nothing.
 
@@ -27,7 +29,8 @@
 namespace BlackFlame::CopyContract
 {
     inline constexpr const char* kPublishedFile = "published.tsv";  // in the staging folder
-    inline constexpr std::string_view kPublishedHeader = "# blackflame published v1";
+    inline constexpr std::string_view kPublishedHeader = "# blackflame published v1 ";  // then the token
+    inline constexpr const char* kPublishedToken = "publishedList";  // request.json, top level: the list's token (Hex16)
     // The builder's memory of the effect shader bases that are not fire ("<key16> <tag>" a line, its own tag rule:
     // GreyKeyedBases.cpp). The DLL reads only the keys (DiskTrimRules::NotFireKeys): such a base needs no source in the dump
     inline constexpr const char* kNotFireFile = "efshbase-notfire.txt";
@@ -43,10 +46,14 @@ namespace BlackFlame::CopyContract
 
     using PublishedList = std::map<std::string, PublishedFile>;  // copy path -> its Data bytes
 
-    /// The whole file's text; nullopt when an entry would not read back (not a copy path, bytes 0, fnv64 0)
-    [[nodiscard]] inline std::optional<std::string> WritePublished(const PublishedList& a_list)
+    /// The whole file's text; nullopt when an entry would not read back (not a copy path, bytes 0, fnv64 0) or a_token is 0
+    [[nodiscard]] inline std::optional<std::string> WritePublished(const PublishedList& a_list, std::uint64_t a_token)
     {
+        if (a_token == 0) {
+            return std::nullopt;
+        }
         std::string out(kPublishedHeader);
+        out += Hex16(a_token);
         out += '\n';
         for (const auto& [path, file] : a_list) {
             if (!DataPathRule::ParseCopyPath(path) || file.bytes == 0 || file.fnv64 == 0) {
@@ -67,6 +74,7 @@ namespace BlackFlame::CopyContract
         PublishedList list;
         std::size_t refused = 0;  // lines not taken (bad fields, a path listed twice with other values, a cut last line)
         bool headerOk = false;    // false: nothing is taken
+        std::uint64_t token = 0;  // the header's token (headerOk): the builder compares it with the request's
     };
 
     [[nodiscard]] inline PublishedParse ParsePublished(std::string_view a_text)
@@ -77,10 +85,13 @@ namespace BlackFlame::CopyContract
         if (!header.empty() && header.back() == '\r') {
             header.remove_suffix(1);
         }
-        if (firstEnd == std::string_view::npos || header != kPublishedHeader) {
+        const bool prefixed = header.size() > kPublishedHeader.size() && header.substr(0, kPublishedHeader.size()) == kPublishedHeader;
+        const auto token = prefixed ? ParseHex16(header.substr(kPublishedHeader.size())) : std::nullopt;
+        if (firstEnd == std::string_view::npos || !token || *token == 0) {
             return out;
         }
         out.headerOk = true;
+        out.token = *token;
         std::set<std::string> conflicted;
         std::size_t at = firstEnd + 1;
         while (at < a_text.size()) {

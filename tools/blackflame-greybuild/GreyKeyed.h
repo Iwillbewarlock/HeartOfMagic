@@ -94,6 +94,7 @@ namespace GreyBuild
         PaletteMode paletteMode = PaletteMode::kDerived;
         std::string paletteModeText;     // options.paletteMode as written
         std::string keyPrefix;           // options.keyPrefix, as the DLL built it (VerifyKeyPrefix at the run's start)
+        std::optional<std::uint64_t> publishedToken;  // contract 9: staging\published.tsv's token for this start (none: no list)
         std::vector<KeyedSpec> objects;  // in request order
         std::map<int, int> addnSlots;    // original ADDN index -> slot ADDN index (40000 + place)
         std::map<std::string, std::uint64_t> nifHashes;  // nifs[] the game read: Data-relative path -> fnv64

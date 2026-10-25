@@ -7,6 +7,7 @@
 #include "CopyContractEfsh.h"
 #include "CopyContractEfshBase.h"
 
+#include "BuildProgressTrim.h"
 #include "Config.h"
 #include "CopyRequest.h"
 #include "CopyRequestData.h"
@@ -180,6 +181,9 @@ namespace BlackFlame::CopyRequestV5
             root["game"] = REL::Module::get().version().string();
             root["fingerprint"] = a_fingerprint;
             root["dumpComplete"] = a_dumpComplete;
+            if (const auto token = BuildProgress::PublishedToken()) {  // (disk trim) the builder trusts only this start's list
+                root[CC::kPublishedToken] = CC::Hex16(*token);
+            }
             root["slotsPlugin"] = SlotAssign::kSlotsPluginName;
             root["decalTextureSets"] = true;
             root[CC::Request::kOptions] = Options(a_inputs);

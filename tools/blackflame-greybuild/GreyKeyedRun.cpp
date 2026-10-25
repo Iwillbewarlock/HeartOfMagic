@@ -404,6 +404,7 @@ namespace GreyBuild
         }
         const int temps = RemoveTempFiles(a_options.staging);
         ProgressLog log;
+        log.SetPublishedToken(request.publishedToken);  // (disk trim) the list counts only with this start's token
         if (std::string why; !log.Open(a_options.staging, why)) {
             std::cerr << why << "\n";
             return kFail;

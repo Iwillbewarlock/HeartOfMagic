@@ -34,6 +34,9 @@ namespace BlackFlame::BuildProgress
     /// The list WritePublished wrote this session (empty before it, or when it failed)
     [[nodiscard]] CopyContract::PublishedList Published();
 
+    /// Its token, for request.json (CopyContract kPublishedToken); nullopt when no list was written this session
+    [[nodiscard]] std::optional<std::uint64_t> PublishedToken();
+
     /// A key's last progress line as the builder wrote it (no kept file put in its place, unlike Find)
     [[nodiscard]] std::optional<CopyContract::ProgressLine> LastLine(std::uint64_t a_key);
 
