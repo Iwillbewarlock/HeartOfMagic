@@ -1462,7 +1462,8 @@ namespace Widget
         // ---------------------------------------------------------------------
 
         using Layout::BlockId;
-        constexpr std::array<const char*, 5> kBlocks{ Layout::kPreview, Layout::kTree, Layout::kProgress, Layout::kSpellCard, Layout::kNodeCard };
+        // in build 13's panel creation order (the spell card's panel last, on top)
+        constexpr std::array<const char*, 5> kBlocks{ Layout::kPreview, Layout::kTree, Layout::kProgress, Layout::kNodeCard, Layout::kSpellCard };
         constexpr double kRectTolerance = 0.01;  // stage units: two rects this close are the same place
 
         bool SameRect(const Settings::Rect& a_a, const Settings::Rect& a_b)
@@ -2721,11 +2722,16 @@ namespace Widget
             return a_id == Layout::kSpellCard ? "infocard" : a_id.c_str();
         }
 
-        // blocks plan Task 2 / D4: every lookup of a block's panel goes through here. The panels are the widget's own children
-        // for now; Task 3 puts them in column clips and changes only this and BlockLocal
+        // blocks plan Task 2 / D4: the clip a block's panel is made in. The widget itself for now; Task 3: its column's clip
+        RE::GFxValue& BlockParent(RE::GFxValue& a_widget, const BlockId&)
+        {
+            return a_widget;
+        }
+
+        // D4: every lookup of a block's panel goes through here (Task 3 changes only BlockParent and BlockLocal)
         RE::GFxValue BlockClip(RE::GFxValue& a_widget, const BlockId& a_id)
         {
-            return Child(a_widget, PanelName(a_id));
+            return Child(BlockParent(a_widget, a_id), PanelName(a_id));
         }
 
         // D4: a stage rect in the coordinates of the block's panel parent. The widget sits at the stage origin, so the same
@@ -2763,7 +2769,7 @@ namespace Widget
         // A block's box clip at its rect
         void Panel(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const BlockId& a_id)
         {
-            auto panel = Draw::Clip(a_widget, PanelName(a_id));
+            auto panel = Draw::Clip(BlockParent(a_widget, a_id), PanelName(a_id));
             if (!panel.IsDisplayObject()) return;
             const auto rect = BlockRect(a_id);
             const auto local = BlockLocal(a_id, rect);
@@ -3384,8 +3390,10 @@ namespace Widget
             // infoSig: the card info object's own fields only - sub (school) and footRight (cast type) can be filled from the
             // selected form, so they would make a stale card look updated (review v7 round 2)
             const auto infoSig = std::format("{}|{}|{}|{}|{}", view.type, view.name, view.words, view.effects, view.footLeft);
-            // blocks plan D11: the card's rect is in it too - a new width (or the tab's grown height) draws the card again
-            const auto cardRect = OwnCardRect();
+            // blocks plan D11: the card's rect is in it too - a new width (or the tab's grown height) draws the card again. With
+            // our card on, Rearrange arranged with it (own = OwnCard(), again at each tab change and the fallback), so this is
+            // OwnCardRect() without a new Arrange per frame
+            const auto cardRect = BlockRect(Layout::kSpellCard);
             const auto sig = show ? std::format("{}|{}|{:.1f}|{}|{}|{}", static_cast<int>(g_menu.tab), RectText(cardRect), g_menu.rowSize, infoSig,
                                         view.sub, view.footRight)
                                   : std::string{};
