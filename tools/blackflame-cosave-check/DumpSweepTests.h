@@ -65,7 +65,31 @@ namespace DumpSweepTests
         a_check(all.files == 3 && all.failed == 0 && fs::exists(root) && fs::is_empty(root),
             "dump sweep: an empty stamp set (nothing is needed) clears the dump, the root stays");
         const auto none = Sweep::RemoveUnstamped(a_dir / "dump-sweep" / "missing", stamped);
-        a_check(none.files == 0 && none.failed == 0, "dump sweep: a missing dump folder removes nothing");
+        a_check(none.files == 0 && none.failed == 0 && !none.refused, "dump sweep: a missing dump folder removes nothing");
+
+        // review Codex: Windows folds non-ASCII case too ("\xC3\x89" is U+00C9, "\xC3\xA9" U+00E9)
+        Put(root / fs::path(L"textures\\Éffects\\a.dds"), "A");
+        const auto accented = Sweep::RemoveUnstamped(root, { "textures\\\xC3\xA9" "ffects\\a.dds" });
+        a_check(accented.files == 0 && fs::exists(root / fs::path(L"textures\\Éffects\\a.dds")),
+            "dump sweep: a stamp naming a folder in another non-ASCII case is the same file (kept)");
+
+        // review Codex: nothing under a junction is looked at - the root itself or one inside it
+        const auto outside = a_dir / "dump-sweep" / "outside";
+        Put(outside / "precious.txt", "keep me");
+        const auto junctionRoot = a_dir / "dump-sweep" / "junction-root";
+        const auto inner = root / "linked";
+        const auto mklink = [](const fs::path& a_link, const fs::path& a_target) {
+            const std::wstring command = L"cmd /c mklink /J \"" + a_link.wstring() + L"\" \"" + a_target.wstring() + L"\" >nul";
+            return _wsystem(command.c_str()) == 0;
+        };
+        const bool linked = mklink(junctionRoot, outside) && mklink(inner, outside);
+        const auto viaRoot = Sweep::RemoveUnstamped(junctionRoot, {});
+        const auto viaInner = Sweep::RemoveUnstamped(root, {});
+        a_check(linked && viaRoot.refused && viaRoot.files == 0 && viaInner.failed == 0 && fs::exists(outside / "precious.txt"),
+            "dump sweep: a dump folder that is a junction is refused, and a junction inside it is left alone (its target's files stay)");
+        std::error_code ec;
+        fs::remove(junctionRoot, ec);  // the junctions themselves, never their target's files
+        fs::remove(inner, ec);
         fs::remove_all(a_dir / "dump-sweep");
     }
 }

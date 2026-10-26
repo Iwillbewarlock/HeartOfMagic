@@ -90,7 +90,9 @@ namespace BlackFlame::CopyRequestV5
                 // (disk trim, first run 2026-10-26: 149 files, 45 MiB) files of sources no plan names any more stay under
                 // data\ for good - the dump only visits planned paths. What the manifest does not stamp goes
                 const auto swept = RemoveUnstamped(a_folder);
-                if (swept.files > 0 || swept.failed > 0) {
+                if (swept.refused) {
+                    state += "; old files not swept: the dump folder is a link or junction";
+                } else if (swept.files > 0 || swept.failed > 0) {
                     state += std::format("; {} old file(s) no plan names removed ({} MiB){}", swept.files, swept.bytes / CopyRequestData::kMiB,
                         swept.failed > 0 ? std::format(", {} would not delete", swept.failed) : std::string());
                 }

@@ -439,7 +439,7 @@ namespace BlackFlame::CopyRequestDump
         }
         std::set<std::string> stamped;
         for (const auto& [path, stamp] : manifest[kFilesKey].items()) {
-            stamped.insert(DumpSweep::LowerAscii(path));
+            stamped.insert(path);
         }
         return DumpSweep::RemoveUnstamped(LongPath(a_folder / kDumpRoot), stamped);
     }
