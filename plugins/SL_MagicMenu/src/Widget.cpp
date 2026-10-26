@@ -592,6 +592,7 @@ namespace Widget
             std::array<std::optional<Settings::Rect>, Layout::kColumns> masked;  // each column's area as its mask was last drawn
             int wheelScrolls = 0, wheelZoomsKept = 0;  // wheel notches that scrolled a column / zooms of SkyUI's kept from firing
             bool wheelInstallDone = false;
+            int wheelInstallLeft = kSelectionInstallFrames;  // frames InstallWheel waits for Menu_mc's wheel handler
             int nodeClicks = 0, nodeClicksOutside = 0;  // node clicks this menu, and those outside the tree's visible column area
             std::optional<Settings::Rect> cardSlot;
             double previewAlpha = 0.0;       // the preview box's fill alpha (0: see-through, no over-pass)
@@ -3063,7 +3064,13 @@ namespace Widget
         // removed at close: RemoveWheelListener) and the zoom wrap. Either missing is logged; the other still works
         void InstallWheel(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
-            if (std::exchange(g_menu.wheelInstallDone, true)) return;
+            if (g_menu.wheelInstallDone) return;
+            // tried for kSelectionInstallFrames frames until Menu_mc's wheel handler is there (as the selection wrap is); then
+            // whatever is there is used and what is missing is logged
+            RE::GFxValue probe, probeWheel;
+            const bool menuReady = a_movie->GetVariable(&probe, kMenuPath) && probe.IsObject() && probe.GetMember(kWheelName, &probeWheel) && probeWheel.IsObject();
+            if (!menuReady && --g_menu.wheelInstallLeft > 0) return;
+            g_menu.wheelInstallDone = true;
             RE::GFxValue mouse, existing;
             if (a_widget.GetMember(kWheelListener, &existing) && existing.IsObject()) {
                 logger::info("Widget: wheel listener already on this movie");
