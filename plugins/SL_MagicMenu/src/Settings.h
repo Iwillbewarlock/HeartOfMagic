@@ -49,6 +49,9 @@ namespace Settings
         // spec v13 A2: the over-pass puts the box's alpha back after drawing the art (the target is composited later by its
         // alpha over the world: the art raising it was the dark cloud); 0 = build 11's drawing exactly (A4)
         bool keepPanelAlpha = true;
+        // spec v13 B1 as a switch (user 2026-10-26: the Shouts and Powers tabs should show the preview too): 1 = no 3D on the
+        // Powers tab (build 13's rule), 0 = the Powers tab previews its 3D like the spell tabs (the default since build 15)
+        bool hidePowers3D = false;
 
         // [Keys] DirectInput scan codes. Chosen by the build-5 key scan of the installed mods
         // (docs/superpowers/specs/v5-key-scan.md): R (19) is Spell Organizer's remove-spell key in this menu and

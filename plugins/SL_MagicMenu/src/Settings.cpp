@@ -371,6 +371,7 @@ namespace Settings
         ReadBool(path, L"General", L"bHideBackdrop", v.hideBackdrop);
         ReadBool(path, L"General", L"bHideGlow", v.hideGlow);
         ReadBool(path, L"Preview", L"bKeepPanelAlpha", v.keepPanelAlpha);
+        ReadBool(path, L"Preview", L"bHidePowers3D", v.hidePowers3D);
         ReadNumber(path, L"Keys", L"iNext", v.keyNext, 1u, kMaxScanCode);
         ReadNumber(path, L"Keys", L"iSetTarget", v.keySetTarget, 1u, kMaxScanCode);
         ReadNumber(path, L"Keys", L"iLayout", v.keyLayout, 1u, kMaxScanCode);
@@ -405,9 +406,9 @@ namespace Settings
         g_values = v;
 
         logger::info("Settings: enabled {} selfTest {} movePreview {} moveItemCard {} drawPreviewOver {} previewUnlearned {} hideGamePass {} "
-                     "clipPreview {} ownCard {} hideBackdrop {} hideGlow {} keepPanelAlpha {} keys next {} setTarget {} layout {} gamepad layout {}",
+                     "clipPreview {} ownCard {} hideBackdrop {} hideGlow {} keepPanelAlpha {} hidePowers3D {} keys next {} setTarget {} layout {} gamepad layout {}",
             v.enabled, v.selfTest, v.movePreview, v.moveItemCard, v.drawPreviewOver, v.previewUnlearned, v.hideGamePass, v.clipPreview,
-            v.ownCard, v.hideBackdrop, v.hideGlow, v.keepPanelAlpha, v.keyNext, v.keySetTarget, v.keyLayout, v.gamepadLayout);
+            v.ownCard, v.hideBackdrop, v.hideGlow, v.keepPanelAlpha, v.hidePowers3D, v.keyNext, v.keySetTarget, v.keyLayout, v.gamepadLayout);
         LogRect("preview  ", v.preview);
         LogRect("  3D area", PanelContent(v.preview));
         LogRect("tree     ", v.tree);

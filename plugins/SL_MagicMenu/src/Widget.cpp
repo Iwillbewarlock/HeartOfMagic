@@ -6472,7 +6472,8 @@ namespace Widget
             const bool first = !g_menu.tabFlag.has_value();
             g_menu.tabFlag = tab.flag;
             g_menu.tab = tab.kind;
-            g_hide3D = tab.flag == kFlagPowers;  // spec v13 B1: Powers only, not Shouts (64)
+            // spec v13 B1: Powers only, not Shouts (64); off by default since build 15 (ini bHidePowers3D)
+            g_hide3D = Settings::Get().hidePowers3D && tab.flag == kFlagPowers;
             if (g_hide3D && !std::exchange(g_menu.powersHideLogged, true)) logger::info("Widget: Powers tab: 3D hidden (user 2026-10-26)");
             logger::info("Widget: category flag {} ({})", tab.flag,
                 tab.kind == Tab::kSchool ? tab.school : tab.kind == Tab::kPowers ? "powers/shouts: no tree" :
