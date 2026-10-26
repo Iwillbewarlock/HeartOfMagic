@@ -2,6 +2,11 @@
 
 #include <cstdint>
 
+namespace Layout
+{
+    struct State;  // Layout.h (it includes this header, so only declared here)
+}
+
 // =============================================================================
 // SETTINGS - Data/SKSE/Plugins/SL_MagicMenu.ini, read once at plugin load.
 // Every value has a default here; a missing or bad key keeps the default and
@@ -93,9 +98,14 @@ namespace Settings
         return { a_panel.left + kPanelPad, a_panel.top + kPanelTitleH + kPanelPad, a_panel.right - kPanelPad, a_panel.bottom - kPanelPad };
     }
 
-    /// Reads the ini (call once, at plugin load). Logs the values used.
+    /// Reads the ini and then the layout file (call once, at plugin load). Logs the values used.
     void Load();
 
     /// The values read by Load() (defaults before it).
     const Values& Get();
+
+    /// The block layout read by Load() from Data/SKSE/Plugins/SL_MagicMenu_Layout.json (blocks plan Task 2): repaired
+    /// (Layout::Repair), Layout::Default(Get()) when the file is missing, broken or from a newer build. Read only: this build
+    /// never writes the file.
+    const Layout::State& SavedLayout();
 }

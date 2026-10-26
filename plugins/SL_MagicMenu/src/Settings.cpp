@@ -2,11 +2,16 @@
 
 #include "Settings.h"
 
+#include "Layout.h"
+
 #include <array>
 #include <charconv>
 #include <cmath>
 #include <filesystem>
+#include <format>
+#include <fstream>
 #include <optional>
+#include <set>
 #include <string>
 #include <system_error>
 #include <type_traits>
@@ -16,6 +21,9 @@ namespace Settings
     namespace
     {
         constexpr const wchar_t* kIniRelative = L"Data/SKSE/Plugins/SL_MagicMenu.ini";
+        constexpr const wchar_t* kLayoutRelative = L"Data/SKSE/Plugins/SL_MagicMenu_Layout.json";
+        // a layout file is a few hundred bytes; anything far bigger is not one (read no further)
+        constexpr std::uintmax_t kMaxLayoutBytes = 64 * 1024;
         constexpr std::uint32_t kValueChars = 64;
         constexpr std::uint32_t kMaxScanCode = 255;
         constexpr double kMinTreeScale = 0.01, kMaxTreeScale = 10.0;
@@ -25,17 +33,24 @@ namespace Settings
         constexpr double kMaxPanelGap = 110.0;
 
         Values g_values;
+        Layout::State g_layout;
 
         // An absolute path: GetPrivateProfileString looks a bare relative name up in the Windows folder
-        std::wstring IniPath()
+        std::wstring GameDataPath(const wchar_t* a_relative)
         {
             std::error_code ec;
             auto dir = std::filesystem::current_path(ec);
             if (ec) {
-                logger::warn("Settings: no current folder ({}), reading the ini by its relative name", ec.message());
-                return kIniRelative;
+                logger::warn("Settings: no current folder ({}), reading {} by its relative name", ec.message(),
+                    SKSE::stl::utf16_to_utf8(a_relative).value_or("?"));
+                return a_relative;
             }
-            return (dir / kIniRelative).wstring();
+            return (dir / a_relative).wstring();
+        }
+
+        std::wstring IniPath()
+        {
+            return GameDataPath(kIniRelative);
         }
 
         // The raw text of a key, nullopt when the key is missing or empty (ASCII values only)
@@ -121,6 +136,53 @@ namespace Settings
         {
             logger::info("Settings:   {} x {:.0f}..{:.0f} y {:.0f}..{:.0f}", a_name, a_rect.left, a_rect.right, a_rect.top, a_rect.bottom);
         }
+
+        std::string Columns(const Layout::State& a_state)
+        {
+            std::string text;
+            for (const auto& column : a_state.columns) {
+                text += text.empty() ? "{" : " / {";
+                for (std::size_t i = 0; i < column.size(); ++i) text += (i > 0 ? ", " : "") + column[i];
+                text += "}";
+            }
+            return text;
+        }
+
+        // blocks plan Task 2: the layout file, read once and never written by this build. Missing, unreadable, not a layout
+        // or from a newer build: the default layout (one log line each); otherwise repaired against the default
+        Layout::State LoadLayout(const Values& a_values)
+        {
+            const auto fallback = Layout::Default(a_values);
+            const std::set<Layout::BlockId> known{ Layout::kPreview, Layout::kTree, Layout::kProgress, Layout::kSpellCard, Layout::kNodeCard };
+            const std::filesystem::path path = GameDataPath(kLayoutRelative);
+            const auto shown = SKSE::stl::utf16_to_utf8(path.wstring()).value_or("(path not UTF-8)");
+            std::error_code ec;
+            if (!std::filesystem::exists(path, ec)) {
+                logger::info("Settings: layout {} not found - the default layout", shown);
+                return fallback;
+            }
+            const auto bytes = std::filesystem::file_size(path, ec);
+            if (ec || bytes > kMaxLayoutBytes) {
+                logger::warn("Settings: layout {} {} - the default layout", shown,
+                    ec ? std::format("has no readable size ({})", ec.message()) : std::format("is {} bytes, more than {}", bytes, kMaxLayoutBytes));
+                return fallback;
+            }
+            std::ifstream file(path, std::ios::binary);
+            std::string text(static_cast<std::size_t>(bytes), char{});
+            if (!file || !file.read(text.data(), static_cast<std::streamsize>(text.size()))) {
+                logger::warn("Settings: layout {} could not be read - the default layout", shown);
+                return fallback;
+            }
+            std::string why;
+            bool newer = false;
+            const auto parsed = Layout::FromJson(text, &why, &newer);
+            if (!parsed) {
+                logger::warn("Settings: layout {} {}: {} - the default layout{}", shown, newer ? "is from a newer build" : "is not a layout", why,
+                    newer ? " (the file is left as it is)" : "");
+                return fallback;
+            }
+            return Layout::Repair(*parsed, known, fallback);
+        }
     }
 
     void Load()
@@ -176,15 +238,24 @@ namespace Settings
         LogRect("progress ", v.progress);
         LogRect("item card", v.itemCard);
         LogRect("node card", v.nodeCard);
-        logger::info("Settings:   panel gap {} (the item card under the preview on Powers/Shouts)", v.panelGap);
+        logger::info("Settings:   panel gap {} (between the blocks of a column and between the columns)", v.panelGap);
         // the values applied (spec v10 T2: an ini from an earlier build keeps its own fTreeScale over the new default)
         logger::info("Settings:   tree scale {} (stage units per tree unit; default {}), mark scale {} (default {}), steps {}, max nodes {} "
                      "(default {})",
             v.treeScale, Values{}.treeScale, v.treeMarkScale, Values{}.treeMarkScale, v.maxSteps, v.maxNodes, Values{}.maxNodes);
+
+        g_layout = LoadLayout(v);
+        logger::info("Settings:   layout columns {} border {:.0f}{} (the rects above are the blocks' default sizes and places)", Columns(g_layout),
+            g_layout.border, g_layout == Layout::Default(v) ? " - the default layout" : "");
     }
 
     const Values& Get()
     {
         return g_values;
+    }
+
+    const Layout::State& SavedLayout()
+    {
+        return g_layout;
     }
 }

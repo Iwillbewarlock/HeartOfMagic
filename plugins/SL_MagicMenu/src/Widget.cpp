@@ -5,6 +5,7 @@
 #include "Draw.h"
 #include "Hom.h"
 #include "HomStyle.h"
+#include "Layout.h"
 #include "LayoutMath.h"
 #include "Preview.h"
 #include "SelectionRule.h"
@@ -22,6 +23,7 @@
 #include <functional>
 #include <iterator>
 #include <limits>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -573,6 +575,11 @@ namespace Widget
             std::string ownCardSig;          // what it shows (tab, type, texts, sizes); "" = nothing shown
             bool ownCardShown = false;
             double ownCardBottom = 0.0;      // its panel's bottom in stage units as last drawn
+            // the block layout (blocks plan Task 2): this tab's arranged rects, the same with nothing hidden (where a hidden
+            // block sits), each panel's rect as last placed (a width change redraws it, D11) and SkyUI's card slot as last fitted
+            std::map<Layout::BlockId, Settings::Rect> blocks, blocksAll, placed;
+            std::optional<Settings::Rect> cardSlot;
+            double previewAlpha = 0.0;       // the preview box's fill alpha (0: see-through, no over-pass)
             bool skyCardHidden = false;      // SkyUI's card holder was hidden by us this menu
             std::optional<double> moreHudAlpha;  // moreHUD's card clip: its alpha before we made it transparent this menu
             bool chosen = false;             // a list row is highlighted or a tree card is up (WatchChosen)
@@ -1443,33 +1450,111 @@ namespace Widget
             return std::pair{ *card, holder };
         }
 
-        // The item card's slot: under the progress card; on Powers/Shouts (no progress card) right under the preview,
-        // fPanelGap below it, the same height (user 2026-10-25)
-        Settings::Rect CardRect()
-        {
-            const auto& settings = Settings::Get();
-            if (g_menu.tab != Tab::kPowers) return settings.itemCard;
-            const double top = settings.preview.bottom + settings.panelGap;
-            return { settings.itemCard.left, top, settings.itemCard.right, top + settings.itemCard.Height() };
-        }
-
         // v7 C1: our own info card replaces SkyUI's (bOwnCard=1), not while Inventory Reforged runs its panel here
         bool OwnCard()
         {
             return Settings::Get().ownCard && !g_menu.irActive && !g_menu.ownCardFallback;
         }
 
-        // Our card's box per tab (C2): the card slot under the progress card on the spell tabs; on Powers/Shouts the progress
-        // card's and the slot's room together, under the preview; on Active Effects the left column from the preview's top
-        // (the panel is then cut to its content)
+        // ---------------------------------------------------------------------
+        // Blocks (blocks plan Task 2): every panel's rect comes from the saved layout (Layout::Arrange). The ini rects are
+        // the blocks' default sizes and places; at the default layout every rect is build 13's (SelfTest L1)
+        // ---------------------------------------------------------------------
+
+        using Layout::BlockId;
+        constexpr std::array<const char*, 5> kBlocks{ Layout::kPreview, Layout::kTree, Layout::kProgress, Layout::kSpellCard, Layout::kNodeCard };
+        constexpr double kRectTolerance = 0.01;  // stage units: two rects this close are the same place
+
+        bool SameRect(const Settings::Rect& a_a, const Settings::Rect& a_b)
+        {
+            return std::abs(a_a.left - a_b.left) <= kRectTolerance && std::abs(a_a.top - a_b.top) <= kRectTolerance &&
+                   std::abs(a_a.right - a_b.right) <= kRectTolerance && std::abs(a_a.bottom - a_b.bottom) <= kRectTolerance;
+        }
+
+        std::string RectText(const Settings::Rect& a_rect)
+        {
+            return std::format("{:.0f},{:.0f}..{:.0f},{:.0f}", a_rect.left, a_rect.top, a_rect.right, a_rect.bottom);
+        }
+
+        // A block's ini rect (its default size and place)
+        Settings::Rect IniRect(const Settings::Values& a_values, const BlockId& a_id)
+        {
+            if (a_id == Layout::kPreview) return a_values.preview;
+            if (a_id == Layout::kTree) return a_values.tree;
+            if (a_id == Layout::kProgress) return a_values.progress;
+            if (a_id == Layout::kNodeCard) return a_values.nodeCard;
+            return a_values.itemCard;
+        }
+
+        // The blocks a tab hides (D6, build 13's tab rules): Powers/Shouts the tree, the progress card and the node card; Active
+        // Effects the preview too. Hidden blocks close up (Arrange). The progress card's hide on a spell tab with no school is
+        // not one of these: it is only made invisible (ApplyVisibility) and keeps its slot, as in build 13 (the card under it
+        // stays where it is)
+        std::set<BlockId> TabHidden(Tab a_tab)
+        {
+            switch (a_tab) {
+            case Tab::kPowers: return { Layout::kTree, Layout::kProgress, Layout::kNodeCard };
+            case Tab::kEffects: return { Layout::kPreview, Layout::kTree, Layout::kProgress, Layout::kNodeCard };
+            default: return {};
+            }
+        }
+
+        struct Arrangement
+        {
+            std::set<BlockId> hidden, fill;
+        };
+
+        // What Arrange is given on a tab (D6). Our card (a_own) fills the rest of its column: Powers/Shouts 317 and Active
+        // Effects 556 high at the E2 rects (build 13's OwnCardRect). SkyUI's fitted card (bOwnCard=0) keeps its height, and on
+        // Active Effects the spell tabs' slot (build 13's CardRect moved it on Powers/Shouts only; nothing of ours shows there)
+        Arrangement ArrangementFor(Tab a_tab, bool a_own)
+        {
+            if (!a_own && a_tab == Tab::kEffects) return {};
+            return { TabHidden(a_tab), a_own ? std::set<BlockId>{ Layout::kSpellCard } : std::set<BlockId>{} };
+        }
+
+        // Unscrolled stage rects (no column scrolls before Task 3)
+        std::map<BlockId, Settings::Rect> ArrangeBlocks(const Arrangement& a_arrangement)
+        {
+            const auto& settings = Settings::Get();
+            return Layout::Arrange(Settings::SavedLayout(), Layout::DefaultHeights(settings), a_arrangement.hidden, a_arrangement.fill,
+                Layout::DefaultFrames(settings));
+        }
+
+        // The block's current rect in stage units (Rearrange's; scroll 0 until Task 3 scrolls the columns). A block the tab
+        // hides gets its place with nothing hidden, so its panel still has a size to be drawn in
+        Settings::Rect BlockRect(const BlockId& a_id)
+        {
+            if (const auto it = g_menu.blocks.find(a_id); it != g_menu.blocks.end()) return it->second;
+            if (const auto it = g_menu.blocksAll.find(a_id); it != g_menu.blocksAll.end()) return it->second;
+            return IniRect(Settings::Get(), a_id);  // before the menu's first Rearrange (Repair keeps every block in the layout)
+        }
+
+        // The block is laid out on this tab (D6); ApplyVisibility adds "something chosen" and the progress card's school
+        bool BlockShown(const BlockId& a_id)
+        {
+            return !TabHidden(g_menu.tab).contains(a_id) && g_menu.blocks.contains(a_id);
+        }
+
+        Settings::Rect SpellCardRect(Tab a_tab, bool a_own)
+        {
+            const auto arranged = ArrangeBlocks(ArrangementFor(a_tab, a_own));
+            const auto it = arranged.find(Layout::kSpellCard);
+            return it != arranged.end() ? it->second : IniRect(Settings::Get(), Layout::kSpellCard);
+        }
+
+        // SkyUI's item card slot (bOwnCard=0): the spell card block without growing - under the progress card at the default
+        // layout; on Powers/Shouts (no progress card) right under the preview, the same height (user 2026-10-25)
+        Settings::Rect CardRect()
+        {
+            return SpellCardRect(g_menu.tab, false);
+        }
+
+        // Our card's box per tab (C2): the spell card block, grown to the rest of its column where the tab hides blocks (on
+        // Active Effects the panel is then cut to its content)
         Settings::Rect OwnCardRect()
         {
-            const auto& s = Settings::Get();
-            switch (g_menu.tab) {
-            case Tab::kPowers: return { s.itemCard.left, s.preview.bottom + s.panelGap, s.itemCard.right, s.itemCard.bottom };
-            case Tab::kEffects: return { s.itemCard.left, s.preview.top, s.itemCard.right, s.itemCard.bottom };
-            default: return s.itemCard;
-            }
+            return SpellCardRect(g_menu.tab, true);
         }
 
         std::string StringMember(const RE::GFxValue& a_object, const char* a_member)
@@ -2623,23 +2708,6 @@ namespace Widget
             }
         }
 
-        // A box clip at a stage rect, its title (if any) in the top-left corner
-        void Panel(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const char* a_name, const Settings::Rect& a_rect,
-            const char* a_title, double a_alpha)
-        {
-            auto panel = Draw::Clip(a_widget, a_name);
-            if (!panel.IsDisplayObject()) return;
-            panel.SetMember("_x", a_rect.left);
-            panel.SetMember("_y", a_rect.top);
-            // no border (user 2026-10-25: "각창에 노란 태두리있는거 없애"); the fill alone marks the box
-            Draw::NoLine(panel);
-            Draw::Rect(panel, 0, 0, a_rect.Width(), a_rect.Height(), kPanelFill, a_alpha);
-            if (a_title) {
-                Draw::Text(a_movie, panel, "title", kPad, kPad / 2, a_rect.Width() - 2 * kPad, kTitleH, a_title, kTitleColor,
-                    kTitleSize);
-            }
-        }
-
         RE::GFxValue Child(RE::GFxValue& a_parent, const char* a_name)
         {
             RE::GFxValue child;
@@ -2647,18 +2715,117 @@ namespace Widget
             return child;
         }
 
-        // A panel's fresh "content" child (the old one removed); not a display object when the panel is missing
-        RE::GFxValue Content(RE::GFxValue& a_widget, const char* a_panel)
+        // The block's panel clip name: the spell card's panel is "infocard" (v7 C1), the others are named by their block id
+        const char* PanelName(const BlockId& a_id)
         {
-            auto panel = Child(a_widget, a_panel);
+            return a_id == Layout::kSpellCard ? "infocard" : a_id.c_str();
+        }
+
+        // blocks plan Task 2 / D4: every lookup of a block's panel goes through here. The panels are the widget's own children
+        // for now; Task 3 puts them in column clips and changes only this and BlockLocal
+        RE::GFxValue BlockClip(RE::GFxValue& a_widget, const BlockId& a_id)
+        {
+            return Child(a_widget, PanelName(a_id));
+        }
+
+        // D4: a stage rect in the coordinates of the block's panel parent. The widget sits at the stage origin, so the same
+        // rect for now; Task 3: minus the column clip's place and its scroll
+        Settings::Rect BlockLocal(const BlockId&, const Settings::Rect& a_stage)
+        {
+            return a_stage;
+        }
+
+        // A box's fill and title (if any) in the top-left corner, drawn in the panel's own graphics
+        void DrawPanelBox(RE::GFxMovieView* a_movie, RE::GFxValue& a_panel, const Settings::Rect& a_rect, const char* a_title, double a_alpha)
+        {
+            // no border (user 2026-10-25: "각창에 노란 태두리있는거 없애"); the fill alone marks the box
+            Draw::NoLine(a_panel);
+            Draw::Rect(a_panel, 0, 0, a_rect.Width(), a_rect.Height(), kPanelFill, a_alpha);
+            if (a_title) {
+                Draw::Text(a_movie, a_panel, "title", kPad, kPad / 2, a_rect.Width() - 2 * kPad, kTitleH, a_title, kTitleColor,
+                    kTitleSize);
+            }
+        }
+
+        // A block's box look: the preview's fill per the over-pass (AttachWidget), the titled preview and tree windows
+        const char* PanelTitle(const BlockId& a_id)
+        {
+            if (a_id == Layout::kPreview) return Text(Str::kPreviewTitle);
+            if (a_id == Layout::kTree) return Text(Str::kTreeTitle);
+            return nullptr;
+        }
+
+        double PanelAlpha(const BlockId& a_id)
+        {
+            return a_id == Layout::kPreview ? g_menu.previewAlpha : kPanelAlpha;
+        }
+
+        // A block's box clip at its rect
+        void Panel(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const BlockId& a_id)
+        {
+            auto panel = Draw::Clip(a_widget, PanelName(a_id));
+            if (!panel.IsDisplayObject()) return;
+            const auto rect = BlockRect(a_id);
+            const auto local = BlockLocal(a_id, rect);
+            panel.SetMember("_x", local.left);
+            panel.SetMember("_y", local.top);
+            DrawPanelBox(a_movie, panel, rect, PanelTitle(a_id), PanelAlpha(a_id));
+        }
+
+        // A panel's fresh "content" child (the old one removed); not a display object when the panel is missing
+        RE::GFxValue Content(RE::GFxValue& a_widget, const BlockId& a_id)
+        {
+            auto panel = BlockClip(a_widget, a_id);
             if (!panel.IsDisplayObject()) return {};
             Draw::Remove(panel, "content");
             return Draw::Clip(panel, "content");
         }
 
-        void SetVisible(RE::GFxValue& a_widget, const char* a_panel, bool a_visible)
+        void SetVisible(RE::GFxValue& a_widget, const BlockId& a_id, bool a_visible)
         {
-            if (auto panel = Child(a_widget, a_panel); panel.IsDisplayObject()) panel.SetMember("_visible", a_visible);
+            if (auto panel = BlockClip(a_widget, a_id); panel.IsDisplayObject()) panel.SetMember("_visible", a_visible);
+        }
+
+        // blocks plan Task 2 / D4, D11: this tab's rects worked out again (Arrange) and every panel put at its place - a move
+        // changes _x/_y only. A block whose width changed since it was last placed is drawn again once: its box, the tree's
+        // legend, and the next full redraw (dirty) for the tree, progress and node cards; our card through its signature (it
+        // holds the rect, WatchOwnCard), SkyUI's card through a new fit when its slot moved. The first placing of a menu only
+        // places (the panels are drawn new after it)
+        void Rearrange(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        {
+            g_menu.blocksAll = ArrangeBlocks({});
+            g_menu.blocks = ArrangeBlocks(ArrangementFor(g_menu.tab, OwnCard()));
+            for (const BlockId id : kBlocks) {
+                const auto rect = BlockRect(id);
+                auto panel = BlockClip(a_widget, id);
+                if (panel.IsDisplayObject()) {
+                    const auto local = BlockLocal(id, rect);
+                    panel.SetMember("_x", local.left);
+                    panel.SetMember("_y", local.top);
+                }
+                const auto last = g_menu.placed.find(id);
+                const bool resized = last != g_menu.placed.end() &&
+                                     (std::abs(last->second.Width() - rect.Width()) > kRectTolerance ||
+                                         std::abs(last->second.Height() - rect.Height()) > kRectTolerance);
+                const bool wider = last != g_menu.placed.end() && std::abs(last->second.Width() - rect.Width()) > kRectTolerance;
+                if (resized && panel.IsDisplayObject() && id != Layout::kSpellCard) {  // our card draws its own box (RedrawOwnCard)
+                    Draw::Call(panel, "clear", {});
+                    if (auto title = Child(panel, "title"); title.IsDisplayObject()) title.Invoke("removeTextField");
+                    DrawPanelBox(a_movie, panel, rect, PanelTitle(id), PanelAlpha(id));
+                }
+                if (wider) {
+                    logger::info("Widget: block {} is {:.0f} wide now (was {:.0f}) - drawn again", id, rect.Width(), last->second.Width());
+                    if (id == Layout::kTree && panel.IsDisplayObject()) {
+                        DrawLegend(a_movie, panel, rect.Width(), rect.Height(), g_menu.legendSchool.value_or(std::string{}));
+                    }
+                    if (id == Layout::kTree || id == Layout::kProgress || id == Layout::kNodeCard) g_menu.dirty = true;
+                }
+                g_menu.placed[id] = rect;
+            }
+            // SkyUI's card is fitted to its slot: a moved slot (Powers/Shouts and back, or a new width) is fitted again
+            const auto slot = CardRect();
+            if (g_menu.cardSlot && !SameRect(*g_menu.cardSlot, slot)) g_menu.cardFit.reset();
+            g_menu.cardSlot = slot;
         }
 
         const char* TabName(Tab a_tab)
@@ -2678,24 +2845,84 @@ namespace Widget
         {
             const bool own = OwnCard();
             const bool effects = g_menu.tab == Tab::kEffects;
-            const bool preview = !effects && g_menu.chosen;
-            const bool tree = preview && g_menu.tab != Tab::kPowers;
+            // D6: the tab's hidden blocks (TabHidden) are the ones Arrange closes up; the progress card also waits for a school
+            const bool preview = g_menu.chosen && BlockShown(Layout::kPreview);
+            const bool tree = g_menu.chosen && BlockShown(Layout::kTree);
+            const bool nodeCard = g_menu.chosen && BlockShown(Layout::kNodeCard);
+            const bool progress = g_menu.chosen && BlockShown(Layout::kProgress) && !g_session.school.empty();
             const bool any = g_menu.chosen && (preview || own);
             const bool card = own && g_menu.ownCardShown && g_menu.chosen;
             g_previewShown = preview;  // the over-pass draws the preview only while its box is shown
             a_widget.SetMember("_visible", any);
-            SetVisible(a_widget, "preview", preview);
-            SetVisible(a_widget, "tree", tree);
-            SetVisible(a_widget, "nodecard", tree);
-            SetVisible(a_widget, "progress", tree && !g_session.school.empty());
-            SetVisible(a_widget, "infocard", card);
+            SetVisible(a_widget, Layout::kPreview, preview);
+            SetVisible(a_widget, Layout::kTree, tree);
+            SetVisible(a_widget, Layout::kNodeCard, nodeCard);
+            SetVisible(a_widget, Layout::kProgress, progress);
+            SetVisible(a_widget, Layout::kSpellCard, card);
             // with our card the layout is logged once its first item is drawn on the tab (review v7: not at the tab change)
             if (g_menu.chosen && (!own || card) && g_menu.c2Logged.insert(static_cast<int>(g_menu.tab)).second) {
                 const auto rect = OwnCardRect();
                 SelfTest(std::format("C2 tab {} layout - preview {}, tree {}, progress {}, node card {}, our card {} at {:.0f},{:.0f}..{:.0f},{:.0f}{}",
-                    TabName(g_menu.tab), preview ? "on" : "off", tree ? "on" : "off", tree && !g_session.school.empty() ? "on" : "off",
-                    tree ? "on" : "off", !own ? "off (bOwnCard=0, Inventory Reforged or no card info)" : "shown", rect.left, rect.top,
+                    TabName(g_menu.tab), preview ? "on" : "off", tree ? "on" : "off", progress ? "on" : "off",
+                    nodeCard ? "on" : "off", !own ? "off (bOwnCard=0, Inventory Reforged or no card info)" : "shown", rect.left, rect.top,
                     rect.right, own ? g_menu.ownCardBottom : rect.bottom, effects ? " (cut to its content)" : ""));
+            }
+        }
+
+        // SelfTest L1 reference (blocks plan Task 2 / D6): build 13's panel rects per tab - its CardRect, OwnCardRect and
+        // ApplyVisibility (Widget.cpp at 683a5e99 :1448, :1465, :2677) and the panels at the ini rects (:5111) - kept only as
+        // this test's formulas over the ini rects. nullopt: the block is not shown on that tab
+        std::optional<Settings::Rect> Build13Rect(Tab a_tab, bool a_own, const BlockId& a_id)
+        {
+            const auto& s = Settings::Get();
+            const bool powers = a_tab == Tab::kPowers, effects = a_tab == Tab::kEffects;
+            if (a_id == Layout::kSpellCard) {
+                const auto& card = s.itemCard;
+                if (a_own && powers) return Settings::Rect{ card.left, s.preview.bottom + s.panelGap, card.right, card.bottom };
+                if (a_own && effects) return Settings::Rect{ card.left, s.preview.top, card.right, card.bottom };
+                if (!a_own && powers) {
+                    const double top = s.preview.bottom + s.panelGap;
+                    return Settings::Rect{ card.left, top, card.right, top + card.Height() };
+                }
+                return card;
+            }
+            if (a_id == Layout::kPreview) {
+                if (effects) return std::nullopt;
+                return s.preview;
+            }
+            if (powers || effects) return std::nullopt;
+            return IniRect(s, a_id);
+        }
+
+        // SelfTest L1 (blocks plan Task 2, D6): each tab's arranged rects (our card and SkyUI's) logged, PASS when they are build
+        // 13's (Build13Rect), FAIL with the differences; SKIP when the layout file is not the default layout (its rects differ by
+        // design). The ini and the layout file are read once per game session, so this runs at the first menu open only
+        void CheckLayoutRects()
+        {
+            static bool s_checked = false;
+            if (!Settings::Get().selfTest || std::exchange(s_checked, true)) return;
+            const bool custom = !(Settings::SavedLayout() == Layout::Default(Settings::Get()));
+            constexpr std::array kTabs{ Tab::kFollow, Tab::kSchool, Tab::kPowers, Tab::kEffects };
+            for (const Tab tab : kTabs) {
+                for (const bool own : { true, false }) {
+                    const auto arranged = ArrangeBlocks(ArrangementFor(tab, own));
+                    const auto hidden = TabHidden(tab);
+                    std::string rects, diffs;
+                    for (const BlockId id : kBlocks) {
+                        const auto it = arranged.find(id);
+                        const bool shown = id == Layout::kSpellCard || !hidden.contains(id);  // the card's showing is WatchOwnCard's
+                        const std::optional<Settings::Rect> now = shown && it != arranged.end() ? std::optional{ it->second } : std::nullopt;
+                        const auto then = Build13Rect(tab, own, id);
+                        rects += std::format(" {} {}", id, now ? RectText(*now) : std::string("hidden"));
+                        if (now.has_value() != then.has_value() || (now && !SameRect(*now, *then))) {
+                            diffs += std::format("; {} {} (build 13 {})", id, now ? RectText(*now) : std::string("hidden"),
+                                then ? RectText(*then) : std::string("hidden"));
+                        }
+                    }
+                    const char* verdict = custom ? "SKIP" : diffs.empty() ? "PASS" : "FAIL";
+                    SelfTest(std::format("L1 layout {} {} ({}) -{}{}{}", TabName(tab), verdict, own ? "our card" : "SkyUI's card", rects,
+                        custom ? " (the layout file is not the default layout: build 13's rects are no reference)" : "", custom ? "" : diffs));
+                }
             }
         }
 
@@ -2705,7 +2932,7 @@ namespace Widget
         // SkyUI's card stays as it is (data, fade flag and timeline untouched); only its fade holder is hidden.
         // ---------------------------------------------------------------------
 
-        RE::GFxValue ContentChild(RE::GFxValue& a_widget, const char* a_panel, const char* a_name, RE::GFxValue& a_content);  // with the L2 read-backs
+        RE::GFxValue ContentChild(RE::GFxValue& a_widget, const BlockId& a_id, const char* a_name, RE::GFxValue& a_content);  // with the L2 read-backs
 
         struct CardView
         {
@@ -3013,12 +3240,13 @@ namespace Widget
         // a rule and the footer (cost left, cast type right); with a_fit the panel ends under its content
         void RedrawOwnCard(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const CardView& a_view, const Settings::Rect& a_rect, bool a_fit)
         {
-            auto panel = Child(a_widget, "infocard");
+            auto panel = BlockClip(a_widget, Layout::kSpellCard);
             if (!panel.IsDisplayObject()) return;
             Draw::Call(panel, "clear", {});
-            panel.SetMember("_x", a_rect.left);
-            panel.SetMember("_y", a_rect.top);
-            auto content = Content(a_widget, "infocard");
+            const auto local = BlockLocal(Layout::kSpellCard, a_rect);
+            panel.SetMember("_x", local.left);
+            panel.SetMember("_y", local.top);
+            auto content = Content(a_widget, Layout::kSpellCard);
             if (!content.IsDisplayObject()) return;
             content.SetMember("_x", kPad);
             const double w = a_rect.Width() - 2 * kPad, maxH = a_rect.Height();
@@ -3094,7 +3322,7 @@ namespace Widget
                 return a_text;
             };
             RE::GFxValue content, label;
-            auto field = ContentChild(a_widget, "infocard", "desc", content);
+            auto field = ContentChild(a_widget, Layout::kSpellCard, "desc", content);
             auto card = FindCard(a_movie);
             const char* labelName = a_type == kTypeShout ? "ShoutEffectsLabel" : "MagicEffectsLabel";
             if (!card || !card->GetMember(labelName, &label) || !label.IsDisplayObject()) return std::format("SKIP (SkyUI's {} not on its card)", labelName);
@@ -3156,7 +3384,10 @@ namespace Widget
             // infoSig: the card info object's own fields only - sub (school) and footRight (cast type) can be filled from the
             // selected form, so they would make a stale card look updated (review v7 round 2)
             const auto infoSig = std::format("{}|{}|{}|{}|{}", view.type, view.name, view.words, view.effects, view.footLeft);
-            const auto sig = show ? std::format("{}|{:.1f}|{}|{}|{}", static_cast<int>(g_menu.tab), g_menu.rowSize, infoSig, view.sub, view.footRight)
+            // blocks plan D11: the card's rect is in it too - a new width (or the tab's grown height) draws the card again
+            const auto cardRect = OwnCardRect();
+            const auto sig = show ? std::format("{}|{}|{:.1f}|{}|{}|{}", static_cast<int>(g_menu.tab), RectText(cardRect), g_menu.rowSize, infoSig,
+                                        view.sub, view.footRight)
                                   : std::string{};
 
             const auto [selection, expected] = CardSelection(a_movie);
@@ -3186,6 +3417,7 @@ namespace Widget
                     }
                     logger::warn("Widget: C1 no card info for selection {} in {} frames - SkyUI's own card is back for this menu", selection, kC1NoInfoFrames);
                     SelfTest(std::format("C1 card FAIL - no card info object for {} frames; fell back to SkyUI's card", kC1NoInfoFrames));
+                    Rearrange(a_movie, a_widget);  // SkyUI's card does not fill its column (ArrangementFor)
                     ApplyVisibility(a_widget);
                     return;
                 }
@@ -3200,7 +3432,7 @@ namespace Widget
                         const bool known = view.type == kTypeSpell || view.type == kTypePower || view.type == kTypeShout || view.type == kTypeEffect;
                         logger::info("Widget: C1 card type {}{} - fields: {}", view.type, known ? "" : " (not known: name and description only)", KeysOf(info));
                     }
-                    RedrawOwnCard(a_movie, a_widget, view, OwnCardRect(), g_menu.tab == Tab::kEffects);
+                    RedrawOwnCard(a_movie, a_widget, view, cardRect, g_menu.tab == Tab::kEffects);
                 }
                 ApplyVisibility(a_widget);
             }
@@ -3216,7 +3448,7 @@ namespace Widget
             if (show && named && (updated || identity)) {
                 g_menu.c1Pending = false;
                 RE::GFxValue content;
-                auto field = ContentChild(a_widget, "infocard", "name", content);
+                auto field = ContentChild(a_widget, Layout::kSpellCard, "name", content);
                 const auto shown = field.IsDisplayObject() ? StringMember(field, "text") : std::string("(no field)");
                 const bool cut = shown.size() > 3 && shown.ends_with(kEllipsis) && view.name.starts_with(shown.substr(0, shown.size() - 3));
                 const bool pass = shown == view.name || cut;
@@ -3686,7 +3918,7 @@ namespace Widget
         void DropStaleHover(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
             if (g_menu.hovered < 0) return;
-            auto panel = Child(a_widget, "tree");
+            auto panel = BlockClip(a_widget, Layout::kTree);
             auto content = panel.IsDisplayObject() ? Child(panel, "content") : RE::GFxValue{};
             const auto name = std::format("n{}", g_menu.hovered);
             auto clip = content.IsDisplayObject() ? Child(content, name.c_str()) : RE::GFxValue{};
@@ -3711,26 +3943,27 @@ namespace Widget
             }
             g_menu.shown.clear();
             g_menu.drawn.clear();
-            auto content = Content(a_widget, "tree");
+            auto content = Content(a_widget, Layout::kTree);
             if (!content.IsDisplayObject()) {
                 RecheckHover(hoveredAt);
                 return;
             }
             const auto& settings = Settings::Get();
-            const auto frame = Settings::TreeContent(settings.tree);
+            const auto treeRect = BlockRect(Layout::kTree);
+            const auto frame = Settings::TreeContent(treeRect);
             content.SetMember("_x", frame.cx);
             content.SetMember("_y", frame.cy);
             // T7.1: a list selection without a tree node keeps the previous centre (design), drawn dimmed so it is not taken for
             // the selection's tree; the note goes in a clip of its own over the content, at full strength
             content.SetMember("_alpha", g_menu.notInTree ? kDimTreeAlpha : Draw::kAlphaFull);
-            auto treePanel = Child(a_widget, "tree");
+            auto treePanel = BlockClip(a_widget, Layout::kTree);
             if (treePanel.IsDisplayObject()) Draw::Remove(treePanel, "overlay");
             if (g_menu.notInTree && treePanel.IsDisplayObject()) {
                 auto overlay = Draw::Clip(treePanel, "overlay");
                 // in the title strip, right of the title: the reading size as far as the strip's height allows
                 const auto text = Text(Str::kTreeNotInTree);
                 const auto note = overlay.IsDisplayObject() ?
-                                      FitLine(a_movie, overlay, "note", kPad, kPad / 2, settings.tree.Width() - 2 * kPad,
+                                      FitLine(a_movie, overlay, "note", kPad, kPad / 2, treeRect.Width() - 2 * kPad,
                                           std::min(Size(kNoteSize), (kTitleH - kGutter) / g_menu.lineFirst), text, kDimText, "right") :
                                       RE::GFxValue{};
                 Q2State(Str::kTreeNotInTree, text, &note);
@@ -3748,7 +3981,7 @@ namespace Widget
             const auto style = CurrentStyle();
             // the legend in the centre's school shape and colour (T18), drawn again when the school changes
             if (treePanel.IsDisplayObject() && g_menu.legendSchool != centre.school) {
-                DrawLegend(a_movie, treePanel, settings.tree.Width(), settings.tree.Height(), centre.school);
+                DrawLegend(a_movie, treePanel, treeRect.Width(), treeRect.Height(), centre.school);
             }
             if (!style->SchoolShown(centre.school)) {
                 // T17: HoM's schoolVisibility hides this school - nothing of it is drawn
@@ -3833,7 +4066,7 @@ namespace Widget
             {
                 // and no label on the legend strip (DrawLegend's row at its size), which the window's clamp alone can graze
                 // (review round 1 #5)
-                const double legendMid = settings.tree.Height() - Settings::kTreeLegendH / 2 - kPad / 2 - frame.cy;
+                const double legendMid = treeRect.Height() - Settings::kTreeLegendH / 2 - kPad / 2 - frame.cy;
                 const double legendHalf = FieldH(kLegendSize) / 2;
                 labels.push_back({ -frame.halfW - kPad, legendMid - legendHalf, frame.halfW + kPad, legendMid + legendHalf });
             }
@@ -3951,11 +4184,11 @@ namespace Widget
 
         void RedrawProgress(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const Spells::Snapshot& a_snapshot)
         {
-            auto content = Content(a_widget, "progress");
+            auto content = Content(a_widget, Layout::kProgress);
             g_menu.rowAligned = false;
             g_menu.rowAlignNote = "no progress card";
             if (g_session.school.empty() || !content.IsDisplayObject()) return;
-            const auto& rect = Settings::Get().progress;
+            const auto rect = BlockRect(Layout::kProgress);
             const double w = rect.Width() - 2 * kPad;
             content.SetMember("_x", kPad);
 
@@ -3964,7 +4197,7 @@ namespace Widget
             // in the same font, so the title moves down by the tops' difference plus the ascent's difference of the two sizes
             // (the size-14 title under a size-19 name: about 4.5). Applied only when that lands within one title size; a card
             // layout whose tops are far apart is not aligned.
-            const auto& nodeCard = Settings::Get().nodeCard;
+            const auto nodeCard = BlockRect(Layout::kNodeCard);
             const double shift = nodeCard.top - rect.top + g_menu.ascent * (kNameSize - titleSize);
             double offset = shift >= 0 && shift <= titleSize ? shift : 0.0;
             if (g_menu.cutLogged.insert(std::format("l2|{:.2f}", shift)).second) {
@@ -4132,13 +4365,13 @@ namespace Widget
             if (hovered == g_menu.tooltipFor && !g_menu.tooltipDue) return;
             g_menu.tooltipDue = false;
             g_menu.tooltipFor = -1;
-            auto panel = Child(a_widget, "tree");
+            auto panel = BlockClip(a_widget, Layout::kTree);
             if (!panel.IsDisplayObject()) return;
             Draw::Remove(panel, "tooltip");
             const auto it = std::ranges::find_if(g_menu.drawn, [&](const TreeData::PlacedNode& a_placed) { return a_placed.index == hovered; });
             if (hovered < 0 || !Spells::Get() || it == g_menu.drawn.end()) return;
             g_menu.tooltipFor = hovered;
-            const auto& rect = Settings::Get().tree;
+            const auto rect = BlockRect(Layout::kTree);
             const auto frame = Settings::TreeContent(rect);
             const auto& node = Data().tree.nodes[hovered];
             const auto look = Spells::LookOf(a_snapshot, hovered);
@@ -4285,10 +4518,10 @@ namespace Widget
 
         void RedrawNodeCard(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const Spells::Snapshot& a_snapshot)
         {
-            auto content = Content(a_widget, "nodecard");
+            auto content = Content(a_widget, Layout::kNodeCard);
             if (!content.IsDisplayObject()) return;
             const auto& settings = Settings::Get();
-            const auto& rect = settings.nodeCard;
+            const auto rect = BlockRect(Layout::kNodeCard);
             const double w = rect.Width() - 2 * kPad, h = rect.Height();
             content.SetMember("_x", kPad);
             // What the card shows: the clicked (or next-candidate) node; with none, the school's learning target as if it had
@@ -4403,8 +4636,6 @@ namespace Widget
         {
             const auto tab = ReadTab(a_movie);
             if (g_menu.tabFlag && *g_menu.tabFlag == tab.flag) return;
-            // the item card's slot moves between the Powers/Shouts tabs and the others: its transform is worked out again
-            if ((tab.kind == Tab::kPowers) != (g_menu.tab == Tab::kPowers)) g_menu.cardFit.reset();
             const bool first = !g_menu.tabFlag.has_value();
             g_menu.tabFlag = tab.flag;
             g_menu.tab = tab.kind;
@@ -4428,6 +4659,9 @@ namespace Widget
                 SetSchool(tab.school);
                 if (CentreSchool() != tab.school) SetDefaultCentre(tab.school, a_snapshot);
             }
+            // D6: the tab's hidden blocks close up; the item card's slot moves between the Powers/Shouts tabs and the others, so
+            // its transform is worked out again (Rearrange)
+            Rearrange(a_movie, a_widget);
             ApplyVisibility(a_widget);
             g_menu.dirty = true;
         }
@@ -4663,8 +4897,9 @@ namespace Widget
                 best->toRoot, best->stage != g_menu.rowSize ? std::format(" - CLAMPED to {:.0f}..{:.0f}", kListRowMin, kListRowMax) : "",
                 g_menu.rowSize, kListRowFallback);
             g_menu.dirty = true;
-            if (auto tree = Child(a_widget, "tree"); tree.IsDisplayObject()) {
-                DrawLegend(a_movie, tree, Settings::Get().tree.Width(), Settings::Get().tree.Height(), g_menu.legendSchool.value_or(std::string{}));
+            if (auto tree = BlockClip(a_widget, Layout::kTree); tree.IsDisplayObject()) {
+                const auto rect = BlockRect(Layout::kTree);
+                DrawLegend(a_movie, tree, rect.Width(), rect.Height(), g_menu.legendSchool.value_or(std::string{}));
             }
         }
 
@@ -4782,9 +5017,9 @@ namespace Widget
         }
 
         // A panel's "content" child's child, not a display object when any step is missing
-        RE::GFxValue ContentChild(RE::GFxValue& a_widget, const char* a_panel, const char* a_name, RE::GFxValue& a_content)
+        RE::GFxValue ContentChild(RE::GFxValue& a_widget, const BlockId& a_id, const char* a_name, RE::GFxValue& a_content)
         {
-            auto panel = Child(a_widget, a_panel);
+            auto panel = BlockClip(a_widget, a_id);
             a_content = panel.IsDisplayObject() ? Child(panel, "content") : RE::GFxValue{};
             return a_content.IsDisplayObject() ? Child(a_content, a_name) : RE::GFxValue{};
         }
@@ -4795,8 +5030,8 @@ namespace Widget
         {
             if (!Settings::Get().selfTest || g_menu.tab == Tab::kPowers || g_menu.tab == Tab::kEffects) return;  // the cards are hidden
             RE::GFxValue progress, card;
-            auto school = ContentChild(a_widget, "progress", "school", progress);
-            auto name = ContentChild(a_widget, "nodecard", "name", card);
+            auto school = ContentChild(a_widget, Layout::kProgress, "school", progress);
+            auto name = ContentChild(a_widget, Layout::kNodeCard, "name", card);
             if (!g_menu.rowAligned) return L2SelfTest(std::format("L2 baseline SKIP - not aligned: {}", g_menu.rowAlignNote));
             if (!school.IsDisplayObject() || !name.IsDisplayObject()) {
                 return L2SelfTest(std::format("L2 baseline SKIP - no {} to compare", !school.IsDisplayObject() ? "school title" : "spell name on the node card"));
@@ -4825,11 +5060,18 @@ namespace Widget
             if (g_menu.buttonChecked || !Settings::Get().selfTest || g_menu.tab == Tab::kPowers || g_menu.tab == Tab::kEffects) return;
             const bool cardPlaced = g_menu.cardFit.has_value() || g_menu.irActive || !Settings::Get().moveItemCard || (OwnCard() && g_menu.ownCardShown);
             RE::GFxValue content;
-            auto button = ContentChild(a_widget, "nodecard", "button", content);
+            auto button = ContentChild(a_widget, Layout::kNodeCard, "button", content);
             if (!button.IsDisplayObject() || !cardPlaced) return;
             g_menu.buttonChecked = true;
-            const auto& settings = Settings::Get();
-            const double want = settings.itemCard.bottom - kPad;
+            // the E2 rects' row 2 (blocks plan Task 2): the node card and the card slot end at one bottom; a layout that puts
+            // them apart has nothing to line up
+            const auto slot = BlockRect(Layout::kSpellCard), nodeCard = BlockRect(Layout::kNodeCard);
+            if (std::abs(slot.bottom - nodeCard.bottom) > kRectTolerance) {
+                SelfTest(std::format("L2 node button bottom SKIP - the layout ends the node card at {:.0f} and the card slot at {:.0f}", nodeCard.bottom,
+                    slot.bottom));
+                return;
+            }
+            const double want = slot.bottom - kPad;
             // the rect's own bottom (its _y + kButtonH), not the clip's bounds: its centred label can hang below a 28-high rect at
             // large reading sizes (build 6 review round 2 #2)
             const auto top = Number(button, "_y");
@@ -4848,7 +5090,7 @@ namespace Widget
             }
             SelfTest(std::format("L2 node button bottom {} - rect bottom {:.2f} in _root, want {:.0f} (item card slot bottom {:.0f} - padding {:.0f}, "
                                  "tolerance {:.1f}); item card visible bottom {}",
-                std::abs(edge->second - want) <= kBaselineTolerance ? "PASS" : "FAIL", edge->second, want, settings.itemCard.bottom, kPad,
+                std::abs(edge->second - want) <= kBaselineTolerance ? "PASS" : "FAIL", edge->second, want, slot.bottom, kPad,
                 kBaselineTolerance, cardBottom));
         }
 
@@ -4933,7 +5175,7 @@ namespace Widget
                 a_movie->GetViewport(&viewport);
                 const double visibleH = info.visible.bottom - info.visible.top;
                 info.pixelsPerUnit = visibleH > 0 ? viewport.height / visibleH : 0.0;
-                info.box = Settings::PanelContent(Settings::Get().preview);  // below the "PREVIEW" title band (R9)
+                info.box = Settings::PanelContent(BlockRect(Layout::kPreview));  // below the "PREVIEW" title band (R9)
                 info.viewport = { static_cast<float>(viewport.left), static_cast<float>(viewport.top),
                     static_cast<float>(viewport.left + viewport.width), static_cast<float>(viewport.top + viewport.height) };
                 // GFxMovieView::TranslateToScreen is not called: with a null user matrix it crashed the game on the first
@@ -5108,17 +5350,19 @@ namespace Widget
             // panel keeps its edge and title, no fill (second review B1); with IR its own pass draws over the menu
             const bool seeThrough = !g_overPass && !g_menu.irActive;
             if (seeThrough) logger::info("Widget: preview box drawn without its black fill (no over-pass: the 3D under the movie shows through)");
-            Panel(movie, widget, "preview", settings.preview, Text(Str::kPreviewTitle), seeThrough ? 0.0 : kPreviewAlpha);
-            Panel(movie, widget, "tree", settings.tree, Text(Str::kTreeTitle), kPanelAlpha);
-            Panel(movie, widget, "progress", settings.progress, nullptr, kPanelAlpha);
-            Panel(movie, widget, "nodecard", settings.nodeCard, nullptr, kPanelAlpha);
+            g_menu.previewAlpha = seeThrough ? 0.0 : kPreviewAlpha;
+            Rearrange(movie, widget);  // blocks plan Task 2: the rects of the layout before the panels are made
+            CheckLayoutRects();
+            for (const BlockId id : kBlocks) Panel(movie, widget, id);
             // v7 C1: our info card's panel (drawn again per item; hidden until SkyUI's card would show)
-            Panel(movie, widget, "infocard", settings.itemCard, nullptr, kPanelAlpha);
-            SetVisible(widget, "infocard", false);
+            SetVisible(widget, Layout::kSpellCard, false);
             logger::info("Widget: info card {}", OwnCard() ? "ours (bOwnCard=1): SkyUI's item card is hidden" :
                                                   g_menu.irActive ? "SkyUI's, left to Inventory Reforged" :
                                                                     "SkyUI's, moved and fitted (bOwnCard=0)");
-            if (auto tree = Child(widget, "tree"); tree.IsDisplayObject()) DrawLegend(movie, tree, settings.tree.Width(), settings.tree.Height(), {});
+            if (auto tree = BlockClip(widget, Layout::kTree); tree.IsDisplayObject()) {
+                const auto rect = BlockRect(Layout::kTree);
+                DrawLegend(movie, tree, rect.Width(), rect.Height(), {});
+            }
             RE::GFxValue fn;
             movie->CreateFunction(&fn, g_frame.get());
             widget.SetMember("onEnterFrame", fn);
