@@ -4,12 +4,15 @@
 // blocks per tab (plan D6), the drop slot and the move with hidden / absent ids (plan D3),
 // scroll clamping, the column areas and the preview box cut to its column (Task 3), the layout JSON (version, repair of a bad file),
 // and the layout mode's pure parts (Task 4): moves keep every block once, cancel restores the entry State, the file safety plan;
-// the gamepad / keyboard focus model (Task 5): focus, pick, move, drop, cancel, border, the insertion line and keep-in-view scroll.
+// the gamepad / keyboard focus model (Task 5): focus, pick, move, drop, cancel, border, the insertion line and keep-in-view scroll;
+// the add-on blocks (Task 6, BlockRegistry.cpp): the registration checks, the id prefix, the order, the window, and the layout
+// side (an add-on joins the end of the right column, an absent one keeps its place, a bad height does not move the others).
 //
 //   magic-menu-layout-check     one PASS/FAIL line per check, a total line
 //
 // No game types. Exit 0 when every check passes, 1 otherwise.
 
+#include "BlockRegistry.h"
 #include "Layout.h"
 #include "Settings.h"
 
@@ -755,6 +758,152 @@ namespace
     }
 }
 
+namespace
+{
+    void DrawNothing(RE::GFxMovieView*, RE::GFxValue&, float, float, void*) {}
+
+    BlockApi::Registration Reg(const char* a_id, float a_height = 100.0f)
+    {
+        return { .id = a_id, .title = "T", .height = a_height, .draw = DrawNothing };
+    }
+
+    BlockRegistry::Outcome Send(BlockRegistry::Registry& a_registry, const BlockApi::Registration& a_reg, std::string_view a_sender = "AddonA")
+    {
+        return a_registry.Register(a_sender, &a_reg, sizeof(a_reg));
+    }
+
+    void ExpectRefused(const BlockRegistry::Outcome& a_outcome, std::string_view a_reasonPart, const std::string& a_case)
+    {
+        Expect(!a_outcome.accepted && a_outcome.reason.find(a_reasonPart) != std::string::npos,
+            Text("%s: refused, reason has \"%s\" (got %s \"%s\")", a_case.c_str(), std::string(a_reasonPart).c_str(),
+                a_outcome.accepted ? "accepted" : "refused", a_outcome.reason.c_str()));
+    }
+
+    void AddonRegistry()
+    {
+        std::printf("add-on block registry (Task 6)\n");
+        const std::set<std::string> builtins(kKnown.begin(), kKnown.end());
+        BlockRegistry::Registry registry(builtins);
+        constexpr float kNaN = std::numeric_limits<float>::quiet_NaN();
+        constexpr float kInf = std::numeric_limits<float>::infinity();
+
+        const auto first = Send(registry, Reg("stats"));
+        Expect(first.accepted && first.id == "AddonA.stats" && first.reason.empty(),
+            Text("no '.': prefixed with the sender -> AddonA.stats (got %s)", first.id.c_str()));
+        const auto dotted = Send(registry, Reg("Other.panel"), "AddonB");
+        Expect(dotted.accepted && dotted.id == "Other.panel", Text("with a '.': kept as sent -> Other.panel (got %s)", dotted.id.c_str()));
+        Expect(BlockRegistry::QualifiedId("", "x") == "addon.x", "no sender name: addon.x");
+        ExpectRefused(Send(registry, Reg("stats")), "registered already", "the same id again from the same plugin");
+        ExpectRefused(Send(registry, Reg("AddonA.stats"), "AddonC"), "registered already", "the same final id from another plugin");
+        ExpectRefused(Send(registry, Reg("")), "empty", "empty id");
+        ExpectRefused(Send(registry, Reg(nullptr)), "empty", "null id");
+        const std::string longId(BlockApi::kMaxIdLength + 1, 'x');
+        ExpectRefused(Send(registry, Reg(longId.c_str())), "longer", "an id over kMaxIdLength");
+        ExpectRefused(Send(registry, Reg("x.nan", kNaN)), "height", "NaN height");
+        ExpectRefused(Send(registry, Reg("x.inf", kInf)), "height", "infinite height");
+        ExpectRefused(Send(registry, Reg("x.neg", -5.0f)), "height", "negative height");
+        ExpectRefused(Send(registry, Reg("x.zero", 0.0f)), "height", "zero height");
+        ExpectRefused(Send(registry, Reg("x.tall", BlockApi::kMaxHeight + 1.0f)), "height", "a height over kMaxHeight");
+        auto noDraw = Reg("x.nodraw");
+        noDraw.draw = nullptr;
+        ExpectRefused(Send(registry, noDraw), "draw", "null draw callback");
+        auto newer = Reg("x.newer");
+        newer.apiVersion = 2;
+        ExpectRefused(Send(registry, newer), "apiVersion 2", "a newer apiVersion");
+        auto older = Reg("x.old");
+        older.apiVersion = 0;
+        ExpectRefused(Send(registry, older), "apiVersion 0", "apiVersion 0");
+        auto small = Reg("x.small");
+        small.structSize = 8;
+        ExpectRefused(Send(registry, small), "structSize", "structSize smaller than v1");
+        const auto shortMessage = Reg("x.short");
+        ExpectRefused(registry.Register("AddonA", &shortMessage, BlockApi::kRegistrationV1Size - 1), "smaller", "message shorter than v1");
+        ExpectRefused(registry.Register("AddonA", nullptr, 0), "no Registration", "no data");
+        auto longer = Reg("x.longer");  // a same-version add-on whose struct grew at the end: its v1 part is read
+        longer.structSize = BlockApi::kRegistrationV1Size + 16;
+        Expect(Send(registry, longer).accepted, "structSize larger than v1 (same version): accepted");
+        // a built-in id comes only with a '.' (no '.' is prefixed): "preview" from AddonA is AddonA.preview, not the built-in block
+        Expect(Send(registry, Reg("preview")).id == "AddonA.preview", "\"preview\" from an add-on is AddonA.preview, not the built-in block");
+        BlockRegistry::Registry reserved({ "Mine.block" });
+        ExpectRefused(Send(reserved, Reg("Mine.block")), "built-in", "a reserved id");
+
+        std::string id = "Temp.copy", title = "COPIED";
+        auto reg = Reg(id.c_str());
+        reg.title = title.c_str();
+        const auto copied = Send(registry, reg);
+        id.assign("overwritten");
+        title.assign("overwritten");
+        const auto* kept = registry.Find("Temp.copy");
+        Expect(copied.accepted && kept && kept->title == "COPIED", "id and title copied (the sender's strings changed after the call)");
+
+        std::vector<std::string> order;
+        for (const auto& block : registry.Blocks()) order.push_back(block.id);
+        const std::vector<std::string> want{ "AddonA.stats", "Other.panel", "x.longer", "AddonA.preview", "Temp.copy" };
+        Expect(order == want, Text("registration order kept: %s", Show(order).c_str()));
+        Expect(registry.Blocks()[1].sender == "AddonB" && Near(registry.Blocks()[0].height, 100.0), "sender and height kept");
+
+        const bool firstClose = registry.Close();
+        const bool secondClose = registry.Close();
+        Expect(firstClose && !secondClose && registry.Closed(), "Close: true once, then closed");
+        ExpectRefused(Send(registry, Reg("late")), "closed", "a registration after the first menu open");
+        Expect(registry.Blocks().size() == want.size(), "nothing added after the close");
+    }
+
+    void AddonLayout()
+    {
+        std::printf("add-on blocks in the layout (Task 6)\n");
+        const State def = Layout::Default(kValues);
+        const std::vector<BlockId> addons{ "A.one", "B.two" };
+        const State withAddons = Layout::AddBlocks(def, addons);
+        Expect(withAddons.columns[0] == def.columns[0] &&
+                   withAddons.columns[1] == std::vector<BlockId>{ Layout::kTree, Layout::kNodeCard, "A.one", "B.two" },
+            Text("AddBlocks: at the end of the right column in order (got %s)", Show(withAddons.columns[1]).c_str()));
+        Expect(Layout::AddBlocks(withAddons, addons) == withAddons, "AddBlocks twice: unchanged (each once)");
+        Expect(Layout::AddBlocks(def, addons, 5) == def, "AddBlocks to a column out of range: unchanged");
+
+        // the saved file has B.two at the top of the left column: it keeps that place, A.one (no place) goes to the right column's end
+        State saved = def;
+        saved.columns[0].insert(saved.columns[0].begin(), "B.two");
+        std::set<BlockId> known = kKnown;
+        known.insert(addons.begin(), addons.end());
+        const State repaired = Layout::Repair(saved, known, withAddons);
+        Expect(repaired.columns[0].front() == "B.two" && repaired.columns[1].back() == "A.one" && std::ranges::count(repaired.columns[1], "B.two") == 0,
+            Text("Repair: a saved add-on keeps its place, a new one at the right column's end (%s / %s)", Show(repaired.columns[0]).c_str(),
+                Show(repaired.columns[1]).c_str()));
+
+        // an add-on not installed any more: its id stays in the layout (Repair keeps unknown ids), arranged as absent
+        State gone = def;
+        gone.columns[1].insert(gone.columns[1].begin() + 1, "Gone.block");
+        const State kept = Layout::Repair(gone, kKnown, def);
+        Expect(kept.columns[1] == std::vector<BlockId>{ Layout::kTree, "Gone.block", Layout::kNodeCard }, "Repair keeps an absent add-on's place");
+        const auto absent = Layout::Arrange(kept, kHeights, {}, {}, kFrames);
+        ExpectRect(absent, Layout::kNodeCard, 978, 306, 1238, 623, "absent add-on between tree and node card");
+        Expect(!absent.contains("Gone.block"), "the absent add-on gets no rect");
+
+        // an add-on at the right column's end: below the node card, its column overflows and scrolls
+        auto heights = kHeights;
+        heights["A.one"] = 300;
+        const State one = Layout::AddBlocks(def, { "A.one" });
+        const auto withOne = Layout::Arrange(one, heights, {}, {}, kFrames);
+        ExpectRect(withOne, "A.one", 978, 632, 1238, 932, "an add-on 300 high below the node card");
+        const auto content = Layout::ContentHeight(one, withOne, kFrames);
+        Expect(Near(content[1], 865) && Near(Layout::ClampScroll(1000, content[1], kFrames[1].Height()), 309),
+            Text("its column overflows: content 865, scroll clamps at 309 (got %.1f)", content[1]));
+
+        // the Task 1 minor: a bad height must not move the other blocks (the add-on above the tree, so a spread would move both)
+        State badState = def;
+        badState.columns[1].insert(badState.columns[1].begin(), "Bad.block");
+        for (const double bad : { std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::infinity(), -50.0 }) {
+            auto badHeights = kHeights;
+            badHeights["Bad.block"] = bad;
+            const auto rects = Layout::Arrange(badState, badHeights, {}, { Layout::kNodeCard }, kFrames);
+            Expect(!rects.contains("Bad.block"), Text("height %.0f: the add-on is absent", bad));
+            ExpectRect(rects, Layout::kTree, 978, 67, 1238, 297, Text("height %.0f: tree unmoved", bad));
+            ExpectRect(rects, Layout::kNodeCard, 978, 306, 1238, 623, Text("height %.0f: node card (fill) unmoved", bad));
+        }
+    }
+}
+
 int main()
 {
     DefaultLayout();
@@ -770,6 +919,8 @@ int main()
     FileSafety();
     SlotLineAndScrollToShow();
     PadFocus();
+    AddonRegistry();
+    AddonLayout();
     std::printf("layout-check: %d PASS, %d FAIL\n", g_pass, g_fail);
     return g_fail == 0 ? kExitOk : kExitFail;
 }

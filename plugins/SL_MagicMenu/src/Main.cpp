@@ -10,6 +10,7 @@
 
 #include "Common.h"
 
+#include "BlockApi.h"
 #include "Hom.h"
 #include "Settings.h"
 #include "SpellLearningAPI.h"
@@ -17,9 +18,39 @@
 
 namespace
 {
+    // Blocks plan Task 6 (D9): add-on block registrations from any plugin (BlockApi.h), answered to the sender with a
+    // BlockApi::Result. This listener hears every plugin's messages and SKSE's: any other type passes silently
+    void OnAnyMessage(SKSE::MessagingInterface::Message* a_msg)
+    {
+        if (!a_msg || a_msg->type != BlockApi::kMessageRegister) return;
+        if (!a_msg->sender || !*a_msg->sender) {
+            logger::warn("SL_MagicMenu: an add-on block registration with no sender name - ignored (not answered)");
+            return;
+        }
+        const auto outcome = Widget::RegisterBlock(a_msg->sender, a_msg->data, a_msg->dataLen);
+        BlockApi::Result result;
+        result.status = outcome.accepted ? BlockApi::Status::kAccepted : BlockApi::Status::kRefused;
+        result.id = outcome.id.c_str();
+        result.reason = outcome.reason.c_str();
+        if (std::string_view(a_msg->sender) == BlockApi::kPluginName) return;  // our own filler registers by a call, not a message
+        if (auto* messaging = SKSE::GetMessagingInterface()) {
+            messaging->Dispatch(BlockApi::kMessageResult, &result, sizeof(result), a_msg->sender);  // false: the sender does not listen
+        }
+    }
+
     void OnSKSEMessage(SKSE::MessagingInterface::Message* a_msg)
     {
-        if (!a_msg || a_msg->type != SKSE::MessagingInterface::kDataLoaded) return;
+        if (!a_msg) return;
+        if (a_msg->type == SKSE::MessagingInterface::kPostLoad) {
+            // every plugin is loaded now, so the any-sender listener (nullptr) covers them all; add-ons send from kPostPostLoad on
+            auto* messaging = SKSE::GetMessagingInterface();
+            const bool listening = messaging && messaging->RegisterListener(nullptr, OnAnyMessage);
+            logger::info("SL_MagicMenu: add-on block registrations {}", listening ? "open (message type 'SLMB', until the first magic menu open)" :
+                                                                                   "NOT possible - the any-sender listener was refused");
+            return;
+        }
+        if (a_msg->type != SKSE::MessagingInterface::kDataLoaded) return;
+        if (Settings::Get().debugFillerBlock) Widget::RegisterDebugFiller();  // blocks plan Task 6: through the add-on path
         logger::info("SL_MagicMenu: kDataLoaded on thread {}, main thread {} (API {})", REX::W32::GetCurrentThreadId(), Hom::GameThreadId(),
             Hom::Ready() ? "received" : "NOT received - is Heart of Magic installed?");
         Widget::LoadTree();

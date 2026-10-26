@@ -34,6 +34,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
         src/TreeData.cpp
         src/HomStyle.cpp
         src/Layout.cpp
+        src/BlockRegistry.cpp
         src/Widget.cpp
         src/Preview.cpp
         src/Input.cpp

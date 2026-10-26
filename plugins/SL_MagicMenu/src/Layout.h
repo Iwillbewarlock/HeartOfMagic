@@ -79,7 +79,8 @@ namespace Layout
     double ClampBorder(double a_x, const Frame& a_left, const Frame& a_right);
 
     /// Block rects (unscrolled), stacked from each frame's top with the gap between them; the border is clamped first.
-    /// Hidden blocks and blocks with no entry in a_heights (absent add-ons) get no rect and no gap. A block in a_fill
+    /// Hidden blocks and blocks with no entry in a_heights (absent add-ons) get no rect and no gap; so does a block whose
+    /// height is not finite or negative (it cannot move the others). A block in a_fill
     /// takes the rest of its column (frame height minus the other shown blocks and gaps), never less than its own
     /// height; with two fill blocks in one column only the first one grows.
     std::map<BlockId, Settings::Rect> Arrange(const State& a_state, const std::map<BlockId, double>& a_heights, const std::set<BlockId>& a_hidden,
@@ -207,6 +208,10 @@ namespace Layout
     /// a_fallback (column 0 when the fallback lacks it too), keeps unknown ids in place (absent add-ons), and takes the
     /// fallback's border when the border is not finite. Border range clamping is ClampBorder's (Arrange applies it).
     State Repair(State a_state, const std::set<BlockId>& a_known, const State& a_fallback);
+
+    /// a_ids appended in order to the end of a_column (the right column by default: add-on blocks, blocks plan Task 6), each
+    /// one only when it is in no column yet (a saved place wins) and not empty. A column out of range: unchanged.
+    State AddBlocks(State a_state, const std::vector<BlockId>& a_ids, int a_column = 1);
 
     // -------------------------------------------------------------------------
     // The layout file's safety (blocks plan D10, Task 4): which files a save writes and keeps

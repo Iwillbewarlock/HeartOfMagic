@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace Layout
 {
@@ -80,8 +81,11 @@ namespace Settings
         int maxNodes = 60;
 
         // [Debug] blocks plan Task 3: stage units added to the node card block's height so its column overflows and the
-        // column scroll can be tried in game (0 = no effect; Task 6's filler block replaces it)
+        // column scroll can be tried in game (0 = no effect)
         double debugExtraHeight = 0.0;
+        // [Debug] blocks plan Task 6: the plugin registers its own tall add-on block "SL_MagicMenu.filler" (300 high) through
+        // the add-on path, to test the add-on API and the column scroll in game
+        bool debugFillerBlock = false;
     };
 
     // Every panel: a title strip this high and this much padding inside the border (Widget draws by these;
@@ -136,6 +140,15 @@ namespace Settings
     /// plain move when there is no file yet. A file that failed to read at load is copied to .bad first; a newer build's file
     /// is never written. Called from the menu's frame handler (the layout mode); not thread-safe.
     SaveResult SaveLayout(const Layout::State& a_state, std::string* a_why);
+
+    /// Blocks plan Task 6: the add-on blocks registered this game session (call once, at the first magic menu open, in
+    /// registration order). The saved layout is repaired against them: one without a saved place goes to the end of the right
+    /// column (in memory; the file is written only by the layout mode). DefaultLayout() has them too from then on
+    void AddBlocks(const std::vector<std::string>& a_ids);
+
+    /// Layout::Default(Get()) with the add-on blocks (AddBlocks) at the end of the right column: the layout mode's reset and
+    /// the safety-net states' layout
+    const Layout::State& DefaultLayout();
 
     /// The layout used from now on without touching the file (a newer build's file: the edit lives for this game session)
     void SetSavedLayout(const Layout::State& a_state);

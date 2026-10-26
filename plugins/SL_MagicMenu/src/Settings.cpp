@@ -37,6 +37,14 @@ namespace Settings
 
         Values g_values;
         Layout::State g_layout;
+        Layout::State g_defaultLayout;              // Layout::Default with the add-on blocks (AddBlocks)
+        std::vector<Layout::BlockId> g_addonIds;   // the add-on blocks, in registration order
+
+        // The built-in blocks: Repair appends any of them a layout file lacks
+        std::set<Layout::BlockId> BuiltinBlocks()
+        {
+            return { Layout::kPreview, Layout::kTree, Layout::kProgress, Layout::kSpellCard, Layout::kNodeCard };
+        }
 
         // An absolute path: GetPrivateProfileString looks a bare relative name up in the Windows folder
         std::wstring GameDataPath(const wchar_t* a_relative)
@@ -216,7 +224,7 @@ namespace Settings
         Layout::State LoadLayout(const Values& a_values)
         {
             const auto fallback = Layout::Default(a_values);
-            const std::set<Layout::BlockId> known{ Layout::kPreview, Layout::kTree, Layout::kProgress, Layout::kSpellCard, Layout::kNodeCard };
+            const auto known = BuiltinBlocks();
             const auto path = LayoutPath();
             auto read = ReadLayout(path);
             g_fileState = read.file;
@@ -349,6 +357,7 @@ namespace Settings
         ReadNumber(path, L"Layout", L"iMaxSteps", v.maxSteps, 1, kMaxSteps);
         ReadNumber(path, L"Layout", L"iMaxNodes", v.maxNodes, 1, kMaxNodes);
         ReadNumber(path, L"Debug", L"fDebugExtraHeight", v.debugExtraHeight, 0.0, kMaxDebugExtraHeight);
+        ReadBool(path, L"Debug", L"bDebugFillerBlock", v.debugFillerBlock);
         g_values = v;
 
         logger::info("Settings: enabled {} selfTest {} movePreview {} moveItemCard {} drawPreviewOver {} previewUnlearned {} hideGamePass {} "
@@ -370,8 +379,12 @@ namespace Settings
         if (v.debugExtraHeight > 0) {
             logger::info("Settings:   [Debug] fDebugExtraHeight {} - the node card block is that much taller (a scroll test; 0 = off)", v.debugExtraHeight);
         }
+        if (v.debugFillerBlock) {
+            logger::info("Settings:   [Debug] bDebugFillerBlock 1 - the add-on test block SL_MagicMenu.filler (300 high) is registered at kDataLoaded");
+        }
 
         g_layout = LoadLayout(v);
+        g_defaultLayout = Layout::Default(v);
         logger::info("Settings:   layout columns {} border {:.0f}{} (the rects above are the blocks' default sizes and places)", Columns(g_layout),
             g_layout.border, g_layout == Layout::Default(v) ? " - the default layout" : "");
     }
@@ -394,6 +407,24 @@ namespace Settings
     void SetSavedLayout(const Layout::State& a_state)
     {
         g_layout = a_state;
+    }
+
+    void AddBlocks(const std::vector<std::string>& a_ids)
+    {
+        g_addonIds = a_ids;
+        g_defaultLayout = Layout::AddBlocks(Layout::Default(g_values), g_addonIds);
+        auto known = BuiltinBlocks();
+        known.insert(g_addonIds.begin(), g_addonIds.end());
+        const auto before = g_layout;
+        // a broken / newer file was replaced by the default at load: the add-ons go into that default the same way
+        g_layout = Layout::Repair(g_layout, known, g_defaultLayout);
+        logger::info("Settings: {} add-on block(s){} - layout columns {}{}", g_addonIds.size(), g_addonIds.empty() ? "" : " known", Columns(g_layout),
+            before == g_layout ? " (unchanged: each has its saved place)" : " (the ones without a saved place put at the end of the right column)");
+    }
+
+    const Layout::State& DefaultLayout()
+    {
+        return g_defaultLayout;
     }
 
     SaveResult SaveLayout(const Layout::State& a_state, std::string* a_why)

@@ -2,6 +2,9 @@
 
 #include "Widget.h"
 
+#include "BlockApi.h"
+#include "BlockRegistry.h"
+
 #include "Draw.h"
 #include "Hom.h"
 #include "HomStyle.h"
@@ -635,6 +638,8 @@ namespace Widget
             // block sits), each panel's rect as last placed (a width change redraws it, D11) and SkyUI's card slot as last fitted
             // UNSCROLLED rects (Arrange's; BlockRect adds the scroll). placed: each panel's rect as last placed (BlockRect's)
             std::map<Layout::BlockId, Settings::Rect> blocks, blocksAll, placed;
+            // blocks plan Task 6: add-on blocks to draw next frame (DrawAddons), drawn this menu (SelfTest L6), whose callback threw
+            std::set<Layout::BlockId> addonDrawDue, addonDrawn, addonFailed;
             // blocks plan Task 3 (D4): each column's scroll offset (stage units, 0 = its top block at the column's top), applied in
             // one place only: the column clip's _y (PlaceColumns). Clamped by Layout::ClampScroll at every placing
             std::array<double, Layout::kColumns> scroll{};
@@ -1532,6 +1537,78 @@ namespace Widget
         constexpr std::array<const char*, 5> kBlocks{ Layout::kPreview, Layout::kTree, Layout::kProgress, Layout::kNodeCard, Layout::kSpellCard };
         constexpr double kRectTolerance = 0.01;  // stage units: two rects this close are the same place
 
+        // ---------------------------------------------------------------------
+        // Add-on blocks (blocks plan Task 6, D9): other plugins' blocks (BlockApi.h). Registered by SKSE messages (any thread,
+        // under g_registryLock) until the first magic menu open (CloseRegistry); from then on g_addons and g_allBlocks are fixed
+        // (written once, before the first AttachWidget's UI task) and read without a lock
+        // ---------------------------------------------------------------------
+
+        std::mutex g_registryLock;
+        BlockRegistry::Registry g_registry{ std::set<std::string>(kBlocks.begin(), kBlocks.end()) };
+        std::vector<BlockRegistry::Block> g_addons;  // the registry's blocks as they were when it closed, in registration order
+        std::vector<std::string> g_addonClips;       // each add-on's panel clip name ("mmxAddon0", ...): an id may hold '.'
+        std::vector<BlockId> g_allBlocks(kBlocks.begin(), kBlocks.end());
+
+        // Every block: the five built-in ones in build 13's panel creation order, then the add-ons in registration order
+        const std::vector<BlockId>& AllBlocks()
+        {
+            return g_allBlocks;
+        }
+
+        std::optional<std::size_t> AddonIndex(const BlockId& a_id)
+        {
+            for (std::size_t i = 0; i < g_addons.size(); ++i) {
+                if (g_addons[i].id == a_id) return i;
+            }
+            return std::nullopt;
+        }
+
+        const BlockRegistry::Block* Addon(const BlockId& a_id)
+        {
+            const auto index = AddonIndex(a_id);
+            return index ? &g_addons[*index] : nullptr;
+        }
+
+        // The first magic menu open: no more registrations; the add-ons join the block list and the layout (Settings::AddBlocks:
+        // one without a saved place goes to the end of the right column)
+        void CloseRegistry()
+        {
+            std::vector<BlockRegistry::Block> blocks;
+            {
+                const std::scoped_lock lock(g_registryLock);
+                if (!g_registry.Close()) return;
+                blocks = g_registry.Blocks();
+            }
+            g_addons = std::move(blocks);
+            std::vector<BlockId> ids;
+            std::string names;
+            for (std::size_t i = 0; i < g_addons.size(); ++i) {
+                ids.push_back(g_addons[i].id);
+                g_addonClips.push_back(std::format("mmxAddon{}", i));
+                g_allBlocks.push_back(g_addons[i].id);
+                names += std::format("{}{} ({:.0f} high, from {})", i ? ", " : "", g_addons[i].id, g_addons[i].height, g_addons[i].sender);
+            }
+            logger::info("Widget: add-on block registration closed at the first magic menu open - {} block(s){}{}", g_addons.size(),
+                g_addons.empty() ? "" : ": ", names);
+            Settings::AddBlocks(ids);
+        }
+
+        // [Debug] bDebugFillerBlock: the test add-on's draw callback - a note and three bars of falling length (the title strip
+        // "FILLER (TEST)" is the host's, as for any add-on)
+        void DrawFiller(RE::GFxMovieView* a_movie, RE::GFxValue& a_clip, float a_width, float a_height, void*)
+        {
+            constexpr double kNoteH = 18.0, kFillerTextSize = 11.0, kBarGap = 10.0, kBarAlpha = 60.0;
+            constexpr std::array<double, 3> kBarShares{ 0.9, 0.6, 0.3 };
+            Draw::Text(a_movie, a_clip, "note", 0, 0, a_width, kNoteH, "Add-on test block ([Debug] bDebugFillerBlock=1)", kDimText, kFillerTextSize);
+            const double barH = std::max(0.0, (a_height - kNoteH - kBarGap * kBarShares.size()) / kBarShares.size());
+            Draw::NoLine(a_clip);
+            double y = kNoteH + kBarGap;
+            for (const double share : kBarShares) {
+                Draw::Rect(a_clip, 0, y, a_width * share, barH, kBlue, kBarAlpha);
+                y += barH + kBarGap;
+            }
+        }
+
         bool SameRect(const Settings::Rect& a_a, const Settings::Rect& a_b)
         {
             return std::abs(a_a.left - a_b.left) <= kRectTolerance && std::abs(a_a.top - a_b.top) <= kRectTolerance &&
@@ -1580,12 +1657,24 @@ namespace Widget
             return { TabHidden(a_tab), a_own ? std::set<BlockId>{ Layout::kSpellCard } : std::set<BlockId>{} };
         }
 
-        // The blocks' heights: the ini rects', the node card [Debug] fDebugExtraHeight taller (a scroll test, blocks plan Task 3)
+        // The blocks' heights: the ini rects', the node card [Debug] fDebugExtraHeight taller (a scroll test, blocks plan Task 3),
+        // the add-ons' registered ones (Task 6). A height that is not finite or negative leaves its add-on out (absent: Arrange
+        // would skip it too) - the registry refuses such heights, so this is the last guard; logged once per block
         std::map<BlockId, double> BlockHeights()
         {
             const auto& settings = Settings::Get();
             auto heights = Layout::DefaultHeights(settings);
             heights[Layout::kNodeCard] += settings.debugExtraHeight;
+            for (const auto& addon : g_addons) {
+                if (std::isfinite(addon.height) && addon.height >= 0) {
+                    heights[addon.id] = addon.height;
+                    continue;
+                }
+                static std::set<BlockId> s_logged;
+                if (s_logged.insert(addon.id).second) {
+                    logger::warn("Widget: add-on block {} has the height {} - left out of the layout (logged once)", addon.id, addon.height);
+                }
+            }
             return heights;
         }
 
@@ -1610,8 +1699,7 @@ namespace Widget
         {
             if (g_menu.layout.active) return g_menu.layout.working;
             if (!SafetyNetReason().empty()) {
-                static const Layout::State s_default = Layout::Default(Settings::Get());  // the ini is read once per game session
-                return s_default;
+                return Settings::DefaultLayout();  // with the add-on blocks (Task 6)
             }
             return Settings::SavedLayout();
         }
@@ -1670,6 +1758,7 @@ namespace Widget
             };
             if (const auto it = g_menu.blocks.find(a_id); it != g_menu.blocks.end()) return scrolled(it->second);
             if (const auto it = g_menu.blocksAll.find(a_id); it != g_menu.blocksAll.end()) return scrolled(it->second);
+            if (Addon(a_id)) return {};  // an add-on with no arranged place (no usable height): nothing to draw in
             return IniRect(Settings::Get(), a_id);  // before the menu's first Rearrange (Repair keeps every block in the layout)
         }
 
@@ -2867,7 +2956,9 @@ namespace Widget
         // The block's panel clip name: the spell card's panel is "infocard" (v7 C1), the others are named by their block id
         const char* PanelName(const BlockId& a_id)
         {
-            return a_id == Layout::kSpellCard ? "infocard" : a_id.c_str();
+            if (a_id == Layout::kSpellCard) return "infocard";
+            if (const auto index = AddonIndex(a_id)) return g_addonClips[*index].c_str();  // Task 6: ids may hold '.'
+            return a_id.c_str();
         }
 
         // blocks plan Task 3: each column is a clip of the widget (kColumnClips) masked by a sibling clip (kColumnMasks) that
@@ -2960,6 +3051,7 @@ namespace Widget
         {
             if (a_id == Layout::kPreview) return Text(Str::kPreviewTitle);
             if (a_id == Layout::kTree) return Text(Str::kTreeTitle);
+            if (const auto* addon = Addon(a_id); addon && !addon->title.empty()) return addon->title.c_str();
             return nullptr;
         }
 
@@ -2971,6 +3063,7 @@ namespace Widget
         // A block's box clip at its rect
         void Panel(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const BlockId& a_id)
         {
+            if (Addon(a_id) && !g_menu.blocksAll.contains(a_id)) return;  // an add-on with no usable height: no panel
             auto parent = BlockParent(a_widget, a_id);
             if (!parent.IsDisplayObject()) return;
             auto panel = Draw::Clip(parent, PanelName(a_id));
@@ -2996,6 +3089,48 @@ namespace Widget
             if (auto panel = BlockClip(a_widget, a_id); panel.IsDisplayObject()) panel.SetMember("_visible", a_visible);
         }
 
+        // Task 6: the add-on blocks due (after the panels are made, a size change, a move to the other column) drawn by their
+        // own callbacks, each into a fresh content clip below its title strip and inside the padding, lent for the call only
+        // (BlockApi.h "When draw is called"). Called from the frame handler. An exception from a callback is logged and that
+        // block is not drawn again this menu (a crash inside it cannot be caught)
+        void DrawAddons(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        {
+            if (g_menu.addonDrawDue.empty()) return;
+            const auto due = std::exchange(g_menu.addonDrawDue, {});
+            for (const auto& id : due) {
+                const auto* addon = Addon(id);
+                if (!addon || g_menu.addonFailed.contains(id) || !g_menu.blocksAll.contains(id)) continue;
+                auto content = Content(a_widget, id);
+                if (!content.IsDisplayObject()) {
+                    logger::warn("Widget: add-on block {} - its panel's content clip could not be made, not drawn", id);
+                    continue;
+                }
+                const auto rect = BlockRect(id);
+                const double top = addon->title.empty() ? kPad : kTitleH + kPad;
+                const double width = std::max(0.0, rect.Width() - 2 * kPad), height = std::max(0.0, rect.Height() - top - kPad);
+                content.SetMember("_x", kPad);
+                content.SetMember("_y", top);
+                std::string error;
+                try {
+                    addon->draw(a_movie, content, static_cast<float>(width), static_cast<float>(height), addon->user);
+                } catch (const std::exception& e) {
+                    error = e.what();
+                } catch (...) {  // another plugin's callback: whatever it throws must not leave the frame handler
+                    error = "an exception that is not a std::exception";
+                }
+                if (!error.empty()) {
+                    g_menu.addonFailed.insert(id);
+                    logger::error("Widget: add-on block {} (from {}) threw from its draw callback: {} - not drawn again this menu", id, addon->sender, error);
+                    SelfTest(std::format("L6 addon {} drawn FAIL - its draw callback threw: {}", id, error));
+                    continue;
+                }
+                if (g_menu.addonDrawn.insert(id).second) {
+                    SelfTest(std::format("L6 addon {} drawn - {:.0f} x {:.0f} content in column {} (block {})", id, width, height,
+                        ColumnOf(id).value_or(-1), RectText(rect)));
+                }
+            }
+        }
+
         // blocks plan Task 2 / D4, D11: this tab's rects worked out again (Arrange) and every panel put at its place - a move
         // changes _x/_y only. A block whose width changed since it was last placed is drawn again once: its box, the tree's
         // legend, and the next full redraw (dirty) for the tree, progress and node cards; our card through its signature (it
@@ -3016,7 +3151,7 @@ namespace Widget
             g_menu.blocksAll = ArrangeBlocks({});
             g_menu.blocks = ArrangeBlocks(ArrangementFor(g_menu.tab, OwnCard()));
             PlaceColumns(a_widget);  // the scrolls clamped to this tab's content before any BlockRect below
-            for (const BlockId id : kBlocks) {
+            for (const BlockId& id : AllBlocks()) {
                 const auto rect = BlockRect(id);
                 auto panel = BlockClip(a_widget, id);
                 if (panel.IsDisplayObject()) {
@@ -3041,6 +3176,7 @@ namespace Widget
                         DrawLegend(a_movie, panel, rect.Width(), rect.Height(), g_menu.legendSchool.value_or(std::string{}));
                     }
                     if (id == Layout::kTree || id == Layout::kProgress || id == Layout::kNodeCard) g_menu.dirty = true;
+                    if (Addon(id)) g_menu.addonDrawDue.insert(id);
                 }
                 g_menu.placed[id] = rect;
             }
@@ -3254,6 +3390,9 @@ namespace Widget
             if (shown.nodeCard) ids.insert(Layout::kNodeCard);
             if (shown.progress) ids.insert(Layout::kProgress);
             if (shown.card) ids.insert(Layout::kSpellCard);
+            for (const auto& addon : g_addons) {  // Task 6: an add-on shows on every tab while the columns do (if it has a place)
+                if (g_menu.blocks.contains(addon.id)) ids.insert(addon.id);
+            }
             return ids;
         }
 
@@ -3315,7 +3454,8 @@ namespace Widget
             static bool s_checked = false;
             if (!Settings::Get().selfTest || std::exchange(s_checked, true)) return;
             // Task 3: [Debug] fDebugExtraHeight makes the node card taller on purpose - no build 13 reference either
-            const bool custom = !(CurrentLayout() == Layout::Default(Settings::Get())) || Settings::Get().debugExtraHeight > 0;
+            // Task 6: add-ons at the end of the right column (Settings::DefaultLayout) leave the built-in blocks' rects as they were
+            const bool custom = !(CurrentLayout() == Settings::DefaultLayout()) || Settings::Get().debugExtraHeight > 0;
             constexpr std::array kTabs{ Tab::kFollow, Tab::kSchool, Tab::kPowers, Tab::kEffects };
             for (const Tab tab : kTabs) {
                 for (const bool own : { true, false }) {
@@ -3349,7 +3489,7 @@ namespace Widget
             if (!Settings::Get().selfTest) return;
             constexpr double kSlack = 0.5;
             std::string places, diffs;
-            for (const BlockId id : kBlocks) {
+            for (const BlockId& id : AllBlocks()) {
                 auto panel = BlockClip(a_widget, id);
                 const auto rect = BlockRect(id);
                 const auto local = BlockLocal(id, rect);
@@ -4356,7 +4496,7 @@ namespace Widget
 
         std::string CoverName(const BlockId& a_id)
         {
-            return kCoverPrefix + a_id;
+            return kCoverPrefix + std::string(PanelName(a_id));  // Task 6: an add-on's id may hold '.'; its clip name does not
         }
 
         void RemoveCovers(RE::GFxValue& a_widget)
@@ -4364,7 +4504,7 @@ namespace Widget
             for (const char* columnName : kColumnClips) {
                 auto column = Child(a_widget, columnName);
                 if (!column.IsDisplayObject()) continue;
-                for (const BlockId id : kBlocks) Draw::Remove(column, CoverName(id).c_str());
+                for (const BlockId& id : AllBlocks()) Draw::Remove(column, CoverName(id).c_str());
             }
         }
 
@@ -4394,7 +4534,7 @@ namespace Widget
             if (!g_menu.layout.active) return;
             const auto visible = VisibleBlocks();
             g_menu.layout.coverSet = visible;
-            for (const BlockId id : kBlocks) {
+            for (const BlockId& id : AllBlocks()) {
                 const auto column = ColumnOf(id);
                 if (!column || !visible.contains(id)) continue;
                 auto parent = Child(a_widget, kColumnClips[*column]);
@@ -4527,6 +4667,7 @@ namespace Widget
             }
             if (a_id == Layout::kTree || a_id == Layout::kProgress || a_id == Layout::kNodeCard) g_menu.dirty = true;
             if (a_id == Layout::kSpellCard) g_menu.ownCardSig.clear();  // WatchOwnCard draws it again next frame
+            if (Addon(a_id)) g_menu.addonDrawDue.insert(a_id);  // Task 6: its callback draws it again (DrawAddons)
             logger::info("Layout: block {} is in column {} now - its panel made there again ({:.0f} x {:.0f}), drawn again", a_id,
                 ColumnOf(a_id).value_or(-1), rect.Width(), rect.Height());
         }
@@ -4538,7 +4679,7 @@ namespace Widget
             auto& m = g_menu.layout;
             std::vector<BlockId> moved;
             RemoveCovers(a_widget);
-            for (const BlockId id : kBlocks) {
+            for (const BlockId& id : AllBlocks()) {
                 const auto before = ColumnOf(id);
                 std::optional<int> after;
                 for (int column = 0; column < Layout::kColumns; ++column) {
@@ -4898,7 +5039,7 @@ namespace Widget
         {
             auto& m = g_menu.layout;
             std::string bad;
-            for (const BlockId id : kBlocks) {
+            for (const BlockId& id : AllBlocks()) {
                 int count = 0;
                 for (const auto& column : m.working.columns) count += static_cast<int>(std::ranges::count(column, id));
                 if (count != 1) bad += std::format("; {} {} time(s) in the layout", id, count);
@@ -5040,7 +5181,7 @@ namespace Widget
                 }
             }
             if (std::exchange(m.resetDue, false) && m.active) {
-                const auto reset = Layout::Default(Settings::Get());
+                const auto reset = Settings::DefaultLayout();  // with the add-on blocks (Task 6)
                 if (!(reset == m.working)) {
                     EndDrag(a_widget);
                     EndPick(a_movie, a_widget, "the reset");
@@ -6787,6 +6928,7 @@ namespace Widget
                 WatchOwnCard(movie, widget);  // v7 C1 (after WatchTab: its box follows the tab)
                 MeasureListRow(movie, root, widget);  // Q4: our reading sizes follow the list's rows
                 LayoutFrame(movie, widget);  // blocks plan Task 4: the layout mode (after WatchTab: a tab change cancels it first)
+                DrawAddons(movie, widget);   // blocks plan Task 6: after the layout mode (it may make a panel again in its new column)
                 // the click first: its list selection is noticed in this same frame
                 if (const int clicked = std::exchange(g_menu.clicked, -1); clicked >= 0) OnNodeClicked(movie, clicked, *snapshot);
                 WatchSelection(*snapshot);
@@ -7042,7 +7184,10 @@ namespace Widget
             }
             Rearrange(movie, widget);  // blocks plan Task 2: the rects of the layout before the panels are made
             CheckLayoutRects();
-            for (const BlockId id : kBlocks) Panel(movie, widget, id);
+            for (const BlockId& id : AllBlocks()) Panel(movie, widget, id);
+            for (const auto& addon : g_addons) {  // Task 6: drawn by their callbacks in the first frame (DrawAddons)
+                if (g_menu.blocksAll.contains(addon.id)) g_menu.addonDrawDue.insert(addon.id);
+            }
             CheckPanelPlaces(movie, root, widget);
             CheckMasks(root, widget);
             // v7 C1: our info card's panel (drawn again per item; hidden until SkyUI's card would show)
@@ -7091,6 +7236,7 @@ namespace Widget
                     g_blockingMenus.clear();
                 }
                 if (a_event->opening) {
+                    CloseRegistry();  // blocks plan Task 6: the first open ends add-on registration (before the widget is made)
                     SKSE::GetTaskInterface()->AddUITask([] { AttachWidget(); });
                 } else {
                     g_closing = true;  // first: no frame work from here on
@@ -7159,6 +7305,34 @@ namespace Widget
                 CancelLayoutMode(std::format("the menu \"{}\" opening over the magic menu", name).c_str());
             }
         };
+    }
+
+    BlockRegistry::Outcome RegisterBlock(std::string_view a_sender, const void* a_data, std::uint32_t a_dataLen)
+    {
+        BlockRegistry::Outcome outcome;
+        double height = 0.0;
+        {
+            const std::scoped_lock lock(g_registryLock);
+            outcome = g_registry.Register(a_sender, a_data, a_dataLen);
+            if (const auto* block = outcome.accepted ? g_registry.Find(outcome.id) : nullptr) height = block->height;
+        }
+        const std::string id = outcome.id.empty() ? std::string("(no id)") : outcome.id;
+        if (outcome.accepted) {
+            logger::info("Widget: add-on block {} registered by {} ({:.0f} high)", id, a_sender, height);
+            SelfTest(std::format("L6 addon {} registered - from {}, {:.0f} high", id, a_sender, height));
+        } else {
+            logger::warn("Widget: add-on block {} from {} refused - {}", id, a_sender, outcome.reason);
+            SelfTest(std::format("L6 addon {} refused {} (from {})", id, outcome.reason, a_sender));
+        }
+        FlushLog();
+        return outcome;
+    }
+
+    void RegisterDebugFiller()
+    {
+        constexpr float kFillerHeight = 300.0f;
+        const BlockApi::Registration reg{ .id = "SL_MagicMenu.filler", .title = "FILLER (TEST)", .height = kFillerHeight, .draw = DrawFiller };
+        RegisterBlock(BlockApi::kPluginName, &reg, sizeof(reg));
     }
 
     bool LoadTree()

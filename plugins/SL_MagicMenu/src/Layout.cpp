@@ -34,13 +34,20 @@ namespace Layout
             }
         }
 
-        /// The column's shown blocks in order: in a_heights, not hidden.
+        /// A height Arrange can stack: finite and not negative (blocks plan Task 6: an add-on's bad height must not move the others)
+        bool UsableHeight(const std::map<BlockId, double>& a_heights, const BlockId& a_id)
+        {
+            const auto it = a_heights.find(a_id);
+            return it != a_heights.end() && std::isfinite(it->second) && it->second >= 0;
+        }
+
+        /// The column's shown blocks in order: in a_heights with a usable height, not hidden.
         std::vector<const BlockId*> Shown(const std::vector<BlockId>& a_column, const std::map<BlockId, double>& a_heights,
             const std::set<BlockId>& a_hidden)
         {
             std::vector<const BlockId*> shown;
             for (const auto& id : a_column) {
-                if (a_heights.contains(id) && !a_hidden.contains(id)) {
+                if (UsableHeight(a_heights, id) && !a_hidden.contains(id)) {
                     shown.push_back(&id);
                 }
             }
@@ -565,6 +572,20 @@ namespace Layout
         }
         if (!std::isfinite(a_state.border)) {
             a_state.border = a_fallback.border;
+        }
+        return a_state;
+    }
+
+    State AddBlocks(State a_state, const std::vector<BlockId>& a_ids, int a_column)
+    {
+        if (!ValidColumn(a_column)) {
+            return a_state;
+        }
+        for (const auto& id : a_ids) {
+            const bool placed = std::ranges::any_of(a_state.columns, [&](const auto& a_list) { return std::ranges::find(a_list, id) != a_list.end(); });
+            if (!id.empty() && !placed) {
+                a_state.columns[a_column].push_back(id);
+            }
         }
         return a_state;
     }

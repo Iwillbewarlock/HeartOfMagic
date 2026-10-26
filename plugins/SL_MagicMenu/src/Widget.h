@@ -1,6 +1,10 @@
 #pragma once
 
+#include "BlockRegistry.h"
 #include "Layout.h"
+
+#include <cstdint>
+#include <string_view>
 
 // =============================================================================
 // WIDGET - everything SL_MagicMenu draws into the magic menu: one clip
@@ -20,6 +24,14 @@ namespace Widget
 
     /// Registers the magic menu's open/close sink (call at kDataLoaded).
     void Install();
+
+    /// Blocks plan Task 6 (D9): one add-on block registration - an SKSE message's data and size (BlockApi::Registration) from
+    /// the plugin a_sender. Any thread. Accepted until the first magic menu open; logged, with "SelfTest: L6 addon <id>
+    /// registered" / "... refused <reason>". The outcome is what the sender is answered (BlockApi::Result)
+    BlockRegistry::Outcome RegisterBlock(std::string_view a_sender, const void* a_data, std::uint32_t a_dataLen);
+
+    /// [Debug] bDebugFillerBlock: registers the test block SL_MagicMenu.filler (300 high) through RegisterBlock (call at kDataLoaded)
+    void RegisterDebugFiller();
 
     /// The next-learnable key ([Keys] iNext): centre and select the next learnable spell of the school (done on the next frame).
     void RequestNext();
