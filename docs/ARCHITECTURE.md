@@ -1803,14 +1803,19 @@ the catalog was made from (`src/AutoScan.cpp`, `include/AutoScan.h`; design:
   build (one JSON per kept spell), wrap. Between steps it holds FormIDs, never a form pointer; each step looks
   its spells up again (`lost` counts any gone). The waiter posts one step, waits for its answer, sleeps 1 ms,
   posts the next; it waits for an answer as long as the generation holds (a window in the background stops
-  the game loop), and gives up when it moved. A step spends at most 4 ms (`kSliceDefaultMs`) and runs only when the engine's frame time
+  the game loop, a load holds the task queue), and gives up when it moved. A step spends at most 4 ms (`kSliceDefaultMs`) and runs only when the engine's frame time
   (`RE::GetDurationOfApplicationRunTime`) moved on since the last step - whether SKSE runs a task added
   while it drains its queue in the same frame is not known (docs/librarian/ToDo.md S-3), so this keeps one
   step a frame either way; a frame time stuck for 100 ms lets the step run (counted as forced). Then, on the
   waiter: `JsonText::Dump`, `ClassifyScan` (catalog + record), `WriteScanOutput`, the turn let go.
-- **Save load or new game:** kPreLoadGame and kNewGame raise a generation number (`AutoScan::OnGameChanging`);
-  a step of an older generation does nothing and the run ends ("dropped"), to be tried at the next main menu.
-  Once the form reads are done the rest goes on (no form read).
+- **Save load or new game:** kPreLoadGame and kNewGame raise a generation number (`AutoScan::OnGameChanging`).
+  The form reads take the generation they start in (not the main menu's: a player who loads a save before the
+  tome reach pass is done still gets the scan, its steps running during play, one a frame); a step of an older
+  generation does nothing and the reads are dropped, then started again at once - the first step waits until
+  the load is done - three times at most (`kAttempts`), then the next main menu. The waiter looks at the
+  generation every 250 ms while it waits for a step, so a drop is seen within that (it was 10 s, seen in game
+  2026-10-27: a save loaded 3 s before the reads started left the session without a scan). Once the form reads
+  are done the rest goes on (no form read).
 - **Log:** `AutoScan: ...` lines - why it did not run (`"Build Spell Tree at Start" is Off`, `no tree with
   spells - left to the panel's build at game start`, `skipped - load order unchanged`, `a scan is running`),
   `form reads done in N ms: N steps, the longest N ms (<phase>), N waits for the next frame, N steps forced`,
@@ -1824,7 +1829,9 @@ the catalog was made from (`src/AutoScan.cpp`, `include/AutoScan.h`; design:
   one `CollectAllSpells` in a single task, timestamp blanked - that task freezes the game for its length, after
   the probe stopped; both are the same collector, so this checks the steps, not the old loop - that was
   compared by reading), `DROP` (a step of an older generation reads no form), `DROP-MIDWAY` (a run three steps
-  in, the generation raised: dropped, spell_catalog.json unchanged), then `done - N pass, N fail, N skip`.
+  in, the generation raised: dropped, spell_catalog.json unchanged), then `done - N pass, N fail, N skip`. A run
+  that never finished logs `RUN FAIL` and its own `done` line. When a save is loaded during a self-test run the
+  frames are play's against the main menu's baseline, and `SAME`'s one-task scan freezes play for its length.
   A save loaded during a self-test run can make `TREE` fail by itself (the load order notice writes
   spell_tree_loadorder.json); the progress is not compared (nothing of it exists at the main menu, and
   AutoScan.cpp includes no progression header).
