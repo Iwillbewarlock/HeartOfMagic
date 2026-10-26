@@ -219,3 +219,67 @@ target_include_directories(tree-prereq-check PRIVATE
 target_link_libraries(tree-prereq-check PRIVATE
     nlohmann_json::nlohmann_json
 )
+
+# =============================================================================
+# magic-menu-tree-check  -  offline check of the magic menu prototype's tree window
+# =============================================================================
+# The SL_MagicMenu plugin's own TreeData.cpp (pure data, no game types): parses a
+# saved spell_tree.json and runs the tree window query with every node as the
+# centre (window sizes, rotation sanity). --selftest on made-up trees.
+
+add_executable(magic-menu-tree-check
+    magic-menu-tree-check.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/src/TreeData.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/src/HomStyle.cpp
+)
+
+target_compile_features(magic-menu-tree-check PRIVATE cxx_std_23)
+
+target_include_directories(magic-menu-tree-check PRIVATE
+    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/src
+)
+
+target_link_libraries(magic-menu-tree-check PRIVATE
+    nlohmann_json::nlohmann_json
+)
+
+# =============================================================================
+# magic-menu-homstyle-check  -  offline check of the magic menu prototype's HoM style reader
+# =============================================================================
+# The SL_MagicMenu plugin's own HomStyle.cpp (no game types): Heart of Magic's
+# config.json and design preset read as the plugin reads them, the colour, ink,
+# shape and dash helpers, the state mapping and the name reveal rule (spec v11 T,
+# R1, R7). --selftest on made-up input; a config path reads the real files.
+
+add_executable(magic-menu-homstyle-check
+    magic-menu-homstyle-check.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/src/HomStyle.cpp
+)
+
+target_compile_features(magic-menu-homstyle-check PRIVATE cxx_std_23)
+
+target_include_directories(magic-menu-homstyle-check PRIVATE
+    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/src
+)
+
+target_link_libraries(magic-menu-homstyle-check PRIVATE
+    nlohmann_json::nlohmann_json
+)
+
+# =============================================================================
+# magic-menu-preview-check  -  offline check of the magic menu prototype's preview math
+# =============================================================================
+# The SL_MagicMenu plugin's own PreviewMath.h (header only, no game types): the
+# place, measure, grow, parent-space move, rebuilt-model rule and clip rect that
+# Preview.cpp runs on the game's values, on made-up cases (spec v5 Q5). One
+# PASS/FAIL line per check and a total; exit 1 when any check fails.
+
+add_executable(magic-menu-preview-check
+    magic-menu-preview-check.cpp
+)
+
+target_compile_features(magic-menu-preview-check PRIVATE cxx_std_23)
+
+target_include_directories(magic-menu-preview-check PRIVATE
+    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/src
+)
