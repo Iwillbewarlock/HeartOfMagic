@@ -8,37 +8,27 @@
 #include "librarian/Librarian.h"
 #include "tomereach/TomeReach.h"
 
+#include <chrono>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+
 namespace SpellScanner
 {
     // =============================================================================
     // SPELL SCANNING
     // =============================================================================
 
-    json ScanSpellsToJson(const FieldConfig& fields)
+    namespace
     {
-        auto* dataHandler = RE::TESDataHandler::GetSingleton();
-        if (!dataHandler) {
-            logger::error("SpellScanner: Failed to get TESDataHandler");
-            return json::array();
-        }
+        using Clock = std::chrono::steady_clock;
 
-        const auto& allSpells = dataHandler->GetFormArray<RE::SpellItem>();
-        logger::info("SpellScanner: Found {} total spell forms", allSpells.size());
-
-        json spellArray = json::array();
-        std::vector<RE::SpellItem*> kept;  // passed every filter; marked for the tree after the loop
-        int scannedCount = 0;
-        int skippedCount = 0;
-        int filteredCount = 0;
-
-        // Diagnostic counters for debugging scan failures
-        int skipType = 0;       // Failed spellType check
-        int skipNoName = 0;     // Empty name
-        int skipNoSchool = 0;   // No magic school
-        int diagSamples = 0;    // How many diagnostic samples logged
+        // "trap" in Arabic (فخ), as UTF-8: a name-only filter for a load order without editor ids
+        constexpr const char* kArabicTrap = "\xD9\x81\xD8\xAE";
 
         // Helper function to check if editorId indicates a non-player spell
-        auto isNonPlayerSpell = [](const std::string& editorId) -> bool {
+        bool IsNonPlayerSpell(const std::string& editorId)
+        {
             const std::string lower = AsciiText::ToLower(editorId);
 
             // Skip trap spells
@@ -88,180 +78,7 @@ namespace SpellScanner
             // duplicateOf after this loop (SpellScannerDuplicates.cpp)
 
             return false;
-        };
-
-        // Log a sample of the first few forms for diagnostics
-        {
-            int sampleCount = 0;
-            for (auto* spell : allSpells) {
-                if (!spell || sampleCount >= 5) break;
-                const char* sName = spell->GetFullName();
-                const char* sEdId = spell->GetFormEditorID();
-                logger::info("SpellScanner DIAG: sample[{}] formId=0x{:08X} type={} name='{}' editorId='{}'",
-                    sampleCount, spell->GetFormID(),
-                    static_cast<int>(spell->data.spellType),
-                    sName ? sName : "(null)",
-                    sEdId ? sEdId : "(null)");
-                sampleCount++;
-            }
         }
-
-        // First pass: count how many spells have spellType == kSpell.
-        // On SE 1.5.97 the SpellItem::Data struct layout may differ from AE,
-        // causing spell->data.spellType to read garbage.  If ZERO spells pass
-        // the type check we disable it and rely on other heuristics instead.
-        bool useTypeFilter = true;
-        {
-            int kSpellCount = 0;
-            for (auto* spell : allSpells) {
-                if (spell && spell->data.spellType == RE::MagicSystem::SpellType::kSpell) {
-                    kSpellCount++;
-                }
-            }
-            if (kSpellCount == 0 && allSpells.size() > 0) {
-                logger::warn("SpellScanner: 0/{} spells have spellType==kSpell — likely SE struct layout mismatch. Disabling type filter.",
-                    allSpells.size());
-                useTypeFilter = false;
-            } else {
-                logger::info("SpellScanner: {}/{} spells have spellType==kSpell", kSpellCount, allSpells.size());
-            }
-        }
-
-        for (auto* spell : allSpells) {
-            if (!spell) continue;
-
-            if (useTypeFilter && spell->data.spellType != RE::MagicSystem::SpellType::kSpell) {
-                skipType++;
-                skippedCount++;
-                // Log first few non-kSpell types for diagnosis
-                if (diagSamples < 3) {
-                    const char* dn = spell->GetFullName();
-                    logger::info("SpellScanner DIAG: skip type={} for '{}' (0x{:08X})",
-                        static_cast<int>(spell->data.spellType),
-                        dn ? dn : "(unnamed)",
-                        spell->GetFormID());
-                    diagSamples++;
-                }
-                continue;
-            }
-
-            const char* rawEditorId = spell->GetFormEditorID();
-            std::string name = spell->GetFullName();
-
-            // EditorID may be empty on SE 1.5.97 without po3's Tweaks — that's OK
-            bool hasEditorId = (rawEditorId && strlen(rawEditorId) > 0);
-            std::string editorIdStr = hasEditorId ? std::string(rawEditorId) : "";
-
-            // Name is required — skip truly unnamed forms
-            if (name.empty()) {
-                skipNoName++;
-                skippedCount++;
-                continue;
-            }
-
-            // Filter out spells where name looks like a FormID (broken/missing data)
-            // These show up as "0x000A26FF" or similar hex strings
-            if (name.length() >= 2 && (name.substr(0, 2) == "0x" || name.substr(0, 2) == "0X")) {
-                filteredCount++;
-                continue;
-            }
-
-            // Also filter if name is all digits/hex (no actual name)
-            bool allHex = true;
-            for (char c : name) {
-                if (!std::isxdigit(static_cast<unsigned char>(c)) && c != ' ') {
-                    allHex = false;
-                    break;
-                }
-            }
-            if (allHex && name.length() >= 6) {
-                filteredCount++;
-                continue;
-            }
-
-            // Filter out non-player spells based on editorId patterns (only when available)
-            if (hasEditorId && isNonPlayerSpell(editorIdStr)) {
-                filteredCount++;
-                continue;
-            }
-
-            // When no EditorID available, use name-based heuristics to filter junk
-            if (!hasEditorId) {
-                const std::string lowerName = AsciiText::ToLower(name);
-
-                // Skip obvious non-player spells by name patterns
-                if (lowerName.find("\xD9\x81\xD8\xAE") != std::string::npos) { filteredCount++; continue; }  // trap (Arabic: فخ)
-                // Skip spells with very generic/system names
-                if (lowerName == "yourspellname" || lowerName == "yourspell") { filteredCount++; continue; }
-            }
-
-            if (!IsValidMagicSchool(GetSpellSchool(spell))) {
-                skipNoSchool++;
-                skippedCount++;
-                continue;
-            }
-
-            // Filter out spells with no effects or broken effect data
-            bool hasValidEffect = false;
-            for (auto* effect : spell->effects) {
-                if (effect && effect->baseEffect) {
-                    std::string effectName = effect->baseEffect->GetFullName();
-                    // Check effect has a real name (not empty or FormID-like)
-                    if (!effectName.empty() && effectName.length() > 2 &&
-                        effectName.substr(0, 2) != "0x" && effectName.substr(0, 2) != "0X") {
-                        hasValidEffect = true;
-                        break;
-                    }
-                }
-            }
-            if (!hasValidEffect) {
-                filteredCount++;
-                continue;
-            }
-
-            kept.push_back(spell);
-        }
-
-        // Every spell stays (the librarian and the perk adapters read them all),
-        // marked with what the tree goes by: whether a tome teaches it, whether
-        // it is equipped in the voice slot (SpellScannerCopies.cpp) and whether it
-        // is another plugin's copy of a spell (SpellScannerDuplicates.cpp)
-        const auto taught = SpellsTaughtByTomes();
-        std::unordered_set<RE::FormID> unreachable;
-        if (!TomeReach::UnreachableSpells(unreachable)) {
-            logger::info("SpellScanner: the tome reach pass has not finished - no spell is marked tomeUnreachable");
-        }
-        LogSpellsOutOfTree(kept, taught, unreachable);
-        const auto duplicates = FindDuplicateSpells(kept, taught, unreachable);
-        for (auto* spell : kept) {
-            auto spellJson = BuildSpellJson(spell, spell->GetFormID(), fields);
-            spellJson["taughtByTome"] = taught.contains(spell->GetFormID());
-            spellJson["voiceSlot"] = IsEquippedInVoiceSlot(spell);
-            MarkGate(spellJson, spell);
-            if (unreachable.contains(spell->GetFormID())) spellJson["tomeUnreachable"] = true;
-            if (auto it = duplicates.find(spell->GetFormID()); it != duplicates.end()) {
-                spellJson["duplicateOf"] = FormIdText::Format(it->second);
-            }
-            spellArray.push_back(std::move(spellJson));
-            scannedCount++;
-        }
-
-        // Check if any spells had EditorIDs (diagnostic for SE 1.5.97 compatibility)
-        int editorIdCount = 0;
-        for (const auto& s : spellArray) {
-            if (s.contains("editorId") && !s["editorId"].get<std::string>().empty()) {
-                editorIdCount++;
-            }
-        }
-
-        logger::info("SpellScanner: Scanned {} spells, skipped {} (type:{}, noName:{}, noSchool:{}), filtered {}",
-                     scannedCount, skippedCount, skipType, skipNoName, skipNoSchool, filteredCount);
-        if (scannedCount > 0 && editorIdCount == 0) {
-            logger::warn("SpellScanner: No EditorIDs available — SE 1.5.97 without po3 Tweaks? Name-based filtering active.");
-        } else if (scannedCount > 0) {
-            logger::info("SpellScanner: EditorIDs available for {}/{} spells", editorIdCount, scannedCount);
-        }
-        return spellArray;
     }
 
     // =============================================================================
@@ -302,11 +119,352 @@ namespace SpellScanner
         }
     }
 
-    json CollectAllSpells(const ScanConfig& config)
+    // =============================================================================
+    // THE FULL SCAN'S FORM READS, IN STEPS (FullScanCollector, SpellScanner.h)
+    // =============================================================================
+
+    struct FullScanCollector::State
+    {
+        enum class Phase { Begin, Filter, Marks, Build, Wrap, Done };
+
+        ScanConfig config;
+        Phase phase = Phase::Begin;
+        std::size_t index = 0;           // next form (Filter) or kept spell (Build)
+        bool useTypeFilter = true;
+        std::vector<RE::FormID> kept;    // passed every filter; marked for the tree after the loop
+        std::unordered_set<RE::FormID> taught;
+        std::unordered_set<RE::FormID> unreachable;
+        std::unordered_map<RE::FormID, RE::FormID> duplicates;
+        json spellArray = json::array();
+
+        int scannedCount = 0;
+        int skippedCount = 0;
+        int filteredCount = 0;
+        // Diagnostic counters for debugging scan failures
+        int skipType = 0;       // Failed spellType check
+        int skipNoName = 0;     // Empty name
+        int skipNoSchool = 0;   // No magic school
+        int diagSamples = 0;    // How many diagnostic samples logged
+        std::size_t lost = 0;   // kept spells no longer found by FormID in a later step
+
+        std::size_t steps = 0;
+        double longestMs = 0.0;
+        const char* longestPhase = "";
+
+        static const char* Name(Phase p)
+        {
+            switch (p) {
+                case Phase::Begin: return "begin";
+                case Phase::Filter: return "filter";
+                case Phase::Marks: return "marks";
+                case Phase::Build: return "build";
+                case Phase::Wrap: return "wrap";
+                case Phase::Done: return "done";
+            }
+            return "";
+        }
+
+        void Begin();
+        void Filter(Clock::time_point deadline);
+        bool FilterOne(RE::SpellItem* spell);
+        void Marks();
+        void Build(Clock::time_point deadline);
+        void Wrap();
+    };
+
+    void FullScanCollector::State::Begin()
     {
         logger::info("SpellScanner: Starting spell scan with ScanConfig...");
 
-        return BuildScanOutput(ScanSpellsToJson(config.fields), config, {});
+        auto* dataHandler = RE::TESDataHandler::GetSingleton();
+        if (!dataHandler) {
+            logger::error("SpellScanner: Failed to get TESDataHandler");
+            phase = Phase::Done;
+            return;
+        }
+
+        const auto& allSpells = dataHandler->GetFormArray<RE::SpellItem>();
+        logger::info("SpellScanner: Found {} total spell forms", allSpells.size());
+
+        // Log a sample of the first few forms for diagnostics
+        {
+            int sampleCount = 0;
+            for (auto* spell : allSpells) {
+                if (!spell || sampleCount >= 5) break;
+                const char* sName = spell->GetFullName();
+                const char* sEdId = spell->GetFormEditorID();
+                logger::info("SpellScanner DIAG: sample[{}] formId=0x{:08X} type={} name='{}' editorId='{}'",
+                    sampleCount, spell->GetFormID(),
+                    static_cast<int>(spell->data.spellType),
+                    sName ? sName : "(null)",
+                    sEdId ? sEdId : "(null)");
+                sampleCount++;
+            }
+        }
+
+        // First pass: count how many spells have spellType == kSpell.
+        // On SE 1.5.97 the SpellItem::Data struct layout may differ from AE,
+        // causing spell->data.spellType to read garbage.  If ZERO spells pass
+        // the type check we disable it and rely on other heuristics instead.
+        {
+            int kSpellCount = 0;
+            for (auto* spell : allSpells) {
+                if (spell && spell->data.spellType == RE::MagicSystem::SpellType::kSpell) {
+                    kSpellCount++;
+                }
+            }
+            if (kSpellCount == 0 && allSpells.size() > 0) {
+                logger::warn("SpellScanner: 0/{} spells have spellType==kSpell — likely SE struct layout mismatch. Disabling type filter.",
+                    allSpells.size());
+                useTypeFilter = false;
+            } else {
+                logger::info("SpellScanner: {}/{} spells have spellType==kSpell", kSpellCount, allSpells.size());
+            }
+        }
+        phase = Phase::Filter;
+        index = 0;
+    }
+
+    void FullScanCollector::State::Filter(Clock::time_point deadline)
+    {
+        auto* dataHandler = RE::TESDataHandler::GetSingleton();
+        if (!dataHandler) {
+            logger::error("SpellScanner: Failed to get TESDataHandler");
+            phase = Phase::Done;
+            return;
+        }
+        // Asked again every step: the array can grow between steps
+        const auto& allSpells = dataHandler->GetFormArray<RE::SpellItem>();
+        while (index < allSpells.size()) {
+            auto* spell = allSpells[static_cast<std::uint32_t>(index++)];   // index < size(), a uint32_t
+            if (spell && FilterOne(spell)) kept.push_back(spell->GetFormID());
+            if (Clock::now() >= deadline) return;
+        }
+        phase = Phase::Marks;
+    }
+
+    // One form of the loop: whether it is kept
+    bool FullScanCollector::State::FilterOne(RE::SpellItem* spell)
+    {
+        if (useTypeFilter && spell->data.spellType != RE::MagicSystem::SpellType::kSpell) {
+            skipType++;
+            skippedCount++;
+            // Log first few non-kSpell types for diagnosis
+            if (diagSamples < 3) {
+                const char* dn = spell->GetFullName();
+                logger::info("SpellScanner DIAG: skip type={} for '{}' (0x{:08X})",
+                    static_cast<int>(spell->data.spellType),
+                    dn ? dn : "(unnamed)",
+                    spell->GetFormID());
+                diagSamples++;
+            }
+            return false;
+        }
+
+        const char* rawEditorId = spell->GetFormEditorID();
+        std::string name = spell->GetFullName();
+
+        // EditorID may be empty on SE 1.5.97 without po3's Tweaks — that's OK
+        bool hasEditorId = (rawEditorId && strlen(rawEditorId) > 0);
+        std::string editorIdStr = hasEditorId ? std::string(rawEditorId) : "";
+
+        // Name is required — skip truly unnamed forms
+        if (name.empty()) {
+            skipNoName++;
+            skippedCount++;
+            return false;
+        }
+
+        // Filter out spells where name looks like a FormID (broken/missing data)
+        // These show up as "0x000A26FF" or similar hex strings
+        if (name.length() >= 2 && (name.substr(0, 2) == "0x" || name.substr(0, 2) == "0X")) {
+            filteredCount++;
+            return false;
+        }
+
+        // Also filter if name is all digits/hex (no actual name)
+        bool allHex = true;
+        for (char c : name) {
+            if (!std::isxdigit(static_cast<unsigned char>(c)) && c != ' ') {
+                allHex = false;
+                break;
+            }
+        }
+        if (allHex && name.length() >= 6) {
+            filteredCount++;
+            return false;
+        }
+
+        // Filter out non-player spells based on editorId patterns (only when available)
+        if (hasEditorId && IsNonPlayerSpell(editorIdStr)) {
+            filteredCount++;
+            return false;
+        }
+
+        // When no EditorID available, use name-based heuristics to filter junk
+        if (!hasEditorId) {
+            const std::string lowerName = AsciiText::ToLower(name);
+
+            // Skip obvious non-player spells by name patterns
+            if (lowerName.find(kArabicTrap) != std::string::npos) { filteredCount++; return false; }  // trap
+            // Skip spells with very generic/system names
+            if (lowerName == "yourspellname" || lowerName == "yourspell") { filteredCount++; return false; }
+        }
+
+        if (!IsValidMagicSchool(GetSpellSchool(spell))) {
+            skipNoSchool++;
+            skippedCount++;
+            return false;
+        }
+
+        // Filter out spells with no effects or broken effect data
+        bool hasValidEffect = false;
+        for (auto* effect : spell->effects) {
+            if (effect && effect->baseEffect) {
+                std::string effectName = effect->baseEffect->GetFullName();
+                // Check effect has a real name (not empty or FormID-like)
+                if (!effectName.empty() && effectName.length() > 2 &&
+                    effectName.substr(0, 2) != "0x" && effectName.substr(0, 2) != "0X") {
+                    hasValidEffect = true;
+                    break;
+                }
+            }
+        }
+        if (!hasValidEffect) {
+            filteredCount++;
+            return false;
+        }
+        return true;
+    }
+
+    void FullScanCollector::State::Marks()
+    {
+        // Every spell stays (the librarian and the perk adapters read them all),
+        // marked with what the tree goes by: whether a tome teaches it, whether
+        // it is equipped in the voice slot (SpellScannerCopies.cpp) and whether it
+        // is another plugin's copy of a spell (SpellScannerDuplicates.cpp)
+        std::vector<RE::SpellItem*> spells;
+        spells.reserve(kept.size());
+        for (const auto formId : kept) {
+            if (auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(formId)) {
+                spells.push_back(spell);
+            } else {
+                ++lost;
+            }
+        }
+        kept.clear();
+        for (auto* spell : spells) kept.push_back(spell->GetFormID());
+
+        taught = SpellsTaughtByTomes();
+        if (!TomeReach::UnreachableSpells(unreachable)) {
+            logger::info("SpellScanner: the tome reach pass has not finished - no spell is marked tomeUnreachable");
+        }
+        LogSpellsOutOfTree(spells, taught, unreachable);
+        duplicates = FindDuplicateSpells(spells, taught, unreachable);
+        phase = Phase::Build;
+        index = 0;
+    }
+
+    void FullScanCollector::State::Build(Clock::time_point deadline)
+    {
+        const FieldConfig& fields = config.fields;
+        while (index < kept.size()) {
+            const RE::FormID formId = kept[index++];
+            auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(formId);
+            if (!spell) {
+                ++lost;
+                continue;
+            }
+            auto spellJson = BuildSpellJson(spell, formId, fields);
+            spellJson["taughtByTome"] = taught.contains(formId);
+            spellJson["voiceSlot"] = IsEquippedInVoiceSlot(spell);
+            MarkGate(spellJson, spell);
+            if (unreachable.contains(formId)) spellJson["tomeUnreachable"] = true;
+            if (auto it = duplicates.find(formId); it != duplicates.end()) {
+                spellJson["duplicateOf"] = FormIdText::Format(it->second);
+            }
+            spellArray.push_back(std::move(spellJson));
+            scannedCount++;
+            if (Clock::now() >= deadline) return;
+        }
+        phase = Phase::Wrap;
+    }
+
+    void FullScanCollector::State::Wrap()
+    {
+        // Check if any spells had EditorIDs (diagnostic for SE 1.5.97 compatibility)
+        int editorIdCount = 0;
+        for (const auto& s : spellArray) {
+            if (s.contains("editorId") && !s["editorId"].get<std::string>().empty()) {
+                editorIdCount++;
+            }
+        }
+
+        logger::info("SpellScanner: Scanned {} spells, skipped {} (type:{}, noName:{}, noSchool:{}), filtered {}",
+                     scannedCount, skippedCount, skipType, skipNoName, skipNoSchool, filteredCount);
+        if (lost > 0) {
+            logger::warn("SpellScanner: {} kept spells were gone by FormID in a later step (left out)", lost);
+        }
+        if (scannedCount > 0 && editorIdCount == 0) {
+            logger::warn("SpellScanner: No EditorIDs available — SE 1.5.97 without po3 Tweaks? Name-based filtering active.");
+        } else if (scannedCount > 0) {
+            logger::info("SpellScanner: EditorIDs available for {}/{} spells", editorIdCount, scannedCount);
+        }
+        phase = Phase::Done;
+    }
+
+    FullScanCollector::FullScanCollector(ScanConfig config) :
+        m_state(std::make_unique<State>())
+    {
+        m_state->config = std::move(config);
+    }
+
+    FullScanCollector::~FullScanCollector() = default;
+
+    bool FullScanCollector::Step(std::chrono::microseconds budget)
+    {
+        auto& st = *m_state;
+        if (st.phase == State::Phase::Done) return true;
+
+        const auto started = Clock::now();
+        // No budget (microseconds::max) must not overflow the clock
+        const auto room = std::chrono::duration_cast<std::chrono::microseconds>(Clock::time_point::max() - started);
+        const auto deadline = budget >= room ? Clock::time_point::max() : started + budget;
+        const auto phase = st.phase;
+        // One phase per step: a phase that ends leaves the rest of the budget
+        // unused, so the marks (which cannot be split) start on a step of their own
+        switch (phase) {
+            case State::Phase::Begin: st.Begin(); break;
+            case State::Phase::Filter: st.Filter(deadline); break;
+            case State::Phase::Marks: st.Marks(); break;
+            case State::Phase::Build: st.Build(deadline); break;
+            case State::Phase::Wrap: st.Wrap(); break;
+            case State::Phase::Done: break;
+        }
+        ++st.steps;
+        const double ms = std::chrono::duration<double, std::milli>(Clock::now() - started).count();
+        if (ms > st.longestMs) {
+            st.longestMs = ms;
+            st.longestPhase = State::Name(phase);
+        }
+        return st.phase == State::Phase::Done;
+    }
+
+    json FullScanCollector::Finish()
+    {
+        auto& st = *m_state;
+        return BuildScanOutput(std::move(st.spellArray), st.config, {});
+    }
+
+    std::size_t FullScanCollector::Steps() const noexcept { return m_state->steps; }
+    double FullScanCollector::LongestStepMs() const noexcept { return m_state->longestMs; }
+    const char* FullScanCollector::LongestStepPhase() const noexcept { return m_state->longestPhase; }
+
+    json CollectAllSpells(const ScanConfig& config)
+    {
+        FullScanCollector collector(config);
+        while (!collector.Step(std::chrono::microseconds::max())) {}
+        return collector.Finish();
     }
 
     std::string ScanAllSpells(const ScanConfig& config)

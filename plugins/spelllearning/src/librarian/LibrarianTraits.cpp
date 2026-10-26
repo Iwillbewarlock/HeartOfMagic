@@ -207,7 +207,7 @@ namespace Librarian
         return changed;
     }
 
-    void ClassifyScan(std::string& scanJson, bool wait)
+    bool ClassifyScan(std::string& scanJson, bool wait, const std::function<void()>& onWritten)
     {
         // The panel's scan calls this on a worker thread (UIManagerScanner.cpp) and
         // Papyrus RunScan on the game thread; one builds a catalog at a time, so two
@@ -222,26 +222,38 @@ namespace Librarian
             building = false;
             logger::warn("Librarian: another scan is classifying - this one takes the catalog there is");
         }
+        bool wrote = false;
         try {
             json scanDump = json::parse(scanJson);
 
             // A scan with effects makes a fresh catalog; one without (a tome
             // list) takes its elements from the catalog the last full scan left.
             json catalog;
-            if (!(building && BuildAndWriteCatalog(scanDump, catalog)) && !LoadCatalog(catalog)) {
-                return;
+            wrote = building && BuildAndWriteCatalog(scanDump, catalog);
+            if (wrote && onWritten) {
+                // A failure there leaves the written catalog as it is
+                try {
+                    onWritten();
+                } catch (const std::exception& e) {
+                    logger::error("Librarian: after the catalog was written - {}", e.what());
+                }
+            }
+            if (!wrote && !LoadCatalog(catalog)) {
+                return false;
             }
 
             // Only a scan holding the lock sets the card's catalog:
             // one that skipped would put the older file over the running build's
             if (building) RememberCatalog(catalog);
             const std::size_t changed = MergeCatalogElements(scanDump, catalog);
-            if (changed == 0) return;
+            if (changed == 0) return wrote;
 
             scanJson = JsonText::Dump(scanDump);
             logger::info("Librarian: catalog elements merged into the traits of {} spells", changed);
+            return wrote;
         } catch (const std::exception& e) {
             logger::error("Librarian: merging catalog elements failed - {}", e.what());
         }
+        return wrote;
     }
 }

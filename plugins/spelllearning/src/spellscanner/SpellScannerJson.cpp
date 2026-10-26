@@ -7,6 +7,8 @@
 #include "PathText.h"
 #include "EncodingUtils.h"
 #include "librarian/Librarian.h"
+#include "LoadOrderFingerprint.h"
+#include "ScanRecord.h"
 #include "ThreadUtils.h"
 
 #include <filesystem>
@@ -392,7 +394,7 @@ namespace SpellScanner
     // Field presets for the Papyrus scan dump. The panel had the same three on
     // buttons (applyPreset in the removed llmApiSettings.js); it now always scans
     // with its state.fields defaults.
-    static FieldConfig FieldsForPreset(const std::string& preset)
+    FieldConfig FieldsForPreset(const std::string& preset)
     {
         FieldConfig fields;
 
@@ -442,7 +444,12 @@ namespace SpellScanner
         // stands either way.
         // On the game thread it does not wait for a panel scan's classification
         // (that would stop the game for seconds); it takes the catalog there is.
-        Librarian::ClassifyScan(result, !IsOnGameThread());
+        // The scan record follows the catalog file (ScanRecord.h): only a scan of
+        // every spell says which load order the catalog was made from
+        const auto* loadOrder = IsOnGameThread() ? &LoadOrderFingerprint::Current() : LoadOrderFingerprint::Known();
+        Librarian::ClassifyScan(result, !IsOnGameThread(), [tomeMode, loadOrder]() {
+            ScanRecord::CatalogWritten(tomeMode ? nullptr : loadOrder);
+        });
 
         // Papyrus RunScan: the perk adapters follow the catalog it rebuilt. A
         // preset without effects leaves the catalog as it was.

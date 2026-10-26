@@ -2,6 +2,7 @@
 #include "FileUtils.h"
 #include "HudNotify.h"
 #include "JsonText.h"
+#include "LoadOrderFingerprint.h"
 #include "PathText.h"
 #include "ThreadUtils.h"
 #include "uimanager/TreeSaveCheck.h"
@@ -28,13 +29,8 @@
 //     { "version": 1, "loadOrder": "<fingerprint the tree was built under>",
 //       "plugins": n, "spells": n, "noticedLoadOrder": "<fingerprint the player was told about>" }
 //
-// The fingerprint is FNV-1a 64 over the loaded plugin file names in load order
-// (full plugins, then light ones) and the number of SpellItem forms: the same
-// for the same load order on every start, different when a plugin is added,
-// removed or moved, or a mod update adds spells under the same file name.
-// Limit: the count is taken when first asked for (LoadSpellTree at the main
-// menu, normally); a mod that creates SpellItems at run time before that can
-// change it on its own and give a notice for a load order that did not change.
+// The fingerprint is LoadOrderFingerprint.h's (asked for first by LoadSpellTree
+// at the main menu, normally).
 // Written when SaveSpellTree saves a build's Apply (manual or the one at game
 // start: the panel sends those to SaveBuiltSpellTree); an edit mode save, an import or an orphan
 // repair leaves the record as it is. A tree saved before 1.5.0 has no record
@@ -42,10 +38,6 @@
 
 namespace
 {
-    constexpr std::uint64_t kFnvOffsetBasis = 0xcbf29ce484222325ULL;
-    constexpr std::uint64_t kFnvPrime = 0x100000001b3ULL;
-    constexpr std::string_view kNameEnd = "\n";
-    constexpr std::string_view kLightPluginsMark = "|light|\n";
     constexpr int kRecordVersion = 1;
     constexpr int kRecordIndent = 2;
     constexpr std::size_t kEventTextMax = 512;   // bytes of a panel event's text in the log, at most
@@ -55,13 +47,6 @@ namespace
     // The corner message for a run held in game ("held"), once per session
     std::atomic<bool> s_heldTold{ false };
 
-    struct LoadOrderFingerprint
-    {
-        std::string hash;          // 16 hex digits; empty before kDataLoaded
-        std::size_t plugins = 0;
-        std::size_t spells = 0;
-    };
-
     struct TreeLoadOrderRecord
     {
         std::string loadOrder;
@@ -70,43 +55,9 @@ namespace
         std::size_t spells = 0;
     };
 
-    void HashBytes(std::uint64_t& hash, std::string_view bytes)
+    const LoadOrderFingerprint::Value& CurrentLoadOrder()
     {
-        for (const unsigned char c : bytes) {
-            hash ^= c;
-            hash *= kFnvPrime;
-        }
-    }
-
-    // Game thread. Worked out once: the load order does not change while the game runs.
-    const LoadOrderFingerprint& CurrentLoadOrder()
-    {
-        static std::optional<LoadOrderFingerprint> s_cached;
-        static const LoadOrderFingerprint s_unknown{};
-        if (s_cached) return *s_cached;
-
-        auto* dh = RE::TESDataHandler::GetSingleton();
-        if (!dh) return s_unknown;
-
-        LoadOrderFingerprint result;
-        std::uint64_t hash = kFnvOffsetBasis;
-        auto addFile = [&](const RE::TESFile* file) {
-            if (!file) return;
-            HashBytes(hash, file->GetFilename());
-            HashBytes(hash, kNameEnd);
-            ++result.plugins;
-        };
-        for (std::uint32_t i = 0; i < dh->GetLoadedModCount(); ++i) addFile(dh->GetLoadedMods()[i]);
-        HashBytes(hash, kLightPluginsMark);
-        if (const auto* light = dh->GetLoadedLightMods()) {
-            for (std::uint32_t i = 0; i < dh->GetLoadedLightModCount(); ++i) addFile(light[i]);
-        }
-        result.spells = dh->GetFormArray<RE::SpellItem>().size();
-        HashBytes(hash, std::to_string(result.spells));
-        result.hash = std::format("{:016x}", hash);
-
-        s_cached = std::move(result);
-        return *s_cached;
+        return LoadOrderFingerprint::Current();
     }
 
     TreeLoadOrderRecord ReadRecord()

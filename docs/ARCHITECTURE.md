@@ -1807,6 +1807,80 @@ in `index.html`.
 The developer-only AUTO AI flow (the LLM built each school over OpenRouter, with self-correction and
 a Retry School control) was removed on 2026-09-28; its buttons had already left `index.html`.
 
+### Scan at Game Start (2026-10-27)
+
+A tree is never rebuilt by itself, but the catalog (`spell_catalog.json`) should follow the load order: the
+perk adapters, Spell Research and the spell card read it, and before this it changed only when the player
+scanned. Now the first main menu of a session scans every spell by itself when the load order is not the one
+the catalog was made from (`src/AutoScan.cpp`, `include/AutoScan.h`; design:
+`docs/superpowers/specs/2026-10-27-auto-scan-design.md`).
+
+- **What it changes:** `spell_catalog.json`, `spell_scan_output.json` (always, as Papyrus `RunScan` does)
+  and the scan record `spell_catalog_loadorder.json`, plus the spell card's catalog in memory
+  (`RememberCatalog`). Never `spell_tree.json`, `spell_tree_loadorder.json`, the learning progress, the panel
+  (no `CallView`, no `m_scanText`) or a game form: it calls neither `PerkAdapters::Apply` nor
+  `SpellResearchPatch` - the adapters take the new catalog at the next game start (kDataLoaded, during the
+  loading), Spell Research at the next save load (`OnGameLoaded` resets its count and reads the file). So
+  spells of a newly added mod get the perk overhauls' keywords from the next game start on. A save loaded
+  while the worker part ran has Spell Research on the old catalog until the save after it (logged); calling
+  `OnCatalogChanged` then would write its form lists during play and stop the game for it.
+- **When:** the first main menu of a session (its own `MenuOpenCloseEvent` sink, installed at kDataLoaded, so
+  it works without PrismaUI; when the main menu is already open at kDataLoaded it starts from there), after the tome reach pass (30 s at most), when all of these hold:
+  config.json's `autoBuild` is not `"off"` (the "Build Spell Tree at Start" setting; a config.json that does
+  not parse: nothing), `spell_tree.json` has spells (`TreeSaveCheck::HasSpellNodes`; without them the panel's
+  build at game start scans, so it is left to that - no second scan at the same main menu), the scan record
+  does not match the load order (`ScanRecord::CatalogMatches`), and no other scan runs
+  (`UIManager::TryBeginOtherScan`, the panel scans' own one-at-a-time flag; a Scan pressed meanwhile is
+  queued and runs after it, `EndScan`; Papyrus `RunScan` does not use that flag - no script runs at the main
+  menu, and a save load drops the form reads). Otherwise nothing this session, or - another scan running,
+  form reads dropped - again at the next main menu.
+- **The scan record** (`ScanRecord.h`): `{ version, loadOrder, plugins, spells, catalogBytes, catalogHash, rules }`,
+  the load order fingerprint (`LoadOrderFingerprint.h`, the one the tree's notice uses, moved out of
+  UIManagerAutoBuild.cpp), FNV-1a 64 of the catalog file (read back up to three times, 25 ms apart) and of
+  `CATALOG_VERSION` with the librarian's rule files (`librarian/`, names and bytes): new rules from an update or
+  a rule pack make a scan due under the same load order. The scan at game start removes the record again when
+  it could not write `spell_scan_output.json`. Limit: the rules are hashed from disk after the catalog was
+  written, so a rule file `LoadRules` skipped because it was held at that moment (it logs a warning) and that
+  reads fine a moment later is taken as used until the next change; fixing that needs `LoadRules` to hand back
+  what it read. `Librarian::ClassifyScan` now returns whether it
+  wrote a catalog and runs an `onWritten` callback inside its lock: the panel's full scan, Papyrus
+  `RunScan("all", ...)` and the scan at game start write the record there; a tome scan that wrote the catalog
+  (Papyrus `RunScan("tomes", "full")` builds it from the tome spells only) removes it, so the next start scans
+  every spell again. A catalog changed any other way no longer matches the hash. An install from before this
+  has no record and scans once.
+- **Threads:** the main menu task takes the fingerprint (game thread) and starts a waiter thread. The form
+  reads are `SpellScanner::FullScanCollector` (SpellScannerScan.cpp; `CollectAllSpells` is the same collector
+  with no budget, so both read the same way): phases begin (counts), filter (the spell array, by index, the
+  array asked for again every step), marks (tomes, tome reach, duplicates - one step, cannot be split),
+  build (one JSON per kept spell), wrap. Between steps it holds FormIDs, never a form pointer; each step looks
+  its spells up again (`lost` counts any gone). The waiter posts one step, waits for its answer, sleeps 1 ms,
+  posts the next; it waits for an answer as long as the generation holds (a window in the background stops
+  the game loop), and gives up when it moved. A step spends at most 4 ms (`kSliceDefaultMs`) and runs only when the engine's frame time
+  (`RE::GetDurationOfApplicationRunTime`) moved on since the last step - whether SKSE runs a task added
+  while it drains its queue in the same frame is not known (docs/librarian/ToDo.md S-3), so this keeps one
+  step a frame either way; a frame time stuck for 100 ms lets the step run (counted as forced). Then, on the
+  waiter: `JsonText::Dump`, `ClassifyScan` (catalog + record), `WriteScanOutput`, the turn let go.
+- **Save load or new game:** kPreLoadGame and kNewGame raise a generation number (`AutoScan::OnGameChanging`);
+  a step of an older generation does nothing and the run ends ("dropped"), to be tried at the next main menu.
+  Once the form reads are done the rest goes on (no form read).
+- **Log:** `AutoScan: ...` lines - why it did not run (`"Build Spell Tree at Start" is Off`, `no tree with
+  spells - left to the panel's build at game start`, `skipped - load order unchanged`, `a scan is running`),
+  `form reads done in N ms: N steps, the longest N ms (<phase>), N waits for the next frame, N steps forced`,
+  `catalog written in N ms; scan output written to ...`, and `ScanRecord: ...`.
+- **Self-test** (dev installs, `selftest.json` `"autoScan": { "enabled": true, "sliceMs": 4, "budgetMs": 25 }`,
+  shipped in `debug/selftest.json` for `DeployDev.ps1 -WithSelfTest`): the scan runs whatever the record says,
+  and `AutoScan SELFTEST:` lines judge it - `RUN` (catalog written, record matches), `TREE` (FNV of
+  spell_tree.json and spell_tree_loadorder.json before and after), `HITCH` (a probe thread posts a task every
+  2 ms that reads the engine frame time: the longest frame during the scan against the longest of 3 s at the
+  main menu before it, plus `budgetMs`, and no step forced; SKIP when the frame time never moved), `SAME` (the steps' scan equals
+  one `CollectAllSpells` in a single task, timestamp blanked - that task freezes the game for its length, after
+  the probe stopped; both are the same collector, so this checks the steps, not the old loop - that was
+  compared by reading), `DROP` (a step of an older generation reads no form), `DROP-MIDWAY` (a run three steps
+  in, the generation raised: dropped, spell_catalog.json unchanged), then `done - N pass, N fail, N skip`.
+  A save loaded during a self-test run can make `TREE` fail by itself (the load order notice writes
+  spell_tree_loadorder.json); the progress is not compared (nothing of it exists at the main menu, and
+  AutoScan.cpp includes no progression header).
+
 ### Tree Validation System
 
 **Purpose:** Ensure all spells in an imported tree are reachable (can be learned by the player).

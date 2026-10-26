@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- **New spell mods are scanned at game start.** When the load order changed since the last scan, the main menu
+  scans every spell in the background, a few milliseconds a frame, so the game does not stop. It updates the
+  spell catalog (what perk overhauls, Spell Research and the spell card read) and `spell_scan_output.json`, never
+  the spell tree or your progress: new spells join the tree only when you build it again on the Scan tab, as
+  before. Perk overhauls see the new spells from the next game start, Spell Research at the next save load. It
+  does not run with "Build Spell Tree at Start" set to Off, or when there is no tree yet (the build at game start
+  scans then). The first start after updating scans once.
+
 ## Heart of Magic Librarian 1.6.0
 
 ### New
