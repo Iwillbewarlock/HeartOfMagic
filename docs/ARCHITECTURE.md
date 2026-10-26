@@ -1820,7 +1820,7 @@ the catalog was made from (`src/AutoScan.cpp`, `include/AutoScan.h`; design:
   and `AutoScan SELFTEST:` lines judge it - `RUN` (catalog written, record matches), `TREE` (FNV of
   spell_tree.json and spell_tree_loadorder.json before and after), `HITCH` (a probe thread posts a task every
   2 ms that reads the engine frame time: the longest frame during the scan against the longest of 3 s at the
-  main menu before it, plus `budgetMs`; SKIP when the frame time never moved), `SAME` (the steps' scan equals
+  main menu before it, plus `budgetMs`, and no step forced; SKIP when the frame time never moved), `SAME` (the steps' scan equals
   one `CollectAllSpells` in a single task, timestamp blanked - that task freezes the game for its length, after
   the probe stopped; both are the same collector, so this checks the steps, not the old loop - that was
   compared by reading), `DROP` (a step of an older generation reads no form), `DROP-MIDWAY` (a run three steps

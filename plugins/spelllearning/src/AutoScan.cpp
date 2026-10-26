@@ -535,6 +535,7 @@ namespace
 
         // Worker side: strings and files only, no game form (as PrepareScanText)
         auto output = std::move(run->output);
+        const std::size_t forcedSteps = run->forcedSteps;
         run.reset();
         const auto textStarted = Clock::now();
         std::string chunkedDump;
@@ -574,11 +575,13 @@ namespace
                         baseline.frames, scan.frames));
                 } else {
                     const double limit = baseline.longestFrameMs + settings.budgetMs;
-                    counts.Report("HITCH", scan.longestFrameMs <= limit,
+                    // A forced step may have shared a frame with the one before it
+                    counts.Report("HITCH", scan.longestFrameMs <= limit && forcedSteps == 0,
                         std::format("longest frame {} ms during the scan ({} frames, longest probe wait {:.1f} ms) "
-                                    "against {} ms at the main menu before it ({} frames) + {:.0f} ms budget",
+                                    "against {} ms at the main menu before it ({} frames) + {:.0f} ms budget; "
+                                    "{} steps forced",
                             scan.longestFrameMs, scan.frames, scan.longestWaitMs, baseline.longestFrameMs,
-                            baseline.frames, settings.budgetMs));
+                            baseline.frames, settings.budgetMs, forcedSteps));
                 }
             } else {
                 counts.Skip("HITCH", "no frame probe thread");
