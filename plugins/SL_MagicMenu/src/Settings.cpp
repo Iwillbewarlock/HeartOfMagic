@@ -26,6 +26,8 @@ namespace Settings
         constexpr std::uintmax_t kMaxLayoutBytes = 64 * 1024;
         constexpr std::uint32_t kValueChars = 64;
         constexpr std::uint32_t kMaxScanCode = 255;
+        // SKSE::InputMap: kMacro_GamepadOffset 266 .. kMaxMacros 282 (exclusive)
+        constexpr int kMinGamepadCode = SKSE::InputMap::kMacro_GamepadOffset, kMaxGamepadCode = SKSE::InputMap::kMaxMacros - 1;
         constexpr double kMinTreeScale = 0.01, kMaxTreeScale = 10.0;
         constexpr double kMinMarkScale = 0.5, kMaxMarkScale = 3.0;
         constexpr int kMaxSteps = 6, kMaxNodes = 200;
@@ -149,40 +151,151 @@ namespace Settings
             return text;
         }
 
-        // blocks plan Task 2: the layout file, read once and never written by this build. Missing, unreadable, not a layout
-        // or from a newer build: the default layout (one log line each); otherwise repaired against the default
+        std::filesystem::path LayoutPath()
+        {
+            return GameDataPath(kLayoutRelative);
+        }
+
+        std::string Shown(const std::filesystem::path& a_path)
+        {
+            return SKSE::stl::utf16_to_utf8(a_path.wstring()).value_or("(path not UTF-8)");
+        }
+
+        // The layout file as it is: parsed (not repaired), or nullopt with the file's state and a reason
+        struct FileRead
+        {
+            std::optional<Layout::State> state;
+            Layout::FileState file = Layout::FileState::kMissing;
+            std::string why;
+        };
+
+        FileRead ReadLayout(const std::filesystem::path& a_path)
+        {
+            FileRead read;
+            std::error_code ec;
+            const bool exists = std::filesystem::exists(a_path, ec);
+            if (ec) {
+                // Task 2 review: an exists() error is not "no file" - a save must not overwrite what could not be checked
+                read.file = Layout::FileState::kBroken;
+                read.why = std::format("could not be checked ({})", ec.message());
+                return read;
+            }
+            if (!exists) {
+                read.why = "not found";
+                return read;
+            }
+            read.file = Layout::FileState::kBroken;
+            const auto bytes = std::filesystem::file_size(a_path, ec);
+            if (ec || bytes > kMaxLayoutBytes) {
+                read.why = ec ? std::format("has no readable size ({})", ec.message()) : std::format("is {} bytes, more than {}", bytes, kMaxLayoutBytes);
+                return read;
+            }
+            std::ifstream file(a_path, std::ios::binary);
+            std::string text(static_cast<std::size_t>(bytes), char{});
+            if (!file || !file.read(text.data(), static_cast<std::streamsize>(text.size()))) {
+                read.why = "could not be read";
+                return read;
+            }
+            bool newer = false;
+            read.state = Layout::FromJson(text, &read.why, &newer);
+            if (read.state) {
+                read.file = Layout::FileState::kRead;
+            } else {
+                read.file = newer ? Layout::FileState::kNewer : Layout::FileState::kBroken;
+                read.why = (newer ? "is from a newer build: " : "is not a layout: ") + read.why;
+            }
+            return read;
+        }
+
+        Layout::FileState g_fileState = Layout::FileState::kMissing;
+        bool g_badKept = false;  // the unreadable file was copied to .bad this game session (D10)
+
+        // blocks plan Task 2: the layout file, read once at load. Missing, unreadable, not a layout or from a newer build: the
+        // default layout (one log line each; the file's state is kept for SaveLayout's plan, D10); otherwise repaired against the
+        // default
         Layout::State LoadLayout(const Values& a_values)
         {
             const auto fallback = Layout::Default(a_values);
             const std::set<Layout::BlockId> known{ Layout::kPreview, Layout::kTree, Layout::kProgress, Layout::kSpellCard, Layout::kNodeCard };
-            const std::filesystem::path path = GameDataPath(kLayoutRelative);
-            const auto shown = SKSE::stl::utf16_to_utf8(path.wstring()).value_or("(path not UTF-8)");
-            std::error_code ec;
-            if (!std::filesystem::exists(path, ec)) {
-                logger::info("Settings: layout {} not found - the default layout", shown);
+            const auto path = LayoutPath();
+            auto read = ReadLayout(path);
+            g_fileState = read.file;
+            if (read.file == Layout::FileState::kMissing) {
+                logger::info("Settings: layout {} not found - the default layout", Shown(path));
                 return fallback;
             }
-            const auto bytes = std::filesystem::file_size(path, ec);
-            if (ec || bytes > kMaxLayoutBytes) {
-                logger::warn("Settings: layout {} {} - the default layout", shown,
-                    ec ? std::format("has no readable size ({})", ec.message()) : std::format("is {} bytes, more than {}", bytes, kMaxLayoutBytes));
+            if (!read.state) {
+                logger::warn("Settings: layout {} {} - the default layout{}", Shown(path), read.why,
+                    read.file == Layout::FileState::kNewer ? " (the file is left as it is: the layout mode will not save over it)" :
+                                                             " (kept as .bad before the layout mode saves over it)");
                 return fallback;
             }
-            std::ifstream file(path, std::ios::binary);
-            std::string text(static_cast<std::size_t>(bytes), char{});
-            if (!file || !file.read(text.data(), static_cast<std::streamsize>(text.size()))) {
-                logger::warn("Settings: layout {} could not be read - the default layout", shown);
-                return fallback;
+            return Layout::Repair(*read.state, known, fallback);
+        }
+
+        // Win32 file moves (kernel32; REX::W32 has none of them), declared here so this file needs no <Windows.h>. The types are
+        // the SDK's (BOOL = int, DWORD = unsigned long, LPCWSTR, LPVOID)
+        extern "C" __declspec(dllimport) int __stdcall ReplaceFileW(const wchar_t* a_replaced, const wchar_t* a_replacement, const wchar_t* a_backup,
+            unsigned long a_flags, void* a_exclude, void* a_reserved);
+        extern "C" __declspec(dllimport) int __stdcall MoveFileExW(const wchar_t* a_existing, const wchar_t* a_new, unsigned long a_flags);
+        extern "C" __declspec(dllimport) int __stdcall CopyFileW(const wchar_t* a_existing, const wchar_t* a_new, int a_failIfExists);
+        constexpr unsigned long kReplaceIgnoreMergeErrors = 0x2;                       // REPLACEFILE_IGNORE_MERGE_ERRORS
+        constexpr unsigned long kMoveReplaceExisting = 0x1, kMoveWriteThrough = 0x8;  // MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH
+
+        std::filesystem::path WithSuffix(const std::filesystem::path& a_path, const wchar_t* a_suffix)
+        {
+            return std::filesystem::path(a_path.wstring() + a_suffix);
+        }
+
+        // The JSON written to a_tmp; every step checked (std::ofstream: flush() is the stream's, not FlushFileBuffers - D10 asks for
+        // each step to be checked, not for a disk sync)
+        bool WriteTemp(const std::filesystem::path& a_tmp, const std::string& a_text, std::string* a_why)
+        {
+            std::ofstream file(a_tmp, std::ios::binary | std::ios::trunc);
+            if (!file) {
+                *a_why = std::format("could not open {} for writing", Shown(a_tmp));
+                return false;
             }
-            std::string why;
-            bool newer = false;
-            const auto parsed = Layout::FromJson(text, &why, &newer);
-            if (!parsed) {
-                logger::warn("Settings: layout {} {}: {} - the default layout{}", shown, newer ? "is from a newer build" : "is not a layout", why,
-                    newer ? " (the file is left as it is)" : "");
-                return fallback;
+            if (!file.write(a_text.data(), static_cast<std::streamsize>(a_text.size()))) {
+                *a_why = std::format("writing {} failed", Shown(a_tmp));
+                return false;
             }
-            return Layout::Repair(*parsed, known, fallback);
+            if (!file.flush()) {
+                *a_why = std::format("flushing {} failed", Shown(a_tmp));
+                return false;
+            }
+            file.close();
+            if (file.fail()) {
+                *a_why = std::format("closing {} failed", Shown(a_tmp));
+                return false;
+            }
+            return true;
+        }
+
+        // The written .tmp put in the file's place (the plan's replace: the old file kept as .bak)
+        bool PutInPlace(const std::filesystem::path& a_path, const std::filesystem::path& a_tmp, bool a_replace, std::string* a_why)
+        {
+            const auto bak = WithSuffix(a_path, L".bak");
+            if (a_replace) {
+                if (ReplaceFileW(a_path.c_str(), a_tmp.c_str(), bak.c_str(), kReplaceIgnoreMergeErrors, nullptr, nullptr)) return true;
+                const auto replaceError = REX::W32::GetLastError();
+                // the fallback (D10): ReplaceFileW can fail on a virtual file system (MO2's usvfs, unverified) or after it moved the
+                // old file to .bak already (ERROR_UNABLE_TO_MOVE_REPLACEMENT): the old file copied to .bak when it is still there,
+                // then the move
+                std::error_code ec;
+                if (std::filesystem::exists(a_path, ec) && !CopyFileW(a_path.c_str(), bak.c_str(), 0)) {
+                    *a_why = std::format("ReplaceFileW failed (error {}) and the old file could not be kept as {} (error {})", replaceError, Shown(bak),
+                        REX::W32::GetLastError());
+                    return false;
+                }
+                logger::warn("Settings: layout save - ReplaceFileW failed (error {}); the old file kept as {}, moving the new one in", replaceError,
+                    Shown(bak));
+            }
+            if (!MoveFileExW(a_tmp.c_str(), a_path.c_str(), kMoveReplaceExisting | kMoveWriteThrough)) {
+                *a_why = std::format("MoveFileExW {} -> {} failed (error {})", Shown(a_tmp), Shown(a_path), REX::W32::GetLastError());
+                return false;
+            }
+            return true;
         }
     }
 
@@ -208,6 +321,14 @@ namespace Settings
         ReadBool(path, L"Preview", L"bKeepPanelAlpha", v.keepPanelAlpha);
         ReadNumber(path, L"Keys", L"iNext", v.keyNext, 1u, kMaxScanCode);
         ReadNumber(path, L"Keys", L"iSetTarget", v.keySetTarget, 1u, kMaxScanCode);
+        ReadNumber(path, L"Keys", L"iLayout", v.keyLayout, 1u, kMaxScanCode);
+        // SKSE's gamepad codes (266 D-pad up .. 281 Y, SKSE InputMap), or -1 for none
+        ReadNumber(path, L"Keys", L"iGamepadLayout", v.gamepadLayout, -1, kMaxGamepadCode);
+        if (v.gamepadLayout != -1 && v.gamepadLayout < kMinGamepadCode) {
+            logger::warn("Settings: [Keys] iGamepadLayout = {} is not a gamepad button ({}..{}) or -1 - keeping {}", v.gamepadLayout, kMinGamepadCode,
+                kMaxGamepadCode, Values{}.gamepadLayout);
+            v.gamepadLayout = Values{}.gamepadLayout;
+        }
         ReadRect(path, L"fPreview", v.preview);
         // the 3D is placed in the panel's content area (PanelContent: the title strip and padding off), which has to have room
         // too (second review X3: an outer height of 38 left 0 and made the preview's scale 0)
@@ -231,9 +352,9 @@ namespace Settings
         g_values = v;
 
         logger::info("Settings: enabled {} selfTest {} movePreview {} moveItemCard {} drawPreviewOver {} previewUnlearned {} hideGamePass {} "
-                     "clipPreview {} ownCard {} hideBackdrop {} hideGlow {} keepPanelAlpha {} keys next {} setTarget {}",
+                     "clipPreview {} ownCard {} hideBackdrop {} hideGlow {} keepPanelAlpha {} keys next {} setTarget {} layout {} gamepad layout {}",
             v.enabled, v.selfTest, v.movePreview, v.moveItemCard, v.drawPreviewOver, v.previewUnlearned, v.hideGamePass, v.clipPreview,
-            v.ownCard, v.hideBackdrop, v.hideGlow, v.keepPanelAlpha, v.keyNext, v.keySetTarget);
+            v.ownCard, v.hideBackdrop, v.hideGlow, v.keepPanelAlpha, v.keyNext, v.keySetTarget, v.keyLayout, v.gamepadLayout);
         LogRect("preview  ", v.preview);
         LogRect("  3D area", PanelContent(v.preview));
         LogRect("tree     ", v.tree);
@@ -263,5 +384,64 @@ namespace Settings
     const Layout::State& SavedLayout()
     {
         return g_layout;
+    }
+
+    Layout::FileState LayoutFileState()
+    {
+        return g_fileState;
+    }
+
+    void SetSavedLayout(const Layout::State& a_state)
+    {
+        g_layout = a_state;
+    }
+
+    SaveResult SaveLayout(const Layout::State& a_state, std::string* a_why)
+    {
+        std::string why;
+        const auto done = [&](SaveResult a_result) {
+            if (a_why) *a_why = why;
+            return a_result;
+        };
+        const auto path = LayoutPath();
+        std::error_code ec;
+        const bool exists = std::filesystem::exists(path, ec);
+        if (ec) {
+            why = std::format("{} could not be checked ({})", Shown(path), ec.message());
+            return done(SaveResult::kFailed);
+        }
+        const auto plan = Layout::PlanSave(g_fileState, g_badKept, exists);
+        if (plan.refuse) {
+            why = std::format("{} is from a newer build - not written over", Shown(path));
+            return done(SaveResult::kRefused);
+        }
+        if (plan.copyBadFirst) {
+            const auto bad = WithSuffix(path, L".bad");
+            if (!CopyFileW(path.c_str(), bad.c_str(), 0)) {
+                why = std::format("the file that failed to read could not be kept as {} (error {})", Shown(bad), REX::W32::GetLastError());
+                return done(SaveResult::kFailed);
+            }
+            g_badKept = true;
+            logger::info("Settings: layout save - the file that failed to read at load kept as {}", Shown(bad));
+        }
+        const auto tmp = WithSuffix(path, L".tmp");
+        const bool written = WriteTemp(tmp, Layout::ToJson(a_state), &why) && PutInPlace(path, tmp, plan.replace, &why);
+        g_fileState = Layout::AfterSave(g_fileState, written);
+        if (!written) {
+            std::error_code removeError;
+            if (std::filesystem::exists(tmp, removeError)) std::filesystem::remove(tmp, removeError);
+            if (removeError) why += std::format("; {} left behind ({})", Shown(tmp), removeError.message());
+            return done(SaveResult::kFailed);
+        }
+        g_layout = a_state;
+        why = std::format("{} written{}", Shown(path), plan.replace ? " (the old file kept as .bak)" : " (a new file)");
+        return done(SaveResult::kSaved);
+    }
+
+    std::optional<Layout::State> ReadLayoutFile(std::string* a_why)
+    {
+        auto read = ReadLayout(LayoutPath());
+        if (a_why) *a_why = read.why;
+        return read.state;
     }
 }

@@ -2,7 +2,8 @@
 // (plugins/SL_MagicMenu/src/Layout.cpp, the same code the widget arranges its panels with):
 // the default layout against the ini rects, the column border and its limits, hidden and fill
 // blocks per tab (plan D6), the drop slot and the move with hidden / absent ids (plan D3),
-// scroll clamping, the column areas and the preview box cut to its column (Task 3), and the layout JSON (version, repair of a bad file).
+// scroll clamping, the column areas and the preview box cut to its column (Task 3), the layout JSON (version, repair of a bad file),
+// and the layout mode's pure parts (Task 4): moves keep every block once, cancel restores the entry State, the file safety plan.
 //
 //   magic-menu-layout-check     one PASS/FAIL line per check, a total line
 //
@@ -11,7 +12,9 @@
 #include "Layout.h"
 #include "Settings.h"
 
+#include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <limits>
 #include <map>
@@ -392,6 +395,126 @@ namespace
         Expect(added.columns[0].back() == "addon.new" && added.columns[1] == fallback.columns[1], "known block not in the fallback -> end of column 0");
         Expect(Layout::Repair(fallback, kKnown, fallback) == fallback, "Repair of the default: unchanged");
     }
+
+    /// Each id of a_ids exactly once over both columns
+    bool EachOnce(const State& a_state, const std::set<BlockId>& a_ids)
+    {
+        for (const auto& id : a_ids) {
+            int count = 0;
+            for (const auto& column : a_state.columns) {
+                count += static_cast<int>(std::ranges::count(column, id));
+            }
+            if (count != 1) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void MoveKeepsEveryBlock()
+    {
+        std::printf("move + repair keep every block exactly once (Task 4)\n");
+        const State fallback = Layout::Default(kValues);
+        State withAbsent = fallback;
+        withAbsent.columns[0] = { Layout::kPreview, "addon.gone", Layout::kProgress, Layout::kSpellCard };
+        std::set<BlockId> all = kKnown;
+        all.insert("addon.gone");
+        const std::vector<std::optional<BlockId>> anchors{ std::nullopt, Layout::kPreview, Layout::kTree, Layout::kProgress, Layout::kSpellCard,
+            Layout::kNodeCard, BlockId{ "addon.gone" }, BlockId{ "addon.none" } };
+        int cases = 0, bad = 0;
+        for (const bool absent : { false, true }) {
+            const State& start = absent ? withAbsent : fallback;
+            for (const auto& block : all) {
+                for (int column = -1; column <= Layout::kColumns; ++column) {
+                    for (const auto& before : anchors) {
+                        const State moved = Layout::Move(start, block, Slot{ column, before });
+                        ++cases;
+                        const bool once = EachOnce(moved, absent ? all : kKnown);
+                        const bool stable = Layout::Repair(moved, kKnown, fallback) == moved;
+                        if (!once || !stable) {
+                            ++bad;
+                        }
+                    }
+                }
+            }
+        }
+        Expect(bad == 0, Text("every single move (%d cases: each block, columns -1..2, each anchor incl. absent and unknown ids): each id once, "
+                              "Repair leaves it as it is (%d bad)",
+                             cases, bad));
+
+        // a long chain of drags (a fixed LCG, seed 20261026): the same holds after every step
+        std::uint32_t seed = 20261026u;
+        const auto next = [&](std::uint32_t a_range) {
+            seed = seed * 1664525u + 1013904223u;
+            return static_cast<std::uint32_t>((seed >> 8) % a_range);
+        };
+        const std::vector<BlockId> ids(all.begin(), all.end());
+        State chain = withAbsent;
+        int chainBad = 0;
+        constexpr int kSteps = 500;
+        for (int step = 0; step < kSteps; ++step) {
+            const auto& block = ids[next(static_cast<std::uint32_t>(ids.size()))];
+            const auto& before = anchors[next(static_cast<std::uint32_t>(anchors.size()))];
+            chain = Layout::Move(chain, block, Slot{ static_cast<int>(next(Layout::kColumns)), before });
+            if (!EachOnce(chain, all) || !(Layout::Repair(chain, kKnown, fallback) == chain)) {
+                ++chainBad;
+            }
+        }
+        Expect(chainBad == 0, Text("%d chained moves (LCG seed 20261026): each id once after every step (%d bad)", kSteps, chainBad));
+
+        // a file that lost blocks and repeats others: Repair puts each back to exactly once
+        State broken = fallback;
+        broken.columns[0] = { Layout::kPreview, Layout::kPreview, "addon.gone" };
+        broken.columns[1] = { Layout::kTree, Layout::kSpellCard, Layout::kTree };
+        const State repaired = Layout::Repair(broken, kKnown, fallback);
+        Expect(EachOnce(repaired, all), "repair of a file with lost and repeated blocks: each id once " + Show(repaired.columns[0]) + " / " +
+                                           Show(repaired.columns[1]));
+    }
+
+    void CancelRestoresEntry()
+    {
+        std::printf("cancel restores the entry State (Task 4, L4's offline twin)\n");
+        // the widget's mode keeps the State it was entered with and edits a copy (drops, the border, reset); cancel puts the
+        // entry back. The entry here is not the default: an absent add-on, a moved border
+        State entry = Layout::Default(kValues);
+        entry.columns[0] = { Layout::kTree, "addon.gone", Layout::kSpellCard };
+        entry.columns[1] = { Layout::kPreview, Layout::kProgress, Layout::kNodeCard };
+        entry.border = 900.25;
+        const std::string entryText = Layout::ToJson(entry);
+        State working = entry;
+        working = Layout::Move(working, Layout::kPreview, Slot{ 0, Layout::kTree });
+        working = Layout::Move(working, Layout::kNodeCard, Slot{ 0, std::nullopt });
+        working.border = Layout::ClampBorder(1100, kFrames[0], kFrames[1]);
+        working = Layout::Default(kValues);  // reset
+        working = Layout::Move(working, Layout::kTree, Slot{ 0, Layout::kPreview });
+        Expect(!(working == entry), "the edits changed the working State");
+        working = entry;  // cancel
+        Expect(working == entry && Layout::ToJson(working) == entryText, "after cancel: equal to the entry State, the same JSON byte for byte");
+        const auto reread = Layout::FromJson(Layout::ToJson(working), nullptr);
+        Expect(reread && *reread == entry, "the entry State's JSON reads back as itself (L3's offline twin)");
+    }
+
+    void FileSafety()
+    {
+        std::printf("layout file safety (plan D10, Task 4)\n");
+        using Layout::FileState;
+        using Layout::SavePlan;
+        const auto plan = [](FileState a_state, bool a_kept, bool a_exists) { return Layout::PlanSave(a_state, a_kept, a_exists); };
+        Expect(plan(FileState::kRead, false, true) == SavePlan{ false, false, true }, "normal file: write .tmp, replace keeping .bak");
+        Expect(plan(FileState::kMissing, false, false) == SavePlan{ false, false, false }, "no file yet: write .tmp, move it in (no .bak)");
+        Expect(plan(FileState::kRead, false, false) == SavePlan{ false, false, false }, "file gone since it was read: move only");
+        Expect(plan(FileState::kMissing, false, true) == SavePlan{ false, false, true }, "a file appeared since load: replace keeping .bak");
+        Expect(plan(FileState::kBroken, false, true) == SavePlan{ false, true, true }, "failed read: copy to .bad first, then replace");
+        Expect(plan(FileState::kBroken, true, true) == SavePlan{ false, false, true }, "failed read, .bad kept already (a retry): no second copy");
+        Expect(plan(FileState::kBroken, false, false) == SavePlan{ false, false, false }, "failed read, file gone: nothing to keep, move only");
+        Expect(plan(FileState::kNewer, false, true).refuse && plan(FileState::kNewer, true, false).refuse, "newer build's file: never written");
+        Expect(Layout::AfterSave(FileState::kBroken, false) == FileState::kBroken &&
+                   plan(Layout::AfterSave(FileState::kBroken, false), false, true) == plan(FileState::kBroken, false, true),
+            "write failure: the state is kept, the retry plans the same");
+        Expect(Layout::AfterSave(FileState::kNewer, false) == FileState::kNewer, "refused: still the newer build's file");
+        Expect(Layout::AfterSave(FileState::kBroken, true) == FileState::kRead && Layout::AfterSave(FileState::kMissing, true) == FileState::kRead,
+            "written: a read layout from then on (no .bad copy at the next save)");
+    }
 }
 
 int main()
@@ -404,6 +527,9 @@ int main()
     SnapAndMove();
     SnapAroundHiddenAndAbsent();
     Json();
+    MoveKeepsEveryBlock();
+    CancelRestoresEntry();
+    FileSafety();
     std::printf("layout-check: %d PASS, %d FAIL\n", g_pass, g_fail);
     return g_fail == 0 ? kExitOk : kExitFail;
 }

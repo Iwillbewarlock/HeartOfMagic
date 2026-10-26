@@ -1,10 +1,13 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
+#include <string>
 
 namespace Layout
 {
-    struct State;  // Layout.h (it includes this header, so only declared here)
+    struct State;           // Layout.h (it includes this header, so only declared here)
+    enum class FileState;   // Layout.h
 }
 
 // =============================================================================
@@ -51,6 +54,11 @@ namespace Settings
         // N (49) Creature Framework's puppet key with no menu check; U and G are used by nothing live in the magic menu.
         std::uint32_t keyNext = 22;       // U: next learnable spell of the school
         std::uint32_t keySetTarget = 34;  // G: what the node card's button does
+        // blocks plan Task 4 (spec "Input boundary", Defaults): the layout mode's toggle. K (37) is in no controlmap line and was
+        // free in the build-5 key scan; the gamepad's RS click (SKSE code 273, the game's Item Zoom here: every pad button is
+        // taken in this menu, Task 0) - -1 = no gamepad toggle
+        std::uint32_t keyLayout = 37;
+        int gamepadLayout = 273;
 
         // [Layout] stage units: layout E2 the user chose from the offline renders (spec v6 L1, 2026-10-25): one two-column
         // grid, gap fPanelGap everywhere - left column 648..969, right 978..1238; row 1 67..297, row 2 306..623. The item card
@@ -109,7 +117,29 @@ namespace Settings
     const Values& Get();
 
     /// The block layout read by Load() from Data/SKSE/Plugins/SL_MagicMenu_Layout.json (blocks plan Task 2): repaired
-    /// (Layout::Repair), Layout::Default(Get()) when the file is missing, broken or from a newer build. Read only: this build
-    /// never writes the file.
+    /// (Layout::Repair), Layout::Default(Get()) when the file is missing, broken or from a newer build; since Task 4 the layout
+    /// last saved by the layout mode (SaveLayout, or SetSavedLayout when the file may not be written).
     const Layout::State& SavedLayout();
+
+    /// What the layout file was when it was last read or written (plan D10)
+    Layout::FileState LayoutFileState();
+
+    enum class SaveResult
+    {
+        kSaved,    // written, and SavedLayout() is the state from now on
+        kRefused,  // the file is a newer build's: not written (SavedLayout() unchanged)
+        kFailed,   // a step failed (a_why says which): the file is as it was, SavedLayout() unchanged; a retry is safe
+    };
+
+    /// Writes the layout file (plan D10): a .tmp in the same folder (every write, flush and close checked), then ReplaceFileW
+    /// keeping SL_MagicMenu_Layout.json.bak (fallback: the old file copied to .bak, then MoveFileExW REPLACE_EXISTING), or a
+    /// plain move when there is no file yet. A file that failed to read at load is copied to .bad first; a newer build's file
+    /// is never written. Called from the menu's frame handler (the layout mode); not thread-safe.
+    SaveResult SaveLayout(const Layout::State& a_state, std::string* a_why);
+
+    /// The layout used from now on without touching the file (a newer build's file: the edit lives for this game session)
+    void SetSavedLayout(const Layout::State& a_state);
+
+    /// The layout file read again as it is (not repaired), for SelfTest L3; nullopt with a reason when it does not read
+    std::optional<Layout::State> ReadLayoutFile(std::string* a_why);
 }

@@ -27,10 +27,43 @@ namespace Widget
 
     /// The open magic menu's movie, or nullptr.
     RE::GFxMovieView* OpenMagicMenuMovie();
+
+    // Blocks plan Task 4: the layout mode as the input boundary sees it. Any thread: they read and flip atomics and queue the
+    // UI work for the menu's next frame (the frame handler does it)
+
+    /// The layout mode is on (from the accepted toggle until the leave was decided)
+    bool LayoutModeOn();
+
+    /// The toggle press (the key, the gamepad button): with the mode on it leaves the mode with a save; off, it enters the mode
+    /// unless something refuses (logged "Layout: mode refused - <reason>"; a_heldOther: another button is held). True when
+    /// the press was taken (the hook keeps it from the menu), false when refused (passed through untouched)
+    bool ToggleLayoutMode(const char* a_source, bool a_heldOther);
+
+    /// Leaves the mode without saving (Esc / B, another menu on top). True when the mode was on
+    bool CancelLayoutMode(const char* a_why);
 }
 
 namespace Input
 {
-    /// Registers the keyboard sink on BSInputDeviceManager (call at kDataLoaded).
+    /// Registers the keyboard sink on BSInputDeviceManager and hooks MenuControls::ProcessEvent (call at kDataLoaded).
     void Install();
+
+    /// The MenuControls hook is on (the layout mode needs it)
+    bool HookInstalled();
+
+    /// Keyboard / gamepad buttons held now, as the hook last saw them (the lock button refuses the mode while one is held)
+    int HeldCount();
+
+    /// SelfTest L5's counts, per magic menu (ResetCounters at its open): events judged with the mode off, those kept although
+    /// the mode was off and they were neither the toggle nor an owned tail (want 0), owned tails kept, toggles taken, button
+    /// downs kept in the mode, keyboard downs passed with the mode off
+    struct Counters
+    {
+        std::uint64_t eventsOff{}, strayOff{}, ownedOff{}, toggles{}, downsOn{}, keyboardDownsOff{};
+    };
+    void ResetCounters();
+    Counters ReadCounters();
+
+    /// The route-parity check: a keyboard down of this scan code passed the hook with the mode off this menu
+    bool KeyboardDownSeenOff(std::uint32_t a_code);
 }

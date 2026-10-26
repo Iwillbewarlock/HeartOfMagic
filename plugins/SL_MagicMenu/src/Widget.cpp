@@ -29,6 +29,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -290,6 +291,10 @@ namespace Widget
             kCardHours,
             kCardMinutes,
             kCardSeconds,
+            // blocks plan Task 4 (D5): the layout buttons
+            kLayoutEdit,
+            kLayoutLock,
+            kLayoutReset,
             kCount
         };
 
@@ -376,6 +381,11 @@ namespace Widget
             { Str::kCardHours, "card_hours", "{n}시간" },
             { Str::kCardMinutes, "card_minutes", "{n}분" },
             { Str::kCardSeconds, "card_seconds", "{n}초" },
+            // blocks plan Task 4 (D5): the lock button by the mode's state (off: "change the layout", on: "lock the layout"), the
+            // reset button; the labels the plan gives, {key} the toggle key as the hints show keys
+            { Str::kLayoutEdit, "layout_edit", "배치 바꾸기 {key}" },
+            { Str::kLayoutLock, "layout_lock", "배치 잠금 {key}" },
+            { Str::kLayoutReset, "layout_reset", "처음 배치로" },
         });
 
         consteval bool StringsInOrder()
@@ -502,6 +512,39 @@ namespace Widget
             SelectionRule::Source source = SelectionRule::Source::kOpen;
         };
 
+        // blocks plan Task 4 (D8): the one drag session of a block - its id, where in the block it was grabbed, the menu it began in
+        struct LayoutDrag
+        {
+            Layout::BlockId id;
+            double grabX{}, grabY{};
+            std::uint64_t generation{};
+            std::optional<Layout::Slot> slot;  // the slot the insertion line was drawn for
+            double lineScroll{};               // and its column's scroll then
+        };
+
+        // blocks plan Task 4: the layout mode of one menu. active is the widget's side (the frame handler's); g_layoutMode the input's
+        struct LayoutEdit
+        {
+            bool active = false;
+            Layout::State entry, working;  // the layout when the mode was entered; the one the mode edits (CurrentLayout)
+            std::optional<LayoutDrag> drag;
+            std::optional<double> borderGrab;  // a border drag: the pointer's x minus the border when pressed
+            std::optional<double> guideAt;     // the border guide line as drawn
+            // recorded by the handlers, done by the frame handler (no clip is changed inside its own handler)
+            std::optional<std::tuple<Layout::BlockId, double, double>> pressDue;  // a cover pressed: block, pointer x, y
+            bool releaseDue = false, borderPressDue = false, borderReleaseDue = false, lockDue = false, resetDue = false;
+            double borderPressX = 0.0;
+            // counts of this menu (logs and SelfTest L5)
+            int entered = 0, drops = 0, borderMoves = 0, resets = 0, shieldPresses = 0;
+            std::uint64_t inputLeaks = 0, equipKept = 0;  // SkyUI's handleInput / AttemptEquip called in the mode
+            std::set<std::uint32_t> wrapKeysOff;          // keyboard scan codes of handleInput keyDowns with the mode off
+            std::uint64_t wrapKeyDownsOff = 0, wrapNoSkseCode = 0;
+            bool inputWrapped = false, equipWrapped = false, wrapsDone = false;
+            int wrapsLeft = kSelectionInstallFrames;
+            bool restLogged = false;     // the safety-net rest is logged once per menu
+            double showPanel = 1.0;      // SkyUI's InventoryLists.SHOW_PANEL (InventoryLists.as:34), read at the wraps' install
+        };
+
         // Reset on every menu open
         struct MenuState
         {
@@ -617,6 +660,7 @@ namespace Widget
             std::string uncoveredSchool;     // the school no snapshot has had since frame uncoveredFrom
             int uncoveredFrom = 0;
             bool noData = false;             // kNoDataFrames passed without HoM's state for uncoveredSchool
+            LayoutEdit layout;               // blocks plan Task 4
         } g_menu;
 
         // Heart of Magic's tree look and settings (spec v11 T): read at menu open (AttachWidget, before the frame handler is
@@ -1539,17 +1583,44 @@ namespace Widget
             return heights;
         }
 
+        // blocks spec "Calls made by Claude" (safety net only): Inventory Reforged's magic-menu panel on in its MCM, or our fallback
+        // switches off (bOwnCard=0, bMovePreview=0, bDrawPreviewOver=0): the layout mode rests (lock greyed) and the default
+        // layout is used; the saved layout is kept. Empty when none applies
+        std::string SafetyNetReason()
+        {
+            const auto& s = Settings::Get();
+            std::string why;
+            const auto add = [&](const char* a_part) { why += (why.empty() ? "" : ", ") + std::string(a_part); };
+            if (g_menu.irActive) add("Inventory Reforged runs its panel in this menu");
+            if (!s.ownCard) add("bOwnCard=0");
+            if (!s.movePreview) add("bMovePreview=0");
+            if (!s.drawPreviewOver) add("bDrawPreviewOver=0");
+            return why;
+        }
+
+        // The layout the panels follow (blocks plan Task 4): the layout mode's working copy while the mode is on, the default
+        // layout in the safety-net states, else the saved one
+        const Layout::State& CurrentLayout()
+        {
+            if (g_menu.layout.active) return g_menu.layout.working;
+            if (!SafetyNetReason().empty()) {
+                static const Layout::State s_default = Layout::Default(Settings::Get());  // the ini is read once per game session
+                return s_default;
+            }
+            return Settings::SavedLayout();
+        }
+
         // UNSCROLLED stage rects (Arrange's, plan D4): the scroll is the column clip's (PlaceColumns), BlockRect adds it
         std::map<BlockId, Settings::Rect> ArrangeBlocks(const Arrangement& a_arrangement)
         {
             const auto& settings = Settings::Get();
-            return Layout::Arrange(Settings::SavedLayout(), BlockHeights(), a_arrangement.hidden, a_arrangement.fill, Layout::DefaultFrames(settings));
+            return Layout::Arrange(CurrentLayout(), BlockHeights(), a_arrangement.hidden, a_arrangement.fill, Layout::DefaultFrames(settings));
         }
 
-        // The saved layout's column holding the block (nullopt: not in the layout - Repair keeps every known block in it)
+        // The current layout's column holding the block (nullopt: not in the layout - Repair keeps every known block in it)
         std::optional<int> ColumnOf(const BlockId& a_id)
         {
-            const auto& columns = Settings::SavedLayout().columns;
+            const auto& columns = CurrentLayout().columns;
             for (int column = 0; column < Layout::kColumns; ++column) {
                 if (std::ranges::find(columns[column], a_id) != columns[column].end()) return column;
             }
@@ -1560,13 +1631,13 @@ namespace Widget
         // and the node clicks' hit area, the 3D preview's column clip. Fixed on screen: it does not scroll
         Settings::Rect ColumnViewport(int a_column)
         {
-            return Layout::ColumnArea(Settings::SavedLayout(), a_column, Layout::DefaultFrames(Settings::Get()));
+            return Layout::ColumnArea(CurrentLayout(), a_column, Layout::DefaultFrames(Settings::Get()));
         }
 
         // The column's content height (this tab's arranged blocks, unscrolled) and its visible height
         std::pair<double, double> ColumnHeights(int a_column)
         {
-            const auto content = Layout::ContentHeight(Settings::SavedLayout(), g_menu.blocks, Layout::DefaultFrames(Settings::Get()));
+            const auto content = Layout::ContentHeight(CurrentLayout(), g_menu.blocks, Layout::DefaultFrames(Settings::Get()));
             const bool valid = a_column >= 0 && a_column < Layout::kColumns;
             return { valid ? content[a_column] : 0.0, ColumnViewport(a_column).Height() };
         }
@@ -2470,7 +2541,7 @@ namespace Widget
             {
                 if (!a_params.thisPtr) return;
                 const auto index = Number(*a_params.thisPtr, kIndexMember);
-                if (!index) return;
+                if (!index || g_menu.layout.active) return;  // Task 4: no node clicks in the layout mode (the covers take them first)
                 ++g_menu.nodeClicks;
                 // blocks plan Task 3: whether setMask keeps clicks off a masked-off part is unverified in Skyrim's Scaleform, so a
                 // click outside the tree column's viewport is ignored and counted (SelfTest L2 mask clicks at close: want 0)
@@ -2507,7 +2578,7 @@ namespace Widget
         public:
             void Call(Params& a_params) override
             {
-                if (!a_params.thisPtr) return;
+                if (!a_params.thisPtr || g_menu.layout.active) return;  // Task 4: no tooltips in the layout mode
                 const auto index = Number(*a_params.thisPtr, kIndexMember);
                 if (!index) return;
                 g_menu.hovered = static_cast<int>(*index);
@@ -2932,6 +3003,8 @@ namespace Widget
             g_menu.cardSlot = slot;
         }
 
+        void PlaceLayoutChrome(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget);  // the layout mode's buttons, handle, covers (Task 4)
+
         void Rearrange(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
             g_menu.blocksAll = ArrangeBlocks({});
@@ -2966,6 +3039,7 @@ namespace Widget
                 g_menu.placed[id] = rect;
             }
             CheckCardSlot();
+            PlaceLayoutChrome(a_movie, a_widget);  // Task 4: the buttons and the border handle follow the border, the covers the blocks
         }
 
         // ---------------------------------------------------------------------
@@ -2983,7 +3057,8 @@ namespace Widget
         {
             if (g_closing || !a_movie || a_movie != static_cast<RE::GFxMovie*>(OpenMagicMenuMovie())) return std::nullopt;
             RE::GFxValue visible, x, y;
-            const auto shown = std::format("_root.{}._visible", kRootName);
+            // Task 4 (D5): the "nothing chosen" hide hides the column clips, not mmx_root (the layout buttons stay)
+            const auto shown = std::format("_root.{}.{}._visible", kRootName, kColumnClips[0]);
             if (!a_movie->GetVariable(&visible, shown.c_str()) || !visible.IsBool() || !visible.GetBool()) return std::nullopt;
             if (!a_movie->GetVariable(&x, "_root._xmouse") || !x.IsNumber() || !a_movie->GetVariable(&y, "_root._ymouse") || !y.IsNumber()) {
                 return std::nullopt;
@@ -3001,8 +3076,9 @@ namespace Widget
             return (a_movie->GetVariable(a_mouse, "Mouse") && a_mouse->IsObject()) || (a_movie->GetVariable(a_mouse, "_global.Mouse") && a_mouse->IsObject());
         }
 
-        // The column moved by a_delta stage units (clamped); false when it did not move (at its end already)
-        bool ScrollColumn(RE::GFxValue& a_widget, int a_column, double a_delta)
+        // The column moved by a_delta stage units (clamped); false when it did not move (at its end already). a_wheel: a wheel
+        // notch (counted and logged); the layout mode's drag scrolls without (Task 4, D8)
+        bool ScrollColumn(RE::GFxValue& a_widget, int a_column, double a_delta, bool a_wheel = true)
         {
             const auto [content, visible] = ColumnHeights(a_column);
             const double before = g_menu.scroll[a_column];
@@ -3011,7 +3087,7 @@ namespace Widget
             g_menu.scroll[a_column] = after;
             PlaceColumns(a_widget);
             CheckCardSlot();
-            if (++g_menu.wheelScrolls <= kMaxWheelLogs) {
+            if (a_wheel && ++g_menu.wheelScrolls <= kMaxWheelLogs) {
                 logger::info("Widget: column {} scrolled to {:.0f} of {:.0f} (content {:.0f}, visible {:.0f}){}", a_column, after, content - visible,
                     content, visible, g_menu.wheelScrolls == kMaxWheelLogs ? " - later scrolls counted only" : "");
             }
@@ -3142,15 +3218,20 @@ namespace Widget
         {
             const bool own = OwnCard();
             const bool effects = g_menu.tab == Tab::kEffects;
+            // Task 4: in the layout mode the blocks show with nothing chosen too (they are what is moved)
+            const bool chosen = g_menu.chosen || g_menu.layout.active;
             // D6: the tab's hidden blocks (TabHidden) are the ones Arrange closes up; the progress card also waits for a school
-            const bool preview = g_menu.chosen && BlockShown(Layout::kPreview);
-            const bool tree = g_menu.chosen && BlockShown(Layout::kTree);
-            const bool nodeCard = g_menu.chosen && BlockShown(Layout::kNodeCard);
-            const bool progress = g_menu.chosen && BlockShown(Layout::kProgress) && !g_session.school.empty();
-            const bool any = g_menu.chosen && (preview || own);
-            const bool card = own && g_menu.ownCardShown && g_menu.chosen;
+            const bool preview = chosen && BlockShown(Layout::kPreview);
+            const bool tree = chosen && BlockShown(Layout::kTree);
+            const bool nodeCard = chosen && BlockShown(Layout::kNodeCard);
+            const bool progress = chosen && BlockShown(Layout::kProgress) && !g_session.school.empty();
+            const bool any = chosen && (preview || own);
+            const bool card = own && g_menu.ownCardShown && chosen;
             g_previewShown = preview;  // the over-pass draws the preview only while its box is shown
-            a_widget.SetMember("_visible", any);
+            // Task 4 (D5): the column clips are hidden, not mmx_root - the layout buttons below the left column stay up
+            for (const char* column : kColumnClips) {
+                if (auto clip = Child(a_widget, column); clip.IsDisplayObject()) clip.SetMember("_visible", any);
+            }
             SetVisible(a_widget, Layout::kPreview, preview);
             SetVisible(a_widget, Layout::kTree, tree);
             SetVisible(a_widget, Layout::kNodeCard, nodeCard);
@@ -3199,7 +3280,7 @@ namespace Widget
             static bool s_checked = false;
             if (!Settings::Get().selfTest || std::exchange(s_checked, true)) return;
             // Task 3: [Debug] fDebugExtraHeight makes the node card taller on purpose - no build 13 reference either
-            const bool custom = !(Settings::SavedLayout() == Layout::Default(Settings::Get())) || Settings::Get().debugExtraHeight > 0;
+            const bool custom = !(CurrentLayout() == Layout::Default(Settings::Get())) || Settings::Get().debugExtraHeight > 0;
             constexpr std::array kTabs{ Tab::kFollow, Tab::kSchool, Tab::kPowers, Tab::kEffects };
             for (const Tab tab : kTabs) {
                 for (const bool own : { true, false }) {
@@ -3816,6 +3897,934 @@ namespace Widget
                 SelfTest(std::format("C1 card FAIL - selection {} (expects \"{}\") not on the card after {} frames: it shows \"{}\" (type {}{})", selection,
                     expected, frames, view.name, view.type,
                     !show ? ", nothing shown" : !updated ? ", the card did not change (stale, or another item exactly alike)" : ""));
+            }
+        }
+
+        // ---------------------------------------------------------------------
+        // Layout mode (blocks plan Task 4, D5/D8/D10/D11; spec "Input boundary (Task 0)"): the lock and reset buttons below the
+        // left column, the mouse shield (layer 3), a cover per shown block that drags it, the column border handle, save and
+        // cancel. Layer 1 of the input boundary is Input.cpp's MenuControls hook; layer 2 the handleInput and AttemptEquip wraps
+        // here. The hook flips g_layoutMode at once (later events of its batch see it) and queues the UI work; the frame handler
+        // does every change of the movie (LayoutFrame), as for the node clicks
+        // ---------------------------------------------------------------------
+
+        constexpr const char* kShieldName = "layoutShield";    // full stage, the lowest depth in mmx_root, shown in the mode only
+        constexpr const char* kButtonsName = "layoutButtons";  // the lock / reset row (D5), outside the column masks
+        constexpr const char* kBorderName = "layoutBorder";    // the border handle in the gap between the columns (the mode only)
+        constexpr const char* kOverlayName = "layoutOverlay";  // the drag ghost, the insertion line, the border guide: on top
+        constexpr const char* kCoverPrefix = "mmxCover_";      // a block's drag cover, in its column clip above the panels
+        constexpr const char* kCoverBlock = "mmxBlock";        // a cover's block id
+        constexpr const char* kHandleInputName = "handleInput";  // ItemMenu.as:205 / MagicMenu.as:80
+        constexpr const char* kSavedHandleInput = "mmxSavedHandleInput";
+        constexpr const char* kAttemptEquipName = "AttemptEquip";  // MagicMenu.as:111
+        constexpr const char* kSavedAttemptEquip = "mmxSavedAttemptEquip";
+        constexpr const char* kShowPanelPath = "_global.InventoryLists.SHOW_PANEL";  // InventoryLists.as:34 (static, 1)
+        constexpr double kButtonRowGap = 4.0, kButtonRowH = 22.0;  // D5: the row's top 4 below the left column (627 at the E2 rects)
+        constexpr double kLockW = 104.0, kResetW = 84.0, kButtonGap = 6.0, kButtonTextSize = 12.0, kButtonAlpha = 90.0;
+        constexpr double kGreyAlpha = 40.0, kDraggedAlpha = 45.0, kGhostAlpha = 25.0, kLineW = 2.0, kHandleLineAlpha = 80.0;
+        constexpr double kMinHandleW = 6.0;  // the border handle's hit strip at least this wide (fPanelGap may be 0)
+        constexpr double kAutoScrollEdge = 28.0, kAutoScrollStep = 8.0;  // D8: within this of a column's top/bottom the column scrolls, per frame
+        constexpr int kMaxDragLogs = 24;
+
+        std::atomic<bool> g_layoutMode{ false };            // the input boundary's view: kept from the accepted toggle to the leave
+        std::atomic<std::uint64_t> g_menuGeneration{ 0 };   // bumped at every attach (D8: a drag session is of one menu)
+
+        // Why the mode may not start (spec "Entry refusals"). The frame handler publishes the movie's part each frame (the hook
+        // cannot read the movie on its thread); the toggle adds what it sees live
+        enum : std::uint32_t
+        {
+            kBlockNoWidget = 1u << 0,
+            kBlockNoHook = 1u << 1,
+            kBlockNoInputWrap = 1u << 2,
+            kBlockNoEquipWrap = 1u << 3,
+            kBlockTyping = 1u << 4,
+            kBlockListBusy = 1u << 5,
+            kBlockFading = 1u << 6,
+            kBlockPanelState = 1u << 7,
+            kBlockSafetyNet = 1u << 8,
+            kBlockOtherMenu = 1u << 9,
+            kBlockHeld = 1u << 10,
+        };
+        std::atomic<std::uint32_t> g_layoutBlock{ kBlockNoWidget };
+        // "mode refused" lines per menu: a K typed into another menu's text field is refused each time (later ones not logged)
+        constexpr int kMaxRefusalLogs = 8;
+        std::atomic<int> g_refusalLogs{ 0 };
+
+
+        enum class LayoutRequestKind
+        {
+            kEnter,
+            kSave,
+            kCancel
+        };
+        struct LayoutRequest
+        {
+            LayoutRequestKind kind;
+            std::string why;
+        };
+        std::mutex g_layoutRequestLock;
+        std::vector<LayoutRequest> g_layoutRequests;
+
+        // Menus that pause the game, use the menu context or are modal, opened while the magic menu is open (the mode ends as
+        // Cancel when one opens, and does not start while one is up)
+        std::mutex g_blockingLock;
+        std::set<std::string> g_blockingMenus;
+
+        void QueueLayout(LayoutRequestKind a_kind, std::string a_why)
+        {
+            const std::scoped_lock lock(g_layoutRequestLock);
+            g_layoutRequests.push_back({ a_kind, std::move(a_why) });
+        }
+
+        std::string BlockText(std::uint32_t a_bits)
+        {
+            constexpr std::array<std::pair<std::uint32_t, const char*>, 11> kReasons{ {
+                { kBlockNoWidget, "the widget is not up in this menu" },
+                { kBlockNoHook, "the MenuControls hook is not installed (SkyUI could not be stopped)" },
+                { kBlockNoInputWrap, "the handleInput wrap is not installed (no leak detector)" },
+                { kBlockNoEquipWrap, "the AttemptEquip wrap is not installed" },
+                { kBlockTyping, "a text field takes keys (the search box)" },
+                { kBlockListBusy, "the list takes no input (disableInput / disableSelection: a dialog or the 3D rotation)" },
+                { kBlockFading, "the menu is fading (bFadedIn false)" },
+                { kBlockPanelState, "the list panel is not shown (inventoryLists.currentState is not SHOW_PANEL)" },
+                { kBlockSafetyNet, "safety net" },
+                { kBlockOtherMenu, "another menu is open over this one" },
+                { kBlockHeld, "another button is held" },
+            } };
+            std::string text;
+            for (const auto& [bit, reason] : kReasons) {
+                if (!(a_bits & bit)) continue;
+                text += (text.empty() ? "" : "; ") + std::string(reason);
+                if (bit == kBlockSafetyNet) text += " (" + SafetyNetReason() + ")";
+            }
+            return text;
+        }
+
+        void LogRefusal(std::uint32_t a_bits, const char* a_source)
+        {
+            const int logged = ++g_refusalLogs;
+            if (logged > kMaxRefusalLogs) return;
+            logger::info("Layout: mode refused - {} ({}; the press is passed on){}", BlockText(a_bits), a_source,
+                logged == kMaxRefusalLogs ? " - the last such line this menu" : "");
+        }
+
+        bool TypingText()
+        {
+            auto* controls = RE::ControlMap::GetSingleton();
+            return controls && controls->GetRuntimeData().textEntryCount > 0;
+        }
+
+        // The movie's flags as last published, and what is seen now
+        std::uint32_t LiveBlock(bool a_heldOther)
+        {
+            std::uint32_t bits = g_layoutBlock;
+            if (!Input::HookInstalled()) bits |= kBlockNoHook;
+            if (TypingText()) bits |= kBlockTyping;
+            if (a_heldOther) bits |= kBlockHeld;
+            {
+                const std::scoped_lock lock(g_blockingLock);
+                if (!g_blockingMenus.empty()) bits |= kBlockOtherMenu;
+            }
+            return bits;
+        }
+
+        std::string Describe(const Layout::State& a_state)
+        {
+            std::string text;
+            for (const auto& column : a_state.columns) {
+                text += text.empty() ? "{" : " / {";
+                for (std::size_t i = 0; i < column.size(); ++i) text += (i > 0 ? ", " : "") + column[i];
+                text += "}";
+            }
+            return std::format("{} border {:.1f}", text, a_state.border);
+        }
+
+        std::optional<std::pair<double, double>> MouseAt(RE::GFxMovie* a_movie)
+        {
+            RE::GFxValue x, y;
+            if (!a_movie || !a_movie->GetVariable(&x, "_root._xmouse") || !x.IsNumber() || !a_movie->GetVariable(&y, "_root._ymouse") || !y.IsNumber()) {
+                return std::nullopt;
+            }
+            return std::pair{ x.GetNumber(), y.GetNumber() };
+        }
+
+        // The game window has the focus (Main's gameActive, set by its activate handler; D8: a drag ends when it goes)
+        bool GameActive()
+        {
+            auto* main = RE::Main::GetSingleton();
+            return !main || main->GetRuntimeData().gameActive;
+        }
+
+        // --- handlers (they only record; LayoutFrame acts) ---
+
+        class CoverPress final : public RE::GFxFunctionHandler
+        {
+        public:
+            void Call(Params& a_params) override
+            {
+                if (!a_params.thisPtr || g_closing || !g_menu.layout.active) return;
+                const auto at = MouseAt(a_params.movie);
+                const auto id = StringMember(*a_params.thisPtr, kCoverBlock);
+                if (at && !id.empty()) g_menu.layout.pressDue = { id, at->first, at->second };
+            }
+        };
+
+        // onRelease and onReleaseOutside (D8: the mouse up anywhere ends the drag)
+        class CoverRelease final : public RE::GFxFunctionHandler
+        {
+        public:
+            void Call(Params&) override
+            {
+                if (!g_closing && g_menu.layout.active) g_menu.layout.releaseDue = true;
+            }
+        };
+
+        class BorderPress final : public RE::GFxFunctionHandler
+        {
+        public:
+            void Call(Params& a_params) override
+            {
+                if (g_closing || !g_menu.layout.active) return;
+                if (const auto at = MouseAt(a_params.movie)) {
+                    g_menu.layout.borderPressDue = true;
+                    g_menu.layout.borderPressX = at->first;
+                }
+            }
+        };
+
+        class BorderRelease final : public RE::GFxFunctionHandler
+        {
+        public:
+            void Call(Params&) override
+            {
+                if (!g_closing && g_menu.layout.active) g_menu.layout.borderReleaseDue = true;
+            }
+        };
+
+        class LockClick final : public RE::GFxFunctionHandler
+        {
+        public:
+            void Call(Params&) override
+            {
+                if (!g_closing) g_menu.layout.lockDue = true;
+            }
+        };
+
+        class ResetClick final : public RE::GFxFunctionHandler
+        {
+        public:
+            void Call(Params&) override
+            {
+                if (!g_closing && g_menu.layout.active) g_menu.layout.resetDue = true;
+            }
+        };
+
+        // Layer 3: the shield's press does nothing - it is there so Mouse.getTopMostEntity() is never one of SkyUI's clips
+        class ShieldPress final : public RE::GFxFunctionHandler
+        {
+        public:
+            void Call(Params&) override { ++g_menu.layout.shieldPresses; }
+        };
+
+        // A_this's saved member called with the this and the arguments it would have had; its return value handed back
+        bool CallSavedMember(RE::GFxFunctionHandler::Params& a_params, const char* a_saved)
+        {
+            RE::GFxValue original;
+            if (!a_params.thisPtr->GetMember(a_saved, &original) || !original.IsObject()) return false;
+            std::vector<RE::GFxValue> argv;
+            argv.reserve(a_params.argCount + 1);
+            argv.push_back(*a_params.thisPtr);
+            for (std::uint32_t i = 0; i < a_params.argCount; ++i) argv.push_back(a_params.args[i]);
+            RE::GFxValue result;
+            const bool called = original.Invoke("call", &result, argv.data(), argv.size());
+            if (called && a_params.retVal) *a_params.retVal = result;
+            return called;
+        }
+
+        // Layer 2 (spec): Menu_mc.handleInput - FocusHandler sends every Scaleform key to path[0].handleInput only (FocusHandler.as:
+        // 71-108), which is Menu_mc. In the mode SkyUI's is not called (true returned: handled) and the call is counted as a leak
+        // (layer 1 should have kept the key); off, SkyUI's runs, and its keyboard keyDowns are noted for the route-parity test
+        class HandleInputWrap final : public RE::GFxFunctionHandler
+        {
+        public:
+            void Call(Params& a_params) override
+            {
+                if (!a_params.thisPtr) return;
+                const RE::GFxValue* details = a_params.argCount > 0 && a_params.args[0].IsObject() ? &a_params.args[0] : nullptr;
+                auto& m = g_menu.layout;
+                if (g_layoutMode || m.active) {
+                    if (++m.inputLeaks == 1) {
+                        logger::warn("Layout: input leak code {} value {} nav {} - reached SkyUI's handleInput in the layout mode, not called (later ones "
+                                     "counted)",
+                            details ? Number(*details, "code").value_or(-1) : -1, details ? StringMember(*details, "value") : std::string{},
+                            details ? StringMember(*details, "navEquivalent") : std::string{});
+                    }
+                    if (a_params.retVal) *a_params.retVal = true;
+                    return;
+                }
+                if (details && StringMember(*details, "value") == "keyDown") {
+                    if (const auto code = Number(*details, "skseKeycode")) {
+                        if (*code >= 0 && *code < static_cast<double>(SKSE::InputMap::kMacro_NumKeyboardKeys)) {
+                            m.wrapKeysOff.insert(static_cast<std::uint32_t>(*code));
+                            ++m.wrapKeyDownsOff;
+                        }
+                    } else {
+                        ++m.wrapNoSkseCode;
+                    }
+                }
+                if (!CallSavedMember(a_params, kSavedHandleInput)) {
+                    static std::atomic<bool> s_logged{ false };
+                    if (!s_logged.exchange(true)) logger::warn("Layout: handleInput wrap without its saved original - the key is dropped (logged once)");
+                }
+            }
+        };
+
+        // Layer 2: Menu_mc.AttemptEquip (the game calls it for LT/RT and mouse equips; on the gamepad platform SkyUI does not check
+        // the mouse is over the list, ItemMenu.as:498-523) - a no-op in the mode
+        class AttemptEquipWrap final : public RE::GFxFunctionHandler
+        {
+        public:
+            void Call(Params& a_params) override
+            {
+                if (!a_params.thisPtr) return;
+                if (g_layoutMode || g_menu.layout.active) {
+                    if (++g_menu.layout.equipKept == 1) logger::info("Layout: AttemptEquip in the layout mode - not called (later ones counted)");
+                    return;
+                }
+                if (!CallSavedMember(a_params, kSavedAttemptEquip)) {
+                    static std::atomic<bool> s_logged{ false };
+                    if (!s_logged.exchange(true)) logger::warn("Layout: AttemptEquip wrap without its saved original - the equip is dropped (logged once)");
+                }
+            }
+        };
+
+        RE::GPtr<CoverPress> g_coverPress;
+        RE::GPtr<CoverRelease> g_coverRelease;
+        RE::GPtr<BorderPress> g_borderPress;
+        RE::GPtr<BorderRelease> g_borderRelease;
+        RE::GPtr<LockClick> g_lockClick;
+        RE::GPtr<ResetClick> g_resetClick;
+        RE::GPtr<ShieldPress> g_shieldPress;
+        RE::GPtr<HandleInputWrap> g_handleInputWrap;
+        RE::GPtr<AttemptEquipWrap> g_attemptEquipWrap;
+
+        // a_object's own member a_name replaced by a wrap, the original kept as a_saved (the SelectionChangeWrap pattern). True
+        // when the wrap is on (already, or now)
+        bool WrapMember(RE::GFxMovieView* a_movie, RE::GFxValue& a_object, const char* a_name, const char* a_saved, RE::GFxFunctionHandler* a_handler)
+        {
+            RE::GFxValue current, saved, wrap;
+            if (a_object.GetMember(a_saved, &saved) && saved.IsObject()) return true;
+            if (!a_object.GetMember(a_name, &current) || !current.IsObject()) return false;
+            a_movie->CreateFunction(&wrap, a_handler);
+            if (a_object.SetMember(a_saved, current) && a_object.SetMember(a_name, wrap)) return true;
+            a_object.SetMember(a_name, current);
+            return false;
+        }
+
+        // Once per menu movie from the frame handler, tried for kSelectionInstallFrames frames until Menu_mc.handleInput is there
+        void InstallInputWraps(RE::GFxMovieView* a_movie)
+        {
+            auto& m = g_menu.layout;
+            if (m.wrapsDone) return;
+            RE::GFxValue menu, probe;
+            const bool ready = a_movie->GetVariable(&menu, kMenuPath) && menu.IsObject() && menu.GetMember(kHandleInputName, &probe) && probe.IsObject();
+            if (!ready && --m.wrapsLeft > 0) return;
+            m.wrapsDone = true;
+            if (menu.IsObject()) {
+                m.inputWrapped = WrapMember(a_movie, menu, kHandleInputName, kSavedHandleInput, g_handleInputWrap.get());
+                m.equipWrapped = WrapMember(a_movie, menu, kAttemptEquipName, kSavedAttemptEquip, g_attemptEquipWrap.get());
+            }
+            RE::GFxValue showPanel;
+            const bool showRead = a_movie->GetVariable(&showPanel, kShowPanelPath) && showPanel.IsNumber();
+            if (showRead) m.showPanel = showPanel.GetNumber();
+            logger::info("Layout: input wraps - {}.{} {}, {}.{} {}; SHOW_PANEL {}{}", kMenuPath, kHandleInputName, m.inputWrapped ? "wrapped" : "NOT wrapped",
+                kMenuPath, kAttemptEquipName, m.equipWrapped ? "wrapped" : "NOT wrapped", m.showPanel,
+                showRead ? "" : std::format(" (assumed: {} not readable)", kShowPanelPath));
+        }
+
+        // Each frame: the movie's part of the entry refusals, for the hook (which may not read the movie)
+        void PublishLayoutBlock(RE::GFxMovieView* a_movie)
+        {
+            const auto& m = g_menu.layout;
+            std::uint32_t bits = 0;
+            if (!m.inputWrapped) bits |= kBlockNoInputWrap;
+            if (!m.equipWrapped) bits |= kBlockNoEquipWrap;
+            if (!SafetyNetReason().empty()) bits |= kBlockSafetyNet;
+            RE::GFxValue menu, lists, itemList, faded;
+            if (a_movie->GetVariable(&menu, kMenuPath) && menu.IsObject() && menu.GetMember("bFadedIn", &faded) && faded.IsBool() && !faded.GetBool()) {
+                bits |= kBlockFading;
+            }
+            if (a_movie->GetVariable(&lists, kListsPath) && lists.IsObject()) {
+                if (const auto state = Number(lists, "currentState"); state && *state != m.showPanel) bits |= kBlockPanelState;
+                if (lists.GetMember("itemList", &itemList) && (BoolMember(itemList, "disableInput") || BoolMember(itemList, "disableSelection"))) {
+                    bits |= kBlockListBusy;
+                }
+            }
+            g_layoutBlock = bits;
+        }
+
+        // --- the chrome: shield, buttons, border handle, covers, overlay ---
+
+        void ShowShield(RE::GFxValue& a_widget, bool a_shown)
+        {
+            if (auto shield = Child(a_widget, kShieldName); shield.IsDisplayObject()) shield.SetMember("_visible", a_shown);
+        }
+
+        // Made first in mmx_root (the lowest depth: blocks, buttons and handle lie above it), over the movie's visible stage
+        void MakeShield(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        {
+            auto shield = Draw::Clip(a_widget, kShieldName);
+            if (!shield.IsDisplayObject()) {
+                logger::warn("Layout: no mouse shield - the layout mode will not start this menu");
+                return;
+            }
+            const auto area = a_movie->GetVisibleFrameRect();
+            Draw::NoLine(shield);
+            Draw::Rect(shield, area.left, area.top, area.right - area.left, area.bottom - area.top, kPanelFill, 0.0);  // alpha 0 still takes the mouse
+            SetHandler(a_movie, shield, "onPress", g_shieldPress.get());
+            shield.SetMember("useHandCursor", false);
+            shield.SetMember("_visible", false);
+        }
+
+        std::string CoverName(const BlockId& a_id)
+        {
+            return kCoverPrefix + a_id;
+        }
+
+        void RemoveCovers(RE::GFxValue& a_widget)
+        {
+            for (const char* columnName : kColumnClips) {
+                auto column = Child(a_widget, columnName);
+                if (!column.IsDisplayObject()) continue;
+                for (const BlockId id : kBlocks) Draw::Remove(column, CoverName(id).c_str());
+            }
+        }
+
+        // In the mode: a transparent cover over each shown block, above every panel of its column (made again after any panel is
+        // made again), carrying the drag. It also takes the tree's node clicks and roll-overs and the node card's button (off in
+        // the mode). Scrolls with its column clip
+        void SetCovers(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        {
+            RemoveCovers(a_widget);
+            if (!g_menu.layout.active) return;
+            for (const BlockId id : kBlocks) {
+                const auto column = ColumnOf(id);
+                if (!column || !BlockShown(id)) continue;
+                auto parent = Child(a_widget, kColumnClips[*column]);
+                if (!parent.IsDisplayObject()) continue;
+                const auto name = CoverName(id);
+                auto cover = Draw::Clip(parent, name.c_str());
+                if (!cover.IsDisplayObject()) continue;
+                const auto rect = BlockRect(id);
+                const auto local = BlockLocal(id, rect);
+                cover.SetMember("_x", local.left);
+                cover.SetMember("_y", local.top);
+                Draw::NoLine(cover);
+                Draw::Rect(cover, 0, 0, rect.Width(), rect.Height(), kPanelFill, 0.0);
+                PutString(a_movie, cover, kCoverBlock, id);
+                SetHandler(a_movie, cover, "onPress", g_coverPress.get());
+                SetHandler(a_movie, cover, "onRelease", g_coverRelease.get());
+                SetHandler(a_movie, cover, "onReleaseOutside", g_coverRelease.get());
+            }
+        }
+
+        // D5: the lock (and, in the mode, reset) button right-aligned at the left column's right edge (the border), just below it
+        void DrawButtons(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        {
+            auto row = Child(a_widget, kButtonsName);
+            if (!row.IsDisplayObject()) return;
+            const auto& m = g_menu.layout;
+            const double right = ColumnViewport(0).right;
+            const double top = Layout::DefaultFrames(Settings::Get())[0].bottom + kButtonRowGap;
+            const auto key = KeyLabel(Settings::Get().keyLayout);
+            const bool grey = !SafetyNetReason().empty();
+            const auto button = [&](const char* a_name, double a_x, double a_w, const std::string& a_text, RE::GFxFunctionHandler* a_handler) {
+                Draw::Remove(row, a_name);
+                auto clip = Draw::Clip(row, a_name);
+                if (!clip.IsDisplayObject()) return;
+                clip.SetMember("_x", a_x);
+                clip.SetMember("_y", top);
+                Draw::Box(clip, a_w, kButtonRowH, kButtonFill, kButtonAlpha, kPanelEdge, kEdgeWidth);
+                const double size = kButtonTextSize;
+                FitLine(a_movie, clip, "label", 0, (kButtonRowH - FieldH(size)) / 2, a_w, size, a_text, kWhite, "center");
+                SetHandler(a_movie, clip, "onRelease", a_handler);
+                if (grey) clip.SetMember("_alpha", kGreyAlpha);
+            };
+            button("lock", right - kLockW, kLockW, Fill(m.active ? Str::kLayoutLock : Str::kLayoutEdit, { { "{key}", key } }), g_lockClick.get());
+            if (m.active) {
+                button("reset", right - kLockW - kButtonGap - kResetW, kResetW, Text(Str::kLayoutReset), g_resetClick.get());
+            } else {
+                Draw::Remove(row, "reset");
+            }
+        }
+
+        // The border handle: a strip over the gap between the columns (at least kMinHandleW wide), a thin line in its middle;
+        // shown in the mode only
+        void DrawBorderHandle(RE::GFxValue& a_widget)
+        {
+            auto handle = Child(a_widget, kBorderName);
+            if (!handle.IsDisplayObject()) return;
+            const auto left = ColumnViewport(0), right = ColumnViewport(1);
+            double x0 = left.right, x1 = right.left;
+            if (x1 - x0 < kMinHandleW) {
+                const double mid = (x0 + x1) / 2;
+                x0 = mid - kMinHandleW / 2;
+                x1 = mid + kMinHandleW / 2;
+            }
+            Draw::Call(handle, "clear", {});
+            Draw::NoLine(handle);
+            Draw::Rect(handle, x0, left.top, x1 - x0, left.Height(), kPanelFill, 0.0);
+            Draw::LineStyle(handle, kEdgeWidth, kPanelEdge, kHandleLineAlpha);
+            Draw::MoveTo(handle, (x0 + x1) / 2, left.top);
+            Draw::LineTo(handle, (x0 + x1) / 2, left.bottom);
+            handle.SetMember("_visible", g_menu.layout.active);
+        }
+
+        // Rearrange's tail: the buttons and the handle follow the border; the covers follow the blocks
+        void PlaceLayoutChrome(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        {
+            DrawButtons(a_movie, a_widget);
+            DrawBorderHandle(a_widget);
+            if (g_menu.layout.active) SetCovers(a_movie, a_widget);
+        }
+
+        // After the panels (AttachWidget): the button row, the border handle, then the overlay on top of everything
+        void MakeLayoutChrome(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        {
+            auto row = Draw::Clip(a_widget, kButtonsName);
+            auto handle = Draw::Clip(a_widget, kBorderName);
+            auto overlay = Draw::Clip(a_widget, kOverlayName);
+            if (handle.IsDisplayObject()) {
+                SetHandler(a_movie, handle, "onPress", g_borderPress.get());
+                SetHandler(a_movie, handle, "onRelease", g_borderRelease.get());
+                SetHandler(a_movie, handle, "onReleaseOutside", g_borderRelease.get());
+                handle.SetMember("useHandCursor", false);
+            }
+            if (!row.IsDisplayObject() || !handle.IsDisplayObject() || !overlay.IsDisplayObject()) {
+                logger::warn("Layout: the button row, border handle or overlay could not be made - the layout mode will not start this menu");
+            }
+            PlaceLayoutChrome(a_movie, a_widget);
+            if (const auto why = SafetyNetReason(); !why.empty() && !std::exchange(g_menu.layout.restLogged, true)) {
+                logger::info("Layout: the layout mode rests this menu - {}; the lock button is greyed, the default layout is used (the saved one is "
+                             "kept)",
+                    why);
+            }
+        }
+
+        bool ChromeReady(RE::GFxValue& a_widget)
+        {
+            return Child(a_widget, kShieldName).IsDisplayObject() && Child(a_widget, kButtonsName).IsDisplayObject() &&
+                   Child(a_widget, kBorderName).IsDisplayObject() && Child(a_widget, kOverlayName).IsDisplayObject();
+        }
+
+        void ClearOverlay(RE::GFxValue& a_widget, const char* a_name)
+        {
+            if (auto overlay = Child(a_widget, kOverlayName); overlay.IsDisplayObject()) Draw::Remove(overlay, a_name);
+        }
+
+        // --- moving blocks ---
+
+        // A block moved to the other column: AS2 cannot move a clip to another parent, so its panel is made again in its new
+        // column clip (Panel) and its content drawn again (D11: a width change redraws it once anyway)
+        void RebuildPanel(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const BlockId& a_id)
+        {
+            Panel(a_movie, a_widget, a_id);
+            const auto rect = BlockRect(a_id);
+            g_menu.placed[a_id] = rect;
+            if (a_id == Layout::kTree) {
+                if (auto panel = BlockClip(a_widget, a_id); panel.IsDisplayObject()) {
+                    DrawLegend(a_movie, panel, rect.Width(), rect.Height(), g_menu.legendSchool.value_or(std::string{}));
+                }
+                g_menu.tooltipDue = true;
+            }
+            if (a_id == Layout::kTree || a_id == Layout::kProgress || a_id == Layout::kNodeCard) g_menu.dirty = true;
+            if (a_id == Layout::kSpellCard) g_menu.ownCardSig.clear();  // WatchOwnCard draws it again next frame
+            logger::info("Layout: block {} is in column {} now - its panel made there again ({:.0f} x {:.0f}), drawn again", a_id,
+                ColumnOf(a_id).value_or(-1), rect.Width(), rect.Height());
+        }
+
+        // The panels put to a_state: the blocks that change column are made again there, then Rearrange places every panel and
+        // draws again only what changed size (D11), the chrome follows
+        void ApplyLayout(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const Layout::State& a_state)
+        {
+            auto& m = g_menu.layout;
+            std::vector<BlockId> moved;
+            RemoveCovers(a_widget);
+            for (const BlockId id : kBlocks) {
+                const auto before = ColumnOf(id);
+                std::optional<int> after;
+                for (int column = 0; column < Layout::kColumns; ++column) {
+                    if (std::ranges::find(a_state.columns[column], id) != a_state.columns[column].end()) after = column;
+                }
+                if (before == after) continue;
+                if (auto parent = BlockParent(a_widget, id); parent.IsDisplayObject()) Draw::Remove(parent, PanelName(id));
+                moved.push_back(id);
+            }
+            m.working = a_state;
+            Rearrange(a_movie, a_widget);
+            for (const auto& id : moved) RebuildPanel(a_movie, a_widget, id);
+            if (!moved.empty()) SetCovers(a_movie, a_widget);  // above the panels made again
+            ApplyVisibility(a_widget);
+        }
+
+        // The slot under the pointer (stage units, on screen): the column by SnapSlot's own x rule, then the pointer's y in that
+        // column's unscrolled space (plan D4: stage y + the column's scroll)
+        Layout::Slot SlotAt(const BlockId& a_dragged, double a_x, double a_y)
+        {
+            const auto& state = CurrentLayout();
+            const auto frames = Layout::DefaultFrames(Settings::Get());
+            const int column = Layout::SnapSlot(state, a_dragged, a_x, a_y + g_menu.scroll[0], g_menu.blocks, frames).column;
+            return Layout::SnapSlot(state, a_dragged, a_x, a_y + g_menu.scroll[column], g_menu.blocks, frames);
+        }
+
+        // The insertion line's y (unscrolled): half a gap above the block it goes before, else half a gap below the column's
+        // last shown block (the dragged one left out), else the column's top
+        double SlotLineY(const Layout::Slot& a_slot, const BlockId& a_dragged)
+        {
+            const auto frames = Layout::DefaultFrames(Settings::Get());
+            const auto& frame = frames[a_slot.column];
+            if (a_slot.before) {
+                if (const auto it = g_menu.blocks.find(*a_slot.before); it != g_menu.blocks.end()) return it->second.top - frame.gap / 2;
+            }
+            double y = frame.top;
+            for (const auto& id : CurrentLayout().columns[a_slot.column]) {
+                if (id == a_dragged) continue;
+                if (const auto it = g_menu.blocks.find(id); it != g_menu.blocks.end()) y = std::max(y, it->second.bottom + frame.gap / 2);
+            }
+            return y;
+        }
+
+        void DrawSlotLine(RE::GFxValue& a_widget, const Layout::Slot& a_slot, const BlockId& a_dragged)
+        {
+            auto overlay = Child(a_widget, kOverlayName);
+            if (!overlay.IsDisplayObject()) return;
+            Draw::Remove(overlay, "line");
+            auto line = Draw::Clip(overlay, "line");
+            if (!line.IsDisplayObject()) return;
+            const auto viewport = ColumnViewport(a_slot.column);
+            const double y = std::clamp(SlotLineY(a_slot, a_dragged) - g_menu.scroll[a_slot.column], viewport.top, viewport.bottom);
+            Draw::LineStyle(line, kLineW, kBlue);
+            Draw::MoveTo(line, viewport.left, y);
+            Draw::LineTo(line, viewport.right, y);
+        }
+
+        void EndDrag(RE::GFxValue& a_widget)
+        {
+            auto& m = g_menu.layout;
+            if (!m.drag) return;
+            if (auto panel = BlockClip(a_widget, m.drag->id); panel.IsDisplayObject()) panel.SetMember("_alpha", Draw::kAlphaFull);
+            ClearOverlay(a_widget, "ghost");
+            ClearOverlay(a_widget, "line");
+            m.drag.reset();
+        }
+
+        void StartDrag(RE::GFxValue& a_widget, const BlockId& a_id, double a_x, double a_y)
+        {
+            auto& m = g_menu.layout;
+            if (m.drag || m.borderGrab || !BlockShown(a_id)) return;
+            const auto rect = BlockRect(a_id);
+            // D8: the grab offset is where in the block the pointer took it - a block taller than its column's viewport too
+            m.drag = LayoutDrag{ a_id, a_x - rect.left, a_y - rect.top, g_menuGeneration.load(), std::nullopt, 0.0 };
+            if (auto panel = BlockClip(a_widget, a_id); panel.IsDisplayObject()) panel.SetMember("_alpha", kDraggedAlpha);
+            if (auto overlay = Child(a_widget, kOverlayName); overlay.IsDisplayObject()) {
+                Draw::Remove(overlay, "ghost");
+                auto ghost = Draw::Clip(overlay, "ghost");
+                if (ghost.IsDisplayObject()) {
+                    Draw::Box(ghost, rect.Width(), rect.Height(), kPanelFill, kGhostAlpha, kBlue, kLineW);
+                    ghost.SetMember("_x", rect.left);
+                    ghost.SetMember("_y", rect.top);
+                }
+            }
+            if (m.drops + m.borderMoves < kMaxDragLogs) logger::info("Layout: drag of {} begun (column {}, grabbed at {:.0f},{:.0f} in it)", a_id, ColumnOf(a_id).value_or(-1), m.drag->grabX, m.drag->grabY);
+        }
+
+        // D8: the drag session's frame - the ghost follows the pointer, the insertion line marks the slot, the column under the
+        // pointer scrolls near its top / bottom edge. Ends (no move) on focus loss or a stale menu generation
+        void DragFrame(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        {
+            auto& m = g_menu.layout;
+            if (!m.drag) return;
+            if (m.drag->generation != g_menuGeneration.load() || !GameActive()) {
+                logger::info("Layout: drag of {} ended without a move - {}", m.drag->id, GameActive() ? "another menu's drag" : "the game window lost the focus");
+                EndDrag(a_widget);
+                return;
+            }
+            const auto at = MouseAt(a_movie);
+            if (!at) return;
+            const auto [x, y] = *at;
+            if (auto overlay = Child(a_widget, kOverlayName); overlay.IsDisplayObject()) {
+                if (auto ghost = Child(overlay, "ghost"); ghost.IsDisplayObject()) {
+                    ghost.SetMember("_x", x - m.drag->grabX);
+                    ghost.SetMember("_y", y - m.drag->grabY);
+                }
+            }
+            auto slot = SlotAt(m.drag->id, x, y);
+            const auto viewport = ColumnViewport(slot.column);
+            const bool overColumns = x >= ColumnViewport(0).left && x <= ColumnViewport(1).right;
+            if (overColumns && y < viewport.top + kAutoScrollEdge) {
+                ScrollColumn(a_widget, slot.column, -kAutoScrollStep, false);
+            } else if (overColumns && y > viewport.bottom - kAutoScrollEdge) {
+                ScrollColumn(a_widget, slot.column, kAutoScrollStep, false);
+            }
+            slot = SlotAt(m.drag->id, x, y);
+            const double scroll = g_menu.scroll[slot.column];
+            if (m.drag->slot == slot && std::abs(m.drag->lineScroll - scroll) <= kRectTolerance) return;
+            m.drag->slot = slot;
+            m.drag->lineScroll = scroll;
+            DrawSlotLine(a_widget, slot, m.drag->id);
+        }
+
+        void Drop(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        {
+            auto& m = g_menu.layout;
+            if (!m.drag) return;
+            const auto id = m.drag->id;
+            const auto at = MouseAt(a_movie);
+            const auto slot = at ? SlotAt(id, at->first, at->second) : m.drag->slot.value_or(Layout::Slot{ ColumnOf(id).value_or(0), std::nullopt });
+            const auto moved = Layout::Move(m.working, id, slot);
+            EndDrag(a_widget);
+            if (moved == m.working) {
+                if (m.drops + m.borderMoves < kMaxDragLogs) logger::info("Layout: {} dropped where it was", id);
+                return;
+            }
+            const auto started = std::chrono::steady_clock::now();
+            ApplyLayout(a_movie, a_widget, moved);
+            ++m.drops;
+            logger::info("Layout: {} dropped in column {} {} - {} ({:.1f} ms)", id, slot.column, slot.before ? "before " + *slot.before : std::string("at its end"),
+                Describe(m.working), std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count());
+        }
+
+        // The border drag: a guide line while dragged; ClampBorder applied and the blocks redrawn once on release (D11)
+        void BorderFrame(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        {
+            auto& m = g_menu.layout;
+            if (!m.borderGrab) return;
+            if (!GameActive()) {
+                logger::info("Layout: border drag ended without a move - the game window lost the focus");
+                m.borderGrab.reset();
+                m.guideAt.reset();
+                ClearOverlay(a_widget, "guide");
+                return;
+            }
+            const auto at = MouseAt(a_movie);
+            if (!at) return;
+            const auto frames = Layout::DefaultFrames(Settings::Get());
+            const double border = Layout::ClampBorder(at->first - *m.borderGrab, frames[0], frames[1]);
+            if (m.guideAt && std::abs(*m.guideAt - border) <= kRectTolerance) return;
+            m.guideAt = border;
+            auto overlay = Child(a_widget, kOverlayName);
+            if (!overlay.IsDisplayObject()) return;
+            Draw::Remove(overlay, "guide");
+            auto guide = Draw::Clip(overlay, "guide");
+            if (!guide.IsDisplayObject()) return;
+            Draw::LineStyle(guide, kLineW, kBlue);
+            Draw::MoveTo(guide, border, frames[0].top);
+            Draw::LineTo(guide, border, frames[0].bottom);
+        }
+
+        void BorderDrop(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        {
+            auto& m = g_menu.layout;
+            if (!m.borderGrab) return;
+            const auto frames = Layout::DefaultFrames(Settings::Get());
+            const auto at = MouseAt(a_movie);
+            const double border = at ? Layout::ClampBorder(at->first - *m.borderGrab, frames[0], frames[1]) : m.guideAt.value_or(m.working.border);
+            m.borderGrab.reset();
+            m.guideAt.reset();
+            ClearOverlay(a_widget, "guide");
+            const double before = Layout::ClampBorder(m.working.border, frames[0], frames[1]);
+            if (std::abs(border - before) <= kRectTolerance) return;
+            auto state = m.working;
+            state.border = border;
+            const auto started = std::chrono::steady_clock::now();
+            ApplyLayout(a_movie, a_widget, state);
+            ++m.borderMoves;
+            logger::info("Layout: border moved {:.1f} -> {:.1f} - the columns {:.0f} / {:.0f} wide, their blocks drawn again once ({:.1f} ms)", before, border,
+                ColumnViewport(0).Width(), ColumnViewport(1).Width(), std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count());
+        }
+
+        // --- entering and leaving ---
+
+        void EnterLayoutMode(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const std::string& a_why)
+        {
+            auto& m = g_menu.layout;
+            if (m.active) return;
+            if (!ChromeReady(a_widget)) {
+                g_layoutMode = false;
+                logger::warn("Layout: mode refused - the shield, button row, border handle or overlay is missing in this menu ({})", a_why);
+                return;
+            }
+            m.active = true;
+            m.entry = m.working = Settings::SavedLayout();
+            ++m.entered;
+            g_menu.hovered = -1;  // the tooltip goes (RedrawTooltip)
+            g_menu.tooltipDue = true;
+            ShowShield(a_widget, true);
+            PlaceLayoutChrome(a_movie, a_widget);
+            ApplyVisibility(a_widget);
+            logger::info("Layout: mode ON by {} - the entry layout {}", a_why, Describe(m.entry));
+            FlushLog();
+        }
+
+        // Save: the working layout written (D10); a failed write keeps the mode on with its State (to retry), a newer build's file
+        // is not written (the edit is kept for this game session). Cancel: the entry layout back (SelfTest L4)
+        void LeaveLayoutMode(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, bool a_save, const std::string& a_why)
+        {
+            auto& m = g_menu.layout;
+            if (!m.active) {
+                g_layoutMode = false;
+                return;
+            }
+            EndDrag(a_widget);
+            m.borderGrab.reset();
+            m.guideAt.reset();
+            ClearOverlay(a_widget, "guide");
+            if (a_save) {
+                if (m.working == Settings::SavedLayout()) {
+                    logger::info("Layout: mode OFF by {} - the layout is unchanged, nothing written", a_why);
+                } else {
+                    std::string detail;
+                    const auto result = Settings::SaveLayout(m.working, &detail);
+                    if (result == Settings::SaveResult::kFailed) {
+                        logger::error("Layout: save FAILED - {}. The layout mode stays on with the edited layout (the lock button or {} again to retry, "
+                                      "Esc to leave without saving)",
+                            detail, KeyLabel(Settings::Get().keyLayout));
+                        SelfTest(std::format("L3 layout saved FAIL - not written: {}", detail));
+                        g_layoutMode = true;
+                        return;
+                    }
+                    if (result == Settings::SaveResult::kRefused) {
+                        Settings::SetSavedLayout(m.working);
+                        logger::warn("Layout: not saved - {}; the edited layout is used until the game is closed", detail);
+                        SelfTest(std::format("L3 layout saved SKIP - refused: {}", detail));
+                    } else {
+                        std::string why;
+                        const auto back = Settings::ReadLayoutFile(&why);
+                        logger::info("Layout: mode OFF by {} - saved: {} - {}", a_why, detail, Describe(m.working));
+                        SelfTest(std::format("L3 layout saved {} - the file read again {} the layout ({}{})", back && *back == m.working ? "PASS" : "FAIL",
+                            back ? (*back == m.working ? "equals" : "differs from") : "does not read as", Describe(m.working),
+                            back ? (*back == m.working ? std::string{} : "; file: " + Describe(*back)) : "; " + why));
+                    }
+                }
+            } else {
+                if (!(m.working == m.entry)) ApplyLayout(a_movie, a_widget, m.entry);
+            }
+            m.active = false;
+            g_layoutMode = false;
+            if (!a_save) {
+                const bool same = CurrentLayout() == m.entry && Settings::SavedLayout() == m.entry;
+                const auto arranged = ArrangeBlocks(ArrangementFor(g_menu.tab, OwnCard()));
+                std::string diffs;
+                for (const auto& [id, rect] : arranged) {
+                    const auto it = g_menu.blocks.find(id);
+                    if (it == g_menu.blocks.end() || !SameRect(it->second, rect)) diffs += std::format("; {} not at {}", id, RectText(rect));
+                }
+                logger::info("Layout: mode OFF by {} - cancelled, the entry layout is back", a_why);
+                SelfTest(std::format("L4 cancel {} - the layout {} the entry layout ({}), the panels' rects {}{}", same && diffs.empty() ? "PASS" : "FAIL",
+                    same ? "equals" : "differs from", Describe(m.entry), diffs.empty() ? "are the entry layout's" : "differ", diffs));
+                RE::GFxValue root;
+                if (a_movie->GetVariable(&root, "_root")) CheckPanelPlaces(a_movie, root, a_widget);
+            }
+            RemoveCovers(a_widget);
+            ShowShield(a_widget, false);
+            PlaceLayoutChrome(a_movie, a_widget);
+            ApplyVisibility(a_widget);
+            g_menu.tooltipDue = true;
+            FlushLog();
+        }
+
+        // Each frame (Frame handler): the wraps, the published refusals, the queued requests, the buttons, the drags
+        void LayoutFrame(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        {
+            auto& m = g_menu.layout;
+            InstallInputWraps(a_movie);
+            PublishLayoutBlock(a_movie);
+            std::vector<LayoutRequest> requests;
+            {
+                const std::scoped_lock lock(g_layoutRequestLock);
+                requests.swap(g_layoutRequests);
+            }
+            for (const auto& request : requests) {
+                switch (request.kind) {
+                case LayoutRequestKind::kEnter: EnterLayoutMode(a_movie, a_widget, request.why); break;
+                case LayoutRequestKind::kSave: LeaveLayoutMode(a_movie, a_widget, true, request.why); break;
+                case LayoutRequestKind::kCancel: LeaveLayoutMode(a_movie, a_widget, false, request.why); break;
+                }
+            }
+            if (std::exchange(m.lockDue, false)) {
+                if (m.active) {
+                    g_layoutMode = false;
+                    LeaveLayoutMode(a_movie, a_widget, true, "the lock button");
+                } else if (const auto bits = LiveBlock(Input::HeldCount() > 0); bits != 0) {
+                    LogRefusal(bits, "the lock button");
+                } else if (!g_layoutMode.exchange(true)) {
+                    EnterLayoutMode(a_movie, a_widget, "the lock button");
+                }
+            }
+            if (std::exchange(m.resetDue, false) && m.active) {
+                const auto reset = Layout::Default(Settings::Get());
+                if (!(reset == m.working)) {
+                    EndDrag(a_widget);
+                    ApplyLayout(a_movie, a_widget, reset);
+                    ++m.resets;
+                    logger::info("Layout: reset to the default layout {} (saved when the mode is left with the lock)", Describe(reset));
+                }
+            }
+            if (!m.active) return;
+            if (auto press = std::exchange(m.pressDue, std::nullopt)) StartDrag(a_widget, std::get<0>(*press), std::get<1>(*press), std::get<2>(*press));
+            if (std::exchange(m.borderPressDue, false) && !m.drag && !m.borderGrab) m.borderGrab = m.borderPressX - ColumnViewport(0).right;
+            DragFrame(a_movie, a_widget);
+            BorderFrame(a_movie, a_widget);
+            if (std::exchange(m.releaseDue, false)) Drop(a_movie, a_widget);
+            if (std::exchange(m.borderReleaseDue, false)) BorderDrop(a_movie, a_widget);
+        }
+
+        // At the menu's close (the close event; the movie is going, so nothing is drawn): a mode still on ends as Cancel
+        // (SelfTest L4: nothing was written, the saved layout is the entry layout), and the input boundary's tests
+        void LayoutAtClose()
+        {
+            auto& m = g_menu.layout;
+            const bool wasOn = m.active || g_layoutMode.exchange(false);
+            g_layoutMode = false;
+            {
+                const std::scoped_lock lock(g_layoutRequestLock);
+                g_layoutRequests.clear();
+            }
+            g_layoutBlock = kBlockNoWidget;
+            if (m.active) {
+                m.active = false;
+                m.drag.reset();
+                m.borderGrab.reset();
+                const bool same = Settings::SavedLayout() == m.entry;
+                logger::info("Layout: mode ended by the menu's close - cancelled, nothing written");
+                SelfTest(std::format("L4 cancel {} - menu closed in the layout mode: the saved layout {} the entry layout ({})", same ? "PASS" : "FAIL",
+                    same ? "is" : "is NOT", Describe(m.entry)));
+            }
+            const auto counts = Input::ReadCounters();
+            SelfTest(std::format("L5 input passthrough {} - {} event(s) judged with the layout mode off, {} kept though neither the toggle nor an owned "
+                                 "tail (want 0); {} toggle press(es) and {} owned tail event(s) kept",
+                counts.strayOff == 0 ? "PASS" : "FAIL", counts.eventsOff, counts.strayOff, counts.toggles, counts.ownedOff));
+            if (m.entered > 0 || wasOn) {
+                SelfTest(std::format("L5 input leak {} - in the layout mode ({} time(s) this menu) the hook kept {} button down(s); SkyUI's handleInput "
+                                     "got {} call(s) (want 0), AttemptEquip {} (not called); the shield took {} press(es)",
+                    m.inputLeaks == 0 ? "PASS" : "FAIL", m.entered, counts.downsOn, m.inputLeaks, m.equipKept, m.shieldPresses));
+            }
+            if (m.inputWrapped) {
+                std::string unseen;
+                for (const auto code : m.wrapKeysOff) {
+                    if (!Input::KeyboardDownSeenOff(code)) unseen += std::format(" {}", code);
+                }
+                const char* verdict = !unseen.empty() ? "FAIL" : m.wrapKeyDownsOff == 0 ? "SKIP" : "PASS";
+                SelfTest(std::format("L5 route parity {} - mode off: {} keyboard down(s) passed the hook; SkyUI's handleInput got {} keyboard keyDown(s) of {} "
+                                     "key(s){}{}; keys it got that never passed the hook:{} (want none: the menu's keys come from below "
+                                     "MenuControls::ProcessEvent)",
+                    verdict, counts.keyboardDownsOff, m.wrapKeyDownsOff, m.wrapKeysOff.size(),
+                    m.wrapKeyDownsOff == 0 ? " (no keyboard key used: nothing to compare)" : "",
+                    m.wrapNoSkseCode > 0 ? std::format(", {} keyDown(s) without skseKeycode not compared", m.wrapNoSkseCode) : std::string{},
+                    unseen.empty() ? " none" : unseen));
+            }
+            if (m.drops + m.borderMoves + m.resets > 0) {
+                logger::info("Layout: this menu {} drop(s), {} border move(s), {} reset(s)", m.drops, m.borderMoves, m.resets);
             }
         }
 
@@ -4712,7 +5721,7 @@ namespace Widget
         // or the tree was drawn again; it never marks the tree dirty.
         void RedrawTooltip(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const Spells::Snapshot& a_snapshot)
         {
-            const int hovered = g_menu.hovered;
+            const int hovered = g_menu.layout.active ? -1 : g_menu.hovered;  // Task 4: no tooltip in the layout mode
             if (hovered == g_menu.tooltipFor && !g_menu.tooltipDue) return;
             g_menu.tooltipDue = false;
             g_menu.tooltipFor = -1;
@@ -5009,6 +6018,12 @@ namespace Widget
             } else if (tab.kind == Tab::kSchool) {
                 SetSchool(tab.school);
                 if (CentreSchool() != tab.school) SetDefaultCentre(tab.school, a_snapshot);
+            }
+            // blocks plan Task 4: a tab change ends the layout mode as Cancel (the hook and the shield keep the tabs from changing
+            // in the mode; whatever got through, the entry layout is put back first)
+            if (!first && g_menu.layout.active) {
+                g_layoutMode = false;
+                LeaveLayoutMode(a_movie, a_widget, false, "the tab change");
             }
             // D6: the tab's hidden blocks close up; the item card's slot moves between the Powers/Shouts tabs and the others, so
             // its transform is worked out again (Rearrange)
@@ -5481,6 +6496,7 @@ namespace Widget
                 FitItemCard(movie, root);
                 WatchOwnCard(movie, widget);  // v7 C1 (after WatchTab: its box follows the tab)
                 MeasureListRow(movie, root, widget);  // Q4: our reading sizes follow the list's rows
+                LayoutFrame(movie, widget);  // blocks plan Task 4: the layout mode (after WatchTab: a tab change cancels it first)
                 // the click first: its list selection is noticed in this same frame
                 if (const int clicked = std::exchange(g_menu.clicked, -1); clicked >= 0) OnNodeClicked(movie, clicked, *snapshot);
                 WatchSelection(*snapshot);
@@ -5653,6 +6669,16 @@ namespace Widget
 
             g_menu = MenuState{};
             g_menu.irActive = IrActive(movie);
+            // blocks plan Task 4: a new menu - no mode, no queued request, the input tests counted afresh; the wraps are not on yet
+            ++g_menuGeneration;
+            g_layoutMode = false;
+            {
+                const std::scoped_lock lock(g_layoutRequestLock);
+                g_layoutRequests.clear();
+            }
+            g_layoutBlock = kBlockNoWidget | kBlockNoInputWrap | kBlockNoEquipWrap;  // the widget clears its bit once it is up
+            g_refusalLogs = 0;
+            Input::ResetCounters();
             logger::info("Widget: Inventory Reforged {} in this magic menu{}", g_menu.irActive ? "IS active" : "is not active",
                 g_menu.irActive ? " - the item card and the preview are not moved" : "");
             g_closing = false;
@@ -5672,12 +6698,22 @@ namespace Widget
                 g_listPressAux = RE::make_gptr<ListPress>(true);
                 g_wheelListener = RE::make_gptr<WheelListener>();
                 g_wheelZoomWrap = RE::make_gptr<WheelZoomWrap>();
+                g_coverPress = RE::make_gptr<CoverPress>();
+                g_coverRelease = RE::make_gptr<CoverRelease>();
+                g_borderPress = RE::make_gptr<BorderPress>();
+                g_borderRelease = RE::make_gptr<BorderRelease>();
+                g_lockClick = RE::make_gptr<LockClick>();
+                g_resetClick = RE::make_gptr<ResetClick>();
+                g_shieldPress = RE::make_gptr<ShieldPress>();
+                g_handleInputWrap = RE::make_gptr<HandleInputWrap>();
+                g_attemptEquipWrap = RE::make_gptr<AttemptEquipWrap>();
             }
             auto widget = Draw::Clip(root, kRootName);
             if (!widget.IsDisplayObject()) {
                 logger::error("Widget: could not create _root.{}", kRootName);
                 return;
             }
+            MakeShield(movie, widget);  // blocks plan Task 4: first, so it is the lowest clip of mmx_root
             MeasureTextMetrics(movie, widget);  // before anything is fitted (review round 1 #1)
             const auto& settings = Settings::Get();
             // the over-pass: the magic menu draws its 3D before the movie, under our black preview box
@@ -5726,6 +6762,8 @@ namespace Widget
                 const auto rect = BlockRect(Layout::kTree);
                 DrawLegend(movie, tree, rect.Width(), rect.Height(), {});
             }
+            MakeLayoutChrome(movie, widget);  // blocks plan Task 4 (D5): the lock / reset row, the border handle, the drag overlay
+            g_layoutBlock = g_layoutBlock.load() & ~kBlockNoWidget;
             RE::GFxValue fn;
             movie->CreateFunction(&fn, g_frame.get());
             widget.SetMember("onEnterFrame", fn);
@@ -5749,12 +6787,21 @@ namespace Widget
 
             RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent* a_event, RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
             {
-                if (!a_event || a_event->menuName != RE::MagicMenu::MENU_NAME) return RE::BSEventNotifyControl::kContinue;
+                if (!a_event) return RE::BSEventNotifyControl::kContinue;
+                if (a_event->menuName != RE::MagicMenu::MENU_NAME) {
+                    OtherMenu(*a_event);
+                    return RE::BSEventNotifyControl::kContinue;
+                }
                 logger::info("Widget: magic menu {} (thread {})", a_event->opening ? "opened" : "closed", REX::W32::GetCurrentThreadId());
+                {
+                    const std::scoped_lock lock(g_blockingLock);
+                    g_blockingMenus.clear();
+                }
                 if (a_event->opening) {
                     SKSE::GetTaskInterface()->AddUITask([] { AttachWidget(); });
                 } else {
                     g_closing = true;  // first: no frame work from here on
+                    LayoutAtClose();   // blocks plan Task 4: a mode still on is cancelled; the input tests
                     RemoveWheelListener();  // before g_attachedMovie goes (it checks the movie is still ours)
                     if (g_menu.nodeClicks > 0) {
                         SelfTest(std::format("L2 mask clicks {} - {} node click(s) this menu, {} outside the tree column's visible area (ignored; "
@@ -5785,6 +6832,29 @@ namespace Widget
 
         private:
             MenuSink() = default;
+
+            // blocks spec "Entry refusals and exits": another menu that pauses the game, uses the menu context or is modal opening
+            // over the magic menu ends the layout mode as Cancel and keeps it from starting while it is up. A menu whose flags
+            // cannot be read counts as such
+            static void OtherMenu(const RE::MenuOpenCloseEvent& a_event)
+            {
+                auto* ui = RE::UI::GetSingleton();
+                if (!ui || !ui->IsMenuOpen(RE::MagicMenu::MENU_NAME)) return;
+                const std::string name = a_event.menuName.c_str() ? a_event.menuName.c_str() : "";
+                if (!a_event.opening) {
+                    const std::scoped_lock lock(g_blockingLock);
+                    g_blockingMenus.erase(name);
+                    return;
+                }
+                const auto menu = ui->GetMenu(a_event.menuName);
+                const bool blocking = !menu || menu->PausesGame() || menu->UsesMenuContext() || menu->Modal();
+                if (!blocking) return;
+                {
+                    const std::scoped_lock lock(g_blockingLock);
+                    g_blockingMenus.insert(name);
+                }
+                CancelLayoutMode(std::format("the menu \"{}\" opening over the magic menu", name).c_str());
+            }
         };
     }
 
@@ -5825,5 +6895,31 @@ namespace Widget
         auto* ui = RE::UI::GetSingleton();
         auto menu = ui ? ui->GetMenu<RE::MagicMenu>() : nullptr;
         return menu ? menu->uiMovie.get() : nullptr;
+    }
+
+    bool LayoutModeOn()
+    {
+        return g_layoutMode;
+    }
+
+    bool ToggleLayoutMode(const char* a_source, bool a_heldOther)
+    {
+        if (g_layoutMode.exchange(false)) {
+            QueueLayout(LayoutRequestKind::kSave, a_source);
+            return true;
+        }
+        if (const auto bits = LiveBlock(a_heldOther); bits != 0) {
+            LogRefusal(bits, a_source);
+            return false;
+        }
+        if (!g_layoutMode.exchange(true)) QueueLayout(LayoutRequestKind::kEnter, a_source);
+        return true;
+    }
+
+    bool CancelLayoutMode(const char* a_why)
+    {
+        if (!g_layoutMode.exchange(false)) return false;
+        QueueLayout(LayoutRequestKind::kCancel, a_why);
+        return true;
     }
 }

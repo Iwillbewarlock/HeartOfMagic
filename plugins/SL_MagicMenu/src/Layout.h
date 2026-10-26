@@ -124,4 +124,36 @@ namespace Layout
     /// a_fallback (column 0 when the fallback lacks it too), keeps unknown ids in place (absent add-ons), and takes the
     /// fallback's border when the border is not finite. Border range clamping is ClampBorder's (Arrange applies it).
     State Repair(State a_state, const std::set<BlockId>& a_known, const State& a_fallback);
+
+    // -------------------------------------------------------------------------
+    // The layout file's safety (blocks plan D10, Task 4): which files a save writes and keeps
+    // -------------------------------------------------------------------------
+
+    /// What the layout file was when it was last read or written
+    enum class FileState
+    {
+        kMissing,  // no file (the first save creates it)
+        kRead,     // read as a layout (or written by this build)
+        kBroken,   // there but not readable as a layout (not JSON, bad fields, too big, unreadable): kept as .bad before a save
+        kNewer,    // from a newer build: never overwritten
+    };
+
+    /// What a save does. Order: refuse -> copy the file to .bad -> write .tmp -> replace (the old file kept as .bak) or move
+    struct SavePlan
+    {
+        bool refuse = false;        // nothing written (a newer build's file)
+        bool copyBadFirst = false;  // the unreadable file copied to <file>.bad first; the save fails if that copy fails
+        bool replace = false;       // the file exists: ReplaceFileW keeping <file>.bak (fallback: copy to .bak + MoveFileExW);
+                                    // false: no file yet, MoveFileExW of the .tmp alone (ReplaceFileW needs an existing target)
+
+        bool operator==(const SavePlan&) const = default;
+    };
+
+    /// The plan for a save: a_state as last read/written, a_badKept = the .bad copy was made already (a retry does not copy it
+    /// again), a_fileExists = the layout file is there now.
+    SavePlan PlanSave(FileState a_state, bool a_badKept, bool a_fileExists);
+
+    /// The file's state after a save attempt: kRead after a successful write; unchanged otherwise (a failed save leaves the
+    /// file as it was and the next try plans the same).
+    FileState AfterSave(FileState a_state, bool a_written);
 }

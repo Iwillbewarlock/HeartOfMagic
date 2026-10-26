@@ -295,4 +295,21 @@ namespace Layout
         }
         return a_state;
     }
+
+    SavePlan PlanSave(FileState a_state, bool a_badKept, bool a_fileExists)
+    {
+        SavePlan plan;
+        if (a_state == FileState::kNewer) {
+            plan.refuse = true;
+            return plan;
+        }
+        plan.copyBadFirst = a_state == FileState::kBroken && !a_badKept && a_fileExists;
+        plan.replace = a_fileExists;
+        return plan;
+    }
+
+    FileState AfterSave(FileState a_state, bool a_written)
+    {
+        return a_written ? FileState::kRead : a_state;
+    }
 }
