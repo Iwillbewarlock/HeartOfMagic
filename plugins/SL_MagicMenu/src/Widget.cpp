@@ -4181,6 +4181,7 @@ namespace Widget
         void SyncMode(bool a_on)
         {
             const std::scoped_lock lock(g_layoutRequestLock);
+            if (g_closing) return;  // a frame overlapping the close must not turn the mode back on after LayoutAtClose
             g_modeLedger.Sync(!g_layoutRequests.empty(), a_on);
             g_layoutMode = g_modeLedger.on;
         }
