@@ -2,6 +2,8 @@
 
 #include "Settings.h"
 
+#include <optional>
+
 // =============================================================================
 // PREVIEW - build 4 P1 (spec 2026-10-25-magic-menu-proto-v4.md): the game's
 // spell preview is placed at our preview box and every model up is fitted to
@@ -29,6 +31,14 @@
 // A model we hid is given back before each over-pass while it is the
 // selection's (not while the box is not shown), and every model we hid that is
 // still up comes back at close and at the next menu's reset.
+// Blocks plan Task 3 (D2): the panels sit in scrolled columns. The scissor and
+// the alpha save/restore take the box cut to the preview column's viewport
+// (FrameInfo::columnClip); a frame not fitted (zooming, not placed yet) is
+// scissored to the column's viewport, so the column clips whatever the fit;
+// when none of the box shows, Render() and the alpha save are skipped and the
+// game's own pass stays hidden ("SelfTest: L2 preview clip" PASS when the
+// scissor lies inside the column's pixels). With bClipPreview=0 nothing is
+// clipped, as before.
 // Nothing is changed while Inventory Reforged is active in this menu, with
 // bMovePreview=0 (place/fit, hide and clip), or on Skyrim VR; while the
 // preview zooms or is not placed yet the over-pass is not scissored.
@@ -41,7 +51,11 @@ namespace Preview
     {
         RE::GRectF visible;      // the movie's visible stage rect
         double pixelsPerUnit{};  // screen pixels per stage unit (viewport height / visible height)
-        Settings::Rect box;      // the preview box's content area (stage), Settings::PanelContent
+        Settings::Rect box;      // the preview box's content area (stage, on screen: its column's scroll applied), Settings::PanelContent
+        // blocks plan Task 3 (D2): the preview column's viewport (stage). The model's place and fit keep the whole box; only the
+        // scissor and the alpha save/restore take box cut to it (Layout::VisibleBox), and nothing is drawn when none of the box
+        // shows. nullopt: no column (the scissor is the box, as before)
+        std::optional<Settings::Rect> columnClip;
         RE::GRectF viewport;     // the movie's viewport (GViewport left/top/width/height) in pixels of its buffer
         RE::GRectF boxScreen;    // the box's corners through GFxMovieView::TranslateToScreen (screen pixels)
         std::int32_t bufferW{}, bufferH{};  // the viewport's buffer (GViewport bufferWidth/Height): what its pixels are of

@@ -3,6 +3,7 @@
 #include "Preview.h"
 
 #include "Hom.h"
+#include "Layout.h"
 #include "PreviewMath.h"
 
 #include "REX/W32/COMPTR.h"
@@ -310,6 +311,10 @@ namespace Preview
             int overPasses = 0, hides = 0, held = 0, lost = 0, hidePass = 0, hideFail = 0, sights = 0, flashes = 0, again = 0;
             int left = 0, replaced = 0, doubles = 0, rebuilt = 0;
             int clipped = 0, clipHeld = 0, clipDropped = 0, clipUnjudged = 0, clipSkipped = 0, clipUnfitted = 0, clipTargetChanged = 0;
+            // blocks plan Task 3 (D2): frames whose box was wholly out of its column (nothing drawn), unfitted frames scissored to
+            // the column alone, and the L2 preview clip verdicts (the scissor inside the column's pixels)
+            int columnOut = 0, columnOnly = 0, columnClipPass = 0, columnClipFail = 0;
+            bool columnOutLogged = false, columnClipPassLogged = false, columnClipFailLogged = false;
             int animMoved = 0, animStill = 0, animNone = 0;
             // P7 (spec v7)
             std::vector<Original> originals;                // P7.2
@@ -508,6 +513,16 @@ namespace Preview
             const bool agrees = PreviewMath::ScreenAgrees(mapped, translated);
             return { agrees ? translated : mapped, agrees ? "TranslateToScreen" : "visible-rect mapping (TranslateToScreen's size or centre disagrees)",
                 mapped, translated };
+        }
+
+        // A stage rect in screen pixels: the box itself as BoxPixels gives it, any other rect (the box cut to its column, the
+        // column's viewport, blocks plan Task 3) by the visible-rect mapping the place uses
+        BoxOnScreen StagePixels(const FrameInfo& a_frame, const Settings::Rect& a_stage)
+        {
+            const auto& b = a_frame.box;
+            if (a_stage.left == b.left && a_stage.top == b.top && a_stage.right == b.right && a_stage.bottom == b.bottom) return BoxPixels(a_frame);
+            const auto mapped = PreviewMath::StageToPixels(MathRect(a_stage), MathRect(a_frame.visible), MathRect(a_frame.viewport));
+            return { mapped, "visible-rect mapping (the box cut to its column, or the column's viewport)", mapped, {} };
         }
 
         // ---------------------------------------------------------------------
@@ -2936,7 +2951,9 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
         // found (one of another identity or size, or none, means the scissor was in the wrong pixels: not judged, never
         // PASS, review round 1 #3). The first PASS, FAIL and not-judged frame of a menu are logged with everything read
         // back; the rest are counted for the close summary
-        void RenderClipped(RE::Inventory3DManager& a_manager, const std::optional<FrameInfo>& a_frame, bool a_clip)
+        // blocks plan Task 3 (D2): a_stageClip is the stage rect the scissor and the alpha save take - the box, the box cut to its
+        // column, or (a frame not fitted) the column's viewport; nullopt draws unclipped as before
+        void RenderClipped(RE::Inventory3DManager& a_manager, const std::optional<FrameInfo>& a_frame, const std::optional<Settings::Rect>& a_stageClip)
         {
             auto* shadowState = RE::BSGraphics::RendererShadowState::GetSingleton();
             if (shadowState) {
@@ -2954,7 +2971,7 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
                     logger::info("Preview: C swap chain (G10, once per menu): {}", SwapChainCheck(*r->GetRuntimeData().context));
                 }
             }
-            if (!a_clip || !a_frame) {
+            if (!a_stageClip || !a_frame) {
                 RenderUnclipped(a_manager);  // review v13 #1/#2: not a skip, the whole target is restored
                 return;
             }
@@ -2969,9 +2986,27 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
             } else if (target = BoundTarget(*context); !target) {
                 skip = "no 2D render target bound";
             } else {
-                screen = BoxPixels(*a_frame);
+                screen = StagePixels(*a_frame, *a_stageClip);
                 box = PreviewMath::ScissorBox(screen.rect, a_frame->bufferW, a_frame->bufferH, target->width, target->height);
                 if (!box) skip = "the box has no pixels in the render target (or the viewport's buffer size is 0)";
+            }
+            // SelfTest L2 preview clip (blocks plan Task 3): the scissor lies inside the column viewport's pixels. The first PASS and
+            // the first FAIL of a menu are logged, the rest counted for the Q3 summary
+            if (box && a_frame->columnClip) {
+                const auto column = StagePixels(*a_frame, *a_frame->columnClip);
+                const auto columnBox = PreviewMath::ScissorBox(column.rect, a_frame->bufferW, a_frame->bufferH, target->width, target->height);
+                const bool inside = columnBox && box->x1 >= columnBox->x1 && box->y1 >= columnBox->y1 && box->x2 <= columnBox->x2 && box->y2 <= columnBox->y2;
+                (inside ? clip.columnClipPass : clip.columnClipFail) += 1;
+                if (!std::exchange(inside ? clip.columnClipPassLogged : clip.columnClipFailLogged, true)) {
+                    const auto& f = *a_frame;
+                    const auto& col = *f.columnClip;
+                    SelfTest(std::format("L2 preview clip {} at PostDisplay {}: scissor {},{}..{},{} {} the column's pixels {}; box (stage) {:.1f},{:.1f}..{:.1f},{:.1f}, "
+                                         "column viewport {:.1f},{:.1f}..{:.1f},{:.1f}, scissored to {:.1f},{:.1f}..{:.1f},{:.1f}",
+                        inside ? "PASS" : "FAIL", clip.frame, box->x1, box->y1, box->x2, box->y2, inside ? "inside" : "NOT inside",
+                        columnBox ? std::format("{},{}..{},{}", columnBox->x1, columnBox->y1, columnBox->x2, columnBox->y2) : std::string("(none in the target)"),
+                        f.box.left, f.box.top, f.box.right, f.box.bottom, col.left, col.top, col.right, col.bottom, a_stageClip->left, a_stageClip->top,
+                        a_stageClip->right, a_stageClip->bottom));
+                }
             }
             if (skip) {
                 ++clip.clipSkipped;
@@ -3183,11 +3218,13 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
                                           "again, {} not given back (the game showed another model of the form), {} earlier-selection models "
                                           "left hidden, {} models built anew at a known address, {} frames drawing two or more models of one "
                                           "form; clip: {} over-passes scissored, held {}, dropped {}, render target changed {} (not judged), "
-                                          "nothing drawn {} (not judged), not set {}, not fitted {} (drawn without the scissor); anim moved {}, "
-                                          "still {}, not judged {}",
+                                          "nothing drawn {} (not judged), not set {}, not fitted {} (drawn without the box scissor; {} of them cut to "
+                                          "the column's viewport); column: {} frames out of view (nothing drawn), L2 preview clip PASS {} FAIL {}; "
+                                          "anim moved {}, still {}, not judged {}",
                 hide, scissor, a_generation, clip.overPasses, clip.frame, clip.hides, clip.held, clip.lost, clip.hidePass, clip.hideFail, clip.sights,
                 clip.flashes, clip.again, clip.replaced, clip.left, clip.rebuilt, clip.doubles, clip.clipped, clip.clipHeld, clip.clipDropped,
-                clip.clipTargetChanged, clip.clipUnjudged, clip.clipSkipped, clip.clipUnfitted, clip.animMoved, clip.animStill, clip.animNone);
+                clip.clipTargetChanged, clip.clipUnjudged, clip.clipSkipped, clip.clipUnfitted, clip.columnOnly, clip.columnOut, clip.columnClipPass,
+                clip.columnClipFail, clip.animMoved, clip.animStill, clip.animNone);
             if (tested) {
                 SelfTest(line);
             } else {
@@ -3336,14 +3373,37 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
             ++clip.overPasses;
             if (modes.hide) CountDoubles(a_manager);
         }
-        // the scissor only on a frame the model was fitted to the box: zooming, not placed yet or no frame info would cut a
-        // model away from the box (review round 1, #2)
-        const bool scissor = current && modes.clip && !unfitted;
+        // blocks plan Task 3 (D2): the preview column's viewport cuts the scissor, fitted or not. None of the box in its column
+        // (scrolled out): no Render() and no alpha save; the game's own pass stays hidden (below), the models stay placed
+        const bool column = current && modes.clip && frame && frame->columnClip;
+        const auto visibleBox = column ? Layout::VisibleBox(frame->box, *frame->columnClip) : std::nullopt;
+        if (column && !visibleBox) {
+            ++clip.columnOut;
+            if (!std::exchange(clip.columnOutLogged, true)) {
+                logger::info("Preview: L2 the preview box is out of its column's view at PostDisplay {} (box {:.0f},{:.0f}..{:.0f},{:.0f}, column "
+                             "{:.0f},{:.0f}..{:.0f},{:.0f}) - nothing drawn, the game's own pass kept hidden (later such frames counted only)",
+                    clip.frame, frame->box.left, frame->box.top, frame->box.right, frame->box.bottom, frame->columnClip->left, frame->columnClip->top,
+                    frame->columnClip->right, frame->columnClip->bottom);
+            }
+            if (modes.hide) HideSelection(a_manager, clip.shown);
+            return false;
+        }
+        // the box scissor only on a frame the model was fitted to the box: zooming, not placed yet or no frame info would cut a
+        // model away from the box (review round 1, #2) - such a frame is cut to its column's viewport alone (D2)
+        std::optional<Settings::Rect> scissor;
+        if (current && modes.clip && frame) {
+            if (!unfitted) {
+                scissor = column ? *visibleBox : frame->box;
+            } else if (column) {
+                scissor = *frame->columnClip;
+                ++clip.columnOnly;
+            }
+        }
         if (current && modes.clip && unfitted) {
             ++clip.clipUnfitted;
             if (!std::exchange(clip.unfittedLogged, true)) {
-                logger::info("Preview: Q3 over-pass at PostDisplay {} drawn without the scissor - {} (later such frames counted only)", clip.frame,
-                    unfitted);
+                logger::info("Preview: Q3 over-pass at PostDisplay {} drawn without the box scissor - {}{} (later such frames counted only)", clip.frame,
+                    unfitted, column ? "; scissored to the preview column's viewport (blocks plan D2)" : "");
             }
         }
         {

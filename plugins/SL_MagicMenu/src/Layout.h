@@ -85,6 +85,15 @@ namespace Layout
     std::map<BlockId, Settings::Rect> Arrange(const State& a_state, const std::map<BlockId, double>& a_heights, const std::set<BlockId>& a_hidden,
         const std::set<BlockId>& a_fill, const std::array<Frame, kColumns>& a_frames);
 
+    /// The column's area (unscrolled stage units): its x span as Arrange gives its blocks (column 0 frame.left .. border,
+    /// column 1 border + gap .. frame.right, border clamped as Arrange does) and the frame's top .. bottom. This is the
+    /// column's viewport: what of the column shows, its mask. A column out of range gets an empty rect.
+    Settings::Rect ColumnArea(const State& a_state, int a_column, const std::array<Frame, kColumns>& a_frames);
+
+    /// The part of a_box inside a_viewport; nullopt when nothing is (no overlap, only an edge or a corner in common, or a
+    /// non-finite edge). Blocks plan Task 3: the 3D preview's scissor is its box cut to its column's viewport.
+    std::optional<Settings::Rect> VisibleBox(const Settings::Rect& a_box, const Settings::Rect& a_viewport);
+
     /// Each column's content height: the lowest arranged bottom minus the frame top (0 for an empty column).
     std::array<double, kColumns> ContentHeight(const State& a_state, const std::map<BlockId, Settings::Rect>& a_arranged,
         const std::array<Frame, kColumns>& a_frames);

@@ -2,7 +2,7 @@
 // (plugins/SL_MagicMenu/src/Layout.cpp, the same code the widget arranges its panels with):
 // the default layout against the ini rects, the column border and its limits, hidden and fill
 // blocks per tab (plan D6), the drop slot and the move with hidden / absent ids (plan D3),
-// scroll clamping and the layout JSON (version, repair of a bad file).
+// scroll clamping, the column areas and the preview box cut to its column (Task 3), and the layout JSON (version, repair of a bad file).
 //
 //   magic-menu-layout-check     one PASS/FAIL line per check, a total line
 //
@@ -197,6 +197,52 @@ namespace
         Expect(Near(Layout::ClampScroll(std::numeric_limits<double>::quiet_NaN(), 400, 300), 0), "NaN offset -> 0");
     }
 
+    /// The column viewports (blocks plan Task 3: the masks and the wheel's hit areas) and the preview box cut to its column
+    void ColumnsAndVisibleBox()
+    {
+        std::printf("column areas and the visible box\n");
+        const State state = Layout::Default(kValues);
+        const Rect left = Layout::ColumnArea(state, 0, kFrames), right = Layout::ColumnArea(state, 1, kFrames);
+        Expect(Near(left.left, 648) && Near(left.top, 67) && Near(left.right, 969) && Near(left.bottom, 623),
+            "column 0 area 648,67,969,623 (got " + Show(left) + ")");
+        Expect(Near(right.left, 978) && Near(right.top, 67) && Near(right.right, 1238) && Near(right.bottom, 623),
+            "column 1 area 978,67,1238,623 (got " + Show(right) + ")");
+        const auto rects = Layout::Arrange(state, kHeights, {}, {}, kFrames);
+        bool inside = true;
+        for (int column = 0; column < Layout::kColumns; ++column) {
+            const Rect area = Layout::ColumnArea(state, column, kFrames);
+            for (const auto& id : state.columns[column]) {
+                const auto& r = rects.at(id);
+                inside = inside && Near(r.left, area.left) && Near(r.right, area.right) && r.top >= area.top && r.bottom <= area.bottom + kTolerance;
+            }
+        }
+        Expect(inside, "default layout: every block spans its column's area across and lies inside it down");
+        State wide = state;
+        wide.border = 100;  // clamped to 648 + 240 as Arrange does
+        Expect(Near(Layout::ColumnArea(wide, 0, kFrames).right, 888) && Near(Layout::ColumnArea(wide, 1, kFrames).left, 897),
+            "border 100 -> column 0 ends at 888, column 1 starts at 897");
+        const Rect none = Layout::ColumnArea(state, 2, kFrames);
+        Expect(!(none.Width() > 0) && !(none.Height() > 0), "column 2 -> empty area");
+
+        const Rect viewport{ 648, 67, 969, 623 };
+        const auto whole = Layout::VisibleBox({ 656, 97, 961, 289 }, viewport);
+        Expect(whole && Near(whole->left, 656) && Near(whole->top, 97) && Near(whole->right, 961) && Near(whole->bottom, 289),
+            "box inside the viewport -> itself");
+        const auto cut = Layout::VisibleBox({ 656, 37, 961, 229 }, viewport);  // scrolled up by 60: its top 30 units are out
+        Expect(cut && Near(cut->top, 67) && Near(cut->bottom, 229) && Near(cut->left, 656) && Near(cut->right, 961),
+            "box scrolled 30 above the viewport -> 656,67,961,229 (got " + (cut ? Show(*cut) : std::string("none")) + ")");
+        const auto bottom = Layout::VisibleBox({ 600, 600, 700, 700 }, viewport);
+        Expect(bottom && Near(bottom->left, 648) && Near(bottom->top, 600) && Near(bottom->right, 700) && Near(bottom->bottom, 623),
+            "box over the bottom-left corner -> 648,600,700,623");
+        Expect(!Layout::VisibleBox({ 656, -200, 961, -8 }, viewport), "box fully above the viewport -> nullopt");
+        Expect(!Layout::VisibleBox({ 656, 623, 961, 815 }, viewport), "box touching the viewport's bottom edge only -> nullopt");
+        Expect(!Layout::VisibleBox({ 969, 97, 1100, 289 }, viewport), "box touching the viewport's right edge only -> nullopt");
+        Expect(!Layout::VisibleBox({ 656, 97, 656, 289 }, viewport), "zero-width box -> nullopt");
+        constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
+        Expect(!Layout::VisibleBox({ kNaN, 97, 961, 289 }, viewport) && !Layout::VisibleBox({ 656, 97, 961, 289 }, { 648, kNaN, 969, 623 }),
+            "a NaN edge in the box or the viewport -> nullopt");
+    }
+
     void SnapAndMove()
     {
         std::printf("snap and move\n");
@@ -354,6 +400,7 @@ int main()
     Border();
     HiddenAndFill();
     Scroll();
+    ColumnsAndVisibleBox();
     SnapAndMove();
     SnapAroundHiddenAndAbsent();
     Json();

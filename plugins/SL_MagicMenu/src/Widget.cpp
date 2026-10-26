@@ -66,6 +66,7 @@ namespace Widget
 
         constexpr int kPollFrames = 15;  // HoM state is asked for again this often
         constexpr int kMaxFitLogs = 5;   // item card re-fits logged per menu open
+        constexpr int kMaxWheelLogs = 5;  // column scrolls logged per menu open (blocks plan Task 3)
 
         // Item card fit (spec v4 P4): measured every frame for this many frames after the menu opens and after each
         // content change (the card's external background loads late: game run 2026-10-25, LEDGER Confirmed 10)
@@ -84,6 +85,12 @@ namespace Widget
         constexpr const char* kListsPath = "_root.Menu_mc.inventoryLists";  // SkyUI ItemMenu.as:42 inventoryLists
         constexpr const char* kListIndexPath = "_root.Menu_mc.inventoryLists.itemList.selectedIndex";
         constexpr const char* kMenuPath = "_root.Menu_mc";  // SkyUI's ItemMenu (MagicMenu extends it)
+        // blocks plan Task 3 / D7: ItemMenu's wheel handler (ItemMenu.as:325-333: the preview zoom over mouseRotationRect), wrapped
+        // on Menu_mc itself, and our own Mouse listener, a member of our widget clip
+        constexpr const char* kWheelName = "onMouseWheel";
+        constexpr const char* kSavedWheel = "mmxSavedMouseWheel";
+        constexpr const char* kWheelListener = "mmxWheelListener";
+        constexpr double kWheelStep = 40.0;  // stage units a column scrolls per wheel notch
         constexpr const char* kCardFadeFlag = "_bItemCardFadedIn";  // ItemMenu.as:20, private in AS2 but a plain member at run time
         constexpr const char* kMoreHudCardPath = "_root.AHZItemCardContainer";  // moreHUD Inventory Edition's card clip
 
@@ -577,7 +584,15 @@ namespace Widget
             double ownCardBottom = 0.0;      // its panel's bottom in stage units as last drawn
             // the block layout (blocks plan Task 2): this tab's arranged rects, the same with nothing hidden (where a hidden
             // block sits), each panel's rect as last placed (a width change redraws it, D11) and SkyUI's card slot as last fitted
+            // UNSCROLLED rects (Arrange's; BlockRect adds the scroll). placed: each panel's rect as last placed (BlockRect's)
             std::map<Layout::BlockId, Settings::Rect> blocks, blocksAll, placed;
+            // blocks plan Task 3 (D4): each column's scroll offset (stage units, 0 = its top block at the column's top), applied in
+            // one place only: the column clip's _y (PlaceColumns). Clamped by Layout::ClampScroll at every placing
+            std::array<double, Layout::kColumns> scroll{};
+            std::array<std::optional<Settings::Rect>, Layout::kColumns> masked;  // each column's area as its mask was last drawn
+            int wheelScrolls = 0, wheelZoomsKept = 0;  // wheel notches that scrolled a column / zooms of SkyUI's kept from firing
+            bool wheelInstallDone = false;
+            int nodeClicks = 0, nodeClicksOutside = 0;  // node clicks this menu, and those outside the tree's visible column area
             std::optional<Settings::Rect> cardSlot;
             double previewAlpha = 0.0;       // the preview box's fill alpha (0: see-through, no over-pass)
             bool skyCardHidden = false;      // SkyUI's card holder was hidden by us this menu
@@ -1514,20 +1529,69 @@ namespace Widget
             return { TabHidden(a_tab), a_own ? std::set<BlockId>{ Layout::kSpellCard } : std::set<BlockId>{} };
         }
 
-        // Unscrolled stage rects (no column scrolls before Task 3)
+        // The blocks' heights: the ini rects', the node card [Debug] fDebugExtraHeight taller (a scroll test, blocks plan Task 3)
+        std::map<BlockId, double> BlockHeights()
+        {
+            const auto& settings = Settings::Get();
+            auto heights = Layout::DefaultHeights(settings);
+            heights[Layout::kNodeCard] += settings.debugExtraHeight;
+            return heights;
+        }
+
+        // UNSCROLLED stage rects (Arrange's, plan D4): the scroll is the column clip's (PlaceColumns), BlockRect adds it
         std::map<BlockId, Settings::Rect> ArrangeBlocks(const Arrangement& a_arrangement)
         {
             const auto& settings = Settings::Get();
-            return Layout::Arrange(Settings::SavedLayout(), Layout::DefaultHeights(settings), a_arrangement.hidden, a_arrangement.fill,
-                Layout::DefaultFrames(settings));
+            return Layout::Arrange(Settings::SavedLayout(), BlockHeights(), a_arrangement.hidden, a_arrangement.fill, Layout::DefaultFrames(settings));
         }
 
-        // The block's current rect in stage units (Rearrange's; scroll 0 until Task 3 scrolls the columns). A block the tab
-        // hides gets its place with nothing hidden, so its panel still has a size to be drawn in
+        // The saved layout's column holding the block (nullopt: not in the layout - Repair keeps every known block in it)
+        std::optional<int> ColumnOf(const BlockId& a_id)
+        {
+            const auto& columns = Settings::SavedLayout().columns;
+            for (int column = 0; column < Layout::kColumns; ++column) {
+                if (std::ranges::find(columns[column], a_id) != columns[column].end()) return column;
+            }
+            return std::nullopt;
+        }
+
+        // The column's viewport in stage units (blocks plan Task 3): the part of the column that shows - its mask, the wheel's
+        // and the node clicks' hit area, the 3D preview's column clip. Fixed on screen: it does not scroll
+        Settings::Rect ColumnViewport(int a_column)
+        {
+            return Layout::ColumnArea(Settings::SavedLayout(), a_column, Layout::DefaultFrames(Settings::Get()));
+        }
+
+        // The column's content height (this tab's arranged blocks, unscrolled) and its visible height
+        std::pair<double, double> ColumnHeights(int a_column)
+        {
+            const auto content = Layout::ContentHeight(Settings::SavedLayout(), g_menu.blocks, Layout::DefaultFrames(Settings::Get()));
+            const bool valid = a_column >= 0 && a_column < Layout::kColumns;
+            return { valid ? content[a_column] : 0.0, ColumnViewport(a_column).Height() };
+        }
+
+        // The column is taller than its viewport: the wheel over it scrolls it
+        bool ColumnScrolls(int a_column)
+        {
+            const auto [content, visible] = ColumnHeights(a_column);
+            return content > visible + kRectTolerance;
+        }
+
+        // The block's current rect in stage units ON SCREEN: Rearrange's unscrolled rect moved up by its column's scroll (plan D4:
+        // for everything that needs a screen place - the 3D preview's box, SkyUI's card slot, read-backs in _root). A block the
+        // tab hides gets its place with nothing hidden, so its panel still has a size to be drawn in. Panel transforms take it
+        // through BlockLocal
         Settings::Rect BlockRect(const BlockId& a_id)
         {
-            if (const auto it = g_menu.blocks.find(a_id); it != g_menu.blocks.end()) return it->second;
-            if (const auto it = g_menu.blocksAll.find(a_id); it != g_menu.blocksAll.end()) return it->second;
+            const auto scrolled = [&](Settings::Rect a_rect) {
+                const auto column = ColumnOf(a_id);
+                const double offset = column ? g_menu.scroll[*column] : 0.0;
+                a_rect.top -= offset;
+                a_rect.bottom -= offset;
+                return a_rect;
+            };
+            if (const auto it = g_menu.blocks.find(a_id); it != g_menu.blocks.end()) return scrolled(it->second);
+            if (const auto it = g_menu.blocksAll.find(a_id); it != g_menu.blocksAll.end()) return scrolled(it->second);
             return IniRect(Settings::Get(), a_id);  // before the menu's first Rearrange (Repair keeps every block in the layout)
         }
 
@@ -1537,25 +1601,20 @@ namespace Widget
             return !TabHidden(g_menu.tab).contains(a_id) && g_menu.blocks.contains(a_id);
         }
 
-        Settings::Rect SpellCardRect(Tab a_tab, bool a_own)
-        {
-            const auto arranged = ArrangeBlocks(ArrangementFor(a_tab, a_own));
-            const auto it = arranged.find(Layout::kSpellCard);
-            return it != arranged.end() ? it->second : IniRect(Settings::Get(), Layout::kSpellCard);
-        }
-
         // SkyUI's item card slot (bOwnCard=0): the spell card block without growing - under the progress card at the default
-        // layout; on Powers/Shouts (no progress card) right under the preview, the same height (user 2026-10-25)
+        // layout; on Powers/Shouts (no progress card) right under the preview, the same height (user 2026-10-25). Task 2 review:
+        // the arranged block (Rearrange arranges with own = OwnCard(), again at each tab change and at the card fallback), so
+        // SkyUI's card is fitted to it only while it is the card; on screen (scrolled), as the fit maps it from _root
         Settings::Rect CardRect()
         {
-            return SpellCardRect(g_menu.tab, false);
+            return BlockRect(Layout::kSpellCard);
         }
 
         // Our card's box per tab (C2): the spell card block, grown to the rest of its column where the tab hides blocks (on
-        // Active Effects the panel is then cut to its content)
+        // Active Effects the panel is then cut to its content). The same block as CardRect, arranged with our card
         Settings::Rect OwnCardRect()
         {
-            return SpellCardRect(g_menu.tab, true);
+            return BlockRect(Layout::kSpellCard);
         }
 
         std::string StringMember(const RE::GFxValue& a_object, const char* a_member)
@@ -2410,7 +2469,18 @@ namespace Widget
             {
                 if (!a_params.thisPtr) return;
                 const auto index = Number(*a_params.thisPtr, kIndexMember);
-                if (index) g_menu.clicked = static_cast<int>(*index);
+                if (!index) return;
+                ++g_menu.nodeClicks;
+                // blocks plan Task 3: whether setMask keeps clicks off a masked-off part is unverified in Skyrim's Scaleform, so a
+                // click outside the tree column's viewport is ignored and counted (SelfTest L2 mask clicks at close: want 0)
+                RE::GFxValue x, y;
+                const auto column = ColumnOf(Layout::kTree);
+                if (column && a_params.movie && a_params.movie->GetVariable(&x, "_root._xmouse") && x.IsNumber() &&
+                    a_params.movie->GetVariable(&y, "_root._ymouse") && y.IsNumber() && !ColumnViewport(*column).Contains(x.GetNumber(), y.GetNumber())) {
+                    ++g_menu.nodeClicksOutside;
+                    return;
+                }
+                g_menu.clicked = static_cast<int>(*index);
             }
         };
 
@@ -2722,23 +2792,77 @@ namespace Widget
             return a_id == Layout::kSpellCard ? "infocard" : a_id.c_str();
         }
 
-        // blocks plan Task 2 / D4: the clip a block's panel is made in. The widget itself for now; Task 3: its column's clip
-        RE::GFxValue& BlockParent(RE::GFxValue& a_widget, const BlockId&)
+        // blocks plan Task 3: each column is a clip of the widget (kColumnClips) masked by a sibling clip (kColumnMasks) that
+        // covers the column's viewport and stays put; the column clip sits at its viewport's top-left moved up by the scroll
+        constexpr std::array<const char*, Layout::kColumns> kColumnClips{ "column0", "column1" };
+        constexpr std::array<const char*, Layout::kColumns> kColumnMasks{ "columnMask0", "columnMask1" };
+        constexpr std::uint32_t kMaskFill = 0xFFFFFF;  // a mask's shape counts, not its colour
+
+        // blocks plan Task 3 / D4: the clip a block's panel is made in - its column's clip (not a display object when the column
+        // clips are missing: AttachWidget makes them first and stops without them)
+        RE::GFxValue BlockParent(RE::GFxValue& a_widget, const BlockId& a_id)
         {
-            return a_widget;
+            const auto column = ColumnOf(a_id);
+            return column ? Child(a_widget, kColumnClips[*column]) : RE::GFxValue{};
         }
 
-        // D4: every lookup of a block's panel goes through here (Task 3 changes only BlockParent and BlockLocal)
+        // D4: every lookup of a block's panel goes through here
         RE::GFxValue BlockClip(RE::GFxValue& a_widget, const BlockId& a_id)
         {
-            return Child(BlockParent(a_widget, a_id), PanelName(a_id));
+            auto parent = BlockParent(a_widget, a_id);
+            return parent.IsDisplayObject() ? Child(parent, PanelName(a_id)) : RE::GFxValue{};
         }
 
-        // D4: a stage rect in the coordinates of the block's panel parent. The widget sits at the stage origin, so the same
-        // rect for now; Task 3: minus the column clip's place and its scroll
-        Settings::Rect BlockLocal(const BlockId&, const Settings::Rect& a_stage)
+        // D4: an ON-SCREEN (scrolled) stage rect, as BlockRect gives it, in the coordinates of the block's column clip (at the
+        // viewport's top-left, moved up by the scroll): BlockLocal(id, BlockRect(id)) is the panel's _x/_y and stays the same
+        // while the column scrolls
+        Settings::Rect BlockLocal(const BlockId& a_id, const Settings::Rect& a_stage)
         {
-            return a_stage;
+            const auto column = ColumnOf(a_id);
+            if (!column) return a_stage;
+            const auto viewport = ColumnViewport(*column);
+            const double x = viewport.left, y = viewport.top - g_menu.scroll[*column];
+            return { a_stage.left - x, a_stage.top - y, a_stage.right - x, a_stage.bottom - y };
+        }
+
+        // D4: the one place a scroll is applied - each column clip at its viewport moved up by its scroll (clamped first: a tab
+        // change or a new width can shorten the content), its mask drawn again when the viewport changed
+        void PlaceColumns(RE::GFxValue& a_widget)
+        {
+            for (int column = 0; column < Layout::kColumns; ++column) {
+                const auto [content, visible] = ColumnHeights(column);
+                g_menu.scroll[column] = Layout::ClampScroll(g_menu.scroll[column], content, visible);
+                const auto viewport = ColumnViewport(column);
+                if (auto clip = Child(a_widget, kColumnClips[column]); clip.IsDisplayObject()) {
+                    clip.SetMember("_x", viewport.left);
+                    clip.SetMember("_y", viewport.top - g_menu.scroll[column]);
+                }
+                if (g_menu.masked[column] && SameRect(*g_menu.masked[column], viewport)) continue;
+                if (auto mask = Child(a_widget, kColumnMasks[column]); mask.IsDisplayObject()) {
+                    Draw::Call(mask, "clear", {});
+                    Draw::NoLine(mask);
+                    Draw::Rect(mask, viewport.left, viewport.top, viewport.Width(), viewport.Height(), kMaskFill, Draw::kAlphaFull);
+                    g_menu.masked[column] = viewport;
+                }
+            }
+        }
+
+        // The column clips and their masks, made before the panels (AttachWidget). False when one could not be made
+        bool MakeColumns(RE::GFxValue& a_widget)
+        {
+            for (int column = 0; column < Layout::kColumns; ++column) {
+                auto mask = Draw::Clip(a_widget, kColumnMasks[column]);
+                auto clip = Draw::Clip(a_widget, kColumnClips[column]);
+                if (!mask.IsDisplayObject() || !clip.IsDisplayObject()) {
+                    logger::error("Widget: could not create the column clip {} or its mask - nothing drawn", column);
+                    return false;
+                }
+                const std::array<RE::GFxValue, 1> args{ mask };
+                if (!clip.Invoke("setMask", nullptr, args.data(), args.size())) {
+                    logger::warn("Widget: column {} setMask failed - the column is not cut to its area", column);
+                }
+            }
+            return true;
         }
 
         // A box's fill and title (if any) in the top-left corner, drawn in the panel's own graphics
@@ -2769,7 +2893,9 @@ namespace Widget
         // A block's box clip at its rect
         void Panel(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const BlockId& a_id)
         {
-            auto panel = Draw::Clip(BlockParent(a_widget, a_id), PanelName(a_id));
+            auto parent = BlockParent(a_widget, a_id);
+            if (!parent.IsDisplayObject()) return;
+            auto panel = Draw::Clip(parent, PanelName(a_id));
             if (!panel.IsDisplayObject()) return;
             const auto rect = BlockRect(a_id);
             const auto local = BlockLocal(a_id, rect);
@@ -2797,10 +2923,19 @@ namespace Widget
         // legend, and the next full redraw (dirty) for the tree, progress and node cards; our card through its signature (it
         // holds the rect, WatchOwnCard), SkyUI's card through a new fit when its slot moved. The first placing of a menu only
         // places (the panels are drawn new after it)
+        // SkyUI's card is fitted to its slot: a moved slot (Powers/Shouts and back, a new width, a scroll) is fitted again
+        void CheckCardSlot()
+        {
+            const auto slot = CardRect();
+            if (g_menu.cardSlot && !SameRect(*g_menu.cardSlot, slot)) g_menu.cardFit.reset();
+            g_menu.cardSlot = slot;
+        }
+
         void Rearrange(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
             g_menu.blocksAll = ArrangeBlocks({});
             g_menu.blocks = ArrangeBlocks(ArrangementFor(g_menu.tab, OwnCard()));
+            PlaceColumns(a_widget);  // the scrolls clamped to this tab's content before any BlockRect below
             for (const BlockId id : kBlocks) {
                 const auto rect = BlockRect(id);
                 auto panel = BlockClip(a_widget, id);
@@ -2813,14 +2948,15 @@ namespace Widget
                 const bool resized = last != g_menu.placed.end() &&
                                      (std::abs(last->second.Width() - rect.Width()) > kRectTolerance ||
                                          std::abs(last->second.Height() - rect.Height()) > kRectTolerance);
-                const bool wider = last != g_menu.placed.end() && std::abs(last->second.Width() - rect.Width()) > kRectTolerance;
                 if (resized && panel.IsDisplayObject() && id != Layout::kSpellCard) {  // our card draws its own box (RedrawOwnCard)
                     Draw::Call(panel, "clear", {});
                     if (auto title = Child(panel, "title"); title.IsDisplayObject()) title.Invoke("removeTextField");
                     DrawPanelBox(a_movie, panel, rect, PanelTitle(id), PanelAlpha(id));
                 }
-                if (wider) {
-                    logger::info("Widget: block {} is {:.0f} wide now (was {:.0f}) - drawn again", id, rect.Width(), last->second.Width());
+                // Task 2 review #1: a new height redraws the content too (the tree's legend sits at its bottom, the cards fill it)
+                if (resized) {
+                    logger::info("Widget: block {} is {:.0f} x {:.0f} now (was {:.0f} x {:.0f}) - drawn again", id, rect.Width(), rect.Height(),
+                        last->second.Width(), last->second.Height());
                     if (id == Layout::kTree && panel.IsDisplayObject()) {
                         DrawLegend(a_movie, panel, rect.Width(), rect.Height(), g_menu.legendSchool.value_or(std::string{}));
                     }
@@ -2828,10 +2964,158 @@ namespace Widget
                 }
                 g_menu.placed[id] = rect;
             }
-            // SkyUI's card is fitted to its slot: a moved slot (Powers/Shouts and back, or a new width) is fitted again
-            const auto slot = CardRect();
-            if (g_menu.cardSlot && !SameRect(*g_menu.cardSlot, slot)) g_menu.cardFit.reset();
-            g_menu.cardSlot = slot;
+            CheckCardSlot();
+        }
+
+        // ---------------------------------------------------------------------
+        // Column scroll (blocks plan Task 3, D7): the wheel over one of our columns scrolls that column only, in normal mode
+        // too. Our own Mouse listener scrolls; SkyUI's ItemMenu wheel handler (the preview zoom, which fires wherever the
+        // topmost entity under the mouse is in mouseRotationRect - our panels have no mouse handlers, so the chain goes
+        // through to it over most of our columns - read from SkyUI's source, not seen in game) is wrapped so it does not also zoom while the wheel scrolls a column.
+        // SkyUI's list scrolls only when it is under the mouse (ScrollingList.as:303-318): never over our columns.
+        // ---------------------------------------------------------------------
+
+        // The column under the mouse whose content overflows its viewport, while our widget shows; nullopt otherwise. The hit
+        // area is both columns' viewports and the gap between them (split at its middle, Layout::SnapSlot's rule): blocks, gaps
+        // and empty space alike. Both the scroll and the zoom wrap ask this, so they agree on every notch
+        std::optional<int> WheelColumn(RE::GFxMovie* a_movie)
+        {
+            if (g_closing || !a_movie || a_movie != static_cast<RE::GFxMovie*>(OpenMagicMenuMovie())) return std::nullopt;
+            RE::GFxValue visible, x, y;
+            const auto shown = std::format("_root.{}._visible", kRootName);
+            if (!a_movie->GetVariable(&visible, shown.c_str()) || !visible.IsBool() || !visible.GetBool()) return std::nullopt;
+            if (!a_movie->GetVariable(&x, "_root._xmouse") || !x.IsNumber() || !a_movie->GetVariable(&y, "_root._ymouse") || !y.IsNumber()) {
+                return std::nullopt;
+            }
+            const auto left = ColumnViewport(0), right = ColumnViewport(1);
+            const double mx = x.GetNumber(), my = y.GetNumber();
+            if (!(mx >= left.left && mx <= right.right && my >= left.top && my <= left.bottom)) return std::nullopt;
+            const int column = mx < (left.right + right.left) / 2 ? 0 : 1;
+            return ColumnScrolls(column) ? std::optional{ column } : std::nullopt;
+        }
+
+        // The AS2 Mouse object (a global; the "_global." path as the second try)
+        bool MouseObject(RE::GFxMovie* a_movie, RE::GFxValue* a_mouse)
+        {
+            return (a_movie->GetVariable(a_mouse, "Mouse") && a_mouse->IsObject()) || (a_movie->GetVariable(a_mouse, "_global.Mouse") && a_mouse->IsObject());
+        }
+
+        // The column moved by a_delta stage units (clamped); false when it did not move (at its end already)
+        bool ScrollColumn(RE::GFxValue& a_widget, int a_column, double a_delta)
+        {
+            const auto [content, visible] = ColumnHeights(a_column);
+            const double before = g_menu.scroll[a_column];
+            const double after = Layout::ClampScroll(before + a_delta, content, visible);
+            if (std::abs(after - before) <= kRectTolerance) return false;
+            g_menu.scroll[a_column] = after;
+            PlaceColumns(a_widget);
+            CheckCardSlot();
+            if (++g_menu.wheelScrolls <= kMaxWheelLogs) {
+                logger::info("Widget: column {} scrolled to {:.0f} of {:.0f} (content {:.0f}, visible {:.0f}){}", a_column, after, content - visible,
+                    content, visible, g_menu.wheelScrolls == kMaxWheelLogs ? " - later scrolls counted only" : "");
+            }
+            return true;
+        }
+
+        // Our Mouse listener's onMouseWheel(delta): SkyUI's sign (ScrollingList.as:310-313: a negative delta goes down the list)
+        class WheelListener final : public RE::GFxFunctionHandler
+        {
+        public:
+            void Call(Params& a_params) override
+            {
+                if (a_params.argCount < 1 || !a_params.args[0].IsNumber()) return;
+                const double delta = a_params.args[0].GetNumber();
+                const auto column = WheelColumn(a_params.movie);
+                if (!column || delta == 0.0) return;
+                RE::GFxValue widget;
+                const auto path = std::format("_root.{}", kRootName);
+                if (!a_params.movie->GetVariable(&widget, path.c_str()) || !widget.IsDisplayObject()) return;
+                ScrollColumn(widget, *column, delta < 0 ? kWheelStep : -kWheelStep);
+            }
+        };
+
+        // Menu_mc.onMouseWheel wrapped: over a column the wheel scrolls (WheelColumn) the zoom is not called; anywhere else
+        // SkyUI's own handler runs as before (the default layout never scrolls, so nothing changes there)
+        class WheelZoomWrap final : public RE::GFxFunctionHandler
+        {
+        public:
+            void Call(Params& a_params) override
+            {
+                if (!a_params.thisPtr) return;
+                if (WheelColumn(a_params.movie)) {
+                    if (++g_menu.wheelZoomsKept == 1) logger::info("Widget: SkyUI's wheel zoom not called - the wheel scrolls our column (later ones counted)");
+                    return;
+                }
+                RE::GFxValue original;
+                if (!a_params.thisPtr->GetMember(kSavedWheel, &original) || !original.IsObject()) return;
+                std::vector<RE::GFxValue> argv;
+                argv.reserve(a_params.argCount + 1);
+                argv.push_back(*a_params.thisPtr);
+                for (std::uint32_t i = 0; i < a_params.argCount; ++i) argv.push_back(a_params.args[i]);
+                RE::GFxValue result;
+                if (original.Invoke("call", &result, argv.data(), argv.size()) && a_params.retVal) *a_params.retVal = result;
+            }
+        };
+        RE::GPtr<WheelListener> g_wheelListener;
+        RE::GPtr<WheelZoomWrap> g_wheelZoomWrap;
+
+        // Once per menu movie, from the frame handler (Menu_mc is there by then): our Mouse listener (a member of our widget clip,
+        // removed at close: RemoveWheelListener) and the zoom wrap. Either missing is logged; the other still works
+        void InstallWheel(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        {
+            if (std::exchange(g_menu.wheelInstallDone, true)) return;
+            RE::GFxValue mouse, existing;
+            if (a_widget.GetMember(kWheelListener, &existing) && existing.IsObject()) {
+                logger::info("Widget: wheel listener already on this movie");
+            } else if (!MouseObject(a_movie, &mouse)) {
+                logger::warn("Widget: no AS2 Mouse object - the wheel does not scroll our columns this menu");
+            } else {
+                RE::GFxValue listener, handler;
+                a_movie->CreateObject(&listener);
+                a_movie->CreateFunction(&handler, g_wheelListener.get());
+                listener.SetMember(kWheelName, handler);
+                const std::array<RE::GFxValue, 1> args{ listener };
+                if (mouse.Invoke("addListener", nullptr, args.data(), args.size()) && a_widget.SetMember(kWheelListener, listener)) {
+                    logger::info("Widget: wheel listener added (Mouse.addListener) - the wheel over a column taller than its area scrolls it");
+                } else {
+                    mouse.Invoke("removeListener", nullptr, args.data(), args.size());
+                    logger::warn("Widget: wheel listener NOT added (Mouse.addListener or keeping it failed) - the wheel does not scroll our columns");
+                }
+            }
+            RE::GFxValue menu, current, saved, wrap;
+            if (!a_movie->GetVariable(&menu, kMenuPath) || !menu.IsObject() || !menu.GetMember(kWheelName, &current) || !current.IsObject()) {
+                logger::warn("Widget: wheel zoom wrap NOT installed - no {}.{}; a wheel that scrolls our column may also zoom the preview", kMenuPath,
+                    kWheelName);
+                return;
+            }
+            if (menu.GetMember(kSavedWheel, &saved) && saved.IsObject()) {
+                logger::info("Widget: wheel zoom wrap already on this movie");
+                return;
+            }
+            a_movie->CreateFunction(&wrap, g_wheelZoomWrap.get());
+            if (!menu.SetMember(kSavedWheel, current) || !menu.SetMember(kWheelName, wrap)) {
+                menu.SetMember(kWheelName, current);
+                logger::warn("Widget: wheel zoom wrap NOT installed - SetMember on {} failed", kMenuPath);
+                return;
+            }
+            logger::info("Widget: wheel zoom wrap installed - {}.{} is not called while the wheel scrolls one of our columns", kMenuPath, kWheelName);
+        }
+
+        // At the menu's close (the close event, before the movie goes): our Mouse listener taken off again. A movie that is gone
+        // already took its listeners with it
+        void RemoveWheelListener()
+        {
+            auto* movie = OpenMagicMenuMovie();
+            if (!movie || movie != g_attachedMovie.load()) {
+                logger::info("Widget: wheel listener - the menu's movie is gone already (its listeners with it)");
+                return;
+            }
+            RE::GFxValue mouse, listener;
+            const auto path = std::format("_root.{}.{}", kRootName, kWheelListener);
+            if (!movie->GetVariable(&listener, path.c_str()) || !listener.IsObject()) return;  // never added
+            const std::array<RE::GFxValue, 1> args{ listener };
+            const bool removed = MouseObject(movie, &mouse) && mouse.Invoke("removeListener", nullptr, args.data(), args.size());
+            logger::info("Widget: wheel listener {}", removed ? "removed (Mouse.removeListener)" : "NOT removed - Mouse.removeListener failed");
         }
 
         const char* TabName(Tab a_tab)
@@ -2907,7 +3191,8 @@ namespace Widget
         {
             static bool s_checked = false;
             if (!Settings::Get().selfTest || std::exchange(s_checked, true)) return;
-            const bool custom = !(Settings::SavedLayout() == Layout::Default(Settings::Get()));
+            // Task 3: [Debug] fDebugExtraHeight makes the node card taller on purpose - no build 13 reference either
+            const bool custom = !(Settings::SavedLayout() == Layout::Default(Settings::Get())) || Settings::Get().debugExtraHeight > 0;
             constexpr std::array kTabs{ Tab::kFollow, Tab::kSchool, Tab::kPowers, Tab::kEffects };
             for (const Tab tab : kTabs) {
                 for (const bool own : { true, false }) {
@@ -2927,8 +3212,58 @@ namespace Widget
                     }
                     const char* verdict = custom ? "SKIP" : diffs.empty() ? "PASS" : "FAIL";
                     SelfTest(std::format("L1 layout {} {} ({}) -{}{}{}", TabName(tab), verdict, own ? "our card" : "SkyUI's card", rects,
-                        custom ? " (the layout file is not the default layout: build 13's rects are no reference)" : "", custom ? "" : diffs));
+                        custom ? " (the layout file is not the default layout, or [Debug] fDebugExtraHeight is on: build 13's rects are no reference)" : "",
+                        custom ? "" : diffs));
                 }
+            }
+        }
+
+        // SelfTest L1 places (Task 2 review #2, blocks plan Task 3): each panel read back - its _x/_y against BlockLocal(BlockRect),
+        // and its top-left mapped to _root (through the column clip) against BlockRect's, so a misplaced column clip fails too.
+        // Every menu open, after the panels are made
+        void CheckPanelPlaces(RE::GFxMovieView* a_movie, RE::GFxValue& a_root, RE::GFxValue& a_widget)
+        {
+            if (!Settings::Get().selfTest) return;
+            constexpr double kSlack = 0.5;
+            std::string places, diffs;
+            for (const BlockId id : kBlocks) {
+                auto panel = BlockClip(a_widget, id);
+                const auto rect = BlockRect(id);
+                const auto local = BlockLocal(id, rect);
+                const auto x = panel.IsDisplayObject() ? Number(panel, "_x") : std::nullopt;
+                const auto y = panel.IsDisplayObject() ? Number(panel, "_y") : std::nullopt;
+                const auto onRoot = panel.IsDisplayObject() ? MapPoint(a_movie, panel, a_root, 0, 0) : std::nullopt;
+                if (!x || !y || !onRoot) {
+                    diffs += std::format("; {} not read back", id);
+                    continue;
+                }
+                places += std::format(" {} {:.1f},{:.1f} (_root {:.1f},{:.1f})", id, *x, *y, onRoot->first, onRoot->second);
+                if (std::abs(*x - local.left) > kSlack || std::abs(*y - local.top) > kSlack) {
+                    diffs += std::format("; {} _x/_y {:.1f},{:.1f} want {:.1f},{:.1f}", id, *x, *y, local.left, local.top);
+                }
+                if (std::abs(onRoot->first - rect.left) > kSlack || std::abs(onRoot->second - rect.top) > kSlack) {
+                    diffs += std::format("; {} in _root {:.1f},{:.1f} want {:.1f},{:.1f}", id, onRoot->first, onRoot->second, rect.left, rect.top);
+                }
+            }
+            SelfTest(std::format("L1 places {} - panel _x/_y in its column clip (_root top-left):{}{}", diffs.empty() ? "PASS" : "FAIL", places, diffs));
+        }
+
+        // SelfTest L2 mask (blocks plan Task 3): each column's mask read back in _root against the column's viewport
+        void CheckMasks(RE::GFxValue& a_root, RE::GFxValue& a_widget)
+        {
+            if (!Settings::Get().selfTest) return;
+            constexpr double kSlack = 0.5;
+            for (int column = 0; column < Layout::kColumns; ++column) {
+                auto mask = Child(a_widget, kColumnMasks[column]);
+                const auto bounds = mask.IsDisplayObject() ? BoundsIn(mask, a_root) : std::nullopt;
+                const auto want = ColumnViewport(column);
+                const bool ok = bounds && std::abs(bounds->xMin - want.left) <= kSlack && std::abs(bounds->xMax - want.right) <= kSlack &&
+                                std::abs(bounds->yMin - want.top) <= kSlack && std::abs(bounds->yMax - want.bottom) <= kSlack;
+                const auto [content, visible] = ColumnHeights(column);
+                SelfTest(std::format("L2 mask column {} {} - mask bounds in _root {} (the column's viewport {}); content {:.0f} of {:.0f} visible, scroll {:.0f}",
+                    column, ok ? "PASS" : "FAIL",
+                    bounds ? std::format("{:.1f},{:.1f}..{:.1f},{:.1f}", bounds->xMin, bounds->yMin, bounds->xMax, bounds->yMax) : std::string("none"),
+                    RectText(want), content, visible, g_menu.scroll[column]));
             }
         }
 
@@ -3393,9 +3728,10 @@ namespace Widget
             // blocks plan D11: the card's rect is in it too - a new width (or the tab's grown height) draws the card again. With
             // our card on, Rearrange arranged with it (own = OwnCard(), again at each tab change and the fallback), so this is
             // OwnCardRect() without a new Arrange per frame
+            // Task 3: its size only - a scroll moves the column clip, not the panel (BlockLocal stays), so it draws nothing again
             const auto cardRect = BlockRect(Layout::kSpellCard);
-            const auto sig = show ? std::format("{}|{}|{:.1f}|{}|{}|{}", static_cast<int>(g_menu.tab), RectText(cardRect), g_menu.rowSize, infoSig,
-                                        view.sub, view.footRight)
+            const auto sig = show ? std::format("{}|{:.1f}x{:.1f}|{:.1f}|{}|{}|{}", static_cast<int>(g_menu.tab), cardRect.Width(), cardRect.Height(),
+                                        g_menu.rowSize, infoSig, view.sub, view.footRight)
                                   : std::string{};
 
             const auto [selection, expected] = CardSelection(a_movie);
@@ -5131,6 +5467,7 @@ namespace Widget
                 const auto snapshot = Spells::Current();
                 // spec v12 G1/G3: the selection wrap goes on in the first frames; without it the highlight is followed (build 11)
                 InstallSelectionWrap(movie);
+                InstallWheel(movie, widget);  // blocks plan Task 3 (D7)
                 if (!g_menu.selWrapped) FollowHighlight(movie);
                 WatchTab(movie, widget, *snapshot);  // first: the item card's slot depends on the tab
                 WatchChosen(movie, widget);
@@ -5183,7 +5520,9 @@ namespace Widget
                 a_movie->GetViewport(&viewport);
                 const double visibleH = info.visible.bottom - info.visible.top;
                 info.pixelsPerUnit = visibleH > 0 ? viewport.height / visibleH : 0.0;
-                info.box = Settings::PanelContent(BlockRect(Layout::kPreview));  // below the "PREVIEW" title band (R9)
+                info.box = Settings::PanelContent(BlockRect(Layout::kPreview));  // below the "PREVIEW" title band (R9); scrolled (on screen)
+                // blocks plan Task 3 (D2): the preview column's viewport - the scissor and the alpha restore take box cut to it
+                if (const auto column = ColumnOf(Layout::kPreview)) info.columnClip = ColumnViewport(*column);
                 info.viewport = { static_cast<float>(viewport.left), static_cast<float>(viewport.top),
                     static_cast<float>(viewport.left + viewport.width), static_cast<float>(viewport.top + viewport.height) };
                 // GFxMovieView::TranslateToScreen is not called: with a null user matrix it crashed the game on the first
@@ -5324,6 +5663,8 @@ namespace Widget
                 g_highlightWrap = RE::make_gptr<HighlightChangeWrap>();
                 g_listPress = RE::make_gptr<ListPress>(false);
                 g_listPressAux = RE::make_gptr<ListPress>(true);
+                g_wheelListener = RE::make_gptr<WheelListener>();
+                g_wheelZoomWrap = RE::make_gptr<WheelZoomWrap>();
             }
             auto widget = Draw::Clip(root, kRootName);
             if (!widget.IsDisplayObject()) {
@@ -5359,9 +5700,16 @@ namespace Widget
             const bool seeThrough = !g_overPass && !g_menu.irActive;
             if (seeThrough) logger::info("Widget: preview box drawn without its black fill (no over-pass: the 3D under the movie shows through)");
             g_menu.previewAlpha = seeThrough ? 0.0 : kPreviewAlpha;
+            // blocks plan Task 3: the two masked column clips first, the panels inside them
+            if (!MakeColumns(widget)) {
+                Draw::Remove(root, kRootName);
+                return;
+            }
             Rearrange(movie, widget);  // blocks plan Task 2: the rects of the layout before the panels are made
             CheckLayoutRects();
             for (const BlockId id : kBlocks) Panel(movie, widget, id);
+            CheckPanelPlaces(movie, root, widget);
+            CheckMasks(root, widget);
             // v7 C1: our info card's panel (drawn again per item; hidden until SkyUI's card would show)
             SetVisible(widget, Layout::kSpellCard, false);
             logger::info("Widget: info card {}", OwnCard() ? "ours (bOwnCard=1): SkyUI's item card is hidden" :
@@ -5400,6 +5748,16 @@ namespace Widget
                     SKSE::GetTaskInterface()->AddUITask([] { AttachWidget(); });
                 } else {
                     g_closing = true;  // first: no frame work from here on
+                    RemoveWheelListener();  // before g_attachedMovie goes (it checks the movie is still ours)
+                    if (g_menu.nodeClicks > 0) {
+                        SelfTest(std::format("L2 mask clicks {} - {} node click(s) this menu, {} outside the tree column's visible area (ignored; "
+                                             "want 0: setMask keeps the masked-off part from taking clicks)",
+                            g_menu.nodeClicksOutside == 0 ? "PASS" : "FAIL", g_menu.nodeClicks, g_menu.nodeClicksOutside));
+                    }
+                    if (g_menu.wheelScrolls > 0 || g_menu.wheelZoomsKept > 0) {
+                        logger::info("Widget: wheel this menu: {} column scroll(s), SkyUI's zoom kept from firing {} time(s)", g_menu.wheelScrolls,
+                            g_menu.wheelZoomsKept);
+                    }
                     g_overPass = false;
                     g_fitPass = false;
                     g_powersHideCalls = false;

@@ -31,6 +31,7 @@ namespace Settings
         constexpr int kMaxSteps = 6, kMaxNodes = 200;
         // two columns of Layout::kMinColumn (240) and the gap fit in the block area 648..1238 (590): 590 - 2 x 240 = 110
         constexpr double kMaxPanelGap = 110.0;
+        constexpr double kMaxDebugExtraHeight = 2000.0;  // [Debug] fDebugExtraHeight: a few screens of overflow at most
 
         Values g_values;
         Layout::State g_layout;
@@ -226,6 +227,7 @@ namespace Settings
         ReadNumber(path, L"Layout", L"fPanelGap", v.panelGap, 0.0, kMaxPanelGap);
         ReadNumber(path, L"Layout", L"iMaxSteps", v.maxSteps, 1, kMaxSteps);
         ReadNumber(path, L"Layout", L"iMaxNodes", v.maxNodes, 1, kMaxNodes);
+        ReadNumber(path, L"Debug", L"fDebugExtraHeight", v.debugExtraHeight, 0.0, kMaxDebugExtraHeight);
         g_values = v;
 
         logger::info("Settings: enabled {} selfTest {} movePreview {} moveItemCard {} drawPreviewOver {} previewUnlearned {} hideGamePass {} "
@@ -243,6 +245,10 @@ namespace Settings
         logger::info("Settings:   tree scale {} (stage units per tree unit; default {}), mark scale {} (default {}), steps {}, max nodes {} "
                      "(default {})",
             v.treeScale, Values{}.treeScale, v.treeMarkScale, Values{}.treeMarkScale, v.maxSteps, v.maxNodes, Values{}.maxNodes);
+
+        if (v.debugExtraHeight > 0) {
+            logger::info("Settings:   [Debug] fDebugExtraHeight {} - the node card block is that much taller (a scroll test; 0 = off)", v.debugExtraHeight);
+        }
 
         g_layout = LoadLayout(v);
         logger::info("Settings:   layout columns {} border {:.0f}{} (the rects above are the blocks' default sizes and places)", Columns(g_layout),

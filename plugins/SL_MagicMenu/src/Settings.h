@@ -70,6 +70,10 @@ namespace Settings
         double treeMarkScale = 1.0;
         int maxSteps = 1;  // link steps that count as linked to the centre: drawn in full and clickable even when locked
         int maxNodes = 60;
+
+        // [Debug] blocks plan Task 3: stage units added to the node card block's height so its column overflows and the
+        // column scroll can be tried in game (0 = no effect; Task 6's filler block replaces it)
+        double debugExtraHeight = 0.0;
     };
 
     // Every panel: a title strip this high and this much padding inside the border (Widget draws by these;

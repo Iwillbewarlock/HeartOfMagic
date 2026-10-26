@@ -87,13 +87,10 @@ namespace Layout
     std::map<BlockId, Settings::Rect> Arrange(const State& a_state, const std::map<BlockId, double>& a_heights, const std::set<BlockId>& a_hidden,
         const std::set<BlockId>& a_fill, const std::array<Frame, kColumns>& a_frames)
     {
-        const double border = ClampBorder(a_state.border, a_frames[kColumnLeft], a_frames[kColumnRight]);
-        const std::array<std::pair<double, double>, kColumns> spans{ { { a_frames[kColumnLeft].left, border },
-            { border + a_frames[kColumnLeft].gap, a_frames[kColumnRight].right } } };
-
         std::map<BlockId, Settings::Rect> rects;
         for (int column = 0; column < kColumns; ++column) {
             const Frame& frame = a_frames[column];
+            const Settings::Rect area = ColumnArea(a_state, column, a_frames);
             const auto shown = Shown(a_state.columns[column], a_heights, a_hidden);
 
             double stacked = 0;  // every shown block's own height plus the gaps between them
@@ -108,11 +105,40 @@ namespace Layout
                     filled = true;
                     height = std::max(height, frame.Height() - (stacked - height));
                 }
-                rects[*id] = { spans[column].first, top, spans[column].second, top + height };
+                rects[*id] = { area.left, top, area.right, top + height };
                 top += height + frame.gap;
             }
         }
         return rects;
+    }
+
+    Settings::Rect ColumnArea(const State& a_state, int a_column, const std::array<Frame, kColumns>& a_frames)
+    {
+        if (!ValidColumn(a_column)) {
+            return {};
+        }
+        const double border = ClampBorder(a_state.border, a_frames[kColumnLeft], a_frames[kColumnRight]);
+        const Frame& frame = a_frames[a_column];
+        if (a_column == kColumnLeft) {
+            return { frame.left, frame.top, border, frame.bottom };
+        }
+        return { border + a_frames[kColumnLeft].gap, frame.top, frame.right, frame.bottom };
+    }
+
+    std::optional<Settings::Rect> VisibleBox(const Settings::Rect& a_box, const Settings::Rect& a_viewport)
+    {
+        const auto finite = [](const Settings::Rect& a_rect) {
+            return std::isfinite(a_rect.left) && std::isfinite(a_rect.top) && std::isfinite(a_rect.right) && std::isfinite(a_rect.bottom);
+        };
+        if (!finite(a_box) || !finite(a_viewport)) {
+            return std::nullopt;  // checked first: std::max / std::min drop a NaN in one argument order
+        }
+        const Settings::Rect cut{ std::max(a_box.left, a_viewport.left), std::max(a_box.top, a_viewport.top), std::min(a_box.right, a_viewport.right),
+            std::min(a_box.bottom, a_viewport.bottom) };
+        if (!(cut.right > cut.left) || !(cut.bottom > cut.top)) {
+            return std::nullopt;
+        }
+        return cut;
     }
 
     std::array<double, kColumns> ContentHeight(const State& a_state, const std::map<BlockId, Settings::Rect>& a_arranged,
