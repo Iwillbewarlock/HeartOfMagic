@@ -84,7 +84,8 @@ namespace Settings
         // column scroll can be tried in game (0 = no effect)
         double debugExtraHeight = 0.0;
         // [Debug] blocks plan Task 6: the plugin registers its own tall add-on block "SL_MagicMenu.filler" (300 high) through
-        // the add-on path, to test the add-on API and the column scroll in game
+        // the add-on path, to test the add-on API and the column scroll in game; without a saved place it joins the left column
+        // after the spell card, so the preview's column scrolls (Layout::kDebugFillerId)
         bool debugFillerBlock = false;
     };
 

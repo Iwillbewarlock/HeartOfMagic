@@ -169,6 +169,11 @@ namespace Settings
             return SKSE::stl::utf16_to_utf8(a_path.wstring()).value_or("(path not UTF-8)");
         }
 
+        std::filesystem::path WithSuffix(const std::filesystem::path& a_path, const wchar_t* a_suffix)
+        {
+            return std::filesystem::path(a_path.wstring() + a_suffix);
+        }
+
         // The layout file as it is: parsed (not repaired), or nullopt with the file's state and a reason
         struct FileRead
         {
@@ -229,6 +234,22 @@ namespace Settings
             auto read = ReadLayout(path);
             g_fileState = read.file;
             if (read.file == Layout::FileState::kMissing) {
+                // final review: a save that moved the old file to .bak and then could not move the new one in leaves no file;
+                // the .bak is read then (the state stays kMissing: the next save creates the file, the .bak is left as it is)
+                const auto bak = WithSuffix(path, L".bak");
+                std::error_code bakError;
+                const bool bakThere = std::filesystem::exists(bak, bakError) && !bakError;
+                if (Layout::ReadBackup(read.file, bakThere)) {
+                    auto backup = ReadLayout(bak);
+                    if (backup.state) {
+                        logger::warn("Settings: layout {} not found - read {} instead (a save that lost the file left it there); the layout "
+                                     "mode's next save writes {}",
+                            Shown(path), Shown(bak), Shown(path));
+                        return Layout::Repair(*backup.state, known, fallback);
+                    }
+                    logger::warn("Settings: layout {} not found, and {} {} - the default layout", Shown(path), Shown(bak), backup.why);
+                    return fallback;
+                }
                 logger::info("Settings: layout {} not found - the default layout", Shown(path));
                 return fallback;
             }
@@ -249,11 +270,6 @@ namespace Settings
         extern "C" __declspec(dllimport) int __stdcall CopyFileW(const wchar_t* a_existing, const wchar_t* a_new, int a_failIfExists);
         constexpr unsigned long kReplaceIgnoreMergeErrors = 0x2;                       // REPLACEFILE_IGNORE_MERGE_ERRORS
         constexpr unsigned long kMoveReplaceExisting = 0x1, kMoveWriteThrough = 0x8;  // MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH
-
-        std::filesystem::path WithSuffix(const std::filesystem::path& a_path, const wchar_t* a_suffix)
-        {
-            return std::filesystem::path(a_path.wstring() + a_suffix);
-        }
 
         // The JSON written to a_tmp; every step checked (std::ofstream: flush() is the stream's, not FlushFileBuffers - D10 asks for
         // each step to be checked, not for a disk sync)
@@ -288,7 +304,7 @@ namespace Settings
                 if (ReplaceFileW(a_path.c_str(), a_tmp.c_str(), bak.c_str(), kReplaceIgnoreMergeErrors, nullptr, nullptr)) return true;
                 const auto replaceError = REX::W32::GetLastError();
                 // the fallback (D10): ReplaceFileW can fail on a virtual file system (MO2's usvfs, unverified) or after it moved the
-                // old file to .bak already (ERROR_UNABLE_TO_MOVE_REPLACEMENT): the old file copied to .bak when it is still there,
+                // old file to .bak already (ERROR_UNABLE_TO_MOVE_REPLACEMENT_2, 1177; RecoverFailedPut moves it back when the move fails too): the old file copied to .bak when it is still there,
                 // then the move
                 std::error_code ec;
                 if (std::filesystem::exists(a_path, ec) && !CopyFileW(a_path.c_str(), bak.c_str(), 0)) {
@@ -304,6 +320,34 @@ namespace Settings
                 return false;
             }
             return true;
+        }
+
+        // After PutInPlace failed (final review): the old file moved back from .bak when the replace took it away and no file is
+        // left (Layout::AfterFailedPut). False: the .tmp must be kept - .bak could not be moved back, the log and a_why name where
+        // the old and the edited layout are. True: the .tmp may be removed (the caller does, as before)
+        bool RecoverFailedPut(const std::filesystem::path& a_path, const std::filesystem::path& a_tmp, bool a_replace, std::string* a_why)
+        {
+            const auto bak = WithSuffix(a_path, L".bak");
+            std::error_code fileError, bakError;
+            // an exists() error counts as "there": nothing is moved over what could not be checked
+            const bool fileThere = std::filesystem::exists(a_path, fileError) || fileError;
+            const bool bakThere = std::filesystem::exists(bak, bakError) && !bakError;
+            const auto put = Layout::AfterFailedPut(a_replace, fileThere, bakThere);
+            bool restored = false;
+            if (put == Layout::FailedPut::kRestoreBak) {
+                restored = MoveFileExW(bak.c_str(), a_path.c_str(), kMoveReplaceExisting | kMoveWriteThrough) != 0;
+                if (restored) {
+                    *a_why += std::format("; the old file was moved back from {} (the layout file is as it was)", Shown(bak));
+                } else {
+                    *a_why += std::format("; moving {} back to {} failed too (error {})", Shown(bak), Shown(a_path), REX::W32::GetLastError());
+                }
+            }
+            if (!Layout::KeepTmp(put, restored)) return true;
+            logger::error("Settings: layout save - {} is gone: the saved layout is in {}, the edited one in {} (kept; the next load reads the "
+                          ".bak, or rename either to {} by hand)",
+                Shown(a_path), Shown(bak), Shown(a_tmp), Shown(a_path));
+            *a_why += std::format("; the edited layout kept in {}, the saved one in {}", Shown(a_tmp), Shown(bak));
+            return false;
         }
     }
 
@@ -380,7 +424,9 @@ namespace Settings
             logger::info("Settings:   [Debug] fDebugExtraHeight {} - the node card block is that much taller (a scroll test; 0 = off)", v.debugExtraHeight);
         }
         if (v.debugFillerBlock) {
-            logger::info("Settings:   [Debug] bDebugFillerBlock 1 - the add-on test block SL_MagicMenu.filler (300 high) is registered at kDataLoaded");
+            logger::info("Settings:   [Debug] bDebugFillerBlock 1 - the add-on test block {} (300 high) is registered at kDataLoaded; without a saved "
+                         "place it goes to the left column after the spell card (the preview's column scrolls)",
+                Layout::kDebugFillerId);
         }
 
         g_layout = LoadLayout(v);
@@ -412,7 +458,9 @@ namespace Settings
     void AddBlocks(const std::vector<std::string>& a_ids)
     {
         g_addonIds = a_ids;
-        g_defaultLayout = Layout::AddBlocks(Layout::Default(g_values), g_addonIds);
+        // the add-ons at the end of the right column; [Debug] bDebugFillerBlock's test block in the left one after the spell card,
+        // so the preview's column scrolls in game (RF3 test path; final review ruling)
+        g_defaultLayout = Layout::AddAddons(Layout::Default(g_values), g_addonIds);
         auto known = BuiltinBlocks();
         known.insert(g_addonIds.begin(), g_addonIds.end());
         const auto before = g_layout;
@@ -456,9 +504,11 @@ namespace Settings
             logger::info("Settings: layout save - the file that failed to read at load kept as {}", Shown(bad));
         }
         const auto tmp = WithSuffix(path, L".tmp");
-        const bool written = WriteTemp(tmp, Layout::ToJson(a_state), &why) && PutInPlace(path, tmp, plan.replace, &why);
+        const bool tmpWritten = WriteTemp(tmp, Layout::ToJson(a_state), &why);
+        const bool written = tmpWritten && PutInPlace(path, tmp, plan.replace, &why);
         g_fileState = Layout::AfterSave(g_fileState, written);
         if (!written) {
+            if (tmpWritten && !RecoverFailedPut(path, tmp, plan.replace, &why)) return done(SaveResult::kFailed);
             std::error_code removeError;
             if (std::filesystem::exists(tmp, removeError)) std::filesystem::remove(tmp, removeError);
             if (removeError) why += std::format("; {} left behind ({})", Shown(tmp), removeError.message());

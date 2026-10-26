@@ -322,10 +322,47 @@ namespace
         const Rect sliver{ 656, 622.6, 949, 623 };
         const auto sliverBox = PreviewMath::ScissorBox(PreviewMath::StageToPixels(sliver, kStage, full), 1920, 1080, 1920, 1080);
         Expect(!sliverBox, "a box cut to 0.4 stage units high has no scissor pixel");
-        Expect(PreviewMath::PlanClip(sliverBox, true) == PreviewMath::ClipPlan::kNothingShows, "no pixel with a column clip -> nothing drawn");
-        Expect(PreviewMath::PlanClip(sliverBox, false) == PreviewMath::ClipPlan::kUnclipped, "no pixel without a column clip -> build 13's unclipped fallback");
-        Expect(PreviewMath::PlanClip(PreviewMath::ScissorBox(pixels, 1920, 1080, 1920, 1080), true) == PreviewMath::ClipPlan::kScissor,
-            "pixels with a column clip -> scissored");
+        const auto aloneBox = PreviewMath::ScissorBox(pixels, 1920, 1080, 1920, 1080);
+        Expect(PreviewMath::PlanClip(sliverBox, aloneBox) == PreviewMath::ClipPlan::kNothingShows,
+            "the box alone has pixels, cut to its column none -> nothing drawn");
+        Expect(PreviewMath::PlanClip(aloneBox, aloneBox) == PreviewMath::ClipPlan::kScissor, "pixels -> scissored");
+        Expect(PreviewMath::PlanClip(sliverBox, sliverBox) == PreviewMath::ClipPlan::kUnclipped,
+            "the box alone has no pixel either (a sub-pixel box) -> build 13's unclipped fallback");
+        // final review: the preview always has a column clip; a buffer or target size of 0 leaves no pixel for the box alone too -
+        // build 13 drew those frames unclipped, so must this one (not "nothing shows")
+        const auto zeroBufferCut = PreviewMath::ScissorBox(PreviewMath::StageToPixels(sliver, kStage, full), 0, 1080, 1920, 1080);
+        const auto zeroBufferAlone = PreviewMath::ScissorBox(pixels, 0, 1080, 1920, 1080);
+        Expect(PreviewMath::PlanClip(zeroBufferCut, zeroBufferAlone) == PreviewMath::ClipPlan::kUnclipped,
+            "buffer width 0 with a column clip -> unclipped, as build 13");
+        const auto zeroTarget = PreviewMath::ScissorBox(pixels, 1920, 1080, 1920, 0);
+        Expect(PreviewMath::PlanClip(zeroTarget, zeroTarget) == PreviewMath::ClipPlan::kUnclipped, "a 0-size target with a column clip -> unclipped");
+        const auto zeroBufferPlain = PreviewMath::ScissorBox(pixels, 1920, 0, 1920, 1080);
+        Expect(PreviewMath::PlanClip(zeroBufferPlain, zeroBufferPlain) == PreviewMath::ClipPlan::kUnclipped,
+            "buffer height 0, box not cut -> unclipped");
+    }
+
+    // SelfTest L2 preview clip as a real test (final review): judged only where the column cuts the box in pixels
+    void L2ClipVerdict()
+    {
+        std::printf("L2 preview clip verdict (final review)\n");
+        using PreviewMath::ColumnClipVerdict;
+        using PreviewMath::PixelBox;
+        const PixelBox alone{ 984, 146, 1423, 483 };
+        const PixelBox column{ 960, 100, 1440, 400 };  // the column's viewport ends at y 400: the box's bottom is cut
+        const PixelBox cut{ 984, 146, 1423, 400 };
+        Expect(PreviewMath::JudgeColumnClip(cut, alone, column) == ColumnClipVerdict::kPass, "cut: the scissor differs from the box and lies in the column -> PASS");
+        Expect(PreviewMath::JudgeColumnClip(alone, alone, column) == ColumnClipVerdict::kFail,
+            "cut, but the scissor is the box's own pixels (the column clip not applied) -> FAIL");
+        Expect(PreviewMath::JudgeColumnClip(PixelBox{ 984, 146, 1423, 410 }, alone, column) == ColumnClipVerdict::kFail,
+            "cut, the scissor reaches past the column's bottom -> FAIL");
+        Expect(PreviewMath::JudgeColumnClip(cut, alone, std::nullopt) == ColumnClipVerdict::kFail, "the column has no pixels in the target -> FAIL");
+        const PixelBox wide{ 900, 50, 1500, 600 };
+        Expect(PreviewMath::JudgeColumnClip(alone, alone, wide) == ColumnClipVerdict::kNotCut, "the box lies inside its column -> not judged (never PASS)");
+        // a sub-pixel cut rounds to the same pixels on both sides: the box alone still lies in the column's pixels -> not judged
+        const auto boxPx = PreviewMath::ScissorBox({ 100, 100, 300.3, 200 }, 1920, 1080, 1920, 1080);
+        const auto colPx = PreviewMath::ScissorBox({ 50, 50, 300.1, 400 }, 1920, 1080, 1920, 1080);
+        Expect(boxPx && colPx && PreviewMath::JudgeColumnClip(*boxPx, boxPx, colPx) == ColumnClipVerdict::kNotCut,
+            "a cut under one pixel (300.3 against 300.1) -> not judged");
     }
 
     // Which on-screen box the self-test and the clip use: TranslateToScreen's only when it agrees with the visible-rect
@@ -882,6 +919,7 @@ int main()
     RebuiltModel();
     RefusedPlaces();
     ScissorPixels();
+    L2ClipVerdict();
     ScreenBoxChoice();
     MotionWhileHidden();
     TreeLayout();

@@ -313,7 +313,7 @@ namespace Preview
             int clipped = 0, clipHeld = 0, clipDropped = 0, clipUnjudged = 0, clipSkipped = 0, clipUnfitted = 0, clipTargetChanged = 0;
             // blocks plan Task 3 (D2): frames whose box was wholly out of its column (nothing drawn), unfitted frames scissored to
             // the column alone, and the L2 preview clip verdicts (the scissor inside the column's pixels)
-            int columnOut = 0, columnOnly = 0, columnClipPass = 0, columnClipFail = 0;
+            int columnOut = 0, columnOnly = 0, columnClipPass = 0, columnClipFail = 0, columnClipNotCut = 0;
             bool columnOutLogged = false, columnClipPassLogged = false, columnClipFailLogged = false;
             int animMoved = 0, animStill = 0, animNone = 0;
             // P7 (spec v7)
@@ -2953,8 +2953,10 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
         // back; the rest are counted for the close summary
         // blocks plan Task 3 (D2): a_stageClip is the stage rect the scissor and the alpha save take - the box, the box cut to its
         // column, or (a frame not fitted) the column's viewport; nullopt draws unclipped as before
-        // True when it called Render(): false only when the box cut to its column has no pixel (review fix 1 - nothing shows)
-        bool RenderClipped(RE::Inventory3DManager& a_manager, const std::optional<FrameInfo>& a_frame, const std::optional<Settings::Rect>& a_stageClip)
+        // True when it called Render(): false only when the box cut to its column has no pixel (review fix 1 - nothing shows).
+        // a_boxCut: a_stageClip is the box cut to its column (a fitted frame with a column), the frames SelfTest L2 judges
+        bool RenderClipped(RE::Inventory3DManager& a_manager, const std::optional<FrameInfo>& a_frame, const std::optional<Settings::Rect>& a_stageClip,
+            bool a_boxCut)
         {
             auto* shadowState = RE::BSGraphics::RendererShadowState::GetSingleton();
             if (shadowState) {
@@ -2979,7 +2981,7 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
             auto* renderer = RE::BSGraphics::Renderer::GetSingleton();
             auto* context = renderer ? renderer->GetRuntimeData().context : nullptr;
             std::optional<Target> target;
-            std::optional<PreviewMath::PixelBox> box;
+            std::optional<PreviewMath::PixelBox> box, alone;  // the scissor rect's pixels, and the box's own (the same mapping)
             BoxOnScreen screen;
             const char* skip = nullptr;
             if (!context || !shadowState) {
@@ -2989,9 +2991,12 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
             } else {
                 screen = StagePixels(*a_frame, *a_stageClip);
                 box = PreviewMath::ScissorBox(screen.rect, a_frame->bufferW, a_frame->bufferH, target->width, target->height);
+                alone = PreviewMath::ScissorBox(StagePixels(*a_frame, a_frame->box).rect, a_frame->bufferW, a_frame->bufferH, target->width,
+                    target->height);
                 // review fix 1: a box its column cuts to under one pixel (VisibleBox is not empty, ScissorBox rounds it away) is out
-                // of view as a wholly scrolled-out one: no Render(), no alpha save - never the unclipped fallback below
-                if (PreviewMath::PlanClip(box, a_frame->columnClip.has_value()) == PreviewMath::ClipPlan::kNothingShows) {
+                // of view as a wholly scrolled-out one: no Render(), no alpha save. Final review: only when the box alone has pixels -
+                // a buffer or target of size 0 (or a sub-pixel box) leaves none either, and that draws unclipped as build 13 did
+                if (PreviewMath::PlanClip(box, alone) == PreviewMath::ClipPlan::kNothingShows) {
                     ++clip.columnOut;
                     if (!std::exchange(clip.columnOutLogged, true)) {
                         logger::info("Preview: L2 the preview box has no pixel left in its column's view at PostDisplay {} (scissored to "
@@ -3004,22 +3009,39 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
                 }
                 if (!box) skip = "the box has no pixels in the render target (or the viewport's buffer size is 0)";
             }
-            // SelfTest L2 preview clip (blocks plan Task 3): the scissor lies inside the column viewport's pixels. The first PASS and
-            // the first FAIL of a menu are logged, the rest counted for the Q3 summary
-            if (box && a_frame->columnClip) {
-                const auto column = StagePixels(*a_frame, *a_frame->columnClip);
-                const auto columnBox = PreviewMath::ScissorBox(column.rect, a_frame->bufferW, a_frame->bufferH, target->width, target->height);
-                const bool inside = columnBox && box->x1 >= columnBox->x1 && box->y1 >= columnBox->y1 && box->x2 <= columnBox->x2 && box->y2 <= columnBox->y2;
-                (inside ? clip.columnClipPass : clip.columnClipFail) += 1;
-                if (!std::exchange(inside ? clip.columnClipPassLogged : clip.columnClipFailLogged, true)) {
-                    const auto& f = *a_frame;
-                    const auto& col = *f.columnClip;
-                    SelfTest(std::format("L2 preview clip {} at PostDisplay {}: scissor {},{}..{},{} {} the column's pixels {}; box (stage) {:.1f},{:.1f}..{:.1f},{:.1f}, "
-                                         "column viewport {:.1f},{:.1f}..{:.1f},{:.1f}, scissored to {:.1f},{:.1f}..{:.1f},{:.1f}",
-                        inside ? "PASS" : "FAIL", clip.frame, box->x1, box->y1, box->x2, box->y2, inside ? "inside" : "NOT inside",
-                        columnBox ? std::format("{},{}..{},{}", columnBox->x1, columnBox->y1, columnBox->x2, columnBox->y2) : std::string("(none in the target)"),
-                        f.box.left, f.box.top, f.box.right, f.box.bottom, col.left, col.top, col.right, col.bottom, a_stageClip->left, a_stageClip->top,
-                        a_stageClip->right, a_stageClip->bottom));
+            // SelfTest L2 preview clip (blocks plan Task 3; final review: a real test). Judged only on a fitted frame whose column cuts
+            // the box in pixels: the scissor must differ from the box's own pixels and lie inside the column's, and the column clip
+            // the scissor took must be the column's mask as Scaleform reads it back (FrameInfo::columnMask, within half a stage
+            // unit). A frame the column does not cut is counted (not judged, never PASS). The first PASS and the first FAIL of a
+            // menu are logged, the rest counted for the Q3 summary
+            if (box && a_boxCut && a_frame->columnClip) {
+                const auto& f = *a_frame;
+                const auto& col = *f.columnClip;
+                const auto columnBox = PreviewMath::ScissorBox(StagePixels(f, col).rect, f.bufferW, f.bufferH, target->width, target->height);
+                const auto verdict = PreviewMath::JudgeColumnClip(*box, alone, columnBox);
+                constexpr double kMaskSlack = 0.5;
+                const bool maskAgrees = f.columnMask && std::abs(f.columnMask->left - col.left) <= kMaskSlack && std::abs(f.columnMask->top - col.top) <= kMaskSlack &&
+                                        std::abs(f.columnMask->right - col.right) <= kMaskSlack && std::abs(f.columnMask->bottom - col.bottom) <= kMaskSlack;
+                if (verdict == PreviewMath::ColumnClipVerdict::kNotCut) {
+                    ++clip.columnClipNotCut;
+                } else {
+                    const bool pass = verdict == PreviewMath::ColumnClipVerdict::kPass && maskAgrees;
+                    (pass ? clip.columnClipPass : clip.columnClipFail) += 1;
+                    if (!std::exchange(pass ? clip.columnClipPassLogged : clip.columnClipFailLogged, true)) {
+                        const auto pixels = [](const std::optional<PreviewMath::PixelBox>& a_box) {
+                            return a_box ? std::format("{},{}..{},{}", a_box->x1, a_box->y1, a_box->x2, a_box->y2) : std::string("(none in the target)");
+                        };
+                        SelfTest(std::format("L2 preview clip {} at PostDisplay {}: the column cuts the box - scissor {} {} the box's own pixels {}, {} the "
+                                             "column's pixels {}; the column clip {:.1f},{:.1f}..{:.1f},{:.1f} {} the mask read back {}; box (stage) "
+                                             "{:.1f},{:.1f}..{:.1f},{:.1f}, scissored to {:.1f},{:.1f}..{:.1f},{:.1f}",
+                            pass ? "PASS" : "FAIL", clip.frame, pixels(box), alone && *alone == *box ? "EQUALS" : "differs from", pixels(alone),
+                            columnBox && columnBox->Holds(*box) ? "inside" : "NOT inside", pixels(columnBox), col.left, col.top, col.right, col.bottom,
+                            maskAgrees ? "matches" : "does NOT match",
+                            f.columnMask ? std::format("{:.1f},{:.1f}..{:.1f},{:.1f}", f.columnMask->left, f.columnMask->top, f.columnMask->right,
+                                               f.columnMask->bottom) :
+                                           std::string("(not read)"),
+                            f.box.left, f.box.top, f.box.right, f.box.bottom, a_stageClip->left, a_stageClip->top, a_stageClip->right, a_stageClip->bottom));
+                    }
                 }
             }
             if (skip) {
@@ -3234,12 +3256,13 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
                                           "left hidden, {} models built anew at a known address, {} frames drawing two or more models of one "
                                           "form; clip: {} over-passes scissored, held {}, dropped {}, render target changed {} (not judged), "
                                           "nothing drawn {} (not judged), not set {}, not fitted {} (drawn without the box scissor; {} of them cut to "
-                                          "the column's viewport); column: {} frames out of view (nothing drawn), L2 preview clip PASS {} FAIL {}; "
+                                          "the column's viewport); column: {} frames out of view (nothing drawn), L2 preview clip PASS {} FAIL {} "
+                                          "(not cut by the column {}, not judged); "
                                           "anim moved {}, still {}, not judged {}",
                 hide, scissor, a_generation, clip.overPasses, clip.frame, clip.hides, clip.held, clip.lost, clip.hidePass, clip.hideFail, clip.sights,
                 clip.flashes, clip.again, clip.replaced, clip.left, clip.rebuilt, clip.doubles, clip.clipped, clip.clipHeld, clip.clipDropped,
                 clip.clipTargetChanged, clip.clipUnjudged, clip.clipSkipped, clip.clipUnfitted, clip.columnOnly, clip.columnOut, clip.columnClipPass,
-                clip.columnClipFail, clip.animMoved, clip.animStill, clip.animNone);
+                clip.columnClipFail, clip.columnClipNotCut, clip.animMoved, clip.animStill, clip.animNone);
             if (tested) {
                 SelfTest(line);
             } else {
@@ -3426,7 +3449,7 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
             // P7.3: only the selection's model in the over-pass, the others' flags back right after (needs this frame's selection)
             std::optional<OnlySelection> only;
             if (ours && frame) only.emplace(a_manager, clip.shown);
-            rendered = RenderClipped(a_manager, frame, scissor);
+            rendered = RenderClipped(a_manager, frame, scissor, column && !unfitted);
             if (only) LogOnlySelection(*only, clip.shown);
         }
         if (current && modes.hide && frame) HideSelection(a_manager, clip.shown);

@@ -14,6 +14,7 @@
 #include "Settings.h"
 
 #include <array>
+#include <cstdint>
 #include <map>
 #include <optional>
 #include <set>
@@ -29,6 +30,9 @@ namespace Layout
     inline constexpr const char* kProgress = "progress";
     inline constexpr const char* kSpellCard = "spellcard";
     inline constexpr const char* kNodeCard = "nodecard";
+    // [Debug] bDebugFillerBlock's test add-on (blocks plan Task 6): placed in the left column after the spell card, so the
+    // preview's column scrolls (the RF3 test path; final review ruling)
+    inline constexpr const char* kDebugFillerId = "SL_MagicMenu.filler";
 
     inline constexpr int kColumns = 2;
     inline constexpr int kJsonVersion = 1;
@@ -213,6 +217,10 @@ namespace Layout
     /// one only when it is in no column yet (a saved place wins) and not empty. A column out of range: unchanged.
     State AddBlocks(State a_state, const std::vector<BlockId>& a_ids, int a_column = 1);
 
+    /// The add-on blocks put into a default layout (Settings::AddBlocks): each at the end of the right column, except
+    /// kDebugFillerId, which goes to the end of the left one (after the spell card: the preview's column then scrolls)
+    State AddAddons(State a_default, const std::vector<BlockId>& a_ids);
+
     // -------------------------------------------------------------------------
     // The layout file's safety (blocks plan D10, Task 4): which files a save writes and keeps
     // -------------------------------------------------------------------------
@@ -244,4 +252,53 @@ namespace Layout
     /// The file's state after a save attempt: kRead after a successful write; unchanged otherwise (a failed save leaves the
     /// file as it was and the next try plans the same).
     FileState AfterSave(FileState a_state, bool a_written);
+
+    /// After the .tmp could not be put in the file's place (final review): what the save does with what is on disk. A replace
+    /// can move the old file to .bak and then fail to move the new one in (ReplaceFileW's ERROR_UNABLE_TO_MOVE_REPLACEMENT_2,
+    /// 1177), and the MoveFileExW fallback can fail too: the layout file is then gone, the user's layout only in .bak
+    enum class FailedPut
+    {
+        kFileThere,   // the layout file is in place (as it was): the .tmp is removed
+        kRestoreBak,  // no file, the replace left the old one as .bak: .bak moved back to the file's name
+        kNoFile,      // no file and nothing to restore (a first save): the .tmp is removed
+    };
+
+    /// a_replace: the save planned a replace (there was a file); a_fileThere / a_bakThere: the layout file and its .bak exist now
+    FailedPut AfterFailedPut(bool a_replace, bool a_fileThere, bool a_bakThere);
+
+    /// The .tmp is kept (not removed) after a failed save: only when .bak had to be moved back and that failed too - the .tmp
+    /// then holds the edited layout and .bak the old one, and the log names both
+    bool KeepTmp(FailedPut a_put, bool a_restored);
+
+    /// LoadLayout reads <file>.bak instead: the layout file is missing and a .bak is there (a save that lost the file between
+    /// its replace and its move; final review)
+    bool ReadBackup(FileState a_file, bool a_bakThere);
+
+    // -------------------------------------------------------------------------
+    // The layout mode's on/off as the input sees it (final review: a quick toggle off/on queued Save then Enter, and the
+    // Save's leave set the flag off after the Enter's toggle had set it on)
+    // -------------------------------------------------------------------------
+
+    /// Every change of intent (a toggle, a cancel, a frame-side leave or entry) takes the next sequence number and sets the flag
+    /// at once (later events of the hook's batch see it); the frame handler's result for a request is the source of truth, but
+    /// it is written only while no newer request was made, so an older request never overwrites a newer state. The caller
+    /// keeps it under one lock
+    struct ModeLedger
+    {
+        std::uint64_t latest = 0;
+        bool on = false;
+
+        /// A new intent: the flag set to a_on; the request's number returned
+        std::uint64_t Request(bool a_on)
+        {
+            on = a_on;
+            return ++latest;
+        }
+
+        /// The frame handler's result for request a_seq (whether the mode is on after it); ignored when a newer one was made
+        void Settle(std::uint64_t a_seq, bool a_result)
+        {
+            if (a_seq == latest) on = a_result;
+        }
+    };
 }

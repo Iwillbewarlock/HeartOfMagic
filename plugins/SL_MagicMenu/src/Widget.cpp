@@ -1570,7 +1570,7 @@ namespace Widget
         }
 
         // The first magic menu open: no more registrations; the add-ons join the block list and the layout (Settings::AddBlocks:
-        // one without a saved place goes to the end of the right column)
+        // one without a saved place goes to the end of the right column; [Debug] bDebugFillerBlock's to the left one after the spell card)
         void CloseRegistry()
         {
             std::vector<BlockRegistry::Block> blocks;
@@ -1681,12 +1681,16 @@ namespace Widget
         // blocks spec "Calls made by Claude" (safety net only): Inventory Reforged's magic-menu panel on in its MCM, or our fallback
         // switches off (bOwnCard=0, bMovePreview=0, bDrawPreviewOver=0): the layout mode rests (lock greyed) and the default
         // layout is used; the saved layout is kept. Empty when none applies
+        // g_menu.irActive published for the input thread (the hook's refusal log reads SafetyNetReason there; final review): set
+        // with it at each menu open, the frame-thread state is not read from another thread
+        std::atomic<bool> g_irActiveShared{ false };
+
         std::string SafetyNetReason()
         {
             const auto& s = Settings::Get();
             std::string why;
             const auto add = [&](const char* a_part) { why += (why.empty() ? "" : ", ") + std::string(a_part); };
-            if (g_menu.irActive) add("Inventory Reforged runs its panel in this menu");
+            if (g_irActiveShared) add("Inventory Reforged runs its panel in this menu");
             if (!s.ownCard) add("bOwnCard=0");
             if (!s.movePreview) add("bMovePreview=0");
             if (!s.drawPreviewOver) add("bDrawPreviewOver=0");
@@ -3279,7 +3283,7 @@ namespace Widget
         RE::GPtr<WheelZoomWrap> g_wheelZoomWrap;
 
         // Once per menu movie, from the frame handler (Menu_mc is there by then): our Mouse listener (a member of our widget clip,
-        // removed at close: RemoveWheelListener) and the zoom wrap. Either missing is logged; the other still works
+        // not removed at close: it does nothing while g_closing and goes with the movie - final review ruling) and the zoom wrap. Either missing is logged; the other still works
         void InstallWheel(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
             if (g_menu.wheelInstallDone) return;
@@ -3324,23 +3328,6 @@ namespace Widget
                 return;
             }
             logger::info("Widget: wheel zoom wrap installed - {}.{} is not called while the wheel scrolls one of our columns", kMenuPath, kWheelName);
-        }
-
-        // At the menu's close (the close event, before the movie goes): our Mouse listener taken off again. A movie that is gone
-        // already took its listeners with it
-        void RemoveWheelListener()
-        {
-            auto* movie = OpenMagicMenuMovie();
-            if (!movie || movie != g_attachedMovie.load()) {
-                logger::info("Widget: wheel listener - the menu's movie is gone already (its listeners with it)");
-                return;
-            }
-            RE::GFxValue mouse, listener;
-            const auto path = std::format("_root.{}.{}", kRootName, kWheelListener);
-            if (!movie->GetVariable(&listener, path.c_str()) || !listener.IsObject()) return;  // never added
-            const std::array<RE::GFxValue, 1> args{ listener };
-            const bool removed = MouseObject(movie, &mouse) && mouse.Invoke("removeListener", nullptr, args.data(), args.size());
-            logger::info("Widget: wheel listener {}", removed ? "removed (Mouse.removeListener)" : "NOT removed - Mouse.removeListener failed");
         }
 
         const char* TabName(Tab a_tab)
@@ -4144,9 +4131,13 @@ namespace Widget
             LayoutRequestKind kind;
             std::string why;
             Layout::Nav nav{};
+            std::uint64_t seq = 0;  // kEnter / kSave / kCancel: the mode ledger's number (final review: the newest intent wins)
         };
         std::mutex g_layoutRequestLock;
         std::vector<LayoutRequest> g_layoutRequests;
+        // the input's view of the mode (g_layoutMode mirrors its flag), under g_layoutRequestLock: every change of intent takes a
+        // number, the frame handler's result is written only for the newest one (Layout::ModeLedger)
+        Layout::ModeLedger g_modeLedger;
 
         // Menus that pause the game, use the menu context or are modal, opened while the magic menu is open (the mode ends as
         // Cancel when one opens, and does not start while one is up)
@@ -4157,6 +4148,40 @@ namespace Widget
         {
             const std::scoped_lock lock(g_layoutRequestLock);
             g_layoutRequests.push_back({ a_kind, std::move(a_why), a_nav });
+        }
+
+        // g_layoutRequestLock held: a mode request (kEnter on, kSave / kCancel off) - the flag set at once, the request numbered
+        void QueueModeLocked(LayoutRequestKind a_kind, std::string a_why)
+        {
+            const auto seq = g_modeLedger.Request(a_kind == LayoutRequestKind::kEnter);
+            g_layoutMode = g_modeLedger.on;
+            g_layoutRequests.push_back({ a_kind, std::move(a_why), {}, seq });
+        }
+
+        // The frame handler's own change (the lock button, a tab change, the leave by B / Esc): the newest intent, numbered
+        std::uint64_t BeginModeChange(bool a_on)
+        {
+            const std::scoped_lock lock(g_layoutRequestLock);
+            const auto seq = g_modeLedger.Request(a_on);
+            g_layoutMode = g_modeLedger.on;
+            return seq;
+        }
+
+        // The frame handler's result for request a_seq: whether the mode is on now (g_menu.layout.active); kept only while no newer
+        // request was made (that one settles it when it runs)
+        void SettleMode(std::uint64_t a_seq, bool a_on)
+        {
+            const std::scoped_lock lock(g_layoutRequestLock);
+            g_modeLedger.Settle(a_seq, a_on);
+            g_layoutMode = g_modeLedger.on;
+        }
+
+        // g_layoutRequestLock held: no mode and no queued request (a menu's open and close); a request still running settles nothing
+        void ResetModeLocked()
+        {
+            g_modeLedger.Request(false);
+            g_layoutMode = false;
+            g_layoutRequests.clear();
         }
 
         // blocks plan Task 5: the focus model - the focused block and, while it is picked up, its target slot. The frame handler's
@@ -4256,7 +4281,7 @@ namespace Widget
                          "focus loss (only on release, Esc or the menu's close) for this game session");
         }
 
-        bool FocusLost()
+        bool FocusGone()
         {
             return g_focusCheck && !GameActive();
         }
@@ -4830,8 +4855,8 @@ namespace Widget
         {
             auto& m = g_menu.layout;
             if (!m.drag) return;
-            if (m.drag->generation != g_menuGeneration.load() || FocusLost()) {
-                logger::info("Layout: drag of {} ended without a move - {}", m.drag->id, FocusLost() ? "the game window lost the focus" : "another menu's drag");
+            if (m.drag->generation != g_menuGeneration.load() || FocusGone()) {
+                logger::info("Layout: drag of {} ended without a move - {}", m.drag->id, FocusGone() ? "the game window lost the focus" : "another menu's drag");
                 EndDrag(a_widget);
                 return;
             }
@@ -4889,7 +4914,7 @@ namespace Widget
         {
             auto& m = g_menu.layout;
             if (!m.borderGrab) return;
-            if (FocusLost()) {
+            if (FocusGone()) {
                 logger::info("Layout: border drag ended without a move - the game window lost the focus");
                 m.borderGrab.reset();
                 m.guideAt.reset();
@@ -4940,7 +4965,6 @@ namespace Widget
             auto& m = g_menu.layout;
             if (m.active) return;
             if (!ChromeReady(a_widget)) {
-                g_layoutMode = false;
                 logger::warn("Layout: mode refused - the shield, button row, border handle or overlay is missing in this menu ({})", a_why);
                 return;
             }
@@ -4968,10 +4992,7 @@ namespace Widget
         void LeaveLayoutMode(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, bool a_save, const std::string& a_why)
         {
             auto& m = g_menu.layout;
-            if (!m.active) {
-                g_layoutMode = false;
-                return;
-            }
+            if (!m.active) return;
             EndDrag(a_widget);
             m.borderGrab.reset();
             m.guideAt.reset();
@@ -4987,8 +5008,7 @@ namespace Widget
                                       "Esc to leave without saving)",
                             detail, KeyLabel(Settings::Get().keyLayout));
                         SelfTest(std::format("L3 layout saved FAIL - not written: {}", detail));
-                        g_layoutMode = true;
-                        return;
+                        return;  // m.active stays true: the caller settles the mode on
                     }
                     if (result == Settings::SaveResult::kRefused) {
                         Settings::SetSavedLayout(m.working);
@@ -5009,8 +5029,7 @@ namespace Widget
             EndPick(a_movie, a_widget, "the mode's end");  // Task 5: a pick not dropped is not saved
             g_layoutFocus = {};
             g_layoutStickY = 0.0f;
-            m.active = false;
-            g_layoutMode = false;
+            m.active = false;  // the caller settles the input's flag (SettleMode)
             if (!a_save) {
                 const bool same = CurrentLayout() == m.entry && Settings::SavedLayout() == m.entry;
                 const auto arranged = ArrangeBlocks(ArrangementFor(g_menu.tab, OwnCard()));
@@ -5080,9 +5099,12 @@ namespace Widget
                 }
             };
             switch (result.effect) {
-            case Effect::kLeave:
+            case Effect::kLeave: {
+                const auto seq = BeginModeChange(false);
                 LeaveLayoutMode(a_movie, a_widget, false, a_source);
+                SettleMode(seq, m.active);
                 return;
+            }
             case Effect::kNone: log("nothing to do (" + FocusText(g_layoutFocus) + ")"); return;
             case Effect::kFocused: ++m.padFocusMoves; log(FocusText(g_layoutFocus)); break;
             case Effect::kPicked: ++m.padPicks; log(FocusText(g_layoutFocus)); break;
@@ -5155,6 +5177,7 @@ namespace Widget
         void LayoutFrame(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
             auto& m = g_menu.layout;
+            if (g_closing) return;  // a frame still running when the close came: no mode change, no save (the next open resets)
             InstallInputWraps(a_movie);
             PublishLayoutBlock(a_movie);
             std::vector<LayoutRequest> requests;
@@ -5162,6 +5185,8 @@ namespace Widget
                 const std::scoped_lock lock(g_layoutRequestLock);
                 requests.swap(g_layoutRequests);
             }
+            // final review: the frame's result is the source of truth - each mode request settles the input's flag, unless a newer
+            // one was made since (a quick K off/on: the Save's leave no longer turns the flag off under the Enter that follows it)
             for (const auto& request : requests) {
                 switch (request.kind) {
                 case LayoutRequestKind::kEnter: EnterLayoutMode(a_movie, a_widget, request.why); break;
@@ -5169,15 +5194,19 @@ namespace Widget
                 case LayoutRequestKind::kCancel: LeaveLayoutMode(a_movie, a_widget, false, request.why); break;
                 case LayoutRequestKind::kNav: PadKey(a_movie, a_widget, request.nav, request.why); break;
                 }
+                if (request.kind != LayoutRequestKind::kNav) SettleMode(request.seq, m.active);
             }
             if (std::exchange(m.lockDue, false)) {
                 if (m.active) {
-                    g_layoutMode = false;
+                    const auto seq = BeginModeChange(false);
                     LeaveLayoutMode(a_movie, a_widget, true, "the lock button");
+                    SettleMode(seq, m.active);
                 } else if (const auto bits = LiveBlock(Input::HeldCount() > 0); bits != 0) {
                     LogRefusal(bits, "the lock button");
-                } else if (!g_layoutMode.exchange(true)) {
+                } else if (!g_layoutMode) {  // on already: an Enter is queued (the next frame runs it)
+                    const auto seq = BeginModeChange(true);
                     EnterLayoutMode(a_movie, a_widget, "the lock button");
+                    SettleMode(seq, m.active);
                 }
             }
             if (std::exchange(m.resetDue, false) && m.active) {
@@ -5202,25 +5231,21 @@ namespace Widget
 
         // At the menu's close (the close event; the movie is going, so nothing is drawn): a mode still on ends as Cancel
         // (SelfTest L4: nothing was written, the saved layout is the entry layout), and the input boundary's tests
+        // final review ruling: this runs on the close event's thread, so it only flips atomics (the mode off for the hook and the
+        // wraps, the requests dropped, the entry refusals back to "no widget"; the hook's held / owned tails are left as they are)
+        // and logs; the frame-thread state (m.active, the drag, g_layoutFocus) is left to the next AttachWidget's reset, and the
+        // frame handler and the layout handlers do nothing once g_closing is set. Nothing is saved: a mode still on ends as Cancel
         void LayoutAtClose()
         {
-            auto& m = g_menu.layout;
-            const bool wasOn = m.active || g_layoutMode.exchange(false);
-            g_layoutMode = false;
+            const auto& m = g_menu.layout;
+            bool wasOn = false;
             {
                 const std::scoped_lock lock(g_layoutRequestLock);
-                g_layoutRequests.clear();
+                wasOn = g_modeLedger.on;
+                ResetModeLocked();
             }
             g_layoutBlock = kBlockNoWidget;
-            if (m.active) {
-                m.active = false;
-                m.drag.reset();
-                m.borderGrab.reset();
-                const bool same = Settings::SavedLayout() == m.entry;
-                logger::info("Layout: mode ended by the menu's close - cancelled, nothing written");
-                SelfTest(std::format("L4 cancel {} - menu closed in the layout mode: the saved layout {} the entry layout ({})", same ? "PASS" : "FAIL",
-                    same ? "is" : "is NOT", Describe(m.entry)));
-            }
+            if (wasOn) logger::info("Layout: mode ended by the menu's close - cancelled, nothing written");
             const auto counts = Input::ReadCounters();
             SelfTest(std::format("L5 input passthrough {} - {} event(s) judged with the layout mode off, {} kept though neither the toggle nor an owned "
                                  "tail (want 0); {} toggle press(es) and {} owned tail event(s) kept",
@@ -5255,7 +5280,6 @@ namespace Widget
                     m.padChecksFailed == 0 ? "PASS" : "FAIL", m.padKeys, m.padFocusMoves, m.padPicks, m.padDrops, m.padInPlace, m.padPickCancels,
                     m.padBorders, m.padIgnored, m.padChecksFailed, m.stickScrolls));
             }
-            g_layoutFocus = {};
             g_layoutStickY = 0.0f;
         }
 
@@ -6453,8 +6477,9 @@ namespace Widget
             // blocks plan Task 4: a tab change ends the layout mode as Cancel (the hook and the shield keep the tabs from changing
             // in the mode; whatever got through, the entry layout is put back first)
             if (!first && g_menu.layout.active) {
-                g_layoutMode = false;
+                const auto seq = BeginModeChange(false);
                 LeaveLayoutMode(a_movie, a_widget, false, "the tab change");
+                SettleMode(seq, g_menu.layout.active);
             }
             // D6: the tab's hidden blocks close up; the item card's slot moves between the Powers/Shouts tabs and the others, so
             // its transform is worked out again (Rearrange)
@@ -6943,7 +6968,7 @@ namespace Widget
                 const bool key = g_pendingSetTarget.exchange(false);
                 const bool button = g_pendingButton.exchange(false);
                 if (key || button) DoSetTarget(*snapshot);
-                PreviewFrame(movie);
+                PreviewFrame(movie, root, widget);
                 if (++g_menu.frame % kPollFrames == 0) g_menu.refresh = true;
                 if (g_menu.refresh) RequestState();
                 if (snapshot->epoch != g_menu.epoch) {
@@ -6967,7 +6992,7 @@ namespace Widget
             }
 
         private:
-            static void PreviewFrame(RE::GFxMovieView* a_movie)
+            static void PreviewFrame(RE::GFxMovieView* a_movie, RE::GFxValue& a_root, RE::GFxValue& a_widget)
             {
                 Preview::FrameInfo info;
                 info.visible = a_movie->GetVisibleFrameRect();
@@ -6977,7 +7002,15 @@ namespace Widget
                 info.pixelsPerUnit = visibleH > 0 ? viewport.height / visibleH : 0.0;
                 info.box = Settings::PanelContent(BlockRect(Layout::kPreview));  // below the "PREVIEW" title band (R9); scrolled (on screen)
                 // blocks plan Task 3 (D2): the preview column's viewport - the scissor and the alpha restore take box cut to it
-                if (const auto column = ColumnOf(Layout::kPreview)) info.columnClip = ColumnViewport(*column);
+                if (const auto column = ColumnOf(Layout::kPreview)) {
+                    info.columnClip = ColumnViewport(*column);
+                    // SelfTest L2 preview clip (final review): the mask as Scaleform has it, against the clip the scissor takes
+                    if (Settings::Get().selfTest) {
+                        if (auto mask = Child(a_widget, kColumnMasks[*column]); mask.IsDisplayObject()) {
+                            if (const auto bounds = BoundsIn(mask, a_root)) info.columnMask = Settings::Rect{ bounds->xMin, bounds->yMin, bounds->xMax, bounds->yMax };
+                        }
+                    }
+                }
                 info.viewport = { static_cast<float>(viewport.left), static_cast<float>(viewport.top),
                     static_cast<float>(viewport.left + viewport.width), static_cast<float>(viewport.top + viewport.height) };
                 // GFxMovieView::TranslateToScreen is not called: with a null user matrix it crashed the game on the first
@@ -7101,15 +7134,15 @@ namespace Widget
 
             g_menu = MenuState{};
             g_menu.irActive = IrActive(movie);
+            g_irActiveShared = g_menu.irActive;
             // blocks plan Task 4: a new menu - no mode, no queued request, the input tests counted afresh; the wraps are not on yet
             ++g_menuGeneration;
-            g_layoutMode = false;
-            g_layoutFocus = {};
-            g_layoutStickY = 0.0f;
             {
                 const std::scoped_lock lock(g_layoutRequestLock);
-                g_layoutRequests.clear();
+                ResetModeLocked();
             }
+            g_layoutFocus = {};
+            g_layoutStickY = 0.0f;
             g_layoutBlock = kBlockNoWidget | kBlockNoInputWrap | kBlockNoEquipWrap;  // the widget clears its bit once it is up
             g_refusalLogs = 0;
             Input::ResetCounters();
@@ -7241,7 +7274,8 @@ namespace Widget
                 } else {
                     g_closing = true;  // first: no frame work from here on
                     LayoutAtClose();   // blocks plan Task 4: a mode still on is cancelled; the input tests
-                    RemoveWheelListener();  // before g_attachedMovie goes (it checks the movie is still ours)
+                    // the wheel listener is not removed here (final review ruling: no GFx call on the close thread) - it does nothing
+                    // while g_closing (WheelColumn) and goes with the movie
                     if (g_menu.nodeClicks > 0) {
                         SelfTest(std::format("L2 mask clicks {} - {} node click(s) this menu, {} outside the tree column's visible area (ignored; "
                                              "want 0: setMask keeps the masked-off part from taking clicks)",
@@ -7331,7 +7365,7 @@ namespace Widget
     void RegisterDebugFiller()
     {
         constexpr float kFillerHeight = 300.0f;
-        const BlockApi::Registration reg{ .id = "SL_MagicMenu.filler", .title = "FILLER (TEST)", .height = kFillerHeight, .draw = DrawFiller };
+        const BlockApi::Registration reg{ .id = Layout::kDebugFillerId, .title = "FILLER (TEST)", .height = kFillerHeight, .draw = DrawFiller };
         RegisterBlock(BlockApi::kPluginName, &reg, sizeof(reg));
     }
 
@@ -7381,22 +7415,27 @@ namespace Widget
 
     bool ToggleLayoutMode(const char* a_source, bool a_heldOther)
     {
-        if (g_layoutMode.exchange(false)) {
-            QueueLayout(LayoutRequestKind::kSave, a_source);
-            return true;
+        {
+            const std::scoped_lock lock(g_layoutRequestLock);
+            if (g_modeLedger.on) {
+                QueueModeLocked(LayoutRequestKind::kSave, a_source);
+                return true;
+            }
         }
         if (const auto bits = LiveBlock(a_heldOther); bits != 0) {
             LogRefusal(bits, a_source);
             return false;
         }
-        if (!g_layoutMode.exchange(true)) QueueLayout(LayoutRequestKind::kEnter, a_source);
+        const std::scoped_lock lock(g_layoutRequestLock);
+        if (!g_modeLedger.on) QueueModeLocked(LayoutRequestKind::kEnter, a_source);
         return true;
     }
 
     bool CancelLayoutMode(const char* a_why)
     {
-        if (!g_layoutMode.exchange(false)) return false;
-        QueueLayout(LayoutRequestKind::kCancel, a_why);
+        const std::scoped_lock lock(g_layoutRequestLock);
+        if (!g_modeLedger.on) return false;
+        QueueModeLocked(LayoutRequestKind::kCancel, a_why);
         return true;
     }
 
@@ -7408,5 +7447,10 @@ namespace Widget
     void LayoutStick(float a_y)
     {
         g_layoutStickY = a_y;
+    }
+
+    bool FocusLost()
+    {
+        return FocusGone();
     }
 }

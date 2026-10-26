@@ -274,6 +274,21 @@ namespace Input
                     g_heldCount = 0;
                 }
                 s_wasOpen = menuOpen;
+                // a key whose up was lost (Alt-Tab, focus loss inside the menu) would stay held and refuse the mode for the rest
+                // of the menu: the held set is emptied while the game window has no focus and again when it comes back (input may
+                // not arrive at all while it is inactive, so the regain is the branch that fires). A key still down comes back
+                // with its next hold event (IsPressed), as at the menu's open
+                static bool s_hadFocus = true;
+                const bool focusLost = Widget::FocusLost();
+                if (focusLost || !s_hadFocus) {
+                    if (!g_held.empty()) {
+                        logger::info("Input: {} - {} held key(s) forgotten", focusLost ? "the game window has no focus" : "the game window has the focus again",
+                            g_held.size());
+                    }
+                    g_held.clear();
+                    g_heldCount = 0;
+                }
+                s_hadFocus = !focusLost;
                 if (!a_events || !*a_events || !Armed(menuOpen)) return original(a_this, a_events, a_source);
                 static std::atomic<bool> s_threadLogged{ false };
                 if (!s_threadLogged.exchange(true)) logger::info("Input: layout input hook first used on thread {}", REX::W32::GetCurrentThreadId());
@@ -301,7 +316,10 @@ namespace Input
                     event = next;
                 }
                 if (tail) tail->next = nullptr;
-                return original(a_this, &head, a_source);  // once, also with nothing left (head null)
+                // every event kept: the original is not called with a null head (its handling of one is unverified; ledger
+                // ruling, final review) - the menu handlers below simply get no input this batch
+                if (!head) return RE::BSEventNotifyControl::kContinue;
+                return original(a_this, &head, a_source);
             }
 
             static inline REL::Relocation<decltype(thunk)> original;

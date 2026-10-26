@@ -30,7 +30,7 @@ namespace Widget
     /// registered" / "... refused <reason>". The outcome is what the sender is answered (BlockApi::Result)
     BlockRegistry::Outcome RegisterBlock(std::string_view a_sender, const void* a_data, std::uint32_t a_dataLen);
 
-    /// [Debug] bDebugFillerBlock: registers the test block SL_MagicMenu.filler (300 high) through RegisterBlock (call at kDataLoaded)
+    /// [Debug] bDebugFillerBlock: registers the test block Layout::kDebugFillerId (300 high) through RegisterBlock (call at kDataLoaded); it joins the left column after the spell card
     void RegisterDebugFiller();
 
     /// The next-learnable key ([Keys] iNext): centre and select the next learnable spell of the school (done on the next frame).
@@ -66,6 +66,9 @@ namespace Widget
 
     /// The right stick's y while the mode keeps it (0 = neutral): the focused block's column scrolls by it each frame
     void LayoutStick(float a_y);
+
+    /// The game window lost the focus (Main's gameActive; off for the session when it read false at a menu open). Any thread
+    bool FocusLost();
 }
 
 namespace Input

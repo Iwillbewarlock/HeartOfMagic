@@ -755,6 +755,76 @@ namespace
         Expect(Layout::AfterSave(FileState::kNewer, false) == FileState::kNewer, "refused: still the newer build's file");
         Expect(Layout::AfterSave(FileState::kBroken, true) == FileState::kRead && Layout::AfterSave(FileState::kMissing, true) == FileState::kRead,
             "written: a read layout from then on (no .bad copy at the next save)");
+
+        // final review: the .tmp could not be put in place
+        using Layout::FailedPut;
+        Expect(Layout::AfterFailedPut(true, true, true) == FailedPut::kFileThere && Layout::AfterFailedPut(true, true, false) == FailedPut::kFileThere,
+            "a failed put with the file still there (ReplaceFileW 1176 / the move failed before it): nothing to restore");
+        Expect(Layout::AfterFailedPut(true, false, true) == FailedPut::kRestoreBak,
+            "the replace moved the old file to .bak and the move failed (1177 + MoveFileExW): .bak moved back");
+        Expect(Layout::AfterFailedPut(true, false, false) == FailedPut::kNoFile, "no file and no .bak: nothing to restore");
+        Expect(Layout::AfterFailedPut(false, false, true) == FailedPut::kNoFile,
+            "a first save (no replace) with an old .bak lying there: the .bak is not moved in");
+        Expect(!Layout::KeepTmp(FailedPut::kRestoreBak, true), "the .bak moved back: the .tmp is removed");
+        Expect(Layout::KeepTmp(FailedPut::kRestoreBak, false), "the .bak could not be moved back: the .tmp (the edited layout) is kept");
+        Expect(!Layout::KeepTmp(FailedPut::kFileThere, false) && !Layout::KeepTmp(FailedPut::kNoFile, false), "otherwise the .tmp is removed");
+        Expect(Layout::ReadBackup(FileState::kMissing, true), "load: no file but a .bak - the .bak is read");
+        Expect(!Layout::ReadBackup(FileState::kMissing, false), "load: no file and no .bak - the default");
+        Expect(!Layout::ReadBackup(FileState::kRead, true) && !Layout::ReadBackup(FileState::kBroken, true) && !Layout::ReadBackup(FileState::kNewer, true),
+            "load: a file there (read, broken or newer) - the .bak is never read instead");
+        // the next save after a load from .bak: the file is missing, so it is created (move only), the .bak left alone
+        Expect(plan(FileState::kMissing, false, false) == SavePlan{ false, false, false }, "after a .bak load: the next save moves the .tmp in");
+    }
+
+    // final review: the layout mode's on/off as the input sees it - the newest request wins
+    void ModeOrdering()
+    {
+        std::printf("layout mode requests in order (final review)\n");
+        {
+            // a quick K off/on: Save then Enter queued before the frame runs them
+            Layout::ModeLedger ledger;
+            const auto enter1 = ledger.Request(true);
+            ledger.Settle(enter1, true);  // the frame entered
+            const auto save = ledger.Request(false);
+            const auto enter2 = ledger.Request(true);
+            Expect(ledger.on, "K off/on: the flag is on at once");
+            ledger.Settle(save, false);  // the Save's leave: older than the Enter
+            Expect(ledger.on, "K off/on: the Save's leave does not turn the flag off under the newer Enter");
+            ledger.Settle(enter2, true);
+            Expect(ledger.on, "K off/on: the Enter settles it on (the widget is in the mode, the hook and the wraps keep input)");
+        }
+        {
+            // one K: off
+            Layout::ModeLedger ledger;
+            ledger.Settle(ledger.Request(true), true);
+            const auto save = ledger.Request(false);
+            Expect(!ledger.on, "one K: the flag is off at once");
+            ledger.Settle(save, false);
+            Expect(!ledger.on, "one K: the leave settles it off");
+        }
+        {
+            // a save that failed keeps the mode on; an entry that was refused turns it off
+            Layout::ModeLedger ledger;
+            ledger.Settle(ledger.Request(true), true);
+            const auto save = ledger.Request(false);
+            ledger.Settle(save, true);
+            Expect(ledger.on, "failed save: the frame's result (still on) is the flag");
+            Layout::ModeLedger refused;
+            refused.Settle(refused.Request(true), false);
+            Expect(!refused.on, "refused entry: the frame's result (off) is the flag");
+        }
+        {
+            // K on/off/on: three requests, only the last settles
+            Layout::ModeLedger ledger;
+            const auto a = ledger.Request(true);
+            const auto b = ledger.Request(false);
+            const auto c = ledger.Request(true);
+            ledger.Settle(a, true);
+            ledger.Settle(b, false);
+            Expect(ledger.on, "K on/off/on: the older results change nothing");
+            ledger.Settle(c, false);  // e.g. the chrome was missing
+            Expect(!ledger.on && c > b && b > a, "K on/off/on: the newest result is the flag; the numbers grow");
+        }
     }
 }
 
@@ -861,6 +931,27 @@ namespace
         Expect(Layout::AddBlocks(withAddons, addons) == withAddons, "AddBlocks twice: unchanged (each once)");
         Expect(Layout::AddBlocks(def, addons, 5) == def, "AddBlocks to a column out of range: unchanged");
 
+        // final review (RF3 test path): [Debug] bDebugFillerBlock's block joins the left column after the spell card, the others the
+        // right column; a saved layout without it gets it there too (Repair follows the default)
+        const State withFiller = Layout::AddAddons(def, { "A.one", Layout::kDebugFillerId, "B.two" });
+        Expect(withFiller.columns[0] == std::vector<BlockId>{ Layout::kPreview, Layout::kProgress, Layout::kSpellCard, Layout::kDebugFillerId } &&
+                   withFiller.columns[1] == std::vector<BlockId>{ Layout::kTree, Layout::kNodeCard, "A.one", "B.two" },
+            Text("AddAddons: the filler after the spell card (%s), the rest in the right column (%s)", Show(withFiller.columns[0]).c_str(),
+                Show(withFiller.columns[1]).c_str()));
+        Expect(Layout::AddAddons(def, addons) == withAddons, "AddAddons without the filler: as AddBlocks to the right column");
+        std::set<BlockId> knownFiller = kKnown;
+        knownFiller.insert(Layout::kDebugFillerId);
+        const State repairedFiller = Layout::Repair(def, knownFiller, Layout::AddAddons(def, { Layout::kDebugFillerId }));
+        Expect(repairedFiller.columns[0].back() == Layout::kDebugFillerId && std::ranges::count(repairedFiller.columns[1], Layout::kDebugFillerId) == 0,
+            "Repair: a saved layout without the filler gets it at the left column's end");
+        auto fillerHeights = kHeights;
+        fillerHeights[Layout::kDebugFillerId] = 300;
+        const State fillerOnly = Layout::AddAddons(def, { Layout::kDebugFillerId });
+        const auto fillerRects = Layout::Arrange(fillerOnly, fillerHeights, {}, {}, kFrames);
+        const auto fillerContent = Layout::ContentHeight(fillerOnly, fillerRects, kFrames);
+        Expect(fillerContent[0] > kFrames[0].Height() && fillerRects.contains(Layout::kDebugFillerId),
+            Text("the filler makes the preview's column overflow (content %.1f > visible %.1f): it scrolls", fillerContent[0], kFrames[0].Height()));
+
         // the saved file has B.two at the top of the left column: it keeps that place, A.one (no place) goes to the right column's end
         State saved = def;
         saved.columns[0].insert(saved.columns[0].begin(), "B.two");
@@ -917,6 +1008,7 @@ int main()
     MoveKeepsEveryBlock();
     CancelRestoresEntry();
     FileSafety();
+    ModeOrdering();
     SlotLineAndScrollToShow();
     PadFocus();
     AddonRegistry();

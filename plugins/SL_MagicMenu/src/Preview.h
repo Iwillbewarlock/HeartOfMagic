@@ -36,8 +36,9 @@
 // (FrameInfo::columnClip); a frame not fitted (zooming, not placed yet) is
 // scissored to the column's viewport, so the column clips whatever the fit;
 // when none of the box shows, Render() and the alpha save are skipped and the
-// game's own pass stays hidden ("SelfTest: L2 preview clip" PASS when the
-// scissor lies inside the column's pixels). With bClipPreview=0 nothing is
+// game's own pass stays hidden ("SelfTest: L2 preview clip", judged on frames
+// the column cuts: PASS when the scissor differs from the box's own pixels, lies
+// inside the column's and the column clip matches the mask read back). With bClipPreview=0 nothing is
 // clipped, as before.
 // Nothing is changed while Inventory Reforged is active in this menu, with
 // bMovePreview=0 (place/fit, hide and clip), or on Skyrim VR; while the
@@ -56,6 +57,9 @@ namespace Preview
         // scissor and the alpha save/restore take box cut to it (Layout::VisibleBox), and nothing is drawn when none of the box
         // shows. nullopt: no column (the scissor is the box, as before)
         std::optional<Settings::Rect> columnClip;
+        // with bSelfTest: the preview column's mask as Scaleform reads it back (getBounds in _root, stage), for SelfTest L2 preview
+        // clip to compare with columnClip each frame (the border can move it); nullopt: not read
+        std::optional<Settings::Rect> columnMask;
         RE::GRectF viewport;     // the movie's viewport (GViewport left/top/width/height) in pixels of its buffer
         RE::GRectF boxScreen;    // the box's corners through GFxMovieView::TranslateToScreen (screen pixels)
         std::int32_t bufferW{}, bufferH{};  // the viewport's buffer (GViewport bufferWidth/Height): what its pixels are of

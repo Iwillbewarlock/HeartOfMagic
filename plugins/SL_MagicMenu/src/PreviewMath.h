@@ -360,20 +360,51 @@ namespace PreviewMath
     struct PixelBox
     {
         std::int32_t x1{}, y1{}, x2{}, y2{};
+
+        bool operator==(const PixelBox&) const = default;
+
+        /// a_inner lies wholly inside this box
+        [[nodiscard]] constexpr bool Holds(const PixelBox& a_inner) const
+        {
+            return a_inner.x1 >= x1 && a_inner.y1 >= y1 && a_inner.x2 <= x2 && a_inner.y2 <= y2;
+        }
     };
 
-    /// What an over-pass does with the scissor ScissorBox gave (blocks plan Task 3, review fix 1)
+    /// What an over-pass does with the scissor ScissorBox gave (blocks plan Task 3, review fix 1; final review)
     enum class ClipPlan
     {
-        kScissor,       // pixels: Render() scissored to them
-        kNothingShows,  // none, with a column clip: the box is cut by its column to under one pixel - no Render(), no alpha save
-        kUnclipped      // none, without a column clip: build 13's fallback (drawn unclipped, the whole target's alpha restored)
+        kScissor,       // the scissor rect has pixels: Render() scissored to them
+        kNothingShows,  // the box alone has pixels, cut to its column none (under one pixel left): no Render(), no alpha save
+        kUnclipped      // the box alone has none either (a buffer or target size of 0, a sub-pixel box): build 13's fallback
+                        // (drawn unclipped, the whole target's alpha restored)
     };
 
-    inline ClipPlan PlanClip(const std::optional<PixelBox>& a_box, bool a_columnClip)
+    /// a_scissor: ScissorBox of the rect the over-pass scissors to (the box cut to its column, or the column's viewport);
+    /// a_alone: ScissorBox of the box alone, by the same mapping. Only a box with pixels of its own that its column cuts away
+    /// shows nothing; whatever else leaves no pixel (the preview always has a column clip, so this cannot key on that) draws
+    /// as build 13 did
+    inline ClipPlan PlanClip(const std::optional<PixelBox>& a_scissor, const std::optional<PixelBox>& a_alone)
     {
-        if (a_box) return ClipPlan::kScissor;
-        return a_columnClip ? ClipPlan::kNothingShows : ClipPlan::kUnclipped;
+        if (a_scissor) return ClipPlan::kScissor;
+        return a_alone ? ClipPlan::kNothingShows : ClipPlan::kUnclipped;
+    }
+
+    /// SelfTest L2 preview clip (final review: a real test): judged only on a frame whose column cuts the box in pixels (the
+    /// box alone does not lie inside the column's pixels); then the scissor must differ from the box alone and lie inside the
+    /// column's pixels. kNotCut frames are counted, never a PASS
+    enum class ColumnClipVerdict
+    {
+        kPass,
+        kFail,
+        kNotCut,
+    };
+
+    inline ColumnClipVerdict JudgeColumnClip(const PixelBox& a_scissor, const std::optional<PixelBox>& a_alone, const std::optional<PixelBox>& a_column)
+    {
+        if (a_alone && a_column && a_column->Holds(*a_alone)) return ColumnClipVerdict::kNotCut;
+        const bool differs = !a_alone || !(a_scissor == *a_alone);
+        const bool inside = a_column && a_column->Holds(a_scissor);
+        return differs && inside ? ColumnClipVerdict::kPass : ColumnClipVerdict::kFail;
     }
 
     /// The box (a_pixels, in pixels of the viewport's buffer) in pixels of the bound render target: scaled from the

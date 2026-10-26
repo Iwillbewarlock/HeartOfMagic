@@ -590,6 +590,13 @@ namespace Layout
         return a_state;
     }
 
+    State AddAddons(State a_default, const std::vector<BlockId>& a_ids)
+    {
+        std::vector<BlockId> right, left;
+        for (const auto& id : a_ids) (id == kDebugFillerId ? left : right).push_back(id);
+        return AddBlocks(AddBlocks(std::move(a_default), right, kColumnRight), left, kColumnLeft);
+    }
+
     SavePlan PlanSave(FileState a_state, bool a_badKept, bool a_fileExists)
     {
         SavePlan plan;
@@ -605,5 +612,21 @@ namespace Layout
     FileState AfterSave(FileState a_state, bool a_written)
     {
         return a_written ? FileState::kRead : a_state;
+    }
+
+    FailedPut AfterFailedPut(bool a_replace, bool a_fileThere, bool a_bakThere)
+    {
+        if (a_fileThere) return FailedPut::kFileThere;
+        return a_replace && a_bakThere ? FailedPut::kRestoreBak : FailedPut::kNoFile;
+    }
+
+    bool KeepTmp(FailedPut a_put, bool a_restored)
+    {
+        return a_put == FailedPut::kRestoreBak && !a_restored;
+    }
+
+    bool ReadBackup(FileState a_file, bool a_bakThere)
+    {
+        return a_file == FileState::kMissing && a_bakThere;
     }
 }
