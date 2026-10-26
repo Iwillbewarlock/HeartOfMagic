@@ -44,11 +44,11 @@ $data = Join-Path $addon 'data'
 $dll = Join-Path $repo 'build\plugins\BlackFlame\Release\HeartOfMagic_BlackFlame.dll'
 $builder = Join-Path $repo 'build\tools\Release\blackflame-greybuild.exe'
 
-# The build the user tested in game (2026-10-23, AE 1.6.1170): its commit and the sha256 of every binary and plugin shipped
-$buildCommit = '33c22cf08c9366f376394d437bcdcbd890161c1f'
+# The build the user tested in game (2026-10-26, AE 1.6.1170, disk trim 6e968385): its commit and the sha256 of every binary and plugin shipped
+$buildCommit = '6e96838530e351c54343f2124abe426632ffdc1c'
 $tested = @{
-    'dll'     = '75e23eb6c13d4bd0b896fa870ff765b921df363ee2703106cc433609437ea19e'
-    'builder' = '69040e2237edfa5baedf6ac87679380962fa89c8080a38aa872e57f506b73a9d'
+    'dll'     = 'e95fa1fccdfbfec2f23c94bf5300b1aa1b3d305aed3b8a893823010fb234799b'
+    'builder' = '00d23fe5f60e6b8774d49fadb123b62ffae35f553b35874f5bd45b15309f29f2'
     'slots'   = '368a2c5acff9d1cdef0c3b178da392ebd62047b88e1496f7efba37744b4b3972'
     'KO'      = '39972f63dd22f1e4d5dbb19e714efdde57c8933c394a9d80840a5b2795698595'
     'EN'      = 'f86fb13f098e5acc9576d8864fb2f4535fb9cd27a531ea0d0f74f9fc14ec6021'

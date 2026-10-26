@@ -30,7 +30,7 @@
 - Heart of Magic Librarian 1.5.0 이상 (1.6.0에서 테스트 완료). 이 모드는 Heart of Magic이 마법을 스캔할 때 만드는 마법 카탈로그를 읽습니다. 1.5.0부터는 처음 시작할 때 카탈로그를 자동으로 만듭니다.
 - Microsoft Visual C++ Redistributable 2015-2022 (x64). 보조 프로그램 실행에 필요합니다. 대부분의 스카이림 환경에는 이미 설치되어 있습니다.
 - 선택 사항: Immersive Equipment Displays (IED). IED가 있으면 IED가 등불을 허리에 걸어 주며, 없으면 등불 자체의 착용 모델을 씁니다. IED를 쓸 때는 위치를 바꿀 수 있습니다. `SKSE\Plugins\HeartOfMagic_BlackFlame.json` 파일에 `"lanternIedPreset": "frontLeft"`, `"frontRight"`, `"backLeft"`, `"backRight"` 중 하나를 추가하세요(기본값은 `frontLeft`이며, 변경 후에는 게임을 다시 시작하세요).
-- 디스크 공간: 생성되는 복사본과 작업 파일의 용량은 로드 오더에 따라 다릅니다. 제작자의 테스트 환경(모드 약 4,000개)에서는 총 2.6 GB 정도를 차지했습니다.
+- 디스크 공간: 생성되는 복사본과 작업 파일의 용량은 로드 오더에 따라 다릅니다. 제작자의 테스트 환경(모드 약 4,000개)에서는 총 1 GB 정도를 차지합니다.
 
 ## 설치
 

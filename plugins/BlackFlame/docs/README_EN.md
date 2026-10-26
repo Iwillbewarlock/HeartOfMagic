@@ -31,7 +31,7 @@ When the game starts, the add-on makes private grey copies of the fire visuals f
 - **Heart of Magic Librarian 1.5.0 or newer** (tested with 1.6.0). Black Flame reads the spell catalog Heart of Magic makes when it scans your spells. From 1.5.0 on, Heart of Magic makes it by itself on the first start.
 - **Microsoft Visual C++ Redistributable 2015-2022 (x64):** The helper program needs it. Most Skyrim setups already have it.
 - **Optional - Immersive Equipment Displays (IED):** If installed, IED hangs the lantern at your hip. Without IED, the lantern's own worn model is used. With IED you can also move it by adding `"lanternIedPreset": "frontLeft"`, `"frontRight"`, `"backLeft"` or `"backRight"` to `SKSE\Plugins\HeartOfMagic_BlackFlame.json` (default `frontLeft`; restart the game after a change).
-- **Disk space:** The generated copies and work files depend on your load order. On the author's test setup (about 4,000 mods) they took about 2.6 GB in total.
+- **Disk space:** The generated copies and work files depend on your load order. On the author's test setup (about 4,000 mods) they take about 1 GB in total.
 
 ## Installation
 
