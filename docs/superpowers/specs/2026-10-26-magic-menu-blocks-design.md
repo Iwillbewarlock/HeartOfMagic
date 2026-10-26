@@ -267,3 +267,24 @@ with RAII restore and the original's return value. Narrowed: the fade-out wheel 
 `bFadedIn == false`; in this menu that comes from `startMenuFade` (MagicMenu.as:221-227: Tab, BACK/Alt/"Quick Inventory",
 exitMenuRect - all behind inputs layer 1 consumes or the shield blocks) and from the game's `ToggleMenuFade` callback
 (ItemMenu.as:235-242; its native triggers are 확인 필요), and entry is refused while `!bFadedIn`, so it gets no separate guard. Not checked (outside the allowed sources): its SkyrimSoulsRE and skse64 links.
+
+## Focus model (Task 5)
+
+Built 2026-10-26 (report `.superpowers/sdd/2026-10-26-magic-menu-blocks/task-5-report.md`). The pure part is `Layout::Navigate`
+(Layout.h, tested in layout-check); the widget only carries out its effect.
+
+- A pick does not move the block on each key: the block stays in place with a lifted look, a target slot moves with the D-pad /
+  arrows and the insertion line shows it; A / Enter applies one `Layout::Move` (one redraw, as a mouse drop), B / Esc drops the
+  target and nothing moved. Up / Down step one slot in the target column; Left / Right go to the other column before its first
+  visible block whose centre is below the current insertion line. Focus moves: Up / Down to the visible neighbour (no wrap),
+  Left / Right to the other column's visible block nearest by centre y.
+- Only visible blocks (ApplyVisibility's rules: our card once shown, the progress card with a school) take the focus or a cover;
+  a focused block that stops being visible hands the focus to the nearest visible one in its column.
+- Keys are fixed raw codes (not the controlmap): arrows / D-pad, Enter / numpad Enter / A, Esc / "Cancel" user event (B, Tab),
+  `[` `]` / PageUp PageDown / LB RB (border, 10 units, ClampBorder). Down only, no hold repeat. The right stick's y scrolls the
+  focused block's column (14 units a frame at full tilt). The left stick is kept and unused.
+- Change from Task 4: B / Esc in the mode no longer flips the mode off inside the hook; it is queued in order with the other keys
+  (so an A then B in one frame cancels the pick, not the mode). The rest of that batch is kept (the mode is still on), the
+  frame handler leaves the mode. The toggle and another menu on top still switch synchronously.
+- Entered with the gamepad button, the first visible block has the focus at once; with K or the lock button the first arrow
+  gives it (a mouse user sees no outline).

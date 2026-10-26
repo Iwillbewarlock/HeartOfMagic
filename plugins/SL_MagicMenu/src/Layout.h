@@ -111,6 +111,89 @@ namespace Layout
     /// Unchanged when the block is not in the layout, before is the block itself, or the column is out of range.
     State Move(State a_state, const BlockId& a_block, const Slot& a_slot);
 
+    /// The insertion line's y for a_slot (unscrolled): half a gap above the block it goes before, else half a gap below the
+    /// column's lowest arranged block (a_dragged left out), else the column's top. A column out of range: frames[0].top.
+    double SlotLineY(const State& a_state, const Slot& a_slot, const BlockId& a_dragged, const std::map<BlockId, Settings::Rect>& a_arranged,
+        const std::array<Frame, kColumns>& a_frames);
+
+    /// The scroll that keeps a_top..a_bottom (unscrolled) in a column whose viewport starts at a_viewTop and is a_visible high:
+    /// unchanged when it is in view already (a non-finite scroll counts as 0); a span taller than the viewport shows its top; clamped
+    /// by ClampScroll.
+    double ScrollToShow(double a_scroll, double a_top, double a_bottom, double a_viewTop, double a_visible, double a_content);
+
+    // -------------------------------------------------------------------------
+    // The gamepad / keyboard focus model of the layout mode (blocks plan Task 5)
+    // -------------------------------------------------------------------------
+
+    /// LB / RB, [ / ] (PageUp / PageDown) move the column border by this (stage units), through ClampBorder
+    inline constexpr double kBorderStep = 10.0;
+
+    /// One key of the layout mode: D-pad / arrows, A / Enter, B / Esc, LB / RB
+    enum class Nav
+    {
+        kUp,
+        kDown,
+        kLeft,
+        kRight,
+        kAccept,       // pick the focused block up / drop the picked one
+        kCancel,       // drop the pick where it was / leave the mode (cancel)
+        kBorderLeft,   // the border kBorderStep to the left
+        kBorderRight,
+    };
+
+    /// The focused block, and while it is picked up the slot it would be dropped at (the block stays in its place until then:
+    /// the insertion line shows the target)
+    struct Focus
+    {
+        std::optional<BlockId> focus;
+        std::optional<Slot> target;  // set = the focused block is picked
+
+        [[nodiscard]] bool Picked() const { return focus.has_value() && target.has_value(); }
+        bool operator==(const Focus&) const = default;
+    };
+
+    enum class NavEffect
+    {
+        kIgnored,         // not in the mode: nothing changes
+        kNone,            // at an edge, nothing to focus or move: nothing changes
+        kFocused,         // the focus moved (or was given to the first block)
+        kPicked,          // the focused block picked up (target = its own place)
+        kTargeted,        // the picked block's target slot moved
+        kDropped,         // dropped: the layout changed (Move)
+        kDroppedInPlace,  // dropped at its own place: the layout is the same
+        kPickCancelled,   // B / Esc with a pick: nothing moved
+        kLeave,           // B / Esc with no pick: the caller leaves the mode as Cancel
+        kBorder,          // the border moved
+    };
+
+    struct NavResult
+    {
+        Focus focus;
+        State state;
+        NavEffect effect{};
+    };
+
+    /// The first visible block (column 0 top to bottom, then column 1); nullopt when nothing is visible.
+    std::optional<BlockId> FirstFocus(const State& a_state, const std::set<BlockId>& a_visible);
+
+    /// The block's own place as a slot: its column, before the next visible block below it (nullopt: none). nullopt when the
+    /// block is not in the layout.
+    std::optional<Slot> SlotOf(const State& a_state, const BlockId& a_block, const std::set<BlockId>& a_visible);
+
+    /// The focus made valid: an unknown block (not in the layout) clears it; a block no longer visible moves the focus to the
+    /// nearest visible one in its column (below first, then above), else clears it - and a pick ends then; a target column out
+    /// of range ends the pick; a target before a block that is not visible (or the picked one) aims at the column's end.
+    Focus Normalize(const State& a_state, const Focus& a_focus, const std::set<BlockId>& a_visible);
+
+    /// One key in the layout mode (a_modeOn false: kIgnored, nothing changes). The focus is normalized first; with no focus a
+    /// direction or A gives it to FirstFocus. Up / Down: the visible block above / below in its column (no wrap). Left / Right:
+    /// the visible block of the other column nearest by centre y (the upper on a tie). Picked: Up / Down move the target one
+    /// slot in its column, Left / Right to the other column before its first visible block whose centre is below the target
+    /// line (SlotLineY); A drops (Move; the own place is kDroppedInPlace, no Move), B cancels the pick. LB / RB: the border
+    /// (picked or not). a_arranged: this tab's unscrolled rects (Arrange). O(blocks) per key.
+    NavResult Navigate(const State& a_state, const Focus& a_focus, Nav a_nav, bool a_modeOn, const std::set<BlockId>& a_visible,
+        const std::map<BlockId, Settings::Rect>& a_arranged, const std::array<Frame, kColumns>& a_frames);
+
     /// The layout as JSON: {"version":1,"columns":[[...],[...]],"border":969}.
     std::string ToJson(const State& a_state);
 

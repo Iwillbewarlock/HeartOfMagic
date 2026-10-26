@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <iterator>
 #include <limits>
 #include <utility>
 
@@ -201,6 +202,278 @@ namespace Layout
         const auto at = a_slot.before ? std::ranges::find(target, *a_slot.before) : target.end();
         target.insert(at, a_block);
         return a_state;
+    }
+
+    double SlotLineY(const State& a_state, const Slot& a_slot, const BlockId& a_dragged, const std::map<BlockId, Settings::Rect>& a_arranged,
+        const std::array<Frame, kColumns>& a_frames)
+    {
+        if (!ValidColumn(a_slot.column)) {
+            return a_frames[kColumnLeft].top;
+        }
+        const Frame& frame = a_frames[a_slot.column];
+        if (a_slot.before) {
+            if (const auto it = a_arranged.find(*a_slot.before); it != a_arranged.end()) {
+                return it->second.top - frame.gap / 2;
+            }
+        }
+        double y = frame.top;
+        for (const auto& id : a_state.columns[a_slot.column]) {
+            if (id == a_dragged) {
+                continue;
+            }
+            if (const auto it = a_arranged.find(id); it != a_arranged.end()) {
+                y = std::max(y, it->second.bottom + frame.gap / 2);
+            }
+        }
+        return y;
+    }
+
+    double ScrollToShow(double a_scroll, double a_top, double a_bottom, double a_viewTop, double a_visible, double a_content)
+    {
+        double scroll = std::isfinite(a_scroll) ? a_scroll : 0.0;
+        if (a_bottom - a_top >= a_visible || a_top < a_viewTop + a_scroll) {
+            scroll = a_top - a_viewTop;
+        } else if (a_bottom > a_viewTop + a_scroll + a_visible) {
+            scroll = a_bottom - a_viewTop - a_visible;
+        }
+        return ClampScroll(scroll, a_content, a_visible);
+    }
+
+    namespace
+    {
+        constexpr double kSameBorder = 1e-9;
+
+        std::optional<int> ColumnHolding(const State& a_state, const BlockId& a_id)
+        {
+            for (int column = 0; column < kColumns; ++column) {
+                if (std::ranges::find(a_state.columns[column], a_id) != a_state.columns[column].end()) {
+                    return column;
+                }
+            }
+            return std::nullopt;
+        }
+
+        /// The column's visible ids in order, a_skip left out
+        std::vector<BlockId> VisibleIn(const State& a_state, int a_column, const std::set<BlockId>& a_visible, const BlockId* a_skip = nullptr)
+        {
+            std::vector<BlockId> ids;
+            if (!ValidColumn(a_column)) {
+                return ids;
+            }
+            for (const auto& id : a_state.columns[a_column]) {
+                if (a_visible.contains(id) && (!a_skip || id != *a_skip)) {
+                    ids.push_back(id);
+                }
+            }
+            return ids;
+        }
+
+        std::size_t IndexOf(const std::vector<BlockId>& a_ids, const std::optional<BlockId>& a_id)
+        {
+            if (!a_id) {
+                return a_ids.size();
+            }
+            return static_cast<std::size_t>(std::ranges::find(a_ids, *a_id) - a_ids.begin());
+        }
+
+        /// The picked block's target one slot up / down in its column, or to the other column (true when it moved)
+        bool MoveTarget(Slot& a_slot, const BlockId& a_picked, Nav a_nav, const State& a_state, const std::set<BlockId>& a_visible,
+            const std::map<BlockId, Settings::Rect>& a_arranged, const std::array<Frame, kColumns>& a_frames)
+        {
+            if (a_nav == Nav::kUp || a_nav == Nav::kDown) {
+                const auto others = VisibleIn(a_state, a_slot.column, a_visible, &a_picked);
+                std::size_t index = IndexOf(others, a_slot.before);
+                if (a_nav == Nav::kUp && index > 0) {
+                    --index;
+                } else if (a_nav == Nav::kDown && index < others.size()) {
+                    ++index;
+                } else {
+                    return false;
+                }
+                a_slot.before = index < others.size() ? std::optional<BlockId>{ others[index] } : std::nullopt;
+                return true;
+            }
+            const int other = a_nav == Nav::kLeft ? kColumnLeft : kColumnRight;
+            if (a_slot.column == other) {
+                return false;
+            }
+            const double line = SlotLineY(a_state, a_slot, a_picked, a_arranged, a_frames);
+            Slot next{ other, std::nullopt };
+            for (const auto& id : VisibleIn(a_state, other, a_visible, &a_picked)) {
+                if (const auto it = a_arranged.find(id); it != a_arranged.end() && it->second.CenterY() > line) {
+                    next.before = id;
+                    break;
+                }
+            }
+            a_slot = next;
+            return true;
+        }
+
+        /// The focus to the visible block above / below in its column, or the nearest by centre y in the other column
+        std::optional<BlockId> MoveFocus(const BlockId& a_id, int a_column, Nav a_nav, const State& a_state, const std::set<BlockId>& a_visible,
+            const std::map<BlockId, Settings::Rect>& a_arranged)
+        {
+            if (a_nav == Nav::kUp || a_nav == Nav::kDown) {
+                const auto ids = VisibleIn(a_state, a_column, a_visible);
+                const std::size_t index = IndexOf(ids, a_id);
+                if (index >= ids.size()) {
+                    return std::nullopt;
+                }
+                if (a_nav == Nav::kUp) {
+                    return index > 0 ? std::optional<BlockId>{ ids[index - 1] } : std::nullopt;
+                }
+                return index + 1 < ids.size() ? std::optional<BlockId>{ ids[index + 1] } : std::nullopt;
+            }
+            const int other = a_nav == Nav::kLeft ? kColumnLeft : kColumnRight;
+            if (a_column == other) {
+                return std::nullopt;
+            }
+            const auto from = a_arranged.find(a_id);
+            std::optional<BlockId> best;
+            double bestDistance = std::numeric_limits<double>::infinity();
+            for (const auto& id : VisibleIn(a_state, other, a_visible)) {
+                const auto it = a_arranged.find(id);
+                if (it == a_arranged.end()) {
+                    continue;
+                }
+                // a focused block with no rect (not arranged on this tab): the other column's top visible block
+                const double distance = from == a_arranged.end() ? 0.0 : std::abs(it->second.CenterY() - from->second.CenterY());
+                if (distance < bestDistance) {
+                    best = id;
+                    bestDistance = distance;
+                }
+            }
+            return best;
+        }
+    }
+
+    std::optional<BlockId> FirstFocus(const State& a_state, const std::set<BlockId>& a_visible)
+    {
+        for (int column = 0; column < kColumns; ++column) {
+            if (const auto ids = VisibleIn(a_state, column, a_visible); !ids.empty()) {
+                return ids.front();
+            }
+        }
+        return std::nullopt;
+    }
+
+    std::optional<Slot> SlotOf(const State& a_state, const BlockId& a_block, const std::set<BlockId>& a_visible)
+    {
+        const auto column = ColumnHolding(a_state, a_block);
+        if (!column) {
+            return std::nullopt;
+        }
+        const auto& ids = a_state.columns[*column];
+        Slot slot{ *column, std::nullopt };
+        for (auto it = std::ranges::find(ids, a_block) + 1; it != ids.end(); ++it) {
+            if (a_visible.contains(*it) && *it != a_block) {
+                slot.before = *it;
+                break;
+            }
+        }
+        return slot;
+    }
+
+    Focus Normalize(const State& a_state, const Focus& a_focus, const std::set<BlockId>& a_visible)
+    {
+        Focus out = a_focus;
+        if (!out.focus) {
+            out.target.reset();
+            return out;
+        }
+        const auto column = ColumnHolding(a_state, *out.focus);
+        if (!column) {
+            return {};
+        }
+        if (!a_visible.contains(*out.focus)) {
+            const auto& ids = a_state.columns[*column];
+            const auto at = static_cast<std::ptrdiff_t>(std::ranges::find(ids, *out.focus) - ids.begin());
+            std::optional<BlockId> nearest;
+            for (auto i = at + 1; !nearest && i < std::ssize(ids); ++i) {
+                if (a_visible.contains(ids[static_cast<std::size_t>(i)])) {
+                    nearest = ids[static_cast<std::size_t>(i)];
+                }
+            }
+            for (auto i = at - 1; !nearest && i >= 0; --i) {
+                if (a_visible.contains(ids[static_cast<std::size_t>(i)])) {
+                    nearest = ids[static_cast<std::size_t>(i)];
+                }
+            }
+            return { nearest, std::nullopt };
+        }
+        if (out.target) {
+            if (!ValidColumn(out.target->column)) {
+                out.target.reset();
+            } else if (const auto& before = out.target->before;
+                       before && (*before == *out.focus || !a_visible.contains(*before) || ColumnHolding(a_state, *before) != out.target->column)) {
+                out.target->before.reset();
+            }
+        }
+        return out;
+    }
+
+    NavResult Navigate(const State& a_state, const Focus& a_focus, Nav a_nav, bool a_modeOn, const std::set<BlockId>& a_visible,
+        const std::map<BlockId, Settings::Rect>& a_arranged, const std::array<Frame, kColumns>& a_frames)
+    {
+        NavResult result{ a_focus, a_state, NavEffect::kIgnored };
+        if (!a_modeOn) {
+            return result;
+        }
+        result.effect = NavEffect::kNone;
+        Focus& focus = result.focus;
+        focus = Normalize(a_state, a_focus, a_visible);
+        if (a_nav == Nav::kBorderLeft || a_nav == Nav::kBorderRight) {
+            const double now = ClampBorder(a_state.border, a_frames[kColumnLeft], a_frames[kColumnRight]);
+            const double next = ClampBorder(now + (a_nav == Nav::kBorderLeft ? -kBorderStep : kBorderStep), a_frames[kColumnLeft], a_frames[kColumnRight]);
+            if (std::abs(next - now) > kSameBorder) {
+                result.state.border = next;
+                result.effect = NavEffect::kBorder;
+            }
+            return result;
+        }
+        if (a_nav == Nav::kCancel) {
+            result.effect = focus.Picked() ? NavEffect::kPickCancelled : NavEffect::kLeave;
+            focus.target.reset();
+            return result;
+        }
+        if (!focus.focus) {
+            focus.focus = FirstFocus(a_state, a_visible);
+            if (focus.focus) {
+                result.effect = NavEffect::kFocused;
+            }
+            return result;
+        }
+        const BlockId id = *focus.focus;
+        const int column = ColumnHolding(a_state, id).value_or(kColumnLeft);  // Normalize kept it in the layout
+        if (a_nav == Nav::kAccept) {
+            if (!focus.target) {
+                focus.target = SlotOf(a_state, id, a_visible);
+                if (focus.target) {
+                    result.effect = NavEffect::kPicked;
+                }
+                return result;
+            }
+            const Slot slot = *focus.target;
+            focus.target.reset();
+            if (slot == SlotOf(a_state, id, a_visible)) {
+                result.effect = NavEffect::kDroppedInPlace;
+                return result;
+            }
+            result.state = Move(a_state, id, slot);
+            result.effect = result.state == a_state ? NavEffect::kDroppedInPlace : NavEffect::kDropped;
+            return result;
+        }
+        if (focus.target) {
+            if (MoveTarget(*focus.target, id, a_nav, a_state, a_visible, a_arranged, a_frames)) {
+                result.effect = NavEffect::kTargeted;
+            }
+            return result;
+        }
+        if (const auto next = MoveFocus(id, column, a_nav, a_state, a_visible, a_arranged)) {
+            focus.focus = next;
+            result.effect = NavEffect::kFocused;
+        }
+        return result;
     }
 
     std::string ToJson(const State& a_state)

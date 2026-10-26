@@ -3,7 +3,8 @@
 // the default layout against the ini rects, the column border and its limits, hidden and fill
 // blocks per tab (plan D6), the drop slot and the move with hidden / absent ids (plan D3),
 // scroll clamping, the column areas and the preview box cut to its column (Task 3), the layout JSON (version, repair of a bad file),
-// and the layout mode's pure parts (Task 4): moves keep every block once, cancel restores the entry State, the file safety plan.
+// and the layout mode's pure parts (Task 4): moves keep every block once, cancel restores the entry State, the file safety plan;
+// the gamepad / keyboard focus model (Task 5): focus, pick, move, drop, cancel, border, the insertion line and keep-in-view scroll.
 //
 //   magic-menu-layout-check     one PASS/FAIL line per check, a total line
 //
@@ -494,6 +495,243 @@ namespace
         Expect(reread && *reread == entry, "the entry State's JSON reads back as itself (L3's offline twin)");
     }
 
+    std::string Show(const std::optional<BlockId>& a_id) { return a_id ? *a_id : std::string("none"); }
+
+    std::string Show(const std::optional<Slot>& a_slot)
+    {
+        return a_slot ? Text("{%d, %s}", a_slot->column, a_slot->before ? a_slot->before->c_str() : "end") : std::string("none");
+    }
+
+    void SlotLineAndScrollToShow()
+    {
+        std::printf("insertion line and keep-in-view scroll (Task 5)\n");
+        const State state = Layout::Default(kValues);
+        const auto rects = Layout::Arrange(state, kHeights, {}, {}, kFrames);
+        Expect(Near(Layout::SlotLineY(state, Slot{ 0, Layout::kProgress }, Layout::kPreview, rects, kFrames), 301.5),
+            "line before progress: its top 306 - gap / 2 = 301.5");
+        Expect(Near(Layout::SlotLineY(state, Slot{ 0, std::nullopt }, Layout::kPreview, rects, kFrames), 627.5),
+            "line at column 0's end: the spell card's bottom 623 + 4.5");
+        Expect(Near(Layout::SlotLineY(state, Slot{ 1, std::nullopt }, Layout::kNodeCard, rects, kFrames), 301.5),
+            "line at column 1's end with the node card picked: the tree's bottom 297 + 4.5");
+        State empty = state;
+        empty.columns[1].clear();
+        Expect(Near(Layout::SlotLineY(empty, Slot{ 1, std::nullopt }, Layout::kPreview, rects, kFrames), 67.0), "empty column: its top 67");
+        Expect(Near(Layout::SlotLineY(state, Slot{ 5, std::nullopt }, Layout::kPreview, rects, kFrames), 67.0), "column out of range: frame top");
+
+        // a column 556 visible from 67, 900 of content
+        constexpr double kTop = 67.0, kVisible = 556.0, kContent = 900.0;
+        Expect(Near(Layout::ScrollToShow(0, 100, 300, kTop, kVisible, kContent), 0), "in view: unchanged");
+        Expect(Near(Layout::ScrollToShow(0, 700, 900, kTop, kVisible, kContent), 900 - 67 - 556), "below: its bottom at the viewport's bottom");
+        Expect(Near(Layout::ScrollToShow(300, 100, 200, kTop, kVisible, kContent), 33), "above: its top at the viewport's top");
+        Expect(Near(Layout::ScrollToShow(0, 200, 800, kTop, kVisible, kContent), 133), "taller than the viewport: its top shown");
+        Expect(Near(Layout::ScrollToShow(0, 900, 1200, kTop, kVisible, kContent), 344), "past the content: clamped to content - visible");
+        Expect(Near(Layout::ScrollToShow(0, 700, 900, kTop, kVisible, 500), 0), "content fits: always 0");
+        Expect(Near(Layout::ScrollToShow(std::numeric_limits<double>::quiet_NaN(), 100, 200, kTop, kVisible, kContent), 0),
+            "a non-finite scroll counts as 0 (the span is in view then)");
+    }
+
+    /// One key on this layout with all blocks arranged (no tab hides any)
+    Layout::NavResult Key(const State& a_state, const Layout::Focus& a_focus, Layout::Nav a_nav, const std::set<BlockId>& a_visible, bool a_on = true)
+    {
+        const auto rects = Layout::Arrange(a_state, kHeights, {}, {}, kFrames);
+        return Layout::Navigate(a_state, a_focus, a_nav, a_on, a_visible, rects, kFrames);
+    }
+
+    void PadFocus()
+    {
+        std::printf("gamepad / keyboard focus model (Task 5)\n");
+        using Layout::Focus;
+        using Layout::Nav;
+        using Layout::NavEffect;
+        const State state = Layout::Default(kValues);
+        const std::set<BlockId>& all = kKnown;
+        const Focus none{};
+        const auto at = [](const BlockId& a_id) { return Focus{ a_id, std::nullopt }; };
+
+        // failure: not in the mode
+        for (const Nav nav : { Nav::kUp, Nav::kAccept, Nav::kCancel, Nav::kBorderRight }) {
+            const auto r = Key(state, at(Layout::kPreview), nav, all, false);
+            Expect(r.effect == NavEffect::kIgnored && r.focus == at(Layout::kPreview) && r.state == state,
+                Text("mode off, key %d: ignored, nothing changes", static_cast<int>(nav)));
+        }
+
+        // normal: the first key gives the focus, then up / down / left / right
+        auto r = Key(state, none, Nav::kDown, all);
+        Expect(r.effect == NavEffect::kFocused && r.focus.focus == Layout::kPreview, "no focus, Down: the first block (preview), got " + Show(r.focus.focus));
+        r = Key(state, none, Nav::kAccept, all);
+        Expect(r.effect == NavEffect::kFocused && !r.focus.Picked(), "no focus, A: focus only, no pick");
+        r = Key(state, at(Layout::kPreview), Nav::kDown, all);
+        Expect(r.focus.focus == Layout::kProgress, "preview Down -> progress, got " + Show(r.focus.focus));
+        r = Key(state, at(Layout::kProgress), Nav::kDown, all);
+        Expect(r.focus.focus == Layout::kSpellCard, "progress Down -> spellcard, got " + Show(r.focus.focus));
+        r = Key(state, at(Layout::kSpellCard), Nav::kDown, all);
+        Expect(r.effect == NavEffect::kNone && r.focus == at(Layout::kSpellCard), "boundary: spellcard Down at the column's end stays (no wrap)");
+        r = Key(state, at(Layout::kPreview), Nav::kUp, all);
+        Expect(r.effect == NavEffect::kNone && r.focus == at(Layout::kPreview), "boundary: preview Up at the column's top stays");
+        r = Key(state, at(Layout::kPreview), Nav::kRight, all);
+        Expect(r.focus.focus == Layout::kTree, "preview Right -> tree (same centre 182), got " + Show(r.focus.focus));
+        r = Key(state, at(Layout::kProgress), Nav::kRight, all);
+        Expect(r.focus.focus == Layout::kNodeCard, "progress (357) Right -> nodecard (464.5, nearer than tree 182), got " + Show(r.focus.focus));
+        r = Key(state, at(Layout::kNodeCard), Nav::kLeft, all);
+        Expect(r.focus.focus == Layout::kSpellCard, "nodecard (464.5) Left -> spellcard (520), got " + Show(r.focus.focus));
+        r = Key(state, at(Layout::kTree), Nav::kRight, all);
+        Expect(r.effect == NavEffect::kNone, "boundary: Right in the right column stays");
+        r = Key(state, at(Layout::kPreview), Nav::kLeft, all);
+        Expect(r.effect == NavEffect::kNone, "boundary: Left in the left column stays");
+
+        // hidden blocks (not visible: progress with no school, our card not shown yet)
+        std::set<BlockId> noProgress = all;
+        noProgress.erase(Layout::kProgress);
+        r = Key(state, at(Layout::kPreview), Nav::kDown, noProgress);
+        Expect(r.focus.focus == Layout::kSpellCard, "hidden progress skipped: preview Down -> spellcard, got " + Show(r.focus.focus));
+        Expect(Layout::Normalize(state, at(Layout::kProgress), noProgress) == at(Layout::kSpellCard), "a focused block gone: the next visible below it");
+        const std::set<BlockId> topOnly{ Layout::kPreview, Layout::kTree, Layout::kNodeCard };
+        Expect(Layout::Normalize(state, at(Layout::kSpellCard), topOnly) == at(Layout::kPreview), "nothing below: the nearest above it");
+        const std::set<BlockId> rightOnly{ Layout::kTree, Layout::kNodeCard };
+        Expect(Layout::Normalize(state, at(Layout::kProgress), rightOnly) == none, "nothing visible in its column: no focus");
+        r = Key(state, none, Nav::kDown, rightOnly);
+        Expect(r.focus.focus == Layout::kTree, "column 0 all hidden: the first focus is column 1's top, got " + Show(r.focus.focus));
+        r = Key(state, at(Layout::kTree), Nav::kLeft, rightOnly);
+        Expect(r.effect == NavEffect::kNone, "Left into a column with nothing visible: stays");
+        r = Key(state, none, Nav::kDown, {});
+        Expect(r.effect == NavEffect::kNone && r.focus == none, "nothing visible: no focus");
+
+        // failure: unknown block, an absent add-on id in the layout
+        Expect(Layout::Normalize(state, at("addon.none"), all) == none, "unknown block focused: cleared");
+        r = Key(state, at("addon.none"), Nav::kDown, all);
+        Expect(r.effect == NavEffect::kFocused && r.focus.focus == Layout::kPreview, "unknown block, Down: the first block, got " + Show(r.focus.focus));
+        State absent = state;
+        absent.columns[0] = { Layout::kPreview, "addon.gone", Layout::kProgress, Layout::kSpellCard };
+        Expect(Layout::Normalize(absent, at("addon.gone"), all) == at(Layout::kProgress), "an absent add-on's id focused: the next visible block");
+        r = Key(absent, at(Layout::kPreview), Nav::kDown, all);
+        Expect(r.focus.focus == Layout::kProgress, "absent id skipped: preview Down -> progress");
+
+        // pick, move in the column, drop
+        r = Key(state, at(Layout::kPreview), Nav::kAccept, all);
+        Expect(r.effect == NavEffect::kPicked && r.focus.Picked() && r.focus.target == Slot{ 0, Layout::kProgress },
+            "A picks preview: target its own place {0, progress}, got " + Show(r.focus.target));
+        const Focus picked = r.focus;
+        r = Key(state, picked, Nav::kAccept, all);
+        Expect(r.effect == NavEffect::kDroppedInPlace && r.state == state && r.focus == at(Layout::kPreview), "A again: dropped at its place, same layout");
+        r = Key(absent, Focus{ Layout::kPreview, Layout::SlotOf(absent, Layout::kPreview, all) }, Nav::kAccept, all);
+        Expect(r.effect == NavEffect::kDroppedInPlace && r.state == absent, "own place past an absent id: no Move, the saved array as it was");
+        r = Key(state, picked, Nav::kUp, all);
+        Expect(r.effect == NavEffect::kNone && r.focus == picked, "boundary: picked at the top, Up: no move");
+        r = Key(state, picked, Nav::kDown, all);
+        Expect(r.focus.target == Slot{ 0, Layout::kSpellCard }, "picked preview Down -> before spellcard, got " + Show(r.focus.target));
+        r = Key(state, r.focus, Nav::kDown, all);
+        Expect(r.focus.target == Slot{ 0, std::nullopt }, "Down again -> the column's end, got " + Show(r.focus.target));
+        const Focus atEnd = r.focus;
+        r = Key(state, atEnd, Nav::kDown, all);
+        Expect(r.effect == NavEffect::kNone, "boundary: target at the end, Down: no move");
+        r = Key(state, atEnd, Nav::kAccept, all);
+        Expect(r.effect == NavEffect::kDropped && r.state.columns[0] == std::vector<BlockId>{ Layout::kProgress, Layout::kSpellCard, Layout::kPreview } &&
+                   r.focus == at(Layout::kPreview),
+            "A drops it at the end: " + Show(r.state.columns[0]) + ", the focus stays on it");
+
+        // pick, across the columns
+        r = Key(state, picked, Nav::kRight, all);
+        Expect(r.focus.target == Slot{ 1, Layout::kNodeCard }, "picked preview Right: line 301.5 -> before nodecard (centre 464.5), got " + Show(r.focus.target));
+        const Focus acrossPick = r.focus;
+        const auto across = Key(state, acrossPick, Nav::kAccept, all);
+        Expect(across.effect == NavEffect::kDropped && across.state.columns[0] == std::vector<BlockId>{ Layout::kProgress, Layout::kSpellCard } &&
+                   across.state.columns[1] == std::vector<BlockId>{ Layout::kTree, Layout::kPreview, Layout::kNodeCard },
+            "dropped in column 1: " + Show(across.state.columns[0]) + " / " + Show(across.state.columns[1]));
+        r = Key(state, acrossPick, Nav::kRight, all);
+        Expect(r.effect == NavEffect::kNone, "boundary: target in the right column, Right: no move");
+        r = Key(state, acrossPick, Nav::kLeft, all);
+        Expect(r.focus.target == Slot{ 0, Layout::kProgress }, "Right then Left: back before progress, got " + Show(r.focus.target));
+
+        // cancel
+        r = Key(state, picked, Nav::kCancel, all);
+        Expect(r.effect == NavEffect::kPickCancelled && r.state == state && r.focus == at(Layout::kPreview), "B with a pick: the pick ends, nothing moved");
+        r = Key(state, acrossPick, Nav::kCancel, all);
+        Expect(r.effect == NavEffect::kPickCancelled && r.state == state, "B with a pick aimed at the other column: nothing moved");
+        r = Key(state, at(Layout::kPreview), Nav::kCancel, all);
+        Expect(r.effect == NavEffect::kLeave && r.state == state, "B with no pick: leave the mode (cancel)");
+        r = Key(state, none, Nav::kCancel, all);
+        Expect(r.effect == NavEffect::kLeave, "B with no focus: leave the mode");
+
+        // empty column and single-block column
+        State left = state;
+        left.columns[0] = { Layout::kPreview, Layout::kProgress, Layout::kSpellCard, Layout::kTree, Layout::kNodeCard };
+        left.columns[1].clear();
+        r = Key(left, at(Layout::kProgress), Nav::kRight, all);
+        Expect(r.effect == NavEffect::kNone, "empty column: Right has nothing to focus");
+        r = Key(left, Key(left, at(Layout::kProgress), Nav::kAccept, all).focus, Nav::kRight, all);
+        Expect(r.focus.target == Slot{ 1, std::nullopt }, "picked, Right into the empty column: its end, got " + Show(r.focus.target));
+        r = Key(left, r.focus, Nav::kAccept, all);
+        Expect(r.effect == NavEffect::kDropped && r.state.columns[1] == std::vector<BlockId>{ Layout::kProgress }, "dropped into the empty column");
+        State single = state;
+        single.columns[0] = { Layout::kPreview, Layout::kProgress, Layout::kSpellCard, Layout::kNodeCard };
+        single.columns[1] = { Layout::kTree };
+        r = Key(single, at(Layout::kTree), Nav::kDown, all);
+        Expect(r.effect == NavEffect::kNone, "single-block column: Down stays");
+        const Focus soloPick = Key(single, at(Layout::kTree), Nav::kAccept, all).focus;
+        Expect(soloPick.target == Slot{ 1, std::nullopt }, "single block picked: target its own place (the end)");
+        Expect(Key(single, soloPick, Nav::kUp, all).effect == NavEffect::kNone && Key(single, soloPick, Nav::kDown, all).effect == NavEffect::kNone,
+            "single block picked: Up / Down do not move the target");
+        r = Key(single, soloPick, Nav::kLeft, all);
+        Expect(r.focus.target == Slot{ 0, Layout::kPreview }, "single block (tree, line at the empty column's top 67) Left: before preview, got " + Show(r.focus.target));
+        r = Key(single, r.focus, Nav::kAccept, all);
+        Expect(r.effect == NavEffect::kDropped && r.state.columns[1].empty() && EachOnce(r.state, kKnown), "the single block moved out: its column empty, every block once");
+
+        // targets made valid
+        Expect(Layout::Normalize(state, Focus{ Layout::kPreview, Slot{ 0, Layout::kProgress } }, noProgress) == Focus{ Layout::kPreview, Slot{ 0, std::nullopt } },
+            "target before a hidden block: the column's end");
+        Expect(Layout::Normalize(state, Focus{ Layout::kPreview, Slot{ 3, std::nullopt } }, all) == at(Layout::kPreview), "target column out of range: the pick ends");
+        Expect(Layout::Normalize(state, Focus{ Layout::kProgress, Slot{ 0, std::nullopt } }, noProgress) == at(Layout::kSpellCard),
+            "the picked block hidden: the pick ends, the focus moves");
+
+        // the border
+        r = Key(state, picked, Nav::kBorderRight, all);
+        Expect(r.effect == NavEffect::kBorder && Near(r.state.border, 979) && r.focus == picked, "RB: border 969 -> 979, the pick kept");
+        r = Key(state, none, Nav::kBorderLeft, all);
+        Expect(r.effect == NavEffect::kBorder && Near(r.state.border, 959), "LB: border 969 -> 959");
+        State wide = state;
+        wide.border = 989;  // the highest: 1238 - 9 - 240
+        Expect(Key(wide, none, Nav::kBorderRight, all).effect == NavEffect::kNone, "boundary: border at its highest, RB: no change");
+        wide.border = 985;
+        r = Key(wide, none, Nav::kBorderRight, all);
+        Expect(Near(r.state.border, 989), Text("border 985, RB: clamped to 989 (got %.1f)", r.state.border));
+        wide.border = 2000;
+        Expect(Key(wide, none, Nav::kBorderRight, all).effect == NavEffect::kNone, "a saved border past the limit, RB: clamped, no change");
+        wide.border = 888;  // the lowest: 648 + 240
+        Expect(Key(wide, none, Nav::kBorderLeft, all).effect == NavEffect::kNone, "boundary: border at its lowest, LB: no change");
+
+        // a long chain of keys (fixed LCG, seed 20261027) with the visible set changing: every block once after each key, the
+        // focus always visible or none, a target always in range
+        std::uint32_t seed = 20261027u;
+        const auto next = [&](std::uint32_t a_range) {
+            seed = seed * 1664525u + 1013904223u;
+            return static_cast<std::uint32_t>((seed >> 8) % a_range);
+        };
+        const std::vector<std::set<BlockId>> visibles{ all, noProgress, topOnly, rightOnly, {} };
+        State chain = absent;
+        std::set<BlockId> absentAll = all;
+        absentAll.insert("addon.gone");
+        Focus focus{};
+        int bad = 0, drops = 0, borders = 0;
+        constexpr int kSteps = 2000;
+        constexpr std::uint32_t kKeys = 8, kChangeOneIn = 4;
+        for (int step = 0; step < kSteps; ++step) {
+            const auto& visible = visibles[next(kChangeOneIn) == 0 ? next(static_cast<std::uint32_t>(visibles.size())) : 0];
+            const auto result = Key(chain, focus, static_cast<Nav>(next(kKeys)), visible);
+            drops += result.effect == NavEffect::kDropped ? 1 : 0;
+            borders += result.effect == NavEffect::kBorder ? 1 : 0;
+            chain = result.state;
+            focus = result.focus;
+            const bool focusOk = !focus.focus || visible.contains(*focus.focus);
+            const bool targetOk = !focus.target || (focus.focus && focus.target->column >= 0 && focus.target->column < Layout::kColumns);
+            if (!EachOnce(chain, absentAll) || !focusOk || !targetOk) {
+                ++bad;
+            }
+        }
+        Expect(bad == 0 && drops > 0 && borders > 0, Text("%d random keys (%d drops, %d border moves): every block once, the focus visible, targets in range "
+                                                          "(%d bad)",
+                                                         kSteps, drops, borders, bad));
+    }
+
     void FileSafety()
     {
         std::printf("layout file safety (plan D10, Task 4)\n");
@@ -530,6 +768,8 @@ int main()
     MoveKeepsEveryBlock();
     CancelRestoresEntry();
     FileSafety();
+    SlotLineAndScrollToShow();
+    PadFocus();
     std::printf("layout-check: %d PASS, %d FAIL\n", g_pass, g_fail);
     return g_fail == 0 ? kExitOk : kExitFail;
 }

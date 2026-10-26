@@ -6,6 +6,7 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -27,6 +28,8 @@
 // close. Kept events are unlinked for the original call only; every link is put back before returning, so the other
 // sinks (PlayerControls, SKSE, the key sink below) see the whole list. With nothing kept the original gets the caller's
 // list untouched. The decisions are taken in order, so a toggle earlier in a batch changes how the rest of it is judged.
+// Task 5: in the mode the downs of the focus model's keys (NavOf) and the right stick's y are handed to the widget (queued, done
+// on the menu's next frame); the events themselves are kept as before.
 // =============================================================================
 
 namespace Input
@@ -91,6 +94,46 @@ namespace Input
             return events && a_button.QUserEvent() == events->cancel;
         }
 
+        // Task 5: the focus model's keys in the mode (down only; held repeats do nothing). Raw codes: the keyboard's DirectInput scan
+        // codes and the gamepad's XInput masks (BSWin32GamepadDevice.h), so a remapped controlmap does not move them. Esc and the
+        // menu's Cancel (B, Tab) are kCancel. None of them reaches SkyUI in the mode (all non-mouse events are kept)
+        std::optional<Layout::Nav> NavOf(const RE::ButtonEvent& a_button)
+        {
+            using Nav = Layout::Nav;
+            if (IsCancel(a_button)) return Nav::kCancel;
+            const auto code = a_button.GetIDCode();
+            if (a_button.GetDevice() == RE::INPUT_DEVICE::kKeyboard) {
+                using Key = RE::BSKeyboardDevice::Keys::Key;
+                switch (code) {
+                case Key::kUp: return Nav::kUp;
+                case Key::kDown: return Nav::kDown;
+                case Key::kLeft: return Nav::kLeft;
+                case Key::kRight: return Nav::kRight;
+                case Key::kEnter:
+                case Key::kKP_Enter: return Nav::kAccept;
+                case Key::kBracketLeft:
+                case Key::kPageUp: return Nav::kBorderLeft;
+                case Key::kBracketRight:
+                case Key::kPageDown: return Nav::kBorderRight;
+                default: return std::nullopt;
+                }
+            }
+            if (a_button.GetDevice() == RE::INPUT_DEVICE::kGamepad) {
+                using Pad = RE::BSWin32GamepadDevice::Keys::Key;
+                switch (code) {
+                case Pad::kUp: return Nav::kUp;
+                case Pad::kDown: return Nav::kDown;
+                case Pad::kLeft: return Nav::kLeft;
+                case Pad::kRight: return Nav::kRight;
+                case Pad::kA: return Nav::kAccept;
+                case Pad::kLeftShoulder: return Nav::kBorderLeft;
+                case Pad::kRightShoulder: return Nav::kBorderRight;
+                default: return std::nullopt;
+                }
+            }
+            return std::nullopt;
+        }
+
         enum class Take
         {
             kPass,
@@ -129,7 +172,7 @@ namespace Input
                 g_held.erase(key);
             }
             if (down && a_menuOpen && IsToggle(device, code)) {
-                if (Widget::ToggleLayoutMode(device == RE::INPUT_DEVICE::kKeyboard ? "the key" : "the gamepad button", HeldOther(key))) {
+                if (Widget::ToggleLayoutMode(device == RE::INPUT_DEVICE::kKeyboard ? "the key" : Widget::kGamepadToggleSource, HeldOther(key))) {
                     g_owned.insert(key);
                     return Take::kToggle;
                 }
@@ -137,7 +180,11 @@ namespace Input
             }
             if (!Widget::LayoutModeOn() || Exempt(a_button)) return Take::kPass;
             if (down) {
-                if (IsCancel(a_button)) Widget::CancelLayoutMode(device == RE::INPUT_DEVICE::kKeyboard ? "Esc" : "the gamepad's Cancel");
+                // Task 5: the focus model's keys go to the widget in order; B / Esc there drops a pick, or leaves the mode (Cancel)
+                if (const auto nav = NavOf(a_button)) {
+                    const bool keyboard = device == RE::INPUT_DEVICE::kKeyboard;
+                    Widget::LayoutKey(*nav, *nav == Layout::Nav::kCancel ? (keyboard ? "Esc" : "the gamepad's Cancel") : (keyboard ? "the keyboard" : "the gamepad"));
+                }
                 g_owned.insert(key);
                 ++g_downsOn;
             }
@@ -162,6 +209,7 @@ namespace Input
                 const bool neutral = stick->xValue == 0.0f && stick->yValue == 0.0f;
                 if (Widget::LayoutModeOn()) {
                     g_stickOwned[side] = !neutral;
+                    if (side == 1) Widget::LayoutStick(neutral ? 0.0f : stick->yValue);  // Task 5: the focused block's column scrolls
                     return Take::kMode;
                 }
                 if (g_stickOwned[side]) {

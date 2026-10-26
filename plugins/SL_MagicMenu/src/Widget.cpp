@@ -543,6 +543,12 @@ namespace Widget
             int wrapsLeft = kSelectionInstallFrames;
             bool restLogged = false;     // the safety-net rest is logged once per menu
             double showPanel = 1.0;      // SkyUI's InventoryLists.SHOW_PANEL (InventoryLists.as:34), read at the wraps' install
+            // blocks plan Task 5: the gamepad / keyboard focus model's side of the movie (the focus itself: g_layoutFocus)
+            std::set<Layout::BlockId> coverSet;              // the visible blocks the covers were made for
+            std::optional<std::pair<Layout::Slot, double>> padLine;  // the pick's insertion line as drawn: its slot, its column's scroll
+            int padKeys = 0, padIgnored = 0, padFocusMoves = 0, padPicks = 0, padDrops = 0, padInPlace = 0, padPickCancels = 0, padBorders = 0;
+            int padLogs = 0, padChecksFailed = 0, stickScrolls = 0;
+            bool stickNoFocusLogged = false;
         };
 
         // Reset on every menu open
@@ -3214,19 +3220,48 @@ namespace Widget
         // Which panels the current tab shows (design 3.7, spec v7 C2): the spell tabs everything (the progress card only with a
         // school); Powers/Shouts the preview and our card; Active Effects our card alone. Without our card (bOwnCard=0) Active
         // Effects shows nothing, as in build 6. Our card shows only while SkyUI's would (WatchOwnCard).
+        // What shows now (ApplyVisibility's rules): each block, and the column clips (any)
+        struct Showing
+        {
+            bool preview{}, tree{}, nodeCard{}, progress{}, card{}, any{};
+        };
+
+        Showing Visibility()
+        {
+            const bool own = OwnCard();
+            // Task 4: in the layout mode the blocks show with nothing chosen too (they are what is moved)
+            const bool chosen = g_menu.chosen || g_menu.layout.active;
+            Showing shown;
+            // D6: the tab's hidden blocks (TabHidden) are the ones Arrange closes up; the progress card also waits for a school
+            shown.preview = chosen && BlockShown(Layout::kPreview);
+            shown.tree = chosen && BlockShown(Layout::kTree);
+            shown.nodeCard = chosen && BlockShown(Layout::kNodeCard);
+            shown.progress = chosen && BlockShown(Layout::kProgress) && !g_session.school.empty();
+            shown.any = chosen && (shown.preview || own);
+            shown.card = own && g_menu.ownCardShown && chosen;
+            return shown;
+        }
+
+        // The blocks the player sees now (Task 4 review: the layout mode's covers and the Task 5 focus model take only these - an
+        // invisible block, such as our card before its first item or the progress card with no school, cannot be grabbed or focused)
+        std::set<BlockId> VisibleBlocks()
+        {
+            const auto shown = Visibility();
+            std::set<BlockId> ids;
+            if (!shown.any) return ids;  // the column clips are hidden
+            if (shown.preview) ids.insert(Layout::kPreview);
+            if (shown.tree) ids.insert(Layout::kTree);
+            if (shown.nodeCard) ids.insert(Layout::kNodeCard);
+            if (shown.progress) ids.insert(Layout::kProgress);
+            if (shown.card) ids.insert(Layout::kSpellCard);
+            return ids;
+        }
+
         void ApplyVisibility(RE::GFxValue& a_widget)
         {
             const bool own = OwnCard();
             const bool effects = g_menu.tab == Tab::kEffects;
-            // Task 4: in the layout mode the blocks show with nothing chosen too (they are what is moved)
-            const bool chosen = g_menu.chosen || g_menu.layout.active;
-            // D6: the tab's hidden blocks (TabHidden) are the ones Arrange closes up; the progress card also waits for a school
-            const bool preview = chosen && BlockShown(Layout::kPreview);
-            const bool tree = chosen && BlockShown(Layout::kTree);
-            const bool nodeCard = chosen && BlockShown(Layout::kNodeCard);
-            const bool progress = chosen && BlockShown(Layout::kProgress) && !g_session.school.empty();
-            const bool any = chosen && (preview || own);
-            const bool card = own && g_menu.ownCardShown && chosen;
+            const auto [preview, tree, nodeCard, progress, card, any] = Visibility();
             g_previewShown = preview;  // the over-pass draws the preview only while its box is shown
             // Task 4 (D5): the column clips are hidden, not mmx_root - the layout buttons below the left column stay up
             for (const char* column : kColumnClips) {
@@ -3914,6 +3949,7 @@ namespace Widget
         constexpr const char* kOverlayName = "layoutOverlay";  // the drag ghost, the insertion line, the border guide: on top
         constexpr const char* kCoverPrefix = "mmxCover_";      // a block's drag cover, in its column clip above the panels
         constexpr const char* kCoverBlock = "mmxBlock";        // a cover's block id
+        constexpr std::string_view kGamepadSource = Widget::kGamepadToggleSource;
         constexpr const char* kHandleInputName = "handleInput";  // ItemMenu.as:205 / MagicMenu.as:80
         constexpr const char* kSavedHandleInput = "mmxSavedHandleInput";
         constexpr const char* kAttemptEquipName = "AttemptEquip";  // MagicMenu.as:111
@@ -3925,6 +3961,11 @@ namespace Widget
         constexpr double kMinHandleW = 6.0;  // the border handle's hit strip at least this wide (fPanelGap may be 0)
         constexpr double kAutoScrollEdge = 28.0, kAutoScrollStep = 8.0;  // D8: within this of a column's top/bottom the column scrolls, per frame
         constexpr int kMaxDragLogs = 24;
+        // Task 5: the focus look (on the block's cover), the pick's keep-in-view margin around its insertion line, the right stick
+        constexpr double kFocusEdgeW = 2.0, kPickEdgeW = 3.0, kLiftShadow = 4.0, kLiftShadowAlpha = 45.0, kLiftFillAlpha = 12.0;
+        constexpr double kLineViewMargin = 24.0;  // stage units kept in view above and below the pick's insertion line
+        constexpr double kStickStep = 14.0;       // stage units per frame at full tilt (unverified feel: eyes-only)
+        constexpr int kMaxPadLogs = 40;
 
         std::atomic<bool> g_layoutMode{ false };            // the input boundary's view: kept from the accepted toggle to the leave
         std::atomic<std::uint64_t> g_menuGeneration{ 0 };   // bumped at every attach (D8: a drag session is of one menu)
@@ -3955,12 +3996,14 @@ namespace Widget
         {
             kEnter,
             kSave,
-            kCancel
+            kCancel,
+            kNav,  // Task 5: a key of the focus model
         };
         struct LayoutRequest
         {
             LayoutRequestKind kind;
             std::string why;
+            Layout::Nav nav{};
         };
         std::mutex g_layoutRequestLock;
         std::vector<LayoutRequest> g_layoutRequests;
@@ -3970,11 +4013,17 @@ namespace Widget
         std::mutex g_blockingLock;
         std::set<std::string> g_blockingMenus;
 
-        void QueueLayout(LayoutRequestKind a_kind, std::string a_why)
+        void QueueLayout(LayoutRequestKind a_kind, std::string a_why, Layout::Nav a_nav = {})
         {
             const std::scoped_lock lock(g_layoutRequestLock);
-            g_layoutRequests.push_back({ a_kind, std::move(a_why) });
+            g_layoutRequests.push_back({ a_kind, std::move(a_why), a_nav });
         }
+
+        // blocks plan Task 5: the focus model - the focused block and, while it is picked up, its target slot. The frame handler's
+        // (PadKey, PadFrame); reset at each attach, mode entry and leave
+        Layout::Focus g_layoutFocus;
+        // the right stick's y while the mode keeps it (the hook writes it, 0 = neutral; the frame handler scrolls by it)
+        std::atomic<float> g_layoutStickY{ 0.0f };
 
         std::string BlockText(std::uint32_t a_bits)
         {
@@ -4169,7 +4218,9 @@ namespace Widget
                 if (!a_params.thisPtr) return;
                 const RE::GFxValue* details = a_params.argCount > 0 && a_params.args[0].IsObject() ? &a_params.args[0] : nullptr;
                 auto& m = g_menu.layout;
-                if (g_layoutMode || m.active) {
+                // the live mode alone (Task 4 review): after the toggle's leave the hook passes keys while m.active waits for the frame
+                // handler; such a key is SkyUI's, not a leak
+                if (g_layoutMode) {
                     if (++m.inputLeaks == 1) {
                         logger::warn("Layout: input leak code {} value {} nav {} - reached SkyUI's handleInput in the layout mode, not called (later ones "
                                      "counted)",
@@ -4204,7 +4255,7 @@ namespace Widget
             void Call(Params& a_params) override
             {
                 if (!a_params.thisPtr) return;
-                if (g_layoutMode || g_menu.layout.active) {
+                if (g_layoutMode) {  // the live mode alone, as handleInput (an LT/RT the hook passed after the leave is an equip)
                     if (++g_menu.layout.equipKept == 1) logger::info("Layout: AttemptEquip in the layout mode - not called (later ones counted)");
                     return;
                 }
@@ -4317,16 +4368,35 @@ namespace Widget
             }
         }
 
-        // In the mode: a transparent cover over each shown block, above every panel of its column (made again after any panel is
-        // made again), carrying the drag. It also takes the tree's node clicks and roll-overs and the node card's button (off in
-        // the mode). Scrolls with its column clip
+        // Task 5: the focus outline and the picked block's lifted look, drawn on its cover (in the column clip: masked and scrolled
+        // with the block). Picked: a thicker accent edge, a light fill and a shadow band along the inner bottom and right edges
+        void DrawFocusLook(RE::GFxValue& a_cover, double a_w, double a_h, bool a_picked)
+        {
+            if (!a_picked) {
+                Draw::LineStyle(a_cover, kFocusEdgeW, kBlue);
+                Draw::Rect(a_cover, kFocusEdgeW / 2, kFocusEdgeW / 2, a_w - kFocusEdgeW, a_h - kFocusEdgeW, kPanelFill, 0.0);
+                return;
+            }
+            Draw::NoLine(a_cover);
+            Draw::Rect(a_cover, a_w - kLiftShadow, kLiftShadow, kLiftShadow, a_h - kLiftShadow, kPanelFill, kLiftShadowAlpha);
+            Draw::Rect(a_cover, kLiftShadow, a_h - kLiftShadow, a_w - 2 * kLiftShadow, kLiftShadow, kPanelFill, kLiftShadowAlpha);
+            Draw::LineStyle(a_cover, kPickEdgeW, kBlue);
+            Draw::Rect(a_cover, kPickEdgeW / 2, kPickEdgeW / 2, a_w - kPickEdgeW, a_h - kPickEdgeW, kWhite, kLiftFillAlpha);
+        }
+
+        // In the mode: a transparent cover over each visible block (VisibleBlocks: ApplyVisibility's rules), above every panel of its
+        // column (made again after any panel is made again), carrying the drag and the focus look (Task 5). It also takes the tree's
+        // node clicks and roll-overs and the node card's button (off in the mode). Scrolls with its column clip
         void SetCovers(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
             RemoveCovers(a_widget);
+            g_menu.layout.coverSet.clear();
             if (!g_menu.layout.active) return;
+            const auto visible = VisibleBlocks();
+            g_menu.layout.coverSet = visible;
             for (const BlockId id : kBlocks) {
                 const auto column = ColumnOf(id);
-                if (!column || !BlockShown(id)) continue;
+                if (!column || !visible.contains(id)) continue;
                 auto parent = Child(a_widget, kColumnClips[*column]);
                 if (!parent.IsDisplayObject()) continue;
                 const auto name = CoverName(id);
@@ -4338,6 +4408,7 @@ namespace Widget
                 cover.SetMember("_y", local.top);
                 Draw::NoLine(cover);
                 Draw::Rect(cover, 0, 0, rect.Width(), rect.Height(), kPanelFill, 0.0);
+                if (g_layoutFocus.focus == id) DrawFocusLook(cover, rect.Width(), rect.Height(), g_layoutFocus.Picked());
                 PutString(a_movie, cover, kCoverBlock, id);
                 SetHandler(a_movie, cover, "onPress", g_coverPress.get());
                 SetHandler(a_movie, cover, "onRelease", g_coverRelease.get());
@@ -4498,17 +4569,7 @@ namespace Widget
         // last shown block (the dragged one left out), else the column's top
         double SlotLineY(const Layout::Slot& a_slot, const BlockId& a_dragged)
         {
-            const auto frames = Layout::DefaultFrames(Settings::Get());
-            const auto& frame = frames[a_slot.column];
-            if (a_slot.before) {
-                if (const auto it = g_menu.blocks.find(*a_slot.before); it != g_menu.blocks.end()) return it->second.top - frame.gap / 2;
-            }
-            double y = frame.top;
-            for (const auto& id : CurrentLayout().columns[a_slot.column]) {
-                if (id == a_dragged) continue;
-                if (const auto it = g_menu.blocks.find(id); it != g_menu.blocks.end()) y = std::max(y, it->second.bottom + frame.gap / 2);
-            }
-            return y;
+            return Layout::SlotLineY(CurrentLayout(), a_slot, a_dragged, g_menu.blocks, Layout::DefaultFrames(Settings::Get()));
         }
 
         void DrawSlotLine(RE::GFxValue& a_widget, const Layout::Slot& a_slot, const BlockId& a_dragged)
@@ -4525,6 +4586,72 @@ namespace Widget
             Draw::LineTo(line, viewport.right, y);
         }
 
+        // --- Task 5: the gamepad / keyboard focus model (the pure part is Layout::Navigate) ---
+
+        const char* NavName(Layout::Nav a_nav)
+        {
+            switch (a_nav) {
+            case Layout::Nav::kUp: return "up";
+            case Layout::Nav::kDown: return "down";
+            case Layout::Nav::kLeft: return "left";
+            case Layout::Nav::kRight: return "right";
+            case Layout::Nav::kAccept: return "accept";
+            case Layout::Nav::kCancel: return "cancel";
+            case Layout::Nav::kBorderLeft: return "border left";
+            default: return "border right";
+            }
+        }
+
+        std::string FocusText(const Layout::Focus& a_focus)
+        {
+            if (!a_focus.focus) return "no focus";
+            if (!a_focus.target) return "focus " + *a_focus.focus;
+            return std::format("{} picked, target column {} {}", *a_focus.focus, a_focus.target->column,
+                a_focus.target->before ? "before " + *a_focus.target->before : std::string("at its end"));
+        }
+
+        void ClearPadLine(RE::GFxValue& a_widget)
+        {
+            if (std::exchange(g_menu.layout.padLine, std::nullopt)) ClearOverlay(a_widget, "line");
+        }
+
+        // A pick ended by something else (a mouse drag, the reset, the mode's leave): nothing moved
+        void EndPick(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const char* a_why)
+        {
+            if (!g_layoutFocus.Picked()) return;
+            logger::info("Layout: the pick of {} ended by {} - not moved", *g_layoutFocus.focus, a_why);
+            g_layoutFocus.target.reset();
+            ClearPadLine(a_widget);
+            if (g_menu.layout.active && !g_menu.layout.drag) SetCovers(a_movie, a_widget);
+        }
+
+        // The focused block - while it is picked, its insertion line (kLineViewMargin each way) - scrolled into its column's view
+        void KeepInView(RE::GFxValue& a_widget)
+        {
+            const auto& focus = g_layoutFocus;
+            if (!focus.focus) return;
+            int column = 0;
+            double top = 0.0, bottom = 0.0;
+            if (focus.target) {
+                column = focus.target->column;
+                const double y = Layout::SlotLineY(CurrentLayout(), *focus.target, *focus.focus, g_menu.blocks, Layout::DefaultFrames(Settings::Get()));
+                top = y - kLineViewMargin;
+                bottom = y + kLineViewMargin;
+            } else {
+                const auto it = g_menu.blocks.find(*focus.focus);
+                const auto at = ColumnOf(*focus.focus);
+                if (it == g_menu.blocks.end() || !at) return;
+                column = *at;
+                top = it->second.top;
+                bottom = it->second.bottom;
+            }
+            if (column < 0 || column >= Layout::kColumns) return;
+            const auto [content, visible] = ColumnHeights(column);
+            const double before = g_menu.scroll[column];
+            const double want = Layout::ScrollToShow(before, top, bottom, ColumnViewport(column).top, visible, content);
+            if (std::abs(want - before) > kRectTolerance) ScrollColumn(a_widget, column, want - before, false);
+        }
+
         void EndDrag(RE::GFxValue& a_widget)
         {
             auto& m = g_menu.layout;
@@ -4535,10 +4662,11 @@ namespace Widget
             m.drag.reset();
         }
 
-        void StartDrag(RE::GFxValue& a_widget, const BlockId& a_id, double a_x, double a_y)
+        void StartDrag(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const BlockId& a_id, double a_x, double a_y)
         {
             auto& m = g_menu.layout;
-            if (m.drag || m.borderGrab || !BlockShown(a_id)) return;
+            if (m.drag || m.borderGrab || !VisibleBlocks().contains(a_id)) return;
+            EndPick(a_movie, a_widget, "a mouse drag");  // Task 5: one move at a time
             const auto rect = BlockRect(a_id);
             // D8: the grab offset is where in the block the pointer took it - a block taller than its column's viewport too
             m.drag = LayoutDrag{ a_id, a_x - rect.left, a_y - rect.top, g_menuGeneration.load(), std::nullopt, 0.0 };
@@ -4680,10 +4808,17 @@ namespace Widget
             ++m.entered;
             g_menu.hovered = -1;  // the tooltip goes (RedrawTooltip)
             g_menu.tooltipDue = true;
+            // Task 5: entered with the gamepad, the first visible block has the focus at once (there is no pointer); otherwise the
+            // first arrow / D-pad press gives it, so a mouse user sees no outline
+            g_layoutFocus = {};
+            g_layoutStickY = 0.0f;
+            if (a_why == kGamepadSource) g_layoutFocus.focus = Layout::FirstFocus(m.working, VisibleBlocks());
             ShowShield(a_widget, true);
             PlaceLayoutChrome(a_movie, a_widget);
             ApplyVisibility(a_widget);
-            logger::info("Layout: mode ON by {} - the entry layout {}", a_why, Describe(m.entry));
+            KeepInView(a_widget);
+            logger::info("Layout: mode ON by {} - the entry layout {}{}", a_why, Describe(m.entry),
+                g_layoutFocus.focus ? "; " + FocusText(g_layoutFocus) : std::string{});
             FlushLog();
         }
 
@@ -4730,6 +4865,9 @@ namespace Widget
             } else {
                 if (!(m.working == m.entry)) ApplyLayout(a_movie, a_widget, m.entry);
             }
+            EndPick(a_movie, a_widget, "the mode's end");  // Task 5: a pick not dropped is not saved
+            g_layoutFocus = {};
+            g_layoutStickY = 0.0f;
             m.active = false;
             g_layoutMode = false;
             if (!a_save) {
@@ -4754,6 +4892,124 @@ namespace Widget
             FlushLog();
         }
 
+        // Task 5 SelfTest L6 after a pad drop: every block once in the layout, the dropped block at the slot it was aimed at, the
+        // focus still on it; then the panels read back (L1 places)
+        void CheckPadDrop(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const BlockId& a_id, const Layout::Slot& a_slot)
+        {
+            auto& m = g_menu.layout;
+            std::string bad;
+            for (const BlockId id : kBlocks) {
+                int count = 0;
+                for (const auto& column : m.working.columns) count += static_cast<int>(std::ranges::count(column, id));
+                if (count != 1) bad += std::format("; {} {} time(s) in the layout", id, count);
+            }
+            const auto at = Layout::SlotOf(m.working, a_id, VisibleBlocks());
+            if (!at || !(*at == a_slot)) bad += std::format("; {} is not at its target", a_id);
+            if (g_layoutFocus.focus != a_id) bad += "; the focus left it";
+            if (!bad.empty()) ++m.padChecksFailed;
+            SelfTest(std::format("L6 pad drop {} - {} in column {} {}: every block once, at its target, the focus on it{} ({})", bad.empty() ? "PASS" : "FAIL",
+                a_id, a_slot.column, a_slot.before ? "before " + *a_slot.before : std::string("at its end"), bad, Describe(m.working)));
+            RE::GFxValue root;
+            if (a_movie->GetVariable(&root, "_root")) CheckPanelPlaces(a_movie, root, a_widget);
+        }
+
+        // Task 5: one key of the focus model (D-pad / arrows, A / Enter, B / Esc, LB / RB), queued by the hook. Layout::Navigate
+        // decides; this does what it says to the movie
+        void PadKey(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, Layout::Nav a_nav, const std::string& a_source)
+        {
+            auto& m = g_menu.layout;
+            ++m.padKeys;
+            if (m.active && (m.drag || m.borderGrab) && a_nav != Layout::Nav::kCancel) {
+                ++m.padIgnored;  // one move at a time: the mouse drag goes on; B / Esc still leaves
+                return;
+            }
+            const auto frames = Layout::DefaultFrames(Settings::Get());
+            const auto visible = VisibleBlocks();
+            const auto before = Layout::Normalize(m.working, g_layoutFocus, visible);  // as Navigate sees it (a drop's slot)
+            const auto result = Layout::Navigate(m.working, g_layoutFocus, a_nav, m.active, visible, g_menu.blocks, frames);
+            using Effect = Layout::NavEffect;
+            if (result.effect == Effect::kIgnored) {
+                ++m.padIgnored;
+                return;
+            }
+            g_layoutFocus = result.focus;
+            const auto log = [&](const std::string& a_what) {
+                if (++m.padLogs <= kMaxPadLogs) {
+                    logger::info("Layout: {} ({}) - {}{}", NavName(a_nav), a_source, a_what, m.padLogs == kMaxPadLogs ? " - later keys counted only" : "");
+                }
+            };
+            switch (result.effect) {
+            case Effect::kLeave:
+                LeaveLayoutMode(a_movie, a_widget, false, a_source);
+                return;
+            case Effect::kNone: log("nothing to do (" + FocusText(g_layoutFocus) + ")"); return;
+            case Effect::kFocused: ++m.padFocusMoves; log(FocusText(g_layoutFocus)); break;
+            case Effect::kPicked: ++m.padPicks; log(FocusText(g_layoutFocus)); break;
+            case Effect::kTargeted: log(FocusText(g_layoutFocus)); break;
+            case Effect::kPickCancelled: ++m.padPickCancels; log(std::format("the pick of {} cancelled, nothing moved", *g_layoutFocus.focus)); break;
+            case Effect::kDroppedInPlace: ++m.padInPlace; log(std::format("{} dropped where it was", *g_layoutFocus.focus)); break;
+            case Effect::kDropped: {
+                const auto started = std::chrono::steady_clock::now();
+                ApplyLayout(a_movie, a_widget, result.state);
+                ++m.drops;
+                ++m.padDrops;
+                log(std::format("{} dropped in column {} {} - {} ({:.1f} ms)", *g_layoutFocus.focus, before.target->column,
+                    before.target->before ? "before " + *before.target->before : std::string("at its end"), Describe(m.working),
+                    std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count()));
+                CheckPadDrop(a_movie, a_widget, *g_layoutFocus.focus, *before.target);
+                break;
+            }
+            case Effect::kBorder: {
+                const double was = Layout::ClampBorder(m.working.border, frames[0], frames[1]);
+                ApplyLayout(a_movie, a_widget, result.state);
+                ++m.borderMoves;
+                ++m.padBorders;
+                log(std::format("border {:.1f} -> {:.1f} - the columns {:.0f} / {:.0f} wide", was, m.working.border, ColumnViewport(0).Width(),
+                    ColumnViewport(1).Width()));
+                break;
+            }
+            default: break;
+            }
+            KeepInView(a_widget);
+            ClearPadLine(a_widget);  // drawn again by PadFrame for the new target (or gone)
+            if (!(g_layoutFocus == before) || result.effect == Effect::kDropped || result.effect == Effect::kBorder) SetCovers(a_movie, a_widget);
+        }
+
+        // Task 5, each frame in the mode: the focus kept on a visible block (our card may come or go, the school may go), the covers
+        // made again when the visible blocks changed, the right stick's scroll of the focused block's column, the pick's insertion line
+        void PadFrame(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        {
+            auto& m = g_menu.layout;
+            const auto visible = VisibleBlocks();
+            const auto normal = Layout::Normalize(m.working, g_layoutFocus, visible);
+            const bool focusChanged = !(normal == g_layoutFocus);
+            if (focusChanged) {
+                if (++m.padLogs <= kMaxPadLogs) logger::info("Layout: {} - not visible any more; now {}", FocusText(g_layoutFocus), FocusText(normal));
+                g_layoutFocus = normal;
+            }
+            // not during a mouse drag: the pressed cover must stay (its release ends the drag); done after it
+            if ((focusChanged || visible != m.coverSet) && !m.drag) SetCovers(a_movie, a_widget);
+            if (const float y = g_layoutStickY; y != 0.0f && !m.drag) {
+                if (const auto column = g_layoutFocus.focus ? ColumnOf(*g_layoutFocus.focus) : std::nullopt) {
+                    // XInput y is positive up; up shows what is above (unverified sign: eyes-only)
+                    if (ScrollColumn(a_widget, *column, -static_cast<double>(y) * kStickStep, false) && ++m.stickScrolls == 1) {
+                        logger::info("Layout: the right stick scrolls column {} (the focused block's) - later scroll frames counted only", *column);
+                    }
+                } else if (!std::exchange(m.stickNoFocusLogged, true)) {
+                    logger::info("Layout: the right stick with no block focused - nothing scrolled (a D-pad press gives the focus)");
+                }
+            }
+            if (!g_layoutFocus.Picked() || m.drag) {
+                if (!m.drag) ClearPadLine(a_widget);
+                return;
+            }
+            const auto& slot = *g_layoutFocus.target;
+            const double scroll = g_menu.scroll[slot.column];
+            if (m.padLine && m.padLine->first == slot && std::abs(m.padLine->second - scroll) <= kRectTolerance) return;
+            m.padLine = std::pair{ slot, scroll };
+            DrawSlotLine(a_widget, slot, *g_layoutFocus.focus);
+        }
+
         // Each frame (Frame handler): the wraps, the published refusals, the queued requests, the buttons, the drags
         void LayoutFrame(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
@@ -4770,6 +5026,7 @@ namespace Widget
                 case LayoutRequestKind::kEnter: EnterLayoutMode(a_movie, a_widget, request.why); break;
                 case LayoutRequestKind::kSave: LeaveLayoutMode(a_movie, a_widget, true, request.why); break;
                 case LayoutRequestKind::kCancel: LeaveLayoutMode(a_movie, a_widget, false, request.why); break;
+                case LayoutRequestKind::kNav: PadKey(a_movie, a_widget, request.nav, request.why); break;
                 }
             }
             if (std::exchange(m.lockDue, false)) {
@@ -4786,18 +5043,20 @@ namespace Widget
                 const auto reset = Layout::Default(Settings::Get());
                 if (!(reset == m.working)) {
                     EndDrag(a_widget);
+                    EndPick(a_movie, a_widget, "the reset");
                     ApplyLayout(a_movie, a_widget, reset);
                     ++m.resets;
                     logger::info("Layout: reset to the default layout {} (saved when the mode is left with the lock)", Describe(reset));
                 }
             }
             if (!m.active) return;
-            if (auto press = std::exchange(m.pressDue, std::nullopt)) StartDrag(a_widget, std::get<0>(*press), std::get<1>(*press), std::get<2>(*press));
+            if (auto press = std::exchange(m.pressDue, std::nullopt)) StartDrag(a_movie, a_widget, std::get<0>(*press), std::get<1>(*press), std::get<2>(*press));
             if (std::exchange(m.borderPressDue, false) && !m.drag && !m.borderGrab) m.borderGrab = m.borderPressX - ColumnViewport(0).right;
             DragFrame(a_movie, a_widget);
             BorderFrame(a_movie, a_widget);
             if (std::exchange(m.releaseDue, false)) Drop(a_movie, a_widget);
             if (std::exchange(m.borderReleaseDue, false)) BorderDrop(a_movie, a_widget);
+            if (m.active) PadFrame(a_movie, a_widget);  // Task 5 (after the drop: the covers are made again first)
         }
 
         // At the menu's close (the close event; the movie is going, so nothing is drawn): a mode still on ends as Cancel
@@ -4847,6 +5106,16 @@ namespace Widget
             if (m.drops + m.borderMoves + m.resets > 0) {
                 logger::info("Layout: this menu {} drop(s), {} border move(s), {} reset(s)", m.drops, m.borderMoves, m.resets);
             }
+            // Task 5: the focus model's keys this menu (each pad drop has its own L6 pad drop line)
+            if (m.padKeys > 0) {
+                SelfTest(std::format("L6 pad keys {} - {} key(s) to the focus model: {} focus move(s), {} pick(s), {} drop(s) ({} where it was), {} pick(s) "
+                                     "cancelled, {} border step(s), {} ignored (the mode off or a mouse drag on); {} drop check(s) failed (want 0); the "
+                                     "right stick scrolled {} frame(s)",
+                    m.padChecksFailed == 0 ? "PASS" : "FAIL", m.padKeys, m.padFocusMoves, m.padPicks, m.padDrops, m.padInPlace, m.padPickCancels,
+                    m.padBorders, m.padIgnored, m.padChecksFailed, m.stickScrolls));
+            }
+            g_layoutFocus = {};
+            g_layoutStickY = 0.0f;
         }
 
         // ---------------------------------------------------------------------
@@ -6693,6 +6962,8 @@ namespace Widget
             // blocks plan Task 4: a new menu - no mode, no queued request, the input tests counted afresh; the wraps are not on yet
             ++g_menuGeneration;
             g_layoutMode = false;
+            g_layoutFocus = {};
+            g_layoutStickY = 0.0f;
             {
                 const std::scoped_lock lock(g_layoutRequestLock);
                 g_layoutRequests.clear();
@@ -6953,5 +7224,15 @@ namespace Widget
         if (!g_layoutMode.exchange(false)) return false;
         QueueLayout(LayoutRequestKind::kCancel, a_why);
         return true;
+    }
+
+    void LayoutKey(Layout::Nav a_nav, const char* a_source)
+    {
+        if (g_layoutMode) QueueLayout(LayoutRequestKind::kNav, a_source, a_nav);
+    }
+
+    void LayoutStick(float a_y)
+    {
+        g_layoutStickY = a_y;
     }
 }

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Layout.h"
+
 // =============================================================================
 // WIDGET - everything SL_MagicMenu draws into the magic menu: one clip
 // _root.mmx_root on the menu movie with the preview box, the spell-tree window,
@@ -39,8 +41,19 @@ namespace Widget
     /// the press was taken (the hook keeps it from the menu), false when refused (passed through untouched)
     bool ToggleLayoutMode(const char* a_source, bool a_heldOther);
 
-    /// Leaves the mode without saving (Esc / B, another menu on top). True when the mode was on
+    /// Leaves the mode without saving (another menu on top). True when the mode was on
     bool CancelLayoutMode(const char* a_why);
+
+    /// The ToggleLayoutMode source the gamepad button passes (entered with it, the first block has the focus at once)
+    inline constexpr const char* kGamepadToggleSource = "the gamepad button";
+
+    /// Blocks plan Task 5: a key of the layout mode's focus model (D-pad / arrows, A / Enter, B / Esc, LB / RB, [ / ] or PageUp /
+    /// PageDown), queued for the menu's next frame in order with the toggle's requests (B / Esc there: drop the pick, or with no
+    /// pick leave the mode as Cancel). Nothing while the mode is off
+    void LayoutKey(Layout::Nav a_nav, const char* a_source);
+
+    /// The right stick's y while the mode keeps it (0 = neutral): the focused block's column scrolls by it each frame
+    void LayoutStick(float a_y);
 }
 
 namespace Input
