@@ -17,6 +17,7 @@
 #include "SpellLearningAPI.h"
 #include "ThreadUtils.h"
 #include "environment/EnvironmentSelfTest.h"
+#include "AutoScan.h"
 #include "environment/EnvironmentTwins.h"
 #include "librarian/PerkAdapterPatch.h"
 #include "librarian/SpellResearchPatch.h"
@@ -315,6 +316,10 @@ void OnDataLoaded()
     // thread, ready for the scan (docs/ARCHITECTURE.md, "Tomes nothing hands out")
     TomeReach::StartAfterDataLoaded();
 
+    // A load order that changed since the catalog was made is scanned at the
+    // main menu, in steps, the tree left alone (AutoScan.h)
+    AutoScan::Install();
+
     // One spell from two plugins: the groups a copy's tome reads by, worked out
     // on the game thread once that pass is done, never on a cast's tome check
     // (SpellScannerDuplicates.cpp). The wait is on a thread of its own.
@@ -331,6 +336,7 @@ void OnDataLoaded()
 
 void OnNewGame()
 {
+    AutoScan::OnGameChanging();
     logger::info("New game started - progression will be cleared");
     Librarian::SpellResearchPatch::OnNewGame();
     Librarian::PerkAdapters::Reassert("new game");
@@ -424,6 +430,9 @@ void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
             break;
         case SKSE::MessagingInterface::kNewGame:
             OnNewGame();
+            break;
+        case SKSE::MessagingInterface::kPreLoadGame:
+            AutoScan::OnGameChanging();   // form reads of the scan at game start in progress are dropped
             break;
         case SKSE::MessagingInterface::kPostLoadGame:
             OnPostLoadGame();

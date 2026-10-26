@@ -33,6 +33,9 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     VERSION ${PROJECT_VERSION}
     SOURCES
     src/Main.cpp
+    src/AutoScan.cpp
+    src/LoadOrderFingerprint.cpp
+    src/ScanRecord.cpp
     src/RisaMenu.cpp
     src/uimanager/UIManagerCore.cpp
     src/uimanager/UIManagerNotify.cpp

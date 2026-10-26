@@ -1,6 +1,8 @@
 #include "Common.h"
 #include "JsonText.h"
 #include "EncodingUtils.h"
+#include "LoadOrderFingerprint.h"
+#include "ScanRecord.h"
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
 #include "SpellScanner.h"
@@ -171,6 +173,8 @@ void UIManager::CollectScan(const std::string& argStr, std::shared_ptr<ScanTicke
         }
 
         UpdateStatus(tomeScan ? "Scanning spell tomes..." : "Scanning all spells...");
+        // Worked out here, on the game thread, for the worker's scan record (ScanRecord.h)
+        LoadOrderFingerprint::Current();
         const auto collectStarted = std::chrono::steady_clock::now();
         auto output = std::make_shared<json>(
             tomeScan ? SpellScanner::CollectSpellTomes(scanConfig) : SpellScanner::CollectAllSpells(scanConfig));
@@ -233,7 +237,11 @@ std::string UIManager::PrepareScanText(json&& output, bool tomeScan)
     // Same call the Papyrus path makes, so the Scan button and the Papyrus
     // RunScan leave the same catalog behind. It logs its own failures and leaves
     // the result as it was rather than interrupting the scan.
-    Librarian::ClassifyScan(result);
+    // The scan record follows the catalog file: a full scan's load order, or none
+    // after a tome scan wrote it (ScanRecord.h; the fingerprint was worked out in CollectScan)
+    Librarian::ClassifyScan(result, true, [tomeScan]() {
+        ScanRecord::CatalogWritten(tomeScan ? nullptr : LoadOrderFingerprint::Known());
+    });
 
     // Debug installs keep the full scan for offline analysis, as Papyrus RunScan does
     if (!tomeScan && SpellScanner::DebugScanDumpEnabled()) SpellScanner::WriteScanOutput(result);
@@ -296,6 +304,19 @@ void UIManager::StoreAndSendFullScan(std::string result)
     } catch (...) {
         logger::error("UIManager: could not tell the panel the scan id");
     }
+}
+
+bool UIManager::TryBeginOtherScan()
+{
+    std::lock_guard lock(m_scanMutex);
+    if (m_scanRunning) return false;
+    m_scanRunning = true;
+    return true;
+}
+
+void UIManager::EndOtherScan() noexcept
+{
+    EndScan();
 }
 
 void UIManager::EndScan() noexcept

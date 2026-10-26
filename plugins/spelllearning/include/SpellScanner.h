@@ -4,6 +4,9 @@
 
 #include <nlohmann/json.hpp>
 
+#include <chrono>
+#include <memory>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -54,6 +57,39 @@ namespace SpellScanner
     // thread (UIManagerScanner.cpp), so the text is the same either way.
     json CollectAllSpells(const ScanConfig& config);
     json CollectSpellTomes(const ScanConfig& config);
+
+    // CollectAllSpells in pieces, for a scan that must not stop the game
+    // (AutoScan.cpp): each Step reads spells until `budget` is spent and returns
+    // true once everything is read; then Finish gives what CollectAllSpells
+    // gives (CollectAllSpells is this with no budget, so the two are the same
+    // code). Game thread, every call. Between calls it holds FormIDs and JSON,
+    // never a form pointer: each step finds its spells again by FormID.
+    // One step that cannot be split runs whole: the marks after the spell loop
+    // (tomes, tome reach, duplicates), timed in the log (`LongestStep`).
+    class FullScanCollector
+    {
+    public:
+        explicit FullScanCollector(ScanConfig config);
+        FullScanCollector(const FullScanCollector&) = delete;
+        FullScanCollector& operator=(const FullScanCollector&) = delete;
+        ~FullScanCollector();
+
+        bool Step(std::chrono::microseconds budget);
+        json Finish();
+
+        [[nodiscard]] std::size_t Steps() const noexcept;
+        // The longest step so far, and the phase it was in
+        [[nodiscard]] double LongestStepMs() const noexcept;
+        [[nodiscard]] const char* LongestStepPhase() const noexcept;
+
+    private:
+        struct State;
+        std::unique_ptr<State> m_state;
+    };
+
+    // The scan fields of a Papyrus RunScan preset ("minimal", "balanced", "full";
+    // anything else is "full"). "full" is what the librarian's catalog needs.
+    FieldConfig FieldsForPreset(const std::string& preset);
 
     // Get the system instructions for LLM output format (hidden from user)
     std::string GetSystemInstructions();
@@ -261,6 +297,4 @@ namespace SpellScanner
     // "balanced" or "full". Returns the written path, or an empty string.
     std::string RunScanToFile(const std::string& mode, const std::string& preset);
 
-    // Internal scanning (returns spell array JSON, used by ScanAllSpells/ScanSpellTomes)
-    json ScanSpellsToJson(const FieldConfig& fields);
 }

@@ -130,6 +130,12 @@ public:
     static std::filesystem::path GetTreeFilePath();
     static std::filesystem::path GetTreeLoadOrderFilePath();
 
+    // The scan at game start (AutoScan.cpp) takes the panel scans' turn: false
+    // when a scan runs. Any thread. EndOtherScan lets it go, and starts a scan
+    // the panel asked for meanwhile (EndScan).
+    [[nodiscard]] bool TryBeginOtherScan();
+    void EndOtherScan() noexcept;
+
 private:
     UIManager() = default;
     ~UIManager() = default;

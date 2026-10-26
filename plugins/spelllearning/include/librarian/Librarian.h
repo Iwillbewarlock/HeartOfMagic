@@ -3,6 +3,7 @@
 #include "Common.h"
 
 #include <filesystem>
+#include <functional>
 #include <map>
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -363,7 +364,10 @@ namespace Librarian
     // (a caller on the game thread) and another one running, this scan builds
     // no catalog and takes the one there is, as a tome scan does, instead of
     // stopping the game until the other is done.
-    void ClassifyScan(std::string& scanJson, bool wait = true);
+    // Returns true when this call wrote a new spell_catalog.json; then
+    // `onWritten`, when given, runs before the next classification can start
+    // (the scan record, ScanRecord.h, is kept in step with the file that way).
+    bool ClassifyScan(std::string& scanJson, bool wait = true, const std::function<void()>& onWritten = {});
 
     // The spell card builds its chips when a card opens, long after the scan,
     // so the catalog's elements are kept in memory for it: ClassifyScan stores
