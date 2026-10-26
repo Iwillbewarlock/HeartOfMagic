@@ -27,7 +27,7 @@
 
 // The scan at game start (AutoScan.h; docs/ARCHITECTURE.md, "Scan at game start").
 //
-//   main menu (game thread)  Begin: the load order, the session's generation
+//   main menu (game thread)  Begin: the load order
 //   waiter thread            the tome reach pass, the setting, the tree, the record,
 //                            the panel scans' turn (UIManager::TryBeginOtherScan)
 //   game thread, one a frame FullScanCollector::Step, a slice of kSliceDefault at most;
@@ -36,8 +36,10 @@
 //                            (GetDurationOfApplicationRunTime) moved on from the last
 //   waiter thread            the text, ClassifyScan (catalog + scan record), the dump
 //
-// Every step checks the generation: a save load or a new game (OnGameChanging)
-// drops the form reads, the next main menu tries again.
+// Every step checks the generation the form reads started in: a save load or a
+// new game (OnGameChanging) drops them, and they start again at once (kAttempts
+// in all; then the next main menu). A save loaded before they start does not
+// matter: the steps run during play as they do at the main menu.
 
 namespace
 {
@@ -48,7 +50,9 @@ namespace
     constexpr double kSliceMinMs = 0.5;
     constexpr double kSliceMaxMs = 50.0;
     constexpr double kHitchBudgetDefaultMs = 25.0;   // self-test: the longest frame may exceed the main menu's by this much
-    constexpr auto kStepAnswerWait = std::chrono::seconds(10);
+    constexpr auto kStepAnswerPoll = std::chrono::milliseconds(250);   // how often a wait for a step looks at the generation
+    constexpr int kStillWaitingEvery = 40;                             // polls between "still waiting" lines (10 s)
+    constexpr int kAttempts = 3;                                       // form reads started again after a load, at most
     constexpr auto kNextFrameWait = std::chrono::milliseconds(1);
     // A frame time that does not move for this long (the counter not where it is
     // expected to be): the step runs anyway and is counted as forced
@@ -317,14 +321,17 @@ namespace
             }
         });
         // The game thread can be away for long (a window in the background, a load):
-        // wait for as long as the session is the run's, give up when it is not
-        while (future.wait_for(kStepAnswerWait) != std::future_status::ready) {
+        // wait for as long as the session is the run's, give up as soon as it is not
+        int polls = 0;
+        while (future.wait_for(kStepAnswerPoll) != std::future_status::ready) {
             if (s_generation.load() != run->generation) {
                 // The run stays alive in the task if it runs later; marked, that step does nothing
                 run->abandoned.store(true);
                 return StepResult::Dropped;
             }
-            logger::info("{} still waiting for the game thread to run a step", kPrefix);
+            if (++polls % kStillWaitingEvery == 0) {
+                logger::info("{} still waiting for the game thread to run a step", kPrefix);
+            }
         }
         try {
             return future.get();
@@ -473,8 +480,20 @@ namespace
         return std::nullopt;
     }
 
+    // The form reads: steps until done, dropped by a save load or a new game, or stopped
+    StepResult Collect(const std::shared_ptr<Run>& run)
+    {
+        while (true) {
+            const StepResult result = PostStep(run);
+            if (result == StepResult::Finished || result == StepResult::Dropped || result == StepResult::Failed) {
+                return result;
+            }
+            std::this_thread::sleep_for(kNextFrameWait);
+        }
+    }
+
     // Returns the state the session is left in: Done, or Idle to try at the next main menu
-    State RunScan(const LoadOrderFingerprint::Value loadOrder, const std::uint32_t generation)
+    State RunScan(const LoadOrderFingerprint::Value loadOrder)
     {
         const auto started = Clock::now();
         const Settings settings = ReadSettings();
@@ -511,22 +530,36 @@ namespace
                      "(steps of {:.1f} ms, one a frame)", kPrefix, loadOrder.hash, loadOrder.plugins, loadOrder.spells,
             settings.sliceMs);
 
-        auto run = std::make_shared<Run>();
-        run->generation = generation;
-        run->slice = std::chrono::microseconds(static_cast<long long>(settings.sliceMs * 1000.0));
-        const auto collectStarted = Clock::now();
+        // The generation is the one the form reads start in: a save loaded before
+        // them is no reason to drop them, one loaded during them is. A dropped run
+        // starts again at once - its first step waits until the load is done
+        std::shared_ptr<Run> run;
         StepResult result = StepResult::NotYet;
-        while (true) {
-            result = PostStep(run);
-            if (result == StepResult::Finished || result == StepResult::Dropped || result == StepResult::Failed) break;
-            std::this_thread::sleep_for(kNextFrameWait);
+        const auto collectStarted = Clock::now();
+        for (int attempt = 1; attempt <= kAttempts; ++attempt) {
+            run = std::make_shared<Run>();
+            run->generation = s_generation.load();
+            run->slice = std::chrono::microseconds(static_cast<long long>(settings.sliceMs * 1000.0));
+            result = Collect(run);
+            if (result != StepResult::Dropped || attempt == kAttempts) break;
+            logger::info("{} the form reads were dropped (a save load or a new game) - starting again ({} of {})",
+                kPrefix, attempt + 1, kAttempts);
         }
         const double collectMs = MsSince(collectStarted);
         if (probing) probe.Stop();
 
         if (result != StepResult::Finished) {
-            logger::info("{} the form reads were {} after {:.0f} ms - tried again at the next main menu", kPrefix,
-                result == StepResult::Dropped ? "dropped (a save load or a new game)" : "stopped (see above)", collectMs);
+            const std::string why = result == StepResult::Dropped
+                                        ? std::format("dropped {} times (save loads or new games)", kAttempts)
+                                        : std::string("stopped (see above)");
+            logger::info("{} the form reads were {} after {:.0f} ms - tried again at the next main menu", kPrefix, why,
+                collectMs);
+            if (settings.selfTest) {
+                TestCounts counts;
+                counts.Report("RUN", false, "the form reads were " + why);
+                logger::info("{} done - {} pass, {} fail, {} skip (the other checks need a finished run)", kTestPrefix,
+                    counts.pass, counts.fail, counts.skip);
+            }
             return State::Idle;
         }
         logger::info("{} form reads done in {:.0f} ms: {} steps, the longest {:.1f} ms ({}), {} waits for the next "
@@ -536,6 +569,7 @@ namespace
         // Worker side: strings and files only, no game form (as PrepareScanText)
         auto output = std::move(run->output);
         const std::size_t forcedSteps = run->forcedSteps;
+        const std::uint32_t generation = run->generation;   // the form reads' own
         run.reset();
         const auto textStarted = Clock::now();
         std::string chunkedDump;
@@ -616,12 +650,11 @@ namespace
                 s_state = State::Done;
                 return;
             }
-            const std::uint32_t generation = s_generation.load();
-            std::thread([loadOrder, generation]() {
+            std::thread([loadOrder]() {
                 // Nothing may leave a thread function: it would end the game (std::terminate)
                 State next = State::Idle;
                 try {
-                    next = RunScan(loadOrder, generation);
+                    next = RunScan(loadOrder);
                 } catch (const std::exception& e) {
                     logger::error("{} the scan failed: {} - tried again at the next main menu", kPrefix, e.what());
                 } catch (...) {
