@@ -217,6 +217,15 @@ namespace Input
             static RE::BSEventNotifyControl thunk(RE::MenuControls* a_this, RE::InputEvent* const* a_events, RE::BSTEventSource<RE::InputEvent*>* a_source)
             {
                 const bool menuOpen = MagicMenuOpen();
+                // a new magic menu: the held set starts empty. A press that closed the last one (Esc, Tab, B) had its up after the
+                // close, when the hook was not armed, and would stay "held" (refusing the mode) for good. A button still held
+                // comes back in with its next hold event (IsPressed)
+                static bool s_wasOpen = false;
+                if (menuOpen && !s_wasOpen) {
+                    g_held.clear();
+                    g_heldCount = 0;
+                }
+                s_wasOpen = menuOpen;
                 if (!a_events || !*a_events || !Armed(menuOpen)) return original(a_this, a_events, a_source);
                 static std::atomic<bool> s_threadLogged{ false };
                 if (!s_threadLogged.exchange(true)) logger::info("Input: layout input hook first used on thread {}", REX::W32::GetCurrentThreadId());

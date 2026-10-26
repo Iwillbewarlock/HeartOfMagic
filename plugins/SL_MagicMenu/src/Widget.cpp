@@ -4048,11 +4048,28 @@ namespace Widget
             return std::pair{ x.GetNumber(), y.GetNumber() };
         }
 
-        // The game window has the focus (Main's gameActive, set by its activate handler; D8: a drag ends when it goes)
+        // The game window has the focus (Main's gameActive, set by its activate handler - unverified; D8: a drag ends when it goes)
         bool GameActive()
         {
             auto* main = RE::Main::GetSingleton();
             return !main || main->GetRuntimeData().gameActive;
+        }
+
+        // gameActive is sampled at each menu open, when the window plainly has the focus: if it reads false then, it does not mean
+        // the focus, and the drags do not use it for the rest of the game session (logged once)
+        std::atomic<bool> g_focusCheck{ true };
+
+        void CalibrateFocusCheck()
+        {
+            if (!g_focusCheck || GameActive()) return;
+            g_focusCheck = false;
+            logger::warn("Layout: Main gameActive reads false with the menu just opened - it is not the window focus here; a drag no longer ends on "
+                         "focus loss (only on release, Esc or the menu's close) for this game session");
+        }
+
+        bool FocusLost()
+        {
+            return g_focusCheck && !GameActive();
         }
 
         // --- handlers (they only record; LayoutFrame acts) ---
@@ -4544,8 +4561,8 @@ namespace Widget
         {
             auto& m = g_menu.layout;
             if (!m.drag) return;
-            if (m.drag->generation != g_menuGeneration.load() || !GameActive()) {
-                logger::info("Layout: drag of {} ended without a move - {}", m.drag->id, GameActive() ? "another menu's drag" : "the game window lost the focus");
+            if (m.drag->generation != g_menuGeneration.load() || FocusLost()) {
+                logger::info("Layout: drag of {} ended without a move - {}", m.drag->id, FocusLost() ? "the game window lost the focus" : "another menu's drag");
                 EndDrag(a_widget);
                 return;
             }
@@ -4580,9 +4597,13 @@ namespace Widget
             if (!m.drag) return;
             const auto id = m.drag->id;
             const auto at = MouseAt(a_movie);
-            const auto slot = at ? SlotAt(id, at->first, at->second) : m.drag->slot.value_or(Layout::Slot{ ColumnOf(id).value_or(0), std::nullopt });
-            const auto moved = Layout::Move(m.working, id, slot);
             EndDrag(a_widget);
+            if (!at) {
+                logger::warn("Layout: {} released, but the pointer could not be read - not moved", id);
+                return;
+            }
+            const auto slot = SlotAt(id, at->first, at->second);
+            const auto moved = Layout::Move(m.working, id, slot);
             if (moved == m.working) {
                 if (m.drops + m.borderMoves < kMaxDragLogs) logger::info("Layout: {} dropped where it was", id);
                 return;
@@ -4599,7 +4620,7 @@ namespace Widget
         {
             auto& m = g_menu.layout;
             if (!m.borderGrab) return;
-            if (!GameActive()) {
+            if (FocusLost()) {
                 logger::info("Layout: border drag ended without a move - the game window lost the focus");
                 m.borderGrab.reset();
                 m.guideAt.reset();
@@ -6763,6 +6784,7 @@ namespace Widget
                 DrawLegend(movie, tree, rect.Width(), rect.Height(), {});
             }
             MakeLayoutChrome(movie, widget);  // blocks plan Task 4 (D5): the lock / reset row, the border handle, the drag overlay
+            CalibrateFocusCheck();
             g_layoutBlock = g_layoutBlock.load() & ~kBlockNoWidget;
             RE::GFxValue fn;
             movie->CreateFunction(&fn, g_frame.get());
@@ -6852,6 +6874,16 @@ namespace Widget
                 {
                     const std::scoped_lock lock(g_blockingLock);
                     g_blockingMenus.insert(name);
+                }
+                // each name once per game session: which menus keep the layout mode from starting (a companion menu that always
+                // opens with the magic menu would show here and refuse the mode)
+                static std::mutex s_loggedLock;
+                static std::set<std::string> s_logged;
+                const std::scoped_lock lock(s_loggedLock);
+                if (s_logged.insert(name).second) {
+                    logger::info("Layout: menu \"{}\" opened over the magic menu ({}) - the layout mode ends as Cancel and does not start while it is up "
+                                 "(logged once per menu)",
+                        name, !menu ? "flags not readable" : std::format("pauses {}, menu context {}, modal {}", menu->PausesGame(), menu->UsesMenuContext(), menu->Modal()));
                 }
                 CancelLayoutMode(std::format("the menu \"{}\" opening over the magic menu", name).c_str());
             }
