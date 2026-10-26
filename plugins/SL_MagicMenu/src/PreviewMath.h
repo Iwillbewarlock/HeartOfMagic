@@ -362,6 +362,20 @@ namespace PreviewMath
         std::int32_t x1{}, y1{}, x2{}, y2{};
     };
 
+    /// What an over-pass does with the scissor ScissorBox gave (blocks plan Task 3, review fix 1)
+    enum class ClipPlan
+    {
+        kScissor,       // pixels: Render() scissored to them
+        kNothingShows,  // none, with a column clip: the box is cut by its column to under one pixel - no Render(), no alpha save
+        kUnclipped      // none, without a column clip: build 13's fallback (drawn unclipped, the whole target's alpha restored)
+    };
+
+    inline ClipPlan PlanClip(const std::optional<PixelBox>& a_box, bool a_columnClip)
+    {
+        if (a_box) return ClipPlan::kScissor;
+        return a_columnClip ? ClipPlan::kNothingShows : ClipPlan::kUnclipped;
+    }
+
     /// The box (a_pixels, in pixels of the viewport's buffer) in pixels of the bound render target: scaled from the
     /// buffer's size to the target's (Community Shaders' upscaling and frame generation can bind a target of another
     /// size; Grid Inventory ItemPreview.cpp:1397-1436 reads the bound one the same way), rounded inward (no pixel

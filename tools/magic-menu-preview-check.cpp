@@ -315,6 +315,17 @@ namespace
         Expect(!PreviewMath::ScissorBox({ 100, 100, 100.5, 200 }, 1920, 1080, 1920, 1080), "a box under one pixel wide is refused");
         Expect(!PreviewMath::ScissorBox(pixels, 0, 1080, 1920, 1080) && !PreviewMath::ScissorBox(pixels, 1920, 1080, 1920, 0),
             "a buffer or target size of 0 is refused");
+
+        // blocks plan Task 3, review fix 1: the box cut to its column (Layout::VisibleBox) can be non-empty yet under one pixel -
+        // scrolled to 0.4 stage units above the viewport's bottom (623): 0.6 px at 1080p. It must count as out of view, not
+        // fall back to the unclipped draw
+        const Rect sliver{ 656, 622.6, 949, 623 };
+        const auto sliverBox = PreviewMath::ScissorBox(PreviewMath::StageToPixels(sliver, kStage, full), 1920, 1080, 1920, 1080);
+        Expect(!sliverBox, "a box cut to 0.4 stage units high has no scissor pixel");
+        Expect(PreviewMath::PlanClip(sliverBox, true) == PreviewMath::ClipPlan::kNothingShows, "no pixel with a column clip -> nothing drawn");
+        Expect(PreviewMath::PlanClip(sliverBox, false) == PreviewMath::ClipPlan::kUnclipped, "no pixel without a column clip -> build 13's unclipped fallback");
+        Expect(PreviewMath::PlanClip(PreviewMath::ScissorBox(pixels, 1920, 1080, 1920, 1080), true) == PreviewMath::ClipPlan::kScissor,
+            "pixels with a column clip -> scissored");
     }
 
     // Which on-screen box the self-test and the clip use: TranslateToScreen's only when it agrees with the visible-rect

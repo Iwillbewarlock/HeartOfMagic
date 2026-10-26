@@ -2953,7 +2953,8 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
         // back; the rest are counted for the close summary
         // blocks plan Task 3 (D2): a_stageClip is the stage rect the scissor and the alpha save take - the box, the box cut to its
         // column, or (a frame not fitted) the column's viewport; nullopt draws unclipped as before
-        void RenderClipped(RE::Inventory3DManager& a_manager, const std::optional<FrameInfo>& a_frame, const std::optional<Settings::Rect>& a_stageClip)
+        // True when it called Render(): false only when the box cut to its column has no pixel (review fix 1 - nothing shows)
+        bool RenderClipped(RE::Inventory3DManager& a_manager, const std::optional<FrameInfo>& a_frame, const std::optional<Settings::Rect>& a_stageClip)
         {
             auto* shadowState = RE::BSGraphics::RendererShadowState::GetSingleton();
             if (shadowState) {
@@ -2973,7 +2974,7 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
             }
             if (!a_stageClip || !a_frame) {
                 RenderUnclipped(a_manager);  // review v13 #1/#2: not a skip, the whole target is restored
-                return;
+                return true;
             }
             auto* renderer = RE::BSGraphics::Renderer::GetSingleton();
             auto* context = renderer ? renderer->GetRuntimeData().context : nullptr;
@@ -2988,6 +2989,19 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
             } else {
                 screen = StagePixels(*a_frame, *a_stageClip);
                 box = PreviewMath::ScissorBox(screen.rect, a_frame->bufferW, a_frame->bufferH, target->width, target->height);
+                // review fix 1: a box its column cuts to under one pixel (VisibleBox is not empty, ScissorBox rounds it away) is out
+                // of view as a wholly scrolled-out one: no Render(), no alpha save - never the unclipped fallback below
+                if (PreviewMath::PlanClip(box, a_frame->columnClip.has_value()) == PreviewMath::ClipPlan::kNothingShows) {
+                    ++clip.columnOut;
+                    if (!std::exchange(clip.columnOutLogged, true)) {
+                        logger::info("Preview: L2 the preview box has no pixel left in its column's view at PostDisplay {} (scissored to "
+                                     "{:.2f},{:.2f}..{:.2f},{:.2f} stage, {:.2f},{:.2f}..{:.2f},{:.2f} px) - nothing drawn, the game's own pass kept "
+                                     "hidden (later such frames counted only)",
+                            clip.frame, a_stageClip->left, a_stageClip->top, a_stageClip->right, a_stageClip->bottom, screen.rect.left,
+                            screen.rect.top, screen.rect.right, screen.rect.bottom);
+                    }
+                    return false;
+                }
                 if (!box) skip = "the box has no pixels in the render target (or the viewport's buffer size is 0)";
             }
             // SelfTest L2 preview clip (blocks plan Task 3): the scissor lies inside the column viewport's pixels. The first PASS and
@@ -3015,7 +3029,7 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
                         clip.frame, skip));
                 }
                 RenderUnclipped(a_manager);  // review v13 #1/#2: the whole target restored, or counted as no target
-                return;
+                return true;
             }
             const int drawn = Drawable(a_manager);
             auto& shadow = shadowState->GetRuntimeData();
@@ -3071,12 +3085,12 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
             ++clip.clipped;
             if (drawn == 0) {
                 ++clip.clipUnjudged;
-                return;
+                return true;
             }
             const bool held = after.mode == kScissorOn && after.enabled.value_or(false) && after.sameRect;
             const char* verdict = !sameTarget ? "not judged" : held ? "PASS" : "FAIL";
             (!sameTarget ? clip.clipTargetChanged : held ? clip.clipHeld : clip.clipDropped) += 1;
-            if (std::exchange(!sameTarget ? clip.clipTargetLogged : held ? clip.clipLogged : clip.clipFailLogged, true)) return;
+            if (std::exchange(!sameTarget ? clip.clipTargetLogged : held ? clip.clipLogged : clip.clipFailLogged, true)) return true;
             const auto& frame = *a_frame;
             const auto& rect = screen.rect;
             const std::string targetText = !targetAfter ? "none bound" :
@@ -3101,6 +3115,7 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
                                  std::format("changed ({} rect(s), first {},{}..{},{})", after.rects, after.rect.x1, after.rect.y1, after.rect.x2,
                                      after.rect.y2),
                 targetText, drawn, tail));
+            return true;
         }
 
         // Which Q3 parts run (once per menu, at its first over-pass). Both follow place/fit: without it the model stands at
@@ -3406,15 +3421,16 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
                     unfitted, column ? "; scissored to the preview column's viewport (blocks plan D2)" : "");
             }
         }
+        bool rendered = false;
         {
             // P7.3: only the selection's model in the over-pass, the others' flags back right after (needs this frame's selection)
             std::optional<OnlySelection> only;
             if (ours && frame) only.emplace(a_manager, clip.shown);
-            RenderClipped(a_manager, frame, scissor);
+            rendered = RenderClipped(a_manager, frame, scissor);
             if (only) LogOnlySelection(*only, clip.shown);
         }
         if (current && modes.hide && frame) HideSelection(a_manager, clip.shown);
-        return true;
+        return rendered;
     }
 
     void OnMenuClose()
