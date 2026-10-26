@@ -1182,7 +1182,7 @@ namespace Preview
         // still hidden (a model the game kept and did not show again, A -> B -> A) is given back from there - unless
         // the game already shows another model of that form (it replaced ours: showing the old copy would double it,
         // review round 2 #5).
-        // When the preview box stops being shown (Active Effects) the game's own place comes back and the selection's model
+        // When the preview box stops being shown (nothing chosen; before build 16 also Active Effects) the game's own place comes back and the selection's model
         // we hid is given back (spec v7 P7.2, replacing build 5's keep-the-hide: with the game's place back, its pass draws
         // the model as without us); an earlier selection's model stays hidden until the close, as at any selection change.
         // The menu's close and the next menu's reset give back every model we hid that is still up and hidden,
@@ -1299,8 +1299,9 @@ namespace Preview
             clip.replacedModels.clear();
         }
 
-        // A tab without the box (Active Effects): every model up that is shown is hidden, held by a strong reference, each
-        // frame (the game loads the selected effect's art while the tab shows). Given back when the box shows again or the
+        // A menu state without the box (nothing chosen; the Powers tab with bHidePowers3D=1; Active Effects before build 16,
+        // which shows its preview box since): every model up that is shown is hidden, held by a strong reference, each
+        // frame (the game loads the selected item's art meanwhile). Given back when the box shows again or the
         // menu closes, only those still up and still hidden
         void HideForTab(RE::Inventory3DManager& a_manager)
         {
@@ -3357,7 +3358,7 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
         const bool ourCall = a_active || a_noBox;
         const bool powersHideEnds = current && ourCall && !g_closing && clip.powersHid && !a_hide3D;
         if (current && ourCall && !g_closing) clip.powersHid = a_hide3D;
-        // not active (the preview box hidden on Active Effects, the call for another movie). At the boundary the
+        // not active (the preview box hidden - nothing chosen, the Powers hide -, the call for another movie). At the boundary the
         // observation history ends (review round 2, #3): back on a tab with the box, the selection's model counts as a
         // change again, and a model the game showed meanwhile is not taken for a lost hide (everHidden keeps the rest).
         // P7.2 (spec v7, replacing build 5's keep-the-hide): on that tab the game's own place comes back (our place kept
@@ -3377,13 +3378,14 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
                 clip.shownLast.clear();
                 if (ours && !g_closing) Unplace(a_manager, "the preview box is not shown", false);
             }
-            // a tab of this menu without the box (Active Effects): no 3D at all there - the game's own pass drew the effect
-            // over the game view at its own place (game run 2026-10-26 01:06); every model up is hidden while the tab shows
+            // this menu without the box (nothing chosen, the Powers hide; Active Effects until build 15): no 3D at all there -
+            // the game's own pass drew the effect over the game view at its own place (game run 2026-10-26 01:06; build 16 gives
+            // Active Effects the box instead, its full-screen flash per click: ledger "Build 15 game run"); every model up is hidden while it lasts
             // and given back when the box shows again or the menu closes (OnMenuClose)
             // bMovePreview=0 (the way back) changes nothing here either (reviewer: Preview.h promises it), except on the
             // Powers tab (a_hide3D): no 3D there whatever bMovePreview says (spec v13 B1, review v13 #3)
             const bool hideForTab = current && ours && a_noBox && !g_closing && (Settings::Get().movePreview || a_hide3D);
-            // review v13 round 2 #2: Powers -> Active Effects with bMovePreview=0: no tab hide follows here, so what Powers hid
+            // review v13 round 2 #2: Powers -> a state without the box with bMovePreview=0: no tab hide follows here, so what Powers hid
             // is given back now (both tabs are not active: the give-back below is never reached); with bMovePreview=1 the
             // tab hide goes on and its give-back stays the one below
             if (powersHideEnds && ours && !hideForTab) GiveBackTab(a_manager, "the Powers tab hide ends on a tab without the box", true);

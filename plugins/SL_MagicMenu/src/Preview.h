@@ -78,9 +78,10 @@ namespace Preview
     /// back). Else: gives back the selection's model it hid, places and fits (a_fit), and with a_overPass draws the
     /// preview again after the movie (clipped to the box) and hides the current selection's model from the game's next
     /// own pass. True when it called Inventory3DManager::Render(). a_noBox: this menu's movie is up but its tab shows no
-    /// preview box (Active Effects), or one whose box shows no 3D (Powers, spec v13 B1: the caller passes a_active false):
+    /// preview box (nothing chosen; Active Effects before build 16), or one whose box shows no 3D (Powers with
+    /// bHidePowers3D=1, spec v13 B1: the caller passes a_active false):
     /// every model up is hidden while it lasts, given back when the box shows or at close. a_hide3D: the tab is Powers -
-    /// hidden there even with bMovePreview=0 (review v13 #3; on Active Effects bMovePreview=0 changes nothing).
+    /// hidden there even with bMovePreview=0 (review v13 #3; without the box otherwise bMovePreview=0 changes nothing).
     bool OnPostDisplay(RE::Inventory3DManager& a_manager, bool a_fit, bool a_overPass, bool a_active, bool a_noBox, bool a_hide3D);
 
     /// Puts the game's preview place back and gives back what it hid (no-op when nothing was changed); main thread.

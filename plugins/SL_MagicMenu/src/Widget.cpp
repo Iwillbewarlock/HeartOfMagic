@@ -484,7 +484,7 @@ namespace Widget
             kFollow,   // All, Favorites (and anything unknown): follow the selected spell's school
             kSchool,   // one school's tab
             kPowers,   // Powers, Shouts: no tree, no progress
-            kEffects,  // Active Effects: none of our panels
+            kEffects,  // Active Effects: the preview and our card, as Powers (build 16)
         };
 
         // The active school's state counts over its non-dup nodes (Q2); available = Spells::Learnable, candidates = those of
@@ -634,6 +634,10 @@ namespace Widget
             std::string ownCardSig;          // what it shows (tab, type, texts, sizes); "" = nothing shown
             bool ownCardShown = false;
             double ownCardBottom = 0.0;      // its panel's bottom in stage units as last drawn
+            // build 16: the tab and the rect (on screen) it was last drawn in - ownCardBottom belongs to them, not to the tab
+            // shown now until WatchOwnCard draws it again (a tab change logged C2 with the last tab's bottom: 648,306..969,157)
+            int ownCardDrawnTab = -1;
+            Settings::Rect ownCardDrawnIn;
             // the block layout (blocks plan Task 2): this tab's arranged rects, the same with nothing hidden (where a hidden
             // block sits), each panel's rect as last placed (a width change redraws it, D11) and SkyUI's card slot as last fitted
             // UNSCROLLED rects (Arrange's; BlockRect adds the scroll). placed: each panel's rect as last placed (BlockRect's)
@@ -692,7 +696,7 @@ namespace Widget
         std::atomic<RE::GFxMovieView*> g_attachedMovie{ nullptr };  // the movie our widget is on
         std::atomic<bool> g_overPass{ false };       // this menu: widget attached, IR not active, bDrawPreviewOver=1
         std::atomic<bool> g_fitPass{ false };        // this menu: widget attached, IR not active, bMovePreview=1 (place/fit in PostDisplay)
-        std::atomic<bool> g_previewShown{ true };    // the preview box is visible (not on Active Effects)
+        std::atomic<bool> g_previewShown{ true };    // the preview box is visible (something chosen; every tab since build 16)
         // spec v13 B1: the Powers tab (flag 128) shows the box but no 3D (user 2026-10-26: like the Shouts tab); Preview treats it
         // as a tab without the box (every model hidden, no over-pass draw), the layout stays the Powers/Shouts one
         std::atomic<bool> g_hide3D{ false };
@@ -1630,15 +1634,17 @@ namespace Widget
             return a_values.itemCard;
         }
 
-        // The blocks a tab hides (D6, build 13's tab rules): Powers/Shouts the tree, the progress card and the node card; Active
-        // Effects the preview too. Hidden blocks close up (Arrange). The progress card's hide on a spell tab with no school is
+        // The blocks a tab hides (D6, build 13's tab rules): Powers/Shouts and Active Effects the tree, the progress card and the
+        // node card (Layout::NoTreeTabHidden). Build 16 (user 2026-10-26): Active Effects keeps the preview too - its 3D is drawn
+        // in the box as on the spell tabs, no longer hidden for the tab (build 9's HideForTab flashed each item's model over the
+        // game view for a frame). Hidden blocks close up (Arrange). The progress card's hide on a spell tab with no school is
         // not one of these: it is only made invisible (ApplyVisibility) and keeps its slot, as in build 13 (the card under it
         // stays where it is)
         std::set<BlockId> TabHidden(Tab a_tab)
         {
             switch (a_tab) {
-            case Tab::kPowers: return { Layout::kTree, Layout::kProgress, Layout::kNodeCard };
-            case Tab::kEffects: return { Layout::kPreview, Layout::kTree, Layout::kProgress, Layout::kNodeCard };
+            case Tab::kPowers:
+            case Tab::kEffects: return Layout::NoTreeTabHidden();
             default: return {};
             }
         }
@@ -1648,9 +1654,9 @@ namespace Widget
             std::set<BlockId> hidden, fill;
         };
 
-        // What Arrange is given on a tab (D6). Our card (a_own) fills the rest of its column: Powers/Shouts 317 and Active
-        // Effects 556 high at the E2 rects (build 13's OwnCardRect). SkyUI's fitted card (bOwnCard=0) keeps its height, and on
-        // Active Effects the spell tabs' slot (build 13's CardRect moved it on Powers/Shouts only; nothing of ours shows there)
+        // What Arrange is given on a tab (D6). Our card (a_own) fills the rest of its column: Powers/Shouts and (build 16) Active
+        // Effects 317 high under the preview at the E2 rects (build 13's OwnCardRect). SkyUI's fitted card (bOwnCard=0) keeps its
+        // height, and on Active Effects the spell tabs' slot (build 13's CardRect moved it on Powers/Shouts only)
         Arrangement ArrangementFor(Tab a_tab, bool a_own)
         {
             if (!a_own && a_tab == Tab::kEffects) return {};
@@ -1782,10 +1788,28 @@ namespace Widget
         }
 
         // Our card's box per tab (C2): the spell card block, grown to the rest of its column where the tab hides blocks (on
-        // Active Effects the panel is then cut to its content). The same block as CardRect, arranged with our card
+        // Active Effects the panel is then cut to its content, RedrawOwnCard a_fit). The same block as CardRect, arranged with
+        // our card. Its drawn bottom (ownCardBottom) is the last drawing's: OwnCardBox pairs the two only once they match
         Settings::Rect OwnCardRect()
         {
             return BlockRect(Layout::kSpellCard);
+        }
+
+        // Build 16: our card's box as last drawn, UNSCROLLED (the arranged block with the drawn panel's height) - nullopt until
+        // RedrawOwnCard drew it on this tab in a rect of this block's size. A tab change rearranges (WatchTab) before
+        // WatchOwnCard draws the card again, so until then ownCardBottom is the last tab's (Active Effects' cut card at 67 + 90
+        // = 157 read against Powers' top 306 was build 15's inverted "648,306..969,157")
+        std::optional<Settings::Rect> OwnCardBox()
+        {
+            const auto it = g_menu.blocks.find(Layout::kSpellCard);
+            if (it == g_menu.blocks.end() || g_menu.ownCardDrawnTab != static_cast<int>(g_menu.tab)) return std::nullopt;
+            const auto& drawn = g_menu.ownCardDrawnIn;
+            if (std::abs(drawn.Width() - it->second.Width()) > kRectTolerance || std::abs(drawn.Height() - it->second.Height()) > kRectTolerance) {
+                return std::nullopt;
+            }
+            auto box = it->second;
+            box.bottom = box.top + (g_menu.ownCardBottom - drawn.top);
+            return box;
         }
 
         std::string StringMember(const RE::GFxValue& a_object, const char* a_member)
@@ -3341,8 +3365,8 @@ namespace Widget
         }
 
         // Which panels the current tab shows (design 3.7, spec v7 C2): the spell tabs everything (the progress card only with a
-        // school); Powers/Shouts the preview and our card; Active Effects our card alone. Without our card (bOwnCard=0) Active
-        // Effects shows nothing, as in build 6. Our card shows only while SkyUI's would (WatchOwnCard).
+        // school); Powers/Shouts and (build 16) Active Effects the preview and our card. Without our card (bOwnCard=0) Active
+        // Effects shows the preview only (SkyUI's card is its own). Our card shows only while SkyUI's would (WatchOwnCard).
         // What shows now (ApplyVisibility's rules): each block, and the column clips (any)
         struct Showing
         {
@@ -3398,37 +3422,46 @@ namespace Widget
             SetVisible(a_widget, Layout::kNodeCard, nodeCard);
             SetVisible(a_widget, Layout::kProgress, progress);
             SetVisible(a_widget, Layout::kSpellCard, card);
-            // with our card the layout is logged once its first item is drawn on the tab (review v7: not at the tab change)
-            if (g_menu.chosen && (!own || card) && g_menu.c2Logged.insert(static_cast<int>(g_menu.tab)).second) {
+            // with our card the layout is logged once its first item is drawn on the tab (review v7: not at the tab change; build
+            // 16: drawn on THIS tab - OwnCardBox - not the last tab's drawing still up while WatchTab rearranges). FAIL: the card's
+            // box (ours as drawn, else SkyUI's slot; unscrolled) is inverted, empty or outside its column (Layout::CardBoxProblem)
+            const auto box = own ? OwnCardBox() : std::nullopt;
+            if (g_menu.chosen && (!own || (card && box)) && g_menu.c2Logged.insert(static_cast<int>(g_menu.tab)).second) {
                 const auto rect = OwnCardRect();
-                SelfTest(std::format("C2 tab {} layout - preview {}, tree {}, progress {}, node card {}, our card {} at {:.0f},{:.0f}..{:.0f},{:.0f}{}",
-                    TabName(g_menu.tab), preview ? "on" : "off", tree ? "on" : "off", progress ? "on" : "off",
-                    nodeCard ? "on" : "off", !own ? "off (bOwnCard=0, Inventory Reforged or no card info)" : "shown", rect.left, rect.top,
-                    rect.right, own ? g_menu.ownCardBottom : rect.bottom, effects ? " (cut to its content)" : ""));
+                const auto arranged = g_menu.blocks.find(Layout::kSpellCard);
+                const auto column = ColumnOf(Layout::kSpellCard);
+                std::string problem = "the spell card is not arranged";
+                if (box || arranged != g_menu.blocks.end()) {
+                    problem = column ? Layout::CardBoxProblem(box ? *box : arranged->second, ColumnViewport(*column), ColumnHeights(*column).first)
+                                     : std::string("the spell card is in no column");
+                }
+                SelfTest(std::format("C2 tab {} layout {} - preview {}, tree {}, progress {}, node card {}, our card {} at {}{}{}",
+                    TabName(g_menu.tab), problem.empty() ? "PASS" : "FAIL", preview ? "on" : "off", tree ? "on" : "off", progress ? "on" : "off",
+                    nodeCard ? "on" : "off", !own ? "off (bOwnCard=0, Inventory Reforged or no card info) - its slot" : "shown", RectText(rect),
+                    box ? std::format(", drawn to {:.0f} (unscrolled {}{})", rect.top + box->Height(), RectText(*box), effects ? ", cut to its content" : "")
+                        : std::string{},
+                    problem.empty() ? std::string{} : " - " + problem));
             }
         }
 
         // SelfTest L1 reference (blocks plan Task 2 / D6): build 13's panel rects per tab - its CardRect, OwnCardRect and
         // ApplyVisibility (Widget.cpp at 683a5e99 :1448, :1465, :2677) and the panels at the ini rects (:5111) - kept only as
-        // this test's formulas over the ini rects. nullopt: the block is not shown on that tab
+        // this test's formulas over the ini rects. nullopt: the block is not shown on that tab. Build 16: Active Effects has
+        // the preview at its ini rect and our card under it as on Powers (no longer the card alone from the preview's top)
         std::optional<Settings::Rect> Build13Rect(Tab a_tab, bool a_own, const BlockId& a_id)
         {
             const auto& s = Settings::Get();
             const bool powers = a_tab == Tab::kPowers, effects = a_tab == Tab::kEffects;
             if (a_id == Layout::kSpellCard) {
                 const auto& card = s.itemCard;
-                if (a_own && powers) return Settings::Rect{ card.left, s.preview.bottom + s.panelGap, card.right, card.bottom };
-                if (a_own && effects) return Settings::Rect{ card.left, s.preview.top, card.right, card.bottom };
+                if (a_own && (powers || effects)) return Settings::Rect{ card.left, s.preview.bottom + s.panelGap, card.right, card.bottom };
                 if (!a_own && powers) {
                     const double top = s.preview.bottom + s.panelGap;
                     return Settings::Rect{ card.left, top, card.right, top + card.Height() };
                 }
                 return card;
             }
-            if (a_id == Layout::kPreview) {
-                if (effects) return std::nullopt;
-                return s.preview;
-            }
+            if (a_id == Layout::kPreview) return s.preview;
             if (powers || effects) return std::nullopt;
             return IniRect(s, a_id);
         }
@@ -3876,6 +3909,8 @@ namespace Widget
             Draw::NoLine(panel);
             Draw::Rect(panel, 0, 0, a_rect.Width(), h, kPanelFill, kPanelAlpha);
             g_menu.ownCardBottom = a_rect.top + h;
+            g_menu.ownCardDrawnTab = static_cast<int>(g_menu.tab);
+            g_menu.ownCardDrawnIn = a_rect;
         }
 
         // The selection our card should be showing: the tree card's spell (P2), else the AS2 list's selectedIndex and entry text
@@ -6477,7 +6512,7 @@ namespace Widget
             if (g_hide3D && !std::exchange(g_menu.powersHideLogged, true)) logger::info("Widget: Powers tab: 3D hidden (user 2026-10-26)");
             logger::info("Widget: category flag {} ({})", tab.flag,
                 tab.kind == Tab::kSchool ? tab.school : tab.kind == Tab::kPowers ? "powers/shouts: no tree" :
-                                                tab.kind == Tab::kEffects        ? "active effects: nothing drawn" :
+                                                tab.kind == Tab::kEffects        ? "active effects: preview and card, no tree" :
                                                                                    "all/favorites: follows the spell");
             g_menu.tabSchool = tab.kind == Tab::kSchool ? tab.school : std::string{};
             // review v12 #S3: a category change keeps the selection - the school and the centre come from it, and the list is
@@ -7064,7 +7099,8 @@ namespace Widget
         // scissor restored -> hide the selection's model from the game's next own pass (spec v5 Q3), so this pass draws
         // the fitted model inside the box. The hook carries either job alone (review G4: with bDrawPreviewOver=0 it was
         // not installed, so bMovePreview did nothing): place/fit with bMovePreview, Render with bDrawPreviewOver.
-        // Not active (the preview box hidden on Active Effects, the menu closing, another movie): Preview keeps what it hid
+        // Not active (the preview box hidden - nothing chosen, or the Powers hide with bHidePowers3D=1 -, the menu closing,
+        // another movie): Preview keeps what it hid
         // until the box shows again; close and reset give everything back.
         struct PostDisplayHook
         {

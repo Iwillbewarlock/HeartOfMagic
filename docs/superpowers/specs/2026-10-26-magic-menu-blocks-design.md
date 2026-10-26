@@ -62,7 +62,8 @@ wrong reading and are dropped (user: "배열을 유저가 조정하고 자동으
   the layout mode rests (button greyed, a log line) and the default layout is used; the saved layout is kept.
 - A block whose add-on is not installed any more is skipped; its saved place is kept (Hud NG :130-136 behaves the same).
 - Default order (= today's layout E2): left column preview, progress, spell card; right column tree, node card.
-- Tabs that hide a block today (Powers/Shouts: no tree, no progress; Active Effects: card only) keep doing so; the
+- Tabs that hide a block today (Powers/Shouts: no tree, no progress; Active Effects: card only - changed in build 16, see
+  "Build 16" at the end: Active Effects now hides what Powers hides and keeps the preview) keep doing so; the
   other blocks of that column close up while it is hidden; the saved order is not changed by that.
 
 ## Goals
@@ -288,3 +289,20 @@ Built 2026-10-26 (report `.superpowers/sdd/2026-10-26-magic-menu-blocks/task-5-r
   frame handler leaves the mode. The toggle and another menu on top still switch synchronously.
 - Entered with the gamepad button, the first visible block has the focus at once; with K or the lock button the first arrow
   gives it (a mouse user sees no outline).
+
+## Build 16 (2026-10-26)
+
+- Active Effects tab (category flag 256): the preview block shows, as on Powers/Shouts. It hides the tree, the progress
+  card and the node card (`Layout::NoTreeTabHidden`, the same set as Powers); our card fills the rest of its column under
+  the preview (cut to its content when drawn, as before on this tab). The over-pass draws the selected item's 3D in the
+  box exactly as on the spell tabs (fit, scissor, alpha restore, Q3 hide of the game's own pass); an item with no art
+  leaves the box empty. Replaces build 9's rule (no box on Active Effects, every model hidden by `HideForTab`), whose
+  one frame of the game's own pass before the hide flashed each clicked item's model over the game view (ledger
+  "Build 15 game run", user: "특성창에서 프리뷰창이 없고 이펙트가 특성선택할때마다 깜빡거려").
+- `HideForTab` / `GiveBackTab` stay: they still serve the states without a box - nothing chosen, and the Powers tab with
+  `[Preview] bHidePowers3D=1`.
+- SelfTest L1's reference (`Build13Rect`) expects the preview's ini rect on Active Effects and our card at Powers' rect.
+- Our card's C2 line pairs the arranged rect with the drawn bottom only once the card was drawn on the tab now shown
+  (build 15 logged a tab change before the redraw: "648,306..969,157", Powers' top with Active Effects' cut bottom
+  67 + 90). C2 now has a verdict: FAIL when the card's box is inverted, empty or outside its column
+  (`Layout::CardBoxProblem`).

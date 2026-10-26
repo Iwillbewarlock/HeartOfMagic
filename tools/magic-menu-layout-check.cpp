@@ -161,10 +161,17 @@ namespace
         Expect(powers.contains(Layout::kSpellCard) && Near(powers.at(Layout::kSpellCard).Height(), 317), "Powers: spell card 317 tall");
         Expect(powers.size() == 2, Text("Powers: preview and spell card only (got %zu)", powers.size()));
 
-        // Active Effects: only the card: the whole column, 556
-        const auto effects = Layout::Arrange(
+        // build 16: Powers and Active Effects hide the same blocks (the widget's TabHidden returns this set for both)
+        Expect(Layout::NoTreeTabHidden() == std::set<BlockId>{ Layout::kTree, Layout::kProgress, Layout::kNodeCard },
+            "NoTreeTabHidden = tree, progress, node card (Powers/Shouts and Active Effects)");
+        const auto effects = Layout::Arrange(state, kHeights, Layout::NoTreeTabHidden(), fill, kFrames);
+        ExpectRect(effects, Layout::kPreview, 648, 67, 969, 297, "Active Effects (build 16): the preview");
+        ExpectRect(effects, Layout::kSpellCard, 648, 306, 969, 623, "Active Effects (build 16): the card under it (fill)");
+
+        // a column whose blocks are all hidden but the card: the whole column, 556 (no tab does this since build 16)
+        const auto cardOnly = Layout::Arrange(
             state, kHeights, { Layout::kPreview, Layout::kTree, Layout::kProgress, Layout::kNodeCard }, fill, kFrames);
-        ExpectRect(effects, Layout::kSpellCard, 648, 67, 969, 623, "Active Effects (fill)");
+        ExpectRect(cardOnly, Layout::kSpellCard, 648, 67, 969, 623, "card alone in its column (fill)");
 
         // default tab with fill on: the column is already full, the card keeps its own 206
         const auto normal = Layout::Arrange(state, kHeights, {}, fill, kFrames);
@@ -191,6 +198,44 @@ namespace
         const auto present = Layout::Arrange(withAddon, withHeight, {}, {}, kFrames);
         ExpectRect(present, "addon.x", 648, 306, 969, 356, "present add-on");
         ExpectRect(present, Layout::kSpellCard, 648, 476, 969, 682, "present add-on pushes down");
+    }
+
+    /// Build 16 (build 15 game run: "our card shown at 648,306..969,157"): the card's box in its column for a saved layout
+    /// {preview, spellcard} / {tree, progress, nodecard} on the tabs without a tree, and CardBoxProblem on bad boxes
+    void CardBoxInColumn()
+    {
+        std::printf("card box in its column (build 16)\n");
+        State custom = Layout::Default(kValues);
+        custom.columns = { std::vector<BlockId>{ Layout::kPreview, Layout::kSpellCard },
+            std::vector<BlockId>{ Layout::kTree, Layout::kProgress, Layout::kNodeCard } };
+        const std::set<BlockId> fill{ Layout::kSpellCard };
+        const Rect column = Layout::ColumnArea(custom, 0, kFrames);
+        for (const bool own : { true, false }) {
+            const auto rects = Layout::Arrange(custom, kHeights, Layout::NoTreeTabHidden(), own ? fill : std::set<BlockId>{}, kFrames);
+            const auto content = Layout::ContentHeight(custom, rects, kFrames);
+            const char* who = own ? "our card (fill)" : "SkyUI's slot";
+            ExpectRect(rects, Layout::kSpellCard, 648, 306, 969, own ? 623 : 512, Text("custom layout, Powers hidden set, %s", who));
+            const auto it = rects.find(Layout::kSpellCard);
+            const bool real = it != rects.end() && it->second.top < it->second.bottom && it->second.left < it->second.right;
+            Expect(real, Text("custom layout, %s: top < bottom, left < right", who));
+            const auto problem = it != rects.end() ? Layout::CardBoxProblem(it->second, column, content[0]) : std::string("no rect");
+            Expect(problem.empty(), Text("custom layout, %s: inside column 0 %s (%s)", who, Show(column).c_str(), problem.empty() ? "ok" : problem.c_str()));
+        }
+        // the same layout on a spell tab (nothing hidden) and with the card drawn cut to its content (67 + 90 on its own tab)
+        const auto spell = Layout::Arrange(custom, kHeights, {}, fill, kFrames);
+        Expect(Layout::CardBoxProblem(spell.at(Layout::kSpellCard), column, Layout::ContentHeight(custom, spell, kFrames)[0]).empty(),
+            "custom layout, spell tab: card inside its column");
+        Expect(Layout::CardBoxProblem({ 648, 306, 969, 396 }, column, 556).empty(), "card cut to its content (306..396): ok");
+
+        // CardBoxProblem refuses the bad boxes
+        Expect(!Layout::CardBoxProblem({ 648, 306, 969, 157 }, column, 556).empty(), "build 15's 648,306..969,157 (inverted): FAIL");
+        Expect(!Layout::CardBoxProblem({ 648, 306, 969, 306 }, column, 556).empty(), "empty box (top = bottom): FAIL");
+        Expect(!Layout::CardBoxProblem({ 969, 306, 648, 623 }, column, 556).empty(), "right left of left: FAIL");
+        Expect(!Layout::CardBoxProblem({ 978, 306, 1238, 623 }, column, 556).empty(), "in the other column's x span: FAIL");
+        Expect(!Layout::CardBoxProblem({ 648, 40, 969, 300 }, column, 556).empty(), "above the column's top: FAIL");
+        Expect(!Layout::CardBoxProblem({ 648, 417, 969, 700 }, column, 556).empty(), "below the column's end (no scroll): FAIL");
+        Expect(Layout::CardBoxProblem({ 648, 587, 969, 793 }, column, 726).empty(), "below the viewport in a scrolling column (content 726): ok");
+        Expect(!Layout::CardBoxProblem({ 648, 306, 969, std::numeric_limits<double>::quiet_NaN() }, column, 556).empty(), "NaN edge: FAIL");
     }
 
     void Scroll()
@@ -1085,6 +1130,7 @@ int main()
     DefaultLayout();
     Border();
     HiddenAndFill();
+    CardBoxInColumn();
     Scroll();
     ColumnsAndVisibleBox();
     SnapAndMove();

@@ -95,6 +95,16 @@ namespace Layout
     /// column's viewport: what of the column shows, its mask. A column out of range gets an empty rect.
     Settings::Rect ColumnArea(const State& a_state, int a_column, const std::array<Frame, kColumns>& a_frames);
 
+    /// The blocks the tabs without a tree hide (plan D6): Powers/Shouts and, since build 16, Active Effects too (it shows
+    /// the preview and the card like Powers; before build 16 it hid the preview as well).
+    std::set<BlockId> NoTreeTabHidden();
+
+    /// Build 16 (SelfTest C2, layout-check): what is wrong with the card's box, empty when nothing. a_box is the box as
+    /// drawn, unscrolled; a_column the column's area (ColumnArea); a_content the column's content height (ContentHeight -
+    /// a column taller than its viewport scrolls, so its blocks may reach top + content). Wrong: an edge not finite, the
+    /// box empty or inverted (right <= left, bottom <= top), outside the column's x span, above its top or below its end.
+    std::string CardBoxProblem(const Settings::Rect& a_box, const Settings::Rect& a_column, double a_content);
+
     /// The part of a_box inside a_viewport; nullopt when nothing is (no overlap, only an edge or a corner in common, or a
     /// non-finite edge). Blocks plan Task 3: the 3D preview's scissor is its box cut to its column's viewport.
     std::optional<Settings::Rect> VisibleBox(const Settings::Rect& a_box, const Settings::Rect& a_viewport);

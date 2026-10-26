@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <format>
 #include <iterator>
 #include <limits>
 #include <utility>
@@ -131,6 +132,30 @@ namespace Layout
             return { frame.left, frame.top, border, frame.bottom };
         }
         return { border + a_frames[kColumnLeft].gap, frame.top, frame.right, frame.bottom };
+    }
+
+    std::set<BlockId> NoTreeTabHidden()
+    {
+        return { kTree, kProgress, kNodeCard };
+    }
+
+    std::string CardBoxProblem(const Settings::Rect& a_box, const Settings::Rect& a_column, double a_content)
+    {
+        constexpr double kSlack = 1e-6;  // Arrange's sums, not a pixel tolerance
+        const auto finite = [](const Settings::Rect& a_rect) {
+            return std::isfinite(a_rect.left) && std::isfinite(a_rect.top) && std::isfinite(a_rect.right) && std::isfinite(a_rect.bottom);
+        };
+        if (!finite(a_box) || !finite(a_column) || !std::isfinite(a_content)) return "an edge is not finite";
+        if (a_box.bottom <= a_box.top) return std::format("inverted or empty: bottom {:.1f} not below top {:.1f}", a_box.bottom, a_box.top);
+        if (a_box.right <= a_box.left) return std::format("inverted or empty: right {:.1f} not right of left {:.1f}", a_box.right, a_box.left);
+        if (a_box.left < a_column.left - kSlack || a_box.right > a_column.right + kSlack) {
+            return std::format("x {:.1f}..{:.1f} outside the column's {:.1f}..{:.1f}", a_box.left, a_box.right, a_column.left, a_column.right);
+        }
+        const double end = a_column.top + std::max(a_column.Height(), a_content);
+        if (a_box.top < a_column.top - kSlack || a_box.bottom > end + kSlack) {
+            return std::format("y {:.1f}..{:.1f} outside the column's {:.1f}..{:.1f}", a_box.top, a_box.bottom, a_column.top, end);
+        }
+        return {};
     }
 
     std::optional<Settings::Rect> VisibleBox(const Settings::Rect& a_box, const Settings::Rect& a_viewport)
