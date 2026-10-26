@@ -137,3 +137,133 @@ guides, resize handles.
 The button row sits just below the left column (bottom right), not inside it, so the default layout never scrolls;
 the spell card keeps growing to fill its column on tabs that hide other blocks (as today); the mouse wheel over our
 columns scrolls them in normal mode too. Details: the plan's "Design review round 1" (D1-D11).
+
+## Input boundary (Task 0)
+
+Investigation 2026-10-26 (plan D1; report `.superpowers/sdd/2026-10-26-magic-menu-blocks/task-0-report.md`). SkyUI lines are
+schlangster/skyui master; the installed SkyUI is 6.11 (community build, `mods/SkyUI/meta.ini`), whose sources were not located
+(doodlum/skyui: 404), so lines may differ there. The design keys off member names (`handleInput`, `AttemptEquip`, `inventoryLists`,
+`itemList`, `disableInput`, `disableSelection`, `bFadedIn`), and the Task 5 self-tests judge the result.
+
+### What this menu already uses
+
+| Input | Owner in this menu | Evidence |
+|---|---|---|
+| Tab / Shift-Tab, B, Start | close (CloseTweenMenu), Cancel, Journal | MagicMenu.as:90-93; controlmap Menu Mode :61, Gameplay :48 |
+| Alt / pad BACK 271, "Quick Inventory" (I) | switch to the inventory | MagicMenu.as:94-97; SkyUI config.txt:5,8 |
+| Space | search box | InventoryLists.as:282-285; config.txt:4 |
+| D-pad / arrows / left stick, Enter / A | list move, category LEFT/RIGHT, press | ScrollingList.as:113-140; CategoryList.as:218-233; controlmap :60-66 |
+| LB 274 / RB 275 | previous / next sort column | TabularList.as:62-82; config.txt:9-10 |
+| LS click 272 | sort order; held 1 s opens the column dialog; an early keyUp is turned into a keyDown (sort) | InventoryLists.as:241-280, 431-443 |
+| LT / RT, mouse buttons | equip (native -> `AttemptEquip`) | MagicMenu.as:111-115; controlmap Item Menus :82-83 |
+| X / Y | Unlock / Favorite | MagicMenu.as:198-206; controlmap :86-87 |
+| RS click (0x0080 = 273), C | Item Zoom | controlmap Item Menus :84 |
+| right stick (0x000c) | Rotate the 3D model (Inventory3DManager) | controlmap :85; Inventory3DManager.h:53-55 |
+| mouse wheel / press over the list, the 3D rect, outside the menu | list scroll, zoom, rotation start, close | ScrollingList.as:303-318; ItemMenu.as:117-121, 325-332, 400-404 |
+
+controlmap = the installed `Legendary Map - CoMAP Support and Some Improvements/Interface/controls/pc/controlmap.txt` (wins over
+`No Numpad Hotkeys and Custom Keybinds`, same lines). No single gamepad button is free in this menu. K (0x25 = 37) is not in the
+controlmap and was free in the build-5 key scan (`v5-key-scan.md`, K: SexLab scene only). The user's own remap
+`Root/ControlMap_Custom.txt` is binary and was not read.
+
+### Chosen mechanism (three layers)
+
+1. **Native filter (primary).** A vtable hook on `MenuControls::ProcessEvent(InputEvent* const*)`
+   (`REL::Relocation<std::uintptr_t>{ RE::VTABLE_MenuControls[0] }.write_vfunc(1, ...)`; MenuControls.h:22-59, slot 1 on SE/AE/VR).
+   MenuControls is the only menu-side `BSTEventSink<InputEvent*>` (the others are PlayerControls and BGSMoviePlayer); its handlers
+   (ClickHandler, DirectionHandler, MenuOpenHandler, FavoritesHandler, Inventory3DManager, ...) sit below it. While the magic menu
+   is open the hook always walks the list to keep a held set (every non-mouse `ButtonEvent` with `IsPressed()` enters it, `IsUp()`
+   removes it - `IsPressed`, not `IsDown`, so a press begun before the menu opened counts as held). Fast path: mode off and nothing
+   owned -> after that walk, call the original with the caller's pointer, list untouched (no unlink/restore). Otherwise: walk the list, unlink the consumed events into a
+   local `filteredHead`, call the original once with `&filteredHead` (also when it is empty), restore every `next` link it changed
+   (RAII, on every return path), return the original's result (never an extra kStop). Other sinks (PlayerControls, SKSE, our
+   Input.cpp sink) still get the full list.
+   - Consumed while the mode is on: every event whose device is not `kMouse` of the types kButton, kThumbstick, kChar and the VR
+     touchpad types, except buttons whose user event is "Console" or "Screenshot" (UserEvents.h:114,116). Passed: kMouseMove, mouse
+     buttons and wheel, kDeviceConnect.
+   - Ownership: a press belongs to whoever got its down. When the hook consumes a down (any press in the mode, the toggle press in or
+     out of the mode, the B/Esc press that leaves it), `(device, idCode)` is owned; its holds and up are consumed even after the mode
+     is off or the menu has closed (the hook stays armed while anything is owned). An entry ends only on its up or on a fresh down of
+     the same code (then judged anew) - never on a frame without events. The right stick is owned from its first consumed sample until
+     a neutral sample (so a tilted stick at exit does not rotate the model).
+   - The mode switch is decided inside the hook, synchronously (not deferred to the UI task), so later events of the same batch see
+     the new state. UI work (focus, moves, scroll) is queued with `AddUITask` as today.
+2. **AS2 wraps (second boundary + leak detector).** With the GetMember / CreateFunction / SetMember pattern of
+   `SelectionChangeWrap` (Widget.cpp:1065-1118, 1229-1300):
+   - `_root.Menu_mc.handleInput`: FocusHandler sends every Scaleform key to `path[0].handleInput` only (FocusHandler.as:71-108,
+     110-128), and that is Menu_mc. Mode off: call SkyUI's original. Mode on: return true without calling it, count it, log the
+     first per menu (`Layout: input leak code/value/nav`). Our own clip cannot take this role: `mmx_root` is a sibling of Menu_mc,
+     never on the focus path.
+   - `_root.Menu_mc.AttemptEquip`: mode on -> no-op. Needed because a native mouse click (passed for the drag) can still call it,
+     and on the gamepad platform SkyUI skips its mouse-over-list check (ItemMenu.as:498-523).
+3. **Mouse shield.** A transparent full-stage clip at the lowest depth inside `mmx_root` (which is above Menu_mc: Draw.h:38-49,
+   Widget.cpp:5078), visible only in the mode, with an empty onPress, so `Mouse.getTopMostEntity()` is never SkyUI's: no row
+   press/rollover, no list wheel, no 3D zoom or rotation start, no outside-the-menu close. Blocks and the lock/reset row lie above it.
+
+Rejected (evidence in the report): our own AS2 handleInput (never called), handleInput wrap alone (misses AttemptEquip, the sticks,
+MenuOpenHandler), `MagicMenu::ProcessMessage` (per-menu, but the sticks are handled inside MenuControls before any UI message, so
+a second hook would be needed anyway), `PrependEventSink` + kStop (drops the whole batch, mouse included: BSTEvent.h:146-149),
+hooking MenuEventHandlers (vfunc numbers shift per runtime: MenuEventHandler.h:33-55), toggling SkyUI's disableInput (SkyUI owns
+those flags: InventoryLists.as:446-457, 513-526).
+
+Open premise (확인 필요): that the Scaleform key input of this menu is produced below `MenuControls::ProcessEvent`. The headers only
+point that way. If it is wrong, layer 2 still stops SkyUI; the route-parity self-test below decides it.
+
+### Defaults
+
+- Keyboard: `[Keys] iLayout = 37` (K). The hook compares the DIK code.
+- Gamepad: `[Keys] iGamepadLayout = 273` (RS click, SKSE code), `-1` = none. The hook converts `ButtonEvent::GetIDCode()` (an XInput
+  mask, BSWin32GamepadDevice.h:26-27) with `SKSE::InputMap::GamepadMaskToKeycode` (InputMap.cpp:84) before comparing. Cost: the
+  gamepad Item Zoom is gone in this menu (mouse wheel and C still zoom). Chosen because every pad button is taken (table above) and
+  the mode already owns the right stick; the user may prefer no default (open question). A refused RS-click toggle is passed
+  through untouched, so the player sees an Item Zoom on a refusal (consistent with "nothing consumed when off").
+- The lock button (mouse) toggles the mode as well. In the mode: D-pad/arrows, A/Enter, B/Esc, LB/RB, right stick per the spec.
+
+### Entry refusals and exits
+
+The mode refuses to start - the toggle press is then passed through untouched, the lock button stays as it was, and one line is
+logged (`Layout: mode refused - <reason>`) - when: the native hook or either AS2 wrap is not installed (no hook = SkyUI cannot be
+stopped; no handleInput wrap = no leak detector); a text field takes keys (`ControlMap` textEntryCount > 0: the search box);
+`itemList.disableInput` or `disableSelection` is set, `bFadedIn` is false or `inventoryLists.currentState` is not SHOW_PANEL (column
+dialog, mouse rotation, fade); any keyboard/gamepad button other than the toggle is held (tracked in the hook; this keeps the LS
+sort timer and other half presses out of the mode); Inventory Reforged's panel or our fallback switches are on (spec rule above).
+The mode ends as Cancel when the menu closes or another menu that pauses the game, uses menu context or is modal opens on top
+(e.g. a confirmation box from a Papyrus key mod). Owned presses outlive both.
+
+### When the mode is off
+
+Nothing is consumed, with these exceptions: the toggle press itself (down, holds, up) when it is accepted; the tail (holds, up) of
+a press consumed in the mode, such as the B/Esc that leaves it; the right stick until neutral after the mode; the mouse wheel over
+our columns (D7, AS2 listener, not this hook). Input.cpp's U/G sink ignores a key while the mode is on or the key is owned.
+
+### Right stick
+
+Read in the hook (`ThumbstickEvent::IsRight()`, yValue) while the mode is on: consumed (so Inventory3DManager does not rotate the
+model) and its value queued as the scroll of the focused block's column. The left stick is consumed as navigation.
+
+### Known limits
+
+Other input sinks are not filtered: SKSE's Papyrus key events and other plugins' sinks still see keys in the mode (for example
+Spell Organizer's R, `v5-key-scan.md`); a menu they open ends the mode. VR devices are filtered by the device rule but not tested.
+
+### Self-tests for Task 5 (log PASS/FAIL)
+
+- `L5 input passthrough`: mode off, a list move reaches SkyUI (index changes).
+- Route parity: mode off, keyboard/gamepad downs seen by the hook vs keyDowns seen by the handleInput wrap agree (decides the open premise).
+- Leak: in the mode the handleInput wrap receives 0 calls, the list index, tab and category do not change, the menu stays open.
+- Tail: the B/Esc that leaves the mode does not reach the wrap; a refused entry with LS held logs the refusal.
+- Shield: in the mode a click where the list is gives no itemPress (ListPress sees nothing) and selectedIndex stays (alpha-0 hit test).
+- Unverified until then: held buttons send an event every frame, DirectionHandler repeat stops when its held events are removed,
+  late ups after Alt-Tab.
+
+### GPT opinion (Codex, read-only, 2026-10-26)
+
+Agreed with the MenuControls boundary and the unlink/restore filter over PrependEventSink. Taken: refuse entry while a button is
+held (LS early keyUp becomes a sort, InventoryLists.as:252-263), keep ownership until a real up or fresh down and past menu close,
+RS click is Item Zoom (controlmap :84; the draft had called it free), AttemptEquip wrap (no mouse check on the gamepad platform),
+disableSelection in the entry check (mouse rotation, ItemMenu.as:400-404), filter all non-mouse devices incl. VR and CharEvent,
+the U/G sink checks the mode, right stick owned until neutral, synchronous switch, `GamepadMaskToKeycode`, a local filtered head
+with RAII restore and the original's return value. Narrowed: the fade-out wheel zoom branch (ItemMenu.as:327) needs
+`bFadedIn == false`; in this menu that comes from `startMenuFade` (MagicMenu.as:221-227: Tab, BACK/Alt/"Quick Inventory",
+exitMenuRect - all behind inputs layer 1 consumes or the shield blocks) and from the game's `ToggleMenuFade` callback
+(ItemMenu.as:235-242; its native triggers are 확인 필요), and entry is refused while `!bFadedIn`, so it gets no separate guard. Not checked (outside the allowed sources): its SkyrimSoulsRE and skse64 links.
