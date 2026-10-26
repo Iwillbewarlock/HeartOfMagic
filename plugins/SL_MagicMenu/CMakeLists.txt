@@ -33,6 +33,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
         src/Spells.cpp
         src/TreeData.cpp
         src/HomStyle.cpp
+        src/Layout.cpp
         src/Widget.cpp
         src/Preview.cpp
         src/Input.cpp

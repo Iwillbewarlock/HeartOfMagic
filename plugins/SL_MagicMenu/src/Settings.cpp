@@ -21,7 +21,8 @@ namespace Settings
         constexpr double kMinTreeScale = 0.01, kMaxTreeScale = 10.0;
         constexpr double kMinMarkScale = 0.5, kMaxMarkScale = 3.0;
         constexpr int kMaxSteps = 6, kMaxNodes = 200;
-        constexpr double kMaxPanelGap = 200.0;
+        // two columns of Layout::kMinColumn (240) and the gap fit in the block area 648..1238 (590): 590 - 2 x 240 = 110
+        constexpr double kMaxPanelGap = 110.0;
 
         Values g_values;
 
