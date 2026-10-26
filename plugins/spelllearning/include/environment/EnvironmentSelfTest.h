@@ -30,6 +30,9 @@ namespace Environment::SelfTest
     void CheckMysticismPatch();
     void CheckFrostwalker();
     void CheckAdapters();
+    // H1-d (ProgressionNotifySelfTest.cpp): each notice sees the state after the
+    // change that made it, in the order it was made. Changes the save, then undoes it.
+    void CheckProgressionNotify();
 
     enum class Outcome
     {

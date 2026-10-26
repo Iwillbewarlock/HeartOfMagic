@@ -5,7 +5,7 @@
 #include "ProgressionManager.h"
 #include "EncodingUtils.h"
 #include "SpellScanner.h"
-#include "uimanager/UIManager.h"
+#include "ProgressionNotify.h"
 #include "SKSE/SKSE.h"
 
 #include <algorithm>
@@ -101,7 +101,7 @@ void ProgressionManager::DropTargetFromOtherSchools(const std::string& keepSchoo
                 formId, it->first, keepSchool.empty() ? "none" : keepSchool);
             // The panel holds its own copy of the keys: it forgets this one; and
             // Papyrus listeners hear the key cleared, as from ClearLearningTarget
-            UIManager::GetSingleton()->NotifyLearningTargetDropped(it->first, formId);
+            ProgressionNotify::TargetDropped(it->first, formId);
             SendModEvent("SpellLearning_TargetChanged", it->first, 0.0f, nullptr);
             it = m_learningTargets.erase(it);
             m_dirty = true;
@@ -131,6 +131,7 @@ void ProgressionManager::DropTargetFromOtherSchools(const std::string& keepSchoo
 // stays where it was - still one key, only not the canonical one (rare).
 void ProgressionManager::CanonicalizeLearningTargets()
 {
+    ProgressionNotify::Batch notices;   // sent when this returns, after every change below
     struct Target
     {
         RE::FormID formId = 0;
@@ -203,11 +204,10 @@ void ProgressionManager::CanonicalizeLearningTargets()
     std::sort(before.begin(), before.end());
     std::sort(after.begin(), after.end());
     if (before == after) return;
-    auto* ui = UIManager::GetSingleton();
     for (const auto& [school, formId] : before) {
         auto now = placed.find(school);
         if (formId == 0 || (now != placed.end() && now->second == formId)) continue;
-        ui->NotifyLearningTargetDropped(school, formId);
+        ProgressionNotify::TargetDropped(school, formId);
         SendModEvent("SpellLearning_TargetChanged", school, 0.0f, nullptr);
     }
     const auto old = std::move(m_learningTargets);
@@ -217,7 +217,7 @@ void ProgressionManager::CanonicalizeLearningTargets()
         auto was = old.find(school);
         if (formId == 0 || (was != old.end() && was->second == formId)) continue;
         auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(formId);
-        ui->NotifyLearningTargetSet(school, formId, spell ? spell->GetName() : "");
+        ProgressionNotify::TargetSet(school, formId, spell ? spell->GetName() : "");
         SendModEvent("SpellLearning_TargetChanged", school, 1.0f, spell);
     }
 }

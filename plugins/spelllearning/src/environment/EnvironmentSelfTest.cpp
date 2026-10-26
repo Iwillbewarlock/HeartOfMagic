@@ -86,7 +86,8 @@ namespace Environment::SelfTest
             FlushLog();
             const std::pair<const char*, void (*)()> checks[] = {
                 { "H2", CheckH2 }, { "twins", CheckTwins }, { "mysticism-patch", CheckMysticismPatch },
-                { "frostwalker", CheckFrostwalker }, { "adapters", CheckAdapters }
+                { "frostwalker", CheckFrostwalker }, { "adapters", CheckAdapters },
+                { "notify", CheckProgressionNotify }
             };
             for (const auto& [name, check] : checks) {
                 try {

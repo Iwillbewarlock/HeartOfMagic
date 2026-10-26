@@ -89,6 +89,8 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/progressionmanager/ProgressionManagerStudy.cpp
     src/progressionmanager/ProgressionManagerAPI.cpp
     src/progressionmanager/ProgressionManagerSerialization.cpp
+    src/ProgressionNotify.cpp
+    src/ProgressionNotifySelfTest.cpp
     src/ISLIntegration.cpp
     src/SpellCastXPSource.cpp
     src/PassiveLearningSource.cpp

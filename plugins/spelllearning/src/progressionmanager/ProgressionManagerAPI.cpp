@@ -3,7 +3,7 @@
 // =============================================================================
 
 #include "ProgressionManager.h"
-#include "uimanager/UIManager.h"
+#include "ProgressionNotify.h"
 #include "ProgressionMath.h"
 
 // =============================================================================
@@ -53,7 +53,7 @@ bool ProgressionManager::RegisterModdedXPSource(const std::string& sourceId, con
         logger::info("ProgressionManager: Registered {} XP source '{}' with its saved settings",
             internal ? "internal" : "modded", sourceId);
         if (!internal) {
-            UIManager::GetSingleton()->NotifyModdedSourceRegistered(sourceId, known->second.displayName,
+            ProgressionNotify::SourceRegistered(sourceId, known->second.displayName,
                 known->second.multiplier, known->second.cap, known->second.enabled);
         }
         SendModEvent("SpellLearning_SourceRegistered", sourceId, 0.0f, nullptr);
@@ -82,7 +82,7 @@ bool ProgressionManager::RegisterModdedXPSource(const std::string& sourceId, con
 
     // Only notify UI for external (non-internal) sources
     if (!internal) {
-        UIManager::GetSingleton()->NotifyModdedSourceRegistered(sourceId, config.displayName, config.multiplier, config.cap);
+        ProgressionNotify::SourceRegistered(sourceId, config.displayName, config.multiplier, config.cap);
     }
 
     // Fire ModEvent

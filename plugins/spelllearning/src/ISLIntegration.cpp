@@ -3,7 +3,7 @@
 #include "HudNotify.h"
 #include "ThreadUtils.h"
 #include "ProgressionManager.h"
-#include "uimanager/UIManager.h"
+#include "ProgressionNotify.h"
 #include "SpellEffectivenessHook.h"
 #include "SpellTomeHook.h"
 
@@ -171,7 +171,7 @@ namespace DESTIntegration {
 
         HudNotify::Show("hud.beginGrasp", "You begin to grasp {{spell}}...", { { "spell", spell->GetName() } });
 
-        UIManager::GetSingleton()->NotifyProgressUpdate(formIdStr);
+        ProgressionNotify::ProgressRefresh(formIdStr);
         return true;
     }
 
@@ -340,7 +340,7 @@ namespace DESTIntegration {
                 // Name modifications happen in OnStudyComplete after ISL grants the spell.
 
                 // Notify UI
-                UIManager::GetSingleton()->NotifyProgressUpdate(formIdStr);
+                ProgressionNotify::ProgressRefresh(formIdStr);
             });
         }
 
@@ -381,7 +381,7 @@ namespace DESTIntegration {
                 }
 
                 // Notify UI
-                UIManager::GetSingleton()->NotifyProgressUpdate(formIdStr);
+                ProgressionNotify::ProgressRefresh(formIdStr);
             });
         }
     }

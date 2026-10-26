@@ -3,7 +3,7 @@
 #include "HudNotify.h"
 #include "ProgressionManager.h"
 #include "SpellEffectivenessHook.h"
-#include "uimanager/UIManager.h"
+#include "ProgressionNotify.h"
 #include "ISLIntegration.h"
 #include "SpellTomeHookGate.h"
 #include "SpellTomeHookSites.h"
@@ -153,7 +153,7 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
         }
 
         // Notify UI so the tree updates
-        UIManager::GetSingleton()->NotifyProgressUpdate(formIdStr);
+        ProgressionNotify::ProgressRefresh(formIdStr);
         return;
     }
 
@@ -254,7 +254,7 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
     }
     
     // Notify UI
-    UIManager::GetSingleton()->NotifyProgressUpdate(formIdStr);
+    ProgressionNotify::ProgressRefresh(formIdStr);
     
     // Book is NOT consumed, NOT removed from inventory
     logger::info("SpellTomeHook: Tome '{}' kept in inventory", a_book->GetName());

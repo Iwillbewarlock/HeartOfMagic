@@ -6,7 +6,6 @@
 #include "ProgressionManager.h"
 #include "ProgressionMath.h"
 #include "SpellScanner.h"
-#include "uimanager/UIManager.h"
 
 namespace SpellLearning {
 

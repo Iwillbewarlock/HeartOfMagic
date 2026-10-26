@@ -55,6 +55,8 @@ public:
     // Learning targets (one per school)
     void SetLearningTarget(const std::string& school, RE::FormID formId, const std::vector<RE::FormID>& prereqs = {});
     RE::FormID GetLearningTarget(const std::string& school) const;
+    // Every school key, for a read-only look at the whole map (the H1-d self-test)
+    const std::unordered_map<std::string, RE::FormID>& GetLearningTargets() const { return m_learningTargets; }
     // Clears the school's target, and that spell under any other school key too
     void ClearLearningTarget(const std::string& school);
     void ClearLearningTargetForSpell(RE::FormID formId);  // Clear every school targeting this spell (mastered, unlocked, relocked)
@@ -143,6 +145,13 @@ public:
     // takes the spell from the player. Game thread only.
     void RelockSpell(RE::FormID formId);
     bool IsUnlocked(RE::FormID formId) const;
+    // Whether the spell has a progress entry at all (GetProgress answers a default for none)
+    bool HasProgressRecord(RE::FormID formId) const { return m_spellProgress.contains(formId); }
+    // Self-test cleanup only: drop an entry the test itself made (RelockSpell keeps it)
+    void ForgetProgress(RE::FormID formId)
+    {
+        if (m_spellProgress.erase(formId) != 0) m_dirty = true;
+    }
     
     // Check if a spell is available to learn (has progress entry, not yet unlocked)
     bool IsSpellAvailableToLearn(const std::string& formIdStr) const;
@@ -316,7 +325,7 @@ private:
 
     // One spell is the learning target of one school at most: a spell under two keys
     // earned XP twice per cast (ProgressionManagerCore.cpp). Every key dropped is
-    // told to the panel (UIManager::NotifyLearningTargetDropped) and fires
+    // told to the panel (ProgressionNotify::TargetDropped) and fires
     // SpellLearning_TargetChanged with 0 for that key
     void DropTargetFromOtherSchools(const std::string& keepSchool, RE::FormID formId);
     // At save load: each target under one key, its TargetSchoolOf key unless a target

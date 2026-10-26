@@ -11,7 +11,7 @@
 #include "PathText.h"
 #include "SpellScanner.h"
 #include "tomereach/TomeReach.h"
-#include "uimanager/UIManager.h"
+#include "ProgressionNotify.h"
 
 #include <chrono>
 #include <ctime>
@@ -69,7 +69,7 @@ namespace Librarian::SpellResearchPatch
                              { "added", added }, { "time", clock } };
             }
             // The panel's line, if it is open (a scan from the panel ends here)
-            UIManager::GetSingleton()->NotifySpellResearchStatus();
+            ProgressionNotify::SpellResearchStatus();
         }
 
         RE::BGSListForm* ResolveList(const std::string& persistentId)

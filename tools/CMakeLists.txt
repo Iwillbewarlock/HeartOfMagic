@@ -219,3 +219,19 @@ target_include_directories(tree-prereq-check PRIVATE
 target_link_libraries(tree-prereq-check PRIVATE
     nlohmann_json::nlohmann_json
 )
+
+# =============================================================================
+# progression-notify-check  -  offline check of the H1-d notice queue
+# =============================================================================
+# The plugin's own ProgressionNotifyQueue.h (header only, no game types): held
+# while a Batch is open, sent in posting order when the outermost one closes.
+
+add_executable(progression-notify-check
+    progression-notify-check.cpp
+)
+
+target_compile_features(progression-notify-check PRIVATE cxx_std_23)
+
+target_include_directories(progression-notify-check PRIVATE
+    ${SL_INCLUDE_DIR}
+)

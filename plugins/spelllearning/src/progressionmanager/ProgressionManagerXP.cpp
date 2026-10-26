@@ -6,7 +6,7 @@
 #include "AsciiText.h"
 #include "FormIdText.h"
 #include "HudNotify.h"
-#include "uimanager/UIManager.h"
+#include "ProgressionNotify.h"
 #include "SpellEffectivenessHook.h"
 #include "SpellTomeHook.h"
 #include "SpellScanner.h"
@@ -267,6 +267,7 @@ void ProgressionManager::OnSpellCast(const std::string& school, RE::FormID castS
 
 void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
 {
+    ProgressionNotify::Batch notices;   // sent when this returns, after every change below
     auto& progress = EnsureProgress(targetSpellId);
 
     // If already fully mastered (unlocked in old system OR 100% in new system), no more XP needed
@@ -379,18 +380,18 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
             ClearLearningTargetForSpell(targetSpellId);
 
             // Notify UI that spell is fully unlocked/mastered (not just "ready")
-            UIManager::GetSingleton()->NotifySpellUnlocked(targetSpellId, true);
+            ProgressionNotify::SpellUnlocked(targetSpellId, true);
         }
     } else {
         // Old behavior: notify when ready to unlock (100%)
         if (progress.progressPercent >= 1.0f) {
             logger::info("ProgressionManager: Spell {:08X} is ready to unlock!", targetSpellId);
-            UIManager::GetSingleton()->NotifySpellReady(targetSpellId);
+            ProgressionNotify::SpellReady(targetSpellId);
         }
     }
 
     // Notify UI of progress update
-    UIManager::GetSingleton()->NotifyProgressUpdate(targetSpellId, newXP, progress.requiredXP);
+    ProgressionNotify::Progress(targetSpellId, newXP, progress.requiredXP);
 }
 
 void ProgressionManager::AddXP(const std::string& formIdStr, float amount)

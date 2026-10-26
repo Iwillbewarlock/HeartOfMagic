@@ -4,7 +4,7 @@
 
 #include "ProgressionManager.h"
 #include "FormIdText.h"
-#include "uimanager/UIManager.h"
+#include "ProgressionNotify.h"
 #include "SpellEffectivenessHook.h"
 #include "SpellScanner.h"
 #include "SpellTomeHook.h"
@@ -15,6 +15,7 @@
 
 void ProgressionManager::SetLearningTarget(const std::string& school, RE::FormID formId, const std::vector<RE::FormID>& prereqs)
 {
+    ProgressionNotify::Batch notices;   // sent when this returns, after every change below
     auto* effectivenessHook = SpellEffectivenessHook::GetSingleton();
     const auto& earlySettings = effectivenessHook->GetSettings();
 
@@ -33,7 +34,7 @@ void ProgressionManager::SetLearningTarget(const std::string& school, RE::FormID
         }
 
         // Notify UI that old target is no longer being learned
-        UIManager::GetSingleton()->NotifyLearningTargetCleared(oldTargetId);
+        ProgressionNotify::TargetCleared(oldTargetId);
 
         // Clear old target's prerequisites
         m_targetPrerequisites.erase(oldTargetId);
@@ -77,6 +78,7 @@ RE::FormID ProgressionManager::GetLearningTarget(const std::string& school) cons
 
 void ProgressionManager::ClearLearningTarget(const std::string& school)
 {
+    ProgressionNotify::Batch notices;   // sent when this returns, after every change below
     // Check if there was an active target to clear
     RE::FormID oldTargetId = 0;
     auto it = m_learningTargets.find(school);
@@ -99,7 +101,7 @@ void ProgressionManager::ClearLearningTarget(const std::string& school)
         m_targetPrerequisites.erase(oldTargetId);
 
         // Notify UI that learning target was cleared
-        UIManager::GetSingleton()->NotifyLearningTargetCleared(oldTargetId);
+        ProgressionNotify::TargetCleared(oldTargetId);
     }
 
     m_learningTargets.erase(school);
@@ -353,6 +355,7 @@ bool ProgressionManager::AreTreePrerequisitesMet(RE::FormID spellId) const
 
 void ProgressionManager::SetLearningTargetFromTome(const std::string& formIdStr, RE::SpellItem* spell)
 {
+    ProgressionNotify::Batch notices;   // sent when this returns, after every change below
     if (!spell) {
         // Try to look up by form ID
         const auto parsedId = FormIdText::Parse(formIdStr);
@@ -410,7 +413,7 @@ void ProgressionManager::SetLearningTargetFromTome(const std::string& formIdStr,
         schoolName, spell->GetName());
 
     // Notify UI immediately so it knows this is a learning target BEFORE we grant the spell
-    UIManager::GetSingleton()->NotifyLearningTargetSet(schoolName, formId, spell->GetName());
+    ProgressionNotify::TargetSet(schoolName, formId, spell->GetName());
 }
 
 // =============================================================================
@@ -446,6 +449,7 @@ bool ProgressionManager::CanUnlock(RE::FormID formId) const
 
 bool ProgressionManager::UnlockSpell(RE::FormID formId)
 {
+    ProgressionNotify::Batch notices;   // sent when this returns, after every change below
     if (!CanUnlock(formId)) {
         logger::warn("ProgressionManager: Cannot unlock {:08X} - not ready", formId);
         return false;
@@ -482,6 +486,7 @@ bool ProgressionManager::UnlockSpell(RE::FormID formId)
 
 void ProgressionManager::RelockSpell(RE::FormID formId)
 {
+    ProgressionNotify::Batch notices;   // sent when this returns, after every change below
     // An early-learned spell: RemoveEarlySpellFromPlayer puts its own name and
     // descriptions back (the "(Learning - 40%)" ones) and drops the tracking the
     // co-save keeps. The caller already took the spell from the player, so it

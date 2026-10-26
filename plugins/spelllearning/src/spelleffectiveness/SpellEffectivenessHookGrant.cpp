@@ -1,8 +1,7 @@
 #include "SpellEffectivenessHook.h"
-#include "FormIdText.h"
 #include "HudNotify.h"
 #include "ProgressionManager.h"
-#include "uimanager/UIManager.h"
+#include "ProgressionNotify.h"
 #include "ThreadUtils.h"
 
 // =============================================================================
@@ -57,8 +56,7 @@ void SpellEffectivenessHook::GrantEarlySpell(RE::SpellItem* spell)
             spell->GetName(), formId, alreadyHasSpell);
 
         // Notify UI
-        UIManager::GetSingleton()->UpdateSpellState(
-            FormIdText::Format(formId), "weakened");
+        ProgressionNotify::SpellState(formId, "weakened");
     } else {
         logger::trace("SpellEffectivenessHook: Spell {} ({:08X}) already tracked as early-learned",
             spell->GetName(), formId);
@@ -100,8 +98,7 @@ void SpellEffectivenessHook::RegisterISLPendingSpell(RE::SpellItem* spell)
     }
 
     // Notify UI of the new tracked state (no name change yet)
-    UIManager::GetSingleton()->UpdateSpellState(
-        FormIdText::Format(formId), "studying");
+    ProgressionNotify::SpellState(formId, "studying");
 }
 
 void SpellEffectivenessHook::MarkMastered(RE::FormID spellFormId)
@@ -121,8 +118,7 @@ void SpellEffectivenessHook::MarkMastered(RE::FormID spellFormId)
     logger::info("SpellEffectivenessHook: Spell {:08X} mastered - nerf removed, name restored", spellFormId);
 
     // Notify UI
-    UIManager::GetSingleton()->UpdateSpellState(
-        FormIdText::Format(spellFormId), "mastered");
+    ProgressionNotify::SpellState(spellFormId, "mastered");
 }
 
 // =============================================================================
@@ -173,8 +169,7 @@ void SpellEffectivenessHook::RemoveEarlySpellFromPlayer(RE::FormID spellFormId)
     }
 
     // Notify UI
-    UIManager::GetSingleton()->UpdateSpellState(
-        FormIdText::Format(spellFormId), "available");
+    ProgressionNotify::SpellState(spellFormId, "available");
 }
 
 void SpellEffectivenessHook::CheckAndRegrantSpell(RE::FormID spellFormId)
@@ -224,8 +219,7 @@ void SpellEffectivenessHook::CheckAndRegrantSpell(RE::FormID spellFormId)
                 spell->GetName(), spellFormId, progressPercent);
 
             // Notify UI
-            UIManager::GetSingleton()->UpdateSpellState(
-                FormIdText::Format(spellFormId), "weakened");
+            ProgressionNotify::SpellState(spellFormId, "weakened");
         }
     }
 }
