@@ -86,6 +86,15 @@ namespace BlackFlame::CopyRequestV5
                                      Dump(a_folder, a_inputs.nifs, a_inputs.textures, a_fingerprint, textureFingerprint, failures, &reuse,
                                          only);
             a_complete = failures == 0;
+            if (a_complete) {
+                // (disk trim, first run 2026-10-26: 149 files, 45 MiB) files of sources no plan names any more stay under
+                // data\ for good - the dump only visits planned paths. What the manifest does not stamp goes
+                const auto swept = RemoveUnstamped(a_folder);
+                if (swept.files > 0 || swept.failed > 0) {
+                    state += std::format("; {} old file(s) no plan names removed ({} MiB){}", swept.files, swept.bytes / CopyRequestData::kMiB,
+                        swept.failed > 0 ? std::format(", {} would not delete", swept.failed) : std::string());
+                }
+            }
             return state;
         }
 

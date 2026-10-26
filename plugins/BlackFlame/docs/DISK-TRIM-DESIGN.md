@@ -74,6 +74,9 @@ usvfs (other volume, virtual path), and the builder needs to know what is publis
    manifest's stamps. The manifest's `needed` value (a hash of the set) is part of the "unchanged" test. The request is the
    same as before: a left-out texture is still listed as dumped, so a mapping gap gives a failed object (and a full dump at the
    next start), never a silent fallback.
+5. After a dump with no write failure, every file under `data\` the manifest does not stamp is deleted (`DumpSweep.h`): the
+   dump only visits the paths its plan names, so sources an older load order planned stayed for good (the first run on the
+   author's PC left 149 such files, 45 MiB).
 
 ## Review (GPT adversarial review of the design, 2026-10-26), checked against the code
 

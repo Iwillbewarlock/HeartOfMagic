@@ -5,6 +5,7 @@
 
 #include "CopyRequestDump.h"
 
+#include "DumpSweep.h"
 #include "EncodingUtils.h"
 
 #include <nlohmann/json.hpp>
@@ -427,5 +428,19 @@ namespace BlackFlame::CopyRequestDump
         return failed == 0 ? std::format("written ({})", counts) :
                              std::format("written with {} failure(s) ({}; the manifest not updated, so the next start "
                                          "dumps again)", failed, counts);
+    }
+
+    Swept RemoveUnstamped(const std::filesystem::path& a_folder)
+    {
+        std::ifstream in(LongPath(a_folder / kManifestName), std::ios::binary);
+        const auto manifest = in ? nlohmann::json::parse(in, nullptr, false) : nlohmann::json();
+        if (!manifest.is_object() || !manifest.contains(kFilesKey) || !manifest[kFilesKey].is_object()) {
+            return {};  // no stamps to go by: nothing is removed
+        }
+        std::set<std::string> stamped;
+        for (const auto& [path, stamp] : manifest[kFilesKey].items()) {
+            stamped.insert(DumpSweep::LowerAscii(path));
+        }
+        return DumpSweep::RemoveUnstamped(LongPath(a_folder / kDumpRoot), stamped);
     }
 }

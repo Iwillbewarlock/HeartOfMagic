@@ -3,6 +3,7 @@
 #include "Common.h"
 
 #include "CopyRequestData.h"
+#include "DumpSweep.h"
 #include "NifDump.h"
 
 #include <cstddef>
@@ -36,6 +37,13 @@ namespace BlackFlame::CopyRequestDump
 
     /// The manifest's kNeededKey value for a_only
     [[nodiscard]] std::string NeededText(const Only* a_only);
+
+    using Swept = DumpSweep::Swept;
+
+    /// (disk trim) Every plain file under a_folder\data\ that a_folder's manifest does not stamp ("files", compared without
+    /// ASCII case) deleted, then the folders left empty. Nothing when the manifest is missing, unreadable or has no "files"
+    /// (an older manifest stamps nothing: everything would go). Links are never followed or removed
+    [[nodiscard]] Swept RemoveUnstamped(const std::filesystem::path& a_folder);
 
     /// UTF-8 dump path -> "<size>:<fnv64 hex>" of the bytes the dump holds for it (the manifest's "files")
     using DumpedFiles = std::map<std::string, std::string>;
