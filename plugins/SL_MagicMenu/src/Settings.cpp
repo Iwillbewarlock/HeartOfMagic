@@ -467,7 +467,7 @@ namespace Settings
         // a broken / newer file was replaced by the default at load: the add-ons go into that default the same way
         g_layout = Layout::Repair(g_layout, known, g_defaultLayout);
         logger::info("Settings: {} add-on block(s){} - layout columns {}{}", g_addonIds.size(), g_addonIds.empty() ? "" : " known", Columns(g_layout),
-            before == g_layout ? " (unchanged: each has its saved place)" : " (the ones without a saved place put at the end of the right column)");
+            before == g_layout ? " (unchanged: each has its saved place)" : " (the ones without a saved place put at the end of the right column, the debug filler at the end of the left one)");
     }
 
     const Layout::State& DefaultLayout()

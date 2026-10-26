@@ -4176,6 +4176,15 @@ namespace Widget
             g_layoutMode = g_modeLedger.on;
         }
 
+        // After the frame's mode work (the end of LayoutFrame, a tab change): with no request left queued, the frame's state
+        // (g_menu.layout.active) is the input's flag (Layout::ModeLedger::Sync); a queued one settles it when it runs
+        void SyncMode(bool a_on)
+        {
+            const std::scoped_lock lock(g_layoutRequestLock);
+            g_modeLedger.Sync(!g_layoutRequests.empty(), a_on);
+            g_layoutMode = g_modeLedger.on;
+        }
+
         // g_layoutRequestLock held: no mode and no queued request (a menu's open and close); a request still running settles nothing
         void ResetModeLocked()
         {
@@ -5174,10 +5183,18 @@ namespace Widget
         }
 
         // Each frame (Frame handler): the wraps, the published refusals, the queued requests, the buttons, the drags
+        void LayoutFrameWork(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget);
+
         void LayoutFrame(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
-            auto& m = g_menu.layout;
             if (g_closing) return;  // a frame still running when the close came: no mode change, no save (the next open resets)
+            LayoutFrameWork(a_movie, a_widget);
+            SyncMode(g_menu.layout.active);  // fix wave 2: the frame's state is the final truth when nothing is queued
+        }
+
+        void LayoutFrameWork(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        {
+            auto& m = g_menu.layout;
             InstallInputWraps(a_movie);
             PublishLayoutBlock(a_movie);
             std::vector<LayoutRequest> requests;
@@ -6480,6 +6497,7 @@ namespace Widget
                 const auto seq = BeginModeChange(false);
                 LeaveLayoutMode(a_movie, a_widget, false, "the tab change");
                 SettleMode(seq, g_menu.layout.active);
+                SyncMode(g_menu.layout.active);
             }
             // D6: the tab's hidden blocks close up; the item card's slot moves between the Powers/Shouts tabs and the others, so
             // its transform is worked out again (Rearrange)

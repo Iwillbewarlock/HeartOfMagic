@@ -825,6 +825,91 @@ namespace
             ledger.Settle(c, false);  // e.g. the chrome was missing
             Expect(!ledger.on && c > b && b > a, "K on/off/on: the newest result is the flag; the numbers grow");
         }
+
+        // fix wave 2: a frame that runs its queue as LayoutFrame does - each request's result settled, a frame-side change
+        // (B/Esc's leave, the lock button, a tab change) numbered newest, and the frame's state synced when nothing is left queued
+        enum class Req { kEnter, kSave, kNavLeave };
+        struct Queued
+        {
+            Req kind;
+            std::uint64_t seq;
+        };
+        const auto queue = [](Layout::ModeLedger& a_ledger, std::vector<Queued>& a_queue, Req a_kind) {
+            const auto seq = a_kind == Req::kNavLeave ? 0 : a_ledger.Request(a_kind == Req::kEnter);
+            a_queue.push_back({ a_kind, seq });
+        };
+        // returns whether the widget is in the mode after the frame
+        const auto frame = [](Layout::ModeLedger& a_ledger, std::vector<Queued>& a_queue, bool a_active, bool a_tabChange) {
+            for (const auto& request : a_queue) {
+                if (request.kind == Req::kNavLeave) {
+                    if (a_active) {
+                        const auto seq = a_ledger.Request(false);  // BeginModeChange
+                        a_active = false;
+                        a_ledger.Settle(seq, a_active);
+                    }
+                    continue;
+                }
+                a_active = request.kind == Req::kEnter;  // Enter succeeds, Save leaves
+                a_ledger.Settle(request.seq, a_active);
+            }
+            a_queue.clear();
+            if (a_tabChange && a_active) {
+                const auto seq = a_ledger.Request(false);
+                a_active = false;
+                a_ledger.Settle(seq, a_active);
+                a_ledger.Sync(false, a_active);
+            }
+            a_ledger.Sync(!a_queue.empty(), a_active);
+            return a_active;
+        };
+        {
+            // Esc, K, K before the next frame, in the mode: [Nav(Esc) -> leave, Save, Enter]
+            Layout::ModeLedger ledger;
+            std::vector<Queued> q;
+            ledger.Settle(ledger.Request(true), true);
+            queue(ledger, q, Req::kNavLeave);
+            queue(ledger, q, Req::kSave);  // the hook still sees the mode on: K saves
+            queue(ledger, q, Req::kEnter);
+            const bool active = frame(ledger, q, true, false);
+            Expect(active && ledger.on, Text("[Nav(Esc), Save, Enter]: the widget in the mode and the flag on (active %d, flag %d)", active, ledger.on));
+        }
+        {
+            // a frame-side leave (the lock button) with an Enter already queued after it
+            Layout::ModeLedger ledger;
+            std::vector<Queued> q;
+            ledger.Settle(ledger.Request(true), true);
+            queue(ledger, q, Req::kSave);
+            queue(ledger, q, Req::kEnter);
+            // the lock button's leave runs before the queue in a frame of its own (BeginModeChange numbers it newest)
+            const auto lockSeq = ledger.Request(false);
+            ledger.Settle(lockSeq, false);
+            const bool active = frame(ledger, q, false, false);
+            Expect(active && ledger.on, Text("frame-side leave, then a queued Enter: flag follows the widget (active %d, flag %d)", active, ledger.on));
+        }
+        {
+            // K, K and a tab change in the same frame: the tab change ends the mode the Enter started
+            Layout::ModeLedger ledger;
+            std::vector<Queued> q;
+            ledger.Settle(ledger.Request(true), true);
+            queue(ledger, q, Req::kSave);
+            queue(ledger, q, Req::kEnter);
+            const bool active = frame(ledger, q, true, true);
+            Expect(!active && !ledger.on, Text("K, K + tab change: out of the mode, flag off (active %d, flag %d)", active, ledger.on));
+        }
+        {
+            // a request queued while the frame runs is left alone by Sync; it settles when it runs
+            Layout::ModeLedger ledger;
+            const auto enter = ledger.Request(true);
+            ledger.Sync(true, false);
+            Expect(ledger.on, "Sync with a request still queued changes nothing");
+            ledger.Settle(enter, true);
+            Expect(ledger.on, "... and that request settles it");
+            const auto before = ledger.latest;
+            ledger.Sync(false, false);
+            Expect(!ledger.on && ledger.latest > before, "Sync with nothing queued: the frame's state, the number moved on");
+            ledger.Settle(before, true);
+            Expect(!ledger.on, "a result of a request from before the Sync cannot flip it back");
+        }
     }
 }
 

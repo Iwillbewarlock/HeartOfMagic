@@ -300,5 +300,15 @@ namespace Layout
         {
             if (a_seq == latest) on = a_result;
         }
+
+        /// The frame handler's state is the final truth once no request is left queued (fix wave 2: a frame-side change took a
+        /// number newer than requests still queued, so their Settle was ignored and an Enter left the mode on with the flag
+        /// off). a_queued: requests still waiting. The number moves on, so a request already running cannot flip it back
+        void Sync(bool a_queued, bool a_result)
+        {
+            if (a_queued) return;
+            on = a_result;
+            ++latest;
+        }
     };
 }
