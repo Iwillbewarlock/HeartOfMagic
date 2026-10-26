@@ -1,0 +1,186 @@
+[center][size=5][b]Heart of Magic - Black Flame[/b][/size]
+Version 1.0.0 by Iwillbewarlock[/center]
+This is an add-on for Heart of Magic Librarian (by Iwillbewarlock, a rebuild of Heart of Magic - Spell Learning System by Dinkel Zombie).
+
+It adds one item: "Saeel's Iron Cage Lantern", worn at the left front of the hip. It is an iron cage with a grey-black flame inside and gives no light. Take the lantern off and everything returns to normal.
+
+[size=4][b]The "Longing" Effect[/b][/size]
+While wearing the lantern, you get the effect "Longing":
+[list]
+[*]Your own fire spells look glowing grey-black (not pitch black): projectile, explosion, hand casting effect, body aura, fire on targets, and casting light. "Fire spells" means ordinary spells that Heart of Magic's catalog marks as fire.
+[*]Fire spells with the fire keyword cost 30% more Magicka (catalog-only fire spells may not).
+[*]"Black Flame" damage on fire hits: deals 2% of the target's max Health over 2 seconds and ignores resistance. A new hit restarts the 2 seconds without stacking. Does not apply to cloaks, scrolls, staffs, shouts, or powers.
+[*]On AE 1.6.1170 and 1.7.104, Frozen Electrocuted Combustion (FEC) corpse fire also turns grey on enemies you kill with fire.
+[/list]
+Unchanged: NPC fire spells, held torches, summons' fire, fire traps, projectile speed, range, and base damage.
+How it works: at game start, a small helper program in the download makes private grey copies of fire visuals from your load order. Only your fire spells use them.
+
+[size=4][b]Requirements[/b][/size]
+[list]
+[*]SKSE for your game version
+[*]Address Library for SKSE Plugins
+[*]Heart of Magic Librarian 1.5.0 or newer (tested with 1.6.0)
+[*]Microsoft Visual C++ Redistributable 2015-2022 (x64)
+[*]Optional: Immersive Equipment Displays (IED) hangs the lantern at the hip. Change position via [code]"lanternIedPreset"[/code]: [code]"frontLeft"[/code] / [code]"frontRight"[/code] / [code]"backLeft"[/code] / [code]"backRight"[/code] in [code]SKSE\Plugins\HeartOfMagic_BlackFlame.json[/code] (default [code]frontLeft[/code]; restart after changing).
+[*]Disk space: depends on your load order (about 1 GB on the author's ~4,000-mod setup).
+[/list]
+
+[size=4][b]Install and First Launch[/b][/size]
+[list]
+[*]Install one archive (Korean or English; same files and FormIDs) with MO2 or Vortex.
+[*]Enable [code]HeartOfMagic_BlackFlame.esp[/code] and [code]HeartOfMagic_BlackFlame_Slots.esp[/code].
+[*]Keep [code]SKSE\Plugins\HeartOfMagic_BlackFlame.json[/code] (reinstall if lost).
+[*]If you use a loose-file cache mod such as CRDW, Force rebuild after installing or updating.
+[*]First launch: wait at the main menu before loading a save (about 1-2 minutes on the author's RTX 3070, longer on bigger setups; nothing on screen shows when it is done).
+[*]Heart of Magic needs a spell catalog. Its first-start scan makes one; if auto scan is off or you already have a saved tree, run a full scan. If you load before the catalog is ready, finish the scan and restart. If some spells still look orange, restart once more. Later launches reuse valid copies.
+[*]Do not share generated copies or your catalog.
+[/list]
+
+[size=4][b]Finding the Lantern[/b][/size]
+[list]
+[*]On a table on the upper level of Ansilvund Burial Chambers, with smoke rising next to it. If you already visited the area, it appears on your next visit.
+[*]Console: run [code]help Saeel 4[/code] (Korean version: [code]help 철창 4[/code] if your console takes Korean), then [code]player.additem <FormID> 1[/code]. FormID is [code]FE[/code] + the 3-digit ESL number of [code]HeartOfMagic_BlackFlame.esp[/code] + [code]80D[/code] (e.g. [code]FD3[/code] -> [code]FEFD380D[/code]).
+[/list]
+
+[size=4][b]Game Versions[/b][/size]
+[list]
+[*]AE 1.6.1170 (Steam): tested in game, everything on.
+[*]AE 1.7.104: everything on; code checked, not tested in game (may need one restart).
+[*]Other AE 1.6/1.7 (including GOG 1.6.1179): not tested. No instant aura refresh, no grey FEC corpse fire, no grey Fire Rune glyph, and no instant hand-effect refresh. Restart once if needed.
+[*]SE 1.5.97: never run. Copies apply on the next launch; in addition to the limits above, no grey hand casting effect and no grey ground fire/explosions made by the game's hazard/explosion code.
+[*]Skyrim VR: not supported.
+[/list]
+
+[size=4][b]Known Limits[/b][/size]
+[list]
+[*]Visuals are glowing grey-black, not pitch black.
+[*]Enemies burning to death stay orange (engine limit).
+[*]FEC corpse fire may stay orange if your frost or shock spell hits the corpse later.
+[*]Spells not in Heart of Magic's catalog keep their look, and effects shared with non-fire spells may too.
+[*]A burn started while wearing the lantern stays grey until it ends.
+[*]Switching from a fire spell to a non-fire spell that shares the same equipped effect can leave its light tinted (harmless; clears when the lantern is removed).
+[*]Inventory preview may not show the flame.
+[*]With IED, a follower wearing the lantern does not show it.
+[/list]
+
+[size=4][b]Uninstall[/b][/size]
+[list]
+[*]With IED, take the lantern off and save first.
+[*]Remove the mod (keep a save from before install).
+[*]Delete [code]meshes\heartofmagic\blackflame\copies[/code] and [code]textures\heartofmagic\blackflame\copies[/code] from MO2 Overwrite (or Data).
+[*]Delete the work folder [code]Documents\My Games\Skyrim Special Edition\SKSE\HeartOfMagic_BlackFlame[/code] (GOG: [code]Skyrim Special Edition GOG[/code]).
+[*]Delete [code]HoMBF_slots*.json[/code] in your saves folder.
+[*]Delete the logs [code]HeartOfMagic_BlackFlame.log[/code] and [code]HeartOfMagic_BlackFlame_tester.txt[/code] (attach these logs to bug reports).
+[/list]
+
+[size=4][b]Credits[/b][/size]
+[list]
+[*][b]Dinkel Zombie[/b] - the original Heart of Magic.
+[*][b]HDharder[/b] - Temp File Framework (GPL-3.0): findings about the game's file index. No code used.
+[*][b]SlavicPotato[/b] - Immersive Equipment Displays (Papyrus API for the hip lantern).
+[*][b]GiraPomba[/b] - Lights On - Wearable Lanterns for IED (hip position presets).
+[*][b]powerofthree[/b] - address references, and Frozen Electrocuted Combustion.
+[*][b]Ershin[/b] - main-thread hook location (Open Animation Replacer, Precision, True Directional Movement).
+[*][b]Khajiitistan[/b] - Black Flame (Nexus mod 192777): colour reference only, no files used.
+[*][b]The authors of MuIF and KillFeed[/b] - call offsets for the SE 1.5.97 impact sites.
+[*][b]Community Shaders[/b] - effect shader reference for the palette rules.
+[*][b]Bethesda[/b] - the grey meshes are made from Skyrim's own files.
+[*][b]Libraries:[/b] CommonLibSSE-NG (GPL-3.0 with exceptions), nifly (GPL-3.0), DirectXTex, DirectX Tool Kit, DirectXMath, spdlog, {fmt}, JSON for Modern C++ (all MIT).
+[/list]
+
+[size=4][b]Source Code[/b][/size]
+The DLL and blackflame-greybuild.exe are GPL-3.0 combined works; Heart of Magic's own source is MIT. Source: [url=https://github.com/Iwillbewarlock/HeartOfMagic]github.com/Iwillbewarlock/HeartOfMagic[/url] (exact commit in THIRD-PARTY-NOTICES.md and [url=https://github.com/Iwillbewarlock/HeartOfMagic/tree/fff6265a3ac17272fa640892c2ccb5c920421955]here[/url]).
+[line]
+
+[center][size=5][b]Heart of Magic - 흑염 달구기[/b][/size]
+버전 1.0.0 | 제작: Iwillbewarlock[/center]
+Heart of Magic Librarian(Iwillbewarlock 제작, Dinkel Zombie의 Heart of Magic - Spell Learning System을 다시 만든 모드)의 애드온입니다.
+
+왼쪽 앞 허리춤에 착용하는 아이템 "사엘의 철창 등불"(영문: "Saeel's Iron Cage Lantern") 하나를 추가합니다. 철창 안에 회흑색 불꽃이 떠 있으며, 주변을 밝히는 빛은 내지 않습니다. 등불을 벗으면 모든 것이 원래대로 돌아옵니다.
+
+[size=4][b]"갈망" 효과[/b][/size]
+등불을 착용하는 동안 "갈망"(영문: "Longing") 효과를 얻습니다.
+[list]
+[*]플레이어 본인의 화염 마법이 빛나는 회흑색(완전한 칠흑색은 아님)으로 보입니다: 투사체, 폭발, 손 시전 이펙트, 신체 오라, 대상에 붙은 불, 시전 광원. "화염 마법"은 Heart of Magic 카탈로그가 화염으로 분류한 일반 마법을 뜻합니다.
+[*]화염 키워드가 있는 화염 마법은 매지카 소모량이 30% 증가합니다(카탈로그에만 화염으로 분류된 마법은 적용되지 않을 수 있음).
+[*]화염 적중 시 "흑염"(영문: "Black Flame") 피해: 2초에 걸쳐 대상 최대 체력의 2% 피해를 주며 저항을 무시합니다. 새로 적중하면 중첩되지 않고 2초가 다시 시작됩니다. 망토 마법, 두루마리, 지팡이, 외침, 권능에는 적용되지 않습니다.
+[*]AE 1.6.1170 및 1.7.104에서는 화염으로 처치한 적의 Frozen Electrocuted Combustion (FEC) 시체 불꽃도 회색으로 변합니다.
+[/list]
+변경되지 않는 항목: NPC의 화염 마법, 손에 든 횃불, 소환수의 화염, 화염 함정, 투사체 속도, 사거리, 기본 피해량.
+작동 방식: 게임 시작 시 다운로드에 포함된 작은 보조 프로그램이 사용자의 로드 오더에서 화염 시각 효과의 전용 회색 복사본을 만듭니다. 플레이어의 화염 마법만 이 복사본을 사용합니다.
+
+[size=4][b]필요한 것[/b][/size]
+[list]
+[*]게임 버전에 맞는 SKSE
+[*]Address Library for SKSE Plugins
+[*]Heart of Magic Librarian 1.5.0 이상 (1.6.0에서 테스트됨)
+[*]Microsoft Visual C++ Redistributable 2015-2022 (x64)
+[*]선택 사항: Immersive Equipment Displays (IED) 설치 시 등불이 허리에 매달립니다. 위치는 [code]SKSE\Plugins\HeartOfMagic_BlackFlame.json[/code]의 [code]"lanternIedPreset"[/code] 값을 [code]"frontLeft"[/code] / [code]"frontRight"[/code] / [code]"backLeft"[/code] / [code]"backRight"[/code] 중 하나로 수정해 변경합니다(기본값 [code]frontLeft[/code], 변경 후 재시작 필요).
+[*]디스크 용량: 로드 오더에 따라 다르며, 제작자의 약 4,000개 모드 환경 기준 약 1 GB입니다.
+[/list]
+
+[size=4][b]설치 및 첫 실행[/b][/size]
+[list]
+[*]MO2 또는 Vortex로 압축 파일 하나(한국어판 또는 영문판, 파일과 FormID 동일)를 설치합니다.
+[*][code]HeartOfMagic_BlackFlame.esp[/code]와 [code]HeartOfMagic_BlackFlame_Slots.esp[/code]를 활성화합니다.
+[*][code]SKSE\Plugins\HeartOfMagic_BlackFlame.json[/code] 파일을 유지합니다(유실 시 재설치).
+[*]CRDW 같은 루즈 파일 캐시 모드를 쓴다면 설치/업데이트 후 Force rebuild를 실행하세요.
+[*]첫 실행: 세이브를 불러오기 전에 메인 메뉴에서 잠시 기다려 주세요(제작자의 RTX 3070 기준 약 1-2분 소요, 규모가 큰 환경에서는 더 걸림, 완료 알림은 화면에 표시되지 않음).
+[*]Heart of Magic의 마법 카탈로그가 필요합니다. 첫 시작 스캔이 카탈로그를 생성하며, 자동 스캔이 꺼져 있거나 이미 저장된 트리가 있다면 전체 스캔(full scan)을 실행하세요. 카탈로그가 준비되기 전에 세이브를 불러왔다면 스캔을 마치고 게임을 재시작하세요. 일부 마법이 여전히 주황색으로 보이면 한 번 더 재시작하세요. 이후 실행부터는 유효한 복사본을 재사용합니다.
+[*]생성된 복사본이나 카탈로그를 타인과 공유하지 마세요.
+[/list]
+
+[size=4][b]등불 얻기[/b][/size]
+[list]
+[*]안질푼트 매장묘실(영문: Ansilvund Burial Chambers) 상층 테이블 위, 연기가 피어오르는 곳 옆에 있습니다. 이미 방문한 적이 있다면 다음 방문 시 나타납니다.
+[*]콘솔: [code]help Saeel 4[/code] (한글 콘솔 입력 가능 시 한국어판은 [code]help 철창 4[/code]) 입력 후 [code]player.additem <FormID> 1[/code]을 입력하세요. FormID는 [code]FE[/code] + [code]HeartOfMagic_BlackFlame.esp[/code]의 3자리 ESL 번호 + [code]80D[/code]입니다(예: [code]FD3[/code] -> [code]FEFD380D[/code]).
+[/list]
+
+[size=4][b]지원 게임 버전[/b][/size]
+[list]
+[*]AE 1.6.1170 (Steam): 인게임 테스트 완료, 모든 기능 작동.
+[*]AE 1.7.104: 모든 기능 켜짐, 코드는 확인했으나 인게임 미테스트(재시작 1회가 필요할 수 있음).
+[*]기타 AE 1.6/1.7 (GOG 1.6.1179 포함): 미테스트. 오라 즉시 갱신, 회색 FEC 시체 불꽃, 회색 화염 룬(Fire Rune) 문양, 손 이펙트 즉시 갱신 미지원. 필요 시 1회 재시작하세요.
+[*]SE 1.5.97: 실행 테스트 안 됨. 복사본이 다음 실행 시 적용되며, 위 제한에 더해 회색 손 시전 이펙트와 게임이 직접 만드는 바닥 화염과 폭발의 회색 처리가 지원되지 않습니다.
+[*]Skyrim VR: 지원하지 않음.
+[/list]
+
+[size=4][b]알려진 제한 사항[/b][/size]
+[list]
+[*]완전한 칠흑색이 아니라 빛나는 회흑색입니다.
+[*]불타 죽는 적의 화염은 주황색으로 유지됩니다(엔진 한계).
+[*]시체에 냉기/전격 마법이 나중에 적중하면 FEC 시체 불꽃이 주황색으로 남을 수 있습니다.
+[*]Heart of Magic 카탈로그에 없는 마법은 기존 외형을 유지하며, 비화염 마법과 공유하는 이펙트도 그럴 수 있습니다.
+[*]등불 착용 중 시작된 화상은 끝날 때까지 회색으로 유지됩니다.
+[*]같은 장착 이펙트를 공유하는 화염 마법에서 비화염 마법으로 바꿀 때 광원에 색이 남을 수 있습니다(무해하며 등불을 벗으면 사라짐).
+[*]인벤토리 미리보기에서 불꽃이 보이지 않을 수 있습니다.
+[*]IED 사용 시 동료가 착용한 등불은 표시되지 않습니다.
+[/list]
+
+[size=4][b]제거 방법[/b][/size]
+[list]
+[*]IED 사용 시 먼저 등불을 벗고 저장하세요.
+[*]모드를 제거합니다(설치 전 세이브를 보관해 두세요).
+[*]MO2 Overwrite(또는 Data)에서 [code]meshes\heartofmagic\blackflame\copies[/code] 및 [code]textures\heartofmagic\blackflame\copies[/code]를 삭제합니다.
+[*]작업 폴더 [code]Documents\My Games\Skyrim Special Edition\SKSE\HeartOfMagic_BlackFlame[/code] (GOG: [code]Skyrim Special Edition GOG[/code])를 삭제합니다.
+[*]세이브 폴더에서 [code]HoMBF_slots*.json[/code] 파일들을 삭제합니다.
+[*]로그 파일 [code]HeartOfMagic_BlackFlame.log[/code] 및 [code]HeartOfMagic_BlackFlame_tester.txt[/code]를 삭제합니다(버그 제보 시에는 이 로그들을 첨부해 주세요).
+[/list]
+
+[size=4][b]크레딧[/b][/size]
+[list]
+[*][b]Dinkel Zombie[/b] - 원작 Heart of Magic.
+[*][b]HDharder[/b] - Temp File Framework (GPL-3.0): 게임 파일 인덱스 조사 결과 참고. 코드는 쓰지 않았습니다.
+[*][b]SlavicPotato[/b] - Immersive Equipment Displays (허리 등불 표시용 Papyrus API).
+[*][b]GiraPomba[/b] - Lights On - Wearable Lanterns for IED (허리 위치 프리셋).
+[*][b]powerofthree[/b] - 주소 참고 자료, Frozen Electrocuted Combustion.
+[*][b]Ershin[/b] - 메인 스레드 후킹 위치 (Open Animation Replacer, Precision, True Directional Movement).
+[*][b]Khajiitistan[/b] - Black Flame (Nexus mod 192777): 색감 참고만 했고 파일은 쓰지 않았습니다.
+[*][b]MuIF와 KillFeed 제작자[/b] - SE 1.5.97 충돌 처리 위치의 호출 오프셋.
+[*][b]Community Shaders[/b] - 팔레트 규칙에 참고한 이펙트 셰이더.
+[*][b]Bethesda[/b] - 회색 메쉬는 스카이림 원본 파일로 만들었습니다.
+[*][b]라이브러리:[/b] CommonLibSSE-NG (예외 조항이 있는 GPL-3.0), nifly (GPL-3.0), DirectXTex, DirectX Tool Kit, DirectXMath, spdlog, {fmt}, JSON for Modern C++ (모두 MIT).
+[/list]
+
+[size=4][b]소스 코드[/b][/size]
+DLL과 blackflame-greybuild.exe는 GPL-3.0 결합 저작물이고, Heart of Magic 자체 소스는 MIT입니다. 소스: [url=https://github.com/Iwillbewarlock/HeartOfMagic]github.com/Iwillbewarlock/HeartOfMagic[/url] (정확한 커밋은 THIRD-PARTY-NOTICES.md와 [url=https://github.com/Iwillbewarlock/HeartOfMagic/tree/fff6265a3ac17272fa640892c2ccb5c920421955]여기[/url]).
