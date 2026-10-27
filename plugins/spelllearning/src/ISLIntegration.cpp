@@ -350,11 +350,9 @@ namespace DESTIntegration {
                 auto* effectHook = SpellEffectivenessHook::GetSingleton();
                 if (!effectHook) return;
 
-                // Ensure spell is in early-learned tracking (should already be from
-                // RegisterISLPendingSpell, but belt-and-suspenders)
-                if (!effectHook->IsEarlyLearnedSpell(formId)) {
-                    effectHook->RegisterISLPendingSpell(a_spell);
-                }
+                // Early learned (already, from RegisterISLPendingSpell, or now) and no
+                // longer held: ISL taught it
+                effectHook->OnISLTaught(a_spell);
 
                 // NOW apply the modified name/description — ISL has granted the spell,
                 // so it's safe to rename. During study we deliberately left the name

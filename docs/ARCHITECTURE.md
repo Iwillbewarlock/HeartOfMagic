@@ -801,26 +801,42 @@ Split across: ProgressionManagerCore.cpp, ProgressionManagerSerialization.cpp, P
 
 **Co-save records** (unique id `'SPLL'`). The SKSE callbacks are in `src/CoSave.cpp` (`CoSave::OnGameSaved`,
 `OnGameLoaded`, `OnRevert`, registered in `SKSEPluginLoad`): one `GetNextRecordInfo` loop offers each record to
-its owner in turn. Every record version ever written is still read.
+its owner in turn. Every record version ever written is still read. Each owner's save, read, load end and revert
+runs in its own try/catch (`CoSave::Guarded`, 2026-10-27): one that throws is logged and the others still write or
+read their records (a record whose reader threw is skipped; `GetNextRecordInfo` moves to the next record).
 
 | Record | Owner | Version written | Layout |
 |---|---|---|---|
 | `SLTR` | ProgressionManager | 2 (1 has the same layout) | count, then per target: school length, school, formId |
 | `SLPR` | ProgressionManager | 2, as 1.5.0 (reads 1-3) | count, then per spell: formId, progress (0..1), unlocked u8; v2 + the modded sources' XP (count, then name length, name, xp); v3 (read only, a 2026-10-17 development build wrote it) + `xpFromAny`, `xpFromSchool`, `xpFromDirect`, `xpFromSelf` |
 | `SLPX` | ProgressionManager | 1 | count, then per spell with anything counted: formId, `xpFromAny`, `xpFromSchool`, `xpFromDirect`, `xpFromSelf` (f32) |
-| `SLEL` | SpellEffectivenessHook | 1 | count, then the early-learned spells' formIds |
+| `SLEL` | SpellEffectivenessHook | 2 (reads 1-2) | count, then the early-learned spells' formIds; v2 + count, then the ones ISL holds (`IsHeldForISL`, a subset) |
 | `SLTX` | SpellTomeHook | 1 | count, then the spells a tome already gave XP (`HasGrantedTomeXP`) |
 
 - The layouts are `include/ProgressionCoSave.h` (header only, no game types, templated on the stream);
-  `tools/progression-check --self-test` writes and reads `SLPR` v1-v3, `SLPX` and `SLTX` records in byte buffers.
+  `tools/progression-check --self-test` writes and reads `SLTR`, `SLPR` v1-v3, `SLPX`, `SLEL` v1-v2 and `SLTX`
+  records in byte buffers. Every field is read with its size checked (`ReadRecordData` returns the bytes read: a
+  form id cut to 3 of its 4 bytes used to pass as read and name another spell); `SLTR` through
+  `ProgressionCoSave::ReadTargets`, `SLEL`'s lists through `ReadFormIds`.
 - `SLPX` (2026-10-17): the built-in sources' XP, which their caps (any 5%, school 15%, direct 50% of the
   required XP) count against, was not saved, so the caps opened again on every load. It is a record of its own
   rather than an `SLPR` v3: 1.5.0 skips a record it does not know ("no owner") but would skip an `SLPR` of an
   unknown version - all progress - so going back to 1.5.0 now loses only these counters. Read entries wait in
   `m_pendingCapTrackers` and `EndLoad` puts them onto the entries `SLPR` made, whatever order the records came
   in (`ProgressionCoSave::ApplyCapEntries`); a spell with no progress entry gets none made. A save without
-  `SLPX` loads with the counters at 0, as before. The required XP is not saved: a load starts from the tier XP
-  and the panel sends its own (`RequiredXPSync`).
+  `SLPX` loads with the counters at 0, as before. The required XP is not saved: the panel's number
+  (`SetRequiredXP`) is kept in `m_panelRequiredXP`, which a revert does not clear (the tree is the same for
+  every save), and `EndLoad` sizes every entry from it, else from the tier (`BaseRequiredXP`) - once all
+  records are in, since the reverse unlock share reads other spells' progress. A load used to clear it and
+  size entries in record order; the panel still sends its number again (`RequiredXPSync`).
+- `SLEL` v2 (2026-10-27): a spell whose tome ISL studies is in the early set (the effect hook weakens it once ISL
+  adds it) and held for ISL until ISL teaches it (`OnStudyComplete` -> `OnISLTaught`, or the player is seen to
+  have it: `ReleaseHeldIfOwned`). One rule decides when Heart of Magic adds an early spell to the player itself,
+  `SpellEffectivenessHook::ShouldGrantEarly` (a school spell, not held for ISL, no copy known): the early grant
+  at the threshold (`AddXP`), `CheckAndRegrantSpell` and the load refresh (`RefreshAllSpellDisplays`) use it.
+  Before, the load refresh added every early spell the player lacked, so a spell under study was taught by
+  loading a save. A v1 record does not say which spells ISL holds: with ISL active, the load refresh takes an
+  early spell the player lacks as held.
 - A failed or short read anywhere in an `SLPR` entry ends the record (the entries read before it are kept,
   the error says how many were skipped); it used to leave only the inner loop and read the next entry from
   the wrong offset. `SLPX` and `SLTX` refuse a count their record length cannot hold before allocating, and keep
@@ -881,8 +897,8 @@ down to the root at once. One rule, three places that ask it:
   XP: override, else tier, times `getReverseUnlockXPShare(tier)` when `openedByKnownChild`. C++ has the
   same lookup (`ProgressionManager::GetReverseUnlockXPShare`). C++ keeps the number it was sent with
   the target; `RequiredXPSync` (`modules/requiredXPSync.js`) sends it again through the `SetRequiredXP`
-  listener whenever C++ reports another one - after a load (the co-save keeps only the percent, so C++
-  starts from tier XP: `GetRequiredXP` with no stored value), or when a known higher spell or a share
+  listener whenever C++ reports another one - after a load (the co-save keeps only the percent; C++ keeps the numbers the panel sent
+  across loads in `m_panelRequiredXP`, tier XP for a spell it never sent), or when a known higher spell or a share
   slider changes it mid-session. The Learn button, auto-advance,
   the progress read-out, the spell card and the tree's XP rings all use it. The Learn button used to
   send `node.requiredXP || 100`, and nothing ever set `node.requiredXP`, so every spell started from

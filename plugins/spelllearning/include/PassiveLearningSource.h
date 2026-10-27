@@ -74,7 +74,7 @@ private:
     std::thread m_pollThread;
 
     // Game time tracking
-    float m_lastGameTime = 0.0f;
+    float m_lastGameTime = 0.0f;   // game hours (Calendar::GetHoursPassed)
 
     static PassiveLearningSource* s_singleton;
 };

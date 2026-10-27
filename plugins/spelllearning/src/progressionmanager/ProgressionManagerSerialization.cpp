@@ -27,16 +27,14 @@ void ProgressionManager::OnGameSaved(SKSE::SerializationInterface* a_intfc)
         return;
     }
 
-    // Write number of targets
-    uint32_t numTargets = static_cast<uint32_t>(m_learningTargets.size());
-    a_intfc->WriteRecordData(&numTargets, sizeof(numTargets));
-
-    // Write each target: school string length, school string, formId
-    for (auto& [school, formId] : m_learningTargets) {
-        uint32_t schoolLen = static_cast<uint32_t>(school.length());
-        a_intfc->WriteRecordData(&schoolLen, sizeof(schoolLen));
-        a_intfc->WriteRecordData(school.c_str(), schoolLen);
-        a_intfc->WriteRecordData(&formId, sizeof(formId));
+    std::vector<ProgressionCoSave::TargetEntry> targets;
+    targets.reserve(m_learningTargets.size());
+    for (const auto& [school, formId] : m_learningTargets) {
+        targets.push_back({ school, formId });
+    }
+    const auto numTargets = targets.size();
+    if (!ProgressionCoSave::WriteTargets(*a_intfc, targets)) {
+        logger::error("ProgressionManager: Failed to write the learning targets record");
     }
 
     logger::info("ProgressionManager: Saved {} learning targets", numTargets);
@@ -131,7 +129,14 @@ void ProgressionManager::EndLoad()
                      applied, m_pendingCapTrackers.size(), m_pendingCapTrackers.size() - applied);
     }
     m_pendingCapTrackers.clear();
-    logger::info("ProgressionManager: Co-save load complete");
+
+    // Every entry's required XP now that the whole save is in (ReadRecord's was
+    // worked out before the records after SLPR)
+    for (auto& [formId, progress] : m_spellProgress) {
+        progress.requiredXP = BaseRequiredXP(formId);
+    }
+    logger::info("ProgressionManager: Co-save load complete ({} entries, {} panel required XP values)",
+                 m_spellProgress.size(), m_panelRequiredXP.size());
 }
 
 bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,
@@ -159,36 +164,16 @@ bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,
 
     switch (type) {
         case kTargetsRecord: {
-            // Read learning targets
-            uint32_t numTargets = 0;
-            if (!a_intfc->ReadRecordData(&numTargets, sizeof(numTargets))) {
-                logger::error("ProgressionManager: Failed to read numTargets");
-                break;
+            // Every field read in full: a cut-short form id read as a whole one
+            // named another spell (ProgressionCoSave::ReadTargets)
+            std::vector<ProgressionCoSave::TargetEntry> targets;
+            const auto result = ProgressionCoSave::ReadTargets(*a_intfc, length, targets);
+            if (result != ProgressionCoSave::ReadResult::Ok) {
+                logger::error("ProgressionManager: learning targets record unreadable ({}), {} targets read before it kept",
+                              ProgressionCoSave::Describe(result), targets.size());
             }
 
-            for (uint32_t i = 0; i < numTargets; ++i) {
-                uint32_t schoolLen = 0;
-                if (!a_intfc->ReadRecordData(&schoolLen, sizeof(schoolLen))) {
-                    logger::error("ProgressionManager: Failed to read schoolLen at target {}", i);
-                    break;
-                }
-                if (schoolLen > ProgressionCoSave::kMaxNameLength) {
-                    logger::error("ProgressionManager: schoolLen {} exceeds limit at target {}", schoolLen, i);
-                    break;
-                }
-
-                std::string school(schoolLen, '\0');
-                if (!a_intfc->ReadRecordData(school.data(), schoolLen)) {
-                    logger::error("ProgressionManager: Failed to read school string at target {}", i);
-                    break;
-                }
-
-                RE::FormID formId = 0;
-                if (!a_intfc->ReadRecordData(&formId, sizeof(formId))) {
-                    logger::error("ProgressionManager: Failed to read formId at target {}", i);
-                    break;
-                }
-
+            for (const auto& [school, formId] : targets) {
                 // Resolve formId (handles load order changes)
                 RE::FormID resolvedId = 0;
                 if (!a_intfc->ResolveFormID(formId, resolvedId)) {
@@ -210,7 +195,7 @@ bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,
         case kProgressRecord: {
             // Read spell progress
             uint32_t numProgress = 0;
-            if (!a_intfc->ReadRecordData(&numProgress, sizeof(numProgress))) {
+            if (a_intfc->ReadRecordData(&numProgress, sizeof(numProgress)) != sizeof(numProgress)) {
                 logger::error("ProgressionManager: Failed to read numProgress");
                 break;
             }
@@ -243,12 +228,11 @@ bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,
                 progress.xpFromSchool = entry.xpFromSchool;
                 progress.xpFromDirect = entry.xpFromDirect;
                 progress.xpFromSelf = entry.xpFromSelf;
-                // The co-save keeps only the percent. Start from the spell's tier
-                // XP (GetRequiredXP with no stored value, so before the entry is
-                // in the map) rather than the struct's 100; the panel then sends its
-                // own number - per-spell override, known-higher-spell share - through SetRequiredXP.
-                m_spellProgress.erase(resolvedId);
-                progress.requiredXP = GetRequiredXP(resolvedId);
+                // The co-save keeps only the percent: the required XP is the panel's
+                // number, else the tier's - worked out again in EndLoad, once every
+                // record is in (the reverse unlock share reads the other spells'
+                // progress and the early-learned list, which may come later)
+                progress.requiredXP = BaseRequiredXP(resolvedId);
                 m_spellProgress.insert_or_assign(resolvedId, std::move(progress));
 
                 logger::info("ProgressionManager: Loaded progress {:08X} -> {:.1f}% {} ({} modded sources)",

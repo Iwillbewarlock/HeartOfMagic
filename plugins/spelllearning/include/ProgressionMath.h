@@ -53,6 +53,37 @@ namespace ProgressionMath
         return std::clamp(xp / requiredXP, 0.0f, 1.0f);
     }
 
+    // Passive learning: game hours (Calendar::GetHoursPassed - GetCurrentGameTime
+    // is days) between ticks below this give nothing yet and keep the last time,
+    // so short ticks add up instead of being lost
+    inline constexpr float kPassiveMinHours = 0.1f;
+
+    // One passive tick from the last time granted to now, both in game hours: the
+    // hours to grant (0 for none) and the time to keep as the last one. Time going
+    // back (an earlier save, a time mod) grants nothing and starts again from now.
+    struct PassiveTick
+    {
+        float grantHours = 0.0f;
+        float lastHours = 0.0f;
+    };
+    [[nodiscard]] constexpr PassiveTick PassiveTickFor(float lastHours, float nowHours) noexcept
+    {
+        const float elapsed = nowHours - lastHours;
+        if (elapsed > kPassiveMinHours) return { elapsed, nowHours };
+        if (elapsed < 0.0f || !(elapsed == elapsed)) return { 0.0f, nowHours };  // back in time, or NaN
+        return { 0.0f, lastHours };
+    }
+
+    // AddXP: the progress after `amount` XP, at most 1. A required XP that is not
+    // set (0 or less) leaves the progress as it is: no XP is counted, and the saved
+    // progress is not wiped either.
+    [[nodiscard]] constexpr float ProgressAfterXP(float oldProgress, float amount, float requiredXP) noexcept
+    {
+        if (!(requiredXP > 0.0f)) return oldProgress;
+        const float newXP = (std::min)(oldProgress * requiredXP + amount, requiredXP);
+        return (std::min)(newXP / requiredXP, 1.0f);
+    }
+
     // ISL study: one session's XP, cut so that all study XP of a spell stays
     // within its share of the required XP (the early unlock threshold). Swapping
     // books restarts ISL's own count, not this one.

@@ -31,6 +31,9 @@
 // and still reads SLPR, so going back to 1.5.0 loses these counters, not the progress.
 //
 // SLTX v1: count u32, then count form ids (u32), the spells a tome already gave XP.
+//
+// SLTR v1-v2 (one layout): count u32, then per learning target schoolLen u32,
+// school bytes, formId u32.
 namespace ProgressionCoSave
 {
     inline constexpr std::uint32_t kProgressVersion = 2;         // SLPR as written
@@ -277,6 +280,55 @@ namespace ProgressionCoSave
             std::uint32_t formId = 0;
             if (!Detail::Read(in, formId)) return ReadResult::ShortRead;
             formIds.push_back(formId);
+        }
+        return ReadResult::Ok;
+    }
+
+    // One SLTR entry
+    struct TargetEntry
+    {
+        std::string school;
+        std::uint32_t formId = 0;
+    };
+
+    // SLTR: count, then the entries. False when a write failed.
+    template <class Stream>
+    [[nodiscard]] bool WriteTargets(Stream& out, const std::vector<TargetEntry>& targets)
+    {
+        const auto count = static_cast<std::uint32_t>(targets.size());
+        bool ok = Detail::Write(out, count);
+        for (const auto& t : targets) {
+            const auto length = static_cast<std::uint32_t>(t.school.size());
+            ok = ok && Detail::Write(out, length) && (length == 0 || out.WriteRecordData(t.school.data(), length)) &&
+                 Detail::Write(out, t.formId);
+        }
+        return ok;
+    }
+
+    // SLTR: every field read in full (ReadRecordData returns the bytes read; a
+    // cut-short one is a failure, not a value), a school name over kMaxNameLength
+    // or a count the record (`recordLength`) cannot hold refused. On a failure the
+    // whole entries read before it are kept in `targets`.
+    template <class Stream>
+    [[nodiscard]] ReadResult ReadTargets(Stream& in, std::uint32_t recordLength, std::vector<TargetEntry>& targets)
+    {
+        targets.clear();
+        std::uint32_t count = 0;
+        if (!Detail::Read(in, count)) return ReadResult::ShortRead;
+        // The smallest entry: an empty name's length and the form id
+        constexpr std::uint32_t kMinTargetSize = 2 * sizeof(std::uint32_t);
+        if (!Detail::CountFits(count, kMinTargetSize, sizeof(count), recordLength)) return ReadResult::CountTooLarge;
+        targets.reserve(count);
+        for (std::uint32_t i = 0; i < count; ++i) {
+            TargetEntry t;
+            std::uint32_t length = 0;
+            if (!Detail::Read(in, length)) return ReadResult::ShortRead;
+            if (length > kMaxNameLength) return ReadResult::NameTooLong;
+            t.school.assign(length, '\0');
+            if ((length > 0 && in.ReadRecordData(t.school.data(), length) != length) || !Detail::Read(in, t.formId)) {
+                return ReadResult::ShortRead;
+            }
+            targets.push_back(std::move(t));
         }
         return ReadResult::Ok;
     }

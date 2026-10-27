@@ -384,6 +384,63 @@ namespace
         Check(CS::ReadFormIds(shortIn, static_cast<std::uint32_t>(ids.bytes.size()), back) ==
                   CS::ReadResult::ShortRead && back.size() == 2,
               "tome XP list cut short: ids before the cut kept");
+
+        // SLEL v2: the early list, then the held-for-ISL list, read with the
+        // remaining length (SpellEffectivenessHook::ReadRecord)
+        ByteWriter slel;
+        const std::vector<std::uint32_t> early = { 0x0001'2FCD, 0x0300'0D62 };
+        const std::vector<std::uint32_t> held = { 0x0300'0D62 };
+        Check(CS::WriteFormIds(slel, early) && CS::WriteFormIds(slel, held), "SLEL v2 written as two lists");
+        ByteReader slelIn{ slel.bytes };
+        std::vector<std::uint32_t> earlyBack;
+        std::vector<std::uint32_t> heldBack;
+        const auto slelLength = static_cast<std::uint32_t>(slel.bytes.size());
+        const bool earlyRead = CS::ReadFormIds(slelIn, slelLength, earlyBack) == CS::ReadResult::Ok;
+        const auto used = static_cast<std::uint32_t>(4 * (earlyBack.size() + 1));
+        Check(earlyRead && CS::ReadFormIds(slelIn, slelLength - used, heldBack) == CS::ReadResult::Ok &&
+                  earlyBack == early && heldBack == held,
+              "SLEL v2 round trip: early and held lists");
+        ByteReader slelV1In{ ids.bytes };
+        Check(CS::ReadFormIds(slelV1In, static_cast<std::uint32_t>(ids.bytes.size()), earlyBack) ==
+                  CS::ReadResult::Ok && earlyBack == tomeIds && slelV1In.at == ids.bytes.size(),
+              "SLEL v1 (one list) reads whole, nothing left for a held list");
+        ByteWriter cutId;
+        cutId.Put(std::uint32_t{ 2 });
+        cutId.Put(std::uint32_t{ 0x0001'2FCD });
+        cutId.Put(std::uint16_t{ 0x0D62 });  // a form id cut to 2 of its 4 bytes
+        ByteReader cutIdIn{ cutId.bytes };
+        Check(CS::ReadFormIds(cutIdIn, 12, earlyBack) == CS::ReadResult::ShortRead && earlyBack.size() == 1 &&
+                  earlyBack[0] == 0x0001'2FCD,
+              "a form id cut short is a failure, not another spell's id");
+
+        // SLTR: round trip, empty name, cut-short id, a count the record cannot hold, a long name
+        ByteWriter sltr;
+        const std::vector<CS::TargetEntry> targets = { { "Destruction", 0x0001'2FCD }, { "", 0xFE00'0801 } };
+        Check(CS::WriteTargets(sltr, targets), "learning targets written");
+        std::vector<CS::TargetEntry> targetsBack;
+        ByteReader sltrIn{ sltr.bytes };
+        Check(CS::ReadTargets(sltrIn, static_cast<std::uint32_t>(sltr.bytes.size()), targetsBack) ==
+                      CS::ReadResult::Ok && targetsBack.size() == 2 && targetsBack[0].school == "Destruction" &&
+                  targetsBack[0].formId == 0x0001'2FCD && targetsBack[1].school.empty() &&
+                  targetsBack[1].formId == 0xFE00'0801,
+              "learning targets round trip (an empty school name too)");
+        auto sltrCut = sltr.bytes;
+        sltrCut.resize(sltrCut.size() - 1);  // the last form id 3 of 4 bytes
+        ByteReader sltrCutIn{ sltrCut };
+        Check(CS::ReadTargets(sltrCutIn, static_cast<std::uint32_t>(sltr.bytes.size()), targetsBack) ==
+                      CS::ReadResult::ShortRead && targetsBack.size() == 1 && targetsBack[0].formId == 0x0001'2FCD,
+              "learning target with a cut-short form id refused, the whole one before it kept");
+        ByteWriter sltrHuge;
+        sltrHuge.Put(std::uint32_t{ 0x1000'0000 });
+        ByteReader sltrHugeIn{ sltrHuge.bytes };
+        Check(CS::ReadTargets(sltrHugeIn, 4, targetsBack) == CS::ReadResult::CountTooLarge && targetsBack.empty(),
+              "learning target count larger than the record refused");
+        ByteWriter sltrLong;
+        sltrLong.Put(std::uint32_t{ 1 });
+        sltrLong.Put(std::uint32_t{ CS::kMaxNameLength + 1 });
+        ByteReader sltrLongIn{ sltrLong.bytes };
+        Check(CS::ReadTargets(sltrLongIn, 1 << 20, targetsBack) == CS::ReadResult::NameTooLong,
+              "learning target school name over the limit refused");
     }
 
     void MathCases()
@@ -463,6 +520,28 @@ namespace
               "mastery: an unlocked spell lowered by cheat mode masters again when it crosses 1.0");
         Check(!PM::ShouldMaster(1.0f, 1.0f, true, true, true) && !PM::ShouldMaster(0.5f, 0.99f, false, true, true),
               "mastery: already unlocked at 1.0, or below 1.0, does not master");
+
+        // Passive learning ticks in game hours (Calendar::GetHoursPassed)
+        const auto hour = PM::PassiveTickFor(100.0f, 101.0f);
+        Check(Near(hour.grantHours, 1.0f) && Near(hour.lastHours, 101.0f),
+              "passive: one game hour later grants one hour (5 XP/h gives 5, not 5/24)");
+        const auto small = PM::PassiveTickFor(100.0f, 100.05f);
+        Check(Near(small.grantHours, 0.0f) && Near(small.lastHours, 100.0f),
+              "passive: under 0.1 h grants nothing and keeps the last time (short ticks add up)");
+        const auto atFloor = PM::PassiveTickFor(100.0f, 100.0f + PM::kPassiveMinHours);
+        Check(Near(atFloor.grantHours, 0.0f), "passive: exactly 0.1 h is not past the floor");
+        const auto back = PM::PassiveTickFor(100.0f, 50.0f);
+        Check(Near(back.grantHours, 0.0f) && Near(back.lastHours, 50.0f),
+              "passive: time going back grants nothing and starts from now");
+        const auto nanTick = PM::PassiveTickFor(100.0f, nan);
+        Check(Near(nanTick.grantHours, 0.0f), "passive: a NaN time grants nothing");
+
+        // AddXP's progress; a required XP not set leaves the progress alone
+        Check(Near(PM::ProgressAfterXP(0.2f, 10.0f, 100.0f), 0.3f), "AddXP: 0.2 + 10 of 100 is 0.3");
+        Check(Near(PM::ProgressAfterXP(0.95f, 50.0f, 100.0f), 1.0f), "AddXP: stops at 1");
+        Check(Near(PM::ProgressAfterXP(0.4f, 10.0f, 0.0f), 0.4f) && Near(PM::ProgressAfterXP(0.4f, 10.0f, -5.0f), 0.4f) &&
+                  Near(PM::ProgressAfterXP(0.4f, 10.0f, nan), 0.4f),
+              "AddXP: required XP 0, negative or NaN keeps the progress (was wiped to 0)");
     }
 }
 

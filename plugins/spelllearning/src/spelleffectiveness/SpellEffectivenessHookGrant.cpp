@@ -1,6 +1,8 @@
 #include "SpellEffectivenessHook.h"
 #include "FormIdText.h"
 #include "HudNotify.h"
+#include "ISLIntegration.h"
+#include "ProgressionCoSave.h"
 #include "ProgressionManager.h"
 #include "uimanager/UIManager.h"
 #include "ThreadUtils.h"
@@ -14,6 +16,44 @@ bool SpellEffectivenessHook::CanLearnEarly(RE::SpellItem* spell)
     // The school the learning target and cast XP use (first effect, else the costliest)
     return spell && spell->GetSpellType() == RE::MagicSystem::SpellType::kSpell &&
         !ProgressionManager::TargetSchoolOf(spell).empty();
+}
+
+bool SpellEffectivenessHook::IsHeldForISL(RE::FormID formId) const
+{
+    std::shared_lock<std::shared_mutex> lock(m_mutex);
+    return m_heldForISL.contains(formId);
+}
+
+bool SpellEffectivenessHook::ShouldGrantEarly(RE::SpellItem* spell) const
+{
+    if (!CanLearnEarly(spell)) return false;
+    const RE::FormID formId = spell->GetFormID();
+    // ISL adds a spell it studies when the study is done, never we (an AddSpell here
+    // taught it before the study, and ISL then found it known)
+    if (IsHeldForISL(formId)) return false;
+    // A copy of it known: the spell is learned already (ProgressionManager::CanUnlock)
+    return !ProgressionManager::GetSingleton()->PlayerKnowsCopyOf(formId);
+}
+
+bool SpellEffectivenessHook::ReleaseHeldIfOwned(RE::SpellItem* spell)
+{
+    auto* player = RE::PlayerCharacter::GetSingleton();
+    if (!spell || !player || !IsHeldForISL(spell->GetFormID()) || !player->HasSpell(spell)) return false;
+    {
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
+        m_heldForISL.erase(spell->GetFormID());
+    }
+    logger::info("SpellEffectivenessHook: {} ({:08X}) was held for ISL and the player has it now - taught",
+        spell->GetName(), spell->GetFormID());
+    return true;
+}
+
+void SpellEffectivenessHook::OnISLTaught(RE::SpellItem* spell)
+{
+    if (!CanLearnEarly(spell)) return;
+    std::unique_lock<std::shared_mutex> lock(m_mutex);
+    AddToEarlySet(spell->GetFormID());
+    m_heldForISL.erase(spell->GetFormID());
 }
 
 void SpellEffectivenessHook::GrantEarlySpell(RE::SpellItem* spell)
@@ -81,6 +121,11 @@ void SpellEffectivenessHook::RegisterISLPendingSpell(RE::SpellItem* spell)
             return;
         }
         AddToEarlySet(formId);
+        // Not taught yet: only ISL adds it (ShouldGrantEarly)
+        auto* player = RE::PlayerCharacter::GetSingleton();
+        if (!player || !player->HasSpell(spell)) {
+            m_heldForISL.insert(formId);
+        }
     }
 
     logger::info("SpellEffectivenessHook: Registered ISL pending spell {} ({:08X}) for weakness tracking",
@@ -200,8 +245,16 @@ void SpellEffectivenessHook::CheckAndRegrantSpell(RE::FormID spellFormId)
             return;
         }
 
+        ReleaseHeldIfOwned(spell);
         bool playerHasSpell = player->HasSpell(spell);
         bool isTracked = IsEarlyLearnedSpell(spellFormId);
+
+        // Added by us only by the one rule (held for ISL, a copy known: not)
+        if (!playerHasSpell && !ShouldGrantEarly(spell)) {
+            logger::info("SpellEffectivenessHook: {} ({:08X}) not regranted - held for ISL, a copy known or "
+                "not a school spell", spell->GetName(), spellFormId);
+            return;
+        }
 
         // Add spell if player doesn't have it
         if (!playerHasSpell) {
@@ -238,27 +291,18 @@ void SpellEffectivenessHook::OnGameSaved(SKSE::SerializationInterface* a_intfc)
 {
     std::shared_lock<std::shared_mutex> lock(m_mutex);
 
-    if (!a_intfc->OpenRecord(kEarlyLearnedRecord, 1)) {
-        logger::error("SpellEffectivenessHook: Failed to open early-learned record for saving");
+    // v2: the early ids, then the held-for-ISL ones (ProgressionCoSave's form id list
+    // twice). A build that reads v1 only skips the record (its version check).
+    const std::vector<std::uint32_t> early(m_earlyLearnedSpells.begin(), m_earlyLearnedSpells.end());
+    const std::vector<std::uint32_t> held(m_heldForISL.begin(), m_heldForISL.end());
+    if (!a_intfc->OpenRecord(kEarlyLearnedRecord, kEarlyLearnedVersion) ||
+        !ProgressionCoSave::WriteFormIds(*a_intfc, early) || !ProgressionCoSave::WriteFormIds(*a_intfc, held)) {
+        logger::error("SpellEffectivenessHook: Failed to write the early-learned record ({} spells, {} held for ISL)",
+            early.size(), held.size());
         return;
     }
 
-    // Write count
-    uint32_t count = static_cast<uint32_t>(m_earlyLearnedSpells.size());
-    if (!a_intfc->WriteRecordData(&count, sizeof(count))) {
-        logger::error("SpellEffectivenessHook: Failed to write early-learned spell count");
-        return;
-    }
-
-    // Write each formId
-    for (RE::FormID formId : m_earlyLearnedSpells) {
-        if (!a_intfc->WriteRecordData(&formId, sizeof(formId))) {
-            logger::error("SpellEffectivenessHook: Failed to write early-learned spell {:08X}", formId);
-            return;
-        }
-    }
-
-    logger::info("SpellEffectivenessHook: Saved {} early-learned spells", count);
+    logger::info("SpellEffectivenessHook: Saved {} early-learned spells ({} held for ISL)", early.size(), held.size());
 }
 
 void SpellEffectivenessHook::BeginLoad()
@@ -289,52 +333,75 @@ void SpellEffectivenessHook::EndLoad()
 }
 
 bool SpellEffectivenessHook::ReadRecord(SKSE::SerializationInterface* a_intfc,
-                                        uint32_t type, [[maybe_unused]] uint32_t version,
-                                        [[maybe_unused]] uint32_t length)
+                                        uint32_t type, uint32_t version, uint32_t length)
 {
     if (type != kEarlyLearnedRecord) return false;
+    if (version < 1 || version > kEarlyLearnedVersion) {
+        logger::warn("SpellEffectivenessHook: Skipping early-learned record with unsupported version {} "
+            "(written by a newer version?)", version);
+        return true;
+    }
+
+    // Every id read in full and a count the record can hold (ProgressionCoSave::ReadFormIds):
+    // a cut-short id read as a whole one named another spell
+    std::vector<std::uint32_t> early;
+    std::vector<std::uint32_t> held;
+    auto result = ProgressionCoSave::ReadFormIds(*a_intfc, length, early);
+    const bool earlyOk = result == ProgressionCoSave::ReadResult::Ok;
+    if (!earlyOk) {
+        logger::error("SpellEffectivenessHook: early-learned list unreadable ({}), {} ids read before it kept",
+            ProgressionCoSave::Describe(result), early.size());
+    }
+    if (version >= 2 && earlyOk) {
+        const auto used = static_cast<std::uint32_t>(sizeof(std::uint32_t) * (early.size() + 1));
+        result = ProgressionCoSave::ReadFormIds(*a_intfc, length > used ? length - used : 0, held);
+        if (result != ProgressionCoSave::ReadResult::Ok) {
+            logger::error("SpellEffectivenessHook: held-for-ISL list unreadable ({}), {} ids read before it kept",
+                ProgressionCoSave::Describe(result), held.size());
+        }
+    }
 
     {
         std::unique_lock<std::shared_mutex> lock(m_mutex);
 
-        // Read count
-        uint32_t count = 0;
-        if (!a_intfc->ReadRecordData(&count, sizeof(count))) {
-            logger::error("SpellEffectivenessHook: Failed to read early-learned count");
-            return true;
-        }
-
-        // Read formIds
         m_earlyLearnedSpells.clear();
+        m_heldForISL.clear();
         m_earlySpellCount.store(0, std::memory_order_release);
         m_displayCache.clear();  // Clear display cache too
         m_progressMirror.clear();  // EndLoad fills it
+        // A v1 list (or a v2 one cut short in its early list) does not say what ISL holds
+        m_heldListLoaded = version >= 2 && earlyOk;
 
         uint32_t notSpells = 0;
-        for (uint32_t i = 0; i < count; ++i) {
-            RE::FormID formId = 0;
-            if (!a_intfc->ReadRecordData(&formId, sizeof(formId))) {
-                logger::error("SpellEffectivenessHook: Failed to read formId at index {}", i);
-                break;
-            }
-
+        auto resolve = [&](std::uint32_t formId, RE::FormID& resolvedId) {
             // Resolve formId in case load order changed
-            RE::FormID resolvedId = 0;
-            if (a_intfc->ResolveFormID(formId, resolvedId)) {
-                // Saves from before 2026-10-07 can hold a power or a schoolless spell a tome taught weakened;
-                // dropping it here gives it back its full power and its own name
-                // (OnRevert already put the name back, and nothing renames it again)
-                if (CanLearnEarly(RE::TESForm::LookupByID<RE::SpellItem>(resolvedId))) {
-                    m_earlyLearnedSpells.insert(resolvedId);
-                } else {
-                    ++notSpells;
-                }
-            } else {
+            if (!a_intfc->ResolveFormID(formId, resolvedId)) {
                 logger::warn("SpellEffectivenessHook: Failed to resolve formId {:08X}", formId);
+                return false;
+            }
+            return true;
+        };
+        for (const std::uint32_t formId : early) {
+            RE::FormID resolvedId = 0;
+            if (!resolve(formId, resolvedId)) continue;
+            // Saves from before 2026-10-07 can hold a power or a schoolless spell a tome taught weakened;
+            // dropping it here gives it back its full power and its own name
+            // (OnRevert already put the name back, and nothing renames it again)
+            if (CanLearnEarly(RE::TESForm::LookupByID<RE::SpellItem>(resolvedId))) {
+                m_earlyLearnedSpells.insert(resolvedId);
+            } else {
+                ++notSpells;
+            }
+        }
+        for (const std::uint32_t formId : held) {
+            RE::FormID resolvedId = 0;
+            if (resolve(formId, resolvedId) && m_earlyLearnedSpells.contains(resolvedId)) {
+                m_heldForISL.insert(resolvedId);
             }
         }
 
-        logger::info("SpellEffectivenessHook: Loaded {} early-learned spells", m_earlyLearnedSpells.size());
+        logger::info("SpellEffectivenessHook: Loaded {} early-learned spells ({} held for ISL, record version {})",
+            m_earlyLearnedSpells.size(), m_heldForISL.size(), version);
         if (notSpells > 0) {
             logger::info("SpellEffectivenessHook: Dropped {} powers, abilities or schoolless spells from the early-learned list", notSpells);
         }
@@ -356,6 +423,8 @@ void SpellEffectivenessHook::OnRevert([[maybe_unused]] SKSE::SerializationInterf
     PutBackOriginalTextLocked();
 
     m_earlyLearnedSpells.clear();
+    m_heldForISL.clear();
+    m_heldListLoaded = false;
     m_earlySpellCount.store(0, std::memory_order_release);
     m_displayCache.clear();
     m_originalSpellNames.clear();
@@ -381,4 +450,57 @@ void SpellEffectivenessHook::PutBackOriginalTextLocked()
         logger::info("SpellEffectivenessHook: Put back {} spell names and {} effect descriptions",
             m_originalSpellNames.size(), m_originalEffectDescriptions.size());
     }
+}
+
+// =============================================================================
+// LOAD REFRESH
+// =============================================================================
+
+// Game thread (queued by EndLoad, once the save is in). A spell the player does
+// not have is added back only by the grant rule (ShouldGrantEarly): one ISL holds
+// stays out until ISL teaches it, and keeps its own name meanwhile (ISL shows it).
+void SpellEffectivenessHook::RefreshAllSpellDisplays()
+{
+    logger::info("SpellEffectivenessHook: Refreshing all spell displays after load...");
+
+    std::unordered_set<RE::FormID> spellsCopy;
+    bool heldListLoaded = false;
+    {
+        std::shared_lock<std::shared_mutex> lock(m_mutex);
+        spellsCopy = m_earlyLearnedSpells;
+        heldListLoaded = m_heldListLoaded;
+    }
+
+    auto* player = RE::PlayerCharacter::GetSingleton();
+    std::size_t leftOut = 0;
+    for (RE::FormID spellId : spellsCopy) {
+        auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(spellId);
+        if (!spell || !player) continue;
+
+        ReleaseHeldIfOwned(spell);
+        if (!player->HasSpell(spell)) {
+            // A v1 save does not say what ISL holds: with ISL active, a spell the
+            // player lacks is taken as held (a re-grant taught it before the study)
+            if (!heldListLoaded && DESTIntegration::IsActive()) {
+                std::unique_lock<std::shared_mutex> lock(m_mutex);
+                m_heldForISL.insert(spellId);
+            }
+            if (!ShouldGrantEarly(spell)) {
+                ++leftOut;
+                logger::info("SpellEffectivenessHook: {} ({:08X}) not re-granted on load - held for ISL or a copy known",
+                    spell->GetName(), spellId);
+                continue;
+            }
+            player->AddSpell(spell);
+            logger::info("SpellEffectivenessHook: Re-granted spell {} on load", spell->GetName());
+        }
+
+        UpdateSpellDisplayCache(spellId, spell);
+        // Apply the modified name and description to the actual spell
+        ApplyModifiedSpellName(spellId);
+        ApplyModifiedDescriptions(spellId);
+    }
+
+    logger::info("SpellEffectivenessHook: Refreshed {} spell displays ({} left to ISL or a known copy)",
+        spellsCopy.size() - leftOut, leftOut);
 }

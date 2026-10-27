@@ -12,7 +12,7 @@
 // m_originalSpellNames, m_originalEffectDescriptions, m_effectSpellTracking).
 //
 // Game-thread execution is guaranteed by the call chain:
-//   - RefreshAllSpellDisplays()      ← SKSE serialization callback (game thread)
+//   - RefreshAllSpellDisplays()      ← task queued by the load (game thread)
 //   - CheckAndUpdatePowerStep()      ← ProgressionManager update (game thread)
 //   - GrantEarlySpell()              ← SpellCastHandler / SpellTomeHook (game thread)
 //   - MarkMastered()                 ← ProgressionManager (game thread)
@@ -130,37 +130,7 @@ bool SpellEffectivenessHook::CheckAndUpdatePowerStep(RE::FormID spellFormId)
     return true;  // Step changed
 }
 
-void SpellEffectivenessHook::RefreshAllSpellDisplays()
-{
-    logger::info("SpellEffectivenessHook: Refreshing all spell displays after load...");
-
-    std::unordered_set<RE::FormID> spellsCopy;
-    {
-        std::shared_lock<std::shared_mutex> lock(m_mutex);
-        spellsCopy = m_earlyLearnedSpells;
-    }
-
-    for (RE::FormID spellId : spellsCopy) {
-        auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(spellId);
-        if (spell) {
-            UpdateSpellDisplayCache(spellId, spell);
-
-            // Apply the modified name and description to the actual spell
-            ApplyModifiedSpellName(spellId);
-            ApplyModifiedDescriptions(spellId);
-
-            // Verify player still has the spell
-            auto* player = RE::PlayerCharacter::GetSingleton();
-            if (player && !player->HasSpell(spell)) {
-                // Re-grant it
-                player->AddSpell(spell);
-                logger::info("SpellEffectivenessHook: Re-granted spell {} on load", spell->GetName());
-            }
-        }
-    }
-
-    logger::info("SpellEffectivenessHook: Refreshed {} spell displays", spellsCopy.size());
-}
+// RefreshAllSpellDisplays: SpellEffectivenessHookGrant.cpp, with the grant rule it follows
 
 // =============================================================================
 // DIRECT SPELL NAME MODIFICATION
@@ -254,6 +224,8 @@ void SpellEffectivenessHook::RefreshAllSpellNames()
     }
 
     for (RE::FormID spellId : spellsCopy) {
+        // Held for ISL: its own name until ISL teaches it (OnStudyComplete renames it)
+        if (IsHeldForISL(spellId)) continue;
         UpdateSpellDisplayCache(spellId);
         ApplyModifiedSpellName(spellId);
         ApplyModifiedDescriptions(spellId);

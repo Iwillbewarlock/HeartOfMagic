@@ -17,6 +17,27 @@
   tomes the game hands out fail with "No mapping for the Unicode character", so spells whose tomes nothing
   hands out stayed in the tree. Such names are now read without converting them.
 
+- **Passive learning gives the XP per game hour it says.** It counted game days as hours, so 5 XP per hour
+  gave 5 XP per day.
+
+- **A damaged co-save no longer gives progress to the wrong spell.** A learning target or an early-learned
+  spell whose form id was cut short in the save was read as a whole one and could name another spell; such a
+  record now stops there and keeps what came before. One part of Heart of Magic failing while saving or loading
+  no longer stops the others from saving or loading theirs.
+
+- **A spell with no required XP yet keeps its progress.** XP for such a spell used to set its saved progress to
+  0; now it is ignored, as the log said.
+
+- **A spell under study with Immersive Spell Learning is no longer taught early.** Loading a save, a cast that
+  took it past the early-learning threshold, or picking it again as the learning target added the spell before
+  ISL finished the study; now only ISL teaches it, and it keeps its own name until then.
+
+- **Required XP after a load is the tree's again.** A load dropped the tree's required XP and worked spells out
+  from their tier until the panel sent it again, in the order the save's records came in.
+
+- **Changing the power steps updates weakened spells' names and descriptions at once.** They kept the old
+  percent until the spell reached its next step.
+
 ## Heart of Magic Librarian 1.6.0
 
 ### New

@@ -24,7 +24,7 @@ void PassiveLearningSource::Initialize() {
 
     auto* calendar = RE::Calendar::GetSingleton();
     if (calendar) {
-        m_lastGameTime = calendar->GetCurrentGameTime();
+        m_lastGameTime = calendar->GetHoursPassed();  // hours: GetCurrentGameTime is days
         m_initialized = true;
     }
 
@@ -56,9 +56,9 @@ void PassiveLearningSource::SetSettings(const Settings& settings) {
 void PassiveLearningSource::OnGameLoad() {
     auto* calendar = RE::Calendar::GetSingleton();
     if (calendar) {
-        m_lastGameTime = calendar->GetCurrentGameTime();
+        m_lastGameTime = calendar->GetHoursPassed();
         m_initialized = true;
-        logger::info("PassiveLearningSource: Game loaded, game time: {:.2f}", m_lastGameTime);
+        logger::info("PassiveLearningSource: Game loaded, game time: {:.2f} hours", m_lastGameTime);
     }
 }
 
@@ -84,17 +84,11 @@ void PassiveLearningSource::PollLoop() {
             auto* calendar = RE::Calendar::GetSingleton();
             if (!calendar) return;
 
-            float currentGameTime = calendar->GetCurrentGameTime();
-            float elapsed = currentGameTime - m_lastGameTime;
-
-            // Only grant if positive time elapsed (handles time travel, save loads)
-            // and at least ~6 game minutes passed (0.1 hours) to avoid micro-grants
-            if (elapsed > 0.1f) {
-                m_lastGameTime = currentGameTime;
-                GrantPassiveXP(elapsed);
-            } else if (elapsed < 0.0f) {
-                // Time went backwards (loaded earlier save) - just reset
-                m_lastGameTime = currentGameTime;
+            // Game hours (xpPerGameHour, the 0.1 h floor): GetCurrentGameTime is in days
+            const auto tick = ProgressionMath::PassiveTickFor(m_lastGameTime, calendar->GetHoursPassed());
+            m_lastGameTime = tick.lastHours;
+            if (tick.grantHours > 0.0f) {
+                GrantPassiveXP(tick.grantHours);
             }
         });
     }

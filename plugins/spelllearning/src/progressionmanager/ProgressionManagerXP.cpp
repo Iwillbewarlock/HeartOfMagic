@@ -274,20 +274,18 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
         return;
     }
 
+    // requiredXP == 0 means XP requirements not initialized: no progress and no
+    // instant mastery, and the progress the save holds stays as it is
+    if (!(progress.requiredXP > 0.0f)) {
+        logger::warn("ProgressionManager: AddXP for {:08X} but requiredXP is 0 — XP update ignored", targetSpellId);
+        return;
+    }
+
     auto* effectivenessHook = SpellEffectivenessHook::GetSingleton();
     float oldXP = progress.GetCurrentXP();
     float oldProgress = progress.progressPercent;
-    float newXP = (std::min)(oldXP + amount, progress.requiredXP);  // Parentheses to avoid Windows min macro
-
-    // Update progress percentage
-    // requiredXP == 0 means XP requirements not initialized — treat as no progress, not instant mastery
-    if (progress.requiredXP > 0) {
-        progress.progressPercent = newXP / progress.requiredXP;
-    } else {
-        progress.progressPercent = 0.0f;
-        logger::warn("ProgressionManager: AddXP for {:08X} but requiredXP is 0 — XP update ignored", targetSpellId);
-    }
-    progress.progressPercent = (std::min)(progress.progressPercent, 1.0f);
+    progress.progressPercent = ProgressionMath::ProgressAfterXP(oldProgress, amount, progress.requiredXP);
+    const float newXP = progress.GetCurrentXP();
     m_dirty = true;
     // The effect hook's copy, before the power step below reads it
     effectivenessHook->SyncProgress(targetSpellId, progress.progressPercent);
@@ -308,9 +306,11 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
 
         // Check if we just crossed the unlock threshold (first grant)
         if (oldProgress < unlockThreshold && newProgress >= unlockThreshold) {
-            // Grant the spell early (nerfed) - not when the player knows a copy of it (CanUnlock)
-            auto* spell = PlayerKnowsCopyOf(targetSpellId) ? nullptr : RE::TESForm::LookupByID<RE::SpellItem>(targetSpellId);
-            if (SpellEffectivenessHook::CanLearnEarly(spell)) {
+            // Grant the spell early (nerfed) by the one grant rule: not when the player
+            // knows a copy of it (CanUnlock), not while ISL holds it for its study
+            auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(targetSpellId);
+            effectivenessHook->ReleaseHeldIfOwned(spell);
+            if (effectivenessHook->ShouldGrantEarly(spell)) {
                 SpellEffectivenessHook::GrantEarlySpell(spell);
                 logger::info("ProgressionManager: Early granted spell {:08X} at {:.0f}% progress",
                     targetSpellId, newProgress * 100.0f);
@@ -329,7 +329,7 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
         auto* targetSpell = RE::TESForm::LookupByID<RE::SpellItem>(targetSpellId);
         const bool earlyLearned = effectivenessHook->IsEarlyLearnedSpell(targetSpellId);
         const bool playerHasSpell = player && targetSpell && player->HasSpell(targetSpell);
-        const bool heldForISL = earlyLearned && !playerHasSpell;
+        const bool heldForISL = (earlyLearned && !playerHasSpell) || effectivenessHook->IsHeldForISL(targetSpellId);
 
         // Check if power step changed (for display updates)
         // This only updates name/description when crossing step thresholds
@@ -428,6 +428,14 @@ float ProgressionManager::GetRequiredXP(RE::FormID formId) const
     auto it = m_spellProgress.find(formId);
     if (it != m_spellProgress.end() && it->second.requiredXP > 0) {
         return it->second.requiredXP;
+    }
+    return BaseRequiredXP(formId);
+}
+
+float ProgressionManager::BaseRequiredXP(RE::FormID formId) const
+{
+    if (auto panel = m_panelRequiredXP.find(formId); panel != m_panelRequiredXP.end() && panel->second > 0.0f) {
+        return panel->second;
     }
 
     // If no progress data, try to determine from spell tier. The panel sends the
@@ -530,5 +538,6 @@ void ProgressionManager::SetRequiredXP(RE::FormID formId, float required)
         logger::warn("ProgressionManager: SetRequiredXP called with non-positive value {:.1f} for {:08X}, clamping to 1.0", required, formId);
         required = 1.0f;
     }
+    m_panelRequiredXP[formId] = required;
     EnsureProgress(formId).requiredXP = required;
 }

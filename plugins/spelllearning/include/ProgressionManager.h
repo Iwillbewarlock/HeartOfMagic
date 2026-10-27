@@ -355,6 +355,15 @@ private:
     // SLPX entries read during a load (form ids resolved), put onto m_spellProgress
     // in EndLoad - after every SLPR entry is in, whatever order the records came in
     std::vector<ProgressionCoSave::CapEntry> m_pendingCapTrackers;
+
+    // The panel's required XP per spell (SetRequiredXP: the tree's number, per-spell
+    // override, reverse unlock share). Not cleared with the progress: the tree is the
+    // same for every save, and a load used to drop these and fall back to the tier's
+    // number until the panel sent them again. EndLoad sizes every entry from it.
+    std::unordered_map<RE::FormID, float> m_panelRequiredXP;
+    // A spell's required XP without its progress entry: the panel's, else the tier's
+    // (reverse unlock share included)
+    float BaseRequiredXP(RE::FormID formId) const;
     bool ReadCapTrackers(SKSE::SerializationInterface* a_intfc, uint32_t length);
     void WriteCapTrackers(SKSE::SerializationInterface* a_intfc) const;
 
