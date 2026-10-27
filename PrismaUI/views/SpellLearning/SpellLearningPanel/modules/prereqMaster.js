@@ -1141,7 +1141,8 @@
                 return;
             }
 
-            var result = typeof resultStr === 'string' ? JSON.parse(resultStr) : resultStr;
+            // Parsed once above (null when it was not JSON: the parse here throws as before)
+            var result = busyReply || (typeof resultStr === 'string' ? JSON.parse(resultStr) : resultStr);
             if (!result.success || !result.scores) {
                 _prmLog('C++ scoring failed: ' + (result.error || 'unknown') + ' - falling back to JS TF-IDF');
                 // Fall back to JS TF-IDF scorer

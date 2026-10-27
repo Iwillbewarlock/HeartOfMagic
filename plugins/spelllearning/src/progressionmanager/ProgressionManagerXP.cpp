@@ -327,6 +327,9 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
         // teaches it - the same rule as OnStudyProgress (ProgressionMath::ShouldMaster)
         auto* player = RE::PlayerCharacter::GetSingleton();
         auto* targetSpell = RE::TESForm::LookupByID<RE::SpellItem>(targetSpellId);
+        // ISL taught it without telling us (no OnStudyComplete): no longer held, on any
+        // cast, not only at the threshold - or its steps and name stopped for good
+        effectivenessHook->ReleaseHeldIfOwned(targetSpell);
         const bool earlyLearned = effectivenessHook->IsEarlyLearnedSpell(targetSpellId);
         const bool playerHasSpell = player && targetSpell && player->HasSpell(targetSpell);
         const bool heldForISL = (earlyLearned && !playerHasSpell) || effectivenessHook->IsHeldForISL(targetSpellId);

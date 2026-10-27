@@ -292,7 +292,8 @@ void SpellEffectivenessHook::OnGameSaved(SKSE::SerializationInterface* a_intfc)
     std::shared_lock<std::shared_mutex> lock(m_mutex);
 
     // v2: the early ids, then the held-for-ISL ones (ProgressionCoSave's form id list
-    // twice). A build that reads v1 only skips the record (its version check).
+    // twice). A build from before v2 checks no version: it reads the early list and
+    // ignores the held one after it.
     const std::vector<std::uint32_t> early(m_earlyLearnedSpells.begin(), m_earlyLearnedSpells.end());
     const std::vector<std::uint32_t> held(m_heldForISL.begin(), m_heldForISL.end());
     if (!a_intfc->OpenRecord(kEarlyLearnedRecord, kEarlyLearnedVersion) ||
