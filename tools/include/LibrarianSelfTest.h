@@ -4,7 +4,8 @@
 // made-up rules and checks the conflict stage, the per-element evidence tiers
 // and the axis source after removals; then plans adapter lines on made-up
 // catalogs (tierMin, requires.config, damage lines), and checks the explosion
-// twin rules (docs/ENVIRONMENT.md). Needs no dump. Returns a
+// twin rules (docs/ENVIRONMENT.md) and the scan record's pure rules
+// (ScanRecordRules.h). Needs no dump. Returns a
 // process exit code (1 when any check fails).
 int RunLibrarianSelfTest();
 
