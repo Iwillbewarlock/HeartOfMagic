@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AsciiText.h"
+#include "FileUtils.h"
 #include "PathText.h"
 
 #include <filesystem>
@@ -33,14 +34,14 @@ namespace PresetFiles
         return dir / PathText::FromUtf8(safeName + ".json");
     }
 
-    /** Writes the preset's file; false when it could not be opened or written completely. */
+    /**
+     * Writes the preset's file through a temp file and a move (FileUtils::WriteAtomically),
+     * so a crash mid-write no longer leaves an empty preset; false when it could not be
+     * written. No .bak: the presets folder lists every file in it.
+     */
     [[nodiscard]] inline bool Write(const std::filesystem::path& filePath, const std::string& text)
     {
-        std::ofstream file(filePath, std::ios::binary | std::ios::trunc);
-        if (!file.is_open()) return false;
-        file << text;
-        file.close();
-        return static_cast<bool>(file);
+        return FileUtils::WriteAtomically(filePath, text, false);
     }
 
     struct DeleteResult

@@ -43,6 +43,16 @@
   the game does not keep, so it never merged anything; it now reads them from powerofthree's Tweaks, as the scan
   does. Without Tweaks nothing changes.
 
+- **Closing the panel runs its closing steps again.** The panel's close came back into the panel from inside its
+  own call, which the web view drops, so what the panel does as it closes could be skipped.
+
+- **A learning target whose prerequisite list holds a bad entry is still set.** One entry that was not text made
+  the whole target fail; it is now skipped, and one bad spell in the tree's prerequisite list no longer stops the
+  spells after it from getting theirs.
+
+- **A preset is no longer left empty when the game closes while saving it.** It is written to a temporary file
+  first and then moved over the old one, as the tree and the settings already were.
+
 ## Heart of Magic Librarian 1.6.0
 
 ### New

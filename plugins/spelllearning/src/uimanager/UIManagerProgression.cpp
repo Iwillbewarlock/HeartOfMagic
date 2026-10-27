@@ -44,8 +44,13 @@ void UIManager::OnSetLearningTarget(const char* argument)
             std::vector<RE::FormID> prereqs;
             if (request.contains("prerequisites") && request["prerequisites"].is_array()) {
                 for (const auto& prereqJson : request["prerequisites"]) {
-                    std::string prereqStr = prereqJson.get<std::string>();
-                    const auto prereqId = ParsePanelFormId(prereqStr, "SetLearningTarget prerequisite");
+                    // Not text: skipped, as in SetTreePrerequisites (get<std::string>() threw
+                    // and the whole target was not set)
+                    if (!prereqJson.is_string()) {
+                        logger::warn("UIManager: SetLearningTarget - a prerequisite that is not text skipped");
+                        continue;
+                    }
+                    const auto prereqId = ParsePanelFormId(prereqJson.get<std::string>(), "SetLearningTarget prerequisite");
                     if (prereqId && *prereqId != 0) {
                         prereqs.push_back(*prereqId);
                     }
@@ -503,7 +508,9 @@ void UIManager::OnSetTreePrerequisites(const char* argument)
                     continue;
                 }
 
-                std::string formIdStr = entry.value("formId", "");
+                // SafeJsonValue: an entry with a field of the wrong type is that entry's
+                // problem (value() threw and ended the loop for every spell after it)
+                std::string formIdStr = SafeJsonValue<std::string>(entry, "formId", "");
                 if (formIdStr.empty()) continue;
 
                 // The whole text must be the id (FormIdText::Parse, not ParseSpellOf): an edit
@@ -545,7 +552,7 @@ void UIManager::OnSetTreePrerequisites(const char* argument)
                 parsePrereqs("softPrereqs", reqs.softPrereqs);  // need softNeeded of these
 
                 // Never more than the soft list holds, or the spell could never open
-                reqs.softNeeded = (std::min)(entry.value("softNeeded", 0), static_cast<int>(reqs.softPrereqs.size()));
+                reqs.softNeeded = (std::min)(SafeJsonValue<int>(entry, "softNeeded", 0), static_cast<int>(reqs.softPrereqs.size()));
 
                 // Legacy fallback: parse old "prereqs" field as all hard
                 if (reqs.hardPrereqs.empty() && reqs.softPrereqs.empty()) {

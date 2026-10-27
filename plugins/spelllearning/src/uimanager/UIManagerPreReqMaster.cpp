@@ -60,6 +60,9 @@ void UIManager::OnPreReqMasterScore(const char* argument)
             nlohmann::json response;
             response["success"] = false;
             response["error"] = "PRM scoring already in progress. Please wait.";
+            // busy: this request was turned away, the scoring in flight goes on and
+            // answers it (as the tree build's busy reply): the panel keeps waiting for it
+            response["busy"] = true;
             instance->CallView("onPreReqMasterComplete", JsonText::Dump(response).c_str());
             return;
         }

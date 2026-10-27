@@ -74,9 +74,14 @@ struct UIManager::ScanTicket
 void UIManager::OnScanSpells(const char* argument)
 {
     logger::info("UIManager: ScanSpells callback triggered");
-    if (auto* instance = GetSingleton()) {
-        instance->RequestScan(std::string(argument ? argument : ""));
-    }
+    // Deferred: a scan that cannot start reports it to the panel (ReportScanFailure's
+    // CallView), and a call back into JS from inside a listener does not work in
+    // Ultralight (re-entrant, see OnProceduralTreeGenerate)
+    AddTaskToGameThread("ScanSpells", [argStr = std::string(argument ? argument : "")]() mutable {
+        if (auto* instance = GetSingleton()) {
+            instance->RequestScan(std::move(argStr));
+        }
+    });
 }
 
 void UIManager::RequestScan(std::string argStr)

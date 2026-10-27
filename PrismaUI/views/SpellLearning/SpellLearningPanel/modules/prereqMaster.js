@@ -1114,6 +1114,14 @@
      * @param {string} resultStr - JSON string with scored results
      */
     window.onPreReqMasterComplete = function(resultStr) {
+        // A busy reply turns this request away while the scoring in flight goes on: its
+        // answer is still coming for the same tree, so the tree it is for is kept
+        var busyReply = null;
+        try { busyReply = typeof resultStr === 'string' ? JSON.parse(resultStr) : resultStr; } catch (e) { busyReply = null; }
+        if (busyReply && busyReply.busy) {
+            _prmLog('C++ scorer busy - waiting for the scoring in flight');
+            return;
+        }
         var forTree = _prmTree;
         _prmTree = null;
         if (forTree && typeof TreeGrowthClassic !== 'undefined' && TreeGrowthClassic._treeData !== forTree) {
