@@ -4,6 +4,14 @@
 
 ### Fixed
 
+- **Spell tomes changed by Spell Research Synthesizer are spell tomes again.** That patcher makes the tomes it knows
+  teach nothing (Spell Research teaches the spell through its research instead), so Heart of Magic found no tome for
+  those spells: with it installed the tree could come out empty. Heart of Magic now takes each such tome's spell from
+  the patcher's `SynthesizedPatch.json`, or from Spell Research's tome lists when that file is missing, for the tree,
+  the check of which tomes the game hands out and the XP bonus for carrying a tome. Reading such a tome still does
+  what Spell Research does. A tree build at game start that found no spells before a save brought Spell Research's
+  tomes is tried once more, and the Scan page says when a new scan would find more.
+
 - **A file name in Data with characters Windows' language setting cannot show no longer stops the tome check.**
   One such file (a Chinese, Japanese or emoji name on a PC set to another language) made the check of which
   tomes the game hands out fail with "No mapping for the Unicode character", so spells whose tomes nothing

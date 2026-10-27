@@ -201,9 +201,11 @@ it teaches would be a tree node nobody can learn. `src/tomereach/` finds them fr
 game the placed references of cells that are not loaded are not in memory:
 
 - `TomeReach::StartAfterDataLoaded` (Main.cpp, kDataLoaded, game thread) takes the loaded plugins in load
-  order (`TESDataHandler::files`, with each file's light flag) and every tome (`TESObjectBOOK` that teaches a
-  spell, keyed by plugin name and local id), then hands them to a detached worker thread; no RE object
-  crosses over.
+  order (`TESDataHandler::files`, with each file's light flag) and every tome (`SpellTomes::ForEachTome`: a
+  `TESObjectBOOK` that teaches a spell, or one that teaches nothing with a Spell Research pair - below,
+  "Spell tomes that teach nothing" -, keyed by plugin name and local id), then hands them to a detached worker
+  thread; no RE object crosses over. A new generation of tome pairs runs the pass again (`TomeReach::Restart`);
+  until it is done no spell is marked, and a pass of an older generation that finishes later is dropped.
 - The worker (`FindReachedTomes`, TomeReachPass.cpp) reads every plugin (`ScanPlugin`, TomeReachRecords.cpp;
   compressed records through zlib). A tome counts as handed out when a record refers to it: a placed
   reference (`REFR` `NAME`), a leveled list (`LVLI` `LVLO`), a container, NPC or quest inventory (`CNTO`), a
@@ -251,6 +253,49 @@ game the placed references of cells that are not loaded are not in memory:
   property, and a config that names a tome by its runtime id (`0xFE000800~Plugin.esl`, a load order
   prefix) instead of its id in the plugin. Such a spell would leave the tree wrongly; none was found on the author's load order (no script
   there calls `GetFormFromFile` naming one of the 11 plugins).
+
+**Spell tomes that teach nothing (2026-10-27, `SpellTomes.h`, `SpellTomePairs.h`):** Spell Research
+Synthesizer (a Synthesis patcher for Spell Research) overrides spell tomes in `SpellResearchSynthesizer.esp` so
+they teach nothing (the book text lists the spell's archetypes) and records each tome-spell pair in
+`Data/SKSE/Plugins/SpellResearchSynthesizer/SynthesizedPatch.json` and in Spell Research's per-tier lists
+`_SR_ListTomes<tier>` / `_SR_ListTomeSpells<tier>` (same index = one pair; an FLM ini fills the plugin part, SR's
+Import the script-added part, which lives in the save). Every place that asked `TeachesSpell()` / `GetSpell()`
+lost those tomes (a reporter's tree was empty: `TomeReach: reading 4332 plugins for 0 tomes`). They now ask
+`SpellTomes::SpellOf(book)`: the book's own spell, else its pair. Users: the tome scan (`CollectSpellTomes`),
+`TomesBySpell` / `SpellsTaughtByTomes` (the full scan's `taughtByTome`, the copies, the Librarian's Spell Research
+registrations), the tome reach seed set and the carried-tome XP bonus (`PlayerHasSpellTome`, and the inventory
+sink's `IsPairedTome`). TomeReachRecords.cpp's raw BOOK DATA read is not one: its spell does not feed the reach.
+
+- Where the pairs come from (`SpellTomePairs::Build`, pure, `tools/spell-tomes-check --self-test`):
+  SynthesizedPatch.json first ("newSpells": `tomeId` / `spellId` as `__formData|<plugin>|0x<local id>`, resolved
+  with `TESDataHandler::LookupForm`), used for a book whose winning override (`GetFile(-1)`) is
+  `SpellResearchSynthesizer.esp`'s and that teaches nothing; one another plugin overrides now is stale (logged
+  with that plugin). Spell Research's lists are the fallback, logged as unverified: used when there is no usable
+  JSON (absent, not JSON, ill-formed UTF-8, no `newSpells`), and for a stale JSON book. They are read only once an
+  Import finished and none runs (`_SR_GlobalIsSetup` 1, `_SR_GlobalImporting` 0,
+  `SpellResearchPatch::ReadTomeLists`); otherwise the last readable state stays. Each tier's plugin part and
+  script-added part pair on their own, a part only when the book list's and the spell list's part have the same
+  length. Equal length proves little (FLM adds to each list on its own at every load, so a re-run patch on an old
+  save can shift both), so with a usable JSON a live pair that disagrees is counted as a conflict and not used,
+  and one for a book the JSON does not name is not used either. A book that teaches a spell keeps it.
+- When: kDataLoaded (before the tome reach pass), kPostLoadGame (before the Spell Research registrations),
+  before every scan, and after every message box while Spell Research is loaded (its Import ends with one; the
+  rebuild runs before Reconcile's "same entry count" return). The JSON is read once a session.
+- The snapshot (book -> spell) is swapped through a `std::atomic<std::shared_ptr>` on the game thread and read
+  from any thread. A rebuild with the same pairs changes nothing; different pairs get a new generation, which
+  re-runs the tome reach pass, regroups the copies (`InvalidateDuplicateGroups`, then
+  `PrepareTreeSpellForTomeAfterPass`), drops the carried-tome cache and tells the panel (`onSpellTomesChanged`
+  `{ generation, pairedTomes, stale }`): a scan made with fewer tomes is marked stale, and a failed build at game
+  start runs once more (autoBuild.js; "Tree Built at Game Start").
+- Log: `SpellTomes: N tomes - T by the book's own spell, P by Spell Research pairs (records R, script S,
+  unverified), J by SynthesizedPatch.json (read|unusable|none); X pairs skipped (...) [generation G] (<reason>)`
+  at each new generation, plus up to five notes (stale books, conflicts). The dev self-test's `sr-paired-tomes`
+  (docs/ENVIRONMENT.md, "Self-test").
+- Reading such a tome is left as it is (author's decision, option (a)): HoM's read hook patches the AddSpell
+  inside `TESObjectBOOK::Read`, which a book that teaches nothing never reaches, so reading one does what Spell
+  Research's script does (archetype XP); the tree, its gates and the carried-tome bonus work.
+- Limits: the live fallback cannot tell a shifted pair from a true one when there is no JSON; a save without
+  Spell Research set up (a new game) keeps the previous save's live pairs until its own lists are readable.
 
 **Spell tier from the half-cost perk (2026-09-30):** `DetermineSpellTier` (SpellScannerHelpers.cpp) asks
 the spell's half-cost perk first, then its first effect's minimum skill. The perk step never worked: it

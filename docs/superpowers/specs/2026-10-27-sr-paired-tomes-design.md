@@ -1,6 +1,6 @@
 # Spell tomes that teach nothing: find their spell through Spell Research's tome pairs - design
 
-Date 2026-10-27. Branch: release/1.6 (then merged forward). Status: draft, not built.
+Date 2026-10-27. Branch: release/1.6 (then merged forward). Status: built 2026-10-27 (release/1.6), reading option (a); see docs/ARCHITECTURE.md, "Spell tomes that teach nothing".
 
 ## Problem
 

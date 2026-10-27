@@ -322,7 +322,7 @@ ValueModifier).
 
 ## Self-test (dev only)
 
-`src/environment/EnvironmentSelfTest.cpp` and `EnvironmentSelfTestChecks.cpp`. Off unless
+`src/environment/EnvironmentSelfTest.cpp`, `EnvironmentSelfTestChecks.cpp` and `EnvironmentSelfTestTomes.cpp`. Off unless
 `Data/SKSE/Plugins/SpellLearning/selftest.json` holds `{"enabled": true}` (optional `"delaySeconds"`, default 30,
 5-600). The file is not shipped: `debug/selftest.json` in the repo, put into the dev install by
 `.\DeployDev.ps1 -WithSelfTest` and removed by every deploy without the switch (`-PanelOnly` included). Armed at a save load or a new game,
@@ -345,6 +345,7 @@ in-memory edit the perk adapters make - and puts it back at once.
 | `frostwalker` | Frostwalker's matcher (`EnvironmentMatch.h`) on the installed `Data/SKSE/Plugins/Frostwalker/*Sources/` (every file, as Frostwalker reads them), with EditorIDs from `SpellScanner::GetEditorId` (po3 Tweaks' `GetFormEditorID`, as Frostwalker) | PASS: twin unknown and the original cold. FAIL: the twin reads as an element. SKIP: no Frostwalker folder, or the original is not cold with the installed lists (a user list that makes "blizzard" neutral, or no EditorIDs) - then the twin is not needed. The original's class is always in the line |
 | `adapters-<file>` | for `env-elements.json`, `env-oif.json`, `env-candles.json`, `frostwalker.json`: their `requires` against the live config, load order and `Data/SKSE/Plugins` (`requires.dlls`, through `FileApplies`' default `DllInstalled`), and `perk_adapters_report.json` | listed under `files` when they apply, under `filesNotApplying` when not. The config gate is taken as the report's run judged it (`configJudged` in the report, written by the adapters for every `requires.config` path), so a config.json edited since the last game start or full scan is named in the line, not counted as a fault |
 | `adapters-desecration` | every effect of every `DAR_Necrotic*` spell (Desecration.esp) | none got `MagicDamageFire` from the adapters (`PerkAdapters::IsInjected`). SKIP without Desecration.esp or EditorIDs |
+| `sr-paired-tomes` | the tome pairs for books that teach nothing (Spell Research Synthesizer, `SpellTomes::CurrentStatus`; docs/ARCHITECTURE.md, "Spell tomes that teach nothing"): the counts per source and per skip reason, and how many paired books `ForEachTome` visits | PASS: no JSON id unresolved, every pair a BOOK that teaches nothing and a SPEL, no book twice in the JSON, a SynthesizedPatch.json that exists was usable, and `ForEachTome` visits as many paired books as the snapshot holds. FAIL otherwise (the counts say which). SKIP: no SpellResearch.esp and no JSON. Not a defect of HoM when the JSON names a plugin no longer loaded (`unresolved`): run the patcher again |
 
 Without HeartOfMagic.esp the twin checks write one `twins SKIP` line ("the explosion twin fix is inactive, nothing
 checked"); without MysticismMagic.esp `twins-shake` and `mysticism-patch` are a SKIP.
