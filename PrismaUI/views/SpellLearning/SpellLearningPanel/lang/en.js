@@ -743,6 +743,7 @@ window._i18nPreload = {
     "status.loadOrderChanged": "Load order changed since the tree was built. Scan and build here to rebuild it; the current tree keeps working.",
     "status.autoBuildFailed": "Automatic tree build failed: {{error}}. Scan and build here instead.",
     "status.autoBuildHeld": "The spell tree will finish building when you open this panel.",
+    "status.tomesChangedRescan": "Spell Research brought spell tomes the last scan did not have. Scan again to take their spells into the tree.",
     "status.treeNoSpellsNotSaved": "The tree has no spells, so it was not saved.",
     "status.treeBuildComplete": "Tree built ({{schools}} schools, {{spells}} spells)",
     "status.treeBuildFailed": "Tree build failed: {{error}}",

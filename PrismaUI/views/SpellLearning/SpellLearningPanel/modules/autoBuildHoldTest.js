@@ -11,7 +11,10 @@
  *   - the panel opening resumes it a tick later, the main menu at once; the
  *     timeout runs again from the resume, and only then;
  *   - the player's own Scan, Build, Apply or Clear while it waits wins (yieldTo);
- *   - a new game counts as a loaded save; the panel open: nothing is held.
+ *   - a new game counts as a loaded save; the panel open: nothing is held;
+ *   - the spell tome pairs changed (onSpellTomesChanged): a failed run starts once
+ *     more, held in game until the panel opens; a stale scan is marked; no retry
+ *     after a finished run, after the player acted, twice, or on a bad payload.
  *
  * Depends on: autoBuildTest.js (loads autoBuild.js and autoBuildSetting.js).
  * Swaps the globals it stubs (timers included) and puts them back.
@@ -95,6 +98,8 @@ var AutoBuildHoldTest = {
         this._testMainMenu(g);
         this._testPlayerWins(g);
         this._testPanelOpen(g);
+        this._testTomesChanged(g);
+        this._testTomesChangedNoRetry(g);
         return { passed: this.passed, failed: this.failed };
     },
 
@@ -202,6 +207,66 @@ var AutoBuildHoldTest = {
                 w.builtWith.onComplete('ok');
                 self.check(w.calls.join(',') === 'scan,build,apply' && w.events.indexOf('held') === -1,
                     'a save loaded but the panel open (the game paused): nothing is held');
+            } finally { A._resetForTest(); }
+        });
+    },
+
+    /** A main menu run whose scan finds no spell (no tome pairs yet): it fails. */
+    _failAtMainMenu: function(g, w) {
+        this._begin(g, false);
+        g.state.lastSpellData = { spells: [] };
+        g.AutoBuild.onSpellData();
+        g.state.lastSpellData = { spells: [{ formId: '0x01' }] };
+        return !g.AutoBuild.isRunning() && w.events[w.events.length - 1] === 'failed';
+    },
+
+    _testTomesChanged: function(g) {
+        var self = this, A = g.AutoBuild, w = this._world(g);
+        this._with(g, w.stubs, function() {
+            try {
+                self.check(self._failAtMainMenu(g, w), 'tomes: the main menu scan finds no spell - the run fails');
+                A.onSaveGameLoaded();
+                g.onSpellTomesChanged(JSON.stringify({ generation: 2, pairedTomes: 40, stale: true }));
+                self.check(w.events.indexOf('retry') !== -1 && A.isRunning() && w.calls.join(',') === 'scan' &&
+                    w.events[w.events.length - 1] === 'held',
+                    'tomes: the pairs changed in game - the failed run starts once more, its scan held');
+                self.check(w.status.indexOf('status.tomesChangedRescan') !== -1 && g.state.lastSpellData.tomesStale === 2,
+                    'tomes: a stale scan is marked, with the status line');
+                A.onPanelShowing();
+                g._panelVisible = true;
+                w.fire(0);
+                self.check(w.calls.join(',') === 'scan,scan', 'tomes: the panel opens - the retry scans');
+                g.state.lastSpellData = { spells: [] };
+                A.onSpellData();
+                g.onSpellTomesChanged({ generation: 3, pairedTomes: 41, stale: false });
+                self.check(!A.isRunning() && w.events.filter(function(e) { return e === 'retry'; }).length === 1,
+                    'tomes: a second change after the retry failed too - no second retry');
+            } finally { A._resetForTest(); }
+        });
+    },
+
+    _testTomesChangedNoRetry: function(g) {
+        var self = this, A = g.AutoBuild, w = this._world(g);
+        w.stubs._panelVisible = true;
+        this._with(g, w.stubs, function() {
+            try {
+                self._begin(g, false);
+                A.onSpellData();
+                w.builtWith.onComplete('ok');
+                w.appliedWith.onSaved(3);
+                g.onSpellTomesChanged({ generation: 2, pairedTomes: 5, stale: false });
+                self.check(!A.isRunning() && w.events.indexOf('retry') === -1, 'tomes: after a finished run - no retry');
+
+                self._failAtMainMenu(g, w);
+                A.yieldTo('apply');
+                g.onSpellTomesChanged({ generation: 2, pairedTomes: 5, stale: false });
+                self.check(!A.isRunning() && w.events.indexOf('retry') === -1,
+                    'tomes: the player applied a tree after the failure - no retry over it');
+
+                self._failAtMainMenu(g, w);
+                g.onSpellTomesChanged('{not json');
+                g.onSpellTomesChanged(null);
+                self.check(!A.isRunning() && w.events.indexOf('retry') === -1, 'tomes: a bad payload is ignored');
             } finally { A._resetForTest(); }
         });
     }

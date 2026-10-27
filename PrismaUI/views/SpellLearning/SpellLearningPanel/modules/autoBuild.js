@@ -52,6 +52,16 @@
  * config.json that C++ could not read (its defaults sent, marked configNotRead)
  * counts as a config that did not load: nothing is built.
  *
+ * Tomes that teach nothing (Spell Research Synthesizer, C++ SpellTomes.h) may get
+ * their spell only from Spell Research's script-added pairs, which come with a save:
+ * a main menu scan then has fewer tomes, and a tree with none is refused. When C++
+ * says the pairs changed (onSpellTomesChanged), a scan made with fewer tomes is
+ * marked stale (status.tomesChangedRescan), and a run that failed starts once more
+ * (event "retry", once a session) - its steps held during play as any run's, so it
+ * goes on at the next panel opening or the main menu. Not after a run that finished
+ * or yielded, nor once the player scanned, built, applied or saved (yieldTo): a saved
+ * tree is never rebuilt.
+ *
  * Every step goes to SpellLearning.log as "AutoBuild: <event> - <detail>"
  * (C++ AutoBuildEvent, written whatever the developer mode): config, presets,
  * decided, scan, build, shown, apply, done, failed, yielded, save loaded, notice,
@@ -86,6 +96,8 @@ var AutoBuild = {
     _waitTimers: [],
     _run: null,               // { stage: 'scan' | 'build' | 'apply', startedAt, scanAsked, held: { step, fn } | null }
     _runTimer: null,
+    _lastFailed: false,       // the last run failed, and the player has not acted since (onSpellTomesChanged)
+    _retried: false,          // the one retry after the tome pairs changed was made
 
     // =========================================================================
     // DECISION (pure)
@@ -242,6 +254,7 @@ var AutoBuild = {
      * @param {string} what - what the player did (for the log line)
      */
     yieldTo: function(what) {
+        this._lastFailed = false;   // the player's own scan, build or tree: no retry over it
         if (!this._run) return;
         this._report('yielded', what + ' (during the ' + this._run.stage + ' step)');
         this._end();
@@ -314,6 +327,7 @@ var AutoBuild = {
 
     _start: function() {
         var self = this, run = { stage: 'scan', startedAt: Date.now(), held: null };
+        this._lastFailed = false;
         this._run = run;
         this._armTimer();
         if (typeof startScan !== 'function') {
@@ -431,6 +445,35 @@ var AutoBuild = {
             ClassicSettings.setStatusText(text, 'error', 'status.autoBuildFailed', params);
         }
         this._end(fromProgress ? this.PROGRESS_KEEP : text);
+        this._lastFailed = true;
+    },
+
+    // =========================================================================
+    // TOME PAIRS CHANGED
+    // =========================================================================
+
+    /**
+     * C++ (SpellTomes.h): the spell tome pairs changed (a save's or an Import's Spell
+     * Research pairs). See the head of this file.
+     * @param {{generation: number, pairedTomes: number, stale: boolean}} info
+     */
+    onSpellTomesChanged: function(info) {
+        if (!info || typeof info !== 'object') return;
+        if (info.stale) this._markScanStale(info);
+        if (this._retried || this._run || !this._lastFailed) return;
+        this._retried = true;
+        this._lastFailed = false;
+        this._report('retry', 'the spell tome pairs changed (generation ' + info.generation + ', ' +
+            info.pairedTomes + ' paired tomes) - the failed build runs once more');
+        this._start();
+    },
+
+    _markScanStale: function(info) {
+        if (typeof state !== 'undefined' && state.lastSpellData) state.lastSpellData.tomesStale = info.generation;
+        if (typeof updateScanStatus === 'function') {
+            var english = 'Spell Research brought spell tomes the last scan did not have. Scan again to take their spells into the tree.';
+            updateScanStatus(typeof tOr === 'function' ? tOr('status.tomesChangedRescan', null, english) : english, '', 'status.tomesChangedRescan');
+        }
     },
 
     PROGRESS_KEEP: { keep: true },   // _end: the build's progress already says how it ended
@@ -501,6 +544,8 @@ var AutoBuild = {
         this._saveLoaded = false;
         this._run = null;
         this._runTimer = null;
+        this._lastFailed = false;
+        this._retried = false;
     }
 };
 
@@ -518,6 +563,17 @@ window.onStartupTreeInfo = function(json) {
 /** C++ (UIManagerAutoBuild.cpp): the main menu opened. */
 window.onMainMenuShown = function() {
     AutoBuild.onMainMenuShown();
+};
+
+/** C++ (SpellTomes.cpp, through UIManagerAutoBuild.cpp): { generation, pairedTomes, stale, reason }. */
+window.onSpellTomesChanged = function(json) {
+    var info = null;
+    try {
+        info = typeof json === 'string' ? JSON.parse(json) : json;
+    } catch (e) {
+        console.error('[AutoBuild] Spell tome change unreadable: ' + (e && e.message ? e.message : e));
+    }
+    AutoBuild.onSpellTomesChanged(info);
 };
 
 /** C++ (UIManagerAutoBuild.cpp): kNewGame. */
