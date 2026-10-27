@@ -403,6 +403,50 @@ var StatusLineTest = {
         this.check(g.state.lastSpellData && g.state.lastSpellData.spellCount === 2 &&
             !errors.some(function(e) { return e.indexOf('Failed to parse') >= 0 || e.indexOf('ReferenceError') >= 0; }),
             'updateSpellData: a scan reply is kept, no parse error');
+
+        // Data that cannot be read: the old scan is not kept as this one, the Scan
+        // button comes back and the build at game start hears no spells came
+        var oldScan = { spellCount: 9, spells: [{ formId: '0x9' }] };
+        var keptAutoBuild = g.AutoBuild, autoBuildCalls = 0;
+        g.AutoBuild = { onSpellData: function() { autoBuildCalls++; } };
+        g.state = { lastSpellData: oldScan };
+        btn.disabled = true;
+        errors = [];
+        console.error = function() { errors.push(Array.prototype.join.call(arguments, ' ')); };
+        try {
+            g.updateSpellData('{"spells": [ not json');
+        } catch (e) {
+            errors.push('THREW ' + String(e));
+        } finally {
+            console.error = logError;
+        }
+        this.check(g.state.lastSpellData === null, 'updateSpellData: unreadable data clears the old scan');
+        this.check(btn.disabled === false && autoBuildCalls === 1 &&
+            !errors.some(function(e) { return e.indexOf('THREW') === 0; }),
+            'updateSpellData: unreadable data still restores the Scan button and tells AutoBuild');
+        this.check(errors.some(function(e) { return e.indexOf('Failed to parse') >= 0; }),
+            'updateSpellData: unreadable data is logged as a parse error');
+
+        // A step after the parse that throws keeps the scan (only the parse decides)
+        var keptGate = g.GateReview;
+        g.GateReview = { migrateKeys: function() { throw new Error('migrate broke'); } };
+        g.state = { lastSpellData: null };
+        btn.disabled = true;
+        autoBuildCalls = 0;
+        errors = [];
+        console.error = function() { errors.push(Array.prototype.join.call(arguments, ' ')); };
+        try {
+            g.updateSpellData(JSON.stringify({ spellCount: 1, spells: [{ formId: '0x1', name: 'A', school: 'Destruction' }] }));
+        } catch (e) {
+            errors.push('THREW ' + String(e));
+        } finally {
+            console.error = logError;
+            g.GateReview = keptGate;
+            g.AutoBuild = keptAutoBuild;
+        }
+        this.check(g.state.lastSpellData && g.state.lastSpellData.spellCount === 1 && btn.disabled === false &&
+            autoBuildCalls === 1 && !errors.some(function(e) { return e.indexOf('Failed to parse') >= 0 || e.indexOf('THREW') === 0; }),
+            'updateSpellData: a later step that throws keeps the scan, the button and AutoBuild');
         g.state = keptState;
         btn.disabled = false;
         this._checkParamDollar();

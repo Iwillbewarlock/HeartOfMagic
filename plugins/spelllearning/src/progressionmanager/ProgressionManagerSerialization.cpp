@@ -135,8 +135,8 @@ void ProgressionManager::EndLoad()
     for (auto& [formId, progress] : m_spellProgress) {
         progress.requiredXP = BaseRequiredXP(formId);
     }
-    logger::info("ProgressionManager: Co-save load complete ({} entries, {} panel required XP values)",
-                 m_spellProgress.size(), m_panelRequiredXP.size());
+    logger::info("ProgressionManager: Co-save load complete ({} entries, {} tree required XP values)",
+                 m_spellProgress.size(), m_treeRequiredXP.size());
 }
 
 bool ProgressionManager::ReadRecord(SKSE::SerializationInterface* a_intfc,

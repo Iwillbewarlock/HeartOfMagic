@@ -18,7 +18,8 @@
   hands out stayed in the tree. Such names are now read without converting them.
 
 - **Passive learning gives the XP per game hour it says.** It counted game days as hours, so 5 XP per hour
-  gave 5 XP per day.
+  gave 5 XP per day. Passive XP is now 24 times what it was before this fix, which is what the setting says;
+  lower **XP per game hour** if it now feels too fast.
 
 - **A damaged co-save no longer gives progress to the wrong spell.** A learning target or an early-learned
   spell whose form id was cut short in the save was read as a whole one and could name another spell; such a
@@ -30,7 +31,8 @@
 
 - **A spell under study with Immersive Spell Learning is no longer taught early.** Loading a save, a cast that
   took it past the early-learning threshold, or picking it again as the learning target added the spell before
-  ISL finished the study; now only ISL teaches it, and it keeps its own name until then.
+  ISL finished the study; now only ISL teaches it, and it keeps its own name until then. With ISL removed (or
+  the integration turned off) such spells are given back on the next load as before.
 
 - **Required XP after a load is the tree's again.** A load dropped the tree's required XP and worked spells out
   from their tier until the panel sent it again, in the order the save's records came in.
@@ -38,10 +40,12 @@
 - **Changing the power steps updates weakened spells' names and descriptions at once.** They kept the old
   percent until the spell reached its next step.
 
-- **One spell carried by two plugins is one node in the tree again.** The check that merges them (the same
+- **One spell carried by two plugins is now one node in the tree.** The check that merges them (the same
   editor id in the same school, such as Saints and Seducers' Conjure Hunger and an add-on's copy) read editor ids
   the game does not keep, so it never merged anything; it now reads them from powerofthree's Tweaks, as the scan
-  does. Without Tweaks nothing changes.
+  does. With Tweaks this also changes existing trees, without a rebuild: knowing one copy counts as knowing the
+  other (it is not learned early or weakened again), mastering one copy opens the spells after the other, and
+  reading a copy's tome teaches the copy in the tree. Without Tweaks nothing changes.
 
 - **Closing the panel runs its closing steps again.** The panel's close came back into the panel from inside its
   own call, which the web view drops, so what the panel does as it closes could be skipped.

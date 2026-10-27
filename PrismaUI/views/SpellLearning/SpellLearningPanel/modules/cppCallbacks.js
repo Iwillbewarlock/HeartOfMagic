@@ -159,13 +159,28 @@ window.onScanStored = function(id) {
 };
 
 window.updateSpellData = function(jsonStr) {
+    // Only the parse decides whether a scan came in: a later step that throws (a key
+    // migration, the blacklist, a count) is logged and the scan is kept
+    var data = null;
     try {
         console.log('[SpellLearning] Received spell data, length:' + jsonStr.length);
         var parseStarted = Date.now();
-        var data = JSON.parse(jsonStr);
+        data = JSON.parse(jsonStr);
         // A timing line kept in SpellLearning.log whatever the developer mode (console.warn)
         console.warn('[Timing] updateSpellData: ' + jsonStr.length + ' chars parsed in ' + (Date.now() - parseStarted) + ' ms');
-        state.lastSpellData = data;
+    } catch (e) {
+        console.error('[SpellLearning] Failed to parse spell data:', e);
+        data = null;
+        var outputAreaFallback = document.getElementById('outputArea');
+        if (outputAreaFallback) outputAreaFallback.value = typeof jsonStr === 'string' ? jsonStr : '';
+        updateStatus(t('status.receivedDataParseError'), 'status.receivedDataParseError');
+        setStatusIcon('!');
+    }
+    // Not the old scan shown as this one: unreadable data clears it, and the steps
+    // below then skip the preview, and AutoBuild hears no spells came (its failure)
+    state.lastSpellData = data;
+
+    if (data) try {
         ScanRef.reset(data);
         // The Scan page: a draft from before this scan is stale, nothing is applied (scanStage.js)
         if (typeof ScanStage !== 'undefined') ScanStage.onScanned();
@@ -232,15 +247,8 @@ window.updateSpellData = function(jsonStr) {
         }
 
 
-    } catch (e) {
-        console.error('[SpellLearning] Failed to parse spell data:', e);
-        // Not the old scan shown as this one: the steps below read state.lastSpellData
-        state.lastSpellData = null;
-        var outputAreaFallback = document.getElementById('outputArea');
-        if (outputAreaFallback) outputAreaFallback.value = typeof jsonStr === 'string' ? jsonStr : '';
-        updateStatus(t('status.receivedDataParseError'), 'status.receivedDataParseError');
-        setStatusIcon('!');
-        return;
+    } catch (stepErr) {
+        console.error('[SpellLearning] A step after the scan failed (the scan is kept):', stepErr);
     }
 
     // Show tree preview section (outside try-catch so errors don't kill scan flow)

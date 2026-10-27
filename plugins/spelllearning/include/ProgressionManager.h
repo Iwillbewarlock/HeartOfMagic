@@ -121,7 +121,9 @@ public:
     // Just the progress (0..1, 0 if none): no copy of the whole SpellProgress,
     // whose modded-source map allocates. For the per-effect and per-cast paths.
     float GetProgressPercent(RE::FormID formId) const;
-    void SetRequiredXP(RE::FormID formId, float required);
+    // fromTree: the tree's own number (LoadSpellTree), kept across saves; otherwise
+    // this character's (the target's, RequiredXPSync: reverse unlock share), dropped on revert
+    void SetRequiredXP(RE::FormID formId, float required, bool fromTree = false);
     
     // Get required XP for a spell (from progress data or tier default)
     float GetRequiredXP(const std::string& formIdStr) const;
@@ -356,13 +358,16 @@ private:
     // in EndLoad - after every SLPR entry is in, whatever order the records came in
     std::vector<ProgressionCoSave::CapEntry> m_pendingCapTrackers;
 
-    // The panel's required XP per spell (SetRequiredXP: the tree's number, per-spell
-    // override, reverse unlock share). Not cleared with the progress: the tree is the
-    // same for every save, and a load used to drop these and fall back to the tier's
-    // number until the panel sent them again. EndLoad sizes every entry from it.
-    std::unordered_map<RE::FormID, float> m_panelRequiredXP;
-    // A spell's required XP without its progress entry: the panel's, else the tier's
-    // (reverse unlock share included)
+    // The tree's required XP per spell (SetRequiredXP from LoadSpellTree). Not cleared
+    // with the progress: the tree is the same for every save, and a load used to drop
+    // these and fall back to the tier's number until the panel sent them again.
+    std::unordered_map<RE::FormID, float> m_treeRequiredXP;
+    // This character's numbers from the panel (a learning target's, RequiredXPSync: the
+    // reverse unlock share depends on what this character knows). Cleared on revert.
+    std::unordered_map<RE::FormID, float> m_characterRequiredXP;
+    // A spell's required XP without its progress entry: this character's from the
+    // panel, else the tree's, else the tier's (reverse unlock share included).
+    // EndLoad sizes every entry from it.
     float BaseRequiredXP(RE::FormID formId) const;
     bool ReadCapTrackers(SKSE::SerializationInterface* a_intfc, uint32_t length);
     void WriteCapTrackers(SKSE::SerializationInterface* a_intfc) const;

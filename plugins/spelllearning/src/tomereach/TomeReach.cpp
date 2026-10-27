@@ -196,12 +196,15 @@ namespace TomeReach
         shared.started = true;
     }
 
-    bool WaitUntilDone(std::chrono::milliseconds limit)
+    bool WaitUntilDone(std::chrono::milliseconds limit, std::uint64_t* generation)
     {
         auto& shared = Shared();
         std::unique_lock guard(shared.lock);
+        if (generation) *generation = shared.generation;
         if (!shared.started) return false;
-        return shared.changed.wait_for(guard, limit, [&] { return shared.done; });
+        const bool done = shared.changed.wait_for(guard, limit, [&] { return shared.done; });
+        if (generation) *generation = shared.generation;
+        return done;
     }
 
     bool IsRunning()
@@ -228,13 +231,10 @@ namespace TomeReach
                 // Nothing may leave a thread function: it would end the game
                 try {
                     constexpr auto kTomeReachWaitLimit = std::chrono::minutes(10);
-                    const bool done = WaitUntilDone(kTomeReachWaitLimit);
+                    // The generation read under the wait's own lock: a Restart right after it
+                    // then shows as a newer generation (kSuperseded), not as this one failing
                     std::uint64_t waited = 0;
-                    {
-                        auto& shared = Shared();
-                        std::lock_guard guard(shared.lock);
-                        waited = shared.generation;
-                    }
+                    const bool done = WaitUntilDone(kTomeReachWaitLimit, &waited);
                     AddTaskToGameThread(name, [done, waited, name, task = std::move(task)] {
                         // Read together: a Restart between the wait and here starts a newer pass
                         auto& shared = Shared();

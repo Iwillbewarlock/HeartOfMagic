@@ -359,8 +359,11 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
         }
 
         // 100% and not yet unlocked: just reached, or reached before without
-        // mastering (ProgressionMath::ShouldMaster)
-        if (ProgressionMath::ShouldMaster(oldProgress, newProgress, progress.unlocked, earlyLearned, playerHasSpell)) {
+        // mastering (ProgressionMath::ShouldMaster). A held spell counts as early
+        // learned there even out of the early set (a target switch): never mastered
+        // before ISL teaches it
+        if (ProgressionMath::ShouldMaster(oldProgress, newProgress, progress.unlocked,
+                                          earlyLearned || heldForISL, playerHasSpell)) {
             // Mark as mastered - this removes the nerf
             effectivenessHook->MarkMastered(targetSpellId);
             progress.unlocked = true;  // Also mark as unlocked in progress system
@@ -437,8 +440,8 @@ float ProgressionManager::GetRequiredXP(RE::FormID formId) const
 
 float ProgressionManager::BaseRequiredXP(RE::FormID formId) const
 {
-    if (auto panel = m_panelRequiredXP.find(formId); panel != m_panelRequiredXP.end() && panel->second > 0.0f) {
-        return panel->second;
+    for (const auto* map : { &m_characterRequiredXP, &m_treeRequiredXP }) {
+        if (auto it = map->find(formId); it != map->end() && it->second > 0.0f) return it->second;
     }
 
     // If no progress data, try to determine from spell tier. The panel sends the
@@ -535,12 +538,12 @@ float ProgressionManager::GetProgressPercent(RE::FormID formId) const
     return it != m_spellProgress.end() ? it->second.progressPercent : 0.0f;
 }
 
-void ProgressionManager::SetRequiredXP(RE::FormID formId, float required)
+void ProgressionManager::SetRequiredXP(RE::FormID formId, float required, bool fromTree)
 {
     if (required <= 0.0f) {
         logger::warn("ProgressionManager: SetRequiredXP called with non-positive value {:.1f} for {:08X}, clamping to 1.0", required, formId);
         required = 1.0f;
     }
-    m_panelRequiredXP[formId] = required;
+    (fromTree ? m_treeRequiredXP : m_characterRequiredXP)[formId] = required;
     EnsureProgress(formId).requiredXP = required;
 }

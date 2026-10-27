@@ -60,8 +60,8 @@ void UIManager::OnPreReqMasterScore(const char* argument)
             nlohmann::json response;
             response["success"] = false;
             response["error"] = "PRM scoring already in progress. Please wait.";
-            // busy: this request was turned away, the scoring in flight goes on and
-            // answers it (as the tree build's busy reply): the panel keeps waiting for it
+            // busy: this request was turned away, the scoring in flight goes on; the
+            // panel sends its latest request again once that one answers (prereqMaster.js)
             response["busy"] = true;
             instance->CallView("onPreReqMasterComplete", JsonText::Dump(response).c_str());
             return;
@@ -75,6 +75,11 @@ void UIManager::OnPreReqMasterScore(const char* argument)
                     auto startTime = std::chrono::high_resolution_clock::now();
                     const nlohmann::json request = nlohmann::json::parse(argStr);
                     auto result = TreeNLP::ProcessPRMRequest(request);
+                    // The panel's id for this request back with its answer: an answer to an
+                    // older request (a tree built again meanwhile) is not put on a newer tree
+                    if (result.is_object() && request.is_object() && request.contains("requestId")) {
+                        result["requestId"] = request["requestId"];
+                    }
                     auto endTime = std::chrono::high_resolution_clock::now();
                     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count() / 1000.0;
 

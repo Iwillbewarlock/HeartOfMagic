@@ -328,7 +328,9 @@ void SpellEffectivenessHook::RemoveFromEarlySet(RE::FormID formId)
         m_earlySpellCount.fetch_sub(1, std::memory_order_release);
     }
     m_progressMirror.erase(formId);
-    m_heldForISL.erase(formId);   // a subset of the early set
+    // m_heldForISL stays: a spell ISL still studies is held whether or not it is the
+    // target (a target switch takes it out of the early set; picking it again must not
+    // let CheckAndRegrantSpell add it before ISL teaches it)
 }
 
 void SpellEffectivenessHook::SyncProgress(RE::FormID spellFormId, float progressFraction)

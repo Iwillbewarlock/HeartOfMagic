@@ -208,8 +208,9 @@ private:
 
     // Set of spells that are early-learned (granted but not mastered)
     std::unordered_set<RE::FormID> m_earlyLearnedSpells;  // guarded by m_mutex
-    // Spells of m_earlyLearnedSpells ISL has not taught yet (IsHeldForISL), saved
-    // in SLEL v2 after the early list. guarded by m_mutex
+    // Spells ISL studies and has not taught yet (IsHeldForISL), saved in SLEL v2
+    // after the early list. Not tied to the early set: a target switch takes a spell
+    // out of that and leaves it held. guarded by m_mutex
     std::unordered_set<RE::FormID> m_heldForISL;
     // The loaded SLEL carried the held list (v2). A v1 save does not say which of
     // its spells ISL still holds: the load refresh works it out. guarded by m_mutex

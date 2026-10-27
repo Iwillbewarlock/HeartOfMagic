@@ -102,7 +102,7 @@ void UIManager::OnLoadSpellTree([[maybe_unused]] const char* argument)
                                             float reqXP = node["requiredXP"].get<float>();
                                             if (reqXP > 0) {
                                                 if (const auto formId = ParsePanelFormId(formIdStr, "LoadSpellTree XP sync")) {
-                                                    pm->SetRequiredXP(*formId, reqXP);
+                                                    pm->SetRequiredXP(*formId, reqXP, true);
                                                     xpSyncCount++;
                                                 }
                                             }

@@ -37,8 +37,40 @@ namespace DESTIntegration {
         constexpr std::uint32_t kDESTRegType    = 'DEST';
         constexpr std::uint32_t kDESTRegVersion = 1;
 
-        SKSE::RegistrationSet<RE::TESObjectBOOK*, RE::SpellItem*, RE::TESObjectREFR*>
-            g_spellTomeEventRegs("OnSpellTomeRead"sv);
+        // CommonLib's set with a checked load: its own Load reads the count and the
+        // handles without looking at what came back, so a damaged count (a cut-short
+        // record) made it loop up to that count over a record that has none of them
+        class SpellTomeRegistrations :
+            public SKSE::RegistrationSet<RE::TESObjectBOOK*, RE::SpellItem*, RE::TESObjectREFR*>
+        {
+        public:
+            using RegistrationSet::RegistrationSet;
+
+            // The layout CommonLib's Save writes: count (size_t), then the handles. False
+            // (nothing kept) when the count does not match `length` or a read is short
+            bool LoadChecked(SKSE::SerializationInterface* a_intfc, std::uint32_t length, std::size_t& kept)
+            {
+                kept = 0;
+                std::size_t count = 0;
+                if (a_intfc->ReadRecordData(&count, sizeof(count)) != sizeof(count)) return false;
+                if (length < sizeof(count) || count != (length - sizeof(count)) / sizeof(RE::VMHandle) ||
+                    (length - sizeof(count)) % sizeof(RE::VMHandle) != 0) {
+                    return false;
+                }
+                std::set<RE::VMHandle> handles;
+                for (std::size_t i = 0; i < count; ++i) {
+                    RE::VMHandle handle = 0;
+                    if (a_intfc->ReadRecordData(&handle, sizeof(handle)) != sizeof(handle)) return false;
+                    if (a_intfc->ResolveHandle(handle, handle)) handles.insert(handle);
+                }
+                Locker locker(_lock);
+                _handles = std::move(handles);
+                kept = _handles.size();
+                return true;
+            }
+        };
+
+        SpellTomeRegistrations g_spellTomeEventRegs("OnSpellTomeRead"sv);
     }
 
     // =========================================================================
@@ -476,18 +508,18 @@ namespace DESTIntegration {
                     std::uint32_t length)
     {
         if (type != kDESTRegType) return false;
-        // CommonLib's RegistrationSet layout: a size_t count, then one VM handle per
-        // registration. Its Load does not check what it read, so a record that is not
-        // that shape (or a newer version) is skipped before it is handed over
-        constexpr std::uint32_t kCountSize = sizeof(std::size_t);
-        constexpr std::uint32_t kHandleSize = sizeof(RE::VMHandle);
-        if (version < 1 || version > kDESTRegVersion || length < kCountSize || (length - kCountSize) % kHandleSize != 0) {
+        if (version < 1 || version > kDESTRegVersion) {
             logger::warn("DESTIntegration: DEST registration record skipped (version {}, {} bytes)", version, length);
             return true;
         }
-        g_spellTomeEventRegs.Load(a_intfc);
-        logger::info("DESTIntegration: Loaded DEST event registrations ({} in the record)",
-            (length - kCountSize) / kHandleSize);
+        // The count is checked against the record's length before any handle is read
+        std::size_t kept = 0;
+        if (!g_spellTomeEventRegs.LoadChecked(a_intfc, length, kept)) {
+            logger::warn("DESTIntegration: DEST registration record unreadable ({} bytes, count not matching) - "
+                "none loaded", length);
+            return true;
+        }
+        logger::info("DESTIntegration: Loaded {} DEST event registrations", kept);
         // ISL's own aliases are added again in OnPostLoadGame (AutoRegisterISLAliases):
         // quests are not ready while the co-save is read
         return true;

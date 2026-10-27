@@ -35,7 +35,9 @@ namespace TomeReach
 
     // Any thread but the game thread: waits until the pass is done (or failed),
     // at most `limit`. Returns at once when no pass was started. True when done.
-    bool WaitUntilDone(std::chrono::milliseconds limit);
+    // `generation`, when given: the generation as the wait ended, read under the same
+    // lock (RunAfterPass tells a newer pass from a timeout by it).
+    bool WaitUntilDone(std::chrono::milliseconds limit, std::uint64_t* generation = nullptr);
 
     // A pass was started and is not done yet (the answer is coming). Any thread.
     bool IsRunning();
