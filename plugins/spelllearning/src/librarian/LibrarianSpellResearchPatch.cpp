@@ -10,6 +10,7 @@
 #include "JsonText.h"
 #include "PathText.h"
 #include "SpellScanner.h"
+#include "SpellTomes.h"
 #include "tomereach/TomeReach.h"
 #include "uimanager/UIManager.h"
 
@@ -493,7 +494,11 @@ namespace Librarian::SpellResearchPatch
                 RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
             {
                 if (event && event->menuName == RE::MessageBoxMenu::MENU_NAME) {
-                    SKSE::GetTaskInterface()->AddTask([] { SafeReconcile("import"); });
+                    // The tome pairs first: an Import that ends with the same entry count still re-paired
+                    SKSE::GetTaskInterface()->AddTask([] {
+                        SpellTomes::Rebuild("import");
+                        SafeReconcile("import");
+                    });
                 }
                 return RE::BSEventNotifyControl::kContinue;
             }
@@ -560,5 +565,16 @@ namespace Librarian::SpellResearchPatch
         if (!g_installed) return {};
         std::lock_guard lock(g_statusLock);
         return g_status.is_null() ? std::string() : JsonText::Dump(g_status);
+    }
+}
+
+namespace Librarian::SpellResearchPatch
+{
+    TomeListState ReadTomeLists(TomeLists& out)
+    {
+        if (!g_installed) return TomeListState::kNotInstalled;
+        if (GlobalValue(g_lists.isSetup) != 1.0f || GlobalValue(g_lists.importing) != 0.0f) return TomeListState::kNotReady;
+        for (std::size_t t = 0; t < out.size(); ++t) out[t] = { ResolveList(g_lists.tomes[t]), ResolveList(g_lists.tomeSpells[t]) };
+        return TomeListState::kReady;
     }
 }

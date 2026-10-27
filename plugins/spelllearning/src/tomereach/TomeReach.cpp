@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "SpellTomes.h"
 #include "tomereach/TomeReach.h"
 #include "tomereach/TomeReachConfig.h"
 #include "tomereach/TomeReachPass.h"
@@ -16,6 +17,7 @@ namespace TomeReach
         // What the worker needs, taken on the game thread: no RE object crosses over
         struct Job
         {
+            std::uint64_t generation = 0;   // SpellTomes' pairs the tomes come from
             std::vector<PluginFile> loadOrder;
             NameTable names;
             std::unordered_set<Key> tomes;
@@ -27,6 +29,7 @@ namespace TomeReach
             std::mutex lock;
             std::condition_variable changed;
             bool started = false;
+            std::uint64_t generation = 0;   // the pass whose result counts
             bool done = false;    // finished, well or not
             bool ready = false;   // finished well: `unreachable` holds the answer
             std::unordered_set<RE::FormID> unreachable;
@@ -38,12 +41,18 @@ namespace TomeReach
             return result;
         }
 
-        // The pass is over, with an answer or without one
-        void Finish(std::unordered_set<RE::FormID>* unreachable)
+        // The pass is over, with an answer or without one. A pass of an older
+        // generation is dropped: a newer one runs (or ran) with other tomes.
+        void Finish(std::uint64_t generation, std::unordered_set<RE::FormID>* unreachable)
         {
             auto& shared = Shared();
             {
                 std::lock_guard guard(shared.lock);
+                if (generation != shared.generation) {
+                    logger::info("TomeReach: the pass of generation {} is dropped - generation {} counts",
+                        generation, shared.generation);
+                    return;
+                }
                 if (unreachable) {
                     shared.unreachable = std::move(*unreachable);
                     shared.ready = true;
@@ -82,7 +91,7 @@ namespace TomeReach
                 if (!pass.unreadable.empty()) {
                     logger::warn("TomeReach: {} plugins could not be read (first: {}) - no spell is marked, "
                                  "every tome counts", pass.unreadable.size(), pass.unreadable.front());
-                    Finish(nullptr);
+                    Finish(job->generation, nullptr);
                     return;
                 }
                 std::unordered_set<RE::FormID> unreachable;
@@ -97,27 +106,34 @@ namespace TomeReach
                 }
                 logger::info("TomeReach: {} plugins, {} tomes, {} handed out by a record, {} only by a script "
                              "property or alias, {} only by a distribution config ({} configs), {} kept for a damaged "
-                             "plugin, {} debug tomes left out; {} spells have no tome anything hands out ({} ms)",
+                             "plugin, {} debug tomes left out; {} spells have no tome anything hands out ({} ms, "
+                             "tome pairs generation {})",
                     job->loadOrder.size(), job->tomes.size(), pass.byRecord, pass.byLooseOnly, pass.byConfig,
-                    pass.configFiles, pass.byDamaged, pass.byDebug, unreachable.size(), ms);
-                Finish(&unreachable);
+                    pass.configFiles, pass.byDamaged, pass.byDebug, unreachable.size(), ms, job->generation);
+                Finish(job->generation, &unreachable);
             } catch (const std::exception& e) {
                 logger::warn("TomeReach: the pass failed ({}) - no spell is marked", e.what());
-                Finish(nullptr);
+                Finish(job->generation, nullptr);
             } catch (...) {
                 // Whatever went wrong, a scan waiting for the pass must not wait on
                 logger::warn("TomeReach: the pass failed - no spell is marked");
-                Finish(nullptr);
+                Finish(job->generation, nullptr);
             }
         }
     }
 
     void StartAfterDataLoaded()
     {
+        Restart(SpellTomes::Generation());
+    }
+
+    void Restart(std::uint64_t generation)
+    {
         auto* dh = RE::TESDataHandler::GetSingleton();
         if (!dh) return;
 
         auto job = std::make_shared<Job>();
+        job->generation = generation;
         std::unordered_set<const RE::TESFile*> loaded;
         for (std::uint32_t i = 0; i < dh->GetLoadedModCount(); ++i) loaded.insert(dh->GetLoadedMods()[i]);
         for (std::uint32_t i = 0; i < dh->GetLoadedLightModCount(); ++i) loaded.insert(dh->GetLoadedLightMods()[i]);
@@ -132,27 +148,42 @@ namespace TomeReach
             job->names.SetLight(job->names.Id(file->GetFilename()), file->IsLight());
         }
 
-        for (auto* book : dh->GetFormArray<RE::TESObjectBOOK>()) {
-            if (!book || !book->TeachesSpell()) continue;
-            auto* spell = book->GetSpell();
+        // Every tome, a book that teaches nothing but has a Spell Research pair too
+        SpellTomes::ForEachTome([&](RE::TESObjectBOOK* book, RE::SpellItem* spell) {
             Key key = 0;
-            if (!spell || !KeyOf(dh, book->GetFormID(), job->names, key)) continue;
+            if (!KeyOf(dh, book->GetFormID(), job->names, key)) return;
             job->tomes.insert(key);
             job->tomesOf[spell->GetFormID()].push_back(key);
-        }
-        logger::info("TomeReach: reading {} plugins for {} tomes on a worker thread (first: '{}')",
+        });
+        logger::info("TomeReach: reading {} plugins for {} tomes on a worker thread (first: '{}', tome pairs generation {})",
             job->loadOrder.size(), job->tomes.size(),
-            job->loadOrder.empty() ? std::string() : job->loadOrder.front().path.string());
+            job->loadOrder.empty() ? std::string() : job->loadOrder.front().path.string(), generation);
+
+        auto& shared = Shared();
+        {
+            // This generation's answer from now on: a pass still running for an older one is dropped
+            std::lock_guard guard(shared.lock);
+            shared.generation = generation;
+            shared.done = false;
+            shared.ready = false;
+            shared.unreachable.clear();
+        }
         try {
             std::thread(Run, std::move(job)).detach();
         } catch (const std::system_error& e) {
             logger::warn("TomeReach: no worker thread ({}) - no spell is marked", e.what());
+            {
+                // A scan already waiting on an earlier pass must not wait on
+                std::lock_guard guard(shared.lock);
+                shared.done = true;
+            }
+            shared.changed.notify_all();
             return;
         }
         // Marked after the thread exists: a scan only waits for a pass that runs
         // (one already done lets the wait return at once)
-        std::lock_guard guard(Shared().lock);
-        Shared().started = true;
+        std::lock_guard guard(shared.lock);
+        shared.started = true;
     }
 
     bool WaitUntilDone(std::chrono::milliseconds limit)

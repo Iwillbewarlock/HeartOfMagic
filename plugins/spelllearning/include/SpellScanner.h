@@ -211,6 +211,14 @@ namespace SpellScanner
     // reads), the kept record first; empty when it is in none. Any thread.
     std::vector<RE::FormID> DuplicateGroupOf(RE::FormID spell);
 
+    // The tome pairs changed (SpellTomes.h): the groups are worked out again, without
+    // tomeUnreachable until the new tome reach pass is done. Any thread.
+    void InvalidateDuplicateGroups();
+
+    // PrepareTreeSpellForTome on the game thread once the tome reach pass running now
+    // is done; the wait is on a thread of its own (never on a cast's tome check).
+    void PrepareTreeSpellForTomeAfterPass();
+
     // Works the groups out from the loaded spells, again once the tome reach pass
     // is done, then keeps them. Main.cpp calls it on the game thread after that
     // pass, so a cast's tome check never walks every form.

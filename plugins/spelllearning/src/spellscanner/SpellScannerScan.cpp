@@ -3,6 +3,7 @@
 #include "FormIdText.h"
 #include "JsonText.h"
 #include "SpellScanner.h"
+#include "SpellTomes.h"
 #include "EncodingUtils.h"
 #include "SpellEffectivenessHook.h"
 #include "librarian/Librarian.h"
@@ -305,6 +306,8 @@ namespace SpellScanner
     json CollectAllSpells(const ScanConfig& config)
     {
         logger::info("SpellScanner: Starting spell scan with ScanConfig...");
+        SpellTomes::Rebuild("scan");
+        SpellTomes::NoteFullScan();
 
         return BuildScanOutput(ScanSpellsToJson(config.fields), config, {});
     }
@@ -348,13 +351,10 @@ namespace SpellScanner
         int skippedDuplicates = 0;
         const FieldConfig& fields = config.fields;
 
+        SpellTomes::Rebuild("tome scan");
         for (auto* book : allBooks) {
-            if (!book) continue;
-
-            // Check if this book teaches a spell
-            if (!book->TeachesSpell()) continue;
-
-            RE::SpellItem* spell = book->GetSpell();
+            // The spell it teaches, or a Spell Research pair's for a book that teaches nothing
+            RE::SpellItem* spell = SpellTomes::SpellOf(book);
             if (!spell) continue;
 
             // Skip if we've already seen this spell

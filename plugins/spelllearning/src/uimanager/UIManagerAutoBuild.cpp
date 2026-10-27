@@ -365,3 +365,8 @@ void UIManager::NotifyMainMenuShown()
     m_saveLoaded = false;   // nothing is played at the main menu
     CallView("onMainMenuShown", "");
 }
+
+void UIManager::NotifySpellTomesChanged(const std::string& payload)
+{
+    CallView("onSpellTomesChanged", payload.c_str());
+}

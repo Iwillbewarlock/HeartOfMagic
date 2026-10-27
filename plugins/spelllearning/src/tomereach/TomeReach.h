@@ -12,12 +12,18 @@
 // See docs/ARCHITECTURE.md, "Tomes nothing hands out".
 
 #include <chrono>
+#include <cstdint>
 #include <unordered_set>
 
 namespace TomeReach
 {
     // Game thread, at kDataLoaded: takes the load order and the tomes, starts the pass
     void StartAfterDataLoaded();
+
+    // Game thread: the tome pairs changed (SpellTomes.h, generation `generation`):
+    // the pass runs again with this generation's tomes. Until it is done no spell
+    // is marked; a pass of an older generation that finishes later is dropped.
+    void Restart(std::uint64_t generation);
 
     // The spells whose every tome nothing hands out. False while the pass runs,
     // and when it failed (a plugin it could not read): then no spell is marked.

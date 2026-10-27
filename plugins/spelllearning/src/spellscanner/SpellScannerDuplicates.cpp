@@ -4,9 +4,12 @@
 #include "EncodingUtils.h"
 #include "ProgressionManager.h"
 #include "SpellScanner.h"
+#include "ThreadUtils.h"
 #include "tomereach/TomeReach.h"
 
+#include <chrono>
 #include <mutex>
+#include <thread>
 
 namespace SpellScanner
 {
@@ -189,6 +192,28 @@ namespace SpellScanner
     {
         std::lock_guard guard(g_duplicateLock);
         BuildDuplicateGroups();
+    }
+
+    void InvalidateDuplicateGroups()
+    {
+        std::lock_guard guard(g_duplicateLock);
+        g_groups.clear();
+        g_groupOf.clear();
+        g_duplicatesBuilt = false;
+        g_duplicatesSettled = false;
+    }
+
+    void PrepareTreeSpellForTomeAfterPass()
+    {
+        try {
+            std::thread([] {
+                constexpr auto kTomeReachWaitLimit = std::chrono::minutes(10);
+                TomeReach::WaitUntilDone(kTomeReachWaitLimit);
+                AddTaskToGameThread("PrepareTreeSpellForTome", [] { PrepareTreeSpellForTome(); });
+            }).detach();
+        } catch (const std::system_error& e) {
+            logger::warn("No thread to wait for the tome reach pass ({}) - copy tomes are grouped on first use", e.what());
+        }
     }
 
     std::vector<RE::FormID> DuplicateGroupOf(RE::FormID spell)

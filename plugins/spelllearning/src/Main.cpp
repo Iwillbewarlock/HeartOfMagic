@@ -12,6 +12,7 @@
 #include "PassiveLearningSource.h"
 #include "SpellEffectivenessHook.h"
 #include "SpellTomeHook.h"
+#include "SpellTomes.h"
 #include "PapyrusAPI.h"
 #include "RisaMenu.h"
 #include "SpellLearningAPI.h"
@@ -311,22 +312,18 @@ void OnDataLoaded()
     // Spell Research learns the catalog spells after its Import (docs/librarian/SPELL_RESEARCH.md)
     Librarian::SpellResearchPatch::Install();
 
+    // Tomes that teach nothing (Spell Research Synthesizer) and the spell each
+    // stands for, before the tome reach pass takes the tomes (SpellTomes.h)
+    SpellTomes::Rebuild("data loaded");
+
     // Which tomes something hands out: read from the plugin files on a worker
     // thread, ready for the scan (docs/ARCHITECTURE.md, "Tomes nothing hands out")
     TomeReach::StartAfterDataLoaded();
 
     // One spell from two plugins: the groups a copy's tome reads by, worked out
     // on the game thread once that pass is done, never on a cast's tome check
-    // (SpellScannerDuplicates.cpp). The wait is on a thread of its own.
-    try {
-        std::thread([] {
-            constexpr auto kTomeReachWaitLimit = std::chrono::minutes(10);
-            TomeReach::WaitUntilDone(kTomeReachWaitLimit);
-            AddTaskToGameThread("PrepareTreeSpellForTome", [] { SpellScanner::PrepareTreeSpellForTome(); });
-        }).detach();
-    } catch (const std::system_error& e) {
-        logger::warn("No thread to wait for the tome reach pass ({}) - copy tomes are grouped on first use", e.what());
-    }
+    // (SpellScannerDuplicates.cpp).
+    SpellScanner::PrepareTreeSpellForTomeAfterPass();
 }
 
 void OnNewGame()
@@ -357,7 +354,9 @@ void OnPostLoadGame()
     // The inventory is the loaded save's now, whatever was cached before
     SpellTomeHook::GetSingleton()->InvalidateTomeInventoryCache();
 
-    // Spell Research's lists are the loaded save's: register what they lack
+    // Spell Research's lists are the loaded save's: their tome pairs first (the
+    // registrations below read the tomes), then register what they lack
+    SpellTomes::Rebuild("save loaded");
     Librarian::SpellResearchPatch::OnGameLoaded();
     Librarian::PerkAdapters::Reassert("save loaded");
     Environment::SelfTest::OnGameLoaded();   // dev only: selftest.json
