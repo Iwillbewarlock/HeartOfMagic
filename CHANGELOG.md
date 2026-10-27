@@ -60,6 +60,19 @@
 - **Typing in the console or a text field no longer opens the panel.** The hotkey is ignored while the console
   is open or a menu takes text; with the panel open it still closes it.
 
+- **The panel no longer shows the last scan as new when a scan's data cannot be read.** It now says the data
+  could not be read and leaves the tree preview alone; the scan's spells are also no longer read twice, which
+  took as long again on large load orders.
+
+- **A spell's name and details appear in the tree as soon as they arrive.** A single spell's reply did not
+  repaint the tree, so it showed only with the next repaint for something else.
+
+- **Choosing presets one after another no longer slows the panel's sliders.** Each choice added another set of
+  mouse listeners to the page.
+
+- **Deleting a spell in edit mode and adding another no longer mixes up their copies and progress.** The lookups
+  built over the tree's spells were kept when the count stayed the same.
+
 ## Heart of Magic Librarian 1.6.0
 
 ### New

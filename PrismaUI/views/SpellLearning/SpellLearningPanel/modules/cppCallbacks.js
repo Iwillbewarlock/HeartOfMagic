@@ -44,6 +44,11 @@ function getCanonicalFormId(node) {
  */
 var _duplicateIndex = { nodes: null, length: -1, map: null };
 
+/** Edit mode added or removed a node in place: the index is made again at next use. */
+function invalidateDuplicateIndex() {
+    _duplicateIndex.map = null;
+}
+
 function duplicateGroup(node) {
     var nodes = state.treeData.nodes;
     var idx = _duplicateIndex;
@@ -154,9 +159,8 @@ window.onScanStored = function(id) {
 };
 
 window.updateSpellData = function(jsonStr) {
-    console.log('[SpellLearning] Received spell data, length:' + jsonStr.length);
-
     try {
+        console.log('[SpellLearning] Received spell data, length:' + jsonStr.length);
         var parseStarted = Date.now();
         var data = JSON.parse(jsonStr);
         // A timing line kept in SpellLearning.log whatever the developer mode (console.warn)
@@ -230,10 +234,13 @@ window.updateSpellData = function(jsonStr) {
 
     } catch (e) {
         console.error('[SpellLearning] Failed to parse spell data:', e);
+        // Not the old scan shown as this one: the steps below read state.lastSpellData
+        state.lastSpellData = null;
         var outputAreaFallback = document.getElementById('outputArea');
-        if (outputAreaFallback) outputAreaFallback.value = jsonStr;
+        if (outputAreaFallback) outputAreaFallback.value = typeof jsonStr === 'string' ? jsonStr : '';
         updateStatus(t('status.receivedDataParseError'), 'status.receivedDataParseError');
         setStatusIcon('!');
+        return;
     }
 
     // Show tree preview section (outside try-catch so errors don't kill scan flow)
@@ -306,7 +313,7 @@ window.updateSpellData = function(jsonStr) {
  * @param {Object} [params]
  */
 window.updateStatus = function(message, key, params) {
-    var msg = message;
+    var msg = typeof message === 'string' ? message : String(message == null ? '' : message);
     if (msg.startsWith('"') && msg.endsWith('"')) {
         try { msg = JSON.parse(msg); } catch (e) {}
     }
@@ -322,7 +329,7 @@ window.updateStatus = function(message, key, params) {
 };
 
 window.updateTreeStatus = function(message) {
-    var msg = message;
+    var msg = typeof message === 'string' ? message : String(message == null ? '' : message);
     if (msg.startsWith('"') && msg.endsWith('"')) {
         try { msg = JSON.parse(msg); } catch (e) {}
     }
@@ -331,6 +338,10 @@ window.updateTreeStatus = function(message) {
 };
 
 window.updatePrompt = function(promptContent) {
+    if (typeof promptContent !== 'string') {
+        console.warn('[SpellLearning] Received a prompt that is not text - ignored');
+        return;
+    }
     console.log('[SpellLearning] Received prompt, length:', promptContent.length);
     
     if (promptContent && promptContent.length > 0) {
@@ -437,7 +448,13 @@ window.updateSpellInfo = function(json) {
             var node = state.treeData.nodes.find(function(n) { return n.formId === data.formId; });
             if (node) {
                 TreeParser.updateNodeFromCache(node);
-                WheelRenderer.render();
+                // The canvas tree shares the node: told to repaint, as the batch reply does
+                if (typeof SmartRenderer !== 'undefined' && SmartRenderer.activeRenderer === 'canvas' &&
+                        typeof CanvasRenderer !== 'undefined') {
+                    CanvasRenderer._needsRender = true;
+                } else {
+                    WheelRenderer.render();
+                }
             }
         }
     }
