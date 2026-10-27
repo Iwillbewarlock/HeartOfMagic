@@ -582,7 +582,7 @@
     "settings.progression.xpCaps": "Límites de XP (Contribución Máxima)",
     "settings.progression.xpCapsExample": "Ejemplo: Con límites al 5%/15%/50%, el último 50% debe venir de lanzar el hechizo mismo.",
     "settings.progression.xpCapsNote": "Los límites restringen cuánto progreso total puede aportar cada fuente. Al alcanzar un límite, debes usar otras fuentes.",
-    "settings.progression.xpPerGameHour": "XP por Hora de Juego",
+    "settings.progression.xpPerGameDay": "XP por Día en el Juego",
     "settings.progression.xpRequiredByTier": "XP Requerido por Nivel de Hechizo",
     "settings.progression.reverseUnlock": "Hechizos superiores conocidos",
     "settings.progression.reverseUnlockEnable": "Abrir los hechizos inferiores",

@@ -560,7 +560,7 @@ window._i18nPreload = {
     "settings.progression.xpCaps": "XP Caps (Maximum Contribution)",
     "settings.progression.xpCapsExample": "Example: With caps at 5%/15%/50%, the final 50% must come from casting the spell itself.",
     "settings.progression.xpCapsNote": "Caps limit how much total progress each source can provide. Once a cap is reached, you must use other sources.",
-    "settings.progression.xpPerGameHour": "XP per Game Hour",
+    "settings.progression.xpPerGameDay": "XP per Game Day",
     "settings.progression.xpRequiredByTier": "XP Required by Spell Tier",
     "settings.progression.reverseUnlock": "Known Higher Spells",
     "settings.progression.reverseUnlockEnable": "Open the Spells Below",

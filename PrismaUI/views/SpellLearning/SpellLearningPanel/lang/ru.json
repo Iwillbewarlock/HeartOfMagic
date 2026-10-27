@@ -582,7 +582,7 @@
     "settings.progression.xpCaps": "Лимиты XP (максимальный вклад)",
     "settings.progression.xpCapsExample": "Пример: при лимитах 5%/15%/50% оставшиеся 50% должны быть получены от применения самого заклинания.",
     "settings.progression.xpCapsNote": "Лимиты ограничивают максимальный вклад каждого источника в общий прогресс. По достижении лимита нужно использовать другие источники.",
-    "settings.progression.xpPerGameHour": "XP за игровой час",
+    "settings.progression.xpPerGameDay": "XP за игровой день",
     "settings.progression.xpRequiredByTier": "Требуемый XP по уровню заклинания",
     "settings.progression.reverseUnlock": "Известные высшие заклинания",
     "settings.progression.reverseUnlockEnable": "Открывать заклинания ниже",

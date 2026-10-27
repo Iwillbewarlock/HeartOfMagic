@@ -560,7 +560,7 @@ window._i18nPreload = {
     "settings.progression.xpCaps": "EP-Obergrenzen (Maximaler Beitrag)",
     "settings.progression.xpCapsExample": "Beispiel: Mit Grenzen bei 5%/15%/50% müssen die letzten 50% durch Wirken des Zaubers selbst kommen.",
     "settings.progression.xpCapsNote": "Obergrenzen begrenzen, wie viel Gesamtfortschritt jede Quelle liefern kann. Bei Erreichen einer Grenze müssen andere Quellen genutzt werden.",
-    "settings.progression.xpPerGameHour": "EP pro Spielstunde",
+    "settings.progression.xpPerGameDay": "EP pro Spieltag",
     "settings.progression.xpRequiredByTier": "Benötigte EP nach Zauberstufe",
     "settings.progression.reverseUnlock": "Bekannte höhere Zauber",
     "settings.progression.reverseUnlockEnable": "Zauber darunter öffnen",

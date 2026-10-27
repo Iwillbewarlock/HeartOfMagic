@@ -560,7 +560,7 @@ window._i18nPreload = {
     "settings.progression.xpCaps": "经验上限（最大贡献）",
     "settings.progression.xpCapsExample": "示例：上限为5%/15%/50%时，最后50%必须通过施放法术本身获得。",
     "settings.progression.xpCapsNote": "上限限制每个来源可提供的总进度。达到上限后必须使用其他来源。",
-    "settings.progression.xpPerGameHour": "每游戏小时经验",
+    "settings.progression.xpPerGameDay": "游戏内每日经验",
     "settings.progression.xpRequiredByTier": "按法术等级所需经验",
     "settings.progression.reverseUnlock": "已掌握的高阶法术",
     "settings.progression.reverseUnlockEnable": "开放下方法术",

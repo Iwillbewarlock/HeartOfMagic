@@ -560,7 +560,7 @@ window._i18nPreload = {
     "settings.progression.xpCaps": "Limity XP (maksymalny wkład)",
     "settings.progression.xpCapsExample": "Przykład: Przy limitach 5%/15%/50% ostatnie 50% musi pochodzić z rzucania samego zaklęcia.",
     "settings.progression.xpCapsNote": "Limity ograniczają, ile łącznego postępu może zapewnić każde źródło. Po osiągnięciu limitu musisz korzystać z innych źródeł.",
-    "settings.progression.xpPerGameHour": "XP na godzinę gry",
+    "settings.progression.xpPerGameDay": "XP na dzień w grze",
     "settings.progression.xpRequiredByTier": "Wymagane XP wg poziomu zaklęcia",
     "settings.progression.reverseUnlock": "Znane wyższe zaklęcia",
     "settings.progression.reverseUnlockEnable": "Otwórz zaklęcia poniżej",

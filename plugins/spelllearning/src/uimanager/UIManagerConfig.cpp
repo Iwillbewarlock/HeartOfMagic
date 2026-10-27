@@ -206,7 +206,9 @@ void ApplySettingsFromConfig(const nlohmann::json& config)
         SpellLearning::PassiveLearningSource::Settings plSettings;
         plSettings.enabled = SafeJsonValue<bool>(plConfig, "enabled", false);
         plSettings.scope = SafeJsonValue<std::string>(plConfig, "scope", "novice");
-        plSettings.xpPerGameHour = SafeJsonValue<float>(plConfig, "xpPerGameHour", 5.0f);
+        // "xpPerGameHour" is the old name of the same number (it gave that much per game day)
+        plSettings.xpPerGameDay = SafeJsonValue<float>(plConfig, "xpPerGameDay",
+            SafeJsonValue<float>(plConfig, "xpPerGameHour", 5.0f));
         if (plConfig.contains("maxByTier") && plConfig["maxByTier"].is_object()) {
             auto& tiers = plConfig["maxByTier"];
             plSettings.maxNovice = SafeJsonValue<float>(tiers, "novice", 100.0f);
@@ -345,7 +347,7 @@ json GenerateDefaultConfig() {
         {"passiveLearning", {
             {"enabled", false},
             {"scope", "novice"},
-            {"xpPerGameHour", 5},
+            {"xpPerGameDay", 5},
             {"maxByTier", {
                 {"novice", 100},
                 {"apprentice", 75},

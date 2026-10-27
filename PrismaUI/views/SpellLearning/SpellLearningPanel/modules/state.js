@@ -199,7 +199,7 @@ var settings = {
     passiveLearning: {
         enabled: false,
         scope: 'novice',        // 'all', 'root', 'novice'
-        xpPerGameHour: 5,
+        xpPerGameDay: 5,
         maxByTier: {
             novice: 100,
             apprentice: 75,

@@ -582,7 +582,7 @@
     "settings.progression.xpCaps": "Plafonds d'XP (contribution maximale)",
     "settings.progression.xpCapsExample": "Exemple : avec des plafonds à 5 %/15 %/50 %, les 50 % finaux doivent venir du lancement du sort lui-même.",
     "settings.progression.xpCapsNote": "Les plafonds limitent la progression totale que chaque source peut fournir. Une fois un plafond atteint, vous devez utiliser d'autres sources.",
-    "settings.progression.xpPerGameHour": "XP par heure de jeu",
+    "settings.progression.xpPerGameDay": "XP par jour en jeu",
     "settings.progression.xpRequiredByTier": "XP requise par rang de sort",
     "settings.progression.reverseUnlock": "Sorts supérieurs connus",
     "settings.progression.reverseUnlockEnable": "Ouvrir les sorts en dessous",

@@ -525,7 +525,12 @@ namespace
         // Passive learning ticks in game hours (Calendar::GetHoursPassed)
         const auto hour = PM::PassiveTickFor(100.0f, 101.0f);
         Check(Near(hour.grantHours, 1.0f) && Near(hour.lastHours, 101.0f),
-              "passive: one game hour later grants one hour (5 XP/h gives 5, not 5/24)");
+              "passive: one game hour later grants one hour");
+        Check(Near(PM::PassiveXPFor(5.0f, 24.0f), 5.0f) && Near(PM::PassiveXPFor(5.0f, 1.0f), 5.0f / 24.0f),
+              "passive: 5 XP a game day gives 5 over 24 game hours, 5/24 for one hour");
+        Check(Near(PM::PassiveXPFor(5.0f, 0.0f), 0.0f) && Near(PM::PassiveXPFor(0.0f, 24.0f), 0.0f) &&
+                  Near(PM::PassiveXPFor(-1.0f, 24.0f), 0.0f),
+              "passive: no time, or no / a negative rate, gives nothing");
         const auto small = PM::PassiveTickFor(100.0f, 100.05f);
         Check(Near(small.grantHours, 0.0f) && Near(small.lastHours, 100.0f),
               "passive: under 0.1 h grants nothing and keeps the last time (short ticks add up)");

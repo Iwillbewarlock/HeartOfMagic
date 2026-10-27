@@ -2295,8 +2295,10 @@ patch").
 ### ✅ Recently Completed (Feb 11, 2026)
 
 #### Passive Learning Feature
-- **UI:** Toggle, scope dropdown (All/Root/Novice), XP-per-game-hour slider (1-50), per-tier max % caps
-- **Settings:** `passiveLearning` object in `state.js` with `enabled`, `scope`, `xpPerGameHour`, `maxByTier`
+- **UI:** Toggle, scope dropdown (All/Root/Novice), XP-per-game-day slider (1-50), per-tier max % caps
+- **Settings:** `passiveLearning` object in `state.js` with `enabled`, `scope`, `xpPerGameDay` (read from the
+  old `xpPerGameHour` when absent: the same number, which always gave that much per game day), `maxByTier`.
+  `PassiveLearningSource` grants `ProgressionMath::PassiveXPFor(xpPerGameDay, hours)` = xpPerGameDay * hours / 24
 - **Persistence:** Saved/loaded via `saveUnifiedConfig`/`onUnifiedConfigLoaded`
 - **C++ side:** Not yet implemented (UI settings ready for timer-based XP granting)
 

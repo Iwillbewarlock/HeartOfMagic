@@ -560,7 +560,7 @@ window._i18nPreload = {
     "settings.progression.xpCaps": "Limites de XP (Contribuição Máxima)",
     "settings.progression.xpCapsExample": "Exemplo: Com limites em 5%/15%/50%, os últimos 50% devem vir do lançamento da magia em si.",
     "settings.progression.xpCapsNote": "Limites restringem quanto progresso total cada fonte pode fornecer. Ao atingir um limite, você deve usar outras fontes.",
-    "settings.progression.xpPerGameHour": "XP por Hora de Jogo",
+    "settings.progression.xpPerGameDay": "XP por Dia no Jogo",
     "settings.progression.xpRequiredByTier": "XP Necessário por Nível de Magia",
     "settings.progression.reverseUnlock": "Feitiços superiores conhecidos",
     "settings.progression.reverseUnlockEnable": "Abrir os feitiços abaixo",

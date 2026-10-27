@@ -582,7 +582,7 @@
     "settings.progression.xpCaps": "XP上限（最大貢献）",
     "settings.progression.xpCapsExample": "例: 上限が5%/15%/50%の場合、最後の50%は呪文自体の使用で獲得する必要があります。",
     "settings.progression.xpCapsNote": "上限は各ソースが提供できる総進捗を制限します。上限に達したら他のソースを使用する必要があります。",
-    "settings.progression.xpPerGameHour": "ゲーム時間あたりのXP",
+    "settings.progression.xpPerGameDay": "ゲーム内1日あたりのXP",
     "settings.progression.xpRequiredByTier": "呪文ティア別必要XP",
     "settings.progression.reverseUnlock": "習得済みの上位呪文",
     "settings.progression.reverseUnlockEnable": "下位の呪文を解放",

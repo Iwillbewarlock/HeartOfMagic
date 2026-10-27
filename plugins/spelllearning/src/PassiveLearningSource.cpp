@@ -32,8 +32,8 @@ void PassiveLearningSource::Initialize() {
     m_running = true;
     m_pollThread = std::thread(&PassiveLearningSource::PollLoop, this);
 
-    logger::info("PassiveLearningSource: Initialized (enabled: {}, scope: {}, xp/hr: {})",
-        m_settings.enabled, m_settings.scope, m_settings.xpPerGameHour);
+    logger::info("PassiveLearningSource: Initialized (enabled: {}, scope: {}, xp/day: {})",
+        m_settings.enabled, m_settings.scope, m_settings.xpPerGameDay);
 }
 
 void PassiveLearningSource::Shutdown() {
@@ -49,8 +49,8 @@ void PassiveLearningSource::SetSettings(const Settings& settings) {
     std::lock_guard<std::mutex> lock(m_settingsMutex);
     m_settings = settings;
     m_enabled = settings.enabled;
-    logger::info("PassiveLearningSource: Settings updated - enabled: {}, scope: {}, xp/hr: {}",
-        settings.enabled, settings.scope, settings.xpPerGameHour);
+    logger::info("PassiveLearningSource: Settings updated - enabled: {}, scope: {}, xp/day: {}",
+        settings.enabled, settings.scope, settings.xpPerGameDay);
 }
 
 void PassiveLearningSource::OnGameLoad() {
@@ -84,7 +84,7 @@ void PassiveLearningSource::PollLoop() {
             auto* calendar = RE::Calendar::GetSingleton();
             if (!calendar) return;
 
-            // Game hours (xpPerGameHour, the 0.1 h floor): GetCurrentGameTime is in days
+            // Game hours (the 0.1 h floor): GetCurrentGameTime is in days
             const auto tick = ProgressionMath::PassiveTickFor(m_lastGameTime, calendar->GetHoursPassed());
             m_lastGameTime = tick.lastHours;
             if (tick.grantHours > 0.0f) {
@@ -101,12 +101,12 @@ void PassiveLearningSource::GrantPassiveXP(float gameHoursElapsed) {
         currentSettings = m_settings;
     }
 
-    if (!currentSettings.enabled || currentSettings.xpPerGameHour <= 0.0f) return;
+    if (!currentSettings.enabled || currentSettings.xpPerGameDay <= 0.0f) return;
 
     auto* pm = ProgressionManager::GetSingleton();
     if (!pm) return;
 
-    float baseXP = currentSettings.xpPerGameHour * gameHoursElapsed;
+    float baseXP = ProgressionMath::PassiveXPFor(currentSettings.xpPerGameDay, gameHoursElapsed);
 
     // Iterate all learning targets and grant passive XP
     // m_learningTargets is school -> formId, access via public API

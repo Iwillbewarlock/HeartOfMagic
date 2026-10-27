@@ -17,9 +17,9 @@
   tomes the game hands out fail with "No mapping for the Unicode character", so spells whose tomes nothing
   hands out stayed in the tree. Such names are now read without converting them.
 
-- **Passive learning gives the XP per game hour it says.** It counted game days as hours, so 5 XP per hour
-  gave 5 XP per day. Passive XP is now 24 times what it was before this fix, which is what the setting says;
-  lower **XP per game hour** if it now feels too fast.
+- **Passive learning's setting is now XP per game day.** It was labelled per game hour but, through a time
+  mix-up, always gave that much per game day. The time is now read correctly and the label says per game day,
+  so passive XP is as fast as before and your saved number keeps its meaning.
 
 - **A damaged co-save no longer gives progress to the wrong spell.** A learning target or an early-learned
   spell whose form id was cut short in the save was read as a whole one and could name another spell; such a

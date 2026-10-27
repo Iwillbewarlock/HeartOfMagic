@@ -74,6 +74,16 @@ namespace ProgressionMath
         return { 0.0f, lastHours };
     }
 
+    // Passive learning's XP for `hours` game hours at `xpPerDay` per game day (the
+    // setting is per day: 5 a day was the feel players knew, and the slider's 1 step
+    // cannot go below an hour's share of that)
+    inline constexpr float kGameHoursPerDay = 24.0f;
+    [[nodiscard]] constexpr float PassiveXPFor(float xpPerDay, float hours) noexcept
+    {
+        if (!(xpPerDay > 0.0f) || !(hours > 0.0f)) return 0.0f;
+        return xpPerDay * hours / kGameHoursPerDay;
+    }
+
     // AddXP: the progress after `amount` XP, at most 1. A required XP that is not
     // set (0 or less) leaves the progress as it is: no XP is counted, and the saved
     // progress is not wiped either.

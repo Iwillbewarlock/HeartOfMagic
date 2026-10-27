@@ -582,7 +582,7 @@
     "settings.progression.xpCaps": "TP Sınırları (Maksimum Katkı)",
     "settings.progression.xpCapsExample": "Örnek: 5%/15%/50% sınırlarıyla, son 50% büyünün kendisini kullanmaktan gelmelidir.",
     "settings.progression.xpCapsNote": "Sınırlar, her kaynağın sağlayabileceği toplam ilerlemeyi kısıtlar. Bir sınıra ulaşıldığında diğer kaynakları kullanmalısınız.",
-    "settings.progression.xpPerGameHour": "Oyun Saati Başına TP",
+    "settings.progression.xpPerGameDay": "Oyun Günü Başına TP",
     "settings.progression.xpRequiredByTier": "Büyü Kademesine Göre Gerekli TP",
     "settings.progression.reverseUnlock": "Bilinen üst büyüler",
     "settings.progression.reverseUnlockEnable": "Alttaki büyüleri aç",
