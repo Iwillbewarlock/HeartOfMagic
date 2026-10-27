@@ -121,3 +121,14 @@ copy tome carried after a rebuild.
 ## Not in scope
 
 Spell Research's scrolls, artifacts and alchemy lists; changing Spell Research's or the patcher's data.
+
+## As built (2026-10-27, commits 3db3c353..d3d61543)
+
+Later decisions from three review rounds, see ARCHITECTURE.md "Spell tomes that teach nothing" for the current text:
+the snapshot is an atomic shared_ptr (not a mutex swap); a failed first rebuild stores an empty generation 0;
+the Librarian registers nothing while a TomeReach pass runs and reruns once after it (TomeReach::RunAfterPass,
+which tells "superseded by a newer pass" apart from failure/timeout and drops callbacks from an older save);
+StartScan rebuilds the pairs on the game thread before it waits for the pass; light-plugin ids are limited to 12 bits
+(24 on VR); the JSON is capped at 64 MB. IsOnGameThread() became "the engine's main thread id, or inside a scope
+opened by our tasks, SKSE messages and Papyrus natives" (GameThreadFlag.h), confirmed in game only by the
+`game-thread` self-test line.
