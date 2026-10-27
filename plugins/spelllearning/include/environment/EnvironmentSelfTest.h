@@ -30,6 +30,7 @@ namespace Environment::SelfTest
     void CheckMysticismPatch();
     void CheckFrostwalker();
     void CheckAdapters();
+    void CheckSpellTomes();   // EnvironmentSelfTestTomes.cpp
 
     enum class Outcome
     {

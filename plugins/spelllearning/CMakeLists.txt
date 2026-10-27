@@ -73,6 +73,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/environment/EnvironmentTwins.cpp
     src/environment/EnvironmentSelfTest.cpp
     src/environment/EnvironmentSelfTestChecks.cpp
+    src/environment/EnvironmentSelfTestTomes.cpp
     src/HudNotify.cpp
     src/librarian/LibrarianLoadOrderSource.cpp
     src/librarian/LibrarianSpellResearch.cpp

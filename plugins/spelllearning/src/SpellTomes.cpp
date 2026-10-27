@@ -200,7 +200,9 @@ namespace SpellTomes
     RE::SpellItem* SpellOf(RE::TESObjectBOOK* book)
     {
         if (!book) return nullptr;
-        if (book->TeachesSpell()) return book->GetSpell();
+        if (book->TeachesSpell()) {
+            if (auto* spell = book->GetSpell()) return spell;
+        }
         const auto snapshot = g_snapshot.load();
         if (!snapshot) return nullptr;
         const auto it = snapshot->paired.find(book->GetFormID());
