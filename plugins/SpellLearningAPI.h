@@ -72,6 +72,13 @@ namespace SpellLearning {
     };
 
     // Full API interface (received via kMessageType_APIReady broadcast)
+    //
+    // THREADING: call every method from the game thread only (an SKSE task -
+    // SKSE::GetTaskInterface()->AddTask - a Papyrus native, an SKSE message handler
+    // or a game event sink). The progression data behind it is not locked: a call
+    // from another thread races the game's own reads and writes of it. Exceptions
+    // never leave a call: a failure is logged in SpellLearning.log and answered
+    // with 0 / false / no target.
     class ISpellLearningAPI {
     public:
         virtual ~ISpellLearningAPI() = default;

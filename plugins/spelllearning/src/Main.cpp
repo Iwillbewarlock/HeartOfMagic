@@ -83,33 +83,37 @@ public:
 
     bool IsSpellMastered(uint32_t spellFormID) const override
     {
-        return ProgressionManager::GetSingleton()->IsSpellMastered(
-            static_cast<RE::FormID>(spellFormID));
+        return GuardApiCall("IsSpellMastered", [&] {
+            return ProgressionManager::GetSingleton()->IsSpellMastered(static_cast<RE::FormID>(spellFormID));
+        });
     }
 
     bool IsSpellAvailableToLearn(uint32_t spellFormID) const override
     {
-        return ProgressionManager::GetSingleton()->IsSpellAvailableToLearn(
-            static_cast<RE::FormID>(spellFormID));
+        return GuardApiCall("IsSpellAvailableToLearn", [&] {
+            return ProgressionManager::GetSingleton()->IsSpellAvailableToLearn(static_cast<RE::FormID>(spellFormID));
+        });
     }
 
     float GetRequiredXP(uint32_t spellFormID) const override
     {
-        return ProgressionManager::GetSingleton()->GetRequiredXP(
-            static_cast<RE::FormID>(spellFormID));
+        return GuardApiCall("GetRequiredXP", [&] {
+            return ProgressionManager::GetSingleton()->GetRequiredXP(static_cast<RE::FormID>(spellFormID));
+        });
     }
 
     float GetProgress(uint32_t spellFormID) const override
     {
-        auto progress = ProgressionManager::GetSingleton()->GetProgress(
-            static_cast<RE::FormID>(spellFormID));
-        return progress.progressPercent * 100.0f;
+        return GuardApiCall("GetProgress", [&] {
+            return ProgressionManager::GetSingleton()->GetProgressPercent(static_cast<RE::FormID>(spellFormID)) * 100.0f;
+        });
     }
 
     uint32_t GetLearningTarget(const std::string& school) const override
     {
-        return static_cast<uint32_t>(
-            ProgressionManager::GetSingleton()->GetLearningTarget(school));
+        return GuardApiCall("GetLearningTarget", [&] {
+            return static_cast<uint32_t>(ProgressionManager::GetSingleton()->GetLearningTarget(school));
+        });
     }
 
     void SetLearningTarget(uint32_t spellFormID) override
@@ -132,7 +136,9 @@ public:
 
     float GetGlobalMultiplier() const override
     {
-        return ProgressionManager::GetSingleton()->GetXPSettings().globalMultiplier;
+        return GuardApiCall("GetGlobalMultiplier", [&] {
+            return ProgressionManager::GetSingleton()->GetXPSettings().globalMultiplier;
+        });
     }
 
     bool RegisterXPSource(const std::string& sourceId, const std::string& displayName) override
@@ -233,6 +239,14 @@ public:
                 continue;
             }
 
+            // Typing in the console or a text field (naming an item, a save, Risa's search)
+            // is not the hotkey: opening the panel then swallowed the key and the text.
+            // Only for opening - with the panel open the key still closes it, whatever
+            // text input the panel's own view takes
+            if (!UIManager::GetSingleton()->IsPanelVisible() && IsTypingText()) {
+                continue;
+            }
+
             // Matched! Toggle the panel
             logger::info("Hotkey {} pressed - toggling Spell Learning Panel", m_hotkeyCode);
             UIManager::GetSingleton()->TogglePanel();
@@ -244,6 +258,14 @@ public:
 
 private:
     static constexpr std::uint32_t kEscapeKeyCode = 1;  // DirectInput scan code of Escape
+
+    // The console is open, or a menu takes text (ControlMap's text entry count)
+    static bool IsTypingText()
+    {
+        if (auto* ui = RE::UI::GetSingleton(); ui && ui->IsMenuOpen(RE::Console::MENU_NAME)) return true;
+        auto* controlMap = RE::ControlMap::GetSingleton();
+        return controlMap && controlMap->GetRuntimeData().textEntryCount > 0;
+    }
 
     InputHandler() : m_hotkeyCode(66) {}  // Default F8 = 66
     ~InputHandler() = default;

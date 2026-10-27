@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "CoSave.h"
+#include "ISLIntegration.h"
 #include "ProgressionManager.h"
 #include "SpellEffectivenessHook.h"
 #include "SpellTomeHook.h"
@@ -33,9 +34,10 @@ namespace CoSave
         Guarded("ProgressionManager save", [&] { ProgressionManager::GetSingleton()->OnGameSaved(a_intfc); });
         Guarded("SpellEffectivenessHook save", [&] { SpellEffectivenessHook::GetSingleton()->OnGameSaved(a_intfc); });
         Guarded("SpellTomeHook save", [&] { SpellTomeHook::GetSingleton()->OnGameSaved(a_intfc); });
-        // NOTE: DEST registrations are NOT serialized to co-save.
-        // They are re-established on each load via AutoRegisterISLAliases()
-        // in OnPostLoadGame, since OnInit() only fires once per save creation.
+        // DEST registrations (ISL's player alias and any other script that asked for
+        // OnSpellTomeRead): saved, so a script that registered once keeps its events.
+        // AutoRegisterISLAliases (OnPostLoadGame) still adds ISL's aliases on every load
+        Guarded("DEST registrations save", [&] { DESTIntegration::OnGameSaved(a_intfc); });
         FlushLog();
     }
 
@@ -63,6 +65,7 @@ namespace CoSave
                 if (progression->ReadRecord(a_intfc, type, version, length)) return;
                 if (effectiveness->ReadRecord(a_intfc, type, version, length)) return;
                 if (tomeHook->ReadRecord(a_intfc, type, version, length)) return;
+                if (DESTIntegration::ReadRecord(a_intfc, type, version, length)) return;
                 logger::warn("SKSE Serialization: no owner for record type {:08X}, skipped", type);
             });
         }
@@ -70,8 +73,8 @@ namespace CoSave
         // Progression first: the effectiveness hook's EndLoad reads the progress
         Guarded("ProgressionManager end load", [&] { progression->EndLoad(); });
         Guarded("SpellEffectivenessHook end load", [&] { effectiveness->EndLoad(); });
-        // NOTE: DEST registrations are handled via AutoRegisterISLAliases()
-        // in OnPostLoadGame, not through serialization.
+        // A save without the DEST record (before 2026-10-27) starts with none;
+        // AutoRegisterISLAliases in OnPostLoadGame adds ISL's aliases either way
     }
 
     void OnRevert(SKSE::SerializationInterface* a_intfc)
@@ -85,9 +88,9 @@ namespace CoSave
             SpellTomeHook::GetSingleton()->InvalidateTomeInventoryCache();
             SpellTomeHook::GetSingleton()->ClearTomeXPTracking();
         });
-        // NOTE: Do NOT revert DEST registrations here.
-        // AutoRegisterISLAliases() in OnPostLoadGame will re-establish them.
-        // Reverting would clear them, and since OnInit() only fires once per
-        // save creation, they'd never come back until the next load.
+        // The registrations of the save left behind go: a loaded save's come back
+        // from its DEST record and AutoRegisterISLAliases (OnPostLoadGame), a new
+        // game's from the scripts' OnInit, which runs in that game after this revert
+        Guarded("DEST registrations revert", [&] { DESTIntegration::OnRevert(a_intfc); });
     }
 }

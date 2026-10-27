@@ -812,6 +812,7 @@ read their records (a record whose reader threw is skipped; `GetNextRecordInfo` 
 | `SLPX` | ProgressionManager | 1 | count, then per spell with anything counted: formId, `xpFromAny`, `xpFromSchool`, `xpFromDirect`, `xpFromSelf` (f32) |
 | `SLEL` | SpellEffectivenessHook | 2 (reads 1-2) | count, then the early-learned spells' formIds; v2 + count, then the ones ISL holds (`IsHeldForISL`, a subset) |
 | `SLTX` | SpellTomeHook | 1 | count, then the spells a tome already gave XP (`HasGrantedTomeXP`) |
+| `DEST` | DESTIntegration | 1 | CommonLib `RegistrationSet`: count (size_t), then the VM handles of the aliases registered for `OnSpellTomeRead`. Read only when the length has that shape (CommonLib's `Load` checks nothing it reads); a save without it (before 2026-10-27) starts with none. Cleared on revert; `AutoRegisterISLAliases` (`OnPostLoadGame`) adds ISL's aliases on every load as before |
 
 - The layouts are `include/ProgressionCoSave.h` (header only, no game types, templated on the stream);
   `tools/progression-check --self-test` writes and reads `SLTR`, `SLPR` v1-v3, `SLPX`, `SLEL` v1-v2 and `SLTX`

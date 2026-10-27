@@ -53,6 +53,13 @@
 - **A preset is no longer left empty when the game closes while saving it.** It is written to a temporary file
   first and then moved over the old one, as the tree and the settings already were.
 
+- **Scripts that ask to hear spell tome reads keep that after a save is loaded.** The registrations made through
+  the Don't Eat Spell Tomes functions are now saved with the game; before, only Immersive Spell Learning's own
+  were added back on each load.
+
+- **Typing in the console or a text field no longer opens the panel.** The hotkey is ignored while the console
+  is open or a menu takes text; with the panel open it still closes it.
+
 ## Heart of Magic Librarian 1.6.0
 
 ### New

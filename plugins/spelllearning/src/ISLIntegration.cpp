@@ -472,14 +472,25 @@ namespace DESTIntegration {
         logger::info("DESTIntegration: Saved DEST event registrations");
     }
 
-    void OnGameLoaded(SKSE::SerializationInterface* a_intfc)
+    bool ReadRecord(SKSE::SerializationInterface* a_intfc, std::uint32_t type, std::uint32_t version,
+                    std::uint32_t length)
     {
+        if (type != kDESTRegType) return false;
+        // CommonLib's RegistrationSet layout: a size_t count, then one VM handle per
+        // registration. Its Load does not check what it read, so a record that is not
+        // that shape (or a newer version) is skipped before it is handed over
+        constexpr std::uint32_t kCountSize = sizeof(std::size_t);
+        constexpr std::uint32_t kHandleSize = sizeof(RE::VMHandle);
+        if (version < 1 || version > kDESTRegVersion || length < kCountSize || (length - kCountSize) % kHandleSize != 0) {
+            logger::warn("DESTIntegration: DEST registration record skipped (version {}, {} bytes)", version, length);
+            return true;
+        }
         g_spellTomeEventRegs.Load(a_intfc);
-        logger::info("DESTIntegration: Loaded DEST event registrations");
-
-        // Auto-register ISL aliases — fixes existing saves where the real
-        // DontEatSpellTomes.dll's registrations were lost
-        AutoRegisterISLAliases();
+        logger::info("DESTIntegration: Loaded DEST event registrations ({} in the record)",
+            (length - kCountSize) / kHandleSize);
+        // ISL's own aliases are added again in OnPostLoadGame (AutoRegisterISLAliases):
+        // quests are not ready while the co-save is read
+        return true;
     }
 
     void OnRevert(SKSE::SerializationInterface* a_intfc)

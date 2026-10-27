@@ -99,7 +99,9 @@ namespace DESTIntegration {
     // Serialization  (persist registered aliases across save/load)
     // -------------------------------------------------------------------------
     void OnGameSaved(SKSE::SerializationInterface* a_intfc);
-    void OnGameLoaded(SKSE::SerializationInterface* a_intfc);
+    // The DEST record in CoSave's one record loop: false for another type
+    bool ReadRecord(SKSE::SerializationInterface* a_intfc, std::uint32_t type, std::uint32_t version,
+                    std::uint32_t length);
     void OnRevert(SKSE::SerializationInterface* a_intfc);
 }
 
