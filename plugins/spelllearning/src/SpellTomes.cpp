@@ -31,10 +31,12 @@ namespace SpellTomes
         namespace SRPatch = Librarian::SpellResearchPatch;
 
         constexpr const char* kPatchFile = "Data/SKSE/Plugins/SpellResearchSynthesizer/SynthesizedPatch.json";
+        // A patch of every spell of a large load order is a few MB; far past that it is not one
+        constexpr std::uintmax_t kMaxPatchBytes = 64ull * 1024 * 1024;
 
         struct Snapshot
         {
-            std::unordered_map<RE::FormID, RE::FormID> paired;   // book that teaches nothing -> its spell
+            std::unordered_map<Pairs::FormId, Pairs::Entry> paired;   // book that teaches nothing -> its spell
             Status status;
         };
 
@@ -46,7 +48,8 @@ namespace SpellTomes
         std::optional<Pairs::PatchRead> g_patch;                 // nullopt: no file
         std::vector<Pairs::LivePart> g_lastLive;                 // the last readable state of SR's lists
         bool g_liveRead = false;
-        // The last full scan's generation (0 = none) and paired tomes; a Papyrus scan may note it off the game thread
+        // The last full scan's generation (0 = none) and paired tomes. Scans collect on the game
+        // thread (Papyrus RunScan too, PapyrusAPI.cpp); atomics only so any thread may read them
         std::atomic<std::uint64_t> g_scanGeneration = 0;
         std::atomic<std::size_t> g_scanPaired = 0;
 
@@ -55,6 +58,11 @@ namespace SpellTomes
             const std::filesystem::path path(kPatchFile);
             std::error_code error;
             if (!std::filesystem::exists(path, error)) return std::nullopt;
+            if (const auto size = std::filesystem::file_size(path, error); !error && size > kMaxPatchBytes) {
+                logger::warn("SpellTomes: '{}' is {} bytes, over the {} read - skipped, Spell Research's lists are used, "
+                             "unverified", PathText::Utf8(path), size, kMaxPatchBytes);
+                return Pairs::PatchRead{};
+            }
             std::ifstream file(path, std::ios::binary);
             if (!file.is_open()) {
                 logger::warn("SpellTomes: '{}' exists but cannot be opened - Spell Research's lists are used, unverified",
@@ -109,7 +117,9 @@ namespace SpellTomes
             const std::string key = std::format("{}|{}", ref.plugin, ref.localId);
             if (const auto it = g_resolved.find(key); it != g_resolved.end()) return it->second;
             auto* dh = RE::TESDataHandler::GetSingleton();
-            auto* form = dh ? dh->LookupForm(ref.localId, ref.plugin) : nullptr;
+            const auto* file = dh ? dh->LookupModByName(ref.plugin) : nullptr;
+            const bool fits = file && Pairs::LocalIdFits(ref.localId, file->IsLight());
+            auto* form = fits ? dh->LookupForm(ref.localId, ref.plugin) : nullptr;
             const Pairs::FormId id = form ? form->GetFormID() : 0;
             g_resolved.emplace(key, id);
             return id;
@@ -180,16 +190,19 @@ namespace SpellTomes
             SpellScanner::InvalidateDuplicateGroups();
             SpellScanner::PrepareTreeSpellForTomeAfterPass();
             const std::uint64_t generation = now.status.generation;
+            if (reason == kReasonScan) NoteFullScan();   // the scan this rebuild runs for has these pairs
             const std::uint64_t scanned = g_scanGeneration.load();
             const bool stale = scanned != 0 && scanned != generation && now.paired.size() > g_scanPaired.load();
             logger::info("SpellTomes: {} - the pairs changed (generation {}, {} paired tomes{}) - tome reach runs again",
                 reason, generation, now.paired.size(), stale ? ", the last full scan had fewer: stale" : "");
-            // A save load or an Import happen in a game: the panel hears of the save only after
-            // this (NotifySaveGameLoaded ends kPostLoadGame), so it is told here that a retry must hold
-            const bool inGame = reason == kReasonSaveLoaded || reason == kReasonImport;
-            const nlohmann::json payload = { { "generation", generation }, { "pairedTomes", now.paired.size() },
-                                             { "stale", stale }, { "inGame", inGame }, { "reason", std::string(reason) } };
-            UIManager::GetSingleton()->NotifySpellTomesChanged(JsonText::Dump(payload));
+            // Told on a later task: at a save load NotifySaveGameLoaded ends kPostLoadGame, after
+            // this, and inGame is UIManager's own state then (a retry must hold in a game)
+            AddTaskToGameThread("SpellTomesChanged", [generation, paired = now.paired.size(), stale, why = std::string(reason)] {
+                auto* ui = UIManager::GetSingleton();
+                const nlohmann::json payload = { { "generation", generation }, { "pairedTomes", paired },
+                                                 { "stale", stale }, { "inGame", ui->IsSaveLoaded() }, { "reason", why } };
+                ui->NotifySpellTomesChanged(JsonText::Dump(payload));
+            });
         }
 
         void RebuildOnGameThread(std::string_view reason)
@@ -202,9 +215,9 @@ namespace SpellTomes
             const Pairs::Result result = Pairs::Build({ g_patch ? &*g_patch : nullptr, g_lastLive }, GameFacts());
 
             auto next = std::make_shared<Snapshot>();
-            for (const auto& [book, entry] : result.pairs) next->paired.emplace(book, entry.spell);
+            next->paired = result.pairs;
             const auto previous = g_snapshot.load();
-            if (previous && previous->paired == next->paired) return;
+            if (previous && Pairs::SamePairs(previous->paired, next->paired)) return;
 
             Status& status = next->status;
             status.generation = previous ? previous->status.generation + 1 : 1;
@@ -232,7 +245,14 @@ namespace SpellTomes
         const auto snapshot = g_snapshot.load();
         if (!snapshot) return nullptr;
         const auto it = snapshot->paired.find(book->GetFormID());
-        return it == snapshot->paired.end() ? nullptr : RE::TESForm::LookupByID<RE::SpellItem>(it->second);
+        return it == snapshot->paired.end() ? nullptr : RE::TESForm::LookupByID<RE::SpellItem>(it->second.spell);
+    }
+
+    void ForEachPair(const std::function<void(RE::FormID book, RE::FormID spell)>& visit)
+    {
+        const auto snapshot = g_snapshot.load();
+        if (!snapshot) return;
+        for (const auto& [book, entry] : snapshot->paired) visit(book, entry.spell);
     }
 
     bool IsPairedTome(RE::FormID book)
@@ -260,6 +280,8 @@ namespace SpellTomes
             RebuildOnGameThread(reason);
         } catch (const std::exception& e) {
             logger::error("SpellTomes: {} - the pairs could not be read again ({}), the last ones stay", reason, e.what());
+            // None yet: an empty generation 0, so the next good read is a change and is passed on
+            if (!g_snapshot.load()) g_snapshot.store(std::make_shared<const Snapshot>());
         }
     }
 

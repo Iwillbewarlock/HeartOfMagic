@@ -57,7 +57,9 @@
  * a main menu scan then has fewer tomes, and a tree with none is refused. When C++
  * says the pairs changed (onSpellTomesChanged), a scan made with fewer tomes is
  * marked stale (status.tomesChangedRescan), and a run that failed starts once more
- * (event "retry", once a session) - its steps held during play as any run's, so it
+ * (event "retry", once a session; a change told during a run is kept for it, and a
+ * tree a failed run built and did not save is dropped so the retry's build is not
+ * taken for the player's) - its steps held during play as any run's, so it
  * goes on at the next panel opening or the main menu. Not after a run that finished
  * or yielded, nor once the player scanned, built, applied or saved (yieldTo): a saved
  * tree is never rebuilt.
@@ -98,6 +100,7 @@ var AutoBuild = {
     _runTimer: null,
     _lastFailed: false,       // the last run failed, and the player has not acted since (onSpellTomesChanged)
     _retried: false,          // the one retry after the tome pairs changed was made
+    _pendingTomes: null,      // the pairs changed during a run: its onSpellTomesChanged info, for _fail
 
     // =========================================================================
     // DECISION (pure)
@@ -255,6 +258,7 @@ var AutoBuild = {
      */
     yieldTo: function(what) {
         this._lastFailed = false;   // the player's own scan, build or tree: no retry over it
+        this._pendingTomes = null;
         if (!this._run) return;
         this._report('yielded', what + ' (during the ' + this._run.stage + ' step)');
         this._end();
@@ -406,6 +410,7 @@ var AutoBuild = {
         var run = this._run;
         if (!this._current(run) || run.stage !== 'build') return;
         run.stage = 'apply';
+        run.tree = typeof TreeGrowthClassic !== 'undefined' ? TreeGrowthClassic._treeData : null;   // this run's, not a player's
         var self = this;
         this._step(run, 'apply', function() { self._apply(run, summary); });
     },
@@ -423,6 +428,7 @@ var AutoBuild = {
 
     _finish: function(detail) {
         if (!this._run) return;
+        this._pendingTomes = null;
         var secs = ((Date.now() - this._run.startedAt) / 1000).toFixed(1);
         this._report('done', detail + ' (' + secs + ' s)');
         this._end();
@@ -444,8 +450,22 @@ var AutoBuild = {
         if (this._run.stage === 'build' && !fromProgress && typeof ClassicSettings !== 'undefined' && ClassicSettings.setStatusText) {
             ClassicSettings.setStatusText(text, 'error', 'status.autoBuildFailed', params);
         }
+        var run = this._run;
         this._end(fromProgress ? this.PROGRESS_KEEP : text);
+        this._dropRunTree(run);
         this._lastFailed = true;
+        // The pairs changed while this run went on: the one retry is now
+        var pending = this._pendingTomes;
+        this._pendingTomes = null;
+        if (pending) this._retry(pending);
+    },
+
+    /** A tree this failed run built and did not save: left as the builder's, a retry's build would take it for the player's and yield. */
+    _dropRunTree: function(run) {
+        if (!run || !run.tree || typeof TreeGrowthClassic === 'undefined' || TreeGrowthClassic._treeData !== run.tree) return;
+        TreeGrowthClassic._treeData = null;
+        TreeGrowthClassic._layoutData = null;
+        if (typeof ClassicSettings !== 'undefined' && ClassicSettings.setTreeBuilt) ClassicSettings.setTreeBuilt(false);
     },
 
     // =========================================================================
@@ -462,7 +482,15 @@ var AutoBuild = {
         if (!info || typeof info !== 'object') return;
         if (info.inGame === true) this._saveLoaded = true;
         if (info.stale) this._markScanStale(info);
-        if (this._retried || this._run || !this._lastFailed) return;
+        if (this._retried) return;
+        if (this._run) {
+            this._pendingTomes = info;   // retried by _fail if this run fails; dropped when it finishes or yields
+            return;
+        }
+        if (this._lastFailed) this._retry(info);
+    },
+
+    _retry: function(info) {
         this._retried = true;
         this._lastFailed = false;
         this._report('retry', 'the spell tome pairs changed (generation ' + info.generation + ', ' +
@@ -548,6 +576,7 @@ var AutoBuild = {
         this._runTimer = null;
         this._lastFailed = false;
         this._retried = false;
+        this._pendingTomes = null;
     }
 };
 

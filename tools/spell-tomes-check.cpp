@@ -47,6 +47,14 @@ namespace
 
     constexpr FormId kSkyrimIndex = 0x00000000;
     constexpr FormId kModIndex = 0x05000000;
+    constexpr FormId kLightBase = 0xFE001000;    // light.esl, light slot 1
+    constexpr FormId kLight2Base = 0xFE002000;   // light2.esl, light slot 2
+
+    struct FakePlugin
+    {
+        FormId base = 0;
+        bool light = false;
+    };
 
     struct FakeBook
     {
@@ -56,7 +64,8 @@ namespace
 
     struct FakeGame
     {
-        std::map<std::string, FormId> plugins{ { "skyrim.esm", kSkyrimIndex }, { "spellmod.esp", kModIndex } };
+        std::map<std::string, FakePlugin> plugins{ { "skyrim.esm", { kSkyrimIndex } }, { "spellmod.esp", { kModIndex } },
+            { "light.esl", { kLightBase, true } }, { "light2.esl", { kLight2Base, true } } };
         std::map<FormId, FakeBook> books;
         std::map<FormId, bool> spells;
 
@@ -64,9 +73,11 @@ namespace
         {
             Facts facts;
             facts.resolve = [this](const FormRef& ref) -> FormId {
+                // As the game side: the id must fit its plugin, then CommonLib's LookupFormID
+                // adds it to the plugin's index bits (no mask)
                 const auto it = plugins.find(ref.plugin);
-                if (it == plugins.end()) return 0;
-                const FormId id = it->second | ref.localId;
+                if (it == plugins.end() || !LocalIdFits(ref.localId, it->second.light)) return 0;
+                const FormId id = it->second.base + ref.localId;
                 return (books.contains(id) || spells.contains(id)) ? id : 0;
             };
             facts.book = [this](FormId id) {
@@ -179,6 +190,22 @@ namespace
             { "name": "Gone", "spellId": "__formData|gone.esp|0x000900", "tomeId": "__formData|gone.esp|0x000800" } ] })");
         const auto gone = Build({ &missing, {} }, game.AsFacts());
         Check(gone.pairs.empty() && gone.counts.unresolved == 1, "patch: an id from a plugin not loaded is unresolved");
+
+        // Light plugins: a 12-bit id resolves; a longer one would add into the next light plugin's records
+        auto light = ThreeTomes();
+        light.books[kLightBase + 0x800] = {};
+        light.spells[kLightBase + 0x900] = true;
+        light.books[kLight2Base + 0x800] = {};
+        light.spells[kLight2Base + 0x900] = true;
+        const auto lightPatch = ReadPatch(R"({ "newSpells": [
+            { "name": "L", "spellId": "__formData|light.esl|0x000900", "tomeId": "__formData|light.esl|0x000800" },
+            { "name": "Over", "spellId": "__formData|light.esl|0x001900", "tomeId": "__formData|light.esl|0x001800" } ] })");
+        const auto lit = Build({ &lightPatch, {} }, light.AsFacts());
+        Check(SpellOf(lit, kLightBase + 0x800) == kLightBase + 0x900, "patch: a light plugin's 12-bit id resolves");
+        Check(lit.counts.unresolved == 1 && !lit.pairs.contains(kLight2Base + 0x800),
+            "patch: a light plugin's id over 12 bits is unresolved, not the next light plugin's record");
+        Check(LocalIdFits(0xFFF, true) && !LocalIdFits(0x1000, true) && LocalIdFits(0x1000, false),
+            "LocalIdFits: 12 bits for a light plugin, 24 for a full one");
 
         // Run inside the Synthesis app: the override is in Synthesis.esp - the JSON pair still counts
         game.books[Mod(0x801)].winner = "Synthesis.esp";

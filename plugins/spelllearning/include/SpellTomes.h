@@ -25,9 +25,10 @@
 
 namespace SpellTomes
 {
-    // Rebuild reasons that mean a game is loaded (the panel holds a retry for them)
+    // Rebuild reasons
     inline constexpr std::string_view kReasonSaveLoaded = "save loaded";
     inline constexpr std::string_view kReasonImport = "import";
+    inline constexpr std::string_view kReasonScan = "scan";   // a full scan follows: it has these pairs
 
     // The spell `book` stands for: the one it teaches, else its pair; nullptr when
     // it is no spell tome. Any thread (the snapshot is read through an atomic).
@@ -36,6 +37,9 @@ namespace SpellTomes
     // A book that teaches nothing and has a pair. Any thread, touches only the
     // snapshot (the inventory sink's question).
     bool IsPairedTome(RE::FormID book);
+
+    // Every pair of the snapshot (book that teaches nothing, its spell). Any thread.
+    void ForEachPair(const std::function<void(RE::FormID book, RE::FormID spell)>& visit);
 
     // Every spell tome with its spell, both kinds, in the BOOK array's order.
     // Game thread.

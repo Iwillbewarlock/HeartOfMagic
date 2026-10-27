@@ -205,15 +205,8 @@ namespace SpellScanner
 
     void PrepareTreeSpellForTomeAfterPass()
     {
-        try {
-            std::thread([] {
-                constexpr auto kTomeReachWaitLimit = std::chrono::minutes(10);
-                TomeReach::WaitUntilDone(kTomeReachWaitLimit);
-                AddTaskToGameThread("PrepareTreeSpellForTome", [] { PrepareTreeSpellForTome(); });
-            }).detach();
-        } catch (const std::system_error& e) {
-            logger::warn("No thread to wait for the tome reach pass ({}) - copy tomes are grouped on first use", e.what());
-        }
+        // Copy tomes are grouped on first use when no thread can wait
+        TomeReach::RunAfterPass("PrepareTreeSpellForTome", [] { PrepareTreeSpellForTome(); });
     }
 
     std::vector<RE::FormID> DuplicateGroupOf(RE::FormID spell)

@@ -52,6 +52,8 @@ namespace Librarian::SpellResearchPatch
         // for missing spells, or every load would plan them again.
         std::unordered_set<RE::FormID> g_failed;
 
+        bool g_waitingForPass = false;   // a Reconcile is queued for after the tome reach pass
+
         // What the last run found (StatusJson): written on the game thread, read
         // when the panel opens
         std::mutex g_statusLock;
@@ -229,7 +231,7 @@ namespace Librarian::SpellResearchPatch
             Skipped& skipped)
         {
             std::unordered_set<RE::FormID> unreachable;
-            TomeReach::UnreachableSpells(unreachable);   // empty until the pass is done, as the scan's marks
+            TomeReach::UnreachableSpells(unreachable);   // Reconcile waits for a running pass; empty when it failed
             const PlayerFilter playerFilter = ReadPlayerFilter();
             const auto gateKept = SpellScanner::ReadGateKept();
             json missing = json::object();
@@ -358,6 +360,8 @@ namespace Librarian::SpellResearchPatch
             return totals;
         }
 
+        void SafeReconcile(std::string_view reason);
+
         void Reconcile(std::string_view reason)
         {
             if (!g_installed) return;
@@ -371,6 +375,17 @@ namespace Librarian::SpellResearchPatch
             if (GlobalValue(g_lists.importing) != 0.0f) return;
             const std::size_t entries = CountRegistered();
             if (entries == g_lastSeen) return;
+            if (TomeReach::IsRunning()) {
+                // Without its answer spells whose tomes nothing hands out would go in for good:
+                // nothing now, g_lastSeen kept, one run once the pass is done
+                if (!g_waitingForPass) {
+                    g_waitingForPass = TomeReach::RunAfterPass("SpellResearchReconcile", [] {
+                        g_waitingForPass = false;
+                        SafeReconcile("tome reach done");
+                    });
+                }
+                return;
+            }
             g_lastSeen = entries;
             if (!ConfigSwitchOn(CONFIG_SECTION)) {
                 SetStatus("off", reason);

@@ -4,6 +4,7 @@
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
 #include "SpellScanner.h"
+#include "SpellTomes.h"
 #include "ThreadUtils.h"
 #include "librarian/Librarian.h"
 #include "librarian/PerkAdapterPatch.h"
@@ -139,6 +140,13 @@ void UIManager::StartScan(std::string argStr, std::shared_ptr<ScanTicket> ticket
         std::thread([argStr, collect, ticket]() mutable {
             // Nothing may leave a thread function: it would end the game (std::terminate)
             try {
+                // The tome pairs first: a new generation restarts the pass this scan then waits for,
+                // instead of restarting it after the wait and leaving the scan without its marks
+                constexpr auto kRebuildWait = std::chrono::seconds(10);
+                (void)RunOnGameThreadAndWait("SpellTomesBeforeScan", [] {
+                    SpellTomes::Rebuild(SpellTomes::kReasonScan);
+                    return true;
+                }, kRebuildWait);
                 if (!TomeReach::WaitUntilDone(kTomeReachWait)) {
                     logger::info("UIManager: the scan did not wait for the tome reach pass (not started or still running)");
                 }

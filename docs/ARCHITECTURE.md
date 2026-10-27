@@ -280,13 +280,17 @@ sink's `IsPairedTome`). TomeReachRecords.cpp's raw BOOK DATA read is not one: it
   save can shift both), so with a usable JSON a live pair that disagrees is counted as a conflict and not used,
   and one for a book the JSON does not name is not used either. A book that teaches a spell keeps it.
 - When: kDataLoaded (before the tome reach pass), kPostLoadGame (before the Spell Research registrations),
-  before every scan, and after every message box while Spell Research is loaded (its Import ends with one; the
-  rebuild runs before Reconcile's "same entry count" return). The JSON is read once a session.
+  before every scan (a panel full scan rebuilds on the game thread before it waits for the tome reach pass, so a
+  new generation restarts the pass that scan then waits for), and after every message box while Spell Research is
+  loaded (its Import ends with one; the rebuild runs before Reconcile's "same entry count" return). The JSON is
+  read once a session (at most 64 MB).
 - The snapshot (book -> spell) is swapped through a `std::atomic<std::shared_ptr>` on the game thread and read
   from any thread. A rebuild with the same pairs changes nothing; different pairs get a new generation, which
   re-runs the tome reach pass, regroups the copies (`InvalidateDuplicateGroups`, then
   `PrepareTreeSpellForTomeAfterPass`), drops the carried-tome cache and tells the panel (`onSpellTomesChanged`
-  `{ generation, pairedTomes, stale, inGame, reason }`): a scan made with fewer tomes is marked stale, and a failed
+  `{ generation, pairedTomes, stale, inGame, reason }`, on a later game thread task so `inGame` is UIManager's
+  save-loaded state after kPostLoadGame; a rebuild for a scan counts as that scan): a scan made with fewer tomes
+  is marked stale, and a failed
   build at game start runs once more (autoBuild.js; "Tree Built at Game Start"). JSON ids are looked up once a
   session (`LookupForm` walks every file by name; a message box rebuild then costs only the lists).
 - Log: `SpellTomes: N tomes - T by the book's own spell, P by Spell Research pairs (records R, script S,
@@ -299,9 +303,10 @@ sink's `IsPairedTome`). TomeReachRecords.cpp's raw BOOK DATA read is not one: it
 - Limits: the live fallback cannot tell a shifted pair from a true one when there is no JSON; a save without
   Spell Research set up (a new game) keeps the previous save's live pairs until its own lists are readable.
   A JSON whose book a later plugin overrides again, still teaching nothing, is trusted as well (that plugin
-  is named in the per-plugin line). When a new generation comes at a save load or an Import,
-  the Spell Research registrations that follow at once run before the new tome reach pass is done, so they
-  cannot leave out `tomeUnreachable` spells (as at the first load after a game start).
+  is named in the per-plugin line). A light plugin's JSON id must fit 12 bits (`LocalIdFits`; CommonLib's
+  `LookupFormID` adds without a mask). The Spell Research registrations wait for a running tome reach pass
+  (`TomeReach::IsRunning`): nothing is registered then, and one Reconcile runs once it is done
+  (`TomeReach::RunAfterPass`).
 
 **Spell tier from the half-cost perk (2026-09-30):** `DetermineSpellTier` (SpellScannerHelpers.cpp) asks
 the spell's half-cost perk first, then its first effect's minimum skill. The perk step never worked: it

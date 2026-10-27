@@ -306,7 +306,7 @@ namespace SpellScanner
     json CollectAllSpells(const ScanConfig& config)
     {
         logger::info("SpellScanner: Starting spell scan with ScanConfig...");
-        SpellTomes::Rebuild("scan");
+        SpellTomes::Rebuild(SpellTomes::kReasonScan);   // a panel scan rebuilt before its wait: no change then
         SpellTomes::NoteFullScan();
 
         return BuildScanOutput(ScanSpellsToJson(config.fields), config, {});

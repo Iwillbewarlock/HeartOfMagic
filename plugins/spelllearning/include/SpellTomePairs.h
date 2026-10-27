@@ -50,6 +50,8 @@ namespace SpellTomePairs
     inline constexpr std::string_view kFormDataTag = "__formData";
     /// A plugin-local id fills at most the low 24 bits (the high byte is the load order index)
     inline constexpr std::uint32_t kMaxLocalId = 0x00FFFFFF;
+    /// A light plugin's records use 12 bits of local id
+    inline constexpr std::uint32_t kMaxLightLocalId = 0x00000FFF;
     /// Problems kept as text for the log; the counts cover the rest
     inline constexpr std::size_t kKeptProblems = 5;
 
@@ -71,6 +73,14 @@ namespace SpellTomePairs
         const auto local = FormIdText::Parse(text.substr(second + 1));
         if (plugin.empty() || !local || *local > kMaxLocalId) return std::nullopt;
         return FormRef{ std::string(plugin), *local };
+    }
+
+    /// Whether a local id can name a record of its plugin. CommonLib's LookupFormID adds
+    /// the id to the plugin's index bits without masking, so a light plugin's id over
+    /// 12 bits would name a record of the next light plugin.
+    [[nodiscard]] constexpr bool LocalIdFits(std::uint32_t localId, bool light) noexcept
+    {
+        return localId <= (light ? kMaxLightLocalId : kMaxLocalId);
     }
 
     // =========================================================================

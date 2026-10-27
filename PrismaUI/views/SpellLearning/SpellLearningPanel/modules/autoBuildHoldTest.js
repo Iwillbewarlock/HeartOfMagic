@@ -100,6 +100,7 @@ var AutoBuildHoldTest = {
         this._testPanelOpen(g);
         this._testTomesChanged(g);
         this._testTomesChangedNoRetry(g);
+        this._testTomesChangedDuringRun(g);
         return { passed: this.passed, failed: this.failed };
     },
 
@@ -243,6 +244,38 @@ var AutoBuildHoldTest = {
                 self.check(!A.isRunning() && w.events.filter(function(e) { return e === 'retry'; }).length === 1,
                     'tomes: a second change after the retry failed too - no second retry');
             } finally { A._resetForTest(); }
+        });
+    },
+
+    _testTomesChangedDuringRun: function(g) {
+        var self = this, A = g.AutoBuild, w = this._world(g);
+        w.stubs._panelVisible = true;
+        var applies = 0;
+        w.stubs.TreeGrowthClassic.buildTree = function(opts) {
+            w.calls.push('build');
+            w.builtWith = opts;
+            g.TreeGrowthClassic._treeData = { built: w.calls.length };
+            return true;
+        };
+        w.stubs.TreeGrowthClassic.applyTree = function(opts) { w.calls.push('apply'); w.appliedWith = opts; return ++applies > 1; };
+        this._with(g, w.stubs, function() {
+            try {
+                self._begin(g, false);
+                A.onSpellData();
+                g.onSpellTomesChanged({ generation: 2, pairedTomes: 7, stale: false });
+                self.check(w.events.indexOf('retry') === -1 && A.isRunning(), 'tomes: a change during a run waits for its end');
+                w.builtWith.onComplete('ok');   // Apply places nothing: the run fails, its tree unsaved
+                self.check(w.events.indexOf('failed') !== -1 && w.events.indexOf('retry') !== -1 && A.isRunning(),
+                    'tomes: the run fails after the change - the kept change makes the one retry');
+                self.check(g.TreeGrowthClassic._treeData === null, 'tomes: the failed run\'s unsaved tree is dropped');
+                A.onSpellData();
+                self.check(w.calls.join(',') === 'scan,build,apply,scan,build' && w.events.indexOf('yielded') === -1,
+                    'tomes: the retry builds (its build not taken for the player\'s)');
+                g.TreeGrowthClassic._treeData = { player: true };
+                w.builtWith.onComplete('ok');
+                w.appliedWith.onSaved(3);
+                self.check(!A.isRunning() && w.events[w.events.length - 1] === 'done', 'tomes: the retry saves its tree');
+            } finally { A._resetForTest(); g.TreeGrowthClassic._treeData = null; }
         });
     },
 

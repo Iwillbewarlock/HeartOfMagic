@@ -1,5 +1,6 @@
 #include "Common.h"
 #include "SpellTomes.h"
+#include "ThreadUtils.h"
 #include "tomereach/TomeReach.h"
 #include "tomereach/TomeReachConfig.h"
 #include "tomereach/TomeReachPass.h"
@@ -30,6 +31,7 @@ namespace TomeReach
             std::condition_variable changed;
             bool started = false;
             std::uint64_t generation = 0;   // the pass whose result counts
+            std::size_t tomes = 0;          // tomes handed to that pass
             bool done = false;    // finished, well or not
             bool ready = false;   // finished well: `unreachable` holds the answer
             std::unordered_set<RE::FormID> unreachable;
@@ -164,6 +166,7 @@ namespace TomeReach
             // This generation's answer from now on: a pass still running for an older one is dropped
             std::lock_guard guard(shared.lock);
             shared.generation = generation;
+            shared.tomes = job->tomes.size();
             shared.done = false;
             shared.ready = false;
             shared.unreachable.clear();
@@ -192,6 +195,40 @@ namespace TomeReach
         std::unique_lock guard(shared.lock);
         if (!shared.started) return false;
         return shared.changed.wait_for(guard, limit, [&] { return shared.done; });
+    }
+
+    bool IsRunning()
+    {
+        auto& shared = Shared();
+        std::lock_guard guard(shared.lock);
+        return shared.started && !shared.done;
+    }
+
+    std::size_t TomeCount(std::uint64_t generation)
+    {
+        auto& shared = Shared();
+        std::lock_guard guard(shared.lock);
+        return shared.generation == generation ? shared.tomes : 0;
+    }
+
+    bool RunAfterPass(std::string name, std::function<void()> task)
+    {
+        try {
+            std::thread([name, task = std::move(task)]() mutable {
+                // Nothing may leave a thread function: it would end the game
+                try {
+                    constexpr auto kTomeReachWaitLimit = std::chrono::minutes(10);
+                    WaitUntilDone(kTomeReachWaitLimit);
+                    AddTaskToGameThread(name, std::move(task));
+                } catch (...) {
+                    logger::error("TomeReach: '{}' could not be handed to the game thread after the pass", name);
+                }
+            }).detach();
+            return true;
+        } catch (const std::system_error& e) {
+            logger::warn("TomeReach: no thread to wait for the pass ({}) - '{}' does not run after it", e.what(), name);
+            return false;
+        }
     }
 
     bool UnreachableSpells(std::unordered_set<RE::FormID>& out)
