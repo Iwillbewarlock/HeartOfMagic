@@ -34,8 +34,10 @@
   ISL finished the study; now only ISL teaches it, and it keeps its own name until then. With ISL removed (or
   the integration turned off) such spells are given back on the next load as before.
 
-- **Required XP after a load is the tree's again.** A load dropped the tree's required XP and worked spells out
-  from their tier until the panel sent it again, in the order the save's records came in.
+- **Required XP after a load is the tree's and your per-spell overrides again.** A load dropped the tree's
+  required XP and your per-spell XP overrides and worked spells out from their tier until the panel was opened
+  again, so XP rates and caps used the tier's number meanwhile. The overrides are now read from the saved
+  settings at game start and every settings save, and kept across loads.
 
 - **Changing the power steps updates weakened spells' names and descriptions at once.** They kept the old
   percent until the spell reached its next step.

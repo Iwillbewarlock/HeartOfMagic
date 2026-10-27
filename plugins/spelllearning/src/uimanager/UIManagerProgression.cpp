@@ -65,7 +65,7 @@ void UIManager::OnSetLearningTarget(const char* argument)
             if (request.contains("requiredXP") && request["requiredXP"].is_number()) {
                 float requiredXP = request["requiredXP"].get<float>();
                 if (requiredXP > 0) {
-                    pm->SetRequiredXP(formId, requiredXP);
+                    pm->SetRequiredXP(formId, requiredXP, RequiredXP::Kind::kCharacter);
                     logger::info("UIManager: Set requiredXP for {:08X} to {:.0f} (from tree)", formId, requiredXP);
                 }
             }
@@ -458,7 +458,7 @@ void UIManager::OnSetRequiredXP(const char* argument)
             if (!parsedId) return;
             const RE::FormID formId = *parsedId;
             if (formId == 0 || requiredXP <= 0.0f) return;
-            ProgressionManager::GetSingleton()->SetRequiredXP(formId, requiredXP);
+            ProgressionManager::GetSingleton()->SetRequiredXP(formId, requiredXP, RequiredXP::Kind::kCharacter);
             GetSingleton()->NotifyProgressUpdate(formIdStr);
         } catch (const std::exception& e) {
             logger::error("UIManager: SetRequiredXP exception: {}", e.what());

@@ -828,12 +828,16 @@ read their records (a record whose reader threw is skipped; `GetNextRecordInfo` 
   unknown version - all progress - so going back to 1.5.0 now loses only these counters. Read entries wait in
   `m_pendingCapTrackers` and `EndLoad` puts them onto the entries `SLPR` made, whatever order the records came
   in (`ProgressionCoSave::ApplyCapEntries`); a spell with no progress entry gets none made. A save without
-  `SLPX` loads with the counters at 0, as before. The required XP is not saved: the tree's number
-  (`SetRequiredXP(..., fromTree)` from `LoadSpellTree`) is kept in `m_treeRequiredXP`, which a revert does not
-  clear (the tree is the same for every save); this character's numbers from the panel (a target's,
-  `RequiredXPSync`, reverse unlock share included) are in `m_characterRequiredXP`, cleared on revert. `EndLoad`
-  sizes every entry from them - the character's, else the tree's, else the tier (`BaseRequiredXP`) - once all
-  records are in, since the reverse unlock share reads other spells' progress. A load used to clear the tree's
+  `SLPX` loads with the counters at 0, as before. The required XP is not saved. Three kinds of number are
+  kept apart (`include/RequiredXPTable.h`, `m_requiredXP`): the tree's (`SetRequiredXP(..., Kind::kTree)` from
+  `LoadSpellTree`) and the player's per-spell XP overrides from the settings (`xpOverrides` in config.json,
+  read by `ApplySettingsFromConfig` at every config load and save, persistentId keys resolved, a persistentId
+  key winning over a formId key) both survive a revert; this character's numbers from the panel (a target's,
+  `RequiredXPSync`, `Kind::kCharacter`) are cleared on revert. A spell's number is this character's, else
+  (override, else tree, else tier) times the reverse unlock share - the panel's `getRequiredXPForNode`.
+  `EndLoad` sizes every entry from it (`BaseRequiredXP`) once all records are in, since the reverse unlock
+  share reads other spells' progress; `progression-check` checks the table (an override still applies after
+  a reload). A load used to clear the tree's
   numbers and size entries in record order; the panel still sends its numbers again (`RequiredXPSync`).
 - `SLEL` v2 (2026-10-27): a spell whose tome ISL studies is in the early set (the effect hook weakens it once ISL
   adds it) and held for ISL until ISL teaches it (`OnStudyComplete` -> `OnISLTaught`, or the player is seen to
@@ -907,7 +911,7 @@ down to the root at once. One rule, three places that ask it:
   same lookup (`ProgressionManager::GetReverseUnlockXPShare`). C++ keeps the number it was sent with
   the target; `RequiredXPSync` (`modules/requiredXPSync.js`) sends it again through the `SetRequiredXP`
   listener whenever C++ reports another one - after a load (the co-save keeps only the percent; C++ keeps the tree's numbers
-  across loads in `m_treeRequiredXP`, tier XP for a spell the tree has none for), or when a known higher spell or a share
+  and the settings' overrides across loads, `RequiredXPTable.h`), or when a known higher spell or a share
   slider changes it mid-session. The Learn button, auto-advance,
   the progress read-out, the spell card and the tree's XP rings all use it. The Learn button used to
   send `node.requiredXP || 100`, and nothing ever set `node.requiredXP`, so every spell started from

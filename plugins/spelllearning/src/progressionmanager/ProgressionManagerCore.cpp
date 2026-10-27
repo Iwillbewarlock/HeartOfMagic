@@ -43,8 +43,8 @@ void ProgressionManager::ClearAllProgress()
     m_learningTargets.clear();
     m_spellProgress.clear();
     m_targetPrerequisites.clear();
-    // This character's required XP numbers go; the tree's (m_treeRequiredXP) stay
-    m_characterRequiredXP.clear();
+    // This character's required XP numbers go; the tree's and the settings' overrides stay
+    m_requiredXP.OnRevert();
     // The tree's prerequisites (m_prereqRequirements, m_requiredBy) stay: they
     // come from the tree, the same for every save, and the panel sends them only
     // when a tree is loaded or rebuilt (SetTreePrerequisites, which clears first).

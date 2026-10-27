@@ -343,7 +343,7 @@ This project does not have a C++ test framework. Validation is done through:
   a re-run patch's shifted lists against the JSON, a book whose override is in Synthesis.esp); exit 1 on a failure) and `progression-check`
   (`progression-check --self-test`: the co-save's
   learning targets (SLTR), progress (SLPR v1-v3, written as v2), cap tracker (SLPX), early-learned (SLEL v1-v2) and tome XP (SLTX) records, `include/ProgressionCoSave.h`,
-  written and read in byte buffers - cut short, over the limits, SLPX without an SLPR entry - and the XP cap, study, SetSpellXP, AddXP (a required XP of 0 keeps the progress), passive tick (game hours) and mastery arithmetic of `include/ProgressionMath.h`;
+  written and read in byte buffers - cut short, over the limits, SLPX without an SLPR entry - and the XP cap, study, SetSpellXP, AddXP (a required XP of 0 keeps the progress), passive tick (game hours) and mastery arithmetic of `include/ProgressionMath.h`, and the required XP table by kind (`include/RequiredXPTable.h`: tree, settings override, this character's; an override still applies after a reload);
   exit 1 on a failure)
 
 ## Code Style

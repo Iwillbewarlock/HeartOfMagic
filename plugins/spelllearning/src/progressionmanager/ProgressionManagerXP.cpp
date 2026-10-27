@@ -440,24 +440,23 @@ float ProgressionManager::GetRequiredXP(RE::FormID formId) const
 
 float ProgressionManager::BaseRequiredXP(RE::FormID formId) const
 {
-    for (const auto* map : { &m_characterRequiredXP, &m_treeRequiredXP }) {
-        if (auto it = map->find(formId); it != map->end() && it->second > 0.0f) return it->second;
-    }
+    if (m_requiredXP.HasCharacterValue(formId)) return m_requiredXP.For(formId, 0.0f, false, 1.0f);
 
-    // If no progress data, try to determine from spell tier. The panel sends the
-    // required XP when a spell becomes the learning target, reverse unlock
-    // discount included; this is the same number for a spell it has not sent yet
-    // (a tome read before the spell was ever a target).
-    float required = m_xpSettings.xpNovice;  // Default to novice
+    // The panel's getRequiredXPForNode: override, else the tree's, else the tier's,
+    // times the reverse unlock share - the same number for a spell the panel has
+    // not sent (a tome read before the spell was ever a target, a save just loaded).
+    float tierXP = m_xpSettings.xpNovice;  // Default to novice
+    float share = 1.0f;
+    bool opened = false;
     auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(formId);
     if (spell) {
         // Use perk-based tier detection (fixes modded master spells with minimumSkill=0)
-        std::string tier = SpellScanner::DetermineSpellTier(spell);
-        required = GetXPForTier(tier);
+        const std::string tier = SpellScanner::DetermineSpellTier(spell);
+        tierXP = GetXPForTier(tier);
+        opened = IsUnlockedByKnownChild(formId);
+        if (opened) share = GetReverseUnlockXPShare(tier);
     }
-    if (spell && IsUnlockedByKnownChild(formId)) {
-        required *= GetReverseUnlockXPShare(SpellScanner::DetermineSpellTier(spell));
-    }
+    const float required = m_requiredXP.For(formId, tierXP, opened, share);
     return required;
 }
 
@@ -538,12 +537,26 @@ float ProgressionManager::GetProgressPercent(RE::FormID formId) const
     return it != m_spellProgress.end() ? it->second.progressPercent : 0.0f;
 }
 
-void ProgressionManager::SetRequiredXP(RE::FormID formId, float required, bool fromTree)
+void ProgressionManager::SetRequiredXP(RE::FormID formId, float required, RequiredXP::Kind kind)
 {
     if (required <= 0.0f) {
         logger::warn("ProgressionManager: SetRequiredXP called with non-positive value {:.1f} for {:08X}, clamping to 1.0", required, formId);
         required = 1.0f;
     }
-    (fromTree ? m_treeRequiredXP : m_characterRequiredXP)[formId] = required;
-    EnsureProgress(formId).requiredXP = required;
+    m_requiredXP.Set(kind, formId, required);
+    // A tree number counts only where this character and the overrides have none
+    EnsureProgress(formId).requiredXP = kind == RequiredXP::Kind::kCharacter ? required : BaseRequiredXP(formId);
+}
+
+void ProgressionManager::SetRequiredXPOverrides(RequiredXP::Table::Map overrides)
+{
+    m_requiredXP.SetOverrides(std::move(overrides));
+    std::size_t updated = 0;
+    for (auto& [formId, progress] : m_spellProgress) {
+        if (m_requiredXP.HasCharacterValue(formId)) continue;
+        progress.requiredXP = BaseRequiredXP(formId);
+        ++updated;
+    }
+    logger::info("ProgressionManager: {} per-spell XP overrides from the settings ({} entries sized again)",
+                 m_requiredXP.OverrideCount(), updated);
 }

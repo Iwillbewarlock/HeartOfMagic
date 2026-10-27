@@ -5,7 +5,9 @@
 #include "uimanager/ConfigFile.h"
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
+#include "FormIdText.h"
 #include "ProgressionManager.h"
+#include "SpellScanner.h"
 #include "SpellEffectivenessHook.h"
 #include "SpellTomeHook.h"
 #include "SpellCastHandler.h"
@@ -107,6 +109,37 @@ std::unordered_map<std::string, ProgressionManager::ModdedSourceConfig> ReadModd
     return sources;
 }
 
+// The panel's per-spell XP overrides ("xpOverrides": persistentId "Plugin.esp|0x000812"
+// or, saved before those, a runtime formId -> XP), as the panel's getXPOverride reads
+// them: a persistentId key wins over a formId key for the same spell. A key that names
+// no loaded spell, or a value that is not a positive number, is skipped.
+static RequiredXP::Table::Map ReadXPOverrides(const nlohmann::json& config)
+{
+    RequiredXP::Table::Map overrides;
+    if (!config.contains("xpOverrides") || !config["xpOverrides"].is_object()) return overrides;
+    std::size_t skipped = 0;
+    for (const bool persistentPass : { false, true }) {
+        for (const auto& [key, value] : config["xpOverrides"].items()) {
+            const bool persistent = key.find('|') != std::string::npos;
+            if (persistent != persistentPass) continue;
+            const float xp = value.is_number() ? value.get<float>() : 0.0f;
+            RE::FormID formId = 0;
+            if (persistent) {
+                formId = SpellScanner::ResolvePersistentFormId(key);
+            } else if (const auto parsed = FormIdText::Parse(key)) {
+                formId = *parsed;
+            }
+            if (formId == 0 || !(xp > 0.0f)) {
+                ++skipped;
+                continue;
+            }
+            overrides[formId] = xp;
+        }
+    }
+    if (skipped > 0) logger::info("UIManager: {} XP overrides skipped (spell not loaded or not a positive number)", skipped);
+    return overrides;
+}
+
 // Apply runtime settings from a fully-merged config JSON.
 // Shared between OnLoadUnifiedConfig and the config save (UIManagerConfigSave.cpp).
 // Handles: early learning, spell tome, passive learning, and notification settings.
@@ -114,6 +147,9 @@ std::unordered_map<std::string, ProgressionManager::ModdedSourceConfig> ReadModd
 void ApplySettingsFromConfig(const nlohmann::json& config)
 {
     UIManager::SetPanelInfoLogging(SafeJsonValue<bool>(config, "developerMode", false));
+
+    // The player's per-spell XP overrides: global settings, kept across saves (RequiredXPTable.h)
+    ProgressionManager::GetSingleton()->SetRequiredXPOverrides(ReadXPOverrides(config));
 
     // Early learning settings
     if (config.contains("earlySpellLearning") && !config["earlySpellLearning"].is_null()) {

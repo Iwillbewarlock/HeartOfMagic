@@ -2,6 +2,7 @@
 
 #include "Common.h"
 #include "ProgressionCoSave.h"
+#include "RequiredXPTable.h"
 #include <unordered_map>
 #include <unordered_set>
 #include <string>
@@ -121,9 +122,14 @@ public:
     // Just the progress (0..1, 0 if none): no copy of the whole SpellProgress,
     // whose modded-source map allocates. For the per-effect and per-cast paths.
     float GetProgressPercent(RE::FormID formId) const;
-    // fromTree: the tree's own number (LoadSpellTree), kept across saves; otherwise
-    // this character's (the target's, RequiredXPSync: reverse unlock share), dropped on revert
-    void SetRequiredXP(RE::FormID formId, float required, bool fromTree = false);
+    // `kind`: the tree's own number (LoadSpellTree, kept across saves) or this
+    // character's (a target's, RequiredXPSync: reverse unlock share, dropped on revert).
+    // RequiredXPTable.h
+    void SetRequiredXP(RE::FormID formId, float required, RequiredXP::Kind kind);
+    // The panel settings' per-spell XP overrides (config.json "xpOverrides"), all of
+    // them; global, kept across saves. Entries without a number of this character's
+    // take them at once
+    void SetRequiredXPOverrides(RequiredXP::Table::Map overrides);
     
     // Get required XP for a spell (from progress data or tier default)
     float GetRequiredXP(const std::string& formIdStr) const;
@@ -358,16 +364,12 @@ private:
     // in EndLoad - after every SLPR entry is in, whatever order the records came in
     std::vector<ProgressionCoSave::CapEntry> m_pendingCapTrackers;
 
-    // The tree's required XP per spell (SetRequiredXP from LoadSpellTree). Not cleared
-    // with the progress: the tree is the same for every save, and a load used to drop
-    // these and fall back to the tier's number until the panel sent them again.
-    std::unordered_map<RE::FormID, float> m_treeRequiredXP;
-    // This character's numbers from the panel (a learning target's, RequiredXPSync: the
-    // reverse unlock share depends on what this character knows). Cleared on revert.
-    std::unordered_map<RE::FormID, float> m_characterRequiredXP;
-    // A spell's required XP without its progress entry: this character's from the
-    // panel, else the tree's, else the tier's (reverse unlock share included).
-    // EndLoad sizes every entry from it.
+    // Required XP numbers by kind (RequiredXPTable.h): the tree's and the settings'
+    // overrides survive a revert, this character's do not. A load used to drop all of
+    // them and fall back to the tier's number until the panel was opened again.
+    RequiredXP::Table m_requiredXP;
+    // A spell's required XP without its progress entry (RequiredXP::Table::For with its
+    // tier and reverse unlock share). EndLoad sizes every entry from it.
     float BaseRequiredXP(RE::FormID formId) const;
     bool ReadCapTrackers(SKSE::SerializationInterface* a_intfc, uint32_t length);
     void WriteCapTrackers(SKSE::SerializationInterface* a_intfc) const;

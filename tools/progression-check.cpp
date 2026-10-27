@@ -9,6 +9,7 @@
 
 #include "ProgressionCoSave.h"
 #include "ProgressionMath.h"
+#include "RequiredXPTable.h"
 
 #include <algorithm>
 #include <cmath>
@@ -543,6 +544,31 @@ namespace
                   Near(PM::ProgressAfterXP(0.4f, 10.0f, nan), 0.4f),
               "AddXP: required XP 0, negative or NaN keeps the progress (was wiped to 0)");
     }
+
+    // Required XP by kind (RequiredXPTable.h): what a revert keeps
+    void RequiredXPCases()
+    {
+        using RequiredXP::Kind;
+        RequiredXP::Table table;
+        constexpr std::uint32_t kSpell = 0x0001'2FCD;
+        constexpr float kTier = 100.0f;
+        table.Set(Kind::kTree, kSpell, 150.0f);
+        table.SetOverrides({ { kSpell, 400.0f } });
+        Check(Near(table.For(kSpell, kTier, false, 1.0f), 400.0f), "required XP: the settings' override wins over the tree");
+        table.Set(Kind::kCharacter, kSpell, 120.0f);
+        Check(Near(table.For(kSpell, kTier, false, 1.0f), 120.0f), "required XP: this character's number wins");
+        table.OnRevert();   // a reload
+        Check(Near(table.For(kSpell, kTier, false, 1.0f), 400.0f),
+              "required XP: after a reload the override still applies (only the character's number went)");
+        Check(Near(table.For(kSpell, kTier, true, 0.3f), 120.0f),
+              "required XP: the reverse unlock share on the override, as the panel works it out");
+        table.SetOverrides({});
+        Check(Near(table.For(kSpell, kTier, false, 1.0f), 150.0f), "required XP: override removed - the tree's number");
+        Check(Near(table.For(0x0300'0D62, kTier, false, 1.0f), kTier), "required XP: nothing known - the tier's");
+        table.Set(Kind::kCharacter, 0x0300'0D62, -5.0f);
+        Check(Near(table.For(0x0300'0D62, kTier, false, 1.0f), kTier) && !table.HasCharacterValue(0x0300'0D62),
+              "required XP: a non-positive number counts as none");
+    }
 }
 
 int main(int argc, char** argv)
@@ -553,6 +579,7 @@ int main(int argc, char** argv)
     }
     CoSaveCases();
     MathCases();
+    RequiredXPCases();
     std::printf("%d of %d cases passed\n", g_cases - g_failures, g_cases);
     return g_failures == 0 ? kExitOk : kExitFail;
 }
