@@ -76,7 +76,8 @@
 - 맞춤:
   - **마법책이 가르치는 주문만** 대상이다(스캐너의 `TomesBySpell`: 책이 가르치는 주문, 그리고 Spell Research Synthesizer 가
     아무것도 안 가르치게 바꾼 책은 그 짝의 주문 - `SpellTomes::SpellOf`, docs/ARCHITECTURE.md "Spell tomes that teach
-    nothing"). 그런 짝의 주문은 SR 이 이미 알고 있으니 다시 넣지 않는다. 전체 스캔의 카탈로그에는
+    nothing"). SR 의 Import 가 끝난 뒤라면 그런 짝의 주문은 SR 이 이미 알고 있어 다시 넣지 않는다(FLM 만 쓰고 Import 를
+    안 했으면 등급 목록에 없으니 HoM 이 넣는다). 전체 스캔의 카탈로그에는
     NPC·퀘스트·생물 주문도 들어 있다(TAKEALOOK 3546 중 2118). 이것까지 넣으면 플레이어용 원본과 같은 이름의 NPC 판
     (수치·퍽 연동이 다름)이 조합 후보에 함께 뜬다(2026-10-03 리뷰에서 발견).
   - 트리처럼 **음성 슬롯 주문**(`voiceSlot`), **주문 감별기가 빼는 주문**(`JudgeSpell` 의 out: 마나 소모 0 - 애완동물·탈것·추종자 부르기,

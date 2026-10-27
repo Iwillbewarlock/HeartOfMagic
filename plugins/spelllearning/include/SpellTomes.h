@@ -25,6 +25,10 @@
 
 namespace SpellTomes
 {
+    // Rebuild reasons that mean a game is loaded (the panel holds a retry for them)
+    inline constexpr std::string_view kReasonSaveLoaded = "save loaded";
+    inline constexpr std::string_view kReasonImport = "import";
+
     // The spell `book` stands for: the one it teaches, else its pair; nullptr when
     // it is no spell tome. Any thread (the snapshot is read through an atomic).
     RE::SpellItem* SpellOf(RE::TESObjectBOOK* book);

@@ -285,8 +285,9 @@ sink's `IsPairedTome`). TomeReachRecords.cpp's raw BOOK DATA read is not one: it
   from any thread. A rebuild with the same pairs changes nothing; different pairs get a new generation, which
   re-runs the tome reach pass, regroups the copies (`InvalidateDuplicateGroups`, then
   `PrepareTreeSpellForTomeAfterPass`), drops the carried-tome cache and tells the panel (`onSpellTomesChanged`
-  `{ generation, pairedTomes, stale }`): a scan made with fewer tomes is marked stale, and a failed build at game
-  start runs once more (autoBuild.js; "Tree Built at Game Start").
+  `{ generation, pairedTomes, stale, inGame, reason }`): a scan made with fewer tomes is marked stale, and a failed
+  build at game start runs once more (autoBuild.js; "Tree Built at Game Start"). JSON ids are looked up once a
+  session (`LookupForm` walks every file by name; a message box rebuild then costs only the lists).
 - Log: `SpellTomes: N tomes - T by the book's own spell, P by Spell Research pairs (records R, script S,
   unverified), J by SynthesizedPatch.json (read|unusable|none); X pairs skipped (...) [generation G] (<reason>)`
   at each new generation, plus up to five notes (stale books, conflicts). The dev self-test's `sr-paired-tomes`
@@ -296,6 +297,13 @@ sink's `IsPairedTome`). TomeReachRecords.cpp's raw BOOK DATA read is not one: it
   Research's script does (archetype XP); the tree, its gates and the carried-tome bonus work.
 - Limits: the live fallback cannot tell a shifted pair from a true one when there is no JSON; a save without
   Spell Research set up (a new game) keeps the previous save's live pairs until its own lists are readable.
+  `SpellResearchSynthesizer.esp` is the patcher's standalone output name only (`SetTypicalOpen` in its
+  Program.cs); run inside the Synthesis app it writes into the group's plugin (`Synthesis.esp` by default), and
+  then every JSON book is stale: a warning names that plugin (`... are overridden last by 'Synthesis.esp' ...`),
+  the main menu scan finds none of those tomes, and they come from Spell Research's lists once a save with them
+  loads (the auto build's retry covers the empty tree). When a new generation comes at a save load or an Import,
+  the Spell Research registrations that follow at once run before the new tome reach pass is done, so they
+  cannot leave out `tomeUnreachable` spells (as at the first load after a game start).
 
 **Spell tier from the half-cost perk (2026-09-30):** `DetermineSpellTier` (SpellScannerHelpers.cpp) asks
 the spell's half-cost perk first, then its first effect's minimum skill. The perk step never worked: it
@@ -1661,7 +1669,10 @@ build whose layout had no preview grid to place on (`TreePreview.getOutput()` nu
 
 Settings > Hotkey > *Build Spell Tree at Start* (`autoBuild` in config.json: `"whenMissing"`, the default, or
 `"off"`; `modules/autoBuildSetting.js`). With no saved tree the game start does what Scan, Build and Apply
-would, in the closed panel (`modules/autoBuild.js`); a saved tree is never rebuilt by itself.
+would, in the closed panel (`modules/autoBuild.js`); a saved tree is never rebuilt by itself. A run that failed
+starts once more when the spell tome pairs change (`onSpellTomesChanged`, "Spell tomes that teach nothing"): once a
+session, not after the player scanned, built, applied or saved, and held in game like any run (the message carries
+`inGame` for a save load or an Import, since C++ sends `onSaveGameLoaded` after it).
 
 ```
 onPrismaReady → LoadUnifiedConfig, LoadSpellTree (as before)

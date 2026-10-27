@@ -455,10 +455,12 @@ var AutoBuild = {
     /**
      * C++ (SpellTomes.h): the spell tome pairs changed (a save's or an Import's Spell
      * Research pairs). See the head of this file.
-     * @param {{generation: number, pairedTomes: number, stale: boolean}} info
+     * @param {{generation: number, pairedTomes: number, stale: boolean, inGame: boolean}} info - inGame:
+     *   a save load or an Import, told before onSaveGameLoaded (C++ sends that one last): played from now
      */
     onSpellTomesChanged: function(info) {
         if (!info || typeof info !== 'object') return;
+        if (info.inGame === true) this._saveLoaded = true;
         if (info.stale) this._markScanStale(info);
         if (this._retried || this._run || !this._lastFailed) return;
         this._retried = true;

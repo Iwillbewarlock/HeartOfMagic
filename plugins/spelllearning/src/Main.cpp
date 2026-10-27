@@ -356,7 +356,7 @@ void OnPostLoadGame()
 
     // Spell Research's lists are the loaded save's: their tome pairs first (the
     // registrations below read the tomes), then register what they lack
-    SpellTomes::Rebuild("save loaded");
+    SpellTomes::Rebuild(SpellTomes::kReasonSaveLoaded);
     Librarian::SpellResearchPatch::OnGameLoaded();
     Librarian::PerkAdapters::Reassert("save loaded");
     Environment::SelfTest::OnGameLoaded();   // dev only: selftest.json

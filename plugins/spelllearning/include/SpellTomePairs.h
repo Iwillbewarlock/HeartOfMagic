@@ -226,6 +226,7 @@ namespace SpellTomePairs
     {
         std::unordered_map<FormId, Entry> pairs;   ///< book -> its spell
         Counts counts;
+        std::unordered_map<std::string, std::size_t> staleByWinner;   ///< stale JSON books by the plugin that wins now
         std::vector<std::string> notes;            ///< the first kKeptProblems conflicts and stale books
     };
 
@@ -269,6 +270,7 @@ namespace SpellTomePairs
                 if (!Usable(book, spell, facts, game, result)) continue;
                 if (!facts.fromPatchPlugin) {
                     ++result.counts.stale;
+                    ++result.staleByWinner[facts.winner];
                     stale.insert(book);
                     Note(result, std::format("'{}': book 0x{:08X} is overridden by '{}' now, not {} - JSON pair not used",
                         entry.name, book, facts.winner, kPatchPlugin));

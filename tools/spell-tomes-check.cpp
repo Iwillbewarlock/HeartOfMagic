@@ -189,6 +189,8 @@ namespace
             "patch: a book overridden by another plugin is stale; the live pair fills in");
         Check(!staleOne.notes.empty() && staleOne.notes.front().find("Other.esp") != std::string::npos,
             "patch: the stale note names the plugin that overrides the book");
+        Check(staleOne.staleByWinner.size() == 1 && staleOne.staleByWinner.at("Other.esp") == 1,
+            "patch: stale books are counted by the plugin that wins now");
 
         // The book teaches a spell itself: the record wins
         auto teaching = ThreeTomes();

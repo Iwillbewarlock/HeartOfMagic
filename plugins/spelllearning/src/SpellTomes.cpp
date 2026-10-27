@@ -100,14 +100,25 @@ namespace SpellTomes
             g_liveRead = true;
         }
 
+        // "plugin|local id" -> FormID (0: not there). The load order does not change in a
+        // session, and LookupForm walks every file by name: each id is looked up once.
+        std::unordered_map<std::string, Pairs::FormId> g_resolved;
+
+        Pairs::FormId Resolve(const Pairs::FormRef& ref)
+        {
+            const std::string key = std::format("{}|{}", ref.plugin, ref.localId);
+            if (const auto it = g_resolved.find(key); it != g_resolved.end()) return it->second;
+            auto* dh = RE::TESDataHandler::GetSingleton();
+            auto* form = dh ? dh->LookupForm(ref.localId, ref.plugin) : nullptr;
+            const Pairs::FormId id = form ? form->GetFormID() : 0;
+            g_resolved.emplace(key, id);
+            return id;
+        }
+
         Pairs::Facts GameFacts()
         {
             Pairs::Facts facts;
-            facts.resolve = [](const Pairs::FormRef& ref) -> Pairs::FormId {
-                auto* dh = RE::TESDataHandler::GetSingleton();
-                auto* form = dh ? dh->LookupForm(ref.localId, ref.plugin) : nullptr;
-                return form ? form->GetFormID() : 0;
-            };
+            facts.resolve = Resolve;
             facts.book = [](Pairs::FormId id) {
                 Pairs::BookFacts out;
                 auto* book = RE::TESForm::LookupByID<RE::TESObjectBOOK>(id);
@@ -150,20 +161,36 @@ namespace SpellTomes
                 c.liveOutsidePatch, c.patchConflicts, c.unequalParts, s.generation);
         }
 
+        // Synthesis runs a patcher into its own output plugin (Synthesis.esp by default);
+        // SpellResearchSynthesizer.esp is only the patcher's standalone name (its Program.cs,
+        // SetTypicalOpen). Books overridden last by one other plugin are worth one loud line.
+        void LogStaleWinners(const Pairs::Result& result)
+        {
+            for (const auto& [winner, count] : result.staleByWinner) {
+                logger::warn("SpellTomes: {} SynthesizedPatch.json books are overridden last by '{}', not {} - if Spell "
+                             "Research Synthesizer ran inside the Synthesis app, '{}' is its output; those tomes take "
+                             "Spell Research's pairs (unverified) once a save with them loads", count, winner,
+                    Pairs::kPatchPlugin, winner);
+            }
+        }
+
         // A new generation: everything that kept an answer about tomes drops it
         void OnPairsChanged(const Snapshot& now, std::string_view reason)
         {
             SpellTomeHook::GetSingleton()->InvalidateTomeInventoryCache();
+            TomeReach::Restart(now.status.generation);   // before the groups: they read the pass's answer
             SpellScanner::InvalidateDuplicateGroups();
-            TomeReach::Restart(now.status.generation);
             SpellScanner::PrepareTreeSpellForTomeAfterPass();
             const std::uint64_t generation = now.status.generation;
             const std::uint64_t scanned = g_scanGeneration.load();
             const bool stale = scanned != 0 && scanned != generation && now.paired.size() > g_scanPaired.load();
             logger::info("SpellTomes: {} - the pairs changed (generation {}, {} paired tomes{}) - tome reach runs again",
                 reason, generation, now.paired.size(), stale ? ", the last full scan had fewer: stale" : "");
+            // A save load or an Import happen in a game: the panel hears of the save only after
+            // this (NotifySaveGameLoaded ends kPostLoadGame), so it is told here that a retry must hold
+            const bool inGame = reason == kReasonSaveLoaded || reason == kReasonImport;
             const nlohmann::json payload = { { "generation", generation }, { "pairedTomes", now.paired.size() },
-                                             { "stale", stale }, { "reason", std::string(reason) } };
+                                             { "stale", stale }, { "inGame", inGame }, { "reason", std::string(reason) } };
             UIManager::GetSingleton()->NotifySpellTomesChanged(JsonText::Dump(payload));
         }
 
@@ -193,6 +220,7 @@ namespace SpellTomes
 
             logger::info("{} ({})", Describe(status), reason);
             for (const auto& note : result.notes) logger::info("SpellTomes: {}", note);
+            LogStaleWinners(result);
             if (previous) OnPairsChanged(*next, reason);
         }
     }

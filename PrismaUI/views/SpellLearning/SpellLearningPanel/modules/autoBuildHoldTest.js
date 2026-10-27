@@ -225,11 +225,12 @@ var AutoBuildHoldTest = {
         this._with(g, w.stubs, function() {
             try {
                 self.check(self._failAtMainMenu(g, w), 'tomes: the main menu scan finds no spell - the run fails');
-                A.onSaveGameLoaded();
-                g.onSpellTomesChanged(JSON.stringify({ generation: 2, pairedTomes: 40, stale: true }));
+                // C++'s order at a save load: the tome pairs first, onSaveGameLoaded last
+                g.onSpellTomesChanged(JSON.stringify({ generation: 2, pairedTomes: 40, stale: true, inGame: true }));
                 self.check(w.events.indexOf('retry') !== -1 && A.isRunning() && w.calls.join(',') === 'scan' &&
                     w.events[w.events.length - 1] === 'held',
-                    'tomes: the pairs changed in game - the failed run starts once more, its scan held');
+                    'tomes: the pairs changed at a save load (told before the save) - the failed run starts once more, its scan held');
+                A.onSaveGameLoaded();
                 self.check(w.status.indexOf('status.tomesChangedRescan') !== -1 && g.state.lastSpellData.tomesStale === 2,
                     'tomes: a stale scan is marked, with the status line');
                 A.onPanelShowing();

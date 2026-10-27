@@ -496,7 +496,7 @@ namespace Librarian::SpellResearchPatch
                 if (event && event->menuName == RE::MessageBoxMenu::MENU_NAME) {
                     // The tome pairs first: an Import that ends with the same entry count still re-paired
                     SKSE::GetTaskInterface()->AddTask([] {
-                        SpellTomes::Rebuild("import");
+                        SpellTomes::Rebuild(SpellTomes::kReasonImport);
                         SafeReconcile("import");
                     });
                 }
