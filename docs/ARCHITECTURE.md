@@ -308,7 +308,10 @@ sink's `IsPairedTome`). TomeReachRecords.cpp's raw BOOK DATA read is not one: it
   `LookupFormID` adds without a mask). The Spell Research registrations wait for a running tome reach pass
   (`TomeReach::IsRunning`): nothing is registered then, and one Reconcile runs once it is done
   (`TomeReach::RunAfterPass`) - not when the pass failed or the wait ran out (logged), not at the main menu, and not
-  for a game left since (a save load or a new game drops it; that load reconciles itself).
+  for a game left since (a save load or a new game drops it; that load reconciles itself). When the tome
+  pairs changed between the pass ending and that Reconcile (an Import: a newer generation's pass runs), it
+  waits for the newer pass instead of giving up (`TomeReach::PassOutcome::kSuperseded`, told from a timeout by
+  the generation, `TomeReachOutcome.h`, checked by `tome-reach-test --self-test`).
 
 **Spell tier from the half-cost perk (2026-09-30):** `DetermineSpellTier` (SpellScannerHelpers.cpp) asks
 the spell's half-cost perk first, then its first effect's minimum skill. The perk step never worked: it

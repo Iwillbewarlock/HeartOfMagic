@@ -11,6 +11,8 @@
 // The scan marks them tomeUnreachable and the tree leaves them out.
 // See docs/ARCHITECTURE.md, "Tomes nothing hands out".
 
+#include "tomereach/TomeReachOutcome.h"
+
 #include <chrono>
 #include <functional>
 #include <string>
@@ -43,9 +45,11 @@ namespace TomeReach
     // generation's. Any thread (the dev self-test).
     bool TomeBooks(std::uint64_t generation, std::unordered_set<RE::FormID>& keyed, std::unordered_set<RE::FormID>& skipped);
 
-    // `task(answered)` on the game thread once the pass running now is done (or at
-    // once when none runs); answered: it finished with an answer (UnreachableSpells
-    // would give one), false when it failed or the wait ran out. The wait is on a
-    // thread of its own. False (logged) when no thread could be made: `task` does not run.
-    bool RunAfterPass(std::string name, std::function<void(bool answered)> task);
+    // `task(outcome)` on the game thread once the pass running now is done (or at
+    // once when none runs). kAnswered: it finished with an answer (UnreachableSpells
+    // gives one); kFailed: it failed or the wait ran out; kSuperseded: the tome pairs
+    // changed before the task ran and a newer pass runs - wait for that one
+    // (TomeReachOutcome.h). The wait is on a thread of its own. False (logged) when no
+    // thread could be made: `task` does not run.
+    bool RunAfterPass(std::string name, std::function<void(PassOutcome outcome)> task);
 }

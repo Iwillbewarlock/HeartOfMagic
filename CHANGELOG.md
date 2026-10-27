@@ -73,6 +73,10 @@
 - **Deleting a spell in edit mode and adding another no longer mixes up their copies and progress.** The lookups
   built over the tree's spells were kept when the count stayed the same.
 
+- **Spell Research's registrations are no longer skipped after an Import made during the tome check.** When the
+  Import changed the tomes just as the check finished, Heart of Magic took the new check for a failure and
+  registered nothing until the next load; it now waits for the new check.
+
 ## Heart of Magic Librarian 1.6.0
 
 ### New

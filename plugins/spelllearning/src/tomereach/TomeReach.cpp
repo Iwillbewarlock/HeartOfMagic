@@ -221,7 +221,7 @@ namespace TomeReach
         return true;
     }
 
-    bool RunAfterPass(std::string name, std::function<void(bool answered)> task)
+    bool RunAfterPass(std::string name, std::function<void(PassOutcome outcome)> task)
     {
         try {
             std::thread([name, task = std::move(task)]() mutable {
@@ -229,9 +229,30 @@ namespace TomeReach
                 try {
                     constexpr auto kTomeReachWaitLimit = std::chrono::minutes(10);
                     const bool done = WaitUntilDone(kTomeReachWaitLimit);
-                    AddTaskToGameThread(name, [done, task = std::move(task)] {
-                        std::unordered_set<RE::FormID> ignored;
-                        task(done && UnreachableSpells(ignored));
+                    std::uint64_t waited = 0;
+                    {
+                        auto& shared = Shared();
+                        std::lock_guard guard(shared.lock);
+                        waited = shared.generation;
+                    }
+                    AddTaskToGameThread(name, [done, waited, name, task = std::move(task)] {
+                        // Read together: a Restart between the wait and here starts a newer pass
+                        auto& shared = Shared();
+                        std::uint64_t current = 0;
+                        bool ready = false;
+                        bool running = false;
+                        {
+                            std::lock_guard guard(shared.lock);
+                            current = shared.generation;
+                            ready = shared.ready;
+                            running = shared.started && !shared.done;
+                        }
+                        const PassOutcome outcome = OutcomeOf(done, waited, current, ready, running);
+                        if (outcome == PassOutcome::kSuperseded) {
+                            logger::info("TomeReach: '{}' waited for generation {}, generation {} runs now", name,
+                                waited, current);
+                        }
+                        task(outcome);
                     });
                 } catch (...) {
                     logger::error("TomeReach: '{}' could not be handed to the game thread after the pass", name);

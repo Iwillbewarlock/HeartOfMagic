@@ -302,6 +302,30 @@ namespace Librarian::SpellResearchPatch
 
         void SafeReconcile(std::string_view reason);
 
+        // One Reconcile once the tome reach pass is done. A newer pass that took over
+        // before the task ran (an Import changed the tome pairs) is waited for in turn,
+        // g_waitingForPass kept: SafeReconcile("import") queued no wait of its own while
+        // it was set, so clearing it skipped the registrations until another event.
+        // False when no thread could wait (RunAfterPass logged it).
+        bool WaitForPassThenReconcile()
+        {
+            return TomeReach::RunAfterPass("SpellResearchReconcile", [session = g_gameSession](TomeReach::PassOutcome outcome) {
+                if (session != g_gameSession) return;   // that game is gone (its own load reconciles)
+                if (outcome == TomeReach::PassOutcome::kSuperseded) {
+                    g_waitingForPass = WaitForPassThenReconcile();
+                    if (!g_waitingForPass) logger::warn("SpellResearch: no wait for the newer tome reach pass - nothing registered");
+                    return;
+                }
+                g_waitingForPass = false;
+                if (RE::UI::GetSingleton()->IsMenuOpen(RE::MainMenu::MENU_NAME)) return;
+                if (outcome != TomeReach::PassOutcome::kAnswered) {
+                    logger::warn("SpellResearch: the tome reach pass failed or did not finish - nothing registered");
+                    return;
+                }
+                SafeReconcile("tome reach done");
+            });
+        }
+
         void Reconcile(std::string_view reason)
         {
             if (!g_installed) return;
@@ -318,18 +342,7 @@ namespace Librarian::SpellResearchPatch
             if (TomeReach::IsRunning()) {
                 // Without its answer spells whose tomes nothing hands out would go in for good:
                 // nothing now, g_lastSeen kept, one run once the pass is done
-                if (!g_waitingForPass) {
-                    g_waitingForPass = TomeReach::RunAfterPass("SpellResearchReconcile", [session = g_gameSession](bool answered) {
-                        if (session != g_gameSession) return;   // that game is gone (its own load reconciles)
-                        g_waitingForPass = false;
-                        if (RE::UI::GetSingleton()->IsMenuOpen(RE::MainMenu::MENU_NAME)) return;
-                        if (!answered) {
-                            logger::warn("SpellResearch: the tome reach pass failed or did not finish - nothing registered");
-                            return;
-                        }
-                        SafeReconcile("tome reach done");
-                    });
-                }
+                if (!g_waitingForPass) g_waitingForPass = WaitForPassThenReconcile();
                 return;
             }
             g_lastSeen = entries;

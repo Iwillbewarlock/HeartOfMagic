@@ -322,7 +322,7 @@ This project does not have a C++ test framework. Validation is done through:
   `AsciiText::ToLower` (A-Z only, other bytes kept) - no dump needed, exit 1 on a failure, and `librarian-check.js` runs it first; `--adapters ... -v` lists every planned
   effect write with the spells using it), `tome-reach-test` (which tree spells have tomes nothing hands
   out: `tome-reach-test -i inputs.json -s spell_scan_output.json [-v]`, inputs from `lab/tome-reach/make_inputs.py`;
-  `tome-reach-test --self-test` checks the reader on made-up plugins, no game or load order needed, exit 1 on a failure;
+  `tome-reach-test --self-test` checks the reader on made-up plugins and RunAfterPass's outcome rule (`src/tomereach/TomeReachOutcome.h`), no game or load order needed, exit 1 on a failure;
   it must list what `lab/tome-reach/expected-*.txt` lists on the same load order) and `declutter-test`
   (the native tree declutter pass: `declutter-test -i tree.json -o reply.json [-r runs]`; its positions
   must match `LayoutDeclutter.apply` in `modules/layoutDeclutter.js` on the same tree - see
