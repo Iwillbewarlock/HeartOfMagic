@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <cstdint>
 #include <unordered_map>
 #include <utility>
@@ -55,7 +56,16 @@ namespace RequiredXP
             float base = Positive(m_overrides, formId);
             if (!(base > 0.0f)) base = Positive(m_tree, formId);
             if (!(base > 0.0f)) base = tierXP;
-            return openedByKnownChild ? base * share : base;
+            return openedByKnownChild ? Shared(base, share) : base;
+        }
+
+        // The panel's Math.max(1, Math.round(base * share)): whole XP, at least 1 (2 at
+        // 30% is 1, not 0.6 - RequiredXPSync lets differences under 0.5 stand). floor(x +
+        // 0.5) is Math.round for the positive values here
+        [[nodiscard]] static float Shared(float base, float share)
+        {
+            const float rounded = std::floor(base * share + 0.5f);
+            return rounded < 1.0f ? 1.0f : rounded;
         }
 
         [[nodiscard]] std::size_t TreeCount() const { return m_tree.size(); }

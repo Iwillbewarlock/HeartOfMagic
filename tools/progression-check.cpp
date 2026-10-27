@@ -562,6 +562,17 @@ namespace
               "required XP: after a reload the override still applies (only the character's number went)");
         Check(Near(table.For(kSpell, kTier, true, 0.3f), 120.0f),
               "required XP: the reverse unlock share on the override, as the panel works it out");
+        // The panel's Math.max(1, Math.round(base * share))
+        Check(Near(RequiredXP::Table::Shared(2.0f, 0.3f), 1.0f), "required XP: 2 at 30% is 1 (not 0.6)");
+        Check(Near(RequiredXP::Table::Shared(1.0f, 0.4f), 1.0f) && Near(RequiredXP::Table::Shared(1.0f, 0.1f), 1.0f),
+              "required XP: a share under 1 XP is 1 at least (0.4, 0.1)");
+        Check(Near(RequiredXP::Table::Shared(5.0f, 0.3f), 2.0f) && Near(RequiredXP::Table::Shared(5.0f, 0.5f), 3.0f) &&
+                  Near(RequiredXP::Table::Shared(333.0f, 0.3f), 100.0f),
+              "required XP: rounded to whole XP as Math.round (1.5 -> 2, 2.5 -> 3, 99.9 -> 100)");
+        table.SetOverrides({ { 0x0400'0001, 2.0f } });
+        Check(Near(table.For(0x0400'0001, kTier, true, 0.3f), 1.0f) && Near(table.For(0x0400'0002, 7.0f, true, 0.3f), 2.0f),
+              "required XP: the rounded share on an override and on the tier");
+        table.SetOverrides({ { kSpell, 400.0f } });
         table.SetOverrides({});
         Check(Near(table.For(kSpell, kTier, false, 1.0f), 150.0f), "required XP: override removed - the tree's number");
         Check(Near(table.For(0x0300'0D62, kTier, false, 1.0f), kTier), "required XP: nothing known - the tier's");
