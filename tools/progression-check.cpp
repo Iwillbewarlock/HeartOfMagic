@@ -9,6 +9,7 @@
 
 #include "ProgressionCoSave.h"
 #include "ProgressionMath.h"
+#include "uimanager/ConfigRenames.h"
 #include "RequiredXPTable.h"
 
 #include <algorithm>
@@ -531,6 +532,23 @@ namespace
         Check(Near(PM::PassiveXPFor(5.0f, 0.0f), 0.0f) && Near(PM::PassiveXPFor(0.0f, 24.0f), 0.0f) &&
                   Near(PM::PassiveXPFor(-1.0f, 24.0f), 0.0f),
               "passive: no time, or no / a negative rate, gives nothing");
+        // The old setting name moves over before the defaults (new name) are merged
+        {
+            auto old = nlohmann::json::parse(R"({"passiveLearning":{"enabled":true,"xpPerGameHour":20}})");
+            ConfigRenames::Migrate(old);
+            Check(old["passiveLearning"].value("xpPerGameDay", 0) == 20 && !old["passiveLearning"].contains("xpPerGameHour"),
+                  "config: a saved xpPerGameHour of 20 becomes xpPerGameDay 20, the old name dropped");
+            auto both = nlohmann::json::parse(R"({"passiveLearning":{"xpPerGameHour":20,"xpPerGameDay":7}})");
+            ConfigRenames::Migrate(both);
+            Check(both["passiveLearning"].value("xpPerGameDay", 0) == 7 && !both["passiveLearning"].contains("xpPerGameHour"),
+                  "config: with both names the new one stands");
+            auto odd = nlohmann::json::parse(R"({"passiveLearning":5,"other":{"xpPerGameHour":3}})");
+            ConfigRenames::Migrate(odd);
+            auto none = nlohmann::json::parse(R"({"hotkeyCode":66})");
+            ConfigRenames::Migrate(none);
+            Check(odd["passiveLearning"] == 5 && odd["other"].contains("xpPerGameHour") && none.size() == 1,
+                  "config: no passiveLearning object, or none at all, is left as it is");
+        }
         const auto small = PM::PassiveTickFor(100.0f, 100.05f);
         Check(Near(small.grantHours, 0.0f) && Near(small.lastHours, 100.0f),
               "passive: under 0.1 h grants nothing and keeps the last time (short ticks add up)");

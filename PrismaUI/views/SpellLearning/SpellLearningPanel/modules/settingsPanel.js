@@ -1237,9 +1237,7 @@ window.onUnifiedConfigLoaded = function(dataStr) {
             var pl = data.passiveLearning;
             settings.passiveLearning.enabled = pl.enabled !== undefined ? pl.enabled : false;
             settings.passiveLearning.scope = pl.scope || 'novice';
-            // xpPerGameHour: the old name of the same number (it gave that much per game day)
-            settings.passiveLearning.xpPerGameDay = pl.xpPerGameDay !== undefined ? pl.xpPerGameDay
-                : (pl.xpPerGameHour !== undefined ? pl.xpPerGameHour : 5);
+            settings.passiveLearning.xpPerGameDay = pl.xpPerGameDay !== undefined ? pl.xpPerGameDay : 5;
             if (pl.maxByTier && typeof pl.maxByTier === 'object') {
                 settings.passiveLearning.maxByTier.novice = pl.maxByTier.novice !== undefined ? pl.maxByTier.novice : 100;
                 settings.passiveLearning.maxByTier.apprentice = pl.maxByTier.apprentice !== undefined ? pl.maxByTier.apprentice : 75;

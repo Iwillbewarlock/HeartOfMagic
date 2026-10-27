@@ -3,6 +3,7 @@
 #include "PathText.h"
 #include "FileUtils.h"
 #include "uimanager/ConfigFile.h"
+#include "uimanager/ConfigRenames.h"
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
 #include "FormIdText.h"
@@ -206,9 +207,7 @@ void ApplySettingsFromConfig(const nlohmann::json& config)
         SpellLearning::PassiveLearningSource::Settings plSettings;
         plSettings.enabled = SafeJsonValue<bool>(plConfig, "enabled", false);
         plSettings.scope = SafeJsonValue<std::string>(plConfig, "scope", "novice");
-        // "xpPerGameHour" is the old name of the same number (it gave that much per game day)
-        plSettings.xpPerGameDay = SafeJsonValue<float>(plConfig, "xpPerGameDay",
-            SafeJsonValue<float>(plConfig, "xpPerGameHour", 5.0f));
+        plSettings.xpPerGameDay = SafeJsonValue<float>(plConfig, "xpPerGameDay", 5.0f);
         if (plConfig.contains("maxByTier") && plConfig["maxByTier"].is_object()) {
             auto& tiers = plConfig["maxByTier"];
             plSettings.maxNovice = SafeJsonValue<float>(tiers, "novice", 100.0f);
@@ -403,9 +402,12 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
 
     // What the file held decides what is merged and written (ConfigFile.h)
     const auto loaded = ConfigFile::Load(path);
+    // Old setting names under their new ones, before the defaults (new names) could stand in
+    json fileConfig = loaded.config;
+    ConfigRenames::Migrate(fileConfig);
     switch (loaded.state) {
         case ConfigFile::State::Loaded:
-            MergeJsonNonNull(unifiedConfig, loaded.config);
+            MergeJsonNonNull(unifiedConfig, fileConfig);
             logger::info("UIManager: Loaded and merged unified config");
             break;
         case ConfigFile::State::Missing:
@@ -419,7 +421,7 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
         case ConfigFile::State::MovedAside:
             if (loaded.fromBackup) {
                 // The last good save stands in; the .bak stays as it is
-                MergeJsonNonNull(unifiedConfig, loaded.config);
+                MergeJsonNonNull(unifiedConfig, fileConfig);
                 logger::warn("UIManager: config.json is {} - kept as {}, config.json.bak (the last good save) is written as the new one",
                     loaded.detail, PathText::Utf8(loaded.movedTo.filename()));
             } else {
@@ -443,6 +445,7 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
         try {
             std::ifstream file(legacySettingsPath);
             json legacySettings = json::parse(file);
+            ConfigRenames::Migrate(legacySettings);
             MergeJsonNonNull(unifiedConfig, legacySettings);
             logger::info("UIManager: Migrated legacy settings.json");
         } catch (...) {}

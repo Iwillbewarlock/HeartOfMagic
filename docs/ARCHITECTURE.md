@@ -2296,11 +2296,13 @@ patch").
 
 #### Passive Learning Feature
 - **UI:** Toggle, scope dropdown (All/Root/Novice), XP-per-game-day slider (1-50), per-tier max % caps
-- **Settings:** `passiveLearning` object in `state.js` with `enabled`, `scope`, `xpPerGameDay` (read from the
-  old `xpPerGameHour` when absent: the same number, which always gave that much per game day), `maxByTier`.
+- **Settings:** `passiveLearning` object in `state.js` with `enabled`, `scope`, `xpPerGameDay`, `maxByTier`.
+  A config.json saved by 1.6.0 or earlier holds `xpPerGameHour` (the same number, which always gave that much per game
+  day): `ConfigRenames::Migrate` moves it to `xpPerGameDay` before the file is merged over the defaults, which
+  carry the new name and would otherwise win.
   `PassiveLearningSource` grants `ProgressionMath::PassiveXPFor(xpPerGameDay, hours)` = xpPerGameDay * hours / 24
 - **Persistence:** Saved/loaded via `saveUnifiedConfig`/`onUnifiedConfigLoaded`
-- **C++ side:** Not yet implemented (UI settings ready for timer-based XP granting)
+- **C++ side:** `PassiveLearningSource` (a 3 s poll thread, grants on the game thread)
 
 #### Curved Edge Rendering
 - **`_drawEdgePath()`** helper in `canvasRendererEdges.js` (was `canvasRendererV2.js`) — quadratic Bezier curves with 15% perpendicular offset
