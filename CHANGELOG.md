@@ -38,6 +38,11 @@
 - **Changing the power steps updates weakened spells' names and descriptions at once.** They kept the old
   percent until the spell reached its next step.
 
+- **One spell carried by two plugins is one node in the tree again.** The check that merges them (the same
+  editor id in the same school, such as Saints and Seducers' Conjure Hunger and an add-on's copy) read editor ids
+  the game does not keep, so it never merged anything; it now reads them from powerofthree's Tweaks, as the scan
+  does. Without Tweaks nothing changes.
+
 ## Heart of Magic Librarian 1.6.0
 
 ### New

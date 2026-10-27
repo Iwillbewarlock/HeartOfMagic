@@ -247,7 +247,9 @@ std::string UIManager::PrepareScanText(json&& output, bool tomeScan)
     Librarian::ClassifyScan(result);
 
     // Debug installs keep the full scan for offline analysis, as Papyrus RunScan does
-    if (!tomeScan && SpellScanner::DebugScanDumpEnabled()) SpellScanner::WriteScanOutput(result);
+    if (!tomeScan && SpellScanner::DebugScanDumpEnabled() && SpellScanner::WriteScanOutput(result).empty()) {
+        logger::warn("UIManager: the debug scan dump was not written (see the error above); the scan itself is fine");
+    }
     return result;
 }
 

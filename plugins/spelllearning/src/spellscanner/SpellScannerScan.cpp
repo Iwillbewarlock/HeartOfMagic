@@ -180,7 +180,10 @@ namespace SpellScanner
                 continue;
             }
 
-            // Filter out non-player spells based on editorId patterns (only when available)
+            // Filter out non-player spells based on editorId patterns (only when available).
+            // The native editor id on purpose, not GetEditorId's po3 Tweaks one: the engine
+            // keeps no spell editor ids, so this filter seldom runs, and with Tweaks' ids it
+            // would drop player spells such as Soul Trap ("trap")
             if (hasEditorId && isNonPlayerSpell(editorIdStr)) {
                 filteredCount++;
                 continue;

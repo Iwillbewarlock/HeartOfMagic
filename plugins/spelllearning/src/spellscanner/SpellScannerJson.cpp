@@ -4,6 +4,7 @@
 #include "SpellScanner.h"
 #include "librarian/PerkAdapterPatch.h"
 #include "librarian/SpellResearchPatch.h"
+#include "FileUtils.h"
 #include "PathText.h"
 #include "EncodingUtils.h"
 #include "librarian/Librarian.h"
@@ -372,14 +373,13 @@ namespace SpellScanner
             std::filesystem::create_directories(outputDir);
 
             std::filesystem::path outputPath = outputDir / SCAN_OUTPUT_FILE;
-            std::ofstream file(outputPath);
-            if (!file.is_open()) {
-                logger::error("SpellScanner: Failed to open {} for writing", PathText::Utf8(outputPath));
+            // Temp file, then a move (FileUtils): a crash or a full disk mid-write left a
+            // cut-short file that read as a whole scan. No .bak: the file is 9-20 MB
+            if (!FileUtils::WriteAtomically(outputPath, content, false)) {
+                logger::error("SpellScanner: Failed to write the scan output {} ({} bytes) - the previous file, "
+                              "if any, is left as it was", PathText::Utf8(outputPath), content.size());
                 return "";
             }
-
-            file << content;
-            file.close();
 
             logger::info("SpellScanner: Wrote scan output to {} ({} bytes)", PathText::Utf8(outputPath), content.size());
             return PathText::Utf8(outputPath);
