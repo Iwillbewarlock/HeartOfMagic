@@ -301,7 +301,7 @@ This project does not have a C++ test framework. Validation is done through:
   (MAG_ScreenShakeEffect on the twin, the Blizzard hazard on the original, values equal), the Mysticism patch
   (`HeartOfMagic_Mysticism.esp` is MAG_ScreenShakeEffect's last override), Frostwalker's matcher on the
   installed lists, the env adapter files in `perk_adapters_report.json`, Desecration's necrotic spells, the Spell Research
-  tome pairs (`sr-paired-tomes`), `IsOnGameThread()` in a task and off it (`game-thread`). Claude reads the
+  tome pairs (`sr-paired-tomes`), the threads the engine runs our entries on and `IsOnGameThread()` in a task and off it (`game-thread`). Claude reads the
   log and judges it; docs/ENVIRONMENT.md, "Self-test"
 - `node tools/frostwalker-twin-check.js [--patterns <Data>/SKSE/Plugins/Frostwalker] [--mysticism <MysticismMagic.esp>]`:
   HeartOfMagic.esp's header (light flag, HEDR 1.70, masters), each twin's record (a new record, fields equal to the
@@ -336,8 +336,8 @@ This project does not have a C++ test framework. Validation is done through:
   node has, broken shapes - every link read back by spell name, and a second pass must change nothing; exit 1 on a
   failure; also `include/FormIdText.h`, the one reader of formId text - hex, `0x` optional, any case; junk, a sign,
   a space, empty or more than 8 digits rejected; `ParseSpellOf` reads an edit mode copy's `<formId>_dup_<n>` as its
-  spell - and its `0x%08X` writer), `thread-flag-check` (`thread-flag-check --self-test`: `include/GameThreadFlag.h`, `IsOnGameThread()` -
-  true inside a task or message scope and on a thread that ran one, false on any other; exit 1 on a failure), `spell-tomes-check` (`spell-tomes-check --self-test`: `include/SpellTomePairs.h`, the pairs for tomes that teach
+  spell - and its `0x%08X` writer), `thread-flag-check` (`thread-flag-check --self-test`: `include/GameThreadFlag.h`, the scope half of `IsOnGameThread()` -
+  in inside a task, message or native scope (nested too), out on any other thread and once it closes; exit 1 on a failure), `spell-tomes-check` (`spell-tomes-check --self-test`: `include/SpellTomePairs.h`, the pairs for tomes that teach
   nothing - the SynthesizedPatch.json reader on made-up texts (null `tomeId`, malformed ids, not JSON, ill-formed
   UTF-8) and the pair rule on made-up Spell Research lists (JSON first, unequal parts, record and script parts apart,
   a re-run patch's shifted lists against the JSON, a book whose override is in Synthesis.esp); exit 1 on a failure) and `progression-check`

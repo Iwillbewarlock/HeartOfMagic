@@ -78,6 +78,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/librarian/LibrarianLoadOrderSource.cpp
     src/librarian/LibrarianSpellResearch.cpp
     src/librarian/LibrarianSpellResearchPatch.cpp
+    src/librarian/LibrarianSpellResearchFilter.cpp
     src/SpellCastHandler.cpp
     src/SpellCastImmediateHook.cpp
     src/progressionmanager/ProgressionManagerCore.cpp

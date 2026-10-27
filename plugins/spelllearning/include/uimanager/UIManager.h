@@ -115,8 +115,8 @@ public:
     // The tome pairs changed (SpellTomes.h) to the panel (onSpellTomesChanged): a stale
     // scan is marked, a build at game start that failed is tried once more (autoBuild.js)
     void NotifySpellTomesChanged(const std::string& payload);
-    // A save is loaded (NotifySaveGameLoaded; false again at the main menu). Game thread.
-    [[nodiscard]] bool IsSaveLoaded() const { return m_saveLoaded; }
+    // A game is played: a save loaded or a new game started, until the main menu. Game thread.
+    [[nodiscard]] bool IsInGame() const { return m_saveLoaded || m_newGameStarted; }
     // Spells in a saved tree's JSON (every school's nodes), before any validation
     [[nodiscard]] static std::size_t CountTreeNodes(const nlohmann::json& tree);
     // SaveSpellTree's text has spells (a text scan, TreeSaveCheck.h): the check's time in ms,
@@ -266,5 +266,6 @@ private:
     // A save is loaded (NotifySaveGameLoaded, kPostLoadGame; false again when the main
     // menu opens): a notice asked for meanwhile is shown at once. Game thread only.
     bool m_saveLoaded = false;
+    bool m_newGameStarted = false;   // kNewGame (m_saveLoaded stays false there), until the main menu
 
 };

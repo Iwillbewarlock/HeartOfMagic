@@ -289,7 +289,8 @@ sink's `IsPairedTome`). TomeReachRecords.cpp's raw BOOK DATA read is not one: it
   re-runs the tome reach pass, regroups the copies (`InvalidateDuplicateGroups`, then
   `PrepareTreeSpellForTomeAfterPass`), drops the carried-tome cache and tells the panel (`onSpellTomesChanged`
   `{ generation, pairedTomes, stale, inGame, reason }`, on a later game thread task so `inGame` is UIManager's
-  save-loaded state after kPostLoadGame; a rebuild for a scan counts as that scan): a scan made with fewer tomes
+  state after kPostLoadGame - a save loaded or a new game, `IsInGame`; a rebuild for a scan is not stale, and the
+  scan notes its pairs once its forms are read, `NoteFullScan`): a scan made with fewer tomes
   is marked stale, and a failed
   build at game start runs once more (autoBuild.js; "Tree Built at Game Start"). JSON ids are looked up once a
   session (`LookupForm` walks every file by name; a message box rebuild then costs only the lists).
@@ -306,7 +307,8 @@ sink's `IsPairedTome`). TomeReachRecords.cpp's raw BOOK DATA read is not one: it
   is named in the per-plugin line). A light plugin's JSON id must fit 12 bits (`LocalIdFits`; CommonLib's
   `LookupFormID` adds without a mask). The Spell Research registrations wait for a running tome reach pass
   (`TomeReach::IsRunning`): nothing is registered then, and one Reconcile runs once it is done
-  (`TomeReach::RunAfterPass`).
+  (`TomeReach::RunAfterPass`) - not when the pass failed or the wait ran out (logged), not at the main menu, and not
+  for a game left since (a save load or a new game drops it; that load reconciles itself).
 
 **Spell tier from the half-cost perk (2026-09-30):** `DetermineSpellTier` (SpellScannerHelpers.cpp) asks
 the spell's half-cost perk first, then its first effect's minimum skill. The perk step never worked: it

@@ -206,7 +206,7 @@ namespace SpellScanner
     void PrepareTreeSpellForTomeAfterPass()
     {
         // Copy tomes are grouped on first use when no thread can wait
-        TomeReach::RunAfterPass("PrepareTreeSpellForTome", [] { PrepareTreeSpellForTome(); });
+        TomeReach::RunAfterPass("PrepareTreeSpellForTome", [](bool) { PrepareTreeSpellForTome(); });
     }
 
     std::vector<RE::FormID> DuplicateGroupOf(RE::FormID spell)

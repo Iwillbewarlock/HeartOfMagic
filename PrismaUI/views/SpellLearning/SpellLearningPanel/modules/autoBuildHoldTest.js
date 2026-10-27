@@ -254,7 +254,9 @@ var AutoBuildHoldTest = {
         w.stubs.TreeGrowthClassic.buildTree = function(opts) {
             w.calls.push('build');
             w.builtWith = opts;
+            // the C++ tree comes in through loadTreeData, as classicMain.js does
             g.TreeGrowthClassic._treeData = { built: w.calls.length };
+            g.AutoBuild.noteTreeData(g.TreeGrowthClassic._treeData);
             return true;
         };
         w.stubs.TreeGrowthClassic.applyTree = function(opts) { w.calls.push('apply'); w.appliedWith = opts; return ++applies > 1; };
@@ -275,6 +277,37 @@ var AutoBuildHoldTest = {
                 w.builtWith.onComplete('ok');
                 w.appliedWith.onSaved(3);
                 self.check(!A.isRunning() && w.events[w.events.length - 1] === 'done', 'tomes: the retry saves its tree');
+            } finally { A._resetForTest(); g.TreeGrowthClassic._treeData = null; }
+        });
+        this._testTomesTimeoutInBuild(g);
+    },
+
+    /** The run's tree came in (loadTreeData), then the run timed out waiting for the locks: dropped, the retry builds. */
+    _testTomesTimeoutInBuild: function(g) {
+        var self = this, A = g.AutoBuild, w = this._world(g);
+        w.stubs._panelVisible = true;
+        w.stubs.TreeGrowthClassic.buildTree = function(opts) {
+            w.calls.push('build');
+            w.builtWith = opts;
+            g.TreeGrowthClassic._treeData = { built: w.calls.length };
+            g.AutoBuild.noteTreeData(g.TreeGrowthClassic._treeData);
+            return true;
+        };
+        this._with(g, w.stubs, function() {
+            try {
+                self._begin(g, false);
+                A.onSpellData();
+                g.onSpellTomesChanged({ generation: 2, pairedTomes: 7, stale: false });
+                w.fire(A.RUN_TIMEOUT_MS);   // still in the build step (PreReq Master's locks)
+                self.check(g.TreeGrowthClassic._treeData === null && w.events.indexOf('retry') !== -1,
+                    'tomes: a run timed out with its tree in - the tree is dropped, the retry starts');
+                A.onSpellData();
+                self.check(w.calls.join(',') === 'scan,build,scan,build' && w.events.indexOf('yielded') === -1,
+                    'tomes: the retry builds instead of yielding to the dropped tree');
+                g.TreeGrowthClassic._treeData = { player: true };
+                A.yieldTo('build');
+                A.noteTreeData({ late: true });
+                self.check(g.TreeGrowthClassic._treeData.player === true, 'tomes: a player\'s tree is not taken for the run\'s');
             } finally { A._resetForTest(); g.TreeGrowthClassic._treeData = null; }
         });
     },

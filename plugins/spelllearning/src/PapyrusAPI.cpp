@@ -25,7 +25,9 @@ namespace PapyrusAPI
     // THREADING
     // =========================================================================
     //
-    // Papyrus runs these on its own worker threads, never on the game thread.
+    // Registered not callable from tasklets (RegisterGameThreadNative, ThreadUtils.h): the VM
+    // runs them as game thread work, inside the scope, so IsOnGameThread() is true and the
+    // helpers below run the work at once. The posting path stays for any other caller.
     // ProgressionManager has no lock and says so in its header: every caller
     // must be on the game thread. These used to reach straight into it, so a
     // script adding XP while the game thread was inserting into the same map
@@ -454,47 +456,47 @@ namespace PapyrusAPI
         }
 
         // === Menu ===
-        vm->RegisterFunction("OpenMenu", SCRIPT_NAME, OpenMenu);
-        vm->RegisterFunction("CloseMenu", SCRIPT_NAME, CloseMenu);
-        vm->RegisterFunction("ToggleMenu", SCRIPT_NAME, ToggleMenu);
-        vm->RegisterFunction("IsMenuOpen", SCRIPT_NAME, IsMenuOpen);
-        vm->RegisterFunction("GetVersion", SCRIPT_NAME, GetVersion);
+        RegisterGameThreadNative<OpenMenu>(vm, "OpenMenu", SCRIPT_NAME);
+        RegisterGameThreadNative<CloseMenu>(vm, "CloseMenu", SCRIPT_NAME);
+        RegisterGameThreadNative<ToggleMenu>(vm, "ToggleMenu", SCRIPT_NAME);
+        RegisterGameThreadNative<IsMenuOpen>(vm, "IsMenuOpen", SCRIPT_NAME);
+        RegisterGameThreadNative<GetVersion>(vm, "GetVersion", SCRIPT_NAME);
 
         // === XP ===
-        vm->RegisterFunction("RegisterXPSource", SCRIPT_NAME, RegisterXPSource);
-        vm->RegisterFunction("AddSourcedXP", SCRIPT_NAME, AddSourcedXP);
-        vm->RegisterFunction("AddRawXP", SCRIPT_NAME, AddRawXP);
-        vm->RegisterFunction("SetSpellXP", SCRIPT_NAME, SetSpellXP);
+        RegisterGameThreadNative<RegisterXPSource>(vm, "RegisterXPSource", SCRIPT_NAME);
+        RegisterGameThreadNative<AddSourcedXP>(vm, "AddSourcedXP", SCRIPT_NAME);
+        RegisterGameThreadNative<AddRawXP>(vm, "AddRawXP", SCRIPT_NAME);
+        RegisterGameThreadNative<SetSpellXP>(vm, "SetSpellXP", SCRIPT_NAME);
 
         // === Progress Queries ===
-        vm->RegisterFunction("GetSpellProgress", SCRIPT_NAME, GetSpellProgress);
-        vm->RegisterFunction("GetSpellCurrentXP", SCRIPT_NAME, GetSpellCurrentXP);
-        vm->RegisterFunction("GetSpellRequiredXP", SCRIPT_NAME, GetSpellRequiredXP);
-        vm->RegisterFunction("IsSpellMastered", SCRIPT_NAME, IsSpellMastered);
-        vm->RegisterFunction("IsSpellUnlocked", SCRIPT_NAME, IsSpellUnlocked);
-        vm->RegisterFunction("IsSpellAvailableToLearn", SCRIPT_NAME, IsSpellAvailableToLearn);
-        vm->RegisterFunction("ArePrerequisitesMet", SCRIPT_NAME, ArePrerequisitesMet);
+        RegisterGameThreadNative<GetSpellProgress>(vm, "GetSpellProgress", SCRIPT_NAME);
+        RegisterGameThreadNative<GetSpellCurrentXP>(vm, "GetSpellCurrentXP", SCRIPT_NAME);
+        RegisterGameThreadNative<GetSpellRequiredXP>(vm, "GetSpellRequiredXP", SCRIPT_NAME);
+        RegisterGameThreadNative<IsSpellMastered>(vm, "IsSpellMastered", SCRIPT_NAME);
+        RegisterGameThreadNative<IsSpellUnlocked>(vm, "IsSpellUnlocked", SCRIPT_NAME);
+        RegisterGameThreadNative<IsSpellAvailableToLearn>(vm, "IsSpellAvailableToLearn", SCRIPT_NAME);
+        RegisterGameThreadNative<ArePrerequisitesMet>(vm, "ArePrerequisitesMet", SCRIPT_NAME);
 
         // === Learning Target Control ===
-        vm->RegisterFunction("GetLearningTarget", SCRIPT_NAME, GetLearningTarget);
-        vm->RegisterFunction("GetAllLearningTargets", SCRIPT_NAME, GetAllLearningTargets);
-        vm->RegisterFunction("GetLearningMode", SCRIPT_NAME, GetLearningMode);
-        vm->RegisterFunction("SetLearningTarget", SCRIPT_NAME, SetLearningTarget);
-        vm->RegisterFunction("SetLearningTargetForSchool", SCRIPT_NAME, SetLearningTargetForSchool);
-        vm->RegisterFunction("ClearLearningTarget", SCRIPT_NAME, ClearLearningTarget);
-        vm->RegisterFunction("ClearAllLearningTargets", SCRIPT_NAME, ClearAllLearningTargets);
+        RegisterGameThreadNative<GetLearningTarget>(vm, "GetLearningTarget", SCRIPT_NAME);
+        RegisterGameThreadNative<GetAllLearningTargets>(vm, "GetAllLearningTargets", SCRIPT_NAME);
+        RegisterGameThreadNative<GetLearningMode>(vm, "GetLearningMode", SCRIPT_NAME);
+        RegisterGameThreadNative<SetLearningTarget>(vm, "SetLearningTarget", SCRIPT_NAME);
+        RegisterGameThreadNative<SetLearningTargetForSchool>(vm, "SetLearningTargetForSchool", SCRIPT_NAME);
+        RegisterGameThreadNative<ClearLearningTarget>(vm, "ClearLearningTarget", SCRIPT_NAME);
+        RegisterGameThreadNative<ClearAllLearningTargets>(vm, "ClearAllLearningTargets", SCRIPT_NAME);
 
         // === Settings Queries ===
-        vm->RegisterFunction("GetGlobalXPMultiplier", SCRIPT_NAME, GetGlobalXPMultiplier);
-        vm->RegisterFunction("GetXPForTier", SCRIPT_NAME, GetXPForTier);
-        vm->RegisterFunction("GetSourceCap", SCRIPT_NAME, GetSourceCap);
+        RegisterGameThreadNative<GetGlobalXPMultiplier>(vm, "GetGlobalXPMultiplier", SCRIPT_NAME);
+        RegisterGameThreadNative<GetXPForTier>(vm, "GetXPForTier", SCRIPT_NAME);
+        RegisterGameThreadNative<GetSourceCap>(vm, "GetSourceCap", SCRIPT_NAME);
 
         // === Scanning ===
-        vm->RegisterFunction("RunScan", SCRIPT_NAME, RunScan);
+        RegisterGameThreadNative<RunScan>(vm, "RunScan", SCRIPT_NAME);
 
         // === Notifications ===
-        vm->RegisterFunction("NotificationText", SCRIPT_NAME, NotificationText);
-        vm->RegisterFunction("NotificationsOff", SCRIPT_NAME, NotificationsOff);
+        RegisterGameThreadNative<NotificationText>(vm, "NotificationText", SCRIPT_NAME);
+        RegisterGameThreadNative<NotificationsOff>(vm, "NotificationsOff", SCRIPT_NAME);
 
         logger::info("PapyrusAPI: Registered {} functions under script '{}'", 29, SCRIPT_NAME);
 

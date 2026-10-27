@@ -244,18 +244,12 @@ namespace DESTIntegration {
         if (!vm) return false;
 
         // DEST_AliasExt — spell tome event registration
-        vm->RegisterFunction("RegisterForSpellTomeReadEvent",
-                             "DEST_AliasExt",
-                             DEST_Papyrus::RegisterForSpellTomeReadEvent);
+        RegisterGameThreadNative<DEST_Papyrus::RegisterForSpellTomeReadEvent>(vm, "RegisterForSpellTomeReadEvent", "DEST_AliasExt");
 
-        vm->RegisterFunction("UnregisterForSpellTomeReadEvent",
-                             "DEST_AliasExt",
-                             DEST_Papyrus::UnregisterForSpellTomeReadEvent);
+        RegisterGameThreadNative<DEST_Papyrus::UnregisterForSpellTomeReadEvent>(vm, "UnregisterForSpellTomeReadEvent", "DEST_AliasExt");
 
         // DEST_UIExt — notification helper
-        vm->RegisterFunction("Notification",
-                             "DEST_UIExt",
-                             DEST_UI_Papyrus::Notification);
+        RegisterGameThreadNative<DEST_UI_Papyrus::Notification>(vm, "Notification", "DEST_UIExt");
 
         logger::info("DESTIntegration: Registered DEST_AliasExt + DEST_UIExt Papyrus native functions");
         return true;
@@ -390,13 +384,13 @@ namespace DESTIntegration {
     {
         if (!vm) return false;
 
-        vm->RegisterFunction("OnTomeRead",          "SpellLearning_DEST", Papyrus::OnTomeRead);
-        vm->RegisterFunction("IsIntegrationActive",  "SpellLearning_DEST", Papyrus::IsIntegrationActive);
-        vm->RegisterFunction("OnTomeRead",          "SpellLearning_ISL",  Papyrus::OnTomeRead);
-        vm->RegisterFunction("IsIntegrationActive",  "SpellLearning_ISL",  Papyrus::IsIntegrationActive);
-        vm->RegisterFunction("OnStudyProgress",     "SpellLearning_ISL",  Papyrus::OnStudyProgress);
-        vm->RegisterFunction("OnStudyComplete",     "SpellLearning_ISL",  Papyrus::OnStudyComplete);
-        vm->RegisterFunction("SkipStudySkillXP",    "SpellLearning_ISL",  Papyrus::SkipStudySkillXP);
+        RegisterGameThreadNative<Papyrus::OnTomeRead>(vm, "OnTomeRead", "SpellLearning_DEST");
+        RegisterGameThreadNative<Papyrus::IsIntegrationActive>(vm, "IsIntegrationActive", "SpellLearning_DEST");
+        RegisterGameThreadNative<Papyrus::OnTomeRead>(vm, "OnTomeRead", "SpellLearning_ISL");
+        RegisterGameThreadNative<Papyrus::IsIntegrationActive>(vm, "IsIntegrationActive", "SpellLearning_ISL");
+        RegisterGameThreadNative<Papyrus::OnStudyProgress>(vm, "OnStudyProgress", "SpellLearning_ISL");
+        RegisterGameThreadNative<Papyrus::OnStudyComplete>(vm, "OnStudyComplete", "SpellLearning_ISL");
+        RegisterGameThreadNative<Papyrus::SkipStudySkillXP>(vm, "SkipStudySkillXP", "SpellLearning_ISL");
 
         logger::info("DESTIntegration: Registered SpellLearning_DEST/ISL Papyrus functions");
         return true;

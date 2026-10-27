@@ -31,7 +31,8 @@ namespace TomeReach
             std::condition_variable changed;
             bool started = false;
             std::uint64_t generation = 0;   // the pass whose result counts
-            std::size_t tomes = 0;          // tomes handed to that pass
+            std::unordered_set<RE::FormID> keyedBooks;     // tome books handed to that pass
+            std::unordered_set<RE::FormID> skippedBooks;   // ... left out: plugin not in the loaded set
             bool done = false;    // finished, well or not
             bool ready = false;   // finished well: `unreachable` holds the answer
             std::unordered_set<RE::FormID> unreachable;
@@ -136,6 +137,7 @@ namespace TomeReach
 
         auto job = std::make_shared<Job>();
         job->generation = generation;
+        std::unordered_set<RE::FormID> keyedBooks, skippedBooks;
         std::unordered_set<const RE::TESFile*> loaded;
         for (std::uint32_t i = 0; i < dh->GetLoadedModCount(); ++i) loaded.insert(dh->GetLoadedMods()[i]);
         for (std::uint32_t i = 0; i < dh->GetLoadedLightModCount(); ++i) loaded.insert(dh->GetLoadedLightMods()[i]);
@@ -153,7 +155,11 @@ namespace TomeReach
         // Every tome, a book that teaches nothing but has a Spell Research pair too
         SpellTomes::ForEachTome([&](RE::TESObjectBOOK* book, RE::SpellItem* spell) {
             Key key = 0;
-            if (!KeyOf(dh, book->GetFormID(), job->names, key)) return;
+            if (!KeyOf(dh, book->GetFormID(), job->names, key)) {
+                skippedBooks.insert(book->GetFormID());
+                return;
+            }
+            keyedBooks.insert(book->GetFormID());
             job->tomes.insert(key);
             job->tomesOf[spell->GetFormID()].push_back(key);
         });
@@ -166,7 +172,8 @@ namespace TomeReach
             // This generation's answer from now on: a pass still running for an older one is dropped
             std::lock_guard guard(shared.lock);
             shared.generation = generation;
-            shared.tomes = job->tomes.size();
+            shared.keyedBooks = std::move(keyedBooks);
+            shared.skippedBooks = std::move(skippedBooks);
             shared.done = false;
             shared.ready = false;
             shared.unreachable.clear();
@@ -204,22 +211,28 @@ namespace TomeReach
         return shared.started && !shared.done;
     }
 
-    std::size_t TomeCount(std::uint64_t generation)
+    bool TomeBooks(std::uint64_t generation, std::unordered_set<RE::FormID>& keyed, std::unordered_set<RE::FormID>& skipped)
     {
         auto& shared = Shared();
         std::lock_guard guard(shared.lock);
-        return shared.generation == generation ? shared.tomes : 0;
+        if (shared.generation != generation) return false;
+        keyed = shared.keyedBooks;
+        skipped = shared.skippedBooks;
+        return true;
     }
 
-    bool RunAfterPass(std::string name, std::function<void()> task)
+    bool RunAfterPass(std::string name, std::function<void(bool answered)> task)
     {
         try {
             std::thread([name, task = std::move(task)]() mutable {
                 // Nothing may leave a thread function: it would end the game
                 try {
                     constexpr auto kTomeReachWaitLimit = std::chrono::minutes(10);
-                    WaitUntilDone(kTomeReachWaitLimit);
-                    AddTaskToGameThread(name, std::move(task));
+                    const bool done = WaitUntilDone(kTomeReachWaitLimit);
+                    AddTaskToGameThread(name, [done, task = std::move(task)] {
+                        std::unordered_set<RE::FormID> ignored;
+                        task(done && UnreachableSpells(ignored));
+                    });
                 } catch (...) {
                     logger::error("TomeReach: '{}' could not be handed to the game thread after the pass", name);
                 }

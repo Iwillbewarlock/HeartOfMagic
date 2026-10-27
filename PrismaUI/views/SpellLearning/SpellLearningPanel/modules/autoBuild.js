@@ -410,7 +410,6 @@ var AutoBuild = {
         var run = this._run;
         if (!this._current(run) || run.stage !== 'build') return;
         run.stage = 'apply';
-        run.tree = typeof TreeGrowthClassic !== 'undefined' ? TreeGrowthClassic._treeData : null;   // this run's, not a player's
         var self = this;
         this._step(run, 'apply', function() { self._apply(run, summary); });
     },
@@ -458,6 +457,12 @@ var AutoBuild = {
         var pending = this._pendingTomes;
         this._pendingTomes = null;
         if (pending) this._retry(pending);
+    },
+
+    /** classicMain.js loadTreeData: the builder took a tree. During this run's build step it is the run's (ownership for _dropRunTree). */
+    noteTreeData: function(data) {
+        var run = this._run;
+        if (run && run.stage === 'build') run.tree = data;
     },
 
     /** A tree this failed run built and did not save: left as the builder's, a retry's build would take it for the player's and yield. */

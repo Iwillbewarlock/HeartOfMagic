@@ -343,6 +343,8 @@ var TreeGrowthClassic = {
      */
     loadTreeData: function (data) {
         this._treeData = data;
+        // The build at game start's own tree, if it is that run's (dropped if the run fails)
+        if (typeof AutoBuild !== 'undefined' && AutoBuild.noteTreeData) AutoBuild.noteTreeData(data);
         console.log('[ClassicGrowth] loadTreeData called, schools:', data && data.schools ? Object.keys(data.schools) : 'none');
 
         // Attempt layout against the current base grid

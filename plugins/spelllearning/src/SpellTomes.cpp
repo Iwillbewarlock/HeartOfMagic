@@ -31,7 +31,8 @@ namespace SpellTomes
         namespace SRPatch = Librarian::SpellResearchPatch;
 
         constexpr const char* kPatchFile = "Data/SKSE/Plugins/SpellResearchSynthesizer/SynthesizedPatch.json";
-        // A patch of every spell of a large load order is a few MB; far past that it is not one
+        // A patch of every spell of a large load order is a few MB; far past that it is not one.
+        // Skipped, it counts as found but unusable: the dev self-test's sr-paired-tomes FAILs on purpose
         constexpr std::uintmax_t kMaxPatchBytes = 64ull * 1024 * 1024;
 
         struct Snapshot
@@ -118,7 +119,8 @@ namespace SpellTomes
             if (const auto it = g_resolved.find(key); it != g_resolved.end()) return it->second;
             auto* dh = RE::TESDataHandler::GetSingleton();
             const auto* file = dh ? dh->LookupModByName(ref.plugin) : nullptr;
-            const bool fits = file && Pairs::LocalIdFits(ref.localId, file->IsLight());
+            // VR has no light plugin index (CommonLib's LookupFormID: 24 bits there)
+            const bool fits = file && Pairs::LocalIdFits(ref.localId, file->IsLight() && !REL::Module::IsVR());
             auto* form = fits ? dh->LookupForm(ref.localId, ref.plugin) : nullptr;
             const Pairs::FormId id = form ? form->GetFormID() : 0;
             g_resolved.emplace(key, id);
@@ -190,17 +192,18 @@ namespace SpellTomes
             SpellScanner::InvalidateDuplicateGroups();
             SpellScanner::PrepareTreeSpellForTomeAfterPass();
             const std::uint64_t generation = now.status.generation;
-            if (reason == kReasonScan) NoteFullScan();   // the scan this rebuild runs for has these pairs
+            // A rebuild for a scan: that scan reads these pairs (it notes them when it is done)
             const std::uint64_t scanned = g_scanGeneration.load();
-            const bool stale = scanned != 0 && scanned != generation && now.paired.size() > g_scanPaired.load();
+            const bool stale = reason != kReasonScan && scanned != 0 && scanned != generation &&
+                now.paired.size() > g_scanPaired.load();
             logger::info("SpellTomes: {} - the pairs changed (generation {}, {} paired tomes{}) - tome reach runs again",
                 reason, generation, now.paired.size(), stale ? ", the last full scan had fewer: stale" : "");
             // Told on a later task: at a save load NotifySaveGameLoaded ends kPostLoadGame, after
-            // this, and inGame is UIManager's own state then (a retry must hold in a game)
+            // this, and inGame is UIManager's own state then (a save or a new game: a retry must hold)
             AddTaskToGameThread("SpellTomesChanged", [generation, paired = now.paired.size(), stale, why = std::string(reason)] {
                 auto* ui = UIManager::GetSingleton();
                 const nlohmann::json payload = { { "generation", generation }, { "pairedTomes", paired },
-                                                 { "stale", stale }, { "inGame", ui->IsSaveLoaded() }, { "reason", why } };
+                                                 { "stale", stale }, { "inGame", ui->IsInGame() }, { "reason", why } };
                 ui->NotifySpellTomesChanged(JsonText::Dump(payload));
             });
         }

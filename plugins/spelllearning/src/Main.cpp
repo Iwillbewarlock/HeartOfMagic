@@ -390,6 +390,7 @@ void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
 {
     // Game thread work for IsOnGameThread() while it is handled (GameThreadFlag.h)
     const GameThreadFlag::Scope gameThreadWork;
+    SampleThread(ThreadSampleKind::kMessage);
 
     switch (a_msg->type) {
         case SKSE::MessagingInterface::kPostLoad:

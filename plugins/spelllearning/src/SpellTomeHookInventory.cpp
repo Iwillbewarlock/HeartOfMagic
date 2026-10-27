@@ -1,6 +1,7 @@
 #include "SpellTomeHook.h"
 #include "SpellScanner.h"
 #include "SpellTomes.h"
+#include "ThreadUtils.h"
 
 #include <mutex>
 
@@ -46,6 +47,7 @@ namespace
             RE::BSTEventSource<RE::TESContainerChangedEvent>*) override
         {
             if (!a_event) return RE::BSEventNotifyControl::kContinue;
+            SampleThread(ThreadSampleKind::kEventSink);   // an atomic, for the dev self-test
 
             auto* player = RE::PlayerCharacter::GetSingleton();
             if (!player) return RE::BSEventNotifyControl::kContinue;

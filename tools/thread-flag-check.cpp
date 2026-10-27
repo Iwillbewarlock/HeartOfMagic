@@ -1,12 +1,13 @@
-// thread-flag-check - offline check of IsOnGameThread()
-// (plugins/spelllearning/include/GameThreadFlag.h, used by ThreadUtils.h).
+// thread-flag-check - offline check of the game thread work scope
+// (plugins/spelllearning/include/GameThreadFlag.h, used by ThreadUtils.h's IsOnGameThread).
 //
 //   thread-flag-check --self-test
 //
-// A thread that never did game thread work says no; inside a Scope yes, nested
-// scopes restore; another thread at the same time still says no; a thread that ran
-// a Scope says yes afterwards (the thread that runs tasks also runs Papyrus natives
-// outside them, and must not wait on a task of its own).
+// A thread outside a scope is not in one; inside a Scope it is, nested scopes restore,
+// another thread at the same time is not, and once the scope closes the thread is out
+// again (no "ran a task once" rule: such a thread later runs other engine work).
+// IsOnGameThread's other half, RE::Main::threadID, needs the game: the dev self-test's
+// game-thread line.
 //
 // Exit 0 when every case passes, 1 on a failure, 2 on a bad argument.
 
@@ -37,28 +38,27 @@ namespace
     bool AskOnNewThread()
     {
         bool answer = true;
-        std::thread([&answer] { answer = IsOnGameThread(); }).join();
+        std::thread([&answer] { answer = GameThreadFlag::InScope(); }).join();
         return answer;
     }
 
     int SelfTest()
     {
         std::thread([] {
-            Check(!IsOnGameThread(), "a thread that never did game thread work: no");
+            Check(!GameThreadFlag::InScope(), "a thread outside any scope: not in one");
             {
                 const GameThreadFlag::Scope outer;
-                Check(IsOnGameThread(), "inside a scope (a task, a message): yes");
-                Check(!AskOnNewThread(), "another thread while a scope is open: no");
+                Check(GameThreadFlag::InScope(), "inside a scope (a task, a message, a native): in");
+                Check(!AskOnNewThread(), "another thread while a scope is open: not in");
                 {
                     const GameThreadFlag::Scope inner;
-                    Check(GameThreadFlag::t_inScope, "a nested scope: still in");
+                    Check(GameThreadFlag::InScope(), "a nested scope: in");
                 }
-                Check(GameThreadFlag::t_inScope, "the nested scope closed: the outer one still in");
+                Check(GameThreadFlag::InScope(), "the nested scope closed: the outer one still in");
             }
-            Check(!GameThreadFlag::t_inScope, "every scope closed: out of the scope");
-            Check(IsOnGameThread(), "a thread that ran game thread work: yes after it (no wait on itself)");
+            Check(!GameThreadFlag::InScope(), "every scope closed: out again (a task once is no rule)");
         }).join();
-        Check(!IsOnGameThread(), "the main thread of this check never opened a scope: no");
+        Check(!GameThreadFlag::InScope(), "the check's main thread never opened a scope: not in");
         std::printf("thread-flag-check: %d checks, %d failed\n", g_checks, g_failures);
         return g_failures == 0 ? kExitOk : kExitFailed;
     }

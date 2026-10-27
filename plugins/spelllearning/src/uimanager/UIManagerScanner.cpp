@@ -143,10 +143,13 @@ void UIManager::StartScan(std::string argStr, std::shared_ptr<ScanTicket> ticket
                 // The tome pairs first: a new generation restarts the pass this scan then waits for,
                 // instead of restarting it after the wait and leaving the scan without its marks
                 constexpr auto kRebuildWait = std::chrono::seconds(10);
-                (void)RunOnGameThreadAndWait("SpellTomesBeforeScan", [] {
-                    SpellTomes::Rebuild(SpellTomes::kReasonScan);
-                    return true;
-                }, kRebuildWait);
+                if (!RunOnGameThreadAndWait("SpellTomesBeforeScan", [] {
+                        SpellTomes::Rebuild(SpellTomes::kReasonScan);
+                        return true;
+                    }, kRebuildWait)) {
+                    logger::warn("UIManager: the tome pairs were not read again before the scan (game thread did not "
+                                 "answer) - a new generation may restart the tome reach pass during it");
+                }
                 if (!TomeReach::WaitUntilDone(kTomeReachWait)) {
                     logger::info("UIManager: the scan did not wait for the tome reach pass (not started or still running)");
                 }

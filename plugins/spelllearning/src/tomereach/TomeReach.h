@@ -38,11 +38,14 @@ namespace TomeReach
     // A pass was started and is not done yet (the answer is coming). Any thread.
     bool IsRunning();
 
-    // Tomes handed to the pass of `generation` (0 when it was not that one). Any thread.
-    std::size_t TomeCount(std::uint64_t generation);
+    // The tome books handed to the pass of `generation`, and the ones left out because
+    // their plugin is not in the loaded set (KeyOf). False when the last pass is not that
+    // generation's. Any thread (the dev self-test).
+    bool TomeBooks(std::uint64_t generation, std::unordered_set<RE::FormID>& keyed, std::unordered_set<RE::FormID>& skipped);
 
-    // `task` on the game thread once the pass running now is done (or at once
-    // after it when none runs); the wait is on a thread of its own. False (logged)
-    // when no thread could be made: `task` does not run.
-    bool RunAfterPass(std::string name, std::function<void()> task);
+    // `task(answered)` on the game thread once the pass running now is done (or at
+    // once when none runs); answered: it finished with an answer (UnreachableSpells
+    // would give one), false when it failed or the wait ran out. The wait is on a
+    // thread of its own. False (logged) when no thread could be made: `task` does not run.
+    bool RunAfterPass(std::string name, std::function<void(bool answered)> task);
 }
