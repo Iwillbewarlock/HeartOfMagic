@@ -3,6 +3,7 @@
 #include "JsonText.h"
 #include "PathText.h"
 #include "ScanRecord.h"
+#include "ScanRecordRules.h"
 #include "librarian/Librarian.h"
 
 #include <algorithm>
@@ -23,7 +24,8 @@ namespace
     constexpr const char* kRulesDir = "Data/SKSE/Plugins/SpellLearning/librarian";   // LibrarianInternal.h RULE_SUBDIR
     constexpr int kReadTries = 3;                                                    // a file held a moment (a virus scan)
     constexpr auto kReadRetryWait = std::chrono::milliseconds(25);
-    constexpr int kRecordVersion = 1;
+    // 2: "scan" (LoadOrderFingerprint::Value::scan) is what matches; a version 1 record never does
+    constexpr int kRecordVersion = 2;
     constexpr int kRecordIndent = 2;
     constexpr std::size_t kReadChunk = 1 << 16;
 
@@ -128,11 +130,13 @@ namespace
 
 namespace ScanRecord
 {
-    void CatalogWritten(const LoadOrderFingerprint::Value* fullScanLoadOrder) noexcept
+    void CatalogWritten(const LoadOrderFingerprint::Value* fullScanLoadOrder, std::string_view incomplete) noexcept
     {
         try {
-            if (!fullScanLoadOrder || fullScanLoadOrder->hash.empty()) {
-                RemoveRecord(fullScanLoadOrder ? "the load order is unknown" : "the catalog was written by a tome scan, or the load order is unknown");
+            const auto decision = ScanRecordRules::DecideRecord(fullScanLoadOrder != nullptr,
+                fullScanLoadOrder ? std::string_view(fullScanLoadOrder->scan) : std::string_view(), incomplete);
+            if (decision.action != ScanRecordRules::RecordAction::kWrite) {
+                RemoveRecord(decision.why.c_str());
                 return;
             }
             const auto catalog = HashFile(kCatalogFile);
@@ -143,6 +147,7 @@ namespace ScanRecord
             nlohmann::json data;
             data["version"] = kRecordVersion;
             data["loadOrder"] = fullScanLoadOrder->hash;
+            data["scan"] = fullScanLoadOrder->scan;
             data["plugins"] = fullScanLoadOrder->plugins;
             data["spells"] = fullScanLoadOrder->spells;
             data["catalogBytes"] = catalog->bytes;
@@ -153,8 +158,8 @@ namespace ScanRecord
                 RemoveRecord("its write failed");
                 return;
             }
-            logger::info("ScanRecord: catalog made under load order {} ({} plugins, {} spell forms)",
-                fullScanLoadOrder->hash, fullScanLoadOrder->plugins, fullScanLoadOrder->spells);
+            logger::info("ScanRecord: catalog made under load order {} (scan fingerprint {}, {} plugins, {} spell forms)",
+                fullScanLoadOrder->hash, fullScanLoadOrder->scan, fullScanLoadOrder->plugins, fullScanLoadOrder->spells);
         } catch (const std::exception& e) {
             logger::error("ScanRecord: the record was not kept: {}", e.what());
         } catch (...) {
@@ -174,7 +179,7 @@ namespace ScanRecord
     bool CatalogMatches(const LoadOrderFingerprint::Value& now) noexcept
     {
         try {
-            if (now.hash.empty()) return false;
+            if (now.scan.empty()) return false;
             std::ifstream file(kRecordFile, std::ios::binary);
             if (!file.is_open()) return false;
             const auto data = nlohmann::json::parse(file, nullptr, false);
@@ -182,7 +187,12 @@ namespace ScanRecord
                 logger::warn("ScanRecord: {} could not be read - the catalog's load order is unknown", kRecordFile);
                 return false;
             }
-            if (TextField(data, "loadOrder") != now.hash) return false;
+            const auto version = data.find("version");
+            if (version == data.end() || !version->is_number_integer() || version->get<int>() != kRecordVersion) {
+                logger::info("ScanRecord: {} is from an older version - the catalog's load order is unknown", kRecordFile);
+                return false;
+            }
+            if (TextField(data, "scan") != now.scan) return false;
             const auto catalog = HashFile(kCatalogFile);
             if (!catalog) return false;
             const auto bytes = data.find("catalogBytes");

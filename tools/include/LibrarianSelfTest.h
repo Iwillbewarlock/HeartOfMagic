@@ -14,3 +14,7 @@ void RunAdapterSelfTest(int& passed, int& failed);
 // The explosion twin rules (environment-selftest.cpp: Frostwalker's matcher,
 // its pattern files, which effects take a twin), adding to the counts.
 void RunEnvironmentSelfTest(int& passed, int& failed);
+
+// The scan record's pure rules (scanrecord-selftest.cpp, ScanRecordRules.h: the scan
+// fingerprint's inputs, what makes a scan incomplete, when a record is kept), adding to the counts.
+void RunScanRecordSelfTest(int& passed, int& failed);

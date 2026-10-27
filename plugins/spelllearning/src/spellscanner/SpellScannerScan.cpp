@@ -146,6 +146,7 @@ namespace SpellScanner
         int skipNoSchool = 0;   // No magic school
         int diagSamples = 0;    // How many diagnostic samples logged
         std::size_t lost = 0;   // kept spells no longer found by FormID in a later step
+        bool tomeReachMarked = false;   // the marks step had the tome reach pass's answer
 
         std::size_t steps = 0;
         double longestMs = 0.0;
@@ -356,7 +357,8 @@ namespace SpellScanner
         for (auto* spell : spells) kept.push_back(spell->GetFormID());
 
         taught = SpellsTaughtByTomes();
-        if (!TomeReach::UnreachableSpells(unreachable)) {
+        tomeReachMarked = TomeReach::UnreachableSpells(unreachable);
+        if (!tomeReachMarked) {
             logger::info("SpellScanner: the tome reach pass has not finished - no spell is marked tomeUnreachable");
         }
         LogSpellsOutOfTree(spells, taught, unreachable);
@@ -453,7 +455,10 @@ namespace SpellScanner
     json FullScanCollector::Finish()
     {
         auto& st = *m_state;
-        return BuildScanOutput(std::move(st.spellArray), st.config, {});
+        auto output = BuildScanOutput(std::move(st.spellArray), st.config, {});
+        // What this scan could not mark: its catalog is not recorded (ScanRecordRules.h)
+        ScanRecordRules::MarkIncomplete(output, ScanRecordRules::IncompleteReasons(st.tomeReachMarked, VampireCastersState()));
+        return output;
     }
 
     std::size_t FullScanCollector::Steps() const noexcept { return m_state->steps; }

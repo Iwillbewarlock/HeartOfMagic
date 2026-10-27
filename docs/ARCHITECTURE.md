@@ -1782,9 +1782,23 @@ the catalog was made from (`src/AutoScan.cpp`, `include/AutoScan.h`; design:
   queued and runs after it, `EndScan`; Papyrus `RunScan` does not use that flag - no script runs at the main
   menu, and a save load drops the form reads). Otherwise nothing this session, or - another scan running,
   form reads dropped - again at the next main menu.
-- **The scan record** (`ScanRecord.h`): `{ version, loadOrder, plugins, spells, catalogBytes, catalogHash, rules }`,
+- **The scan record** (`ScanRecord.h`): `{ version: 2, loadOrder, scan, plugins, spells, catalogBytes, catalogHash, rules }`,
   the load order fingerprint (`LoadOrderFingerprint.h`, the one the tree's notice uses, moved out of
-  UIManagerAutoBuild.cpp), FNV-1a 64 of the catalog file (read back up to three times, 25 ms apart) and of
+  UIManagerAutoBuild.cpp) and the scan fingerprint `scan`, which is what matches (`LoadOrderFingerprint::Value::scan`,
+  `ScanRecordRules::ScanHash`, 2026-10-27): the load order fingerprint with each plugin's file size and last-write
+  time (the engine's `TESFile::fileData` find data, nothing read from disk; a stat of `TESFile::path` + name, then
+  `Data/` + name, only when the first plugin's find data is all zero - the log line `LoadOrderFingerprint: plugin
+  sizes and write times ... from ...` says which), FNV-1a 64 of `gate/rules.json` (`"none"` without it) and
+  `ScanRecordRules::kScannerFormatVersion`, so a plugin updated under the same name, new gate rules or a scanner
+  whose output changed make a scan due; the tree's record keeps the plain fingerprint (a re-saved plugin is no
+  reason for its notice). A record of another `version` never matches (version 1 records scan once). A full
+  scan that could not mark everything - the tome reach pass not done or failed when its marks step ran (no
+  `tomeUnreachable`), or this session's collection of the spells vampires cast failed (no `castByVampires`;
+  `SpellScanner::VampireCastersState`; one NPC that faults is skipped and logged with its FormID, the rest are
+  read) - lists why in the scan output's top-level `incomplete` array (`ScanRecordRules.h`, set by
+  `FullScanCollector::Finish`); every full-scan path (the scan at game start, the panel's full scan, Papyrus
+  `RunScan("all", ...)`) reads it before the dump and still writes the catalog, but `CatalogWritten` removes
+  the record (`DecideRecord`), so the next game start scans again. FNV-1a 64 of the catalog file (read back up to three times, 25 ms apart) and of
   `CATALOG_VERSION` with the librarian's rule files (`librarian/`, names and bytes): new rules from an update or
   a rule pack make a scan due under the same load order. The scan at game start removes the record again when
   it could not write `spell_scan_output.json`. Limit: the rules are hashed from disk after the catalog was
@@ -1822,7 +1836,9 @@ the catalog was made from (`src/AutoScan.cpp`, `include/AutoScan.h`; design:
   `catalog written in N ms; scan output written to ...`, and `ScanRecord: ...`.
 - **Self-test** (dev installs, `selftest.json` `"autoScan": { "enabled": true, "sliceMs": 4, "budgetMs": 25 }`,
   shipped in `debug/selftest.json` for `DeployDev.ps1 -WithSelfTest`): the scan runs whatever the record says,
-  and `AutoScan SELFTEST:` lines judge it - `RUN` (catalog written, record matches), `TREE` (FNV of
+  and `AutoScan SELFTEST:` lines judge it - `RUN` (catalog written; the record matches after a complete scan
+and is gone after an incomplete one), `COMPLETE` (nothing missing from the scan; names the vampire caster
+collection's state and the `incomplete` reasons), `TREE` (FNV of
   spell_tree.json and spell_tree_loadorder.json before and after), `HITCH` (a probe thread posts a task every
   2 ms that reads the engine frame time: the longest frame during the scan against the longest of 3 s at the
   main menu before it, plus `budgetMs`, and no step forced; SKIP when the frame time never moved), `SAME` (the steps' scan equals

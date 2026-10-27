@@ -14,6 +14,13 @@
 // Limit: the count is taken when first asked for (at the main menu, normally);
 // a mod that creates SpellItems at run time before that can change it on its
 // own and look like a load order that changed.
+//
+// `scan` is the scan record's fingerprint (ScanRecord.h, ScanRecordRules.h):
+// `hash` with each plugin's file size and last-write time as the game found
+// it, the gate rules file and the scanner's format version, so a plugin
+// updated under the same name or new gate rules make a scan due. The tree's
+// record (spell_tree_loadorder.json) keeps `hash`: a plugin re-saved with the
+// same spells is no reason to tell the player the tree is out of date.
 
 namespace LoadOrderFingerprint
 {
@@ -22,6 +29,7 @@ namespace LoadOrderFingerprint
         std::string hash;          // 16 hex digits; empty before kDataLoaded
         std::size_t plugins = 0;
         std::size_t spells = 0;
+        std::string scan;          // 16 hex digits; empty when a part is unknown (see above)
     };
 
     // Game thread. Worked out once: the load order does not change while the game runs.

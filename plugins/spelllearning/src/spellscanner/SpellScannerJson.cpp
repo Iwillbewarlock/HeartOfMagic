@@ -1,6 +1,7 @@
 #include "Common.h"
 #include "AsciiText.h"
 #include "FormIdText.h"
+#include "JsonText.h"
 #include "SpellScanner.h"
 #include "librarian/PerkAdapterPatch.h"
 #include "librarian/SpellResearchPatch.h"
@@ -436,7 +437,17 @@ namespace SpellScanner
         logger::info("SpellScanner: RunScanToFile mode='{}' preset='{}'",
             tomeMode ? "tomes" : "all", effectivePreset);
 
-        std::string result = tomeMode ? ScanSpellTomes(config) : ScanAllSpells(config);
+        // CollectAllSpells and the dump are ScanAllSpells; the scan output is read for
+        // what it could not mark before it becomes text (ScanRecordRules.h)
+        std::string incomplete;
+        std::string result;
+        if (tomeMode) {
+            result = ScanSpellTomes(config);
+        } else {
+            const json collected = CollectAllSpells(config);
+            incomplete = ScanRecordRules::IncompleteOf(collected);
+            result = JsonText::Dump(collected, 2);
+        }
 
         // The librarian classifies whatever the scan just produced and merges
         // its elements into the traits, before the dump is written so the file
@@ -445,10 +456,10 @@ namespace SpellScanner
         // On the game thread it does not wait for a panel scan's classification
         // (that would stop the game for seconds); it takes the catalog there is.
         // The scan record follows the catalog file (ScanRecord.h): only a scan of
-        // every spell says which load order the catalog was made from
+        // every spell that marked everything says which load order the catalog was made from
         const auto* loadOrder = IsOnGameThread() ? &LoadOrderFingerprint::Current() : LoadOrderFingerprint::Known();
-        Librarian::ClassifyScan(result, !IsOnGameThread(), [tomeMode, loadOrder]() {
-            ScanRecord::CatalogWritten(tomeMode ? nullptr : loadOrder);
+        Librarian::ClassifyScan(result, !IsOnGameThread(), [tomeMode, loadOrder, &incomplete]() {
+            ScanRecord::CatalogWritten(tomeMode ? nullptr : loadOrder, incomplete);
         });
 
         // Papyrus RunScan: the perk adapters follow the catalog it rebuilt. A
