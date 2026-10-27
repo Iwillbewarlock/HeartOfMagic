@@ -31,6 +31,7 @@ namespace Environment::SelfTest
     void CheckFrostwalker();
     void CheckAdapters();
     void CheckSpellTomes();   // EnvironmentSelfTestTomes.cpp
+    void CheckGameThreadFlag();   // EnvironmentSelfTestTomes.cpp
 
     enum class Outcome
     {

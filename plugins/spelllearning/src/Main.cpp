@@ -388,9 +388,8 @@ void OnPostLoadGame()
 
 void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
 {
-    // SKSE delivers these on the game thread, which is the one piece of code
-    // guaranteed to run there before anything else needs to recognise it.
-    MarkGameThread();
+    // Game thread work for IsOnGameThread() while it is handled (GameThreadFlag.h)
+    const GameThreadFlag::Scope gameThreadWork;
 
     switch (a_msg->type) {
         case SKSE::MessagingInterface::kPostLoad:

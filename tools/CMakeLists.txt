@@ -219,3 +219,19 @@ target_include_directories(spell-tomes-check PRIVATE
 target_link_libraries(spell-tomes-check PRIVATE
     nlohmann_json::nlohmann_json
 )
+
+# =============================================================================
+# thread-flag-check  -  offline check of IsOnGameThread()
+# =============================================================================
+# The plugin's own GameThreadFlag.h (header only): a thread is on the game thread
+# inside a task or message scope, and after it has run one; never another thread.
+
+add_executable(thread-flag-check
+    thread-flag-check.cpp
+)
+
+target_compile_features(thread-flag-check PRIVATE cxx_std_23)
+
+target_include_directories(thread-flag-check PRIVATE
+    ${SL_INCLUDE_DIR}
+)

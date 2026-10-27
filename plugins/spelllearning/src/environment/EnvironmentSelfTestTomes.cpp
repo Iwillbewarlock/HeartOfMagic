@@ -4,7 +4,10 @@
 #include "tomereach/TomeReach.h"
 #include "librarian/LoadOrderSource.h"
 
+#include "ThreadUtils.h"
+
 #include <format>
+#include <thread>
 
 // =============================================================================
 // EnvironmentSelfTestTomes - the tome pairs check of the dev self-test
@@ -82,5 +85,21 @@ namespace Environment::SelfTest
         const bool readable = !status.patchFound || status.patchUsable;
         const bool answered = pairs.pairs == status.paired && pairs.wrongSpellOf == 0 && pairs.notInTomesBySpell == 0;
         Report(kId, resolved && readable && answered && reachTomes == pairs.tomes ? Outcome::kPass : Outcome::kFail, observed);
+    }
+
+    // The self-test runs inside a game thread task (its ticker posts it): IsOnGameThread()
+    // must say so there, and no on a thread of its own (GameThreadFlag.h)
+    void CheckGameThreadFlag()
+    {
+        const bool here = IsOnGameThread();
+        bool elsewhere = true;
+        try {
+            std::thread([&elsewhere] { elsewhere = IsOnGameThread(); }).join();
+        } catch (const std::system_error& e) {
+            Report("game-thread", Outcome::kSkip, std::string("no thread to ask from: ") + e.what());
+            return;
+        }
+        Report("game-thread", here && !elsewhere ? Outcome::kPass : Outcome::kFail,
+            std::format("inTask={} newThread={}", here, elsewhere));
     }
 }

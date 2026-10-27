@@ -87,7 +87,7 @@ namespace Environment::SelfTest
             const std::pair<const char*, void (*)()> checks[] = {
                 { "H2", CheckH2 }, { "twins", CheckTwins }, { "mysticism-patch", CheckMysticismPatch },
                 { "frostwalker", CheckFrostwalker }, { "adapters", CheckAdapters },
-                { "sr-paired-tomes", CheckSpellTomes }
+                { "sr-paired-tomes", CheckSpellTomes }, { "game-thread", CheckGameThreadFlag }
             };
             for (const auto& [name, check] : checks) {
                 try {
