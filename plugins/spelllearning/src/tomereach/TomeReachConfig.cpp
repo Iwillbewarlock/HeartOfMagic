@@ -66,12 +66,24 @@ namespace TomeReach
         {
             return text.find(part) != std::string_view::npos;
         }
+
+        // The path's ASCII, every other character as '?': path::string() and
+        // u8string() throw on a character the code page lacks or a lone surrogate
+        // (some file name in Data), and that stopped the whole pass. Every name
+        // and folder matched below is ASCII, so nothing is lost
+        std::string AsciiOf(const std::filesystem::path& path)
+        {
+            std::string out;
+            out.reserve(path.native().size());
+            for (const wchar_t c : path.native()) out += c < 0x80 ? static_cast<char>(c) : '?';
+            return out;
+        }
     }
 
     bool IsDistributionConfig(const std::filesystem::path& file)
     {
-        const auto name = AsciiText::ToLower(file.filename().string());
-        const auto dir = AsciiText::ToLower(file.parent_path().string());
+        const auto name = AsciiText::ToLower(AsciiOf(file.filename()));
+        const auto dir = AsciiText::ToLower(AsciiOf(file.parent_path()));
         for (auto skipped : kSkippedFolders) {
             if (Contains(dir, skipped)) return false;
         }

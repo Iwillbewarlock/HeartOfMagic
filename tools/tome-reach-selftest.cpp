@@ -163,6 +163,13 @@ namespace
         using TomeReach::IsDistributionConfig;
         Check(IsDistributionConfig("Data/Foo_DISTR.ini"), "an SPID _DISTR.ini is a distribution config");
         Check(IsDistributionConfig("Data/SKSE/Plugins/SkyPatcher/leveledList/a.ini"), "a SkyPatcher file is one");
+        // A lone surrogate fails every narrow conversion, whatever the code page
+        Check(IsDistributionConfig(std::filesystem::path(L"Data/魔\xD800_DISTR.ini")),
+            "a file name no code page holds is read, not thrown on");
+        Check(!IsDistributionConfig(std::filesystem::path(L"Data/魔\xD800.txt")),
+            "and one that is no config stays out");
+        Check(IsDistributionConfig(std::filesystem::path(L"Data/SKSE/Plugins/SkyPatcher/魔\xD800/a.ini")),
+            "a config inside a folder with such a name is one");
         Check(!IsDistributionConfig("Data/SKSE/Plugins/GridInventory_Default.ini"),
             "an inventory layout list is not (it names every book)");
         Check(!IsDistributionConfig("Data/SKSE/Plugins/DynamicStringDistributor/x/a_DISTR.ini"),
