@@ -216,7 +216,7 @@ var PanelLayoutTest = {
                 'selfCastMultiplierSlider', 'binaryThresholdSlider', 'showNotificationsToggle', 'notificationLanguageSelect',
                 'weakenedNotificationsToggle', 'notificationIntervalSlider', 'powerStepsContainer', 'resetPowerStepsBtn', 'moddedXPSourcesSection'],
             tomes: ['spellResearchStatusRow', 'useProgressionSystemToggle', 'tomeXpGrantSlider', 'tomeInventoryBoostToggle', 'tomeInventoryBoostSlider',
-                'tomeRequirePrereqsToggle', 'tomeRequireAllPrereqsToggle', 'tomeRequireSkillLevelToggle', 'tomeStudySkillXPToggle'],
+                'tomeRequirePrereqsToggle', 'tomeRequireSkillLevelToggle', 'tomeStudySkillXPToggle'],
             advanced: ['developerModeToggle', 'cheatModeToggle', 'verboseLogToggle', 'debugGridToggle', 'aggressivePathValidationToggle']
         };
         var misplaced = [];

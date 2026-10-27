@@ -611,8 +611,6 @@ window._i18nPreload = {
     "settings.tomeLearning.inventoryBoostDesc": "Bonus XP while carrying tome",
     "settings.tomeLearning.learningReqs": "Learning Requirements",
     "settings.tomeLearning.progressionModeDesc": "Reading tomes grants XP and gives early access to weakened spells. Keep tomes to practice!",
-    "settings.tomeLearning.requireAll": "Require ALL",
-    "settings.tomeLearning.requireAllDesc": "All parents, not just one",
     "settings.tomeLearning.requirePrereqs": "Require Prereqs",
     "settings.tomeLearning.requirePrereqsDesc": "Master parent spells first",
     "settings.tomeLearning.requireSkill": "Require Skill",

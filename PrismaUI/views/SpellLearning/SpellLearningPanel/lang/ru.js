@@ -611,8 +611,6 @@ window._i18nPreload = {
     "settings.tomeLearning.inventoryBoostDesc": "Бонус XP при ношении фолианта",
     "settings.tomeLearning.learningReqs": "Требования к изучению",
     "settings.tomeLearning.progressionModeDesc": "Чтение фолиантов даёт XP и ранний доступ к ослабленным заклинаниям. Сохраняйте фолианты для тренировки!",
-    "settings.tomeLearning.requireAll": "Требовать ВСЕ",
-    "settings.tomeLearning.requireAllDesc": "Все родительские, а не только одно",
     "settings.tomeLearning.requirePrereqs": "Требовать условия",
     "settings.tomeLearning.requirePrereqsDesc": "Сначала освоить родительские заклинания",
     "settings.tomeLearning.requireSkill": "Требовать навык",

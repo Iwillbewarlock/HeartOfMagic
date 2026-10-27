@@ -41,7 +41,6 @@ public:
         
         // Learning requirements
         bool requirePrereqs = true;             // Require tree prerequisites to be mastered
-        bool requireAllPrereqs = true;          // Require ALL prereqs (vs just one)
         bool requireSkillLevel = false;         // Require minimum skill level for spell tier
         bool studySkillXP = true;               // ISL patch: a study session raises the school's skill
     };

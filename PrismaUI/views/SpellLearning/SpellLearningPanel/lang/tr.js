@@ -611,8 +611,6 @@ window._i18nPreload = {
     "settings.tomeLearning.inventoryBoostDesc": "Kitap taşırken bonus TP",
     "settings.tomeLearning.learningReqs": "Öğrenme Gereksinimleri",
     "settings.tomeLearning.progressionModeDesc": "Kitap okumak TP verir ve zayıflatılmış büyülere erken erişim sağlar. Pratik için kitapları saklayın!",
-    "settings.tomeLearning.requireAll": "Tümü Gerekli",
-    "settings.tomeLearning.requireAllDesc": "Sadece biri değil, tüm üst düğümler",
     "settings.tomeLearning.requirePrereqs": "Ön Koşullar Gerekli",
     "settings.tomeLearning.requirePrereqsDesc": "Önce üst büyülerde ustalaşın",
     "settings.tomeLearning.requireSkill": "Beceri Gerekli",

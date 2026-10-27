@@ -612,8 +612,6 @@
     "settings.tomeLearning.inventoryBoostDesc": "마법서 소지 시 보너스 경험치",
     "settings.tomeLearning.learningReqs": "학습 요구 사항",
     "settings.tomeLearning.progressionModeDesc": "마법서를 읽으면 경험치와 약화된 주문에 대한 조기 접근을 부여합니다. 연습을 위해 마법서를 보관하세요!",
-    "settings.tomeLearning.requireAll": "전체 필수",
-    "settings.tomeLearning.requireAllDesc": "하나가 아닌 모든 상위 노드",
     "settings.tomeLearning.requirePrereqs": "선행 필수",
     "settings.tomeLearning.requirePrereqsDesc": "상위 주문을 먼저 숙달",
     "settings.tomeLearning.requireSkill": "스킬 필수",

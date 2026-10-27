@@ -157,7 +157,6 @@ void ApplySettingsFromConfig(const nlohmann::json& config)
         tomeSettings.tomeInventoryBoost = SafeJsonValue<bool>(tomeConfig, "tomeInventoryBoost", true);
         tomeSettings.tomeInventoryBoostPercent = SafeJsonValue<float>(tomeConfig, "tomeInventoryBoostPercent", 25.0f);
         tomeSettings.requirePrereqs = SafeJsonValue<bool>(tomeConfig, "requirePrereqs", true);
-        tomeSettings.requireAllPrereqs = SafeJsonValue<bool>(tomeConfig, "requireAllPrereqs", true);
         tomeSettings.requireSkillLevel = SafeJsonValue<bool>(tomeConfig, "requireSkillLevel", false);
         tomeSettings.studySkillXP = SafeJsonValue<bool>(tomeConfig, "studySkillXP", true);
         SpellTomeHook::GetSingleton()->SetSettings(tomeSettings);
@@ -304,7 +303,6 @@ json GenerateDefaultConfig() {
             {"tomeInventoryBoost", true},
             {"tomeInventoryBoostPercent", 25.0f},
             {"requirePrereqs", true},
-            {"requireAllPrereqs", true},
             {"requireSkillLevel", false},
             {"studySkillXP", true}
         }},

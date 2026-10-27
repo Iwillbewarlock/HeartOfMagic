@@ -633,8 +633,6 @@
     "settings.tomeLearning.inventoryBoostDesc": "魔導書所持時のボーナスXP",
     "settings.tomeLearning.learningReqs": "学習要件",
     "settings.tomeLearning.progressionModeDesc": "魔導書を読むとXPと弱体化呪文への早期アクセスが付与。練習用に魔導書を保持！",
-    "settings.tomeLearning.requireAll": "すべて必須",
-    "settings.tomeLearning.requireAllDesc": "1つだけでなく、すべての親が必要",
     "settings.tomeLearning.requirePrereqs": "前提条件必須",
     "settings.tomeLearning.requirePrereqsDesc": "まず親呪文を習得",
     "settings.tomeLearning.requireSkill": "スキル必須",

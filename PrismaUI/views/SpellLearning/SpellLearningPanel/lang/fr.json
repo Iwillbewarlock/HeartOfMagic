@@ -633,8 +633,6 @@
     "settings.tomeLearning.inventoryBoostDesc": "Bonus d'XP en portant le grimoire",
     "settings.tomeLearning.learningReqs": "Exigences d'apprentissage",
     "settings.tomeLearning.progressionModeDesc": "Lire des grimoires octroie de l'XP et donne un accès anticipé à des sorts affaiblis. Conservez les grimoires pour vous entraîner !",
-    "settings.tomeLearning.requireAll": "Exiger TOUS",
-    "settings.tomeLearning.requireAllDesc": "Tous les parents, pas seulement un",
     "settings.tomeLearning.requirePrereqs": "Exiger les prérequis",
     "settings.tomeLearning.requirePrereqsDesc": "Maîtriser d'abord les sorts parents",
     "settings.tomeLearning.requireSkill": "Exiger une compétence",

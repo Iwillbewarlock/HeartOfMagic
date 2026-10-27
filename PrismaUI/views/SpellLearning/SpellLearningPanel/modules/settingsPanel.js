@@ -322,23 +322,6 @@ function initializeSettings() {
         requirePrereqsToggle.addEventListener('change', function() {
             settings.spellTomeLearning.requirePrereqs = this.checked;
             console.log('[SpellLearning] Tome require prereqs:', this.checked);
-            // Show/hide child setting
-            var allPrereqsRow = document.getElementById('tomeRequireAllPrereqsRow');
-            if (allPrereqsRow) allPrereqsRow.style.display = this.checked ? '' : 'none';
-            scheduleAutoSave();
-        });
-        // Initial visibility
-        var allPrereqsRow = document.getElementById('tomeRequireAllPrereqsRow');
-        if (allPrereqsRow) allPrereqsRow.style.display = settings.spellTomeLearning.requirePrereqs ? '' : 'none';
-    }
-    
-    // Require ALL Prerequisites toggle (child setting)
-    var requireAllPrereqsToggle = document.getElementById('tomeRequireAllPrereqsToggle');
-    if (requireAllPrereqsToggle) {
-        requireAllPrereqsToggle.checked = settings.spellTomeLearning.requireAllPrereqs;
-        requireAllPrereqsToggle.addEventListener('change', function() {
-            settings.spellTomeLearning.requireAllPrereqs = this.checked;
-            console.log('[SpellLearning] Tome require ALL prereqs:', this.checked);
             scheduleAutoSave();
         });
     }
@@ -1278,7 +1261,6 @@ window.onUnifiedConfigLoaded = function(dataStr) {
             settings.spellTomeLearning.tomeInventoryBoostPercent = stl.tomeInventoryBoostPercent !== undefined ? stl.tomeInventoryBoostPercent : 25;
             // Learning requirements
             settings.spellTomeLearning.requirePrereqs = stl.requirePrereqs !== undefined ? stl.requirePrereqs : true;
-            settings.spellTomeLearning.requireAllPrereqs = stl.requireAllPrereqs !== undefined ? stl.requireAllPrereqs : true;
             settings.spellTomeLearning.requireSkillLevel = stl.requireSkillLevel !== undefined ? stl.requireSkillLevel : false;
             settings.spellTomeLearning.studySkillXP = stl.studySkillXP !== false;
         }
@@ -1952,18 +1934,11 @@ function updateSpellTomeLearningUI() {
     var requirePrereqsToggle = document.getElementById('tomeRequirePrereqsToggle');
     if (requirePrereqsToggle) requirePrereqsToggle.checked = stl.requirePrereqs;
     
-    var requireAllPrereqsToggle = document.getElementById('tomeRequireAllPrereqsToggle');
-    if (requireAllPrereqsToggle) requireAllPrereqsToggle.checked = stl.requireAllPrereqs;
-    
     var requireSkillLevelToggle = document.getElementById('tomeRequireSkillLevelToggle');
     if (requireSkillLevelToggle) requireSkillLevelToggle.checked = stl.requireSkillLevel;
 
     var studySkillXPToggle = document.getElementById('tomeStudySkillXPToggle');
     if (studySkillXPToggle) studySkillXPToggle.checked = stl.studySkillXP !== false;
-    
-    // Show/hide child setting based on parent
-    var allPrereqsRow = document.getElementById('tomeRequireAllPrereqsRow');
-    if (allPrereqsRow) allPrereqsRow.style.display = stl.requirePrereqs ? '' : 'none';
     
     // Update description based on mode
     var modeDesc = document.getElementById('tomeLearningModeDesc');

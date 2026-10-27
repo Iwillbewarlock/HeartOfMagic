@@ -633,8 +633,6 @@
     "settings.tomeLearning.inventoryBoostDesc": "XP bonus mentre porti il tomo",
     "settings.tomeLearning.learningReqs": "Requisiti di Apprendimento",
     "settings.tomeLearning.progressionModeDesc": "Leggere i tomi concede XP e dà accesso anticipato agli incantesimi indeboliti. Tieni i tomi per praticare!",
-    "settings.tomeLearning.requireAll": "Richiedi TUTTI",
-    "settings.tomeLearning.requireAllDesc": "Tutti i genitori, non solo uno",
     "settings.tomeLearning.requirePrereqs": "Richiedi Prerequisiti",
     "settings.tomeLearning.requirePrereqsDesc": "Padroneggia prima gli incantesimi genitori",
     "settings.tomeLearning.requireSkill": "Richiedi Abilità",

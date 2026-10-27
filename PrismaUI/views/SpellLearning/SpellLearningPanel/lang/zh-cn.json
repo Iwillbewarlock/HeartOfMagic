@@ -633,8 +633,6 @@
     "settings.tomeLearning.inventoryBoostDesc": "携带魔法书时的额外经验",
     "settings.tomeLearning.learningReqs": "学习要求",
     "settings.tomeLearning.progressionModeDesc": "阅读魔法书授予经验和减弱法术的早期访问。保留书籍用于练习！",
-    "settings.tomeLearning.requireAll": "要求全部",
-    "settings.tomeLearning.requireAllDesc": "所有父节点，而非仅一个",
     "settings.tomeLearning.requirePrereqs": "要求前置",
     "settings.tomeLearning.requirePrereqsDesc": "先精通父法术",
     "settings.tomeLearning.requireSkill": "要求技能",

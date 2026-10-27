@@ -633,8 +633,6 @@
     "settings.tomeLearning.inventoryBoostDesc": "Bonus XP podczas noszenia tomu",
     "settings.tomeLearning.learningReqs": "Wymagania nauki",
     "settings.tomeLearning.progressionModeDesc": "Czytanie tomów daje XP i wczesny dostęp do osłabionych zaklęć. Zachowaj tomy, aby ćwiczyć!",
-    "settings.tomeLearning.requireAll": "Wymagaj WSZYSTKICH",
-    "settings.tomeLearning.requireAllDesc": "Wszystkie nadrzędne, nie tylko jedno",
     "settings.tomeLearning.requirePrereqs": "Wymagaj wymagań wstępnych",
     "settings.tomeLearning.requirePrereqsDesc": "Najpierw opanuj zaklęcia nadrzędne",
     "settings.tomeLearning.requireSkill": "Wymagaj umiejętności",

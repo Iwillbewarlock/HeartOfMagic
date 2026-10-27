@@ -633,8 +633,6 @@
     "settings.tomeLearning.inventoryBoostDesc": "攜帶魔法書時的額外經驗",
     "settings.tomeLearning.learningReqs": "學習要求",
     "settings.tomeLearning.progressionModeDesc": "閱讀魔法書授予經驗和減弱法術的早期存取。保留書籍用於練習！",
-    "settings.tomeLearning.requireAll": "要求全部",
-    "settings.tomeLearning.requireAllDesc": "所有父節點，而非僅一個",
     "settings.tomeLearning.requirePrereqs": "要求前置",
     "settings.tomeLearning.requirePrereqsDesc": "先精通父法術",
     "settings.tomeLearning.requireSkill": "要求技能",

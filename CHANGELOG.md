@@ -77,6 +77,11 @@
   Import changed the tomes just as the check finished, Heart of Magic took the new check for a failure and
   registered nothing until the next load; it now waits for the new check.
 
+### Removed
+
+- The Require ALL toggle under Require Prereqs on the Spell Tomes page. It had no effect: the setting was
+  saved but nothing read it. A config.json that still has `requireAllPrereqs` loads as before; the key is ignored.
+
 ## Heart of Magic Librarian 1.6.0
 
 ### New

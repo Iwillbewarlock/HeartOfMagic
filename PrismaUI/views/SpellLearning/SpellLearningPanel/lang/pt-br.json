@@ -633,8 +633,6 @@
     "settings.tomeLearning.inventoryBoostDesc": "XP bônus ao carregar o tomo",
     "settings.tomeLearning.learningReqs": "Requisitos de Aprendizado",
     "settings.tomeLearning.progressionModeDesc": "Ler tomos concede XP e acesso antecipado a magias enfraquecidas. Mantenha os tomos para praticar!",
-    "settings.tomeLearning.requireAll": "Exigir TODOS",
-    "settings.tomeLearning.requireAllDesc": "Todos os pais, não apenas um",
     "settings.tomeLearning.requirePrereqs": "Exigir Pré-requisitos",
     "settings.tomeLearning.requirePrereqsDesc": "Dominar magias pais primeiro",
     "settings.tomeLearning.requireSkill": "Exigir Habilidade",

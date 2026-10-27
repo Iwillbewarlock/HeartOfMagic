@@ -611,8 +611,6 @@ window._i18nPreload = {
     "settings.tomeLearning.inventoryBoostDesc": "Bonus-EP beim Tragen des Zauberbuchs",
     "settings.tomeLearning.learningReqs": "Lern-Anforderungen",
     "settings.tomeLearning.progressionModeDesc": "Zauberbücher lesen gewährt EP und frühzeitigen Zugang zu geschwächten Zaubern. Behalte Bücher zum Üben!",
-    "settings.tomeLearning.requireAll": "Alle erforderlich",
-    "settings.tomeLearning.requireAllDesc": "Alle Eltern, nicht nur eine",
     "settings.tomeLearning.requirePrereqs": "Voraussetzungen nötig",
     "settings.tomeLearning.requirePrereqsDesc": "Zuerst Elternzauber meistern",
     "settings.tomeLearning.requireSkill": "Fertigkeit nötig",

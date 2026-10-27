@@ -633,8 +633,6 @@
     "settings.tomeLearning.inventoryBoostDesc": "XP extra al llevar el tomo",
     "settings.tomeLearning.learningReqs": "Requisitos de Aprendizaje",
     "settings.tomeLearning.progressionModeDesc": "Leer tomos otorga XP y acceso temprano a hechizos debilitados. ¡Conserva los tomos para practicar!",
-    "settings.tomeLearning.requireAll": "Requerir TODOS",
-    "settings.tomeLearning.requireAllDesc": "Todos los padres, no solo uno",
     "settings.tomeLearning.requirePrereqs": "Requerir Prerrequisitos",
     "settings.tomeLearning.requirePrereqsDesc": "Dominar hechizos padres primero",
     "settings.tomeLearning.requireSkill": "Requerir Habilidad",
