@@ -96,9 +96,13 @@ treats the first read of a paired tome as HoM's tome read (XP / learning target,
    **SynthesizedPatch.json is the primary source** (explicit tome-spell pairs from the same run as the plugin), and
    the live SR lists are only a fallback when no JSON is found, logged as "unverified". Where both exist, a live
    pair that disagrees with the JSON is not used and is counted as a conflict.
-2. The JSON is trusted only for books whose winning override is SpellResearchSynthesizer.esp's and teaches
-   nothing (ties the file to the active patch; a stale JSON whose book another plugin now overrides is skipped and
-   reported). An unreadable or stale JSON leaves the fallback, never a silent accept.
+2. (Revised 2026-10-27 after implementation.) The JSON is trusted for a book whose winning override teaches
+   nothing, in whatever plugin that override is: the patcher names `SpellResearchSynthesizer.esp` only when run
+   standalone (`SetTypicalOpen`, its Program.cs:31-32); inside the Synthesis app it writes the group's plugin
+   (`Synthesis.esp` by default). A book that teaches a spell keeps its own. The pairs used are logged per winning
+   plugin ("JSON tomes by winning plugin: Synthesis.esp 412, ..."). An unreadable JSON leaves the fallback, never
+   a silent accept. (The first text tied the JSON to SpellResearchSynthesizer.esp alone; that would have rejected
+   every pair of a patch run through Synthesis.)
 3. Live lists are read only when Spell Research is set up and not importing (`_SR_GlobalIsSetup` == 1,
    `_SR_GlobalImporting` == 0, the Librarian's Reconcile rule, LibrarianSpellResearchPatch.cpp:366-370); otherwise
    the last good snapshot stays. An Import finishing triggers a rebuild even when the entry count is unchanged.

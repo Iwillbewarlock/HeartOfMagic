@@ -255,7 +255,8 @@ game the placed references of cells that are not loaded are not in memory:
   there calls `GetFormFromFile` naming one of the 11 plugins).
 
 **Spell tomes that teach nothing (2026-10-27, `SpellTomes.h`, `SpellTomePairs.h`):** Spell Research
-Synthesizer (a Synthesis patcher for Spell Research) overrides spell tomes in `SpellResearchSynthesizer.esp` so
+Synthesizer (a Synthesis patcher for Spell Research) overrides spell tomes - in `SpellResearchSynthesizer.esp` run
+standalone, in the Synthesis group's plugin (`Synthesis.esp` by default) otherwise - so
 they teach nothing (the book text lists the spell's archetypes) and records each tome-spell pair in
 `Data/SKSE/Plugins/SpellResearchSynthesizer/SynthesizedPatch.json` and in Spell Research's per-tier lists
 `_SR_ListTomes<tier>` / `_SR_ListTomeSpells<tier>` (same index = one pair; an FLM ini fills the plugin part, SR's
@@ -268,10 +269,10 @@ sink's `IsPairedTome`). TomeReachRecords.cpp's raw BOOK DATA read is not one: it
 
 - Where the pairs come from (`SpellTomePairs::Build`, pure, `tools/spell-tomes-check --self-test`):
   SynthesizedPatch.json first ("newSpells": `tomeId` / `spellId` as `__formData|<plugin>|0x<local id>`, resolved
-  with `TESDataHandler::LookupForm`), used for a book whose winning override (`GetFile(-1)`) is
-  `SpellResearchSynthesizer.esp`'s and that teaches nothing; one another plugin overrides now is stale (logged
-  with that plugin). Spell Research's lists are the fallback, logged as unverified: used when there is no usable
-  JSON (absent, not JSON, ill-formed UTF-8, no `newSpells`), and for a stale JSON book. They are read only once an
+  with `TESDataHandler::LookupForm`), used for a book whose winning override teaches nothing, whatever plugin
+  that override is in; the pairs used are logged per winning plugin (`GetFile(-1)`: `SpellTomes: JSON tomes by
+  winning plugin: Synthesis.esp 412, ...`). Spell Research's lists are the fallback, logged as unverified: used
+  only when there is no usable JSON (absent, not JSON, ill-formed UTF-8, no `newSpells`). They are read only once an
   Import finished and none runs (`_SR_GlobalIsSetup` 1, `_SR_GlobalImporting` 0,
   `SpellResearchPatch::ReadTomeLists`); otherwise the last readable state stays. Each tier's plugin part and
   script-added part pair on their own, a part only when the book list's and the spell list's part have the same
@@ -290,18 +291,15 @@ sink's `IsPairedTome`). TomeReachRecords.cpp's raw BOOK DATA read is not one: it
   session (`LookupForm` walks every file by name; a message box rebuild then costs only the lists).
 - Log: `SpellTomes: N tomes - T by the book's own spell, P by Spell Research pairs (records R, script S,
   unverified), J by SynthesizedPatch.json (read|unusable|none); X pairs skipped (...) [generation G] (<reason>)`
-  at each new generation, plus up to five notes (stale books, conflicts). The dev self-test's `sr-paired-tomes`
+  at each new generation, plus the per-plugin line and up to five notes (conflicts). The dev self-test's `sr-paired-tomes`
   (docs/ENVIRONMENT.md, "Self-test").
 - Reading such a tome is left as it is (author's decision, option (a)): HoM's read hook patches the AddSpell
   inside `TESObjectBOOK::Read`, which a book that teaches nothing never reaches, so reading one does what Spell
   Research's script does (archetype XP); the tree, its gates and the carried-tome bonus work.
 - Limits: the live fallback cannot tell a shifted pair from a true one when there is no JSON; a save without
   Spell Research set up (a new game) keeps the previous save's live pairs until its own lists are readable.
-  `SpellResearchSynthesizer.esp` is the patcher's standalone output name only (`SetTypicalOpen` in its
-  Program.cs); run inside the Synthesis app it writes into the group's plugin (`Synthesis.esp` by default), and
-  then every JSON book is stale: a warning names that plugin (`... are overridden last by 'Synthesis.esp' ...`),
-  the main menu scan finds none of those tomes, and they come from Spell Research's lists once a save with them
-  loads (the auto build's retry covers the empty tree). When a new generation comes at a save load or an Import,
+  A JSON whose book a later plugin overrides again, still teaching nothing, is trusted as well (that plugin
+  is named in the per-plugin line). When a new generation comes at a save load or an Import,
   the Spell Research registrations that follow at once run before the new tome reach pass is done, so they
   cannot leave out `tomeUnreachable` spells (as at the first load after a game start).
 

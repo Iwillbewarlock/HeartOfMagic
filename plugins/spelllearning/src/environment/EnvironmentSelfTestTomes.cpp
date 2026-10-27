@@ -49,10 +49,10 @@ namespace Environment::SelfTest
         const auto& c = status.counts;
         const std::size_t visited = PairedTomesVisited();
         const std::string observed = std::format("generation={} ownSpell={} paired={} json={} liveRecord={} liveScript={} "
-            "patchFound={} patchUsable={} liveRead={} unresolved={} notBookOrSpell={} teachesOther={} stale={} "
+            "patchFound={} patchUsable={} liveRead={} unresolved={} notBookOrSpell={} teachesOther={} "
             "liveConflicts={} liveOutsideJson={} jsonTwice={} unequalParts={} visited={}",
             status.generation, status.ownSpell, status.paired, c.patch, c.liveRecord, c.liveScript, status.patchFound,
-            status.patchUsable, status.liveRead, c.unresolved, c.notBookOrSpell, c.teachesOther, c.stale,
+            status.patchUsable, status.liveRead, c.unresolved, c.notBookOrSpell, c.teachesOther,
             c.liveConflicts, c.liveOutsidePatch, c.patchConflicts, c.unequalParts, visited);
         const bool resolved = c.unresolved == 0 && c.notBookOrSpell == 0 && c.patchConflicts == 0;
         const bool readable = !status.patchFound || status.patchUsable;

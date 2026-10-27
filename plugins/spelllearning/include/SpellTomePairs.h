@@ -19,21 +19,22 @@
 // SPELL TOME PAIRS - which spell a tome that teaches nothing stands for (no game types)
 // =============================================================================
 //
-// Spell Research Synthesizer overrides spell tomes in SpellResearchSynthesizer.esp
-// so they teach nothing, and puts each tome-spell pair in two places: its
+// Spell Research Synthesizer overrides spell tomes (SpellResearchSynthesizer.esp, or
+// the Synthesis group's plugin) so they teach nothing, and puts each tome-spell pair in two places: its
 // SynthesizedPatch.json ("newSpells": "tomeId" / "spellId" as
 // "__formData|<plugin>|0x<local id>") and Spell Research's per-tier lists
 // _SR_ListTomes<tier> / _SR_ListTomeSpells<tier>, same index = one pair (an FLM ini
 // fills the record part, SR's Import the script-added part).
 //
 // The JSON is the source trusted first: it pairs each tome with its spell
-// explicitly, from the same run that wrote the plugin. An entry counts only for a
-// book whose winning override is the patch plugin's and teaches nothing; any other
-// book is stale (another plugin overrides it now) or does not need a pair. The live
-// lists prove less - FLM adds to each list on its own and runs again at every load,
-// so a re-run patch on an old save can shift both lists into wrong pairs of equal
-// length - so they are a fallback, "unverified": used when there is no usable JSON,
-// and for a book whose JSON entry is stale. With a usable JSON a live pair that
+// explicitly, from the same run that wrote the plugin. An entry counts for a book
+// whose winning override teaches nothing, in whatever plugin that override is: run
+// standalone the patcher writes SpellResearchSynthesizer.esp, inside the Synthesis
+// app the group's plugin (Synthesis.esp by default). The pairs are counted by that
+// plugin for the log. The live lists prove less - FLM adds to each list on its own
+// and runs again at every load, so a re-run patch on an old save can shift both lists
+// into wrong pairs of equal length - so they are a fallback, "unverified": used only
+// when there is no usable JSON. With a usable JSON a live pair that
 // disagrees with it is a conflict (counted, not used), and one for a book the JSON
 // does not name is not used either. A list part pairs only when the book list's and
 // the spell list's part have the same length. A book that teaches a spell keeps it
@@ -47,7 +48,6 @@ namespace SpellTomePairs
     using FormId = std::uint32_t;
 
     inline constexpr std::string_view kFormDataTag = "__formData";
-    inline constexpr std::string_view kPatchPlugin = "SpellResearchSynthesizer.esp";
     /// A plugin-local id fills at most the low 24 bits (the high byte is the load order index)
     inline constexpr std::uint32_t kMaxLocalId = 0x00FFFFFF;
     /// Problems kept as text for the log; the counts cover the rest
@@ -181,7 +181,6 @@ namespace SpellTomePairs
     {
         bool isBook = false;
         FormId taughtSpell = 0;          ///< 0: the record teaches nothing
-        bool fromPatchPlugin = false;    ///< its winning override is kPatchPlugin's
         std::string winner;              ///< the winning override's file, for the log
     };
 
@@ -213,7 +212,6 @@ namespace SpellTomePairs
         std::size_t notBookOrSpell = 0;   ///< resolves, but not a BOOK and a SPEL
         std::size_t teaches = 0;          ///< the book teaches a spell itself
         std::size_t teachesOther = 0;     ///< ... and the pair names another one (record wins)
-        std::size_t stale = 0;            ///< JSON entry for a book another plugin overrides now
         std::size_t unequalParts = 0;     ///< live list parts of unequal length, not paired
         std::size_t liveConflicts = 0;    ///< live pair disagreeing with the JSON (or an earlier live pair)
         std::size_t liveOutsidePatch = 0; ///< live pair for a book a usable JSON does not name
@@ -226,8 +224,8 @@ namespace SpellTomePairs
     {
         std::unordered_map<FormId, Entry> pairs;   ///< book -> its spell
         Counts counts;
-        std::unordered_map<std::string, std::size_t> staleByWinner;   ///< stale JSON books by the plugin that wins now
-        std::vector<std::string> notes;            ///< the first kKeptProblems conflicts and stale books
+        std::unordered_map<std::string, std::size_t> patchByWinner;   ///< JSON pairs used, by the book's winning plugin
+        std::vector<std::string> notes;            ///< the first kKeptProblems conflicts
     };
 
     namespace Detail
@@ -256,8 +254,8 @@ namespace SpellTomePairs
             return true;
         }
 
-        /// The JSON's pairs; `stale` gets the books another plugin overrides now
-        inline void AddPatch(const PatchRead& patch, const Facts& game, Result& result, std::unordered_set<FormId>& stale)
+        /// The JSON's pairs
+        inline void AddPatch(const PatchRead& patch, const Facts& game, Result& result)
         {
             for (const auto& entry : patch.entries) {
                 const FormId book = game.resolve(entry.tome);
@@ -268,17 +266,10 @@ namespace SpellTomePairs
                 }
                 const BookFacts facts = game.book(book);
                 if (!Usable(book, spell, facts, game, result)) continue;
-                if (!facts.fromPatchPlugin) {
-                    ++result.counts.stale;
-                    ++result.staleByWinner[facts.winner];
-                    stale.insert(book);
-                    Note(result, std::format("'{}': book 0x{:08X} is overridden by '{}' now, not {} - JSON pair not used",
-                        entry.name, book, facts.winner, kPatchPlugin));
-                    continue;
-                }
                 const auto [it, added] = result.pairs.try_emplace(book, Entry{ spell, Source::kPatch });
                 if (added) {
                     ++result.counts.patch;
+                    ++result.patchByWinner[facts.winner];
                 } else if (it->second.spell != spell) {
                     ++result.counts.patchConflicts;
                     Note(result, std::format("book 0x{:08X} is in the JSON twice (0x{:08X}, 0x{:08X}) - the first kept",
@@ -287,8 +278,7 @@ namespace SpellTomePairs
             }
         }
 
-        inline void AddLivePair(FormId book, FormId spell, bool script, bool patchUsable,
-            const std::unordered_set<FormId>& stale, const Facts& game, Result& result)
+        inline void AddLivePair(FormId book, FormId spell, bool script, bool patchUsable, const Facts& game, Result& result)
         {
             if (!book || !spell || !Usable(book, spell, game.book(book), game, result)) return;
             const auto found = result.pairs.find(book);
@@ -301,7 +291,7 @@ namespace SpellTomePairs
                 }
                 return;
             }
-            if (patchUsable && !stale.contains(book)) {
+            if (patchUsable) {
                 ++result.counts.liveOutsidePatch;
                 return;
             }
@@ -314,16 +304,15 @@ namespace SpellTomePairs
     [[nodiscard]] inline Result Build(const Inputs& inputs, const Facts& game)
     {
         Result result;
-        std::unordered_set<FormId> stale;
         const bool patchUsable = inputs.patch && inputs.patch->usable;
-        if (patchUsable) Detail::AddPatch(*inputs.patch, game, result, stale);
+        if (patchUsable) Detail::AddPatch(*inputs.patch, game, result);
         for (const auto& part : inputs.live) {
             if (part.books.size() != part.spells.size()) {
                 ++result.counts.unequalParts;
                 continue;
             }
             for (std::size_t i = 0; i < part.books.size(); ++i) {
-                Detail::AddLivePair(part.books[i], part.spells[i], part.script, patchUsable, stale, game, result);
+                Detail::AddLivePair(part.books[i], part.spells[i], part.script, patchUsable, game, result);
             }
         }
         return result;

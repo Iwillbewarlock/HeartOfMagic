@@ -339,7 +339,7 @@ This project does not have a C++ test framework. Validation is done through:
   spell - and its `0x%08X` writer), `spell-tomes-check` (`spell-tomes-check --self-test`: `include/SpellTomePairs.h`, the pairs for tomes that teach
   nothing - the SynthesizedPatch.json reader on made-up texts (null `tomeId`, malformed ids, not JSON, ill-formed
   UTF-8) and the pair rule on made-up Spell Research lists (JSON first, unequal parts, record and script parts apart,
-  a re-run patch's shifted lists against the JSON, a stale book); exit 1 on a failure) and `progression-check`
+  a re-run patch's shifted lists against the JSON, a book whose override is in Synthesis.esp); exit 1 on a failure) and `progression-check`
   (`progression-check --self-test`: the co-save's
   progress (SLPR v1-v3, written as v2), cap tracker (SLPX) and tome XP (SLTX) records, `include/ProgressionCoSave.h`,
   written and read in byte buffers - cut short, over the limits, SLPX without an SLPR entry - and the XP cap, study, SetSpellXP and mastery arithmetic of `include/ProgressionMath.h`;

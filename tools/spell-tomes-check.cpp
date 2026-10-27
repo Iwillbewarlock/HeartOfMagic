@@ -6,7 +6,7 @@
 // The JSON reader: good entries, a null tomeId, an id that is not __formData, a
 // local id over 24 bits, a file that is not JSON, ill-formed UTF-8 (the whole file
 // refused), no "newSpells". The pair rule: JSON pairs, a plugin the load order does
-// not have, a book another plugin overrides now (stale, the live pair used instead),
+// not have, a book whose winning override is in another plugin (Synthesis.esp: still used, counted by plugin),
 // a book that teaches a spell, equal live parts paired and unequal ones not, record
 // and script parts kept apart, a re-run patch's shifted but equal-length lists
 // against the JSON (conflicts, not used), live pairs outside a usable JSON, and
@@ -51,7 +51,7 @@ namespace
     struct FakeBook
     {
         FormId taught = 0;
-        std::string winner = std::string(kPatchPlugin);
+        std::string winner = "SpellResearchSynthesizer.esp";
     };
 
     struct FakeGame
@@ -75,7 +75,6 @@ namespace
                 if (it == books.end()) return out;
                 out.isBook = true;
                 out.taughtSpell = it->second.taught;
-                out.fromPatchPlugin = it->second.winner == kPatchPlugin;
                 out.winner = it->second.winner;
                 return out;
             };
@@ -181,16 +180,23 @@ namespace
         const auto gone = Build({ &missing, {} }, game.AsFacts());
         Check(gone.pairs.empty() && gone.counts.unresolved == 1, "patch: an id from a plugin not loaded is unresolved");
 
-        // Another plugin overrides one book now: stale, the live pair for it is used (unverified)
-        game.books[Mod(0x801)].winner = "Other.esp";
-        const auto staleOne = Build({ &patch, { Part({ Mod(0x801) }, { Mod(0x901) }, false) } }, game.AsFacts());
-        Check(staleOne.counts.patch == 2 && staleOne.counts.stale == 1 && staleOne.counts.liveRecord == 1 &&
-                  staleOne.pairs.at(Mod(0x801)).source == Source::kLiveRecord,
-            "patch: a book overridden by another plugin is stale; the live pair fills in");
-        Check(!staleOne.notes.empty() && staleOne.notes.front().find("Other.esp") != std::string::npos,
-            "patch: the stale note names the plugin that overrides the book");
-        Check(staleOne.staleByWinner.size() == 1 && staleOne.staleByWinner.at("Other.esp") == 1,
-            "patch: stale books are counted by the plugin that wins now");
+        // Run inside the Synthesis app: the override is in Synthesis.esp - the JSON pair still counts
+        game.books[Mod(0x801)].winner = "Synthesis.esp";
+        const auto group = Build({ &patch, { Part({ Mod(0x801) }, { Mod(0x902) }, false) } }, game.AsFacts());
+        Check(group.counts.patch == 3 && group.pairs.at(Mod(0x801)).source == Source::kPatch &&
+                  SpellOf(group, Mod(0x801)) == Mod(0x901),
+            "patch: a book whose winning override is in Synthesis.esp keeps its JSON pair");
+        Check(group.patchByWinner.size() == 2 && group.patchByWinner.at("Synthesis.esp") == 1 &&
+                  group.patchByWinner.at("SpellResearchSynthesizer.esp") == 2,
+            "patch: JSON pairs are counted by the book's winning plugin");
+        Check(group.counts.liveConflicts == 1 && group.counts.liveRecord == 0,
+            "patch: a live pair disagreeing with that JSON pair is dropped and counted");
+
+        // A later plugin makes the book teach again: the record wins, whatever the JSON says
+        game.books[Mod(0x802)].taught = Mod(0x902);
+        const auto restored = Build({ &patch, {} }, game.AsFacts());
+        Check(!restored.pairs.contains(Mod(0x802)) && restored.counts.teaches == 1 && restored.counts.teachesOther == 0,
+            "patch: a book that teaches its spell again needs no pair");
 
         // The book teaches a spell itself: the record wins
         auto teaching = ThreeTomes();

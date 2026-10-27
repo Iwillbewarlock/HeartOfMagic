@@ -128,7 +128,6 @@ namespace SpellTomes
                 out.taughtSpell = spell ? spell->GetFormID() : 0;
                 const auto* winner = book->GetFile(-1);
                 out.winner = winner ? std::string(winner->GetFilename()) : std::string("(no file)");
-                out.fromPatchPlugin = AsciiText::EqualsIgnoreCase(out.winner, Pairs::kPatchPlugin);
                 return out;
             };
             facts.isSpell = [](Pairs::FormId id) { return RE::TESForm::LookupByID<RE::SpellItem>(id) != nullptr; };
@@ -152,26 +151,25 @@ namespace SpellTomes
             const std::size_t live = c.liveRecord + c.liveScript;
             return std::format("SpellTomes: {} tomes - {} by the book's own spell, {} by Spell Research pairs "
                 "(records {}, script {}{}), {} by SynthesizedPatch.json ({}); {} pairs skipped ({} unresolved, {} not a "
-                "book and a spell, {} teach a spell themselves of which {} another, {} stale, {} conflicts with the JSON "
+                "book and a spell, {} teach a spell themselves of which {} another, {} conflicts with the JSON "
                 "or each other, {} outside the JSON, {} twice in the JSON, {} list parts of unequal length) [generation {}]",
                 s.ownSpell + c.Paired(), s.ownSpell, live, c.liveRecord, c.liveScript,
                 live ? ", unverified" : "", c.patch, s.patchUsable ? "read" : (s.patchFound ? "unusable" : "none"),
-                c.unresolved + c.notBookOrSpell + c.teaches + c.stale + c.liveConflicts + c.liveOutsidePatch + c.patchConflicts,
-                c.unresolved, c.notBookOrSpell, c.teaches, c.teachesOther, c.stale, c.liveConflicts,
+                c.unresolved + c.notBookOrSpell + c.teaches + c.liveConflicts + c.liveOutsidePatch + c.patchConflicts,
+                c.unresolved, c.notBookOrSpell, c.teaches, c.teachesOther, c.liveConflicts,
                 c.liveOutsidePatch, c.patchConflicts, c.unequalParts, s.generation);
         }
 
-        // Synthesis runs a patcher into its own output plugin (Synthesis.esp by default);
-        // SpellResearchSynthesizer.esp is only the patcher's standalone name (its Program.cs,
-        // SetTypicalOpen). Books overridden last by one other plugin are worth one loud line.
-        void LogStaleWinners(const Pairs::Result& result)
+        // Which plugin made the JSON's tomes teach nothing: SpellResearchSynthesizer.esp run
+        // standalone, the Synthesis group's plugin (Synthesis.esp by default) otherwise
+        void LogPatchWinners(const Pairs::Result& result)
         {
-            for (const auto& [winner, count] : result.staleByWinner) {
-                logger::warn("SpellTomes: {} SynthesizedPatch.json books are overridden last by '{}', not {} - if Spell "
-                             "Research Synthesizer ran inside the Synthesis app, '{}' is its output; those tomes take "
-                             "Spell Research's pairs (unverified) once a save with them loads", count, winner,
-                    Pairs::kPatchPlugin, winner);
+            if (result.patchByWinner.empty()) return;
+            std::string line;
+            for (const auto& [winner, count] : result.patchByWinner) {
+                line += std::format("{}{} {}", line.empty() ? "" : ", ", winner, count);
             }
+            logger::info("SpellTomes: JSON tomes by winning plugin: {}", line);
         }
 
         // A new generation: everything that kept an answer about tomes drops it
@@ -220,7 +218,7 @@ namespace SpellTomes
 
             logger::info("{} ({})", Describe(status), reason);
             for (const auto& note : result.notes) logger::info("SpellTomes: {}", note);
-            LogStaleWinners(result);
+            LogPatchWinners(result);
             if (previous) OnPairsChanged(*next, reason);
         }
     }
