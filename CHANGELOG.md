@@ -12,6 +12,13 @@
   does not run with "Build Spell Tree at Start" set to Off, or when there is no tree yet (the build at game start
   scans then). The first start after updating scans once.
 
+### Fixed
+
+- **A file name in Data with characters Windows' language setting cannot show no longer stops the tome check.**
+  One such file (a Chinese, Japanese or emoji name on a PC set to another language) made the check of which
+  tomes the game hands out fail with "No mapping for the Unicode character", so spells whose tomes nothing
+  hands out stayed in the tree. Such names are now read without converting them.
+
 ## Heart of Magic Librarian 1.6.0
 
 ### New
