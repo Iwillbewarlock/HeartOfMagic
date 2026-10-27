@@ -459,7 +459,7 @@ namespace SpellScanner
         // every spell that marked everything says which load order the catalog was made from
         const auto* loadOrder = IsOnGameThread() ? &LoadOrderFingerprint::Current() : LoadOrderFingerprint::Known();
         Librarian::ClassifyScan(result, !IsOnGameThread(), [tomeMode, loadOrder, &incomplete]() {
-            ScanRecord::CatalogWritten(tomeMode ? nullptr : loadOrder, incomplete);
+            ScanRecord::CatalogWritten(!tomeMode, loadOrder, incomplete);
         });
 
         // Papyrus RunScan: the perk adapters follow the catalog it rebuilt. A

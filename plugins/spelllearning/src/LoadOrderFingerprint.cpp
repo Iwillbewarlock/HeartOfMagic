@@ -1,10 +1,12 @@
 #include "Common.h"
+#include "AsciiText.h"
 #include "LoadOrderFingerprint.h"
 #include "ScanRecordRules.h"
 #include "SpellScanner.h"
 
 #include <atomic>
 #include <chrono>
+#include <cstring>
 #include <cstdint>
 #include <filesystem>
 #include <format>
@@ -58,22 +60,37 @@ namespace
         return stamp;
     }
 
-    // Each plugin's size and last-write time, in load order. The engine's find data
-    // when it holds them (nothing read from disk); a stat of every plugin otherwise.
+    // The engine's find data holds this file's values: its name is the file's and it is not blank
+    bool FindDataUsable(const RE::TESFile* file)
+    {
+        const auto& data = file->fileData;
+        const std::string_view found(data.fileName, strnlen(data.fileName, sizeof(data.fileName)));
+        return AsciiText::EqualsIgnoreCase(found, file->GetFilename()) &&
+               (data.fileSizeLo != 0 || data.fileSizeHi != 0 || static_cast<std::uint64_t>(data.lastWriteTime) != 0);
+    }
+
+    // Each plugin's size and last-write time, in load order: from the engine's find data
+    // when it holds that file's values (nothing read from disk), from a stat otherwise
     std::vector<PluginStamp> PluginStamps(const std::vector<const RE::TESFile*>& files)
     {
         std::vector<PluginStamp> stamps;
         stamps.reserve(files.size());
-        if (files.empty()) return stamps;
         const auto started = std::chrono::steady_clock::now();
-        const auto& first = files.front()->fileData;
-        const bool findData = first.fileSizeLo != 0 || first.fileSizeHi != 0 ||
-                              static_cast<std::uint64_t>(first.lastWriteTime) != 0;
-        for (const auto* file : files) stamps.push_back(findData ? StampFromFindData(file) : StampFromDisk(file));
+        std::size_t fromFindData = 0;
+        std::size_t unknown = 0;
+        for (const auto* file : files) {
+            if (FindDataUsable(file)) {
+                stamps.push_back(StampFromFindData(file));
+                ++fromFindData;
+            } else {
+                stamps.push_back(StampFromDisk(file));
+                if (stamps.back().bytes == 0 && stamps.back().writeTime == 0) ++unknown;
+            }
+        }
         const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
-        logger::info("LoadOrderFingerprint: plugin sizes and write times of {} plugins from {} in {} ms (first: '{}', "
-                     "{} bytes)", stamps.size(), findData ? "the engine's find data" : "the files on disk", ms,
-            stamps.front().name, stamps.front().bytes);
+        logger::info("LoadOrderFingerprint: plugin sizes and write times of {} plugins: {} from the engine's find data, "
+                     "{} from the files on disk ({} not found), {} ms", stamps.size(), fromFindData,
+            stamps.size() - fromFindData, unknown, ms);
         return stamps;
     }
 }

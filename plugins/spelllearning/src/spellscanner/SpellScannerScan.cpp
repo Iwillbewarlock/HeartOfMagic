@@ -146,7 +146,7 @@ namespace SpellScanner
         int skipNoSchool = 0;   // No magic school
         int diagSamples = 0;    // How many diagnostic samples logged
         std::size_t lost = 0;   // kept spells no longer found by FormID in a later step
-        bool tomeReachMarked = false;   // the marks step had the tome reach pass's answer
+        bool tomeReachAnswered = false;   // the tome reach pass had ended at the marks step (ready or failed)
 
         std::size_t steps = 0;
         double longestMs = 0.0;
@@ -357,9 +357,10 @@ namespace SpellScanner
         for (auto* spell : spells) kept.push_back(spell->GetFormID());
 
         taught = SpellsTaughtByTomes();
-        tomeReachMarked = TomeReach::UnreachableSpells(unreachable);
-        if (!tomeReachMarked) {
-            logger::info("SpellScanner: the tome reach pass has not finished - no spell is marked tomeUnreachable");
+        // The outcome first: a pass that ends between the two calls then counts as not done
+        tomeReachAnswered = !TomeReach::OutcomeKey().empty();
+        if (!TomeReach::UnreachableSpells(unreachable)) {
+            logger::info("SpellScanner: the tome reach pass has no answer (still running, or failed) - no spell is marked tomeUnreachable");
         }
         LogSpellsOutOfTree(spells, taught, unreachable);
         duplicates = FindDuplicateSpells(spells, taught, unreachable);
@@ -457,7 +458,7 @@ namespace SpellScanner
         auto& st = *m_state;
         auto output = BuildScanOutput(std::move(st.spellArray), st.config, {});
         // What this scan could not mark: its catalog is not recorded (ScanRecordRules.h)
-        ScanRecordRules::MarkIncomplete(output, ScanRecordRules::IncompleteReasons(st.tomeReachMarked, VampireCastersState()));
+        ScanRecordRules::MarkIncomplete(output, ScanRecordRules::IncompleteReasons(st.tomeReachAnswered, VampireCastersState()));
         return output;
     }
 

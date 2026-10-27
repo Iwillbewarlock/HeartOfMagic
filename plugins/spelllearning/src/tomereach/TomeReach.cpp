@@ -2,6 +2,10 @@
 #include "tomereach/TomeReach.h"
 #include "tomereach/TomeReachConfig.h"
 #include "tomereach/TomeReachPass.h"
+#include "ScanRecordRules.h"
+
+#include <algorithm>
+#include <string>
 
 #include <chrono>
 #include <condition_variable>
@@ -29,6 +33,7 @@ namespace TomeReach
             bool started = false;
             bool done = false;    // finished, well or not
             bool ready = false;   // finished well: `unreachable` holds the answer
+            std::string failure;  // finished without an answer: what failed, for OutcomeKey
             std::unordered_set<RE::FormID> unreachable;
         };
 
@@ -38,8 +43,8 @@ namespace TomeReach
             return result;
         }
 
-        // The pass is over, with an answer or without one
-        void Finish(std::unordered_set<RE::FormID>* unreachable)
+        // The pass is over, with an answer or without one (then `failure` says what failed)
+        void Finish(std::unordered_set<RE::FormID>* unreachable, std::string failure = {})
         {
             auto& shared = Shared();
             {
@@ -47,6 +52,8 @@ namespace TomeReach
                 if (unreachable) {
                     shared.unreachable = std::move(*unreachable);
                     shared.ready = true;
+                } else {
+                    shared.failure = std::move(failure);
                 }
                 shared.done = true;
             }
@@ -82,7 +89,12 @@ namespace TomeReach
                 if (!pass.unreadable.empty()) {
                     logger::warn("TomeReach: {} plugins could not be read (first: {}) - no spell is marked, "
                                  "every tome counts", pass.unreadable.size(), pass.unreadable.front());
-                    Finish(nullptr);
+                    // The same plugins fail the same way next start: their names make the outcome
+                    auto names = pass.unreadable;
+                    std::ranges::sort(names);
+                    std::string joined;
+                    for (const auto& name : names) joined += name + "\n";
+                    Finish(nullptr, "unreadable:" + ScanRecordRules::HashText(joined));
                     return;
                 }
                 std::unordered_set<RE::FormID> unreachable;
@@ -103,11 +115,11 @@ namespace TomeReach
                 Finish(&unreachable);
             } catch (const std::exception& e) {
                 logger::warn("TomeReach: the pass failed ({}) - no spell is marked", e.what());
-                Finish(nullptr);
+                Finish(nullptr, "error");
             } catch (...) {
                 // Whatever went wrong, a scan waiting for the pass must not wait on
                 logger::warn("TomeReach: the pass failed - no spell is marked");
-                Finish(nullptr);
+                Finish(nullptr, "error");
             }
         }
     }
@@ -161,6 +173,15 @@ namespace TomeReach
         std::unique_lock guard(shared.lock);
         if (!shared.started) return false;
         return shared.changed.wait_for(guard, limit, [&] { return shared.done; });
+    }
+
+    std::string OutcomeKey()
+    {
+        auto& shared = Shared();
+        std::lock_guard guard(shared.lock);
+        if (!shared.started) return "not started";
+        if (!shared.done) return {};
+        return shared.ready ? std::string("ready") : "failed:" + shared.failure;
     }
 
     bool UnreachableSpells(std::unordered_set<RE::FormID>& out)

@@ -243,7 +243,7 @@ std::string UIManager::PrepareScanText(json&& output, bool tomeScan)
     // The scan record follows the catalog file: a full scan's load order, or none
     // after a tome scan wrote it (ScanRecord.h; the fingerprint was worked out in CollectScan)
     Librarian::ClassifyScan(result, true, [tomeScan, &incomplete]() {
-        ScanRecord::CatalogWritten(tomeScan ? nullptr : LoadOrderFingerprint::Known(), incomplete);
+        ScanRecord::CatalogWritten(!tomeScan, LoadOrderFingerprint::Known(), incomplete);
     });
 
     // Debug installs keep the full scan for offline analysis, as Papyrus RunScan does

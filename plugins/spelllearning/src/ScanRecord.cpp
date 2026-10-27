@@ -5,6 +5,7 @@
 #include "ScanRecord.h"
 #include "ScanRecordRules.h"
 #include "librarian/Librarian.h"
+#include "tomereach/TomeReach.h"
 
 #include <algorithm>
 #include <chrono>
@@ -24,8 +25,7 @@ namespace
     constexpr const char* kRulesDir = "Data/SKSE/Plugins/SpellLearning/librarian";   // LibrarianInternal.h RULE_SUBDIR
     constexpr int kReadTries = 3;                                                    // a file held a moment (a virus scan)
     constexpr auto kReadRetryWait = std::chrono::milliseconds(25);
-    // 2: "scan" (LoadOrderFingerprint::Value::scan) is what matches; a version 1 record never does
-    constexpr int kRecordVersion = 2;
+    constexpr int kRecordVersion = ScanRecordRules::kRecordVersion;
     constexpr int kRecordIndent = 2;
     constexpr std::size_t kReadChunk = 1 << 16;
 
@@ -117,6 +117,13 @@ namespace
         return found != data.end() && found->is_string() ? found->get<std::string>() : std::string();
     }
 
+    // The fingerprint the record holds and is matched by: the load order's scan
+    // fingerprint with how the tome reach pass ended (empty while it runs)
+    std::string RecordFingerprint(const LoadOrderFingerprint::Value& loadOrder)
+    {
+        return ScanRecordRules::WithTomeReach(loadOrder.scan, TomeReach::OutcomeKey());
+    }
+
     void RemoveRecord(const char* why)
     {
         std::error_code ec;
@@ -130,11 +137,12 @@ namespace
 
 namespace ScanRecord
 {
-    void CatalogWritten(const LoadOrderFingerprint::Value* fullScanLoadOrder, std::string_view incomplete) noexcept
+    void CatalogWritten(bool fullScan, const LoadOrderFingerprint::Value* loadOrder, std::string_view incomplete) noexcept
     {
         try {
-            const auto decision = ScanRecordRules::DecideRecord(fullScanLoadOrder != nullptr,
-                fullScanLoadOrder ? std::string_view(fullScanLoadOrder->scan) : std::string_view(), incomplete);
+            const std::string fingerprint = loadOrder ? RecordFingerprint(*loadOrder) : std::string();
+            const auto decision = ScanRecordRules::DecideRecord(fullScan,
+                loadOrder ? std::string_view(loadOrder->hash) : std::string_view(), fingerprint, incomplete);
             if (decision.action != ScanRecordRules::RecordAction::kWrite) {
                 RemoveRecord(decision.why.c_str());
                 return;
@@ -146,10 +154,11 @@ namespace ScanRecord
             }
             nlohmann::json data;
             data["version"] = kRecordVersion;
-            data["loadOrder"] = fullScanLoadOrder->hash;
-            data["scan"] = fullScanLoadOrder->scan;
-            data["plugins"] = fullScanLoadOrder->plugins;
-            data["spells"] = fullScanLoadOrder->spells;
+            data["loadOrder"] = loadOrder->hash;
+            data["scan"] = fingerprint;
+            data["tomeReach"] = TomeReach::OutcomeKey();
+            data["plugins"] = loadOrder->plugins;
+            data["spells"] = loadOrder->spells;
             data["catalogBytes"] = catalog->bytes;
             data["catalogHash"] = catalog->hash;
             data["rules"] = RulesFingerprint();
@@ -159,7 +168,7 @@ namespace ScanRecord
                 return;
             }
             logger::info("ScanRecord: catalog made under load order {} (scan fingerprint {}, {} plugins, {} spell forms)",
-                fullScanLoadOrder->hash, fullScanLoadOrder->scan, fullScanLoadOrder->plugins, fullScanLoadOrder->spells);
+                loadOrder->hash, fingerprint, loadOrder->plugins, loadOrder->spells);
         } catch (const std::exception& e) {
             logger::error("ScanRecord: the record was not kept: {}", e.what());
         } catch (...) {
@@ -179,7 +188,8 @@ namespace ScanRecord
     bool CatalogMatches(const LoadOrderFingerprint::Value& now) noexcept
     {
         try {
-            if (now.scan.empty()) return false;
+            const std::string fingerprint = RecordFingerprint(now);
+            if (fingerprint.empty()) return false;
             std::ifstream file(kRecordFile, std::ios::binary);
             if (!file.is_open()) return false;
             const auto data = nlohmann::json::parse(file, nullptr, false);
@@ -187,12 +197,13 @@ namespace ScanRecord
                 logger::warn("ScanRecord: {} could not be read - the catalog's load order is unknown", kRecordFile);
                 return false;
             }
-            const auto version = data.find("version");
-            if (version == data.end() || !version->is_number_integer() || version->get<int>() != kRecordVersion) {
-                logger::info("ScanRecord: {} is from an older version - the catalog's load order is unknown", kRecordFile);
+            if (!ScanRecordRules::RecordFits(data, fingerprint)) {
+                const auto version = data.find("version");
+                if (version == data.end() || !version->is_number_integer() || version->get<long long>() != kRecordVersion) {
+                    logger::info("ScanRecord: {} is from another version - the catalog's load order is unknown", kRecordFile);
+                }
                 return false;
             }
-            if (TextField(data, "scan") != now.scan) return false;
             const auto catalog = HashFile(kCatalogFile);
             if (!catalog) return false;
             const auto bytes = data.find("catalogBytes");

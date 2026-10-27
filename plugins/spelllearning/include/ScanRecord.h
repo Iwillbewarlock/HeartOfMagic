@@ -9,8 +9,8 @@
 // =============================================================================
 //
 //   spell_catalog_loadorder.json, beside spell_catalog.json
-//     { "version": 2, "loadOrder": "<fingerprint>", "scan": "<scan fingerprint>",
-//       "plugins": n, "spells": n,
+//     { "version": 2, "loadOrder": "<fingerprint>", "scan": "<scan fingerprint + tome reach outcome>",
+//       "tomeReach": "<TomeReach::OutcomeKey>", "plugins": n, "spells": n,
 //       "catalogBytes": n, "catalogHash": "<FNV-1a 64 of spell_catalog.json>",
 //       "rules": "<FNV-1a 64 of CATALOG_VERSION and the librarian/ rule files>" }
 //
@@ -28,12 +28,14 @@
 
 namespace ScanRecord
 {
-    // After a scan wrote spell_catalog.json: the load order of a scan of every
-    // spell, or nullptr for any other scan, and what that scan could not mark
-    // (ScanRecordRules::IncompleteOf of its output; empty: nothing). The record is
-    // written only for a full scan that marked everything (DecideRecord), and
-    // removed otherwise. Any thread; logs its own failures.
-    void CatalogWritten(const LoadOrderFingerprint::Value* fullScanLoadOrder, std::string_view incomplete = {}) noexcept;
+    // After a scan wrote spell_catalog.json: whether it scanned every spell, the
+    // load order it scanned under (nullptr when not worked out), and what it
+    // could not mark (ScanRecordRules::IncompleteOf of its output; empty:
+    // nothing). The record - the load order's scan fingerprint joined to the tome
+    // reach pass's outcome (WithTomeReach) - is written only for a full scan that
+    // marked everything under a known fingerprint (DecideRecord), and removed
+    // otherwise, with the reason logged. Any thread; logs its own failures.
+    void CatalogWritten(bool fullScan, const LoadOrderFingerprint::Value* loadOrder, std::string_view incomplete = {}) noexcept;
 
     // The record removed (the scan at game start could not write its dump): the
     // next game start scans again. Any thread; logs its own failures.

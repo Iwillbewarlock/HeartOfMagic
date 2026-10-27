@@ -46,7 +46,7 @@ namespace
 {
     using Clock = std::chrono::steady_clock;
 
-    constexpr auto kTomeReachWait = std::chrono::seconds(30);
+    constexpr auto kTomeReachWait = std::chrono::seconds(30);   // between "still waiting" lines; the wait has no limit
     constexpr double kSliceDefaultMs = 4.0;          // game thread time of one step, at most (the marks step excepted)
     constexpr double kSliceMinMs = 0.5;
     constexpr double kSliceMaxMs = 50.0;
@@ -510,8 +510,15 @@ namespace
         const auto started = Clock::now();
         const Settings settings = ReadSettings();
 
-        if (!TomeReach::WaitUntilDone(kTomeReachWait)) {
-            logger::info("{} the tome reach pass is not done - the scan carries no tomeUnreachable marks", kPrefix);
+        // No limit: a scan before the pass ends carries no tomeUnreachable marks and is not
+        // recorded, so on a load order whose pass always took longer than a fixed limit every
+        // start would scan again. The pass always ends (TomeReach.cpp: Finish on every path).
+        // A save loaded meanwhile does not stop the wait: the form reads run during play too.
+        for (int waits = 1; TomeReach::OutcomeKey().empty(); ++waits) {
+            if (!TomeReach::WaitUntilDone(kTomeReachWait) && TomeReach::OutcomeKey().empty()) {
+                logger::info("{} still waiting for the tome reach pass ({} s)", kPrefix,
+                    waits * std::chrono::duration_cast<std::chrono::seconds>(kTomeReachWait).count());
+            }
         }
 
         if (const auto reason = Precondition(loadOrder, settings)) {
@@ -592,7 +599,7 @@ namespace
         std::string text = JsonText::Dump(*output, 2);
         output.reset();
         const bool wrote = Librarian::ClassifyScan(text, true,
-            [&loadOrder, &incomplete]() { ScanRecord::CatalogWritten(&loadOrder, incomplete); });
+            [&loadOrder, &incomplete]() { ScanRecord::CatalogWritten(true, &loadOrder, incomplete); });
         const std::string dumpPath = SpellScanner::WriteScanOutput(text);
         // Both files are this scan's job: without the dump the next start does it again
         if (wrote && dumpPath.empty()) ScanRecord::Forget("spell_scan_output.json could not be written");

@@ -2,6 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cstddef>
 #include <cstdint>
 #include <format>
 #include <string>
@@ -20,8 +21,12 @@
 //     time, the gate rules file's hash and the scanner's format version. A
 //     plugin updated under the same name, a changed gate/rules.json or a
 //     scanner whose output changed make a scan due.
+//   - The tome reach pass's outcome joined to it (WithTomeReach): a pass that
+//     fails the same way every start (the same unreadable plugins) keeps the
+//     record, a pass that reads them again makes a scan due.
 //   - What a scan could not mark ("incomplete" in the scan output), and that a
 //     scan missing a mark leaves no record: the next game start scans again.
+//   - When the collection of the spells vampires cast counts as failed.
 // =============================================================================
 
 namespace ScanRecordRules
@@ -29,6 +34,10 @@ namespace ScanRecordRules
     // Raise when the scan output or its marks change in a way the catalog follows:
     // every record made before counts as not matching once
     inline constexpr int kScannerFormatVersion = 1;
+
+    // spell_catalog_loadorder.json's "version". 2: "scan" (the scan fingerprint with the
+    // tome reach outcome) is what matches; a record of any other version never does
+    inline constexpr int kRecordVersion = 2;
 
     // Top-level list in the scan output: what this scan could not mark, in words.
     // Absent when the scan marked everything.
@@ -86,20 +95,42 @@ namespace ScanRecordRules
         return Hex(hash);
     }
 
+    // The scan fingerprint with the tome reach pass's outcome (TomeReach::OutcomeKey: "ready",
+    // "failed:...", "not started"), or empty when either is unknown (the pass still runs)
+    inline std::string WithTomeReach(std::string_view scanHash, std::string_view tomeReachOutcome)
+    {
+        if (scanHash.empty() || tomeReachOutcome.empty()) return {};
+        std::uint64_t hash = kFnvOffsetBasis;
+        Fnv(hash, scanHash);
+        Fnv(hash, "|tomereach|");
+        Fnv(hash, tomeReachOutcome);
+        return Hex(hash);
+    }
+
     // How this session's collection of the spells vampires cast went (SpellScannerCasters.cpp)
     enum class Casters
     {
         kNotRun,     // no scan asked yet: nothing was marked from it, nothing is missing
         kComplete,   // read to the end (an NPC or a SPID file that could not be read is skipped and logged)
-        kFailed,     // stopped part way: castByVampires marks are missing
+        kFailed,     // stopped part way, or most NPCs skipped: castByVampires marks are missing
     };
 
-    // What a full scan could not mark, in words; empty when nothing is missing
-    inline std::vector<std::string> IncompleteReasons(bool tomeReachMarked, Casters casters)
+    // The walk over the NPCs failed: more than half of them could not be read (a few
+    // broken NPCs are skipped; that many means the walk itself is broken)
+    inline bool CasterWalkFailed(std::size_t npcs, std::size_t skipped) noexcept
+    {
+        return npcs > 0 && skipped * 2 > npcs;
+    }
+
+    // What a full scan could not mark, in words; empty when nothing is missing.
+    // `tomeReachAnswered`: the pass had ended when the marks were made (TomeReach::OutcomeKey
+    // not empty). A pass that failed is an answer - the next start's fails the same way, and
+    // its outcome is in the fingerprint (WithTomeReach) - one still running is not.
+    inline std::vector<std::string> IncompleteReasons(bool tomeReachAnswered, Casters casters)
     {
         std::vector<std::string> reasons;
-        if (!tomeReachMarked) {
-            reasons.emplace_back("the tome reach pass was not done or failed - no tomeUnreachable marks");
+        if (!tomeReachAnswered) {
+            reasons.emplace_back("the tome reach pass was not done - no tomeUnreachable marks");
         }
         if (casters == Casters::kFailed) {
             reasons.emplace_back("the spells vampires cast could not be collected - no castByVampires marks");
@@ -129,6 +160,19 @@ namespace ScanRecordRules
         return joined.empty() ? std::string("the scan output's incomplete field is empty") : joined;
     }
 
+    // The record on disk was made under `scanFingerprint` by this version's rules. The
+    // catalog's own hash and the librarian rules are checked apart (ScanRecord.cpp).
+    inline bool RecordFits(const nlohmann::json& record, std::string_view scanFingerprint)
+    {
+        if (scanFingerprint.empty() || !record.is_object()) return false;
+        const auto version = record.find("version");
+        if (version == record.end() || !version->is_number_integer() || version->get<long long>() != kRecordVersion) {
+            return false;
+        }
+        const auto scan = record.find("scan");
+        return scan != record.end() && scan->is_string() && scan->get<std::string>() == scanFingerprint;
+    }
+
     enum class RecordAction
     {
         kWrite,    // the catalog is a full scan's of this load order: keep the record
@@ -143,11 +187,19 @@ namespace ScanRecordRules
 
     // After a scan wrote spell_catalog.json: whether the record says which load order it is
     // from. Only a scan of every spell that marked everything, under a known fingerprint.
-    inline RecordDecision DecideRecord(bool fullScan, std::string_view scanFingerprint, std::string_view incomplete)
+    // `loadOrderHash`: LoadOrderFingerprint::Value::hash (empty: not worked out);
+    // `scanFingerprint`: WithTomeReach of its `scan` (empty: gate/rules.json unreadable or
+    // the tome reach pass still running).
+    inline RecordDecision DecideRecord(bool fullScan, std::string_view loadOrderHash, std::string_view scanFingerprint,
+        std::string_view incomplete)
     {
         if (!fullScan) return { RecordAction::kRemove, "the catalog was written by a tome scan" };
-        if (scanFingerprint.empty()) return { RecordAction::kRemove, "the load order is unknown" };
         if (!incomplete.empty()) return { RecordAction::kRemove, std::format("the scan was incomplete: {}", incomplete) };
+        if (loadOrderHash.empty()) return { RecordAction::kRemove, "the load order is unknown" };
+        if (scanFingerprint.empty()) {
+            return { RecordAction::kRemove,
+                "the scan fingerprint is unknown (gate/rules.json could not be read, or the tome reach pass runs)" };
+        }
         return { RecordAction::kWrite, {} };
     }
 }

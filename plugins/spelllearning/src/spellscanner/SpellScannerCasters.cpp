@@ -49,6 +49,7 @@ namespace SpellScanner
         constexpr std::string_view kSpellLine = "spell";
         constexpr char kFieldSeparator = '|';
         constexpr char kPluginSeparator = '~';
+        constexpr std::size_t kSkippedLogMax = 10;   // skipped NPCs logged one by one; the rest only counted
 
         std::once_flag g_vampireOnce;
         std::unordered_set<RE::FormID> g_vampireSpells;
@@ -196,15 +197,20 @@ namespace SpellScanner
             const bool traitsFromTemplate = npc->UsesTemplate() && npc->baseTemplateForm &&
                 npc->actorData.templateUseFlags.any(Flag::kTraits);
             if (traitsFromTemplate) {
-                const auto [it, added] = templateRaces.try_emplace(npc->baseTemplateForm->GetFormID());
-                if (added) {
+                const RE::FormID templateId = npc->baseTemplateForm->GetFormID();
+                auto it = templateRaces.find(templateId);
+                if (it == templateRaces.end()) {
+                    // Walked into a local list and kept only once whole: a fault part way (caught by the
+                    // caller) leaves nothing behind, so the template's next NPC walks it again
                     std::vector<RE::TESNPC*> npcs;
+                    std::vector<RE::TESRace*> found;
                     // depth 1: the same walk CollectSummonedNPCs(npc) makes below a template NPC
                     CollectSummonedNPCs(npc->baseTemplateForm, npcs, 1);
                     for (auto* source : npcs) {
                         auto* race = source->GetRace();
-                        if (race && std::ranges::find(it->second, race) == it->second.end()) it->second.push_back(race);
+                        if (race && std::ranges::find(found, race) == found.end()) found.push_back(race);
                     }
+                    it = templateRaces.emplace(templateId, std::move(found)).first;
                 }
                 if (!it->second.empty()) return it->second;
                 // a template chain that leads nowhere: the NPC's own race
@@ -228,12 +234,15 @@ namespace SpellScanner
         {
             walk.vampireRaces.clear();
             for (auto* race : TraitRaces(npc, walk.templateRaces, walk.ownRace)) {
-                const auto [it, added] = walk.races.try_emplace(race->GetFormID(), VampireRace::kNo);
-                if (added) {
-                    it->second = JudgeRace(race);
-                    if (it->second == VampireRace::kName) {
+                const RE::FormID raceId = race->GetFormID();
+                auto it = walk.races.find(raceId);
+                if (it == walk.races.end()) {
+                    // Judged first, kept after: a race whose judging faults is not cached as "no"
+                    const VampireRace verdict = JudgeRace(race);
+                    if (verdict == VampireRace::kName) {
                         logger::debug("SpellScanner: vampire race by its editor id only: {}", race->GetFormEditorID());
                     }
+                    it = walk.races.emplace(raceId, verdict).first;
                 }
                 if (it->second != VampireRace::kNo) walk.vampireRaces.push_back(race);
             }
@@ -250,12 +259,13 @@ namespace SpellScanner
             }
         }
 
-        // True when the walk got through every NPC. One NPC that cannot be read (a
+        // True when the walk got through the NPCs. One NPC that cannot be read (a
         // fault in its record or its template's, caught under /EHa) is skipped and
-        // logged with its FormID, and the rest are still read: a load order with one
-        // broken NPC would otherwise be scanned again at every game start. A template
-        // whose walk faulted part way keeps what it had (maybe nothing), so its other
-        // NPCs may fall back to their own race.
+        // logged with its FormID (the first kSkippedLogMax), and the rest are still
+        // read: a load order with one broken NPC would otherwise be scanned again at
+        // every game start. More than half of them skipped is a failed walk
+        // (ScanRecordRules::CasterWalkFailed). The race and template caches take an
+        // entry only once it is worked out whole, so a fault leaves none behind.
         bool CollectVampireSpellsImpl()
         {
             auto* dataHandler = RE::TESDataHandler::GetSingleton();
@@ -267,18 +277,27 @@ namespace SpellScanner
 
             VampireWalk walk;
             const auto& races = walk.races;
+            std::size_t npcs = 0;
             std::size_t skipped = 0;
             for (auto* npc : dataHandler->GetFormArray<RE::TESNPC>()) {
                 if (!npc) continue;
+                ++npcs;
                 RE::FormID formId = 0;
                 try {
                     formId = npc->GetFormID();
                     AddIfVampire(npc, walk);
                 } catch (...) {
-                    ++skipped;
-                    logger::warn("SpellScanner: skipped NPC {:08X} while collecting the spells vampires cast (its "
-                                 "record could not be read)", formId);
+                    if (++skipped <= kSkippedLogMax) {
+                        logger::warn("SpellScanner: skipped NPC {:08X} while collecting the spells vampires cast (its "
+                                     "record could not be read){}", formId,
+                            skipped == kSkippedLogMax ? " - further skipped NPCs are only counted" : "");
+                    }
                 }
+            }
+            if (ScanRecordRules::CasterWalkFailed(npcs, skipped)) {
+                logger::error("SpellScanner: {} of {} NPCs could not be read - the spells vampires cast are not known",
+                    skipped, npcs);
+                return false;
             }
             const std::size_t vampires = walk.vampires;
             const auto byKeyword = std::ranges::count_if(races, [](const auto& r) { return r.second == VampireRace::kKeyword; });

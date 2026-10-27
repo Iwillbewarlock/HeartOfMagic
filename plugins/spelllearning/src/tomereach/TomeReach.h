@@ -12,6 +12,7 @@
 // See docs/ARCHITECTURE.md, "Tomes nothing hands out".
 
 #include <chrono>
+#include <string>
 #include <unordered_set>
 
 namespace TomeReach
@@ -26,4 +27,11 @@ namespace TomeReach
     // Any thread but the game thread: waits until the pass is done (or failed),
     // at most `limit`. Returns at once when no pass was started. True when done.
     bool WaitUntilDone(std::chrono::milliseconds limit);
+
+    // How the pass ended, for the scan record (ScanRecordRules::WithTomeReach):
+    // "ready", "failed:unreadable:<FNV of the sorted unreadable plugin names>",
+    // "failed:error" (it threw), "not started"; empty while it runs. A pass that
+    // fails the same way again gives the same key, so its scan stays recorded.
+    // Any thread.
+    std::string OutcomeKey();
 }
