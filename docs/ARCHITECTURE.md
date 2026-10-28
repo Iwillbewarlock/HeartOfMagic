@@ -2516,12 +2516,13 @@ HeartOfMagic/
 ├── PrismaUI/views/SpellLearning/
 │   └── SpellLearningPanel/          ✅ Main UI (39 modules)
 │       ├── index.html               ✅ UI structure + module loading
-│       ├── themes/design-*.css      Designs laid over styles-skyrim.css (Arcane, Modern Dark)
+│       ├── themes/design-darkbook.css  The book sheet Skald (built in, modules/designPresets.js) is laid on
 │       ├── styles-skyrim.css        ✅ Skyrim-themed styling
 │       ├── script.js                ✅ Main app logic
 │       ├── themes/                  ✅ Theme definitions (default, skyrim)
 │       └── modules/                 ✅ 39 JavaScript modules
 ├── SKSE/Plugins/SpellLearning/     Runtime data (presets, librarian, card icons)
+├── addons/designs/              The design add-ons (Classic, ModernDark, Arcane, Chalkboard, NightGrimoire), Data layout
 └── docs/
     ├── ARCHITECTURE.md              ✅ This file
     ├── DESIGN.md                    ✅ Design patterns and UI documentation
