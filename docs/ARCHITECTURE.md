@@ -2035,7 +2035,7 @@ headers (offline: `graft-check`, `graft-run-check`), wired by `src/uimanager/Tre
 order's; log prefix `TreeGraft:`).
 
 - **When** (`TreeGraftRun.h` `WhyNotRun`, `WhyScanUnusable`): AutoScan's own preconditions hold ("Build Spell
-  Tree at Start" not Off, a tree with spells, no other scan); the load order is known; the tree record
+  Tree at Start" readable and not Off, a tree with spells: AutoScan.cpp `Precondition`); the load order is known; the tree record
   `spell_tree_loadorder.json` is readable and its `loadOrder` is not the current fingerprint (the tree record,
   not the scan record: a panel scan must not hide a graft); `ScanRecord::CatalogMatches` (the catalog is this
   load order's full scan); `spell_scan_output.json` is that scan's dump (`ScanRecord::DumpMatches`: the
