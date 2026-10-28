@@ -43,8 +43,9 @@
 - **A spell learned outside Heart of Magic is no longer weakened or taken away.** One the player already knew
   from a quest, the console, SpellScribe's puzzle or another mod became an early-learned spell once its learning
   progress passed the early-learning threshold (or when it was picked as the target): its name showed a power
-  percent, it was weakened, and changing the target removed it. Such a spell is now left as it is. Only a spell
-  from a save older than v2.5's early-learned record, whose record was lost, keeps its full power now.
+  percent, it was weakened, and changing the target removed it. Such a spell is now left as it is. A spell whose
+  early-learned record was lost (v2.5 could lose it, or a damaged co-save) now keeps its full power instead of
+  being weakened again.
 
 - **A spell under study with Immersive Spell Learning is no longer taught early.** Loading a save, a cast that
   took it past the early-learning threshold, or picking it again as the learning target added the spell before

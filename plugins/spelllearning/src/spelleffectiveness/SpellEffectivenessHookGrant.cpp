@@ -50,7 +50,11 @@ bool SpellEffectivenessHook::ReleaseHeldIfOwned(RE::SpellItem* spell)
     auto* player = RE::PlayerCharacter::GetSingleton();
     if (!spell || !player || !IsHeldForISL(spell->GetFormID()) || !player->HasSpell(spell)) return false;
     {
+        // ISL taught it without its study-done event (an older patch): what OnISLTaught does - this mod's
+        // spell, tracked early again (a target switch took it out of the set and left the hold), so
+        // OwnedOutside does not take it for one learned outside
         std::unique_lock<std::shared_mutex> lock(m_mutex);
+        if (CanLearnEarly(spell)) AddToEarlySet(spell->GetFormID());
         m_heldForISL.erase(spell->GetFormID());
     }
     logger::info("SpellEffectivenessHook: {} ({:08X}) was held for ISL and the player has it now - taught",
@@ -255,9 +259,10 @@ void SpellEffectivenessHook::CheckAndRegrantSpell(RE::FormID spellFormId)
             return;
         }
 
-        ReleaseHeldIfOwned(spell);
+        // Released: tracked by the release, still to get its name and descriptions below
+        const bool released = ReleaseHeldIfOwned(spell);
         bool playerHasSpell = player->HasSpell(spell);
-        bool isTracked = IsEarlyLearnedSpell(spellFormId);
+        bool isTracked = IsEarlyLearnedSpell(spellFormId) && !released;
 
         // Held for ISL (a target picked again mid-study): tracked again for the weakening
         // once ISL adds it, never added or renamed here

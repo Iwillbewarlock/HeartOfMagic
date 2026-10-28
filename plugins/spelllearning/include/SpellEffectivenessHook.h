@@ -123,13 +123,15 @@ public:
     bool IsHeldForISL(RE::FormID formId) const;
 
     // The player has the spell now (ISL taught it without telling us, an older ISL
-    // patch): no longer held. True when it was held. Game thread.
+    // patch): no longer held, and tracked early as OnISLTaught does (it is this mod's,
+    // not one learned outside). True when it was held. Game thread.
     bool ReleaseHeldIfOwned(RE::SpellItem* spell);
 
     // The one rule for adding an early-learned spell to the player ourselves: the
     // early grant at the threshold (AddXP), CheckAndRegrantSpell and the load
     // refresh. A spell of one of the five schools (CanLearnEarly), not held for ISL,
-    // and no copy of it known (ProgressionManager::PlayerKnowsCopyOf). The caller
+    // not known from outside this mod (OwnedOutside) and no copy of it known
+    // (ProgressionManager::PlayerKnowsCopyOf). The caller
     // checks the progress that triggers it.
     bool ShouldGrantEarly(RE::SpellItem* spell) const;
     
