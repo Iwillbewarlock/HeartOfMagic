@@ -9,7 +9,9 @@
  *
  * applyAsync(output, onDone) runs just before the tree is saved (each mode's
  * applyTree saves in onDone): in game by the plugin (the same pass in C++,
- * LayoutDeclutter.cpp, on a worker thread), otherwise here a piece at a time
+ * LayoutDeclutter.cpp, on a worker thread; the C++ also takes a node's `fixed`
+ * and the request's `spread: false`, which only its tree graft sends - this
+ * script has neither, and the panel never sends them), otherwise here a piece at a time
  * so the panel keeps drawing; apply(output) does it here at once:
  *   1. the whole tree is spaced out by SPREAD, to make room between lines;
  *   2. spells are moved off the tree's lines - every parent-to-child line keeps

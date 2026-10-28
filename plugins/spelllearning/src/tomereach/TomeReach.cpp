@@ -5,8 +5,10 @@
 #include "tomereach/TomeReachConfig.h"
 #include "tomereach/TomeReachPass.h"
 #include "ScanRecordRules.h"
+#include "SpellScanner.h"
 
 #include <algorithm>
+#include <format>
 #include <string>
 
 #include <chrono>
@@ -27,6 +29,7 @@ namespace TomeReach
             NameTable names;
             std::unordered_set<Key> tomes;
             std::unordered_map<RE::FormID, std::vector<Key>> tomesOf;  // spell -> its tomes
+            std::unordered_map<RE::FormID, std::string> spellLabels;   // spell -> "'name' formId persistentId" (the quest-only log)
         };
 
         struct Result
@@ -99,6 +102,34 @@ namespace TomeReach
             return true;
         }
 
+        // Every quest-only spell of the load order, one line each, and their count: the list the
+        // author looks over before a release (the tree graft design, decision 3). Sorted by formId.
+        void LogQuestOnly(const Job& job, const PassResult& pass, const std::unordered_set<RE::FormID>& questOnly)
+        {
+            std::vector<RE::FormID> spells(questOnly.begin(), questOnly.end());
+            std::ranges::sort(spells);
+            for (const RE::FormID spell : spells) {
+                std::vector<std::string> plugins;   // whose quest records hand out its reached tomes
+                if (const auto tomes = job.tomesOf.find(spell); tomes != job.tomesOf.end()) {
+                    for (const Key tome : tomes->second) {
+                        const auto from = pass.questFrom.find(tome);
+                        if (from == pass.questFrom.end()) continue;
+                        for (const std::uint32_t plugin : from->second) {
+                            const auto& name = job.names.Name(plugin);
+                            if (std::ranges::find(plugins, name) == plugins.end()) plugins.push_back(name);
+                        }
+                    }
+                }
+                std::string joined;
+                for (const auto& name : plugins) joined += (joined.empty() ? "" : ", ") + name;
+                const auto label = job.spellLabels.find(spell);
+                logger::info("TomeReach quest-only: {} - quest records in {}",
+                    label != job.spellLabels.end() ? label->second : std::format("{:08X}", spell),
+                    joined.empty() ? std::string("(unknown)") : joined);
+            }
+            logger::info("TomeReach quest-only: {} spells (tome pairs generation {})", spells.size(), job.generation);
+        }
+
         void Run(std::shared_ptr<Job> job)
         {
             const auto started = std::chrono::steady_clock::now();
@@ -134,6 +165,7 @@ namespace TomeReach
                     job->loadOrder.size(), job->tomes.size(), pass.byRecord, pass.byLooseOnly, pass.byConfig,
                     pass.configFiles, pass.byDamaged, pass.byDebug, answer.unreachable.size(), answer.questOnly.size(),
                     pass.questOnly.size(), ms, job->generation);
+                LogQuestOnly(*job, pass, answer.questOnly);
                 Finish(job->generation, &answer);
             } catch (const std::exception& e) {
                 logger::warn("TomeReach: the pass failed ({}) - no spell is marked", e.what());
@@ -182,7 +214,13 @@ namespace TomeReach
             }
             keyedBooks.insert(book->GetFormID());
             job->tomes.insert(key);
-            job->tomesOf[spell->GetFormID()].push_back(key);
+            const RE::FormID spellId = spell->GetFormID();
+            job->tomesOf[spellId].push_back(key);
+            if (!job->spellLabels.contains(spellId)) {
+                const char* name = spell->GetName();
+                job->spellLabels.emplace(spellId, std::format("'{}' {:08X} {}", name ? name : "", spellId,
+                    SpellScanner::GetPersistentFormId(spellId)));
+            }
         });
         logger::info("TomeReach: reading {} plugins for {} tomes on a worker thread (first: '{}', tome pairs generation {})",
             job->loadOrder.size(), job->tomes.size(),

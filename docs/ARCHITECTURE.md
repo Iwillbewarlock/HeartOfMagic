@@ -232,6 +232,8 @@ game the placed references of cells that are not loaded are not in memory:
 - A spell is `tomeUnreachable` when every tome that teaches it is unreached. The scan marks it
   (`UnreachableSpells`), and the tree filter (`isTaughtByTome`) leaves it out; it stays in the catalog and
   the perk adapters.
+- A spell whose reached tomes only a quest hands out is `questOnly` (2026-10-28; the rules and the log list:
+  "Tree Graft", "Quest-only spells", under Data Flow).
 - A damaged plugin (a record or subrecord past its end, a compressed record that does not inflate, a file
   that ends inside a record header) was read only in part, and it could have named any form of itself or its
   masters in the rest: the tomes of those plugins count as handed out, the others keep their answer, and the
@@ -1399,6 +1401,11 @@ count in both passes; the reply's `lineWork`, `lineCapped`): a few seconds nativ
 spell, and the push-apart rounds are not under it); the script's pass is bounded by the same work but
 takes many times longer.
 
+Two request fields exist in C++ only (2026-10-28, for the tree graft; the panel never sends them): a node's
+`fixed: true` never moves, as a root does, and `spread: false` skips the x1.35 spread, after which a spell
+still where it was sent (every fixed one) comes back exactly as sent, not rounded to 0.01. Without them the
+pass is unchanged (`declutter-test --self-test` pins the default reply).
+
 ```
 JS LayoutDeclutter.applyAsync ── callCpp("DeclutterTree", {id, schools, globe, layoutMode, noRotate})
   └─ UIManager::OnDeclutterTree (UIManagerDeclutter.cpp)
@@ -1921,7 +1928,8 @@ the catalog was made from (`src/AutoScan.cpp`, `include/AutoScan.h`; design:
 
 - **What it changes:** `spell_catalog.json`, `spell_scan_output.json` (always, as Papyrus `RunScan` does)
   and the scan record `spell_catalog_loadorder.json`, plus the spell card's catalog in memory
-  (`RememberCatalog`). Never `spell_tree.json`, `spell_tree_loadorder.json`, the learning progress, the panel
+  (`RememberCatalog`). The scan itself never writes `spell_tree.json` or `spell_tree_loadorder.json` (the tree
+  graft after it does, and the seen list is seeded before the catalog is replaced: "Tree Graft" below), nor the learning progress, the panel
   (no `CallView`, no `m_scanText`) or a game form: it calls neither `PerkAdapters::Apply` nor
   `SpellResearchPatch` - the adapters take the new catalog at the next game start (kDataLoaded, during the
   loading), Spell Research at the next save load (`OnGameLoaded` resets its count and reads the file). So
@@ -2005,7 +2013,7 @@ the catalog was made from (`src/AutoScan.cpp`, `include/AutoScan.h`; design:
   shipped in `debug/selftest.json` for `DeployDev.ps1 -WithSelfTest`): the scan runs whatever the record says,
   and `AutoScan SELFTEST:` lines judge it - `RUN` (catalog written; the record matches after a complete scan
   and is gone after an incomplete one), `COMPLETE` (nothing missing from the scan; names the vampire caster
-  collection's state and the `incomplete` reasons), `TREE` (FNV of spell_tree.json and spell_tree_loadorder.json before and after), `HITCH` (a probe thread posts a task every
+  collection's state and the `incomplete` reasons), `TREE` (FNV of spell_tree.json and spell_tree_loadorder.json before and after: unchanged, or changed by a tree graft whose checks passed), `HITCH` (a probe thread posts a task every
   2 ms that reads the engine frame time: the longest frame during the scan against the longest of 3 s at the
   main menu before it, plus `budgetMs`, and no step forced; SKIP when the frame time never moved), `SAME` (the steps' scan equals
   one `CollectAllSpells` in a single task, timestamp blanked - that task freezes the game for its length, after
@@ -2017,6 +2025,99 @@ the catalog was made from (`src/AutoScan.cpp`, `include/AutoScan.h`; design:
   A save loaded during a self-test run can make `TREE` fail by itself (the load order notice writes
   spell_tree_loadorder.json); the progress is not compared (nothing of it exists at the main menu, and
   AutoScan.cpp includes no progression header).
+
+### Tree Graft (2026-10-28)
+
+New spells of the load order join the saved tree at the main menu; no existing node moves (it may gain a
+child link). Design: `docs/superpowers/specs/2026-10-28-tree-graft-design.md`. Rules without game types in
+headers (offline: `graft-check`, `graft-run-check`), wired by `src/uimanager/TreeGraftRun.cpp`
+(`RunTreeGraftAtMainMenu`, called from AutoScan.cpp after its scan, or when the catalog already was the load
+order's; log prefix `TreeGraft:`).
+
+- **When** (`TreeGraftRun.h` `WhyNotRun`, `WhyScanUnusable`): AutoScan's own preconditions hold ("Build Spell
+  Tree at Start" not Off, a tree with spells, no other scan); the load order is known; the tree record
+  `spell_tree_loadorder.json` is readable and its `loadOrder` is not the current fingerprint (the tree record,
+  not the scan record: a panel scan must not hide a graft); `ScanRecord::CatalogMatches` (the catalog is this
+  load order's full scan); `spell_scan_output.json` is that scan's dump (`ScanRecord::DumpMatches`: the
+  record's `dumpBytes` / `dumpHash`, which `DumpWritten` stamps only into the record with the scan's
+  `writeId`); the scan has a spells list, an empty `incomplete` and the tome reach pass `ready`. Otherwise
+  nothing is written and the load order notice applies as before.
+- **The seen list** (`include/uimanager/TreeRecord.h`, record `version` 2): `seenSpells`, the persistentId of
+  every spell the tree's build or a graft has judged. Written at a build's Apply (the panel sends it with the
+  tree, `SpellTreeSave.send`; `UIManager::SaveSpellTreeFromPanel` takes it off the tree text,
+  `TakeSeenSpells`, and `RecordTreeLoadOrder` stores it); an Import clears it (`ForgetSeenSpells`); edit mode
+  saves and Clear leave the record alone. Unknown fields are kept (`extra`). Without a list
+  (`TreeGraftRecord.h` `BaselineOf`): the spells of the catalog the scan at game start replaced; without that,
+  none and nothing is grafted. That catalog is read before the scan writes the new one, and the seen list is
+  seeded into the record then (`CatalogNeeded`, `SeededRecord`: only when the scan record says the old catalog
+  was another known load order's), so a graft dropped this start still has it next time.
+- **Candidates** (`include/treebuilder/GraftCandidates.h`): `NewSpells` - not in the seen list, not in the tree
+  (a node is its persistentId, or its formId when it has none), with a persistentId, no node of its duplicate
+  group. `IsTreeCandidate` ports the panel's rule line by line (`proceduralTreeBuilder.js` `isTaughtByTome`,
+  blacklist, plugin whitelist, quest-only, gate kept); the player's rules come from config.json.
+- **The plan** (off the game thread; `TreeGraftRun.h` `PlanGraft`, on the file's own tree, not the remapped
+  copy): (1) `RefreshIds` - a live node's stale formId becomes what validation says it is now, with every link
+  to it; a rematched node takes its new persistentId; a node validation drops keeps its id, and a live node
+  whose new formId is a dropped node's saved one is held at its old id. (2) `TreeGraft::Graft`
+  (`include/treebuilder/TreeGraft.h`, `src/treebuilder/TreeGraft.cpp`): tier as the build (level, or cost rank
+  when the tree's `tier_mode` is `"cost"`), parent by Classic's `FindBestClassicParent` (now in
+  `TreeBuilderInternal.h`) without its jitter over the school's live nodes under the tree's child cap, plus a
+  room term; the new node gets `prerequisites` = `softPrereqs` = [parent], `softNeeded` 1, no locks, no
+  `requiredXP`, and a provisional x, y beside its parent inside its tier ring. Lists: `grafted`, `leftOut` (by
+  the player's rules), `skippedNoSchool` (no live node of its school can take it), `deferred` (its formId is one
+  a node of the file holds, or no persistentId). (3) The C++ declutter with every existing node `fixed` and
+  `spread: false`: only grafted nodes move. (4) `TreeGraftChecks.h`: every pre-graft node as it was but for its
+  ids and new children, no seen spell grafted. A plan that fails is not written.
+- **The commit** (game thread, task 2): the tree and record files are compared with the text read on the waiter
+  thread (a panel save or Import in between wins: nothing written); then the record with a `graftJournal`, the
+  tree (`WriteAtomically`, `.bak` kept), the record without it. The record after a run (`RecordAfterGraft`):
+  seen += grafted + leftOut (not deferred or unplaced: a later run judges them again), `pendingGrafted` +=
+  grafted, and only when nothing was deferred or unplaced `loadOrder`/`plugins`/`spells` become the current
+  ones and `noticedLoadOrder` is cleared. Then `ApplyTreePrerequisiteEntries` and the requiredXP sync run
+  again and the panel gets the validated tree (`updateTreeData`). Each game thread wait gives up after 60 s
+  (`kGameThreadWait`, logged as a timeout).
+- **The journal** (`TreeGraftRecord.h`): `graftJournal` { `treeHash` (FNV-1a 64 of the tree text about to be
+  written), `record` (the record after the graft) }. `ResolveTreeGraftJournal` runs first at every start,
+  whatever else runs: the tree's hash is the journal's - apply its record; another tree - drop the journal; a
+  tree file there but unreadable - wait (`kWait`). Its write is a game thread task that goes only when the
+  record (and for an apply, the tree) is still what was read (`JournalStillFits`); a journal left over stops
+  that start's graft.
+- **The panel and the player:** when the tree becomes this load order's, `NotifyTreeGrafted` calls
+  `onTreeGrafted({ loadOrder })`; `autoBuild.js` then counts the tree as built for it and drops a
+  `status.loadOrderChanged` line already shown. At the next save load `ShowPendingGraftNotice` shows
+  `hud.spellsGrafted` ("N new spells joined the spell tree", 13 languages) and zeroes `pendingGrafted`.
+  `SaveSpellTree` warns in the log when a panel save drops spells the session's graft added.
+- **Dev self-test** `tree-graft` (`src/environment/EnvironmentSelfTestGraft.cpp`): PASS when the session's
+  graft wrote and every check passed, and the panel's last `updateTreeData` is what the file validates to
+  now; SKIP when no graft wrote or the tree was saved since.
+
+**Quest-only spells** (`src/tomereach/`, 2026-10-28). The tome reach pass ("Tomes nothing hands out" above)
+also tells which reached tomes only a quest hands out. A quest's hits are a `QUST` record's script (`VMAD`),
+its aliases' created, forced or unique items (`ALCO`, `ALFR`, `ALUA`, read loosely) and an alias's inventory
+(a `QUST`'s `CNTO`), plus the script fragments of its dialogue (`INFO` `VMAD`) and scenes (`SCEN` `VMAD`); an AI
+package's (`PACK`) is not a quest's. A tome is quest-only when a quest names it and no other record's field or
+script does (`Evidence::foundQuest` less `foundOtherField` and `foundOtherLoose`, TomeReachPass.cpp); a
+distribution config that names it, or a damaged plugin that could, counts as handed out and takes it off. A
+spell is quest-only when at least one of its tomes is reached and every reached tome is quest-only
+(`TomeReachPass.h` `OnlyQuestsReach`; an unreached tome does not count against it). The scan marks it
+`questOnly: true` (`TomeReach::QuestOnlySpells`); `isTreeCandidate` leaves it out unless the player included it
+(`GateReview.isKept`); the blacklist window's "Quest only" list (`gateReview.js`) shows it with Include. The
+College of Winterhold's novice tomes stay: a merchant's leveled list reaches them too. When the pass finishes it
+logs every quest-only spell of the load order, one `TomeReach quest-only: '<name>' <formId> <persistentId> -
+quest records in <plugins>` line each (the plugins whose quest records name its reached tomes,
+`PassResult::questFrom`), and a `TomeReach quest-only: N spells` line: the list to look over before a release.
+
+**Renamed plugins** (2026-10-28). A node whose persistentId names nothing (its plugin renamed, merged or
+ESL-compacted) is looked up by its baked `editorId` (`SchoolBridges.applyToOutput` writes it from the scan;
+spell editor ids need powerofthree's Tweaks). `JudgeNode` (SpellScannerFormId.cpp) builds one
+`EditorIdRematch::CandidateIndex` per tree load, only when a node needs it: every loaded spell by
+`GetEditorId`, A-Z folded as the engine's lookup does. `PickRematch` takes the one spell in the node's school;
+several distinct spells, or none, and the node is not taken (logged). Clashes (`TreeRemap.h`
+`DropRematchClashes`): a rematched node on a spell another node of its school has goes - nodes resolved by their
+own persistentId first, then rematched ones in file order. A legacy copy (no persistentId) in another school
+follows such a dropped node as it was before the clash, unless its own school has a node of that spell (then
+a legacy collision). A rematched node takes the found spell's persistentId; `Report::Changed()` counts it, so the
+panel gets the fixed tree.
 
 ### Tree Validation System
 
@@ -2071,7 +2172,9 @@ Player reads spell tome → TESObjectBOOK::ProcessBook hooked
 ```
 Load spell_tree.json → For each node:
   → persistentId field ("Plugin.esp|0x001234")? ResolvePersistentFormId() → the node takes that FormID
-    (whether or not the saved one is still a valid form); none resolved → the node goes
+    (whether or not the saved one is still a valid form); none resolved → found again by its
+    editorId in its school (a renamed, merged or compacted plugin, po3 Tweaks: "Tree Graft",
+    "Renamed plugins"), else the node goes
   → No persistentId, saved under the same FormID as a node with one (the same spell in another
     school): it follows that node - its new FormID, or out when that node went
   → Otherwise no persistentId: the saved FormID stays if it is valid, unless a node with a
@@ -2096,9 +2199,10 @@ Load spell_tree.json → For each node:
     on made-up trees: `tree-remap-check --self-test` (links read back by spell name, and a
     second pass over the fixed tree - the next load - must change nothing). Each school root
     that changes is logged (school, old, new)
-  → OnLoadSpellTree sends the fixed tree to the panel whenever a node moved or was dropped
-    (resolvedFromPersistent or invalidNodes > 0); the file on disk is not rewritten, so this
-    runs again on every load
+  → The fixed tree goes to the panel (ValidateTreeForPanel) whenever it differs from the saved
+    one (TreeRemap::Report::Changed(): a node moved, went or was rematched, a root or bridge
+    changed, or a formId was rewritten in its one spelling); the file on disk is not rewritten
+    (the tree graft writes it: "Tree Graft"), so this runs again on every load
 ```
 Saved panel settings that name a spell follow the same idea: the blacklist matches by `plugin` + `localFormId`
 (`filterBlacklistedSpells`), chosen roots go to the builder with the formId their spell has in the current scan
@@ -2231,6 +2335,7 @@ HeartOfMagic/
 │   │   │   ├── FormIdText.h                 ✅ formId text: Parse (hex, 0x optional, whole text, max 8 digits), ParseSpellOf (an edit mode copy's "_dup_" id as its spell) and Format "0x%08X" (no game types)
 │   │   │   ├── PluginNames.h                ✅ persistentId plugin names: UTF-8 key, memoised lookup (no game types)
 │   │   │   ├── TreeRemap.h                  ✅ a saved tree's FormIDs and links after a load order change (no game types)
+│   │   │   ├── EditorIdRematch.h            ✅ a node of a renamed/merged/compacted plugin found again by editor id and school (no game types)
 │   │   │   ├── TreePrereqEntries.h          ✅ the panel's fast-path SetTreePrerequisites array for a tree text, for game start (no game types)
 │   │   │   ├── CoSave.h                     ✅ SKSE serialization callbacks (save, load, revert)
 │   │   │   ├── ProgressionCoSave.h          ✅ SLPR (writes v2, reads v1-v3), SLPX and SLTX record layouts, templated on the stream (no game types)
@@ -2252,7 +2357,9 @@ HeartOfMagic/
 │   │   │   │   └── EnvironmentSelfTest.h    ✅ In-game 1.6 self-test (dev only, selftest.json)
 │   │   │   ├── treebuilder/
 │   │   │   │   ├── TreeBuilder.h            ✅ Tree construction engine header
-│   │   │   │   ├── TreeBuilderInternal.h    ✅ Internal tree builder helpers
+│   │   │   │   ├── TreeBuilderInternal.h    ✅ Internal tree builder helpers (FindBestClassicParent, shared with the graft)
+│   │   │   │   ├── GraftCandidates.h        ✅ which scan spells a graft judges and the tree takes (no game types)
+│   │   │   │   ├── TreeGraft.h              ✅ new spells under fixed existing nodes (no game types)
 │   │   │   │   ├── LayoutDeclutter.h        ✅ Native tree declutter (Run: request -> reply)
 │   │   │   │   ├── LayoutDeclutterInternal.h ✅ Its internal types and constants
 │   │   │   │   ├── LayoutMath.h             ✅ fdlibm sin/cos/atan2 (bit-identical with V8's Math)
@@ -2262,6 +2369,10 @@ HeartOfMagic/
 │   │   │       ├── PresetFiles.h            ✅ Preset file write/delete (no game types; closes a file before removing it)
 │   │   │       ├── StartupState.h           ✅ game start's config and tree load, TreeParity
 │   │   │       ├── TreeSaveCheck.h          ✅ SaveSpellTree's no-spells guard: a text scan, no parse (no game types)
+│   │   │       ├── TreeRecord.h             ✅ spell_tree_loadorder.json v2: load order, seen list, pendingGrafted (no game types)
+│   │   │       ├── TreeGraftRecord.h        ✅ the graft's seen list baseline, record after a run, journal (no game types)
+│   │   │       ├── TreeGraftRun.h           ✅ the graft at the main menu: when, id refresh, plan (no game types)
+│   │   │       ├── TreeGraftChecks.h        ✅ the plan's checks: pre-graft nodes unchanged, no seen spell grafted (no game types)
 │   │   │       ├── UIManager.h              ✅ UI manager header
 │   │   │       └── UIManagerInternal.h      ✅ Internal UI manager helpers
 │   │   └── src/
@@ -2279,7 +2390,8 @@ HeartOfMagic/
 │   │       ├── environment/                 ✅ HeartOfMagic.esp explosion twins (docs/ENVIRONMENT.md)
 │   │       │   ├── EnvironmentTwins.cpp         (twins.json, copy the original into the twin, repoint at kDataLoaded / settings save, revert)
 │   │       │   ├── EnvironmentSelfTest.cpp      (selftest.json switch, wait for unpaused play, run, [selftest-1.6] lines)
-│   │       │   └── EnvironmentSelfTestChecks.cpp (H2 keyword reads, twins, Frostwalker matcher, adapter report)
+│   │       │   ├── EnvironmentSelfTestChecks.cpp (H2 keyword reads, twins, Frostwalker matcher, adapter report)
+│   │       │   └── EnvironmentSelfTestGraft.cpp  (tree-graft: the session's graft checks)
 │   │       ├── spellscanner/                ✅ Spell enumeration, FormID persistence
 │   │       │   ├── SpellScannerScan.cpp         (main scan logic)
 │   │       │   ├── SpellScannerJson.cpp         (scan JSON shape, MGEF fields, dump writing)
@@ -2301,6 +2413,7 @@ HeartOfMagic/
 │   │       │   ├── UIManagerStartupConfig.cpp   (config.json read only at game start, ApplyGameplayConfig)
 │   │       │   ├── UIManagerTreeState.cpp       (tree prerequisites/requiredXP appliers, game start's tree load)
 │   │       │   ├── UIManagerTreeParity.cpp      (TreeParity: game start's tree state against the panel's)
+│   │       │   ├── TreeGraftRun.cpp             (tree graft at the main menu: journal, plan off the game thread, commit)
 │   │       │   └── UIManagerIO.cpp              (clipboard, presets, auto-test I/O)
 │   │       ├── progressionmanager/          ✅ XP tracking, early grant/mastery, co-save (7 files)
 │   │       │   ├── ProgressionManagerCore.cpp       (singleton, core logic)
@@ -2322,6 +2435,7 @@ HeartOfMagic/
 │   │           ├── TreeBuilderSimilarity.cpp    (similarity matrix, spell keyword bag)
 │   │           ├── TreeBuilderPlugins.cpp       (a spell's mod, same-mod parents)
 │   │           ├── TreeBuilderBridges.cpp       (cross school bridges + school links; JS side: modules/schoolBridges.js)
+│   │           ├── TreeGraft.cpp                (tree graft: tier, parent, room term, provisional position)
 │   │           ├── TreeNLP.cpp                  (TF-IDF, cosine sim, fuzzy matching, PRM scoring)
 │   │           ├── LayoutDeclutter.cpp          (declutter: collect, spread, push apart, reply; JS twin: modules/layoutDeclutter.js)
 │   │           ├── LayoutLineClear.cpp          (declutter line search: passes, one spell's search)

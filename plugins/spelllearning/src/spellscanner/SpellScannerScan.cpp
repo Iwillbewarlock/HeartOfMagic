@@ -135,7 +135,7 @@ namespace SpellScanner
         std::vector<RE::FormID> kept;    // passed every filter; marked for the tree after the loop
         std::unordered_set<RE::FormID> taught;
         std::unordered_set<RE::FormID> unreachable;
-        std::unordered_set<RE::FormID> questOnly;   // every tome only a quest hands out (TomeReach)
+        std::unordered_set<RE::FormID> questOnly;   // at least one reached tome, every reached tome quest-only (TomeReach)
         std::unordered_map<RE::FormID, RE::FormID> duplicates;
         json spellArray = json::array();
 

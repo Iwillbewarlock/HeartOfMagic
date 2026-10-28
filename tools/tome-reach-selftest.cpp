@@ -363,6 +363,15 @@ int RunSelfTest()
         Check(questOnly(0x810), "quest-only: a tome only a SCEN VMAD (a scene fragment) names is questOnly");
         Check(reached(0x80F) && !questOnly(0x80F), "quest-only: a tome only a PACK VMAD names is not");
         Check(pass.questOnly.size() == 6, "quest-only: no tome a record, a config or nothing reaches is questOnly");
+        const auto questFrom = [&](std::uint32_t id) {
+            const auto it = pass.questFrom.find(TomeReach::MakeKey(m, id));
+            return it == pass.questFrom.end() ? std::vector<std::uint32_t>{} : it->second;
+        };
+        const std::vector<std::uint32_t> modOnly = { names.Id("Mod.esp") };
+        Check(questFrom(0x802) == modOnly && questFrom(0x811) == modOnly,
+            "quest-only: the plugin whose quest records name a tome is kept, once (a VMAD and an alias inventory)");
+        Check(pass.questFrom.size() == pass.questOnly.size() && questFrom(0x808).empty(),
+            "quest-only: questFrom holds the questOnly tomes and no other");
     }
     {
         // Damaged plugins, each with Master.esm as its only master

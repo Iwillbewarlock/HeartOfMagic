@@ -148,7 +148,12 @@ namespace TomeReach
                 if (!formId) return;
                 const Key key = resolve(formId);
                 if (!wanted.contains(key)) return;
-                if (quest) evidence.foundQuest.insert(key);
+                if (quest) {
+                    evidence.foundQuest.insert(key);
+                    // Plugins are read one after another: one entry per plugin
+                    auto& from = evidence.questFrom[key];
+                    if (from.empty() || from.back() != resolve.self) from.push_back(resolve.self);
+                }
                 if (!loose) {
                     evidence.found.insert(key);
                     if (!quest) evidence.foundOtherField.insert(key);

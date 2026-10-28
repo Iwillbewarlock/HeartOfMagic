@@ -71,6 +71,7 @@ namespace TomeReach
                 result.questOnly.erase(book);
             }
         }
+        for (const Key tome : result.questOnly) result.questFrom.emplace(tome, evidence.questFrom[tome]);
         if (books) *books = std::move(read);
         return result;
     }

@@ -34,6 +34,9 @@ namespace TomeReach
         // (Evidence::foundQuest) and by nothing else (no other record's field or
         // script, no distribution config, no damaged plugin that could name them)
         std::unordered_set<Key> questOnly;
+        // Each questOnly tome: the plugins (NameTable ids) whose quest records name it, in
+        // load order (the quest-only log lines list them)
+        std::unordered_map<Key, std::vector<std::uint32_t>> questFrom;
     };
 
     // A spell's tomes against a pass (TomeReach.cpp marks the spells by these).

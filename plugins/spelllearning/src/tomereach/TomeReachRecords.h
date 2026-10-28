@@ -98,6 +98,7 @@ namespace TomeReach
         std::unordered_set<Key> foundOtherField;  // `found` hits from a record field that is no quest's
         std::unordered_set<Key> foundOtherLoose;  // loose hits from the VMAD of a record that is no quest's
         std::unordered_map<Key, std::uint32_t> looseFrom;  // the first plugin a loose hit came from
+        std::unordered_map<Key, std::vector<std::uint32_t>> questFrom;  // foundQuest: the plugins whose quest records made the hits
     };
 
     enum class ScanStatus
