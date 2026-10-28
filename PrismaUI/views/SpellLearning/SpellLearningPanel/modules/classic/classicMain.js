@@ -14,6 +14,7 @@
  *   classicRenderer.js  (ClassicRenderer)
  *   classicBuildRequest.js (ClassicBuildRequest - the build request to C++)
  *   classicTreeOutput.js   (ClassicTreeOutput - the tree JSON to save)
+ *   classicZoomFit.js      (ClassicZoomFit - the Growth canvas fitted to the tree)
  *   treePreviewUtils.js (TreePreviewUtils)
  *   treePreview.js      (TreePreview.getOutput)
  *   treeGrowth.js       (TreeGrowth — registers into it)
@@ -528,55 +529,9 @@ var TreeGrowthClassic = {
     // ZOOM TO FIT
     // =========================================================================
 
-    /**
-     * Auto-zoom the Growth canvas so the full tree is visible with padding.
-     * Reads all positioned node coordinates and computes the bounding box.
-     */
+    /** Fit the Growth canvas to the whole tree (classicZoomFit.js). */
     _zoomToFit: function () {
-        if (!this._layoutData || !this._layoutData.schools) return;
-        if (typeof TreeGrowth === 'undefined') return;
-
-        var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-        var schools = this._layoutData.schools;
-        var nodeCount = 0;
-        for (var name in schools) {
-            if (!schools.hasOwnProperty(name)) continue;
-            var nodes = schools[name].nodes || [];
-            for (var i = 0; i < nodes.length; i++) {
-                if (nodes[i].x < minX) minX = nodes[i].x;
-                if (nodes[i].x > maxX) maxX = nodes[i].x;
-                if (nodes[i].y < minY) minY = nodes[i].y;
-                if (nodes[i].y > maxY) maxY = nodes[i].y;
-                nodeCount++;
-            }
-        }
-        if (nodeCount === 0) return;
-
-        var treeW = maxX - minX;
-        var treeH = maxY - minY;
-        if (treeW < 1) treeW = 100;
-        if (treeH < 1) treeH = 100;
-
-        // Add 15% padding
-        var padding = 1.15;
-        var canvasW = TreeGrowth._width || 400;
-        var canvasH = TreeGrowth._height || 400;
-        var zoomX = canvasW / (treeW * padding);
-        var zoomY = canvasH / (treeH * padding);
-        var zoom = Math.min(zoomX, zoomY, 2.0); // cap at 2x
-        zoom = Math.max(zoom, 0.1);
-
-        // Center pan on the tree's center
-        var centerX = (minX + maxX) / 2;
-        var centerY = (minY + maxY) / 2;
-
-        TreeGrowth.zoom = zoom;
-        TreeGrowth.panX = -centerX * zoom;
-        TreeGrowth.panY = -centerY * zoom;
-
-        console.log('[ClassicGrowth] Zoom to fit: zoom=' + zoom.toFixed(2) +
-            ' bounds=' + Math.round(treeW) + 'x' + Math.round(treeH) +
-            ' center=' + Math.round(centerX) + ',' + Math.round(centerY));
+        ClassicZoomFit.fit(this._layoutData);
     },
 
     // =========================================================================

@@ -1987,6 +1987,7 @@ Visual-First builds that used them.
 | `classic/classicMain.js` | Classic growth mode |
 | `classic/classicBuildRequest.js` | Classic build request to C++ and its failure path |
 | `classic/classicTreeOutput.js` | Classic result and layout → the saved tree JSON |
+| `classic/classicZoomFit.js` | The Growth canvas zoomed and panned to fit a Classic layout (`ClassicZoomFit.fit`) |
 | `classic/classicRenderer.js` | Classic mode renderer |
 | `classic/classicLayout.js` | Classic layout engine |
 | `classic/classicRadialOrder.js` | After the layout: nearby spells trade places so higher tier, then dearer Magicka, sits farther out (see TREE_BUILDING_SYSTEM.md, *Radial order*) |

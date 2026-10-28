@@ -646,6 +646,7 @@ now fail as unknown.
 | `modules/classic/classicMain.js` | CLASSIC growth module |
 | `modules/classic/classicBuildRequest.js` | CLASSIC build request to C++ and its failure path |
 | `modules/classic/classicTreeOutput.js` | CLASSIC result + layout → saved tree JSON |
+| `modules/classic/classicZoomFit.js` | CLASSIC layout → Growth canvas zoom and pan (`ClassicZoomFit.fit`) |
 | `modules/proceduralTreeBuilder.js` | Shared callback routing + error handler |
 | `modules/sunGrid*.js` | SUN grid sub-modules |
 

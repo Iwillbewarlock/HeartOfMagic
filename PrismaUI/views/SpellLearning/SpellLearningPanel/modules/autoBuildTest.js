@@ -15,7 +15,7 @@
  *
  * Depends on: spellTreeSave.js, autoBuildSetting.js, autoBuild.js, colorUtils.js, treePreviewUtils.js,
  * treePreviewHidden.js, the preview modes (treePreviewSun.js, sunGrid*.js,
- * treePreviewFlat.js, treePreview.js) and classic/classicTreeOutput.js +
+ * treePreviewFlat.js, treePreview.js) and classic/classicTreeOutput.js, classic/classicZoomFit.js +
  * classic/classicMain.js - run into the global scope the way the page's script
  * tags do. Swaps the globals it stubs and puts them back.
  */
@@ -50,6 +50,7 @@ var AutoBuildTest = {
         ['treePreview.js', 'TreePreview'],
         ['treePreviewHidden.js', 'TreePreviewHidden'],
         ['classic/classicTreeOutput.js', 'ClassicTreeOutput'],
+        ['classic/classicZoomFit.js', 'ClassicZoomFit'],
         ['classic/classicMain.js', 'TreeGrowthClassic']
     ],
 
