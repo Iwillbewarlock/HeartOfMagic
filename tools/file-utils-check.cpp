@@ -10,6 +10,8 @@
 // build; a write over a file, with and without the .bak, and of a new file; two failed
 // writes (the move refused while the file is open, the temp file not creatable) that
 // leave the file as it was; and a .bak copy that fails, which leaves the old .bak whole.
+// FileUtils::ReadAll, the one whole-file reader: every byte as written (CRLF, Ctrl-Z, NUL),
+// nothing for a missing file.
 //
 // Exit 0 when every case passes, 1 on a failure, 2 on a bad argument.
 
@@ -27,6 +29,8 @@
 #include <string_view>
 #include <system_error>
 #include <vector>
+
+#include <nlohmann/json.hpp>
 
 namespace
 {
@@ -48,11 +52,7 @@ namespace
 
     std::optional<std::string> Read(const fs::path& path)
     {
-        std::ifstream file(path, std::ios::binary);
-        if (!file.is_open()) return std::nullopt;
-        std::ostringstream text;
-        text << file.rdbuf();
-        return std::move(text).str();
+        return FileUtils::ReadAll(path);
     }
 
     void Write(const fs::path& path, std::string_view text)
@@ -163,9 +163,30 @@ namespace
         return check.failed;
     }
 
+    int ReadCase()
+    {
+        std::printf("  ReadAll gives every byte as written\n");
+        Checker check;
+        Folder folder;
+        const auto path = folder.path / "spell_tree.json";
+        constexpr std::string_view kBytes("{\"a\":1,\r\n\"b\":\"\x1A\"}\r\n\0tail", 24);
+        Write(path, kBytes);
+        const auto read = FileUtils::ReadAll(path);
+        check.Check(read && *read == kBytes, "CRLF, a Ctrl-Z and a NUL kept (binary, not text mode)");
+        constexpr std::string_view kCrlfJson = "{\"a\":1,\r\n\"b\":2}\r\n";
+        Write(path, kCrlfJson);
+        const auto json = FileUtils::ReadAll(path);
+        check.Check(json && *json == kCrlfJson && nlohmann::json::parse(*json, nullptr, false).is_object(),
+            "a CR between tokens is JSON whitespace: the text read with its CRLF parses");
+        check.Check(!FileUtils::ReadAll(folder.path / "missing.json"), "a missing file: nothing");
+        Write(path, "");
+        check.Check(FileUtils::ReadAll(path) == std::string(), "an empty file: an empty text");
+        return check.failed;
+    }
+
     int SelfTest()
     {
-        const std::vector<int (*)()> cases = { ReplaceCase, WriteCase, FailedCase };
+        const std::vector<int (*)()> cases = { ReplaceCase, WriteCase, FailedCase, ReadCase };
         int failedCases = 0;
         for (auto* run : cases) {
             if (run() > 0) ++failedCases;

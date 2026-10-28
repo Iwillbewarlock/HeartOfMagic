@@ -6,7 +6,8 @@
 
 // =============================================================================
 // Internal helpers shared across TreeBuilder implementation files.
-// NOT part of the public API — only included by TreeBuilder*.cpp files.
+// NOT part of the public API — only included by TreeBuilder*.cpp files and
+// TreeGraft.cpp (which runs Classic's parent choice, FindBestClassicParent).
 // =============================================================================
 
 namespace TreeBuilder::Internal
@@ -68,6 +69,16 @@ namespace TreeBuilder::Internal
         std::unordered_map<std::string, float> m_rarity;  // trait -> 0 (every spell) .. 1 (rare)
     };
 
+    // A spell's primary theme counts when GetSpellPrimaryTheme scores it above this;
+    // below, the node has no single theme (its themes list still counts)
+    inline constexpr int kPrimaryThemeMinScore = 30;
+
+    // Each node's theme and themes from the school's `themes` (none: left as they are),
+    // then DropCommonThemes(nodes, commonThemeShare). The build and the graft both
+    // (TreeBuilderThemes.cpp)
+    void AssignThemes(std::unordered_map<std::string, TreeNode>& nodes, const std::vector<std::string>& themes,
+        float commonThemeShare);
+
     // Classic's parent for `node` among `available` (tier index -> nodes that may
     // still take a child), TreeBuilderClassic.cpp. rng adds the build's random
     // jitter to each score; nullptr = none (the graft, TreeGraft.cpp, which must
@@ -75,7 +86,7 @@ namespace TreeBuilder::Internal
     // a caller's own term per candidate; nullptr = none.
     TreeNode* FindBestClassicParent(
         TreeNode& node,
-        std::unordered_map<int, std::vector<TreeNode*>>& available,
+        const std::unordered_map<int, std::vector<TreeNode*>>& available,
         int tierIdx,
         int maxChildren,
         const SimilarityMatrix& sims,

@@ -241,6 +241,7 @@ node run-tests.js
 | `modules/learningTargetKeysTest.js` | A learning target found by spell id, not school key (`LearningTargetKeys`): a multi-school spell under another key than its node's, the canonical id, `onLearningTargetDropped` forgetting only a key that still holds that spell and then redrawing the learning paths, wheel marks and open spell card, the Learn button (cheat mode too), spell card and wheel learning mark using it and the clear sending the formId |
 | `modules/gateReviewTest.js` | The spell gate's lists (`GateReview`): "review" and "out" tree candidates each in their list, not blacklisted ones (plugin:localFormId or formId) or kept ones (`gateReviewed`); "out" spells stay out of the tree unless included, an included one comes back; an old scan's `freeSpell` still leaves a spell out; reasons in words; plugin keys fold A-Z only (`foldPluginName`), the same bytes the DLL's `PluginKey` makes for Korean, Cyrillic and accented names; `migrateKeys` replaces a key saved before with `toLowerCase` once (not before the config is read, not for a configNotRead config, saved once, a new key or an unknown old key left alone); the "Quest only" list (`GateReview.questOnly`: marked `questOnly`, not blacklisted, not included) and its Include, a quest-only spell the gate left out showing its reasons there, and a quest-only spell out of the tree unless included |
 | `modules/schoolBridgesTest.js` | `SchoolBridges.applyToOutput` bakes each node's `persistentId` and `editorId` from the scan (the editor id finds a renamed plugin's node again at load); an empty editor id (no po3 Tweaks) is not baked |
+| `modules/treePrereqParityTest.js` | The panel's own tree load (`updateTreeData`, `_loadTrustedTree`, `sendTreePrerequisites`, in a vm context of their own) on `tree-prereq-check --dump-cases`'s cases (`test-data/treePrereqCases.json`): a built case sends `{clear: true}` and exactly its entries, a no-schools or throwing tree nothing, a slow-path tree not the fast path; the copy equal to the built tool's dump |
 | `modules/spellTreeSaveTest.js` | `SpellTreeSave.send`: a build's save carries `seenSpells` (every spell of the build's scan, kept or left out; after a rescan still the list kept with the draft) without changing the tree object; an edit mode save carries none |
 | `modules/i18nRelabelTest.js` | Text written with `setI18n` (i18n.js) comes back in the new language on a switch, with its values, as text or a title; text written after `clearI18n` stays; a missing key shows the English fallback; no `data-i18n` element in index.html holds another element (a switch rewrites its text and would drop the spell card's "need 2 of 3" count and LOCK badge) |
 | `modules/stableIdsTest.js` | Saved settings that name spells after a load order shift: chosen roots sent with the spell's current formId (by plugin + localFormId, light plugins too), a root whose spell is gone left out, legacy roots and no-scan roots sent as saved; XP overrides by persistentId, legacy formId-keyed ones still read and replaced on the next set; the root picker's Current badge on the root's spell in this scan |
@@ -338,14 +339,17 @@ This project does not have a C++ test framework. Validation is done through:
   `GraftCandidates.h` on made-up trees and scans - which spells are new (seen list, in the tree, duplicate
   group, no persistentId), the panel's candidate rule, parent choice against fixed nodes (repeatable, a fire
   spell under the fire branch, a missing plugin's node never a parent, never a parent of a higher tier - full parents
-taken up to two past the cap, the spell's own tier first), no existing node changed, a school the
+taken up to two past the cap, the spell's own tier first, the room term parting two equal parents), the tree's own
+  `tier_mode`, a new child's provisional point (the school's `rootDirection` for a parent on the centre, pulled into its
+  tier's ring), no existing node changed, a school the
   tree lacks left alone, clashing formIds deferred, 300 spells at once; exit 1 on a failure), `graft-run-check` (`graft-run-check --self-test`: `include/uimanager/TreeGraftRun.h`,
   `TreeGraftRecord.h`, `TreeGraftChecks.h` - when the graft runs, the player's rules from config.json, the seen
   list baseline and the record a run leaves (the spells of nodes back in the tree seen again), which edit saves that drop grafted nodes are stale, stale ids refreshed, the declutter with existing nodes fixed, the
   checks the dev self-test reports, the scan dump match, the seen list seeded before the catalog is replaced, the
   journal; exit 1 on a failure; docs/ARCHITECTURE.md, "Tree Graft"), `file-utils-check` (`file-utils-check
   --self-test`: `include/FileUtils.h` `WriteAtomically` in a temp folder - the move onto an existing file replaces it,
-  the `.bak` a copy (made as `.bak.tmp` and moved onto it: a failed copy leaves the old `.bak` whole), a failed write leaves the file as it was; exit 1 on a failure), `tree-save-check` (SaveSpellTree's no-spells guard,
+  the `.bak` a copy (made as `.bak.tmp` and moved onto it: a failed copy leaves the old `.bak` whole), a failed write leaves the file as it was; `FileUtils::ReadAll`, the one whole-file reader, every byte as written - CRLF,
+  Ctrl-Z, NUL; exit 1 on a failure), `tree-save-check` (SaveSpellTree's no-spells guard,
   `include/uimanager/TreeSaveCheck.h`: `--self-test` on made-up trees, or `tree-save-check <tree.json>...` against a
   full parse; exit 1 on a disagreement) and `tree-remap-check` (a saved tree's FormIDs and links after a load order
   change, `include/TreeRemap.h`, the part of `ValidateAndFixTree` with no game types: `tree-remap-check --self-test`
@@ -361,7 +365,9 @@ taken up to two past the cap, the spell's own tier first), no existing node chan
   `include/TreePrereqEntries.h`: `tree-prereq-check --self-test` on made-up trees - roots, the fallback from
   `prerequisites`, lock repair with object and string locks, `_dup_` copies, a spell in two schools, school key
   order, non-string entries, trees the panel sends nothing for; `tree-prereq-check <tree.json>` prints the array, which
-  must equal what the panel's `sendTreePrerequisites` sends for the same text; exit 1 on a failure, 3 when nothing
+  must equal what the panel's `sendTreePrerequisites` sends for the same text; `tree-prereq-check --dump-cases` prints
+  the cases as JSON, kept as the panel's `test-data/treePrereqCases.json`, which `modules/treePrereqParityTest.js` runs
+  through the panel's own tree load; exit 1 on a failure, 3 when nothing
   is sent; docs/ARCHITECTURE.md, "Progression state at game start"), `thread-flag-check` (`thread-flag-check --self-test`: `include/GameThreadFlag.h`, the scope half of `IsOnGameThread()` -
   in inside a task, message or native scope (nested too), out on any other thread and once it closes; exit 1 on a failure), `spell-tomes-check` (`spell-tomes-check --self-test`: `include/SpellTomePairs.h`, the pairs for tomes that teach
   nothing - the SynthesizedPatch.json reader on made-up texts (null `tomeId`, malformed ids, not JSON, ill-formed

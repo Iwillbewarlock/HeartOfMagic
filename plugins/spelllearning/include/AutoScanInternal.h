@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ElapsedMs.h"
 #include "LoadOrderFingerprint.h"
 #include "SpellScanner.h"
 
@@ -7,6 +8,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -28,9 +30,6 @@ namespace AutoScan::Internal
     inline constexpr double kHitchBudgetDefaultMs = 25.0;   // self-test: the longest frame may exceed the main menu's by this much
     inline constexpr auto kNextFrameWait = std::chrono::milliseconds(1);
 
-    inline constexpr const char* kTreeFile = "Data/SKSE/Plugins/SpellLearning/spell_tree.json";
-    inline constexpr const char* kTreeRecordFile = "Data/SKSE/Plugins/SpellLearning/spell_tree_loadorder.json";
-    inline constexpr const char* kCatalogFile = "Data/SKSE/Plugins/SpellLearning/spell_catalog.json";
     inline constexpr const char* kPrefix = "AutoScan:";
     inline constexpr const char* kTestPrefix = "AutoScan SELFTEST:";
 
@@ -46,8 +45,7 @@ namespace AutoScan::Internal
         double budgetMs = kHitchBudgetDefaultMs;
     };
 
-    double MsSince(Clock::time_point started);
-    std::optional<std::string> ReadFileText(const char* path);
+    std::optional<std::string> ReadFileText(const std::filesystem::path& path);
 
     // -------------------------------------------------------------------------
     // The steps (AutoScan.cpp)
@@ -82,7 +80,7 @@ namespace AutoScan::Internal
     // -------------------------------------------------------------------------
 
     /// FNV-1a 64 of a file and its size, "missing" when there is none (the tree files unchanged)
-    std::string FileFingerprint(const char* path);
+    std::string FileFingerprint(const std::filesystem::path& path);
 
     /// A dump with the scan timestamp blanked: two scans of one load order compare equal
     std::string ComparableDump(nlohmann::json output);

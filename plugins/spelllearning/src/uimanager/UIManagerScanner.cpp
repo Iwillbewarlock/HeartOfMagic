@@ -195,7 +195,7 @@ void UIManager::CollectScan(const std::string& argStr, std::shared_ptr<ScanTicke
         const auto collectStarted = std::chrono::steady_clock::now();
         auto output = std::make_shared<json>(
             tomeScan ? SpellScanner::CollectSpellTomes(scanConfig) : SpellScanner::CollectAllSpells(scanConfig));
-        logger::info("UIManager: {} scan collected in {} ms (game thread)", tomeScan ? "tome" : "full", MsSince(collectStarted));
+        logger::info("UIManager: {} scan collected in {:.0f} ms (game thread)", tomeScan ? "tome" : "full", MsSince(collectStarted));
 
         // shared_ptrs: std::function (the thread and the task) needs a copyable callable
         const auto finish = [tomeScan](std::shared_ptr<std::string> text, std::shared_ptr<ScanTicket> held) {
@@ -283,7 +283,7 @@ void UIManager::FinishScan(std::string result, bool tomeScan) noexcept
             const auto perkMs = MsSince(started);
             started = std::chrono::steady_clock::now();
             Librarian::SpellResearchPatch::OnCatalogChanged();
-            logger::info("UIManager: after the full scan - perk adapters {} ms, Spell Research {} ms (game thread)", perkMs,
+            logger::info("UIManager: after the full scan - perk adapters {:.0f} ms, Spell Research {:.0f} ms (game thread)", perkMs,
                 MsSince(started));
         }
 
@@ -295,7 +295,7 @@ void UIManager::FinishScan(std::string result, bool tomeScan) noexcept
             const auto started = std::chrono::steady_clock::now();
             const auto bytes = result.size();
             StoreAndSendFullScan(std::move(result));
-            logger::info("UIManager: full scan ({} bytes) kept and sent to the panel in {} ms (game thread)", bytes,
+            logger::info("UIManager: full scan ({} bytes) kept and sent to the panel in {:.0f} ms (game thread)", bytes,
                 MsSince(started));
         }
     } catch (const std::exception& e) {

@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "DataPaths.h"
 #include "FileUtils.h"
 #include "LoadOrderFingerprint.h"
 #include "PathText.h"
@@ -59,9 +60,6 @@ namespace
     using Outcome = TreeGraftOutcome;
 
     constexpr const char* kPrefix = "TreeGraft:";
-    constexpr const char* kConfigFile = "Data/SKSE/Plugins/SpellLearning/config.json";
-    constexpr const char* kCatalogFile = "Data/SKSE/Plugins/SpellLearning/spell_catalog.json";
-    constexpr const char* kScanOutputFile = "Data/SKSE/Plugins/SpellLearning/spell_scan_output.json";
     // Validation of ~1,400 nodes takes tens of ms; the write a few hundred. A game thread
     // that does not come round in this long is stuck: the run gives up (a late write task
     // still checks the files and writes on its own)
@@ -77,19 +75,9 @@ namespace
         s_outcome = std::move(outcome);
     }
 
-    double MsFrom(Clock::time_point started)
-    {
-        return std::chrono::duration<double, std::milli>(Clock::now() - started).count();
-    }
-
     std::optional<std::string> ReadText(const std::filesystem::path& path)
     {
-        std::ifstream file(path, std::ios::binary);
-        if (!file.is_open()) return std::nullopt;
-        std::ostringstream text;
-        text << file.rdbuf();
-        if (file.bad()) return std::nullopt;
-        return std::move(text).str();
+        return FileUtils::ReadAll(path);
     }
 
     /// There, but not opened (locked, no access): not the same as missing
@@ -158,7 +146,7 @@ namespace
     // recovery): validated as the panel's tree load validates it, its prerequisites and
     // requiredXP applied, game start's parity baseline expired. Throws as
     // ValidateTreeAsPanelPath and ApplyTreeState do, `stage` naming the step.
-    PanelTree ApplyWrittenTree(std::string text, std::string_view& stage)
+    PanelTree ApplyWrittenTree(std::string text, std::string_view& stage, const char* expireReason)
     {
         stage = "validating the written tree threw";
         logger::info("{} validating the written tree for the game and the panel", kPrefix);
@@ -167,7 +155,7 @@ namespace
             logger::warn("{} the tree state was not applied ({}) - the panel's tree load applies it", kPrefix, *skipped);
         }
         // Game start's state is no longer the panel's tree load's: no comparison this session
-        TreeParity::Expire("the tree graft wrote the tree after game start applied it");
+        TreeParity::Expire(expireReason);
         return panel;
     }
 
@@ -221,8 +209,12 @@ namespace
                 return false;
             }
             if (!FileUtils::WriteAtomically(treePath, written.text)) {
-                // The journal's tree hash is not the file's: the next start drops it
-                Failed(std::format("could not write {} ({} bytes)", PathText::Utf8(treePath), written.text.size()));
+                // The journal is in the record already, but its tree hash is not the file's: the next start drops it
+                Failed(std::format("could not write {} ({} bytes){}", PathText::Utf8(treePath), written.text.size(),
+                           plan.writeRecord ? " - the graft's journal in spell_tree_loadorder.json is dropped at the next "
+                                              "start, the tree is as it was"
+                                            : ""),
+                    plan.writeRecord);
                 return false;
             }
             ++s_treeWriteStamp;
@@ -257,7 +249,8 @@ namespace
 
         std::string_view stage;
         try {
-            const PanelTree panel = ApplyWrittenTree(std::move(written.text), stage);
+            const PanelTree panel =
+                ApplyWrittenTree(std::move(written.text), stage, "the tree graft wrote the tree after game start applied it");
             stage = "the live-parent check threw";
             if (const auto problem = TreeGraftRun::GraftedHaveLiveParents(panel.validated, plan.tree, plan.preCounts);
                 !problem.empty()) {
@@ -274,7 +267,7 @@ namespace
         }
         // A save loaded meanwhile (Continue pressed during the graft) hears of it now
         if (ui && ui->IsSaveLoaded()) ui->ShowPendingGraftNotice();
-        logger::info("{} done - {} ({:.0f} ms on the game thread)", kPrefix, outcome.detail, MsFrom(started));
+        logger::info("{} done - {} ({:.0f} ms on the game thread)", kPrefix, outcome.detail, MsSince(started));
         SetOutcome(std::move(outcome));
         return true;
     }
@@ -319,10 +312,10 @@ namespace
 
         // The player's rules: no file is the panel's defaults (none); a broken one is unknown
         nlohmann::json config = nlohmann::json::object();
-        if (const auto configText = ReadText(kConfigFile)) {
+        if (const auto configText = ReadText(DataPaths::kConfig)) {
             config = nlohmann::json::parse(*configText, nullptr, false);
             if (config.is_discarded() || !config.is_object()) return NotRun("config.json could not be read - the player's rules are unknown");
-        } else if (ThereButUnread(kConfigFile)) {
+        } else if (ThereButUnread(DataPaths::kConfig)) {
             return NotRun("config.json could not be opened - the player's rules are unknown");
         }
         auto rules = TreeGraft::PlayerRulesOf(config);
@@ -331,7 +324,7 @@ namespace
         {
             // The skip path's dump has been matched already (TreeGraftNeedsTheScan): not read and hashed again
             const bool matched = known.matchedDump.has_value();
-            const auto scanText = matched ? std::move(known.matchedDump) : ReadText(kScanOutputFile);
+            const auto scanText = matched ? std::move(known.matchedDump) : ReadText(DataPaths::kScanOutput);
             if (!scanText) return NotRun("spell_scan_output.json could not be read");
             if (!matched && !ScanRecord::DumpMatches(*scanText)) {
                 return NotRun("spell_scan_output.json is not the dump of the scan the catalog record is for (a panel scan "
@@ -346,7 +339,7 @@ namespace
         logger::info("{} the tree record is load order {}, this is {} - grafting new spells (seen list: {}, {} spells; "
                      "files read in {:.0f} ms)", kPrefix, record.loadOrder.empty() ? "unknown" : record.loadOrder,
             loadOrder.hash, baseline.source == TreeGraftRun::SeenSource::kRecord ? "the record's" : "the previous catalog's",
-            baseline.seen.size(), MsFrom(started));
+            baseline.seen.size(), MsSince(started));
 
         // Each node's verdict, from the game (task 1)
         std::size_t tagged = 0;
@@ -373,7 +366,7 @@ namespace
         const auto planStarted = Clock::now();
         auto plan = std::make_shared<TreeGraftRun::Plan>(TreeGraftRun::PlanGraft(std::move(input), TreeBuilder::BuildConfig{}));
         logger::info("{} planned in {:.0f} ms - {}; {} scan spells only dropped nodes hold left out; declutter {}", kPrefix,
-            MsFrom(planStarted), Summary(*plan), plan->scanLeft, plan->declutterSummary.dump());
+            MsSince(planStarted), Summary(*plan), plan->scanLeft, plan->declutterSummary.dump());
         for (const auto& id : plan->refresh.held) {
             logger::info("{} {} keeps its stale formId: its formId now is another node's saved one", kPrefix, id);
         }
@@ -402,7 +395,7 @@ namespace
             logger::warn("{} the game thread did not take the write within {} s - it writes when it runs", kPrefix,
                 std::chrono::duration_cast<std::chrono::seconds>(kGameThreadWait).count());
         }
-        logger::info("{} finished in {:.1f} s since it started", kPrefix, MsFrom(started) / 1000.0);
+        logger::info("{} finished in {:.1f} s since it started", kPrefix, MsSince(started) / 1000.0);
     }
 }
 
@@ -429,7 +422,7 @@ CatalogForTreeGraft ReadCatalogForTreeGraft(const LoadOrderFingerprint::Value& l
             !TreeGraftRun::CatalogNeeded(*record, loadOrder.hash, ScanRecord::RecordedLoadOrder())) {
             return {};
         }
-        const auto text = ReadText(kCatalogFile);
+        const auto text = ReadText(DataPaths::kCatalog);
         if (!text) return {};
         auto catalog = nlohmann::json::parse(*text, nullptr, false);
         if (catalog.is_discarded() || !catalog.is_object()) return {};
@@ -467,7 +460,7 @@ bool TreeGraftNeedsTheScan(const LoadOrderFingerprint::Value& loadOrder, std::op
         facts.catalogMatches = true;   // its skip path
         facts.recordHasSeen = record && record->hasSeen;
         const bool scan = TreeGraftRun::ScanForGraft(facts, [matchedDump] {
-            auto dump = ReadText(kScanOutputFile);
+            auto dump = ReadText(DataPaths::kScanOutput);
             const bool matches = dump && ScanRecord::DumpMatches(*dump);
             if (matches && matchedDump) *matchedDump = std::move(dump);   // the graft right after reads it from here
             return matches;
@@ -539,7 +532,8 @@ void ResolveTreeGraftJournal(const LoadOrderFingerprint::Value& loadOrder)
                     // Game start found no tree: the moved one is applied as a graft's is (Commit)
                     std::string_view stage;
                     try {
-                        ApplyWrittenTree(*fileNow, stage);
+                        ApplyWrittenTree(*fileNow, stage,
+                            "a graft journal's recovery put the tree in place (game start found none to apply)");
                     } catch (const std::exception& e) {
                         logger::warn("{} {}: {} - the tree is in place, the panel's tree load applies it", kPrefix, stage,
                             e.what());
@@ -554,7 +548,8 @@ void ResolveTreeGraftJournal(const LoadOrderFingerprint::Value& loadOrder)
             }, kGameThreadWait);
         if (result && *result == Result::kWritten) {
             logger::info("{} {} the journal an earlier graft left ({})", kPrefix, apply ? "applied" : "dropped",
-                recover  ? "its tree moved from spell_tree.json.tmp: its record written"
+                recover  ? "its tree moved from spell_tree.json.tmp and made the session's (validated, its tree state "
+                           "applied, the panel told to load it again): its record written"
                 : apply  ? "the tree is the one it wrote: its record written"
                          : "the tree is not the one it was for");
         } else if (result && *result == Result::kChanged) {

@@ -1,0 +1,592 @@
+[
+  {
+    "name": "normal tree",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"Destruction\":{\"root\":\"0x1\",\"nodes\":[\n              {\"formId\":\"0x1\",\"children\":[\"0x2\"]},\n              {\"formId\":\"0x2\",\"hardPrereqs\":[\"0x1\"],\"softPrereqs\":[],\"softNeeded\":0},\n              {\"formId\":\"0x3\",\"hardPrereqs\":[\"0x2\"],\"softPrereqs\":[\"0x1\",\"0x4\"],\"softNeeded\":1},\n              {\"formId\":\"0x4\",\"prerequisites\":[\"0x1\"]}]}}}",
+    "outcome": "Built",
+    "entries": [
+      {
+        "formId": "0x1",
+        "hardPrereqs": [],
+        "softPrereqs": [],
+        "softNeeded": 0
+      },
+      {
+        "formId": "0x2",
+        "hardPrereqs": [
+          "0x1"
+        ],
+        "softPrereqs": [],
+        "softNeeded": 0
+      },
+      {
+        "formId": "0x3",
+        "hardPrereqs": [
+          "0x2"
+        ],
+        "softPrereqs": [
+          "0x1",
+          "0x4"
+        ],
+        "softNeeded": 1
+      },
+      {
+        "formId": "0x4",
+        "hardPrereqs": [
+          "0x1"
+        ],
+        "softPrereqs": [],
+        "softNeeded": 0
+      }
+    ]
+  },
+  {
+    "name": "root by isRoot and by the school's root",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"root\":\"0xB\",\"nodes\":[\n              {\"formId\":\"0xA\",\"isRoot\":true,\"hardPrereqs\":[\"0xB\"],\"softPrereqs\":[\"0xC\"],\"softNeeded\":1},\n              {\"formId\":\"0xB\",\"prerequisites\":[\"0xA\"],\"hardPrereqs\":[\"0xA\"]},\n              {\"formId\":\"0xC\",\"isRoot\":0,\"hardPrereqs\":[\"0xA\"]}]}}}",
+    "outcome": "Built",
+    "entries": [
+      {
+        "formId": "0xA",
+        "hardPrereqs": [],
+        "softPrereqs": [],
+        "softNeeded": 0
+      },
+      {
+        "formId": "0xB",
+        "hardPrereqs": [],
+        "softPrereqs": [],
+        "softNeeded": 0
+      },
+      {
+        "formId": "0xC",
+        "hardPrereqs": [
+          "0xA"
+        ],
+        "softPrereqs": [],
+        "softNeeded": 0
+      }
+    ]
+  },
+  {
+    "name": "root compared as an exact string",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"root\":\"0x0001\",\"nodes\":[{\"formId\":\"0x1\",\"hardPrereqs\":[\"0x2\"]}]}}}",
+    "outcome": "Built",
+    "entries": [
+      {
+        "formId": "0x1",
+        "hardPrereqs": [
+          "0x2"
+        ],
+        "softPrereqs": [],
+        "softNeeded": 0
+      }
+    ]
+  },
+  {
+    "name": "fast path by x (null counts) without trustPrereqs",
+    "tree": "{\"schools\":{\"A\":{\"nodes\":[{\"formId\":\"0x1\",\"x\":null,\"hardPrereqs\":[\"0x2\"]}]}}}",
+    "outcome": "Built",
+    "entries": [
+      {
+        "formId": "0x1",
+        "hardPrereqs": [
+          "0x2"
+        ],
+        "softPrereqs": [],
+        "softNeeded": 0
+      }
+    ]
+  },
+  {
+    "name": "slow path: the first node has no x (the second's is not looked at)",
+    "tree": "{\"schools\":{\"A\":{\"nodes\":[{\"formId\":\"0x1\"},{\"formId\":\"0x2\",\"x\":5}]}}}",
+    "outcome": "SlowPath",
+    "entries": null
+  },
+  {
+    "name": "slow path: the first school is empty (the next is not looked at)",
+    "tree": "{\"schools\":{\"A\":{\"nodes\":[]},\"B\":{\"nodes\":[{\"formId\":\"0x2\",\"x\":5}]}}}",
+    "outcome": "SlowPath",
+    "entries": null
+  },
+  {
+    "name": "slow path: trustPrereqs false",
+    "tree": "{\"trustPrereqs\":false,\"schools\":{\"A\":{\"nodes\":[{\"formId\":\"0x1\"}]}}}",
+    "outcome": "SlowPath",
+    "entries": null
+  },
+  {
+    "name": "fallback: self out, first hard, rest soft, need 1",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"nodes\":[\n              {\"formId\":\"0x1\",\"prerequisites\":[\"0x1\",\"0x2\",\"0x3\"],\"softNeeded\":5}]}}}",
+    "outcome": "Built",
+    "entries": [
+      {
+        "formId": "0x1",
+        "hardPrereqs": [
+          "0x2"
+        ],
+        "softPrereqs": [
+          "0x3"
+        ],
+        "softNeeded": 1
+      }
+    ]
+  },
+  {
+    "name": "fallback: a repeated prerequisite deduplicated by repair",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"nodes\":[{\"formId\":\"0x1\",\"prerequisites\":[\"0x2\",\"0x2\",\"0x3\"]}]}}}",
+    "outcome": "Built",
+    "entries": [
+      {
+        "formId": "0x1",
+        "hardPrereqs": [
+          "0x2"
+        ],
+        "softPrereqs": [
+          "0x3"
+        ],
+        "softNeeded": 1
+      }
+    ]
+  },
+  {
+    "name": "fallback: one prerequisite is hard, softNeeded clamped to the empty soft list",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"nodes\":[{\"formId\":\"0x1\",\"prerequisites\":[\"0x2\"],\"softNeeded\":3}]}}}",
+    "outcome": "Built",
+    "entries": [
+      {
+        "formId": "0x1",
+        "hardPrereqs": [
+          "0x2"
+        ],
+        "softPrereqs": [],
+        "softNeeded": 0
+      }
+    ]
+  },
+  {
+    "name": "no fallback when soft has entries",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"nodes\":[\n              {\"formId\":\"0x1\",\"prerequisites\":[\"0x2\",\"0x3\"],\"softPrereqs\":[\"0x4\"],\"softNeeded\":1}]}}}",
+    "outcome": "Built",
+    "entries": [
+      {
+        "formId": "0x1",
+        "hardPrereqs": [],
+        "softPrereqs": [
+          "0x4"
+        ],
+        "softNeeded": 1
+      }
+    ]
+  },
+  {
+    "name": "lock repair, object lock: softNeeded down by one",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"nodes\":[\n              {\"formId\":\"0x1\",\"hardPrereqs\":[\"0x5\"],\"softPrereqs\":[\"0x5\",\"0x6\"],\"softNeeded\":2,\"locks\":[{\"nodeId\":\"0x5\",\"type\":\"x\"}]}]}}}",
+    "outcome": "Built",
+    "entries": [
+      {
+        "formId": "0x1",
+        "hardPrereqs": [
+          "0x5"
+        ],
+        "softPrereqs": [
+          "0x6"
+        ],
+        "softNeeded": 1
+      }
+    ]
+  },
+  {
+    "name": "lock repair, string lock: softNeeded 1 to 0",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"nodes\":[\n              {\"formId\":\"0x1\",\"hardPrereqs\":[\"0x5\"],\"softPrereqs\":[\"0x5\",\"0x6\"],\"softNeeded\":1,\"locks\":[\"0x5\"]}]}}}",
+    "outcome": "Built",
+    "entries": [
+      {
+        "formId": "0x1",
+        "hardPrereqs": [
+          "0x5"
+        ],
+        "softPrereqs": [
+          "0x6"
+        ],
+        "softNeeded": 0
+      }
+    ]
+  },
+  {
+    "name": "repair without a lock: softNeeded kept, held to the soft list",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"nodes\":[\n              {\"formId\":\"0x1\",\"hardPrereqs\":[\"0x5\",\"0x5\"],\"softPrereqs\":[\"0x5\",\"0x6\"],\"softNeeded\":2,\"locks\":[{\"nodeId\":\"0x9\"}]}]}}}",
+    "outcome": "Built",
+    "entries": [
+      {
+        "formId": "0x1",
+        "hardPrereqs": [
+          "0x5"
+        ],
+        "softPrereqs": [
+          "0x6"
+        ],
+        "softNeeded": 1
+      }
+    ]
+  },
+  {
+    "name": "negative softNeeded to 0, fractional kept",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"nodes\":[\n              {\"formId\":\"0x1\",\"softPrereqs\":[\"0x2\",\"0x3\"],\"softNeeded\":-2},\n              {\"formId\":\"0x4\",\"softPrereqs\":[\"0x2\",\"0x3\"],\"softNeeded\":1.5}]}}}",
+    "outcome": "Built",
+    "entries": [
+      {
+        "formId": "0x1",
+        "hardPrereqs": [],
+        "softPrereqs": [
+          "0x2",
+          "0x3"
+        ],
+        "softNeeded": 0
+      },
+      {
+        "formId": "0x4",
+        "hardPrereqs": [],
+        "softPrereqs": [
+          "0x2",
+          "0x3"
+        ],
+        "softNeeded": 1.5
+      }
+    ]
+  },
+  {
+    "name": "ids compared as exact strings (no hex normalising)",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"nodes\":[\n              {\"formId\":\"0x1\",\"hardPrereqs\":[\"0x2\",\"0x01\"],\"softPrereqs\":[\"0X2\",\"0x02\"],\"softNeeded\":2}]}}}",
+    "outcome": "Built",
+    "entries": [
+      {
+        "formId": "0x1",
+        "hardPrereqs": [
+          "0x2",
+          "0x01"
+        ],
+        "softPrereqs": [
+          "0X2",
+          "0x02"
+        ],
+        "softNeeded": 2
+      }
+    ]
+  },
+  {
+    "name": "self id out of hard and soft",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"nodes\":[\n              {\"formId\":\"0x2\",\"hardPrereqs\":[\"0x2\",\"0x1\"],\"softPrereqs\":[\"0x2\"],\"softNeeded\":1}]}}}",
+    "outcome": "Built",
+    "entries": [
+      {
+        "formId": "0x2",
+        "hardPrereqs": [
+          "0x1"
+        ],
+        "softPrereqs": [],
+        "softNeeded": 0
+      }
+    ]
+  },
+  {
+    "name": "_dup_ copy of a spell that has its node (either order): not sent",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"nodes\":[\n              {\"formId\":\"0x7\",\"hardPrereqs\":[\"0x1\"]},{\"formId\":\"0x7_dup_1\",\"hardPrereqs\":[\"0x2\"]},\n              {\"formId\":\"0x8_dup_1\",\"hardPrereqs\":[\"0x2\"]},{\"formId\":\"0x8\",\"hardPrereqs\":[\"0x1\"]}]}}}",
+    "outcome": "Built",
+    "entries": [
+      {
+        "formId": "0x7",
+        "hardPrereqs": [
+          "0x1"
+        ],
+        "softPrereqs": [],
+        "softNeeded": 0
+      },
+      {
+        "formId": "0x8",
+        "hardPrereqs": [
+          "0x1"
+        ],
+        "softPrereqs": [],
+        "softNeeded": 0
+      }
+    ]
+  },
+  {
+    "name": "_dup_ copies without their spell: the first one, as the spell",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"nodes\":[\n              {\"formId\":\"0x9_dup_1\",\"hardPrereqs\":[\"0x1\"]},{\"formId\":\"0x9_dup_2\",\"hardPrereqs\":[\"0x2\"]}]}}}",
+    "outcome": "Built",
+    "entries": [
+      {
+        "formId": "0x9",
+        "hardPrereqs": [
+          "0x1"
+        ],
+        "softPrereqs": [],
+        "softNeeded": 0
+      }
+    ]
+  },
+  {
+    "name": "_dup_ in the lists: made the spell's, once",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"nodes\":[\n              {\"formId\":\"0x1\",\"hardPrereqs\":[\"0xB_dup_3\",\"0xB\"],\"softPrereqs\":[\"0xC\",\"0xC_dup_1\"],\"softNeeded\":1}]}}}",
+    "outcome": "Built",
+    "entries": [
+      {
+        "formId": "0x1",
+        "hardPrereqs": [
+          "0xB"
+        ],
+        "softPrereqs": [
+          "0xC"
+        ],
+        "softNeeded": 1
+      }
+    ]
+  },
+  {
+    "name": "same formId in two schools: both sent, in school order (as written)",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"Zeta\":{\"nodes\":[{\"formId\":\"0x5\",\"hardPrereqs\":[\"0x1\"]}]},\n              \"Alpha\":{\"nodes\":[{\"formId\":\"0x5\",\"hardPrereqs\":[\"0x2\"]}]}}}",
+    "outcome": "Built",
+    "entries": [
+      {
+        "formId": "0x5",
+        "hardPrereqs": [
+          "0x1"
+        ],
+        "softPrereqs": [],
+        "softNeeded": 0
+      },
+      {
+        "formId": "0x5",
+        "hardPrereqs": [
+          "0x2"
+        ],
+        "softPrereqs": [],
+        "softNeeded": 0
+      }
+    ]
+  },
+  {
+    "name": "array-index school names first, ascending",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"B\":{\"nodes\":[{\"formId\":\"0xB\"}]},\"2\":{\"nodes\":[{\"formId\":\"0x2\"}]},\n              \"01\":{\"nodes\":[{\"formId\":\"0x01\"}]},\"1\":{\"nodes\":[{\"formId\":\"0x1\"}]}}}",
+    "outcome": "Built",
+    "entries": [
+      {
+        "formId": "0x1",
+        "hardPrereqs": [],
+        "softPrereqs": [],
+        "softNeeded": 0
+      },
+      {
+        "formId": "0x2",
+        "hardPrereqs": [],
+        "softPrereqs": [],
+        "softNeeded": 0
+      },
+      {
+        "formId": "0xB",
+        "hardPrereqs": [],
+        "softPrereqs": [],
+        "softNeeded": 0
+      },
+      {
+        "formId": "0x01",
+        "hardPrereqs": [],
+        "softPrereqs": [],
+        "softNeeded": 0
+      }
+    ]
+  },
+  {
+    "name": "non-string list entries left out",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"nodes\":[\n              {\"formId\":\"0x1\",\"hardPrereqs\":[\"0x2\",5,null,{\"a\":1},[\"0x9\"],\"0x3\"],\"softPrereqs\":[true,\"0x4\"],\"softNeeded\":1}]}}}",
+    "outcome": "Built",
+    "entries": [
+      {
+        "formId": "0x1",
+        "hardPrereqs": [
+          "0x2",
+          "0x3"
+        ],
+        "softPrereqs": [
+          "0x4"
+        ],
+        "softNeeded": 1
+      }
+    ]
+  },
+  {
+    "name": "nodes without a formId (missing, empty, null, a number node) not sent",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"nodes\":[\n              {\"hardPrereqs\":[\"0x2\"]},{\"formId\":\"\",\"hardPrereqs\":[\"0x2\"]},{\"formId\":null},7,{\"formId\":\"0x1\"}]}}}",
+    "outcome": "Built",
+    "entries": [
+      {
+        "formId": "0x1",
+        "hardPrereqs": [],
+        "softPrereqs": [],
+        "softNeeded": 0
+      }
+    ]
+  },
+  {
+    "name": "Object.prototype names are already in the panel's sets",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"nodes\":[{\"formId\":\"0x1\",\"hardPrereqs\":[\"constructor\",\"0x2\",\"toString\"]}]}}}",
+    "outcome": "Built",
+    "entries": [
+      {
+        "formId": "0x1",
+        "hardPrereqs": [
+          "0x2"
+        ],
+        "softPrereqs": [],
+        "softNeeded": 0
+      }
+    ]
+  },
+  {
+    "name": "a school with no node list: nothing from it",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"root\":\"0x1\"},\"B\":{\"nodes\":\"abc\"},\"C\":{\"nodes\":[{\"formId\":\"0x1\"}]}}}",
+    "outcome": "Built",
+    "entries": [
+      {
+        "formId": "0x1",
+        "hardPrereqs": [],
+        "softPrereqs": [],
+        "softNeeded": 0
+      }
+    ]
+  },
+  {
+    "name": "empty schools",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{}}",
+    "outcome": "NoSchools",
+    "entries": null
+  },
+  {
+    "name": "no schools",
+    "tree": "{\"trustPrereqs\":true}",
+    "outcome": "NoSchools",
+    "entries": null
+  },
+  {
+    "name": "schools an empty array",
+    "tree": "{\"trustPrereqs\":true,\"schools\":[]}",
+    "outcome": "NoSchools",
+    "entries": null
+  },
+  {
+    "name": "schools a number",
+    "tree": "{\"trustPrereqs\":true,\"schools\":5}",
+    "outcome": "NoSchools",
+    "entries": null
+  },
+  {
+    "name": "tree not an object",
+    "tree": "[{\"schools\":{\"A\":{}}}]",
+    "outcome": "NoSchools",
+    "entries": null
+  },
+  {
+    "name": "a null node",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"nodes\":[{\"formId\":\"0x1\"},null]}}}",
+    "outcome": "PanelThrows",
+    "entries": null
+  },
+  {
+    "name": "a null school",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":null}}",
+    "outcome": "PanelThrows",
+    "entries": null
+  },
+  {
+    "name": "a list that is a string",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"nodes\":[{\"formId\":\"0x1\",\"hardPrereqs\":\"0x2\"}]}}}",
+    "outcome": "PanelThrows",
+    "entries": null
+  },
+  {
+    "name": "children a string (on a node without formId too)",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"nodes\":[{\"children\":\"abc\"}]}}}",
+    "outcome": "PanelThrows",
+    "entries": null
+  },
+  {
+    "name": "a school named hasOwnProperty (fast path by trustPrereqs)",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"nodes\":[{\"formId\":\"0x1\"}]},\"hasOwnProperty\":{\"nodes\":[]}}}",
+    "outcome": "PanelThrows",
+    "entries": null
+  },
+  {
+    "name": "a school named hasOwnProperty (the fast path test calls it too)",
+    "tree": "{\"schools\":{\"hasOwnProperty\":{\"nodes\":[{\"formId\":\"0x1\",\"x\":0}]}}}",
+    "outcome": "PanelThrows",
+    "entries": null
+  },
+  {
+    "name": "trustPrereqs an object with its own toString (logged first)",
+    "tree": "{\"trustPrereqs\":{\"toString\":1},\"schools\":{\"A\":{\"nodes\":[{\"formId\":\"0x1\"}]}}}",
+    "outcome": "PanelThrows",
+    "entries": null
+  },
+  {
+    "name": "a school's root with its own toString",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"root\":{\"toString\":\"0x1\"},\"nodes\":[{\"formId\":\"0x1\"}]}}}",
+    "outcome": "PanelThrows",
+    "entries": null
+  },
+  {
+    "name": "a school's spokeAngle an array holding a toString object",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"spokeAngle\":[1,[{\"toString\":2}]],\"nodes\":[{\"formId\":\"0x1\"}]}}}",
+    "outcome": "PanelThrows",
+    "entries": null
+  },
+  {
+    "name": "a logged node's x with its own toString (third node)",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"nodes\":[{\"formId\":\"0x1\"},{\"formId\":\"0x2\"},{\"x\":{\"toString\":0}}]}}}",
+    "outcome": "PanelThrows",
+    "entries": null
+  },
+  {
+    "name": "toString on the fourth node, valueOf anywhere: printed fine",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"color\":{\"valueOf\":1},\"nodes\":[\n              {\"formId\":\"0x1\",\"name\":{\"valueOf\":2}},{\"formId\":\"0x2\"},{\"formId\":\"0x3\"},{\"formId\":\"0x4\",\"tier\":{\"toString\":4}}]}}}",
+    "outcome": "Built",
+    "entries": [
+      {
+        "formId": "0x1",
+        "hardPrereqs": [],
+        "softPrereqs": [],
+        "softNeeded": 0
+      },
+      {
+        "formId": "0x2",
+        "hardPrereqs": [],
+        "softPrereqs": [],
+        "softNeeded": 0
+      },
+      {
+        "formId": "0x3",
+        "hardPrereqs": [],
+        "softPrereqs": [],
+        "softNeeded": 0
+      },
+      {
+        "formId": "0x4",
+        "hardPrereqs": [],
+        "softPrereqs": [],
+        "softNeeded": 0
+      }
+    ]
+  },
+  {
+    "name": "a formId that is a number",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"nodes\":[{\"formId\":5}]}}}",
+    "outcome": "NotModelled",
+    "entries": null
+  },
+  {
+    "name": "a softNeeded that is a string",
+    "tree": "{\"trustPrereqs\":true,\"schools\":{\"A\":{\"nodes\":[{\"formId\":\"0x1\",\"softPrereqs\":[\"0x2\"],\"softNeeded\":\"1\"}]}}}",
+    "outcome": "NotModelled",
+    "entries": null
+  }
+]

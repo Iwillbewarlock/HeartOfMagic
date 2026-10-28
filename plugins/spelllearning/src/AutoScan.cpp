@@ -1,7 +1,11 @@
 #include "Common.h"
 #include "AutoScan.h"
+#include "DataPaths.h"
+#include "environment/EnvironmentSelfTest.h"
+#include "FileUtils.h"
 #include "JsonText.h"
 #include "LoadOrderFingerprint.h"
+#include "MainMenuWatch.h"
 #include "ScanRecord.h"
 #include "ScanRecordRules.h"
 #include "SpellScanner.h"
@@ -63,8 +67,6 @@ namespace
     constexpr auto kFrameStuckLimit = std::chrono::milliseconds(100);
     constexpr auto kBaseline = std::chrono::seconds(3);
 
-    constexpr const char* kConfigFile = "Data/SKSE/Plugins/SpellLearning/config.json";
-    constexpr const char* kSelfTestFile = "Data/SKSE/Plugins/SpellLearning/selftest.json";
 
     enum class State { Idle, Running, Done };
 
@@ -86,7 +88,7 @@ namespace
     Settings ReadSettings()
     {
         Settings settings;
-        std::ifstream file(kSelfTestFile, std::ios::binary);
+        std::ifstream file(Environment::SelfTest::kSwitchFile, std::ios::binary);
         if (!file.is_open()) return settings;
         const auto document = nlohmann::json::parse(file, nullptr, false);
         if (document.is_discarded() || !document.is_object()) return settings;
@@ -107,11 +109,11 @@ namespace
     // that does not parse is the player's choice unknown, so nothing runs.
     Setting ReadAutoBuildSetting()
     {
-        std::ifstream file(kConfigFile, std::ios::binary);
+        std::ifstream file(DataPaths::kConfig, std::ios::binary);
         if (!file.is_open()) {
             // Only a file that is not there is the default; one there but not opened (locked, no access) is unknown
             std::error_code ec;
-            const bool exists = std::filesystem::exists(kConfigFile, ec);
+            const bool exists = std::filesystem::exists(DataPaths::kConfig, ec);
             return !exists && !ec ? Setting::On : Setting::Unreadable;
         }
         const auto config = nlohmann::json::parse(file, nullptr, false);
@@ -165,19 +167,9 @@ namespace
 
 namespace AutoScan::Internal
 {
-    double MsSince(Clock::time_point started)
+    std::optional<std::string> ReadFileText(const std::filesystem::path& path)
     {
-        return std::chrono::duration<double, std::milli>(Clock::now() - started).count();
-    }
-
-    std::optional<std::string> ReadFileText(const char* path)
-    {
-        std::ifstream file(path, std::ios::binary);
-        if (!file.is_open()) return std::nullopt;
-        std::ostringstream text;
-        text << file.rdbuf();
-        if (file.bad()) return std::nullopt;
-        return std::move(text).str();
+        return FileUtils::ReadAll(path);
     }
 
     // Waiter thread: one step on the game thread, and its answer
@@ -261,7 +253,7 @@ namespace
             case Setting::Unreadable: return std::string("config.json could not be read - the setting is unknown");
             case Setting::On: break;
         }
-        tree = ReadFileText(kTreeFile);
+        tree = ReadFileText(UIManager::GetTreeFilePath());
         if (!tree || !TreeSaveCheck::HasSpellNodes(*tree)) {
             return std::string("no tree with spells - left to the panel's build at game start");
         }
@@ -331,8 +323,8 @@ namespace
         known = {};   // the scan runs: the graft reads the files as they are after it
         if (settings.selfTest) logger::info("{} on (selftest.json) - runs whatever the scan record says", kTestPrefix);
 
-        const std::string treeBefore = settings.selfTest ? FileFingerprint(kTreeFile) : std::string();
-        std::string treeRecordBefore = settings.selfTest ? FileFingerprint(kTreeRecordFile) : std::string();
+        const std::string treeBefore = settings.selfTest ? FileFingerprint(UIManager::GetTreeFilePath()) : std::string();
+        std::string treeRecordBefore = settings.selfTest ? FileFingerprint(UIManager::GetTreeLoadOrderFilePath()) : std::string();
 
         FrameProbe probe;
         bool probing = false;
@@ -405,7 +397,7 @@ namespace
         // The catalog this scan replaces: the tree record's seen list when it has none
         auto previous = ReadCatalogForTreeGraft(loadOrder);
         // The seen list seeded is no graft's write: the TREE claim compares the record from here
-        if (settings.selfTest && previous.seeded) treeRecordBefore = FileFingerprint(kTreeRecordFile);
+        if (settings.selfTest && previous.seeded) treeRecordBefore = FileFingerprint(UIManager::GetTreeLoadOrderFilePath());
         std::string recordId;   // the scan record's writeId: its dump goes only into that record
         const bool wrote = Librarian::ClassifyScan(text, true, [&loadOrder, &incomplete, &scanPairs, &recordId]() {
             recordId = ScanRecord::CatalogWritten(true, &loadOrder, incomplete, scanPairs);
@@ -477,30 +469,6 @@ namespace
         }
     }
 
-    class MainMenuWatch final : public RE::BSTEventSink<RE::MenuOpenCloseEvent>
-    {
-    public:
-        static MainMenuWatch* GetSingleton()
-        {
-            static MainMenuWatch singleton;
-            return &singleton;
-        }
-
-        RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent* event,
-            RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
-        {
-            if (event && event->opening && event->menuName == RE::MainMenu::MENU_NAME) {
-                AddTaskToGameThread("AutoScanMainMenu", []() { Begin(); });
-            }
-            return RE::BSEventNotifyControl::kContinue;
-        }
-
-        MainMenuWatch(const MainMenuWatch&) = delete;
-        MainMenuWatch& operator=(const MainMenuWatch&) = delete;
-
-    private:
-        MainMenuWatch() = default;
-    };
 }
 
 namespace AutoScan
@@ -509,17 +477,21 @@ namespace AutoScan
     {
         static bool s_installed = false;
         if (s_installed) return;
-        auto* ui = RE::UI::GetSingleton();
-        if (!ui) {
+        if (!MainMenuWatch::Listen(MainMenuWatch::Listener::kAutoScan)) {
             logger::warn("{} no UI to watch the main menu - no scan at game start", kPrefix);
             return;
         }
-        ui->AddEventSink<RE::MenuOpenCloseEvent>(MainMenuWatch::GetSingleton());
         s_installed = true;
         // The data can finish loading with the main menu already up: its opening went by
-        if (ui->IsMenuOpen(RE::MainMenu::MENU_NAME)) {
+        auto* ui = RE::UI::GetSingleton();
+        if (ui && ui->IsMenuOpen(RE::MainMenu::MENU_NAME)) {
             AddTaskToGameThread("AutoScanMainMenu", []() { Begin(); });
         }
+    }
+
+    void OnMainMenuOpened()
+    {
+        Begin();
     }
 
     void OnGameChanging() noexcept

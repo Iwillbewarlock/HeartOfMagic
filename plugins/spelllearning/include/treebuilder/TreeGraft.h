@@ -14,7 +14,7 @@
 // docs/superpowers/specs/2026-10-28-tree-graft-design.md, section 3)
 // =============================================================================
 //
-// Each candidate the rules take (IsTreeCandidate) goes into its school:
+// Each candidate the rules take (IsBuildCandidate) goes into its school:
 //  - Tier as the build gives it (SpellTiers over the school's live nodes and the
 //    new spells, by level or with tiers_by_cost by cost rank); existing nodes keep
 //    their saved tier.

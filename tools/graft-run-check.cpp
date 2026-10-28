@@ -221,11 +221,11 @@ namespace
 
         // The keys work with the rule the graft applies (the panel's spell fields)
         Json inigo = Spell("0x1E055666", "Inigo.esp", "0x055666", "Summon Inigo", "Conjuration", "Novice");
-        check.Check(!TreeGraft::IsTreeCandidate(inigo, rules), "a blacklisted spell is left out (load order moved)");
+        check.Check(!TreeGraft::IsBuildCandidate(inigo, rules), "a blacklisted spell is left out (load order moved)");
         Json other = Spell("0x05000800", "Some MOD.esp", "0x000800", "Spark", "Destruction", "Novice");
-        check.Check(!TreeGraft::IsTreeCandidate(other, rules), "a spell of a plugin turned off is left out");
+        check.Check(!TreeGraft::IsBuildCandidate(other, rules), "a spell of a plugin turned off is left out");
         Json fine = Spell("0x06000800", "Fine.esp", "0x000800", "Ember", "Destruction", "Novice");
-        check.Check(TreeGraft::IsTreeCandidate(fine, rules), "any other spell is a candidate");
+        check.Check(TreeGraft::IsBuildCandidate(fine, rules), "any other spell is a candidate");
         check.Check(TreeGraft::PlayerRulesOf(Json::array()).blacklistKeys.empty(), "a config that is not an object: no rules");
         return check.failed;
     }

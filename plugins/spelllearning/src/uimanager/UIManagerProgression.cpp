@@ -5,7 +5,6 @@
 #include "uimanager/StartupState.h"
 #include "ProgressionManager.h"
 #include "SpellEffectivenessHook.h"
-#include "SpellTomeHook.h"
 #include "ThreadUtils.h"
 
 // =============================================================================

@@ -26,8 +26,9 @@
 // The panel turns the saved tree it is sent (UIManager::OnLoadSpellTree) into the
 // array it hands to SetTreePrerequisites after {clear: true}. This makes the same
 // array from the same JSON text, so the plugin can fill the tree state at game
-// start (UIManagerTreeState.cpp) and tools/tree-prereq-check can compare it with
-// the panel's own code. The JS it follows, rule by rule:
+// start (UIManagerTreeState.cpp). tools/tree-prereq-check holds the cases; the panel's
+// own code runs the same cases (--dump-cases, modules/treePrereqParityTest.js), so a
+// rule changed on one side alone fails there. The JS it follows, rule by rule:
 //   cppCallbacks.js updateTreeData   no schools (or none listed): nothing sent, not even the clear
 //   treeLoad.js loadTreeData         the fast path: trustPrereqs, or the first school's first node has "x"
 //   treeLoad.js _loadTrustedTree     per node: TreeParser.withoutId on the three lists, clampSoftNeeded,

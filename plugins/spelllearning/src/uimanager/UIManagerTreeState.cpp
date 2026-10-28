@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "FileUtils.h"
 #include "JsonText.h"
 #include "TreePrereqEntries.h"
 #include "uimanager/UIManager.h"
@@ -109,7 +110,7 @@ int ApplyTreePrerequisiteEntriesImpl(const Json& request)
     // The new tree's nodes decide which spell a copy's tome counts for
     // (TreeSpellForTome): answers cached before they arrived start over
     if (auto* tomeHook = SpellTomeHook::GetSingleton()) tomeHook->InvalidateTomeInventoryCache();
-    logger::info("UIManager: Set tree prerequisites for {} spells in {} ms (game thread)", count, MsSince(started));
+    logger::info("UIManager: Set tree prerequisites for {} spells in {:.0f} ms (game thread)", count, MsSince(started));
     return count;
 }
 }
@@ -167,14 +168,14 @@ TreeFileText ReadTreeFileText(const std::filesystem::path& path, std::uintmax_t 
             return result;
         }
     }
-    std::ifstream file(path);
-    if (!file.is_open()) {
+    // Binary (FileUtils::ReadAll): the bytes the save wrote, CRLF kept - JSON reads a CR between
+    // tokens as whitespace, and a graft's hash of the file is of the very bytes written
+    auto text = FileUtils::ReadAll(path);
+    if (!text) {
         result.outcome = TreeFileRead::CouldNotOpen;
         return result;
     }
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    result.text = buffer.str();
+    result.text = std::move(*text);
     result.outcome = TreeFileRead::Ok;
     return result;
 }
@@ -324,7 +325,7 @@ void LoadTreeStateAtStartup(const StartupConfigResult& config)
             SkipStartupTree(*prereqs.skipped);
             return;
         }
-        logger::info("Startup tree: {} of {} entries applied from {} in {} ms", prereqs.applied, prereqs.entries,
+        logger::info("Startup tree: {} of {} entries applied from {} in {:.0f} ms", prereqs.applied, prereqs.entries,
             tree.fromValidated ? "the validated tree" : "the file's text", MsSince(started));
         TreeParity::RecordBaseline();
         if (!UIManager::GetSingleton()->IsInitialized()) {

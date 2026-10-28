@@ -1,12 +1,16 @@
 // graft-check, its placement cases (graft-check.cpp runs them): a formId the file already
 // holds deferred, the file's key order kept, 300 spells at once, a parent past the cap but
-// never of a higher tier.
+// never of a higher tier, the room term, the tree's own tier_mode, a new child's point (the
+// school's rootDirection, its tier's ring).
 
 #include "graft-check.h"
 
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <numbers>
+#include <optional>
+#include <tuple>
 
 using namespace GraftCheck;
 
@@ -219,6 +223,121 @@ namespace GraftCheckCases
         int parentsGained = 0;
         check.Check(ExistingKept(full, all.tree, { "0x06000001" }, parentsGained) && parentsGained == 1,
             "existing nodes unchanged but the root's new child");
+        return check.failed;
+    }
+
+    // The new node with this formId: its parent and provisional point
+    struct Placed
+    {
+        std::string parent;
+        double x = 0.0, y = 0.0;
+    };
+    std::optional<Placed> PlacedOf(const Json& tree, const std::string& school, const std::string& formId)
+    {
+        const Json* node = GraftedNode(tree, school, formId);
+        if (!node || (*node)["prerequisites"].empty()) return std::nullopt;
+        return Placed{ (*node)["prerequisites"][0].get<std::string>(), (*node)["x"].get<double>(), (*node)["y"].get<double>() };
+    }
+
+    bool Near(double a, double b)
+    {
+        constexpr double kTolerance = 0.01;   // positions are written to 2 decimals
+        return std::abs(a - b) <= kTolerance;
+    }
+
+    int RoomCase()
+    {
+        std::printf("  graft: the room term\n");
+        Checker check;
+        // Two tier-2 parents alike in every score but room: P1 (first in the file) has six nodes of a
+        // removed plugin round the point its child would take, P2 none. The new spell goes under P2;
+        // without the room term the tie would keep the first, P1
+        Json nodes = Json::array({ Node("0x05000001", "Room.esp|0x000001", 1, 100, 0, { "0x05000002", "0x05000003" }, {}),
+            Node("0x05000002", "Room.esp|0x000002", 2, 250, 200, {}, { "0x05000001" }),
+            Node("0x05000003", "Room.esp|0x000003", 2, 250, -200, {}, { "0x05000001" }) });
+        constexpr int kCrowd = 6;
+        for (int i = 0; i < kCrowd; ++i) {
+            nodes.push_back(Node(std::format("0x0900000{}", i), std::format("Gone.esp|0x00000{}", i), 3, 280 + 10 * i,
+                250 + 8 * i, {}, {}));
+        }
+        const Json tree = { { "globe", { { "x", 0 }, { "y", 0 } } },
+            { "schools", { { "Destruction", { { "root", "0x05000001" }, { "nodes", nodes } } } } } };
+        std::vector<Json> scan = { Spell("0x05000001", "Room.esp", "0x000001", "Root", "Destruction", "Novice", { "element.fire" }),
+            Spell("0x05000002", "Room.esp", "0x000002", "Twin", "Destruction", "Apprentice", { "element.fire" }),
+            Spell("0x05000003", "Room.esp", "0x000003", "Twin", "Destruction", "Apprentice", { "element.fire" }) };
+        const std::vector<Json> news = { Spell("0x05000010", "Room.esp", "0x000010", "Twin", "Destruction", "Adept",
+            { "element.fire" }) };
+        const auto result = TreeGraft::Graft(tree, scan, Pointers(news), PlayerRules{}, TreeBuilder::BuildConfig{});
+        const auto placed = PlacedOf(result.tree, "Destruction", "0x05000010");
+        check.Check(placed && placed->parent == "0x05000003",
+            "graft: the room term - between two equal parents, the one with room round its child's point (" +
+                (placed ? placed->parent : std::string("none")) + ")");
+        return check.failed;
+    }
+
+    int TreeConfigCase()
+    {
+        std::printf("  graft: the tree's own build settings\n");
+        Checker check;
+        // A tree built with tiers by Magicka cost: a new Novice spell that costs the most takes the top
+        // tier, as a rebuild of that tree would give it; the given config (tiers by level) does not count
+        const auto costly = [](const char* formId, const char* local, const char* name, const char* level, int cost) {
+            Json spell = Spell(formId, "Cost.esp", local, name, "Destruction", level, { "element.fire" });
+            spell["magickaCost"] = cost;
+            return spell;
+        };
+        Json tree = { { "globe", { { "x", 0 }, { "y", 0 } } }, { "config", { { "tier_mode", "cost" } } },
+            { "schools", { { "Destruction", { { "root", "0x05000001" }, { "nodes", {
+                Node("0x05000001", "Cost.esp|0x000001", 1, 100, 0, { "0x05000002" }, {}),
+                Node("0x05000002", "Cost.esp|0x000002", 2, 200, 0, { "0x05000003" }, { "0x05000001" }),
+                Node("0x05000003", "Cost.esp|0x000003", 3, 300, 0, { "0x05000004" }, { "0x05000002" }),
+                Node("0x05000004", "Cost.esp|0x000004", 4, 400, 0, {}, { "0x05000003" }) } } } } } } };
+        const std::vector<Json> scan = { costly("0x05000001", "0x000001", "A", "Novice", 10),
+            costly("0x05000002", "0x000002", "B", "Apprentice", 20), costly("0x05000003", "0x000003", "C", "Adept", 30),
+            costly("0x05000004", "0x000004", "D", "Expert", 40) };
+        const std::vector<Json> news = { costly("0x05000010", "0x000010", "Dear", "Novice", 500) };
+        TreeBuilder::BuildConfig byLevel;
+        byLevel.tiersByCost = false;
+        const auto cost = TreeGraft::Graft(tree, scan, Pointers(news), PlayerRules{}, byLevel);
+        const Json* node = GraftedNode(cost.tree, "Destruction", "0x05000010");
+        check.Check(node && (*node)["tier"] == 5 && (*node)["skillLevel"] == "Novice",
+            "graft: the tree's tier_mode \"cost\" - the costliest new spell is tier 5 (its level, Novice, kept)");
+        tree["config"]["tier_mode"] = "level";
+        const auto level = TreeGraft::Graft(tree, scan, Pointers(news), PlayerRules{}, byLevel);
+        node = GraftedNode(level.tree, "Destruction", "0x05000010");
+        check.Check(node && (*node)["tier"] == 1, "the tree's tier_mode \"level\": tier 1, its level's");
+        return check.failed;
+    }
+
+    int ChildPointCase()
+    {
+        std::printf("  graft: a new child's provisional point\n");
+        Checker check;
+        // A root on the globe's centre has no direction of its own: the school's rootDirection (+y here)
+        const Json centred = { { "globe", { { "x", 0 }, { "y", 0 } } },
+            { "schools", { { "Destruction", { { "root", "0x05000001" }, { "rootDirection", std::numbers::pi / 2 },
+                { "nodes", { Node("0x05000001", "Point.esp|0x000001", 1, 0, 0, {}, {}) } } } } } } };
+        const std::vector<Json> scan = { Spell("0x05000001", "Point.esp", "0x000001", "Root", "Destruction", "Novice") };
+        const std::vector<Json> news = { Spell("0x05000010", "Point.esp", "0x000010", "Child", "Destruction", "Apprentice") };
+        const auto up = PlacedOf(TreeGraft::Graft(centred, scan, Pointers(news), PlayerRules{}, TreeBuilder::BuildConfig{}).tree,
+            "Destruction", "0x05000010");
+        check.Check(up && Near(up->x, 0.0) && Near(up->y, 55.0),
+            std::format("graft: a parent on the centre - one step along rootDirection ({}, {})", up ? up->x : 0.0, up ? up->y : 0.0));
+
+        // Tier 2's ring is at radius 300 (three nodes there): the child of the root at 100, 0 - one
+        // step out would be 155, 0 - is pulled into the ring, still clear of its parent
+        Json ringed = centred;
+        ringed["schools"]["Destruction"].erase("rootDirection");
+        auto& nodes = ringed["schools"]["Destruction"]["nodes"];
+        nodes[0]["x"] = 100;
+        for (const auto& [id, x, y] : { std::tuple{ "0x05000002", 0, 300 }, std::tuple{ "0x05000003", 0, -300 },
+                 std::tuple{ "0x05000004", -300, 0 } }) {
+            nodes.push_back(Node(id, std::string("Gone.esp|") + id, 2, x, y, {}, {}));
+        }
+        const auto out = PlacedOf(TreeGraft::Graft(ringed, scan, Pointers(news), PlayerRules{}, TreeBuilder::BuildConfig{}).tree,
+            "Destruction", "0x05000010");
+        check.Check(out && out->parent == "0x05000001" && Near(out->x, 300.0) && Near(out->y, 0.0),
+            std::format("graft: the child's point pulled out into its tier's ring ({}, {})", out ? out->x : 0.0, out ? out->y : 0.0));
         return check.failed;
     }
 }

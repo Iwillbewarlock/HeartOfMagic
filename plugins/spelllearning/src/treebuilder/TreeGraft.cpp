@@ -53,12 +53,7 @@ namespace
         return it->template get<double>();
     }
 
-    template <class Json>
-    std::string Text(const Json& object, const char* key)
-    {
-        const auto it = object.find(key);
-        return (it != object.end() && it->is_string()) ? it->template get<std::string>() : std::string();
-    }
+    using TreeGraft::Detail::Text;   // a string field, empty when absent (GraftCandidates.h)
 
     template <class Json>
     std::optional<Point> PositionOf(const Json& node)
@@ -349,14 +344,7 @@ namespace
         }
         std::ranges::stable_sort(news, {}, &std::pair<int, const json*>::first);
 
-        if (!themes.empty()) {
-            for (auto& [fid, node] : nodes) {
-                auto [theme, score] = GetSpellPrimaryTheme(node.spellData, themes);
-                node.theme = (score > 30) ? theme : "";
-                node.themes = GetSpellThemes(node.spellData, themes);
-            }
-        }
-        DropCommonThemes(nodes, config.commonThemeShare);
+        AssignThemes(nodes, themes, config.commonThemeShare);
         const TypeGrouping grouping(nodes, config.typeGrouping);
 
         RoomScores room(geo);
@@ -450,8 +438,12 @@ namespace
         std::unordered_set<std::string> judged;
         for (const auto* spell : candidates) {
             if (!spell || !spell->is_object() || !judged.insert(ListId(*spell)).second) continue;
+            // A deferred spell is judged again later; the log says when the rules would leave it out anyway
+            const auto rulesToo = [&] {
+                return TreeGraft::IsBuildCandidate(*spell, rules) ? "" : " (the player's rules leave it out too)";
+            };
             if (TreeGraft::Detail::PersistentKey(*spell).empty()) {
-                logger::info("TreeGraft: {} deferred - it has no persistentId", ListId(*spell));
+                logger::info("TreeGraft: {} deferred - it has no persistentId{}", ListId(*spell), rulesToo());
                 result.deferred.push_back(ListId(*spell));
                 continue;
             }
@@ -459,11 +451,11 @@ namespace
                 holder != savedFormIds.end()) {
                 // Decision 4 keeps a missing plugin's node in the file: the wait lasts while that node keeps the id
                 logger::info("TreeGraft: {} deferred - its formId {} is held by the tree's node {}; it waits while that "
-                             "node keeps the id", ListId(*spell), Text(*spell, "formId"), holder->second);
+                             "node keeps the id{}", ListId(*spell), Text(*spell, "formId"), holder->second, rulesToo());
                 result.deferred.push_back(ListId(*spell));
                 continue;
             }
-            if (!TreeGraft::IsTreeCandidate(*spell, rules)) {
+            if (!TreeGraft::IsBuildCandidate(*spell, rules)) {
                 result.leftOut.push_back(ListId(*spell));
                 continue;
             }

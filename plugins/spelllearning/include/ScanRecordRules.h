@@ -262,8 +262,9 @@ namespace ScanRecordRules
     // After a scan wrote spell_catalog.json: whether the record says which load order it is
     // from. Only a scan of every spell that marked everything, under a known fingerprint.
     // `loadOrderHash`: LoadOrderFingerprint::Value::hash (empty: not worked out);
-    // `scanFingerprint`: WithTomeReach of its `scan` (empty: gate/rules.json unreadable or
-    // the tome reach pass still running).
+    // `scanFingerprint`: WithTomePairs(WithTomeReach of its `scan`, the tome pairs key)
+    // (empty: gate/rules.json unreadable, the tome reach pass still running, or the
+    // installed tome pairs not the ones the scan's marks read).
     inline RecordDecision DecideRecord(bool fullScan, std::string_view loadOrderHash, std::string_view scanFingerprint,
         std::string_view incomplete)
     {
@@ -272,7 +273,8 @@ namespace ScanRecordRules
         if (loadOrderHash.empty()) return { RecordAction::kRemove, "the load order is unknown" };
         if (scanFingerprint.empty()) {
             return { RecordAction::kRemove,
-                "the scan fingerprint is unknown (gate/rules.json could not be read, or the tome reach pass runs)" };
+                "the scan fingerprint is unknown (gate/rules.json could not be read, the tome reach pass runs, or the "
+                "tome pairs changed since the scan's marks)" };
         }
         return { RecordAction::kWrite, {} };
     }

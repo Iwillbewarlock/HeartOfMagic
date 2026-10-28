@@ -1,5 +1,7 @@
 #include "Common.h"
 #include "AutoScanInternal.h"
+#include "DataPaths.h"
+#include "uimanager/UIManager.h"
 #include "JsonText.h"
 #include "ScanRecord.h"
 #include "ScanRecordRules.h"
@@ -99,16 +101,11 @@ namespace
 
 namespace AutoScan::Internal
 {
-    std::string FileFingerprint(const char* path)
+    std::string FileFingerprint(const std::filesystem::path& path)
     {
         const auto text = ReadFileText(path);
         if (!text) return "missing";
-        std::uint64_t hash = 0xcbf29ce484222325ULL;
-        for (const unsigned char c : *text) {
-            hash ^= c;
-            hash *= 0x100000001b3ULL;
-        }
-        return std::format("{:016x}/{}", hash, text->size());
+        return std::format("{}/{}", ScanRecordRules::HashText(*text), text->size());
     }
 
     std::string ComparableDump(nlohmann::json output)
@@ -193,8 +190,8 @@ namespace AutoScan::Internal
         counts.Report("COMPLETE", incomplete.empty(),
             std::format("vampire casters {}, {}", CastersName(SpellScanner::VampireCastersState()),
                 incomplete.empty() ? std::string("every mark made") : incomplete));
-        const std::string treeAfter = FileFingerprint(kTreeFile);
-        const std::string treeRecordAfter = FileFingerprint(kTreeRecordFile);
+        const std::string treeAfter = FileFingerprint(UIManager::GetTreeFilePath());
+        const std::string treeRecordAfter = FileFingerprint(UIManager::GetTreeLoadOrderFilePath());
         // Unchanged, or changed by a graft whose checks passed (the tree-graft self-test has the rest)
         const auto graft = LastTreeGraft();
         const bool unchanged = treeAfter == treeBefore && treeRecordAfter == treeRecordBefore;
@@ -227,10 +224,10 @@ namespace AutoScan::Internal
                           *oneShot == chunkedDump ? ", equal" : ", DIFFERENT")
                     : std::string("the one-task scan did not answer"));
         counts.Report("DROP", StaleRunIsDropped(), "a run behind the session's generation reads no form");
-        const std::string catalogBefore = FileFingerprint(kCatalogFile);
+        const std::string catalogBefore = FileFingerprint(DataPaths::kCatalog);
         std::string midway;
         const bool dropped = RunDroppedMidway(midway);
-        const std::string catalogAfter = FileFingerprint(kCatalogFile);
+        const std::string catalogAfter = FileFingerprint(DataPaths::kCatalog);
         counts.Report("DROP-MIDWAY", dropped && catalogAfter == catalogBefore,
             std::format("{}; spell_catalog.json {} -> {}", midway, catalogBefore, catalogAfter));
         logger::info("{} done - {} pass, {} fail, {} skip", kTestPrefix, counts.pass, counts.fail, counts.skip);

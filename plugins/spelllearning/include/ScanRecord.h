@@ -10,10 +10,15 @@
 // =============================================================================
 //
 //   spell_catalog_loadorder.json, beside spell_catalog.json
-//     { "version": 2, "loadOrder": "<fingerprint>", "scan": "<scan fingerprint + tome reach outcome>",
-//       "tomeReach": "<TomeReach::OutcomeKey>", "plugins": n, "spells": n,
+//     { "version": 2, "loadOrder": "<fingerprint>",
+//       "scan": "<scan fingerprint + tome reach outcome + tome pairs key>",
+//       "tomeReach": "<TomeReach::OutcomeKey>", "tomePairs": "<the installed tome pairs' key>",
+//       "plugins": n, "spells": n,
 //       "catalogBytes": n, "catalogHash": "<FNV-1a 64 of spell_catalog.json>",
-//       "rules": "<FNV-1a 64 of CATALOG_VERSION and the librarian/ rule files>" }
+//       "rules": "<FNV-1a 64 of CATALOG_VERSION and the librarian/ rule files>",
+//       "writeId": "<this write's own mark>",
+//       "dumpBytes": n, "dumpHash": "<FNV-1a 64 of spell_scan_output.json>" }
+//     (the dump's two fields only from the scan at game start, DumpWritten, into its own write)
 //
 // Which load order (and which librarian rules) the catalog on disk was made
 // from, by a scan of every spell that marked everything. "scan" is what matches

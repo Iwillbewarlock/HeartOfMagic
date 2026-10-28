@@ -416,7 +416,8 @@ void ProgressionManager::SetLearningTargetFromTome(const std::string& formIdStr,
     logger::info("ProgressionManager: Set {} spell {} as learning target from tome",
         schoolName, spell->GetName());
 
-    // Notify UI immediately so it knows this is a learning target BEFORE we grant the spell
+    // The panel hears of the new target when this returns (the Batch above sends it), before
+    // the caller grants the spell
     ProgressionNotify::TargetSet(schoolName, formId, spell->GetName());
 }
 

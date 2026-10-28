@@ -95,6 +95,19 @@ namespace TreeBuilder
     }
 }
 
+void TreeBuilder::Internal::AssignThemes(std::unordered_map<std::string, TreeNode>& nodes,
+    const std::vector<std::string>& themes, float commonThemeShare)
+{
+    if (!themes.empty()) {
+        for (auto& [fid, node] : nodes) {
+            auto [theme, score] = GetSpellPrimaryTheme(node.spellData, themes);
+            node.theme = (score > kPrimaryThemeMinScore) ? theme : "";
+            node.themes = GetSpellThemes(node.spellData, themes);
+        }
+    }
+    DropCommonThemes(nodes, commonThemeShare);
+}
+
 std::unordered_set<std::string> TreeBuilder::FindModTags(const std::vector<json>& spells)
 {
     return ThemesDetail::FindModTagsOf(spells);

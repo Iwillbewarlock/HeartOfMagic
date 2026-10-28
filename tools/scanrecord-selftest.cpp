@@ -50,6 +50,10 @@ namespace
     {
         const std::string base = Hash(Plugins());
         Check(base.size() == 16 && base == Hash(Plugins()), "scan fingerprint: the same inputs give the same 16 hex digits");
+        // FNV-1a 64's published values: every record hash (catalog, rules, dump, journal) is this function
+        Check(ScanRecordRules::HashText("") == "cbf29ce484222325" && ScanRecordRules::HashText("a") == "af63dc4c8601ec8c" &&
+                  ScanRecordRules::HashText("foobar") == "85944171f73967e8",
+            "FNV-1a 64: the empty text, \"a\" and \"foobar\" hash to the published values (records stay readable)");
 
         auto bigger = Plugins();
         bigger[1].bytes += 1;

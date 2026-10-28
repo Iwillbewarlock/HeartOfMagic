@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Common.h"
+#include "ElapsedMs.h"
 #include "FormIdText.h"
 #include "ProgressionManager.h"
 
@@ -40,12 +41,6 @@ inline std::optional<RE::FormID> ParsePanelFormId(std::string_view text, std::st
     const auto formId = FormIdText::ParseSpellOf(text);
     if (!formId) logger::warn("UIManager: {} - '{}' is not a formId", handler, text);
     return formId;
-}
-
-// Milliseconds since `started`, for the timing lines in the log
-inline long long MsSince(std::chrono::steady_clock::time_point started)
-{
-    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
 }
 
 // Forward declaration for InputHandler access (defined in Main.cpp)
@@ -94,8 +89,8 @@ bool MergeLegacySettings(nlohmann::json& config);
 // (ordered_json, applied as they are - no deep copy of ~1,400 entries).
 int ApplyTreePrerequisiteEntries(const nlohmann::json& entries);
 int ApplyTreePrerequisiteEntries(const nlohmann::ordered_json& entries);
-// Each tree node's requiredXP > 0 into ProgressionManager::SetRequiredXP. Throws on a
-// formId that is not a string, as OnLoadSpellTree always has. Game thread.
+// Each tree node's requiredXP > 0 into ProgressionManager::SetRequiredXP; a node whose
+// formId is not a string is passed over. Game thread.
 void SyncRequiredXPFromTree(const nlohmann::json& tree);
 
 // spell_tree.json read whole (UIManagerTreeState.cpp), by OnLoadSpellTree and game start
@@ -114,9 +109,11 @@ inline constexpr std::uintmax_t kNoTreeFileCap = (std::numeric_limits<std::uintm
 TreeFileText ReadTreeFileText(const std::filesystem::path& path, std::uintmax_t maxBytes = kNoTreeFileCap);
 // Only spaces, tabs and line breaks: there is no saved tree
 bool IsBlankTreeText(std::string_view text);
-// SpellScanner::ValidateAndFixTree on the parsed saved tree, with OnLoadSpellTree's two log
-// lines. True when spells were resolved from persistent ids or dropped: the panel then gets
-// the validated tree's dump instead of the file's text. Throws as the validator does.
+// SpellScanner::ValidateAndFixTree on the parsed saved tree, with OnLoadSpellTree's log lines.
+// True when validation changed the tree (TreeValidationResult::changed: a node moved to a new
+// formId or went, a node found again by editor id took its new persistentId, a root or bridge
+// changed): the panel then gets the validated tree's dump instead of the file's text. Throws
+// as the validator does.
 bool ValidateTreeForPanel(nlohmann::json& tree);
 
 // Config saves are written by a background worker (UIManagerConfigSave.cpp).

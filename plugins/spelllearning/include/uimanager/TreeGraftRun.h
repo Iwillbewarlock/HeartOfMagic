@@ -147,12 +147,6 @@ namespace TreeGraftRun
                 }
             }
         }
-
-        template <class J>
-        [[nodiscard]] std::string Text(const J& object, const char* key)
-        {
-            return TreeGraft::Detail::Text(object, key);
-        }
     }
 
     /// What validation left of one node: kept, with its formId and persistentId then
@@ -378,14 +372,6 @@ namespace TreeGraftRun
             const auto it = node.find(key);
             return it != node.end() && it->is_number() && std::isfinite(it->get<double>()) &&
                    std::abs(it->get<double>()) <= kMaxCoord;
-        }
-
-        /// The nodes before the graft in a school (the grafted ones follow them)
-        [[nodiscard]] inline std::size_t Existing(const std::map<std::string, std::size_t>& preCounts,
-            const std::string& school, std::size_t fallback)
-        {
-            const auto it = preCounts.find(school);
-            return it != preCounts.end() ? it->second : fallback;
         }
     }
 

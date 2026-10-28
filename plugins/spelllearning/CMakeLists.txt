@@ -35,6 +35,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/Main.cpp
     src/AutoScan.cpp
     src/AutoScanSelfTest.cpp
+    src/MainMenuWatch.cpp
     src/LoadOrderFingerprint.cpp
     src/ScanRecord.cpp
     src/RisaMenu.cpp

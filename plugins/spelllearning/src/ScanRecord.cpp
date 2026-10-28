@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "DataPaths.h"
 #include "FileUtils.h"
 #include "JsonText.h"
 #include "PathText.h"
@@ -23,7 +24,6 @@
 
 namespace
 {
-    constexpr const char* kCatalogFile = "Data/SKSE/Plugins/SpellLearning/spell_catalog.json";
     constexpr const char* kRecordFile = "Data/SKSE/Plugins/SpellLearning/spell_catalog_loadorder.json";
     constexpr const char* kRulesDir = "Data/SKSE/Plugins/SpellLearning/librarian";   // LibrarianInternal.h RULE_SUBDIR
     constexpr int kReadTries = 3;                                                    // a file held a moment (a virus scan)
@@ -32,8 +32,9 @@ namespace
     constexpr int kRecordIndent = 2;
     constexpr std::size_t kReadChunk = 1 << 16;
 
-    constexpr std::uint64_t kFnvOffsetBasis = 0xcbf29ce484222325ULL;
-    constexpr std::uint64_t kFnvPrime = 0x100000001b3ULL;
+    using ScanRecordRules::Fnv;
+    using ScanRecordRules::Hex;
+    using ScanRecordRules::kFnvOffsetBasis;
 
     struct FileHash
     {
@@ -41,15 +42,7 @@ namespace
         std::string hash;   // 16 hex digits
     };
 
-    void HashText(std::uint64_t& hash, std::string_view bytes)
-    {
-        for (const unsigned char c : bytes) {
-            hash ^= c;
-            hash *= kFnvPrime;
-        }
-    }
-
-    // FNV-1a 64 of a file, read in chunks (the catalog is several MB)
+    // FNV-1a 64 of a file (ScanRecordRules::Fnv), read in chunks (the catalog is several MB)
     std::optional<FileHash> HashFileOnce(const std::filesystem::path& path)
     {
         std::ifstream file(path, std::ios::binary);
@@ -60,14 +53,11 @@ namespace
         while (file) {
             file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
             const auto got = file.gcount();
-            for (std::streamsize i = 0; i < got; ++i) {
-                hash ^= static_cast<unsigned char>(buffer[static_cast<std::size_t>(i)]);
-                hash *= kFnvPrime;
-            }
+            Fnv(hash, std::string_view(buffer.data(), static_cast<std::size_t>(got)));
             result.bytes += static_cast<std::uintmax_t>(got);
         }
         if (file.bad()) return std::nullopt;
-        result.hash = std::format("{:016x}", hash);
+        result.hash = Hex(hash);
         return result;
     }
 
@@ -87,10 +77,10 @@ namespace
     std::string RulesFingerprint()
     {
         std::uint64_t hash = kFnvOffsetBasis;
-        HashText(hash, std::to_string(Librarian::CATALOG_VERSION));
-        HashText(hash, "\n");
+        Fnv(hash, std::to_string(Librarian::CATALOG_VERSION));
+        Fnv(hash, "\n");
         std::error_code ec;
-        if (!std::filesystem::is_directory(kRulesDir, ec)) return std::format("{:016x}", hash);
+        if (!std::filesystem::is_directory(kRulesDir, ec)) return Hex(hash);
         std::vector<std::filesystem::path> files;
         for (std::filesystem::recursive_directory_iterator it(kRulesDir, ec), end; !ec && it != end; it.increment(ec)) {
             if (it->is_regular_file(ec)) files.push_back(it->path());
@@ -106,12 +96,12 @@ namespace
                 logger::warn("ScanRecord: could not read {}", PathText::Utf8(path));
                 return {};
             }
-            HashText(hash, PathText::Utf8(path.lexically_relative(kRulesDir)));
-            HashText(hash, "\n");
-            HashText(hash, file->hash);
-            HashText(hash, "\n");
+            Fnv(hash, PathText::Utf8(path.lexically_relative(kRulesDir)));
+            Fnv(hash, "\n");
+            Fnv(hash, file->hash);
+            Fnv(hash, "\n");
         }
-        return std::format("{:016x}", hash);
+        return Hex(hash);
     }
 
     std::string TextField(const nlohmann::json& data, const char* key)
@@ -183,7 +173,7 @@ namespace ScanRecord
                 RemoveRecord(decision.why.c_str());
                 return {};
             }
-            const auto catalog = HashFile(kCatalogFile);
+            const auto catalog = HashFile(DataPaths::kCatalog);
             if (!catalog) {
                 RemoveRecord("the catalog just written could not be read back");
                 return {};
@@ -295,7 +285,7 @@ namespace ScanRecord
                 }
                 return false;
             }
-            const auto catalog = HashFile(kCatalogFile);
+            const auto catalog = HashFile(DataPaths::kCatalog);
             if (!catalog) return false;
             const auto bytes = data.find("catalogBytes");
             if (TextField(data, "catalogHash") != catalog->hash || bytes == data.end() || !bytes->is_number_unsigned() ||

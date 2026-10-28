@@ -105,7 +105,7 @@ std::unordered_map<std::string, int> TreeBuilder::SpellTiers(const std::vector<j
 // Find best parent for a node in Classic mode (TreeBuilderInternal.h; the graft runs it too)
 TreeBuilder::TreeNode* TreeBuilder::Internal::FindBestClassicParent(
     TreeBuilder::TreeNode& node,
-    std::unordered_map<int, std::vector<TreeBuilder::TreeNode*>>& available,
+    const std::unordered_map<int, std::vector<TreeBuilder::TreeNode*>>& available,
     int tierIdx,
     int maxChildren,
     const TreeBuilder::SimilarityMatrix& sims,
@@ -322,15 +322,7 @@ TreeBuilder::BuildResult TreeBuilder::BuildClassic(
         root.isRoot = true;
         root.depth = 0;
 
-        // Assign themes
-        for (auto& [fid, node] : nodes) {
-            if (!schoolThemes.empty()) {
-                auto [theme, score] = GetSpellPrimaryTheme(node.spellData, schoolThemes);
-                node.theme = (score > 30) ? theme : "";
-                node.themes = GetSpellThemes(node.spellData, schoolThemes);
-            }
-        }
-        DropCommonThemes(nodes, config.commonThemeShare);
+        AssignThemes(nodes, schoolThemes, config.commonThemeShare);
         const TypeGrouping grouping(nodes, config.typeGrouping);
 
         // Build tree tier-by-tier

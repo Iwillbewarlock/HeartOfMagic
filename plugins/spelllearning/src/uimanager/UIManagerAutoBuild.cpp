@@ -3,6 +3,7 @@
 #include "HudNotify.h"
 #include "JsonText.h"
 #include "LoadOrderFingerprint.h"
+#include "MainMenuWatch.h"
 #include "PathText.h"
 #include "ThreadUtils.h"
 #include "uimanager/TreeGraftRecord.h"
@@ -159,7 +160,7 @@ std::optional<long long> UIManager::CheckTreeHasSpells(const std::string& treeTe
     // A text scan, not a parse: this runs on the game thread (TreeSaveCheck.h)
     const auto started = std::chrono::steady_clock::now();
     const bool hasSpells = TreeSaveCheck::HasSpellNodes(treeText);
-    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
+    const auto ms = static_cast<long long>(MsSince(started));
     if (!hasSpells) {
         logger::error("UIManager: SaveSpellTree - the tree has no spells; spell_tree.json left as it was "
                       "(checked in {} ms)", ms);
@@ -321,47 +322,15 @@ void UIManager::OnAutoBuildEvent(const char* argument)
     }
 }
 
-namespace
-{
-    // MainMenu opening: at start and when the player quits a game to it
-    class MainMenuWatch final : public RE::BSTEventSink<RE::MenuOpenCloseEvent>
-    {
-    public:
-        static MainMenuWatch* GetSingleton()
-        {
-            static MainMenuWatch singleton;
-            return &singleton;
-        }
-
-        RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent* event,
-            RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
-        {
-            if (event && event->opening && event->menuName == RE::MainMenu::MENU_NAME) {
-                AddTaskToGameThread("AutoBuildMainMenu", []() {
-                    if (auto* instance = UIManager::GetSingleton()) instance->NotifyMainMenuShown();
-                });
-            }
-            return RE::BSEventNotifyControl::kContinue;
-        }
-
-        MainMenuWatch(const MainMenuWatch&) = delete;
-        MainMenuWatch& operator=(const MainMenuWatch&) = delete;
-
-    private:
-        MainMenuWatch() = default;
-    };
-}
-
+// MainMenu opening (at start and when the player quits a game to it): NotifyMainMenuShown
 void UIManager::WatchMainMenu()
 {
     static bool s_watching = false;
     if (s_watching) return;
-    auto* ui = RE::UI::GetSingleton();
-    if (!ui) {
+    if (!MainMenuWatch::Listen(MainMenuWatch::Listener::kPanel)) {
         logger::warn("AutoBuild: no UI to watch the main menu - a held run goes on only when the panel opens");
         return;
     }
-    ui->AddEventSink<RE::MenuOpenCloseEvent>(MainMenuWatch::GetSingleton());
     s_watching = true;
 }
 

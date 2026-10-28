@@ -353,7 +353,8 @@ void OnDataLoaded()
     LoadTreeStateAtStartup(startupConfig);
 
     // A load order that changed since the catalog was made is scanned at the
-    // main menu, in steps, the tree left alone (AutoScan.h)
+    // main menu, in steps, and its new spells grafted into the saved tree
+    // without moving it (AutoScan.h, StartupState.h)
     AutoScan::Install();
 
     // One spell from two plugins: the groups a copy's tome reads by, worked out

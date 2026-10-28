@@ -4,7 +4,6 @@
 #include "FileUtils.h"
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
-#include "ProgressionManager.h"
 #include "ThreadUtils.h"
 #include "environment/EnvironmentTwins.h"
 

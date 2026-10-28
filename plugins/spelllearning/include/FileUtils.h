@@ -4,6 +4,8 @@
 
 #include <filesystem>
 #include <fstream>
+#include <optional>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -30,6 +32,18 @@
  */
 namespace FileUtils
 {
+    /// A whole file as its bytes (binary: a CRLF stays CRLF, as WriteAtomically wrote it);
+    /// nothing when it cannot be opened or a read fails. The one whole-file reader
+    inline std::optional<std::string> ReadAll(const std::filesystem::path& path)
+    {
+        std::ifstream file(path, std::ios::binary);
+        if (!file.is_open()) return std::nullopt;
+        std::ostringstream text;
+        text << file.rdbuf();
+        if (file.bad()) return std::nullopt;
+        return std::move(text).str();
+    }
+
     /// Where WriteAtomically keeps the previous file: <name>.bak
     inline std::filesystem::path BackupPath(const std::filesystem::path& path)
     {

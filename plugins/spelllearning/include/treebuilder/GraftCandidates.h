@@ -20,10 +20,12 @@
 // (the build's scan and every earlier graft's candidates), not in the tree, with a
 // persistentId, and no node of their duplicate group (the design, section 1).
 //
-// IsTreeCandidate: the panel's rule for the spells a build takes, ported line by
+// IsBuildCandidate: the panel's rule for the spells a build takes, ported line by
 // line so a graft takes what a rebuild would - proceduralTreeBuilder.js
-// isTaughtByTome (isTreeCandidate, isTomeCandidate), filterBlacklistedSpells and
-// filterWhitelistedSpells. Change one, change the other.
+// isTaughtByTome (which runs isTreeCandidate and isTomeCandidate, then the gate),
+// filterBlacklistedSpells and filterWhitelistedSpells. Not the JS isTreeCandidate,
+// which is only the tome and quest-only part of it (hence the name). Change one,
+// change the other.
 namespace TreeGraft
 {
     /**
@@ -293,10 +295,11 @@ namespace TreeGraft
         return rules;
     }
 
-    /// The panel's candidate rule: isTaughtByTome, the blacklist and the plugin whitelist.
+    /// The panel's rule for what a build takes: isTaughtByTome, the blacklist and the plugin
+    /// whitelist together (more than the JS isTreeCandidate, the tome part of isTaughtByTome).
     /// gateKept brings back a spell the gate ("out") or the quest-only rule leaves out,
     /// nothing else. A scan from before the gate has only freeSpell.
-    [[nodiscard]] inline bool IsTreeCandidate(const nlohmann::json& spell, const PlayerRules& rules)
+    [[nodiscard]] inline bool IsBuildCandidate(const nlohmann::json& spell, const PlayerRules& rules)
     {
         if (!spell.is_object()) return false;
         if (!Detail::IsTomeCandidate(spell)) return false;

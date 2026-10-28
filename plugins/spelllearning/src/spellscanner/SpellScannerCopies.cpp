@@ -32,8 +32,9 @@ namespace SpellScanner
     //   Lightning Storm, a cloak's damage spell. They carry the spell's name and
     //   school but no half-cost perk, so their tier falls back to the effect's
     //   minimum skill, often 0 - a Master spell's copy would land at the root as
-    //   Novice. The editor id filter in the scan (IsNonPlayerSpell) cannot catch them because
-    //   the engine keeps no editor ids for spells.
+    //   Novice. The editor id filter in the scan (IsNonPlayerSpell) seldom catches them: it
+    //   reads the engine's own editor id, which spells do not keep (not powerofthree's
+    //   Tweaks' one on purpose - with it the filter would drop Soul Trap, "trap").
     // - Free spells: a creature's attack, a follower's call, a pet's whistle.
     // - Voice slot spells, whether a tome teaches them or not.
     // - The other spells no tome teaches: quest, perk and script spells.

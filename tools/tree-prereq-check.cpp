@@ -5,6 +5,10 @@
 //   tree-prereq-check --self-test      made-up trees, expected arrays written by hand from the JS rules
 //   tree-prereq-check <tree.json>      the array for that tree's text, one line of JSON
 //                                      ("null" and the reason on stderr when nothing is sent)
+//   tree-prereq-check --dump-cases     the self-test's cases as JSON ([{name, tree, outcome,
+//                                      entries}], the tree as its text): the panel's own code
+//                                      runs them in modules/treePrereqParityTest.js, whose copy
+//                                      is test-data/treePrereqCases.json
 //
 // Exit 0 when every case agrees (or the file's array was printed), 1 on a disagreement,
 // 2 on a bad argument or a file that cannot be read, 3 when the panel would send nothing.
@@ -232,6 +236,30 @@ namespace
         return failed == 0 ? kExitOk : kExitMismatch;
     }
 
+    // The enum's own name: the parity test reads it
+    const char* OutcomeKey(Outcome outcome)
+    {
+        switch (outcome) {
+            case Outcome::Built: return "Built";
+            case Outcome::NoSchools: return "NoSchools";
+            case Outcome::SlowPath: return "SlowPath";
+            case Outcome::PanelThrows: return "PanelThrows";
+            case Outcome::NotModelled: return "NotModelled";
+        }
+        return "?";
+    }
+
+    int DumpCases()
+    {
+        OJson cases = OJson::array();
+        for (const auto& c : kCases) {
+            cases.push_back({ { "name", c.name }, { "tree", std::string(c.tree) }, { "outcome", OutcomeKey(c.outcome) },
+                { "entries", c.outcome == Outcome::Built ? OJson::parse(c.entries) : OJson() } });
+        }
+        std::printf("%s\n", cases.dump(2).c_str());
+        return kExitOk;
+    }
+
     int PrintFile(const char* path)
     {
         std::ifstream file(path, std::ios::binary);
@@ -259,7 +287,8 @@ namespace
 int main(int argc, char** argv)
 {
     if (argc == 2 && std::string_view(argv[1]) == "--self-test") return SelfTest();
+    if (argc == 2 && std::string_view(argv[1]) == "--dump-cases") return DumpCases();
     if (argc == 2) return PrintFile(argv[1]);
-    std::fprintf(stderr, "usage: tree-prereq-check --self-test | tree-prereq-check <tree.json>\n");
+    std::fprintf(stderr, "usage: tree-prereq-check --self-test | --dump-cases | <tree.json>\n");
     return kExitUsage;
 }

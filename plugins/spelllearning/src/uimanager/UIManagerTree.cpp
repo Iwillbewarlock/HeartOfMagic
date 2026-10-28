@@ -209,7 +209,7 @@ void UIManager::OnGetSpellInfoBatch(const char* argument)
 
             // Send batch result
             instance->SendSpellInfoBatch(JsonText::Dump(resultArray));
-            logger::info("UIManager: GetSpellInfoBatch done in {} ms (game thread)", MsSince(started));
+            logger::info("UIManager: GetSpellInfoBatch done in {:.0f} ms (game thread)", MsSince(started));
 
         } catch (const std::exception& e) {
             logger::error("UIManager: GetSpellInfoBatch exception: {}", e.what());
@@ -243,7 +243,7 @@ namespace
             auto seen = TreeRecordFile::TakeSeenSpells(tree);
             // Not JsonText::Dump, which takes nlohmann::json (sorted keys); the same error handler
             auto stripped = tree.dump(-1, ' ', false, nlohmann::ordered_json::error_handler_t::replace);
-            logger::info("UIManager: SaveSpellTree - {} spells seen by the build's scan taken off the tree ({} ms)",
+            logger::info("UIManager: SaveSpellTree - {} spells seen by the build's scan taken off the tree ({:.0f} ms)",
                 seen.size(), MsSince(started));
             return { std::move(stripped), std::move(seen) };
         } catch (const std::exception& e) {
@@ -362,7 +362,7 @@ void UIManager::SaveSpellTreeFromPanel(const char* argument, TreeSaveKind kind)
             if (FileUtils::WriteAtomically(treePath, argStr)) {
                 s_lastSavedHash = hash;
                 s_lastSavedGraftStamp = TreeGraftWriteStamp();
-                logger::info("UIManager: Saved spell tree to {} (spell check {} ms, written in {} ms)", PathText::Utf8(treePath),
+                logger::info("UIManager: Saved spell tree to {} (spell check {} ms, written in {:.0f} ms)", PathText::Utf8(treePath),
                     *checkMs, MsSince(writeStarted));
                 updateRecord();
                 // A stale edit save gives the lost grafted spells back
@@ -515,7 +515,7 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
                     }
                     std::string payload = JsonText::Dump(response);
                     if (result.success) {
-                        logger::info("UIManager: {} completed in {:.2f}s Data size: {} bytes, reply written in {} ms "
+                        logger::info("UIManager: {} completed in {:.2f}s Data size: {} bytes, reply written in {:.0f} ms "
                                      "(background thread)", command, result.elapsedMs / 1000.0, payload.size(), MsSince(dumpStarted));
                     }
 
@@ -528,7 +528,7 @@ void UIManager::OnProceduralTreeGenerate(const char* argument)
                         if (!inst->m_prismaUI) return;
                         const auto sendStarted = std::chrono::steady_clock::now();
                         inst->CallView("onProceduralTreeComplete", payload.c_str());
-                        logger::info("UIManager: tree build reply ({} bytes) sent to the panel in {} ms", payload.size(),
+                        logger::info("UIManager: tree build reply ({} bytes) sent to the panel in {:.0f} ms", payload.size(),
                             MsSince(sendStarted));
                     });
                 } catch (const std::exception& e) {

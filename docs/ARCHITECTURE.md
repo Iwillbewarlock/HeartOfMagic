@@ -1842,7 +1842,8 @@ onPrismaReady → LoadUnifiedConfig, LoadSpellTree (as before)
   `status.autoBuildHeld`, relabelled on a language switch; C++ shows `hud.autoBuildHeld` in the corner once
   per session) until the panel opens (`onPanelShowing`, the resume a tick later, after the panel's own opening
   work; the panel pauses the game unless "Pause Game on Open" is off) or the main menu opens (C++
-  `WatchMainMenu`: a `MenuOpenCloseEvent` sink for `MainMenu` → `onMainMenuShown`, which also ends "in game"),
+  `WatchMainMenu`: a listener of the plugin's one `MenuOpenCloseEvent` sink for `MainMenu`, `MainMenuWatch.h`, which
+  posts this task before the scan at game start's → `onMainMenuShown`, which also ends "in game"),
   whichever comes first (`resumed` in the log). Held: before the scan (a decision made in game), before the
   build (the scan came back in game), before Apply (the build and its locks finished in game). A step already
   started finishes: C++ cannot stop a queued scan, a build or a lock scoring part way, and Apply's save and
@@ -2069,7 +2070,7 @@ order's; log prefix `TreeGraft:`).
   was another known load order's), so a graft dropped this start still has it next time.
 - **Candidates** (`include/treebuilder/GraftCandidates.h`): `NewSpells` - not in the seen list, not in the tree
   (a node is its persistentId, or its formId when it has none), with a persistentId, no node of its duplicate
-  group. `IsTreeCandidate` ports the panel's rule line by line (`proceduralTreeBuilder.js` `isTaughtByTome`,
+  group. `IsBuildCandidate` ports the panel's rule line by line (`proceduralTreeBuilder.js` `isTaughtByTome`,
   blacklist, plugin whitelist, quest-only, gate kept); the player's rules come from config.json.
 - **The plan** (off the game thread; `TreeGraftRun.h` `PlanGraft`, on the file's own tree, not the remapped
   copy): (1) `RefreshIds` - a live node's stale formId becomes what validation says it is now, with every link

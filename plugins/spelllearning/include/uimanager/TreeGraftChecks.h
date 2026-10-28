@@ -23,13 +23,10 @@ namespace TreeGraftRun
     using Json = nlohmann::json;
     using OrderedJson = nlohmann::ordered_json;
 
-    namespace CheckDetail
+    // The graft runner's small helpers (TreeGraftRun.h uses them too)
+    namespace Detail
     {
-        template <class J>
-        [[nodiscard]] std::string Text(const J& object, const char* key)
-        {
-            return TreeGraft::Detail::Text(object, key);
-        }
+        using TreeGraft::Detail::Text;   // a string field, empty when absent or not a string
 
         /// The nodes before the graft in a school (the grafted ones follow them)
         [[nodiscard]] inline std::size_t Existing(const std::map<std::string, std::size_t>& preCounts,
@@ -76,12 +73,12 @@ namespace TreeGraftRun
             }
             const auto& newNodes = other["nodes"];
             for (std::size_t i = 0; i < oldNodes.size(); ++i) {
-                const auto a = CheckDetail::Text(oldNodes[i], "formId"), b = CheckDetail::Text(newNodes[i], "formId");
+                const auto a = Detail::Text(oldNodes[i], "formId"), b = Detail::Text(newNodes[i], "formId");
                 if (!oldNodes[i].is_object() || a.empty() || a == b) continue;
                 const auto [it, added] = ids.emplace(TreeRemap::NormalizeFormId(a), b);
                 if (!added && it->second != b) return std::format("nodes saved as {} now differ ({}, {})", a, it->second, b);
             }
-            for (std::size_t i = oldNodes.size(); i < newNodes.size(); ++i) grafted[name].insert(CheckDetail::Text(newNodes[i], "formId"));
+            for (std::size_t i = oldNodes.size(); i < newNodes.size(); ++i) grafted[name].insert(Detail::Text(newNodes[i], "formId"));
         }
         const auto same = [&ids](const OrderedJson& a, const OrderedJson& b) {
             if (a == b) return true;
@@ -136,7 +133,7 @@ namespace TreeGraftRun
             for (std::size_t i = 0; i < oldNodes.size(); ++i) {
                 const auto& a = oldNodes[i];
                 const auto& b = newNodes[i];
-                const auto where = std::format("{} node {} ({})", name, i, CheckDetail::Text(a, "formId"));
+                const auto where = std::format("{} node {} ({})", name, i, Detail::Text(a, "formId"));
                 if (!a.is_object() || !b.is_object()) {
                     if (a != b) return where + " changed";
                     continue;
@@ -147,8 +144,8 @@ namespace TreeGraftRun
                     if (key == "formId") {
                         ok = same(value, b[key]);
                     } else if (key == "persistentId") {
-                        const auto it = rematched.find(AsciiText::ToLower(CheckDetail::Text(a, "persistentId")));
-                        ok = value == b[key] || (it != rematched.end() && it->second == CheckDetail::Text(b, "persistentId"));
+                        const auto it = rematched.find(AsciiText::ToLower(Detail::Text(a, "persistentId")));
+                        ok = value == b[key] || (it != rematched.end() && it->second == Detail::Text(b, "persistentId"));
                     } else if (key == "children") {
                         ok = sameList(value, b[key], &grafted[name]);
                     } else if (key == "prerequisites" || key == "softPrereqs" || key == "hardPrereqs") {
@@ -198,7 +195,7 @@ namespace TreeGraftRun
         for (const auto& [name, school] : grafted["schools"].items()) {
             if (!school.is_object() || !school.contains("nodes") || !school["nodes"].is_array()) continue;
             const auto& nodes = school["nodes"];
-            const auto existing = CheckDetail::Existing(preCounts, name, nodes.size());
+            const auto existing = Detail::Existing(preCounts, name, nodes.size());
             if (existing >= nodes.size()) continue;
             const Json* checked = nullptr;
             if (validated.is_object() && validated.contains("schools") && validated["schools"].contains(name)) {
@@ -213,7 +210,7 @@ namespace TreeGraftRun
             for (const auto& node : (*checked)["nodes"]) {
                 if (!node.is_object()) continue;
                 if (auto key = PersistentKey(node); !key.empty()) byKey.emplace(std::move(key), &node);
-                byFormId.emplace(TreeRemap::NormalizeFormId(CheckDetail::Text(node, "formId")), &node);
+                byFormId.emplace(TreeRemap::NormalizeFormId(Detail::Text(node, "formId")), &node);
             }
             const auto find = [](const std::unordered_map<std::string, const Json*>& map, const std::string& id) -> const Json* {
                 const auto it = map.find(id);
@@ -222,7 +219,7 @@ namespace TreeGraftRun
             for (std::size_t i = existing; i < nodes.size(); ++i) {
                 const auto key = PersistentKey(nodes[i]);
                 const auto* node = key.empty() ? nullptr : find(byKey, key);
-                const auto label = std::format("grafted {} ({})", CheckDetail::Text(nodes[i], "formId"), name);
+                const auto label = std::format("grafted {} ({})", Detail::Text(nodes[i], "formId"), name);
                 if (!node) return label + " is not in the validated tree";
                 const auto prereqs = node->find("prerequisites");
                 if (prereqs == node->end() || !prereqs->is_array() || prereqs->empty() || !(*prereqs)[0].is_string()) {
@@ -231,7 +228,7 @@ namespace TreeGraftRun
                 const auto parentId = TreeRemap::NormalizeFormId((*prereqs)[0].get<std::string>());
                 const auto* parent = find(byFormId, parentId);
                 if (!parent) return label + "'s parent " + parentId + " is not in its school after validation";
-                const auto self = TreeRemap::NormalizeFormId(CheckDetail::Text(*node, "formId"));
+                const auto self = TreeRemap::NormalizeFormId(Detail::Text(*node, "formId"));
                 bool listed = false;
                 if (parent->contains("children") && (*parent)["children"].is_array()) {
                     for (const auto& child : (*parent)["children"]) {

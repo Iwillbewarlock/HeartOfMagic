@@ -197,4 +197,7 @@ namespace GraftCheckCases
     int OrderedCase();
     int ManyCase();
     int FallbackCase();
+    int RoomCase();
+    int TreeConfigCase();
+    int ChildPointCase();
 }

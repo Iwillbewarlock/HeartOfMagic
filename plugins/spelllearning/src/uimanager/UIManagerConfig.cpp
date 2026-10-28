@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "DataPaths.h"
 #include "JsonText.h"
 #include "PathText.h"
 #include "FileUtils.h"
@@ -269,7 +270,7 @@ std::filesystem::path GetSettingsFilePath()
 
 std::filesystem::path GetUnifiedConfigPath()
 {
-    return "Data/SKSE/Plugins/SpellLearning/config.json";
+    return DataPaths::kConfig;
 }
 
 // =============================================================================

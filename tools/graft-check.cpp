@@ -4,7 +4,7 @@
 //   graft-check --self-test     made-up trees and scans, no game needed
 //
 // What is new (NewSpells): never seen, not in the tree by formId or persistentId, has a
-// persistentId, no node of its duplicate group. What the tree takes (IsTreeCandidate): the
+// persistentId, no node of its duplicate group. What the tree takes (IsBuildCandidate): the
 // panel's rule, case by case (proceduralTreeBuilder.js isTaughtByTome, the blacklist and the
 // plugin whitelist). Where it goes (Graft): every existing node as it was, a parent gaining a
 // child, the same tree for the same input, a fire spell under the fire branch, a school the
@@ -91,11 +91,11 @@ namespace
 
     int RulesCase()
     {
-        std::printf("  rules (IsTreeCandidate)\n");
+        std::printf("  rules (IsBuildCandidate)\n");
         Checker check;
         const Json base = Spell("0x05001234", "MyMod.ESP", "0x001234", "Base", "Destruction", "Novice");
         PlayerRules none;
-        check.Check(TreeGraft::IsTreeCandidate(base, none), "a tome spell with no marks is taken");
+        check.Check(TreeGraft::IsBuildCandidate(base, none), "a tome spell with no marks is taken");
 
         auto with = [&base](const char* key, const Json& value) {
             Json s = base;
@@ -106,45 +106,45 @@ namespace
         const Json gateReview = with("gate", { { "band", "review" } });
         const Json questOnly = with("questOnly", true);
         const Json unreachable = with("tomeUnreachable", true);
-        check.Check(!TreeGraft::IsTreeCandidate(gateOut, none), "rules: gate out is left out");
-        check.Check(TreeGraft::IsTreeCandidate(gateReview, none), "gate review stays in");
-        check.Check(!TreeGraft::IsTreeCandidate(questOnly, none), "rules: questOnly is left out");
-        check.Check(!TreeGraft::IsTreeCandidate(unreachable, none), "rules: tomeUnreachable is left out");
-        check.Check(!TreeGraft::IsTreeCandidate(with("taughtByTome", false), none), "no tome teaches it: left out");
-        check.Check(!TreeGraft::IsTreeCandidate(with("voiceSlot", true), none), "voice slot: left out");
-        check.Check(!TreeGraft::IsTreeCandidate(with("duplicateOf", "0x01000001"), none), "another plugin's copy: left out");
-        check.Check(TreeGraft::IsTreeCandidate(with("duplicateOf", ""), none), "an empty duplicateOf is no copy");
-        check.Check(!TreeGraft::IsTreeCandidate(with("freeSpell", true), none), "a scan without gate: freeSpell left out");
+        check.Check(!TreeGraft::IsBuildCandidate(gateOut, none), "rules: gate out is left out");
+        check.Check(TreeGraft::IsBuildCandidate(gateReview, none), "gate review stays in");
+        check.Check(!TreeGraft::IsBuildCandidate(questOnly, none), "rules: questOnly is left out");
+        check.Check(!TreeGraft::IsBuildCandidate(unreachable, none), "rules: tomeUnreachable is left out");
+        check.Check(!TreeGraft::IsBuildCandidate(with("taughtByTome", false), none), "no tome teaches it: left out");
+        check.Check(!TreeGraft::IsBuildCandidate(with("voiceSlot", true), none), "voice slot: left out");
+        check.Check(!TreeGraft::IsBuildCandidate(with("duplicateOf", "0x01000001"), none), "another plugin's copy: left out");
+        check.Check(TreeGraft::IsBuildCandidate(with("duplicateOf", ""), none), "an empty duplicateOf is no copy");
+        check.Check(!TreeGraft::IsBuildCandidate(with("freeSpell", true), none), "a scan without gate: freeSpell left out");
         Json reviewedFree = gateReview;
         reviewedFree["freeSpell"] = true;
-        check.Check(TreeGraft::IsTreeCandidate(reviewedFree, none), "with a gate, freeSpell does not count");
+        check.Check(TreeGraft::IsBuildCandidate(reviewedFree, none), "with a gate, freeSpell does not count");
 
         PlayerRules kept;
         kept.gateKept = { "mymod.esp:001234" };   // GateReview.key: spell.plugin folded A-Z, local id
-        check.Check(TreeGraft::IsTreeCandidate(gateOut, kept), "gateKept brings gate-out back");
-        check.Check(TreeGraft::IsTreeCandidate(questOnly, kept), "gateKept brings questOnly back");
-        check.Check(!TreeGraft::IsTreeCandidate(unreachable, kept), "gateKept does not bring tomeUnreachable back");
+        check.Check(TreeGraft::IsBuildCandidate(gateOut, kept), "gateKept brings gate-out back");
+        check.Check(TreeGraft::IsBuildCandidate(questOnly, kept), "gateKept brings questOnly back");
+        check.Check(!TreeGraft::IsBuildCandidate(unreachable, kept), "gateKept does not bring tomeUnreachable back");
 
         PlayerRules blacklist;
         blacklist.blacklistKeys = { "mymod.esp:001234" };
-        check.Check(!TreeGraft::IsTreeCandidate(base, blacklist), "rules: blacklist by plugin and local id leaves it out");
+        check.Check(!TreeGraft::IsBuildCandidate(base, blacklist), "rules: blacklist by plugin and local id leaves it out");
         PlayerRules blacklistById;
         blacklistById.blacklistKeys = { "0x05001234" };
-        check.Check(!TreeGraft::IsTreeCandidate(base, blacklistById), "rules: blacklist by formId only leaves it out");
+        check.Check(!TreeGraft::IsBuildCandidate(base, blacklistById), "rules: blacklist by formId only leaves it out");
         Json otherPlugin = base;
         otherPlugin["persistentId"] = "Real.esp|0x001234";   // the blacklist reads the persistentId's plugin first
         PlayerRules blacklistReal;
         blacklistReal.blacklistKeys = { "real.esp:001234" };
-        check.Check(!TreeGraft::IsTreeCandidate(otherPlugin, blacklistReal), "the blacklist goes by the persistentId's plugin");
+        check.Check(!TreeGraft::IsBuildCandidate(otherPlugin, blacklistReal), "the blacklist goes by the persistentId's plugin");
 
         PlayerRules off;
         off.pluginsOff = { "mymod.esp" };
-        check.Check(!TreeGraft::IsTreeCandidate(base, off), "rules: plugin off in the whitelist leaves it out");
+        check.Check(!TreeGraft::IsBuildCandidate(base, off), "rules: plugin off in the whitelist leaves it out");
         // An entry an older panel lowered with toLowerCase still turns its plugin off (proceduralTreeBuilder.js:154)
         const Json cyrillic = Spell("0x07000011", "\xD0\x97\xD0\xB0\xD0\xBA.esp", "0x000011", "Cyr", "Destruction", "Novice");
         PlayerRules loweredOff;
         loweredOff.pluginsOff = { "\xD0\xB7\xD0\xB0\xD0\xBA.esp" };   // Cyrillic "Zak" lowered by toLowerCase
-        check.Check(!TreeGraft::IsTreeCandidate(cyrillic, loweredOff), "a whitelist entry lowered with toLowerCase matches");
+        check.Check(!TreeGraft::IsBuildCandidate(cyrillic, loweredOff), "a whitelist entry lowered with toLowerCase matches");
         // Spell Research's filter asks the same rule by plugin name (LibrarianSpellResearchFilter.cpp PlayerLeftOut)
         check.Check(TreeGraft::PluginIsOff("\xD0\x97\xD0\xB0\xD0\xBA.esp", loweredOff.pluginsOff) &&
                         TreeGraft::PluginIsOff("MyMod.ESP", { "mymod.esp" }) && !TreeGraft::PluginIsOff("", { "" }),
@@ -155,18 +155,18 @@ namespace
             "the documented limit: U+1E9E and U+0460 stay (JavaScript lowers them to U+00DF, U+0461)");
         PlayerRules offOther;
         offOther.pluginsOff = { "other.esp" };
-        check.Check(TreeGraft::IsTreeCandidate(base, offOther), "another plugin off changes nothing");
+        check.Check(TreeGraft::IsBuildCandidate(base, offOther), "another plugin off changes nothing");
 
         // ESL: the local id is the last 3 hex digits (getLocalFormId)
         const Json esl = Spell("0xFE0A1801", "Light.esl", "0x801", "Light", "Destruction", "Novice");
         PlayerRules eslBlack;
         eslBlack.blacklistKeys = { "light.esl:801" };
-        check.Check(!TreeGraft::IsTreeCandidate(esl, eslBlack), "an ESL spell's key has the 3-digit local id");
+        check.Check(!TreeGraft::IsBuildCandidate(esl, eslBlack), "an ESL spell's key has the 3-digit local id");
         // Non-ASCII bytes are kept as they are (foldPluginName folds A-Z only)
         const Json korean = Spell("0x07000010", "\xED\x95\x9C.esp", "0x000010", "Korean", "Destruction", "Novice");
         PlayerRules koreanOff;
         koreanOff.pluginsOff = { "\xED\x95\x9C.esp" };
-        check.Check(!TreeGraft::IsTreeCandidate(korean, koreanOff), "a non-ASCII plugin name matches byte for byte");
+        check.Check(!TreeGraft::IsBuildCandidate(korean, koreanOff), "a non-ASCII plugin name matches byte for byte");
         return check.failed;
     }
 
@@ -301,7 +301,8 @@ namespace
     {
         const std::vector<int (*)()> cases = { CandidatesCase, RulesCase, GraftKeepsCase, RepeatableCase, FireBranchCase,
             NoSchoolCase, GraftCheckCases::DeferredCase, GraftCheckCases::OrderedCase, GraftCheckCases::ManyCase,
-            GraftCheckCases::FallbackCase };
+            GraftCheckCases::FallbackCase, GraftCheckCases::RoomCase, GraftCheckCases::TreeConfigCase,
+            GraftCheckCases::ChildPointCase };
         int failedCases = 0;
         for (auto* run : cases) {
             if (run() > 0) ++failedCases;
