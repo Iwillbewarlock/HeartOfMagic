@@ -539,7 +539,8 @@ namespace
             if (settings.selfTest) logger::info("{} not run: {}", kTestPrefix, *reason);
             return State::Done;
         }
-        if (!settings.selfTest && ScanRecord::CatalogMatches(loadOrder)) {
+        // A graft due without the catalog scan's dump scans instead: the skip would stop it every start (Ruling 22)
+        if (!settings.selfTest && ScanRecord::CatalogMatches(loadOrder) && !TreeGraftNeedsTheScan(loadOrder)) {
             logger::info("{} skipped - load order unchanged ({}, scan fingerprint {}), the catalog is its scan's", kPrefix,
                 loadOrder.hash, loadOrder.scan);
             // A graft an earlier start did not make (the catalog already is this load order's: no previous one)
@@ -549,7 +550,7 @@ namespace
         if (settings.selfTest) logger::info("{} on (selftest.json) - runs whatever the scan record says", kTestPrefix);
 
         const std::string treeBefore = settings.selfTest ? FileFingerprint(kTreeFile) : std::string();
-        const std::string treeRecordBefore = settings.selfTest ? FileFingerprint(kTreeRecordFile) : std::string();
+        std::string treeRecordBefore = settings.selfTest ? FileFingerprint(kTreeRecordFile) : std::string();
 
         FrameProbe probe;
         bool probing = false;
@@ -620,7 +621,9 @@ namespace
         std::string text = JsonText::Dump(*output, 2);
         output.reset();
         // The catalog this scan replaces: the tree record's seen list when it has none
-        auto previousCatalog = ReadCatalogForTreeGraft(loadOrder);
+        auto previous = ReadCatalogForTreeGraft(loadOrder);
+        // The seen list seeded is no graft's write: the TREE claim compares the record from here
+        if (settings.selfTest && previous.seeded) treeRecordBefore = FileFingerprint(kTreeRecordFile);
         std::string recordId;   // the scan record's writeId: its dump goes only into that record
         const bool wrote = Librarian::ClassifyScan(text, true, [&loadOrder, &incomplete, &scanPairs, &recordId]() {
             recordId = ScanRecord::CatalogWritten(true, &loadOrder, incomplete, scanPairs);
@@ -648,8 +651,8 @@ namespace
         }
         text.clear();
         text.shrink_to_fit();
-        RunTreeGraftAtMainMenu(loadOrder, previousCatalog);
-        previousCatalog.reset();
+        RunTreeGraftAtMainMenu(loadOrder, previous.catalog);
+        previous.catalog.reset();
 
         if (settings.selfTest) {
             TestCounts counts;
@@ -667,8 +670,9 @@ namespace
             const auto graft = LastTreeGraft();
             const bool unchanged = treeAfter == treeBefore && treeRecordAfter == treeRecordBefore;
             counts.Report("TREE", unchanged || (graft.wrote && graft.passed),
-                std::format("spell_tree.json {} -> {}, spell_tree_loadorder.json {} -> {}; graft: {}{}", treeBefore,
-                    treeAfter, treeRecordBefore, treeRecordAfter, graft.wrote ? "wrote, " : "", graft.detail));
+                std::format("spell_tree.json {} -> {}, spell_tree_loadorder.json {} -> {}{}; graft: {}{}", treeBefore,
+                    treeAfter, treeRecordBefore, treeRecordAfter, previous.seeded ? " (from after the seen list seeded)" : "",
+                    graft.wrote ? "wrote, " : "", graft.detail));
             if (probing) {
                 const auto baseline = probe.Window(0);
                 const auto scan = probe.Window(1);

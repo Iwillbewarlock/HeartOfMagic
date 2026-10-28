@@ -97,8 +97,20 @@ void ResolveTreeGraftJournal(const LoadOrderFingerprint::Value& loadOrder);
 /// another known load order's, the catalog's spells are written into the
 /// record as its seen list (a game thread task it waits for), so a graft dropped this start
 /// still has them. The catalog is parsed only then; it is returned only when that write
-/// failed (this start's graft takes it from memory). Not on the game thread.
-std::optional<nlohmann::json> ReadCatalogForTreeGraft(const LoadOrderFingerprint::Value& loadOrder);
+/// failed (this start's graft takes it from memory); `seeded` says the record was written
+/// (the scan's TREE self-test compares the record from after it). Not on the game thread.
+struct CatalogForTreeGraft
+{
+    std::optional<nlohmann::json> catalog;
+    bool seeded = false;
+};
+CatalogForTreeGraft ReadCatalogForTreeGraft(const LoadOrderFingerprint::Value& loadOrder);
+
+/// AutoScan's skip path (the catalog is `loadOrder`'s full scan, the tree has spells): a
+/// graft is due but spell_scan_output.json is not that scan's dump, so the scan must run
+/// to give the graft one (TreeGraftRun::ScanForGraft; the dump is read only when a graft
+/// is due). Logs why. Not on the game thread.
+bool TreeGraftNeedsTheScan(const LoadOrderFingerprint::Value& loadOrder);
 
 /// What the session's last graft did (the dev self-tests read it). Any thread.
 struct TreeGraftOutcome

@@ -93,6 +93,17 @@ namespace TreeGraftRun
         return std::nullopt;
     }
 
+    /// AutoScan's skip (the catalog is this load order's) when a graft is due but
+    /// spell_scan_output.json is not that scan's dump (a panel-only full scan since, or a
+    /// crash between the catalog and the dump): the graft would stop on it at every start,
+    /// so the scan runs instead and writes one (Ruling 22). `dumpMatches()` reads and hashes
+    /// the dump: asked only when the graft is due.
+    template <class DumpMatches>
+    [[nodiscard]] bool ScanForGraft(const Facts& facts, DumpMatches&& dumpMatches)
+    {
+        return !WhyNotRun(facts) && !dumpMatches();
+    }
+
     /// Why the scan output cannot be grafted from, or nothing
     [[nodiscard]] inline std::optional<std::string> WhyScanUnusable(const Json& output, const std::string& tomeReach)
     {

@@ -166,6 +166,16 @@ namespace
         unknown.loadOrder.clear();
         check.Check(TreeGraftRun::WhyNotRun(unknown).has_value(), "not: the load order is unknown");
 
+        // AutoScan's skip path (the catalog this load order's): scan when the dump is not that scan's (Ruling 22)
+        int asked = 0;
+        const auto dump = [&asked](bool matches) { return [&asked, matches] { ++asked; return matches; }; };
+        check.Check(TreeGraftRun::ScanForGraft(facts, dump(false)), "scan: a graft due, the dump not the catalog scan's");
+        check.Check(!TreeGraftRun::ScanForGraft(facts, dump(true)), "skip: a graft due, the dump the catalog scan's");
+        asked = 0;
+        check.Check(!TreeGraftRun::ScanForGraft(same, dump(false)) && !TreeGraftRun::ScanForGraft(unreadable, dump(false)) &&
+                        asked == 0,
+            "skip: no graft due (the record this load order's, or unreadable) - the dump is not read");
+
         const Json complete = { { "spells", Json::array() } };
         check.Check(!TreeGraftRun::WhyScanUnusable(complete, "ready"), "scan: complete, tome reach ready");
         const Json incomplete = { { "spells", Json::array() }, { "incomplete", { "vampire casters" } } };

@@ -371,7 +371,7 @@ void RunTreeGraftAtMainMenu(const LoadOrderFingerprint::Value& loadOrder, const 
     }
 }
 
-std::optional<nlohmann::json> ReadCatalogForTreeGraft(const LoadOrderFingerprint::Value& loadOrder)
+CatalogForTreeGraft ReadCatalogForTreeGraft(const LoadOrderFingerprint::Value& loadOrder)
 {
     try {
         const auto recordPath = UIManager::GetTreeLoadOrderFilePath();
@@ -380,14 +380,14 @@ std::optional<nlohmann::json> ReadCatalogForTreeGraft(const LoadOrderFingerprint
         // The catalog about to be replaced must be the previous load order's (the scan record says whose)
         if (!record || (!recordText && ThereButUnread(recordPath)) || loadOrder.hash.empty() ||
             !TreeGraftRun::CatalogNeeded(*record, loadOrder.hash, ScanRecord::RecordedLoadOrder())) {
-            return std::nullopt;
+            return {};
         }
         const auto text = ReadText(kCatalogFile);
-        if (!text) return std::nullopt;
+        if (!text) return {};
         auto catalog = nlohmann::json::parse(*text, nullptr, false);
-        if (catalog.is_discarded() || !catalog.is_object()) return std::nullopt;
+        if (catalog.is_discarded() || !catalog.is_object()) return {};
         const auto seeded = TreeGraftRun::SeededRecord(*record, catalog);
-        if (!seeded) return std::nullopt;
+        if (!seeded) return {};
         // Kept in the record, so a graft dropped this start (the panel saved meanwhile) still has it next time
         const auto wrote = RunOnGameThreadAndWait("TreeGraftSeenList", [target = *seeded, recordText, recordPath]() {
             if (ReadText(recordPath) != recordText) return false;   // written meanwhile (a build's Apply)
@@ -396,13 +396,41 @@ std::optional<nlohmann::json> ReadCatalogForTreeGraft(const LoadOrderFingerprint
         if (wrote && *wrote) {
             logger::info("{} the tree record had no seen list: the {} spells of the catalog the scan replaces are kept "
                          "as it", kPrefix, seeded->seen.size());
-            return std::nullopt;
+            return { std::nullopt, true };
         }
         logger::warn("{} the seen list could not be kept in the record - this start's graft takes it from memory", kPrefix);
-        return catalog;
+        return { std::move(catalog), false };
     } catch (const std::exception& e) {
         logger::warn("{} the previous catalog could not be read ({}) - no seen list from it", kPrefix, e.what());
-        return std::nullopt;
+        return {};
+    }
+}
+
+bool TreeGraftNeedsTheScan(const LoadOrderFingerprint::Value& loadOrder)
+{
+    try {
+        const auto recordPath = UIManager::GetTreeLoadOrderFilePath();
+        const auto recordText = ReadText(recordPath);
+        const auto record = ParseRecord(recordText);
+        TreeGraftRun::Facts facts;
+        facts.loadOrder = loadOrder.hash;
+        facts.recordLoadOrder = record ? record->loadOrder : std::string();
+        facts.recordUnreadable = !record || (!recordText && ThereButUnread(recordPath));
+        facts.treeHasSpells = true;    // AutoScan's Precondition
+        facts.catalogMatches = true;   // its skip path
+        const bool scan = TreeGraftRun::ScanForGraft(facts, [] {
+            const auto dump = ReadText(kScanOutputFile);
+            return dump && ScanRecord::DumpMatches(*dump);
+        });
+        if (scan) {
+            logger::info("{} a graft is due (the tree record is load order {}, this is {}) but spell_scan_output.json "
+                         "is not the catalog scan's dump - the scan at game start runs to write one", kPrefix,
+                facts.recordLoadOrder.empty() ? "unknown" : facts.recordLoadOrder, loadOrder.hash);
+        }
+        return scan;
+    } catch (const std::exception& e) {
+        logger::warn("{} could not tell whether the graft needs the scan ({}) - the scan is skipped as before", kPrefix, e.what());
+        return false;
     }
 }
 

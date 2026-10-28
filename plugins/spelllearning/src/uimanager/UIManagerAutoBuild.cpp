@@ -194,7 +194,7 @@ void UIManager::RecordTreeLoadOrder(const std::vector<std::string>& seen)
     // built for still clears a notice given meanwhile for another one (A, told
     // about B, back to A and built: B later must be told again)
     if (record.loadOrder == now.hash && record.noticedLoadOrder.empty() && record.hasSeen == hasSeen &&
-        record.seen == seen) {
+        record.seen == seen && record.pendingGrafted == 0) {
         return;
     }
     record.loadOrder = now.hash;
@@ -203,6 +203,7 @@ void UIManager::RecordTreeLoadOrder(const std::vector<std::string>& seen)
     record.noticedLoadOrder.clear();   // the tree is this load order's now
     record.seen = seen;
     record.hasSeen = hasSeen;
+    record.pendingGrafted = 0;         // a graft's spells are not in this tree to tell about
     WriteRecord(record);
     logger::info("UIManager: spell tree built under load order {} ({} plugins, {} spell forms); its scan saw {}",
         now.hash, now.plugins, now.spells, hasSeen ? std::format("{} spells", seen.size()) : std::string("no list (none sent)"));
@@ -211,11 +212,13 @@ void UIManager::RecordTreeLoadOrder(const std::vector<std::string>& seen)
 void UIManager::ForgetSeenSpells()
 {
     auto record = ReadRecord();
-    if (!record.hasSeen) return;
+    if (!record.hasSeen && record.pendingGrafted == 0) return;
     record.seen.clear();
     record.hasSeen = false;
+    record.pendingGrafted = 0;   // the grafted spells were the replaced tree's
     WriteRecord(record);
-    logger::info("UIManager: imported spell tree - the record's seen list (another build's) dropped");
+    logger::info("UIManager: imported spell tree - the record's seen list (another build's) and its count of grafted "
+                 "spells to tell about dropped");
 }
 
 void UIManager::ShowPendingLoadOrderNotice()
