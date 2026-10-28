@@ -3,6 +3,7 @@
 #include "LoadOrderFingerprint.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -126,8 +127,14 @@ struct TreeGraftOutcome
     std::vector<std::string> graftedPersistentIds;   // theirs, same order: the seen list's ids
     std::string priorLoadOrder;                // the record's load order before the graft (with its counts)
     std::size_t priorPlugins = 0, priorSpells = 0;
+    std::string priorNoticedLoadOrder;         // and the load order the player had been told about then
 };
 TreeGraftOutcome LastTreeGraft();
+
+/// The session's tree file writes by a graft or a journal's recovery, counted (incremented
+/// on the game thread right after the write). A panel save that read it lower than it is
+/// at its task was asked for before the latest such write (UIManagerTree.cpp). Any thread.
+std::uint64_t TreeGraftWriteStamp();
 
 // One SpellLearning.log line per session comparing the tree state game start
 // applied with the panel's (UIManagerTreeParity.cpp): "TreeParity PASS (...)",

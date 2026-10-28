@@ -17,6 +17,11 @@
 #include "uimanager/ConfigFile.h"
 #include "uimanager/TreeRecord.h"
 
+namespace TreeGraftRun
+{
+    struct HeldLoadOrder;   // TreeGraftRecord.h
+}
+
 class UIManager
 {
 public:
@@ -111,12 +116,11 @@ public:
     void RecordTreeLoadOrder(const std::vector<std::string>& seen);
     // An imported tree: the record's seen list belongs to another build - dropped
     void ForgetSeenSpells();
-    // An edit save dropped spells the session's graft added (`lost`, persistentIds): they
-    // leave the seen list and the record's load order goes back to `heldLoadOrder` (the
-    // record's before the graft), so the next start grafts them again (TreeGraftRecord.h
-    // RecordAfterLostGraft, Ruling 23). Game thread
-    void ForgetLostGraftedSpells(const std::vector<std::string>& lost, const std::string& heldLoadOrder,
-        std::size_t heldPlugins, std::size_t heldSpells);
+    // A stale edit save dropped spells the session's graft added (`lost`, persistentIds):
+    // they leave the seen list and the record's load order and notice go back to `held`
+    // (the record's before the graft), so the next start grafts them again
+    // (TreeGraftRecord.h StaleGraftSave, RecordAfterLostGraft; Rulings 23, 24). Game thread
+    void ForgetLostGraftedSpells(const std::vector<std::string>& lost, const TreeGraftRun::HeldLoadOrder& held);
     // The load order notice the panel asked for, in the corner, at kPostLoadGame;
     // recorded as told only once it was shown
     void ShowPendingLoadOrderNotice();

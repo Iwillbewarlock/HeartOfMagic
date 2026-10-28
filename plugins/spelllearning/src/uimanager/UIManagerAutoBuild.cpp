@@ -222,11 +222,10 @@ void UIManager::ForgetSeenSpells()
                  "spells to tell about dropped");
 }
 
-void UIManager::ForgetLostGraftedSpells(const std::vector<std::string>& lost, const std::string& heldLoadOrder,
-    std::size_t heldPlugins, std::size_t heldSpells)
+void UIManager::ForgetLostGraftedSpells(const std::vector<std::string>& lost, const TreeGraftRun::HeldLoadOrder& held)
 {
     if (lost.empty()) return;
-    const auto record = TreeGraftRun::RecordAfterLostGraft(ReadRecord(), lost, { heldLoadOrder, heldPlugins, heldSpells });
+    const auto record = TreeGraftRun::RecordAfterLostGraft(ReadRecord(), lost, held);
     if (!WriteRecord(record)) {
         logger::warn("TreeGraft: the {} dropped grafted spells stay in the seen list (the record was not written) - a "
                      "rebuild places them", lost.size());
@@ -234,7 +233,7 @@ void UIManager::ForgetLostGraftedSpells(const std::vector<std::string>& lost, co
     }
     logger::info("TreeGraft: {} grafted spells the panel's save dropped (first {}) left the seen list; the record's load "
                  "order is {} again, so the next game start grafts them again", lost.size(), lost.front(),
-        heldLoadOrder.empty() ? "unknown" : heldLoadOrder);
+        held.loadOrder.empty() ? "unknown" : held.loadOrder);
 }
 
 void UIManager::ShowPendingLoadOrderNotice()

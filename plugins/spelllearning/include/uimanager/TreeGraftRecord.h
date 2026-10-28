@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -75,14 +76,26 @@ namespace TreeGraftRun
         return record;
     }
 
-    /// An edit save from a panel that held the tree from before the graft dropped grafted
-    /// nodes (Ruling 23): their spells (`lost`, persistentIds) leave the seen list (A-Z
-    /// folded) and pendingGrafted, and the load order goes back to the record's before the
-    /// graft (`held`), so the next start grafts them again
+    /// An edit save over the tree the session's graft wrote that lacks some of its nodes
+    /// (`carried`: how many of the grafted formIds it still has) is stale - its panel held
+    /// the tree from before the graft - only when it was asked for before the graft's write
+    /// (`stampAtEntry` lower than `stampNow`, TreeGraftWriteStamp) and carries none of them.
+    /// Asked for after the write, or carrying some: the player deleted those nodes in edit
+    /// mode, and they stay out (Ruling 24)
+    [[nodiscard]] inline bool StaleGraftSave(std::uint64_t stampAtEntry, std::uint64_t stampNow, std::size_t carried)
+    {
+        return stampAtEntry < stampNow && carried == 0;
+    }
+
+    /// A stale edit save (StaleGraftSave) dropped grafted nodes (Ruling 23): their spells
+    /// (`lost`, persistentIds) leave the seen list (A-Z folded) and pendingGrafted, and the
+    /// load order and the notice told go back to the record's before the graft (`held`), so
+    /// the next start grafts them again and the "rebuild" notice is as it was
     struct HeldLoadOrder
     {
         std::string loadOrder;
         std::size_t plugins = 0, spells = 0;
+        std::string noticedLoadOrder;
     };
     [[nodiscard]] inline TreeRecordFile::TreeRecord RecordAfterLostGraft(TreeRecordFile::TreeRecord record,
         const std::vector<std::string>& lost, const HeldLoadOrder& held)
@@ -94,6 +107,7 @@ namespace TreeGraftRun
         record.loadOrder = held.loadOrder;
         record.plugins = held.plugins;
         record.spells = held.spells;
+        record.noticedLoadOrder = held.noticedLoadOrder;
         return record;
     }
 

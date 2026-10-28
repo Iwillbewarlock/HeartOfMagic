@@ -13,7 +13,9 @@
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
 
+#include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -65,6 +67,7 @@ namespace
 
     std::mutex s_outcomeMutex;
     Outcome s_outcome;
+    std::atomic<std::uint64_t> s_treeWriteStamp{ 0 };   // TreeGraftWriteStamp
 
     void SetOutcome(Outcome outcome)
     {
@@ -181,12 +184,14 @@ namespace
                 Failed(std::format("could not write {} ({} bytes)", PathText::Utf8(treePath), text.size()));
                 return false;
             }
+            ++s_treeWriteStamp;
             outcome.wrote = true;
             outcome.writtenHash = std::hash<std::string>{}(text);
             SetGraftedIds(plan, outcome);
             outcome.priorLoadOrder = read.record.loadOrder;
             outcome.priorPlugins = read.record.plugins;
             outcome.priorSpells = read.record.spells;
+            outcome.priorNoticedLoadOrder = read.record.noticedLoadOrder;
             logger::info("{} spell_tree.json written with {} new spells ({} bytes, the old file kept as .bak)", kPrefix,
                 plan.grafted.size(), text.size());
         }
@@ -479,6 +484,7 @@ void ResolveTreeGraftJournal(const LoadOrderFingerprint::Value& loadOrder)
                         logger::warn("{} spell_tree.json.tmp could not be moved into place: {}", kPrefix, ec.message());
                         return Result::kFailed;
                     }
+                    ++s_treeWriteStamp;
                     logger::info("{} spell_tree.json was missing and spell_tree.json.tmp is the tree the journal was for "
                                  "- moved into place", kPrefix);
                 }
@@ -516,4 +522,9 @@ TreeGraftOutcome LastTreeGraft()
 {
     std::lock_guard lock(s_outcomeMutex);
     return s_outcome;
+}
+
+std::uint64_t TreeGraftWriteStamp()
+{
+    return s_treeWriteStamp.load();
 }

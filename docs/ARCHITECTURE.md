@@ -2105,11 +2105,14 @@ order's; log prefix `TreeGraft:`).
   `status.loadOrderChanged` line already shown. At the next save load `ShowPendingGraftNotice` shows
   `hud.spellsGrafted` ("N new spells joined the spell tree", 13 languages) and zeroes `pendingGrafted`.
   `SaveSpellTree` warns in the log when a panel save drops spells the session's graft added (the file still the
-  one the graft wrote); for an edit save, once it is written, those spells leave the seen list and
-  `pendingGrafted`, and the record's load order goes back to the one before the graft, so the next start grafts
-  them again (`ForgetLostGraftedSpells`, `RecordAfterLostGraft`; Ruling 23). A grafted node the player deletes in
-  edit mode before any other save of the grafted tree looks the same and is grafted again (a revision token on
-  panel saves is the follow-up).
+  one the graft wrote). Such a save is stale only when it was asked for before the graft's tree write and holds
+  none of the grafted formIds (`TreeGraftRun::StaleGraftSave`: `TreeGraftWriteStamp`, a counter the graft and a
+  journal's recovery raise on the game thread right after their tree write, read when the panel's save comes in
+  and again in its game thread task; Ruling 24): for an edit save, once it is written, those spells leave the seen
+  list and `pendingGrafted`, and the record's load order and `noticedLoadOrder` go back to the ones before the
+  graft, so the next start grafts them again (`ForgetLostGraftedSpells`, `RecordAfterLostGraft`; Ruling 23). A
+  save asked for after the write, or one that keeps some grafted nodes, is the player's edit: a grafted node
+  deleted in edit mode stays out (the log line only).
 - **Dev self-test** `tree-graft` (`src/environment/EnvironmentSelfTestGraft.cpp`): PASS when the session's
   graft wrote and every check passed, and the panel's last `updateTreeData` is what the file validates to
   now; SKIP when no graft wrote or the tree was saved since.

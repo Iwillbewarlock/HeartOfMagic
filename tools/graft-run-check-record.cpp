@@ -87,7 +87,7 @@ namespace GraftRunRecordCases
 
     int LostCase()
     {
-        std::printf("an edit save that dropped grafted nodes (Ruling 23)\n");
+        std::printf("an edit save that dropped grafted nodes: stale or the player's (Rulings 23, 24)\n");
         Checker check;
         TreeRecord record;   // as a complete graft left it
         record.loadOrder = "new";
@@ -97,12 +97,21 @@ namespace GraftRunRecordCases
         record.seen = { "Skyrim.esm|0x012FCD", "NewMod.esp|0x000801", "NewMod.esp|0x000802", "NewMod.esp|0x000803" };
         record.pendingGrafted = 2;
         record.extra = { { "later", 1 } };
-        const auto after = TreeGraftRun::RecordAfterLostGraft(record, { "newmod.esp|0x000801" }, { "old", 200, 3900 });
+        const auto after = TreeGraftRun::RecordAfterLostGraft(record, { "newmod.esp|0x000801" }, { "old", 200, 3900, "new" });
         check.Check(after.seen == std::vector<std::string>{ "Skyrim.esm|0x012FCD", "NewMod.esp|0x000802", "NewMod.esp|0x000803" } &&
                         after.hasSeen,
             "the lost spell leaves the seen list (any case); the others stay");
         check.Check(after.loadOrder == "old" && after.plugins == 200 && after.spells == 3900,
             "the load order back to the record's before the graft: the next start grafts it again");
+        check.Check(after.noticedLoadOrder == "new" &&
+                        TreeGraftRun::RecordAfterLostGraft(record, {}, { "old", 200, 3900 }).noticedLoadOrder.empty(),
+            "the notice told back as before the graft (told about this load order then: not again)");
+
+        // Which saves are stale (Ruling 24): the stamp read when the save was asked for, the stamp at its task
+        check.Check(TreeGraftRun::StaleGraftSave(0, 1, 0), "asked for before the graft wrote, no grafted node in it: stale");
+        check.Check(!TreeGraftRun::StaleGraftSave(1, 1, 0),
+            "asked for after the graft wrote, no grafted node in it: the player deleted them - they stay out");
+        check.Check(!TreeGraftRun::StaleGraftSave(0, 1, 2), "asked for before the write, some grafted nodes in it: they stay out");
         check.Check(after.pendingGrafted == 1 && after.extra.contains("later"), "one fewer to tell about; other fields kept");
         const auto none = TreeGraftRun::RecordAfterLostGraft(record, { "A.esp|0x1", "B.esp|0x2", "C.esp|0x3" }, {});
         check.Check(none.pendingGrafted == 0 && none.seen.size() == 4 && none.loadOrder.empty(),
