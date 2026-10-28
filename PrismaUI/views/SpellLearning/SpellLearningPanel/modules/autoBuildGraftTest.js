@@ -7,7 +7,8 @@
  *     unreadable message changes nothing;
  *   - with reload (a graft journal's recovery put the tree file back): a run building
  *     or applying ends without saving, a decision not yet made is dropped, and the
- *     tree is loaded again (LoadSpellTree), whose startup info decides afresh.
+ *     tree is loaded again (LoadSpellTree), whose startup info decides afresh; the
+ *     first info's config and presets waits go with it (the next info waits afresh).
  *
  * Depends on: autoBuildTest.js (loads autoBuild.js, autoBuildCpp.js and
  * autoBuildSetting.js; its _with swaps the globals stubbed here and puts them back).
@@ -36,6 +37,7 @@ var AutoBuildGraftTest = {
         this._with = g.AutoBuildTest._with;
         this._testTreeGrafted(g);
         this._testTreeReplaced(g);
+        this._testReloadClearsWaits(g);
         return { passed: this.passed, failed: this.failed };
     },
 
@@ -146,6 +148,34 @@ var AutoBuildGraftTest = {
             g.onTreeGrafted(JSON.stringify({ loadOrder: 'aa', reload: false }));
             self.check(calls.length === 0, 'a graft notice without reload: no tree load');
             A._resetForTest();
+        });
+    },
+
+    /** A reload before the decision: the first startup info's config and presets waits are dropped, the next info waits afresh. */
+    _testReloadClearsWaits: function(g) {
+        var self = this, A = g.AutoBuild, timers = [];
+        this._with(g, {
+            settings: { autoBuild: 'whenMissing' },
+            setTimeout: function(fn, ms) { timers.push({ fn: fn, ms: ms, live: true }); return timers.length; },
+            clearTimeout: function(id) { if (timers[id - 1]) timers[id - 1].live = false; },
+            callCpp: function() {},
+            updateScanStatus: function() {},
+            tOr: function(key, params, fallback) { return fallback; },
+            console: { log: function() {}, warn: function() {}, error: function() {} }
+        }, function() {
+            var waits = function() { return timers.filter(function(t) { return t.live && t.ms === A.WAIT_MS; }).length; };
+            try {
+                A._resetForTest();
+                g.onStartupTreeInfo({ tree: 'missing', loadOrder: 'aa' });
+                var first = waits();
+                g.onTreeGrafted({ loadOrder: '', reload: true });
+                var afterReload = waits();
+                g.onStartupTreeInfo({ tree: 'present', nodes: 5, loadOrder: 'aa', builtLoadOrder: 'aa' });
+                self.check(first === 2 && afterReload === 0 && waits() === 2,
+                    'tree put back before the decision: the first info\'s two waits are cleared, the reload\'s info starts its own');
+            } finally {
+                A._resetForTest();
+            }
         });
     }
 };

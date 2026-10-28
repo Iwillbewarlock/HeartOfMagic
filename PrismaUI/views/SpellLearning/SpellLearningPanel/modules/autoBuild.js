@@ -569,6 +569,7 @@ var AutoBuild = {
             var run = this._run;
             this.yieldTo('C++ put the saved tree file back');
             this._dropRunTree(run);
+            this._clearWaits();   // the first info's config and presets waits: the reload's info starts its own
             this._info = null;
             this._decided = false;
             if (typeof window !== 'undefined' && window.callCpp) window.callCpp('LoadSpellTree', '');
