@@ -68,4 +68,19 @@ namespace TreeBuilder::Internal
         std::unordered_map<std::string, float> m_rarity;  // trait -> 0 (every spell) .. 1 (rare)
     };
 
+    // Classic's parent for `node` among `available` (tier index -> nodes that may
+    // still take a child), TreeBuilderClassic.cpp. rng adds the build's random
+    // jitter to each score; nullptr = none (the graft, TreeGraft.cpp, which must
+    // give the same tree for the same input). parentBonus (formId -> points) adds
+    // a caller's own term per candidate; nullptr = none.
+    TreeNode* FindBestClassicParent(
+        TreeNode& node,
+        std::unordered_map<int, std::vector<TreeNode*>>& available,
+        int tierIdx,
+        int maxChildren,
+        const SimilarityMatrix& sims,
+        const TypeGrouping& grouping,
+        std::mt19937* rng,
+        const std::unordered_map<std::string, float>* parentBonus = nullptr);
+
 }  // namespace TreeBuilder::Internal

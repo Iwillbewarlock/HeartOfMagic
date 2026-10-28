@@ -94,15 +94,16 @@ std::unordered_map<std::string, int> TreeBuilder::SpellTiers(const std::vector<j
 // CLASSIC BUILDER — Tier-First Tree Construction
 // =============================================================================
 
-// Find best parent for a node in Classic mode
-static TreeBuilder::TreeNode* FindBestClassicParent(
+// Find best parent for a node in Classic mode (TreeBuilderInternal.h; the graft runs it too)
+TreeBuilder::TreeNode* TreeBuilder::Internal::FindBestClassicParent(
     TreeBuilder::TreeNode& node,
     std::unordered_map<int, std::vector<TreeBuilder::TreeNode*>>& available,
     int tierIdx,
     int maxChildren,
     const TreeBuilder::SimilarityMatrix& sims,
     const TypeGrouping& grouping,
-    std::mt19937& rng)
+    std::mt19937* rng,
+    const std::unordered_map<std::string, float>* parentBonus)
 {
     // Collect candidates from lower tiers
     std::vector<std::pair<TreeBuilder::TreeNode*, int>> candidates;
@@ -191,8 +192,13 @@ static TreeBuilder::TreeNode* FindBestClassicParent(
         if (candidate->depth == tierIdx - 1) score += 10.0f;
         else if (candidate->depth == tierIdx - 2) score += 5.0f;
 
-        // Random jitter
-        score += jitter(rng);
+        // Random jitter (the build only)
+        if (rng) score += jitter(*rng);
+
+        if (parentBonus) {
+            const auto bonus = parentBonus->find(candidate->formId);
+            if (bonus != parentBonus->end()) score += bonus->second;
+        }
 
         if (score > bestScore) {
             bestScore = score;
@@ -340,7 +346,7 @@ TreeBuilder::BuildResult TreeBuilder::BuildClassic(
                 if (nodeIt == nodes.end()) continue;
 
                 auto* parent = FindBestClassicParent(
-                    nodeIt->second, available, tierIdx, maxChildren, sims, grouping, rng);
+                    nodeIt->second, available, tierIdx, maxChildren, sims, grouping, &rng);
 
                 if (parent) {
                     LinkNodes(*parent, nodeIt->second);

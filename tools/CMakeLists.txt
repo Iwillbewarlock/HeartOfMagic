@@ -278,3 +278,42 @@ target_compile_features(thread-flag-check PRIVATE cxx_std_23)
 target_include_directories(thread-flag-check PRIVATE
     ${SL_INCLUDE_DIR}
 )
+
+# =============================================================================
+# graft-check  -  offline check of the tree graft
+# =============================================================================
+# The plugin's own GraftCandidates.h and TreeGraft.cpp on the treebuilder-test
+# sources: --self-test on made-up trees and scans (what is new, the panel's
+# candidate rule, every existing node kept, the parent a new spell gets).
+
+add_executable(graft-check
+    graft-check.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeGraft.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeNLP.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeBuilderCore.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeBuilderLinks.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeBuilderPlugins.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeBuilderReachability.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeBuilderSimilarity.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeBuilderClassic.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeBuilderTypeGrouping.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeBuilderThemes.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeBuilderBridges.cpp
+    ${SL_SRC_DIR}/treebuilder/SimdKernels.cpp
+)
+
+target_compile_features(graft-check PRIVATE cxx_std_23)
+
+# Stub headers first, same reason as above.
+target_include_directories(graft-check PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${SL_INCLUDE_DIR}
+    ${SL_SRC_DIR}
+)
+
+target_link_libraries(graft-check PRIVATE
+    spdlog::spdlog
+    nlohmann_json::nlohmann_json
+    hwy::hwy
+    hwy::hwy_contrib
+)
