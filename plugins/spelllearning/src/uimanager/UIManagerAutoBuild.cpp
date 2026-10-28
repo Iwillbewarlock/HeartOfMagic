@@ -271,10 +271,11 @@ void UIManager::ShowPendingGraftNotice()
     if (WriteRecord(record)) logger::info("TreeGraft: corner message shown for {} new spells", told);
 }
 
-void UIManager::NotifyTreeGrafted(const std::string& loadOrder)
+void UIManager::NotifyTreeGrafted(const std::string& loadOrder, bool treeReplaced)
 {
     nlohmann::json info;
     info["loadOrder"] = loadOrder;
+    info["reload"] = treeReplaced;
     CallView("onTreeGrafted", JsonText::Dump(info).c_str());
 }
 

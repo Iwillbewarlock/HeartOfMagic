@@ -152,6 +152,23 @@ namespace
         }
     }
 
+    // Game thread: a tree this file wrote made the session's (Commit's graft, a journal's
+    // recovery): validated as the panel's tree load validates it, its prerequisites and
+    // requiredXP applied, game start's parity baseline expired. Throws as
+    // ValidateTreeAsPanelPath and ApplyTreeState do, `stage` naming the step.
+    PanelTree ApplyWrittenTree(std::string text, std::string_view& stage)
+    {
+        stage = "validating the written tree threw";
+        logger::info("{} validating the written tree for the game and the panel", kPrefix);
+        PanelTree panel = ValidateTreeAsPanelPath(std::move(text));
+        if (const auto skipped = ApplyTreeState(panel, stage)) {
+            logger::warn("{} the tree state was not applied ({}) - the panel's tree load applies it", kPrefix, *skipped);
+        }
+        // Game start's state is no longer the panel's tree load's: no comparison this session
+        TreeParity::Expire("the tree graft wrote the tree after game start applied it");
+        return panel;
+    }
+
     // Game thread: the plan written, applied and sent. Sets the outcome itself.
     bool Commit(const TreeGraftRun::Plan& plan, const ReadState& read)
     {
@@ -210,7 +227,7 @@ namespace
         auto* ui = UIManager::GetSingleton();
         // The panel decided its "load order changed" line before the graft: it goes when the tree is this load order's
         if (plan.complete && recordWritten && ui && ui->IsInitialized()) {
-            ui->NotifyTreeGrafted(plan.record.loadOrder);
+            ui->NotifyTreeGrafted(plan.record.loadOrder, false);   // the tree itself follows (SendTreeData)
         }
         if (!plan.writeTree) {
             outcome.state = outcome.wrote ? Outcome::State::kWritten : Outcome::State::kNothingWritten;
@@ -219,15 +236,9 @@ namespace
         }
         outcome.state = Outcome::State::kWritten;
 
-        std::string_view stage = "validating the grafted tree threw";
+        std::string_view stage;
         try {
-            logger::info("{} validating the grafted tree for the game and the panel", kPrefix);
-            const PanelTree panel = ValidateTreeAsPanelPath(text);
-            if (const auto skipped = ApplyTreeState(panel, stage)) {
-                logger::warn("{} the tree state was not applied ({}) - the panel's tree load applies it", kPrefix, *skipped);
-            }
-            // Game start's state is no longer the panel's tree load's: no comparison this session
-            TreeParity::Expire("a tree graft changed the tree after game start applied it");
+            const PanelTree panel = ApplyWrittenTree(text, stage);
             stage = "the live-parent check threw";
             if (const auto problem = TreeGraftRun::GraftedHaveLiveParents(panel.validated, plan.tree, plan.preCounts);
                 !problem.empty()) {
@@ -489,14 +500,26 @@ void ResolveTreeGraftJournal(const LoadOrderFingerprint::Value& loadOrder)
                     logger::info("{} spell_tree.json was missing and spell_tree.json.tmp is the tree the journal was for "
                                  "- moved into place", kPrefix);
                 }
-                if (!UIManager::WriteTreeRecord(target)) return Result::kFailed;
-                // A graft finished from its journal: the panel's notice goes as after any complete graft
+                const bool recordWritten = UIManager::WriteTreeRecord(target);
+                const bool thisLoadOrder = recordWritten && action != TreeGraftRun::JournalAction::kDrop && !hash.empty() &&
+                                           target.loadOrder == hash;
                 auto* ui = UIManager::GetSingleton();
-                if (action != TreeGraftRun::JournalAction::kDrop && !hash.empty() && target.loadOrder == hash && ui &&
-                    ui->IsInitialized()) {
-                    ui->NotifyTreeGrafted(target.loadOrder);
+                if (recover) {
+                    // Game start found no tree: the moved one is applied as a graft's is (Commit)
+                    std::string_view stage;
+                    try {
+                        ApplyWrittenTree(*fileNow, stage);
+                    } catch (const std::exception& e) {
+                        logger::warn("{} {}: {} - the tree is in place, the panel's tree load applies it", kPrefix, stage,
+                            e.what());
+                    }
+                    // The panel heard "missing" and may be building a tree over it: it stops and loads this one
+                    if (ui && ui->IsInitialized()) ui->NotifyTreeGrafted(thisLoadOrder ? target.loadOrder : std::string(), true);
+                } else if (thisLoadOrder && ui && ui->IsInitialized()) {
+                    // A graft finished from its journal: the panel's notice goes as after any complete graft
+                    ui->NotifyTreeGrafted(target.loadOrder, false);
                 }
-                return Result::kWritten;
+                return recordWritten ? Result::kWritten : Result::kFailed;
             }, kGameThreadWait);
         if (result && *result == Result::kWritten) {
             logger::info("{} {} the journal an earlier graft left ({})", kPrefix, apply ? "applied" : "dropped",

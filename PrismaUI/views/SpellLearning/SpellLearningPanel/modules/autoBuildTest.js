@@ -101,6 +101,7 @@ var AutoBuildTest = {
         this._testDecide(g);
         this._testStartup(g);
         this._testTreeGrafted(g);
+        this._testTreeReplaced(g);
         this._testRun(g);
         this._testSaveLoadGoesOn(g);
         this._testApplyStale(g);
@@ -293,6 +294,64 @@ var AutoBuildTest = {
                 'a graft before the startup info: no notice is decided');
             g.onTreeGrafted('not json');
             self.check(true, 'an unreadable graft message is passed over');
+            A._resetForTest();
+        });
+    },
+
+    /** A graft journal's recovery put the tree file back (onTreeGrafted reload) while a build at game start runs or waits. */
+    _testTreeReplaced: function(g) {
+        var self = this, A = g.AutoBuild, calls = [], events = [], builtWith = null, appliedWith = null;
+        this._with(g, {
+            settings: { autoBuild: 'whenMissing' },
+            state: { lastSpellData: { spells: [{ formId: '0x01' }] } },
+            startScan: function() { calls.push('scan'); return true; },
+            callCpp: function(name, arg) { if (name === 'AutoBuildEvent') events.push(JSON.parse(arg).event); else calls.push(name); },
+            updateScanStatus: function() {},
+            tOr: function(key, params, fallback) { return fallback; },
+            TreePreviewHidden: { ensure: function() { return { rootNodes: [], gridPoints: [] }; } },
+            TreeGrowthClassic: {
+                buildTree: function(opts) { calls.push('build'); builtWith = opts; return true; },
+                applyTree: function(opts) { calls.push('apply'); appliedWith = opts; return true; }
+            },
+            console: { log: function() {}, warn: function() {}, error: function() {} }
+        }, function() {
+            var ready = function() { g.AutoBuildSetting.loadFrom({}); A.noteConfigLoaded(); A.notePresetsApplied(); };
+            var present = { tree: 'present', nodes: 5, loadOrder: 'aa', builtLoadOrder: 'aa' };
+            // Building: the build's result comes after the notice - no Apply
+            A._resetForTest();
+            ready();
+            g.onStartupTreeInfo({ tree: 'missing', loadOrder: 'aa' });
+            A.onSpellData();
+            g.onTreeGrafted(JSON.stringify({ loadOrder: 'aa', reload: true }));
+            builtWith.onComplete('late');
+            self.check(!A.isRunning() && calls.join(',') === 'scan,build,LoadSpellTree' && events.indexOf('yielded') !== -1,
+                'tree put back during the build: the run ends, its result is not applied, the tree is loaded again');
+            g.onStartupTreeInfo(present);
+            self.check(calls.indexOf('scan', 1) === -1 && events.filter(function(e) { return e === 'decided'; }).length === 2,
+                'the reload\'s startup info decides afresh: the tree is there, nothing is built');
+            // Applying: the Apply still decluttering does not save
+            A._resetForTest();
+            calls.length = 0;
+            ready();
+            g.onStartupTreeInfo({ tree: 'missing', loadOrder: 'aa' });
+            A.onSpellData();
+            builtWith.onComplete('ok');
+            g.onTreeGrafted({ loadOrder: '', reload: true });
+            self.check(appliedWith && appliedWith.isCurrent() === false && calls[calls.length - 1] === 'LoadSpellTree',
+                'tree put back while Apply declutters: the Apply is no longer current, so it does not save');
+            // Not decided yet (no config): nothing is built
+            A._resetForTest();
+            calls.length = 0;
+            g.onStartupTreeInfo({ tree: 'missing', loadOrder: 'aa' });
+            g.onTreeGrafted(JSON.stringify({ loadOrder: '', reload: true }));
+            ready();
+            g.onStartupTreeInfo(present);
+            self.check(calls.join(',') === 'LoadSpellTree' && !A.isRunning(),
+                'tree put back before the decision: the old "missing" builds nothing, the reload\'s info decides');
+            // The usual graft notice (reload false) loads nothing
+            calls.length = 0;
+            g.onTreeGrafted(JSON.stringify({ loadOrder: 'aa', reload: false }));
+            self.check(calls.length === 0, 'a graft notice without reload: no tree load');
             A._resetForTest();
         });
     },

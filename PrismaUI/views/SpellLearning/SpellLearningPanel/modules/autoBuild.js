@@ -23,7 +23,9 @@
  * That is at the main menu: onPrismaReady asks for all three. Only the first
  * onStartupTreeInfo counts: a later LoadSpellTree (Load Saved Tree on the tree
  * tab, or a second onPrismaReady if the view were reloaded) never starts a
- * second run. spell_tree.json is one file for every save, so a save load does
+ * second run - but for the one after C++ put the tree file back (onTreeGrafted
+ * with reload: a graft journal's recovery), which ends a run and decides afresh.
+ * spell_tree.json is one file for every save, so a save load does
  * not stop a run, nor does a new game (onNewGameStarted), and Apply's
  * loadTreeData makes the tree live for the loaded save (SetTreePrerequisites,
  * then GetProgress / GetPlayerKnownSpells). But no step starts during play: with
@@ -68,7 +70,8 @@
  * (C++ AutoBuildEvent, written whatever the developer mode): config, presets,
  * decided, scan, build, shown, apply, done, failed, yielded, save loaded, notice,
  * new game, held, resumed ("held" also makes C++ show the corner message, once a session),
- * grafted (C++'s tree graft at the main menu made the tree this load order's: onTreeGrafted).
+ * grafted (C++'s tree graft at the main menu made the tree this load order's: onTreeGrafted),
+ * yielded also when C++ put the tree file back (onTreeGrafted reload).
  *
  * Depends on: autoBuildSetting.js (AutoBuildSetting), buttonHandlers.js (startScan),
  *   treePreviewHidden.js (TreePreviewHidden), classic/classicMain.js
@@ -557,8 +560,19 @@ var AutoBuild = {
      * order's (its new spells joined the tree). The startup info came before the graft:
      * from now on it says the tree was built for this load order, so no notice is decided,
      * and a notice already on the scan line for this load order goes.
+     * @param {boolean} [reload] - C++ moved the tree file into place (a graft journal's
+     *   recovery, spell_tree.json missing until then): a run, which would save over it, ends,
+     *   and the tree is loaded again as at start; its startup info decides afresh
      */
-    onTreeGrafted: function(loadOrder) {
+    onTreeGrafted: function(loadOrder, reload) {
+        if (reload === true) {
+            var run = this._run;
+            this.yieldTo('C++ put the saved tree file back');
+            this._dropRunTree(run);
+            this._info = null;
+            this._decided = false;
+            if (typeof window !== 'undefined' && window.callCpp) window.callCpp('LoadSpellTree', '');
+        }
         if (typeof loadOrder !== 'string' || !loadOrder) return;
         this._graftedLoadOrder = loadOrder;
         if (!this._info || this._info.loadOrder !== loadOrder) return;
@@ -619,7 +633,7 @@ window.onStartupTreeInfo = function(json) {
     AutoBuild.onStartupTreeInfo(info);
 };
 
-/** C++ (TreeGraftRun.cpp, through UIManagerAutoBuild.cpp): { loadOrder } the tree graft made the tree's. */
+/** C++ (TreeGraftRun.cpp, through UIManagerAutoBuild.cpp): { loadOrder, reload } - see AutoBuild.onTreeGrafted. */
 window.onTreeGrafted = function(json) {
     var info = null;
     try {
@@ -627,7 +641,7 @@ window.onTreeGrafted = function(json) {
     } catch (e) {
         console.error('[AutoBuild] Tree graft info unreadable: ' + (e && e.message ? e.message : e));
     }
-    AutoBuild.onTreeGrafted(info && info.loadOrder);
+    AutoBuild.onTreeGrafted(info && info.loadOrder, !!(info && info.reload === true));
 };
 
 /** C++ (UIManagerAutoBuild.cpp): the main menu opened. */

@@ -2103,9 +2103,14 @@ order's; log prefix `TreeGraft:`).
   hash (a crash under the older `WriteAtomically`, which moved the file to `.bak` first) - move it into place and
   apply (`kRecover`, Ruling 21). Its write is a game thread task that goes only when the
   record (and for an apply, the tree) is still what was read (`JournalStillFits`); a journal left over stops
-  that start's graft.
+  that start's graft. A recovery makes the moved tree the session's as the commit does (`ApplyWrittenTree`:
+  validated, `ApplyTreeState`, the parity baseline expired; game start applied no tree, it had none) and tells
+  the panel `onTreeGrafted({ loadOrder, reload: true })` (`loadOrder` empty unless its record was written and
+  is this load order's): the panel heard "missing" and may be building a tree at game start that would save
+  over it, so `autoBuild.js` ends that run (an Apply still decluttering does not save), forgets the old startup
+  info and loads the tree again (`LoadSpellTree`), whose startup info decides afresh.
 - **The panel and the player:** when the tree becomes this load order's, `NotifyTreeGrafted` calls
-  `onTreeGrafted({ loadOrder })`; `autoBuild.js` then counts the tree as built for it and drops a
+  `onTreeGrafted({ loadOrder, reload: false })` (the tree itself follows as `updateTreeData`); `autoBuild.js` then counts the tree as built for it and drops a
   `status.loadOrderChanged` line already shown. At the next save load `ShowPendingGraftNotice` shows
   `hud.spellsGrafted` ("N new spells joined the spell tree", 13 languages) and zeroes `pendingGrafted`.
   `SaveSpellTree` warns in the log when a panel save drops spells the session's graft added (the file still the
