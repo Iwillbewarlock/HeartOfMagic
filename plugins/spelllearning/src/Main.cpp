@@ -351,6 +351,8 @@ void OnDataLoaded()
 void OnNewGame()
 {
     logger::info("New game started - progression will be cleared");
+    // A mod that clears TeachesSpell at runtime may have run after our kDataLoaded rebuild
+    SpellTomes::Rebuild("new game");
     Librarian::SpellResearchPatch::OnNewGame();
     Librarian::PerkAdapters::Reassert("new game");
     Environment::SelfTest::OnGameLoaded();   // dev only: selftest.json

@@ -279,6 +279,20 @@ sink's `IsPairedTome`). TomeReachRecords.cpp's raw BOOK DATA read is not one: it
   length. Equal length proves little (FLM adds to each list on its own at every load, so a re-run patch on an old
   save can shift both), so with a usable JSON a live pair that disagrees is counted as a conflict and not used,
   and one for a book the JSON does not name is not used either. A book that teaches a spell keeps it.
+- Experimental (2026-10-28): books whose TeachesSpell flag a mod cleared at runtime. SpellScribe ships a SkyPatcher
+  Book ini (`removeFlags=teachesspell` for the books of vanilla, the DLCs, CC and ~50 spell mods); SkyPatcher's
+  handler only clears the bit (`and byte ptr [book+0x110], 0xFB`, read in its DLL), and the engine resolved
+  `data.teaches.spell` while the flag was on, so the book still points at its spell. `ClearedFlagTomes`
+  (SpellTomes.cpp) takes a book without the flag whose `data.teaches.spell` is one of the game's `SpellItem`
+  pointers (a set compare, never a dereference: a book that never had the flag holds an actor value or a raw id
+  there) and passes it to `Build` as `cleared`, first: the record's own spell wins, as for a book that still
+  teaches, and a JSON or list pair naming another spell for it is counted as a conflict and not used. A book whose
+  flag a plugin cleared in its record should not be one (assumed: the engine resolves the pointer only with the
+  flag on; not checked in the engine's loader - the self-test notes books found with no SkyPatcher ini clearing
+  the flag, and the log counts them by plugin). Every rebuild reads them again, so a SkyPatcher run after our
+  kDataLoaded rebuild is caught by the new game's, the save load's or the scan's. HoM's own tome reading (target,
+  XP on reading) does not happen for these books, as for Spell Research's: the engine's teach path never runs.
+  Dev self-test: `cleared-flag-tomes`.
 - When: kDataLoaded (before the tome reach pass), kPostLoadGame (before the Spell Research registrations),
   before every scan (a panel full scan rebuilds on the game thread before it waits for the tome reach pass, so a
   new generation restarts the pass that scan then waits for), and after every message box while Spell Research is

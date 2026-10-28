@@ -9,7 +9,8 @@
 // not have, a book whose winning override is in another plugin (Synthesis.esp: still used, counted by plugin),
 // a book that teaches a spell, equal live parts paired and unequal ones not, record
 // and script parts kept apart, a re-run patch's shifted but equal-length lists
-// against the JSON (conflicts, not used), live pairs outside a usable JSON, and
+// against the JSON (conflicts, not used), live pairs outside a usable JSON, books whose
+// TeachesSpell flag was cleared at runtime (alone, before the JSON and the live lists), and
 // SamePairs (the generation only moves on a real change).
 //
 // Exit 0 when every case passes, 1 on a failure, 2 on a bad argument.
@@ -279,6 +280,44 @@ namespace
         Check(junk.pairs.empty() && junk.counts.notBookOrSpell == 2, "live: a pair that is not a BOOK and a SPEL is skipped");
     }
 
+    // Books whose TeachesSpell flag a mod cleared at runtime (SpellScribe through SkyPatcher)
+    void ClearedCases()
+    {
+        const auto game = ThreeTomes();
+        const auto facts = game.AsFacts();
+
+        const auto alone = Build({ nullptr, {}, { { Mod(0x800), Mod(0x900) }, { Mod(0x801), Mod(0x901) } } }, facts);
+        Check(alone.counts.cleared == 2 && alone.pairs.at(Mod(0x800)).source == Source::kClearedFlag &&
+                  SpellOf(alone, Mod(0x801)) == Mod(0x901),
+            "cleared: a book whose flag was cleared pairs with the spell it still points at");
+
+        const auto patch = ReadPatch(kThreePairs);
+        const auto agree = Build({ &patch, {}, { { Mod(0x800), Mod(0x900) } } }, facts);
+        Check(agree.counts.patch == 2 && agree.counts.cleared == 1 && agree.counts.clearedInPatch == 1 &&
+                  agree.counts.clearedConflicts == 0 && agree.counts.Paired() == agree.pairs.size() &&
+                  agree.pairs.at(Mod(0x800)).source == Source::kClearedFlag,
+            "cleared: the same pair in the JSON is the book's, counted once");
+
+        const auto disagree = Build({ &patch, {}, { { Mod(0x800), Mod(0x901) } } }, facts);
+        Check(disagree.counts.clearedConflicts == 1 && SpellOf(disagree, Mod(0x800)) == Mod(0x901) &&
+                  disagree.notes.size() == 1 && disagree.counts.patch == 2,
+            "cleared: the book's own spell wins over a JSON pair naming another, the conflict counted and noted");
+
+        const auto beforeLive = Build({ nullptr, { Part({ Mod(0x800) }, { Mod(0x902) }, false) },
+                                        { { Mod(0x800), Mod(0x900) } } }, facts);
+        Check(beforeLive.counts.cleared == 1 && beforeLive.counts.liveConflicts == 1 &&
+                  SpellOf(beforeLive, Mod(0x800)) == Mod(0x900),
+            "cleared: the book's own spell wins over SR's lists");
+
+        auto teaching = ThreeTomes();
+        teaching.books[Mod(0x800)].taught = Mod(0x900);
+        const auto still = Build({ nullptr, {}, { { Mod(0x800), Mod(0x900) } } }, teaching.AsFacts());
+        Check(still.pairs.empty() && still.counts.teaches == 1, "cleared: a book that teaches again needs no pair");
+
+        const auto junk = Build({ nullptr, {}, { { Mod(0x800), Mod(0x777) }, { 0, Mod(0x900) } } }, facts);
+        Check(junk.pairs.empty() && junk.counts.notBookOrSpell == 1, "cleared: no spell or no book is not paired");
+    }
+
     void SamePairsCases()
     {
         const auto game = ThreeTomes();
@@ -298,6 +337,7 @@ namespace
         ReaderCases();
         PatchCases();
         LiveCases();
+        ClearedCases();
         SamePairsCases();
         std::printf("spell-tomes-check: %d checks, %d failed\n", g_checks, g_failures);
         return g_failures == 0 ? kExitOk : kExitFailed;

@@ -6,7 +6,12 @@
 
 #include "ThreadUtils.h"
 
+#include "AsciiText.h"
+
+#include <filesystem>
 #include <format>
+#include <fstream>
+#include <string>
 #include <thread>
 
 // =============================================================================
@@ -19,6 +24,11 @@
 //                    a tome in TomesBySpell, and the tome reach pass of this generation
 //                    got every tome ForEachTome gives. SKIP without
 //                    SpellResearch.esp and without the JSON.
+//   cleared-flag-tomes  (experimental) books whose TeachesSpell flag a mod cleared at
+//                    runtime (SpellScribe's SkyPatcher ini): the pairs were found, SpellOf
+//                    answers every pair and the tome reach pass got every tome. FAIL when a
+//                    SkyPatcher Book ini clears teachesspell but no book was paired; SKIP
+//                    when none does and none was found.
 // =============================================================================
 
 namespace Environment::SelfTest
@@ -63,6 +73,76 @@ namespace Environment::SelfTest
             CompareWithPass(generation, check);
             return check;
         }
+
+        // SkyPatcher Book inis with a removeFlags line naming teachesspell (folder name as SkyPatcher
+        // reads it; Windows paths ignore case)
+        std::size_t InisClearingTeachesSpell()
+        {
+            const std::filesystem::path folder("Data/SKSE/Plugins/SkyPatcher/Book");
+            std::error_code error;
+            if (!std::filesystem::is_directory(folder, error)) return 0;
+            std::size_t count = 0;
+            // increment(error), not ++: a failed step ends the walk instead of throwing (TomeReachConfig.cpp)
+            for (std::filesystem::directory_iterator it(folder, error), end; !error && it != end; it.increment(error)) {
+                // The wide name: string() throws on a name outside the code page (TomeReachConfig.cpp)
+                std::wstring extension = it->path().extension().wstring();
+                for (auto& ch : extension) ch = (ch >= L'A' && ch <= L'Z') ? static_cast<wchar_t>(ch - L'A' + L'a') : ch;
+                std::error_code fileError;
+                if (!it->is_regular_file(fileError) || extension != L".ini") continue;
+                std::ifstream file(it->path());
+                std::string line;
+                while (std::getline(file, line)) {
+                    const std::string lower = AsciiText::ToLower(line);
+                    const auto first = lower.find_first_not_of(" \t");
+                    if (first == std::string::npos || lower[first] == ';') continue;   // a comment line
+                    if (lower.find("removeflags") != std::string::npos && lower.find("teachesspell") != std::string::npos) {
+                        ++count;
+                        break;
+                    }
+                }
+            }
+            return count;
+        }
+    }
+
+    void CheckClearedFlagTomes()
+    {
+        constexpr const char* kClearedId = "cleared-flag-tomes";
+        SpellTomes::Status status;
+        if (!SpellTomes::CurrentStatus(status)) {
+            Report(kClearedId, Outcome::kFail, "SpellTomes never read the pairs (Rebuild not called at data load)");
+            return;
+        }
+        const auto& c = status.counts;
+        const std::size_t inis = InisClearingTeachesSpell();
+        std::error_code error;
+        const bool skyPatcher = std::filesystem::exists("Data/SKSE/Plugins/SkyPatcher.dll", error);
+        if (c.cleared == 0) {
+            if (inis == 0) {
+                Report(kClearedId, Outcome::kSkip, "no SkyPatcher Book ini clears teachesspell, no such book");
+            } else {
+                Report(kClearedId, Outcome::kFail, std::format("{} SkyPatcher Book ini(s) clear teachesspell, but no book "
+                    "with a cleared flag pointed at a spell (generation {}, SkyPatcher.dll {})", inis, status.generation,
+                    skyPatcher ? "present" : "missing"));
+            }
+            return;
+        }
+        // No ini clears the flag, yet books were found: another mod does it, or the engine keeps the
+        // spell pointer in a book whose record never had the flag (the premise in SpellTomes.cpp)
+        if (inis == 0) {
+            Note(kClearedId, std::format("{} books without the flag point at a spell, but no SkyPatcher Book ini "
+                "clears teachesspell - check which plugins they come from", c.cleared));
+        }
+        const PairCheck pairs = CheckPairs(status.generation);
+        const std::string observed = std::format("generation={} cleared={} clearedInJson={} clearedConflicts={} "
+            "ownSpell={} paired={} inisClearing={} pairsChecked={} wrongSpellOf={} notInTomesBySpell={} "
+            "passSameGeneration={} passMissing={} passExtra={}", status.generation, c.cleared, c.clearedInPatch,
+            c.clearedConflicts, status.ownSpell, status.paired, inis,
+            pairs.pairs, pairs.wrongSpellOf, pairs.notInTomesBySpell, pairs.reachSameGeneration, pairs.reachMissing,
+            pairs.reachExtra);
+        const bool answered = pairs.pairs == status.paired && pairs.wrongSpellOf == 0 && pairs.notInTomesBySpell == 0;
+        const bool reached = pairs.reachSameGeneration && pairs.reachMissing == 0 && pairs.reachExtra == 0;
+        Report(kClearedId, answered && reached ? Outcome::kPass : Outcome::kFail, observed);
     }
 
     void CheckSpellTomes()

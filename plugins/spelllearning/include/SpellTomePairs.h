@@ -40,6 +40,12 @@
 // the spell list's part have the same length. A book that teaches a spell keeps it
 // (the record wins; a pair naming another spell is a conflict).
 //
+// Experimental: a mod can also clear a tome's TeachesSpell flag at runtime (SpellScribe does it
+// through SkyPatcher, `removeFlags=teachesspell`). The record was loaded with the flag, so the book
+// still points at its spell; the game side passes those as `cleared` (a pointer that is one of the
+// game's spells). They come first: the record's own spell wins, as it does for a book that still
+// teaches; a JSON or live pair naming another spell for that book is a conflict, not used.
+//
 // The game side (src/SpellTomes.cpp) and tools/spell-tomes-check make the same
 // pairs from the same inputs. docs/superpowers/specs/2026-10-27-sr-paired-tomes-design.md
 // has the why.
@@ -175,7 +181,15 @@ namespace SpellTomePairs
     {
         kPatch,        ///< SynthesizedPatch.json
         kLiveRecord,   ///< SR's lists, the plugin part (FLM)
-        kLiveScript    ///< SR's lists, the script-added part (SR's Import, in the save)
+        kLiveScript,   ///< SR's lists, the script-added part (SR's Import, in the save)
+        kClearedFlag   ///< the book's own spell, its TeachesSpell flag cleared at runtime
+    };
+
+    /// A book whose TeachesSpell flag was cleared after load, and the spell it still points at
+    struct ClearedTome
+    {
+        FormId book = 0;
+        FormId spell = 0;
     };
 
     /// One tier's part of SR's book list and spell list (record or script-added)
@@ -205,6 +219,7 @@ namespace SpellTomePairs
     {
         const PatchRead* patch = nullptr;    ///< nullptr or not usable: no JSON
         std::vector<LivePart> live;
+        std::vector<ClearedTome> cleared;
     };
 
     struct Entry
@@ -223,11 +238,14 @@ namespace SpellTomePairs
         std::size_t teaches = 0;          ///< the book teaches a spell itself
         std::size_t teachesOther = 0;     ///< ... and the pair names another one (record wins)
         std::size_t unequalParts = 0;     ///< live list parts of unequal length, not paired
-        std::size_t liveConflicts = 0;    ///< live pair disagreeing with the JSON (or an earlier live pair)
+        std::size_t liveConflicts = 0;    ///< live pair disagreeing with an earlier pair (cleared book, JSON or list)
         std::size_t liveOutsidePatch = 0; ///< live pair for a book a usable JSON does not name
         std::size_t patchConflicts = 0;   ///< the same book twice in the JSON with another spell
+        std::size_t cleared = 0;          ///< books whose TeachesSpell flag was cleared at runtime
+        std::size_t clearedInPatch = 0;   ///< JSON pairs for such a book with the same spell (not counted twice)
+        std::size_t clearedConflicts = 0; ///< JSON pairs for such a book naming another spell (the book's kept)
 
-        [[nodiscard]] std::size_t Paired() const { return patch + liveRecord + liveScript; }
+        [[nodiscard]] std::size_t Paired() const { return patch + liveRecord + liveScript + cleared; }
     };
 
     struct Result
@@ -280,6 +298,15 @@ namespace SpellTomePairs
                 if (added) {
                     ++result.counts.patch;
                     ++result.patchByWinner[facts.winner];
+                } else if (it->second.source == Source::kClearedFlag) {
+                    // The book's own record was here first: it wins, as it does for a book that teaches
+                    if (it->second.spell == spell) {
+                        ++result.counts.clearedInPatch;
+                    } else {
+                        ++result.counts.clearedConflicts;
+                        Note(result, std::format("book 0x{:08X} points at 0x{:08X} with its flag cleared, the JSON says "
+                            "0x{:08X} - the book's own kept", book, it->second.spell, spell));
+                    }
                 } else if (it->second.spell != spell) {
                     ++result.counts.patchConflicts;
                     Note(result, std::format("book 0x{:08X} is in the JSON twice (0x{:08X}, 0x{:08X}) - the first kept",
@@ -295,8 +322,10 @@ namespace SpellTomePairs
             if (found != result.pairs.end()) {
                 if (found->second.spell != spell) {
                     ++result.counts.liveConflicts;
+                    const auto source = found->second.source;
                     Note(result, std::format("SR's lists pair book 0x{:08X} with 0x{:08X}, {} says 0x{:08X} - not used",
-                        book, spell, found->second.source == Source::kPatch ? "the JSON" : "another list entry",
+                        book, spell,
+                        source == Source::kPatch ? "the JSON" : source == Source::kClearedFlag ? "the book" : "another list entry",
                         found->second.spell));
                 }
                 return;
@@ -308,13 +337,21 @@ namespace SpellTomePairs
             result.pairs.emplace(book, Entry{ spell, script ? Source::kLiveScript : Source::kLiveRecord });
             ++(script ? result.counts.liveScript : result.counts.liveRecord);
         }
+
+        inline void AddCleared(const ClearedTome& tome, const Facts& game, Result& result)
+        {
+            if (!tome.book || !tome.spell || !Usable(tome.book, tome.spell, game.book(tome.book), game, result)) return;
+            // The game hands each book once; a repeat keeps the first
+            if (result.pairs.try_emplace(tome.book, Entry{ tome.spell, Source::kClearedFlag }).second) ++result.counts.cleared;
+        }
     }
 
-    /// Every pair, JSON first, then the live lists as the rules above say
+    /// Every pair: the books whose flag was cleared first (the record wins), then the JSON, then the live lists
     [[nodiscard]] inline Result Build(const Inputs& inputs, const Facts& game)
     {
         Result result;
         const bool patchUsable = inputs.patch && inputs.patch->usable;
+        for (const auto& tome : inputs.cleared) Detail::AddCleared(tome, game, result);
         if (patchUsable) Detail::AddPatch(*inputs.patch, game, result);
         for (const auto& part : inputs.live) {
             if (part.books.size() != part.spells.size()) {

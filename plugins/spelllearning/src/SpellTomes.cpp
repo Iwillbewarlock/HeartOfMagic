@@ -15,9 +15,11 @@
 #include <format>
 #include <fstream>
 #include <iterator>
+#include <map>
 #include <memory>
 #include <optional>
 #include <unordered_map>
+#include <unordered_set>
 
 // =============================================================================
 // SpellTomes - the snapshot of tome pairs and the one SpellOf (SpellTomes.h)
@@ -146,6 +148,28 @@ namespace SpellTomes
             return facts;
         }
 
+        // Books whose TeachesSpell flag a mod cleared after load (SpellScribe through SkyPatcher). The
+        // engine set data.teaches.spell from the record while the flag was on, and SkyPatcher's
+        // removeFlags clears only the flag bit (its code: `and byte ptr [book+0x110], 0xFB`), so the
+        // pointer is still the spell. A book that never had the flag holds an actor value or a raw id
+        // there: only a pointer that is one of the game's spells counts, compared, never dereferenced.
+        std::vector<Pairs::ClearedTome> ClearedFlagTomes()
+        {
+            std::vector<Pairs::ClearedTome> out;
+            auto* dh = RE::TESDataHandler::GetSingleton();
+            if (!dh) return out;
+            std::unordered_set<const RE::SpellItem*> spells;
+            for (const auto* spell : dh->GetFormArray<RE::SpellItem>()) {
+                if (spell) spells.insert(spell);
+            }
+            for (const auto* book : dh->GetFormArray<RE::TESObjectBOOK>()) {
+                if (!book || book->TeachesSpell()) continue;
+                const auto* spell = book->data.teaches.spell;
+                if (spell && spells.contains(spell)) out.push_back({ book->GetFormID(), spell->GetFormID() });
+            }
+            return out;
+        }
+
         std::size_t CountOwnSpellTomes()
         {
             auto* dh = RE::TESDataHandler::GetSingleton();
@@ -162,14 +186,18 @@ namespace SpellTomes
             const auto& c = s.counts;
             const std::size_t live = c.liveRecord + c.liveScript;
             return std::format("SpellTomes: {} tomes - {} by the book's own spell, {} by Spell Research pairs "
-                "(records {}, script {}{}), {} by SynthesizedPatch.json ({}); {} pairs skipped ({} unresolved, {} not a "
-                "book and a spell, {} teach a spell themselves of which {} another, {} conflicts with the JSON "
-                "or each other, {} outside the JSON, {} twice in the JSON, {} list parts of unequal length) [generation {}]",
+                "(records {}, script {}{}), {} by SynthesizedPatch.json ({}), {} by a flag cleared at runtime "
+                "(experimental, {} of them also in the JSON); {} pairs skipped ({} unresolved, {} not a "
+                "book and a spell, {} teach a spell themselves of which {} another, {} list pairs against an earlier "
+                "pair, {} outside the JSON, {} twice in the JSON, {} JSON pairs against a cleared-flag book, "
+                "{} list parts of unequal length) [generation {}]",
                 s.ownSpell + c.Paired(), s.ownSpell, live, c.liveRecord, c.liveScript,
                 live ? ", unverified" : "", c.patch, s.patchUsable ? "read" : (s.patchFound ? "unusable" : "none"),
-                c.unresolved + c.notBookOrSpell + c.teaches + c.liveConflicts + c.liveOutsidePatch + c.patchConflicts,
+                c.cleared, c.clearedInPatch,
+                c.unresolved + c.notBookOrSpell + c.teaches + c.liveConflicts + c.liveOutsidePatch + c.patchConflicts +
+                    c.clearedConflicts,
                 c.unresolved, c.notBookOrSpell, c.teaches, c.teachesOther, c.liveConflicts,
-                c.liveOutsidePatch, c.patchConflicts, c.unequalParts, s.generation);
+                c.liveOutsidePatch, c.patchConflicts, c.clearedConflicts, c.unequalParts, s.generation);
         }
 
         // Which plugin made the JSON's tomes teach nothing: SpellResearchSynthesizer.esp run
@@ -182,6 +210,22 @@ namespace SpellTomes
                 line += std::format("{}{} {}", line.empty() ? "" : ", ", winner, count);
             }
             logger::info("SpellTomes: JSON tomes by winning plugin: {}", line);
+        }
+
+        // Which plugins the books with a flag cleared at runtime come from (the record's first file)
+        void LogClearedByPlugin(const Pairs::Result& result)
+        {
+            std::map<std::string, std::size_t> byPlugin;
+            for (const auto& [bookId, entry] : result.pairs) {
+                if (entry.source != Pairs::Source::kClearedFlag) continue;
+                const auto* book = RE::TESForm::LookupByID<RE::TESObjectBOOK>(bookId);
+                const auto* file = book ? book->GetFile(0) : nullptr;
+                ++byPlugin[file ? std::string(file->GetFilename()) : std::string("(no file)")];
+            }
+            if (byPlugin.empty()) return;
+            std::string line;
+            for (const auto& [plugin, count] : byPlugin) line += std::format("{}{} {}", line.empty() ? "" : ", ", plugin, count);
+            logger::info("SpellTomes: books with the flag cleared at runtime (experimental), by plugin: {}", line);
         }
 
         // A new generation: everything that kept an answer about tomes drops it
@@ -215,7 +259,8 @@ namespace SpellTomes
                 g_patchRead = true;
             }
             ReadLive();
-            const Pairs::Result result = Pairs::Build({ g_patch ? &*g_patch : nullptr, g_lastLive }, GameFacts());
+            const Pairs::Result result = Pairs::Build({ g_patch ? &*g_patch : nullptr, g_lastLive, ClearedFlagTomes() },
+                GameFacts());
 
             auto next = std::make_shared<Snapshot>();
             next->paired = result.pairs;
@@ -235,6 +280,7 @@ namespace SpellTomes
             logger::info("{} ({})", Describe(status), reason);
             for (const auto& note : result.notes) logger::info("SpellTomes: {}", note);
             LogPatchWinners(result);
+            LogClearedByPlugin(result);
             if (previous) OnPairsChanged(*next, reason);
         }
     }

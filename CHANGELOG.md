@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### New
+
+- **Experimental: spell tomes changed by SpellScribe count as spell tomes.** This is an experimental
+  compatibility add-on. SpellScribe (through SkyPatcher) turns off the "teaches spell" flag on the spell tomes of
+  vanilla and about 50 spell mods while the game runs, so Heart of Magic found no tome for those spells and the
+  tree could come out empty. Such a book still points at its spell, so Heart of Magic now takes that spell for
+  the tree, the check of which tomes the game hands out and the XP bonus for carrying a tome. Reading the tome
+  still opens SpellScribe's puzzle, so Heart of Magic's own reading effects (setting the learning target, XP for
+  reading) do not happen for these tomes. Other mods that clear the flag the same way are covered too. Not yet
+  tested in game.
+
 ### Fixed
 
 - **Spell tomes changed by Spell Research Synthesizer are spell tomes again.** That patcher makes the tomes it knows

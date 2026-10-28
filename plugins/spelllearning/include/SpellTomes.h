@@ -16,7 +16,8 @@
 // spell": the spell the book teaches, and for a book that teaches nothing the
 // spell Spell Research Synthesizer paired it with (SynthesizedPatch.json first,
 // Spell Research's tier lists as an unverified fallback - SpellTomePairs.h has the
-// rule). The pairs are a snapshot, rebuilt on the game thread and read from any
+// rule), or, experimental, the spell a book still points at after a mod cleared its
+// TeachesSpell flag at runtime (SpellScribe through SkyPatcher). The pairs are a snapshot, rebuilt on the game thread and read from any
 // thread; each new set of pairs gets a new generation, and a new generation
 // re-runs the tome reach pass, regroups the copies (SpellScannerDuplicates.cpp),
 // drops the carried-tome cache and tells the panel (autoBuild.js retries a failed
@@ -45,7 +46,7 @@ namespace SpellTomes
     // Game thread.
     void ForEachTome(const std::function<void(RE::TESObjectBOOK*, RE::SpellItem*)>& visit);
 
-    // Reads the pairs again: kDataLoaded (before the tome reach pass), kPostLoadGame,
+    // Reads the pairs again: kDataLoaded (before the tome reach pass), a new game, kPostLoadGame,
     // before a scan, after Spell Research's Import. A new generation only when the
     // pairs changed. Called off the game thread it posts itself there.
     void Rebuild(std::string_view reason);
