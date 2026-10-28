@@ -484,6 +484,32 @@ namespace
                     { { "Destruction/Firebolt", "0x06000800" }, { "Destruction/Ember", "0x06000900" } }, 0, 1,
                     { { "Destruction/Firebolt", "B.esp|0x000800" } } } },
 
+            // Restoration has the target spell's own node: the copy would be a second node of one formId there
+            // (the last one's empty prerequisites would win in game), so it goes and the real node's stay
+            { "a legacy copy of a clash-dropped node goes when its own school already has the spell",
+                R"({"schools":{"Destruction":{"root":"0x06000800","nodes":[
+                    {"name":"Firebolt of A.esp","formId":"0x05000800","persistentId":"A.esp|0x000800","editorId":"SpellFirebolt"},
+                    {"name":"Firebolt","formId":"0x06000800","persistentId":"B.esp|0x000800","editorId":"SpellFirebolt"}]},
+                  "Restoration":{"root":"0x01000100","nodes":[
+                    {"name":"Heal","formId":"0x01000100","persistentId":"Skyrim.esm|0x000100","children":["0x06000800"]},
+                    {"name":"Firebolt copy","formId":"0x05000800"},
+                    {"name":"Firebolt","formId":"0x06000800","persistentId":"B.esp|0x000800","prerequisites":["0x01000100"]}]}}})",
+                { { { "B.esp|0x000800", "0x06000800" }, { "Skyrim.esm|0x000100", "0x01000100" } }, {}, {}, {},
+                    { { "SpellFirebolt", 0x06000800, "Destruction", "B.esp|0x000800" } } },
+                { { "Firebolt", "Heal" }, 0, 2, 1, 0, {}, {},
+                    { { "Destruction/Firebolt", "0x06000800" }, { "Restoration/Firebolt", "0x06000800" } }, 0, 1, {} } },
+
+            // Same load order, ids only spelled otherwise: written back as 0x%08X, so the tree changed
+            { "formIds in lower case or unpadded, nothing moved: the text is rewritten",
+                R"({"schools":{"Illusion":{"root":"0x0500A800","nodes":[
+                    {"name":"Calm","formId":"0x0500a800","persistentId":"Calm.esp|0x00A800","children":["0x5000801"],
+                     "locks":[{"nodeId":"0x5000801"}]},
+                    {"name":"Fury","formId":"0x5000801","persistentId":"Calm.esp|0x000801","prerequisites":["0x0500a800"]}]}},
+                  "bridges":[{"from":"0x0500a800","to":"0x5000801"}]})",
+                { { { "Calm.esp|0x00A800", "0x0500A800" }, { "Calm.esp|0x000801", "0x05000801" } } },
+                { { "Calm", "Fury" }, 0, 0, 0, 0, {}, {},
+                    { { "Illusion/Calm", "0x0500A800" }, { "Illusion/Fury", "0x05000801" } } } },
+
             { "shift: light plugin A removed, B and C move down one index (normal)",
                 R"({"schools":{"Destruction":{"root":"0xFE906800","nodes":[
                     {"name":"Alpha","formId":"0xFE905800","persistentId":"A.esl|0x000800","prerequisites":["0xFE906800"]},

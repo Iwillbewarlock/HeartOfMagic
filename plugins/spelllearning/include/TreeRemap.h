@@ -89,12 +89,15 @@ namespace TreeRemap
         std::vector<std::string> collisions;                 ///< saved formIds of the dropped legacy nodes
         std::vector<std::string> rematchClashes;             ///< saved formIds of rematched nodes on a taken spell
         std::vector<RootChange> rootChanges;
+        bool rewritten = false;  ///< a node's formId, a link, a lock or a bridge end was written other than it was read
 
-        /// The fixed tree differs from the saved one: a node moved, went or took a new
-        /// persistentId, or a root or bridge changed (the panel must get the fixed tree)
+        /// The fixed tree differs from the saved one, exactly: a node moved, went or took a new
+        /// persistentId, a root or bridge changed, or a formId was written in its one spelling
+        /// ("0x%08X") where the file had another (the panel must get the fixed tree)
         [[nodiscard]] bool Changed() const
         {
-            return !moved.empty() || rematched > 0 || invalidNodes > 0 || bridgesDropped > 0 || !rootChanges.empty();
+            return !moved.empty() || rematched > 0 || invalidNodes > 0 || bridgesDropped > 0 || !rootChanges.empty() ||
+                   rewritten;
         }
     };
 
@@ -129,7 +132,7 @@ namespace TreeRemap
         }
 
         /// One list of formId strings, each looked up once by its saved value; other values stay
-        inline void MapList(Json& links, const Report& report)
+        inline void MapList(Json& links, Report& report)
         {
             Json out = Json::array();
             for (auto& link : links) {
@@ -138,6 +141,7 @@ namespace TreeRemap
                     continue;
                 }
                 auto mapped = MapLink(link.get<std::string>(), report);
+                if (mapped != link.get<std::string>()) report.rewritten = true;
                 if (!mapped.empty()) out.push_back(std::move(mapped));
             }
             links = std::move(out);
@@ -195,23 +199,36 @@ namespace TreeRemap
         /// The legacy rules (see the top): follow a persistentId node saved under the same formId,
         /// or go when a persistentId node saved under another formId now has this one. A copy in
         /// another school follows a node dropped by DropRematchClashes as it was before the clash,
-        /// which concerned that node's school only
+        /// which concerned that node's school only - unless its own school has a node of that
+        /// spell already: then it goes (a legacy collision), one spell being one node in a school
         inline void ReconcileLegacy(std::vector<NodeEntry>& entries, Report& report)
         {
             std::unordered_map<std::string, const NodeEntry*> persistentBySaved;
             std::unordered_map<std::string, std::string> persistentOwner;  // final formId -> saved formId
+            std::unordered_map<const Json*, std::unordered_set<std::string>> keptBySchool;  // persistentId nodes
             for (const auto& e : entries) {
                 if (e.saved.empty() || !e.verdict.hasPersistentId) continue;
                 persistentBySaved.emplace(e.saved, &e);
-                if (e.verdict.keep) persistentOwner.emplace(e.verdict.formId, e.saved);
+                if (!e.verdict.keep) continue;
+                persistentOwner.emplace(e.verdict.formId, e.saved);
+                keptBySchool[e.schoolNodes].insert(e.verdict.formId);
             }
             for (auto& e : entries) {
                 if (e.saved.empty() || e.verdict.hasPersistentId) continue;
                 if (const auto same = persistentBySaved.find(e.saved); same != persistentBySaved.end()) {
                     const NodeEntry& source = *same->second;
-                    e.verdict.keep = source.verdict.keep || (source.clashDropped && source.schoolNodes != e.schoolNodes);
                     e.verdict.formId = source.verdict.formId;
-                    report.legacyFollowed++;
+                    if (source.verdict.keep || !source.clashDropped || source.schoolNodes == e.schoolNodes) {
+                        e.verdict.keep = source.verdict.keep;
+                        report.legacyFollowed++;
+                    } else if (!keptBySchool[e.schoolNodes].contains(source.verdict.formId)) {
+                        e.verdict.keep = true;
+                        report.legacyFollowed++;
+                    } else {
+                        e.verdict.keep = false;
+                        report.legacyCollisions++;
+                        report.collisions.push_back(e.saved);
+                    }
                     continue;
                 }
                 if (!e.verdict.keep) continue;
@@ -255,6 +272,7 @@ namespace TreeRemap
             for (const auto& e : entries) {
                 if (e.verdict.keep) {
                     auto& node = (*e.schoolNodes)[e.index];
+                    if (node["formId"] != e.verdict.formId) report.rewritten = true;
                     node["formId"] = e.verdict.formId;
                     if (e.verdict.rematched && !e.verdict.persistentId.empty()) {
                         node["persistentId"] = e.verdict.persistentId;
@@ -273,12 +291,13 @@ namespace TreeRemap
         }
 
         /// Locks ({nodeId, ...}, Pre Req Master) name the node they wait on; a lock without one stays
-        inline void MapLocks(Json& locks, const Report& report)
+        inline void MapLocks(Json& locks, Report& report)
         {
             Json kept = Json::array();
             for (auto& lock : locks) {
                 if (lock.is_object() && lock.contains("nodeId") && lock["nodeId"].is_string()) {
                     auto mapped = MapLink(lock["nodeId"].get<std::string>(), report);
+                    if (mapped != lock["nodeId"].get<std::string>()) report.rewritten = true;
                     if (mapped.empty()) continue;
                     lock["nodeId"] = std::move(mapped);
                 }
@@ -337,6 +356,7 @@ namespace TreeRemap
                         whole = false;
                         break;
                     }
+                    if (mapped != bridge[end].get<std::string>()) report.rewritten = true;
                     bridge[end] = std::move(mapped);
                 }
                 if (whole) kept.push_back(std::move(bridge));
