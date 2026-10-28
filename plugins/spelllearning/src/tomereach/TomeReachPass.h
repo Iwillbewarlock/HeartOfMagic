@@ -30,11 +30,34 @@ namespace TomeReach
         std::size_t byDebug = 0;                 // referred to, but a debug tome (editor id): not reached
         std::size_t configFiles = 0;
         std::unordered_map<Key, std::uint32_t> looseFrom;  // byLooseOnly tomes: the plugin that named them
-        // Reached tomes only a quest hands out: named by a QUST record's script or
-        // alias and by nothing else (no record field, no other record's script, no
-        // distribution config, no damaged plugin that could name them)
+        // Reached tomes only a quest hands out: named by a quest's script or alias
+        // (Evidence::foundQuest) and by nothing else (no other record's field or
+        // script, no distribution config, no damaged plugin that could name them)
         std::unordered_set<Key> questOnly;
     };
+
+    // A spell's tomes against a pass (TomeReach.cpp marks the spells by these).
+    // Unreachable: nothing hands out any of them.
+    inline bool NoTomeReached(const std::vector<Key>& tomes, const PassResult& pass)
+    {
+        for (const Key tome : tomes) {
+            if (pass.reached.contains(tome)) return false;
+        }
+        return true;
+    }
+
+    // Quest-only: some tome of it is reached, and every reached one only a quest hands
+    // out (a tome nothing hands out does not count against it)
+    inline bool OnlyQuestsReach(const std::vector<Key>& tomes, const PassResult& pass)
+    {
+        bool reached = false;
+        for (const Key tome : tomes) {
+            if (!pass.reached.contains(tome)) continue;
+            if (!pass.questOnly.contains(tome)) return false;
+            reached = true;
+        }
+        return reached;
+    }
 
     // `tomes` are the books to look for. Scans every plugin in load order order
     // and every distribution config. A damaged plugin only counts the tomes of

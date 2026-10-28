@@ -382,8 +382,9 @@ namespace SpellScanner
         if (!TomeReach::UnreachableSpells(unreachable)) {
             logger::info("SpellScanner: the tome reach pass has no answer (still running, or failed) - no spell is marked tomeUnreachable");
         } else {
-            // The same answer: once ready it stays so until a Restart, which runs on this (game) thread
-            TomeReach::QuestOnlySpells(questOnly);
+            // The same answer: once ready it stays so until a Restart, which runs on this (game)
+            // thread, so its return (true here) is not checked again
+            (void)TomeReach::QuestOnlySpells(questOnly);
         }
         LogSpellsOutOfTree(spells, taught, unreachable);
         duplicates = FindDuplicateSpells(spells, taught, unreachable);

@@ -120,14 +120,8 @@ namespace TomeReach
                 }
                 Answer answer;
                 for (const auto& [spell, tomes] : job->tomesOf) {
-                    bool reached = false;
-                    bool questOnly = !tomes.empty();
-                    for (const Key t : tomes) {
-                        reached = reached || pass.reached.contains(t);
-                        questOnly = questOnly && pass.questOnly.contains(t);
-                    }
-                    if (!reached) answer.unreachable.insert(spell);
-                    if (questOnly) answer.questOnly.insert(spell);
+                    if (NoTomeReached(tomes, pass)) answer.unreachable.insert(spell);
+                    if (OnlyQuestsReach(tomes, pass)) answer.questOnly.insert(spell);
                 }
                 for (const auto& d : pass.damaged) {
                     logger::warn("TomeReach: '{}' is damaged (read in part) - the tomes of it and its masters count "

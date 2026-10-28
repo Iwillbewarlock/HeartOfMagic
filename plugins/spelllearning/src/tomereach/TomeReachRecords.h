@@ -86,15 +86,17 @@ namespace TomeReach
 
     // What a plugin refers to among the wanted keys: by a record field that holds
     // a form (placed, listed, held, crafted), or only loosely (four bytes of a
-    // script property or quest alias that happen to read as the key). The loose
-    // hits are also kept apart by where they came from: a QUST record (its script
-    // or an alias) or any other record's script.
+    // script property or quest alias that happen to read as the key). The hits are
+    // also kept apart by whether a quest made them: its script (a QUST's, or the
+    // fragments of its dialogue INFO and scenes SCEN), an alias's created, forced
+    // or unique form, or an alias's inventory (a QUST's CNTO).
     struct Evidence
     {
         std::unordered_set<Key> found;
         std::unordered_set<Key> foundLoose;
-        std::unordered_set<Key> foundQuest;       // loose hits from a QUST record's VMAD or alias
-        std::unordered_set<Key> foundOtherLoose;  // loose hits from the VMAD of any other record
+        std::unordered_set<Key> foundQuest;       // hits a quest made (a field or loose)
+        std::unordered_set<Key> foundOtherField;  // `found` hits from a record field that is no quest's
+        std::unordered_set<Key> foundOtherLoose;  // loose hits from the VMAD of a record that is no quest's
         std::unordered_map<Key, std::uint32_t> looseFrom;  // the first plugin a loose hit came from
     };
 

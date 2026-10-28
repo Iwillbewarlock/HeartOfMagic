@@ -37,9 +37,9 @@ namespace TomeReach
         ConfigText text;
         for (const auto& file : configs) text.Add(file);
         result.configFiles = text.FileCount();
-        // Quest-only so far: a quest's script or alias names it, no record field or other script does
+        // Quest-only so far: a quest's script or alias names it, no other record's field or script does
         for (const Key tome : evidence.foundQuest) {
-            if (!evidence.found.contains(tome) && !evidence.foundOtherLoose.contains(tome)) {
+            if (!evidence.foundOtherField.contains(tome) && !evidence.foundOtherLoose.contains(tome)) {
                 result.questOnly.insert(tome);
             }
         }
