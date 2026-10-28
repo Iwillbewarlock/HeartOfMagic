@@ -2045,7 +2045,10 @@ order's; log prefix `TreeGraft:`).
     scan must not hide a graft); `ScanRecord::CatalogMatches` (the catalog is this load order's full scan);
   - `spell_scan_output.json` is that scan's dump (`ScanRecord::DumpMatches`: the record's `dumpBytes` /
     `dumpHash`, which `DumpWritten` stamps only into the record with the scan's `writeId`), and `WhyScanUnusable`:
-    a spells list, an empty `incomplete`, the tome reach pass `ready`;
+    a spells list, an empty `incomplete`, the tome reach pass `ready`. A graft due on AutoScan's skip path (the
+    catalog already this load order's) whose dump is not that scan's (a panel-only full scan since, a crash between
+    the catalog and the dump) makes AutoScan scan instead (`TreeGraftNeedsTheScan`, `TreeGraftRun::ScanForGraft`;
+    Ruling 22; the dump is read only when a graft is due), so the scan writes one the graft can read;
   - a seen list baseline exists (below; none: nothing grafted, nothing written).
 
   Then the plan's checks must pass and the files must be unchanged at the write. A run that leaves spells
@@ -2054,8 +2057,9 @@ order's; log prefix `TreeGraft:`).
 - **The seen list** (`include/uimanager/TreeRecord.h`, record `version` 2): `seenSpells`, the persistentId of
   every spell the tree's build or a graft has judged. Written at a build's Apply (the panel sends it with the
   tree, `SpellTreeSave.send`; `UIManager::SaveSpellTreeFromPanel` takes it off the tree text,
-  `TakeSeenSpells`, and `RecordTreeLoadOrder` stores it); an Import clears it (`ForgetSeenSpells`); edit mode
-  saves and Clear leave the record alone. Unknown fields are kept (`extra`). Without a list
+  `TakeSeenSpells`, and `RecordTreeLoadOrder` stores it); an Import clears it (`ForgetSeenSpells`); both zero
+  `pendingGrafted`; edit mode saves and Clear leave the record alone, but for the case under "The panel and the
+  player" below. Unknown fields are kept (`extra`). Without a list
   (`TreeGraftRecord.h` `BaselineOf`): the spells of the catalog the scan at game start replaced; without that,
   none and nothing is grafted. That catalog is read before the scan writes the new one, and the seen list is
   seeded into the record then (`CatalogNeeded`, `SeededRecord`: only when the scan record says the old catalog
@@ -2072,15 +2076,18 @@ order's; log prefix `TreeGraft:`).
   when the tree's `tier_mode` is `"cost"`), parent by Classic's `FindBestClassicParent` (now in
   `TreeBuilderInternal.h`) without its jitter over the school's live nodes under the tree's child cap, plus a
   room term; the new node gets `prerequisites` = `softPrereqs` = [parent], `softNeeded` 1, no locks, no
-  `requiredXP`, and a provisional x, y beside its parent inside its tier ring. Lists: `grafted`, `leftOut` (by
-  the player's rules), `skippedNoSchool` (no live node of its school can take it), `deferred` (its formId is one
-  a node of the file holds, or no persistentId). (3) The C++ declutter with every existing node `fixed` and
+  `requiredXP`, the scan's `editorId` (when not empty) and `traits`, and a provisional x, y beside its parent
+  inside its tier ring. Lists: `grafted`, `leftOut` (by the player's rules), `skippedNoSchool` (no live node of
+  its school can take it), `deferred` (its formId is one a node of the file holds, or no persistentId; logged with
+  the holding node's persistentId - the spell waits for as long as that node keeps the id, which for a missing
+  plugin's node, kept by Decision 4, is until its mod returns, the node is deleted or the tree is built again). (3) The C++ declutter with every existing node `fixed` and
   `spread: false`: only grafted nodes move. (4) `TreeGraftChecks.h`: every pre-graft node as it was but for its
   ids and new children, no seen spell grafted. A plan that fails is not written.
 - **The commit** (game thread, task 2): the tree and record files are compared with the text read on the waiter
   thread (a panel save or Import in between wins: nothing written); then the record with a `graftJournal`, the
-  tree (`WriteAtomically`, `.bak` kept), the record without it. The record after a run (`RecordAfterGraft`):
-  seen += grafted + leftOut (not deferred or unplaced: a later run judges them again), `pendingGrafted` +=
+  tree (`WriteAtomically`, `.bak` kept: a copy, the file is there at every step), the record without it. The
+  record after a run (`RecordAfterGraft`): seen += grafted + leftOut + the new persistentIds of rematched nodes
+  (not deferred or unplaced: a later run judges them again), `pendingGrafted` +=
   grafted, and only when nothing was deferred or unplaced `loadOrder`/`plugins`/`spells` become the current
   ones and `noticedLoadOrder` is cleared. Then `ApplyTreePrerequisiteEntries` and the requiredXP sync run
   again and the panel gets the validated tree (`updateTreeData`). Each game thread wait gives up after 60 s
@@ -2088,14 +2095,21 @@ order's; log prefix `TreeGraft:`).
 - **The journal** (`TreeGraftRecord.h`): `graftJournal` { `treeHash` (FNV-1a 64 of the tree text about to be
   written), `record` (the record after the graft) }. `ResolveTreeGraftJournal` runs first at every start,
   whatever else runs: the tree's hash is the journal's - apply its record; another tree - drop the journal; a
-  tree file there but unreadable - wait (`kWait`). Its write is a game thread task that goes only when the
+  tree file there but unreadable - wait (`kWait`); no tree file but a `spell_tree.json.tmp` with the journal's
+  hash (a crash under the older `WriteAtomically`, which moved the file to `.bak` first) - move it into place and
+  apply (`kRecover`, Ruling 21). Its write is a game thread task that goes only when the
   record (and for an apply, the tree) is still what was read (`JournalStillFits`); a journal left over stops
   that start's graft.
 - **The panel and the player:** when the tree becomes this load order's, `NotifyTreeGrafted` calls
   `onTreeGrafted({ loadOrder })`; `autoBuild.js` then counts the tree as built for it and drops a
   `status.loadOrderChanged` line already shown. At the next save load `ShowPendingGraftNotice` shows
   `hud.spellsGrafted` ("N new spells joined the spell tree", 13 languages) and zeroes `pendingGrafted`.
-  `SaveSpellTree` warns in the log when a panel save drops spells the session's graft added.
+  `SaveSpellTree` warns in the log when a panel save drops spells the session's graft added (the file still the
+  one the graft wrote); for an edit save, once it is written, those spells leave the seen list and
+  `pendingGrafted`, and the record's load order goes back to the one before the graft, so the next start grafts
+  them again (`ForgetLostGraftedSpells`, `RecordAfterLostGraft`; Ruling 23). A grafted node the player deletes in
+  edit mode before any other save of the grafted tree looks the same and is grafted again (a revision token on
+  panel saves is the follow-up).
 - **Dev self-test** `tree-graft` (`src/environment/EnvironmentSelfTestGraft.cpp`): PASS when the session's
   graft wrote and every check passed, and the panel's last `updateTreeData` is what the file validates to
   now; SKIP when no graft wrote or the tree was saved since.

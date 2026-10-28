@@ -29,7 +29,9 @@
   line) no longer comes for that load order. It still comes whenever the joining could not run or finish: for
   example a spell of a school the tree has no spells of, a scan at game start that could not mark everything, or a
   tree from before this update with no earlier scan to compare with; a build on the Scan tab still takes those
-  spells. The tree file is backed up first (`spell_tree.json.bak`). Not yet tested in game.
+  spells. A scan from the Scan tab does not hold the joining up: the next game start scans again for it. If the
+  panel saves the tree over the new spells before it has shown them, they join again at the next game start. The
+  tree file is backed up first (`spell_tree.json.bak`). Not yet tested in game.
 
 - **Experimental: spell tomes changed by SpellScribe count as spell tomes.** This is an experimental
   compatibility add-on. SpellScribe (through SkyPatcher) turns off the "teaches spell" flag on the spell tomes of
@@ -48,7 +50,7 @@
   makes, a distribution mod hands out or any other script gives keeps its spell in the tree, so the College of
   Winterhold's novice spells stay (its merchants sell them). Such spells are listed in the blacklist window under
   "Quest only"; Include puts one back, and it joins the tree the next time it is built. A scan made before this
-  update has no such mark: its spells stay in the tree until the next scan. Not yet tested in game.
+  update has no such mark: its spells stay in the tree until the tree is built again. Not yet tested in game.
 
 ### Fixed
 

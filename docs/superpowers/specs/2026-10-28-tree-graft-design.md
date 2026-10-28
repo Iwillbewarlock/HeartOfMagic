@@ -73,8 +73,9 @@ the school and branch it fits, and **no existing node moves or changes** (it may
 - **Grown by a graft**: every candidate it judged (grafted or left out by the rules) is added.
 - **Baseline when there is none** (a tree from before this feature, or after an Import): the spells of the
   catalog the last scan left (`spell_catalog.json` before the scan at game start replaces it,
-  `AutoScan.cpp:613`) are seen; so a mod added just before the first run is still grafted. No catalog either:
-  the current scan is the baseline and nothing is grafted that run (logged).
+  `AutoScan.cpp:613`) are seen; so a mod added just before the first run is still grafted. No catalog either (or
+  none the scan record says was another load order's): nothing is grafted and no baseline is saved that run
+  (logged); the seen list is seeded at the next load order change, from the catalog this run's scan left.
 - **Only from a whole scan**: a graft runs on a scan that marked everything (`incomplete` empty) with the tome
   reach pass `ready` (`TomeReach::OutcomeKey()`); otherwise it waits for the next start. This keeps a spell
   whose tome marks were missing from being judged and frozen in the seen list.
@@ -112,7 +113,13 @@ the school and branch it fits, and **no existing node moves or changes** (it may
   (`LayoutDeclutter.cpp:199-204,253,354-357`, `LayoutLineClear.cpp:83`), so neither nodes nor link lines overlap.
 - **Links and XP**: the parent's `children`; the new node's `prerequisites` and `softPrereqs` with `softNeeded: 1`
   as built nodes have (`classicTreeOutput.js:143-151`; hard is for locks, `schoolBridges.js:66-68`); no
-  `requiredXP` (the tier's number, `RequiredXPTable.h:22`); `persistentId` set; no locks.
+  `requiredXP` (the tier's number, `RequiredXPTable.h:22`); `persistentId` set, and the scan's `editorId` (when
+  not empty) and `traits`, as a build bakes them (`schoolBridges.js`); no locks.
+- **A formId the file already holds**: a new spell whose current formId a node of the file keeps (a missing
+  plugin's node, which Decision 4 keeps with its saved formId, or a stale id held) is deferred: not grafted, not
+  seen. It waits for as long as that node keeps the id (its mod back, the node deleted, the tree built again), not
+  one more start; each such spell is logged with the node that holds its formId. Re-keying such nodes' saved
+  formIds is a follow-up.
 
 ### 4. When it runs, what the player sees
 
