@@ -1,13 +1,16 @@
 // graft-run-check, its record part (graft-run-check.cpp runs these): the scan dump the
 // graft reads is the one the scan record names (ScanRecordRules.h), the seen list kept in
 // the tree record before the catalog is replaced, and the journal that keeps the record
-// with the tree, and the record after an edit save dropped grafted nodes (uimanager/TreeGraftRecord.h).
+// with the tree, and the record after an edit save dropped grafted nodes (uimanager/TreeGraftRecord.h):
+// which saves are stale, and the spells of nodes brought back seen again by the next plan.
 
 #include "Common.h"
 
 #include "ScanRecordRules.h"
 #include "uimanager/TreeGraftRecord.h"
+#include "uimanager/TreeGraftRun.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <optional>
 #include <string>
@@ -18,6 +21,7 @@
 namespace
 {
     using Json = nlohmann::json;
+    using OrderedJson = nlohmann::ordered_json;
     using TreeRecordFile::TreeRecord;
 
     struct Checker
@@ -116,6 +120,41 @@ namespace GraftRunRecordCases
         const auto none = TreeGraftRun::RecordAfterLostGraft(record, { "A.esp|0x1", "B.esp|0x2", "C.esp|0x3" }, {});
         check.Check(none.pendingGrafted == 0 && none.seen.size() == 4 && none.loadOrder.empty(),
             "more lost than told: zero, not below; ids not in the list change nothing; no record before: no load order");
+
+        // A later save brought the nodes back (B by persistentId, C a node without one, by formId):
+        // the next plan sees their spells again, also when it grafts nothing
+        const auto spell = [](const std::string& formId, const std::string& persistentId) {
+            return Json{ { "formId", formId }, { "persistentId", persistentId }, { "plugin", "NewMod.esp" },
+                { "name", formId }, { "school", "Destruction" }, { "skillLevel", "Apprentice" }, { "taughtByTome", true } };
+        };
+        const auto node = [](const std::string& formId, const std::string& persistentId, int tier, double y) {
+            OrderedJson n = { { "formId", formId }, { "children", OrderedJson::array() }, { "tier", tier }, { "x", 100 + 70 * (tier - 1) },
+                { "y", y } };
+            if (!persistentId.empty()) n["persistentId"] = persistentId;
+            return n;
+        };
+        TreeGraftRun::PlanInput input;
+        input.tree = { { "schools", { { "Destruction", { { "root", "0x00012FCD" }, { "nodes", {
+            node("0x00012FCD", "Skyrim.esm|0x012FCD", 1, 0), node("0x05000801", "NewMod.esp|0x000801", 2, 20),
+            node("0x05000804", "", 2, -20) } } } } } } };
+        input.scanSpells = Json::array({ spell("0x00012FCD", "Skyrim.esm|0x012FCD"), spell("0x05000801", "NewMod.esp|0x000801"),
+            spell("0x05000802", "NewMod.esp|0x000802"), spell("0x05000803", "NewMod.esp|0x000803"), spell("0x05000804", "NewMod.esp|0x000804"),
+            spell("0x05000801", "NewMod.esp|0x000801") });
+        input.record = after;
+        input.baseline = { after.seen, TreeGraftRun::SeenSource::kRecord };
+        input.verdicts = { { true, "0x00012FCD", "Skyrim.esm|0x012FCD" }, { true, "0x05000801", "NewMod.esp|0x000801" },
+            { true, "0x05000804", "" } };
+        input.loadOrder = "new";
+        const auto plan = TreeGraftRun::PlanGraft(std::move(input), TreeBuilder::BuildConfig{});
+        const auto has = [&plan](const char* id) { return std::ranges::count(plan.record.seen, std::string(id)) == 1; };
+        check.Check(plan.problem.empty() && plan.grafted.empty() && !plan.writeTree && plan.writeRecord,
+            "nothing grafted (all in the tree or seen), the record written: " + plan.problem);
+        check.Check(has("NewMod.esp|0x000801") && has("NewMod.esp|0x000804") && plan.record.seen.size() == 5,
+            "the spells of the nodes back in the tree join the seen list once (by persistentId, by formId)");
+        check.Check(TreeGraft::HeldUnseen(Json::array({ spell("0x05000801", "NewMod.esp|0x000801") }),
+                        OrderedJson{ { "schools", { { "D", { { "nodes", { node("0x05000801", "NewMod.esp|0x000801", 1, 0) } } } } } } },
+                        { "newmod.esp|0x000801" }).empty(),
+            "a spell the list has in another letter case: not added again");
         return check.failed;
     }
 

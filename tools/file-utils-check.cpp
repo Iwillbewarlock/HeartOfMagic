@@ -4,11 +4,12 @@
 //   file-utils-check --self-test     writes in a temp folder, no game needed
 //
 // The file named is there at every moment: WriteAtomically copies it to <name>.bak (no
-// step moves or removes it) and moves <name>.tmp onto it, which needs a move that
-// replaces an existing file in one step. Checked here: that std::filesystem::rename does
-// replace an existing file on this build; a write over a file, with and without the .bak,
-// and of a new file; and two failed writes (the move refused while the file is open, the
-// temp file not creatable) that leave the file as it was.
+// step moves or removes it; the copy goes to <name>.bak.tmp and is moved onto the .bak)
+// and moves <name>.tmp onto it, which needs a move that replaces an existing file in one
+// step. Checked here: that std::filesystem::rename does replace an existing file on this
+// build; a write over a file, with and without the .bak, and of a new file; two failed
+// writes (the move refused while the file is open, the temp file not creatable) that
+// leave the file as it was; and a .bak copy that fails, which leaves the old .bak whole.
 //
 // Exit 0 when every case passes, 1 on a failure, 2 on a bad argument.
 
@@ -113,7 +114,7 @@ namespace
         check.Check(FileUtils::WriteAtomically(path, "new"), "over a file: true");
         check.Check(Read(path) == "new", "the file holds the new content");
         check.Check(Read(backup) == "old", "the .bak holds the previous content (the older .bak replaced)");
-        check.Check(!Exists(temp), "no .tmp left");
+        check.Check(!Exists(temp) && !Exists(FileUtils::TempPath(backup)), "no .tmp or .bak.tmp left");
 
         check.Check(FileUtils::WriteAtomically(path, "newer", false), "keepBackup false: true");
         check.Check(Read(path) == "newer" && Read(backup) == "old" && !Exists(temp), "keepBackup false: the .bak left as it was");
@@ -149,6 +150,16 @@ namespace
         fs::create_directories(FileUtils::TempPath(other));
         check.Check(!FileUtils::WriteAtomically(other, "new"), "the .tmp not creatable: false");
         check.Check(Read(other) == "old" && !Exists(FileUtils::BackupPath(other)), "the file as it was, no .bak made");
+
+        // The .bak's copy cannot be made (a folder with a file in it holds <name>.bak.tmp): the write goes on
+        const auto kept = folder.path / "spell_tree.json";
+        const auto keptBackup = FileUtils::BackupPath(kept);
+        Write(kept, "old");
+        Write(keptBackup, "older");
+        fs::create_directories(FileUtils::TempPath(keptBackup));
+        Write(FileUtils::TempPath(keptBackup) / "x", "x");
+        check.Check(FileUtils::WriteAtomically(kept, "new") && Read(kept) == "new", "the .bak.tmp not creatable: written all the same");
+        check.Check(Read(keptBackup) == "older", "the old .bak whole (not half a copy)");
         return check.failed;
     }
 

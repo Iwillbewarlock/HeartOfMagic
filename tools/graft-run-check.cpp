@@ -146,6 +146,7 @@ namespace
         facts.recordLoadOrder = "old";
         facts.treeHasSpells = true;
         facts.catalogMatches = true;
+        facts.recordHasSeen = true;
         check.Check(!TreeGraftRun::WhyNotRun(facts), "runs: record of another load order, catalog this one's");
         auto same = facts;
         same.recordLoadOrder = "new";
@@ -176,6 +177,10 @@ namespace
         check.Check(!TreeGraftRun::ScanForGraft(same, dump(false)) && !TreeGraftRun::ScanForGraft(unreadable, dump(false)) &&
                         asked == 0,
             "skip: no graft due (the record this load order's, or unreadable) - the dump is not read");
+        auto unseen = facts;
+        unseen.recordHasSeen = false;
+        check.Check(!TreeGraftRun::ScanForGraft(unseen, dump(false)) && asked == 0,
+            "skip: no seen list in the record (the skip path has no earlier catalog for one) - the dump is not read");
 
         const Json complete = { { "spells", Json::array() } };
         check.Check(!TreeGraftRun::WhyScanUnusable(complete, "ready"), "scan: complete, tome reach ready");

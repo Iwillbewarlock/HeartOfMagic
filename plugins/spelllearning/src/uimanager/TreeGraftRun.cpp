@@ -425,6 +425,7 @@ bool TreeGraftNeedsTheScan(const LoadOrderFingerprint::Value& loadOrder)
         facts.recordUnreadable = !record || (!recordText && ThereButUnread(recordPath));
         facts.treeHasSpells = true;    // AutoScan's Precondition
         facts.catalogMatches = true;   // its skip path
+        facts.recordHasSeen = record && record->hasSeen;
         const bool scan = TreeGraftRun::ScanForGraft(facts, [] {
             const auto dump = ReadText(kScanOutputFile);
             return dump && ScanRecord::DumpMatches(*dump);

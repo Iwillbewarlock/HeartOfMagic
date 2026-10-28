@@ -2048,7 +2048,9 @@ order's; log prefix `TreeGraft:`).
     a spells list, an empty `incomplete`, the tome reach pass `ready`. A graft due on AutoScan's skip path (the
     catalog already this load order's) whose dump is not that scan's (a panel-only full scan since, a crash between
     the catalog and the dump) makes AutoScan scan instead (`TreeGraftNeedsTheScan`, `TreeGraftRun::ScanForGraft`;
-    Ruling 22; the dump is read only when a graft is due), so the scan writes one the graft can read;
+    Ruling 22; the dump is read only when a graft is due), so the scan writes one the graft can read - but only
+    when the tree record has a seen list: on that path the catalog is already this load order's, so no earlier
+    catalog gives a baseline and the graft could not run from the new scan either;
   - a seen list baseline exists (below; none: nothing grafted, nothing written).
 
   Then the plan's checks must pass and the files must be unchanged at the write. A run that leaves spells
@@ -2087,7 +2089,9 @@ order's; log prefix `TreeGraft:`).
   thread (a panel save or Import in between wins: nothing written); then the record with a `graftJournal`, the
   tree (`WriteAtomically`, `.bak` kept: a copy, the file is there at every step), the record without it. The
   record after a run (`RecordAfterGraft`): seen += grafted + leftOut + the new persistentIds of rematched nodes
-  (not deferred or unplaced: a later run judges them again), `pendingGrafted` +=
+  + the scan's spells the tree holds that the list lacks (`GraftCandidates.h` `HeldUnseen`: nodes an edit save
+  brought back after a stale save took their spells off, so one deleted later is not grafted again; this runs
+  in every plan, one that grafts nothing too) (not deferred or unplaced: a later run judges them again), `pendingGrafted` +=
   grafted, and only when nothing was deferred or unplaced `loadOrder`/`plugins`/`spells` become the current
   ones and `noticedLoadOrder` is cleared. Then `ApplyTreePrerequisiteEntries` and the requiredXP sync run
   again and the panel gets the validated tree (`updateTreeData`). Each game thread wait gives up after 60 s

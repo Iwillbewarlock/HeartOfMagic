@@ -208,6 +208,38 @@ namespace TreeGraft
             const std::string persistentId = Text(entry, "persistentId");
             return persistentId.find('|') != std::string::npos ? AsciiText::ToLower(persistentId) : std::string();
         }
+
+        /// What a tree holds (node identity, Ruling 11: see NewSpells): by persistentId, and
+        /// by formId for the nodes without one
+        struct TreeHolds
+        {
+            std::unordered_set<std::string> formIds, persistent;
+
+            template <class TreeJson>
+            explicit TreeHolds(const TreeJson& tree)
+            {
+                const auto schools = tree.find("schools");
+                if (schools == tree.end() || !schools->is_object()) return;
+                for (const auto& [name, school] : schools->items()) {
+                    const auto nodes = school.find("nodes");
+                    if (!school.is_object() || nodes == school.end() || !nodes->is_array()) continue;
+                    for (const auto& node : *nodes) {
+                        if (!node.is_object()) continue;
+                        if (const auto key = PersistentKey(node); !key.empty()) {
+                            persistent.insert(key);
+                        } else if (node.contains("formId") && node["formId"].is_string()) {
+                            formIds.insert(SpellIdOf(node["formId"].template get<std::string>()));
+                        }
+                    }
+                }
+            }
+
+            [[nodiscard]] bool Holds(const nlohmann::json& spell) const
+            {
+                const auto key = PersistentKey(spell);
+                return (!key.empty() && persistent.contains(key)) || formIds.contains(SpellIdOf(Text(spell, "formId")));
+            }
+        };
     }
 
     /// settings.pluginWhitelist's plugins turned off (enabled false), A-Z folded - the one
@@ -295,28 +327,8 @@ namespace TreeGraft
         std::vector<const nlohmann::json*> out;
         if (!scanSpells.is_array()) return out;
 
-        // What the tree holds: by persistentId, and by formId for the nodes without one
-        std::unordered_set<std::string> treeFormIds, treePersistent;
-        const auto schools = tree.find("schools");
-        if (schools != tree.end() && schools->is_object()) {
-            for (const auto& [name, school] : schools->items()) {
-                const auto nodes = school.find("nodes");
-                if (!school.is_object() || nodes == school.end() || !nodes->is_array()) continue;
-                for (const auto& node : *nodes) {
-                    if (!node.is_object()) continue;
-                    if (const auto persistent = Detail::PersistentKey(node); !persistent.empty()) {
-                        treePersistent.insert(persistent);
-                    } else if (node.contains("formId") && node["formId"].is_string()) {
-                        treeFormIds.insert(Detail::SpellIdOf(node["formId"].template get<std::string>()));
-                    }
-                }
-            }
-        }
-        const auto inTree = [&](const nlohmann::json& spell) {
-            const auto key = Detail::PersistentKey(spell);
-            return (!key.empty() && treePersistent.contains(key)) ||
-                   treeFormIds.contains(Detail::SpellIdOf(Detail::Text(spell, "formId")));
-        };
+        const Detail::TreeHolds holds(tree);
+        const auto inTree = [&holds](const nlohmann::json& spell) { return holds.Holds(spell); };
 
         // Duplicate groups (SpellScannerDuplicates.cpp): the kept spell's formId -> a member has a node
         const auto groupOf = [](const nlohmann::json& spell) {
@@ -337,9 +349,31 @@ namespace TreeGraft
             const auto key = Detail::PersistentKey(spell);
             if (key.empty() || seenFolded.contains(key) || inTree(spell)) continue;
             const auto group = groupOf(spell);
-            if (groupsWithNode.contains(group) || treeFormIds.contains(group)) continue;
+            if (groupsWithNode.contains(group) || holds.formIds.contains(group)) continue;
             if (!taken.insert(key).second) continue;   // the same record twice in one scan
             out.push_back(&spell);
+        }
+        return out;
+    }
+
+    /// The persistentIds of the scan's spells the tree holds (as NewSpells counts it) that
+    /// `seen` lacks (A-Z folded), each once: nodes an edit save brought back after a stale
+    /// save took their spells off the list (Ruling 23). Seen again, so a node of theirs
+    /// deleted later is not grafted again
+    template <class TreeJson>
+    [[nodiscard]] std::vector<std::string> HeldUnseen(const nlohmann::json& scanSpells, const TreeJson& tree,
+        const std::unordered_set<std::string>& seen)
+    {
+        std::vector<std::string> out;
+        if (!scanSpells.is_array()) return out;
+        const Detail::TreeHolds holds(tree);
+        std::unordered_set<std::string> folded;
+        for (const auto& id : seen) folded.insert(AsciiText::ToLower(id));
+        for (const auto& spell : scanSpells) {
+            if (!spell.is_object()) continue;
+            const auto key = Detail::PersistentKey(spell);
+            if (key.empty() || !holds.Holds(spell) || !folded.insert(key).second) continue;
+            out.push_back(Detail::Text(spell, "persistentId"));
         }
         return out;
     }

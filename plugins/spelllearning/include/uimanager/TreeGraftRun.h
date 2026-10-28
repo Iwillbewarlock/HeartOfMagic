@@ -57,7 +57,8 @@
 //     Ruling 2 counts an id rewrite as no change) and the grafted children a
 //     parent gained; no seen spell grafted. A plan that fails is not written.
 //  5. The record: seen += grafted + left out by the player's rules + the new
-//     persistentIds of rematched nodes (not the
+//     persistentIds of rematched nodes + the scan's spells the tree holds that it
+//     lacks (HeldUnseen: nodes back after a stale save took them off) (not the
 //     unplaced or deferred ones: a later run judges them again), pendingGrafted
 //     += grafted; the load order becomes the current one only when nothing was
 //     deferred or unplaced, so the graft runs again at the next start and the
@@ -82,6 +83,7 @@ namespace TreeGraftRun
         bool recordUnreadable = false; ///< the record is there but not a JSON object
         bool treeHasSpells = false;
         bool catalogMatches = false;   ///< ScanRecord::CatalogMatches(now)
+        bool recordHasSeen = false;    ///< the record has a seen list (ScanForGraft only)
     };
 
     /// Why the graft does not run, or nothing: it runs (the scan aside, WhyScanUnusable)
@@ -98,12 +100,14 @@ namespace TreeGraftRun
     /// AutoScan's skip (the catalog is this load order's) when a graft is due but
     /// spell_scan_output.json is not that scan's dump (a panel-only full scan since, or a
     /// crash between the catalog and the dump): the graft would stop on it at every start,
-    /// so the scan runs instead and writes one (Ruling 22). `dumpMatches()` reads and hashes
-    /// the dump: asked only when the graft is due.
+    /// so the scan runs instead and writes one (Ruling 22). Not without a seen list in the
+    /// record: on the skip path the catalog is this load order's, so no previous one gives a
+    /// baseline (CatalogNeeded) and the graft would not run from the fresh scan either.
+    /// `dumpMatches()` reads and hashes the dump: asked only when the graft is due.
     template <class DumpMatches>
     [[nodiscard]] bool ScanForGraft(const Facts& facts, DumpMatches&& dumpMatches)
     {
-        return !WhyNotRun(facts) && !dumpMatches();
+        return !WhyNotRun(facts) && facts.recordHasSeen && !dumpMatches();
     }
 
     /// Why the scan output cannot be grafted from, or nothing
@@ -505,6 +509,7 @@ namespace TreeGraftRun
 
         // The candidates are copied out, so the scan's spells can move into the graft's list
         const std::unordered_set<std::string> seen(input.baseline.seen.begin(), input.baseline.seen.end());
+        auto inTreeNow = TreeGraft::HeldUnseen(input.scanSpells, input.tree, seen);   // join the seen list
         std::vector<Json> candidates;
         for (const auto* spell : TreeGraft::NewSpells(input.scanSpells, input.tree, seen)) candidates.push_back(*spell);
         std::vector<const Json*> pointers;
@@ -537,10 +542,9 @@ namespace TreeGraftRun
         if (plan.problem.empty()) plan.problem = SeenGrafted(plan.grafted, input.baseline.seen);
 
         plan.complete = plan.deferred.empty() && plan.skippedNoSchool.empty();
-        std::vector<std::string> rematchedNow;   // their new persistentIds join the seen list
-        for (const auto& [was, now] : rematched) rematchedNow.push_back(now);
+        for (const auto& [was, now] : rematched) inTreeNow.push_back(now);   // their new persistentIds too
         plan.record = RecordAfterGraft(input.record, input.baseline, plan.grafted, plan.leftOut, plan.complete,
-            input.loadOrder, input.plugins, input.spells, rematchedNow);
+            input.loadOrder, input.plugins, input.spells, inTreeNow);
         plan.writeTree = !plan.grafted.empty();
         plan.writeRecord = TreeRecordFile::ToJson(plan.record) != TreeRecordFile::ToJson(input.record);
         return plan;

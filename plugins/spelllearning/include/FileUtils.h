@@ -22,6 +22,8 @@
  * The file is there at every moment: the .bak is a copy, not the file moved
  * away, and the temp file is moved onto the file, replacing it (MSVC's
  * std::filesystem::rename replaces an existing file: tools/file-utils-check).
+ * The copy goes to <name>.bak.tmp and is moved onto the .bak, so a crash
+ * during the copy leaves the previous .bak whole.
  * The .bak used to be made by moving the file, so a crash between that move
  * and the next left no file at all, and the tree graft's journal took a
  * missing tree for one it had not written.
@@ -74,12 +76,18 @@ namespace FileUtils
             }
         }  // closed here: the move below must not race the stream
 
-        // A copy: the file itself stays where it is until the move below replaces it
+        // A copy: the file itself stays where it is until the move below replaces it. Through
+        // <name>.bak.tmp and a move, as the file itself: the old .bak is whole until replaced
         if (keepBackup && std::filesystem::exists(path, ec)) {
-            std::filesystem::copy_file(path, BackupPath(path), std::filesystem::copy_options::overwrite_existing, ec);
+            const auto backup = BackupPath(path);
+            const auto backupTemp = TempPath(backup);
+            std::filesystem::copy_file(path, backupTemp, std::filesystem::copy_options::overwrite_existing, ec);
+            if (!ec) std::filesystem::rename(backupTemp, backup, ec);
             if (ec) {
                 // Not fatal: the new file is still worth having
                 logger::warn("FileUtils: could not keep a backup of {}: {}", PathText::Utf8(path), ec.message());
+                std::error_code removeError;
+                std::filesystem::remove(backupTemp, removeError);
             }
         }
         ec.clear();

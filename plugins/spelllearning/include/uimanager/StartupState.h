@@ -108,9 +108,10 @@ struct CatalogForTreeGraft
 CatalogForTreeGraft ReadCatalogForTreeGraft(const LoadOrderFingerprint::Value& loadOrder);
 
 /// AutoScan's skip path (the catalog is `loadOrder`'s full scan, the tree has spells): a
-/// graft is due but spell_scan_output.json is not that scan's dump, so the scan must run
-/// to give the graft one (TreeGraftRun::ScanForGraft; the dump is read only when a graft
-/// is due). Logs why. Not on the game thread.
+/// graft is due, the tree record has a seen list (without one this graft has no baseline)
+/// but spell_scan_output.json is not that scan's dump, so the scan must run to give the
+/// graft one (TreeGraftRun::ScanForGraft; the dump is read only when a graft is due). Logs
+/// why. Not on the game thread.
 bool TreeGraftNeedsTheScan(const LoadOrderFingerprint::Value& loadOrder);
 
 /// What the session's last graft did (the dev self-tests read it). Any thread.
