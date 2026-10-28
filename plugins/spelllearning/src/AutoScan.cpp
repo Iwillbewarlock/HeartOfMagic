@@ -478,7 +478,8 @@ namespace
     }
 
     // Why neither the scan nor the tree graft runs this session, or nothing: they go on
-    // (a catalog that is the load order's already skips only the scan, RunScan)
+    // (a catalog that is the load order's already skips only the scan, unless a due graft
+    // needs the scan's dump, RunScan)
     std::optional<std::string> Precondition()
     {
         switch (ReadAutoBuildSetting()) {

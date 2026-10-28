@@ -84,8 +84,9 @@ namespace FileUtils
         }
         ec.clear();
 
-        // Replaces the file in one step (MoveFileExW with MOVEFILE_REPLACE_EXISTING in MSVC's
-        // STL); never remove-then-move, which leaves a moment with no file
+        // Replaces the file in one step (MSVC's STL: MoveFileExW with MOVEFILE_REPLACE_EXISTING |
+        // MOVEFILE_COPY_ALLOWED, a plain rename within one folder); never remove-then-move,
+        // which leaves a moment with no file
         std::filesystem::rename(temp, path, ec);
         if (ec) {
             logger::error("FileUtils: could not move {} into place: {} - {} is left as it was", PathText::Utf8(temp),
