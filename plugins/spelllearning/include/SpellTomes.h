@@ -73,4 +73,9 @@ namespace SpellTomes
     // A full scan was collected now (game thread): a later generation with more
     // pairs marks that scan stale for the panel.
     void NoteFullScan();
+
+    // A full scan made with the pairs of `generation` (`paired` of them, read when it began) - a stepped scan, whose
+    // pairs may have changed before it ended. Recorded as that scan's; when the pairs now hold more, the panel is
+    // told at once that the scan is stale (game thread).
+    void NoteFullScanOf(std::uint64_t generation, std::size_t paired);
 }

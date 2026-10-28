@@ -228,6 +228,18 @@ namespace SpellTomes
             logger::info("SpellTomes: books with the flag cleared at runtime (experimental), by plugin: {}", line);
         }
 
+        // Told on a later task: at a save load NotifySaveGameLoaded ends kPostLoadGame, after
+        // this, and inGame is UIManager's own state then (a save or a new game: a retry must hold)
+        void TellPanel(std::uint64_t generation, std::size_t paired, bool stale, std::string_view reason)
+        {
+            AddTaskToGameThread("SpellTomesChanged", [generation, paired, stale, why = std::string(reason)] {
+                auto* ui = UIManager::GetSingleton();
+                const nlohmann::json payload = { { "generation", generation }, { "pairedTomes", paired },
+                                                 { "stale", stale }, { "inGame", ui->IsInGame() }, { "reason", why } };
+                ui->NotifySpellTomesChanged(JsonText::Dump(payload));
+            });
+        }
+
         // A new generation: everything that kept an answer about tomes drops it
         void OnPairsChanged(const Snapshot& now, std::string_view reason)
         {
@@ -242,14 +254,7 @@ namespace SpellTomes
                 now.paired.size() > g_scanPaired.load();
             logger::info("SpellTomes: {} - the pairs changed (generation {}, {} paired tomes{}) - tome reach runs again",
                 reason, generation, now.paired.size(), stale ? ", the last full scan had fewer: stale" : "");
-            // Told on a later task: at a save load NotifySaveGameLoaded ends kPostLoadGame, after
-            // this, and inGame is UIManager's own state then (a save or a new game: a retry must hold)
-            AddTaskToGameThread("SpellTomesChanged", [generation, paired = now.paired.size(), stale, why = std::string(reason)] {
-                auto* ui = UIManager::GetSingleton();
-                const nlohmann::json payload = { { "generation", generation }, { "pairedTomes", paired },
-                                                 { "stale", stale }, { "inGame", ui->IsInGame() }, { "reason", why } };
-                ui->NotifySpellTomesChanged(JsonText::Dump(payload));
-            });
+            TellPanel(generation, now.paired.size(), stale, reason);
         }
 
         void RebuildOnGameThread(std::string_view reason)
@@ -359,5 +364,19 @@ namespace SpellTomes
         const auto snapshot = g_snapshot.load();
         g_scanGeneration = snapshot ? snapshot->status.generation : 0;
         g_scanPaired = snapshot ? snapshot->paired.size() : 0;
+    }
+
+    void NoteFullScanOf(std::uint64_t generation, std::size_t paired)
+    {
+        g_scanGeneration = generation;
+        g_scanPaired = paired;
+        const auto snapshot = g_snapshot.load();
+        if (!snapshot || snapshot->status.generation == generation) return;
+        // The pairs changed while the scan ran: OnPairsChanged judged that change against the scan before, so it is
+        // judged again here against the pairs this scan had
+        const bool stale = generation != 0 && snapshot->paired.size() > paired;
+        logger::warn("SpellTomes: the pairs changed during a scan (generation {} with {} paired tomes, now {} with {}){}",
+            generation, paired, snapshot->status.generation, snapshot->paired.size(), stale ? " - the scan is stale" : "");
+        if (stale) TellPanel(snapshot->status.generation, snapshot->paired.size(), true, "scan");
     }
 }
