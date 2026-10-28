@@ -123,6 +123,16 @@ namespace ScanRecordRules
         return HashText(text);
     }
 
+    // The scan output's tome pairs key (FullScanCollector::Finish puts the one its marks read),
+    // empty when it has none (a tome scan, or the pairs not read yet)
+    inline constexpr const char* kTomePairsField = "tomePairs";
+    inline std::string TomePairsOf(const nlohmann::json& output)
+    {
+        if (!output.is_object()) return {};
+        const auto found = output.find(kTomePairsField);
+        return found != output.end() && found->is_string() ? found->get<std::string>() : std::string();
+    }
+
     // The record's fingerprint with the tome pairs' key joined, or empty when either is unknown
     // (no fingerprint, or the pairs not read yet)
     inline std::string WithTomePairs(std::string_view fingerprint, std::string_view pairsKey)

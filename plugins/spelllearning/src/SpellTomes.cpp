@@ -309,18 +309,15 @@ namespace SpellTomes
         for (const auto& [book, entry] : snapshot->paired) visit(book, entry.spell);
     }
 
-    void ForEachInstalledPair(const std::function<void(RE::FormID book, RE::FormID spell)>& visit)
+    bool InstalledPairs(std::vector<std::pair<RE::FormID, RE::FormID>>& out)
     {
+        out.clear();
         const auto snapshot = g_snapshot.load();
-        if (!snapshot) return;
+        if (!snapshot) return false;
         for (const auto& [book, entry] : snapshot->paired) {
-            if (entry.source != Pairs::Source::kLiveScript) visit(book, entry.spell);
+            if (entry.source != Pairs::Source::kLiveScript) out.emplace_back(book, entry.spell);
         }
-    }
-
-    std::uint64_t LastScanGeneration()
-    {
-        return g_scanGeneration.load();
+        return true;
     }
 
     bool IsPairedTome(RE::FormID book)
@@ -371,13 +368,6 @@ namespace SpellTomes
     {
         const auto snapshot = g_snapshot.load();
         return snapshot ? Describe(snapshot->status) : std::string("SpellTomes: not read yet");
-    }
-
-    void NoteFullScan()
-    {
-        const auto snapshot = g_snapshot.load();
-        g_scanGeneration = snapshot ? snapshot->status.generation : 0;
-        g_scanPaired = snapshot ? snapshot->paired.size() : 0;
     }
 
     void NoteFullScanOf(std::uint64_t generation, std::size_t paired)

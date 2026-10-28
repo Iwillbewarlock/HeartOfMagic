@@ -440,12 +440,14 @@ namespace SpellScanner
         // CollectAllSpells and the dump are ScanAllSpells; the scan output is read for
         // what it could not mark before it becomes text (ScanRecordRules.h)
         std::string incomplete;
+        std::string scanPairs;
         std::string result;
         if (tomeMode) {
             result = ScanSpellTomes(config);
         } else {
             const json collected = CollectAllSpells(config);
             incomplete = ScanRecordRules::IncompleteOf(collected);
+            scanPairs = ScanRecordRules::TomePairsOf(collected);
             result = JsonText::Dump(collected, 2);
         }
 
@@ -458,8 +460,8 @@ namespace SpellScanner
         // The scan record follows the catalog file (ScanRecord.h): only a scan of
         // every spell that marked everything says which load order the catalog was made from
         const auto* loadOrder = IsOnGameThread() ? &LoadOrderFingerprint::Current() : LoadOrderFingerprint::Known();
-        Librarian::ClassifyScan(result, !IsOnGameThread(), [tomeMode, loadOrder, &incomplete]() {
-            ScanRecord::CatalogWritten(!tomeMode, loadOrder, incomplete);
+        Librarian::ClassifyScan(result, !IsOnGameThread(), [tomeMode, loadOrder, &incomplete, &scanPairs]() {
+            ScanRecord::CatalogWritten(!tomeMode, loadOrder, incomplete, scanPairs);
         });
 
         // Papyrus RunScan: the perk adapters follow the catalog it rebuilt. A

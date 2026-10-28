@@ -607,10 +607,11 @@ namespace
         // A scan that could not mark everything still writes the catalog (better than the old one) but
         // no record: the next game start scans again
         const std::string incomplete = ScanRecordRules::IncompleteOf(*output);
+        const std::string scanPairs = ScanRecordRules::TomePairsOf(*output);
         std::string text = JsonText::Dump(*output, 2);
         output.reset();
         const bool wrote = Librarian::ClassifyScan(text, true,
-            [&loadOrder, &incomplete]() { ScanRecord::CatalogWritten(true, &loadOrder, incomplete); });
+            [&loadOrder, &incomplete, &scanPairs]() { ScanRecord::CatalogWritten(true, &loadOrder, incomplete, scanPairs); });
         const std::string dumpPath = SpellScanner::WriteScanOutput(text);
         // Both files are this scan's job: without the dump the next start does it again
         if (wrote && dumpPath.empty()) ScanRecord::Forget("spell_scan_output.json could not be written");

@@ -35,7 +35,10 @@ namespace ScanRecord
     // reach pass's outcome (WithTomeReach) - is written only for a full scan that
     // marked everything under a known fingerprint (DecideRecord), and removed
     // otherwise, with the reason logged. Any thread; logs its own failures.
-    void CatalogWritten(bool fullScan, const LoadOrderFingerprint::Value* loadOrder, std::string_view incomplete = {}) noexcept;
+    // `scanPairs`: the tome pairs key the scan's marks read (ScanRecordRules::TomePairsOf of its
+    // output); recorded only when the installed pairs still give it.
+    void CatalogWritten(bool fullScan, const LoadOrderFingerprint::Value* loadOrder, std::string_view incomplete = {},
+        std::string_view scanPairs = {}) noexcept;
 
     // The record removed (the scan at game start could not write its dump): the
     // next game start scans again. Any thread; logs its own failures.

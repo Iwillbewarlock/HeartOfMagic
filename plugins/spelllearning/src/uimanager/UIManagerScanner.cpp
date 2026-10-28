@@ -248,6 +248,7 @@ std::string UIManager::PrepareScanText(json&& output, bool tomeScan)
     // game (tools/CMakeLists.txt); it serializes itself against a Papyrus RunScan.
     // What the scan could not mark: its catalog is written but not recorded (ScanRecordRules.h)
     const std::string incomplete = tomeScan ? std::string() : ScanRecordRules::IncompleteOf(output);
+    const std::string scanPairs = tomeScan ? std::string() : ScanRecordRules::TomePairsOf(output);
     std::string result = JsonText::Dump(output, 2);
     output = json();  // the parsed copy is 50-100 MB on a large load order
 
@@ -258,8 +259,8 @@ std::string UIManager::PrepareScanText(json&& output, bool tomeScan)
     // the result as it was rather than interrupting the scan.
     // The scan record follows the catalog file: a full scan's load order, or none
     // after a tome scan wrote it (ScanRecord.h; the fingerprint was worked out in CollectScan)
-    Librarian::ClassifyScan(result, true, [tomeScan, &incomplete]() {
-        ScanRecord::CatalogWritten(!tomeScan, LoadOrderFingerprint::Known(), incomplete);
+    Librarian::ClassifyScan(result, true, [tomeScan, &incomplete, &scanPairs]() {
+        ScanRecord::CatalogWritten(!tomeScan, LoadOrderFingerprint::Known(), incomplete, scanPairs);
     });
 
     // Debug installs keep the full scan for offline analysis, as Papyrus RunScan does

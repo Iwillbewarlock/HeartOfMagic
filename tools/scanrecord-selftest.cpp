@@ -154,6 +154,11 @@ namespace
         Check(ScanRecordRules::TomePairsKey({}) == "none" && ScanRecordRules::WithTomePairs(fp, "").empty() &&
                   ScanRecordRules::WithTomePairs("", ab).empty(),
             "tome pairs edge: no pair is \"none\", pairs not read yet or no fingerprint give none");
+        Check(ScanRecordRules::TomePairsOf(nlohmann::json{ { "tomePairs", "0123456789ABCDEF" } }) == "0123456789ABCDEF" &&
+                  ScanRecordRules::TomePairsOf(nlohmann::json::object()).empty() &&
+                  ScanRecordRules::TomePairsOf(nlohmann::json{ { "tomePairs", 5 } }).empty() &&
+                  ScanRecordRules::TomePairsOf(nlohmann::json::array()).empty(),
+            "tome pairs: the scan output's key read back; none, not text or not an object give none");
     }
 
     void RecordVersion()

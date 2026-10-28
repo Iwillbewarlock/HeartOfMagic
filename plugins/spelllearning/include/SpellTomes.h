@@ -7,6 +7,8 @@
 #include <functional>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 // =============================================================================
 // SPELL TOMES - which spell a book is the tome of
@@ -44,12 +46,9 @@ namespace SpellTomes
 
     // The pairs the installed files make (SynthesizedPatch.json, Spell Research's plugin part,
     // flags cleared at load), not the ones a loaded save brings (Spell Research's script part):
-    // the main menu has the same ones every start. The scan record's key. Any thread.
-    void ForEachInstalledPair(const std::function<void(RE::FormID book, RE::FormID spell)>& visit);
-
-    // The generation the last full scan's marks were made with (NoteFullScan / NoteFullScanOf),
-    // 0 for none. Any thread.
-    std::uint64_t LastScanGeneration();
+    // the main menu has the same ones every start. The scan record's key. From one snapshot;
+    // false before the pairs were first read. Any thread.
+    bool InstalledPairs(std::vector<std::pair<RE::FormID, RE::FormID>>& out);
 
     // Every spell tome with its spell, both kinds, in the BOOK array's order.
     // Game thread.
@@ -78,10 +77,6 @@ namespace SpellTomes
         bool liveRead = false;             // Spell Research's lists were readable at least once
     };
     bool CurrentStatus(Status& out);
-
-    // A full scan was collected now (game thread): a later generation with more
-    // pairs marks that scan stale for the panel.
-    void NoteFullScan();
 
     // A full scan made with the pairs of `generation` (`paired` of them, read when it began) - a stepped scan, whose
     // pairs may have changed before it ended. Recorded as that scan's; when the pairs now hold more, the panel is

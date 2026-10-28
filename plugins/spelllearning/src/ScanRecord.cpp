@@ -118,34 +118,36 @@ namespace
         return found != data.end() && found->is_string() ? found->get<std::string>() : std::string();
     }
 
-    // The installed tome pairs now (kMatch), or the ones the last full scan's marks were made with
-    // (kWrite). Empty before the pairs were first read, and for kWrite when they changed after
-    // those marks (a save load or Spell Research's Import before the catalog was written): that
-    // scan does not fit the pairs now, so it is not recorded. A save's own pairs (Spell Research's
-    // script part) are left out: the main menu never has them, and a scan during play would
-    // otherwise make the next start scan again
-    enum class PairsUse { kMatch, kWrite };
-    std::string TomePairsKey(PairsUse use)
+    // The installed tome pairs' key now (SpellTomes::InstalledPairs, one snapshot), empty before
+    // they were first read. A save's own pairs (Spell Research's script part) are not in it: the
+    // main menu never has them, and a scan during play would otherwise make the next start scan again
+    std::string TomePairsKey()
     {
-        SpellTomes::Status status;
-        if (!SpellTomes::CurrentStatus(status)) return {};
-        if (use == PairsUse::kWrite && SpellTomes::LastScanGeneration() != status.generation) {
-            logger::info("ScanRecord: the tome pairs changed after the scan's marks (generation {} -> {}) - not "
-                         "recorded", SpellTomes::LastScanGeneration(), status.generation);
+        std::vector<std::pair<RE::FormID, RE::FormID>> pairs;
+        if (!SpellTomes::InstalledPairs(pairs)) return {};
+        return ScanRecordRules::TomePairsKey(std::move(pairs));
+    }
+
+    // The pairs key a write records: the scan's own (the snapshot its marks read) while the installed
+    // pairs still give it. One that changed since (a re-run patch read, flags cleared after the marks)
+    // gives none, so that catalog is not recorded; a save's own pairs changing does not matter
+    std::string WrittenPairsKey(std::string_view scanPairs)
+    {
+        const std::string now = TomePairsKey();
+        if (scanPairs.empty() || now != scanPairs) {
+            logger::info("ScanRecord: the installed tome pairs are not the ones the scan's marks read (scan {}, now "
+                         "{}) - not recorded", scanPairs.empty() ? "none" : scanPairs, now.empty() ? "none" : now);
             return {};
         }
-        std::vector<std::pair<std::uint32_t, std::uint32_t>> pairs;
-        SpellTomes::ForEachInstalledPair([&pairs](RE::FormID book, RE::FormID spell) { pairs.emplace_back(book, spell); });
-        return ScanRecordRules::TomePairsKey(std::move(pairs));
+        return now;
     }
 
     // The fingerprint the record holds and is matched by: the load order's scan
     // fingerprint with how the tome reach pass ended (empty while it runs) and the
     // tome pairs (a re-run SynthesizedPatch.json over the same plugins makes a scan due)
-    std::string RecordFingerprint(const LoadOrderFingerprint::Value& loadOrder, PairsUse use)
+    std::string RecordFingerprint(const LoadOrderFingerprint::Value& loadOrder, std::string_view pairsKey)
     {
-        return ScanRecordRules::WithTomePairs(ScanRecordRules::WithTomeReach(loadOrder.scan, TomeReach::OutcomeKey()),
-            TomePairsKey(use));
+        return ScanRecordRules::WithTomePairs(ScanRecordRules::WithTomeReach(loadOrder.scan, TomeReach::OutcomeKey()), pairsKey);
     }
 
     void RemoveRecord(const char* why)
@@ -161,10 +163,12 @@ namespace
 
 namespace ScanRecord
 {
-    void CatalogWritten(bool fullScan, const LoadOrderFingerprint::Value* loadOrder, std::string_view incomplete) noexcept
+    void CatalogWritten(bool fullScan, const LoadOrderFingerprint::Value* loadOrder, std::string_view incomplete,
+        std::string_view scanPairs) noexcept
     {
         try {
-            const std::string fingerprint = loadOrder ? RecordFingerprint(*loadOrder, PairsUse::kWrite) : std::string();
+            const std::string pairsKey = loadOrder && fullScan ? WrittenPairsKey(scanPairs) : std::string();
+            const std::string fingerprint = loadOrder ? RecordFingerprint(*loadOrder, pairsKey) : std::string();
             const auto decision = ScanRecordRules::DecideRecord(fullScan,
                 loadOrder ? std::string_view(loadOrder->hash) : std::string_view(), fingerprint, incomplete);
             if (decision.action != ScanRecordRules::RecordAction::kWrite) {
@@ -181,7 +185,7 @@ namespace ScanRecord
             data["loadOrder"] = loadOrder->hash;
             data["scan"] = fingerprint;
             data["tomeReach"] = TomeReach::OutcomeKey();
-            data["tomePairs"] = TomePairsKey(PairsUse::kMatch);
+            data["tomePairs"] = pairsKey;
             data["plugins"] = loadOrder->plugins;
             data["spells"] = loadOrder->spells;
             data["catalogBytes"] = catalog->bytes;
@@ -213,7 +217,7 @@ namespace ScanRecord
     bool CatalogMatches(const LoadOrderFingerprint::Value& now) noexcept
     {
         try {
-            const std::string fingerprint = RecordFingerprint(now, PairsUse::kMatch);
+            const std::string fingerprint = RecordFingerprint(now, TomePairsKey());
             if (fingerprint.empty()) return false;
             std::ifstream file(kRecordFile, std::ios::binary);
             if (!file.is_open()) return false;
