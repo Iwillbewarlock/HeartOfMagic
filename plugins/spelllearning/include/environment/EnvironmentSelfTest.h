@@ -33,6 +33,7 @@ namespace Environment::SelfTest
     void CheckSpellTomes();   // EnvironmentSelfTestTomes.cpp
     void CheckClearedFlagTomes();   // EnvironmentSelfTestTomes.cpp
     void CheckGameThreadFlag();   // EnvironmentSelfTestTomes.cpp
+    void CheckOwnedOutside();     // EnvironmentSelfTestTomes.cpp
 
     enum class Outcome
     {

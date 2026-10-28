@@ -1,4 +1,5 @@
 #include "environment/EnvironmentSelfTest.h"
+#include "SpellEffectivenessHook.h"
 #include "SpellScanner.h"
 #include "SpellTomes.h"
 #include "tomereach/TomeReach.h"
@@ -203,5 +204,43 @@ namespace Environment::SelfTest
         const bool here = IsOnGameThread();
         Report("game-thread", here && !elsewhere ? Outcome::kPass : Outcome::kFail,
             std::format("inSelfTestTask={} newThread={}", here, elsewhere));
+    }
+
+    // A school spell the player knows and Heart of Magic did not give early is never made
+    // early-learned (ShouldGrantEarly), so it is not weakened or taken away at a target change;
+    // the early-learned ones it knows still may be (their regrant). Reads only.
+    void CheckOwnedOutside()
+    {
+        constexpr const char* kOwnedId = "owned-outside";
+        auto* player = RE::PlayerCharacter::GetSingleton();
+        auto* hook = SpellEffectivenessHook::GetSingleton();
+        if (!player || !hook) {
+            Report(kOwnedId, Outcome::kSkip, "no player or no early-learning hook (main menu)");
+            return;
+        }
+        std::size_t outside = 0, refused = 0, early = 0, earlyAllowed = 0;
+        std::string firstWrong;
+        for (auto* spell : player->GetActorRuntimeData().addedSpells) {
+            if (!spell || !SpellEffectivenessHook::CanLearnEarly(spell)) continue;
+            if (hook->IsEarlyLearnedSpell(spell->GetFormID())) {
+                ++early;
+                if (!hook->OwnedOutside(spell)) ++earlyAllowed;
+                continue;
+            }
+            ++outside;
+            if (!hook->ShouldGrantEarly(spell)) {
+                ++refused;
+            } else if (firstWrong.empty()) {
+                firstWrong = std::format("{} ({:08X})", spell->GetName(), spell->GetFormID());
+            }
+        }
+        const std::string counts = std::format("{} known school spells not early-learned, {} refused; {} early-learned, "
+                                               "{} not counted as outside", outside, refused, early, earlyAllowed);
+        if (outside == 0) {
+            Report(kOwnedId, Outcome::kSkip, counts + " - the player knows no spell learned outside");
+            return;
+        }
+        Report(kOwnedId, refused == outside && earlyAllowed == early ? Outcome::kPass : Outcome::kFail,
+            firstWrong.empty() ? counts : counts + ", would be made early: " + firstWrong);
     }
 }

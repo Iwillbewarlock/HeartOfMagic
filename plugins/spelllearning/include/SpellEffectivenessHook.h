@@ -105,6 +105,8 @@ public:
 
     // Grant spell to player when unlock threshold reached
     static void GrantEarlySpell(RE::SpellItem* spell);
+    // The player knows `spell` and it is not in the early-learned set: learned outside this mod
+    bool OwnedOutside(RE::SpellItem* spell) const;
     
     // Register spell for ISL compatibility (early-learned tracking + display, but NO AddSpell)
     // Called when ISL is about to handle study — so when ISL eventually teaches the spell,

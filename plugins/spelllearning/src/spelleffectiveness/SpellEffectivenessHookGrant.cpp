@@ -28,11 +28,21 @@ bool SpellEffectivenessHook::ShouldGrantEarly(RE::SpellItem* spell) const
 {
     if (!CanLearnEarly(spell)) return false;
     const RE::FormID formId = spell->GetFormID();
+    // Known whole from outside Heart of Magic (SpellScribe's puzzle, a quest, the console, another
+    // mod): learned already. Tracked early it would be weakened, and taken away when the target
+    // changes (RemoveEarlySpellFromPlayer)
+    if (OwnedOutside(spell)) return false;
     // ISL adds a spell it studies when the study is done, never we (an AddSpell here
     // taught it before the study, and ISL then found it known)
     if (IsHeldForISL(formId)) return false;
     // A copy of it known: the spell is learned already (ProgressionManager::CanUnlock)
     return !ProgressionManager::GetSingleton()->PlayerKnowsCopyOf(formId);
+}
+
+bool SpellEffectivenessHook::OwnedOutside(RE::SpellItem* spell) const
+{
+    auto* player = RE::PlayerCharacter::GetSingleton();
+    return spell && player && player->HasSpell(spell) && !IsEarlyLearnedSpell(spell->GetFormID());
 }
 
 bool SpellEffectivenessHook::ReleaseHeldIfOwned(RE::SpellItem* spell)
@@ -265,6 +275,15 @@ void SpellEffectivenessHook::CheckAndRegrantSpell(RE::FormID spellFormId)
             return;
         }
 
+        // Known and not tracked: learned outside Heart of Magic, left as it is (ShouldGrantEarly).
+        // Since the co-save keeps the early-learned set (SLEL), a spell this mod gave is tracked
+        // here already; one lost by a save from before that keeps its full power
+        if (playerHasSpell && !isTracked) {
+            logger::info("SpellEffectivenessHook: {} ({:08X}) is known and not early-learned (learned outside Heart of "
+                         "Magic) - not tracked or weakened", spell->GetName(), spellFormId);
+            return;
+        }
+
         // Add spell if player doesn't have it
         if (!playerHasSpell) {
             player->AddSpell(spell);
@@ -272,8 +291,7 @@ void SpellEffectivenessHook::CheckAndRegrantSpell(RE::FormID spellFormId)
                 spell->GetName(), spellFormId);
         }
 
-        // Always add to early-learned tracking if not already tracked
-        // (Needed even if player already has spell from previous session)
+        // Added just now: tracked as early-learned
         if (!isTracked) {
             AddEarlyLearnedSpell(spellFormId);
             UpdateSpellDisplayCache(spellFormId, spell);
