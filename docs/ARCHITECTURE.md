@@ -2384,6 +2384,10 @@ HeartOfMagic/
 │   │   │   ├── TreeRemap.h                  ✅ a saved tree's FormIDs and links after a load order change (no game types)
 │   │   │   ├── EditorIdRematch.h            ✅ a node of a renamed/merged/compacted plugin found again by editor id and school (no game types)
 │   │   │   ├── TreePrereqEntries.h          ✅ the panel's fast-path SetTreePrerequisites array for a tree text, for game start (no game types)
+│   │   │   ├── AutoScanInternal.h           ✅ what the scan at game start and its self-test share (the step types, the generation)
+│   │   │   ├── DataPaths.h                  ✅ config.json, spell_catalog.json, spell_scan_output.json paths, named once
+│   │   │   ├── ElapsedMs.h                  ✅ MsSince: the one elapsed-milliseconds helper of the timing lines
+│   │   │   ├── MainMenuWatch.h              ✅ the one MainMenu opening sink: the panel's task, then the scan's
 │   │   │   ├── CoSave.h                     ✅ SKSE serialization callbacks (save, load, revert)
 │   │   │   ├── ProgressionCoSave.h          ✅ SLPR (writes v2, reads v1-v3), SLPX and SLTX record layouts, templated on the stream (no game types)
 │   │   │   ├── ProgressionManager.h         ✅ XP tracking header
@@ -2434,6 +2438,9 @@ HeartOfMagic/
 │   │       ├── PapyrusAPI.cpp               ✅ Papyrus native function bindings
 │   │       ├── ISLIntegration.cpp           ✅ DEST mod integration (bundled)
 │   │       ├── PassiveLearningSource.cpp    ✅ Passive learning source
+│   │       ├── AutoScan.cpp                 ✅ Scan at game start: the steps, the record, then the tree graft
+│   │       ├── AutoScanSelfTest.cpp         ✅ Its dev self-test (frame probe, RUN/TREE/HITCH/SAME/DROP lines)
+│   │       ├── MainMenuWatch.cpp            ✅ The MainMenu sink (MainMenuWatch.h)
 │   │       ├── environment/                 ✅ HeartOfMagic.esp explosion twins (docs/ENVIRONMENT.md)
 │   │       │   ├── EnvironmentTwins.cpp         (twins.json, copy the original into the twin, repoint at kDataLoaded / settings save, revert)
 │   │       │   ├── EnvironmentSelfTest.cpp      (selftest.json switch, wait for unpaused play, run, [selftest-1.6] lines)
@@ -2451,7 +2458,7 @@ HeartOfMagic/
 │   │       │   ├── UIManagerNotify.cpp          (C++→JS data push)
 │   │       │   ├── UIManagerScanner.cpp         (scanner tab callbacks)
 │   │       │   ├── UIManagerTree.cpp            (tree tab callbacks, procedural gen)
-│   │       │   ├── UIManagerAutoBuild.cpp       (tree built at game start: load order fingerprint, startup tree info, notice, held message, main menu watch)
+│   │       │   ├── UIManagerAutoBuild.cpp       (tree built at game start: load order fingerprint, startup tree info, notice, held message, main menu listener)
 │   │       │   ├── UIManagerPreReqMaster.cpp    (PRM scoring on a worker thread, request parsed there)
 │   │       │   ├── UIManagerDeclutter.cpp       (DeclutterTree: native tree declutter on a worker thread)
 │   │       │   ├── UIManagerProgression.cpp     (progression system callbacks)
