@@ -52,6 +52,10 @@ var SchoolBridges = {
         //                field and never carried it, so the recovery could
         //                never fire. Seen in game: 430 of 1428 spells dropped
         //                from the tree, "0 resolved from persistent".
+        //  editorId      how a node is found again when its plugin was renamed,
+        //                merged or compacted and the persistentId names nothing
+        //                (JudgeNode, SpellScannerFormId.cpp). Empty without
+        //                powerofthree's Tweaks: not baked then.
         var spells = (typeof state !== 'undefined' && state.lastSpellData && state.lastSpellData.spells) || [];
         var baked = 0;
         for (var s = 0; s < spells.length; s++) {
@@ -59,6 +63,7 @@ var SchoolBridges = {
             if (!owner) continue;
             if (spells[s].traits) owner.traits = spells[s].traits;
             if (spells[s].persistentId) { owner.persistentId = spells[s].persistentId; baked++; }
+            if (spells[s].editorId) owner.editorId = spells[s].editorId;
         }
         console.log('[SchoolBridges] ' + baked + ' of ' + Object.keys(nodeById).length +
                     ' nodes carry a persistent id');

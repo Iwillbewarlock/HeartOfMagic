@@ -16,8 +16,12 @@
 // ParseSpellOf reads an edit mode copy's "<formId>_dup_<n>" as its spell;
 // junk, empty and more than 8 digits rejected), which NormalizeFormId uses.
 //
+// And EditorIdRematch.h: a node whose persistentId no longer resolves (its plugin
+// renamed, merged or compacted) takes the one spell with its editor id in its school.
+//
 // Exit 0 when every case passes, 1 on a failure, 2 on a bad argument.
 
+#include "EditorIdRematch.h"
 #include "TreeRemap.h"
 
 #include <cstdio>
@@ -224,7 +228,7 @@ namespace
         std::printf("  %s\n", c.name);
         Checker check;
         Json tree = Json::parse(c.tree);
-        const auto judge = [&c](const Json& node) { return Judge(c.game, node); };
+        const auto judge = [&c](const Json& node, const std::string&) { return Judge(c.game, node); };
         const Snapshot before = Take(tree);
         const auto report = TreeRemap::FixTree(tree, judge);
         const Snapshot after = Take(tree);
@@ -269,7 +273,7 @@ namespace
         for (const char* text : { R"({"schools":[{"nodes":[{"formId":"0x1"}]}]})", R"({"schools":"x"})", R"([1,2])" }) {
             Json tree = Json::parse(text);
             const Json was = tree;
-            const auto report = TreeRemap::FixTree(tree, [](const Json&) { return TreeRemap::NodeVerdict{}; });
+            const auto report = TreeRemap::FixTree(tree, [](const Json&, const std::string&) { return TreeRemap::NodeVerdict{}; });
             check.Check(!report.hasSchools && report.totalNodes == 0 && tree == was, std::string("left alone: ") + text);
         }
         return check.failed;
@@ -333,6 +337,28 @@ namespace
         }
         check.Check(TreeRemap::NormalizeFormId("0x0001ABCD_dup_17") == "0x0001ABCD_dup_17",
             "NormalizeFormId leaves a text that is no formId as it is");
+        return check.failed;
+    }
+
+    /// EditorIdRematch (include/EditorIdRematch.h): the one candidate in the node's school, else none
+    int RunRematchCase()
+    {
+        std::printf("  editor id rematch: one spell in the school, else none\n");
+        Checker check;
+        using Candidates = std::vector<std::pair<std::uint32_t, std::string>>;
+        check.Check(EditorIdRematch::PickRematch("Destruction", Candidates{ { 0xFE000800, "Destruction" } }) == 0xFE000800u,
+            "rematch: one match in the school");
+        check.Check(!EditorIdRematch::PickRematch("Destruction",
+                        Candidates{ { 0xFE000800, "Destruction" }, { 0x05000800, "Destruction" } }).has_value(),
+            "two matches - none");
+        check.Check(!EditorIdRematch::PickRematch("Destruction", Candidates{ { 0xFE000800, "Illusion" } }).has_value(),
+            "other school - none");
+        check.Check(!EditorIdRematch::PickRematch("Destruction", Candidates{}).has_value(), "no editor id - none");
+        // Edge: the same spell listed twice is one match; one in another school beside it does not count
+        check.Check(EditorIdRematch::PickRematch("Destruction",
+                        Candidates{ { 0xFE000800, "Destruction" }, { 0xFE000800, "Destruction" }, { 0x05000800, "Illusion" } }) ==
+                        0xFE000800u,
+            "the same spell twice is one match; another school's is not counted");
         return check.failed;
     }
 
@@ -441,9 +467,10 @@ namespace
 
     int SelfTest()
     {
-        constexpr std::size_t kExtraCases = 2;  // RunShapeCase and RunFormIdTextCase
+        constexpr std::size_t kExtraCases = 3;  // RunShapeCase, RunFormIdTextCase and RunRematchCase
         int failedCases = RunShapeCase() > 0 ? 1 : 0;
         if (RunFormIdTextCase() > 0) ++failedCases;
+        if (RunRematchCase() > 0) ++failedCases;
         const auto cases = Cases();
         for (const auto& c : cases) {
             if (RunCase(c) > 0) ++failedCases;

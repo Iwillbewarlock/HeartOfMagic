@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "EditorIdRematch.h"
 #include "FormIdText.h"
 #include "FormIdBits.h"
 #include "PluginNames.h"
@@ -6,6 +7,8 @@
 #include "TreeRemap.h"
 
 #include <unordered_set>
+#include <utility>
+#include <vector>
 
 namespace SpellScanner
 {
@@ -196,8 +199,32 @@ namespace SpellScanner
             }
         }
 
-        // What the game says about one saved node: its formId now, and whether it stays
-        TreeRemap::NodeVerdict JudgeNode(const json& node, PluginLookup& lookup,
+        // A node whose persistentId names nothing (its plugin renamed, merged or compacted):
+        // the spell with its editor id, when that spell is in the node's school
+        // (EditorIdRematch). The lookup needs powerofthree's Tweaks; without it nothing is
+        // found, as before. Returns 0 when the node is not found again
+        RE::FormID RematchByEditorId(const json& node, const std::string& school)
+        {
+            if (!node.contains("editorId") || !node["editorId"].is_string()) return 0;
+            const std::string editorId = node["editorId"].get<std::string>();
+            if (editorId.empty()) return 0;
+            std::vector<std::pair<std::uint32_t, std::string>> candidates;
+            if (auto* spell = RE::TESForm::LookupByEditorID<RE::SpellItem>(editorId)) {
+                candidates.emplace_back(spell->GetFormID(), GetSchoolName(GetSpellSchool(spell)));
+            }
+            const auto picked = EditorIdRematch::PickRematch(school, candidates);
+            if (!picked) {
+                if (!candidates.empty()) {
+                    logger::info("SpellScanner: editor id {} names a {} spell, not a {} one - not taken", editorId,
+                        candidates.front().second, school);
+                }
+                return 0;
+            }
+            return *picked;
+        }
+
+        // What the game says about one saved node (in the tree school `school`): its formId now, and whether it stays
+        TreeRemap::NodeVerdict JudgeNode(const json& node, const std::string& school, PluginLookup& lookup,
                                          const std::unordered_set<std::string>& gateKept, std::size_t& notPlayerSpells)
         {
             TreeRemap::NodeVerdict verdict;
@@ -225,6 +252,15 @@ namespace SpellScanner
                         logger::info("SpellScanner: Resolved {} -> {} from persistent ID {}", saved, verdict.formId,
                             persistentId);
                     }
+                } else if (const RE::FormID rematchedId = RematchByEditorId(node, school);
+                           rematchedId != 0 && IsFormIdValid(rematchedId)) {
+                    // Its plugin was renamed, merged or compacted: the same spell by editor id. The
+                    // plugin is not reported missing, the node is there; the next tree write gives it
+                    // its new persistentId
+                    verdict.formId = FormIdText::Format(rematchedId);
+                    isValid = true;
+                    logger::info("SpellScanner: {} ({}) found again by editor id {} -> {}", persistentId, saved,
+                        node["editorId"].get<std::string>(), verdict.formId);
                 } else {
                     // The plugin or the record is gone: the old formId, valid or not, is not this spell
                     isValid = false;
@@ -280,8 +316,8 @@ namespace SpellScanner
         // The node verdicts come from the game; the formIds and every link to them are fixed
         // by TreeRemap (no game types, tools/tree-remap-check runs the same code). Saved links
         // hold the formIds the file was saved with, so each is looked up once by that value
-        const auto report = TreeRemap::FixTree(treeData, [&](const json& node) {
-            return JudgeNode(node, pluginLookup, gateKept, notPlayerSpells);
+        const auto report = TreeRemap::FixTree(treeData, [&](const json& node, const std::string& school) {
+            return JudgeNode(node, school, pluginLookup, gateKept, notPlayerSpells);
         });
         LogReport(report);
 

@@ -144,7 +144,7 @@ namespace TreeRemap
                     const auto& node = nodes[i];
                     if (node.is_object() && node.contains("formId") && node["formId"].is_string()) {
                         entry.saved = NormalizeFormId(node["formId"].get<std::string>());
-                        entry.verdict = judge(node);
+                        entry.verdict = judge(node, schoolName);
                         entry.verdict.formId = NormalizeFormId(entry.verdict.formId);
                     } else {
                         report.nodesWithoutFormId++;
@@ -303,7 +303,8 @@ namespace TreeRemap
 
     /**
      * Fixes a saved tree in place for the current load order.
-     * @param judge  NodeVerdict(const Json& node), called once for each node with a string formId
+     * @param judge  NodeVerdict(const Json& node, const std::string& school), called once for each node with
+     *               a string formId, with the name of the school it is saved under
      */
     template <class Judge>
     Report FixTree(Json& tree, Judge&& judge)
