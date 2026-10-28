@@ -363,6 +363,9 @@ var AutoBuildFlowTest = {
             self._startRun(g);
             self.check(out.scans.length === 1 && out.scans[0].scanMode === 'all' && out.events.indexOf('yielded') === -1,
                 'the run\'s own scan goes out through startScan without ending the run');
+            var fields = (out.scans[0] && out.scans[0].fields) || {};
+            self.check(fields.name === true && fields.plugin === true && fields.editorId === true,
+                'the scan asks for plugin and editorId whatever the preset shows (the whitelist, the editor id rematch)');
 
             g.state.lastSpellData = { scanMode: 'spell_tomes', spells: [{ formId: '0x01' }] };
             A.onSpellData();

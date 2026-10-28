@@ -190,10 +190,12 @@ target_link_libraries(file-utils-check PRIVATE
 # =============================================================================
 # The plugin's own TreeRemap.h (header only, no game types), the part of
 # SpellScanner::ValidateAndFixTree that moves formIds and links: --self-test on
-# made-up trees and load orders (shift, swap, legacy nodes, removed spells).
+# made-up trees and load orders (shift, swap, legacy nodes, removed spells); the
+# editor id rematch cases in tree-remap-check-rematch.cpp.
 
 add_executable(tree-remap-check
     tree-remap-check.cpp
+    tree-remap-check-rematch.cpp
 )
 
 target_compile_features(tree-remap-check PRIVATE cxx_std_23)

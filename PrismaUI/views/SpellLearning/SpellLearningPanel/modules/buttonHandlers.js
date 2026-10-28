@@ -61,10 +61,13 @@ function startScan(options) {
     }
     if (typeof ScanStage !== 'undefined') ScanStage.refresh();
 
-    // Always include plugin field — needed for whitelist filtering even if user preset doesn't show it
+    // Always include plugin field — needed for whitelist filtering even if user preset doesn't show it.
+    // And editorId: a saved tree's node is found again by it when its plugin is renamed (the
+    // rematch, schoolBridges.js bakes it), so a preset that hides it must not turn that off
     var scanFields = {};
     for (var key in state.fields) { scanFields[key] = state.fields[key]; }
     scanFields.plugin = true;
+    scanFields.editorId = true;
 
     var scanConfig = {
         fields: scanFields,
