@@ -50,6 +50,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/uimanager/UIManagerLocale.cpp
     src/uimanager/UIManagerStartupConfig.cpp
     src/uimanager/UIManagerTreeState.cpp
+    src/uimanager/TreeGraftRun.cpp
     src/uimanager/UIManagerTreeParity.cpp
     src/uimanager/UIManagerIO.cpp
     src/EncodingUtils.cpp
@@ -80,6 +81,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/environment/EnvironmentSelfTest.cpp
     src/environment/EnvironmentSelfTestChecks.cpp
     src/environment/EnvironmentSelfTestTomes.cpp
+    src/environment/EnvironmentSelfTestGraft.cpp
     src/HudNotify.cpp
     src/librarian/LibrarianLoadOrderSource.cpp
     src/librarian/LibrarianSpellResearch.cpp

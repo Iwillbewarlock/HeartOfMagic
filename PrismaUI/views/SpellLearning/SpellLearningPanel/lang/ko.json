@@ -129,6 +129,7 @@
     "hud.spellResearchAdded": "Spell Research: Heart of Magic이 주문 {{count}}개를 추가했습니다",
     "hud.loadOrderChanged": "주문 트리를 만든 뒤 로드 오더가 바뀌었습니다. 새 주문을 넣으려면 스캔 탭에서 다시 만드세요.",
     "hud.autoBuildHeld": "Heart of Magic 패널을 열면 주문 트리 만들기를 마저 끝냅니다.",
+    "hud.spellsGrafted": "새 주문 {{count}}개가 주문 트리에 추가되었습니다",
     "hud.bookXpInitialized": "[BookXP] 초기화 - 책 한 권당 {{xp}} 경험치",
     "hud.bookXpNoTargets": "[BookXP] 책 {{count}}권을 읽었지만 학습 목표가 없습니다",
     "hud.castPower": "{{spell}} 위력 {{percent}}%",

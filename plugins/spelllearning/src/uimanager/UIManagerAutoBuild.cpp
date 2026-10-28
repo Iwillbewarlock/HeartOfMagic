@@ -37,7 +37,9 @@
 // Written when SaveSpellTree saves a build's Apply (manual or the one at game
 // start: the panel sends those to SaveBuiltSpellTree, with the spells the
 // build's scan saw); an edit mode save or an orphan repair leaves the record as
-// it is, an import (SaveImportedSpellTree) only drops the seen list. Fields a
+// it is, an import (SaveImportedSpellTree) only drops the seen list; a tree graft
+// at the main menu (TreeGraftRun.cpp) adds to the seen list and pendingGrafted, and
+// takes the load order when it placed every new spell. Fields a
 // later version adds are kept. A tree saved before 1.5.0 has no record and gets
 // no notice until it is built again.
 
@@ -71,12 +73,14 @@ namespace
         return TreeRecordFile::ParseTreeRecord(data);
     }
 
-    void WriteRecord(const TreeLoadOrderRecord& record)
+    bool WriteRecord(const TreeLoadOrderRecord& record)
     {
         if (!FileUtils::WriteAtomically(UIManager::GetTreeLoadOrderFilePath(),
                 JsonText::Dump(TreeRecordFile::ToJson(record), kRecordIndent), false)) {
             logger::warn("UIManager: could not write {}", PathText::Utf8(UIManager::GetTreeLoadOrderFilePath()));
+            return false;
         }
+        return true;
     }
 
     // A panel event's text for the log: at most kEventTextMax bytes, cut back to the
@@ -104,6 +108,16 @@ namespace
         }
         return "unreadable";
     }
+}
+
+TreeRecordFile::TreeRecord UIManager::ReadTreeRecord()
+{
+    return ReadRecord();
+}
+
+bool UIManager::WriteTreeRecord(const TreeRecordFile::TreeRecord& record)
+{
+    return WriteRecord(record);
 }
 
 std::size_t UIManager::CountTreeNodes(const nlohmann::json& tree)
@@ -228,6 +242,20 @@ void UIManager::ShowPendingLoadOrderNotice()
     record.noticedLoadOrder = loadOrder;
     WriteRecord(record);
     logger::info("AutoBuild: load order notice shown for {}", loadOrder);
+}
+
+void UIManager::ShowPendingGraftNotice()
+{
+    auto record = ReadRecord();
+    if (record.pendingGrafted == 0) return;
+    if (!HudNotify::Show("hud.spellsGrafted", "{{count}} new spells joined the spell tree",
+            { { "count", std::to_string(record.pendingGrafted) } })) {
+        logger::info("TreeGraft: the new spells' corner message not shown - asked again at the next save load");
+        return;
+    }
+    const auto told = record.pendingGrafted;
+    record.pendingGrafted = 0;   // told: not again (the next graft counts afresh)
+    if (WriteRecord(record)) logger::info("TreeGraft: corner message shown for {} new spells", told);
 }
 
 void UIManager::OnAutoBuildEvent(const char* argument)

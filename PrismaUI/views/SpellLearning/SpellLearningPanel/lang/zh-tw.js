@@ -128,6 +128,7 @@ window._i18nPreload = {
     "hud.spellResearchAdded": "Spell Research：Heart of Magic 新增了 {{count}} 個法術",
     "hud.loadOrderChanged": "建構法術樹後載入順序已變更。請在掃描分頁重新建構以加入新法術。",
     "hud.autoBuildHeld": "開啟 Heart of Magic 面板時，法術樹將完成建構。",
+    "hud.spellsGrafted": "{{count}} 個新法術已加入法術樹",
     "hud.bookXpInitialized": "[BookXP] 已啟動 - 每本書 {{xp}} 經驗",
     "hud.bookXpNoTargets": "[BookXP] 讀了 {{count}} 本書，但沒有設定學習目標",
     "hud.castPower": "{{spell}} 威力 {{percent}}%",

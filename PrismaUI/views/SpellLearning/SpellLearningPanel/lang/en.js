@@ -128,6 +128,7 @@ window._i18nPreload = {
     "hud.spellResearchAdded": "Spell Research: {{count}} spells added by Heart of Magic",
     "hud.loadOrderChanged": "The load order changed since the spell tree was built. Rebuild it on the Scan tab to include new spells.",
     "hud.autoBuildHeld": "The spell tree will finish building when you open the Heart of Magic panel.",
+    "hud.spellsGrafted": "{{count}} new spells joined the spell tree",
     "hud.bookXpInitialized": "[BookXP] Initialized - {{xp}} XP per book",
     "hud.bookXpNoTargets": "[BookXP] Read {{count}} book(s) but no learning targets set",
     "hud.castPower": "{{spell}} operating at {{percent}}% power",

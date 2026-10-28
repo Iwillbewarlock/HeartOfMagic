@@ -37,6 +37,7 @@ namespace Environment::SelfTest
     void CheckClearedFlagTomes();   // EnvironmentSelfTestTomes.cpp
     void CheckGameThreadFlag();   // EnvironmentSelfTestTomes.cpp
     void CheckOwnedOutside();     // EnvironmentSelfTestTomes.cpp
+    void CheckTreeGraft();        // EnvironmentSelfTestGraft.cpp: the main menu's tree graft
 
     enum class Outcome
     {

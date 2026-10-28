@@ -15,6 +15,7 @@
 #include "PrismaUI_API.h"
 #include "treebuilder/TreeBuilder.h"
 #include "uimanager/ConfigFile.h"
+#include "uimanager/TreeRecord.h"
 
 class UIManager
 {
@@ -61,6 +62,8 @@ public:
     // Send data to Tree Tab (same panel)
     // False when the view is not there and nothing was sent
     bool SendTreeData(const std::string& jsonData);
+    // std::hash of the last text SendTreeData sent (0: none yet), for the tree-graft self-test
+    [[nodiscard]] std::size_t LastTreeDataHash() const { return m_lastTreeDataHash; }
     void SendSpellInfo(const std::string& jsonData);
     void SendSpellInfoBatch(const std::string& jsonData);
     void UpdateSpellState(const std::string& formId, const std::string& state);
@@ -111,6 +114,13 @@ public:
     // The load order notice the panel asked for, in the corner, at kPostLoadGame;
     // recorded as told only once it was shown
     void ShowPendingLoadOrderNotice();
+    // "N new spells joined the spell tree" for the spells a tree graft added (the record's
+    // pendingGrafted), in the corner at kPostLoadGame; cleared once it was shown
+    void ShowPendingGraftNotice();
+    // spell_tree_loadorder.json read (an empty record when it is missing or unreadable) and
+    // written (false when it could not be). Game thread
+    static TreeRecordFile::TreeRecord ReadTreeRecord();
+    static bool WriteTreeRecord(const TreeRecordFile::TreeRecord& record);
     // The main menu opening (at start, or the player quitting a game) to the panel
     // (onMainMenuShown): a run held while a save was loaded goes on there. Once, after Initialize.
     void WatchMainMenu();
@@ -122,6 +132,8 @@ public:
     void NotifySpellTomesChanged(const std::string& payload);
     // A game is played: a save loaded or a new game started, until the main menu. Game thread.
     [[nodiscard]] bool IsInGame() const { return m_saveLoaded || m_newGameStarted; }
+    // A save is loaded (kPostLoadGame, until the main menu). Game thread.
+    [[nodiscard]] bool IsSaveLoaded() const { return m_saveLoaded; }
     // Spells in a saved tree's JSON (every school's nodes), before any validation
     [[nodiscard]] static std::size_t CountTreeNodes(const nlohmann::json& tree);
     // SaveSpellTree's text has spells (a text scan, TreeSaveCheck.h): the check's time in ms,
@@ -283,5 +295,6 @@ private:
     // menu opens): a notice asked for meanwhile is shown at once. Game thread only.
     bool m_saveLoaded = false;
     bool m_newGameStarted = false;   // kNewGame (m_saveLoaded stays false there), until the main menu
+    std::size_t m_lastTreeDataHash = 0;   // SendTreeData's last text. Game thread only.
 
 };

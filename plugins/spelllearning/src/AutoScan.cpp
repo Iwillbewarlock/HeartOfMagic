@@ -9,6 +9,7 @@
 #include "ThreadUtils.h"
 #include "librarian/Librarian.h"
 #include "tomereach/TomeReach.h"
+#include "uimanager/StartupState.h"
 #include "uimanager/TreeSaveCheck.h"
 #include "uimanager/UIManager.h"
 
@@ -37,6 +38,8 @@
 //                            and a step runs only once the engine's frame time
 //                            (GetDurationOfApplicationRunTime) moved on from the last
 //   waiter thread            the text, ClassifyScan (catalog + scan record), the dump
+//   waiter + game thread     the tree graft (StartupState.h, RunTreeGraftAtMainMenu), after
+//                            the scan or when the catalog already was the load order's
 //
 // Every step checks the generation the form reads started in: a save load or a
 // new game (OnGameChanging) drops them, and they start again at once (kAttempts
@@ -474,8 +477,9 @@ namespace
         return "unknown";
     }
 
-    // Why the scan does not run this session, or nothing: it goes on
-    std::optional<std::string> Precondition(const LoadOrderFingerprint::Value& loadOrder, const Settings& settings)
+    // Why neither the scan nor the tree graft runs this session, or nothing: they go on
+    // (a catalog that is the load order's already skips only the scan, RunScan)
+    std::optional<std::string> Precondition()
     {
         switch (ReadAutoBuildSetting()) {
             case Setting::Off: return std::string("\"Build Spell Tree at Start\" is Off");
@@ -485,10 +489,6 @@ namespace
         const auto tree = ReadFileText(kTreeFile);
         if (!tree || !TreeSaveCheck::HasSpellNodes(*tree)) {
             return std::string("no tree with spells - left to the panel's build at game start");
-        }
-        if (!settings.selfTest && ScanRecord::CatalogMatches(loadOrder)) {
-            return std::format("skipped - load order unchanged ({}, scan fingerprint {}), the catalog is its scan's",
-                loadOrder.hash, loadOrder.scan);
         }
         return std::nullopt;
     }
@@ -532,9 +532,16 @@ namespace
             }
         }
 
-        if (const auto reason = Precondition(loadOrder, settings)) {
+        if (const auto reason = Precondition()) {
             logger::info("{} {}", kPrefix, *reason);
             if (settings.selfTest) logger::info("{} not run: {}", kTestPrefix, *reason);
+            return State::Done;
+        }
+        if (!settings.selfTest && ScanRecord::CatalogMatches(loadOrder)) {
+            logger::info("{} skipped - load order unchanged ({}, scan fingerprint {}), the catalog is its scan's", kPrefix,
+                loadOrder.hash, loadOrder.scan);
+            // A graft an earlier start did not make (the catalog already is this load order's: no previous one)
+            RunTreeGraftAtMainMenu(loadOrder, std::nullopt);
             return State::Done;
         }
         if (settings.selfTest) logger::info("{} on (selftest.json) - runs whatever the scan record says", kTestPrefix);
@@ -610,6 +617,8 @@ namespace
         const std::string scanPairs = ScanRecordRules::TomePairsOf(*output);
         std::string text = JsonText::Dump(*output, 2);
         output.reset();
+        // The catalog this scan replaces: the graft's seen list when the tree record has none
+        auto previousCatalog = ReadCatalogForTreeGraft();
         const bool wrote = Librarian::ClassifyScan(text, true,
             [&loadOrder, &incomplete, &scanPairs]() { ScanRecord::CatalogWritten(true, &loadOrder, incomplete, scanPairs); });
         const std::string dumpPath = SpellScanner::WriteScanOutput(text);
@@ -631,6 +640,10 @@ namespace
             logger::info("{} a save was loaded during the scan - Spell Research takes the new catalog at the next "
                          "save load", kPrefix);
         }
+        text.clear();
+        text.shrink_to_fit();
+        RunTreeGraftAtMainMenu(loadOrder, previousCatalog);
+        previousCatalog.reset();
 
         if (settings.selfTest) {
             TestCounts counts;
@@ -644,9 +657,12 @@ namespace
                     incomplete.empty() ? std::string("every mark made") : incomplete));
             const std::string treeAfter = FileFingerprint(kTreeFile);
             const std::string treeRecordAfter = FileFingerprint(kTreeRecordFile);
-            counts.Report("TREE", treeAfter == treeBefore && treeRecordAfter == treeRecordBefore,
-                std::format("spell_tree.json {} -> {}, spell_tree_loadorder.json {} -> {}", treeBefore, treeAfter,
-                    treeRecordBefore, treeRecordAfter));
+            // Unchanged, or changed by a graft whose checks passed (the tree-graft self-test has the rest)
+            const auto graft = LastTreeGraft();
+            const bool unchanged = treeAfter == treeBefore && treeRecordAfter == treeRecordBefore;
+            counts.Report("TREE", unchanged || (graft.wrote && graft.passed),
+                std::format("spell_tree.json {} -> {}, spell_tree_loadorder.json {} -> {}; graft: {}{}", treeBefore,
+                    treeAfter, treeRecordBefore, treeRecordAfter, graft.wrote ? "wrote, " : "", graft.detail));
             if (probing) {
                 const auto baseline = probe.Window(0);
                 const auto scan = probe.Window(1);

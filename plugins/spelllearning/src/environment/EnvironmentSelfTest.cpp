@@ -88,7 +88,8 @@ namespace Environment::SelfTest
                 { "H2", CheckH2 }, { "twins", CheckTwins }, { "mysticism-patch", CheckMysticismPatch },
                 { "frostwalker", CheckFrostwalker }, { "adapters", CheckAdapters },
                 { "notify", CheckProgressionNotify }, { "sr-paired-tomes", CheckSpellTomes }, { "cleared-flag-tomes", CheckClearedFlagTomes },
-                { "game-thread", CheckGameThreadFlag }, { "owned-outside", CheckOwnedOutside }
+                { "game-thread", CheckGameThreadFlag }, { "owned-outside", CheckOwnedOutside },
+                { "tree-graft", CheckTreeGraft }
             };
             for (const auto& [name, check] : checks) {
                 try {

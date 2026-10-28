@@ -1,6 +1,13 @@
 #pragma once
 
+#include "LoadOrderFingerprint.h"
+
+#include <cstddef>
+#include <optional>
+#include <string>
 #include <string_view>
+
+#include <nlohmann/json.hpp>
 
 // =============================================================================
 // STARTUP STATE - the progression state filled at kDataLoaded, without the panel
@@ -32,6 +39,67 @@ StartupConfigResult LoadGameplayConfigAtStartup();
 /// (TreePrereqEntries.h), and its requiredXP; the file is never written
 /// (UIManagerTreeState.cpp). Nothing when config.json was broken or applying it threw.
 void LoadTreeStateAtStartup(const StartupConfigResult& config);
+
+/// The saved tree as the panel's load gets it (OnLoadSpellTree): validated
+/// (SpellScanner::ValidateAndFixTree), and the text the panel parses - the file's own
+/// when validation changed nothing, else the validated tree's dump
+struct PanelTree
+{
+    nlohmann::json validated;   // after ValidateAndFixTree, for the requiredXP sync
+    std::string panelText;
+    bool fromValidated = false;
+};
+
+/// Game thread. Throws on a tree that does not parse or that validation cannot read,
+/// as the panel path's try does (UIManagerTreeState.cpp)
+PanelTree ValidateTreeAsPanelPath(std::string text);
+
+/// The tree's prerequisites into ProgressionManager as the panel's SetTreePrerequisites
+/// applies them: the entries of panelText read in its own key order (the school order
+/// decides which school's node of a two-school spell applies last), the old ones cleared
+/// first. `skipped` says why nothing was applied (a UTF-8 BOM the panel's JSON.parse
+/// rejects, entries that could not be built). Game thread; throws as the appliers do,
+/// with `stage` naming the step then.
+struct TreePrereqsApplied
+{
+    std::optional<std::string> skipped;
+    int applied = 0;
+    std::size_t entries = 0;
+};
+TreePrereqsApplied ApplyTreePrerequisitesOf(const PanelTree& tree, std::string_view& stage);
+
+/// ApplyTreePrerequisitesOf, then the tree's requiredXP (SyncRequiredXPFromTree): the whole
+/// tree state a tree load leaves. Why nothing was applied, or nothing. Game thread; throws
+/// as ApplyTreePrerequisitesOf (game start runs the two parts itself, its parity baseline between)
+std::optional<std::string> ApplyTreeState(const PanelTree& tree, std::string_view& stage);
+
+// =============================================================================
+// THE TREE GRAFT AT THE MAIN MENU (TreeGraftRun.cpp; the rules: TreeGraftRun.h)
+// =============================================================================
+
+/// New spells of the load order join the saved tree: called by the scan at game start
+/// (AutoScan.cpp, its waiter thread) after its scan, or when the catalog already was the
+/// load order's. Reads and plans on the calling thread; validation, the write, the tree
+/// state and the panel in two game thread tasks it waits for. Logs "TreeGraft: ...";
+/// writes nothing when it does not run or fails. Not on the game thread (it waits on it).
+void RunTreeGraftAtMainMenu(const LoadOrderFingerprint::Value& loadOrder, const std::optional<nlohmann::json>& previousCatalog);
+
+/// spell_catalog.json parsed when a graft could take its seen list from it (the tree record
+/// has none), read before the scan at game start replaces it; nothing otherwise. Any thread.
+std::optional<nlohmann::json> ReadCatalogForTreeGraft();
+
+/// What the session's last graft did (the dev self-tests read it). Any thread.
+struct TreeGraftOutcome
+{
+    enum class State { kNotRun, kNothingWritten, kWritten, kDropped, kFailed };
+    State state = State::kNotRun;
+    bool wrote = false;            // spell_tree.json or its record was written
+    bool passed = false;           // every check of the plan passed (TreeGraftRun.h step 4, live parents)
+    std::size_t grafted = 0;
+    std::size_t writtenHash = 0;   // std::hash of the tree text written (0: none)
+    std::string detail;            // why it did not run, what it did, or what failed
+};
+TreeGraftOutcome LastTreeGraft();
 
 // One SpellLearning.log line per session comparing the tree state game start
 // applied with the panel's (UIManagerTreeParity.cpp): "TreeParity PASS (...)",

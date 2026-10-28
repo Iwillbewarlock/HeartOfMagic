@@ -128,6 +128,7 @@ window._i18nPreload = {
     "hud.spellResearchAdded": "Spell Research: Heart of Magic adicionou {{count}} magias",
     "hud.loadOrderChanged": "A ordem de carregamento mudou desde que a árvore de magias foi construída. Reconstrua-a na aba Varredura para incluir as magias novas.",
     "hud.autoBuildHeld": "A árvore de magias terminará de ser construída quando você abrir o painel do Heart of Magic.",
+    "hud.spellsGrafted": "{{count}} novas magias foram adicionadas à árvore de magias",
     "hud.bookXpInitialized": "[BookXP] Iniciado - {{xp}} XP por livro",
     "hud.bookXpNoTargets": "[BookXP] {{count}} livro(s) lido(s), mas nenhum alvo de aprendizado",
     "hud.castPower": "{{spell}} com {{percent}}% de poder",

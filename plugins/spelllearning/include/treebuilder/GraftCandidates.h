@@ -210,6 +210,52 @@ namespace TreeGraft
         }
     }
 
+    /// settings.pluginWhitelist's plugins turned off (enabled false), A-Z folded - the one
+    /// reader of that list (Spell Research's filter reads it too, SpellResearchPlayerFilter.h)
+    [[nodiscard]] inline std::unordered_set<std::string> PluginsOffOf(const nlohmann::json& config)
+    {
+        std::unordered_set<std::string> off;
+        if (!config.is_object()) return off;
+        const auto list = config.find("pluginWhitelist");
+        if (list == config.end() || !list->is_array()) return off;
+        for (const auto& entry : *list) {
+            if (!entry.is_object()) continue;
+            const auto enabled = entry.find("enabled");
+            if (enabled != entry.end() && enabled->is_boolean() && !enabled->get<bool>()) {
+                off.insert(AsciiText::ToLower(Detail::Text(entry, "plugin")));
+            }
+        }
+        return off;
+    }
+
+    /// PlayerRules out of config.json's settings, in the keys described at PlayerRules.
+    /// Only string fields count (the panel saves strings); anything else in a list is passed over
+    [[nodiscard]] inline PlayerRules PlayerRulesOf(const nlohmann::json& config)
+    {
+        PlayerRules rules;
+        if (!config.is_object()) return rules;
+        // filterBlacklistedSpells: `entry.plugin && entry.localFormId` makes a key, else `entry.formId` as it is
+        if (const auto list = config.find("spellBlacklist"); list != config.end() && list->is_array()) {
+            for (const auto& entry : *list) {
+                if (!entry.is_object()) continue;
+                const auto plugin = Detail::Text(entry, "plugin");
+                const auto local = Detail::Text(entry, "localFormId");
+                if (!plugin.empty() && !local.empty()) {
+                    rules.blacklistKeys.insert(AsciiText::ToLower(plugin) + ":" + AsciiText::ToLower(local));
+                } else if (auto formId = Detail::Text(entry, "formId"); !formId.empty()) {
+                    rules.blacklistKeys.insert(std::move(formId));
+                }
+            }
+        }
+        if (const auto list = config.find("gateReviewed"); list != config.end() && list->is_array()) {
+            for (const auto& key : *list) {
+                if (key.is_string()) rules.gateKept.insert(key.get<std::string>());
+            }
+        }
+        rules.pluginsOff = PluginsOffOf(config);
+        return rules;
+    }
+
     /// The panel's candidate rule: isTaughtByTome, the blacklist and the plugin whitelist.
     /// gateKept brings back a spell the gate ("out") or the quest-only rule leaves out,
     /// nothing else. A scan from before the gate has only freeSpell.

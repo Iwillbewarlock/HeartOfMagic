@@ -4,6 +4,7 @@
 #include "JsonText.h"
 #include "SpellScanner.h"
 #include "librarian/LibrarianInternal.h"
+#include "treebuilder/GraftCandidates.h"
 
 // =============================================================================
 // LibrarianSpellResearchFilter - SpellResearchPlayerFilter.h (moved out of
@@ -50,14 +51,8 @@ namespace Librarian::SpellResearchPatch
                 }
             }
         }
-        if (const auto list = config.find("pluginWhitelist"); list != config.end() && list->is_array()) {
-            for (const auto& entry : *list) {
-                const auto enabled = entry.is_object() ? entry.find("enabled") : entry.end();
-                if (entry.is_object() && enabled != entry.end() && enabled->is_boolean() && !enabled->get<bool>()) {
-                    filter.pluginsOff.insert(AsciiText::ToLower(text(entry, "plugin")));
-                }
-            }
-        }
+        // The tree graft reads the same list (GraftCandidates.h, PlayerRulesOf)
+        filter.pluginsOff = TreeGraft::PluginsOffOf(config);
         return filter;
     }
 

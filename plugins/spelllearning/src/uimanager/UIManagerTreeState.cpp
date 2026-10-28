@@ -17,7 +17,8 @@
 //
 // The panel path (OnSetTreePrerequisites, OnLoadSpellTree) and game start
 // (LoadTreeStateAtStartup) share the two appliers below, and the saved tree's file
-// read and validation after them.
+// read and validation after them; a tree graft at the main menu (TreeGraftRun.cpp)
+// applies the tree it wrote with ApplyTreeState.
 
 // The entries' rules are the panel path's, moved here unchanged so game start
 // applies a tree exactly as the panel's message does
@@ -208,15 +209,6 @@ namespace
     constexpr std::uintmax_t kMaxStartupTreeMiB = 64;
     constexpr std::uintmax_t kMaxStartupTreeBytes = kMaxStartupTreeMiB * kBytesPerMiB;
 
-    // What the panel gets for the saved tree (OnLoadSpellTree): the file's text, or the
-    // validated tree's dump when validation moved or dropped a spell
-    struct PanelTree
-    {
-        json validated;          // after ValidateAndFixTree, for the requiredXP sync
-        std::string panelText;   // the text the panel parses
-        bool fromValidated = false;
-    };
-
     void SkipStartupTree(std::string_view reason)
     {
         logger::info("Startup tree: {} - the tree's prerequisites wait for the panel", reason);
@@ -251,19 +243,49 @@ namespace
     }
 
     constexpr std::string_view kUtf8Bom = "\xEF\xBB\xBF";
+}
 
-    // Parse and validate as OnLoadSpellTree does (the file is never written). Throws on a
-    // tree that does not parse or that validation cannot read, as the panel path's try does
-    PanelTree ValidateAsPanelPath(std::string text)
-    {
-        PanelTree tree;
-        tree.validated = json::parse(text);
-        // The validator's lines below appear again when the panel's load validates the same file
-        logger::info("Startup tree load: validating spell_tree.json (the panel validates it again when it loads)");
-        tree.fromValidated = ValidateTreeForPanel(tree.validated);
-        tree.panelText = tree.fromValidated ? JsonText::Dump(tree.validated) : std::move(text);
-        return tree;
+// Parse and validate as OnLoadSpellTree does (the file is never written)
+PanelTree ValidateTreeAsPanelPath(std::string text)
+{
+    PanelTree tree;
+    tree.validated = json::parse(text);
+    tree.fromValidated = ValidateTreeForPanel(tree.validated);
+    tree.panelText = tree.fromValidated ? JsonText::Dump(tree.validated) : std::move(text);
+    return tree;
+}
+
+TreePrereqsApplied ApplyTreePrerequisitesOf(const PanelTree& tree, std::string_view& stage)
+{
+    TreePrereqsApplied result;
+    // The panel gets the raw text when validation changed nothing, and its JSON.parse rejects
+    // a UTF-8 BOM (nlohmann skips it): that panel sends nothing, so neither does this
+    if (!tree.fromValidated && tree.panelText.starts_with(kUtf8Bom)) {
+        result.skipped = "spell_tree.json starts with a UTF-8 BOM, which the panel's JSON.parse rejects";
+        return result;
     }
+    // Parsed in the panel's key order: the school order decides which school's node
+    // of a spell in two schools is applied last
+    const auto built = TreePrereqEntries::BuildPrerequisiteEntries(nlohmann::ordered_json::parse(tree.panelText));
+    if (built.outcome != TreePrereqEntries::Outcome::Built) {
+        result.skipped = std::format("{}: {}", TreePrereqEntries::OutcomeName(built.outcome), built.reason);
+        return result;
+    }
+
+    stage = "applying the prerequisites threw";
+    ProgressionManager::GetSingleton()->ClearAllTreePrerequisites();
+    result.applied = ApplyTreePrerequisiteEntries(json(built.entries));
+    result.entries = built.entries.size();
+    return result;
+}
+
+std::optional<std::string> ApplyTreeState(const PanelTree& tree, std::string_view& stage)
+{
+    const auto prereqs = ApplyTreePrerequisitesOf(tree, stage);
+    if (prereqs.skipped) return prereqs.skipped;
+    stage = "the requiredXP sync threw";
+    SyncRequiredXPFromTree(tree.validated);
+    return std::nullopt;
 }
 
 void LoadTreeStateAtStartup(const StartupConfigResult& config)
@@ -287,25 +309,15 @@ void LoadTreeStateAtStartup(const StartupConfigResult& config)
         auto text = ReadSavedTreeText();
         if (!text) return;
 
-        const PanelTree tree = ValidateAsPanelPath(std::move(*text));
-        // The panel gets the raw text when validation changed nothing, and its JSON.parse rejects
-        // a UTF-8 BOM (nlohmann skips it): that panel sends nothing, so game start does not either
-        if (!tree.fromValidated && tree.panelText.starts_with(kUtf8Bom)) {
-            SkipStartupTree("spell_tree.json starts with a UTF-8 BOM, which the panel's JSON.parse rejects");
+        // The validator's lines below appear again when the panel's load validates the same file
+        logger::info("Startup tree load: validating spell_tree.json (the panel validates it again when it loads)");
+        const PanelTree tree = ValidateTreeAsPanelPath(std::move(*text));
+        const auto prereqs = ApplyTreePrerequisitesOf(tree, stage);
+        if (prereqs.skipped) {
+            SkipStartupTree(*prereqs.skipped);
             return;
         }
-        // Parsed in the panel's key order: the school order decides which school's node
-        // of a spell in two schools is applied last
-        const auto built = TreePrereqEntries::BuildPrerequisiteEntries(nlohmann::ordered_json::parse(tree.panelText));
-        if (built.outcome != TreePrereqEntries::Outcome::Built) {
-            SkipStartupTree(std::format("{}: {}", TreePrereqEntries::OutcomeName(built.outcome), built.reason));
-            return;
-        }
-
-        stage = "applying the prerequisites threw";
-        ProgressionManager::GetSingleton()->ClearAllTreePrerequisites();
-        const int applied = ApplyTreePrerequisiteEntries(json(built.entries));
-        logger::info("Startup tree: {} of {} entries applied from {} in {} ms", applied, built.entries.size(),
+        logger::info("Startup tree: {} of {} entries applied from {} in {} ms", prereqs.applied, prereqs.entries,
             tree.fromValidated ? "the validated tree" : "the file's text", MsSince(started));
         TreeParity::RecordBaseline();
         if (!UIManager::GetSingleton()->IsInitialized()) {

@@ -128,6 +128,7 @@ window._i18nPreload = {
     "hud.spellResearchAdded": "Spell Research: Heart of Magic añadió {{count}} hechizos",
     "hud.loadOrderChanged": "El orden de carga cambió desde que se construyó el árbol de hechizos. Reconstrúyelo en la pestaña Escaneo para incluir los hechizos nuevos.",
     "hud.autoBuildHeld": "El árbol de hechizos terminará de construirse cuando abras el panel de Heart of Magic.",
+    "hud.spellsGrafted": "Se añadieron {{count}} nuevos hechizos al árbol de hechizos",
     "hud.bookXpInitialized": "[BookXP] Iniciado - {{xp}} XP por libro",
     "hud.bookXpNoTargets": "[BookXP] {{count}} libro(s) leído(s) pero no hay objetivos de aprendizaje",
     "hud.castPower": "{{spell}} al {{percent}}% de poder",

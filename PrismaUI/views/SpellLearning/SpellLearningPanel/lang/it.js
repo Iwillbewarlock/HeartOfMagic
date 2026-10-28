@@ -128,6 +128,7 @@ window._i18nPreload = {
     "hud.spellResearchAdded": "Spell Research: Heart of Magic ha aggiunto {{count}} incantesimi",
     "hud.loadOrderChanged": "L'ordine di caricamento è cambiato da quando è stato costruito l'albero degli incantesimi. Ricostruiscilo nella scheda Scansione per includere i nuovi incantesimi.",
     "hud.autoBuildHeld": "L'albero degli incantesimi finirà di essere costruito quando aprirai il pannello di Heart of Magic.",
+    "hud.spellsGrafted": "{{count}} nuovi incantesimi si sono aggiunti all'albero degli incantesimi",
     "hud.bookXpInitialized": "[BookXP] Avviato - {{xp}} XP per libro",
     "hud.bookXpNoTargets": "[BookXP] Letto/i {{count}} libro/i ma nessun obiettivo di apprendimento",
     "hud.castPower": "{{spell}} al {{percent}}% di potenza",

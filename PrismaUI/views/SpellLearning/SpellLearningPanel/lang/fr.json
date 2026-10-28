@@ -131,6 +131,7 @@
     "hud.spellResearchAdded": "Spell Research : {{count}} sorts ajoutés par Heart of Magic",
     "hud.loadOrderChanged": "L'ordre de chargement a changé depuis la génération de l'arbre de sorts. Régénérez-le dans l'onglet Analyser pour inclure les nouveaux sorts.",
     "hud.autoBuildHeld": "L'arbre de sorts finira d'être généré quand vous ouvrirez le panneau Heart of Magic.",
+    "hud.spellsGrafted": "{{count}} nouveaux sorts ont été ajoutés à l'arbre de sorts",
     "hud.bookXpInitialized": "[BookXP] Initialisé - {{xp}} XP par livre",
     "hud.bookXpNoTargets": "[BookXP] {{count}} livre(s) lu(s) mais aucun objectif d'apprentissage",
     "hud.castPower": "{{spell}} à {{percent}} % de puissance",

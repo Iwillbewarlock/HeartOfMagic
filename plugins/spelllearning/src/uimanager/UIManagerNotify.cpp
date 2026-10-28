@@ -55,6 +55,7 @@ bool UIManager::SendTreeData(const std::string& jsonData)
 
     logger::info("UIManager: Sending tree data to UI ({} bytes)", jsonData.size());
     CallView("updateTreeData", jsonData.c_str());
+    m_lastTreeDataHash = std::hash<std::string>{}(jsonData);
     return true;
 }
 
@@ -295,6 +296,7 @@ void UIManager::NotifySaveGameLoaded()
     logger::info("UIManager: Notifying UI - save game loaded, refreshing player data");
     CallView("onSaveGameLoaded", "");
     ShowPendingLoadOrderNotice();
+    ShowPendingGraftNotice();
 }
 
 void UIManager::SendProgressData(const std::string& jsonData)

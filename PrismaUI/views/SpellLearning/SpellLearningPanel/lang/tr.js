@@ -128,6 +128,7 @@ window._i18nPreload = {
     "hud.spellResearchAdded": "Spell Research: Heart of Magic {{count}} büyü ekledi",
     "hud.loadOrderChanged": "Büyü ağacı oluşturulduğundan beri yükleme sırası değişti. Yeni büyüleri eklemek için Tara sekmesinde yeniden oluşturun.",
     "hud.autoBuildHeld": "Büyü ağacı, Heart of Magic panelini açtığınızda tamamlanacak.",
+    "hud.spellsGrafted": "Büyü ağacına {{count}} yeni büyü eklendi",
     "hud.bookXpInitialized": "[BookXP] Başlatıldı - kitap başına {{xp}} XP",
     "hud.bookXpNoTargets": "[BookXP] {{count}} kitap okundu ama öğrenme hedefi yok",
     "hud.castPower": "{{spell}} %{{percent}} güçte",

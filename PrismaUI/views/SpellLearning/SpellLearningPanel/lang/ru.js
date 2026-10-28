@@ -128,6 +128,7 @@ window._i18nPreload = {
     "hud.spellResearchAdded": "Spell Research: Heart of Magic добавил заклинаний: {{count}}",
     "hud.loadOrderChanged": "Порядок загрузки изменился после построения дерева заклинаний. Перестройте его на вкладке «Скан», чтобы добавить новые заклинания.",
     "hud.autoBuildHeld": "Дерево заклинаний достроится, когда вы откроете панель Heart of Magic.",
+    "hud.spellsGrafted": "В дерево заклинаний добавлены новые заклинания: {{count}}",
     "hud.bookXpInitialized": "[BookXP] Запущено - {{xp}} опыта за книгу",
     "hud.bookXpNoTargets": "[BookXP] Прочитано книг: {{count}}, но цели обучения не заданы",
     "hud.castPower": "{{spell}}: сила {{percent}}%",

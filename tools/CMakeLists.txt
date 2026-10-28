@@ -317,3 +317,47 @@ target_link_libraries(graft-check PRIVATE
     hwy::hwy
     hwy::hwy_contrib
 )
+
+# =============================================================================
+# graft-run-check  -  offline check of the graft's runner at the main menu
+# =============================================================================
+# The plugin's own TreeGraftRun.h (when it runs, the player's rules, the seen
+# list, the record, the id refresh, the declutter of the grafted nodes and the
+# verification) on graft-check's sources and the declutter's.
+
+add_executable(graft-run-check
+    graft-run-check.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeGraft.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeNLP.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeBuilderCore.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeBuilderLinks.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeBuilderPlugins.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeBuilderReachability.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeBuilderSimilarity.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeBuilderClassic.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeBuilderTypeGrouping.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeBuilderThemes.cpp
+    ${SL_SRC_DIR}/treebuilder/TreeBuilderBridges.cpp
+    ${SL_SRC_DIR}/treebuilder/SimdKernels.cpp
+    ${SL_SRC_DIR}/treebuilder/LayoutDeclutter.cpp
+    ${SL_SRC_DIR}/treebuilder/LayoutLineClear.cpp
+    ${SL_SRC_DIR}/treebuilder/LayoutLineClearCost.cpp
+    ${SL_SRC_DIR}/treebuilder/LayoutLineGrid.cpp
+    ${SL_SRC_DIR}/treebuilder/LayoutMath.cpp
+)
+
+target_compile_features(graft-run-check PRIVATE cxx_std_23)
+
+# Stub headers first, same reason as above.
+target_include_directories(graft-run-check PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${SL_INCLUDE_DIR}
+    ${SL_SRC_DIR}
+)
+
+target_link_libraries(graft-run-check PRIVATE
+    spdlog::spdlog
+    nlohmann_json::nlohmann_json
+    hwy::hwy
+    hwy::hwy_contrib
+)
