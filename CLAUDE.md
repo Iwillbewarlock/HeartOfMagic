@@ -58,7 +58,7 @@ What are you doing?
 4. **Explore before coding**: ALWAYS search for existing utilities before writing new helpers
 5. **Build validation**: ALWAYS run `.\BuildRelease.ps1` before completing a task
 6. **Documentation maintenance**: ALWAYS update relevant docs/ after code changes that affect documented systems
-7. **PrismaUI theme compatibility**: UI changes must work with all designs (Classic, Modern Dark, Arcane, Night Grimoire, Chalkboard, Skald - `themes/skyrim.json` plus `themes/design-*.css`)
+7. **PrismaUI theme compatibility**: UI changes must work with all designs (Skald, built into the panel; and the add-ons Classic, Modern Dark, Arcane, Night Grimoire, Chalkboard in `addons/designs/` - `themes/skyrim.json` plus `themes/design-*.css`)
 8. **JavaScript compatibility**: Use `var` declarations in PrismaUI code (Ultralight compatibility—no `let`/`const`)
 
 ## Do NOT (Anti-Patterns)
@@ -148,11 +148,12 @@ statically linked library needs its port in `_vcpkg_license_ports` (Distribution
 ### Deploying to the development mod folder
 
 ```powershell
-.\DeployDev.ps1              # plugin + UI panel
+.\DeployDev.ps1              # plugin + UI panel + the five design add-ons (addons/designs/)
 .\DeployDev.ps1 -PanelOnly   # UI only, no rebuild needed
 .\DeployDev.ps1 -WithISLPatch  # also the ISL patch's scripts; -WithBookXP the BookXP script
 .\DeployDev.ps1 -NoScripts     # plugin + panel, the install's Papyrus scripts left as they are
 .\DeployDev.ps1 -WithSelfTest  # also selftest.json: the in-game 1.6 self-test runs (any deploy without it removes it)
+.\DeployDev.ps1 -NoAddons      # the base mod alone (Skald only): the add-ons' files taken out of the install
 ```
 
 **ALWAYS use `DeployDev.ps1`**—never copy the panel by hand. It refuses to run while SkyrimSE is
@@ -246,7 +247,8 @@ node run-tests.js
 | `modules/i18nRelabelTest.js` | Text written with `setI18n` (i18n.js) comes back in the new language on a switch, with its values, as text or a title; text written after `clearI18n` stays; a missing key shows the English fallback; no `data-i18n` element in index.html holds another element (a switch rewrites its text and would drop the spell card's "need 2 of 3" count and LOCK badge) |
 | `modules/stableIdsTest.js` | Saved settings that name spells after a load order shift: chosen roots sent with the spell's current formId (by plugin + localFormId, light plugins too), a root whose spell is gone left out, legacy roots and no-scan roots sent as saved; XP overrides by persistentId, legacy formId-keyed ones still read and replaced on the next set; the root picker's Current badge on the root's spell in this scan |
 | `modules/homIconsTest.js` | `HomIcons` (homIcons.js): the 19 icon ids, slots painted from the design's icon folder, an unknown id left alone, a design without icons or a bad path falls back to the line set, `slot()` markup, `setLabel` writes the label span, not the button |
-| `modules/iconSetsTest.js` | Every icon folder a design uses has its PNGs: the 19 ids in the line sets (neutral, gold) and each drawn design's set, and the ids a single CSS rule takes from a partial set (`themes/arcane/icons-ink/close.png`) |
+| `modules/iconSetsTest.js` | Every icon folder a design uses has its PNGs: the 19 ids in the line sets (neutral in the base panel, gold in Modern Dark) and each drawn design's set, and the ids a single CSS rule takes from a partial set (`themes/arcane/icons-ink/close.png`); an add-on's folders read from `addons/designs/<add-on>/` |
+| `modules/designPresetsTest.js` | The Design choice (`DesignPresets`): Skald the default and the one built-in design, an unknown or not installed design applying Skald without throwing and keeping the saved id until its file arrives, a file not replacing Skald, the old saved choices, no design made of the Skyrim theme; each add-on in `addons/designs/` with one design file that parses, an id of its own and every file it names (stylesheet and the files the sheet names, icons, drawings, inline url()s) in that add-on, the base panel or a shared tree, and no add-on file over a base file or another add-on's |
 | `modules/iconSlotsTest.js` | No bracket glyphs left: every icon in index.html is an empty `.hom-icon` slot with a known id, no slot sits inside an element a translation rewrites, and none of the 13 lang files holds an icon glyph |
 | `modules/findSpellDismissTest.js` | The Find Spell dropdown going away by itself (`dismissFindSpell`): hidden from any tab, not "open" behind another tab (Escape goes on), and called by the tab switch, the close button, `onPanelHiding` and `loadTreeData` |
 | `modules/homeViewTest.js` | The tree's home view (`TreeCamera.homeTarget`): the tree fitted into the part of the canvas no panel covers (bar under the tree, sidebar, open How-to-Learn panel), centred there, no closer than `TreeNav.HOME_ZOOM` and no further out than `HOME_MIN_ZOOM` (a real-size tree opens at that floor with the heart in the middle of the visible part), chapter titles fitted per axis (side titles take width, top and bottom titles height; the real titles all inside); `getPanelOffset` as before; the pending home view waits for a measurable tree and gives way to a view asked for after the load |
@@ -431,7 +433,7 @@ taken up to two past the cap, the spell's own tier first, the room term parting 
 | Runtime SKSE data | `SKSE/Plugins/SpellLearning/` |
 | Documentation | `docs/` |
 | FOMOD installer | `fomod/` |
-| Design presets shipped as files | `SKSE/Plugins/SpellLearning/presets/design/` |
+| Design add-ons (one archive each, Data layout inside; shared trees in `_shared/`, archive README and notices parts in `_package/`) | `addons/designs/<add-on>/` |
 | Optional ISL patch | `optional/ISLPatch/` |
 | Build output | `build/` (gitignored) |
 | Lab/experiments | `lab/` |

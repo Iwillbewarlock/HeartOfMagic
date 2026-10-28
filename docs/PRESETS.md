@@ -8,10 +8,10 @@ Heart of Magic has three preset systems that let you save, share, and load confi
 |------|---------------|----------|
 | **Settings Presets** | XP rates, tier requirements, progression tuning, early spell learning, tome learning | "Easy mode", "Hardcore", custom difficulty |
 | **Scanner Presets** | Root layout, growth algorithm settings, grid config, spell matching mode, PreReq Master locks | "Wide radial tree", "Tight clustered", custom visual style |
-| **Design Presets** | How the panel looks: how the spell tree is drawn, the UI theme, extra CSS | "Arcane" spellbook, "Modern Dark", "Classic", looks shipped by add-ons |
+| **Design Presets** | How the panel looks: how the spell tree is drawn, the UI theme, extra CSS | "Skald" (built in); "Arcane" spellbook, "Modern Dark", "Classic" and other looks as add-ons |
 
 Design presets are picked from a list (*Settings > UI Display > Design*), not saved from the
-panel; they come from the mod and from files. See [Design Presets](#design-presets) below.
+panel; they come from the mod (Skald) and from files (the design add-ons, your own). See [Design Presets](#design-presets) below.
 
 ## In-Game Operations
 
@@ -218,20 +218,23 @@ Scanner preset example:
 
 ## Design Presets
 
-A design preset decides how the panel looks. Three are built in: **Arcane** (the default, an open
-spellbook on parchment), **Modern Dark** (slate-blue glass, amber accent, rounded) and **Classic** (the
-tree as it looked before presets). Three more ship with the mod as preset files, **Night Grimoire**,
-**Chalkboard** and **Skald** (`SKSE/Plugins/SpellLearning/presets/design/` in the repository; Candlelit Tome was removed on 2026-09-27 - a saved choice of it falls back to Arcane) - copy one to start
-your own. Add-ons and players add more with
-one `.json` file each in:
+A design preset decides how the panel looks. One is built into the panel: **Skald** (the default,
+Skyrim's own menus; `modules/designPresets.js`). Five more are add-ons, one archive each
+(`HeartOfMagic-Design-<name>_<version>.zip`, sources in `addons/designs/<name>/` in the repository, the
+game's Data layout inside): **Classic** (the tree as it looked before presets), **Modern Dark** (slate-blue
+glass, amber accent, rounded), **Arcane** (an open spellbook on parchment), **Chalkboard** and
+**Night Grimoire** - each a `.json` file like the ones below plus its files under the panel's `themes/`;
+copy one to start your own. A saved design that is not installed (an add-on removed, or Candlelit Tome,
+removed on 2026-09-27) shows Skald and keeps its id, so it comes back once its file is there. Add-ons and
+players add more with one `.json` file each in:
 
 ```
 Skyrim SE/Data/SKSE/Plugins/SpellLearning/presets/design/
 ```
 
 Each file is its own design, so add-ons never have to share or overwrite a list. The file's `name` is
-what the list shows; `id` (optional, else the name) is what the player's choice is saved as. A built-in
-id (`arcane`, `modern`, `classic`) cannot be replaced.
+what the list shows; `id` (optional, else the name) is what the player's choice is saved as. The built-in
+id (`skald`) cannot be replaced.
 
 A player can turn off a design's page, selection sigil, learning glow, heart runes and drawn lines
 (all the Drawn lines tokens at once) in the render popup (its chips), or still everything at once; a design does not need
@@ -254,8 +257,8 @@ of the wrong type is converted when it can be ("60" -> 60) and skipped otherwise
 ```
 
 Several looks can share one stylesheet: `cssFile` points at the sheet and each preset's inline `css`
-sets the variables it reads - the inline CSS is always applied after the sheet. The shipped Night
-Grimoire, Chalkboard and Skald do this with `themes/design-darkbook.css` and a `:root { --book-... }`
+sets the variables it reads - the inline CSS is always applied after the sheet. Night Grimoire,
+Chalkboard and Skald do this with `themes/design-darkbook.css` and a `:root { --book-... }`
 palette; a new dark look only needs its own palette.
 (`--book-cover` is the leather's one colour; without it the sheet uses `--book-cover-top`.)
 
@@ -295,7 +298,7 @@ a player's old value from before is put back to the shipped default once, so a d
 |-------|---------|
 | `tree` | Tokens for the spell tree (below). Anything left out keeps the Classic value. |
 | `descriptions` | Optional. The description per language code (`ko`, `de`, `zh-cn`, ...), since an add-on cannot add lines to the mod's `lang/` files. Languages not listed show `description`. Names are not translated: the selector shows `name` in every language (the shipped designs' names are English; a `names` map, which older add-ons may carry, is ignored). |
-| `uiTheme` | The UI theme the design is built on: an id from `themes/manifest.json` (`skyrim` = Skyrim Edge, the only one shipped; Modern Dark is Skyrim Edge with `themes/design-modern.css` over it). Left out, `skyrim`. The UI theme has no selector of its own any more - the design sets it. A design's CSS can also set `--preview-bg`, the background of the scan screen's tree previews, and `--status-idle`, `--status-working`, `--status-done`, `--status-error`, the tree builder's status line (kept apart from each other). |
+| `uiTheme` | The UI theme the design is built on: an id from `themes/manifest.json` (`skyrim` = Skyrim Edge, the only one shipped; the Modern Dark add-on is Skyrim Edge with `themes/design-modern.css` over it). Left out, `skyrim`. The UI theme has no selector of its own any more - the design sets it. A design's CSS can also set `--preview-bg`, the background of the scan screen's tree previews, and `--status-idle`, `--status-working`, `--status-done`, `--status-error`, the tree builder's status line (kept apart from each other). |
 | `cssFile` | Optional. A stylesheet laid over the theme, path relative to the panel folder (`PrismaUI/views/SpellLearning/SpellLearningPanel/`). Ship it under your own name in `themes/`. |
 | `css` | Optional. The same, written inline: a string or an array of lines. |
 | `icons` | Optional. The design's icon folder, relative to the panel folder and ending in `/` (e.g. `"themes/arcane/icons/"`). It must hold all 19 icons as `<id>.png` (48 px): `scan`, `build`, `apply`, `clear`, `replay`, `save`, `reset`, `import`, `fullscreen`, `close`, `hotkey`, `tree-view`, `display`, `debug`, `progression`, `early`, `tome`, `tree-gen`, `prereq`. Left out (or not ending in `/`, or holding `"` or `<`), the line set `themes/icons-line/`. A well-formed path to a wrong folder is not checked: its icons show blank, so ship all 19. |
@@ -325,7 +328,8 @@ newer version still loads.
 | Book | `accent` (sigil, runes, chapter titles, dividers), `selectionSigil`, `chapterTitles`, `chapterSize`, `dividerOrnament` (`reveal`, `revealMs` and `inkColor` - the ink reveal on opening - were removed and are ignored) |
 
 `TreeStyle.DEFAULTS` in `modules/treeStyle.js` is the authoritative list with the Classic values, and
-the Arcane preset in `modules/designPresets.js` is a full worked example. `nodeGlow` and `edgeGlow` are
+the Arcane add-on (`addons/designs/Arcane/SKSE/Plugins/SpellLearning/presets/design/Arcane.json`) is a full
+worked example. `nodeGlow` and `edgeGlow` are
 the costly ones (a sprite per learned spell, a wide stroke per learned edge); the rest cost about the
 same as Classic. Of the drawn lines, a dot or dash per few pixels of the ~1,400 locked lines would be
 the costly one, which is why locked lines are stippled with a pattern and not a dash (`edgeBreaks`
@@ -335,7 +339,7 @@ Restart the game after adding a file: presets are read once, when the panel firs
 
 ## Tips
 
-- Start from a built-in preset and tweak from there
+- Start from a shipped preset (Skald in `modules/designPresets.js`, or an add-on's file) and tweak from there
 - Scanner presets pair with specific root modes — a Sun-based scanner preset won't look right if applied with Flat mode active
 - Share your presets on the mod's Nexus page for others to try
 - Back up your presets folder before updating the mod

@@ -947,7 +947,7 @@ stays 0.8. `TreeStyle.beginLabels(ctx, fontSize, zoom)` decides it once per run
 
 ### Chalkboard design (2026-09-27)
 
-Replaced Candlelit Tome. A lesson on the board: `presets/design/Chalkboard.json` reuses
+Replaced Candlelit Tome. A lesson on the board: `presets/design/Chalkboard.json` (the Chalkboard add-on) reuses
 `design-darkbook.css` with a slate-and-wood `--book-*` palette (panels slate, frames wood, accents pale
 yellow chalk), the tree page slate `#26302c` with chalk-dust grain, school colours mixed 35% toward chalk
 white (`schoolInk`) so they read as pastel chalk, and three chalk drawings made with anidoodle's chalk
@@ -1001,7 +1001,8 @@ Who uses what (Classic and Modern Dark keep the theme's own sans; Skald uses the
 | Arcane | `--arcane-body`, `--arcane-serif` (titles) | Literata; titles EB Garamond | Hahmlet | BIZ UDPMincho | Noto Serif SC | Noto Serif TC |
 | Night Grimoire | `--ng-body`, `--ng-title` (via `--book-serif`) | Literata; titles Cinzel (Cyrillic: Alegreya SC) | Hahmlet | BIZ UDPMincho | Noto Serif SC | Noto Serif TC |
 
-The two book designs share one folder, `themes/fonts/book/` (Arcane's stylesheet declares the faces with
+The two book designs share one folder, `themes/fonts/book/` (one source copy, `addons/designs/_shared/book-fonts/`,
+packaged into both add-ons; Arcane's stylesheet declares the faces with
 paths relative to `themes/`, Night Grimoire's inline css with paths relative to the page). Literata
 comes first in every language's list, so Latin letters, digits and punctuation inside CJK text stay in
 the book face; CJK titles use the language's body face.
@@ -1039,8 +1040,8 @@ The drawings' sources (tone fields and plates) are in `lab/anidoodle-arcane/`, w
 Skald is the look of the mod's explainer pictures made into a design: Skyrim's own menus - smoky black,
 thin pale lines (`#e8e4d8` text, `#cfc9b8` rules), woven knotwork corners, wide-set capital
 titles, and the school colours mixed 40% toward the line colour (`schoolInk` 0.4) so they read as quiet
-tints. Like Night Grimoire it is only a preset file (`presets/design/Skald.json`) over
-`design-darkbook.css` with its own `--book-*` palette. Its inline `css` also turns the gold the sheet and
+tints. Like Night Grimoire it is only a preset (built into `modules/designPresets.js` since 2026-10-28; it
+was `presets/design/Skald.json`) over `design-darkbook.css` with its own `--book-*` palette. Its inline `css` also turns the gold the sheet and
 the theme use for the chosen school tab, toggle and Canvas badge into the pale line colour, sets the
 titles in capitals and draws the empty screen. Two transparent PNGs in `themes/skald/`: the page corner
 (`pageOrnament`, 200 px: a trefoil knot in the corner, a two-strand plait out along each edge, then a
@@ -1441,13 +1442,14 @@ ever changes, and `TreeCamera.getPanelOffset` frames spells around it as before.
 *Settings > UI Display > Design* picks the look of the whole panel - one choice since 2026-09-23; the
 separate *UI Theme* selector is gone. A design sets the UI theme it is built on (`uiTheme`, the panel's
 main stylesheet, Skyrim Edge when left out), how the tree is drawn (`tree`, a set of tokens) and extra
-CSS over it (`cssFile` or inline `css`). Built in (`modules/designPresets.js`): **Classic** (Skyrim Edge
-UI, tree as before), **Modern Dark** and **Arcane** - all three on Skyrim Edge, the last two with a
-stylesheet over it. Every other UI theme in `themes/manifest.json` becomes a design of its own
+CSS over it (`cssFile` or inline `css`). Built in (`modules/designPresets.js`) until 2026-10-28: **Classic**
+(Skyrim Edge UI, tree as before), **Modern Dark** and **Arcane** - all three on Skyrim Edge, the last two with a
+stylesheet over it; since then Skald is the one built-in design and those three are add-ons (below, "Add-ons
+add presets"). Every other UI theme in `themes/manifest.json` becomes a design of its own
 (`DesignPresets.onThemesLoaded`), so old UI theme add-ons still show up. A saved config from before the
 merge is carried over (`DesignPresets.savedChoice`: `uiTheme: default` becomes Modern Dark).
 
-**Arcane's panel** (`themes/design-arcane.css`, over Skyrim Edge) is a book: a dark leather cover with a
+**Arcane's panel** (`themes/design-arcane.css` in the Arcane add-on, over Skyrim Edge) is a book: a dark leather cover with a
 gold tooled line round the panel, leather header, settings and tools (zoom bar, school tabs, trait
 filter, footer), gold switches, thin leather scrollbars, serif titles, and parchment pages - the tree
 (drawn by the canvas), the spell card, the hover card, the *How to learn* page (section headings in red
@@ -1457,7 +1459,7 @@ few colours the theme writes out (card header and footer, list rows, fields and 
 highlights, progress track, state stamps) are overridden there. The scan screen's tree previews get a
 dark leaf (`--preview-bg`, below).
 
-**Modern Dark** (`themes/design-modern.css`, over Skyrim Edge, 2026-09-23): slate-blue glass panel, amber
+**Modern Dark** (`themes/design-modern.css` in the Modern Dark add-on, over Skyrim Edge, 2026-09-23): slate-blue glass panel, amber
 accent, bright accent colours, rounded corners, pill switches, Segoe UI. It used to be a UI theme of its
 own (`styles.css`, `themes/default.json`), but that stylesheet had fallen some 200 classes behind Skyrim
 Edge - the header buttons, popups, scan screen and build progress had no styles under it at all - so it
@@ -1550,23 +1552,31 @@ while. `themeCssPath` in `settingsPanel.js` resolves it now.
 
 Designs in detail:
 
-- **Arcane** (default) - an open spellbook. A still parchment page instead of the starfield, school
+- **Arcane** (an add-on; the default until 2026-10-28) - an open spellbook. A still parchment page instead of the starfield, school
   colours mixed toward brown ink (`schoolInk`, so the player's own colours still decide the hue), learned
   spells filled and edged in dark ink, learnable ones with a ring, locked ones a pencil sketch, serif
   names with a paper-coloured outline, the heart as a parchment seal, chapter titles (school names past
   each school's outer edge, the same size at every zoom), dividers as double rules, the selection path,
   sigil and heart runes in red rubric ink, and on opening the tree soaks out from the heart like ink.
-- **Classic** - the tree exactly as before presets. `TreeStyle.DEFAULTS` is this look, so a preset only
+- **Classic** (an add-on) - the tree exactly as before presets. `TreeStyle.DEFAULTS` is this look, so a preset only
   lists what it changes.
 
 Add-ons add presets by dropping a `.json` into `SKSE/Plugins/SpellLearning/presets/design/` - the
 plugin's `LoadPresets` already lists any preset folder, so no plugin change and no shared list two
 add-ons could overwrite. Format and the full token list: [PRESETS.md](PRESETS.md#design-presets).
-Three looks ship with the mod that way, always installed and picked in the list like the built-ins, and
-double as examples for modders: **Night Grimoire** (indigo vellum, gold-leaf ink), **Chalkboard**
-(slate in a wooden frame, the tree in pastel chalk; it replaced Candlelit Tome on 2026-09-27) and **Skald**
-(Skyrim's own menus, see "Skald" above), `SKSE/Plugins/SpellLearning/presets/design/*.json`. They are a few KB
-each, so there is no installer choice for them. Their panel is one shared sheet,
+The base mod ships one design, **Skald** (Skyrim's own menus, see "Skald" above), built into
+`modules/designPresets.js` as the one `BUILT_IN` entry and the default (`DEFAULT_ID`): the panel applies
+the default at load, before any file arrives, so the default cannot be a file. The other five are add-ons
+made that way, one archive each (`HeartOfMagic-Design-<folder>_<version>.zip`, plugins/cmake/Distribution.cmake
+section 8), and double as examples for modders: **Classic**, **Modern Dark**, **Arcane**, **Night Grimoire**
+(indigo vellum, gold-leaf ink) and **Chalkboard** (slate in a wooden frame, the tree in pastel chalk; it
+replaced Candlelit Tome on 2026-09-27). Their sources are `addons/designs/<folder>/` (`Classic`,
+`ModernDark`, `Arcane`, `Chalkboard`, `NightGrimoire`), the game's Data layout inside: the design file in
+`SKSE/Plugins/SpellLearning/presets/design/<folder>.json`, its stylesheet, icons, drawings and fonts under
+`PrismaUI/views/SpellLearning/SpellLearningPanel/themes/`. The book fonts Arcane and Night Grimoire share
+(`themes/fonts/book/`) are kept once, in `addons/designs/_shared/book-fonts/`, and go into both archives.
+A saved design that is not installed shows Skald and keeps its id (`apply` falls back, `settings.designPreset`
+stays), so it comes back once its add-on is installed. Night Grimoire, Chalkboard and Skald share one sheet,
 `themes/design-darkbook.css` (a tooled cover, serif gold lettering, dark pages where Arcane has
 parchment, gold switches and tools), coloured by the `--book-*` palette each preset sets in its inline
 `css`. `DesignPresets._applyCss` keeps the inline CSS after the stylesheet, so a palette always wins over
@@ -1946,7 +1956,7 @@ Tree applied
 | `treeStyle.js` | `TreeStyle`: the tree's look as tokens a design preset sets; halos, labels, sigil, heart runes, school ink |
 | `treeStyleBook.js` | Adds the spellbook effects to `TreeStyle`: page, chapter titles, ornament dividers |
 | `treeStyleInk.js` | Adds the drawn lines to `TreeStyle`: hand-drawn shapes, stippled, broken and engraved lines, the inset outline |
-| `designPresets.js` | `DesignPresets`: built-in and `presets/design/*.json` looks, the Design Preset selector, preset CSS |
+| `designPresets.js` | `DesignPresets`: the built-in Skald and the `presets/design/*.json` looks (the design add-ons), the Design Preset selector, preset CSS |
 | `wheelRenderer.js` | Legacy SVG renderer (still loaded, not primary) |
 | `treeViewerUI.js` | Tree viewer page setup and Import (with `treeLoad.js`, `spellCardView.js`, `spellProgressView.js`, `findSpell.js`, split out 2026-09-30) |
 | `newSpells.js` | `NewSpells`: spells unlocked while the panel was closed (ring, mark, footer chip) and the footer's next goals (see *New spells and next goals*) |

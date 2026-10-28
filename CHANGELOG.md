@@ -44,6 +44,15 @@
 
 ### Changed
 
+- **The main mod ships one design, Skald, now the default; the other five are add-ons.** Classic, Modern Dark,
+  Arcane, Chalkboard and Night Grimoire are each a separate archive (`HeartOfMagic-Design-<name>_<version>.zip`,
+  installed like any mod) that adds its design file to `SKSE/Plugins/SpellLearning/presets/design/` and its
+  stylesheet, icons, drawings and fonts to the panel's `themes/`. Skald is built into the panel instead of being
+  `presets/design/Skald.json`. A saved design whose add-on is not installed shows Skald and keeps its choice, so
+  the design comes back once its add-on is installed; a new config starts on Skald (it was Arcane). The Design
+  selector in Settings > UI Display stays, with Skald alone when no add-on is installed. Each add-on's archive
+  carries the credits of the fonts and icon sets it ships. Not yet tested in game.
+
 - **Spells only a quest gives are left out of the tree.** A spell whose tomes the game hands out only through a
   quest (its script, an item the quest creates or puts in a character's inventory, a line of dialogue or a
   scene) is no longer a tree node. A tome that a merchant sells, a leveled list or container holds, a recipe
