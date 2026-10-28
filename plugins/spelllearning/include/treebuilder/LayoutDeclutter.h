@@ -34,16 +34,23 @@ namespace LayoutDeclutter
     /**
      * Declutter one tree.
      *
-     * request: { id, schools, globe: {x, y, radius}, layoutMode, noRotate }
+     * request: { id, schools, globe: {x, y, radius}, layoutMode, noRotate, spread }
      *   schools is either an array [{ name, startAngle, endAngle, nodes }] taken
      *   in that order, or the saved tree's object { name: { startAngle,
      *   endAngle, nodes } } taken by name; nodes are [{ formId, x, y, isRoot,
-     *   children }].
+     *   fixed, children }]. A node with isRoot or fixed set never moves (other
+     *   spells are pushed off it and off its lines). spread: false skips the
+     *   x SPREAD (1.35) step the pass starts with; left out (or anything but
+     *   false), every spell is spread, fixed ones and roots too, so a caller
+     *   that must keep its fixed spells in place (a graft) sends spread: false.
+     *   With spread: false a spell that ends where it was sent (every fixed
+     *   one) comes back with its x and y exactly as sent, not rounded.
      *
      * reply: { id, positions: [[formId, x, y], ...] in the order the spells
      *   were taken (schools in order, nodes in array order, spells without a
      *   position skipped), moved, rounds, overlapsLeft, linesLeft, linesMoved,
-     *   passes, lineWork, lineCapped, ms }. Fewer than two positioned spells:
+     *   passes, lineWork, lineCapped, ms }; positions to 0.01 (but see
+     *   spread above). Fewer than two positioned spells:
      *   positions is empty and nothing moves (skipped: true). A spell whose x
      *   or y is not a finite number within +-1e6 (kMaxCoord) counts as one
      *   without a position. A line longer than kMaxLine once spread out, or at

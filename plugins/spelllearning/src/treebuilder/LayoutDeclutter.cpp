@@ -10,13 +10,16 @@
 // LAYOUT DECLUTTER (modules/layoutDeclutter.js)
 // =============================================================================
 //
-//   1. the whole tree is spaced out by SPREAD, to make room between lines;
+//   1. the whole tree is spaced out by SPREAD, to make room between lines
+//      (not when the request says spread: false);
 //   2. spells are moved off the tree's lines (LineClear, a search);
 //   3. spells are pushed apart, a little at a time, until no two are closer
 //      than 2 x NODE_RADIUS + GAP and none sits on the heart, or ITERATIONS
 //      rounds have passed.
-// School roots do not move, and a spell inside its school's sector is kept
-// inside it (not for flat or unturned layouts). Deterministic.
+// School roots and spells sent as fixed do not move (a graft's existing tree;
+// without the spread they come back exactly as sent), and a spell inside its
+// school's sector is kept inside it (not for flat or unturned layouts).
+// Deterministic.
 
 namespace LayoutDeclutter::Internal
 {
@@ -117,7 +120,8 @@ namespace
             it.nodeY = it.y = y->get<double>();
             if (!Usable(it.x) || !Usable(it.y)) continue;
             auto root = n.find("isRoot");
-            it.fixed = root != n.end() && Truthy(*root);
+            auto fixed = n.find("fixed");
+            it.fixed = (root != n.end() && Truthy(*root)) || (fixed != n.end() && Truthy(*fixed));
             it.index = static_cast<int>(out.list.size());
             // Kept in its sector only if it started there
             if (hasSector && InSector(sector, it.x, it.y)) {
@@ -326,6 +330,8 @@ namespace LayoutDeclutter
         const std::string layoutMode = request.contains("layoutMode") && request["layoutMode"].is_string() ?
             request["layoutMode"].get<std::string>() : std::string();
         const bool noRotate = request.contains("noRotate") && request["noRotate"].is_boolean() && request["noRotate"].get<bool>();
+        // Only a boolean false skips the spread (the panel's request has no such field)
+        const bool spread = !(request.contains("spread") && request["spread"].is_boolean() && !request["spread"].get<bool>());
         // Sectors are wedges round the centre: a flat or unturned layout does not keep its schools in them
         const bool useSectors = !(layoutMode == "flat" || noRotate);
         Collected items = Collect(schools, useSectors);
@@ -350,10 +356,12 @@ namespace LayoutDeclutter
         heart.y = number("y", 0);
         heart.r = number("radius", kDefaultGlobeRadius) + kHeartClearance;
 
-        // Room first: every spell (roots too) out from the centre by SPREAD
-        for (auto& it : list) {
-            it.x *= kSpread;
-            it.y *= kSpread;
+        // Room first: every spell (roots and fixed ones too) out from the centre by SPREAD
+        if (spread) {
+            for (auto& it : list) {
+                it.x *= kSpread;
+                it.y *= kSpread;
+            }
         }
         // Then off the lines, then apart and off the heart
         std::vector<Edge> edges = MakeEdges(items);
@@ -372,7 +380,10 @@ namespace LayoutDeclutter
         int moved = 0;
         auto& positions = reply["positions"];
         for (const auto& it : list) {
-            const double nx = JsRound(it.x * kRoundTo) / kRoundTo, ny = JsRound(it.y * kRoundTo) / kRoundTo;
+            // Without the spread, a spell still where it was sent (every fixed one) goes back as sent, not rounded
+            const bool asSent = !spread && it.x == it.nodeX && it.y == it.nodeY;
+            const double nx = asSent ? it.nodeX : JsRound(it.x * kRoundTo) / kRoundTo;
+            const double ny = asSent ? it.nodeY : JsRound(it.y * kRoundTo) / kRoundTo;
             if (std::fabs(nx - it.nodeX) > kMovedOver || std::fabs(ny - it.nodeY) > kMovedOver) moved++;
             positions.push_back(json::array({ it.formId, nx, ny }));
         }
@@ -381,8 +392,8 @@ namespace LayoutDeclutter
         const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
         logger::info("[LayoutDeclutter] spread x{}, {} of {} spells moved ({} off lines in {} passes{}), "
                      "{} pairs still touching, {} spells still on a line, {} ms (native)",
-            kSpread, moved, list.size(), lines.Moved(), lines.Passes(), lines.Capped() ? ", stopped at its work cap" : "", left,
-            linesLeft, static_cast<long long>(ms + 0.5));
+            spread ? kSpread : 1.0, moved, list.size(), lines.Moved(), lines.Passes(),
+            lines.Capped() ? ", stopped at its work cap" : "", left, linesLeft, static_cast<long long>(ms + 0.5));
 
         reply["moved"] = moved;
         reply["rounds"] = rounds;
