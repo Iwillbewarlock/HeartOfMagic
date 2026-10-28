@@ -165,6 +165,7 @@ loadModule('homIcons', './modules/homIcons.js');
 loadModule('homIconsTest', './modules/homIconsTest.js');
 loadModule('iconSetsTest', './modules/iconSetsTest.js');
 loadModule('iconSlotsTest', './modules/iconSlotsTest.js');
+loadModule('designPresetsTest', './modules/designPresetsTest.js');
 // These run settingsPanel.js, progressionUI.js and others into the global scope: last
 loadModule('configSaveTest', './modules/configSaveTest.js');
 loadModule('panelRefreshTest', './modules/panelRefreshTest.js');

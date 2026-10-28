@@ -11,12 +11,13 @@
  * Item 2, every state on one page (lab/ui-states/states.html): every state the card's badge can take
  * (locked, available, learning, unlocked, weakened) is a filled box, none a bare word.
  * Item 3, contrast and size: every design's quiet text, faint and gold inks and the dark books' blue and red at
- * 4.5:1 on their own backgrounds (worked out here from the tokens, the dark presets' JSON palettes read too), the
- * dark books' quiet text from the soft ink, switches and badges on the theme's colours, the LOCK mark 11px, the
- * school name in the card's ink with the colour on its dot.
+ * 4.5:1 on their own backgrounds (worked out here from the tokens, the dark presets' palettes read too: Skald's
+ * from designPresets.js, the add-ons' from addons/designs/), the dark books' quiet text from the soft ink,
+ * switches and badges on the theme's colours, the LOCK mark 11px, the school name in the card's ink with the
+ * colour on its dot.
  *
  * Depends on: settingsCategories.js (in a sandbox with a fake document), the panel's CSS and
- * script.js read as text.
+ * script.js read as text; the add-on designs' files from their source trees (addons/designs/<add-on>/).
  */
 
 var PanelAuditTest = {
@@ -32,6 +33,15 @@ var PanelAuditTest = {
     _file: function(rel) {
         var fs = require('fs'), path = require('path');
         return fs.readFileSync(path.join(__dirname, rel), 'utf8').replace(/\r\n/g, '\n');
+    },
+
+    /** A file of an add-on design's source tree (addons/designs/<addon>/, Data layout), from the Data root */
+    _addonFile: function(addon, rel) {
+        return this._file('../../../../../addons/designs/' + addon + '/' + rel);
+    },
+
+    _addonPanelFile: function(addon, rel) {
+        return this._addonFile(addon, 'PrismaUI/views/SpellLearning/SpellLearningPanel/' + rel);
     },
 
     /** The body of the first CSS rule whose selector list matches `selector` (a RegExp), or '' */
@@ -208,8 +218,8 @@ PanelAuditTest._token = function(css, name) {
 /** The quiet text of every design reads 4.5:1 on its own panel colour (the computed audit's fixes, pinned) */
 PanelAuditTest._quietText = function() {
     var self = this, need = 4.5;
-    var classic = this._file('../styles-skyrim.css'), modern = this._file('../themes/design-modern.css');
-    var arcane = this._file('../themes/design-arcane.css'), dark = this._file('../themes/design-darkbook.css');
+    var classic = this._file('../styles-skyrim.css'), modern = this._addonPanelFile('ModernDark', 'themes/design-modern.css');
+    var arcane = this._addonPanelFile('Arcane', 'themes/design-arcane.css'), dark = this._file('../themes/design-darkbook.css');
     var pairs = [
         ['Classic quiet text on the panel', this._token(classic, 'text-muted'), this._token(classic, 'panel-bg-solid')],
         ['Classic quiet text on a chip (#141414)', this._token(classic, 'text-muted'), '#141414'],
@@ -235,10 +245,19 @@ PanelAuditTest._quietText = function() {
     // ink on its page and cover (the presets' palettes cannot be changed here)
     this.check(/--text-muted:\s*var\(--book-text-soft\)/.test(dark) && /--status-idle:\s*var\(--book-text-soft\)/.test(dark),
         'design-darkbook.css: quiet text and the idle status from --book-text-soft');
-    var fs = require('fs'), path = require('path');
-    var dir = path.join(__dirname, '../../../../../SKSE/Plugins/SpellLearning/presets/design');
+    // Skald is built in (designPresets.js, run in a sandbox); the add-on dark books are files in their source trees
+    var vm = require('vm'), noop = function() {};
+    var box = { window: {}, settings: {}, TreeStyle: { set: noop, fontsChanged: noop },
+        document: { getElementById: function() { return null; }, head: { appendChild: noop },
+            createElement: function() { return { setAttribute: noop, getAttribute: function() { return null; } }; } } };
+    vm.createContext(box);
+    vm.runInContext(this._file('designPresets.js'), box);
+    var designs = { Skald: box.DesignPresets.BUILT_IN.skald };
+    ['Chalkboard', 'NightGrimoire'].forEach(function(name) {
+        designs[name] = JSON.parse(self._addonFile(name, 'SKSE/Plugins/SpellLearning/presets/design/' + name + '.json'));
+    });
     ['Chalkboard', 'NightGrimoire', 'Skald'].forEach(function(name) {
-        var data = JSON.parse(fs.readFileSync(path.join(dir, name + '.json'), 'utf8'));
+        var data = designs[name];
         var css = Array.isArray(data.css) ? data.css.join('\n') : String(data.css || '');
         var soft = self._token(css, 'book-text-soft'), page = self._token(css, 'book-page'), cover = self._token(css, 'book-cover-bottom');
         var worst = Math.min(self._contrast(soft, page), self._contrast(soft, cover));
@@ -258,7 +277,7 @@ PanelAuditTest._controls = function() {
     var size = parseFloat((/font-size:\s*([\d.]+)em/.exec(mark) || [])[1]) * parseFloat((/font-size:\s*([\d.]+)em/.exec(chip) || [])[1]) * 16;
     this.check(size >= 11, 'the LOCK mark in a chip is ' + size.toFixed(1) + 'px at the 16px body font (pressable, at least 11px)');
     this.check(/-webkit-text-fill-color:\s*var\(--text-primary/.test(this._rule(card, /^\.spell-meta \.school-badge$/)), 'the card\'s school name in its ink, the colour on the dot');
-    var arcane = this._file('../themes/design-arcane.css');
+    var arcane = this._addonPanelFile('Arcane', 'themes/design-arcane.css');
     this.check(/#tree-school-tabs \.school-tab \{ -webkit-text-fill-color: var\(--text-primary\); \}/.test(arcane) && /#tree-school-tabs \.school-tab::before \{[^}]*background: currentColor/.test(arcane),
         'Arcane\'s school labels: the name in the cover\'s ink, the school colour on a dot');
 };

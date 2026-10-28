@@ -31,6 +31,9 @@ var PanelLayoutTest = {
         return fs.readFileSync(path.join(__dirname, rel), 'utf8');
     },
 
+    /** Arcane's stylesheet, in its add-on's source tree (addons/designs/Arcane/, Data layout) */
+    ARCANE_CSS: '../../../../../addons/designs/Arcane/PrismaUI/views/SpellLearning/SpellLearningPanel/themes/design-arcane.css',
+
     /** A fake element: attributes, classes, children, listeners */
     el: function(tag, attrs) {
         var a = {}, classes = {}, listeners = {};
@@ -489,7 +492,7 @@ var PanelLayoutTest = {
         this.check(/TreeLegend\.close\(\)/.test(this._file('../script.js')) && /TreeLegend\.init\(\)/.test(this._file('main.js')),
             'Legend: wired at start, closed by a tab switch');
         this.check(/tab\.style\.color = schoolColor;/.test(this._file('treeNav.js')), 'School jumps: labels in their school colour (treeNav.js)');
-        var sheets = ['design-arcane.css', 'design-darkbook.css'].map(function(f) { return self._file('../themes/' + f); });
+        var sheets = [this._file(this.ARCANE_CSS), this._file('../themes/design-darkbook.css')];
         this.check(sheets.every(function(css) {
             return !/0 0 0 3px|0 0 0 4px|inset 0 0 22px/.test(css) && /\.tree-container\.canvas-shown \{\s*box-shadow: none;\s*outline: 0;/.test(css);
         }), 'Frame: Arcane and the dark books keep their edge colour as one line (no gutter ring, shadow or second outline)');
@@ -501,7 +504,7 @@ var PanelLayoutTest = {
         this.check(/getElementById\('tree-status-text'\)/.test(status), 'Status: TreeStatusLine still writes the footer status (its rules: panelTidyTest)');
         this.check(/hide: function\(\) \{[^}]*TreeToolsScale\.setCornerArt\(false\)/.test(this._file('canvasRendererV2.js')),
             'Tools: the canvas taken away (CanvasRenderer.hide) puts them back in their corner, not left beside corner drawings no longer drawn');
-        var arcane = this._file('../themes/design-arcane.css');
+        var arcane = this._file(this.ARCANE_CSS);
         this.check(/#howto-tab \{\s*--accent-gold: #C9A25A;\s*--accent-gold-hover: #DDB86C;/.test(arcane),
             'Arcane: the How to learn tab takes the gold of the leather back (inside .howto-panel the golds are ink, brown on brown)');
     }
