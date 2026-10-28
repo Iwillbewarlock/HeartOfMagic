@@ -541,6 +541,22 @@ namespace
         const auto quiet = TreeGraftRun::PlanGraft(std::move(none), TreeBuilder::BuildConfig{});
         check.Check(!quiet.writeTree && quiet.writeRecord && quiet.record.loadOrder == "new",
             "no new spell: the tree is not written, the record is this load order's");
+
+        // ModA.esp renamed ModB.esp: the node found again by editor id; its new persistentId is seen
+        TreeGraftRun::PlanInput renamed;
+        renamed.tree = tree;
+        renamed.scanSpells = Json::array({ scan[0], Spell("0x04000801", "ModB.esp", "0x000801", "Firebolt", "Destruction",
+                                                         "Apprentice", traits) });
+        renamed.baseline = { { "Skyrim.esm|0x012FCD", "ModA.esp|0x000801" }, TreeGraftRun::SeenSource::kRecord };
+        renamed.verdicts = Validate(tree, game);
+        renamed.verdicts[1].persistentId = "ModB.esp|0x000801";
+        renamed.loadOrder = "new";
+        const auto rematch = TreeGraftRun::PlanGraft(std::move(renamed), TreeBuilder::BuildConfig{});
+        check.Check(rematch.problem.empty() && rematch.grafted.empty() && rematch.writeRecord &&
+                        std::ranges::find(rematch.record.seen, "ModB.esp|0x000801") != rematch.record.seen.end() &&
+                        rematch.record.seen.size() == 3 && rematch.record.pendingGrafted == 0,
+            std::format("a rematched node's new persistentId joins the seen list, nothing grafted or told ({} seen)",
+                rematch.record.seen.size()));
         return check.failed;
     }
 

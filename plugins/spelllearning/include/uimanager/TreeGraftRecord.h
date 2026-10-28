@@ -46,15 +46,18 @@ namespace TreeGraftRun
         return {};
     }
 
-    /// The record after a run (see the top): `complete` = nothing deferred or unplaced
+    /// The record after a run (see the top): `complete` = nothing deferred or unplaced.
+    /// `rematched`: the new persistentIds of nodes found again by editor id (their spells are
+    /// in the tree under that id now: seen, so deleting such a node does not graft it again)
     [[nodiscard]] inline TreeRecordFile::TreeRecord RecordAfterGraft(TreeRecordFile::TreeRecord record,
         const Baseline& baseline, const std::vector<std::string>& grafted, const std::vector<std::string>& leftOut,
-        bool complete, const std::string& loadOrder, std::size_t plugins, std::size_t spells)
+        bool complete, const std::string& loadOrder, std::size_t plugins, std::size_t spells,
+        const std::vector<std::string>& rematched = {})
     {
         std::vector<std::string> seen = baseline.seen;
         std::unordered_set<std::string> folded;
         for (const auto& id : seen) folded.insert(AsciiText::ToLower(id));
-        for (const auto* list : { &grafted, &leftOut }) {
+        for (const auto* list : { &grafted, &leftOut, &rematched }) {
             for (const auto& id : *list) {
                 if (folded.insert(AsciiText::ToLower(id)).second) seen.push_back(id);
             }

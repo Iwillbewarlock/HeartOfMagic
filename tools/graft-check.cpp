@@ -335,8 +335,9 @@ namespace
             check.Check(parent.size() == 1 && (*node)["softPrereqs"] == parent && (*node)["softNeeded"] == 1,
                 "prerequisites and softPrereqs are [parent], softNeeded 1: " + node->dump());
             check.Check((*node)["persistentId"] == "Pyro.esp|0x000801" && (*node)["name"] == "Fireball" &&
-                            (*node)["tier"] == 3 && (*node)["school"] == "Destruction" && (*node)["children"].empty(),
-                "persistentId, name, tier 3 (Adept), school, no children");
+                            (*node)["tier"] == 3 && (*node)["school"] == "Destruction" && (*node)["children"].empty() &&
+                            (*node)["editorId"] == "Fireball" && (*node)["traits"] == Json::array({ "element.fire", "kind.damage" }),
+                "persistentId, name, tier 3 (Adept), school, no children; the scan's editorId and traits baked");
             check.Check((*node)["x"].is_number() && (*node)["y"].is_number(), "it has a provisional x, y");
             bool apart = true;
             for (const auto& other : tree["schools"]["Destruction"]["nodes"]) {
@@ -387,16 +388,18 @@ namespace
         nodes.push_back(Node("0x09000123", "Gone.esp|0x000123", 2, 250, 0, {}, { "0x00012FCD" }));
         nodes[0]["children"].push_back("0x09000123");
         const auto scan = SmallScan();
-        const std::vector<Json> news = {
+        std::vector<Json> news = {
             Spell("0x05000801", "Pyro.esp", "0x000801", "Fireball", "Destruction", "Adept", { "element.fire", "kind.damage" }),
             Spell("0x05000802", "Pyro.esp", "0x000802", "IceStorm", "Destruction", "Adept", { "element.frost", "kind.damage" }),
         };
+        news[1]["editorId"] = "";   // no powerofthree's Tweaks
         const auto result = TreeGraft::Graft(tree, scan, Pointers(news), PlayerRules{}, TreeBuilder::BuildConfig{});
         const Json* fire = GraftedNode(result.tree, "Destruction", "0x05000801");
         const Json* frost = GraftedNode(result.tree, "Destruction", "0x05000802");
         check.Check(fire && (*fire)["prerequisites"] == Json::array({ "0x0001C789" }),
             "graft: a fire spell goes under the fire branch (element trait) not the frost one");
-        check.Check(frost && (*frost)["prerequisites"] == Json::array({ "0x0002B96C" }), "a frost spell under the frost one");
+        check.Check(frost && (*frost)["prerequisites"] == Json::array({ "0x0002B96C" }) && !frost->contains("editorId"),
+            "a frost spell under the frost one; its empty editor id is not baked");
         bool goneUntouched = false;
         for (const auto& node : result.tree["schools"]["Destruction"]["nodes"]) {
             if (node["formId"] == "0x09000123") goneUntouched = node == nodes.back();

@@ -36,8 +36,10 @@
 //    the declutter: a long link across the school. A live node without x, y gets
 //    the middle of the range (6), neither helped nor held back. TreeGraft.cpp has
 //    the numbers.
-//  - The new node: formId, persistentId, name, tier (from 1), school, skillLevel
-//    and theme when known, children [], prerequisites = softPrereqs = [parent],
+//  - The new node: formId, persistentId, the scan's editorId (when not empty) and
+//    traits (as schoolBridges.js bakes them into a built tree), name, tier (from
+//    1), school, skillLevel and theme when known, children [], prerequisites =
+//    softPrereqs = [parent],
 //    softNeeded 1, hardPrereqs [] (no locks, no requiredXP), and a provisional x, y
 //    one node spacing beside the parent, away from the globe's centre, fanned out
 //    from its new siblings and kept inside its tier's ring of the school. The
@@ -59,7 +61,10 @@
 // nodes, which TreeRemap's single saved-id map links wrongly) nor `leftOut`. A
 // candidate without a persistentId is deferred too. The caller does not put
 // deferred spells into the seen list, so a later run takes them once the clash
-// is gone.
+// is gone - which is not the next start: a removed plugin's node stays in the
+// file with its saved formId (Decision 4), so the spell waits for as long as
+// that node keeps the id (its mod back, the node deleted, or the tree built
+// again). Each deferred spell is logged with the node that holds its formId.
 //
 // Not placed - in skippedNoSchool, the tree as it was: a spell of a school the
 // tree has no live node in (a mod brings the first Alteration spells of a tree

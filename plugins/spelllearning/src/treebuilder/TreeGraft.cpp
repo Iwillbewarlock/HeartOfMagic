@@ -277,6 +277,10 @@ namespace
         Json out = Json::object();
         out["formId"] = node.formId;
         out["persistentId"] = Text(spell, "persistentId");
+        // As schoolBridges.js applyToOutput bakes them: the editor id finds the node again when its
+        // plugin is renamed (empty without powerofthree's Tweaks: not baked), traits feed the viewer's filter
+        if (const auto editorId = Text(spell, "editorId"); !editorId.empty()) out["editorId"] = editorId;
+        if (const auto traits = spell.find("traits"); traits != spell.end() && !traits->is_null()) out["traits"] = Json(*traits);
         out["name"] = node.name;
         out["tier"] = tierIdx + 1;
         out["school"] = school;
@@ -423,14 +427,17 @@ namespace
         const bool hasSchools = tree.is_object() && tree.contains("schools") && tree["schools"].is_object();
         const ScanIndex scan(scanSpells);
 
-        // Every formId the file holds, live or not, any school: a candidate with one is deferred (TreeGraft.h)
-        std::unordered_set<std::string> savedFormIds;
+        // Every formId the file holds, live or not, any school: a candidate with one is deferred
+        // (TreeGraft.h); the first node holding it (its persistentId, else its school), for the log
+        std::unordered_map<std::string, std::string> savedFormIds;
         if (hasSchools) {
             for (const auto& [name, school] : tree["schools"].items()) {
                 if (!school.is_object() || !school.contains("nodes") || !school["nodes"].is_array()) continue;
                 for (const auto& node : school["nodes"]) {
                     if (const auto fid = node.is_object() ? Text(node, "formId") : std::string(); !fid.empty()) {
-                        savedFormIds.insert(TreeGraft::Detail::SpellIdOf(fid));
+                        const auto holder = Text(node, "persistentId");
+                        savedFormIds.emplace(TreeGraft::Detail::SpellIdOf(fid),
+                            holder.empty() ? "a node of " + name + " without a persistentId" : holder);
                     }
                 }
             }
@@ -442,8 +449,16 @@ namespace
         std::unordered_set<std::string> judged;
         for (const auto* spell : candidates) {
             if (!spell || !spell->is_object() || !judged.insert(ListId(*spell)).second) continue;
-            if (TreeGraft::Detail::PersistentKey(*spell).empty() ||
-                savedFormIds.contains(TreeGraft::Detail::SpellIdOf(Text(*spell, "formId")))) {
+            if (TreeGraft::Detail::PersistentKey(*spell).empty()) {
+                logger::info("TreeGraft: {} deferred - it has no persistentId", ListId(*spell));
+                result.deferred.push_back(ListId(*spell));
+                continue;
+            }
+            if (const auto holder = savedFormIds.find(TreeGraft::Detail::SpellIdOf(Text(*spell, "formId")));
+                holder != savedFormIds.end()) {
+                // Decision 4 keeps a missing plugin's node in the file: the wait lasts while that node keeps the id
+                logger::info("TreeGraft: {} deferred - its formId {} is held by the tree's node {}; it waits while that "
+                             "node keeps the id", ListId(*spell), Text(*spell, "formId"), holder->second);
                 result.deferred.push_back(ListId(*spell));
                 continue;
             }

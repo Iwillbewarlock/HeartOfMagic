@@ -45,7 +45,8 @@
 //     validation drops (a removed plugin's, one no longer a player's spell) keeps
 //     its id, and a live node whose new formId is such a node's saved one is held
 //     at its old id (two nodes on one formId would link wrongly at the next load);
-//     a new spell on that old id is then deferred, as Graft does.
+//     a new spell on that old id is then deferred, as Graft does, for as long as
+//     the dropped node keeps that id (it stays in the file: Decision 4).
 //  2. Graft (TreeGraft.h) over the scan less the spells only dropped nodes hold,
 //     so a node the tree load drops is never a parent.
 //  3. The declutter with every existing node fixed and no spread: only the
@@ -55,7 +56,8 @@
 //     and the links' ids, through the id map its own formId change makes:
 //     Ruling 2 counts an id rewrite as no change) and the grafted children a
 //     parent gained; no seen spell grafted. A plan that fails is not written.
-//  5. The record: seen += grafted + left out by the player's rules (not the
+//  5. The record: seen += grafted + left out by the player's rules + the new
+//     persistentIds of rematched nodes (not the
 //     unplaced or deferred ones: a later run judges them again), pendingGrafted
 //     += grafted; the load order becomes the current one only when nothing was
 //     deferred or unplaced, so the graft runs again at the next start and the
@@ -530,12 +532,15 @@ namespace TreeGraftRun
                 plan.problem = "the declutter's reply: " + error;
             }
         }
-        if (plan.problem.empty()) plan.problem = PreGraftNodesKept(original, plan.tree, RematchedIds(original, input.verdicts));
+        const auto rematched = RematchedIds(original, input.verdicts);
+        if (plan.problem.empty()) plan.problem = PreGraftNodesKept(original, plan.tree, rematched);
         if (plan.problem.empty()) plan.problem = SeenGrafted(plan.grafted, input.baseline.seen);
 
         plan.complete = plan.deferred.empty() && plan.skippedNoSchool.empty();
+        std::vector<std::string> rematchedNow;   // their new persistentIds join the seen list
+        for (const auto& [was, now] : rematched) rematchedNow.push_back(now);
         plan.record = RecordAfterGraft(input.record, input.baseline, plan.grafted, plan.leftOut, plan.complete,
-            input.loadOrder, input.plugins, input.spells);
+            input.loadOrder, input.plugins, input.spells, rematchedNow);
         plan.writeTree = !plan.grafted.empty();
         plan.writeRecord = TreeRecordFile::ToJson(plan.record) != TreeRecordFile::ToJson(input.record);
         return plan;
