@@ -21,6 +21,10 @@
     .\DeployDev.ps1 -NoScripts    # plugin and panel without the Papyrus scripts (left as they are)
     .\DeployDev.ps1 -WithSelfTest # also selftest.json: the 1.6 environment self-test runs in game
                                   # (docs/ENVIRONMENT.md); any deploy without the switch removes it
+    .\DeployDev.ps1 -NoAddons     # the base mod alone: Skald only, the design add-ons' files taken out
+
+    The design add-ons (addons/designs/, one release archive each) are deployed too
+    by default, so the dev install has every design.
 
     Everything it will copy is checked before anything is copied (the plugin, the
     panel, each compiled script there and newer than its source), so a missing or
@@ -33,7 +37,8 @@ param(
     [switch]$WithISLPatch,
     [switch]$WithBookXP,
     [switch]$NoScripts,
-    [switch]$WithSelfTest
+    [switch]$WithSelfTest,
+    [switch]$NoAddons
 )
 
 $ErrorActionPreference = 'Stop'
@@ -73,6 +78,25 @@ if (-not $PanelOnly) {
 $selfTestSrc = Join-Path $repo 'debug\selftest.json'
 $selfTestDst = Join-Path $ModPath 'SKSE\Plugins\SpellLearning\selftest.json'
 if ($WithSelfTest -and -not (Test-Path $selfTestSrc)) { throw "No $selfTestSrc - nothing was copied." }
+
+# The design add-ons' source trees (addons/designs/<folder>/ and the shared trees in
+# addons/designs/_shared/), the game's Data layout inside: a file's path under its tree is its
+# path in the install. Listed here whether they are deployed or, with -NoAddons, taken out.
+$addonsSrc = Join-Path $repo 'addons\designs'
+if (-not (Test-Path $addonsSrc)) { throw "No design add-ons at $addonsSrc - nothing was copied." }
+$addonTrees = @(Get-ChildItem $addonsSrc -Directory | Where-Object { $_.Name -notlike '_*' }) +
+              @(Get-ChildItem (Join-Path $addonsSrc '_shared') -Directory -ErrorAction SilentlyContinue)
+$addonFiles = @()
+foreach ($tree in $addonTrees) {
+    foreach ($top in @('SKSE', 'PrismaUI')) {
+        $dir = Join-Path $tree.FullName $top
+        if (-not (Test-Path $dir)) { continue }
+        foreach ($file in Get-ChildItem $dir -Recurse -File) {
+            $addonFiles += [pscustomobject]@{ Src = $file.FullName; Rel = $file.FullName.Substring($tree.FullName.Length + 1) }
+        }
+    }
+}
+if ($addonFiles.Count -eq 0) { throw "No design add-on files under $addonsSrc - nothing was copied." }
 
 # The compiled Papyrus scripts (BuildRelease.ps1 puts them in build\Scripts\output),
 # laid out as the release has them (plugins/cmake/Papyrus.cmake, Distribution.cmake):
@@ -122,21 +146,18 @@ if (-not $PanelOnly) {
                 'MAG_ScreenShakeEffect - in TAKEALOOK, Synthesis - Sound and Combat.esp)')
 }
 
-# The design presets shipped with the mod (Night Grimoire, Chalkboard, Skald): data
-# files the plugin lists at runtime, so the dev install needs them to show them
-$designSrc = Join-Path $repo 'SKSE\Plugins\SpellLearning\presets\design'
+# The base mod ships no design file: Skald is built into the panel, the other designs are the
+# add-ons (deployed at the end). Design files the mod shipped once leave the install, only
+# those, by name: any other file there (a design being tried out) stays. Skald.json went when
+# Skald was built in (a file left behind would be skipped: a file cannot replace a built-in).
 $designDst = Join-Path $ModPath 'SKSE\Plugins\SpellLearning\presets\design'
-if (Test-Path $designSrc) {
-    New-Item -ItemType Directory -Force -Path $designDst | Out-Null
-    Copy-Item (Join-Path $designSrc '*.json') $designDst -Force
-    # Presets the mod shipped once and no longer does leave the install too. Only
-    # those, by name: any other file there (an add-on design being tried out) stays.
-    $retired = @('CandlelitTome.json')
-    foreach ($name in $retired) {
-        $old = Join-Path $designDst $name
-        if ((Test-Path $old) -and -not (Test-Path (Join-Path $designSrc $name))) { Remove-Item $old -Force }
+$retired = @('CandlelitTome.json', 'Skald.json')
+foreach ($name in $retired) {
+    $old = Join-Path $designDst $name
+    if (Test-Path $old) {
+        Remove-Item $old -Force
+        Write-Host "designs $name removed (no longer shipped)"
     }
-    Write-Host ("designs {0}" -f ((Get-ChildItem $designSrc -Filter '*.json').Count))
 }
 
 # The librarian's rule files (the hand-made 80_manual.json among them): the
@@ -245,5 +266,38 @@ foreach ($file in $checked) {
     $a = (Get-FileHash (Join-Path $panelSrc $file)).Hash
     $b = (Get-FileHash (Join-Path $panelDst $file)).Hash
     if ($a -ne $b) { throw "Copy did not take: $file" }
+}
+
+# The design add-ons (listed in the preflight): every add-on's files over the install, or with
+# -NoAddons exactly those files taken out (and the folders that leaves empty), so a base-only
+# deploy over a full one shows Skald alone. Nothing else is touched: a design file of your own
+# in presets\design stays.
+if ($NoAddons) {
+    $removed = 0
+    $dirs = @{}
+    foreach ($f in $addonFiles) {
+        $dst = Join-Path $ModPath $f.Rel
+        if (Test-Path $dst) { Remove-Item $dst -Force; $removed++ }
+        $dirs[(Split-Path $dst)] = $true
+    }
+    # Deepest first, and only folders left empty
+    foreach ($dir in ($dirs.Keys | Sort-Object Length -Descending)) {
+        while ($dir.Length -gt $ModPath.Length -and (Test-Path $dir) -and -not (Get-ChildItem $dir -Force | Select-Object -First 1)) {
+            Remove-Item $dir -Force
+            $dir = Split-Path $dir
+        }
+    }
+    Write-Host ("addons  none (-NoAddons): {0} add-on files removed" -f $removed)
+} else {
+    foreach ($f in $addonFiles) {
+        $dst = Join-Path $ModPath $f.Rel
+        New-Item -ItemType Directory -Force -Path (Split-Path $dst) | Out-Null
+        Copy-Item $f.Src $dst -Force
+    }
+    foreach ($f in $addonFiles | Where-Object { $_.Rel -like '*.json' }) {
+        if ((Get-FileHash $f.Src).Hash -ne (Get-FileHash (Join-Path $ModPath $f.Rel)).Hash) { throw "Copy did not take: $($f.Rel)" }
+    }
+    $names = ($addonTrees | ForEach-Object { $_.Name }) -join ', '
+    Write-Host ("addons  {0} files ({1})" -f $addonFiles.Count, $names)
 }
 Write-Host 'verified'
