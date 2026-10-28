@@ -324,6 +324,8 @@ the book is not removed.
 | `plugins/spelllearning/src/SpellTomeHook.cpp` | Xbyak patch, callback logic |
 | `plugins/spelllearning/src/SpellTomeHookInventory.cpp` | Tome inventory cache for the carried-tome XP boost |
 | `plugins/spelllearning/src/SpellTomeHookSave.cpp` | The tome "XP once" list in the co-save (record `SLTX`, cleared on revert; see ARCHITECTURE.md, "Co-save records") |
+| `plugins/spelllearning/src/ISLIntegration.cpp` | DEST/ISL compatibility natives; the `OnSpellTomeRead` registrations go into the co-save (record `DEST`, read through `DESTIntegration::ReadRecord`, cleared on revert; `AutoRegisterISLAliases` adds ISL's aliases at every load) |
+| `plugins/spelllearning/src/spelleffectiveness/SpellEffectivenessHookGrant.cpp` | A spell ISL studies is held for ISL (`IsHeldForISL`, saved in `SLEL` v2) until ISL teaches it (`OnISLTaught` from `OnStudyComplete`, or `ReleaseHeldIfOwned` once the player has it): Heart of Magic never adds it itself (`ShouldGrantEarly`) |
 
 ## Credits
 

@@ -342,7 +342,7 @@ var ClassicSettings = {
             })(handles[i]);
         }
 
-        document.addEventListener('mousemove', function (e) {
+        var onDocMove = function (e) {
             if (!dragging) return;
             var rect = dragging.track.getBoundingClientRect();
             var trackH = rect.height;
@@ -380,9 +380,17 @@ var ClassicSettings = {
             if (callbacks.onTierZoneChanged) {
                 callbacks.onTierZoneChanged(dragging.tier, zone.min, zone.max);
             }
-        });
+        };
+        var onDocUp = function () { dragging = null; };
 
-        document.addEventListener('mouseup', function () { dragging = null; });
+        // One document pair at a time: every bind (a rebuilt panel, a preset) used to add one more
+        if (this._tierZoneDocDrag) {
+            document.removeEventListener('mousemove', this._tierZoneDocDrag.move);
+            document.removeEventListener('mouseup', this._tierZoneDocDrag.up);
+        }
+        document.addEventListener('mousemove', onDocMove);
+        document.addEventListener('mouseup', onDocUp);
+        this._tierZoneDocDrag = { move: onDocMove, up: onDocUp };
     },
 
     /** Re-apply tracked state to freshly built DOM elements. @private */

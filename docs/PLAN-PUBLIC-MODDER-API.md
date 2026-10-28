@@ -438,6 +438,11 @@ for a spell with effects of two schools.
 
 ## 5. C++ Public API (`SpellLearningAPI.h`)
 
+**Threading:** every method is called from the game thread only (an SKSE task, a Papyrus native, an SKSE
+message handler or a game event sink); the progression data is not locked, so a call from another thread
+races the game's own use of it. No exception leaves a call, getters included: a failure is logged and
+answered with 0 / false / no target (`GuardApiCall`, `Main.cpp`).
+
 ### API Handshake (Broadcast Pattern)
 
 SpellLearning uses SKSE's standard broadcast pattern (same as TrueHUD, PO3, etc.):

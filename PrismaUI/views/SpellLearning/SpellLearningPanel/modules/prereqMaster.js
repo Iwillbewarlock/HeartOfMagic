@@ -1088,6 +1088,21 @@
     // The Classic tree autoApplyLocks asked the C++ scorer about (null for other requests):
     // a result that comes back after that tree was cleared or built again is dropped
     var _prmTree = null;
+    // Each request to the C++ scorer carries an id, which its answer echoes: only the
+    // answer to the latest request is used. A request C++ turned away as busy is sent
+    // again once the scoring it was waiting on answers.
+    var _prmSeq = 0;
+    var _prmLatestId = 0;
+    var _prmLatestText = null;
+    var _prmResendAfterBusy = false;
+
+    function _prmResendTurnedAway() {
+        if (!_prmResendAfterBusy || !_prmLatestText || !window.callCpp) return false;
+        _prmResendAfterBusy = false;
+        _prmLog('Sending the request the busy scorer turned away (#' + _prmLatestId + ')');
+        window.callCpp('PreReqMasterScore', _prmLatestText);
+        return true;
+    }
 
     function applyLocksWithScorer(request) {
         _prmTree = null;
@@ -1098,7 +1113,11 @@
             try {
                 var payload = _buildTreePayload(request);
                 _prmLog('Sending ' + payload.pairs.length + ' pairs to NLPscorer...');
-                window.callCpp('PreReqMasterScore', JSON.stringify(payload));
+                payload.requestId = ++_prmSeq;
+                _prmLatestId = payload.requestId;
+                _prmLatestText = JSON.stringify(payload);
+                _prmResendAfterBusy = false;
+                window.callCpp('PreReqMasterScore', _prmLatestText);
                 return -1; // Async - result comes via onPreReqMasterComplete callback
             } catch (e) {
                 _prmLog('C++ bridge failed, using JS TF-IDF fallback: ' + e.message);
@@ -1114,6 +1133,24 @@
      * @param {string} resultStr - JSON string with scored results
      */
     window.onPreReqMasterComplete = function(resultStr) {
+        var busyReply = null;
+        try { busyReply = typeof resultStr === 'string' ? JSON.parse(resultStr) : resultStr; } catch (e) { busyReply = null; }
+        // Busy: the latest request was turned away while an earlier one is scored; it
+        // goes out again when that answers, and the tree it is for is kept
+        if (busyReply && busyReply.busy) {
+            _prmResendAfterBusy = true;
+            _prmLog('C++ scorer busy - the request goes again once the scoring in flight answers');
+            return;
+        }
+        // The scoring that ran is over. An answer to an older request (its id) is
+        // dropped; so is a failure with no id while the latest request still waits
+        var answers = busyReply && typeof busyReply.requestId === 'number' ? busyReply.requestId : null;
+        if ((answers !== null && answers !== _prmLatestId) || (answers === null && _prmResendAfterBusy)) {
+            console.warn('[PreReqMaster] Lock scores for an earlier request (#' + answers + ', latest #' +
+                _prmLatestId + ') - ignored');
+            _prmResendTurnedAway();
+            return;
+        }
         var forTree = _prmTree;
         _prmTree = null;
         if (forTree && typeof TreeGrowthClassic !== 'undefined' && TreeGrowthClassic._treeData !== forTree) {
@@ -1133,7 +1170,8 @@
                 return;
             }
 
-            var result = typeof resultStr === 'string' ? JSON.parse(resultStr) : resultStr;
+            // Parsed once above (null when it was not JSON: the parse here throws as before)
+            var result = busyReply || (typeof resultStr === 'string' ? JSON.parse(resultStr) : resultStr);
             if (!result.success || !result.scores) {
                 _prmLog('C++ scoring failed: ' + (result.error || 'unknown') + ' - falling back to JS TF-IDF');
                 // Fall back to JS TF-IDF scorer

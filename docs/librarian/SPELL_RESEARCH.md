@@ -74,7 +74,10 @@
   3. 전체 스캔이 카탈로그를 새로 쓴 뒤(패널의 트리 스캔, Papyrus `RunScan` — 퍽 어댑터가 다시 도는 자리). HoM 을 처음
      깔고 처음 스캔한 세이브, 새 모드를 넣고 다시 스캔한 경우를 다음 로드까지 기다리지 않는다.
 - 맞춤:
-  - **마법책이 가르치는 주문만** 대상이다(로드된 책의 `TeachesSpell`, 스캐너의 `TomesBySpell`). 전체 스캔의 카탈로그에는
+  - **마법책이 가르치는 주문만** 대상이다(스캐너의 `TomesBySpell`: 책이 가르치는 주문, 그리고 Spell Research Synthesizer 가
+    아무것도 안 가르치게 바꾼 책은 그 짝의 주문 - `SpellTomes::SpellOf`, docs/ARCHITECTURE.md "Spell tomes that teach
+    nothing"). SR 의 Import 가 끝난 뒤라면 그런 짝의 주문은 SR 이 이미 알고 있어 다시 넣지 않는다(FLM 만 쓰고 Import 를
+    안 했으면 등급 목록에 없으니 HoM 이 넣는다). 전체 스캔의 카탈로그에는
     NPC·퀘스트·생물 주문도 들어 있다(TAKEALOOK 3546 중 2118). 이것까지 넣으면 플레이어용 원본과 같은 이름의 NPC 판
     (수치·퍽 연동이 다름)이 조합 후보에 함께 뜬다(2026-10-03 리뷰에서 발견).
   - 트리처럼 **음성 슬롯 주문**(`voiceSlot`), **주문 감별기가 빼는 주문**(`JudgeSpell` 의 out: 마나 소모 0 - 애완동물·탈것·추종자 부르기,
@@ -86,7 +89,9 @@
     (`tomeUnreachable`, `TomeReach::UnreachableSpells`)도, 플레이어의 주문 블랙리스트와 플러그인 화이트리스트에서 끈
     플러그인(`config.json` 의 `spellBlacklist`, `pluginWhitelist`, `ReadPlayerFilter`)도 트리처럼 뺀다. 전에는
     `tomeUnreachable` 주문을 "SR 의 연구가 닿는 길"로 일부러 넣었다. TAKEALOOK(2026-10-05): 빌더 1419 = SR 대상 1419.
-    빠진 수는 로그와 보고서 `leftOut`(`tomeUnreachable`, `player`)에 남는다. 이미 넣은 등록은 그 세이브의 목록에
+    빠진 수는 로그와 보고서 `leftOut`(`tomeUnreachable`, `player`)에 남는다. 그 판정을 하는 마법책 도달 검사가
+    아직 돌고 있으면 아무것도 넣지 않고(`g_lastSeen` 도 그대로), 검사가 끝난 뒤 한 번 다시 맞춘다
+    (`TomeReach::RunAfterPass`, 2026-10-27). 그사이 Import 로 마법책 짝이 바뀌어 새 검사가 돌고 있으면 그 검사를 다시 기다린다(`kSuperseded`). 검사가 실패했으면 표시 없이 넣는다(스캔과 같음). 이미 넣은 등록은 그 세이브의 목록에
     남으므로, 바뀐 규칙은 SR 에서 Import 를 한 번 더 누르면 적용된다(Import 가 목록을 비우고 다시 채운다).
   - 카탈로그 주문 중 **어느 `_SR_ListAllSpells{등급}` 에도 없는 주문만** 등록한다. SR 패치가 등록한 주문은
     원작 라벨 그대로 둔다(우리 라벨을 섞지 않는다). 우리가 지난번에 넣은 주문도 여기서 건너뛴다 — 몇 번을 돌아도
@@ -110,6 +115,8 @@
 ## 4. 마법책 짝
 
 - 게임은 로드된 책에서 주문마다 가르치는 첫 책을 찾는다(스캐너의 `SpellScanner::TomesBySpell`, 트리의 마법책 판정과 같은 규칙).
+  SR 의 Import 가 끝날 때 뜨는 메시지 상자마다 짝 목록을 먼저 다시 읽는다(`SpellTomes::Rebuild("import")`, 항목 수가 같아도).
+  HoM 이 이 목록을 마법책 짝의 근거로 읽는 규칙(JSON 우선, 이 목록은 검증 안 된 대체 수단)은 `SpellTomePairs.h`.
 - 등급별로 `_SR_ListTomes{등급}` 과 `_SR_ListTomeSpells{등급}` 의 길이가 **같고**, 레코드에 적힌 항목 수(`forms`)도 같을 때만
   넣는다(Papyrus 인덱스는 레코드 항목 다음에 스크립트 추가분을 센다). 다르면(다른 패치가
   짝을 어긋나게 넣음) 그 등급의 마법책은 건너뛰고 보고서와 로그에 남긴다. 책이나 주문이 이미 들어 있으면 건너뛴다

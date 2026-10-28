@@ -308,11 +308,18 @@ void UIManager::NotifyNewGameStarted()
 {
     // Only the build at game start hears of it: a new game is played as a loaded save is
     // (m_saveLoaded stays false - a corner message at kNewGame may not reach the screen)
+    m_newGameStarted = true;
     CallView("onNewGameStarted", "");
 }
 
 void UIManager::NotifyMainMenuShown()
 {
     m_saveLoaded = false;   // nothing is played at the main menu
+    m_newGameStarted = false;
     CallView("onMainMenuShown", "");
+}
+
+void UIManager::NotifySpellTomesChanged(const std::string& payload)
+{
+    CallView("onSpellTomesChanged", payload.c_str());
 }

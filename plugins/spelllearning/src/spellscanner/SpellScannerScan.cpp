@@ -3,6 +3,7 @@
 #include "FormIdText.h"
 #include "JsonText.h"
 #include "SpellScanner.h"
+#include "SpellTomes.h"
 #include "EncodingUtils.h"
 #include "SpellEffectivenessHook.h"
 #include "librarian/Librarian.h"
@@ -175,6 +176,9 @@ namespace SpellScanner
     void FullScanCollector::State::Begin()
     {
         logger::info("SpellScanner: Starting spell scan with ScanConfig...");
+        // release/1.6 CollectAllSpells: the pairs for tomes that teach nothing before the forms are read (a panel
+        // scan rebuilt before its wait: no change then); every full scan, stepped or not, starts here
+        SpellTomes::Rebuild(SpellTomes::kReasonScan);
 
         auto* dataHandler = RE::TESDataHandler::GetSingleton();
         if (!dataHandler) {
@@ -295,7 +299,10 @@ namespace SpellScanner
             return false;
         }
 
-        // Filter out non-player spells based on editorId patterns (only when available)
+        // Filter out non-player spells based on editorId patterns (only when available).
+        // The native editor id on purpose, not GetEditorId's po3 Tweaks one: the engine
+        // keeps no spell editor ids, so this filter seldom runs, and with Tweaks' ids it
+        // would drop player spells such as Soul Trap ("trap")
         if (hasEditorId && IsNonPlayerSpell(editorIdStr)) {
             filteredCount++;
             return false;
@@ -453,7 +460,9 @@ namespace SpellScanner
     json FullScanCollector::Finish()
     {
         auto& st = *m_state;
-        return BuildScanOutput(std::move(st.spellArray), st.config, {});
+        json output = BuildScanOutput(std::move(st.spellArray), st.config, {});
+        SpellTomes::NoteFullScan();   // the forms are read: this scan has these pairs
+        return output;
     }
 
     std::size_t FullScanCollector::Steps() const noexcept { return m_state->steps; }
@@ -506,13 +515,10 @@ namespace SpellScanner
         int skippedDuplicates = 0;
         const FieldConfig& fields = config.fields;
 
+        SpellTomes::Rebuild("tome scan");
         for (auto* book : allBooks) {
-            if (!book) continue;
-
-            // Check if this book teaches a spell
-            if (!book->TeachesSpell()) continue;
-
-            RE::SpellItem* spell = book->GetSpell();
+            // The spell it teaches, or a Spell Research pair's for a book that teaches nothing
+            RE::SpellItem* spell = SpellTomes::SpellOf(book);
             if (!spell) continue;
 
             // Skip if we've already seen this spell

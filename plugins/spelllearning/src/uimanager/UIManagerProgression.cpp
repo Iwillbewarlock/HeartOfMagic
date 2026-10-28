@@ -45,8 +45,13 @@ void UIManager::OnSetLearningTarget(const char* argument)
             std::vector<RE::FormID> prereqs;
             if (request.contains("prerequisites") && request["prerequisites"].is_array()) {
                 for (const auto& prereqJson : request["prerequisites"]) {
-                    std::string prereqStr = prereqJson.get<std::string>();
-                    const auto prereqId = ParsePanelFormId(prereqStr, "SetLearningTarget prerequisite");
+                    // Not text: skipped, as in SetTreePrerequisites (get<std::string>() threw
+                    // and the whole target was not set)
+                    if (!prereqJson.is_string()) {
+                        logger::warn("UIManager: SetLearningTarget - a prerequisite that is not text skipped");
+                        continue;
+                    }
+                    const auto prereqId = ParsePanelFormId(prereqJson.get<std::string>(), "SetLearningTarget prerequisite");
                     if (prereqId && *prereqId != 0) {
                         prereqs.push_back(*prereqId);
                     }
@@ -61,7 +66,7 @@ void UIManager::OnSetLearningTarget(const char* argument)
             if (request.contains("requiredXP") && request["requiredXP"].is_number()) {
                 float requiredXP = request["requiredXP"].get<float>();
                 if (requiredXP > 0) {
-                    pm->SetRequiredXP(formId, requiredXP);
+                    pm->SetRequiredXP(formId, requiredXP, RequiredXP::Kind::kCharacter);
                     logger::info("UIManager: Set requiredXP for {:08X} to {:.0f} (from tree)", formId, requiredXP);
                 }
             }
@@ -454,7 +459,7 @@ void UIManager::OnSetRequiredXP(const char* argument)
             if (!parsedId) return;
             const RE::FormID formId = *parsedId;
             if (formId == 0 || requiredXP <= 0.0f) return;
-            ProgressionManager::GetSingleton()->SetRequiredXP(formId, requiredXP);
+            ProgressionManager::GetSingleton()->SetRequiredXP(formId, requiredXP, RequiredXP::Kind::kCharacter);
             GetSingleton()->NotifyProgressUpdate(formIdStr);
         } catch (const std::exception& e) {
             logger::error("UIManager: SetRequiredXP exception: {}", e.what());

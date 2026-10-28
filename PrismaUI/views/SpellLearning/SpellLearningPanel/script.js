@@ -458,16 +458,16 @@ function initializePassiveLearningSettings() {
         autoSaveSettings();
     });
 
-    // XP per game hour slider
+    // XP per game day slider
     var xpSlider = document.getElementById('passiveXpPerHourSlider');
     var xpValue = document.getElementById('passiveXpPerHourValue');
     if (xpSlider) {
-        xpSlider.value = settings.passiveLearning.xpPerGameHour;
-        if (xpValue) xpValue.textContent = settings.passiveLearning.xpPerGameHour;
+        xpSlider.value = settings.passiveLearning.xpPerGameDay;
+        if (xpValue) xpValue.textContent = settings.passiveLearning.xpPerGameDay;
         updateSliderFillGlobal(xpSlider);
         xpSlider.addEventListener('input', function() {
             var val = parseInt(this.value);
-            settings.passiveLearning.xpPerGameHour = val;
+            settings.passiveLearning.xpPerGameDay = val;
             if (xpValue) xpValue.textContent = val;
             updateSliderFillGlobal(this);
             autoSaveSettings();
@@ -524,8 +524,8 @@ function updatePassiveLearningUI() {
     var xpSlider = document.getElementById('passiveXpPerHourSlider');
     var xpValue = document.getElementById('passiveXpPerHourValue');
     if (xpSlider) {
-        xpSlider.value = settings.passiveLearning.xpPerGameHour;
-        if (xpValue) xpValue.textContent = settings.passiveLearning.xpPerGameHour;
+        xpSlider.value = settings.passiveLearning.xpPerGameDay;
+        if (xpValue) xpValue.textContent = settings.passiveLearning.xpPerGameDay;
         updateSliderFillGlobal(xpSlider);
     }
 

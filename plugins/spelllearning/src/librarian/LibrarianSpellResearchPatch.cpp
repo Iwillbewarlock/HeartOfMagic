@@ -6,10 +6,13 @@
 #include "librarian/LoadOrderSource.h"
 #include "librarian/PerkAdapters.h"
 #include "librarian/SpellResearch.h"
+#include "librarian/SpellResearchPlayerFilter.h"
 #include "HudNotify.h"
+#include "ThreadUtils.h"
 #include "JsonText.h"
 #include "PathText.h"
 #include "SpellScanner.h"
+#include "SpellTomes.h"
 #include "tomereach/TomeReach.h"
 #include "ProgressionNotify.h"
 
@@ -50,6 +53,9 @@ namespace Librarian::SpellResearchPatch
         // Spells whose tier list would not take them: left out of the check
         // for missing spells, or every load would plan them again.
         std::unordered_set<RE::FormID> g_failed;
+
+        bool g_waitingForPass = false;   // a Reconcile is queued for after the tome reach pass
+        std::uint64_t g_gameSession = 0;  // +1 at every save load and new game: a queued Reconcile of another is dropped
 
         // What the last run found (StatusJson): written on the game thread, read
         // when the panel opens
@@ -143,69 +149,6 @@ namespace Librarian::SpellResearchPatch
             std::size_t playerLeftOut = 0;   // the player's spell blacklist or a plugin turned off
         };
 
-        // What the panel's builder leaves out on the player's say (proceduralTreeBuilder.js:
-        // the spell blacklist and the plugins turned off in the plugin whitelist), read from
-        // config.json where the panel saves them, so SR gets the builder's spells exactly
-        struct PlayerFilter
-        {
-            std::unordered_set<std::string> blacklisted;      // "plugin.esp|<local id>", lowercase plugin
-            std::unordered_set<RE::FormID> blacklistedIds;     // entries that only carry a formId
-            std::unordered_set<std::string> pluginsOff;        // lowercase
-        };
-
-        // "plugin|<local id as a number>" for a plugin name and a hex local id ("0x00080B" or "00080b");
-        // empty when the id is missing or not hex (the entry is then read by its formId)
-        std::string LocalKey(const std::string& plugin, const std::string& localHex)
-        {
-            const auto localId = FormIdText::Parse(localHex);
-            return localId ? AsciiText::ToLower(plugin) + "|" + std::to_string(*localId) : std::string();
-        }
-
-        PlayerFilter ReadPlayerFilter()
-        {
-            PlayerFilter filter;
-            json config;
-            if (!ReadJsonFile(DataPath("config.json"), config) || !config.is_object()) return filter;
-            const auto text = [](const json& entry, const char* key) {
-                const auto found = entry.find(key);
-                return (found != entry.end() && found->is_string()) ? found->get<std::string>() : std::string();
-            };
-            if (const auto list = config.find("spellBlacklist"); list != config.end() && list->is_array()) {
-                for (const auto& entry : *list) {
-                    if (!entry.is_object()) continue;
-                    const auto key = LocalKey(text(entry, "plugin"), text(entry, "localFormId"));
-                    if (!text(entry, "plugin").empty() && !key.empty()) {
-                        filter.blacklisted.insert(key);
-                    } else if (const auto id = SpellScanner::ResolvePersistentFormId(text(entry, "formId")); id) {
-                        filter.blacklistedIds.insert(id);
-                    } else if (const auto formId = FormIdText::ParseSpellOf(text(entry, "formId"))) {  // a copy's "_dup_" id (Shift+Eraser) names its spell
-                        filter.blacklistedIds.insert(*formId);
-                    } else {
-                        logger::warn("SpellResearchPatch: spellBlacklist entry {} has no usable plugin, persistentId "
-                                     "or formId - ignored", JsonText::Dump(entry));
-                    }
-                }
-            }
-            if (const auto list = config.find("pluginWhitelist"); list != config.end() && list->is_array()) {
-                for (const auto& entry : *list) {
-                    const auto enabled = entry.is_object() ? entry.find("enabled") : entry.end();
-                    if (entry.is_object() && enabled != entry.end() && enabled->is_boolean() && !enabled->get<bool>()) {
-                        filter.pluginsOff.insert(AsciiText::ToLower(text(entry, "plugin")));
-                    }
-                }
-            }
-            return filter;
-        }
-
-        bool PlayerLeftOut(const std::string& persistentId, RE::FormID formId, const PlayerFilter& filter)
-        {
-            const auto pipe = persistentId.find('|');
-            if (pipe == std::string::npos) return filter.blacklistedIds.contains(formId);
-            const std::string plugin = persistentId.substr(0, pipe);
-            return filter.pluginsOff.contains(AsciiText::ToLower(plugin)) || filter.blacklistedIds.contains(formId) ||
-                filter.blacklisted.contains(LocalKey(plugin, persistentId.substr(pipe + 1)));
-        }
-
         // Another plugin's copy of a spell (duplicateOf in the scan), or the kept
         // record of a group SR already holds a member of: each spell is in SR once
         bool DuplicateLeftOut(RE::FormID formId, const Registered& registered)
@@ -228,7 +171,7 @@ namespace Librarian::SpellResearchPatch
             Skipped& skipped)
         {
             std::unordered_set<RE::FormID> unreachable;
-            TomeReach::UnreachableSpells(unreachable);   // empty until the pass is done, as the scan's marks
+            TomeReach::UnreachableSpells(unreachable);   // Reconcile waits for a running pass; empty when it failed
             const PlayerFilter playerFilter = ReadPlayerFilter();
             const auto gateKept = SpellScanner::ReadGateKept();
             json missing = json::object();
@@ -357,6 +300,32 @@ namespace Librarian::SpellResearchPatch
             return totals;
         }
 
+        void SafeReconcile(std::string_view reason);
+
+        // One Reconcile once the tome reach pass is done. A newer pass that took over
+        // before the task ran (an Import changed the tome pairs) is waited for in turn,
+        // g_waitingForPass kept: SafeReconcile("import") queued no wait of its own while
+        // it was set, so clearing it skipped the registrations until another event.
+        // False when no thread could wait (RunAfterPass logged it).
+        bool WaitForPassThenReconcile()
+        {
+            return TomeReach::RunAfterPass("SpellResearchReconcile", [session = g_gameSession](TomeReach::PassOutcome outcome) {
+                if (session != g_gameSession) return;   // that game is gone (its own load reconciles)
+                if (outcome == TomeReach::PassOutcome::kSuperseded) {
+                    g_waitingForPass = WaitForPassThenReconcile();
+                    if (!g_waitingForPass) logger::warn("SpellResearch: no wait for the newer tome reach pass - nothing registered");
+                    return;
+                }
+                g_waitingForPass = false;
+                if (RE::UI::GetSingleton()->IsMenuOpen(RE::MainMenu::MENU_NAME)) return;
+                if (outcome != TomeReach::PassOutcome::kAnswered) {
+                    logger::warn("SpellResearch: the tome reach pass failed or did not finish - nothing registered");
+                    return;
+                }
+                SafeReconcile("tome reach done");
+            });
+        }
+
         void Reconcile(std::string_view reason)
         {
             if (!g_installed) return;
@@ -370,6 +339,12 @@ namespace Librarian::SpellResearchPatch
             if (GlobalValue(g_lists.importing) != 0.0f) return;
             const std::size_t entries = CountRegistered();
             if (entries == g_lastSeen) return;
+            if (TomeReach::IsRunning()) {
+                // Without its answer spells whose tomes nothing hands out would go in for good:
+                // nothing now, g_lastSeen kept, one run once the pass is done
+                if (!g_waitingForPass) g_waitingForPass = WaitForPassThenReconcile();
+                return;
+            }
             g_lastSeen = entries;
             if (!ConfigSwitchOn(CONFIG_SECTION)) {
                 SetStatus("off", reason);
@@ -493,7 +468,11 @@ namespace Librarian::SpellResearchPatch
                 RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
             {
                 if (event && event->menuName == RE::MessageBoxMenu::MENU_NAME) {
-                    SKSE::GetTaskInterface()->AddTask([] { SafeReconcile("import"); });
+                    // The tome pairs first: an Import that ends with the same entry count still re-paired
+                    AddTaskToGameThread("SpellResearchImport", [] {
+                        SpellTomes::Rebuild(SpellTomes::kReasonImport);
+                        SafeReconcile("import");
+                    });
                 }
                 return RE::BSEventNotifyControl::kContinue;
             }
@@ -532,6 +511,8 @@ namespace Librarian::SpellResearchPatch
 
     void OnGameLoaded()
     {
+        ++g_gameSession;
+        g_waitingForPass = false;
         g_lastSeen = 0;
         g_failed.clear();
         SafeReconcile("load");
@@ -539,6 +520,8 @@ namespace Librarian::SpellResearchPatch
 
     void OnNewGame()
     {
+        ++g_gameSession;
+        g_waitingForPass = false;
         g_lastSeen = 0;
         g_failed.clear();
         std::lock_guard lock(g_statusLock);
@@ -560,5 +543,16 @@ namespace Librarian::SpellResearchPatch
         if (!g_installed) return {};
         std::lock_guard lock(g_statusLock);
         return g_status.is_null() ? std::string() : JsonText::Dump(g_status);
+    }
+}
+
+namespace Librarian::SpellResearchPatch
+{
+    TomeListState ReadTomeLists(TomeLists& out)
+    {
+        if (!g_installed) return TomeListState::kNotInstalled;
+        if (GlobalValue(g_lists.isSetup) != 1.0f || GlobalValue(g_lists.importing) != 0.0f) return TomeListState::kNotReady;
+        for (std::size_t t = 0; t < out.size(); ++t) out[t] = { ResolveList(g_lists.tomes[t]), ResolveList(g_lists.tomeSpells[t]) };
+        return TomeListState::kReady;
     }
 }

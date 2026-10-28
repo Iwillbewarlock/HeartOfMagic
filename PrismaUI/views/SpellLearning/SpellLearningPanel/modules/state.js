@@ -187,7 +187,6 @@ var settings = {
         tomeInventoryBoostPercent: 25,    // % bonus XP when tome is in inventory
         // Prerequisite requirements for tome learning
         requirePrereqs: true,             // Require tree prerequisites to be mastered
-        requireAllPrereqs: true,          // Require ALL prereqs (vs just one)
         requireSkillLevel: false,         // Require minimum skill level for spell tier
         studySkillXP: true                // ISL study raises the school's skill (Game.AdvanceSkill)
     },
@@ -200,7 +199,7 @@ var settings = {
     passiveLearning: {
         enabled: false,
         scope: 'novice',        // 'all', 'root', 'novice'
-        xpPerGameHour: 5,
+        xpPerGameDay: 5,
         maxByTier: {
             novice: 100,
             apprentice: 75,

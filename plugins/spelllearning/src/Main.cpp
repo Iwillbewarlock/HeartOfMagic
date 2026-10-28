@@ -13,6 +13,7 @@
 #include "PassiveLearningSource.h"
 #include "SpellEffectivenessHook.h"
 #include "SpellTomeHook.h"
+#include "SpellTomes.h"
 #include "PapyrusAPI.h"
 #include "RisaMenu.h"
 #include "SpellLearningAPI.h"
@@ -84,33 +85,37 @@ public:
 
     bool IsSpellMastered(uint32_t spellFormID) const override
     {
-        return ProgressionManager::GetSingleton()->IsSpellMastered(
-            static_cast<RE::FormID>(spellFormID));
+        return GuardApiCall("IsSpellMastered", [&] {
+            return ProgressionManager::GetSingleton()->IsSpellMastered(static_cast<RE::FormID>(spellFormID));
+        });
     }
 
     bool IsSpellAvailableToLearn(uint32_t spellFormID) const override
     {
-        return ProgressionManager::GetSingleton()->IsSpellAvailableToLearn(
-            static_cast<RE::FormID>(spellFormID));
+        return GuardApiCall("IsSpellAvailableToLearn", [&] {
+            return ProgressionManager::GetSingleton()->IsSpellAvailableToLearn(static_cast<RE::FormID>(spellFormID));
+        });
     }
 
     float GetRequiredXP(uint32_t spellFormID) const override
     {
-        return ProgressionManager::GetSingleton()->GetRequiredXP(
-            static_cast<RE::FormID>(spellFormID));
+        return GuardApiCall("GetRequiredXP", [&] {
+            return ProgressionManager::GetSingleton()->GetRequiredXP(static_cast<RE::FormID>(spellFormID));
+        });
     }
 
     float GetProgress(uint32_t spellFormID) const override
     {
-        auto progress = ProgressionManager::GetSingleton()->GetProgress(
-            static_cast<RE::FormID>(spellFormID));
-        return progress.progressPercent * 100.0f;
+        return GuardApiCall("GetProgress", [&] {
+            return ProgressionManager::GetSingleton()->GetProgressPercent(static_cast<RE::FormID>(spellFormID)) * 100.0f;
+        });
     }
 
     uint32_t GetLearningTarget(const std::string& school) const override
     {
-        return static_cast<uint32_t>(
-            ProgressionManager::GetSingleton()->GetLearningTarget(school));
+        return GuardApiCall("GetLearningTarget", [&] {
+            return static_cast<uint32_t>(ProgressionManager::GetSingleton()->GetLearningTarget(school));
+        });
     }
 
     void SetLearningTarget(uint32_t spellFormID) override
@@ -133,7 +138,9 @@ public:
 
     float GetGlobalMultiplier() const override
     {
-        return ProgressionManager::GetSingleton()->GetXPSettings().globalMultiplier;
+        return GuardApiCall("GetGlobalMultiplier", [&] {
+            return ProgressionManager::GetSingleton()->GetXPSettings().globalMultiplier;
+        });
     }
 
     bool RegisterXPSource(const std::string& sourceId, const std::string& displayName) override
@@ -234,6 +241,14 @@ public:
                 continue;
             }
 
+            // Typing in the console or a text field (naming an item, a save, Risa's search)
+            // is not the hotkey: opening the panel then swallowed the key and the text.
+            // Only for opening - with the panel open the key still closes it, whatever
+            // text input the panel's own view takes
+            if (!UIManager::GetSingleton()->IsPanelVisible() && IsTypingText()) {
+                continue;
+            }
+
             // Matched! Toggle the panel
             logger::info("Hotkey {} pressed - toggling Spell Learning Panel", m_hotkeyCode);
             UIManager::GetSingleton()->TogglePanel();
@@ -245,6 +260,14 @@ public:
 
 private:
     static constexpr std::uint32_t kEscapeKeyCode = 1;  // DirectInput scan code of Escape
+
+    // The console is open, or a menu takes text (ControlMap's text entry count)
+    static bool IsTypingText()
+    {
+        if (auto* ui = RE::UI::GetSingleton(); ui && ui->IsMenuOpen(RE::Console::MENU_NAME)) return true;
+        auto* controlMap = RE::ControlMap::GetSingleton();
+        return controlMap && controlMap->GetRuntimeData().textEntryCount > 0;
+    }
 
     InputHandler() : m_hotkeyCode(66) {}  // Default F8 = 66
     ~InputHandler() = default;
@@ -313,6 +336,10 @@ void OnDataLoaded()
     // Spell Research learns the catalog spells after its Import (docs/librarian/SPELL_RESEARCH.md)
     Librarian::SpellResearchPatch::Install();
 
+    // Tomes that teach nothing (Spell Research Synthesizer) and the spell each
+    // stands for, before the tome reach pass takes the tomes (SpellTomes.h)
+    SpellTomes::Rebuild("data loaded");
+
     // Which tomes something hands out: read from the plugin files on a worker
     // thread, ready for the scan (docs/ARCHITECTURE.md, "Tomes nothing hands out")
     TomeReach::StartAfterDataLoaded();
@@ -331,22 +358,16 @@ void OnDataLoaded()
 
     // One spell from two plugins: the groups a copy's tome reads by, worked out
     // on the game thread once that pass is done, never on a cast's tome check
-    // (SpellScannerDuplicates.cpp). The wait is on a thread of its own.
-    try {
-        std::thread([] {
-            constexpr auto kTomeReachWaitLimit = std::chrono::minutes(10);
-            TomeReach::WaitUntilDone(kTomeReachWaitLimit);
-            AddTaskToGameThread("PrepareTreeSpellForTome", [] { SpellScanner::PrepareTreeSpellForTome(); });
-        }).detach();
-    } catch (const std::system_error& e) {
-        logger::warn("No thread to wait for the tome reach pass ({}) - copy tomes are grouped on first use", e.what());
-    }
+    // (SpellScannerDuplicates.cpp).
+    SpellScanner::PrepareTreeSpellForTomeAfterPass();
 }
 
 void OnNewGame()
 {
     AutoScan::OnGameChanging();
     logger::info("New game started - progression will be cleared");
+    // A mod that clears TeachesSpell at runtime may have run after our kDataLoaded rebuild
+    SpellTomes::Rebuild("new game");
     Librarian::SpellResearchPatch::OnNewGame();
     Librarian::PerkAdapters::Reassert("new game");
     Environment::SelfTest::OnGameLoaded();   // dev only: selftest.json
@@ -378,7 +399,9 @@ void OnPostLoadGame()
     // The inventory is the loaded save's now, whatever was cached before
     SpellTomeHook::GetSingleton()->InvalidateTomeInventoryCache();
 
-    // Spell Research's lists are the loaded save's: register what they lack
+    // Spell Research's lists are the loaded save's: their tome pairs first (the
+    // registrations below read the tomes), then register what they lack
+    SpellTomes::Rebuild(SpellTomes::kReasonSaveLoaded);
     Librarian::SpellResearchPatch::OnGameLoaded();
     Librarian::PerkAdapters::Reassert("save loaded");
     Environment::SelfTest::OnGameLoaded();   // dev only: selftest.json
@@ -410,9 +433,9 @@ void OnPostLoadGame()
 
 void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
 {
-    // SKSE delivers these on the game thread, which is the one piece of code
-    // guaranteed to run there before anything else needs to recognise it.
-    MarkGameThread();
+    // Game thread work for IsOnGameThread() while it is handled (GameThreadFlag.h)
+    const GameThreadFlag::Scope gameThreadWork;
+    SampleThread(ThreadSampleKind::kMessage);
 
     switch (a_msg->type) {
         case SKSE::MessagingInterface::kPostLoad:

@@ -11,7 +11,10 @@
  *   - the panel opening resumes it a tick later, the main menu at once; the
  *     timeout runs again from the resume, and only then;
  *   - the player's own Scan, Build, Apply or Clear while it waits wins (yieldTo);
- *   - a new game counts as a loaded save; the panel open: nothing is held.
+ *   - a new game counts as a loaded save; the panel open: nothing is held;
+ *   - the spell tome pairs changed (onSpellTomesChanged): a failed run starts once
+ *     more, held in game until the panel opens; a stale scan is marked; no retry
+ *     after a finished run, after the player acted, twice, or on a bad payload.
  *
  * Depends on: autoBuildTest.js (loads autoBuild.js and autoBuildSetting.js).
  * Swaps the globals it stubs (timers included) and puts them back.
@@ -95,6 +98,9 @@ var AutoBuildHoldTest = {
         this._testMainMenu(g);
         this._testPlayerWins(g);
         this._testPanelOpen(g);
+        this._testTomesChanged(g);
+        this._testTomesChangedNoRetry(g);
+        this._testTomesChangedDuringRun(g);
         return { passed: this.passed, failed: this.failed };
     },
 
@@ -202,6 +208,132 @@ var AutoBuildHoldTest = {
                 w.builtWith.onComplete('ok');
                 self.check(w.calls.join(',') === 'scan,build,apply' && w.events.indexOf('held') === -1,
                     'a save loaded but the panel open (the game paused): nothing is held');
+            } finally { A._resetForTest(); }
+        });
+    },
+
+    /** A main menu run whose scan finds no spell (no tome pairs yet): it fails. */
+    _failAtMainMenu: function(g, w) {
+        this._begin(g, false);
+        g.state.lastSpellData = { spells: [] };
+        g.AutoBuild.onSpellData();
+        g.state.lastSpellData = { spells: [{ formId: '0x01' }] };
+        return !g.AutoBuild.isRunning() && w.events[w.events.length - 1] === 'failed';
+    },
+
+    _testTomesChanged: function(g) {
+        var self = this, A = g.AutoBuild, w = this._world(g);
+        this._with(g, w.stubs, function() {
+            try {
+                self.check(self._failAtMainMenu(g, w), 'tomes: the main menu scan finds no spell - the run fails');
+                // C++'s order at a save load: the tome pairs first, onSaveGameLoaded last
+                g.onSpellTomesChanged(JSON.stringify({ generation: 2, pairedTomes: 40, stale: true, inGame: true }));
+                self.check(w.events.indexOf('retry') !== -1 && A.isRunning() && w.calls.join(',') === 'scan' &&
+                    w.events[w.events.length - 1] === 'held',
+                    'tomes: the pairs changed at a save load (told before the save) - the failed run starts once more, its scan held');
+                A.onSaveGameLoaded();
+                self.check(w.status.indexOf('status.tomesChangedRescan') !== -1 && g.state.lastSpellData.tomesStale === 2,
+                    'tomes: a stale scan is marked, with the status line');
+                A.onPanelShowing();
+                g._panelVisible = true;
+                w.fire(0);
+                self.check(w.calls.join(',') === 'scan,scan', 'tomes: the panel opens - the retry scans');
+                g.state.lastSpellData = { spells: [] };
+                A.onSpellData();
+                g.onSpellTomesChanged({ generation: 3, pairedTomes: 41, stale: false });
+                self.check(!A.isRunning() && w.events.filter(function(e) { return e === 'retry'; }).length === 1,
+                    'tomes: a second change after the retry failed too - no second retry');
+            } finally { A._resetForTest(); }
+        });
+    },
+
+    _testTomesChangedDuringRun: function(g) {
+        var self = this, A = g.AutoBuild, w = this._world(g);
+        w.stubs._panelVisible = true;
+        var applies = 0;
+        w.stubs.TreeGrowthClassic.buildTree = function(opts) {
+            w.calls.push('build');
+            w.builtWith = opts;
+            // the C++ tree comes in through loadTreeData, as classicMain.js does
+            g.TreeGrowthClassic._treeData = { built: w.calls.length };
+            g.AutoBuild.noteTreeData(g.TreeGrowthClassic._treeData);
+            return true;
+        };
+        w.stubs.TreeGrowthClassic.applyTree = function(opts) { w.calls.push('apply'); w.appliedWith = opts; return ++applies > 1; };
+        this._with(g, w.stubs, function() {
+            try {
+                self._begin(g, false);
+                A.onSpellData();
+                g.onSpellTomesChanged({ generation: 2, pairedTomes: 7, stale: false });
+                self.check(w.events.indexOf('retry') === -1 && A.isRunning(), 'tomes: a change during a run waits for its end');
+                w.builtWith.onComplete('ok');   // Apply places nothing: the run fails, its tree unsaved
+                self.check(w.events.indexOf('failed') !== -1 && w.events.indexOf('retry') !== -1 && A.isRunning(),
+                    'tomes: the run fails after the change - the kept change makes the one retry');
+                self.check(g.TreeGrowthClassic._treeData === null, 'tomes: the failed run\'s unsaved tree is dropped');
+                A.onSpellData();
+                self.check(w.calls.join(',') === 'scan,build,apply,scan,build' && w.events.indexOf('yielded') === -1,
+                    'tomes: the retry builds (its build not taken for the player\'s)');
+                g.TreeGrowthClassic._treeData = { player: true };
+                w.builtWith.onComplete('ok');
+                w.appliedWith.onSaved(3);
+                self.check(!A.isRunning() && w.events[w.events.length - 1] === 'done', 'tomes: the retry saves its tree');
+            } finally { A._resetForTest(); g.TreeGrowthClassic._treeData = null; }
+        });
+        this._testTomesTimeoutInBuild(g);
+    },
+
+    /** The run's tree came in (loadTreeData), then the run timed out waiting for the locks: dropped, the retry builds. */
+    _testTomesTimeoutInBuild: function(g) {
+        var self = this, A = g.AutoBuild, w = this._world(g);
+        w.stubs._panelVisible = true;
+        w.stubs.TreeGrowthClassic.buildTree = function(opts) {
+            w.calls.push('build');
+            w.builtWith = opts;
+            g.TreeGrowthClassic._treeData = { built: w.calls.length };
+            g.AutoBuild.noteTreeData(g.TreeGrowthClassic._treeData);
+            return true;
+        };
+        this._with(g, w.stubs, function() {
+            try {
+                self._begin(g, false);
+                A.onSpellData();
+                g.onSpellTomesChanged({ generation: 2, pairedTomes: 7, stale: false });
+                w.fire(A.RUN_TIMEOUT_MS);   // still in the build step (PreReq Master's locks)
+                self.check(g.TreeGrowthClassic._treeData === null && w.events.indexOf('retry') !== -1,
+                    'tomes: a run timed out with its tree in - the tree is dropped, the retry starts');
+                A.onSpellData();
+                self.check(w.calls.join(',') === 'scan,build,scan,build' && w.events.indexOf('yielded') === -1,
+                    'tomes: the retry builds instead of yielding to the dropped tree');
+                g.TreeGrowthClassic._treeData = { player: true };
+                A.yieldTo('build');
+                A.noteTreeData({ late: true });
+                self.check(g.TreeGrowthClassic._treeData.player === true, 'tomes: a player\'s tree is not taken for the run\'s');
+            } finally { A._resetForTest(); g.TreeGrowthClassic._treeData = null; }
+        });
+    },
+
+    _testTomesChangedNoRetry: function(g) {
+        var self = this, A = g.AutoBuild, w = this._world(g);
+        w.stubs._panelVisible = true;
+        this._with(g, w.stubs, function() {
+            try {
+                self._begin(g, false);
+                A.onSpellData();
+                w.builtWith.onComplete('ok');
+                w.appliedWith.onSaved(3);
+                g.onSpellTomesChanged({ generation: 2, pairedTomes: 5, stale: false });
+                self.check(!A.isRunning() && w.events.indexOf('retry') === -1, 'tomes: after a finished run - no retry');
+
+                self._failAtMainMenu(g, w);
+                A.yieldTo('apply');
+                g.onSpellTomesChanged({ generation: 2, pairedTomes: 5, stale: false });
+                self.check(!A.isRunning() && w.events.indexOf('retry') === -1,
+                    'tomes: the player applied a tree after the failure - no retry over it');
+
+                self._failAtMainMenu(g, w);
+                g.onSpellTomesChanged('{not json');
+                g.onSpellTomesChanged(null);
+                self.check(!A.isRunning() && w.events.indexOf('retry') === -1, 'tomes: a bad payload is ignored');
             } finally { A._resetForTest(); }
         });
     }

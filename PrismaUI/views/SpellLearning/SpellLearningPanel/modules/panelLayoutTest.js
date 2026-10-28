@@ -216,7 +216,7 @@ var PanelLayoutTest = {
                 'selfCastMultiplierSlider', 'binaryThresholdSlider', 'showNotificationsToggle', 'notificationLanguageSelect',
                 'weakenedNotificationsToggle', 'notificationIntervalSlider', 'powerStepsContainer', 'resetPowerStepsBtn', 'moddedXPSourcesSection'],
             tomes: ['spellResearchStatusRow', 'useProgressionSystemToggle', 'tomeXpGrantSlider', 'tomeInventoryBoostToggle', 'tomeInventoryBoostSlider',
-                'tomeRequirePrereqsToggle', 'tomeRequireAllPrereqsToggle', 'tomeRequireSkillLevelToggle', 'tomeStudySkillXPToggle'],
+                'tomeRequirePrereqsToggle', 'tomeRequireSkillLevelToggle', 'tomeStudySkillXPToggle'],
             advanced: ['developerModeToggle', 'cheatModeToggle', 'verboseLogToggle', 'debugGridToggle', 'aggressivePathValidationToggle']
         };
         var misplaced = [];
@@ -449,7 +449,7 @@ var PanelLayoutTest = {
         this.check(/id="easyReplayBtn"/.test(scan.substring(scan.indexOf('easy-preview-caption'))) && /data-scanner-mode="complex"/.test(scan),
             'Scan markup: Replay beside the preview; COMPLEX one click away');
         var hooks = [[this._file('treeGrowth.js'), /ScanStage\.onDraftChanged\(\)/], [this._file('classic/classicMain.js'), /ScanStage\.markApplied\(\)/],
-            [this._file('cppCallbacks.js'), /state\.lastSpellData = data;[\s\S]{0,200}ScanStage\.onScanned\(\)/],
+            [this._file('cppCallbacks.js'), /state\.lastSpellData = data;[\s\S]{0,400}ScanStage\.onScanned\(\)/],
             [this._file('prereqMaster.js'), /function onLocksChanged\(\) \{[\s\S]{0,600}ScanStage\.onDraftChanged\(\)/],
             [this._file('treeViewerUI.js'), /SpellTreeSave\.send\(data, 'import'\)\) \{[\s\S]{0,300}ScanStage\.onDraftChanged\(\)/],
             [this._file('uiHelpers.js'), /ScanStage\.refresh\(\)/], [this._file('buttonHandlers.js'), /ScanStage\.refresh\(\)/]];

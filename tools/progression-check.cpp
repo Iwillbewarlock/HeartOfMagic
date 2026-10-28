@@ -9,6 +9,8 @@
 
 #include "ProgressionCoSave.h"
 #include "ProgressionMath.h"
+#include "uimanager/ConfigRenames.h"
+#include "RequiredXPTable.h"
 
 #include <algorithm>
 #include <cmath>
@@ -384,6 +386,63 @@ namespace
         Check(CS::ReadFormIds(shortIn, static_cast<std::uint32_t>(ids.bytes.size()), back) ==
                   CS::ReadResult::ShortRead && back.size() == 2,
               "tome XP list cut short: ids before the cut kept");
+
+        // SLEL v2: the early list, then the held-for-ISL list, read with the
+        // remaining length (SpellEffectivenessHook::ReadRecord)
+        ByteWriter slel;
+        const std::vector<std::uint32_t> early = { 0x0001'2FCD, 0x0300'0D62 };
+        const std::vector<std::uint32_t> held = { 0x0300'0D62 };
+        Check(CS::WriteFormIds(slel, early) && CS::WriteFormIds(slel, held), "SLEL v2 written as two lists");
+        ByteReader slelIn{ slel.bytes };
+        std::vector<std::uint32_t> earlyBack;
+        std::vector<std::uint32_t> heldBack;
+        const auto slelLength = static_cast<std::uint32_t>(slel.bytes.size());
+        const bool earlyRead = CS::ReadFormIds(slelIn, slelLength, earlyBack) == CS::ReadResult::Ok;
+        const auto used = static_cast<std::uint32_t>(4 * (earlyBack.size() + 1));
+        Check(earlyRead && CS::ReadFormIds(slelIn, slelLength - used, heldBack) == CS::ReadResult::Ok &&
+                  earlyBack == early && heldBack == held,
+              "SLEL v2 round trip: early and held lists");
+        ByteReader slelV1In{ ids.bytes };
+        Check(CS::ReadFormIds(slelV1In, static_cast<std::uint32_t>(ids.bytes.size()), earlyBack) ==
+                  CS::ReadResult::Ok && earlyBack == tomeIds && slelV1In.at == ids.bytes.size(),
+              "SLEL v1 (one list) reads whole, nothing left for a held list");
+        ByteWriter cutId;
+        cutId.Put(std::uint32_t{ 2 });
+        cutId.Put(std::uint32_t{ 0x0001'2FCD });
+        cutId.Put(std::uint16_t{ 0x0D62 });  // a form id cut to 2 of its 4 bytes
+        ByteReader cutIdIn{ cutId.bytes };
+        Check(CS::ReadFormIds(cutIdIn, 12, earlyBack) == CS::ReadResult::ShortRead && earlyBack.size() == 1 &&
+                  earlyBack[0] == 0x0001'2FCD,
+              "a form id cut short is a failure, not another spell's id");
+
+        // SLTR: round trip, empty name, cut-short id, a count the record cannot hold, a long name
+        ByteWriter sltr;
+        const std::vector<CS::TargetEntry> targets = { { "Destruction", 0x0001'2FCD }, { "", 0xFE00'0801 } };
+        Check(CS::WriteTargets(sltr, targets), "learning targets written");
+        std::vector<CS::TargetEntry> targetsBack;
+        ByteReader sltrIn{ sltr.bytes };
+        Check(CS::ReadTargets(sltrIn, static_cast<std::uint32_t>(sltr.bytes.size()), targetsBack) ==
+                      CS::ReadResult::Ok && targetsBack.size() == 2 && targetsBack[0].school == "Destruction" &&
+                  targetsBack[0].formId == 0x0001'2FCD && targetsBack[1].school.empty() &&
+                  targetsBack[1].formId == 0xFE00'0801,
+              "learning targets round trip (an empty school name too)");
+        auto sltrCut = sltr.bytes;
+        sltrCut.resize(sltrCut.size() - 1);  // the last form id 3 of 4 bytes
+        ByteReader sltrCutIn{ sltrCut };
+        Check(CS::ReadTargets(sltrCutIn, static_cast<std::uint32_t>(sltr.bytes.size()), targetsBack) ==
+                      CS::ReadResult::ShortRead && targetsBack.size() == 1 && targetsBack[0].formId == 0x0001'2FCD,
+              "learning target with a cut-short form id refused, the whole one before it kept");
+        ByteWriter sltrHuge;
+        sltrHuge.Put(std::uint32_t{ 0x1000'0000 });
+        ByteReader sltrHugeIn{ sltrHuge.bytes };
+        Check(CS::ReadTargets(sltrHugeIn, 4, targetsBack) == CS::ReadResult::CountTooLarge && targetsBack.empty(),
+              "learning target count larger than the record refused");
+        ByteWriter sltrLong;
+        sltrLong.Put(std::uint32_t{ 1 });
+        sltrLong.Put(std::uint32_t{ CS::kMaxNameLength + 1 });
+        ByteReader sltrLongIn{ sltrLong.bytes };
+        Check(CS::ReadTargets(sltrLongIn, 1 << 20, targetsBack) == CS::ReadResult::NameTooLong,
+              "learning target school name over the limit refused");
     }
 
     void MathCases()
@@ -463,6 +522,86 @@ namespace
               "mastery: an unlocked spell lowered by cheat mode masters again when it crosses 1.0");
         Check(!PM::ShouldMaster(1.0f, 1.0f, true, true, true) && !PM::ShouldMaster(0.5f, 0.99f, false, true, true),
               "mastery: already unlocked at 1.0, or below 1.0, does not master");
+
+        // Passive learning ticks in game hours (Calendar::GetHoursPassed)
+        const auto hour = PM::PassiveTickFor(100.0f, 101.0f);
+        Check(Near(hour.grantHours, 1.0f) && Near(hour.lastHours, 101.0f),
+              "passive: one game hour later grants one hour");
+        Check(Near(PM::PassiveXPFor(5.0f, 24.0f), 5.0f) && Near(PM::PassiveXPFor(5.0f, 1.0f), 5.0f / 24.0f),
+              "passive: 5 XP a game day gives 5 over 24 game hours, 5/24 for one hour");
+        Check(Near(PM::PassiveXPFor(5.0f, 0.0f), 0.0f) && Near(PM::PassiveXPFor(0.0f, 24.0f), 0.0f) &&
+                  Near(PM::PassiveXPFor(-1.0f, 24.0f), 0.0f),
+              "passive: no time, or no / a negative rate, gives nothing");
+        // The old setting name moves over before the defaults (new name) are merged
+        {
+            auto old = nlohmann::json::parse(R"({"passiveLearning":{"enabled":true,"xpPerGameHour":20}})");
+            ConfigRenames::Migrate(old);
+            Check(old["passiveLearning"].value("xpPerGameDay", 0) == 20 && !old["passiveLearning"].contains("xpPerGameHour"),
+                  "config: a saved xpPerGameHour of 20 becomes xpPerGameDay 20, the old name dropped");
+            auto both = nlohmann::json::parse(R"({"passiveLearning":{"xpPerGameHour":20,"xpPerGameDay":7}})");
+            ConfigRenames::Migrate(both);
+            Check(both["passiveLearning"].value("xpPerGameDay", 0) == 7 && !both["passiveLearning"].contains("xpPerGameHour"),
+                  "config: with both names the new one stands");
+            auto odd = nlohmann::json::parse(R"({"passiveLearning":5,"other":{"xpPerGameHour":3}})");
+            ConfigRenames::Migrate(odd);
+            auto none = nlohmann::json::parse(R"({"hotkeyCode":66})");
+            ConfigRenames::Migrate(none);
+            Check(odd["passiveLearning"] == 5 && odd["other"].contains("xpPerGameHour") && none.size() == 1,
+                  "config: no passiveLearning object, or none at all, is left as it is");
+        }
+        const auto small = PM::PassiveTickFor(100.0f, 100.05f);
+        Check(Near(small.grantHours, 0.0f) && Near(small.lastHours, 100.0f),
+              "passive: under 0.1 h grants nothing and keeps the last time (short ticks add up)");
+        const auto atFloor = PM::PassiveTickFor(100.0f, 100.0f + PM::kPassiveMinHours);
+        Check(Near(atFloor.grantHours, 0.0f), "passive: exactly 0.1 h is not past the floor");
+        const auto back = PM::PassiveTickFor(100.0f, 50.0f);
+        Check(Near(back.grantHours, 0.0f) && Near(back.lastHours, 50.0f),
+              "passive: time going back grants nothing and starts from now");
+        const auto nanTick = PM::PassiveTickFor(100.0f, nan);
+        Check(Near(nanTick.grantHours, 0.0f), "passive: a NaN time grants nothing");
+
+        // AddXP's progress; a required XP not set leaves the progress alone
+        Check(Near(PM::ProgressAfterXP(0.2f, 10.0f, 100.0f), 0.3f), "AddXP: 0.2 + 10 of 100 is 0.3");
+        Check(Near(PM::ProgressAfterXP(0.95f, 50.0f, 100.0f), 1.0f), "AddXP: stops at 1");
+        Check(Near(PM::ProgressAfterXP(0.4f, 10.0f, 0.0f), 0.4f) && Near(PM::ProgressAfterXP(0.4f, 10.0f, -5.0f), 0.4f) &&
+                  Near(PM::ProgressAfterXP(0.4f, 10.0f, nan), 0.4f),
+              "AddXP: required XP 0, negative or NaN keeps the progress (was wiped to 0)");
+    }
+
+    // Required XP by kind (RequiredXPTable.h): what a revert keeps
+    void RequiredXPCases()
+    {
+        using RequiredXP::Kind;
+        RequiredXP::Table table;
+        constexpr std::uint32_t kSpell = 0x0001'2FCD;
+        constexpr float kTier = 100.0f;
+        table.Set(Kind::kTree, kSpell, 150.0f);
+        table.SetOverrides({ { kSpell, 400.0f } });
+        Check(Near(table.For(kSpell, kTier, false, 1.0f), 400.0f), "required XP: the settings' override wins over the tree");
+        table.Set(Kind::kCharacter, kSpell, 120.0f);
+        Check(Near(table.For(kSpell, kTier, false, 1.0f), 120.0f), "required XP: this character's number wins");
+        table.OnRevert();   // a reload
+        Check(Near(table.For(kSpell, kTier, false, 1.0f), 400.0f),
+              "required XP: after a reload the override still applies (only the character's number went)");
+        Check(Near(table.For(kSpell, kTier, true, 0.3f), 120.0f),
+              "required XP: the reverse unlock share on the override, as the panel works it out");
+        // The panel's Math.max(1, Math.round(base * share))
+        Check(Near(RequiredXP::Table::Shared(2.0f, 0.3f), 1.0f), "required XP: 2 at 30% is 1 (not 0.6)");
+        Check(Near(RequiredXP::Table::Shared(1.0f, 0.4f), 1.0f) && Near(RequiredXP::Table::Shared(1.0f, 0.1f), 1.0f),
+              "required XP: a share under 1 XP is 1 at least (0.4, 0.1)");
+        Check(Near(RequiredXP::Table::Shared(5.0f, 0.3f), 2.0f) && Near(RequiredXP::Table::Shared(5.0f, 0.5f), 3.0f) &&
+                  Near(RequiredXP::Table::Shared(333.0f, 0.3f), 100.0f),
+              "required XP: rounded to whole XP as Math.round (1.5 -> 2, 2.5 -> 3, 99.9 -> 100)");
+        table.SetOverrides({ { 0x0400'0001, 2.0f } });
+        Check(Near(table.For(0x0400'0001, kTier, true, 0.3f), 1.0f) && Near(table.For(0x0400'0002, 7.0f, true, 0.3f), 2.0f),
+              "required XP: the rounded share on an override and on the tier");
+        table.SetOverrides({ { kSpell, 400.0f } });
+        table.SetOverrides({});
+        Check(Near(table.For(kSpell, kTier, false, 1.0f), 150.0f), "required XP: override removed - the tree's number");
+        Check(Near(table.For(0x0300'0D62, kTier, false, 1.0f), kTier), "required XP: nothing known - the tier's");
+        table.Set(Kind::kCharacter, 0x0300'0D62, -5.0f);
+        Check(Near(table.For(0x0300'0D62, kTier, false, 1.0f), kTier) && !table.HasCharacterValue(0x0300'0D62),
+              "required XP: a non-positive number counts as none");
     }
 }
 
@@ -474,6 +613,7 @@ int main(int argc, char** argv)
     }
     CoSaveCases();
     MathCases();
+    RequiredXPCases();
     std::printf("%d of %d cases passed\n", g_cases - g_failures, g_cases);
     return g_failures == 0 ? kExitOk : kExitFail;
 }

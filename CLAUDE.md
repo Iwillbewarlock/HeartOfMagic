@@ -300,7 +300,8 @@ This project does not have a C++ test framework. Validation is done through:
   H2 (does a spell's virtual `HasKeyword` see keywords on its effects, also one added at runtime), the explosion twin
   (MAG_ScreenShakeEffect on the twin, the Blizzard hazard on the original, values equal), the Mysticism patch
   (`HeartOfMagic_Mysticism.esp` is MAG_ScreenShakeEffect's last override), Frostwalker's matcher on the
-  installed lists, the env adapter files in `perk_adapters_report.json`, Desecration's necrotic spells. Claude reads the
+  installed lists, the env adapter files in `perk_adapters_report.json`, Desecration's necrotic spells, the Spell Research
+  tome pairs (`sr-paired-tomes`), the threads the engine runs our entries on and `IsOnGameThread()` in a task and off it (`game-thread`). Claude reads the
   log and judges it; docs/ENVIRONMENT.md, "Self-test"
 - `node tools/frostwalker-twin-check.js [--patterns <Data>/SKSE/Plugins/Frostwalker] [--mysticism <MysticismMagic.esp>]`:
   HeartOfMagic.esp's header (light flag, HEDR 1.70, masters), each twin's record (a new record, fields equal to the
@@ -321,7 +322,7 @@ This project does not have a C++ test framework. Validation is done through:
   `AsciiText::ToLower` (A-Z only, other bytes kept) - no dump needed, exit 1 on a failure, and `librarian-check.js` runs it first; `--adapters ... -v` lists every planned
   effect write with the spells using it), `tome-reach-test` (which tree spells have tomes nothing hands
   out: `tome-reach-test -i inputs.json -s spell_scan_output.json [-v]`, inputs from `lab/tome-reach/make_inputs.py`;
-  `tome-reach-test --self-test` checks the reader on made-up plugins, no game or load order needed, exit 1 on a failure;
+  `tome-reach-test --self-test` checks the reader on made-up plugins and RunAfterPass's outcome rule (`src/tomereach/TomeReachOutcome.h`), no game or load order needed, exit 1 on a failure;
   it must list what `lab/tome-reach/expected-*.txt` lists on the same load order) and `declutter-test`
   (the native tree declutter pass: `declutter-test -i tree.json -o reply.json [-r runs]`; its positions
   must match `LayoutDeclutter.apply` in `modules/layoutDeclutter.js` on the same tree - see
@@ -340,9 +341,14 @@ This project does not have a C++ test framework. Validation is done through:
   `prerequisites`, lock repair with object and string locks, `_dup_` copies, a spell in two schools, school key
   order, non-string entries, trees the panel sends nothing for; `tree-prereq-check <tree.json>` prints the array, which
   must equal what the panel's `sendTreePrerequisites` sends for the same text; exit 1 on a failure, 3 when nothing
-  is sent; docs/ARCHITECTURE.md, "Progression state at game start") and `progression-check` (`progression-check --self-test`: the co-save's
-  progress (SLPR v1-v3, written as v2), cap tracker (SLPX) and tome XP (SLTX) records, `include/ProgressionCoSave.h`,
-  written and read in byte buffers - cut short, over the limits, SLPX without an SLPR entry - and the XP cap, study, SetSpellXP and mastery arithmetic of `include/ProgressionMath.h`;
+  is sent; docs/ARCHITECTURE.md, "Progression state at game start"), `thread-flag-check` (`thread-flag-check --self-test`: `include/GameThreadFlag.h`, the scope half of `IsOnGameThread()` -
+  in inside a task, message or native scope (nested too), out on any other thread and once it closes; exit 1 on a failure), `spell-tomes-check` (`spell-tomes-check --self-test`: `include/SpellTomePairs.h`, the pairs for tomes that teach
+  nothing - the SynthesizedPatch.json reader on made-up texts (null `tomeId`, malformed ids, not JSON, ill-formed
+  UTF-8) and the pair rule on made-up Spell Research lists (JSON first, unequal parts, record and script parts apart,
+  a re-run patch's shifted lists against the JSON, a book whose override is in Synthesis.esp); exit 1 on a failure) and `progression-check`
+  (`progression-check --self-test`: the co-save's
+  learning targets (SLTR), progress (SLPR v1-v3, written as v2), cap tracker (SLPX), early-learned (SLEL v1-v2) and tome XP (SLTX) records, `include/ProgressionCoSave.h`,
+  written and read in byte buffers - cut short, over the limits, SLPX without an SLPR entry - and the XP cap, study, SetSpellXP, AddXP (a required XP of 0 keeps the progress), passive tick (game hours) and mastery arithmetic of `include/ProgressionMath.h`, and the required XP table by kind (`include/RequiredXPTable.h`: tree, settings override, this character's; an override still applies after a reload);
   exit 1 on a failure) and `progression-notify-check` (no arguments: `include/ProgressionNotifyQueue.h`, the rule by
   which `ProgressionNotify` holds the progression side's panel notices while a `Batch` is open and sends them in posting
   order when the outermost closes - nested, early return, a receiver posting or opening a Batch while they go out;

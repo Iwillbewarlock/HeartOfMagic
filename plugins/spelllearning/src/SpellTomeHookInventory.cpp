@@ -1,5 +1,7 @@
 #include "SpellTomeHook.h"
 #include "SpellScanner.h"
+#include "SpellTomes.h"
+#include "ThreadUtils.h"
 
 #include <mutex>
 
@@ -24,7 +26,8 @@ namespace
         auto* form = RE::TESForm::LookupByID(baseObjectId);
         if (!form) return true;
         auto* book = form->As<RE::TESObjectBOOK>();
-        return book && book->TeachesSpell();
+        // A paired tome (one that teaches nothing, SpellTomes.h): the snapshot is read through an atomic
+        return book && (book->TeachesSpell() || SpellTomes::IsPairedTome(book->GetFormID()));
     }
 
     // Listens for items moving into or out of the player's inventory. The
@@ -44,6 +47,7 @@ namespace
             RE::BSTEventSource<RE::TESContainerChangedEvent>*) override
         {
             if (!a_event) return RE::BSEventNotifyControl::kContinue;
+            SampleThread(ThreadSampleKind::kEventSink);   // an atomic, for the dev self-test
 
             auto* player = RE::PlayerCharacter::GetSingleton();
             if (!player) return RE::BSEventNotifyControl::kContinue;
@@ -101,10 +105,11 @@ bool SpellTomeHook::PlayerHasSpellTome(RE::FormID spellFormId)
     // the player carries - the unfiltered GetInventory() duplicates each
     // entry's extra data just so it can be looked at and thrown away.
     const auto counts = player->GetInventoryCounts([spellFormId](RE::TESBoundObject& a_object) {
-        auto* book = a_object.As<RE::TESObjectBOOK>();
-        if (!book || !book->TeachesSpell()) return false;
+        // A book that teaches nothing counts for its Spell Research pair's spell (SpellTomes.h)
+        auto* tomeSpell = SpellTomes::SpellOf(a_object.As<RE::TESObjectBOOK>());
+        if (!tomeSpell) return false;
         // Another plugin's copy's tome counts for the kept spell (SpellScannerDuplicates.cpp)
-        auto* taughtSpell = SpellScanner::TreeSpellForTome(book->GetSpell());
+        auto* taughtSpell = SpellScanner::TreeSpellForTome(tomeSpell);
         return taughtSpell && taughtSpell->GetFormID() == spellFormId;
     });
     for (const auto& [item, count] : counts) {

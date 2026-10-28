@@ -11,6 +11,7 @@
 #include <fstream>
 #include <mutex>
 #include <string>
+#include <typeinfo>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -220,39 +221,63 @@ namespace SpellScanner
             std::vector<RE::TESRace*> ownRace;
             std::vector<RE::TESRace*> vampireRaces;
             std::size_t vampires = 0;
+            std::size_t failedNpcs = 0;
             for (auto* npc : dataHandler->GetFormArray<RE::TESNPC>()) {
                 if (!npc) continue;
-                vampireRaces.clear();
-                for (auto* race : TraitRaces(npc, templateRaces, ownRace)) {
-                    const auto [it, added] = races.try_emplace(race->GetFormID(), VampireRace::kNo);
-                    if (added) {
-                        it->second = JudgeRace(race);
-                        if (it->second == VampireRace::kName) {
-                            logger::debug("SpellScanner: vampire race by its editor id only: {}", race->GetFormEditorID());
+                // One NPC whose data cannot be read costs that NPC, not the rest of the list
+                try {
+                    vampireRaces.clear();
+                    for (auto* race : TraitRaces(npc, templateRaces, ownRace)) {
+                        const auto [it, added] = races.try_emplace(race->GetFormID(), VampireRace::kNo);
+                        if (added) {
+                            it->second = JudgeRace(race);
+                            if (it->second == VampireRace::kName) {
+                                logger::debug("SpellScanner: vampire race by its editor id only: {}", race->GetFormEditorID());
+                            }
                         }
+                        if (it->second != VampireRace::kNo) vampireRaces.push_back(race);
                     }
-                    if (it->second != VampireRace::kNo) vampireRaces.push_back(race);
-                }
-                if (vampireRaces.empty() && !npc->HasKeywordString(kVampireKeyword)) continue;
+                    if (vampireRaces.empty() && !npc->HasKeywordString(kVampireKeyword)) continue;
 
-                ++vampires;
-                // An NPC that takes its spells from its template does not use its own list in game; the
-                // template's NPCs are in this loop themselves, so their spells are not lost
-                const bool spellsFromTemplate = npc->UsesTemplate() && npc->baseTemplateForm &&
-                    npc->actorData.templateUseFlags.any(RE::ACTOR_BASE_DATA::TEMPLATE_USE_FLAG::kSpells);
-                if (!spellsFromTemplate) AddSpellList(npc->actorEffects, seenLists);
-                for (auto* race : vampireRaces) {
-                    if (seenRaces.insert(race->GetFormID()).second) AddSpellList(race->actorEffects, seenLists);
+                    ++vampires;
+                    // An NPC that takes its spells from its template does not use its own list in game; the
+                    // template's NPCs are in this loop themselves, so their spells are not lost
+                    const bool spellsFromTemplate = npc->UsesTemplate() && npc->baseTemplateForm &&
+                        npc->actorData.templateUseFlags.any(RE::ACTOR_BASE_DATA::TEMPLATE_USE_FLAG::kSpells);
+                    if (!spellsFromTemplate) AddSpellList(npc->actorEffects, seenLists);
+                    for (auto* race : vampireRaces) {
+                        if (seenRaces.insert(race->GetFormID()).second) AddSpellList(race->actorEffects, seenLists);
+                    }
+                } catch (const std::exception& e) {
+                    ++failedNpcs;
+                    logger::error("SpellScanner: vampire check of NPC {:08X} failed ({}: {}) - that NPC skipped",
+                        npc->GetFormID(), typeid(e).name(), e.what());
+                } catch (...) {
+                    ++failedNpcs;
+                    logger::error("SpellScanner: vampire check of NPC {:08X} failed (not a std::exception) - that NPC skipped",
+                        npc->GetFormID());
                 }
             }
             const auto byKeyword = std::ranges::count_if(races, [](const auto& r) { return r.second == VampireRace::kKeyword; });
             const auto byName = std::ranges::count_if(races, [](const auto& r) { return r.second == VampireRace::kName; });
-            const std::size_t distributed = ReadDistrFiles();
+            std::size_t distributed = 0;
+            try {
+                distributed = ReadDistrFiles();
+            } catch (const std::exception& e) {
+                logger::error("SpellScanner: reading the SPID ini files for vampire spells failed ({}: {})",
+                    typeid(e).name(), e.what());
+                ++failedNpcs;
+            }
             const auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now() - started).count();
             logger::info("SpellScanner: {} vampire NPCs carry {} spells ({} more handed out by SPID ini files); "
                          "vampire races: {} by the Vampire keyword, {} by an editor id holding \"vamp\"; {} ms",
                 vampires, g_vampireSpells.size(), distributed, byKeyword, byName, elapsedMs);
+            if (failedNpcs > 0) {
+                logger::warn("SpellScanner: the list of spells vampires cast is INCOMPLETE - {} NPCs or files could "
+                             "not be read (errors above); spells only they carry are not tagged castByVampires",
+                    failedNpcs);
+            }
         }
     }
 
@@ -265,9 +290,11 @@ namespace SpellScanner
             try {
                 CollectVampireSpellsImpl();
             } catch (const std::exception& e) {
-                logger::error("SpellScanner: could not collect the spells vampires cast: {}", e.what());
+                logger::error("SpellScanner: could not collect the spells vampires cast ({}: {}) - the list is "
+                              "INCOMPLETE, {} spells found before it", typeid(e).name(), e.what(), g_vampireSpells.size());
             } catch (...) {
-                logger::error("SpellScanner: could not collect the spells vampires cast");
+                logger::error("SpellScanner: could not collect the spells vampires cast - the list is INCOMPLETE, "
+                              "{} spells found before it", g_vampireSpells.size());
             }
         }
     }

@@ -10,6 +10,11 @@
  * Must load BEFORE treePreviewSun.js and treePreviewFlat.js.
  */
 
+// The document mousemove/mouseup pair bindInput added for each input id: a panel that
+// binds again (scannerPresets.js on every preset) replaces the pair instead of adding
+// one more on each bind
+var _treePreviewDocDrag = {};
+
 var TreePreviewUtils = {
 
     /**
@@ -100,16 +105,16 @@ var TreePreviewUtils = {
             e.preventDefault();
         });
 
-        document.addEventListener('mousemove', function(e) {
+        var onDocMove = function(e) {
             if (!dragging) return;
             var dx = e.clientX - dragStartX;
             if (Math.abs(dx) < 3 && !didDrag) return;
             didDrag = true;
             field.style.cursor = 'ew-resize';
             apply(dragStartValue + dx * sensitivity);
-        });
+        };
 
-        document.addEventListener('mouseup', function() {
+        var onDocUp = function() {
             if (!dragging) return;
             dragging = false;
             field.style.cursor = '';
@@ -118,7 +123,16 @@ var TreePreviewUtils = {
                 field.focus();
                 field.select();
             }
-        });
+        };
+
+        var previous = _treePreviewDocDrag[id];
+        if (previous) {
+            document.removeEventListener('mousemove', previous.move);
+            document.removeEventListener('mouseup', previous.up);
+        }
+        document.addEventListener('mousemove', onDocMove);
+        document.addEventListener('mouseup', onDocUp);
+        _treePreviewDocDrag[id] = { move: onDocMove, up: onDocUp };
     },
 
     // =========================================================================

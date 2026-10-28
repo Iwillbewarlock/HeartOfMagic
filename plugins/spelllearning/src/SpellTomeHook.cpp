@@ -131,18 +131,20 @@ void SpellTomeHook::OnSpellTomeReadImpl(RE::TESObjectBOOK* a_book, RE::SpellItem
             return;  // Blocked — notification already shown, tome kept
         }
 
+        // --- Register for weakness tracking (NO XP grant, NO AddSpell) ---
+        // When ISL finishes study and calls AddSpell, our effectiveness hook
+        // will recognize this spell and apply weakened power scaling. Before the
+        // target below: setting it runs CheckAndRegrantSpell, which must find the
+        // spell held for ISL, or it adds it before the study
+        auto* effectHook = SpellEffectivenessHook::GetSingleton();
+        if (effectHook) {
+            effectHook->RegisterISLPendingSpell(a_spell);
+        }
+
         // --- Set as learning target ---
         if (hook->m_settings.autoSetLearningTarget && pm) {
             pm->SetLearningTargetFromTome(formIdStr, a_spell);
             logger::info("SpellTomeHook: [ISL] Set '{}' as learning target", a_spell->GetName());
-        }
-
-        // --- Register for weakness tracking (NO XP grant, NO AddSpell) ---
-        // When ISL finishes study and calls AddSpell, our effectiveness hook
-        // will recognize this spell and apply weakened power scaling.
-        auto* effectHook = SpellEffectivenessHook::GetSingleton();
-        if (effectHook) {
-            effectHook->RegisterISLPendingSpell(a_spell);
         }
 
         // --- Dispatch to ISL for study UX ---

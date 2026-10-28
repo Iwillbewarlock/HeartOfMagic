@@ -79,10 +79,12 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/environment/EnvironmentTwins.cpp
     src/environment/EnvironmentSelfTest.cpp
     src/environment/EnvironmentSelfTestChecks.cpp
+    src/environment/EnvironmentSelfTestTomes.cpp
     src/HudNotify.cpp
     src/librarian/LibrarianLoadOrderSource.cpp
     src/librarian/LibrarianSpellResearch.cpp
     src/librarian/LibrarianSpellResearchPatch.cpp
+    src/librarian/LibrarianSpellResearchFilter.cpp
     src/SpellCastHandler.cpp
     src/SpellCastImmediateHook.cpp
     src/progressionmanager/ProgressionManagerCore.cpp
@@ -104,6 +106,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/SpellTomeHookGate.cpp
     src/SpellTomeHookInventory.cpp
     src/SpellTomeHookSave.cpp
+    src/SpellTomes.cpp
     src/CoSave.cpp
     src/PapyrusAPI.cpp
     src/treebuilder/TreeNLP.cpp

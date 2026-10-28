@@ -283,7 +283,13 @@ void UIManager::OnDomReady(PrismaView view)
 void UIManager::OnHidePanel([[maybe_unused]] const char* argument)
 {
     logger::info("UIManager: HidePanel callback triggered from JS");
-    GetSingleton()->HidePanel();
+    // Deferred: HidePanel calls back into JS (onPanelHiding), and an InteropCall
+    // from inside a RegisterJSListener callback does not work in Ultralight
+    // (re-entrant, see OnProceduralTreeGenerate) - the panel's close handlers
+    // (settings, prerequisites saved on close) then did not run
+    AddTaskToGameThread("HidePanel", []() {
+        if (auto* instance = GetSingleton()) instance->HidePanel();
+    });
 }
 
 // =============================================================================
@@ -300,7 +306,8 @@ void UIManager::OnSetPauseGameOnFocus(const char* argument)
     std::string value(argument);
     bool pause = (value == "true" || value == "1");
     logger::info("UIManager: Setting pauseGameOnFocus to {}", pause);
-    GetSingleton()->SetPauseGameOnFocus(pause);
+    // On the game thread, which reads it (ShowPanel / focus)
+    AddTaskToGameThread("SetPauseGameOnFocus", [pause]() { GetSingleton()->SetPauseGameOnFocus(pause); });
 }
 
 // =============================================================================

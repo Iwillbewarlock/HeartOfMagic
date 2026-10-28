@@ -80,7 +80,6 @@ var BUILT_IN_SETTINGS_PRESETS = {
                 tomeInventoryBoost: true,
                 tomeInventoryBoostPercent: 25,
                 requirePrereqs: true,
-                requireAllPrereqs: true,
                 requireSkillLevel: false
             },
             notifications: {
@@ -138,7 +137,6 @@ var BUILT_IN_SETTINGS_PRESETS = {
                 tomeInventoryBoost: true,
                 tomeInventoryBoostPercent: 30,
                 requirePrereqs: true,
-                requireAllPrereqs: true,
                 requireSkillLevel: false
             },
             notifications: {
@@ -196,7 +194,6 @@ var BUILT_IN_SETTINGS_PRESETS = {
                 tomeInventoryBoost: true,
                 tomeInventoryBoostPercent: 20,
                 requirePrereqs: true,
-                requireAllPrereqs: true,
                 requireSkillLevel: false
             },
             notifications: {

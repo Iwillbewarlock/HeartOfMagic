@@ -17,7 +17,7 @@ namespace SpellLearning {
  * Settings (from unified config "passiveLearning"):
  *  - enabled: master toggle
  *  - scope: which spells gain passive XP ("all", "root", "novice")
- *  - xpPerGameHour: XP per in-game hour per spell
+ *  - xpPerGameDay: XP per in-game day per spell, given out as the hours pass
  *  - maxByTier: cap % per tier (novice/apprentice/adept/expert/master)
  */
 class PassiveLearningSource : public BaseXPSource {
@@ -25,7 +25,7 @@ public:
     struct Settings {
         bool enabled = false;
         std::string scope = "novice";   // "all", "root", "novice"
-        float xpPerGameHour = 5.0f;
+        float xpPerGameDay = 5.0f;
         // Max % of required XP grantable from passive source per tier
         float maxNovice = 100.0f;
         float maxApprentice = 75.0f;
@@ -74,7 +74,7 @@ private:
     std::thread m_pollThread;
 
     // Game time tracking
-    float m_lastGameTime = 0.0f;
+    float m_lastGameTime = 0.0f;   // game hours (Calendar::GetHoursPassed)
 
     static PassiveLearningSource* s_singleton;
 };

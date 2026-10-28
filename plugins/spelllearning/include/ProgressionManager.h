@@ -2,6 +2,7 @@
 
 #include "Common.h"
 #include "ProgressionCoSave.h"
+#include "RequiredXPTable.h"
 #include <unordered_map>
 #include <unordered_set>
 #include <string>
@@ -125,7 +126,14 @@ public:
     // Just the progress (0..1, 0 if none): no copy of the whole SpellProgress,
     // whose modded-source map allocates. For the per-effect and per-cast paths.
     float GetProgressPercent(RE::FormID formId) const;
-    void SetRequiredXP(RE::FormID formId, float required);
+    // `kind`: the tree's own number (LoadSpellTree, kept across saves) or this
+    // character's (a target's, RequiredXPSync: reverse unlock share, dropped on revert).
+    // RequiredXPTable.h
+    void SetRequiredXP(RE::FormID formId, float required, RequiredXP::Kind kind);
+    // The panel settings' per-spell XP overrides (config.json "xpOverrides"), all of
+    // them; global, kept across saves. Entries without a number of this character's
+    // take them at once
+    void SetRequiredXPOverrides(RequiredXP::Table::Map overrides);
     
     // Get required XP for a spell (from progress data or tier default)
     float GetRequiredXP(const std::string& formIdStr) const;
@@ -366,6 +374,14 @@ private:
     // SLPX entries read during a load (form ids resolved), put onto m_spellProgress
     // in EndLoad - after every SLPR entry is in, whatever order the records came in
     std::vector<ProgressionCoSave::CapEntry> m_pendingCapTrackers;
+
+    // Required XP numbers by kind (RequiredXPTable.h): the tree's and the settings'
+    // overrides survive a revert, this character's do not. A load used to drop all of
+    // them and fall back to the tier's number until the panel was opened again.
+    RequiredXP::Table m_requiredXP;
+    // A spell's required XP without its progress entry (RequiredXP::Table::For with its
+    // tier and reverse unlock share). EndLoad sizes every entry from it.
+    float BaseRequiredXP(RE::FormID formId) const;
     bool ReadCapTrackers(SKSE::SerializationInterface* a_intfc, uint32_t length);
     void WriteCapTrackers(SKSE::SerializationInterface* a_intfc) const;
 

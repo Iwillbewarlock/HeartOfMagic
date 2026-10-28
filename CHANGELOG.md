@@ -12,12 +12,100 @@
   does not run with "Build Spell Tree at Start" set to Off, or when there is no tree yet (the build at game start
   scans then). The first start after updating scans once.
 
+- **Experimental: spell tomes changed by SpellScribe count as spell tomes.** This is an experimental
+  compatibility add-on. SpellScribe (through SkyPatcher) turns off the "teaches spell" flag on the spell tomes of
+  vanilla and about 50 spell mods while the game runs, so Heart of Magic found no tome for those spells and the
+  tree could come out empty. Such a book still points at its spell, so Heart of Magic now takes that spell for
+  the tree, the check of which tomes the game hands out and the XP bonus for carrying a tome. Reading the tome
+  still opens SpellScribe's puzzle, so Heart of Magic's own reading effects (setting the learning target, XP for
+  reading) do not happen for these tomes. Other mods that clear the flag the same way are covered too. Not yet
+  tested in game.
+
 ### Fixed
+
+- **Spell tomes changed by Spell Research Synthesizer are spell tomes again.** That patcher makes the tomes it knows
+  teach nothing (Spell Research teaches the spell through its research instead), so Heart of Magic found no tome for
+  those spells: with it installed the tree could come out empty. Heart of Magic now takes each such tome's spell from
+  the patcher's `SynthesizedPatch.json`, or from Spell Research's tome lists when that file is missing, for the tree,
+  the check of which tomes the game hands out and the XP bonus for carrying a tome. Reading such a tome still does
+  what Spell Research does. A tree build at game start that found no spells before a save brought Spell Research's
+  tomes is tried once more, and the Scan page says when a new scan would find more.
 
 - **A file name in Data with characters Windows' language setting cannot show no longer stops the tome check.**
   One such file (a Chinese, Japanese or emoji name on a PC set to another language) made the check of which
   tomes the game hands out fail with "No mapping for the Unicode character", so spells whose tomes nothing
   hands out stayed in the tree. Such names are now read without converting them.
+
+- **Passive learning's setting is now XP per game day.** It was labelled per game hour but, through a time
+  mix-up, always gave that much per game day. The time is now read correctly and the label says per game day,
+  so passive XP is as fast as before and your saved number keeps its meaning.
+
+- **A damaged co-save no longer gives progress to the wrong spell.** A learning target or an early-learned
+  spell whose form id was cut short in the save was read as a whole one and could name another spell; such a
+  record now stops there and keeps what came before. One part of Heart of Magic failing while saving or loading
+  no longer stops the others from saving or loading theirs.
+
+- **A spell with no required XP yet keeps its progress.** XP for such a spell used to set its saved progress to
+  0; now it is ignored, as the log said.
+
+- **A spell under study with Immersive Spell Learning is no longer taught early.** Loading a save, a cast that
+  took it past the early-learning threshold, or picking it again as the learning target added the spell before
+  ISL finished the study; now only ISL teaches it, and it keeps its own name until then. With ISL removed (or
+  the integration turned off) such spells are given back on the next load as before.
+
+- **Required XP after a load is the tree's and your per-spell overrides again.** A load dropped the tree's
+  required XP and your per-spell XP overrides and worked spells out from their tier until the panel was opened
+  again, so XP rates and caps used the tier's number meanwhile. The overrides are now read from the saved
+  settings at game start and every settings save, and kept across loads.
+
+- **Changing the power steps updates weakened spells' names and descriptions at once.** They kept the old
+  percent until the spell reached its next step.
+
+- **One spell carried by two plugins is now one node in the tree.** The check that merges them (the same
+  editor id in the same school, such as Saints and Seducers' Conjure Hunger and an add-on's copy) read editor ids
+  the game does not keep, so it never merged anything; it now reads them from powerofthree's Tweaks, as the scan
+  does. With Tweaks this also changes existing trees, without a rebuild: knowing one copy counts as knowing the
+  other (it is not learned early or weakened again), mastering one copy opens the spells after the other, and
+  reading a copy's tome teaches the copy in the tree. Without Tweaks nothing changes.
+
+- **Closing the panel runs its closing steps again.** The panel's close came back into the panel from inside its
+  own call, which the web view drops, so what the panel does as it closes could be skipped.
+
+- **A learning target whose prerequisite list holds a bad entry is still set.** One entry that was not text made
+  the whole target fail; it is now skipped, and one bad spell in the tree's prerequisite list no longer stops the
+  spells after it from getting theirs.
+
+- **A preset is no longer left empty when the game closes while saving it.** It is written to a temporary file
+  first and then moved over the old one, as the tree and the settings already were.
+
+- **Scripts that ask to hear spell tome reads keep that after a save is loaded.** The registrations made through
+  the Don't Eat Spell Tomes functions are now saved with the game; before, only Immersive Spell Learning's own
+  were added back on each load.
+
+- **Typing in the console or a text field no longer opens the panel.** The hotkey is ignored while the console
+  is open or a menu takes text; with the panel open it still closes it.
+
+- **The panel no longer shows the last scan as new when a scan's data cannot be read.** It now says the data
+  could not be read and leaves the tree preview alone; the scan's spells are also no longer read twice, which
+  took as long again on large load orders.
+
+- **A spell's name and details appear in the tree as soon as they arrive.** A single spell's reply did not
+  repaint the tree, so it showed only with the next repaint for something else.
+
+- **Choosing presets one after another no longer slows the panel's sliders.** Each choice added another set of
+  mouse listeners to the page.
+
+- **Deleting a spell in edit mode and adding another no longer mixes up their copies and progress.** The lookups
+  built over the tree's spells were kept when the count stayed the same.
+
+- **Spell Research's registrations are no longer skipped after an Import made during the tome check.** When the
+  Import changed the tomes just as the check finished, Heart of Magic took the new check for a failure and
+  registered nothing until the next load; it now waits for the new check.
+
+### Removed
+
+- The Require ALL toggle under Require Prereqs on the Spell Tomes page. It had no effect: the setting was
+  saved but nothing read it. A config.json that still has `requireAllPrereqs` loads as before; the key is ignored.
 
 ## Heart of Magic Librarian 1.6.0
 

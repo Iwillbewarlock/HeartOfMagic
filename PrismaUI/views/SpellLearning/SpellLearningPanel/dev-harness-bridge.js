@@ -520,7 +520,6 @@ function mockLoadConfig() {
             tomeInventoryBoost: true,
             tomeInventoryBoostPercent: 25.0,
             requirePrereqs: true,
-            requireAllPrereqs: true,
             requireSkillLevel: false
         },
         notifications: { weakenedSpellNotifications: true, weakenedSpellInterval: 10.0 },

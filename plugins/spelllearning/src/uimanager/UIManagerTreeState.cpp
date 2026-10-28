@@ -37,7 +37,9 @@ int ApplyTreePrerequisiteEntries(const json& request)
             continue;
         }
 
-        std::string formIdStr = entry.value("formId", "");
+        // SafeJsonValue: an entry with a field of the wrong type is that entry's
+        // problem (value() threw and ended the loop for every spell after it)
+        std::string formIdStr = SafeJsonValue<std::string>(entry, "formId", "");
         if (formIdStr.empty()) continue;
 
         // The whole text must be the id (FormIdText::Parse, not ParseSpellOf): an edit
@@ -79,7 +81,7 @@ int ApplyTreePrerequisiteEntries(const json& request)
         parsePrereqs("softPrereqs", reqs.softPrereqs);  // need softNeeded of these
 
         // Never more than the soft list holds, or the spell could never open
-        reqs.softNeeded = (std::min)(entry.value("softNeeded", 0), static_cast<int>(reqs.softPrereqs.size()));
+        reqs.softNeeded = (std::min)(SafeJsonValue<int>(entry, "softNeeded", 0), static_cast<int>(reqs.softPrereqs.size()));
 
         // Legacy fallback: parse old "prereqs" field as all hard
         if (reqs.hardPrereqs.empty() && reqs.softPrereqs.empty()) {
@@ -124,7 +126,7 @@ void SyncRequiredXPFromTree(const json& treeData)
                             float reqXP = node["requiredXP"].get<float>();
                             if (reqXP > 0) {
                                 if (const auto formId = ParsePanelFormId(formIdStr, "LoadSpellTree XP sync")) {
-                                    pm->SetRequiredXP(*formId, reqXP);
+                                    pm->SetRequiredXP(*formId, reqXP, RequiredXP::Kind::kTree);
                                     xpSyncCount++;
                                 }
                             }

@@ -23,7 +23,7 @@ void PassiveLearningSource::Initialize() {
 
     auto* calendar = RE::Calendar::GetSingleton();
     if (calendar) {
-        m_lastGameTime = calendar->GetCurrentGameTime();
+        m_lastGameTime = calendar->GetHoursPassed();  // hours: GetCurrentGameTime is days
         m_initialized = true;
     }
 
@@ -31,8 +31,8 @@ void PassiveLearningSource::Initialize() {
     m_running = true;
     m_pollThread = std::thread(&PassiveLearningSource::PollLoop, this);
 
-    logger::info("PassiveLearningSource: Initialized (enabled: {}, scope: {}, xp/hr: {})",
-        m_settings.enabled, m_settings.scope, m_settings.xpPerGameHour);
+    logger::info("PassiveLearningSource: Initialized (enabled: {}, scope: {}, xp/day: {})",
+        m_settings.enabled, m_settings.scope, m_settings.xpPerGameDay);
 }
 
 void PassiveLearningSource::Shutdown() {
@@ -48,16 +48,16 @@ void PassiveLearningSource::SetSettings(const Settings& settings) {
     std::lock_guard<std::mutex> lock(m_settingsMutex);
     m_settings = settings;
     m_enabled = settings.enabled;
-    logger::info("PassiveLearningSource: Settings updated - enabled: {}, scope: {}, xp/hr: {}",
-        settings.enabled, settings.scope, settings.xpPerGameHour);
+    logger::info("PassiveLearningSource: Settings updated - enabled: {}, scope: {}, xp/day: {}",
+        settings.enabled, settings.scope, settings.xpPerGameDay);
 }
 
 void PassiveLearningSource::OnGameLoad() {
     auto* calendar = RE::Calendar::GetSingleton();
     if (calendar) {
-        m_lastGameTime = calendar->GetCurrentGameTime();
+        m_lastGameTime = calendar->GetHoursPassed();
         m_initialized = true;
-        logger::info("PassiveLearningSource: Game loaded, game time: {:.2f}", m_lastGameTime);
+        logger::info("PassiveLearningSource: Game loaded, game time: {:.2f} hours", m_lastGameTime);
     }
 }
 
@@ -83,17 +83,11 @@ void PassiveLearningSource::PollLoop() {
             auto* calendar = RE::Calendar::GetSingleton();
             if (!calendar) return;
 
-            float currentGameTime = calendar->GetCurrentGameTime();
-            float elapsed = currentGameTime - m_lastGameTime;
-
-            // Only grant if positive time elapsed (handles time travel, save loads)
-            // and at least ~6 game minutes passed (0.1 hours) to avoid micro-grants
-            if (elapsed > 0.1f) {
-                m_lastGameTime = currentGameTime;
-                GrantPassiveXP(elapsed);
-            } else if (elapsed < 0.0f) {
-                // Time went backwards (loaded earlier save) - just reset
-                m_lastGameTime = currentGameTime;
+            // Game hours (the 0.1 h floor): GetCurrentGameTime is in days
+            const auto tick = ProgressionMath::PassiveTickFor(m_lastGameTime, calendar->GetHoursPassed());
+            m_lastGameTime = tick.lastHours;
+            if (tick.grantHours > 0.0f) {
+                GrantPassiveXP(tick.grantHours);
             }
         });
     }
@@ -106,12 +100,12 @@ void PassiveLearningSource::GrantPassiveXP(float gameHoursElapsed) {
         currentSettings = m_settings;
     }
 
-    if (!currentSettings.enabled || currentSettings.xpPerGameHour <= 0.0f) return;
+    if (!currentSettings.enabled || currentSettings.xpPerGameDay <= 0.0f) return;
 
     auto* pm = ProgressionManager::GetSingleton();
     if (!pm) return;
 
-    float baseXP = currentSettings.xpPerGameHour * gameHoursElapsed;
+    float baseXP = ProgressionMath::PassiveXPFor(currentSettings.xpPerGameDay, gameHoursElapsed);
 
     // Iterate all learning targets and grant passive XP
     // m_learningTargets is school -> formId, access via public API

@@ -108,8 +108,28 @@ public:
     
     // Register spell for ISL compatibility (early-learned tracking + display, but NO AddSpell)
     // Called when ISL is about to handle study — so when ISL eventually teaches the spell,
-    // our effectiveness hook will apply weakness scaling.
+    // our effectiveness hook will apply weakness scaling. The spell is also held for ISL
+    // (IsHeldForISL) until ISL teaches it: nothing of ours adds it to the player meanwhile.
     void RegisterISLPendingSpell(RE::SpellItem* spell);
+
+    // ISL taught the spell (OnStudyComplete): early learned, no longer held
+    void OnISLTaught(RE::SpellItem* spell);
+
+    // In the early set for ISL, not taught by ISL yet. Such a spell stays in the
+    // early set (the effect hook weakens it once ISL adds it), but only ISL adds it
+    // to the player: early grants, re-grants and the load refresh leave it alone.
+    bool IsHeldForISL(RE::FormID formId) const;
+
+    // The player has the spell now (ISL taught it without telling us, an older ISL
+    // patch): no longer held. True when it was held. Game thread.
+    bool ReleaseHeldIfOwned(RE::SpellItem* spell);
+
+    // The one rule for adding an early-learned spell to the player ourselves: the
+    // early grant at the threshold (AddXP), CheckAndRegrantSpell and the load
+    // refresh. A spell of one of the five schools (CanLearnEarly), not held for ISL,
+    // and no copy of it known (ProgressionManager::PlayerKnowsCopyOf). The caller
+    // checks the progress that triggers it.
+    bool ShouldGrantEarly(RE::SpellItem* spell) const;
     
     // Remove early spell from player (when switching learning target)
     static void RemoveEarlySpellFromPlayer(RE::FormID spellFormId);
@@ -149,6 +169,8 @@ public:
     
     // Serialization for SKSE co-save
     static constexpr uint32_t kEarlyLearnedRecord = 'SLEL';  // Spell Learning Early Learned
+    // SLEL v1: count u32 + form ids (u32). v2: the same, then the held-for-ISL ids the same way
+    static constexpr uint32_t kEarlyLearnedVersion = 2;
     static constexpr uint32_t kDisplayCacheRecord = 'SLDC';  // Spell Learning Display Cache
     void OnGameSaved(SKSE::SerializationInterface* a_intfc);
     void OnRevert(SKSE::SerializationInterface* a_intfc);
@@ -186,6 +208,13 @@ private:
 
     // Set of spells that are early-learned (granted but not mastered)
     std::unordered_set<RE::FormID> m_earlyLearnedSpells;  // guarded by m_mutex
+    // Spells ISL studies and has not taught yet (IsHeldForISL), saved in SLEL v2
+    // after the early list. Not tied to the early set: a target switch takes a spell
+    // out of that and leaves it held. guarded by m_mutex
+    std::unordered_set<RE::FormID> m_heldForISL;
+    // The loaded SLEL carried the held list (v2). A v1 save does not say which of
+    // its spells ISL still holds: the load refresh works it out. guarded by m_mutex
+    bool m_heldListLoaded = false;
 
     // Display cache for modified names/descriptions
     std::unordered_map<RE::FormID, SpellDisplayCache> m_displayCache;  // guarded by m_mutex

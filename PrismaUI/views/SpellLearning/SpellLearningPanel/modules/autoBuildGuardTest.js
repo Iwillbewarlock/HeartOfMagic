@@ -275,6 +275,28 @@ var AutoBuildGuardTest = {
         sandbox.onPreReqMasterComplete(JSON.stringify({ success: true, scores: [] }));
         this.check(progress.length > 0 && !calls.some(function(c) { return /cleared or built again/.test(c); }),
             'lock scores for the tree still there are taken as before');
+
+        // Request ids: tree1 asked (#a), tree2 asked while #a is scored (busy), #a's answer
+        // is dropped and #b goes again, #b's answer is taken for tree2
+        var sent2 = [];
+        sandbox.callCpp = function(name, text) { calls.push(name); if (name === 'PreReqMasterScore') sent2.push(JSON.parse(text)); };
+        calls.length = 0; progress.length = 0;
+        sandbox.PreReqMaster.autoApplyLocks();
+        var idA = sent2.length ? sent2[sent2.length - 1].requestId : null;
+        var tree2 = JSON.parse(JSON.stringify(tree));
+        sandbox.TreeGrowthClassic._treeData = tree2;
+        sandbox.TreeGrowth.modes.classic._treeData = tree2;
+        sandbox.PreReqMaster.autoApplyLocks();
+        var idB = sent2.length ? sent2[sent2.length - 1].requestId : null;
+        sandbox.onPreReqMasterComplete(JSON.stringify({ success: false, busy: true, error: 'busy' }));
+        var before = sent2.length;
+        sandbox.onPreReqMasterComplete(JSON.stringify({ success: true, scores: [], requestId: idA }));
+        this.check(typeof idA === 'number' && typeof idB === 'number' && idA !== idB && progress.length === 0 &&
+            sent2.length === before + 1 && sent2[sent2.length - 1].requestId === idB,
+            'PRM: an answer to an earlier request is dropped, and the request the busy scorer turned away goes again');
+        sandbox.onPreReqMasterComplete(JSON.stringify({ success: true, scores: [], requestId: idB }));
+        this.check(progress.length > 0, 'PRM: the answer to the latest request is taken');
+        sandbox.callCpp = function(name) { calls.push(name); };
     },
 
     _testHarness: function(g) {

@@ -201,9 +201,11 @@ it teaches would be a tree node nobody can learn. `src/tomereach/` finds them fr
 game the placed references of cells that are not loaded are not in memory:
 
 - `TomeReach::StartAfterDataLoaded` (Main.cpp, kDataLoaded, game thread) takes the loaded plugins in load
-  order (`TESDataHandler::files`, with each file's light flag) and every tome (`TESObjectBOOK` that teaches a
-  spell, keyed by plugin name and local id), then hands them to a detached worker thread; no RE object
-  crosses over.
+  order (`TESDataHandler::files`, with each file's light flag) and every tome (`SpellTomes::ForEachTome`: a
+  `TESObjectBOOK` that teaches a spell, or one that teaches nothing with a Spell Research pair - below,
+  "Spell tomes that teach nothing" -, keyed by plugin name and local id), then hands them to a detached worker
+  thread; no RE object crosses over. A new generation of tome pairs runs the pass again (`TomeReach::Restart`);
+  until it is done no spell is marked, and a pass of an older generation that finishes later is dropped.
 - The worker (`FindReachedTomes`, TomeReachPass.cpp) reads every plugin (`ScanPlugin`, TomeReachRecords.cpp;
   compressed records through zlib). A tome counts as handed out when a record refers to it: a placed
   reference (`REFR` `NAME`), a leveled list (`LVLI` `LVLO`), a container, NPC or quest inventory (`CNTO`), a
@@ -251,6 +253,79 @@ game the placed references of cells that are not loaded are not in memory:
   property, and a config that names a tome by its runtime id (`0xFE000800~Plugin.esl`, a load order
   prefix) instead of its id in the plugin. Such a spell would leave the tree wrongly; none was found on the author's load order (no script
   there calls `GetFormFromFile` naming one of the 11 plugins).
+
+**Spell tomes that teach nothing (2026-10-27, `SpellTomes.h`, `SpellTomePairs.h`):** Spell Research
+Synthesizer (a Synthesis patcher for Spell Research) overrides spell tomes - in `SpellResearchSynthesizer.esp` run
+standalone, in the Synthesis group's plugin (`Synthesis.esp` by default) otherwise - so
+they teach nothing (the book text lists the spell's archetypes) and records each tome-spell pair in
+`Data/SKSE/Plugins/SpellResearchSynthesizer/SynthesizedPatch.json` and in Spell Research's per-tier lists
+`_SR_ListTomes<tier>` / `_SR_ListTomeSpells<tier>` (same index = one pair; an FLM ini fills the plugin part, SR's
+Import the script-added part, which lives in the save). Every place that asked `TeachesSpell()` / `GetSpell()`
+lost those tomes (a reporter's tree was empty: `TomeReach: reading 4332 plugins for 0 tomes`). They now ask
+`SpellTomes::SpellOf(book)`: the book's own spell, else its pair. Users: the tome scan (`CollectSpellTomes`),
+`TomesBySpell` / `SpellsTaughtByTomes` (the full scan's `taughtByTome`, the copies, the Librarian's Spell Research
+registrations), the tome reach seed set and the carried-tome XP bonus (`PlayerHasSpellTome`, and the inventory
+sink's `IsPairedTome`). TomeReachRecords.cpp's raw BOOK DATA read is not one: its spell does not feed the reach.
+
+- Where the pairs come from (`SpellTomePairs::Build`, pure, `tools/spell-tomes-check --self-test`):
+  SynthesizedPatch.json first ("newSpells": `tomeId` / `spellId` as `__formData|<plugin>|0x<local id>`, resolved
+  with `TESDataHandler::LookupForm`), used for a book whose winning override teaches nothing, whatever plugin
+  that override is in; the pairs used are logged per winning plugin (`GetFile(-1)`: `SpellTomes: JSON tomes by
+  winning plugin: Synthesis.esp 412, ...`). Spell Research's lists are the fallback, logged as unverified: used
+  only when there is no usable JSON (absent, not JSON, ill-formed UTF-8, no `newSpells`). They are read only once an
+  Import finished and none runs (`_SR_GlobalIsSetup` 1, `_SR_GlobalImporting` 0,
+  `SpellResearchPatch::ReadTomeLists`); otherwise the last readable state stays. Each tier's plugin part and
+  script-added part pair on their own, a part only when the book list's and the spell list's part have the same
+  length. Equal length proves little (FLM adds to each list on its own at every load, so a re-run patch on an old
+  save can shift both), so with a usable JSON a live pair that disagrees is counted as a conflict and not used,
+  and one for a book the JSON does not name is not used either. A book that teaches a spell keeps it.
+- Experimental (2026-10-28): books whose TeachesSpell flag a mod cleared at runtime. SpellScribe ships a SkyPatcher
+  Book ini (`removeFlags=teachesspell` for the books of vanilla, the DLCs, CC and ~50 spell mods); SkyPatcher's
+  handler only clears the bit (`and byte ptr [book+0x110], 0xFB`, read in its DLL), and the engine resolved
+  `data.teaches.spell` while the flag was on, so the book still points at its spell. `ClearedFlagTomes`
+  (SpellTomes.cpp) takes a book without the flag whose `data.teaches.spell` is one of the game's `SpellItem`
+  pointers (a set compare, never a dereference: a book that never had the flag holds an actor value or a raw id
+  there) and passes it to `Build` as `cleared`, first: the record's own spell wins, as for a book that still
+  teaches, and a JSON or list pair naming another spell for it is counted as a conflict and not used. A book whose
+  flag a plugin cleared in its record should not be one (assumed: the engine resolves the pointer only with the
+  flag on; not checked in the engine's loader - the self-test notes books found with no SkyPatcher ini clearing
+  the flag, and the log counts them by plugin). Every rebuild reads them again, so a SkyPatcher run after our
+  kDataLoaded rebuild is caught by the new game's, the save load's or the scan's. HoM's own tome reading (target,
+  XP on reading) does not happen for these books, as for Spell Research's: the engine's teach path never runs.
+  Dev self-test: `cleared-flag-tomes`.
+- When: kDataLoaded (before the tome reach pass), kPostLoadGame (before the Spell Research registrations),
+  before every scan (a panel full scan rebuilds on the game thread before it waits for the tome reach pass, so a
+  new generation restarts the pass that scan then waits for), and after every message box while Spell Research is
+  loaded (its Import ends with one; the rebuild runs before Reconcile's "same entry count" return). The JSON is
+  read once a session (at most 64 MB).
+- The snapshot (book -> spell) is swapped through a `std::atomic<std::shared_ptr>` on the game thread and read
+  from any thread. A rebuild with the same pairs changes nothing; different pairs get a new generation, which
+  re-runs the tome reach pass, regroups the copies (`InvalidateDuplicateGroups`, then
+  `PrepareTreeSpellForTomeAfterPass`), drops the carried-tome cache and tells the panel (`onSpellTomesChanged`
+  `{ generation, pairedTomes, stale, inGame, reason }`, on a later game thread task so `inGame` is UIManager's
+  state after kPostLoadGame - a save loaded or a new game, `IsInGame`; a rebuild for a scan is not stale, and the
+  scan notes its pairs once its forms are read, `NoteFullScan`): a scan made with fewer tomes
+  is marked stale, and a failed
+  build at game start runs once more (autoBuild.js; "Tree Built at Game Start"). JSON ids are looked up once a
+  session (`LookupForm` walks every file by name; a message box rebuild then costs only the lists).
+- Log: `SpellTomes: N tomes - T by the book's own spell, P by Spell Research pairs (records R, script S,
+  unverified), J by SynthesizedPatch.json (read|unusable|none); X pairs skipped (...) [generation G] (<reason>)`
+  at each new generation, plus the per-plugin line and up to five notes (conflicts). The dev self-test's `sr-paired-tomes`
+  (docs/ENVIRONMENT.md, "Self-test").
+- Reading such a tome is left as it is (author's decision, option (a)): HoM's read hook patches the AddSpell
+  inside `TESObjectBOOK::Read`, which a book that teaches nothing never reaches, so reading one does what Spell
+  Research's script does (archetype XP); the tree, its gates and the carried-tome bonus work.
+- Limits: the live fallback cannot tell a shifted pair from a true one when there is no JSON; a save without
+  Spell Research set up (a new game) keeps the previous save's live pairs until its own lists are readable.
+  A JSON whose book a later plugin overrides again, still teaching nothing, is trusted as well (that plugin
+  is named in the per-plugin line). A light plugin's JSON id must fit 12 bits (`LocalIdFits`; CommonLib's
+  `LookupFormID` adds without a mask). The Spell Research registrations wait for a running tome reach pass
+  (`TomeReach::IsRunning`): nothing is registered then, and one Reconcile runs once it is done
+  (`TomeReach::RunAfterPass`) - not when the pass failed or the wait ran out (logged), not at the main menu, and not
+  for a game left since (a save load or a new game drops it; that load reconciles itself). When the tome
+  pairs changed between the pass ending and that Reconcile (an Import: a newer generation's pass runs), it
+  waits for the newer pass instead of giving up (`TomeReach::PassOutcome::kSuperseded`, told from a timeout by
+  the generation, `TomeReachOutcome.h`, checked by `tome-reach-test --self-test`).
 
 **Spell tier from the half-cost perk (2026-09-30):** `DetermineSpellTier` (SpellScannerHelpers.cpp) asks
 the spell's half-cost perk first, then its first effect's minimum skill. The perk step never worked: it
@@ -795,26 +870,52 @@ Split across: ProgressionManagerCore.cpp, ProgressionManagerSerialization.cpp, P
 
 **Co-save records** (unique id `'SPLL'`). The SKSE callbacks are in `src/CoSave.cpp` (`CoSave::OnGameSaved`,
 `OnGameLoaded`, `OnRevert`, registered in `SKSEPluginLoad`): one `GetNextRecordInfo` loop offers each record to
-its owner in turn. Every record version ever written is still read.
+its owner in turn. Every record version ever written is still read. Each owner's save, read, load end and revert
+runs in its own try/catch (`CoSave::Guarded`, 2026-10-27): one that throws is logged and the others still write or
+read their records (a record whose reader threw is skipped; `GetNextRecordInfo` moves to the next record).
 
 | Record | Owner | Version written | Layout |
 |---|---|---|---|
 | `SLTR` | ProgressionManager | 2 (1 has the same layout) | count, then per target: school length, school, formId |
 | `SLPR` | ProgressionManager | 2, as 1.5.0 (reads 1-3) | count, then per spell: formId, progress (0..1), unlocked u8; v2 + the modded sources' XP (count, then name length, name, xp); v3 (read only, a 2026-10-17 development build wrote it) + `xpFromAny`, `xpFromSchool`, `xpFromDirect`, `xpFromSelf` |
 | `SLPX` | ProgressionManager | 1 | count, then per spell with anything counted: formId, `xpFromAny`, `xpFromSchool`, `xpFromDirect`, `xpFromSelf` (f32) |
-| `SLEL` | SpellEffectivenessHook | 1 | count, then the early-learned spells' formIds |
+| `SLEL` | SpellEffectivenessHook | 2 (reads 1-2) | count, then the early-learned spells' formIds; v2 + count, then the ones ISL holds (`IsHeldForISL`; not tied to the early set) |
 | `SLTX` | SpellTomeHook | 1 | count, then the spells a tome already gave XP (`HasGrantedTomeXP`) |
+| `DEST` | DESTIntegration | 1 | CommonLib `RegistrationSet`: count (size_t), then the VM handles of the aliases registered for `OnSpellTomeRead`. Read by `LoadChecked` (a subclass of CommonLib's set): the count must match the length before any handle is read, every read size-checked (CommonLib's own `Load` checks nothing it reads); a save without it (before 2026-10-27) starts with none. Cleared on revert; `AutoRegisterISLAliases` (`OnPostLoadGame`) adds ISL's aliases on every load as before |
 
 - The layouts are `include/ProgressionCoSave.h` (header only, no game types, templated on the stream);
-  `tools/progression-check --self-test` writes and reads `SLPR` v1-v3, `SLPX` and `SLTX` records in byte buffers.
+  `tools/progression-check --self-test` writes and reads `SLTR`, `SLPR` v1-v3, `SLPX`, `SLEL` v1-v2 and `SLTX`
+  records in byte buffers. Every field is read with its size checked (`ReadRecordData` returns the bytes read: a
+  form id cut to 3 of its 4 bytes used to pass as read and name another spell); `SLTR` through
+  `ProgressionCoSave::ReadTargets`, `SLEL`'s lists through `ReadFormIds`.
 - `SLPX` (2026-10-17): the built-in sources' XP, which their caps (any 5%, school 15%, direct 50% of the
   required XP) count against, was not saved, so the caps opened again on every load. It is a record of its own
   rather than an `SLPR` v3: 1.5.0 skips a record it does not know ("no owner") but would skip an `SLPR` of an
   unknown version - all progress - so going back to 1.5.0 now loses only these counters. Read entries wait in
   `m_pendingCapTrackers` and `EndLoad` puts them onto the entries `SLPR` made, whatever order the records came
   in (`ProgressionCoSave::ApplyCapEntries`); a spell with no progress entry gets none made. A save without
-  `SLPX` loads with the counters at 0, as before. The required XP is not saved: a load starts from the tier XP
-  and the panel sends its own (`RequiredXPSync`).
+  `SLPX` loads with the counters at 0, as before. The required XP is not saved. Three kinds of number are
+  kept apart (`include/RequiredXPTable.h`, `m_requiredXP`): the tree's (`SetRequiredXP(..., Kind::kTree)` from
+  `LoadSpellTree`) and the player's per-spell XP overrides from the settings (`xpOverrides` in config.json,
+  read by `ApplySettingsFromConfig` at every config load and save, persistentId keys resolved, a persistentId
+  key winning over a formId key) both survive a revert; this character's numbers from the panel (a target's,
+  `RequiredXPSync`, `Kind::kCharacter`) are cleared on revert. A spell's number is this character's, else
+  (override, else tree, else tier) times the reverse unlock share - the panel's `getRequiredXPForNode`.
+  `EndLoad` sizes every entry from it (`BaseRequiredXP`) once all records are in, since the reverse unlock
+  share reads other spells' progress; `progression-check` checks the table (an override still applies after
+  a reload). A load used to clear the tree's
+  numbers and size entries in record order; the panel still sends its numbers again (`RequiredXPSync`).
+- `SLEL` v2 (2026-10-27): a spell whose tome ISL studies is in the early set (the effect hook weakens it once ISL
+  adds it) and held for ISL until ISL teaches it (`OnStudyComplete` -> `OnISLTaught`, or the player is seen to
+  have it: `ReleaseHeldIfOwned`, on every `AddXP`). The hold is kept when the spell leaves the early set (a target
+  switch): picking it again tracks it without adding it, and `AddXP` never masters it while held. When the ISL
+  integration is not active at a load, every hold is dropped (logged) and the old re-grant applies. One rule decides when Heart of Magic adds an early spell to the player itself,
+  `SpellEffectivenessHook::ShouldGrantEarly` (a school spell, not held for ISL, no copy known): the early grant
+  at the threshold (`AddXP`), `CheckAndRegrantSpell` and the load refresh (`RefreshAllSpellDisplays`) use it.
+  Before, the load refresh added every early spell the player lacked, so a spell under study was taught by
+  loading a save. A v1 record does not say which spells ISL holds: with ISL active, the load refresh takes an
+  early spell the player lacks as held; so does a v2 record whose held list is cut short. On the ISL tome path the
+  hold is registered before the tome sets the learning target (`CheckAndRegrantSpell` must find it held).
 - A failed or short read anywhere in an `SLPR` entry ends the record (the entries read before it are kept,
   the error says how many were skipped); it used to leave only the inner loop and read the next entry from
   the wrong offset. `SLPX` and `SLTX` refuse a count their record length cannot hold before allocating, and keep
@@ -875,8 +976,8 @@ down to the root at once. One rule, three places that ask it:
   XP: override, else tier, times `getReverseUnlockXPShare(tier)` when `openedByKnownChild`. C++ has the
   same lookup (`ProgressionManager::GetReverseUnlockXPShare`). C++ keeps the number it was sent with
   the target; `RequiredXPSync` (`modules/requiredXPSync.js`) sends it again through the `SetRequiredXP`
-  listener whenever C++ reports another one - after a load (the co-save keeps only the percent, so C++
-  starts from tier XP: `GetRequiredXP` with no stored value), or when a known higher spell or a share
+  listener whenever C++ reports another one - after a load (the co-save keeps only the percent; C++ keeps the tree's numbers
+  and the settings' overrides across loads, `RequiredXPTable.h`), or when a known higher spell or a share
   slider changes it mid-session. The Learn button, auto-advance,
   the progress read-out, the spell card and the tree's XP rings all use it. The Learn button used to
   send `node.requiredXP || 100`, and nothing ever set `node.requiredXP`, so every spell started from
@@ -1668,7 +1769,10 @@ build whose layout had no preview grid to place on (`TreePreview.getOutput()` nu
 
 Settings > Hotkey > *Build Spell Tree at Start* (`autoBuild` in config.json: `"whenMissing"`, the default, or
 `"off"`; `modules/autoBuildSetting.js`). With no saved tree the game start does what Scan, Build and Apply
-would, in the closed panel (`modules/autoBuild.js`); a saved tree is never rebuilt by itself.
+would, in the closed panel (`modules/autoBuild.js`); a saved tree is never rebuilt by itself. A run that failed
+starts once more when the spell tome pairs change (`onSpellTomesChanged`, "Spell tomes that teach nothing"): once a
+session, not after the player scanned, built, applied or saved, and held in game like any run (the message carries
+`inGame` for a save load or an Import, since C++ sends `onSaveGameLoaded` after it).
 
 ```
 onPrismaReady → LoadUnifiedConfig, LoadSpellTree (as before)
@@ -2343,10 +2447,14 @@ patch").
 ### ✅ Recently Completed (Feb 11, 2026)
 
 #### Passive Learning Feature
-- **UI:** Toggle, scope dropdown (All/Root/Novice), XP-per-game-hour slider (1-50), per-tier max % caps
-- **Settings:** `passiveLearning` object in `state.js` with `enabled`, `scope`, `xpPerGameHour`, `maxByTier`
+- **UI:** Toggle, scope dropdown (All/Root/Novice), XP-per-game-day slider (1-50), per-tier max % caps
+- **Settings:** `passiveLearning` object in `state.js` with `enabled`, `scope`, `xpPerGameDay`, `maxByTier`.
+  A config.json saved by 1.6.0 or earlier holds `xpPerGameHour` (the same number, which always gave that much per game
+  day): `ConfigRenames::Migrate` moves it to `xpPerGameDay` before the file is merged over the defaults, which
+  carry the new name and would otherwise win.
+  `PassiveLearningSource` grants `ProgressionMath::PassiveXPFor(xpPerGameDay, hours)` = xpPerGameDay * hours / 24
 - **Persistence:** Saved/loaded via `saveUnifiedConfig`/`onUnifiedConfigLoaded`
-- **C++ side:** Not yet implemented (UI settings ready for timer-based XP granting)
+- **C++ side:** `PassiveLearningSource` (a 3 s poll thread, grants on the game thread)
 
 #### Curved Edge Rendering
 - **`_drawEdgePath()`** helper in `canvasRendererEdges.js` (was `canvasRendererV2.js`) — quadratic Bezier curves with 15% perpendicular offset

@@ -37,4 +37,15 @@ namespace Librarian::SpellResearchPatch
     // | "upToDate" | "added", "srSpells", "added", "reason", "time"}. "" when SR
     // is not loaded or nothing ran yet. Any thread.
     std::string StatusJson();
+
+    // SR's tier tome lists for SpellTomes (books, spells; same index = one pair).
+    enum class TomeListState
+    {
+        kNotInstalled,   // SpellResearch.esp not loaded, or its lists not found
+        kNotReady,       // no Import finished yet, or one runs (the Reconcile rule)
+        kReady
+    };
+    using TomeLists = std::array<std::pair<RE::BGSListForm*, RE::BGSListForm*>, 5>;
+    // Game thread. `out` is filled only when kReady.
+    TomeListState ReadTomeLists(TomeLists& out);
 }

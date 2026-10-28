@@ -187,7 +187,8 @@ target_link_libraries(tree-remap-check PRIVATE
 # =============================================================================
 # The plugin's own ProgressionCoSave.h and ProgressionMath.h (header only, no game
 # types): --self-test writes and reads SLPR v1-v3, SLPX and SLTX records in byte
-# buffers (cut short, over the limits) and runs the cap, study and mastery numbers.
+# buffers (cut short, over the limits) and runs the cap, study and mastery numbers;
+# ConfigRenames.h moves renamed settings (passive XP per game day).
 
 add_executable(progression-check
     progression-check.cpp
@@ -197,6 +198,31 @@ target_compile_features(progression-check PRIVATE cxx_std_23)
 
 target_include_directories(progression-check PRIVATE
     ${SL_INCLUDE_DIR}
+)
+
+target_link_libraries(progression-check PRIVATE
+    nlohmann_json::nlohmann_json
+)
+
+# =============================================================================
+# spell-tomes-check  -  offline check of the pairs for tomes that teach nothing
+# =============================================================================
+# The plugin's own SpellTomePairs.h (header only, no game types): --self-test reads
+# made-up SynthesizedPatch.json texts and pairs them with made-up Spell Research
+# lists (JSON first, live lists unverified, a re-run patch's shifted lists).
+
+add_executable(spell-tomes-check
+    spell-tomes-check.cpp
+)
+
+target_compile_features(spell-tomes-check PRIVATE cxx_std_23)
+
+target_include_directories(spell-tomes-check PRIVATE
+    ${SL_INCLUDE_DIR}
+)
+
+target_link_libraries(spell-tomes-check PRIVATE
+    nlohmann_json::nlohmann_json
 )
 
 # =============================================================================
@@ -233,5 +259,21 @@ add_executable(progression-notify-check
 target_compile_features(progression-notify-check PRIVATE cxx_std_23)
 
 target_include_directories(progression-notify-check PRIVATE
+    ${SL_INCLUDE_DIR}
+)
+
+# =============================================================================
+# thread-flag-check  -  offline check of IsOnGameThread()
+# =============================================================================
+# The plugin's own GameThreadFlag.h (header only): a thread is on the game thread
+# inside a task or message scope, and after it has run one; never another thread.
+
+add_executable(thread-flag-check
+    thread-flag-check.cpp
+)
+
+target_compile_features(thread-flag-check PRIVATE cxx_std_23)
+
+target_include_directories(thread-flag-check PRIVATE
     ${SL_INCLUDE_DIR}
 )

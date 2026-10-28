@@ -2,6 +2,7 @@
 #include "AsciiText.h"
 #include "EncodingUtils.h"
 #include "SpellScanner.h"
+#include "SpellTomes.h"
 #include "librarian/PerkAdapterPatch.h"
 
 // windows.h renames GetObject to GetObjectW, which hides BGSDefaultObjectManager::GetObject
@@ -77,14 +78,11 @@ namespace SpellScanner
 
     std::unordered_map<RE::FormID, RE::TESObjectBOOK*> TomesBySpell()
     {
+        // Books that teach nothing but have a Spell Research pair count too (SpellTomes.h)
         std::unordered_map<RE::FormID, RE::TESObjectBOOK*> tomes;
-        auto* dataHandler = RE::TESDataHandler::GetSingleton();
-        if (!dataHandler) return tomes;
-
-        for (auto* book : dataHandler->GetFormArray<RE::TESObjectBOOK>()) {
-            if (!book || !book->TeachesSpell()) continue;
-            if (auto* spell = book->GetSpell()) tomes.try_emplace(spell->GetFormID(), book);
-        }
+        SpellTomes::ForEachTome([&](RE::TESObjectBOOK* book, RE::SpellItem* spell) {
+            tomes.try_emplace(spell->GetFormID(), book);
+        });
         return tomes;
     }
 

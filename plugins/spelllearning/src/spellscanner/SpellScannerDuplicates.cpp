@@ -4,9 +4,12 @@
 #include "EncodingUtils.h"
 #include "ProgressionManager.h"
 #include "SpellScanner.h"
+#include "ThreadUtils.h"
 #include "tomereach/TomeReach.h"
 
+#include <chrono>
 #include <mutex>
+#include <thread>
 
 namespace SpellScanner
 {
@@ -63,9 +66,11 @@ namespace SpellScanner
         std::string DuplicateKey(RE::SpellItem* spell, const std::unordered_set<RE::FormID>& taught)
         {
             if (!spell || !taught.contains(spell->GetFormID())) return {};
-            const char* editorId = spell->GetFormEditorID();
+            // GetEditorId: the engine keeps no spell editor ids (GetFormEditorID() is always
+            // empty for a spell, and no group ever formed); po3's Tweaks keeps them
+            const std::string editorId = GetEditorId(spell);
             const char* name = spell->GetFullName();
-            if (!editorId || !*editorId || !name || !*name) return {};
+            if (editorId.empty() || !name || !*name) return {};
             const RE::ActorValue school = GetSpellSchool(spell);
             if (!IsValidMagicSchool(school) || IsEquippedInVoiceSlot(spell)) return {};
 
@@ -189,6 +194,24 @@ namespace SpellScanner
     {
         std::lock_guard guard(g_duplicateLock);
         BuildDuplicateGroups();
+    }
+
+    void InvalidateDuplicateGroups()
+    {
+        std::lock_guard guard(g_duplicateLock);
+        g_groups.clear();
+        g_groupOf.clear();
+        g_duplicatesBuilt = false;
+        g_duplicatesSettled = false;
+    }
+
+    void PrepareTreeSpellForTomeAfterPass()
+    {
+        // Copy tomes are grouped on first use when no thread can wait. Superseded: the
+        // newer pass's own wait groups them (SpellTomes' OnPairsChanged queued it with its Restart)
+        TomeReach::RunAfterPass("PrepareTreeSpellForTome", [](TomeReach::PassOutcome outcome) {
+            if (outcome != TomeReach::PassOutcome::kSuperseded) PrepareTreeSpellForTome();
+        });
     }
 
     std::vector<RE::FormID> DuplicateGroupOf(RE::FormID spell)

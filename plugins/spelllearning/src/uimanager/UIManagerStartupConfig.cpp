@@ -2,6 +2,7 @@
 #include "FileUtils.h"
 #include "PathText.h"
 #include "uimanager/ConfigFile.h"
+#include "uimanager/ConfigRenames.h"
 #include "uimanager/UIManagerInternal.h"
 #include "uimanager/StartupState.h"
 
@@ -24,8 +25,9 @@ bool MergeLegacySettings(nlohmann::json& config)
     std::error_code legacyError;
     if (!std::filesystem::exists(legacyPath, legacyError)) return false;
     std::ifstream legacyFile(legacyPath);
-    const auto legacy = nlohmann::json::parse(legacyFile, nullptr, false);
+    auto legacy = nlohmann::json::parse(legacyFile, nullptr, false);
     if (legacy.is_discarded()) return false;
+    ConfigRenames::Migrate(legacy);   // old setting names under their new ones, before the merge
     MergeJsonNonNull(config, legacy);
     return true;
 }
@@ -38,9 +40,12 @@ namespace
     {
         const auto path = GetUnifiedConfigPath();
         const auto peeked = ConfigFile::Peek(path);
+        // Old setting names under their new ones, before the defaults (new names) could stand in, as the panel's load
+        nlohmann::json fileConfig = peeked.config;
+        ConfigRenames::Migrate(fileConfig);
         switch (peeked.state) {
             case ConfigFile::State::Loaded:
-                MergeJsonNonNull(config, peeked.config);
+                MergeJsonNonNull(config, fileConfig);
                 logger::info("Startup config: config.json read");
                 return false;
             case ConfigFile::State::Missing:
@@ -64,7 +69,7 @@ namespace
         // Broken: the panel moves it aside and takes the last good save (.bak) in its place
         const auto backupName = PathText::Utf8(FileUtils::BackupPath(path).filename());
         if (peeked.fromBackup) {
-            MergeJsonNonNull(config, peeked.config);
+            MergeJsonNonNull(config, fileConfig);
             logger::warn("Startup config: config.json is {} - {} read in its place (left as it is: the panel moves "
                          "the broken file aside)", peeked.detail, backupName);
         } else {

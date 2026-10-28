@@ -328,6 +328,9 @@ void SpellEffectivenessHook::RemoveFromEarlySet(RE::FormID formId)
         m_earlySpellCount.fetch_sub(1, std::memory_order_release);
     }
     m_progressMirror.erase(formId);
+    // m_heldForISL stays: a spell ISL still studies is held whether or not it is the
+    // target (a target switch takes it out of the early set; picking it again must not
+    // let CheckAndRegrantSpell add it before ISL teaches it)
 }
 
 void SpellEffectivenessHook::SyncProgress(RE::FormID spellFormId, float progressFraction)
@@ -390,32 +393,52 @@ bool SpellEffectivenessHook::NeedsNerfing(RE::FormID spellFormId) const
 
 void SpellEffectivenessHook::SetPowerSteps(const std::vector<PowerStep>& steps)
 {
-    std::unique_lock<std::shared_mutex> lock(m_mutex);
+    bool changed = false;
+    {
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
+        const std::vector<PowerStep> oldSteps = m_powerSteps;
 
-    // Copy steps and ensure Mastered is always at the end
-    m_powerSteps.clear();
-    for (const auto& step : steps) {
-        if (step.progressThreshold < 100.0f) {  // Skip any existing 100% entry
-            m_powerSteps.push_back(step);
+        // Copy steps and ensure Mastered is always at the end
+        m_powerSteps.clear();
+        for (const auto& step : steps) {
+            if (step.progressThreshold < 100.0f) {  // Skip any existing 100% entry
+                m_powerSteps.push_back(step);
+            }
+        }
+
+        // Sort by progress threshold
+        std::sort(m_powerSteps.begin(), m_powerSteps.end(),
+            [](const PowerStep& a, const PowerStep& b) {
+                return a.progressThreshold < b.progressThreshold;
+            });
+
+        // Always add Mastered at 100%
+        m_powerSteps.push_back({ 100.0f, 1.00f, "Mastered" });
+
+        changed = !std::equal(oldSteps.begin(), oldSteps.end(), m_powerSteps.begin(), m_powerSteps.end(),
+            [](const PowerStep& a, const PowerStep& b) {
+                return a.progressThreshold == b.progressThreshold && a.effectiveness == b.effectiveness &&
+                       a.label == b.label;
+            });
+        if (changed) {
+            // The cached names and descriptions hold the old steps' percent (and the
+            // step check compares against the cached step): made again below
+            m_displayCache.clear();
+        }
+        logger::info("SpellEffectivenessHook: Updated power steps ({} steps)", m_powerSteps.size());
+        for (size_t i = 0; i < m_powerSteps.size(); ++i) {
+            logger::debug("  Step {}: {}% XP -> {}% power ({})",
+                i + 1,
+                static_cast<int>(m_powerSteps[i].progressThreshold),
+                static_cast<int>(m_powerSteps[i].effectiveness * 100),
+                m_powerSteps[i].label);
         }
     }
 
-    // Sort by progress threshold
-    std::sort(m_powerSteps.begin(), m_powerSteps.end(),
-        [](const PowerStep& a, const PowerStep& b) {
-            return a.progressThreshold < b.progressThreshold;
-        });
-
-    // Always add Mastered at 100%
-    m_powerSteps.push_back({ 100.0f, 1.00f, "Mastered" });
-
-    logger::info("SpellEffectivenessHook: Updated power steps ({} steps)", m_powerSteps.size());
-    for (size_t i = 0; i < m_powerSteps.size(); ++i) {
-        logger::debug("  Step {}: {}% XP -> {}% power ({})",
-            i + 1,
-            static_cast<int>(m_powerSteps[i].progressThreshold),
-            static_cast<int>(m_powerSteps[i].effectiveness * 100),
-            m_powerSteps[i].label);
+    // Game thread (ApplySettingsFromConfig): the weakened spells' "(Learning - N%)"
+    // names and scaled descriptions with the new steps now, not at their next step
+    if (changed) {
+        RefreshAllSpellNames();
     }
 }
 

@@ -6,6 +6,7 @@
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
 #include "SpellScanner.h"
+#include "SpellTomes.h"
 #include "ThreadUtils.h"
 #include "librarian/Librarian.h"
 #include "librarian/PerkAdapterPatch.h"
@@ -75,9 +76,14 @@ struct UIManager::ScanTicket
 void UIManager::OnScanSpells(const char* argument)
 {
     logger::info("UIManager: ScanSpells callback triggered");
-    if (auto* instance = GetSingleton()) {
-        instance->RequestScan(std::string(argument ? argument : ""));
-    }
+    // Deferred: a scan that cannot start reports it to the panel (ReportScanFailure's
+    // CallView), and a call back into JS from inside a listener does not work in
+    // Ultralight (re-entrant, see OnProceduralTreeGenerate)
+    AddTaskToGameThread("ScanSpells", [argStr = std::string(argument ? argument : "")]() mutable {
+        if (auto* instance = GetSingleton()) {
+            instance->RequestScan(std::move(argStr));
+        }
+    });
 }
 
 void UIManager::RequestScan(std::string argStr)
@@ -141,6 +147,16 @@ void UIManager::StartScan(std::string argStr, std::shared_ptr<ScanTicket> ticket
         std::thread([argStr, collect, ticket]() mutable {
             // Nothing may leave a thread function: it would end the game (std::terminate)
             try {
+                // The tome pairs first: a new generation restarts the pass this scan then waits for,
+                // instead of restarting it after the wait and leaving the scan without its marks
+                constexpr auto kRebuildWait = std::chrono::seconds(10);
+                if (!RunOnGameThreadAndWait("SpellTomesBeforeScan", [] {
+                        SpellTomes::Rebuild(SpellTomes::kReasonScan);
+                        return true;
+                    }, kRebuildWait)) {
+                    logger::warn("UIManager: the tome pairs were not read again before the scan (game thread did not "
+                                 "answer) - a new generation may restart the tome reach pass during it");
+                }
                 if (!TomeReach::WaitUntilDone(kTomeReachWait)) {
                     logger::info("UIManager: the scan did not wait for the tome reach pass (not started or still running)");
                 }
@@ -244,7 +260,9 @@ std::string UIManager::PrepareScanText(json&& output, bool tomeScan)
     });
 
     // Debug installs keep the full scan for offline analysis, as Papyrus RunScan does
-    if (!tomeScan && SpellScanner::DebugScanDumpEnabled()) SpellScanner::WriteScanOutput(result);
+    if (!tomeScan && SpellScanner::DebugScanDumpEnabled() && SpellScanner::WriteScanOutput(result).empty()) {
+        logger::warn("UIManager: the debug scan dump was not written (see the error above); the scan itself is fine");
+    }
     return result;
 }
 

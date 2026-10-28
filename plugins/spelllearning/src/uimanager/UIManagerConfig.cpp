@@ -3,9 +3,12 @@
 #include "PathText.h"
 #include "FileUtils.h"
 #include "uimanager/ConfigFile.h"
+#include "uimanager/ConfigRenames.h"
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
+#include "FormIdText.h"
 #include "ProgressionManager.h"
+#include "SpellScanner.h"
 #include "SpellEffectivenessHook.h"
 #include "SpellTomeHook.h"
 #include "SpellCastHandler.h"
@@ -107,6 +110,37 @@ std::unordered_map<std::string, ProgressionManager::ModdedSourceConfig> ReadModd
     return sources;
 }
 
+// The panel's per-spell XP overrides ("xpOverrides": persistentId "Plugin.esp|0x000812"
+// or, saved before those, a runtime formId -> XP), as the panel's getXPOverride reads
+// them: a persistentId key wins over a formId key for the same spell. A key that names
+// no loaded spell, or a value that is not a positive number, is skipped.
+static RequiredXP::Table::Map ReadXPOverrides(const nlohmann::json& config)
+{
+    RequiredXP::Table::Map overrides;
+    if (!config.contains("xpOverrides") || !config["xpOverrides"].is_object()) return overrides;
+    std::size_t skipped = 0;
+    for (const bool persistentPass : { false, true }) {
+        for (const auto& [key, value] : config["xpOverrides"].items()) {
+            const bool persistent = key.find('|') != std::string::npos;
+            if (persistent != persistentPass) continue;
+            const float xp = value.is_number() ? value.get<float>() : 0.0f;
+            RE::FormID formId = 0;
+            if (persistent) {
+                formId = SpellScanner::ResolvePersistentFormId(key);
+            } else if (const auto parsed = FormIdText::Parse(key)) {
+                formId = *parsed;
+            }
+            if (formId == 0 || !(xp > 0.0f)) {
+                ++skipped;
+                continue;
+            }
+            overrides[formId] = xp;
+        }
+    }
+    if (skipped > 0) logger::info("UIManager: {} XP overrides skipped (spell not loaded or not a positive number)", skipped);
+    return overrides;
+}
+
 // Apply runtime settings from a fully-merged config JSON.
 // Shared between OnLoadUnifiedConfig and the config save (UIManagerConfigSave.cpp).
 // Handles: early learning, spell tome, passive learning, and notification settings.
@@ -114,6 +148,9 @@ std::unordered_map<std::string, ProgressionManager::ModdedSourceConfig> ReadModd
 void ApplySettingsFromConfig(const nlohmann::json& config)
 {
     UIManager::SetPanelInfoLogging(SafeJsonValue<bool>(config, "developerMode", false));
+
+    // The player's per-spell XP overrides: global settings, kept across saves (RequiredXPTable.h)
+    ProgressionManager::GetSingleton()->SetRequiredXPOverrides(ReadXPOverrides(config));
 
     // Early learning settings
     if (config.contains("earlySpellLearning") && !config["earlySpellLearning"].is_null()) {
@@ -157,7 +194,6 @@ void ApplySettingsFromConfig(const nlohmann::json& config)
         tomeSettings.tomeInventoryBoost = SafeJsonValue<bool>(tomeConfig, "tomeInventoryBoost", true);
         tomeSettings.tomeInventoryBoostPercent = SafeJsonValue<float>(tomeConfig, "tomeInventoryBoostPercent", 25.0f);
         tomeSettings.requirePrereqs = SafeJsonValue<bool>(tomeConfig, "requirePrereqs", true);
-        tomeSettings.requireAllPrereqs = SafeJsonValue<bool>(tomeConfig, "requireAllPrereqs", true);
         tomeSettings.requireSkillLevel = SafeJsonValue<bool>(tomeConfig, "requireSkillLevel", false);
         tomeSettings.studySkillXP = SafeJsonValue<bool>(tomeConfig, "studySkillXP", true);
         SpellTomeHook::GetSingleton()->SetSettings(tomeSettings);
@@ -171,7 +207,7 @@ void ApplySettingsFromConfig(const nlohmann::json& config)
         SpellLearning::PassiveLearningSource::Settings plSettings;
         plSettings.enabled = SafeJsonValue<bool>(plConfig, "enabled", false);
         plSettings.scope = SafeJsonValue<std::string>(plConfig, "scope", "novice");
-        plSettings.xpPerGameHour = SafeJsonValue<float>(plConfig, "xpPerGameHour", 5.0f);
+        plSettings.xpPerGameDay = SafeJsonValue<float>(plConfig, "xpPerGameDay", 5.0f);
         if (plConfig.contains("maxByTier") && plConfig["maxByTier"].is_object()) {
             auto& tiers = plConfig["maxByTier"];
             plSettings.maxNovice = SafeJsonValue<float>(tiers, "novice", 100.0f);
@@ -316,14 +352,13 @@ json GenerateDefaultConfig() {
             {"tomeInventoryBoost", true},
             {"tomeInventoryBoostPercent", 25.0f},
             {"requirePrereqs", true},
-            {"requireAllPrereqs", true},
             {"requireSkillLevel", false},
             {"studySkillXP", true}
         }},
         {"passiveLearning", {
             {"enabled", false},
             {"scope", "novice"},
-            {"xpPerGameHour", 5},
+            {"xpPerGameDay", 5},
             {"maxByTier", {
                 {"novice", 100},
                 {"apprentice", 75},
@@ -376,9 +411,12 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
 
     // What the file held decides what is merged and written (ConfigFile.h)
     const auto loaded = ConfigFile::Load(path);
+    // Old setting names under their new ones, before the defaults (new names) could stand in
+    json fileConfig = loaded.config;
+    ConfigRenames::Migrate(fileConfig);
     switch (loaded.state) {
         case ConfigFile::State::Loaded:
-            MergeJsonNonNull(unifiedConfig, loaded.config);
+            MergeJsonNonNull(unifiedConfig, fileConfig);
             logger::info("UIManager: Loaded and merged unified config");
             break;
         case ConfigFile::State::Missing:
@@ -392,7 +430,7 @@ void UIManager::OnLoadUnifiedConfig([[maybe_unused]] const char* argument)
         case ConfigFile::State::MovedAside:
             if (loaded.fromBackup) {
                 // The last good save stands in; the .bak stays as it is
-                MergeJsonNonNull(unifiedConfig, loaded.config);
+                MergeJsonNonNull(unifiedConfig, fileConfig);
                 logger::warn("UIManager: config.json is {} - kept as {}, config.json.bak (the last good save) is written as the new one",
                     loaded.detail, PathText::Utf8(loaded.movedTo.filename()));
             } else {

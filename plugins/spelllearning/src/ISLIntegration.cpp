@@ -37,8 +37,40 @@ namespace DESTIntegration {
         constexpr std::uint32_t kDESTRegType    = 'DEST';
         constexpr std::uint32_t kDESTRegVersion = 1;
 
-        SKSE::RegistrationSet<RE::TESObjectBOOK*, RE::SpellItem*, RE::TESObjectREFR*>
-            g_spellTomeEventRegs("OnSpellTomeRead"sv);
+        // CommonLib's set with a checked load: its own Load reads the count and the
+        // handles without looking at what came back, so a damaged count (a cut-short
+        // record) made it loop up to that count over a record that has none of them
+        class SpellTomeRegistrations :
+            public SKSE::RegistrationSet<RE::TESObjectBOOK*, RE::SpellItem*, RE::TESObjectREFR*>
+        {
+        public:
+            using RegistrationSet::RegistrationSet;
+
+            // The layout CommonLib's Save writes: count (size_t), then the handles. False
+            // (nothing kept) when the count does not match `length` or a read is short
+            bool LoadChecked(SKSE::SerializationInterface* a_intfc, std::uint32_t length, std::size_t& kept)
+            {
+                kept = 0;
+                std::size_t count = 0;
+                if (a_intfc->ReadRecordData(&count, sizeof(count)) != sizeof(count)) return false;
+                if (length < sizeof(count) || count != (length - sizeof(count)) / sizeof(RE::VMHandle) ||
+                    (length - sizeof(count)) % sizeof(RE::VMHandle) != 0) {
+                    return false;
+                }
+                std::set<RE::VMHandle> handles;
+                for (std::size_t i = 0; i < count; ++i) {
+                    RE::VMHandle handle = 0;
+                    if (a_intfc->ReadRecordData(&handle, sizeof(handle)) != sizeof(handle)) return false;
+                    if (a_intfc->ResolveHandle(handle, handle)) handles.insert(handle);
+                }
+                Locker locker(_lock);
+                _handles = std::move(handles);
+                kept = _handles.size();
+                return true;
+            }
+        };
+
+        SpellTomeRegistrations g_spellTomeEventRegs("OnSpellTomeRead"sv);
     }
 
     // =========================================================================
@@ -244,18 +276,12 @@ namespace DESTIntegration {
         if (!vm) return false;
 
         // DEST_AliasExt — spell tome event registration
-        vm->RegisterFunction("RegisterForSpellTomeReadEvent",
-                             "DEST_AliasExt",
-                             DEST_Papyrus::RegisterForSpellTomeReadEvent);
+        RegisterGameThreadNative<DEST_Papyrus::RegisterForSpellTomeReadEvent>(vm, "RegisterForSpellTomeReadEvent", "DEST_AliasExt");
 
-        vm->RegisterFunction("UnregisterForSpellTomeReadEvent",
-                             "DEST_AliasExt",
-                             DEST_Papyrus::UnregisterForSpellTomeReadEvent);
+        RegisterGameThreadNative<DEST_Papyrus::UnregisterForSpellTomeReadEvent>(vm, "UnregisterForSpellTomeReadEvent", "DEST_AliasExt");
 
         // DEST_UIExt — notification helper
-        vm->RegisterFunction("Notification",
-                             "DEST_UIExt",
-                             DEST_UI_Papyrus::Notification);
+        RegisterGameThreadNative<DEST_UI_Papyrus::Notification>(vm, "Notification", "DEST_UIExt");
 
         logger::info("DESTIntegration: Registered DEST_AliasExt + DEST_UIExt Papyrus native functions");
         return true;
@@ -356,11 +382,9 @@ namespace DESTIntegration {
                 auto* effectHook = SpellEffectivenessHook::GetSingleton();
                 if (!effectHook) return;
 
-                // Ensure spell is in early-learned tracking (should already be from
-                // RegisterISLPendingSpell, but belt-and-suspenders)
-                if (!effectHook->IsEarlyLearnedSpell(formId)) {
-                    effectHook->RegisterISLPendingSpell(a_spell);
-                }
+                // Early learned (already, from RegisterISLPendingSpell, or now) and no
+                // longer held: ISL taught it
+                effectHook->OnISLTaught(a_spell);
 
                 // NOW apply the modified name/description — ISL has granted the spell,
                 // so it's safe to rename. During study we deliberately left the name
@@ -390,13 +414,13 @@ namespace DESTIntegration {
     {
         if (!vm) return false;
 
-        vm->RegisterFunction("OnTomeRead",          "SpellLearning_DEST", Papyrus::OnTomeRead);
-        vm->RegisterFunction("IsIntegrationActive",  "SpellLearning_DEST", Papyrus::IsIntegrationActive);
-        vm->RegisterFunction("OnTomeRead",          "SpellLearning_ISL",  Papyrus::OnTomeRead);
-        vm->RegisterFunction("IsIntegrationActive",  "SpellLearning_ISL",  Papyrus::IsIntegrationActive);
-        vm->RegisterFunction("OnStudyProgress",     "SpellLearning_ISL",  Papyrus::OnStudyProgress);
-        vm->RegisterFunction("OnStudyComplete",     "SpellLearning_ISL",  Papyrus::OnStudyComplete);
-        vm->RegisterFunction("SkipStudySkillXP",    "SpellLearning_ISL",  Papyrus::SkipStudySkillXP);
+        RegisterGameThreadNative<Papyrus::OnTomeRead>(vm, "OnTomeRead", "SpellLearning_DEST");
+        RegisterGameThreadNative<Papyrus::IsIntegrationActive>(vm, "IsIntegrationActive", "SpellLearning_DEST");
+        RegisterGameThreadNative<Papyrus::OnTomeRead>(vm, "OnTomeRead", "SpellLearning_ISL");
+        RegisterGameThreadNative<Papyrus::IsIntegrationActive>(vm, "IsIntegrationActive", "SpellLearning_ISL");
+        RegisterGameThreadNative<Papyrus::OnStudyProgress>(vm, "OnStudyProgress", "SpellLearning_ISL");
+        RegisterGameThreadNative<Papyrus::OnStudyComplete>(vm, "OnStudyComplete", "SpellLearning_ISL");
+        RegisterGameThreadNative<Papyrus::SkipStudySkillXP>(vm, "SkipStudySkillXP", "SpellLearning_ISL");
 
         logger::info("DESTIntegration: Registered SpellLearning_DEST/ISL Papyrus functions");
         return true;
@@ -480,14 +504,25 @@ namespace DESTIntegration {
         logger::info("DESTIntegration: Saved DEST event registrations");
     }
 
-    void OnGameLoaded(SKSE::SerializationInterface* a_intfc)
+    bool ReadRecord(SKSE::SerializationInterface* a_intfc, std::uint32_t type, std::uint32_t version,
+                    std::uint32_t length)
     {
-        g_spellTomeEventRegs.Load(a_intfc);
-        logger::info("DESTIntegration: Loaded DEST event registrations");
-
-        // Auto-register ISL aliases — fixes existing saves where the real
-        // DontEatSpellTomes.dll's registrations were lost
-        AutoRegisterISLAliases();
+        if (type != kDESTRegType) return false;
+        if (version < 1 || version > kDESTRegVersion) {
+            logger::warn("DESTIntegration: DEST registration record skipped (version {}, {} bytes)", version, length);
+            return true;
+        }
+        // The count is checked against the record's length before any handle is read
+        std::size_t kept = 0;
+        if (!g_spellTomeEventRegs.LoadChecked(a_intfc, length, kept)) {
+            logger::warn("DESTIntegration: DEST registration record unreadable ({} bytes, count not matching) - "
+                "none loaded", length);
+            return true;
+        }
+        logger::info("DESTIntegration: Loaded {} DEST event registrations", kept);
+        // ISL's own aliases are added again in OnPostLoadGame (AutoRegisterISLAliases):
+        // quests are not ready while the co-save is read
+        return true;
     }
 
     void OnRevert(SKSE::SerializationInterface* a_intfc)

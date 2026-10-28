@@ -11,6 +11,7 @@
 // rules. Needs no game and no load order.
 
 #include "tomereach/TomeReachConfig.h"
+#include "tomereach/TomeReachOutcome.h"
 #include "tomereach/TomeReachPass.h"
 
 #include <zlib.h>
@@ -156,6 +157,24 @@ namespace
         std::ofstream(path, std::ios::binary).write(reinterpret_cast<const char*>(data.data()),
             static_cast<std::streamsize>(data.size()));
         return path;
+    }
+
+    // RunAfterPass's outcome (TomeReachOutcome.h): a newer generation that still runs
+    // is waited for again, a timeout on the same pass is not
+    void PassOutcomes()
+    {
+        using TomeReach::OutcomeOf;
+        using TomeReach::PassOutcome;
+        Check(OutcomeOf(true, 3, 3, true, false) == PassOutcome::kAnswered, "outcome: the pass waited for answered");
+        Check(OutcomeOf(true, 3, 3, false, false) == PassOutcome::kFailed, "outcome: the pass waited for failed");
+        Check(OutcomeOf(false, 3, 3, false, true) == PassOutcome::kFailed,
+            "outcome: the wait ran out while the same pass runs - a failure, not waited for again");
+        Check(OutcomeOf(true, 3, 4, false, true) == PassOutcome::kSuperseded,
+            "outcome: an Import started generation 4 between the wait and the task - superseded");
+        Check(OutcomeOf(true, 3, 4, true, false) == PassOutcome::kAnswered,
+            "outcome: the newer pass finished before the task ran - its answer counts");
+        Check(OutcomeOf(true, 3, 4, false, false) == PassOutcome::kFailed, "outcome: the newer pass finished and failed");
+        Check(OutcomeOf(false, 0, 0, false, false) == PassOutcome::kFailed, "outcome: no pass was started");
     }
 
     void ConfigRules()
@@ -314,6 +333,7 @@ int RunSelfTest()
             "a plugin that cannot be opened, or whose header is cut, is unreadable");
     }
     ConfigRules();
+    PassOutcomes();
 
     std::printf("self-test: %d passed, %d failed\n", g_passed, g_failed);
     std::error_code ec;

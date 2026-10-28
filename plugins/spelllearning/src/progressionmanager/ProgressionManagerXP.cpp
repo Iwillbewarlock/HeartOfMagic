@@ -275,20 +275,18 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
         return;
     }
 
+    // requiredXP == 0 means XP requirements not initialized: no progress and no
+    // instant mastery, and the progress the save holds stays as it is
+    if (!(progress.requiredXP > 0.0f)) {
+        logger::warn("ProgressionManager: AddXP for {:08X} but requiredXP is 0 — XP update ignored", targetSpellId);
+        return;
+    }
+
     auto* effectivenessHook = SpellEffectivenessHook::GetSingleton();
     float oldXP = progress.GetCurrentXP();
     float oldProgress = progress.progressPercent;
-    float newXP = (std::min)(oldXP + amount, progress.requiredXP);  // Parentheses to avoid Windows min macro
-
-    // Update progress percentage
-    // requiredXP == 0 means XP requirements not initialized — treat as no progress, not instant mastery
-    if (progress.requiredXP > 0) {
-        progress.progressPercent = newXP / progress.requiredXP;
-    } else {
-        progress.progressPercent = 0.0f;
-        logger::warn("ProgressionManager: AddXP for {:08X} but requiredXP is 0 — XP update ignored", targetSpellId);
-    }
-    progress.progressPercent = (std::min)(progress.progressPercent, 1.0f);
+    progress.progressPercent = ProgressionMath::ProgressAfterXP(oldProgress, amount, progress.requiredXP);
+    const float newXP = progress.GetCurrentXP();
     m_dirty = true;
     // The effect hook's copy, before the power step below reads it
     effectivenessHook->SyncProgress(targetSpellId, progress.progressPercent);
@@ -309,9 +307,11 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
 
         // Check if we just crossed the unlock threshold (first grant)
         if (oldProgress < unlockThreshold && newProgress >= unlockThreshold) {
-            // Grant the spell early (nerfed) - not when the player knows a copy of it (CanUnlock)
-            auto* spell = PlayerKnowsCopyOf(targetSpellId) ? nullptr : RE::TESForm::LookupByID<RE::SpellItem>(targetSpellId);
-            if (SpellEffectivenessHook::CanLearnEarly(spell)) {
+            // Grant the spell early (nerfed) by the one grant rule: not when the player
+            // knows a copy of it (CanUnlock), not while ISL holds it for its study
+            auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(targetSpellId);
+            effectivenessHook->ReleaseHeldIfOwned(spell);
+            if (effectivenessHook->ShouldGrantEarly(spell)) {
                 SpellEffectivenessHook::GrantEarlySpell(spell);
                 logger::info("ProgressionManager: Early granted spell {:08X} at {:.0f}% progress",
                     targetSpellId, newProgress * 100.0f);
@@ -328,9 +328,12 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
         // teaches it - the same rule as OnStudyProgress (ProgressionMath::ShouldMaster)
         auto* player = RE::PlayerCharacter::GetSingleton();
         auto* targetSpell = RE::TESForm::LookupByID<RE::SpellItem>(targetSpellId);
+        // ISL taught it without telling us (no OnStudyComplete): no longer held, on any
+        // cast, not only at the threshold - or its steps and name stopped for good
+        effectivenessHook->ReleaseHeldIfOwned(targetSpell);
         const bool earlyLearned = effectivenessHook->IsEarlyLearnedSpell(targetSpellId);
         const bool playerHasSpell = player && targetSpell && player->HasSpell(targetSpell);
-        const bool heldForISL = earlyLearned && !playerHasSpell;
+        const bool heldForISL = (earlyLearned && !playerHasSpell) || effectivenessHook->IsHeldForISL(targetSpellId);
 
         // Check if power step changed (for display updates)
         // This only updates name/description when crossing step thresholds
@@ -357,8 +360,11 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
         }
 
         // 100% and not yet unlocked: just reached, or reached before without
-        // mastering (ProgressionMath::ShouldMaster)
-        if (ProgressionMath::ShouldMaster(oldProgress, newProgress, progress.unlocked, earlyLearned, playerHasSpell)) {
+        // mastering (ProgressionMath::ShouldMaster). A held spell counts as early
+        // learned there even out of the early set (a target switch): never mastered
+        // before ISL teaches it
+        if (ProgressionMath::ShouldMaster(oldProgress, newProgress, progress.unlocked,
+                                          earlyLearned || heldForISL, playerHasSpell)) {
             // Mark as mastered - this removes the nerf
             effectivenessHook->MarkMastered(targetSpellId);
             progress.unlocked = true;  // Also mark as unlocked in progress system
@@ -430,21 +436,28 @@ float ProgressionManager::GetRequiredXP(RE::FormID formId) const
     if (it != m_spellProgress.end() && it->second.requiredXP > 0) {
         return it->second.requiredXP;
     }
+    return BaseRequiredXP(formId);
+}
 
-    // If no progress data, try to determine from spell tier. The panel sends the
-    // required XP when a spell becomes the learning target, reverse unlock
-    // discount included; this is the same number for a spell it has not sent yet
-    // (a tome read before the spell was ever a target).
-    float required = m_xpSettings.xpNovice;  // Default to novice
+float ProgressionManager::BaseRequiredXP(RE::FormID formId) const
+{
+    if (m_requiredXP.HasCharacterValue(formId)) return m_requiredXP.For(formId, 0.0f, false, 1.0f);
+
+    // The panel's getRequiredXPForNode: override, else the tree's, else the tier's,
+    // times the reverse unlock share - the same number for a spell the panel has
+    // not sent (a tome read before the spell was ever a target, a save just loaded).
+    float tierXP = m_xpSettings.xpNovice;  // Default to novice
+    float share = 1.0f;
+    bool opened = false;
     auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(formId);
     if (spell) {
         // Use perk-based tier detection (fixes modded master spells with minimumSkill=0)
-        std::string tier = SpellScanner::DetermineSpellTier(spell);
-        required = GetXPForTier(tier);
+        const std::string tier = SpellScanner::DetermineSpellTier(spell);
+        tierXP = GetXPForTier(tier);
+        opened = IsUnlockedByKnownChild(formId);
+        if (opened) share = GetReverseUnlockXPShare(tier);
     }
-    if (spell && IsUnlockedByKnownChild(formId)) {
-        required *= GetReverseUnlockXPShare(SpellScanner::DetermineSpellTier(spell));
-    }
+    const float required = m_requiredXP.For(formId, tierXP, opened, share);
     return required;
 }
 
@@ -525,11 +538,26 @@ float ProgressionManager::GetProgressPercent(RE::FormID formId) const
     return it != m_spellProgress.end() ? it->second.progressPercent : 0.0f;
 }
 
-void ProgressionManager::SetRequiredXP(RE::FormID formId, float required)
+void ProgressionManager::SetRequiredXP(RE::FormID formId, float required, RequiredXP::Kind kind)
 {
     if (required <= 0.0f) {
         logger::warn("ProgressionManager: SetRequiredXP called with non-positive value {:.1f} for {:08X}, clamping to 1.0", required, formId);
         required = 1.0f;
     }
-    EnsureProgress(formId).requiredXP = required;
+    m_requiredXP.Set(kind, formId, required);
+    // A tree number counts only where this character and the overrides have none
+    EnsureProgress(formId).requiredXP = kind == RequiredXP::Kind::kCharacter ? required : BaseRequiredXP(formId);
+}
+
+void ProgressionManager::SetRequiredXPOverrides(RequiredXP::Table::Map overrides)
+{
+    m_requiredXP.SetOverrides(std::move(overrides));
+    std::size_t updated = 0;
+    for (auto& [formId, progress] : m_spellProgress) {
+        if (m_requiredXP.HasCharacterValue(formId)) continue;
+        progress.requiredXP = BaseRequiredXP(formId);
+        ++updated;
+    }
+    logger::info("ProgressionManager: {} per-spell XP overrides from the settings ({} entries sized again)",
+                 m_requiredXP.OverrideCount(), updated);
 }

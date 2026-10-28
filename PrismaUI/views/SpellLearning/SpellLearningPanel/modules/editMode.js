@@ -1285,6 +1285,18 @@ var EditMode = {
     /**
      * Delete a node and all its connections
      */
+    /**
+     * A node added or removed in place: the indexes over the node list - node lookups,
+     * the card's shared-name counts, the copies of a spell (cppCallbacks.js) and the
+     * progress updates' map (progressUpdates.js) - are made again at next use.
+     */
+    _invalidateNodeIndexes: function() {
+        if (typeof invalidateNodeLookup === 'function') invalidateNodeLookup();
+        if (typeof SpellNames !== 'undefined') SpellNames.invalidate();
+        if (typeof invalidateDuplicateIndex === 'function') invalidateDuplicateIndex();
+        if (typeof ProgressUpdates !== 'undefined') ProgressUpdates.invalidate();
+    },
+
     deleteNode: function(node) {
         if (!node) return false;
 
@@ -1331,6 +1343,11 @@ var EditMode = {
         if (CanvasRenderer._nodeMap) {
             CanvasRenderer._nodeMap.delete(nodeId);
         }
+
+        // Every index over the node list is made again at next use: removed from a list that
+        // may be the renderer's own (nothing below finds it again), and a delete then an
+        // add keeps the length the duplicate and progress indexes checked
+        this._invalidateNodeIndexes();
 
         // Out of rawData with every reference to it, then the other spells' new lists in
         this.removeNodeFromRawData(node);
@@ -1797,10 +1814,8 @@ var EditMode = {
         // (a loaded tree hands its node list to the renderer), or the spell is in it twice
         if (state.treeData && state.treeData.nodes) {
             if (state.treeData.nodes !== CanvasRenderer.nodes) state.treeData.nodes.push(newNode);
-            // Node lookups and the card's shared-name counts are made again at next use
-            if (typeof invalidateNodeLookup === 'function') invalidateNodeLookup();
-            if (typeof SpellNames !== 'undefined') SpellNames.invalidate();
         }
+        this._invalidateNodeIndexes();
 
         // Save and refresh; C++ learns of the new spell when edit mode ends
         this._prereqsChanged = true;
@@ -1868,15 +1883,13 @@ function _installUpdateSpellDataHook() {
             // Call original function first
             originalUpdateSpellData.call(this, jsonStr);
 
-            // Also update EditMode spell list
-            try {
-                var data = JSON.parse(jsonStr);
-                if (data.spells && Array.isArray(data.spells)) {
-                    console.log('[EditMode] Intercepted spell scan data:', data.spells.length, 'spells');
-                    EditMode._processSpellData(data.spells);
-                }
-            } catch (e) {
-                // Ignore parse errors - original handler will deal with them
+            // Also update EditMode spell list, from what the original handler parsed
+            // (state.lastSpellData; null when it could not). Parsing the 9-20 MB text a
+            // second time here froze the panel for as long again.
+            var data = state.lastSpellData;
+            if (data && data.spells && Array.isArray(data.spells)) {
+                console.log('[EditMode] Intercepted spell scan data:', data.spells.length, 'spells');
+                EditMode._processSpellData(data.spells);
             }
         };
         console.log('[EditMode] updateSpellData hook installed');
