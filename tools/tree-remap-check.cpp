@@ -58,8 +58,10 @@ namespace
     {
         const auto editorId = node.value("editorId", std::string());
         if (editorId.empty()) return nullptr;
-        EditorIdRematch::CandidateIndex index;  // as IndexSpellsByEditorId builds it from the game
-        for (const auto& spell : game.spells) index.Add(spell.editorId, spell.formId, spell.school);
+        EditorIdRematch::CandidateIndex index;  // as IndexSpellsByEditorId builds it from the game: player's spells only
+        for (const auto& spell : game.spells) {
+            if (!game.notPlayerSpells.contains(FormIdText::Format(spell.formId))) index.Add(spell.editorId, spell.formId, spell.school);
+        }
         const auto* candidates = index.Find(editorId);
         if (!candidates) return nullptr;
         const auto picked = EditorIdRematch::PickRematch(school, *candidates);
@@ -84,7 +86,7 @@ namespace
                     verdict.formId = FormIdText::Format(spell->formId);
                     verdict.rematched = true;
                     verdict.persistentId = spell->persistentId;
-                    verdict.keep = !game.notPlayerSpells.contains(verdict.formId);
+                    verdict.keep = true;   // the index holds player's spells only
                     return verdict;
                 }
                 const auto plugin = pid.substr(0, pid.find('|'));

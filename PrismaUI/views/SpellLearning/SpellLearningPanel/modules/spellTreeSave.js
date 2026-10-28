@@ -13,7 +13,9 @@
  * (AutoBuild.yieldTo). A save from a build (BUILT_SOURCES) goes to
  * SaveBuiltSpellTree, which also records the load order the tree was built
  * under and the spells its scan saw: the payload carries "seenSpells", the
- * persistentId of every spell of state.lastSpellData, kept or left out (C++
+ * persistentId of every spell of the scan the draft was built from, kept or
+ * left out - the list the caller kept with the draft (a scan since does not
+ * count: its spells were never offered to this tree), else state.lastSpellData (C++
  * moves it into spell_tree_loadorder.json and writes the tree without it; the
  * tree object is not changed). An Import goes to SaveImportedSpellTree (the seen
  * list belongs to another build: C++ clears it); an edit or a repair goes to
@@ -22,6 +24,7 @@
  * Usage:
  *   SpellTreeSave.countSpellNodes(tree)        // spells over all schools
  *   SpellTreeSave.send(tree, 'apply')          // false: refused or no bridge
+ *   SpellTreeSave.send(tree, 'apply', undefined, seen) // seen: seenSpells(draft's scan), kept with the draft
  *   SpellTreeSave.send(tree, 'edit', jsonText) // the text when the caller has it already
  *                                              // (a build's save makes its own, with seenSpells)
  *
@@ -51,11 +54,12 @@ var SpellTreeSave = {
     },
 
     /**
-     * The persistentId of every spell of the last scan (state.lastSpellData), in its order.
+     * The persistentId of every spell of a scan, in its order.
+     * @param {Object} [scan] - { spells: [] }; state.lastSpellData when not given
      * @returns {string[]} empty when there is no scan data
      */
-    seenSpells: function() {
-        var data = (typeof state !== 'undefined' && state) ? state.lastSpellData : null;
+    seenSpells: function(scan) {
+        var data = scan || ((typeof state !== 'undefined' && state) ? state.lastSpellData : null);
         var spells = data && Array.isArray(data.spells) ? data.spells : [];
         var seen = [];
         for (var i = 0; i < spells.length; i++) {
@@ -70,9 +74,11 @@ var SpellTreeSave = {
      * @param {Object} tree
      * @param {string} source - who saves (for the log line): 'apply', 'auto build', 'import'...
      * @param {string} [treeJson] - JSON.stringify(tree), when the caller made it already
+     * @param {string[]} [seen] - a build's save: seenSpells() of the scan its draft was built from
+     *   (the last scan when not given)
      * @returns {boolean} whether the tree went to C++
      */
-    send: function(tree, source, treeJson) {
+    send: function(tree, source, treeJson, seen) {
         if (source !== this.AUTO_SOURCE && typeof AutoBuild !== 'undefined') AutoBuild.yieldTo(source);
         if (this.countSpellNodes(tree) === 0) {
             // console.error reaches SpellLearning.log whatever the developer mode
@@ -93,7 +99,7 @@ var SpellTreeSave = {
             for (var key in tree) {
                 if (tree.hasOwnProperty(key)) payload[key] = tree[key];
             }
-            payload.seenSpells = this.seenSpells();
+            payload.seenSpells = Array.isArray(seen) ? seen : this.seenSpells();
             window.callCpp('SaveBuiltSpellTree', JSON.stringify(payload));
             return true;
         }

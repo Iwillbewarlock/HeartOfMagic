@@ -241,7 +241,7 @@ node run-tests.js
 | `modules/learningTargetKeysTest.js` | A learning target found by spell id, not school key (`LearningTargetKeys`): a multi-school spell under another key than its node's, the canonical id, `onLearningTargetDropped` forgetting only a key that still holds that spell and then redrawing the learning paths, wheel marks and open spell card, the Learn button (cheat mode too), spell card and wheel learning mark using it and the clear sending the formId |
 | `modules/gateReviewTest.js` | The spell gate's lists (`GateReview`): "review" and "out" tree candidates each in their list, not blacklisted ones (plugin:localFormId or formId) or kept ones (`gateReviewed`); "out" spells stay out of the tree unless included, an included one comes back; an old scan's `freeSpell` still leaves a spell out; reasons in words; plugin keys fold A-Z only (`foldPluginName`), the same bytes the DLL's `PluginKey` makes for Korean, Cyrillic and accented names; `migrateKeys` replaces a key saved before with `toLowerCase` once (not before the config is read, not for a configNotRead config, saved once, a new key or an unknown old key left alone); the "Quest only" list (`GateReview.questOnly`: marked `questOnly`, not blacklisted, not included) and its Include, a quest-only spell the gate left out showing its reasons there, and a quest-only spell out of the tree unless included |
 | `modules/schoolBridgesTest.js` | `SchoolBridges.applyToOutput` bakes each node's `persistentId` and `editorId` from the scan (the editor id finds a renamed plugin's node again at load); an empty editor id (no po3 Tweaks) is not baked |
-| `modules/spellTreeSaveTest.js` | `SpellTreeSave.send`: a build's save carries `seenSpells` (every spell of the build's scan, kept or left out) without changing the tree object; an edit mode save carries none |
+| `modules/spellTreeSaveTest.js` | `SpellTreeSave.send`: a build's save carries `seenSpells` (every spell of the build's scan, kept or left out; after a rescan still the list kept with the draft) without changing the tree object; an edit mode save carries none |
 | `modules/i18nRelabelTest.js` | Text written with `setI18n` (i18n.js) comes back in the new language on a switch, with its values, as text or a title; text written after `clearI18n` stays; a missing key shows the English fallback; no `data-i18n` element in index.html holds another element (a switch rewrites its text and would drop the spell card's "need 2 of 3" count and LOCK badge) |
 | `modules/stableIdsTest.js` | Saved settings that name spells after a load order shift: chosen roots sent with the spell's current formId (by plugin + localFormId, light plugins too), a root whose spell is gone left out, legacy roots and no-scan roots sent as saved; XP overrides by persistentId, legacy formId-keyed ones still read and replaced on the next set; the root picker's Current badge on the root's spell in this scan |
 | `modules/homIconsTest.js` | `HomIcons` (homIcons.js): the 19 icon ids, slots painted from the design's icon folder, an unknown id left alone, a design without icons or a bad path falls back to the line set, `slot()` markup, `setLabel` writes the label span, not the button |
@@ -337,7 +337,8 @@ This project does not have a C++ test framework. Validation is done through:
   on a failure), `graft-check` (`graft-check --self-test`: `include/treebuilder/TreeGraft.h` and
   `GraftCandidates.h` on made-up trees and scans - which spells are new (seen list, in the tree, duplicate
   group, no persistentId), the panel's candidate rule, parent choice against fixed nodes (repeatable, a fire
-  spell under the fire branch, a missing plugin's node never a parent), no existing node changed, a school the
+  spell under the fire branch, a missing plugin's node never a parent, never a parent of a higher tier - full parents
+taken up to two past the cap, the spell's own tier first), no existing node changed, a school the
   tree lacks left alone, clashing formIds deferred, 300 spells at once; exit 1 on a failure), `graft-run-check` (`graft-run-check --self-test`: `include/uimanager/TreeGraftRun.h`,
   `TreeGraftRecord.h`, `TreeGraftChecks.h` - when the graft runs, the player's rules from config.json, the seen
   list baseline and the record a run leaves (the spells of nodes back in the tree seen again), which edit saves that drop grafted nodes are stale, stale ids refreshed, the declutter with existing nodes fixed, the
@@ -351,7 +352,8 @@ This project does not have a C++ test framework. Validation is done through:
   on made-up trees - light plugin removed and the rest shifted, two plugins swapping indices, legacy nodes without a
   persistentId (following a copy, colliding, gone), the same spell kept in one school and dropped in another, a
   spell that resolves but is no player's spell, links to removed spells, editor id rematches (one in the
-  school, none, several, case, a clash with a node of its school, a legacy copy following a dropped one), formIds in another letter case, roots no
+  school, none, several, case, a clash with a node of its school, a legacy copy following a dropped one, an NPC's spell
+  with the editor id no candidate), formIds in another letter case, roots no
   node has, broken shapes - every link read back by spell name, and a second pass must change nothing; exit 1 on a
   failure; also `include/FormIdText.h`, the one reader of formId text - hex, `0x` optional, any case; junk, a sign,
   a space, empty or more than 8 digits rejected; `ParseSpellOf` reads an edit mode copy's `<formId>_dup_<n>` as its

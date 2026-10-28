@@ -131,6 +131,25 @@ namespace TreeRemapCheck
                     { { "SpellFirebolt", 0x06000800, "Destruction", "B.esp|0x000800" } } },
                 { { "Firebolt", "Heal" }, 0, 2, 1, 0, {}, {},
                     { { "Destruction/Firebolt", "0x06000800" }, { "Restoration/Firebolt", "0x06000800" } }, 0, 1, {} } },
+
+            // Only player's spells are candidates (IndexSpellsByEditorId): an NPC's spell with the same
+            // editor id is no second match, and one that is the only match leaves the plugin missing
+            { "rematch: an NPC's spell with the editor id is no candidate - the player's one is taken, and a node "
+              "with only an NPC's match is a missing plugin",
+                R"({"schools":{"Destruction":{"root":"0x01000100","nodes":[
+                    {"name":"Heal","formId":"0x01000100","persistentId":"Skyrim.esm|0x000100",
+                     "children":["0x05000800","0x05000802"]},
+                    {"name":"Firebolt","formId":"0x05000800","persistentId":"Old.esp|0x000800","editorId":"SpellFirebolt",
+                     "prerequisites":["0x01000100"]},
+                    {"name":"Spark","formId":"0x05000802","persistentId":"Old.esp|0x000802","editorId":"SpellSpark",
+                     "prerequisites":["0x01000100"]}]}}})",
+                { { { "Skyrim.esm|0x000100", "0x01000100" }, { "New.esp|0x000800", "0x06000800" } }, {}, {},
+                    { "0x07000800", "0x07000802" },
+                    { { "SpellFirebolt", 0x06000800, "Destruction", "New.esp|0x000800" },
+                        { "SpellFirebolt", 0x07000800, "Destruction", "Npc.esp|0x000800" },
+                        { "SpellSpark", 0x07000802, "Destruction", "Npc.esp|0x000802" } } },
+                { { "Heal", "Firebolt" }, 0, 1, 0, 0, { "Old.esp" }, {}, { { "Destruction/Firebolt", "0x06000800" } }, 1, 0,
+                    { { "Destruction/Firebolt", "New.esp|0x000800" } } } },
         };
     }
 }

@@ -153,7 +153,13 @@ namespace TreeGraft
         }
 
         /// JavaScript's toLowerCase on UTF-8 text, as far as LowerOf goes; longer sequences
-        /// (no case in LowerOf's range) and bytes that are not well-formed UTF-8 stay as they are
+        /// (no case in LowerOf's range) and bytes that are not well-formed UTF-8 stay as they are.
+        /// Where it differs from JavaScript: the code points LowerOf leaves out (U+0460 and up in
+        /// Cyrillic, U+0180 and up in Latin) and every three-byte one (U+0800 on: Latin Extended
+        /// Additional, Greek Extended...) stay, which JavaScript lowers (U+1E9E to U+00DF,
+        /// U+0460 to U+0461). Only the legacy whitelist lookup reads it (PluginIsOff: a key an
+        /// older panel lowered with toLowerCase), so a plugin named with such a capital is not
+        /// turned off by an entry saved that way - the A-Z folded key, which panels since save, still is.
         [[nodiscard]] inline std::string JsLowerCase(std::string_view text)
         {
             std::string out;
@@ -181,16 +187,6 @@ namespace TreeGraft
                 }
             }
             return out;
-        }
-
-        /// filterWhitelistedSpells: a spell whose plugin cannot be told stays in. Both of the
-        /// panel's lookups: the plugin folded A-Z, and lowered with toLowerCase (an entry an
-        /// older panel saved that way, "заклинания.esp", turns "Заклинания.esp" off)
-        [[nodiscard]] inline bool PluginOff(const nlohmann::json& spell, const PlayerRules& rules)
-        {
-            const std::string plugin = SpellPluginName(spell);
-            return !plugin.empty() && (rules.pluginsOff.contains(AsciiText::ToLower(plugin)) ||
-                                          rules.pluginsOff.contains(JsLowerCase(plugin)));
         }
 
         /// The one form tree and scan formIds are compared in: "0x%08X"; an edit mode
@@ -240,6 +236,15 @@ namespace TreeGraft
                 return (!key.empty() && persistent.contains(key)) || formIds.contains(SpellIdOf(Text(spell, "formId")));
             }
         };
+    }
+
+    /// A plugin the whitelist turns off (`off`: PluginsOffOf), by both of the panel's lookups
+    /// (filterWhitelistedSpells): the name folded A-Z, and lowered with toLowerCase (an entry
+    /// an older panel saved that way, "заклинания.esp", turns "Заклинания.esp" off). No plugin
+    /// name: not off. The graft and Spell Research's filter (SpellResearchPlayerFilter.h) both ask this
+    [[nodiscard]] inline bool PluginIsOff(std::string_view plugin, const std::unordered_set<std::string>& off)
+    {
+        return !plugin.empty() && (off.contains(AsciiText::ToLower(plugin)) || off.contains(Detail::JsLowerCase(plugin)));
     }
 
     /// settings.pluginWhitelist's plugins turned off (enabled false), A-Z folded - the one
@@ -302,7 +307,7 @@ namespace TreeGraft
         if (hasGate ? (gate->is_object() && Detail::Text(*gate, "band") == "out" && !kept) : Detail::Is(spell, "freeSpell", true)) {
             return false;
         }
-        return !Detail::Blacklisted(spell, rules) && !Detail::PluginOff(spell, rules);
+        return !Detail::Blacklisted(spell, rules) && !PluginIsOff(Detail::SpellPluginName(spell), rules.pluginsOff);
     }
 
     /**

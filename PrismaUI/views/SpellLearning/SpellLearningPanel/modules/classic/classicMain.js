@@ -343,6 +343,9 @@ var TreeGrowthClassic = {
      */
     loadTreeData: function (data) {
         this._treeData = data;
+        // The scan the draft was built from (Apply after a rescan): its spells are the ones this tree saw
+        this._treeDataSeen = typeof SpellTreeSave !== 'undefined' && typeof ClassicBuildRequest !== 'undefined'
+            ? SpellTreeSave.seenSpells(ClassicBuildRequest.lastScan) : undefined;
         // The build at game start's own tree, if it is that run's (dropped if the run fails)
         if (typeof AutoBuild !== 'undefined' && AutoBuild.noteTreeData) AutoBuild.noteTreeData(data);
         console.log('[ClassicGrowth] loadTreeData called, schools:', data && data.schools ? Object.keys(data.schools) : 'none');
@@ -407,6 +410,7 @@ var TreeGrowthClassic = {
     applyTree: function (options) {
         var auto = !!(options && options.auto);
         if (!this._treeData) return false;
+        var seen = this._treeDataSeen;
         if (!auto && this._refuseWhileBuilding()) return false;
         if (!auto && typeof AutoBuild !== 'undefined') AutoBuild.yieldTo('apply');
 
@@ -439,7 +443,7 @@ var TreeGrowthClassic = {
                 console.log('[ClassicGrowth] Apply: the build at game start had ended - not saved');
                 return;
             }
-            if (!SpellTreeSave.send(output, auto ? 'auto build' : 'apply')) return;
+            if (!SpellTreeSave.send(output, auto ? 'auto build' : 'apply', undefined, seen)) return;
 
             // Load into the spell tree viewer so it displays immediately. The build at
             // game start with the panel closed leaves progress and known spells to the

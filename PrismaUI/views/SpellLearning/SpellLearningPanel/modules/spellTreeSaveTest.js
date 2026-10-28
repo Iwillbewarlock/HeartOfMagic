@@ -73,6 +73,14 @@ var SpellTreeSaveTest = {
             this.check(payload && sent[0].name === 'SaveBuiltSpellTree' && Array.isArray(payload.seenSpells) && payload.seenSpells.length === 3,
                 'auto build: the same seenSpells as an Apply');
 
+            // Build, a rescan, then Apply: the list kept with the draft, not the newer scan's
+            sent.length = 0;
+            var draftSeen = S.seenSpells({ spells: [{ persistentId: 'A.esp|0x000801' }, { persistentId: 'A.esp|0x000809' }] });
+            S.send(this._tree(), 'apply', undefined, draftSeen);
+            payload = sent.length === 1 ? JSON.parse(sent[0].text) : null;
+            this.check(payload && JSON.stringify(payload.seenSpells) === '["A.esp|0x000801","A.esp|0x000809"]',
+                'apply after a rescan: the seen list of the scan the draft was built from, not state.lastSpellData');
+
             sent.length = 0;
             g.state = { lastSpellData: null };
             S.send(this._tree(), 'apply');

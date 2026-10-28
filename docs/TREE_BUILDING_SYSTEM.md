@@ -130,7 +130,11 @@ Magicka cost tier, with *Tiers by Magicka cost* below).
    - Assign themes to nodes via keyword frequency in spell text
    - **Tier-by-tier connection:** For each tier in order (Novice→Master):
      - Shuffle spells for variety
-     - For each spell, find best parent from lower tiers
+     - For each spell, find best parent from lower tiers (the nearest tier with a parent under the cap; tier 0
+       also its own tier). Last resort: a parent up to `kFallbackExtraChildren` (2) past the cap, the spell's own
+       tier first and then each tier below, never a higher one. The build drops a full parent from its available
+       list, so there the last resort finds nothing the steps before did not; the tree graft keeps full parents
+       in it (ARCHITECTURE.md, "Tree Graft")
      - Link via `LinkNodes()`, then override `depth = tier_index`
      - Track available parents (those with remaining capacity)
    - Force-connect orphans to least-loaded connected node

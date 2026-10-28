@@ -2077,7 +2077,8 @@ order's; log prefix `TreeGraft:`).
   (`include/treebuilder/TreeGraft.h`, `src/treebuilder/TreeGraft.cpp`): tier as the build (level, or cost rank
   when the tree's `tier_mode` is `"cost"`), parent by Classic's `FindBestClassicParent` (now in
   `TreeBuilderInternal.h`) without its jitter over the school's live nodes under the tree's child cap, plus a
-  room term; the new node gets `prerequisites` = `softPrereqs` = [parent], `softNeeded` 1, no locks, no
+  room term (a spell no parent of its tier or below has room for goes past the cap by up to
+  `kFallbackExtraChildren`, 2, its own tier first: a parent is never of a higher tier than its child); the new node gets `prerequisites` = `softPrereqs` = [parent], `softNeeded` 1, no locks, no
   `requiredXP`, the scan's `editorId` (when not empty) and `traits`, and a provisional x, y beside its parent
   inside its tier ring. Lists: `grafted`, `leftOut` (by the player's rules), `skippedNoSchool` (no live node of
   its school can take it), `deferred` (its formId is one a node of the file holds, or no persistentId; logged with
@@ -2098,7 +2099,9 @@ order's; log prefix `TreeGraft:`).
   (`kGameThreadWait`, logged as a timeout).
 - **The journal** (`TreeGraftRecord.h`): `graftJournal` { `treeHash` (FNV-1a 64 of the tree text about to be
   written), `record` (the record after the graft) }. `ResolveTreeGraftJournal` runs first at every start,
-  whatever else runs: the tree's hash is the journal's - apply its record; another tree - drop the journal; a
+  whatever else runs, before the tome pairs are read again and before the wait for the tome reach pass (that
+  wait has no limit, the panel's build at game start waits 30 s; a recovery's validation and tree state need
+  nothing from the tome pass): the tree's hash is the journal's - apply its record; another tree - drop the journal; a
   tree file there but unreadable - wait (`kWait`); no tree file but a `spell_tree.json.tmp` with the journal's
   hash (a crash under the older `WriteAtomically`, which moved the file to `.bak` first) - move it into place and
   apply (`kRecover`, Ruling 21). Its write is a game thread task that goes only when the
@@ -2113,8 +2116,10 @@ order's; log prefix `TreeGraft:`).
   `onTreeGrafted({ loadOrder, reload: false })` (the tree itself follows as `updateTreeData`); `autoBuildCpp.js` then counts the tree as built for it and drops a
   `status.loadOrderChanged` line already shown. At the next save load `ShowPendingGraftNotice` shows
   `hud.spellsGrafted` ("N new spells joined the spell tree", 13 languages) and zeroes `pendingGrafted`.
-  `SaveSpellTree` warns in the log when a panel save drops spells the session's graft added (the file still the
-  one the graft wrote). Such a save is stale only when it was asked for before the graft's tree write and holds
+  `SaveSpellTree` warns in the log when an edit save drops spells the session's graft added (the file still the
+  one the graft wrote; a build's Apply or an Import writes its own record and is not checked). Its "the same
+  text as the last save - not rewritten" shortcut holds only when no graft wrote the tree since that save
+  (`TreeGraftRun::SameAsLastSave`, the write stamp below): Import A, the graft writes B, Import A writes A again. Such a save is stale only when it was asked for before the graft's tree write and holds
   none of the grafted formIds (`TreeGraftRun::StaleGraftSave`: `TreeGraftWriteStamp`, a counter the graft and a
   journal's recovery raise on the game thread right after their tree write, read when the panel's save comes in
   and again in its game thread task; Ruling 24): for an edit save, once it is written, those spells leave the seen
@@ -2147,8 +2152,10 @@ Without the self-test nothing is logged and the labels are not built.
 **Renamed plugins** (2026-10-28). A node whose persistentId names nothing (its plugin renamed, merged or
 ESL-compacted) is looked up by its baked `editorId` (`SchoolBridges.applyToOutput` writes it from the scan;
 spell editor ids need powerofthree's Tweaks). `JudgeNode` (SpellScannerFormId.cpp) builds one
-`EditorIdRematch::CandidateIndex` per tree load, only when a node needs it: every loaded spell by
-`GetEditorId`, A-Z folded as the engine's lookup does. `PickRematch` takes the one spell in the node's school;
+`EditorIdRematch::CandidateIndex` per tree load, only when a node needs it: every loaded player's spell
+(`IsPlayerSpellForm`, the rule a node must pass to stay) by `GetEditorId`, A-Z folded as the engine's lookup
+does - an NPC's spell sharing the editor id is no second candidate, and a node whose only match is one is a
+missing plugin, reported as such. `PickRematch` takes the one spell in the node's school;
 several distinct spells, or none, and the node is not taken (logged). Clashes (`TreeRemap.h`
 `DropRematchClashes`): a rematched node on a spell another node of its school has goes - nodes resolved by their
 own persistentId first, then rematched ones in file order. A legacy copy (no persistentId) in another school

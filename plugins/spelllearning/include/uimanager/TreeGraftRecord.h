@@ -88,6 +88,16 @@ namespace TreeGraftRun
         return stampAtEntry < stampNow && carried == 0;
     }
 
+    /// SaveSpellTree's "the same tree as the last save - not rewritten": the text is the last
+    /// save's (`hash` == `lastHash`) and no graft wrote the tree file since (the write stamp,
+    /// TreeGraftWriteStamp, when that save wrote is the one now). A graft's write in between
+    /// replaced the file: Import A, the graft writes B, Import A again must write A
+    [[nodiscard]] inline bool SameAsLastSave(std::size_t hash, std::size_t lastHash, std::uint64_t stampAtLastSave,
+        std::uint64_t stampNow)
+    {
+        return hash == lastHash && stampAtLastSave == stampNow;
+    }
+
     /// A stale edit save (StaleGraftSave) dropped grafted nodes (Ruling 23): their spells
     /// (`lost`, persistentIds) leave the seen list (A-Z folded) and pendingGrafted, and the
     /// load order and the notice told go back to the record's before the graft (`held`), so

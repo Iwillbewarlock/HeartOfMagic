@@ -512,6 +512,12 @@ namespace
         const auto started = Clock::now();
         const Settings settings = ReadSettings();
 
+        // A journal an earlier graft left is settled first, whatever runs this session (it only
+        // finishes files it wrote). Before the tome pass wait, which has no limit: the panel's
+        // build at game start waits 30 s for it (Ruling 28), and the recovery's validation and
+        // tree state need nothing from the tome pass (forms, config.json, the progression state)
+        ResolveTreeGraftJournal(loadOrder);
+
         // The tome pairs first, as the panel's StartScan does: a new generation restarts the pass this scan then
         // waits for, instead of restarting it in the scan's first step and leaving the scan without its marks
         constexpr auto kRebuildWait = std::chrono::seconds(10);
@@ -533,8 +539,6 @@ namespace
             }
         }
 
-        // A journal an earlier graft left is settled whatever runs this session (it only finishes files it wrote)
-        ResolveTreeGraftJournal(loadOrder);
         if (const auto reason = Precondition()) {
             logger::info("{} {}", kPrefix, *reason);
             if (settings.selfTest) logger::info("{} not run: {}", kTestPrefix, *reason);

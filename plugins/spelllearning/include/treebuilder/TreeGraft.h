@@ -25,7 +25,10 @@
 //    scoring inputs (similarities, themes, type grouping, mod tags) are rebuilt
 //    from the scan for the live nodes and the new spells together; they only
 //    score. The child cap is the tree's own largest child count, at least
-//    maxChildrenPerNode. Lowest tier first. A grafted node can at once parent a
+//    maxChildrenPerNode; when no parent of the spell's tier or below has room, the
+//    build's last resort takes one up to kFallbackExtraChildren (2) past it - its
+//    own tier first, then each tier below - so a parent is never of a higher tier
+//    than its child. Lowest tier first. A grafted node can at once parent a
 //    later grafted spell, of a higher tier or of its own (a difference from the
 //    build, which offers a tier's nodes as parents only once the tier is done).
 //  - Room (the distance term): each candidate parent gets kRoomWeight (2) points

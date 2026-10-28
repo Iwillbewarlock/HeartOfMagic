@@ -372,7 +372,9 @@ namespace
             } else {
                 room.AddUnplaced(id);
             }
-            if (static_cast<int>(node.children.size()) < cap) available[node.depth].push_back(&node);
+            // Full ones too: FindBestClassicParent's last resort takes a parent past the cap
+            // (never one above the spell's tier) before it leaves a spell out
+            available[node.depth].push_back(&node);
         }
 
         std::unordered_map<std::string, int> newChildren;   // parent id -> new children placed under it
@@ -388,9 +390,6 @@ namespace
 
             parent->AddChild(node.formId);
             node.AddPrerequisite(parent->formId);
-            if (static_cast<int>(parent->children.size()) >= cap) {
-                for (auto& [d, list] : available) std::erase(list, parent);
-            }
             available[tierIdx].push_back(&node);
 
             // The next fan slot that is not on top of a node (the ring can pull two slots together)

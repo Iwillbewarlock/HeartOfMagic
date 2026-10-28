@@ -169,14 +169,17 @@ namespace SpellScanner
         // the voice slot - what a scan lets into a new tree. A saved tree is checked again as it loads: a stale formId can name another
         // plugin's record (an unnamed Constant Effect ability), and a tree built before a
         // rule came in still holds spells the rule leaves out (2026-10-05).
-        bool IsPlayerSpell(const std::string& formIdStr, const std::unordered_set<std::string>& gateKept)
+        bool IsPlayerSpellForm(RE::SpellItem* spell, const std::unordered_set<std::string>& gateKept)
         {
-            const auto formId = FormIdText::ParseSpellOf(formIdStr);  // a copy's node id names its spell
-            if (!formId) return false;
-            auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(*formId);
             if (!spell) return false;
             const char* name = spell->GetFullName();
             return name && *name && !GateLeavesOut(spell, gateKept) && !IsEquippedInVoiceSlot(spell);
+        }
+
+        bool IsPlayerSpell(const std::string& formIdStr, const std::unordered_set<std::string>& gateKept)
+        {
+            const auto formId = FormIdText::ParseSpellOf(formIdStr);  // a copy's node id names its spell
+            return formId && IsPlayerSpellForm(RE::TESForm::LookupByID<RE::SpellItem>(*formId), gateKept);
         }
 
         // A persistentId that resolved to nothing: why, in the log the player can read, and which
@@ -204,11 +207,13 @@ namespace SpellScanner
         // Every loaded spell by editor id, with its school: the candidates of a rematch. Editor
         // ids are shared (a fork or port of a mod keeps them), so a lookup that returns one form
         // (LookupByEditorID) would miss the second one; the index folds case as that lookup did.
-        // Built once per tree load and only when a node needs it; empty without powerofthree's
-        // Tweaks (GetEditorId has nothing then). O(spells) time and space.
+        // Only player's spells (IsPlayerSpellForm): a rematch onto any other would be dropped
+        // without its plugin reported missing, and a player's and an NPC's spell sharing an
+        // editor id would read as two. Built once per tree load and only when a node needs it;
+        // empty without powerofthree's Tweaks (GetEditorId has nothing then). O(spells) time and space.
         using SpellsByEditorId = EditorIdRematch::CandidateIndex;
 
-        SpellsByEditorId IndexSpellsByEditorId()
+        SpellsByEditorId IndexSpellsByEditorId(const std::unordered_set<std::string>& gateKept)
         {
             SpellsByEditorId index;
             auto* dataHandler = RE::TESDataHandler::GetSingleton();
@@ -216,10 +221,10 @@ namespace SpellScanner
             for (auto* spell : dataHandler->GetFormArray<RE::SpellItem>()) {
                 if (!spell) continue;
                 const auto editorId = GetEditorId(spell);  // the helper the scan baked the node's editorId with
-                if (editorId.empty()) continue;
+                if (editorId.empty() || !IsPlayerSpellForm(spell, gateKept)) continue;
                 index.Add(editorId, spell->GetFormID(), GetSchoolName(GetSpellSchool(spell)));
             }
-            logger::info("SpellScanner: {} editor ids of loaded spells indexed to find renamed plugins' spells{}",
+            logger::info("SpellScanner: {} editor ids of loaded player's spells indexed to find renamed plugins' spells{}",
                 index.Size(), index.Size() == 0 ? " (none: powerofthree's Tweaks not loaded?)" : "");
             return index;
         }
@@ -228,15 +233,16 @@ namespace SpellScanner
         // the one spell with its editor id in the node's school (EditorIdRematch). Returns 0
         // when the node is not found again (no editor id, no such spell, another school, several)
         RE::FormID RematchByEditorId(const json& node, const std::string& school,
-                                     std::optional<SpellsByEditorId>& spellsByEditorId)
+                                     std::optional<SpellsByEditorId>& spellsByEditorId,
+                                     const std::unordered_set<std::string>& gateKept)
         {
             if (!node.contains("editorId") || !node["editorId"].is_string()) return 0;
             const std::string editorId = node["editorId"].get<std::string>();
             if (editorId.empty()) return 0;
-            if (!spellsByEditorId) spellsByEditorId = IndexSpellsByEditorId();
+            if (!spellsByEditorId) spellsByEditorId = IndexSpellsByEditorId(gateKept);
             const auto* found = spellsByEditorId->Find(editorId);
             if (!found) {
-                logger::info("SpellScanner: no loaded spell has editor id {} - not found again", editorId);
+                logger::info("SpellScanner: no loaded player's spell has editor id {} - not found again", editorId);
                 return 0;
             }
             const auto& candidates = *found;
@@ -289,7 +295,7 @@ namespace SpellScanner
                         logger::info("SpellScanner: Resolved {} -> {} from persistent ID {}", saved, verdict.formId,
                             persistentId);
                     }
-                } else if (const RE::FormID rematchedId = RematchByEditorId(node, school, spellsByEditorId);
+                } else if (const RE::FormID rematchedId = RematchByEditorId(node, school, spellsByEditorId, gateKept);
                            rematchedId != 0 && IsFormIdValid(rematchedId)) {
                     // Its plugin was renamed, merged or compacted: the same spell by editor id. The
                     // plugin is not reported missing, the node is there. TreeRemap gives the node the

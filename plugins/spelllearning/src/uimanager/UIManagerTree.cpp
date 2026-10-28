@@ -334,10 +334,13 @@ void UIManager::SaveSpellTreeFromPanel(const char* argument, TreeSaveKind kind)
         // every step - is not written again. Rewriting it would also rotate
         // the .bak, replacing the real previous tree with a copy of this one.
         // A build's text is hashed without its seen list (the record still gets that).
+        // Not when the tree graft wrote the file since that save (SameAsLastSave).
         static std::size_t s_lastSavedHash = 0;
+        static std::uint64_t s_lastSavedGraftStamp = 0;
         const std::size_t hash = std::hash<std::string>{}(argStr);
         std::error_code existsError;
-        if (hash == s_lastSavedHash && std::filesystem::exists(treePath, existsError)) {
+        if (TreeGraftRun::SameAsLastSave(hash, s_lastSavedHash, s_lastSavedGraftStamp, TreeGraftWriteStamp()) &&
+            std::filesystem::exists(treePath, existsError)) {
             logger::info("UIManager: Spell tree unchanged since the last save - not rewritten");
             updateRecord();
             instance->UpdateTreeStatus("Tree saved");
@@ -350,7 +353,8 @@ void UIManager::SaveSpellTreeFromPanel(const char* argument, TreeSaveKind kind)
             instance->UpdateTreeStatus("Save failed");
             return;
         }
-        const auto lost = GraftedSpellsDropped(argStr, graftStamp);
+        // Only an edit save gives lost grafted spells back (a build or Import writes its own record)
+        const auto lost = kind == TreeSaveKind::Edit ? GraftedSpellsDropped(argStr, graftStamp) : LostGraft{};
 
         try {
             // Through a temp file and a move, keeping one .bak: this is the
@@ -359,11 +363,12 @@ void UIManager::SaveSpellTreeFromPanel(const char* argument, TreeSaveKind kind)
             const auto writeStarted = std::chrono::steady_clock::now();
             if (FileUtils::WriteAtomically(treePath, argStr)) {
                 s_lastSavedHash = hash;
+                s_lastSavedGraftStamp = TreeGraftWriteStamp();
                 logger::info("UIManager: Saved spell tree to {} (spell check {} ms, written in {} ms)", PathText::Utf8(treePath),
                     *checkMs, MsSince(writeStarted));
                 updateRecord();
-                // A build or Import writes its own record; a stale edit save gives the lost grafted spells back
-                if (kind == TreeSaveKind::Edit && !lost.persistentIds.empty()) {
+                // A stale edit save gives the lost grafted spells back
+                if (!lost.persistentIds.empty()) {
                     instance->ForgetLostGraftedSpells(lost.persistentIds, { lost.graft.priorLoadOrder,
                         lost.graft.priorPlugins, lost.graft.priorSpells, lost.graft.priorNoticedLoadOrder });
                 }

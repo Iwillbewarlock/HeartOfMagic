@@ -61,7 +61,8 @@ namespace Librarian::SpellResearchPatch
         const auto pipe = persistentId.find('|');
         if (pipe == std::string::npos) return filter.blacklistedIds.contains(formId);
         const std::string plugin = persistentId.substr(0, pipe);
-        return filter.pluginsOff.contains(AsciiText::ToLower(plugin)) || filter.blacklistedIds.contains(formId) ||
+        // Both of the panel's whitelist lookups, as the graft (an entry an older panel lowered with toLowerCase)
+        return TreeGraft::PluginIsOff(plugin, filter.pluginsOff) || filter.blacklistedIds.contains(formId) ||
             filter.blacklisted.contains(LocalKey(plugin, persistentId.substr(pipe + 1)));
     }
 }

@@ -116,6 +116,11 @@ namespace GraftRunRecordCases
         check.Check(!TreeGraftRun::StaleGraftSave(1, 1, 0),
             "asked for after the graft wrote, no grafted node in it: the player deleted them - they stay out");
         check.Check(!TreeGraftRun::StaleGraftSave(0, 1, 2), "asked for before the write, some grafted nodes in it: they stay out");
+        // The save's "same text as the last save - not rewritten" (Import A, graft writes B, Import A)
+        check.Check(TreeGraftRun::SameAsLastSave(7, 7, 1, 1), "the last save's text, no graft write since: not rewritten");
+        check.Check(!TreeGraftRun::SameAsLastSave(7, 7, 0, 1),
+            "the last save's text, but the graft wrote the tree since: written again (the file is the graft's)");
+        check.Check(!TreeGraftRun::SameAsLastSave(8, 7, 1, 1), "another text: written");
         check.Check(after.pendingGrafted == 1 && after.extra.contains("later"), "one fewer to tell about; other fields kept");
         const auto none = TreeGraftRun::RecordAfterLostGraft(record, { "A.esp|0x1", "B.esp|0x2", "C.esp|0x3" }, {});
         check.Check(none.pendingGrafted == 0 && none.seen.size() == 4 && none.loadOrder.empty(),

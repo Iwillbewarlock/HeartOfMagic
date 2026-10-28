@@ -159,6 +159,28 @@ namespace
         return out;
     }
 
+    /// The grafted nodes (formIds in `grafted`) of `school` under a parent of a higher tier
+    int TierInversions(const Json& tree, const std::string& school, const std::set<std::string>& grafted)
+    {
+        std::map<std::string, int> tierOf;
+        for (const auto& node : tree["schools"][school]["nodes"]) {
+            tierOf[node["formId"].get<std::string>()] = node["tier"].get<int>();
+        }
+        int inverted = 0;
+        for (const auto& node : tree["schools"][school]["nodes"]) {
+            const auto id = node["formId"].get<std::string>();
+            if (!grafted.contains(id) || node["prerequisites"].empty()) continue;
+            const auto parent = node["prerequisites"][0].get<std::string>();
+            if (tierOf[parent] <= node["tier"].get<int>()) continue;
+            constexpr int kShown = 3;
+            if (inverted++ < kShown) {
+                std::printf("      %s tier %d under %s tier %d\n", id.c_str(), node["tier"].get<int>(), parent.c_str(),
+                    tierOf[parent]);
+            }
+        }
+        return inverted;
+    }
+
     // A small Destruction tree: Flames (root, fire), Firebolt (fire) and Ice Spike (frost) under it.
     // Positions on a spoke along +x from the globe at 0,0, branches above and below.
     Json SmallTree()
@@ -293,8 +315,14 @@ namespace
         PlayerRules loweredOff;
         loweredOff.pluginsOff = { "\xD0\xB7\xD0\xB0\xD0\xBA.esp" };   // Cyrillic "Zak" lowered by toLowerCase
         check.Check(!TreeGraft::IsTreeCandidate(cyrillic, loweredOff), "a whitelist entry lowered with toLowerCase matches");
+        // Spell Research's filter asks the same rule by plugin name (LibrarianSpellResearchFilter.cpp PlayerLeftOut)
+        check.Check(TreeGraft::PluginIsOff("\xD0\x97\xD0\xB0\xD0\xBA.esp", loweredOff.pluginsOff) &&
+                        TreeGraft::PluginIsOff("MyMod.ESP", { "mymod.esp" }) && !TreeGraft::PluginIsOff("", { "" }),
+            "PluginIsOff: the Cyrillic capital plugin with a toLowerCase key is off, A-Z folded too; no name is not off");
         check.Check(TreeGraft::Detail::JsLowerCase("\xC3\x89\xC4\xB0\xCE\xA3" "X") == "\xC3\xA9" "i" "\xCC\x87\xCF\x83" "x",
             "toLowerCase: E acute, dotted capital I (i + U+0307), capital sigma, X");
+        check.Check(TreeGraft::Detail::JsLowerCase("\xE1\xBA\x9E" "\xD1\xA0") == "\xE1\xBA\x9E" "\xD1\xA0",
+            "the documented limit: U+1E9E and U+0460 stay (JavaScript lowers them to U+00DF, U+0461)");
         PlayerRules offOther;
         offOther.pluginsOff = { "other.esp" };
         check.Check(TreeGraft::IsTreeCandidate(base, offOther), "another plugin off changes nothing");
@@ -367,6 +395,9 @@ namespace
         check.Check(a.tree.dump() == b.tree.dump() && a.grafted == b.grafted,
             "graft: repeatable - the same input twice gives the same tree");
         check.Check(a.grafted.size() == news.size(), std::format("all {} grafted", a.grafted.size()));
+        std::set<std::string> newIds;
+        for (const auto& spell : news) newIds.insert(spell["formId"].get<std::string>());
+        check.Check(TierInversions(a.tree, "Destruction", newIds) == 0, "graft: no grafted node under a parent of a higher tier");
         std::set<std::pair<double, double>> points;
         for (const auto& node : a.tree["schools"]["Destruction"]["nodes"]) {
             if (!points.insert({ node["x"].get<double>(), node["y"].get<double>() }).second) {
@@ -570,15 +601,86 @@ namespace
         }
         for (const auto& [id, node] : byId) maxChildren = (std::max)(maxChildren, static_cast<int>(node["children"].size()));
         check.Check(parented, "each grafted node has a parent in its school");
-        check.Check(maxChildren <= TreeBuilder::BuildConfig{}.maxChildrenPerNode,
-            std::format("no node over the child cap ({} at most)", maxChildren));
+        // A parent takes up to kFallbackExtraChildren past the cap when no parent of the spell's tier or below has room
+        check.Check(maxChildren <= TreeBuilder::BuildConfig{}.maxChildrenPerNode + TreeBuilder::kFallbackExtraChildren,
+            std::format("no node over the child cap and its fallback overflow ({} at most)", maxChildren));
+        check.Check(TierInversions(result.tree, "Destruction", newIds) == 0,
+            "graft: 300 new spells - no grafted node under a parent of a higher tier");
+        return check.failed;
+    }
+
+    /// Root (Novice) -> three Apprentice nodes -> three Adept nodes each, all at the cap of 3;
+    /// with `adeptsFull` each Adept node has three Expert children too
+    Json FullTree(bool adeptsFull, std::vector<Json>& scan)
+    {
+        const char* levels[] = { "Novice", "Apprentice", "Adept", "Expert" };
+        const auto id = [](int i) { return std::format("0x050{:05X}", i); };
+        const auto local = [](int i) { return std::format("0x{:06X}", i); };
+        Json nodes = Json::array();
+        const auto add = [&](int i, int tier, double x, double y, const std::vector<std::string>& children,
+                             const std::vector<std::string>& prereqs) {
+            nodes.push_back(Node(id(i), "Full.esp|" + local(i), tier, x, y, children, prereqs));
+            scan.push_back(Spell(id(i), "Full.esp", local(i), std::format("Full{}", i), "Destruction", levels[tier - 1],
+                { "element.fire" }));
+        };
+        constexpr int kWidth = 3;
+        constexpr int kFirstLeaf = 100;
+        add(0, 1, 100, 0, { id(1), id(2), id(3) }, {});
+        int next = kWidth + 1;
+        int leaf = kFirstLeaf;
+        for (int a = 1; a <= kWidth; ++a) {
+            std::vector<std::string> kids;
+            for (int k = 0; k < kWidth; ++k) kids.push_back(id(next + k));
+            add(a, 2, 200, (a - 2) * 100.0, kids, { id(0) });
+            for (int k = 0; k < kWidth; ++k, ++next) {
+                std::vector<std::string> leaves;
+                for (int l = 0; adeptsFull && l < kWidth; ++l) leaves.push_back(id(leaf + l));
+                const double y = (a - 2) * 100.0 + (k - 1) * 30.0;
+                add(next, 3, 300, y, leaves, { id(a) });
+                for (int l = 0; adeptsFull && l < kWidth; ++l, ++leaf) add(leaf, 4, 400, y + (l - 1) * 9.0, {}, { id(next) });
+            }
+        }
+        return { { "globe", { { "x", 0 }, { "y", 0 } } },
+            { "schools", { { "Destruction", { { "root", id(0) }, { "nodes", nodes } } } } } };
+    }
+
+    int FallbackCase()
+    {
+        std::printf("  graft: no parent with room\n");
+        Checker check;
+        // Root and Apprentice nodes full, the Adept nodes free: a new Novice and Apprentice
+        // spell still go under their own tier or below, past the cap
+        std::vector<Json> scan;
+        const Json tree = FullTree(false, scan);
+        const std::vector<Json> news = {
+            Spell("0x06000001", "New.esp", "0x000001", "NewNovice", "Destruction", "Novice", { "element.fire" }),
+            Spell("0x06000002", "New.esp", "0x000002", "NewApprentice", "Destruction", "Apprentice", { "element.fire" }) };
+        const auto result = TreeGraft::Graft(tree, scan, Pointers(news), PlayerRules{}, TreeBuilder::BuildConfig{});
+        check.Check(result.grafted.size() == 2, std::format("graft: no parent with room - both grafted ({})", result.grafted.size()));
+        check.Check(TierInversions(result.tree, "Destruction", { "0x06000001", "0x06000002" }) == 0,
+            "graft: no parent with room - neither under a free Adept node (a higher tier)");
+        const Json* novice = GraftedNode(result.tree, "Destruction", "0x06000001");
+        check.Check(novice && (*novice)["prerequisites"] == Json::array({ "0x05000000" }),
+            "the Novice spell goes under the full root (its tier, past the cap)");
+
+        // Every node full: the Novice still goes under the root, nothing is skipped
+        std::vector<Json> fullScan;
+        const Json full = FullTree(true, fullScan);
+        const std::vector<Json> one = { news[0] };
+        const auto all = TreeGraft::Graft(full, fullScan, Pointers(one), PlayerRules{}, TreeBuilder::BuildConfig{});
+        const Json* root = GraftedNode(all.tree, "Destruction", "0x05000000");
+        check.Check(all.grafted.size() == 1 && all.skippedNoSchool.empty() && root && (*root)["children"].size() == 4,
+            "graft: root at the cap and every node full - the Novice goes under the root");
+        int parentsGained = 0;
+        check.Check(ExistingKept(full, all.tree, { "0x06000001" }, parentsGained) && parentsGained == 1,
+            "existing nodes unchanged but the root's new child");
         return check.failed;
     }
 
     int SelfTest()
     {
         const std::vector<int (*)()> cases = { CandidatesCase, RulesCase, GraftKeepsCase, RepeatableCase, FireBranchCase,
-            NoSchoolCase, DeferredCase, OrderedCase, ManyCase };
+            NoSchoolCase, DeferredCase, OrderedCase, ManyCase, FallbackCase };
         int failedCases = 0;
         for (auto* run : cases) {
             if (run() > 0) ++failedCases;

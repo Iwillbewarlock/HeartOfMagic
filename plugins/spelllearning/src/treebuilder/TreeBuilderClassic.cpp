@@ -136,16 +136,17 @@ TreeBuilder::TreeNode* TreeBuilder::Internal::FindBestClassicParent(
         }
     }
 
-    // Last resort: expand capacity
-    if (candidates.empty()) {
-        for (auto& [d, parents] : available) {
-            for (auto* p : parents) {
-                // Fallback allows +2 overflow to avoid orphan nodes in edge cases
-                if (static_cast<int>(p->children.size()) < maxChildren + 2) {
-                    candidates.emplace_back(p, std::abs(tierIdx - d) + 5);
-                }
+    // Last resort: a parent past the cap (kFallbackExtraChildren over it), never above the
+    // spell's own tier - its tier first, then down to the root's. The build drops a full
+    // parent from `available`, so there it finds nothing the steps above did not; the graft
+    // keeps full parents in it, so a spell whose tier has no room still gets one
+    for (int d = tierIdx; d >= 0 && candidates.empty(); --d) {
+        const auto it = available.find(d);
+        if (it == available.end()) continue;
+        for (auto* p : it->second) {
+            if (static_cast<int>(p->children.size()) < maxChildren + kFallbackExtraChildren && p->formId != node.formId) {
+                candidates.emplace_back(p, std::abs(tierIdx - d) + 5);
             }
-            if (!candidates.empty()) break;
         }
     }
 

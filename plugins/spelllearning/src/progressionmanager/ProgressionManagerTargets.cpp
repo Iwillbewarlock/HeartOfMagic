@@ -126,6 +126,10 @@ void ProgressionManager::ClearLearningTargetForSpell(RE::FormID formId)
         }
     }
     for (const auto& school : schools) {
+        // The first clear drops the spell from its other keys too (DropTargetFromOtherSchools,
+        // which sends their event): a key no longer holding it is not cleared a second time
+        const auto now = m_learningTargets.find(school);
+        if (now == m_learningTargets.end() || now->second != formId) continue;
         ClearLearningTarget(school);
         logger::info("ProgressionManager: Cleared learning target for {} (spell {:08X})", school, formId);
     }

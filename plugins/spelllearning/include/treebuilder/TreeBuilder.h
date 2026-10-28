@@ -27,6 +27,10 @@ namespace TreeBuilder
     };
     inline constexpr int TIER_COUNT = 5;
 
+    // Classic's last resort (FindBestClassicParent) lets a parent take this many children
+    // past the cap rather than leave a spell without one
+    inline constexpr int kFallbackExtraChildren = 2;
+
     // Tier name → index (0-4), returns -1 for unknown
     int TierIndex(const std::string& tierName);
 

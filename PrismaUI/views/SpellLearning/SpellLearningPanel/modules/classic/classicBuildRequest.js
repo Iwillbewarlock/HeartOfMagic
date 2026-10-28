@@ -22,6 +22,9 @@
 
 var ClassicBuildRequest = {
 
+    /** The scan of the last request sent: the draft its reply makes keeps that scan's seen list (TreeGrowthClassic.loadTreeData) */
+    lastScan: null,
+
     /**
      * The builder settings every Classic request sends, in the order the
      * request has always listed them (grid_hint and selected_roots follow).
@@ -42,6 +45,7 @@ var ClassicBuildRequest = {
      * @param {Object} spellData - state.lastSpellData (has .spells)
      */
     send: function (spellData) {
+        this.lastScan = spellData;
         // From here the modal, the pending flag and both Build buttons wait for
         // C++'s reply. A throw while the request is put together means no
         // request and so no reply: let go of all three, as a parse error does.
