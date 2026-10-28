@@ -2,12 +2,10 @@
 
 #include "AsciiText.h"
 #include "FormIdText.h"
-#include "TreeRemap.h"
 
 #include <cstddef>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -67,10 +65,12 @@ namespace TreeGraft
             return it != spell.end() && it->is_boolean() && it->get<bool>() == value;
         }
 
-        [[nodiscard]] inline std::string Text(const nlohmann::json& spell, const char* key)
+        /// A string field, empty when absent or not a string (Json: json or ordered_json)
+        template <class Json>
+        [[nodiscard]] std::string Text(const Json& object, const char* key)
         {
-            const auto it = spell.find(key);
-            return (it != spell.end() && it->is_string()) ? it->get<std::string>() : std::string();
+            const auto it = object.find(key);
+            return (it != object.end() && it->is_string()) ? it->template get<std::string>() : std::string();
         }
 
         /// uiHelpers.js getLocalFormId: "0x" off, lower case, padded to 8; an ESL (fe..) keeps
@@ -121,14 +121,76 @@ namespace TreeGraft
             return rules.blacklistKeys.contains(formId);
         }
 
-        /// filterWhitelistedSpells: a spell whose plugin cannot be told stays in.
-        /// Known limit: the panel also matches an entry an older panel lowered with
-        /// toLowerCase (a Cyrillic or accented name); A-Z folding cannot, so such an entry
-        /// keeps its plugin's spells in here until the plugin list renames it.
+        /// The lower case of one code point as JavaScript's toLowerCase gives it, for the
+        /// scripts plugin names are written in: Latin-1, Latin Extended-A, Greek, Cyrillic.
+        /// Any other code point (Hangul, CJK, kana have no case) stays. Not covered: the
+        /// context rule that makes a word-final capital sigma "ς", and the rarer Cyrillic
+        /// and Latin blocks (U+0460 on, U+0180 on). Every result is below U+0800.
+        [[nodiscard]] inline std::u32string_view LowerOf(char32_t c, char32_t& buffer) noexcept
+        {
+            static constexpr char32_t kDottedI[] = { U'i', 0x0307 };   // "İ" lowers to "i" + combining dot
+            const auto one = [&buffer](char32_t lower) {
+                buffer = lower;
+                return std::u32string_view(&buffer, 1);
+            };
+            const bool even = (c % 2) == 0;
+            if (c >= U'A' && c <= U'Z') return one(c + 0x20);
+            if (c >= 0xC0 && c <= 0xDE && c != 0xD7) return one(c + 0x20);
+            if (c == 0x130) return { kDottedI, 2 };
+            if (even && ((c >= 0x100 && c <= 0x12F) || (c >= 0x132 && c <= 0x137) || (c >= 0x14A && c <= 0x177))) {
+                return one(c + 1);
+            }
+            if (!even && ((c >= 0x139 && c <= 0x148) || (c >= 0x179 && c <= 0x17E))) return one(c + 1);
+            if (c == 0x178) return one(0xFF);
+            if (c == 0x386) return one(0x3AC);
+            if (c >= 0x388 && c <= 0x38A) return one(c + 0x25);
+            if (c == 0x38C) return one(0x3CC);
+            if (c == 0x38E || c == 0x38F) return one(c + 0x3F);
+            if ((c >= 0x391 && c <= 0x3A1) || (c >= 0x3A3 && c <= 0x3AB)) return one(c + 0x20);
+            if (c >= 0x400 && c <= 0x40F) return one(c + 0x50);
+            if (c >= 0x410 && c <= 0x42F) return one(c + 0x20);
+            return one(c);
+        }
+
+        /// JavaScript's toLowerCase on UTF-8 text, as far as LowerOf goes; longer sequences
+        /// (no case in LowerOf's range) and bytes that are not well-formed UTF-8 stay as they are
+        [[nodiscard]] inline std::string JsLowerCase(std::string_view text)
+        {
+            std::string out;
+            out.reserve(text.size());
+            for (std::size_t i = 0; i < text.size();) {
+                const auto lead = static_cast<unsigned char>(text[i]);
+                const bool twoBytes = lead >= 0xC2 && lead <= 0xDF && i + 1 < text.size() &&
+                                      (static_cast<unsigned char>(text[i + 1]) & 0xC0) == 0x80;
+                if (lead >= 0x80 && !twoBytes) {
+                    out += text[i++];
+                    continue;
+                }
+                const char32_t c = lead < 0x80 ? static_cast<char32_t>(lead)
+                                               : static_cast<char32_t>(((lead & 0x1F) << 6) |
+                                                                       (static_cast<unsigned char>(text[i + 1]) & 0x3F));
+                i += lead < 0x80 ? 1 : 2;
+                char32_t buffer = 0;
+                for (const char32_t lower : LowerOf(c, buffer)) {
+                    if (lower < 0x80) {
+                        out += static_cast<char>(lower);
+                    } else {
+                        out += static_cast<char>(0xC0 | (lower >> 6));
+                        out += static_cast<char>(0x80 | (lower & 0x3F));
+                    }
+                }
+            }
+            return out;
+        }
+
+        /// filterWhitelistedSpells: a spell whose plugin cannot be told stays in. Both of the
+        /// panel's lookups: the plugin folded A-Z, and lowered with toLowerCase (an entry an
+        /// older panel saved that way, "заклинания.esp", turns "Заклинания.esp" off)
         [[nodiscard]] inline bool PluginOff(const nlohmann::json& spell, const PlayerRules& rules)
         {
             const std::string plugin = SpellPluginName(spell);
-            return !plugin.empty() && rules.pluginsOff.contains(AsciiText::ToLower(plugin));
+            return !plugin.empty() && (rules.pluginsOff.contains(AsciiText::ToLower(plugin)) ||
+                                          rules.pluginsOff.contains(JsLowerCase(plugin)));
         }
 
         /// The one form tree and scan formIds are compared in: "0x%08X"; an edit mode
@@ -140,7 +202,8 @@ namespace TreeGraft
         }
 
         /// A persistentId that names a record ("Plugin.esp|0x..."), A-Z folded; empty otherwise
-        [[nodiscard]] inline std::string PersistentKey(const nlohmann::json& entry)
+        template <class Json>
+        [[nodiscard]] std::string PersistentKey(const Json& entry)
         {
             const std::string persistentId = Text(entry, "persistentId");
             return persistentId.find('|') != std::string::npos ? AsciiText::ToLower(persistentId) : std::string();
@@ -169,12 +232,12 @@ namespace TreeGraft
      * A-Z folded), with a persistentId, not in the tree, and no node of their
      * duplicate group (the kept spell and the spells marked duplicateOf it).
      *
-     * In the tree: a node with a persistentId the scan has is that spell; a node
-     * without one (a tree from before 2026-10), or whose persistentId the scan lacks
-     * (a renamed plugin, which the editor id rematch may still find), holds the spell
-     * of its formId (an edit mode copy's "<formId>_dup_<n>" its spell's). So a node
-     * whose saved formId went stale in a load order shift does not hide the new
-     * spell that took that formId.
+     * In the tree (node identity, Ruling 11): a node with a persistentId is that
+     * record, matched with the scan's persistentId; only a node without one (a tree
+     * from before 2026-10) is matched by its formId (an edit mode copy's
+     * "<formId>_dup_<n>" by its spell's). So neither a node whose saved formId went
+     * stale in a load order shift nor a removed plugin's node hides the new spell
+     * that now has that formId (Graft defers such a spell, TreeGraft.h).
      *
      * The pointers point into `scanSpells`, which must outlive them. TreeJson is
      * nlohmann::json or nlohmann::ordered_json (the file read in its key order).
@@ -186,13 +249,7 @@ namespace TreeGraft
         std::vector<const nlohmann::json*> out;
         if (!scanSpells.is_array()) return out;
 
-        std::unordered_map<std::string, const nlohmann::json*> scanByPersistent;
-        for (const auto& spell : scanSpells) {
-            if (!spell.is_object()) continue;
-            if (const auto key = Detail::PersistentKey(spell); !key.empty()) scanByPersistent.emplace(key, &spell);
-        }
-
-        // What the tree holds, by formId and by persistentId
+        // What the tree holds: by persistentId, and by formId for the nodes without one
         std::unordered_set<std::string> treeFormIds, treePersistent;
         const auto schools = tree.find("schools");
         if (schools != tree.end() && schools->is_object()) {
@@ -201,14 +258,8 @@ namespace TreeGraft
                 if (!school.is_object() || nodes == school.end() || !nodes->is_array()) continue;
                 for (const auto& node : *nodes) {
                     if (!node.is_object()) continue;
-                    const std::string persistent = node.contains("persistentId") && node["persistentId"].is_string()
-                                                       ? AsciiText::ToLower(node["persistentId"].template get<std::string>())
-                                                       : std::string();
-                    if (!persistent.empty()) treePersistent.insert(persistent);
-                    const auto found = persistent.find('|') != std::string::npos ? scanByPersistent.find(persistent)
-                                                                                 : scanByPersistent.end();
-                    if (found != scanByPersistent.end()) {
-                        treeFormIds.insert(Detail::SpellIdOf(Detail::Text(*found->second, "formId")));
+                    if (const auto persistent = Detail::PersistentKey(node); !persistent.empty()) {
+                        treePersistent.insert(persistent);
                     } else if (node.contains("formId") && node["formId"].is_string()) {
                         treeFormIds.insert(Detail::SpellIdOf(node["formId"].template get<std::string>()));
                     }

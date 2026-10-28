@@ -25,14 +25,17 @@
 //    scoring inputs (similarities, themes, type grouping, mod tags) are rebuilt
 //    from the scan for the live nodes and the new spells together; they only
 //    score. The child cap is the tree's own largest child count, at least
-//    maxChildrenPerNode. Lowest tier first, so one new spell may hang under
-//    another.
+//    maxChildrenPerNode. Lowest tier first. A grafted node can at once parent a
+//    later grafted spell, of a higher tier or of its own (a difference from the
+//    build, which offers a tier's nodes as parents only once the tier is done).
 //  - Room (the distance term): each candidate parent gets kRoomWeight (2) points
 //    for every node short of kRoomCrowd (6) within kRoomRadius (110) of the point
 //    its new child would take - at most 12 points, about a tier preference (10),
 //    below a shared theme (15-25) or element (30+), so it only parts near-equal
 //    parents. A parent in a crowded spot would have its child pushed far off by
-//    the declutter: a long link across the school. TreeGraft.cpp has the numbers.
+//    the declutter: a long link across the school. A live node without x, y gets
+//    the middle of the range (6), neither helped nor held back. TreeGraft.cpp has
+//    the numbers.
 //  - The new node: formId, persistentId, name, tier (from 1), school, skillLevel
 //    and theme when known, children [], prerequisites = softPrereqs = [parent],
 //    softNeeded 1, hardPrereqs [] (no locks, no requiredXP), and a provisional x, y
@@ -44,6 +47,19 @@
 //
 // The tree's own build settings win over `config` where the tree records them:
 // config.tier_mode ("cost" = tiersByCost) and config.type_grouping.
+//
+// Node identity (Ruling 11): a node with a persistentId is that record (compared
+// with the scan's persistentId); only a node without one goes by its formId.
+//
+// Precondition: graft a tree whose live nodes' formIds are refreshed from their
+// persistentId (Task 7's runner does this, as TreeRemap would at load). Then a
+// candidate's current formId can only equal a saved formId that no longer names
+// its own record - a removed plugin's node, or a stale id left over - and such a
+// spell goes to `deferred`: neither grafted (the file would hold one formId on two
+// nodes, which TreeRemap's single saved-id map links wrongly) nor `leftOut`. A
+// candidate without a persistentId is deferred too. The caller does not put
+// deferred spells into the seen list, so a later run takes them once the clash
+// is gone.
 //
 // Not placed - in skippedNoSchool, the tree as it was: a spell of a school the
 // tree has no live node in (a mod brings the first Alteration spells of a tree
@@ -58,7 +74,7 @@ namespace TreeGraft
     struct BasicGraftResult
     {
         Json tree;
-        std::vector<std::string> grafted, leftOut, skippedNoSchool;
+        std::vector<std::string> grafted, leftOut, skippedNoSchool, deferred;
     };
 
     using GraftResult = BasicGraftResult<nlohmann::json>;

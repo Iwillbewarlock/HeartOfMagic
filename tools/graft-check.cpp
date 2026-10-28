@@ -8,7 +8,8 @@
 // panel's rule, case by case (proceduralTreeBuilder.js isTaughtByTome, the blacklist and the
 // plugin whitelist). Where it goes (Graft): every existing node as it was, a parent gaining a
 // child, the same tree for the same input, a fire spell under the fire branch, a school the
-// tree lacks left alone, 300 spells at once.
+// tree lacks left alone, a formId the file already holds (or no persistentId) deferred,
+// 300 spells at once.
 //
 // Exit 0 when every case passes, 1 on a failure, 2 on a bad argument.
 
@@ -195,7 +196,8 @@ namespace
                             Node("0x02000801_dup_1", "", 1, 10, 0, {}, { "0x00000A01" }),                 // edit mode copy
                             Node("0x05000900", "Moved.esp|0x000900", 2, 20, 0, {}, {}),                  // formId stale
                             Node("0x0A000800", "Old.esp|0x000800", 2, 30, 0, {}, {}),                    // now a copy of New's
-                            Node("0x0B000700", "Kept.esp|0x000700", 2, 40, 0, {}, {}) } } } } } } };     // a group's kept spell
+                            Node("0x0B000700", "Kept.esp|0x000700", 2, 40, 0, {}, {}),                   // a group's kept spell
+                            Node("0x0E000600", "Gone.esp|0x000600", 2, 50, 0, {}, {}) } } } } } } };     // a removed plugin's
         Json scan = Json::array({
             Spell("0x01000001", "New.esp", "0x000001", "Fresh", "Destruction", "Novice"),
             Spell("0x01000002", "New.esp", "0x000002", "Seen", "Destruction", "Novice"),
@@ -206,6 +208,8 @@ namespace
             Spell("0x0C000800", "New.esp", "0x000800", "NewKeptCopy", "Destruction", "Novice"),
             Spell("0x0D000700", "Copy.esp", "0x000700", "CopyOfKept", "Destruction", "Novice"),
             Spell("0x01000003", "New.esp", "0x000003", "NoPersistentId", "Destruction", "Novice"),
+            Spell("0x0B000700", "Kept.esp", "0x000700", "KeptRecord", "Destruction", "Novice"),
+            Spell("0x0E000600", "Took.esp", "0x000600", "TookGoneFormId", "Destruction", "Novice"),
         });
         scan[5]["duplicateOf"] = "0x0C000800";   // the old record is now the copy, the new mod's the kept one
         scan[7]["duplicateOf"] = "0x0B000700";   // a copy of a spell the tree has
@@ -222,7 +226,9 @@ namespace
         check.Check(!has("NewKeptCopy"), "a new copy whose group has a node is not new");
         check.Check(!has("CopyOfKept"), "a copy of a spell the tree has is not new");
         check.Check(!has("NoPersistentId"), "no persistentId is not new");
-        check.Check(names.size() == 1, "only Fresh is new: " + Join(names));
+        check.Check(has("TookGoneFormId"),
+            "a removed plugin's node (persistentId gone) does not block the new spell that has its old formId");
+        check.Check(names.size() == 2, "only Fresh and TookGoneFormId are new: " + Join(names));
 
         const std::unordered_set<std::string> seenOtherCase = { "NEW.ESP|0x000001" };
         check.Check(TreeGraft::NewSpells(Json::array({ scan[0] }), tree, seenOtherCase).empty(),
@@ -282,6 +288,13 @@ namespace
         PlayerRules off;
         off.pluginsOff = { "mymod.esp" };
         check.Check(!TreeGraft::IsTreeCandidate(base, off), "rules: plugin off in the whitelist leaves it out");
+        // An entry an older panel lowered with toLowerCase still turns its plugin off (proceduralTreeBuilder.js:154)
+        const Json cyrillic = Spell("0x07000011", "\xD0\x97\xD0\xB0\xD0\xBA.esp", "0x000011", "Cyr", "Destruction", "Novice");
+        PlayerRules loweredOff;
+        loweredOff.pluginsOff = { "\xD0\xB7\xD0\xB0\xD0\xBA.esp" };   // Cyrillic "Zak" lowered by toLowerCase
+        check.Check(!TreeGraft::IsTreeCandidate(cyrillic, loweredOff), "a whitelist entry lowered with toLowerCase matches");
+        check.Check(TreeGraft::Detail::JsLowerCase("\xC3\x89\xC4\xB0\xCE\xA3" "X") == "\xC3\xA9" "i" "\xCC\x87\xCF\x83" "x",
+            "toLowerCase: E acute, dotted capital I (i + U+0307), capital sigma, X");
         PlayerRules offOther;
         offOther.pluginsOff = { "other.esp" };
         check.Check(TreeGraft::IsTreeCandidate(base, offOther), "another plugin off changes nothing");
@@ -420,6 +433,53 @@ namespace
         return check.failed;
     }
 
+    int DeferredCase()
+    {
+        std::printf("  graft defers a formId the file already holds\n");
+        Checker check;
+        // Destruction: a live node whose saved formId is stale (its record now has 0x06000900) and a
+        // removed plugin's node; Restoration: one live root
+        Json tree = SmallTree();
+        auto& nodes = tree["schools"]["Destruction"]["nodes"];
+        nodes.push_back(Node("0x05000900", "Moved.esp|0x000900", 2, 250, 0, {}, { "0x00012FCD" }));
+        nodes.push_back(Node("0x0E000600", "Gone.esp|0x000600", 2, 250, 40, {}, { "0x00012FCD" }));
+        tree["schools"]["Restoration"] = { { "root", "0x00012FCC" },
+            { "nodes", { Node("0x00012FCC", "Skyrim.esm|0x012FCC", 1, -100, 0, {}, {}) } } };
+        auto scan = SmallScan();
+        scan.push_back(Spell("0x06000900", "Moved.esp", "0x000900", "Moved", "Destruction", "Apprentice", { "element.fire" }));
+        scan.push_back(Spell("0x00012FCC", "Skyrim.esm", "0x012FCC", "Healing", "Restoration", "Novice"));
+        Json noPersistent = Spell("0x05000a10", "New.esp", "0x000A10", "NoPid", "Destruction", "Adept", { "element.fire" });
+        noPersistent.erase("persistentId");
+        const std::vector<Json> news = {
+            Spell("0x05000900", "Took.esp", "0x000900", "SameSchool", "Destruction", "Adept", { "element.fire" }),
+            Spell("0x0E000600", "Took.esp", "0x000600", "OtherSchool", "Restoration", "Apprentice"),
+            noPersistent,
+            Spell("0x05000a11", "New.esp", "0x000A11", "Fine", "Destruction", "Adept", { "element.fire" }),
+        };
+        const auto result = TreeGraft::Graft(tree, scan, Pointers(news), PlayerRules{}, TreeBuilder::BuildConfig{});
+        const std::vector<std::string> expectDeferred = { "Took.esp|0x000900", "Took.esp|0x000600", "0x05000a10" };
+        check.Check(result.deferred == expectDeferred, "a stale-id clash (same school, other school) and no persistentId "
+                                                       "are deferred: " + Join(result.deferred));
+        check.Check(result.leftOut.empty() && result.skippedNoSchool.empty() &&
+                        result.grafted == std::vector<std::string>{ "New.esp|0x000A11" },
+            "deferred spells are neither left out nor grafted; the clean one is grafted");
+        std::map<std::string, int> idCount;
+        for (const auto& [school, data] : result.tree["schools"].items()) {
+            for (const auto& node : data["nodes"]) ++idCount[node["formId"].get<std::string>()];
+        }
+        check.Check(std::ranges::all_of(idCount, [](const auto& entry) { return entry.second == 1; }),
+            "no saved formId twice in the output");
+        bool noEmptyPersistent = true;
+        for (const auto& node : result.tree["schools"]["Destruction"]["nodes"]) {
+            noEmptyPersistent = noEmptyPersistent && !(node.contains("persistentId") && node["persistentId"] == "");
+        }
+        check.Check(noEmptyPersistent, "no node is written with an empty persistentId");
+        int parentsGained = 0;
+        check.Check(ExistingKept(tree, result.tree, { "0x05000a11" }, parentsGained) && parentsGained == 1,
+            "existing nodes unchanged, one parent gained the clean spell");
+        return check.failed;
+    }
+
     int OrderedCase()
     {
         std::printf("  graft keeps the file's key order\n");
@@ -515,7 +575,7 @@ namespace
     int SelfTest()
     {
         const std::vector<int (*)()> cases = { CandidatesCase, RulesCase, GraftKeepsCase, RepeatableCase, FireBranchCase,
-            NoSchoolCase, OrderedCase, ManyCase };
+            NoSchoolCase, DeferredCase, OrderedCase, ManyCase };
         int failedCases = 0;
         for (auto* run : cases) {
             if (run() > 0) ++failedCases;

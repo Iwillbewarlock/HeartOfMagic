@@ -30,6 +30,8 @@ namespace
     constexpr double kRoomRadius = 110.0;
     constexpr int kRoomCrowd = 6;
     constexpr float kRoomWeight = 2.0f;
+    // A live node without a position: the middle of the room term's range, neutral
+    constexpr float kRoomNeutral = kRoomWeight * kRoomCrowd / 2.0f;
     // Positions are written to 2 decimals, as the panel's _round does
     constexpr double kRoundTo = 100.0;
     // A parent this close to the centre has no direction of its own
@@ -238,6 +240,9 @@ namespace
             m_spots[id] = spot;
         }
 
+        /// A parent without a position: no spot to measure, the neutral bonus
+        void AddUnplaced(const std::string& id) { m_bonus[id] = kRoomNeutral; }
+
         const std::unordered_map<std::string, float>& Bonus() const { return m_bonus; }
 
         /// A node of the school sits within `distance` of p
@@ -326,8 +331,8 @@ namespace
         std::vector<std::pair<int, const json*>> news;   // tier index, spell; lowest tier first, scan order
         for (const auto* spell : work.news) {
             const auto fid = Text(*spell, "formId");
-            if (nodes.contains(fid)) {   // a spell with a node's id (NewSpells never gives one)
-                result.leftOut.push_back(ListId(*spell));
+            if (nodes.contains(fid)) {   // GraftTree defers every saved formId; this only guards the map
+                result.deferred.push_back(ListId(*spell));
                 continue;
             }
             const auto tier = tiers.find(fid);
@@ -360,6 +365,8 @@ namespace
             if (pos) {
                 positions[id] = *pos;
                 room.AddParent(id, *pos, (std::min)(node.depth + 1, TIER_COUNT - 1));
+            } else {
+                room.AddUnplaced(id);
             }
             if (static_cast<int>(node.children.size()) < cap) available[node.depth].push_back(&node);
         }
@@ -416,12 +423,30 @@ namespace
         const bool hasSchools = tree.is_object() && tree.contains("schools") && tree["schools"].is_object();
         const ScanIndex scan(scanSpells);
 
+        // Every formId the file holds, live or not, any school: a candidate with one is deferred (TreeGraft.h)
+        std::unordered_set<std::string> savedFormIds;
+        if (hasSchools) {
+            for (const auto& [name, school] : tree["schools"].items()) {
+                if (!school.is_object() || !school.contains("nodes") || !school["nodes"].is_array()) continue;
+                for (const auto& node : school["nodes"]) {
+                    if (const auto fid = node.is_object() ? Text(node, "formId") : std::string(); !fid.empty()) {
+                        savedFormIds.insert(TreeGraft::Detail::SpellIdOf(fid));
+                    }
+                }
+            }
+        }
+
         // Each school the candidates name, with its live nodes (file order)
         std::vector<SchoolWork> work;
         std::unordered_map<std::string, std::size_t> workOf;
         std::unordered_set<std::string> judged;
         for (const auto* spell : candidates) {
             if (!spell || !spell->is_object() || !judged.insert(ListId(*spell)).second) continue;
+            if (TreeGraft::Detail::PersistentKey(*spell).empty() ||
+                savedFormIds.contains(TreeGraft::Detail::SpellIdOf(Text(*spell, "formId")))) {
+                result.deferred.push_back(ListId(*spell));
+                continue;
+            }
             if (!TreeGraft::IsTreeCandidate(*spell, rules)) {
                 result.leftOut.push_back(ListId(*spell));
                 continue;
@@ -466,7 +491,6 @@ namespace
             all.insert(all.end(), school.liveSpells.begin(), school.liveSpells.end());
             for (const auto* spell : school.news) all.push_back(*spell);
         }
-        if (all.empty()) return result;
         const auto themes = MergeWithHints(DiscoverThemesPerSchool(all, config.topThemesPerSchool),
             config.topThemesPerSchool + 4);
         const auto tiers = SpellTiers(all, config.tiersByCost);
@@ -483,9 +507,9 @@ namespace
         }
 
         const auto ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - startTime).count();
-        logger::info("TreeGraft: {} grafted, {} left out by the player's rules, {} with no school or parent in the tree "
-                     "(child cap {}, {:.0f} ms)",
-            result.grafted.size(), result.leftOut.size(), result.skippedNoSchool.size(), cap, ms);
+        logger::info("TreeGraft: {} grafted, {} left out by the player's rules, {} with no school or parent in the tree, "
+                     "{} deferred (no persistentId, or a formId the tree file holds) (child cap {}, {:.0f} ms)",
+            result.grafted.size(), result.leftOut.size(), result.skippedNoSchool.size(), result.deferred.size(), cap, ms);
         return result;
     }
 }
