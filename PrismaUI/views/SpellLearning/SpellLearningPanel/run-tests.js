@@ -111,6 +111,7 @@ loadModule('spellTreeSaveTest', './modules/spellTreeSaveTest.js');
 loadModule('i18nRelabelTest', './modules/i18nRelabelTest.js');
 loadModule('stableIdsTest', './modules/stableIdsTest.js');
 loadModule('autoBuildTest', './modules/autoBuildTest.js');
+loadModule('autoBuildGraftTest', './modules/autoBuildGraftTest.js');
 loadModule('autoBuildFlowTest', './modules/autoBuildFlowTest.js');
 loadModule('autoBuildGuardTest', './modules/autoBuildGuardTest.js');
 loadModule('autoBuildHoldTest', './modules/autoBuildHoldTest.js');

@@ -11,6 +11,7 @@
  *     later startup info starts no second run;
  *   - TreePreviewHidden: the preview's output without its render loop, for
  *     every Sun grid and the Flat mode, equal to a drawn frame's.
+ * The tree graft's messages (onTreeGrafted) are in autoBuildGraftTest.js.
  *
  * Depends on: spellTreeSave.js, autoBuildSetting.js, autoBuild.js, colorUtils.js, treePreviewUtils.js,
  * treePreviewHidden.js, the preview modes (treePreviewSun.js, sunGrid*.js,
@@ -100,8 +101,6 @@ var AutoBuildTest = {
         this._testSilentProgress(g);
         this._testDecide(g);
         this._testStartup(g);
-        this._testTreeGrafted(g);
-        this._testTreeReplaced(g);
         this._testRun(g);
         this._testSaveLoadGoesOn(g);
         this._testApplyStale(g);
@@ -247,113 +246,6 @@ var AutoBuildTest = {
         this.check(r.scans === 0 && r.events.join(',') === 'decided' && r.status.length === 0, 'same load order: nothing');
         r = this._start(g, 'off', missing, ['info', 'config', 'presets']);
         this.check(r.scans === 0 && r.events.join(',') === 'decided' && r.status.length === 0, 'setting off: nothing');
-    },
-
-    /** A tree graft at the main menu (C++ onTreeGrafted) after or before the startup info. */
-    _testTreeGrafted: function(g) {
-        var self = this, A = g.AutoBuild;
-        var changed = { tree: 'present', nodes: 9, loadOrder: 'bb', builtLoadOrder: 'aa', noticedLoadOrder: '' };
-        var out = { events: [], status: [] }, shown = null;
-        this._with(g, {
-            settings: { autoBuild: 'whenMissing' },
-            startScan: function() { return true; },
-            callCpp: function(name, arg) { if (name === 'AutoBuildEvent') out.events.push(JSON.parse(arg).event); },
-            updateScanStatus: function(text, type, key) { out.status.push(key); shown = key; },
-            scanStatusKey: function() { return shown; },
-            t: function(key) { return key; },
-            tOr: function(key, params, fallback) { return fallback; },
-            console: { log: function() {}, warn: function() {}, error: function() {} }
-        }, function() {
-            var start = function(info) {
-                g.AutoBuildSetting.loaded = false;
-                g.onStartupTreeInfo(JSON.stringify(info));
-                g.AutoBuildSetting.loadFrom({ autoBuild: 'whenMissing' });
-                A.noteConfigLoaded();
-                A.notePresetsApplied();
-            };
-            // After the notice: its scan line goes, for this load order only
-            A._resetForTest();
-            start(changed);
-            g.onTreeGrafted(JSON.stringify({ loadOrder: 'cc' }));
-            var kept = shown === 'status.loadOrderChanged';
-            g.onTreeGrafted(JSON.stringify({ loadOrder: 'bb' }));
-            self.check(kept && shown === 'scanner.readyToScan' && out.events.indexOf('grafted') !== -1,
-                'a graft for this load order clears the load order notice line (not for another load order)');
-            // A line that is not the notice stays
-            shown = 'status.scannedSpellsSchools';
-            g.onTreeGrafted(JSON.stringify({ loadOrder: 'bb' }));
-            self.check(shown === 'status.scannedSpellsSchools', 'a graft leaves any other scan line alone');
-            // Before the startup info: no notice at all
-            A._resetForTest();
-            out.events = [];
-            out.status = [];
-            shown = null;
-            g.onTreeGrafted(JSON.stringify({ loadOrder: 'bb' }));
-            start(changed);
-            self.check(out.events.indexOf('notice') === -1 && out.status.indexOf('status.loadOrderChanged') === -1,
-                'a graft before the startup info: no notice is decided');
-            g.onTreeGrafted('not json');
-            self.check(true, 'an unreadable graft message is passed over');
-            A._resetForTest();
-        });
-    },
-
-    /** A graft journal's recovery put the tree file back (onTreeGrafted reload) while a build at game start runs or waits. */
-    _testTreeReplaced: function(g) {
-        var self = this, A = g.AutoBuild, calls = [], events = [], builtWith = null, appliedWith = null;
-        this._with(g, {
-            settings: { autoBuild: 'whenMissing' },
-            state: { lastSpellData: { spells: [{ formId: '0x01' }] } },
-            startScan: function() { calls.push('scan'); return true; },
-            callCpp: function(name, arg) { if (name === 'AutoBuildEvent') events.push(JSON.parse(arg).event); else calls.push(name); },
-            updateScanStatus: function() {},
-            tOr: function(key, params, fallback) { return fallback; },
-            TreePreviewHidden: { ensure: function() { return { rootNodes: [], gridPoints: [] }; } },
-            TreeGrowthClassic: {
-                buildTree: function(opts) { calls.push('build'); builtWith = opts; return true; },
-                applyTree: function(opts) { calls.push('apply'); appliedWith = opts; return true; }
-            },
-            console: { log: function() {}, warn: function() {}, error: function() {} }
-        }, function() {
-            var ready = function() { g.AutoBuildSetting.loadFrom({}); A.noteConfigLoaded(); A.notePresetsApplied(); };
-            var present = { tree: 'present', nodes: 5, loadOrder: 'aa', builtLoadOrder: 'aa' };
-            // Building: the build's result comes after the notice - no Apply
-            A._resetForTest();
-            ready();
-            g.onStartupTreeInfo({ tree: 'missing', loadOrder: 'aa' });
-            A.onSpellData();
-            g.onTreeGrafted(JSON.stringify({ loadOrder: 'aa', reload: true }));
-            builtWith.onComplete('late');
-            self.check(!A.isRunning() && calls.join(',') === 'scan,build,LoadSpellTree' && events.indexOf('yielded') !== -1,
-                'tree put back during the build: the run ends, its result is not applied, the tree is loaded again');
-            g.onStartupTreeInfo(present);
-            self.check(calls.indexOf('scan', 1) === -1 && events.filter(function(e) { return e === 'decided'; }).length === 2,
-                'the reload\'s startup info decides afresh: the tree is there, nothing is built');
-            // Applying: the Apply still decluttering does not save
-            A._resetForTest();
-            calls.length = 0;
-            ready();
-            g.onStartupTreeInfo({ tree: 'missing', loadOrder: 'aa' });
-            A.onSpellData();
-            builtWith.onComplete('ok');
-            g.onTreeGrafted({ loadOrder: '', reload: true });
-            self.check(appliedWith && appliedWith.isCurrent() === false && calls[calls.length - 1] === 'LoadSpellTree',
-                'tree put back while Apply declutters: the Apply is no longer current, so it does not save');
-            // Not decided yet (no config): nothing is built
-            A._resetForTest();
-            calls.length = 0;
-            g.onStartupTreeInfo({ tree: 'missing', loadOrder: 'aa' });
-            g.onTreeGrafted(JSON.stringify({ loadOrder: '', reload: true }));
-            ready();
-            g.onStartupTreeInfo(present);
-            self.check(calls.join(',') === 'LoadSpellTree' && !A.isRunning(),
-                'tree put back before the decision: the old "missing" builds nothing, the reload\'s info decides');
-            // The usual graft notice (reload false) loads nothing
-            calls.length = 0;
-            g.onTreeGrafted(JSON.stringify({ loadOrder: 'aa', reload: false }));
-            self.check(calls.length === 0, 'a graft notice without reload: no tree load');
-            A._resetForTest();
-        });
     },
 
     _testRun: function(g) {
