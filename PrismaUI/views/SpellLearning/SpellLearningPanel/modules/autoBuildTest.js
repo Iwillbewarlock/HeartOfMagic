@@ -38,6 +38,7 @@ var AutoBuildTest = {
         ['buildProgress.js', 'BuildProgress'],
         ['autoBuildSetting.js', 'AutoBuildSetting'],
         ['autoBuild.js', 'AutoBuild'],
+        ['autoBuildCpp.js', 'onTreeGrafted'],
         ['colorUtils.js', 'hexToRgba'],
         ['treePreviewUtils.js', 'TreePreviewUtils'],
         ['sunGridLinear.js', 'SunGridLinear'],
