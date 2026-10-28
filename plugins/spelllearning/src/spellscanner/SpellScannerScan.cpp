@@ -147,6 +147,7 @@ namespace SpellScanner
         int skipNoSchool = 0;   // No magic school
         int diagSamples = 0;    // How many diagnostic samples logged
         std::size_t lost = 0;   // kept spells no longer found by FormID in a later step
+        std::uint64_t pairsGeneration = 0;   // SpellTomes' generation the marks were made with (Begin)
 
         std::size_t steps = 0;
         double longestMs = 0.0;
@@ -179,6 +180,7 @@ namespace SpellScanner
         // release/1.6 CollectAllSpells: the pairs for tomes that teach nothing before the forms are read (a panel
         // scan rebuilt before its wait: no change then); every full scan, stepped or not, starts here
         SpellTomes::Rebuild(SpellTomes::kReasonScan);
+        pairsGeneration = SpellTomes::Generation();
 
         auto* dataHandler = RE::TESDataHandler::GetSingleton();
         if (!dataHandler) {
@@ -461,7 +463,14 @@ namespace SpellScanner
     {
         auto& st = *m_state;
         json output = BuildScanOutput(std::move(st.spellArray), st.config, {});
-        SpellTomes::NoteFullScan();   // the forms are read: this scan has these pairs
+        // The forms are read: this scan has these pairs - unless they changed while a stepped scan ran
+        // (a Spell Research Import between frames). Not noted then, so the panel calls the scan stale
+        if (SpellTomes::Generation() == st.pairsGeneration) {
+            SpellTomes::NoteFullScan();
+        } else {
+            logger::warn("SpellScanner: the tome pairs changed during the scan (generation {} -> {}) - the scan is "
+                         "not noted as having them", st.pairsGeneration, SpellTomes::Generation());
+        }
         return output;
     }
 

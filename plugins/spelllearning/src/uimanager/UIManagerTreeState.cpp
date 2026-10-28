@@ -119,7 +119,8 @@ void SyncRequiredXPFromTree(const json& treeData)
         for (auto& [schoolName, schoolData] : treeData["schools"].items()) {
             if (schoolData.contains("nodes")) {
                 for (auto& node : schoolData["nodes"]) {
-                    if (node.contains("formId")) {
+                    // Not text: that node skipped (get<std::string>() threw and ended the sync for every node after it)
+                    if (node.contains("formId") && node["formId"].is_string()) {
                         std::string formIdStr = node["formId"].get<std::string>();
                         // Sync requiredXP from tree to ProgressionManager
                         if (node.contains("requiredXP") && node["requiredXP"].is_number()) {

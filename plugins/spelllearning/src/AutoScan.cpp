@@ -4,6 +4,7 @@
 #include "LoadOrderFingerprint.h"
 #include "ScanRecord.h"
 #include "SpellScanner.h"
+#include "SpellTomes.h"
 #include "ThreadUtils.h"
 #include "librarian/Librarian.h"
 #include "tomereach/TomeReach.h"
@@ -498,6 +499,16 @@ namespace
         const auto started = Clock::now();
         const Settings settings = ReadSettings();
 
+        // The tome pairs first, as the panel's StartScan does: a new generation restarts the pass this scan then
+        // waits for, instead of restarting it in the scan's first step and leaving the scan without its marks
+        constexpr auto kRebuildWait = std::chrono::seconds(10);
+        if (!RunOnGameThreadAndWait("SpellTomesBeforeAutoScan", [] {
+                SpellTomes::Rebuild(SpellTomes::kReasonScan);
+                return true;
+            }, kRebuildWait)) {
+            logger::warn("{} the tome pairs were not read again before the scan (game thread did not answer) - a new "
+                         "generation may restart the tome reach pass during it", kPrefix);
+        }
         if (!TomeReach::WaitUntilDone(kTomeReachWait)) {
             logger::info("{} the tome reach pass is not done - the scan carries no tomeUnreachable marks", kPrefix);
         }
