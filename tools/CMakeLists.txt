@@ -327,6 +327,7 @@ target_link_libraries(graft-check PRIVATE
 
 add_executable(graft-run-check
     graft-run-check.cpp
+    graft-run-check-record.cpp
     ${SL_SRC_DIR}/treebuilder/TreeGraft.cpp
     ${SL_SRC_DIR}/treebuilder/TreeNLP.cpp
     ${SL_SRC_DIR}/treebuilder/TreeBuilderCore.cpp
