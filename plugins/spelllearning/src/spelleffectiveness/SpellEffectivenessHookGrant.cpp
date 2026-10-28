@@ -27,6 +27,10 @@ bool SpellEffectivenessHook::ShouldGrantEarly(RE::SpellItem* spell) const
 {
     if (!CanLearnEarly(spell)) return false;
     const RE::FormID formId = spell->GetFormID();
+    // Known whole from outside Heart of Magic (SpellScribe's puzzle, a quest, the console, another
+    // mod): learned already. Tracked early it would be weakened, and taken away when the target
+    // changes (RemoveEarlySpellFromPlayer)
+    if (OwnedOutside(spell)) return false;
     // ISL adds a spell it studies when the study is done, never we (an AddSpell here
     // taught it before the study, and ISL then found it known)
     if (IsHeldForISL(formId)) return false;
@@ -34,12 +38,22 @@ bool SpellEffectivenessHook::ShouldGrantEarly(RE::SpellItem* spell) const
     return !ProgressionManager::GetSingleton()->PlayerKnowsCopyOf(formId);
 }
 
+bool SpellEffectivenessHook::OwnedOutside(RE::SpellItem* spell) const
+{
+    auto* player = RE::PlayerCharacter::GetSingleton();
+    return spell && player && player->HasSpell(spell) && !IsEarlyLearnedSpell(spell->GetFormID());
+}
+
 bool SpellEffectivenessHook::ReleaseHeldIfOwned(RE::SpellItem* spell)
 {
     auto* player = RE::PlayerCharacter::GetSingleton();
     if (!spell || !player || !IsHeldForISL(spell->GetFormID()) || !player->HasSpell(spell)) return false;
     {
+        // ISL taught it without its study-done event (an older patch): what OnISLTaught does - this mod's
+        // spell, tracked early again (a target switch took it out of the set and left the hold), so
+        // OwnedOutside does not take it for one learned outside
         std::unique_lock<std::shared_mutex> lock(m_mutex);
+        if (CanLearnEarly(spell)) AddToEarlySet(spell->GetFormID());
         m_heldForISL.erase(spell->GetFormID());
     }
     logger::info("SpellEffectivenessHook: {} ({:08X}) was held for ISL and the player has it now - taught",
@@ -240,7 +254,8 @@ void SpellEffectivenessHook::CheckAndRegrantSpell(RE::FormID spellFormId)
             return;
         }
 
-        ReleaseHeldIfOwned(spell);
+        // Released: tracked by the release just now, still to get its name and descriptions below
+        const bool released = ReleaseHeldIfOwned(spell);
         bool playerHasSpell = player->HasSpell(spell);
         bool isTracked = IsEarlyLearnedSpell(spellFormId);
 
@@ -260,6 +275,15 @@ void SpellEffectivenessHook::CheckAndRegrantSpell(RE::FormID spellFormId)
             return;
         }
 
+        // Known and not tracked: learned outside Heart of Magic, left as it is (ShouldGrantEarly).
+        // Since the co-save keeps the early-learned set (SLEL), a spell this mod gave is tracked
+        // here already; one whose record was lost (v2.5, a damaged co-save) keeps its full power
+        if (playerHasSpell && !isTracked) {
+            logger::info("SpellEffectivenessHook: {} ({:08X}) is known and not early-learned (learned outside Heart of "
+                         "Magic) - not tracked or weakened", spell->GetName(), spellFormId);
+            return;
+        }
+
         // Add spell if player doesn't have it
         if (!playerHasSpell) {
             player->AddSpell(spell);
@@ -267,9 +291,8 @@ void SpellEffectivenessHook::CheckAndRegrantSpell(RE::FormID spellFormId)
                 spell->GetName(), spellFormId);
         }
 
-        // Always add to early-learned tracking if not already tracked
-        // (Needed even if player already has spell from previous session)
-        if (!isTracked) {
+        // Added just now, or tracked by the release above: early-learned, weakened name and descriptions
+        if (!isTracked || released) {
             AddEarlyLearnedSpell(spellFormId);
             UpdateSpellDisplayCache(spellFormId, spell);
             // RemoveEarlySpellFromPlayer put the name and descriptions back when

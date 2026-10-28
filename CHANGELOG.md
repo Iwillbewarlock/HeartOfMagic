@@ -54,6 +54,13 @@
 - **A spell with no required XP yet keeps its progress.** XP for such a spell used to set its saved progress to
   0; now it is ignored, as the log said.
 
+- **A spell learned outside Heart of Magic is no longer weakened or taken away.** One the player already knew
+  from a quest, the console, SpellScribe's puzzle or another mod became an early-learned spell once its learning
+  progress passed the early-learning threshold (or when it was picked as the target): its name showed a power
+  percent, it was weakened, and changing the target removed it. Such a spell is now left as it is. A spell whose
+  early-learned record was lost (v2.5 could lose it, or a damaged co-save) now keeps its full power instead of
+  being weakened again.
+
 - **A spell under study with Immersive Spell Learning is no longer taught early.** Loading a save, a cast that
   took it past the early-learning threshold, or picking it again as the learning target added the spell before
   ISL finished the study; now only ISL teaches it, and it keeps its own name until then. With ISL removed (or
