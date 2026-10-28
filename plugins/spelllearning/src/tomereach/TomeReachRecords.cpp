@@ -142,23 +142,25 @@ namespace TomeReach
             const std::unordered_set<Key>& wanted;
             Evidence& evidence;
 
-            void Add(std::uint32_t formId, bool loose = false) const
+            void Add(std::uint32_t formId, bool loose = false, bool quest = false) const
             {
                 if (!formId) return;
                 const Key key = resolve(formId);
                 if (!wanted.contains(key)) return;
                 if (!loose) {
                     evidence.found.insert(key);
-                } else if (evidence.foundLoose.insert(key).second) {
-                    evidence.looseFrom.emplace(key, resolve.self);
+                    return;
                 }
+                (quest ? evidence.foundQuest : evidence.foundOtherLoose).insert(key);
+                if (evidence.foundLoose.insert(key).second) evidence.looseFrom.emplace(key, resolve.self);
             }
 
             // A script property or quest alias: any four bytes may be a form id (a
-            // false hit can only keep a tome, never drop one)
-            void AddLoose(const unsigned char* data, std::size_t size) const
+            // false hit can only keep a tome, never drop one). `quest`: the record
+            // is a QUST, whose hits alone can make a tome quest-only
+            void AddLoose(const unsigned char* data, std::size_t size, bool quest) const
             {
-                for (std::size_t i = 0; i + kFormIdSize <= size; ++i) Add(U32(data + i), true);
+                for (std::size_t i = 0; i + kFormIdSize <= size; ++i) Add(U32(data + i), true, quest);
             }
         };
 
@@ -182,7 +184,7 @@ namespace TomeReach
                     collect.Add(U32(sub.data));
                 } else if (Is(sub.type, T("VMAD")) ||
                            (quest && (Is(sub.type, T("ALCO")) || Is(sub.type, T("ALFR")) || Is(sub.type, T("ALUA"))))) {
-                    collect.AddLoose(sub.data, sub.size);
+                    collect.AddLoose(sub.data, sub.size, quest);
                 }
                 if (isBook) {
                     if (Is(sub.type, T("EDID"))) {

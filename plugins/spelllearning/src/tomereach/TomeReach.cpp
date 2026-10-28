@@ -38,9 +38,17 @@ namespace TomeReach
             std::unordered_set<RE::FormID> keyedBooks;     // tome books handed to that pass
             std::unordered_set<RE::FormID> skippedBooks;   // ... left out: plugin not in the loaded set
             bool done = false;    // finished, well or not
-            bool ready = false;   // finished well: `unreachable` holds the answer
+            bool ready = false;   // finished well: `unreachable` and `questOnly` hold the answer
             std::string failure;  // finished without an answer: what failed, for OutcomeKey
             std::unordered_set<RE::FormID> unreachable;
+            std::unordered_set<RE::FormID> questOnly;
+        };
+
+        // A pass's answer: the spells nothing hands a tome of, and those only a quest does
+        struct Answer
+        {
+            std::unordered_set<RE::FormID> unreachable;
+            std::unordered_set<RE::FormID> questOnly;
         };
 
         Result& Shared()
@@ -51,7 +59,7 @@ namespace TomeReach
 
         // The pass is over, with an answer or without one (then `failure` says what failed). A pass
         // of an older generation is dropped: a newer one runs (or ran) with other tomes.
-        void Finish(std::uint64_t generation, std::unordered_set<RE::FormID>* unreachable, std::string failure = {})
+        void Finish(std::uint64_t generation, Answer* answer, std::string failure = {})
         {
             auto& shared = Shared();
             {
@@ -61,8 +69,9 @@ namespace TomeReach
                         generation, shared.generation);
                     return;
                 }
-                if (unreachable) {
-                    shared.unreachable = std::move(*unreachable);
+                if (answer) {
+                    shared.unreachable = std::move(answer->unreachable);
+                    shared.questOnly = std::move(answer->questOnly);
                     shared.ready = true;
                 } else {
                     shared.failure = std::move(failure);
@@ -109,11 +118,16 @@ namespace TomeReach
                     Finish(job->generation, nullptr, "unreadable:" + ScanRecordRules::HashText(joined));
                     return;
                 }
-                std::unordered_set<RE::FormID> unreachable;
+                Answer answer;
                 for (const auto& [spell, tomes] : job->tomesOf) {
                     bool reached = false;
-                    for (const Key t : tomes) reached = reached || pass.reached.contains(t);
-                    if (!reached) unreachable.insert(spell);
+                    bool questOnly = !tomes.empty();
+                    for (const Key t : tomes) {
+                        reached = reached || pass.reached.contains(t);
+                        questOnly = questOnly && pass.questOnly.contains(t);
+                    }
+                    if (!reached) answer.unreachable.insert(spell);
+                    if (questOnly) answer.questOnly.insert(spell);
                 }
                 for (const auto& d : pass.damaged) {
                     logger::warn("TomeReach: '{}' is damaged (read in part) - the tomes of it and its masters count "
@@ -121,11 +135,12 @@ namespace TomeReach
                 }
                 logger::info("TomeReach: {} plugins, {} tomes, {} handed out by a record, {} only by a script "
                              "property or alias, {} only by a distribution config ({} configs), {} kept for a damaged "
-                             "plugin, {} debug tomes left out; {} spells have no tome anything hands out ({} ms, "
-                             "tome pairs generation {})",
+                             "plugin, {} debug tomes left out; {} spells have no tome anything hands out, {} only "
+                             "tomes a quest hands out ({} such tomes) ({} ms, tome pairs generation {})",
                     job->loadOrder.size(), job->tomes.size(), pass.byRecord, pass.byLooseOnly, pass.byConfig,
-                    pass.configFiles, pass.byDamaged, pass.byDebug, unreachable.size(), ms, job->generation);
-                Finish(job->generation, &unreachable);
+                    pass.configFiles, pass.byDamaged, pass.byDebug, answer.unreachable.size(), answer.questOnly.size(),
+                    pass.questOnly.size(), ms, job->generation);
+                Finish(job->generation, &answer);
             } catch (const std::exception& e) {
                 logger::warn("TomeReach: the pass failed ({}) - no spell is marked", e.what());
                 Finish(job->generation, nullptr, "error");
@@ -190,6 +205,7 @@ namespace TomeReach
             shared.ready = false;
             shared.failure.clear();
             shared.unreachable.clear();
+            shared.questOnly.clear();
         }
         try {
             std::thread(Run, std::move(job)).detach();
@@ -294,6 +310,15 @@ namespace TomeReach
         std::lock_guard guard(shared.lock);
         if (!shared.ready) return false;
         out = shared.unreachable;
+        return true;
+    }
+
+    bool QuestOnlySpells(std::unordered_set<RE::FormID>& out)
+    {
+        auto& shared = Shared();
+        std::lock_guard guard(shared.lock);
+        if (!shared.ready) return false;
+        out = shared.questOnly;
         return true;
     }
 }

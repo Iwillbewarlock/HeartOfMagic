@@ -5,10 +5,11 @@
 // Writes a handful of plugins to a temp folder, runs the plugin's own pass on
 // them and checks every way a tome is reached (placed, compressed inventory,
 // a script property behind an XXXX size, a distribution config, a light
-// plugin's 12-bit ids), the tomes nothing reaches, four kinds of damaged plugin
-// (their own and their masters' tomes count as reached, no other plugin's), a
-// plugin that cannot be opened or whose header is cut, and the config matching
-// rules. Needs no game and no load order.
+// plugin's 12-bit ids), the tomes nothing reaches, the tomes only a quest's
+// script or alias reaches (quest-only), four kinds of damaged plugin (their own
+// and their masters' tomes count as reached, no other plugin's), a plugin that
+// cannot be opened or whose header is cut, and the config matching rules. Needs
+// no game and no load order.
 
 #include "tomereach/TomeReachConfig.h"
 #include "tomereach/TomeReachOutcome.h"
@@ -151,6 +152,14 @@ namespace
 
     void Join(Bytes& into, const Bytes& more) { into.insert(into.end(), more.begin(), more.end()); }
 
+    // A script property naming `formId`: an object property's header, then the form id
+    Bytes Vmad(std::uint32_t formId)
+    {
+        Bytes vmad = { 5, 0, 2, 0 };
+        Put32(vmad, formId);
+        return Sub("VMAD", vmad);
+    }
+
     std::filesystem::path Write(const std::filesystem::path& dir, const std::string& name, const Bytes& data)
     {
         const auto path = dir / name;
@@ -220,6 +229,12 @@ int RunSelfTest()
     Join(books, Book(0x000803, "ConfigTome", 0x903));
     Join(books, Book(0x000804, "LostTome", 0x904));
     Join(books, Book(0x000807, "SU04SpellTomeDebug", 0x907));
+    // Quest-only cases: each one named by a quest's script, some also another way
+    Join(books, Book(0x000808, "CollegeNoviceTome", 0x908));  // and a merchant's leveled list
+    Join(books, Book(0x000809, "BookScriptTome", 0x909));     // and a BOOK's script
+    Join(books, Book(0x00080A, "NpcScriptTome", 0x90A));      // and an NPC's script
+    Join(books, Book(0x00080B, "QuestConfigTome", 0x90B));    // and a distribution config
+    Join(books, Book(0x00080C, "AliasTome", 0x90C));          // only a quest alias creates it
     const auto master = Write(dir, "Master.esm", Plugin(0, {}, Group("BOOK", books)));
 
     // Light.esl: its own ids (index 1 = itself, one master) keep only 12 bits, so
@@ -239,15 +254,27 @@ int RunSelfTest()
     Join(records, Group("NPC_", Record("NPC_", kCompressedFlag, 0x02000002, Sub("CNTO", U32Bytes(0x00000801)))));
     Bytes vmad = { 5, 0, 2, 0 };
     Put32(vmad, 0x00000802);
-    Join(records, Group("QUST", Record("QUST", 0, 0x02000003, BigSub("VMAD", vmad))));
+    Bytes quests = Record("QUST", 0, 0x02000003, BigSub("VMAD", vmad));
+    for (const std::uint32_t id : { 0x807u, 0x808u, 0x809u, 0x80Au, 0x80Bu }) {
+        Join(quests, Record("QUST", 0, 0x02000010 + id, Vmad(id)));
+    }
+    Join(quests, Record("QUST", 0, 0x02000020, Sub("ALCO", U32Bytes(0x0000080C))));
+    Join(records, Group("QUST", quests));
     Bytes lvlo = { 1, 0, 0, 0 };
     Put32(lvlo, 0x01001805);  // bits above the light plugin's 12 are dropped
     Put32(lvlo, 1);
-    Join(records, Group("LVLI", Record("LVLI", 0, 0x02000004, Sub("LVLO", lvlo))));
+    Bytes merchant = { 1, 0, 0, 0 };
+    Put32(merchant, 0x00000808);
+    Put32(merchant, 1);
+    Bytes lists = Record("LVLI", 0, 0x02000004, Sub("LVLO", lvlo));
+    Join(lists, Record("LVLI", 0, 0x02000006, Sub("LVLO", merchant)));
+    Join(records, Group("LVLI", lists));
+    Join(records, Group("BOOK", Record("BOOK", 0, 0x02000007, Vmad(0x00000809))));
+    Join(records, Group("NPC_", Record("NPC_", 0, 0x02000008, Vmad(0x0000080A))));
     const auto mod = Write(dir, "Mod.esp", Plugin(0, { "Master.esm", "Light.esl" }, records));
 
     const auto cfg = Write(dir, "Mod_DISTR.ini", Bytes{});
-    std::ofstream(cfg) << "Item = 0x803~Master.esm|ActorTypeNPC\n";
+    std::ofstream(cfg) << "Item = 0x803~Master.esm|ActorTypeNPC\nItem = 0x80B~Master.esm|ActorTypeNPC\n";
 
     const std::vector<TomeReach::PluginFile> order = {
         { "Master.esm", master, {} }, { "Light.esl", light, {} }, { "Mod.esp", mod, {} } };
@@ -258,6 +285,7 @@ int RunSelfTest()
         const auto l = names.Id("Light.esl");
         names.SetLight(l, true);
         for (std::uint32_t id = 0x800; id <= 0x804; ++id) tomes.insert(TomeReach::MakeKey(m, id));
+        for (std::uint32_t id = 0x808; id <= 0x80C; ++id) tomes.insert(TomeReach::MakeKey(m, id));
         tomes.insert(TomeReach::MakeKey(l, 0x805));
         tomes.insert(TomeReach::MakeKey(l, 0x806));
         tomes.insert(TomeReach::MakeKey(m, 0x807));
@@ -274,7 +302,8 @@ int RunSelfTest()
         Check(pass.unreadable.empty() && pass.damaged.empty(), "every made-up plugin reads whole");
         Check(reached(0x800), "a placed copy (REFR NAME) reaches its tome");
         Check(reached(0x801), "a compressed NPC inventory (CNTO) reaches its tome");
-        Check(reached(0x802) && pass.byLooseOnly == 1, "a script property behind XXXX reaches its tome, loosely");
+        // 0x802 and the quest-only cases, but 0x808 (a leveled list) and 0x807 (placed)
+        Check(reached(0x802) && pass.byLooseOnly == 5, "a script property behind XXXX reaches its tome, loosely");
         Check(reached(0x803) && pass.byConfig == 1, "a distribution config reaches its tome");
         Check(!reached(0x804), "a tome nothing refers to is not reached");
         Check(!reached(0x807) && pass.byDebug == 1, "a placed tome with \"debug\" in its editor id is not reached");
@@ -282,6 +311,18 @@ int RunSelfTest()
         Check(pass.reached.contains(TomeReach::MakeKey(l, 0x805)),
             "a light plugin's tome is reached by its 12-bit id (0x01001805 -> 0x805)");
         Check(!pass.reached.contains(TomeReach::MakeKey(l, 0x806)), "a light plugin's lost tome is not reached");
+
+        const auto questOnly = [&](std::uint32_t id) { return pass.questOnly.contains(TomeReach::MakeKey(m, id)); };
+        Check(questOnly(0x802), "quest-only: a tome named only in a QUST VMAD is questOnly");
+        Check(questOnly(0x80C) && reached(0x80C), "quest-only: a tome only a quest alias creates (ALCO) is questOnly");
+        Check(reached(0x808) && !questOnly(0x808),
+            "quest-only: the same tome also in an LVLI (a merchant list) is not");
+        Check(reached(0x809) && !questOnly(0x809) && reached(0x80A) && !questOnly(0x80A),
+            "quest-only: also in a BOOK/NPC_ VMAD (another record's script) is not");
+        Check(reached(0x80B) && !questOnly(0x80B) && pass.byConfig == 1,
+            "quest-only: also in a distribution config is not");
+        Check(!questOnly(0x807), "quest-only: a debug tome a quest names is not (it is not reached)");
+        Check(pass.questOnly.size() == 2, "quest-only: no tome a record, a config or nothing reaches is questOnly");
     }
     {
         // Damaged plugins, each with Master.esm as its only master
@@ -329,6 +370,8 @@ int RunSelfTest()
             "a damaged plugin's masters' tomes count as reached");
         Check(!pass.reached.contains(TomeReach::MakeKey(names.Id("Light.esl"), 0x806)),
             "a tome of a plugin that is not a damaged plugin's master keeps its answer");
+        Check(pass.questOnly.empty(),
+            "quest-only: a damaged plugin's tome is not (Master.esm's 0x802 and 0x80C count as handed out)");
         Check(pass.unreadable.size() == 2 && has(pass.unreadable, "Missing.esp") && has(pass.unreadable, "BadHeader.esp"),
             "a plugin that cannot be opened, or whose header is cut, is unreadable");
     }

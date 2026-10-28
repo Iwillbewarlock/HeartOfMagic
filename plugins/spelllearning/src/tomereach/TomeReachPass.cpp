@@ -37,19 +37,28 @@ namespace TomeReach
         ConfigText text;
         for (const auto& file : configs) text.Add(file);
         result.configFiles = text.FileCount();
+        // Quest-only so far: a quest's script or alias names it, no record field or other script does
+        for (const Key tome : evidence.foundQuest) {
+            if (!evidence.found.contains(tome) && !evidence.foundOtherLoose.contains(tome)) {
+                result.questOnly.insert(tome);
+            }
+        }
         for (const Key tome : tomes) {
-            if (result.reached.contains(tome)) continue;
+            // A quest-only tome is read too: a config that names it hands it out
+            if (result.reached.contains(tome) && !result.questOnly.contains(tome)) continue;
             const auto plugin = PluginOf(tome);
             const auto local = LocalOf(tome);
             const auto edid = editorIds.find(tome);
             if (text.Names(names.Name(plugin), local, edid != editorIds.end() ? edid->second : std::string())) {
-                result.reached.insert(tome);
-                ++result.byConfig;
+                if (result.reached.insert(tome).second) ++result.byConfig;
+                result.questOnly.erase(tome);
             }
         }
         // A damaged plugin could have named any tome of itself or its masters
         for (const Key tome : tomes) {
-            if (damagedScope.contains(PluginOf(tome)) && result.reached.insert(tome).second) ++result.byDamaged;
+            if (!damagedScope.contains(PluginOf(tome))) continue;
+            if (result.reached.insert(tome).second) ++result.byDamaged;
+            result.questOnly.erase(tome);
         }
         // Last: a debug tome counts as handed out by nothing, wherever it is placed. Mods
         // keep them in a test cell (Sa'chil's SU04SpellTomeDebug: "place Sa'chil", in
@@ -59,6 +68,7 @@ namespace TomeReach
             if (tomes.contains(book) && AsciiText::ToLower(editorId).find("debug") != std::string::npos &&
                 result.reached.erase(book)) {
                 ++result.byDebug;
+                result.questOnly.erase(book);
             }
         }
         if (books) *books = std::move(read);

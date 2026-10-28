@@ -135,6 +135,7 @@ namespace SpellScanner
         std::vector<RE::FormID> kept;    // passed every filter; marked for the tree after the loop
         std::unordered_set<RE::FormID> taught;
         std::unordered_set<RE::FormID> unreachable;
+        std::unordered_set<RE::FormID> questOnly;   // every tome only a quest hands out (TomeReach)
         std::unordered_map<RE::FormID, RE::FormID> duplicates;
         json spellArray = json::array();
 
@@ -380,6 +381,9 @@ namespace SpellScanner
         tomeReachAnswered = !TomeReach::OutcomeKey().empty();
         if (!TomeReach::UnreachableSpells(unreachable)) {
             logger::info("SpellScanner: the tome reach pass has no answer (still running, or failed) - no spell is marked tomeUnreachable");
+        } else {
+            // The same answer: once ready it stays so until a Restart, which runs on this (game) thread
+            TomeReach::QuestOnlySpells(questOnly);
         }
         LogSpellsOutOfTree(spells, taught, unreachable);
         duplicates = FindDuplicateSpells(spells, taught, unreachable);
@@ -402,6 +406,7 @@ namespace SpellScanner
             spellJson["voiceSlot"] = IsEquippedInVoiceSlot(spell);
             MarkGate(spellJson, spell);
             if (unreachable.contains(formId)) spellJson["tomeUnreachable"] = true;
+            if (questOnly.contains(formId)) spellJson["questOnly"] = true;
             if (auto it = duplicates.find(formId); it != duplicates.end()) {
                 spellJson["duplicateOf"] = FormIdText::Format(it->second);
             }

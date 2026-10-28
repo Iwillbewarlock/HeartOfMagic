@@ -33,6 +33,10 @@ namespace TomeReach
     // and when it failed (a plugin it could not read): then no spell is marked.
     bool UnreachableSpells(std::unordered_set<RE::FormID>& out);
 
+    // The spells whose every tome only a quest hands out (its script or an alias:
+    // PassResult::questOnly). False when UnreachableSpells is.
+    bool QuestOnlySpells(std::unordered_set<RE::FormID>& out);
+
     // Any thread but the game thread: waits until the pass is done (or failed),
     // at most `limit`. Returns at once when no pass was started. True when done.
     // `generation`, when given: the generation as the wait ended, read under the same

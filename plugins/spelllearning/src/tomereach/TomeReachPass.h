@@ -30,6 +30,10 @@ namespace TomeReach
         std::size_t byDebug = 0;                 // referred to, but a debug tome (editor id): not reached
         std::size_t configFiles = 0;
         std::unordered_map<Key, std::uint32_t> looseFrom;  // byLooseOnly tomes: the plugin that named them
+        // Reached tomes only a quest hands out: named by a QUST record's script or
+        // alias and by nothing else (no record field, no other record's script, no
+        // distribution config, no damaged plugin that could name them)
+        std::unordered_set<Key> questOnly;
     };
 
     // `tomes` are the books to look for. Scans every plugin in load order order
