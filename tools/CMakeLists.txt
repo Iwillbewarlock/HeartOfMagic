@@ -313,6 +313,7 @@ target_include_directories(thread-flag-check PRIVATE
 
 add_executable(graft-check
     graft-check.cpp
+    graft-check-cases.cpp
     ${SL_SRC_DIR}/treebuilder/TreeGraft.cpp
     ${SL_SRC_DIR}/treebuilder/TreeNLP.cpp
     ${SL_SRC_DIR}/treebuilder/TreeBuilderCore.cpp

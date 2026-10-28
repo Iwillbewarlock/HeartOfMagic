@@ -56,7 +56,7 @@ Scan Spells → Generate Tree (C++ NLP builders) → Validate FormIDs → Displa
 ## Component Architecture
 
 ### 1. **SpellScanner** (`plugins/spelllearning/src/spellscanner/`, `plugins/spelllearning/include/SpellScanner.h`)
-Split across: SpellScannerScan.cpp, SpellScannerJson.cpp, SpellScannerFormId.cpp, SpellScannerHelpers.cpp, SpellScannerEncoding.cpp, SpellScannerCopies.cpp
+Split across: SpellScannerScan.cpp, SpellScannerSpellInfo.cpp, SpellScannerJson.cpp, SpellScannerFormId.cpp, SpellScannerHelpers.cpp, SpellScannerEncoding.cpp, SpellScannerCopies.cpp
 **Status:** ✅ Implemented
 
 **Responsibilities:**
@@ -1923,7 +1923,8 @@ a Retry School control) was removed on 2026-09-28; its buttons had already left 
 A tree is never rebuilt by itself, but the catalog (`spell_catalog.json`) should follow the load order: the
 perk adapters, Spell Research and the spell card read it, and before this it changed only when the player
 scanned. Now the first main menu of a session scans every spell by itself when the load order is not the one
-the catalog was made from (`src/AutoScan.cpp`, `include/AutoScan.h`; design:
+the catalog was made from (`src/AutoScan.cpp`, `include/AutoScan.h`; its dev self-test `src/AutoScanSelfTest.cpp`, what
+the two share `include/AutoScanInternal.h`; design:
 `docs/superpowers/specs/2026-10-27-auto-scan-design.md`).
 
 - **What it changes:** `spell_catalog.json`, `spell_scan_output.json` (always, as Papyrus `RunScan` does)
@@ -2024,7 +2025,7 @@ the catalog was made from (`src/AutoScan.cpp`, `include/AutoScan.h`; design:
   frames are play's against the main menu's baseline, and `SAME`'s one-task scan freezes play for its length.
   A save loaded during a self-test run can make `TREE` fail by itself (the load order notice writes
   spell_tree_loadorder.json); the progress is not compared (nothing of it exists at the main menu, and
-  AutoScan.cpp includes no progression header).
+  AutoScan.cpp and AutoScanSelfTest.cpp include no progression header).
 
 ### Tree Graft (2026-10-28)
 
@@ -2439,6 +2440,7 @@ HeartOfMagic/
 │   │       │   └── EnvironmentSelfTestGraft.cpp  (tree-graft: the session's graft checks)
 │   │       ├── spellscanner/                ✅ Spell enumeration, FormID persistence
 │   │       │   ├── SpellScannerScan.cpp         (main scan logic)
+│   │       │   ├── SpellScannerSpellInfo.cpp    (one spell's card data by formId: GetSpellInfo, GetSpellInfoBatch)
 │   │       │   ├── SpellScannerJson.cpp         (scan JSON shape, MGEF fields, dump writing)
 │   │       │   ├── SpellScannerFormId.cpp       (FormID persistence)
 │   │       │   ├── SpellScannerHelpers.cpp      (utility helpers)

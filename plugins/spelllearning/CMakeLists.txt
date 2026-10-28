@@ -34,6 +34,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     SOURCES
     src/Main.cpp
     src/AutoScan.cpp
+    src/AutoScanSelfTest.cpp
     src/LoadOrderFingerprint.cpp
     src/ScanRecord.cpp
     src/RisaMenu.cpp
@@ -56,6 +57,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     src/EncodingUtils.cpp
     src/spellscanner/SpellScannerHelpers.cpp
     src/spellscanner/SpellScannerFormId.cpp
+    src/spellscanner/SpellScannerSpellInfo.cpp
     src/spellscanner/SpellScannerJson.cpp
     src/spellscanner/SpellScannerEvidence.cpp
     src/spellscanner/SpellScannerChips.cpp

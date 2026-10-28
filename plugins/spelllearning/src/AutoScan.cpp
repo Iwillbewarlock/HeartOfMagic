@@ -12,6 +12,7 @@
 #include "uimanager/StartupState.h"
 #include "uimanager/TreeSaveCheck.h"
 #include "uimanager/UIManager.h"
+#include "AutoScanInternal.h"
 
 #include <algorithm>
 #include <atomic>
@@ -44,46 +45,30 @@
 // Every step checks the generation the form reads started in: a save load or a
 // new game (OnGameChanging) drops them, and they start again at once (kAttempts
 // in all; then the next main menu). A save loaded before they start does not
-// matter: the steps run during play as they do at the main menu.
+// matter: the steps run during play as they do at the main menu. The self-test's
+// parts are in AutoScanSelfTest.cpp; what both use, AutoScanInternal.h.
+
+using namespace AutoScan::Internal;
 
 namespace
 {
-    using Clock = std::chrono::steady_clock;
-
     constexpr auto kTomeReachWait = std::chrono::seconds(30);   // between "still waiting" lines; the wait has no limit
-    constexpr double kSliceDefaultMs = 4.0;          // game thread time of one step, at most (the marks step excepted)
     constexpr double kSliceMinMs = 0.5;
     constexpr double kSliceMaxMs = 50.0;
-    constexpr double kHitchBudgetDefaultMs = 25.0;   // self-test: the longest frame may exceed the main menu's by this much
     constexpr auto kStepAnswerPoll = std::chrono::milliseconds(250);   // how often a wait for a step looks at the generation
     constexpr int kStillWaitingEvery = 40;                             // polls between "still waiting" lines (10 s)
     constexpr int kAttempts = 3;                                       // form reads started again after a load, at most
-    constexpr auto kNextFrameWait = std::chrono::milliseconds(1);
     // A frame time that does not move for this long (the counter not where it is
     // expected to be): the step runs anyway and is counted as forced
     constexpr auto kFrameStuckLimit = std::chrono::milliseconds(100);
-    constexpr auto kProbeInterval = std::chrono::milliseconds(2);
     constexpr auto kBaseline = std::chrono::seconds(3);
 
     constexpr const char* kConfigFile = "Data/SKSE/Plugins/SpellLearning/config.json";
     constexpr const char* kSelfTestFile = "Data/SKSE/Plugins/SpellLearning/selftest.json";
-    constexpr const char* kTreeFile = "Data/SKSE/Plugins/SpellLearning/spell_tree.json";
-    constexpr const char* kTreeRecordFile = "Data/SKSE/Plugins/SpellLearning/spell_tree_loadorder.json";
-    constexpr const char* kCatalogFile = "Data/SKSE/Plugins/SpellLearning/spell_catalog.json";
-    constexpr const char* kPrefix = "AutoScan:";
-    constexpr const char* kTestPrefix = "AutoScan SELFTEST:";
 
     enum class State { Idle, Running, Done };
 
     std::atomic<State> s_state{ State::Idle };
-    std::atomic<std::uint32_t> s_generation{ 0 };
-
-    struct Settings
-    {
-        bool selfTest = false;
-        double sliceMs = kSliceDefaultMs;
-        double budgetMs = kHitchBudgetDefaultMs;
-    };
 
     double ClampedNumber(const nlohmann::json& object, const char* key, double fallback, double low, double high)
     {
@@ -135,147 +120,14 @@ namespace
         return value != config.end() && value->is_string() && value->get<std::string>() == "off" ? Setting::Off : Setting::On;
     }
 
-    std::optional<std::string> ReadFileText(const char* path)
-    {
-        std::ifstream file(path, std::ios::binary);
-        if (!file.is_open()) return std::nullopt;
-        std::ostringstream text;
-        text << file.rdbuf();
-        if (file.bad()) return std::nullopt;
-        return std::move(text).str();
-    }
-
-    // FNV-1a 64 of a file, "missing" when there is none (self-test: the tree files unchanged)
-    std::string FileFingerprint(const char* path)
-    {
-        const auto text = ReadFileText(path);
-        if (!text) return "missing";
-        std::uint64_t hash = 0xcbf29ce484222325ULL;
-        for (const unsigned char c : *text) {
-            hash ^= c;
-            hash *= 0x100000001b3ULL;
-        }
-        return std::format("{:016x}/{}", hash, text->size());
-    }
-
-    double MsSince(Clock::time_point started)
-    {
-        return std::chrono::duration<double, std::milli>(Clock::now() - started).count();
-    }
-
-    // =========================================================================
-    // FRAME PROBE (self-test only): the longest frame, from the engine's frame time
-    // =========================================================================
-
-    struct ProbeWindow
-    {
-        std::uint32_t frames = 0;      // frame time changes seen
-        std::uint32_t longestFrameMs = 0;
-        double longestWaitMs = 0.0;    // a probe task's wait for the game thread
-    };
-
-    struct ProbeData
-    {
-        std::mutex mutex;
-        std::atomic<bool> stop{ false };
-        int window = 0;                // 0 baseline, 1 scan, 2 after
-        std::optional<std::uint32_t> lastStamp;
-        ProbeWindow windows[3];
-    };
-
-    class FrameProbe
-    {
-    public:
-        FrameProbe() : m_data(std::make_shared<ProbeData>()) {}
-        FrameProbe(const FrameProbe&) = delete;
-        FrameProbe& operator=(const FrameProbe&) = delete;
-        ~FrameProbe() { Stop(); }
-
-        bool Start()
-        {
-            try {
-                m_thread = std::thread([data = m_data]() {
-                    try {
-                        while (!data->stop.load()) {
-                            const auto posted = Clock::now();
-                            AddTaskToGameThread("AutoScanProbe", [data, posted]() {
-                                const std::uint32_t stamp = RE::GetDurationOfApplicationRunTime();
-                                const double waited = MsSince(posted);
-                                std::lock_guard lock(data->mutex);
-                                auto& window = data->windows[data->window];
-                                window.longestWaitMs = std::max(window.longestWaitMs, waited);
-                                if (data->lastStamp && stamp != *data->lastStamp) {
-                                    ++window.frames;
-                                    window.longestFrameMs = std::max(window.longestFrameMs, stamp - *data->lastStamp);
-                                }
-                                data->lastStamp = stamp;
-                            });
-                            std::this_thread::sleep_for(kProbeInterval);
-                        }
-                    } catch (...) {
-                        logger::error("{} the frame probe stopped (unknown error)", kTestPrefix);
-                    }
-                });
-                return true;
-            } catch (const std::system_error& e) {
-                logger::warn("{} no thread for the frame probe ({})", kTestPrefix, e.what());
-                return false;
-            }
-        }
-
-        void SetWindow(int window)
-        {
-            std::lock_guard lock(m_data->mutex);
-            m_data->window = window;
-        }
-
-        void Stop()
-        {
-            m_data->stop.store(true);
-            if (m_thread.joinable()) m_thread.join();
-            SetWindow(2);   // probe tasks still queued count in neither window
-        }
-
-        ProbeWindow Window(int window)
-        {
-            std::lock_guard lock(m_data->mutex);
-            return m_data->windows[window];
-        }
-
-    private:
-        std::shared_ptr<ProbeData> m_data;
-        std::thread m_thread;
-    };
-
     // =========================================================================
     // THE STEPS
     // =========================================================================
 
-    enum class StepResult { NotYet, Stepped, Finished, Dropped, Failed };
-
-    // One run's game thread side. The collector is created, stepped and finished
-    // on the game thread only; the waiter thread only waits on each answer.
-    struct Run
-    {
-        std::uint32_t generation = 0;
-        std::atomic<bool> abandoned{ false };   // the waiter gave up on a step: a late one does nothing
-        std::chrono::microseconds slice{};
-        std::optional<std::uint32_t> lastStamp;
-        Clock::time_point stampWaitStarted{};
-        bool waitingForFrame = false;
-        std::size_t forcedSteps = 0;
-        std::size_t frameWaits = 0;
-        std::unique_ptr<SpellScanner::FullScanCollector> collector;
-        std::shared_ptr<nlohmann::json> output;
-        std::size_t steps = 0;
-        double longestStepMs = 0.0;
-        std::string longestStepPhase;
-    };
-
     // Game thread
     StepResult StepOnGameThread(Run& run)
     {
-        if (run.abandoned.load() || s_generation.load() != run.generation) return StepResult::Dropped;
+        if (run.abandoned.load() || g_generation.load() != run.generation) return StepResult::Dropped;
 
         const std::uint32_t stamp = RE::GetDurationOfApplicationRunTime();
         if (run.lastStamp && stamp == *run.lastStamp) {
@@ -309,6 +161,25 @@ namespace
         return StepResult::Finished;
     }
 
+}
+
+namespace AutoScan::Internal
+{
+    double MsSince(Clock::time_point started)
+    {
+        return std::chrono::duration<double, std::milli>(Clock::now() - started).count();
+    }
+
+    std::optional<std::string> ReadFileText(const char* path)
+    {
+        std::ifstream file(path, std::ios::binary);
+        if (!file.is_open()) return std::nullopt;
+        std::ostringstream text;
+        text << file.rdbuf();
+        if (file.bad()) return std::nullopt;
+        return std::move(text).str();
+    }
+
     // Waiter thread: one step on the game thread, and its answer
     StepResult PostStep(const std::shared_ptr<Run>& run)
     {
@@ -329,7 +200,7 @@ namespace
         // wait for as long as the session is the run's, give up as soon as it is not
         int polls = 0;
         while (future.wait_for(kStepAnswerPoll) != std::future_status::ready) {
-            if (s_generation.load() != run->generation) {
+            if (g_generation.load() != run->generation) {
                 // The run stays alive in the task if it runs later; marked, that step does nothing
                 run->abandoned.store(true);
                 return StepResult::Dropped;
@@ -345,7 +216,10 @@ namespace
             return StepResult::Failed;
         }
     }
+}
 
+namespace
+{
     // Holds the panel scans' turn for the run; lets it go however the run ends
     class ScanTurn
     {
@@ -374,108 +248,8 @@ namespace
     };
 
     // =========================================================================
-    // SELF-TEST
-    // =========================================================================
-
-    struct TestCounts
-    {
-        int pass = 0;
-        int fail = 0;
-        int skip = 0;
-
-        void Report(const char* check, bool passed, const std::string& detail)
-        {
-            passed ? ++pass : ++fail;
-            logger::info("{} {} {} - {}", kTestPrefix, check, passed ? "PASS" : "FAIL", detail);
-        }
-
-        void Skip(const char* check, const std::string& detail)
-        {
-            ++skip;
-            logger::info("{} {} SKIP - {}", kTestPrefix, check, detail);
-        }
-    };
-
-    // A dump with the scan timestamp blanked: two scans of one load order compare equal
-    std::string ComparableDump(nlohmann::json output)
-    {
-        output["scanTimestamp"] = "";
-        return JsonText::Dump(output, 2);
-    }
-
-    // The same scan in one game thread task, as the panel's CollectScan reads it
-    // (a frozen game for its length: after the frame probe stopped)
-    std::optional<std::string> OneShotDump()
-    {
-        auto answer = std::make_shared<std::promise<std::shared_ptr<nlohmann::json>>>();
-        auto future = answer->get_future();
-        AddTaskToGameThread("AutoScanSelfTestOneShot", [answer]() {
-            try {
-                SpellScanner::ScanConfig config;
-                config.fields = SpellScanner::FieldsForPreset("full");
-                answer->set_value(std::make_shared<nlohmann::json>(SpellScanner::CollectAllSpells(config)));
-            } catch (...) {
-                answer->set_exception(std::current_exception());
-            }
-        });
-        if (future.wait_for(std::chrono::seconds(60)) != std::future_status::ready) return std::nullopt;
-        try {
-            return ComparableDump(std::move(*future.get()));
-        } catch (...) {
-            return std::nullopt;
-        }
-    }
-
-    // A run whose generation is behind the session's: its step must drop it
-    // before it reads a form
-    bool StaleRunIsDropped()
-    {
-        auto run = std::make_shared<Run>();
-        run->generation = s_generation.load() - 1;
-        run->slice = std::chrono::microseconds(1000);
-        const auto result = PostStep(run);
-        return result == StepResult::Dropped && !run->collector && !run->output;
-    }
-
-    // A run in the middle of its form reads when the generation moves on (what a
-    // save load does): the next step drops it, and nothing is written
-    bool RunDroppedMidway(std::string& detail)
-    {
-        constexpr int kStepsBefore = 3;
-        auto run = std::make_shared<Run>();
-        run->generation = s_generation.load();
-        run->slice = std::chrono::microseconds(1000);
-        int stepped = 0;
-        while (stepped < kStepsBefore) {
-            const auto result = PostStep(run);
-            if (result == StepResult::Stepped) {
-                ++stepped;
-            } else if (result != StepResult::NotYet) {
-                detail = "the run ended before the generation moved";
-                return false;
-            }
-            std::this_thread::sleep_for(kNextFrameWait);
-        }
-        s_generation.fetch_add(1);
-        const auto result = PostStep(run);
-        detail = std::format("{} steps, then the generation moved: {}", stepped,
-            result == StepResult::Dropped ? "dropped" : "NOT dropped");
-        return result == StepResult::Dropped && !run->output;
-    }
-
-    // =========================================================================
     // THE RUN (waiter thread)
     // =========================================================================
-
-    const char* CastersName(ScanRecordRules::Casters casters)
-    {
-        switch (casters) {
-            case ScanRecordRules::Casters::kNotRun: return "not collected";
-            case ScanRecordRules::Casters::kComplete: return "collected";
-            case ScanRecordRules::Casters::kFailed: return "FAILED";
-        }
-        return "unknown";
-    }
 
     // Why neither the scan nor the tree graft runs this session, or nothing: they go on
     // (a catalog that is the load order's already skips only the scan, unless a due graft
@@ -586,7 +360,7 @@ namespace
         const auto collectStarted = Clock::now();
         for (int attempt = 1; attempt <= kAttempts; ++attempt) {
             run = std::make_shared<Run>();
-            run->generation = s_generation.load();
+            run->generation = g_generation.load();
             run->slice = std::chrono::microseconds(static_cast<long long>(settings.sliceMs * 1000.0));
             result = Collect(run);
             if (result != StepResult::Dropped || attempt == kAttempts) break;
@@ -652,7 +426,7 @@ namespace
                 kPrefix, incomplete);
         }
 
-        if (wrote && s_generation.load() != generation) {
+        if (wrote && g_generation.load() != generation) {
             // Spell Research read the old catalog at that load; it reads the file again at the next one
             logger::info("{} a save was loaded during the scan - Spell Research takes the new catalog at the next "
                          "save load", kPrefix);
@@ -663,56 +437,8 @@ namespace
         previous.catalog.reset();
 
         if (settings.selfTest) {
-            TestCounts counts;
-            // A complete scan leaves a record that matches, an incomplete one none
-            const bool matches = ScanRecord::CatalogMatches(loadOrder);
-            counts.Report("RUN", wrote && matches == incomplete.empty(),
-                std::format("catalog written {}, record matches scan fingerprint {} {} ({})", wrote, loadOrder.scan,
-                    matches, incomplete.empty() ? "complete scan" : "incomplete scan: " + incomplete));
-            counts.Report("COMPLETE", incomplete.empty(),
-                std::format("vampire casters {}, {}", CastersName(SpellScanner::VampireCastersState()),
-                    incomplete.empty() ? std::string("every mark made") : incomplete));
-            const std::string treeAfter = FileFingerprint(kTreeFile);
-            const std::string treeRecordAfter = FileFingerprint(kTreeRecordFile);
-            // Unchanged, or changed by a graft whose checks passed (the tree-graft self-test has the rest)
-            const auto graft = LastTreeGraft();
-            const bool unchanged = treeAfter == treeBefore && treeRecordAfter == treeRecordBefore;
-            counts.Report("TREE", unchanged || (graft.wrote && graft.passed),
-                std::format("spell_tree.json {} -> {}, spell_tree_loadorder.json {} -> {}{}; graft: {}{}", treeBefore,
-                    treeAfter, treeRecordBefore, treeRecordAfter, previous.seeded ? " (from after the seen list seeded)" : "",
-                    graft.wrote ? "wrote, " : "", graft.detail));
-            if (probing) {
-                const auto baseline = probe.Window(0);
-                const auto scan = probe.Window(1);
-                if (baseline.frames == 0 || scan.frames == 0) {
-                    counts.Skip("HITCH", std::format("the engine's frame time did not move ({} baseline, {} scan frames)",
-                        baseline.frames, scan.frames));
-                } else {
-                    const double limit = baseline.longestFrameMs + settings.budgetMs;
-                    // A forced step may have shared a frame with the one before it
-                    counts.Report("HITCH", scan.longestFrameMs <= limit && forcedSteps == 0,
-                        std::format("longest frame {} ms during the scan ({} frames, longest probe wait {:.1f} ms) "
-                                    "against {} ms at the main menu before it ({} frames) + {:.0f} ms budget; "
-                                    "{} steps forced",
-                            scan.longestFrameMs, scan.frames, scan.longestWaitMs, baseline.longestFrameMs,
-                            baseline.frames, settings.budgetMs, forcedSteps));
-                }
-            } else {
-                counts.Skip("HITCH", "no frame probe thread");
-            }
-            const auto oneShot = OneShotDump();
-            counts.Report("SAME", oneShot && *oneShot == chunkedDump,
-                oneShot ? std::format("steps {} bytes, one task {} bytes{}", chunkedDump.size(), oneShot->size(),
-                              *oneShot == chunkedDump ? ", equal" : ", DIFFERENT")
-                        : std::string("the one-task scan did not answer"));
-            counts.Report("DROP", StaleRunIsDropped(), "a run behind the session's generation reads no form");
-            const std::string catalogBefore = FileFingerprint(kCatalogFile);
-            std::string midway;
-            const bool dropped = RunDroppedMidway(midway);
-            const std::string catalogAfter = FileFingerprint(kCatalogFile);
-            counts.Report("DROP-MIDWAY", dropped && catalogAfter == catalogBefore,
-                std::format("{}; spell_catalog.json {} -> {}", midway, catalogBefore, catalogAfter));
-            logger::info("{} done - {} pass, {} fail, {} skip", kTestPrefix, counts.pass, counts.fail, counts.skip);
+            ReportSelfTest({ settings, loadOrder, wrote, incomplete, treeBefore, treeRecordBefore, previous.seeded,
+                               probing, forcedSteps, chunkedDump }, probe);
         }
         return State::Done;
     }
@@ -798,6 +524,6 @@ namespace AutoScan
 
     void OnGameChanging() noexcept
     {
-        s_generation.fetch_add(1);
+        g_generation.fetch_add(1);
     }
 }
