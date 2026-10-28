@@ -2155,10 +2155,11 @@ Without the self-test nothing is logged and the labels are not built.
 **Renamed plugins** (2026-10-28). A node whose persistentId names nothing (its plugin renamed, merged or
 ESL-compacted) is looked up by its baked `editorId` (`SchoolBridges.applyToOutput` writes it from the scan;
 spell editor ids need powerofthree's Tweaks). `JudgeNode` (SpellScannerFormId.cpp) builds one
-`EditorIdRematch::CandidateIndex` per tree load, only when a node needs it: every loaded player's spell
-(`IsPlayerSpellForm`, the rule a node must pass to stay) by `GetEditorId`, A-Z folded as the engine's lookup
-does - an NPC's spell sharing the editor id is no second candidate, and a node whose only match is one is a
-missing plugin, reported as such. `PickRematch` takes the one spell in the node's school;
+`EditorIdRematch::CandidateIndex` per tree load, only when a node needs it: every loaded spell by
+`GetEditorId`, A-Z folded as the engine's lookup does. `RematchByEditorId` keeps the player's spells among the
+node's candidates (`IsPlayerSpellForm`, the rule a node must pass to stay; judged for those few, not for every
+loaded spell) - an NPC's spell sharing the editor id is no second candidate, and a node whose only match is one
+is a missing plugin, reported as such. `PickRematch` takes the one spell in the node's school;
 several distinct spells, or none, and the node is not taken (logged). Clashes (`TreeRemap.h`
 `DropRematchClashes`): a rematched node on a spell another node of its school has goes - nodes resolved by their
 own persistentId first, then rematched ones in file order. A legacy copy (no persistentId) in another school
