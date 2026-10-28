@@ -230,7 +230,7 @@ HeartOfMagic/
 - **Dinkel Zombie** - [Heart of Magic](https://www.nexusmods.com/skyrimspecialedition/mods/171146), the mod this is rebuilt from
 - **langfod** - the move from Python to native C++ and the thread-safety work in Heart of Magic
 - Fonts in the design add-ons (Arcane, Night Grimoire, Chalkboard): SIL Open Font License 1.1 (Google Fonts, LXGW Xiaolai) and Hakgyoansim Bunpil (KERIS); licence texts ship beside them in `themes/`
-- Panel icons (19): shapes from [game-icons.net](https://game-icons.net) by **Delapouite** and **Lorc**, licensed [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), redrawn as ink and chalk drawings for Heart of Magic (the Arcane, Night Grimoire and Chalkboard add-ons); Skald (built in) and the Classic and Modern Dark add-ons use recoloured line versions of the original shapes. `THIRD-PARTY-NOTICES.md.in` and the add-ons' `THIRD-PARTY-NOTICES.md.in` (`addons/designs/<add-on>/`) list each icon's source
+- Panel icons (19): shapes from [game-icons.net](https://game-icons.net) by **Delapouite** and **Lorc**, licensed [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), redrawn as ink and chalk drawings for Heart of Magic (the Arcane, Night Grimoire and Chalkboard add-ons); Skald (built in) and the Classic and Modern Dark add-ons use recoloured line versions of the original shapes. `addons/designs/_package/game-icons-list.md` lists each icon's source (put into `THIRD-PARTY-NOTICES.md` and the add-ons' notices at build time)
 - [SKSE Team](https://skse.silverlock.org/) for SKSE64
 - [PrismaUI](https://www.nexusmods.com/skyrimspecialedition/mods/148718) developers
 - [DEST](https://www.nexusmods.com/skyrimspecialedition/mods/43095) by Exit-9B - the spell tome hook is based on it (MIT)

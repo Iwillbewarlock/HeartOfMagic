@@ -224,7 +224,8 @@ Skyrim's own menus; `modules/designPresets.js`). Five more are add-ons, one arch
 game's Data layout inside): **Classic** (the tree as it looked before presets), **Modern Dark** (slate-blue
 glass, amber accent, rounded), **Arcane** (an open spellbook on parchment), **Chalkboard** and
 **Night Grimoire** - each a `.json` file like the ones below plus its files under the panel's `themes/`;
-copy one to start your own. A saved design that is not installed (an add-on removed, or Candlelit Tome,
+copy one to start your own (a design that uses another design's files - its stylesheet, icons, drawings or
+fonts under `themes/` - needs that design's add-on installed). A saved design that is not installed (an add-on removed, or Candlelit Tome,
 removed on 2026-09-27) shows Skald and keeps its id, so it comes back once its file is there. Add-ons and
 players add more with one `.json` file each in:
 

@@ -1,6 +1,6 @@
 # Arcane illustrations (anidoodle sources)
 
-The drawings the Arcane design ships in `PrismaUI/views/SpellLearning/SpellLearningPanel/themes/arcane/`
+The drawings the Arcane design ships in `addons/designs/Arcane/PrismaUI/views/SpellLearning/SpellLearningPanel/themes/arcane/` (the Arcane add-on's source tree)
 were drawn in code with [anidoodle](https://github.com/alexgreensh/anidoodle) (Apache-2.0). These are
 their sources: tone fields (what the picture is) and plates (how the pen puts it down).
 
@@ -15,8 +15,8 @@ their sources: tone fields (what the picture is) and plates (how the pen puts it
 | `homEngraveKit.ts` | single-line (Mellan) engraving from any tone field |
 | `homSigilStipple.ts`, `homCornerStipple.ts`, `homStarSepia.ts` | **shipped**: sigil.png, corner.png, empty.png |
 | `homHeartStipple.ts` | the heart gem plate (not shipped) |
-| `ngSigilEngrave.ts`, `ngCornerEngrave.ts`, `ngEmptyEngrave.ts` | **shipped for Night Grimoire** (gold engraving): themes/nightgrimoire/sigil.png (512), corner.png (200), empty.png (480x320, `--scale 0.5`) |
-| `chalkKit.ts`, `chalkSigil.ts`, `chalkCorner.ts`, `chalkEmpty.ts` | **shipped for Chalkboard** (anidoodle chalk hand): themes/chalkboard/sigil.png (512), corner.png (200), empty.png (480x320, `--scale 0.5`); chalkKit adds two tiles to the engine's `core.ts` TILES at load |
+| `ngSigilEngrave.ts`, `ngCornerEngrave.ts`, `ngEmptyEngrave.ts` | **shipped for Night Grimoire** (gold engraving): addons/designs/NightGrimoire/PrismaUI/views/SpellLearning/SpellLearningPanel/themes/nightgrimoire/sigil.png (512), corner.png (200), empty.png (480x320, `--scale 0.5`) |
+| `chalkKit.ts`, `chalkSigil.ts`, `chalkCorner.ts`, `chalkEmpty.ts` | **shipped for Chalkboard** (anidoodle chalk hand): addons/designs/Chalkboard/PrismaUI/views/SpellLearning/SpellLearningPanel/themes/chalkboard/sigil.png (512), corner.png (200), empty.png (480x320, `--scale 0.5`); chalkKit adds two tiles to the engine's `core.ts` TILES at load |
 | `homStipple.ts`, `homEngrave*.ts`, `homCornerEngrave.ts`, `homHeartEngrave.ts` | alternatives (gold stipple; sepia engraved versions) |
 
 ## Re-rendering
@@ -26,9 +26,10 @@ node <anidoodle skill>/engine/tools/scaffold.mjs D:/DEV/anidoodle-art
 cd D:/DEV/anidoodle-art && npm install && npx playwright-core install chromium
 # copy these .ts files into src/canvas-core/, and for each plate add src/hosts/page-<name>.ts:
 #   import { <name> } from "../canvas-core/<name>"; import { mountFilm } from "./page"; mountFilm(<name>);
-node tools/still.mjs homSigilStipple  --out <panel>/themes/arcane/sigil.png            # 512x512
-node tools/still.mjs homCornerStipple --out <panel>/themes/arcane/corner.png           # 200x200
-node tools/still.mjs homStarSepia     --out <panel>/themes/arcane/empty.png --scale 0.5  # 480x320
+# <arcane> = addons/designs/Arcane/PrismaUI/views/SpellLearning/SpellLearningPanel (the add-on's source tree)
+node tools/still.mjs homSigilStipple  --out <arcane>/themes/arcane/sigil.png            # 512x512
+node tools/still.mjs homCornerStipple --out <arcane>/themes/arcane/corner.png           # 200x200
+node tools/still.mjs homStarSepia     --out <arcane>/themes/arcane/empty.png --scale 0.5  # 480x320
 ```
 
 Each render prints `reproducible` with its md5: the same source gives the same pixels on any machine.
