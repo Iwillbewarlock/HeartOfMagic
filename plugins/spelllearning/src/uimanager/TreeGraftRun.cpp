@@ -415,15 +415,23 @@ void ResolveTreeGraftJournal(const LoadOrderFingerprint::Value& loadOrder)
         const auto record = ParseRecord(recordText);
         if (!recordText || !record) return;
         const auto treeText = ReadText(treePath);
-        const auto journal = TreeGraftRun::ResolveJournal(*record, treeText);
+        const auto journal = TreeGraftRun::ResolveJournal(*record, treeText, !treeText && ThereButUnread(treePath));
         if (journal.action == TreeGraftRun::JournalAction::kNone) return;
+        if (journal.action == TreeGraftRun::JournalAction::kWait) {
+            logger::info("{} spell_tree.json is there but could not be read - the journal an earlier graft left waits "
+                         "for the next start", kPrefix);
+            return;
+        }
         const bool apply = journal.action == TreeGraftRun::JournalAction::kApply;
         enum class Result { kWritten, kChanged, kFailed };
         const auto result = RunOnGameThreadAndWait("TreeGraftJournal",
             [action = journal.action, target = journal.record, recordText, treeText, recordPath, treePath,
                 hash = loadOrder.hash]() {
-                // Only over the files as read: a panel save or import meanwhile wins
-                if (!TreeGraftRun::JournalStillFits(action, recordText, ReadText(recordPath), treeText, ReadText(treePath))) {
+                // Only over the files as read: a panel save or import meanwhile wins, and a tree
+                // that cannot be read now says nothing either
+                const auto treeNow = ReadText(treePath);
+                if ((!treeNow && ThereButUnread(treePath)) ||
+                    !TreeGraftRun::JournalStillFits(action, recordText, ReadText(recordPath), treeText, treeNow)) {
                     return Result::kChanged;
                 }
                 if (!UIManager::WriteTreeRecord(target)) return Result::kFailed;
@@ -439,9 +447,13 @@ void ResolveTreeGraftJournal(const LoadOrderFingerprint::Value& loadOrder)
             logger::info("{} {} the journal an earlier graft left ({})", kPrefix, apply ? "applied" : "dropped",
                 apply ? "the tree is the one it wrote: its record written" : "the tree is not the one it was for");
         } else if (result && *result == Result::kChanged) {
-            logger::info("{} the record or the tree changed since the journal was read - it waits for the next start", kPrefix);
-        } else {
+            logger::info("{} the record or the tree changed since the journal was read, or the tree cannot be read - "
+                         "it waits for the next start", kPrefix);
+        } else if (result) {
             logger::warn("{} the journal's record could not be written - it waits for the next start", kPrefix);
+        } else {
+            logger::warn("{} the game thread did not answer within {} s - the journal waits for the next start", kPrefix,
+                std::chrono::duration_cast<std::chrono::seconds>(kGameThreadWait).count());
         }
     } catch (const std::exception& e) {
         logger::warn("{} the journal could not be settled: {}", kPrefix, e.what());

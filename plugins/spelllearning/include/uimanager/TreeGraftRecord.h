@@ -121,7 +121,8 @@ namespace TreeGraftRun
         return current;
     }
 
-    enum class JournalAction { kNone, kApply, kDrop };
+    /// kWait: the tree file is there but could not be read - the journal is left as it is
+    enum class JournalAction { kNone, kApply, kDrop, kWait };
     struct JournalResult
     {
         JournalAction action = JournalAction::kNone;
@@ -135,17 +136,22 @@ namespace TreeGraftRun
         const std::optional<std::string>& recordNow, const std::optional<std::string>& treeRead,
         const std::optional<std::string>& treeNow)
     {
-        if (action == JournalAction::kNone || recordNow != recordRead) return false;
+        if (action == JournalAction::kNone || action == JournalAction::kWait || recordNow != recordRead) return false;
         return action != JournalAction::kApply || treeNow == treeRead;
     }
 
-    /// What a record's journal asks for, against the tree text on disk (nothing: no tree file)
+    /// What a record's journal asks for, against the tree text on disk (nothing: no tree file;
+    /// `treeUnreadable`: a tree file there that could not be read, which says nothing - kWait)
     [[nodiscard]] inline JournalResult ResolveJournal(const TreeRecordFile::TreeRecord& record,
-        const std::optional<std::string>& treeText)
+        const std::optional<std::string>& treeText, bool treeUnreadable = false)
     {
         JournalResult result;
         const auto journal = record.extra.find(kJournalKey);
         if (journal == record.extra.end()) return result;
+        if (!treeText && treeUnreadable) {
+            result.action = JournalAction::kWait;
+            return result;
+        }
         const bool written = treeText && journal->is_object() && journal->contains("treeHash") &&
                              (*journal)["treeHash"].is_string() &&
                              (*journal)["treeHash"].get<std::string>() == ScanRecordRules::HashText(*treeText) &&

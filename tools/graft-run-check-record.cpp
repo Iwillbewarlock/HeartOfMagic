@@ -114,6 +114,13 @@ namespace GraftRunRecordCases
             "another tree on disk: the journal dropped, the old record kept");
         check.Check(TreeGraftRun::ResolveJournal(reread, std::nullopt).action == TreeGraftRun::JournalAction::kDrop,
             "no tree file: dropped");
+        check.Check(TreeGraftRun::ResolveJournal(reread, std::nullopt, true).action == TreeGraftRun::JournalAction::kWait,
+            "a tree file there but unreadable (locked): left as it is, not dropped");
+        check.Check(TreeGraftRun::ResolveJournal(reread, tree, true).action == TreeGraftRun::JournalAction::kApply,
+            "the tree read after all: the unreadable flag does not matter");
+        check.Check(!TreeGraftRun::JournalStillFits(TreeGraftRun::JournalAction::kWait, std::string("r"), std::string("r"),
+                        std::nullopt, std::nullopt),
+            "waiting: nothing is written");
         check.Check(TreeGraftRun::ResolveJournal(current, tree).action == TreeGraftRun::JournalAction::kNone, "no journal: nothing");
 
         // Its write only over the files as read
