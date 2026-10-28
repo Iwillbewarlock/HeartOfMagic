@@ -110,11 +110,6 @@ namespace
     }
 }
 
-TreeRecordFile::TreeRecord UIManager::ReadTreeRecord()
-{
-    return ReadRecord();
-}
-
 bool UIManager::WriteTreeRecord(const TreeRecordFile::TreeRecord& record)
 {
     return WriteRecord(record);
@@ -256,6 +251,13 @@ void UIManager::ShowPendingGraftNotice()
     const auto told = record.pendingGrafted;
     record.pendingGrafted = 0;   // told: not again (the next graft counts afresh)
     if (WriteRecord(record)) logger::info("TreeGraft: corner message shown for {} new spells", told);
+}
+
+void UIManager::NotifyTreeGrafted(const std::string& loadOrder)
+{
+    nlohmann::json info;
+    info["loadOrder"] = loadOrder;
+    CallView("onTreeGrafted", JsonText::Dump(info).c_str());
 }
 
 void UIManager::OnAutoBuildEvent(const char* argument)

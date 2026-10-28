@@ -29,14 +29,20 @@
 // TREE GRAFT AT THE MAIN MENU (StartupState.h; the rules: TreeGraftRun.h)
 // =============================================================================
 //
-//   AutoScan's waiter thread  the files read, the conditions, the scan parsed
+//   AutoScan's waiter thread  before the scan replaces the catalog: a record without a seen
+//                             list gets the catalog's spells as one (a game thread task)
+//   AutoScan's waiter thread  a journal an earlier graft left resolved (its write: a task);
+//                             the files read, the conditions, the scan dump checked against
+//                             the scan record (ScanRecord::DumpMatches) and parsed
 //   game thread (task 1)      a tagged copy of the tree validated: each node's verdict
 //   waiter thread             the plan: ids refreshed, Graft, declutter, checks (pure,
 //                             the slow part: a few hundred ms on a big tree)
 //   game thread (task 2)      the files checked unchanged since they were read (the
-//                             panel's saves run on this thread too), the tree written
-//                             (.bak kept) and its record, the tree state applied, the
-//                             panel sent the validated tree, the live-parent check
+//                             panel's saves run on this thread too); the record with the
+//                             graft's journal, the tree (.bak kept), the record without it
+//                             (TreeGraftRecord.h); onTreeGrafted to the panel when the tree
+//                             is this load order's; the tree state applied, the panel sent
+//                             the validated tree, the live-parent check
 //
 // Nothing is written when a condition fails, the plan's checks fail, or a step throws
 // or times out before the write; the load order notice then applies as before.
@@ -89,14 +95,14 @@ namespace
     void NotRun(const std::string& why)
     {
         logger::info("{} not run - {}", kPrefix, why);
-        SetOutcome({ Outcome::State::kNotRun, false, false, 0, 0, why });
+        SetOutcome({ Outcome::State::kNotRun, false, false, 0, 0, why, {} });
     }
 
     void Failed(const std::string& why, bool wrote = false)
     {
         logger::error("{} {} - {}", kPrefix, why,
             wrote ? "see above for what was written" : "nothing written, the load order notice applies");
-        SetOutcome({ Outcome::State::kFailed, wrote, false, 0, 0, why });
+        SetOutcome({ Outcome::State::kFailed, wrote, false, 0, 0, why, {} });
     }
 
     std::string Summary(const TreeGraftRun::Plan& plan)
@@ -112,7 +118,35 @@ namespace
     {
         std::string treeText;
         std::optional<std::string> recordText;
+        TreeRecordFile::TreeRecord record;   // recordText parsed (empty: no file)
     };
+
+    // The record as read, or none when it is there but unreadable
+    std::optional<TreeRecordFile::TreeRecord> ParseRecord(const std::optional<std::string>& text)
+    {
+        if (!text) return TreeRecordFile::TreeRecord{};
+        const auto data = nlohmann::json::parse(*text, nullptr, false);
+        if (data.is_discarded() || !data.is_object()) return std::nullopt;
+        return TreeRecordFile::ParseTreeRecord(data);
+    }
+
+    // The grafted spells' node formIds (after each school's nodes before the graft)
+    std::vector<std::string> GraftedFormIds(const TreeGraftRun::Plan& plan)
+    {
+        std::vector<std::string> ids;
+        if (!plan.tree.contains("schools") || !plan.tree["schools"].is_object()) return ids;
+        for (const auto& [name, school] : plan.tree["schools"].items()) {
+            if (!school.is_object() || !school.contains("nodes") || !school["nodes"].is_array()) continue;
+            const auto pre = plan.preCounts.find(name);
+            const auto& nodes = school["nodes"];
+            for (std::size_t i = pre != plan.preCounts.end() ? pre->second : nodes.size(); i < nodes.size(); ++i) {
+                if (nodes[i].is_object() && nodes[i].contains("formId") && nodes[i]["formId"].is_string()) {
+                    ids.push_back(nodes[i]["formId"].get<std::string>());
+                }
+            }
+        }
+        return ids;
+    }
 
     // Game thread: the plan written, applied and sent. Sets the outcome itself.
     bool Commit(const TreeGraftRun::Plan& plan, const ReadState& read)
@@ -123,34 +157,51 @@ namespace
             ReadText(UIManager::GetTreeLoadOrderFilePath()) != read.recordText) {
             logger::info("{} spell_tree.json or its record changed while the graft was planned (a save from the panel) - "
                          "nothing written, tried again at the next game start", kPrefix);
-            SetOutcome({ Outcome::State::kDropped, false, false, 0, 0, "the tree changed while the graft was planned" });
+            SetOutcome({ Outcome::State::kDropped, false, false, 0, 0, "the tree changed while the graft was planned", {} });
             return false;
         }
 
-        Outcome outcome{ Outcome::State::kNothingWritten, false, true, plan.grafted.size(), 0, Summary(plan) };
+        Outcome outcome{ Outcome::State::kNothingWritten, false, true, plan.grafted.size(), 0, Summary(plan), {} };
         std::string text;
         if (plan.writeTree) {
             // As the panel's save writes it: compact, in the file's own key order
             text = plan.tree.dump(-1, ' ', false, nlohmann::ordered_json::error_handler_t::replace);
-            if (!TreeSaveCheck::HasSpellNodes(text) || !FileUtils::WriteAtomically(treePath, text)) {
+            if (!TreeSaveCheck::HasSpellNodes(text)) {
+                Failed("the grafted tree has no spells (not written)");
+                return false;
+            }
+            // The journal first (TreeGraftRecord.h): a record write lost after the tree's is redone at the next start
+            if (plan.writeRecord && !UIManager::WriteTreeRecord(TreeGraftRun::WithJournal(read.record, text, plan.record))) {
+                Failed("could not write the graft's journal into spell_tree_loadorder.json");
+                return false;
+            }
+            if (!FileUtils::WriteAtomically(treePath, text)) {
+                // The journal's tree hash is not the file's: the next start drops it
                 Failed(std::format("could not write {} ({} bytes)", PathText::Utf8(treePath), text.size()));
                 return false;
             }
             outcome.wrote = true;
             outcome.writtenHash = std::hash<std::string>{}(text);
+            outcome.graftedFormIds = GraftedFormIds(plan);
             logger::info("{} spell_tree.json written with {} new spells ({} bytes, the old file kept as .bak)", kPrefix,
                 plan.grafted.size(), text.size());
         }
+        bool recordWritten = false;
         if (plan.writeRecord) {
             if (UIManager::WriteTreeRecord(plan.record)) {
-                outcome.wrote = true;
+                outcome.wrote = recordWritten = true;
                 logger::info("{} spell_tree_loadorder.json: {} seen spells, {} to tell about, load order {}", kPrefix,
                     plan.record.seen.size(), plan.record.pendingGrafted,
                     plan.complete ? "now this one's" : "kept (spells deferred or unplaced: the graft runs again)");
             } else {
-                // The next start judges the left-out spells again; the grafted ones are in the tree
-                logger::warn("{} the record was not written - the next game start runs the graft again", kPrefix);
+                logger::warn("{} the record was not written - {}", kPrefix,
+                    plan.writeTree ? "the next game start writes it from the journal" : "the next game start runs the graft again");
             }
+        }
+        auto* ui = UIManager::GetSingleton();
+        // The panel decided its "load order changed" line before the graft: it goes when the tree is this load order's
+        if (plan.complete && recordWritten && ui && ui->IsInitialized()) {
+            ui->NotifyTreeGrafted(plan.record.loadOrder);
         }
         if (!plan.writeTree) {
             outcome.state = outcome.wrote ? Outcome::State::kWritten : Outcome::State::kNothingWritten;
@@ -159,7 +210,6 @@ namespace
         }
         outcome.state = Outcome::State::kWritten;
 
-        auto* ui = UIManager::GetSingleton();
         std::string_view stage = "validating the grafted tree threw";
         try {
             logger::info("{} validating the grafted tree for the game and the panel", kPrefix);
@@ -199,12 +249,23 @@ namespace
         ReadState read;
         const auto treeText = ReadText(treePath);
         read.recordText = ReadText(recordPath);
-        TreeRecordFile::TreeRecord record;
-        bool recordUnreadable = !read.recordText && ThereButUnread(recordPath);
-        if (read.recordText) {
-            const auto data = nlohmann::json::parse(*read.recordText, nullptr, false);
-            if (data.is_discarded() || !data.is_object()) recordUnreadable = true;
-            else record = TreeRecordFile::ParseTreeRecord(data);
+        auto parsed = ParseRecord(read.recordText);
+        bool recordUnreadable = !parsed || (!read.recordText && ThereButUnread(recordPath));
+        TreeRecordFile::TreeRecord record = parsed ? *parsed : TreeRecordFile::TreeRecord{};
+
+        // A journal an earlier graft left (TreeGraftRecord.h): its record, or the old one, written first
+        if (const auto journal = TreeGraftRun::ResolveJournal(record, treeText);
+            !recordUnreadable && journal.action != TreeGraftRun::JournalAction::kNone) {
+            const bool apply = journal.action == TreeGraftRun::JournalAction::kApply;
+            const auto target = journal.record;
+            const auto wrote = RunOnGameThreadAndWait("TreeGraftJournal", [target]() {
+                return UIManager::WriteTreeRecord(target);
+            }, kGameThreadWait);
+            logger::info("{} {} the journal an earlier graft left ({})", kPrefix, apply ? "applied" : "dropped",
+                apply ? "the tree is the one it wrote: its record written" : "the tree is not the one it was for");
+            if (!wrote || !*wrote) return Failed("the journal's record could not be written");
+            read.recordText = ReadText(recordPath);
+            record = target;
         }
         TreeGraftRun::Facts facts;
         facts.loadOrder = loadOrder.hash;
@@ -214,6 +275,7 @@ namespace
         facts.catalogMatches = ScanRecord::CatalogMatches(loadOrder);
         if (const auto why = TreeGraftRun::WhyNotRun(facts)) return NotRun(*why);
         read.treeText = *treeText;
+        read.record = record;
 
         const auto baseline = TreeGraftRun::BaselineOf(record, previousCatalog);
         if (baseline.source == TreeGraftRun::SeenSource::kNone) {
@@ -235,6 +297,10 @@ namespace
         {
             const auto scanText = ReadText(kScanOutputFile);
             if (!scanText) return NotRun("spell_scan_output.json could not be read");
+            if (!ScanRecord::DumpMatches(*scanText)) {
+                return NotRun("spell_scan_output.json is not the dump of the scan the catalog record is for (a panel scan "
+                              "since, or a record from before the dump was recorded) - the load order notice applies");
+            }
             auto output = nlohmann::json::parse(*scanText, nullptr, false);
             if (output.is_discarded()) return NotRun("spell_scan_output.json is not JSON");
             if (const auto why = TreeGraftRun::WhyScanUnusable(output, TomeReach::OutcomeKey())) return NotRun(*why);
@@ -249,6 +315,7 @@ namespace
         // Each node's verdict, from the game (task 1)
         std::size_t tagged = 0;
         auto copy = std::make_shared<nlohmann::json>(TreeGraftRun::TaggedCopy(tree, tagged));
+        SetOutcome({ Outcome::State::kFailed, false, false, 0, 0, "the validation task did not answer", {} });
         const auto verdicts = RunOnGameThreadAndWait("TreeGraftValidate", [copy, tagged]() {
             logger::info("{} validating a copy of the tree (the lines below repeat the tree load's)", kPrefix);
             SpellScanner::ValidateAndFixTree(*copy);
@@ -277,11 +344,14 @@ namespace
         if (!plan->problem.empty()) return Failed("the plan's check failed: " + plan->problem);
         if (!plan->writeTree && !plan->writeRecord) {
             logger::info("{} nothing to write", kPrefix);
-            SetOutcome({ Outcome::State::kNothingWritten, false, true, 0, 0, Summary(*plan) });
+            SetOutcome({ Outcome::State::kNothingWritten, false, true, 0, 0, Summary(*plan), {} });
             return;
         }
 
         auto state = std::make_shared<ReadState>(std::move(read));
+        SetOutcome({ Outcome::State::kFailed, false, false, 0, 0,
+            std::format("the write task was not taken within {} s (it writes when it runs)",
+                std::chrono::duration_cast<std::chrono::seconds>(kGameThreadWait).count()), {} });
         const auto written = RunOnGameThreadAndWait("TreeGraftWrite", [plan, state]() {
             try {
                 return Commit(*plan, *state);
@@ -309,17 +379,33 @@ void RunTreeGraftAtMainMenu(const LoadOrderFingerprint::Value& loadOrder, const 
     }
 }
 
-std::optional<nlohmann::json> ReadCatalogForTreeGraft()
+std::optional<nlohmann::json> ReadCatalogForTreeGraft(const LoadOrderFingerprint::Value& loadOrder)
 {
     try {
-        if (const auto recordText = ReadText(UIManager::GetTreeLoadOrderFilePath())) {
-            const auto data = nlohmann::json::parse(*recordText, nullptr, false);
-            if (!data.is_discarded() && TreeRecordFile::ParseTreeRecord(data).hasSeen) return std::nullopt;
+        const auto recordPath = UIManager::GetTreeLoadOrderFilePath();
+        const auto recordText = ReadText(recordPath);
+        const auto record = ParseRecord(recordText);
+        if (!record || (!recordText && ThereButUnread(recordPath)) || loadOrder.hash.empty() ||
+            !TreeGraftRun::CatalogNeeded(*record, loadOrder.hash)) {
+            return std::nullopt;
         }
         const auto text = ReadText(kCatalogFile);
         if (!text) return std::nullopt;
         auto catalog = nlohmann::json::parse(*text, nullptr, false);
         if (catalog.is_discarded() || !catalog.is_object()) return std::nullopt;
+        const auto seeded = TreeGraftRun::SeededRecord(*record, catalog);
+        if (!seeded) return std::nullopt;
+        // Kept in the record, so a graft dropped this start (the panel saved meanwhile) still has it next time
+        const auto wrote = RunOnGameThreadAndWait("TreeGraftSeenList", [target = *seeded, recordText, recordPath]() {
+            if (ReadText(recordPath) != recordText) return false;   // written meanwhile (a build's Apply)
+            return UIManager::WriteTreeRecord(target);
+        }, kGameThreadWait);
+        if (wrote && *wrote) {
+            logger::info("{} the tree record had no seen list: the {} spells of the catalog the scan replaces are kept "
+                         "as it", kPrefix, seeded->seen.size());
+            return std::nullopt;
+        }
+        logger::warn("{} the seen list could not be kept in the record - this start's graft takes it from memory", kPrefix);
         return catalog;
     } catch (const std::exception& e) {
         logger::warn("{} the previous catalog could not be read ({}) - no seen list from it", kPrefix, e.what());

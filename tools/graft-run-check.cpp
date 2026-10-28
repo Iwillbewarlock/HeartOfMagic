@@ -13,12 +13,15 @@
 // self-test reports (every pre-graft node unchanged but for ids and a new child, each
 // grafted node under a live parent of its school, no seen spell grafted). The last
 // case runs the whole plan: a live node saved under a stale formId that a new spell
-// now has - refreshed, so the new spell is grafted, not deferred.
+// now has - refreshed, so the new spell is grafted, not deferred. And the review's
+// fixes: the scan dump is the record's, the seen list kept before the catalog is
+// replaced, and the journal that keeps the record with the tree.
 //
 // Exit 0 when every case passes, 1 on a failure, 2 on a bad argument.
 
 #include "Common.h"
 
+#include "ScanRecordRules.h"
 #include "TreeRemap.h"
 #include "uimanager/TreeGraftRun.h"
 
@@ -313,8 +316,14 @@ namespace
         check.Check(refresh.nodesMoved == 2 && refresh.persistentIdsWritten == 1,
             std::format("counts: {} moved, {} persistentIds", refresh.nodesMoved, refresh.persistentIdsWritten));
         check.Check(tree.dump().find(TreeGraftRun::kNodeTag) == std::string::npos, "no tag in the file's tree");
-        check.Check(TreeGraftRun::PreGraftNodesKept(before, tree).empty(),
-            "the verification takes an id refresh as no change: " + TreeGraftRun::PreGraftNodesKept(before, tree));
+        const auto rematched = TreeGraftRun::RematchedIds(before, verdicts);
+        check.Check(rematched.size() == 1 && rematched.begin()->first == "old.esp|0x000900" &&
+                        rematched.begin()->second == "New.esp|0x000900",
+            "the rematched node, from the verdicts");
+        check.Check(TreeGraftRun::PreGraftNodesKept(before, tree, rematched).empty(),
+            "the verification takes an id refresh as no change: " + TreeGraftRun::PreGraftNodesKept(before, tree, rematched));
+        check.Check(!TreeGraftRun::PreGraftNodesKept(before, tree, {}).empty(),
+            "a persistentId change no verdict rematched: not kept");
 
         // A chain: P moves onto Q's saved id, Q is held, so P is held too
         OrderedJson chain = { { "schools", { { "S", { { "nodes", {
@@ -403,23 +412,29 @@ namespace
         OrderedJson after = before;
         after["schools"]["S"]["nodes"][0]["children"].push_back("0x03");
         after["schools"]["S"]["nodes"].push_back(Node("0x03", "N|0x3", 2, 100, 60, {}, { "0x01" }));
-        check.Check(TreeGraftRun::PreGraftNodesKept(before, after).empty(), "a parent gaining the grafted child: kept");
+        check.Check(TreeGraftRun::PreGraftNodesKept(before, after, {}).empty(), "a parent gaining the grafted child: kept");
 
         auto moved = after;
         moved["schools"]["S"]["nodes"][1]["x"] = 161;
-        check.Check(!TreeGraftRun::PreGraftNodesKept(before, moved).empty(), "a node moved: not kept");
+        check.Check(!TreeGraftRun::PreGraftNodesKept(before, moved, {}).empty(), "a node moved: not kept");
         auto retiered = after;
         retiered["schools"]["S"]["nodes"][1]["tier"] = 3;
-        check.Check(!TreeGraftRun::PreGraftNodesKept(before, retiered).empty(), "a tier changed: not kept");
+        check.Check(!TreeGraftRun::PreGraftNodesKept(before, retiered, {}).empty(), "a tier changed: not kept");
         auto foreign = after;
         foreign["schools"]["S"]["nodes"][1]["children"].push_back("0x01");
-        check.Check(!TreeGraftRun::PreGraftNodesKept(before, foreign).empty(), "a child that is not a grafted node: not kept");
+        check.Check(!TreeGraftRun::PreGraftNodesKept(before, foreign, {}).empty(), "a child that is not a grafted node: not kept");
         auto relinked = after;
         relinked["schools"]["S"]["nodes"][1]["prerequisites"] = { "0x03" };
-        check.Check(!TreeGraftRun::PreGraftNodesKept(before, relinked).empty(), "a prerequisite changed: not kept");
+        check.Check(!TreeGraftRun::PreGraftNodesKept(before, relinked, {}).empty(), "a prerequisite changed: not kept");
+        auto respelled = after;
+        respelled["schools"]["S"]["nodes"][1]["persistentId"] = "Other.esp|0x2";
+        check.Check(!TreeGraftRun::PreGraftNodesKept(before, respelled, { { "a|0x1", "Other.esp|0x2" } }).empty(),
+            "a persistentId change the rematch map names for another node: not kept");
+        check.Check(TreeGraftRun::PreGraftNodesKept(before, respelled, { { "a|0x2", "Other.esp|0x2" } }).empty(),
+            "a persistentId change the rematch map names for this node: kept");
         auto gone = before;
         gone["schools"]["S"]["nodes"].erase(1);
-        check.Check(!TreeGraftRun::PreGraftNodesKept(before, gone).empty(), "a node gone: not kept");
+        check.Check(!TreeGraftRun::PreGraftNodesKept(before, gone, {}).empty(), "a node gone: not kept");
 
         // Parents, on the validated tree the panel gets
         const Json validated = Json(after);
@@ -512,10 +527,80 @@ namespace
         return check.failed;
     }
 
+
+    int DumpCase()
+    {
+        std::printf("the scan dump the graft reads is the record's\n");
+        Checker check;
+        Json record = { { "version", 2 }, { "loadOrder", "aa" } };
+        const std::string dump = R"({"spells":[]})";
+        check.Check(!ScanRecordRules::DumpFits(record, dump), "a record without the dump's fields (a panel scan's): no");
+        ScanRecordRules::MarkDump(record, dump);
+        check.Check(ScanRecordRules::DumpFits(record, dump), "the dump the scan at game start wrote: yes");
+        check.Check(!ScanRecordRules::DumpFits(record, R"({"spells":[1]})"), "another dump (an older or a newer one): no");
+        check.Check(!ScanRecordRules::DumpFits(record, dump + " "), "the same dump one byte longer: no");
+        return check.failed;
+    }
+
+    int SeedCase()
+    {
+        std::printf("the seen list kept before the catalog is replaced\n");
+        Checker check;
+        TreeRecord record;
+        record.loadOrder = "old";
+        const Json catalog = { { "spells", { { "B.esp|0x000801", Json::object() } } } };
+        check.Check(TreeGraftRun::CatalogNeeded(record, "new"), "no seen list, another load order: needed");
+        check.Check(!TreeGraftRun::CatalogNeeded(record, "old"), "the record is this load order's: not needed (no graft runs)");
+        auto seen = record;
+        seen.hasSeen = true;
+        check.Check(!TreeGraftRun::CatalogNeeded(seen, "new"), "a seen list already: not needed");
+        const auto seeded = TreeGraftRun::SeededRecord(record, catalog);
+        check.Check(seeded && seeded->hasSeen && seeded->seen == std::vector<std::string>{ "B.esp|0x000801" } &&
+                        seeded->loadOrder == "old",
+            "seeded: the catalog's spells, the load order as it was");
+        check.Check(TreeGraftRun::BaselineOf(*seeded, std::nullopt).source == TreeGraftRun::SeenSource::kRecord,
+            "a graft after that takes them from the record (the catalog may be gone)");
+        check.Check(!TreeGraftRun::SeededRecord(record, Json{ { "spells", Json::object() } }), "a catalog without spells: none");
+        return check.failed;
+    }
+
+    int JournalCase()
+    {
+        std::printf("the graft's journal\n");
+        Checker check;
+        TreeRecord current;
+        current.loadOrder = "old";
+        current.extra = { { "later", 1 } };
+        TreeRecord target = current;
+        target.loadOrder = "new";
+        target.hasSeen = true;
+        target.seen = { "N.esp|0x000800" };
+        target.pendingGrafted = 1;
+        const std::string tree = R"({"schools":{}})";
+        const auto journaled = TreeGraftRun::WithJournal(current, tree, target);
+        const auto reread = TreeRecordFile::ParseTreeRecord(TreeRecordFile::ToJson(journaled));
+        check.Check(reread.loadOrder == "old" && reread.extra.contains(TreeGraftRun::kJournalKey),
+            "the journal record is the old record with the journal");
+
+        const auto applied = TreeGraftRun::ResolveJournal(reread, tree);
+        check.Check(applied.action == TreeGraftRun::JournalAction::kApply && applied.record.loadOrder == "new" &&
+                        applied.record.seen == target.seen && applied.record.pendingGrafted == 1 &&
+                        !applied.record.extra.contains(TreeGraftRun::kJournalKey) && applied.record.extra.contains("later"),
+            "the tree on disk is the journal's: its record applied, without the journal");
+        const auto dropped = TreeGraftRun::ResolveJournal(reread, std::string(R"({"schools":{"A":{}}})"));
+        check.Check(dropped.action == TreeGraftRun::JournalAction::kDrop && dropped.record.loadOrder == "old" &&
+                        !dropped.record.extra.contains(TreeGraftRun::kJournalKey) && dropped.record.extra.contains("later"),
+            "another tree on disk: the journal dropped, the old record kept");
+        check.Check(TreeGraftRun::ResolveJournal(reread, std::nullopt).action == TreeGraftRun::JournalAction::kDrop,
+            "no tree file: dropped");
+        check.Check(TreeGraftRun::ResolveJournal(current, tree).action == TreeGraftRun::JournalAction::kNone, "no journal: nothing");
+        return check.failed;
+    }
+
     int SelfTest()
     {
         const std::vector<int (*)()> cases = { TriggerCase, RulesCase, BaselineCase, RecordCase, RefreshCase, LiveScanCase,
-            DeclutterCase, VerifyCase, EndToEndCase };
+            DeclutterCase, VerifyCase, EndToEndCase, DumpCase, SeedCase, JournalCase };
         int failedCases = 0;
         for (auto* run : cases) {
             try {

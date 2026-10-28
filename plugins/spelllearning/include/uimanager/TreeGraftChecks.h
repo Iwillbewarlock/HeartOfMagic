@@ -41,8 +41,11 @@ namespace TreeGraftRun
 
     /// Every node `before` had is in `after` at its place with every field as it was, but
     /// for ids (see the top, step 4) and grafted children at the end of a children list.
-    /// Empty when kept, else the first difference.
-    [[nodiscard]] inline std::string PreGraftNodesKept(const OrderedJson& before, const OrderedJson& after)
+    /// A persistentId may change only as `rematched` says (the old one A-Z folded -> the
+    /// new one: validation found the node again by editor id). Empty when kept, else the
+    /// first difference.
+    [[nodiscard]] inline std::string PreGraftNodesKept(const OrderedJson& before, const OrderedJson& after,
+        const std::map<std::string, std::string>& rematched)
     {
         if (!before.is_object() || !after.is_object()) return "a tree is not an object";
         for (const auto& [key, value] : before.items()) {
@@ -143,8 +146,8 @@ namespace TreeGraftRun
                     if (key == "formId") {
                         ok = same(value, b[key]);
                     } else if (key == "persistentId") {
-                        const auto x = CheckDetail::Text(a, "persistentId"), y = CheckDetail::Text(b, "persistentId");
-                        ok = value == b[key] || (x.find('|') != std::string::npos && y.find('|') != std::string::npos);
+                        const auto it = rematched.find(AsciiText::ToLower(CheckDetail::Text(a, "persistentId")));
+                        ok = value == b[key] || (it != rematched.end() && it->second == CheckDetail::Text(b, "persistentId"));
                     } else if (key == "children") {
                         ok = sameList(value, b[key], &grafted[name]);
                     } else if (key == "prerequisites" || key == "softPrereqs" || key == "hardPrereqs") {

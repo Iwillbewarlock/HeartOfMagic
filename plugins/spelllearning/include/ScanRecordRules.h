@@ -198,6 +198,29 @@ namespace ScanRecordRules
         return joined.empty() ? std::string("the scan output's incomplete field is empty") : joined;
     }
 
+    // The scan dump (spell_scan_output.json) the scan at game start wrote beside the catalog:
+    // its size and FNV-1a 64, added to the record (ScanRecord::DumpWritten). A panel scan
+    // that writes the record writes no dump in a release install, so its record has neither
+    // field and no dump on disk counts as its scan's (the tree graft reads the dump).
+    inline constexpr const char* kDumpBytesField = "dumpBytes";
+    inline constexpr const char* kDumpHashField = "dumpHash";
+
+    inline void MarkDump(nlohmann::json& record, std::string_view dumpText)
+    {
+        record[kDumpBytesField] = dumpText.size();
+        record[kDumpHashField] = HashText(dumpText);
+    }
+
+    // `dumpText` is the dump the record names (false for a record without the fields)
+    inline bool DumpFits(const nlohmann::json& record, std::string_view dumpText)
+    {
+        if (!record.is_object()) return false;
+        const auto bytes = record.find(kDumpBytesField);
+        const auto hash = record.find(kDumpHashField);
+        return bytes != record.end() && bytes->is_number_unsigned() && bytes->get<std::size_t>() == dumpText.size() &&
+               hash != record.end() && hash->is_string() && hash->get<std::string>() == HashText(dumpText);
+    }
+
     // The record on disk was made under `scanFingerprint` by this version's rules. The
     // catalog's own hash and the librarian rules are checked apart (ScanRecord.cpp).
     inline bool RecordFits(const nlohmann::json& record, std::string_view scanFingerprint)

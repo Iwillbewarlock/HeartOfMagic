@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <nlohmann/json.hpp>
 
@@ -84,9 +85,12 @@ std::optional<std::string> ApplyTreeState(const PanelTree& tree, std::string_vie
 /// writes nothing when it does not run or fails. Not on the game thread (it waits on it).
 void RunTreeGraftAtMainMenu(const LoadOrderFingerprint::Value& loadOrder, const std::optional<nlohmann::json>& previousCatalog);
 
-/// spell_catalog.json parsed when a graft could take its seen list from it (the tree record
-/// has none), read before the scan at game start replaces it; nothing otherwise. Any thread.
-std::optional<nlohmann::json> ReadCatalogForTreeGraft();
+/// Before the scan at game start replaces spell_catalog.json: when the tree record has no seen
+/// list and is not `loadOrder`'s (a graft may run), the catalog's spells are written into the
+/// record as its seen list (a game thread task it waits for), so a graft dropped this start
+/// still has them. The catalog is parsed only then; it is returned only when that write
+/// failed (this start's graft takes it from memory). Not on the game thread.
+std::optional<nlohmann::json> ReadCatalogForTreeGraft(const LoadOrderFingerprint::Value& loadOrder);
 
 /// What the session's last graft did (the dev self-tests read it). Any thread.
 struct TreeGraftOutcome
@@ -98,6 +102,7 @@ struct TreeGraftOutcome
     std::size_t grafted = 0;
     std::size_t writtenHash = 0;   // std::hash of the tree text written (0: none)
     std::string detail;            // why it did not run, what it did, or what failed
+    std::vector<std::string> graftedFormIds;   // the grafted nodes' formIds (kWritten with a tree write)
 };
 TreeGraftOutcome LastTreeGraft();
 

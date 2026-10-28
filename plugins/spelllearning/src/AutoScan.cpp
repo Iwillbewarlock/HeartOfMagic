@@ -617,13 +617,15 @@ namespace
         const std::string scanPairs = ScanRecordRules::TomePairsOf(*output);
         std::string text = JsonText::Dump(*output, 2);
         output.reset();
-        // The catalog this scan replaces: the graft's seen list when the tree record has none
-        auto previousCatalog = ReadCatalogForTreeGraft();
+        // The catalog this scan replaces: the tree record's seen list when it has none
+        auto previousCatalog = ReadCatalogForTreeGraft(loadOrder);
         const bool wrote = Librarian::ClassifyScan(text, true,
             [&loadOrder, &incomplete, &scanPairs]() { ScanRecord::CatalogWritten(true, &loadOrder, incomplete, scanPairs); });
         const std::string dumpPath = SpellScanner::WriteScanOutput(text);
         // Both files are this scan's job: without the dump the next start does it again
         if (wrote && dumpPath.empty()) ScanRecord::Forget("spell_scan_output.json could not be written");
+        // The tree graft reads the dump only when it is this scan's (a panel scan records no dump)
+        if (wrote && !dumpPath.empty()) ScanRecord::DumpWritten(text);
         turn.Release();
         logger::info("{} {} in {:.0f} ms; {} {} (total {:.1f} s since the main menu)", kPrefix,
             wrote ? "catalog written" : "catalog NOT written (see Librarian above)", MsSince(textStarted),

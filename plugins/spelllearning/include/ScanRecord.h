@@ -44,6 +44,15 @@ namespace ScanRecord
     // next game start scans again. Any thread; logs its own failures.
     void Forget(const char* why) noexcept;
 
+    // The scan at game start wrote `dumpText` to spell_scan_output.json: its size and hash go
+    // into the record a full scan just wrote (ScanRecordRules::MarkDump). Nothing without a
+    // record. Any thread; logs its own failures.
+    void DumpWritten(std::string_view dumpText) noexcept;
+
+    // `dumpText` (spell_scan_output.json as read) is the dump of the scan the record is for
+    // (ScanRecordRules::DumpFits). Any thread; false when the record is missing or unreadable.
+    [[nodiscard]] bool DumpMatches(std::string_view dumpText) noexcept;
+
     // The catalog on disk is the one a full scan made under `now`. Any thread
     // (reads two files); false when either is missing or unreadable.
     [[nodiscard]] bool CatalogMatches(const LoadOrderFingerprint::Value& now) noexcept;

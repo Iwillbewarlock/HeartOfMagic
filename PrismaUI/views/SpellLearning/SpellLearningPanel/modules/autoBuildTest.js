@@ -100,6 +100,7 @@ var AutoBuildTest = {
         this._testSilentProgress(g);
         this._testDecide(g);
         this._testStartup(g);
+        this._testTreeGrafted(g);
         this._testRun(g);
         this._testSaveLoadGoesOn(g);
         this._testApplyStale(g);
@@ -245,6 +246,55 @@ var AutoBuildTest = {
         this.check(r.scans === 0 && r.events.join(',') === 'decided' && r.status.length === 0, 'same load order: nothing');
         r = this._start(g, 'off', missing, ['info', 'config', 'presets']);
         this.check(r.scans === 0 && r.events.join(',') === 'decided' && r.status.length === 0, 'setting off: nothing');
+    },
+
+    /** A tree graft at the main menu (C++ onTreeGrafted) after or before the startup info. */
+    _testTreeGrafted: function(g) {
+        var self = this, A = g.AutoBuild;
+        var changed = { tree: 'present', nodes: 9, loadOrder: 'bb', builtLoadOrder: 'aa', noticedLoadOrder: '' };
+        var out = { events: [], status: [] }, shown = null;
+        this._with(g, {
+            settings: { autoBuild: 'whenMissing' },
+            startScan: function() { return true; },
+            callCpp: function(name, arg) { if (name === 'AutoBuildEvent') out.events.push(JSON.parse(arg).event); },
+            updateScanStatus: function(text, type, key) { out.status.push(key); shown = key; },
+            scanStatusKey: function() { return shown; },
+            t: function(key) { return key; },
+            tOr: function(key, params, fallback) { return fallback; },
+            console: { log: function() {}, warn: function() {}, error: function() {} }
+        }, function() {
+            var start = function(info) {
+                g.AutoBuildSetting.loaded = false;
+                g.onStartupTreeInfo(JSON.stringify(info));
+                g.AutoBuildSetting.loadFrom({ autoBuild: 'whenMissing' });
+                A.noteConfigLoaded();
+                A.notePresetsApplied();
+            };
+            // After the notice: its scan line goes, for this load order only
+            A._resetForTest();
+            start(changed);
+            g.onTreeGrafted(JSON.stringify({ loadOrder: 'cc' }));
+            var kept = shown === 'status.loadOrderChanged';
+            g.onTreeGrafted(JSON.stringify({ loadOrder: 'bb' }));
+            self.check(kept && shown === 'scanner.readyToScan' && out.events.indexOf('grafted') !== -1,
+                'a graft for this load order clears the load order notice line (not for another load order)');
+            // A line that is not the notice stays
+            shown = 'status.scannedSpellsSchools';
+            g.onTreeGrafted(JSON.stringify({ loadOrder: 'bb' }));
+            self.check(shown === 'status.scannedSpellsSchools', 'a graft leaves any other scan line alone');
+            // Before the startup info: no notice at all
+            A._resetForTest();
+            out.events = [];
+            out.status = [];
+            shown = null;
+            g.onTreeGrafted(JSON.stringify({ loadOrder: 'bb' }));
+            start(changed);
+            self.check(out.events.indexOf('notice') === -1 && out.status.indexOf('status.loadOrderChanged') === -1,
+                'a graft before the startup info: no notice is decided');
+            g.onTreeGrafted('not json');
+            self.check(true, 'an unreadable graft message is passed over');
+            A._resetForTest();
+        });
     },
 
     _testRun: function(g) {

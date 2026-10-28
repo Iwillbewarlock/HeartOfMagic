@@ -6,6 +6,7 @@
 #include "treebuilder/LayoutDeclutter.h"
 #include "treebuilder/TreeGraft.h"
 #include "uimanager/TreeGraftChecks.h"
+#include "uimanager/TreeGraftRecord.h"
 #include "uimanager/TreeRecord.h"
 
 #include <cmath>
@@ -106,59 +107,6 @@ namespace TreeGraftRun
     }
 
     // -------------------------------------------------------------------------
-    // The seen list and the record
-    // -------------------------------------------------------------------------
-
-    enum class SeenSource { kRecord, kCatalog, kNone };
-    struct Baseline
-    {
-        std::vector<std::string> seen;
-        SeenSource source = SeenSource::kNone;
-    };
-
-    /// The record's list (an empty one is a list); else the previous catalog's spells
-    /// (spell_catalog.json "spells", keyed by persistentId); else none
-    [[nodiscard]] inline Baseline BaselineOf(const TreeRecordFile::TreeRecord& record, const std::optional<Json>& catalog)
-    {
-        if (record.hasSeen) return { record.seen, SeenSource::kRecord };
-        if (catalog && catalog->is_object()) {
-            const auto spells = catalog->find("spells");
-            if (spells != catalog->end() && spells->is_object() && !spells->empty()) {
-                Baseline baseline{ {}, SeenSource::kCatalog };
-                baseline.seen.reserve(spells->size());
-                for (const auto& [key, value] : spells->items()) baseline.seen.push_back(key);
-                return baseline;
-            }
-        }
-        return {};
-    }
-
-    /// The record after a run (see the top): `complete` = nothing deferred or unplaced
-    [[nodiscard]] inline TreeRecordFile::TreeRecord RecordAfterGraft(TreeRecordFile::TreeRecord record,
-        const Baseline& baseline, const std::vector<std::string>& grafted, const std::vector<std::string>& leftOut,
-        bool complete, const std::string& loadOrder, std::size_t plugins, std::size_t spells)
-    {
-        std::vector<std::string> seen = baseline.seen;
-        std::unordered_set<std::string> folded;
-        for (const auto& id : seen) folded.insert(AsciiText::ToLower(id));
-        for (const auto* list : { &grafted, &leftOut }) {
-            for (const auto& id : *list) {
-                if (folded.insert(AsciiText::ToLower(id)).second) seen.push_back(id);
-            }
-        }
-        record.seen = std::move(seen);
-        record.hasSeen = true;
-        record.pendingGrafted += grafted.size();
-        if (complete) {
-            record.loadOrder = loadOrder;
-            record.plugins = plugins;
-            record.spells = spells;
-            record.noticedLoadOrder.clear();   // the tree is this load order's now
-        }
-        return record;
-    }
-
-    // -------------------------------------------------------------------------
     // Validation's verdicts and the id refresh
     // -------------------------------------------------------------------------
 
@@ -219,6 +167,25 @@ namespace TreeGraftRun
             if (at < tagged) verdicts[at] = { true, Detail::Text(node, "formId"), Detail::Text(node, "persistentId") };
         });
         return verdicts;
+    }
+
+    /// The nodes validation found again by editor id: old persistentId (A-Z folded) -> the
+    /// found spell's (both well-formed and different), for the check (PreGraftNodesKept)
+    [[nodiscard]] inline std::map<std::string, std::string> RematchedIds(const OrderedJson& tree,
+        const std::vector<NodeVerdict>& verdicts)
+    {
+        std::map<std::string, std::string> rematched;
+        std::size_t at = 0;
+        Detail::ForEachJudgedNode(tree, [&](const OrderedJson& node, const std::string&, std::size_t) {
+            if (at >= verdicts.size()) return;
+            const auto& verdict = verdicts[at++];
+            const auto was = Detail::Text(node, "persistentId");
+            if (verdict.kept && was.find('|') != std::string::npos &&
+                verdict.persistentId.find('|') != std::string::npos && verdict.persistentId != was) {
+                rematched[AsciiText::ToLower(was)] = verdict.persistentId;
+            }
+        });
+        return rematched;
     }
 
     struct Refresh
@@ -552,7 +519,7 @@ namespace TreeGraftRun
                 plan.problem = "the declutter's reply: " + error;
             }
         }
-        if (plan.problem.empty()) plan.problem = PreGraftNodesKept(original, plan.tree);
+        if (plan.problem.empty()) plan.problem = PreGraftNodesKept(original, plan.tree, RematchedIds(original, input.verdicts));
         if (plan.problem.empty()) plan.problem = SeenGrafted(plan.grafted, input.baseline.seen);
 
         plan.complete = plan.deferred.empty() && plan.skippedNoSchool.empty();

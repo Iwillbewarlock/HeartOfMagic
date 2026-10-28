@@ -67,7 +67,8 @@
  * Every step goes to SpellLearning.log as "AutoBuild: <event> - <detail>"
  * (C++ AutoBuildEvent, written whatever the developer mode): config, presets,
  * decided, scan, build, shown, apply, done, failed, yielded, save loaded, notice,
- * new game, held, resumed ("held" also makes C++ show the corner message, once a session).
+ * new game, held, resumed ("held" also makes C++ show the corner message, once a session),
+ * grafted (C++'s tree graft at the main menu made the tree this load order's: onTreeGrafted).
  *
  * Depends on: autoBuildSetting.js (AutoBuildSetting), buttonHandlers.js (startScan),
  *   treePreviewHidden.js (TreePreviewHidden), classic/classicMain.js
@@ -90,6 +91,7 @@ var AutoBuild = {
     RUN_TIMEOUT_MS: 600000,   // a run not done by then is dropped (scan + tome pass wait + build + locks + save)
 
     _info: null,
+    _graftedLoadOrder: '',    // onTreeGrafted's load order: the saved tree is this one's
     _configReady: false,
     _configMissing: false,    // the config wait ran out, or it was only partly applied: nothing is built
     _presetsReady: false,
@@ -141,6 +143,8 @@ var AutoBuild = {
     onStartupTreeInfo: function(info) {
         if (this._info) return;
         this._info = info || {};
+        // A graft came first (onTreeGrafted): the tree is this load order's
+        if (this._graftedLoadOrder && this._info.loadOrder === this._graftedLoadOrder) this._info.builtLoadOrder = this._graftedLoadOrder;
         this._waitFor('_configReady', 'config', 'not loaded after ' + this.WAIT_MS + ' ms - not building', '_configMissing');
         this._waitFor('_presetsReady', 'presets', 'scanner presets not loaded after ' + this.WAIT_MS + ' ms - going on with the current settings');
         this._maybeDecide();
@@ -548,6 +552,24 @@ var AutoBuild = {
         }
     },
 
+    /**
+     * C++ (TreeGraftRun.cpp): a tree graft at the main menu made the saved tree this load
+     * order's (its new spells joined the tree). The startup info came before the graft:
+     * from now on it says the tree was built for this load order, so no notice is decided,
+     * and a notice already on the scan line for this load order goes.
+     */
+    onTreeGrafted: function(loadOrder) {
+        if (typeof loadOrder !== 'string' || !loadOrder) return;
+        this._graftedLoadOrder = loadOrder;
+        if (!this._info || this._info.loadOrder !== loadOrder) return;
+        this._info.builtLoadOrder = loadOrder;
+        if (typeof scanStatusKey === 'function' && scanStatusKey() === 'status.loadOrderChanged' &&
+                typeof updateScanStatus === 'function') {
+            updateScanStatus(typeof t === 'function' ? t('scanner.readyToScan') : 'Ready to scan', '', 'scanner.readyToScan');
+        }
+        this._report('grafted', 'the tree is load order ' + loadOrder + "'s now - no load order notice");
+    },
+
     _notice: function() {
         if (typeof updateScanStatus === 'function') {
             updateScanStatus(tOr('status.loadOrderChanged', null,
@@ -572,6 +594,7 @@ var AutoBuild = {
         this._clearWaits();
         if (this._runTimer) clearTimeout(this._runTimer);
         this._info = null;
+        this._graftedLoadOrder = '';
         this._configReady = false;
         this._configMissing = false;
         this._presetsReady = false;
@@ -594,6 +617,17 @@ window.onStartupTreeInfo = function(json) {
         console.error('[AutoBuild] Startup tree info unreadable: ' + (e && e.message ? e.message : e));
     }
     AutoBuild.onStartupTreeInfo(info);
+};
+
+/** C++ (TreeGraftRun.cpp, through UIManagerAutoBuild.cpp): { loadOrder } the tree graft made the tree's. */
+window.onTreeGrafted = function(json) {
+    var info = null;
+    try {
+        info = typeof json === 'string' ? JSON.parse(json) : json;
+    } catch (e) {
+        console.error('[AutoBuild] Tree graft info unreadable: ' + (e && e.message ? e.message : e));
+    }
+    AutoBuild.onTreeGrafted(info && info.loadOrder);
 };
 
 /** C++ (UIManagerAutoBuild.cpp): the main menu opened. */

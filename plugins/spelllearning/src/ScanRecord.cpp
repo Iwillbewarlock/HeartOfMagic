@@ -214,6 +214,37 @@ namespace ScanRecord
         }
     }
 
+    void DumpWritten(std::string_view dumpText) noexcept
+    {
+        try {
+            std::ifstream file(kRecordFile, std::ios::binary);
+            if (!file.is_open()) return;
+            auto data = nlohmann::json::parse(file, nullptr, false);
+            file.close();
+            if (data.is_discarded() || !data.is_object()) return;
+            ScanRecordRules::MarkDump(data, dumpText);
+            if (!FileUtils::WriteAtomically(kRecordFile, JsonText::Dump(data, kRecordIndent), false)) {
+                logger::warn("ScanRecord: could not add the scan dump to {} - no tree graft from it", kRecordFile);
+            }
+        } catch (const std::exception& e) {
+            logger::error("ScanRecord: the scan dump was not recorded: {}", e.what());
+        } catch (...) {
+            logger::error("ScanRecord: the scan dump was not recorded (unknown error)");
+        }
+    }
+
+    bool DumpMatches(std::string_view dumpText) noexcept
+    {
+        try {
+            std::ifstream file(kRecordFile, std::ios::binary);
+            if (!file.is_open()) return false;
+            const auto data = nlohmann::json::parse(file, nullptr, false);
+            return !data.is_discarded() && ScanRecordRules::DumpFits(data, dumpText);
+        } catch (...) {
+            return false;
+        }
+    }
+
     bool CatalogMatches(const LoadOrderFingerprint::Value& now) noexcept
     {
         try {

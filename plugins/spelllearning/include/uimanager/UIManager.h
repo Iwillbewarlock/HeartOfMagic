@@ -117,10 +117,11 @@ public:
     // "N new spells joined the spell tree" for the spells a tree graft added (the record's
     // pendingGrafted), in the corner at kPostLoadGame; cleared once it was shown
     void ShowPendingGraftNotice();
-    // spell_tree_loadorder.json read (an empty record when it is missing or unreadable) and
-    // written (false when it could not be). Game thread
-    static TreeRecordFile::TreeRecord ReadTreeRecord();
+    // spell_tree_loadorder.json written (false when it could not be). Game thread
     static bool WriteTreeRecord(const TreeRecordFile::TreeRecord& record);
+    // A tree graft made the tree `loadOrder`'s (onTreeGrafted): the panel's "load order
+    // changed" line, decided before the graft, goes. Game thread
+    void NotifyTreeGrafted(const std::string& loadOrder);
     // The main menu opening (at start, or the player quitting a game) to the panel
     // (onMainMenuShown): a run held while a save was loaded goes on there. Once, after Initialize.
     void WatchMainMenu();

@@ -252,6 +252,32 @@ namespace
     }
 }
 
+namespace
+{
+    // A save over the tree the session's graft wrote, without some of the spells it added:
+    // the panel held an older copy (its updateTreeData did not arrive or was replaced).
+    // Logged only; the player's save still goes through. Game thread.
+    void WarnIfGraftDropped(const std::string& text)
+    {
+        const auto graft = LastTreeGraft();
+        if (graft.state != TreeGraftOutcome::State::kWritten || graft.writtenHash == 0 || graft.graftedFormIds.empty()) {
+            return;
+        }
+        const auto current = ReadTreeFileText(UIManager::GetTreeFilePath());
+        if (current.outcome != TreeFileRead::Ok || std::hash<std::string>{}(current.text) != graft.writtenHash) return;
+        std::size_t missing = 0;
+        std::string first;
+        for (const auto& id : graft.graftedFormIds) {
+            if (text.find("\"" + id + "\"") != std::string::npos) continue;
+            if (missing++ == 0) first = id;
+        }
+        if (missing > 0) {
+            logger::warn("UIManager: SaveSpellTree - this save drops {} of the {} spells the tree graft added at the main "
+                         "menu (first {}): the panel's tree was older than the file", missing, graft.graftedFormIds.size(), first);
+        }
+    }
+}
+
 void UIManager::SaveSpellTreeFromPanel(const char* argument, TreeSaveKind kind)
 {
     logger::info("UIManager: SaveSpellTree callback triggered{}",
@@ -302,6 +328,7 @@ void UIManager::SaveSpellTreeFromPanel(const char* argument, TreeSaveKind kind)
             instance->UpdateTreeStatus("Save failed");
             return;
         }
+        WarnIfGraftDropped(argStr);
 
         try {
             // Through a temp file and a move, keeping one .bak: this is the
