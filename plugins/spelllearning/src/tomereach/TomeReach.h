@@ -14,9 +14,9 @@
 #include "tomereach/TomeReachOutcome.h"
 
 #include <chrono>
+#include <cstdint>
 #include <functional>
 #include <string>
-#include <cstdint>
 #include <unordered_set>
 
 namespace TomeReach
@@ -54,4 +54,11 @@ namespace TomeReach
     // (TomeReachOutcome.h). The wait is on a thread of its own. False (logged) when no
     // thread could be made: `task` does not run.
     bool RunAfterPass(std::string name, std::function<void(PassOutcome outcome)> task);
+
+    // How the pass ended, for the scan record (ScanRecordRules::WithTomeReach):
+    // "ready", "failed:unreadable:<FNV of the sorted unreadable plugin names>",
+    // "failed:error" (it threw), "not started"; empty while it runs. A pass that
+    // fails the same way again gives the same key, so its scan stays recorded.
+    // Any thread.
+    std::string OutcomeKey();
 }

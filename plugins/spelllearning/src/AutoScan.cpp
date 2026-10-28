@@ -3,6 +3,7 @@
 #include "JsonText.h"
 #include "LoadOrderFingerprint.h"
 #include "ScanRecord.h"
+#include "ScanRecordRules.h"
 #include "SpellScanner.h"
 #include "SpellTomes.h"
 #include "ThreadUtils.h"
@@ -46,7 +47,7 @@ namespace
 {
     using Clock = std::chrono::steady_clock;
 
-    constexpr auto kTomeReachWait = std::chrono::seconds(30);
+    constexpr auto kTomeReachWait = std::chrono::seconds(30);   // between "still waiting" lines; the wait has no limit
     constexpr double kSliceDefaultMs = 4.0;          // game thread time of one step, at most (the marks step excepted)
     constexpr double kSliceMinMs = 0.5;
     constexpr double kSliceMaxMs = 50.0;
@@ -463,6 +464,16 @@ namespace
     // THE RUN (waiter thread)
     // =========================================================================
 
+    const char* CastersName(ScanRecordRules::Casters casters)
+    {
+        switch (casters) {
+            case ScanRecordRules::Casters::kNotRun: return "not collected";
+            case ScanRecordRules::Casters::kComplete: return "collected";
+            case ScanRecordRules::Casters::kFailed: return "FAILED";
+        }
+        return "unknown";
+    }
+
     // Why the scan does not run this session, or nothing: it goes on
     std::optional<std::string> Precondition(const LoadOrderFingerprint::Value& loadOrder, const Settings& settings)
     {
@@ -476,7 +487,8 @@ namespace
             return std::string("no tree with spells - left to the panel's build at game start");
         }
         if (!settings.selfTest && ScanRecord::CatalogMatches(loadOrder)) {
-            return std::format("skipped - load order unchanged ({}), the catalog is its scan's", loadOrder.hash);
+            return std::format("skipped - load order unchanged ({}, scan fingerprint {}), the catalog is its scan's",
+                loadOrder.hash, loadOrder.scan);
         }
         return std::nullopt;
     }
@@ -509,8 +521,15 @@ namespace
             logger::warn("{} the tome pairs were not read again before the scan (game thread did not answer) - a new "
                          "generation may restart the tome reach pass during it", kPrefix);
         }
-        if (!TomeReach::WaitUntilDone(kTomeReachWait)) {
-            logger::info("{} the tome reach pass is not done - the scan carries no tomeUnreachable marks", kPrefix);
+        // No limit: a scan before the pass ends carries no tomeUnreachable marks and is not
+        // recorded, so on a load order whose pass always took longer than a fixed limit every
+        // start would scan again. The pass always ends (TomeReach.cpp: Finish on every path).
+        // A save loaded meanwhile does not stop the wait: the form reads run during play too.
+        for (int waits = 1; TomeReach::OutcomeKey().empty(); ++waits) {
+            if (!TomeReach::WaitUntilDone(kTomeReachWait) && TomeReach::OutcomeKey().empty()) {
+                logger::info("{} still waiting for the tome reach pass ({} s)", kPrefix,
+                    waits * std::chrono::duration_cast<std::chrono::seconds>(kTomeReachWait).count());
+            }
         }
 
         if (const auto reason = Precondition(loadOrder, settings)) {
@@ -537,9 +556,9 @@ namespace
             return State::Idle;
         }
 
-        logger::info("{} load order {} ({} plugins, {} spell forms) is not the catalog's - scanning every spell "
-                     "(steps of {:.1f} ms, one a frame)", kPrefix, loadOrder.hash, loadOrder.plugins, loadOrder.spells,
-            settings.sliceMs);
+        logger::info("{} load order {} (scan fingerprint {}, {} plugins, {} spell forms) is not the catalog's - "
+                     "scanning every spell (steps of {:.1f} ms, one a frame)", kPrefix, loadOrder.hash, loadOrder.scan,
+            loadOrder.plugins, loadOrder.spells, settings.sliceMs);
 
         // The generation is the one the form reads start in: a save loaded before
         // them is no reason to drop them, one loaded during them is. A dropped run
@@ -585,9 +604,13 @@ namespace
         const auto textStarted = Clock::now();
         std::string chunkedDump;
         if (settings.selfTest) chunkedDump = ComparableDump(*output);
+        // A scan that could not mark everything still writes the catalog (better than the old one) but
+        // no record: the next game start scans again
+        const std::string incomplete = ScanRecordRules::IncompleteOf(*output);
         std::string text = JsonText::Dump(*output, 2);
         output.reset();
-        const bool wrote = Librarian::ClassifyScan(text, true, [&loadOrder]() { ScanRecord::CatalogWritten(&loadOrder); });
+        const bool wrote = Librarian::ClassifyScan(text, true,
+            [&loadOrder, &incomplete]() { ScanRecord::CatalogWritten(true, &loadOrder, incomplete); });
         const std::string dumpPath = SpellScanner::WriteScanOutput(text);
         // Both files are this scan's job: without the dump the next start does it again
         if (wrote && dumpPath.empty()) ScanRecord::Forget("spell_scan_output.json could not be written");
@@ -597,6 +620,11 @@ namespace
             dumpPath.empty() ? "spell_scan_output.json NOT written" : "scan output written to", dumpPath,
             MsSince(started) / 1000.0);
 
+        if (wrote && !incomplete.empty()) {
+            logger::warn("{} the catalog was written but not recorded ({}) - the next game start scans again",
+                kPrefix, incomplete);
+        }
+
         if (wrote && s_generation.load() != generation) {
             // Spell Research read the old catalog at that load; it reads the file again at the next one
             logger::info("{} a save was loaded during the scan - Spell Research takes the new catalog at the next "
@@ -605,8 +633,14 @@ namespace
 
         if (settings.selfTest) {
             TestCounts counts;
-            counts.Report("RUN", wrote && ScanRecord::CatalogMatches(loadOrder),
-                std::format("catalog written {}, record matches load order {}", wrote, loadOrder.hash));
+            // A complete scan leaves a record that matches, an incomplete one none
+            const bool matches = ScanRecord::CatalogMatches(loadOrder);
+            counts.Report("RUN", wrote && matches == incomplete.empty(),
+                std::format("catalog written {}, record matches scan fingerprint {} {} ({})", wrote, loadOrder.scan,
+                    matches, incomplete.empty() ? "complete scan" : "incomplete scan: " + incomplete));
+            counts.Report("COMPLETE", incomplete.empty(),
+                std::format("vampire casters {}, {}", CastersName(SpellScanner::VampireCastersState()),
+                    incomplete.empty() ? std::string("every mark made") : incomplete));
             const std::string treeAfter = FileFingerprint(kTreeFile);
             const std::string treeRecordAfter = FileFingerprint(kTreeRecordFile);
             counts.Report("TREE", treeAfter == treeBefore && treeRecordAfter == treeRecordBefore,

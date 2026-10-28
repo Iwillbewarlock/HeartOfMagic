@@ -4,6 +4,10 @@
 #include "tomereach/TomeReach.h"
 #include "tomereach/TomeReachConfig.h"
 #include "tomereach/TomeReachPass.h"
+#include "ScanRecordRules.h"
+
+#include <algorithm>
+#include <string>
 
 #include <chrono>
 #include <condition_variable>
@@ -35,6 +39,7 @@ namespace TomeReach
             std::unordered_set<RE::FormID> skippedBooks;   // ... left out: plugin not in the loaded set
             bool done = false;    // finished, well or not
             bool ready = false;   // finished well: `unreachable` holds the answer
+            std::string failure;  // finished without an answer: what failed, for OutcomeKey
             std::unordered_set<RE::FormID> unreachable;
         };
 
@@ -44,9 +49,9 @@ namespace TomeReach
             return result;
         }
 
-        // The pass is over, with an answer or without one. A pass of an older
-        // generation is dropped: a newer one runs (or ran) with other tomes.
-        void Finish(std::uint64_t generation, std::unordered_set<RE::FormID>* unreachable)
+        // The pass is over, with an answer or without one (then `failure` says what failed). A pass
+        // of an older generation is dropped: a newer one runs (or ran) with other tomes.
+        void Finish(std::uint64_t generation, std::unordered_set<RE::FormID>* unreachable, std::string failure = {})
         {
             auto& shared = Shared();
             {
@@ -59,6 +64,8 @@ namespace TomeReach
                 if (unreachable) {
                     shared.unreachable = std::move(*unreachable);
                     shared.ready = true;
+                } else {
+                    shared.failure = std::move(failure);
                 }
                 shared.done = true;
             }
@@ -94,7 +101,12 @@ namespace TomeReach
                 if (!pass.unreadable.empty()) {
                     logger::warn("TomeReach: {} plugins could not be read (first: {}) - no spell is marked, "
                                  "every tome counts", pass.unreadable.size(), pass.unreadable.front());
-                    Finish(job->generation, nullptr);
+                    // The same plugins fail the same way next start: their names make the outcome
+                    auto names = pass.unreadable;
+                    std::ranges::sort(names);
+                    std::string joined;
+                    for (const auto& name : names) joined += name + "\n";
+                    Finish(job->generation, nullptr, "unreadable:" + ScanRecordRules::HashText(joined));
                     return;
                 }
                 std::unordered_set<RE::FormID> unreachable;
@@ -116,11 +128,11 @@ namespace TomeReach
                 Finish(job->generation, &unreachable);
             } catch (const std::exception& e) {
                 logger::warn("TomeReach: the pass failed ({}) - no spell is marked", e.what());
-                Finish(job->generation, nullptr);
+                Finish(job->generation, nullptr, "error");
             } catch (...) {
                 // Whatever went wrong, a scan waiting for the pass must not wait on
                 logger::warn("TomeReach: the pass failed - no spell is marked");
-                Finish(job->generation, nullptr);
+                Finish(job->generation, nullptr, "error");
             }
         }
     }
@@ -176,6 +188,7 @@ namespace TomeReach
             shared.skippedBooks = std::move(skippedBooks);
             shared.done = false;
             shared.ready = false;
+            shared.failure.clear();
             shared.unreachable.clear();
         }
         try {
@@ -185,6 +198,7 @@ namespace TomeReach
             {
                 // A scan already waiting on an earlier pass must not wait on
                 std::lock_guard guard(shared.lock);
+                shared.failure = "no thread";
                 shared.done = true;
             }
             shared.changed.notify_all();
@@ -263,6 +277,15 @@ namespace TomeReach
             logger::warn("TomeReach: no thread to wait for the pass ({}) - '{}' does not run after it", e.what(), name);
             return false;
         }
+    }
+
+    std::string OutcomeKey()
+    {
+        auto& shared = Shared();
+        std::lock_guard guard(shared.lock);
+        if (!shared.started) return "not started";
+        if (!shared.done) return {};
+        return shared.ready ? std::string("ready") : "failed:" + shared.failure;
     }
 
     bool UnreachableSpells(std::unordered_set<RE::FormID>& out)

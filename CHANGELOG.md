@@ -10,7 +10,13 @@
   the spell tree or your progress: new spells join the tree only when you build it again on the Scan tab, as
   before. Perk overhauls see the new spells from the next game start, Spell Research at the next save load. It
   does not run with "Build Spell Tree at Start" set to Off, or when there is no tree yet (the build at game start
-  scans then). The first start after updating scans once.
+  scans then). The first start after updating scans once. A scan that could not mark everything (the check for
+  spell tomes nothing hands out still running, or the read of which spells vampires cast failed)
+  still updates the catalog but scans again at the next start. A change to `gate/rules.json` also makes a scan
+  due, and so does a mod updated under the same file name, as far as the game reports the plugin's new size or
+  date (the log's `LoadOrderFingerprint:` line says where those came from). The scan waits for that tome check
+  however long it takes; when the check fails because a plugin cannot be read, the scan is kept until that
+  changes rather than repeated at every start.
 
 - **Experimental: spell tomes changed by SpellScribe count as spell tomes.** This is an experimental
   compatibility add-on. SpellScribe (through SkyPatcher) turns off the "teaches spell" flag on the spell tomes of

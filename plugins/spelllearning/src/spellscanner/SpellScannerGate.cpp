@@ -5,11 +5,15 @@
 #include "FormIdBits.h"
 #include "JsonText.h"
 #include "librarian/LibrarianInternal.h"
+#include "ScanRecordRules.h"
 #include "SpellScanner.h"
 
+#include <filesystem>
 #include <fstream>
 #include <mutex>
 #include <set>
+#include <sstream>
+#include <system_error>
 
 // =============================================================================
 // SPELL GATE - is a tome spell a player's spell? (docs/librarian/ToDo.md, M9)
@@ -185,6 +189,24 @@ namespace SpellScanner
     bool IsFreeSpell(RE::SpellItem* spell)
     {
         return spell && spell->CalculateMagickaCost(nullptr) < kFreeSpellCost;
+    }
+
+    std::string GateRulesFileHash()
+    {
+        std::error_code ec;
+        if (!std::filesystem::exists(kRulesPath, ec) && !ec) return std::string(ScanRecordRules::kNoGateRules);
+        std::ifstream file(kRulesPath, std::ios::binary);
+        if (!file.is_open()) {
+            logger::warn("SpellGate: could not open {} to fingerprint it - the scan record is not kept", kRulesPath);
+            return {};
+        }
+        std::ostringstream bytes;
+        bytes << file.rdbuf();
+        if (file.bad()) {
+            logger::warn("SpellGate: could not read {} to fingerprint it - the scan record is not kept", kRulesPath);
+            return {};
+        }
+        return ScanRecordRules::HashText(std::move(bytes).str());
     }
 
     GateVerdict JudgeSpell(RE::SpellItem* spell)

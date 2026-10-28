@@ -1929,7 +1929,10 @@ the catalog was made from (`src/AutoScan.cpp`, `include/AutoScan.h`; design:
   while the worker part ran has Spell Research on the old catalog until the save after it (logged); calling
   `OnCatalogChanged` then would write its form lists during play and stop the game for it.
 - **When:** the first main menu of a session (its own `MenuOpenCloseEvent` sink, installed at kDataLoaded, so
-  it works without PrismaUI; when the main menu is already open at kDataLoaded it starts from there), after the tome reach pass (30 s at most), when all of these hold:
+  it works without PrismaUI; when the main menu is already open at kDataLoaded it starts from there), after the tome reach pass (no time limit since 2026-10-27, a "still waiting" line every 30 s; a save loaded
+  meanwhile does not stop the wait - the pass always ends, and a scan before it would be incomplete and so not
+  recorded, which on a load order whose pass takes longer than a limit would scan at every start), when all of
+  these hold:
   config.json's `autoBuild` is not `"off"` (the "Build Spell Tree at Start" setting; a config.json that does
   not parse: nothing), `spell_tree.json` has spells (`TreeSaveCheck::HasSpellNodes`; without them the panel's
   build at game start scans, so it is left to that - no second scan at the same main menu), the scan record
@@ -1938,9 +1941,31 @@ the catalog was made from (`src/AutoScan.cpp`, `include/AutoScan.h`; design:
   queued and runs after it, `EndScan`; Papyrus `RunScan` does not use that flag - no script runs at the main
   menu, and a save load drops the form reads). Otherwise nothing this session, or - another scan running,
   form reads dropped - again at the next main menu.
-- **The scan record** (`ScanRecord.h`): `{ version, loadOrder, plugins, spells, catalogBytes, catalogHash, rules }`,
-  the load order fingerprint (`LoadOrderFingerprint.h`, the one the tree's notice uses, moved out of
-  UIManagerAutoBuild.cpp), FNV-1a 64 of the catalog file (read back up to three times, 25 ms apart) and of
+- **The scan record** (`ScanRecord.h`): `{ version: 2, loadOrder, scan, tomeReach, plugins, spells, catalogBytes,
+  catalogHash, rules }`, the load order fingerprint (`LoadOrderFingerprint.h`, the one the tree's notice uses,
+  moved out of UIManagerAutoBuild.cpp) and the fingerprint `scan`, which is what matches
+  (`ScanRecordRules::RecordFits`, 2026-10-27): `LoadOrderFingerprint::Value::scan` (`ScanRecordRules::ScanHash`)
+  joined to the tome reach pass's outcome (`TomeReach::OutcomeKey`: `ready`, `failed:unreadable:<FNV of the
+  sorted unreadable plugin names>`, `failed:error`, `not started`; `WithTomeReach`), so a pass that fails the same
+  way every start keeps the record and one that reads those plugins again makes a scan due. `Value::scan` is the
+  load order fingerprint with each plugin's file size and last-write time - per plugin, the engine's
+  `TESFile::fileData` find data when its file name is the plugin's and its values are not all zero (nothing read
+  from disk), a stat of `TESFile::path` + name, then `Data/` + name, otherwise; the log line `LoadOrderFingerprint:
+  plugin sizes and write times of N plugins: N from the engine's find data, N from the files on disk (N not
+  found)` counts each. Limit: a plugin updated under the same name is seen only through those values; whether the
+  find data holds them in game is read from that line. Then FNV-1a 64 of `gate/rules.json` (`"none"` without it) and
+  `ScanRecordRules::kScannerFormatVersion`, so a plugin updated under the same name, new gate rules or a scanner
+  whose output changed make a scan due; the tree's record keeps the plain fingerprint (a re-saved plugin is no
+  reason for its notice). A record of another `version` never matches (version 1 records scan once). A full
+  scan that could not mark everything - the tome reach pass still running when its marks step ran (no
+  `tomeUnreachable`; a failed pass is an answer, in the fingerprint above), or this session's collection of the
+  spells vampires cast failed (no `castByVampires`; `SpellScanner::VampireCastersState`; an NPC that faults is
+  skipped - the first 10 logged with their FormIDs, the rest counted - and the rest are read; more than half of
+  them skipped is a failed collection, `CasterWalkFailed`; the race and template caches take an entry only once
+  it is worked out whole) - lists why in the scan output's top-level `incomplete` array (`ScanRecordRules.h`, set by
+  `FullScanCollector::Finish`); every full-scan path (the scan at game start, the panel's full scan, Papyrus
+  `RunScan("all", ...)`) reads it before the dump and still writes the catalog, but `CatalogWritten` removes
+  the record (`DecideRecord`), so the next game start scans again. FNV-1a 64 of the catalog file (read back up to three times, 25 ms apart) and of
   `CATALOG_VERSION` with the librarian's rule files (`librarian/`, names and bytes): new rules from an update or
   a rule pack make a scan due under the same load order. The scan at game start removes the record again when
   it could not write `spell_scan_output.json`. Limit: the rules are hashed from disk after the catalog was
@@ -1978,8 +2003,9 @@ the catalog was made from (`src/AutoScan.cpp`, `include/AutoScan.h`; design:
   `catalog written in N ms; scan output written to ...`, and `ScanRecord: ...`.
 - **Self-test** (dev installs, `selftest.json` `"autoScan": { "enabled": true, "sliceMs": 4, "budgetMs": 25 }`,
   shipped in `debug/selftest.json` for `DeployDev.ps1 -WithSelfTest`): the scan runs whatever the record says,
-  and `AutoScan SELFTEST:` lines judge it - `RUN` (catalog written, record matches), `TREE` (FNV of
-  spell_tree.json and spell_tree_loadorder.json before and after), `HITCH` (a probe thread posts a task every
+  and `AutoScan SELFTEST:` lines judge it - `RUN` (catalog written; the record matches after a complete scan
+  and is gone after an incomplete one), `COMPLETE` (nothing missing from the scan; names the vampire caster
+  collection's state and the `incomplete` reasons), `TREE` (FNV of spell_tree.json and spell_tree_loadorder.json before and after), `HITCH` (a probe thread posts a task every
   2 ms that reads the engine frame time: the longest frame during the scan against the longest of 3 s at the
   main menu before it, plus `budgetMs`, and no step forced; SKIP when the frame time never moved), `SAME` (the steps' scan equals
   one `CollectAllSpells` in a single task, timestamp blanked - that task freezes the game for its length, after

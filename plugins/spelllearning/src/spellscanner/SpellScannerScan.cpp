@@ -149,6 +149,7 @@ namespace SpellScanner
         std::size_t lost = 0;   // kept spells no longer found by FormID in a later step
         std::uint64_t pairsGeneration = 0;   // SpellTomes' generation the marks were made with (Marks)
         std::size_t pairsCount = 0;          // and its paired tomes
+        bool tomeReachAnswered = false;   // the tome reach pass had ended at the marks step (ready or failed)
 
         std::size_t steps = 0;
         double longestMs = 0.0;
@@ -370,8 +371,10 @@ namespace SpellScanner
             pairsCount = status.paired;
         }
         taught = SpellsTaughtByTomes();
+        // The outcome first: a pass that ends between the two calls then counts as not done
+        tomeReachAnswered = !TomeReach::OutcomeKey().empty();
         if (!TomeReach::UnreachableSpells(unreachable)) {
-            logger::info("SpellScanner: the tome reach pass has not finished - no spell is marked tomeUnreachable");
+            logger::info("SpellScanner: the tome reach pass has no answer (still running, or failed) - no spell is marked tomeUnreachable");
         }
         LogSpellsOutOfTree(spells, taught, unreachable);
         duplicates = FindDuplicateSpells(spells, taught, unreachable);
@@ -467,7 +470,9 @@ namespace SpellScanner
     json FullScanCollector::Finish()
     {
         auto& st = *m_state;
-        json output = BuildScanOutput(std::move(st.spellArray), st.config, {});
+        auto output = BuildScanOutput(std::move(st.spellArray), st.config, {});
+        // What this scan could not mark: its catalog is not recorded (ScanRecordRules.h)
+        ScanRecordRules::MarkIncomplete(output, ScanRecordRules::IncompleteReasons(st.tomeReachAnswered, VampireCastersState()));
         // The marks were made with the pairs Marks read; a change after them (a Spell Research Import between
         // frames) is judged against those, and the panel told when the scan is stale
         SpellTomes::NoteFullScanOf(st.pairsGeneration, st.pairsCount);

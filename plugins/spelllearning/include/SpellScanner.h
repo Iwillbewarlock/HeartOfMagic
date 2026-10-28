@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Common.h"
+#include "ScanRecordRules.h"
 
 #include <nlohmann/json.hpp>
 
@@ -179,6 +180,9 @@ namespace SpellScanner
     // True when a vampire NPC carries the spell (SpellScannerCasters.cpp) -
     // the tag librarian reads it as evidence of blood magic.
     bool IsCastByVampires(RE::FormID spellFormId);
+    // How this session's collection behind IsCastByVampires went (collected
+    // once, at its first call): kNotRun before that. Any thread.
+    ScanRecordRules::Casters VampireCastersState() noexcept;
 
     // What the tree goes by (SpellScannerCopies.cpp): the scan keeps every spell
     // and marks taughtByTome, voiceSlot, freeSpell, tomeUnreachable (TomeReach) and
@@ -216,6 +220,10 @@ namespace SpellScanner
     bool GateLeavesOut(RE::SpellItem* spell, const std::unordered_set<std::string>& kept);
     // The scan's marks: freeSpell, and "gate": {band, reasons} unless the band is "in"
     void MarkGate(json& spellJson, RE::SpellItem* spell);
+    // FNV-1a 64 of gate/rules.json's bytes for the scan record's fingerprint
+    // (ScanRecordRules.h): "none" without the file, empty when it is there but
+    // cannot be read (then no record is kept). Any thread; reads the file each call.
+    std::string GateRulesFileHash();
 
     // Logs, by kind, the scanned spells the tree leaves out: voice slot spells,
     // spells whose tomes nothing hands out (TomeReach), and among those no tome

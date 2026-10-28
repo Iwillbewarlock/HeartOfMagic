@@ -3,6 +3,7 @@
 #include "EncodingUtils.h"
 #include "LoadOrderFingerprint.h"
 #include "ScanRecord.h"
+#include "ScanRecordRules.h"
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
 #include "SpellScanner.h"
@@ -245,6 +246,8 @@ std::string UIManager::PrepareScanText(json&& output, bool tomeScan)
     // Worker thread: what is in here takes strings and files, never a game form.
     // Librarian::ClassifyScan is the code the offline harness links without the
     // game (tools/CMakeLists.txt); it serializes itself against a Papyrus RunScan.
+    // What the scan could not mark: its catalog is written but not recorded (ScanRecordRules.h)
+    const std::string incomplete = tomeScan ? std::string() : ScanRecordRules::IncompleteOf(output);
     std::string result = JsonText::Dump(output, 2);
     output = json();  // the parsed copy is 50-100 MB on a large load order
 
@@ -255,8 +258,8 @@ std::string UIManager::PrepareScanText(json&& output, bool tomeScan)
     // the result as it was rather than interrupting the scan.
     // The scan record follows the catalog file: a full scan's load order, or none
     // after a tome scan wrote it (ScanRecord.h; the fingerprint was worked out in CollectScan)
-    Librarian::ClassifyScan(result, true, [tomeScan]() {
-        ScanRecord::CatalogWritten(tomeScan ? nullptr : LoadOrderFingerprint::Known());
+    Librarian::ClassifyScan(result, true, [tomeScan, &incomplete]() {
+        ScanRecord::CatalogWritten(!tomeScan, LoadOrderFingerprint::Known(), incomplete);
     });
 
     // Debug installs keep the full scan for offline analysis, as Papyrus RunScan does
