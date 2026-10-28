@@ -1,7 +1,7 @@
 // graft-run-check, its record part (graft-run-check.cpp runs these): the scan dump the
 // graft reads is the one the scan record names (ScanRecordRules.h), the seen list kept in
 // the tree record before the catalog is replaced, and the journal that keeps the record
-// with the tree (uimanager/TreeGraftRecord.h).
+// with the tree, and the record after an edit save dropped grafted nodes (uimanager/TreeGraftRecord.h).
 
 #include "Common.h"
 
@@ -82,6 +82,31 @@ namespace GraftRunRecordCases
         check.Check(TreeGraftRun::BaselineOf(*seeded, std::nullopt).source == TreeGraftRun::SeenSource::kRecord,
             "a graft after that takes them from the record (the catalog may be gone)");
         check.Check(!TreeGraftRun::SeededRecord(record, Json{ { "spells", Json::object() } }), "a catalog without spells: none");
+        return check.failed;
+    }
+
+    int LostCase()
+    {
+        std::printf("an edit save that dropped grafted nodes (Ruling 23)\n");
+        Checker check;
+        TreeRecord record;   // as a complete graft left it
+        record.loadOrder = "new";
+        record.plugins = 210;
+        record.spells = 4000;
+        record.hasSeen = true;
+        record.seen = { "Skyrim.esm|0x012FCD", "NewMod.esp|0x000801", "NewMod.esp|0x000802", "NewMod.esp|0x000803" };
+        record.pendingGrafted = 2;
+        record.extra = { { "later", 1 } };
+        const auto after = TreeGraftRun::RecordAfterLostGraft(record, { "newmod.esp|0x000801" }, { "old", 200, 3900 });
+        check.Check(after.seen == std::vector<std::string>{ "Skyrim.esm|0x012FCD", "NewMod.esp|0x000802", "NewMod.esp|0x000803" } &&
+                        after.hasSeen,
+            "the lost spell leaves the seen list (any case); the others stay");
+        check.Check(after.loadOrder == "old" && after.plugins == 200 && after.spells == 3900,
+            "the load order back to the record's before the graft: the next start grafts it again");
+        check.Check(after.pendingGrafted == 1 && after.extra.contains("later"), "one fewer to tell about; other fields kept");
+        const auto none = TreeGraftRun::RecordAfterLostGraft(record, { "A.esp|0x1", "B.esp|0x2", "C.esp|0x3" }, {});
+        check.Check(none.pendingGrafted == 0 && none.seen.size() == 4 && none.loadOrder.empty(),
+            "more lost than told: zero, not below; ids not in the list change nothing; no record before: no load order");
         return check.failed;
     }
 

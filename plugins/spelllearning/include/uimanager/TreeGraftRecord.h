@@ -4,6 +4,7 @@
 #include "ScanRecordRules.h"
 #include "uimanager/TreeRecord.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <optional>
 #include <string>
@@ -71,6 +72,28 @@ namespace TreeGraftRun
             record.spells = spells;
             record.noticedLoadOrder.clear();   // the tree is this load order's now
         }
+        return record;
+    }
+
+    /// An edit save from a panel that held the tree from before the graft dropped grafted
+    /// nodes (Ruling 23): their spells (`lost`, persistentIds) leave the seen list (A-Z
+    /// folded) and pendingGrafted, and the load order goes back to the record's before the
+    /// graft (`held`), so the next start grafts them again
+    struct HeldLoadOrder
+    {
+        std::string loadOrder;
+        std::size_t plugins = 0, spells = 0;
+    };
+    [[nodiscard]] inline TreeRecordFile::TreeRecord RecordAfterLostGraft(TreeRecordFile::TreeRecord record,
+        const std::vector<std::string>& lost, const HeldLoadOrder& held)
+    {
+        std::unordered_set<std::string> gone;
+        for (const auto& id : lost) gone.insert(AsciiText::ToLower(id));
+        std::erase_if(record.seen, [&gone](const std::string& id) { return gone.contains(AsciiText::ToLower(id)); });
+        record.pendingGrafted -= (std::min)(record.pendingGrafted, lost.size());
+        record.loadOrder = held.loadOrder;
+        record.plugins = held.plugins;
+        record.spells = held.spells;
         return record;
     }
 

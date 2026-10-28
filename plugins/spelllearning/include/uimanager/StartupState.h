@@ -123,6 +123,9 @@ struct TreeGraftOutcome
     std::size_t writtenHash = 0;   // std::hash of the tree text written (0: none)
     std::string detail;            // why it did not run, what it did, or what failed
     std::vector<std::string> graftedFormIds;   // the grafted nodes' formIds (kWritten with a tree write)
+    std::vector<std::string> graftedPersistentIds;   // theirs, same order: the seen list's ids
+    std::string priorLoadOrder;                // the record's load order before the graft (with its counts)
+    std::size_t priorPlugins = 0, priorSpells = 0;
 };
 TreeGraftOutcome LastTreeGraft();
 

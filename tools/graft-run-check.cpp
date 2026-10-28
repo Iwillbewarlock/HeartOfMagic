@@ -41,6 +41,7 @@ namespace GraftRunRecordCases
     int DumpCase();
     int SeedCase();
     int JournalCase();
+    int LostCase();
 }
 
 namespace
@@ -565,7 +566,7 @@ namespace
     {
         const std::vector<int (*)()> cases = { TriggerCase, RulesCase, BaselineCase, RecordCase, RefreshCase, LiveScanCase,
             DeclutterCase, VerifyCase, EndToEndCase, GraftRunRecordCases::DumpCase, GraftRunRecordCases::SeedCase,
-            GraftRunRecordCases::JournalCase };
+            GraftRunRecordCases::JournalCase, GraftRunRecordCases::LostCase };
         int failedCases = 0;
         for (auto* run : cases) {
             try {

@@ -256,25 +256,37 @@ namespace
 {
     // A save over the tree the session's graft wrote, without some of the spells it added:
     // the panel held an older copy (its updateTreeData did not arrive or was replaced).
-    // Logged only; the player's save still goes through. Game thread.
-    void WarnIfGraftDropped(const std::string& text)
+    // The player's save still goes through; the lost spells' persistentIds come back for
+    // the record (an edit save: ForgetLostGraftedSpells, Ruling 23). Game thread.
+    struct LostGraft
     {
-        const auto graft = LastTreeGraft();
+        std::vector<std::string> persistentIds;
+        TreeGraftOutcome graft;
+    };
+    LostGraft GraftedSpellsDropped(const std::string& text)
+    {
+        LostGraft lost{ {}, LastTreeGraft() };
+        const auto& graft = lost.graft;
         if (graft.state != TreeGraftOutcome::State::kWritten || graft.writtenHash == 0 || graft.graftedFormIds.empty()) {
-            return;
+            return lost;
         }
         const auto current = ReadTreeFileText(UIManager::GetTreeFilePath());
-        if (current.outcome != TreeFileRead::Ok || std::hash<std::string>{}(current.text) != graft.writtenHash) return;
+        if (current.outcome != TreeFileRead::Ok || std::hash<std::string>{}(current.text) != graft.writtenHash) return lost;
         std::size_t missing = 0;
         std::string first;
-        for (const auto& id : graft.graftedFormIds) {
+        for (std::size_t i = 0; i < graft.graftedFormIds.size(); ++i) {
+            const auto& id = graft.graftedFormIds[i];
             if (text.find("\"" + id + "\"") != std::string::npos) continue;
             if (missing++ == 0) first = id;
+            if (i < graft.graftedPersistentIds.size() && !graft.graftedPersistentIds[i].empty()) {
+                lost.persistentIds.push_back(graft.graftedPersistentIds[i]);
+            }
         }
         if (missing > 0) {
             logger::warn("UIManager: SaveSpellTree - this save drops {} of the {} spells the tree graft added at the main "
                          "menu (first {}): the panel's tree was older than the file", missing, graft.graftedFormIds.size(), first);
         }
+        return lost;
     }
 }
 
@@ -328,7 +340,7 @@ void UIManager::SaveSpellTreeFromPanel(const char* argument, TreeSaveKind kind)
             instance->UpdateTreeStatus("Save failed");
             return;
         }
-        WarnIfGraftDropped(argStr);
+        const auto lost = GraftedSpellsDropped(argStr);
 
         try {
             // Through a temp file and a move, keeping one .bak: this is the
@@ -340,6 +352,11 @@ void UIManager::SaveSpellTreeFromPanel(const char* argument, TreeSaveKind kind)
                 logger::info("UIManager: Saved spell tree to {} (spell check {} ms, written in {} ms)", PathText::Utf8(treePath),
                     *checkMs, MsSince(writeStarted));
                 updateRecord();
+                // A build or Import writes its own record; an edit save gives the lost grafted spells back
+                if (kind == TreeSaveKind::Edit && !lost.persistentIds.empty()) {
+                    instance->ForgetLostGraftedSpells(lost.persistentIds, lost.graft.priorLoadOrder,
+                        lost.graft.priorPlugins, lost.graft.priorSpells);
+                }
                 instance->UpdateTreeStatus("Tree saved");
             } else {
                 instance->UpdateTreeStatus("Save failed");

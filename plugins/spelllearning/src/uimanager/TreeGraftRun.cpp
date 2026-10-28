@@ -132,22 +132,21 @@ namespace
         return TreeRecordFile::ParseTreeRecord(data);
     }
 
-    // The grafted spells' node formIds (after each school's nodes before the graft)
-    std::vector<std::string> GraftedFormIds(const TreeGraftRun::Plan& plan)
+    // The grafted spells' node formIds and persistentIds (after each school's nodes before the graft)
+    void SetGraftedIds(const TreeGraftRun::Plan& plan, Outcome& outcome)
     {
-        std::vector<std::string> ids;
-        if (!plan.tree.contains("schools") || !plan.tree["schools"].is_object()) return ids;
+        if (!plan.tree.contains("schools") || !plan.tree["schools"].is_object()) return;
         for (const auto& [name, school] : plan.tree["schools"].items()) {
             if (!school.is_object() || !school.contains("nodes") || !school["nodes"].is_array()) continue;
             const auto pre = plan.preCounts.find(name);
             const auto& nodes = school["nodes"];
             for (std::size_t i = pre != plan.preCounts.end() ? pre->second : nodes.size(); i < nodes.size(); ++i) {
                 if (nodes[i].is_object() && nodes[i].contains("formId") && nodes[i]["formId"].is_string()) {
-                    ids.push_back(nodes[i]["formId"].get<std::string>());
+                    outcome.graftedFormIds.push_back(nodes[i]["formId"].get<std::string>());
+                    outcome.graftedPersistentIds.push_back(TreeGraftRun::Detail::Text(nodes[i], "persistentId"));
                 }
             }
         }
-        return ids;
     }
 
     // Game thread: the plan written, applied and sent. Sets the outcome itself.
@@ -184,7 +183,10 @@ namespace
             }
             outcome.wrote = true;
             outcome.writtenHash = std::hash<std::string>{}(text);
-            outcome.graftedFormIds = GraftedFormIds(plan);
+            SetGraftedIds(plan, outcome);
+            outcome.priorLoadOrder = read.record.loadOrder;
+            outcome.priorPlugins = read.record.plugins;
+            outcome.priorSpells = read.record.spells;
             logger::info("{} spell_tree.json written with {} new spells ({} bytes, the old file kept as .bak)", kPrefix,
                 plan.grafted.size(), text.size());
         }

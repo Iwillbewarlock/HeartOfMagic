@@ -5,6 +5,7 @@
 #include "LoadOrderFingerprint.h"
 #include "PathText.h"
 #include "ThreadUtils.h"
+#include "uimanager/TreeGraftRecord.h"
 #include "uimanager/TreeRecord.h"
 #include "uimanager/TreeSaveCheck.h"
 #include "uimanager/UIManager.h"
@@ -219,6 +220,21 @@ void UIManager::ForgetSeenSpells()
     WriteRecord(record);
     logger::info("UIManager: imported spell tree - the record's seen list (another build's) and its count of grafted "
                  "spells to tell about dropped");
+}
+
+void UIManager::ForgetLostGraftedSpells(const std::vector<std::string>& lost, const std::string& heldLoadOrder,
+    std::size_t heldPlugins, std::size_t heldSpells)
+{
+    if (lost.empty()) return;
+    const auto record = TreeGraftRun::RecordAfterLostGraft(ReadRecord(), lost, { heldLoadOrder, heldPlugins, heldSpells });
+    if (!WriteRecord(record)) {
+        logger::warn("TreeGraft: the {} dropped grafted spells stay in the seen list (the record was not written) - a "
+                     "rebuild places them", lost.size());
+        return;
+    }
+    logger::info("TreeGraft: {} grafted spells the panel's save dropped (first {}) left the seen list; the record's load "
+                 "order is {} again, so the next game start grafts them again", lost.size(), lost.front(),
+        heldLoadOrder.empty() ? "unknown" : heldLoadOrder);
 }
 
 void UIManager::ShowPendingLoadOrderNotice()
