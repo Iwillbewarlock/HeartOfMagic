@@ -2,6 +2,7 @@
 
 #include "LoadOrderFingerprint.h"
 
+#include <string>
 #include <string_view>
 
 // =============================================================================
@@ -36,8 +37,9 @@ namespace ScanRecord
     // marked everything under a known fingerprint (DecideRecord), and removed
     // otherwise, with the reason logged. Any thread; logs its own failures.
     // `scanPairs`: the tome pairs key the scan's marks read (ScanRecordRules::TomePairsOf of its
-    // output); recorded only when the installed pairs still give it.
-    void CatalogWritten(bool fullScan, const LoadOrderFingerprint::Value* loadOrder, std::string_view incomplete = {},
+    // output); recorded only when the installed pairs still give it. Returns the record's
+    // writeId (empty: no record written), for DumpWritten.
+    std::string CatalogWritten(bool fullScan, const LoadOrderFingerprint::Value* loadOrder, std::string_view incomplete = {},
         std::string_view scanPairs = {}) noexcept;
 
     // The record removed (the scan at game start could not write its dump): the
@@ -45,9 +47,14 @@ namespace ScanRecord
     void Forget(const char* why) noexcept;
 
     // The scan at game start wrote `dumpText` to spell_scan_output.json: its size and hash go
-    // into the record a full scan just wrote (ScanRecordRules::MarkDump). Nothing without a
-    // record. Any thread; logs its own failures.
-    void DumpWritten(std::string_view dumpText) noexcept;
+    // into the record its CatalogWritten wrote (`writeId`), under the lock the record's writers
+    // share; nothing when another scan has written the record since (ScanRecordRules::
+    // MarkDumpIfOwn) or there is none. Any thread; logs its own failures.
+    void DumpWritten(std::string_view writeId, std::string_view dumpText) noexcept;
+
+    // The load order the record says the catalog was made under (empty: no readable record).
+    // Any thread.
+    [[nodiscard]] std::string RecordedLoadOrder() noexcept;
 
     // `dumpText` (spell_scan_output.json as read) is the dump of the scan the record is for
     // (ScanRecordRules::DumpFits). Any thread; false when the record is missing or unreadable.

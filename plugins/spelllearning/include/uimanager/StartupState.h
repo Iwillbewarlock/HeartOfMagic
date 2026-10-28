@@ -85,8 +85,16 @@ std::optional<std::string> ApplyTreeState(const PanelTree& tree, std::string_vie
 /// writes nothing when it does not run or fails. Not on the game thread (it waits on it).
 void RunTreeGraftAtMainMenu(const LoadOrderFingerprint::Value& loadOrder, const std::optional<nlohmann::json>& previousCatalog);
 
+/// A graft journal an earlier start left in spell_tree_loadorder.json (TreeGraftRecord.h):
+/// its record written when the tree on disk is the one it was for, else the old record -
+/// only when neither file changed since they were read (a game thread task it waits for);
+/// a journal that makes the record this load order's also tells the panel (onTreeGrafted).
+/// AutoScan calls it first thing, whatever else runs. Not on the game thread.
+void ResolveTreeGraftJournal(const LoadOrderFingerprint::Value& loadOrder);
+
 /// Before the scan at game start replaces spell_catalog.json: when the tree record has no seen
-/// list and is not `loadOrder`'s (a graft may run), the catalog's spells are written into the
+/// list and is not `loadOrder`'s (a graft may run), and the scan record says the catalog is
+/// another known load order's, the catalog's spells are written into the
 /// record as its seen list (a game thread task it waits for), so a graft dropped this start
 /// still has them. The catalog is parsed only then; it is returned only when that write
 /// failed (this start's graft takes it from memory). Not on the game thread.

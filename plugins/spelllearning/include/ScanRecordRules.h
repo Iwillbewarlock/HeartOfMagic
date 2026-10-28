@@ -204,11 +204,24 @@ namespace ScanRecordRules
     // field and no dump on disk counts as its scan's (the tree graft reads the dump).
     inline constexpr const char* kDumpBytesField = "dumpBytes";
     inline constexpr const char* kDumpHashField = "dumpHash";
+    // Each record write's own mark (CatalogWritten): the dump goes only into its scan's record
+    inline constexpr const char* kWriteIdField = "writeId";
 
     inline void MarkDump(nlohmann::json& record, std::string_view dumpText)
     {
         record[kDumpBytesField] = dumpText.size();
         record[kDumpHashField] = HashText(dumpText);
+    }
+
+    // MarkDump, only when the record is the one `writeId`'s write made (a Papyrus or panel
+    // scan may have written another since): whether it was marked
+    inline bool MarkDumpIfOwn(nlohmann::json& record, std::string_view writeId, std::string_view dumpText)
+    {
+        if (writeId.empty() || !record.is_object()) return false;
+        const auto own = record.find(kWriteIdField);
+        if (own == record.end() || !own->is_string() || own->get<std::string>() != writeId) return false;
+        MarkDump(record, dumpText);
+        return true;
     }
 
     // `dumpText` is the dump the record names (false for a record without the fields)

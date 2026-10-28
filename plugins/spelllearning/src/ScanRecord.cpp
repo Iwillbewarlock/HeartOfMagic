@@ -9,11 +9,13 @@
 #include "tomereach/TomeReach.h"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <thread>
@@ -150,6 +152,11 @@ namespace
         return ScanRecordRules::WithTomePairs(ScanRecordRules::WithTomeReach(loadOrder.scan, TomeReach::OutcomeKey()), pairsKey);
     }
 
+    // The record's writers (a full scan's catalog, the scan at game start's dump, a removal)
+    // one at a time: the dump goes only into the record its scan wrote
+    std::mutex s_recordMutex;
+    std::atomic<std::uint64_t> s_writeCount{ 0 };
+
     void RemoveRecord(const char* why)
     {
         std::error_code ec;
@@ -163,23 +170,27 @@ namespace
 
 namespace ScanRecord
 {
-    void CatalogWritten(bool fullScan, const LoadOrderFingerprint::Value* loadOrder, std::string_view incomplete,
+    std::string CatalogWritten(bool fullScan, const LoadOrderFingerprint::Value* loadOrder, std::string_view incomplete,
         std::string_view scanPairs) noexcept
     {
         try {
+            std::lock_guard lock(s_recordMutex);
             const std::string pairsKey = loadOrder && fullScan ? WrittenPairsKey(scanPairs) : std::string();
             const std::string fingerprint = loadOrder ? RecordFingerprint(*loadOrder, pairsKey) : std::string();
             const auto decision = ScanRecordRules::DecideRecord(fullScan,
                 loadOrder ? std::string_view(loadOrder->hash) : std::string_view(), fingerprint, incomplete);
             if (decision.action != ScanRecordRules::RecordAction::kWrite) {
                 RemoveRecord(decision.why.c_str());
-                return;
+                return {};
             }
             const auto catalog = HashFile(kCatalogFile);
             if (!catalog) {
                 RemoveRecord("the catalog just written could not be read back");
-                return;
+                return {};
             }
+            // This write's own mark: a later writer's record has another (DumpWritten)
+            const auto writeId = std::format("{}-{:x}-{}", loadOrder->hash,
+                std::chrono::steady_clock::now().time_since_epoch().count(), ++s_writeCount);
             nlohmann::json data;
             data["version"] = kRecordVersion;
             data["loadOrder"] = loadOrder->hash;
@@ -191,38 +202,46 @@ namespace ScanRecord
             data["catalogBytes"] = catalog->bytes;
             data["catalogHash"] = catalog->hash;
             data["rules"] = RulesFingerprint();
+            data[ScanRecordRules::kWriteIdField] = writeId;
             if (!FileUtils::WriteAtomically(kRecordFile, JsonText::Dump(data, kRecordIndent), false)) {
                 logger::warn("ScanRecord: could not write {} - the next game start scans again", kRecordFile);
                 RemoveRecord("its write failed");
-                return;
+                return {};
             }
             logger::info("ScanRecord: catalog made under load order {} (scan fingerprint {}, {} plugins, {} spell forms)",
                 loadOrder->hash, fingerprint, loadOrder->plugins, loadOrder->spells);
+            return writeId;
         } catch (const std::exception& e) {
             logger::error("ScanRecord: the record was not kept: {}", e.what());
         } catch (...) {
             logger::error("ScanRecord: the record was not kept (unknown error)");
         }
+        return {};
     }
 
     void Forget(const char* why) noexcept
     {
         try {
+            std::lock_guard lock(s_recordMutex);
             RemoveRecord(why);
         } catch (...) {
             logger::error("ScanRecord: the record could not be removed");
         }
     }
 
-    void DumpWritten(std::string_view dumpText) noexcept
+    void DumpWritten(std::string_view writeId, std::string_view dumpText) noexcept
     {
         try {
+            std::lock_guard lock(s_recordMutex);
             std::ifstream file(kRecordFile, std::ios::binary);
             if (!file.is_open()) return;
             auto data = nlohmann::json::parse(file, nullptr, false);
             file.close();
             if (data.is_discarded() || !data.is_object()) return;
-            ScanRecordRules::MarkDump(data, dumpText);
+            if (!ScanRecordRules::MarkDumpIfOwn(data, writeId, dumpText)) {
+                logger::info("ScanRecord: another scan wrote the record since - the dump is not recorded (no tree graft from it)");
+                return;
+            }
             if (!FileUtils::WriteAtomically(kRecordFile, JsonText::Dump(data, kRecordIndent), false)) {
                 logger::warn("ScanRecord: could not add the scan dump to {} - no tree graft from it", kRecordFile);
             }
@@ -230,6 +249,18 @@ namespace ScanRecord
             logger::error("ScanRecord: the scan dump was not recorded: {}", e.what());
         } catch (...) {
             logger::error("ScanRecord: the scan dump was not recorded (unknown error)");
+        }
+    }
+
+    std::string RecordedLoadOrder() noexcept
+    {
+        try {
+            std::ifstream file(kRecordFile, std::ios::binary);
+            if (!file.is_open()) return {};
+            const auto data = nlohmann::json::parse(file, nullptr, false);
+            return data.is_discarded() ? std::string() : TextField(data, "loadOrder");
+        } catch (...) {
+            return {};
         }
     }
 

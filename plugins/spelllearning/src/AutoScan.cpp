@@ -532,6 +532,8 @@ namespace
             }
         }
 
+        // A journal an earlier graft left is settled whatever runs this session (it only finishes files it wrote)
+        ResolveTreeGraftJournal(loadOrder);
         if (const auto reason = Precondition()) {
             logger::info("{} {}", kPrefix, *reason);
             if (settings.selfTest) logger::info("{} not run: {}", kTestPrefix, *reason);
@@ -619,13 +621,15 @@ namespace
         output.reset();
         // The catalog this scan replaces: the tree record's seen list when it has none
         auto previousCatalog = ReadCatalogForTreeGraft(loadOrder);
-        const bool wrote = Librarian::ClassifyScan(text, true,
-            [&loadOrder, &incomplete, &scanPairs]() { ScanRecord::CatalogWritten(true, &loadOrder, incomplete, scanPairs); });
+        std::string recordId;   // the scan record's writeId: its dump goes only into that record
+        const bool wrote = Librarian::ClassifyScan(text, true, [&loadOrder, &incomplete, &scanPairs, &recordId]() {
+            recordId = ScanRecord::CatalogWritten(true, &loadOrder, incomplete, scanPairs);
+        });
         const std::string dumpPath = SpellScanner::WriteScanOutput(text);
         // Both files are this scan's job: without the dump the next start does it again
         if (wrote && dumpPath.empty()) ScanRecord::Forget("spell_scan_output.json could not be written");
         // The tree graft reads the dump only when it is this scan's (a panel scan records no dump)
-        if (wrote && !dumpPath.empty()) ScanRecord::DumpWritten(text);
+        if (wrote && !dumpPath.empty() && !recordId.empty()) ScanRecord::DumpWritten(recordId, text);
         turn.Release();
         logger::info("{} {} in {:.0f} ms; {} {} (total {:.1f} s since the main menu)", kPrefix,
             wrote ? "catalog written" : "catalog NOT written (see Librarian above)", MsSince(textStarted),

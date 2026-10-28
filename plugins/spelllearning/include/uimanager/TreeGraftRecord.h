@@ -75,11 +75,15 @@ namespace TreeGraftRun
     // The seen list kept before the catalog is replaced (Ruling 19)
     // -------------------------------------------------------------------------
 
-    /// A tree record without a seen list whose load order is not `loadOrder`: the scan at
-    /// game start is about to replace the catalog a graft would take its seen list from
-    [[nodiscard]] inline bool CatalogNeeded(const TreeRecordFile::TreeRecord& record, const std::string& loadOrder)
+    /// A tree record without a seen list whose load order is not `loadOrder`, and a catalog
+    /// the scan record says was made under another known load order (`catalogLoadOrder`):
+    /// the scan at game start is about to replace the previous load order's catalog, which a
+    /// graft would take its seen list from. A catalog of unknown origin (no scan record, an
+    /// incomplete scan's) or of this load order is no previous one: nothing is seeded.
+    [[nodiscard]] inline bool CatalogNeeded(const TreeRecordFile::TreeRecord& record, const std::string& loadOrder,
+        const std::string& catalogLoadOrder)
     {
-        return !record.hasSeen && record.loadOrder != loadOrder;
+        return !record.hasSeen && record.loadOrder != loadOrder && !catalogLoadOrder.empty() && catalogLoadOrder != loadOrder;
     }
 
     /// The record with the catalog's spells as its seen list; nothing when the catalog has none
@@ -123,6 +127,17 @@ namespace TreeGraftRun
         JournalAction action = JournalAction::kNone;
         TreeRecordFile::TreeRecord record;   ///< what to write (kApply, kDrop)
     };
+
+    /// The journal's write may go: the record (and, for an apply, the tree) on disk are still
+    /// what the journal was resolved from - a panel save or import in between wins, and the
+    /// journal waits for the next start
+    [[nodiscard]] inline bool JournalStillFits(JournalAction action, const std::optional<std::string>& recordRead,
+        const std::optional<std::string>& recordNow, const std::optional<std::string>& treeRead,
+        const std::optional<std::string>& treeNow)
+    {
+        if (action == JournalAction::kNone || recordNow != recordRead) return false;
+        return action != JournalAction::kApply || treeNow == treeRead;
+    }
 
     /// What a record's journal asks for, against the tree text on disk (nothing: no tree file)
     [[nodiscard]] inline JournalResult ResolveJournal(const TreeRecordFile::TreeRecord& record,

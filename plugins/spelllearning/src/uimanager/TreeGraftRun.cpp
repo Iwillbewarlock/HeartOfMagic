@@ -31,8 +31,10 @@
 //
 //   AutoScan's waiter thread  before the scan replaces the catalog: a record without a seen
 //                             list gets the catalog's spells as one (a game thread task)
-//   AutoScan's waiter thread  a journal an earlier graft left resolved (its write: a task);
-//                             the files read, the conditions, the scan dump checked against
+//   AutoScan's waiter thread  first thing, whatever else runs: a journal an earlier graft left
+//                             settled (ResolveTreeGraftJournal; its write: a task, only over
+//                             the files as read)
+//   AutoScan's waiter thread  the files read, the conditions, the scan dump checked against
 //                             the scan record (ScanRecord::DumpMatches) and parsed
 //   game thread (task 1)      a tagged copy of the tree validated: each node's verdict
 //   waiter thread             the plan: ids refreshed, Graft, declutter, checks (pure,
@@ -253,19 +255,9 @@ namespace
         bool recordUnreadable = !parsed || (!read.recordText && ThereButUnread(recordPath));
         TreeRecordFile::TreeRecord record = parsed ? *parsed : TreeRecordFile::TreeRecord{};
 
-        // A journal an earlier graft left (TreeGraftRecord.h): its record, or the old one, written first
-        if (const auto journal = TreeGraftRun::ResolveJournal(record, treeText);
-            !recordUnreadable && journal.action != TreeGraftRun::JournalAction::kNone) {
-            const bool apply = journal.action == TreeGraftRun::JournalAction::kApply;
-            const auto target = journal.record;
-            const auto wrote = RunOnGameThreadAndWait("TreeGraftJournal", [target]() {
-                return UIManager::WriteTreeRecord(target);
-            }, kGameThreadWait);
-            logger::info("{} {} the journal an earlier graft left ({})", kPrefix, apply ? "applied" : "dropped",
-                apply ? "the tree is the one it wrote: its record written" : "the tree is not the one it was for");
-            if (!wrote || !*wrote) return Failed("the journal's record could not be written");
-            read.recordText = ReadText(recordPath);
-            record = target;
+        // ResolveTreeGraftJournal ran before (AutoScan): a journal still there waits for the next start
+        if (!recordUnreadable && record.extra.contains(TreeGraftRun::kJournalKey)) {
+            return NotRun("an earlier graft's journal is still in spell_tree_loadorder.json (settled at the next start)");
         }
         TreeGraftRun::Facts facts;
         facts.loadOrder = loadOrder.hash;
@@ -385,8 +377,9 @@ std::optional<nlohmann::json> ReadCatalogForTreeGraft(const LoadOrderFingerprint
         const auto recordPath = UIManager::GetTreeLoadOrderFilePath();
         const auto recordText = ReadText(recordPath);
         const auto record = ParseRecord(recordText);
+        // The catalog about to be replaced must be the previous load order's (the scan record says whose)
         if (!record || (!recordText && ThereButUnread(recordPath)) || loadOrder.hash.empty() ||
-            !TreeGraftRun::CatalogNeeded(*record, loadOrder.hash)) {
+            !TreeGraftRun::CatalogNeeded(*record, loadOrder.hash, ScanRecord::RecordedLoadOrder())) {
             return std::nullopt;
         }
         const auto text = ReadText(kCatalogFile);
@@ -410,6 +403,48 @@ std::optional<nlohmann::json> ReadCatalogForTreeGraft(const LoadOrderFingerprint
     } catch (const std::exception& e) {
         logger::warn("{} the previous catalog could not be read ({}) - no seen list from it", kPrefix, e.what());
         return std::nullopt;
+    }
+}
+
+void ResolveTreeGraftJournal(const LoadOrderFingerprint::Value& loadOrder)
+{
+    try {
+        const auto treePath = UIManager::GetTreeFilePath();
+        const auto recordPath = UIManager::GetTreeLoadOrderFilePath();
+        const auto recordText = ReadText(recordPath);
+        const auto record = ParseRecord(recordText);
+        if (!recordText || !record) return;
+        const auto treeText = ReadText(treePath);
+        const auto journal = TreeGraftRun::ResolveJournal(*record, treeText);
+        if (journal.action == TreeGraftRun::JournalAction::kNone) return;
+        const bool apply = journal.action == TreeGraftRun::JournalAction::kApply;
+        enum class Result { kWritten, kChanged, kFailed };
+        const auto result = RunOnGameThreadAndWait("TreeGraftJournal",
+            [action = journal.action, target = journal.record, recordText, treeText, recordPath, treePath,
+                hash = loadOrder.hash]() {
+                // Only over the files as read: a panel save or import meanwhile wins
+                if (!TreeGraftRun::JournalStillFits(action, recordText, ReadText(recordPath), treeText, ReadText(treePath))) {
+                    return Result::kChanged;
+                }
+                if (!UIManager::WriteTreeRecord(target)) return Result::kFailed;
+                // A graft finished from its journal: the panel's notice goes as after any complete graft
+                auto* ui = UIManager::GetSingleton();
+                if (action == TreeGraftRun::JournalAction::kApply && !hash.empty() && target.loadOrder == hash && ui &&
+                    ui->IsInitialized()) {
+                    ui->NotifyTreeGrafted(target.loadOrder);
+                }
+                return Result::kWritten;
+            }, kGameThreadWait);
+        if (result && *result == Result::kWritten) {
+            logger::info("{} {} the journal an earlier graft left ({})", kPrefix, apply ? "applied" : "dropped",
+                apply ? "the tree is the one it wrote: its record written" : "the tree is not the one it was for");
+        } else if (result && *result == Result::kChanged) {
+            logger::info("{} the record or the tree changed since the journal was read - it waits for the next start", kPrefix);
+        } else {
+            logger::warn("{} the journal's record could not be written - it waits for the next start", kPrefix);
+        }
+    } catch (const std::exception& e) {
+        logger::warn("{} the journal could not be settled: {}", kPrefix, e.what());
     }
 }
 

@@ -42,6 +42,17 @@ namespace GraftRunRecordCases
         check.Check(!ScanRecordRules::DumpFits(record, dump), "a record without the dump's fields (a panel scan's): no");
         ScanRecordRules::MarkDump(record, dump);
         check.Check(ScanRecordRules::DumpFits(record, dump), "the dump the scan at game start wrote: yes");
+
+        // Only into the record its own scan wrote (a Papyrus or panel scan may have written another since)
+        Json own = { { "version", 2 }, { ScanRecordRules::kWriteIdField, "aa-1-1" } };
+        check.Check(ScanRecordRules::MarkDumpIfOwn(own, "aa-1-1", dump) && ScanRecordRules::DumpFits(own, dump),
+            "the record this scan wrote: the dump marked");
+        Json other = { { "version", 2 }, { ScanRecordRules::kWriteIdField, "aa-2-2" } };
+        check.Check(!ScanRecordRules::MarkDumpIfOwn(other, "aa-1-1", dump) && !ScanRecordRules::DumpFits(other, dump),
+            "another scan's record since: not marked, so no graft from this dump");
+        Json old = { { "version", 2 } };
+        check.Check(!ScanRecordRules::MarkDumpIfOwn(old, "aa-1-1", dump) && !ScanRecordRules::MarkDumpIfOwn(own, "", dump),
+            "a record without a writeId, or no writeId given: not marked");
         check.Check(!ScanRecordRules::DumpFits(record, R"({"spells":[1]})"), "another dump (an older or a newer one): no");
         check.Check(!ScanRecordRules::DumpFits(record, dump + " "), "the same dump one byte longer: no");
         return check.failed;
@@ -54,11 +65,16 @@ namespace GraftRunRecordCases
         TreeRecord record;
         record.loadOrder = "old";
         const Json catalog = { { "spells", { { "B.esp|0x000801", Json::object() } } } };
-        check.Check(TreeGraftRun::CatalogNeeded(record, "new"), "no seen list, another load order: needed");
-        check.Check(!TreeGraftRun::CatalogNeeded(record, "old"), "the record is this load order's: not needed (no graft runs)");
+        check.Check(TreeGraftRun::CatalogNeeded(record, "new", "old"),
+            "no seen list, another load order, the catalog the previous load order's: needed");
+        check.Check(!TreeGraftRun::CatalogNeeded(record, "old", "older"), "the record is this load order's: not needed (no graft runs)");
+        check.Check(!TreeGraftRun::CatalogNeeded(record, "new", ""),
+            "the catalog's load order unknown (no scan record, an incomplete scan): not seeded");
+        check.Check(!TreeGraftRun::CatalogNeeded(record, "new", "new"),
+            "the catalog already this load order's (a panel scan made it): not seeded");
         auto seen = record;
         seen.hasSeen = true;
-        check.Check(!TreeGraftRun::CatalogNeeded(seen, "new"), "a seen list already: not needed");
+        check.Check(!TreeGraftRun::CatalogNeeded(seen, "new", "old"), "a seen list already: not needed");
         const auto seeded = TreeGraftRun::SeededRecord(record, catalog);
         check.Check(seeded && seeded->hasSeen && seeded->seen == std::vector<std::string>{ "B.esp|0x000801" } &&
                         seeded->loadOrder == "old",
@@ -99,6 +115,19 @@ namespace GraftRunRecordCases
         check.Check(TreeGraftRun::ResolveJournal(reread, std::nullopt).action == TreeGraftRun::JournalAction::kDrop,
             "no tree file: dropped");
         check.Check(TreeGraftRun::ResolveJournal(current, tree).action == TreeGraftRun::JournalAction::kNone, "no journal: nothing");
+
+        // Its write only over the files as read
+        using TreeGraftRun::JournalAction;
+        using TreeGraftRun::JournalStillFits;
+        const std::optional<std::string> rec = std::string("r1"), rec2 = std::string("r2");
+        const std::optional<std::string> t1 = tree, t2 = std::string("{}");
+        check.Check(JournalStillFits(JournalAction::kApply, rec, rec, t1, t1), "apply: record and tree as read - written");
+        check.Check(!JournalStillFits(JournalAction::kApply, rec, rec2, t1, t1),
+            "apply: the record changed (a panel build's Apply) - waits");
+        check.Check(!JournalStillFits(JournalAction::kApply, rec, rec, t1, t2), "apply: the tree changed (a panel save) - waits");
+        check.Check(JournalStillFits(JournalAction::kDrop, rec, rec, t1, t2), "drop: only the record must be as read");
+        check.Check(!JournalStillFits(JournalAction::kDrop, rec, std::nullopt, t1, t1), "drop: the record gone - waits");
+        check.Check(!JournalStillFits(JournalAction::kNone, rec, rec, t1, t1), "nothing to write: no");
         return check.failed;
     }
 }
