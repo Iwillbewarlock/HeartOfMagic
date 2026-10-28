@@ -28,15 +28,17 @@
  * (a mod's script or animation spell, which would take the shout's place when
  * learned); and it is not another plugin's copy of a spell the tree has
  * (duplicateOf names the kept record: same editor id and school, its tome reads
- * as the kept spell's - SpellScannerDuplicates.cpp); and it costs something to
+ * as the kept spell's - SpellScannerDuplicates.cpp); and not only a quest hands
+ * its tomes out (questOnly: a quest script, alias, dialogue or scene fragment -
+ * TomeReach.cpp), unless the player included it; and it costs something to
  * cast and the spell gate does not leave it out (isTreeCandidate covers the rest).
  * The gate's "out" (gate.band: free to cast, or only dismisses a summon - the same
  * JudgeSpell the tree load and Spell Research use, SpellScannerGate.cpp) holds
  * unless the player put the spell back in (GateReview.isKept, settings.gateReviewed);
  * "review" stays in, GateReview lists it. A scan from before the gate has only
  * freeSpell (2026-10-05). The scan keeps every spell for the librarian and the
- * perk adapters and marks taughtByTome, tomeUnreachable, voiceSlot, freeSpell,
- * gate and duplicateOf; a scan from before the marks has no fields, and its
+ * perk adapters and marks taughtByTome, tomeUnreachable, questOnly, voiceSlot,
+ * freeSpell, gate and duplicateOf; a scan from before the marks has no fields, and its
  * spells count as taken.
  * @param {Object} spell
  * @returns {boolean}
@@ -50,12 +52,24 @@ function isTaughtByTome(spell) {
 
 /**
  * The tome filter before the spell gate: a tome teaches it, something hands the
- * tome out, not in the voice slot, not another plugin's copy. GateReview's
- * "left out" list starts from these.
+ * tome out, not in the voice slot, not another plugin's copy, and not quest-only
+ * unless the player included it (GateReview.isKept: the gate's kept list).
+ * GateReview's "to look over" and "left out" lists start from these.
  * @param {Object} spell
  * @returns {boolean}
  */
 function isTreeCandidate(spell) {
+    return !spell || (isTomeCandidate(spell) && (spell.questOnly !== true ||
+        (typeof GateReview !== 'undefined' && GateReview.isKept(spell))));
+}
+
+/**
+ * isTreeCandidate without the quest-only rule: GateReview's "quest only" list
+ * starts from these.
+ * @param {Object} spell
+ * @returns {boolean}
+ */
+function isTomeCandidate(spell) {
     return !spell || (spell.taughtByTome !== false && spell.tomeUnreachable !== true &&
         spell.voiceSlot !== true && !spell.duplicateOf);
 }

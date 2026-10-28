@@ -84,6 +84,7 @@ var GateReviewTest = {
             } finally {
                 g.settings = oldSettings;
             }
+            this._checkQuestOnly(g, R);
             this._checkPluginKeys(g, R);
             this._checkMigration(g, R);
             this.check(['free', 'banishOnly', 'longSummon', 'horseSummon', 'uniqueSummon', 'nonHostileSummon', 'cheapScript']
@@ -94,6 +95,71 @@ var GateReviewTest = {
             g.getLocalFormId = oldLocal;
         }
         return { passed: this.passed, failed: this.failed };
+    },
+
+    /** A fake element for _renderList: children, text, click handlers */
+    _fakeElement: function() {
+        return {
+            children: [], textContent: '', className: '', _click: null,
+            appendChild: function(c) { this.children.push(c); },
+            addEventListener: function(type, fn) { if (type === 'click') this._click = fn; },
+            set innerHTML(v) { this.children = []; }
+        };
+    },
+
+    /** Spells whose tomes only a quest hands out (scan field questOnly): out of the tree, listed, Include puts one back */
+    _checkQuestOnly: function(g, R) {
+        var ids = function(list) { return list.map(function(s) { return s.formId.slice(-2); }).join(','); };
+        var q1 = { formId: '0x01000811', plugin: 'Quests.esp', taughtByTome: true, questOnly: true };
+        var q2 = { formId: '0x01000812', plugin: 'Quests.esp', taughtByTome: true, questOnly: true,
+            gate: { band: 'review', reasons: ['cheapScript'] } };
+        var plain = { formId: '0x01000813', plugin: 'Old.esp', taughtByTome: true };
+        var hasList = typeof R.questOnly === 'function';
+        var oldSettings = g.settings, oldRender = R.render, oldKeep = R.keep, oldSave = g.autoSaveSettings,
+            oldCount = g.updatePrimedCount, oldDoc = g.document;
+        try {
+            g.settings = { gateReviewed: [] };
+            this.check(!g.isTreeCandidate(q1) && !g.isTaughtByTome(q1) && !g.isTaughtByTome(q2) &&
+                hasList && ids(R.questOnly([q1, q2, plain], [], [])) === '11,12',
+                'quest-only: left out of the tree');
+            R.render = function() {};
+            g.autoSaveSettings = function() {};
+            g.updatePrimedCount = function() {};
+            R.keep(q1);
+            this.check(g.isTreeCandidate(q1) && g.isTaughtByTome(q1) && !g.isTaughtByTome(q2) &&
+                hasList && ids(R.questOnly([q1, q2], [], g.settings.gateReviewed)) === '12',
+                'quest-only: kept (Include) goes back in');
+            this.check(hasList && ids(R.questOnly([q1, q2], [{ plugin: 'Quests.esp', localFormId: '000811' }], [])) === '12' &&
+                ids(R.questOnly([q1, q2], [{ formId: '0x01000812' }], [])) === '11',
+                'quest-only: a blacklisted one is not listed');
+            this.check(g.isTreeCandidate(plain) && g.isTaughtByTome(plain) && hasList && R.questOnly([plain], [], []).length === 0,
+                'quest-only: a spell without the field is a candidate');
+            // The list: a row for a spell the gate never marked; its Include button keeps it
+            var els = {}, self = this, kept = [], drew = true;
+            g.document = {
+                getElementById: function(id) { return els[id] || (els[id] = self._fakeElement()); },
+                createElement: function() { return self._fakeElement(); }
+            };
+            R.keep = function(s) { kept.push(s); };
+            try {
+                R._renderList('quest-only', [q1], ['modals.gateReview.questEmpty', 'No quest-only spells in the last scan.'],
+                    [['modals.gateReview.include', 'Include', function(spell) { R.keep(spell); }]], false);
+            } catch (e) { drew = false; }
+            var row = drew && els['quest-only-entries'].children[0];
+            var button = row && row.children[1];
+            if (button && button._click) button._click();
+            this.check(!!button && els['quest-only-count'].textContent === 1 &&
+                row.children[0].children[1].textContent === 'Quests.esp' &&
+                button.textContent === 'Include' && kept.length === 1 && kept[0] === q1,
+                'quest-only: the list shows a spell the gate did not mark; Include keeps it');
+        } finally {
+            R.keep = oldKeep;
+            R.render = oldRender;
+            g.autoSaveSettings = oldSave;
+            g.updatePrimedCount = oldCount;
+            g.settings = oldSettings;
+            g.document = oldDoc;
+        }
     },
 
     /** The DLL's key for a plugin name (SpellScannerGate.cpp PluginKey): its UTF-8 bytes, A-Z folded */
