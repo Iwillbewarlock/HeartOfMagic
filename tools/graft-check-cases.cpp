@@ -150,7 +150,8 @@ namespace GraftCheckCases
         }
         for (const auto& [id, node] : byId) maxChildren = (std::max)(maxChildren, static_cast<int>(node["children"].size()));
         check.Check(parented, "each grafted node has a parent in its school");
-        // A parent takes up to kFallbackExtraChildren past the cap when no parent of the spell's tier or below has room
+        // A parent takes up to kFallbackExtraChildren past the cap when no parent of the spell's tier or below has room.
+        // The bound is checked on every node: a parent over the cap by the ordinary rule is not told apart here
         check.Check(maxChildren <= TreeBuilder::BuildConfig{}.maxChildrenPerNode + TreeBuilder::kFallbackExtraChildren,
             std::format("no node over the child cap and its fallback overflow ({} at most)", maxChildren));
         check.Check(TierInversions(result.tree, "Destruction", newIds) == 0,

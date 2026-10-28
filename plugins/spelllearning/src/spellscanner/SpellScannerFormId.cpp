@@ -207,13 +207,13 @@ namespace SpellScanner
         // Every loaded spell by editor id, with its school: the candidates of a rematch. Editor
         // ids are shared (a fork or port of a mod keeps them), so a lookup that returns one form
         // (LookupByEditorID) would miss the second one; the index folds case as that lookup did.
-        // Only player's spells (IsPlayerSpellForm): a rematch onto any other would be dropped
-        // without its plugin reported missing, and a player's and an NPC's spell sharing an
-        // editor id would read as two. Built once per tree load and only when a node needs it;
-        // empty without powerofthree's Tweaks (GetEditorId has nothing then). O(spells) time and space.
+        // Every spell with an editor id: RematchByEditorId keeps only the player's spells among
+        // one editor id's candidates (judging every loaded spell here cost a JudgeSpell each).
+        // Built once per tree load and only when a node needs it; empty without powerofthree's
+        // Tweaks (GetEditorId has nothing then). O(spells) time and space.
         using SpellsByEditorId = EditorIdRematch::CandidateIndex;
 
-        SpellsByEditorId IndexSpellsByEditorId(const std::unordered_set<std::string>& gateKept)
+        SpellsByEditorId IndexSpellsByEditorId()
         {
             SpellsByEditorId index;
             auto* dataHandler = RE::TESDataHandler::GetSingleton();
@@ -221,16 +221,19 @@ namespace SpellScanner
             for (auto* spell : dataHandler->GetFormArray<RE::SpellItem>()) {
                 if (!spell) continue;
                 const auto editorId = GetEditorId(spell);  // the helper the scan baked the node's editorId with
-                if (editorId.empty() || !IsPlayerSpellForm(spell, gateKept)) continue;
+                if (editorId.empty()) continue;
                 index.Add(editorId, spell->GetFormID(), GetSchoolName(GetSpellSchool(spell)));
             }
-            logger::info("SpellScanner: {} editor ids of loaded player's spells indexed to find renamed plugins' spells{}",
+            logger::info("SpellScanner: {} editor ids of loaded spells indexed to find renamed plugins' spells{}",
                 index.Size(), index.Size() == 0 ? " (none: powerofthree's Tweaks not loaded?)" : "");
             return index;
         }
 
         // A node whose persistentId names nothing (its plugin renamed, merged or compacted):
-        // the one spell with its editor id in the node's school (EditorIdRematch). Returns 0
+        // the one player's spell with its editor id in the node's school (EditorIdRematch).
+        // Only player's spells (IsPlayerSpellForm) are candidates: a rematch onto any other would
+        // be dropped without its plugin reported missing, and a player's and an NPC's spell
+        // sharing an editor id would read as two. Returns 0
         // when the node is not found again (no editor id, no such spell, another school, several)
         RE::FormID RematchByEditorId(const json& node, const std::string& school,
                                      std::optional<SpellsByEditorId>& spellsByEditorId,
@@ -239,13 +242,19 @@ namespace SpellScanner
             if (!node.contains("editorId") || !node["editorId"].is_string()) return 0;
             const std::string editorId = node["editorId"].get<std::string>();
             if (editorId.empty()) return 0;
-            if (!spellsByEditorId) spellsByEditorId = IndexSpellsByEditorId(gateKept);
-            const auto* found = spellsByEditorId->Find(editorId);
-            if (!found) {
+            if (!spellsByEditorId) spellsByEditorId = IndexSpellsByEditorId();
+            EditorIdRematch::Candidates candidates;
+            if (const auto* found = spellsByEditorId->Find(editorId)) {
+                for (const auto& candidate : *found) {
+                    if (IsPlayerSpellForm(RE::TESForm::LookupByID<RE::SpellItem>(candidate.first), gateKept)) {
+                        candidates.push_back(candidate);
+                    }
+                }
+            }
+            if (candidates.empty()) {
                 logger::info("SpellScanner: no loaded player's spell has editor id {} - not found again", editorId);
                 return 0;
             }
-            const auto& candidates = *found;
             if (const auto picked = EditorIdRematch::PickRematch(school, candidates)) return *picked;
             std::set<std::uint32_t> inSchool;
             std::set<std::string> otherSchools;

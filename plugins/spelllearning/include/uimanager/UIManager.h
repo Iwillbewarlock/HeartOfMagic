@@ -309,6 +309,7 @@ private:
     // menu opens): a notice asked for meanwhile is shown at once. Game thread only.
     bool m_saveLoaded = false;
     bool m_newGameStarted = false;   // kNewGame (m_saveLoaded stays false there), until the main menu
-    std::size_t m_lastTreeDataHash = 0;   // SendTreeData's last text. Game thread only.
+    std::size_t m_lastTreeDataHash = 0;   // SendTreeData's last text, only while the dev self-test
+                                          // (selftest.json) is on; 0 otherwise. Game thread only.
 
 };

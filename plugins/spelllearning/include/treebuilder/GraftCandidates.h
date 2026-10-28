@@ -157,7 +157,8 @@ namespace TreeGraft
         /// JavaScript's toLowerCase on UTF-8 text, as far as LowerOf goes; longer sequences
         /// (no case in LowerOf's range) and bytes that are not well-formed UTF-8 stay as they are.
         /// Where it differs from JavaScript: the code points LowerOf leaves out (U+0460 and up in
-        /// Cyrillic, U+0180 and up in Latin) and every three-byte one (U+0800 on: Latin Extended
+        /// Cyrillic, U+0180 and up in Latin, two-byte ones outside its table such as Armenian
+        /// U+0531 on and Greek U+03CF on) and every three-byte one (U+0800 on: Latin Extended
         /// Additional, Greek Extended...) stay, which JavaScript lowers (U+1E9E to U+00DF,
         /// U+0460 to U+0461). Only the legacy whitelist lookup reads it (PluginIsOff: a key an
         /// older panel lowered with toLowerCase), so a plugin named with such a capital is not

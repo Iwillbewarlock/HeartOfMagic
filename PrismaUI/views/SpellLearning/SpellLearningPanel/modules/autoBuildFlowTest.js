@@ -15,6 +15,8 @@
  *     BuildProgress), an Import, or their Apply while the run's Apply declutters;
  *     an Apply, Clear or Scan that does nothing does not end the run; the
  *     player's Build waits for the run's C++ build, whose result is dropped;
+ *   - Build, a rescan, then Apply (real loadTreeData and applyTree): the save's
+ *     seenSpells are the scan the build request sent, not the newer scan;
  *   - a tree without spells: refused with the tree tab's error, `schools` as an
  *     array counts no spells, only a build's save goes to SaveBuiltSpellTree
  *     (an Import's to SaveImportedSpellTree).
@@ -103,6 +105,7 @@ var AutoBuildFlowTest = {
         this._testSaveLoadOrder(g);
         this._testWaits(g);
         this._testYield(g);
+        this._testSeenWithDraft(g);
         this._testEmptyTree(g);
         this._testScans(g);
         this._testStartThrows(g);
@@ -304,6 +307,40 @@ var AutoBuildFlowTest = {
                 g.BuildProgress.close();
                 A._resetForTest();
             }
+        });
+    },
+
+    _testSeenWithDraft: function(g) {
+        var self = this, saved = [];
+        var built = { spells: [{ persistentId: 'A.esp|0x000801' }, { persistentId: 'A.esp|0x000802' }] };
+        var tgc = Object.create(g.TreeGrowthClassic);
+        tgc._zoomToFit = function() {};
+        this._with(g, {
+            state: { lastSpellData: built, treeData: null },
+            callCpp: function(name, arg) { if (name === 'SaveBuiltSpellTree') saved.push(JSON.parse(arg)); },
+            ClassicBuildRequest: { lastScan: built, send: function() {} },
+            ClassicSettings: { setStatusText: function() {}, setTreeBuilt: function() {} },
+            TreeGrowth: { setBuilding: function() {}, _markDirty: function() {} },
+            ClassicTreeOutput: { build: function() { return { output: self._output(), posCount: 2 }; } },
+            LayoutDeclutter: { applyAsync: function(out, done) { done(); } },
+            BuildProgress: undefined,
+            SchoolBridges: undefined,
+            ScanStage: undefined,
+            switchTab: undefined,
+            loadTreeData: function() {},
+            updateScanStatus: function() {},
+            setTreeStatusKey: function() {},
+            tOr: function(key, params, fallback) { return fallback; },
+            t: function(key) { return key; },
+            TreePreview: undefined,
+            console: this._quiet
+        }, function() {
+            tgc.loadTreeData({ schools: {} });                       // the build's draft comes back
+            g.state.lastSpellData = { spells: [{ persistentId: 'B.esp|0x000900' }] };   // a rescan
+            var sent = tgc.applyTree();
+            self.check(sent !== false && saved.length === 1 &&
+                JSON.stringify(saved[0].seenSpells) === '["A.esp|0x000801","A.esp|0x000802"]',
+                'Build, a rescan, then Apply: seenSpells of the scan the build sent, not of the rescan');
         });
     },
 

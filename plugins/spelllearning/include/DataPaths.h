@@ -1,7 +1,9 @@
 #pragma once
 
 // =============================================================================
-// DATA PATHS - the plugin's data files more than one part reads, named once.
+// DATA PATHS - the data files AutoScan, the tree graft, ScanRecord and GetUnifiedConfigPath
+// read, named once (the scanner's own output and catalog writers, and the environment
+// checks, still spell theirs out).
 // The tree and its record go through UIManager::GetTreeFilePath and
 // GetTreeLoadOrderFilePath; selftest.json is Environment::SelfTest::kSwitchFile.
 // =============================================================================

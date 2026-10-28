@@ -84,8 +84,8 @@ namespace TreeBuilder
     namespace ThemesDetail
     {
         // A spell of a list of spells or of pointers to them (one implementation for both)
-        const json& SpellRef(const json& spell) { return spell; }
-        const json& SpellRef(const json* spell) { return *spell; }
+        static const json& SpellRef(const json& spell) { return spell; }
+        static const json& SpellRef(const json* spell) { return *spell; }
 
         template <class Spells>
         std::unordered_set<std::string> FindModTagsOf(const Spells& spells);
