@@ -4407,8 +4407,17 @@ namespace Widget
         // a_busy guards re-entry (Inventory Reforged 1.6.2 cardInfoUnder, its 10-core.as:922): a mod that wraps the same
         // member over ours and calls ours again from inside its own (Follower Equip Control did so to IR's card wrap) would
         // go round in a circle until Flash drops the call. A call that comes back in while ours runs goes to the class's own
-        // member (this.__proto__[a_name]) instead; when that cannot be read the call is dropped, never looped
-        bool CallSavedMember(RE::GFxFunctionHandler::Params& a_params, const char* a_saved, const char* a_name, bool& a_busy)
+        // member (this.__proto__[a_name]) instead; when that cannot be read the call is dropped, never looped. Limit: a mod
+        // under ours that calls this.handleInput again with other arguments (a remapped key) now skips the wraps between us
+        // and SkyUI on that second call; none in TAKEALOOK does (reviewer, 2026-10-28)
+        enum class SavedCall
+        {
+            kCalled,
+            kNoSaved,  // no saved original on this object
+            kDropped,  // re-entered and the class's own member not readable (logged here)
+            kFailed    // Invoke returned false (Flash refused the call)
+        };
+        SavedCall CallSavedMember(RE::GFxFunctionHandler::Params& a_params, const char* a_saved, const char* a_name, bool& a_busy)
         {
             RE::GFxValue original;
             if (a_busy) {
@@ -4420,9 +4429,9 @@ namespace Widget
                     logger::warn("Widget: {} came back into our wrap while it ran (another mod wraps it over ours) - {}", a_name,
                         found ? "the class's own one called" : "the class's own one not readable, the call dropped");
                 }
-                if (!found) return false;
+                if (!found) return SavedCall::kDropped;
             } else if (!a_params.thisPtr->GetMember(a_saved, &original) || !original.IsObject()) {
-                return false;
+                return SavedCall::kNoSaved;
             }
             std::vector<RE::GFxValue> argv;
             argv.reserve(a_params.argCount + 1);
@@ -4433,7 +4442,17 @@ namespace Widget
             const bool called = original.Invoke("call", &result, argv.data(), argv.size());
             a_busy = outer;
             if (called && a_params.retVal) *a_params.retVal = result;
-            return called;
+            return called ? SavedCall::kCalled : SavedCall::kFailed;
+        }
+
+        // A failed CallSavedMember's own warning, once per kind and member (a dropped re-entry is logged in CallSavedMember)
+        void WarnSavedCall(SavedCall a_outcome, const char* a_name, std::atomic<bool>& a_noSavedLogged, std::atomic<bool>& a_failedLogged)
+        {
+            if (a_outcome == SavedCall::kNoSaved && !a_noSavedLogged.exchange(true)) {
+                logger::warn("Layout: {} wrap without its saved original - the call is dropped (logged once)", a_name);
+            } else if (a_outcome == SavedCall::kFailed && !a_failedLogged.exchange(true)) {
+                logger::warn("Layout: {} wrap could not call its original (Flash refused the call) - dropped (logged once)", a_name);
+            }
         }
 
         // Layer 2 (spec): Menu_mc.handleInput - FocusHandler sends every Scaleform key to path[0].handleInput only (FocusHandler.as:
@@ -4469,9 +4488,12 @@ namespace Widget
                         ++m.wrapNoSkseCode;
                     }
                 }
-                if (!CallSavedMember(a_params, kSavedHandleInput, kHandleInputName, g_inHandleInput)) {
-                    static std::atomic<bool> s_logged{ false };
-                    if (!s_logged.exchange(true)) logger::warn("Layout: handleInput wrap without its saved original - the key is dropped (logged once)");
+                const auto outcome = CallSavedMember(a_params, kSavedHandleInput, kHandleInputName, g_inHandleInput);
+                if (outcome != SavedCall::kCalled) {
+                    // handled, so FocusHandler does not move the focus for a key nobody saw (FocusHandler.as:76, 101-104)
+                    if (a_params.retVal) *a_params.retVal = true;
+                    static std::atomic<bool> s_noSaved{ false }, s_failed{ false };
+                    WarnSavedCall(outcome, kHandleInputName, s_noSaved, s_failed);
                 }
             }
         };
@@ -4488,9 +4510,10 @@ namespace Widget
                     if (++g_menu.layout.equipKept == 1) logger::info("Layout: AttemptEquip in the layout mode - not called (later ones counted)");
                     return;
                 }
-                if (!CallSavedMember(a_params, kSavedAttemptEquip, kAttemptEquipName, g_inAttemptEquip)) {
-                    static std::atomic<bool> s_logged{ false };
-                    if (!s_logged.exchange(true)) logger::warn("Layout: AttemptEquip wrap without its saved original - the equip is dropped (logged once)");
+                const auto outcome = CallSavedMember(a_params, kSavedAttemptEquip, kAttemptEquipName, g_inAttemptEquip);
+                if (outcome != SavedCall::kCalled) {
+                    static std::atomic<bool> s_noSaved{ false }, s_failed{ false };
+                    WarnSavedCall(outcome, kAttemptEquipName, s_noSaved, s_failed);
                 }
             }
         };
@@ -4512,6 +4535,15 @@ namespace Widget
             RE::GFxValue current, saved, wrap;
             if (a_object.GetMember(a_saved, &saved) && saved.IsObject()) return true;
             if (!a_object.GetMember(a_name, &current) || !current.IsObject()) return false;
+            // The re-entry guard's target (CallSavedMember) is this.__proto__[a_name]: the log says whether it can be read and
+            // whether it is the function saved here (it differs when another mod wrapped the member before us)
+            RE::GFxValue proto, inherited;
+            const bool readable = a_object.GetMember("__proto__", &proto) && proto.IsObject() && proto.GetMember(a_name, &inherited) &&
+                                  inherited.IsObject();
+            logger::info("Layout: {} - the class's own one {}", a_name,
+                !readable                ? "NOT readable (a re-entry would be dropped)" :
+                inherited == current     ? "is the one saved (SkyUI's own)" :
+                                           "differs from the one saved (another mod wrapped it first)");
             a_movie->CreateFunction(&wrap, a_handler);
             if (a_object.SetMember(a_saved, current) && a_object.SetMember(a_name, wrap)) return true;
             a_object.SetMember(a_name, current);
