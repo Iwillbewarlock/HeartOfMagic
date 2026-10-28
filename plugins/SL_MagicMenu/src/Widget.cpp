@@ -4131,6 +4131,7 @@ namespace Widget
 
         std::atomic<bool> g_layoutMode{ false };            // the input boundary's view: kept from the accepted toggle to the leave
         std::atomic<std::uint64_t> g_menuGeneration{ 0 };   // bumped at every attach (D8: a drag session is of one menu)
+        bool g_inHandleInput = false, g_inAttemptEquip = false;  // CallSavedMember's re-entry guards (UI thread only)
 
         // Why the mode may not start (spec "Entry refusals"). The frame handler publishes the movie's part each frame (the hook
         // cannot read the movie on its thread); the toggle adds what it sees live
@@ -4402,17 +4403,35 @@ namespace Widget
             void Call(Params&) override { ++g_menu.layout.shieldPresses; }
         };
 
-        // A_this's saved member called with the this and the arguments it would have had; its return value handed back
-        bool CallSavedMember(RE::GFxFunctionHandler::Params& a_params, const char* a_saved)
+        // A_this's saved member called with the this and the arguments it would have had; its return value handed back.
+        // a_busy guards re-entry (Inventory Reforged 1.6.2 cardInfoUnder, its 10-core.as:922): a mod that wraps the same
+        // member over ours and calls ours again from inside its own (Follower Equip Control did so to IR's card wrap) would
+        // go round in a circle until Flash drops the call. A call that comes back in while ours runs goes to the class's own
+        // member (this.__proto__[a_name]) instead; when that cannot be read the call is dropped, never looped
+        bool CallSavedMember(RE::GFxFunctionHandler::Params& a_params, const char* a_saved, const char* a_name, bool& a_busy)
         {
             RE::GFxValue original;
-            if (!a_params.thisPtr->GetMember(a_saved, &original) || !original.IsObject()) return false;
+            if (a_busy) {
+                RE::GFxValue proto;
+                const bool found = a_params.thisPtr->GetMember("__proto__", &proto) && proto.IsObject() && proto.GetMember(a_name, &original) &&
+                                   original.IsObject();
+                static std::atomic<int> s_reentryLogs{ 0 };
+                if (s_reentryLogs++ < kMaxHoverLogs) {
+                    logger::warn("Widget: {} came back into our wrap while it ran (another mod wraps it over ours) - {}", a_name,
+                        found ? "the class's own one called" : "the class's own one not readable, the call dropped");
+                }
+                if (!found) return false;
+            } else if (!a_params.thisPtr->GetMember(a_saved, &original) || !original.IsObject()) {
+                return false;
+            }
             std::vector<RE::GFxValue> argv;
             argv.reserve(a_params.argCount + 1);
             argv.push_back(*a_params.thisPtr);
             for (std::uint32_t i = 0; i < a_params.argCount; ++i) argv.push_back(a_params.args[i]);
             RE::GFxValue result;
+            const bool outer = std::exchange(a_busy, true);
             const bool called = original.Invoke("call", &result, argv.data(), argv.size());
+            a_busy = outer;
             if (called && a_params.retVal) *a_params.retVal = result;
             return called;
         }
@@ -4450,7 +4469,7 @@ namespace Widget
                         ++m.wrapNoSkseCode;
                     }
                 }
-                if (!CallSavedMember(a_params, kSavedHandleInput)) {
+                if (!CallSavedMember(a_params, kSavedHandleInput, kHandleInputName, g_inHandleInput)) {
                     static std::atomic<bool> s_logged{ false };
                     if (!s_logged.exchange(true)) logger::warn("Layout: handleInput wrap without its saved original - the key is dropped (logged once)");
                 }
@@ -4469,7 +4488,7 @@ namespace Widget
                     if (++g_menu.layout.equipKept == 1) logger::info("Layout: AttemptEquip in the layout mode - not called (later ones counted)");
                     return;
                 }
-                if (!CallSavedMember(a_params, kSavedAttemptEquip)) {
+                if (!CallSavedMember(a_params, kSavedAttemptEquip, kAttemptEquipName, g_inAttemptEquip)) {
                     static std::atomic<bool> s_logged{ false };
                     if (!s_logged.exchange(true)) logger::warn("Layout: AttemptEquip wrap without its saved original - the equip is dropped (logged once)");
                 }
