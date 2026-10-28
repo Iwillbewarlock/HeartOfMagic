@@ -6,6 +6,7 @@
 #include "tomereach/TomeReachPass.h"
 #include "ScanRecordRules.h"
 #include "SpellScanner.h"
+#include "environment/EnvironmentSelfTest.h"
 
 #include <algorithm>
 #include <format>
@@ -29,7 +30,8 @@ namespace TomeReach
             NameTable names;
             std::unordered_set<Key> tomes;
             std::unordered_map<RE::FormID, std::vector<Key>> tomesOf;  // spell -> its tomes
-            std::unordered_map<RE::FormID, std::string> spellLabels;   // spell -> "'name' formId persistentId" (the quest-only log)
+            bool logQuestOnly = false;   // the dev self-test is on (selftest.json): the quest-only list is logged
+            std::unordered_map<RE::FormID, std::string> spellLabels;   // spell -> "'name' formId persistentId" (only then)
         };
 
         struct Result
@@ -103,7 +105,8 @@ namespace TomeReach
         }
 
         // Every quest-only spell of the load order, one line each, and their count: the list the
-        // author looks over before a release (the tree graft design, decision 3). Sorted by formId.
+        // author looks over before a release (the tree graft design, decision 3; Ruling 20: only
+        // with the dev self-test on, each pass that answers). Sorted by formId.
         void LogQuestOnly(const Job& job, const PassResult& pass, const std::unordered_set<RE::FormID>& questOnly)
         {
             std::vector<RE::FormID> spells(questOnly.begin(), questOnly.end());
@@ -165,7 +168,7 @@ namespace TomeReach
                     job->loadOrder.size(), job->tomes.size(), pass.byRecord, pass.byLooseOnly, pass.byConfig,
                     pass.configFiles, pass.byDamaged, pass.byDebug, answer.unreachable.size(), answer.questOnly.size(),
                     pass.questOnly.size(), ms, job->generation);
-                LogQuestOnly(*job, pass, answer.questOnly);
+                if (job->logQuestOnly) LogQuestOnly(*job, pass, answer.questOnly);
                 Finish(job->generation, &answer);
             } catch (const std::exception& e) {
                 logger::warn("TomeReach: the pass failed ({}) - no spell is marked", e.what());
@@ -190,6 +193,7 @@ namespace TomeReach
 
         auto job = std::make_shared<Job>();
         job->generation = generation;
+        job->logQuestOnly = Environment::SelfTest::IsOn();
         std::unordered_set<RE::FormID> keyedBooks, skippedBooks;
         std::unordered_set<const RE::TESFile*> loaded;
         for (std::uint32_t i = 0; i < dh->GetLoadedModCount(); ++i) loaded.insert(dh->GetLoadedMods()[i]);
@@ -216,7 +220,7 @@ namespace TomeReach
             job->tomes.insert(key);
             const RE::FormID spellId = spell->GetFormID();
             job->tomesOf[spellId].push_back(key);
-            if (!job->spellLabels.contains(spellId)) {
+            if (job->logQuestOnly && !job->spellLabels.contains(spellId)) {
                 const char* name = spell->GetName();
                 job->spellLabels.emplace(spellId, std::format("'{}' {:08X} {}", name ? name : "", spellId,
                     SpellScanner::GetPersistentFormId(spellId)));

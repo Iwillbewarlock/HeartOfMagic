@@ -24,6 +24,9 @@ namespace Environment::SelfTest
     // Game thread: kPostLoadGame and kNewGame.
     void OnGameLoaded();
 
+    // selftest.json says {"enabled": true} now (reads the file). Any thread.
+    bool IsOn();
+
     // The checks (EnvironmentSelfTestChecks.cpp), game thread, each writes its own lines.
     void CheckH2();
     void CheckTwins();

@@ -2034,14 +2034,23 @@ headers (offline: `graft-check`, `graft-run-check`), wired by `src/uimanager/Tre
 (`RunTreeGraftAtMainMenu`, called from AutoScan.cpp after its scan, or when the catalog already was the load
 order's; log prefix `TreeGraft:`).
 
-- **When** (`TreeGraftRun.h` `WhyNotRun`, `WhyScanUnusable`): AutoScan's own preconditions hold ("Build Spell
-  Tree at Start" readable and not Off, a tree with spells: AutoScan.cpp `Precondition`); the load order is known; the tree record
-  `spell_tree_loadorder.json` is readable and its `loadOrder` is not the current fingerprint (the tree record,
-  not the scan record: a panel scan must not hide a graft); `ScanRecord::CatalogMatches` (the catalog is this
-  load order's full scan); `spell_scan_output.json` is that scan's dump (`ScanRecord::DumpMatches`: the
-  record's `dumpBytes` / `dumpHash`, which `DumpWritten` stamps only into the record with the scan's
-  `writeId`); the scan has a spells list, an empty `incomplete` and the tome reach pass `ready`. Otherwise
-  nothing is written and the load order notice applies as before.
+- **When** - it runs only when all of these hold; otherwise nothing is written and the load order notice
+  applies as before:
+  - AutoScan's `Precondition`: config.json readable and "Build Spell Tree at Start" not Off (an unreadable
+    config.json is an unknown setting: no graft), `spell_tree.json` has spells;
+  - no graft journal is left in the tree record after `ResolveTreeGraftJournal` (one that waits stops this
+    start's graft);
+  - `TreeGraftRun.h` `WhyNotRun`: the load order is known; the tree record `spell_tree_loadorder.json` is
+    readable and its `loadOrder` is not the current fingerprint (the tree record, not the scan record: a panel
+    scan must not hide a graft); `ScanRecord::CatalogMatches` (the catalog is this load order's full scan);
+  - `spell_scan_output.json` is that scan's dump (`ScanRecord::DumpMatches`: the record's `dumpBytes` /
+    `dumpHash`, which `DumpWritten` stamps only into the record with the scan's `writeId`), and `WhyScanUnusable`:
+    a spells list, an empty `incomplete`, the tome reach pass `ready`;
+  - a seen list baseline exists (below; none: nothing grafted, nothing written).
+
+  Then the plan's checks must pass and the files must be unchanged at the write. A run that leaves spells
+  deferred or unplaced writes the spells it grafted but keeps the record's old `loadOrder`, so the notice
+  stays and the graft runs again at the next start.
 - **The seen list** (`include/uimanager/TreeRecord.h`, record `version` 2): `seenSpells`, the persistentId of
   every spell the tree's build or a graft has judged. Written at a build's Apply (the panel sends it with the
   tree, `SpellTreeSave.send`; `UIManager::SaveSpellTreeFromPanel` takes it off the tree text,
@@ -2102,10 +2111,12 @@ spell is quest-only when at least one of its tomes is reached and every reached 
 (`TomeReachPass.h` `OnlyQuestsReach`; an unreached tome does not count against it). The scan marks it
 `questOnly: true` (`TomeReach::QuestOnlySpells`); `isTreeCandidate` leaves it out unless the player included it
 (`GateReview.isKept`); the blacklist window's "Quest only" list (`gateReview.js`) shows it with Include. The
-College of Winterhold's novice tomes stay: a merchant's leveled list reaches them too. When the pass finishes it
-logs every quest-only spell of the load order, one `TomeReach quest-only: '<name>' <formId> <persistentId> -
-quest records in <plugins>` line each (the plugins whose quest records name its reached tomes,
+College of Winterhold's novice tomes stay: a merchant's leveled list reaches them too. With the dev self-test on
+(`selftest.json` `{"enabled": true}`, `Environment::SelfTest::IsOn`, read when the pass starts; Ruling 20) each
+pass that answers logs every quest-only spell of the load order, one `TomeReach quest-only: '<name>' <formId>
+<persistentId> - quest records in <plugins>` line each (the plugins whose quest records name its reached tomes,
 `PassResult::questFrom`), and a `TomeReach quest-only: N spells` line: the list to look over before a release.
+Without the self-test nothing is logged and the labels are not built.
 
 **Renamed plugins** (2026-10-28). A node whose persistentId names nothing (its plugin renamed, merged or
 ESL-compacted) is looked up by its baked `editorId` (`SchoolBridges.applyToOutput` writes it from the scan;

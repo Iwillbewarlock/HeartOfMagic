@@ -181,6 +181,12 @@ namespace Environment::SelfTest
         StartTicker();
     }
 
+    bool IsOn()
+    {
+        float delay = kDefaultDelaySeconds;
+        return ReadSwitch(delay);
+    }
+
     void Report(std::string_view id, Outcome outcome, const std::string& observed)
     {
         const char* word = outcome == Outcome::kPass ? "PASS" : outcome == Outcome::kFail ? "FAIL" : "SKIP";

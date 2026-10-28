@@ -35,8 +35,8 @@ namespace TomeReach
 
     // The quest-only spells: at least one reached tome, every reached tome one only a
     // quest hands out (its script or an alias: PassResult::questOnly, OnlyQuestsReach).
-    // False when UnreachableSpells is. The pass logs each one ("TomeReach quest-only:"
-    // lines) when it finishes.
+    // False when UnreachableSpells is. With the dev self-test on (selftest.json) the pass
+    // logs each one ("TomeReach quest-only:" lines) when it finishes.
     bool QuestOnlySpells(std::unordered_set<RE::FormID>& out);
 
     // Any thread but the game thread: waits until the pass is done (or failed),

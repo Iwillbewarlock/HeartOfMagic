@@ -8,8 +8,9 @@
   scans every spell in the background, a few milliseconds a frame, so the game does not stop. It updates the
   spell catalog (what perk overhauls, Spell Research and the spell card read) and `spell_scan_output.json`, never
   your progress; the spell tree only gains the new spells (next entry). Perk overhauls see the new spells from
-  the next game start, Spell Research at the next save load. It does not run with "Build Spell Tree at Start" set to Off, or when there is no tree yet (the build at game start
-  scans then). The first start after updating scans once. A scan that could not mark everything (the check for
+  the next game start, Spell Research at the next save load. It does not run with "Build Spell Tree at Start"
+  set to Off, or when there is no tree yet (the build at game start scans then). The first start after updating
+  scans once. A scan that could not mark everything (the check for
   spell tomes nothing hands out still running, or the read of which spells vampires cast failed)
   still updates the catalog but scans again at the next start. A change to `gate/rules.json` also makes a scan
   due, and so does a mod updated under the same file name, as far as the game reports the plugin's new size or
@@ -17,17 +18,18 @@
   however long it takes; when the check fails because a plugin cannot be read, the scan is kept until that
   changes rather than repeated at every start.
 
-- **New spells join the tree you have.** After that scan, the spells of a magic mod you added join your
-  existing spell tree at the main menu, each under the spell of its school it fits best, the way a build would
-  place it. Every spell already in the tree stays where it is, with its links and your progress; the spell a new
-  one hangs under only gains a link to it. A corner message at the next save load says how many joined. Only
-  spells the tree has never met join, and only those a build would take: not blacklisted, not of a plugin turned
-  off in the plugin list, with a tome the game hands out. A spell you left out once does not come back by
-  itself; build the tree again to take it. The "load order changed, rebuild the tree" notice (the corner message
-  at a save load and the Scan page's line) now comes only when some new spells could not join (one of a school
-  the tree has no spells of, for example) or the joining did not run ("Build Spell Tree at Start" set to Off,
-  or a scan at game start that could not mark everything); a build on the Scan tab still takes them. The tree
-  file is backed up first (`spell_tree.json.bak`). Not yet tested in game.
+- **New spells join the tree you have.** After that scan, the spells of a magic mod you added join your existing
+  spell tree at the main menu. Each goes under a spell of its own school, picked with the build's own scoring
+  (without its random part) and a preference for a spot with room around it. Every spell already in the tree stays
+  where it is, with its links and your progress; the spell a new one hangs under only gains a link to it. A corner
+  message at the next save load says how many joined. Only spells the tree has never met join, and only those a
+  build would take: not blacklisted, not of a plugin turned off in the plugin list, with a tome the game hands out.
+  A spell you left out once does not come back by itself; build the tree again to take it. Once the new spells have
+  joined, the "load order changed, rebuild the tree" notice (the corner message at a save load and the Scan page's
+  line) no longer comes for that load order. It still comes whenever the joining could not run or finish: for
+  example a spell of a school the tree has no spells of, a scan at game start that could not mark everything, or a
+  tree from before this update with no earlier scan to compare with; a build on the Scan tab still takes those
+  spells. The tree file is backed up first (`spell_tree.json.bak`). Not yet tested in game.
 
 - **Experimental: spell tomes changed by SpellScribe count as spell tomes.** This is an experimental
   compatibility add-on. SpellScribe (through SkyPatcher) turns off the "teaches spell" flag on the spell tomes of
@@ -46,7 +48,7 @@
   makes, a distribution mod hands out or any other script gives keeps its spell in the tree, so the College of
   Winterhold's novice spells stay (its merchants sell them). Such spells are listed in the blacklist window under
   "Quest only"; Include puts one back, and it joins the tree the next time it is built. A scan made before this
-  update has no such mark: its spells stay in the tree until the next scan.
+  update has no such mark: its spells stay in the tree until the next scan. Not yet tested in game.
 
 ### Fixed
 
