@@ -42,6 +42,15 @@ namespace SpellTomes
     // Every pair of the snapshot (book that teaches nothing, its spell). Any thread.
     void ForEachPair(const std::function<void(RE::FormID book, RE::FormID spell)>& visit);
 
+    // The pairs the installed files make (SynthesizedPatch.json, Spell Research's plugin part,
+    // flags cleared at load), not the ones a loaded save brings (Spell Research's script part):
+    // the main menu has the same ones every start. The scan record's key. Any thread.
+    void ForEachInstalledPair(const std::function<void(RE::FormID book, RE::FormID spell)>& visit);
+
+    // The generation the last full scan's marks were made with (NoteFullScan / NoteFullScanOf),
+    // 0 for none. Any thread.
+    std::uint64_t LastScanGeneration();
+
     // Every spell tome with its spell, both kinds, in the BOOK array's order.
     // Game thread.
     void ForEachTome(const std::function<void(RE::TESObjectBOOK*, RE::SpellItem*)>& visit);

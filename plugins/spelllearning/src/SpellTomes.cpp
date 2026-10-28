@@ -309,6 +309,20 @@ namespace SpellTomes
         for (const auto& [book, entry] : snapshot->paired) visit(book, entry.spell);
     }
 
+    void ForEachInstalledPair(const std::function<void(RE::FormID book, RE::FormID spell)>& visit)
+    {
+        const auto snapshot = g_snapshot.load();
+        if (!snapshot) return;
+        for (const auto& [book, entry] : snapshot->paired) {
+            if (entry.source != Pairs::Source::kLiveScript) visit(book, entry.spell);
+        }
+    }
+
+    std::uint64_t LastScanGeneration()
+    {
+        return g_scanGeneration.load();
+    }
+
     bool IsPairedTome(RE::FormID book)
     {
         const auto snapshot = g_snapshot.load();
