@@ -259,10 +259,10 @@ void SpellEffectivenessHook::CheckAndRegrantSpell(RE::FormID spellFormId)
             return;
         }
 
-        // Released: tracked by the release, still to get its name and descriptions below
+        // Released: tracked by the release just now, still to get its name and descriptions below
         const bool released = ReleaseHeldIfOwned(spell);
         bool playerHasSpell = player->HasSpell(spell);
-        bool isTracked = IsEarlyLearnedSpell(spellFormId) && !released;
+        bool isTracked = IsEarlyLearnedSpell(spellFormId);
 
         // Held for ISL (a target picked again mid-study): tracked again for the weakening
         // once ISL adds it, never added or renamed here
@@ -282,7 +282,7 @@ void SpellEffectivenessHook::CheckAndRegrantSpell(RE::FormID spellFormId)
 
         // Known and not tracked: learned outside Heart of Magic, left as it is (ShouldGrantEarly).
         // Since the co-save keeps the early-learned set (SLEL), a spell this mod gave is tracked
-        // here already; one lost by a save from before that keeps its full power
+        // here already; one whose record was lost (v2.5, a damaged co-save) keeps its full power
         if (playerHasSpell && !isTracked) {
             logger::info("SpellEffectivenessHook: {} ({:08X}) is known and not early-learned (learned outside Heart of "
                          "Magic) - not tracked or weakened", spell->GetName(), spellFormId);
@@ -296,8 +296,8 @@ void SpellEffectivenessHook::CheckAndRegrantSpell(RE::FormID spellFormId)
                 spell->GetName(), spellFormId);
         }
 
-        // Added just now: tracked as early-learned
-        if (!isTracked) {
+        // Added just now, or tracked by the release above: early-learned, weakened name and descriptions
+        if (!isTracked || released) {
             AddEarlyLearnedSpell(spellFormId);
             UpdateSpellDisplayCache(spellFormId, spell);
             // RemoveEarlySpellFromPlayer put the name and descriptions back when
