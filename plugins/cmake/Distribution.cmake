@@ -334,6 +334,9 @@ foreach(_name IN LISTS _design_addons)
     list(JOIN _entries "/ and " DESIGN_FOLDERS)
     set(DESIGN_FOLDERS "${DESIGN_FOLDERS}/")
 
+    # The archive's own files are made afresh at each configure: the whole folder goes into the stage,
+    # so a file left from an earlier configure (a notices file since removed) must not
+    file(REMOVE_RECURSE "${_meta}")
     set(DESIGN_NOTICE_LINE "")
     set(_files "${_prefix}-README.txt" "${DESIGN_LICENSE_FILE}")
     if(EXISTS "${_designs_src}/${_name}/THIRD-PARTY-NOTICES.md.in")
