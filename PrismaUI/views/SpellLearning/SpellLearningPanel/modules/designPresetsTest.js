@@ -105,7 +105,8 @@ var DesignPresetsTest = {
         var root = path.join(__dirname, '../../../../..'), designs = path.join(root, 'addons/designs');
         var panels = function(name) { return path.join(designs, name, self.PANEL_DIR); };
         var shared = fs.readdirSync(path.join(designs, this.SHARED)).map(function(n) { return path.join(this.SHARED, n); }, this);
-        var names = fs.readdirSync(designs).filter(function(n) { return n !== self.SHARED && fs.statSync(path.join(designs, n)).isDirectory(); });
+        // _shared (trees several add-ons take) and _package (the archives' README and notices parts) are no add-ons
+        var names = fs.readdirSync(designs).filter(function(n) { return n.charAt(0) !== '_' && fs.statSync(path.join(designs, n)).isDirectory(); });
         this.check(names.sort().join(',') === 'Arcane,Chalkboard,Classic,ModernDark,NightGrimoire', 'five add-ons: ' + names.join(', '));
 
         // Where a panel-relative path may be found for an add-on: its own tree, the base panel, a shared tree
