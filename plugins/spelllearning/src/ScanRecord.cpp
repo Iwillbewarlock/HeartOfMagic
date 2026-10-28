@@ -4,6 +4,7 @@
 #include "PathText.h"
 #include "ScanRecord.h"
 #include "ScanRecordRules.h"
+#include "SpellTomes.h"
 #include "librarian/Librarian.h"
 #include "tomereach/TomeReach.h"
 
@@ -117,11 +118,23 @@ namespace
         return found != data.end() && found->is_string() ? found->get<std::string>() : std::string();
     }
 
+    // The tome pairs now (SpellTomes' snapshot), empty before they were first read
+    std::string TomePairsKey()
+    {
+        SpellTomes::Status status;
+        if (!SpellTomes::CurrentStatus(status)) return {};
+        std::vector<std::pair<std::uint32_t, std::uint32_t>> pairs;
+        SpellTomes::ForEachPair([&pairs](RE::FormID book, RE::FormID spell) { pairs.emplace_back(book, spell); });
+        return ScanRecordRules::TomePairsKey(std::move(pairs));
+    }
+
     // The fingerprint the record holds and is matched by: the load order's scan
-    // fingerprint with how the tome reach pass ended (empty while it runs)
+    // fingerprint with how the tome reach pass ended (empty while it runs) and the
+    // tome pairs (a re-run SynthesizedPatch.json over the same plugins makes a scan due)
     std::string RecordFingerprint(const LoadOrderFingerprint::Value& loadOrder)
     {
-        return ScanRecordRules::WithTomeReach(loadOrder.scan, TomeReach::OutcomeKey());
+        return ScanRecordRules::WithTomePairs(ScanRecordRules::WithTomeReach(loadOrder.scan, TomeReach::OutcomeKey()),
+            TomePairsKey());
     }
 
     void RemoveRecord(const char* why)
@@ -157,6 +170,7 @@ namespace ScanRecord
             data["loadOrder"] = loadOrder->hash;
             data["scan"] = fingerprint;
             data["tomeReach"] = TomeReach::OutcomeKey();
+            data["tomePairs"] = TomePairsKey();
             data["plugins"] = loadOrder->plugins;
             data["spells"] = loadOrder->spells;
             data["catalogBytes"] = catalog->bytes;

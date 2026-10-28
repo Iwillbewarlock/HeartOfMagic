@@ -140,6 +140,22 @@ namespace
             "tome reach outcome edge: a pass still running, or no scan fingerprint, gives none");
     }
 
+    void TomePairs()
+    {
+        const std::string fp = ScanRecordRules::WithTomeReach(Hash(Plugins()), "ready");
+        const std::string ab = ScanRecordRules::TomePairsKey({ { 0x0200'0D62, 0x0001'2FCD }, { 0x0200'0D63, 0x0001'2FD0 } });
+        const std::string ba = ScanRecordRules::TomePairsKey({ { 0x0200'0D63, 0x0001'2FD0 }, { 0x0200'0D62, 0x0001'2FCD } });
+        const std::string other = ScanRecordRules::TomePairsKey({ { 0x0200'0D62, 0x0001'2FCD }, { 0x0200'0D63, 0x0001'2FD1 } });
+        Check(ab == ba && ab.size() == 16 && ScanRecordRules::WithTomePairs(fp, ab) == ScanRecordRules::WithTomePairs(fp, ba),
+            "tome pairs: the same pairs in another order give the same key and fingerprint");
+        Check(ab != other && ScanRecordRules::WithTomePairs(fp, ab) != ScanRecordRules::WithTomePairs(fp, other) &&
+                  ScanRecordRules::WithTomePairs(fp, ab) != ScanRecordRules::WithTomePairs(fp, "none"),
+            "tome pairs: one book paired with another spell, or no pairs, changes the fingerprint (a re-run patch makes a scan due)");
+        Check(ScanRecordRules::TomePairsKey({}) == "none" && ScanRecordRules::WithTomePairs(fp, "").empty() &&
+                  ScanRecordRules::WithTomePairs("", ab).empty(),
+            "tome pairs edge: no pair is \"none\", pairs not read yet or no fingerprint give none");
+    }
+
     void RecordVersion()
     {
         const std::string scan = "0123456789abcdef";
@@ -174,6 +190,7 @@ void RunScanRecordSelfTest(int& passed, int& failed)
     Incomplete();
     Decision();
     TomeReachOutcome();
+    TomePairs();
     RecordVersion();
     CasterWalk();
 }

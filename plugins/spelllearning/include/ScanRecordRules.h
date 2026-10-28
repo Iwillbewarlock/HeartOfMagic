@@ -2,11 +2,13 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <format>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 // =============================================================================
@@ -104,6 +106,32 @@ namespace ScanRecordRules
         Fnv(hash, scanHash);
         Fnv(hash, "|tomereach|");
         Fnv(hash, tomeReachOutcome);
+        return Hex(hash);
+    }
+
+    // The tome pairs a scan read (SpellTomes: books that teach nothing, each with the spell it
+    // stands for) as one key: the same pairs in any order give the same key, "none" for no pair.
+    // The load order fingerprint does not see them: Spell Research Synthesizer run again over
+    // the same plugins rewrites SynthesizedPatch.json alone. O(n log n) in the pairs.
+    inline std::string TomePairsKey(std::vector<std::pair<std::uint32_t, std::uint32_t>> pairs)
+    {
+        if (pairs.empty()) return "none";
+        std::ranges::sort(pairs);
+        std::string text;
+        text.reserve(pairs.size() * 18);
+        for (const auto& [book, spell] : pairs) text += std::format("{:08X}:{:08X}\n", book, spell);
+        return HashText(text);
+    }
+
+    // The record's fingerprint with the tome pairs' key joined, or empty when either is unknown
+    // (no fingerprint, or the pairs not read yet)
+    inline std::string WithTomePairs(std::string_view fingerprint, std::string_view pairsKey)
+    {
+        if (fingerprint.empty() || pairsKey.empty()) return {};
+        std::uint64_t hash = kFnvOffsetBasis;
+        Fnv(hash, fingerprint);
+        Fnv(hash, "|tomepairs|");
+        Fnv(hash, pairsKey);
         return Hex(hash);
     }
 
