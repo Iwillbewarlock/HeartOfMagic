@@ -16,7 +16,7 @@
  *     more, held in game until the panel opens; a stale scan is marked; no retry
  *     after a finished run, after the player acted, twice, or on a bad payload.
  *
- * Depends on: autoBuildTest.js (loads autoBuild.js and autoBuildSetting.js).
+ * Depends on: autoBuildTest.js (loads autoBuild.js, autoBuildCpp.js and autoBuildSetting.js).
  * Swaps the globals it stubs (timers included) and puts them back.
  */
 

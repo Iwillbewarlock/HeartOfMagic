@@ -308,7 +308,7 @@ sink's `IsPairedTome`). TomeReachRecords.cpp's raw BOOK DATA read is not one: it
   state after kPostLoadGame - a save loaded or a new game, `IsInGame`; a rebuild for a scan is not stale, and the
   scan notes its pairs once its forms are read, `NoteFullScan`): a scan made with fewer tomes
   is marked stale, and a failed
-  build at game start runs once more (autoBuild.js; "Tree Built at Game Start"). JSON ids are looked up once a
+  build at game start runs once more (autoBuildCpp.js; "Tree Built at Game Start"). JSON ids are looked up once a
   session (`LookupForm` walks every file by name; a message box rebuild then costs only the lists).
 - Log: `SpellTomes: N tomes - T by the book's own spell, P by Spell Research pairs (records R, script S,
   unverified), J by SynthesizedPatch.json (read|unusable|none); X pairs skipped (...) [generation G] (<reason>)`
