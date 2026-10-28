@@ -142,8 +142,8 @@ var GateReviewTest = {
             };
             R.keep = function(s) { kept.push(s); };
             try {
-                R._renderList('quest-only', [q1], ['modals.gateReview.questEmpty', 'No quest-only spells in the last scan.'],
-                    [['modals.gateReview.include', 'Include', function(spell) { R.keep(spell); }]], false);
+                R._renderList('quest-only', [q1], ['modals.gateReview.questEmpty', 'No quest-only spells in the last scan'],
+                    [['modals.gateReview.include', 'Include', function(spell) { R.keep(spell); }]]);
             } catch (e) { drew = false; }
             var row = drew && els['quest-only-entries'].children[0];
             var button = row && row.children[1];
@@ -152,6 +152,28 @@ var GateReviewTest = {
                 row.children[0].children[1].textContent === 'Quests.esp' &&
                 button.textContent === 'Include' && kept.length === 1 && kept[0] === q1,
                 'quest-only: the list shows a spell the gate did not mark; Include keeps it');
+            // A quest-only spell the gate left out: not in the gate's lists (not a tree candidate), so the
+            // quest-only row says why too - Include lifts both
+            var qOut = { formId: '0x01000814', plugin: 'Quests.esp', taughtByTome: true, questOnly: true,
+                gate: { band: 'out', reasons: ['free'] } };
+            var oldState = g.state, oldPrimed = g.getPrimedSpells, rendered = true;
+            g.state = { lastSpellData: { spells: [qOut] } };
+            g.getPrimedSpells = function(filter) { return g.state.lastSpellData.spells.filter(filter || function() { return true; }); };
+            g.settings = { gateReviewed: [], spellBlacklist: [] };
+            els = {};
+            R.render = oldRender;
+            try {
+                R.render();
+            } catch (e) { rendered = false; }
+            finally {
+                g.state = oldState;
+                g.getPrimedSpells = oldPrimed;
+            }
+            var qRow = rendered && els['quest-only-entries'] && els['quest-only-entries'].children[0];
+            var qWhy = qRow && qRow.children[0] && qRow.children[0].children[1];
+            this.check(!!qWhy && qWhy.textContent === 'Quests.esp - ' + R.reasonText('free') &&
+                els['gate-out-count'].textContent === 0,
+                'quest-only: a spell the gate left out shows its reason in the quest-only list (the "left out" list lacks it)');
         } finally {
             R.keep = oldKeep;
             R.render = oldRender;

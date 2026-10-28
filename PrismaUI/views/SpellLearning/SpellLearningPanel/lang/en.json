@@ -694,7 +694,7 @@
     "modals.gateReview.outEmpty": "Nothing left out",
     "modals.gateReview.outHeader": "Left out by itself",
     "modals.gateReview.questDescription": "Spells whose tomes only a quest hands out. Include one to let it into the tree.",
-    "modals.gateReview.questEmpty": "No quest-only spells in the last scan.",
+    "modals.gateReview.questEmpty": "No quest-only spells in the last scan",
     "modals.gateReview.questHeader": "Quest only",
     "modals.gateReview.reason.banishOnly": "only dismisses a summon",
     "modals.gateReview.reason.free": "costs nothing to cast",

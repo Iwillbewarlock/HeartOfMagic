@@ -124,16 +124,7 @@ var GateReview = {
      */
     pending: function(spells, blacklist, reviewed, band) {
         band = band || 'review';
-        var kept = {};
-        for (var r = 0; r < (reviewed || []).length; r++) kept[reviewed[r]] = true;
-        var out = [];
-        for (var i = 0; i < (spells || []).length; i++) {
-            var s = spells[i];
-            if (!s || !s.gate || s.gate.band !== band) continue;
-            if (kept[this.key(s)] || this._blacklisted(s, blacklist || [])) continue;
-            out.push(s);
-        }
-        return out;
+        return this._listed(spells, blacklist, reviewed, function(s) { return !!s.gate && s.gate.band === band; });
     },
 
     /**
@@ -141,12 +132,17 @@ var GateReview = {
      * @param {Array} spells - tome candidates before the quest-only rule (getPrimedSpells(isTomeCandidate))
      */
     questOnly: function(spells, blacklist, reviewed) {
+        return this._listed(spells, blacklist, reviewed, function(s) { return s.questOnly === true; });
+    },
+
+    /** The spells that pass `test`, not blacklisted and not kept or included already (settings.gateReviewed) */
+    _listed: function(spells, blacklist, reviewed, test) {
         var kept = {};
         for (var r = 0; r < (reviewed || []).length; r++) kept[reviewed[r]] = true;
         var out = [];
         for (var i = 0; i < (spells || []).length; i++) {
             var s = spells[i];
-            if (!s || s.questOnly !== true) continue;
+            if (!s || !test(s)) continue;
             if (kept[this.key(s)] || this._blacklisted(s, blacklist || [])) continue;
             out.push(s);
         }
@@ -186,16 +182,16 @@ var GateReview = {
         // Quest-only spells are not tree candidates: list them from the filter before that rule
         var questSpells = primed(typeof isTomeCandidate === 'function' ? isTomeCandidate : null);
         this._renderList('quest-only', this.questOnly(questSpells, blacklist, kept),
-            ['modals.gateReview.questEmpty', 'No quest-only spells in the last scan.'], [
+            ['modals.gateReview.questEmpty', 'No quest-only spells in the last scan'], [
                 ['modals.gateReview.include', 'Include', function(spell) { self.keep(spell); }]
-            ], false);
+            ]);
     },
 
     /**
-     * One list: rows of name, plugin and the gate's reasons (showReasons false: the plugin
-     * alone), with its buttons ([key, fallback, onClick])
+     * One list: rows of name, plugin and the gate's reasons (a quest-only spell the gate
+     * marked "review" or "out" shows them too), with its buttons ([key, fallback, onClick])
      */
-    _renderList: function(prefix, list, emptyText, buttons, showReasons) {
+    _renderList: function(prefix, list, emptyText, buttons) {
         var box = document.getElementById(prefix + '-entries');
         var count = document.getElementById(prefix + '-count');
         if (!box) return;
@@ -219,7 +215,7 @@ var GateReview = {
             name.textContent = spell.name || '???';
             var why = document.createElement('div');
             why.className = 'blacklist-entry-school';
-            var reasons = showReasons === false ? [] : ((spell.gate && spell.gate.reasons) || []);
+            var reasons = (spell.gate && spell.gate.reasons) || [];
             why.textContent = (spell.plugin || '') + (reasons.length ? ' - ' +
                 reasons.map(function(r) { return self.reasonText(r); }).join(', ') : '');
             info.appendChild(name);
