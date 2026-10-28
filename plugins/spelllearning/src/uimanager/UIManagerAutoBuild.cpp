@@ -5,6 +5,7 @@
 #include "LoadOrderFingerprint.h"
 #include "PathText.h"
 #include "ThreadUtils.h"
+#include "uimanager/TreeRecord.h"
 #include "uimanager/TreeSaveCheck.h"
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
@@ -17,6 +18,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 // =============================================================================
 // TREE BUILT AT GAME START (docs/ARCHITECTURE.md, "Tree built at game start")
@@ -25,20 +27,22 @@
 // The panel decides (modules/autoBuild.js); this file gives it the facts and
 // keeps the one record it needs across game starts:
 //
-//   spell_tree_loadorder.json, beside spell_tree.json
-//     { "version": 1, "loadOrder": "<fingerprint the tree was built under>",
-//       "plugins": n, "spells": n, "noticedLoadOrder": "<fingerprint the player was told about>" }
+//   spell_tree_loadorder.json, beside spell_tree.json (its fields: TreeRecord.h)
+//     { "version": 2, "loadOrder": "<fingerprint the tree was built under>",
+//       "plugins": n, "spells": n, "noticedLoadOrder": "<fingerprint the player was told about>",
+//       "seenSpells": [persistentId...], "pendingGrafted": n }
 //
 // The fingerprint is LoadOrderFingerprint.h's (asked for first by LoadSpellTree
 // at the main menu, normally).
 // Written when SaveSpellTree saves a build's Apply (manual or the one at game
-// start: the panel sends those to SaveBuiltSpellTree); an edit mode save, an import or an orphan
-// repair leaves the record as it is. A tree saved before 1.5.0 has no record
-// and gets no notice until it is built again.
+// start: the panel sends those to SaveBuiltSpellTree, with the spells the
+// build's scan saw); an edit mode save or an orphan repair leaves the record as
+// it is, an import (SaveImportedSpellTree) only drops the seen list. Fields a
+// later version adds are kept. A tree saved before 1.5.0 has no record and gets
+// no notice until it is built again.
 
 namespace
 {
-    constexpr int kRecordVersion = 1;
     constexpr int kRecordIndent = 2;
     constexpr std::size_t kEventTextMax = 512;   // bytes of a panel event's text in the log, at most
 
@@ -47,13 +51,7 @@ namespace
     // The corner message for a run held in game ("held"), once per session
     std::atomic<bool> s_heldTold{ false };
 
-    struct TreeLoadOrderRecord
-    {
-        std::string loadOrder;
-        std::string noticedLoadOrder;
-        std::size_t plugins = 0;   // of the load order the tree was built under
-        std::size_t spells = 0;
-    };
+    using TreeLoadOrderRecord = TreeRecordFile::TreeRecord;
 
     const LoadOrderFingerprint::Value& CurrentLoadOrder()
     {
@@ -70,22 +68,13 @@ namespace
             logger::warn("UIManager: spell_tree_loadorder.json could not be read - the saved tree's load order is unknown");
             return record;
         }
-        record.loadOrder = SafeJsonValue<std::string>(data, "loadOrder", "");
-        record.noticedLoadOrder = SafeJsonValue<std::string>(data, "noticedLoadOrder", "");
-        record.plugins = SafeJsonValue<std::size_t>(data, "plugins", 0);
-        record.spells = SafeJsonValue<std::size_t>(data, "spells", 0);
-        return record;
+        return TreeRecordFile::ParseTreeRecord(data);
     }
 
     void WriteRecord(const TreeLoadOrderRecord& record)
     {
-        nlohmann::json data;
-        data["version"] = kRecordVersion;
-        data["loadOrder"] = record.loadOrder;
-        data["plugins"] = record.plugins;
-        data["spells"] = record.spells;
-        data["noticedLoadOrder"] = record.noticedLoadOrder;
-        if (!FileUtils::WriteAtomically(UIManager::GetTreeLoadOrderFilePath(), JsonText::Dump(data, kRecordIndent), false)) {
+        if (!FileUtils::WriteAtomically(UIManager::GetTreeLoadOrderFilePath(),
+                JsonText::Dump(TreeRecordFile::ToJson(record), kRecordIndent), false)) {
             logger::warn("UIManager: could not write {}", PathText::Utf8(UIManager::GetTreeLoadOrderFilePath()));
         }
     }
@@ -171,30 +160,53 @@ std::optional<long long> UIManager::CheckTreeHasSpells(const std::string& treeTe
 
 void UIManager::OnSaveSpellTree(const char* argument)
 {
-    SaveSpellTreeFromPanel(argument, false);
+    SaveSpellTreeFromPanel(argument, TreeSaveKind::Edit);
 }
 
 void UIManager::OnSaveBuiltSpellTree(const char* argument)
 {
-    SaveSpellTreeFromPanel(argument, true);
+    SaveSpellTreeFromPanel(argument, TreeSaveKind::Built);
 }
 
-void UIManager::RecordTreeLoadOrder()
+void UIManager::OnSaveImportedSpellTree(const char* argument)
+{
+    SaveSpellTreeFromPanel(argument, TreeSaveKind::Imported);
+}
+
+void UIManager::RecordTreeLoadOrder(const std::vector<std::string>& seen)
 {
     const auto& now = CurrentLoadOrder();
     if (now.hash.empty()) return;
     auto record = ReadRecord();
+    // An empty list is no list: a build always has a scan, so none came (an unreadable
+    // payload) and a graft takes its baseline instead of finding every spell new
+    const bool hasSeen = !seen.empty();
     // Only when nothing changes: a tree built again under the load order it was
     // built for still clears a notice given meanwhile for another one (A, told
     // about B, back to A and built: B later must be told again)
-    if (record.loadOrder == now.hash && record.noticedLoadOrder.empty()) return;
+    if (record.loadOrder == now.hash && record.noticedLoadOrder.empty() && record.hasSeen == hasSeen &&
+        record.seen == seen) {
+        return;
+    }
     record.loadOrder = now.hash;
     record.plugins = now.plugins;
     record.spells = now.spells;
     record.noticedLoadOrder.clear();   // the tree is this load order's now
+    record.seen = seen;
+    record.hasSeen = hasSeen;
     WriteRecord(record);
-    logger::info("UIManager: spell tree built under load order {} ({} plugins, {} spell forms)",
-        now.hash, now.plugins, now.spells);
+    logger::info("UIManager: spell tree built under load order {} ({} plugins, {} spell forms); its scan saw {}",
+        now.hash, now.plugins, now.spells, hasSeen ? std::format("{} spells", seen.size()) : std::string("no list (none sent)"));
+}
+
+void UIManager::ForgetSeenSpells()
+{
+    auto record = ReadRecord();
+    if (!record.hasSeen) return;
+    record.seen.clear();
+    record.hasSeen = false;
+    WriteRecord(record);
+    logger::info("UIManager: imported spell tree - the record's seen list (another build's) dropped");
 }
 
 void UIManager::ShowPendingLoadOrderNotice()

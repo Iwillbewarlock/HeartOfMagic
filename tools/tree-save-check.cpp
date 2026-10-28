@@ -1,13 +1,15 @@
 // tree-save-check - offline check of SaveSpellTree's no-spells guard
-// (plugins/spelllearning/include/uimanager/TreeSaveCheck.h).
+// (plugins/spelllearning/include/uimanager/TreeSaveCheck.h) and of the tree
+// record a build's save writes (TreeRecord.h: the seen list).
 //
-//   tree-save-check --self-test        made-up trees, no files needed
+//   tree-save-check --self-test        made-up trees and records, no files needed
 //   tree-save-check <tree.json>...     each file: the text scan against a full
 //                                      parse (spells under schools.*.nodes)
 //
 // Exit 0 when every case agrees, 1 on a disagreement, 2 on a bad argument or a
 // file that cannot be read.
 
+#include "uimanager/TreeRecord.h"
 #include "uimanager/TreeSaveCheck.h"
 
 #include <chrono>
@@ -17,6 +19,8 @@
 #include <nlohmann/json.hpp>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 namespace
 {
@@ -34,6 +38,69 @@ namespace
             if (school.is_object() && school.contains("nodes") && school["nodes"].is_array()) count += school["nodes"].size();
         }
         return count;
+    }
+
+    // TreeRecord.h: the record's JSON both ways and the seen list taken off a built tree.
+    // Returns { failed, cases }.
+    std::pair<int, std::size_t> RecordSelfTest()
+    {
+        namespace TR = TreeRecordFile;
+        int failed = 0;
+        std::size_t cases = 0;
+        const auto check = [&](bool ok, const char* name) {
+            ++cases;
+            if (!ok) ++failed;
+            std::printf("  [%s] %s\n", ok ? "PASS" : "FAIL", name);
+        };
+
+        {
+            const auto file = nlohmann::json::parse(R"({"version":2,"loadOrder":"abc","noticedLoadOrder":"def",
+                "plugins":12,"spells":340,"seenSpells":["A.esp|0x000801","B.esp|0x000802"],"pendingGrafted":3,
+                "laterField":{"x":[1,2]},"note":"kept"})");
+            const auto record = TR::ParseTreeRecord(file);
+            const auto again = TR::ParseTreeRecord(TR::ToJson(record));
+            const auto out = TR::ToJson(again);
+            check(record.loadOrder == "abc" && record.noticedLoadOrder == "def" && record.plugins == 12 &&
+                    record.spells == 340 && record.hasSeen && record.pendingGrafted == 3 &&
+                    record.seen == std::vector<std::string>{ "A.esp|0x000801", "B.esp|0x000802" } &&
+                    again.seen == record.seen && again.hasSeen && again.pendingGrafted == 3 &&
+                    out.value("laterField", nlohmann::json()) == file["laterField"] && out.value("note", "") == "kept" &&
+                    out.value("version", 0) == TR::kVersion && !record.extra.contains("seenSpells") &&
+                    !record.extra.contains("loadOrder"),
+                "record: seen list round-trips, unknown fields kept");
+        }
+        {
+            const auto record = TR::ParseTreeRecord(nlohmann::json::parse(
+                R"({"version":1,"loadOrder":"abc","plugins":12,"spells":340,"noticedLoadOrder":""})"));
+            const auto out = TR::ToJson(record);
+            check(!record.hasSeen && record.seen.empty() && record.pendingGrafted == 0 && record.loadOrder == "abc" &&
+                    record.plugins == 12 && out.value("version", 0) == TR::kVersion && !out.contains("seenSpells"),
+                "record: version 1 file reads with hasSeen false");
+        }
+        {
+            const auto record = TR::ParseTreeRecord(nlohmann::json::parse(
+                R"({"loadOrder":5,"plugins":-1,"spells":"x","seenSpells":["A.esp|0x000801",7,null],"pendingGrafted":"2"})"));
+            const auto empty = TR::ParseTreeRecord(nlohmann::json::parse(R"({"seenSpells":[]})"));
+            const auto notObject = TR::ParseTreeRecord(nlohmann::json::parse("[1,2]"));
+            check(record.loadOrder.empty() && record.plugins == 0 && record.spells == 0 && record.pendingGrafted == 0 &&
+                    record.hasSeen && record.seen == std::vector<std::string>{ "A.esp|0x000801" } && empty.hasSeen &&
+                    empty.seen.empty() && TR::ToJson(empty).contains("seenSpells") && !notObject.hasSeen &&
+                    notObject.loadOrder.empty(),
+                "record: wrong types read as unset, non-string ids dropped, an empty list is still a list");
+        }
+        {
+            auto tree = nlohmann::ordered_json::parse(
+                R"({"schools":{"Restoration":{"nodes":[{"formId":"0x1"}]},"Alteration":{"nodes":[]}},"seenSpells":["A.esp|0x000801"]})");
+            const auto seen = TR::TakeSeenSpells(tree);
+            const auto text = tree.dump();
+            auto plain = nlohmann::json::parse(R"({"schools":{}})");
+            const auto none = TR::TakeSeenSpells(plain);
+            check(seen == std::vector<std::string>{ "A.esp|0x000801" } && text.find("seenSpells") == std::string::npos &&
+                    text == R"({"schools":{"Restoration":{"nodes":[{"formId":"0x1"}]},"Alteration":{"nodes":[]}}})" &&
+                    none.empty() && plain.dump() == R"({"schools":{}})",
+                "TakeSeenSpells: removed from the tree text (key order kept), absent gives empty");
+        }
+        return { failed, cases };
     }
 
     struct Case
@@ -66,7 +133,9 @@ namespace
             if (!ok) ++failed;
             std::printf("  [%s] %s: %s\n", ok ? "PASS" : "FAIL", c.name, got ? "has spells" : "no spells");
         }
-        std::printf("self-test: %d of %zu failed\n", failed, std::size(kCases));
+        const auto [recordFailed, recordCases] = RecordSelfTest();
+        failed += recordFailed;
+        std::printf("self-test: %d of %zu failed\n", failed, std::size(kCases) + recordCases);
         return failed == 0 ? kExitOk : kExitMismatch;
     }
 

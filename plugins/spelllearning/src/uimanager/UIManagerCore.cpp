@@ -109,6 +109,7 @@ bool UIManager::Initialize()
     m_prismaUI->RegisterJSListener(m_view, "LogMessage", OnLogMessage);
     m_prismaUI->RegisterJSListener(m_view, "AutoBuildEvent", OnAutoBuildEvent);
     m_prismaUI->RegisterJSListener(m_view, "SaveBuiltSpellTree", OnSaveBuiltSpellTree);
+    m_prismaUI->RegisterJSListener(m_view, "SaveImportedSpellTree", OnSaveImportedSpellTree);
 
     // Register JS callbacks - Procedural tree generation (C++ native)
     m_prismaUI->RegisterJSListener(m_view, "ProceduralTreeGenerate", OnProceduralTreeGenerate);

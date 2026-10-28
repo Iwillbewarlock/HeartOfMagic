@@ -16,7 +16,8 @@
  *     an Apply, Clear or Scan that does nothing does not end the run; the
  *     player's Build waits for the run's C++ build, whose result is dropped;
  *   - a tree without spells: refused with the tree tab's error, `schools` as an
- *     array counts no spells, only a build's save goes to SaveBuiltSpellTree.
+ *     array counts no spells, only a build's save goes to SaveBuiltSpellTree
+ *     (an Import's to SaveImportedSpellTree).
  *
  * Depends on: autoBuildTest.js (loads the modules), cppCallbacks.js, treeLoad.js,
  * buttonHandlers.js and proceduralTreeBuilder.js (loaded here). Swaps the
@@ -241,7 +242,7 @@ var AutoBuildFlowTest = {
             callCpp: function(name, arg) {
                 if (name === 'AutoBuildEvent') events.push(JSON.parse(arg).event);
                 else cpp.push(name);
-                if (name === 'SaveSpellTree' || name === 'SaveBuiltSpellTree') sends++;
+                if (name === 'SaveSpellTree' || name === 'SaveBuiltSpellTree' || name === 'SaveImportedSpellTree') sends++;
             },
             document: { getElementById: function(id) { return id === 'build-progress-modal' ? modal : null; } },
             updateScanStatus: function(text, type, key) { status.push(key); },
@@ -325,8 +326,9 @@ var AutoBuildFlowTest = {
             S.send({ schools: { A: { nodes: [{ formId: '0x01' }] } } }, 'apply');
             S.send({ schools: { A: { nodes: [{ formId: '0x01' }] } } }, 'auto build');
             S.send({ schools: { A: { nodes: [{ formId: '0x01' }] } } }, 'edit mode save');
-            self.check(cpp.join(',') === 'SaveSpellTree,SaveBuiltSpellTree,SaveBuiltSpellTree,SaveSpellTree',
-                'a build\'s save goes to SaveBuiltSpellTree (its load order recorded), any other to SaveSpellTree');
+            self.check(cpp.join(',') === 'SaveImportedSpellTree,SaveBuiltSpellTree,SaveBuiltSpellTree,SaveSpellTree',
+                'a build\'s save goes to SaveBuiltSpellTree (its load order recorded), an Import to SaveImportedSpellTree, ' +
+                'any other to SaveSpellTree');
         });
     },
     /** What the real startScan (buttonHandlers.js) needs, with its ScanSpells calls counted in `out`. */

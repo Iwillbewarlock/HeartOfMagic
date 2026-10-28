@@ -9,7 +9,7 @@
  *   - Apply and Clear are refused while a build's progress is active;
  *   - Pre Req Master's lock scores for a tree that was cleared or built again
  *     are dropped (prereqMaster.js in a sandbox of its own);
- *   - the dev harness saves a SaveBuiltSpellTree like a SaveSpellTree;
+ *   - the dev harness saves a SaveBuiltSpellTree and a SaveImportedSpellTree like a SaveSpellTree;
  *   - the "still building" line has an English fallback (11 languages lack the key);
  *     a failed C++ lock scoring ends the build's progress; a run that ends while
  *     building closes its silent progress; the panel already open shows it at once;
@@ -315,9 +315,11 @@ var AutoBuildGuardTest = {
             { filename: 'dev-harness-bridge.js' });
         sandbox.callCpp('SaveBuiltSpellTree', '{"built":1}');
         var built = sandbox._lastSavedTree;
+        sandbox.callCpp('SaveImportedSpellTree', '{"imported":1}');
+        var imported = sandbox._lastSavedTree;
         sandbox.callCpp('SaveSpellTree', '{"plain":1}');
-        this.check(built === '{"built":1}' && sandbox._lastSavedTree === '{"plain":1}',
-            'the dev harness saves SaveBuiltSpellTree and SaveSpellTree alike');
+        this.check(built === '{"built":1}' && imported === '{"imported":1}' && sandbox._lastSavedTree === '{"plain":1}',
+            'the dev harness saves SaveBuiltSpellTree, SaveImportedSpellTree and SaveSpellTree alike');
     },
 
     /** CanvasRenderer.show (canvasRendererV2.js) on a stand-in renderer. */

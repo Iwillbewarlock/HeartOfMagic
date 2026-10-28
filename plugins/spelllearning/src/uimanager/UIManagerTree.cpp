@@ -5,6 +5,7 @@
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
 #include "uimanager/StartupState.h"
+#include "uimanager/TreeRecord.h"
 #include "SpellScanner.h"
 #include "EncodingUtils.h"
 #include "ProgressionManager.h"
@@ -215,20 +216,64 @@ void UIManager::OnGetSpellInfoBatch(const char* argument)
     });
 }
 
-void UIManager::SaveSpellTreeFromPanel(const char* argument, bool built)
+namespace
 {
-    logger::info("UIManager: SaveSpellTree callback triggered{}", built ? " (a build's Apply)" : "");
+    // A build's payload: the tree's text without its seen list, and the list
+    // (TreeRecord.h, spell_tree_loadorder.json)
+    struct BuiltTreePayload
+    {
+        std::string treeText;
+        std::vector<std::string> seen;
+    };
+
+    // Parsed here, in the listener, not in the game thread task (the tree is 0.5-1 MB:
+    // the task only scans its text, TreeSaveCheck.h). ordered_json keeps the panel's key
+    // order, which the school order depends on (TreePrereqEntries.h). A payload that does
+    // not parse is saved as it came, with no seen list.
+    BuiltTreePayload SplitBuiltTreePayload(const std::string& text)
+    {
+        const auto started = std::chrono::steady_clock::now();
+        try {
+            auto tree = nlohmann::ordered_json::parse(text, nullptr, false);
+            if (tree.is_discarded() || !tree.is_object()) {
+                logger::warn("UIManager: SaveSpellTree - a build's tree that does not parse: saved as sent, no seen list recorded");
+                return { text, {} };
+            }
+            auto seen = TreeRecordFile::TakeSeenSpells(tree);
+            // Not JsonText::Dump, which takes nlohmann::json (sorted keys); the same error handler
+            auto stripped = tree.dump(-1, ' ', false, nlohmann::ordered_json::error_handler_t::replace);
+            logger::info("UIManager: SaveSpellTree - {} spells seen by the build's scan taken off the tree ({} ms)",
+                seen.size(), MsSince(started));
+            return { std::move(stripped), std::move(seen) };
+        } catch (const std::exception& e) {
+            logger::error("UIManager: SaveSpellTree - the build's seen list could not be taken off ({}): saved as sent", e.what());
+            return { text, {} };
+        }
+    }
+}
+
+void UIManager::SaveSpellTreeFromPanel(const char* argument, TreeSaveKind kind)
+{
+    logger::info("UIManager: SaveSpellTree callback triggered{}",
+        kind == TreeSaveKind::Built ? " (a build's Apply)" : kind == TreeSaveKind::Imported ? " (an Import)" : "");
 
     if (!argument || strlen(argument) == 0) {
         logger::warn("UIManager: SaveSpellTree - no content to save");
         return;
     }
 
-    std::string argStr(argument);
+    BuiltTreePayload payload = kind == TreeSaveKind::Built ? SplitBuiltTreePayload(argument)
+                                                           : BuiltTreePayload{ std::string(argument), {} };
 
-    AddTaskToGameThread("SaveSpellTree", [argStr, built]() {
+    AddTaskToGameThread("SaveSpellTree", [argStr = std::move(payload.treeText), seen = std::move(payload.seen), kind]() {
         auto* instance = GetSingleton();
         if (!instance || !instance->m_prismaUI) return;
+
+        // What the save does to spell_tree_loadorder.json besides the tree file
+        const auto updateRecord = [&]() {
+            if (kind == TreeSaveKind::Built) instance->RecordTreeLoadOrder(seen);
+            else if (kind == TreeSaveKind::Imported) instance->ForgetSeenSpells();
+        };
 
         // Create output directory
         std::filesystem::path outputDir = "Data/SKSE/Plugins/SpellLearning";
@@ -240,12 +285,13 @@ void UIManager::SaveSpellTreeFromPanel(const char* argument, bool built)
         // The same tree again - applying twice, or a builder that saves on
         // every step - is not written again. Rewriting it would also rotate
         // the .bak, replacing the real previous tree with a copy of this one.
+        // A build's text is hashed without its seen list (the record still gets that).
         static std::size_t s_lastSavedHash = 0;
         const std::size_t hash = std::hash<std::string>{}(argStr);
         std::error_code existsError;
         if (hash == s_lastSavedHash && std::filesystem::exists(treePath, existsError)) {
             logger::info("UIManager: Spell tree unchanged since the last save - not rewritten");
-            if (built) instance->RecordTreeLoadOrder();
+            updateRecord();
             instance->UpdateTreeStatus("Tree saved");
             return;
         }
@@ -266,7 +312,7 @@ void UIManager::SaveSpellTreeFromPanel(const char* argument, bool built)
                 s_lastSavedHash = hash;
                 logger::info("UIManager: Saved spell tree to {} (spell check {} ms, written in {} ms)", PathText::Utf8(treePath),
                     *checkMs, MsSince(writeStarted));
-                if (built) instance->RecordTreeLoadOrder();
+                updateRecord();
                 instance->UpdateTreeStatus("Tree saved");
             } else {
                 instance->UpdateTreeStatus("Save failed");

@@ -12,21 +12,27 @@
  * A save that is not the build at game start's own ends that run first
  * (AutoBuild.yieldTo). A save from a build (BUILT_SOURCES) goes to
  * SaveBuiltSpellTree, which also records the load order the tree was built
- * under; an edit, an import or a repair goes to SaveSpellTree and leaves that
- * record as it is.
+ * under and the spells its scan saw: the payload carries "seenSpells", the
+ * persistentId of every spell of state.lastSpellData, kept or left out (C++
+ * moves it into spell_tree_loadorder.json and writes the tree without it; the
+ * tree object is not changed). An Import goes to SaveImportedSpellTree (the seen
+ * list belongs to another build: C++ clears it); an edit or a repair goes to
+ * SaveSpellTree. Neither touches the record otherwise.
  *
  * Usage:
  *   SpellTreeSave.countSpellNodes(tree)        // spells over all schools
  *   SpellTreeSave.send(tree, 'apply')          // false: refused or no bridge
  *   SpellTreeSave.send(tree, 'edit', jsonText) // the text when the caller has it already
+ *                                              // (a build's save makes its own, with seenSpells)
  *
- * Depends on: window.callCpp; AutoBuild, setTreeStatusKey (progressionUI.js) when loaded
+ * Depends on: window.callCpp; state (state.js), AutoBuild, setTreeStatusKey (progressionUI.js) when loaded
  */
 
 var SpellTreeSave = {
 
     AUTO_SOURCE: 'auto build',
     BUILT_SOURCES: ['apply', 'auto build'],
+    IMPORT_SOURCE: 'import',
 
     /**
      * Spells in a saved-tree object: the nodes of every school.
@@ -42,6 +48,21 @@ var SpellTreeSave = {
             if (Array.isArray(nodes)) count += nodes.length;
         }
         return count;
+    },
+
+    /**
+     * The persistentId of every spell of the last scan (state.lastSpellData), in its order.
+     * @returns {string[]} empty when there is no scan data
+     */
+    seenSpells: function() {
+        var data = (typeof state !== 'undefined' && state) ? state.lastSpellData : null;
+        var spells = data && Array.isArray(data.spells) ? data.spells : [];
+        var seen = [];
+        for (var i = 0; i < spells.length; i++) {
+            var id = spells[i] ? spells[i].persistentId : null;
+            if (typeof id === 'string' && id !== '') seen.push(id);
+        }
+        return seen;
     },
 
     /**
@@ -66,7 +87,17 @@ var SpellTreeSave = {
             console.warn('[SpellTreeSave] ' + source + ': no C++ bridge - not saved');
             return false;
         }
-        var listener = this.BUILT_SOURCES.indexOf(source) !== -1 ? 'SaveBuiltSpellTree' : 'SaveSpellTree';
+        if (this.BUILT_SOURCES.indexOf(source) !== -1) {
+            // A copy with the seen list last: the tree object goes on to the viewer and later edit saves
+            var payload = {};
+            for (var key in tree) {
+                if (tree.hasOwnProperty(key)) payload[key] = tree[key];
+            }
+            payload.seenSpells = this.seenSpells();
+            window.callCpp('SaveBuiltSpellTree', JSON.stringify(payload));
+            return true;
+        }
+        var listener = source === this.IMPORT_SOURCE ? 'SaveImportedSpellTree' : 'SaveSpellTree';
         window.callCpp(listener, treeJson !== undefined ? treeJson : JSON.stringify(tree));
         return true;
     }

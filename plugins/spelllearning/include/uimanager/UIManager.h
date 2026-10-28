@@ -8,6 +8,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include <nlohmann/json.hpp>
 
@@ -102,8 +103,11 @@ public:
     // The saved tree's state and the load order fingerprints to the panel
     // (onStartupTreeInfo), at the end of every LoadSpellTree
     void SendStartupTreeInfo(StartupTreeState state, std::size_t nodeCount) noexcept;
-    // The load order spell_tree.json was just built and written under (spell_tree_loadorder.json)
-    void RecordTreeLoadOrder();
+    // The load order spell_tree.json was just built and written under, and the spells its
+    // build's scan saw (spell_tree_loadorder.json, TreeRecord.h; none: no seen list)
+    void RecordTreeLoadOrder(const std::vector<std::string>& seen);
+    // An imported tree: the record's seen list belongs to another build - dropped
+    void ForgetSeenSpells();
     // The load order notice the panel asked for, in the corner, at kPostLoadGame;
     // recorded as told only once it was shown
     void ShowPendingLoadOrderNotice();
@@ -181,8 +185,13 @@ private:
     static void OnSaveSpellTree(const char* argument);
     // A build's Apply (UIManagerAutoBuild.cpp): the same save, and the load order it was built under recorded
     static void OnSaveBuiltSpellTree(const char* argument);
-    // Both saves (UIManagerTree.cpp); built: record the load order (spell_tree_loadorder.json)
-    static void SaveSpellTreeFromPanel(const char* argument, bool built);
+    // An Import (UIManagerAutoBuild.cpp): the same save, and the record's seen list dropped
+    static void OnSaveImportedSpellTree(const char* argument);
+    // Who saves: an edit, a repair (the record left as it is), a build's Apply, an Import
+    enum class TreeSaveKind { Edit, Built, Imported };
+    // The three saves (UIManagerTree.cpp); Built: the load order and the seen list recorded
+    // (spell_tree_loadorder.json), Imported: the seen list dropped
+    static void SaveSpellTreeFromPanel(const char* argument, TreeSaveKind kind);
     
     // Progression callbacks
     static void OnSetLearningTarget(const char* argument);
