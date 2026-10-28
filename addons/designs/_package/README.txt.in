@@ -1,0 +1,17 @@
+Heart of Magic Librarian - @DESIGN_TITLE@ design (add-on) @PROJECT_VERSION@
+==========================================================================
+
+The @DESIGN_TITLE@ design for the Heart of Magic panel. The main mod ships one design, Skald;
+each other design is an add-on like this one.
+
+Requires: Heart of Magic Librarian @PROJECT_VERSION@ or later.
+
+Install: with Mod Organizer 2 like any other mod (install this archive, enable the mod). Its
+files (@DESIGN_FOLDERS@) go into Data as they are.
+
+Use: in the panel, Settings > UI Display > Design, pick "@DESIGN_TITLE@".
+
+Uninstall: disable or remove the mod. A saved choice of @DESIGN_TITLE@ then shows Skald, and
+comes back when the add-on is installed again.
+
+Licence: MIT, like the main mod (@DESIGN_LICENSE_FILE@).@DESIGN_NOTICE_LINE@

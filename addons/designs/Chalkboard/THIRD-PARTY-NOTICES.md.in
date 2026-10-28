@@ -1,0 +1,20 @@
+# Third-party notices - Heart of Magic Librarian, Chalkboard design @PROJECT_VERSION@
+
+The design's own files are MIT, like Heart of Magic Librarian (`@DESIGN_LICENSE_FILE@` next to this file), apart from the parts below.
+
+### The chalk fonts - SIL Open Font License 1.1
+
+The `.ttf` files under `PrismaUI/views/SpellLearning/SpellLearningPanel/themes/chalkboard/fonts/` are subsets of
+open fonts under the SIL Open Font License 1.1 (Google Fonts families, LXGW Xiaolai, and Hakgyoansim Bunpil by
+KERIS, designed by Yoon Design). Each font's license sits next to it (`<Family>-OFL.txt`, and
+`HakgyoansimBunpil-LICENSE.txt` for the KERIS font), and the `README.txt` in that folder names every file's source
+font and license.
+
+### Panel icons from game-icons.net - CC BY 3.0
+
+The 19 icons in `PrismaUI/views/SpellLearning/SpellLearningPanel/themes/chalkboard/icons/` are shapes from
+game-icons.net (<https://game-icons.net>) by Delapouite and Lorc, licensed CC BY 3.0
+(<https://creativecommons.org/licenses/by/3.0/>), redrawn as chalk drawings for Heart of Magic. Each icon's source
+(icon id - author/name):
+
+@GAME_ICONS_LIST@

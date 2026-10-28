@@ -97,44 +97,14 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### Fonts in the panel - SIL Open Font License 1.1
-
-The `.ttf` files under `PrismaUI/views/SpellLearning/SpellLearningPanel/themes/fonts/book/` and
-`PrismaUI/views/SpellLearning/SpellLearningPanel/themes/chalkboard/fonts/` are subsets of open fonts under the
-SIL Open Font License 1.1 (Google Fonts families, LXGW Xiaolai, and Hakgyoansim Bunpil by KERIS, designed by
-Yoon Design). Each font's license sits next to it (`<Family>-OFL.txt`, and `HakgyoansimBunpil-LICENSE.txt` for
-the KERIS font), and the `README.txt` in each folder names every file's source font and license.
-
 ### Panel icons from game-icons.net - CC BY 3.0
 
-The 19 panel icons are shapes from game-icons.net (<https://game-icons.net>) by Delapouite and Lorc, licensed
-CC BY 3.0 (<https://creativecommons.org/licenses/by/3.0/>), redrawn as ink and chalk drawings for Heart of Magic.
-The redrawn PNGs are in `PrismaUI/views/SpellLearning/SpellLearningPanel/themes/arcane/icons/`,
-`themes/arcane/icons-ink/` (Arcane's ink-brown close on parchment), `themes/nightgrimoire/icons/` and
-`themes/chalkboard/icons/`; the Classic and Modern designs use recoloured line versions of the original shapes
-from `themes/icons-line/` and `themes/icons-line-gold/`. Each icon's source (icon id - author/name):
+The 19 panel icons in `PrismaUI/views/SpellLearning/SpellLearningPanel/themes/icons-line/` (the Skald design's) are
+line versions of shapes from game-icons.net (<https://game-icons.net>) by Delapouite and Lorc, licensed CC BY 3.0
+(<https://creativecommons.org/licenses/by/3.0/>), recoloured for Heart of Magic. The design add-ons' fonts and
+icon sets are credited in each add-on's own notices. Each icon's source (icon id - author/name):
 
-- `scan` - delapouite/archive-research
-- `build` - delapouite/mesh-network
-- `apply` - delapouite/stamper
-- `clear` - delapouite/broom
-- `replay` - delapouite/anticlockwise-rotation
-- `save` - lorc/wax-seal
-- `reset` - delapouite/backward-time
-- `import` - lorc/scroll-unfurled
-- `fullscreen` - delapouite/resize
-- `close` - lorc/cross-mark
-- `hotkey` - lorc/three-keys
-- `tree-view` - lorc/spyglass
-- `display` - delapouite/old-lantern
-- `debug` - lorc/spanner
-- `progression` - delapouite/stairs
-- `early` - lorc/sprout
-- `tome` - delapouite/spell-book
-- `tree-gen` - lorc/star-swirl
-- `prereq` - delapouite/knot
-
-Each is at `https://game-icons.net/1x1/<author>/<name>.html`.
+@GAME_ICONS_LIST@
 
 ### PrismaUI API header
 

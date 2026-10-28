@@ -1,0 +1,14 @@
+# Third-party notices - Heart of Magic Librarian, Night Grimoire design @PROJECT_VERSION@
+
+The design's own files are MIT, like Heart of Magic Librarian (`@DESIGN_LICENSE_FILE@` next to this file), apart from the parts below.
+
+@BOOK_FONTS_NOTICE@
+
+### Panel icons from game-icons.net - CC BY 3.0
+
+The 19 icons in `PrismaUI/views/SpellLearning/SpellLearningPanel/themes/nightgrimoire/icons/` are shapes from
+game-icons.net (<https://game-icons.net>) by Delapouite and Lorc, licensed CC BY 3.0
+(<https://creativecommons.org/licenses/by/3.0/>), redrawn for Heart of Magic. Each icon's source
+(icon id - author/name):
+
+@GAME_ICONS_LIST@
