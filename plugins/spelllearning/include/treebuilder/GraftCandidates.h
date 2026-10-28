@@ -325,14 +325,26 @@ namespace TreeGraft
      * The pointers point into `scanSpells`, which must outlive them. TreeJson is
      * nlohmann::json or nlohmann::ordered_json (the file read in its key order).
      */
-    template <class TreeJson>
-    [[nodiscard]] std::vector<const nlohmann::json*> NewSpells(const nlohmann::json& scanSpells, const TreeJson& tree,
-        const std::unordered_set<std::string>& seen)
+    namespace Detail
+    {
+        /// A seen list A-Z folded, the form NewSpells and HeldUnseen compare it in
+        [[nodiscard]] inline std::unordered_set<std::string> FoldedSeen(const std::unordered_set<std::string>& seen)
+        {
+            std::unordered_set<std::string> folded;
+            folded.reserve(seen.size());
+            for (const auto& id : seen) folded.insert(AsciiText::ToLower(id));
+            return folded;
+        }
+    }
+
+    /// NewSpells over a TreeHolds and a FoldedSeen the caller made (PlanGraft makes them once for
+    /// both this and HeldUnseen)
+    [[nodiscard]] inline std::vector<const nlohmann::json*> NewSpellsOf(const nlohmann::json& scanSpells,
+        const Detail::TreeHolds& holds, const std::unordered_set<std::string>& seenFolded)
     {
         std::vector<const nlohmann::json*> out;
         if (!scanSpells.is_array()) return out;
 
-        const Detail::TreeHolds holds(tree);
         const auto inTree = [&holds](const nlohmann::json& spell) { return holds.Holds(spell); };
 
         // Duplicate groups (SpellScannerDuplicates.cpp): the kept spell's formId -> a member has a node
@@ -344,9 +356,6 @@ namespace TreeGraft
         for (const auto& spell : scanSpells) {
             if (spell.is_object() && inTree(spell)) groupsWithNode.insert(groupOf(spell));
         }
-
-        std::unordered_set<std::string> seenFolded;
-        for (const auto& id : seen) seenFolded.insert(AsciiText::ToLower(id));
 
         std::unordered_set<std::string> taken;
         for (const auto& spell : scanSpells) {
@@ -361,19 +370,23 @@ namespace TreeGraft
         return out;
     }
 
+    template <class TreeJson>
+    [[nodiscard]] std::vector<const nlohmann::json*> NewSpells(const nlohmann::json& scanSpells, const TreeJson& tree,
+        const std::unordered_set<std::string>& seen)
+    {
+        return NewSpellsOf(scanSpells, Detail::TreeHolds(tree), Detail::FoldedSeen(seen));
+    }
+
     /// The persistentIds of the scan's spells the tree holds (as NewSpells counts it) that
     /// `seen` lacks (A-Z folded), each once: nodes an edit save brought back after a stale
     /// save took their spells off the list (Ruling 23). Seen again, so a node of theirs
     /// deleted later is not grafted again
-    template <class TreeJson>
-    [[nodiscard]] std::vector<std::string> HeldUnseen(const nlohmann::json& scanSpells, const TreeJson& tree,
-        const std::unordered_set<std::string>& seen)
+    /// HeldUnseen over a TreeHolds and a FoldedSeen the caller made (see NewSpellsOf)
+    [[nodiscard]] inline std::vector<std::string> HeldUnseenOf(const nlohmann::json& scanSpells,
+        const Detail::TreeHolds& holds, std::unordered_set<std::string> folded)
     {
         std::vector<std::string> out;
         if (!scanSpells.is_array()) return out;
-        const Detail::TreeHolds holds(tree);
-        std::unordered_set<std::string> folded;
-        for (const auto& id : seen) folded.insert(AsciiText::ToLower(id));
         for (const auto& spell : scanSpells) {
             if (!spell.is_object()) continue;
             const auto key = Detail::PersistentKey(spell);
@@ -381,5 +394,12 @@ namespace TreeGraft
             out.push_back(Detail::Text(spell, "persistentId"));
         }
         return out;
+    }
+
+    template <class TreeJson>
+    [[nodiscard]] std::vector<std::string> HeldUnseen(const nlohmann::json& scanSpells, const TreeJson& tree,
+        const std::unordered_set<std::string>& seen)
+    {
+        return HeldUnseenOf(scanSpells, Detail::TreeHolds(tree), Detail::FoldedSeen(seen));
     }
 }

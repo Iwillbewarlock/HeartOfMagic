@@ -479,15 +479,15 @@ namespace
 
     // Why neither the scan nor the tree graft runs this session, or nothing: they go on
     // (a catalog that is the load order's already skips only the scan, unless a due graft
-    // needs the scan's dump, RunScan)
-    std::optional<std::string> Precondition()
+    // needs the scan's dump, RunScan). `tree`: the tree as read, when they go on
+    std::optional<std::string> Precondition(std::optional<std::string>& tree)
     {
         switch (ReadAutoBuildSetting()) {
             case Setting::Off: return std::string("\"Build Spell Tree at Start\" is Off");
             case Setting::Unreadable: return std::string("config.json could not be read - the setting is unknown");
             case Setting::On: break;
         }
-        const auto tree = ReadFileText(kTreeFile);
+        tree = ReadFileText(kTreeFile);
         if (!tree || !TreeSaveCheck::HasSpellNodes(*tree)) {
             return std::string("no tree with spells - left to the panel's build at game start");
         }
@@ -539,19 +539,22 @@ namespace
             }
         }
 
-        if (const auto reason = Precondition()) {
+        TreeGraftKnown known;   // what the skip path found: the graft does not read or hash it again
+        if (const auto reason = Precondition(known.treeText)) {
             logger::info("{} {}", kPrefix, *reason);
             if (settings.selfTest) logger::info("{} not run: {}", kTestPrefix, *reason);
             return State::Done;
         }
         // A graft due without the catalog scan's dump scans instead: the skip would stop it every start (Ruling 22)
-        if (!settings.selfTest && ScanRecord::CatalogMatches(loadOrder) && !TreeGraftNeedsTheScan(loadOrder)) {
+        if (!settings.selfTest && ScanRecord::CatalogMatches(loadOrder) && !TreeGraftNeedsTheScan(loadOrder, &known.matchedDump)) {
             logger::info("{} skipped - load order unchanged ({}, scan fingerprint {}), the catalog is its scan's", kPrefix,
                 loadOrder.hash, loadOrder.scan);
             // A graft an earlier start did not make (the catalog already is this load order's: no previous one)
-            RunTreeGraftAtMainMenu(loadOrder, std::nullopt);
+            known.catalogMatches = true;
+            RunTreeGraftAtMainMenu(loadOrder, std::nullopt, std::move(known));
             return State::Done;
         }
+        known = {};   // the scan runs: the graft reads the files as they are after it
         if (settings.selfTest) logger::info("{} on (selftest.json) - runs whatever the scan record says", kTestPrefix);
 
         const std::string treeBefore = settings.selfTest ? FileFingerprint(kTreeFile) : std::string();

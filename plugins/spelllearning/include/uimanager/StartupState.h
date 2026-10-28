@@ -79,12 +79,24 @@ std::optional<std::string> ApplyTreeState(const PanelTree& tree, std::string_vie
 // THE TREE GRAFT AT THE MAIN MENU (TreeGraftRun.cpp; the rules: TreeGraftRun.h)
 // =============================================================================
 
+/// What the scan at game start found just before the graft on its skip path, so the graft
+/// does not read or hash it again (empty: the graft reads it itself)
+struct TreeGraftKnown
+{
+    std::optional<std::string> treeText;      ///< spell_tree.json as Precondition read it
+    bool catalogMatches = false;              ///< ScanRecord::CatalogMatches(loadOrder) said yes
+    std::optional<std::string> matchedDump;   ///< spell_scan_output.json as read, DumpMatches yes (TreeGraftNeedsTheScan)
+};
+
 /// New spells of the load order join the saved tree: called by the scan at game start
 /// (AutoScan.cpp, its waiter thread) after its scan, or when the catalog already was the
-/// load order's. Reads and plans on the calling thread; validation, the write, the tree
-/// state and the panel in two game thread tasks it waits for. Logs "TreeGraft: ...";
-/// writes nothing when it does not run or fails. Not on the game thread (it waits on it).
-void RunTreeGraftAtMainMenu(const LoadOrderFingerprint::Value& loadOrder, const std::optional<nlohmann::json>& previousCatalog);
+/// load order's. Reads and plans on the calling thread - the cheap conditions (the load
+/// order, the record, a journal) before the tree, the catalog's hash and the scan dump;
+/// validation, the write, the tree state and the panel in two game thread tasks it waits
+/// for. Logs "TreeGraft: ..."; writes nothing when it does not run or fails. Not on the
+/// game thread (it waits on it).
+void RunTreeGraftAtMainMenu(const LoadOrderFingerprint::Value& loadOrder, const std::optional<nlohmann::json>& previousCatalog,
+    TreeGraftKnown known = {});
 
 /// A graft journal an earlier start left in spell_tree_loadorder.json (TreeGraftRecord.h):
 /// its record written when the tree on disk is the one it was for, else the old record -
@@ -111,8 +123,9 @@ CatalogForTreeGraft ReadCatalogForTreeGraft(const LoadOrderFingerprint::Value& l
 /// graft is due, the tree record has a seen list (without one this graft has no baseline)
 /// but spell_scan_output.json is not that scan's dump, so the scan must run to give the
 /// graft one (TreeGraftRun::ScanForGraft; the dump is read only when a graft is due). Logs
-/// why. Not on the game thread.
-bool TreeGraftNeedsTheScan(const LoadOrderFingerprint::Value& loadOrder);
+/// why. A dump it read that matches goes into `matchedDump` (when given) for the graft
+/// (TreeGraftKnown). Not on the game thread.
+bool TreeGraftNeedsTheScan(const LoadOrderFingerprint::Value& loadOrder, std::optional<std::string>* matchedDump = nullptr);
 
 /// What the session's last graft did (the dev self-tests read it). Any thread.
 struct TreeGraftOutcome

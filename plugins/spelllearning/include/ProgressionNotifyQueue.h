@@ -38,10 +38,13 @@ public:
         if (m_depth > 0) --m_depth;
         if (m_depth != 0 || m_sending) return;
         m_sending = true;
+        // Two buffers that swap: the held events go out of m_out while a receiver's posts
+        // land in m_held (m_out's emptied buffer); both keep their capacity, so a notice
+        // after the first allocates nothing. A Close inside a send returns above (m_sending)
         while (!m_held.empty()) {
-            auto batch = std::move(m_held);
-            m_held.clear();
-            for (const auto& event : batch) send(event);
+            m_out.swap(m_held);
+            for (const auto& event : m_out) send(event);
+            m_out.clear();
         }
         m_sending = false;
     }
@@ -53,4 +56,5 @@ private:
     int m_depth = 0;
     bool m_sending = false;
     std::vector<Event> m_held;
+    std::vector<Event> m_out;   // the batch being sent (Close)
 };

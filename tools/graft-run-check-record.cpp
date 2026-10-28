@@ -116,6 +116,16 @@ namespace GraftRunRecordCases
         check.Check(!TreeGraftRun::StaleGraftSave(1, 1, 0),
             "asked for after the graft wrote, no grafted node in it: the player deleted them - they stay out");
         check.Check(!TreeGraftRun::StaleGraftSave(0, 1, 2), "asked for before the write, some grafted nodes in it: they stay out");
+        // Which grafted ids a save's text lacks: as a whole JSON string anywhere, not inside a longer one
+        const std::string saved = R"({"name":"a \"0x0A000003\" b","nodes":[{"formId":"0x0A000001","children":["0x0A000002"]},)"
+                                  R"({"formId":"0x0A0000044"}]})";
+        check.Check(TreeGraftRun::IdsNotIn(saved, { "0x0A000001", "0x0A000002", "0x0A000003", "0x0A000004" }) ==
+                        std::vector<std::size_t>{ 2, 3 },
+            "grafted ids a save lacks: a node's formId and a child link count; inside a name, or a longer id, do not");
+        check.Check(TreeGraftRun::IdsNotIn("", { "0x0A000001" }) == std::vector<std::size_t>{ 0 } &&
+                        TreeGraftRun::IdsNotIn(R"({"a":"0x0A000001)", { "0x0A000001" }).size() == 1 &&
+                        TreeGraftRun::IdsNotIn(saved, {}).empty(),
+            "an empty or cut-off text lacks them; no ids, nothing missing");
         // The save's "same text as the last save - not rewritten" (Import A, graft writes B, Import A)
         check.Check(TreeGraftRun::SameAsLastSave(7, 7, 1, 1), "the last save's text, no graft write since: not rewritten");
         check.Check(!TreeGraftRun::SameAsLastSave(7, 7, 0, 1),

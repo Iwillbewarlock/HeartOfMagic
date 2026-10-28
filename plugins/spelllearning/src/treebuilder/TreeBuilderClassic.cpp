@@ -45,12 +45,12 @@ namespace
     // first spell's rank falls in, so equal costs never split. Ranks, not the
     // numbers: mods put costs ten times the game's. Spells without a cost are
     // left out (they keep their level's tier).
-    std::unordered_map<std::string, int> CostTiers(const std::vector<json>& schoolSpells)
+    std::unordered_map<std::string, int> CostTiers(const std::vector<const json*>& schoolSpells)
     {
         std::vector<std::pair<float, std::string>> costed;
-        for (const auto& spell : schoolSpells) {
-            const auto cost = SpellMagickaCost(spell);
-            if (cost) costed.emplace_back(*cost, spell.value("formId", std::string("")));
+        for (const auto* spell : schoolSpells) {
+            const auto cost = SpellMagickaCost(*spell);
+            if (cost) costed.emplace_back(*cost, spell->value("formId", std::string("")));
         }
         std::sort(costed.begin(), costed.end());
 
@@ -77,17 +77,25 @@ namespace
     }
 }
 
-std::unordered_map<std::string, int> TreeBuilder::SpellTiers(const std::vector<json>& spells, bool tiersByCost)
+std::unordered_map<std::string, int> TreeBuilder::SpellTiers(const std::vector<const json*>& spells, bool tiersByCost)
 {
-    std::unordered_map<std::string, std::vector<json>> bySchool;
-    for (const auto& spell : spells) bySchool[spell.value("school", std::string(""))].push_back(spell);
+    std::unordered_map<std::string, std::vector<const json*>> bySchool;
+    for (const auto* spell : spells) bySchool[spell->value("school", std::string(""))].push_back(spell);
 
     std::unordered_map<std::string, int> tiers;
     for (const auto& [school, schoolSpells] : bySchool) {
         const auto costTiers = tiersByCost ? CostTiers(schoolSpells) : std::unordered_map<std::string, int>{};
-        for (const auto& spell : schoolSpells) tiers[spell.value("formId", std::string(""))] = TierOf(spell, costTiers);
+        for (const auto* spell : schoolSpells) tiers[spell->value("formId", std::string(""))] = TierOf(*spell, costTiers);
     }
     return tiers;
+}
+
+std::unordered_map<std::string, int> TreeBuilder::SpellTiers(const std::vector<json>& spells, bool tiersByCost)
+{
+    std::vector<const json*> pointers;
+    pointers.reserve(spells.size());
+    for (const auto& spell : spells) pointers.push_back(&spell);
+    return SpellTiers(pointers, tiersByCost);
 }
 
 // =============================================================================
@@ -270,7 +278,12 @@ TreeBuilder::BuildResult TreeBuilder::BuildClassic(
         // Group by tier: the spell's level (unknown -> Novice), or with
         // tiersByCost its Magicka cost rank. The level itself (skillLevel: XP,
         // the spell card) stays; only the tier the tree puts it in follows cost.
-        const auto costTiers = config.tiersByCost ? CostTiers(schoolSpellList)
+        std::vector<const json*> schoolSpellPointers;
+        if (config.tiersByCost) {
+            schoolSpellPointers.reserve(schoolSpellList.size());
+            for (const auto& spell : schoolSpellList) schoolSpellPointers.push_back(&spell);
+        }
+        const auto costTiers = config.tiersByCost ? CostTiers(schoolSpellPointers)
                                                   : std::unordered_map<std::string, int>{};
         std::unordered_map<std::string, std::vector<json>> byTier;
         std::unordered_map<std::string, int> tierOf;  // formId -> tier index

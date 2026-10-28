@@ -78,16 +78,36 @@ std::string TreeBuilder::LeadingIdWordOf(const std::string& editorId)
     }
 }
 
-namespace
+namespace TreeBuilder
 {
+    // The two shapes of spell list FindModTags and DiscoverThemesPerSchool take, one implementation
+    namespace ThemesDetail
+    {
+        // A spell of a list of spells or of pointers to them (one implementation for both)
+        const json& SpellRef(const json& spell) { return spell; }
+        const json& SpellRef(const json* spell) { return *spell; }
+
+        template <class Spells>
+        std::unordered_set<std::string> FindModTagsOf(const Spells& spells);
+
+        template <class Spells>
+        std::unordered_map<std::string, std::vector<std::string>> DiscoverThemesOf(const Spells& spells, int topN);
+    }
 }
 
 std::unordered_set<std::string> TreeBuilder::FindModTags(const std::vector<json>& spells)
 {
+    return ThemesDetail::FindModTagsOf(spells);
+}
+
+template <class Spells>
+std::unordered_set<std::string> TreeBuilder::ThemesDetail::FindModTagsOf(const Spells& spells)
+{
     std::unordered_map<std::string, std::size_t> pluginSizes;
     std::unordered_map<std::string, std::unordered_map<std::string, std::size_t>> leadsByPlugin;
     std::unordered_set<std::string> baseGameWords;
-    for (const auto& spell : spells) {
+    for (const auto& entry : spells) {
+        const json& spell = SpellRef(entry);
         const std::string plugin = Internal::SpellPlugin(spell);
         if (Internal::IsBaseGamePlugin(plugin)) {
             // The spell's own id only: effect ids use shorthand ("Mag...") that
@@ -128,18 +148,35 @@ namespace
 std::unordered_map<std::string, std::vector<std::string>>
 TreeBuilder::DiscoverThemesPerSchool(const std::vector<json>& spells, int topN)
 {
+    return ThemesDetail::DiscoverThemesOf(spells, topN);
+}
+
+std::unordered_map<std::string, std::vector<std::string>>
+TreeBuilder::DiscoverThemesPerSchool(const std::vector<const json*>& spells, int topN)
+{
+    return ThemesDetail::DiscoverThemesOf(spells, topN);
+}
+
+template <class Spells>
+std::unordered_map<std::string, std::vector<std::string>> TreeBuilder::ThemesDetail::DiscoverThemesOf(const Spells& spells, int topN)
+{
     static const std::unordered_set<std::string> VALID_SCHOOLS = {
         "Alteration", "Conjuration", "Destruction", "Illusion", "Restoration"
     };
 
-    // Group spells by school
-    std::unordered_map<std::string, std::vector<json>> schoolSpells;
-    for (const auto& spell : spells) {
+    // Group spells by school (pointers into `spells`, no copies)
+    std::unordered_map<std::string, std::vector<const json*>> schoolSpells;
+    for (const auto& entry : spells) {
+        const json& spell = SpellRef(entry);
         auto school = spell.value("school", std::string(""));
         if (VALID_SCHOOLS.contains(school)) {
-            schoolSpells[school].push_back(spell);
+            schoolSpells[school].push_back(&spell);
         }
     }
+
+    // Prefixes are judged over every spell of the plugin, not just this
+    // school's leftovers: the more ids, the surer the prefix. The same for every school
+    const auto modTags = FindModTagsOf(spells);
 
     std::unordered_map<std::string, std::vector<std::string>> result;
 
@@ -149,9 +186,9 @@ TreeBuilder::DiscoverThemesPerSchool(const std::vector<json>& spells, int topN)
         // Build text corpus for this school. Spells that get their theme from
         // traits stay out of it: the word themes only have to cover the rest.
         std::vector<std::vector<std::string>> documents;
-        for (const auto& spell : sSpells) {
-            if (!ThemeFromTraits(spell).empty()) continue;
-            auto text = TreeNLP::BuildThemeText(spell);
+        for (const auto* spell : sSpells) {
+            if (!ThemeFromTraits(*spell).empty()) continue;
+            auto text = TreeNLP::BuildThemeText(*spell);
             auto tokens = TreeNLP::Tokenize(text);
             // Filter stop words
             std::vector<std::string> filtered;
@@ -198,10 +235,6 @@ TreeBuilder::DiscoverThemesPerSchool(const std::vector<json>& spells, int topN)
             if (a.second != b.second) return a.second > b.second;
             return a.first < b.first;
         });
-
-        // Prefixes are judged over every spell of the plugin, not just this
-        // school's leftovers: the more ids, the surer the prefix.
-        const auto modTags = FindModTags(spells);
 
         std::vector<std::string> themes;
         for (const auto& [term, score] : sorted) {

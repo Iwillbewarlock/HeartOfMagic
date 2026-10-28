@@ -8,6 +8,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -206,16 +207,21 @@ namespace TreeGraftRun
             if (!checked || !checked->is_object() || !checked->contains("nodes") || !(*checked)["nodes"].is_array()) {
                 return "school " + name + " is not in the validated tree";
             }
-            const auto& live = (*checked)["nodes"];
-            const auto find = [&live](auto&& match) -> const Json* {
-                for (const auto& node : live) {
-                    if (node.is_object() && match(node)) return &node;
-                }
-                return nullptr;
+            // The school's validated nodes by persistentId and by formId, the first of each kept
+            // (a lookup per grafted node: O(nodes + grafted) per school)
+            std::unordered_map<std::string, const Json*> byKey, byFormId;
+            for (const auto& node : (*checked)["nodes"]) {
+                if (!node.is_object()) continue;
+                if (auto key = PersistentKey(node); !key.empty()) byKey.emplace(std::move(key), &node);
+                byFormId.emplace(TreeRemap::NormalizeFormId(CheckDetail::Text(node, "formId")), &node);
+            }
+            const auto find = [](const std::unordered_map<std::string, const Json*>& map, const std::string& id) -> const Json* {
+                const auto it = map.find(id);
+                return it != map.end() ? it->second : nullptr;
             };
             for (std::size_t i = existing; i < nodes.size(); ++i) {
                 const auto key = PersistentKey(nodes[i]);
-                const auto* node = find([&key](const Json& n) { return !key.empty() && PersistentKey(n) == key; });
+                const auto* node = key.empty() ? nullptr : find(byKey, key);
                 const auto label = std::format("grafted {} ({})", CheckDetail::Text(nodes[i], "formId"), name);
                 if (!node) return label + " is not in the validated tree";
                 const auto prereqs = node->find("prerequisites");
@@ -223,9 +229,7 @@ namespace TreeGraftRun
                     return label + " has no parent";
                 }
                 const auto parentId = TreeRemap::NormalizeFormId((*prereqs)[0].get<std::string>());
-                const auto* parent = find([&parentId](const Json& n) {
-                    return TreeRemap::NormalizeFormId(CheckDetail::Text(n, "formId")) == parentId;
-                });
+                const auto* parent = find(byFormId, parentId);
                 if (!parent) return label + "'s parent " + parentId + " is not in its school after validation";
                 const auto self = TreeRemap::NormalizeFormId(CheckDetail::Text(*node, "formId"));
                 bool listed = false;

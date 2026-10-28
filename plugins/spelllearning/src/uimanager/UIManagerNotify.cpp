@@ -3,6 +3,7 @@
 #include "EncodingUtils.h"
 #include "uimanager/UIManager.h"
 #include "uimanager/UIManagerInternal.h"
+#include "environment/EnvironmentSelfTest.h"
 #include "librarian/SpellResearchPatch.h"
 #include "ProgressionManager.h"
 
@@ -55,7 +56,9 @@ bool UIManager::SendTreeData(const std::string& jsonData)
 
     logger::info("UIManager: Sending tree data to UI ({} bytes)", jsonData.size());
     CallView("updateTreeData", jsonData.c_str());
-    m_lastTreeDataHash = std::hash<std::string>{}(jsonData);
+    // Only the dev self-test reads it (tree-graft): selftest.json is read once, at the first send
+    static const bool s_selfTest = Environment::SelfTest::IsOn();
+    if (s_selfTest) m_lastTreeDataHash = std::hash<std::string>{}(jsonData);
     return true;
 }
 

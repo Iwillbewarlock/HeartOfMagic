@@ -275,18 +275,16 @@ namespace
         }
         const auto current = ReadTreeFileText(UIManager::GetTreeFilePath());
         if (current.outcome != TreeFileRead::Ok || std::hash<std::string>{}(current.text) != graft.writtenHash) return lost;
-        std::size_t missing = 0;
-        std::string first;
+        const auto absent = TreeGraftRun::IdsNotIn(text, graft.graftedFormIds);
+        const std::size_t missing = absent.size();
+        if (missing == 0) return lost;
+        const std::string& first = graft.graftedFormIds[absent.front()];
         std::vector<std::string> persistentIds;
-        for (std::size_t i = 0; i < graft.graftedFormIds.size(); ++i) {
-            const auto& id = graft.graftedFormIds[i];
-            if (text.find("\"" + id + "\"") != std::string::npos) continue;
-            if (missing++ == 0) first = id;
+        for (const auto i : absent) {
             if (i < graft.graftedPersistentIds.size() && !graft.graftedPersistentIds[i].empty()) {
                 persistentIds.push_back(graft.graftedPersistentIds[i]);
             }
         }
-        if (missing == 0) return lost;
         const bool stale = TreeGraftRun::StaleGraftSave(stampAtEntry, TreeGraftWriteStamp(), graft.graftedFormIds.size() - missing);
         logger::warn("UIManager: SaveSpellTree - this save drops {} of the {} spells the tree graft added at the main "
                      "menu (first {}): {}", missing, graft.graftedFormIds.size(), first,

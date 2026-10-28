@@ -67,7 +67,8 @@ public:
     // Send data to Tree Tab (same panel)
     // False when the view is not there and nothing was sent
     bool SendTreeData(const std::string& jsonData);
-    // std::hash of the last text SendTreeData sent (0: none yet), for the tree-graft self-test
+    // std::hash of the last text SendTreeData sent (0: none yet, or the dev self-test is off -
+    // selftest.json read once), for the tree-graft self-test
     [[nodiscard]] std::size_t LastTreeDataHash() const { return m_lastTreeDataHash; }
     void SendSpellInfo(const std::string& jsonData);
     void SendSpellInfoBatch(const std::string& jsonData);

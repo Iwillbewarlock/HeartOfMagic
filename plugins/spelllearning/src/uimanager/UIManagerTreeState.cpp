@@ -22,7 +22,10 @@
 
 // The entries' rules are the panel path's, moved here unchanged so game start
 // applies a tree exactly as the panel's message does
-int ApplyTreePrerequisiteEntries(const json& request)
+namespace
+{
+template <class Json>
+int ApplyTreePrerequisiteEntriesImpl(const Json& request)
 {
     const auto started = std::chrono::steady_clock::now();
     auto* pm = ProgressionManager::GetSingleton();
@@ -109,6 +112,10 @@ int ApplyTreePrerequisiteEntries(const json& request)
     logger::info("UIManager: Set tree prerequisites for {} spells in {} ms (game thread)", count, MsSince(started));
     return count;
 }
+}
+
+int ApplyTreePrerequisiteEntries(const nlohmann::json& request) { return ApplyTreePrerequisiteEntriesImpl(request); }
+int ApplyTreePrerequisiteEntries(const nlohmann::ordered_json& request) { return ApplyTreePrerequisiteEntriesImpl(request); }
 
 // OnLoadSpellTree's requiredXP sync, moved here unchanged
 void SyncRequiredXPFromTree(const json& treeData)
@@ -274,7 +281,7 @@ TreePrereqsApplied ApplyTreePrerequisitesOf(const PanelTree& tree, std::string_v
 
     stage = "applying the prerequisites threw";
     ProgressionManager::GetSingleton()->ClearAllTreePrerequisites();
-    result.applied = ApplyTreePrerequisiteEntries(json(built.entries));
+    result.applied = ApplyTreePrerequisiteEntries(built.entries);
     result.entries = built.entries.size();
     return result;
 }

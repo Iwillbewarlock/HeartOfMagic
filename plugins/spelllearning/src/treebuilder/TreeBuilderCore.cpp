@@ -25,16 +25,16 @@ int TreeBuilder::TierIndex(const std::string& tierName)
 // TREE NODE
 // =============================================================================
 
-TreeBuilder::TreeNode TreeBuilder::TreeNode::FromSpell(const json& spell)
+TreeBuilder::TreeNode TreeBuilder::TreeNode::FromSpell(json spell)
 {
     TreeNode node;
     node.formId = spell.value("formId", std::string(""));
     node.name = spell.value("name", node.formId);
     node.tier = spell.value("skillLevel", std::string("Unknown"));
     node.school = spell.value("school", std::string("Unknown"));
-    node.spellData = spell;
     const std::string plugin = Internal::SpellPlugin(spell);
     if (!Internal::IsBaseGamePlugin(plugin)) node.modPlugin = plugin;
+    node.spellData = std::move(spell);
     return node;
 }
 

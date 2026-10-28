@@ -2086,7 +2086,8 @@ order's; log prefix `TreeGraft:`).
   plugin's node, kept by Decision 4, is until its mod returns, the node is deleted or the tree is built again). (3) The C++ declutter with every existing node `fixed` and
   `spread: false`: only grafted nodes move. (4) `TreeGraftChecks.h`: every pre-graft node as it was but for its
   ids and new children, no seen spell grafted. A plan that fails is not written.
-- **The commit** (game thread, task 2): the tree and record files are compared with the text read on the waiter
+- **The commit** (game thread, task 2): the tree's text, its spell check, the journal and the hashes are made on
+  the waiter thread before it (`PrepareWrite`); the tree and record files are compared with the text read on the waiter
   thread (a panel save or Import in between wins: nothing written); then the record with a `graftJournal`, the
   tree (`WriteAtomically`, `.bak` kept: a copy, the file is there at every step), the record without it. The
   record after a run (`RecordAfterGraft`): seen += grafted + leftOut + the new persistentIds of rematched nodes

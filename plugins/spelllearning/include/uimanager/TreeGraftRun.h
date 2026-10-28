@@ -508,10 +508,14 @@ namespace TreeGraftRun
         plan.refresh = RefreshIds(input.tree, input.verdicts);
 
         // The candidates are copied out, so the scan's spells can move into the graft's list
-        const std::unordered_set<std::string> seen(input.baseline.seen.begin(), input.baseline.seen.end());
-        auto inTreeNow = TreeGraft::HeldUnseen(input.scanSpells, input.tree, seen);   // join the seen list
+        // The tree's holdings and the folded seen list once, for both (HeldUnseenOf adds to its copy)
+        std::unordered_set<std::string> seenFolded;
+        seenFolded.reserve(input.baseline.seen.size());
+        for (const auto& id : input.baseline.seen) seenFolded.insert(AsciiText::ToLower(id));
+        const TreeGraft::Detail::TreeHolds holds(input.tree);
         std::vector<Json> candidates;
-        for (const auto* spell : TreeGraft::NewSpells(input.scanSpells, input.tree, seen)) candidates.push_back(*spell);
+        for (const auto* spell : TreeGraft::NewSpellsOf(input.scanSpells, holds, seenFolded)) candidates.push_back(*spell);
+        auto inTreeNow = TreeGraft::HeldUnseenOf(input.scanSpells, holds, std::move(seenFolded));   // join the seen list
         std::vector<const Json*> pointers;
         pointers.reserve(candidates.size());
         for (const auto& spell : candidates) pointers.push_back(&spell);

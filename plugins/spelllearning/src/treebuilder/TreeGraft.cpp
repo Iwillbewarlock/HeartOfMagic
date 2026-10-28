@@ -297,15 +297,17 @@ namespace
     }
 
     /// Graft one school's new spells into `school` (the result tree's copy). Returns how many went in.
+    /// Takes the work's live spells (moved into the scoring list, then into the nodes).
     template <class Json, class Result>
-    std::size_t GraftSchool(const Json& tree, Json& school, const SchoolWork& work, const std::vector<std::string>& themes,
+    std::size_t GraftSchool(const Json& tree, Json& school, SchoolWork& work, const std::vector<std::string>& themes,
         const std::unordered_map<std::string, int>& tiers, const BuildConfig& config, int cap, Result& result)
     {
         auto& nodesJson = school["nodes"];
         const Geometry geo = SchoolGeometry(tree, school);
 
         // The scoring inputs, rebuilt as BuildClassic builds them per school
-        std::vector<json> scoring = work.liveSpells;
+        std::vector<json> scoring = std::move(work.liveSpells);
+        scoring.reserve(scoring.size() + work.news.size());
         for (const auto* spell : work.news) scoring.push_back(*spell);
         const auto sims = ComputeSimilarityMatrix(scoring);
 
@@ -315,7 +317,7 @@ namespace
         const std::string rootId = Text(school, "root");
         for (std::size_t i = 0; i < work.liveIndex.size(); ++i) {
             const auto& saved = nodesJson[work.liveIndex[i]];
-            TreeNode node = TreeNode::FromSpell(work.liveSpells[i]);
+            TreeNode node = TreeNode::FromSpell(std::move(scoring[i]));   // scored already: the node takes it
             if (nodes.contains(node.formId)) continue;   // a second node with one id: the first one is the parent
             if (saved.contains("children")) {
                 for (const auto& child : saved["children"]) {
@@ -498,18 +500,19 @@ namespace
         const int cap = (std::max)(config.maxChildrenPerNode, hasSchools ? LargestChildCount(tree["schools"]) : 0);
 
         // Themes and tiers over every spell the touched schools score (live nodes and new
-        // spells), as BuildClassic finds them over the spells it builds from
-        std::vector<json> all;
+        // spells), as BuildClassic finds them over the spells it builds from (pointers: no copies)
+        std::vector<const json*> all;
         for (const auto& school : work) {
             if (school.news.empty()) continue;
-            all.insert(all.end(), school.liveSpells.begin(), school.liveSpells.end());
-            for (const auto* spell : school.news) all.push_back(*spell);
+            for (const auto& spell : school.liveSpells) all.push_back(&spell);
+            all.insert(all.end(), school.news.begin(), school.news.end());
         }
         const auto themes = MergeWithHints(DiscoverThemesPerSchool(all, config.topThemesPerSchool),
             config.topThemesPerSchool + 4);
         const auto tiers = SpellTiers(all, config.tiersByCost);
+        all.clear();   // GraftSchool moves the live spells it points to
 
-        for (const auto& school : work) {
+        for (auto& school : work) {
             if (school.news.empty()) continue;
             const auto themeIt = themes.find(school.name);
             const std::vector<std::string> schoolThemes = themeIt != themes.end() ? themeIt->second : std::vector<std::string>{};

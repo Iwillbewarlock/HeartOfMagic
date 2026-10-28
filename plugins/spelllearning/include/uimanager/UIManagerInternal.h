@@ -19,11 +19,12 @@
 
 // nlohmann::json::value() throws type_error.306 when key exists but is null.
 // This helper safely returns the default if the key is missing OR null.
-template<typename T>
-T SafeJsonValue(const nlohmann::json& j, const std::string& key, const T& defaultValue) {
+// Json: nlohmann::json or nlohmann::ordered_json.
+template<typename T, class Json = nlohmann::json>
+T SafeJsonValue(const Json& j, const std::string& key, const T& defaultValue) {
     if (j.contains(key) && !j[key].is_null()) {
         try {
-            return j[key].get<T>();
+            return j[key].template get<T>();
         } catch (...) {
             return defaultValue;
         }
@@ -88,8 +89,11 @@ bool MergeLegacySettings(nlohmann::json& config);
 // The tree's prerequisites from SetTreePrerequisites entries ({formId, hardPrereqs,
 // softPrereqs, softNeeded, legacy prereqs}) into ProgressionManager, then the tome
 // cache dropped. Logs the count. May throw on a malformed entry (as the panel path
-// always has: the caller catches). Returns the entries applied. Game thread.
+// always has: the caller catches). Returns the entries applied. Game thread. One
+// implementation for both: the panel's message (json) and game start's built entries
+// (ordered_json, applied as they are - no deep copy of ~1,400 entries).
 int ApplyTreePrerequisiteEntries(const nlohmann::json& entries);
+int ApplyTreePrerequisiteEntries(const nlohmann::ordered_json& entries);
 // Each tree node's requiredXP > 0 into ProgressionManager::SetRequiredXP. Throws on a
 // formId that is not a string, as OnLoadSpellTree always has. Game thread.
 void SyncRequiredXPFromTree(const nlohmann::json& tree);

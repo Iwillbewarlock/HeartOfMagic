@@ -61,8 +61,8 @@ namespace TreeBuilder
         // once here, as Classic compares it for every parent candidate
         std::string modPlugin;
 
-        // Create from spell JSON dict
-        static TreeNode FromSpell(const json& spell);
+        // Create from spell JSON dict (by value: a caller done with its copy moves it in)
+        static TreeNode FromSpell(json spell);
 
         // Add child/prerequisite (no duplicates)
         void AddChild(const std::string& childId);
@@ -108,6 +108,9 @@ namespace TreeBuilder
     // Discover themes per school using TF-IDF keyword extraction
     std::unordered_map<std::string, std::vector<std::string>>
     DiscoverThemesPerSchool(const std::vector<json>& spells, int topN = 8);
+    // The same over spells held elsewhere (the tree graft's live nodes and new spells: no copies)
+    std::unordered_map<std::string, std::vector<std::string>>
+    DiscoverThemesPerSchool(const std::vector<const json*>& spells, int topN = 8);
 
     // Merge discovered themes with vanilla hints (hints take priority)
     std::unordered_map<std::string, std::vector<std::string>>
@@ -138,6 +141,7 @@ namespace TreeBuilder
     // (unknown -> Novice), or with tiersByCost its Magicka cost rank within its
     // school (spells without a cost keep their level's). TreeBuilderClassic.cpp.
     std::unordered_map<std::string, int> SpellTiers(const std::vector<json>& spells, bool tiersByCost);
+    std::unordered_map<std::string, int> SpellTiers(const std::vector<const json*>& spells, bool tiersByCost);
 
     // Author prefixes of editor ids ("aby", "nat", "grim"), found by position.
     std::unordered_set<std::string> FindModTags(const std::vector<json>& spells);

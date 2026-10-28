@@ -31,19 +31,25 @@ namespace TreeGraftRun
         SeenSource source = SeenSource::kNone;
     };
 
+    /// A catalog's spells (spell_catalog.json "spells", keyed by persistentId); none when it has none
+    [[nodiscard]] inline std::optional<std::vector<std::string>> CatalogSeen(const Json& catalog)
+    {
+        if (!catalog.is_object()) return std::nullopt;
+        const auto spells = catalog.find("spells");
+        if (spells == catalog.end() || !spells->is_object() || spells->empty()) return std::nullopt;
+        std::vector<std::string> seen;
+        seen.reserve(spells->size());
+        for (const auto& [key, value] : spells->items()) seen.push_back(key);
+        return seen;
+    }
+
     /// The record's list (an empty one is a list); else the previous catalog's spells
-    /// (spell_catalog.json "spells", keyed by persistentId); else none
+    /// (CatalogSeen); else none
     [[nodiscard]] inline Baseline BaselineOf(const TreeRecordFile::TreeRecord& record, const std::optional<Json>& catalog)
     {
         if (record.hasSeen) return { record.seen, SeenSource::kRecord };
-        if (catalog && catalog->is_object()) {
-            const auto spells = catalog->find("spells");
-            if (spells != catalog->end() && spells->is_object() && !spells->empty()) {
-                Baseline baseline{ {}, SeenSource::kCatalog };
-                baseline.seen.reserve(spells->size());
-                for (const auto& [key, value] : spells->items()) baseline.seen.push_back(key);
-                return baseline;
-            }
+        if (catalog) {
+            if (auto seen = CatalogSeen(*catalog)) return { std::move(*seen), SeenSource::kCatalog };
         }
         return {};
     }
@@ -86,6 +92,30 @@ namespace TreeGraftRun
     [[nodiscard]] inline bool StaleGraftSave(std::uint64_t stampAtEntry, std::uint64_t stampNow, std::size_t carried)
     {
         return stampAtEntry < stampNow && carried == 0;
+    }
+
+    /// The places in `ids` (the graft's node formIds) of those that are no JSON string anywhere
+    /// in `text` (an edit save's tree): one pass collects the strings no longer than the longest
+    /// id, then one lookup each (a search of the whole text per id was O(ids x text) on the game
+    /// thread). A string's escapes are skipped over, not decoded: an id is plain hex
+    [[nodiscard]] inline std::vector<std::size_t> IdsNotIn(std::string_view text, const std::vector<std::string>& ids)
+    {
+        std::size_t longest = 0;
+        for (const auto& id : ids) longest = (std::max)(longest, id.size());
+        std::unordered_set<std::string_view> strings;
+        for (std::size_t i = 0; i < text.size(); ++i) {
+            if (text[i] != '"') continue;
+            std::size_t end = i + 1;
+            while (end < text.size() && text[end] != '"') end += text[end] == '\\' ? 2 : 1;
+            if (end >= text.size()) break;
+            if (end - i - 1 <= longest) strings.insert(text.substr(i + 1, end - i - 1));
+            i = end;
+        }
+        std::vector<std::size_t> missing;
+        for (std::size_t k = 0; k < ids.size(); ++k) {
+            if (!strings.contains(ids[k])) missing.push_back(k);
+        }
+        return missing;
     }
 
     /// SaveSpellTree's "the same tree as the last save - not rewritten": the text is the last
@@ -141,10 +171,9 @@ namespace TreeGraftRun
     [[nodiscard]] inline std::optional<TreeRecordFile::TreeRecord> SeededRecord(TreeRecordFile::TreeRecord record,
         const Json& catalog)
     {
-        record.hasSeen = false;
-        auto baseline = BaselineOf(record, std::optional<Json>(catalog));
-        if (baseline.source != SeenSource::kCatalog) return std::nullopt;
-        record.seen = std::move(baseline.seen);
+        auto seen = CatalogSeen(catalog);
+        if (!seen) return std::nullopt;
+        record.seen = std::move(*seen);
         record.hasSeen = true;
         return record;
     }
