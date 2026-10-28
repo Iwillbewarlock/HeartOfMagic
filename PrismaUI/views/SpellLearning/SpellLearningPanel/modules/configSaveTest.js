@@ -70,7 +70,7 @@ var ConfigSaveTest = {
             updateStatus: function(message) { env.status.push(message); },
             setTimeout: function(cb, ms) { env.timers.push({ cb: cb, ms: ms }); return env.timers.length; },
             clearTimeout: function(id) { env.cleared.push(id); },
-            DesignPresets: { DEFAULT_ID: 'classic', savedChoice: function() { return 'classic'; },
+            DesignPresets: { DEFAULT_ID: 'skald', savedChoice: function() { return 'skald'; },
                              apply: function() {}, requestFromDisk: function() {} },
             _presetsLoadRequested: true,
             // No page: every element lookup finds nothing (the load skips the controls)

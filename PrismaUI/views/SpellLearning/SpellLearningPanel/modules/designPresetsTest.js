@@ -10,10 +10,14 @@
  * one archive each): each folder holds one design file that parses, with an id of
  * its own, and every file it names - its stylesheet and the files that sheet
  * names, its icon folder, its tree drawings, the url()s in its inline CSS - is in
- * that add-on, in the base panel or in a shared tree (addons/designs/_shared/).
- * No add-on file lies where a base file or another add-on's file does.
+ * that add-on, in the base panel or in a shared tree (addons/designs/_shared/)
+ * that plugins/cmake/Distribution.cmake packs into that add-on's archive (its
+ * `set(_design_shared_<Name> ...)` lines, read here; without its line an add-on
+ * that uses shared files must miss them). No add-on file lies where a base file
+ * or another add-on's file does.
  *
- * Depends on: designPresets.js (run in a sandbox of its own with stubs), node fs.
+ * Depends on: designPresets.js (run in a sandbox of its own with stubs),
+ * plugins/cmake/Distribution.cmake (read as text), node fs.
  */
 
 var DesignPresetsTest = {
@@ -100,21 +104,57 @@ var DesignPresetsTest = {
         return refs;
     },
 
+    /**
+     * Which shared trees each add-on's archive takes: the `set(_design_shared_<Name> <tree>...)` lines of
+     * plugins/cmake/Distribution.cmake, the one place the packaging reads them from.
+     */
+    _sharedMap: function(fs, path, root) {
+        var cmake = fs.readFileSync(path.join(root, 'plugins/cmake/Distribution.cmake'), 'utf8');
+        var map = {}, re = /^\s*set\(_design_shared_(\w+)\s+([^)]*)\)/gm, m;
+        while ((m = re.exec(cmake))) map[m[1]] = m[2].trim().split(/\s+/);
+        return map;
+    },
+
+    /**
+     * The files an add-on's design names that its archive would not have: looked up in its own tree, the
+     * base panel and only the shared trees `sharedMap` gives it.
+     */
+    _missingRefs: function(fs, path, ctx, name, d, sharedMap) {
+        var self = this, panels = function(tree) { return path.join(ctx.designs, tree, self.PANEL_DIR); };
+        var places = [panels(name), path.join(ctx.root, this.PANEL_DIR)].concat((sharedMap[name] || []).map(function(s) {
+            return panels(path.join(self.SHARED, s));
+        }));
+        var refs = this._refs(d), missing = [];
+        // The stylesheet's own url()s are relative to the sheet
+        if (d.cssFile && fs.existsSync(path.join(panels(name), d.cssFile))) {
+            var sheet = fs.readFileSync(path.join(panels(name), d.cssFile), 'utf8'), dir = path.posix.dirname(d.cssFile);
+            this._refs({ css: sheet }).forEach(function(u) { refs.push(path.posix.join(dir, u)); });
+        }
+        refs.forEach(function(r) {
+            if (!places.some(function(p) { return fs.existsSync(path.join(p, r)); })) missing.push(r);
+        });
+        return { refs: refs, missing: missing };
+    },
+
     _addons: function() {
         var fs = require('fs'), path = require('path'), self = this;
         var root = path.join(__dirname, '../../../../..'), designs = path.join(root, 'addons/designs');
-        var panels = function(name) { return path.join(designs, name, self.PANEL_DIR); };
+        var ctx = { root: root, designs: designs };
         var shared = fs.readdirSync(path.join(designs, this.SHARED)).map(function(n) { return path.join(this.SHARED, n); }, this);
         // _shared (trees several add-ons take) and _package (the archives' README and notices parts) are no add-ons
         var names = fs.readdirSync(designs).filter(function(n) { return n.charAt(0) !== '_' && fs.statSync(path.join(designs, n)).isDirectory(); });
         this.check(names.sort().join(',') === 'Arcane,Chalkboard,Classic,ModernDark,NightGrimoire', 'five add-ons: ' + names.join(', '));
 
-        // Where a panel-relative path may be found for an add-on: its own tree, the base panel, a shared tree
-        var found = function(name, rel) {
-            var places = [panels(name), path.join(root, self.PANEL_DIR)].concat(shared.map(panels));
-            return places.some(function(p) { return fs.existsSync(path.join(p, rel)); });
-        };
-        var ids = {}, owner = {};
+        var sharedMap = this._sharedMap(fs, path, root), bad = [];
+        Object.keys(sharedMap).forEach(function(n) {
+            if (names.indexOf(n) === -1) bad.push(n + ' (no such add-on)');
+            sharedMap[n].forEach(function(s) { if (!fs.existsSync(path.join(designs, self.SHARED, s))) bad.push(n + ': ' + s); });
+        });
+        this.check(Object.keys(sharedMap).length > 0 && bad.length === 0, 'Distribution.cmake\'s shared trees per add-on (' +
+            Object.keys(sharedMap).map(function(n) { return n + ': ' + sharedMap[n].join(' '); }).join(', ') + ') exist' +
+            (bad.length ? ' - not: ' + bad.join(', ') : ''));
+
+        var ids = {}, owner = {}, loaded = {};
         names.forEach(function(name) {
             var jsons = this._files(fs, path, path.join(designs, name, this.DESIGN_DIR), '', []);
             this.check(jsons.length === 1 && jsons[0] === name + '.json', name + ': one design file, ' + name + '.json');
@@ -122,18 +162,23 @@ var DesignPresetsTest = {
             try { d = JSON.parse(fs.readFileSync(path.join(designs, name, this.DESIGN_DIR, name + '.json'), 'utf8')); } catch (e) { d = null; }
             this.check(!!(d && typeof d.id === 'string' && d.id && d.name), name + ': the file parses, with an id and a name');
             if (!d) return;
+            loaded[name] = d;
             var id = d.id.toLowerCase();
             this.check(!ids[id] && id !== 'skald', name + ': its id "' + id + '" is its own' + (ids[id] ? ' (also ' + ids[id] + ')' : ''));
             ids[id] = name;
-            var refs = this._refs(d), missing = [];
-            // The stylesheet's own url()s are relative to the sheet
-            if (d.cssFile && fs.existsSync(path.join(panels(name), d.cssFile))) {
-                var sheet = fs.readFileSync(path.join(panels(name), d.cssFile), 'utf8'), dir = path.posix.dirname(d.cssFile);
-                this._refs({ css: sheet }).forEach(function(u) { refs.push(path.posix.join(dir, u)); });
-            }
-            refs.forEach(function(r) { if (!found(name, r)) missing.push(r); });
-            this.check(refs.length > 0 && missing.length === 0, name + ': every file it names is there (' + refs.length + ')' +
-                (missing.length ? ' - missing: ' + missing.join(', ') : ''));
+            var r = this._missingRefs(fs, path, ctx, name, d, sharedMap);
+            this.check(r.refs.length > 0 && r.missing.length === 0, name + ': every file it names is in its archive (' + r.refs.length + ')' +
+                (r.missing.length ? ' - missing: ' + r.missing.join(', ') : ''));
+        }, this);
+
+        // The mapping is what packs the shared files: without its line, an add-on that uses them misses them
+        Object.keys(sharedMap).forEach(function(name) {
+            if (!loaded[name]) return;
+            var without = {};
+            for (var k in sharedMap) if (sharedMap.hasOwnProperty(k) && k !== name) without[k] = sharedMap[k];
+            var r = this._missingRefs(fs, path, ctx, name, loaded[name], without);
+            this.check(r.missing.length > 0, name + ': without its _design_shared_' + name + ' line it misses ' + r.missing.length +
+                ' files (' + r.missing.slice(0, 2).join(', ') + (r.missing.length > 2 ? ', ...' : '') + ')');
         }, this);
 
         // No add-on file over a base file or another add-on's (installing one would replace it)
