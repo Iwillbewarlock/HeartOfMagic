@@ -147,7 +147,7 @@ namespace SpellScanner
         int skipNoSchool = 0;   // No magic school
         int diagSamples = 0;    // How many diagnostic samples logged
         std::size_t lost = 0;   // kept spells no longer found by FormID in a later step
-        std::uint64_t pairsGeneration = 0;   // SpellTomes' generation the marks were made with (Begin)
+        std::uint64_t pairsGeneration = 0;   // SpellTomes' generation the marks were made with (Marks)
         std::size_t pairsCount = 0;          // and its paired tomes
 
         std::size_t steps = 0;
@@ -181,10 +181,6 @@ namespace SpellScanner
         // release/1.6 CollectAllSpells: the pairs for tomes that teach nothing before the forms are read (a panel
         // scan rebuilt before its wait: no change then); every full scan, stepped or not, starts here
         SpellTomes::Rebuild(SpellTomes::kReasonScan);
-        if (SpellTomes::Status status; SpellTomes::CurrentStatus(status)) {
-            pairsGeneration = status.generation;
-            pairsCount = status.paired;
-        }
 
         auto* dataHandler = RE::TESDataHandler::GetSingleton();
         if (!dataHandler) {
@@ -368,6 +364,11 @@ namespace SpellScanner
         kept.clear();
         for (auto* spell : spells) kept.push_back(spell->GetFormID());
 
+        // The pairs this scan's marks read: noted with them at Finish (NoteFullScanOf)
+        if (SpellTomes::Status status; SpellTomes::CurrentStatus(status)) {
+            pairsGeneration = status.generation;
+            pairsCount = status.paired;
+        }
         taught = SpellsTaughtByTomes();
         if (!TomeReach::UnreachableSpells(unreachable)) {
             logger::info("SpellScanner: the tome reach pass has not finished - no spell is marked tomeUnreachable");
@@ -467,8 +468,8 @@ namespace SpellScanner
     {
         auto& st = *m_state;
         json output = BuildScanOutput(std::move(st.spellArray), st.config, {});
-        // The forms are read with the pairs Begin had; a change between frames (a Spell Research Import) is
-        // judged against those, and the panel told when the scan is stale
+        // The marks were made with the pairs Marks read; a change after them (a Spell Research Import between
+        // frames) is judged against those, and the panel told when the scan is stale
         SpellTomes::NoteFullScanOf(st.pairsGeneration, st.pairsCount);
         return output;
     }
