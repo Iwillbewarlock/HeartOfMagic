@@ -180,9 +180,9 @@ bool IsBlankTreeText(std::string_view text)
 bool ValidateTreeForPanel(json& tree)
 {
     const auto validation = SpellScanner::ValidateAndFixTree(tree);
-    const int byPersistentId = validation.resolvedFromPersistent - validation.rematchedByEditorId;
-    if (byPersistentId > 0) {
-        logger::info("UIManager: Resolved {} spells from persistent IDs (load order changed)", byPersistentId);
+    if (validation.resolvedFromPersistent > 0) {
+        logger::info("UIManager: Resolved {} spells from persistent IDs (load order changed)",
+            validation.resolvedFromPersistent);
     }
     if (validation.rematchedByEditorId > 0) {
         logger::info("UIManager: Found {} spells again by editor id (their plugin was renamed, merged or compacted)",
@@ -191,7 +191,9 @@ bool ValidateTreeForPanel(json& tree)
     if (validation.invalidNodes > 0) {
         logger::warn("UIManager: {} spells could not be resolved (plugins may be missing)", validation.invalidNodes);
     }
-    return validation.resolvedFromPersistent > 0 || validation.invalidNodes > 0;
+    // A rematch can keep its formId (a renamed plugin at the same index) and change only the
+    // node's persistentId: the panel still needs that tree, or it keys the spell by the dead plugin
+    return validation.changed;
 }
 
 // =============================================================================

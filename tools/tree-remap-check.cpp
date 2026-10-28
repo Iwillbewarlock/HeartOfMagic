@@ -45,9 +45,10 @@ namespace
     constexpr int kExitFailed = 1;
     constexpr int kExitUsage = 2;
 
-    /// A loaded spell with a given editor id (powerofthree's Tweaks)
+    /// A loaded spell with an editor id (powerofthree's Tweaks)
     struct FakeSpell
     {
+        std::string editorId;
         std::uint32_t formId = 0;
         std::string school;
         std::string persistentId;
@@ -60,7 +61,7 @@ namespace
         std::set<std::string> loadedPlugins;          ///< plugins whose missing ids are a missing record, not plugin
         std::set<std::string> legacyValid;            ///< formIds a node without a persistentId still finds
         std::set<std::string> notPlayerSpells;        ///< formIds that resolve but are no player's spell
-        std::map<std::string, std::vector<FakeSpell>> byEditorId;  ///< editor id -> the loaded spells with it
+        std::vector<FakeSpell> spells;                ///< loaded spells with an editor id
     };
 
     struct Expect
@@ -92,13 +93,14 @@ namespace
     const FakeSpell* Rematch(const FakeGame& game, const Json& node, const std::string& school)
     {
         const auto editorId = node.value("editorId", std::string());
-        const auto it = game.byEditorId.find(editorId);
-        if (editorId.empty() || it == game.byEditorId.end()) return nullptr;
-        std::vector<std::pair<std::uint32_t, std::string>> candidates;
-        for (const auto& spell : it->second) candidates.emplace_back(spell.formId, spell.school);
-        const auto picked = EditorIdRematch::PickRematch(school, candidates);
+        if (editorId.empty()) return nullptr;
+        EditorIdRematch::CandidateIndex index;  // as IndexSpellsByEditorId builds it from the game
+        for (const auto& spell : game.spells) index.Add(spell.editorId, spell.formId, spell.school);
+        const auto* candidates = index.Find(editorId);
+        if (!candidates) return nullptr;
+        const auto picked = EditorIdRematch::PickRematch(school, *candidates);
         if (!picked) return nullptr;
-        for (const auto& spell : it->second) {
+        for (const auto& spell : game.spells) {
             if (spell.formId == *picked) return &spell;
         }
         return nullptr;
@@ -265,9 +267,13 @@ namespace
         std::printf("  %s\n", c.name);
         Checker check;
         Json tree = Json::parse(c.tree);
+        const Json saved = tree;
         const auto judge = [&c](const Json& node, const std::string& school) { return Judge(c.game, node, school); };
         const Snapshot before = Take(tree);
         const auto report = TreeRemap::FixTree(tree, judge);
+        // The panel gets the fixed tree exactly when it differs from the file (ValidateTreeForPanel)
+        check.Check(report.Changed() == (tree != saved), std::format("Changed() is {}: the tree {}", report.Changed(),
+            tree != saved ? "changed" : "is as saved"));
         const Snapshot after = Take(tree);
 
         const std::set<std::string> expectKept(c.expect.kept.begin(), c.expect.kept.end());
@@ -400,6 +406,18 @@ namespace
         check.Check(!EditorIdRematch::PickRematch("Destruction", Candidates{ { 0xFE000800, "Illusion" } }).has_value(),
             "other school - none");
         check.Check(!EditorIdRematch::PickRematch("Destruction", Candidates{}).has_value(), "no editor id - none");
+        // The index folds case (ASCII) as the engine's editor id lookup did
+        EditorIdRematch::CandidateIndex index;
+        index.Add("SpellFirebolt", 0xFE000800, "Destruction");
+        index.Add("SpellIcebolt", 0x05000801, "Destruction");
+        index.Add("SPELLICEBOLT", 0x07000801, "Destruction");
+        const auto* firebolt = index.Find("spellFIREBOLT");
+        check.Check(firebolt && EditorIdRematch::PickRematch("Destruction", *firebolt) == 0xFE000800u,
+            "an editor id that differs only in case matches");
+        const auto* icebolt = index.Find("SpellIcebolt");
+        check.Check(icebolt && !EditorIdRematch::PickRematch("Destruction", *icebolt).has_value(),
+            "case variants of one editor id are two matches - none");
+        check.Check(index.Find("SpellSpark") == nullptr && index.Size() == 2, "an editor id no spell has finds nothing");
         // Edge: the same spell listed twice is one match; one in another school beside it does not count
         check.Check(EditorIdRematch::PickRematch("Destruction",
                         Candidates{ { 0xFE000800, "Destruction" }, { 0xFE000800, "Destruction" }, { 0x05000800, "Illusion" } }) ==
@@ -425,12 +443,33 @@ namespace
                     {"name":"Spark","formId":"0x05000802","persistentId":"Old.esp|0x000802","editorId":"SpellSpark"},
                     {"name":"Flame","formId":"0x05000803","persistentId":"Old.esp|0x000803"}]}}})",
                 { { { "New.esp|0x000800", "0x06000800" } }, {}, {}, {},
-                    { { "SpellFirebolt", { { 0x06000800, "Destruction", "New.esp|0x000800" } } },
-                        { "SpellIcebolt", { { 0x06000801, "Destruction", "New.esp|0x000801" },
-                                              { 0x07000801, "Destruction", "Fork.esp|0x000801" } } },
-                        { "SpellSpark", { { 0x06000802, "Illusion", "New.esp|0x000802" } } } } },
-                { { "Firebolt" }, 1, 3, 0, 0, { "Old.esp" }, {}, { { "Destruction/Firebolt", "0x06000800" } }, 1, 0,
+                    { { "spellfirebolt", 0x06000800, "Destruction", "New.esp|0x000800" },
+                        { "SpellIcebolt", 0x06000801, "Destruction", "New.esp|0x000801" },
+                        { "SPELLICEBOLT", 0x07000801, "Destruction", "Fork.esp|0x000801" },
+                        { "SpellSpark", 0x06000802, "Illusion", "New.esp|0x000802" } } },
+                { { "Firebolt" }, 0, 3, 0, 0, { "Old.esp" }, {}, { { "Destruction/Firebolt", "0x06000800" } }, 1, 0,
                     { { "Destruction/Firebolt", "New.esp|0x000800" } } } },
+
+            { "renamed plugin at the same load index: the formId stays, the node takes the new persistentId",
+                R"({"schools":{"Alteration":{"root":"0x05000810","nodes":[
+                    {"name":"Oakflesh","formId":"0x05000810","persistentId":"Old.esp|0x000810","editorId":"SpellOakflesh"}]}}})",
+                { { { "New.esp|0x000810", "0x05000810" } }, {}, {}, {},
+                    { { "SpellOakflesh", 0x05000810, "Alteration", "New.esp|0x000810" } } },
+                { { "Oakflesh" }, 0, 0, 0, 0, {}, {}, { { "Alteration/Oakflesh", "0x05000810" } }, 1, 0,
+                    { { "Alteration/Oakflesh", "New.esp|0x000810" } } } },
+
+            // Restoration's copy has no persistentId and was saved under the A.esp node's formId: it follows
+            // that node's verdict before the clash, which only concerns Destruction
+            { "a legacy copy in another school follows a rematched node that its own school dropped",
+                R"({"schools":{"Destruction":{"root":"0x06000800","nodes":[
+                    {"name":"Firebolt of A.esp","formId":"0x05000800","persistentId":"A.esp|0x000800","editorId":"SpellFirebolt"},
+                    {"name":"Firebolt","formId":"0x06000800","persistentId":"B.esp|0x000800","editorId":"SpellFirebolt"}]},
+                  "Restoration":{"root":"0x05000800","nodes":[
+                    {"name":"Firebolt","formId":"0x05000800"}]}}})",
+                { { { "B.esp|0x000800", "0x06000800" } }, {}, {}, {},
+                    { { "SpellFirebolt", 0x06000800, "Destruction", "B.esp|0x000800" } } },
+                { { "Firebolt" }, 1, 1, 0, 1, {}, {},
+                    { { "Destruction/Firebolt", "0x06000800" }, { "Restoration/Firebolt", "0x06000800" } }, 0, 1, {} } },
 
             // The names differ only so the check can tell the two nodes apart; in a real tree both say "Firebolt"
             { "a rematched node on a spell its school already has goes; the persistentId node stays",
@@ -440,7 +479,7 @@ namespace
                     {"name":"Firebolt","formId":"0x06000800","persistentId":"B.esp|0x000800","editorId":"SpellFirebolt"},
                     {"name":"Ember","formId":"0x05000900","persistentId":"B.esp|0x000900","prerequisites":["0x05000800"]}]}}})",
                 { { { "B.esp|0x000800", "0x06000800" }, { "B.esp|0x000900", "0x06000900" } }, {}, {}, {},
-                    { { "SpellFirebolt", { { 0x06000800, "Destruction", "B.esp|0x000800" } } } } },
+                    { { "SpellFirebolt", 0x06000800, "Destruction", "B.esp|0x000800" } } },
                 { { "Firebolt", "Ember" }, 1, 1, 0, 0, {}, {},
                     { { "Destruction/Firebolt", "0x06000800" }, { "Destruction/Ember", "0x06000900" } }, 0, 1,
                     { { "Destruction/Firebolt", "B.esp|0x000800" } } } },

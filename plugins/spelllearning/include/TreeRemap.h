@@ -77,10 +77,10 @@ namespace TreeRemap
         int validNodes = 0;
         int invalidNodes = 0;
         int nodesWithoutFormId = 0;      ///< not an object, or no string formId (always dropped)
-        int resolvedFromPersistent = 0;  ///< kept nodes whose formId changed
+        int resolvedFromPersistent = 0;  ///< kept nodes whose formId changed, rematched ones not counted
         int legacyFollowed = 0;          ///< legacy nodes that took a persistentId node's verdict (same saved formId)
         int legacyCollisions = 0;        ///< legacy nodes dropped for a persistentId node on their formId
-        int rematched = 0;               ///< kept nodes found again by editor id
+        int rematched = 0;               ///< kept nodes found again by editor id (each takes a new persistentId)
         std::size_t bridgesDropped = 0;
         std::set<std::string> missingPlugins;                ///< plugins persistentIds name that are not loaded
         std::set<std::string> missingRecords;                ///< persistentIds of loaded plugins without the record
@@ -89,6 +89,13 @@ namespace TreeRemap
         std::vector<std::string> collisions;                 ///< saved formIds of the dropped legacy nodes
         std::vector<std::string> rematchClashes;             ///< saved formIds of rematched nodes on a taken spell
         std::vector<RootChange> rootChanges;
+
+        /// The fixed tree differs from the saved one: a node moved, went or took a new
+        /// persistentId, or a root or bridge changed (the panel must get the fixed tree)
+        [[nodiscard]] bool Changed() const
+        {
+            return !moved.empty() || rematched > 0 || invalidNodes > 0 || bridgesDropped > 0 || !rootChanges.empty();
+        }
     };
 
     /// Every list of formIds a node holds (C++ reads hardPrereqs / softPrereqs; the panel all four)
@@ -109,6 +116,7 @@ namespace TreeRemap
             std::size_t index = 0;
             std::string saved;  ///< normalised; empty: the node had no string formId
             NodeVerdict verdict;
+            bool clashDropped = false;  ///< rematched, then dropped for a spell its school has (DropRematchClashes)
         };
 
         /// The final formId of a saved link, or empty when its node went; a formId no node had stays
@@ -179,26 +187,30 @@ namespace TreeRemap
                 if (!e.verdict.keep || !e.verdict.rematched) continue;
                 if (taken[e.schoolNodes].insert(e.verdict.formId).second) continue;
                 e.verdict.keep = false;
+                e.clashDropped = true;
                 report.rematchClashes.push_back(e.saved);
             }
         }
 
         /// The legacy rules (see the top): follow a persistentId node saved under the same formId,
-        /// or go when a persistentId node saved under another formId now has this one
+        /// or go when a persistentId node saved under another formId now has this one. A copy in
+        /// another school follows a node dropped by DropRematchClashes as it was before the clash,
+        /// which concerned that node's school only
         inline void ReconcileLegacy(std::vector<NodeEntry>& entries, Report& report)
         {
-            std::unordered_map<std::string, NodeVerdict> persistentBySaved;
+            std::unordered_map<std::string, const NodeEntry*> persistentBySaved;
             std::unordered_map<std::string, std::string> persistentOwner;  // final formId -> saved formId
             for (const auto& e : entries) {
                 if (e.saved.empty() || !e.verdict.hasPersistentId) continue;
-                persistentBySaved.emplace(e.saved, e.verdict);
+                persistentBySaved.emplace(e.saved, &e);
                 if (e.verdict.keep) persistentOwner.emplace(e.verdict.formId, e.saved);
             }
             for (auto& e : entries) {
                 if (e.saved.empty() || e.verdict.hasPersistentId) continue;
                 if (const auto same = persistentBySaved.find(e.saved); same != persistentBySaved.end()) {
-                    e.verdict.keep = same->second.keep;
-                    e.verdict.formId = same->second.formId;
+                    const NodeEntry& source = *same->second;
+                    e.verdict.keep = source.verdict.keep || (source.clashDropped && source.schoolNodes != e.schoolNodes);
+                    e.verdict.formId = source.verdict.formId;
                     report.legacyFollowed++;
                     continue;
                 }
@@ -222,7 +234,7 @@ namespace TreeRemap
                     if (e.verdict.rematched) report.rematched++;
                     if (e.verdict.formId != e.saved) {
                         report.moved[e.saved] = e.verdict.formId;
-                        report.resolvedFromPersistent++;
+                        if (!e.verdict.rematched) report.resolvedFromPersistent++;
                     }
                 } else if (!e.saved.empty()) {
                     goneSaved.insert(e.saved);

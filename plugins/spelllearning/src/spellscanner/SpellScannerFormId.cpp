@@ -8,7 +8,6 @@
 
 #include <optional>
 #include <set>
-#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -204,10 +203,10 @@ namespace SpellScanner
 
         // Every loaded spell by editor id, with its school: the candidates of a rematch. Editor
         // ids are shared (a fork or port of a mod keeps them), so a lookup that returns one form
-        // (LookupByEditorID) would miss the second one. Built once per tree load and only when a
-        // node needs it; empty without powerofthree's Tweaks (GetEditorId has nothing then).
-        // O(spells) time and space.
-        using SpellsByEditorId = std::unordered_map<std::string, std::vector<std::pair<std::uint32_t, std::string>>>;
+        // (LookupByEditorID) would miss the second one; the index folds case as that lookup did.
+        // Built once per tree load and only when a node needs it; empty without powerofthree's
+        // Tweaks (GetEditorId has nothing then). O(spells) time and space.
+        using SpellsByEditorId = EditorIdRematch::CandidateIndex;
 
         SpellsByEditorId IndexSpellsByEditorId()
         {
@@ -216,12 +215,12 @@ namespace SpellScanner
             if (!dataHandler) return index;
             for (auto* spell : dataHandler->GetFormArray<RE::SpellItem>()) {
                 if (!spell) continue;
-                auto editorId = GetEditorId(spell);  // the helper the scan baked the node's editorId with
+                const auto editorId = GetEditorId(spell);  // the helper the scan baked the node's editorId with
                 if (editorId.empty()) continue;
-                index[std::move(editorId)].emplace_back(spell->GetFormID(), GetSchoolName(GetSpellSchool(spell)));
+                index.Add(editorId, spell->GetFormID(), GetSchoolName(GetSpellSchool(spell)));
             }
             logger::info("SpellScanner: {} editor ids of loaded spells indexed to find renamed plugins' spells{}",
-                index.size(), index.empty() ? " (none: powerofthree's Tweaks not loaded?)" : "");
+                index.Size(), index.Size() == 0 ? " (none: powerofthree's Tweaks not loaded?)" : "");
             return index;
         }
 
@@ -235,12 +234,12 @@ namespace SpellScanner
             const std::string editorId = node["editorId"].get<std::string>();
             if (editorId.empty()) return 0;
             if (!spellsByEditorId) spellsByEditorId = IndexSpellsByEditorId();
-            const auto it = spellsByEditorId->find(editorId);
-            if (it == spellsByEditorId->end()) {
+            const auto* found = spellsByEditorId->Find(editorId);
+            if (!found) {
                 logger::info("SpellScanner: no loaded spell has editor id {} - not found again", editorId);
                 return 0;
             }
-            const auto& candidates = it->second;
+            const auto& candidates = *found;
             if (const auto picked = EditorIdRematch::PickRematch(school, candidates)) return *picked;
             std::set<std::uint32_t> inSchool;
             std::set<std::string> otherSchools;
@@ -372,12 +371,13 @@ namespace SpellScanner
         result.invalidNodes = report.invalidNodes;
         result.resolvedFromPersistent = report.resolvedFromPersistent;
         result.rematchedByEditorId = report.rematched;
+        result.changed = report.Changed();
         result.missingPlugins.assign(report.missingPlugins.begin(), report.missingPlugins.end());
         result.missingRecords.assign(report.missingRecords.begin(), report.missingRecords.end());
         result.invalidFormIds.assign(report.removedFormIds.begin(), report.removedFormIds.end());
 
-        logger::info("SpellScanner: Tree validation complete - {}/{} valid, {} resolved from persistent (of them {} "
-            "found again by editor id), {} invalid ({} not a player's spell, {} legacy nodes on a resolved spell's "
+        logger::info("SpellScanner: Tree validation complete - {}/{} valid, {} resolved from persistent, {} found "
+            "again by editor id, {} invalid ({} not a player's spell, {} legacy nodes on a resolved spell's "
             "formId, {} legacy nodes following a copy with a persistent ID, {} found again by editor id on a spell "
             "their school has), {} nodes moved to a new formId",
             result.validNodes, result.totalNodes, result.resolvedFromPersistent, result.rematchedByEditorId,
