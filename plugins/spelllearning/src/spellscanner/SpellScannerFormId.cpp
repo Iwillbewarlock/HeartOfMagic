@@ -6,6 +6,9 @@
 #include "SpellScanner.h"
 #include "TreeRemap.h"
 
+#include <optional>
+#include <set>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -199,32 +202,67 @@ namespace SpellScanner
             }
         }
 
+        // Every loaded spell by editor id, with its school: the candidates of a rematch. Editor
+        // ids are shared (a fork or port of a mod keeps them), so a lookup that returns one form
+        // (LookupByEditorID) would miss the second one. Built once per tree load and only when a
+        // node needs it; empty without powerofthree's Tweaks (GetEditorId has nothing then).
+        // O(spells) time and space.
+        using SpellsByEditorId = std::unordered_map<std::string, std::vector<std::pair<std::uint32_t, std::string>>>;
+
+        SpellsByEditorId IndexSpellsByEditorId()
+        {
+            SpellsByEditorId index;
+            auto* dataHandler = RE::TESDataHandler::GetSingleton();
+            if (!dataHandler) return index;
+            for (auto* spell : dataHandler->GetFormArray<RE::SpellItem>()) {
+                if (!spell) continue;
+                auto editorId = GetEditorId(spell);  // the helper the scan baked the node's editorId with
+                if (editorId.empty()) continue;
+                index[std::move(editorId)].emplace_back(spell->GetFormID(), GetSchoolName(GetSpellSchool(spell)));
+            }
+            logger::info("SpellScanner: {} editor ids of loaded spells indexed to find renamed plugins' spells{}",
+                index.size(), index.empty() ? " (none: powerofthree's Tweaks not loaded?)" : "");
+            return index;
+        }
+
         // A node whose persistentId names nothing (its plugin renamed, merged or compacted):
-        // the spell with its editor id, when that spell is in the node's school
-        // (EditorIdRematch). The lookup needs powerofthree's Tweaks; without it nothing is
-        // found, as before. Returns 0 when the node is not found again
-        RE::FormID RematchByEditorId(const json& node, const std::string& school)
+        // the one spell with its editor id in the node's school (EditorIdRematch). Returns 0
+        // when the node is not found again (no editor id, no such spell, another school, several)
+        RE::FormID RematchByEditorId(const json& node, const std::string& school,
+                                     std::optional<SpellsByEditorId>& spellsByEditorId)
         {
             if (!node.contains("editorId") || !node["editorId"].is_string()) return 0;
             const std::string editorId = node["editorId"].get<std::string>();
             if (editorId.empty()) return 0;
-            std::vector<std::pair<std::uint32_t, std::string>> candidates;
-            if (auto* spell = RE::TESForm::LookupByEditorID<RE::SpellItem>(editorId)) {
-                candidates.emplace_back(spell->GetFormID(), GetSchoolName(GetSpellSchool(spell)));
-            }
-            const auto picked = EditorIdRematch::PickRematch(school, candidates);
-            if (!picked) {
-                if (!candidates.empty()) {
-                    logger::info("SpellScanner: editor id {} names a {} spell, not a {} one - not taken", editorId,
-                        candidates.front().second, school);
-                }
+            if (!spellsByEditorId) spellsByEditorId = IndexSpellsByEditorId();
+            const auto it = spellsByEditorId->find(editorId);
+            if (it == spellsByEditorId->end()) {
+                logger::info("SpellScanner: no loaded spell has editor id {} - not found again", editorId);
                 return 0;
             }
-            return *picked;
+            const auto& candidates = it->second;
+            if (const auto picked = EditorIdRematch::PickRematch(school, candidates)) return *picked;
+            std::set<std::uint32_t> inSchool;
+            std::set<std::string> otherSchools;
+            for (const auto& [formId, candidateSchool] : candidates) {
+                if (candidateSchool == school) inSchool.insert(formId);
+                else otherSchools.insert(candidateSchool);
+            }
+            if (inSchool.empty()) {
+                std::string others;
+                for (const auto& other : otherSchools) others += (others.empty() ? "" : ", ") + other;
+                logger::info("SpellScanner: editor id {} names no {} spell, only {} ones - not taken", editorId, school,
+                    others);
+            } else {
+                logger::info("SpellScanner: editor id {} names {} {} spells - none taken", editorId, inSchool.size(),
+                    school);
+            }
+            return 0;
         }
 
         // What the game says about one saved node (in the tree school `school`): its formId now, and whether it stays
         TreeRemap::NodeVerdict JudgeNode(const json& node, const std::string& school, PluginLookup& lookup,
+                                         std::optional<SpellsByEditorId>& spellsByEditorId,
                                          const std::unordered_set<std::string>& gateKept, std::size_t& notPlayerSpells)
         {
             TreeRemap::NodeVerdict verdict;
@@ -252,12 +290,15 @@ namespace SpellScanner
                         logger::info("SpellScanner: Resolved {} -> {} from persistent ID {}", saved, verdict.formId,
                             persistentId);
                     }
-                } else if (const RE::FormID rematchedId = RematchByEditorId(node, school);
+                } else if (const RE::FormID rematchedId = RematchByEditorId(node, school, spellsByEditorId);
                            rematchedId != 0 && IsFormIdValid(rematchedId)) {
                     // Its plugin was renamed, merged or compacted: the same spell by editor id. The
-                    // plugin is not reported missing, the node is there; the next tree write gives it
-                    // its new persistentId
+                    // plugin is not reported missing, the node is there. TreeRemap gives the node the
+                    // spell's persistentId in memory, so the panel's saves and XP overrides (keyed by
+                    // persistentId) name the plugin it is in now; the file is written by the next save
                     verdict.formId = FormIdText::Format(rematchedId);
+                    verdict.rematched = true;
+                    verdict.persistentId = GetPersistentFormId(rematchedId);
                     isValid = true;
                     logger::info("SpellScanner: {} ({}) found again by editor id {} -> {}", persistentId, saved,
                         node["editorId"].get<std::string>(), verdict.formId);
@@ -294,6 +335,10 @@ namespace SpellScanner
             for (const auto& change : report.rootChanges) {
                 logger::info("SpellScanner: Updated {} root {} -> {}", change.school, change.from, change.to);
             }
+            for (const auto& saved : report.rematchClashes) {
+                logger::warn("SpellScanner: {} was found again by editor id, but another node of its school already "
+                    "has that spell - left out of the tree", saved);
+            }
             if (report.bridgesDropped > 0) {
                 logger::info("SpellScanner: Dropped {} bridges to removed spells", report.bridgesDropped);
             }
@@ -311,13 +356,14 @@ namespace SpellScanner
         const auto gateKept = ReadGateKept();
         // One per pass: the file list is converted once, not once per node
         PluginLookup pluginLookup;
+        std::optional<SpellsByEditorId> spellsByEditorId;  // built at the first node that needs a rematch
         std::size_t notPlayerSpells = 0;
 
         // The node verdicts come from the game; the formIds and every link to them are fixed
         // by TreeRemap (no game types, tools/tree-remap-check runs the same code). Saved links
         // hold the formIds the file was saved with, so each is looked up once by that value
         const auto report = TreeRemap::FixTree(treeData, [&](const json& node, const std::string& school) {
-            return JudgeNode(node, school, pluginLookup, gateKept, notPlayerSpells);
+            return JudgeNode(node, school, pluginLookup, spellsByEditorId, gateKept, notPlayerSpells);
         });
         LogReport(report);
 
@@ -325,15 +371,18 @@ namespace SpellScanner
         result.validNodes = report.validNodes;
         result.invalidNodes = report.invalidNodes;
         result.resolvedFromPersistent = report.resolvedFromPersistent;
+        result.rematchedByEditorId = report.rematched;
         result.missingPlugins.assign(report.missingPlugins.begin(), report.missingPlugins.end());
         result.missingRecords.assign(report.missingRecords.begin(), report.missingRecords.end());
         result.invalidFormIds.assign(report.removedFormIds.begin(), report.removedFormIds.end());
 
-        logger::info("SpellScanner: Tree validation complete - {}/{} valid, {} resolved from persistent, {} invalid "
-            "({} not a player's spell, {} legacy nodes on a resolved spell's formId, {} legacy nodes following a "
-            "copy with a persistent ID), {} nodes moved to a new formId",
-            result.validNodes, result.totalNodes, result.resolvedFromPersistent, result.invalidNodes, notPlayerSpells,
-            report.legacyCollisions, report.legacyFollowed, report.moved.size());
+        logger::info("SpellScanner: Tree validation complete - {}/{} valid, {} resolved from persistent (of them {} "
+            "found again by editor id), {} invalid ({} not a player's spell, {} legacy nodes on a resolved spell's "
+            "formId, {} legacy nodes following a copy with a persistent ID, {} found again by editor id on a spell "
+            "their school has), {} nodes moved to a new formId",
+            result.validNodes, result.totalNodes, result.resolvedFromPersistent, result.rematchedByEditorId,
+            result.invalidNodes, notPlayerSpells, report.legacyCollisions, report.legacyFollowed,
+            report.rematchClashes.size(), report.moved.size());
 
         return result;
     }

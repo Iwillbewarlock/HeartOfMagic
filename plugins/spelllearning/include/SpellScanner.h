@@ -125,7 +125,8 @@ namespace SpellScanner
         int totalNodes = 0;
         int validNodes = 0;
         int invalidNodes = 0;
-        int resolvedFromPersistent = 0;
+        int resolvedFromPersistent = 0;               // Kept nodes whose formId changed (rematched ones too)
+        int rematchedByEditorId = 0;                  // Of them, found again by editor id (plugin renamed)
         std::vector<std::string> missingPlugins;      // Plugins persistentIds name that are not loaded
         std::vector<std::string> missingRecords;      // persistentIds of loaded plugins without that record
         std::vector<std::string> invalidFormIds;      // Saved FormIDs of the dropped nodes (their links went)

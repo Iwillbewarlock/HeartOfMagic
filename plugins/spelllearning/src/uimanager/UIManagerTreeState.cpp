@@ -180,9 +180,13 @@ bool IsBlankTreeText(std::string_view text)
 bool ValidateTreeForPanel(json& tree)
 {
     const auto validation = SpellScanner::ValidateAndFixTree(tree);
-    if (validation.resolvedFromPersistent > 0) {
-        logger::info("UIManager: Resolved {} spells from persistent IDs (load order changed)",
-            validation.resolvedFromPersistent);
+    const int byPersistentId = validation.resolvedFromPersistent - validation.rematchedByEditorId;
+    if (byPersistentId > 0) {
+        logger::info("UIManager: Resolved {} spells from persistent IDs (load order changed)", byPersistentId);
+    }
+    if (validation.rematchedByEditorId > 0) {
+        logger::info("UIManager: Found {} spells again by editor id (their plugin was renamed, merged or compacted)",
+            validation.rematchedByEditorId);
     }
     if (validation.invalidNodes > 0) {
         logger::warn("UIManager: {} spells could not be resolved (plugins may be missing)", validation.invalidNodes);

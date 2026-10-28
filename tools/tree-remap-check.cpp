@@ -17,7 +17,9 @@
 // junk, empty and more than 8 digits rejected), which NormalizeFormId uses.
 //
 // And EditorIdRematch.h: a node whose persistentId no longer resolves (its plugin
-// renamed, merged or compacted) takes the one spell with its editor id in its school.
+// renamed, merged or compacted) takes the one spell with its editor id in its school,
+// and that spell's persistentId; one that lands on a spell another node of its school
+// already has goes, the node that resolved by its own persistentId stays.
 //
 // Exit 0 when every case passes, 1 on a failure, 2 on a bad argument.
 
@@ -43,6 +45,14 @@ namespace
     constexpr int kExitFailed = 1;
     constexpr int kExitUsage = 2;
 
+    /// A loaded spell with a given editor id (powerofthree's Tweaks)
+    struct FakeSpell
+    {
+        std::uint32_t formId = 0;
+        std::string school;
+        std::string persistentId;
+    };
+
     /// The current load order as the judge sees it
     struct FakeGame
     {
@@ -50,6 +60,7 @@ namespace
         std::set<std::string> loadedPlugins;          ///< plugins whose missing ids are a missing record, not plugin
         std::set<std::string> legacyValid;            ///< formIds a node without a persistentId still finds
         std::set<std::string> notPlayerSpells;        ///< formIds that resolve but are no player's spell
+        std::map<std::string, std::vector<FakeSpell>> byEditorId;  ///< editor id -> the loaded spells with it
     };
 
     struct Expect
@@ -62,6 +73,9 @@ namespace
         std::vector<std::string> missingPlugins;
         std::vector<std::string> missingRecords;
         std::map<std::string, std::string> formIds;  ///< "school/name" -> formId the node must have now
+        int rematched = 0;                           ///< kept nodes found again by editor id
+        int rematchClashes = 0;                      ///< rematched nodes dropped for a spell their school has
+        std::map<std::string, std::string> persistentIds;  ///< "school/name" -> persistentId the node must have now
     };
 
     struct Case
@@ -74,7 +88,23 @@ namespace
 
     std::string Norm(const std::string& id) { return TreeRemap::NormalizeFormId(id); }
 
-    TreeRemap::NodeVerdict Judge(const FakeGame& game, const Json& node)
+    /// What JudgeNode does when a persistentId names nothing: the one spell with the node's editor id in its school
+    const FakeSpell* Rematch(const FakeGame& game, const Json& node, const std::string& school)
+    {
+        const auto editorId = node.value("editorId", std::string());
+        const auto it = game.byEditorId.find(editorId);
+        if (editorId.empty() || it == game.byEditorId.end()) return nullptr;
+        std::vector<std::pair<std::uint32_t, std::string>> candidates;
+        for (const auto& spell : it->second) candidates.emplace_back(spell.formId, spell.school);
+        const auto picked = EditorIdRematch::PickRematch(school, candidates);
+        if (!picked) return nullptr;
+        for (const auto& spell : it->second) {
+            if (spell.formId == *picked) return &spell;
+        }
+        return nullptr;
+    }
+
+    TreeRemap::NodeVerdict Judge(const FakeGame& game, const Json& node, const std::string& school)
     {
         TreeRemap::NodeVerdict verdict;
         verdict.formId = node["formId"].get<std::string>();
@@ -84,6 +114,13 @@ namespace
             verdict.hasPersistentId = true;
             const auto it = game.resolves.find(pid);
             if (it == game.resolves.end()) {
+                if (const auto* spell = Rematch(game, node, school)) {
+                    verdict.formId = FormIdText::Format(spell->formId);
+                    verdict.rematched = true;
+                    verdict.persistentId = spell->persistentId;
+                    verdict.keep = !game.notPlayerSpells.contains(verdict.formId);
+                    return verdict;
+                }
                 const auto plugin = pid.substr(0, pid.find('|'));
                 if (game.loadedPlugins.contains(plugin)) {
                     verdict.missingRecord = pid;
@@ -228,7 +265,7 @@ namespace
         std::printf("  %s\n", c.name);
         Checker check;
         Json tree = Json::parse(c.tree);
-        const auto judge = [&c](const Json& node, const std::string&) { return Judge(c.game, node); };
+        const auto judge = [&c](const Json& node, const std::string& school) { return Judge(c.game, node, school); };
         const Snapshot before = Take(tree);
         const auto report = TreeRemap::FixTree(tree, judge);
         const Snapshot after = Take(tree);
@@ -247,6 +284,15 @@ namespace
         for (const auto& [key, id] : c.expect.formIds) {
             const auto it = after.nodes.find(key);
             check.Check(it != after.nodes.end() && it->second["formId"] == id, key + " is " + id);
+        }
+        check.Check(report.rematched == c.expect.rematched &&
+                        report.rematchClashes.size() == static_cast<std::size_t>(c.expect.rematchClashes),
+            std::format("{} found again by editor id, {} dropped for a spell their school has", report.rematched,
+                report.rematchClashes.size()));
+        for (const auto& [key, id] : c.expect.persistentIds) {
+            const auto it = after.nodes.find(key);
+            check.Check(it != after.nodes.end() && it->second.value("persistentId", std::string()) == id,
+                key + " has persistentId " + id);
         }
         check.Check(LinksKept(before, after), "every link, lock and prerequisite still names its own spell");
 
@@ -369,6 +415,36 @@ namespace
     std::vector<Case> Cases()
     {
         return {
+            { "renamed plugin: found again by editor id with its new persistentId; two in the school, another "
+              "school's, no editor id: not taken",
+                R"({"schools":{"Destruction":{"root":"0x05000800","nodes":[
+                    {"name":"Firebolt","formId":"0x05000800","persistentId":"Old.esp|0x000800","editorId":"SpellFirebolt",
+                     "children":["0x05000801"]},
+                    {"name":"Icebolt","formId":"0x05000801","persistentId":"Old.esp|0x000801","editorId":"SpellIcebolt",
+                     "prerequisites":["0x05000800"]},
+                    {"name":"Spark","formId":"0x05000802","persistentId":"Old.esp|0x000802","editorId":"SpellSpark"},
+                    {"name":"Flame","formId":"0x05000803","persistentId":"Old.esp|0x000803"}]}}})",
+                { { { "New.esp|0x000800", "0x06000800" } }, {}, {}, {},
+                    { { "SpellFirebolt", { { 0x06000800, "Destruction", "New.esp|0x000800" } } },
+                        { "SpellIcebolt", { { 0x06000801, "Destruction", "New.esp|0x000801" },
+                                              { 0x07000801, "Destruction", "Fork.esp|0x000801" } } },
+                        { "SpellSpark", { { 0x06000802, "Illusion", "New.esp|0x000802" } } } } },
+                { { "Firebolt" }, 1, 3, 0, 0, { "Old.esp" }, {}, { { "Destruction/Firebolt", "0x06000800" } }, 1, 0,
+                    { { "Destruction/Firebolt", "New.esp|0x000800" } } } },
+
+            // The names differ only so the check can tell the two nodes apart; in a real tree both say "Firebolt"
+            { "a rematched node on a spell its school already has goes; the persistentId node stays",
+                R"({"schools":{"Destruction":{"root":"0x05000800","nodes":[
+                    {"name":"Firebolt of A.esp","formId":"0x05000800","persistentId":"A.esp|0x000800","editorId":"SpellFirebolt",
+                     "children":["0x05000900"]},
+                    {"name":"Firebolt","formId":"0x06000800","persistentId":"B.esp|0x000800","editorId":"SpellFirebolt"},
+                    {"name":"Ember","formId":"0x05000900","persistentId":"B.esp|0x000900","prerequisites":["0x05000800"]}]}}})",
+                { { { "B.esp|0x000800", "0x06000800" }, { "B.esp|0x000900", "0x06000900" } }, {}, {}, {},
+                    { { "SpellFirebolt", { { 0x06000800, "Destruction", "B.esp|0x000800" } } } } },
+                { { "Firebolt", "Ember" }, 1, 1, 0, 0, {}, {},
+                    { { "Destruction/Firebolt", "0x06000800" }, { "Destruction/Ember", "0x06000900" } }, 0, 1,
+                    { { "Destruction/Firebolt", "B.esp|0x000800" } } } },
+
             { "shift: light plugin A removed, B and C move down one index (normal)",
                 R"({"schools":{"Destruction":{"root":"0xFE906800","nodes":[
                     {"name":"Alpha","formId":"0xFE905800","persistentId":"A.esl|0x000800","prerequisites":["0xFE906800"]},

@@ -40,6 +40,12 @@
 //   unless a node with a persistentId now has that formId: it was that spell's
 //   slot, the persistentId is the record, and the legacy node goes.
 //
+// A node whose persistentId named nothing but was found again by editor id
+// (EditorIdRematch.h: its plugin renamed, merged or compacted) takes that spell's
+// formId and persistentId. When another node of its school already has that spell
+// (it resolved by its own persistentId, or an earlier rematch took it), the
+// rematched node goes: one spell is one node in a school.
+//
 // O(nodes + links) time and space.
 namespace TreeRemap
 {
@@ -53,6 +59,8 @@ namespace TreeRemap
         bool hasPersistentId = false;   ///< the node has a well-formed persistentId (its formId came from it)
         std::string missingPlugin;      ///< the persistentId's plugin is not loaded: that plugin
         std::string missingRecord;      ///< the plugin is loaded but has no such record: the persistentId
+        bool rematched = false;         ///< its persistentId named nothing; found again by editor id
+        std::string persistentId;       ///< a rematched node's new persistentId (the found spell's)
     };
 
     struct RootChange
@@ -72,12 +80,14 @@ namespace TreeRemap
         int resolvedFromPersistent = 0;  ///< kept nodes whose formId changed
         int legacyFollowed = 0;          ///< legacy nodes that took a persistentId node's verdict (same saved formId)
         int legacyCollisions = 0;        ///< legacy nodes dropped for a persistentId node on their formId
+        int rematched = 0;               ///< kept nodes found again by editor id
         std::size_t bridgesDropped = 0;
         std::set<std::string> missingPlugins;                ///< plugins persistentIds name that are not loaded
         std::set<std::string> missingRecords;                ///< persistentIds of loaded plugins without the record
         std::set<std::string> removedFormIds;                ///< saved formIds whose links go
         std::unordered_map<std::string, std::string> moved;  ///< saved formId -> final formId
         std::vector<std::string> collisions;                 ///< saved formIds of the dropped legacy nodes
+        std::vector<std::string> rematchClashes;             ///< saved formIds of rematched nodes on a taken spell
         std::vector<RootChange> rootChanges;
     };
 
@@ -155,6 +165,24 @@ namespace TreeRemap
             return entries;
         }
 
+        /// A rematched node on a spell another node of its school has goes (see the top): the nodes
+        /// that resolved by their own persistentId first, then the rematched ones in file order
+        inline void DropRematchClashes(std::vector<NodeEntry>& entries, Report& report)
+        {
+            std::unordered_map<const Json*, std::unordered_set<std::string>> taken;  // school -> final formIds
+            for (const auto& e : entries) {
+                if (e.verdict.keep && e.verdict.hasPersistentId && !e.verdict.rematched) {
+                    taken[e.schoolNodes].insert(e.verdict.formId);
+                }
+            }
+            for (auto& e : entries) {
+                if (!e.verdict.keep || !e.verdict.rematched) continue;
+                if (taken[e.schoolNodes].insert(e.verdict.formId).second) continue;
+                e.verdict.keep = false;
+                report.rematchClashes.push_back(e.saved);
+            }
+        }
+
         /// The legacy rules (see the top): follow a persistentId node saved under the same formId,
         /// or go when a persistentId node saved under another formId now has this one
         inline void ReconcileLegacy(std::vector<NodeEntry>& entries, Report& report)
@@ -191,6 +219,7 @@ namespace TreeRemap
             for (const auto& e : entries) {
                 if (e.verdict.keep) {
                     keptSaved.insert(e.saved);
+                    if (e.verdict.rematched) report.rematched++;
                     if (e.verdict.formId != e.saved) {
                         report.moved[e.saved] = e.verdict.formId;
                         report.resolvedFromPersistent++;
@@ -207,13 +236,17 @@ namespace TreeRemap
             }
         }
 
-        /// Kept nodes take their final formId, the rest leave their school
+        /// Kept nodes take their final formId (a rematched one its new persistentId too), the rest leave their school
         inline void ApplyNodes(const std::vector<NodeEntry>& entries, Report& report)
         {
             std::unordered_map<Json*, std::vector<std::size_t>> drop;
             for (const auto& e : entries) {
                 if (e.verdict.keep) {
-                    (*e.schoolNodes)[e.index]["formId"] = e.verdict.formId;
+                    auto& node = (*e.schoolNodes)[e.index];
+                    node["formId"] = e.verdict.formId;
+                    if (e.verdict.rematched && !e.verdict.persistentId.empty()) {
+                        node["persistentId"] = e.verdict.persistentId;
+                    }
                     report.validNodes++;
                 } else {
                     drop[e.schoolNodes].push_back(e.index);
@@ -314,6 +347,7 @@ namespace TreeRemap
         report.hasSchools = true;
         auto& schools = tree["schools"];
         auto entries = Detail::JudgeAll(schools, judge, report);
+        Detail::DropRematchClashes(entries, report);
         Detail::ReconcileLegacy(entries, report);
         Detail::MakeMaps(entries, report);
         Detail::ApplyNodes(entries, report);
