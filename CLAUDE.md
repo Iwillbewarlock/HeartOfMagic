@@ -341,7 +341,9 @@ This project does not have a C++ test framework. Validation is done through:
   `TreeGraftRecord.h`, `TreeGraftChecks.h` - when the graft runs, the player's rules from config.json, the seen
   list baseline and the record a run leaves, stale ids refreshed, the declutter with existing nodes fixed, the
   checks the dev self-test reports, the scan dump match, the seen list seeded before the catalog is replaced, the
-  journal; exit 1 on a failure; docs/ARCHITECTURE.md, "Tree Graft"), `tree-save-check` (SaveSpellTree's no-spells guard,
+  journal; exit 1 on a failure; docs/ARCHITECTURE.md, "Tree Graft"), `file-utils-check` (`file-utils-check
+  --self-test`: `include/FileUtils.h` `WriteAtomically` in a temp folder - the move onto an existing file replaces it,
+  the `.bak` a copy, a failed write leaves the file as it was; exit 1 on a failure), `tree-save-check` (SaveSpellTree's no-spells guard,
   `include/uimanager/TreeSaveCheck.h`: `--self-test` on made-up trees, or `tree-save-check <tree.json>...` against a
   full parse; exit 1 on a disagreement) and `tree-remap-check` (a saved tree's FormIDs and links after a load order
   change, `include/TreeRemap.h`, the part of `ValidateAndFixTree` with no game types: `tree-remap-check --self-test`

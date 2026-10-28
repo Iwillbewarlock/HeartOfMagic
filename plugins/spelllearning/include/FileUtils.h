@@ -18,6 +18,13 @@
  * target - a move being the one step the filesystem does in one piece. The
  * previous file is kept as <name>.bak, which is what a player is told to
  * rename when a save does go wrong.
+ *
+ * The file is there at every moment: the .bak is a copy, not the file moved
+ * away, and the temp file is moved onto the file, replacing it (MSVC's
+ * std::filesystem::rename replaces an existing file: tools/file-utils-check).
+ * The .bak used to be made by moving the file, so a crash between that move
+ * and the next left no file at all, and the tree graft's journal took a
+ * missing tree for one it had not written.
  */
 namespace FileUtils
 {
@@ -29,20 +36,27 @@ namespace FileUtils
         return backup;
     }
 
+    /// Where WriteAtomically writes the content before it moves it onto the file: <name>.tmp
+    inline std::filesystem::path TempPath(const std::filesystem::path& path)
+    {
+        auto temp = path;
+        temp += ".tmp";
+        return temp;
+    }
+
     /**
      * @param path      the file to end up with
      * @param content   what it should contain
-     * @param keepBackup  move the existing file to <name>.bak first (the old
-     *                    .bak is removed); false leaves any .bak as it is
-     * @return true when `path` now holds `content`
+     * @param keepBackup  copy the existing file to <name>.bak first (over the
+     *                    old .bak); false leaves any .bak as it is
+     * @return true when `path` now holds `content`; false leaves `path` as it was
      */
     inline bool WriteAtomically(const std::filesystem::path& path,
                                 std::string_view content,
                                 bool keepBackup = true)
     {
         std::error_code ec;
-        auto temp = path;
-        temp += ".tmp";
+        const auto temp = TempPath(path);
 
         {
             std::ofstream file(temp, std::ios::binary | std::ios::trunc);
@@ -60,44 +74,23 @@ namespace FileUtils
             }
         }  // closed here: the move below must not race the stream
 
-        const auto backup = BackupPath(path);
-        bool movedToBackup = false;
-
+        // A copy: the file itself stays where it is until the move below replaces it
         if (keepBackup && std::filesystem::exists(path, ec)) {
-            std::filesystem::remove(backup, ec);
-            ec.clear();
-            std::filesystem::rename(path, backup, ec);
-            movedToBackup = !ec;
+            std::filesystem::copy_file(path, BackupPath(path), std::filesystem::copy_options::overwrite_existing, ec);
             if (ec) {
                 // Not fatal: the new file is still worth having
                 logger::warn("FileUtils: could not keep a backup of {}: {}", PathText::Utf8(path), ec.message());
-                ec.clear();
             }
         }
+        ec.clear();
 
+        // Replaces the file in one step (MoveFileExW with MOVEFILE_REPLACE_EXISTING in MSVC's
+        // STL); never remove-then-move, which leaves a moment with no file
         std::filesystem::rename(temp, path, ec);
         if (ec) {
-            // Windows will not rename onto an existing file; take it out of the way
-            ec.clear();
-            std::filesystem::remove(path, ec);
-            ec.clear();
-            std::filesystem::rename(temp, path, ec);
-        }
-        if (ec) {
-            logger::error("FileUtils: could not move {} into place: {}", PathText::Utf8(temp), ec.message());
+            logger::error("FileUtils: could not move {} into place: {} - {} is left as it was", PathText::Utf8(temp),
+                ec.message(), PathText::Utf8(path.filename()));
             std::filesystem::remove(temp, ec);
-            ec.clear();
-            // Put the old file back under its own name. Without this the caller
-            // is told the save failed while the file it names is gone, and the
-            // player has to know to rename a .bak by hand to get it back.
-            if (movedToBackup) {
-                std::filesystem::rename(backup, path, ec);
-                if (ec) {
-                    logger::error("FileUtils: and the previous file is left at {}", PathText::Utf8(backup));
-                } else {
-                    logger::info("FileUtils: the previous {} is back in place", PathText::Utf8(path.filename()));
-                }
-            }
             return false;
         }
         return true;

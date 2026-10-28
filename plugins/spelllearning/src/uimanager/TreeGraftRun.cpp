@@ -271,8 +271,8 @@ namespace
 
         const auto baseline = TreeGraftRun::BaselineOf(record, previousCatalog);
         if (baseline.source == TreeGraftRun::SeenSource::kNone) {
-            return NotRun("no seen list and no earlier catalog: this scan is the baseline, nothing grafted "
-                          "(the next load order change grafts what it brings)");
+            return NotRun("no seen list and no earlier catalog: nothing grafted and no baseline saved (the next load "
+                          "order change seeds the seen list from the catalog this load order's scan left)");
         }
 
         // The player's rules: no file is the panel's defaults (none); a broken one is unknown
@@ -415,29 +415,47 @@ void ResolveTreeGraftJournal(const LoadOrderFingerprint::Value& loadOrder)
         const auto record = ParseRecord(recordText);
         if (!recordText || !record) return;
         const auto treeText = ReadText(treePath);
-        const auto journal = TreeGraftRun::ResolveJournal(*record, treeText, !treeText && ThereButUnread(treePath));
+        const bool treeUnreadable = !treeText && ThereButUnread(treePath);
+        // No tree file: its .tmp may be the tree the journal was for (Ruling 21)
+        const auto tempPath = FileUtils::TempPath(treePath);
+        const auto tempText = !treeText && !treeUnreadable ? ReadText(tempPath) : std::nullopt;
+        const auto journal = TreeGraftRun::ResolveJournal(*record, treeText, treeUnreadable, tempText);
         if (journal.action == TreeGraftRun::JournalAction::kNone) return;
         if (journal.action == TreeGraftRun::JournalAction::kWait) {
             logger::info("{} spell_tree.json is there but could not be read - the journal an earlier graft left waits "
                          "for the next start", kPrefix);
             return;
         }
-        const bool apply = journal.action == TreeGraftRun::JournalAction::kApply;
+        const bool recover = journal.action == TreeGraftRun::JournalAction::kRecover;
+        const bool apply = journal.action == TreeGraftRun::JournalAction::kApply || recover;
         enum class Result { kWritten, kChanged, kFailed };
         const auto result = RunOnGameThreadAndWait("TreeGraftJournal",
-            [action = journal.action, target = journal.record, recordText, treeText, recordPath, treePath,
-                hash = loadOrder.hash]() {
+            [action = journal.action, target = journal.record, recordText, treeText, tempText, recordPath, treePath,
+                tempPath, recover, hash = loadOrder.hash]() {
                 // Only over the files as read: a panel save or import meanwhile wins, and a tree
                 // that cannot be read now says nothing either
                 const auto treeNow = ReadText(treePath);
-                if ((!treeNow && ThereButUnread(treePath)) ||
-                    !TreeGraftRun::JournalStillFits(action, recordText, ReadText(recordPath), treeText, treeNow)) {
+                if (treeNow ? recover : ThereButUnread(treePath)) return Result::kChanged;   // a tree came (or is locked)
+                // A recovery compares the .tmp as read with the .tmp now, in the tree's place
+                const auto& fileRead = recover ? tempText : treeText;
+                const auto fileNow = recover ? ReadText(tempPath) : treeNow;
+                if (!TreeGraftRun::JournalStillFits(action, recordText, ReadText(recordPath), fileRead, fileNow)) {
                     return Result::kChanged;
+                }
+                if (recover) {
+                    std::error_code ec;
+                    std::filesystem::rename(tempPath, treePath, ec);
+                    if (ec) {
+                        logger::warn("{} spell_tree.json.tmp could not be moved into place: {}", kPrefix, ec.message());
+                        return Result::kFailed;
+                    }
+                    logger::info("{} spell_tree.json was missing and spell_tree.json.tmp is the tree the journal was for "
+                                 "- moved into place", kPrefix);
                 }
                 if (!UIManager::WriteTreeRecord(target)) return Result::kFailed;
                 // A graft finished from its journal: the panel's notice goes as after any complete graft
                 auto* ui = UIManager::GetSingleton();
-                if (action == TreeGraftRun::JournalAction::kApply && !hash.empty() && target.loadOrder == hash && ui &&
+                if (action != TreeGraftRun::JournalAction::kDrop && !hash.empty() && target.loadOrder == hash && ui &&
                     ui->IsInitialized()) {
                     ui->NotifyTreeGrafted(target.loadOrder);
                 }
@@ -445,14 +463,18 @@ void ResolveTreeGraftJournal(const LoadOrderFingerprint::Value& loadOrder)
             }, kGameThreadWait);
         if (result && *result == Result::kWritten) {
             logger::info("{} {} the journal an earlier graft left ({})", kPrefix, apply ? "applied" : "dropped",
-                apply ? "the tree is the one it wrote: its record written" : "the tree is not the one it was for");
+                recover  ? "its tree moved from spell_tree.json.tmp: its record written"
+                : apply  ? "the tree is the one it wrote: its record written"
+                         : "the tree is not the one it was for");
         } else if (result && *result == Result::kChanged) {
             logger::info("{} the record or the tree changed since the journal was read, or the tree cannot be read - "
                          "it waits for the next start", kPrefix);
         } else if (result) {
-            logger::warn("{} the journal's record could not be written - it waits for the next start", kPrefix);
+            logger::warn("{} the journal's {} could not be written - it waits for the next start", kPrefix,
+                recover ? "tree or record" : "record");
         } else {
-            logger::warn("{} the game thread did not answer within {} s - the journal waits for the next start", kPrefix,
+            logger::warn("{} the game thread gave no result within {} s (timeout or error logged above) - the journal "
+                         "waits for the next start", kPrefix,
                 std::chrono::duration_cast<std::chrono::seconds>(kGameThreadWait).count());
         }
     } catch (const std::exception& e) {

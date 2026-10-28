@@ -163,6 +163,29 @@ target_link_libraries(tree-save-check PRIVATE
 )
 
 # =============================================================================
+# file-utils-check  -  offline check of FileUtils::WriteAtomically
+# =============================================================================
+# The plugin's own FileUtils.h (header only): the file stays there at every step
+# (the .bak a copy, the temp file moved onto it, which this build's rename does in
+# one step), and a failed write leaves it as it was. --self-test in a temp folder.
+
+add_executable(file-utils-check
+    file-utils-check.cpp
+)
+
+target_compile_features(file-utils-check PRIVATE cxx_std_23)
+
+# Stub headers first (logger): FileUtils.h logs through the plugin's PCH
+target_include_directories(file-utils-check PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${SL_INCLUDE_DIR}
+)
+
+target_link_libraries(file-utils-check PRIVATE
+    spdlog::spdlog
+)
+
+# =============================================================================
 # tree-remap-check  -  offline check of a saved tree's load order fix
 # =============================================================================
 # The plugin's own TreeRemap.h (header only, no game types), the part of

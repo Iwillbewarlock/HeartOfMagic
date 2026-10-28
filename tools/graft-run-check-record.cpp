@@ -123,6 +123,20 @@ namespace GraftRunRecordCases
             "waiting: nothing is written");
         check.Check(TreeGraftRun::ResolveJournal(current, tree).action == TreeGraftRun::JournalAction::kNone, "no journal: nothing");
 
+        // No tree file, its .tmp there (a crash while the old WriteAtomically had moved the file to .bak)
+        const auto recovered = TreeGraftRun::ResolveJournal(reread, std::nullopt, false, tree);
+        check.Check(recovered.action == TreeGraftRun::JournalAction::kRecover && recovered.record.loadOrder == "new" &&
+                        !recovered.record.extra.contains(TreeGraftRun::kJournalKey),
+            "no tree file, the .tmp is the journal's tree: moved into place and the journal applied");
+        check.Check(TreeGraftRun::ResolveJournal(reread, std::nullopt, false, std::string("{\"schools\"")).action ==
+                        TreeGraftRun::JournalAction::kDrop,
+            "no tree file, a .tmp of another (a half-written) tree: dropped as before");
+        check.Check(TreeGraftRun::ResolveJournal(reread, std::string("{}"), false, tree).action ==
+                        TreeGraftRun::JournalAction::kDrop,
+            "a tree file there (not the journal's): the .tmp does not count, dropped");
+        check.Check(TreeGraftRun::ResolveJournal(reread, std::nullopt, true, tree).action == TreeGraftRun::JournalAction::kWait,
+            "a tree file there but unreadable: waits, whatever the .tmp");
+
         // Its write only over the files as read
         using TreeGraftRun::JournalAction;
         using TreeGraftRun::JournalStillFits;
@@ -135,6 +149,10 @@ namespace GraftRunRecordCases
         check.Check(JournalStillFits(JournalAction::kDrop, rec, rec, t1, t2), "drop: only the record must be as read");
         check.Check(!JournalStillFits(JournalAction::kDrop, rec, std::nullopt, t1, t1), "drop: the record gone - waits");
         check.Check(!JournalStillFits(JournalAction::kNone, rec, rec, t1, t1), "nothing to write: no");
+        check.Check(JournalStillFits(JournalAction::kRecover, rec, rec, t1, t1) &&
+                        !JournalStillFits(JournalAction::kRecover, rec, rec, t1, std::nullopt) &&
+                        !JournalStillFits(JournalAction::kRecover, rec, rec2, t1, t1),
+            "recover: the record and the .tmp as read - written; the .tmp gone or the record changed - waits");
         return check.failed;
     }
 }

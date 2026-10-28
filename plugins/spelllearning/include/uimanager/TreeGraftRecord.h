@@ -106,7 +106,8 @@ namespace TreeGraftRun
     // "graftJournal" { treeHash: FNV-1a 64 of the tree text about to be written, record:
     // the record that goes with it }, then that record alone. A start that finds a journal
     // whose treeHash is the tree file's writes its record (the tree was written, the final
-    // record was not); any other journal is dropped (the tree was not written).
+    // record was not); with no tree file but a spell_tree.json.tmp of that hash, the .tmp is
+    // moved into place first (Ruling 21); any other journal is dropped (the tree was not written).
 
     inline constexpr const char* kJournalKey = "graftJournal";
 
@@ -121,29 +122,35 @@ namespace TreeGraftRun
         return current;
     }
 
-    /// kWait: the tree file is there but could not be read - the journal is left as it is
-    enum class JournalAction { kNone, kApply, kDrop, kWait };
+    /// kWait: the tree file is there but could not be read - the journal is left as it is.
+    /// kRecover: no tree file, but its .tmp is the tree the journal was for (a crash while an
+    /// older WriteAtomically had the file moved to .bak): moved into place, then applied
+    enum class JournalAction { kNone, kApply, kDrop, kWait, kRecover };
     struct JournalResult
     {
         JournalAction action = JournalAction::kNone;
         TreeRecordFile::TreeRecord record;   ///< what to write (kApply, kDrop)
     };
 
-    /// The journal's write may go: the record (and, for an apply, the tree) on disk are still
-    /// what the journal was resolved from - a panel save or import in between wins, and the
-    /// journal waits for the next start
+    /// The journal's write may go: the record (and, for an apply, the tree; for a recovery,
+    /// the .tmp - pass its texts as the tree's) on disk are still what the journal was
+    /// resolved from - a panel save or import in between wins, and the journal waits for
+    /// the next start
     [[nodiscard]] inline bool JournalStillFits(JournalAction action, const std::optional<std::string>& recordRead,
         const std::optional<std::string>& recordNow, const std::optional<std::string>& treeRead,
         const std::optional<std::string>& treeNow)
     {
         if (action == JournalAction::kNone || action == JournalAction::kWait || recordNow != recordRead) return false;
-        return action != JournalAction::kApply || treeNow == treeRead;
+        return (action != JournalAction::kApply && action != JournalAction::kRecover) || treeNow == treeRead;
     }
 
     /// What a record's journal asks for, against the tree text on disk (nothing: no tree file;
-    /// `treeUnreadable`: a tree file there that could not be read, which says nothing - kWait)
+    /// `treeUnreadable`: a tree file there that could not be read, which says nothing - kWait).
+    /// `tempText`: spell_tree.json.tmp, read when there is no tree file (kRecover when it is
+    /// the journal's tree)
     [[nodiscard]] inline JournalResult ResolveJournal(const TreeRecordFile::TreeRecord& record,
-        const std::optional<std::string>& treeText, bool treeUnreadable = false)
+        const std::optional<std::string>& treeText, bool treeUnreadable = false,
+        const std::optional<std::string>& tempText = std::nullopt)
     {
         JournalResult result;
         const auto journal = record.extra.find(kJournalKey);
@@ -152,12 +159,15 @@ namespace TreeGraftRun
             result.action = JournalAction::kWait;
             return result;
         }
-        const bool written = treeText && journal->is_object() && journal->contains("treeHash") &&
-                             (*journal)["treeHash"].is_string() &&
-                             (*journal)["treeHash"].get<std::string>() == ScanRecordRules::HashText(*treeText) &&
-                             journal->contains("record") && (*journal)["record"].is_object();
-        if (written) {
-            result.action = JournalAction::kApply;
+        const auto isJournalsTree = [&](const std::optional<std::string>& text) {
+            return text && journal->is_object() && journal->contains("treeHash") && (*journal)["treeHash"].is_string() &&
+                   (*journal)["treeHash"].get<std::string>() == ScanRecordRules::HashText(*text) &&
+                   journal->contains("record") && (*journal)["record"].is_object();
+        };
+        const bool written = isJournalsTree(treeText);
+        const bool recover = !treeText && isJournalsTree(tempText);
+        if (written || recover) {
+            result.action = recover ? JournalAction::kRecover : JournalAction::kApply;
             result.record = TreeRecordFile::ParseTreeRecord((*journal)["record"]);
             result.record.extra.erase(kJournalKey);
         } else {
