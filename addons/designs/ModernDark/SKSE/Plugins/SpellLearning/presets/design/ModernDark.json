@@ -1,0 +1,24 @@
+{
+    "id": "modern",
+    "name": "Modern Dark",
+    "author": "Heart of Magic",
+    "uiTheme": "skyrim",
+    "description": "The original tree on the modern dark UI, with flat gold accents.",
+    "descriptions": {
+        "ko": "원래 트리에 단색 금빛 포인트를 더한 모던 다크 UI.",
+        "de": "Der ursprüngliche Baum auf der modernen dunklen Oberfläche mit schlichten Goldakzenten.",
+        "es": "El árbol original sobre la interfaz oscura moderna, con acentos dorados planos.",
+        "fr": "L'arbre d'origine sur l'interface sombre moderne, avec de sobres touches dorées.",
+        "it": "L'albero originale sull'interfaccia scura moderna, con semplici accenti dorati.",
+        "ja": "元のツリーに、フラットな金色のアクセントを添えたモダンなダークUI。",
+        "pl": "Pierwotne drzewo na nowoczesnym ciemnym interfejsie z płaskimi złotymi akcentami.",
+        "pt-br": "A árvore original na interface escura moderna, com detalhes dourados lisos.",
+        "ru": "Исходное дерево в современном тёмном интерфейсе с плоскими золотыми акцентами.",
+        "tr": "Düz altın vurgulu modern koyu arayüzde orijinal ağaç.",
+        "zh-cn": "原始法术树，搭配带扁平金色点缀的现代暗色界面。",
+        "zh-tw": "原始法術樹，搭配帶扁平金色點綴的現代暗色介面。"
+    },
+    "cssFile": "themes/design-modern.css",
+    "icons": "themes/icons-line-gold/",
+    "tree": {}
+}

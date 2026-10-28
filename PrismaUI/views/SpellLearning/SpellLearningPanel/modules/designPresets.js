@@ -9,124 +9,121 @@
  *   css      - the same, written inline (a string, or an array of lines)
  *   icons    - folder of the 19 icon PNGs (modules/homIcons.js), ending in "/"
  *
- * Three are built in: Classic and Modern Dark (the two UI themes as they were,
- * with the tree as it was) and Arcane. Every other UI theme listed in
- * themes/manifest.json shows up as a design of its own (onThemesLoaded), so
+ * One is built in: Skald, the default - the panel applies it at load, before
+ * any file arrives, so the default cannot be a file. Every other UI theme listed
+ * in themes/manifest.json shows up as a design of its own (onThemesLoaded), so
  * old UI theme add-ons keep working. Add-ons add more by dropping a .json file into
  * Data/SKSE/Plugins/SpellLearning/presets/design/ - the plugin already lists
  * every preset folder (UIManager::OnLoadPresets), so one file per design, no
- * shared list to fight over between add-ons. See docs/DESIGN.md.
+ * shared list to fight over between add-ons. Classic, Modern Dark, Arcane,
+ * Chalkboard and Night Grimoire are such add-ons, one archive each (sources in
+ * addons/designs/). See docs/DESIGN.md.
  *
  * Depends on: settings, TreeStyle, t() (optional), UI_THEMES/applyTheme (optional), homIcons.js (optional)
  */
 
 var DesignPresets = {
 
-    DEFAULT_ID: 'arcane',
+    DEFAULT_ID: 'skald',
     DEFAULT_UI_THEME: 'skyrim',
 
     BUILT_IN: {
-        classic: {
-            name: 'Classic',
-            description: 'The original look: plain, and the lightest to draw.',
-            descriptionKey: 'design.classic.desc',
+        skald: {
+            name: 'Skald',
+            description: 'Skyrim\'s own menus: smoky black, thin pale lines, knotwork corners and wide-set capital titles, with the school colours softened to quiet tints.',
+            descriptionKey: 'design.skald.desc',
             author: 'Heart of Magic',
             uiTheme: 'skyrim',
+            cssFile: 'themes/design-darkbook.css',
             icons: 'themes/icons-line/',
-            tree: {}
-        },
-        modern: {
-            name: 'Modern Dark',
-            description: 'The original tree on the modern dark UI, with flat gold accents.',
-            descriptionKey: 'design.modern.desc',
-            author: 'Heart of Magic',
-            // Colours and shapes over the Skyrim theme, like Arcane (the old
-            // stand-alone modern stylesheet had fallen far behind it)
-            uiTheme: 'skyrim',
-            cssFile: 'themes/design-modern.css',
-            icons: 'themes/icons-line-gold/',
-            tree: {}
-        },
-        arcane: {
-            name: 'Arcane',
-            description: 'An open spellbook: a parchment page, ink lines, chapter titles, and the tree soaking out like ink when it opens.',
-            descriptionKey: 'design.arcane.desc',
-            author: 'Heart of Magic',
-            // Leather cover round parchment pages: the panel's chrome goes dark
-            // leather and gold, the tree, the spell card and the hover card parchment
-            uiTheme: 'skyrim',
-            cssFile: 'themes/design-arcane.css',
-            icons: 'themes/arcane/icons/',
+            css: [
+                ':root {',
+                '    --book-cover-top: #121212;',
+                '    --book-cover-bottom: #070708;',
+                '    --book-cover: #0b0b0c;',
+                '    --book-cover-glow: rgba(207, 201, 184, 0.08);',
+                '    --book-edge: #4a4740;',
+                '    --book-gold: #cfc9b8;',
+                '    --book-gold-bright: #fffbef;',
+                '    --book-text: #e8e4d8;',
+                '    --book-text-soft: #cbc5b6;',
+                '    --book-text-faint: #8f8a7e;',
+                '    --book-text-bright: #fffbef;',
+                '    --book-tools: rgba(8, 8, 9, 0.94);',
+                '    --book-page: #0e0e0f;',
+                '    --book-page-edge: #080809;',
+                '    --book-well: rgba(0, 0, 0, 0.55);',
+                '    --preview-bg: #080809;',
+                '}',
+                '/* No tree yet: the five school marks in a knotwork plate (themes/skald/empty.png) */',
+                '.empty-state { background: #080809; }',
+                '.empty-icon { width: 360px; height: 240px; max-width: 80%; font-size: 0; opacity: 1; margin-bottom: 6px;',
+                '    background: url("themes/skald/empty.png") center / contain no-repeat; }',
+                '.empty-state .empty-text { color: #e8e4d8; letter-spacing: 2px; text-transform: uppercase; }',
+                '.empty-state .empty-hint { color: rgba(232, 228, 216, 0.7); }',
+                '/* Skyrim\'s menus set everything in a narrow sans. Windows\' own Bahnschrift comes closest; no font file',
+                '   is shipped, so a system without it falls through to the Skyrim Edge theme\'s narrow faces, and',
+                '   Korean, Japanese and Chinese text to the system\'s sans. */',
+                ':root {',
+                '    --skald-font: "Bahnschrift SemiCondensed", "Bahnschrift", "Futura Condensed", "Roboto Condensed", "Arial Narrow", sans-serif;',
+                '    --book-serif: var(--skald-font);',
+                '}',
+                'body, button, input, select, textarea, .btn { font-family: var(--skald-font); }',
+                '/* Titles in wide-set capitals, like the game\'s menu headings */',
+                '.panel-title { letter-spacing: 5px; text-transform: uppercase; }',
+                '.settings-block-title, .subsection-title, .popup-section-title, .modal-header h2, .modal-header h3,',
+                '.howto-header h3, .howto-section h4, .heart-settings-popup .popup-header { letter-spacing: 2px; text-transform: uppercase; }',
+                '/* Pale, not gold: the chosen tab, toggle and badge in the line colour */',
+                '.school-tab.active { background: rgba(232, 228, 216, 0.14); color: #fffbef; }',
+                '.heart-settings-popup .popup-header { background: rgba(232, 228, 216, 0.06); }',
+                '.segmented-toggle .seg-btn.active { background: rgba(232, 228, 216, 0.16); color: #fffbef; }',
+                '.segmented-toggle .seg-btn:hover:not(.active) { background: rgba(232, 228, 216, 0.08); color: #cbc5b6; }',
+                '.renderer-badge.canvas { background: rgba(232, 228, 216, 0.12); color: #e8e4d8; }'
+            ],
             tree: {
-                // Page
-                pageColor: '#e6d6b0',
-                pageGrain: 0.9,
-                pageGrainColor: '#7a5a2a',
-                pageGlow: '#fff4d6',
-                pageGlowAlpha: 0.35,
-                pageGlowRadius: 0.6,
-                pageEdge: '#5a3d18',
-                pageEdgeAlpha: 0.55,
-
-                // Ink: school colours darkened toward brown so they read on the page
-                schoolInk: 0.3,
-                schoolInkTone: '#2a1a08',
-                learningColor: '#1d6f8a',
-
-                // Labels
-                labelFont: 'var(--arcane-body)',
+                pageColor: '#0b0b0c',
+                pageGrain: 0.35,
+                pageGrainColor: '#4a4740',
+                pageGlow: '#1e1d1a',
+                pageGlowAlpha: 0.7,
+                pageGlowRadius: 0.65,
+                pageEdge: '#000000',
+                pageEdgeAlpha: 0.8,
+                schoolInk: 0.4,
+                schoolInkTone: '#cbc5b6',
+                labelFont: 'var(--skald-font)',
                 labelMaxChars: 18,
-                labelHalo: 'rgba(236, 224, 194, 0.9)',
+                labelHalo: 'rgba(5, 5, 6, 0.9)',
                 labelHaloWidth: 3,
-                labelUnlocked: '#2a1c0c',
-                labelAvailable: 'rgba(60, 40, 18, 0.9)',
-                labelHidden: 'rgba(80, 60, 30, 0.45)',
-
-                // Spells: learned ones filled with ink and edged in dark brown,
-                // learnable ones outlined with a ring, locked ones a pencil sketch
-                nodeFill: '#efe3c4',
-                unlockedRim: '#3a2610',
-                unlockedCore: '#f1e4c2',
-                lockedStroke: '#7c6c52',
-                mysteryFill: 'rgba(230, 218, 190, 0.9)',
-                focusStroke: '#1c1208',
-                ringTrack: '#3a2a14',
-                availableAlpha: 1.0,
+                labelUnlocked: '#f2eee2',
+                labelAvailable: 'rgba(232, 228, 216, 0.85)',
+                labelHidden: 'rgba(203, 197, 182, 0.4)',
+                nodeFill: '#0e0e0f',
+                lockedStroke: '#6f6b62',
+                mysteryFill: 'rgba(14, 14, 15, 0.9)',
+                focusStroke: '#fffbef',
+                ringTrack: '#e8e4d8',
+                availableAlpha: 1,
                 availableRing: true,
-                learningGlow: 0.3,
-
-                // Heart: a parchment seal
-                hubFill: '#efe3c4',
-                hubRing: '#6b4a1c',
-                hubText: '#4a3010',
-                globeColor: '#7a5424',
-
-                // Lines
-                dimEdgeColor: '#b8a680',
-                unlockedEdgeColor: '#5a3a14',
-                unlockedEdgeAlpha: 0.75,
-                unlockedEdgeWidth: 1.5,
-                lockedEdgeColor: '#8a7a5e',
-                lockedEdgeAlpha: 0.35,
-                frontierEdgeAlpha: 0.6,
-
-                // Pen and ink: shapes and lines drawn by hand, locked lines stippled
-                handDrawn: 0.07,
-                lockedEdgeStipple: 3,
-                selectedPathColor: '#8b1e1e',
-                selectedPathAlpha: 0.85,
-                selectedPathWidth: 2.5,
+                learningGlow: 0.5,
+                hubFill: '#000000',
+                hubRing: '#cfc9b8',
+                hubText: '#e8e4d8',
+                globeColor: '#cfc9b8',
+                dimEdgeColor: '#1c1b19',
+                unlockedEdgeAlpha: 0.6,
+                unlockedEdgeWidth: 1.6,
+                lockedEdgeColor: '#6f6b62',
+                lockedEdgeAlpha: 0.22,
+                frontierEdgeAlpha: 0.45,
+                selectedPathColor: '#fffbef',
+                selectedPathAlpha: 0.9,
+                selectedPathWidth: 2.2,
                 hoverPathAlpha: 0.8,
-
-                // Rubrics: chapter titles, sigil and heart runes in red ink
-                accent: '#8b1e1e',
-                selectionSigil: true,
-                hubRunes: true,
+                accent: '#cfc9b8',
                 chapterTitles: true,
-                // Drawings (anidoodle, pen-and-ink stipple in the page's sepia)
-                hubEmblem: 'themes/arcane/sigil.png',
-                pageOrnament: 'themes/arcane/corner.png',
-                dividerOrnament: true
+                dividerOrnament: true,
+                pageOrnament: 'themes/skald/corner.png'
             }
         }
     },

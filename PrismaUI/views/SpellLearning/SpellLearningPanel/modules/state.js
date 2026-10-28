@@ -100,7 +100,7 @@ var settings = {
     designEffects: {},
     animationsOff: false,       // Render popup: one switch that stills every moving part (renderSettings.js)
     starTwinkle: true,          // Render popup: stars drift and twinkle (off: drawn still)
-    designPreset: 'arcane',     // Design preset id (modules/designPresets.js); add-ons add more in presets/design/
+    designPreset: 'skald',      // Design preset id (modules/designPresets.js); add-ons add more in presets/design/
     learningColor: '#7890A8',   // Color for learning state nodes/lines
     fontSizeMultiplier: 1.0,    // Global font size multiplier (0.5 - 2.0)
     // Tree generation settings

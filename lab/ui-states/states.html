@@ -6,8 +6,10 @@
   and shows the part that matters; nothing here ships (lab/ is not in the release).
 
   Open (Chrome with file access, e.g. headless with --allow-file-access-from-files):
-    states.html?design=classic&group=card&lang=en
-  design: classic | modern | arcane | night-grimoire | chalkboard | skald
+    states.html?design=skald&group=card&lang=en
+  design: skald (built in) | classic | modern | arcane | night-grimoire | chalkboard (add-ons, read from
+          addons/designs/; Arcane's stylesheet finds its book fonts only in an install, so here its text
+          falls back to the next face in its font lists)
   group:  card (the bar under the tree) | side (the right sidebar) | scan (the Scan page's top)
   lang:   any of the panel's 13 (en by default)
   window.__ready is true once every frame has its state (for a headless screenshot).
@@ -28,10 +30,14 @@
 <script>
 var Q = {};
 location.search.slice(1).split('&').forEach(function(kv) { if (kv) { var a = kv.split('='); Q[a[0]] = decodeURIComponent(a[1] || ''); } });
-var DESIGN = Q.design || 'classic', GROUP = Q.group || 'card', LANG = Q.lang || 'en';
-var PANEL = '../../PrismaUI/views/SpellLearning/SpellLearningPanel/dev-harness.html';
-var PRESETS = '../../SKSE/Plugins/SpellLearning/presets/design/';
-var JSON_DESIGNS = { 'night-grimoire': 'NightGrimoire', 'chalkboard': 'Chalkboard', 'skald': 'Skald' };
+var DESIGN = Q.design || 'skald', GROUP = Q.group || 'card', LANG = Q.lang || 'en';
+var PANEL_DIR = 'PrismaUI/views/SpellLearning/SpellLearningPanel/';
+var PANEL = '../../' + PANEL_DIR + 'dev-harness.html';
+// Skald is built in; the other five are add-ons (addons/designs/<folder>/, the game's Data layout inside)
+var ADDONS = 'addons/designs/';
+var JSON_DESIGNS = { 'classic': 'Classic', 'modern': 'ModernDark', 'arcane': 'Arcane', 'night-grimoire': 'NightGrimoire', 'chalkboard': 'Chalkboard' };
+// Files an add-on design names from the base panel
+var BASE_FILES = /^themes\/(design-darkbook\.css|icons-line\/|skald\/)/;
 // What each group shows of the 1600 x 1000 harness: x, y, width, height, scale
 var CROPS = { card: [0, 682, 1520, 216, 0.72], side: [1248, 120, 260, 778, 0.78], scan: [0, 104, 1520, 400, 0.58] };
 var STATES = {
@@ -49,12 +55,27 @@ function nodes(w) { return (w.state.treeData && w.state.treeData.nodes) || []; }
 function find(w, pred) { return nodes(w).filter(pred)[0] || null; }
 function later(ms, fn) { setTimeout(fn, ms); }
 
-/** The design, as the panel takes it at start (a JSON design through DesignPresets.onLoaded) */
+/**
+ * An add-on design's file paths are relative to the panel of an install that has the add-on; here they
+ * point into its source tree (the book fonts into the shared one). Paths the base panel has stay.
+ */
+function addonPaths(d, name) {
+    return JSON.parse(JSON.stringify(d).replace(/"themes\/[^"\\]*/g, function(m) {
+        var p = m.slice(1);
+        if (BASE_FILES.test(p)) return m;
+        var tree = p.indexOf('themes/fonts/book/') === 0 ? '_shared/book-fonts' : name;
+        return '"../../../../' + ADDONS + tree + '/' + PANEL_DIR + p;   // the harness is four folders down
+    }));
+}
+
+/** The design, as the panel takes it at start (an add-on's JSON design through DesignPresets.onLoaded) */
 function design(w, done) {
     w.settings.designPreset = DESIGN;
     if (!JSON_DESIGNS[DESIGN]) { try { w.DesignPresets.apply(DESIGN); } catch (e) {} done(); return; }
-    fetch(PRESETS + JSON_DESIGNS[DESIGN] + '.json').then(function(r) { return r.json(); }).then(function(d) {
-        w.DesignPresets.onLoaded([{ key: JSON_DESIGNS[DESIGN], data: d }]);
+    var name = JSON_DESIGNS[DESIGN];
+    fetch('../../' + ADDONS + name + '/SKSE/Plugins/SpellLearning/presets/design/' + name + '.json').then(function(r) { return r.json(); }).then(function(d) {
+        d = addonPaths(d, name);
+        w.DesignPresets.onLoaded([{ key: name, data: d }]);
         try { w.DesignPresets.apply(DESIGN); } catch (e) {}
         done();
     });

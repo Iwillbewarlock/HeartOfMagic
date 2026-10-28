@@ -1,0 +1,23 @@
+{
+    "id": "classic",
+    "name": "Classic",
+    "author": "Heart of Magic",
+    "uiTheme": "skyrim",
+    "description": "The original look: plain, and the lightest to draw.",
+    "descriptions": {
+        "ko": "원래 모습: 단순하고 가장 가볍게 그려집니다.",
+        "de": "Das ursprüngliche Aussehen: schlicht und am leichtesten zu zeichnen.",
+        "es": "El aspecto original: sencillo y el más ligero de dibujar.",
+        "fr": "L'apparence d'origine : sobre et la plus légère à dessiner.",
+        "it": "L'aspetto originale: semplice e il più leggero da disegnare.",
+        "ja": "元の見た目：シンプルで描画が最も軽い。",
+        "pl": "Pierwotny wygląd: prosty i najlżejszy do rysowania.",
+        "pt-br": "A aparência original: simples e a mais leve de desenhar.",
+        "ru": "Исходный вид: простой и самый лёгкий для отрисовки.",
+        "tr": "Orijinal görünüm: sade ve çizimi en hafif olan.",
+        "zh-cn": "原始外观：朴素，绘制开销最低。",
+        "zh-tw": "原始外觀：樸素，繪製負擔最低。"
+    },
+    "icons": "themes/icons-line/",
+    "tree": {}
+}
