@@ -320,7 +320,10 @@ stay: titles, the game font, the flat dark panels with their kPanelEdge rules.
 - Buttons (the layout row's lock / reset, the node card's button) are `kPanelFill` with a `kPanelEdge` border in every
   state; the node card's label (`kWhite` / `kDimText`) and the layout row's grey alpha tell the states apart
   (`kButtonFill`, `kButtonOff`, `kLockedEdge` removed).
-- The progress card's bar is a 2-unit line (`kBarH` 9 -> 2): `kPanelEdge` behind, `kTitleColor` for the share learned
-  (`kBarBack` removed). The bar row keeps the XP field's height, so the card's plan does not move.
-- Requirement lines are `kLabelColor`; only the drawn check (`kOk`) and cross (`kNotYet`) carry the state colour.
-- The tree legend starts at `kPad`, the window title's left edge, and its spare room goes only between the items.
+- The progress card's bar is a 2-unit line (`kBarH` 9 -> 2): `kBarBack` 0x4A4A4A (neutral grey; `kPanelEdge` read as
+  the card's rule lines at 0%) behind, `kTitleColor` for the share learned. The bar row keeps the XP field's height, so the card's plan does not move.
+- The spell rows of the requirement lines (mastered / not mastered) are `kLabelColor`; only the drawn check (`kOk`) and
+  cross (`kNotYet`) carry the state colour.
+- The tree legend starts where the window title's letters start (`kPad + kGutter / 2`), and its spare room goes only
+  between the items. Its fit loop shrinks the text to `kMinFitSize` before cutting (it compared with `kLegendSize`
+  and never shrank).

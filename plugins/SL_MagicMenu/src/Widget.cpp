@@ -194,7 +194,8 @@ namespace Widget
         // The XP numbers sit right of the bar in a row as high as their field, the bar centred in it (review round 2 #2: the
         // field centred on the then 9-high bar ran into the target line above and the hint below); they keep kXpSize, not the
         // reading size, so the card's last line keeps room at large list rows. The bar is a thin line (UI polish 2026-10-29):
-        // kPanelEdge behind, kTitleColor for the share learned
+        // kBarBack behind (a neutral grey: kPanelEdge would read as the card's rule lines at 0%), kTitleColor for the share learned
+        constexpr std::uint32_t kBarBack = 0x4A4A4A;
         constexpr double kCardTop = 4.0, kCardBottom = 2.0, kSchoolSize = 11.0, kTargetSize = 19.0, kBarH = 2.0, kXpW = 120.0,
                          kXpSize = 12.0, kHintSize = 13.0;
         constexpr int kMessageLines = 2;
@@ -2904,7 +2905,8 @@ namespace Widget
         // The tree window's legend strip (spec v11 T18): HoM's four looks - unlocked, learning, available, locked (the mystery
         // look when HoM's discovery mode shows locked spells so) - in a_school's shape and colour, the known size kLegendIconR.
         // One line in the smaller kLegendSize (spec v10 T9, below the reading size: a key, not text to read), laid out by the
-        // texts' measured widths: the first item at kPad, the window title's left edge, the spare room only between items
+        // texts' measured widths: the first item where the window title's letters start (kPad plus the text field's own
+        // kGutter / 2), the spare room only between items
         // (UI polish 2026-10-29; it used to put half a gap before the first and after the last).
         void DrawLegend(RE::GFxMovieView* a_movie, RE::GFxValue& a_panel, double a_w, double a_h, const std::string& a_school)
         {
@@ -2935,15 +2937,15 @@ namespace Widget
                     fields[i] = Draw::Text(a_movie, legend, name.c_str(), 0, y - h / 2, room, h, Text(kItems[i].text), kDimText, size);
                     used += icon + kLegendTextGap + TextW(fields[i]);
                 }
-                if (used > room && size - kStep >= kLegendSize) continue;
+                if (used > room && size - kStep >= kMinFitSize) continue;  // shrinks to kMinFitSize before cutting
                 if (used > room) {
                     logger::info("Widget: the tree legend needs {:.0f} of {:.0f} stage units at size {:.0f} - what runs past the border is cut",
                         used, room, size);
                 }
                 static_assert(kItems.size() > 1, "the legend's spare room is shared between its items");
-                const double gap = std::max(0.0, (room - used) / static_cast<double>(kItems.size() - 1));
+                const double gap = std::max(0.0, (room - kGutter / 2 - used) / static_cast<double>(kItems.size() - 1));
                 const double right = kPad + room;
-                double x = kPad;
+                double x = kPad + kGutter / 2;
                 for (std::size_t i = 0; i < kItems.size(); ++i) {
                     if (x + icon > right) {  // not even the mark fits: neither is drawn (review round 1 #6)
                         if (fields[i].IsDisplayObject()) fields[i].Invoke("removeTextField");
@@ -6224,7 +6226,7 @@ namespace Widget
 
             const double barW = std::max(0.0, w - kXpW - kPad), barY = y + (barRowH - kBarH) / 2;
             Draw::NoLine(content);
-            Draw::Rect(content, 0, barY, barW, kBarH, kPanelEdge, Draw::kAlphaFull);
+            Draw::Rect(content, 0, barY, barW, kBarH, kBarBack, Draw::kAlphaFull);
             if (state.percent > 0) {
                 Draw::Rect(content, 0, barY, barW * std::clamp(state.percent / 100.0, 0.0, 1.0), kBarH, kTitleColor, Draw::kAlphaFull);
             }

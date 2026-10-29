@@ -3,7 +3,9 @@
 Usage (Python 3.10+, Pillow, numpy):
     python render_menu.py [--tree spell_tree.json] [--video3 DIR] [--out DIR] [--row-size 14]
 
-Every layout constant below is copied from the plugin source (file:line in README.md). Nothing here is read by
+Every layout constant below was copied from the plugin source at build 5 (file:line in README.md) and is frozen
+there: later builds changed some (the UI polish of 2026-10-29 removed BLUE, BAR_BACK, BUTTON_FILL, BUTTON_OFF and
+LOCKED_EDGE and made BAR_H 2; EXIT_TEXT_W is 56 now). Nothing here is read by
 the plugin; this is a picture of the code, for review without starting the game.
 """
 from __future__ import annotations
