@@ -1298,6 +1298,25 @@ namespace
         Expect(Near(BlockRules::TooltipY(90, 60, 22, 180, 30, 0, 120), 30), "past the column's visible bottom (120): above its node (30)");
         Expect(Near(BlockRules::TooltipY(90, 60, 22, 180, 10, 0, 120), 60), "above the node would hit the title: shifted up to end at the visible bottom");
         Expect(Near(BlockRules::TooltipY(40, 60, 22, 180, -30, 35, 80), 35), "a visible part shorter than the tooltip: starts at its top");
+        // less jumping (user 2026-10-30): a grow now, a shrink after it held kShrinkDelayMs (BlockRules::DecideFit)
+        {
+            using BlockRules::FitStep;
+            std::optional<BlockRules::HeldShrink> held;
+            const double delay = BlockRules::kShrinkDelayMs;
+            Expect(BlockRules::DecideFit(100, 140, 0, held) == FitStep::kApply && !held, "a grow applies at once");
+            Expect(BlockRules::DecideFit(140, 100, 1000, held) == FitStep::kHold && held && Near(held->sinceMs, 1000), "a shrink is held, its time starts");
+            Expect(BlockRules::DecideFit(140, 100, 1000 + delay - 1, held) == FitStep::kHold, "still held 1 ms before the delay");
+            Expect(BlockRules::DecideFit(140, 100, 1000 + delay, held) == FitStep::kApply && !held, "applied once the same height held for the delay");
+            BlockRules::DecideFit(140, 100, 2000, held);
+            Expect(BlockRules::DecideFit(140, 90, 2000 + delay, held) == FitStep::kHold && held && Near(held->sinceMs, 2000 + delay),
+                "another shrink height restarts the wait (a new row's content)");
+            Expect(BlockRules::DecideFit(140, 160, 2000 + delay + 10, held) == FitStep::kApply && !held, "a grow while a shrink waits cancels it");
+            BlockRules::DecideFit(140, 100, 3000, held);
+            Expect(BlockRules::DecideFit(140, 140, 3010, held) == FitStep::kUnchanged && !held, "back to the present height: the wait is dropped");
+            Expect(BlockRules::DecideFit(140, 100, 4000, held, 0.0) == FitStep::kApply, "a delay of 0 shrinks at once");
+        }
+        Expect(Near(BlockRules::GearHintX(Settings::Rect{ 434, 680, 452, 698 }, 80, 4, visible1610), 22), "the gear's hint right of it when it fits");
+        Expect(Near(BlockRules::GearHintX(Settings::Rect{ 1250, 680, 1268, 698 }, 80, 4, visible1610), -84), "at the stage's right edge: left of it");
         // the second game run (user 2026-10-30): right edge of the list window, centred on the bottom bar's skill row
         const auto at = BlockRules::GearRectAt(452.0, 700.0, 18.0, 2.0, visible1610);
         Expect(Near(at.right, 450) && Near(at.CenterY(), 700) && Near(at.Width(), 18) && Near(at.Height(), 18),

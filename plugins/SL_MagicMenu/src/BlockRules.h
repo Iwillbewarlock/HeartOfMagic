@@ -183,6 +183,13 @@ namespace BlockRules
     // 876 capture of a 16:10 screen at about 580, 740 - not checked on other aspect ratios)
     inline constexpr double kGearFallbackX = 580.0 / 1299.0, kGearFallbackY = 740.0 / 876.0;
 
+    /// The gear's hover hint beside the gear (stage rect a_gear): right of it when a hint a_w wide fits on screen there, else left
+    /// of it; vertically centred on it. Returns its left edge in the gear's own coordinates (the gear's left = 0)
+    inline double GearHintX(const Settings::Rect& a_gear, double a_w, double a_gap, const Settings::Rect& a_visible)
+    {
+        return a_gear.right + a_gap + a_w <= a_visible.right ? a_gear.Width() + a_gap : -a_gap - a_w;
+    }
+
     /// The gear's rect (stage) at the bottom-right of SkyUI's list window (user 2026-10-30, second game run): a_inset inside the
     /// window's right edge a_windowRight, centred on the bottom bar's skill row a_rowCentreY. Kept inside a_visible
     inline Settings::Rect GearRectAt(double a_windowRight, double a_rowCentreY, double a_size, double a_inset, const Settings::Rect& a_visible)
@@ -373,5 +380,45 @@ namespace BlockRules
         double y = std::clamp(a_y, a_minY, std::max(a_minY, a_maxY));
         if (y + a_h > a_viewBottom) y = a_above >= std::max(a_viewTop, a_minY) ? a_above : a_viewBottom - a_h;
         return std::max(y, a_viewTop);
+    }
+
+    // ---------------------------------------------------------------------
+    // Less jumping (user 2026-10-30): a fitted block grows at once (never cut) but shrinks only after its wanted height has held
+    // for a delay - arrowing through the list does not make the columns jump on every row
+    // ---------------------------------------------------------------------
+
+    inline constexpr double kShrinkDelayMs = 150.0;
+
+    /// A shrink waiting for its delay: the height and when it was first wanted (milliseconds of the host's steady clock)
+    struct HeldShrink
+    {
+        double height{}, sinceMs{};
+    };
+
+    enum class FitStep
+    {
+        kApply,      // the wanted height now (a grow, or a shrink that held long enough); the hold is cleared
+        kHold,       // a shrink, not yet: the block keeps its current height; a_held records it
+        kUnchanged,  // already that height; a waiting shrink is dropped
+    };
+
+    /// The step for a block whose height is a_current and whose content wants a_wanted at a_nowMs. a_held is this block's waiting
+    /// shrink (updated: started for a new shrink height, kept while the same height is wanted, cleared otherwise)
+    inline FitStep DecideFit(double a_current, double a_wanted, double a_nowMs, std::optional<HeldShrink>& a_held, double a_delayMs = kShrinkDelayMs)
+    {
+        if (std::abs(a_wanted - a_current) <= kHeightTolerance) {
+            a_held.reset();
+            return FitStep::kUnchanged;
+        }
+        if (a_wanted > a_current) {
+            a_held.reset();
+            return FitStep::kApply;
+        }
+        if (!a_held || std::abs(a_held->height - a_wanted) > kHeightTolerance) a_held = HeldShrink{ a_wanted, a_nowMs };
+        if (a_nowMs - a_held->sinceMs >= a_delayMs) {
+            a_held.reset();
+            return FitStep::kApply;
+        }
+        return FitStep::kHold;
     }
 }

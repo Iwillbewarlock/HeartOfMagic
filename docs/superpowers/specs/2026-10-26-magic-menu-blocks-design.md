@@ -407,3 +407,12 @@ header comment of `plugins/SL_MagicMenu/src/BlockApi.h`, the pure rules `BlockRu
   panel.swf strings and are not checked against SkyUI's movie offline. At the first settled placing of a game session the
   log lists `_root.Menu_mc`'s named clips to depth 3 with their stage bounds (80 lines at most), and the gear's log line
   names the clips its x and y came from.
+- Gear hint and mode look (user 2026-10-30): on hover a one-line hint in the tooltip look ("배치 모드 [K]", in the mode
+  "배치 모드 끝내기 [K]", the toggle key as the host names it) on the side of the gear that stays on screen
+  (`BlockRules::GearHintX`). The gear stays lit (kWhite) for the whole layout mode. `UpdateGear` checks every frame, so any
+  way the mode changes is followed.
+- Less jumping: a fitted block grows at once and shrinks only after the same smaller height has been wanted for
+  `BlockRules::kShrinkDelayMs` (150 ms, steady clock; `DecideFit`). A grow cancels a waiting shrink. While a shrink waits,
+  the block draws at its present height. When it is due, the block is drawn again (cards: the redraw pass or our card's
+  redraw, one Rearrange), and an add-on's held 'SLMH' request is taken again by TakeAddonHeights. Not in the layout mode,
+  and not for a menu's first fit, which applies at once as before.

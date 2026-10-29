@@ -302,6 +302,8 @@ namespace Widget
             // blocks plan Task 4 (D5): the layout buttons
             kLayoutLock,
             kLayoutReset,
+            kLayoutGearEnter,
+            kLayoutGearLeave,
             kCount
         };
 
@@ -392,6 +394,9 @@ namespace Widget
             // the reset button; the labels the plan gives, {key} the toggle key as the hints show keys
             { Str::kLayoutLock, "layout_lock", "배치 잠금 {key}" },
             { Str::kLayoutReset, "layout_reset", "처음 배치로" },
+            // user 2026-10-30: the gear's hover hint, out of the layout mode and in it
+            { Str::kLayoutGearEnter, "layout_gear_enter", "배치 모드 {key}" },
+            { Str::kLayoutGearLeave, "layout_gear_leave", "배치 모드 끝내기 {key}" },
         });
 
         consteval bool StringsInOrder()
@@ -659,6 +664,10 @@ namespace Widget
             int gearTries = 0, gearStable = 0, gearMoveLogs = 0;
             std::optional<Settings::Rect> gearLast;  // where the gear was put last (PlaceGear follows its anchor until it settles)
             bool gearAnchored = false;               // a SkyUI clip answered once this menu: no fallback after that (final review 7)
+            bool gearHover = false;                  // the mouse is over the gear (GearHover)
+            std::optional<bool> gearDrawnMode;       // the layout mode the gear's look and hint were made for (UpdateGear)
+            // user 2026-10-30: each fitted block's waiting shrink (BlockRules::DecideFit; built-in cards and add-ons alike)
+            std::map<Layout::BlockId, BlockRules::HeldShrink> heldShrink;
             // final review 1: the redraw pass's fits are laid out once at its end (FitBlock with fitBatch); its time is logged
             bool fitBatch = false;
             std::set<Layout::BlockId> fitBatchIds;
@@ -3568,6 +3577,28 @@ namespace Widget
         // returned height and keeps its rooms from its full height, so drawing at the new height asks for the same one (no
         // loop). In the layout mode the height is kept for the mode's end (every block shows at its full size there). Returns
         // the height the block shows at now
+        // The host's frame clock in milliseconds (steady_clock, as the redraw timings)
+        double NowMs()
+        {
+            return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        }
+
+        // user 2026-10-30: a held shrink whose delay has passed - its block is drawn again, and that draw's FitBlock applies it (one
+        // Rearrange: the redraw pass's, our card's own); an add-on's is applied by TakeAddonHeights
+        void WatchHeldShrinks()
+        {
+            if (g_menu.heldShrink.empty() || g_menu.layout.active) return;
+            const double now = NowMs();
+            for (const auto& [id, held] : g_menu.heldShrink) {
+                if (now - held.sinceMs < BlockRules::kShrinkDelayMs || Addon(id)) continue;
+                if (id == Layout::kSpellCard) {
+                    g_menu.ownCardSig.clear();
+                } else {
+                    g_menu.dirty = true;
+                }
+            }
+        }
+
         double FitBlock(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const BlockId& a_id, double a_needed)
         {
             constexpr int kMaxBlockFitLogs = 24;
@@ -3576,6 +3607,18 @@ namespace Widget
             const auto current = g_menu.fitHeight.find(a_id);
             const bool first = current == g_menu.fitHeight.end();
             const double before = first ? full : current->second;
+            // user 2026-10-30: a grow now, a shrink once it held kShrinkDelayMs (not the menu's first fit, not in the layout mode)
+            if (!first && !g_menu.layout.active) {
+                std::optional<BlockRules::HeldShrink> held;
+                if (const auto it = g_menu.heldShrink.find(a_id); it != g_menu.heldShrink.end()) held = it->second;
+                const auto step = BlockRules::DecideFit(before, fitted, NowMs(), held);
+                if (held) {
+                    g_menu.heldShrink[a_id] = *held;
+                } else {
+                    g_menu.heldShrink.erase(a_id);
+                }
+                if (step == BlockRules::FitStep::kHold) return before;  // drawn at its present height until then
+            }
             const bool changed = std::abs(fitted - before) > BlockRules::kHeightTolerance;
             // review GPT 2: a first fit equal to the full height is recorded too - it takes a fill block (our card) out of the fill,
             // which would otherwise grow it past the height it is drawn at when a block above it fits
@@ -3611,6 +3654,14 @@ namespace Widget
                 const std::scoped_lock lock(g_heightLock);
                 requests.swap(g_heightQueue);
             }
+            // user 2026-10-30: an add-on's held shrink whose delay has passed comes back as its request (the add-on sent it once)
+            if (!g_menu.layout.active) {
+                const double now = NowMs();
+                for (const auto& [id, held] : g_menu.heldShrink) {
+                    const bool queued = std::ranges::any_of(requests, [&](const auto& a_request) { return a_request.first == id; });
+                    if (Addon(id) && !queued && now - held.sinceMs >= BlockRules::kShrinkDelayMs) requests.emplace_back(id, held.height);
+                }
+            }
             bool changed = false;
             for (const auto& [id, height] : requests) {
                 const auto* addon = Addon(id);
@@ -3629,7 +3680,22 @@ namespace Widget
                     }
                     continue;
                 }
-                if (verdict == BlockRules::HeightVerdict::kUnchanged) continue;
+                if (verdict == BlockRules::HeightVerdict::kUnchanged) {
+                    g_menu.heldShrink.erase(id);
+                    continue;
+                }
+                // user 2026-10-30: a shrink waits kShrinkDelayMs (a grow applies at once); not in the layout mode
+                if (!g_menu.layout.active && current != g_menu.fitHeight.end()) {
+                    std::optional<BlockRules::HeldShrink> held;
+                    if (const auto it = g_menu.heldShrink.find(id); it != g_menu.heldShrink.end()) held = it->second;
+                    const auto step = BlockRules::DecideFit(current->second, height, NowMs(), held);
+                    if (held) {
+                        g_menu.heldShrink[id] = *held;
+                    } else {
+                        g_menu.heldShrink.erase(id);
+                    }
+                    if (step == BlockRules::FitStep::kHold) continue;
+                }
                 if (g_menu.addonHeightLogs < kMaxHeightLogs) {
                     ++g_menu.addonHeightLogs;
                     logger::info("Widget: add-on block {} height {:.1f} (registered {:.1f}){}{}", id, height, addon->height,
@@ -5198,6 +5264,16 @@ namespace Widget
             }
         }
 
+        // The gear's look: lit (kWhite) on hover and for the whole layout mode, its hint beside it on hover
+        void ShowGearLook(RE::GFxValue& a_gear)
+        {
+            const bool lit = g_menu.gearHover || g_menu.layout.active;
+            RE::GFxValue dim, bright, hint;
+            if (a_gear.GetMember("dim", &dim) && dim.IsDisplayObject()) dim.SetMember("_visible", !lit);
+            if (a_gear.GetMember("lit", &bright) && bright.IsDisplayObject()) bright.SetMember("_visible", lit);
+            if (a_gear.GetMember("hint", &hint) && hint.IsDisplayObject()) hint.SetMember("_visible", g_menu.gearHover);
+        }
+
         class GearHover final : public RE::GFxFunctionHandler
         {
         public:
@@ -5206,9 +5282,8 @@ namespace Widget
             void Call(Params& a_params) override
             {
                 if (!a_params.thisPtr || g_closing) return;
-                RE::GFxValue dim, lit;
-                if (a_params.thisPtr->GetMember("dim", &dim) && dim.IsDisplayObject()) dim.SetMember("_visible", !_over);
-                if (a_params.thisPtr->GetMember("lit", &lit) && lit.IsDisplayObject()) lit.SetMember("_visible", _over);
+                g_menu.gearHover = _over;
+                ShowGearLook(*a_params.thisPtr);
             }
 
         private:
@@ -5346,6 +5421,7 @@ namespace Widget
                 gear.SetMember("_visible", true);
                 g_menu.gearLast = rect;
                 g_menu.gearStable = 0;
+                g_menu.gearDrawnMode.reset();  // the hint's side follows the new place (UpdateGear)
                 if (anchor) return;
             } else if (++g_menu.gearStable < kGearStableFrames) {
                 return;
@@ -5353,6 +5429,33 @@ namespace Widget
             g_menu.gearPlaced = true;
             logger::info("Layout: gear button at {} ({})", RectText(rect), from);
             DumpMenuClips(a_movie, a_root);
+        }
+
+        // user 2026-10-30: the gear's hover hint ("배치 모드 [K]", in the mode "배치 모드 끝내기 [K]", the toggle key as the host
+        // names it) in the host's tooltip look, beside the gear on the side that stays on screen (BlockRules::GearHintX), and its
+        // lit look for the whole mode. Made again when the mode changes (by any path: the gear, K, a tab, the close) or the gear
+        // moved; checked every frame
+        void UpdateGear(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        {
+            constexpr double kHintGap = 4.0;
+            auto gear = Child(a_widget, kGearName);
+            if (!gear.IsDisplayObject() || !g_menu.gearLast) return;
+            if (g_menu.gearDrawnMode == g_menu.layout.active) return;
+            g_menu.gearDrawnMode = g_menu.layout.active;
+            Draw::Remove(gear, "hint");
+            auto hint = Draw::Clip(gear, "hint");
+            if (hint.IsDisplayObject()) {
+                const auto text = Fill(g_menu.layout.active ? Str::kLayoutGearLeave : Str::kLayoutGearEnter, { { "{key}", KeyLabel(Settings::Get().keyLayout) } });
+                const double size = Size(kLabelSize), h = FieldH(size) + 2 * kTooltipPad;
+                auto field = Draw::Text(a_movie, hint, "text", kTooltipPad, kTooltipPad, kTooltipW, FieldH(size), text, kWhite, size);
+                const double w = (field.IsDisplayObject() ? TextW(field) : kTooltipW) + 2 * kTooltipPad;
+                const auto area = a_movie->GetVisibleFrameRect();
+                const Settings::Rect visible{ area.left, area.top, area.right, area.bottom };
+                hint.SetMember("_x", BlockRules::GearHintX(*g_menu.gearLast, w, kHintGap, visible));
+                hint.SetMember("_y", (kGearSize - h) / 2);
+                Draw::Box(hint, w, h, kPanelFill, kTooltipAlpha, kPanelEdge, kEdgeWidth);
+            }
+            ShowGearLook(gear);
         }
 
         // The border handle: a strip over the gap between the columns (at least kMinHandleW wide), a thin line in its middle;
@@ -7751,6 +7854,7 @@ namespace Widget
                 InstallSelectionWrap(movie);
                 InstallWheel(movie, widget);  // blocks plan Task 3 (D7)
                 PlaceGear(movie, root, widget);  // user 2026-10-30: under SkyUI's list once it has bounds
+                WatchHeldShrinks();           // user 2026-10-30: a shrink that has waited its delay draws its block again
                 if (!g_menu.selWrapped) FollowHighlight(movie);
                 WatchTab(movie, widget, *snapshot);  // first: the item card's slot depends on the tab
                 WatchChosen(movie, widget);
@@ -7766,6 +7870,7 @@ namespace Widget
                     g_menu.ownCardSig.clear();
                     WatchOwnCard(movie, widget);
                 }
+                UpdateGear(movie, widget);   // its lit look and hint follow the mode, whatever changed it
                 TakeAddonHeights(movie, widget);  // Block API v2: the add-ons' kMessageHeight requests (may lay the columns out again)
                 TakeAddonRedraws();          // Block API v2: the add-ons' kMessageRedraw requests
                 DrawAddons(movie, widget);   // blocks plan Task 6: after the layout mode (it may make a panel again in its new column)
