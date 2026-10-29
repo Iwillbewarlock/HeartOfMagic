@@ -32,6 +32,7 @@
 #include <mutex>
 #include <optional>
 #include <set>
+#include <span>
 #include <string>
 #include <tuple>
 #include <unordered_map>
@@ -663,7 +664,6 @@ namespace Widget
             std::set<Layout::BlockId> fitBatchIds;
             int passLogs = 0;
             double passSlowest = 0.0;
-            bool legendShown = true;  // the tree legend's visibility (ShowLegend), kept when Rearrange draws the legend again
             // blocks plan Task 6: add-on blocks to draw next frame (DrawAddons), drawn this menu (SelfTest L6), whose callback threw
             std::set<Layout::BlockId> addonDrawDue, addonDrawn, addonFailed;
             // Block API v2: per add-on its draws this menu and the form its drawSelection was last given; the press waiting for its
@@ -678,8 +678,8 @@ namespace Widget
                 BlockRules::Point press, release;  // content clip coordinates
             };
             std::optional<AddonClickDue> addonClickDue;
-            // a block's height this menu (absent: its full height): an add-on's kMessageHeight ('SLMH'), a built-in card's or the
-            // tree window's fit to its content (FitBlock, user 2026-10-30) - one map, laid out by BlockRules::ApplyFits
+            // a block's height this menu (absent: its full height): an add-on's kMessageHeight ('SLMH') or a built-in card's fit to
+            // its content (FitBlock, user 2026-10-30; not the 3D preview and not the tree window) - one map, BlockRules::ApplyFits
             std::map<Layout::BlockId, double> fitHeight;
             int addonHeightLogs = 0;                        // height lines logged this menu (kMaxHeightLogs)
             int fitLogs = 0;                                // L7 fit lines logged this menu (FitBlock)
@@ -3529,8 +3529,6 @@ namespace Widget
                     }
                     if (id == Layout::kTree && panel.IsDisplayObject()) {
                         DrawLegend(a_movie, panel, rect.Width(), rect.Height(), g_menu.legendSchool.value_or(std::string{}));
-                        // a message state hides it (ShowLegend): the legend drawn again here keeps that
-                        if (auto legend = Child(panel, "legend"); legend.IsDisplayObject()) legend.SetMember("_visible", g_menu.legendShown);
                     }
                     const bool fitting = a_fitting && a_fitting->contains(id);
                     if (!fitting && (id == Layout::kTree || id == Layout::kProgress || id == Layout::kNodeCard)) g_menu.dirty = true;
@@ -3563,7 +3561,8 @@ namespace Widget
             return false;
         }
 
-        // user 2026-10-30: a built-in block (a card, the tree window) fitted to the content it just laid out - needed (stage units,
+        // user 2026-10-30: a built-in card (progress, node card, our spell card; the 3D preview and the tree window keep their ini
+        // height) fitted to the content it just laid out - needed (stage units,
         // from its top) and its full height give its height this menu (BlockRules::FittedHeight). A new height lays the columns
         // out at once (the blocks below move up or down this frame); the block itself places its bottom-anchored parts at the
         // returned height and keeps its rooms from its full height, so drawing at the new height asks for the same one (no
@@ -4567,7 +4566,8 @@ namespace Widget
         constexpr const char* kButtonsName = "layoutButtons";  // the lock / reset row (D5), outside the column masks
         constexpr const char* kBorderName = "layoutBorder";    // the border handle in the gap between the columns (the mode only)
         constexpr const char* kGearName = "layoutGear";        // user 2026-10-30: the layout mode's toggle, under SkyUI's list (always)
-        constexpr double kGearSize = 18.0, kGearGap = 4.0;     // its square's side and its gap under the scrollbar / list
+        constexpr double kGearSize = 18.0, kGearGap = 4.0;     // its square's side and its gap under the list (the second fallback)
+        constexpr double kGearInset = 2.0;                     // inside the list window's right edge
         constexpr double kGearLineW = 1.3;     // its line, scaled with the gear (noScale "normal"), round caps and joins
         constexpr double kGearMiterLimit = 3.0;  // lineStyle's miterLimit (unused with round joins; AS2 wants the argument)
         constexpr int kGearStableFrames = 10;  // the anchor read the same this many frames in a row: the gear stays there
@@ -5244,38 +5244,102 @@ namespace Widget
             gear.SetMember("_visible", false);  // until PlaceGear has a place
         }
 
-        // The gear at the bottom-right of SkyUI's list panel, under its scrollbar (BlockRules::GearRect): the first of these clips
-        // that has bounds in _root is the anchor - SkyUI's member names are not checked offline, the log line says which answered.
-        // Tried each frame for kGearPlaceFrames frames, then the fallback share of the visible stage (logged)
+        // The first of a_paths whose clip has bounds in _root, with its path (SkyUI's and Inventory Reforged's member names are not
+        // checked offline: the log says which answered)
+        std::optional<std::pair<Settings::Rect, std::string>> FirstBounds(RE::GFxMovieView* a_movie, RE::GFxValue& a_root, std::span<const char* const> a_paths)
+        {
+            for (const char* path : a_paths) {
+                RE::GFxValue clip;
+                if (!a_movie->GetVariable(&clip, path) || !clip.IsDisplayObject()) continue;
+                if (const auto bounds = BoundsIn(clip, a_root)) return std::pair{ Settings::Rect{ bounds->xMin, bounds->yMin, bounds->xMax, bounds->yMax }, std::string(path) };
+            }
+            return std::nullopt;
+        }
+
+        // Once per game session, when the gear settles: _root.Menu_mc's named clips to depth kDumpDepth with their stage bounds, so
+        // the next log shows what the gear can anchor to (VisitMembers lists a clip's named members; whether it lists every child
+        // clip of SkyUI's movie is unverified - the log says how many it saw)
+        void DumpMenuClips(RE::GFxMovieView* a_movie, RE::GFxValue& a_root)
+        {
+            constexpr int kDumpDepth = 3, kMaxDumpLines = 80;
+            static bool s_dumped = false;
+            if (std::exchange(s_dumped, true)) return;
+            RE::GFxValue menu;
+            if (!a_movie->GetVariable(&menu, kMenuPath) || !menu.IsDisplayObject()) {
+                logger::info("Layout: menu clip dump - no {}", kMenuPath);
+                return;
+            }
+            int lines = 0, seen = 0;
+            std::function<void(RE::GFxValue&, const std::string&, int)> visit = [&](RE::GFxValue& a_clip, const std::string& a_path, int a_depth) {
+                std::vector<std::pair<std::string, RE::GFxValue>> children;
+                a_clip.VisitMembers([&](const char* a_name, const RE::GFxValue& a_value) {
+                    if (a_name && *a_name != '_' && a_value.IsDisplayObject()) children.emplace_back(a_name, a_value);
+                });
+                for (auto& [name, child] : children) {
+                    ++seen;
+                    const auto path = a_path + "." + name;
+                    if (lines < kMaxDumpLines) {
+                        ++lines;
+                        const auto bounds = BoundsIn(child, a_root);
+                        const auto visible = BoolMember(child, "_visible");
+                        logger::info("Layout: menu clip {} {}{}", path,
+                            bounds ? std::format("{:.0f},{:.0f}..{:.0f},{:.0f}", bounds->xMin, bounds->yMin, bounds->xMax, bounds->yMax) : std::string("(no bounds)"),
+                            visible ? "" : " hidden");
+                    }
+                    if (a_depth + 1 < kDumpDepth) visit(child, path, a_depth + 1);
+                }
+            };
+            visit(menu, kMenuPath, 0);
+            logger::info("Layout: menu clip dump - {} clip(s) seen to depth {}, {} logged", seen, kDumpDepth, lines);
+        }
+
+        // The gear at the bottom-right of SkyUI's list window, level with the bottom bar's skill row (user 2026-10-30, second game
+        // run: under the scrollbar's end was too high, and Inventory Reforged sizes the window - live bounds, never fixed stage
+        // numbers). x: the window's right edge (its background or panel clip, else the scrollbar's right edge); y: the centre of
+        // the bottom bar's player info card (the skill / XP row), else the list's bottom + kGearGap (GearRect), else the
+        // fallback share of the visible stage. Read every frame until the place stays the same kGearStableFrames frames
         void PlaceGear(RE::GFxMovieView* a_movie, RE::GFxValue& a_root, RE::GFxValue& a_widget)
         {
             if (g_menu.gearPlaced) return;
             auto gear = Child(a_widget, kGearName);
             if (!gear.IsDisplayObject()) return;
-            constexpr std::array<const char*, 4> kAnchors{ ".scrollbar", ".scrollBar", ".background", "" };
-            std::optional<Settings::Rect> anchor;
-            std::string from;
-            for (const char* suffix : kAnchors) {
-                RE::GFxValue clip;
-                const auto path = std::string(kItemListPath) + suffix;
-                if (!a_movie->GetVariable(&clip, path.c_str()) || !clip.IsDisplayObject()) continue;
-                if (const auto bounds = BoundsIn(clip, a_root)) {
-                    anchor = Settings::Rect{ bounds->xMin, bounds->yMin, bounds->xMax, bounds->yMax };
-                    from = path;
-                    break;
-                }
-            }
+            static constexpr std::array<const char*, 4> kWindowPaths{ "_root.Menu_mc.inventoryLists.itemList.background",
+                "_root.Menu_mc.inventoryLists.panelContainer", "_root.Menu_mc.inventoryLists.itemList.scrollbar",
+                "_root.Menu_mc.inventoryLists.itemList.scrollBar" };
+            static constexpr std::array<const char*, 3> kRowPaths{ "_root.Menu_mc.bottomBar.playerInfoCard",
+                "_root.Menu_mc.bottomBar.playerInfoCard.SkillTextInstance", "_root.Menu_mc.bottomBar" };
+            static constexpr std::array<const char*, 3> kListPaths{ "_root.Menu_mc.inventoryLists.itemList.scrollbar",
+                "_root.Menu_mc.inventoryLists.itemList.scrollBar", "_root.Menu_mc.inventoryLists.itemList" };
+            const auto window = FirstBounds(a_movie, a_root, kWindowPaths);
+            const auto row = FirstBounds(a_movie, a_root, kRowPaths);
+            const auto list = row ? std::nullopt : FirstBounds(a_movie, a_root, kListPaths);
+            const bool anchor = window && (row || list);
             if (anchor) g_menu.gearAnchored = true;
             // final review 7: a list that reported bounds once and none for a moment (a refill) keeps the gear where it is
             if (!anchor && (g_menu.gearAnchored || ++g_menu.gearTries < kGearPlaceFrames)) return;
             const auto area = a_movie->GetVisibleFrameRect();
             const Settings::Rect visible{ area.left, area.top, area.right, area.bottom };
-            const auto rect = BlockRules::GearRect(anchor, visible, kGearSize, kGearGap);
-            // review R2: SkyUI's list may slide in when the menu opens - the gear follows its anchor until the anchor has read the
+            Settings::Rect rect;
+            std::string from;
+            if (anchor && row) {
+                rect = BlockRules::GearRectAt(window->first.right, row->first.CenterY(), kGearSize, kGearInset, visible);
+                from = std::format("x: right edge of {} at {:.0f}, y: centre of {} at {:.0f}", window->second, window->first.right, row->second, row->first.CenterY());
+            } else if (anchor) {
+                auto under = list->first;
+                under.right = window->first.right - kGearInset;
+                rect = BlockRules::GearRect(under, visible, kGearSize, kGearGap);
+                from = std::format("x: right edge of {} at {:.0f}, y: {} under {} (no bottom bar row answered)", window->second, window->first.right, kGearGap,
+                    list->second);
+            } else {
+                rect = BlockRules::GearRect(std::nullopt, visible, kGearSize, kGearGap);
+                from = std::format("FALLBACK: no SkyUI list window clip had bounds in {} frames - {:.3f}, {:.3f} of the visible stage", kGearPlaceFrames,
+                    BlockRules::kGearFallbackX, BlockRules::kGearFallbackY);
+            }
+            // review R2: SkyUI's list may slide in when the menu opens - the gear follows its anchor until the place has read the
             // same for kGearStableFrames frames (the fallback has nothing to follow: placed at once)
             if (!g_menu.gearLast || !SameRect(*g_menu.gearLast, rect)) {
                 if (g_menu.gearLast && ++g_menu.gearMoveLogs <= kMaxGearMoveLogs) {
-                    logger::info("Layout: gear button follows {} to {}{}", from, RectText(rect), g_menu.gearMoveLogs == kMaxGearMoveLogs ? " - later moves not logged" : "");
+                    logger::info("Layout: gear button follows its anchor to {}{}", RectText(rect), g_menu.gearMoveLogs == kMaxGearMoveLogs ? " - later moves not logged" : "");
                 }
                 gear.SetMember("_x", rect.left);
                 gear.SetMember("_y", rect.top);
@@ -5287,10 +5351,8 @@ namespace Widget
                 return;
             }
             g_menu.gearPlaced = true;
-            logger::info("Layout: gear button at {} ({})", RectText(rect),
-                anchor ? std::format("right-aligned under {} at {}", from, RectText(*anchor)) :
-                         std::format("FALLBACK: no SkyUI list clip had bounds in {} frames - {:.3f}, {:.3f} of the visible stage", kGearPlaceFrames,
-                             BlockRules::kGearFallbackX, BlockRules::kGearFallbackY));
+            logger::info("Layout: gear button at {} ({})", RectText(rect), from);
+            DumpMenuClips(a_movie, a_root);
         }
 
         // The border handle: a strip over the gap between the columns (at least kMinHandleW wide), a thin line in its middle;
@@ -6444,29 +6506,6 @@ namespace Widget
             g_menu.hovered = -1;
         }
 
-        // user 2026-10-30: the legend strip shows only under a drawn tree (a message state is the title strip, the line, padding)
-        void ShowLegend(RE::GFxValue& a_widget, bool a_shown)
-        {
-            g_menu.legendShown = a_shown;
-            auto panel = BlockClip(a_widget, Layout::kTree);
-            if (auto legend = panel.IsDisplayObject() ? Child(panel, "legend") : RE::GFxValue{}; legend.IsDisplayObject()) legend.SetMember("_visible", a_shown);
-        }
-
-        // A tree window message (no tree, no centre, the school hidden): its two-line field at the top of the body; the window
-        // fits the title strip, the lines the text took and the padding (user 2026-10-30)
-        RE::GFxValue TreeMessage(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, RE::GFxValue& a_content, const Settings::Area& a_frame, const std::string& a_text)
-        {
-            const double size = Size(kRowSize);
-            auto field = FitLines(a_movie, a_content, "empty", -a_frame.halfW, -FieldH(size), std::max(0.0, 2 * a_frame.halfW), size, 2, a_text, kDimText, "center");
-            const int lines = field.IsDisplayObject() ? std::clamp(TextLines(field, size), 1, 2) : 2;
-            const double top = kTitleH + kPad;  // the body's top in the panel
-            FitBlock(a_movie, a_widget, Layout::kTree, top + FieldH(size, lines) + kPad);
-            g_menu.treeOrigin = { a_frame.cx, top + FieldH(size) };
-            a_content.SetMember("_y", g_menu.treeOrigin.second);
-            ShowLegend(a_widget, false);
-            return field;
-        }
-
         void RedrawTree(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const Spells::Snapshot& a_snapshot)
         {
             const auto started = std::chrono::steady_clock::now();  // the redraw's time goes in its log line (GPT design review #7)
@@ -6483,11 +6522,9 @@ namespace Widget
             }
             const auto& settings = Settings::Get();
             const auto treeRect = BlockRect(Layout::kTree);
-            // user 2026-10-30: the window queried and laid out in its FULL height (a fitted one would let fewer marks in, and
-            // the fit would follow them down); the drawing then moves up by the empty space above it and the window ends under it
-            auto fullRect = treeRect;
-            fullRect.bottom = fullRect.top + FullHeight(Layout::kTree);
-            const auto frame = Settings::TreeContent(fullRect);
+            // the tree window keeps its ini height in every state (user 2026-10-30: "트리창도 자동세로 줄이기 기능의 대상에서 빼자"):
+            // its drawing centred in its body, as before the blocks fitted their content
+            const auto frame = Settings::TreeContent(treeRect);
             g_menu.treeOrigin = { frame.cx, frame.cy };
             content.SetMember("_x", frame.cx);
             content.SetMember("_y", frame.cy);
@@ -6508,7 +6545,9 @@ namespace Widget
             }
             if (!Spells::Get() || g_session.centre < 0) {
                 const Str id = Spells::Get() ? Str::kTreeNoCentre : Str::kTreeNoTree;
-                const auto empty = TreeMessage(a_movie, a_widget, content, frame, Text(id));
+                const double size = Size(kRowSize);
+                const auto empty = FitLines(a_movie, content, "empty", -frame.halfW, -FieldH(size), std::max(0.0, 2 * frame.halfW), size, 2,
+                    Text(id), kDimText, "center");
                 Q2State(id, Text(id), &empty);
                 RecheckHover(hoveredAt);
                 return;
@@ -6521,7 +6560,9 @@ namespace Widget
             }
             if (!style->SchoolShown(centre.school)) {
                 // T17: HoM's schoolVisibility hides this school - nothing of it is drawn
-                const auto empty = TreeMessage(a_movie, a_widget, content, frame, Text(Str::kTreeNoCentre));
+                const double size = Size(kRowSize);
+                const auto empty = FitLines(a_movie, content, "empty", -frame.halfW, -FieldH(size), std::max(0.0, 2 * frame.halfW), size, 2,
+                    Text(Str::kTreeNoCentre), kDimText, "center");
                 Q2State("tree_school_hidden", std::format("{} - \"{}\"", centre.school, Text(Str::kTreeNoCentre)), &empty);
                 if (g_menu.cutLogged.insert("hidden|" + centre.school).second) {
                     logger::info("Widget: tree - school {} is hidden by Heart of Magic's schoolVisibility: nothing of it drawn", centre.school);
@@ -6600,18 +6641,15 @@ namespace Widget
             {
                 // and no label on the legend strip (DrawLegend's row at its size), which the window's clamp alone can graze
                 // (review round 1 #5)
-                const double legendMid = fullRect.Height() - Settings::kTreeLegendH / 2 - kPad / 2 - frame.cy;
+                const double legendMid = treeRect.Height() - Settings::kTreeLegendH / 2 - kPad / 2 - frame.cy;
                 const double legendHalf = FieldH(kLegendSize) / 2;
                 labels.push_back({ -frame.halfW - kPad, legendMid - legendHalf, frame.halfW + kPad, legendMid + legendHalf });
             }
-            const std::size_t legendBox = labels.size() - 1;  // not drawn content: left out of the fit below
             // The badges first (build 6 review round 2 #1): their arrows and texts go into `labels` before any node label, so the
             // labels keep off them. The centre's direct neighbours outside the window (spec v10 T7); the ones inside it over the
             // cap, without x/y or of another school are only logged
             const auto badges = LayoutMath::Badges(window.outside);
             const bool noLinks = Data().tree.adjacent[g_session.centre].empty();
-            RE::GFxValue noLinksNote;               // the "no links" note: kept off by the labels at the body's bottom, then moved up
-            std::optional<std::size_t> noteBox;     // under the drawing for the fit (review R1)
             bool badgesDrawn = false;
             if (badges.total > 0) {
                 badgesDrawn = DrawBadges(a_movie, content, badges, frame, labels);
@@ -6623,11 +6661,10 @@ namespace Widget
                 }
             } else if (noLinks) {
                 const double size = Size(kNoteSize), top = frame.halfH - FieldH(size);
-                noLinksNote = FitLine(a_movie, content, "nolinks", -frame.halfW, top, std::max(0.0, 2 * frame.halfW), size,
+                const auto note = FitLine(a_movie, content, "nolinks", -frame.halfW, top, std::max(0.0, 2 * frame.halfW), size,
                     Text(Str::kTreeNoLinks), kDimText, "center");
-                noteBox = labels.size();
                 labels.push_back({ -frame.halfW, top, frame.halfW, top + FieldH(size) });
-                Q2State(Str::kTreeNoLinks, Text(Str::kTreeNoLinks), &noLinksNote);
+                Q2State(Str::kTreeNoLinks, Text(Str::kTreeNoLinks), &note);
             }
 
             // Labels in rank order, each only at a clear place (spec v10 T5); none at all when HoM's showNodeNames is off (T15)
@@ -6684,34 +6721,6 @@ namespace Widget
                 target >= 0 ? Spells::NodeName(target) : std::string("none"), path.size(), a_snapshot.epoch,
                 std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count());
             if (g_menu.notInTree) logger::info("Widget: tree drawn dimmed to {:.0f}% (the selection is not in the tree)", kDimTreeAlpha);
-            // user 2026-10-30: the window fits what was drawn - marks, links, labels, badges, notes (every box the labels kept
-            // off, the legend's left out); the drawing moves up by the space above it, so the marks keep their size and their
-            // places to each other, and the legend comes up under it (Rearrange draws it at the new bottom)
-            std::vector<LabelBox> drawnBoxes;
-            drawnBoxes.reserve(labels.size());
-            for (std::size_t i = 0; i < labels.size(); ++i) {
-                if (i != legendBox && i != noteBox) drawnBoxes.push_back(labels[i]);
-            }
-            // review R1: the "no links" note goes right under the lowest drawn box (it was reserved at the body's bottom so no label
-            // took its place; there it would keep the window at its full height with an empty band above it)
-            if (noteBox && noLinksNote.IsDisplayObject()) {
-                const auto& reserved = labels[*noteBox];
-                double lowest = reserved.top - kRuleGap;
-                if (!drawnBoxes.empty()) {
-                    lowest = drawnBoxes.front().bottom;
-                    for (const auto& box : drawnBoxes) lowest = std::max(lowest, box.bottom);
-                }
-                const double top = std::min(reserved.top, lowest + kRuleGap);
-                noLinksNote.SetMember("_y", top);
-                drawnBoxes.push_back({ reserved.left, top, reserved.right, top + (reserved.bottom - reserved.top) });
-            }
-            const auto trim = LayoutMath::TreeTrim(drawnBoxes, frame.halfH);
-            const double shownH = FitBlock(a_movie, a_widget, Layout::kTree, fullRect.Height() - trim.top - trim.bottom);
-            // at its full height (the layout mode, or nothing to take off) the drawing stays where it is today
-            const double shift = shownH < fullRect.Height() - BlockRules::kHeightTolerance ? trim.top : 0.0;
-            g_menu.treeOrigin = { frame.cx, frame.cy - shift };
-            content.SetMember("_y", g_menu.treeOrigin.second);
-            ShowLegend(a_widget, true);
             RecheckHover(hoveredAt);
         }
 
@@ -6953,8 +6962,8 @@ namespace Widget
             g_menu.tooltipTree = treeNow;
             g_menu.tooltipDue = false;
             g_menu.tooltipFor = -1;
-            // review R3: the tooltip is a clip of the tree's column (above every panel in it), so a fitted tree shorter than the
-            // tooltip does not hide it under the block below; removed from both columns (the tree may have moved)
+            // review R3: the tooltip is a clip of the tree's column (above every panel in it), so it is never under a neighbouring
+            // panel and the column's viewport clamp below can keep it in sight; removed from both columns (the tree may have moved)
             for (const char* columnName : kColumnClips) {
                 if (auto column = Child(a_widget, columnName); column.IsDisplayObject()) Draw::Remove(column, kTooltipName);
             }
@@ -6965,7 +6974,7 @@ namespace Widget
             if (hovered < 0 || !Spells::Get() || it == g_menu.drawn.end()) return;
             g_menu.tooltipFor = hovered;
             const auto rect = BlockRect(Layout::kTree);
-            const auto [originX, originY] = g_menu.treeOrigin;  // where RedrawTree put the drawing's 0,0 (moved up by its fit)
+            const auto [originX, originY] = g_menu.treeOrigin;  // where RedrawTree put the drawing's 0,0 (the body's centre)
             const auto& node = Data().tree.nodes[hovered];
             const auto look = Spells::LookOf(a_snapshot, hovered);
             const auto school = SchoolText(node.school);
@@ -6991,9 +7000,8 @@ namespace Widget
                 y = ny - off - h >= kTitleH ? ny - off - h : ny + off;
             }
             x = std::clamp(x, kPad, std::max(kPad, rect.Width() - kPad - w));
-            // inside the tree's FULL height (a fitted tree can be shorter than the tooltip; it may reach over the block below) and
-            // inside the column's visible part (review round 2: the column mask would cut it), above its node when it would run
-            // past the visible bottom
+            // inside the tree window (its ini height: it does not fit its content) and inside the column's visible part (review
+            // round 2: the column mask would cut it), above its node when it would run past the visible bottom
             const auto column = ColumnOf(Layout::kTree);
             const auto view = column ? ColumnViewport(*column) : rect;
             y = BlockRules::TooltipY(y, h, kTitleH, FullHeight(Layout::kTree) - kPad - h, ny - off - h, view.top - rect.top, view.bottom - rect.top);
@@ -7798,8 +7806,8 @@ namespace Widget
             }
 
         private:
-            // The tree, progress and node card drawn again. Final review 1: their fits are collected (FitBlock with fitBatch) and
-            // the columns laid out once at the end, in this frame - each block placed its own parts at its fitted height
+            // The tree, progress and node card drawn again. Final review 1: the cards' fits are collected (FitBlock with fitBatch;
+            // the tree keeps its ini height) and the columns laid out once at the end, in this frame - each card placed its own parts at its fitted height
             // already, and only its panel moves after. A fill block whose height that changes (our card, when it has no fit
             // yet) is drawn again here. The row-2 baseline offset (L2) reads the node card's top at the progress card's draw:
             // after a fit that moved it, it is right from the next redraw on. The whole pass is timed and logged (20 a menu,
@@ -7823,7 +7831,7 @@ namespace Widget
                         WatchOwnCard(a_movie, a_widget);
                     }
                 }
-                RedrawTooltip(a_movie, a_widget, a_snapshot);  // final review 5: after every fit of the pass (the tree may have moved)
+                RedrawTooltip(a_movie, a_widget, a_snapshot);  // final review 5: after every fit of the pass (a card above the tree may have moved it)
                 ApplyVisibility(a_widget);
                 CheckRowBaselines(a_movie, a_root, a_widget);
                 const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();

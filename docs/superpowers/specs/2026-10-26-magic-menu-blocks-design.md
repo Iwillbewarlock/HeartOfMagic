@@ -392,3 +392,18 @@ header comment of `plugins/SL_MagicMenu/src/BlockApi.h`, the pure rules `BlockRu
   preview's place goes to Preview after the frame's fits, and our card is drawn again in the frame the layout mode
   changes. Row 2's baseline alignment (spec v6 L2) is off whenever the node card sits higher than the progress card,
   which a fitted tree causes: by design, said in its log line.
+- Later the same day (user: "트리창도 자동세로 줄이기 기능의 대상에서 빼자"): the tree window no longer fits its content. Like the
+  3D preview box it keeps its ini height in every state: its drawing is centred in its body, the legend strip sits at its
+  bottom, a message state is the centred two-line message, and the "no links" note sits at the body's bottom as before the
+  fitting work (that place was the original design; review R1 only moved it for the trim). `LayoutMath::TreeTrim`, the
+  message-state shrink and the legend hiding were removed. Kept: the tooltip as a clip of the tree's column, clamped to the
+  column's visible part and drawn again when the tree moves (a card or an add-on above it still moves it, a scroll still
+  hides part of it). The fitted blocks are the progress card, the node card, our spell card and the add-ons ('SLMH').
+- The gear's anchor (second game run: under the scrollbar's end was too high; Inventory Reforged sizes SkyUI's window).
+  x = the list window's right edge minus 2, from the first of `itemList.background`, `inventoryLists.panelContainer`,
+  `itemList.scrollbar`, `itemList.scrollBar`. y = centred on the bottom bar's skill / XP row, from the first of
+  `bottomBar.playerInfoCard`, `bottomBar.playerInfoCard.SkillTextInstance`, `bottomBar`; else 4 under the scrollbar or list;
+  else the fixed share of the visible stage (`BlockRules::GearRectAt`, `GearRect`). The names come from Inventory Reforged's
+  panel.swf strings and are not checked against SkyUI's movie offline. At the first settled placing of a game session the
+  log lists `_root.Menu_mc`'s named clips to depth 3 with their stage bounds (80 lines at most), and the gear's log line
+  names the clips its x and y came from.

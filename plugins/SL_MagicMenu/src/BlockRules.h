@@ -183,6 +183,16 @@ namespace BlockRules
     // 876 capture of a 16:10 screen at about 580, 740 - not checked on other aspect ratios)
     inline constexpr double kGearFallbackX = 580.0 / 1299.0, kGearFallbackY = 740.0 / 876.0;
 
+    /// The gear's rect (stage) at the bottom-right of SkyUI's list window (user 2026-10-30, second game run): a_inset inside the
+    /// window's right edge a_windowRight, centred on the bottom bar's skill row a_rowCentreY. Kept inside a_visible
+    inline Settings::Rect GearRectAt(double a_windowRight, double a_rowCentreY, double a_size, double a_inset, const Settings::Rect& a_visible)
+    {
+        double left = a_windowRight - a_inset - a_size, top = a_rowCentreY - a_size / 2;
+        left = std::clamp(left, a_visible.left, std::max(a_visible.left, a_visible.right - a_size));
+        top = std::clamp(top, a_visible.top, std::max(a_visible.top, a_visible.bottom - a_size));
+        return { left, top, left + a_size, top + a_size };
+    }
+
     /// The gear's rect (stage): right-aligned to a_anchor (SkyUI's scrollbar or list, stage bounds) and a_gap under it; with no
     /// anchor centred on the fallback share of a_visible. Kept inside a_visible either way
     inline Settings::Rect GearRect(const std::optional<Settings::Rect>& a_anchor, const Settings::Rect& a_visible, double a_size, double a_gap)

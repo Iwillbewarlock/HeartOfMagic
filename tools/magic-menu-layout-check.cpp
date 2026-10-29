@@ -1298,6 +1298,12 @@ namespace
         Expect(Near(BlockRules::TooltipY(90, 60, 22, 180, 30, 0, 120), 30), "past the column's visible bottom (120): above its node (30)");
         Expect(Near(BlockRules::TooltipY(90, 60, 22, 180, 10, 0, 120), 60), "above the node would hit the title: shifted up to end at the visible bottom");
         Expect(Near(BlockRules::TooltipY(40, 60, 22, 180, -30, 35, 80), 35), "a visible part shorter than the tooltip: starts at its top");
+        // the second game run (user 2026-10-30): right edge of the list window, centred on the bottom bar's skill row
+        const auto at = BlockRules::GearRectAt(452.0, 700.0, 18.0, 2.0, visible1610);
+        Expect(Near(at.right, 450) && Near(at.CenterY(), 700) && Near(at.Width(), 18) && Near(at.Height(), 18),
+            Text("at the window's right edge (452, inset 2) on the skill row (y 700): %s", Show(at).c_str()));
+        const auto low = BlockRules::GearRectAt(1290.0, 759.0, 18.0, 2.0, visible1610);
+        Expect(low.right <= 1280 + kTolerance && low.bottom <= 760 + kTolerance, Text("a row at the stage's bottom edge: kept inside (%s)", Show(low).c_str()));
         const auto edge = BlockRules::GearRect(Settings::Rect{ 1270, 700, 1300, 755 }, visible1610, 18.0, 4.0);
         Expect(edge.right <= 1280 + kTolerance && edge.bottom <= 760 + kTolerance, Text("an anchor at the stage's corner: kept inside it (%s)", Show(edge).c_str()));
     }

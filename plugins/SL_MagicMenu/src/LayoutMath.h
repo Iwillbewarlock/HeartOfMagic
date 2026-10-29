@@ -245,7 +245,7 @@ namespace LayoutMath
         return plan;
     }
     // ---------------------------------------------------------------------
-    // Blocks that fit their content (user 2026-10-30): what each built-in block needs, worked out from the same values it draws
+    // Blocks that fit their content (user 2026-10-30; the 3D preview box and the tree window keep their ini height): what each built-in card needs, worked out from the same values it draws
     // with. Every room is taken from the block's FULL height, so a block drawn at its fitted height (BlockRules::FittedHeight)
     // lays out the same lines and needs the same height again
     // ---------------------------------------------------------------------
@@ -282,27 +282,5 @@ namespace LayoutMath
     inline double NodeCardNeeded(double a_rowsTop, double a_rowsH, double a_ruleGap, double a_bottomPart)
     {
         return a_rowsTop + a_rowsH + a_ruleGap + a_bottomPart;
-    }
-
-    /// The tree window's empty space: how far the drawn boxes (marks, links, labels, badges, notes; the window's coordinates,
-    /// centre 0,0) stay off the top and the bottom of its body (half height a_halfH). Anything over the edge counts as 0 - it
-    /// keeps the overhang it has today. No boxes: nothing trimmed
-    struct Trim
-    {
-        double top{}, bottom{};
-    };
-
-    inline Trim TreeTrim(const std::vector<Box>& a_boxes, double a_halfH)
-    {
-        if (a_boxes.empty() || !(a_halfH > 0.0)) return {};
-        double top = a_boxes.front().top, bottom = a_boxes.front().bottom;
-        for (const auto& box : a_boxes) {
-            top = std::min(top, box.top);
-            bottom = std::max(bottom, box.bottom);
-        }
-        const double body = 2 * a_halfH;
-        Trim trim{ std::clamp(top + a_halfH, 0.0, body), std::clamp(a_halfH - bottom, 0.0, body) };
-        if (trim.top + trim.bottom > body) trim.bottom = body - trim.top;  // boxes of no height inside the body
-        return trim;
     }
 }

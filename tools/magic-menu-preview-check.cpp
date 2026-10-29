@@ -609,15 +609,6 @@ namespace
                 Text("progress card, hint size %.0f: needs %.1f of 102, the plan at that height is the same (hint %.1f at %.1f)", hint, needed, plan.hintSize, plan.hintY));
         }
         Expect(LayoutMath::NodeCardNeeded(80.0, 37.0, 4.0, 74.0) == 195.0, "node card: rows top 80 + rows 37 + gap 4 + bottom part 74 = 195");
-        // the tree window: the space the drawn boxes leave above and below the body (half height 100)
-        const auto trim = LayoutMath::TreeTrim({ { -30, -40, 30, -20 }, { -10, 10, 10, 60 } }, 100.0);
-        Expect(trim.top == 60.0 && trim.bottom == 40.0, Text("boxes from -40 to 60 in a body of -100..100: 60 off the top, 40 off the bottom (got %.1f, %.1f)", trim.top, trim.bottom));
-        const auto over = LayoutMath::TreeTrim({ { -10, -120, 10, 130 } }, 100.0);
-        Expect(over.top == 0.0 && over.bottom == 0.0, "a box over both edges (a badge in the padding): nothing taken off");
-        const auto none = LayoutMath::TreeTrim({}, 100.0);
-        Expect(none.top == 0.0 && none.bottom == 0.0, "nothing drawn: nothing taken off (the window keeps its height)");
-        const auto flat = LayoutMath::TreeTrim({ { 0, 0, 0, 0 } }, 100.0);
-        Expect(flat.top + flat.bottom <= 200.0 && flat.top == 100.0, "a box of no height at the centre: 100 off the top, the rest off the bottom");
     }
 
     void ArtShapes()
