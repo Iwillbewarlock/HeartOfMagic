@@ -496,13 +496,6 @@ namespace BlockRules
         return box;
     }
 
-    /// A clip moved so a point at a_from (in its parent's space) lands at a_to (the same point after the move, in its parent's
-    /// space): its new _x/_y. The two points are the stage's from and to taken into the parent (globalToLocal), so a scaled or
-    /// moved parent (Inventory Reforged's window) is followed
-    inline Point MovedBy(double a_x, double a_y, const Point& a_from, const Point& a_to)
-    {
-        return { a_x + (a_to.x - a_from.x), a_y + (a_to.y - a_from.y) };
-    }
 
     /// The paths of a_found that a_known does not have yet, added to a_known in their order (each once); returned for the log
     inline std::vector<std::string> AddNew(std::vector<std::string>& a_known, const std::vector<std::string>& a_found)
@@ -516,8 +509,9 @@ namespace BlockRules
         return added;
     }
 
-    /// A key-hint clip this frame: its present stage top-left, and the home (where SkyUI or STB put it) and the place the host
-    /// last put it at, both remembered (nullopt: a clip not seen before)
+    /// A key-hint clip this frame: its origin (_x/_y in its parent), and the home origin (where SkyUI or STB put it) and the
+    /// origin the host last set, both remembered (nullopt: a clip not seen before). Origins, not visible bounds: a button hidden
+    /// inside the clip moves its visible bounds but is no new layout (GPT re-review of 0420eed9)
     struct StripClipPlace
     {
         Point now;
@@ -579,5 +573,13 @@ namespace BlockRules
         if (a_id == Layout::kSpellCard) return EmptyLook::kLineOnly;
         if (a_drawSelection) return a_layoutMode ? EmptyLook::kAsUsual : EmptyLook::kClosed;
         return EmptyLook::kAsUsual;
+    }
+
+    /// A clip's visible bounds as they would be with the clip at its home origin: a_visible (stage, now) moved by home - origin
+    /// (both origins on the stage). The strip's size and target come from these, never its re-layout test
+    inline Settings::Rect VisibleAtHome(const Settings::Rect& a_visible, const Point& a_origin, const Point& a_home)
+    {
+        const double dx = a_home.x - a_origin.x, dy = a_home.y - a_origin.y;
+        return { a_visible.left + dx, a_visible.top + dy, a_visible.right + dx, a_visible.bottom + dy };
     }
 }

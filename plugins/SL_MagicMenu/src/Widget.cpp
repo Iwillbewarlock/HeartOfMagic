@@ -670,7 +670,8 @@ namespace Widget
             bool resetDrawn = false;                    // its mask drawn once this menu
             // user 2026-10-30: the key-hint strip's clips (paths), found in the first kStripSearchFrames frames; its moves logged
             std::vector<std::string> stripPaths;
-            // each strip clip's home (stage top-left where SkyUI / STB put it) and where the host last put it (BlockRules::StripHomes)
+            // each strip clip's home origin (its _x/_y where SkyUI / STB put it) and the origin the host last set, both in its parent
+            // (BlockRules::StripHomes)
             std::map<std::string, std::pair<BlockRules::Point, BlockRules::Point>> stripMoves;
             int stripSearchLeft = 0, stripMoveLogs = 0, stripApplies = 0, stripChecks = 0;  // review R4: puts back, read-back lines
             bool gearHintLeft = false;  // the gear's hint is on its left (the edit mode: the reset button is on its right)
@@ -5540,7 +5541,7 @@ namespace Widget
 
         // user 2026-10-30 (sketch): SkyUI's key-hint strip (the bottom bar's button panel, STB's hints with it) moved to one row
         // right under the lower of our columns from the left column's left edge (BlockRules::HintRowRects), the clips only moved, never drawn again - each by the same stage step,
-        // taken into its own parent's space (BlockRules::MovedBy), so Inventory Reforged's scale is followed and the clips keep
+        // taken into its own parent's space (MapPoint), so Inventory Reforged's scale is followed and the clips keep
         // their places to each other. SkyUI moves or rebuilds the strip (a selection, a tab, a button refresh): put back every
         // frame it is off. The gear goes one row under it, its left edge on the strip's start (nothing else right of it on that
         // row: the gear's flyout will open there). The skill / XP row
@@ -5563,80 +5564,87 @@ namespace Widget
                              "_root) in {} frames - SkyUI's strip is left where it is",
                     kStripSearchFrames);
             }
-            // the strip's clips at their homes (where SkyUI / STB put them: BlockRules::StripHomes) and the union of the homes on the
-            // stage (our widget's space, through every parent) - a clip found later or rebuilt by SkyUI joins the others in their
-            // own layout, the moved ones are not counted twice
+            // GPT re-review of 0420eed9: whether SkyUI / STB laid a clip out again is read from the clip's own origin (its _x/_y in its
+            // parent - what the host sets), not from its visible children (a button hidden inside it moves those, not the clip).
+            // BlockRules::StripHomes works on the origins (parent space); the visible children's bounds give only the strip's size
+            // and target - taken back to the clip's home (BlockRules::VisibleAtHome) before the union
             struct StripClip
             {
                 std::string path;
-                RE::GFxValue clip;
-                BlockRules::Point now, home;
+                RE::GFxValue clip, parent;
+                BlockRules::Point local, home;  // its origin now and at home, in its parent
+                Settings::Rect visibleAtHome;   // its visible children's bounds as they would be at home (stage)
+                BlockRules::Point homeStage;    // its home origin on the stage
             };
             std::vector<StripClip> clips;
             std::vector<BlockRules::StripClipPlace> places;
-            std::vector<std::pair<double, double>> sizes;
             for (const auto& path : g_menu.stripPaths) {
-                RE::GFxValue clip;
-                if (!a_movie->GetVariable(&clip, path.c_str()) || !clip.IsDisplayObject()) continue;
-                const auto bounds = VisibleBounds(clip, a_widget);
-                if (!bounds) continue;
-                const BlockRules::Point now{ bounds->xMin, bounds->yMin };
+                RE::GFxValue clip, parent;
+                if (!a_movie->GetVariable(&clip, path.c_str()) || !clip.IsDisplayObject() || !clip.GetMember("_parent", &parent) || !parent.IsDisplayObject()) continue;
+                const auto x = Number(clip, "_x"), y = Number(clip, "_y");
+                if (!x || !y) continue;
+                const BlockRules::Point local{ *x, *y };
                 // review R1: SkyUI's bottom bar lays out its own clips; another mod's clip is its own group
-                BlockRules::StripClipPlace place{ now, std::nullopt, std::nullopt, path.starts_with("_root.Menu_mc.bottomBar") ? 0 : 1 };
+                BlockRules::StripClipPlace place{ local, std::nullopt, std::nullopt, path.starts_with("_root.Menu_mc.bottomBar") ? 0 : 1 };
                 if (const auto moves = g_menu.stripMoves.find(path); moves != g_menu.stripMoves.end()) {
                     place.home = moves->second.first;
                     place.lastPut = moves->second.second;
                 }
                 places.push_back(place);
-                sizes.emplace_back(bounds->xMax - bounds->xMin, bounds->yMax - bounds->yMin);
-                clips.push_back({ path, clip, now, now });
+                clips.push_back({ path, clip, parent, local, local, {}, {} });
             }
             const auto homes = BlockRules::StripHomes(places, kStripTolerance);
             std::optional<Bounds> strip;
+            std::vector<StripClip> placed;
             for (std::size_t i = 0; i < clips.size(); ++i) {
-                clips[i].home = homes[i];
-                const Bounds atHome{ homes[i].x, homes[i].x + sizes[i].first, homes[i].y, homes[i].y + sizes[i].second };
+                auto& item = clips[i];
+                item.home = homes[i];
+                const auto visibleNow = VisibleBounds(item.clip, a_widget);
+                const auto originStage = MapPoint(a_movie, item.parent, a_widget, item.local.x, item.local.y);
+                const auto homeStage = MapPoint(a_movie, item.parent, a_widget, item.home.x, item.home.y);
+                if (!visibleNow || !originStage || !homeStage) continue;
+                item.homeStage = { homeStage->first, homeStage->second };
+                item.visibleAtHome = BlockRules::VisibleAtHome({ visibleNow->xMin, visibleNow->yMin, visibleNow->xMax, visibleNow->yMax },
+                    { originStage->first, originStage->second }, item.homeStage);
+                const Bounds atHome{ item.visibleAtHome.left, item.visibleAtHome.right, item.visibleAtHome.top, item.visibleAtHome.bottom };
                 if (strip) {
                     strip->Add(atHome);
                 } else {
                     strip = atHome;
                 }
+                placed.push_back(item);
             }
             const double right = ColumnViewport(Layout::kColumns - 1).right;
             const auto row = BlockRules::HintRowRects(left, below, strip ? strip->xMax - strip->xMin : 0.0, strip ? strip->yMax - strip->yMin : 0.0,
                 kGearSize, kBoardStripGap, kGearGap, visible);
             if (strip) {
                 const auto& target = row.strip;
-                const BlockRules::Point step{ target.left - strip->xMin, target.top - strip->yMin };  // from the homes to the target
+                const BlockRules::Point step{ target.left - strip->xMin, target.top - strip->yMin };  // from the homes to the target (stage)
                 bool movedAny = false;
-                for (auto& item : clips) {
-                    const BlockRules::Point want{ item.home.x + step.x, item.home.y + step.y };
-                    g_menu.stripMoves[item.path] = { item.home, want };  // remembered explicitly (not derived from the step)
-                    if (std::abs(item.now.x - want.x) <= kStripTolerance && std::abs(item.now.y - want.y) <= kStripTolerance) continue;
-                    RE::GFxValue parent;
-                    if (!item.clip.GetMember("_parent", &parent) || !parent.IsDisplayObject()) continue;
-                    const auto from = MapPoint(a_movie, a_widget, parent, item.now.x, item.now.y);
-                    const auto to = MapPoint(a_movie, a_widget, parent, want.x, want.y);
-                    const auto x = Number(item.clip, "_x"), y = Number(item.clip, "_y");
-                    if (!from || !to || !x || !y) continue;
-                    const auto moved = BlockRules::MovedBy(*x, *y, { from->first, from->second }, { to->first, to->second });
-                    item.clip.SetMember("_x", moved.x);
-                    item.clip.SetMember("_y", moved.y);
+                for (auto& item : placed) {
+                    const auto want = MapPoint(a_movie, a_widget, item.parent, item.homeStage.x + step.x, item.homeStage.y + step.y);
+                    if (!want) continue;
+                    const BlockRules::Point wantLocal{ want->first, want->second };
+                    g_menu.stripMoves[item.path] = { item.home, wantLocal };  // home and the origin put at, both in the parent
+                    if (std::abs(item.local.x - wantLocal.x) <= kStripTolerance && std::abs(item.local.y - wantLocal.y) <= kStripTolerance) continue;
+                    item.clip.SetMember("_x", wantLocal.x);
+                    item.clip.SetMember("_y", wantLocal.y);
                     movedAny = true;
-                    // review R4: read back where it landed (through every parent), PASS / FAIL against where it should be
+                    // review R4: read back where its visible part landed (through every parent), PASS / FAIL against where it should be
                     if (g_menu.stripChecks < kMaxStripMoveLogs) {
                         ++g_menu.stripChecks;
                         const auto landed = VisibleBounds(item.clip, a_widget);
-                        const bool pass = landed && std::abs(landed->xMin - want.x) <= kStripCheckTolerance && std::abs(landed->yMin - want.y) <= kStripCheckTolerance;
+                        const double wantX = item.visibleAtHome.left + step.x, wantY = item.visibleAtHome.top + step.y;
+                        const bool pass = landed && std::abs(landed->xMin - wantX) <= kStripCheckTolerance && std::abs(landed->yMin - wantY) <= kStripCheckTolerance;
                         SelfTest(std::format("L8 strip {} {} - at {} (wanted {:.1f},{:.1f})", item.path, pass ? "PASS" : "FAIL",
-                            landed ? std::format("{:.1f},{:.1f}", landed->xMin, landed->yMin) : std::string("no bounds"), want.x, want.y));
+                            landed ? std::format("{:.1f},{:.1f}", landed->xMin, landed->yMin) : std::string("no bounds"), wantX, wantY));
                     }
                 }
                 if (movedAny) {
                     ++g_menu.stripApplies;
                     if (++g_menu.stripMoveLogs <= kMaxStripMoveLogs) {
-                        logger::info("Layout: key-hint strip moved from {:.0f},{:.0f} to {} under the board's bottom {:.0f}, the gear under it at {}{}{}",
-                            strip->xMin, strip->yMin, RectText(target), below, RectText(row.gear),
+                        logger::info("Layout: key-hint strip moved to {} under the board's bottom {:.0f} (its home at {:.0f},{:.0f}), the gear under it at {}{}{}",
+                            RectText(target), below, strip->xMin, strip->yMin, RectText(row.gear),
                             target.right > right + kStripTolerance ? std::format(" (too wide: runs {:.0f} past the right column)", target.right - right) : "",
                             g_menu.stripMoveLogs == kMaxStripMoveLogs ? " - later moves not logged" : "");
                     }

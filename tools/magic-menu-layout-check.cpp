@@ -12,7 +12,7 @@
 //
 // Not covered here (widget code, checked by reading and in game only): PlaceStripAndGear's frame logic (finding and moving the
 // strip's clips), Visibility / AddonsHiddenOn / WatchEmpty, the click delivery of the gear and the reset button, and MapPoint
-// itself (the MovedBy case uses its own made-up parent transform).
+// itself (the strip's moves go through it: each clip's home origin on the stage plus one step, back into its parent).
 //
 // No game types. Exit 0 when every check passes, 1 otherwise.
 
@@ -1316,6 +1316,16 @@ namespace
             // review R1: SkyUI re-laid its panel (back at 0, home 0, put at 648); STB's clip (another group) still where it was put
             const auto groups = BlockRules::StripHomes({ Place{ x(0), x(0), x(648), 0 }, Place{ x(848), x(200), x(848), 1 } }, 0.5);
             Expect(Near(groups[0].x, 0) && Near(groups[1].x, 200), "SkyUI's group re-laid, STB's not: STB keeps its home 200 (no drift by a step)");
+            // GPT re-review of 0420eed9 (identity parents, x only): homes 0 / 200 placed at 648 / 848; a button at the first clip's left
+            // hides, so its visible bounds start 20 further right - its origin is still 648, so no re-layout, and the strip goes back
+            // to its visible start 648: the clips' origins 628 / 828
+            const auto kept = BlockRules::StripHomes({ Place{ x(648), x(0), x(648), 0 }, Place{ x(848), x(200), x(848), 1 } }, 0.5);
+            Expect(Near(kept[0].x, 0) && Near(kept[1].x, 200), "a hidden button inside a clip: the origins did not move - the homes stay 0 / 200");
+            const auto firstHome = BlockRules::VisibleAtHome({ 668, 0, 900, 24 }, x(648), x(kept[0].x));
+            const auto secondHome = BlockRules::VisibleAtHome({ 848, 0, 1000, 24 }, x(848), x(kept[1].x));
+            const double unionLeft = std::min(firstHome.left, secondHome.left), stepX = 648 - unionLeft;
+            Expect(Near(firstHome.left, 20) && Near(secondHome.left, 200) && Near(kept[0].x + stepX, 628) && Near(kept[1].x + stepX, 828),
+                Text("its visible start at home 20, step %.0f: origins 628 / 828 (not 1116 / 648)", stepX));
             const auto newClip = BlockRules::StripHomes({ Place{ x(100), x(0), x(100) }, Place{ x(50), std::nullopt, std::nullopt } }, 0.5);
             Expect(Near(newClip[0].x, 0) && Near(newClip[1].x, 50), "a new clip (STB, later): from its present place; the moved one keeps its home 0");
             const auto newAndRelaid = BlockRules::StripHomes({ Place{ x(0), x(0), x(100) }, Place{ x(50), std::nullopt, std::nullopt } }, 0.5);
@@ -1345,12 +1355,6 @@ namespace
             const auto hang = BlockRules::HintRowRects(648, board.bottom, 400, 24, 18, 8, 4, visible1610);
             Expect(Near(hang.strip.top, 647) && Near(hang.strip.left, 648) && Near(hang.gear.top, 675) && Near(hang.gear.left, 648),
                 Text("strip 8 under the board's bottom (%s), the gear one row below at its start (%s)", Show(hang.strip).c_str(), Show(hang.gear).c_str()));
-        }
-        // a clip moved in a parent scaled 0.85 and moved (200, 26) - a made-up transform here, not MapPoint: stage step (10, 20) is (11.76.., 23.52..) in the parent
-        {
-            const auto toParent = [](double a_x, double a_y) { return BlockRules::Point{ (a_x - 200.0) / 0.85, (a_y - 26.0) / 0.85 }; };
-            const auto moved = BlockRules::MovedBy(50, 60, toParent(500, 600), toParent(510, 620));
-            Expect(Near(moved.x, 50 + 10 / 0.85) && Near(moved.y, 60 + 20 / 0.85), Text("MovedBy through a 0.85 parent: %.3f, %.3f", moved.x, moved.y));
         }
         // the gear's shape (user's choice "B"): 6 teeth with flat tops, every point within the radius, both outlines closed
         {

@@ -422,7 +422,7 @@ header comment of `plugins/SL_MagicMenu/src/BlockApi.h`, the pure rules `BlockRu
 - The clips: `_root.Menu_mc.bottomBar.buttonPanel`, plus any clip under the bottom bar or _root whose name has STB or
   Keycap in it (STB Hotkey System's hints). They are looked for in a menu's first 120 frames; the paths found are logged.
   The clips are only moved, never drawn again. Each moves by the same stage step, taken into its own parent's space
-  (`MapPoint`, `BlockRules::MovedBy`), so Inventory Reforged's scale is followed and the clips keep their places to each
+  (`MapPoint`), so Inventory Reforged's scale is followed and the clips keep their places to each
   other. The strip is put back every frame SkyUI moves it. With no clip found, SkyUI's strip is left alone (logged once).
   The skill / XP row stays where SkyUI puts it.
 - The gear goes one row under the strip, with its left edge on the strip's start, so both sit on one vertical line. The
@@ -465,3 +465,7 @@ header comment of `plugins/SL_MagicMenu/src/BlockApi.h`, the pure rules `BlockRu
   - The board is an edge only (no fill) when SkyUI's card or the game's own 3D pass would sit under it.
   - With nothing chosen the set-target key / button do nothing; the tree has no legend and no not-in-tree note.
   - In the edit mode the gear's hint shows on its left.
+- GPT re-review of 0420eed9: whether SkyUI or STB laid a strip clip out again is read from the clip's own origin (its
+  _x/_y in its parent, what the host sets), not from its visible children. A button hidden inside a clip moves the
+  children but is not a new layout. The visible children only give the strip's size and target, taken back to each clip's
+  home first (`BlockRules::VisibleAtHome`).
