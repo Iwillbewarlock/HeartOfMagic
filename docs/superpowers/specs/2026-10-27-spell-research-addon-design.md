@@ -1,96 +1,128 @@
-# Spell Research add-on block (experiment) - design
+# Spell Research add-on block - design
 
-Date 2026-10-27. Goal: prove that an outside SKSE plugin can add a block to SL_MagicMenu's magic menu, with a
-block that follows the selected spell. Not a release feature.
+Date 2026-10-27, revised 2026-10-29 for the Spell Research Prisma UI revamp (D:/DEV/SpellResearchPrismaUI, 0.2.1,
+not released). Goal: the first add-on block of SL_MagicMenu, shipped as its own DLL that a later SL_MagicMenu FOMOD
+offers as an option (user, 2026-10-29: "포모드로해서 homl용 블록이랑 스펠리서치 프리즈마용 블록을 선택해서 설치가능하게
+할거고 추후에 만들 에드온들도 그런식으로"). The HoML block (moving HoM's windows out of SL_MagicMenu) and the FOMOD are
+the next task (C:/Users/qtuna/Desktop/Claude outputs/magic-menu-no-hom-brief.md); this one builds the API they start from.
 
 ## What the player sees
 
-A block "연구 아키타입" (default: end of the right column, moved like any block). For the selected spell:
+A block "연구 아키타입" (default: end of the right column, moved like any block), shown while a spell is chosen (the
+columns are hidden when nothing is, Widget.cpp:3376-3388, 3417). For the spell the menu's card shows:
 
-- Spell Research knows the spell (it is in one of SR's archetype spell lists): one chip per archetype the spell
-  belongs to, school first, then elements, casting, targeting, techniques (SR's index order inside each group),
-  and the spell's SR tier (초보자..달인) as a small label.
-- A chip shows the archetype's name when the player has any knowledge of that archetype at the spell's tier
-  (its tier GlobalVariable > 0), otherwise "?". So a spell never researched shows only "?" chips.
-  (Ruling: SR keeps no per-spell "researched" record - checked: none of SpellResearch.esp's 477 FormLists or its
-  scripts store one - so "researched" is read as "the player has knowledge in that archetype at that tier".)
-- SR does not know the spell, or SR's lists are empty (the player never ran SR's Import), or the selection is not
-  a spell: one "?" chip and a one-line reason.
-- Nothing chosen: the block shows its title and "주문을 고르면 표시됩니다".
-
-No click action (SR Prisma UI's experience window has no outside open path: OpenWindow/ToggleWindow are internal to
-SpellResearchPrismaUI.dll, only its Y key opens it).
+- Spell Research knows the spell (it is in one of SR's archetype spell lists): the spell's SR tier (초보자..달인) as a
+  small label, then one chip per archetype the spell belongs to - school first, then elements, casting, targeting,
+  techniques (SR's index order inside each group). Chips are text (a thin kPanelEdge frame, the polish of 2026-10-29)
+  and wrap to the column width.
+- A chip shows the archetype's Korean name when the player has any knowledge of that archetype at the spell's tier
+  (its tier GlobalVariable > 0, the rule SR Prisma's experience window also uses since 0.2.0), otherwise "?".
+  (SR keeps no per-spell "researched" record - re-checked against SR Prisma 0.2.1: still none - so "researched" is
+  read as "the player has knowledge in that archetype at that tier"; the reason line says so for "?" chips.)
+- SR does not know the spell, or SR's lists are empty (Import never run), or the selection is not a spell: one "?"
+  chip and a one-line reason. SR still setting up or importing: "Spell Research 준비 중" (snapshot not ready).
+- A row of three text buttons under the chips: "연구 일지", "증류기", "연구 경험" - shown only when
+  SpellResearchPrismaUI.dll is loaded. A click asks SR Prisma to open that window (SRPO, below); SR Prisma opens it
+  after the magic menu closes, under its own hotkey's conditions. A refusal (no journal/alembic in the inventory, in
+  combat, SR not set up, busy) shows its reason in the block's reason line until the selection changes.
 
 ## Spell Research data (SpellResearch.esp, checked with houseCARL and SR's winning scripts)
 
 - `_SR_ListSpellsArchetypes` 000D9E: FormList of 60 FormLists, one per archetype, the spells in it. Index order =
   `_SRU_Utility.GetArchetypeString`: 0-1 casting, 2-35 elements, 36-40 schools Alteration..Restoration,
-  41-44 targeting, 45-59 techniques (each sub-list's EditorID matches, e.g. [12] _SR_ListSpellsElementFire).
-- `_SR_ListAllSpells` 001343: FormList of 5 FormLists, spells by tier, [0] Novice .. [4] Master
-  (`_SRU_Utility.GetSpellRank`).
-- `_SR_ListGlobalsArchetypes` 00133D: FormList of 60 FormLists of 5 GlobalVariables, [0] Novice .. [4] Master
-  (`_SR_QuestScript.AdvanceSingleSkill`). Values only grow.
-- The Librarian adds its catalog spells to these lists with AddForm at every load and after SR's Import
-  (HeartOfMagic src/librarian/LibrarianSpellResearchPatch.cpp), so unpatched spells are covered; `HasForm`
-  sees both record and script-added entries.
-- Read only. The add-on never writes SR's data.
+  41-44 targeting, 45-59 techniques (each sub-list's EditorID matches, e.g. [12] _SR_ListSpellsElementFire). SR
+  Prisma's `ARCHETYPES` (view/index.html:966) has the same order.
+- `_SR_ListAllSpells` 001343: FormList of 5 FormLists, spells by tier, [0] Novice .. [4] Master.
+- `_SR_ListGlobalsArchetypes` 00133D: FormList of 60 FormLists of 5 GlobalVariables, [0] Novice .. [4] Master.
+  Values only grow.
+- The Librarian adds its catalog spells to these lists with AddForm (LibrarianSpellResearchPatch.cpp); `HasForm`
+  sees record and script-added entries.
+- Read only. The add-on never writes SR's data. No SR Prisma query API exists (its "ask without opening" item C-32 is
+  still a to-do), so the block reads the esp's lists itself.
+
+## Korean archetype names
+
+No Korean source exists: SpellResearch.esp's names are English in the load order (e.g. 007300 "Fire Thesis"), SR's
+translation file is English, SR Prisma is not localised. A 60-entry table in the plugin, written from
+`skyrim-glossary.md` and the game's Korean school/effect terms first, then an Argon naturalness review (count of
+flagged and changed lines in the report). Tier names: 초보자, 견습생, 숙련자, 전문가, 달인 (HoM's lang/ko.json
+`prm.tier*`; the glossary agrees on 숙련자/전문가/달인). The word stays "아키타입", the user's own term for SR's
+archetypes (the glossary's "원형" is RoleRim's class archetype).
 
 ## Changes
 
-### 1. SL_MagicMenu: Block API v2 (selection)
+### 1. SL_MagicMenu: Block API v2
 
-v1 draws a block once per menu and on size changes. v2 adds, at the end of `Registration` (v1 fields stay first and
-unchanged; `structSize` tells versions apart):
+v1 stays as it is for v1 add-ons. v2 adds, after the v1 fields of `Registration`:
 
 ```cpp
 using DrawSelectionFn = void (*)(RE::GFxMovieView*, RE::GFxValue& clip, float w, float h,
-                                 RE::FormID selected /*0 = nothing*/, void* user);
+                                 RE::FormID shown /*the card's form, 0 = none*/, void* user);
+using ClickFn = void (*)(float x, float y, void* user);   // a click in the block's content, clip coordinates
 DrawSelectionFn drawSelection = nullptr;  // v2: when set, used instead of draw
+ClickFn click = nullptr;                  // v2: optional
 ```
 
-- Called at the same moments as v1 draw plus whenever the menu's selection changes by the menu's own selection rule
-  (click or keyboard/pad move; hover does not count), into a new empty clip each time.
-- `kVersion` becomes 2; a v1 registration (structSize == v1 size) keeps working unchanged.
-- The selection passed is the same id the menu's own windows use (`g_menu.sel.id`).
+- `RegistrationV1` frozen as its own struct (`kRegistrationV1Size = sizeof(RegistrationV1)`); apiVersion 1 or 2
+  accepted; the fields `min(structSize, dataLen)` covers are copied into a zero-initialised v2 struct; v1 needs
+  `draw`, v2 needs `draw` or `drawSelection`. `Result` stays v1-shaped. Version 3+ refused with a reason.
+- Which form: the one the menu's own card shows (the tree card when a tree click picked a spell not in the list,
+  Widget.cpp:2434/3625-3633, else the committed list selection, else 0). SL_MagicMenu compares it once per UI frame
+  after its own selection and tree-click handling and redraws v2 blocks when it changed (never from inside a draw).
+- Redraw request: message add-on -> SL_MagicMenu `kMessageRedraw` 'SLMD', data = the block's final id; the redraw
+  happens on the next UI frame (ignored while the menu is closed). Used when the add-on's snapshot lands and after an
+  SRPO reply.
+- Click: SL_MagicMenu puts one transparent hit clip over each v2 block that has `click`, with its own existing
+  onRelease handler mechanism (the one the tree's marks use, SetHandler Widget.cpp:2731), and calls `click` with the
+  position inside the content clip. Not in layout mode (the overlay owns clicks then), not when the press started
+  outside the block. The add-on keeps the rects it drew in its last draw and maps the point itself. (Chosen over
+  add-on-owned AS2 handlers on the lent clip: those need the add-on's own GFx function objects living past the call,
+  which the lent-clip rule forbids, and their behaviour under the layout overlay is unchecked.)
+- `kVersion` 2. The header comment documents v2; Draw.h is not shipped with it (the add-on carries its own copy).
+
+Reserved for the HoML block (not built here, listed so v2 is not mistaken for enough): add-on calls into the host
+(select a spell in the list, load its 3D), per-tab visibility, hover and tooltips outside the block, key input,
+shared text-fitting helpers, and keeping a player's place for the old built-in ids `tree`/`progress`/`nodecard`.
 
 ### 2. New plugin SL_MagicMenu_SpellResearch (plugins/SL_MagicMenu_SpellResearch)
 
-- At kDataLoaded: `TESDataHandler::LookupForm` the three FormLists by local id in "SpellResearch.esp"; missing
-  plugin or a list of the wrong shape -> log once and register nothing.
-- Registers block id "SpellResearch.archetypes", title "연구 아키타입", fixed height (one title strip + tier label
-  + up to two chip rows + reason line).
-- drawSelection: SpellItem only; tier = first tier list that HasForm; archetypes = every index whose list HasForm;
-  knowledge = GlobalVariable value at (archetype, tier). Chips wrap to the column width.
-- Korean archetype names: a table in the plugin (60 entries), glossary terms first, Argon naturalness review.
-- Self-test (ini bSelfTest): at the first menu open logs list sizes (60 / 5 / 60) PASS/FAIL, and for the vanilla
-  spell Flames (Skyrim.esm 012FCD) whether SR files it under Fire and Destruction (PASS / FAIL / SKIP when SR's lists
-  are empty, i.e. Import not run).
+- kPostLoad: listen for SL_MagicMenu's result and for SR Prisma's replies ('SRPR', sender "SpellResearchPrismaUI");
+  SR Prisma present = `SKSE::GetPluginInfo("SpellResearchPrismaUI")` is not null at kPostPostLoad (fallback if that
+  call is unavailable: present until a Dispatch to it returns false).
+- kDataLoaded: `TESDataHandler::LookupForm` the three FormLists and `_SR_GlobalImporting` 004C8D /
+  `_SR_GlobalIsSetup` 00624F in "SpellResearch.esp"; missing plugin or a list of the wrong shape -> log once and
+  register nothing. Then register block id "SpellResearch.archetypes", title "연구 아키타입", fixed height (title
+  strip + tier label + two chip rows + button row + reason line), `drawSelection`, `click`.
+- Shared data (HasForm walks forms + scriptAddedTempForms without a lock; the Librarian and SR Import write them on
+  the game thread): never walk SR's lists in draw. A snapshot (FormID -> tier, archetype bitset; 60 x 5 knowledge
+  values) is built in an SKSE task on the game thread when the magic menu opens (a MenuOpenCloseEvent sink), "not
+  ready" while importing or before setup; when it lands the add-on sends 'SLMD'. O(total list entries), once per open.
+- Buttons: 'SRPO' `{version 1, requestId, what}` (1 experience window, 2 journal, 3 alembic; SRPrismaAPI.h copied
+  from SR Prisma's committed HEAD f76e584 into the plugin, unchanged). The reply ('SRPR': Accepted / Busy / Refused /
+  BadMessage / Opened) arrives on a later frame; Refused/Busy/BadMessage set the reason line and send 'SLMD';
+  Accepted/Opened clear it. One request in flight at a time (a second click while one waits is ignored).
+- Self-test (ini `bSelfTest`): at the first menu open logs PASS/FAIL for list sizes (60 / 5 / 60), Flames
+  (Skyrim.esm 012FCD) filed under Fire and Destruction (SKIP when SR's lists are empty), snapshot ready / not ready
+  (SKIP), a Librarian (script-added) spell found when HoM is installed (SKIP otherwise), and that the drawn id equals
+  the card's id for each redraw.
+- Offline checks (tools/magic-menu-block-api-check, no game): registration parsing (real v1 bytes in the old layout,
+  a v2 message cut short, version 3 refused, v2 without either draw refused), the add-on's pure parts (archetype
+  grouping order, chip wrapping to a width, click -> button mapping, reply -> reason text).
+- dist: a hand-made dist/SL_MagicMenu_SpellResearch/ (DLL, ini) like dist/HoM-MagicMenu-Proto until the FOMOD task.
 
-## Rulings after the GPT design review (2026-10-27, all four findings checked in the code and accepted)
+## Rulings carried from the 2026-10-27 GPT design review
 
-1. ABI (BlockRegistry.cpp:47-56, 65; BlockApi.h:83): `RegistrationV1` is frozen as its own struct
-   (`kRegistrationV1Size = sizeof(RegistrationV1)`), `Registration` (v2) = the v1 fields then `drawSelection`.
-   apiVersion 1 or 2 accepted; the fields copied are the ones `min(structSize, dataLen)` covers for that version,
-   into a zero-initialised v2 struct; v1 needs `draw`, v2 needs `draw` or `drawSelection`. Result stays v1-shaped.
-   Tests: real v1 bytes (old header layout), a v2 message cut short, version 3 refused.
-2. Which spell: not `g_menu.sel.id` alone. The block gets the spell the menu's own card shows (the tree card when a
-   tree click picked a spell not in the list, Widget.cpp:2434/3625-3633, else the committed list selection, else 0).
-   SL_MagicMenu compares that id once per UI frame after its own selection and tree-click handling and redraws
-   v2 blocks when it changed (no redraw from inside a draw call; a change made during a draw is seen next frame).
-3. Shared data (HasForm walks forms + scriptAddedTempForms without a lock; the Librarian and SR Import write them):
-   the add-on never walks SR's lists in draw. It keeps a snapshot (FormID -> tier, archetype set; 60 x 5 knowledge
-   values) built in an SKSE task (game thread, where those writes happen) when the magic menu opens; while SR is
-   importing (`_SR_GlobalImporting` 004C8D != 0) or before it is set up (`_SR_GlobalIsSetup` 00624F == 0) the
-   snapshot is "not ready" and the block says so. API v2 adds a message add-on -> SL_MagicMenu, 'SLMD'
-   (`kMessageRedraw`, data = the block id), so the add-on asks for a redraw when its snapshot lands; the redraw
-   happens on the next UI frame. Building the snapshot is O(total list entries), once per menu open.
-4. Nothing chosen: the columns are hidden then (Widget.cpp:3376-3388, 3417), so the "주문을 고르면" line is dropped;
-   the block shows only with a chosen spell, like the other blocks.
-
-Self-test additions: snapshot ready / not-ready (SKIP) per menu; A -> B -> tree-only spell C follows the card (the id
-drawn equals the card's id each time); a script-added entry (a Librarian spell) is found. The "?" rule is shared
-knowledge per archetype and tier, not a per-spell history (SR keeps none) - said in the block's reason line.
+ABI freeze (above), the card's spell rather than `g_menu.sel.id`, the game-thread snapshot plus 'SLMD', no block
+when nothing is chosen. All four stay.
 
 ## Not in scope
 
-Click actions, per-frame updates, knowledge numbers in the block, other SR data.
+The archetype icons (SR Prisma's skald-icons.png atlas: loading bitmaps into the host movie is its own question, and
+its distribution needs SR's author's agreement), the HoML block and the FOMOD (next task), English strings (the host
+is Korean-only today), per-frame updates, knowledge numbers in the block.
+
+## Verification
+
+Offline: the check tool above, BuildRelease, the existing magic-menu-*-check tools stay green. In game (the user):
+the block shows and follows the card; "?" vs names; the buttons open SR Prisma's windows after the menu closes - this
+needs SR Prisma 0.2.1 installed, whose SRPO path its own session has not seen in game yet; the self-test log lines.
