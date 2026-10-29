@@ -288,6 +288,35 @@ target_include_directories(magic-menu-block-api-check PRIVATE
 )
 
 # =============================================================================
+# magic-menu-sr-block-check  -  offline check of the Spell Research add-on block's pure parts
+# =============================================================================
+# The SL_MagicMenu_SpellResearch plugin's own SrBlockRules.h and ArchetypeIcons.h (header
+# only, no game types): archetype grouping and order, what the block shows per state, the
+# list and line layouts and their wrapping, the unknown archetype's frame-only icon, the
+# icon data's bounds, the link click rule, reply code -> notification, the open request's
+# requestId matching and 5 s drop, the [MagicMenuBlock] sLayout ini reading; and the
+# shipped lang/en.json against the keys the block uses. One PASS/FAIL line per check and
+# a total; --selftest the same; exit 1 when any check fails.
+
+add_executable(magic-menu-sr-block-check
+    magic-menu-sr-block-check.cpp
+)
+
+target_compile_features(magic-menu-sr-block-check PRIVATE cxx_std_23)
+
+target_include_directories(magic-menu-sr-block-check PRIVATE
+    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu_SpellResearch/src
+)
+
+target_compile_definitions(magic-menu-sr-block-check PRIVATE
+    SR_BLOCK_EN_JSON="${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu_SpellResearch/dist/lang/en.json"
+)
+
+target_link_libraries(magic-menu-sr-block-check PRIVATE
+    nlohmann_json::nlohmann_json
+)
+
+# =============================================================================
 # magic-menu-homstyle-check  -  offline check of the magic menu prototype's HoM style reader
 # =============================================================================
 # The SL_MagicMenu plugin's own HomStyle.cpp (no game types): Heart of Magic's
