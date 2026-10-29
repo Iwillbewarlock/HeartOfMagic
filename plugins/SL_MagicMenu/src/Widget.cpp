@@ -652,11 +652,18 @@ namespace Widget
             // its rooms must not come from its own fit, or each draw would ask for less)
             std::map<Layout::BlockId, Settings::Rect> blocksMaxAll;
             int resizeLogs = 0;  // Rearrange's "block X is W x H now" lines this menu (a fitted card changes with its content)
-            std::pair<double, double> treeOrigin{};
+            std::pair<double, double> treeOrigin{};  // the tree drawing's 0,0 in its panel as last drawn (RedrawTree; the tooltip's)
             Settings::Rect tooltipTree;  // the tree's rect (on screen) when the tooltip was last drawn (RedrawTooltip)
             bool gearPlaced = false;  // the gear has its place this menu (PlaceGear)
             int gearTries = 0, gearStable = 0, gearMoveLogs = 0;
-            std::optional<Settings::Rect> gearLast;  // where the gear was put last (PlaceGear follows its anchor until it settles)  // the tree drawing's 0,0 in its panel as last drawn (RedrawTree; the tooltip's)
+            std::optional<Settings::Rect> gearLast;  // where the gear was put last (PlaceGear follows its anchor until it settles)
+            bool gearAnchored = false;               // a SkyUI clip answered once this menu: no fallback after that (final review 7)
+            // final review 1: the redraw pass's fits are laid out once at its end (FitBlock with fitBatch); its time is logged
+            bool fitBatch = false;
+            std::set<Layout::BlockId> fitBatchIds;
+            int passLogs = 0;
+            double passSlowest = 0.0;
+            bool legendShown = true;  // the tree legend's visibility (ShowLegend), kept when Rearrange draws the legend again
             // blocks plan Task 6: add-on blocks to draw next frame (DrawAddons), drawn this menu (SelfTest L6), whose callback threw
             std::set<Layout::BlockId> addonDrawDue, addonDrawn, addonFailed;
             // Block API v2: per add-on its draws this menu and the form its drawSelection was last given; the press waiting for its
@@ -3003,8 +3010,9 @@ namespace Widget
                     used += icon + kLegendTextGap + TextW(fields[i]);
                 }
                 if (used > room && size - kStep >= kMinFitSize) continue;  // shrinks to kMinFitSize before cutting
-                if (used > room) {
-                    logger::info("Widget: the tree legend needs {:.0f} of {:.0f} stage units at size {:.0f} - what runs past the border is cut",
+                if (used > room && g_menu.cutLogged.insert("legend|cut").second) {  // final review 2: once a menu (Rearrange draws it again)
+                    logger::info("Widget: the tree legend needs {:.0f} of {:.0f} stage units at size {:.0f} - what runs past the border is cut "
+                                 "(logged once this menu)",
                         used, room, size);
                 }
                 static_assert(kItems.size() > 1, "the legend's spare room is shared between its items");
@@ -3450,10 +3458,32 @@ namespace Widget
         // holds the rect, WatchOwnCard), SkyUI's card through a new fit when its slot moved. The first placing of a menu only
         // places (the panels are drawn new after it)
         // SkyUI's card is fitted to its slot: a moved slot (Powers/Shouts and back, a new width, a scroll) is fitted again
+        // final review 3: a slot that only moved (a fit above it, a scroll) moves SkyUI's card by the same step at once, mapped into
+        // the holder's parent - no new measure (that put the card a frame late at its old place); a new size fits it again
+        bool ShiftCardFit(const Settings::Rect& a_from, const Settings::Rect& a_to)
+        {
+            if (!g_menu.cardFit || !Settings::Get().moveItemCard || g_menu.irActive || OwnCard()) return false;
+            auto* movie = OpenMagicMenuMovie();
+            RE::GFxValue root, parent;
+            auto pair = movie ? CardAndHolder(movie) : std::nullopt;
+            if (!pair || !movie->GetVariable(&root, "_root") || !pair->second.GetMember("_parent", &parent) || !parent.IsDisplayObject()) return false;
+            const auto from = MapPoint(movie, root, parent, a_from.left, a_from.top), to = MapPoint(movie, root, parent, a_to.left, a_to.top);
+            if (!from || !to) return false;
+            g_menu.cardFit->x += to->first - from->first;
+            g_menu.cardFit->y += to->second - from->second;
+            pair->second.SetMember("_x", g_menu.cardFit->x);
+            pair->second.SetMember("_y", g_menu.cardFit->y);
+            return true;
+        }
+
         void CheckCardSlot()
         {
             const auto slot = CardRect();
-            if (g_menu.cardSlot && !SameRect(*g_menu.cardSlot, slot)) g_menu.cardFit.reset();
+            if (g_menu.cardSlot && !SameRect(*g_menu.cardSlot, slot)) {
+                const bool sameSize = std::abs(g_menu.cardSlot->Width() - slot.Width()) <= kRectTolerance &&
+                                      std::abs(g_menu.cardSlot->Height() - slot.Height()) <= kRectTolerance;
+                if (!sameSize || !ShiftCardFit(*g_menu.cardSlot, slot)) g_menu.cardFit.reset();
+            }
             g_menu.cardSlot = slot;
         }
 
@@ -3461,8 +3491,8 @@ namespace Widget
 
         double FullHeight(const BlockId& a_id);  // a block's full height on this tab (with FitBlock, below)
 
-        // a_fitting: the block FitBlock is fitting (being drawn for its new height now: not marked dirty)
-        void Rearrange(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const BlockId* a_fitting = nullptr)
+        // a_fitting: the blocks FitBlock is fitting (drawn for their new height already: not marked dirty)
+        void Rearrange(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const std::set<BlockId>* a_fitting = nullptr)
         {
             g_menu.blocksMax = ArrangeBlocks(ArrangementFor(g_menu.tab, OwnCard()), false);
             g_menu.blocksMaxAll = ArrangeBlocks({}, false);
@@ -3499,8 +3529,10 @@ namespace Widget
                     }
                     if (id == Layout::kTree && panel.IsDisplayObject()) {
                         DrawLegend(a_movie, panel, rect.Width(), rect.Height(), g_menu.legendSchool.value_or(std::string{}));
+                        // a message state hides it (ShowLegend): the legend drawn again here keeps that
+                        if (auto legend = Child(panel, "legend"); legend.IsDisplayObject()) legend.SetMember("_visible", g_menu.legendShown);
                     }
-                    const bool fitting = a_fitting && *a_fitting == id;
+                    const bool fitting = a_fitting && a_fitting->contains(id);
                     if (!fitting && (id == Layout::kTree || id == Layout::kProgress || id == Layout::kNodeCard)) g_menu.dirty = true;
                     if (Addon(id)) g_menu.addonDrawDue.insert(id);
                 }
@@ -3558,7 +3590,13 @@ namespace Widget
             // laid out again when the block's arranged height is not the fitted one; this block is being drawn for its new height
             // now, so Rearrange does not mark it dirty (review R6: only this block - another one it resizes is still marked)
             const auto arranged = g_menu.blocks.contains(a_id) ? g_menu.blocks.at(a_id) : g_menu.blocksAll.contains(a_id) ? g_menu.blocksAll.at(a_id) : Settings::Rect{};
-            if (std::abs(arranged.Height() - fitted) > BlockRules::kHeightTolerance) Rearrange(a_movie, a_widget, &a_id);
+            if (std::abs(arranged.Height() - fitted) <= BlockRules::kHeightTolerance) return fitted;
+            if (g_menu.fitBatch) {
+                g_menu.fitBatchIds.insert(a_id);  // final review 1: laid out once at the end of the redraw pass (Frame::Call), same frame
+            } else {
+                const std::set<BlockId> self{ a_id };
+                Rearrange(a_movie, a_widget, &self);
+            }
             return fitted;
         }
 
@@ -5227,7 +5265,9 @@ namespace Widget
                     break;
                 }
             }
-            if (!anchor && ++g_menu.gearTries < kGearPlaceFrames) return;
+            if (anchor) g_menu.gearAnchored = true;
+            // final review 7: a list that reported bounds once and none for a moment (a refill) keeps the gear where it is
+            if (!anchor && (g_menu.gearAnchored || ++g_menu.gearTries < kGearPlaceFrames)) return;
             const auto area = a_movie->GetVisibleFrameRect();
             const Settings::Rect visible{ area.left, area.top, area.right, area.bottom };
             const auto rect = BlockRules::GearRect(anchor, visible, kGearSize, kGearGap);
@@ -6407,6 +6447,7 @@ namespace Widget
         // user 2026-10-30: the legend strip shows only under a drawn tree (a message state is the title strip, the line, padding)
         void ShowLegend(RE::GFxValue& a_widget, bool a_shown)
         {
+            g_menu.legendShown = a_shown;
             auto panel = BlockClip(a_widget, Layout::kTree);
             if (auto legend = panel.IsDisplayObject() ? Child(panel, "legend") : RE::GFxValue{}; legend.IsDisplayObject()) legend.SetMember("_visible", a_shown);
         }
@@ -6728,7 +6769,9 @@ namespace Widget
             const auto nodeCard = BlockRect(Layout::kNodeCard);
             const double shift = nodeCard.top - rect.top + g_menu.ascent * (kNameSize - titleSize);
             double offset = shift >= 0 && shift <= titleSize ? shift : 0.0;
-            if (g_menu.cutLogged.insert(std::format("l2|{:.2f}", shift)).second) {
+            // final review 2: once per state this menu (the shift moves with every fitted tree height)
+            const char* l2State = shift == 0 || (shift > 0 && shift <= titleSize) ? "aligned" : shift < 0 ? "above" : "apart";
+            if (g_menu.cutLogged.insert(std::string("l2|") + l2State).second) {
                 logger::info("Widget: L2 progress card first line (size {:.1f}) {} - node card name size {:.0f}, ascent {:.3f} of the size ({}), card "
                              "tops {:.0f} / {:.0f}",
                     titleSize, offset > 0 || shift == 0 ? std::format("moved down {:.2f} to the name's baseline", offset) :
@@ -7749,20 +7792,48 @@ namespace Widget
                 CheckButtonBottom(movie, root, widget);  // once per menu, when the button and the item card are both up
                 DropStaleHover(movie, widget);  // review v11 #10
                 RedrawTooltip(movie, widget, *snapshot);  // the hover changes no tree: outside the dirty gate (spec v10 T6)
-                if (g_menu.dirty) {
-                    g_menu.dirty = false;
-                    RedrawTree(movie, widget, *snapshot);  // first: it drops a selection that is no longer drawn
-                    RedrawTooltip(movie, widget, *snapshot);  // again over the new tree (or gone with its node)
-                    RedrawProgress(movie, widget, *snapshot);
-                    RedrawNodeCard(movie, widget, *snapshot);
-                    ApplyVisibility(widget);
-                    CheckRowBaselines(movie, root, widget);
-                }
+                if (g_menu.dirty) RedrawPass(movie, root, widget, *snapshot);
                 // review GPT 1: the preview's place after every fit of this frame (a fitted block above it moves it)
                 PreviewFrame(movie, root, widget);
             }
 
         private:
+            // The tree, progress and node card drawn again. Final review 1: their fits are collected (FitBlock with fitBatch) and
+            // the columns laid out once at the end, in this frame - each block placed its own parts at its fitted height
+            // already, and only its panel moves after. A fill block whose height that changes (our card, when it has no fit
+            // yet) is drawn again here. The row-2 baseline offset (L2) reads the node card's top at the progress card's draw:
+            // after a fit that moved it, it is right from the next redraw on. The whole pass is timed and logged (20 a menu,
+            // then only a new slowest)
+            static void RedrawPass(RE::GFxMovieView* a_movie, RE::GFxValue& a_root, RE::GFxValue& a_widget, const Spells::Snapshot& a_snapshot)
+            {
+                constexpr int kMaxPassLogs = 20;
+                const auto started = std::chrono::steady_clock::now();
+                g_menu.dirty = false;
+                g_menu.fitBatch = true;
+                RedrawTree(a_movie, a_widget, a_snapshot);  // first: it drops a selection that is no longer drawn
+                RedrawProgress(a_movie, a_widget, a_snapshot);
+                RedrawNodeCard(a_movie, a_widget, a_snapshot);
+                g_menu.fitBatch = false;
+                const auto fitted = std::exchange(g_menu.fitBatchIds, {});
+                if (!fitted.empty()) {
+                    const double cardBefore = BlockRect(Layout::kSpellCard).Height();
+                    Rearrange(a_movie, a_widget, &fitted);
+                    if (std::abs(BlockRect(Layout::kSpellCard).Height() - cardBefore) > BlockRules::kHeightTolerance && OwnCard() && g_menu.ownCardShown) {
+                        g_menu.ownCardSig.clear();
+                        WatchOwnCard(a_movie, a_widget);
+                    }
+                }
+                RedrawTooltip(a_movie, a_widget, a_snapshot);  // final review 5: after every fit of the pass (the tree may have moved)
+                ApplyVisibility(a_widget);
+                CheckRowBaselines(a_movie, a_root, a_widget);
+                const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+                if (++g_menu.passLogs <= kMaxPassLogs || ms > g_menu.passSlowest) {
+                    logger::info("Widget: redraw pass {:.2f} ms (tree, progress, node card, {} block(s) fitted{}){}", ms, fitted.size(),
+                        fitted.empty() ? "" : ", laid out once", g_menu.passLogs > kMaxPassLogs ? " - the slowest so far" : "");
+                }
+                g_menu.passSlowest = std::max(g_menu.passSlowest, ms);
+            }
+
             static void PreviewFrame(RE::GFxMovieView* a_movie, RE::GFxValue& a_root, RE::GFxValue& a_widget)
             {
                 Preview::FrameInfo info;

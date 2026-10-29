@@ -372,12 +372,15 @@ namespace
         Expect(read && read->id == id && read->height == 94.0, "a whole request: its id and height");
         Expect(BlockRules::ReadHeight(&request, static_cast<std::uint32_t>(BlockRules::kHeightNeeded), why).has_value(),
             "a message cut right after the height still reads");
-        Expect(!BlockRules::ReadHeight(&request, static_cast<std::uint32_t>(BlockRules::kHeightNeeded - 1), why) && why.find("bytes") != std::string::npos,
-            Text("a message one byte short: refused (%s)", why.c_str()));
+        // final review 4: each result first, then its label (the argument order is unspecified: the label read the last reason)
+        const bool shortRefused = !BlockRules::ReadHeight(&request, static_cast<std::uint32_t>(BlockRules::kHeightNeeded - 1), why) &&
+                                  why.find("bytes") != std::string::npos;
+        Expect(shortRefused, Text("a message one byte short: refused (%s)", why.c_str()));
         Expect(!BlockRules::ReadHeight(nullptr, sizeof(request), why), "null data: refused");
         auto bad = request;
         bad.apiVersion = 3;
-        Expect(!BlockRules::ReadHeight(&bad, sizeof(bad), why) && why.find("apiVersion 3") != std::string::npos, Text("apiVersion 3: refused (%s)", why.c_str()));
+        const bool v3Refused = !BlockRules::ReadHeight(&bad, sizeof(bad), why) && why.find("apiVersion 3") != std::string::npos;
+        Expect(v3Refused, Text("apiVersion 3: refused (%s)", why.c_str()));
         bad = request;
         bad.apiVersion = 1;
         Expect(!BlockRules::ReadHeight(&bad, sizeof(bad), why), "apiVersion 1 (v1 has no height message): refused");
@@ -401,7 +404,8 @@ namespace
         using BlockRules::HeightVerdict;
         Expect(BlockRules::JudgeHeight(94, 132, std::nullopt) == HeightVerdict::kApply, "94 of 132, none asked yet: applied");
         Expect(BlockRules::JudgeHeight(132, 132, std::nullopt) == HeightVerdict::kUnchanged, "the registered height, none asked: unchanged");
-        Expect(BlockRules::JudgeHeight(94, 132, 94.0) == HeightVerdict::kUnchanged, "94 again: unchanged (no redraw loop)");
+        // JudgeHeight only: that the widget then lays nothing out again is its code's (not reached by this tool)
+        Expect(BlockRules::JudgeHeight(94, 132, 94.0) == HeightVerdict::kUnchanged, "94 again: unchanged (JudgeHeight; no redraw loop)");
         Expect(BlockRules::JudgeHeight(132, 132, 94.0) == HeightVerdict::kApply, "back to the registered height: applied");
         Expect(BlockRules::JudgeHeight(132.5, 132, std::nullopt) == HeightVerdict::kTooTall, "more than registered: refused");
         Expect(BlockRules::JudgeHeight(132.005, 132, std::nullopt) == HeightVerdict::kUnchanged, "within the tolerance of registered: unchanged");

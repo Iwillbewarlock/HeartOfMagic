@@ -58,8 +58,9 @@
 // per-frame update.
 //
 // kMessageRedraw ('SLMD'): add-on -> SL_MagicMenu, data = the block's final id (NUL-terminated, as the result gave it),
-// dataLen its size. The block is drawn again on the next UI frame. Ignored while the magic menu is closed (it is drawn at
-// the next open anyway) and for an id that is not a registered block. Not answered.
+// dataLen its size. The block is drawn again on the next UI frame - so do not send it from that draw (or any draw of your
+// block), or the block is drawn again every frame. Ignored while the magic menu is closed (it is drawn at the next open
+// anyway) and for an id that is not a registered block. Not answered.
 //
 // kMessageHeight ('SLMH'): add-on -> SL_MagicMenu, data = a HeightRequest (below), dataLen its size: the block's height for
 // this menu, for content that needs less room than the block registered with. The registered height is the block's maximum
