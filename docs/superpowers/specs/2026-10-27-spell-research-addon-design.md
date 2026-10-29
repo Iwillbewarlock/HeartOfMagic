@@ -175,7 +175,7 @@ checks, the snapshot, the first-open self-test), `BlockDraw.cpp` (draw, click, S
   technique without " Targeting" / " Techniques"; elements, casting and schools as the name) - see "Strings and language".
   The pure parts of the strings and the ini (BOM skipped, `ReadIniValue`, `ParseLayout`, `ParseLanguage`,
   `ArchetypeName`) are in `SrBlockText.h`, also run by the check tool.
-- Height 132 (content 94 = three 18-unit archetype lines, 6 gap, an 18-unit link row, a 16-unit reason line; plus the
+- Height 134 (content 96 = three 18-unit archetype lines, 8 gap, an 18-unit link row, a 16-unit reason line; plus the
   host's 22 title strip and 2 x 8 padding), the same for both layouts. List: one line per group, wrapping inside the
   archetype column; line: wrapping to the width. Neither passes three lines: what does not fit is left out and "..." ends
   the third line. A name longer than a whole line is cut with "...".
@@ -214,18 +214,29 @@ under it moving by a line when the spell changes). The list layout keeps its fix
   rearranges on entering and leaving when an add-on asked for another); SL_MagicMenu_Layout.json is not touched. Pure
   parts in BlockRules.h (`ReadHeight`, `JudgeHeight`, `LaidOutHeight`, `Enqueue`), checked by magic-menu-block-api-check;
   the column restacking by magic-menu-layout-check (`AddonHeightChange`).
-- Add-on: `SrBlock::ContentHeight(kind, lines, hasLinks, hasReason)` - list: kContentH (94); line: the archetype lines
+- Add-on: `SrBlock::ContentHeight(kind, lines, hasLinks, hasReason)` - list: kContentH (96); line: the archetype lines
   (a reason-only state counts as one), the link row and the reason line when drawn (without links the reason line takes
-  their place): 57 for one line with links, 73 with a reason line too, at most 91. A reason-only state ("?" and the
+  their place): 58 for one line with links, 74 with a reason line too, at most 92. A reason-only state ("?" and the
   reason line: not ready, not a spell, lists empty, unknown spell, no archetypes) is placed and sized by the line
-  layout's rules in the list layout too (user 2026-10-30, `SrBlock::PlacedKind`), so the list block shrinks from 132 to a
-  one-line block's 111 instead of leaving the fixed height's gap; the list with archetypes keeps 132. Draw asks for that
+  layout's rules in the list layout too (user 2026-10-30, `SrBlock::PlacedKind`), so the list block shrinks from 134 to a
+  one-line block's 112 instead of leaving the fixed height's gap; the list with archetypes keeps 134. Draw asks for that
   height (plus the host's 38 of title strip and padding) when it differs from the last one it asked for
   (`SrBlock::HeightRequests`), reset at each menu open and when the chosen layout changes - so the host's redraw at the
   new size, and the layout mode's redraw at the registered size, send nothing. The registered height stays
-  kBlockHeight (132). The host applies a request made by the frame's second draw pass (after the selection handling)
+  kBlockHeight (134). The host applies a request made by the frame's second draw pass (after the selection handling)
   in the same frame: it lays the columns out again and draws the block once more, so a block drawn for a new spell is
   never shown past its box.
+
+### 2c. One spacing scale and one left edge (UI checklist rule 1, 2026-10-30)
+
+Spacing on 4 / 8 units: icon -> its name 4 (was 3), archetypes -> links 8 (was 6; the line layout's halved gap follows:
+links at 40 / 49 / 58 after 1 / 2 / 3 lines), between links 8 (was 10); rows stay 18 (11-point text and a 14 icon).
+Heights now: list 134 (content 96); line 1 / 2 / 3 lines with links and no reason 96 / 105 / 114 (content 58 / 67 / 76),
+with links and the reason line 112 / 121 / 130; reason-only (any layout, links and reason) 112. One left edge
+(`SrBlock::kTextInset` = 2, the AS2 text field's gutter): the host draws its title field at the content's left edge, so
+the title's first letter is 2 units in; every line of the block starts there - the list's labels, the line layout's
+first icon, the "?" line, the links and the reason line (the code placed text fields 2 units left to cancel the gutter,
+so the list's labels started at 0, not at the title's letter, before this). The usable width is 2 units less.
 
 ## Rulings carried from the 2026-10-27 GPT design review
 

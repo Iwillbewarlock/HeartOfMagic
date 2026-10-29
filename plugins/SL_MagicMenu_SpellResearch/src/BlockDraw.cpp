@@ -43,8 +43,8 @@ namespace BlockDraw
         constexpr double kRowSize = 11.0, kLinkSize = 10.0, kReasonSize = 10.0;
         // Widget.cpp's text line height per size unit before it measures the font (kLineFactor) and the 2 units an AS2 text
         // field keeps free on each side of its text (textWidth leaves them out: kGutter = both)
-        constexpr double kLineFactor = 1.25, kGutter = 4.0, kGutterSide = 2.0;
-        constexpr double kIconSize = 14.0, kIconGap = 3.0, kSeparatorPad = 4.0;
+        constexpr double kLineFactor = 1.25, kGutter = 4.0, kGutterSide = SrBlock::kTextInset;
+        constexpr double kIconSize = 14.0, kIconGap = 4.0, kSeparatorPad = 4.0;
         constexpr double kUnderlineW = 1.0, kUnderlineDrop = 1.0;
         constexpr int kDotSegments = 8;     // a dot subpath drawn as a small filled polygon of this many sides
         constexpr double kMiterLimit = 3.0;  // lineStyle's miterLimit (unused with round joins; AS2 wants the argument)
@@ -423,15 +423,16 @@ namespace BlockDraw
             lines = DrawItems(texts, decision.items, kind);
         } else {
             auto unknown = texts.Make(Lang::Get("unknown"), kDimText, kRowSize);
-            Put(unknown, 0, TextY(0, kRowSize), TextW(unknown));
+            Put(unknown, SrBlock::kTextInset, TextY(0, kRowSize), TextW(unknown));
         }
         const bool links = Addon::SrPrismaUsable();
         if (links) DrawLinks(texts, SrBlock::LinksTop(kind, lines));
         const std::string reasonKey = g_noResponse ? "reason.noResponse" : decision.reasonKey;
         if (!reasonKey.empty()) {
             auto reason = texts.Make("", kDimText, kReasonSize);
-            Put(reason, 0, SrBlock::ReasonTop(kind, lines, links) + (SrBlock::kReasonH - FieldH(kReasonSize)) / 2, texts.width);
-            FitTo(a_movie, reason, Lang::Get(reasonKey), texts.width);
+            const double reasonW = std::max(0.0, texts.width - SrBlock::kTextInset);
+            Put(reason, SrBlock::kTextInset, SrBlock::ReasonTop(kind, lines, links) + (SrBlock::kReasonH - FieldH(kReasonSize)) / 2, reasonW);
+            FitTo(a_movie, reason, Lang::Get(reasonKey), reasonW);
         }
         SelfTestDrawn(a_movie, a_shown, decision);
 

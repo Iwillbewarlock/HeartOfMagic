@@ -149,7 +149,12 @@ namespace SrBlock
     inline constexpr double kHostTitleH = 22.0, kHostPad = 8.0;
     inline constexpr double kRowH = 18.0;  // one archetype line (the mock's 18-unit rows)
     inline constexpr int kArchetypeLines = 3;
-    inline constexpr double kLinksGap = 6.0, kLinkRowH = 18.0, kReasonH = 16.0;
+    // spacing on one scale (UI checklist rule 1, user 2026-10-30): 4 / 8 units; the 18-unit row fits 11-pt text and a 14 icon
+    inline constexpr double kLinksGap = 8.0, kLinkRowH = 18.0, kReasonH = 16.0;
+    // One left edge: an AS2 text field keeps 2 units free left of its text, so the host's title (its field at the content's
+    // left edge) starts its first letter 2 units in. Every line of the block starts there too: labels, archetype icons, "?",
+    // links and the reason line (the content width left is the width minus this)
+    inline constexpr double kTextInset = 2.0;
     inline constexpr double kLinksTop = kRowH * kArchetypeLines + kLinksGap;
     inline constexpr double kReasonTop = kLinksTop + kLinkRowH;
     inline constexpr double kContentH = kReasonTop + kReasonH;
@@ -159,7 +164,7 @@ namespace SrBlock
 
     /// Where the link row starts. List: under the three reserved lines (kLinksTop). Line: under the lines it used, with
     /// half the room the unused lines and kLinksGap would leave (user, 2026-10-30: the gap between the archetypes and the
-    /// links halved), so a one-line spell has its links 21 units under it, not 42; the rest of the fixed height stays
+    /// links halved), so a one-line spell has its links 22 units under it, not 44; the rest of the fixed height stays
     /// empty at the bottom - or, with SL_MagicMenu's kMessageHeight, the block shrinks to ContentHeight. The reason line
     /// follows the links (ReasonTop); in the line layout without links it takes their place.
     constexpr double LinksTop(LayoutKind a_kind, int a_linesUsed);
@@ -229,7 +234,7 @@ namespace SrBlock
 
     /// The layout a state is placed and sized by (user 2026-10-30): the archetypes in the chosen layout; a reason-only state
     /// ("?" and the reason line) in the line layout's, one line - so in the list layout too it shrinks to a one-line block
-    /// (111 with links and the reason) instead of leaving the fixed height's gap
+    /// (112 with links and the reason) instead of leaving the fixed height's gap
     constexpr LayoutKind PlacedKind(LayoutKind a_chosen, Show a_show)
     {
         return a_show == Show::kItems ? a_chosen : LayoutKind::kLine;
@@ -238,8 +243,9 @@ namespace SrBlock
     struct Metrics
     {
         double width = 0.0;         // the content clip's width
+        double start = kTextInset;  // where every line starts (labels, the line layout's first icon)
         double iconSize = 14.0;     // an icon's box (square)
-        double iconGap = 3.0;       // icon -> its text
+        double iconGap = 4.0;       // icon -> its text
         double separatorW = 0.0;    // the middle dot's text width
         double separatorPad = 4.0;  // on each side of the middle dot
         double ellipsisW = 0.0;     // "..." text width
@@ -369,9 +375,9 @@ namespace SrBlock
         int line = 0;
         if (a_kind == LayoutKind::kLine) {
             std::size_t next = 0;
-            if (!Detail::Flow(out, a_m, a_items, next, line, 0.0)) {
+            if (!Detail::Flow(out, a_m, a_items, next, line, a_m.start)) {
                 out.hidden += static_cast<int>(a_items.size() - next);
-                Detail::EndWithEllipsis(out, a_m, line, 0.0);
+                Detail::EndWithEllipsis(out, a_m, line, a_m.start);
             }
             out.lines = line + 1;
             return out;
@@ -381,7 +387,7 @@ namespace SrBlock
             const bool used = std::ranges::any_of(a_items, [&](const Measured& a_x) { return GroupOf(a_x.item.archetype) == kShownGroups[g]; });
             if (used) widest = std::max(widest, a_labelW[g]);
         }
-        out.labelColumn = std::min(widest + a_m.labelGap, a_m.width * a_m.maxLabelShare);
+        out.labelColumn = a_m.start + std::min(widest + a_m.labelGap, a_m.width * a_m.maxLabelShare);
         bool first = true;
         for (std::size_t g = 0; g < kShownGroups.size(); ++g) {
             std::vector<Measured> group;
@@ -402,7 +408,7 @@ namespace SrBlock
                 ++line;
             }
             first = false;
-            out.parts.push_back({ Part::Kind::kLabel, static_cast<int>(g), false, line, 0.0, std::min(a_labelW[g], out.labelColumn) });
+            out.parts.push_back({ Part::Kind::kLabel, static_cast<int>(g), false, line, a_m.start, std::min(a_labelW[g], out.labelColumn - a_m.start) });
             std::size_t next = 0;
             if (!Detail::Flow(out, a_m, group, next, line, out.labelColumn)) {
                 out.hidden += static_cast<int>(group.size() - next);
@@ -462,13 +468,13 @@ namespace SrBlock
         const char* key;
     };
     inline constexpr std::array<Link, 3> kLinks{ { { 2, "link.journal" }, { 3, "link.alembic" }, { 1, "link.experience" } } };
-    inline constexpr double kLinkGap = 10.0;  // between two links
+    inline constexpr double kLinkGap = 8.0;  // between two links
 
     /// Link rects in the row at a_top, a_textW[i] each link's measured text width; a link past the width is cut to it
-    inline std::vector<Rect> PlaceLinks(const std::vector<double>& a_textW, double a_top, double a_width)
+    inline std::vector<Rect> PlaceLinks(const std::vector<double>& a_textW, double a_top, double a_width, double a_start = kTextInset)
     {
         std::vector<Rect> rects;
-        double x = 0.0;
+        double x = a_start;
         for (const double w : a_textW) {
             if (x >= a_width) break;
             const double right = std::min(x + w, a_width);

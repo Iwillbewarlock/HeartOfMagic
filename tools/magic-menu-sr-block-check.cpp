@@ -255,7 +255,7 @@ namespace
         const auto* area = Find(list, Part::Kind::kIcon, kArea);
         Expect(list.lines == 2 && fire && actor && area && fire->line == 0 && actor->line == 1 && area->line == 1,
             "list Fireball: Element on line 0, Targeting (? and Area) on line 1");
-        Expect(std::abs(list.labelColumn - (9 * kCharW + m.labelGap)) < kEpsilon && fire && std::abs(fire->x - list.labelColumn) < kEpsilon,
+        Expect(std::abs(list.labelColumn - (kTextInset + 9 * kCharW + m.labelGap)) < kEpsilon && fire && std::abs(fire->x - list.labelColumn) < kEpsilon,
             "list: the archetypes start after the widest used label plus the gap");
         int labels = 0, separators = 0;
         for (const auto& part : list.parts) {
@@ -270,6 +270,18 @@ namespace
         int lineSeparators = 0;
         for (const auto& part : line.parts) lineSeparators += part.kind == Part::Kind::kSeparator;
         Expect(line.lines == 1 && lineSeparators == 2 && line.labelColumn == 0.0, "line Fireball: one line, three archetypes, two separators, no labels");
+        // one left edge (UI checklist rule 1): the first part of every line at kTextInset, where the host's title letters start
+        bool edge = true;
+        for (const auto* p : { &list, &line }) {
+            for (int l = 0; l < p->lines; ++l) {
+                double first = 1e9;
+                for (const auto& part : p->parts) {
+                    if (part.line == l && (p == &line || part.kind == Part::Kind::kLabel)) first = std::min(first, part.x);
+                }
+                if (p == &line || first < 1e9) edge = edge && std::abs(first - kTextInset) < kEpsilon;
+            }
+        }
+        Expect(edge, "one left edge: the line layout's first icon and the list's labels start at kTextInset (2), the title's first letter");
 
         // Ice Storm + Ward (the mock's long case): Frost Shields ? ? / Self Area / Sensing
         const std::vector<Item> many{ { kFrost, true }, { kLight, false }, { kShadow, false }, { kShields, true }, { kSelf, true }, { kArea, true },
@@ -353,7 +365,7 @@ namespace
         Expect(kReasonTop + kReasonH <= kContentH && kLinksTop >= kRowH * kArchetypeLines, "links under the archetypes, reason line under the links");
         Expect(LinksTop(LayoutKind::kList, 1) == kLinksTop && LinksTop(LayoutKind::kList, 3) == kLinksTop, "list: the links stay under the three reserved lines");
         // line: half of what the unused lines and kLinksGap left (42 -> 21 for one line, 24 -> 12 for two, 6 -> 3 for three)
-        Expect(LinksTop(LayoutKind::kLine, 1) == 39.0 && LinksTop(LayoutKind::kLine, 2) == 48.0 && LinksTop(LayoutKind::kLine, 3) == 57.0,
+        Expect(LinksTop(LayoutKind::kLine, 1) == 40.0 && LinksTop(LayoutKind::kLine, 2) == 49.0 && LinksTop(LayoutKind::kLine, 3) == 58.0,
             Text("line: links at %.0f / %.0f / %.0f after 1 / 2 / 3 lines", LinksTop(LayoutKind::kLine, 1), LinksTop(LayoutKind::kLine, 2),
                 LinksTop(LayoutKind::kLine, 3)));
         Expect(LinksTop(LayoutKind::kLine, 0) == LinksTop(LayoutKind::kLine, 1) && LinksTop(LayoutKind::kLine, 9) == LinksTop(LayoutKind::kLine, 3),
@@ -385,34 +397,34 @@ namespace
                 }
             }
         }
-        Expect(listFixed, "list: always the fixed content height (94), whatever the lines, links or reason");
+        Expect(listFixed, "list: always the fixed content height (96), whatever the lines, links or reason");
         Expect(lineNotOver, "line: never more than the list's content height (the registered height is the maximum)");
         Expect(lineGrows, "line: one more archetype line needs more height");
         Expect(chrome, "block height = content + the host's title strip and padding (list: kBlockHeight)");
-        // one line, links, no reason: links at 39, row 18 -> 57; with the reason 73; three lines with both 91
-        Expect(ContentHeight(LayoutKind::kLine, 1, true, false) == 57.0 && ContentHeight(LayoutKind::kLine, 1, true, true) == 73.0 &&
-                   ContentHeight(LayoutKind::kLine, 3, true, true) == 91.0,
+        // one line, links, no reason: links at 40, row 18 -> 58; with the reason 74; three lines with both 92
+        Expect(ContentHeight(LayoutKind::kLine, 1, true, false) == 58.0 && ContentHeight(LayoutKind::kLine, 1, true, true) == 74.0 &&
+                   ContentHeight(LayoutKind::kLine, 3, true, true) == 92.0,
             Text("line: 1 line + links %.0f, + reason %.0f; 3 lines + both %.0f", ContentHeight(LayoutKind::kLine, 1, true, false),
                 ContentHeight(LayoutKind::kLine, 1, true, true), ContentHeight(LayoutKind::kLine, 3, true, true)));
-        Expect(ReasonTop(LayoutKind::kLine, 1, false) == LinksTop(LayoutKind::kLine, 1) && ContentHeight(LayoutKind::kLine, 1, false, true) == 39.0 + kReasonH,
+        Expect(ReasonTop(LayoutKind::kLine, 1, false) == LinksTop(LayoutKind::kLine, 1) && ContentHeight(LayoutKind::kLine, 1, false, true) == 40.0 + kReasonH,
             "line without links: the reason line takes the link row's place");
         Expect(ContentHeight(LayoutKind::kLine, 1, false, false) == LinksTop(LayoutKind::kLine, 1), "line, nothing under the archetypes: up to where the links would start");
         Expect(ContentHeight(LayoutKind::kLine, 0, true, true) == ContentHeight(LayoutKind::kLine, 1, true, true),
             "a reason-only state (0 lines) counts as one line");
 
-        // the real sequence: a menu opens at the registered size (94 content), the line layout's spell needs 57
+        // the real sequence: a menu opens at the registered size (96 content), the line layout's spell needs 58
         HeightRequests requests;
-        Expect(requests.ShouldSend(57), "menu open, the spell needs 57: sent");
-        Expect(!requests.ShouldSend(57), "the host's redraw at 57 (it applied the request): nothing sent - no loop");
-        Expect(!requests.ShouldSend(57.02), "within the tolerance: nothing sent");
-        Expect(!requests.ShouldSend(57), "the layout mode's redraw at the registered 94: nothing sent (the content still needs 57)");
-        Expect(requests.ShouldSend(73), "another spell needs 73: sent");
-        Expect(requests.ShouldSend(57), "back to a spell that needs 57: sent");
-        requests.Reset();  // the menu closes and opens again: the host is back at 94
-        Expect(requests.ShouldSend(57), "the menu reopens (Reset): 57 sent again");
+        Expect(requests.ShouldSend(58), "menu open, the spell needs 58: sent");
+        Expect(!requests.ShouldSend(58), "the host's redraw at 58 (it applied the request): nothing sent - no loop");
+        Expect(!requests.ShouldSend(58.02), "within the tolerance: nothing sent");
+        Expect(!requests.ShouldSend(58), "the layout mode's redraw at the registered 96: nothing sent (the content still needs 58)");
+        Expect(requests.ShouldSend(74), "another spell needs 74: sent");
+        Expect(requests.ShouldSend(58), "back to a spell that needs 58: sent");
+        requests.Reset();  // the menu closes and opens again: the host is back at 96
+        Expect(requests.ShouldSend(58), "the menu reopens (Reset): 58 sent again");
         requests.Reset();  // the layout changes to list
-        Expect(requests.ShouldSend(94), "list layout after Reset: its 94 sent (the block grows back)");
-        Expect(!requests.ShouldSend(94), "and not again");
+        Expect(requests.ShouldSend(96), "list layout after Reset: its 96 sent (the block grows back)");
+        Expect(!requests.ShouldSend(96), "and not again");
 
         // user 2026-10-30: a reason-only state is placed and sized by the line layout's rules in the list layout too
         Expect(PlacedKind(LayoutKind::kList, Show::kItems) == LayoutKind::kList && PlacedKind(LayoutKind::kLine, Show::kItems) == LayoutKind::kLine,
@@ -420,9 +432,9 @@ namespace
         Expect(PlacedKind(LayoutKind::kList, Show::kReason) == LayoutKind::kLine && PlacedKind(LayoutKind::kLine, Show::kReason) == LayoutKind::kLine,
             "a reason-only state: the line layout's rules in both");
         const double reasonOnly = BlockHeightFor(PlacedKind(LayoutKind::kList, Show::kReason), 1, true, true);
-        Expect(reasonOnly == 111.0 && reasonOnly == BlockHeightFor(LayoutKind::kLine, 1, true, true),
+        Expect(reasonOnly == 112.0 && reasonOnly == BlockHeightFor(LayoutKind::kLine, 1, true, true),
             Text("list, a reason-only state with links and the reason: %.0f, a one-line line-layout block's height", reasonOnly));
-        Expect(BlockHeightFor(PlacedKind(LayoutKind::kList, Show::kItems), 1, true, true) == kBlockHeight, "list with archetypes: still the fixed 132");
+        Expect(BlockHeightFor(PlacedKind(LayoutKind::kList, Show::kItems), 1, true, true) == kBlockHeight, "list with archetypes: still the fixed 134");
     }
 
     // ---------------------------------------------------------------------
@@ -480,7 +492,7 @@ namespace
     {
         std::printf("links and clicks\n");
         const auto rects = PlaceLinks({ 42.0, 44.0, 60.0 }, kLinksTop, 244.0);
-        Expect(rects.size() == 3 && rects[0].left == 0.0 && rects[1].left == 42.0 + kLinkGap && rects[2].left == rects[1].right + kLinkGap,
+        Expect(rects.size() == 3 && rects[0].left == kTextInset && rects[1].left == kTextInset + 42.0 + kLinkGap && rects[2].left == rects[1].right + kLinkGap,
             "three links left to right with the gap");
         Expect(rects[0].top == kLinksTop && rects[0].bottom == kLinksTop + kLinkRowH, "a link's rect is its row");
         const double y = kLinksTop + 5;

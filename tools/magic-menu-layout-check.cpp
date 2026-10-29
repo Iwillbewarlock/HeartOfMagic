@@ -1139,7 +1139,7 @@ namespace
         const BlockId addon = "SpellResearch.archetypes";
         State state = Layout::Default(kValues);
         state.columns[1].insert(state.columns[1].begin(), addon);  // blocks below it, so they move
-        constexpr double kRegistered = 132, kShrunk = 111;
+        constexpr double kRegistered = 134, kShrunk = 112;  // the SR block's list and reason-only heights
         const auto gapsOk = [&](const std::map<BlockId, Rect>& a_rects, int a_column) {
             double bottom = -1;
             for (const auto& id : state.columns[a_column]) {
