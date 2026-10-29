@@ -649,6 +649,10 @@ namespace Widget
             // user 2026-10-30: this tab's rects with no block fitted to its content - each block's full size, the most a fit may
             // take (FitBlock), and its size in the layout mode
             std::map<Layout::BlockId, Settings::Rect> blocksMax;
+            // the same with nothing hidden: the full height of a block this tab hides (it is still drawn on every dirty frame -
+            // its rooms must not come from its own fit, or each draw would ask for less)
+            std::map<Layout::BlockId, Settings::Rect> blocksMaxAll;
+            int resizeLogs = 0;  // Rearrange's "block X is W x H now" lines this menu (a fitted card changes with its content)
             std::pair<double, double> treeOrigin{};
             bool gearPlaced = false;  // the gear has its place this menu (PlaceGear)
             int gearTries = 0;  // the tree drawing's 0,0 in its panel as last drawn (RedrawTree; the tooltip's)
@@ -3458,6 +3462,7 @@ namespace Widget
             g_menu.blocksAll = ArrangeBlocks({});
             g_menu.blocks = ArrangeBlocks(ArrangementFor(g_menu.tab, OwnCard()));
             g_menu.blocksMax = ArrangeBlocks(ArrangementFor(g_menu.tab, OwnCard()), false);
+            g_menu.blocksMaxAll = ArrangeBlocks({}, false);
             PlaceColumns(a_widget);  // the scrolls clamped to this tab's content before any BlockRect below
             for (const BlockId& id : AllBlocks()) {
                 const auto rect = BlockRect(id);
@@ -3478,8 +3483,11 @@ namespace Widget
                 }
                 // Task 2 review #1: a new height redraws the content too (the tree's legend sits at its bottom, the cards fill it)
                 if (resized) {
-                    logger::info("Widget: block {} is {:.0f} x {:.0f} now (was {:.0f} x {:.0f}) - drawn again", id, rect.Width(), rect.Height(),
-                        last->second.Width(), last->second.Height());
+                    constexpr int kMaxResizeLogs = 24;  // a fitted card is resized with its content: one line per change, capped
+                    if (++g_menu.resizeLogs <= kMaxResizeLogs) {
+                        logger::info("Widget: block {} is {:.0f} x {:.0f} now (was {:.0f} x {:.0f}) - drawn again{}", id, rect.Width(), rect.Height(),
+                            last->second.Width(), last->second.Height(), g_menu.resizeLogs == kMaxResizeLogs ? " - later ones this menu not logged" : "");
+                    }
                     if (id == Layout::kTree && panel.IsDisplayObject()) {
                         DrawLegend(a_movie, panel, rect.Width(), rect.Height(), g_menu.legendSchool.value_or(std::string{}));
                     }
@@ -3498,7 +3506,8 @@ namespace Widget
         {
             if (const auto* addon = Addon(a_id)) return addon->height;
             if (const auto it = g_menu.blocksMax.find(a_id); it != g_menu.blocksMax.end()) return it->second.Height();
-            if (const auto it = g_menu.blocksAll.find(a_id); it != g_menu.blocksAll.end()) return it->second.Height();
+            // a block this tab hides: its height with nothing hidden and no fit (never blocksAll: that one has the fits in it)
+            if (const auto it = g_menu.blocksMaxAll.find(a_id); it != g_menu.blocksMaxAll.end()) return it->second.Height();
             return BlockRect(a_id).Height();
         }
 
