@@ -2,7 +2,7 @@
 // 2026-10-27, "Changes / 1"): the registration parsing of plugins/SL_MagicMenu/src/BlockRegistry.cpp (v1 bytes in the
 // frozen v1 layout, v2 in full and cut short, version 3 refused, v2 with neither draw refused, the tabs mask) and the
 // pure rules of BlockRules.h that Widget.cpp runs on the game's values (the tab bit of a SkyUI category flag, a block's
-// visibility per tab, the press / release cancel rules, the content clip coordinates).
+// visibility per tab, the press / release cancel rules, the content clip coordinates, the kMessageRedraw id rule).
 //
 //   magic-menu-block-api-check              one PASS/FAIL line per check, a total line
 //   magic-menu-block-api-check --selftest   the same checks (no game or input files exist for this tool), "selftest: ..." line
@@ -142,6 +142,20 @@ namespace
         small.structSize = BlockApi::kRegistrationV1Size - 8;
         ExpectRefused(Send(registry, Bytes(small)), "smaller than the v1", "v1 structSize 40");
         ExpectRefused(Send(registry, Bytes(V1("cut")), BlockApi::kRegistrationV1Size - 1), "smaller than the v1", "v1 message 47 bytes");
+
+        // review round 1 #5: refusals before the fields are read still answer a v1 sender as v1
+        registry.Close();
+        const auto lateV1 = Send(registry, Bytes(V1("late")));
+        ExpectRefused(lateV1, "closed", "v1 after the window closed");
+        Expect(lateV1.apiVersion == BlockApi::kVersionV1, Text("the closed-window refusal answers a v1 sender as v1 (apiVersion %u)", lateV1.apiVersion));
+        const auto lateV2 = Send(registry, Bytes(V2("late")));
+        Expect(!lateV2.accepted && lateV2.apiVersion == BlockApi::kVersion, "... and a v2 sender as v2");
+        auto lateV3 = V2("late");
+        lateV3.apiVersion = BlockApi::kVersion + 1;
+        Expect(Send(registry, Bytes(lateV3)).apiVersion == BlockApi::kVersion, "... and a version 3 sender with the host's version");
+        BlockRegistry::Registry open;
+        const auto noData = open.Register("AddonA", nullptr, 0);
+        Expect(!noData.accepted && noData.apiVersion == BlockApi::kVersion, "no data: refused, answered with the host's version");
     }
 
     void V2Registrations()
@@ -283,6 +297,9 @@ namespace
         expect({ at, { 1005, 415 }, false }, Verdict::kOutsideBlock, "onReleaseOutside");
         expect({ at, { 1231, 415 } }, Verdict::kOutsideBlock, "release right of the content area (over the clip's padding)");
         expect({ at, { 1005, 399 } }, Verdict::kOutsideBlock, "release above the content area (the title strip)");
+        const BlockRules::Press outsidePress{ at, { 985, 410 } };  // left of the content area (the panel's padding)
+        Expect(BlockRules::Judge(outsidePress, { at, { 1005, 415 } }) == Verdict::kOutsideBlock,
+            "press outside the content area, release inside: released outside the block");
         auto low = at;
         low.content = { 990, 600, 1230, 720 };  // the block runs past the column's bottom (scrolled column)
         BlockRules::Press lowPress{ low, { 1000, 610 } };
@@ -322,6 +339,28 @@ namespace
         Expect(origin.x == 0 && origin.y == 0, "the content area's top-left is 0,0");
     }
 
+    void RedrawIds()
+    {
+        std::printf("kMessageRedraw ids (BlockRules::RedrawId)\n");
+        const auto read = [](const std::string& a_text, std::uint32_t a_len) { return BlockRules::RedrawId(a_text.c_str(), a_len); };
+        const std::string plain = "MyMod.stats";
+        Expect(read(plain, static_cast<std::uint32_t>(plain.size() + 1)) == plain, "an id with its NUL");
+        Expect(read(plain, static_cast<std::uint32_t>(plain.size())) == plain, "an id sent without its NUL (dataLen = its length)");
+        Expect(read(plain, 5) == std::string("MyMod"), "read no further than dataLen");
+        Expect(!BlockRules::RedrawId(nullptr, 8) && !read("", 1) && !read(plain, 0), "null data, an empty id, dataLen 0: none");
+        // review round 1 #1: the longest final id the registry makes (a 255-character plugin name + '.' + a 128-character id)
+        BlockRegistry::Registry registry;
+        const std::string sender(BlockRules::kMaxPluginNameLength, 'P');
+        const std::string longId(BlockApi::kMaxIdLength, 'x');
+        auto reg = V2(longId.c_str());
+        const auto outcome = registry.Register(sender, &reg, sizeof(reg));
+        Expect(outcome.accepted && outcome.id.size() == BlockRules::kMaxFinalIdLength,
+            Text("a 128-character id from a 255-character plugin: final id %zu characters", outcome.id.size()));
+        Expect(read(outcome.id, static_cast<std::uint32_t>(outcome.id.size() + 1)) == outcome.id, "that final id is read whole by RedrawId");
+        const std::string tooLong(BlockRules::kMaxFinalIdLength + 1, 'y');
+        Expect(!read(tooLong, static_cast<std::uint32_t>(tooLong.size() + 1)), Text("an id of %zu characters: none", tooLong.size()));
+    }
+
     int Run()
     {
         Layouts();
@@ -329,6 +368,7 @@ namespace
         V2Registrations();
         TabMask();
         ClickRules();
+        RedrawIds();
         std::printf("block-api-check: %d PASS, %d FAIL\n", g_pass, g_fail);
         return g_fail == 0 ? kExitOk : kExitFail;
     }

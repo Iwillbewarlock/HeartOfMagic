@@ -66,16 +66,21 @@ namespace BlockRegistry
 
     Outcome Registry::Register(std::string_view a_sender, const void* a_data, std::uint32_t a_dataLen)
     {
+        // the version the answer carries: the sender's own when it is one this host reads (a v1 sender is answered as v1 even
+        // when refused before anything else is read), else kVersion
+        std::uint32_t header[2]{};
+        const bool hasHeader = a_data && a_dataLen >= kHeaderSize;
+        if (hasHeader) std::memcpy(header, a_data, kHeaderSize);
+        const std::uint32_t version = header[0], size = header[1];
+        const bool known = hasHeader && (version == BlockApi::kVersionV1 || version == BlockApi::kVersion);
+        const std::uint32_t answer = known ? version : BlockApi::kVersion;
         if (_closed) {
-            return Refused({}, "registration is closed: the magic menu was opened already (register at kPostPostLoad .. kDataLoaded)");
+            return Refused({}, "registration is closed: the magic menu was opened already (register at kPostPostLoad .. kDataLoaded)", answer);
         }
-        if (!a_data || a_dataLen < kHeaderSize) {
+        if (!hasHeader) {
             return Refused({}, std::format("no Registration in the message (data {}, {} byte(s))", a_data ? "set" : "null", a_dataLen));
         }
-        std::uint32_t header[2]{};
-        std::memcpy(header, a_data, kHeaderSize);
-        const std::uint32_t version = header[0], size = header[1];
-        if (version != BlockApi::kVersionV1 && version != BlockApi::kVersion) {
+        if (!known) {
             return Refused({}, std::format("apiVersion {} is not one this SL_MagicMenu reads ({} or {}){}", version, BlockApi::kVersionV1,
                                    BlockApi::kVersion, version > BlockApi::kVersion ? ": update SL_MagicMenu" : ""));
         }

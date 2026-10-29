@@ -3,7 +3,12 @@
 #include "BlockApi.h"
 #include "Settings.h"
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <cstring>
+#include <optional>
+#include <string>
 
 // =============================================================================
 // BLOCK RULES - the pure parts of the Block API v2 host side (Spell Research
@@ -31,6 +36,23 @@ namespace BlockRules
         case kFlagActiveEffects: return BlockApi::kTabActiveEffects;
         default: return BlockApi::kTabSpells;
         }
+    }
+
+    // The longest final id the registry can make: an unprefixed id of kMaxIdLength gets "<sender>." in front, and an SKSE
+    // plugin's name is at most 255 characters (CommonLibSSE-NG SKSE/Interfaces.h PluginDeclaration::pluginName[256]; a
+    // legacy SKSEPlugin_Query name has no such bound - such a plugin with a longer name cannot ask for a redraw)
+    inline constexpr std::size_t kMaxPluginNameLength = 255;
+    inline constexpr std::size_t kMaxFinalIdLength = kMaxPluginNameLength + 1 + BlockApi::kMaxIdLength;
+
+    /// The block id of a kMessageRedraw message: its NUL-terminated text read no further than a_dataLen; nullopt when there
+    /// is none (null data, empty) or it runs past kMaxFinalIdLength. Whether it names a block is the registry's to say
+    inline std::optional<std::string> RedrawId(const void* a_data, std::uint32_t a_dataLen)
+    {
+        const auto* text = static_cast<const char*>(a_data);
+        if (!text) return std::nullopt;
+        const std::size_t length = strnlen(text, std::min<std::size_t>(a_dataLen, kMaxFinalIdLength + 1));
+        if (length == 0 || length > kMaxFinalIdLength) return std::nullopt;
+        return std::string(text, length);
     }
 
     /// A block with this tabs mask shows on the tab of a_flag (kTabsAll: on every tab)

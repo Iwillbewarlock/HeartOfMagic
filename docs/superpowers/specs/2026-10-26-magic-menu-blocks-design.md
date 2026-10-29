@@ -341,8 +341,10 @@ header comment of `plugins/SL_MagicMenu/src/BlockApi.h`, the pure rules `BlockRu
 - `drawSelection` gets the form the card shows (tree card spell, else the committed list selection, else 0); the frame
   handler compares it per block after its own selection and tree-click handling and draws the block again when it
   changed (DrawAddons runs twice a frame: after the layout mode, after the selection watch).
-- `kMessageRedraw` ('SLMD', data = final id): queued from any thread, drawn on the next frame, dropped while the menu is
-  closed, an unknown id logged once.
+- `kMessageRedraw` ('SLMD', data = final id, up to 255 + 1 + 128 characters: an SKSE plugin name, '.', an id): queued from
+  any thread (an id already queued is not queued again, at most 64 ids wait), drawn on the next frame, dropped while the
+  menu is closed, an unknown id logged once. A drawSelection block its tabs mask hides is not redrawn for a new form until
+  a tab shows it again.
 - `click`: a transparent hit clip (`mmxHit`) over the content clip of each v2 block with `click`, made again after each
   draw; its onPress / onRelease / onReleaseOutside only record, the release is judged at once by `BlockRules::Judge`
   (cancelled when the release is outside the content area or the column's viewport, or the column scrolled, the block was

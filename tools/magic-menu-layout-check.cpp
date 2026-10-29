@@ -962,12 +962,14 @@ namespace
 {
     void DrawNothing(RE::GFxMovieView*, RE::GFxValue&, float, float, void*) {}
 
-    BlockApi::Registration Reg(const char* a_id, float a_height = 100.0f)
+    // API v2 review: these registry cases send the frozen v1 struct (48 bytes), so they keep testing the v1 path; the v2 cases are
+    // tools/magic-menu-block-api-check's
+    BlockApi::RegistrationV1 Reg(const char* a_id, float a_height = 100.0f)
     {
         return { .id = a_id, .title = "T", .height = a_height, .draw = DrawNothing };
     }
 
-    BlockRegistry::Outcome Send(BlockRegistry::Registry& a_registry, const BlockApi::Registration& a_reg, std::string_view a_sender = "AddonA")
+    BlockRegistry::Outcome Send(BlockRegistry::Registry& a_registry, const BlockApi::RegistrationV1& a_reg, std::string_view a_sender = "AddonA")
     {
         return a_registry.Register(a_sender, &a_reg, sizeof(a_reg));
     }
@@ -1019,11 +1021,9 @@ namespace
         const auto shortMessage = Reg("x.short");
         ExpectRefused(registry.Register("AddonA", &shortMessage, BlockApi::kRegistrationV1Size - 1), "smaller", "message shorter than v1");
         ExpectRefused(registry.Register("AddonA", nullptr, 0), "no Registration", "no data");
-        // API v2: a v2 struct cut short after its v1 part and one v2 field (drawSelection) - the v1 part is read, draw is there
-        // (the v2 cases in full: tools/magic-menu-block-api-check)
-        auto longer = Reg("x.longer");
-        longer.structSize = BlockApi::kRegistrationV1Size + sizeof(BlockApi::DrawSelectionFn);
-        Expect(Send(registry, longer).accepted, "a v2 structSize between v1 and v2 (only drawSelection covered): accepted");
+        auto longer = Reg("x.longer");  // a v1 add-on whose struct grew at the end: its v1 part is read
+        longer.structSize = BlockApi::kRegistrationV1Size + 16;
+        Expect(Send(registry, longer).accepted, "structSize larger than v1 (same version): accepted");
         // a built-in id comes only with a '.' (no '.' is prefixed): "preview" from AddonA is AddonA.preview, not the built-in block
         Expect(Send(registry, Reg("preview")).id == "AddonA.preview", "\"preview\" from an add-on is AddonA.preview, not the built-in block");
         BlockRegistry::Registry reserved({ "Mine.block" });

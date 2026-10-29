@@ -3174,14 +3174,25 @@ namespace Widget
 
         std::optional<std::pair<double, double>> MouseAt(RE::GFxMovie* a_movie);  // the pointer on the stage (the layout mode's helpers)
 
-        // An add-on block's content clip on screen (stage, scrolled): below its title strip (when it has one) and inside the
-        // padding - where DrawAddons puts the lent clip and the hit clip. Its top-left is the clip's 0,0
+        // An add-on block's content clip in its panel: below its title strip (when it has one) and inside the padding - where
+        // DrawAddons puts the lent clip and the hit clip (x = kPad, y = top) and the size it hands the callbacks
+        struct AddonBox
+        {
+            double top{}, width{}, height{};
+        };
+
+        AddonBox AddonBoxOf(const Settings::Rect& a_rect, const BlockRegistry::Block& a_addon)
+        {
+            const double top = a_addon.title.empty() ? kPad : kTitleH + kPad;
+            return { top, std::max(0.0, a_rect.Width() - 2 * kPad), std::max(0.0, a_rect.Height() - top - kPad) };
+        }
+
+        // The same content clip on screen (stage, scrolled); its top-left is the clip's 0,0
         Settings::Rect AddonContentRect(const BlockId& a_id, const BlockRegistry::Block& a_addon)
         {
             const auto rect = BlockRect(a_id);
-            const double top = a_addon.title.empty() ? kPad : kTitleH + kPad;
-            const double width = std::max(0.0, rect.Width() - 2 * kPad), height = std::max(0.0, rect.Height() - top - kPad);
-            return { rect.left + kPad, rect.top + top, rect.left + kPad + width, rect.top + top + height };
+            const auto box = AddonBoxOf(rect, a_addon);
+            return { rect.left + kPad, rect.top + box.top, rect.left + kPad + box.width, rect.top + box.top + box.height };
         }
 
         // The form the menu's card shows (the spell research design's "which form"): the tree card's spell when a tree click put
@@ -3339,12 +3350,14 @@ namespace Widget
             SelfTest(std::format("L6 addon {} click FAIL - its click callback threw: {}", due.id, error));
         }
 
-        // Block API v2: a drawSelection block whose last draw had another form than the card's now is due again
+        // Block API v2: a drawSelection block whose last draw had another form than the card's now is due again - only while it
+        // has a place on this tab (g_menu.blocks): one its tabs mask hides waits, and is drawn once when a tab change brings it
+        // back (Rearrange has updated g_menu.blocks by then, so the next call here sees the old form)
         void WatchShownForm()
         {
             const RE::FormID shown = ShownForm();
             for (const auto& addon : g_addons) {
-                if (!addon.drawSelection || g_menu.addonFailed.contains(addon.id) || !g_menu.blocksAll.contains(addon.id)) continue;
+                if (!addon.drawSelection || g_menu.addonFailed.contains(addon.id) || !g_menu.blocks.contains(addon.id)) continue;
                 const auto last = g_menu.addonShown.find(addon.id);
                 if (last == g_menu.addonShown.end() || last->second != shown) g_menu.addonDrawDue.insert(addon.id);
             }
@@ -3364,17 +3377,19 @@ namespace Widget
             for (const auto& id : due) {
                 const auto* addon = Addon(id);
                 if (!addon || g_menu.addonFailed.contains(id) || !g_menu.blocksAll.contains(id)) continue;
+                const RE::FormID shown = ShownForm();
+                // recorded at the try, drawn or not: a content clip that cannot be made is tried again at the next form change,
+                // not on every DrawAddons call
+                if (addon->drawSelection) g_menu.addonShown[id] = shown;
                 auto content = Content(a_widget, id);
                 if (!content.IsDisplayObject()) {
                     logger::warn("Widget: add-on block {} - its panel's content clip could not be made, not drawn", id);
                     continue;
                 }
                 const auto rect = BlockRect(id);
-                const double top = addon->title.empty() ? kPad : kTitleH + kPad;
-                const double width = std::max(0.0, rect.Width() - 2 * kPad), height = std::max(0.0, rect.Height() - top - kPad);
+                const auto [top, width, height] = AddonBoxOf(rect, *addon);
                 content.SetMember("_x", kPad);
                 content.SetMember("_y", top);
-                const RE::FormID shown = ShownForm();
                 const auto error = GuardedCall([&] {
                     if (addon->drawSelection) {
                         addon->drawSelection(a_movie, content, static_cast<float>(width), static_cast<float>(height), shown, addon->user);
@@ -3390,7 +3405,6 @@ namespace Widget
                     SelfTest(std::format("L6 addon {} drawn FAIL - its draw callback threw: {}", id, error));
                     continue;
                 }
-                if (addon->drawSelection) g_menu.addonShown[id] = shown;
                 if (addon->click) MakeAddonHit(a_movie, a_widget, id, kPad, top, width, height);
                 if (g_menu.addonDrawn.insert(id).second) {
                     SelfTest(std::format("L6 addon {} drawn - {:.0f} x {:.0f} content in column {} (block {}){}", id, width, height,
@@ -7734,19 +7748,25 @@ namespace Widget
     void RequestAddonRedraw(std::string_view a_sender, const void* a_data, std::uint32_t a_dataLen)
     {
         constexpr int kMaxBadRedrawLogs = 5;
+        constexpr std::size_t kMaxQueuedRedraws = 64;  // distinct ids waiting for one frame; more are dropped (and logged)
         static std::atomic<int> s_badLogs{ 0 };
         if (g_closing || !g_attachedMovie.load()) return;  // the menu is closed: it draws every block at its next open
-        const auto* text = static_cast<const char*>(a_data);
-        const std::size_t length = text ? strnlen(text, std::min<std::size_t>(a_dataLen, BlockApi::kMaxIdLength + 1)) : 0;
-        if (length == 0 || length > BlockApi::kMaxIdLength) {
+        const auto id = BlockRules::RedrawId(a_data, a_dataLen);
+        const auto sender = a_sender.empty() ? std::string_view("(no sender)") : a_sender;
+        if (!id) {
             if (s_badLogs.fetch_add(1) < kMaxBadRedrawLogs) {
-                logger::warn("Widget: a redraw request ('SLMD') from {} without a block id of 1..{} characters (data {}, {} byte(s)) - ignored",
-                    a_sender.empty() ? std::string_view("(no sender)") : a_sender, BlockApi::kMaxIdLength, text ? "set" : "null", a_dataLen);
+                logger::warn("Widget: a redraw request ('SLMD') from {} without a block id of 1..{} characters (data {}, {} byte(s)) - ignored", sender,
+                    BlockRules::kMaxFinalIdLength, a_data ? "set" : "null", a_dataLen);
             }
             return;
         }
         const std::scoped_lock lock(g_redrawLock);
-        g_redrawQueue.emplace_back(text, length);
+        if (std::ranges::find(g_redrawQueue, *id) != g_redrawQueue.end()) return;  // queued already: one redraw draws it
+        if (g_redrawQueue.size() >= kMaxQueuedRedraws) {
+            if (s_badLogs.fetch_add(1) < kMaxBadRedrawLogs) logger::warn("Widget: redraw request for {} from {} dropped - {} ids queued already", *id, sender, kMaxQueuedRedraws);
+            return;
+        }
+        g_redrawQueue.push_back(*id);
     }
 
     void RegisterDebugFiller()

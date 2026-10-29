@@ -50,8 +50,10 @@
 // When the block is drawn (draw, or drawSelection when it is set - then draw is never called): once after the menu opens,
 // again when the block's size changes or it is moved to the other column, and on a kMessageRedraw for it - each time into a
 // NEW empty clip. drawSelection also gets the form the menu's card shows (a_shown: the spell a tree click put on the card,
-// else the list's committed selection - any form: a spell, a power, a shout's TESShout, an active effect's entry - else 0)
-// and is called again on the next frame whenever that form changes. Check a_shown's form type yourself. There is no
+// else the FormID of the list's committed entry, else 0) and is called again whenever that form changes (in the same frame
+// as the host's selection handling, or the next). Known: on the spell tabs a spell's or power's entry is its SpellItem's
+// FormID. NOT verified in game: what a shout's entry gives (the host's code reads it as the TESShout) and what an Active
+// Effects entry gives (it may be 0 or another form). Look a_shown up and check its form type yourself. There is no
 // per-frame update.
 //
 // kMessageRedraw ('SLMD'): add-on -> SL_MagicMenu, data = the block's final id (NUL-terminated, as the result gave it),
