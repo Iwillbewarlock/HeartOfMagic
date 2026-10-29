@@ -131,7 +131,7 @@ shared text-fitting helpers, and keeping a player's place for the old built-in i
 - kDataLoaded: `TESDataHandler::LookupForm` the three FormLists and `_SR_GlobalImporting` 004C8D /
   `_SR_GlobalIsSetup` 00624F in "SpellResearch.esp"; missing plugin or a list of the wrong shape -> log once and
   register nothing. Then register block id "SpellResearch.archetypes", title "연구 아키타입", fixed height (title
-  strip + tier label + two chip rows + button row + reason line), `drawSelection`, `click`.
+  strip + three archetype rows + link row + reason line, the same for both layouts), `drawSelection`, `click`.
 - Shared data (HasForm walks forms + scriptAddedTempForms without a lock; the Librarian and SR Import write them on
   the game thread): never walk SR's lists in draw. A snapshot (FormID -> tier, archetype bitset; 60 x 5 knowledge
   values) is built in an SKSE task on the game thread when the magic menu opens (a MenuOpenCloseEvent sink), "not
@@ -151,7 +151,7 @@ shared text-fitting helpers, and keeping a player's place for the old built-in i
   the card's id for each redraw.
 - Offline checks (tools/magic-menu-block-api-check, no game): registration parsing (real v1 bytes in the old layout,
   a v2 message cut short, version 3 refused, v2 without either draw refused, the tabs mask), the host's press/release
-  cancel rules as a pure function, and the add-on's pure parts (archetype grouping order, chip wrapping to a width,
+  cancel rules as a pure function, and the add-on's pure parts (archetype grouping order, list and line layout and wrapping to a width, icon data bounds,
   press+release -> button (same rect only), reply -> notification text, requestId matching and the 5 s drop).
 - dist: a hand-made dist/SL_MagicMenu_SpellResearch/ (DLL, ini) like dist/HoM-MagicMenu-Proto until the FOMOD task.
 
