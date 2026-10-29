@@ -327,3 +327,27 @@ stay: titles, the game font, the flat dark panels with their kPanelEdge rules.
 - The tree legend starts where the window title's letters start (`kPad + kGutter / 2`), and its spare room goes only
   between the items. Its fit loop shrinks the text to `kMinFitSize` before cutting (it compared with `kLegendSize`
   and never shrank).
+
+## Block API v2 (2026-10-29)
+
+From the Spell Research add-on design (`2026-10-27-spell-research-addon-design.md`, "Changes / 1"); the contract is the
+header comment of `plugins/SL_MagicMenu/src/BlockApi.h`, the pure rules `BlockRules.h`, checked offline by
+`tools/magic-menu-block-api-check`.
+
+- v1 is frozen as `BlockApi::RegistrationV1` (48 bytes); a v1 add-on is read and answered as before (`Result.apiVersion`
+  echoes the version a registration was read as). v2's `Registration` keeps v1's fields in place and adds
+  `drawSelection`, `click` and `tabs`; only the fields `min(structSize, dataLen)` covers whole are read, a v1 sender's
+  bytes past its 48 never. Version 3+ and unknown `tabs` bits are refused with a reason.
+- `drawSelection` gets the form the card shows (tree card spell, else the committed list selection, else 0); the frame
+  handler compares it per block after its own selection and tree-click handling and draws the block again when it
+  changed (DrawAddons runs twice a frame: after the layout mode, after the selection watch).
+- `kMessageRedraw` ('SLMD', data = final id): queued from any thread, drawn on the next frame, dropped while the menu is
+  closed, an unknown id logged once.
+- `click`: a transparent hit clip (`mmxHit`) over the content clip of each v2 block with `click`, made again after each
+  draw; its onPress / onRelease / onReleaseOutside only record, the release is judged at once by `BlockRules::Judge`
+  (cancelled when the release is outside the content area or the column's viewport, or the column scrolled, the block was
+  drawn again or moved, or the layout mode changed between; never in the layout mode) and the call is made on the next
+  frame, before that frame's redraws, with both points in content clip coordinates.
+- `tabs`: the SkyUI category flag's bit (`BlockRules::TabBit`: Powers 128, Shouts 64, Active Effects 256 their own; All,
+  Favorites, the school tabs and unknown categories are spell tabs). An add-on its mask leaves out joins the tab's hidden
+  set (Arrange closes up, as for the built-in tree blocks) and its panel is hidden (ApplyVisibility).

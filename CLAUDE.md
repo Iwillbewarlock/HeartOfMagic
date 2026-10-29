@@ -343,7 +343,11 @@ This project does not have a C++ test framework. Validation is done through:
   is sent; docs/ARCHITECTURE.md, "Progression state at game start") and `progression-check` (`progression-check --self-test`: the co-save's
   progress (SLPR v1-v3, written as v2), cap tracker (SLPX) and tome XP (SLTX) records, `include/ProgressionCoSave.h`,
   written and read in byte buffers - cut short, over the limits, SLPX without an SLPR entry - and the XP cap, study, SetSpellXP and mastery arithmetic of `include/ProgressionMath.h`;
-  exit 1 on a failure)
+  exit 1 on a failure); the magic menu prototype's (plugins/SL_MagicMenu, docs/superpowers/specs/2026-10-26-magic-menu-blocks-design.md):
+  `magic-menu-tree-check` (`--selftest`, or a spell_tree.json), `magic-menu-layout-check` (the block layout, the add-on registry),
+  `magic-menu-homstyle-check` (`--selftest`, or HoM's config), `magic-menu-preview-check` (the preview math) and
+  `magic-menu-block-api-check` (Block API v2: registration parsing of v1 and v2 bytes, the tabs mask per SkyUI tab, the
+  press / release cancel rules of `BlockRules.h`; `--selftest` the same) - PASS/FAIL lines, exit 1 on a failure
 
 ## Code Style
 
