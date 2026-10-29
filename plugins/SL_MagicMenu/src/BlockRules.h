@@ -4,6 +4,7 @@
 #include "Settings.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -446,5 +447,22 @@ namespace BlockRules
     {
         if (a_layoutMode || !a_state.held || a_nowMs - a_state.held->sinceMs < a_delayMs) return std::nullopt;
         return a_state.held->height;
+    }
+
+    /// The bounds of a clip's four corners after they were taken into another clip's space (controller finding 2026-10-30:
+    /// SkyUI's clips inside Inventory Reforged's sized list window - each corner goes through every parent's transform, then
+    /// the box round them): nullopt when a corner is not a finite number or the box is empty
+    inline std::optional<Settings::Rect> CornerBounds(const std::array<Point, 4>& a_corners)
+    {
+        Settings::Rect box{ a_corners[0].x, a_corners[0].y, a_corners[0].x, a_corners[0].y };
+        for (const auto& corner : a_corners) {
+            if (!std::isfinite(corner.x) || !std::isfinite(corner.y)) return std::nullopt;
+            box.left = std::min(box.left, corner.x);
+            box.top = std::min(box.top, corner.y);
+            box.right = std::max(box.right, corner.x);
+            box.bottom = std::max(box.bottom, corner.y);
+        }
+        if (box.right <= box.left || box.bottom <= box.top) return std::nullopt;
+        return box;
     }
 }

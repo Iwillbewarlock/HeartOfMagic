@@ -23,6 +23,7 @@
 #include <cstdio>
 #include <limits>
 #include <map>
+#include <numbers>
 #include <optional>
 #include <set>
 #include <string>
@@ -1330,6 +1331,22 @@ namespace
         }
         Expect(Near(BlockRules::GearHintX(Settings::Rect{ 434, 680, 452, 698 }, 80, 4, visible1610), 22), "the gear's hint right of it when it fits");
         Expect(Near(BlockRules::GearHintX(Settings::Rect{ 1250, 680, 1268, 698 }, 80, 4, visible1610), -84), "at the stage's right edge: left of it");
+        // corner bounds (controller finding 2026-10-30): the logged scrollbar 432,79..452,667 through Inventory Reforged's window
+        // (scale 0.85, moved 200, 26) lands at 567.2,93.2..584.2,593 - where the screenshot shows it
+        {
+            const auto through = [](double a_x, double a_y) { return BlockRules::Point{ 0.85 * a_x + 200.0, 0.85 * a_y + 26.0 }; };
+            const auto box = BlockRules::CornerBounds({ through(432, 79), through(452, 79), through(452, 667), through(432, 667) });
+            Expect(box && Near(box->left, 567.2) && Near(box->top, 93.15) && Near(box->right, 584.2) && Near(box->bottom, 592.95),
+                Text("corners through scale 0.85 and (200, 26): %s", box ? Show(*box).c_str() : "none"));
+            const double c = std::cos(std::numbers::pi / 2), s = std::sin(std::numbers::pi / 2);
+            const auto turn = [&](double a_x, double a_y) { return BlockRules::Point{ c * a_x - s * a_y, s * a_x + c * a_y }; };
+            const auto turned = BlockRules::CornerBounds({ turn(0, 0), turn(10, 0), turn(10, 4), turn(0, 4) });
+            Expect(turned && Near(turned->Width(), 4) && Near(turned->Height(), 10), "a quarter turn: the box round the turned corners (4 x 10)");
+            const double nan = std::numeric_limits<double>::quiet_NaN();
+            Expect(!BlockRules::CornerBounds({ BlockRules::Point{ nan, 0 }, BlockRules::Point{ 1, 0 }, BlockRules::Point{ 1, 1 }, BlockRules::Point{ 0, 1 } }) &&
+                       !BlockRules::CornerBounds({ BlockRules::Point{ 5, 5 }, BlockRules::Point{ 5, 5 }, BlockRules::Point{ 5, 5 }, BlockRules::Point{ 5, 5 } }),
+                "a corner that is not a number, or an empty box: none");
+        }
         // the second game run (user 2026-10-30): right edge of the list window, centred on the bottom bar's skill row
         const auto at = BlockRules::GearRectAt(452.0, 700.0, 18.0, 2.0, visible1610);
         Expect(Near(at.right, 450) && Near(at.CenterY(), 700) && Near(at.Width(), 18) && Near(at.Height(), 18),

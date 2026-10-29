@@ -1558,7 +1558,8 @@ namespace Widget
             }
         };
 
-        std::optional<Bounds> BoundsIn(RE::GFxValue& a_clip, RE::GFxValue& a_space)
+        // AS2 getBounds(a_space): the clip's bounds as Flash gives them in another clip's space
+        std::optional<Bounds> GetBounds(RE::GFxValue& a_clip, RE::GFxValue& a_space)
         {
             RE::GFxValue bounds;
             const std::array<RE::GFxValue, 1> args{ a_space };
@@ -1567,6 +1568,28 @@ namespace Widget
                        yMax = Number(bounds, "yMax");
             if (!xMin || !xMax || !yMin || !yMax || *xMax <= *xMin || *yMax <= *yMin) return std::nullopt;
             return Bounds{ *xMin, *xMax, *yMin, *yMax };
+        }
+
+        // A clip's bounds in a_space through every transform between them (controller finding 2026-10-30: getBounds(_root) of
+        // SkyUI's list clips under Inventory Reforged's sized window - iSize 85 - came out about 0.85 x + (200, 26) off what the
+        // screen shows): its bounds in its own space, each corner taken to the stage (localToGlobal) and into a_space
+        // (globalToLocal), the box round them (BlockRules::CornerBounds). Without the open menu's movie: getBounds(a_space)
+        std::optional<Bounds> BoundsIn(RE::GFxValue& a_clip, RE::GFxValue& a_space)
+        {
+            auto* movie = OpenMagicMenuMovie();
+            if (const auto local = movie ? GetBounds(a_clip, a_clip) : std::nullopt) {
+                std::array<BlockRules::Point, 4> corners{};
+                const std::array<std::pair<double, double>, 4> at{ { { local->xMin, local->yMin }, { local->xMax, local->yMin }, { local->xMax, local->yMax },
+                    { local->xMin, local->yMax } } };
+                bool mapped = true;
+                for (std::size_t i = 0; i < at.size() && mapped; ++i) {
+                    const auto point = MapPoint(movie, a_clip, a_space, at[i].first, at[i].second);
+                    mapped = point.has_value();
+                    if (point) corners[i] = { point->first, point->second };
+                }
+                if (const auto box = mapped ? BlockRules::CornerBounds(corners) : std::nullopt) return Bounds{ box->left, box->right, box->top, box->bottom };
+            }
+            return GetBounds(a_clip, a_space);
         }
 
         std::optional<std::pair<RE::GFxValue, RE::GFxValue>> CardAndHolder(RE::GFxMovieView* a_movie)
@@ -5332,12 +5355,12 @@ namespace Widget
 
         // The first of a_paths whose clip has bounds in _root, with its path (SkyUI's and Inventory Reforged's member names are not
         // checked offline: the log says which answered)
-        std::optional<std::pair<Settings::Rect, std::string>> FirstBounds(RE::GFxMovieView* a_movie, RE::GFxValue& a_root, std::span<const char* const> a_paths)
+        std::optional<std::pair<Settings::Rect, std::string>> FirstBounds(RE::GFxMovieView* a_movie, RE::GFxValue& a_space, std::span<const char* const> a_paths)
         {
             for (const char* path : a_paths) {
                 RE::GFxValue clip;
                 if (!a_movie->GetVariable(&clip, path) || !clip.IsDisplayObject()) continue;
-                if (const auto bounds = BoundsIn(clip, a_root)) return std::pair{ Settings::Rect{ bounds->xMin, bounds->yMin, bounds->xMax, bounds->yMax }, std::string(path) };
+                if (const auto bounds = BoundsIn(clip, a_space)) return std::pair{ Settings::Rect{ bounds->xMin, bounds->yMin, bounds->xMax, bounds->yMax }, std::string(path) };
             }
             return std::nullopt;
         }
@@ -5345,7 +5368,14 @@ namespace Widget
         // Once per game session, when the gear settles: _root.Menu_mc's named clips to depth kDumpDepth with their stage bounds, so
         // the next log shows what the gear can anchor to (VisitMembers lists a clip's named members; whether it lists every child
         // clip of SkyUI's movie is unverified - the log says how many it saw)
-        void DumpMenuClips(RE::GFxMovieView* a_movie, RE::GFxValue& a_root)
+        // A clip's own transform for the dump: _x, _y, _xscale, _yscale, _rotation
+        std::string TransformText(const RE::GFxValue& a_clip)
+        {
+            const auto get = [&](const char* a_member) { return Number(a_clip, a_member).value_or(std::numeric_limits<double>::quiet_NaN()); };
+            return std::format("at {:.1f},{:.1f} scale {:.1f}/{:.1f} rot {:.1f}", get("_x"), get("_y"), get("_xscale"), get("_yscale"), get("_rotation"));
+        }
+
+        void DumpMenuClips(RE::GFxMovieView* a_movie, RE::GFxValue& a_root, RE::GFxValue& a_widget)
         {
             constexpr int kDumpDepth = 3, kMaxDumpLines = 80;
             static bool s_dumped = false;
@@ -5355,6 +5385,10 @@ namespace Widget
                 logger::info("Layout: menu clip dump - no {}", kMenuPath);
                 return;
             }
+            // the chain above the dumped clips (each dumped clip's line has its own transform, so any clip's chain up to _root reads
+            // off the log): _root, our widget (the host's stage space) and Menu_mc
+            logger::info("Layout: menu clip _root {} | widget _root.{} {} | {} {}", TransformText(a_root), kRootName, TransformText(a_widget), kMenuPath,
+                TransformText(menu));
             int lines = 0, seen = 0;
             std::function<void(RE::GFxValue&, const std::string&, int)> visit = [&](RE::GFxValue& a_clip, const std::string& a_path, int a_depth) {
                 std::vector<std::pair<std::string, RE::GFxValue>> children;
@@ -5366,11 +5400,11 @@ namespace Widget
                     const auto path = a_path + "." + name;
                     if (lines < kMaxDumpLines) {
                         ++lines;
-                        const auto bounds = BoundsIn(child, a_root);
                         const auto visible = BoolMember(child, "_visible");
-                        logger::info("Layout: menu clip {} {}{}", path,
-                            bounds ? std::format("{:.0f},{:.0f}..{:.0f},{:.0f}", bounds->xMin, bounds->yMin, bounds->xMax, bounds->yMax) : std::string("(no bounds)"),
-                            visible ? "" : " hidden");
+                        // local (its own space), in the host's stage space through every parent (what the host uses), and Flash's
+                        // getBounds(_root) (what the host used before), with the clip's own transform
+                        logger::info("Layout: menu clip {} local {} | host {} | getBounds(_root) {} | {}{}", path, BoundsText(GetBounds(child, child)),
+                            BoundsText(BoundsIn(child, a_widget)), BoundsText(GetBounds(child, a_root)), TransformText(child), visible ? "" : " hidden");
                     }
                     if (a_depth + 1 < kDumpDepth) visit(child, path, a_depth + 1);
                 }
@@ -5396,9 +5430,10 @@ namespace Widget
                 "_root.Menu_mc.bottomBar.playerInfoCard.SkillTextInstance", "_root.Menu_mc.bottomBar" };
             static constexpr std::array<const char*, 3> kListPaths{ "_root.Menu_mc.inventoryLists.itemList.scrollbar",
                 "_root.Menu_mc.inventoryLists.itemList.scrollBar", "_root.Menu_mc.inventoryLists.itemList" };
-            const auto window = FirstBounds(a_movie, a_root, kWindowPaths);
-            const auto row = FirstBounds(a_movie, a_root, kRowPaths);
-            const auto list = row ? std::nullopt : FirstBounds(a_movie, a_root, kListPaths);
+            // in the host's stage space (our widget: the gear's own parent), through every parent of SkyUI's clips
+            const auto window = FirstBounds(a_movie, a_widget, kWindowPaths);
+            const auto row = FirstBounds(a_movie, a_widget, kRowPaths);
+            const auto list = row ? std::nullopt : FirstBounds(a_movie, a_widget, kListPaths);
             const bool anchor = window && (row || list);
             if (anchor) g_menu.gearAnchored = true;
             // final review 7: a list that reported bounds once and none for a moment (a refill) keeps the gear where it is
@@ -5439,7 +5474,7 @@ namespace Widget
             }
             g_menu.gearPlaced = true;
             logger::info("Layout: gear button at {} ({})", RectText(rect), from);
-            DumpMenuClips(a_movie, a_root);
+            DumpMenuClips(a_movie, a_root, a_widget);
         }
 
         // user 2026-10-30: the gear's hover hint ("배치 모드 [K]", in the mode "배치 모드 끝내기 [K]", the toggle key as the host
