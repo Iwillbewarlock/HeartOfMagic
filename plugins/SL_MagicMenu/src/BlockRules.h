@@ -8,7 +8,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -130,6 +132,71 @@ namespace BlockRules
     inline double LaidOutHeight(double a_registered, const std::optional<double>& a_current, bool a_layoutMode)
     {
         return a_layoutMode || !a_current ? a_registered : *a_current;
+    }
+
+    // ---------------------------------------------------------------------
+    // Blocks that fit their content (user 2026-10-30): the built-in cards and the tree window set their height this menu to
+    // what their content needs, up to their full (ini / fill / registered) height - the same per-block height an add-on asks
+    // for with kMessageHeight. One map for both (Widget.cpp g_menu.fitHeight)
+    // ---------------------------------------------------------------------
+
+    inline constexpr double kFitSlack = 0.5;  // stage units over a block's needed height: a room exactly as high as its content
+                                              // is not left to float rounding in the fits' floor() and <= comparisons
+
+    /// A block's height for content that needs a_needed, at most a_max (a needed height that is not a finite number > 0: a_max)
+    inline double FittedHeight(double a_needed, double a_max)
+    {
+        if (!std::isfinite(a_needed) || a_needed <= 0.0) return a_max;
+        return std::min(a_needed + kFitSlack, a_max);
+    }
+
+    /// The fit heights put into the heights Arrange is given: each fitted block at LaidOutHeight (its full height in the layout
+    /// mode), and outside the mode taken out of the fill set - a fill block grows to the rest of its column (Layout::Arrange),
+    /// which would undo its fit. Ids not in a_heights (not laid out) are skipped
+    inline void ApplyFits(std::map<std::string, double>& a_heights, std::set<std::string>& a_fill, const std::map<std::string, double>& a_fits,
+        bool a_layoutMode)
+    {
+        for (const auto& [id, fit] : a_fits) {
+            const auto it = a_heights.find(id);
+            if (it == a_heights.end()) continue;
+            it->second = LaidOutHeight(it->second, fit, a_layoutMode);
+            if (!a_layoutMode) a_fill.erase(id);
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // The layout mode's controls (user 2026-10-30): no button under the columns outside the mode; a gear at the bottom-right
+    // of SkyUI's list panel toggles the mode (as the K key does)
+    // ---------------------------------------------------------------------
+
+    inline constexpr unsigned kRowLock = 1u << 0;   // the row's lock button ("레이아웃 잠금": leave the mode, saved)
+    inline constexpr unsigned kRowReset = 1u << 1;  // its reset button
+
+    /// The buttons of the row under the left column: none outside the layout mode, lock and reset in it
+    constexpr unsigned RowButtons(bool a_layoutMode)
+    {
+        return a_layoutMode ? (kRowLock | kRowReset) : 0u;
+    }
+
+    // Where the gear goes when no SkyUI clip answers: its centre as a share of the visible stage (the user's mark in a 1299 x
+    // 876 capture of a 16:10 screen at about 580, 740 - not checked on other aspect ratios)
+    inline constexpr double kGearFallbackX = 580.0 / 1299.0, kGearFallbackY = 740.0 / 876.0;
+
+    /// The gear's rect (stage): right-aligned to a_anchor (SkyUI's scrollbar or list, stage bounds) and a_gap under it; with no
+    /// anchor centred on the fallback share of a_visible. Kept inside a_visible either way
+    inline Settings::Rect GearRect(const std::optional<Settings::Rect>& a_anchor, const Settings::Rect& a_visible, double a_size, double a_gap)
+    {
+        double left = 0.0, top = 0.0;
+        if (a_anchor) {
+            left = a_anchor->right - a_size;
+            top = a_anchor->bottom + a_gap;
+        } else {
+            left = a_visible.left + a_visible.Width() * kGearFallbackX - a_size / 2;
+            top = a_visible.top + a_visible.Height() * kGearFallbackY - a_size / 2;
+        }
+        left = std::clamp(left, a_visible.left, std::max(a_visible.left, a_visible.right - a_size));
+        top = std::clamp(top, a_visible.top, std::max(a_visible.top, a_visible.bottom - a_size));
+        return { left, top, left + a_size, top + a_size };
     }
 
     enum class Queued

@@ -646,6 +646,12 @@ namespace Widget
             // block sits), each panel's rect as last placed (a width change redraws it, D11) and SkyUI's card slot as last fitted
             // UNSCROLLED rects (Arrange's; BlockRect adds the scroll). placed: each panel's rect as last placed (BlockRect's)
             std::map<Layout::BlockId, Settings::Rect> blocks, blocksAll, placed;
+            // user 2026-10-30: this tab's rects with no block fitted to its content - each block's full size, the most a fit may
+            // take (FitBlock), and its size in the layout mode
+            std::map<Layout::BlockId, Settings::Rect> blocksMax;
+            std::pair<double, double> treeOrigin{};
+            bool gearPlaced = false;  // the gear has its place this menu (PlaceGear)
+            int gearTries = 0;  // the tree drawing's 0,0 in its panel as last drawn (RedrawTree; the tooltip's)
             // blocks plan Task 6: add-on blocks to draw next frame (DrawAddons), drawn this menu (SelfTest L6), whose callback threw
             std::set<Layout::BlockId> addonDrawDue, addonDrawn, addonFailed;
             // Block API v2: per add-on its draws this menu and the form its drawSelection was last given; the press waiting for its
@@ -660,9 +666,11 @@ namespace Widget
                 BlockRules::Point press, release;  // content clip coordinates
             };
             std::optional<AddonClickDue> addonClickDue;
-            // Block API v2 kMessageHeight: an add-on block's height this menu (absent: its registered height); "SLMH" log lines
-            std::map<Layout::BlockId, double> addonHeight;
+            // a block's height this menu (absent: its full height): an add-on's kMessageHeight ('SLMH'), a built-in card's or the
+            // tree window's fit to its content (FitBlock, user 2026-10-30) - one map, laid out by BlockRules::ApplyFits
+            std::map<Layout::BlockId, double> fitHeight;
             int addonHeightLogs = 0;                        // height lines logged this menu (kMaxHeightLogs)
+            int fitLogs = 0;                                // L7 fit lines logged this menu (FitBlock)
             std::set<Layout::BlockId> addonTooTallLogged;   // blocks whose too-tall request was logged this menu (once each)
             int addonClickLogs = 0;
             std::uint64_t layoutModeChanges = 0;  // the layout mode entered or left this menu (BlockRules::Moment)
@@ -1722,9 +1730,7 @@ namespace Widget
             heights[Layout::kNodeCard] += settings.debugExtraHeight;
             for (const auto& addon : g_addons) {
                 if (std::isfinite(addon.height) && addon.height >= 0) {
-                    const auto asked = g_menu.addonHeight.find(addon.id);
-                    heights[addon.id] = BlockRules::LaidOutHeight(addon.height,
-                        asked != g_menu.addonHeight.end() ? std::optional{ asked->second } : std::nullopt, g_menu.layout.active);
+                    heights[addon.id] = addon.height;  // its fit this menu: ArrangeBlocks (BlockRules::ApplyFits)
                     continue;
                 }
                 static std::set<BlockId> s_logged;
@@ -1765,11 +1771,15 @@ namespace Widget
             return Settings::SavedLayout();
         }
 
-        // UNSCROLLED stage rects (Arrange's, plan D4): the scroll is the column clip's (PlaceColumns), BlockRect adds it
-        std::map<BlockId, Settings::Rect> ArrangeBlocks(const Arrangement& a_arrangement)
+        // UNSCROLLED stage rects (Arrange's, plan D4): the scroll is the column clip's (PlaceColumns), BlockRect adds it. a_fits:
+        // the blocks' heights this menu (g_menu.fitHeight; false: every block at its full height, g_menu.blocksMax)
+        std::map<BlockId, Settings::Rect> ArrangeBlocks(const Arrangement& a_arrangement, bool a_fits = true)
         {
             const auto& settings = Settings::Get();
-            return Layout::Arrange(CurrentLayout(), BlockHeights(), a_arrangement.hidden, a_arrangement.fill, Layout::DefaultFrames(settings));
+            auto heights = BlockHeights();
+            auto fill = a_arrangement.fill;
+            if (a_fits) BlockRules::ApplyFits(heights, fill, g_menu.fitHeight, g_menu.layout.active);
+            return Layout::Arrange(CurrentLayout(), heights, a_arrangement.hidden, fill, Layout::DefaultFrames(settings));
         }
 
         // The current layout's column holding the block (nullopt: not in the layout - Repair keeps every known block in it)
@@ -3447,6 +3457,7 @@ namespace Widget
         {
             g_menu.blocksAll = ArrangeBlocks({});
             g_menu.blocks = ArrangeBlocks(ArrangementFor(g_menu.tab, OwnCard()));
+            g_menu.blocksMax = ArrangeBlocks(ArrangementFor(g_menu.tab, OwnCard()), false);
             PlaceColumns(a_widget);  // the scrolls clamped to this tab's content before any BlockRect below
             for (const BlockId& id : AllBlocks()) {
                 const auto rect = BlockRect(id);
@@ -3481,15 +3492,52 @@ namespace Widget
             PlaceLayoutChrome(a_movie, a_widget);  // Task 4: the buttons and the border handle follow the border, the covers the blocks
         }
 
-        // Block API v2: an add-on block whose height this menu (kMessageHeight) is not its registered one - the layout mode lays
-        // it out at the registered height, so entering and leaving the mode arranges the columns again
-        bool AddonHeightsAsked()
+        // A block's full height on this tab: an add-on's registered one, a built-in block's as arranged with no fit (its ini height,
+        // our card's fill); the most its fit may take (user 2026-10-30)
+        double FullHeight(const BlockId& a_id)
         {
-            for (const auto& [id, height] : g_menu.addonHeight) {
-                const auto* addon = Addon(id);
-                if (addon && std::abs(addon->height - height) > BlockRules::kHeightTolerance) return true;
+            if (const auto* addon = Addon(a_id)) return addon->height;
+            if (const auto it = g_menu.blocksMax.find(a_id); it != g_menu.blocksMax.end()) return it->second.Height();
+            if (const auto it = g_menu.blocksAll.find(a_id); it != g_menu.blocksAll.end()) return it->second.Height();
+            return BlockRect(a_id).Height();
+        }
+
+        // A block whose height this menu (an add-on's kMessageHeight, a card's fit) is not its full one - the layout mode lays it
+        // out at its full height, so entering and leaving the mode arranges the columns again
+        bool HeightsFitted()
+        {
+            for (const auto& [id, height] : g_menu.fitHeight) {
+                if (std::abs(FullHeight(id) - height) > BlockRules::kHeightTolerance) return true;
             }
             return false;
+        }
+
+        // user 2026-10-30: a built-in block (a card, the tree window) fitted to the content it just laid out - needed (stage units,
+        // from its top) and its full height give its height this menu (BlockRules::FittedHeight). A new height lays the columns
+        // out at once (the blocks below move up or down this frame); the block itself places its bottom-anchored parts at the
+        // returned height and keeps its rooms from its full height, so drawing at the new height asks for the same one (no
+        // loop). In the layout mode the height is kept for the mode's end (every block shows at its full size there). Returns
+        // the height the block shows at now
+        double FitBlock(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const BlockId& a_id, double a_needed)
+        {
+            constexpr int kMaxBlockFitLogs = 24;
+            const double full = FullHeight(a_id);
+            const double fitted = BlockRules::FittedHeight(a_needed, full);
+            const auto current = g_menu.fitHeight.find(a_id);
+            const double before = current != g_menu.fitHeight.end() ? current->second : full;
+            if (std::abs(fitted - before) <= BlockRules::kHeightTolerance) return BlockRules::LaidOutHeight(full, fitted, g_menu.layout.active);
+            g_menu.fitHeight[a_id] = fitted;
+            if (++g_menu.fitLogs <= kMaxBlockFitLogs) {
+                SelfTest(std::format("L7 fit {} - {:.1f} high (content needs {:.1f}, full {:.1f}, was {:.1f}){}{}", a_id, fitted, a_needed, full, before,
+                    g_menu.layout.active ? " - kept for the layout mode's end" : "", g_menu.fitLogs == kMaxBlockFitLogs ? " - later ones this menu not logged" : ""));
+            }
+            if (g_menu.layout.active) return full;
+            // Rearrange marks a resized tree / progress / node card dirty: this block is being drawn for its new height now, so the
+            // flag is put back (a fit costs no second full redraw next frame)
+            const bool dirty = g_menu.dirty;
+            Rearrange(a_movie, a_widget);
+            g_menu.dirty = dirty;
+            return fitted;
         }
 
         // Block API v2: the kMessageHeight requests queued since it last ran. A new height lays the columns out again
@@ -3512,9 +3560,9 @@ namespace Widget
                     if (s_unknown.insert(id).second) logger::warn("Widget: a height request ('SLMH') for {} - no add-on block has that id; ignored (logged once)", id);
                     continue;
                 }
-                const auto current = g_menu.addonHeight.find(id);
+                const auto current = g_menu.fitHeight.find(id);
                 const auto verdict = BlockRules::JudgeHeight(height, addon->height,
-                    current != g_menu.addonHeight.end() ? std::optional{ current->second } : std::nullopt);
+                    current != g_menu.fitHeight.end() ? std::optional{ current->second } : std::nullopt);
                 if (verdict == BlockRules::HeightVerdict::kTooTall) {
                     if (g_menu.addonTooTallLogged.insert(id).second) {
                         logger::warn("Widget: add-on block {} asked for the height {:.1f} - more than its registered {:.1f}; refused (logged once this menu)",
@@ -3528,7 +3576,7 @@ namespace Widget
                     logger::info("Widget: add-on block {} height {:.1f} (registered {:.1f}){}{}", id, height, addon->height,
                         g_menu.layout.active ? " - kept for the layout mode's end" : "", g_menu.addonHeightLogs == kMaxHeightLogs ? " - later ones this menu not logged" : "");
                 }
-                g_menu.addonHeight[id] = height;
+                g_menu.fitHeight[id] = height;
                 changed = true;
             }
             if (!changed || g_menu.layout.active) return false;
@@ -4140,10 +4188,13 @@ namespace Widget
         // it is cut at a character (plain-text position, found by bisection on the laid-out field) and ends in "...", its markup
         // kept (review v7 round 1: hidden lines gave no sign). With a_colourType >= 0 the description's colours are checked once
         // for that card type. Returns the height it takes.
+        // a_shown (optional): the lines the field shows (all its text's, or the room's when cut) - a fitted card's room is
+        // FieldH(a_size, *a_shown), which LinesFit reads back as the same count
         double DrawHtmlText(RE::GFxMovieView* a_movie, RE::GFxValue& a_content, const char* a_name, double a_y, double a_w, double a_room,
-            const std::string& a_html, double a_size, int a_colourType = -1)
+            const std::string& a_html, double a_size, int a_colourType = -1, int* a_shown = nullptr)
         {
-            const int lines = std::max(1, 1 + static_cast<int>(std::floor((a_room - FieldH(a_size)) / LineH(a_size))));
+            const int lines = LayoutMath::LinesFit(a_room, FieldH(a_size), LineH(a_size));
+            if (a_shown) *a_shown = lines;
             auto field = Draw::Text(a_movie, a_content, a_name, 0, a_y, a_w, FieldH(a_size, lines), "", kWhite, a_size);
             if (!field.IsDisplayObject()) return 0.0;
             field.SetMember("wordWrap", true);
@@ -4166,6 +4217,7 @@ namespace Widget
                     readable ? "PASS" : "FAIL", a_colourType, count.read, count.length, count.off));
             }
             const int needed = TextLines(field, a_size);
+            if (a_shown) *a_shown = std::clamp(needed, 1, lines);
             if (needed > lines) {
                 const auto fitsAt = [&](int a_at) {
                     SetHtml(a_movie, field, a_html, a_size);
@@ -4191,8 +4243,10 @@ namespace Widget
         }
 
         // Our card in a_rect (render layout F): name (size 19, two lines), sub line, the shout's words, a rule, the description,
-        // a rule and the footer (cost left, cast type right); with a_fit the panel ends under its content
-        void RedrawOwnCard(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const CardView& a_view, const Settings::Rect& a_rect, bool a_fit)
+        // a rule and the footer (cost left, cast type right). User 2026-10-30, every tab (Active Effects' a_fit of build 16 made
+        // general): the block fits its content - the rooms from its full height, the footer under the description with the
+        // card's rule gap (FitBlock); a long description still takes the room up to the full height and is cut as before
+        void RedrawOwnCard(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const CardView& a_view, const Settings::Rect& a_rect)
         {
             auto panel = BlockClip(a_widget, Layout::kSpellCard);
             if (!panel.IsDisplayObject()) return;
@@ -4203,7 +4257,7 @@ namespace Widget
             auto content = Content(a_widget, Layout::kSpellCard);
             if (!content.IsDisplayObject()) return;
             content.SetMember("_x", kPad);
-            const double w = a_rect.Width() - 2 * kPad, maxH = a_rect.Height();
+            const double w = a_rect.Width() - 2 * kPad, maxH = FullHeight(Layout::kSpellCard);
             double y = kCardTop;
             auto name = FitLines(a_movie, content, "name", 0, y, w, kNameSize, kNameLines, a_view.name, a_view.negative ? kNotYet : kWhite);
             y += name.IsDisplayObject() ? std::clamp(TextH(name), FieldH(kNameSize), FieldH(kNameSize, kNameLines)) : FieldH(kNameSize);
@@ -4222,9 +4276,11 @@ namespace Widget
             const double footH = FieldH(subSize), footReserve = foot ? 2 * kCardRuleGap + footH + kPad : kPad;
             double used = y;
             if (!a_view.effects.empty() && maxH - footReserve - y >= FieldH(kMinFitSize)) {
-                used = y + DrawHtmlText(a_movie, content, "desc", y, w, maxH - footReserve - y, a_view.effects, bodySize, a_view.type);
+                int shown = 0;
+                DrawHtmlText(a_movie, content, "desc", y, w, maxH - footReserve - y, a_view.effects, bodySize, a_view.type, &shown);
+                used = y + FieldH(bodySize, shown);
             }
-            const double h = a_fit ? std::min(maxH, used + footReserve) : maxH;
+            const double h = FitBlock(a_movie, a_widget, Layout::kSpellCard, used + footReserve);
             if (foot) {
                 const double ruleY = h - footReserve + kCardRuleGap;
                 Draw::LineStyle(content, kEdgeWidth, kPanelEdge);
@@ -4238,9 +4294,10 @@ namespace Widget
             }
             Draw::NoLine(panel);
             Draw::Rect(panel, 0, 0, a_rect.Width(), h, kPanelFill, kPanelAlpha);
-            g_menu.ownCardBottom = a_rect.top + h;
+            const auto drawnIn = BlockRect(Layout::kSpellCard);  // FitBlock may have laid the columns out again
+            g_menu.ownCardBottom = drawnIn.top + h;
             g_menu.ownCardDrawnTab = static_cast<int>(g_menu.tab);
-            g_menu.ownCardDrawnIn = a_rect;
+            g_menu.ownCardDrawnIn = drawnIn;
         }
 
         // The selection our card should be showing: the tree card's spell (P2), else the AS2 list's selectedIndex and entry text
@@ -4344,9 +4401,13 @@ namespace Widget
             // our card on, Rearrange arranged with it (own = OwnCard(), again at each tab change and the fallback), so this is
             // OwnCardRect() without a new Arrange per frame
             // Task 3: its size only - a scroll moves the column clip, not the panel (BlockLocal stays), so it draws nothing again
+            // user 2026-10-30: the full size, not the fitted one (the card's own fit would draw it again next frame for nothing),
+            // and the layout mode (the card shows at its full height there)
             const auto cardRect = BlockRect(Layout::kSpellCard);
-            const auto sig = show ? std::format("{}|{:.1f}x{:.1f}|{:.1f}|{}|{}|{}", static_cast<int>(g_menu.tab), cardRect.Width(), cardRect.Height(),
-                                        g_menu.rowSize, infoSig, view.sub, view.footRight)
+            const auto full = g_menu.blocksMax.find(Layout::kSpellCard);
+            const auto fullRect = full != g_menu.blocksMax.end() ? full->second : cardRect;
+            const auto sig = show ? std::format("{}|{:.1f}x{:.1f}|{:.1f}|{}|{}|{}|{}", static_cast<int>(g_menu.tab), fullRect.Width(), fullRect.Height(),
+                                        g_menu.rowSize, infoSig, view.sub, view.footRight, g_menu.layout.active)
                                   : std::string{};
 
             const auto [selection, expected] = CardSelection(a_movie);
@@ -4391,7 +4452,7 @@ namespace Widget
                         const bool known = view.type == kTypeSpell || view.type == kTypePower || view.type == kTypeShout || view.type == kTypeEffect;
                         logger::info("Widget: C1 card type {}{} - fields: {}", view.type, known ? "" : " (not known: name and description only)", KeysOf(info));
                     }
-                    RedrawOwnCard(a_movie, a_widget, view, cardRect, g_menu.tab == Tab::kEffects);
+                    RedrawOwnCard(a_movie, a_widget, view, cardRect);
                 }
                 ApplyVisibility(a_widget);
             }
@@ -4438,6 +4499,11 @@ namespace Widget
         constexpr const char* kShieldName = "layoutShield";    // full stage, the lowest depth in mmx_root, shown in the mode only
         constexpr const char* kButtonsName = "layoutButtons";  // the lock / reset row (D5), outside the column masks
         constexpr const char* kBorderName = "layoutBorder";    // the border handle in the gap between the columns (the mode only)
+        constexpr const char* kGearName = "layoutGear";        // user 2026-10-30: the layout mode's toggle, under SkyUI's list (always)
+        constexpr double kGearSize = 18.0, kGearGap = 4.0;     // its square's side and its gap under the scrollbar / list
+        constexpr int kGearTeeth = 8;
+        constexpr double kGearInner = 0.62, kGearHole = 0.28;  // the tooth root and the hole, as shares of the outer radius
+        constexpr int kGearPlaceFrames = 60;                   // frames the gear waits for SkyUI's list to have bounds
         constexpr const char* kOverlayName = "layoutOverlay";  // the drag ghost, the insertion line, the border guide: on top
         constexpr const char* kCoverPrefix = "mmxCover_";      // a block's drag cover, in its column clip above the panels
         constexpr const char* kCoverBlock = "mmxBlock";        // a cover's block id
@@ -5028,12 +5094,120 @@ namespace Widget
                 SetHandler(a_movie, clip, "onRelease", a_handler);
                 if (grey) clip.SetMember("_alpha", kGreyAlpha);
             };
-            button("lock", right - kLockW, kLockW, Fill(m.active ? Str::kLayoutLock : Str::kLayoutEdit, { { "{key}", key } }), g_lockClick.get());
-            if (m.active) {
+            // user 2026-10-30: outside the mode the row is empty (the gear starts the mode); in it, lock and reset as before
+            const unsigned shown = BlockRules::RowButtons(m.active);
+            if (shown & BlockRules::kRowLock) {
+                button("lock", right - kLockW, kLockW, Fill(Str::kLayoutLock, { { "{key}", key } }), g_lockClick.get());
+            } else {
+                Draw::Remove(row, "lock");
+            }
+            if (shown & BlockRules::kRowReset) {
                 button("reset", right - kLockW - kButtonGap - kResetW, kResetW, Text(Str::kLayoutReset), g_resetClick.get());
             } else {
                 Draw::Remove(row, "reset");
             }
+        }
+
+        // One gear outline in a_color, centred on a_c (kGearTeeth square teeth round a hole)
+        void DrawGear(RE::GFxValue& a_clip, double a_c, double a_r, std::uint32_t a_color)
+        {
+            constexpr int kHoleSteps = 16;
+            constexpr double kTwoPi = 2.0 * std::numbers::pi;
+            Draw::LineStyle(a_clip, kEdgeWidth, a_color);
+            const double inner = a_r * kGearInner, step = kTwoPi / kGearTeeth, half = step / 4;
+            const auto at = [&](double a_radius, double a_angle) { return std::pair{ a_c + a_radius * std::cos(a_angle), a_c + a_radius * std::sin(a_angle) }; };
+            const auto [startX, startY] = at(inner, -2 * half);
+            Draw::MoveTo(a_clip, startX, startY);
+            for (int i = 0; i < kGearTeeth; ++i) {  // each tooth: up at its left, across its top, down at its right
+                const double mid = step * i;
+                for (const auto& [x, y] : { at(a_r, mid - half), at(a_r, mid + half), at(inner, mid + 2 * half) }) Draw::LineTo(a_clip, x, y);
+            }
+            const double hole = a_r * kGearHole;
+            Draw::MoveTo(a_clip, a_c + hole, a_c);
+            for (int k = 1; k <= kHoleSteps; ++k) {
+                const auto [x, y] = at(hole, kTwoPi * k / kHoleSteps);
+                Draw::LineTo(a_clip, x, y);
+            }
+        }
+
+        class GearHover final : public RE::GFxFunctionHandler
+        {
+        public:
+            explicit GearHover(bool a_over) : _over(a_over) {}
+
+            void Call(Params& a_params) override
+            {
+                if (!a_params.thisPtr || g_closing) return;
+                RE::GFxValue dim, lit;
+                if (a_params.thisPtr->GetMember("dim", &dim) && dim.IsDisplayObject()) dim.SetMember("_visible", !_over);
+                if (a_params.thisPtr->GetMember("lit", &lit) && lit.IsDisplayObject()) lit.SetMember("_visible", _over);
+            }
+
+        private:
+            bool _over;
+        };
+        RE::GPtr<GearHover> g_gearOver, g_gearOut;
+
+        // The gear made in mmx_root above the shield (it works in the mode too): a transparent square that takes the mouse, the
+        // gear in kTitleColor and, on hover, in kWhite; its click is the lock button's (LockClick: the K path through lockDue).
+        // Placed by PlaceGear once SkyUI's list has bounds
+        void MakeGear(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        {
+            auto gear = Draw::Clip(a_widget, kGearName);
+            if (!gear.IsDisplayObject()) {
+                logger::warn("Layout: the gear button could not be made - the layout mode starts with the K key only this menu");
+                return;
+            }
+            Draw::NoLine(gear);
+            Draw::Rect(gear, 0, 0, kGearSize, kGearSize, kPanelFill, 0.0);  // alpha 0 still takes the mouse
+            auto dim = Draw::Clip(gear, "dim");
+            auto lit = Draw::Clip(gear, "lit");
+            if (dim.IsDisplayObject()) DrawGear(dim, kGearSize / 2, kGearSize / 2, kTitleColor);
+            if (lit.IsDisplayObject()) {
+                DrawGear(lit, kGearSize / 2, kGearSize / 2, kWhite);
+                lit.SetMember("_visible", false);
+            }
+            SetHandler(a_movie, gear, "onRelease", g_lockClick.get());
+            SetHandler(a_movie, gear, "onRollOver", g_gearOver.get());
+            SetHandler(a_movie, gear, "onRollOut", g_gearOut.get());
+            gear.SetMember("useHandCursor", false);
+            if (!SafetyNetReason().empty()) gear.SetMember("_alpha", kGreyAlpha);  // as the lock button: the mode rests
+            gear.SetMember("_visible", false);  // until PlaceGear has a place
+        }
+
+        // The gear at the bottom-right of SkyUI's list panel, under its scrollbar (BlockRules::GearRect): the first of these clips
+        // that has bounds in _root is the anchor - SkyUI's member names are not checked offline, the log line says which answered.
+        // Tried each frame for kGearPlaceFrames frames, then the fallback share of the visible stage (logged)
+        void PlaceGear(RE::GFxMovieView* a_movie, RE::GFxValue& a_root, RE::GFxValue& a_widget)
+        {
+            if (g_menu.gearPlaced) return;
+            auto gear = Child(a_widget, kGearName);
+            if (!gear.IsDisplayObject()) return;
+            constexpr std::array<const char*, 4> kAnchors{ ".scrollbar", ".scrollBar", ".background", "" };
+            std::optional<Settings::Rect> anchor;
+            std::string from;
+            for (const char* suffix : kAnchors) {
+                RE::GFxValue clip;
+                const auto path = std::string(kItemListPath) + suffix;
+                if (!a_movie->GetVariable(&clip, path.c_str()) || !clip.IsDisplayObject()) continue;
+                if (const auto bounds = BoundsIn(clip, a_root)) {
+                    anchor = Settings::Rect{ bounds->xMin, bounds->yMin, bounds->xMax, bounds->yMax };
+                    from = path;
+                    break;
+                }
+            }
+            if (!anchor && ++g_menu.gearTries < kGearPlaceFrames) return;
+            const auto area = a_movie->GetVisibleFrameRect();
+            const Settings::Rect visible{ area.left, area.top, area.right, area.bottom };
+            const auto rect = BlockRules::GearRect(anchor, visible, kGearSize, kGearGap);
+            gear.SetMember("_x", rect.left);
+            gear.SetMember("_y", rect.top);
+            gear.SetMember("_visible", true);
+            g_menu.gearPlaced = true;
+            logger::info("Layout: gear button at {} ({})", RectText(rect),
+                anchor ? std::format("right-aligned under {} at {}", from, RectText(*anchor)) :
+                         std::format("FALLBACK: no SkyUI list clip had bounds in {} frames - {:.3f}, {:.3f} of the visible stage", kGearPlaceFrames,
+                             BlockRules::kGearFallbackX, BlockRules::kGearFallbackY));
         }
 
         // The border handle: a strip over the gap between the columns (at least kMinHandleW wide), a thin line in its middle;
@@ -5072,6 +5246,7 @@ namespace Widget
             auto row = Draw::Clip(a_widget, kButtonsName);
             auto handle = Draw::Clip(a_widget, kBorderName);
             auto overlay = Draw::Clip(a_widget, kOverlayName);
+            MakeGear(a_movie, a_widget);  // user 2026-10-30: above the shield and the overlay
             if (handle.IsDisplayObject()) {
                 SetHandler(a_movie, handle, "onPress", g_borderPress.get());
                 SetHandler(a_movie, handle, "onRelease", g_borderRelease.get());
@@ -5404,7 +5579,7 @@ namespace Widget
             g_layoutFocus = {};
             g_layoutStickY = 0.0f;
             if (a_why == kGamepadSource) g_layoutFocus.focus = Layout::FirstFocus(m.working, VisibleBlocks());
-            if (AddonHeightsAsked()) Rearrange(a_movie, a_widget);  // Block API v2: every add-on at its registered height in the mode
+            if (HeightsFitted()) Rearrange(a_movie, a_widget);  // every block at its full height in the mode (add-ons' 'SLMH', the cards' fits)
             ShowShield(a_widget, true);
             PlaceLayoutChrome(a_movie, a_widget);
             ApplyVisibility(a_widget);
@@ -5458,7 +5633,7 @@ namespace Widget
             g_layoutStickY = 0.0f;
             m.active = false;  // the caller settles the input's flag (SettleMode)
             ++g_menu.layoutModeChanges;  // Block API v2: a press in an add-on block is cancelled
-            if (AddonHeightsAsked()) Rearrange(a_movie, a_widget);  // Block API v2: the heights the add-ons asked for back
+            if (HeightsFitted()) Rearrange(a_movie, a_widget);  // the heights asked for (add-ons) and fitted (cards) back
             if (!a_save) {
                 const bool same = CurrentLayout() == m.entry && Settings::SavedLayout() == m.entry;
                 const auto arranged = ArrangeBlocks(ArrangementFor(g_menu.tab, OwnCard()));
@@ -6186,6 +6361,28 @@ namespace Widget
             g_menu.hovered = -1;
         }
 
+        // user 2026-10-30: the legend strip shows only under a drawn tree (a message state is the title strip, the line, padding)
+        void ShowLegend(RE::GFxValue& a_widget, bool a_shown)
+        {
+            auto panel = BlockClip(a_widget, Layout::kTree);
+            if (auto legend = panel.IsDisplayObject() ? Child(panel, "legend") : RE::GFxValue{}; legend.IsDisplayObject()) legend.SetMember("_visible", a_shown);
+        }
+
+        // A tree window message (no tree, no centre, the school hidden): its two-line field at the top of the body; the window
+        // fits the title strip, the lines the text took and the padding (user 2026-10-30)
+        RE::GFxValue TreeMessage(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, RE::GFxValue& a_content, const Settings::Area& a_frame, const std::string& a_text)
+        {
+            const double size = Size(kRowSize);
+            auto field = FitLines(a_movie, a_content, "empty", -a_frame.halfW, -FieldH(size), std::max(0.0, 2 * a_frame.halfW), size, 2, a_text, kDimText, "center");
+            const int lines = field.IsDisplayObject() ? std::clamp(TextLines(field, size), 1, 2) : 2;
+            const double top = kTitleH + kPad;  // the body's top in the panel
+            FitBlock(a_movie, a_widget, Layout::kTree, top + FieldH(size, lines) + kPad);
+            g_menu.treeOrigin = { a_frame.cx, top + FieldH(size) };
+            a_content.SetMember("_y", g_menu.treeOrigin.second);
+            ShowLegend(a_widget, false);
+            return field;
+        }
+
         void RedrawTree(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const Spells::Snapshot& a_snapshot)
         {
             const auto started = std::chrono::steady_clock::now();  // the redraw's time goes in its log line (GPT design review #7)
@@ -6202,7 +6399,12 @@ namespace Widget
             }
             const auto& settings = Settings::Get();
             const auto treeRect = BlockRect(Layout::kTree);
-            const auto frame = Settings::TreeContent(treeRect);
+            // user 2026-10-30: the window queried and laid out in its FULL height (a fitted one would let fewer marks in, and
+            // the fit would follow them down); the drawing then moves up by the empty space above it and the window ends under it
+            auto fullRect = treeRect;
+            fullRect.bottom = fullRect.top + FullHeight(Layout::kTree);
+            const auto frame = Settings::TreeContent(fullRect);
+            g_menu.treeOrigin = { frame.cx, frame.cy };
             content.SetMember("_x", frame.cx);
             content.SetMember("_y", frame.cy);
             // T7.1: a list selection without a tree node keeps the previous centre (design), drawn dimmed so it is not taken for
@@ -6222,9 +6424,7 @@ namespace Widget
             }
             if (!Spells::Get() || g_session.centre < 0) {
                 const Str id = Spells::Get() ? Str::kTreeNoCentre : Str::kTreeNoTree;
-                const double size = Size(kRowSize);
-                const auto empty = FitLines(a_movie, content, "empty", -frame.halfW, -FieldH(size), std::max(0.0, 2 * frame.halfW), size, 2,
-                    Text(id), kDimText, "center");
+                const auto empty = TreeMessage(a_movie, a_widget, content, frame, Text(id));
                 Q2State(id, Text(id), &empty);
                 RecheckHover(hoveredAt);
                 return;
@@ -6237,9 +6437,7 @@ namespace Widget
             }
             if (!style->SchoolShown(centre.school)) {
                 // T17: HoM's schoolVisibility hides this school - nothing of it is drawn
-                const double size = Size(kRowSize);
-                const auto empty = FitLines(a_movie, content, "empty", -frame.halfW, -FieldH(size), std::max(0.0, 2 * frame.halfW), size, 2,
-                    Text(Str::kTreeNoCentre), kDimText, "center");
+                const auto empty = TreeMessage(a_movie, a_widget, content, frame, Text(Str::kTreeNoCentre));
                 Q2State("tree_school_hidden", std::format("{} - \"{}\"", centre.school, Text(Str::kTreeNoCentre)), &empty);
                 if (g_menu.cutLogged.insert("hidden|" + centre.school).second) {
                     logger::info("Widget: tree - school {} is hidden by Heart of Magic's schoolVisibility: nothing of it drawn", centre.school);
@@ -6318,10 +6516,11 @@ namespace Widget
             {
                 // and no label on the legend strip (DrawLegend's row at its size), which the window's clamp alone can graze
                 // (review round 1 #5)
-                const double legendMid = treeRect.Height() - Settings::kTreeLegendH / 2 - kPad / 2 - frame.cy;
+                const double legendMid = fullRect.Height() - Settings::kTreeLegendH / 2 - kPad / 2 - frame.cy;
                 const double legendHalf = FieldH(kLegendSize) / 2;
                 labels.push_back({ -frame.halfW - kPad, legendMid - legendHalf, frame.halfW + kPad, legendMid + legendHalf });
             }
+            const std::size_t legendBox = labels.size() - 1;  // not drawn content: left out of the fit below
             // The badges first (build 6 review round 2 #1): their arrows and texts go into `labels` before any node label, so the
             // labels keep off them. The centre's direct neighbours outside the window (spec v10 T7); the ones inside it over the
             // cap, without x/y or of another school are only logged
@@ -6398,6 +6597,21 @@ namespace Widget
                 target >= 0 ? Spells::NodeName(target) : std::string("none"), path.size(), a_snapshot.epoch,
                 std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count());
             if (g_menu.notInTree) logger::info("Widget: tree drawn dimmed to {:.0f}% (the selection is not in the tree)", kDimTreeAlpha);
+            // user 2026-10-30: the window fits what was drawn - marks, links, labels, badges, notes (every box the labels kept
+            // off, the legend's left out); the drawing moves up by the space above it, so the marks keep their size and their
+            // places to each other, and the legend comes up under it (Rearrange draws it at the new bottom)
+            std::vector<LabelBox> drawnBoxes;
+            drawnBoxes.reserve(labels.size());
+            for (std::size_t i = 0; i < labels.size(); ++i) {
+                if (i != legendBox) drawnBoxes.push_back(labels[i]);
+            }
+            const auto trim = LayoutMath::TreeTrim(drawnBoxes, frame.halfH);
+            const double shownH = FitBlock(a_movie, a_widget, Layout::kTree, fullRect.Height() - trim.top - trim.bottom);
+            // at its full height (the layout mode, or nothing to take off) the drawing stays where it is today
+            const double shift = shownH < fullRect.Height() - BlockRules::kHeightTolerance ? trim.top : 0.0;
+            g_menu.treeOrigin = { frame.cx, frame.cy - shift };
+            content.SetMember("_y", g_menu.treeOrigin.second);
+            ShowLegend(a_widget, true);
             RecheckHover(hoveredAt);
         }
 
@@ -6434,17 +6648,20 @@ namespace Widget
             return { Str::kProgressNoSchoolTree, Fill(Str::kProgressNoSchoolTree, { { "{school}", SchoolText(a_info.school) } }) };
         }
 
-        void RedrawProgress(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const Spells::Snapshot& a_snapshot)
+        // The progress card's lines, laid out top-down in its FULL height (user 2026-10-30: the rooms never depend on its fitted
+        // height); the height they need, nullopt when nothing was drawn (no school: the card keeps its height and is hidden)
+        std::optional<double> DrawProgress(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const Spells::Snapshot& a_snapshot)
         {
             auto content = Content(a_widget, Layout::kProgress);
             g_menu.rowAligned = false;
             g_menu.rowAlignNote = "no progress card";
-            if (g_session.school.empty() || !content.IsDisplayObject()) return;
+            if (g_session.school.empty() || !content.IsDisplayObject()) return std::nullopt;
             const auto rect = BlockRect(Layout::kProgress);
+            const double fullH = FullHeight(Layout::kProgress);
             const double w = rect.Width() - 2 * kPad;
             content.SetMember("_x", kPad);
 
-            const double titleSize = Size(kSchoolSize), hintSize = Size(kHintSize), bottom = rect.Height() - kCardBottom;
+            const double titleSize = Size(kSchoolSize), hintSize = Size(kHintSize), bottom = fullH - kCardBottom;
             // Row 2 (spec v6 L2): the school title's baseline on the node card name's. Both start kCardTop below their card's top
             // in the same font, so the title moves down by the tops' difference plus the ascent's difference of the two sizes
             // (the size-14 title under a size-19 name: about 4.5). Applied only when that lands within one title size; a card
@@ -6514,6 +6731,9 @@ namespace Widget
                 }
                 const auto field = FitLines(a_movie, content, "message", 0, y, w, size, lines, a_line.text, kWhite);
                 Q2State(a_line.id, a_line.text, &field);
+                // the lines the text took (one short message: one line), not the field's two
+                const int used = field.IsDisplayObject() ? std::clamp(TextLines(field, size), 1, lines) : lines;
+                return y + FieldH(size, used) + kCardBottom;
             };
             if (!Spells::Get()) return message({ Str::kProgressNoTree, Text(Str::kProgressNoTree) });
             // the widget is attached only once HoM's API is there, so this is a guard (review round 1 #3)
@@ -6541,8 +6761,8 @@ namespace Widget
             const auto pct = std::format("{:.0f}", state.percent);
             // where each line goes and what gives way (LayoutMath::PlanProgress: the hint shrinks, then the offset goes, then the
             // hint, then the title; the same function tools/magic-menu-preview-check runs)
-            const auto plan = LayoutMath::PlanProgress(Metrics(),
-                { rect.Height(), kCardTop, kCardBottom, titleSize, kTargetSize, kXpSize, kBarH, hintSize, kMinFitSize, kFitStep, offset });
+            const LayoutMath::ProgressIn planIn{ fullH, kCardTop, kCardBottom, titleSize, kTargetSize, kXpSize, kBarH, hintSize, kMinFitSize, kFitStep, offset };
+            const auto plan = LayoutMath::PlanProgress(Metrics(), planIn);
             if (plan.offsetDropped && title.IsDisplayObject()) giveUpOffset(bottom - (kCardTop + offset + FieldH(titleSize)), "the next step");
             if (!plan.title && title.IsDisplayObject()) dropTitle(plan.targetH + plan.barRowH, "the learning target and its bar");
             const double targetH = plan.targetH, barRowH = plan.barRowH, xpH = FieldH(kXpSize);
@@ -6572,7 +6792,7 @@ namespace Widget
                 }
                 const RE::GFxValue none;
                 Q2State(next.id, next.text, &none);  // logged as "(no field)": the state was reached, its line not shown
-                return;
+                return LayoutMath::ProgressNeeded(Metrics(), planIn, plan);
             }
             if (plan.hintSize < hintSize && g_menu.cutLogged.insert(std::format("progress|hint {:.1f}", plan.hintSize)).second) {
                 logger::info("Widget: Q4 progress card hint at size {:.1f} (reading size {:.1f}) - {:.1f} left under the bar{}", plan.hintSize, hintSize,
@@ -6580,6 +6800,13 @@ namespace Widget
             }
             const auto hint = FitLine(a_movie, content, "hint", 0, y, w, plan.hintSize, next.text, kLabelColor);
             Q2State(next.id, next.text, &hint);
+            return LayoutMath::ProgressNeeded(Metrics(), planIn, plan);
+        }
+
+        // user 2026-10-30: the card fits its lines and bar (FitBlock: the blocks under it move up this frame)
+        void RedrawProgress(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const Spells::Snapshot& a_snapshot)
+        {
+            if (const auto needed = DrawProgress(a_movie, a_widget, a_snapshot)) FitBlock(a_movie, a_widget, Layout::kProgress, *needed);
         }
 
         // ---------------------------------------------------------------------
@@ -6624,7 +6851,7 @@ namespace Widget
             if (hovered < 0 || !Spells::Get() || it == g_menu.drawn.end()) return;
             g_menu.tooltipFor = hovered;
             const auto rect = BlockRect(Layout::kTree);
-            const auto frame = Settings::TreeContent(rect);
+            const auto [originX, originY] = g_menu.treeOrigin;  // where RedrawTree put the drawing's 0,0 (moved up by its fit)
             const auto& node = Data().tree.nodes[hovered];
             const auto look = Spells::LookOf(a_snapshot, hovered);
             const auto school = SchoolText(node.school);
@@ -6642,7 +6869,7 @@ namespace Widget
             // right of the mark, else left of it, centred on its height; with room on neither side (review v10: the centre node of a
             // 260-wide tree, whose clamped tooltip covered it) above it, else below it, centred on it. Inside the panel (below the
             // title, within the padding)
-            const double nx = frame.cx + it->sx, ny = frame.cy + it->sy, off = HomStyle::MaxReach(MarkScale(), style->tree.availableRing, Settings::Get().treeScale) + kTooltipGap;
+            const double nx = originX + it->sx, ny = originY + it->sy, off = HomStyle::MaxReach(MarkScale(), style->tree.availableRing, Settings::Get().treeScale) + kTooltipGap;
             double x = nx + off, y = ny - h / 2;
             if (x + w > rect.Width() - kPad) x = nx - off - w;
             if (x < kPad) {
@@ -6708,17 +6935,18 @@ namespace Widget
             return rows;
         }
 
-        // The rows from a_top down to a_bottom at the reading size; the last row that fits says how many more there are
-        void DrawRows(RE::GFxMovieView* a_movie, RE::GFxValue& a_content, std::vector<Row> a_rows, double a_w, double a_top, double a_bottom)
+        // The rows from a_top down to a_bottom at the reading size; the last row that fits says how many more there are. Returns
+        // the height the drawn rows take (LayoutMath::RowsHeight)
+        double DrawRows(RE::GFxMovieView* a_movie, RE::GFxValue& a_content, std::vector<Row> a_rows, double a_w, double a_top, double a_bottom)
         {
             const double size = Size(kRowSize), h = FieldH(size), pitch = LineH(size) + kGutter / 2;
-            const auto fit = static_cast<std::size_t>(std::max(0.0, std::floor((a_bottom - a_top - (h - pitch)) / pitch)));
+            const auto fit = LayoutMath::RowsFit(a_bottom - a_top, h, pitch);
             if (fit == 0) {
                 if (!a_rows.empty() && g_menu.cutLogged.insert("rows|no room").second) {
                     logger::info("Widget: Q4 node card has no room for its {} requirement line(s) ({:.0f} high, one needs {:.0f})", a_rows.size(),
                         a_bottom - a_top, h);
                 }
-                return;
+                return 0.0;
             }
             if (a_rows.size() > fit) {
                 // a heading left as the last shown line, with none of its spells under it, goes too (review round 2 #3); "N more"
@@ -6750,6 +6978,7 @@ namespace Widget
                     FitWhole(a_movie, field, a_w - x, size, 1, row.name);
                 }
             }
+            return LayoutMath::RowsHeight(std::min(a_rows.size(), fit), h, pitch);
         }
 
         // a_canSet false: the card shows a node nobody selected (L3's default view), which the button cannot act on
@@ -6775,7 +7004,8 @@ namespace Widget
             if (!content.IsDisplayObject()) return;
             const auto& settings = Settings::Get();
             const auto rect = BlockRect(Layout::kNodeCard);
-            const double w = rect.Width() - 2 * kPad, h = rect.Height();
+            // user 2026-10-30: the rooms from the card's full height, the bottom part at its fitted one (FitBlock)
+            const double w = rect.Width() - 2 * kPad, fullH = FullHeight(Layout::kNodeCard);
             content.SetMember("_x", kPad);
             // What the card shows: the clicked (or next-candidate) node; with none, the school's learning target as if it had
             // been clicked (spec v6 L3), only on this card - g_menu.selected stays -1, so the tree neither recentres nor draws a
@@ -6795,8 +7025,11 @@ namespace Widget
             if (shown < 0) {
                 // a short hint at the top (Q2), not a big centred line
                 const auto text = Fill(Str::kNodeHint, { { "{key}", KeyLabel(settings.keyNext) } });
-                const auto hint = FitLines(a_movie, content, "hint", 0, kCardTop, w, Size(kRowSize), kHintLines, text, kDimText);
+                const double size = Size(kRowSize);
+                const auto hint = FitLines(a_movie, content, "hint", 0, kCardTop, w, size, kHintLines, text, kDimText);
                 Q2State(Str::kNodeHint, text, &hint);
+                const int lines = hint.IsDisplayObject() ? std::clamp(TextLines(hint, size), 1, kHintLines) : kHintLines;
+                FitBlock(a_movie, a_widget, Layout::kNodeCard, kCardTop + FieldH(size, lines) + kPad);  // only the hint line
                 return;
             }
             const auto& node = Data().tree.nodes[shown];
@@ -6832,8 +7065,11 @@ namespace Widget
             Draw::MoveTo(content, 0, y);
             Draw::LineTo(content, w, y);
 
+            const double rowsTop = y + kRuleGap;
+            const double rowsH = DrawRows(a_movie, content, RequirementRows(node, a_snapshot), w, rowsTop, fullH - kBottomRuleFromBottom - kRuleGap);
+            // the card ends under its rows: the bottom rule, the XP line and the button hang from the fitted bottom
+            const double h = FitBlock(a_movie, a_widget, Layout::kNodeCard, LayoutMath::NodeCardNeeded(rowsTop, rowsH, kRuleGap, kBottomRuleFromBottom));
             const double bottomRule = h - kBottomRuleFromBottom;
-            DrawRows(a_movie, content, RequirementRows(node, a_snapshot), w, y + kRuleGap, bottomRule - kRuleGap);
             Draw::LineStyle(content, kEdgeWidth, kPanelEdge);
             Draw::MoveTo(content, 0, bottomRule);
             Draw::LineTo(content, w, bottomRule);
@@ -7386,6 +7622,7 @@ namespace Widget
                 // spec v12 G1/G3: the selection wrap goes on in the first frames; without it the highlight is followed (build 11)
                 InstallSelectionWrap(movie);
                 InstallWheel(movie, widget);  // blocks plan Task 3 (D7)
+                PlaceGear(movie, root, widget);  // user 2026-10-30: under SkyUI's list once it has bounds
                 if (!g_menu.selWrapped) FollowHighlight(movie);
                 WatchTab(movie, widget, *snapshot);  // first: the item card's slot depends on the tab
                 WatchChosen(movie, widget);
@@ -7629,6 +7866,8 @@ namespace Widget
                 g_lockClick = RE::make_gptr<LockClick>();
                 g_resetClick = RE::make_gptr<ResetClick>();
                 g_shieldPress = RE::make_gptr<ShieldPress>();
+                g_gearOver = RE::make_gptr<GearHover>(true);
+                g_gearOut = RE::make_gptr<GearHover>(false);
                 g_addonPress = RE::make_gptr<AddonPress>();
                 g_addonRelease = RE::make_gptr<AddonRelease>(true);
                 g_addonReleaseOutside = RE::make_gptr<AddonRelease>(false);

@@ -13,6 +13,7 @@
 // No game types. Exit 0 when every check passes, 1 otherwise.
 
 #include "BlockRegistry.h"
+#include "BlockRules.h"
 #include "Layout.h"
 #include "Settings.h"
 
@@ -1191,8 +1192,87 @@ namespace
     }
 }
 
+namespace
+{
+    // user 2026-10-30: blocks fit their content (BlockRules::ApplyFits with Layout::Arrange), the layout row, the gear
+    void FitLayout()
+    {
+        std::printf("blocks fit their content (BlockRules::ApplyFits, Arrange)\n");
+        const State def = Layout::Default(kValues);
+        const std::set<BlockId> fillCard{ Layout::kSpellCard };
+        const auto same = [](const Settings::Rect& a_a, const Settings::Rect& a_b) {
+            return Near(a_a.left, a_b.left) && Near(a_a.top, a_b.top) && Near(a_a.right, a_b.right) && Near(a_a.bottom, a_b.bottom);
+        };
+        const auto sameAll = [&](const std::map<BlockId, Settings::Rect>& a_a, const std::map<BlockId, Settings::Rect>& a_b) {
+            if (a_a.size() != a_b.size()) return false;
+            for (const auto& [id, rect] : a_a) {
+                if (!a_b.contains(id) || !same(rect, a_b.at(id))) return false;
+            }
+            return true;
+        };
+        const auto arrange = [&](const std::map<BlockId, double>& a_fits, bool a_mode) {
+            auto heights = kHeights;
+            auto fill = fillCard;
+            BlockRules::ApplyFits(heights, fill, a_fits, a_mode);
+            return Layout::Arrange(def, heights, {}, fill, kFrames);
+        };
+        const auto full = arrange({}, false);
+        const auto progress = full.at(Layout::kProgress), card = full.at(Layout::kSpellCard);
+        const double shrink = 40.0;
+        const auto fitted = arrange({ { Layout::kProgress, progress.Height() - shrink } }, false);
+        Expect(Near(fitted.at(Layout::kProgress).Height(), progress.Height() - shrink) && Near(fitted.at(Layout::kSpellCard).top, card.top - shrink),
+            Text("the progress card %.0f shorter: the spell card under it moves up %.0f (top %.1f -> %.1f)", shrink, shrink, card.top,
+                fitted.at(Layout::kSpellCard).top));
+        Expect(Near(fitted.at(Layout::kSpellCard).bottom, card.bottom), "the spell card (a fill block, not fitted) still reaches its column's bottom");
+        Expect(same(fitted.at(Layout::kTree), full.at(Layout::kTree)) && same(fitted.at(Layout::kNodeCard), full.at(Layout::kNodeCard)),
+            "the other column is untouched");
+        const double cardFit = 120.0;
+        const auto both = arrange({ { Layout::kProgress, progress.Height() - shrink }, { Layout::kSpellCard, cardFit } }, false);
+        Expect(Near(both.at(Layout::kSpellCard).Height(), cardFit) && Near(both.at(Layout::kSpellCard).top, card.top - shrink),
+            Text("the spell card fitted to %.0f leaves the fill: %.0f high under the shorter progress card", cardFit, both.at(Layout::kSpellCard).Height()));
+        const auto mode = arrange({ { Layout::kProgress, progress.Height() - shrink }, { Layout::kSpellCard, cardFit } }, true);
+        Expect(sameAll(mode, full), "in the layout mode every block is at its full height (the fits kept for the mode's end)");
+        const auto nodeCard = full.at(Layout::kNodeCard);
+        const auto nodeFit = arrange({ { Layout::kNodeCard, 60.0 } }, false);
+        Expect(Near(nodeFit.at(Layout::kNodeCard).Height(), 60.0) && same(nodeFit.at(Layout::kTree), full.at(Layout::kTree)) &&
+                   same(nodeFit.at(Layout::kPreview), full.at(Layout::kPreview)),
+            Text("the node card fitted to its hint line (60 of %.0f): the tree above and the left column unmoved", nodeCard.Height()));
+        // the scroll follows: a column that overflowed and shrinks back clamps its scroll (Layout::ClampScroll)
+        auto tall = kHeights;
+        tall[Layout::kNodeCard] += 200.0;
+        const auto overflow = Layout::Arrange(def, tall, {}, fillCard, kFrames);
+        const double contentTall = Layout::ContentHeight(def, overflow, kFrames)[1], visible = kFrames[1].Height();
+        std::map<BlockId, double> fitTall{ { Layout::kNodeCard, nodeCard.Height() } };
+        auto fill = fillCard;
+        BlockRules::ApplyFits(tall, fill, fitTall, false);
+        const auto back = Layout::Arrange(def, tall, {}, fill, kFrames);
+        const double contentBack = Layout::ContentHeight(def, back, kFrames)[1];
+        Expect(contentTall > visible && Layout::ClampScroll(contentTall - visible, contentBack, visible) <= std::max(0.0, contentBack - visible) + kTolerance,
+            Text("a column scrolled to its end (content %.0f) whose card fits back (content %.0f): the scroll clamps to %.0f", contentTall, contentBack,
+                Layout::ClampScroll(contentTall - visible, contentBack, visible)));
+        Expect(BlockRules::FittedHeight(80.0, 100.0) == 80.0 + BlockRules::kFitSlack && BlockRules::FittedHeight(150.0, 100.0) == 100.0 &&
+                   BlockRules::FittedHeight(std::numeric_limits<double>::quiet_NaN(), 100.0) == 100.0,
+            "FittedHeight: needed + slack, never over the full height, a bad needed height keeps the full one");
+
+        std::printf("the layout row and the gear\n");
+        Expect(BlockRules::RowButtons(false) == 0u, "no layout-row button outside the layout mode");
+        Expect(BlockRules::RowButtons(true) == (BlockRules::kRowLock | BlockRules::kRowReset), "lock and reset in the layout mode");
+        const Settings::Rect visible1610{ 0, -40, 1280, 760 };
+        const Settings::Rect scrollbar{ 560, 120, 570, 620 };
+        const auto under = BlockRules::GearRect(scrollbar, visible1610, 18.0, 4.0);
+        Expect(Near(under.right, 570) && Near(under.top, 624) && Near(under.Width(), 18) && Near(under.Height(), 18),
+            Text("anchored: right-aligned to the scrollbar, 4 under it (%s)", Show(under).c_str()));
+        const auto fallback = BlockRules::GearRect(std::nullopt, visible1610, 18.0, 4.0);
+        Expect(Near(fallback.CenterX(), 1280 * BlockRules::kGearFallbackX) && Near(fallback.CenterY(), -40 + 800 * BlockRules::kGearFallbackY),
+            Text("no anchor: centred on the fallback share of the visible stage (%s)", Show(fallback).c_str()));
+        const auto edge = BlockRules::GearRect(Settings::Rect{ 1270, 700, 1300, 755 }, visible1610, 18.0, 4.0);
+        Expect(edge.right <= 1280 + kTolerance && edge.bottom <= 760 + kTolerance, Text("an anchor at the stage's corner: kept inside it (%s)", Show(edge).c_str()));
+    }
+}
+
 int main()
 {
+    FitLayout();
     DefaultLayout();
     Border();
     HiddenAndFill();

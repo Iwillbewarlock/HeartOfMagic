@@ -353,3 +353,32 @@ header comment of `plugins/SL_MagicMenu/src/BlockApi.h`, the pure rules `BlockRu
 - `tabs`: the SkyUI category flag's bit (`BlockRules::TabBit`: Powers 128, Shouts 64, Active Effects 256 their own; All,
   Favorites, the school tabs and unknown categories are spell tabs). An add-on its mask leaves out joins the tab's hidden
   set (Arrange closes up, as for the built-in tree blocks) and its panel is hidden (ApplyVisibility).
+
+## Blocks fit their content, the gear button (user 2026-10-30)
+
+- Every built-in block but the 3D preview box fits its content: the progress card, the node card, our spell card and the
+  tree window. One per-block height map (`g_menu.fitHeight`) holds both an add-on's 'SLMH' height and a built-in block's
+  fit; `BlockRules::ApplyFits` puts it into Arrange's heights (and takes a fitted block out of the fill set, so our card
+  no longer grows to the column's bottom). A block's full height (`FullHeight`: the ini rect, our card's fill, an add-on's
+  registered height, arranged with no fit: `g_menu.blocksMax`) is its maximum and its size in the layout mode.
+- Rule that keeps it loop-free: every room is worked out from the block's full height; only the bottom-anchored parts
+  (the node card's bottom rule / XP / button, our card's footer) are placed at the fitted height. `FitBlock` stores
+  `min(needed + kFitSlack, full)` and lays the columns out at once (the blocks below move up in the same frame); drawing
+  at the fitted height asks for the same height. Pure parts: `LayoutMath::RowsFit / RowsHeight / LinesFit /
+  ProgressNeeded / NodeCardNeeded / TreeTrim` (preview-check), `BlockRules::FittedHeight / ApplyFits` (layout-check).
+  Log: "SelfTest: L7 fit <id> - H high (content needs N, full F, was W)" and Rearrange's "block X is W x H now".
+- Needed heights: progress card - the last line's bottom + kCardBottom (a message counts the lines its text took); node
+  card - hint only: kCardTop + the hint's lines + kPad; with a spell: its rows + kRuleGap + the bottom part (74); our card -
+  the description's shown lines (FieldH, not textHeight) + the footer reserve; tree window - the query and layout at the
+  full height, then the space the drawn boxes (marks, links, labels, badges, notes) leave above and below the body is
+  taken off, and the drawing moves up by the part above (the marks keep their size and their places to each other; the
+  tooltip reads the moved origin, `g_menu.treeOrigin`). Moving it up was chosen over keeping the centre point: keeping it
+  could only take off the smaller of the two empty bands, on both sides. A message state (no tree, no centre, a hidden
+  school) is the title strip, the lines and padding, with the legend strip hidden.
+- The row under the left column has no button outside the layout mode (`BlockRules::RowButtons`); lock and reset in it as
+  before. A gear (`layoutGear`, 18 units, kTitleColor, kWhite on hover) in mmx_root above the shield toggles the mode
+  through the lock button's path (the K path); it shows whenever the menu is open, greyed like the lock in the safety-net
+  states. Placed by `BlockRules::GearRect` right-aligned 4 under the first of `itemList.scrollbar`, `.scrollBar`,
+  `.background`, `itemList` that has bounds in _root (SkyUI's member names not checked offline; the log names the one
+  used), after 60 frames without one at the fallback share of the visible stage (580/1299, 740/876, from the user's
+  16:10 capture). K with nothing chosen still enters the mode (no refusal bit for it; the mode shows every block).
