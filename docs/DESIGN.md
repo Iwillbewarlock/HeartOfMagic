@@ -1060,10 +1060,10 @@ The 2026-10-29 polish took the template look out of Skald, in its inline `css` a
 bare theme and Night Grimoire and Chalkboard share `design-darkbook.css`, so the base sheets and that sheet stay as
 they were for the add-ons): a flat page (`pageGlow` '' and `pageGlowAlpha` 0, `pageEdgeAlpha` 0; the grain stays);
 one spacing scale (16px edges and gaps, the tree tools' column 16px in, settings rows and subsection titles on their
-block header's line, button and chip padding 8/16, 4/12 and 4/8); colour only for states (scan figures and slider
+block header's line, chip padding 4/8; buttons keep the 2026-09-27 sizes); colour only for states (scan figures and slider
 values in `--text-bright`, square chips and counts in the text colour, a dot on the chosen preset chip and on the
-footer's learning chip, a 1px rule over settings subsections); small labels in words with 0.02em spacing (the
-titles keep their capitals); a 2px build bar without a frame, a 3px slider track, tabular figures. Panel strings
+footer's learning chip, a 1px rule over the Settings page's subsections but the first in a block); small labels in words with 0.02em spacing (the
+titles keep their capitals); a 2px build bar without a frame (the slider keeps its 6px track, its click height), tabular figures. Panel strings
 end in "." rather than "!" in every language, and the tree tool bar's render settings, edit and edit-tool buttons
 are inline SVG line icons like Home and Search (`index.html`, every design; Edit Tree shows a check while
 `.active`, `patch-ui.css`). `TreeToolsScale.EDGE_PX` stays 14 for the other designs: without corner drawings Skald's

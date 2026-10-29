@@ -58,8 +58,8 @@
 - **Skald looks plainer.** The tree page is flat (no light in the middle, no dark edge), the Settings rows start
   on their heading's line and the panel keeps one spacing scale. Colour is left only where it shows a state: a
   dot on the chosen preset and the spell being learned in the footer, figures and counts in the text colour,
-  square chips. Small labels are words, not spaced capitals (titles keep theirs), progress and slider bars are
-  thin lines, and no message ends in "!" any more, in every language. The tree's tool bar draws its render
+  square chips. Small labels are words, not spaced capitals (titles keep theirs), the build bar is a
+  thin line, and no message ends in "!" any more, in every language. The tree's tool bar draws its render
   settings, edit and edit-tool buttons as line icons like Home and Search (in every design). The add-on designs
   keep their look. Not yet seen in game.
 
