@@ -201,6 +201,27 @@ checks, the snapshot, the first-open self-test), `BlockDraw.cpp` (draw, click, S
   to 16 a menu) `[selftest-sr] drawn PASS` when the drawn form is SkyUI's list selection, `SKIP` when the card shows
   another (a tree click) or the selection is unreadable - it cannot tell a wrong draw from a tree click, so it never FAILs.
 
+### 2b. The line layout's height fits the spell (2026-10-30)
+
+User: in the line layout (C) the block itself should get smaller - "주문마다 내용에 맞춤" (fit each spell's content, the blocks
+under it moving by a line when the spell changes). The list layout keeps its fixed height.
+
+- Host: Block API v2 message `kMessageHeight` 'SLMH', data `BlockApi::HeightRequest { apiVersion, structSize, id, height }`
+  (kVersion stays 2; an older host ignores it). Any thread, queued per id (the last height wins, 64 ids, like 'SLMD'),
+  applied on the next UI frame: the columns are arranged again (`Rearrange` - the blocks below move, the scroll is
+  clamped, the block is drawn again at its size with its hit clip). Refused over the registered height (the maximum);
+  every menu opens at the registered heights; the layout mode lays every add-on out at its registered height (it
+  rearranges on entering and leaving when an add-on asked for another); SL_MagicMenu_Layout.json is not touched. Pure
+  parts in BlockRules.h (`ReadHeight`, `JudgeHeight`, `LaidOutHeight`, `Enqueue`), checked by magic-menu-block-api-check;
+  the column restacking by magic-menu-layout-check (`AddonHeightChange`).
+- Add-on: `SrBlock::ContentHeight(kind, lines, hasLinks, hasReason)` - list: kContentH (94); line: the archetype lines
+  (a reason-only state counts as one), the link row and the reason line when drawn (without links the reason line takes
+  their place): 57 for one line with links, 73 with a reason line too, at most 91. Draw asks for that height (plus the
+  host's 38 of title strip and padding) when it differs from the content height it was lent, once per change
+  (`SrBlock::HeightRequests`: not again at the same lent size - so the host's redraw at the new size sends nothing, and a
+  host that ignores 'SLMH' is not asked on every draw); reset at each menu open and when the layout kind changes. The
+  registered height stays kBlockHeight (132).
+
 ## Rulings carried from the 2026-10-27 GPT design review
 
 ABI freeze (above), the card's spell rather than `g_menu.sel.id`, the game-thread snapshot plus 'SLMD', no block
