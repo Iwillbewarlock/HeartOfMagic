@@ -8,6 +8,9 @@ the next task (C:/Users/qtuna/Desktop/Claude outputs/magic-menu-no-hom-brief.md)
 
 ## What the player sees
 
+(The Korean wording below is the intent; the shipped text is the English file until SR Prisma's languages land - see
+"Strings and language".)
+
 A block "연구 아키타입" (default: end of the right column, moved like any block), shown while a spell is chosen (the
 columns are hidden when nothing is, Widget.cpp:3376-3388, 3417). For the spell the menu's card shows:
 
@@ -15,7 +18,7 @@ columns are hidden when nothing is, Widget.cpp:3376-3388, 3417). For the spell t
   small label, then one chip per archetype the spell belongs to - school first, then elements, casting, targeting,
   techniques (SR's index order inside each group). Chips are text (a thin kPanelEdge frame, the polish of 2026-10-29)
   and wrap to the column width.
-- A chip shows the archetype's Korean name when the player has any knowledge of that archetype at the spell's tier
+- A chip shows the archetype's name when the player has any knowledge of that archetype at the spell's tier
   (its tier GlobalVariable > 0, the rule SR Prisma's experience window also uses since 0.2.0), otherwise "?".
   (SR keeps no per-spell "researched" record - re-checked against SR Prisma 0.2.1: still none - so "researched" is
   read as "the player has knowledge in that archetype at that tier"; the reason line says so for "?" chips.)
@@ -46,14 +49,25 @@ columns are hidden when nothing is, Widget.cpp:3376-3388, 3417). For the spell t
 - Read only. The add-on never writes SR's data. No SR Prisma query API exists (its "ask without opening" item C-32 is
   still a to-do), so the block reads the esp's lists itself.
 
-## Korean archetype names
+## Strings and language
 
-No Korean source exists: SpellResearch.esp's names are English in the load order (e.g. 007300 "Fire Thesis"), SR's
-translation file is English, SR Prisma is not localised. A 60-entry table in the plugin, written from
-`skyrim-glossary.md` and the game's Korean school/effect terms first, then an Argon naturalness review (count of
-flagged and changed lines in the report). Tier names: 초보자, 견습생, 숙련자, 전문가, 달인 (HoM's lang/ko.json
-`prm.tier*`; the glossary agrees on 숙련자/전문가/달인). The word stays "아키타입", the user's own term for SR's
-archetypes (the glossary's "원형" is RoleRim's class archetype).
+The block's language follows SR Prisma's language setting (user, 2026-10-29: "sr 프리즈마에 skse메뉴 설정에 따른
+언어설정을 만드는 중이야. 언어는 그걸 따라가게"). That setting, where it is stored, how another plugin reads it and
+SR Prisma's translation tables are not decided yet (SR Prisma session, 2026-10-29: today SR Prisma has English
+strings in view/index.html only and SpellResearchPrismaUI.ini holds ToggleKey, fUIScale, bSelfTest). So:
+
+- Every player-visible string of the block (60 archetype names, 5 tier names, 3 buttons, title, reason lines,
+  notifications) comes from a per-language JSON file, `SKSE/Plugins/SL_MagicMenu_SpellResearch/lang/<code>.json`,
+  read at kDataLoaded; a missing key falls back to the English file, a missing English key to the key itself (and a
+  log line).
+- This task ships `en.json` only (archetype names as SR Prisma's `ARCHETYPES`, view/index.html:966; tiers Novice ..
+  Master). The language code is chosen by one function, `ResolveLanguage()`, which returns "en" until SR Prisma's
+  setting exists; it is the one place to connect when SR Prisma publishes the key or API. When SR Prisma's translation
+  tables exist the block reads the same names (or ships copies generated from them), so a name never differs between
+  the block and SR Prisma's window.
+- Korean names are SR Prisma's decision (its session reconciles them with TAKEALOOK's existing Korean for Spell
+  Research, Mod-Management Case 070, and the glossary). An Argon draft of the 60 names is kept in this session's notes
+  only as input to that work. The word "아키타입" is the user's own term for SR's archetypes.
 
 ## Changes
 
@@ -139,8 +153,8 @@ when nothing is chosen. All four stay.
 ## Not in scope
 
 The archetype icons (SR Prisma's skald-icons.png atlas: loading bitmaps into the host movie is its own question, and
-its distribution needs SR's author's agreement), the HoML block and the FOMOD (next task), English strings (the host
-is Korean-only today), per-frame updates, knowledge numbers in the block.
+its distribution needs SR's author's agreement), the HoML block and the FOMOD (next task), languages other than
+English until SR Prisma's language setting and tables exist, per-frame updates, knowledge numbers in the block.
 
 ## Verification
 
