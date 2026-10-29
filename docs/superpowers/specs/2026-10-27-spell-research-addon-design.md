@@ -51,7 +51,7 @@ columns are hidden when nothing is, Widget.cpp:3376-3388, 3417). For the spell t
 - `_SR_ListSpellsArchetypes` 000D9E: FormList of 60 FormLists, one per archetype, the spells in it. Index order =
   `_SRU_Utility.GetArchetypeString`: 0-1 casting, 2-35 elements, 36-40 schools Alteration..Restoration,
   41-44 targeting, 45-59 techniques (each sub-list's EditorID matches, e.g. [12] _SR_ListSpellsElementFire). SR
-  Prisma's `ARCHETYPES` (view/index.html:966) has the same order.
+  Prisma's `ARCHETYPES` (view/index.html:960) has the same order.
 - `_SR_ListAllSpells` 001343: FormList of 5 FormLists, spells by tier, [0] Novice .. [4] Master.
 - `_SR_ListGlobalsArchetypes` 00133D: FormList of 60 FormLists of 5 GlobalVariables, [0] Novice .. [4] Master.
   Values only grow.
@@ -71,11 +71,18 @@ strings in view/index.html only and SpellResearchPrismaUI.ini holds ToggleKey, f
   notifications) comes from a per-language JSON file, `SKSE/Plugins/SL_MagicMenu_SpellResearch/lang/<code>.json`,
   read at kDataLoaded; a missing key falls back to the English file, a missing English key to the key itself (and a
   log line).
-- This task ships `en.json` only (archetype names as SR Prisma's `ARCHETYPES`, view/index.html:966; tiers Novice ..
-  Master). The language code is chosen by one function, `ResolveLanguage()`, which returns "en" until SR Prisma's
-  setting exists; it is the one place to connect when SR Prisma publishes the key or API. When SR Prisma's translation
-  tables exist the block reads the same names (or ships copies generated from them), so a name never differs between
-  the block and SR Prisma's window.
+- This task ships `en.json` only (tiers Novice .. Master). Archetype names: the block shows SHORT names, without the
+  group word (its group label or icon frame says it): "Area", not "Area Targeting" (the user-approved mock3). The keys
+  are the ones SR Prisma's translation tables will have (SR Prisma session, 2026-10-29; its stage 3):
+  `archetype.<index>.name` (SR Prisma's `ARCHETYPES` name, view/index.html:960) and `archetype.<index>.short` (the same
+  without the group word), index = SR's archetype order. The block shows `.short`, falling back to `.name` (the
+  language's short, its name, English short, English name, the key). Until those tables exist `en.json` carries both
+  columns itself; then the block reads SR Prisma's (or ships copies generated from them), so a short name never
+  differs between the block and SR Prisma's window.
+- The language code is chosen by one function, `ResolveLanguage()`: SpellResearchPrismaUI.ini `[Display] sLanguage =
+  auto | en | ko` (SR Prisma's settings design draft, docs/2026-10-29-settings-tab-design.md - the key is SR Prisma's,
+  not final): en or ko -> that code; auto, missing or another value -> the game's Skyrim.ini `sLanguage:General`
+  (KOREAN -> ko, anything else en). A code without its `lang/<code>.json` uses English. Read once at kDataLoaded.
 - Korean names are SR Prisma's decision (its session reconciles them with TAKEALOOK's existing Korean for Spell
   Research, Mod-Management Case 070, and the glossary). An Argon draft of the 60 names is kept in this session's notes
   only as input to that work. The word "아키타입" is the user's own term for SR's archetypes.
@@ -164,10 +171,10 @@ checks, the snapshot, the first-open self-test), `BlockDraw.cpp` (draw, click, S
 `SrBlockRules.h` that `tools/magic-menu-sr-block-check` runs; `BlockApi.h` and `Draw.h` are copies of the host's,
 `SRPrismaAPI.h` is SR Prisma HEAD dd084c3's file unchanged (the same API as f76e584). Decisions the design left open:
 
-- Names: `lang/en.json` keys `archetype.0` .. `archetype.59` in SR Prisma's ARCHETYPES order; the values are the names
-  the approved mockup shows (mock3: "Area", "Location", "Sensing"), so targeting and technique names drop SR Prisma's
-  " Targeting" / " Techniques" (the group label or the icon frame says it). Casting and school names stay SR's (never
-  drawn). To reconcile when SR Prisma's translation tables land.
+- Names: `lang/en.json` keys `archetype.<i>.name` (SR Prisma's ARCHETYPES) and `archetype.<i>.short` (targeting and
+  technique without " Targeting" / " Techniques"; elements, casting and schools as the name) - see "Strings and language".
+  The pure parts of the strings and the ini (BOM skipped, `ReadIniValue`, `ParseLayout`, `ParseLanguage`,
+  `ArchetypeName`) are in `SrBlockText.h`, also run by the check tool.
 - Height 132 (content 94 = three 18-unit archetype lines, 6 gap, an 18-unit link row, a 16-unit reason line; plus the
   host's 22 title strip and 2 x 8 padding), the same for both layouts. List: one line per group, wrapping inside the
   archetype column; line: wrapping to the width. Neither passes three lines: what does not fit is left out and "..." ends
@@ -175,13 +182,22 @@ checks, the snapshot, the first-open self-test), `BlockDraw.cpp` (draw, click, S
 - "?" cases: SR does not file the spell, its lists are empty, not a spell (a power, an ability), no element / targeting /
   technique filed, and a spell in archetype lists but in no tier list (every archetype "?", reason "in no tier list").
 - The snapshot is built at each magic menu open; the previous one stays published until the new one lands (no "getting
-  ready" flash on every open), then 'SLMD'. Before the first build of the game session the block says "getting ready".
+  ready" flash on every open), then 'SLMD'. It is dropped at kPreLoadGame and kNewGame (another character's data never
+  shows): the first open after a load says "getting ready" for a frame.
+- A Busy/Refused/BadMessage reply that arrives while the magic menu is still open (SR Prisma answers an early refusal -
+  combat, a missing item - before it waits for the close) is held and shown when the menu closes.
 - Icons: `ArchetypeIcons.h` now carries `Icon::frame` (tools/sr-icons/convert.mjs: the glyph converted alone is the rest of
   the subpaths; one frame per group); a dot subpath (two equal points) is drawn as a small filled polygon as wide as the
   stroke (a zero-length AS2 line draws nothing); strokes use Flash 8 `lineStyle(..., "round", "round")`.
 - dist: `dist/SL_MagicMenu_SpellResearch/SKSE/Plugins/` (DLL, PDB, ini, `SL_MagicMenu_SpellResearch/lang/en.json`) is
   rebuilt by every build (custom target `SL_MagicMenu_SpellResearch_dist`), from `plugins/SL_MagicMenu_SpellResearch/dist/`.
-- Self-test: `[selftest-sr] lists|snapshot|flames|librarian PASS|FAIL|SKIP` and `DONE` at the first open; per redraw (up
+- Self-test: `[selftest-sr] lists|snapshot|flames|outside|not-filed PASS|FAIL|SKIP` and `DONE` at the first open.
+  `lists` counts the three lists' entries and each knowledge list's globals at that moment (and is written as FAIL, with
+  DONE, at kDataLoaded when Init refuses SR's forms; SKIP when SpellResearch.esp is not loaded). `outside` replaces the
+  "Librarian spell" check: up to 3 spells from plugins other than SpellResearch.esp and the game's masters that the
+  snapshot files (lowest FormIDs) are checked against the engine's own `BGSListForm::HasForm` on all 60 archetype and 5
+  tier lists; `not-filed`: the first spell the snapshot does not file has HasForm false on all of them (SKIP when none
+  qualify). Per redraw (up
   to 16 a menu) `[selftest-sr] drawn PASS` when the drawn form is SkyUI's list selection, `SKIP` when the card shows
   another (a tree click) or the selection is unreadable - it cannot tell a wrong draw from a tree click, so it never FAILs.
 

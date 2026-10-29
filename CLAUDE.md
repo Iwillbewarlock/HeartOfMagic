@@ -351,8 +351,9 @@ This project does not have a C++ test framework. Validation is done through:
   (plugins/SL_MagicMenu_SpellResearch, docs/superpowers/specs/2026-10-27-spell-research-addon-design.md)
   `magic-menu-sr-block-check` (`SrBlockRules.h`: archetype grouping and order, what the block shows per state, the list and
   line layouts and their wrapping, the unknown archetype's frame-only icon, the icon data's bounds, the link click rule,
-  reply code -> notification, the open request's requestId matching and 5 s drop, the `[MagicMenuBlock] sLayout` ini
-  reading, and `dist/lang/en.json` against the block's keys; `--selftest` the same, `--lang <file>` another language file) -
+  reply code -> notification, the open request's requestId matching and 5 s drop, line overlap; `SrBlockText.h`: the
+  `[MagicMenuBlock] sLayout` and `[Display] sLanguage` ini reading (BOM too), the game language mapping, archetype short /
+  name fallback, and `dist/lang/en.json` against the block's keys; `--selftest` the same, `--lang <file>` another language file) -
   PASS/FAIL lines, exit 1 on a failure
 
 ## Code Style
