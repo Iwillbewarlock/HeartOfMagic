@@ -175,7 +175,7 @@ namespace Widget
         constexpr double kNoteSize = 10.0, kLegendSize = 10.0, kLegendIconR = 5.0, kLegendTextGap = 4.0;
         // tree badges (spec v10 T7): arrow half size, its distance from the edge, the "N개 더" text's width
         constexpr double kExitArrow = 5.0, kExitInset = 7.0, kExitTextW = 56.0;
-        constexpr std::uint32_t kBlue = 0x4A90D9, kWhite = 0xF0F0F0, kLockedEdge = 0x6A6A6A, kLabelColor = 0xD8D8D8, kDimText = 0x8A8A8A;
+        constexpr std::uint32_t kWhite = 0xF0F0F0, kLockedEdge = 0x6A6A6A, kLabelColor = 0xD8D8D8, kDimText = 0x8A8A8A;
         // the fill colour of a node's invisible hit area (alpha 0); HoM's opaque _backdrop under dimmed spells is not drawn (see DrawHomMark)
         constexpr std::uint32_t kBackdrop = 0x000000;
         // HoM's config and design presets (in game through MO2's VFS; relative to the game folder like Spells.cpp's kTreePath)
@@ -1608,7 +1608,7 @@ namespace Widget
             Draw::NoLine(a_clip);
             double y = kNoteH + kBarGap;
             for (const double share : kBarShares) {
-                Draw::Rect(a_clip, 0, y, a_width * share, barH, kBlue, kBarAlpha);
+                Draw::Rect(a_clip, 0, y, a_width * share, barH, kTitleColor, kBarAlpha);
                 y += barH + kBarGap;
             }
         }
@@ -4123,7 +4123,9 @@ namespace Widget
         constexpr double kMinHandleW = 6.0;  // the border handle's hit strip at least this wide (fPanelGap may be 0)
         constexpr double kAutoScrollEdge = 28.0, kAutoScrollStep = 8.0;  // D8: within this of a column's top/bottom the column scrolls, per frame
         constexpr int kMaxDragLogs = 24;
-        // Task 5: the focus look (on the block's cover), the pick's keep-in-view margin around its insertion line, the right stick
+        // Task 5: the focus look (on the block's cover), the pick's keep-in-view margin around its insertion line, the right stick.
+        // No accent colour (UI polish 2026-10-29): what rests (focus outline, drag ghost) is kTitleColor, what acts (the picked
+        // block's edge, the insertion line, the border guide) the brighter kWhite
         constexpr double kFocusEdgeW = 2.0, kPickEdgeW = 3.0, kLiftFillAlpha = 12.0;
         constexpr double kLineViewMargin = 24.0;  // stage units kept in view above and below the pick's insertion line
         constexpr double kStickStep = 14.0;       // stage units per frame at full tilt (unverified feel: eyes-only)
@@ -4634,11 +4636,11 @@ namespace Widget
         void DrawFocusLook(RE::GFxValue& a_cover, double a_w, double a_h, bool a_picked)
         {
             if (!a_picked) {
-                Draw::LineStyle(a_cover, kFocusEdgeW, kBlue);
+                Draw::LineStyle(a_cover, kFocusEdgeW, kTitleColor);
                 Draw::Rect(a_cover, kFocusEdgeW / 2, kFocusEdgeW / 2, a_w - kFocusEdgeW, a_h - kFocusEdgeW, kPanelFill, 0.0);
                 return;
             }
-            Draw::LineStyle(a_cover, kPickEdgeW, kBlue);
+            Draw::LineStyle(a_cover, kPickEdgeW, kWhite);
             Draw::Rect(a_cover, kPickEdgeW / 2, kPickEdgeW / 2, a_w - kPickEdgeW, a_h - kPickEdgeW, kWhite, kLiftFillAlpha);
         }
 
@@ -4840,7 +4842,7 @@ namespace Widget
             if (!line.IsDisplayObject()) return;
             const auto viewport = ColumnViewport(a_slot.column);
             const double y = std::clamp(SlotLineY(a_slot, a_dragged) - g_menu.scroll[a_slot.column], viewport.top, viewport.bottom);
-            Draw::LineStyle(line, kLineW, kBlue);
+            Draw::LineStyle(line, kLineW, kWhite);
             Draw::MoveTo(line, viewport.left, y);
             Draw::LineTo(line, viewport.right, y);
         }
@@ -4934,7 +4936,7 @@ namespace Widget
                 Draw::Remove(overlay, "ghost");
                 auto ghost = Draw::Clip(overlay, "ghost");
                 if (ghost.IsDisplayObject()) {
-                    Draw::Box(ghost, rect.Width(), rect.Height(), kPanelFill, kGhostAlpha, kBlue, kLineW);
+                    Draw::Box(ghost, rect.Width(), rect.Height(), kPanelFill, kGhostAlpha, kTitleColor, kLineW);
                     ghost.SetMember("_x", rect.left);
                     ghost.SetMember("_y", rect.top);
                 }
@@ -5025,7 +5027,7 @@ namespace Widget
             Draw::Remove(overlay, "guide");
             auto guide = Draw::Clip(overlay, "guide");
             if (!guide.IsDisplayObject()) return;
-            Draw::LineStyle(guide, kLineW, kBlue);
+            Draw::LineStyle(guide, kLineW, kWhite);
             Draw::MoveTo(guide, border, frames[0].top);
             Draw::LineTo(guide, border, frames[0].bottom);
         }
@@ -6221,7 +6223,7 @@ namespace Widget
             Draw::NoLine(content);
             Draw::Rect(content, 0, barY, barW, kBarH, kBarBack, Draw::kAlphaFull);
             if (state.percent > 0) {
-                Draw::Rect(content, 0, barY, barW * std::clamp(state.percent / 100.0, 0.0, 1.0), kBarH, kBlue, Draw::kAlphaFull);
+                Draw::Rect(content, 0, barY, barW * std::clamp(state.percent / 100.0, 0.0, 1.0), kBarH, kTitleColor, Draw::kAlphaFull);
             }
             const auto xp = Fill(Str::kXp, { { "{cur}", std::format("{:.0f}", state.required * state.percent / 100.0f) },
                                                { "{need}", std::format("{:.0f}", state.required) } });
