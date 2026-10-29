@@ -660,10 +660,11 @@ namespace Widget
             int resizeLogs = 0;  // Rearrange's "block X is W x H now" lines this menu (a fitted card changes with its content)
             std::pair<double, double> treeOrigin{};  // the tree drawing's 0,0 in its panel as last drawn (RedrawTree; the tooltip's)
             Settings::Rect tooltipTree;  // the tree's rect (on screen) when the tooltip was last drawn (RedrawTooltip)
-            bool gearPlaced = false;  // the gear has its place this menu (PlaceGear)
-            int gearTries = 0, gearStable = 0, gearMoveLogs = 0;
-            std::optional<Settings::Rect> gearLast;  // where the gear was put last (PlaceGear follows its anchor until it settles)
-            bool gearAnchored = false;               // a SkyUI clip answered once this menu: no fallback after that (final review 7)
+            std::optional<Settings::Rect> gearLast;  // where the gear was put last (PlaceStripAndGear)
+            // user 2026-10-30: the key-hint strip's clips (paths), found in the first kStripSearchFrames frames; its moves logged
+            std::vector<std::string> stripPaths;
+            int stripSearchLeft = 0, stripMoveLogs = 0;
+            bool stripMissingLogged = false;
             bool gearHover = false;                  // the mouse is over the gear (GearHover)
             std::optional<bool> gearDrawnMode;       // the layout mode the gear's look and hint were made for (UpdateGear)
             // user 2026-10-30: each fitted block's waiting shrink (BlockRules::DecideFit; built-in cards and add-ons alike)
@@ -4666,13 +4667,15 @@ namespace Widget
         constexpr const char* kButtonsName = "layoutButtons";  // the lock / reset row (D5), outside the column masks
         constexpr const char* kBorderName = "layoutBorder";    // the border handle in the gap between the columns (the mode only)
         constexpr const char* kGearName = "layoutGear";        // user 2026-10-30: the layout mode's toggle, under SkyUI's list (always)
-        constexpr double kGearSize = 18.0, kGearGap = 4.0;     // its square's side and its gap under the list (the second fallback)
-        constexpr double kGearInset = 2.0;                     // inside the list window's right edge
+        constexpr double kGearSize = 18.0, kGearGap = 4.0;     // its square's side and its gap under the key-hint strip
+        constexpr double kGearInset = 2.0;                     // right of the left column's left edge
+        constexpr double kStripGap = 4.0, kStripInset = 0.0;   // the key-hint strip under the columns, from the left column's left edge
+        constexpr double kStripTolerance = 0.5;                // stage units: the strip is where it should be
+        constexpr int kStripSearchFrames = 120;                // frames the strip's clips are looked for at a menu open (STB adds its own late)
+        constexpr int kMaxStripMoveLogs = 5;
+        constexpr int kClipDumpFrame = 30;                     // the frame of a menu the one-time clip dump runs at (SkyUI built by then)
         constexpr double kGearLineW = 1.3;     // its line, scaled with the gear (noScale "normal"), round caps and joins
         constexpr double kGearMiterLimit = 3.0;  // lineStyle's miterLimit (unused with round joins; AS2 wants the argument)
-        constexpr int kGearStableFrames = 10;  // the anchor read the same this many frames in a row: the gear stays there
-        constexpr int kMaxGearMoveLogs = 5;
-        constexpr int kGearPlaceFrames = 60;                   // frames the gear waits for SkyUI's list to have bounds
         constexpr const char* kOverlayName = "layoutOverlay";  // the drag ghost, the insertion line, the border guide: on top
         constexpr const char* kCoverPrefix = "mmxCover_";      // a block's drag cover, in its column clip above the panels
         constexpr const char* kCoverBlock = "mmxBlock";        // a cover's block id
@@ -5328,7 +5331,7 @@ namespace Widget
 
         // The gear made in mmx_root above the shield (it works in the mode too): a transparent square that takes the mouse, the
         // gear in kTitleColor and, on hover, in kWhite; its click is the lock button's (LockClick: the K path through lockDue).
-        // Placed by PlaceGear once SkyUI's list has bounds
+        // Placed by PlaceStripAndGear under the key-hint strip
         void MakeGear(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
             auto gear = Draw::Clip(a_widget, kGearName);
@@ -5350,24 +5353,9 @@ namespace Widget
             SetHandler(a_movie, gear, "onRollOut", g_gearOut.get());
             gear.SetMember("useHandCursor", false);
             if (!SafetyNetReason().empty()) gear.SetMember("_alpha", kGreyAlpha);  // as the lock button: the mode rests
-            gear.SetMember("_visible", false);  // until PlaceGear has a place
+            gear.SetMember("_visible", false);  // until PlaceStripAndGear has a place
         }
 
-        // The first of a_paths whose clip has bounds in _root, with its path (SkyUI's and Inventory Reforged's member names are not
-        // checked offline: the log says which answered)
-        std::optional<std::pair<Settings::Rect, std::string>> FirstBounds(RE::GFxMovieView* a_movie, RE::GFxValue& a_space, std::span<const char* const> a_paths)
-        {
-            for (const char* path : a_paths) {
-                RE::GFxValue clip;
-                if (!a_movie->GetVariable(&clip, path) || !clip.IsDisplayObject()) continue;
-                if (const auto bounds = BoundsIn(clip, a_space)) return std::pair{ Settings::Rect{ bounds->xMin, bounds->yMin, bounds->xMax, bounds->yMax }, std::string(path) };
-            }
-            return std::nullopt;
-        }
-
-        // Once per game session, when the gear settles: _root.Menu_mc's named clips to depth kDumpDepth with their stage bounds, so
-        // the next log shows what the gear can anchor to (VisitMembers lists a clip's named members; whether it lists every child
-        // clip of SkyUI's movie is unverified - the log says how many it saw)
         // A clip's own transform for the dump: _x, _y, _xscale, _yscale, _rotation
         std::string TransformText(const RE::GFxValue& a_clip)
         {
@@ -5413,68 +5401,120 @@ namespace Widget
             logger::info("Layout: menu clip dump - {} clip(s) seen to depth {}, {} logged", seen, kDumpDepth, lines);
         }
 
-        // The gear at the bottom-right of SkyUI's list window, level with the bottom bar's skill row (user 2026-10-30, second game
-        // run: under the scrollbar's end was too high, and Inventory Reforged sizes the window - live bounds, never fixed stage
-        // numbers). x: the window's right edge (its background or panel clip, else the scrollbar's right edge); y: the centre of
-        // the bottom bar's player info card (the skill / XP row), else the list's bottom + kGearGap (GearRect), else the
-        // fallback share of the visible stage. Read every frame until the place stays the same kGearStableFrames frames
-        void PlaceGear(RE::GFxMovieView* a_movie, RE::GFxValue& a_root, RE::GFxValue& a_widget)
+        // The screen bottom of the lower of our two columns: each column's lowest arranged block on screen (scrolled), cut at its
+        // viewport (a column taller than it ends at the viewport's bottom); an empty column ends at its top
+        double ColumnsBottom()
         {
-            if (g_menu.gearPlaced) return;
-            auto gear = Child(a_widget, kGearName);
-            if (!gear.IsDisplayObject()) return;
-            static constexpr std::array<const char*, 4> kWindowPaths{ "_root.Menu_mc.inventoryLists.itemList.background",
-                "_root.Menu_mc.inventoryLists.panelContainer", "_root.Menu_mc.inventoryLists.itemList.scrollbar",
-                "_root.Menu_mc.inventoryLists.itemList.scrollBar" };
-            static constexpr std::array<const char*, 3> kRowPaths{ "_root.Menu_mc.bottomBar.playerInfoCard",
-                "_root.Menu_mc.bottomBar.playerInfoCard.SkillTextInstance", "_root.Menu_mc.bottomBar" };
-            static constexpr std::array<const char*, 3> kListPaths{ "_root.Menu_mc.inventoryLists.itemList.scrollbar",
-                "_root.Menu_mc.inventoryLists.itemList.scrollBar", "_root.Menu_mc.inventoryLists.itemList" };
-            // in the host's stage space (our widget: the gear's own parent), through every parent of SkyUI's clips
-            const auto window = FirstBounds(a_movie, a_widget, kWindowPaths);
-            const auto row = FirstBounds(a_movie, a_widget, kRowPaths);
-            const auto list = row ? std::nullopt : FirstBounds(a_movie, a_widget, kListPaths);
-            const bool anchor = window && (row || list);
-            if (anchor) g_menu.gearAnchored = true;
-            // final review 7: a list that reported bounds once and none for a moment (a refill) keeps the gear where it is
-            if (!anchor && (g_menu.gearAnchored || ++g_menu.gearTries < kGearPlaceFrames)) return;
+            double bottom = -std::numeric_limits<double>::infinity();
+            for (int column = 0; column < Layout::kColumns; ++column) {
+                const auto viewport = ColumnViewport(column);
+                double end = viewport.top;
+                for (const auto& [id, rect] : g_menu.blocks) {
+                    if (ColumnOf(id) == column) end = std::max(end, rect.bottom - g_menu.scroll[column]);
+                }
+                bottom = std::max(bottom, std::min(end, viewport.bottom));
+            }
+            return bottom;
+        }
+
+        // The key-hint strip's clips: SkyUI's button panel, and any clip under the bottom bar or _root whose name says STB or
+        // Keycap (STB Hotkey System's hints; its clip names are not known offline). Looked for in the first kStripSearchFrames
+        // frames of a menu; the paths found are kept
+        std::vector<std::string> FindStripClips(RE::GFxMovieView* a_movie)
+        {
+            std::vector<std::string> paths;
+            RE::GFxValue clip;
+            constexpr const char* kButtonPanel = "_root.Menu_mc.bottomBar.buttonPanel";
+            if (a_movie->GetVariable(&clip, kButtonPanel) && clip.IsDisplayObject()) paths.emplace_back(kButtonPanel);
+            const auto named = [](std::string a_name) {
+                std::ranges::transform(a_name, a_name.begin(), [](char c) { return static_cast<char>(c >= 'A' && c <= 'Z' ? c - 'A' + 'a' : c); });
+                return a_name.find("stb") != std::string::npos || a_name.find("keycap") != std::string::npos;
+            };
+            for (const char* parentPath : { "_root.Menu_mc.bottomBar", "_root" }) {
+                RE::GFxValue parent;
+                if (!a_movie->GetVariable(&parent, parentPath) || !parent.IsDisplayObject()) continue;
+                parent.VisitMembers([&](const char* a_name, const RE::GFxValue& a_value) {
+                    if (a_name && a_value.IsDisplayObject() && named(a_name)) paths.push_back(std::string(parentPath) + "." + a_name);
+                });
+            }
+            return paths;
+        }
+
+        // user 2026-10-30 (sketch): SkyUI's key-hint strip (the bottom bar's button panel, STB's hints with it) moved to one row
+        // right under the lower of our columns from the left column's left edge (BlockRules::StripRect; in the layout mode under
+        // the lock / reset row, which sits there then), the clips only moved, never drawn again - each by the same stage step,
+        // taken into its own parent's space (BlockRules::MovedBy), so Inventory Reforged's scale is followed and the clips keep
+        // their places to each other. SkyUI moves or rebuilds the strip (a selection, a tab, a button refresh): put back every
+        // frame it is off. The gear goes under it at the left column's left edge (BlockRules::GearUnder). The skill / XP row
+        // stays where SkyUI puts it
+        void PlaceStripAndGear(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        {
             const auto area = a_movie->GetVisibleFrameRect();
             const Settings::Rect visible{ area.left, area.top, area.right, area.bottom };
-            Settings::Rect rect;
-            std::string from;
-            if (anchor && row) {
-                rect = BlockRules::GearRectAt(window->first.right, row->first.CenterY(), kGearSize, kGearInset, visible);
-                from = std::format("x: right edge of {} at {:.0f}, y: centre of {} at {:.0f}", window->second, window->first.right, row->second, row->first.CenterY());
-            } else if (anchor) {
-                auto under = list->first;
-                under.right = window->first.right - kGearInset;
-                rect = BlockRules::GearRect(under, visible, kGearSize, kGearGap);
-                from = std::format("x: right edge of {} at {:.0f}, y: {} under {} (no bottom bar row answered)", window->second, window->first.right, kGearGap,
-                    list->second);
-            } else {
-                rect = BlockRules::GearRect(std::nullopt, visible, kGearSize, kGearGap);
-                from = std::format("FALLBACK: no SkyUI list window clip had bounds in {} frames - {:.3f}, {:.3f} of the visible stage", kGearPlaceFrames,
-                    BlockRules::kGearFallbackX, BlockRules::kGearFallbackY);
-            }
-            // review R2: SkyUI's list may slide in when the menu opens - the gear follows its anchor until the place has read the
-            // same for kGearStableFrames frames (the fallback has nothing to follow: placed at once)
-            if (!g_menu.gearLast || !SameRect(*g_menu.gearLast, rect)) {
-                if (g_menu.gearLast && ++g_menu.gearMoveLogs <= kMaxGearMoveLogs) {
-                    logger::info("Layout: gear button follows its anchor to {}{}", RectText(rect), g_menu.gearMoveLogs == kMaxGearMoveLogs ? " - later moves not logged" : "");
+            const double left = ColumnViewport(0).left;
+            double below = ColumnsBottom();
+            if (g_menu.layout.active) below = std::max(below, Layout::DefaultFrames(Settings::Get())[0].bottom + kButtonRowGap + kButtonRowH);
+            if (g_menu.stripPaths.empty() && g_menu.stripSearchLeft < kStripSearchFrames) {
+                ++g_menu.stripSearchLeft;
+                g_menu.stripPaths = FindStripClips(a_movie);
+                if (!g_menu.stripPaths.empty()) {
+                    std::string names;
+                    for (const auto& path : g_menu.stripPaths) names += (names.empty() ? "" : ", ") + path;
+                    logger::info("Layout: key-hint strip clip(s): {}", names);
                 }
-                gear.SetMember("_x", rect.left);
-                gear.SetMember("_y", rect.top);
-                gear.SetMember("_visible", true);
-                g_menu.gearLast = rect;
-                g_menu.gearStable = 0;
-                g_menu.gearDrawnMode.reset();  // the hint's side follows the new place (UpdateGear)
-                if (anchor) return;
-            } else if (++g_menu.gearStable < kGearStableFrames) {
-                return;
             }
-            g_menu.gearPlaced = true;
-            logger::info("Layout: gear button at {} ({})", RectText(rect), from);
-            DumpMenuClips(a_movie, a_root, a_widget);
+            if (g_menu.stripPaths.empty() && g_menu.stripSearchLeft >= kStripSearchFrames && !std::exchange(g_menu.stripMissingLogged, true)) {
+                logger::info("Layout: no key-hint strip clip (_root.Menu_mc.bottomBar.buttonPanel, nor an STB / Keycap clip under the bottom bar or "
+                             "_root) in {} frames - SkyUI's strip is left where it is",
+                    kStripSearchFrames);
+            }
+            // the strip's clips and their union on the stage (our widget's space, through every parent)
+            std::vector<RE::GFxValue> clips;
+            std::optional<Bounds> strip;
+            for (const auto& path : g_menu.stripPaths) {
+                RE::GFxValue clip;
+                if (!a_movie->GetVariable(&clip, path.c_str()) || !clip.IsDisplayObject()) continue;
+                const auto bounds = BoundsIn(clip, a_widget);
+                if (!bounds) continue;
+                clips.push_back(clip);
+                if (strip) {
+                    strip->Add(*bounds);
+                } else {
+                    strip = bounds;
+                }
+            }
+            double stripBottom = below;
+            if (strip) {
+                const auto target = BlockRules::StripRect(left, below, strip->xMax - strip->xMin, strip->yMax - strip->yMin, kStripInset, kStripGap, visible);
+                stripBottom = target.bottom;
+                if (std::abs(strip->xMin - target.left) > kStripTolerance || std::abs(strip->yMin - target.top) > kStripTolerance) {
+                    for (auto& clip : clips) {
+                        RE::GFxValue parent;
+                        if (!clip.GetMember("_parent", &parent) || !parent.IsDisplayObject()) continue;
+                        const auto from = MapPoint(a_movie, a_widget, parent, strip->xMin, strip->yMin);
+                        const auto to = MapPoint(a_movie, a_widget, parent, target.left, target.top);
+                        const auto x = Number(clip, "_x"), y = Number(clip, "_y");
+                        if (!from || !to || !x || !y) continue;
+                        const auto moved = BlockRules::MovedBy(*x, *y, { from->first, from->second }, { to->first, to->second });
+                        clip.SetMember("_x", moved.x);
+                        clip.SetMember("_y", moved.y);
+                    }
+                    if (++g_menu.stripMoveLogs <= kMaxStripMoveLogs) {
+                        logger::info("Layout: key-hint strip moved from {:.0f},{:.0f} to {} (columns' bottom {:.0f}){}", strip->xMin, strip->yMin, RectText(target), below,
+                            g_menu.stripMoveLogs == kMaxStripMoveLogs ? " - later moves not logged" : "");
+                    }
+                }
+            }
+            auto gear = Child(a_widget, kGearName);
+            if (!gear.IsDisplayObject()) return;
+            const auto rect = BlockRules::GearUnder(left, stripBottom, kGearSize, kGearInset, kGearGap, visible);
+            if (g_menu.gearLast && SameRect(*g_menu.gearLast, rect)) return;
+            if (!g_menu.gearLast) logger::info("Layout: gear button at {} (under {}, at the left column's left edge)", RectText(rect), strip ? "the key-hint strip" : "the columns");
+            gear.SetMember("_x", rect.left);
+            gear.SetMember("_y", rect.top);
+            gear.SetMember("_visible", true);
+            g_menu.gearLast = rect;
+            g_menu.gearDrawnMode.reset();  // the hint's side follows the new place (UpdateGear)
         }
 
         // user 2026-10-30: the gear's hover hint ("배치 모드 [K]", in the mode "배치 모드 끝내기 [K]", the toggle key as the host
@@ -7899,7 +7939,6 @@ namespace Widget
                 // spec v12 G1/G3: the selection wrap goes on in the first frames; without it the highlight is followed (build 11)
                 InstallSelectionWrap(movie);
                 InstallWheel(movie, widget);  // blocks plan Task 3 (D7)
-                PlaceGear(movie, root, widget);  // user 2026-10-30: under SkyUI's list once it has bounds
                 WatchHeldShrinks();           // user 2026-10-30: a shrink that has waited its delay draws its block again
                 if (!g_menu.selWrapped) FollowHighlight(movie);
                 WatchTab(movie, widget, *snapshot);  // first: the item card's slot depends on the tab
@@ -7916,7 +7955,6 @@ namespace Widget
                     g_menu.ownCardSig.clear();
                     WatchOwnCard(movie, widget);
                 }
-                UpdateGear(movie, widget);   // its lit look and hint follow the mode, whatever changed it
                 TakeAddonHeights(movie, widget);  // Block API v2: the add-ons' kMessageHeight requests (may lay the columns out again)
                 TakeAddonRedraws();          // Block API v2: the add-ons' kMessageRedraw requests
                 DrawAddons(movie, widget);   // blocks plan Task 6: after the layout mode (it may make a panel again in its new column)
@@ -7952,6 +7990,10 @@ namespace Widget
                 DropStaleHover(movie, widget);  // review v11 #10
                 RedrawTooltip(movie, widget, *snapshot);  // the hover changes no tree: outside the dirty gate (spec v10 T6)
                 if (g_menu.dirty) RedrawPass(movie, root, widget, *snapshot);
+                // user 2026-10-30: the key-hint strip and the gear under the columns as this frame left them
+                PlaceStripAndGear(movie, widget);
+                UpdateGear(movie, widget);
+                if (g_menu.frame == kClipDumpFrame) DumpMenuClips(movie, root, widget);
                 // review GPT 1: the preview's place after every fit of this frame (a fitted block above it moves it)
                 PreviewFrame(movie, root, widget);
             }

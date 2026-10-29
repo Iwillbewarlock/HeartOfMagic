@@ -1259,13 +1259,25 @@ namespace
         Expect(BlockRules::RowButtons(false) == 0u, "no layout-row button outside the layout mode");
         Expect(BlockRules::RowButtons(true) == (BlockRules::kRowLock | BlockRules::kRowReset), "lock and reset in the layout mode");
         const Settings::Rect visible1610{ 0, -40, 1280, 760 };
-        const Settings::Rect scrollbar{ 560, 120, 570, 620 };
-        const auto under = BlockRules::GearRect(scrollbar, visible1610, 18.0, 4.0);
-        Expect(Near(under.right, 570) && Near(under.top, 624) && Near(under.Width(), 18) && Near(under.Height(), 18),
-            Text("anchored: right-aligned to the scrollbar, 4 under it (%s)", Show(under).c_str()));
-        const auto fallback = BlockRules::GearRect(std::nullopt, visible1610, 18.0, 4.0);
-        Expect(Near(fallback.CenterX(), 1280 * BlockRules::kGearFallbackX) && Near(fallback.CenterY(), -40 + 800 * BlockRules::kGearFallbackY),
-            Text("no anchor: centred on the fallback share of the visible stage (%s)", Show(fallback).c_str()));
+        // the key-hint strip and the gear (user 2026-10-30 sketch): columns' bottom 623, left column at 648
+        const auto strip = BlockRules::StripRect(648, 623, 520, 24, 0, 4, visible1610);
+        Expect(Near(strip.left, 648) && Near(strip.top, 627) && Near(strip.Width(), 520) && Near(strip.Height(), 24),
+            Text("strip: from the left column's left edge, 4 under the columns (%s)", Show(strip).c_str()));
+        const auto lowStrip = BlockRules::StripRect(648, 750, 520, 24, 0, 4, visible1610);
+        Expect(Near(lowStrip.bottom, 760), Text("columns down to the stage's bottom: the strip kept inside (%s)", Show(lowStrip).c_str()));
+        const auto wide = BlockRules::StripRect(900, 600, 600, 24, 0, 4, visible1610);
+        Expect(Near(wide.right, 1280), Text("a strip wider than the room right of the column: moved left to stay inside (%s)", Show(wide).c_str()));
+        const auto gearUnder = BlockRules::GearUnder(648, strip.bottom, 18, 2, 4, visible1610);
+        Expect(Near(gearUnder.left, 650) && Near(gearUnder.top, 655) && Near(gearUnder.Width(), 18),
+            Text("gear: 2 right of the left column's edge, 4 under the strip (%s)", Show(gearUnder).c_str()));
+        const auto gearLow = BlockRules::GearUnder(648, 755, 18, 2, 4, visible1610);
+        Expect(Near(gearLow.bottom, 760), Text("a strip at the stage's bottom: the gear kept inside (%s)", Show(gearLow).c_str()));
+        // a clip moved in a parent scaled 0.85 and moved (200, 26): stage step (10, 20) is (11.76.., 23.52..) in the parent
+        {
+            const auto toParent = [](double a_x, double a_y) { return BlockRules::Point{ (a_x - 200.0) / 0.85, (a_y - 26.0) / 0.85 }; };
+            const auto moved = BlockRules::MovedBy(50, 60, toParent(500, 600), toParent(510, 620));
+            Expect(Near(moved.x, 50 + 10 / 0.85) && Near(moved.y, 60 + 20 / 0.85), Text("MovedBy through a 0.85 parent: %.3f, %.3f", moved.x, moved.y));
+        }
         // the gear's shape (user's choice "B"): 6 teeth with flat tops, every point within the radius, both outlines closed
         {
             const double cx = 9.0, cy = 9.0, r = 9.0, eps = 1e-9;
@@ -1347,14 +1359,6 @@ namespace
                        !BlockRules::CornerBounds({ BlockRules::Point{ 5, 5 }, BlockRules::Point{ 5, 5 }, BlockRules::Point{ 5, 5 }, BlockRules::Point{ 5, 5 } }),
                 "a corner that is not a number, or an empty box: none");
         }
-        // the second game run (user 2026-10-30): right edge of the list window, centred on the bottom bar's skill row
-        const auto at = BlockRules::GearRectAt(452.0, 700.0, 18.0, 2.0, visible1610);
-        Expect(Near(at.right, 450) && Near(at.CenterY(), 700) && Near(at.Width(), 18) && Near(at.Height(), 18),
-            Text("at the window's right edge (452, inset 2) on the skill row (y 700): %s", Show(at).c_str()));
-        const auto low = BlockRules::GearRectAt(1290.0, 759.0, 18.0, 2.0, visible1610);
-        Expect(low.right <= 1280 + kTolerance && low.bottom <= 760 + kTolerance, Text("a row at the stage's bottom edge: kept inside (%s)", Show(low).c_str()));
-        const auto edge = BlockRules::GearRect(Settings::Rect{ 1270, 700, 1300, 755 }, visible1610, 18.0, 4.0);
-        Expect(edge.right <= 1280 + kTolerance && edge.bottom <= 760 + kTolerance, Text("an anchor at the stage's corner: kept inside it (%s)", Show(edge).c_str()));
     }
 }
 

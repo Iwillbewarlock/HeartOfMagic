@@ -416,3 +416,16 @@ header comment of `plugins/SL_MagicMenu/src/BlockApi.h`, the pure rules `BlockRu
   the block draws at its present height. When it is due, the block is drawn again (cards: the redraw pass or our card's
   redraw, one Rearrange), and an add-on's held 'SLMH' request is taken again by TakeAddonHeights. Not in the layout mode,
   and not for a menu's first fit, which applies at once as before.
+- Key-hint strip and gear under the columns (user 2026-10-30, sketch on the layout map). SkyUI's bottom-bar key hints move
+  to one row right under the lower of our two columns, starting at the left column's left edge
+  (`BlockRules::StripRect`). The columns' bottom is their lowest arranged block on screen, cut at the viewport, so fitted
+  heights move the strip. In the layout mode the strip goes under the lock / reset row, which sits there then.
+- The clips: `_root.Menu_mc.bottomBar.buttonPanel`, plus any clip under the bottom bar or _root whose name has STB or
+  Keycap in it (STB Hotkey System's hints). They are looked for in a menu's first 120 frames; the paths found are logged.
+  The clips are only moved, never drawn again. Each moves by the same stage step, taken into its own parent's space
+  (`MapPoint`, `BlockRules::MovedBy`), so Inventory Reforged's scale is followed and the clips keep their places to each
+  other. The strip is put back every frame SkyUI moves it. With no clip found, SkyUI's strip is left alone (logged once).
+  The skill / XP row stays where SkyUI puts it.
+- The gear sits under the strip at the left column's left edge (`BlockRules::GearUnder`: 2 right of the edge, 4 below the
+  strip, kept inside the visible stage). It no longer anchors to SkyUI's list. The one-time clip dump now runs at a
+  menu's 30th frame.

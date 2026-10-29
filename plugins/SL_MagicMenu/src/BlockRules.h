@@ -180,10 +180,6 @@ namespace BlockRules
         return a_layoutMode ? (kRowLock | kRowReset) : 0u;
     }
 
-    // Where the gear goes when no SkyUI clip answers: its centre as a share of the visible stage (the user's mark in a 1299 x
-    // 876 capture of a 16:10 screen at about 580, 740 - not checked on other aspect ratios)
-    inline constexpr double kGearFallbackX = 580.0 / 1299.0, kGearFallbackY = 740.0 / 876.0;
-
     /// The gear's hover hint beside the gear (stage rect a_gear): right of it when a hint a_w wide fits on screen there, else left
     /// of it; vertically centred on it. Returns its left edge in the gear's own coordinates (the gear's left = 0)
     inline double GearHintX(const Settings::Rect& a_gear, double a_w, double a_gap, const Settings::Rect& a_visible)
@@ -191,28 +187,27 @@ namespace BlockRules
         return a_gear.right + a_gap + a_w <= a_visible.right ? a_gear.Width() + a_gap : -a_gap - a_w;
     }
 
-    /// The gear's rect (stage) at the bottom-right of SkyUI's list window (user 2026-10-30, second game run): a_inset inside the
-    /// window's right edge a_windowRight, centred on the bottom bar's skill row a_rowCentreY. Kept inside a_visible
-    inline Settings::Rect GearRectAt(double a_windowRight, double a_rowCentreY, double a_size, double a_inset, const Settings::Rect& a_visible)
+    // ---------------------------------------------------------------------
+    // The key-hint strip and the gear under our columns (user 2026-10-30, sketch on the layout map): SkyUI's bottom-bar button
+    // hints move to one row right under the lower of our two columns, from the left column's left edge; the gear goes under
+    // that row at the left column's left edge
+    // ---------------------------------------------------------------------
+
+    /// The strip's target (stage): its own size a_w x a_h, a_inset right of the span's left edge a_left, a_gap under the
+    /// columns' bottom a_columnsBottom; kept inside a_visible (it may go over the columns when the stage has no room below)
+    inline Settings::Rect StripRect(double a_left, double a_columnsBottom, double a_w, double a_h, double a_inset, double a_gap, const Settings::Rect& a_visible)
     {
-        double left = a_windowRight - a_inset - a_size, top = a_rowCentreY - a_size / 2;
-        left = std::clamp(left, a_visible.left, std::max(a_visible.left, a_visible.right - a_size));
-        top = std::clamp(top, a_visible.top, std::max(a_visible.top, a_visible.bottom - a_size));
-        return { left, top, left + a_size, top + a_size };
+        double left = a_left + a_inset, top = a_columnsBottom + a_gap;
+        left = std::clamp(left, a_visible.left, std::max(a_visible.left, a_visible.right - a_w));
+        top = std::clamp(top, a_visible.top, std::max(a_visible.top, a_visible.bottom - a_h));
+        return { left, top, left + a_w, top + a_h };
     }
 
-    /// The gear's rect (stage): right-aligned to a_anchor (SkyUI's scrollbar or list, stage bounds) and a_gap under it; with no
-    /// anchor centred on the fallback share of a_visible. Kept inside a_visible either way
-    inline Settings::Rect GearRect(const std::optional<Settings::Rect>& a_anchor, const Settings::Rect& a_visible, double a_size, double a_gap)
+    /// The gear's rect (stage): a_inset right of the left column's left edge a_left, a_gap under the strip's bottom a_above
+    /// (the columns' bottom when there is no strip); the whole gear inside a_visible
+    inline Settings::Rect GearUnder(double a_left, double a_above, double a_size, double a_inset, double a_gap, const Settings::Rect& a_visible)
     {
-        double left = 0.0, top = 0.0;
-        if (a_anchor) {
-            left = a_anchor->right - a_size;
-            top = a_anchor->bottom + a_gap;
-        } else {
-            left = a_visible.left + a_visible.Width() * kGearFallbackX - a_size / 2;
-            top = a_visible.top + a_visible.Height() * kGearFallbackY - a_size / 2;
-        }
+        double left = a_left + a_inset, top = a_above + a_gap;
         left = std::clamp(left, a_visible.left, std::max(a_visible.left, a_visible.right - a_size));
         top = std::clamp(top, a_visible.top, std::max(a_visible.top, a_visible.bottom - a_size));
         return { left, top, left + a_size, top + a_size };
@@ -464,5 +459,13 @@ namespace BlockRules
         }
         if (box.right <= box.left || box.bottom <= box.top) return std::nullopt;
         return box;
+    }
+
+    /// A clip moved so a point at a_from (in its parent's space) lands at a_to (the same point after the move, in its parent's
+    /// space): its new _x/_y. The two points are the stage's from and to taken into the parent (globalToLocal), so a scaled or
+    /// moved parent (Inventory Reforged's window) is followed
+    inline Point MovedBy(double a_x, double a_y, const Point& a_from, const Point& a_to)
+    {
+        return { a_x + (a_to.x - a_from.x), a_y + (a_to.y - a_from.y) };
     }
 }
