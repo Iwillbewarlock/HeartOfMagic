@@ -653,6 +653,7 @@ namespace Widget
             std::map<Layout::BlockId, Settings::Rect> blocksMaxAll;
             int resizeLogs = 0;  // Rearrange's "block X is W x H now" lines this menu (a fitted card changes with its content)
             std::pair<double, double> treeOrigin{};
+            Settings::Rect tooltipTree;  // the tree's rect (on screen) when the tooltip was last drawn (RedrawTooltip)
             bool gearPlaced = false;  // the gear has its place this menu (PlaceGear)
             int gearTries = 0, gearStable = 0, gearMoveLogs = 0;
             std::optional<Settings::Rect> gearLast;  // where the gear was put last (PlaceGear follows its anchor until it settles)  // the tree drawing's 0,0 in its panel as last drawn (RedrawTree; the tooltip's)
@@ -6902,7 +6903,11 @@ namespace Widget
         void RedrawTooltip(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const Spells::Snapshot& a_snapshot)
         {
             const int hovered = g_menu.layout.active ? -1 : g_menu.hovered;  // Task 4: no tooltip in the layout mode
-            if (hovered == g_menu.tooltipFor && !g_menu.tooltipDue) return;
+            // review round 2: the tooltip is a sibling of the tree's panel, so a tree moved by any Rearrange (an add-on's height
+            // request above it, a fit, a tab) or a scroll draws it again here - every frame passes this check
+            const auto treeNow = BlockRect(Layout::kTree);
+            if (hovered == g_menu.tooltipFor && !g_menu.tooltipDue && SameRect(treeNow, g_menu.tooltipTree)) return;
+            g_menu.tooltipTree = treeNow;
             g_menu.tooltipDue = false;
             g_menu.tooltipFor = -1;
             // review R3: the tooltip is a clip of the tree's column (above every panel in it), so a fitted tree shorter than the
@@ -6943,8 +6948,12 @@ namespace Widget
                 y = ny - off - h >= kTitleH ? ny - off - h : ny + off;
             }
             x = std::clamp(x, kPad, std::max(kPad, rect.Width() - kPad - w));
-            // inside the tree's FULL height (a fitted tree can be shorter than the tooltip; it may reach over the block below)
-            y = std::clamp(y, kTitleH, std::max(kTitleH, FullHeight(Layout::kTree) - kPad - h));
+            // inside the tree's FULL height (a fitted tree can be shorter than the tooltip; it may reach over the block below) and
+            // inside the column's visible part (review round 2: the column mask would cut it), above its node when it would run
+            // past the visible bottom
+            const auto column = ColumnOf(Layout::kTree);
+            const auto view = column ? ColumnViewport(*column) : rect;
+            y = BlockRules::TooltipY(y, h, kTitleH, FullHeight(Layout::kTree) - kPad - h, ny - off - h, view.top - rect.top, view.bottom - rect.top);
             auto tip = Draw::Clip(parent, kTooltipName);
             if (!tip.IsDisplayObject()) return;
             const auto local = BlockLocal(Layout::kTree, rect);

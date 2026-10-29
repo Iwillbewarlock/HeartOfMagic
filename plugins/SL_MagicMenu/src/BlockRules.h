@@ -353,4 +353,15 @@ namespace BlockRules
         shape.hole.push_back(shape.hole.front());
         return shape;
     }
+
+    /// The tree tooltip's top in its panel (review round 2): a_y as placed, kept within a_minY..a_maxY (under the title, inside
+    /// the tree's full height), then inside the column's visible part a_viewTop..a_viewBottom (the same panel coordinates; the
+    /// column mask cuts anything past it). One that runs past the visible bottom goes above its node (a_above) when that
+    /// place is visible and under the title, else it is shifted up; it never starts above the visible top
+    inline double TooltipY(double a_y, double a_h, double a_minY, double a_maxY, double a_above, double a_viewTop, double a_viewBottom)
+    {
+        double y = std::clamp(a_y, a_minY, std::max(a_minY, a_maxY));
+        if (y + a_h > a_viewBottom) y = a_above >= std::max(a_viewTop, a_minY) ? a_above : a_viewBottom - a_h;
+        return std::max(y, a_viewTop);
+    }
 }

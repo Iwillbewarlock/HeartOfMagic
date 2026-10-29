@@ -1292,6 +1292,12 @@ namespace
             for (const auto& p : shape.rim) rootOk = rootOk && (std::abs(radius(p) - r) <= eps || std::abs(radius(p) - r * BlockRules::kGearRootShare) <= 1e-9);
             Expect(rootOk, "every other rim point on the root circle (flat valleys, flat tops)");
         }
+        // the tree tooltip's top (review round 2): panel coordinates, title 22, tooltip 60 high, full-height limit 180
+        Expect(Near(BlockRules::TooltipY(50, 60, 22, 180, 0, 0, 300), 50), "tooltip inside everything: kept where placed");
+        Expect(Near(BlockRules::TooltipY(200, 60, 22, 180, 120, 0, 300), 180), "below the tree's full height: clamped to it");
+        Expect(Near(BlockRules::TooltipY(90, 60, 22, 180, 30, 0, 120), 30), "past the column's visible bottom (120): above its node (30)");
+        Expect(Near(BlockRules::TooltipY(90, 60, 22, 180, 10, 0, 120), 60), "above the node would hit the title: shifted up to end at the visible bottom");
+        Expect(Near(BlockRules::TooltipY(40, 60, 22, 180, -30, 35, 80), 35), "a visible part shorter than the tooltip: starts at its top");
         const auto edge = BlockRules::GearRect(Settings::Rect{ 1270, 700, 1300, 755 }, visible1610, 18.0, 4.0);
         Expect(edge.right <= 1280 + kTolerance && edge.bottom <= 760 + kTolerance, Text("an anchor at the stage's corner: kept inside it (%s)", Show(edge).c_str()));
     }
