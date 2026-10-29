@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cstring>
 #include <map>
+#include <numbers>
 #include <optional>
 #include <set>
 #include <string>
@@ -312,5 +313,44 @@ namespace BlockRules
     constexpr Point ToContent(const Point& a_stage, const Settings::Rect& a_content)
     {
         return { a_stage.x - a_content.left, a_stage.y - a_content.top };
+    }
+
+    // The gear's outline (user 2026-10-30 picked shape "B", scratchpad gear/gear2.py flat()): kGearTeeth square teeth with flat
+    // tops on a root circle, a little wider at the root, flat valleys along the root circle between them, and a round hole.
+    // Both outlines are closed: the last point is the first again, so the line has no start tick
+    inline constexpr int kGearTeeth = 6;
+    inline constexpr double kGearRootShare = 0.72;   // the root circle, of the outer radius
+    inline constexpr double kGearTipShare = 0.42;    // a tooth's flat top, of its angular step
+    inline constexpr double kGearRootWiden = 1.25;   // a tooth at the root, of its top's width
+    inline constexpr int kGearValleySteps = 4;       // a valley in this many pieces along the root circle
+    inline constexpr double kGearHoleShare = 0.30;   // the hole, of the outer radius
+    inline constexpr int kGearHoleSegments = 32;
+
+    struct GearShape
+    {
+        std::vector<Point> rim, hole;
+    };
+
+    /// The gear centred on a_cx, a_cy with the outer radius a_r
+    inline GearShape GearOutline(double a_cx, double a_cy, double a_r)
+    {
+        const double twoPi = 2.0 * std::numbers::pi, step = twoPi / kGearTeeth, inner = a_r * kGearRootShare;
+        const double tip = step * kGearTipShare / 2, root = tip * kGearRootWiden;
+        const auto at = [&](double a_radius, double a_angle) { return Point{ a_cx + a_radius * std::cos(a_angle), a_cy + a_radius * std::sin(a_angle) }; };
+        GearShape shape;
+        for (int i = 0; i < kGearTeeth; ++i) {
+            const double mid = step * i;
+            shape.rim.push_back(at(inner, mid - root));
+            shape.rim.push_back(at(a_r, mid - tip));
+            shape.rim.push_back(at(a_r, mid + tip));
+            shape.rim.push_back(at(inner, mid + root));
+            const double from = mid + root, to = mid + step - root;  // the flat valley to the next tooth
+            for (int k = 1; k < kGearValleySteps; ++k) shape.rim.push_back(at(inner, from + (to - from) * k / kGearValleySteps));
+        }
+        shape.rim.push_back(shape.rim.front());
+        const double hole = a_r * kGearHoleShare;
+        for (int k = 0; k < kGearHoleSegments; ++k) shape.hole.push_back(at(hole, twoPi * k / kGearHoleSegments));
+        shape.hole.push_back(shape.hole.front());
+        return shape;
     }
 }

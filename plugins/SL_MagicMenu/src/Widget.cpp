@@ -299,7 +299,6 @@ namespace Widget
             kCardMinutes,
             kCardSeconds,
             // blocks plan Task 4 (D5): the layout buttons
-            kLayoutEdit,
             kLayoutLock,
             kLayoutReset,
             kCount
@@ -388,9 +387,8 @@ namespace Widget
             { Str::kCardHours, "card_hours", "{n}시간" },
             { Str::kCardMinutes, "card_minutes", "{n}분" },
             { Str::kCardSeconds, "card_seconds", "{n}초" },
-            // blocks plan Task 4 (D5): the lock button by the mode's state (off: "change the layout", on: "lock the layout"), the
-            // reset button; the labels the plan gives, {key} the toggle key as the hints show keys
-            { Str::kLayoutEdit, "layout_edit", "배치 바꾸기 {key}" },
+            // blocks plan Task 4 (D5): the lock button (in the mode only since 2026-10-30: outside it the gear starts the mode) and
+            // the reset button; the labels the plan gives, {key} the toggle key as the hints show keys
             { Str::kLayoutLock, "layout_lock", "배치 잠금 {key}" },
             { Str::kLayoutReset, "layout_reset", "처음 배치로" },
         });
@@ -540,6 +538,7 @@ namespace Widget
             // recorded by the handlers, done by the frame handler (no clip is changed inside its own handler)
             std::optional<std::tuple<Layout::BlockId, double, double>> pressDue;  // a cover pressed: block, pointer x, y
             bool releaseDue = false, borderPressDue = false, borderReleaseDue = false, lockDue = false, resetDue = false;
+            const char* lockSource = "the lock button";  // the lock button or the gear (LockClick)
             double borderPressX = 0.0;
             // counts of this menu (logs and SelfTest L5)
             int entered = 0, drops = 0, borderMoves = 0, resets = 0, shieldPresses = 0;
@@ -655,7 +654,8 @@ namespace Widget
             int resizeLogs = 0;  // Rearrange's "block X is W x H now" lines this menu (a fitted card changes with its content)
             std::pair<double, double> treeOrigin{};
             bool gearPlaced = false;  // the gear has its place this menu (PlaceGear)
-            int gearTries = 0;  // the tree drawing's 0,0 in its panel as last drawn (RedrawTree; the tooltip's)
+            int gearTries = 0, gearStable = 0, gearMoveLogs = 0;
+            std::optional<Settings::Rect> gearLast;  // where the gear was put last (PlaceGear follows its anchor until it settles)  // the tree drawing's 0,0 in its panel as last drawn (RedrawTree; the tooltip's)
             // blocks plan Task 6: add-on blocks to draw next frame (DrawAddons), drawn this menu (SelfTest L6), whose callback threw
             std::set<Layout::BlockId> addonDrawDue, addonDrawn, addonFailed;
             // Block API v2: per add-on its draws this menu and the form its drawSelection was last given; the press waiting for its
@@ -3063,6 +3063,7 @@ namespace Widget
         constexpr std::array<const char*, Layout::kColumns> kColumnClips{ "column0", "column1" };
         constexpr std::array<const char*, Layout::kColumns> kColumnMasks{ "columnMask0", "columnMask1" };
         constexpr std::uint32_t kMaskFill = 0xFFFFFF;  // a mask's shape counts, not its colour
+        constexpr const char* kTooltipName = "mmxTreeTooltip";  // the tree's hover tooltip, a clip of the tree's column (review R3)
 
         // blocks plan Task 3 / D4: the clip a block's panel is made in - its column's clip (not a display object when the column
         // clips are missing: AttachWidget makes them first and stops without them)
@@ -3457,12 +3458,19 @@ namespace Widget
 
         void PlaceLayoutChrome(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget);  // the layout mode's buttons, handle, covers (Task 4)
 
-        void Rearrange(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        double FullHeight(const BlockId& a_id);  // a block's full height on this tab (with FitBlock, below)
+
+        // a_fitting: the block FitBlock is fitting (being drawn for its new height now: not marked dirty)
+        void Rearrange(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const BlockId* a_fitting = nullptr)
         {
-            g_menu.blocksAll = ArrangeBlocks({});
-            g_menu.blocks = ArrangeBlocks(ArrangementFor(g_menu.tab, OwnCard()));
             g_menu.blocksMax = ArrangeBlocks(ArrangementFor(g_menu.tab, OwnCard()), false);
             g_menu.blocksMaxAll = ArrangeBlocks({}, false);
+            // review R8: a fit from another tab or column width is never taller than the block's full height here
+            for (auto& [id, fit] : g_menu.fitHeight) {
+                if (!Addon(id)) fit = std::min(fit, FullHeight(id));
+            }
+            g_menu.blocksAll = ArrangeBlocks({});
+            g_menu.blocks = ArrangeBlocks(ArrangementFor(g_menu.tab, OwnCard()));
             PlaceColumns(a_widget);  // the scrolls clamped to this tab's content before any BlockRect below
             for (const BlockId& id : AllBlocks()) {
                 const auto rect = BlockRect(id);
@@ -3491,7 +3499,8 @@ namespace Widget
                     if (id == Layout::kTree && panel.IsDisplayObject()) {
                         DrawLegend(a_movie, panel, rect.Width(), rect.Height(), g_menu.legendSchool.value_or(std::string{}));
                     }
-                    if (id == Layout::kTree || id == Layout::kProgress || id == Layout::kNodeCard) g_menu.dirty = true;
+                    const bool fitting = a_fitting && *a_fitting == id;
+                    if (!fitting && (id == Layout::kTree || id == Layout::kProgress || id == Layout::kNodeCard)) g_menu.dirty = true;
                     if (Addon(id)) g_menu.addonDrawDue.insert(id);
                 }
                 g_menu.placed[id] = rect;
@@ -3533,19 +3542,22 @@ namespace Widget
             const double full = FullHeight(a_id);
             const double fitted = BlockRules::FittedHeight(a_needed, full);
             const auto current = g_menu.fitHeight.find(a_id);
-            const double before = current != g_menu.fitHeight.end() ? current->second : full;
-            if (std::abs(fitted - before) <= BlockRules::kHeightTolerance) return BlockRules::LaidOutHeight(full, fitted, g_menu.layout.active);
+            const bool first = current == g_menu.fitHeight.end();
+            const double before = first ? full : current->second;
+            const bool changed = std::abs(fitted - before) > BlockRules::kHeightTolerance;
+            // review GPT 2: a first fit equal to the full height is recorded too - it takes a fill block (our card) out of the fill,
+            // which would otherwise grow it past the height it is drawn at when a block above it fits
+            if (!changed && !first) return BlockRules::LaidOutHeight(full, fitted, g_menu.layout.active);
             g_menu.fitHeight[a_id] = fitted;
-            if (++g_menu.fitLogs <= kMaxBlockFitLogs) {
+            if (changed && ++g_menu.fitLogs <= kMaxBlockFitLogs) {
                 SelfTest(std::format("L7 fit {} - {:.1f} high (content needs {:.1f}, full {:.1f}, was {:.1f}){}{}", a_id, fitted, a_needed, full, before,
                     g_menu.layout.active ? " - kept for the layout mode's end" : "", g_menu.fitLogs == kMaxBlockFitLogs ? " - later ones this menu not logged" : ""));
             }
             if (g_menu.layout.active) return full;
-            // Rearrange marks a resized tree / progress / node card dirty: this block is being drawn for its new height now, so the
-            // flag is put back (a fit costs no second full redraw next frame)
-            const bool dirty = g_menu.dirty;
-            Rearrange(a_movie, a_widget);
-            g_menu.dirty = dirty;
+            // laid out again when the block's arranged height is not the fitted one; this block is being drawn for its new height
+            // now, so Rearrange does not mark it dirty (review R6: only this block - another one it resizes is still marked)
+            const auto arranged = g_menu.blocks.contains(a_id) ? g_menu.blocks.at(a_id) : g_menu.blocksAll.contains(a_id) ? g_menu.blocksAll.at(a_id) : Settings::Rect{};
+            if (std::abs(arranged.Height() - fitted) > BlockRules::kHeightTolerance) Rearrange(a_movie, a_widget, &a_id);
             return fitted;
         }
 
@@ -3801,6 +3813,12 @@ namespace Widget
             }
             SetVisible(a_widget, Layout::kPreview, preview);
             SetVisible(a_widget, Layout::kTree, tree);
+            if (!tree) {  // review R3: the tooltip lives in the column clip, not the tree's panel - it goes with the hidden tree
+                for (const char* columnName : kColumnClips) {
+                    if (auto column = Child(a_widget, columnName); column.IsDisplayObject()) Draw::Remove(column, kTooltipName);
+                }
+                g_menu.tooltipFor = -1;
+            }
             SetVisible(a_widget, Layout::kNodeCard, nodeCard);
             SetVisible(a_widget, Layout::kProgress, progress);
             SetVisible(a_widget, Layout::kSpellCard, card);
@@ -4446,6 +4464,7 @@ namespace Widget
                     }
                     logger::warn("Widget: C1 no card info for selection {} in {} frames - SkyUI's own card is back for this menu", selection, kC1NoInfoFrames);
                     SelfTest(std::format("C1 card FAIL - no card info object for {} frames; fell back to SkyUI's card", kC1NoInfoFrames));
+                    g_menu.fitHeight.erase(Layout::kSpellCard);  // review GPT 3: SkyUI's card keeps its slot's size, not our card's fit
                     Rearrange(a_movie, a_widget);  // SkyUI's card does not fill its column (ArrangementFor)
                     ApplyVisibility(a_widget);
                     return;
@@ -4510,8 +4529,10 @@ namespace Widget
         constexpr const char* kBorderName = "layoutBorder";    // the border handle in the gap between the columns (the mode only)
         constexpr const char* kGearName = "layoutGear";        // user 2026-10-30: the layout mode's toggle, under SkyUI's list (always)
         constexpr double kGearSize = 18.0, kGearGap = 4.0;     // its square's side and its gap under the scrollbar / list
-        constexpr int kGearTeeth = 8;
-        constexpr double kGearInner = 0.62, kGearHole = 0.28;  // the tooth root and the hole, as shares of the outer radius
+        constexpr double kGearLineW = 1.3;     // its line, scaled with the gear (noScale "normal"), round caps and joins
+        constexpr double kGearMiterLimit = 3.0;  // lineStyle's miterLimit (unused with round joins; AS2 wants the argument)
+        constexpr int kGearStableFrames = 10;  // the anchor read the same this many frames in a row: the gear stays there
+        constexpr int kMaxGearMoveLogs = 5;
         constexpr int kGearPlaceFrames = 60;                   // frames the gear waits for SkyUI's list to have bounds
         constexpr const char* kOverlayName = "layoutOverlay";  // the drag ghost, the insertion line, the border guide: on top
         constexpr const char* kCoverPrefix = "mmxCover_";      // a block's drag cover, in its column clip above the panels
@@ -4785,13 +4806,21 @@ namespace Widget
             }
         };
 
+        // The lock button's and the gear's click (a_source names it in the log lines)
         class LockClick final : public RE::GFxFunctionHandler
         {
         public:
+            explicit LockClick(const char* a_source) : _source(a_source) {}
+
             void Call(Params&) override
             {
-                if (!g_closing) g_menu.layout.lockDue = true;
+                if (g_closing) return;
+                g_menu.layout.lockDue = true;
+                g_menu.layout.lockSource = _source;
             }
+
+        private:
+            const char* _source;
         };
 
         class ResetClick final : public RE::GFxFunctionHandler
@@ -5117,25 +5146,16 @@ namespace Widget
             }
         }
 
-        // One gear outline in a_color, centred on a_c (kGearTeeth square teeth round a hole)
+        // The gear (BlockRules::GearOutline, shape B) in a_color, centred on a_c: the SR block's line (Flash 8 lineStyle with round
+        // caps and joins, BlockDraw.cpp), each outline closed on its first point
         void DrawGear(RE::GFxValue& a_clip, double a_c, double a_r, std::uint32_t a_color)
         {
-            constexpr int kHoleSteps = 16;
-            constexpr double kTwoPi = 2.0 * std::numbers::pi;
-            Draw::LineStyle(a_clip, kEdgeWidth, a_color);
-            const double inner = a_r * kGearInner, step = kTwoPi / kGearTeeth, half = step / 4;
-            const auto at = [&](double a_radius, double a_angle) { return std::pair{ a_c + a_radius * std::cos(a_angle), a_c + a_radius * std::sin(a_angle) }; };
-            const auto [startX, startY] = at(inner, -2 * half);
-            Draw::MoveTo(a_clip, startX, startY);
-            for (int i = 0; i < kGearTeeth; ++i) {  // each tooth: up at its left, across its top, down at its right
-                const double mid = step * i;
-                for (const auto& [x, y] : { at(a_r, mid - half), at(a_r, mid + half), at(inner, mid + 2 * half) }) Draw::LineTo(a_clip, x, y);
-            }
-            const double hole = a_r * kGearHole;
-            Draw::MoveTo(a_clip, a_c + hole, a_c);
-            for (int k = 1; k <= kHoleSteps; ++k) {
-                const auto [x, y] = at(hole, kTwoPi * k / kHoleSteps);
-                Draw::LineTo(a_clip, x, y);
+            Draw::Call(a_clip, "lineStyle", { kGearLineW, static_cast<double>(a_color), Draw::kAlphaFull, false, "normal", "round", "round", kGearMiterLimit });
+            const auto shape = BlockRules::GearOutline(a_c, a_c, a_r);
+            for (const auto* outline : { &shape.rim, &shape.hole }) {
+                if (outline->empty()) continue;
+                Draw::MoveTo(a_clip, outline->front().x, outline->front().y);
+                for (std::size_t i = 1; i < outline->size(); ++i) Draw::LineTo(a_clip, (*outline)[i].x, (*outline)[i].y);
             }
         }
 
@@ -5156,6 +5176,7 @@ namespace Widget
             bool _over;
         };
         RE::GPtr<GearHover> g_gearOver, g_gearOut;
+        RE::GPtr<LockClick> g_gearClick;
 
         // The gear made in mmx_root above the shield (it works in the mode too): a transparent square that takes the mouse, the
         // gear in kTitleColor and, on hover, in kWhite; its click is the lock button's (LockClick: the K path through lockDue).
@@ -5176,7 +5197,7 @@ namespace Widget
                 DrawGear(lit, kGearSize / 2, kGearSize / 2, kWhite);
                 lit.SetMember("_visible", false);
             }
-            SetHandler(a_movie, gear, "onRelease", g_lockClick.get());
+            SetHandler(a_movie, gear, "onRelease", g_gearClick.get());
             SetHandler(a_movie, gear, "onRollOver", g_gearOver.get());
             SetHandler(a_movie, gear, "onRollOut", g_gearOut.get());
             gear.SetMember("useHandCursor", false);
@@ -5209,9 +5230,21 @@ namespace Widget
             const auto area = a_movie->GetVisibleFrameRect();
             const Settings::Rect visible{ area.left, area.top, area.right, area.bottom };
             const auto rect = BlockRules::GearRect(anchor, visible, kGearSize, kGearGap);
-            gear.SetMember("_x", rect.left);
-            gear.SetMember("_y", rect.top);
-            gear.SetMember("_visible", true);
+            // review R2: SkyUI's list may slide in when the menu opens - the gear follows its anchor until the anchor has read the
+            // same for kGearStableFrames frames (the fallback has nothing to follow: placed at once)
+            if (!g_menu.gearLast || !SameRect(*g_menu.gearLast, rect)) {
+                if (g_menu.gearLast && ++g_menu.gearMoveLogs <= kMaxGearMoveLogs) {
+                    logger::info("Layout: gear button follows {} to {}{}", from, RectText(rect), g_menu.gearMoveLogs == kMaxGearMoveLogs ? " - later moves not logged" : "");
+                }
+                gear.SetMember("_x", rect.left);
+                gear.SetMember("_y", rect.top);
+                gear.SetMember("_visible", true);
+                g_menu.gearLast = rect;
+                g_menu.gearStable = 0;
+                if (anchor) return;
+            } else if (++g_menu.gearStable < kGearStableFrames) {
+                return;
+            }
             g_menu.gearPlaced = true;
             logger::info("Layout: gear button at {} ({})", RectText(rect),
                 anchor ? std::format("right-aligned under {} at {}", from, RectText(*anchor)) :
@@ -5820,13 +5853,13 @@ namespace Widget
             if (std::exchange(m.lockDue, false)) {
                 if (m.active) {
                     const auto seq = BeginModeChange(false);
-                    LeaveLayoutMode(a_movie, a_widget, true, "the lock button");
+                    LeaveLayoutMode(a_movie, a_widget, true, m.lockSource);
                     SettleMode(seq, m.active);
                 } else if (const auto bits = LiveBlock(Input::HeldCount() > 0); bits != 0) {
-                    LogRefusal(bits, "the lock button");
+                    LogRefusal(bits, m.lockSource);
                 } else if (!g_layoutMode) {  // on already: an Enter is queued (the next frame runs it)
                     const auto seq = BeginModeChange(true);
-                    EnterLayoutMode(a_movie, a_widget, "the lock button");
+                    EnterLayoutMode(a_movie, a_widget, m.lockSource);
                     SettleMode(seq, m.active);
                 }
             }
@@ -6535,6 +6568,8 @@ namespace Widget
             // cap, without x/y or of another school are only logged
             const auto badges = LayoutMath::Badges(window.outside);
             const bool noLinks = Data().tree.adjacent[g_session.centre].empty();
+            RE::GFxValue noLinksNote;               // the "no links" note: kept off by the labels at the body's bottom, then moved up
+            std::optional<std::size_t> noteBox;     // under the drawing for the fit (review R1)
             bool badgesDrawn = false;
             if (badges.total > 0) {
                 badgesDrawn = DrawBadges(a_movie, content, badges, frame, labels);
@@ -6546,10 +6581,11 @@ namespace Widget
                 }
             } else if (noLinks) {
                 const double size = Size(kNoteSize), top = frame.halfH - FieldH(size);
-                const auto note = FitLine(a_movie, content, "nolinks", -frame.halfW, top, std::max(0.0, 2 * frame.halfW), size,
+                noLinksNote = FitLine(a_movie, content, "nolinks", -frame.halfW, top, std::max(0.0, 2 * frame.halfW), size,
                     Text(Str::kTreeNoLinks), kDimText, "center");
+                noteBox = labels.size();
                 labels.push_back({ -frame.halfW, top, frame.halfW, top + FieldH(size) });
-                Q2State(Str::kTreeNoLinks, Text(Str::kTreeNoLinks), &note);
+                Q2State(Str::kTreeNoLinks, Text(Str::kTreeNoLinks), &noLinksNote);
             }
 
             // Labels in rank order, each only at a clear place (spec v10 T5); none at all when HoM's showNodeNames is off (T15)
@@ -6612,7 +6648,20 @@ namespace Widget
             std::vector<LabelBox> drawnBoxes;
             drawnBoxes.reserve(labels.size());
             for (std::size_t i = 0; i < labels.size(); ++i) {
-                if (i != legendBox) drawnBoxes.push_back(labels[i]);
+                if (i != legendBox && i != noteBox) drawnBoxes.push_back(labels[i]);
+            }
+            // review R1: the "no links" note goes right under the lowest drawn box (it was reserved at the body's bottom so no label
+            // took its place; there it would keep the window at its full height with an empty band above it)
+            if (noteBox && noLinksNote.IsDisplayObject()) {
+                const auto& reserved = labels[*noteBox];
+                double lowest = reserved.top - kRuleGap;
+                if (!drawnBoxes.empty()) {
+                    lowest = drawnBoxes.front().bottom;
+                    for (const auto& box : drawnBoxes) lowest = std::max(lowest, box.bottom);
+                }
+                const double top = std::min(reserved.top, lowest + kRuleGap);
+                noLinksNote.SetMember("_y", top);
+                drawnBoxes.push_back({ reserved.left, top, reserved.right, top + (reserved.bottom - reserved.top) });
             }
             const auto trim = LayoutMath::TreeTrim(drawnBoxes, frame.halfH);
             const double shownH = FitBlock(a_movie, a_widget, Layout::kTree, fullRect.Height() - trim.top - trim.bottom);
@@ -6686,7 +6735,10 @@ namespace Widget
                     kNameSize, g_menu.ascent, g_menu.ascentMeasured ? "measured" : "NOT measured, frame value", rect.top, nodeCard.top);
             }
             g_menu.rowAligned = offset > 0 || shift == 0;
-            g_menu.rowAlignNote = g_menu.rowAligned ? "" : "the card tops are too far apart";
+            // user 2026-10-30: with the blocks fitting their content the node card usually sits higher than the progress card (the
+            // tree above it shrinks), so row 2 is not aligned then - kept off by design (review R6)
+            g_menu.rowAlignNote = g_menu.rowAligned ? "" : shift < 0 ? "the node card sits higher than the progress card (blocks fit their content)" :
+                                                                       "the card tops are too far apart";
             auto title = FitLine(a_movie, content, "school", 0, kCardTop + offset, w, titleSize,
                 Fill(Str::kProgressTitle, { { "{school}", SchoolText(g_session.school) } }), kTitleColor);
             double y = kCardTop + offset + FieldH(titleSize);
@@ -6853,9 +6905,14 @@ namespace Widget
             if (hovered == g_menu.tooltipFor && !g_menu.tooltipDue) return;
             g_menu.tooltipDue = false;
             g_menu.tooltipFor = -1;
+            // review R3: the tooltip is a clip of the tree's column (above every panel in it), so a fitted tree shorter than the
+            // tooltip does not hide it under the block below; removed from both columns (the tree may have moved)
+            for (const char* columnName : kColumnClips) {
+                if (auto column = Child(a_widget, columnName); column.IsDisplayObject()) Draw::Remove(column, kTooltipName);
+            }
             auto panel = BlockClip(a_widget, Layout::kTree);
-            if (!panel.IsDisplayObject()) return;
-            Draw::Remove(panel, "tooltip");
+            auto parent = BlockParent(a_widget, Layout::kTree);
+            if (!panel.IsDisplayObject() || !parent.IsDisplayObject() || !BlockShown(Layout::kTree)) return;
             const auto it = std::ranges::find_if(g_menu.drawn, [&](const TreeData::PlacedNode& a_placed) { return a_placed.index == hovered; });
             if (hovered < 0 || !Spells::Get() || it == g_menu.drawn.end()) return;
             g_menu.tooltipFor = hovered;
@@ -6886,11 +6943,13 @@ namespace Widget
                 y = ny - off - h >= kTitleH ? ny - off - h : ny + off;
             }
             x = std::clamp(x, kPad, std::max(kPad, rect.Width() - kPad - w));
-            y = std::clamp(y, kTitleH, std::max(kTitleH, rect.Height() - kPad - h));
-            auto tip = Draw::Clip(panel, "tooltip");
+            // inside the tree's FULL height (a fitted tree can be shorter than the tooltip; it may reach over the block below)
+            y = std::clamp(y, kTitleH, std::max(kTitleH, FullHeight(Layout::kTree) - kPad - h));
+            auto tip = Draw::Clip(parent, kTooltipName);
             if (!tip.IsDisplayObject()) return;
-            tip.SetMember("_x", x);
-            tip.SetMember("_y", y);
+            const auto local = BlockLocal(Layout::kTree, rect);
+            tip.SetMember("_x", local.left + x);
+            tip.SetMember("_y", local.top + y);
             Draw::Box(tip, w, h, kPanelFill, kTooltipAlpha, kPanelEdge, kEdgeWidth);
             for (std::size_t i = 0; i < lines.size(); ++i) {
                 const auto name = std::format("t{}", i);
@@ -7639,7 +7698,14 @@ namespace Widget
                 WatchOwnCard(movie, widget);  // v7 C1 (after WatchTab: its box follows the tab)
                 MeasureListRow(movie, root, widget);  // Q4: our reading sizes follow the list's rows
                 AddonClicks();               // Block API v2: a release judged since the last frame (before any redraw of this frame)
+                const auto modeChanges = g_menu.layoutModeChanges;
                 LayoutFrame(movie, widget);  // blocks plan Task 4: the layout mode (after WatchTab: a tab change cancels it first)
+                // review R4: the mode entered or left lays every block out at its full / fitted height - our card is drawn for it in
+                // this frame, not the next
+                if (g_menu.layoutModeChanges != modeChanges) {
+                    g_menu.ownCardSig.clear();
+                    WatchOwnCard(movie, widget);
+                }
                 TakeAddonHeights(movie, widget);  // Block API v2: the add-ons' kMessageHeight requests (may lay the columns out again)
                 TakeAddonRedraws();          // Block API v2: the add-ons' kMessageRedraw requests
                 DrawAddons(movie, widget);   // blocks plan Task 6: after the layout mode (it may make a panel again in its new column)
@@ -7662,7 +7728,6 @@ namespace Widget
                 const bool key = g_pendingSetTarget.exchange(false);
                 const bool button = g_pendingButton.exchange(false);
                 if (key || button) DoSetTarget(*snapshot);
-                PreviewFrame(movie, root, widget);
                 if (++g_menu.frame % kPollFrames == 0) g_menu.refresh = true;
                 if (g_menu.refresh) RequestState();
                 if (snapshot->epoch != g_menu.epoch) {
@@ -7675,14 +7740,17 @@ namespace Widget
                 CheckButtonBottom(movie, root, widget);  // once per menu, when the button and the item card are both up
                 DropStaleHover(movie, widget);  // review v11 #10
                 RedrawTooltip(movie, widget, *snapshot);  // the hover changes no tree: outside the dirty gate (spec v10 T6)
-                if (!g_menu.dirty) return;
-                g_menu.dirty = false;
-                RedrawTree(movie, widget, *snapshot);  // first: it drops a selection that is no longer drawn
-                RedrawTooltip(movie, widget, *snapshot);  // again over the new tree (or gone with its node)
-                RedrawProgress(movie, widget, *snapshot);
-                RedrawNodeCard(movie, widget, *snapshot);
-                ApplyVisibility(widget);
-                CheckRowBaselines(movie, root, widget);
+                if (g_menu.dirty) {
+                    g_menu.dirty = false;
+                    RedrawTree(movie, widget, *snapshot);  // first: it drops a selection that is no longer drawn
+                    RedrawTooltip(movie, widget, *snapshot);  // again over the new tree (or gone with its node)
+                    RedrawProgress(movie, widget, *snapshot);
+                    RedrawNodeCard(movie, widget, *snapshot);
+                    ApplyVisibility(widget);
+                    CheckRowBaselines(movie, root, widget);
+                }
+                // review GPT 1: the preview's place after every fit of this frame (a fitted block above it moves it)
+                PreviewFrame(movie, root, widget);
             }
 
         private:
@@ -7872,7 +7940,8 @@ namespace Widget
                 g_coverRelease = RE::make_gptr<CoverRelease>();
                 g_borderPress = RE::make_gptr<BorderPress>();
                 g_borderRelease = RE::make_gptr<BorderRelease>();
-                g_lockClick = RE::make_gptr<LockClick>();
+                g_lockClick = RE::make_gptr<LockClick>("the lock button");
+                g_gearClick = RE::make_gptr<LockClick>("the gear button");
                 g_resetClick = RE::make_gptr<ResetClick>();
                 g_shieldPress = RE::make_gptr<ShieldPress>();
                 g_gearOver = RE::make_gptr<GearHover>(true);

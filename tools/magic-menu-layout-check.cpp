@@ -1265,6 +1265,33 @@ namespace
         const auto fallback = BlockRules::GearRect(std::nullopt, visible1610, 18.0, 4.0);
         Expect(Near(fallback.CenterX(), 1280 * BlockRules::kGearFallbackX) && Near(fallback.CenterY(), -40 + 800 * BlockRules::kGearFallbackY),
             Text("no anchor: centred on the fallback share of the visible stage (%s)", Show(fallback).c_str()));
+        // the gear's shape (user's choice "B"): 6 teeth with flat tops, every point within the radius, both outlines closed
+        {
+            const double cx = 9.0, cy = 9.0, r = 9.0, eps = 1e-9;
+            const auto shape = BlockRules::GearOutline(cx, cy, r);
+            const auto radius = [&](const BlockRules::Point& a_p) { return std::hypot(a_p.x - cx, a_p.y - cy); };
+            int tips = 0;
+            bool within = true;
+            for (const auto& p : shape.rim) {
+                within = within && radius(p) <= r + eps;
+                tips += std::abs(radius(p) - r) <= eps ? 1 : 0;
+            }
+            const std::size_t perTooth = 4 + (BlockRules::kGearValleySteps - 1);
+            Expect(shape.rim.size() == BlockRules::kGearTeeth * perTooth + 1 && tips == 2 * BlockRules::kGearTeeth,
+                Text("gear rim: %d teeth, %zu points (%zu each + the closing one), %d tooth-top corners on the radius", BlockRules::kGearTeeth,
+                    shape.rim.size(), perTooth, tips));
+            Expect(within, "every rim point within the outer radius");
+            const auto closed = [](const std::vector<BlockRules::Point>& a_line) {
+                return a_line.size() > 2 && a_line.front().x == a_line.back().x && a_line.front().y == a_line.back().y;
+            };
+            Expect(closed(shape.rim) && closed(shape.hole), "both outlines end on their first point (no start tick)");
+            bool round = shape.hole.size() == static_cast<std::size_t>(BlockRules::kGearHoleSegments) + 1;
+            for (const auto& p : shape.hole) round = round && std::abs(radius(p) - r * BlockRules::kGearHoleShare) <= 1e-9;
+            Expect(round, Text("the hole: %d segments at %.2f of the radius", BlockRules::kGearHoleSegments, BlockRules::kGearHoleShare));
+            bool rootOk = true;
+            for (const auto& p : shape.rim) rootOk = rootOk && (std::abs(radius(p) - r) <= eps || std::abs(radius(p) - r * BlockRules::kGearRootShare) <= 1e-9);
+            Expect(rootOk, "every other rim point on the root circle (flat valleys, flat tops)");
+        }
         const auto edge = BlockRules::GearRect(Settings::Rect{ 1270, 700, 1300, 755 }, visible1610, 18.0, 4.0);
         Expect(edge.right <= 1280 + kTolerance && edge.bottom <= 760 + kTolerance, Text("an anchor at the stage's corner: kept inside it (%s)", Show(edge).c_str()));
     }

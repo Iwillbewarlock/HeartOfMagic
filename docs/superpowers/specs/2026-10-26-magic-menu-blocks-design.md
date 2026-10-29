@@ -382,3 +382,13 @@ header comment of `plugins/SL_MagicMenu/src/BlockApi.h`, the pure rules `BlockRu
   `.background`, `itemList` that has bounds in _root (SkyUI's member names not checked offline; the log names the one
   used), after 60 frames without one at the fallback share of the visible stage (580/1299, 740/876, from the user's
   16:10 capture). K with nothing chosen still enters the mode (no refusal bit for it; the mode shows every block).
+- Review round 1 (2026-10-30): the gear is shape "B" (`BlockRules::GearOutline`: 6 flat-topped teeth tapering to a 0.72
+  root circle, flat valleys, a 0.30 hole; both outlines closed on their first point; line 1.3 with round caps and joins,
+  the SR block's lineStyle) and follows its anchor until it reads the same for 10 frames (SkyUI's list may slide in). A
+  first fit equal to the full height is recorded too (it takes our card out of the fill); a stored fit is capped by the
+  tab's full height at each Rearrange; the SkyUI-card fallback drops our card's fit; FitBlock's Rearrange leaves only the
+  fitted block's dirty mark off. The tree's "no links" note moves right under the drawing before the fit; the tree
+  tooltip is a clip of the tree's column (above the block below a short tree), clamped to the tree's full height. The
+  preview's place goes to Preview after the frame's fits, and our card is drawn again in the frame the layout mode
+  changes. Row 2's baseline alignment (spec v6 L2) is off whenever the node card sits higher than the progress card,
+  which a fitted tree causes: by design, said in its log line.

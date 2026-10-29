@@ -11,6 +11,7 @@
 // is projected again with a plain pinhole projection, a parent move is checked by recomputing the
 // child's world point. No game types. Exit 0 when every check passes, 1 otherwise.
 
+#include "BlockRules.h"
 #include "LayoutMath.h"
 #include "PreviewMath.h"
 #include "Settings.h"
@@ -579,7 +580,7 @@ namespace
     void FitMath()
     {
         std::printf("blocks fit their content (LayoutMath)\n");
-        constexpr double kSlack = 0.5;  // BlockRules::kFitSlack (BlockRules.h is not this tool's)
+        constexpr double kSlack = BlockRules::kFitSlack;  // the slack FitBlock adds (review R9: the host's own value)
         const double rowH = 20.0, pitch = 17.0;
         for (const int count : { 1, 2, 3, 7 }) {
             const auto rows = static_cast<std::size_t>(count);
