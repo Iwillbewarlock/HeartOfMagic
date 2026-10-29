@@ -192,12 +192,12 @@ namespace Widget
 
         // Progress card (laid out top-down by line heights of the sizes in use)
         // The XP numbers sit right of the bar in a row as high as their field, the bar centred in it (review round 2 #2: the
-        // field centred on the 9-high bar ran into the target line above and the hint below); they keep kXpSize, not the reading
-        // size, so the card's last line keeps room at large list rows
-        constexpr double kCardTop = 4.0, kCardBottom = 2.0, kSchoolSize = 11.0, kTargetSize = 19.0, kBarH = 9.0, kXpW = 120.0,
+        // field centred on the then 9-high bar ran into the target line above and the hint below); they keep kXpSize, not the
+        // reading size, so the card's last line keeps room at large list rows. The bar is a thin line (UI polish 2026-10-29):
+        // kPanelEdge behind, kTitleColor for the share learned
+        constexpr double kCardTop = 4.0, kCardBottom = 2.0, kSchoolSize = 11.0, kTargetSize = 19.0, kBarH = 2.0, kXpW = 120.0,
                          kXpSize = 12.0, kHintSize = 13.0;
         constexpr int kMessageLines = 2;
-        constexpr std::uint32_t kBarBack = 0x202830;
 
         // Node card (the mockup's layout: name, school and level, state with its mark, requirements, XP, button)
         // The bottom block hangs from the button: its bottom at the card bottom minus kPad (spec v6 L2: 615 with the E2 rects, the
@@ -6221,7 +6221,7 @@ namespace Widget
 
             const double barW = std::max(0.0, w - kXpW - kPad), barY = y + (barRowH - kBarH) / 2;
             Draw::NoLine(content);
-            Draw::Rect(content, 0, barY, barW, kBarH, kBarBack, Draw::kAlphaFull);
+            Draw::Rect(content, 0, barY, barW, kBarH, kPanelEdge, Draw::kAlphaFull);
             if (state.percent > 0) {
                 Draw::Rect(content, 0, barY, barW * std::clamp(state.percent / 100.0, 0.0, 1.0), kBarH, kTitleColor, Draw::kAlphaFull);
             }

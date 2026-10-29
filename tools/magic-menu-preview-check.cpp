@@ -531,7 +531,7 @@ namespace
         constexpr double kAscent = 0.90;  // the build-3 frame's ascent share
         const auto plan = [](double a_first, double a_title, double a_hint, double a_offset) {
             const LayoutMath::TextMetrics metrics{ a_first, a_first, 4.0 };
-            return std::pair{ metrics, LayoutMath::PlanProgress(metrics, { 102.0, 4.0, 2.0, a_title, 19.0, 12.0, 9.0, a_hint, 8.0, 0.5, a_offset }) };
+            return std::pair{ metrics, LayoutMath::PlanProgress(metrics, { 102.0, 4.0, 2.0, a_title, 19.0, 12.0, 2.0, a_hint, 8.0, 0.5, a_offset }) };
         };
         const auto last = [](const LayoutMath::TextMetrics& a_metrics, const LayoutMath::ProgressPlan& a_plan) {
             return a_plan.hint ? a_plan.hintY + a_metrics.FieldH(a_plan.hintSize) : a_plan.barRowY + a_plan.barRowH;
