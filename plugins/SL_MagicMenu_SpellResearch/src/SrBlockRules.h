@@ -118,8 +118,11 @@ namespace SrBlock
     enum class Show
     {
         kNothing,  // no form on the card (the host hides the columns then)
-        kReason,   // a "?" and the reason line
+        kReason,   // a "?" and the reason line (and the links)
         kItems,    // the archetypes (and a reason line when some are "?")
+        kNotice,   // the reason line alone, no "?" and no links: SR's Import has not run in this save or is running (user
+                   // 2026-10-30; SR Prisma's windows do not open before the Import either - _SR_QuestScript UseEquippable asks
+                   // to import)
     };
 
     struct Decision
@@ -133,8 +136,8 @@ namespace SrBlock
     {
         if (a_view.shown == 0) return {};
         if (!a_view.haveSnapshot) return { Show::kReason, "reason.notReady", {} };
-        if (a_view.importing) return { Show::kReason, "reason.importing", {} };
-        if (!a_view.setUp) return { Show::kReason, "reason.notSetup", {} };
+        if (a_view.importing) return { Show::kNotice, "reason.importing", {} };
+        if (!a_view.setUp) return { Show::kNotice, "reason.notSetup", {} };
         if (!a_view.isSpell) return { Show::kReason, "reason.notSpell", {} };
         if (a_view.listsEmpty) return { Show::kReason, "reason.listsEmpty", {} };
         if (!a_view.entry || !a_view.knowledge) return { Show::kReason, "reason.unknownSpell", {} };
@@ -205,6 +208,12 @@ namespace SrBlock
     {
         if (a_kind != LayoutKind::kLine) return ReasonTop(a_kind, a_linesUsed, a_hasLinks) + kReasonH;
         return ReasonTop(a_kind, a_linesUsed, a_hasLinks) + (a_hasReason ? kReasonH : 0.0);
+    }
+
+    /// The content height of a state: a notice (Show::kNotice) is its reason line alone, any other ContentHeight
+    constexpr double ContentHeightOf(Show a_show, LayoutKind a_kind, int a_linesUsed, bool a_hasLinks, bool a_hasReason)
+    {
+        return a_show == Show::kNotice ? kReasonH : ContentHeight(a_kind, a_linesUsed, a_hasLinks, a_hasReason);
     }
 
     /// The block's height for that content: ContentHeight plus the host's title strip and padding (kBlockHeight for the list)

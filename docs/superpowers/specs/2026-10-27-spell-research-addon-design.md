@@ -287,6 +287,15 @@ value counts as missing. The block now reads them (`Lang.cpp`, pure merge in `Sr
   walk are covered by the in-game self-test only; its tier comparison uses the snapshot's own lowest-tier rule (it
   checks the lists' reading, not the rule).
 
+### 2f. Before SR's Import: the reason line alone (2026-10-30)
+
+User-approved: while SR's Import has not run in the save (`_SR_GlobalIsSetup` 0) or is running (`_SR_GlobalImporting`
+> 0) the block shows only its reason line - no "?" line and no links (SR Prisma's windows do not open before the Import
+either: `_SR_QuestScript` UseEquippable asks to import). `SrBlock::Decide` returns `Show::kNotice` for those two states;
+`ContentHeightOf` gives it the reason line's 16, so the block asks ('SLMH') for 54 (title strip 22 + 16 + padding 2 x 8)
+in both layouts. The other reason-only states (getting ready, not a spell, lists empty, unknown spell, no archetypes)
+keep their "?" line and links (112).
+
 ## Rulings carried from the 2026-10-27 GPT design review
 
 ABI freeze (above), the card's spell rather than `g_menu.sel.id`, the game-thread snapshot plus 'SLMD', no block

@@ -135,13 +135,13 @@ namespace
         expect(noSnapshot, Show::kReason, "reason.notReady", "snapshot not built yet");
         auto importing = view;
         importing.importing = true;
-        expect(importing, Show::kReason, "reason.importing", "SR's Import running: importing");
+        expect(importing, Show::kNotice, "reason.importing", "SR's Import running: the reason line alone");
         auto importingFirst = importing;
         importingFirst.setUp = false;
-        expect(importingFirst, Show::kReason, "reason.importing", "the first Import running (not set up yet): importing");
+        expect(importingFirst, Show::kNotice, "reason.importing", "the first Import running (not set up yet): importing, alone");
         auto notSetUp = view;
         notSetUp.setUp = false;
-        expect(notSetUp, Show::kReason, "reason.notSetup", "Import never run in this save (IsSetup 0, not importing): not set up, not 'getting ready'");
+        expect(notSetUp, Show::kNotice, "reason.notSetup", "Import never run in this save (IsSetup 0, not importing): not set up, the reason line alone");
         auto noSnapshotNotSetUp = notSetUp;
         noSnapshotNotSetUp.haveSnapshot = false;
         expect(noSnapshotNotSetUp, Show::kReason, "reason.notReady", "no snapshot yet this menu: getting ready, whatever SR's state");
@@ -450,6 +450,18 @@ namespace
         Expect(reasonOnly == 112.0 && reasonOnly == BlockHeightFor(LayoutKind::kLine, 1, true, true),
             Text("list, a reason-only state with links and the reason: %.0f, a one-line line-layout block's height", reasonOnly));
         Expect(BlockHeightFor(PlacedKind(LayoutKind::kList, Show::kItems), 1, true, true) == kBlockHeight, "list with archetypes: still the fixed 134");
+        // user 2026-10-30: before SR's Import (not set up, importing) the reason line alone - the same height in both layouts
+        bool notice = true;
+        for (const auto kind : { LayoutKind::kList, LayoutKind::kLine }) {
+            for (const bool links : { false, true }) {
+                notice = notice && ContentHeightOf(Show::kNotice, kind, 1, links, true) == kReasonH;
+            }
+        }
+        Expect(notice && ContentHeightOf(Show::kNotice, LayoutKind::kList, 1, true, true) + kHostTitleH + 2 * kHostPad == 54.0,
+            "a notice (not set up / importing): the reason line alone, block 54 (title strip 22 + reason 16 + padding 16), both layouts");
+        Expect(ContentHeightOf(Show::kReason, PlacedKind(LayoutKind::kList, Show::kReason), 1, true, true) == ContentHeight(LayoutKind::kLine, 1, true, true) &&
+                   ContentHeightOf(Show::kItems, LayoutKind::kList, 2, true, true) == kContentH,
+            "other states: ContentHeight as before (an unknown spell keeps its '?' line and links, 112)");
     }
 
     // ---------------------------------------------------------------------

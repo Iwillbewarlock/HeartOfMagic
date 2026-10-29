@@ -423,20 +423,22 @@ namespace BlockDraw
         Texts texts{ a_movie, a_clip, static_cast<double>(a_width) };
         const auto chosen = Settings::CurrentLayout();
         const auto kind = SrBlock::PlacedKind(chosen, decision.show);  // a reason-only state: the line layout's places, one line
+        const bool notice = decision.show == SrBlock::Show::kNotice;  // SR's Import not run / running: the reason line alone
         int lines = 1;
         if (decision.show == SrBlock::Show::kItems) {
             lines = DrawItems(texts, decision.items, kind);
-        } else {
+        } else if (!notice) {
             auto unknown = texts.Make(Lang::Get("unknown"), kDimText, kRowSize);
             Put(unknown, SrBlock::kTextInset, TextY(0, kRowSize), TextW(unknown));
         }
-        const bool links = Addon::SrPrismaUsable();
+        const bool links = !notice && Addon::SrPrismaUsable();
         if (links) DrawLinks(texts, SrBlock::LinksTop(kind, lines));
-        const std::string reasonKey = g_noResponse ? "reason.noResponse" : decision.reasonKey;
+        const std::string reasonKey = g_noResponse && !notice ? "reason.noResponse" : decision.reasonKey;
         if (!reasonKey.empty()) {
             auto reason = texts.Make("", kDimText, kReasonSize);
             const double reasonW = std::max(0.0, texts.width - SrBlock::kTextInset);
-            Put(reason, SrBlock::kTextInset, SrBlock::ReasonTop(kind, lines, links) + (SrBlock::kReasonH - FieldH(kReasonSize)) / 2, reasonW);
+            const double top = notice ? 0.0 : SrBlock::ReasonTop(kind, lines, links);
+            Put(reason, SrBlock::kTextInset, top + (SrBlock::kReasonH - FieldH(kReasonSize)) / 2, reasonW);
             FitTo(a_movie, reason, Lang::Get(reasonKey), reasonW);
         }
         SelfTestDrawn(a_movie, a_shown, decision);
@@ -446,7 +448,7 @@ namespace BlockDraw
         // new (the host logs the heights it applies)
         if (g_heightReset.exchange(false) || chosen != g_heightKind) g_heights.Reset();
         g_heightKind = chosen;
-        const double needed = SrBlock::ContentHeight(kind, lines, links, !reasonKey.empty());
+        const double needed = SrBlock::ContentHeightOf(decision.show, kind, lines, links, !reasonKey.empty());
         if (g_heights.ShouldSend(needed)) {
             Addon::RequestHeight(needed + SrBlock::kHostTitleH + 2 * SrBlock::kHostPad);
         }
