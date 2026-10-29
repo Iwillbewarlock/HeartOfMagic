@@ -306,3 +306,21 @@ Built 2026-10-26 (report `.superpowers/sdd/2026-10-26-magic-menu-blocks/task-5-r
   (build 15 logged a tab change before the redraw: "648,306..969,157", Powers' top with Active Effects' cut bottom
   67 + 90). C2 now has a verdict: FAIL when the card's box is inverted, empty or outside its column
   (`Layout::CardBoxProblem`).
+
+## UI polish (2026-10-29)
+
+The menu's own drawing loses its leftover "template" look (plan: the session's polish list, part B). The Skyrim parts
+stay: titles, the game font, the flat dark panels with their kPanelEdge rules.
+
+- No blue accent (`kBlue` removed). In the layout mode what rests is `kTitleColor` (the focus outline, the drag ghost's
+  edge) and what acts is the brighter `kWhite` (the picked block's edge, the insertion line, the column border guide).
+  The `[Debug] bDebugFillerBlock` bars are `kTitleColor` too.
+- The picked block's lifted look is its thicker edge and the 12% fill; the shadow band along its inner right and bottom
+  edges is gone (`kLiftShadow`, `kLiftShadowAlpha` removed).
+- Buttons (the layout row's lock / reset, the node card's button) are `kPanelFill` with a `kPanelEdge` border in every
+  state; the node card's label (`kWhite` / `kDimText`) and the layout row's grey alpha tell the states apart
+  (`kButtonFill`, `kButtonOff`, `kLockedEdge` removed).
+- The progress card's bar is a 2-unit line (`kBarH` 9 -> 2): `kPanelEdge` behind, `kTitleColor` for the share learned
+  (`kBarBack` removed). The bar row keeps the XP field's height, so the card's plan does not move.
+- Requirement lines are `kLabelColor`; only the drawn check (`kOk`) and cross (`kNotYet`) carry the state colour.
+- The tree legend starts at `kPad`, the window title's left edge, and its spare room goes only between the items.
