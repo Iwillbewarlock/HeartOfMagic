@@ -2904,7 +2904,8 @@ namespace Widget
         // The tree window's legend strip (spec v11 T18): HoM's four looks - unlocked, learning, available, locked (the mystery
         // look when HoM's discovery mode shows locked spells so) - in a_school's shape and colour, the known size kLegendIconR.
         // One line in the smaller kLegendSize (spec v10 T9, below the reading size: a key, not text to read), laid out by the
-        // texts' measured widths.
+        // texts' measured widths: the first item at kPad, the window title's left edge, the spare room only between items
+        // (UI polish 2026-10-29; it used to put half a gap before the first and after the last).
         void DrawLegend(RE::GFxMovieView* a_movie, RE::GFxValue& a_panel, double a_w, double a_h, const std::string& a_school)
         {
             struct Item
@@ -2939,9 +2940,10 @@ namespace Widget
                     logger::info("Widget: the tree legend needs {:.0f} of {:.0f} stage units at size {:.0f} - what runs past the border is cut",
                         used, room, size);
                 }
-                const double gap = std::max(0.0, (room - used) / static_cast<double>(kItems.size()));
+                static_assert(kItems.size() > 1, "the legend's spare room is shared between its items");
+                const double gap = std::max(0.0, (room - used) / static_cast<double>(kItems.size() - 1));
                 const double right = kPad + room;
-                double x = kPad + gap / 2;
+                double x = kPad;
                 for (std::size_t i = 0; i < kItems.size(); ++i) {
                     if (x + icon > right) {  // not even the mark fits: neither is drawn (review round 1 #6)
                         if (fields[i].IsDisplayObject()) fields[i].Invoke("removeTextField");
@@ -2957,7 +2959,8 @@ namespace Widget
                     }
                     x += icon + kLegendTextGap;
                     if (!fields[i].IsDisplayObject()) continue;
-                    if (x + TextW(fields[i]) > right) {
+                    // the last text now ends at the border exactly: rounding in the sums is not an overflow
+                    if (x + TextW(fields[i]) > right + kRectTolerance) {
                         // the text ends in "..." at the border, or goes when not even that fits
                         fields[i].Invoke("removeTextField");
                         if (right - x >= size) {
