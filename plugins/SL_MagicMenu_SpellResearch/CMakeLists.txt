@@ -59,7 +59,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 # (a hand folder like dist/HoM-MagicMenu-Proto until the SL_MagicMenu FOMOD task):
 #   SKSE/Plugins/SL_MagicMenu_SpellResearch.dll (+ .pdb for crash logs)
 #   SKSE/Plugins/SL_MagicMenu_SpellResearch.ini
-#   SKSE/Plugins/SL_MagicMenu_SpellResearch/lang/en.json
+#   SKSE/Plugins/SL_MagicMenu_SpellResearch/lang/*.json (en, ko)
 # A custom target without OUTPUT, so it runs on every build: an ini or language
 # change is copied even when the DLL did not relink.
 # --------------------------------------------------------------------------
@@ -72,8 +72,8 @@ add_custom_target(SL_MagicMenu_SpellResearch_dist ALL
         "$<$<BOOL:$<TARGET_PDB_FILE:${PROJECT_NAME}>>:$<TARGET_PDB_FILE:${PROJECT_NAME}>>"
         "${SR_BLOCK_DIST}/SKSE/Plugins/"
     COMMAND "${CMAKE_COMMAND}" -E copy "${CMAKE_CURRENT_SOURCE_DIR}/dist/SL_MagicMenu_SpellResearch.ini" "${SR_BLOCK_DIST}/SKSE/Plugins/"
-    COMMAND "${CMAKE_COMMAND}" -E copy "${CMAKE_CURRENT_SOURCE_DIR}/dist/lang/en.json"
-        "${SR_BLOCK_DIST}/SKSE/Plugins/SL_MagicMenu_SpellResearch/lang/"
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/dist/lang"
+        "${SR_BLOCK_DIST}/SKSE/Plugins/SL_MagicMenu_SpellResearch/lang"
     COMMENT "Assembling dist/SL_MagicMenu_SpellResearch"
     VERBATIM
 )

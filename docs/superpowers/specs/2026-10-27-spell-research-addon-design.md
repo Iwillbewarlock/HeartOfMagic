@@ -238,6 +238,28 @@ the title's first letter is 2 units in; every line of the block starts there - t
 first icon, the "?" line, the links and the reason line (the code placed text fields 2 units left to cancel the gutter,
 so the list's labels started at 0, not at the title's letter, before this). The usable width is 2 units less.
 
+### 2d. SR Prisma's language tables (2026-10-30)
+
+SR Prisma's phase 3 shipped its translation tables (its docs/settings-tab.md "Language files", "Other plugins"):
+`Data/PrismaUI/views/SpellResearch/lang/<code>.json` (en, ko), flat JSON objects of strings, BOM accepted, an empty
+value counts as missing. The block now reads them (`Lang.cpp`, pure merge in `SrBlockText.h`: `Tables`, `LookUpShared`,
+`ArchetypeName`, `GroupLabel`, `UnnamedArchetypes`):
+
+- Archetype names (`archetype.<i>.short`, else `.name`) and the three group labels (SR's `page.group.elements` /
+  `page.group.targeting` / `page.group.techniques`, the block's `group.element` / `.targeting` / `.technique`): SR <lang>,
+  SR en, the block's own <lang>, the block's own en, the key (a warning once per key when it falls to English or the
+  key).
+- Everything else (title, "?", "...", links, reasons, notifications): the block's own <lang>, own en, the key.
+- Without SR Prisma's files everything comes from the block's own files, as before.
+- The block's own `lang/ko.json` ships (title 연구 원형, links 연구 일지 / 증류기 / 경험치 책 - SR Prisma's own window names,
+  group fallbacks 요소 / 대상 지정 / 기법, the 14 reviewed reason and notification lines, and "?" / "..." as in English);
+  it holds no archetype names (SR Prisma's ko.json does). The block's en.json keeps its short English names as the last
+  fallback; its group fallbacks are now SR's English (Elements / Targeting / Techniques). The unused `tier.*` keys are gone.
+- Self-test: `[selftest-sr] lang <code> PASS|FAIL - SR table <code> keys n, SR en keys n, own <code> keys n, own en keys n;
+  shown archetypes named by SR <code> n, SR en n, own files n` (FAIL when an archetype the block can show has no name in
+  any table) and a line with the three group labels and their sources.
+- dist: the whole `lang/` folder is copied (en.json, ko.json).
+
 ## Rulings carried from the 2026-10-27 GPT design review
 
 ABI freeze (above), the card's spell rather than `g_menu.sel.id`, the game-thread snapshot plus 'SLMD', no block

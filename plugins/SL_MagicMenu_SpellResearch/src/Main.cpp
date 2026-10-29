@@ -147,6 +147,7 @@ namespace
             break;
         case SKSE::MessagingInterface::kDataLoaded: {
             Lang::Load();
+            if (Settings::SelfTest()) Lang::SelfTest();
             std::string why;
             const auto init = SrData::Init(why);
             if (init != SrData::InitResult::kReady) {

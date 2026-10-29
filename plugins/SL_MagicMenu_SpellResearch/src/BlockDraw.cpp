@@ -230,7 +230,7 @@ namespace BlockDraw
             std::array<double, SrBlock::kShownGroups.size()> labelW{};
             if (kind == SrBlock::LayoutKind::kList) {
                 for (std::size_t g = 0; g < labels.size(); ++g) {
-                    labelTexts[g] = Lang::Get(SrBlock::GroupKey(SrBlock::kShownGroups[g]));
+                    labelTexts[g] = Lang::GroupLabel(SrBlock::kShownGroups[g]);
                     labels[g] = a_texts.Make(labelTexts[g], kDimText, kRowSize);
                     labelW[g] = TextW(labels[g]);
                     Hide(labels[g]);

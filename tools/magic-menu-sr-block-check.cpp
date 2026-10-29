@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <set>
 #include <sstream>
@@ -600,6 +601,8 @@ namespace
     }
 
     // ---------------------------------------------------------------------
+    void SharedStrings(const nlohmann::json& a_ownEnglish, const std::string& a_langPath);
+
     void Strings(const std::string& a_langPath)
     {
         std::printf("strings\n");
@@ -655,6 +658,82 @@ namespace
         } catch (const nlohmann::json::exception& e) {
             Expect(false, Text("the language file with a UTF-8 BOM parses: %s", e.what()));
         }
+        Expect(json.value("group.element", "") == "Elements" && json.value("group.targeting", "") == "Targeting" &&
+                   json.value("group.technique", "") == "Techniques",
+            "en.json's group fallbacks are SR Prisma's English (Elements / Targeting / Techniques)");
+        bool noTier = true;
+        for (const auto& [key, value] : json.items()) noTier = noTier && !key.starts_with("tier.");
+        Expect(noTier, "en.json has no tier.* keys (the tier label is gone)");
+        SharedStrings(json, a_langPath);
+    }
+
+    // user 2026-10-30: the archetype names and group labels from SR Prisma's tables first, the block's own files after
+    void SharedStrings(const nlohmann::json& a_ownEnglish, const std::string& a_langPath)
+    {
+        std::printf("SR Prisma's tables and the block's own\n");
+        const StringTable srKo{ { "archetype.42.short", "SR-ko area" }, { "archetype.12.short", "" }, { "archetype.12.name", "SR-ko fire name" },
+            { "page.group.elements", "SR-ko elements" }, { "title", "SR title (not the block's)" } };
+        const StringTable srEn{ { "archetype.42.short", "Area" }, { "archetype.15.short", "Frost" }, { "page.group.elements", "Elements" },
+            { "page.group.targeting", "Targeting" } };
+        const StringTable ownKo{ { "archetype.9.short", "own-ko daedra" }, { "group.technique", "own-ko techniques" }, { "title", "own-ko title" },
+            { "link.journal", "" } };
+        const StringTable ownEn{ { "archetype.9.short", "Daedra" }, { "archetype.25.short", "Shadow" }, { "group.element", "Elements" },
+            { "group.targeting", "Targeting" }, { "group.technique", "Techniques" }, { "title", "Research Archetypes" }, { "link.journal", "Journal" } };
+        const Tables all{ .srLanguage = &srKo, .srEnglish = &srEn, .language = &ownKo, .english = &ownEn };
+        const auto expect = [](const Looked& a_looked, std::string_view a_text, StringSource a_source, const char* a_what) {
+            Expect(a_looked.text == a_text && a_looked.source == a_source, Text("%s: '%s' (source %d)", a_what, a_looked.text.c_str(), static_cast<int>(a_looked.source)));
+        };
+        expect(ArchetypeName(all, 42), "SR-ko area", StringSource::kSrLanguage, "SR ko has the short name: it wins");
+        expect(ArchetypeName(all, 12), "SR-ko fire name", StringSource::kSrLanguage, "SR ko's short is empty (missing): its name");
+        expect(ArchetypeName(all, 15), "Frost", StringSource::kSrEnglish, "SR ko lacks it: SR en");
+        expect(ArchetypeName(all, 9), "own-ko daedra", StringSource::kLanguage, "neither SR table: the block's own ko");
+        expect(ArchetypeName(all, 25), "Shadow", StringSource::kEnglish, "only the block's own en has it");
+        expect(ArchetypeName(all, 30), "archetype.30.short", StringSource::kKey, "no table: the short key");
+        const Tables noSr{ .language = &ownKo, .english = &ownEn };
+        expect(ArchetypeName(noSr, 42), "archetype.42.short", StringSource::kKey, "SR Prisma not installed, the block lacks it: the key");
+        expect(ArchetypeName(noSr, 9), "own-ko daedra", StringSource::kLanguage, "SR Prisma not installed: the block's own files");
+        expect(GroupLabel(all, Group::kElement), "SR-ko elements", StringSource::kSrLanguage, "group label from SR ko (page.group.elements)");
+        expect(GroupLabel(all, Group::kTargeting), "Targeting", StringSource::kSrEnglish, "group label from SR en");
+        expect(GroupLabel(all, Group::kTechnique), "own-ko techniques", StringSource::kLanguage, "group label from the block's own ko");
+        expect(GroupLabel(noSr, Group::kElement), "Elements", StringSource::kEnglish, "group label without SR Prisma: the block's own en");
+        expect(LookUp(all, "title"), "own-ko title", StringSource::kLanguage, "the title is the block's own (SR's 'title' key ignored)");
+        expect(LookUp(all, "link.journal"), "Journal", StringSource::kEnglish, "an empty value in the block's ko counts as missing: en");
+        const Tables english{ .srEnglish = &srEn, .english = &ownEn };
+        expect(ArchetypeName(english, 42), "Area", StringSource::kSrEnglish, "English: SR en, then the block's en");
+
+        // the shipped files: en.json alone names every archetype the block can show; ko.json has every own key but no names
+        StringTable shippedEn;
+        for (const auto& [key, value] : a_ownEnglish.items()) {
+            if (value.is_string()) shippedEn.emplace(key, value.get<std::string>());
+        }
+        Expect(UnnamedArchetypes(Tables{ .english = &shippedEn }).empty(), "the shipped en.json alone names every archetype the block can show");
+        auto gap = shippedEn;
+        gap.erase("archetype.20.short");
+        gap.erase("archetype.20.name");
+        Expect(UnnamedArchetypes(Tables{ .english = &gap }) == std::vector<int>{ 20 }, "an archetype with neither key in any table: listed (the self-test FAIL)");
+
+        const auto koPath = std::filesystem::path(a_langPath).parent_path() / "ko.json";
+        std::ifstream file(koPath, std::ios::binary);
+        std::stringstream buffer;
+        if (file) buffer << file.rdbuf();
+        nlohmann::json ko;
+        try {
+            ko = nlohmann::json::parse(StripBom(buffer.str()));
+        } catch (const nlohmann::json::exception& e) {
+            Expect(false, Text("%s parses: %s", koPath.string().c_str(), e.what()));
+            return;
+        }
+        int missing = 0, names = 0;
+        for (const auto& key : RequiredKeys()) {
+            if (key.starts_with("archetype.")) continue;
+            const auto it = ko.find(key);
+            if (it == ko.end() || !it->is_string() || it->get<std::string>().empty()) ++missing;
+        }
+        for (const auto& [key, value] : ko.items()) names += key.starts_with("archetype.");
+        Expect(ko.is_object() && missing == 0, Text("ko.json has every non-archetype key the block uses (%d missing)", missing));
+        Expect(names == 0, "ko.json holds no archetype names (they come from SR Prisma's ko.json)");
+        Expect(ko.value("title", "") == "\xEC\x97\xB0\xEA\xB5\xAC \xEC\x9B\x90\xED\x98\x95" && ko.value("link.journal", "") == "\xEC\x97\xB0\xEA\xB5\xAC \xEC\x9D\xBC\xEC\xA7\x80",
+            "ko.json: the reviewed title and SR Prisma's journal name");
     }
 
     int Run(const std::string& a_langPath)
