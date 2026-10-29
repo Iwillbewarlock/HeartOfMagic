@@ -113,7 +113,8 @@ namespace BlockApi
 
     /// a_clip: the lent content clip; a_width / a_height: its drawable size in stage units; a_user: Registration::user
     using DrawFn = void (*)(RE::GFxMovieView* a_movie, RE::GFxValue& a_clip, float a_width, float a_height, void* a_user);
-    /// v2: as DrawFn, plus a_shown: the form the menu's card shows (0 = none)
+    /// v2: as DrawFn, plus a_shown: the form the menu's card shows (0 = none); std::uint32_t is RE::FormID, so a callback
+    /// declared with RE::FormID matches
     using DrawSelectionFn = void (*)(RE::GFxMovieView* a_movie, RE::GFxValue& a_clip, float a_width, float a_height, std::uint32_t a_shown,
         void* a_user);
     /// v2: a press and its release in the block, both in content clip coordinates (see "click" above)

@@ -96,6 +96,8 @@ namespace BlockRules
         }
     }
 
+    // Exact, not Widget.cpp's kRectTolerance: both rects come from the same stored arrangement (g_menu.blocks and the column
+    // scroll) by the same arithmetic, so an unmoved block gives the same doubles; any re-arrangement that moves it differs
     inline bool SameRect(const Settings::Rect& a_a, const Settings::Rect& a_b)
     {
         return a_a.left == a_b.left && a_a.top == a_b.top && a_a.right == a_b.right && a_a.bottom == a_b.bottom;
