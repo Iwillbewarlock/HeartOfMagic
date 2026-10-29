@@ -1293,6 +1293,21 @@ namespace
             Text("a strip wider than the room right of the column: moved left to stay inside, the gear with it (%s)", Show(wide.strip).c_str()));
         const auto none = BlockRules::HintRowRects(648, 623, 0, 0, 18, 4, 4, visible1610);
         Expect(Near(none.gear.top, 627) && Near(none.gear.left, 648), "no strip: the gear alone, 4 under the columns at the column's edge");
+        // the strip's clips found over the search window (GPT review): new paths added once each, in order
+        {
+            std::vector<std::string> known{ "_root.Menu_mc.bottomBar.buttonPanel" };
+            const auto added = BlockRules::AddNew(known, { "_root.Menu_mc.bottomBar.buttonPanel", "_root.STB_Keycaps" });
+            Expect(added == std::vector<std::string>{ "_root.STB_Keycaps" } && known.size() == 2, "AddNew: a clip found later is added once");
+            Expect(BlockRules::AddNew(known, { "_root.STB_Keycaps" }).empty() && known.size() == 2, "AddNew: found again, not added twice");
+            // a clip's home: moved by the host by (100, 50) and still where it was put -> its home is 100, 50 back
+            const BlockRules::Point step{ 100, 50 };
+            const auto stays = BlockRules::StripHome({ 700, 650 }, BlockRules::Point{ 700, 650 }, step, 0.5);
+            Expect(Near(stays.x, 600) && Near(stays.y, 600), "StripHome: still where the host put it - home is the step back");
+            const auto rebuilt = BlockRules::StripHome({ 600, 600 }, BlockRules::Point{ 700, 650 }, step, 0.5);
+            Expect(Near(rebuilt.x, 600) && Near(rebuilt.y, 600), "StripHome: placed again by SkyUI - its present place is its home");
+            const auto fresh = BlockRules::StripHome({ 610, 605 }, std::nullopt, step, 0.5);
+            Expect(Near(fresh.x, 610) && Near(fresh.y, 605), "StripHome: a clip never moved - its present place is its home");
+        }
         // a clip moved in a parent scaled 0.85 and moved (200, 26): stage step (10, 20) is (11.76.., 23.52..) in the parent
         {
             const auto toParent = [](double a_x, double a_y) { return BlockRules::Point{ (a_x - 200.0) / 0.85, (a_y - 26.0) / 0.85 }; };

@@ -498,4 +498,27 @@ namespace BlockRules
     {
         return { a_x + (a_to.x - a_from.x), a_y + (a_to.y - a_from.y) };
     }
+
+    /// The paths of a_found that a_known does not have yet, added to a_known in their order (each once); returned for the log
+    inline std::vector<std::string> AddNew(std::vector<std::string>& a_known, const std::vector<std::string>& a_found)
+    {
+        std::vector<std::string> added;
+        for (const auto& path : a_found) {
+            if (std::find(a_known.begin(), a_known.end(), path) != a_known.end()) continue;
+            a_known.push_back(path);
+            added.push_back(path);
+        }
+        return added;
+    }
+
+    /// A key-hint clip's home (where SkyUI or STB put it, stage top-left): its present top-left less the step the host gave it
+    /// when it still sits where the host put it (a_lastPut); otherwise it was placed again (SkyUI rebuilt it) or is new - its
+    /// present place is its home. Each clip keeps its own home, so a clip found later joins the others in SkyUI's own layout
+    inline Point StripHome(const Point& a_now, const std::optional<Point>& a_lastPut, const Point& a_applied, double a_tolerance)
+    {
+        if (a_lastPut && std::abs(a_now.x - a_lastPut->x) <= a_tolerance && std::abs(a_now.y - a_lastPut->y) <= a_tolerance) {
+            return { a_now.x - a_applied.x, a_now.y - a_applied.y };
+        }
+        return a_now;
+    }
 }
