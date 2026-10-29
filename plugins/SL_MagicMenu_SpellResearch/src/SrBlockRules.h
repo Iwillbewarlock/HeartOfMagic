@@ -155,6 +155,15 @@ namespace SrBlock
     inline constexpr double kContentH = kReasonTop + kReasonH;
     inline constexpr double kBlockHeight = kContentH + kHostTitleH + 2 * kHostPad;
 
+    enum class LayoutKind;
+
+    /// Where the link row starts. List: under the three reserved lines (kLinksTop). Line: under the lines it used, with
+    /// half the room the unused lines and kLinksGap would leave (user, 2026-10-30: the gap between the archetypes and the
+    /// links halved), so a one-line spell has its links 21 units under it, not 42; the rest of the fixed height stays
+    /// empty at the bottom. The reason line follows the links (ReasonTop).
+    constexpr double LinksTop(LayoutKind a_kind, int a_linesUsed);
+    constexpr double ReasonTop(LayoutKind a_kind, int a_linesUsed);
+
     // ---------------------------------------------------------------------
     // Layout: list (one line per group, its label on the left) and line (every archetype joined, wrapping). Text widths are
     // measured by the caller (AS2 textWidth). Neither leaves kArchetypeLines lines: what does not fit is left out and an
@@ -165,6 +174,14 @@ namespace SrBlock
         kList,
         kLine,
     };
+
+    constexpr double LinksTop(LayoutKind a_kind, int a_linesUsed)
+    {
+        if (a_kind != LayoutKind::kLine) return kLinksTop;
+        const int used = std::clamp(a_linesUsed, 1, kArchetypeLines);
+        return kRowH * used + (kRowH * (kArchetypeLines - used) + kLinksGap) / 2;
+    }
+    constexpr double ReasonTop(LayoutKind a_kind, int a_linesUsed) { return LinksTop(a_kind, a_linesUsed) + kLinkRowH; }
 
     struct Metrics
     {

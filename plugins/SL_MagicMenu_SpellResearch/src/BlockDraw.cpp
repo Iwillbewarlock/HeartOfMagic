@@ -206,10 +206,11 @@ namespace BlockDraw
             }
         }
 
-        // The archetypes, laid out by the layout SR Prisma's settings chose (list or line)
-        void DrawItems(Texts& a_texts, const std::vector<SrBlock::Item>& a_items)
+        // The archetypes, laid out by the layout SR Prisma's settings chose (list or line); returns the lines they used (the
+        // link row follows them in the line layout)
+        int DrawItems(Texts& a_texts, const std::vector<SrBlock::Item>& a_items, SrBlock::LayoutKind a_kind)
         {
-            const auto kind = Settings::CurrentLayout();
+            const auto kind = a_kind;
             std::vector<RE::GFxValue> names;
             std::vector<std::string> nameTexts;
             std::vector<SrBlock::Measured> measured;
@@ -273,10 +274,11 @@ namespace BlockDraw
                     break;
                 }
             }
+            return placement.lines;
         }
 
         // The links to SR Prisma's windows, underlined; their rects kept for Click
-        void DrawLinks(Texts& a_texts)
+        void DrawLinks(Texts& a_texts, double a_top)
         {
             std::vector<RE::GFxValue> fields;
             std::vector<double> widths;
@@ -284,7 +286,7 @@ namespace BlockDraw
                 fields.push_back(a_texts.Make(Lang::Get(link.key), kLabelColor, kLinkSize));
                 widths.push_back(TextW(fields.back()));
             }
-            g_linkRects = SrBlock::PlaceLinks(widths, SrBlock::kLinksTop, a_texts.width);
+            g_linkRects = SrBlock::PlaceLinks(widths, a_top, a_texts.width);
             for (std::size_t i = 0; i < fields.size(); ++i) {
                 if (i >= g_linkRects.size()) {
                     Hide(fields[i]);
@@ -409,17 +411,19 @@ namespace BlockDraw
         if (decision.show == SrBlock::Show::kNothing) return;
 
         Texts texts{ a_movie, a_clip, static_cast<double>(a_width) };
+        const auto kind = Settings::CurrentLayout();
+        int lines = 1;
         if (decision.show == SrBlock::Show::kItems) {
-            DrawItems(texts, decision.items);
+            lines = DrawItems(texts, decision.items, kind);
         } else {
             auto unknown = texts.Make(Lang::Get("unknown"), kDimText, kRowSize);
             Put(unknown, 0, TextY(0, kRowSize), TextW(unknown));
         }
-        if (Addon::SrPrismaUsable()) DrawLinks(texts);
+        if (Addon::SrPrismaUsable()) DrawLinks(texts, SrBlock::LinksTop(kind, lines));
         const std::string reasonKey = g_noResponse ? "reason.noResponse" : decision.reasonKey;
         if (!reasonKey.empty()) {
             auto reason = texts.Make("", kDimText, kReasonSize);
-            Put(reason, 0, SrBlock::kReasonTop + (SrBlock::kReasonH - FieldH(kReasonSize)) / 2, texts.width);
+            Put(reason, 0, SrBlock::ReasonTop(kind, lines) + (SrBlock::kReasonH - FieldH(kReasonSize)) / 2, texts.width);
             FitTo(a_movie, reason, Lang::Get(reasonKey), texts.width);
         }
         SelfTestDrawn(a_movie, a_shown, decision);

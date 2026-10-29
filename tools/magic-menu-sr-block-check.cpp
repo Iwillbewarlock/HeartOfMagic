@@ -351,6 +351,20 @@ namespace
         Expect(kContentH == kRowH * kArchetypeLines + kLinksGap + kLinkRowH + kReasonH, Text("content %.0f = 3 lines + gap + links + reason", kContentH));
         Expect(kBlockHeight == kContentH + kHostTitleH + 2 * kHostPad, Text("block %.0f = content + the host's title strip 22 + padding 2 x 8", kBlockHeight));
         Expect(kReasonTop + kReasonH <= kContentH && kLinksTop >= kRowH * kArchetypeLines, "links under the archetypes, reason line under the links");
+        Expect(LinksTop(LayoutKind::kList, 1) == kLinksTop && LinksTop(LayoutKind::kList, 3) == kLinksTop, "list: the links stay under the three reserved lines");
+        // line: half of what the unused lines and kLinksGap left (42 -> 21 for one line, 24 -> 12 for two, 6 -> 3 for three)
+        Expect(LinksTop(LayoutKind::kLine, 1) == 39.0 && LinksTop(LayoutKind::kLine, 2) == 48.0 && LinksTop(LayoutKind::kLine, 3) == 57.0,
+            Text("line: links at %.0f / %.0f / %.0f after 1 / 2 / 3 lines", LinksTop(LayoutKind::kLine, 1), LinksTop(LayoutKind::kLine, 2),
+                LinksTop(LayoutKind::kLine, 3)));
+        Expect(LinksTop(LayoutKind::kLine, 0) == LinksTop(LayoutKind::kLine, 1) && LinksTop(LayoutKind::kLine, 9) == LinksTop(LayoutKind::kLine, 3),
+            "line: lines outside 1..3 are clamped");
+        bool inside = true;
+        for (const auto kind : { LayoutKind::kList, LayoutKind::kLine }) {
+            for (int lines = 1; lines <= kArchetypeLines; ++lines) {
+                inside = inside && LinksTop(kind, lines) >= kRowH * lines && ReasonTop(kind, lines) + kReasonH <= kContentH;
+            }
+        }
+        Expect(inside, "every layout and line count: links under the used lines, reason line inside the fixed height");
     }
 
     // ---------------------------------------------------------------------
