@@ -197,6 +197,20 @@ namespace Addon
             messaging->Dispatch(BlockApi::kMessageRedraw, id.data(), static_cast<std::uint32_t>(id.size() + 1), BlockApi::kPluginName);
         }
     }
+
+    void RequestHeight(double a_height)
+    {
+        if (!g_registered) return;
+        std::string id;
+        {
+            const std::scoped_lock lock(g_finalIdLock);
+            id = g_finalId;
+        }
+        BlockApi::HeightRequest request{ .id = id.c_str(), .height = static_cast<float>(a_height) };
+        if (auto* messaging = SKSE::GetMessagingInterface()) {
+            messaging->Dispatch(BlockApi::kMessageHeight, &request, sizeof(request), BlockApi::kPluginName);
+        }
+    }
 }
 
 SKSEPluginLoad(const SKSE::LoadInterface* a_skse)

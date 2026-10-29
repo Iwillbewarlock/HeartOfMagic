@@ -18,4 +18,8 @@ namespace Addon
     /// Asks SL_MagicMenu to draw the block again on its next UI frame ('SLMD'; ignored by it while the menu is closed). Any
     /// thread; nothing before the block was accepted
     void RequestRedraw();
+
+    /// Asks SL_MagicMenu for the block's height this menu ('SLMH', stage units, <= SrBlock::kBlockHeight - the registered one);
+    /// an SL_MagicMenu without 'SLMH' ignores it. Any thread; nothing before the block was accepted
+    void RequestHeight(double a_height);
 }

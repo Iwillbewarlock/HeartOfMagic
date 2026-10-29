@@ -45,7 +45,8 @@
 // handler, never from inside another of your callbacks. The clip is lent for the draw call only: do not keep the GFxValue,
 // the movie or anything made in it past the return (the movie dies when the menu closes), and do not put AS2 handlers
 // (onPress ...) on it - use click. Do not throw out of a callback (an exception is caught and logged, and the block is not
-// drawn or clicked again in that menu). Messages to SL_MagicMenu (registration, kMessageRedraw) may come from any thread.
+// drawn or clicked again in that menu). Messages to SL_MagicMenu (registration, kMessageRedraw, kMessageHeight) may come from
+// any thread.
 //
 // When the block is drawn (draw, or drawSelection when it is set - then draw is never called): once after the menu opens,
 // again when the block's size changes or it is moved to the other column, and on a kMessageRedraw for it - each time into a
@@ -59,6 +60,17 @@
 // kMessageRedraw ('SLMD'): add-on -> SL_MagicMenu, data = the block's final id (NUL-terminated, as the result gave it),
 // dataLen its size. The block is drawn again on the next UI frame. Ignored while the magic menu is closed (it is drawn at
 // the next open anyway) and for an id that is not a registered block. Not answered.
+//
+// kMessageHeight ('SLMH'): add-on -> SL_MagicMenu, data = a HeightRequest (below), dataLen its size: the block's height for
+// this menu, for content that needs less room than the block registered with. The registered height is the block's maximum
+// and its size in the layout mode; every magic menu opens at it. On the next UI frame the columns are laid out again with the
+// new height (the blocks below move up or down, the column's scroll follows) and the block is drawn again into its new size
+// (and its click area follows), as for any size change - so do not send it again from that draw unless the height you need
+// changed, or the block resizes every frame. Several requests for one block before that frame: the last one counts. The
+// struct only needs to live for the Dispatch call (the id is copied). Ignored while the magic menu is closed and for an id
+// that is not a registered block; refused (logged) when height is not finite, <= 0 or more than the registered height. The
+// saved layout (SL_MagicMenu_Layout.json) is not changed. Not answered. 'SLMH' needs an SL_MagicMenu that knows it (the same
+// kVersion 2 header with this message): an older one ignores the message, and the block keeps its registered height.
 //
 // click (optional): SL_MagicMenu lays one transparent hit area over the block's content clip. A mouse press there and its
 // release are handed to click as two points in content clip coordinates (0,0 = the clip's top-left, the same space your
@@ -98,6 +110,7 @@ namespace BlockApi
     inline constexpr std::uint32_t kMessageRegister = FourCC('S', 'L', 'M', 'B');  // add-on -> SL_MagicMenu: data = Registration*
     inline constexpr std::uint32_t kMessageResult = FourCC('S', 'L', 'M', 'R');    // SL_MagicMenu -> add-on: data = Result*
     inline constexpr std::uint32_t kMessageRedraw = FourCC('S', 'L', 'M', 'D');    // add-on -> SL_MagicMenu: data = the final id (v2)
+    inline constexpr std::uint32_t kMessageHeight = FourCC('S', 'L', 'M', 'H');    // add-on -> SL_MagicMenu: data = HeightRequest* (v2)
 
     inline constexpr std::uint32_t kVersionV1 = 1;
     inline constexpr std::uint32_t kVersion = 2;
@@ -175,5 +188,14 @@ namespace BlockApi
         Status status = Status::kRefused;
         const char* id = "";      // the block's final id (prefixed), or the id as sent when refused
         const char* reason = "";  // why it was refused ("" when accepted)
+    };
+
+    /// kMessageHeight's data (see "kMessageHeight" above). apiVersion and structSize first, as in Registration
+    struct HeightRequest
+    {
+        std::uint32_t apiVersion = kVersion;
+        std::uint32_t structSize = sizeof(HeightRequest);
+        const char* id = nullptr;  // the block's final id, as the Result gave it
+        float height = 0.0f;       // stage units, 0 < height <= the registered height
     };
 }

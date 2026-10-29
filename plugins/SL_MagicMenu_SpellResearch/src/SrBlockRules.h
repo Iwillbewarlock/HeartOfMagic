@@ -160,9 +160,10 @@ namespace SrBlock
     /// Where the link row starts. List: under the three reserved lines (kLinksTop). Line: under the lines it used, with
     /// half the room the unused lines and kLinksGap would leave (user, 2026-10-30: the gap between the archetypes and the
     /// links halved), so a one-line spell has its links 21 units under it, not 42; the rest of the fixed height stays
-    /// empty at the bottom. The reason line follows the links (ReasonTop).
+    /// empty at the bottom - or, with SL_MagicMenu's kMessageHeight, the block shrinks to ContentHeight. The reason line
+    /// follows the links (ReasonTop); in the line layout without links it takes their place.
     constexpr double LinksTop(LayoutKind a_kind, int a_linesUsed);
-    constexpr double ReasonTop(LayoutKind a_kind, int a_linesUsed);
+    constexpr double ReasonTop(LayoutKind a_kind, int a_linesUsed, bool a_hasLinks = true);
 
     // ---------------------------------------------------------------------
     // Layout: list (one line per group, its label on the left) and line (every archetype joined, wrapping). Text widths are
@@ -181,7 +182,55 @@ namespace SrBlock
         const int used = std::clamp(a_linesUsed, 1, kArchetypeLines);
         return kRowH * used + (kRowH * (kArchetypeLines - used) + kLinksGap) / 2;
     }
-    constexpr double ReasonTop(LayoutKind a_kind, int a_linesUsed) { return LinksTop(a_kind, a_linesUsed) + kLinkRowH; }
+    constexpr double ReasonTop(LayoutKind a_kind, int a_linesUsed, bool a_hasLinks)
+    {
+        if (a_kind != LayoutKind::kLine) return kReasonTop;
+        return LinksTop(a_kind, a_linesUsed) + (a_hasLinks ? kLinkRowH : 0.0);
+    }
+
+    /// The content height the block needs (user 2026-10-30: in the line layout the block fits the shown spell). List: the fixed
+    /// kContentH. Line: the archetype lines used (a reason-only state counts as 1), then the link row and the reason line when
+    /// they are drawn. Never more than kContentH
+    constexpr double ContentHeight(LayoutKind a_kind, int a_linesUsed, bool a_hasLinks, bool a_hasReason)
+    {
+        if (a_kind != LayoutKind::kLine) return kContentH;
+        return ReasonTop(a_kind, a_linesUsed, a_hasLinks) + (a_hasReason ? kReasonH : 0.0);
+    }
+
+    /// The block's height for that content: ContentHeight plus the host's title strip and padding (kBlockHeight for the list)
+    constexpr double BlockHeightFor(LayoutKind a_kind, int a_linesUsed, bool a_hasLinks, bool a_hasReason)
+    {
+        return ContentHeight(a_kind, a_linesUsed, a_hasLinks, a_hasReason) + kHostTitleH + 2 * kHostPad;
+    }
+
+    /// When draw asks SL_MagicMenu for a new height ('SLMH'): the content it needs differs from the content height it was
+    /// lent (a_drawnContentH, the host's current size), and the same request was not already sent at that drawn size - so the
+    /// redraw the host does at the new size sends nothing (no loop), a host that ignores 'SLMH' (an older SL_MagicMenu, or the
+    /// layout mode, which keeps the registered size) is not asked again on every draw, and a new menu (the host back at the
+    /// registered height) is asked again even if Reset was missed. UI thread only
+    class HeightRequests
+    {
+    public:
+        static constexpr double kTolerance = 0.05;  // stage units (the host's float content height against ours)
+
+        /// True when a request for a_neededContentH should be sent now (and remembers it as sent)
+        bool ShouldSend(double a_neededContentH, double a_drawnContentH)
+        {
+            const auto same = [](double a_a, double a_b) { return (a_a > a_b ? a_a - a_b : a_b - a_a) <= kTolerance; };
+            if (same(a_neededContentH, a_drawnContentH)) return false;
+            if (m_sent && same(*m_sent, a_neededContentH) && same(m_sentAt, a_drawnContentH)) return false;
+            m_sent = a_neededContentH;
+            m_sentAt = a_drawnContentH;
+            return true;
+        }
+
+        /// A new menu or another layout: nothing counts as sent
+        void Reset() { m_sent.reset(); }
+
+    private:
+        std::optional<double> m_sent;  // the content height last asked for
+        double m_sentAt = 0.0;         // the content height the block had when it was asked
+    };
 
     struct Metrics
     {

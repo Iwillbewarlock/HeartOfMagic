@@ -367,6 +367,52 @@ namespace
         Expect(inside, "every layout and line count: links under the used lines, reason line inside the fixed height");
     }
 
+    void ContentHeights()
+    {
+        std::printf("content height per spell (kMessageHeight)\n");
+        bool listFixed = true, lineNotOver = true, lineGrows = true, chrome = true;
+        for (const bool links : { false, true }) {
+            for (const bool reason : { false, true }) {
+                double previous = 0.0;
+                for (int lines = 1; lines <= kArchetypeLines; ++lines) {
+                    listFixed = listFixed && ContentHeight(LayoutKind::kList, lines, links, reason) == kContentH;
+                    const double line = ContentHeight(LayoutKind::kLine, lines, links, reason);
+                    lineNotOver = lineNotOver && line <= kContentH;
+                    lineGrows = lineGrows && line > previous;
+                    previous = line;
+                    chrome = chrome && BlockHeightFor(LayoutKind::kLine, lines, links, reason) == line + kHostTitleH + 2 * kHostPad &&
+                             BlockHeightFor(LayoutKind::kList, lines, links, reason) == kBlockHeight;
+                }
+            }
+        }
+        Expect(listFixed, "list: always the fixed content height (94), whatever the lines, links or reason");
+        Expect(lineNotOver, "line: never more than the list's content height (the registered height is the maximum)");
+        Expect(lineGrows, "line: one more archetype line needs more height");
+        Expect(chrome, "block height = content + the host's title strip and padding (list: kBlockHeight)");
+        // one line, links, no reason: links at 39, row 18 -> 57; with the reason 73; three lines with both 91
+        Expect(ContentHeight(LayoutKind::kLine, 1, true, false) == 57.0 && ContentHeight(LayoutKind::kLine, 1, true, true) == 73.0 &&
+                   ContentHeight(LayoutKind::kLine, 3, true, true) == 91.0,
+            Text("line: 1 line + links %.0f, + reason %.0f; 3 lines + both %.0f", ContentHeight(LayoutKind::kLine, 1, true, false),
+                ContentHeight(LayoutKind::kLine, 1, true, true), ContentHeight(LayoutKind::kLine, 3, true, true)));
+        Expect(ReasonTop(LayoutKind::kLine, 1, false) == LinksTop(LayoutKind::kLine, 1) && ContentHeight(LayoutKind::kLine, 1, false, true) == 39.0 + kReasonH,
+            "line without links: the reason line takes the link row's place");
+        Expect(ContentHeight(LayoutKind::kLine, 1, false, false) == LinksTop(LayoutKind::kLine, 1), "line, nothing under the archetypes: up to where the links would start");
+        Expect(ContentHeight(LayoutKind::kLine, 0, true, true) == ContentHeight(LayoutKind::kLine, 1, true, true),
+            "a reason-only state (0 lines) counts as one line");
+
+        HeightRequests requests;
+        Expect(!requests.ShouldSend(94, 94), "needs what it was lent: nothing sent");
+        Expect(requests.ShouldSend(57, 94), "needs 57, lent 94: sent");
+        Expect(!requests.ShouldSend(57, 94), "the same again before the host applied it: not sent again");
+        Expect(!requests.ShouldSend(57, 57.02f), "the host's redraw at 57 (float): nothing sent - no loop");
+        Expect(requests.ShouldSend(73, 57), "another spell needs 73: sent");
+        Expect(requests.ShouldSend(57, 94), "a new menu back at 94 asks again for 57 even without Reset (lent size differs)");
+        Expect(!requests.ShouldSend(57, 94), "and only once");
+        requests.Reset();
+        Expect(requests.ShouldSend(57, 94), "after Reset: sent again");
+        Expect(requests.ShouldSend(94, 57), "the list layout (94) at 57: sent (the block grows back)");
+    }
+
     // ---------------------------------------------------------------------
     void Icons()
     {
@@ -584,6 +630,7 @@ namespace
         Decisions();
         Layouts();
         Height();
+        ContentHeights();
         Icons();
         Clicks();
         Replies();

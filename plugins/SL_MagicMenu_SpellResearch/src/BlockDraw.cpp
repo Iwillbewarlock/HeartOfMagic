@@ -59,6 +59,11 @@ namespace BlockDraw
         std::atomic<int> g_drawnLogs{ 0 };
         SrBlock::PendingRequest g_pending;
         std::atomic<std::uint32_t> g_nextRequestId{ 1 };
+        // The block's height requests ('SLMH', user 2026-10-30: the line layout fits the shown spell): Draw's only (UI thread);
+        // reset at each menu open (g_heightReset, set from the menu event's thread) and when the layout kind changes
+        SrBlock::HeightRequests g_heights;
+        std::atomic<bool> g_heightReset{ true };
+        SrBlock::LayoutKind g_heightKind = SrBlock::LayoutKind::kList;
 
         std::int64_t NowMs()
         {
@@ -391,7 +396,7 @@ namespace BlockDraw
         }
     }
 
-    void Draw(RE::GFxMovieView* a_movie, RE::GFxValue& a_clip, float a_width, float, std::uint32_t a_shown, void*)
+    void Draw(RE::GFxMovieView* a_movie, RE::GFxValue& a_clip, float a_width, float a_height, std::uint32_t a_shown, void*)
     {
         g_linkRects.clear();
         if (!a_movie) return;
@@ -419,14 +424,24 @@ namespace BlockDraw
             auto unknown = texts.Make(Lang::Get("unknown"), kDimText, kRowSize);
             Put(unknown, 0, TextY(0, kRowSize), TextW(unknown));
         }
-        if (Addon::SrPrismaUsable()) DrawLinks(texts, SrBlock::LinksTop(kind, lines));
+        const bool links = Addon::SrPrismaUsable();
+        if (links) DrawLinks(texts, SrBlock::LinksTop(kind, lines));
         const std::string reasonKey = g_noResponse ? "reason.noResponse" : decision.reasonKey;
         if (!reasonKey.empty()) {
             auto reason = texts.Make("", kDimText, kReasonSize);
-            Put(reason, 0, SrBlock::ReasonTop(kind, lines) + (SrBlock::kReasonH - FieldH(kReasonSize)) / 2, texts.width);
+            Put(reason, 0, SrBlock::ReasonTop(kind, lines, links) + (SrBlock::kReasonH - FieldH(kReasonSize)) / 2, texts.width);
             FitTo(a_movie, reason, Lang::Get(reasonKey), texts.width);
         }
         SelfTestDrawn(a_movie, a_shown, decision);
+
+        // The height this content needs (the list's is the registered one); asked for once per change (HeightRequests): the
+        // host lays the columns out again and draws the block once more at that size, which needs nothing new
+        if (g_heightReset.exchange(false) || kind != g_heightKind) g_heights.Reset();
+        g_heightKind = kind;
+        const double needed = SrBlock::ContentHeight(kind, lines, links, !reasonKey.empty());
+        if (g_heights.ShouldSend(needed, a_height)) {
+            Addon::RequestHeight(needed + SrBlock::kHostTitleH + 2 * SrBlock::kHostPad);
+        }
     }
 
     void Click(float a_pressX, float a_pressY, float a_releaseX, float a_releaseY, void*)
@@ -457,6 +472,7 @@ namespace BlockDraw
 
     void OnMenuOpen()
     {
+        g_heightReset = true;  // the host opens every menu at the registered height
         g_noResponse = false;
         g_drawnLogs = 0;
     }
