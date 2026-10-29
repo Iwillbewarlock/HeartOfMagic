@@ -89,7 +89,10 @@ std::uint32_t tabs = 0;                   // v2: bitmask of tabs to show on, 0 =
   add-on's own GFx function objects living past the call, which the lent-clip rule forbids, and their behaviour under
   the layout overlay is unchecked.)
 - Tabs: v2 `tabs` bitmask (spells, powers, shouts, active effects; 0 = every tab, the v1 behaviour) - a block is
-  hidden on the other tabs the way the built-in tree/progress/nodecard are (Layout::NoTreeTabHidden).
+  hidden on the other tabs the way the built-in tree/progress/nodecard are (Layout::NoTreeTabHidden). Each add-on
+  picks its own tabs (user, 2026-10-29: "지금 추가하는 homl이랑 sr블록은 주문탭에서만 보여야하지만 추후에 다른
+  에드온은 다른텝에서 보여야 할 수도 있어"): the SR block and the later HoML block take spells only; the mask must
+  let a future add-on take any other set, Powers / Shouts / Active Effects alone included.
 - `kVersion` 2. The header comment documents v2; Draw.h is not shipped with it (the add-on carries its own copy).
 
 Reserved for the HoML block (not built here, listed so v2 is not mistaken for enough): add-on calls into the host
