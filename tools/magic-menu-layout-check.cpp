@@ -1008,8 +1008,8 @@ namespace
         noDraw.draw = nullptr;
         ExpectRefused(Send(registry, noDraw), "draw", "null draw callback");
         auto newer = Reg("x.newer");
-        newer.apiVersion = 2;
-        ExpectRefused(Send(registry, newer), "apiVersion 2", "a newer apiVersion");
+        newer.apiVersion = BlockApi::kVersion + 1;  // API v2: version 3 is the first one this host does not read
+        ExpectRefused(Send(registry, newer), "apiVersion 3", "a newer apiVersion");
         auto older = Reg("x.old");
         older.apiVersion = 0;
         ExpectRefused(Send(registry, older), "apiVersion 0", "apiVersion 0");
@@ -1019,9 +1019,11 @@ namespace
         const auto shortMessage = Reg("x.short");
         ExpectRefused(registry.Register("AddonA", &shortMessage, BlockApi::kRegistrationV1Size - 1), "smaller", "message shorter than v1");
         ExpectRefused(registry.Register("AddonA", nullptr, 0), "no Registration", "no data");
-        auto longer = Reg("x.longer");  // a same-version add-on whose struct grew at the end: its v1 part is read
-        longer.structSize = BlockApi::kRegistrationV1Size + 16;
-        Expect(Send(registry, longer).accepted, "structSize larger than v1 (same version): accepted");
+        // API v2: a v2 struct cut short after its v1 part and one v2 field (drawSelection) - the v1 part is read, draw is there
+        // (the v2 cases in full: tools/magic-menu-block-api-check)
+        auto longer = Reg("x.longer");
+        longer.structSize = BlockApi::kRegistrationV1Size + sizeof(BlockApi::DrawSelectionFn);
+        Expect(Send(registry, longer).accepted, "a v2 structSize between v1 and v2 (only drawSelection covered): accepted");
         // a built-in id comes only with a '.' (no '.' is prefixed): "preview" from AddonA is AddonA.preview, not the built-in block
         Expect(Send(registry, Reg("preview")).id == "AddonA.preview", "\"preview\" from an add-on is AddonA.preview, not the built-in block");
         BlockRegistry::Registry reserved({ "Mine.block" });
