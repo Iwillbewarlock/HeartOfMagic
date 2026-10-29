@@ -662,7 +662,8 @@ namespace Widget
             std::optional<AddonClickDue> addonClickDue;
             // Block API v2 kMessageHeight: an add-on block's height this menu (absent: its registered height); "SLMH" log lines
             std::map<Layout::BlockId, double> addonHeight;
-            int addonHeightLogs = 0;
+            int addonHeightLogs = 0;                        // height lines logged this menu (kMaxHeightLogs)
+            std::set<Layout::BlockId> addonTooTallLogged;   // blocks whose too-tall request was logged this menu (once each)
             int addonClickLogs = 0;
             std::uint64_t layoutModeChanges = 0;  // the layout mode entered or left this menu (BlockRules::Moment)
             std::array<std::uint64_t, Layout::kColumns> scrollMoves{};  // each column's scroll changes this menu (BlockRules::Moment)
@@ -3491,10 +3492,11 @@ namespace Widget
             return false;
         }
 
-        // Block API v2: the kMessageHeight requests queued since the last frame. A new height lays the columns out again
-        // (Rearrange: the blocks below move, the column's scroll is clamped, the resized block is drawn again with its hit clip);
-        // in the layout mode it is kept for the mode's end. Unknown ids and heights over the registered one are logged
-        void TakeAddonHeights(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        // Block API v2: the kMessageHeight requests queued since it last ran. A new height lays the columns out again
+        // (Rearrange: the blocks below move, the column's scroll is clamped, the resized block is due to be drawn again with its
+        // hit clip); in the layout mode it is kept for the mode's end. Unknown ids (once per id) and heights over the
+        // registered one (once per block per menu) are logged. True when the columns were laid out again
+        bool TakeAddonHeights(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
             constexpr int kMaxHeightLogs = 16;
             std::vector<std::pair<std::string, double>> requests;
@@ -3513,20 +3515,25 @@ namespace Widget
                 const auto current = g_menu.addonHeight.find(id);
                 const auto verdict = BlockRules::JudgeHeight(height, addon->height,
                     current != g_menu.addonHeight.end() ? std::optional{ current->second } : std::nullopt);
-                const bool log = ++g_menu.addonHeightLogs <= kMaxHeightLogs;
                 if (verdict == BlockRules::HeightVerdict::kTooTall) {
-                    logger::warn("Widget: add-on block {} asked for the height {:.1f} - more than its registered {:.1f}; refused", id, height, addon->height);
+                    if (g_menu.addonTooTallLogged.insert(id).second) {
+                        logger::warn("Widget: add-on block {} asked for the height {:.1f} - more than its registered {:.1f}; refused (logged once this menu)",
+                            id, height, addon->height);
+                    }
                     continue;
                 }
                 if (verdict == BlockRules::HeightVerdict::kUnchanged) continue;
-                if (log) {
+                if (g_menu.addonHeightLogs < kMaxHeightLogs) {
+                    ++g_menu.addonHeightLogs;
                     logger::info("Widget: add-on block {} height {:.1f} (registered {:.1f}){}{}", id, height, addon->height,
                         g_menu.layout.active ? " - kept for the layout mode's end" : "", g_menu.addonHeightLogs == kMaxHeightLogs ? " - later ones this menu not logged" : "");
                 }
                 g_menu.addonHeight[id] = height;
                 changed = true;
             }
-            if (changed && !g_menu.layout.active) Rearrange(a_movie, a_widget);
+            if (!changed || g_menu.layout.active) return false;
+            Rearrange(a_movie, a_widget);
+            return true;
         }
 
         // ---------------------------------------------------------------------
@@ -7398,6 +7405,10 @@ namespace Widget
                 WatchChosen(movie, widget);  // again: the tree card may have left this frame (GPT review: one frame late)
                 HoldCardCheck(movie);   // P2: the tree card read back again
                 DrawAddons(movie, widget);   // Block API v2: after the selection and tree-click handling - the card's form may have changed
+                // Block API v2: a height asked for by those draws applies in this frame (a block drawn for a new spell at its old
+                // height would show past its box, over the block below, for one frame): laid out again and drawn once more - that
+                // draw is at the asked size, so it asks for nothing new
+                if (TakeAddonHeights(movie, widget)) DrawAddons(movie, widget);
                 CheckUnlearned();       // P3: one model check per frame
                 g_menu.firstFrame = false;
                 if (g_pendingNext.exchange(false)) DoNext(*snapshot);

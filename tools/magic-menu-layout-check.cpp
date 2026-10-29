@@ -1129,54 +1129,65 @@ namespace
 
 namespace
 {
-    /// Block API v2 kMessageHeight: an add-on block shrinks and grows again - the column restacks with no gap and no overlap,
-    /// and the column's content height (the scroll extent) follows
+    /// Block API v2 kMessageHeight: an add-on block at the top of the right column shrinks, grows back and shrinks again
+    /// (the 'SLMH' sequence of a spell change in the SR block's line layout): every time the blocks below it move by the
+    /// difference, the column stays one gap apart with no overlap, its content height (the scroll extent) follows, and the
+    /// left column does not move
     void AddonHeightChange()
     {
         std::printf("add-on block height change (kMessageHeight)\n");
+        const BlockId addon = "SpellResearch.archetypes";
         State state = Layout::Default(kValues);
-        state.columns[1].push_back("SpellResearch.archetypes");  // the end of the right column, an add-on's default place
-        auto heights = kHeights;
-        constexpr double kRegistered = 132, kShrunk = 76;
-        const auto overlapsOrGaps = [&](const std::map<BlockId, Rect>& a_rects, int a_column) {
+        state.columns[1].insert(state.columns[1].begin(), addon);  // blocks below it, so they move
+        constexpr double kRegistered = 132, kShrunk = 111;
+        const auto gapsOk = [&](const std::map<BlockId, Rect>& a_rects, int a_column) {
             double bottom = -1;
             for (const auto& id : state.columns[a_column]) {
                 const auto it = a_rects.find(id);
                 if (it == a_rects.end()) continue;
-                if (bottom >= 0 && !Near(it->second.top - bottom, kFrames[a_column].gap)) return true;
+                if (bottom >= 0 && !Near(it->second.top - bottom, kFrames[a_column].gap)) return false;
                 bottom = it->second.bottom;
             }
-            return false;
+            return true;
         };
-        heights["SpellResearch.archetypes"] = kRegistered;
-        const auto full = Layout::Arrange(state, heights, {}, {}, kFrames);
-        heights["SpellResearch.archetypes"] = kShrunk;
-        const auto shrunk = Layout::Arrange(state, heights, {}, {}, kFrames);
-        heights["SpellResearch.archetypes"] = kRegistered;
-        const auto grown = Layout::Arrange(state, heights, {}, {}, kFrames);
-        const auto& a = full.at("SpellResearch.archetypes");
-        const auto& b = shrunk.at("SpellResearch.archetypes");
-        Expect(Near(a.Height(), kRegistered) && Near(b.Height(), kShrunk) && Near(a.top, b.top), "shrunk: same top, the new height");
-        Expect(!overlapsOrGaps(full, 1) && !overlapsOrGaps(shrunk, 1) && !overlapsOrGaps(grown, 1), "every state: the column's blocks one gap apart, none overlapping");
-        const auto contentFull = Layout::ContentHeight(state, full, kFrames)[1];
-        const auto contentShrunk = Layout::ContentHeight(state, shrunk, kFrames)[1];
-        Expect(Near(contentFull - contentShrunk, kRegistered - kShrunk), Text("the column's content shrinks by the difference (%.1f -> %.1f)", contentFull, contentShrunk));
-        bool same = full.size() == grown.size();
-        for (const auto& [id, rect] : full) same = same && grown.contains(id) && Near(grown.at(id).top, rect.top) && Near(grown.at(id).bottom, rect.bottom);
-        Expect(same, "grown back to the registered height: every rect as before");
-        // a block above it shrinking moves it up by the difference (the left column is untouched)
-        State above = state;
-        above.columns[1].insert(above.columns[1].begin(), "Other.addon");
-        auto aboveHeights = heights;
-        aboveHeights["Other.addon"] = 100;
-        const auto before = Layout::Arrange(above, aboveHeights, {}, {}, kFrames);
-        aboveHeights["Other.addon"] = 40;
-        const auto after = Layout::Arrange(above, aboveHeights, {}, {}, kFrames);
-        Expect(Near(before.at("SpellResearch.archetypes").top - after.at("SpellResearch.archetypes").top, 60), "a block above shrinking by 60: the add-on moves up 60");
-        Expect(Near(before.at(Layout::kPreview).top, after.at(Layout::kPreview).top), "the other column is untouched");
+        const auto arrange = [&](double a_height) {
+            auto heights = kHeights;
+            heights[addon] = a_height;
+            return Layout::Arrange(state, heights, {}, {}, kFrames);
+        };
+        const std::vector<double> sequence{ kRegistered, kShrunk, kRegistered, kShrunk };
+        std::vector<std::map<BlockId, Rect>> steps;
+        for (const double height : sequence) steps.push_back(arrange(height));
+        const auto& below = state.columns[1];
+        for (std::size_t i = 1; i < steps.size(); ++i) {
+            const double change = sequence[i] - sequence[i - 1];
+            const auto& was = steps[i - 1];
+            const auto& now = steps[i];
+            Expect(Near(now.at(addon).top, was.at(addon).top) && Near(now.at(addon).Height(), sequence[i]),
+                Text("step %zu: the add-on keeps its top and is %.0f high", i, sequence[i]));
+            bool moved = true;
+            for (std::size_t k = 1; k < below.size(); ++k) {
+                const auto& id = below[k];
+                moved = moved && Near(now.at(id).top - was.at(id).top, change) && Near(now.at(id).Height(), was.at(id).Height());
+            }
+            Expect(moved, Text("step %zu (%+.0f): every block below moves by %+.0f, its size unchanged", i, change, change));
+            bool left = true;
+            for (const auto& id : state.columns[0]) {
+                left = left && was.contains(id) == now.contains(id) &&
+                       (!now.contains(id) || (Near(now.at(id).top, was.at(id).top) && Near(now.at(id).bottom, was.at(id).bottom) &&
+                                                 Near(now.at(id).left, was.at(id).left) && Near(now.at(id).right, was.at(id).right)));
+            }
+            Expect(left, Text("step %zu: every block of the left column where it was", i));
+            Expect(gapsOk(now, 1) && gapsOk(now, 0), Text("step %zu: both columns one gap apart, none overlapping", i));
+            const double contentWas = Layout::ContentHeight(state, was, kFrames)[1];
+            const double contentNow = Layout::ContentHeight(state, now, kFrames)[1];
+            Expect(Near(contentNow - contentWas, change), Text("step %zu: the right column's content %+.0f (%.0f -> %.0f)", i, change, contentWas, contentNow));
+        }
+        // the scroll extent: a column scrolled to its end before the shrink is clamped to the new end
         const double visible = kFrames[1].Height();
-        Expect(Near(Layout::ClampScroll(1000, contentShrunk, visible), std::max(0.0, contentShrunk - visible)),
-            "the scroll clamps to the shrunk content");
+        const double tall = Layout::ContentHeight(state, steps[0], kFrames)[1] + 200;  // as if the column overflowed
+        Expect(Near(Layout::ClampScroll(tall - visible, tall - (kRegistered - kShrunk), visible), std::max(0.0, tall - (kRegistered - kShrunk) - visible)),
+            "an overflowing column scrolled to its end: the scroll clamps to the shrunk content's end");
     }
 }
 
