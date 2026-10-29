@@ -112,7 +112,19 @@ var DesignPresets = {
                 '.build-progress-bar { height: 2px; border: 0; }',
                 '.build-progress-fill.error { background: var(--status-error); }',
                 '.setting-slider { height: 3px; }',
-                '.spell-panel { font-variant-numeric: tabular-nums; }'
+                '.spell-panel { font-variant-numeric: tabular-nums; }',
+                '/* One spacing scale (4/8/12/16/24): 16px from the edges and between a tab\'s blocks (.panel-content has',
+                '   one tab shown, so its own gap shows nowhere). Settings rows start on their header\'s line. The tree\'s',
+                '   tools: their column\'s edge (patch-tree-tools.css); TreeToolsScale.EDGE_PX stays 14 for the other',
+                '   designs, which leaves the bar 4px more room than it has here when no corner drawing moves it. */',
+                '.panel-content, .tab-content { gap: 16px; }',
+                '#contentSettings.active { padding: 16px 16px 0; }',
+                '#contentSettings .setting-row, #contentSettings .setting-row-inline, #contentSettings .slider-compact { padding-left: 0; }',
+                '.settings-subsection, .settings-split .settings-subsection { padding-left: 0; padding-right: 0; }',
+                '.tree-top-tools { top: 16px; left: 16px; max-width: calc(100% - 32px); }',
+                '.btn { padding: 8px 16px; }',
+                '.btn-sm { padding: 4px 12px; }',
+                '.scanner-preset-chip, .spell-need-chip { padding: 4px 8px; }'
             ],
             tree: {
                 pageColor: '#0b0b0c',
