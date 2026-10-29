@@ -4667,9 +4667,9 @@ namespace Widget
         constexpr const char* kButtonsName = "layoutButtons";  // the lock / reset row (D5), outside the column masks
         constexpr const char* kBorderName = "layoutBorder";    // the border handle in the gap between the columns (the mode only)
         constexpr const char* kGearName = "layoutGear";        // user 2026-10-30: the layout mode's toggle, under SkyUI's list (always)
-        constexpr double kGearSize = 18.0, kGearGap = 4.0;     // its square's side and its gap under the key-hint strip
-        constexpr double kGearInset = 2.0;                     // right of the left column's left edge
-        constexpr double kStripGap = 4.0, kStripInset = 0.0;   // the key-hint strip under the columns, from the left column's left edge
+        constexpr double kGearSize = 18.0;                     // its square's side
+        constexpr double kStripGap = 4.0;                      // the key-hint strip under the columns
+        constexpr double kGearGap = 4.0;                       // the gear one row under the strip, its left edge on the strip's start
         constexpr double kStripTolerance = 0.5;                // stage units: the strip is where it should be
         constexpr int kStripSearchFrames = 120;                // frames the strip's clips are looked for at a menu open (STB adds its own late)
         constexpr int kMaxStripMoveLogs = 5;
@@ -5441,11 +5441,12 @@ namespace Widget
         }
 
         // user 2026-10-30 (sketch): SkyUI's key-hint strip (the bottom bar's button panel, STB's hints with it) moved to one row
-        // right under the lower of our columns from the left column's left edge (BlockRules::StripRect; in the layout mode under
+        // right under the lower of our columns from the left column's left edge (BlockRules::HintRowRects; in the layout mode under
         // the lock / reset row, which sits there then), the clips only moved, never drawn again - each by the same stage step,
         // taken into its own parent's space (BlockRules::MovedBy), so Inventory Reforged's scale is followed and the clips keep
         // their places to each other. SkyUI moves or rebuilds the strip (a selection, a tab, a button refresh): put back every
-        // frame it is off. The gear goes under it at the left column's left edge (BlockRules::GearUnder). The skill / XP row
+        // frame it is off. The gear goes one row under it, its left edge on the strip's start (nothing else right of it on that
+        // row: the gear's flyout will open there). The skill / XP row
         // stays where SkyUI puts it
         void PlaceStripAndGear(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
@@ -5483,10 +5484,11 @@ namespace Widget
                     strip = bounds;
                 }
             }
-            double stripBottom = below;
+            const double right = ColumnViewport(Layout::kColumns - 1).right;
+            const auto row = BlockRules::HintRowRects(left, below, strip ? strip->xMax - strip->xMin : 0.0, strip ? strip->yMax - strip->yMin : 0.0,
+                kGearSize, kStripGap, kGearGap, visible);
             if (strip) {
-                const auto target = BlockRules::StripRect(left, below, strip->xMax - strip->xMin, strip->yMax - strip->yMin, kStripInset, kStripGap, visible);
-                stripBottom = target.bottom;
+                const auto& target = row.strip;
                 if (std::abs(strip->xMin - target.left) > kStripTolerance || std::abs(strip->yMin - target.top) > kStripTolerance) {
                     for (auto& clip : clips) {
                         RE::GFxValue parent;
@@ -5500,16 +5502,21 @@ namespace Widget
                         clip.SetMember("_y", moved.y);
                     }
                     if (++g_menu.stripMoveLogs <= kMaxStripMoveLogs) {
-                        logger::info("Layout: key-hint strip moved from {:.0f},{:.0f} to {} (columns' bottom {:.0f}){}", strip->xMin, strip->yMin, RectText(target), below,
+                        logger::info("Layout: key-hint strip moved from {:.0f},{:.0f} to {} under the columns' bottom {:.0f}, the gear under it at {}{}{}",
+                            strip->xMin, strip->yMin, RectText(target), below, RectText(row.gear),
+                            target.right > right + kStripTolerance ? std::format(" (too wide: runs {:.0f} past the right column)", target.right - right) : "",
                             g_menu.stripMoveLogs == kMaxStripMoveLogs ? " - later moves not logged" : "");
                     }
                 }
             }
             auto gear = Child(a_widget, kGearName);
             if (!gear.IsDisplayObject()) return;
-            const auto rect = BlockRules::GearUnder(left, stripBottom, kGearSize, kGearInset, kGearGap, visible);
+            const auto& rect = row.gear;
             if (g_menu.gearLast && SameRect(*g_menu.gearLast, rect)) return;
-            if (!g_menu.gearLast) logger::info("Layout: gear button at {} (under {}, at the left column's left edge)", RectText(rect), strip ? "the key-hint strip" : "the columns");
+            if (!g_menu.gearLast) {
+                logger::info("Layout: gear button at {} ({})", RectText(rect),
+                    strip ? "one row under the key-hint strip, on its start" : "under the columns at the left column's left edge (no key-hint strip)");
+            }
             gear.SetMember("_x", rect.left);
             gear.SetMember("_y", rect.top);
             gear.SetMember("_visible", true);

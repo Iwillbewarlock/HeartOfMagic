@@ -1259,19 +1259,20 @@ namespace
         Expect(BlockRules::RowButtons(false) == 0u, "no layout-row button outside the layout mode");
         Expect(BlockRules::RowButtons(true) == (BlockRules::kRowLock | BlockRules::kRowReset), "lock and reset in the layout mode");
         const Settings::Rect visible1610{ 0, -40, 1280, 760 };
-        // the key-hint strip and the gear (user 2026-10-30 sketch): columns' bottom 623, left column at 648
-        const auto strip = BlockRules::StripRect(648, 623, 520, 24, 0, 4, visible1610);
-        Expect(Near(strip.left, 648) && Near(strip.top, 627) && Near(strip.Width(), 520) && Near(strip.Height(), 24),
-            Text("strip: from the left column's left edge, 4 under the columns (%s)", Show(strip).c_str()));
-        const auto lowStrip = BlockRules::StripRect(648, 750, 520, 24, 0, 4, visible1610);
-        Expect(Near(lowStrip.bottom, 760), Text("columns down to the stage's bottom: the strip kept inside (%s)", Show(lowStrip).c_str()));
-        const auto wide = BlockRules::StripRect(900, 600, 600, 24, 0, 4, visible1610);
-        Expect(Near(wide.right, 1280), Text("a strip wider than the room right of the column: moved left to stay inside (%s)", Show(wide).c_str()));
-        const auto gearUnder = BlockRules::GearUnder(648, strip.bottom, 18, 2, 4, visible1610);
-        Expect(Near(gearUnder.left, 650) && Near(gearUnder.top, 655) && Near(gearUnder.Width(), 18),
-            Text("gear: 2 right of the left column's edge, 4 under the strip (%s)", Show(gearUnder).c_str()));
-        const auto gearLow = BlockRules::GearUnder(648, 755, 18, 2, 4, visible1610);
-        Expect(Near(gearLow.bottom, 760), Text("a strip at the stage's bottom: the gear kept inside (%s)", Show(gearLow).c_str()));
+        // the key-hint strip and the gear under it on one vertical line (user 2026-10-30): columns' bottom 623, left column at 648
+        const auto row = BlockRules::HintRowRects(648, 623, 400, 24, 18, 4, 4, visible1610);
+        Expect(Near(row.strip.left, 648) && Near(row.strip.top, 627) && Near(row.strip.Width(), 400) && Near(row.strip.Height(), 24),
+            Text("strip: from the left column's left edge, 4 under the columns (%s)", Show(row.strip).c_str()));
+        Expect(Near(row.gear.left, row.strip.left) && Near(row.gear.top, 655) && Near(row.gear.Width(), 18),
+            Text("gear: one row under the strip (4 below it), its left edge on the strip's start (%s)", Show(row.gear).c_str()));
+        const auto low = BlockRules::HintRowRects(648, 750, 400, 24, 18, 4, 4, visible1610);
+        Expect(Near(low.gear.bottom, 760) && Near(low.gear.top - low.strip.bottom, 4) && Near(low.gear.left, low.strip.left),
+            Text("columns down to the stage's bottom: strip and gear move up together, still apart by 4 (%s / %s)", Show(low.strip).c_str(), Show(low.gear).c_str()));
+        const auto wide = BlockRules::HintRowRects(900, 600, 600, 24, 18, 4, 4, visible1610);
+        Expect(Near(wide.strip.right, 1280) && Near(wide.gear.left, wide.strip.left),
+            Text("a strip wider than the room right of the column: moved left to stay inside, the gear with it (%s)", Show(wide.strip).c_str()));
+        const auto none = BlockRules::HintRowRects(648, 623, 0, 0, 18, 4, 4, visible1610);
+        Expect(Near(none.gear.top, 627) && Near(none.gear.left, 648), "no strip: the gear alone, 4 under the columns at the column's edge");
         // a clip moved in a parent scaled 0.85 and moved (200, 26): stage step (10, 20) is (11.76.., 23.52..) in the parent
         {
             const auto toParent = [](double a_x, double a_y) { return BlockRules::Point{ (a_x - 200.0) / 0.85, (a_y - 26.0) / 0.85 }; };

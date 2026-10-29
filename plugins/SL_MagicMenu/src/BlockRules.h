@@ -193,24 +193,31 @@ namespace BlockRules
     // that row at the left column's left edge
     // ---------------------------------------------------------------------
 
-    /// The strip's target (stage): its own size a_w x a_h, a_inset right of the span's left edge a_left, a_gap under the
-    /// columns' bottom a_columnsBottom; kept inside a_visible (it may go over the columns when the stage has no room below)
-    inline Settings::Rect StripRect(double a_left, double a_columnsBottom, double a_w, double a_h, double a_inset, double a_gap, const Settings::Rect& a_visible)
+    // Under the columns (user 2026-10-30: "단축키 시작이랑 톱니바퀴랑 Y축이 같게" - one vertical line, and "톱니바퀴가 한칸 아래로"): the
+    // key-hint strip's row, then the gear one row below it, the gear's left edge on the strip's start. The gear's row keeps
+    // the room right of it free (the gear's flyout will open there)
+    struct HintRow
     {
-        double left = a_left + a_inset, top = a_columnsBottom + a_gap;
-        left = std::clamp(left, a_visible.left, std::max(a_visible.left, a_visible.right - a_w));
-        top = std::clamp(top, a_visible.top, std::max(a_visible.top, a_visible.bottom - a_h));
-        return { left, top, left + a_w, top + a_h };
-    }
+        Settings::Rect strip, gear;  // the strip's rect is empty (0 x 0 at the columns' bottom + a_stripGap) when there is no strip
+    };
 
-    /// The gear's rect (stage): a_inset right of the left column's left edge a_left, a_gap under the strip's bottom a_above
-    /// (the columns' bottom when there is no strip); the whole gear inside a_visible
-    inline Settings::Rect GearUnder(double a_left, double a_above, double a_size, double a_inset, double a_gap, const Settings::Rect& a_visible)
+    /// The strip (a_w x a_h, its own size) from the left column's left edge a_left, a_stripGap under the columns' bottom
+    /// a_columnsBottom; the gear (a_gearSize) a_gearGap under the strip with its left edge on the strip's left edge (no strip:
+    /// a_stripGap under the columns). Strip and gear are kept inside a_visible together: the pair moves up from the stage's
+    /// bottom, and a strip wider than the room right of a_left moves left (the gear with it, so the two keep one line)
+    inline HintRow HintRowRects(double a_left, double a_columnsBottom, double a_w, double a_h, double a_gearSize, double a_stripGap, double a_gearGap,
+        const Settings::Rect& a_visible)
     {
-        double left = a_left + a_inset, top = a_above + a_gap;
-        left = std::clamp(left, a_visible.left, std::max(a_visible.left, a_visible.right - a_size));
-        top = std::clamp(top, a_visible.top, std::max(a_visible.top, a_visible.bottom - a_size));
-        return { left, top, left + a_size, top + a_size };
+        const bool hasStrip = a_w > 0.0 && a_h > 0.0;
+        const double gapBelow = hasStrip ? a_gearGap : 0.0, stripH = hasStrip ? a_h : 0.0;
+        const double pairH = stripH + gapBelow + a_gearSize;
+        const double top = std::clamp(a_columnsBottom + a_stripGap, a_visible.top, std::max(a_visible.top, a_visible.bottom - pairH));
+        const double left = std::clamp(a_left, a_visible.left, std::max(a_visible.left, a_visible.right - std::max(a_w, a_gearSize)));
+        HintRow row;
+        row.strip = { left, top, left + (hasStrip ? a_w : 0.0), top + stripH };
+        const double gearTop = row.strip.bottom + gapBelow;
+        row.gear = { left, gearTop, left + a_gearSize, gearTop + a_gearSize };
+        return row;
     }
 
     enum class Queued
