@@ -22,9 +22,15 @@ columns are hidden when nothing is, Widget.cpp:3376-3388, 3417). For the spell t
 - SR does not know the spell, or SR's lists are empty (Import never run), or the selection is not a spell: one "?"
   chip and a one-line reason. SR still setting up or importing: "Spell Research 준비 중" (snapshot not ready).
 - A row of three text buttons under the chips: "연구 일지", "증류기", "연구 경험" - shown only when
-  SpellResearchPrismaUI.dll is loaded. A click asks SR Prisma to open that window (SRPO, below); SR Prisma opens it
-  after the magic menu closes, under its own hotkey's conditions. A refusal (no journal/alembic in the inventory, in
-  combat, SR not set up, busy) shows its reason in the block's reason line until the selection changes.
+  SpellResearchPrismaUI.dll 0.2.1 or later is loaded (older builds have no SRPO and never answer). A click (mouse;
+  pad and keyboard are the HoML task's key-input work) sends SR Prisma an open request (SRPO, below) and, when the
+  request was delivered, closes the magic menu; SR Prisma waits up to 2 s for the menu to close and then opens the
+  window under its own hotkey's conditions. SRPR carries only a result code (SRPrismaAPI.h:58-65; SR Prisma logs its
+  reason), so a refusal shows a general HUD notification per code after the menu has closed - Refused: "연구 창을 열 수
+  없습니다 (전투 중이거나 필요한 물건이 없을 수 있습니다)", Busy: "다른 창이 열려 있어 연구 창을 열지 못했습니다".
+  A request that was not delivered (Dispatch false) keeps the menu open and shows "Spell Research Prisma가 응답하지
+  않습니다" in the block's reason line.
+- The block shows on the spell tabs only (not on Powers, Shouts or Active Effects: SR files no powers or shouts).
 
 ## Spell Research data (SpellResearch.esp, checked with houseCARL and SR's winning scripts)
 
@@ -58,9 +64,10 @@ v1 stays as it is for v1 add-ons. v2 adds, after the v1 fields of `Registration`
 ```cpp
 using DrawSelectionFn = void (*)(RE::GFxMovieView*, RE::GFxValue& clip, float w, float h,
                                  RE::FormID shown /*the card's form, 0 = none*/, void* user);
-using ClickFn = void (*)(float x, float y, void* user);   // a click in the block's content, clip coordinates
+using ClickFn = void (*)(float pressX, float pressY, float releaseX, float releaseY, void* user);  // content clip coords
 DrawSelectionFn drawSelection = nullptr;  // v2: when set, used instead of draw
 ClickFn click = nullptr;                  // v2: optional
+std::uint32_t tabs = 0;                   // v2: bitmask of tabs to show on, 0 = all
 ```
 
 - `RegistrationV1` frozen as its own struct (`kRegistrationV1Size = sizeof(RegistrationV1)`); apiVersion 1 or 2
@@ -73,22 +80,27 @@ ClickFn click = nullptr;                  // v2: optional
   happens on the next UI frame (ignored while the menu is closed). Used when the add-on's snapshot lands and after an
   SRPO reply.
 - Click: SL_MagicMenu puts one transparent hit clip over each v2 block that has `click`, with its own existing
-  onRelease handler mechanism (the one the tree's marks use, SetHandler Widget.cpp:2731), and calls `click` with the
-  position inside the content clip. Not in layout mode (the overlay owns clicks then), not when the press started
-  outside the block. The add-on keeps the rects it drew in its last draw and maps the point itself. (Chosen over
-  add-on-owned AS2 handlers on the lent clip: those need the add-on's own GFx function objects living past the call,
-  which the lent-clip rule forbids, and their behaviour under the layout overlay is unchecked.)
+  handler mechanism (the one the tree's marks use, SetHandler Widget.cpp:2731; onPress and onRelease), and on release
+  calls `click(pressX, pressY, releaseX, releaseY, user)` with both points inside the content clip. The host cancels a
+  press (no call) when the release is outside the block or outside the column's visible viewport, when the column
+  scrolled, the block was redrawn or layout mode changed between press and release, and never calls it in layout mode
+  (the overlay owns clicks then). The add-on keeps the rects it drew in its last draw and acts only when press and
+  release fall in the same button rect. (Chosen over add-on-owned AS2 handlers on the lent clip: those need the
+  add-on's own GFx function objects living past the call, which the lent-clip rule forbids, and their behaviour under
+  the layout overlay is unchecked.)
+- Tabs: v2 `tabs` bitmask (spells, powers, shouts, active effects; 0 = every tab, the v1 behaviour) - a block is
+  hidden on the other tabs the way the built-in tree/progress/nodecard are (Layout::NoTreeTabHidden).
 - `kVersion` 2. The header comment documents v2; Draw.h is not shipped with it (the add-on carries its own copy).
 
 Reserved for the HoML block (not built here, listed so v2 is not mistaken for enough): add-on calls into the host
-(select a spell in the list, load its 3D), per-tab visibility, hover and tooltips outside the block, key input,
+(select a spell in the list, load its 3D), hover and tooltips outside the block, key and pad input,
 shared text-fitting helpers, and keeping a player's place for the old built-in ids `tree`/`progress`/`nodecard`.
 
 ### 2. New plugin SL_MagicMenu_SpellResearch (plugins/SL_MagicMenu_SpellResearch)
 
 - kPostLoad: listen for SL_MagicMenu's result and for SR Prisma's replies ('SRPR', sender "SpellResearchPrismaUI");
-  SR Prisma present = `SKSE::GetPluginInfo("SpellResearchPrismaUI")` is not null at kPostPostLoad (fallback if that
-  call is unavailable: present until a Dispatch to it returns false).
+  SR Prisma usable = `SKSE::LoadInterface::GetPluginInfo("SpellResearchPrismaUI")` (CommonLibSSE-NG Interfaces.h:157)
+  is not null and its version is 0.2.1 or later, checked at kPostPostLoad.
 - kDataLoaded: `TESDataHandler::LookupForm` the three FormLists and `_SR_GlobalImporting` 004C8D /
   `_SR_GlobalIsSetup` 00624F in "SpellResearch.esp"; missing plugin or a list of the wrong shape -> log once and
   register nothing. Then register block id "SpellResearch.archetypes", title "연구 아키타입", fixed height (title
@@ -96,18 +108,24 @@ shared text-fitting helpers, and keeping a player's place for the old built-in i
 - Shared data (HasForm walks forms + scriptAddedTempForms without a lock; the Librarian and SR Import write them on
   the game thread): never walk SR's lists in draw. A snapshot (FormID -> tier, archetype bitset; 60 x 5 knowledge
   values) is built in an SKSE task on the game thread when the magic menu opens (a MenuOpenCloseEvent sink), "not
-  ready" while importing or before setup; when it lands the add-on sends 'SLMD'. O(total list entries), once per open.
+  ready" while importing or before setup, and published as an immutable object by an atomic shared_ptr swap that draw
+  reads; when it lands the add-on sends 'SLMD'. O(total list entries), once per open.
 - Buttons: 'SRPO' `{version 1, requestId, what}` (1 experience window, 2 journal, 3 alembic; SRPrismaAPI.h copied
-  from SR Prisma's committed HEAD f76e584 into the plugin, unchanged). The reply ('SRPR': Accepted / Busy / Refused /
-  BadMessage / Opened) arrives on a later frame; Refused/Busy/BadMessage set the reason line and send 'SLMD';
-  Accepted/Opened clear it. One request in flight at a time (a second click while one waits is ignored).
+  from SR Prisma's committed HEAD f76e584 into the plugin, unchanged). On click (UI thread): set the pending
+  requestId (atomic) before Dispatch; Dispatch true -> close the magic menu (UIMessageQueue kHide); false -> clear
+  pending, reason line, 'SLMD'. The reply ('SRPR') arrives on whatever thread SR Prisma dispatches from (its game
+  task, or the caller's thread without a task interface, main.cpp:2333-2343, 2695-2699): the listener checks size
+  and version, copies the reply by value, ignores a requestId that is not the pending one, and hands the copy to an
+  SKSE task that clears pending and, for Busy/Refused/BadMessage, shows the HUD notification. A pending request
+  with no reply for 5 s is dropped (SR Prisma's own wait is 2 s). One request in flight at a time.
 - Self-test (ini `bSelfTest`): at the first menu open logs PASS/FAIL for list sizes (60 / 5 / 60), Flames
   (Skyrim.esm 012FCD) filed under Fire and Destruction (SKIP when SR's lists are empty), snapshot ready / not ready
   (SKIP), a Librarian (script-added) spell found when HoM is installed (SKIP otherwise), and that the drawn id equals
   the card's id for each redraw.
 - Offline checks (tools/magic-menu-block-api-check, no game): registration parsing (real v1 bytes in the old layout,
-  a v2 message cut short, version 3 refused, v2 without either draw refused), the add-on's pure parts (archetype
-  grouping order, chip wrapping to a width, click -> button mapping, reply -> reason text).
+  a v2 message cut short, version 3 refused, v2 without either draw refused, the tabs mask), the host's press/release
+  cancel rules as a pure function, and the add-on's pure parts (archetype grouping order, chip wrapping to a width,
+  press+release -> button (same rect only), reply -> notification text, requestId matching and the 5 s drop).
 - dist: a hand-made dist/SL_MagicMenu_SpellResearch/ (DLL, ini) like dist/HoM-MagicMenu-Proto until the FOMOD task.
 
 ## Rulings carried from the 2026-10-27 GPT design review
