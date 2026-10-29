@@ -14,17 +14,27 @@ the next task (C:/Users/qtuna/Desktop/Claude outputs/magic-menu-no-hom-brief.md)
 A block "연구 아키타입" (default: end of the right column, moved like any block), shown while a spell is chosen (the
 columns are hidden when nothing is, Widget.cpp:3376-3388, 3417). For the spell the menu's card shows:
 
-- Spell Research knows the spell (it is in one of SR's archetype spell lists): the spell's SR tier (초보자..달인) as a
-  small label, then one chip per archetype the spell belongs to - school first, then elements, casting, targeting,
-  techniques (SR's index order inside each group). Chips are text (a thin kPanelEdge frame, the polish of 2026-10-29)
-  and wrap to the column width.
-- A chip shows the archetype's name when the player has any knowledge of that archetype at the spell's tier
-  (its tier GlobalVariable > 0, the rule SR Prisma's experience window also uses since 0.2.0), otherwise "?".
-  (SR keeps no per-spell "researched" record - re-checked against SR Prisma 0.2.1: still none - so "researched" is
-  read as "the player has knowledge in that archetype at that tier"; the reason line says so for "?" chips.)
-- SR does not know the spell, or SR's lists are empty (Import never run), or the selection is not a spell: one "?"
-  chip and a one-line reason. SR still setting up or importing: "Spell Research 준비 중" (snapshot not ready).
-- A row of three text buttons under the chips: "연구 일지", "증류기", "연구 경험" - shown only when
+- Only what the menu's own spell card does not show (user, 2026-10-29: "기본 주문 정보창에서 확인가능한건 빼"): the
+  card already shows the school and level, the magicka cost and the casting type, so the block shows the spell's
+  ELEMENT (2-35), TARGETING (41-44) and TECHNIQUE (45-59) archetypes only - no school chip, no casting chip, no tier
+  label. The SR tier is still read: it decides "?" (below).
+- Two layouts (user: "A는 폐기", B and C selectable). The choice lives in SR Prisma's SKSE Menu Framework settings tab
+  (user's answer: "SR 프리즈마 설정 탭 안"); the block only reads it, once per menu open, through one function,
+  `ResolveLayout()` (proposed key `[MagicMenuBlock] sLayout=list|line` in SpellResearchPrismaUI.ini, to be fixed by
+  the SR Prisma session; missing or unknown -> list).
+  - B "list": one row per group that has archetypes (Element / Targeting / Technique), the group name dim on the
+    left, the archetypes after it separated by a middle dot; a group with none is left out.
+  - C "line": every archetype in SR's index order joined by middle dots, wrapping to the column width.
+  - In both, each archetype has its SR Prisma icon on its left (the line drawings of SR Prisma's
+    tools/icons/skald-icons.js, converted to point data by tools/sr-icons/convert.mjs into ArchetypeIcons.h and drawn
+    with the AS2 drawing API in kTitleColor; the frame tells the group).
+- An archetype shows its name when the player has any knowledge of it at the spell's tier (its tier GlobalVariable
+  > 0, the rule SR Prisma's experience window also uses since 0.2.0), otherwise "?" (with its icon). (SR keeps no
+  per-spell "researched" record - re-checked against SR Prisma 0.2.1: still none - so "researched" is read as "the
+  player has knowledge in that archetype at that tier"; the reason line says so when a "?" shows.)
+- SR does not know the spell, or SR's lists are empty (Import never run), or the selection is not a spell: a "?"
+  and a one-line reason. SR still setting up or importing: "Spell Research 준비 중" (snapshot not ready).
+- A row of three text links under the archetypes: "연구 일지", "증류기", "연구 경험" - shown only when
   SpellResearchPrismaUI.dll 0.2.1 or later is loaded (older builds have no SRPO and never answer). A click (mouse;
   pad and keyboard are the HoML task's key-input work) sends SR Prisma an open request (SRPO, below) and, when the
   request was delivered, closes the magic menu; SR Prisma waits up to 2 s for the menu to close and then opens the
