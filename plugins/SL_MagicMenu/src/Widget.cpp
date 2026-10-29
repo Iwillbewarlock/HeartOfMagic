@@ -6333,8 +6333,8 @@ namespace Widget
         enum class Mark
         {
             kNone,   // a heading: from the left edge
-            kCheck,  // a drawn check, then the text
-            kCross,  // a drawn cross, then the text
+            kCheck,  // a drawn check (kOk), then the text
+            kCross,  // a drawn cross (kNotYet), then the text
             kSpace   // no mark, the text lined up with the marked rows
         };
 
@@ -6342,7 +6342,7 @@ namespace Widget
         {
             std::string name;           // the whole text, or with a format the {name} it fills (cut first when the row is too long)
             std::optional<Str> format;
-            std::uint32_t color;
+            std::uint32_t color;        // the text's; a check or cross takes its own state colour (UI polish 2026-10-29)
             Mark mark;
         };
 
@@ -6356,8 +6356,8 @@ namespace Widget
                 // each prerequisite named by its own state (review v11 #1; spellCardNeeds.js:85)
                 std::string name = index >= 0 ? ShownName(index, a_snapshot) : std::format("{:08X}", a_saved);
                 switch (Spells::PrereqOf(a_snapshot, a_saved, a_node.school)) {
-                case Spells::Prereq::kMastered: rows.push_back({ std::move(name), Str::kReqMastered, kOk, Mark::kCheck }); break;
-                case Spells::Prereq::kNotMastered: rows.push_back({ std::move(name), Str::kReqNotMastered, kNotYet, Mark::kCross }); break;
+                case Spells::Prereq::kMastered: rows.push_back({ std::move(name), Str::kReqMastered, kLabelColor, Mark::kCheck }); break;
+                case Spells::Prereq::kNotMastered: rows.push_back({ std::move(name), Str::kReqNotMastered, kLabelColor, Mark::kCross }); break;
                 case Spells::Prereq::kUnknown: rows.push_back({ std::move(name), Str::kReqChecking, kDimText, Mark::kSpace }); break;
                 case Spells::Prereq::kNotInGame: rows.push_back({ std::move(name), Str::kReqNotInGame, kDimText, Mark::kSpace }); break;
                 }
@@ -6404,8 +6404,8 @@ namespace Widget
                 const double y = a_top + pitch * static_cast<double>(i);
                 const double x = row.mark == Mark::kNone ? 0.0 : textX;
                 const double markY = y + h / 2 - markSize / 2;
-                if (row.mark == Mark::kCheck) Draw::Check(a_content, 0, markY, markSize, row.color);
-                if (row.mark == Mark::kCross) Draw::Cross(a_content, 0, markY, markSize, row.color);
+                if (row.mark == Mark::kCheck) Draw::Check(a_content, 0, markY, markSize, kOk);
+                if (row.mark == Mark::kCross) Draw::Cross(a_content, 0, markY, markSize, kNotYet);
                 const auto name = std::format("row{}", i);
                 auto field = Draw::Text(a_movie, a_content, name.c_str(), x, y, a_w - x, h, "", row.color, size);
                 if (!field.IsDisplayObject()) continue;
