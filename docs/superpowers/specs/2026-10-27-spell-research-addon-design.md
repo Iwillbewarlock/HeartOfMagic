@@ -156,6 +156,35 @@ shared text-fitting helpers, and keeping a player's place for the old built-in i
   press+release -> button (same rect only), reply -> notification text, requestId matching and the 5 s drop).
 - dist: a hand-made dist/SL_MagicMenu_SpellResearch/ (DLL, ini) like dist/HoM-MagicMenu-Proto until the FOMOD task.
 
+### 2a. As built (Task 2, 2026-10-29)
+
+Files: plugins/SL_MagicMenu_SpellResearch/src - `Main.cpp` (load, messages, registration, the menu-open sink),
+`Settings.cpp` (own ini `bSelfTest`, `ResolveLayout()`, `ResolveLanguage()`), `Lang.cpp`, `SrData.cpp` (lookups, shape
+checks, the snapshot, the first-open self-test), `BlockDraw.cpp` (draw, click, SRPO/SRPR), and the pure
+`SrBlockRules.h` that `tools/magic-menu-sr-block-check` runs; `BlockApi.h` and `Draw.h` are copies of the host's,
+`SRPrismaAPI.h` is SR Prisma HEAD dd084c3's file unchanged (the same API as f76e584). Decisions the design left open:
+
+- Names: `lang/en.json` keys `archetype.0` .. `archetype.59` in SR Prisma's ARCHETYPES order; the values are the names
+  the approved mockup shows (mock3: "Area", "Location", "Sensing"), so targeting and technique names drop SR Prisma's
+  " Targeting" / " Techniques" (the group label or the icon frame says it). Casting and school names stay SR's (never
+  drawn). To reconcile when SR Prisma's translation tables land.
+- Height 132 (content 94 = three 18-unit archetype lines, 6 gap, an 18-unit link row, a 16-unit reason line; plus the
+  host's 22 title strip and 2 x 8 padding), the same for both layouts. List: one line per group, wrapping inside the
+  archetype column; line: wrapping to the width. Neither passes three lines: what does not fit is left out and "..." ends
+  the third line. A name longer than a whole line is cut with "...".
+- "?" cases: SR does not file the spell, its lists are empty, not a spell (a power, an ability), no element / targeting /
+  technique filed, and a spell in archetype lists but in no tier list (every archetype "?", reason "in no tier list").
+- The snapshot is built at each magic menu open; the previous one stays published until the new one lands (no "getting
+  ready" flash on every open), then 'SLMD'. Before the first build of the game session the block says "getting ready".
+- Icons: `ArchetypeIcons.h` now carries `Icon::frame` (tools/sr-icons/convert.mjs: the glyph converted alone is the rest of
+  the subpaths; one frame per group); a dot subpath (two equal points) is drawn as a small filled polygon as wide as the
+  stroke (a zero-length AS2 line draws nothing); strokes use Flash 8 `lineStyle(..., "round", "round")`.
+- dist: `dist/SL_MagicMenu_SpellResearch/SKSE/Plugins/` (DLL, PDB, ini, `SL_MagicMenu_SpellResearch/lang/en.json`) is
+  rebuilt by every build (custom target `SL_MagicMenu_SpellResearch_dist`), from `plugins/SL_MagicMenu_SpellResearch/dist/`.
+- Self-test: `[selftest-sr] lists|snapshot|flames|librarian PASS|FAIL|SKIP` and `DONE` at the first open; per redraw (up
+  to 16 a menu) `[selftest-sr] drawn PASS` when the drawn form is SkyUI's list selection, `SKIP` when the card shows
+  another (a tree click) or the selection is unreadable - it cannot tell a wrong draw from a tree click, so it never FAILs.
+
 ## Rulings carried from the 2026-10-27 GPT design review
 
 ABI freeze (above), the card's spell rather than `g_menu.sel.id`, the game-thread snapshot plus 'SLMD', no block

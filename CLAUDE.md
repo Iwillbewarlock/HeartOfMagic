@@ -347,7 +347,13 @@ This project does not have a C++ test framework. Validation is done through:
   `magic-menu-tree-check` (`--selftest`, or a spell_tree.json), `magic-menu-layout-check` (the block layout, the add-on registry),
   `magic-menu-homstyle-check` (`--selftest`, or HoM's config), `magic-menu-preview-check` (the preview math) and
   `magic-menu-block-api-check` (Block API v2: registration parsing of v1 and v2 bytes, the tabs mask per SkyUI tab, the
-  press / release cancel rules of `BlockRules.h`; `--selftest` the same) - PASS/FAIL lines, exit 1 on a failure
+  press / release cancel rules of `BlockRules.h`; `--selftest` the same) and the Spell Research add-on block's
+  (plugins/SL_MagicMenu_SpellResearch, docs/superpowers/specs/2026-10-27-spell-research-addon-design.md)
+  `magic-menu-sr-block-check` (`SrBlockRules.h`: archetype grouping and order, what the block shows per state, the list and
+  line layouts and their wrapping, the unknown archetype's frame-only icon, the icon data's bounds, the link click rule,
+  reply code -> notification, the open request's requestId matching and 5 s drop, the `[MagicMenuBlock] sLayout` ini
+  reading, and `dist/lang/en.json` against the block's keys; `--selftest` the same, `--lang <file>` another language file) -
+  PASS/FAIL lines, exit 1 on a failure
 
 ## Code Style
 
