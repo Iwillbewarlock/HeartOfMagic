@@ -1313,6 +1313,29 @@ namespace
             const auto newAndRelaid = BlockRules::StripHomes({ Place{ x(0), x(0), x(100) }, Place{ x(50), std::nullopt, std::nullopt } }, 0.5);
             Expect(Near(newAndRelaid[0].x, 0) && Near(newAndRelaid[1].x, 50), "a new clip while SkyUI re-laid the others: every clip from its present place");
         }
+        // the board (user 2026-10-30): the columns' areas 648..1238 x 67..623, 16 larger; empty looks; the strip from its bottom
+        {
+            const Settings::Rect columns{ 648, 67, 1238, 623 };
+            const auto board = BlockRules::BoardRect(columns, BlockRules::kBoardPad, visible1610);
+            Expect(Near(board.left, 632) && Near(board.top, 51) && Near(board.right, 1254) && Near(board.bottom, 639), Text("board: the columns + 16 (%s)", Show(board).c_str()));
+            const auto cut = BlockRules::BoardRect(Settings::Rect{ 0, -40, 1275, 755 }, BlockRules::kBoardPad, visible1610);
+            Expect(Near(cut.left, 0) && Near(cut.top, -40) && Near(cut.right, 1280) && Near(cut.bottom, 760), Text("board cut to the visible stage (%s)", Show(cut).c_str()));
+            using BlockRules::EmptyLook;
+            Expect(BlockRules::EmptyLookOf(Layout::kPreview, true, false) == EmptyLook::kLineCentred &&
+                       BlockRules::EmptyLookOf(Layout::kTree, true, false) == EmptyLook::kLineCentred &&
+                       BlockRules::EmptyLookOf(Layout::kSpellCard, true, false) == EmptyLook::kLineOnly &&
+                       BlockRules::EmptyLookOf(Layout::kProgress, true, false) == EmptyLook::kAsUsual &&
+                       BlockRules::EmptyLookOf(Layout::kNodeCard, true, false) == EmptyLook::kAsUsual,
+                "nothing chosen: preview and tree keep their size with a line, our card one line, progress / node card as usual");
+            Expect(BlockRules::EmptyLookOf("SpellResearch.archetypes", true, true) == EmptyLook::kClosed &&
+                       BlockRules::EmptyLookOf("Old.v1block", true, false) == EmptyLook::kAsUsual &&
+                       BlockRules::EmptyLookOf(Layout::kTree, false, false) == EmptyLook::kAsUsual &&
+                       BlockRules::EmptyLookOf("SpellResearch.archetypes", false, true) == EmptyLook::kAsUsual,
+                "an add-on drawn per selection closes up with nothing shown; a v1 block as usual; anything chosen: as usual");
+            const auto hang = BlockRules::HintRowRects(648, board.bottom, 400, 24, 18, 8, 4, visible1610);
+            Expect(Near(hang.strip.top, 647) && Near(hang.strip.left, 648) && Near(hang.gear.top, 675) && Near(hang.gear.left, 648),
+                Text("strip 8 under the board's bottom (%s), the gear one row below at its start (%s)", Show(hang.strip).c_str(), Show(hang.gear).c_str()));
+        }
         // a clip moved in a parent scaled 0.85 and moved (200, 26): stage step (10, 20) is (11.76.., 23.52..) in the parent
         {
             const auto toParent = [](double a_x, double a_y) { return BlockRules::Point{ (a_x - 200.0) / 0.85, (a_y - 26.0) / 0.85 }; };

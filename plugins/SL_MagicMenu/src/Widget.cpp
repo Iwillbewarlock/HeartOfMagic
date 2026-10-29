@@ -301,6 +301,7 @@ namespace Widget
             kCardSeconds,
             // blocks plan Task 4 (D5): the layout buttons
             kLayoutReset,
+            kEmptyChoose,
             kLayoutGearEnter,
             kLayoutGearLeave,
             kCount
@@ -392,6 +393,8 @@ namespace Widget
             // blocks plan Task 4 (D5): the lock button (in the mode only since 2026-10-30: outside it the gear starts the mode) and
             // the reset button; the labels the plan gives, {key} the toggle key as the hints show keys
             { Str::kLayoutReset, "layout_reset", "처음 배치로" },
+            // user 2026-10-30 (the board): a block's line while nothing is chosen
+            { Str::kEmptyChoose, "empty_choose", "주문을 고르면 표시됩니다" },
             // user 2026-10-30: the gear's hover hint, out of the layout mode and in it
             { Str::kLayoutGearEnter, "layout_gear_enter", "편집 모드 {key}" },
             { Str::kLayoutGearLeave, "layout_gear_leave", "보기 모드로 {key}" },
@@ -659,6 +662,8 @@ namespace Widget
             std::pair<double, double> treeOrigin{};  // the tree drawing's 0,0 in its panel as last drawn (RedrawTree; the tooltip's)
             Settings::Rect tooltipTree;  // the tree's rect (on screen) when the tooltip was last drawn (RedrawTooltip)
             std::optional<Settings::Rect> gearLast;  // where the gear was put last (PlaceStripAndGear)
+            Settings::Rect board;                    // the board's rect (stage), fixed for the menu (DrawBoard)
+            std::optional<bool> nothingLaid;         // whether nothing was shown when the columns were laid out last (WatchEmpty)
             // user 2026-10-30: the reset button right of the gear in the edit mode - its full width, its width now and its unfold /
             // fold (from, to, start, length; BlockRules::AnimWidth)
             double resetFullW = 0.0, resetShownW = 0.0, resetFrom = 0.0, resetTo = 0.0, resetStartMs = 0.0, resetDurationMs = 0.0;
@@ -1746,11 +1751,20 @@ namespace Widget
 
         // Block API v2: the add-ons whose tabs mask leaves out the tab of a_flag (BlockRules::ShownOn). Read on the frame thread
         // only (g_addons is fixed from the first open on)
+        RE::FormID ShownForm();  // the form the menu's card shows (with the add-on drawing, below)
+        void ShowEmptyLine(RE::GFxValue& a_widget, const BlockId& a_id, bool a_shown);  // the board's empty look (with DrawBoard, below)
+
+        // user 2026-10-30 (the board): an add-on drawn per selection (drawSelection) with nothing to show is closed up too
+        // (BlockRules::EmptyLookOf: kClosed); a v1 block keeps its place as before
         std::set<BlockId> AddonsHiddenOn(int a_flag)
         {
             std::set<BlockId> hidden;
+            const bool nothing = ShownForm() == 0;
             for (const auto& addon : g_addons) {
-                if (!BlockRules::ShownOn(addon.tabs, a_flag)) hidden.insert(addon.id);
+                if (!BlockRules::ShownOn(addon.tabs, a_flag) ||
+                    BlockRules::EmptyLookOf(addon.id, nothing, addon.drawSelection != nullptr) == BlockRules::EmptyLook::kClosed) {
+                    hidden.insert(addon.id);
+                }
             }
             return hidden;
         }
@@ -3914,16 +3928,16 @@ namespace Widget
         Showing Visibility()
         {
             const bool own = OwnCard();
-            // Task 4: in the layout mode the blocks show with nothing chosen too (they are what is moved)
-            const bool chosen = g_menu.chosen || g_menu.layout.active;
+            // user 2026-10-30 (the board): the columns stay up with nothing chosen too - each block shows its empty look
+            // (BlockRules::EmptyLookOf); before, nothing chosen hid them all
             Showing shown;
             // D6: the tab's hidden blocks (TabHidden) are the ones Arrange closes up; the progress card also waits for a school
-            shown.preview = chosen && BlockShown(Layout::kPreview);
-            shown.tree = chosen && BlockShown(Layout::kTree);
-            shown.nodeCard = chosen && BlockShown(Layout::kNodeCard);
-            shown.progress = chosen && BlockShown(Layout::kProgress) && !g_session.school.empty();
-            shown.any = chosen && (shown.preview || own);
-            shown.card = own && g_menu.ownCardShown && chosen;
+            shown.preview = BlockShown(Layout::kPreview);
+            shown.tree = BlockShown(Layout::kTree);
+            shown.nodeCard = BlockShown(Layout::kNodeCard);
+            shown.progress = BlockShown(Layout::kProgress) && !g_session.school.empty();
+            shown.any = shown.preview || own;
+            shown.card = own && g_menu.ownCardShown;
             return shown;
         }
 
@@ -3950,7 +3964,8 @@ namespace Widget
             const bool own = OwnCard();
             const bool effects = g_menu.tab == Tab::kEffects;
             const auto [preview, tree, nodeCard, progress, card, any] = Visibility();
-            g_previewShown = preview;  // the over-pass draws the preview only while its box is shown
+            g_previewShown = preview && g_menu.chosen;  // the over-pass draws the 3D only for a chosen item (the box stays up without one)
+            ShowEmptyLine(a_widget, Layout::kPreview, preview && !g_menu.chosen);
             // Task 4 (D5): the column clips are hidden, not mmx_root - the layout buttons below the left column stay up
             for (const char* column : kColumnClips) {
                 if (auto clip = Child(a_widget, column); clip.IsDisplayObject()) clip.SetMember("_visible", any);
@@ -4471,6 +4486,29 @@ namespace Widget
             g_menu.ownCardDrawnIn = drawnIn;
         }
 
+        // user 2026-10-30 (the board): our card with nothing chosen - one dim line, the card fitted to it (FitBlock)
+        void RedrawEmptyCard(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const Settings::Rect& a_rect)
+        {
+            auto panel = BlockClip(a_widget, Layout::kSpellCard);
+            if (!panel.IsDisplayObject()) return;
+            Draw::Call(panel, "clear", {});
+            const auto local = BlockLocal(Layout::kSpellCard, a_rect);
+            panel.SetMember("_x", local.left);
+            panel.SetMember("_y", local.top);
+            auto content = Content(a_widget, Layout::kSpellCard);
+            if (!content.IsDisplayObject()) return;
+            content.SetMember("_x", kPad);
+            const double size = Size(kRowSize);
+            FitLine(a_movie, content, "empty", 0, kCardTop, a_rect.Width() - 2 * kPad, size, Text(Str::kEmptyChoose), kDimText);
+            const double h = FitBlock(a_movie, a_widget, Layout::kSpellCard, kCardTop + FieldH(size) + kPad);
+            Draw::NoLine(panel);
+            Draw::Rect(panel, 0, 0, a_rect.Width(), h, kPanelFill, kPanelAlpha);
+            const auto drawnIn = BlockRect(Layout::kSpellCard);
+            g_menu.ownCardBottom = drawnIn.top + h;
+            g_menu.ownCardDrawnTab = static_cast<int>(g_menu.tab);
+            g_menu.ownCardDrawnIn = drawnIn;
+        }
+
         // The selection our card should be showing: the tree card's spell (P2), else the AS2 list's selectedIndex and entry text
         // (the list works for every form; the native SelectedSpell is a spell only, review v7 #3). Returns the key and the name
         // the card is expected to carry (empty when the entry's text is not the card's name: active effects name their source).
@@ -4581,6 +4619,18 @@ namespace Widget
                                         g_menu.rowSize, infoSig, view.sub, view.footRight, g_menu.layout.active)
                                   : std::string{};
 
+            // user 2026-10-30 (the board): nothing chosen - our card collapses to one dim line
+            if (BlockRules::EmptyLookOf(Layout::kSpellCard, !g_menu.chosen, false) == BlockRules::EmptyLook::kLineOnly) {
+                const auto emptySig = std::format("empty|{}|{:.1f}x{:.1f}|{:.1f}|{}", static_cast<int>(g_menu.tab), fullRect.Width(), fullRect.Height(),
+                    g_menu.rowSize, g_menu.layout.active);
+                if (emptySig != g_menu.ownCardSig) {
+                    g_menu.ownCardSig = emptySig;
+                    g_menu.ownCardShown = true;
+                    RedrawEmptyCard(a_movie, a_widget, cardRect);
+                    ApplyVisibility(a_widget);
+                }
+                return;
+            }
             const auto [selection, expected] = CardSelection(a_movie);
             const bool chosen = selection != "none" && !selection.starts_with("-1|");
             if (selection != g_menu.c1Selection) {
@@ -4670,9 +4720,10 @@ namespace Widget
 
         constexpr const char* kShieldName = "layoutShield";    // full stage, the lowest depth in mmx_root, shown in the mode only
         constexpr const char* kBorderName = "layoutBorder";    // the border handle in the gap between the columns (the mode only)
+        constexpr const char* kBoardName = "board";             // user 2026-10-30: the board behind the columns (DrawBoard)
         constexpr const char* kGearName = "layoutGear";        // user 2026-10-30: the layout mode's toggle, under SkyUI's list (always)
         constexpr double kGearSize = 18.0;                     // its square's side
-        constexpr double kStripGap = 4.0;                      // the key-hint strip under the columns
+        constexpr double kBoardStripGap = 8.0;                 // the key-hint strip under the board
         constexpr double kGearGap = 4.0;                       // the gear one row under the strip, its left edge on the strip's start
         constexpr double kStripTolerance = 0.5;                // stage units: the strip is where it should be
         constexpr int kStripSearchFrames = 120;                // frames the strip's clips are looked for at a menu open (STB adds its own late)
@@ -5371,20 +5422,56 @@ namespace Widget
             logger::info("Layout: menu clip dump - {} clip(s) seen to depth {}, {} logged", seen, kDumpDepth, lines);
         }
 
-        // The screen bottom of the lower of our two columns: each column's lowest arranged block on screen (scrolled), cut at its
-        // viewport (a column taller than it ends at the viewport's bottom); an empty column ends at its top
-        double ColumnsBottom()
+        // user 2026-10-30 (the board, mock board.png): a fixed panel behind both columns - their full areas (the frames: the border
+        // between them does not change the union) BlockRules::kBoardPad larger, cut to the visible stage; lighter than the cards
+        // (black kBoardAlpha, a kPanelEdge edge at kBoardEdgeAlpha), no title. Made once a menu, under the columns; it does not
+        // scroll and never changes size when cards fit. The key-hint strip and the gear hang from its bottom
+        void DrawBoard(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
-            double bottom = -std::numeric_limits<double>::infinity();
-            for (int column = 0; column < Layout::kColumns; ++column) {
-                const auto viewport = ColumnViewport(column);
-                double end = viewport.top;
-                for (const auto& [id, rect] : g_menu.blocks) {
-                    if (ColumnOf(id) == column) end = std::max(end, rect.bottom - g_menu.scroll[column]);
-                }
-                bottom = std::max(bottom, std::min(end, viewport.bottom));
+            constexpr double kBoardAlpha = 38.0, kBoardEdgeAlpha = 75.0;
+            auto board = Draw::Clip(a_widget, kBoardName);
+            const auto left = ColumnViewport(0), right = ColumnViewport(Layout::kColumns - 1);
+            const Settings::Rect columns{ left.left, std::min(left.top, right.top), right.right, std::max(left.bottom, right.bottom) };
+            const auto area = a_movie->GetVisibleFrameRect();
+            g_menu.board = BlockRules::BoardRect(columns, BlockRules::kBoardPad, Settings::Rect{ area.left, area.top, area.right, area.bottom });
+            if (!board.IsDisplayObject()) {
+                logger::warn("Layout: the board could not be made - the columns show without it this menu");
+                return;
             }
-            return bottom;
+            const auto& r = g_menu.board;
+            Draw::LineStyle(board, kEdgeWidth, kPanelEdge, kBoardEdgeAlpha);
+            Draw::Rect(board, r.left, r.top, r.Width(), r.Height(), kPanelFill, kBoardAlpha);
+            logger::info("Layout: board at {} (the columns' areas {} + {:.0f})", RectText(r), RectText(columns), BlockRules::kBoardPad);
+        }
+
+        // user 2026-10-30 (the board): a dim centred line in a block that keeps its size while nothing is chosen (the 3D preview's
+        // box); made again each time it shows, so it follows a new size or column
+        void ShowEmptyLine(RE::GFxValue& a_widget, const BlockId& a_id, bool a_shown)
+        {
+            auto panel = BlockClip(a_widget, a_id);
+            if (!panel.IsDisplayObject()) return;
+            Draw::Remove(panel, "mmxEmpty");
+            auto* movie = OpenMagicMenuMovie();
+            if (!a_shown || !movie) return;
+            const auto rect = BlockRect(a_id);
+            const double size = Size(kRowSize), h = FieldH(size);
+            const double top = kTitleH + std::max(0.0, (rect.Height() - kTitleH - h) / 2);
+            FitLine(movie, panel, "mmxEmpty", kPad, top, std::max(0.0, rect.Width() - 2 * kPad), size, Text(Str::kEmptyChoose), kDimText, "center");
+        }
+
+        // user 2026-10-30 (the board): the columns laid out again when the menu's card starts or stops showing a form - the add-ons
+        // drawn per selection close up while nothing is shown (AddonsHiddenOn)
+        void WatchEmpty(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        {
+            const bool nothing = ShownForm() == 0;
+            if (g_menu.nothingLaid == nothing) return;
+            const bool first = !g_menu.nothingLaid.has_value();
+            g_menu.nothingLaid = nothing;
+            const bool addons = std::ranges::any_of(g_addons, [](const auto& a_addon) { return a_addon.drawSelection != nullptr; });
+            if (first && !nothing) return;
+            if (!addons) return;
+            Rearrange(a_movie, a_widget);
+            ApplyVisibility(a_widget);
         }
 
         // The key-hint strip's clips: SkyUI's button panel, and any clip under the bottom bar or _root whose name says STB or
@@ -5422,7 +5509,7 @@ namespace Widget
             const auto area = a_movie->GetVisibleFrameRect();
             const Settings::Rect visible{ area.left, area.top, area.right, area.bottom };
             const double left = ColumnViewport(0).left;
-            double below = ColumnsBottom();
+            const double below = g_menu.board.bottom;  // user 2026-10-30: the board's bottom (fixed), not the columns' (fitted cards)
             // GPT review: looked for over the whole window, not only until the first clip - STB adds its hints later than SkyUI's panel
             if (g_menu.stripSearchLeft < kStripSearchFrames) {
                 ++g_menu.stripSearchLeft;
@@ -5475,7 +5562,7 @@ namespace Widget
             }
             const double right = ColumnViewport(Layout::kColumns - 1).right;
             const auto row = BlockRules::HintRowRects(left, below, strip ? strip->xMax - strip->xMin : 0.0, strip ? strip->yMax - strip->yMin : 0.0,
-                kGearSize, kStripGap, kGearGap, visible);
+                kGearSize, kBoardStripGap, kGearGap, visible);
             if (strip) {
                 const auto& target = row.strip;
                 const BlockRules::Point step{ target.left - strip->xMin, target.top - strip->yMin };  // from the homes to the target
@@ -6789,6 +6876,14 @@ namespace Widget
                                       RE::GFxValue{};
                 Q2State(Str::kTreeNotInTree, text, &note);
             }
+            if (BlockRules::EmptyLookOf(Layout::kTree, !g_menu.chosen, false) == BlockRules::EmptyLook::kLineCentred) {
+                // user 2026-10-30 (the board): nothing chosen - the window keeps its size, one dim line in its middle
+                const double size = Size(kRowSize);
+                FitLines(a_movie, content, "empty", -frame.halfW, -FieldH(size) / 2, std::max(0.0, 2 * frame.halfW), size, 1, Text(Str::kEmptyChoose), kDimText,
+                    "center");
+                RecheckHover(hoveredAt);
+                return;
+            }
             if (!Spells::Get() || g_session.centre < 0) {
                 const Str id = Spells::Get() ? Str::kTreeNoCentre : Str::kTreeNoTree;
                 const double size = Size(kRowSize);
@@ -7384,9 +7479,10 @@ namespace Widget
             // What the card shows: the clicked (or next-candidate) node; with none, the school's learning target as if it had
             // been clicked (spec v6 L3), only on this card - g_menu.selected stays -1, so the tree neither recentres nor draws a
             // selection for it and no click path (list selection, P2 card, P3 preview) runs
-            int shown = Spells::Get() ? g_menu.selected : -1;
+            // user 2026-10-30 (the board): nothing chosen - the hint line only
+            int shown = Spells::Get() && g_menu.chosen ? g_menu.selected : -1;
             const bool byDefault = shown < 0;
-            if (Spells::Get() && byDefault && !g_session.school.empty()) {
+            if (Spells::Get() && byDefault && g_menu.chosen && !g_session.school.empty()) {
                 const RE::FormID target = a_snapshot.Target(g_session.school);
                 shown = Spells::FindNode(target, g_session.school);
                 if (target && shown < 0) {
@@ -7587,9 +7683,11 @@ namespace Widget
             const bool chosen = row || g_menu.cardFromTree != 0;
             if (chosen == g_menu.chosen && !g_menu.firstFrame) return;
             g_menu.chosen = chosen;
+            g_menu.dirty = true;  // the tree and the node card draw their empty look, or their content again
             ApplyVisibility(a_widget);
             if (g_menu.chosenLogs++ < kMaxChosenLogs) {
-                logger::info("Widget: {} - the right side {}", chosen ? "something chosen" : "nothing chosen (no list row, no tree card)", chosen ? "shows" : "is hidden");
+                logger::info("Widget: {} - the blocks show {}", chosen ? "something chosen" : "nothing chosen (no list row, no tree card)",
+                    chosen ? "their content" : "their empty look");
             }
         }
 
@@ -8021,6 +8119,7 @@ namespace Widget
                 WatchReselect();        // review v12 #S3: after a category change, the list back on the selection
                 WatchTreeCard(movie);   // P2: our tree card leaves when the menu has no selection to show
                 WatchChosen(movie, widget);  // again: the tree card may have left this frame (GPT review: one frame late)
+                WatchEmpty(movie, widget);   // user 2026-10-30 (the board): add-ons drawn per selection close up with nothing shown
                 HoldCardCheck(movie);   // P2: the tree card read back again
                 DrawAddons(movie, widget);   // Block API v2: after the selection and tree-click handling - the card's form may have changed
                 // Block API v2: a height asked for by those draws applies in this frame (a block drawn for a new spell at its old
@@ -8297,6 +8396,7 @@ namespace Widget
                 return;
             }
             MakeShield(movie, widget);  // blocks plan Task 4: first, so it is the lowest clip of mmx_root
+            DrawBoard(movie, widget);   // user 2026-10-30: behind the columns
             MeasureTextMetrics(movie, widget);  // before anything is fitted (review round 1 #1)
             const auto& settings = Settings::Get();
             // the over-pass: the magic menu draws its 3D before the movie, under our black preview box

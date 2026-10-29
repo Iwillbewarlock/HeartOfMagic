@@ -440,3 +440,16 @@ header comment of `plugins/SL_MagicMenu/src/BlockApi.h`, the pure rules `BlockRu
   - The button takes a click only once fully out (`BlockRules::ResetClickable`). It is greyed in the safety-net states.
   - The gear is lit for the whole edit mode. Its hover hint reads "편집 모드 {key}" in view mode and "보기 모드로 {key}" in
     edit mode, and is hidden while the reset button shows.
+- The board (user 2026-10-30, mock board.png, "이대로 만들기", fixed size): a panel behind both columns. It is drawn once
+  per menu, always up, the layout mode included. Its rect is the two columns' full areas (the frames, so the border does not
+  matter and fitted cards do not change it) `BlockRules::kBoardPad` (16) larger, cut to the visible stage
+  (`BlockRules::BoardRect`). Look: black at 38%, a kPanelEdge edge at 75%, no title. It does not scroll. The key-hint strip
+  hangs 8 under its bottom, and the gear one row below at the strip's start (the left column's left edge), so neither
+  moves when cards fit.
+- With nothing chosen the columns stay up (before, they were hidden). Each block shows its empty look
+  (`BlockRules::EmptyLookOf`):
+  - the 3D preview and the tree window keep their size, with one dim centred "주문을 고르면 표시됩니다" (no 3D is drawn);
+  - our spell card collapses to that one line;
+  - the progress card and the node card show what they can (school progress, the hint line);
+  - an add-on drawn per selection (drawSelection) with nothing shown is not drawn and closed up;
+  - a v1 block shows as before.

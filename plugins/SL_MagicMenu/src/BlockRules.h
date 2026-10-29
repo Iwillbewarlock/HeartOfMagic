@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BlockApi.h"
+#include "Layout.h"
 #include "Settings.h"
 
 #include <algorithm>
@@ -535,5 +536,38 @@ namespace BlockRules
         homes.reserve(a_clips.size());
         for (const auto& clip : a_clips) homes.push_back(allPut && clip.home && clip.lastPut ? *clip.home : clip.now);
         return homes;
+    }
+
+    // ---------------------------------------------------------------------
+    // The board (user 2026-10-30, mock board.png, "이대로 만들기"): a fixed panel behind both columns, and every block's look
+    // while nothing is chosen
+    // ---------------------------------------------------------------------
+
+    inline constexpr double kBoardPad = 16.0;  // the board round the two columns' full areas, each side
+
+    /// The board's rect: the two columns' full areas (a_columns: their union - the frames, not the blocks, so it never changes
+    /// when cards fit) a_pad larger on each side, cut to a_visible
+    inline Settings::Rect BoardRect(const Settings::Rect& a_columns, double a_pad, const Settings::Rect& a_visible)
+    {
+        return { std::max(a_columns.left - a_pad, a_visible.left), std::max(a_columns.top - a_pad, a_visible.top), std::min(a_columns.right + a_pad, a_visible.right),
+            std::min(a_columns.bottom + a_pad, a_visible.bottom) };
+    }
+
+    /// A block's look while nothing is chosen (the columns stay up then)
+    enum class EmptyLook
+    {
+        kAsUsual,      // a spell is chosen, or the block has its own content without one (progress card, node card, a v1 add-on)
+        kLineCentred,  // keeps its size, one dim line in its middle (the 3D preview, the tree window)
+        kLineOnly,     // collapses to one dim line (our spell card)
+        kClosed,       // not drawn, closed up (an add-on drawn per selection: drawSelection with nothing to show)
+    };
+
+    inline EmptyLook EmptyLookOf(std::string_view a_id, bool a_nothingShown, bool a_drawSelection)
+    {
+        if (!a_nothingShown) return EmptyLook::kAsUsual;
+        if (a_id == Layout::kPreview || a_id == Layout::kTree) return EmptyLook::kLineCentred;
+        if (a_id == Layout::kSpellCard) return EmptyLook::kLineOnly;
+        if (a_drawSelection) return EmptyLook::kClosed;
+        return EmptyLook::kAsUsual;
     }
 }
