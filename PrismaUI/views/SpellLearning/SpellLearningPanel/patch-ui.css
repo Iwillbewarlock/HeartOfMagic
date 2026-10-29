@@ -15,7 +15,7 @@ html:lang(ko) {
     overflow-wrap: break-word;
 }
 
-/* ---- Toolbar icon buttons (home / search) ---- */
+/* ---- Toolbar icon buttons (home, search, render settings, edit and its tools): line icons in the text colour ---- */
 .zoom-btn svg {
     width: 14px;
     height: 14px;
@@ -26,6 +26,11 @@ html:lang(ko) {
     stroke-linecap: round;
     stroke-linejoin: round;
 }
+
+/* Edit Tree: a pencil, a check while edit mode is on (editMode.js sets .active) */
+#edit-tree-btn .edit-icon-done,
+#edit-tree-btn.active .edit-icon-pen { display: none; }
+#edit-tree-btn.active .edit-icon-done { display: inline; }
 
 /* ---- School jump tabs (a row under the zoom tools, top left of the tree) ----
    Centred on the top row they covered the right half of the zoom tools (renderer

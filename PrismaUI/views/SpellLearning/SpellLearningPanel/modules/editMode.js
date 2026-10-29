@@ -147,10 +147,9 @@ var EditMode = {
         if (this.isActive) return;
         this.isActive = true;
 
-        // Update button appearance
+        // Update button appearance (.active shows its check icon: patch-ui.css)
         var btn = document.getElementById('edit-tree-btn');
         if (btn) {
-            btn.textContent = '✓';
             btn.title = t('editMode.exitEditMode');
             btn.classList.add('active');
         }
@@ -202,7 +201,6 @@ var EditMode = {
         // Update button appearance
         var btn = document.getElementById('edit-tree-btn');
         if (btn) {
-            btn.textContent = '✎';
             btn.title = t('editMode.editTree');
             btn.classList.remove('active');
         }
