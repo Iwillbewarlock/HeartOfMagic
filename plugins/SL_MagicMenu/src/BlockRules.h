@@ -206,9 +206,13 @@ namespace BlockRules
 
     /// The gear's hover hint beside the gear (stage rect a_gear): right of it when a hint a_w wide fits on screen there, else left
     /// of it; vertically centred on it. Returns its left edge in the gear's own coordinates (the gear's left = 0)
-    inline double GearHintX(const Settings::Rect& a_gear, double a_w, double a_gap, const Settings::Rect& a_visible)
+    /// a_preferLeft (the edit mode: the reset button sits right of the gear): left of it when it fits there
+    inline double GearHintX(const Settings::Rect& a_gear, double a_w, double a_gap, const Settings::Rect& a_visible, bool a_preferLeft = false)
     {
-        return a_gear.right + a_gap + a_w <= a_visible.right ? a_gear.Width() + a_gap : -a_gap - a_w;
+        const bool leftFits = a_gear.left - a_gap - a_w >= a_visible.left;
+        const bool rightFits = a_gear.right + a_gap + a_w <= a_visible.right;
+        const bool left = a_preferLeft ? leftFits || !rightFits : !rightFits;
+        return left ? -a_gap - a_w : a_gear.Width() + a_gap;
     }
 
     // ---------------------------------------------------------------------
@@ -518,6 +522,7 @@ namespace BlockRules
     {
         Point now;
         std::optional<Point> home, lastPut;
+        int group = 0;  // who lays it out (review R1): 0 SkyUI's bottom bar, 1 another mod's clip (STB's under _root)
     };
 
     /// The clips' homes this frame. SkyUI lays the strip out as a whole, so the set is judged together (GPT review of f8506180:
@@ -526,15 +531,19 @@ namespace BlockRules
     /// them is elsewhere, SkyUI (or STB) laid the strip out again and every clip's present place is its home. A clip not seen
     /// before (STB's hints, made after SkyUI's panel) starts from its present place without unsettling the others - taking
     /// the moved panel's present place as its home would move it a second time
+    /// Judged per group (review R1): SkyUI re-laying its bottom bar does not touch STB's clip, so STB's remembered home stays
     inline std::vector<Point> StripHomes(const std::vector<StripClipPlace>& a_clips, double a_tolerance)
     {
-        const bool allPut = std::all_of(a_clips.begin(), a_clips.end(), [&](const StripClipPlace& a_clip) {
-            if (!a_clip.home || !a_clip.lastPut) return true;  // new: not a sign of a new layout
-            return std::abs(a_clip.now.x - a_clip.lastPut->x) <= a_tolerance && std::abs(a_clip.now.y - a_clip.lastPut->y) <= a_tolerance;
-        });
+        const auto off = [&](const StripClipPlace& a_clip) {
+            if (!a_clip.home || !a_clip.lastPut) return false;  // new: not a sign of a new layout
+            return std::abs(a_clip.now.x - a_clip.lastPut->x) > a_tolerance || std::abs(a_clip.now.y - a_clip.lastPut->y) > a_tolerance;
+        };
         std::vector<Point> homes;
         homes.reserve(a_clips.size());
-        for (const auto& clip : a_clips) homes.push_back(allPut && clip.home && clip.lastPut ? *clip.home : clip.now);
+        for (const auto& clip : a_clips) {
+            const bool relaid = std::any_of(a_clips.begin(), a_clips.end(), [&](const StripClipPlace& a_other) { return a_other.group == clip.group && off(a_other); });
+            homes.push_back(!relaid && clip.home && clip.lastPut ? *clip.home : clip.now);
+        }
         return homes;
     }
 
@@ -559,15 +568,16 @@ namespace BlockRules
         kAsUsual,      // a spell is chosen, or the block has its own content without one (progress card, node card, a v1 add-on)
         kLineCentred,  // keeps its size, one dim line in its middle (the 3D preview, the tree window)
         kLineOnly,     // collapses to one dim line (our spell card)
-        kClosed,       // not drawn, closed up (an add-on drawn per selection: drawSelection with nothing to show)
+        kClosed,       // not drawn, closed up (an add-on drawn per selection: drawSelection with nothing to show; not in the
+                       // layout mode, where every block shows so it can be moved - review R2)
     };
 
-    inline EmptyLook EmptyLookOf(std::string_view a_id, bool a_nothingShown, bool a_drawSelection)
+    inline EmptyLook EmptyLookOf(std::string_view a_id, bool a_nothingShown, bool a_drawSelection, bool a_layoutMode = false)
     {
         if (!a_nothingShown) return EmptyLook::kAsUsual;
         if (a_id == Layout::kPreview || a_id == Layout::kTree) return EmptyLook::kLineCentred;
         if (a_id == Layout::kSpellCard) return EmptyLook::kLineOnly;
-        if (a_drawSelection) return EmptyLook::kClosed;
+        if (a_drawSelection) return a_layoutMode ? EmptyLook::kAsUsual : EmptyLook::kClosed;
         return EmptyLook::kAsUsual;
     }
 }

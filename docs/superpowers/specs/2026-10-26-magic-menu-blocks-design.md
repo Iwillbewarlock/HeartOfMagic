@@ -417,8 +417,8 @@ header comment of `plugins/SL_MagicMenu/src/BlockApi.h`, the pure rules `BlockRu
   redraw, one Rearrange), and an add-on's held 'SLMH' request is taken again by TakeAddonHeights. Not in the layout mode,
   and not for a menu's first fit, which applies at once as before.
 - Key-hint strip and gear under the columns (user 2026-10-30, sketch on the layout map). SkyUI's bottom-bar key hints move
-  to one row right under the lower of our two columns (`BlockRules::HintRowRects`). The columns' bottom is their lowest arranged block on screen, cut at the viewport, so fitted
-  heights move the strip. In the layout mode the strip goes under the lock / reset row, which sits there then.
+  to one row under the board (see the board note below; it first hung under the lower column, which moved with fitted
+  cards) (`BlockRules::HintRowRects`).
 - The clips: `_root.Menu_mc.bottomBar.buttonPanel`, plus any clip under the bottom bar or _root whose name has STB or
   Keycap in it (STB Hotkey System's hints). They are looked for in a menu's first 120 frames; the paths found are logged.
   The clips are only moved, never drawn again. Each moves by the same stage step, taken into its own parent's space
@@ -453,3 +453,15 @@ header comment of `plugins/SL_MagicMenu/src/BlockApi.h`, the pure rules `BlockRu
   - the progress card and the node card show what they can (school progress, the hint line);
   - an add-on drawn per selection (drawSelection) with nothing shown is not drawn and closed up;
   - a v1 block shows as before.
+- Board review round 1:
+  - The preview's empty line sits in a clip of its own, because removeMovieClip does not remove a text field.
+  - The strip's homes are judged per group: SkyUI's bottom bar is one group, another mod's clip under _root another, so
+    STB's clip does not drift a step when SkyUI re-lays its own strip. Only clips named "STB…" or with "Keycap" in the name
+    (case-sensitive) are taken.
+  - The strip's size comes from its visible children only.
+  - Each move is read back as a "SelfTest: L8 strip … PASS/FAIL" line, and the moves are counted at the menu's close.
+  - In the layout mode the add-ons drawn per selection are not closed up (they can be moved), and entering or leaving the
+    mode lays the columns out again when that matters.
+  - The board is an edge only (no fill) when SkyUI's card or the game's own 3D pass would sit under it.
+  - With nothing chosen the set-target key / button do nothing; the tree has no legend and no not-in-tree note.
+  - In the edit mode the gear's hint shows on its left.

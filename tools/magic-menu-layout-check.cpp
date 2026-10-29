@@ -10,6 +10,10 @@
 //
 //   magic-menu-layout-check     one PASS/FAIL line per check, a total line
 //
+// Not covered here (widget code, checked by reading and in game only): PlaceStripAndGear's frame logic (finding and moving the
+// strip's clips), Visibility / AddonsHiddenOn / WatchEmpty, the click delivery of the gear and the reset button, and MapPoint
+// itself (the MovedBy case uses its own made-up parent transform).
+//
 // No game types. Exit 0 when every check passes, 1 otherwise.
 
 #include "BlockRegistry.h"
@@ -1268,7 +1272,9 @@ namespace
             Expect(mid > 45 && mid < 90, Text("ease-out: more than half way at half the time (%.1f of 90)", mid));
             Expect(Near(AnimWidth(90, 0, 0, 0, close), 90) && Near(AnimWidth(90, 0, 0, close, close), 0) && AnimWidth(90, 0, 0, close / 2, close) < 45,
                 "fold: full at the start, 0 at the end, eased");
-            Expect(Near(AnimWidth(40, 90, 0, open, open), 90), "a fold turned into an unfold half way: from where it was to full");
+            const double resumed = AnimWidth(40, 90, 0, open / 2, open);
+            Expect(Near(AnimWidth(40, 90, 0, 0, open), 40) && resumed > 40 && resumed < 90 && Near(AnimWidth(40, 90, 0, open, open), 90),
+                Text("a fold turned into an unfold half way: starts at 40 (where it was), %.1f half way, full at the end", resumed));
             const Settings::Rect gear{ 648, 655, 666, 673 };
             const auto button = BlockRules::ResetButtonRect(gear, 90, 18, 4, visible1610);
             Expect(Near(button.left, 670) && Near(button.CenterY(), gear.CenterY()) && Near(button.Width(), 90),
@@ -1306,8 +1312,10 @@ namespace
             Expect(Near(still[0].x, 0) && Near(still[1].x, 100), "nothing moved: the remembered homes are kept (A 0, B 100)");
             // SkyUI lays it out again to A 0, B 200: B sits exactly where the host had put it, A does not
             const auto relaid = BlockRules::StripHomes({ Place{ x(0), x(0), x(100) }, Place{ x(200), x(100), x(200) } }, 0.5);
-            Expect(Near(relaid[0].x, 0) && Near(relaid[1].x, 200) && Near(relaid[0].x + 100, 100) && Near(relaid[1].x + 100, 300),
-                "SkyUI re-laid A 0 / B 200 (B onto its old put place): homes A 0, B 200 -> moved to A 100, B 300");
+            Expect(Near(relaid[0].x, 0) && Near(relaid[1].x, 200), "SkyUI re-laid A 0 / B 200 (B onto its old put place): homes A 0, B 200");
+            // review R1: SkyUI re-laid its panel (back at 0, home 0, put at 648); STB's clip (another group) still where it was put
+            const auto groups = BlockRules::StripHomes({ Place{ x(0), x(0), x(648), 0 }, Place{ x(848), x(200), x(848), 1 } }, 0.5);
+            Expect(Near(groups[0].x, 0) && Near(groups[1].x, 200), "SkyUI's group re-laid, STB's not: STB keeps its home 200 (no drift by a step)");
             const auto newClip = BlockRules::StripHomes({ Place{ x(100), x(0), x(100) }, Place{ x(50), std::nullopt, std::nullopt } }, 0.5);
             Expect(Near(newClip[0].x, 0) && Near(newClip[1].x, 50), "a new clip (STB, later): from its present place; the moved one keeps its home 0");
             const auto newAndRelaid = BlockRules::StripHomes({ Place{ x(0), x(0), x(100) }, Place{ x(50), std::nullopt, std::nullopt } }, 0.5);
@@ -1327,6 +1335,8 @@ namespace
                        BlockRules::EmptyLookOf(Layout::kProgress, true, false) == EmptyLook::kAsUsual &&
                        BlockRules::EmptyLookOf(Layout::kNodeCard, true, false) == EmptyLook::kAsUsual,
                 "nothing chosen: preview and tree keep their size with a line, our card one line, progress / node card as usual");
+            Expect(BlockRules::EmptyLookOf("SpellResearch.archetypes", true, true, true) == EmptyLook::kAsUsual,
+                "in the layout mode an add-on drawn per selection shows (review R2: it can be moved)");
             Expect(BlockRules::EmptyLookOf("SpellResearch.archetypes", true, true) == EmptyLook::kClosed &&
                        BlockRules::EmptyLookOf("Old.v1block", true, false) == EmptyLook::kAsUsual &&
                        BlockRules::EmptyLookOf(Layout::kTree, false, false) == EmptyLook::kAsUsual &&
@@ -1336,7 +1346,7 @@ namespace
             Expect(Near(hang.strip.top, 647) && Near(hang.strip.left, 648) && Near(hang.gear.top, 675) && Near(hang.gear.left, 648),
                 Text("strip 8 under the board's bottom (%s), the gear one row below at its start (%s)", Show(hang.strip).c_str(), Show(hang.gear).c_str()));
         }
-        // a clip moved in a parent scaled 0.85 and moved (200, 26): stage step (10, 20) is (11.76.., 23.52..) in the parent
+        // a clip moved in a parent scaled 0.85 and moved (200, 26) - a made-up transform here, not MapPoint: stage step (10, 20) is (11.76.., 23.52..) in the parent
         {
             const auto toParent = [](double a_x, double a_y) { return BlockRules::Point{ (a_x - 200.0) / 0.85, (a_y - 26.0) / 0.85 }; };
             const auto moved = BlockRules::MovedBy(50, 60, toParent(500, 600), toParent(510, 620));
@@ -1407,6 +1417,9 @@ namespace
         }
         Expect(Near(BlockRules::GearHintX(Settings::Rect{ 434, 680, 452, 698 }, 80, 4, visible1610), 22), "the gear's hint right of it when it fits");
         Expect(Near(BlockRules::GearHintX(Settings::Rect{ 1250, 680, 1268, 698 }, 80, 4, visible1610), -84), "at the stage's right edge: left of it");
+        Expect(Near(BlockRules::GearHintX(Settings::Rect{ 648, 675, 666, 693 }, 80, 4, visible1610, true), -84),
+            "the edit mode: the hint on the gear's left, clear of the reset button (review I10)");
+        Expect(Near(BlockRules::GearHintX(Settings::Rect{ 10, 675, 28, 693 }, 80, 4, visible1610, true), 22), "the edit mode with no room on the left: right of it");
         // corner bounds (controller finding 2026-10-30): the logged scrollbar 432,79..452,667 through Inventory Reforged's window
         // (scale 0.85, moved 200, 26) lands at 567.2,93.2..584.2,593 - where the screenshot shows it
         {
