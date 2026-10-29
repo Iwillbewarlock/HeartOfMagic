@@ -3577,6 +3577,24 @@ namespace Widget
         // returned height and keeps its rooms from its full height, so drawing at the new height asks for the same one (no
         // loop). In the layout mode the height is kept for the mode's end (every block shows at its full size there). Returns
         // the height the block shows at now
+        // A block's fit and waiting shrink as BlockRules::FitState, and back (the two maps of g_menu)
+        BlockRules::FitState FitStateOf(const BlockId& a_id)
+        {
+            BlockRules::FitState state;
+            if (const auto it = g_menu.fitHeight.find(a_id); it != g_menu.fitHeight.end()) state.current = it->second;
+            if (const auto it = g_menu.heldShrink.find(a_id); it != g_menu.heldShrink.end()) state.held = it->second;
+            return state;
+        }
+
+        void StoreHeld(const BlockId& a_id, const BlockRules::FitState& a_state)
+        {
+            if (a_state.held) {
+                g_menu.heldShrink[a_id] = *a_state.held;
+            } else {
+                g_menu.heldShrink.erase(a_id);
+            }
+        }
+
         // The host's frame clock in milliseconds (steady_clock, as the redraw timings)
         double NowMs()
         {
@@ -3590,7 +3608,7 @@ namespace Widget
             if (g_menu.heldShrink.empty() || g_menu.layout.active) return;
             const double now = NowMs();
             for (const auto& [id, held] : g_menu.heldShrink) {
-                if (now - held.sinceMs < BlockRules::kShrinkDelayMs || Addon(id)) continue;
+                if (Addon(id) || !BlockRules::DueShrink(FitStateOf(id), now, false)) continue;
                 if (id == Layout::kSpellCard) {
                     g_menu.ownCardSig.clear();
                 } else {
@@ -3607,17 +3625,13 @@ namespace Widget
             const auto current = g_menu.fitHeight.find(a_id);
             const bool first = current == g_menu.fitHeight.end();
             const double before = first ? full : current->second;
-            // user 2026-10-30: a grow now, a shrink once it held kShrinkDelayMs (not the menu's first fit, not in the layout mode)
-            if (!first && !g_menu.layout.active) {
-                std::optional<BlockRules::HeldShrink> held;
-                if (const auto it = g_menu.heldShrink.find(a_id); it != g_menu.heldShrink.end()) held = it->second;
-                const auto step = BlockRules::DecideFit(before, fitted, NowMs(), held);
-                if (held) {
-                    g_menu.heldShrink[a_id] = *held;
-                } else {
-                    g_menu.heldShrink.erase(a_id);
-                }
-                if (step == BlockRules::FitStep::kHold) return before;  // drawn at its present height until then
+            // user 2026-10-30: a grow now, a shrink once it held kShrinkDelayMs (not the menu's first fit, not in the layout mode);
+            // any height that applies drops a waiting shrink (BlockRules::AskHeight)
+            {
+                auto state = FitStateOf(a_id);
+                const bool applies = BlockRules::AskHeight(state, fitted, NowMs(), g_menu.layout.active);
+                StoreHeld(a_id, state);
+                if (!applies) return before;  // drawn at its present height until then
             }
             const bool changed = std::abs(fitted - before) > BlockRules::kHeightTolerance;
             // review GPT 2: a first fit equal to the full height is recorded too - it takes a fill block (our card) out of the fill,
@@ -3659,7 +3673,8 @@ namespace Widget
                 const double now = NowMs();
                 for (const auto& [id, held] : g_menu.heldShrink) {
                     const bool queued = std::ranges::any_of(requests, [&](const auto& a_request) { return a_request.first == id; });
-                    if (Addon(id) && !queued && now - held.sinceMs >= BlockRules::kShrinkDelayMs) requests.emplace_back(id, held.height);
+                    if (!Addon(id) || queued) continue;
+                    if (const auto due = BlockRules::DueShrink(FitStateOf(id), now, false)) requests.emplace_back(id, *due);
                 }
             }
             bool changed = false;
@@ -3684,17 +3699,13 @@ namespace Widget
                     g_menu.heldShrink.erase(id);
                     continue;
                 }
-                // user 2026-10-30: a shrink waits kShrinkDelayMs (a grow applies at once); not in the layout mode
-                if (!g_menu.layout.active && current != g_menu.fitHeight.end()) {
-                    std::optional<BlockRules::HeldShrink> held;
-                    if (const auto it = g_menu.heldShrink.find(id); it != g_menu.heldShrink.end()) held = it->second;
-                    const auto step = BlockRules::DecideFit(current->second, height, NowMs(), held);
-                    if (held) {
-                        g_menu.heldShrink[id] = *held;
-                    } else {
-                        g_menu.heldShrink.erase(id);
-                    }
-                    if (step == BlockRules::FitStep::kHold) continue;
+                // user 2026-10-30: a shrink waits kShrinkDelayMs (a grow applies at once; in the layout mode every height applies, kept
+                // for the mode's end); a height that applies drops a waiting shrink (BlockRules::AskHeight)
+                {
+                    auto state = FitStateOf(id);
+                    const bool applies = BlockRules::AskHeight(state, height, NowMs(), g_menu.layout.active);
+                    StoreHeld(id, state);
+                    if (!applies) continue;
                 }
                 if (g_menu.addonHeightLogs < kMaxHeightLogs) {
                     ++g_menu.addonHeightLogs;

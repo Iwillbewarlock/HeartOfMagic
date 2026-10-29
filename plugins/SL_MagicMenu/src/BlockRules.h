@@ -421,4 +421,30 @@ namespace BlockRules
         }
         return FitStep::kHold;
     }
+
+    /// A fitted block's height this menu and its waiting shrink, as the host keeps them (g_menu.fitHeight / heldShrink)
+    struct FitState
+    {
+        std::optional<double> current;  // nullopt: no fit yet this menu (its full height)
+        std::optional<HeldShrink> held;
+    };
+
+    /// One height wanted (a card's content, an add-on's 'SLMH'): true when it applies - a_state.current takes it and ANY waiting
+    /// shrink is dropped (GPT review of 4b83efd3: a height applied in the layout mode left the old shrink waiting, and the
+    /// mode's end put it back over the newer height); false when it is a shrink still waiting its delay. The menu's first fit
+    /// and every height in the layout mode apply at once
+    inline bool AskHeight(FitState& a_state, double a_wanted, double a_nowMs, bool a_layoutMode, double a_delayMs = kShrinkDelayMs)
+    {
+        if (!a_layoutMode && a_state.current && DecideFit(*a_state.current, a_wanted, a_nowMs, a_state.held, a_delayMs) == FitStep::kHold) return false;
+        a_state.current = a_wanted;
+        a_state.held.reset();
+        return true;
+    }
+
+    /// The waiting shrink that is due at a_nowMs (its height, to be asked for again), nullopt when none is (or in the layout mode)
+    inline std::optional<double> DueShrink(const FitState& a_state, double a_nowMs, bool a_layoutMode, double a_delayMs = kShrinkDelayMs)
+    {
+        if (a_layoutMode || !a_state.held || a_nowMs - a_state.held->sinceMs < a_delayMs) return std::nullopt;
+        return a_state.held->height;
+    }
 }

@@ -1314,6 +1314,19 @@ namespace
             BlockRules::DecideFit(140, 100, 3000, held);
             Expect(BlockRules::DecideFit(140, 140, 3010, held) == FitStep::kUnchanged && !held, "back to the present height: the wait is dropped");
             Expect(BlockRules::DecideFit(140, 100, 4000, held, 0.0) == FitStep::kApply, "a delay of 0 shrinks at once");
+            // GPT review of 4b83efd3: a shrink waiting, then a new height asked for in the layout mode, then the mode's end
+            BlockRules::FitState state{ 140.0, std::nullopt };
+            Expect(!BlockRules::AskHeight(state, 100, 0, false) && state.held && Near(*state.current, 140), "AskHeight: a shrink waits (still 140)");
+            Expect(BlockRules::AskHeight(state, 120, 50, true) && Near(*state.current, 120) && !state.held,
+                "a new height in the layout mode applies and drops the waiting shrink");
+            Expect(!BlockRules::DueShrink(state, 1000, false) && Near(*state.current, 120), "after the mode's end nothing old comes back: the newest height (120) wins");
+            BlockRules::FitState waiting{ 140.0, std::nullopt };
+            BlockRules::AskHeight(waiting, 100, 0, false);
+            Expect(!BlockRules::DueShrink(waiting, 100, false) && BlockRules::DueShrink(waiting, delay, false) == 100.0 && !BlockRules::DueShrink(waiting, delay, true),
+                "DueShrink: not before the delay, the height once due, nothing in the layout mode");
+            BlockRules::FitState fresh;
+            Expect(BlockRules::AskHeight(fresh, 80, 0, false) && Near(*fresh.current, 80), "the menu's first fit applies at once");
+            Expect(BlockRules::AskHeight(waiting, 160, 10, false) && !waiting.held, "a grow applies and drops the waiting shrink");
         }
         Expect(Near(BlockRules::GearHintX(Settings::Rect{ 434, 680, 452, 698 }, 80, 4, visible1610), 22), "the gear's hint right of it when it fits");
         Expect(Near(BlockRules::GearHintX(Settings::Rect{ 1250, 680, 1268, 698 }, 80, 4, visible1610), -84), "at the stage's right edge: left of it");
