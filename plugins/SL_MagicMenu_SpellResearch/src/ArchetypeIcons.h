@@ -11,6 +11,8 @@
 // (moveTo first point, lineTo the rest, lineTo the first again when closed); fill subpaths with
 // beginFill / endFill and no line. A subpath of two equal points is a dot (zero-length stroke).
 // Subpaths with identical points (the group frames) share one run in kPoints.
+// Icon::frame: the first `frame` subpaths of an icon are its group frame (ring, ring with ticks, rounded square),
+// the rest its glyph; an archetype the player does not know yet draws the frame only.
 
 #include <array>
 #include <cstddef>
@@ -24,7 +26,7 @@ namespace ArchetypeIcons
 
     struct Point { float x, y; };
     struct Subpath { std::uint16_t first, count; bool closed, fill; };
-    struct Icon { std::uint16_t first, count; };  // range in kSubpaths; count 0 = no icon
+    struct Icon { std::uint16_t first, count, frame; };  // range in kSubpaths (count 0 = no icon); frame: how many of them, from the first, draw the group frame
 
     inline constexpr std::array<Point, 2266> kPoints{ {
         {22,12},{21.81f,13.95f},{21.24f,15.83f},{20.31f,17.56f},{19.07f,19.07f},{17.56f,20.31f},{15.83f,21.24f},{13.95f,21.81f},{12,22},{10.05f,21.81f},
@@ -329,11 +331,11 @@ namespace ArchetypeIcons
     } };
 
     inline constexpr std::array<Icon, kIconCount> kIcons{ {
-        {0,0},{0,0},{0,7},{7,4},{11,14},{25,4},{29,6},{35,5},{40,6},{46,6},  // 0-9
-        {52,19},{71,5},{76,4},{80,5},{85,6},{91,10},{101,3},{104,4},{108,4},{112,6},  // 10-19
-        {118,6},{124,5},{129,5},{134,8},{142,4},{146,5},{151,3},{154,4},{158,6},{164,7},  // 20-29
-        {171,10},{181,19},{200,11},{211,9},{220,4},{224,5},{229,0},{229,0},{229,0},{229,0},  // 30-39
-        {229,0},{229,11},{240,14},{254,8},{262,9},{271,7},{278,12},{290,6},{296,4},{300,15},  // 40-49
-        {315,5},{320,7},{327,7},{334,6},{340,8},{348,5},{353,6},{359,10},{369,8},{377,9},  // 50-59
+        {0,0,0},{0,0,0},{0,7,1},{7,4,1},{11,14,1},{25,4,1},{29,6,1},{35,5,1},{40,6,1},{46,6,1},  // 0-9
+        {52,19,1},{71,5,1},{76,4,1},{80,5,1},{85,6,1},{91,10,1},{101,3,1},{104,4,1},{108,4,1},{112,6,1},  // 10-19
+        {118,6,1},{124,5,1},{129,5,1},{134,8,1},{142,4,1},{146,5,1},{151,3,1},{154,4,1},{158,6,1},{164,7,1},  // 20-29
+        {171,10,1},{181,19,1},{200,11,1},{211,9,1},{220,4,1},{224,5,1},{229,0,0},{229,0,0},{229,0,0},{229,0,0},  // 30-39
+        {229,0,0},{229,11,5},{240,14,5},{254,8,5},{262,9,5},{271,7,1},{278,12,1},{290,6,1},{296,4,1},{300,15,1},  // 40-49
+        {315,5,1},{320,7,1},{327,7,1},{334,6,1},{340,8,1},{348,5,1},{353,6,1},{359,10,1},{369,8,1},{377,9,1},  // 50-59
     } };
 }

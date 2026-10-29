@@ -392,8 +392,29 @@ function roundPoints(pts, closed) {
  * where `exact` is the same outline sampled at 1/100 of the tolerance, for the deviation check.
  */
 export function convertIcon(icons, i, tol = TOLERANCE) {
-  const ctx0 = `archetype ${i}`;
-  const els = parseSvg(iconSvg(icons, i), ctx0);
+  const r = convertMarkup(iconSvg(icons, i), `archetype ${i}`, tol);
+  // The group frame (skald-icons.js svg(): frame markup, then the glyph) is a prefix of the subpaths. Its length is
+  // what the glyph alone does not make; the tail must be the glyph exactly, or the prefix rule does not hold.
+  if (typeof icons.glyph !== 'function') { fail(`archetype ${i}`, 'SKALD_ICONS.glyph() is missing: cannot tell the frame from the glyph'); }
+  const glyph = convertMarkup(glyphSvg(icons, i), `archetype ${i} glyph`, tol);
+  const frameCount = r.subpaths.length - glyph.subpaths.length;
+  const tail = JSON.stringify(r.subpaths.slice(frameCount));
+  if (frameCount < 1 || tail !== JSON.stringify(glyph.subpaths)) {
+    fail(`archetype ${i}`, `the glyph's ${glyph.subpaths.length} subpaths are not the last of the icon's ${r.subpaths.length} (frame not a prefix)`);
+  }
+  return { ...r, frameCount };
+}
+
+/** The glyph of archetype i alone, in the same <svg> root as iconSvg (no frame). */
+export function glyphSvg(icons, i) {
+  const full = iconSvg(icons, i);
+  const root = full.match(/^<svg[^>]*>/);
+  if (!root) { fail(`archetype ${i}`, 'markup does not start with <svg ...>'); }
+  return `${root[0]}${icons.glyph(i)}</svg>`;
+}
+
+function convertMarkup(markup, ctx0, tol) {
+  const els = parseSvg(markup, ctx0);
   const root = els[0].attrs;
   if (root.viewBox !== `0 0 ${GRID} ${GRID}`) { fail(ctx0, `viewBox is "${root.viewBox}", expected 0 0 ${GRID} ${GRID}`); }
   if (Number(root['stroke-width']) !== STROKE_WIDTH) { fail(ctx0, `stroke-width is ${root['stroke-width']}, expected ${STROKE_WIDTH}`); }
@@ -465,7 +486,7 @@ export function buildHeader(results, rev) {
   const points = [], subs = [], entries = [], shared = new Map();
   for (let i = 0; i < ICON_COUNT; i++) {
     const r = results.get(i);
-    entries.push({ first: subs.length, count: r ? r.subpaths.length : 0, i });
+    entries.push({ first: subs.length, count: r ? r.subpaths.length : 0, frame: r ? r.frameCount : 0, i });
     if (!r) { continue; }
     for (const s of r.subpaths) {
       // Identical point runs (the frames) are stored once and shared by every subpath that uses them.
@@ -490,6 +511,8 @@ export function buildHeader(results, rev) {
   L.push('// (moveTo first point, lineTo the rest, lineTo the first again when closed); fill subpaths with');
   L.push('// beginFill / endFill and no line. A subpath of two equal points is a dot (zero-length stroke).');
   L.push('// Subpaths with identical points (the group frames) share one run in kPoints.');
+  L.push('// Icon::frame: the first `frame` subpaths of an icon are its group frame (ring, ring with ticks, rounded square),');
+  L.push('// the rest its glyph; an archetype the player does not know yet draws the frame only.');
   L.push('');
   L.push('#include <array>');
   L.push('#include <cstddef>');
@@ -503,7 +526,7 @@ export function buildHeader(results, rev) {
   L.push('');
   L.push('    struct Point { float x, y; };');
   L.push('    struct Subpath { std::uint16_t first, count; bool closed, fill; };');
-  L.push('    struct Icon { std::uint16_t first, count; };  // range in kSubpaths; count 0 = no icon');
+  L.push('    struct Icon { std::uint16_t first, count, frame; };  // range in kSubpaths (count 0 = no icon); frame: how many of them, from the first, draw the group frame');
   L.push('');
   L.push(`    inline constexpr std::array<Point, ${points.length}> kPoints{ {`);
   for (let k = 0; k < points.length; k += 10) {
@@ -523,7 +546,7 @@ export function buildHeader(results, rev) {
   L.push('');
   L.push(`    inline constexpr std::array<Icon, kIconCount> kIcons{ {`);
   for (let k = 0; k < entries.length; k += 10) {
-    L.push('        ' + entries.slice(k, k + 10).map((e) => `{${e.first},${e.count}}`).join(',') + `,  // ${k}-${Math.min(k + 9, ICON_COUNT - 1)}`);
+    L.push('        ' + entries.slice(k, k + 10).map((e) => `{${e.first},${e.count},${e.frame}}`).join(',') + `,  // ${k}-${Math.min(k + 9, ICON_COUNT - 1)}`);
   }
   L.push('    } };');
   L.push('}');
@@ -551,6 +574,14 @@ function main(argv) {
     const fills = r.subpaths.filter((s) => s.kind === 'fill').length;
     rows.push(`${String(i).padStart(2)}  subpaths ${String(r.subpaths.length).padStart(3)}  fill ${fills}  points ${String(r.subpaths.reduce((n, s) => n + s.points.length, 0)).padStart(4)}  max dev ${dev.toFixed(4)}`);
   }
+  // Every icon of a group has the same frame (the "?" of an unknown archetype draws it alone, so it must tell the group)
+  const frames = new Map();
+  for (const [i, r] of results) {
+    const group = icons.group(i), frame = JSON.stringify(r.subpaths.slice(0, r.frameCount));
+    if (!frames.has(group)) { frames.set(group, { frame, i }); continue; }
+    if (frames.get(group).frame !== frame) { throw new ConvertError(`archetype ${i}: its ${group} frame differs from archetype ${frames.get(group).i}'s`); }
+  }
+  for (const [group, f] of frames) { console.log(`frame ${group}: ${JSON.parse(f.frame).length} subpath(s)`); }
   const out = path.resolve(outArg || DEFAULT_OUT);
   const hdr = buildHeader(results, rev);
   fs.mkdirSync(path.dirname(out), { recursive: true });

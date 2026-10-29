@@ -9,7 +9,8 @@ Scaleform AS2 drawing API (`lineStyle` / `moveTo` / `lineTo`, `beginFill` /
 Output: `plugins/SL_MagicMenu_SpellResearch/src/ArchetypeIcons.h` (generated,
 do not edit). It holds a flat point array, a subpath table
 `{first, count, closed, fill}`, and an icon table indexed by archetype 0-59
-(range in the subpath table), plus `kIconGrid = 24` and `kIconStroke = 1.3`.
+(range in the subpath table, and `frame`: how many of those subpaths, from the
+first, are the group frame), plus `kIconGrid = 24` and `kIconStroke = 1.3`.
 
 ## Regenerate
 
@@ -47,6 +48,14 @@ Open it in a browser after every regeneration and compare.
 - Dashed strokes (archetype 4, Apparitions) are cut into one open subpath per
   dash, the pattern restarting at each subpath as browsers draw it.
 - Identical point runs (the frames) are stored once and shared.
+- The frame comes first in every icon (skald-icons.js `svg()` writes the frame
+  markup, then the glyph). The converter also converts the glyph alone
+  (`SKALD_ICONS.glyph(i)` in the same `<svg>` root) and records the difference
+  as `Icon::frame`: elements 1 subpath (the ring), targeting 5 (the ring and its
+  four ticks), techniques 1 (the rounded square). It stops when the icon's last
+  subpaths are not exactly the glyph's, or when two icons of one group have
+  different frames. The block draws only the frame for an archetype the player
+  does not know yet (the glyph would give it away).
 - The icon file runs in a `node:vm` context that has only an empty `window`
   object. That is isolation from mistakes, not a security sandbox: only feed it
   SR Prisma's own file.
