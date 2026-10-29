@@ -331,17 +331,21 @@ namespace BlockDraw
 
         // A notification for a reply that came while the magic menu was still open (SR Prisma answers an early refusal - combat,
         // a missing item - before it waits for the menu to close): shown at the menu's close
+        // The menu's open state is our own (the MenuOpenCloseEvent sink sets it under the same lock): the check and the store
+        // are one step, so a close event on another thread cannot run between them (final review R3)
         std::mutex g_heldLock;
         std::string g_heldNotification;
+        bool g_menuOpen = false;
 
         void ShowNotification(const char* a_key)
         {
-            auto* ui = RE::UI::GetSingleton();
-            if (ui && ui->IsMenuOpen(RE::MagicMenu::MENU_NAME)) {
+            {
                 const std::scoped_lock lock(g_heldLock);
-                g_heldNotification = a_key;
-                logger::info("BlockDraw: notification {} held until the magic menu closes", a_key);
-                return;
+                if (g_menuOpen) {
+                    g_heldNotification = a_key;
+                    logger::info("BlockDraw: notification {} held until the magic menu closes", a_key);
+                    return;
+                }
             }
             RE::SendHUDMessage::ShowHUDMessage(Lang::Get(a_key).c_str());
         }
@@ -460,6 +464,7 @@ namespace BlockDraw
         std::string key;
         {
             const std::scoped_lock lock(g_heldLock);
+            g_menuOpen = false;
             key = std::exchange(g_heldNotification, {});
         }
         if (key.empty()) return;
@@ -474,8 +479,20 @@ namespace BlockDraw
         g_heldNotification.clear();
     }
 
+    void ForgetPending()
+    {
+        if (const auto id = g_pending.Id(); id != 0) {
+            g_pending.Clear(id);
+            logger::info("BlockDraw: open request {} dropped - a game is being loaded or started", id);
+        }
+    }
+
     void OnMenuOpen()
     {
+        {
+            const std::scoped_lock lock(g_heldLock);
+            g_menuOpen = true;
+        }
         g_heightReset = true;  // the host opens every menu at the registered height
         g_noResponse = false;
         g_drawnLogs = 0;

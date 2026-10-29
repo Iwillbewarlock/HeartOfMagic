@@ -3,11 +3,14 @@
 // show and in what order, the reason when none do, the list and line layouts and their wrapping to a width, an unknown
 // archetype's frame-only icon, the icon data's bounds, the link click rule (press and release in the same link), the reply
 // code -> notification, the open request's requestId matching and 5 s drop - and SrBlockText.h: ResolveLayout's and
-// ResolveLanguage's reading of the ini text (a BOM too), the game language mapping, the archetype short / name fallback,
-// and the shipped lang/en.json against the keys the block uses.
+// ResolveLanguage's reading of the ini text (a BOM too), the game language mapping, the two string sources (SR Prisma's
+// tables, the block's own), the language self-test's verdict, ReadTableFile (the language file reader Lang.cpp uses) on
+// real files in a temporary folder, and the shipped lang/en.json and ko.json against the keys the block uses.
+// Not covered here (the in-game self-test only, bSelfTest=1): Settings.cpp's ini file reading and the game's INI setting,
+// SrData's walk of SR's FormLists, and anything drawn.
 //
 //   magic-menu-sr-block-check                     one PASS/FAIL line per check, a total line
-//   magic-menu-sr-block-check --selftest          the same checks, a "selftest: ..." line
+//   magic-menu-sr-block-check --selftest          the same checks, then a "selftest: all PASS / N FAIL" summary line
 //   magic-menu-sr-block-check --lang <en.json>    another language file instead of the shipped en.json
 //
 // No game types. Exit 0 when every check passes, 1 when one fails, 2 on a bad argument.
@@ -397,20 +400,22 @@ namespace
             for (const bool reason : { false, true }) {
                 double previous = 0.0;
                 for (int lines = 1; lines <= kArchetypeLines; ++lines) {
-                    listFixed = listFixed && ContentHeight(LayoutKind::kList, lines, links, reason) == kContentH;
+                    listFixed = listFixed && ContentHeight(LayoutKind::kList, lines, links, reason) == (links ? kContentH : kContentH - kLinkRowH);
                     const double line = ContentHeight(LayoutKind::kLine, lines, links, reason);
                     lineNotOver = lineNotOver && line <= kContentH;
                     lineGrows = lineGrows && line > previous;
                     previous = line;
                     chrome = chrome && BlockHeightFor(LayoutKind::kLine, lines, links, reason) == line + kHostTitleH + 2 * kHostPad &&
-                             BlockHeightFor(LayoutKind::kList, lines, links, reason) == kBlockHeight;
+                             BlockHeightFor(LayoutKind::kList, lines, links, reason) == (links ? kBlockHeight : kBlockHeight - kLinkRowH);
                 }
             }
         }
-        Expect(listFixed, "list: always the fixed content height (96), whatever the lines, links or reason");
+        Expect(listFixed, "list: the fixed content height (96) with links, the link row less (78) without, whatever the lines or reason");
+        Expect(ReasonTop(LayoutKind::kList, 1, false) == kLinksTop && ReasonTop(LayoutKind::kList, 3, true) == kReasonTop,
+            "list without links: the reason line takes the link row's place (final review T2)");
         Expect(lineNotOver, "line: never more than the list's content height (the registered height is the maximum)");
         Expect(lineGrows, "line: one more archetype line needs more height");
-        Expect(chrome, "block height = content + the host's title strip and padding (list: kBlockHeight)");
+        Expect(chrome, "block height = content + the host's title strip and padding (list: kBlockHeight with links)");
         // one line, links, no reason: links at 40, row 18 -> 58; with the reason 74; three lines with both 92
         Expect(ContentHeight(LayoutKind::kLine, 1, true, false) == 58.0 && ContentHeight(LayoutKind::kLine, 1, true, true) == 74.0 &&
                    ContentHeight(LayoutKind::kLine, 3, true, true) == 92.0,
@@ -603,6 +608,44 @@ namespace
     // ---------------------------------------------------------------------
     void SharedStrings(const nlohmann::json& a_ownEnglish, const std::string& a_langPath);
 
+    void LanguageVerdicts()
+    {
+        std::printf("language self-test verdict\n");
+        const auto expect = [](const LangVerdict& a_v, std::string_view a_verdict, const char* a_what) {
+            Expect(a_v.verdict == a_verdict, Text("%s: %s %s", a_what, a_v.verdict, a_v.why.c_str()));
+        };
+        expect(LanguageVerdict("ko", true, 53, 0), "PASS", "ko, SR's ko.json named the 53 shown archetypes");
+        expect(LanguageVerdict("ko", true, 0, 0), "FAIL", "ko, SR's tables found but its ko.json named none (missing or broken)");
+        expect(LanguageVerdict("ko", false, 0, 0), "SKIP", "ko, SR Prisma's tables not installed");
+        expect(LanguageVerdict("en", true, 53, 0), "PASS", "en, SR's en.json named them");
+        expect(LanguageVerdict("ko", true, 53, 2), "FAIL", "two shown archetypes without a name anywhere");
+    }
+
+    // ReadTableFile on real files (the reader Lang.cpp uses): a BOM, invalid JSON, not an object, too big, missing, non-strings
+    void TableFiles()
+    {
+        std::printf("language files (ReadTableFile)\n");
+        std::error_code ec;
+        const auto dir = std::filesystem::temp_directory_path(ec) / "magic-menu-sr-block-check";
+        std::filesystem::create_directories(dir, ec);
+        const auto write = [&](const char* a_name, const std::string& a_text) {
+            const auto path = dir / a_name;
+            std::ofstream(path, std::ios::binary) << a_text;
+            return path;
+        };
+        constexpr std::uintmax_t kMax = 1024;
+        const auto bom = ReadTableFile(write("bom.json", "\xEF\xBB\xBF{\"title\": \"T\", \"n\": 3}"), kMax);
+        Expect(bom.problem == TableProblem::kNone && bom.table && bom.table->at("title") == "T" && bom.skipped == 1 && !bom.table->contains("n"),
+            "a BOM, one string and one number: the string read, the number skipped");
+        Expect(ReadTableFile(write("bad.json", "{\"title\": "), kMax).problem == TableProblem::kNotJson, "invalid JSON: refused");
+        Expect(ReadTableFile(write("array.json", "[\"title\"]"), kMax).problem == TableProblem::kNotObject, "a JSON array: refused");
+        Expect(ReadTableFile(write("big.json", "{\"x\": \"" + std::string(2000, 'a') + "\"}"), kMax).problem == TableProblem::kTooBig,
+            "over the size limit: refused");
+        Expect(ReadTableFile(dir / "none.json", kMax).problem == TableProblem::kMissing, "no file: missing");
+        Expect(ReadTableFile(write("empty.json", "{}"), kMax).table->empty(), "an empty object: an empty table");
+        std::filesystem::remove_all(dir, ec);
+    }
+
     void Strings(const std::string& a_langPath)
     {
         std::printf("strings\n");
@@ -750,6 +793,8 @@ namespace
         IniLayout();
         Language();
         Strings(a_langPath);
+        LanguageVerdicts();
+        TableFiles();
         std::printf("sr-block-check: %d PASS, %d FAIL\n", g_pass, g_fail);
         return g_fail == 0 ? kExitOk : kExitFail;
     }

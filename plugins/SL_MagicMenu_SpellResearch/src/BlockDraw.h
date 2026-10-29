@@ -26,6 +26,10 @@ namespace BlockDraw
     /// A game is being loaded or started: a held notification belongs to the old one
     void ForgetHeld();
 
+    /// A game is being loaded or started: an open request still waiting for its reply is dropped (SR Prisma answers it with
+    /// Busy on the load, which must not show in the loaded game)
+    void ForgetPending();
+
     /// SR Prisma's messages (the listener for "SpellResearchPrismaUI"); any thread
     void OnSrPrismaMessage(SKSE::MessagingInterface::Message* a_msg);
 }

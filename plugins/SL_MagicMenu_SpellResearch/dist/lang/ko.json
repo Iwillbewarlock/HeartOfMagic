@@ -1,5 +1,5 @@
 {
-  "_about": "SL_MagicMenu_SpellResearch strings, Korean. The archetype names and group labels are read from Spell Research Prisma's ko.json first; group.* here is the fallback. Keys missing here fall back to en.json.",
+  "_about": "SL_MagicMenu_SpellResearch strings, Korean. With Spell Research Prisma installed its own tables win for the archetype names and group labels (its ko.json, else its en.json); group.* here is used only without them. Keys missing here fall back to the block's en.json.",
   "title": "연구 원형",
   "unknown": "?",
   "more": "...",

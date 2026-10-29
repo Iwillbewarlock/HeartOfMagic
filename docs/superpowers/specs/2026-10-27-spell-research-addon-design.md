@@ -8,10 +8,10 @@ the next task (C:/Users/qtuna/Desktop/Claude outputs/magic-menu-no-hom-brief.md)
 
 ## What the player sees
 
-(The Korean wording below is the intent; the shipped text is the English file until SR Prisma's languages land - see
-"Strings and language".)
+(The Korean wording below is the design's intent. Superseded by 2a-2d where they differ: the shipped Korean title is
+"연구 원형", the links "연구 일지 / 증류기 / 경험치 책", from the block's own lang/ko.json - see 2d.)
 
-A block "연구 아키타입" (default: end of the right column, moved like any block), shown while a spell is chosen (the
+A block "연구 아키타입" (shipped as "Research Archetypes" / "연구 원형"; default: end of the right column, moved like any block), shown while a spell is chosen (the
 columns are hidden when nothing is, Widget.cpp:3376-3388, 3417). For the spell the menu's card shows:
 
 - Only what the menu's own spell card does not show (user, 2026-10-29: "기본 주문 정보창에서 확인가능한건 빼"): the
@@ -67,11 +67,15 @@ The block's language follows SR Prisma's language setting (user, 2026-10-29: "sr
 SR Prisma's translation tables are not decided yet (SR Prisma session, 2026-10-29: today SR Prisma has English
 strings in view/index.html only and SpellResearchPrismaUI.ini holds ToggleKey, fUIScale, bSelfTest). So:
 
-- Every player-visible string of the block (60 archetype names, 5 tier names, 3 buttons, title, reason lines,
-  notifications) comes from a per-language JSON file, `SKSE/Plugins/SL_MagicMenu_SpellResearch/lang/<code>.json`,
-  read at kDataLoaded; a missing key falls back to the English file, a missing English key to the key itself (and a
-  log line).
-- This task ships `en.json` only (tiers Novice .. Master). Archetype names: the block shows SHORT names, without the
+(Superseded in part by 2d: SR Prisma's tables now exist and are read first for the archetype names and group labels;
+the block ships en.json and ko.json; the tier names were dropped with the tier label; the language is resolved again
+at each menu open.)
+
+- Every player-visible string of the block (archetype names, group labels, 3 links, title, reason lines,
+  notifications) comes from a per-language JSON file, `SKSE/Plugins/SL_MagicMenu_SpellResearch/lang/<code>.json`
+  (archetype names and group labels from SR Prisma's tables first - 2d); a missing key falls back to the English
+  file, a missing English key to the key itself (and a log line).
+- Archetype names: the block shows SHORT names, without the
   group word (its group label or icon frame says it): "Area", not "Area Targeting" (the user-approved mock3). The keys
   are the ones SR Prisma's translation tables will have (SR Prisma session, 2026-10-29; its stage 3):
   `archetype.<index>.name` (SR Prisma's `ARCHETYPES` name, view/index.html:960) and `archetype.<index>.short` (the same
@@ -82,7 +86,9 @@ strings in view/index.html only and SpellResearchPrismaUI.ini holds ToggleKey, f
 - The language code is chosen by one function, `ResolveLanguage()`: SpellResearchPrismaUI.ini `[Display] sLanguage =
   auto | en | ko` (SR Prisma's settings design draft, docs/2026-10-29-settings-tab-design.md - the key is SR Prisma's,
   not final): en or ko -> that code; auto, missing or another value -> the game's Skyrim.ini `sLanguage:General`
-  (KOREAN -> ko, anything else en). A code without its `lang/<code>.json` uses English. Read once at kDataLoaded.
+  (KOREAN -> ko, anything else en). A code without its `lang/<code>.json` uses English. Read at kDataLoaded and again
+  at each magic menu open (the tables are read again only when the code changed; the registered title keeps the
+  language of game start).
 - Korean names are SR Prisma's decision (its session reconciles them with TAKEALOOK's existing Korean for Spell
   Research, Mod-Management Case 070, and the glossary). An Argon draft of the 60 names is kept in this session's notes
   only as input to that work. The word "아키타입" is the user's own term for SR's archetypes.
@@ -134,12 +140,15 @@ shared text-fitting helpers, and keeping a player's place for the old built-in i
 ### 2. New plugin SL_MagicMenu_SpellResearch (plugins/SL_MagicMenu_SpellResearch)
 
 - kPostLoad: listen for SL_MagicMenu's result and for SR Prisma's replies ('SRPR', sender "SpellResearchPrismaUI");
-  SR Prisma usable = `SKSE::LoadInterface::GetPluginInfo("SpellResearchPrismaUI")` (CommonLibSSE-NG Interfaces.h:157)
-  is not null and its version is 0.2.1 or later, checked at kPostPostLoad.
+  SR Prisma usable = that RegisterListener succeeded (SR Prisma is loaded). Superseded (final review R1): the design's
+  `GetPluginInfo` version gate (0.2.1+) is not used - it calls a slot of the SKSE interface that older SKSE builds may
+  not have, and the SKSE release that added it could not be established; an SR Prisma before 0.2.1 never answers
+  'SRPO', which ends in "does not respond" or the 5 s drop. Heart of Magic is detected the same way.
 - kDataLoaded: `TESDataHandler::LookupForm` the three FormLists and `_SR_GlobalImporting` 004C8D /
   `_SR_GlobalIsSetup` 00624F in "SpellResearch.esp"; missing plugin or a list of the wrong shape -> log once and
-  register nothing. Then register block id "SpellResearch.archetypes", title "연구 아키타입", fixed height (title
-  strip + three archetype rows + link row + reason line, the same for both layouts), `drawSelection`, `click`.
+  register nothing. Then register block id "SpellResearch.archetypes", title from the language file, registered height
+  134 (title strip + three archetype rows + link row + reason line; the list's; the line layout and reason-only states ask
+  for less with 'SLMH' - 2b, 2c), `drawSelection`, `click`. The menu sink is attached only after the block is accepted.
 - Shared data (HasForm walks forms + scriptAddedTempForms without a lock; the Librarian and SR Import write them on
   the game thread): never walk SR's lists in draw. A snapshot (FormID -> tier, archetype bitset; 60 x 5 knowledge
   values) is built in an SKSE task on the game thread when the magic menu opens (a MenuOpenCloseEvent sink), "not
@@ -161,7 +170,8 @@ shared text-fitting helpers, and keeping a player's place for the old built-in i
   a v2 message cut short, version 3 refused, v2 without either draw refused, the tabs mask), the host's press/release
   cancel rules as a pure function, and the add-on's pure parts (archetype grouping order, list and line layout and wrapping to a width, icon data bounds,
   press+release -> button (same rect only), reply -> notification text, requestId matching and the 5 s drop).
-- dist: a hand-made dist/SL_MagicMenu_SpellResearch/ (DLL, ini) like dist/HoM-MagicMenu-Proto until the FOMOD task.
+- dist: dist/SL_MagicMenu_SpellResearch/ (DLL, PDB, ini, lang/en.json and ko.json), made by every build (2a, 2d) until
+  the FOMOD task.
 
 ### 2a. As built (Task 2, 2026-10-29)
 
@@ -260,6 +270,23 @@ value counts as missing. The block now reads them (`Lang.cpp`, pure merge in `Sr
   any table) and a line with the three group labels and their sources.
 - dist: the whole `lang/` folder is copied (en.json, ko.json).
 
+### 2e. Final whole-branch review (2026-10-30)
+
+- R1: SR Prisma and Heart of Magic are detected by RegisterListener, not GetPluginInfo (see "Changes / 2").
+- R2: a waiting open request is dropped at kPreLoadGame / kNewGame with the snapshot and the held notice.
+- R3: the held notice's "menu open" is the block's own flag, set by the menu sink under the same lock as the store.
+- I1: the language self-test fails when SR Prisma's tables are installed but its table of the language named no
+  archetype (`SrBlock::LanguageVerdict`), and skips when they are not installed.
+- I2: the language is resolved again at each menu open (`Lang::Refresh`); the four tables are one immutable bundle
+  swapped atomically.
+- I3: the menu sink is attached only after the block is accepted.
+- T2: without links the reason line takes the link row's place in the list layout too; the list's content height is
+  then 78 (block 116).
+- The language file reader is `SrBlock::ReadTableFile`, which the check tool runs on real files (BOM, invalid JSON, a
+  JSON array, over the size limit, missing). Settings.cpp's ini file reading, the game INI setting and SrData's list
+  walk are covered by the in-game self-test only; its tier comparison uses the snapshot's own lowest-tier rule (it
+  checks the lists' reading, not the rule).
+
 ## Rulings carried from the 2026-10-27 GPT design review
 
 ABI freeze (above), the card's spell rather than `g_menu.sel.id`, the game-thread snapshot plus 'SLMD', no block
@@ -267,9 +294,9 @@ when nothing is chosen. All four stay.
 
 ## Not in scope
 
-The archetype icons (SR Prisma's skald-icons.png atlas: loading bitmaps into the host movie is its own question, and
-its distribution needs SR's author's agreement), the HoML block and the FOMOD (next task), languages other than
-English until SR Prisma's language setting and tables exist, per-frame updates, knowledge numbers in the block.
+SR Prisma's skald-icons.png bitmap atlas (loading bitmaps into the host movie is its own question, and its distribution
+needs SR's author's agreement) - the block draws the same icons as vector point data instead (ArchetypeIcons.h, 2a);
+the HoML block and the FOMOD (next task); per-frame updates; knowledge numbers in the block. (Languages: done in 2d.)
 
 ## Verification
 

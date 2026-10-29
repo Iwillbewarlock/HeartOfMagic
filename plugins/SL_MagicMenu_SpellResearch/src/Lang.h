@@ -18,6 +18,11 @@ namespace Lang
     /// Reads the four tables (call once, at kDataLoaded, before any Get). Logs what was read
     void Load();
 
+    /// At each magic menu open: the language resolved again (SR Prisma's settings tab can change it in game); the tables are
+    /// read again only when the code changed. The registered block title stays in the language of game start (the host draws
+    /// it from the registration; Block API v2 has no title update)
+    void Refresh();
+
     /// The block's own text of a_key (own <lang>, own en, the key). Thread-safe after Load
     std::string Get(const std::string& a_key);
 

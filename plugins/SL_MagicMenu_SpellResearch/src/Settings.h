@@ -30,6 +30,8 @@ namespace Settings
 
     /// The language code of the block's strings (lang/<code>.json; a code without its file falls back to en.json):
     /// SpellResearchPrismaUI.ini [Display] sLanguage = en | ko (SR Prisma's settings design draft, not final); auto, missing or
-    /// another value -> the game's Skyrim.ini sLanguage (KOREAN -> ko, else en). SrBlock::ParseLanguage. Call at kDataLoaded
-    std::string ResolveLanguage();
+    /// another value -> the game's Skyrim.ini sLanguage (KOREAN -> ko, else en). SrBlock::ParseLanguage. Called at kDataLoaded
+    /// and again at each magic menu open (SR Prisma's settings tab can change the key in game); a_log false: no log lines
+    /// (the caller logs a change)
+    std::string ResolveLanguage(bool a_log = true);
 }

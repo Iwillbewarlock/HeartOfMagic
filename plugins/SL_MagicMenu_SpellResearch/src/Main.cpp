@@ -29,9 +29,13 @@
 namespace
 {
     constexpr const char* kHomPluginName = "SpellLearning";
-    constexpr REL::Version kMinSrPrisma{ 0, 2, 1 };  // the first SR Prisma that answers 'SRPO'
 
-    const SKSE::LoadInterface* g_load = nullptr;
+    // SR Prisma and Heart of Magic are judged by SKSE's RegisterListener (a sender that is not loaded is refused), not by
+    // LoadInterface::GetPluginInfo: that call goes through a function slot of the SKSE interface that older SKSE builds
+    // (and SKSE VR - not verified) may not have, and the SKSE release that added it could not be established here (final
+    // review R1). So the 0.2.1 version gate is gone: an SR Prisma older than 0.2.1 that never answers 'SRPO' ends in the
+    // "does not respond" reason line (Dispatch false) or the 5 s drop of the pending request
+    std::atomic<bool> g_srPrismaListening{ false };
     std::atomic<bool> g_srPrismaUsable{ false };
     std::atomic<bool> g_homInstalled{ false };
     std::atomic<bool> g_registered{ false };
@@ -81,6 +85,7 @@ namespace
             if (!a_event || a_event->menuName != RE::MagicMenu::MENU_NAME) return RE::BSEventNotifyControl::kContinue;
             if (a_event->opening) {
                 Settings::ResolveLayout();
+                Lang::Refresh();  // SR Prisma's settings tab can change the language in game
                 BlockDraw::OnMenuOpen();
                 SrData::RequestBuild(OnBlockBuilt);
             } else {
@@ -95,22 +100,20 @@ namespace
 
     void CheckPlugins()
     {
-        const auto* srPrisma = g_load ? g_load->GetPluginInfo(SRPrismaAPI::kPluginName) : nullptr;
-        if (!srPrisma) {
-            logger::info("SL_MagicMenu_SpellResearch: {} is not loaded - no links", SRPrismaAPI::kPluginName);
-        } else {
-            const auto version = REL::Version::unpack(srPrisma->version);
-            g_srPrismaUsable = srPrisma->version >= kMinSrPrisma.pack();
-            logger::info("SL_MagicMenu_SpellResearch: {} {} loaded - links {}", SRPrismaAPI::kPluginName, version.string("."),
-                g_srPrismaUsable.load() ? "on" : std::format("off (needs {} or later: older builds never answer 'SRPO')", kMinSrPrisma.string(".")));
-        }
-        g_homInstalled = g_load && g_load->GetPluginInfo(kHomPluginName) != nullptr;
+        g_srPrismaUsable = g_srPrismaListening.load();
+        logger::info("SL_MagicMenu_SpellResearch: {} {} (decided by RegisterListener at kPostLoad; its version is not checked - "
+                     "an SR Prisma before 0.2.1 never answers, which shows as 'does not respond')",
+            SRPrismaAPI::kPluginName, g_srPrismaUsable.load() ? "loaded - links on" : "not loaded - no links");
+        logger::info("SL_MagicMenu_SpellResearch: Heart of Magic {} (RegisterListener)", g_homInstalled.load() ? "loaded" : "not loaded");
     }
 
-    void Register()
+    void IgnoreHom(SKSE::MessagingInterface::Message*) {}  // only to learn whether Heart of Magic is loaded (self-test)
+
+    // True when SL_MagicMenu accepted the block
+    bool Register()
     {
         auto* messaging = SKSE::GetMessagingInterface();
-        if (!messaging) return;
+        if (!messaging) return false;
         g_title = Lang::Get("title");
         BlockApi::Registration reg{ .id = Addon::kBlockId,
             .title = g_title.c_str(),
@@ -121,9 +124,10 @@ namespace
         const bool listened = messaging->Dispatch(BlockApi::kMessageRegister, &reg, sizeof(reg), BlockApi::kPluginName);
         if (!listened) {
             logger::error("SL_MagicMenu_SpellResearch: SL_MagicMenu did not listen (not installed, or bEnabled=0) - no block");
-            return;
+            return false;
         }
         if (!g_registered) logger::error("SL_MagicMenu_SpellResearch: SL_MagicMenu sent no accepted answer - no block");
+        return g_registered.load();
     }
 
     void OnSKSEMessage(SKSE::MessagingInterface::Message* a_msg)
@@ -134,6 +138,8 @@ namespace
             auto* messaging = SKSE::GetMessagingInterface();
             const bool host = messaging->RegisterListener(BlockApi::kPluginName, OnBlockMessage);
             const bool srPrisma = messaging->RegisterListener(SRPrismaAPI::kPluginName, BlockDraw::OnSrPrismaMessage);
+            g_srPrismaListening = srPrisma;
+            g_homInstalled = messaging->RegisterListener(kHomPluginName, IgnoreHom);
             logger::info("SL_MagicMenu_SpellResearch: listening to SL_MagicMenu {}, to {} {}", host ? "yes" : "NO (not loaded?)",
                 SRPrismaAPI::kPluginName, srPrisma ? "yes" : "no (not loaded?)");
             break;
@@ -141,9 +147,11 @@ namespace
         case SKSE::MessagingInterface::kPostPostLoad: CheckPlugins(); break;
         case SKSE::MessagingInterface::kPreLoadGame:
         case SKSE::MessagingInterface::kNewGame:
-            // another character: its snapshot and a held notification must not show (built again at the next menu open)
+            // another character: its snapshot, a held notification and a waiting open request must not carry over (SR Prisma
+            // answers a waiting request with Busy on a load; the snapshot is built again at the next menu open)
             SrData::Clear();
             BlockDraw::ForgetHeld();
+            BlockDraw::ForgetPending();
             break;
         case SKSE::MessagingInterface::kDataLoaded: {
             Lang::Load();
@@ -160,12 +168,14 @@ namespace
                 FlushLog();
                 return;
             }
-            if (auto* ui = RE::UI::GetSingleton()) {
-                ui->AddEventSink<RE::MenuOpenCloseEvent>(MenuSink::Get());
-            } else {
-                logger::error("SL_MagicMenu_SpellResearch: no UI singleton - no snapshot is ever built (the block says getting ready)");
+            // the menu sink only once the block is accepted: without it no menu open walks SR's lists or reads the ini
+            if (Register()) {
+                if (auto* ui = RE::UI::GetSingleton()) {
+                    ui->AddEventSink<RE::MenuOpenCloseEvent>(MenuSink::Get());
+                } else {
+                    logger::error("SL_MagicMenu_SpellResearch: no UI singleton - no snapshot is ever built (the block says getting ready)");
+                }
             }
-            Register();
             FlushLog();
             break;
         }
@@ -218,7 +228,6 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 {
     SKSE::Init(a_skse, SKSE::InitInfo{ .log = false });
     SetupLog("Spell Research archetypes block for SL_MagicMenu");
-    g_load = a_skse;
     Settings::Load();
     auto* messaging = SKSE::GetMessagingInterface();
     if (!messaging) {

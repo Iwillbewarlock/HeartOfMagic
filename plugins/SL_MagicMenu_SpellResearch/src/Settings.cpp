@@ -66,14 +66,14 @@ namespace Settings
     namespace
     {
         // SpellResearchPrismaUI.ini as text; nullopt (logged with a_what) when it is missing, too big or unreadable
-        std::optional<std::string> ReadSrPrismaIni(const char* a_what)
+        std::optional<std::string> ReadSrPrismaIni(const char* a_what, bool a_log = true)
         {
             const auto path = GamePath(kSrPrismaIniRelative);
             const auto shown = SKSE::stl::utf16_to_utf8(path.wstring()).value_or("(path not UTF-8)");
             std::error_code ec;
             const auto size = std::filesystem::file_size(path, ec);
             if (ec) {
-                logger::info("Settings: {} - {} not read ({})", a_what, shown, ec.message());
+                if (a_log) logger::info("Settings: {} - {} not read ({})", a_what, shown, ec.message());
                 return std::nullopt;
             }
             if (size > kMaxIniBytes) {
@@ -121,11 +121,12 @@ namespace Settings
         return g_layout.load();
     }
 
-    std::string ResolveLanguage()
+    std::string ResolveLanguage(bool a_log)
     {
         const auto game = GameLanguage();
-        const auto text = ReadSrPrismaIni("language from the game");
+        const auto text = ReadSrPrismaIni("language from the game", a_log);
         const auto read = SrBlock::ParseLanguage(text.value_or(std::string{}), game);
+        if (!a_log) return read.code;
         if (read.fromSetting) {
             logger::info("Settings: language '{}' ([{}] {} in SpellResearchPrismaUI.ini)", read.code, SrBlock::kLanguageSection, SrBlock::kLanguageKey);
         } else {

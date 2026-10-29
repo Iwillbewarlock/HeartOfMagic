@@ -5,7 +5,15 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+
+#include <nlohmann/json.hpp>
+
+#include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <initializer_list>
+#include <optional>
+#include <sstream>
 #include <utility>
 #include <vector>
 
@@ -271,6 +279,77 @@ namespace SrBlock
             if (GroupOf(a) != Group::kNone && ArchetypeName(a_tables, a).source == StringSource::kKey) unnamed.push_back(a);
         }
         return unnamed;
+    }
+
+    /// The language self-test's verdict (final review I1): FAIL when a shown archetype has no name at all, or when SR Prisma's
+    /// tables are there but its table of the language (its en.json for English) named no archetype - a missing or broken
+    /// SR <lang>.json, hidden otherwise by the block's own English names; SKIP when SR Prisma's tables are not installed
+    struct LangVerdict
+    {
+        const char* verdict = "PASS";
+        std::string why;
+    };
+
+    inline LangVerdict LanguageVerdict(std::string_view a_code, bool a_srTablesFound, std::size_t a_namedBySr, std::size_t a_unnamed)
+    {
+        if (a_unnamed > 0) return { "FAIL", std::to_string(a_unnamed) + " shown archetype(s) have no name in any table" };
+        if (!a_srTablesFound) return { "SKIP", "SR Prisma's tables not found: the archetype names are the block's own" };
+        if (a_namedBySr == 0) {
+            return { "FAIL", "SR Prisma's " + std::string(a_code) + ".json named no archetype (missing, unreadable or not its table)" };
+        }
+        return {};
+    }
+
+    // ---------------------------------------------------------------------
+    // A language file read as Lang.cpp reads it (the plugin logs the outcome): one flat JSON object of strings, UTF-8 with an
+    // optional BOM, at most a_maxBytes; non-string values are skipped. tools/magic-menu-sr-block-check runs it on real files
+    // ---------------------------------------------------------------------
+    enum class TableProblem
+    {
+        kNone,
+        kMissing,     // no such file (or its size could not be read)
+        kTooBig,      // more than a_maxBytes
+        kUnreadable,  // could not be opened or read
+        kNotJson,     // not valid JSON
+        kNotObject,   // valid JSON, not an object
+    };
+
+    struct TableRead
+    {
+        std::optional<StringTable> table;
+        TableProblem problem = TableProblem::kNone;
+        std::string detail;        // the system or parser message
+        std::size_t skipped = 0;   // non-string values left out
+    };
+
+    inline TableRead ReadTableFile(const std::filesystem::path& a_path, std::uintmax_t a_maxBytes)
+    {
+        TableRead read;
+        std::error_code ec;
+        const auto size = std::filesystem::file_size(a_path, ec);
+        if (ec) return { std::nullopt, TableProblem::kMissing, ec.message(), 0 };
+        if (size > a_maxBytes) return { std::nullopt, TableProblem::kTooBig, std::to_string(size) + " bytes", 0 };
+        std::ifstream file(a_path, std::ios::binary);
+        std::stringstream text;
+        if (file.is_open()) text << file.rdbuf();
+        if (!file.is_open() || file.bad()) return { std::nullopt, TableProblem::kUnreadable, "could not be opened", 0 };
+        nlohmann::json json;
+        try {
+            json = nlohmann::json::parse(StripBom(text.str()));
+        } catch (const nlohmann::json::exception& e) {
+            return { std::nullopt, TableProblem::kNotJson, e.what(), 0 };
+        }
+        if (!json.is_object()) return { std::nullopt, TableProblem::kNotObject, "not a JSON object", 0 };
+        StringTable table;
+        for (const auto& [key, value] : json.items()) {
+            if (value.is_string()) {
+                table.emplace(key, value.get<std::string>());
+            } else {
+                ++read.skipped;
+            }
+        }
+        read.table = std::move(table);
+        return read;
     }
 
     /// The keys the block's own en.json must hold (the check tool reads the file against this list); its ko.json holds the

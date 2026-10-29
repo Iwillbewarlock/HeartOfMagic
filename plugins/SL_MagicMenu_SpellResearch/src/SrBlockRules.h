@@ -193,16 +193,17 @@ namespace SrBlock
     }
     constexpr double ReasonTop(LayoutKind a_kind, int a_linesUsed, bool a_hasLinks)
     {
-        if (a_kind != LayoutKind::kLine) return kReasonTop;
+        // without links (SR Prisma not installed) the reason line takes the link row's place in both layouts (final review T2)
         return LinksTop(a_kind, a_linesUsed) + (a_hasLinks ? kLinkRowH : 0.0);
     }
 
     /// The content height the block needs (user 2026-10-30: in the line layout the block fits the shown spell). List: the fixed
-    /// kContentH. Line: the archetype lines used (a reason-only state counts as 1), then the link row and the reason line when
-    /// they are drawn. Never more than kContentH
+    /// kContentH with links, the link row less without them (the reason line keeps its place reserved). Line: the archetype
+    /// lines used (a reason-only state counts as 1), then the link row and the reason line when they are drawn. Never more
+    /// than kContentH
     constexpr double ContentHeight(LayoutKind a_kind, int a_linesUsed, bool a_hasLinks, bool a_hasReason)
     {
-        if (a_kind != LayoutKind::kLine) return kContentH;
+        if (a_kind != LayoutKind::kLine) return ReasonTop(a_kind, a_linesUsed, a_hasLinks) + kReasonH;
         return ReasonTop(a_kind, a_linesUsed, a_hasLinks) + (a_hasReason ? kReasonH : 0.0);
     }
 

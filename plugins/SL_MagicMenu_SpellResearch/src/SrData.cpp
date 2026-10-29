@@ -178,7 +178,10 @@ namespace SrData
                 a_tally.Line("outside", "SKIP", std::format("no spell from another plugin is filed in SR's lists (Heart of Magic {})",
                                                     Addon::HomInstalled() ? "loaded - its Librarian's Spell Research patch off or not run" : "not loaded"));
             } else {
-                a_tally.Line("outside", broken == 0 ? "PASS" : "FAIL", std::format("HasForm vs the snapshot on {} spell(s):{}", checked, detail));
+                a_tally.Line("outside", broken == 0 ? "PASS" : "FAIL", std::format("HasForm vs the snapshot on {} spell(s) (archetypes: the engine's search against the snapshot's walk; "
+                                                                       "tier: the lowest tier list HasForm finds - the snapshot's own rule, so this checks "
+                                                                       "the lists' reading, not the rule):{}",
+                                                               checked, detail));
             }
 
             auto* data = RE::TESDataHandler::GetSingleton();
