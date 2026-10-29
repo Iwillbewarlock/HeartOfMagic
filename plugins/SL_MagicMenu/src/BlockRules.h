@@ -167,17 +167,40 @@ namespace BlockRules
     }
 
     // ---------------------------------------------------------------------
-    // The layout mode's controls (user 2026-10-30): no button under the columns outside the mode; a gear at the bottom-right
-    // of SkyUI's list panel toggles the mode (as the K key does)
+    // The layout mode's controls (user 2026-10-30): the gear toggles the mode (view <-> edit, as the K key); in the edit mode
+    // one button, "처음 배치로" (reset), slides out right of the gear on its row. No control row under the columns
     // ---------------------------------------------------------------------
 
-    inline constexpr unsigned kRowLock = 1u << 0;   // the row's lock button ("레이아웃 잠금": leave the mode, saved)
-    inline constexpr unsigned kRowReset = 1u << 1;  // its reset button
+    inline constexpr double kResetOpenMs = 180.0, kResetCloseMs = 140.0;  // the reset button's unfold and fold (steady clock)
 
-    /// The buttons of the row under the left column: none outside the layout mode, lock and reset in it
-    constexpr unsigned RowButtons(bool a_layoutMode)
+    /// Ease-out (cubic) of a_t in 0..1: fast at first, slowing to the end
+    constexpr double EaseOut(double a_t)
     {
-        return a_layoutMode ? (kRowLock | kRowReset) : 0u;
+        const double t = a_t < 0.0 ? 0.0 : a_t > 1.0 ? 1.0 : a_t;
+        const double rest = 1.0 - t;
+        return 1.0 - rest * rest * rest;
+    }
+
+    /// An eased value from a_from to a_to, started at a_startMs and lasting a_durationMs, at a_nowMs (a_to from the end on)
+    constexpr double AnimWidth(double a_from, double a_to, double a_startMs, double a_nowMs, double a_durationMs)
+    {
+        if (!(a_durationMs > 0.0)) return a_to;
+        return a_from + (a_to - a_from) * EaseOut((a_nowMs - a_startMs) / a_durationMs);
+    }
+
+    /// The reset button's rect (stage): a_gap right of the gear, centred on the gear's height, a_w x a_h; kept inside a_visible
+    inline Settings::Rect ResetButtonRect(const Settings::Rect& a_gear, double a_w, double a_h, double a_gap, const Settings::Rect& a_visible)
+    {
+        double left = a_gear.right + a_gap, top = a_gear.CenterY() - a_h / 2;
+        left = std::clamp(left, a_visible.left, std::max(a_visible.left, a_visible.right - a_w));
+        top = std::clamp(top, a_visible.top, std::max(a_visible.top, a_visible.bottom - a_h));
+        return { left, top, left + a_w, top + a_h };
+    }
+
+    /// The reset button takes a click only in the edit mode and only once fully out (a_shownW at its full width a_fullW)
+    constexpr bool ResetClickable(double a_shownW, double a_fullW, bool a_layoutMode)
+    {
+        return a_layoutMode && a_fullW > 0.0 && a_shownW >= a_fullW - kHeightTolerance;
     }
 
     /// The gear's hover hint beside the gear (stage rect a_gear): right of it when a hint a_w wide fits on screen there, else left

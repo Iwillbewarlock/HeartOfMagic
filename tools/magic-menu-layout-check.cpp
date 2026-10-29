@@ -1256,9 +1256,29 @@ namespace
             "FittedHeight: needed + slack, never over the full height, a bad needed height keeps the full one");
 
         std::printf("the layout row and the gear\n");
-        Expect(BlockRules::RowButtons(false) == 0u, "no layout-row button outside the layout mode");
-        Expect(BlockRules::RowButtons(true) == (BlockRules::kRowLock | BlockRules::kRowReset), "lock and reset in the layout mode");
         const Settings::Rect visible1610{ 0, -40, 1280, 760 };
+        // the reset button right of the gear in the edit mode (user 2026-10-30): eased unfold / fold, rect, clicks
+        {
+            using BlockRules::AnimWidth;
+            const double open = BlockRules::kResetOpenMs, close = BlockRules::kResetCloseMs;
+            Expect(Near(AnimWidth(0, 90, 1000, 1000, open), 0) && Near(AnimWidth(0, 90, 1000, 1000 + open, open), 90) &&
+                       Near(AnimWidth(0, 90, 1000, 5000, open), 90),
+                "unfold: 0 at the start, full at the end and after it");
+            const double mid = AnimWidth(0, 90, 0, open / 2, open);
+            Expect(mid > 45 && mid < 90, Text("ease-out: more than half way at half the time (%.1f of 90)", mid));
+            Expect(Near(AnimWidth(90, 0, 0, 0, close), 90) && Near(AnimWidth(90, 0, 0, close, close), 0) && AnimWidth(90, 0, 0, close / 2, close) < 45,
+                "fold: full at the start, 0 at the end, eased");
+            Expect(Near(AnimWidth(40, 90, 0, open, open), 90), "a fold turned into an unfold half way: from where it was to full");
+            const Settings::Rect gear{ 648, 655, 666, 673 };
+            const auto button = BlockRules::ResetButtonRect(gear, 90, 18, 4, visible1610);
+            Expect(Near(button.left, 670) && Near(button.CenterY(), gear.CenterY()) && Near(button.Width(), 90),
+                Text("the reset button 4 right of the gear on its row (%s)", Show(button).c_str()));
+            const auto edge = BlockRules::ResetButtonRect(Settings::Rect{ 1240, 740, 1258, 758 }, 90, 18, 4, visible1610);
+            Expect(edge.right <= 1280 + kTolerance && edge.bottom <= 760 + kTolerance, Text("at the stage's corner: kept inside (%s)", Show(edge).c_str()));
+            Expect(BlockRules::ResetClickable(90, 90, true) && !BlockRules::ResetClickable(60, 90, true) && !BlockRules::ResetClickable(90, 90, false) &&
+                       !BlockRules::ResetClickable(0, 0, true),
+                "clickable only fully out and in the edit mode");
+        }
         // the key-hint strip and the gear under it on one vertical line (user 2026-10-30): columns' bottom 623, left column at 648
         const auto row = BlockRules::HintRowRects(648, 623, 400, 24, 18, 4, 4, visible1610);
         Expect(Near(row.strip.left, 648) && Near(row.strip.top, 627) && Near(row.strip.Width(), 400) && Near(row.strip.Height(), 24),

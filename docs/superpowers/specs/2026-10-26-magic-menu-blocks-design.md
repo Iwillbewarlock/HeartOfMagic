@@ -431,3 +431,12 @@ header comment of `plugins/SL_MagicMenu/src/BlockApi.h`, the pure rules `BlockRu
   the stage's bottom, and a too-wide strip moves left with the gear. Nothing else is drawn right of the gear on its row,
   because the gear's flyout will open there. The gear no longer anchors to SkyUI's list. The one-time clip dump now runs at a
   menu's 30th frame.
+- Gear and reset (user 2026-10-30: "그냥 톱니바퀴 누르면 편집모드/보기모드로 전환되는거로 하자 ... 처음배치 스위치만"):
+  - A gear click toggles the layout mode (view <-> edit), the same path as the K key. Leaving saves, as the old lock did.
+  - The control row under the columns is gone.
+  - In the edit mode one button, "처음 배치로" (the old reset, one-shot), unfolds out of the gear to its right on the gear's
+    row. It is a box in the mock's look; its mask's width is eased over `kResetOpenMs` (180 ms, ease-out), and the text
+    never scales. Leaving the mode folds it back over `kResetCloseMs` (140 ms).
+  - The button takes a click only once fully out (`BlockRules::ResetClickable`). It is greyed in the safety-net states.
+  - The gear is lit for the whole edit mode. Its hover hint reads "편집 모드 {key}" in view mode and "보기 모드로 {key}" in
+    edit mode, and is hidden while the reset button shows.

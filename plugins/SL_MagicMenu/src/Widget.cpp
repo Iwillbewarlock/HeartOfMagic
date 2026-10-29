@@ -300,7 +300,6 @@ namespace Widget
             kCardMinutes,
             kCardSeconds,
             // blocks plan Task 4 (D5): the layout buttons
-            kLayoutLock,
             kLayoutReset,
             kLayoutGearEnter,
             kLayoutGearLeave,
@@ -392,11 +391,10 @@ namespace Widget
             { Str::kCardSeconds, "card_seconds", "{n}초" },
             // blocks plan Task 4 (D5): the lock button (in the mode only since 2026-10-30: outside it the gear starts the mode) and
             // the reset button; the labels the plan gives, {key} the toggle key as the hints show keys
-            { Str::kLayoutLock, "layout_lock", "배치 잠금 {key}" },
             { Str::kLayoutReset, "layout_reset", "처음 배치로" },
             // user 2026-10-30: the gear's hover hint, out of the layout mode and in it
-            { Str::kLayoutGearEnter, "layout_gear_enter", "배치 모드 {key}" },
-            { Str::kLayoutGearLeave, "layout_gear_leave", "배치 모드 끝내기 {key}" },
+            { Str::kLayoutGearEnter, "layout_gear_enter", "편집 모드 {key}" },
+            { Str::kLayoutGearLeave, "layout_gear_leave", "보기 모드로 {key}" },
         });
 
         consteval bool StringsInOrder()
@@ -661,6 +659,11 @@ namespace Widget
             std::pair<double, double> treeOrigin{};  // the tree drawing's 0,0 in its panel as last drawn (RedrawTree; the tooltip's)
             Settings::Rect tooltipTree;  // the tree's rect (on screen) when the tooltip was last drawn (RedrawTooltip)
             std::optional<Settings::Rect> gearLast;  // where the gear was put last (PlaceStripAndGear)
+            // user 2026-10-30: the reset button right of the gear in the edit mode - its full width, its width now and its unfold /
+            // fold (from, to, start, length; BlockRules::AnimWidth)
+            double resetFullW = 0.0, resetShownW = 0.0, resetFrom = 0.0, resetTo = 0.0, resetStartMs = 0.0, resetDurationMs = 0.0;
+            std::optional<Settings::Rect> resetPlaced;  // where it was put last
+            bool resetDrawn = false;                    // its mask drawn once this menu
             // user 2026-10-30: the key-hint strip's clips (paths), found in the first kStripSearchFrames frames; its moves logged
             std::vector<std::string> stripPaths;
             int stripSearchLeft = 0, stripMoveLogs = 0;
@@ -4664,7 +4667,6 @@ namespace Widget
         // ---------------------------------------------------------------------
 
         constexpr const char* kShieldName = "layoutShield";    // full stage, the lowest depth in mmx_root, shown in the mode only
-        constexpr const char* kButtonsName = "layoutButtons";  // the lock / reset row (D5), outside the column masks
         constexpr const char* kBorderName = "layoutBorder";    // the border handle in the gap between the columns (the mode only)
         constexpr const char* kGearName = "layoutGear";        // user 2026-10-30: the layout mode's toggle, under SkyUI's list (always)
         constexpr double kGearSize = 18.0;                     // its square's side
@@ -4685,8 +4687,8 @@ namespace Widget
         constexpr const char* kAttemptEquipName = "AttemptEquip";  // MagicMenu.as:111
         constexpr const char* kSavedAttemptEquip = "mmxSavedAttemptEquip";
         constexpr const char* kShowPanelPath = "_global.InventoryLists.SHOW_PANEL";  // InventoryLists.as:34 (static, 1)
-        constexpr double kButtonRowGap = 4.0, kButtonRowH = 22.0;  // D5: the row's top 4 below the left column (627 at the E2 rects)
-        constexpr double kLockW = 104.0, kResetW = 84.0, kButtonGap = 6.0, kButtonTextSize = 12.0, kButtonAlpha = 90.0;
+        constexpr const char* kResetName = "layoutReset";       // user 2026-10-30: the reset button right of the gear (the edit mode)
+        constexpr double kResetGap = 4.0, kResetPadX = 8.0, kResetTextSize = 12.0, kResetAlpha = 92.0;
         constexpr double kGreyAlpha = 40.0, kDraggedAlpha = 45.0, kGhostAlpha = 25.0, kLineW = 2.0, kHandleLineAlpha = 80.0;
         constexpr double kMinHandleW = 6.0;  // the border handle's hit strip at least this wide (fPanelGap may be 0)
         constexpr double kAutoScrollEdge = 28.0, kAutoScrollStep = 8.0;  // D8: within this of a column's top/bottom the column scrolls, per frame
@@ -4970,7 +4972,8 @@ namespace Widget
         public:
             void Call(Params&) override
             {
-                if (!g_closing && g_menu.layout.active) g_menu.layout.resetDue = true;
+                // user 2026-10-30: the reset button takes a click only once fully out (a click while it unfolds is ignored)
+                if (!g_closing && BlockRules::ResetClickable(g_menu.resetShownW, g_menu.resetFullW, g_menu.layout.active)) g_menu.layout.resetDue = true;
             }
         };
 
@@ -5252,42 +5255,6 @@ namespace Widget
             }
         }
 
-        // D5: the lock (and, in the mode, reset) button right-aligned at the left column's right edge (the border), just below it
-        void DrawButtons(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
-        {
-            auto row = Child(a_widget, kButtonsName);
-            if (!row.IsDisplayObject()) return;
-            const auto& m = g_menu.layout;
-            const double right = ColumnViewport(0).right;
-            const double top = Layout::DefaultFrames(Settings::Get())[0].bottom + kButtonRowGap;
-            const auto key = KeyLabel(Settings::Get().keyLayout);
-            const bool grey = !SafetyNetReason().empty();
-            const auto button = [&](const char* a_name, double a_x, double a_w, const std::string& a_text, RE::GFxFunctionHandler* a_handler) {
-                Draw::Remove(row, a_name);
-                auto clip = Draw::Clip(row, a_name);
-                if (!clip.IsDisplayObject()) return;
-                clip.SetMember("_x", a_x);
-                clip.SetMember("_y", top);
-                Draw::Box(clip, a_w, kButtonRowH, kPanelFill, kButtonAlpha, kPanelEdge, kEdgeWidth);
-                const double size = kButtonTextSize;
-                FitLine(a_movie, clip, "label", 0, (kButtonRowH - FieldH(size)) / 2, a_w, size, a_text, kWhite, "center");
-                SetHandler(a_movie, clip, "onRelease", a_handler);
-                if (grey) clip.SetMember("_alpha", kGreyAlpha);
-            };
-            // user 2026-10-30: outside the mode the row is empty (the gear starts the mode); in it, lock and reset as before
-            const unsigned shown = BlockRules::RowButtons(m.active);
-            if (shown & BlockRules::kRowLock) {
-                button("lock", right - kLockW, kLockW, Fill(Str::kLayoutLock, { { "{key}", key } }), g_lockClick.get());
-            } else {
-                Draw::Remove(row, "lock");
-            }
-            if (shown & BlockRules::kRowReset) {
-                button("reset", right - kLockW - kButtonGap - kResetW, kResetW, Text(Str::kLayoutReset), g_resetClick.get());
-            } else {
-                Draw::Remove(row, "reset");
-            }
-        }
-
         // The gear (BlockRules::GearOutline, shape B) in a_color, centred on a_c: the SR block's line (Flash 8 lineStyle with round
         // caps and joins, BlockDraw.cpp), each outline closed on its first point
         void DrawGear(RE::GFxValue& a_clip, double a_c, double a_r, std::uint32_t a_color)
@@ -5301,14 +5268,15 @@ namespace Widget
             }
         }
 
-        // The gear's look: lit (kWhite) on hover and for the whole layout mode, its hint beside it on hover
+        // The gear's look: lit (kWhite) on hover and for the whole edit mode, its hint beside it on hover - not while the reset
+        // button is out or moving (it sits where the hint would go)
         void ShowGearLook(RE::GFxValue& a_gear)
         {
             const bool lit = g_menu.gearHover || g_menu.layout.active;
             RE::GFxValue dim, bright, hint;
             if (a_gear.GetMember("dim", &dim) && dim.IsDisplayObject()) dim.SetMember("_visible", !lit);
             if (a_gear.GetMember("lit", &bright) && bright.IsDisplayObject()) bright.SetMember("_visible", lit);
-            if (a_gear.GetMember("hint", &hint) && hint.IsDisplayObject()) hint.SetMember("_visible", g_menu.gearHover);
+            if (a_gear.GetMember("hint", &hint) && hint.IsDisplayObject()) hint.SetMember("_visible", g_menu.gearHover && g_menu.resetShownW <= 0.0);
         }
 
         class GearHover final : public RE::GFxFunctionHandler
@@ -5441,8 +5409,7 @@ namespace Widget
         }
 
         // user 2026-10-30 (sketch): SkyUI's key-hint strip (the bottom bar's button panel, STB's hints with it) moved to one row
-        // right under the lower of our columns from the left column's left edge (BlockRules::HintRowRects; in the layout mode under
-        // the lock / reset row, which sits there then), the clips only moved, never drawn again - each by the same stage step,
+        // right under the lower of our columns from the left column's left edge (BlockRules::HintRowRects), the clips only moved, never drawn again - each by the same stage step,
         // taken into its own parent's space (BlockRules::MovedBy), so Inventory Reforged's scale is followed and the clips keep
         // their places to each other. SkyUI moves or rebuilds the strip (a selection, a tab, a button refresh): put back every
         // frame it is off. The gear goes one row under it, its left edge on the strip's start (nothing else right of it on that
@@ -5454,7 +5421,6 @@ namespace Widget
             const Settings::Rect visible{ area.left, area.top, area.right, area.bottom };
             const double left = ColumnViewport(0).left;
             double below = ColumnsBottom();
-            if (g_menu.layout.active) below = std::max(below, Layout::DefaultFrames(Settings::Get())[0].bottom + kButtonRowGap + kButtonRowH);
             if (g_menu.stripPaths.empty() && g_menu.stripSearchLeft < kStripSearchFrames) {
                 ++g_menu.stripSearchLeft;
                 g_menu.stripPaths = FindStripClips(a_movie);
@@ -5551,6 +5517,63 @@ namespace Widget
             ShowGearLook(gear);
         }
 
+        // user 2026-10-30: "처음 배치로" (the reset, one-shot) right of the gear on its row in the edit mode - a box in the mock's
+        // look (black kResetAlpha, a kPanelEdge edge, kLabelColor text) that unfolds out of the gear (its mask's width eased over
+        // kResetOpenMs) when the mode starts and folds back (kResetCloseMs) when it ends; the text never scales. A click counts
+        // only once it is fully out (ResetClick, BlockRules::ResetClickable). Greyed in the safety-net states, as the old button
+        void ResetButtonFrame(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        {
+            auto button = Child(a_widget, kResetName);
+            if (!button.IsDisplayObject() || !g_menu.gearLast) return;
+            RE::GFxValue inner, mask;
+            if (g_menu.resetFullW <= 0.0) {  // made once a menu: the box at its full width, its mask grows over it
+                inner = Draw::Clip(button, "inner");
+                mask = Draw::Clip(button, "mask");
+                if (!inner.IsDisplayObject() || !mask.IsDisplayObject()) return;
+                const double h = kGearSize;
+                auto field = Draw::Text(a_movie, inner, "label", kResetPadX, (h - FieldH(kResetTextSize)) / 2, kTooltipW, FieldH(kResetTextSize),
+                    Text(Str::kLayoutReset), kLabelColor, kResetTextSize);
+                g_menu.resetFullW = (field.IsDisplayObject() ? TextW(field) : kTooltipW) + 2 * kResetPadX;
+                Draw::Box(inner, g_menu.resetFullW, h, kPanelFill, kResetAlpha, kPanelEdge, kEdgeWidth);
+                SetHandler(a_movie, inner, "onRelease", g_resetClick.get());
+                inner.SetMember("useHandCursor", false);
+                if (!SafetyNetReason().empty()) inner.SetMember("_alpha", kGreyAlpha);
+                const std::array<RE::GFxValue, 1> args{ mask };
+                inner.Invoke("setMask", nullptr, args.data(), args.size());
+                button.SetMember("_visible", false);
+            } else if (!button.GetMember("mask", &mask) || !mask.IsDisplayObject()) {
+                return;
+            }
+            const auto area = a_movie->GetVisibleFrameRect();
+            const Settings::Rect visible{ area.left, area.top, area.right, area.bottom };
+            const auto rect = BlockRules::ResetButtonRect(*g_menu.gearLast, g_menu.resetFullW, kGearSize, kResetGap, visible);
+            if (!g_menu.resetPlaced || !SameRect(*g_menu.resetPlaced, rect)) {
+                button.SetMember("_x", rect.left);
+                button.SetMember("_y", rect.top);
+                g_menu.resetPlaced = rect;
+            }
+            const double now = NowMs();
+            const double want = g_menu.layout.active ? g_menu.resetFullW : 0.0;
+            if (std::abs(want - g_menu.resetTo) > kRectTolerance) {  // the mode changed: unfold or fold from where it is now
+                g_menu.resetFrom = g_menu.resetShownW;
+                g_menu.resetTo = want;
+                g_menu.resetStartMs = now;
+                g_menu.resetDurationMs = want > 0.0 ? BlockRules::kResetOpenMs : BlockRules::kResetCloseMs;
+            }
+            const double shown = BlockRules::AnimWidth(g_menu.resetFrom, g_menu.resetTo, g_menu.resetStartMs, now, g_menu.resetDurationMs);
+            const double next = shown <= kRectTolerance ? 0.0 : shown;
+            if (g_menu.resetDrawn && std::abs(next - g_menu.resetShownW) <= kRectTolerance) return;
+            g_menu.resetDrawn = true;
+            g_menu.resetShownW = next;
+            Draw::Call(mask, "clear", {});
+            if (g_menu.resetShownW > 0.0) {
+                Draw::NoLine(mask);
+                Draw::Rect(mask, 0, 0, g_menu.resetShownW + kEdgeWidth, kGearSize + kEdgeWidth, kMaskFill, Draw::kAlphaFull);
+            }
+            button.SetMember("_visible", g_menu.resetShownW > 0.0);
+            if (auto gear = Child(a_widget, kGearName); gear.IsDisplayObject()) ShowGearLook(gear);
+        }
+
         // The border handle: a strip over the gap between the columns (at least kMinHandleW wide), a thin line in its middle;
         // shown in the mode only
         void DrawBorderHandle(RE::GFxValue& a_widget)
@@ -5573,33 +5596,32 @@ namespace Widget
             handle.SetMember("_visible", g_menu.layout.active);
         }
 
-        // Rearrange's tail: the buttons and the handle follow the border; the covers follow the blocks
+        // Rearrange's tail: the handle follows the border; the covers follow the blocks
         void PlaceLayoutChrome(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
-            DrawButtons(a_movie, a_widget);
             DrawBorderHandle(a_widget);
             if (g_menu.layout.active) SetCovers(a_movie, a_widget);
         }
 
-        // After the panels (AttachWidget): the button row, the border handle, then the overlay on top of everything
+        // After the panels (AttachWidget): the border handle, the overlay, then the gear and its reset button on top of everything
         void MakeLayoutChrome(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
-            auto row = Draw::Clip(a_widget, kButtonsName);
             auto handle = Draw::Clip(a_widget, kBorderName);
             auto overlay = Draw::Clip(a_widget, kOverlayName);
             MakeGear(a_movie, a_widget);  // user 2026-10-30: above the shield and the overlay
+            Draw::Clip(a_widget, kResetName);  // its reset button (ResetButtonFrame draws it), above the gear
             if (handle.IsDisplayObject()) {
                 SetHandler(a_movie, handle, "onPress", g_borderPress.get());
                 SetHandler(a_movie, handle, "onRelease", g_borderRelease.get());
                 SetHandler(a_movie, handle, "onReleaseOutside", g_borderRelease.get());
                 handle.SetMember("useHandCursor", false);
             }
-            if (!row.IsDisplayObject() || !handle.IsDisplayObject() || !overlay.IsDisplayObject()) {
-                logger::warn("Layout: the button row, border handle or overlay could not be made - the layout mode will not start this menu");
+            if (!handle.IsDisplayObject() || !overlay.IsDisplayObject()) {
+                logger::warn("Layout: the border handle or overlay could not be made - the layout mode will not start this menu");
             }
             PlaceLayoutChrome(a_movie, a_widget);
             if (const auto why = SafetyNetReason(); !why.empty() && !std::exchange(g_menu.layout.restLogged, true)) {
-                logger::info("Layout: the layout mode rests this menu - {}; the lock button is greyed, the default layout is used (the saved one is "
+                logger::info("Layout: the layout mode rests this menu - {}; the gear is greyed, the default layout is used (the saved one is "
                              "kept)",
                     why);
             }
@@ -5607,8 +5629,7 @@ namespace Widget
 
         bool ChromeReady(RE::GFxValue& a_widget)
         {
-            return Child(a_widget, kShieldName).IsDisplayObject() && Child(a_widget, kButtonsName).IsDisplayObject() &&
-                   Child(a_widget, kBorderName).IsDisplayObject() && Child(a_widget, kOverlayName).IsDisplayObject();
+            return Child(a_widget, kShieldName).IsDisplayObject() && Child(a_widget, kBorderName).IsDisplayObject() && Child(a_widget, kOverlayName).IsDisplayObject();
         }
 
         void ClearOverlay(RE::GFxValue& a_widget, const char* a_name)
@@ -8000,6 +8021,7 @@ namespace Widget
                 // user 2026-10-30: the key-hint strip and the gear under the columns as this frame left them
                 PlaceStripAndGear(movie, widget);
                 UpdateGear(movie, widget);
+                ResetButtonFrame(movie, widget);
                 if (g_menu.frame == kClipDumpFrame) DumpMenuClips(movie, root, widget);
                 // review GPT 1: the preview's place after every fit of this frame (a fitted block above it moves it)
                 PreviewFrame(movie, root, widget);
