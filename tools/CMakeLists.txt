@@ -294,8 +294,8 @@ target_include_directories(magic-menu-block-api-check PRIVATE
 # only, no game types): archetype grouping and order, what the block shows per state, the
 # list and line layouts and their wrapping, the unknown archetype's frame-only icon, the
 # icon data's bounds, the link click rule, reply code -> notification, the open request's
-# requestId matching and 5 s drop, the [MagicMenuBlock] sLayout ini reading; and the
-# shipped lang/en.json against the keys the block uses. One PASS/FAIL line per check and
+# requestId matching and 5 s drop; SrBlockText.h's sLayout / sLanguage ini reading and
+# string fallbacks; and the shipped lang/en.json against the keys the block uses. One PASS/FAIL line per check and
 # a total; --selftest the same; exit 1 when any check fails.
 
 add_executable(magic-menu-sr-block-check

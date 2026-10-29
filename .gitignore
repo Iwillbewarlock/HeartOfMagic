@@ -1,6 +1,8 @@
 # Build outputs
 build/
 dist/
+# the add-on's install files (en.json, the ini; a later ko.json) are sources, not build output
+!plugins/SL_MagicMenu_SpellResearch/dist/
 plugin/build/
 plugin/build2/
 compatibility/*/build/

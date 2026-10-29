@@ -2,8 +2,9 @@
 // 2026-10-27, "Changes / 2"): plugins/SL_MagicMenu_SpellResearch/src/SrBlockRules.h as the plugin runs it - which archetypes
 // show and in what order, the reason when none do, the list and line layouts and their wrapping to a width, an unknown
 // archetype's frame-only icon, the icon data's bounds, the link click rule (press and release in the same link), the reply
-// code -> notification, the open request's requestId matching and 5 s drop, ResolveLayout's reading of the ini text - and
-// the shipped lang/en.json against the keys the block uses.
+// code -> notification, the open request's requestId matching and 5 s drop - and SrBlockText.h: ResolveLayout's and
+// ResolveLanguage's reading of the ini text (a BOM too), the game language mapping, the archetype short / name fallback,
+// and the shipped lang/en.json against the keys the block uses.
 //
 //   magic-menu-sr-block-check                     one PASS/FAIL line per check, a total line
 //   magic-menu-sr-block-check --selftest          the same checks, a "selftest: ..." line
@@ -12,9 +13,11 @@
 // No game types. Exit 0 when every check passes, 1 when one fails, 2 on a bad argument.
 
 #include "SrBlockRules.h"
+#include "SrBlockText.h"
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <fstream>
@@ -196,6 +199,38 @@ namespace
         Expect((a_p.hidden > 0) == (ellipses == 1) && ellipses <= 1, Text("%s: an ellipsis exactly when some are left out", a_what));
     }
 
+    // Two parts of one line overlap (each part's [x, x + w); the icon box counts as its width)
+    bool Overlaps(const Placement& a_p)
+    {
+        for (int line = 0; line < a_p.lines; ++line) {
+            std::vector<const Part*> parts;
+            for (const auto& part : a_p.parts) {
+                if (part.line == line) parts.push_back(&part);
+            }
+            std::ranges::sort(parts, {}, &Part::x);
+            for (std::size_t i = 1; i < parts.size(); ++i) {
+                if (parts[i]->x < parts[i - 1]->x + parts[i - 1]->w - kEpsilon) return true;
+            }
+        }
+        return false;
+    }
+
+    // Every separator sits between one archetype's text and the next archetype's icon on its line; in list, of one group
+    bool SeparatorsBetweenItems(const Placement& a_p, LayoutKind a_kind)
+    {
+        const auto& parts = a_p.parts;
+        for (std::size_t i = 0; i < parts.size(); ++i) {
+            if (parts[i].kind != Part::Kind::kSeparator) continue;
+            if (i == 0 || i + 1 >= parts.size()) return false;
+            const auto& before = parts[i - 1];
+            const auto& after = parts[i + 1];
+            if (before.kind != Part::Kind::kText || after.kind != Part::Kind::kIcon || before.line != parts[i].line || after.line != parts[i].line) return false;
+            if (before.x + before.w > parts[i].x + kEpsilon || parts[i].x + parts[i].w > after.x + kEpsilon) return false;
+            if (a_kind == LayoutKind::kList && GroupOf(before.index) != GroupOf(after.index)) return false;
+        }
+        return true;
+    }
+
     const Part* Find(const Placement& a_p, Part::Kind a_kind, int a_index)
     {
         for (const auto& part : a_p.parts) {
@@ -282,7 +317,7 @@ namespace
             seed = seed * 1664525u + 1013904223u;
             return seed >> 8;
         };
-        int runs = 0, broken = 0;
+        int runs = 0, broken = 0, overlapping = 0, badSeparators = 0;
         for (int run = 0; run < 400; ++run) {
             std::vector<Item> items;
             for (int a = 0; a < static_cast<int>(kArchetypeCount); ++a) {
@@ -299,10 +334,15 @@ namespace
                     bool ok = p.lines <= metrics.maxLines && p.shown + p.hidden == static_cast<int>(items.size());
                     for (const auto& part : p.parts) ok = ok && part.x >= -kEpsilon && part.x + part.w <= width + kEpsilon && part.line < metrics.maxLines;
                     if (!ok) ++broken;
+                    if (Overlaps(p)) ++overlapping;
+                    if (!SeparatorsBetweenItems(p, kind)) ++badSeparators;
                 }
             }
         }
         Expect(broken == 0, Text("%d made-up placements (seed 20261029): inside the width and the lines, every archetype counted (%d broken)", runs, broken));
+        Expect(overlapping == 0, Text("%d made-up placements: no two parts of a line overlap (%d overlapping)", runs, overlapping));
+        Expect(badSeparators == 0,
+            Text("%d made-up placements: every separator between an archetype's text and the next one's icon, in list one group's (%d not)", runs, badSeparators));
     }
 
     void Height()
@@ -404,10 +444,14 @@ namespace
         Expect(!pending.Matches(6, t0 + 200), "a reply for 6 (not pending): ignored");
         Expect(pending.Matches(7, t0 + 200), "a reply for 7 within 5 s: matches");
         Expect(!pending.Matches(7, t0 + PendingRequest::kTimeoutMs), "the same reply at 5 s: dropped");
-        Expect(pending.Accept(7, t0 + 300) && pending.Id() == 0, "accepted in time: cleared");
-        Expect(!pending.Accept(7, t0 + 400), "a second reply for 7: ignored");
+        using Verdict = PendingRequest::Verdict;
+        Expect(pending.Accept(7, t0 + 300) == Verdict::kAccepted && pending.Id() == 0, "accepted in time: cleared");
+        Expect(pending.Accept(7, t0 + 400) == Verdict::kNotPending, "a second reply for 7: not pending (a duplicate)");
+        Expect(pending.Accept(0, t0 + 400) == Verdict::kNotPending, "a reply with requestId 0: not pending");
         Expect(pending.Begin(9, t0 + 500), "request 9 starts after 7 was answered");
-        Expect(!pending.Accept(9, t0 + 500 + PendingRequest::kTimeoutMs + 1) && pending.Id() == 0, "a reply after 5 s: dropped, and the request cleared");
+        Expect(pending.Accept(8, t0 + 600) == Verdict::kNotPending && pending.Id() == 9, "a reply for another id while 9 waits: not pending, 9 kept");
+        Expect(pending.Accept(9, t0 + 500 + PendingRequest::kTimeoutMs + 1) == Verdict::kTooLate && pending.Id() == 0,
+            "a reply after 5 s: too late, and the request cleared");
         Expect(pending.Begin(10, t0 + 600), "request 10 starts");
         Expect(pending.Begin(11, t0 + 600 + PendingRequest::kTimeoutMs), "no reply for 5 s: request 10 dropped, 11 starts");
         pending.Clear(10);
@@ -438,6 +482,28 @@ namespace
         expect("[MagicMenuBlock]\nsLayout=line\nsLayout=list\n", LayoutKind::kLine, true, true, "the first occurrence counts");
         expect("[MagicMenuBlock]\nsLayoutX=line\n", LayoutKind::kList, false, false, "another key that starts the same: not read");
         expect("[ MagicMenuBlock ]\nsLayout=line", LayoutKind::kLine, true, true, "spaces in the section brackets, no final newline");
+        expect("\xEF\xBB\xBF[MagicMenuBlock]\nsLayout=line\n", LayoutKind::kLine, true, true, "a UTF-8 BOM before the first section");
+        Expect(StripBom("\xEF\xBB\xBF" "abc") == "abc" && StripBom("abc") == "abc" && StripBom("\xEF\xBB") == "\xEF\xBB", "StripBom: only a whole BOM at the start");
+    }
+
+    void Language()
+    {
+        std::printf("ResolveLanguage's reading\n");
+        Expect(GameLanguageCode("KOREAN") == "ko" && GameLanguageCode("korean") == "ko", "the game's KOREAN -> ko (any case)");
+        Expect(GameLanguageCode("ENGLISH") == "en" && GameLanguageCode("FRENCH") == "en" && GameLanguageCode("") == "en", "ENGLISH, FRENCH, nothing -> en");
+        auto expect = [](std::string_view a_text, std::string_view a_game, std::string_view a_code, bool a_fromSetting, const char* a_what) {
+            const auto read = ParseLanguage(a_text, a_game);
+            Expect(read.code == a_code && read.fromSetting == a_fromSetting,
+                Text("%s: '%s' (from the setting %d, value '%s')", a_what, read.code.c_str(), read.fromSetting, read.value.c_str()));
+        };
+        expect("", "KOREAN", "ko", false, "no ini text, a Korean game");
+        expect("[Display]\nsLanguage = auto\n", "KOREAN", "ko", false, "auto, a Korean game");
+        expect("[Display]\nsLanguage = auto\n", "ENGLISH", "en", false, "auto, an English game");
+        expect("[Display]\nsLanguage = ko ; Korean\n", "ENGLISH", "ko", true, "ko in an English game");
+        expect("[display]\nSLANGUAGE=EN\n", "KOREAN", "en", true, "EN in a Korean game (case-insensitive)");
+        expect("[Display]\nsLanguage = fr\n", "KOREAN", "ko", false, "an unknown value: the game's");
+        expect("[General]\nsLanguage = ko\n", "ENGLISH", "en", false, "the key in another section: the game's");
+        expect("\xEF\xBB\xBF[Display]\nsLanguage=ko\n", "ENGLISH", "ko", true, "a UTF-8 BOM before [Display]");
     }
 
     // ---------------------------------------------------------------------
@@ -453,6 +519,14 @@ namespace
         Expect(fromEnglish.text == "Journal" && fromEnglish.source == StringSource::kEnglish, "a key the language lacks: English");
         Expect(fromKey.text == "link.missing" && fromKey.source == StringSource::kKey, "a key English lacks too: the key itself");
         Expect(LookUp(nullptr, english, "title").source == StringSource::kEnglish, "no language file: English");
+        const StringTable en{ { "archetype.42.name", "Area Targeting" }, { "archetype.42.short", "Area" }, { "archetype.12.name", "Fire" } };
+        const StringTable ko{ { "archetype.42.name", "KO area name" }, { "archetype.12.short", "KO fire" } };
+        Expect(ArchetypeName(&ko, en, 12).text == "KO fire", "archetype name: the language's short first");
+        Expect(ArchetypeName(&ko, en, 42).text == "KO area name", "archetype name: the language's name when it has no short");
+        Expect(ArchetypeName(nullptr, en, 42).text == "Area" && ArchetypeName(nullptr, en, 12).text == "Fire",
+            "archetype name: English short, else English name");
+        const auto noName = ArchetypeName(&ko, en, 9);
+        Expect(noName.text == "archetype.9.short" && noName.source == StringSource::kKey, "archetype name: neither has it - the short key");
 
         std::ifstream file(a_langPath, std::ios::binary);
         if (!file) {
@@ -479,8 +553,15 @@ namespace
             }
         }
         Expect(missing == 0, Text("every key the block uses is a non-empty string (%d missing%s%s)", missing, missing ? ", first " : "", firstMissing.c_str()));
-        Expect(json.value("archetype.12", "") == "Fire" && json.value("archetype.42", "") == "Area" && json.value("archetype.57", "") == "Summoning",
-            "names by SR's index: 12 Fire, 42 Area, 57 Summoning");
+        Expect(json.value("archetype.12.short", "") == "Fire" && json.value("archetype.42.short", "") == "Area" &&
+                   json.value("archetype.42.name", "") == "Area Targeting" && json.value("archetype.57.short", "") == "Summoning",
+            "names by SR's index: 12 Fire, 42 Area (name Area Targeting), 57 Summoning");
+        try {
+            const auto withBom = nlohmann::json::parse(std::string("\xEF\xBB\xBF") + buffer.str());
+            Expect(withBom == json, "the language file with a UTF-8 BOM parses the same");
+        } catch (const nlohmann::json::exception& e) {
+            Expect(false, Text("the language file with a UTF-8 BOM parses: %s", e.what()));
+        }
     }
 
     int Run(const std::string& a_langPath)
@@ -494,6 +575,7 @@ namespace
         Replies();
         Requests();
         IniLayout();
+        Language();
         Strings(a_langPath);
         std::printf("sr-block-check: %d PASS, %d FAIL\n", g_pass, g_fail);
         return g_fail == 0 ? kExitOk : kExitFail;

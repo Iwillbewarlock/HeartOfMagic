@@ -463,13 +463,20 @@ namespace SrBlock
             return a_id != 0 && m_id.load() == a_id && a_nowMs - m_sinceMs.load() < kTimeoutMs;
         }
 
-        /// The reply for the pending request: true (and cleared) when it matches in time; a timed-out one is cleared, false
-        bool Accept(std::uint32_t a_id, std::int64_t a_nowMs)
+        enum class Verdict
         {
-            if (a_id == 0 || m_id.load() != a_id) return false;
+            kAccepted,    // the pending request, in time: cleared
+            kNotPending,  // not the pending id (a duplicate reply, an old request's, or nothing pending)
+            kTooLate,     // the pending id, but kTimeoutMs or more after it was sent: cleared, dropped
+        };
+
+        /// The reply for a_id: accepted (and cleared) when it is the pending request in time; why not otherwise
+        Verdict Accept(std::uint32_t a_id, std::int64_t a_nowMs)
+        {
+            if (a_id == 0 || m_id.load() != a_id) return Verdict::kNotPending;
             const bool inTime = a_nowMs - m_sinceMs.load() < kTimeoutMs;
             Clear(a_id);
-            return inTime;
+            return inTime ? Verdict::kAccepted : Verdict::kTooLate;
         }
 
         [[nodiscard]] std::uint32_t Id() const { return m_id.load(); }
@@ -478,115 +485,4 @@ namespace SrBlock
         std::atomic<std::uint32_t> m_id{ 0 };
         std::atomic<std::int64_t> m_sinceMs{ 0 };
     };
-
-    // ---------------------------------------------------------------------
-    // [MagicMenuBlock] sLayout=list|line in SpellResearchPrismaUI.ini, read as text (Windows ini rules: sections and keys
-    // case-insensitive, ';' or '#' starts a comment, the first occurrence counts); missing or unknown -> list
-    // ---------------------------------------------------------------------
-    inline constexpr std::string_view kLayoutSection = "MagicMenuBlock", kLayoutKey = "sLayout";
-
-    struct LayoutRead
-    {
-        LayoutKind kind = LayoutKind::kList;
-        bool found = false;    // the key is there
-        bool known = false;    // its value is list or line
-        std::string value;     // the value as written (for the log)
-    };
-
-    namespace Detail
-    {
-        inline std::string_view Trim(std::string_view a_text)
-        {
-            const auto first = a_text.find_first_not_of(" \t\r\n");
-            if (first == std::string_view::npos) return {};
-            const auto last = a_text.find_last_not_of(" \t\r\n");
-            return a_text.substr(first, last - first + 1);
-        }
-
-        inline bool SameAscii(std::string_view a_a, std::string_view a_b)
-        {
-            if (a_a.size() != a_b.size()) return false;
-            for (std::size_t i = 0; i < a_a.size(); ++i) {
-                auto lower = [](char c) { return c >= 'A' && c <= 'Z' ? static_cast<char>(c - 'A' + 'a') : c; };
-                if (lower(a_a[i]) != lower(a_b[i])) return false;
-            }
-            return true;
-        }
-    }
-
-    inline LayoutRead ParseLayout(std::string_view a_iniText)
-    {
-        LayoutRead read;
-        bool inSection = false;
-        std::size_t start = 0;
-        while (start <= a_iniText.size()) {
-            const auto end = a_iniText.find('\n', start);
-            const auto raw = a_iniText.substr(start, end == std::string_view::npos ? std::string_view::npos : end - start);
-            start = end == std::string_view::npos ? a_iniText.size() + 1 : end + 1;
-            const auto line = Detail::Trim(raw);
-            if (line.empty() || line.front() == ';' || line.front() == '#') continue;
-            if (line.front() == '[') {
-                const auto close = line.find(']');
-                inSection = close != std::string_view::npos && Detail::SameAscii(Detail::Trim(line.substr(1, close - 1)), kLayoutSection);
-                continue;
-            }
-            if (!inSection) continue;
-            const auto equals = line.find('=');
-            if (equals == std::string_view::npos || !Detail::SameAscii(Detail::Trim(line.substr(0, equals)), kLayoutKey)) continue;
-            auto value = line.substr(equals + 1);
-            const auto comment = value.find_first_of(";#");
-            if (comment != std::string_view::npos) value = value.substr(0, comment);
-            value = Detail::Trim(value);
-            read.found = true;
-            read.value = std::string(value);
-            if (Detail::SameAscii(value, "list")) {
-                read.known = true;
-                read.kind = LayoutKind::kList;
-            } else if (Detail::SameAscii(value, "line")) {
-                read.known = true;
-                read.kind = LayoutKind::kLine;
-            }
-            return read;  // the first occurrence counts
-        }
-        return read;
-    }
-
-    // ---------------------------------------------------------------------
-    // Strings: the language's table, then English, then the key itself
-    // ---------------------------------------------------------------------
-    using StringTable = std::unordered_map<std::string, std::string>;
-
-    enum class StringSource
-    {
-        kLanguage,
-        kEnglish,
-        kKey,
-    };
-
-    struct Looked
-    {
-        std::string text;
-        StringSource source = StringSource::kKey;
-    };
-
-    inline Looked LookUp(const StringTable* a_language, const StringTable& a_english, const std::string& a_key)
-    {
-        if (a_language) {
-            if (const auto it = a_language->find(a_key); it != a_language->end()) return { it->second, StringSource::kLanguage };
-        }
-        if (const auto it = a_english.find(a_key); it != a_english.end()) return { it->second, StringSource::kEnglish };
-        return { a_key, StringSource::kKey };
-    }
-
-    /// The keys the block uses (en.json must hold every one; the check tool reads the file against this list)
-    inline std::vector<std::string> RequiredKeys()
-    {
-        std::vector<std::string> keys{ "title", "unknown", "more", "group.element", "group.targeting", "group.technique", "link.journal",
-            "link.alembic", "link.experience", "reason.notReady", "reason.notSpell", "reason.listsEmpty", "reason.unknownSpell",
-            "reason.noArchetypes", "reason.noTier", "reason.unknownArchetype", "reason.noResponse", "notify.busy", "notify.refused",
-            "notify.badMessage" };
-        for (std::size_t t = 0; t < kTierCount; ++t) keys.push_back("tier." + std::to_string(t));
-        for (std::size_t a = 0; a < kArchetypeCount; ++a) keys.push_back("archetype." + std::to_string(a));
-        return keys;
-    }
 }
