@@ -4124,7 +4124,7 @@ namespace Widget
         constexpr double kAutoScrollEdge = 28.0, kAutoScrollStep = 8.0;  // D8: within this of a column's top/bottom the column scrolls, per frame
         constexpr int kMaxDragLogs = 24;
         // Task 5: the focus look (on the block's cover), the pick's keep-in-view margin around its insertion line, the right stick
-        constexpr double kFocusEdgeW = 2.0, kPickEdgeW = 3.0, kLiftShadow = 4.0, kLiftShadowAlpha = 45.0, kLiftFillAlpha = 12.0;
+        constexpr double kFocusEdgeW = 2.0, kPickEdgeW = 3.0, kLiftFillAlpha = 12.0;
         constexpr double kLineViewMargin = 24.0;  // stage units kept in view above and below the pick's insertion line
         constexpr double kStickStep = 14.0;       // stage units per frame at full tilt (unverified feel: eyes-only)
         constexpr int kMaxPadLogs = 40;
@@ -4630,7 +4630,7 @@ namespace Widget
         }
 
         // Task 5: the focus outline and the picked block's lifted look, drawn on its cover (in the column clip: masked and scrolled
-        // with the block). Picked: a thicker accent edge, a light fill and a shadow band along the inner bottom and right edges
+        // with the block). Picked: a thicker, brighter edge and a light fill (no shadow band: UI polish 2026-10-29)
         void DrawFocusLook(RE::GFxValue& a_cover, double a_w, double a_h, bool a_picked)
         {
             if (!a_picked) {
@@ -4638,9 +4638,6 @@ namespace Widget
                 Draw::Rect(a_cover, kFocusEdgeW / 2, kFocusEdgeW / 2, a_w - kFocusEdgeW, a_h - kFocusEdgeW, kPanelFill, 0.0);
                 return;
             }
-            Draw::NoLine(a_cover);
-            Draw::Rect(a_cover, a_w - kLiftShadow, kLiftShadow, kLiftShadow, a_h - kLiftShadow, kPanelFill, kLiftShadowAlpha);
-            Draw::Rect(a_cover, kLiftShadow, a_h - kLiftShadow, a_w - 2 * kLiftShadow, kLiftShadow, kPanelFill, kLiftShadowAlpha);
             Draw::LineStyle(a_cover, kPickEdgeW, kBlue);
             Draw::Rect(a_cover, kPickEdgeW / 2, kPickEdgeW / 2, a_w - kPickEdgeW, a_h - kPickEdgeW, kWhite, kLiftFillAlpha);
         }
