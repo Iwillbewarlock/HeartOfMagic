@@ -19,16 +19,23 @@
 namespace
 {
     // Blocks plan Task 6 (D9): add-on block registrations from any plugin (BlockApi.h), answered to the sender with a
-    // BlockApi::Result. This listener hears every plugin's messages and SKSE's: any other type passes silently
+    // BlockApi::Result; API v2: an add-on's redraw request ('SLMD', not answered). This listener hears every plugin's
+    // messages and SKSE's: any other type passes silently
     void OnAnyMessage(SKSE::MessagingInterface::Message* a_msg)
     {
-        if (!a_msg || a_msg->type != BlockApi::kMessageRegister) return;
+        if (!a_msg) return;
+        if (a_msg->type == BlockApi::kMessageRedraw) {
+            Widget::RequestAddonRedraw(a_msg->sender ? a_msg->sender : "", a_msg->data, a_msg->dataLen);
+            return;
+        }
+        if (a_msg->type != BlockApi::kMessageRegister) return;
         if (!a_msg->sender || !*a_msg->sender) {
             logger::warn("SL_MagicMenu: an add-on block registration with no sender name - ignored (not answered)");
             return;
         }
         const auto outcome = Widget::RegisterBlock(a_msg->sender, a_msg->data, a_msg->dataLen);
         BlockApi::Result result;
+        result.apiVersion = outcome.apiVersion;  // a v1 add-on is answered as v1
         result.status = outcome.accepted ? BlockApi::Status::kAccepted : BlockApi::Status::kRefused;
         result.id = outcome.id.c_str();
         result.reason = outcome.reason.c_str();

@@ -30,6 +30,11 @@ namespace Widget
     /// registered" / "... refused <reason>". The outcome is what the sender is answered (BlockApi::Result)
     BlockRegistry::Outcome RegisterBlock(std::string_view a_sender, const void* a_data, std::uint32_t a_dataLen);
 
+    /// Block API v2: an add-on's kMessageRedraw ('SLMD', data = the block's final id) from a_sender. Any thread: the id is
+    /// queued and its block drawn again on the menu's next frame; dropped while the magic menu is closed. An id that is not a
+    /// registered block is logged (once per id) and ignored there
+    void RequestAddonRedraw(std::string_view a_sender, const void* a_data, std::uint32_t a_dataLen);
+
     /// [Debug] bDebugFillerBlock: registers the test block Layout::kDebugFillerId (300 high) through RegisterBlock (call at kDataLoaded); it joins the left column after the spell card
     void RegisterDebugFiller();
 
