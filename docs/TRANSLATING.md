@@ -52,7 +52,7 @@ Some strings contain `{{variable}}` placeholders replaced at runtime:
 A few keys contain HTML tags. Keep the tags intact, translate only the text:
 
 ```json
-"settings.devDebug.cheatModeActive": "(!) <strong>Cheat mode active!</strong>"
+"settings.devDebug.cheatModeActive": "<strong>Cheat mode active.</strong>"
 ```
 
 ### The _meta Section
@@ -101,7 +101,7 @@ fine, it has its own fonts).
 |-----|---------|--------------|
 | `hud.learnedWeakened` | {{step}} {{spell}} learned (weakened) | `step` = power step label (as the player wrote it in Power Steps) |
 | `hud.powerIncreased` | {{spell}} power increased to {{percent}}% | |
-| `hud.mastered` | {{spell}} MASTERED! Full power unlocked. | |
+| `hud.mastered` | {{spell}} MASTERED. Full power unlocked. | |
 | `hud.castPowerXP` / `hud.castPower` | {{spell}} operating at {{percent}}% power (+{{xp}} XP) | weakened spell alert |
 | `hud.beginStudy`, `hud.review`, `hud.learned`, `hud.alreadyKnown` | reading a spell tome | `spell` |
 | `hud.mustMaster` | You must first master {{spells}} to grasp this tome | `spells` joined with `hud.listSeparator` and `hud.listLastSeparator` (", " and " and ") |

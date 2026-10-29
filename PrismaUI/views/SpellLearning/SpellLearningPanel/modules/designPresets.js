@@ -124,7 +124,11 @@ var DesignPresets = {
                 '.tree-top-tools { top: 16px; left: 16px; max-width: calc(100% - 32px); }',
                 '.btn { padding: 8px 16px; }',
                 '.btn-sm { padding: 4px 12px; }',
-                '.scanner-preset-chip, .spell-need-chip { padding: 4px 8px; }'
+                '.scanner-preset-chip, .spell-need-chip { padding: 4px 8px; }',
+                '/* Small labels in words, not spaced capitals (the titles above keep theirs); the school tabs\' spacing is set',
+                '   by the more specific rule in panel-tree.css */',
+                '.spell-meta, .settings-cat-btn, .scanner-mode-btn, .detail-label, .prereq-type-label, .tooltip-state,',
+                '#contentSpellTree #tree-school-tabs .school-tab { text-transform: none; letter-spacing: 0.02em; }'
             ],
             tree: {
                 pageColor: '#0b0b0c',

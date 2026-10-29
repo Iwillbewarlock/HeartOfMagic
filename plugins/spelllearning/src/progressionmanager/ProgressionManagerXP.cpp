@@ -374,7 +374,7 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
             // Show mastery notification
             auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(targetSpellId);
             if (spell) {
-                HudNotify::Show("hud.mastered", "{{spell}} MASTERED! Full power unlocked.",
+                HudNotify::Show("hud.mastered", "{{spell}} MASTERED. Full power unlocked.",
                     { { "spell", spell->GetName() } });
 
                 // Fire ModEvent: SpellLearning_SpellMastered, naming the school the way
