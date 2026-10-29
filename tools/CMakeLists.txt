@@ -267,6 +267,27 @@ target_link_libraries(magic-menu-layout-check PRIVATE
 )
 
 # =============================================================================
+# magic-menu-block-api-check  -  offline check of the magic menu's Block API v2 host side
+# =============================================================================
+# The SL_MagicMenu plugin's own BlockRegistry.cpp and BlockRules.h (no game types): the
+# registration parsing (v1 bytes in the frozen layout, v2 in full and cut short,
+# version 3 refused, v2 with neither draw refused, the tabs mask), the tab bit of a
+# SkyUI category and a block's visibility per tab, and the press / release cancel
+# rules. One PASS/FAIL line per check and a total; --selftest the same; exit 1 when
+# any check fails.
+
+add_executable(magic-menu-block-api-check
+    magic-menu-block-api-check.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/src/BlockRegistry.cpp
+)
+
+target_compile_features(magic-menu-block-api-check PRIVATE cxx_std_23)
+
+target_include_directories(magic-menu-block-api-check PRIVATE
+    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/src
+)
+
+# =============================================================================
 # magic-menu-homstyle-check  -  offline check of the magic menu prototype's HoM style reader
 # =============================================================================
 # The SL_MagicMenu plugin's own HomStyle.cpp (no game types): Heart of Magic's
