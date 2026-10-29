@@ -216,11 +216,16 @@ under it moving by a line when the spell changes). The list layout keeps its fix
   the column restacking by magic-menu-layout-check (`AddonHeightChange`).
 - Add-on: `SrBlock::ContentHeight(kind, lines, hasLinks, hasReason)` - list: kContentH (94); line: the archetype lines
   (a reason-only state counts as one), the link row and the reason line when drawn (without links the reason line takes
-  their place): 57 for one line with links, 73 with a reason line too, at most 91. Draw asks for that height (plus the
-  host's 38 of title strip and padding) when it differs from the content height it was lent, once per change
-  (`SrBlock::HeightRequests`: not again at the same lent size - so the host's redraw at the new size sends nothing, and a
-  host that ignores 'SLMH' is not asked on every draw); reset at each menu open and when the layout kind changes. The
-  registered height stays kBlockHeight (132).
+  their place): 57 for one line with links, 73 with a reason line too, at most 91. A reason-only state ("?" and the
+  reason line: not ready, not a spell, lists empty, unknown spell, no archetypes) is placed and sized by the line
+  layout's rules in the list layout too (user 2026-10-30, `SrBlock::PlacedKind`), so the list block shrinks from 132 to a
+  one-line block's 111 instead of leaving the fixed height's gap; the list with archetypes keeps 132. Draw asks for that
+  height (plus the host's 38 of title strip and padding) when it differs from the last one it asked for
+  (`SrBlock::HeightRequests`), reset at each menu open and when the chosen layout changes - so the host's redraw at the
+  new size, and the layout mode's redraw at the registered size, send nothing. The registered height stays
+  kBlockHeight (132). The host applies a request made by the frame's second draw pass (after the selection handling)
+  in the same frame: it lays the columns out again and draws the block once more, so a block drawn for a new spell is
+  never shown past its box.
 
 ## Rulings carried from the 2026-10-27 GPT design review
 

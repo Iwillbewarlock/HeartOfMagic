@@ -400,17 +400,29 @@ namespace
         Expect(ContentHeight(LayoutKind::kLine, 0, true, true) == ContentHeight(LayoutKind::kLine, 1, true, true),
             "a reason-only state (0 lines) counts as one line");
 
+        // the real sequence: a menu opens at the registered size (94 content), the line layout's spell needs 57
         HeightRequests requests;
-        Expect(!requests.ShouldSend(94, 94), "needs what it was lent: nothing sent");
-        Expect(requests.ShouldSend(57, 94), "needs 57, lent 94: sent");
-        Expect(!requests.ShouldSend(57, 94), "the same again before the host applied it: not sent again");
-        Expect(!requests.ShouldSend(57, 57.02f), "the host's redraw at 57 (float): nothing sent - no loop");
-        Expect(requests.ShouldSend(73, 57), "another spell needs 73: sent");
-        Expect(requests.ShouldSend(57, 94), "a new menu back at 94 asks again for 57 even without Reset (lent size differs)");
-        Expect(!requests.ShouldSend(57, 94), "and only once");
-        requests.Reset();
-        Expect(requests.ShouldSend(57, 94), "after Reset: sent again");
-        Expect(requests.ShouldSend(94, 57), "the list layout (94) at 57: sent (the block grows back)");
+        Expect(requests.ShouldSend(57), "menu open, the spell needs 57: sent");
+        Expect(!requests.ShouldSend(57), "the host's redraw at 57 (it applied the request): nothing sent - no loop");
+        Expect(!requests.ShouldSend(57.02), "within the tolerance: nothing sent");
+        Expect(!requests.ShouldSend(57), "the layout mode's redraw at the registered 94: nothing sent (the content still needs 57)");
+        Expect(requests.ShouldSend(73), "another spell needs 73: sent");
+        Expect(requests.ShouldSend(57), "back to a spell that needs 57: sent");
+        requests.Reset();  // the menu closes and opens again: the host is back at 94
+        Expect(requests.ShouldSend(57), "the menu reopens (Reset): 57 sent again");
+        requests.Reset();  // the layout changes to list
+        Expect(requests.ShouldSend(94), "list layout after Reset: its 94 sent (the block grows back)");
+        Expect(!requests.ShouldSend(94), "and not again");
+
+        // user 2026-10-30: a reason-only state is placed and sized by the line layout's rules in the list layout too
+        Expect(PlacedKind(LayoutKind::kList, Show::kItems) == LayoutKind::kList && PlacedKind(LayoutKind::kLine, Show::kItems) == LayoutKind::kLine,
+            "archetypes: the chosen layout");
+        Expect(PlacedKind(LayoutKind::kList, Show::kReason) == LayoutKind::kLine && PlacedKind(LayoutKind::kLine, Show::kReason) == LayoutKind::kLine,
+            "a reason-only state: the line layout's rules in both");
+        const double reasonOnly = BlockHeightFor(PlacedKind(LayoutKind::kList, Show::kReason), 1, true, true);
+        Expect(reasonOnly == 111.0 && reasonOnly == BlockHeightFor(LayoutKind::kLine, 1, true, true),
+            Text("list, a reason-only state with links and the reason: %.0f, a one-line line-layout block's height", reasonOnly));
+        Expect(BlockHeightFor(PlacedKind(LayoutKind::kList, Show::kItems), 1, true, true) == kBlockHeight, "list with archetypes: still the fixed 132");
     }
 
     // ---------------------------------------------------------------------

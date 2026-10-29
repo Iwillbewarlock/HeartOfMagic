@@ -203,24 +203,20 @@ namespace SrBlock
         return ContentHeight(a_kind, a_linesUsed, a_hasLinks, a_hasReason) + kHostTitleH + 2 * kHostPad;
     }
 
-    /// When draw asks SL_MagicMenu for a new height ('SLMH'): the content it needs differs from the content height it was
-    /// lent (a_drawnContentH, the host's current size), and the same request was not already sent at that drawn size - so the
-    /// redraw the host does at the new size sends nothing (no loop), a host that ignores 'SLMH' (an older SL_MagicMenu, or the
-    /// layout mode, which keeps the registered size) is not asked again on every draw, and a new menu (the host back at the
-    /// registered height) is asked again even if Reset was missed. UI thread only
+    /// When draw asks SL_MagicMenu for a new height ('SLMH', the brief's rule): the content height it needs differs from the
+    /// last one it asked for, or it asked for none since the last Reset. Reset at each menu open (the host opens every menu at
+    /// the registered height) and when the layout kind changes. So the host's redraw at the asked size sends nothing (no
+    /// loop), and neither does the layout mode's redraw at the registered size. UI thread only
     class HeightRequests
     {
     public:
-        static constexpr double kTolerance = 0.05;  // stage units (the host's float content height against ours)
+        static constexpr double kTolerance = 0.05;  // stage units
 
         /// True when a request for a_neededContentH should be sent now (and remembers it as sent)
-        bool ShouldSend(double a_neededContentH, double a_drawnContentH)
+        bool ShouldSend(double a_neededContentH)
         {
-            const auto same = [](double a_a, double a_b) { return (a_a > a_b ? a_a - a_b : a_b - a_a) <= kTolerance; };
-            if (same(a_neededContentH, a_drawnContentH)) return false;
-            if (m_sent && same(*m_sent, a_neededContentH) && same(m_sentAt, a_drawnContentH)) return false;
+            if (m_sent && (*m_sent > a_neededContentH ? *m_sent - a_neededContentH : a_neededContentH - *m_sent) <= kTolerance) return false;
             m_sent = a_neededContentH;
-            m_sentAt = a_drawnContentH;
             return true;
         }
 
@@ -228,9 +224,16 @@ namespace SrBlock
         void Reset() { m_sent.reset(); }
 
     private:
-        std::optional<double> m_sent;  // the content height last asked for
-        double m_sentAt = 0.0;         // the content height the block had when it was asked
+        std::optional<double> m_sent;  // the content height last asked for since the last Reset
     };
+
+    /// The layout a state is placed and sized by (user 2026-10-30): the archetypes in the chosen layout; a reason-only state
+    /// ("?" and the reason line) in the line layout's, one line - so in the list layout too it shrinks to a one-line block
+    /// (111 with links and the reason) instead of leaving the fixed height's gap
+    constexpr LayoutKind PlacedKind(LayoutKind a_chosen, Show a_show)
+    {
+        return a_show == Show::kItems ? a_chosen : LayoutKind::kLine;
+    }
 
     struct Metrics
     {

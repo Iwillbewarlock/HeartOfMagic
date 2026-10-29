@@ -396,7 +396,7 @@ namespace BlockDraw
         }
     }
 
-    void Draw(RE::GFxMovieView* a_movie, RE::GFxValue& a_clip, float a_width, float a_height, std::uint32_t a_shown, void*)
+    void Draw(RE::GFxMovieView* a_movie, RE::GFxValue& a_clip, float a_width, float, std::uint32_t a_shown, void*)
     {
         g_linkRects.clear();
         if (!a_movie) return;
@@ -416,7 +416,8 @@ namespace BlockDraw
         if (decision.show == SrBlock::Show::kNothing) return;
 
         Texts texts{ a_movie, a_clip, static_cast<double>(a_width) };
-        const auto kind = Settings::CurrentLayout();
+        const auto chosen = Settings::CurrentLayout();
+        const auto kind = SrBlock::PlacedKind(chosen, decision.show);  // a reason-only state: the line layout's places, one line
         int lines = 1;
         if (decision.show == SrBlock::Show::kItems) {
             lines = DrawItems(texts, decision.items, kind);
@@ -434,12 +435,13 @@ namespace BlockDraw
         }
         SelfTestDrawn(a_movie, a_shown, decision);
 
-        // The height this content needs (the list's is the registered one); asked for once per change (HeightRequests): the
-        // host lays the columns out again and draws the block once more at that size, which needs nothing new
-        if (g_heightReset.exchange(false) || kind != g_heightKind) g_heights.Reset();
-        g_heightKind = kind;
+        // The height this content needs (the list's archetypes: the registered one); asked for once per change
+        // (HeightRequests): the host lays the columns out again and draws the block once more at that size, which needs nothing
+        // new (the host logs the heights it applies)
+        if (g_heightReset.exchange(false) || chosen != g_heightKind) g_heights.Reset();
+        g_heightKind = chosen;
         const double needed = SrBlock::ContentHeight(kind, lines, links, !reasonKey.empty());
-        if (g_heights.ShouldSend(needed, a_height)) {
+        if (g_heights.ShouldSend(needed)) {
             Addon::RequestHeight(needed + SrBlock::kHostTitleH + 2 * SrBlock::kHostPad);
         }
     }
