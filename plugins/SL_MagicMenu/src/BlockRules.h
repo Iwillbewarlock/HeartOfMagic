@@ -4,17 +4,21 @@
 #include "Settings.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 // =============================================================================
 // BLOCK RULES - the pure parts of the Block API v2 host side (Spell Research
 // add-on design 2026-10-27, "Changes / 1"): which SkyUI category tab is which
-// BlockApi tab bit, whether a block shows on a tab, and whether a press and its
-// release in an add-on block become a click call. No game types: Widget.cpp
+// BlockApi tab bit, whether a block shows on a tab, whether a press and its
+// release in an add-on block become a click call, and the redraw / height
+// requests (kMessageRedraw, kMessageHeight): reading, judging, queueing. No game types: Widget.cpp
 // feeds it the values it reads; tools/magic-menu-block-api-check runs these
 // same functions on made-up cases. Stage units, y down.
 // =============================================================================
@@ -53,6 +57,100 @@ namespace BlockRules
         const std::size_t length = strnlen(text, std::min<std::size_t>(a_dataLen, kMaxFinalIdLength + 1));
         if (length == 0 || length > kMaxFinalIdLength) return std::nullopt;
         return std::string(text, length);
+    }
+
+    // ---------------------------------------------------------------------
+    // kMessageHeight ('SLMH'): an add-on's height for its block this menu (BlockApi.h "kMessageHeight")
+    // ---------------------------------------------------------------------
+
+    struct HeightRead
+    {
+        std::string id;
+        double height = 0.0;
+    };
+
+    inline constexpr std::size_t kHeightNeeded = offsetof(BlockApi::HeightRequest, height) + sizeof(float);  // the fields read
+
+    /// The id and height of a kMessageHeight message, or nullopt with the reason in a_why: the message must cover the fields
+    /// up to height (by dataLen and structSize), have apiVersion 2 .. kVersion, an id of 1..kMaxFinalIdLength characters and
+    /// a finite height > 0 (whether it fits the block is JudgeHeight's)
+    inline std::optional<HeightRead> ReadHeight(const void* a_data, std::uint32_t a_dataLen, std::string& a_why)
+    {
+        if (!a_data || a_dataLen < kHeightNeeded) {
+            a_why = "the message is " + std::to_string(a_data ? a_dataLen : 0) + " bytes, a HeightRequest needs " + std::to_string(kHeightNeeded);
+            return std::nullopt;
+        }
+        BlockApi::HeightRequest request{};
+        std::memcpy(&request, a_data, std::min<std::size_t>(a_dataLen, sizeof(request)));
+        if (request.apiVersion < BlockApi::kVersion || request.apiVersion > BlockApi::kVersion) {
+            a_why = "apiVersion " + std::to_string(request.apiVersion) + " (this SL_MagicMenu reads " + std::to_string(BlockApi::kVersion) + ")";
+            return std::nullopt;
+        }
+        if (request.structSize < kHeightNeeded) {
+            a_why = "structSize " + std::to_string(request.structSize) + " does not cover the height";
+            return std::nullopt;
+        }
+        if (!request.id) {
+            a_why = "no id";
+            return std::nullopt;
+        }
+        const std::size_t length = strnlen(request.id, kMaxFinalIdLength + 1);
+        if (length == 0 || length > kMaxFinalIdLength) {
+            a_why = "the id is not 1.." + std::to_string(kMaxFinalIdLength) + " characters";
+            return std::nullopt;
+        }
+        const double height = request.height;
+        if (!std::isfinite(height) || height <= 0.0) {
+            a_why = "the height " + std::to_string(height) + " is not a finite number > 0";
+            return std::nullopt;
+        }
+        return HeightRead{ std::string(request.id, length), height };
+    }
+
+    enum class HeightVerdict
+    {
+        kApply,      // a new height: the columns are laid out again and the block drawn into it
+        kUnchanged,  // the block has that height already
+        kTooTall,    // more than the registered height (the block's maximum): refused
+    };
+
+    inline constexpr double kHeightTolerance = 0.01;  // stage units: two heights this close are the same
+
+    /// a_requested against the block's registered height and its current one (nullopt: still the registered one)
+    inline HeightVerdict JudgeHeight(double a_requested, double a_registered, const std::optional<double>& a_current)
+    {
+        if (a_requested > a_registered + kHeightTolerance) return HeightVerdict::kTooTall;
+        const double now = a_current.value_or(a_registered);
+        return std::abs(a_requested - now) <= kHeightTolerance ? HeightVerdict::kUnchanged : HeightVerdict::kApply;
+    }
+
+    /// The height a block is laid out with: its requested one this menu, but the registered one in the layout mode (the mode
+    /// shows every block at its full size) or when none was requested
+    inline double LaidOutHeight(double a_registered, const std::optional<double>& a_current, bool a_layoutMode)
+    {
+        return a_layoutMode || !a_current ? a_registered : *a_current;
+    }
+
+    enum class Queued
+    {
+        kAdded,
+        kReplaced,  // the id was queued already: its value is the new one (the last request counts)
+        kFull,      // a_cap ids queued already: dropped
+    };
+
+    /// The per-frame queue rule of kMessageRedraw and kMessageHeight: one entry per id, the last value wins, at most a_cap ids
+    template <class T>
+    Queued Enqueue(std::vector<std::pair<std::string, T>>& a_queue, const std::string& a_id, const T& a_value, std::size_t a_cap)
+    {
+        for (auto& [id, value] : a_queue) {
+            if (id == a_id) {
+                value = a_value;
+                return Queued::kReplaced;
+            }
+        }
+        if (a_queue.size() >= a_cap) return Queued::kFull;
+        a_queue.emplace_back(a_id, a_value);
+        return Queued::kAdded;
     }
 
     /// A block with this tabs mask shows on the tab of a_flag (kTabsAll: on every tab)

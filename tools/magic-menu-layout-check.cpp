@@ -1127,6 +1127,59 @@ namespace
     }
 }
 
+namespace
+{
+    /// Block API v2 kMessageHeight: an add-on block shrinks and grows again - the column restacks with no gap and no overlap,
+    /// and the column's content height (the scroll extent) follows
+    void AddonHeightChange()
+    {
+        std::printf("add-on block height change (kMessageHeight)\n");
+        State state = Layout::Default(kValues);
+        state.columns[1].push_back("SpellResearch.archetypes");  // the end of the right column, an add-on's default place
+        auto heights = kHeights;
+        constexpr double kRegistered = 132, kShrunk = 76;
+        const auto overlapsOrGaps = [&](const std::map<BlockId, Rect>& a_rects, int a_column) {
+            double bottom = -1;
+            for (const auto& id : state.columns[a_column]) {
+                const auto it = a_rects.find(id);
+                if (it == a_rects.end()) continue;
+                if (bottom >= 0 && !Near(it->second.top - bottom, kFrames[a_column].gap)) return true;
+                bottom = it->second.bottom;
+            }
+            return false;
+        };
+        heights["SpellResearch.archetypes"] = kRegistered;
+        const auto full = Layout::Arrange(state, heights, {}, {}, kFrames);
+        heights["SpellResearch.archetypes"] = kShrunk;
+        const auto shrunk = Layout::Arrange(state, heights, {}, {}, kFrames);
+        heights["SpellResearch.archetypes"] = kRegistered;
+        const auto grown = Layout::Arrange(state, heights, {}, {}, kFrames);
+        const auto& a = full.at("SpellResearch.archetypes");
+        const auto& b = shrunk.at("SpellResearch.archetypes");
+        Expect(Near(a.Height(), kRegistered) && Near(b.Height(), kShrunk) && Near(a.top, b.top), "shrunk: same top, the new height");
+        Expect(!overlapsOrGaps(full, 1) && !overlapsOrGaps(shrunk, 1) && !overlapsOrGaps(grown, 1), "every state: the column's blocks one gap apart, none overlapping");
+        const auto contentFull = Layout::ContentHeight(state, full, kFrames)[1];
+        const auto contentShrunk = Layout::ContentHeight(state, shrunk, kFrames)[1];
+        Expect(Near(contentFull - contentShrunk, kRegistered - kShrunk), Text("the column's content shrinks by the difference (%.1f -> %.1f)", contentFull, contentShrunk));
+        bool same = full.size() == grown.size();
+        for (const auto& [id, rect] : full) same = same && grown.contains(id) && Near(grown.at(id).top, rect.top) && Near(grown.at(id).bottom, rect.bottom);
+        Expect(same, "grown back to the registered height: every rect as before");
+        // a block above it shrinking moves it up by the difference (the left column is untouched)
+        State above = state;
+        above.columns[1].insert(above.columns[1].begin(), "Other.addon");
+        auto aboveHeights = heights;
+        aboveHeights["Other.addon"] = 100;
+        const auto before = Layout::Arrange(above, aboveHeights, {}, {}, kFrames);
+        aboveHeights["Other.addon"] = 40;
+        const auto after = Layout::Arrange(above, aboveHeights, {}, {}, kFrames);
+        Expect(Near(before.at("SpellResearch.archetypes").top - after.at("SpellResearch.archetypes").top, 60), "a block above shrinking by 60: the add-on moves up 60");
+        Expect(Near(before.at(Layout::kPreview).top, after.at(Layout::kPreview).top), "the other column is untouched");
+        const double visible = kFrames[1].Height();
+        Expect(Near(Layout::ClampScroll(1000, contentShrunk, visible), std::max(0.0, contentShrunk - visible)),
+            "the scroll clamps to the shrunk content");
+    }
+}
+
 int main()
 {
     DefaultLayout();
@@ -1146,6 +1199,7 @@ int main()
     PadFocus();
     AddonRegistry();
     AddonLayout();
+    AddonHeightChange();
     std::printf("layout-check: %d PASS, %d FAIL\n", g_pass, g_fail);
     return g_fail == 0 ? kExitOk : kExitFail;
 }

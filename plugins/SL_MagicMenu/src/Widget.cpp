@@ -660,6 +660,9 @@ namespace Widget
                 BlockRules::Point press, release;  // content clip coordinates
             };
             std::optional<AddonClickDue> addonClickDue;
+            // Block API v2 kMessageHeight: an add-on block's height this menu (absent: its registered height); "SLMH" log lines
+            std::map<Layout::BlockId, double> addonHeight;
+            int addonHeightLogs = 0;
             int addonClickLogs = 0;
             std::uint64_t layoutModeChanges = 0;  // the layout mode entered or left this menu (BlockRules::Moment)
             std::array<std::uint64_t, Layout::kColumns> scrollMoves{};  // each column's scroll changes this menu (BlockRules::Moment)
@@ -1576,6 +1579,10 @@ namespace Widget
         // emptied at each menu open
         std::mutex g_redrawLock;
         std::vector<std::string> g_redrawQueue;
+        // Block API v2: kMessageHeight requests from any thread (RequestAddonHeight), one per id with the last height
+        // (BlockRules::Enqueue), taken by the frame handler (TakeAddonHeights); emptied at each menu open
+        std::mutex g_heightLock;
+        std::vector<std::pair<std::string, double>> g_heightQueue;
 
         // Every block: the five built-in ones in build 13's panel creation order, then the add-ons in registration order
         const std::vector<BlockId>& AllBlocks()
@@ -1704,7 +1711,8 @@ namespace Widget
         }
 
         // The blocks' heights: the ini rects', the node card [Debug] fDebugExtraHeight taller (a scroll test, blocks plan Task 3),
-        // the add-ons' registered ones (Task 6). A height that is not finite or negative leaves its add-on out (absent: Arrange
+        // the add-ons' registered ones (Task 6), or the height an add-on asked for this menu (kMessageHeight; not in the layout
+        // mode: BlockRules::LaidOutHeight). A height that is not finite or negative leaves its add-on out (absent: Arrange
         // would skip it too) - the registry refuses such heights, so this is the last guard; logged once per block
         std::map<BlockId, double> BlockHeights()
         {
@@ -1713,7 +1721,9 @@ namespace Widget
             heights[Layout::kNodeCard] += settings.debugExtraHeight;
             for (const auto& addon : g_addons) {
                 if (std::isfinite(addon.height) && addon.height >= 0) {
-                    heights[addon.id] = addon.height;
+                    const auto asked = g_menu.addonHeight.find(addon.id);
+                    heights[addon.id] = BlockRules::LaidOutHeight(addon.height,
+                        asked != g_menu.addonHeight.end() ? std::optional{ asked->second } : std::nullopt, g_menu.layout.active);
                     continue;
                 }
                 static std::set<BlockId> s_logged;
@@ -3468,6 +3478,55 @@ namespace Widget
             }
             CheckCardSlot();
             PlaceLayoutChrome(a_movie, a_widget);  // Task 4: the buttons and the border handle follow the border, the covers the blocks
+        }
+
+        // Block API v2: an add-on block whose height this menu (kMessageHeight) is not its registered one - the layout mode lays
+        // it out at the registered height, so entering and leaving the mode arranges the columns again
+        bool AddonHeightsAsked()
+        {
+            for (const auto& [id, height] : g_menu.addonHeight) {
+                const auto* addon = Addon(id);
+                if (addon && std::abs(addon->height - height) > BlockRules::kHeightTolerance) return true;
+            }
+            return false;
+        }
+
+        // Block API v2: the kMessageHeight requests queued since the last frame. A new height lays the columns out again
+        // (Rearrange: the blocks below move, the column's scroll is clamped, the resized block is drawn again with its hit clip);
+        // in the layout mode it is kept for the mode's end. Unknown ids and heights over the registered one are logged
+        void TakeAddonHeights(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        {
+            constexpr int kMaxHeightLogs = 16;
+            std::vector<std::pair<std::string, double>> requests;
+            {
+                const std::scoped_lock lock(g_heightLock);
+                requests.swap(g_heightQueue);
+            }
+            bool changed = false;
+            for (const auto& [id, height] : requests) {
+                const auto* addon = Addon(id);
+                if (!addon) {
+                    static std::set<std::string> s_unknown;
+                    if (s_unknown.insert(id).second) logger::warn("Widget: a height request ('SLMH') for {} - no add-on block has that id; ignored (logged once)", id);
+                    continue;
+                }
+                const auto current = g_menu.addonHeight.find(id);
+                const auto verdict = BlockRules::JudgeHeight(height, addon->height,
+                    current != g_menu.addonHeight.end() ? std::optional{ current->second } : std::nullopt);
+                const bool log = ++g_menu.addonHeightLogs <= kMaxHeightLogs;
+                if (verdict == BlockRules::HeightVerdict::kTooTall) {
+                    logger::warn("Widget: add-on block {} asked for the height {:.1f} - more than its registered {:.1f}; refused", id, height, addon->height);
+                    continue;
+                }
+                if (verdict == BlockRules::HeightVerdict::kUnchanged) continue;
+                if (log) {
+                    logger::info("Widget: add-on block {} height {:.1f} (registered {:.1f}){}{}", id, height, addon->height,
+                        g_menu.layout.active ? " - kept for the layout mode's end" : "", g_menu.addonHeightLogs == kMaxHeightLogs ? " - later ones this menu not logged" : "");
+                }
+                g_menu.addonHeight[id] = height;
+                changed = true;
+            }
+            if (changed && !g_menu.layout.active) Rearrange(a_movie, a_widget);
         }
 
         // ---------------------------------------------------------------------
@@ -5338,6 +5397,7 @@ namespace Widget
             g_layoutFocus = {};
             g_layoutStickY = 0.0f;
             if (a_why == kGamepadSource) g_layoutFocus.focus = Layout::FirstFocus(m.working, VisibleBlocks());
+            if (AddonHeightsAsked()) Rearrange(a_movie, a_widget);  // Block API v2: every add-on at its registered height in the mode
             ShowShield(a_widget, true);
             PlaceLayoutChrome(a_movie, a_widget);
             ApplyVisibility(a_widget);
@@ -5391,6 +5451,7 @@ namespace Widget
             g_layoutStickY = 0.0f;
             m.active = false;  // the caller settles the input's flag (SettleMode)
             ++g_menu.layoutModeChanges;  // Block API v2: a press in an add-on block is cancelled
+            if (AddonHeightsAsked()) Rearrange(a_movie, a_widget);  // Block API v2: the heights the add-ons asked for back
             if (!a_save) {
                 const bool same = CurrentLayout() == m.entry && Settings::SavedLayout() == m.entry;
                 const auto arranged = ArrangeBlocks(ArrangementFor(g_menu.tab, OwnCard()));
@@ -7326,6 +7387,7 @@ namespace Widget
                 MeasureListRow(movie, root, widget);  // Q4: our reading sizes follow the list's rows
                 AddonClicks();               // Block API v2: a release judged since the last frame (before any redraw of this frame)
                 LayoutFrame(movie, widget);  // blocks plan Task 4: the layout mode (after WatchTab: a tab change cancels it first)
+                TakeAddonHeights(movie, widget);  // Block API v2: the add-ons' kMessageHeight requests (may lay the columns out again)
                 TakeAddonRedraws();          // Block API v2: the add-ons' kMessageRedraw requests
                 DrawAddons(movie, widget);   // blocks plan Task 6: after the layout mode (it may make a panel again in its new column)
                 // the click first: its list selection is noticed in this same frame
@@ -7512,6 +7574,10 @@ namespace Widget
             {
                 const std::scoped_lock lock(g_redrawLock);  // Block API v2: a request of the last menu is not carried over
                 g_redrawQueue.clear();
+            }
+            {
+                const std::scoped_lock lock(g_heightLock);  // nor a height: every menu opens at the registered heights
+                g_heightQueue.clear();
             }
             g_menu.irActive = IrActive(movie);
             g_irActiveShared = g_menu.irActive;
@@ -7767,6 +7833,26 @@ namespace Widget
             return;
         }
         g_redrawQueue.push_back(*id);
+    }
+
+    void RequestAddonHeight(std::string_view a_sender, const void* a_data, std::uint32_t a_dataLen)
+    {
+        constexpr int kMaxBadHeightLogs = 5;
+        constexpr std::size_t kMaxQueuedHeights = 64;  // distinct ids waiting for one frame; more are dropped (and logged)
+        static std::atomic<int> s_badLogs{ 0 };
+        if (g_closing || !g_attachedMovie.load()) return;  // the menu is closed: the next one opens at the registered heights
+        const auto sender = a_sender.empty() ? std::string_view("(no sender)") : a_sender;
+        std::string why;
+        const auto request = BlockRules::ReadHeight(a_data, a_dataLen, why);
+        if (!request) {
+            if (s_badLogs.fetch_add(1) < kMaxBadHeightLogs) logger::warn("Widget: a height request ('SLMH') from {} refused - {}", sender, why);
+            return;
+        }
+        const std::scoped_lock lock(g_heightLock);
+        if (BlockRules::Enqueue(g_heightQueue, request->id, request->height, kMaxQueuedHeights) == BlockRules::Queued::kFull &&
+            s_badLogs.fetch_add(1) < kMaxBadHeightLogs) {
+            logger::warn("Widget: height request for {} from {} dropped - {} ids queued already", request->id, sender, kMaxQueuedHeights);
+        }
     }
 
     void RegisterDebugFiller()

@@ -35,6 +35,11 @@ namespace Widget
     /// registered block is logged (once per id) and ignored there
     void RequestAddonRedraw(std::string_view a_sender, const void* a_data, std::uint32_t a_dataLen);
 
+    /// Block API v2: an add-on's kMessageHeight ('SLMH', data = BlockApi::HeightRequest) from a_sender. Any thread: read and
+    /// queued (the last height per id counts); on the menu's next frame the block takes that height (up to its registered one)
+    /// and the columns are laid out again. Dropped while the magic menu is closed; a bad message is logged and ignored
+    void RequestAddonHeight(std::string_view a_sender, const void* a_data, std::uint32_t a_dataLen);
+
     /// [Debug] bDebugFillerBlock: registers the test block Layout::kDebugFillerId (300 high) through RegisterBlock (call at kDataLoaded); it joins the left column after the spell card
     void RegisterDebugFiller();
 

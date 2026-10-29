@@ -20,6 +20,7 @@
 #include <cstring>
 #include <string>
 #include <string_view>
+#include <limits>
 #include <vector>
 
 namespace
@@ -361,6 +362,63 @@ namespace
         Expect(!read(tooLong, static_cast<std::uint32_t>(tooLong.size() + 1)), Text("an id of %zu characters: none", tooLong.size()));
     }
 
+    void HeightRequests()
+    {
+        std::printf("kMessageHeight (BlockRules::ReadHeight, JudgeHeight, LaidOutHeight, Enqueue)\n");
+        std::string why;
+        const std::string id = "SpellResearch.archetypes";
+        BlockApi::HeightRequest request{ .id = id.c_str(), .height = 94.0f };
+        const auto read = BlockRules::ReadHeight(&request, sizeof(request), why);
+        Expect(read && read->id == id && read->height == 94.0, "a whole request: its id and height");
+        Expect(BlockRules::ReadHeight(&request, static_cast<std::uint32_t>(BlockRules::kHeightNeeded), why).has_value(),
+            "a message cut right after the height still reads");
+        Expect(!BlockRules::ReadHeight(&request, static_cast<std::uint32_t>(BlockRules::kHeightNeeded - 1), why) && why.find("bytes") != std::string::npos,
+            Text("a message one byte short: refused (%s)", why.c_str()));
+        Expect(!BlockRules::ReadHeight(nullptr, sizeof(request), why), "null data: refused");
+        auto bad = request;
+        bad.apiVersion = 3;
+        Expect(!BlockRules::ReadHeight(&bad, sizeof(bad), why) && why.find("apiVersion 3") != std::string::npos, Text("apiVersion 3: refused (%s)", why.c_str()));
+        bad = request;
+        bad.apiVersion = 1;
+        Expect(!BlockRules::ReadHeight(&bad, sizeof(bad), why), "apiVersion 1 (v1 has no height message): refused");
+        bad = request;
+        bad.structSize = 8;
+        Expect(!BlockRules::ReadHeight(&bad, sizeof(bad), why), "structSize not covering the height: refused");
+        bad = request;
+        bad.id = nullptr;
+        Expect(!BlockRules::ReadHeight(&bad, sizeof(bad), why), "no id: refused");
+        bad.id = "";
+        Expect(!BlockRules::ReadHeight(&bad, sizeof(bad), why), "an empty id: refused");
+        const std::string tooLong(BlockRules::kMaxFinalIdLength + 1, 'y');
+        bad.id = tooLong.c_str();
+        Expect(!BlockRules::ReadHeight(&bad, sizeof(bad), why), "an id past kMaxFinalIdLength: refused");
+        for (const float height : { 0.0f, -5.0f, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN() }) {
+            bad = request;
+            bad.height = height;
+            Expect(!BlockRules::ReadHeight(&bad, sizeof(bad), why), Text("height %g: refused", static_cast<double>(height)));
+        }
+
+        using BlockRules::HeightVerdict;
+        Expect(BlockRules::JudgeHeight(94, 132, std::nullopt) == HeightVerdict::kApply, "94 of 132, none asked yet: applied");
+        Expect(BlockRules::JudgeHeight(132, 132, std::nullopt) == HeightVerdict::kUnchanged, "the registered height, none asked: unchanged");
+        Expect(BlockRules::JudgeHeight(94, 132, 94.0) == HeightVerdict::kUnchanged, "94 again: unchanged (no redraw loop)");
+        Expect(BlockRules::JudgeHeight(132, 132, 94.0) == HeightVerdict::kApply, "back to the registered height: applied");
+        Expect(BlockRules::JudgeHeight(132.5, 132, std::nullopt) == HeightVerdict::kTooTall, "more than registered: refused");
+        Expect(BlockRules::JudgeHeight(132.005, 132, std::nullopt) == HeightVerdict::kUnchanged, "within the tolerance of registered: unchanged");
+        Expect(BlockRules::LaidOutHeight(132, 94.0, false) == 94 && BlockRules::LaidOutHeight(132, 94.0, true) == 132 &&
+                   BlockRules::LaidOutHeight(132, std::nullopt, false) == 132,
+            "laid out: the asked height, but the registered one in the layout mode or when none was asked");
+
+        std::vector<std::pair<std::string, double>> queue;
+        Expect(BlockRules::Enqueue(queue, std::string("a"), 50.0, 2) == BlockRules::Queued::kAdded, "a queued");
+        Expect(BlockRules::Enqueue(queue, std::string("a"), 70.0, 2) == BlockRules::Queued::kReplaced && queue.size() == 1 && queue[0].second == 70.0,
+            "a again: one entry, the last height (70)");
+        Expect(BlockRules::Enqueue(queue, std::string("b"), 30.0, 2) == BlockRules::Queued::kAdded, "b queued");
+        Expect(BlockRules::Enqueue(queue, std::string("c"), 30.0, 2) == BlockRules::Queued::kFull && queue.size() == 2, "c past the cap: dropped");
+        Expect(BlockRules::Enqueue(queue, std::string("b"), 40.0, 2) == BlockRules::Queued::kReplaced && queue[1].second == 40.0,
+            "b again at the cap: replaced, not dropped");
+    }
+
     int Run()
     {
         Layouts();
@@ -369,6 +427,7 @@ namespace
         TabMask();
         ClickRules();
         RedrawIds();
+        HeightRequests();
         std::printf("block-api-check: %d PASS, %d FAIL\n", g_pass, g_fail);
         return g_fail == 0 ? kExitOk : kExitFail;
     }
