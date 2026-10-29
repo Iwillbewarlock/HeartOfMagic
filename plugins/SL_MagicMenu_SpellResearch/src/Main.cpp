@@ -78,10 +78,13 @@ namespace
 
         RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent* a_event, RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
         {
-            if (a_event && a_event->opening && a_event->menuName == RE::MagicMenu::MENU_NAME) {
+            if (!a_event || a_event->menuName != RE::MagicMenu::MENU_NAME) return RE::BSEventNotifyControl::kContinue;
+            if (a_event->opening) {
                 Settings::ResolveLayout();
                 BlockDraw::OnMenuOpen();
                 SrData::RequestBuild(OnBlockBuilt);
+            } else {
+                BlockDraw::OnMenuClose();
             }
             return RE::BSEventNotifyControl::kContinue;
         }
@@ -136,9 +139,23 @@ namespace
             break;
         }
         case SKSE::MessagingInterface::kPostPostLoad: CheckPlugins(); break;
+        case SKSE::MessagingInterface::kPreLoadGame:
+        case SKSE::MessagingInterface::kNewGame:
+            // another character: its snapshot and a held notification must not show (built again at the next menu open)
+            SrData::Clear();
+            BlockDraw::ForgetHeld();
+            break;
         case SKSE::MessagingInterface::kDataLoaded: {
             Lang::Load();
-            if (!SrData::Init()) {
+            std::string why;
+            const auto init = SrData::Init(why);
+            if (init != SrData::InitResult::kReady) {
+                if (Settings::SelfTest()) {
+                    // spec "Self-test": the lists' check has its line also when the block is off
+                    const bool broken = init == SrData::InitResult::kBroken;
+                    logger::info("[selftest-sr] lists {} {} - the block is off", broken ? "FAIL" : "SKIP", why);
+                    logger::info("[selftest-sr] DONE pass=0 fail={} skip={}", broken ? 1 : 0, broken ? 0 : 1);
+                }
                 FlushLog();
                 return;
             }

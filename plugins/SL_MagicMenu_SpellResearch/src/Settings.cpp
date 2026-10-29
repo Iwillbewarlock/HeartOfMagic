@@ -2,10 +2,14 @@
 
 #include "Settings.h"
 
+#include "SrBlockText.h"
+
 #include <array>
 #include <atomic>
 #include <filesystem>
+#include <format>
 #include <fstream>
+#include <optional>
 #include <sstream>
 #include <system_error>
 
@@ -17,7 +21,6 @@ namespace Settings
         constexpr const char* kSrPrismaIniRelative = "Data/SKSE/Plugins/SpellResearchPrismaUI.ini";
         constexpr std::uintmax_t kMaxIniBytes = 256 * 1024;  // SR Prisma's ini is a few KB; anything far bigger is not read
         constexpr std::uint32_t kValueChars = 16;
-        constexpr const char* kDefaultLanguage = "en";
 
         std::atomic<bool> g_selfTest{ false };
         std::atomic<SrBlock::LayoutKind> g_layout{ SrBlock::LayoutKind::kList };
@@ -60,32 +63,53 @@ namespace Settings
         return g_selfTest.load();
     }
 
-    SrBlock::LayoutKind ResolveLayout()
+    namespace
     {
-        const auto path = GamePath(kSrPrismaIniRelative);
-        const auto shown = SKSE::stl::utf16_to_utf8(path.wstring()).value_or("(path not UTF-8)");
-        std::error_code ec;
-        const auto size = std::filesystem::file_size(path, ec);
-        SrBlock::LayoutRead read;
-        if (ec) {
-            logger::info("Settings: layout list - {} not read ({})", shown, ec.message());
-        } else if (size > kMaxIniBytes) {
-            logger::warn("Settings: layout list - {} is {} bytes, more than an ini this size ({}): not read", shown, size, kMaxIniBytes);
-        } else {
+        // SpellResearchPrismaUI.ini as text; nullopt (logged with a_what) when it is missing, too big or unreadable
+        std::optional<std::string> ReadSrPrismaIni(const char* a_what)
+        {
+            const auto path = GamePath(kSrPrismaIniRelative);
+            const auto shown = SKSE::stl::utf16_to_utf8(path.wstring()).value_or("(path not UTF-8)");
+            std::error_code ec;
+            const auto size = std::filesystem::file_size(path, ec);
+            if (ec) {
+                logger::info("Settings: {} - {} not read ({})", a_what, shown, ec.message());
+                return std::nullopt;
+            }
+            if (size > kMaxIniBytes) {
+                logger::warn("Settings: {} - {} is {} bytes, more than an ini this size ({}): not read", a_what, shown, size, kMaxIniBytes);
+                return std::nullopt;
+            }
             std::ifstream file(path, std::ios::binary);
             std::stringstream text;
             if (file.is_open()) text << file.rdbuf();
             if (!file.is_open() || file.bad()) {
-                logger::warn("Settings: layout list - {} could not be read", shown);
+                logger::warn("Settings: {} - {} could not be read", a_what, shown);
+                return std::nullopt;
+            }
+            return text.str();
+        }
+
+        // Skyrim.ini [General] sLanguage (ENGLISH, KOREAN ...), "" when the game has no such setting
+        std::string GameLanguage()
+        {
+            const auto* setting = RE::GetINISetting("sLanguage:General");
+            if (!setting || setting->GetType() != RE::Setting::Type::kString || !setting->GetString()) return {};
+            return setting->GetString();
+        }
+    }
+
+    SrBlock::LayoutKind ResolveLayout()
+    {
+        SrBlock::LayoutRead read;
+        if (const auto text = ReadSrPrismaIni("layout list")) {
+            read = SrBlock::ParseLayout(*text);
+            if (!read.found) {
+                logger::info("Settings: layout list - no [{}] {} in SpellResearchPrismaUI.ini", SrBlock::kLayoutSection, SrBlock::kLayoutKey);
+            } else if (!read.known) {
+                logger::warn("Settings: layout list - [{}] {} = '{}' is not list or line", SrBlock::kLayoutSection, SrBlock::kLayoutKey, read.value);
             } else {
-                read = SrBlock::ParseLayout(text.str());
-                if (!read.found) {
-                    logger::info("Settings: layout list - no [{}] {} in {}", SrBlock::kLayoutSection, SrBlock::kLayoutKey, shown);
-                } else if (!read.known) {
-                    logger::warn("Settings: layout list - [{}] {} = '{}' is not list or line", SrBlock::kLayoutSection, SrBlock::kLayoutKey, read.value);
-                } else {
-                    logger::info("Settings: layout {} ([{}] {} in {})", LayoutName(read.kind), SrBlock::kLayoutSection, SrBlock::kLayoutKey, shown);
-                }
+                logger::info("Settings: layout {} ([{}] {})", LayoutName(read.kind), SrBlock::kLayoutSection, SrBlock::kLayoutKey);
             }
         }
         g_layout = read.kind;
@@ -99,6 +123,15 @@ namespace Settings
 
     std::string ResolveLanguage()
     {
-        return kDefaultLanguage;
+        const auto game = GameLanguage();
+        const auto text = ReadSrPrismaIni("language from the game");
+        const auto read = SrBlock::ParseLanguage(text.value_or(std::string{}), game);
+        if (read.fromSetting) {
+            logger::info("Settings: language '{}' ([{}] {} in SpellResearchPrismaUI.ini)", read.code, SrBlock::kLanguageSection, SrBlock::kLanguageKey);
+        } else {
+            logger::info("Settings: language '{}' from the game's sLanguage '{}' ([{}] {} {})", read.code, game, SrBlock::kLanguageSection,
+                SrBlock::kLanguageKey, read.found ? std::format("= '{}'", read.value) : std::string("not set"));
+        }
+        return read.code;
     }
 }

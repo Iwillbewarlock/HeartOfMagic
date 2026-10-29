@@ -20,6 +20,12 @@ namespace BlockDraw
     /// The magic menu opened: a "does not respond" from the last menu is forgotten, the drawn-id self-test count restarts
     void OnMenuOpen();
 
+    /// The magic menu closed: a notification held while it was open is shown (in an SKSE task, on the game thread)
+    void OnMenuClose();
+
+    /// A game is being loaded or started: a held notification belongs to the old one
+    void ForgetHeld();
+
     /// SR Prisma's messages (the listener for "SpellResearchPrismaUI"); any thread
     void OnSrPrismaMessage(SKSE::MessagingInterface::Message* a_msg);
 }

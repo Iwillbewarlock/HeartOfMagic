@@ -16,6 +16,8 @@
 #include <chrono>
 #include <cstring>
 #include <format>
+#include <mutex>
+#include <utility>
 #include <optional>
 #include <string>
 #include <vector>
@@ -71,7 +73,7 @@ namespace BlockDraw
         std::optional<double> Number(const RE::GFxValue& a_value, const char* a_name)
         {
             RE::GFxValue member;
-            if (!a_value.GetMember(a_name, &member) || !member.IsNumber()) return std::nullopt;
+            if (!a_value.IsObject() || !a_value.GetMember(a_name, &member) || !member.IsNumber()) return std::nullopt;
             return member.GetNumber();
         }
 
@@ -82,6 +84,7 @@ namespace BlockDraw
 
         void SetText(RE::GFxMovieView* a_movie, RE::GFxValue& a_field, const std::string& a_text)
         {
+            if (!a_field.IsDisplayObject()) return;
             RE::GFxValue text;
             a_movie->CreateString(&text, a_text.c_str());
             a_field.SetMember("text", text);
@@ -95,6 +98,7 @@ namespace BlockDraw
         // The text cut to the most code points that fit a_maxW with "..." (Draw::Cut), by bisection on the laid-out width
         void FitTo(RE::GFxMovieView* a_movie, RE::GFxValue& a_field, const std::string& a_text, double a_maxW)
         {
+            if (!a_field.IsDisplayObject()) return;
             SetText(a_movie, a_field, a_text);
             if (TextW(a_field) <= a_maxW + kFitSlack) return;
             std::size_t lo = 0, hi = CodePoints(a_text);
@@ -110,7 +114,11 @@ namespace BlockDraw
             SetText(a_movie, a_field, Draw::Cut(a_text, lo > 0 ? lo - 1 : 0));
         }
 
-        // Text fields in the content clip, each with its own name
+        // Text fields in the content clip, each with its own name. A field createTextField did not make comes back as a
+        // non-object (Draw::Text returns it as is): it is logged once a menu, and every helper here skips it - CommonLib-NG's
+        // GFxValue member calls only assert on an object and would dereference it in Release
+        std::atomic<bool> g_fieldFailLogged{ false };
+
         struct Texts
         {
             RE::GFxMovieView* movie;
@@ -121,21 +129,31 @@ namespace BlockDraw
             RE::GFxValue Make(const std::string& a_text, std::uint32_t a_rgb, double a_size)
             {
                 const auto name = std::format("t{}", count++);
-                return Draw::Text(movie, clip, name.c_str(), 0, 0, width, FieldH(a_size), a_text, a_rgb, a_size);
+                auto field = Draw::Text(movie, clip, name.c_str(), 0, 0, width, FieldH(a_size), a_text, a_rgb, a_size);
+                if (!field.IsDisplayObject() && !g_fieldFailLogged.exchange(true)) {
+                    logger::warn("BlockDraw: text field {} could not be made ('{}') - left out", name, a_text);
+                }
+                return field;
             }
         };
 
         // The field's text starts at a_x (the field itself 2 units left of it) and is a_w wide
         void Put(RE::GFxValue& a_field, double a_x, double a_y, double a_w)
         {
+            if (!a_field.IsDisplayObject()) return;
             a_field.SetMember("_x", a_x - kGutterSide);
             a_field.SetMember("_y", a_y);
             a_field.SetMember("_width", a_w + kGutter);
         }
 
+        void SetVisible(RE::GFxValue& a_field, bool a_visible)
+        {
+            if (a_field.IsDisplayObject()) a_field.SetMember("_visible", a_visible);
+        }
+
         void Hide(RE::GFxValue& a_field)
         {
-            a_field.SetMember("_visible", false);
+            SetVisible(a_field, false);
         }
 
         double RowTop(int a_line) { return a_line * SrBlock::kRowH; }
@@ -196,7 +214,7 @@ namespace BlockDraw
             std::vector<std::string> nameTexts;
             std::vector<SrBlock::Measured> measured;
             for (const auto& item : a_items) {
-                nameTexts.push_back(item.known ? Lang::Get(std::format("archetype.{}", item.archetype)) : Lang::Get("unknown"));
+                nameTexts.push_back(item.known ? Lang::ArchetypeName(item.archetype) : Lang::Get("unknown"));
                 names.push_back(a_texts.Make(nameTexts.back(), item.known ? kWhite : kDimText, kRowSize));
                 measured.push_back({ item, TextW(names.back()) });
                 Hide(names.back());
@@ -231,7 +249,7 @@ namespace BlockDraw
                     auto& label = labels[static_cast<std::size_t>(part.index)];
                     Put(label, part.x, y, part.w);
                     if (part.w < labelW[static_cast<std::size_t>(part.index)]) FitTo(a_texts.movie, label, labelTexts[static_cast<std::size_t>(part.index)], part.w);
-                    label.SetMember("_visible", true);
+                    SetVisible(label, true);
                     break;
                 }
                 case Kind::kIcon: DrawIcon(a_texts.clip, part.index, part.known, part.x, IconY(part.line)); break;
@@ -241,7 +259,7 @@ namespace BlockDraw
                     if (i >= names.size()) break;
                     Put(names[i], part.x, y, part.w);
                     if (part.w < measured[i].textW) FitTo(a_texts.movie, names[i], nameTexts[i], part.w);
-                    names[i].SetMember("_visible", true);
+                    SetVisible(names[i], true);
                     break;
                 }
                 case Kind::kSeparator: {
@@ -251,7 +269,7 @@ namespace BlockDraw
                 }
                 case Kind::kEllipsis:
                     Put(more, part.x, y, part.w);
-                    more.SetMember("_visible", true);
+                    SetVisible(more, true);
                     break;
                 }
             }
@@ -304,17 +322,38 @@ namespace BlockDraw
             }
         }
 
+        // A notification for a reply that came while the magic menu was still open (SR Prisma answers an early refusal - combat,
+        // a missing item - before it waits for the menu to close): shown at the menu's close
+        std::mutex g_heldLock;
+        std::string g_heldNotification;
+
+        void ShowNotification(const char* a_key)
+        {
+            auto* ui = RE::UI::GetSingleton();
+            if (ui && ui->IsMenuOpen(RE::MagicMenu::MENU_NAME)) {
+                const std::scoped_lock lock(g_heldLock);
+                g_heldNotification = a_key;
+                logger::info("BlockDraw: notification {} held until the magic menu closes", a_key);
+                return;
+            }
+            RE::SendHUDMessage::ShowHUDMessage(Lang::Get(a_key).c_str());
+        }
+
         void HandleReply(const SRPrismaAPI::ReplyMessage& a_reply)
         {
-            if (!g_pending.Accept(a_reply.requestId, NowMs())) {
-                logger::info("BlockDraw: SR Prisma's reply to request {} came after {} ms - dropped", a_reply.requestId, SrBlock::PendingRequest::kTimeoutMs);
+            using Verdict = SrBlock::PendingRequest::Verdict;
+            const auto verdict = g_pending.Accept(a_reply.requestId, NowMs());
+            if (verdict != Verdict::kAccepted) {
+                logger::info("BlockDraw: SR Prisma's reply to request {} dropped - {}", a_reply.requestId,
+                    verdict == Verdict::kTooLate ? std::format("it came {} ms or more after the request", SrBlock::PendingRequest::kTimeoutMs) :
+                                                   std::format("not the pending request ({}; a duplicate or an old reply)", g_pending.Id()));
                 return;
             }
             const char* key = SrBlock::NotificationKey(a_reply.result);
             logger::info("BlockDraw: SR Prisma answered request {} (what {}) with result {}{}", a_reply.requestId, a_reply.what, a_reply.result,
                 key ? std::format(" - notification {}", key) : "");
             if (key) {
-                RE::SendHUDMessage::ShowHUDMessage(Lang::Get(key).c_str());
+                ShowNotification(key);
             } else if (a_reply.result != SrBlock::kResultAccepted && a_reply.result != SrBlock::kResultOpened) {
                 logger::warn("BlockDraw: SR Prisma's result {} is not one this build knows - no notification", a_reply.result);
             }
@@ -391,6 +430,25 @@ namespace BlockDraw
         const auto link = SrBlock::ClickedLink(g_linkRects, a_pressX, a_pressY, a_releaseX, a_releaseY);
         if (!link || !Addon::SrPrismaUsable()) return;
         Open(SrBlock::kLinks[*link]);
+    }
+
+    void OnMenuClose()
+    {
+        std::string key;
+        {
+            const std::scoped_lock lock(g_heldLock);
+            key = std::exchange(g_heldNotification, {});
+        }
+        if (key.empty()) return;
+        auto* tasks = SKSE::GetTaskInterface();
+        if (!tasks) return;
+        tasks->AddTask([key] { RE::SendHUDMessage::ShowHUDMessage(Lang::Get(key).c_str()); });
+    }
+
+    void ForgetHeld()
+    {
+        const std::scoped_lock lock(g_heldLock);
+        g_heldNotification.clear();
     }
 
     void OnMenuOpen()

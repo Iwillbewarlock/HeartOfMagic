@@ -3,7 +3,7 @@
 #include "Lang.h"
 
 #include "Settings.h"
-#include "SrBlockRules.h"
+#include "SrBlockText.h"
 
 #include <nlohmann/json.hpp>
 
@@ -44,7 +44,11 @@ namespace Lang
             std::error_code ec;
             const auto size = std::filesystem::file_size(path, ec);
             if (ec) {
-                logger::error("Lang: {} not read ({}) - reinstall the add-on", shown, ec.message());
+                if (a_code == kEnglish) {
+                    logger::error("Lang: {} not read ({}) - reinstall the add-on", shown, ec.message());
+                } else {
+                    logger::info("Lang: no {} ({}) - English strings", shown, ec.message());
+                }
                 return std::nullopt;
             }
             if (size > kMaxFileBytes) {
@@ -96,16 +100,29 @@ namespace Lang
         logger::info("Lang: language '{}'{}", code, code != kEnglish && !g_language ? " (its file did not read: English)" : "");
     }
 
+    namespace
+    {
+        std::string Logged(SrBlock::Looked&& a_looked, const std::string& a_key)
+        {
+            if (a_looked.source != SrBlock::StringSource::kLanguage && (g_language || a_looked.source == SrBlock::StringSource::kKey)) {
+                const std::scoped_lock lock(g_loggedLock);
+                if (g_logged.insert(a_key).second) {
+                    logger::warn("Lang: '{}' missing - shown as {}", a_key,
+                        a_looked.source == SrBlock::StringSource::kEnglish ? "the English text" : "the key itself");
+                }
+            }
+            return std::move(a_looked.text);
+        }
+    }
+
     std::string Get(const std::string& a_key)
     {
-        auto looked = SrBlock::LookUp(g_language ? &*g_language : nullptr, g_english, a_key);
-        if (looked.source != SrBlock::StringSource::kLanguage && (g_language || looked.source == SrBlock::StringSource::kKey)) {
-            const std::scoped_lock lock(g_loggedLock);
-            if (g_logged.insert(a_key).second) {
-                logger::warn("Lang: '{}' missing - shown as {}", a_key,
-                    looked.source == SrBlock::StringSource::kEnglish ? "the English text" : "the key itself");
-            }
-        }
-        return std::move(looked.text);
+        return Logged(SrBlock::LookUp(g_language ? &*g_language : nullptr, g_english, a_key), a_key);
+    }
+
+    std::string ArchetypeName(int a_archetype)
+    {
+        return Logged(SrBlock::ArchetypeName(g_language ? &*g_language : nullptr, g_english, a_archetype),
+            SrBlock::ArchetypeKey(a_archetype, "short"));
     }
 }

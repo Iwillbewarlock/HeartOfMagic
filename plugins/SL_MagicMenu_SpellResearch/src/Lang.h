@@ -16,4 +16,8 @@ namespace Lang
 
     /// The text of a_key (SrBlock::LookUp: language, English, the key). Thread-safe after Load
     std::string Get(const std::string& a_key);
+
+    /// Archetype a_archetype's name as the block shows it: archetype.<i>.short, falling back to archetype.<i>.name (the keys
+    /// SR Prisma's translation tables will have; SrBlock::ArchetypeName)
+    std::string ArchetypeName(int a_archetype);
 }

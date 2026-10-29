@@ -8,7 +8,7 @@
 // SETTINGS - the add-on's own ini (Data/SKSE/Plugins/SL_MagicMenu_SpellResearch.ini,
 // read once at plugin load), the block layout SR Prisma's settings choose
 // (ResolveLayout, read once per magic menu open) and the block's language
-// (ResolveLanguage).
+// (ResolveLanguage, from SR Prisma's [Display] sLanguage or the game's).
 // =============================================================================
 
 namespace Settings
@@ -28,7 +28,8 @@ namespace Settings
     /// The layout ResolveLayout() read last (list before the first menu open)
     SrBlock::LayoutKind CurrentLayout();
 
-    /// The language code of the block's strings (lang/<code>.json). "en" until SR Prisma's own language setting exists (its
-    /// session has not decided where it lives or how another plugin reads it): this is the one place to connect it
+    /// The language code of the block's strings (lang/<code>.json; a code without its file falls back to en.json):
+    /// SpellResearchPrismaUI.ini [Display] sLanguage = en | ko (SR Prisma's settings design draft, not final); auto, missing or
+    /// another value -> the game's Skyrim.ini sLanguage (KOREAN -> ko, else en). SrBlock::ParseLanguage. Call at kDataLoaded
     std::string ResolveLanguage();
 }

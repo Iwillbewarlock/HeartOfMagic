@@ -5,7 +5,9 @@
 #include "Addon.h"
 #include "Settings.h"
 
+#include <algorithm>
 #include <array>
+#include <cctype>
 #include <atomic>
 #include <format>
 #include <string>
@@ -26,8 +28,15 @@ namespace SrData
         constexpr std::string_view kSkyrim = "Skyrim.esm";
         constexpr RE::FormID kFlamesId = 0x012FCD;
         constexpr int kFireArchetype = 12, kDestructionArchetype = 38;
+        // Self-test "outside": spells from plugins other than SR's own and the game's masters, which only something that adds
+        // them at runtime (the Librarian, SR's Import of another mod) files in SR's lists
+        constexpr std::array<std::string_view, 6> kOwnPlugins{ "SpellResearch.esp", "Skyrim.esm", "Update.esm", "Dawnguard.esm",
+            "HearthFires.esm", "Dragonborn.esm" };
+        constexpr std::size_t kOutsideSamples = 3;
 
         RE::BGSListForm* g_archetypeList = nullptr;
+        RE::BGSListForm* g_tierList = nullptr;
+        RE::BGSListForm* g_globalList = nullptr;
         std::array<RE::BGSListForm*, SrBlock::kArchetypeCount> g_archetypes{};
         std::array<RE::BGSListForm*, SrBlock::kTierCount> g_tiers{};
         std::array<std::array<RE::TESGlobal*, SrBlock::kTierCount>, SrBlock::kArchetypeCount> g_globals{};
@@ -52,8 +61,15 @@ namespace SrData
             }
         }
 
-        // The FormLists a_list holds, in order; empty (logged) when one is not a FormList or the count is not a_expected
-        std::vector<RE::BGSListForm*> SubLists(const RE::BGSListForm& a_list, std::size_t a_expected, const char* a_name)
+        std::size_t CountEntries(const RE::BGSListForm& a_list)
+        {
+            std::size_t count = 0;
+            EachFormId(a_list, [&](RE::FormID, bool) { ++count; });
+            return count;
+        }
+
+        // The FormLists a_list holds, in order; empty (a_why filled) when one is not a FormList or the count is not a_expected
+        std::vector<RE::BGSListForm*> SubLists(const RE::BGSListForm& a_list, std::size_t a_expected, const char* a_name, std::string& a_why)
         {
             std::vector<RE::BGSListForm*> lists;
             bool allLists = true;
@@ -63,78 +79,157 @@ namespace SrData
                 lists.push_back(sub);
             });
             if (!allLists || lists.size() != a_expected) {
-                logger::error("SrData: {} holds {} entries{}, expected {} FormLists - the block is off", a_name, lists.size(),
-                    allLists ? "" : " (some not FormLists)", a_expected);
+                a_why = std::format("{} holds {} entries{}, expected {} FormLists", a_name, lists.size(), allLists ? "" : " (some not FormLists)", a_expected);
                 return {};
             }
             return lists;
         }
 
         template <class T>
-        T* Lookup(RE::TESDataHandler& a_data, RE::FormID a_id, const char* a_name)
+        T* Lookup(RE::TESDataHandler& a_data, RE::FormID a_id, const char* a_name, std::string& a_why)
         {
             auto* form = a_data.LookupForm<T>(a_id, kSrPlugin);
-            if (!form) logger::error("SrData: {} ({:06X} in {}) not found or of another type - the block is off", a_name, a_id, kSrPlugin);
+            if (!form && a_why.empty()) a_why = std::format("{} ({:06X} in {}) not found or of another type", a_name, a_id, kSrPlugin);
             return form;
         }
 
-        void SelfTestLine(const char* a_id, const char* a_verdict, const std::string& a_detail, int& a_pass, int& a_fail, int& a_skip)
+        struct Tally
         {
-            logger::info("[selftest-sr] {} {} {}", a_id, a_verdict, a_detail);
-            const std::string_view verdict(a_verdict);
-            (verdict == "PASS" ? a_pass : verdict == "FAIL" ? a_fail : a_skip) += 1;
+            int pass = 0, fail = 0, skip = 0;
+
+            void Line(const char* a_id, const char* a_verdict, const std::string& a_detail)
+            {
+                logger::info("[selftest-sr] {} {} {}", a_id, a_verdict, a_detail);
+                const std::string_view verdict(a_verdict);
+                (verdict == "PASS" ? pass : verdict == "FAIL" ? fail : skip) += 1;
+            }
+        };
+
+        // The list sizes counted now (not the arrays Init filled, which hold the expected sizes by construction)
+        void TestListSizes(Tally& a_tally)
+        {
+            const auto archetypes = CountEntries(*g_archetypeList), tiers = CountEntries(*g_tierList), globals = CountEntries(*g_globalList);
+            std::size_t badGlobals = 0;
+            EachFormId(*g_globalList, [&](RE::FormID a_id, bool) {
+                const auto* sub = RE::TESForm::LookupByID<RE::BGSListForm>(a_id);
+                if (!sub || CountEntries(*sub) != SrBlock::kTierCount) ++badGlobals;
+            });
+            const bool ok = archetypes == SrBlock::kArchetypeCount && tiers == SrBlock::kTierCount && globals == SrBlock::kArchetypeCount && badGlobals == 0;
+            a_tally.Line("lists", ok ? "PASS" : "FAIL",
+                std::format("_SR_ListSpellsArchetypes {} (expect {}), _SR_ListAllSpells {} (expect {}), _SR_ListGlobalsArchetypes {} (expect {}), "
+                            "{} knowledge list(s) without {} globals",
+                    archetypes, SrBlock::kArchetypeCount, tiers, SrBlock::kTierCount, globals, SrBlock::kArchetypeCount, badGlobals,
+                    SrBlock::kTierCount));
+        }
+
+        bool OwnPlugin(const RE::TESForm& a_form)
+        {
+            const auto* file = a_form.GetFile(0);
+            if (!file) return true;  // made at runtime: not a plugin's spell
+            const auto name = file->GetFilename();
+            return std::ranges::any_of(kOwnPlugins, [&](std::string_view a_own) {
+                return name.size() == a_own.size() && std::equal(name.begin(), name.end(), a_own.begin(),
+                                                          [](char a, char b) { return std::tolower(static_cast<unsigned char>(a)) == std::tolower(static_cast<unsigned char>(b)); });
+            });
+        }
+
+        // The engine's own HasForm on every archetype and tier list against the snapshot's entry (nullptr: not filed)
+        std::string Disagreement(RE::TESForm& a_form, const SrBlock::SpellEntry* a_entry)
+        {
+            std::string why;
+            for (std::size_t a = 0; a < g_archetypes.size(); ++a) {
+                const bool engine = g_archetypes[a]->HasForm(&a_form);
+                const bool snap = a_entry && a_entry->archetypes.test(a);
+                if (engine != snap) why += std::format(" archetype {}: HasForm {} snapshot {};", a, engine, snap);
+            }
+            int lowest = -1;
+            for (std::size_t t = 0; t < g_tiers.size(); ++t) {
+                if (lowest < 0 && g_tiers[t]->HasForm(&a_form)) lowest = static_cast<int>(t);
+            }
+            const int snapTier = a_entry ? a_entry->tier : -1;
+            if (lowest != snapTier) why += std::format(" tier: HasForm {} snapshot {};", lowest, snapTier);
+            return why;
+        }
+
+        // Independent of how the snapshot was built: BGSListForm::HasForm (the engine's own search) on spells from outside SR
+        // and the game's masters that the snapshot files, and on one spell it does not file
+        void TestAgainstEngine(const Snapshot& a_snap, Tally& a_tally)
+        {
+            if (!a_snap.ready) {
+                a_tally.Line("outside", "SKIP", "snapshot not ready");
+                a_tally.Line("not-filed", "SKIP", "snapshot not ready");
+                return;
+            }
+            std::vector<RE::FormID> ids;
+            for (const auto& [id, entry] : a_snap.spells) ids.push_back(id);
+            std::ranges::sort(ids);  // the same picks every run on the same load order
+            std::size_t checked = 0, broken = 0;
+            std::string detail;
+            for (const auto id : ids) {
+                if (checked == kOutsideSamples) break;
+                auto* form = RE::TESForm::LookupByID(id);
+                if (!form || !form->Is(RE::FormType::Spell) || OwnPlugin(*form)) continue;
+                ++checked;
+                const auto why = Disagreement(*form, &a_snap.spells.at(id));
+                if (!why.empty()) ++broken;
+                detail += std::format(" {:08X} ({}){}", id, form->GetFile(0) ? form->GetFile(0)->GetFilename() : "?", why.empty() ? " agrees" : why);
+            }
+            if (checked == 0) {
+                a_tally.Line("outside", "SKIP", std::format("no spell from another plugin is filed in SR's lists (Heart of Magic {})",
+                                                    Addon::HomInstalled() ? "loaded - its Librarian's Spell Research patch off or not run" : "not loaded"));
+            } else {
+                a_tally.Line("outside", broken == 0 ? "PASS" : "FAIL", std::format("HasForm vs the snapshot on {} spell(s):{}", checked, detail));
+            }
+
+            auto* data = RE::TESDataHandler::GetSingleton();
+            RE::SpellItem* unfiled = nullptr;
+            if (data) {
+                for (auto* spell : data->GetFormArray<RE::SpellItem>()) {
+                    if (spell && !a_snap.spells.contains(spell->GetFormID())) {
+                        unfiled = spell;
+                        break;
+                    }
+                }
+            }
+            if (!unfiled) {
+                a_tally.Line("not-filed", "SKIP", "every spell is filed");
+            } else {
+                const auto why = Disagreement(*unfiled, nullptr);
+                a_tally.Line("not-filed", why.empty() ? "PASS" : "FAIL",
+                    std::format("{:08X} not in the snapshot: HasForm false on every list{}", unfiled->GetFormID(), why.empty() ? "" : " - NO:" + why));
+            }
         }
 
         // Spec "Self-test": at the first menu open, on the first snapshot (the drawn-id check is BlockDraw's)
         void SelfTest(const Snapshot& a_snap)
         {
-            int pass = 0, fail = 0, skip = 0;
-            // Init refuses any other shape, so reaching here means the shapes held
-            SelfTestLine("lists", "PASS", std::format("_SR_ListSpellsArchetypes {} lists, _SR_ListAllSpells {}, _SR_ListGlobalsArchetypes {} x {}",
-                                              g_archetypes.size(), g_tiers.size(), g_globals.size(), SrBlock::kTierCount),
-                pass, fail, skip);
+            Tally tally;
+            TestListSizes(tally);
             if (a_snap.ready) {
-                SelfTestLine("snapshot", "PASS", std::format("ready: {} spells, {} archetype entries ({} script-added)", a_snap.spells.size(),
-                                                     a_snap.archetypeEntries, a_snap.scriptAdded),
-                    pass, fail, skip);
+                tally.Line("snapshot", "PASS", std::format("ready: {} spells, {} archetype entries ({} script-added)", a_snap.spells.size(),
+                                                    a_snap.archetypeEntries, a_snap.scriptAdded));
             } else {
-                SelfTestLine("snapshot", "SKIP", std::format("not ready: _SR_GlobalImporting {}, _SR_GlobalIsSetup {}", g_importing->value,
-                                                     g_isSetup->value),
-                    pass, fail, skip);
+                tally.Line("snapshot", "SKIP", std::format("not ready: _SR_GlobalImporting {}, _SR_GlobalIsSetup {}", g_importing->value, g_isSetup->value));
             }
 
             auto* data = RE::TESDataHandler::GetSingleton();
             const RE::FormID flames = data ? data->LookupFormID(kFlamesId, kSkyrim) : 0;
             if (!a_snap.ready || a_snap.listsEmpty) {
-                SelfTestLine("flames", "SKIP", a_snap.ready ? "SR's lists are empty (Import never run)" : "snapshot not ready", pass, fail, skip);
+                tally.Line("flames", "SKIP", a_snap.ready ? "SR's lists are empty (Import never run)" : "snapshot not ready");
             } else if (flames == 0) {
-                SelfTestLine("flames", "FAIL", std::format("Flames {:06X} not found in {}", kFlamesId, kSkyrim), pass, fail, skip);
+                tally.Line("flames", "FAIL", std::format("Flames {:06X} not found in {}", kFlamesId, kSkyrim));
             } else {
                 const auto it = a_snap.spells.find(flames);
-                const bool fire = it != a_snap.spells.end() && it->second.archetypes.test(kFireArchetype);
-                const bool destruction = it != a_snap.spells.end() && it->second.archetypes.test(kDestructionArchetype);
-                SelfTestLine("flames", fire && destruction ? "PASS" : "FAIL",
-                    std::format("{:08X}: {}, Fire [{}] {}, Destruction [{}] {}, tier {}", flames, it != a_snap.spells.end() ? "filed" : "NOT filed",
-                        kFireArchetype, fire, kDestructionArchetype, destruction, it != a_snap.spells.end() ? it->second.tier : -1),
-                    pass, fail, skip);
+                const bool filed = it != a_snap.spells.end();
+                const bool fire = filed && it->second.archetypes.test(kFireArchetype);
+                const bool destruction = filed && it->second.archetypes.test(kDestructionArchetype);
+                tally.Line("flames", fire && destruction ? "PASS" : "FAIL",
+                    std::format("{:08X}: {}, Fire [{}] {}, Destruction [{}] {}, tier {}", flames, filed ? "filed" : "NOT filed", kFireArchetype, fire,
+                        kDestructionArchetype, destruction, filed ? it->second.tier : -1));
             }
-
-            if (!Addon::HomInstalled()) {
-                SelfTestLine("librarian", "SKIP", "Heart of Magic (SpellLearning) is not loaded", pass, fail, skip);
-            } else if (!a_snap.ready) {
-                SelfTestLine("librarian", "SKIP", "snapshot not ready", pass, fail, skip);
-            } else if (a_snap.firstScriptAdded == 0) {
-                SelfTestLine("librarian", "SKIP", "no script-added spell in SR's archetype lists (the Librarian's Spell Research patch is off or has not run)",
-                    pass, fail, skip);
-            } else {
-                const auto it = a_snap.spells.find(a_snap.firstScriptAdded);
-                const bool found = it != a_snap.spells.end() && it->second.archetypes.test(static_cast<std::size_t>(a_snap.firstScriptAddedArchetype));
-                SelfTestLine("librarian", found ? "PASS" : "FAIL",
-                    std::format("script-added {:08X} in archetype list {} {} the snapshot ({} script-added entries)", a_snap.firstScriptAdded,
-                        a_snap.firstScriptAddedArchetype, found ? "found in" : "MISSING from", a_snap.scriptAdded),
-                    pass, fail, skip);
-            }
-            logger::info("[selftest-sr] DONE pass={} fail={} skip={} (the per-redraw 'drawn' lines follow as the block is drawn)", pass, fail, skip);
+            TestAgainstEngine(a_snap, tally);
+            logger::info("[selftest-sr] DONE pass={} fail={} skip={} (the per-redraw 'drawn' lines follow as the block is drawn)", tally.pass,
+                tally.fail, tally.skip);
             FlushLog();
         }
 
@@ -147,11 +242,7 @@ namespace SrData
                 EachFormId(*g_archetypes[a], [&](RE::FormID a_id, bool a_scriptAdded) {
                     snap->spells[a_id].archetypes.set(a);
                     ++snap->archetypeEntries;
-                    if (!a_scriptAdded) return;
-                    if (snap->scriptAdded++ == 0) {
-                        snap->firstScriptAdded = a_id;
-                        snap->firstScriptAddedArchetype = static_cast<int>(a);
-                    }
+                    if (a_scriptAdded) ++snap->scriptAdded;
                 });
             }
             snap->listsEmpty = snap->archetypeEntries == 0;
@@ -172,45 +263,54 @@ namespace SrData
             if (twoTiers > 0) logger::info("SrData: {} spell(s) in two tier lists - the lower tier is used", twoTiers);
             return snap;
         }
+
+        InitResult Broken(const std::string& a_why)
+        {
+            logger::error("SrData: {} - the block is off", a_why);
+            return InitResult::kBroken;
+        }
     }
 
-    bool Init()
+    InitResult Init(std::string& a_why)
     {
+        a_why.clear();
         auto* data = RE::TESDataHandler::GetSingleton();
         if (!data) {
-            logger::error("SrData: no TESDataHandler - the block is off");
-            return false;
+            a_why = "no TESDataHandler";
+            return Broken(a_why);
         }
         if (!data->LookupModByName(kSrPlugin)) {
-            logger::info("SrData: {} is not loaded - the block is off (Spell Research is required)", kSrPlugin);
-            return false;
+            a_why = std::format("{} is not loaded (Spell Research is required)", kSrPlugin);
+            logger::info("SrData: {} - the block is off", a_why);
+            return InitResult::kNoSpellResearch;
         }
-        g_archetypeList = Lookup<RE::BGSListForm>(*data, kArchetypeListsId, "_SR_ListSpellsArchetypes");
-        auto* tierList = Lookup<RE::BGSListForm>(*data, kTierListsId, "_SR_ListAllSpells");
-        auto* globalList = Lookup<RE::BGSListForm>(*data, kGlobalListsId, "_SR_ListGlobalsArchetypes");
-        g_importing = Lookup<RE::TESGlobal>(*data, kImportingId, "_SR_GlobalImporting");
-        g_isSetup = Lookup<RE::TESGlobal>(*data, kIsSetupId, "_SR_GlobalIsSetup");
-        if (!g_archetypeList || !tierList || !globalList || !g_importing || !g_isSetup) return false;
+        g_archetypeList = Lookup<RE::BGSListForm>(*data, kArchetypeListsId, "_SR_ListSpellsArchetypes", a_why);
+        g_tierList = Lookup<RE::BGSListForm>(*data, kTierListsId, "_SR_ListAllSpells", a_why);
+        g_globalList = Lookup<RE::BGSListForm>(*data, kGlobalListsId, "_SR_ListGlobalsArchetypes", a_why);
+        g_importing = Lookup<RE::TESGlobal>(*data, kImportingId, "_SR_GlobalImporting", a_why);
+        g_isSetup = Lookup<RE::TESGlobal>(*data, kIsSetupId, "_SR_GlobalIsSetup", a_why);
+        if (!a_why.empty()) return Broken(a_why);
 
-        const auto archetypes = SubLists(*g_archetypeList, SrBlock::kArchetypeCount, "_SR_ListSpellsArchetypes");
-        const auto tiers = SubLists(*tierList, SrBlock::kTierCount, "_SR_ListAllSpells");
-        const auto globals = SubLists(*globalList, SrBlock::kArchetypeCount, "_SR_ListGlobalsArchetypes");
-        if (archetypes.empty() || tiers.empty() || globals.empty()) return false;
+        const auto archetypes = SubLists(*g_archetypeList, SrBlock::kArchetypeCount, "_SR_ListSpellsArchetypes", a_why);
+        if (archetypes.empty()) return Broken(a_why);
+        const auto tiers = SubLists(*g_tierList, SrBlock::kTierCount, "_SR_ListAllSpells", a_why);
+        if (tiers.empty()) return Broken(a_why);
+        const auto globals = SubLists(*g_globalList, SrBlock::kArchetypeCount, "_SR_ListGlobalsArchetypes", a_why);
+        if (globals.empty()) return Broken(a_why);
         std::ranges::copy(archetypes, g_archetypes.begin());
         std::ranges::copy(tiers, g_tiers.begin());
         for (std::size_t a = 0; a < globals.size(); ++a) {
             std::vector<RE::TESGlobal*> values;
             EachFormId(*globals[a], [&](RE::FormID a_id, bool) { values.push_back(RE::TESForm::LookupByID<RE::TESGlobal>(a_id)); });
             if (values.size() != SrBlock::kTierCount || std::ranges::find(values, static_cast<RE::TESGlobal*>(nullptr)) != values.end()) {
-                logger::error("SrData: _SR_ListGlobalsArchetypes [{}] holds {} entries, expected {} GlobalVariables - the block is off", a,
-                    values.size(), SrBlock::kTierCount);
-                return false;
+                a_why = std::format("_SR_ListGlobalsArchetypes [{}] holds {} entries, expected {} GlobalVariables", a, values.size(), SrBlock::kTierCount);
+                return Broken(a_why);
             }
             std::ranges::copy(values, g_globals[a].begin());
         }
         logger::info("SrData: {} - {} archetype lists, {} tier lists, {} x {} knowledge globals", kSrPlugin, g_archetypes.size(), g_tiers.size(),
             g_globals.size(), SrBlock::kTierCount);
-        return true;
+        return InitResult::kReady;
     }
 
     void RequestBuild(void (*a_onBuilt)())
@@ -233,5 +333,10 @@ namespace SrData
     std::shared_ptr<const Snapshot> Current()
     {
         return g_current.load();
+    }
+
+    void Clear()
+    {
+        g_current.store(nullptr);
     }
 }

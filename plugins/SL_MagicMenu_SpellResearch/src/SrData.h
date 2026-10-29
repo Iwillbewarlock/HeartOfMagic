@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <unordered_map>
 
 // =============================================================================
@@ -27,18 +28,26 @@ namespace SrData
         SrBlock::Knowledge knowledge{};
         std::size_t archetypeEntries = 0;  // spell entries over the 60 archetype lists (record + script-added)
         std::size_t scriptAdded = 0;       // of them script-added (scriptAddedTempForms: the Librarian, SR's Import)
-        std::uint32_t firstScriptAdded = 0;       // one such spell and an archetype list it is in (self-test)
-        int firstScriptAddedArchetype = -1;
     };
 
-    /// Looks up SR's forms in SpellResearch.esp and checks the lists' shape (kDataLoaded, game data loaded). False, logged,
-    /// when the plugin or a form is missing or a list has the wrong shape: the block is not registered then
-    bool Init();
+    enum class InitResult
+    {
+        kReady,
+        kNoSpellResearch,  // SpellResearch.esp is not loaded
+        kBroken,           // a form is missing or a list has the wrong shape (a_why says which)
+    };
+
+    /// Looks up SR's forms in SpellResearch.esp and checks the lists' shape (kDataLoaded, game data loaded). Anything but
+    /// kReady is logged with a_why filled: the block is not registered then
+    InitResult Init(std::string& a_why);
 
     /// Queues a snapshot build on the game thread (the magic menu opened). a_onBuilt runs in that task after the new snapshot
     /// is published
     void RequestBuild(void (*a_onBuilt)());
 
-    /// The last published snapshot (null before the first build). Any thread
+    /// The last published snapshot (null before the first build, and after Clear). Any thread
     std::shared_ptr<const Snapshot> Current();
+
+    /// Drops the published snapshot (a game is being loaded or started: another character's data must never show)
+    void Clear();
 }
