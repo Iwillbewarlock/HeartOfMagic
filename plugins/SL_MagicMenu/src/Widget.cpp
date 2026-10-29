@@ -666,7 +666,7 @@ namespace Widget
             bool resetDrawn = false;                    // its mask drawn once this menu
             // user 2026-10-30: the key-hint strip's clips (paths), found in the first kStripSearchFrames frames; its moves logged
             std::vector<std::string> stripPaths;
-            // each strip clip's step from its home (stage) and where the host last put its top-left (BlockRules::StripHome)
+            // each strip clip's home (stage top-left where SkyUI / STB put it) and where the host last put it (BlockRules::StripHomes)
             std::map<std::string, std::pair<BlockRules::Point, BlockRules::Point>> stripMoves;
             int stripSearchLeft = 0, stripMoveLogs = 0;
             bool stripMissingLogged = false;
@@ -5435,7 +5435,7 @@ namespace Widget
                              "_root) in {} frames - SkyUI's strip is left where it is",
                     kStripSearchFrames);
             }
-            // the strip's clips at their homes (where SkyUI / STB put them: BlockRules::StripHome) and the union of the homes on the
+            // the strip's clips at their homes (where SkyUI / STB put them: BlockRules::StripHomes) and the union of the homes on the
             // stage (our widget's space, through every parent) - a clip found later or rebuilt by SkyUI joins the others in their
             // own layout, the moved ones are not counted twice
             struct StripClip
@@ -5445,18 +5445,28 @@ namespace Widget
                 BlockRules::Point now, home;
             };
             std::vector<StripClip> clips;
-            std::optional<Bounds> strip;
+            std::vector<BlockRules::StripClipPlace> places;
+            std::vector<std::pair<double, double>> sizes;
             for (const auto& path : g_menu.stripPaths) {
                 RE::GFxValue clip;
                 if (!a_movie->GetVariable(&clip, path.c_str()) || !clip.IsDisplayObject()) continue;
                 const auto bounds = BoundsIn(clip, a_widget);
                 if (!bounds) continue;
                 const BlockRules::Point now{ bounds->xMin, bounds->yMin };
-                const auto moves = g_menu.stripMoves.find(path);
-                const auto home = moves == g_menu.stripMoves.end() ? now :
-                                                                     BlockRules::StripHome(now, moves->second.second, moves->second.first, kStripTolerance);
-                clips.push_back({ path, clip, now, home });
-                const Bounds atHome{ home.x, home.x + (bounds->xMax - bounds->xMin), home.y, home.y + (bounds->yMax - bounds->yMin) };
+                BlockRules::StripClipPlace place{ now, std::nullopt, std::nullopt };
+                if (const auto moves = g_menu.stripMoves.find(path); moves != g_menu.stripMoves.end()) {
+                    place.home = moves->second.first;
+                    place.lastPut = moves->second.second;
+                }
+                places.push_back(place);
+                sizes.emplace_back(bounds->xMax - bounds->xMin, bounds->yMax - bounds->yMin);
+                clips.push_back({ path, clip, now, now });
+            }
+            const auto homes = BlockRules::StripHomes(places, kStripTolerance);
+            std::optional<Bounds> strip;
+            for (std::size_t i = 0; i < clips.size(); ++i) {
+                clips[i].home = homes[i];
+                const Bounds atHome{ homes[i].x, homes[i].x + sizes[i].first, homes[i].y, homes[i].y + sizes[i].second };
                 if (strip) {
                     strip->Add(atHome);
                 } else {
@@ -5472,6 +5482,7 @@ namespace Widget
                 bool movedAny = false;
                 for (auto& item : clips) {
                     const BlockRules::Point want{ item.home.x + step.x, item.home.y + step.y };
+                    g_menu.stripMoves[item.path] = { item.home, want };  // remembered explicitly (not derived from the step)
                     if (std::abs(item.now.x - want.x) <= kStripTolerance && std::abs(item.now.y - want.y) <= kStripTolerance) continue;
                     RE::GFxValue parent;
                     if (!item.clip.GetMember("_parent", &parent) || !parent.IsDisplayObject()) continue;
@@ -5482,7 +5493,6 @@ namespace Widget
                     const auto moved = BlockRules::MovedBy(*x, *y, { from->first, from->second }, { to->first, to->second });
                     item.clip.SetMember("_x", moved.x);
                     item.clip.SetMember("_y", moved.y);
-                    g_menu.stripMoves[item.path] = { step, want };
                     movedAny = true;
                 }
                 if (movedAny) {

@@ -1299,14 +1299,19 @@ namespace
             const auto added = BlockRules::AddNew(known, { "_root.Menu_mc.bottomBar.buttonPanel", "_root.STB_Keycaps" });
             Expect(added == std::vector<std::string>{ "_root.STB_Keycaps" } && known.size() == 2, "AddNew: a clip found later is added once");
             Expect(BlockRules::AddNew(known, { "_root.STB_Keycaps" }).empty() && known.size() == 2, "AddNew: found again, not added twice");
-            // a clip's home: moved by the host by (100, 50) and still where it was put -> its home is 100, 50 back
-            const BlockRules::Point step{ 100, 50 };
-            const auto stays = BlockRules::StripHome({ 700, 650 }, BlockRules::Point{ 700, 650 }, step, 0.5);
-            Expect(Near(stays.x, 600) && Near(stays.y, 600), "StripHome: still where the host put it - home is the step back");
-            const auto rebuilt = BlockRules::StripHome({ 600, 600 }, BlockRules::Point{ 700, 650 }, step, 0.5);
-            Expect(Near(rebuilt.x, 600) && Near(rebuilt.y, 600), "StripHome: placed again by SkyUI - its present place is its home");
-            const auto fresh = BlockRules::StripHome({ 610, 605 }, std::nullopt, step, 0.5);
-            Expect(Near(fresh.x, 610) && Near(fresh.y, 605), "StripHome: a clip never moved - its present place is its home");
+            // the strip's homes, judged as a set (GPT review of f8506180), x only: homes A 0, B 100, step 100
+            using Place = BlockRules::StripClipPlace;
+            const auto x = [](double a_x) { return BlockRules::Point{ a_x, 0 }; };
+            const auto still = BlockRules::StripHomes({ Place{ x(100), x(0), x(100) }, Place{ x(200), x(100), x(200) } }, 0.5);
+            Expect(Near(still[0].x, 0) && Near(still[1].x, 100), "nothing moved: the remembered homes are kept (A 0, B 100)");
+            // SkyUI lays it out again to A 0, B 200: B sits exactly where the host had put it, A does not
+            const auto relaid = BlockRules::StripHomes({ Place{ x(0), x(0), x(100) }, Place{ x(200), x(100), x(200) } }, 0.5);
+            Expect(Near(relaid[0].x, 0) && Near(relaid[1].x, 200) && Near(relaid[0].x + 100, 100) && Near(relaid[1].x + 100, 300),
+                "SkyUI re-laid A 0 / B 200 (B onto its old put place): homes A 0, B 200 -> moved to A 100, B 300");
+            const auto newClip = BlockRules::StripHomes({ Place{ x(100), x(0), x(100) }, Place{ x(50), std::nullopt, std::nullopt } }, 0.5);
+            Expect(Near(newClip[0].x, 0) && Near(newClip[1].x, 50), "a new clip (STB, later): from its present place; the moved one keeps its home 0");
+            const auto newAndRelaid = BlockRules::StripHomes({ Place{ x(0), x(0), x(100) }, Place{ x(50), std::nullopt, std::nullopt } }, 0.5);
+            Expect(Near(newAndRelaid[0].x, 0) && Near(newAndRelaid[1].x, 50), "a new clip while SkyUI re-laid the others: every clip from its present place");
         }
         // a clip moved in a parent scaled 0.85 and moved (200, 26): stage step (10, 20) is (11.76.., 23.52..) in the parent
         {

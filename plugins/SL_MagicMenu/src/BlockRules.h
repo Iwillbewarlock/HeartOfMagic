@@ -511,14 +511,29 @@ namespace BlockRules
         return added;
     }
 
-    /// A key-hint clip's home (where SkyUI or STB put it, stage top-left): its present top-left less the step the host gave it
-    /// when it still sits where the host put it (a_lastPut); otherwise it was placed again (SkyUI rebuilt it) or is new - its
-    /// present place is its home. Each clip keeps its own home, so a clip found later joins the others in SkyUI's own layout
-    inline Point StripHome(const Point& a_now, const std::optional<Point>& a_lastPut, const Point& a_applied, double a_tolerance)
+    /// A key-hint clip this frame: its present stage top-left, and the home (where SkyUI or STB put it) and the place the host
+    /// last put it at, both remembered (nullopt: a clip not seen before)
+    struct StripClipPlace
     {
-        if (a_lastPut && std::abs(a_now.x - a_lastPut->x) <= a_tolerance && std::abs(a_now.y - a_lastPut->y) <= a_tolerance) {
-            return { a_now.x - a_applied.x, a_now.y - a_applied.y };
-        }
-        return a_now;
+        Point now;
+        std::optional<Point> home, lastPut;
+    };
+
+    /// The clips' homes this frame. SkyUI lays the strip out as a whole, so the set is judged together (GPT review of f8506180:
+    /// one clip judged alone could be re-placed by SkyUI exactly onto where the host had put it and be taken as still moved):
+    /// only when EVERY clip the host has moved before still sits where it put it are the remembered homes kept; when any of
+    /// them is elsewhere, SkyUI (or STB) laid the strip out again and every clip's present place is its home. A clip not seen
+    /// before (STB's hints, made after SkyUI's panel) starts from its present place without unsettling the others - taking
+    /// the moved panel's present place as its home would move it a second time
+    inline std::vector<Point> StripHomes(const std::vector<StripClipPlace>& a_clips, double a_tolerance)
+    {
+        const bool allPut = std::all_of(a_clips.begin(), a_clips.end(), [&](const StripClipPlace& a_clip) {
+            if (!a_clip.home || !a_clip.lastPut) return true;  // new: not a sign of a new layout
+            return std::abs(a_clip.now.x - a_clip.lastPut->x) <= a_tolerance && std::abs(a_clip.now.y - a_clip.lastPut->y) <= a_tolerance;
+        });
+        std::vector<Point> homes;
+        homes.reserve(a_clips.size());
+        for (const auto& clip : a_clips) homes.push_back(allPut && clip.home && clip.lastPut ? *clip.home : clip.now);
+        return homes;
     }
 }
