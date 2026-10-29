@@ -10,6 +10,8 @@
   "link.alembic": "Alembic",
   "link.experience": "Experience",
   "reason.notReady": "Spell Research is getting ready",
+  "reason.importing": "Spell Research is importing spells",
+  "reason.notSetup": "Run Import Spells in Spell Research's MCM first",
   "reason.notSpell": "Spell Research files spells only",
   "reason.listsEmpty": "Spell Research has no spell lists yet - run its Import",
   "reason.unknownSpell": "Spell Research does not know this spell",

@@ -106,7 +106,9 @@ namespace SrBlock
     {
         std::uint32_t shown = 0;          // the card's form (0 = none)
         bool haveSnapshot = false;        // a snapshot was built this menu (it is built when the menu opens)
-        bool ready = false;               // SR finished setting up and is not importing
+        bool importing = false;           // _SR_GlobalImporting > 0: SR's Import is running (it finishes by itself)
+        bool setUp = false;               // _SR_GlobalIsSetup != 0: SR's Import finished once in this save (until then SR
+                                          // refuses research and asks the player to import; waiting does not change it)
         bool listsEmpty = false;          // SR's archetype lists hold no spell (its Import never ran)
         bool isSpell = false;             // the form is a SpellItem of the spell type (not a power, shout or effect)
         const SpellEntry* entry = nullptr;  // the spell in SR's lists, null when SR does not file it
@@ -130,7 +132,9 @@ namespace SrBlock
     inline Decision Decide(const View& a_view)
     {
         if (a_view.shown == 0) return {};
-        if (!a_view.haveSnapshot || !a_view.ready) return { Show::kReason, "reason.notReady", {} };
+        if (!a_view.haveSnapshot) return { Show::kReason, "reason.notReady", {} };
+        if (a_view.importing) return { Show::kReason, "reason.importing", {} };
+        if (!a_view.setUp) return { Show::kReason, "reason.notSetup", {} };
         if (!a_view.isSpell) return { Show::kReason, "reason.notSpell", {} };
         if (a_view.listsEmpty) return { Show::kReason, "reason.listsEmpty", {} };
         if (!a_view.entry || !a_view.knowledge) return { Show::kReason, "reason.unknownSpell", {} };

@@ -23,6 +23,8 @@ namespace SrData
     struct Snapshot
     {
         bool ready = false;       // SR set up and not importing (else nothing below is filled)
+        bool importing = false;   // _SR_GlobalImporting > 0 when the snapshot was built
+        bool setUp = false;       // _SR_GlobalIsSetup != 0 then (SR's Import finished once in this save)
         bool listsEmpty = true;   // no spell in any archetype list (SR's Import never ran)
         std::unordered_map<std::uint32_t, SrBlock::SpellEntry> spells;  // by FormID
         SrBlock::Knowledge knowledge{};

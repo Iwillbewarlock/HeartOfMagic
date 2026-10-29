@@ -405,7 +405,8 @@ namespace BlockDraw
         const auto* spell = form ? form->As<RE::SpellItem>() : nullptr;
         SrBlock::View view{ .shown = a_shown,
             .haveSnapshot = snap != nullptr,
-            .ready = snap && snap->ready,
+            .importing = snap && snap->importing,
+            .setUp = snap && snap->setUp,
             .listsEmpty = snap && snap->listsEmpty,
             .isSpell = spell && spell->GetSpellType() == RE::MagicSystem::SpellType::kSpell };
         if (snap && snap->ready) {

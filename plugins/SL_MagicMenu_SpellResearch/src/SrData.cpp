@@ -209,7 +209,11 @@ namespace SrData
                 tally.Line("snapshot", "PASS", std::format("ready: {} spells, {} archetype entries ({} script-added)", a_snap.spells.size(),
                                                     a_snap.archetypeEntries, a_snap.scriptAdded));
             } else {
-                tally.Line("snapshot", "SKIP", std::format("not ready: _SR_GlobalImporting {}, _SR_GlobalIsSetup {}", g_importing->value, g_isSetup->value));
+                tally.Line("snapshot", "SKIP",
+                    std::format("{}: _SR_GlobalImporting {}, _SR_GlobalIsSetup {}",
+                        a_snap.importing ? "importing - SR's Import is running" :
+                                           "not set up - SR's Import has not been run in this save (MCM Import Spells, or a research journal)",
+                        g_importing->value, g_isSetup->value));
             }
 
             auto* data = RE::TESDataHandler::GetSingleton();
@@ -236,7 +240,9 @@ namespace SrData
         std::shared_ptr<const Snapshot> Build()
         {
             auto snap = std::make_shared<Snapshot>();
-            snap->ready = g_importing->value <= 0.0f && g_isSetup->value != 0.0f;
+            snap->importing = g_importing->value > 0.0f;
+            snap->setUp = g_isSetup->value != 0.0f;
+            snap->ready = !snap->importing && snap->setUp;
             if (!snap->ready) return snap;
             for (std::size_t a = 0; a < g_archetypes.size(); ++a) {
                 EachFormId(*g_archetypes[a], [&](RE::FormID a_id, bool a_scriptAdded) {

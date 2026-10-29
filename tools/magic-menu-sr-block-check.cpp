@@ -117,7 +117,7 @@ namespace
         k[kFire][2] = 1.0f;
         k[kArea][2] = 1.0f;
         const auto fireball = Entry(2, { kFire, kActor, kArea, kDestruction });
-        View view{ .shown = 0x1C789, .haveSnapshot = true, .ready = true, .listsEmpty = false, .isSpell = true, .entry = &fireball, .knowledge = &k };
+        View view{ .shown = 0x1C789, .haveSnapshot = true, .importing = false, .setUp = true, .listsEmpty = false, .isSpell = true, .entry = &fireball, .knowledge = &k };
 
         auto expect = [](const View& a_view, Show a_show, std::string_view a_reason, const char* a_what) {
             const auto d = Decide(a_view);
@@ -130,8 +130,17 @@ namespace
         noSnapshot.haveSnapshot = false;
         expect(noSnapshot, Show::kReason, "reason.notReady", "snapshot not built yet");
         auto importing = view;
-        importing.ready = false;
-        expect(importing, Show::kReason, "reason.notReady", "SR importing or not set up");
+        importing.importing = true;
+        expect(importing, Show::kReason, "reason.importing", "SR's Import running: importing");
+        auto importingFirst = importing;
+        importingFirst.setUp = false;
+        expect(importingFirst, Show::kReason, "reason.importing", "the first Import running (not set up yet): importing");
+        auto notSetUp = view;
+        notSetUp.setUp = false;
+        expect(notSetUp, Show::kReason, "reason.notSetup", "Import never run in this save (IsSetup 0, not importing): not set up, not 'getting ready'");
+        auto noSnapshotNotSetUp = notSetUp;
+        noSnapshotNotSetUp.haveSnapshot = false;
+        expect(noSnapshotNotSetUp, Show::kReason, "reason.notReady", "no snapshot yet this menu: getting ready, whatever SR's state");
         auto power = view;
         power.isSpell = false;
         expect(power, Show::kReason, "reason.notSpell", "a power on the card");

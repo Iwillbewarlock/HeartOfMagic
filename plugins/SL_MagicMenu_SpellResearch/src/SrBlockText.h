@@ -197,7 +197,7 @@ namespace SrBlock
     inline std::vector<std::string> RequiredKeys()
     {
         std::vector<std::string> keys{ "title", "unknown", "more", "group.element", "group.targeting", "group.technique", "link.journal",
-            "link.alembic", "link.experience", "reason.notReady", "reason.notSpell", "reason.listsEmpty", "reason.unknownSpell",
+            "link.alembic", "link.experience", "reason.notReady", "reason.importing", "reason.notSetup", "reason.notSpell", "reason.listsEmpty", "reason.unknownSpell",
             "reason.noArchetypes", "reason.noTier", "reason.unknownArchetype", "reason.noResponse", "notify.busy", "notify.refused",
             "notify.badMessage" };
         for (std::size_t t = 0; t < kTierCount; ++t) keys.push_back("tier." + std::to_string(t));
