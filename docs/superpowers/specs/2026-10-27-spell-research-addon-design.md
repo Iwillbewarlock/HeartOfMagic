@@ -29,7 +29,8 @@ columns are hidden when nothing is, Widget.cpp:3376-3388, 3417). For the spell t
     tools/icons/skald-icons.js, converted to point data by tools/sr-icons/convert.mjs into ArchetypeIcons.h and drawn
     with the AS2 drawing API in kTitleColor; the frame tells the group).
 - An archetype shows its name when the player has any knowledge of it at the spell's tier (its tier GlobalVariable
-  > 0, the rule SR Prisma's experience window also uses since 0.2.0), otherwise "?" (with its icon). (SR keeps no
+  > 0, the rule SR Prisma's experience window also uses since 0.2.0), otherwise "?" with only its group's frame (the
+  inner glyph would give the archetype away). (SR keeps no
   per-spell "researched" record - re-checked against SR Prisma 0.2.1: still none - so "researched" is read as "the
   player has knowledge in that archetype at that tier"; the reason line says so when a "?" shows.)
 - SR does not know the spell, or SR's lists are empty (Import never run), or the selection is not a spell: a "?"
