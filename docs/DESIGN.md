@@ -1056,6 +1056,19 @@ narrow faces), the face closest to the game's menus that Windows 10 and 11 carry
 shipped, so a system without it falls back to the Skyrim Edge theme's narrow faces, and CJK text to the
 system's sans. Whether the game's Ultralight finds the system Bahnschrift is not yet seen in game.
 
+The 2026-10-29 polish took the template look out of Skald, in its inline `css` and tree tokens only (Classic is the
+bare theme and Night Grimoire and Chalkboard share `design-darkbook.css`, so the base sheets and that sheet stay as
+they were for the add-ons): a flat page (`pageGlow` '' and `pageGlowAlpha` 0, `pageEdgeAlpha` 0; the grain stays);
+one spacing scale (16px edges and gaps, the tree tools' column 16px in, settings rows and subsection titles on their
+block header's line, button and chip padding 8/16, 4/12 and 4/8); colour only for states (scan figures and slider
+values in `--text-bright`, square chips and counts in the text colour, a dot on the chosen preset chip and on the
+footer's learning chip, a 1px rule over settings subsections); small labels in words with 0.02em spacing (the
+titles keep their capitals); a 2px build bar without a frame, a 3px slider track, tabular figures. Panel strings
+end in "." rather than "!" in every language, and the tree tool bar's render settings, edit and edit-tool buttons
+are inline SVG line icons like Home and Search (`index.html`, every design; Edit Tree shows a check while
+`.active`, `patch-ui.css`). `TreeToolsScale.EDGE_PX` stays 14 for the other designs: without corner drawings Skald's
+bar is given 4px more room than its 16px edges leave.
+
 ### Settings page layout and control size (2026-09-27)
 
 The settings page used to pair blocks side by side whatever their height: Progression (about 1,800px)
