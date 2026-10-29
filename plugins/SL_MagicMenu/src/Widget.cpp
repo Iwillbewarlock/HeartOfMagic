@@ -175,7 +175,7 @@ namespace Widget
         constexpr double kNoteSize = 10.0, kLegendSize = 10.0, kLegendIconR = 5.0, kLegendTextGap = 4.0;
         // tree badges (spec v10 T7): arrow half size, its distance from the edge, the "N개 더" text's width
         constexpr double kExitArrow = 5.0, kExitInset = 7.0, kExitTextW = 56.0;
-        constexpr std::uint32_t kWhite = 0xF0F0F0, kLockedEdge = 0x6A6A6A, kLabelColor = 0xD8D8D8, kDimText = 0x8A8A8A;
+        constexpr std::uint32_t kWhite = 0xF0F0F0, kLabelColor = 0xD8D8D8, kDimText = 0x8A8A8A;
         // the fill colour of a node's invisible hit area (alpha 0); HoM's opaque _backdrop under dimmed spells is not drawn (see DrawHomMark)
         constexpr std::uint32_t kBackdrop = 0x000000;
         // HoM's config and design presets (in game through MO2's VFS; relative to the game folder like Spells.cpp's kTreePath)
@@ -207,7 +207,7 @@ namespace Widget
                          kButtonFromBottom = kPad + kButtonH, kXpFromBottom = kButtonFromBottom + 32.0,
                          kBottomRuleFromBottom = kButtonFromBottom + 38.0;
         constexpr int kNameLines = 2, kHintLines = 2;
-        constexpr std::uint32_t kOk = 0x6CC070, kNotYet = 0xE05050, kButtonFill = 0x1E3A5A, kButtonOff = 0x262626;
+        constexpr std::uint32_t kOk = 0x6CC070, kNotYet = 0xE05050;
         // No check/cross characters: the game font has neither U+2713 nor U+2717 (build 3 frame f_008: a missing-glyph box at the
         // start of each requirement line); Draw::Check / Draw::Cross draw them as lines. U+00B7 "·" is in the font (the same
         // frame draws "Restoration · Novice"), and "..." is ASCII.
@@ -4692,7 +4692,7 @@ namespace Widget
                 if (!clip.IsDisplayObject()) return;
                 clip.SetMember("_x", a_x);
                 clip.SetMember("_y", top);
-                Draw::Box(clip, a_w, kButtonRowH, kButtonFill, kButtonAlpha, kPanelEdge, kEdgeWidth);
+                Draw::Box(clip, a_w, kButtonRowH, kPanelFill, kButtonAlpha, kPanelEdge, kEdgeWidth);
                 const double size = kButtonTextSize;
                 FitLine(a_movie, clip, "label", 0, (kButtonRowH - FieldH(size)) / 2, a_w, size, a_text, kWhite, "center");
                 SetHandler(a_movie, clip, "onRelease", a_handler);
@@ -6425,8 +6425,9 @@ namespace Widget
             if (!button.IsDisplayObject()) return;
             button.SetMember("_y", a_y);
             const bool enabled = a_canSet && a_look.state == State::kAvailable;
-            Draw::LineStyle(button, kEdgeWidth, enabled ? kWhite : kLockedEdge);
-            Draw::Rect(button, 0, 0, a_w, kButtonH, enabled ? kButtonFill : kButtonOff, Draw::kAlphaFull);
+            // one look for both states, the panels' own (UI polish 2026-10-29): the label's brightness tells them apart
+            Draw::LineStyle(button, kEdgeWidth, kPanelEdge);
+            Draw::Rect(button, 0, 0, a_w, kButtonH, kPanelFill, Draw::kAlphaFull);
             const std::string label = enabled ? Fill(Str::kNodeSetTarget, { { "{key}", KeyLabel(Settings::Get().keySetTarget) } }) :
                                                 StateLine(a_look.state, a_look.percent, true).text;
             const double size = Size(kButtonSize);
