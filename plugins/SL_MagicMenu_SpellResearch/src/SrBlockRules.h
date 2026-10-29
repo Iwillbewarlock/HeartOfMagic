@@ -362,7 +362,7 @@ namespace SrBlock
     {
         if (a_archetype < 0 || a_archetype >= static_cast<int>(kArchetypeCount)) return {};
         const auto& icon = ArchetypeIcons::kIcons[static_cast<std::size_t>(a_archetype)];
-        return { icon.first, a_known ? icon.count : icon.frame };
+        return { static_cast<std::size_t>(icon.first), static_cast<std::size_t>(a_known ? icon.count : icon.frame) };
     }
 
     // ---------------------------------------------------------------------
