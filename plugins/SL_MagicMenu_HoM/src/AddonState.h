@@ -8,6 +8,7 @@
 
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -126,6 +127,7 @@ namespace HomAddon
         // the U and G keys recorded by the tree's key callback, acted on in its frame after the list change (Task 6 review 1, 2)
         bool pendingNext = false;
         bool pendingSetTarget = false;
+        std::chrono::steady_clock::time_point pendingAt{};  // when the last of them was recorded (Selection::KeyStillDue)
         RE::FormID pickShown = 0;      // the card's form when U picked (Selection::StaleKeyPick)
         // the tree window (Task 7): the hovered node and its tooltip, the nodes of the last draw, a node click to act on
         int hovered = -1;                         // the node clip under the mouse (onRollOver / onRollOut record it; spec v10 T6)

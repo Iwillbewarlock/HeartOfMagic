@@ -26,6 +26,7 @@
 #include "TreeDraw.h"
 
 #include <algorithm>
+#include <chrono>
 #include <format>
 #include <utility>
 
@@ -258,8 +259,14 @@ namespace HomAddon
         WatchSelection(a_context, *snapshot);
         menu.firstFrame = false;
         TakeNodeClick(a_movie, a_content, a_context, *snapshot);
-        if (std::exchange(menu.pendingNext, false)) DoNext(*snapshot);
-        const bool key = std::exchange(menu.pendingSetTarget, false);
+        bool next = std::exchange(menu.pendingNext, false);
+        bool key = std::exchange(menu.pendingSetTarget, false);
+        if ((next || key) &&
+            !Selection::KeyStillDue(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - menu.pendingAt).count())) {
+            logger::info("HoM block: {} pressed on a tab without the tree - dropped", next && key ? "the next and set-target keys" : next ? "the next key" : "the set-target key");
+            next = key = false;
+        }
+        if (next) DoNext(*snapshot);
         const bool button = TakeButton();
         SetTargetIfChosen(key, button, *snapshot);
         if (++menu.frame % kPollFrames == 0) menu.refresh = true;
@@ -286,10 +293,12 @@ namespace HomAddon
         const auto& settings = HomSettings::Get();
         if (a_scanCode == settings.keyNext) {
             Menu().pendingNext = true;
+            Menu().pendingAt = std::chrono::steady_clock::now();
             return true;
         }
         if (a_scanCode == settings.keySetTarget) {
             Menu().pendingSetTarget = true;
+            Menu().pendingAt = std::chrono::steady_clock::now();
             return true;
         }
         return false;

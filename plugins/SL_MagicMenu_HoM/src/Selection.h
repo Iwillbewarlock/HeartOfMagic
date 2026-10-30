@@ -77,6 +77,16 @@ namespace Selection
         return a_byKey && a_pickShown != a_shownNow;
     }
 
+    /// A U / G key the tree's key callback recorded a_ageMs ago is acted on by its frame only when that frame is the key's own UI
+    /// frame (the host hands keys over just before the frame calls). Keys reach the key callback on every tab, the frame runs only
+    /// where the tree shows: a key pressed on Powers / Shouts / Active Effects would otherwise act when the player came back to a
+    /// spells tab. f83dc6f3 acted on it at once on any tab; it is dropped now (one log line)
+    inline constexpr double kKeyDueMs = 100.0;
+    constexpr bool KeyStillDue(double a_ageMs)
+    {
+        return a_ageMs >= 0.0 && a_ageMs <= kKeyDueMs;
+    }
+
     /// The set-target requests of one frame: the G key and the node card's button in the same frame are one request (f83dc6f3
     /// W:8186-8189), none when nothing is chosen (a_acts: SetTargetActs)
     constexpr int SetTargetRequests(bool a_key, bool a_button, bool a_acts)

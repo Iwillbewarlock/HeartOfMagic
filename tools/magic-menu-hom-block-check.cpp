@@ -260,6 +260,10 @@ namespace
         Expect(!Selection::StaleKeyPick(true, 0x100, 0x100), "the same form: the key pick holds");
         Expect(!Selection::StaleKeyPick(false, 0x100, 0x200), "a clicked node is not a key pick: its own show request changes the form");
         Expect(Selection::StaleKeyPick(true, 0, 0x200), "a key pick with nothing shown, then a list choice: stale");
+        Expect(Selection::KeyStillDue(0.0) && Selection::KeyStillDue(16.7) && Selection::KeyStillDue(Selection::kKeyDueMs),
+            "a key recorded in this UI frame (0 .. 100 ms ago): acted on by the tree's frame");
+        Expect(!Selection::KeyStillDue(850.0), "a key pressed on a tab without the tree, the frame 850 ms later on a spells tab: dropped");
+        Expect(!Selection::KeyStillDue(-1.0), "a clock step back: dropped");
     }
 
     // Task 7: the tree window's rules (TreeRules.h)
