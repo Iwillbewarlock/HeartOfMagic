@@ -41,9 +41,10 @@ namespace Widget
     void RequestAddonHeight(std::string_view a_sender, const void* a_data, std::uint32_t a_dataLen);
 
     /// Block API v3: an add-on's kMessageShowSpell ('SLMS', data = BlockApi::ShowSpellRequest) from a_sender. Any thread: read and
-    /// queued (the newest per id) with the list selection's sequence now; on the menu's next frame it is served as a click on
-    /// the spell in the add-on's block, unless the list selection changed since (the player's newer choice wins) or the layout
-    /// mode is on. Dropped while the magic menu is closed; a bad message is logged and ignored
+    /// queued with the list selection's sequence now; on the menu's next frame the newest request (of any block) is served as a
+    /// click on the spell in the add-on's block, unless the list selection changed since (the player's newer choice wins) or
+    /// the layout mode is on; the frame's other requests are dropped. Dropped while the magic menu is closed; a bad message is
+    /// logged and ignored
     void RequestAddonShowSpell(std::string_view a_sender, const void* a_data, std::uint32_t a_dataLen);
 
     /// Block API v3: an add-on's kMessageVisible ('SLMV', data = BlockApi::VisibleRequest) from a_sender. Any thread: read and

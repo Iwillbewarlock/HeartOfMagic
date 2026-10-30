@@ -209,7 +209,10 @@ namespace BlockApiCheck
                 { "a resize ('SLMH')", [](S& a_s) { a_s.onScreen.bottom -= 30; }, true, true, E::kMoved },
                 { "a move to the other column", [](S& a_s) { a_s.column = 0; }, true, true, E::kMoved },
                 { "a redraw (a new content clip)", [](S& a_s) { ++a_s.contentDraws; }, true, true, E::kDrawn },
-                { "the layout mode on", [](S& a_s) { ++a_s.modeChanges; }, true, true, E::kLayoutMode },
+                // the host makes no overlay in the layout mode (its covers stay on top): shown is false there
+                { "the layout mode on", [](S& a_s) { ++a_s.modeChanges; a_s.shown = false; }, true, false, E::kLayoutMode },
+                { "in the layout mode, scrolled", [](S& a_s) { a_s.onScreen.top -= 10; a_s.onScreen.bottom -= 10; }, false, false, E::kNone },
+                { "the layout mode off", [](S& a_s) { ++a_s.modeChanges; a_s.shown = true; }, false, true, E::kNone },
                 { "a panel made in its column after it", [](S& a_s) { ++a_s.panelsMade; }, true, true, E::kPanelAbove },
                 { "hidden ('SLMV' 0, a tab, the columns down)", [](S& a_s) { a_s.shown = false; }, true, false, E::kHidden },
                 { "still hidden", [](S&) {}, false, false, E::kNone },
@@ -226,7 +229,13 @@ namespace BlockApiCheck
                     Text("%s: remove %d make %d (%s), generation %u (got remove %d make %d, %s, generation %u)", event.name, event.remove, event.make,
                         BlockRules::OverlayEventText(event.why), generation, step.remove, step.make, BlockRules::OverlayEventText(step.why), track.generation));
             }
-            Expect(track.generation == 8, Text("8 overlay clips made over the 13 frames, a generation each (got %u)", track.generation));
+            Expect(track.generation == 8, Text("8 overlay clips made over the 15 frames, a generation each (got %u)", track.generation));
+            BlockRules::OverlayTrack both;
+            S hiddenMode = now;
+            BlockRules::StepOverlay(both, now, kTolerance);
+            ++hiddenMode.modeChanges;
+            hiddenMode.shown = false;
+            Expect(BlockRules::StepOverlay(both, hiddenMode, kTolerance).why == E::kLayoutMode, "the layout mode on: the reason is the layout mode, not a hide");
             BlockRules::OverlayTrack failed{ std::nullopt, 4 };
             BlockRules::StepOverlay(failed, now, kTolerance);
             failed.made.reset();  // the host's make failed
@@ -234,46 +243,41 @@ namespace BlockApiCheck
             Expect(retry.make && !retry.remove && failed.generation == 6, "a failed make is tried again the next frame, with a new generation");
         }
 
-        BlockRules::QueuedShowSpell Request(std::uint32_t a_form, std::uint32_t a_request, std::uint64_t a_seq)
+        BlockRules::QueuedShowSpell Request(const char* a_id, std::uint32_t a_form, std::uint32_t a_request, std::uint64_t a_seq)
         {
-            return { { "", a_form, a_request, true }, a_seq };
+            return { { a_id, a_form, a_request, true }, a_seq };
         }
 
-        /// The requests ServeShowSpells serves and drops, at a_seq; a_bumps: each served one changes the list selection
-        std::pair<std::vector<std::uint32_t>, std::vector<std::uint32_t>> Serve(const BlockRules::ShowSpellQueue& a_queue, std::uint64_t a_seq, bool a_bumps)
+        std::vector<std::uint32_t> RequestIds(const std::vector<BlockRules::QueuedShowSpell>& a_requests)
         {
-            std::vector<std::uint32_t> served, dropped;
-            BlockRules::ServeShowSpells(
-                a_queue, [&] { return a_seq; },
-                [&](const BlockRules::QueuedShowSpell& a_q) {
-                    served.push_back(a_q.request.requestId);
-                    if (a_bumps) ++a_seq;
-                },
-                [&](const BlockRules::QueuedShowSpell& a_q) { dropped.push_back(a_q.request.requestId); });
-            return { served, dropped };
+            std::vector<std::uint32_t> ids;
+            for (const auto& queued : a_requests) ids.push_back(queued.request.requestId);
+            return ids;
         }
 
         void Queues()
         {
-            std::printf("the 'SLMS' queue (newest per block, stale ones dropped), the 'SLMV' set, the key queue\n");
+            std::printf("the 'SLMS' queue (arrival order, newest per block; one served per frame, the newest, if still due), the 'SLMV' set, the key queue\n");
             using Ids = std::vector<std::uint32_t>;
+            using BlockRules::Queued;
             BlockRules::ShowSpellQueue queue;
-            BlockRules::Enqueue(queue, std::string("A.tree"), Request(0x100, 1, 5), 8);
-            BlockRules::Enqueue(queue, std::string("B.list"), Request(0x200, 9, 4), 8);
-            BlockRules::Enqueue(queue, std::string("A.tree"), Request(0x101, 2, 5), 8);
-            Expect(queue.size() == 2 && queue[0].first == "A.tree" && queue[0].second.request.requestId == 2 && queue[0].second.request.formId == 0x101,
-                "A.tree twice before the frame: one entry, the newest (request 2)");
-            const auto [served, dropped] = Serve(queue, 5, true);
-            Expect(served == Ids{ 2 } && dropped == Ids{ 9 }, "seq 5: A.tree's (queued at 5) served, B.list's (queued at 4: the player chose since) dropped");
-            BlockRules::ShowSpellQueue two;
-            BlockRules::Enqueue(two, std::string("A.tree"), Request(0x100, 3, 7), 8);
-            BlockRules::Enqueue(two, std::string("B.list"), Request(0x200, 4, 7), 8);
-            const auto [servedTwo, droppedTwo] = Serve(two, 7, true);
-            Expect(servedTwo == Ids{ 3 } && droppedTwo == Ids{ 4 }, "two blocks at the same seq: the first queued is served, its list selection makes the second stale");
-            const auto [servedCard, droppedCard] = Serve(two, 7, false);
-            Expect(servedCard == Ids{ 3, 4 } && droppedCard.empty(), "served requests that select no list row (the tree card): both served");
-            const auto [servedLate, droppedLate] = Serve(two, 8, true);
-            Expect(servedLate.empty() && droppedLate == Ids{ 3, 4 }, "the list changed after both were queued: both dropped");
+            Expect(BlockRules::EnqueueShowSpell(queue, Request("A.tree", 0x100, 1, 5), 2) == Queued::kAdded &&
+                       BlockRules::EnqueueShowSpell(queue, Request("B.list", 0x200, 9, 5), 2) == Queued::kAdded &&
+                       BlockRules::EnqueueShowSpell(queue, Request("A.tree", 0x101, 2, 5), 2) == Queued::kReplaced,
+                "A.tree, B.list, A.tree again: added, added, replaced");
+            Expect(RequestIds(queue) == Ids{ 9, 2 } && queue.back().request.formId == 0x101, "the queue in arrival order, A.tree's newest last: 9, 2");
+            Expect(BlockRules::EnqueueShowSpell(queue, Request("C.card", 0x300, 4, 5), 2) == Queued::kFull && queue.size() == 2,
+                "a third id past the cap 2: dropped");
+            const auto due = BlockRules::PickShowSpell(queue, 5);
+            Expect(due.serve && due.serve->request.requestId == 2 && RequestIds(due.dropped) == Ids{ 9 },
+                "seq 5: the newest (A.tree's request 2) served, the older one (9) dropped - one per frame");
+            const auto stale = BlockRules::PickShowSpell(queue, 6);
+            Expect(!stale.serve && RequestIds(stale.dropped) == Ids{ 9, 2 }, "seq 6 (the player chose after they were sent): none served, both dropped");
+            BlockRules::ShowSpellQueue mixed{ Request("B.list", 0x200, 7, 5), Request("A.tree", 0x100, 8, 6) };
+            const auto newest = BlockRules::PickShowSpell(mixed, 6);
+            Expect(newest.serve && newest.serve->request.requestId == 8 && RequestIds(newest.dropped) == Ids{ 7 },
+                "an older request sent before a list change, the newest after it: the newest served, the stale one dropped");
+            Expect(!BlockRules::PickShowSpell({}, 3).serve && BlockRules::PickShowSpell({}, 3).dropped.empty(), "an empty queue: nothing served or dropped");
 
             std::set<std::string> hidden;
             Expect(BlockRules::SetShown(hidden, "A", false) && hidden.contains("A"), "'SLMV' A shown 0: hidden, a change");
@@ -293,12 +297,13 @@ namespace BlockApiCheck
             Expect(BlockRules::ClosesWhenEmpty(true, 0) && !BlockRules::ClosesWhenEmpty(true, BlockApi::kFlagKeepWhenEmpty) &&
                        !BlockRules::ClosesWhenEmpty(false, 0) && BlockRules::ClosesWhenEmpty(true, BlockApi::kFlagOwnMouse),
                 "closes when empty: drawSelection without kFlagKeepWhenEmpty only");
-            Expect(BlockRules::EmptyLookOf("SL_MagicMenu_HoM.tree", true, true, false, true) == EmptyLook::kAsUsual &&
-                       BlockRules::EmptyLookOf("SL_MagicMenu_HoM.tree", true, true, true, true) == EmptyLook::kAsUsual,
+            const bool keeps = BlockRules::ClosesWhenEmpty(true, BlockApi::kFlagKeepWhenEmpty), closes = BlockRules::ClosesWhenEmpty(true, 0);
+            Expect(BlockRules::EmptyLookOf("SL_MagicMenu_HoM.tree", true, keeps, false) == EmptyLook::kAsUsual &&
+                       BlockRules::EmptyLookOf("SL_MagicMenu_HoM.tree", true, keeps, true) == EmptyLook::kAsUsual,
                 "drawSelection with kFlagKeepWhenEmpty and nothing shown: as usual (place kept), in and out of the layout mode");
-            Expect(BlockRules::EmptyLookOf("SpellResearch.archetypes", true, true) == EmptyLook::kClosed &&
-                       BlockRules::EmptyLookOf("SpellResearch.archetypes", true, true, false, false) == EmptyLook::kClosed,
-                "without the flag (SR's v2 block): closed, as before");
+            Expect(BlockRules::EmptyLookOf("SpellResearch.archetypes", true, closes) == EmptyLook::kClosed &&
+                       BlockRules::EmptyLookOf("SpellResearch.archetypes", true, closes, true) == EmptyLook::kAsUsual,
+                "without the flag (SR's v2 block): closed, shown in the layout mode - as before");
         }
     }
 

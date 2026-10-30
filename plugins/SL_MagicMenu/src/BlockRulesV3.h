@@ -127,28 +127,44 @@ namespace BlockRules
         return a_seqAtQueue == a_seqNow;
     }
 
-    /// A queued kMessageShowSpell: the request and the host's selection sequence when it was queued (BlockRules::Enqueue keeps
-    /// the newest one per block id)
+    /// A queued kMessageShowSpell: the request and the host's selection sequence when it was queued
     struct QueuedShowSpell
     {
         ShowSpellRead request;
         std::uint64_t seqAtQueue = 0;
     };
-    using ShowSpellQueue = std::vector<std::pair<std::string, QueuedShowSpell>>;
+    using ShowSpellQueue = std::vector<QueuedShowSpell>;  // in arrival order, the newest last
 
-    /// One frame's queued requests in queue order: each still due goes to a_serve, each stale one to a_drop. a_seqNow() is
-    /// asked again before each request - a served request's own list selection bumps the sequence, so a later request queued
-    /// before it is stale (one choice per frame wins, the earliest queued)
-    template <class SeqNow, class Serve, class Drop>
-    void ServeShowSpells(const ShowSpellQueue& a_queue, SeqNow&& a_seqNow, Serve&& a_serve, Drop&& a_drop)
+    /// a_queued queued as the newest request (an older one of the same block id goes); kFull (dropped) when a_cap other ids
+    /// wait already
+    inline Queued EnqueueShowSpell(ShowSpellQueue& a_queue, QueuedShowSpell a_queued, std::size_t a_cap)
     {
-        for (const auto& [id, queued] : a_queue) {
-            if (ShowSpellDue(queued.seqAtQueue, a_seqNow())) {
-                a_serve(queued);
-            } else {
-                a_drop(queued);
-            }
+        const auto erased = std::erase_if(a_queue, [&](const QueuedShowSpell& a_old) { return a_old.request.id == a_queued.request.id; });
+        if (erased == 0 && a_queue.size() >= a_cap) return Queued::kFull;
+        a_queue.push_back(std::move(a_queued));
+        return erased ? Queued::kReplaced : Queued::kAdded;
+    }
+
+    /// One frame's pick: at most one request is served - the newest, when it is still due (ShowSpellDue against a_seqNow); every
+    /// other one is dropped (an older one is the add-ons' earlier wish, and when the newest is stale every older one is too:
+    /// the sequence only grows)
+    struct ShowSpellPick
+    {
+        std::optional<QueuedShowSpell> serve;
+        std::vector<QueuedShowSpell> dropped;
+    };
+
+    inline ShowSpellPick PickShowSpell(const ShowSpellQueue& a_queue, std::uint64_t a_seqNow)
+    {
+        ShowSpellPick pick;
+        if (a_queue.empty()) return pick;
+        pick.dropped.assign(a_queue.begin(), a_queue.end() - 1);
+        if (ShowSpellDue(a_queue.back().seqAtQueue, a_seqNow)) {
+            pick.serve = a_queue.back();
+        } else {
+            pick.dropped.push_back(a_queue.back());
         }
+        return pick;
     }
 
     /// kMessageVisible applied to the host's hidden set: true when a_id's state changed
@@ -202,7 +218,8 @@ namespace BlockRules
     /// What a block's overlay clip was made for, and the same now (StepOverlay)
     struct OverlaySnapshot
     {
-        bool shown = false;               // the block shows (a place on this tab, not hidden by kMessageVisible, the columns up)
+        bool shown = false;               // the block has an overlay now: it shows (a place on this tab, not hidden by
+                                          // kMessageVisible, the columns up) and the layout mode is off (its covers stay on top)
         int column = -1;
         Settings::Rect onScreen;          // the block's box on screen (scrolled)
         std::uint64_t contentDraws = 0;   // Context::contentGeneration: draws into a new content clip
@@ -232,17 +249,18 @@ namespace BlockRules
         }
     }
 
-    /// Why the overlay made at a_made must go now (the first reason in the enum's order), or kNone. Rects within a_tolerance are the same
+    /// Why the overlay made at a_made must go now (a layout mode change first, then the enum's order), or kNone. Rects within
+    /// a_tolerance are the same
     inline OverlayEvent OverlayEventOf(const OverlaySnapshot& a_made, const OverlaySnapshot& a_now, double a_tolerance)
     {
         const auto same = [&](double a_a, double a_b) { return std::abs(a_a - a_b) <= a_tolerance; };
+        if (a_now.modeChanges != a_made.modeChanges) return OverlayEvent::kLayoutMode;
         if (!a_now.shown) return OverlayEvent::kHidden;
         if (a_now.column != a_made.column || !same(a_now.onScreen.left, a_made.onScreen.left) || !same(a_now.onScreen.top, a_made.onScreen.top) ||
             !same(a_now.onScreen.right, a_made.onScreen.right) || !same(a_now.onScreen.bottom, a_made.onScreen.bottom)) {
             return OverlayEvent::kMoved;
         }
         if (a_now.contentDraws != a_made.contentDraws) return OverlayEvent::kDrawn;
-        if (a_now.modeChanges != a_made.modeChanges) return OverlayEvent::kLayoutMode;
         if (a_now.panelsMade != a_made.panelsMade) return OverlayEvent::kPanelAbove;
         return OverlayEvent::kNone;
     }

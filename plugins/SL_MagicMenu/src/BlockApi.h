@@ -94,15 +94,16 @@
 //
 // --- v3: Registration's fields after tabs, all optional ---
 //
-// frame: called once per UI frame while the menu is open, for every shown v3 block that sets it, after the host's selection
-// and tab handling - in the layout mode too (Context::layoutMode true). It gets the block's present content clip
-// (a_content), its overlay clip (a_overlay: a clip of the block's column above every panel in it, its origin on the content
-// clip's origin - for a tooltip or a hover mark; null when the host has none this frame) and the Context below. Both clips
-// are lent for the call only, like draw's clip: do not keep them, or anything made in them, past the return. The host
-// clears the overlay when the block is hidden, moved, scrolled or drawn again, when the layout mode starts or ends and when a
-// panel is made above it, and gives the next frame a new, empty one with a new Context::overlayGeneration (every overlay clip
-// has its own, the menu's first one too): a cached "my tooltip is up" is stale once the generation changed. contentGeneration
-// is bumped each time the block is drawn into a new content clip. A block hidden by kMessageVisible gets no frame call.
+// frame: called once per UI frame while the menu is open, for every shown v3 block that sets it, after the host's selection,
+// tab handling and layout of that frame (the block's place is final for the frame) - in the layout mode too
+// (Context::layoutMode true). It gets the block's present content clip (a_content), its overlay clip (a_overlay: a clip of
+// the block's column above every panel in it, its origin on the content clip's origin - for a tooltip or a hover mark; null
+// in the layout mode, whose covers must stay on top, and when the host has none this frame) and the Context below. Both
+// clips are lent for the call only, like draw's clip: do not keep them, or anything made in them, past the return. The host
+// clears the overlay when the block is hidden, moved, scrolled or drawn again, when the layout mode starts and when a panel is
+// made above it, and gives a later frame a new, empty one with a new Context::overlayGeneration (every overlay clip has its
+// own, the menu's first one too): a cached "my tooltip is up" is stale once the generation changed. contentGeneration is
+// bumped each time the block is drawn into a new content clip. A block hidden by kMessageVisible gets no frame call.
 //
 // key: a keyboard key down (a_scanCode: its DirectInput scan code) while the menu is open, no text field takes keys and the
 // layout mode is off, delivered on the next UI frame (before that frame's frame calls; none when the layout mode came on
@@ -130,17 +131,17 @@
 // committed entry's form (0 = none); selectionSeq: bumped by every change of the list selection (A -> C -> A between two
 // frames still bumps it); source: what made the last selection (kList: the list, kAddon: a kMessageShowSpell the host
 // served, its requestId in servedRequest); tabBits: the current tab's kTab* bit; tabSchool: "Alteration" .. "Restoration"
-// on a school tab, else ""; layoutMode; overlayGeneration / contentGeneration (above); viewLeft .. viewBottom: the block's
-// part inside its column's visible area, in content clip coordinates (all 0 when none of it shows); rowSize: the SkyUI
+// on a school tab, else ""; layoutMode; overlayGeneration / contentGeneration (above); viewLeft .. viewBottom: the content
+// clip's part inside its column's visible area, in content clip coordinates (all 0 when none of it shows); rowSize: the SkyUI
 // list's row text size in stage units (0 until measured; every v3 block is drawn again once it is known); lineFirst /
 // linePitch: the game font's first line height and its step per further line, per size unit (measured at the menu's
 // open, else the host's fallback 1.25).
 //
 // kMessageShowSpell ('SLMS'): add-on -> SL_MagicMenu, data = a ShowSpellRequest, dataLen its size: show this spell as a
 // click on it in the add-on's block would - selected in the list when it is there, else on the menu's card (and in the 3D
-// preview when that setting is on; nameShown 0: the card hides the name). Queued (several for one block before that frame:
-// the newest counts), taken on the next UI frame; dropped when the list selection changed after it was queued (the player's
-// newer choice wins - so is a second block's request queued before one served in the same frame) and while the layout
+// preview when that setting is on; nameShown 0: the card hides the name). Queued, taken on the next UI frame: at most one
+// request is served per frame - the newest sent (by any block); the others of that frame are dropped (one log line). It is
+// dropped too when the list selection changed after it was queued (the player's newer choice wins) and while the layout
 // mode is on. Not answered: the next Context shows the result (source kAddon, servedRequest = its requestId).
 //
 // kMessageVisible ('SLMV'): add-on -> SL_MagicMenu, data = a VisibleRequest, dataLen its size: hide the block (shown 0) but

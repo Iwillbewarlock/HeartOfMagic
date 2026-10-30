@@ -1526,6 +1526,30 @@ namespace Widget
         std::vector<BlockRules::OverlayTrack> g_overlayTracks;
         std::vector<std::uint32_t> g_contentGenerations;
 
+        constexpr std::size_t kMaxQueuedRequests = 64;  // distinct ids of one request kind waiting for one frame; more are dropped
+        constexpr int kMaxBadRequestLogs = 5;           // refused or dropped requests logged per kind and game session
+
+        // One add-on request message ('SLMH', 'SLMS', 'SLMV'), any thread: ignored while the magic menu is closed; read by a_read
+        // (the request, or nullopt with the reason in its string: refused, logged); queued by a_enqueue (a BlockRules::Queued)
+        // under a_lock, a full queue logged. a_name: "height request ('SLMH')" ...; a_badLogs: the kind's log count
+        template <class Read, class Enqueue>
+        void QueueRequest(std::string_view a_sender, const char* a_name, std::atomic<int>& a_badLogs, std::mutex& a_lock, Read&& a_read, Enqueue&& a_enqueue)
+        {
+            if (g_closing || !g_attachedMovie.load()) return;  // the next menu opens without it (the add-on sends it again)
+            const auto sender = a_sender.empty() ? std::string_view("(no sender)") : a_sender;
+            std::string why;
+            auto request = a_read(why);
+            if (!request) {
+                if (a_badLogs.fetch_add(1) < kMaxBadRequestLogs) logger::warn("Widget: a {} from {} refused - {}", a_name, sender, why);
+                return;
+            }
+            const std::string id = request->id;
+            const std::scoped_lock lock(a_lock);
+            if (a_enqueue(std::move(*request)) == BlockRules::Queued::kFull && a_badLogs.fetch_add(1) < kMaxBadRequestLogs) {
+                logger::warn("Widget: {} for {} from {} dropped - {} ids queued already", a_name, id, sender, kMaxQueuedRequests);
+            }
+        }
+
         // Every block: the five built-in ones in build 13's panel creation order, then the add-ons in registration order
         const std::vector<BlockId>& AllBlocks()
         {
@@ -1647,8 +1671,8 @@ namespace Widget
             const bool nothing = ShownForm() == 0;
             for (const auto& addon : g_addons) {
                 if (!BlockRules::ShownOn(addon.tabs, a_flag) ||
-                    BlockRules::EmptyLookOf(addon.id, nothing, addon.drawSelection != nullptr, g_menu.layout.active,
-                        (addon.flags & BlockApi::kFlagKeepWhenEmpty) != 0) == BlockRules::EmptyLook::kClosed) {
+                    BlockRules::EmptyLookOf(addon.id, nothing, BlockRules::ClosesWhenEmpty(addon.drawSelection != nullptr, addon.flags), g_menu.layout.active) ==
+                        BlockRules::EmptyLook::kClosed) {
                     hidden.insert(addon.id);
                 }
             }
@@ -3275,6 +3299,28 @@ namespace Widget
             return {};
         }
 
+        // An add-on's callback threw (a_callback: "draw", "click", "key", "frame"): no draw, click, key or frame call for the block
+        // again this menu, its hit clip removed, the error logged with "SelfTest: <a_test> addon <id> <a_what> FAIL"
+        void FailAddon(RE::GFxValue& a_widget, const BlockRegistry::Block& a_addon, const char* a_callback, const char* a_test, const char* a_what,
+            const std::string& a_error)
+        {
+            g_menu.addonFailed.insert(a_addon.id);
+            if (auto panel = BlockClip(a_widget, a_addon.id); panel.IsDisplayObject()) Draw::Remove(panel, kAddonHitName);
+            logger::error("Widget: add-on block {} (from {}) threw from its {} callback: {} - not drawn or called again this menu", a_addon.id,
+                a_addon.sender, a_callback, a_error);
+            SelfTest(std::format("{} addon {} {} FAIL - its {} callback threw: {}", a_test, a_addon.id, a_what, a_callback, a_error));
+        }
+
+        // An add-on request ('SLMD', 'SLMH', 'SLMS', 'SLMV') names a registered block; one that does not is logged once per game
+        // session and request kind (a_request: "redraw request ('SLMD')" ...)
+        const BlockRegistry::Block* KnownAddon(const std::string& a_id, const char* a_request)
+        {
+            if (const auto* addon = Addon(a_id)) return addon;
+            static std::set<std::pair<std::string, std::string>> s_unknown;
+            if (s_unknown.emplace(a_request, a_id).second) logger::warn("Widget: a {} for {} - no add-on block has that id; ignored (logged once)", a_request, a_id);
+            return nullptr;
+        }
+
         // Block API v2: the kMessageRedraw ids queued since the last frame, due for DrawAddons; an id that is no registered block
         // is logged once per game session
         void TakeAddonRedraws()
@@ -3285,17 +3331,12 @@ namespace Widget
                 ids.swap(g_redrawQueue);
             }
             for (const auto& id : ids) {
-                if (Addon(id)) {
-                    if (g_menu.blocksAll.contains(id)) g_menu.addonDrawDue.insert(id);
-                    continue;
-                }
-                static std::set<std::string> s_unknown;
-                if (s_unknown.insert(id).second) logger::warn("Widget: a redraw request ('SLMD') for {} - no add-on block has that id; ignored (logged once)", id);
+                if (KnownAddon(id, "redraw request ('SLMD')") && g_menu.blocksAll.contains(id)) g_menu.addonDrawDue.insert(id);
             }
         }
 
         // Block API v2: the release judged since the last frame - a click call (content clip coordinates) or the cancel logged
-        void AddonClicks()
+        void AddonClicks(RE::GFxValue& a_widget)
         {
             if (!g_menu.addonClickDue) return;
             const auto due = *std::exchange(g_menu.addonClickDue, std::nullopt);
@@ -3317,11 +3358,7 @@ namespace Widget
                 addon->click(static_cast<float>(due.press.x), static_cast<float>(due.press.y), static_cast<float>(due.release.x),
                     static_cast<float>(due.release.y), addon->user);
             });
-            if (error.empty()) return;
-            g_menu.addonFailed.insert(due.id);
-            logger::error("Widget: add-on block {} (from {}) threw from its click callback: {} - not drawn or clicked again this menu", due.id,
-                addon->sender, error);
-            SelfTest(std::format("L6 addon {} click FAIL - its click callback threw: {}", due.id, error));
+            if (!error.empty()) FailAddon(a_widget, *addon, "click", "L6", "click", error);
         }
 
         // Block API v2: a drawSelection block whose last draw had another form than the card's now is due again - only while it
@@ -3374,10 +3411,7 @@ namespace Widget
                 });
                 ++g_menu.addonDraws[id];  // a press made before this draw is cancelled (BlockRules::Judge), whether it threw or not
                 if (!error.empty()) {
-                    g_menu.addonFailed.insert(id);
-                    if (auto panel = BlockClip(a_widget, id); panel.IsDisplayObject()) Draw::Remove(panel, kAddonHitName);
-                    logger::error("Widget: add-on block {} (from {}) threw from its draw callback: {} - not drawn again this menu", id, addon->sender, error);
-                    SelfTest(std::format("L6 addon {} drawn FAIL - its draw callback threw: {}", id, error));
+                    FailAddon(a_widget, *addon, "draw", "L6", "drawn", error);
                     continue;
                 }
                 if (addon->click && !OwnMouse(*addon)) MakeAddonHit(a_movie, a_widget, id, left, top, width, height);
@@ -3615,12 +3649,8 @@ namespace Widget
             }
             bool changed = false;
             for (const auto& [id, height] : requests) {
-                const auto* addon = Addon(id);
-                if (!addon) {
-                    static std::set<std::string> s_unknown;
-                    if (s_unknown.insert(id).second) logger::warn("Widget: a height request ('SLMH') for {} - no add-on block has that id; ignored (logged once)", id);
-                    continue;
-                }
+                const auto* addon = KnownAddon(id, "height request ('SLMH')");
+                if (!addon) continue;
                 const auto current = g_menu.fitHeight.find(id);
                 const auto verdict = BlockRules::JudgeHeight(height, addon->height,
                     current != g_menu.fitHeight.end() ? std::optional{ current->second } : std::nullopt);
@@ -3920,12 +3950,7 @@ namespace Widget
             }
             bool changed = false;
             for (const auto& [id, shown] : requests) {
-                if (!Addon(id)) {
-                    static std::set<std::string> s_unknown;
-                    if (s_unknown.insert(id).second) logger::warn("Widget: a visible request ('SLMV') for {} - no add-on block has that id; ignored (logged once)", id);
-                    continue;
-                }
-                if (!BlockRules::SetShown(g_menu.addonHidden, id, shown)) continue;
+                if (!KnownAddon(id, "visible request ('SLMV')") || !BlockRules::SetShown(g_menu.addonHidden, id, shown)) continue;
                 changed = true;
                 logger::info("Widget: add-on block {} {} by its kMessageVisible{}", id, shown ? "shown again" : "hidden",
                     shown ? "" : " (its place in the column kept)");
@@ -3935,7 +3960,7 @@ namespace Widget
 
         // The keyboard downs queued since the last frame (QueueAddonKey) handed to every v3 block with a key callback, in order;
         // none while the layout mode is on (it may have come on after the key was queued). The return value is logged only
-        void AddonKeys()
+        void AddonKeys(RE::GFxValue& a_widget)
         {
             std::vector<std::uint32_t> keys;
             {
@@ -3949,10 +3974,7 @@ namespace Widget
                     bool used = false;
                     const auto error = GuardedCall([&] { used = addon.key(key, addon.user); });
                     if (!error.empty()) {
-                        g_menu.addonFailed.insert(addon.id);
-                        logger::error("Widget: add-on block {} (from {}) threw from its key callback: {} - not drawn or called again this menu", addon.id,
-                            addon.sender, error);
-                        SelfTest(std::format("L9 addon {} key FAIL - its key callback threw: {}", addon.id, error));
+                        FailAddon(a_widget, addon, "key", "L9", "key", error);
                         break;
                     }
                     if (++g_menu.addonKeyLogs <= kMaxAddonKeyLogs) {
@@ -4012,12 +4034,12 @@ namespace Widget
             return context;
         }
 
-        // SelfTest L9 (once per block and menu, at its first frame call): the overlay's 0,0 and the content clip's 0,0 at one place
-        // in _root, and the Context's visible part inside the content clip
+        // SelfTest L9 (once per block and menu, at its first frame call with an overlay - none in the layout mode): the overlay's 0,0
+        // and the content clip's 0,0 at one place in _root, and the Context's visible part inside the content clip
         void CheckFirstFrame(RE::GFxMovieView* a_movie, const BlockRegistry::Block& a_addon, RE::GFxValue& a_content, RE::GFxValue* a_overlay,
             const BlockApi::Context& a_context)
         {
-            if (!Settings::Get().selfTest || !g_menu.addonFramed.insert(a_addon.id).second) return;
+            if (!Settings::Get().selfTest || !a_overlay || !g_menu.addonFramed.insert(a_addon.id).second) return;
             constexpr double kSlack = 0.5;
             RE::GFxValue root;
             const bool rooted = a_movie->GetVariable(&root, "_root");
@@ -4030,19 +4052,20 @@ namespace Widget
             SelfTest(std::format("L9 addon {} frame {} - content 0,0 in _root {}, overlay 0,0 {}; view {:.0f},{:.0f}..{:.0f},{:.0f} of {:.0f} x {:.0f}, "
                                  "selection seq {}, tab bits 0x{:X}, layout mode {}, generations overlay {} content {}",
                 a_addon.id, originOk && viewOk ? "PASS" : "FAIL", content ? std::format("{:.1f},{:.1f}", content->first, content->second) : std::string("not read"),
-                overlay ? std::format("{:.1f},{:.1f}", overlay->first, overlay->second) : std::string(a_overlay ? "not read" : "none"), a_context.viewLeft,
+                overlay ? std::format("{:.1f},{:.1f}", overlay->first, overlay->second) : std::string("not read"), a_context.viewLeft,
                 a_context.viewTop, a_context.viewRight, a_context.viewBottom, box.width, box.height, a_context.selectionSeq, a_context.tabBits,
                 a_context.layoutMode, a_context.overlayGeneration, a_context.contentGeneration));
         }
 
         // Block API v3: the key calls, then each frame block's frame call with its present content clip, its overlay and the Context.
-        // Last in the frame's add-on work (after the second DrawAddons), the layout mode included. A block that does not show (no
-        // place on this tab, hidden by kMessageVisible, the columns down, failed) gets no call, and its overlay goes; the overlay
-        // is made again (a new generation) when the block moved, scrolled, was drawn again, the layout mode changed or a panel
-        // was made above it (BlockRules::StepOverlay)
+        // Last in the frame's block work (after the redraw pass, whose fits may move the panels), the layout mode included. A
+        // block that does not show (no place on this tab, hidden by kMessageVisible, the columns down, failed) gets no call, and
+        // its overlay goes; the overlay is made again (a new generation) when the block moved, scrolled, was drawn again or a
+        // panel was made above it (BlockRules::StepOverlay). In the layout mode there is none (a_overlay null): one made there
+        // would lie above the mode's covers in the column clip
         void AddonFrames(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
-            AddonKeys();
+            AddonKeys(a_widget);
             const bool columnsUp = Visibility().any;
             for (std::size_t i = 0; i < g_addons.size(); ++i) {
                 const auto& addon = g_addons[i];
@@ -4050,8 +4073,8 @@ namespace Widget
                 const auto column = ColumnOf(addon.id);
                 const bool shown = columnsUp && column && g_menu.blocks.contains(addon.id) && !g_menu.addonHidden.contains(addon.id) &&
                                    !g_menu.addonFailed.contains(addon.id);
-                BlockRules::OverlaySnapshot now{ shown, column.value_or(-1), BlockRect(addon.id), g_contentGenerations[i], g_menu.layoutModeChanges,
-                    column ? g_menu.panelsMade[*column] : 0 };
+                BlockRules::OverlaySnapshot now{ shown && !g_menu.layout.active, column.value_or(-1), BlockRect(addon.id), g_contentGenerations[i],
+                    g_menu.layoutModeChanges, column ? g_menu.panelsMade[*column] : 0 };
                 auto& track = g_overlayTracks[i];
                 const auto step = BlockRules::StepOverlay(track, now, kRectTolerance);
                 if (step.remove) {
@@ -4070,7 +4093,7 @@ namespace Widget
                         static std::set<BlockId> s_logged;
                         if (s_logged.insert(addon.id).second) logger::warn("Widget: add-on block {} - its overlay clip could not be made (logged once)", addon.id);
                     }
-                } else if (auto parent = BlockParent(a_widget, addon.id); parent.IsDisplayObject()) {
+                } else if (auto parent = BlockParent(a_widget, addon.id); track.made && parent.IsDisplayObject()) {
                     overlay = Child(parent, g_overlayClips[i].c_str());
                 }
                 auto panel = BlockClip(a_widget, addon.id);
@@ -4080,10 +4103,7 @@ namespace Widget
                 RE::GFxValue* overlayArg = overlay.IsDisplayObject() ? &overlay : nullptr;
                 const auto error = GuardedCall([&] { addon.frame(a_movie, content, overlayArg, context, addon.user); });
                 if (!error.empty()) {
-                    g_menu.addonFailed.insert(addon.id);
-                    logger::error("Widget: add-on block {} (from {}) threw from its frame callback: {} - not drawn or called again this menu", addon.id,
-                        addon.sender, error);
-                    SelfTest(std::format("L9 addon {} frame FAIL - its frame callback threw: {}", addon.id, error));
+                    FailAddon(a_widget, addon, "frame", "L9", "frame", error);
                     continue;
                 }
                 CheckFirstFrame(a_movie, addon, content, overlayArg, context);
@@ -7881,7 +7901,8 @@ namespace Widget
             logger::info("Widget: {}: in list {}, index {}, member selectedIndex, took {}", a_what, pick.found ? "yes" : "no", pick.index,
                 pick.took ? "yes" : pick.found ? "no (filtered out by the tab)" : "-");
             FollowClick(a_movie, a_id, pick, a_nameShown);
-            if (a_requestId) g_menu.selFrom = BlockApi::SelectionSource::kAddon;
+            // every path, the tree card's too (no Commit there): a served request is the add-on's, a built-in tree click the player's
+            g_menu.selFrom = a_requestId ? BlockApi::SelectionSource::kAddon : BlockApi::SelectionSource::kList;
         }
 
         void OnNodeClicked(RE::GFxMovieView* a_movie, int a_index, const Spells::Snapshot& a_snapshot)
@@ -7899,11 +7920,11 @@ namespace Widget
             ShowSpellFromAddon(a_movie, id, NameShown(a_index, a_snapshot), std::nullopt, std::format("tree click {:08X} {}", id, Spells::NodeName(a_index)));
         }
 
-        // Block API v3: the kMessageShowSpell requests queued since the last frame (the newest per block), each served as a click on
-        // that spell in the add-on's block would be (ShowSpellFromAddon) while it is due - the list selection has not changed
-        // since it was sent (BlockRules::ServeShowSpells; a served one's own selection makes a later one stale). Dropped in the
-        // layout mode (it owns the input) and for an unknown id (logged once)
-        void TakeAddonShowSpells(RE::GFxMovieView* a_movie)
+        // Block API v3: the kMessageShowSpell requests queued since the last frame. At most one is served - the newest, while it is
+        // due (the list selection has not changed since it was sent; BlockRules::PickShowSpell) - as a click on that spell in the
+        // add-on's block would be (ShowSpellFromAddon); the others are dropped, in one log line. All are dropped in the layout
+        // mode (it owns the input); an unknown id is logged once. True when one was served
+        bool TakeAddonShowSpells(RE::GFxMovieView* a_movie)
         {
             constexpr int kMaxShowLogs = 20;
             BlockRules::ShowSpellQueue queue;
@@ -7911,31 +7932,27 @@ namespace Widget
                 const std::scoped_lock lock(g_v3Lock);
                 queue.swap(g_showSpellQueue);
             }
-            if (queue.empty()) return;
-            const auto log = [](const std::string& a_line) {
-                if (++g_menu.addonShowLogs <= kMaxShowLogs) logger::info("Widget: {}{}", a_line, g_menu.addonShowLogs == kMaxShowLogs ? " - later ones this menu not logged" : "");
-            };
-            std::erase_if(queue, [](const auto& a_entry) {
-                if (Addon(a_entry.first)) return false;
-                static std::set<std::string> s_unknown;
-                if (s_unknown.insert(a_entry.first).second) logger::warn("Widget: a show request ('SLMS') for {} - no add-on block has that id; ignored (logged once)", a_entry.first);
-                return true;
-            });
-            if (g_menu.layout.active) {
-                for (const auto& [id, queued] : queue) log(std::format("add-on block {} show spell {:08X} (request {}) dropped - the layout mode is on", id, queued.request.formId, queued.request.requestId));
-                return;
+            std::erase_if(queue, [](const BlockRules::QueuedShowSpell& a_queued) { return !KnownAddon(a_queued.request.id, "show request ('SLMS')"); });
+            if (queue.empty()) return false;
+            const bool mode = g_menu.layout.active;
+            const auto pick = mode ? BlockRules::ShowSpellPick{ std::nullopt, queue } : BlockRules::PickShowSpell(queue, g_menu.selSeq);
+            if (!pick.dropped.empty() && ++g_menu.addonShowLogs <= kMaxShowLogs) {
+                std::string dropped;
+                for (const auto& queued : pick.dropped) {
+                    dropped += std::format("{}{} {:08X} (request {}, sent at seq {})", dropped.empty() ? "" : ", ", queued.request.id, queued.request.formId,
+                        queued.request.requestId, queued.seqAtQueue);
+                }
+                logger::info("Widget: show request(s) dropped - {}: {}{}",
+                    mode        ? std::string("the layout mode is on") :
+                    pick.serve  ? std::string("a newer one is served this frame") :
+                                  std::format("the list selection changed after they were sent (seq {} now)", g_menu.selSeq),
+                    dropped, g_menu.addonShowLogs == kMaxShowLogs ? " - later ones this menu not logged" : "");
             }
-            BlockRules::ServeShowSpells(
-                queue, [] { return g_menu.selSeq; },
-                [&](const BlockRules::QueuedShowSpell& a_queued) {
-                    const auto& request = a_queued.request;
-                    ShowSpellFromAddon(a_movie, request.formId, request.nameShown, request.requestId,
-                        std::format("add-on block {} show spell {:08X} (request {}{})", request.id, request.formId, request.requestId, request.nameShown ? "" : ", name hidden"));
-                },
-                [&](const BlockRules::QueuedShowSpell& a_queued) {
-                    log(std::format("add-on block {} show spell {:08X} (request {}) dropped - the list selection changed after it was sent (seq {} -> {})", a_queued.request.id,
-                        a_queued.request.formId, a_queued.request.requestId, a_queued.seqAtQueue, g_menu.selSeq));
-                });
+            if (!pick.serve) return false;
+            const auto& request = pick.serve->request;
+            ShowSpellFromAddon(a_movie, request.formId, request.nameShown, request.requestId,
+                std::format("add-on block {} show spell {:08X} (request {}{})", request.id, request.formId, request.requestId, request.nameShown ? "" : ", name hidden"));
+            return true;
         }
 
         void DoNext(const Spells::Snapshot& a_snapshot)
@@ -8279,7 +8296,7 @@ namespace Widget
                 FitItemCard(movie, root);
                 WatchOwnCard(movie, widget);  // v7 C1 (after WatchTab: its box follows the tab)
                 MeasureListRow(movie, root, widget);  // Q4: our reading sizes follow the list's rows
-                AddonClicks();               // Block API v2: a release judged since the last frame (before any redraw of this frame)
+                AddonClicks(widget);         // Block API v2: a release judged since the last frame (before any redraw of this frame)
                 const auto modeChanges = g_menu.layoutModeChanges;
                 LayoutFrame(movie, widget);  // blocks plan Task 4: the layout mode (after WatchTab: a tab change cancels it first)
                 // review R4: the mode entered or left lays every block out at its full / fitted height - our card is drawn for it in
@@ -8294,8 +8311,10 @@ namespace Widget
                 DrawAddons(movie, widget);   // blocks plan Task 6: after the layout mode (it may make a panel again in its new column)
                 // the click first: its list selection is noticed in this same frame
                 if (const int clicked = std::exchange(g_menu.clicked, -1); clicked >= 0) OnNodeClicked(movie, clicked, *snapshot);
-                TakeAddonShowSpells(movie);  // Block API v3: an add-on's kMessageShowSpell, as a click (after the tree's: a click wins)
                 WatchSelection(*snapshot);
+                // Block API v3: an add-on's kMessageShowSpell, as a click - after the tree's (a click wins) and after a list change already
+                // pending is settled above (it would undo the request's tree card); its own list selection is settled at once
+                if (TakeAddonShowSpells(movie) && g_menu.selSeq != g_menu.selSeen) WatchSelection(*snapshot);
                 WatchReselect();        // review v12 #S3: after a category change, the list back on the selection
                 WatchTreeCard(movie);   // P2: our tree card leaves when the menu has no selection to show
                 WatchChosen(movie, widget);  // again: the tree card may have left this frame (GPT review: one frame late)
@@ -8306,7 +8325,6 @@ namespace Widget
                 // height would show past its box, over the block below, for one frame): laid out again and drawn once more - that
                 // draw is at the asked size, so it asks for nothing new
                 if (TakeAddonHeights(movie, widget)) DrawAddons(movie, widget);
-                AddonFrames(movie, widget);  // Block API v3: key and frame calls, with this frame's content clips and overlays
                 CheckUnlearned();       // P3: one model check per frame
                 g_menu.firstFrame = false;
                 if (g_pendingNext.exchange(false)) DoNext(*snapshot);
@@ -8327,6 +8345,9 @@ namespace Widget
                 DropStaleHover(movie, widget);  // review v11 #10
                 RedrawTooltip(movie, widget, *snapshot);  // the hover changes no tree: outside the dirty gate (spec v10 T6)
                 if (g_menu.dirty) RedrawPass(movie, root, widget, *snapshot);
+                // Block API v3: key and frame calls with this frame's content clips and overlays - after the redraw pass, whose fits
+                // may move the add-on panels (nothing below moves a block)
+                AddonFrames(movie, widget);
                 // user 2026-10-30: the key-hint strip and the gear under the columns as this frame left them
                 PlaceStripAndGear(movie, widget);
                 UpdateGear(movie, widget);
@@ -8808,63 +8829,28 @@ namespace Widget
 
     void RequestAddonHeight(std::string_view a_sender, const void* a_data, std::uint32_t a_dataLen)
     {
-        constexpr int kMaxBadHeightLogs = 5;
-        constexpr std::size_t kMaxQueuedHeights = 64;  // distinct ids waiting for one frame; more are dropped (and logged)
         static std::atomic<int> s_badLogs{ 0 };
-        if (g_closing || !g_attachedMovie.load()) return;  // the menu is closed: the next one opens at the registered heights
-        const auto sender = a_sender.empty() ? std::string_view("(no sender)") : a_sender;
-        std::string why;
-        const auto request = BlockRules::ReadHeight(a_data, a_dataLen, why);
-        if (!request) {
-            if (s_badLogs.fetch_add(1) < kMaxBadHeightLogs) logger::warn("Widget: a height request ('SLMH') from {} refused - {}", sender, why);
-            return;
-        }
-        const std::scoped_lock lock(g_heightLock);
-        if (BlockRules::Enqueue(g_heightQueue, request->id, request->height, kMaxQueuedHeights) == BlockRules::Queued::kFull &&
-            s_badLogs.fetch_add(1) < kMaxBadHeightLogs) {
-            logger::warn("Widget: height request for {} from {} dropped - {} ids queued already", request->id, sender, kMaxQueuedHeights);
-        }
+        QueueRequest(
+            a_sender, "height request ('SLMH')", s_badLogs, g_heightLock, [&](std::string& a_why) { return BlockRules::ReadHeight(a_data, a_dataLen, a_why); },
+            [](BlockRules::HeightRead a_request) { return BlockRules::Enqueue(g_heightQueue, a_request.id, a_request.height, kMaxQueuedRequests); });
     }
 
     void RequestAddonShowSpell(std::string_view a_sender, const void* a_data, std::uint32_t a_dataLen)
     {
-        constexpr int kMaxBadLogs = 5;
-        constexpr std::size_t kMaxQueued = 64;  // distinct ids waiting for one frame; more are dropped (and logged)
         static std::atomic<int> s_badLogs{ 0 };
-        if (g_closing || !g_attachedMovie.load()) return;  // the menu is closed
-        const auto sender = a_sender.empty() ? std::string_view("(no sender)") : a_sender;
-        std::string why;
-        auto request = BlockRules::ReadShowSpell(a_data, a_dataLen, why);
-        if (!request) {
-            if (s_badLogs.fetch_add(1) < kMaxBadLogs) logger::warn("Widget: a show request ('SLMS') from {} refused - {}", sender, why);
-            return;
-        }
-        const auto id = request->id;
-        const std::scoped_lock lock(g_v3Lock);
-        if (BlockRules::Enqueue(g_showSpellQueue, id, BlockRules::QueuedShowSpell{ std::move(*request), g_selSeqShared.load() }, kMaxQueued) ==
-                BlockRules::Queued::kFull &&
-            s_badLogs.fetch_add(1) < kMaxBadLogs) {
-            logger::warn("Widget: show request for {} from {} dropped - {} ids queued already", id, sender, kMaxQueued);
-        }
+        QueueRequest(
+            a_sender, "show request ('SLMS')", s_badLogs, g_v3Lock, [&](std::string& a_why) { return BlockRules::ReadShowSpell(a_data, a_dataLen, a_why); },
+            [](BlockRules::ShowSpellRead a_request) {
+                return BlockRules::EnqueueShowSpell(g_showSpellQueue, { std::move(a_request), g_selSeqShared.load() }, kMaxQueuedRequests);
+            });
     }
 
     void RequestAddonVisible(std::string_view a_sender, const void* a_data, std::uint32_t a_dataLen)
     {
-        constexpr int kMaxBadLogs = 5;
-        constexpr std::size_t kMaxQueued = 64;
         static std::atomic<int> s_badLogs{ 0 };
-        if (g_closing || !g_attachedMovie.load()) return;
-        const auto sender = a_sender.empty() ? std::string_view("(no sender)") : a_sender;
-        std::string why;
-        const auto request = BlockRules::ReadVisible(a_data, a_dataLen, why);
-        if (!request) {
-            if (s_badLogs.fetch_add(1) < kMaxBadLogs) logger::warn("Widget: a visible request ('SLMV') from {} refused - {}", sender, why);
-            return;
-        }
-        const std::scoped_lock lock(g_v3Lock);
-        if (BlockRules::Enqueue(g_visibleQueue, request->id, request->shown, kMaxQueued) == BlockRules::Queued::kFull && s_badLogs.fetch_add(1) < kMaxBadLogs) {
-            logger::warn("Widget: visible request for {} from {} dropped - {} ids queued already", request->id, sender, kMaxQueued);
-        }
+        QueueRequest(
+            a_sender, "visible request ('SLMV')", s_badLogs, g_v3Lock, [&](std::string& a_why) { return BlockRules::ReadVisible(a_data, a_dataLen, a_why); },
+            [](BlockRules::VisibleRead a_request) { return BlockRules::Enqueue(g_visibleQueue, a_request.id, a_request.shown, kMaxQueuedRequests); });
     }
 
     void QueueAddonKey(std::uint32_t a_scanCode)
