@@ -310,6 +310,7 @@ namespace Preview
             // for the close summary
             int overPasses = 0, hides = 0, held = 0, lost = 0, hidePass = 0, hideFail = 0, sights = 0, flashes = 0, again = 0;
             int left = 0, replaced = 0, doubles = 0, rebuilt = 0;
+            int lostLines = 0;  // the "Q3 lost" lines this menu (the first kSightLinesMost; later ones only counted in lost)
             int clipped = 0, clipHeld = 0, clipDropped = 0, clipUnjudged = 0, clipSkipped = 0, clipUnfitted = 0, clipTargetChanged = 0;
             // blocks plan Task 3 (D2): frames whose box was wholly out of its column (nothing drawn), unfitted frames scissored to
             // the column alone, and the L2 preview clip verdicts (the scissor inside the column's pixels)
@@ -1551,6 +1552,14 @@ namespace Preview
                     if (!model || model != hidden.Key() || !loaded.itemBase || loaded.itemBase->GetFormID() != hidden.base) continue;
                     const bool held = model->GetAppCulled();
                     (held ? clip.held : clip.lost) += 1;
+                    // 2026-10-31 (the "Q3 lost" of the last game run): what the model and the manager were when it came back
+                    if (!held && clip.lostLines++ < kSightLinesMost) {
+                        logger::info("Preview: Q3 lost {} ({}) at PostDisplay {}: hidden after the last over-pass, shown again before this hook - {} "
+                                     "frame(s) after the last selection change, scale {:.3f}, itemPos {:.2f},{:.2f},{:.2f} itemScale {:.3f}, load task {}{}",
+                            model->name.c_str(), SpellName(loaded.itemBase), clip.frame, clip.frame - clip.selectionFrame, model->local.scale,
+                            a_manager.itemPos.x, a_manager.itemPos.y, a_manager.itemPos.z, a_manager.itemScale, loading ? "pending" : "none",
+                            clip.lostLines == kSightLinesMost ? " - later ones counted only (summary at close)" : "");
+                    }
                     auto* watched = FindWatched(model, hidden.base);
                     if (watched && !std::exchange(watched->hideJudged, true)) {
                         (held ? clip.hidePass : clip.hideFail) += 1;
