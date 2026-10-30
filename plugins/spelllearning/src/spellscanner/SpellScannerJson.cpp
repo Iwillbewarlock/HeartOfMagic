@@ -171,12 +171,21 @@ namespace SpellScanner
             return RE::ActorValue::kNone;
         }
 
+        // The first effect's school, as always, so no spell that had one changes school.
+        // A spell whose first effect has none (a schoolless light or sound effect first)
+        // takes its costliest effect's, as the learning target and cast XP already did
         auto* firstEffect = spell->effects[0];
-        if (!firstEffect || !firstEffect->baseEffect) {
-            return RE::ActorValue::kNone;
+        if (firstEffect && firstEffect->baseEffect) {
+            const auto school = firstEffect->baseEffect->GetMagickSkill();
+            if (IsValidMagicSchool(school)) return school;
         }
-
-        return firstEffect->baseEffect->GetMagickSkill();
+        auto* costliest = spell->GetCostliestEffectItem();
+        if (costliest && costliest->baseEffect) {
+            const auto school = costliest->baseEffect->GetMagickSkill();
+            if (IsValidMagicSchool(school)) return school;
+        }
+        return firstEffect && firstEffect->baseEffect ? firstEffect->baseEffect->GetMagickSkill()
+                                                      : RE::ActorValue::kNone;
     }
 
     // Everything that comes from the MGEF record itself, split from what a

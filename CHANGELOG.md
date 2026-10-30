@@ -87,6 +87,11 @@
   active ISL-DESTified setup, so reading a spell tome said "You begin to study..." and the spell
   was never learned, with no error. Only a plugin the game loaded counts now. Not yet tested in game.
 
+- **Spells whose first effect has no magic school are scanned.** The scan took a spell's school from its first
+  effect only, so a spell that starts with a school-less effect (a light or a sound, say) was left out of the
+  tree. Such a spell now takes the school of its costliest effect, the one Heart of Magic already used for its
+  learning target and cast XP. A spell whose first effect has a school keeps that school. Not yet tested in game.
+
 - **Book Reading XP comes once per book.** Reading the same book or note again gave XP every time. Now each book or
   note gives XP once; copies of the same book count as one. A book read while no spell is being learned gives
   nothing then and can still give its XP later. Spell tomes give no Book Reading XP. The books that gave XP are

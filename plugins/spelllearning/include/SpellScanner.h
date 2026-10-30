@@ -156,7 +156,9 @@ namespace SpellScanner
     // is not there or sits in Data unchecked: TESDataHandler::LookupModByName finds those too
     const RE::TESFile* LookupLoadedPlugin(std::string_view name);
 
-    // Magic school of a spell (school of its first effect), kNone if it has none
+    // Magic school of a spell: its first effect's, or when that is none of the five magic
+    // schools, its costliest effect's (ProgressionManager::TargetSchoolOf). Otherwise the
+    // first effect's own value (kNone or another skill), kNone with no effect
     RE::ActorValue GetSpellSchool(RE::SpellItem* spell);
 
     // Stable string names for MGEF structure fields. Classification rules match

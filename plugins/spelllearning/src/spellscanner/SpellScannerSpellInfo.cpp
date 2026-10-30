@@ -56,8 +56,7 @@ namespace SpellScanner
         if (spell->effects.size() > 0) {
             auto* firstEffect = spell->effects[0];
             if (firstEffect && firstEffect->baseEffect) {
-                RE::ActorValue schoolAV = firstEffect->baseEffect->GetMagickSkill();
-                school = GetSchoolName(schoolAV);
+                school = GetSchoolName(GetSpellSchool(spell));   // the scan's school (costliest effect's when the first has none)
                 minimumSkill = firstEffect->baseEffect->GetMinimumSkillLevel();
             }
         }

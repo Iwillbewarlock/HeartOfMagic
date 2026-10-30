@@ -72,12 +72,9 @@ ProgressionManager::SpellProgress& ProgressionManager::EnsureProgress(RE::FormID
 std::string ProgressionManager::TargetSchoolOf(RE::SpellItem* spell)
 {
     if (!spell) return {};
-    auto school = SpellScanner::GetSpellSchool(spell);
-    if (!SpellScanner::IsValidMagicSchool(school)) {
-        auto* costliest = spell->GetCostliestEffectItem();
-        school = (costliest && costliest->baseEffect) ? costliest->baseEffect->GetMagickSkill() : RE::ActorValue::kNone;
-        if (!SpellScanner::IsValidMagicSchool(school)) return {};
-    }
+    // The first effect's school, else the costliest effect's (GetSpellSchool)
+    const auto school = SpellScanner::GetSpellSchool(spell);
+    if (!SpellScanner::IsValidMagicSchool(school)) return {};
     return SpellScanner::GetSchoolName(school);
 }
 
