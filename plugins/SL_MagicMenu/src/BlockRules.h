@@ -77,8 +77,8 @@ namespace BlockRules
     inline constexpr std::size_t kHeightNeeded = offsetof(BlockApi::HeightRequest, height) + sizeof(float);  // the fields read
 
     /// The id and height of a kMessageHeight message, or nullopt with the reason in a_why: the message must cover the fields
-    /// up to height (by dataLen and structSize), have apiVersion kVersion (2: the message is v2's; a later version would be a
-    /// header this host does not know), an id of 1..kMaxFinalIdLength characters and a finite height > 0 (whether it fits the
+    /// up to height (by dataLen and structSize), have apiVersion kVersionV2 or kVersion (2 or 3: the message is v2's, unchanged in
+    /// v3; a later one is a header this host does not know), an id of 1..kMaxFinalIdLength characters and a finite height > 0 (whether it fits the
     /// block is JudgeHeight's)
     inline std::optional<HeightRead> ReadHeight(const void* a_data, std::uint32_t a_dataLen, std::string& a_why)
     {
@@ -88,8 +88,8 @@ namespace BlockRules
         }
         BlockApi::HeightRequest request{};
         std::memcpy(&request, a_data, std::min<std::size_t>(a_dataLen, sizeof(request)));
-        if (request.apiVersion != BlockApi::kVersion) {
-            a_why = "apiVersion " + std::to_string(request.apiVersion) + " (this SL_MagicMenu reads " + std::to_string(BlockApi::kVersion) + ")";
+        if (request.apiVersion != BlockApi::kVersionV2 && request.apiVersion != BlockApi::kVersion) {
+            a_why = "apiVersion " + std::to_string(request.apiVersion) + " (this SL_MagicMenu reads " + std::to_string(BlockApi::kVersionV2) + " or " + std::to_string(BlockApi::kVersion) + ")";
             return std::nullopt;
         }
         if (request.structSize < kHeightNeeded) {

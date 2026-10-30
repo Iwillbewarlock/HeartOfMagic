@@ -3509,7 +3509,7 @@ namespace Widget
                 if (g_menu.addonDrawn.insert(id).second) {
                     SelfTest(std::format("L6 addon {} drawn - {:.0f} x {:.0f} content in column {} (block {}){}", id, width, height,
                         ColumnOf(id).value_or(-1), RectText(rect),
-                        addon->apiVersion >= BlockApi::kVersion ?
+                        addon->apiVersion >= BlockApi::kVersionV2 ?
                             std::format("; v2: {}{}, tabs 0x{:X}", addon->drawSelection ? std::format("drawSelection for {:08X}", shown) : "draw",
                                 addon->click ? ", click" : "", addon->tabs) :
                             std::string{}));

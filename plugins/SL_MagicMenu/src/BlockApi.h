@@ -1,9 +1,10 @@
 #pragma once
 
 // =============================================================================
-// BLOCK API v2 - how another SKSE plugin adds its own block to SL_MagicMenu's
+// BLOCK API v3 - how another SKSE plugin adds its own block to SL_MagicMenu's
 // magic menu panels (blocks plan Task 6, design review D9; v2: Spell Research
-// add-on design 2026-10-27, "Changes / 1"). Copy this header into your plugin;
+// add-on design 2026-10-27, "Changes / 1"; v3: HoM add-on design 2026-10-30,
+// "Block API v3"). Copy this header into your plugin;
 // it needs nothing but <cstddef> and <cstdint> (the two RE classes are only
 // declared here, CommonLibSSE-NG defines them).
 //
@@ -12,9 +13,10 @@
 // your plugin with CommonLibSSE-NG (any build whose GFxValue is the game's
 // 0x18-byte value) and the MSVC x64 calling convention.
 //
-// Versions: an SL_MagicMenu with this header reads apiVersion 1 (RegistrationV1, frozen: the v1 header's Registration) and
-// 2 (Registration). A v1 add-on built against the v1 header keeps working unchanged. Version 3 or later is refused with a
-// reason ("update SL_MagicMenu").
+// Versions: an SL_MagicMenu with this header reads apiVersion 1 (RegistrationV1, frozen: the v1 header's Registration),
+// 2 (RegistrationV2, frozen: the v2 header's Registration) and 3 (Registration). A v1 or v2 add-on built against its own
+// header keeps working unchanged, its messages included ('SLMD'; 'SLMH' stays readable at apiVersion 2). Version 4 or
+// later is refused with a reason ("update SL_MagicMenu").
 //
 // Registering:
 //   1. At SKSE load, listen for SL_MagicMenu's answer:
@@ -25,8 +27,9 @@
 //                                    .tabs = BlockApi::kTabSpells };
 //        SKSE::GetMessagingInterface()->Dispatch(BlockApi::kMessageRegister, &reg, sizeof(reg), BlockApi::kPluginName);
 //      Dispatch returns false when no SL_MagicMenu listened (not installed, or bEnabled=0). The struct only needs to live
-//      for the Dispatch call: SL_MagicMenu copies id and title. Only the fields structSize and the message size both cover
-//      are read (an older v2 struct cut short reads its missing fields as null / 0).
+//      for the Dispatch call: SL_MagicMenu copies id, title and legacyId. Only the fields of the version's own layout that
+//      structSize and the message size both cover are read: a struct cut short reads its missing fields as null / 0 (pad as
+//      -1), and a v1 or v2 struct that grew past its layout is never read as later fields.
 //   3. The answer comes back, during that Dispatch, as a kMessageResult message to the sender (BlockApi::Result: accepted
 //      or refused, the block's final id and the reason; its apiVersion is the version your registration was read as, or
 //      this SL_MagicMenu's kVersion when it was refused before that). Its strings live only for that call.
@@ -41,12 +44,12 @@
 // and lends you a fresh, empty clip below the title strip, inside the padding (the "content clip"): draw there with the
 // AS2 drawing API (beginFill / lineTo / createTextField ...). a_width / a_height are that clip's drawable size.
 //
-// Threads and lifetimes: draw, drawSelection and click are called on the UI thread, from the magic menu movie's frame
-// handler, never from inside another of your callbacks. The clip is lent for the draw call only: do not keep the GFxValue,
+// Threads and lifetimes: draw, drawSelection, click, frame and key are called on the UI thread, from the magic menu movie's
+// frame handler, never from inside another of your callbacks. The clip is lent for the draw call only: do not keep the GFxValue,
 // the movie or anything made in it past the return (the movie dies when the menu closes), and do not put AS2 handlers
 // (onPress ...) on it - use click. Do not throw out of a callback (an exception is caught and logged, and the block is not
-// drawn or clicked again in that menu). Messages to SL_MagicMenu (registration, kMessageRedraw, kMessageHeight) may come from
-// any thread.
+// drawn or clicked again in that menu). Messages to SL_MagicMenu (registration, kMessageRedraw, kMessageHeight,
+// kMessageShowSpell, kMessageVisible) may come from any thread.
 //
 // When the block is drawn (draw, or drawSelection when it is set - then draw is never called): once after the menu opens,
 // again when the block's size changes or it is moved to the other column, and on a kMessageRedraw for it - each time into a
@@ -71,7 +74,8 @@
 // struct only needs to live for the Dispatch call (the id is copied). Ignored while the magic menu is closed and for an id
 // that is not a registered block; refused (logged) when height is not finite, <= 0 or more than the registered height. The
 // saved layout (SL_MagicMenu_Layout.json) is not changed. Not answered. 'SLMH' needs an SL_MagicMenu that knows it (the same
-// kVersion 2 header with this message): an older one ignores the message, and the block keeps its registered height.
+// kVersion 2 header with this message): an older one ignores the message, and the block keeps its registered height. v3
+// leaves the HeightRequest as it was: SL_MagicMenu reads it at apiVersion 2 and 3, so a v2 add-on's requests keep working.
 //
 // click (optional): SL_MagicMenu lays one transparent hit area over the block's content clip. A mouse press there and its
 // release are handed to click as two points in content clip coordinates (0,0 = the clip's top-left, the same space your
@@ -87,6 +91,58 @@
 // on: All, Favorites, the five school tabs (Alteration .. Restoration) and any category it does not know (a menu mod's
 // own) - All and Favorites can still hold a power or a shout, which a_shown shows. kTabPowers, kTabShouts and
 // kTabActiveEffects are those three tabs alone. A bit outside kTabsKnown is refused.
+//
+// --- v3: Registration's fields after tabs, all optional ---
+//
+// frame: called once per UI frame while the menu is open, for every shown v3 block that sets it, after the host's selection
+// and tab handling - in the layout mode too (Context::layoutMode true). It gets the block's present content clip
+// (a_content), its overlay clip (a_overlay: a clip of the block's column above every panel in it, its origin on the content
+// clip's origin - for a tooltip or a hover mark; null when the host has none this frame) and the Context below. Both clips
+// are lent for the call only, like draw's clip: do not keep them, or anything made in them, past the return. The host
+// clears the overlay when the block is hidden, moved, scrolled or drawn again and when the layout mode starts or ends, and
+// bumps Context::overlayGeneration each time: a cached "my tooltip is up" is stale once the generation changed.
+// contentGeneration is bumped each time the block is drawn into a new content clip. A block hidden by kMessageVisible gets
+// no frame call.
+//
+// key: a keyboard key down (a_scanCode: its DirectInput scan code) while the menu is open, no text field takes keys and the
+// layout mode is off, delivered on the next UI frame. The return value is logged only: SL_MagicMenu never consumes a key
+// (the menu and the game see it as before). No gamepad.
+//
+// pad: the content clip's inset in the block's box (stage units; top, left, right and bottom). < 0 (the default,
+// kPadDefault) is the host's own pad; a pad that is not a finite number is refused.
+//
+// flags (kFlag* bits; a bit outside kFlagsKnown is refused):
+//   kFlagOwnMouse       the host lays no hit area over the block and calls no click: the add-on puts its own AS2 mouse
+//                       handlers (GFxFunctionHandler: onRelease, onRollOver, onRollOut, hitArea) on clips it draws. Those
+//                       handlers only record what happened; act on it in frame, and ignore events while the last
+//                       Context::layoutMode seen was true (the layout mode owns the mouse; its covers lie above the panels).
+//   kFlagKeepWhenEmpty  the block keeps its place and its box when the menu shows no spell.
+//
+// legacyId: one of SL_MagicMenu's retired built-in block ids ("tree", "progress", "nodecard") that this block takes over:
+// a saved layout's place for that id becomes this block's place (the layout file keeps the retired id on disk, so an older
+// SL_MagicMenu still reads it). Null or "" = none. Refused when the id is not a retired one or another block claimed it.
+//
+// Context (frame's a_context; it lives for the call only, tabSchool too): apiVersion / structSize first - read only the
+// fields structSize covers (a later host may add fields at the end). shown: as drawSelection's a_shown; listForm: the list's
+// committed entry's form (0 = none); selectionSeq: bumped by every change of the list selection (A -> C -> A between two
+// frames still bumps it); source: what made the last selection (kList: the list, kAddon: a kMessageShowSpell the host
+// served, its requestId in servedRequest); tabBits: the current tab's kTab* bit; tabSchool: "Alteration" .. "Restoration"
+// on a school tab, else ""; layoutMode; overlayGeneration / contentGeneration (above); viewLeft .. viewBottom: the block's
+// part inside its column's visible area, in content clip coordinates; rowSize / lineFirst / linePitch: the SkyUI list's
+// text metrics the host measured (0 until measured; every v3 block is drawn again once they are known).
+//
+// kMessageShowSpell ('SLMS'): add-on -> SL_MagicMenu, data = a ShowSpellRequest, dataLen its size: show this spell as a
+// click on it in the add-on's block would - selected in the list when it is there, else on the menu's card (and in the 3D
+// preview when that setting is on; nameShown 0: the card hides the name). Queued, taken on the next UI frame; dropped when
+// the list selection changed after it was queued (the player's newer choice wins). Not answered: the next Context shows
+// the result (source kAddon, servedRequest = its requestId).
+//
+// kMessageVisible ('SLMV'): add-on -> SL_MagicMenu, data = a VisibleRequest, dataLen its size: hide the block (shown 0) but
+// keep its place in the column, or show it again (shown 1). Queued, taken on the next UI frame.
+//
+// Both v3 messages: the struct only needs to live for the Dispatch call (the id is copied). Ignored while the magic menu is
+// closed and for an id that is not a registered block; refused (logged) when the message is shorter than the fields read,
+// apiVersion is not 3, the id is empty or too long, or ('SLMS') formId is 0. Not answered.
 // =============================================================================
 
 #include <cstddef>
@@ -112,9 +168,12 @@ namespace BlockApi
     inline constexpr std::uint32_t kMessageResult = FourCC('S', 'L', 'M', 'R');    // SL_MagicMenu -> add-on: data = Result*
     inline constexpr std::uint32_t kMessageRedraw = FourCC('S', 'L', 'M', 'D');    // add-on -> SL_MagicMenu: data = the final id (v2)
     inline constexpr std::uint32_t kMessageHeight = FourCC('S', 'L', 'M', 'H');    // add-on -> SL_MagicMenu: data = HeightRequest* (v2)
+    inline constexpr std::uint32_t kMessageShowSpell = FourCC('S', 'L', 'M', 'S'); // add-on -> SL_MagicMenu: data = ShowSpellRequest* (v3)
+    inline constexpr std::uint32_t kMessageVisible = FourCC('S', 'L', 'M', 'V');   // add-on -> SL_MagicMenu: data = VisibleRequest* (v3)
 
     inline constexpr std::uint32_t kVersionV1 = 1;
-    inline constexpr std::uint32_t kVersion = 2;
+    inline constexpr std::uint32_t kVersionV2 = 2;
+    inline constexpr std::uint32_t kVersion = 3;
     inline constexpr std::uint32_t kMaxIdLength = 128;
     inline constexpr std::uint32_t kMaxTitleLength = 128;  // a longer title is cut
     inline constexpr float kMaxHeight = 4000.0f;
@@ -127,6 +186,41 @@ namespace BlockApi
     inline constexpr std::uint32_t kTabActiveEffects = 1u << 3;
     inline constexpr std::uint32_t kTabsKnown = kTabSpells | kTabPowers | kTabShouts | kTabActiveEffects;
 
+    /// Registration::flags (v3): see "flags" above
+    inline constexpr std::uint32_t kFlagOwnMouse = 1u << 0;
+    inline constexpr std::uint32_t kFlagKeepWhenEmpty = 1u << 1;
+    inline constexpr std::uint32_t kFlagsKnown = kFlagOwnMouse | kFlagKeepWhenEmpty;
+
+    /// Registration::pad (v3): any value < 0 is the host's own pad
+    inline constexpr float kPadDefault = -1.0f;
+
+    /// What made the menu's last selection (Context::source, v3)
+    enum class SelectionSource : std::uint32_t
+    {
+        kNone = 0,   // nothing chosen yet this menu
+        kList = 1,   // the player's list (mouse, keys, gamepad)
+        kAddon = 2,  // a kMessageShowSpell the host served (Context::servedRequest)
+    };
+
+    /// frame's view of the menu (v3): see "Context" above. Lent for the call only
+    struct Context
+    {
+        std::uint32_t apiVersion = kVersion;
+        std::uint32_t structSize = sizeof(Context);
+        std::uint32_t shown = 0;          // as drawSelection's a_shown (RE::FormID)
+        std::uint32_t listForm = 0;       // the list's committed entry's form, 0 = none
+        std::uint32_t selectionSeq = 0;   // bumped by every change of the list selection
+        SelectionSource source = SelectionSource::kNone;
+        std::uint32_t servedRequest = 0;  // the requestId of the last kMessageShowSpell served (source kAddon)
+        std::uint32_t tabBits = kTabSpells;
+        const char* tabSchool = "";       // "Alteration" .. "Restoration" on a school tab, else ""
+        bool layoutMode = false;
+        std::uint32_t overlayGeneration = 0;  // bumped each time the host clears the overlay
+        std::uint32_t contentGeneration = 0;  // bumped each time the block is drawn into a new content clip
+        float viewLeft = 0.0f, viewTop = 0.0f, viewRight = 0.0f, viewBottom = 0.0f;  // the visible part, content clip coordinates
+        float rowSize = 0.0f, lineFirst = 0.0f, linePitch = 0.0f;  // the SkyUI list's text metrics, 0 until measured
+    };
+
     /// a_clip: the lent content clip; a_width / a_height: its drawable size in stage units; a_user: Registration::user
     using DrawFn = void (*)(RE::GFxMovieView* a_movie, RE::GFxValue& a_clip, float a_width, float a_height, void* a_user);
     /// v2: as DrawFn, plus a_shown: the form the menu's card shows (0 = none); std::uint32_t is RE::FormID, so a callback
@@ -135,6 +229,10 @@ namespace BlockApi
         void* a_user);
     /// v2: a press and its release in the block, both in content clip coordinates (see "click" above)
     using ClickFn = void (*)(float a_pressX, float a_pressY, float a_releaseX, float a_releaseY, void* a_user);
+    /// v3: once per UI frame for a shown block (see "frame" above); a_content and a_overlay are lent for the call only
+    using FrameFn = void (*)(RE::GFxMovieView* a_movie, RE::GFxValue& a_content, RE::GFxValue* a_overlay, const Context& a_context, void* a_user);
+    /// v3: a keyboard key down (see "key" above); the return value is logged only, the host never consumes the key
+    using KeyFn = bool (*)(std::uint32_t a_scanCode, void* a_user);
 
     /// API v1's Registration, FROZEN: the layout every v1 add-on sends. apiVersion and structSize come first in every version
     struct RegistrationV1
@@ -149,7 +247,36 @@ namespace BlockApi
     };
     inline constexpr std::uint32_t kRegistrationV1Size = sizeof(RegistrationV1);
 
-    /// API v2: v1's fields in v1's places, then the v2 fields. v2 needs draw or drawSelection
+    /// API v2's Registration, FROZEN: the layout every v2 add-on sends (v1's fields in v1's places, then the v2 fields).
+    /// v2 needs draw or drawSelection
+    struct RegistrationV2
+    {
+        std::uint32_t apiVersion = kVersionV2;
+        std::uint32_t structSize = sizeof(RegistrationV2);
+        const char* id = nullptr;     // see "The id" above
+        const char* title = nullptr;  // the title strip's text (null / "": no strip)
+        float height = 0.0f;
+        DrawFn draw = nullptr;        // not called when drawSelection is set
+        void* user = nullptr;         // handed back to every callback
+        DrawSelectionFn drawSelection = nullptr;  // v2: when set, used instead of draw
+        ClickFn click = nullptr;                  // v2: optional
+        std::uint32_t tabs = kTabsAll;            // v2: kTab* bits, kTabsAll = every tab
+    };
+    inline constexpr std::uint32_t kRegistrationV2Size = sizeof(RegistrationV2);
+
+    // The ABI freeze: v2 starts with v1's fields at v1's offsets
+    static_assert(offsetof(RegistrationV2, apiVersion) == offsetof(RegistrationV1, apiVersion));
+    static_assert(offsetof(RegistrationV2, structSize) == offsetof(RegistrationV1, structSize));
+    static_assert(offsetof(RegistrationV2, id) == offsetof(RegistrationV1, id));
+    static_assert(offsetof(RegistrationV2, title) == offsetof(RegistrationV1, title));
+    static_assert(offsetof(RegistrationV2, height) == offsetof(RegistrationV1, height));
+    static_assert(offsetof(RegistrationV2, draw) == offsetof(RegistrationV1, draw));
+    static_assert(offsetof(RegistrationV2, user) == offsetof(RegistrationV1, user));
+    static_assert(offsetof(RegistrationV2, drawSelection) >= kRegistrationV1Size);
+    static_assert(sizeof(void*) != 8 || kRegistrationV1Size == 48, "the v1 layout of x64 builds is 48 bytes");
+    static_assert(sizeof(void*) != 8 || kRegistrationV2Size == 72, "the v2 layout of x64 builds is 72 bytes");
+
+    /// API v3: v2's fields in v2's places, then the v3 fields (all optional). v3 needs draw or drawSelection, as v2
     struct Registration
     {
         std::uint32_t apiVersion = kVersion;
@@ -160,20 +287,27 @@ namespace BlockApi
         DrawFn draw = nullptr;        // not called when drawSelection is set
         void* user = nullptr;         // handed back to every callback
         DrawSelectionFn drawSelection = nullptr;  // v2: when set, used instead of draw
-        ClickFn click = nullptr;                  // v2: optional
+        ClickFn click = nullptr;                  // v2: optional (never called with kFlagOwnMouse)
         std::uint32_t tabs = kTabsAll;            // v2: kTab* bits, kTabsAll = every tab
+        FrameFn frame = nullptr;                  // v3: once per UI frame while shown
+        KeyFn key = nullptr;                      // v3: keyboard keys down
+        float pad = kPadDefault;                  // v3: the content clip's inset, < 0 = the host's
+        std::uint32_t flags = 0;                  // v3: kFlag* bits
+        const char* legacyId = nullptr;           // v3: a retired built-in id this block takes over (null = none)
     };
 
-    // The ABI freeze: v2 starts with v1's fields at v1's offsets
-    static_assert(offsetof(Registration, apiVersion) == offsetof(RegistrationV1, apiVersion));
-    static_assert(offsetof(Registration, structSize) == offsetof(RegistrationV1, structSize));
-    static_assert(offsetof(Registration, id) == offsetof(RegistrationV1, id));
-    static_assert(offsetof(Registration, title) == offsetof(RegistrationV1, title));
-    static_assert(offsetof(Registration, height) == offsetof(RegistrationV1, height));
-    static_assert(offsetof(Registration, draw) == offsetof(RegistrationV1, draw));
-    static_assert(offsetof(Registration, user) == offsetof(RegistrationV1, user));
-    static_assert(offsetof(Registration, drawSelection) >= kRegistrationV1Size);
-    static_assert(sizeof(void*) != 8 || kRegistrationV1Size == 48, "the v1 layout of x64 builds is 48 bytes");
+    // The ABI freeze: v3 starts with v2's fields at v2's offsets
+    static_assert(offsetof(Registration, apiVersion) == offsetof(RegistrationV2, apiVersion));
+    static_assert(offsetof(Registration, structSize) == offsetof(RegistrationV2, structSize));
+    static_assert(offsetof(Registration, id) == offsetof(RegistrationV2, id));
+    static_assert(offsetof(Registration, title) == offsetof(RegistrationV2, title));
+    static_assert(offsetof(Registration, height) == offsetof(RegistrationV2, height));
+    static_assert(offsetof(Registration, draw) == offsetof(RegistrationV2, draw));
+    static_assert(offsetof(Registration, user) == offsetof(RegistrationV2, user));
+    static_assert(offsetof(Registration, drawSelection) == offsetof(RegistrationV2, drawSelection));
+    static_assert(offsetof(Registration, click) == offsetof(RegistrationV2, click));
+    static_assert(offsetof(Registration, tabs) == offsetof(RegistrationV2, tabs));
+    static_assert(offsetof(Registration, frame) >= kRegistrationV2Size);
 
     enum class Status : std::uint32_t
     {
@@ -198,5 +332,25 @@ namespace BlockApi
         std::uint32_t structSize = sizeof(HeightRequest);
         const char* id = nullptr;  // the block's final id, as the Result gave it
         float height = 0.0f;       // stage units, 0 < height <= the registered height
+    };
+
+    /// kMessageShowSpell's data (v3; see "kMessageShowSpell" above)
+    struct ShowSpellRequest
+    {
+        std::uint32_t apiVersion = kVersion;
+        std::uint32_t structSize = sizeof(ShowSpellRequest);
+        const char* id = nullptr;      // the block's final id, as the Result gave it
+        std::uint32_t formId = 0;      // the spell (RE::FormID), not 0
+        std::uint32_t requestId = 0;   // the add-on's own number, back in Context::servedRequest once served
+        std::uint32_t nameShown = 1;   // 0: the card hides the spell's name
+    };
+
+    /// kMessageVisible's data (v3; see "kMessageVisible" above)
+    struct VisibleRequest
+    {
+        std::uint32_t apiVersion = kVersion;
+        std::uint32_t structSize = sizeof(VisibleRequest);
+        const char* id = nullptr;      // the block's final id, as the Result gave it
+        std::uint32_t shown = 1;       // 0: hidden, its place kept; 1: shown
     };
 }

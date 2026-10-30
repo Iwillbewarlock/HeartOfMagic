@@ -1017,8 +1017,8 @@ namespace
         noDraw.draw = nullptr;
         ExpectRefused(Send(registry, noDraw), "draw", "null draw callback");
         auto newer = Reg("x.newer");
-        newer.apiVersion = BlockApi::kVersion + 1;  // API v2: version 3 is the first one this host does not read
-        ExpectRefused(Send(registry, newer), "apiVersion 3", "a newer apiVersion");
+        newer.apiVersion = BlockApi::kVersion + 1;  // API v3: version 4 is the first one this host does not read
+        ExpectRefused(Send(registry, newer), Text("apiVersion %u", BlockApi::kVersion + 1), "a newer apiVersion");
         auto older = Reg("x.old");
         older.apiVersion = 0;
         ExpectRefused(Send(registry, older), "apiVersion 0", "apiVersion 0");
