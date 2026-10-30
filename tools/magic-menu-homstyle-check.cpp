@@ -1,4 +1,4 @@
-// magic-menu-homstyle-check - offline check of the magic menu prototype's Heart of Magic style reader
+// magic-menu-homstyle-check - offline check of the Heart of Magic block's style reader
 // (plugins/SL_MagicMenu/src/HomStyle.cpp, spec v11 T, R1, R4, R7, R10).
 //
 //   magic-menu-homstyle-check [config.json [presetDir]]   reads HoM's real files as the plugin does and prints what it got
@@ -188,7 +188,7 @@ namespace
         const auto noMatch = HomStyle::Build(std::string(R"({"designPreset":"skald"})"),
             { { "Skald", R"({"id":"skald-old","tree":{"nodeFill":"#010101"}})" }, { "Bad", "{not json" } });
         Expect(noMatch.presetFile.empty() && noMatch.tree.nodeFill.rgb == 0x1A1A2E, "a file whose id is not designPreset is not used (file name ignored)");
-        Expect(HasNote(noMatch, "preset skald not found, HoM's built-in presets are not read by the prototype"), "R7's note: preset skald not found");
+        Expect(HasNote(noMatch, "preset skald not found, HoM's built-in presets are not read by this block"), "R7's note: preset skald not found");
         Expect(HasNote(noMatch, "Bad.json is not a JSON object"), "a broken preset file: skipped and noted");
 
         const auto builtIn = HomStyle::Build(std::string(R"({"designPreset":"Arcane"})"), { { "arcane", R"({"tree":{"nodeFill":"#010101"}})" } });
