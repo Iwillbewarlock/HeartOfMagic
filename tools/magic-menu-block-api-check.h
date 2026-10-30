@@ -114,4 +114,5 @@ namespace BlockApiCheck
     void V3Registrations();
     void V3Messages();
     void V3Host();
+    void V3KeyHints();
 }

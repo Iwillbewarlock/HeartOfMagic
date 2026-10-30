@@ -50,6 +50,11 @@ namespace Widget
     /// Every menu opens with its blocks shown. Dropped while the magic menu is closed; a bad message is logged and ignored
     void RequestAddonVisible(std::string_view a_sender, const void* a_data, std::uint32_t a_dataLen);
 
+    /// Block API v3 (2026-10-31): an add-on's kMessageKeyHint ('SLMK', data = BlockApi::KeyHint) from a_sender. Any thread, menu open
+    /// or closed: read, its id checked against the registered blocks, kept for the session (KeyHints.h: the hint in SkyUI's key-hint
+    /// strip while its block shows). A bad message is logged and ignored
+    void RequestAddonKeyHint(std::string_view a_sender, const void* a_data, std::uint32_t a_dataLen);
+
     /// Block API v3: a keyboard down (DirectInput scan code) that passed the input's gate (the menu open, no text entry, the
     /// layout mode off, not a key the mode owns). Any thread: queued, and on the menu's next frame each v3 block's key
     /// callback gets it (none while the layout mode is on by then). Dropped while the magic menu is closed

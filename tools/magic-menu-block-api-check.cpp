@@ -391,6 +391,7 @@ namespace
         V3Registrations();
         V3Messages();
         V3Host();
+        V3KeyHints();
         std::printf("block-api-check: %d PASS, %d FAIL\n", g_pass, g_fail);
         return g_fail == 0 ? kExitOk : kExitFail;
     }

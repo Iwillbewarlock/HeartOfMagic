@@ -29,6 +29,7 @@
 #include <mutex>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace
 {
@@ -152,6 +153,24 @@ namespace
         return g_accepted[index].load();
     }
 
+    // 2026-10-31 (user: "단축키 표시"): the keys the tree block's key callback takes (next spell, set the learning target) as hints in
+    // SkyUI's key-hint strip ('SLMK'), sent once: the host keeps them for the session and shows them while the tree block shows
+    void SendKeyHints(const SKSE::MessagingInterface* a_messaging)
+    {
+        const auto id = FinalId(HomAddon::BlockKind::kTree);
+        const auto& keys = HomSettings::Get();
+        const std::array<std::pair<std::uint32_t, HomStrings::Str>, 2> hints{ { { keys.keyNext, HomStrings::Str::kHintNext },
+            { keys.keySetTarget, HomStrings::Str::kHintSetTarget } } };
+        for (const auto& [key, text] : hints) {
+            BlockApi::KeyHint hint{ .id = id.c_str(), .scanCode = key, .label = HomStrings::Text(text) };  // Dispatch takes a non-const pointer
+            if (!a_messaging->Dispatch(BlockApi::kMessageKeyHint, &hint, sizeof(hint), BlockApi::kPluginName)) {
+                logger::warn("SL_MagicMenu_HoM: the key hint {} was not delivered (SL_MagicMenu did not listen)", key);
+            }
+        }
+        logger::info("SL_MagicMenu_HoM: key hints sent for {}: {} \"{}\", {} \"{}\"", id, keys.keyNext, HomStrings::Text(HomStrings::Str::kHintNext),
+            keys.keySetTarget, HomStrings::Text(HomStrings::Str::kHintSetTarget));
+    }
+
     // True when the tree block (the driver) was accepted
     bool Register()
     {
@@ -167,6 +186,7 @@ namespace
         }
         RegisterOne(messaging, HomAddon::BlockKind::kProgress);
         RegisterOne(messaging, HomAddon::BlockKind::kNodeCard);
+        SendKeyHints(messaging);
         return true;
     }
 

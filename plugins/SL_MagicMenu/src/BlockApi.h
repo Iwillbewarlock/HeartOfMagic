@@ -155,6 +155,21 @@
 // Both v3 messages: the struct only needs to live for the Dispatch call (the id is copied). Ignored while the magic menu is
 // closed and for an id that is not a registered block; refused (logged) when the message is shorter than the fields read,
 // apiVersion is not 3, the id is empty or too long, or ('SLMS') formId is 0. Not answered.
+//
+// kMessageKeyHint ('SLMK', 2026-10-31): add-on -> SL_MagicMenu, data = a KeyHint, dataLen its size: one key hint of the block
+// in SkyUI's own bottom key-hint strip (_root.Menu_mc.bottomBar.buttonPanel: the key's icon and the label, drawn by SkyUI's own
+// buttons like its "Equip" / "Search"). A standing declaration, kept for the game session: send it once the Result gave the
+// final id - at kDataLoaded, while the menu is closed or open (an open menu takes it on its next frame). The same block and
+// scanCode again replaces the label (its place kept); a null or empty label removes that hint. Shown while the block is shown
+// on the current tab (a place on the tab, not hidden by kMessageVisible, the columns up) and the layout mode is off; never
+// while SkyUI shows gamepad buttons (its _platform not 0: the keys are keyboard keys); after SkyUI's own buttons (and those
+// other mods add in SkyUI's updateBottomBar), after SL_MagicMenu's own layout-key hint, in block registration order and, per
+// block, in the order first sent. scanCode: a DirectInput keyboard scan code (1..kMaxHintScanCode; the icon is SkyUI's
+// for that code). The label: UTF-8, copied, cut to kMaxHintLabelBytes at a character boundary. The struct only needs to live
+// for the Dispatch call. Refused (logged) when the message is shorter than the fields read, apiVersion is not 3, the id is
+// empty, too long or not a registered block, scanCode is 0 or more than kMaxHintScanCode, or the block has kMaxKeyHints keys
+// already. A hint SkyUI's panel has no button for (it holds 6; SL_MagicMenu adds buttons to it the way the panel makes its own)
+// is dropped and logged. Not answered. An older SL_MagicMenu ignores the message.
 // =============================================================================
 
 #include <cstddef>
@@ -182,6 +197,7 @@ namespace BlockApi
     inline constexpr std::uint32_t kMessageHeight = FourCC('S', 'L', 'M', 'H');    // add-on -> SL_MagicMenu: data = HeightRequest* (v2)
     inline constexpr std::uint32_t kMessageShowSpell = FourCC('S', 'L', 'M', 'S'); // add-on -> SL_MagicMenu: data = ShowSpellRequest* (v3)
     inline constexpr std::uint32_t kMessageVisible = FourCC('S', 'L', 'M', 'V');   // add-on -> SL_MagicMenu: data = VisibleRequest* (v3)
+    inline constexpr std::uint32_t kMessageKeyHint = FourCC('S', 'L', 'M', 'K');   // add-on -> SL_MagicMenu: data = KeyHint* (v3)
 
     inline constexpr std::uint32_t kVersionV1 = 1;
     inline constexpr std::uint32_t kVersionV2 = 2;
@@ -189,6 +205,9 @@ namespace BlockApi
     inline constexpr std::uint32_t kMaxIdLength = 128;
     inline constexpr std::uint32_t kMaxTitleLength = 128;  // a longer title is cut
     inline constexpr float kMaxHeight = 4000.0f;
+    inline constexpr std::uint32_t kMaxKeyHints = 4;          // per block (kMessageKeyHint)
+    inline constexpr std::uint32_t kMaxHintScanCode = 0xFF;   // the keyboard's DirectInput scan codes
+    inline constexpr std::uint32_t kMaxHintLabelBytes = 64;   // a longer label is cut (at a UTF-8 character boundary)
 
     /// The tabs mask (Registration::tabs, v2): see "tabs" above
     inline constexpr std::uint32_t kTabsAll = 0;
@@ -370,4 +389,15 @@ namespace BlockApi
         std::uint32_t shown = 1;       // 0: hidden, its place kept; 1: shown
     };
     static_assert(sizeof(void*) != 8 || sizeof(VisibleRequest) == 24, "VisibleRequest of x64 builds is 24 bytes");
+
+    /// kMessageKeyHint's data (v3, 2026-10-31; see "kMessageKeyHint" above)
+    struct KeyHint
+    {
+        std::uint32_t apiVersion = kVersion;
+        std::uint32_t structSize = sizeof(KeyHint);
+        const char* id = nullptr;      // the block's final id, as the Result gave it
+        std::uint32_t scanCode = 0;    // DirectInput keyboard scan code, 1..kMaxHintScanCode
+        const char* label = nullptr;   // UTF-8; null or "" removes the block's hint for scanCode
+    };
+    static_assert(sizeof(void*) != 8 || sizeof(KeyHint) == 32, "KeyHint of x64 builds is 32 bytes");
 }

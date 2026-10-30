@@ -351,7 +351,8 @@ This project does not have a C++ test framework. Validation is done through:
   `magic-menu-block-api-check` (Block API v3: registration parsing of v1, v2 and v3 bytes - cut short, version 4 refused,
   v3's flags, pad and legacy ids -, the tabs mask per SkyUI tab, the press / release cancel rules of `BlockRules.h`, the
   'SLMD' ids, the 'SLMH' height requests - reading, judging against the registered height, the layout mode's height, the
-  per-id queue -, the 'SLMS' / 'SLMV' messages and their queues, the key queue, the v3 content box, visible part and
+  per-id queue -, the 'SLMS' / 'SLMV' messages and their queues, the key queue, the 'SLMK' key hints - reading, labels cut at
+  a UTF-8 boundary, the per-block list, the strip's buttons per tab / layout mode / gamepad, the panel's growth -, the v3 content box, visible part and
   overlay clears; `--selftest` the same); the Heart of Magic add-on block's (plugins/SL_MagicMenu_HoM,
   docs/superpowers/specs/2026-10-30-magic-menu-hom-addon-design.md), which build from plugins/SL_MagicMenu_HoM:
   `magic-menu-tree-check` (`--selftest`, or a spell_tree.json), `magic-menu-homstyle-check` (`--selftest`, or HoM's

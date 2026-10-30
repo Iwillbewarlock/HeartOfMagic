@@ -88,6 +88,9 @@ namespace HomStrings
         kTreeLocked,
         // user 2026-10-30 (the board): a block's line while nothing is chosen
         kEmptyChoose,
+        // 2026-10-31: the block's key hints in SkyUI's key-hint strip ('SLMK'; the key is its icon there)
+        kHintNext,
+        kHintSetTarget,
         kCount
     };
 
@@ -157,6 +160,9 @@ namespace HomStrings
         { Str::kTreeLocked, "tree_locked", "Locked" },
         // user 2026-10-30 (the board): a block's line while nothing is chosen
         { Str::kEmptyChoose, "empty_choose", "Select a spell to view" },
+        // 2026-10-31: the block's key hints in SkyUI's key-hint strip ('SLMK'; the key is its icon there)
+        { Str::kHintNext, "hint_next", "Next spell" },
+        { Str::kHintSetTarget, "hint_set_target", "Set learning target" },
     });
 
     consteval bool StringsInOrder()

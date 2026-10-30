@@ -52,5 +52,7 @@
   "progress_no_hom": "Heart of Magic 연결 안 됨",
   "progress_no_data": "주문 데이터를 받지 못함",
   "tree_locked": "잠김",
-  "empty_choose": "주문을 고르면 표시됩니다"
+  "empty_choose": "주문을 고르면 표시됩니다",
+  "hint_next": "다음 주문",
+  "hint_set_target": "학습 목표 지정"
 }

@@ -33,6 +33,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
         src/Layout.cpp
         src/BlockRegistry.cpp
         src/Widget.cpp
+        src/KeyHints.cpp
         src/Preview.cpp
         src/Input.cpp
 )

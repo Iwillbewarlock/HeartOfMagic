@@ -10,6 +10,7 @@
 
 #include "Draw.h"
 #include "GameThread.h"
+#include "KeyHints.h"
 #include "Layout.h"
 #include "LayoutMath.h"
 #include "Preview.h"
@@ -4938,6 +4939,15 @@ namespace Widget
         // the row of the strip's last size this menu (review of 4d50080a: no jump while the buttons are cleared). The gear goes
         // one row under the strip, its left edge on the strip's start (nothing else right of it on that row: the gear's flyout
         // will open there). STB's keycaps in the list rows and the skill / XP row stay where their owners put them
+        // 2026-10-31 (KeyHints): every add-on in registration order and whether it shows now - its key hints show with it
+        std::vector<BlockRules::HintBlock> HintBlocks()
+        {
+            const auto shown = VisibleBlocks();
+            std::vector<BlockRules::HintBlock> blocks;
+            for (const auto& addon : g_addons) blocks.push_back({ addon.id, shown.contains(addon.id) });
+            return blocks;
+        }
+
         void PlaceStripAndGear(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
             const auto visible = VisibleStage(a_movie);
@@ -6142,6 +6152,8 @@ namespace Widget
                 // Block API v3: key and frame calls with this frame's content clips and overlays - after every draw and fit of this frame
                 // (nothing below moves a block)
                 AddonFrames(movie, widget);
+                // 2026-10-31: our key hints in SkyUI's strip (the layout key, the add-ons' 'SLMK'), before the strip is placed by them
+                KeyHints::Frame(movie, HintBlocks(), LayoutModeOn());
                 // user 2026-10-30: the key-hint strip and the gear under the columns as this frame left them
                 PlaceStripAndGear(movie, widget);
                 UpdateGear(movie, widget);
@@ -6271,6 +6283,7 @@ namespace Widget
             if (root.GetMember(kRootName, &existing) && existing.IsDisplayObject()) return;  // already on this movie
 
             g_menu = MenuState{};
+            KeyHints::OnMenuOpen();
             {
                 const std::scoped_lock lock(g_redrawLock);  // Block API v2: a request of the last menu is not carried over
                 g_redrawQueue.clear();
@@ -6419,6 +6432,7 @@ namespace Widget
                     SKSE::GetTaskInterface()->AddUITask([] { AttachWidget(); });
                 } else {
                     g_closing = true;  // first: no frame work from here on
+                    KeyHints::OnMenuClose();
                     LayoutAtClose();   // blocks plan Task 4: a mode still on is cancelled; the input tests
                     // the wheel listener is not removed here (final review ruling: no GFx call on the close thread) - it does nothing
                     // while g_closing (WheelColumn) and goes with the movie
@@ -6573,6 +6587,27 @@ namespace Widget
         QueueRequest(
             a_sender, "visible request ('SLMV')", s_badLogs, g_v3Lock, [&](std::string& a_why) { return BlockRules::ReadVisible(a_data, a_dataLen, a_why); },
             [](BlockRules::VisibleRead a_request) { return BlockRules::Enqueue(g_visibleQueue, a_request.id, a_request.shown, kMaxQueuedRequests); });
+    }
+
+    void RequestAddonKeyHint(std::string_view a_sender, const void* a_data, std::uint32_t a_dataLen)
+    {
+        constexpr int kMaxBadHintLogs = 5;
+        static std::atomic<int> s_badLogs{ 0 };
+        const auto sender = a_sender.empty() ? std::string_view("(no sender)") : a_sender;
+        std::string why;
+        auto hint = BlockRules::ReadKeyHint(a_data, a_dataLen, why);
+        if (hint) {
+            const std::scoped_lock lock(g_registryLock);
+            if (!g_registry.Find(hint->id)) {
+                why = "\"" + hint->id + "\" is not a registered block";
+                hint.reset();
+            }
+        }
+        if (!hint) {
+            if (s_badLogs.fetch_add(1) < kMaxBadHintLogs) logger::warn("Widget: a key hint ('SLMK') from {} refused - {}", sender, why);
+            return;
+        }
+        KeyHints::Set(sender, *hint);
     }
 
     void QueueAddonKey(std::uint32_t a_scanCode)

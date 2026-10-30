@@ -22,7 +22,9 @@
 // design 2026-10-30, "Block API v3" and "Changes after the GPT design review"):
 // the retired ids a v3 block may take over (legacyId), reading the 'SLMS' and
 // 'SLMV' messages, whether a queued 'SLMS' is still due, the key queue, the
-// content clip's pad, the block's visible part and its overlay's clears. In namespace
+// content clip's pad, the block's visible part and its overlay's clears; the
+// 'SLMK' key hints (2026-10-31): reading, the per-block list, the strip's hint
+// buttons of a frame and the panel's growth (KeyHints.cpp). In namespace
 // BlockRules beside BlockRules.h (which is at the repo's 600-line limit). No
 // game types: tools/magic-menu-block-api-check runs these on made-up cases.
 // =============================================================================
@@ -306,5 +308,136 @@ namespace BlockRules
         a_track.made = a_now;
         ++a_track.generation;
         return step;
+    }
+
+    // ---------------------------------------------------------------------
+    // kMessageKeyHint ('SLMK', 2026-10-31): the add-ons' key hints in SkyUI's key-hint strip (KeyHints.cpp)
+    // ---------------------------------------------------------------------
+
+    struct KeyHintRead
+    {
+        std::string id;
+        std::uint32_t scanCode = 0;
+        std::string label;  // "" = remove the block's hint for scanCode
+    };
+
+    inline constexpr std::size_t kKeyHintNeeded = offsetof(BlockApi::KeyHint, label) + sizeof(const char*);
+
+    /// a_text cut to at most a_bytes bytes, never inside a UTF-8 sequence (the continuation bytes at the cut go with it)
+    inline std::string CutUtf8(std::string_view a_text, std::size_t a_bytes)
+    {
+        constexpr unsigned char kContMask = 0xC0, kCont = 0x80;
+        if (a_text.size() <= a_bytes) return std::string(a_text);
+        std::size_t end = a_bytes;
+        while (end > 0 && (static_cast<unsigned char>(a_text[end]) & kContMask) == kCont) --end;
+        return std::string(a_text.substr(0, end));
+    }
+
+    /// The id, key and label of a kMessageKeyHint message, or nullopt with the reason (ReadV3Message's, a scanCode of 0 or more
+    /// than kMaxHintScanCode). The label is read up to kMaxHintLabelBytes + 1 bytes and cut there (CutUtf8). Whether the id names
+    /// a block is the host's to say
+    inline std::optional<KeyHintRead> ReadKeyHint(const void* a_data, std::uint32_t a_dataLen, std::string& a_why)
+    {
+        std::string id;
+        const auto request = ReadV3Message<BlockApi::KeyHint>(a_data, a_dataLen, kKeyHintNeeded, "KeyHint", id, a_why);
+        if (!request) return std::nullopt;
+        if (request->scanCode == 0 || request->scanCode > BlockApi::kMaxHintScanCode) {
+            a_why = "scanCode " + std::to_string(request->scanCode) + " is not a keyboard scan code (1.." + std::to_string(BlockApi::kMaxHintScanCode) + ")";
+            return std::nullopt;
+        }
+        const std::size_t length = request->label ? strnlen(request->label, BlockApi::kMaxHintLabelBytes + 1) : 0;
+        const std::string_view label(request->label ? request->label : "", length);
+        return KeyHintRead{ std::move(id), request->scanCode, CutUtf8(label, BlockApi::kMaxHintLabelBytes) };
+    }
+
+    struct KeyHintEntry
+    {
+        std::string id;  // the block's final id
+        std::uint32_t scanCode = 0;
+        std::string label;
+    };
+    using KeyHintList = std::vector<KeyHintEntry>;  // every block's hints, each block's in the order first sent
+
+    enum class HintSet
+    {
+        kAdded,
+        kReplaced,  // the same block and key: the new label, its place kept
+        kRemoved,   // an empty label
+        kNotThere,  // an empty label for a key the block has no hint for
+        kFull,      // a new key of a block that has a_cap already: refused
+    };
+
+    inline HintSet SetKeyHint(KeyHintList& a_list, const KeyHintRead& a_read, std::size_t a_cap)
+    {
+        const auto same = [&](const KeyHintEntry& a_entry) { return a_entry.id == a_read.id && a_entry.scanCode == a_read.scanCode; };
+        const auto found = std::ranges::find_if(a_list, same);
+        if (a_read.label.empty()) {
+            if (found == a_list.end()) return HintSet::kNotThere;
+            a_list.erase(found);
+            return HintSet::kRemoved;
+        }
+        if (found != a_list.end()) {
+            found->label = a_read.label;
+            return HintSet::kReplaced;
+        }
+        const auto ofBlock = std::ranges::count_if(a_list, [&](const KeyHintEntry& a_entry) { return a_entry.id == a_read.id; });
+        if (static_cast<std::size_t>(ofBlock) >= a_cap) return HintSet::kFull;
+        a_list.push_back({ a_read.id, a_read.scanCode, a_read.label });
+        return HintSet::kAdded;
+    }
+
+    /// One of our buttons in the strip: its key, label and whether it shows this frame
+    struct HintButton
+    {
+        std::uint32_t scanCode = 0;
+        std::string label;
+        bool shown = false;
+        bool operator==(const HintButton&) const = default;
+    };
+
+    /// A block as the frame sees it: its final id and whether it shows now (a place on this tab, not hidden, the columns up)
+    struct HintBlock
+    {
+        std::string id;
+        bool shown = false;
+    };
+
+    /// The frame's hint buttons in strip order: the host's own (a_host; none when its scanCode is 0 or its label empty) first,
+    /// shown on the keyboard in every mode; then every hint of a_blocks (registration order) in the block's own order, shown while
+    /// its block shows and the layout mode is off. None shows while SkyUI shows gamepad buttons (a_gamepad). A hint of a block not
+    /// in a_blocks has no button. Every hint gets a button, shown or not, so a change of tab or mode only shows or hides buttons
+    inline std::vector<HintButton> HintButtons(const HintButton& a_host, const std::vector<HintBlock>& a_blocks, const KeyHintList& a_hints, bool a_layoutMode,
+        bool a_gamepad)
+    {
+        std::vector<HintButton> buttons;
+        if (a_host.scanCode != 0 && !a_host.label.empty()) buttons.push_back({ a_host.scanCode, a_host.label, !a_gamepad });
+        for (const auto& block : a_blocks) {
+            for (const auto& hint : a_hints) {
+                if (hint.id == block.id) buttons.push_back({ hint.scanCode, hint.label, block.shown && !a_layoutMode && !a_gamepad });
+            }
+        }
+        return buttons;
+    }
+
+    /// The buttons' keys and labels alike, their shown flags aside: when they differ, our buttons are made again (a shown flag
+    /// only toggles _visible)
+    inline bool SameHintSet(const std::vector<HintButton>& a_a, const std::vector<HintButton>& a_b)
+    {
+        return std::ranges::equal(a_a, a_b, [](const HintButton& a_x, const HintButton& a_y) { return a_x.scanCode == a_y.scanCode && a_x.label == a_y.label; });
+    }
+
+    /// Buttons to add to SkyUI's panel before a_needed more are taken from it: what a_length buttons with a_used in use lack,
+    /// within a_growLeft (the cap on the buttons we add to one panel)
+    constexpr std::size_t ButtonsToGrow(std::size_t a_length, std::size_t a_used, std::size_t a_needed, std::size_t a_growLeft)
+    {
+        const std::size_t free = a_length > a_used ? a_length - a_used : 0;
+        return a_needed > free ? std::min(a_needed - free, a_growLeft) : 0;
+    }
+
+    /// Our a_count buttons from index a_first are the panel's last ones in use (a_used): only then can they be taken off its end
+    /// without SkyUI's buttons made again
+    constexpr bool OursAtTail(std::size_t a_first, std::size_t a_count, std::size_t a_used)
+    {
+        return a_first + a_count == a_used;
     }
 }

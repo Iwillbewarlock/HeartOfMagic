@@ -451,6 +451,20 @@ block) messages. v1 and v2 add-ons are read as before. The contract is the heade
 - GPT on 4846c6a5: a shown button whose bounds do not read is not "nothing shown". That frame nothing moves and nothing
   is cached, so the next frame reads again (`BlockRules::AllShownRead`); no part-union is used. The frames this happened
   on are counted at the menu's close.
+- Our key hints in the strip (user 2026-10-31, "단축키 표시"; `KeyHints.cpp`, the rules in `BlockRulesV3.h`): the layout
+  key (K, "Edit mode" / "편집 모드", `hint_layout`) and the add-ons' 'SLMK' hints (BlockApi.h `kMessageKeyHint`; the HoM
+  block's U "Next spell" and G "Set learning target", on its tree block) are buttons of SkyUI's own panel, so they look
+  like SkyUI's. As STB Hotkey System does it (its BottomBarHint.cpp), `Menu_mc.updateBottomBar` - MagicMenu.as:193-219,
+  the only place that clears and fills the panel - is wrapped on the menu object, and after it runs our buttons are added
+  with `addButton({text, controls: {keyCode}})` (MappedButton.as:91-151: the key code is the icon's frame) and laid out
+  with `updateButtons(true)`. Order: SkyUI's (and STB's, either way round), K, then the add-ons' in registration order.
+  Every hint gets a button; each frame ours are only shown or hidden: an add-on's while its block shows and the layout
+  mode is off, none while SkyUI's `_platform` is not 0 (gamepad buttons; the keys are keyboard keys). A changed hint set
+  takes ours off the panel's end and adds them again, or - when another mod's buttons came after ours - runs
+  `updateBottomBar` again with its last argument. The panel makes 6 buttons (`maxButtons` in SkyUI's and Untarnished UI's
+  bottombar.swf); SkyUI uses up to 3 in the magic menu and STB 2 more, so with ours 8 can be needed: more buttons are made
+  as the panel's constructor makes them (ButtonPanel.as:41-45: `attachMovie(buttonRenderer, "button<n>", depth,
+  buttonInitializer)`, pushed on `buttons`), at most 8 per menu. The strip move counts them (they are the panel's children).
 - The panel is only moved, never drawn again. With no panel SkyUI's strip is left alone; a menu that never had one says
   so at its close.
 - The gear goes one row under the strip, with its left edge on the strip's start, so both sit on one vertical line. The

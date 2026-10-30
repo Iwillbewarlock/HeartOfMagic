@@ -27,5 +27,6 @@
   "layout_reset": "Reset layout",
   "empty_choose": "Select a spell to view",
   "layout_gear_enter": "Edit mode {key}",
-  "layout_gear_leave": "View mode {key}"
+  "layout_gear_leave": "View mode {key}",
+  "hint_layout": "Edit mode"
 }

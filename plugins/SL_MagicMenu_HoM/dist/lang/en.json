@@ -52,5 +52,7 @@
   "progress_no_hom": "Heart of Magic not connected",
   "progress_no_data": "No spell data received",
   "tree_locked": "Locked",
-  "empty_choose": "Select a spell to view"
+  "empty_choose": "Select a spell to view",
+  "hint_next": "Next spell",
+  "hint_set_target": "Set learning target"
 }

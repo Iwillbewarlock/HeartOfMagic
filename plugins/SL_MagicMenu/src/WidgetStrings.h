@@ -55,6 +55,8 @@ namespace WidgetText
         kEmptyChoose,
         kLayoutGearEnter,
         kLayoutGearLeave,
+        // 2026-10-31: the layout key's hint in SkyUI's key-hint strip (KeyHints.cpp)
+        kHintLayout,
         kCount
     };
 
@@ -101,6 +103,8 @@ namespace WidgetText
         // user 2026-10-30: the gear's hover hint, out of the layout mode and in it
         { Str::kLayoutGearEnter, "layout_gear_enter", "Edit mode {key}" },
         { Str::kLayoutGearLeave, "layout_gear_leave", "View mode {key}" },
+        // 2026-10-31: the layout key's hint in SkyUI's key-hint strip (the key is its icon there)
+        { Str::kHintLayout, "hint_layout", "Edit mode" },
     });
 
     consteval bool StringsInOrder()
