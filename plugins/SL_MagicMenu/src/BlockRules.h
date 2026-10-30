@@ -582,8 +582,8 @@ namespace BlockRules
     /// A block's look while nothing is chosen (the columns stay up then)
     enum class EmptyLook
     {
-        kAsUsual,      // a spell is chosen, or the block has its own content without one (progress card, node card, a v1 add-on)
-        kLineCentred,  // keeps its size, one dim line in its middle (the 3D preview, the tree window)
+        kAsUsual,      // a spell is chosen, or the block has its own content without one (a v1 add-on, a v3 one kept when empty)
+        kLineCentred,  // keeps its size, one dim line in its middle (the 3D preview)
         kLineOnly,     // collapses to one dim line (our spell card)
         kClosed,       // not drawn, closed up (an add-on that closes when empty, BlockRulesV3.h ClosesWhenEmpty; not in the
                        // layout mode, where every block shows so it can be moved - review R2)
@@ -592,7 +592,7 @@ namespace BlockRules
     inline EmptyLook EmptyLookOf(std::string_view a_id, bool a_nothingShown, bool a_closesWhenEmpty, bool a_layoutMode = false)
     {
         if (!a_nothingShown) return EmptyLook::kAsUsual;
-        if (a_id == Layout::kPreview || a_id == Layout::kTree) return EmptyLook::kLineCentred;
+        if (a_id == Layout::kPreview) return EmptyLook::kLineCentred;  // HoM add-on plan Task 5: the tree window's line is the add-on's
         if (a_id == Layout::kSpellCard) return EmptyLook::kLineOnly;
         if (a_closesWhenEmpty) return a_layoutMode ? EmptyLook::kAsUsual : EmptyLook::kClosed;
         return EmptyLook::kAsUsual;

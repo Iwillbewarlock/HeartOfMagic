@@ -37,9 +37,9 @@ namespace Settings
         bool enabled = true;
         bool selfTest = true;      // the preview gates' "SelfTest:" log lines
         bool movePreview = true;   // G2: move the 3D preview into the preview box
-        bool moveItemCard = true;  // move SkyUI's item card under the progress card
+        bool moveItemCard = true;  // move SkyUI's item card into the spell card block
         bool drawPreviewOver = true;  // draw the 3D preview again after the menu movie (MagicMenu PostDisplay)
-        bool previewUnlearned = true;  // P3: a tree click on a spell not in the list loads its 3D (test build: on)
+        bool previewUnlearned = true;  // P3: an add-on's show request for a spell not in the list loads its 3D (test build: on)
         bool hideGamePass = true;  // Q3 C: hide the game's own 3D pass of the selected spell's model (only our copy in the box shows)
         bool clipPreview = true;   // Q3 A: clip the 3D preview to the box (scissor)
         bool ownCard = true;       // v7 C1: our own info card instead of SkyUI's item card (0: build 6's moved and fitted SkyUI card)
@@ -54,62 +54,33 @@ namespace Settings
         // Powers tab (build 13's rule), 0 = the Powers tab previews its 3D like the spell tabs (the default since build 15)
         bool hidePowers3D = false;
 
-        // [Keys] DirectInput scan codes. Chosen by the build-5 key scan of the installed mods
-        // (docs/superpowers/specs/v5-key-scan.md): R (19) is Spell Organizer's remove-spell key in this menu and
-        // N (49) Creature Framework's puppet key with no menu check; U and G are used by nothing live in the magic menu.
-        std::uint32_t keyNext = 22;       // U: next learnable spell of the school
-        std::uint32_t keySetTarget = 34;  // G: what the node card's button does
-        // blocks plan Task 4 (spec "Input boundary", Defaults): the layout mode's toggle. K (37) is in no controlmap line and was
+        // [Keys] DirectInput scan codes. HoM add-on plan Task 5: iNext / iSetTarget (U, G) are read by the Heart of Magic block
+        // (SL_MagicMenu_HoM) from this ini. Blocks plan Task 4 (spec "Input boundary", Defaults): the layout mode's toggle. K (37) is in no controlmap line and was
         // free in the build-5 key scan; the gamepad's RS click (SKSE code 273, the game's Item Zoom here: every pad button is
         // taken in this menu, Task 0) - -1 = no gamepad toggle
         std::uint32_t keyLayout = 37;
         int gamepadLayout = 273;
 
         // [Layout] stage units: layout E2 the user chose from the offline renders (spec v6 L1, 2026-10-25): one two-column
-        // grid, gap fPanelGap everywhere - left column 648..969, right 978..1238; row 1 67..297, row 2 306..623. The item card
-        // slot is the card's fitted size (width-limited: 321 / 468 = 0.686 of its 468 x 300 background)
+        // grid, gap fPanelGap everywhere - left column 648..969, right 978..1238; rows from 67 down to 623. The item card's height
+        // is the spell card block's (width-limited: 321 / 468 = 0.686 of SkyUI's 468 x 300 card background); its bottom ends
+        // the columns. HoM add-on plan Task 5: the tree window's, progress card's and node card's rects (fTree*, fProgress*,
+        // fNodeCard*), fTreeScale, fTreeMarkScale, iMaxSteps, iMaxNodes and [Debug] fDebugExtraHeight are the Heart of Magic
+        // block's (SL_MagicMenu_HoM reads them from this ini); the core reads fTreeRight alone - the right column's right edge
         Rect preview{ 648, 67, 969, 297 };
-        Rect tree{ 978, 67, 1238, 297 };
-        Rect progress{ 648, 306, 969, 408 };
         Rect itemCard{ 648, 417, 969, 623 };
-        Rect nodeCard{ 978, 306, 1238, 623 };
-        double panelGap = 9.0;  // between the preview and the progress card (306 - 297); the item card keeps it on Powers/Shouts
-        // stage units per tree (world) unit, TreeData::View::scale. Spec v10 T2: one fixed scale; every school's closest two
-        // nodes are >= 37.9 tree units apart (spell_tree.json), 28.4 at 0.75
-        double treeScale = 0.75;
-        // a multiplier on Heart of Magic's own mark sizes (spec v11 T12: radii in HoM world units x treeScale x this; 1 = HoM's).
-        // The largest drawn reach at 1 (a selected learnable spell's ring, 14.5 + its half line) x 0.75 = 11.5 < 14.2, half
-        // the closest pair (CheckSpacing, tools/magic-menu-tree-check)
-        double treeMarkScale = 1.0;
-        int maxSteps = 1;  // link steps that count as linked to the centre: drawn in full and clickable even when locked
-        int maxNodes = 60;
+        double treeRight = 1238.0;  // [Layout] fTreeRight: where the two columns end on the right (Layout::DefaultFrames)
+        double panelGap = 9.0;  // between the blocks of a column (306 - 297) and between the columns (978 - 969)
 
-        // [Debug] blocks plan Task 3: stage units added to the node card block's height so its column overflows and the
-        // column scroll can be tried in game (0 = no effect)
-        double debugExtraHeight = 0.0;
         // [Debug] blocks plan Task 6: the plugin registers its own tall add-on block "SL_MagicMenu.filler" (300 high) through
         // the add-on path, to test the add-on API and the column scroll in game; without a saved place it joins the left column
         // after the spell card, so the preview's column scrolls (Layout::kDebugFillerId)
         bool debugFillerBlock = false;
     };
 
-    // Every panel: a title strip this high and this much padding inside the border (Widget draws by these;
-    // tools/magic-menu-tree-check uses them too, so its window is the one the menu draws)
+    // Every panel: a title strip this high and this much padding inside the border (Widget draws by these; the Heart of Magic
+    // block's tree window, HomSettings.h TreeContent, too)
     inline constexpr double kPanelTitleH = 22.0, kPanelPad = 8.0;
-    inline constexpr double kTreeLegendH = 18.0;  // the legend strip at the bottom of the tree window
-
-    struct Area
-    {
-        double cx{}, cy{};        // centre, in the panel's own coordinates
-        double halfW{}, halfH{};  // half size
-    };
-
-    /// The tree window's content area: below the title, above the legend, inside the padding.
-    inline Area TreeContent(const Rect& a_tree)
-    {
-        const double bodyH = a_tree.Height() - kPanelTitleH - kTreeLegendH;
-        return { a_tree.Width() / 2, kPanelTitleH + bodyH / 2, a_tree.Width() / 2 - kPanelPad, bodyH / 2 - kPanelPad };
-    }
 
     /// A titled panel's content area in stage units: below the title strip (drawn at kPanelPad/2 .. +kPanelTitleH),
     /// inside the padding. The 3D preview is placed, fitted and tested in the preview panel's (review R9 2026-10-25:

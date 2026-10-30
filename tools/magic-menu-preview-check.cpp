@@ -2,8 +2,9 @@
 // (plugins/SL_MagicMenu/src/PreviewMath.h, the same functions Preview.cpp runs on the game's values):
 // place, measure, grow, the parent-space move, the rebuilt-model rule and the clip's pixel rect on
 // made-up cases, the build 4/5 review counter-examples among them (spec 2026-10-25-magic-menu-proto-v5.md Q5).
-// Also the tree window's and the progress card's layout arithmetic (LayoutMath.h, build 6 review round 1 #7):
-// label widths at the window edge, badge sectors, label places and what gives way in the progress card.
+// Also the tree window's and the progress card's layout arithmetic (build 6 review round 1 #7; the Heart of Magic
+// block's HomLayoutMath.h and HomSettings.h in plugins/SL_MagicMenu_HoM/src since HoM add-on plan Task 5): label widths
+// at the window edge, badge sectors, label places and what gives way in the progress card.
 //
 //   magic-menu-preview-check     one PASS/FAIL line per check, a total line
 //
@@ -13,6 +14,7 @@
 
 #include "BlockRules.h"
 #include "HomLayoutMath.h"
+#include "HomSettings.h"
 #include "LayoutMath.h"
 #include "PreviewMath.h"
 #include "Settings.h"
@@ -421,12 +423,12 @@ namespace
         }
     }
 
-    // Build 6 (LayoutMath.h): the tree window's labels, its faint locked neighbours and exits, and the progress card's plan
+    // Build 6 (HomLayoutMath.h): the tree window's labels, its faint locked neighbours and exits, and the progress card's plan
     void TreeLayout()
     {
         std::printf("tree window layout (labels at the edge, badge sectors, label places)\n");
-        const Settings::Values defaults;
-        const auto area = Settings::TreeContent(defaults.tree);
+        const HomSettings::Values defaults;
+        const auto area = HomSettings::TreeContent(defaults.tree);
         const double edge = area.halfW + Settings::kPanelPad, gap = 10.0 + 1.0, most = 104.0, least = 20.0;
         Expect(Near(area.halfW, 122.0, 1e-9) && Near(area.halfH, 87.0, 1e-9), Text("E2 tree window half size %.1f x %.1f (want 122 x 87)", area.halfW, area.halfH));
         const double atEdge = LayoutMath::LabelWidth(120.0, gap, edge, false, most);

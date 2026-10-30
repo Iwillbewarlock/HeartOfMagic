@@ -7,7 +7,9 @@
 // the gamepad / keyboard focus model (Task 5): focus, pick, move, drop, cancel, border, the insertion line and keep-in-view scroll;
 // the add-on blocks (Task 6, BlockRegistry.cpp): the registration checks, the id prefix, the order, the window, and the layout
 // side (an add-on joins the end of the right column, an absent one keeps its place, a bad height does not move the others);
-// the retired ids on disk (HoM add-on Task 2): ToFinal on read, ToLegacy on write, upgrade -> downgrade -> upgrade keeps the place.
+// the retired ids on disk (HoM add-on Task 2): ToFinal on read, ToLegacy on write, upgrade -> downgrade -> upgrade keeps the place;
+// the core alone (Task 5): tree / progress / nodecard are retired ids with no height of their own - the geometry cases give them
+// the heights the Heart of Magic block registers (its ini rects), as an add-on taking them over does.
 //
 //   magic-menu-layout-check     one PASS/FAIL line per check, a total line
 //
@@ -90,7 +92,21 @@ namespace
 
     const Settings::Values kValues{};
     const auto kFrames = Layout::DefaultFrames(kValues);
-    const auto kHeights = Layout::DefaultHeights(kValues);
+    // HoM add-on plan Task 5: the Heart of Magic block's ini rects (plugins/SL_MagicMenu_HoM/src/HomSettings.h, layout E2) - the
+    // retired ids' heights when that block takes them over (legacyId). The core's own heights are Layout::DefaultHeights
+    const Rect kTreeRect{ 978, 67, 1238, 297 }, kProgressRect{ 648, 306, 969, 408 }, kNodeCardRect{ 978, 306, 1238, 623 };
+    const std::map<BlockId, double> kCoreHeights = Layout::DefaultHeights(kValues);
+    std::map<BlockId, double> WithRetired(std::map<BlockId, double> a_heights)
+    {
+        a_heights[Layout::kTree] = kTreeRect.Height();
+        a_heights[Layout::kProgress] = kProgressRect.Height();
+        a_heights[Layout::kNodeCard] = kNodeCardRect.Height();
+        return a_heights;
+    }
+    const auto kHeights = WithRetired(kCoreHeights);
+    // the core's built-in blocks (Settings.cpp BuiltinBlocks) and the same with the three retired ids known (an add-on that took
+    // them over, or an SL_MagicMenu before Task 5 that drew them itself)
+    const std::set<BlockId> kBuiltins{ Layout::kPreview, Layout::kSpellCard };
     const std::set<BlockId> kKnown{ Layout::kPreview, Layout::kTree, Layout::kProgress, Layout::kSpellCard, Layout::kNodeCard };
 
     void DefaultLayout()
@@ -106,15 +122,15 @@ namespace
         ExpectRect(rects, Layout::kTree, 978, 67, 1238, 297, "default");
         ExpectRect(rects, Layout::kNodeCard, 978, 306, 1238, 623, "default");
         // the ini's own rects, the other way round: Default + ini heights is exactly today's layout E2
-        const std::map<BlockId, Rect> ini{ { Layout::kPreview, kValues.preview }, { Layout::kTree, kValues.tree },
-            { Layout::kProgress, kValues.progress }, { Layout::kSpellCard, kValues.itemCard }, { Layout::kNodeCard, kValues.nodeCard } };
+        const std::map<BlockId, Rect> ini{ { Layout::kPreview, kValues.preview }, { Layout::kTree, kTreeRect },
+            { Layout::kProgress, kProgressRect }, { Layout::kSpellCard, kValues.itemCard }, { Layout::kNodeCard, kNodeCardRect } };
         bool same = true;
         for (const auto& [id, rect] : ini) {
             const auto it = rects.find(id);
             same = same && it != rects.end() && Near(it->second.left, rect.left) && Near(it->second.top, rect.top) &&
                    Near(it->second.right, rect.right) && Near(it->second.bottom, rect.bottom);
         }
-        Expect(same, "default arrange = the five Settings::Values rects");
+        Expect(same, "default arrange with the retired ids' heights = the E2 rects (core preview / item card, the HoM block's three)");
         const auto content = Layout::ContentHeight(state, rects, kFrames);
         Expect(Near(content[0], 556) && Near(content[1], 556), Text("content 556 / 556, no scroll (got %.1f / %.1f)", content[0], content[1]));
         Expect(Near(Layout::ClampScroll(40, content[0], kFrames[0].Height()), 0), "default column fits: scroll 40 -> 0");
@@ -171,9 +187,10 @@ namespace
         Expect(powers.size() == 2, Text("Powers: preview and spell card only (got %zu)", powers.size()));
 
         // build 16: Powers and Active Effects hide the same blocks (the widget's TabHidden returns this set for both)
-        Expect(Layout::NoTreeTabHidden() == std::set<BlockId>{ Layout::kTree, Layout::kProgress, Layout::kNodeCard },
-            "NoTreeTabHidden = tree, progress, node card (Powers/Shouts and Active Effects)");
-        const auto effects = Layout::Arrange(state, kHeights, Layout::NoTreeTabHidden(), fill, kFrames);
+        // HoM add-on plan Task 5: no built-in block is hidden per tab (NoTreeTabHidden is gone); the HoM block's tabs mask hides
+        // its three blocks on Powers/Shouts and Active Effects - the same set, now the add-on's
+        const std::set<BlockId> noTree{ Layout::kTree, Layout::kProgress, Layout::kNodeCard };
+        const auto effects = Layout::Arrange(state, kHeights, noTree, fill, kFrames);
         ExpectRect(effects, Layout::kPreview, 648, 67, 969, 297, "Active Effects (build 16): the preview");
         ExpectRect(effects, Layout::kSpellCard, 648, 306, 969, 623, "Active Effects (build 16): the card under it (fill)");
 
@@ -220,7 +237,7 @@ namespace
         const std::set<BlockId> fill{ Layout::kSpellCard };
         const Rect column = Layout::ColumnArea(custom, 0, kFrames);
         for (const bool own : { true, false }) {
-            const auto rects = Layout::Arrange(custom, kHeights, Layout::NoTreeTabHidden(), own ? fill : std::set<BlockId>{}, kFrames);
+            const auto rects = Layout::Arrange(custom, kHeights, { Layout::kTree, Layout::kProgress, Layout::kNodeCard }, own ? fill : std::set<BlockId>{}, kFrames);
             const auto content = Layout::ContentHeight(custom, rects, kFrames);
             const char* who = own ? "our card (fill)" : "SkyUI's slot";
             ExpectRect(rects, Layout::kSpellCard, 648, 306, 969, own ? 623 : 512, Text("custom layout, Powers hidden set, %s", who));
@@ -1147,15 +1164,11 @@ namespace
         return count;
     }
 
-    /// What Settings::AddBlocks builds from a layout as read (ToFinal applied): the known blocks are the built-ins without the
-    /// aliased retired ids plus the add-ons, the fallback the default renamed (ToFinal) with the add-ons added
+    /// What Settings::AddBlocks builds from a layout as read: the same function (Layout::WithAddons, HoM add-on Task 5 - no copy),
+    /// with the core's built-ins
     State Upgrade(const State& a_read, const std::map<BlockId, BlockId>& a_aliases, const std::vector<BlockId>& a_addons)
     {
-        std::set<BlockId> known = kKnown;
-        for (const auto& [legacyId, finalId] : a_aliases) known.erase(legacyId);
-        known.insert(a_addons.begin(), a_addons.end());
-        const State fallback = Layout::AddAddons(Layout::ToFinal(Layout::Default(kValues), a_aliases), a_addons);
-        return Layout::Repair(Layout::ToFinal(a_read, a_aliases), known, fallback);
+        return Layout::WithAddons(a_read, kBuiltins, a_aliases, a_addons, Layout::Default(kValues)).layout;
     }
 
     void LegacyIds()
@@ -1215,20 +1228,51 @@ namespace
         Expect(defUp.columns[1] == std::vector<BlockId>{ kHomTree, Layout::kNodeCard } && Count(defUp, kHomTree) == 1,
             Text("default + alias: right column {%s, nodecard} (got %s)", kHomTree, Show(defUp.columns[1]).c_str()));
 
-        // no alias and no built-in tree / progress / nodecard (a core-only install): the retired ids are unknown ids - Repair keeps
-        // them in place, Arrange skips them (no height), so the spell card follows the preview with no gap
-        const std::set<BlockId> core{ Layout::kPreview, Layout::kSpellCard };
+    }
+
+    // HoM add-on plan Task 5 (Step 2): the core alone - the default layout with no add-on, the core's own heights and built-ins, as
+    // Settings::AddBlocks and Widget's BlockHeights make them. The retired ids keep their places (unknown ids), Arrange skips them
+    // (no height): preview, then the spell card with no gap; the right column is empty
+    void CoreOnly()
+    {
+        std::printf("the core alone (HoM add-on Task 5): retired ids skipped, no gap\n");
+        Expect(kCoreHeights.size() == 2 && kCoreHeights.contains(Layout::kPreview) && kCoreHeights.contains(Layout::kSpellCard),
+            Text("DefaultHeights: preview and spellcard only (%zu heights)", kCoreHeights.size()));
+        for (const auto id : BlockRules::kRetiredIds) {
+            Expect(!kCoreHeights.contains(BlockId(id)), Text("DefaultHeights has no %s (a retired id)", BlockId(id).c_str()));
+        }
         const State def = Layout::Default(kValues);
-        const State coreRead = Layout::Repair(Layout::ToFinal(def, {}), core, def);
-        Expect(coreRead == def, "no alias: Repair keeps tree / progress / nodecard in place as unknown ids");
-        auto coreHeights = kHeights;
-        for (const auto id : BlockRules::kRetiredIds) coreHeights.erase(BlockId(id));
-        const auto coreRects = Layout::Arrange(coreRead, coreHeights, {}, {}, kFrames);
-        Expect(coreRects.size() == 2 && !coreRects.contains(Layout::kTree) && !coreRects.contains(Layout::kProgress) &&
-                   !coreRects.contains(Layout::kNodeCard),
-            Text("no alias: Arrange skips the retired ids (%zu rects)", coreRects.size()));
-        ExpectRect(coreRects, Layout::kPreview, 648, 67, 969, 297, "core only");
-        ExpectRect(coreRects, Layout::kSpellCard, 648, 306, 969, 512, "core only: the spell card right below the preview");
+        const auto with = Layout::WithAddons(def, kBuiltins, {}, {}, def);
+        Expect(with.layout == def && with.fallback == def && with.renamed == def,
+            Text("no add-on: WithAddons keeps the default as it is, tree / progress / nodecard in place (got %s / %s)", Show(with.layout.columns[0]).c_str(),
+                Show(with.layout.columns[1]).c_str()));
+        // a file of an older build (only the retired ids and the core's two): read the same way
+        const auto file = Layout::FromJson(R"({"version":1,"columns":[["preview","progress","spellcard"],["tree","nodecard"]],"border":969})", nullptr);
+        Expect(file && Layout::WithAddons(*file, kBuiltins, {}, {}, def).layout == def, "an older build's default file: read as the default, nothing added");
+        // a file that lost the spell card: Repair appends the built-in to its default column; it never appends a retired id
+        const State noCard{ { std::vector<BlockId>{ Layout::kPreview }, std::vector<BlockId>{} }, 969 };
+        const auto repaired = Layout::WithAddons(noCard, kBuiltins, {}, {}, def).layout;
+        Expect(repaired.columns[0] == std::vector<BlockId>{ Layout::kPreview, Layout::kSpellCard } && repaired.columns[1].empty(),
+            Text("a file without spellcard: it is appended, no retired id comes back (got %s / %s)", Show(repaired.columns[0]).c_str(),
+                Show(repaired.columns[1]).c_str()));
+        for (const bool own : { true, false }) {
+            const std::set<BlockId> fill = own ? std::set<BlockId>{ Layout::kSpellCard } : std::set<BlockId>{};
+            const auto rects = Layout::Arrange(with.layout, kCoreHeights, {}, fill, kFrames);
+            const char* card = own ? "core only, our card" : "core only, SkyUI's card";
+            Expect(rects.size() == 2 && !rects.contains(Layout::kTree) && !rects.contains(Layout::kProgress) && !rects.contains(Layout::kNodeCard),
+                Text("%s: Arrange skips the retired ids (%zu rects)", card, rects.size()));
+            ExpectRect(rects, Layout::kPreview, 648, 67, 969, 297, card);
+            // one gap (9) below the preview: our card fills the column down to the item card's ini bottom, SkyUI's keeps its 206
+            ExpectRect(rects, Layout::kSpellCard, 648, 306, 969, own ? 623 : 512, card);
+            const auto content = Layout::ContentHeight(with.layout, rects, kFrames);
+            Expect(Near(content[1], 0) && Near(content[0], own ? 556 : 445),
+                Text("%s: right column empty (content %.1f), left %.1f", card, content[1], content[0]));
+        }
+        // the empty look (BlockRules::EmptyLookOf): the preview keeps its centred line, a retired id has none of its own
+        for (const auto id : BlockRules::kRetiredIds) {
+            Expect(BlockRules::EmptyLookOf(id, true, false) == BlockRules::EmptyLook::kAsUsual,
+                Text("EmptyLookOf(%s, nothing shown): as usual (the add-on's own look; the tree's line left the core)", BlockId(id).c_str()));
+        }
     }
 }
 
@@ -1474,11 +1518,9 @@ namespace
             Expect(Near(cut.left, 0) && Near(cut.top, -40) && Near(cut.right, 1280) && Near(cut.bottom, 760), Text("board cut to the visible stage (%s)", Show(cut).c_str()));
             using BlockRules::EmptyLook;
             Expect(BlockRules::EmptyLookOf(Layout::kPreview, true, false) == EmptyLook::kLineCentred &&
-                       BlockRules::EmptyLookOf(Layout::kTree, true, false) == EmptyLook::kLineCentred &&
                        BlockRules::EmptyLookOf(Layout::kSpellCard, true, false) == EmptyLook::kLineOnly &&
-                       BlockRules::EmptyLookOf(Layout::kProgress, true, false) == EmptyLook::kAsUsual &&
-                       BlockRules::EmptyLookOf(Layout::kNodeCard, true, false) == EmptyLook::kAsUsual,
-                "nothing chosen: preview and tree keep their size with a line, our card one line, progress / node card as usual");
+                       BlockRules::EmptyLookOf(Layout::kTree, true, false) == EmptyLook::kAsUsual,
+                "nothing chosen: the preview keeps its size with a line, our card one line, the retired tree id as usual (HoM add-on Task 5)");
             Expect(BlockRules::EmptyLookOf("SpellResearch.archetypes", true, true, true) == EmptyLook::kAsUsual,
                 "in the layout mode an add-on drawn per selection shows (review R2: it can be moved)");
             Expect(BlockRules::EmptyLookOf("SpellResearch.archetypes", true, true) == EmptyLook::kClosed &&
@@ -1598,6 +1640,7 @@ int main()
     AddonRegistry();
     AddonLayout();
     LegacyIds();
+    CoreOnly();
     AddonHeightChange();
     std::printf("layout-check: %d PASS, %d FAIL\n", g_pass, g_fail);
     return g_fail == 0 ? kExitOk : kExitFail;

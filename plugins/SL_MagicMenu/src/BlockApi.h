@@ -86,9 +86,9 @@
 // (no gamepad or keyboard input in v2).
 //
 // tabs: the SkyUI magic menu category tabs the block shows on (kTab* bits; kTabsAll = 0 = every tab, the v1 behaviour).
-// On the other tabs the block is hidden and the blocks below it in its column close up, as the built-in tree, progress
-// and node card blocks do on Powers / Shouts / Active Effects. kTabSpells is every tab SL_MagicMenu draws its spell tree
-// on: All, Favorites, the five school tabs (Alteration .. Restoration) and any category it does not know (a menu mod's
+// On the other tabs the block is hidden and the blocks below it in its column close up, as the tree, progress and node card
+// blocks did on Powers / Shouts / Active Effects while SL_MagicMenu drew them. kTabSpells is every tab SL_MagicMenu drew its
+// spell tree on: All, Favorites, the five school tabs (Alteration .. Restoration) and any category it does not know (a menu mod's
 // own) - All and Favorites can still hold a power or a shout, which a_shown shows. kTabPowers, kTabShouts and
 // kTabActiveEffects are those three tabs alone. A bit outside kTabsKnown is refused.
 //

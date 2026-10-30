@@ -25,10 +25,14 @@
 namespace Layout
 {
     using BlockId = std::string;
+    // the built-in blocks
     inline constexpr const char* kPreview = "preview";
+    inline constexpr const char* kSpellCard = "spellcard";
+    // HoM add-on plan Task 5: retired ids - the Heart of Magic blocks the core drew until then (tree window, learning progress,
+    // node card). They keep their places in Default and in saved files, have no height of their own (Arrange skips them) and are
+    // not reserved: a v3 add-on block takes one over with its legacyId (BlockRules::kRetiredIds, ToFinal / ToLegacy)
     inline constexpr const char* kTree = "tree";
     inline constexpr const char* kProgress = "progress";
-    inline constexpr const char* kSpellCard = "spellcard";
     inline constexpr const char* kNodeCard = "nodecard";
     // [Debug] bDebugFillerBlock's test add-on (blocks plan Task 6): placed in the left column after the spell card, so the
     // preview's column scrolls (the RF3 test path; final review ruling)
@@ -70,12 +74,13 @@ namespace Layout
     };
 
     /// The default layout (= layout E2): {preview, progress, spellcard} / {tree, nodecard}, border = the preview's right edge.
+    /// progress, tree and nodecard are retired ids (above): with no add-on taking them over the spell card follows the preview.
     State Default(const Settings::Values& a_values);
 
-    /// Both columns' frames from the ini rects: preview.left .. tree.right, preview.top .. itemCard.bottom, panelGap, kMinColumn.
+    /// Both columns' frames from the ini rects: preview.left .. treeRight, preview.top .. itemCard.bottom, panelGap, kMinColumn.
     std::array<Frame, kColumns> DefaultFrames(const Settings::Values& a_values);
 
-    /// The five blocks' heights from the ini rects (block heights never change, only widths).
+    /// The built-in blocks' heights from the ini rects: preview and spellcard (the retired ids have none: an add-on brings its own).
     std::map<BlockId, double> DefaultHeights(const Settings::Values& a_values);
 
     /// The border clamped so both columns are at least minColumn wide. If the frames cannot fit two such columns,
@@ -94,10 +99,6 @@ namespace Layout
     /// column 1 border + gap .. frame.right, border clamped as Arrange does) and the frame's top .. bottom. This is the
     /// column's viewport: what of the column shows, its mask. A column out of range gets an empty rect.
     Settings::Rect ColumnArea(const State& a_state, int a_column, const std::array<Frame, kColumns>& a_frames);
-
-    /// The blocks the tabs without a tree hide (plan D6): Powers/Shouts and, since build 16, Active Effects too (it shows
-    /// the preview and the card like Powers; before build 16 it hid the preview as well).
-    std::set<BlockId> NoTreeTabHidden();
 
     /// Build 16 (SelfTest C2, layout-check): what is wrong with the card's box, empty when nothing. a_box is the box as
     /// drawn, unscrolled; a_column the column's area (ColumnArea); a_content the column's content height (ContentHeight -
@@ -236,6 +237,18 @@ namespace Layout
     /// dropped (the file keys the place by the retired id; a final id beside it came from a build that did not know the alias).
     /// An empty map: unchanged. Every read of the layout file goes through it. O(blocks log blocks)
     State ToFinal(State a_state, const std::map<BlockId, BlockId>& a_legacyToFinal);
+
+    /// What the first magic menu open makes of a layout as read and the default (Settings::AddBlocks; tools/magic-menu-layout-check
+    /// runs the same function): renamed = ToFinal(a_read); fallback = the default renamed (ToFinal) with the add-ons put in
+    /// (AddAddons); layout = renamed repaired (Repair) against the fallback, the known blocks being a_builtins without the retired
+    /// ids an add-on took over (it is that add-on's now: Repair must not append it back, ToLegacy would write it twice) plus the
+    /// add-ons. O(blocks^2) as Repair
+    struct WithAddonsResult
+    {
+        State renamed, layout, fallback;
+    };
+    WithAddonsResult WithAddons(const State& a_read, const std::set<BlockId>& a_builtins, const std::map<BlockId, BlockId>& a_legacyToFinal,
+        const std::vector<BlockId>& a_addons, const State& a_default);
 
     /// The other way, for every write: each final id with an alias written as its retired id, so the file keeps the old ids and an
     /// older SL_MagicMenu reads it as before. Never a duplicate: a retired id already beside its final one is dropped (the final

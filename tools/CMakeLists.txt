@@ -221,21 +221,24 @@ target_link_libraries(tree-prereq-check PRIVATE
 )
 
 # =============================================================================
-# magic-menu-tree-check  -  offline check of the magic menu prototype's tree window
+# magic-menu-tree-check  -  offline check of the Heart of Magic block's tree window
 # =============================================================================
-# The SL_MagicMenu plugin's own TreeData.cpp (pure data, no game types): parses a
-# saved spell_tree.json and runs the tree window query with every node as the
-# centre (window sizes, rotation sanity). --selftest on made-up trees.
+# The SL_MagicMenu_HoM add-on's own TreeData.cpp and HomStyle.cpp (pure data, no
+# game types; the core's until HoM add-on plan Task 5): parses a saved
+# spell_tree.json and runs the tree window query with every node as the centre
+# (window sizes, rotation sanity). --selftest on made-up trees. The core's src is
+# on the include path for Settings.h, SelectionRule.h and LayoutMath.h.
 
 add_executable(magic-menu-tree-check
     magic-menu-tree-check.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/src/TreeData.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/src/HomStyle.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu_HoM/src/TreeData.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu_HoM/src/HomStyle.cpp
 )
 
 target_compile_features(magic-menu-tree-check PRIVATE cxx_std_23)
 
 target_include_directories(magic-menu-tree-check PRIVATE
+    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu_HoM/src
     ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/src
 )
 
@@ -320,22 +323,23 @@ target_link_libraries(magic-menu-sr-block-check PRIVATE
 )
 
 # =============================================================================
-# magic-menu-homstyle-check  -  offline check of the magic menu prototype's HoM style reader
+# magic-menu-homstyle-check  -  offline check of the Heart of Magic block's style reader
 # =============================================================================
-# The SL_MagicMenu plugin's own HomStyle.cpp (no game types): Heart of Magic's
+# The SL_MagicMenu_HoM add-on's own HomStyle.cpp (no game types; the core's until
+# HoM add-on plan Task 5): Heart of Magic's
 # config.json and design preset read as the plugin reads them, the colour, ink,
 # shape and dash helpers, the state mapping and the name reveal rule (spec v11 T,
 # R1, R7). --selftest on made-up input; a config path reads the real files.
 
 add_executable(magic-menu-homstyle-check
     magic-menu-homstyle-check.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/src/HomStyle.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu_HoM/src/HomStyle.cpp
 )
 
 target_compile_features(magic-menu-homstyle-check PRIVATE cxx_std_23)
 
 target_include_directories(magic-menu-homstyle-check PRIVATE
-    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/src
+    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu_HoM/src
 )
 
 target_link_libraries(magic-menu-homstyle-check PRIVATE
@@ -358,4 +362,5 @@ target_compile_features(magic-menu-preview-check PRIVATE cxx_std_23)
 
 target_include_directories(magic-menu-preview-check PRIVATE
     ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/src
+    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu_HoM/src
 )

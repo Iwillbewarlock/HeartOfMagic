@@ -1,9 +1,9 @@
 # ==========================================================================
 # SL_MagicMenu -- magic menu prototype (ACF M1-0)
 # ==========================================================================
-# A separate DLL drawn into SkyUI's magic menu: progress card, black preview
-# box, a small spell-tree window. PROTOTYPE: reads HoM through API v2 and the
-# saved spell_tree.json directly; both are replaced by the I1 contract.
+# A separate DLL drawn into SkyUI's magic menu: the 3D preview box, our spell
+# card, the board, the layout mode and the add-on blocks (BlockApi.h). No Heart
+# of Magic since HoM add-on plan Task 5: its blocks are SL_MagicMenu_HoM's.
 # Design: C:\Users\qtuna\Desktop\Claude outputs\ACF-Phase0\M0\M0_MAGIC_MENU_DESIGN.md
 # CommonLibSSE-NG, compiler flags, and vcpkg packages come from the
 # top-level CMakeLists.txt super-build.
@@ -30,10 +30,6 @@ add_commonlibsse_plugin(${PROJECT_NAME}
         src/Main.cpp
         src/GameThread.cpp
         src/Settings.cpp
-        src/Hom.cpp
-        src/Spells.cpp
-        src/TreeData.cpp
-        src/HomStyle.cpp
         src/Layout.cpp
         src/BlockRegistry.cpp
         src/Widget.cpp

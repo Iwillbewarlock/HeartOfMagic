@@ -29,12 +29,9 @@ namespace Settings
         constexpr std::uint32_t kMaxScanCode = 255;
         // SKSE::InputMap: kMacro_GamepadOffset 266 .. kMaxMacros 282 (exclusive)
         constexpr int kMinGamepadCode = SKSE::InputMap::kMacro_GamepadOffset, kMaxGamepadCode = SKSE::InputMap::kMaxMacros - 1;
-        constexpr double kMinTreeScale = 0.01, kMaxTreeScale = 10.0;
-        constexpr double kMinMarkScale = 0.5, kMaxMarkScale = 3.0;
-        constexpr int kMaxSteps = 6, kMaxNodes = 200;
+        constexpr double kStageMin = -4000.0, kStageMax = 4000.0;  // an ini stage coordinate (ReadRect, fTreeRight)
         // two columns of Layout::kMinColumn (240) and the gap fit in the block area 648..1238 (590): 590 - 2 x 240 = 110
         constexpr double kMaxPanelGap = 110.0;
-        constexpr double kMaxDebugExtraHeight = 2000.0;  // [Debug] fDebugExtraHeight: a few screens of overflow at most
 
         Values g_values;
         Layout::State g_layout;
@@ -44,10 +41,11 @@ namespace Settings
         // first magic menu open). Every layout read goes through Layout::ToFinal with it, every write through Layout::ToLegacy
         std::map<Layout::BlockId, Layout::BlockId> g_legacyAliases;
 
-        // The built-in blocks: Repair appends any of them a layout file lacks
+        // The built-in blocks: Repair appends any of them a layout file lacks. HoM add-on plan Task 5: not the retired ids (tree,
+        // progress, nodecard) - Repair keeps them in place as unknown ids, so an add-on that takes one over finds its place
         std::set<Layout::BlockId> BuiltinBlocks()
         {
-            return { Layout::kPreview, Layout::kTree, Layout::kProgress, Layout::kSpellCard, Layout::kNodeCard };
+            return { Layout::kPreview, Layout::kSpellCard };
         }
 
         // An absolute path: GetPrivateProfileString looks a bare relative name up in the Windows folder
@@ -132,7 +130,6 @@ namespace Settings
         // Four keys <prefix>Left/Top/Right/Bottom; a rect with no area keeps the default
         void ReadRect(const std::wstring& a_path, const wchar_t* a_prefix, Rect& a_out)
         {
-            constexpr double kStageMin = -4000.0, kStageMax = 4000.0;
             const std::wstring prefix(a_prefix);
             Rect rect = a_out;
             ReadNumber(a_path, L"Layout", (prefix + L"Left").c_str(), rect.left, kStageMin, kStageMax);
@@ -377,8 +374,6 @@ namespace Settings
         ReadBool(path, L"General", L"bHideGlow", v.hideGlow);
         ReadBool(path, L"Preview", L"bKeepPanelAlpha", v.keepPanelAlpha);
         ReadBool(path, L"Preview", L"bHidePowers3D", v.hidePowers3D);
-        ReadNumber(path, L"Keys", L"iNext", v.keyNext, 1u, kMaxScanCode);
-        ReadNumber(path, L"Keys", L"iSetTarget", v.keySetTarget, 1u, kMaxScanCode);
         ReadNumber(path, L"Keys", L"iLayout", v.keyLayout, 1u, kMaxScanCode);
         // SKSE's gamepad codes (266 D-pad up .. 281 Y, SKSE InputMap), or -1 for none
         ReadNumber(path, L"Keys", L"iGamepadLayout", v.gamepadLayout, -1, kMaxGamepadCode);
@@ -397,38 +392,26 @@ namespace Settings
                 kPanelTitleH + 2 * kPanelPad);
             v.preview = Values{}.preview;
         }
-        ReadRect(path, L"fTree", v.tree);
-        ReadRect(path, L"fProgress", v.progress);
         ReadRect(path, L"fItemCard", v.itemCard);
-        ReadRect(path, L"fNodeCard", v.nodeCard);
-        ReadNumber(path, L"Layout", L"fTreeScale", v.treeScale, kMinTreeScale, kMaxTreeScale);
-        ReadNumber(path, L"Layout", L"fTreeMarkScale", v.treeMarkScale, kMinMarkScale, kMaxMarkScale);
+        ReadNumber(path, L"Layout", L"fTreeRight", v.treeRight, kStageMin, kStageMax);
+        if (v.treeRight <= v.preview.right) {
+            logger::warn("Settings: [Layout] fTreeRight = {} is not right of the preview ({}) - keeping {}", v.treeRight, v.preview.right,
+                Values{}.treeRight);
+            v.treeRight = Values{}.treeRight;
+        }
         ReadNumber(path, L"Layout", L"fPanelGap", v.panelGap, 0.0, kMaxPanelGap);
-        ReadNumber(path, L"Layout", L"iMaxSteps", v.maxSteps, 1, kMaxSteps);
-        ReadNumber(path, L"Layout", L"iMaxNodes", v.maxNodes, 1, kMaxNodes);
-        ReadNumber(path, L"Debug", L"fDebugExtraHeight", v.debugExtraHeight, 0.0, kMaxDebugExtraHeight);
         ReadBool(path, L"Debug", L"bDebugFillerBlock", v.debugFillerBlock);
         g_values = v;
 
         logger::info("Settings: enabled {} selfTest {} movePreview {} moveItemCard {} drawPreviewOver {} previewUnlearned {} hideGamePass {} "
-                     "clipPreview {} ownCard {} hideBackdrop {} hideGlow {} keepPanelAlpha {} hidePowers3D {} keys next {} setTarget {} layout {} gamepad layout {}",
+                     "clipPreview {} ownCard {} hideBackdrop {} hideGlow {} keepPanelAlpha {} hidePowers3D {} keys layout {} gamepad layout {}",
             v.enabled, v.selfTest, v.movePreview, v.moveItemCard, v.drawPreviewOver, v.previewUnlearned, v.hideGamePass, v.clipPreview,
-            v.ownCard, v.hideBackdrop, v.hideGlow, v.keepPanelAlpha, v.hidePowers3D, v.keyNext, v.keySetTarget, v.keyLayout, v.gamepadLayout);
+            v.ownCard, v.hideBackdrop, v.hideGlow, v.keepPanelAlpha, v.hidePowers3D, v.keyLayout, v.gamepadLayout);
         LogRect("preview  ", v.preview);
         LogRect("  3D area", PanelContent(v.preview));
-        LogRect("tree     ", v.tree);
-        LogRect("progress ", v.progress);
         LogRect("item card", v.itemCard);
-        LogRect("node card", v.nodeCard);
-        logger::info("Settings:   panel gap {} (between the blocks of a column and between the columns)", v.panelGap);
-        // the values applied (spec v10 T2: an ini from an earlier build keeps its own fTreeScale over the new default)
-        logger::info("Settings:   tree scale {} (stage units per tree unit; default {}), mark scale {} (default {}), steps {}, max nodes {} "
-                     "(default {})",
-            v.treeScale, Values{}.treeScale, v.treeMarkScale, Values{}.treeMarkScale, v.maxSteps, v.maxNodes, Values{}.maxNodes);
-
-        if (v.debugExtraHeight > 0) {
-            logger::info("Settings:   [Debug] fDebugExtraHeight {} - the node card block is that much taller (a scroll test; 0 = off)", v.debugExtraHeight);
-        }
+        logger::info("Settings:   columns end at x {:.0f} (fTreeRight), panel gap {} (between the blocks of a column and between the columns)",
+            v.treeRight, v.panelGap);
         if (v.debugFillerBlock) {
             logger::info("Settings:   [Debug] bDebugFillerBlock 1 - the add-on test block {} (300 high) is registered at kDataLoaded; without a saved "
                          "place it goes to the left column after the spell card (the preview's column scrolls)",
@@ -470,25 +453,21 @@ namespace Settings
     {
         g_addonIds = a_ids;
         // the layout was read at load, before the aliases were known (the registry closes at the first menu open): renamed now.
-        // The default is renamed too, so an add-on that took a retired id over has that id's place there and is not appended again
+        // The default is renamed too, so an add-on that took a retired id over has that id's place there and is not appended again;
+        // the add-ons at the end of the right column, [Debug] bDebugFillerBlock's test block in the left one after the spell card,
+        // so the preview's column scrolls in game (RF3 test path; final review ruling). A broken / newer file was replaced by the
+        // default at load: the add-ons go into that default the same way (Layout::WithAddons)
         const auto read = g_layout;
-        g_layout = Layout::ToFinal(g_layout, g_legacyAliases);
-        if (!(read == g_layout)) {
+        auto with = Layout::WithAddons(read, BuiltinBlocks(), g_legacyAliases, g_addonIds, Layout::Default(g_values));
+        if (!(read == with.renamed)) {
             std::string renames;
             for (const auto& [legacyId, finalId] : g_legacyAliases) renames += std::format("{}{} -> {}", renames.empty() ? "" : ", ", legacyId, finalId);
             logger::info("Settings: retired block ids taken over by add-on blocks ({}) - layout columns {} read as {} (the file keeps the retired ids)",
-                renames, Columns(read), Columns(g_layout));
+                renames, Columns(read), Columns(with.renamed));
         }
-        // the add-ons at the end of the right column; [Debug] bDebugFillerBlock's test block in the left one after the spell card,
-        // so the preview's column scrolls in game (RF3 test path; final review ruling)
-        g_defaultLayout = Layout::AddAddons(Layout::ToFinal(Layout::Default(g_values), g_legacyAliases), g_addonIds);
-        auto known = BuiltinBlocks();
-        // a retired id an add-on took over is that add-on's now: Repair must not append it back (ToLegacy would then write it twice)
-        for (const auto& [legacyId, finalId] : g_legacyAliases) known.erase(legacyId);
-        known.insert(g_addonIds.begin(), g_addonIds.end());
-        const auto before = g_layout;
-        // a broken / newer file was replaced by the default at load: the add-ons go into that default the same way
-        g_layout = Layout::Repair(g_layout, known, g_defaultLayout);
+        const auto before = with.renamed;
+        g_defaultLayout = std::move(with.fallback);
+        g_layout = std::move(with.layout);
         logger::info("Settings: {} add-on block(s){} - layout columns {}{}", g_addonIds.size(), g_addonIds.empty() ? "" : " known", Columns(g_layout),
             before == g_layout ? " (unchanged: each has its saved place)" : " (the ones without a saved place put at the end of the right column, the debug filler at the end of the left one)");
     }

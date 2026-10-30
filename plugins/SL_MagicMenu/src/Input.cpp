@@ -337,20 +337,16 @@ namespace Input
             RE::BSEventNotifyControl ProcessEvent(RE::InputEvent* const* a_events, RE::BSTEventSource<RE::InputEvent*>*) override
             {
                 if (!a_events || !*a_events || !MagicMenuOpen() || TypingText()) return RE::BSEventNotifyControl::kContinue;
-                const auto& settings = Settings::Get();
                 for (auto* event = *a_events; event; event = event->next) {
                     if (event->GetEventType() != RE::INPUT_EVENT_TYPE::kButton || event->GetDevice() != RE::INPUT_DEVICE::kKeyboard) continue;
                     const auto* button = event->AsButtonEvent();
                     if (!button || !button->IsDown()) continue;
                     const auto key = button->GetIDCode();
-                    // blocks spec "When the mode is off": U and G do nothing while the layout mode is on or the press is the mode's
+                    // blocks spec "When the mode is off": no key reaches the add-ons while the layout mode is on or the press is the mode's
                     if (Widget::LayoutModeOn() || g_owned.contains(KeyOf(RE::INPUT_DEVICE::kKeyboard, key))) continue;
-                    Widget::QueueAddonKey(key);  // Block API v3: every key down past the same gate, for the add-ons' key calls
-                    if (key == settings.keyNext) {
-                        SKSE::GetTaskInterface()->AddUITask([] { Widget::RequestNext(); });
-                    } else if (key == settings.keySetTarget) {
-                        SKSE::GetTaskInterface()->AddUITask([] { Widget::RequestSetTarget(); });
-                    }
+                    // Block API v3: every key down past the gate, for the add-ons' key calls (HoM add-on plan Task 5: U and G are the
+                    // Heart of Magic block's own keys now)
+                    Widget::QueueAddonKey(key);
                 }
                 return RE::BSEventNotifyControl::kContinue;
             }
@@ -379,19 +375,18 @@ namespace Input
         InstallHook();
         auto* devices = RE::BSInputDeviceManager::GetSingleton();
         if (!devices) {
-            logger::error("Input: no BSInputDeviceManager - the next-learnable and set-target keys are off");
+            logger::error("Input: no BSInputDeviceManager - no key reaches the add-on blocks");
             return;
         }
         devices->AddEventSink(KeySink::GetSingleton());
         const auto& settings = Settings::Get();
-        logger::info("Input: key sink installed (next {}, set target {})", settings.keyNext, settings.keySetTarget);
+        logger::info("Input: key sink installed (keyboard downs for the add-on blocks' key calls)");
         // the key scan of the installed mods (2026-10-25, v5-key-scan.md), so the game log alone explains the defaults
         const auto avoided = [](std::uint32_t a_key) { return a_key == 19 || a_key == 49; };
         logger::info("Input: key scan - avoided 19 R (Spell Organizer RemoveHotkey, live in the magic menu; its saved value is in the "
-                     "save, assumed R) and 49 N (Creature Framework PupTargetKey, no menu check); 22 U and 34 G: nothing live in the "
-                     "magic menu; 37 K (the layout mode): in no controlmap line, SexLab scenes only{}",
-            avoided(settings.keyNext) || avoided(settings.keySetTarget) || avoided(settings.keyLayout) ? " - WARNING: the ini sets one of the avoided keys" :
-                                                                                                         "");
+                     "save, assumed R) and 49 N (Creature Framework PupTargetKey, no menu check); 37 K (the layout mode): in no "
+                     "controlmap line, SexLab scenes only{}",
+            avoided(settings.keyLayout) ? " - WARNING: the ini sets one of the avoided keys" : "");
     }
 
     bool HookInstalled()

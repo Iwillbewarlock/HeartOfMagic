@@ -115,12 +115,15 @@ namespace BlockApiCheck
 
     namespace
     {
-        // The reserved built-in ids of an SL_MagicMenu that still has the HoM blocks (Widget.cpp's kBlocks)
-        const std::set<std::string> kBuiltins{ "preview", "tree", "progress", "nodecard", "spellcard" };
+        // The reserved built-in ids of an SL_MagicMenu that still drew the HoM blocks itself (Widget.cpp's kBlocks before HoM add-on
+        // plan Task 5): the registry's rule for a legacyId whose retired id is still reserved
+        const std::set<std::string> kBuiltinsWithHom{ "preview", "tree", "progress", "nodecard", "spellcard" };
+        // The core's reserved ids since Task 5 (Widget.cpp's kBlocks): the retired ids are free for a legacyId
+        const std::set<std::string> kCoreBuiltins{ "preview", "spellcard" };
 
         void V3RegistrationRules()
         {
-            std::printf("v3 registrations: pad bound, legacy id of a built-in still here (Task 4)\n");
+            std::printf("v3 registrations: pad bound, legacy id of a built-in still here (Task 4), the core's free retired ids (Task 5)\n");
             BlockRegistry::Registry registry;
             auto tallPad = V3("tallpad");
             tallPad.pad = BlockApi::kMaxHeight + 1.0f;
@@ -134,7 +137,7 @@ namespace BlockApiCheck
             const auto* zeroBlock = registry.Find("AddonA.zeropad");
             Expect(zeroOutcome.accepted && zeroBlock && zeroBlock->pad == 0.0, "v3 pad 0: accepted, kept as 0");
 
-            BlockRegistry::Registry withBuiltins{ kBuiltins };
+            BlockRegistry::Registry withBuiltins{ kBuiltinsWithHom };
             for (const auto retired : BlockRules::kRetiredIds) {
                 const std::string legacy(retired);
                 const auto outcome = Send(withBuiltins, Bytes(V3(("claims" + legacy).c_str(), legacy.c_str())));
@@ -149,6 +152,22 @@ namespace BlockApiCheck
             const auto* bothBlock = withBuiltins.Find("AddonA.both");
             Expect(bothOutcome.accepted && bothBlock && bothBlock->click && (bothBlock->flags & BlockApi::kFlagOwnMouse) != 0,
                 "kFlagOwnMouse with a click: accepted, both stored (the host ignores the click and logs it once)");
+
+            // HoM add-on plan Task 5: the core reserves preview and spellcard only - each retired id is taken over by its legacyId,
+            // a built-in's id is no legacyId, and a retired id is still taken once
+            BlockRegistry::Registry core{ kCoreBuiltins };
+            for (const auto retired : BlockRules::kRetiredIds) {
+                const std::string legacy(retired);
+                const auto outcome = Send(core, Bytes(V3(legacy.c_str(), legacy.c_str())));
+                Expect(outcome.accepted, Text("core: legacyId %s accepted (%s)", legacy.c_str(), outcome.reason.c_str()));
+            }
+            const auto aliases = core.LegacyAliases();
+            const auto aliasIs = [&](const char* a_legacy, const char* a_final) { return aliases.contains(a_legacy) && aliases.at(a_legacy) == a_final; };
+            Expect(aliases.size() == 3 && aliasIs("tree", "AddonA.tree") && aliasIs("progress", "AddonA.progress") && aliasIs("nodecard", "AddonA.nodecard"),
+                Text("core: three aliases, tree -> AddonA.tree, progress -> AddonA.progress, nodecard -> AddonA.nodecard (got %zu)", aliases.size()));
+            Expect(!Send(core, Bytes(V3("tree2", "tree"))).accepted, "core: a second legacyId tree refused (one block per retired id)");
+            Expect(!Send(core, Bytes(V3("preview2", "preview"))).accepted && !Send(core, Bytes(V3("card2", "spellcard"))).accepted,
+                "core: legacyId preview / spellcard refused (built-in blocks, not retired ids)");
         }
 
         void ContentBoxes()

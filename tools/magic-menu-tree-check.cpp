@@ -1,6 +1,7 @@
-// magic-menu-tree-check - offline check of the magic menu prototype's tree data
-// (plugins/SL_MagicMenu/src/TreeData.cpp): parses a saved spell tree as the plugin
-// does and runs the tree window query with every node as the centre.
+// magic-menu-tree-check - offline check of the Heart of Magic block's tree data
+// (plugins/SL_MagicMenu_HoM/src/TreeData.cpp; in the core until HoM add-on plan Task 5):
+// parses a saved spell tree as the plugin does and runs the tree window query with
+// every node as the centre.
 //
 //   magic-menu-tree-check [tree.json]   counts, window sizes and mark spacing for that tree
 //                                       (default: the TAKEALOOK overwrite spell_tree.json)
@@ -13,9 +14,9 @@
 // its closest neighbour at the plugin's defaults (spec v11 R5), 2 when the file cannot be read or parsed.
 
 #include "HomLayoutMath.h"
+#include "HomSettings.h"
 #include "HomStyle.h"
 #include "SelectionRule.h"
-#include "Settings.h"
 #include "TreeData.h"
 
 #include <algorithm>
@@ -39,7 +40,7 @@ namespace
     /// fTreeMarkScale, line widths x fTreeScale (review v11 #5), with the learnable ring as Skald draws it - the larger case)
     double DefaultReach()
     {
-        const Settings::Values defaults;
+        const HomSettings::Values defaults;
         return HomStyle::MaxReach(defaults.treeScale * defaults.treeMarkScale, true, defaults.treeScale);
     }
 
@@ -47,8 +48,8 @@ namespace
     /// the content area inside the title and padding, as Widget.cpp computes it; the mark's reach as margin; no turn)
     TreeData::View CheckView()
     {
-        const Settings::Values defaults;
-        const auto area = Settings::TreeContent(defaults.tree);
+        const HomSettings::Values defaults;
+        const auto area = HomSettings::TreeContent(defaults.tree);
         TreeData::View view;
         view.scale = defaults.treeScale;
         view.halfW = area.halfW;
@@ -173,8 +174,8 @@ namespace
         std::printf("  %s  closest two drawn marks %.2f apart (centre %s \"%s\"), half %.2f; the largest drawn reach %.3f "
                     "(HoM sizes x fTreeScale %.2f x fTreeMarkScale %.2f): %d centre(s) with marks closer than twice that\n",
             spaced ? "PASS" : "FAIL", closest, closestAt >= 0 ? a_tree.nodes[closestAt].id.c_str() : "-",
-            closestAt >= 0 ? a_tree.nodes[closestAt].name.c_str() : "-", closest / 2, width / 2, Settings::Values{}.treeScale,
-            Settings::Values{}.treeMarkScale, crowded);
+            closestAt >= 0 ? a_tree.nodes[closestAt].name.c_str() : "-", closest / 2, width / 2, HomSettings::Values{}.treeScale,
+            HomSettings::Values{}.treeMarkScale, crowded);
         return spaced;
     }
 
@@ -362,7 +363,7 @@ namespace
         // The spacing at the plugin's defaults (spec v11 R5): the largest drawn reach - a selected learnable spell's ring,
         // (9 + 1.5 + 4) x fTreeScale 0.75 x fTreeMarkScale 1 + its half line 0.6 x fTreeScale 0.75 (review v11 #5) - stays under half the closest pair of
         // spell_tree.json (37.9 tree units -> 28.4, half 14.21); a pair 30 apart (half 11.25) would not
-        const Settings::Values defaults;
+        const HomSettings::Values defaults;
         const double reach = DefaultReach();
         Expect(Near(defaults.treeMarkScale, 1.0) && Near(reach, 14.5 * 0.75 + 0.6 * 0.75), "the largest reach at the defaults: 11.325 (fTreeMarkScale 1)");
         Expect(reach <= 37.9 * defaults.treeScale / 2 && reach > 30.0 * defaults.treeScale / 2,

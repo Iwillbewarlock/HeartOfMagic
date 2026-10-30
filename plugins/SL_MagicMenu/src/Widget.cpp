@@ -9,18 +9,13 @@
 
 #include "Draw.h"
 #include "GameThread.h"
-#include "Hom.h"
-#include "HomLayoutMath.h"
-#include "HomStyle.h"
 #include "Layout.h"
 #include "LayoutMath.h"
 #include "Preview.h"
 #include "SelectionRule.h"
 #include "Settings.h"
 #include "SpellSchool.h"
-#include "Spells.h"
 #include "TextFit.h"
-#include "TreeData.h"
 
 #include <algorithm>
 #include <array>
@@ -46,22 +41,20 @@
 #include <vector>
 
 // =============================================================================
-// WIDGET - see Widget.h. Draws from Spells::Current() only: the frame handler
-// runs on several threads (game run 2026-10-25) and never calls HoM.
+// WIDGET - see Widget.h. The frame handler runs on several threads (game run
+// 2026-10-25); since HoM add-on plan Task 5 it knows no Heart of Magic: the
+// spell tree, the learning progress and the node card are an add-on's blocks.
 // =============================================================================
 
 namespace Widget
 {
     namespace
     {
-        using Spells::State;
-
         // ---------------------------------------------------------------------
         // Constants
         // ---------------------------------------------------------------------
 
         constexpr const char* kRootName = "mmx_root";
-        constexpr const char* kIndexMember = "mmxIndex";  // a node clip's tree index, read by its onRelease
 
         // SkyUI's item card, then vanilla's (the bookmark branch, game runs 2026-10-08/09); its _parent is the fade holder
         constexpr std::array<const char*, 2> kCardPaths{ "_root.Menu_mc.itemCardFadeHolder.ItemCard_mc",
@@ -77,7 +70,7 @@ namespace Widget
             BlockRules::kFlagRestoration, BlockRules::kFlagShouts, BlockRules::kFlagPowers, BlockRules::kFlagActiveEffects;
         constexpr int kFlagUnread = 0;  // no category flag read yet (ReadTab's default): a spell tab, as ReadTab treats it
 
-        constexpr int kPollFrames = 15;  // HoM state is asked for again this often
+        constexpr int kPollFrames = 15;  // SkyUI's item card is measured this often outside a measure window (FitItemCard)
         constexpr int kMaxFitLogs = 5;   // item card re-fits logged per menu open
         constexpr int kMaxWheelLogs = 5;  // column scrolls logged per menu open (blocks plan Task 3)
 
@@ -134,15 +127,9 @@ namespace Widget
         constexpr int kListMeasureFrames = 600;  // frames the list row is looked for after the menu opens (it needs a list selection)
         constexpr double kLineFactor = 1.25;     // a text line's height per font size unit until the font is measured (MeasureTextMetrics)
         constexpr double kProbeSize = 20.0, kMetricMin = 0.8, kMetricMax = 2.5;  // the font probe's size; accepted line shares of a size
-        // A text line's ascent (field text top -> first baseline) per size unit, for the row-2 baseline (spec v6 L2): the probe's
-        // getLineMetrics(0).ascent (a Scaleform TextField extension, CLIK TextField.as) when the movie gives it, accepted in
-        // kAscentMin..kAscentMax; else kAscentFallback, measured on the build-3 frame base_v3_poison.png (size 19 -> 17 units,
-        // tools/menu-render textengine.py BASELINE) - an approximation, logged as such
-        constexpr double kAscentFallback = 0.90, kAscentMin = 0.5, kAscentMax = 1.5;
         // the item card's description fields by frame (SkyUI ItemCard.as): the first one shown is measured for the log (round 2 #5)
         constexpr auto kCardTextFields = std::to_array<const char*>({ "MagicEffectsLabel", "ShoutEffectsLabel", "BookDescriptionLabel",
             "PotionsLabel", "ApparelEnchantedLabel", "WeaponEnchantedLabel", "EnchantmentLabel", "MessageText" });
-        constexpr int kNoDataFrames = 600;       // frames without HoM's state for the school before the card stops saying "loading"
         // The text-fit helpers and their constants (TextFit.h)
         using TextFit::kFitStep;
         using TextFit::kGutter;
@@ -182,52 +169,15 @@ namespace Widget
         constexpr int kReselectFrames = 10;
         constexpr int kReselectWaitFrames = 2;  // frames before the first try
 
-        // Tree window. Its marks, links and label colours are Heart of Magic's own (spec v11 T12-T15: HomStyle, read at menu
-        // open); sizes are HoM world units x fTreeScale x fTreeMarkScale, line widths HoM world units x fTreeScale (review v11 #5:
-        // HoM strokes under its zoom, canvasRendererSpell.js:38,263)
-        constexpr double kLabelW = 104.0, kLabelSize = 10.0, kLabelGap = 1.0;
-        constexpr int kLabelLines = 2;  // a name wraps to this many lines, then ends in "..."
-        constexpr double kLinkBoxStep = 4.0;  // a link's boxes for the labels to keep off (LayoutMath::LinkBoxes)
-        constexpr double kNoteSize = 10.0, kLegendSize = 10.0, kLegendIconR = 5.0, kLegendTextGap = 4.0;
-        // tree badges (spec v10 T7): arrow half size, its distance from the edge, the "N개 더" text's width
-        constexpr double kExitArrow = 5.0, kExitInset = 7.0, kExitTextW = 56.0;
+        // Text colours and the hint box (the gear's hover hint; the look the Heart of Magic block's tooltip had at f83dc6f3)
+        constexpr double kLabelSize = 10.0;
         constexpr std::uint32_t kWhite = 0xF0F0F0, kLabelColor = 0xD8D8D8, kDimText = 0x8A8A8A;
-        // the fill colour of a node's invisible hit area (alpha 0); HoM's opaque _backdrop under dimmed spells is not drawn (see DrawHomMark)
-        constexpr std::uint32_t kBackdrop = 0x000000;
-        // HoM's config and design presets (in game through MO2's VFS; relative to the game folder like Spells.cpp's kTreePath)
-        constexpr const char* kHomConfigPath = "Data/SKSE/Plugins/SpellLearning/config.json";
-        constexpr const char* kHomPresetDir = "Data/SKSE/Plugins/SpellLearning/presets/design";
-        constexpr double kMinLabelW = 20.0;  // a label with less room than this to the window edge is left out
-        constexpr int kKeptFarSteps = 2;      // a kept label tries its sides this many mark-reach steps further out
-        constexpr int kKeptRank = 2;          // LabelRank of the kept labels and below: the centre, the selected node, the target
-        constexpr double kDimTreeAlpha = 35.0;  // the previous tree under a selection that is not in the tree (T7.1)
-        // The hover tooltip (spec v10 T6): its width, inner padding, gap from the node's mark and fill strength
-        constexpr double kTooltipW = 150.0, kTooltipPad = 4.0, kTooltipGap = 4.0, kTooltipAlpha = 90.0;
-        constexpr double kBaselineTolerance = 0.5;  // L2 self-test: the two row-2 baselines read back this close
-        constexpr int kMaxL2Logs = 6;               // "SelfTest: L2 ..." lines per menu (each new reading once)
+        constexpr double kTooltipW = 150.0, kTooltipPad = 4.0, kTooltipAlpha = 90.0;
 
-        // Progress card (laid out top-down by line heights of the sizes in use)
-        // The XP numbers sit right of the bar in a row as high as their field, the bar centred in it (review round 2 #2: the
-        // field centred on the then 9-high bar ran into the target line above and the hint below); they keep kXpSize, not the
-        // reading size, so the card's last line keeps room at large list rows. The bar is a thin line (UI polish 2026-10-29):
-        // kBarBack behind (a neutral grey: kPanelEdge would read as the card's rule lines at 0%), kTitleColor for the share learned
-        constexpr std::uint32_t kBarBack = 0x4A4A4A;
-        constexpr double kCardTop = 4.0, kCardBottom = 2.0, kSchoolSize = 11.0, kTargetSize = 19.0, kBarH = 2.0, kXpW = 120.0,
-                         kXpSize = 12.0, kHintSize = 13.0;
-        constexpr int kMessageLines = 2;
-
-        // Node card (the mockup's layout: name, school and level, state with its mark, requirements, XP, button)
-        // The bottom block hangs from the button: its bottom at the card bottom minus kPad (spec v6 L2: 615 with the E2 rects, the
-        // item card slot's inner bottom), the XP line and the bottom rule above it as in build 5 (build 5: 38 / 70 / 76)
-        constexpr double kNameSize = 19.0, kSubSize = 12.0, kStateSize = 14.0, kStateIconR = 6.0, kStateTextX = 22.0, kRuleGap = 4.0,
-                         kRowSize = 13.0, kMarkShare = 0.8, kMarkGap = 4.0, kButtonH = 28.0, kButtonSize = 14.0,
-                         kButtonFromBottom = kPad + kButtonH, kXpFromBottom = kButtonFromBottom + 32.0,
-                         kBottomRuleFromBottom = kButtonFromBottom + 38.0;
-        constexpr int kNameLines = 2, kHintLines = 2;
-        constexpr std::uint32_t kOk = 0x6CC070, kNotYet = 0xE05050;
-        // No check/cross characters: the game font has neither U+2713 nor U+2717 (build 3 frame f_008: a missing-glyph box at the
-        // start of each requirement line); Draw::Check / Draw::Cross draw them as lines. U+00B7 "·" is in the font (the same
-        // frame draws "Restoration · Novice"), and "..." is ASCII.
+        // Our spell card (v7 C1): its top inset, the name's size and lines, the body's sizes; kNotYet colours a harmful spell's name
+        constexpr double kCardTop = 4.0, kNameSize = 19.0, kSubSize = 12.0, kRowSize = 13.0;
+        constexpr int kNameLines = 2;
+        constexpr std::uint32_t kNotYet = 0xE05050;
 
         // ---------------------------------------------------------------------
         // On-screen text: one table (spec v5 Q2), Korean (the user plays in Korean). Placeholders in braces are filled by
@@ -238,61 +188,13 @@ namespace Widget
 
         enum class Str : std::size_t
         {
-            kProgressTitle,
-            kProgressTarget,
-            kProgressNoneCandidates,
-            kProgressNoneNothing,
-            kProgressAllMastered,
-            kProgressNotReady,
-            kProgressNotInTree,
-            kNodeHint,
-            kNodeSetTarget,
-            kNodeIsTarget,
-            kNodeLocked,
-            kNodeMastered,
-            kLegendMastered,
-            kLegendLearning,
-            kLegendCanLearn,
-            kTreeNotInTree,
             kPreviewTitle,
-            kTreeTitle,
-            // build 5
-            kProgressCandidates,
-            kProgressCandidatesNoXY,
-            kProgressReady,
-            kProgressLearningEarly,
-            kProgressUnknown,
-            kProgressNoOther,
-            kProgressNoTree,
-            kProgressNoSchoolTree,
-            kXp,
-            kTreeNoTree,
-            kTreeNoCentre,
-            kTreeNoLinks,
-            kTreeExit,
-            kNodeCanLearn,
-            kNodeTargetPct,
-            kNodeLearningPct,
-            kNodeReady,
-            kNodeUnknown,
-            kNodeSub,
-            kReqAll,
-            kReqSome,
-            kReqNone,
-            kReqMastered,
-            kReqNotMastered,
-            kReqChecking,
-            kReqNotInGame,
-            kReqMore,
+            kCardSub,
             kSchoolAlteration,
             kSchoolConjuration,
             kSchoolDestruction,
             kSchoolIllusion,
             kSchoolRestoration,
-            kProgressNoHom,
-            kProgressNoData,
-            // build 6
-            kTreeLocked,
             // build 7 (C1, drafts for Argon's review)
             kCardMagicka,
             kCardMagickaPerSec,
@@ -322,68 +224,21 @@ namespace Widget
         struct StrEntry
         {
             Str id;
-            const char* key;   // the name in logs ("SelfTest: Q2 state <key>") and in the spec's table
+            const char* key;   // the name in the spec's table
             const char* text;
         };
 
+        // HoM add-on plan Task 5: the Heart of Magic rows (progress card, node card, tree, legend) left with the HoM block; the
+        // add-on keeps them as they were at f83dc6f3
         constexpr auto kStrings = std::to_array<StrEntry>({
-            { Str::kProgressTitle, "progress_title", "{school} 학습" },
-            { Str::kProgressTarget, "progress_target", "학습 목표: {spell} ({pct}%)" },
-            { Str::kProgressNoneCandidates, "progress_none_candidates", "학습 목표 없음 · 배울 수 있는 주문 {n}개 · {key} 다음 주문" },
-            { Str::kProgressNoneNothing, "progress_none_nothing", "배울 수 있는 주문 없음 (선행 조건 미충족)" },
-            { Str::kProgressAllMastered, "progress_all_mastered", "모든 주문 숙달 완료" },
-            { Str::kProgressNotReady, "progress_not_ready", "주문 데이터 불러오는 중..." },
-            { Str::kProgressNotInTree, "progress_not_in_tree", "선택한 주문은 주문 트리에 없음" },
-            { Str::kNodeHint, "node_hint", "트리에서 주문 클릭 · {key} 다음 주문" },
-            { Str::kNodeSetTarget, "node_set_target", "학습 목표 지정 {key}" },
-            { Str::kNodeIsTarget, "node_is_target", "현재 학습 목표" },
-            { Str::kNodeLocked, "node_locked", "선행 조건 필요" },
-            { Str::kNodeMastered, "node_mastered", "숙달 완료" },
-            { Str::kLegendMastered, "legend_mastered", "숙달" },
-            { Str::kLegendLearning, "legend_learning", "학습 중" },
-            { Str::kLegendCanLearn, "legend_can_learn", "배울 수 있음" },
-            { Str::kTreeNotInTree, "tree_not_in_tree", "주문 트리에 없는 주문" },
             { Str::kPreviewTitle, "preview_title", "미리보기" },
-            { Str::kTreeTitle, "tree_title", "주문 트리" },
-            // build 5
-            { Str::kProgressCandidates, "progress_candidates", "배울 수 있는 주문 {n}개 · {key} 다음 주문" },
-            { Str::kProgressCandidatesNoXY, "progress_candidates_no_xy", "배울 수 있는 주문 {n}개 · 트리 창에 표시 안 됨" },
-            { Str::kProgressReady, "progress_ready", "경험치 충족된 주문 {n}개 · 습득 대기" },
-            { Str::kProgressLearningEarly, "progress_learning_early", "미리 배운 주문 {n}개 · 숙달 진행 중" },
-            { Str::kProgressUnknown, "progress_unknown", "상태를 알 수 없는 주문 {n}개" },
-            { Str::kProgressNoOther, "progress_no_other", "배울 수 있는 다른 주문 없음" },
-            { Str::kProgressNoTree, "progress_no_tree", "주문 트리 파일 없음" },
-            { Str::kProgressNoSchoolTree, "progress_no_school_tree", "{school}: 주문 트리에 없는 학파" },
-            { Str::kXp, "xp", "{cur} / {need} 경험치" },
-            { Str::kTreeNoTree, "tree_no_tree", "주문 트리 파일 없음 (spell_tree.json)" },
-            { Str::kTreeNoCentre, "tree_no_centre", "선택한 학파 주문 없음" },
-            { Str::kTreeNoLinks, "tree_no_links", "연결된 주문 없음" },
-            // spec v10 T7: an off-window badge (a drawn arrow, then this text)
-            { Str::kTreeExit, "tree_exit", "{n}개 더" },
-            { Str::kNodeCanLearn, "node_can_learn", "배울 수 있음" },
-            { Str::kNodeTargetPct, "node_target_pct", "현재 학습 목표 · {pct}%" },
-            { Str::kNodeLearningPct, "node_learning_pct", "미리 배움 · 숙달 {pct}%" },
-            { Str::kNodeReady, "node_ready", "경험치 충족 · 습득 대기" },
-            { Str::kNodeUnknown, "node_unknown", "상태 확인 중" },
-            { Str::kNodeSub, "node_sub", "{school} · {level}" },
-            { Str::kReqAll, "req_all", "선행 조건 모두 숙달 필요" },
-            { Str::kReqSome, "req_some", "선행 조건 중 {n}개 숙달 필요" },
-            { Str::kReqNone, "req_none", "선행 조건 없음" },
-            { Str::kReqMastered, "req_mastered", "{name} · 숙달" },
-            { Str::kReqNotMastered, "req_not_mastered", "{name} · 미숙달" },
-            { Str::kReqChecking, "req_checking", "{name} · 확인 중" },
-            { Str::kReqNotInGame, "req_not_in_game", "{name} · 게임에 없음" },
-            { Str::kReqMore, "req_more", "외 {n}개" },
+            // our card's school and level line (the node card's "node_sub" until Task 5)
+            { Str::kCardSub, "card_sub", "{school} · {level}" },
             { Str::kSchoolAlteration, "school_alteration", "변화마법" },
             { Str::kSchoolConjuration, "school_conjuration", "소환마법" },
             { Str::kSchoolDestruction, "school_destruction", "파괴마법" },
             { Str::kSchoolIllusion, "school_illusion", "환영마법" },
             { Str::kSchoolRestoration, "school_restoration", "회복마법" },
-            // review round 1 #3
-            { Str::kProgressNoHom, "progress_no_hom", "Heart of Magic 연결 안 됨" },
-            { Str::kProgressNoData, "progress_no_data", "주문 데이터를 받지 못함" },
-            // build 6 (spec v6 L4); since build 11 the tree legend's locked item (spec v11 T18)
-            { Str::kTreeLocked, "tree_locked", "잠김" },
             // build 7 (spec v7 C1): our info card. DRAFT wording by Claude in the short label style, for Argon's review
             { Str::kCardMagicka, "card_magicka", "매지카 {n}" },
             { Str::kCardMagickaPerSec, "card_magicka_per_sec", "매지카 {n}/초" },
@@ -425,11 +280,6 @@ namespace Widget
             return kStrings[static_cast<std::size_t>(a_id)].text;
         }
 
-        const char* Key(Str a_id)
-        {
-            return kStrings[static_cast<std::size_t>(a_id)].key;
-        }
-
         // The table's text with each {placeholder} replaced (every occurrence)
         std::string Fill(Str a_id, std::initializer_list<std::pair<std::string_view, std::string>> a_values)
         {
@@ -463,35 +313,10 @@ namespace Widget
             return text ? text : "";
         }
 
-        // The tree's level word ("Novice" .. "Master", spell_tree.json) as the game's own level names (the vanilla GMSTs LevelText
-        // reads; the Adept tier is sJourneymanDisplayName); the saved word when it is another one or the game has no string
-        std::string LevelName(const std::string& a_level)
-        {
-            constexpr std::array<std::pair<std::string_view, const char*>, 5> kLevels{ { { "Novice", "sNoviceDisplayName" },
-                { "Apprentice", "sApprenticeDisplayName" }, { "Adept", "sJourneymanDisplayName" }, { "Expert", "sExpertDisplayName" },
-                { "Master", "sMasterDisplayName" } } };
-            for (const auto& [name, setting] : kLevels) {
-                if (name != a_level) continue;
-                auto text = GameString(setting);
-                return text.empty() ? a_level : text;
-            }
-            return a_level;
-        }
 
         // ---------------------------------------------------------------------
         // Menu state
         // ---------------------------------------------------------------------
-
-        // Kept across menu opens (spec: "keep the previous centre")
-        struct Session
-        {
-            int centre = -1;
-            std::string school;  // the list's active school
-            // The centre was a fallback (DefaultCentre) picked from a snapshot that did not cover this school yet: the
-            // school's root stood in for its learning target. Picked again once a snapshot covers the school; a centre
-            // the user chose (list selection, tree click, the next-learnable key) is never provisional.
-            std::string provisionalSchool;
-        } g_session;
 
         struct CardFit
         {
@@ -501,26 +326,10 @@ namespace Widget
 
         enum class Tab
         {
-            kFollow,   // All, Favorites (and anything unknown): follow the selected spell's school
+            kFollow,   // All, Favorites (and anything unknown)
             kSchool,   // one school's tab
-            kPowers,   // Powers, Shouts: no tree, no progress
-            kEffects,  // Active Effects: the preview and our card, as Powers (build 16)
-        };
-
-        // The active school's state counts over its non-dup nodes (Q2); available = Spells::Learnable, candidates = those of
-        // them with a place in the tree
-        struct Tally
-        {
-            int candidates{}, available{}, target{}, ready{}, learning{}, mastered{}, locked{}, unknown{}, nodes{};
-        };
-
-        struct SchoolInfo
-        {
-            std::string school;
-            std::uint64_t epoch{};
-            std::vector<int> candidates;  // what the next-learnable key walks, in Spells::Learnable's order
-            Tally tally;
-            bool valid = false;
+            kPowers,   // Powers, Shouts
+            kEffects,  // Active Effects (build 16)
         };
 
         // spec v12 G2: the one committed selection of a menu - what the list last had selected by a click, a key, a tree
@@ -601,21 +410,8 @@ namespace Widget
             std::uint64_t reselectSeq = 0;   // the selSeq it is for (a newer selection cancels it)
             std::string tabSchool;           // the school tab's school (empty on other tabs)
             RE::FormID listSelection = 0;
-            bool notInTree = false;          // the list's spell has no tree node (the tree keeps its centre)
-            int selected = -1;               // the node clicked in the tree (node card)
-            RE::FormID selectedByUs = 0;     // a tree click selected this spell in the list: its change is ours
-            int clicked = -1;                // a node click waiting for the frame handler
-            bool dirty = true;
-            bool refresh = true;             // ask Spells for HoM's state at the end of this frame
+            RE::FormID selectedByUs = 0;     // an add-on's show request selected this spell in the list: its change is ours
             int frame = 0;
-            std::uint64_t epoch = 0;         // the snapshot drawn last
-            std::vector<TreeData::PlacedNode> shown;  // clickable nodes drawn in the tree window
-            std::vector<TreeData::PlacedNode> drawn;  // every node drawn there, faint ones too (the tooltip finds its node here)
-            int hovered = -1;                // the node clip under the mouse (onRollOver / onRollOut record it; spec v10 T6)
-            int tooltipFor = -1;             // the node the tooltip shows (-1: none)
-            bool tooltipDue = false;         // the tree was drawn again: the tooltip is drawn again too (on top of it)
-            bool spacingLogged = false;      // "SelfTest: T2 spacing PASS" logged this menu (FAIL lines always)
-            std::optional<std::string> legendSchool;  // the school whose shape and colour the legend shows (T18; none drawn yet)
             bool irActive = false;           // Inventory Reforged's panel runs in this menu
             std::optional<CardFit> cardFit;
             int fits = 0;                    // our (re-)applies of the holder transform
@@ -637,19 +433,10 @@ namespace Widget
             int cardLayoutTick = 0;          // measured frames since the menu opened; the layout is read every kCardLayoutEvery
             std::optional<int> tabFlag;
             Tab tab = Tab::kFollow;
-            std::set<std::string> availabilityLogged;
-            SchoolInfo schoolInfo;
             double rowSize = 0.0;            // the list's row text size in stage units, 0 = not measured yet (Q4)
             int listMeasureLeft = kListMeasureFrames;
-            bool selectedByKey = false;      // the node card shows a candidate the next-learnable key picked
             double lineFirst = kLineFactor;  // the game font's first line height per size unit (MeasureTextMetrics)
             double linePitch = kLineFactor;  // and its step per further line
-            double ascent = kAscentFallback; // its ascent per size unit (MeasureTextMetrics; L2 row-2 baseline)
-            bool ascentMeasured = false;     // ascent came from getLineMetrics, not kAscentFallback
-            bool rowAligned = false;         // the progress card's first line was moved onto the node card name's baseline (L2)
-            std::string rowAlignNote;        // why not, for the L2 self-test
-            std::set<std::string> l2Logged;  // "SelfTest: L2 ..." readings logged this menu (up to kMaxL2Logs)
-            bool buttonChecked = false;      // the node card button's bottom was read back (L2, once per menu)
             // our own info card (v7 C1)
             std::string ownCardSig;          // what it shows (tab, type, texts, sizes); "" = nothing shown
             bool ownCardShown = false;
@@ -665,12 +452,10 @@ namespace Widget
             // user 2026-10-30: this tab's rects with no block fitted to its content - each block's full size, the most a fit may
             // take (FitBlock), and its size in the layout mode
             std::map<Layout::BlockId, Settings::Rect> blocksMax;
-            // the same with nothing hidden: the full height of a block this tab hides (it is still drawn on every dirty frame -
-            // its rooms must not come from its own fit, or each draw would ask for less)
+            // the same with nothing hidden: the full height of a block this tab hides (an add-on may still draw it - its rooms must
+            // not come from its own fit, or each draw would ask for less)
             std::map<Layout::BlockId, Settings::Rect> blocksMaxAll;
             int resizeLogs = 0;  // Rearrange's "block X is W x H now" lines this menu (a fitted card changes with its content)
-            std::pair<double, double> treeOrigin{};  // the tree drawing's 0,0 in its panel as last drawn (RedrawTree; the tooltip's)
-            Settings::Rect tooltipTree;  // the tree's rect (on screen) when the tooltip was last drawn (RedrawTooltip)
             std::optional<Settings::Rect> gearLast;  // where the gear was put last (PlaceStripAndGear)
             Settings::Rect board;                    // the board's rect (stage), fixed for the menu (DrawBoard)
             std::optional<bool> nothingLaid;         // whether nothing was shown when the columns were laid out last (WatchEmpty)
@@ -695,11 +480,6 @@ namespace Widget
             std::optional<bool> gearDrawnMode;       // the layout mode the gear's look and hint were made for (UpdateGear)
             // user 2026-10-30: each fitted block's waiting shrink (BlockRules::DecideFit; built-in cards and add-ons alike)
             std::map<Layout::BlockId, BlockRules::HeldShrink> heldShrink;
-            // final review 1: the redraw pass's fits are laid out once at its end (FitBlock with fitBatch); its time is logged
-            bool fitBatch = false;
-            std::set<Layout::BlockId> fitBatchIds;
-            int passLogs = 0;
-            double passSlowest = 0.0;
             // blocks plan Task 6: add-on blocks to draw next frame (DrawAddons), drawn this menu (SelfTest L6), whose callback threw
             std::set<Layout::BlockId> addonDrawDue, addonDrawn, addonFailed;
             // Block API v2: per add-on its draws this menu and the form its drawSelection was last given; the press waiting for its
@@ -738,7 +518,6 @@ namespace Widget
             int wheelScrolls = 0, wheelZoomsKept = 0;  // wheel notches that scrolled a column / zooms of SkyUI's kept from firing
             bool wheelInstallDone = false;
             int wheelInstallLeft = kSelectionInstallFrames;  // frames InstallWheel waits for Menu_mc's wheel handler
-            int nodeClicks = 0, nodeClicksOutside = 0;  // node clicks this menu, and those outside the tree's visible column area
             std::optional<Settings::Rect> cardSlot;
             double previewAlpha = 0.0;       // the preview box's fill alpha (0: see-through, no over-pass)
             bool skyCardHidden = false;      // SkyUI's card holder was hidden by us this menu
@@ -759,25 +538,9 @@ namespace Widget
             bool c1SameForm = false;         // the new selection is the same form as the one before it
             std::set<int> colourLogged;      // card types whose description colours were checked
             TextFit::Log textLog;            // the Q4 cut / room lines and the Q2 states logged this menu
-            std::string uncoveredSchool;     // the school no snapshot has had since frame uncoveredFrom
-            int uncoveredFrom = 0;
-            bool noData = false;             // kNoDataFrames passed without HoM's state for uncoveredSchool
             LayoutEdit layout;               // blocks plan Task 4
         } g_menu;
 
-        // Heart of Magic's tree look and settings (spec v11 T): read at menu open (AttachWidget, before the frame handler is
-        // set). The handler runs on several threads, so the style is handed over as Spells::Current() hands over a snapshot:
-        // a lock around a shared pointer, the style itself never changed once published
-        std::mutex g_styleLock;
-        std::shared_ptr<const HomStyle::Style> g_style = std::make_shared<const HomStyle::Style>();
-
-        std::shared_ptr<const HomStyle::Style> CurrentStyle()
-        {
-            const std::scoped_lock lock(g_styleLock);
-            return g_style;
-        }
-
-        std::atomic<bool> g_pendingNext{ false }, g_pendingSetTarget{ false }, g_pendingButton{ false };
         std::atomic<bool> g_closing{ false };  // the close event came: the frame handler does nothing until the next open
         // Block API v3: g_menu.selSeq for the message threads (a queued kMessageShowSpell keeps the sequence it was sent at);
         // set by Commit, 0 at each menu open
@@ -796,7 +559,6 @@ namespace Widget
         std::atomic<bool> g_powersHidePending{ false };
         std::atomic<bool> g_overPassLogged{ false };  // the first over-pass of this menu is logged
         bool g_postDisplayHooked = false;           // set once at kDataLoaded
-        bool g_noApiLogged = false;
 
         // P3 (spec v4): a tree click on a spell the list does not have asks the game's preview for that spell's model.
         // Frame handler only (the movie advances one frame at a time); reset at attach, before the handler is set.
@@ -857,69 +619,6 @@ namespace Widget
         TextFit::Metrics Metrics()
         {
             return { g_menu.rowSize, g_menu.lineFirst, g_menu.linePitch };
-        }
-
-        const Spells::Data& Data()
-        {
-            return *Spells::Get();  // callers check Spells::Get() first
-        }
-
-        std::string CentreSchool()
-        {
-            return Spells::Get() && g_session.centre >= 0 ? Data().tree.nodes[g_session.centre].school : std::string{};
-        }
-
-        // A node can be a window's centre only with a place in the tree (TreeData::Query shows nothing around a node
-        // without x/y): one without counts as "not in the tree" for the centre rule
-        bool Centrable(int a_index)
-        {
-            return Spells::Get() && a_index >= 0 && Data().tree.nodes[a_index].hasXY;
-        }
-
-        int DefaultCentre(const std::string& a_school, const Spells::Snapshot& a_snapshot)
-        {
-            if (a_school.empty()) return -1;
-            const int target = Spells::FindNode(a_snapshot.Target(a_school), a_school);
-            if (Centrable(target)) return target;
-            const auto* school = Spells::SchoolNamed(a_school);
-            return school && Centrable(school->rootIndex) ? school->rootIndex : -1;
-        }
-
-        // The active school's numbers for this snapshot (worked out again when either changes). The candidates are what the
-        // next-learnable key walks and what the cards count (Q2: one set): learnable, non-dup, with a place in the tree.
-        const SchoolInfo& SchoolInfoOf(const Spells::Snapshot& a_snapshot)
-        {
-            auto& info = g_menu.schoolInfo;
-            if (info.valid && info.school == g_session.school && info.epoch == a_snapshot.epoch) return info;
-            info = SchoolInfo{ g_session.school, a_snapshot.epoch, {}, {}, true };
-            const auto learnable = Spells::Learnable(a_snapshot, g_session.school);
-            std::ranges::copy_if(learnable, std::back_inserter(info.candidates), Centrable);
-            auto& t = info.tally;
-            t.available = static_cast<int>(learnable.size());
-            t.candidates = static_cast<int>(info.candidates.size());
-            const auto* school = Spells::SchoolNamed(g_session.school);
-            if (!school) return info;
-            for (const int index : school->nodes) {
-                if (Spells::IsDup(Data().tree.nodes[index])) continue;
-                ++t.nodes;
-                switch (Spells::LookOf(a_snapshot, index).state) {
-                case State::kTarget: ++t.target; break;
-                case State::kReady: ++t.ready; break;
-                case State::kLearning: ++t.learning; break;
-                case State::kMastered: ++t.mastered; break;
-                case State::kLocked: ++t.locked; break;
-                case State::kAvailable: break;  // counted by Spells::Learnable above
-                default: ++t.unknown; break;
-                }
-            }
-            return info;
-        }
-
-        // A learned spell (mastered, known, ready, the target) or one that can be learned: what the tree shows
-        bool Shown(State a_state)
-        {
-            return a_state == State::kMastered || a_state == State::kReady || a_state == State::kTarget || a_state == State::kLearning ||
-                   a_state == State::kAvailable;
         }
 
         // ---------------------------------------------------------------------
@@ -1395,7 +1094,7 @@ namespace Widget
         }
 
         // ---------------------------------------------------------------------
-        // Item card: moved under the progress card by its fade holder's _x/_y/_xscale/_yscale only
+        // Item card: moved into the spell card's block by its fade holder's _x/_y/_xscale/_yscale only
         // ---------------------------------------------------------------------
 
         std::optional<RE::GFxValue> FindCard(RE::GFxMovieView* a_movie)
@@ -1485,12 +1184,13 @@ namespace Widget
 
         // ---------------------------------------------------------------------
         // Blocks (blocks plan Task 2): every panel's rect comes from the saved layout (Layout::Arrange). The ini rects are
-        // the blocks' default sizes and places; at the default layout every rect is build 13's (SelfTest L1)
+        // the blocks' default sizes; at the default layout with no add-on the spell card follows the preview (SelfTest L1)
         // ---------------------------------------------------------------------
 
         using Layout::BlockId;
-        // in build 13's panel creation order (the spell card's panel last, on top)
-        constexpr std::array<const char*, 5> kBlocks{ Layout::kPreview, Layout::kTree, Layout::kProgress, Layout::kNodeCard, Layout::kSpellCard };
+        // the built-in blocks in panel creation order (the spell card's panel last, on top). HoM add-on plan Task 5: tree, progress
+        // and nodecard are retired ids (BlockRules::kRetiredIds) - not reserved, so a v3 add-on can take them over (legacyId)
+        constexpr std::array<const char*, 2> kBlocks{ Layout::kPreview, Layout::kSpellCard };
         constexpr double kRectTolerance = 0.01;  // stage units: two rects this close are the same place
 
         // ---------------------------------------------------------------------
@@ -1627,29 +1327,10 @@ namespace Widget
             return std::format("{:.0f},{:.0f}..{:.0f},{:.0f}", a_rect.left, a_rect.top, a_rect.right, a_rect.bottom);
         }
 
-        // A block's ini rect (its default size and place)
+        // A built-in block's ini rect (its default size and place)
         Settings::Rect IniRect(const Settings::Values& a_values, const BlockId& a_id)
         {
-            if (a_id == Layout::kPreview) return a_values.preview;
-            if (a_id == Layout::kTree) return a_values.tree;
-            if (a_id == Layout::kProgress) return a_values.progress;
-            if (a_id == Layout::kNodeCard) return a_values.nodeCard;
-            return a_values.itemCard;
-        }
-
-        // The blocks a tab hides (D6, build 13's tab rules): Powers/Shouts and Active Effects the tree, the progress card and the
-        // node card (Layout::NoTreeTabHidden). Build 16 (user 2026-10-26): Active Effects keeps the preview too - its 3D is drawn
-        // in the box as on the spell tabs, no longer hidden for the tab (build 9's HideForTab flashed each item's model over the
-        // game view for a frame). Hidden blocks close up (Arrange). The progress card's hide on a spell tab with no school is
-        // not one of these: it is only made invisible (ApplyVisibility) and keeps its slot, as in build 13 (the card under it
-        // stays where it is)
-        std::set<BlockId> TabHidden(Tab a_tab)
-        {
-            switch (a_tab) {
-            case Tab::kPowers:
-            case Tab::kEffects: return Layout::NoTreeTabHidden();
-            default: return {};
-            }
+            return a_id == Layout::kPreview ? a_values.preview : a_values.itemCard;
         }
 
         struct Arrangement
@@ -1686,29 +1367,24 @@ namespace Widget
             return ShownForm() == 0 && std::ranges::any_of(g_addons, [](const auto& a_addon) { return BlockRules::ClosesWhenEmpty(a_addon.drawSelection != nullptr, a_addon.flags); });
         }
 
-        // What Arrange is given on a tab (D6). Our card (a_own) fills the rest of its column: Powers/Shouts and (build 16) Active
-        // Effects 317 high under the preview at the E2 rects (build 13's OwnCardRect). SkyUI's fitted card (bOwnCard=0) keeps its
-        // height, and on Active Effects the spell tabs' slot (build 13's CardRect moved it on Powers/Shouts only). Block API v2:
-        // the add-ons the tab's flag leaves out (a_flag; nullopt: the current tab's) close up like the tab's built-in hidden ones
-        Arrangement ArrangementFor(Tab a_tab, bool a_own, std::optional<int> a_flag = std::nullopt)
+        // What Arrange is given (D6). Our card (a_own) fills the rest of its column; SkyUI's fitted card (bOwnCard=0) keeps its
+        // height. Block API v2: the add-ons the tab's flag leaves out (a_flag; nullopt: the current tab's) close up. HoM add-on plan
+        // Task 5: no built-in block is hidden per tab any more (the tree, progress and node card that Powers/Shouts and Active
+        // Effects hid are an add-on's blocks now, hidden by their tabs mask)
+        Arrangement ArrangementFor(bool a_own, std::optional<int> a_flag = std::nullopt)
         {
-            Arrangement arrangement;
-            if (a_own || a_tab != Tab::kEffects) {
-                arrangement = { TabHidden(a_tab), a_own ? std::set<BlockId>{ Layout::kSpellCard } : std::set<BlockId>{} };
-            }
+            Arrangement arrangement{ {}, a_own ? std::set<BlockId>{ Layout::kSpellCard } : std::set<BlockId>{} };
             arrangement.hidden.merge(AddonsHiddenOn(a_flag.value_or(g_menu.tabFlag.value_or(kFlagUnread))));
             return arrangement;
         }
 
-        // The blocks' heights: the ini rects', the node card [Debug] fDebugExtraHeight taller (a scroll test, blocks plan Task 3),
-        // the add-ons' registered ones (Task 6), or the height an add-on asked for this menu (kMessageHeight; not in the layout
+        // The blocks' heights: the ini rects', the add-ons' registered ones (Task 6), or the height an add-on asked for this menu (kMessageHeight; not in the layout
         // mode: BlockRules::LaidOutHeight). A height that is not finite or negative leaves its add-on out (absent: Arrange
         // would skip it too) - the registry refuses such heights, so this is the last guard; logged once per block
         std::map<BlockId, double> BlockHeights()
         {
             const auto& settings = Settings::Get();
             auto heights = Layout::DefaultHeights(settings);
-            heights[Layout::kNodeCard] += settings.debugExtraHeight;
             for (const auto& addon : g_addons) {
                 if (std::isfinite(addon.height) && addon.height >= 0) {
                     heights[addon.id] = addon.height;  // its fit this menu: ArrangeBlocks (BlockRules::ApplyFits)
@@ -1814,14 +1490,14 @@ namespace Widget
             return IniRect(Settings::Get(), a_id);  // before the menu's first Rearrange (Repair keeps every block in the layout)
         }
 
-        // The block is laid out on this tab (D6); ApplyVisibility adds "something chosen" and the progress card's school
+        // The block is laid out on this tab (D6); ApplyVisibility adds "something chosen"
         bool BlockShown(const BlockId& a_id)
         {
-            return !TabHidden(g_menu.tab).contains(a_id) && g_menu.blocks.contains(a_id);
+            return g_menu.blocks.contains(a_id);
         }
 
-        // SkyUI's item card slot (bOwnCard=0): the spell card block without growing - under the progress card at the default
-        // layout; on Powers/Shouts (no progress card) right under the preview, the same height (user 2026-10-25). Task 2 review:
+        // SkyUI's item card slot (bOwnCard=0): the spell card block without growing - right under the preview at the default
+        // layout with no add-on, the item card's ini height (user 2026-10-25). Task 2 review:
         // the arranged block (Rearrange arranges with own = OwnCard(), again at each tab change and at the card fallback), so
         // SkyUI's card is fitted to it only while it is the card; on screen (scrolled), as the fit maps it from _root
         Settings::Rect CardRect()
@@ -1829,8 +1505,8 @@ namespace Widget
             return BlockRect(Layout::kSpellCard);
         }
 
-        // Our card's box per tab (C2): the spell card block, grown to the rest of its column where the tab hides blocks (on
-        // Active Effects the panel is then cut to its content, RedrawOwnCard a_fit). The same block as CardRect, arranged with
+        // Our card's box per tab (C2): the spell card block, grown to the rest of its column (on Active Effects the panel is then
+        // cut to its content, RedrawOwnCard a_fit). The same block as CardRect, arranged with
         // our card. Its drawn bottom (ownCardBottom) is the last drawing's: OwnCardBox pairs the two only once they match
         Settings::Rect OwnCardRect()
         {
@@ -2079,7 +1755,7 @@ namespace Widget
             if (++g_menu.cardFitLogs <= kMaxFitLogs) {
                 logger::info("Widget: item card fit ({}): visible union {:.0f}x{:.0f} in the holder ({}), slot {:.0f},{:.0f}..{:.0f},{:.0f} "
                              "in _root = {:.1f},{:.1f}..{:.1f},{:.1f} in the holder's parent -> scale {:.3f}, holder at {:.1f},{:.1f}",
-                    g_menu.tab == Tab::kPowers ? "under the preview" : "under the progress card", w, h, seen->parts, rect.left, rect.top,
+                    "the spell card's block", w, h, seen->parts, rect.left, rect.top,
                     rect.right, rect.bottom, topLeft->first, topLeft->second, bottomRight->first, bottomRight->second, scale, fit.x, fit.y);
             }
             return fit;
@@ -2687,330 +2363,11 @@ namespace Widget
             RequestUnlearnedPreview(a_id);
         }
 
-        // ---------------------------------------------------------------------
-        // Clicks (they only record; the frame handler acts, so no clip is removed inside its own handler)
-        // ---------------------------------------------------------------------
-
-        class NodeClick final : public RE::GFxFunctionHandler
-        {
-        public:
-            void Call(Params& a_params) override
-            {
-                if (!a_params.thisPtr) return;
-                const auto index = Number(*a_params.thisPtr, kIndexMember);
-                if (!index || g_menu.layout.active) return;  // Task 4: no node clicks in the layout mode (the covers take them first)
-                ++g_menu.nodeClicks;
-                // blocks plan Task 3: whether setMask keeps clicks off a masked-off part is unverified in Skyrim's Scaleform, so a
-                // click outside the tree column's viewport is ignored and counted (SelfTest L2 mask clicks at close: want 0)
-                RE::GFxValue x, y;
-                const auto column = ColumnOf(Layout::kTree);
-                if (column && a_params.movie && a_params.movie->GetVariable(&x, "_root._xmouse") && x.IsNumber() &&
-                    a_params.movie->GetVariable(&y, "_root._ymouse") && y.IsNumber() && !ColumnViewport(*column).Contains(x.GetNumber(), y.GetNumber())) {
-                    ++g_menu.nodeClicksOutside;
-                    return;
-                }
-                g_menu.clicked = static_cast<int>(*index);
-            }
-        };
-
-        class ButtonClick final : public RE::GFxFunctionHandler
-        {
-        public:
-            void Call(Params&) override { g_pendingButton = true; }
-        };
-
-        constexpr const char* kFocusChild = "focus";  // a node clip's hover outline (spec v11 R6)
-
-        // A node clip's hover outline shown or hidden: the clip's own child, drawn with it, so a hover needs no redraw (R6)
-        void ShowFocus(RE::GFxValue& a_clip, bool a_shown)
-        {
-            RE::GFxValue focus;
-            if (a_clip.GetMember(kFocusChild, &focus) && focus.IsDisplayObject()) focus.SetMember("_visible", a_shown);
-        }
-
-        // The hover tooltip's node (spec v10 T6): recorded, drawn by the frame handler; the node's own outline is toggled here
-        // (R6). A roll-out of another node (the events of two neighbours may come in either order) leaves the hovered one alone
-        class NodeRollOver final : public RE::GFxFunctionHandler
-        {
-        public:
-            void Call(Params& a_params) override
-            {
-                if (!a_params.thisPtr || g_menu.layout.active) return;  // Task 4: no tooltips in the layout mode
-                const auto index = Number(*a_params.thisPtr, kIndexMember);
-                if (!index) return;
-                g_menu.hovered = static_cast<int>(*index);
-                ShowFocus(*a_params.thisPtr, true);
-            }
-        };
-
-        class NodeRollOut final : public RE::GFxFunctionHandler
-        {
-        public:
-            void Call(Params& a_params) override
-            {
-                if (!a_params.thisPtr) return;
-                const auto index = Number(*a_params.thisPtr, kIndexMember);
-                if (!index) return;
-                ShowFocus(*a_params.thisPtr, false);
-                if (g_menu.hovered == static_cast<int>(*index)) g_menu.hovered = -1;
-            }
-        };
-
-        RE::GPtr<NodeClick> g_nodeClick;
-        RE::GPtr<NodeRollOver> g_nodeRollOver;
-        RE::GPtr<NodeRollOut> g_nodeRollOut;
-        RE::GPtr<ButtonClick> g_buttonClick;
-
         void SetHandler(RE::GFxMovieView* a_movie, RE::GFxValue& a_clip, const char* a_event, RE::GFxFunctionHandler* a_handler)
         {
             RE::GFxValue fn;
             a_movie->CreateFunction(&fn, a_handler);
             a_clip.SetMember(a_event, fn);
-        }
-
-        // ---------------------------------------------------------------------
-        // Shapes shared by the tree, its legend and the node card
-        // ---------------------------------------------------------------------
-
-        // Heart of Magic's spell marks (spec v11 T12, T13): renderNode's looks (canvasRendererSpell.js:69-288) and the mystery
-        // look (renderMysteryNode, :18-67). Not ported: the XP progress ring (:168-199; the percent stays in the tooltip), the
-        // hard-prerequisite shell and ring (:207-255, R5), halos and the hand-drawn ink.
-
-        HomStyle::Behaviour BehaviourOf(State a_state)
-        {
-            switch (a_state) {
-            case State::kLocked: return HomStyle::Behaviour::kLocked;
-            case State::kAvailable: return HomStyle::Behaviour::kAvailable;
-            case State::kReady: return HomStyle::Behaviour::kReady;
-            case State::kTarget: return HomStyle::Behaviour::kTarget;
-            case State::kLearning: return HomStyle::Behaviour::kLearning;
-            case State::kMastered: return HomStyle::Behaviour::kMastered;
-            default: return HomStyle::Behaviour::kUnknown;
-            }
-        }
-
-        // HoM's display state of a tree node (R1): its behaviour state, the learning target of its school
-        HomStyle::Display DisplayOfNode(int a_index, const Spells::Snapshot& a_snapshot)
-        {
-            const auto& node = Data().tree.nodes[a_index];
-            const bool isTarget = a_index == Spells::FindNode(a_snapshot.Target(node.school), node.school);
-            return HomStyle::DisplayOf(BehaviourOf(Spells::LookOf(a_snapshot, a_index).state), isTarget);
-        }
-
-        // Whether HoM names this spell to the player (review v11 #1, T16): Reveal on its display state, each node by its own;
-        // else "???" wherever the name would show (tooltip, node card title, requirement rows) and no item card or 3D on a click
-        bool NameShown(int a_index, const Spells::Snapshot& a_snapshot)
-        {
-            const auto style = CurrentStyle();
-            return HomStyle::Reveal(DisplayOfNode(a_index, a_snapshot), Spells::LookOf(a_snapshot, a_index).percent, style->revealName,
-                       style->cheatMode) == HomStyle::Name::kShown;
-        }
-
-        std::string ShownName(int a_index, const Spells::Snapshot& a_snapshot)
-        {
-            return NameShown(a_index, a_snapshot) ? Spells::NodeName(a_index) : std::string(HomStyle::kHiddenName);
-        }
-
-        // A HoM colour's own alpha times a_alpha, as the drawing API's percent: the one place the dim factor and the state's
-        // alpha go in (R10: never also into the clip's _alpha)
-        double Percent(const HomStyle::Color& a_color, double a_alpha)
-        {
-            return std::clamp(a_color.alpha * a_alpha, 0.0, 1.0) * Draw::kAlphaFull;
-        }
-
-        struct MarkLook
-        {
-            HomStyle::Display display{};
-            bool mystery{};    // a locked spell drawn as undiscovered (HomStyle::Style::Mystery)
-            bool focus{};      // the selected spell: FOCUS_GROW larger, focusStroke; its alpha its full/dim class's (review v11 #2)
-            bool onPath{};     // a learned spell on the learning target's path: the hub ring for its outline (:103)
-            double dim = 1.0;  // the off-path factor (T11; _contextFactor)
-        };
-
-        struct MarkPlace
-        {
-            std::string_view school, themeColor, level;
-            int tier{};
-            double worldX{}, worldY{};  // the node's saved place: HoM turns its shape toward the tree origin (NodeBatch.turnAt)
-            double x{}, y{};            // the mark's centre in its clip
-            double scale{};             // stage units per HoM world unit
-            double lineScale = 1.0;     // line widths: HoM world units x this (the tree's fTreeScale; 1 in the legend and card)
-        };
-
-        // What a mark drew, for its node clip: the body's outline (the hover outline follows it), how far it reaches (hit area,
-        // labels), and the mystery "?" with its colour
-        struct MarkDrawn
-        {
-            std::vector<HomStyle::Point> body;
-            double reach{};
-            bool question{};
-            HomStyle::Color questionColor;
-            double questionAlpha{};
-        };
-
-        MarkDrawn DrawHomMark(RE::GFxValue& a_clip, const HomStyle::Style& a_style, const MarkPlace& a_place, const MarkLook& a_look)
-        {
-            using HomStyle::Display;
-            const auto& t = a_style.tree;
-            const auto school = a_style.SchoolColor(std::string(a_place.school), a_place.themeColor);
-            // review v11 #7: the mystery outline and "?" take the inked school colour, never the node's themeColor
-            // (renderMysteryNode, canvasRendererSpell.js:19)
-            const auto mysteryColour = HomStyle::Dim(a_style.SchoolColor(std::string(a_place.school)), HomStyle::kMysteryDim);
-            const auto size = HomStyle::SizeOf(a_look.display, a_look.mystery, a_place.level, a_place.tier, a_look.focus, t.availableRing);
-            HomStyle::Color fill, stroke;
-            double alpha = 1.0;
-            bool dashed = false;
-            switch (a_look.display) {
-            case Display::kUnlocked:
-                fill = t.unlockedFill.value_or(school);
-                stroke = a_look.onPath ? a_style.hubRing : t.unlockedRim.value_or(school);
-                break;
-            case Display::kLearning:
-                fill = a_style.learning;  // the learning colour, the hub ring round it (R4)
-                stroke = a_style.hubRing;
-                break;
-            case Display::kAvailable:
-                fill = t.nodeFill;
-                stroke = school;
-                alpha = t.availableAlpha;
-                break;
-            default:
-                dashed = true;  // "state is encoded in the outline too: locked = dashed" (:265-266)
-                if (a_look.mystery) {
-                    fill = t.mysteryFill;
-                    stroke = mysteryColour;
-                    alpha = HomStyle::kMysteryAlpha;
-                } else {
-                    fill = t.nodeFill;
-                    stroke = t.lockedStroke.value_or(school);
-                    alpha = HomStyle::kLockedAlpha;
-                }
-                break;
-            }
-            alpha *= a_look.dim;
-            if (a_look.focus) stroke = t.focusStroke;  // its alpha stays its class's (review v11 #2)
-            const double s = a_place.scale, r = size.size * s, ls = a_place.lineScale;
-            auto body = HomStyle::ShapePoints(a_place.school, a_place.worldX, a_place.worldY, a_place.x, a_place.y, r);
-            if (size.ring) {
-                // the learnable spell's own thin ring, a circle, see-through (no backdrop under it: NodeBatch "bare")
-                Draw::LineStyle(a_clip, HomStyle::kRingWidth * ls, school.rgb, Percent(school, HomStyle::kRingAlpha * a_look.dim));
-                Draw::Polygon(a_clip, HomStyle::ShapePoints({}, 0, 0, a_place.x, a_place.y, (size.size + HomStyle::kRingGap) * s));
-            }
-            Draw::NoLine(a_clip);
-            // HoM's opaque _underlay under a see-through spell is left out: on our 70 % panel it would show as a black patch
-            // darker than the panel (HoM's page is opaque, so there it matches); the links under a dimmed spell show through a little
-            Draw::BeginFill(a_clip, fill.rgb, Percent(fill, alpha));
-            Draw::Polygon(a_clip, body);
-            Draw::EndFill(a_clip);
-            // the outline after the fill, a dashed one in one phase round the whole shape (R10)
-            Draw::LineStyle(a_clip, size.stroke * ls, stroke.rgb, Percent(stroke, alpha));
-            if (dashed) {
-                Draw::Segments(a_clip, HomStyle::DashOutline(body, HomStyle::kDashShare * r, HomStyle::kDashGapShare * r));
-            } else {
-                Draw::Polygon(a_clip, body);
-            }
-            const auto inner = [&](double a_share, const HomStyle::Color& a_colour) {
-                Draw::NoLine(a_clip);
-                Draw::BeginFill(a_clip, a_colour.rgb, Percent(a_colour, alpha));
-                Draw::Polygon(a_clip, HomStyle::ShapePoints(a_place.school, a_place.worldX, a_place.worldY, a_place.x, a_place.y, r * a_share));
-                Draw::EndFill(a_clip);
-            };
-            if (a_look.display == Display::kUnlocked) inner(HomStyle::kCoreShare, t.unlockedCore.value_or(HomStyle::InnerAccent(school)));
-            if (a_look.display == Display::kLearning) inner(HomStyle::kLearningDotShare, { HomStyle::kLearningDot, 1.0 });
-            const bool question = a_look.display == Display::kLocked && a_look.mystery;
-            return { std::move(body), HomStyle::Reach(size, a_place.school, s, ls), question, mysteryColour, HomStyle::kMysteryMarkAlpha * a_look.dim };
-        }
-
-        // The undiscovered spell's "?" of a mark DrawHomMark drew at (a_cx, a_cy) in a_clip (NodeBatch.MARK_FONT 10 x a_scale,
-        // upright), its colour's alpha as the field's _alpha; nothing when the mark has none. The tree and the legend (review v11 #8)
-        void DrawQuestion(RE::GFxMovieView* a_movie, RE::GFxValue& a_clip, double a_cx, double a_cy, double a_scale, const MarkDrawn& a_drawn)
-        {
-            if (!a_drawn.question) return;
-            const double size = HomStyle::kMarkFontSize * a_scale, h = TextFit::FieldH(Metrics(), size);
-            auto mark = Draw::Text(a_movie, a_clip, "mark", a_cx - h / 2, a_cy - h / 2, h, h, "?", a_drawn.questionColor.rgb, size, "center");
-            if (mark.IsDisplayObject()) mark.SetMember("_alpha", Percent(a_drawn.questionColor, a_drawn.questionAlpha));
-        }
-
-        // ---------------------------------------------------------------------
-        // Panels
-        // ---------------------------------------------------------------------
-
-        // The tree window's legend strip (spec v11 T18): HoM's four looks - unlocked, learning, available, locked (the mystery
-        // look when HoM's discovery mode shows locked spells so) - in a_school's shape and colour, the known size kLegendIconR.
-        // One line in the smaller kLegendSize (spec v10 T9, below the reading size: a key, not text to read), laid out by the
-        // texts' measured widths: the first item where the window title's letters start (kPad plus the text field's own
-        // kGutter / 2), the spare room only between items
-        // (UI polish 2026-10-29; it used to put half a gap before the first and after the last).
-        void DrawLegend(RE::GFxMovieView* a_movie, RE::GFxValue& a_panel, double a_w, double a_h, const std::string& a_school)
-        {
-            struct Item
-            {
-                HomStyle::Display display;
-                Str text;
-            };
-            constexpr std::array<Item, 4> kItems{ { { HomStyle::Display::kUnlocked, Str::kLegendMastered },
-                { HomStyle::Display::kLearning, Str::kLegendLearning }, { HomStyle::Display::kAvailable, Str::kLegendCanLearn },
-                { HomStyle::Display::kLocked, Str::kTreeLocked } } };
-            constexpr double kStep = 1.0, kIconScale = kLegendIconR / HomStyle::kKnownSize;
-            constexpr double kTurnX = 1.0;  // a world place straight right of the origin: the school's shape at its base turn
-            g_menu.legendSchool = a_school;
-            const auto style = CurrentStyle();
-            const double y = a_h - Settings::kTreeLegendH / 2 - kPad / 2;
-            const double reach = HomStyle::MaxReach(kIconScale, style->tree.availableRing);
-            const double room = a_w - 2 * kPad, icon = 2 * reach;
-            for (double size = kLegendSize;; size -= kStep) {
-                Draw::Remove(a_panel, "legend");
-                auto legend = Draw::Clip(a_panel, "legend");
-                if (!legend.IsDisplayObject()) return;
-                const double h = TextFit::FieldH(Metrics(), size);
-                std::array<RE::GFxValue, kItems.size()> fields;
-                double used = 0;
-                for (std::size_t i = 0; i < kItems.size(); ++i) {
-                    const auto name = std::format("t{}", i);
-                    fields[i] = Draw::Text(a_movie, legend, name.c_str(), 0, y - h / 2, room, h, Text(kItems[i].text), kDimText, size);
-                    used += icon + kLegendTextGap + TextW(fields[i]);
-                }
-                if (used > room && size - kStep >= kMinFitSize) continue;  // shrinks to kMinFitSize before cutting
-                if (used > room && g_menu.textLog.cut.insert("legend|cut").second) {  // final review 2: once a menu (Rearrange draws it again)
-                    logger::info("Widget: the tree legend needs {:.0f} of {:.0f} stage units at size {:.0f} - what runs past the border is cut "
-                                 "(logged once this menu)",
-                        used, room, size);
-                }
-                static_assert(kItems.size() > 1, "the legend's spare room is shared between its items");
-                const double gap = std::max(0.0, (room - kGutter / 2 - used) / static_cast<double>(kItems.size() - 1));
-                const double right = kPad + room;
-                double x = kPad + kGutter / 2;
-                for (std::size_t i = 0; i < kItems.size(); ++i) {
-                    if (x + icon > right) {  // not even the mark fits: neither is drawn (review round 1 #6)
-                        if (fields[i].IsDisplayObject()) fields[i].Invoke("removeTextField");
-                        continue;
-                    }
-                    const auto drawn = DrawHomMark(legend, *style, { a_school, {}, {}, 0, kTurnX, 0.0, x + reach, y, kIconScale },
-                        { kItems[i].display, style->Mystery(), false, false, 1.0 });
-                    if (drawn.question) {
-                        // the locked icon's "?" as on the tree's mystery marks (review v11 #8), in a clip of its own
-                        const auto clipName = std::format("q{}", i);
-                        auto mark = Draw::Clip(legend, clipName.c_str());
-                        if (mark.IsDisplayObject()) DrawQuestion(a_movie, mark, x + reach, y, kIconScale, drawn);
-                    }
-                    x += icon + kLegendTextGap;
-                    if (!fields[i].IsDisplayObject()) continue;
-                    // the last text now ends at the border exactly: rounding in the sums is not an overflow
-                    if (x + TextW(fields[i]) > right + kRectTolerance) {
-                        // the text ends in "..." at the border, or goes when not even that fits
-                        fields[i].Invoke("removeTextField");
-                        if (right - x >= size) {
-                            const auto name = std::format("t{}", i);
-                            fields[i] = TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, legend, name.c_str(), x, y - h / 2, right - x, size, Text(kItems[i].text), kDimText);
-                        }
-                        x = right;
-                        continue;
-                    }
-                    fields[i].SetMember("_x", x);
-                    x += TextW(fields[i]) + gap;
-                }
-                return;
-            }
         }
 
         RE::GFxValue Child(RE::GFxValue& a_parent, const char* a_name)
@@ -3033,7 +2390,6 @@ namespace Widget
         constexpr std::array<const char*, Layout::kColumns> kColumnClips{ "column0", "column1" };
         constexpr std::array<const char*, Layout::kColumns> kColumnMasks{ "columnMask0", "columnMask1" };
         constexpr std::uint32_t kMaskFill = 0xFFFFFF;  // a mask's shape counts, not its colour
-        constexpr const char* kTooltipName = "mmxTreeTooltip";  // the tree's hover tooltip, a clip of the tree's column (review R3)
 
         // blocks plan Task 3 / D4: the clip a block's panel is made in - its column's clip (not a display object when the column
         // clips are missing: AttachWidget makes them first and stops without them)
@@ -3120,7 +2476,6 @@ namespace Widget
         const char* PanelTitle(const BlockId& a_id)
         {
             if (a_id == Layout::kPreview) return Text(Str::kPreviewTitle);
-            if (a_id == Layout::kTree) return Text(Str::kTreeTitle);
             if (const auto* addon = Addon(a_id); addon && !addon->title.empty()) return addon->title.c_str();
             return nullptr;
         }
@@ -3431,9 +2786,9 @@ namespace Widget
         }
 
         // blocks plan Task 2 / D4, D11: this tab's rects worked out again (Arrange) and every panel put at its place - a move
-        // changes _x/_y only. A block whose width changed since it was last placed is drawn again once: its box, the tree's
-        // legend, and the next full redraw (dirty) for the tree, progress and node cards; our card through its signature (it
-        // holds the rect, WatchOwnCard), SkyUI's card through a new fit when its slot moved. The first placing of a menu only
+        // changes _x/_y only. A block whose size changed since it was last placed is drawn again once: its box and an add-on's
+        // content (DrawAddons); our card through its signature (it holds the rect, WatchOwnCard), SkyUI's card through a new fit
+        // when its slot moved. The first placing of a menu only
         // places (the panels are drawn new after it)
         // SkyUI's card is fitted to its slot: a moved slot (Powers/Shouts and back, a new width, a scroll) is fitted again
         // final review 3: a slot that only moved (a fit above it, a scroll) moves SkyUI's card by the same step at once, mapped into
@@ -3469,17 +2824,16 @@ namespace Widget
 
         double FullHeight(const BlockId& a_id);  // a block's full height on this tab (with FitBlock, below)
 
-        // a_fitting: the blocks FitBlock is fitting (drawn for their new height already: not marked dirty)
-        void Rearrange(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const std::set<BlockId>* a_fitting = nullptr)
+        void Rearrange(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
-            g_menu.blocksMax = ArrangeBlocks(ArrangementFor(g_menu.tab, OwnCard()), false);
+            g_menu.blocksMax = ArrangeBlocks(ArrangementFor(OwnCard()), false);
             g_menu.blocksMaxAll = ArrangeBlocks({}, false);
             // review R8: a fit from another tab or column width is never taller than the block's full height here
             for (auto& [id, fit] : g_menu.fitHeight) {
                 if (!Addon(id)) fit = std::min(fit, FullHeight(id));
             }
             g_menu.blocksAll = ArrangeBlocks({});
-            g_menu.blocks = ArrangeBlocks(ArrangementFor(g_menu.tab, OwnCard()));
+            g_menu.blocks = ArrangeBlocks(ArrangementFor(OwnCard()));
             PlaceColumns(a_widget);  // the scrolls clamped to this tab's content before any BlockRect below
             for (const BlockId& id : AllBlocks()) {
                 const auto rect = BlockRect(id);
@@ -3498,19 +2852,13 @@ namespace Widget
                     if (auto title = Child(panel, "title"); title.IsDisplayObject()) title.Invoke("removeTextField");
                     DrawPanelBox(a_movie, panel, rect, PanelTitle(id), PanelAlpha(id));
                 }
-                // Task 2 review #1: a new height redraws the content too (the tree's legend sits at its bottom, the cards fill it)
+                // Task 2 review #1: a new height redraws the content too (an add-on's; our card follows its block itself)
                 if (resized) {
                     constexpr int kMaxResizeLogs = 24;  // a fitted card is resized with its content: one line per change, capped
                     if (++g_menu.resizeLogs <= kMaxResizeLogs) {
                         logger::info("Widget: block {} is {:.0f} x {:.0f} now (was {:.0f} x {:.0f}) - drawn again{}", id, rect.Width(), rect.Height(),
                             last->second.Width(), last->second.Height(), g_menu.resizeLogs == kMaxResizeLogs ? " - later ones this menu not logged" : "");
                     }
-                    if (id == Layout::kTree && panel.IsDisplayObject()) {
-                        DrawLegend(a_movie, panel, rect.Width(), rect.Height(), g_menu.legendSchool.value_or(std::string{}));
-                        if (auto legend = Child(panel, "legend"); legend.IsDisplayObject()) legend.SetMember("_visible", g_menu.chosen);  // review I9
-                    }
-                    const bool fitting = a_fitting && a_fitting->contains(id);
-                    if (!fitting && (id == Layout::kTree || id == Layout::kProgress || id == Layout::kNodeCard)) g_menu.dirty = true;
                     if (Addon(id)) g_menu.addonDrawDue.insert(id);
                 }
                 g_menu.placed[id] = rect;
@@ -3540,8 +2888,7 @@ namespace Widget
             return false;
         }
 
-        // user 2026-10-30: a built-in card (progress, node card, our spell card; the 3D preview and the tree window keep their ini
-        // height) fitted to the content it just laid out - needed (stage units,
+        // user 2026-10-30: a built-in card (our spell card since HoM add-on plan Task 5; the 3D preview keeps its ini height) fitted to the content it just laid out - needed (stage units,
         // from its top) and its full height give its height this menu (BlockRules::FittedHeight). A new height lays the columns
         // out at once (the blocks below move up or down this frame); the block itself places its bottom-anchored parts at the
         // returned height and keeps its rooms from its full height, so drawing at the new height asks for the same one (no
@@ -3572,18 +2919,14 @@ namespace Widget
         }
 
         // user 2026-10-30: a held shrink whose delay has passed - its block is drawn again, and that draw's FitBlock applies it (one
-        // Rearrange: the redraw pass's, our card's own); an add-on's is applied by TakeAddonHeights
+        // Rearrange: our card's own); an add-on's is applied by TakeAddonHeights
         void WatchHeldShrinks()
         {
             if (g_menu.heldShrink.empty() || g_menu.layout.active) return;
             const double now = NowMs();
             for (const auto& [id, held] : g_menu.heldShrink) {
-                if (Addon(id) || !BlockRules::DueShrink(FitStateOf(id), now, false)) continue;
-                if (id == Layout::kSpellCard) {
-                    g_menu.ownCardSig.clear();
-                } else {
-                    g_menu.dirty = true;
-                }
+                // our spell card is the one built-in block with a fit (HoM add-on plan Task 5: the progress and node cards left)
+                if (!Addon(id) && id == Layout::kSpellCard && BlockRules::DueShrink(FitStateOf(id), now, false)) g_menu.ownCardSig.clear();
             }
         }
 
@@ -3613,16 +2956,10 @@ namespace Widget
                     g_menu.layout.active ? " - kept for the layout mode's end" : "", g_menu.fitLogs == kMaxBlockFitLogs ? " - later ones this menu not logged" : ""));
             }
             if (g_menu.layout.active) return full;
-            // laid out again when the block's arranged height is not the fitted one; this block is being drawn for its new height
-            // now, so Rearrange does not mark it dirty (review R6: only this block - another one it resizes is still marked)
+            // laid out again when the block's arranged height is not the fitted one (this block is being drawn for its new height now)
             const auto arranged = g_menu.blocks.contains(a_id) ? g_menu.blocks.at(a_id) : g_menu.blocksAll.contains(a_id) ? g_menu.blocksAll.at(a_id) : Settings::Rect{};
             if (std::abs(arranged.Height() - fitted) <= BlockRules::kHeightTolerance) return fitted;
-            if (g_menu.fitBatch) {
-                g_menu.fitBatchIds.insert(a_id);  // final review 1: laid out once at the end of the redraw pass (Frame::Call), same frame
-            } else {
-                const std::set<BlockId> self{ a_id };
-                Rearrange(a_movie, a_widget, &self);
-            }
+            Rearrange(a_movie, a_widget);
             return fitted;
         }
 
@@ -3839,13 +3176,13 @@ namespace Widget
             }
         }
 
-        // Which panels the current tab shows (design 3.7, spec v7 C2): the spell tabs everything (the progress card only with a
-        // school); Powers/Shouts and (build 16) Active Effects the preview and our card. Without our card (bOwnCard=0) Active
-        // Effects shows the preview only (SkyUI's card is its own). Our card shows only while SkyUI's would (WatchOwnCard).
+        // Which panels the current tab shows (design 3.7, spec v7 C2): the preview and our card on every tab (the add-ons by their
+        // tabs masks). Without our card (bOwnCard=0) Active Effects shows the preview only (SkyUI's card is its own). Our card
+        // shows only while SkyUI's would (WatchOwnCard).
         // What shows now (ApplyVisibility's rules): each block, and the column clips (any)
         struct Showing
         {
-            bool preview{}, tree{}, nodeCard{}, progress{}, card{}, any{};
+            bool preview{}, card{}, any{};
         };
 
         Showing Visibility()
@@ -3854,27 +3191,20 @@ namespace Widget
             // user 2026-10-30 (the board): the columns stay up with nothing chosen too - each block shows its empty look
             // (BlockRules::EmptyLookOf); before, nothing chosen hid them all
             Showing shown;
-            // D6: the tab's hidden blocks (TabHidden) are the ones Arrange closes up; the progress card also waits for a school
             shown.preview = BlockShown(Layout::kPreview);
-            shown.tree = BlockShown(Layout::kTree);
-            shown.nodeCard = BlockShown(Layout::kNodeCard);
-            shown.progress = BlockShown(Layout::kProgress) && !g_session.school.empty();
             shown.any = shown.preview || own;
             shown.card = own && g_menu.ownCardShown;
             return shown;
         }
 
         // The blocks the player sees now (Task 4 review: the layout mode's covers and the Task 5 focus model take only these - an
-        // invisible block, such as our card before its first item or the progress card with no school, cannot be grabbed or focused)
+        // invisible block, such as our card before its first item or an add-on its kMessageVisible hid, cannot be grabbed or focused)
         std::set<BlockId> VisibleBlocks()
         {
             const auto shown = Visibility();
             std::set<BlockId> ids;
             if (!shown.any) return ids;  // the column clips are hidden
             if (shown.preview) ids.insert(Layout::kPreview);
-            if (shown.tree) ids.insert(Layout::kTree);
-            if (shown.nodeCard) ids.insert(Layout::kNodeCard);
-            if (shown.progress) ids.insert(Layout::kProgress);
             if (shown.card) ids.insert(Layout::kSpellCard);
             // Task 6: an add-on shows while the columns do and it has a place (v2: on its tabs; v3: not hidden by kMessageVisible)
             for (const auto& addon : g_addons) {
@@ -3887,7 +3217,7 @@ namespace Widget
         {
             const bool own = OwnCard();
             const bool effects = g_menu.tab == Tab::kEffects;
-            const auto [preview, tree, nodeCard, progress, card, any] = Visibility();
+            const auto [preview, card, any] = Visibility();
             g_previewShown = preview && g_menu.chosen;  // the over-pass draws the 3D only for a chosen item (the box stays up without one)
             ShowEmptyLine(a_widget, Layout::kPreview, preview && !g_menu.chosen);
             // Task 4 (D5): the column clips are hidden, not mmx_root - the layout buttons below the left column stay up
@@ -3895,18 +3225,9 @@ namespace Widget
                 if (auto clip = Child(a_widget, column); clip.IsDisplayObject()) clip.SetMember("_visible", any);
             }
             SetVisible(a_widget, Layout::kPreview, preview);
-            SetVisible(a_widget, Layout::kTree, tree);
-            if (!tree) {  // review R3: the tooltip lives in the column clip, not the tree's panel - it goes with the hidden tree
-                for (const char* columnName : kColumnClips) {
-                    if (auto column = Child(a_widget, columnName); column.IsDisplayObject()) Draw::Remove(column, kTooltipName);
-                }
-                g_menu.tooltipFor = -1;
-            }
-            SetVisible(a_widget, Layout::kNodeCard, nodeCard);
-            SetVisible(a_widget, Layout::kProgress, progress);
             SetVisible(a_widget, Layout::kSpellCard, card);
             // Block API v2: an add-on shows while it has a place on this tab (its tabs mask; a v1 block: on every tab), as before;
-            // v3: a block its kMessageVisible hid keeps its place, invisible (as the progress card with no school)
+            // v3: a block its kMessageVisible hid keeps its place, invisible
             for (const auto& addon : g_addons) SetVisible(a_widget, addon.id, g_menu.blocks.contains(addon.id) && !g_menu.addonHidden.contains(addon.id));
             // with our card the layout is logged once its first item is drawn on the tab (review v7: not at the tab change; build
             // 16: drawn on THIS tab - OwnCardBox - not the last tab's drawing still up while WatchTab rearranges). FAIL: the card's
@@ -3921,9 +3242,8 @@ namespace Widget
                     problem = column ? Layout::CardBoxProblem(box ? *box : arranged->second, ColumnViewport(*column), ColumnHeights(*column).first)
                                      : std::string("the spell card is in no column");
                 }
-                SelfTest(std::format("C2 tab {} layout {} - preview {}, tree {}, progress {}, node card {}, our card {} at {}{}{}",
-                    TabName(g_menu.tab), problem.empty() ? "PASS" : "FAIL", preview ? "on" : "off", tree ? "on" : "off", progress ? "on" : "off",
-                    nodeCard ? "on" : "off", !own ? "off (bOwnCard=0, Inventory Reforged or no card info) - its slot" : "shown", RectText(rect),
+                SelfTest(std::format("C2 tab {} layout {} - preview {}, our card {} at {}{}{}",
+                    TabName(g_menu.tab), problem.empty() ? "PASS" : "FAIL", preview ? "on" : "off", !own ? "off (bOwnCard=0, Inventory Reforged or no card info) - its slot" : "shown", RectText(rect),
                     box ? std::format(", drawn to {:.0f} (unscrolled {}{})", rect.top + box->Height(), RectText(*box), effects ? ", cut to its content" : "")
                         : std::string{},
                     problem.empty() ? std::string{} : " - " + problem));
@@ -4058,7 +3378,7 @@ namespace Widget
         }
 
         // Block API v3: the key calls, then each frame block's frame call with its present content clip, its overlay and the Context.
-        // Last in the frame's block work (after the redraw pass, whose fits may move the panels), the layout mode included. A
+        // Last in the frame's block work (after every draw and fit that may move the panels), the layout mode included. A
         // block that does not show (no place on this tab, hidden by kMessageVisible, the columns down, failed) gets no call, and
         // its overlay goes; the overlay is made again (a new generation) when the block moved, scrolled, was drawn again or a
         // panel was made above it (BlockRules::StepOverlay). In the layout mode there is none (a_overlay null): one made there
@@ -4110,62 +3430,56 @@ namespace Widget
             }
         }
 
-        // SelfTest L1 reference (blocks plan Task 2 / D6): build 13's panel rects per tab - its CardRect, OwnCardRect and
-        // ApplyVisibility (Widget.cpp at 683a5e99 :1448, :1465, :2677) and the panels at the ini rects (:5111) - kept only as
-        // this test's formulas over the ini rects. nullopt: the block is not shown on that tab. Build 16: Active Effects has
-        // the preview at its ini rect and our card under it as on Powers (no longer the card alone from the preview's top)
-        std::optional<Settings::Rect> Build13Rect(Tab a_tab, bool a_own, const BlockId& a_id)
+        // SelfTest L1 reference (HoM add-on plan Task 5): the core's two blocks at the default layout with nothing ahead of the spell
+        // card in the left column - the preview at its ini rect, the spell card one gap below it; ours (a_own) fills the column down
+        // to the item card's ini bottom, SkyUI's keeps the item card's ini height. The same on every tab (no built-in block is
+        // hidden per tab since Task 5). Formulas over the ini rects, not Arrange's
+        Settings::Rect CoreRect(bool a_own, const BlockId& a_id)
         {
             const auto& s = Settings::Get();
-            const bool powers = a_tab == Tab::kPowers, effects = a_tab == Tab::kEffects;
-            if (a_id == Layout::kSpellCard) {
-                const auto& card = s.itemCard;
-                if (a_own && (powers || effects)) return Settings::Rect{ card.left, s.preview.bottom + s.panelGap, card.right, card.bottom };
-                if (!a_own && powers) {
-                    const double top = s.preview.bottom + s.panelGap;
-                    return Settings::Rect{ card.left, top, card.right, top + card.Height() };
-                }
-                return card;
-            }
             if (a_id == Layout::kPreview) return s.preview;
-            if (powers || effects) return std::nullopt;
-            return IniRect(s, a_id);
+            const auto& card = s.itemCard;
+            const double top = s.preview.bottom + s.panelGap;
+            return { card.left, top, card.right, a_own ? card.bottom : top + card.Height() };
         }
 
-        // SelfTest L1 (blocks plan Task 2, D6): each tab's arranged rects (our card and SkyUI's) logged, PASS when they are build
-        // 13's (Build13Rect), FAIL with the differences; SKIP when the layout file is not the default layout (its rects differ by
-        // design). The ini and the layout file are read once per game session, so this runs at the first menu open only
+        // SelfTest L1 (blocks plan Task 2, D6): each tab's arranged rects (our card and SkyUI's) logged, PASS when they are the
+        // core's reference (CoreRect), FAIL with the differences; SKIP when the layout file is not the default layout or an add-on
+        // block is arranged in the left column (the Heart of Magic block's progress card takes its retired place above the spell
+        // card): the rects differ by design then. The ini and the layout file are read once per game session, so this runs at the
+        // first menu open only
         void CheckLayoutRects()
         {
             static bool s_checked = false;
             if (!Settings::Get().selfTest || std::exchange(s_checked, true)) return;
-            // Task 3: [Debug] fDebugExtraHeight makes the node card taller on purpose - no build 13 reference either
-            // Task 6: add-ons at the end of the right column (Settings::DefaultLayout) leave the built-in blocks' rects as they were
-            const bool custom = !(CurrentLayout() == Settings::DefaultLayout()) || Settings::Get().debugExtraHeight > 0;
+            const bool custom = !(CurrentLayout() == Settings::DefaultLayout());
             constexpr std::array kTabs{ Tab::kFollow, Tab::kSchool, Tab::kPowers, Tab::kEffects };
             for (const Tab tab : kTabs) {
                 for (const bool own : { true, false }) {
                     // Block API v2: a flag of the tab kind for the add-ons' masks (kPowers stands for Powers and Shouts)
                     const int flag = tab == Tab::kSchool ? kFlagDestruction : tab == Tab::kPowers ? kFlagPowers :
                                      tab == Tab::kEffects ? kFlagActiveEffects : kFlagUnread;
-                    const auto arranged = ArrangeBlocks(ArrangementFor(tab, own, flag));
-                    const auto hidden = TabHidden(tab);
+                    const auto arranged = ArrangeBlocks(ArrangementFor(own, flag));
+                    const bool addonLeft = std::ranges::any_of(g_addons, [&](const auto& a_addon) {
+                        return arranged.contains(a_addon.id) && ColumnOf(a_addon.id) == 0;
+                    });
                     std::string rects, diffs;
                     for (const BlockId id : kBlocks) {
                         const auto it = arranged.find(id);
-                        const bool shown = id == Layout::kSpellCard || !hidden.contains(id);  // the card's showing is WatchOwnCard's
-                        const std::optional<Settings::Rect> now = shown && it != arranged.end() ? std::optional{ it->second } : std::nullopt;
-                        const auto then = Build13Rect(tab, own, id);
-                        rects += std::format(" {} {}", id, now ? RectText(*now) : std::string("hidden"));
-                        if (now.has_value() != then.has_value() || (now && !SameRect(*now, *then))) {
-                            diffs += std::format("; {} {} (build 13 {})", id, now ? RectText(*now) : std::string("hidden"),
-                                then ? RectText(*then) : std::string("hidden"));
+                        const std::optional<Settings::Rect> now = it != arranged.end() ? std::optional{ it->second } : std::nullopt;
+                        const auto then = CoreRect(own, id);
+                        rects += std::format(" {} {}", id, now ? RectText(*now) : std::string("not arranged"));
+                        if (!now || !SameRect(*now, then)) {
+                            diffs += std::format("; {} {} (core {})", id, now ? RectText(*now) : std::string("not arranged"), RectText(then));
                         }
                     }
-                    const char* verdict = custom ? "SKIP" : diffs.empty() ? "PASS" : "FAIL";
+                    const bool skip = custom || addonLeft;
+                    const char* verdict = skip ? "SKIP" : diffs.empty() ? "PASS" : "FAIL";
                     SelfTest(std::format("L1 layout {} {} ({}) -{}{}{}", TabName(tab), verdict, own ? "our card" : "SkyUI's card", rects,
-                        custom ? " (the layout file is not the default layout, or [Debug] fDebugExtraHeight is on: build 13's rects are no reference)" : "",
-                        custom ? "" : diffs));
+                        custom    ? " (the layout file is not the default layout: the core's rects are no reference)" :
+                        addonLeft ? " (an add-on block is in the left column: the core's rects are no reference)" :
+                                    "",
+                        skip ? "" : diffs));
                 }
             }
         }
@@ -4225,7 +3539,13 @@ namespace Widget
         // SkyUI's card stays as it is (data, fade flag and timeline untouched); only its fade holder is hidden.
         // ---------------------------------------------------------------------
 
-        RE::GFxValue ContentChild(RE::GFxValue& a_widget, const BlockId& a_id, const char* a_name, RE::GFxValue& a_content);  // with the L2 read-backs
+        // A panel's "content" child's child, not a display object when any step is missing
+        RE::GFxValue ContentChild(RE::GFxValue& a_widget, const BlockId& a_id, const char* a_name, RE::GFxValue& a_content)
+        {
+            auto panel = BlockClip(a_widget, a_id);
+            a_content = panel.IsDisplayObject() ? Child(panel, "content") : RE::GFxValue{};
+            return a_content.IsDisplayObject() ? Child(a_content, a_name) : RE::GFxValue{};
+        }
 
         struct CardView
         {
@@ -4365,13 +3685,10 @@ namespace Widget
             case kTypeSpell: {
                 const auto* spell = CardSpell(StringMember(a_info, "name"));
                 auto school = StringMember(a_info, "magicSchoolName");
-                if (school.empty() && spell) {
-                    const int node = Spells::Get() ? Spells::PrimaryNode(spell->GetFormID()) : -1;
-                    school = SchoolText(node >= 0 ? Data().tree.nodes[node].school : SpellSchool::Of(spell));
-                }
+                if (school.empty() && spell) school = SchoolText(SpellSchool::Of(spell));  // the spell's own school (HoM add-on design)
                 auto level = StringMember(a_info, "castLevel");
                 if (level.empty() && spell) level = LevelText(spell);
-                view.sub = school.empty() ? level : level.empty() ? school : Fill(Str::kNodeSub, { { "{school}", school }, { "{level}", level } });
+                view.sub = school.empty() ? level : level.empty() ? school : Fill(Str::kCardSub, { { "{school}", school }, { "{level}", level } });
                 if (cost) {
                     const bool perSecond = Number(a_info, "castTime").value_or(1.0) == 0.0;
                     view.footLeft = Fill(perSecond ? Str::kCardMagickaPerSec : Str::kCardMagicka, { { "{n}", costText } });
@@ -5384,8 +4701,8 @@ namespace Widget
         }
 
         // In the mode: a transparent cover over each visible block (VisibleBlocks: ApplyVisibility's rules), above every panel of its
-        // column (made again after any panel is made again), carrying the drag and the focus look (Task 5). It also takes the tree's
-        // node clicks and roll-overs and the node card's button (off in the mode). Scrolls with its column clip
+        // column (made again after any panel is made again), carrying the drag and the focus look (Task 5). It also takes the
+        // add-on blocks' clicks and roll-overs (off in the mode). Scrolls with its column clip
         void SetCovers(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
             RemoveCovers(a_widget);
@@ -5899,13 +5216,6 @@ namespace Widget
             Panel(a_movie, a_widget, a_id);
             const auto rect = BlockRect(a_id);
             g_menu.placed[a_id] = rect;
-            if (a_id == Layout::kTree) {
-                if (auto panel = BlockClip(a_widget, a_id); panel.IsDisplayObject()) {
-                    DrawLegend(a_movie, panel, rect.Width(), rect.Height(), g_menu.legendSchool.value_or(std::string{}));
-                }
-                g_menu.tooltipDue = true;
-            }
-            if (a_id == Layout::kTree || a_id == Layout::kProgress || a_id == Layout::kNodeCard) g_menu.dirty = true;
             if (a_id == Layout::kSpellCard) g_menu.ownCardSig.clear();  // WatchOwnCard draws it again next frame
             if (Addon(a_id)) g_menu.addonDrawDue.insert(a_id);  // Task 6: its callback draws it again (DrawAddons)
             logger::info("Layout: block {} is in column {} now - its panel made there again ({:.0f} x {:.0f}), drawn again", a_id,
@@ -6187,8 +5497,6 @@ namespace Widget
             ++g_menu.layoutModeChanges;  // Block API v2: a press in an add-on block is cancelled
             m.entry = m.working = Settings::SavedLayout();
             ++m.entered;
-            g_menu.hovered = -1;  // the tooltip goes (RedrawTooltip)
-            g_menu.tooltipDue = true;
             // Task 5: entered with the gamepad, the first visible block has the focus at once (there is no pointer); otherwise the
             // first arrow / D-pad press gives it, so a mouse user sees no outline
             g_layoutFocus = {};
@@ -6251,7 +5559,7 @@ namespace Widget
             if (HeightsFitted() || AddonsCloseUp()) Rearrange(a_movie, a_widget);  // the fitted heights and the closed-up add-ons back
             if (!a_save) {
                 const bool same = CurrentLayout() == m.entry && Settings::SavedLayout() == m.entry;
-                const auto arranged = ArrangeBlocks(ArrangementFor(g_menu.tab, OwnCard()));
+                const auto arranged = ArrangeBlocks(ArrangementFor(OwnCard()));
                 std::string diffs;
                 for (const auto& [id, rect] : arranged) {
                     const auto it = g_menu.blocks.find(id);
@@ -6267,7 +5575,6 @@ namespace Widget
             ShowShield(a_widget, false);
             PlaceLayoutChrome(a_movie, a_widget);
             ApplyVisibility(a_widget);
-            g_menu.tooltipDue = true;
             FlushLog();
         }
 
@@ -6511,1229 +5818,11 @@ namespace Widget
         }
 
         // ---------------------------------------------------------------------
-        // Tree window
-        // ---------------------------------------------------------------------
-
-        using LabelBox = LayoutMath::Box;
-
-        // HoM's sizes in the tree window (spec v11 T12): HoM world units x fTreeScale x fTreeMarkScale
-        double MarkScale()
-        {
-            const auto& settings = Settings::Get();
-            return settings.treeScale * settings.treeMarkScale;
-        }
-
-        // A drawn node (spec v10 T4, v11 T11-T13): clickable when linked to the centre (within iMaxSteps, either kind of link)
-        // or learned / learnable - build 10's rule, unchanged (T11); full when it is the centre or one STRUCTURAL link from it,
-        // else dimmed (R11, built apart from the clickability steps); drawn in HoM's look of its display state (R1)
-        struct TreeNode
-        {
-            TreeData::PlacedNode placed;
-            Spells::Look look;
-            HomStyle::Display display{};
-            bool clickable{};
-            bool full{};
-            bool focus{};    // the clicked (selected) node: HoM's focus look, FOCUS_GROW larger (R6)
-            bool onPath{};   // on the learning target's path
-            double reach{};  // how far its mark reaches, stage units (HomStyle::Reach)
-            RE::GFxValue clip;
-        };
-
-        // A link as drawn, for the labels to keep off it (LayoutMath::LinkBoxes)
-        struct DrawnLine
-        {
-            double ax{}, ay{}, bx{}, by{}, width{};
-        };
-
-        struct EdgeTally
-        {
-            int dim{}, locked{}, frontier{}, unlocked{}, selected{}, learning{}, chains{}, hidden{};
-            std::vector<DrawnLine> lines;
-        };
-
-        // A chain from a hard prerequisite to the centre (canvasRendererEdges.js:354-434): links LINK_W x LINK_H every 1.15 x
-        // LINK_W, every second one turned a quarter, at least 3. HoM draws a cached sprite in world units (a rounded link with a
-        // dark hole); here a plain filled rectangle in its fill and outline, at the mark scale.
-        void DrawChain(RE::GFxValue& a_content, double a_ax, double a_ay, double a_bx, double a_by, double a_scale, double a_alpha, EdgeTally& a_tally)
-        {
-            constexpr int kMinLinks = 3;
-            const double dx = a_bx - a_ax, dy = a_by - a_ay, dist = std::hypot(dx, dy);
-            if (dist < a_scale) return;  // HoM: dist < 1 world unit
-            const double linkW = HomStyle::kChainLinkW * a_scale, linkH = HomStyle::kChainLinkH * a_scale;
-            const int links = std::max(kMinLinks, static_cast<int>(std::lround(dist / (linkW * HomStyle::kChainSpacing))));
-            const double angle = std::atan2(dy, dx);
-            Draw::LineStyle(a_content, HomStyle::kChainStroke * a_scale, HomStyle::kChainEdge.rgb, Percent(HomStyle::kChainEdge, a_alpha));
-            for (int i = 0; i < links; ++i) {
-                const double t = (i + 0.5) / links, cx = a_ax + dx * t, cy = a_ay + dy * t;
-                const double turn = angle + (i % 2 != 0 ? std::numbers::pi / 2 : 0.0);
-                const double c = std::cos(turn), s = std::sin(turn), hw = linkW / 2, hh = linkH / 2;
-                const std::array<HomStyle::Point, 4> corners{ { { cx - hw * c + hh * s, cy - hw * s - hh * c }, { cx + hw * c + hh * s, cy + hw * s - hh * c },
-                    { cx + hw * c - hh * s, cy + hw * s + hh * c }, { cx - hw * c - hh * s, cy - hw * s + hh * c } } };
-                Draw::BeginFill(a_content, HomStyle::kChainFill.rgb, Percent(HomStyle::kChainFill, a_alpha));
-                Draw::Polygon(a_content, corners);
-                Draw::EndFill(a_content);
-            }
-            ++a_tally.chains;
-            a_tally.lines.push_back({ a_ax, a_ay, a_bx, a_by, linkW });
-        }
-
-        // The links between drawn nodes (spec v11 T14; canvasRendererEdges.js:157-434), bottom to top as HoM strokes them: its
-        // dim batch, locked, frontier (learned -> learnable), learned; the centre's links to its direct neighbours
-        // (showSelectionPath: HoM's selected path, here the centre's own links, user 2026-10-26); the learning target's path
-        // (spec v10 T8; 3 wide into the target, R5); the chains of the centre's hard prerequisites (HoM's are the selected
-        // spell's). With showSelectionPath every other link is HoM's dim batch (its own dimming: no x 0.6 on top); otherwise a
-        // link with an end outside the full set gets the dim factor in its alpha (T11). showBaseConnections off: only learned
-        // and frontier links and the paths (:207-208). Widths are HoM's world units x fTreeScale (review v11 #5).
-        EdgeTally DrawEdges(RE::GFxValue& a_content, const TreeData::Window& a_window, const std::unordered_map<int, const TreeNode*>& a_nodes,
-            const std::set<std::pair<int, int>>& a_path, int a_target, const HomStyle::Style& a_style)
-        {
-            using HomStyle::Display;
-            const auto& tree = Data().tree;
-            const auto& t = a_style.tree;
-            const int centre = g_session.centre;
-            EdgeTally tally;
-            const double lineScale = Settings::Get().treeScale;  // review v11 #5: HoM's widths are world units
-            struct Line
-            {
-                const TreeData::PlacedEdge* placed;
-                double width;
-                HomStyle::Color colour;
-                double alpha;
-            };
-            enum Layer : std::size_t
-            {
-                kDim,
-                kLocked,
-                kFrontier,
-                kUnlocked,
-                kSelected,
-                kLearning,
-                kLayers
-            };
-            std::array<std::vector<Line>, kLayers> layers;
-            const auto node = [&](int a_index) {
-                const auto it = a_nodes.find(a_index);
-                return it == a_nodes.end() ? nullptr : it->second;
-            };
-            // HoM dims only while the selected spell has a path to show (hasSelectedPath, :157)
-            const bool dimAll = a_style.showSelectionPath && std::ranges::any_of(tree.adjacent[centre], [&](int a_edge) {
-                return tree.edges[a_edge].kind == TreeData::EdgeKind::kStructural;
-            });
-            for (const auto& placed : a_window.edges) {
-                const auto& edge = tree.edges[placed.edge];
-                const auto* from = node(edge.from);
-                const auto* to = node(edge.to);
-                if (edge.kind != TreeData::EdgeKind::kStructural || !from || !to) continue;  // a lock link: a chain below or nothing
-                const double factor = from->full && to->full ? 1.0 : a_style.DimFactor();
-                if (a_path.contains(std::minmax(edge.from, edge.to))) {
-                    // review v11 #6: 3 wide only when its end toward the target is the target in the learning look
-                    // (canvasRendererEdges.js:343-345 toNode.state === 'learning'); the path ends at the target
-                    const auto* targetNode = node(a_target);
-                    const bool intoTarget =
-                        (edge.from == a_target || edge.to == a_target) && targetNode && targetNode->display == Display::kLearning;
-                    layers[kLearning].push_back({ &placed, intoTarget ? HomStyle::kLearningEdgeIntoTarget : HomStyle::kLearningEdgeWidth, a_style.learning,
-                        HomStyle::kLearningEdgeAlpha * factor });
-                    continue;
-                }
-                if (a_style.showSelectionPath && (edge.from == centre || edge.to == centre)) {
-                    layers[kSelected].push_back({ &placed, t.selectedPathWidth, t.selectedPathColor, t.selectedPathAlpha });
-                    continue;
-                }
-                const bool both = from->display == Display::kUnlocked && to->display == Display::kUnlocked;
-                const bool frontier = t.frontierEdgeAlpha > 0 && !both && from->display == Display::kUnlocked &&
-                                      (to->display == Display::kAvailable || to->display == Display::kLearning);
-                if (!both && !frontier && !a_style.showBaseConnections) {
-                    ++tally.hidden;
-                    continue;
-                }
-                const auto school = a_style.SchoolColor(tree.nodes[edge.from].school);
-                if (dimAll) {
-                    layers[kDim].push_back({ &placed, HomStyle::kDimEdgeWidth, t.dimEdgeColor, HomStyle::kDimEdgeAlpha });
-                } else if (both) {
-                    layers[kUnlocked].push_back({ &placed, t.unlockedEdgeWidth, t.unlockedEdgeColor.value_or(school), t.unlockedEdgeAlpha * factor });
-                } else if (frontier) {
-                    layers[kFrontier].push_back({ &placed, HomStyle::kFrontierEdgeWidth, school, t.frontierEdgeAlpha * factor });
-                } else {
-                    layers[kLocked].push_back({ &placed, HomStyle::kLockedEdgeWidth, t.lockedEdgeColor, t.lockedEdgeAlpha * factor });
-                }
-            }
-            const std::array<int*, kLayers> counts{ &tally.dim, &tally.locked, &tally.frontier, &tally.unlocked, &tally.selected, &tally.learning };
-            for (std::size_t layer = 0; layer < kLayers; ++layer) {
-                for (const auto& line : layers[layer]) {
-                    // one alpha per drawing call: the line's own, with the dim factor in it (R10)
-                    const double width = line.width * lineScale;
-                    Draw::LineStyle(a_content, width, line.colour.rgb, Percent(line.colour, line.alpha));
-                    Draw::MoveTo(a_content, line.placed->ax, line.placed->ay);
-                    Draw::LineTo(a_content, line.placed->bx, line.placed->by);
-                    ++*counts[layer];
-                    tally.lines.push_back({ line.placed->ax, line.placed->ay, line.placed->bx, line.placed->by, width });
-                }
-            }
-            // the chains: from each drawn hard prerequisite of the centre to the centre (HoM, :356-366)
-            const auto* hub = node(centre);
-            for (const auto prerequisite : tree.nodes[centre].hard) {
-                for (const auto& [index, drawn] : a_nodes) {
-                    if (index == centre || !hub || tree.nodes[index].formId != prerequisite) continue;
-                    const double factor = drawn->full ? 1.0 : a_style.DimFactor();
-                    DrawChain(a_content, drawn->placed.sx, drawn->placed.sy, hub->placed.sx, hub->placed.sy, MarkScale(), HomStyle::kChainAlpha * factor, tally);
-                }
-            }
-            return tally;
-        }
-
-        LabelBox NodeBox(const TreeNode& a_node)
-        {
-            const double r = a_node.reach;
-            return { a_node.placed.sx - r, a_node.placed.sy - r, a_node.placed.sx + r, a_node.placed.sy + r };
-        }
-
-        // A node's label (spec v11 T15): HoM's text and colour, beside the node (by default facing the centre: left of a node
-        // right of the centre; the centre's to its right). The text wraps to kLabelLines lines at the reading size and ends in
-        // "..." when it needs more (Q4).
-        struct LabelText
-        {
-            std::string name;  // the name cut to labelMaxChars, or "???"
-            bool left{};       // the label left of the node
-            double gap{};      // from the node's centre to the label
-            std::uint32_t color{};
-            double alpha = 1.0;  // the colour's own alpha x the dim factor: the field's _alpha, its only alpha (R10)
-        };
-
-        // A node's label in its clip (a_clip sits at the node): the text wraps to kLabelLines lines at the reading size and ends
-        // in "..." when it needs more (Q4). Kept inside the window: up and down by its padding, and across no wider than the room
-        // to the window edge on its side (v6 design review #2: a far-side label of a node near the edge ran past the panel), left
-        // out when that room is under kMinLabelW. Its box goes into a_drawn. True when drawn.
-        bool PlaceLabel(RE::GFxMovieView* a_movie, RE::GFxValue& a_clip, const TreeData::PlacedNode& a_placed, const LabelText& a_text,
-            const Settings::Area& a_frame, std::vector<LabelBox>& a_drawn)
-        {
-            const double size = TextFit::Size(Metrics(), kLabelSize), boxH = TextFit::FieldH(Metrics(), size, kLabelLines);
-            const double labelW = LayoutMath::LabelWidth(a_placed.sx, a_text.gap, a_frame.halfW + kPad, a_text.left, kLabelW);
-            if (labelW < kMinLabelW) return false;
-            auto field = Draw::Text(a_movie, a_clip, "label", a_text.left ? -a_text.gap - labelW : a_text.gap, -boxH / 2, labelW, boxH, "",
-                a_text.color, size, a_text.left ? "right" : "left");
-            if (!field.IsDisplayObject()) return false;
-            field.SetMember("wordWrap", true);
-            field.SetMember("_alpha", a_text.alpha * Draw::kAlphaFull);
-            TextFit::FitWhole(Metrics(), g_menu.textLog, a_movie, field, labelW, size, kLabelLines, a_text.name);
-            const double width = std::min(TextW(field), labelW), height = std::min(TextH(field), boxH);
-            // centred on the node, inside the window's padding
-            const double limit = a_frame.halfH + kPad;
-            const double top = std::clamp(a_placed.sy - height / 2, -limit, std::max(-limit, limit - height)) - a_placed.sy;
-            field.SetMember("_y", top);
-            const double from = a_text.left ? a_placed.sx - a_text.gap - width : a_placed.sx + a_text.gap;
-            a_drawn.push_back({ from, a_placed.sy + top, from + width, a_placed.sy + top + height });
-            return true;
-        }
-
-        // HoM's label of a drawn node (spec v11 T15; _labelTextOf / _labelCandidates, canvasRendererLabels.js:90-153): none for
-        // a locked spell; "???" in labelHidden for an available one under revealName % (not cheatMode); the name cut to
-        // labelMaxChars in labelUnlocked / the learning colour / labelAvailable. Its alpha: the colour's own x the dim factor
-        // (HoM draws a label at _contextFactor). The percent lines of build 10 are gone (the tooltip has the percent).
-        std::optional<LabelText> NodeLabelText(const TreeNode& a_node, bool a_left, const HomStyle::Style& a_style)
-        {
-            using HomStyle::Display;
-            if (a_node.display == Display::kLocked) return std::nullopt;  // even under cheatMode (review v11 #9: Labels rule)
-            const auto reveal = HomStyle::Reveal(a_node.display, a_node.look.percent, a_style.revealName, a_style.cheatMode);
-            if (reveal == HomStyle::Name::kNone) return std::nullopt;
-            const auto& t = a_style.tree;
-            const bool hidden = reveal == HomStyle::Name::kHidden;
-            const auto colour = a_node.display == Display::kUnlocked ? t.labelUnlocked :
-                                a_node.display == Display::kLearning ? a_style.learning :
-                                hidden                               ? t.labelHidden :
-                                                                       t.labelAvailable;
-            const double dim = a_node.full ? 1.0 : a_style.DimFactor();  // review v11 #2: the focus is dimmed as its class
-            return LabelText{ hidden ? std::string(HomStyle::kHiddenName) : HomStyle::ClipLabel(Spells::NodeName(a_node.placed.index), t.labelMaxChars),
-                a_left, a_node.reach + kLabelGap, colour.rgb, std::clamp(colour.alpha * dim, 0.0, 1.0) };
-        }
-
-        // The same label drawn into a_box (window coordinates; a place LayoutMath::KeptLabelPlaces chose), aligned to the side it
-        // sits on (right-aligned on the left of the node, centred above or below). The box is the size the label measured at
-        // its first place, so the text fits it again (one unit of slack).
-        void PlaceLabelAt(RE::GFxMovieView* a_movie, RE::GFxValue& a_clip, const TreeData::PlacedNode& a_placed, const LabelText& a_text,
-            const LabelBox& a_box, LayoutMath::Place a_place, std::vector<LabelBox>& a_drawn)
-        {
-            constexpr double kSlack = 1.0;
-            const double size = TextFit::Size(Metrics(), kLabelSize), boxH = TextFit::FieldH(Metrics(), size, kLabelLines), w = a_box.right - a_box.left + kSlack;
-            const bool left = a_place == LayoutMath::Place::kLeft || a_place == LayoutMath::Place::kLeftFar;
-            const bool centred = a_place == LayoutMath::Place::kBelow || a_place == LayoutMath::Place::kAbove;
-            const double x = (left ? a_box.right - w : centred ? (a_box.left + a_box.right - w) / 2 : a_box.left) - a_placed.sx;
-            auto field = Draw::Text(a_movie, a_clip, "label", x, a_box.top - a_placed.sy, w, boxH, "", a_text.color, size,
-                left ? "right" : centred ? "center" : "left");
-            if (!field.IsDisplayObject()) return;
-            field.SetMember("wordWrap", true);
-            field.SetMember("_alpha", a_text.alpha * Draw::kAlphaFull);
-            TextFit::FitWhole(Metrics(), g_menu.textLog, a_movie, field, w, size, kLabelLines, a_text.name);
-            a_drawn.push_back(a_box);
-        }
-
-        const char* PlaceName(LayoutMath::Place a_place)
-        {
-            switch (a_place) {
-            case LayoutMath::Place::kLeft: return "left";
-            case LayoutMath::Place::kBelow: return "below";
-            case LayoutMath::Place::kAbove: return "above";
-            case LayoutMath::Place::kRightFar: return "right, further out";
-            case LayoutMath::Place::kLeftFar: return "left, further out";
-            default: return "right";
-            }
-        }
-
-        // A drawn node's clip at its place, in a_layer (spec v10 T4, T6; v11 T12, T13, R6). HoM's mark of its state (the mystery
-        // "?" in a text field of its own), a hidden focus outline child (shown on roll-over, so a hover needs no redraw), and a
-        // hit area on the mark alone (a child clip set as hitArea, so the label later drawn in the same clip takes no click or
-        // hover). A clickable node gets onRelease; every node the roll-over / roll-out handlers (the tooltip).
-        RE::GFxValue DrawNode(RE::GFxMovieView* a_movie, RE::GFxValue& a_layer, const TreeNode& a_node, const HomStyle::Style& a_style)
-        {
-            const auto name = std::format("n{}", a_node.placed.index);
-            auto clip = Draw::Clip(a_layer, name.c_str());
-            if (!clip.IsDisplayObject()) return clip;
-            clip.SetMember("_x", a_node.placed.sx);
-            clip.SetMember("_y", a_node.placed.sy);
-            clip.SetMember(kIndexMember, static_cast<double>(a_node.placed.index));
-            const auto& data = Data().tree.nodes[a_node.placed.index];
-            const double s = MarkScale();
-            const double lineScale = Settings::Get().treeScale;  // review v11 #5
-            // review v11 #2: dimmed by `full` alone - the focus keeps its outline and size, not a full alpha
-            const auto drawn = DrawHomMark(clip, a_style,
-                { data.school, data.themeColor, data.skillLevel, data.tier, data.x, data.y, 0.0, 0.0, s, lineScale },
-                { a_node.display, a_style.Mystery(), a_node.focus, a_node.onPath, a_node.full ? 1.0 : a_style.DimFactor() });
-            DrawQuestion(a_movie, clip, 0.0, 0.0, s, drawn);
-            if (auto focus = Draw::Clip(clip, kFocusChild); focus.IsDisplayObject()) {
-                const auto& stroke = a_style.tree.focusStroke;
-                Draw::LineStyle(focus, HomStyle::kFocusStroke * lineScale, stroke.rgb, Percent(stroke, 1.0));
-                Draw::Polygon(focus, drawn.body);
-                focus.SetMember("_visible", a_node.placed.index == g_menu.hovered);
-            }
-            if (auto hit = Draw::Clip(clip, "hit"); hit.IsDisplayObject()) {
-                Draw::NoLine(hit);
-                Draw::BeginFill(hit, kBackdrop, 0.0);  // alpha 0 still takes the mouse
-                Draw::Polygon(hit, HomStyle::ShapePoints({}, 0, 0, 0, 0, a_node.reach));
-                Draw::EndFill(hit);
-                clip.SetMember("hitArea", hit);
-            }
-            if (a_node.clickable) {
-                SetHandler(a_movie, clip, "onRelease", g_nodeClick.get());
-            } else {
-                clip.SetMember("useHandCursor", false);
-            }
-            SetHandler(a_movie, clip, "onRollOver", g_nodeRollOver.get());
-            SetHandler(a_movie, clip, "onRollOut", g_nodeRollOut.get());
-            return clip;
-        }
-
-        // Where a label went (spec v10 T5; build 6 review round 3, build 7 T7.2): drawn at its default side first, which gives its
-        // real size; then that side, the other side, below, above and both sides further out are measured against every box
-        // reserved so far - drawn marks, badges, the legend, labels placed before it (LayoutMath::KeptLabelPlaces / ChoosePlace) -
-        // and it takes the first clear place. With none clear it is dropped (no forced overlap: the tooltip names the spell);
-        // place and overlap then name the least covered place, for the log. none: HoM gives the node no label (T15).
-        struct KeptPlace
-        {
-            LayoutMath::Place place = LayoutMath::Place::kRight;
-            double firstOverlap{}, overlap{};
-            bool drawn{};
-            bool none{};
-        };
-
-        // a_farSteps: how often both sides are tried further out (only for the centre's, the selected node's and the target's: marks
-        // are close, so an ordinary node's label further out would sit by its neighbour and read as that one's)
-        KeptPlace PlaceNodeLabel(RE::GFxMovieView* a_movie, TreeNode& a_node, bool a_defaultLeft, int a_farSteps, const Settings::Area& a_frame,
-            const HomStyle::Style& a_style, std::vector<LabelBox>& a_labels)
-        {
-            auto text = NodeLabelText(a_node, a_defaultLeft, a_style);
-            if (!text) return { .none = true };
-            if (!PlaceLabel(a_movie, a_node.clip, a_node.placed, *text, a_frame, a_labels)) {
-                text->left = !text->left;
-                if (!PlaceLabel(a_movie, a_node.clip, a_node.placed, *text, a_frame, a_labels)) return {};
-            }
-            const LabelBox drawn = a_labels.back();
-            a_labels.pop_back();
-            auto places = LayoutMath::KeptLabelPlaces(a_node.placed.sx, a_node.placed.sy, drawn.right - drawn.left, drawn.bottom - drawn.top,
-                text->gap, text->left, a_frame.halfW + kPad, a_frame.halfH + kPad, a_node.reach, a_farSteps);
-            places.front().box = drawn;  // exactly where it was drawn
-            const auto choice = LayoutMath::ChoosePlace(places, a_labels);
-            const auto& chosen = places[choice.index];
-            if (choice.clear && choice.index == 0) {
-                a_labels.push_back(drawn);
-            } else {
-                RE::GFxValue field;
-                if (a_node.clip.GetMember("label", &field) && field.IsDisplayObject()) field.Invoke("removeTextField");
-                if (choice.clear) PlaceLabelAt(a_movie, a_node.clip, a_node.placed, *text, chosen.box, chosen.place, a_labels);
-            }
-            return { chosen.place, choice.firstOverlap, choice.overlap, choice.clear };
-        }
-
-        // The label order (spec v10 T5): the centre, the selected node, the learning target, then the centre's direct neighbours,
-        // then every other node; nearest first within each (the window's order; review v10: clickable before faint broke that)
-        int LabelRank(const TreeNode& a_node, int a_target)
-        {
-            const int index = a_node.placed.index;
-            if (index == g_session.centre) return 0;
-            if (index == g_menu.selected) return 1;
-            if (index == a_target) return 2;
-            return a_node.placed.steps == 1 ? 3 : 4;
-        }
-
-        // An arrow at the window edge in each sector's direction (from the window centre) and its "N개 더" text just inside it
-        // (spec v10 T7; the arrow is drawn, the font's arrow characters are not relied on). False, drawing nothing, when the
-        // window has no room for an arrow and its text (review round 1 #2: a 32-wide tree rect passes the settings check and
-        // turned the text's clamp range around)
-        bool DrawBadges(RE::GFxMovieView* a_movie, RE::GFxValue& a_content, const LayoutMath::Exits& a_exits, const Settings::Area& a_frame,
-            std::vector<LabelBox>& a_boxes)
-        {
-            constexpr double kTiny = 1e-9, kFar = 1e9;
-            const double size = TextFit::Size(Metrics(), kNoteSize), h = TextFit::FieldH(Metrics(), size), textW = kExitTextW;
-            const double hw = a_frame.halfW - kExitInset, hh = a_frame.halfH - kExitInset;
-            if (hw < textW / 2 + kExitArrow || hh < kExitArrow || a_frame.halfH + kPad < h / 2 + kExitArrow) return false;
-            for (std::size_t i = 0; i < a_exits.sectors.size(); ++i) {
-                if (a_exits.sectors[i] == 0) continue;
-                const double angle = static_cast<double>(i) * 2 * std::numbers::pi / static_cast<double>(a_exits.sectors.size());
-                const double ux = std::cos(angle), uy = std::sin(angle);
-                const double t = std::min(std::abs(ux) > kTiny ? hw / std::abs(ux) : kFar, std::abs(uy) > kTiny ? hh / std::abs(uy) : kFar);
-                const double px = ux * t, py = uy * t, a = kExitArrow;
-                Draw::NoLine(a_content);
-                Draw::BeginFill(a_content, kLabelColor, Draw::kAlphaFull);
-                Draw::MoveTo(a_content, px + ux * a, py + uy * a);
-                Draw::LineTo(a_content, px - ux * a - uy * a, py - uy * a + ux * a);
-                Draw::LineTo(a_content, px - ux * a + uy * a, py - uy * a - ux * a);
-                Draw::LineTo(a_content, px + ux * a, py + uy * a);
-                Draw::EndFill(a_content);
-                const double cx = std::clamp(px - ux * (a + textW / 2), -a_frame.halfW + textW / 2, a_frame.halfW - textW / 2);
-                const double cy = std::clamp(py - uy * (a + h / 2), -a_frame.halfH - kPad + h / 2, a_frame.halfH + kPad - h / 2);
-                const auto name = std::format("exit{}", i);
-                TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, a_content, name.c_str(), cx - textW / 2, cy - h / 2, textW, size,
-                    Fill(Str::kTreeExit, { { "{n}", std::to_string(a_exits.sectors[i]) } }), kLabelColor, "center");
-                // what the labels keep off: the arrow and its text
-                a_boxes.push_back({ px - 2 * a, py - 2 * a, px + 2 * a, py + 2 * a });
-                a_boxes.push_back({ cx - textW / 2, cy - h / 2, cx + textW / 2, cy + h / 2 });
-            }
-            return true;
-        }
-
-        // In-game spacing check (spec v11 R5): the largest reach of the drawn marks against half the distance of the closest two
-        // drawn marks (a mark reaching past it could touch its neighbour's). PASS once per menu, every FAIL. O(n^2) for n drawn
-        // nodes (iMaxNodes at most 200).
-        void CheckSpacing(const std::vector<TreeNode>& a_nodes)
-        {
-            double closest = std::numeric_limits<double>::infinity(), reach = 0.0;
-            int a = -1, b = -1, widest = -1;
-            for (std::size_t i = 0; i < a_nodes.size(); ++i) {
-                if (a_nodes[i].reach > reach) {
-                    reach = a_nodes[i].reach;
-                    widest = a_nodes[i].placed.index;
-                }
-                for (std::size_t j = i + 1; j < a_nodes.size(); ++j) {
-                    const auto& p = a_nodes[i].placed;
-                    const auto& q = a_nodes[j].placed;
-                    const double d = std::hypot(p.sx - q.sx, p.sy - q.sy);
-                    if (d < closest) {
-                        closest = d;
-                        a = p.index;
-                        b = q.index;
-                    }
-                }
-            }
-            if (a < 0) return;
-            const bool pass = reach <= closest / 2;
-            if (pass && std::exchange(g_menu.spacingLogged, true)) return;
-            SelfTest(std::format("T2 spacing {} - closest drawn marks {:.1f} apart ({} / {}), half {:.2f}; the largest drawn reach {:.2f} ({}) "
-                                 "(HoM sizes x fTreeScale {} x fTreeMarkScale {})",
-                pass ? "PASS" : "FAIL", closest, Spells::NodeName(a), Spells::NodeName(b), closest / 2, reach, Spells::NodeName(widest),
-                Settings::Get().treeScale, Settings::Get().treeMarkScale));
-        }
-
-        // After a redraw the tooltip's node must still be drawn and where it was (a click recentres the tree; the node under the
-        // mouse is then another one until the mouse moves): else nothing is hovered (spec v10 T6)
-        void RecheckHover(const std::optional<std::pair<double, double>>& a_before)
-        {
-            constexpr double kSamePlace = 0.5;
-            const auto it = std::ranges::find_if(g_menu.drawn, [](const TreeData::PlacedNode& a_placed) { return a_placed.index == g_menu.hovered; });
-            if (!a_before || it == g_menu.drawn.end() || std::abs(it->sx - a_before->first) > kSamePlace ||
-                std::abs(it->sy - a_before->second) > kSamePlace) {
-                g_menu.hovered = -1;
-            }
-            g_menu.tooltipDue = true;
-        }
-
-        // review v11 #10: a redraw can put another mark (or none) under a still mouse without a roll-out, so each frame while a
-        // node is hovered its hit area is tested at the mouse (one hitTest, only while hovering); off it, the hover, its outline
-        // and (through RedrawTooltip) the tooltip go
-        void DropStaleHover(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
-        {
-            if (g_menu.hovered < 0) return;
-            auto panel = BlockClip(a_widget, Layout::kTree);
-            auto content = panel.IsDisplayObject() ? Child(panel, "content") : RE::GFxValue{};
-            const auto name = std::format("n{}", g_menu.hovered);
-            auto clip = content.IsDisplayObject() ? Child(content, name.c_str()) : RE::GFxValue{};
-            auto hit = clip.IsDisplayObject() ? Child(clip, "hit") : RE::GFxValue{};
-            RE::GFxValue x, y, result;
-            if (!hit.IsDisplayObject() || !a_movie->GetVariable(&x, "_root._xmouse") || !x.IsNumber() ||
-                !a_movie->GetVariable(&y, "_root._ymouse") || !y.IsNumber()) {
-                return;
-            }
-            std::array<RE::GFxValue, 3> args{ x, y, RE::GFxValue(true) };  // shapeFlag: the mark's polygon, not its box
-            if (!hit.Invoke("hitTest", &result, args.data(), args.size()) || !result.IsBool() || result.GetBool()) return;
-            ShowFocus(clip, false);
-            g_menu.hovered = -1;
-        }
-
-        void RedrawTree(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const Spells::Snapshot& a_snapshot)
-        {
-            const auto started = std::chrono::steady_clock::now();  // the redraw's time goes in its log line (GPT design review #7)
-            std::optional<std::pair<double, double>> hoveredAt;  // the hovered node's place before this redraw
-            for (const auto& placed : g_menu.drawn) {
-                if (placed.index == g_menu.hovered) hoveredAt = { placed.sx, placed.sy };
-            }
-            g_menu.shown.clear();
-            g_menu.drawn.clear();
-            auto content = Content(a_widget, Layout::kTree);
-            if (!content.IsDisplayObject()) {
-                RecheckHover(hoveredAt);
-                return;
-            }
-            const auto& settings = Settings::Get();
-            const auto treeRect = BlockRect(Layout::kTree);
-            // the tree window keeps its ini height in every state (user 2026-10-30: "트리창도 자동세로 줄이기 기능의 대상에서 빼자"):
-            // its drawing centred in its body, as before the blocks fitted their content
-            const auto frame = Settings::TreeContent(treeRect);
-            g_menu.treeOrigin = { frame.cx, frame.cy };
-            content.SetMember("_x", frame.cx);
-            content.SetMember("_y", frame.cy);
-            // T7.1: a list selection without a tree node keeps the previous centre (design), drawn dimmed so it is not taken for
-            // the selection's tree; the note goes in a clip of its own over the content, at full strength
-            content.SetMember("_alpha", g_menu.notInTree ? kDimTreeAlpha : Draw::kAlphaFull);
-            auto treePanel = BlockClip(a_widget, Layout::kTree);
-            if (treePanel.IsDisplayObject()) Draw::Remove(treePanel, "overlay");
-            if (g_menu.notInTree && treePanel.IsDisplayObject()) {
-                auto overlay = Draw::Clip(treePanel, "overlay");
-                // in the title strip, right of the title: the reading size as far as the strip's height allows
-                const auto text = Text(Str::kTreeNotInTree);
-                const auto note = overlay.IsDisplayObject() ?
-                                      TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, overlay, "note", kPad, kPad / 2, treeRect.Width() - 2 * kPad,
-                                          std::min(TextFit::Size(Metrics(), kNoteSize), (kTitleH - kGutter) / g_menu.lineFirst), text, kDimText, "right") :
-                                      RE::GFxValue{};
-                TextFit::Q2State(g_menu.textLog, SelfTest, Key(Str::kTreeNotInTree), text, &note);
-            }
-            if (auto legend = treePanel.IsDisplayObject() ? Child(treePanel, "legend") : RE::GFxValue{}; legend.IsDisplayObject()) {
-                legend.SetMember("_visible", g_menu.chosen);  // review I9: no legend for an empty window
-            }
-            if (BlockRules::EmptyLookOf(Layout::kTree, !g_menu.chosen, false) == BlockRules::EmptyLook::kLineCentred) {
-                // user 2026-10-30 (the board): nothing chosen - the window keeps its size, one dim line in its middle (the
-                // last school's legend and the not-in-tree note go - review I9)
-                if (treePanel.IsDisplayObject()) Draw::Remove(treePanel, "overlay");
-                const double size = TextFit::Size(Metrics(), kRowSize);
-                TextFit::FitLines(Metrics(), g_menu.textLog, a_movie, content, "empty", -frame.halfW, -TextFit::FieldH(Metrics(), size) / 2, std::max(0.0, 2 * frame.halfW), size, 1, Text(Str::kEmptyChoose), kDimText,
-                    "center");
-                RecheckHover(hoveredAt);
-                return;
-            }
-            if (!Spells::Get() || g_session.centre < 0) {
-                const Str id = Spells::Get() ? Str::kTreeNoCentre : Str::kTreeNoTree;
-                const double size = TextFit::Size(Metrics(), kRowSize);
-                const auto empty = TextFit::FitLines(Metrics(), g_menu.textLog, a_movie, content, "empty", -frame.halfW, -TextFit::FieldH(Metrics(), size), std::max(0.0, 2 * frame.halfW), size, 2,
-                    Text(id), kDimText, "center");
-                TextFit::Q2State(g_menu.textLog, SelfTest, Key(id), Text(id), &empty);
-                RecheckHover(hoveredAt);
-                return;
-            }
-            const auto& centre = Data().tree.nodes[g_session.centre];
-            const auto style = CurrentStyle();
-            // the legend in the centre's school shape and colour (T18), drawn again when the school changes
-            if (treePanel.IsDisplayObject() && g_menu.legendSchool != centre.school) {
-                DrawLegend(a_movie, treePanel, treeRect.Width(), treeRect.Height(), centre.school);
-            }
-            if (!style->SchoolShown(centre.school)) {
-                // T17: HoM's schoolVisibility hides this school - nothing of it is drawn
-                const double size = TextFit::Size(Metrics(), kRowSize);
-                const auto empty = TextFit::FitLines(Metrics(), g_menu.textLog, a_movie, content, "empty", -frame.halfW, -TextFit::FieldH(Metrics(), size), std::max(0.0, 2 * frame.halfW), size, 2,
-                    Text(Str::kTreeNoCentre), kDimText, "center");
-                TextFit::Q2State(g_menu.textLog, SelfTest, "tree_school_hidden", std::format("{} - \"{}\"", centre.school, Text(Str::kTreeNoCentre)), &empty);
-                if (g_menu.textLog.cut.insert("hidden|" + centre.school).second) {
-                    logger::info("Widget: tree - school {} is hidden by Heart of Magic's schoolVisibility: nothing of it drawn", centre.school);
-                }
-                RecheckHover(hoveredAt);
-                return;
-            }
-            const double scale = MarkScale();
-            const double maxReach = HomStyle::MaxReach(scale, style->tree.availableRing, settings.treeScale);
-            // the learning target of the centre's school (kept under the cap, its path drawn: spec v10 T3, T8)
-            const int target = Spells::FindNode(a_snapshot.Target(centre.school), centre.school);
-            TreeData::View view;
-            view.scale = settings.treeScale;  // HoM's saved x/y, not turned (spec v11 T10 / R12)
-            view.halfW = frame.halfW;
-            view.halfH = frame.halfH;
-            view.margin = maxReach;  // a node's whole mark inside the window
-            view.maxSteps = settings.maxSteps;
-            view.maxNodes = settings.maxNodes;
-            for (const int keep : { g_menu.selected, target }) {
-                if (keep >= 0 && keep != g_session.centre) view.keep.push_back(keep);
-            }
-            const auto window = TreeData::Query(Data().tree, g_session.centre, view);
-            const auto fullList = TreeData::StructuralNeighbours(Data().tree, g_session.centre);
-            const std::unordered_set<int> full(fullList.begin(), fullList.end());
-            const auto path = target >= 0 && target != g_session.centre ? TreeData::StructuralPath(Data().tree, g_session.centre, target) :
-                                                                         std::vector<int>{};
-            std::set<std::pair<int, int>> pathLinks;
-            for (std::size_t i = 1; i < path.size(); ++i) pathLinks.insert(std::minmax(path[i - 1], path[i]));
-            const std::unordered_set<int> pathNodes(path.begin(), path.end());
-
-            std::vector<TreeNode> nodes;
-            for (const auto& placed : window.nodes) {
-                const auto look = Spells::LookOf(a_snapshot, placed.index);
-                const bool clickable = placed.steps >= 0 || Shown(look.state);
-                TreeNode node{ placed, look, HomStyle::DisplayOf(BehaviourOf(look.state), placed.index == target), clickable, full.contains(placed.index) };
-                node.onPath = pathNodes.contains(placed.index);
-                nodes.push_back(node);
-                g_menu.drawn.push_back(placed);
-                if (clickable) g_menu.shown.push_back(placed);
-            }
-            // keep the clicked node only while it is drawn and clickable
-            if (g_menu.selected >= 0 &&
-                std::ranges::none_of(g_menu.shown, [](const TreeData::PlacedNode& a_placed) { return a_placed.index == g_menu.selected; })) {
-                g_menu.selected = -1;
-            }
-            // before the marks are drawn: a hovered node that moved is no longer hovered, so its outline is drawn hidden (R6)
-            RecheckHover(hoveredAt);
-            int fullCount = 0;
-            for (auto& node : nodes) {
-                const auto& data = Data().tree.nodes[node.placed.index];
-                // the focus look on the clicked spell, else on the centre (then the spell chosen in the list is the selection)
-                node.focus = node.placed.index == (g_menu.selected >= 0 ? g_menu.selected : g_session.centre);
-                node.reach = HomStyle::Reach(HomStyle::SizeOf(node.display, style->Mystery(), data.skillLevel, data.tier, node.focus, style->tree.availableRing),
-                    data.school, scale, settings.treeScale);
-                fullCount += node.full ? 1 : 0;
-            }
-
-            std::unordered_map<int, const TreeNode*> byIndex;
-            for (const auto& node : nodes) byIndex.emplace(node.placed.index, &node);
-            const auto edges = DrawEdges(content, window, byIndex, pathLinks, target, *style);
-            // the marks over the links: the dimmed ones first, then the full ones, the selected one last (HoM draws the selected
-            // and hovered spells after the rest)
-            std::vector<std::size_t> drawOrder(nodes.size());
-            for (std::size_t i = 0; i < drawOrder.size(); ++i) drawOrder[i] = i;
-            std::ranges::stable_sort(drawOrder, {}, [&](std::size_t a_i) { return (nodes[a_i].full ? 1 : 0) + (nodes[a_i].focus ? 2 : 0); });
-            for (const auto i : drawOrder) nodes[i].clip = DrawNode(a_movie, content, nodes[i], *style);
-            CheckSpacing(nodes);
-
-            std::vector<LabelBox> labels;  // every drawn mark first: no label over a node
-            for (const auto& node : nodes) labels.push_back(NodeBox(node));
-            // then every drawn link, so a label keeps off a line too (review v10), half its width each side
-            for (const auto& line : edges.lines) {
-                const auto link = LayoutMath::LinkBoxes(line.ax, line.ay, line.bx, line.by, maxReach, kLinkBoxStep, line.width / 2);
-                labels.insert(labels.end(), link.begin(), link.end());
-            }
-            {
-                // and no label on the legend strip (DrawLegend's row at its size), which the window's clamp alone can graze
-                // (review round 1 #5)
-                const double legendMid = treeRect.Height() - Settings::kTreeLegendH / 2 - kPad / 2 - frame.cy;
-                const double legendHalf = TextFit::FieldH(Metrics(), kLegendSize) / 2;
-                labels.push_back({ -frame.halfW - kPad, legendMid - legendHalf, frame.halfW + kPad, legendMid + legendHalf });
-            }
-            // The badges first (build 6 review round 2 #1): their arrows and texts go into `labels` before any node label, so the
-            // labels keep off them. The centre's direct neighbours outside the window (spec v10 T7); the ones inside it over the
-            // cap, without x/y or of another school are only logged
-            const auto badges = LayoutMath::Badges(window.outside);
-            const bool noLinks = Data().tree.adjacent[g_session.centre].empty();
-            bool badgesDrawn = false;
-            if (badges.total > 0) {
-                badgesDrawn = DrawBadges(a_movie, content, badges, frame, labels);
-                if (badgesDrawn) {
-                    TextFit::Q2State(g_menu.textLog, SelfTest, Key(Str::kTreeExit), Fill(Str::kTreeExit, { { "{n}", std::to_string(badges.total) } }));
-                } else if (g_menu.textLog.cut.insert("exits|no room").second) {
-                    logger::info("Widget: {} tree badges not drawn - the tree window ({:.0f} x {:.0f} inside) has no room for them", badges.total,
-                        2 * frame.halfW, 2 * frame.halfH);
-                }
-            } else if (noLinks) {
-                const double size = TextFit::Size(Metrics(), kNoteSize), top = frame.halfH - TextFit::FieldH(Metrics(), size);
-                const auto note = TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, content, "nolinks", -frame.halfW, top, std::max(0.0, 2 * frame.halfW), size,
-                    Text(Str::kTreeNoLinks), kDimText, "center");
-                labels.push_back({ -frame.halfW, top, frame.halfW, top + TextFit::FieldH(Metrics(), size) });
-                TextFit::Q2State(g_menu.textLog, SelfTest, Key(Str::kTreeNoLinks), Text(Str::kTreeNoLinks), &note);
-            }
-
-            // Labels in rank order, each only at a clear place (spec v10 T5); none at all when HoM's showNodeNames is off (T15)
-            std::vector<std::size_t> order(nodes.size());
-            for (std::size_t i = 0; i < order.size(); ++i) order[i] = i;
-            std::ranges::stable_sort(order, [&](std::size_t a_lhs, std::size_t a_rhs) {
-                return LabelRank(nodes[a_lhs], target) < LabelRank(nodes[a_rhs], target);
-            });
-            int labelsDrawn = 0, labelsDropped = 0, labelsNone = 0;
-            KeptPlace centreSide, selectedSide, targetSide;
-            for (const auto i : style->showNodeNames ? order : std::vector<std::size_t>{}) {
-                auto& node = nodes[i];
-                if (!node.clip.IsDisplayObject()) continue;
-                const int index = node.placed.index;
-                const bool defaultLeft = index != g_session.centre && node.placed.sx > 0;
-                const auto side = PlaceNodeLabel(a_movie, node, defaultLeft, LabelRank(node, target) <= kKeptRank ? kKeptFarSteps : 0, frame,
-                    *style, labels);
-                ++(side.none ? labelsNone : side.drawn ? labelsDrawn : labelsDropped);
-                if (index == g_session.centre) {
-                    centreSide = side;
-                } else if (index == g_menu.selected) {
-                    selectedSide = side;
-                } else if (index == target) {
-                    targetSide = side;
-                }
-            }
-            if (const auto hidden = std::ranges::find_if(nodes, [&](const TreeNode& a_node) {
-                    return HomStyle::Reveal(a_node.display, a_node.look.percent, style->revealName, style->cheatMode) == HomStyle::Name::kHidden;
-                });
-                hidden != nodes.end() && style->showNodeNames) {
-                TextFit::Q2State(g_menu.textLog, SelfTest, "tree_name_hidden", std::format("{} - \"{}\" ({:.0f}% under revealName {})", Spells::NodeName(hidden->placed.index),
-                    HomStyle::kHiddenName, hidden->look.percent, style->revealName));
-            }
-            const auto labelNote = [](const char* a_what, const KeptPlace& a_side) {
-                return a_side.none  ? std::format(", {} label none (HoM shows no name)", a_what) :
-                       a_side.drawn ? std::format(", {} label {} (overlap at its side {:.1f})", a_what, PlaceName(a_side.place), a_side.firstOverlap) :
-                                      std::format(", {} label dropped (least overlap {:.1f})", a_what, a_side.overlap);
-            };
-            const bool selectedApart = g_menu.selected >= 0 && g_menu.selected != g_session.centre;
-            const bool targetApart = target >= 0 && target != g_session.centre && target != g_menu.selected;
-            const auto clickable = std::ranges::count_if(nodes, [](const TreeNode& a_node) { return a_node.clickable; });
-            logger::info("Widget: tree redraw centre {} {:08X} ({}), scale {} marks x{} (HoM sizes x {:.3f}, preset {}): in window {} -> drawn {} "
-                         "({} clickable; full {} / dim {} at x{}), capped {}; links dim {} locked {} frontier {} learned {} centre's {} path {} "
-                         "chains {} (not drawn: {}); outside {} -> badges {} (centre's neighbours apart: {} capped, {} without x/y, {} other "
-                         "school){}; labels {} drawn / {} dropped / {} none{}{}{}{}; target {}, path {} node(s), snapshot {}, {:.1f} ms",
-                Spells::NodeName(g_session.centre), Data().gameIds[g_session.centre], centre.school, view.scale, settings.treeMarkScale, scale,
-                style->presetFile.empty() ? "DEFAULTS" : style->presetId, window.candidatesBeforeCap, nodes.size(), clickable, fullCount,
-                nodes.size() - static_cast<std::size_t>(fullCount), style->DimFactor(), window.candidatesBeforeCap - static_cast<int>(nodes.size()),
-                edges.dim, edges.locked, edges.frontier, edges.unlocked, edges.selected, edges.learning, edges.chains, edges.hidden,
-                window.outside.size(), badgesDrawn ? "drawn" : badges.total > 0 ? "no room" : "none", window.neighboursCapped, window.neighboursNoXY,
-                window.neighboursOtherSchool, noLinks ? ", no links" : "", labelsDrawn, labelsDropped, labelsNone,
-                style->showNodeNames ? "" : " (showNodeNames off)", labelNote("centre", centreSide),
-                selectedApart ? labelNote("selected", selectedSide) : std::string{}, targetApart ? labelNote("target", targetSide) : std::string{},
-                target >= 0 ? Spells::NodeName(target) : std::string("none"), path.size(), a_snapshot.epoch,
-                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count());
-            if (g_menu.notInTree) logger::info("Widget: tree drawn dimmed to {:.0f}% (the selection is not in the tree)", kDimTreeAlpha);
-            RecheckHover(hoveredAt);
-        }
-
-        // ---------------------------------------------------------------------
-        // Progress card
-        // ---------------------------------------------------------------------
-
-        // A line of text with the table entry it came from (its key names the Q2 state in the log)
-        struct Line
-        {
-            Str id;
-            std::string text;
-        };
-
-        // What to do next in the active school (Q2), from its numbers: the line in place of the learning target when there is
-        // none, and the line under the target when there is one. Precedence: candidates (counted exactly as the next-learnable
-        // key walks them), learnable spells without a tree position, spells at full XP not learned yet, spells learned early
-        // and not mastered, locked spells (prerequisites missing), spells of unknown state, every spell mastered.
-        Line NextStepLine(const SchoolInfo& a_info, bool a_hasTarget)
-        {
-            const auto& t = a_info.tally;
-            const auto count = [](int a_n) { return std::to_string(a_n); };
-            if (t.candidates > 0) {
-                const Str id = a_hasTarget ? Str::kProgressCandidates : Str::kProgressNoneCandidates;
-                return { id, Fill(id, { { "{n}", count(t.candidates) }, { "{key}", KeyLabel(Settings::Get().keyNext) } }) };
-            }
-            if (t.available > 0) return { Str::kProgressCandidatesNoXY, Fill(Str::kProgressCandidatesNoXY, { { "{n}", count(t.available) } }) };
-            if (t.ready > 0) return { Str::kProgressReady, Fill(Str::kProgressReady, { { "{n}", count(t.ready) } }) };
-            if (t.learning > 0) return { Str::kProgressLearningEarly, Fill(Str::kProgressLearningEarly, { { "{n}", count(t.learning) } }) };
-            if (t.locked > 0) return { Str::kProgressNoneNothing, Text(Str::kProgressNoneNothing) };
-            if (t.unknown > 0) return { Str::kProgressUnknown, Fill(Str::kProgressUnknown, { { "{n}", count(t.unknown) } }) };
-            if (a_hasTarget) return { Str::kProgressNoOther, Text(Str::kProgressNoOther) };
-            if (t.mastered > 0) return { Str::kProgressAllMastered, Text(Str::kProgressAllMastered) };
-            return { Str::kProgressNoSchoolTree, Fill(Str::kProgressNoSchoolTree, { { "{school}", SchoolText(a_info.school) } }) };
-        }
-
-        // The progress card's lines, laid out top-down in its FULL height (user 2026-10-30: the rooms never depend on its fitted
-        // height); the height they need, nullopt when nothing was drawn (no school: the card keeps its height and is hidden)
-        std::optional<double> DrawProgress(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const Spells::Snapshot& a_snapshot)
-        {
-            auto content = Content(a_widget, Layout::kProgress);
-            g_menu.rowAligned = false;
-            g_menu.rowAlignNote = "no progress card";
-            if (g_session.school.empty() || !content.IsDisplayObject()) return std::nullopt;
-            const auto rect = BlockRect(Layout::kProgress);
-            const double fullH = FullHeight(Layout::kProgress);
-            const double w = rect.Width() - 2 * kPad;
-            content.SetMember("_x", kPad);
-
-            const double titleSize = TextFit::Size(Metrics(), kSchoolSize), hintSize = TextFit::Size(Metrics(), kHintSize), bottom = fullH - kCardBottom;
-            // Row 2 (spec v6 L2): the school title's baseline on the node card name's. Both start kCardTop below their card's top
-            // in the same font, so the title moves down by the tops' difference plus the ascent's difference of the two sizes
-            // (the size-14 title under a size-19 name: about 4.5). Applied only when that lands within one title size; a card
-            // layout whose tops are far apart is not aligned.
-            const auto nodeCard = BlockRect(Layout::kNodeCard);
-            const double shift = nodeCard.top - rect.top + g_menu.ascent * (kNameSize - titleSize);
-            double offset = shift >= 0 && shift <= titleSize ? shift : 0.0;
-            // final review 2: once per state this menu (the shift moves with every fitted tree height)
-            const char* l2State = shift == 0 || (shift > 0 && shift <= titleSize) ? "aligned" : shift < 0 ? "above" : "apart";
-            if (g_menu.textLog.cut.insert(std::string("l2|") + l2State).second) {
-                logger::info("Widget: L2 progress card first line (size {:.1f}) {} - node card name size {:.0f}, ascent {:.3f} of the size ({}), card "
-                             "tops {:.0f} / {:.0f}",
-                    titleSize, offset > 0 || shift == 0 ? std::format("moved down {:.2f} to the name's baseline", offset) :
-                                                          std::format("not aligned (it would move {:.2f})", shift),
-                    kNameSize, g_menu.ascent, g_menu.ascentMeasured ? "measured" : "NOT measured, frame value", rect.top, nodeCard.top);
-            }
-            g_menu.rowAligned = offset > 0 || shift == 0;
-            // user 2026-10-30: with the blocks fitting their content the node card usually sits higher than the progress card (the
-            // tree above it shrinks), so row 2 is not aligned then - kept off by design (review R6)
-            g_menu.rowAlignNote = g_menu.rowAligned ? "" : shift < 0 ? "the node card sits higher than the progress card (blocks fit their content)" :
-                                                                       "the card tops are too far apart";
-            auto title = TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, content, "school", 0, kCardTop + offset, w, titleSize,
-                Fill(Str::kProgressTitle, { { "{school}", SchoolText(g_session.school) } }), kTitleColor);
-            double y = kCardTop + offset + TextFit::FieldH(Metrics(), titleSize);
-            // The alignment gives way when what follows would not fit even at kMinFitSize (review round 1 #2: the last line
-            // shrinks first): the title goes back up (logged once per menu)
-            const auto giveUpOffset = [&](double a_left, const char* a_what) {
-                title.SetMember("_y", kCardTop);
-                g_menu.rowAligned = false;
-                g_menu.rowAlignNote = "the offset gave way (no room)";
-                if (g_menu.textLog.cut.insert("progress|l2").second) {
-                    logger::info("Widget: L2 progress card drops its baseline offset {:.2f} - {} does not fit even at size {:.0f} ({:.1f} left "
-                                 "under the title)",
-                        offset, a_what, kMinFitSize, a_left);
-                }
-                offset = 0.0;
-            };
-            const auto dropOffset = [&](double a_need, const char* a_what) {
-                if (offset <= 0 || y + a_need <= bottom || !title.IsDisplayObject()) return;
-                const double left = bottom - y;
-                y -= offset;
-                giveUpOffset(left, a_what);
-            };
-            const auto dropTitle = [&](double a_need, const char* a_what) {
-                title.Invoke("removeTextField");
-                title = RE::GFxValue{};
-                g_menu.rowAligned = false;
-                g_menu.rowAlignNote = "the school title gave way";
-                if (g_menu.textLog.cut.insert("progress|title").second) {
-                    logger::info("Widget: Q4 progress card drops its school title - {} needs {:.1f} of the card's {:.1f}", a_what, a_need, bottom - kCardTop);
-                }
-            };
-            // Nothing is drawn past the card (review round 2 #1: with a tall font and large list rows even size 8 ended at 106 of
-            // 102): when what has to follow does not fit under the school title, the title goes; an optional last line that does
-            // not fit at kMinFitSize is left out. Both logged once per menu.
-            const auto makeRoom = [&](double a_need, const char* a_what) {
-                dropOffset(a_need, a_what);
-                if (y + a_need <= bottom || !title.IsDisplayObject()) return;
-                dropTitle(a_need, a_what);
-                y = kCardTop;
-            };
-            // no learning target to show: one line (up to two rows) that says what to do, in place of the target and its bar,
-            // smaller (one row when two do not fit) when the card has no room for it at the reading size (review round 1 #4);
-            // the baseline offset gives way only when the message does not fit even at kMinFitSize (makeRoom)
-            const auto message = [&](const Line& a_line) {
-                makeRoom(TextFit::FieldH(Metrics(), kMinFitSize), "the message");
-                int lines = kMessageLines;
-                double size = TextFit::SizeFor(Metrics(), g_menu.textLog, hintSize, lines, bottom - y, nullptr);
-                if (TextFit::FieldH(Metrics(), size, lines) > bottom - y) {
-                    lines = 1;
-                    size = TextFit::SizeFor(Metrics(), g_menu.textLog, hintSize, lines, bottom - y, "progress message");
-                }
-                const auto field = TextFit::FitLines(Metrics(), g_menu.textLog, a_movie, content, "message", 0, y, w, size, lines, a_line.text, kWhite);
-                TextFit::Q2State(g_menu.textLog, SelfTest, Key(a_line.id), a_line.text, &field);
-                // the lines the text took (one short message: one line), not the field's two
-                const int used = field.IsDisplayObject() ? std::clamp(TextFit::TextLines(Metrics(), field, size), 1, lines) : lines;
-                return y + TextFit::FieldH(Metrics(), size, used) + kCardBottom;
-            };
-            if (!Spells::Get()) return message({ Str::kProgressNoTree, Text(Str::kProgressNoTree) });
-            // the widget is attached only once HoM's API is there, so this is a guard (review round 1 #3)
-            if (!Hom::Ready()) return message({ Str::kProgressNoHom, Text(Str::kProgressNoHom) });
-            if (!Spells::SchoolNamed(g_session.school)) {
-                return message({ Str::kProgressNoSchoolTree, Fill(Str::kProgressNoSchoolTree, { { "{school}", SchoolText(g_session.school) } }) });
-            }
-            // "loading" only while no snapshot has had the school for less than kNoDataFrames frames (a refresh for it is asked
-            // for every kPollFrames frames); after that the card says the data did not arrive (WatchSnapshotCover)
-            const auto it = a_snapshot.schools.find(g_session.school);
-            if (it == a_snapshot.schools.end()) {
-                return message(g_menu.noData ? Line{ Str::kProgressNoData, Text(Str::kProgressNoData) } :
-                                               Line{ Str::kProgressNotReady, Text(Str::kProgressNotReady) });
-            }
-            const auto& info = SchoolInfoOf(a_snapshot);
-            const auto& state = it->second;
-            if (!state.target) return message(NextStepLine(info, false));
-
-            // the learning target: name and share, the bar with its XP, and the next step under it
-            const int targetNode = Spells::FindNode(state.target, g_session.school);
-            const auto* form = RE::TESForm::LookupByID(state.target);
-            const std::string name = targetNode >= 0           ? Spells::NodeName(targetNode) :
-                                     form && form->GetName()   ? std::string(form->GetName()) :
-                                                                 std::format("{:08X}", state.target);
-            const auto pct = std::format("{:.0f}", state.percent);
-            // where each line goes and what gives way (LayoutMath::PlanProgress: the hint shrinks, then the offset goes, then the
-            // hint, then the title; the same function tools/magic-menu-preview-check runs)
-            const LayoutMath::ProgressIn planIn{ fullH, kCardTop, kCardBottom, titleSize, kTargetSize, kXpSize, kBarH, hintSize, kMinFitSize, kFitStep, offset };
-            const auto plan = LayoutMath::PlanProgress(TextFit::LayoutMetrics(Metrics()), planIn);
-            if (plan.offsetDropped && title.IsDisplayObject()) giveUpOffset(bottom - (kCardTop + offset + TextFit::FieldH(Metrics(), titleSize)), "the next step");
-            if (!plan.title && title.IsDisplayObject()) dropTitle(plan.targetH + plan.barRowH, "the learning target and its bar");
-            const double targetH = plan.targetH, barRowH = plan.barRowH, xpH = TextFit::FieldH(Metrics(), kXpSize);
-            y = plan.targetY;
-            auto target = Draw::Text(a_movie, content, "target", 0, y, w, targetH, "", kWhite, kTargetSize);
-            const auto compose = [&](const std::string& a_name) { return Fill(Str::kProgressTarget, { { "{spell}", a_name }, { "{pct}", pct } }); };
-            if (target.IsDisplayObject()) TextFit::FitText(Metrics(), g_menu.textLog, a_movie, target, w, kTargetSize, 1, name, compose);
-            TextFit::Q2State(g_menu.textLog, SelfTest, Key(Str::kProgressTarget), compose(name), &target);
-            y = plan.barRowY;
-
-            const double barW = std::max(0.0, w - kXpW - kPad), barY = y + (barRowH - kBarH) / 2;
-            Draw::NoLine(content);
-            Draw::Rect(content, 0, barY, barW, kBarH, kBarBack, Draw::kAlphaFull);
-            if (state.percent > 0) {
-                Draw::Rect(content, 0, barY, barW * std::clamp(state.percent / 100.0, 0.0, 1.0), kBarH, kTitleColor, Draw::kAlphaFull);
-            }
-            const auto xp = Fill(Str::kXp, { { "{cur}", std::format("{:.0f}", state.required * state.percent / 100.0f) },
-                                               { "{need}", std::format("{:.0f}", state.required) } });
-            TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, content, "xp", barW + kPad, y + (barRowH - xpH) / 2, kXpW, kXpSize, xp, kWhite, "right");
-            y = plan.hintY;
-            // the list's spell has no tree node: said here instead of the next step (the tree window says it too)
-            const Line next = g_menu.notInTree ? Line{ Str::kProgressNotInTree, Text(Str::kProgressNotInTree) } : NextStepLine(info, true);
-            if (!plan.hint) {
-                if (g_menu.textLog.cut.insert("progress|hint").second) {
-                    logger::info("Widget: Q4 progress card leaves out its last line '{}' - {:.1f} left, it needs {:.1f} even at size {:.0f}",
-                        next.text, bottom - y, TextFit::FieldH(Metrics(), kMinFitSize), kMinFitSize);
-                }
-                const RE::GFxValue none;
-                TextFit::Q2State(g_menu.textLog, SelfTest, Key(next.id), next.text, &none);  // logged as "(no field)": the state was reached, its line not shown
-                return LayoutMath::ProgressNeeded(TextFit::LayoutMetrics(Metrics()), planIn, plan);
-            }
-            if (plan.hintSize < hintSize && g_menu.textLog.cut.insert(std::format("progress|hint {:.1f}", plan.hintSize)).second) {
-                logger::info("Widget: Q4 progress card hint at size {:.1f} (reading size {:.1f}) - {:.1f} left under the bar{}", plan.hintSize, hintSize,
-                    bottom - y, offset > 0 ? std::format(", the L2 offset {:.2f} kept", offset) : std::string{});
-            }
-            const auto hint = TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, content, "hint", 0, y, w, plan.hintSize, next.text, kLabelColor);
-            TextFit::Q2State(g_menu.textLog, SelfTest, Key(next.id), next.text, &hint);
-            return LayoutMath::ProgressNeeded(TextFit::LayoutMetrics(Metrics()), planIn, plan);
-        }
-
-        // user 2026-10-30: the card fits its lines and bar (FitBlock: the blocks under it move up this frame)
-        void RedrawProgress(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const Spells::Snapshot& a_snapshot)
-        {
-            if (const auto needed = DrawProgress(a_movie, a_widget, a_snapshot)) FitBlock(a_movie, a_widget, Layout::kProgress, *needed);
-        }
-
-        // ---------------------------------------------------------------------
-        // Node card (always shown; 2026-10-24 user layout, mockup v8)
-        // ---------------------------------------------------------------------
-
-        // The node card's state words; on the button a target says only that it is the target
-        Line StateLine(State a_state, float a_percent, bool a_button)
-        {
-            const auto pct = std::format("{:.0f}", a_percent);
-            switch (a_state) {
-            case State::kTarget:
-                return a_button ? Line{ Str::kNodeIsTarget, Text(Str::kNodeIsTarget) } :
-                                  Line{ Str::kNodeTargetPct, Fill(Str::kNodeTargetPct, { { "{pct}", pct } }) };
-            case State::kLearning: return { Str::kNodeLearningPct, Fill(Str::kNodeLearningPct, { { "{pct}", pct } }) };
-            case State::kAvailable: return { Str::kNodeCanLearn, Text(Str::kNodeCanLearn) };
-            case State::kReady: return { Str::kNodeReady, Text(Str::kNodeReady) };
-            case State::kMastered: return { Str::kNodeMastered, Text(Str::kNodeMastered) };
-            case State::kLocked: return { Str::kNodeLocked, Text(Str::kNodeLocked) };
-            default: return { Str::kNodeUnknown, Text(Str::kNodeUnknown) };
-            }
-        }
-
-        // ---------------------------------------------------------------------
-        // Tree tooltip (spec v10 T6)
-        // ---------------------------------------------------------------------
-
-        // The hovered node's name, school and level, and state (the node card's words) in a box beside its mark, inside the tree
-        // panel. Its own clip on the tree panel, over the content: made again after each tree redraw, so it stays on top, and not
-        // dimmed with a tree that is not the selection's (T7.1); hidden with the panel. Drawn only when the hovered node changes
-        // or the tree was drawn again; it never marks the tree dirty.
-        void RedrawTooltip(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const Spells::Snapshot& a_snapshot)
-        {
-            const int hovered = g_menu.layout.active ? -1 : g_menu.hovered;  // Task 4: no tooltip in the layout mode
-            // review round 2: the tooltip is a sibling of the tree's panel, so a tree moved by any Rearrange (an add-on's height
-            // request above it, a fit, a tab) or a scroll draws it again here - every frame passes this check
-            const auto treeNow = BlockRect(Layout::kTree);
-            if (hovered == g_menu.tooltipFor && !g_menu.tooltipDue && SameRect(treeNow, g_menu.tooltipTree)) return;
-            g_menu.tooltipTree = treeNow;
-            g_menu.tooltipDue = false;
-            g_menu.tooltipFor = -1;
-            // review R3: the tooltip is a clip of the tree's column (above every panel in it), so it is never under a neighbouring
-            // panel and the column's viewport clamp below can keep it in sight; removed from both columns (the tree may have moved)
-            for (const char* columnName : kColumnClips) {
-                if (auto column = Child(a_widget, columnName); column.IsDisplayObject()) Draw::Remove(column, kTooltipName);
-            }
-            auto panel = BlockClip(a_widget, Layout::kTree);
-            auto parent = BlockParent(a_widget, Layout::kTree);
-            if (!panel.IsDisplayObject() || !parent.IsDisplayObject() || !BlockShown(Layout::kTree)) return;
-            const auto it = std::ranges::find_if(g_menu.drawn, [&](const TreeData::PlacedNode& a_placed) { return a_placed.index == hovered; });
-            if (hovered < 0 || !Spells::Get() || it == g_menu.drawn.end()) return;
-            g_menu.tooltipFor = hovered;
-            const auto rect = BlockRect(Layout::kTree);
-            const auto [originX, originY] = g_menu.treeOrigin;  // where RedrawTree put the drawing's 0,0 (the body's centre)
-            const auto& node = Data().tree.nodes[hovered];
-            const auto look = Spells::LookOf(a_snapshot, hovered);
-            const auto school = SchoolText(node.school);
-            const auto level = LevelName(node.skillLevel);
-            // the name by HoM's reveal rule (spec v11 T16): "???" for a locked spell and for one HoM shows as "???"; the school,
-            // level and state lines stay
-            const auto style = CurrentStyle();
-            const std::array<std::pair<std::string, std::uint32_t>, 3> lines{ {
-                { ShownName(hovered, a_snapshot), kWhite },
-                { level.empty() ? school : Fill(Str::kNodeSub, { { "{school}", school }, { "{level}", level } }), kTitleColor },
-                { StateLine(look.state, look.percent, false).text, kLabelColor },
-            } };
-            const double size = TextFit::Size(Metrics(), kLabelSize), lineH = TextFit::FieldH(Metrics(), size);
-            const double w = std::min(kTooltipW, rect.Width() - 2 * kPad), h = static_cast<double>(lines.size()) * lineH + 2 * kTooltipPad;
-            // right of the mark, else left of it, centred on its height; with room on neither side (review v10: the centre node of a
-            // 260-wide tree, whose clamped tooltip covered it) above it, else below it, centred on it. Inside the panel (below the
-            // title, within the padding)
-            const double nx = originX + it->sx, ny = originY + it->sy, off = HomStyle::MaxReach(MarkScale(), style->tree.availableRing, Settings::Get().treeScale) + kTooltipGap;
-            double x = nx + off, y = ny - h / 2;
-            if (x + w > rect.Width() - kPad) x = nx - off - w;
-            if (x < kPad) {
-                x = nx - w / 2;
-                y = ny - off - h >= kTitleH ? ny - off - h : ny + off;
-            }
-            x = std::clamp(x, kPad, std::max(kPad, rect.Width() - kPad - w));
-            // inside the tree window (its ini height: it does not fit its content) and inside the column's visible part (review
-            // round 2: the column mask would cut it), above its node when it would run past the visible bottom
-            const auto column = ColumnOf(Layout::kTree);
-            const auto view = column ? ColumnViewport(*column) : rect;
-            y = BlockRules::TooltipY(y, h, kTitleH, FullHeight(Layout::kTree) - kPad - h, ny - off - h, view.top - rect.top, view.bottom - rect.top);
-            auto tip = Draw::Clip(parent, kTooltipName);
-            if (!tip.IsDisplayObject()) return;
-            const auto local = BlockLocal(Layout::kTree, rect);
-            tip.SetMember("_x", local.left + x);
-            tip.SetMember("_y", local.top + y);
-            Draw::Box(tip, w, h, kPanelFill, kTooltipAlpha, kPanelEdge, kEdgeWidth);
-            for (std::size_t i = 0; i < lines.size(); ++i) {
-                const auto name = std::format("t{}", i);
-                TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, tip, name.c_str(), kTooltipPad, kTooltipPad + static_cast<double>(i) * lineH, w - 2 * kTooltipPad, size,
-                    lines[i].first, lines[i].second);
-            }
-            TextFit::Q2State(g_menu.textLog, SelfTest, "tree_tooltip", std::format("{} - {}", lines[0].first, lines[2].first));
-        }
-
-        enum class Mark
-        {
-            kNone,   // a heading: from the left edge
-            kCheck,  // a drawn check (kOk), then the text
-            kCross,  // a drawn cross (kNotYet), then the text
-            kSpace   // no mark, the text lined up with the marked rows
-        };
-
-        struct Row
-        {
-            std::string name;           // the whole text, or with a format the {name} it fills (cut first when the row is too long)
-            std::optional<Str> format;
-            std::uint32_t color;        // the text's; a check or cross takes its own state colour (UI polish 2026-10-29)
-            Mark mark;
-        };
-
-        // One text field per line (two fields placed by an estimated width overlapped on a Korean name, game run 2026-10-25)
-        std::vector<Row> RequirementRows(const TreeData::Node& a_node, const Spells::Snapshot& a_snapshot)
-        {
-            std::vector<Row> rows;
-            // a state the snapshot does not have yet is "checking", never a cross (game run 2: a cross from missing data)
-            const auto add = [&](std::uint32_t a_saved) {
-                const auto index = Spells::FindSaved(a_saved, a_node.school).first;
-                // each prerequisite named by its own state (review v11 #1; spellCardNeeds.js:85)
-                std::string name = index >= 0 ? ShownName(index, a_snapshot) : std::format("{:08X}", a_saved);
-                switch (Spells::PrereqOf(a_snapshot, a_saved, a_node.school)) {
-                case Spells::Prereq::kMastered: rows.push_back({ std::move(name), Str::kReqMastered, kLabelColor, Mark::kCheck }); break;
-                case Spells::Prereq::kNotMastered: rows.push_back({ std::move(name), Str::kReqNotMastered, kLabelColor, Mark::kCross }); break;
-                case Spells::Prereq::kUnknown: rows.push_back({ std::move(name), Str::kReqChecking, kDimText, Mark::kSpace }); break;
-                case Spells::Prereq::kNotInGame: rows.push_back({ std::move(name), Str::kReqNotInGame, kDimText, Mark::kSpace }); break;
-                }
-            };
-            if (!a_node.hard.empty()) {
-                rows.push_back({ Text(Str::kReqAll), std::nullopt, kTitleColor, Mark::kNone });
-                for (const auto saved : a_node.hard) add(saved);
-            }
-            if (!a_node.soft.empty() && a_node.softNeeded > 0) {
-                rows.push_back({ Fill(Str::kReqSome, { { "{n}", std::to_string(a_node.softNeeded) } }), std::nullopt, kTitleColor, Mark::kNone });
-                for (const auto saved : a_node.soft) add(saved);
-            }
-            if (rows.empty()) rows.push_back({ Text(Str::kReqNone), std::nullopt, kTitleColor, Mark::kNone });
-            return rows;
-        }
-
-        // The rows from a_top down to a_bottom at the reading size; the last row that fits says how many more there are. Returns
-        // the height the drawn rows take (LayoutMath::RowsHeight)
-        double DrawRows(RE::GFxMovieView* a_movie, RE::GFxValue& a_content, std::vector<Row> a_rows, double a_w, double a_top, double a_bottom)
-        {
-            const double size = TextFit::Size(Metrics(), kRowSize), h = TextFit::FieldH(Metrics(), size), pitch = TextFit::LineH(Metrics(), size) + kGutter / 2;
-            const auto fit = LayoutMath::RowsFit(a_bottom - a_top, h, pitch);
-            if (fit == 0) {
-                if (!a_rows.empty() && g_menu.textLog.cut.insert("rows|no room").second) {
-                    logger::info("Widget: Q4 node card has no room for its {} requirement line(s) ({:.0f} high, one needs {:.0f})", a_rows.size(),
-                        a_bottom - a_top, h);
-                }
-                return 0.0;
-            }
-            if (a_rows.size() > fit) {
-                // a heading left as the last shown line, with none of its spells under it, goes too (review round 2 #3); "N more"
-                // counts the spells left out, not their heading lines (review round 1 #5)
-                auto keep = fit - 1;
-                while (keep > 0 && !a_rows[keep - 1].format) --keep;
-                const auto hidden = std::count_if(a_rows.begin() + static_cast<std::ptrdiff_t>(keep), a_rows.end(),
-                    [](const Row& a_row) { return a_row.format.has_value(); });
-                a_rows.resize(keep);
-                if (hidden > 0) {
-                    a_rows.push_back({ Fill(Str::kReqMore, { { "{n}", std::to_string(hidden) } }), std::nullopt, kDimText, Mark::kNone });
-                }
-            }
-            const double markSize = size * kMarkShare, textX = markSize + kMarkGap;
-            for (std::size_t i = 0; i < a_rows.size() && i < fit; ++i) {
-                const auto& row = a_rows[i];
-                const double y = a_top + pitch * static_cast<double>(i);
-                const double x = row.mark == Mark::kNone ? 0.0 : textX;
-                const double markY = y + h / 2 - markSize / 2;
-                if (row.mark == Mark::kCheck) Draw::Check(a_content, 0, markY, markSize, kOk);
-                if (row.mark == Mark::kCross) Draw::Cross(a_content, 0, markY, markSize, kNotYet);
-                const auto name = std::format("row{}", i);
-                auto field = Draw::Text(a_movie, a_content, name.c_str(), x, y, a_w - x, h, "", row.color, size);
-                if (!field.IsDisplayObject()) continue;
-                if (row.format) {
-                    TextFit::FitText(Metrics(), g_menu.textLog, a_movie, field, a_w - x, size, 1, row.name,
-                        [&](const std::string& a_name) { return Fill(*row.format, { { "{name}", a_name } }); });
-                } else {
-                    TextFit::FitWhole(Metrics(), g_menu.textLog, a_movie, field, a_w - x, size, 1, row.name);
-                }
-            }
-            return LayoutMath::RowsHeight(std::min(a_rows.size(), fit), h, pitch);
-        }
-
-        // a_canSet false: the card shows a node nobody selected (L3's default view), which the button cannot act on
-        void DrawButton(RE::GFxMovieView* a_movie, RE::GFxValue& a_content, double a_w, double a_y, const Spells::Look& a_look, bool a_canSet)
-        {
-            auto button = Draw::Clip(a_content, "button");
-            if (!button.IsDisplayObject()) return;
-            button.SetMember("_y", a_y);
-            const bool enabled = a_canSet && a_look.state == State::kAvailable;
-            // one look for both states, the panels' own (UI polish 2026-10-29): the label's brightness tells them apart
-            Draw::LineStyle(button, kEdgeWidth, kPanelEdge);
-            Draw::Rect(button, 0, 0, a_w, kButtonH, kPanelFill, Draw::kAlphaFull);
-            const std::string label = enabled ? Fill(Str::kNodeSetTarget, { { "{key}", KeyLabel(Settings::Get().keySetTarget) } }) :
-                                                StateLine(a_look.state, a_look.percent, true).text;
-            const double size = TextFit::Size(Metrics(), kButtonSize);
-            TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, button, "label", 0, (kButtonH - TextFit::FieldH(Metrics(), size)) / 2, a_w, size, label, enabled ? kWhite : kDimText, "center");
-            if (enabled) SetHandler(a_movie, button, "onRelease", g_buttonClick.get());
-        }
-
-        void RedrawNodeCard(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const Spells::Snapshot& a_snapshot)
-        {
-            auto content = Content(a_widget, Layout::kNodeCard);
-            if (!content.IsDisplayObject()) return;
-            const auto& settings = Settings::Get();
-            const auto rect = BlockRect(Layout::kNodeCard);
-            // user 2026-10-30: the rooms from the card's full height, the bottom part at its fitted one (FitBlock)
-            const double w = rect.Width() - 2 * kPad, fullH = FullHeight(Layout::kNodeCard);
-            content.SetMember("_x", kPad);
-            // What the card shows: the clicked (or next-candidate) node; with none, the school's learning target as if it had
-            // been clicked (spec v6 L3), only on this card - g_menu.selected stays -1, so the tree neither recentres nor draws a
-            // selection for it and no click path (list selection, P2 card, P3 preview) runs
-            // user 2026-10-30 (the board): nothing chosen - the hint line only
-            int shown = Spells::Get() && g_menu.chosen ? g_menu.selected : -1;
-            const bool byDefault = shown < 0;
-            if (Spells::Get() && byDefault && g_menu.chosen && !g_session.school.empty()) {
-                const RE::FormID target = a_snapshot.Target(g_session.school);
-                shown = Spells::FindNode(target, g_session.school);
-                if (target && shown < 0) {
-                    // a target outside the tree: the hint stays (the progress card names it)
-                    const auto* form = RE::TESForm::LookupByID(target);
-                    TextFit::Q2State(g_menu.textLog, SelfTest, "node_default_target_not_in_tree", std::format("{:08X} {} - the hint is shown", target,
-                        form && form->GetName() ? form->GetName() : "(no form)"));
-                }
-            }
-            if (shown < 0) {
-                // a short hint at the top (Q2), not a big centred line
-                const auto text = Fill(Str::kNodeHint, { { "{key}", KeyLabel(settings.keyNext) } });
-                const double size = TextFit::Size(Metrics(), kRowSize);
-                const auto hint = TextFit::FitLines(Metrics(), g_menu.textLog, a_movie, content, "hint", 0, kCardTop, w, size, kHintLines, text, kDimText);
-                TextFit::Q2State(g_menu.textLog, SelfTest, Key(Str::kNodeHint), text, &hint);
-                const int lines = hint.IsDisplayObject() ? std::clamp(TextFit::TextLines(Metrics(), hint, size), 1, kHintLines) : kHintLines;
-                FitBlock(a_movie, a_widget, Layout::kNodeCard, kCardTop + TextFit::FieldH(Metrics(), size, lines) + kPad);  // only the hint line
-                return;
-            }
-            const auto& node = Data().tree.nodes[shown];
-            const auto look = Spells::LookOf(a_snapshot, shown);
-            double y = kCardTop;
-            // the name wraps to two lines, then ends in "..." (Q4); what follows moves down by the lines it took
-            // "???" while HoM keeps the name hidden (review v11 #1; spellCardView.js:213-218)
-            auto name = TextFit::FitLines(Metrics(), g_menu.textLog, a_movie, content, "name", 0, y, w, kNameSize, kNameLines, ShownName(shown, a_snapshot), kWhite);
-            y += name.IsDisplayObject() ? std::clamp(TextH(name), TextFit::FieldH(Metrics(), kNameSize), TextFit::FieldH(Metrics(), kNameSize, kNameLines)) : TextFit::FieldH(Metrics(), kNameSize);
-            const double subSize = TextFit::Size(Metrics(), kSubSize);
-            const auto school = SchoolText(node.school);
-            const auto level = LevelName(node.skillLevel);
-            TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, content, "sub", 0, y, w, subSize, level.empty() ? school : Fill(Str::kNodeSub, { { "{school}", school }, { "{level}", level } }),
-                kTitleColor);
-            y += TextFit::FieldH(Metrics(), subSize);
-            const double stateSize = TextFit::Size(Metrics(), kStateSize), stateH = TextFit::FieldH(Metrics(), stateSize);
-            {
-                // the state in HoM's look (spec v11 T13) at the known size kStateIconR, the node's school shape and colour
-                constexpr double kIconScale = kStateIconR / HomStyle::kKnownSize;
-                const auto style = CurrentStyle();
-                const bool isTarget = shown == Spells::FindNode(a_snapshot.Target(node.school), node.school);
-                const double reach = HomStyle::MaxReach(kIconScale, style->tree.availableRing);
-                DrawHomMark(content, *style, { node.school, node.themeColor, node.skillLevel, node.tier, node.x, node.y, reach, y + stateH / 2, kIconScale },
-                    { HomStyle::DisplayOf(BehaviourOf(look.state), isTarget), style->Mystery(), false, false, 1.0 });
-            }
-            const auto state = StateLine(look.state, look.percent, false);
-            const auto stateField = TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, content, "state", kStateTextX, y, w - kStateTextX, stateSize, state.text, kWhite);
-            TextFit::Q2State(g_menu.textLog, SelfTest, Key(state.id), state.text, &stateField);
-            if (byDefault) TextFit::Q2State(g_menu.textLog, SelfTest, "node_default_target", std::format("{} - {}", Spells::NodeName(shown), state.text));
-            if (!byDefault && g_menu.selectedByKey) TextFit::Q2State(g_menu.textLog, SelfTest, "node_next_candidate", std::format("{} - {}", Spells::NodeName(shown), state.text));
-            y += stateH + kRuleGap;
-            Draw::LineStyle(content, kEdgeWidth, kPanelEdge);
-            Draw::MoveTo(content, 0, y);
-            Draw::LineTo(content, w, y);
-
-            const double rowsTop = y + kRuleGap;
-            const double rowsH = DrawRows(a_movie, content, RequirementRows(node, a_snapshot), w, rowsTop, fullH - kBottomRuleFromBottom - kRuleGap);
-            // the card ends under its rows: the bottom rule, the XP line and the button hang from the fitted bottom
-            const double h = FitBlock(a_movie, a_widget, Layout::kNodeCard, LayoutMath::NodeCardNeeded(rowsTop, rowsH, kRuleGap, kBottomRuleFromBottom));
-            const double bottomRule = h - kBottomRuleFromBottom;
-            Draw::LineStyle(content, kEdgeWidth, kPanelEdge);
-            Draw::MoveTo(content, 0, bottomRule);
-            Draw::LineTo(content, w, bottomRule);
-            const auto* spell = a_snapshot.Spell(Data().gameIds[shown]);
-            const float required = spell ? spell->required : 0.0f;
-            TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, content, "xp", 0, h - kXpFromBottom, w, stateSize,
-                Fill(Str::kXp, { { "{cur}", std::format("{:.0f}", required * look.percent / 100.0f) }, { "{need}", std::format("{:.0f}", required) } }),
-                kLabelColor, "right");
-            DrawButton(a_movie, content, w, h - kButtonFromBottom, look, !byDefault);
-        }
-
-        // ---------------------------------------------------------------------
         // Per-frame work
         // ---------------------------------------------------------------------
 
-        // A centre the user chose (list selection, tree click, the next-learnable key)
-        void SetCentre(int a_index)
-        {
-            g_session.provisionalSchool.clear();
-            if (a_index == g_session.centre) return;
-            g_session.centre = a_index;
-            g_menu.refresh = true;
-            g_menu.dirty = true;
-        }
-
-        // The school's default centre; provisional while the snapshot does not cover the school yet
-        void SetDefaultCentre(const std::string& a_school, const Spells::Snapshot& a_snapshot)
-        {
-            SetCentre(DefaultCentre(a_school, a_snapshot));
-            if (!a_snapshot.Covers(a_school)) g_session.provisionalSchool = a_school;
-        }
-
-        // A snapshot that covers the provisional centre's school arrived: pick that school's default centre again
-        void SettleProvisionalCentre(const Spells::Snapshot& a_snapshot)
-        {
-            const auto school = g_session.provisionalSchool;
-            if (school.empty() || !a_snapshot.Covers(school)) return;
-            SetCentre(DefaultCentre(school, a_snapshot));  // clears the provisional mark
-            logger::info("Widget: provisional centre of {} settled on {} (snapshot {})", school,
-                g_session.centre >= 0 ? Spells::NodeName(g_session.centre) : std::string("(none)"), a_snapshot.epoch);
-        }
-
-        void SetSchool(const std::string& a_school)
-        {
-            if (a_school.empty() || a_school == g_session.school) return;
-            g_session.school = a_school;
-            g_menu.refresh = true;
-            g_menu.dirty = true;
-        }
-
         // A category tab change (design 3.7) is acted on at once
-        void WatchTab(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget, const Spells::Snapshot& a_snapshot)
+        void WatchTab(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
             const auto tab = ReadTab(a_movie);
             if (g_menu.tabFlag && *g_menu.tabFlag == tab.flag) return;
@@ -7744,22 +5833,17 @@ namespace Widget
             g_hide3D = Settings::Get().hidePowers3D && tab.flag == kFlagPowers;
             if (g_hide3D && !std::exchange(g_menu.powersHideLogged, true)) logger::info("Widget: Powers tab: 3D hidden (user 2026-10-26)");
             logger::info("Widget: category flag {} ({})", tab.flag,
-                tab.kind == Tab::kSchool ? tab.school : tab.kind == Tab::kPowers ? "powers/shouts: no tree" :
-                                                tab.kind == Tab::kEffects        ? "active effects: preview and card, no tree" :
-                                                                                   "all/favorites: follows the spell");
+                tab.kind == Tab::kSchool ? tab.school : tab.kind == Tab::kPowers ? "powers/shouts" :
+                                                tab.kind == Tab::kEffects        ? "active effects" :
+                                                                                   "all/favorites");
             g_menu.tabSchool = tab.kind == Tab::kSchool ? tab.school : std::string{};
-            // review v12 #S3: a category change keeps the selection - the school and the centre come from it, and the list is
-            // put back on it once it is filled again (WatchReselect). Without the wrap (G3) or a selection: as before
-            const bool keep = !first && g_menu.selWrapped && HasSelection();
-            if (keep) {
+            // review v12 #S3: a category change keeps the selection - the list is put back on it once it is filled again
+            // (WatchReselect). Without the wrap (G3) or a selection: as before
+            if (!first && g_menu.selWrapped && HasSelection()) {
                 g_menu.reselectLeft = kReselectWaitFrames + kReselectFrames;
                 g_menu.reselectSeq = g_menu.selSeq;
-                logger::info("Widget: category change keeps the selection {:08X}{} (school {}, centre kept; the list is put back on it once filled)",
-                    g_menu.sel.id, g_menu.cardFromTree ? std::format(", tree card {:08X}", g_menu.cardFromTree) : std::string{},
-                    g_session.school.empty() ? "-" : g_session.school);
-            } else if (tab.kind == Tab::kSchool) {
-                SetSchool(tab.school);
-                if (CentreSchool() != tab.school) SetDefaultCentre(tab.school, a_snapshot);
+                logger::info("Widget: category change keeps the selection {:08X}{} (the list is put back on it once filled)", g_menu.sel.id,
+                    g_menu.cardFromTree ? std::format(", tree card {:08X}", g_menu.cardFromTree) : std::string{});
             }
             // blocks plan Task 4: a tab change ends the layout mode as Cancel (the hook and the shield keep the tabs from changing
             // in the mode; whatever got through, the entry layout is put back first)
@@ -7773,7 +5857,6 @@ namespace Widget
             // its transform is worked out again (Rearrange)
             Rearrange(a_movie, a_widget);
             ApplyVisibility(a_widget);
-            g_menu.dirty = true;
         }
 
         // review v12 #S3: after a category change the list is filled again later (BasicList.as:224 requestUpdate, through an
@@ -7825,7 +5908,6 @@ namespace Widget
             const bool chosen = row || g_menu.cardFromTree != 0;
             if (chosen == g_menu.chosen && !g_menu.firstFrame) return;
             g_menu.chosen = chosen;
-            g_menu.dirty = true;  // the tree and the node card draw their empty look, or their content again
             ApplyVisibility(a_widget);
             if (g_menu.chosenLogs++ < kMaxChosenLogs) {
                 logger::info("Widget: {} - the blocks show {}", chosen ? "something chosen" : "nothing chosen (no list row, no tree card)",
@@ -7835,7 +5917,7 @@ namespace Widget
 
         // spec v12 G2: follows the committed selection (a click, a key, a tree click, the menu's opening), not the list's
         // highlight; a change of it is a new selection even for the same spell (another row, or a press replacing a tree card)
-        void WatchSelection(const Spells::Snapshot& a_snapshot)
+        void WatchSelection()
         {
             if (g_menu.selSeq == g_menu.selSeen && !g_menu.firstFrame) return;
             g_menu.selSeen = g_menu.selSeq;
@@ -7852,45 +5934,23 @@ namespace Widget
             CancelUnlearnedPreview("the list selection changed");
             const bool ours = id && id == g_menu.selectedByUs;
             g_menu.selectedByUs = 0;  // one change only
-            // review v11 #2: a list choice that is not our click drops the clicked node, so the focus follows the list
-            if (!ours) g_menu.selected = -1;
-            // a tree click centres on the clicked node itself (a "_dup_" node's twin could push it out of the window);
-            // any other tree spell on its non-dup node
-            const int node = ours && g_menu.selected >= 0 && Spells::Get() && Data().gameIds[g_menu.selected] == id ? g_menu.selected :
-                                                                                                                    Spells::PrimaryNode(id);
-            // the school: a school tab's own, else a tree spell's node's, else the spell's magic skill. review v12 #S3: set on a
-            // school tab too (WatchTab keeps the earlier selection's school across a category change)
-            if (g_menu.tab == Tab::kSchool && !g_menu.tabSchool.empty()) {
-                SetSchool(g_menu.tabSchool);
-            } else if (g_menu.tab != Tab::kSchool) {
-                SetSchool(node >= 0 ? Data().tree.nodes[node].school : SpellSchool::Of(spell));
-            }
-            g_menu.notInTree = id && node < 0;
-            if (Centrable(node)) {
-                SetCentre(node);
-            } else if (g_session.centre < 0 || (g_menu.tab == Tab::kSchool && !g_session.school.empty() && CentreSchool() != g_session.school)) {
-                // (a school tab's centre is of its school, as WatchTab made it before review v12 #S3 kept it across the change)
-                SetDefaultCentre(g_session.school, a_snapshot);
-            }
-            logger::info("Widget: list selection {:08X} {} (school {}, tree node {}{}{})", id, spell ? spell->GetName() : "(none)",
-                g_session.school.empty() ? "-" : g_session.school, node, node >= 0 && !Centrable(node) ? " without x/y" : "",
-                ours ? ", from a tree click" : "");
-            g_menu.dirty = true;
+            logger::info("Widget: list selection {:08X} {} (school {}{})", id, spell ? spell->GetName() : "(none)",
+                spell ? SpellSchool::Of(spell) : std::string("-"), ours ? ", from an add-on block's show request" : "");
         }
 
-        // A tree click's generic part, shared with an add-on block's kMessageShowSpell (Block API v3): the spell selected in the
-        // list when it is there (committed as the add-on's - a_requestId - or the built-in tree's), else on the tree card (P2)
+        // An add-on block's kMessageShowSpell (Block API v3; what the built-in tree's node click did until HoM add-on plan Task 5):
+        // the spell selected in the list when it is there (committed as the add-on's, a_requestId), else on the tree card (P2)
         // and, with bPreviewUnlearned, in the 3D (P3) - FollowClick; a_nameShown false keeps the card and the 3D off it. a_what
-        // names the click in the log ("tree click <id> <node>"). A served request is Context::source kAddon with its requestId,
-        // whether the list took the spell or the tree card shows it
-        void ShowSpellFromAddon(RE::GFxMovieView* a_movie, RE::FormID a_id, bool a_nameShown, std::optional<std::uint32_t> a_requestId, const std::string& a_what)
+        // names the request in the log. A served request is Context::source kAddon with its requestId, whether the list took the
+        // spell or the tree card shows it
+        void ShowSpellFromAddon(RE::GFxMovieView* a_movie, RE::FormID a_id, bool a_nameShown, std::uint32_t a_requestId, const std::string& a_what)
         {
-            const auto source = a_requestId ? SelectionRule::Source::kAddon : SelectionRule::Source::kTree;
-            if (a_requestId) g_menu.servedRequest = *a_requestId;
+            constexpr auto source = SelectionRule::Source::kAddon;
+            g_menu.servedRequest = a_requestId;
             const auto pick = a_id ? SelectInList(a_id, source) : ListPick{};
             if (pick.took) {
                 g_menu.selectedByUs = a_id;
-                // spec v12 S3/G1: a tree click stays a selection; committed here too, since a set to the row the list already
+                // spec v12 S3/G1: a show request stays a selection; committed here too, since a set to the row the list already
                 // had sends no selectionChange for the wrap to see (BasicList.as:341 / ScrollingList.as:328)
                 RE::GFxValue itemList;
                 if (a_movie->GetVariable(&itemList, kItemListPath)) Commit(EntryAt(itemList, pick.index), pick.index, source);
@@ -7901,23 +5961,7 @@ namespace Widget
             logger::info("Widget: {}: in list {}, index {}, member selectedIndex, took {}", a_what, pick.found ? "yes" : "no", pick.index,
                 pick.took ? "yes" : pick.found ? "no (filtered out by the tab)" : "-");
             FollowClick(a_movie, a_id, pick, a_nameShown);
-            // every path, the tree card's too (no Commit there): a served request is the add-on's, a built-in tree click the player's
-            g_menu.selFrom = a_requestId ? BlockApi::SelectionSource::kAddon : BlockApi::SelectionSource::kList;
-        }
-
-        void OnNodeClicked(RE::GFxMovieView* a_movie, int a_index, const Spells::Snapshot& a_snapshot)
-        {
-            if (!Spells::Get() || a_index < 0 || a_index >= static_cast<int>(Data().tree.nodes.size())) return;
-            g_menu.selected = a_index;
-            g_menu.selectedByKey = false;
-            g_menu.notInTree = false;  // the tree shows what was clicked: no longer dimmed (review v7 round 1)
-            g_menu.dirty = true;
-            // the tree follows what is clicked (user, game run 2): centre on it, learned or not; the list change our
-            // selection causes is ours (selectedByUs) and centres on this same node, so nothing moves twice
-            if (Centrable(a_index)) SetCentre(a_index);
-            if (g_menu.tab != Tab::kSchool) SetSchool(Data().tree.nodes[a_index].school);
-            const auto id = Data().gameIds[a_index];
-            ShowSpellFromAddon(a_movie, id, NameShown(a_index, a_snapshot), std::nullopt, std::format("tree click {:08X} {}", id, Spells::NodeName(a_index)));
+            g_menu.selFrom = BlockApi::SelectionSource::kAddon;  // every path, the tree card's too (no Commit there)
         }
 
         // Block API v3: the kMessageShowSpell requests queued since the last frame. At most one is served - the newest, while it is
@@ -7955,64 +5999,12 @@ namespace Widget
             return true;
         }
 
-        void DoNext(const Spells::Snapshot& a_snapshot)
-        {
-            if (!Spells::Get() || g_session.school.empty()) {
-                logger::info("Widget: next learnable - no school yet");
-                return;
-            }
-            // the same candidates the cards count (Q2): learnable, with a place in the tree (only those can be centred on)
-            const auto& info = SchoolInfoOf(a_snapshot);
-            const auto& nodes = info.candidates;
-            if (nodes.empty()) {
-                logger::info("Widget: next learnable - none in {} (snapshot {}): {}", g_session.school, a_snapshot.epoch,
-                    Key(NextStepLine(info, false).id));
-                return;
-            }
-            auto next = nodes.front();
-            const auto here = std::ranges::find(nodes, g_session.centre);
-            if (here != nodes.end() && std::next(here) != nodes.end()) next = *std::next(here);
-            SetCentre(next);
-            g_menu.selected = next;
-            g_menu.selectedByKey = true;
-            g_menu.notInTree = false;  // the tree shows the next candidate: no longer dimmed (review v7 round 1)
-            g_menu.dirty = true;
-            logger::info("Widget: next learnable in {} ({} of them): {} {:08X}", g_session.school, nodes.size(), Spells::NodeName(next),
-                Data().gameIds[next]);
-        }
-
-        void DoSetTarget(const Spells::Snapshot& a_snapshot)
-        {
-            if (!Spells::Get() || g_menu.selected < 0) {
-                logger::info("Widget: set target - no node selected");
-                return;
-            }
-            const auto& node = Data().tree.nodes[g_menu.selected];
-            const auto look = Spells::LookOf(a_snapshot, g_menu.selected);
-            if (look.state != State::kAvailable) {
-                logger::info("Widget: set target - {} is {}, not learnable", Spells::NodeName(g_menu.selected), Spells::StateText(look.state));
-                return;
-            }
-            Hom::RequestTarget(Data().gameIds[g_menu.selected], node.school, Spells::NodeName(g_menu.selected));
-        }
-
-        // Once per menu open and school: how many nodes are available now (the tree-side availability rule)
-        void LogAvailability(const Spells::Snapshot& a_snapshot)
-        {
-            for (const auto& [name, school] : a_snapshot.schools) {
-                if (!g_menu.availabilityLogged.insert(name).second) continue;
-                const auto* tree = Spells::SchoolNamed(name);
-                logger::info("Widget: {} - {} nodes, {} available to learn now, target {:08X} (snapshot {})", name,
-                    tree ? tree->nodes.size() : 0, Spells::Learnable(a_snapshot, name).size(), school.target, a_snapshot.epoch);
-            }
-        }
-
         // Q4: the left SkyUI list's row text size in _root stage units, where our widget draws: the selected row's clip
         // (BasicList.as:123 selectedClip) -> its text field that shows the entry's text (else its largest) -> the field's
         // getTextFormat().size, times the field's _yscale and the row clip's scale to _root (a 100-unit segment mapped through
         // the stage, as the item card's fit does). Needs a list selection: tried every frame for kListMeasureFrames frames.
-        // Once read, the cards and the tree redraw and the legend is laid out again at the new size.
-        void MeasureListRow(RE::GFxMovieView* a_movie, RE::GFxValue& a_root, RE::GFxValue& a_widget)
+        // Once read, our card follows (WatchOwnCard) and every v3 add-on block is drawn again at the new size.
+        void MeasureListRow(RE::GFxMovieView* a_movie, RE::GFxValue& a_root)
         {
             if (g_menu.rowSize > 0 || g_menu.listMeasureLeft <= 0) return;
             if (--g_menu.listMeasureLeft == 0) {
@@ -8057,40 +6049,10 @@ namespace Widget
                 best->stage, best->name, best->text, best->match ? "the entry's text" : "the row's largest field", best->size, best->yscale,
                 best->toRoot, best->stage != g_menu.rowSize ? std::format(" - CLAMPED to {:.0f}..{:.0f}", kListRowMin, kListRowMax) : "",
                 g_menu.rowSize, kListRowFallback);
-            g_menu.dirty = true;
-            if (auto tree = BlockClip(a_widget, Layout::kTree); tree.IsDisplayObject()) {
-                const auto rect = BlockRect(Layout::kTree);
-                DrawLegend(a_movie, tree, rect.Width(), rect.Height(), g_menu.legendSchool.value_or(std::string{}));
-            }
             // Block API v3: every v3 block is drawn again with the measured size (Context::rowSize)
             for (const auto& addon : g_addons) {
                 if (addon.apiVersion >= BlockApi::kVersion && g_menu.blocksAll.contains(addon.id)) g_menu.addonDrawDue.insert(addon.id);
             }
-        }
-
-        // Q2 (review round 1 #3): "loading" only while HoM's state for the school can still come. When no snapshot has had the
-        // school for kNoDataFrames frames (a refresh is asked for every kPollFrames frames), the progress card says the data did
-        // not arrive; logged once per school and menu.
-        void WatchSnapshotCover(const Spells::Snapshot& a_snapshot)
-        {
-            const auto& school = g_session.school;
-            if (school.empty() || a_snapshot.Covers(school) || !Spells::SchoolNamed(school)) {
-                g_menu.uncoveredSchool.clear();
-                g_menu.noData = false;
-                return;
-            }
-            if (g_menu.uncoveredSchool != school) {
-                g_menu.uncoveredSchool = school;
-                g_menu.uncoveredFrom = g_menu.frame;
-                g_menu.noData = false;
-                return;
-            }
-            if (g_menu.noData || g_menu.frame - g_menu.uncoveredFrom < kNoDataFrames) return;
-            g_menu.noData = true;
-            g_menu.dirty = true;
-            logger::warn("Widget: no HoM state for {} after {} frames (HoM API {}, a refresh asked every {} frames) - the progress card "
-                         "says the data did not arrive",
-                school, kNoDataFrames, Hom::Ready() ? "ready" : "NOT ready", kPollFrames);
         }
 
         // Q4 (review round 1 #1): the game font's line height, measured once per menu before anything is fitted. Two hidden
@@ -8106,14 +6068,6 @@ namespace Widget
             auto pair = Draw::Text(a_movie, a_widget, "mmxProbe2", 0, 0, kProbeBox, kProbeBox, two, kWhite, kProbeSize);
             const auto h1 = one.IsDisplayObject() ? Number(one, "textHeight") : std::nullopt;
             const auto h2 = pair.IsDisplayObject() ? Number(pair, "textHeight") : std::nullopt;
-            // the first line's ascent (spec v6 L2): Scaleform's getLineMetrics, present only with the movie's GFx extensions on
-            RE::GFxValue extensions, metrics;
-            const bool hasExtensions = a_movie->GetVariable(&extensions, "_global.gfxExtensions") && !extensions.IsUndefined();
-            if (one.IsDisplayObject()) {
-                const RE::GFxValue line0(0.0);
-                one.Invoke("getLineMetrics", &metrics, &line0, 1);
-            }
-            const auto ascent = Number(metrics, "ascent");
             for (auto* field : { &one, &pair }) {
                 if (field->IsDisplayObject()) field->Invoke("removeTextField");
             }
@@ -8127,142 +6081,6 @@ namespace Widget
                          "size{}",
                 kProbeSize, h1.value_or(-1.0), h2.value_or(-1.0), first, pitch,
                 usable ? "" : std::format(" - NOT usable, layout keeps {:.2f}", kLineFactor));
-            const double share = ascent ? *ascent / kProbeSize : 0.0;
-            g_menu.ascentMeasured = share >= kAscentMin && share <= kAscentMax;
-            g_menu.ascent = g_menu.ascentMeasured ? share : kAscentFallback;
-            const auto extensionsText = !hasExtensions          ? std::string("undefined") :
-                                        extensions.IsBool()    ? std::string(extensions.GetBool() ? "true" : "false") :
-                                        extensions.IsNumber()  ? std::format("{}", extensions.GetNumber()) :
-                                                                 std::string("set");
-            logger::info("Widget: L2 font ascent at size {:.0f}: getLineMetrics(0) {} (keys {}; _global.gfxExtensions {}) -> {:.3f} of the size{}",
-                kProbeSize, metrics.IsObject() ? "returned an object" : "gave nothing", metrics.IsObject() ? KeysOf(metrics) : std::string("-"),
-                extensionsText, g_menu.ascent,
-                g_menu.ascentMeasured ? std::string(" (measured)") :
-                                        std::format(" - NOT measured (ascent {}), the build-3 frame's {:.2f} is used",
-                                            ascent ? std::format("{:.1f}", *ascent) : std::string("none"), kAscentFallback));
-        }
-
-        // ---------------------------------------------------------------------
-        // L2 read-backs (review round 1 #3, #6): what was drawn, not what was asked for
-        // ---------------------------------------------------------------------
-
-        // A new "SelfTest: L2 ..." reading, each once per menu, up to kMaxL2Logs
-        void L2SelfTest(const std::string& a_line)
-        {
-            if (g_menu.l2Logged.size() >= static_cast<std::size_t>(kMaxL2Logs) || !g_menu.l2Logged.insert(a_line).second) return;
-            SelfTest(a_line);
-        }
-
-        // A text field's first baseline in a_root's units: its _y, the 2-unit gutter and its line 0 ascent (getLineMetrics, the
-        // Scaleform extension MeasureTextMetrics probes), mapped from a_parent through the stage. nullopt when the movie does not
-        // give the line metrics.
-        std::optional<double> BaselineIn(RE::GFxMovieView* a_movie, RE::GFxValue& a_parent, RE::GFxValue& a_field, RE::GFxValue& a_root)
-        {
-            RE::GFxValue metrics;
-            const RE::GFxValue line0(0.0);
-            if (!a_field.Invoke("getLineMetrics", &metrics, &line0, 1)) return std::nullopt;
-            const auto ascent = Number(metrics, "ascent"), x = Number(a_field, "_x"), y = Number(a_field, "_y");
-            if (!ascent || !x || !y) return std::nullopt;
-            const auto at = MapPoint(a_movie, a_parent, a_root, *x, *y + kGutter / 2 + *ascent);
-            return at ? std::optional<double>(at->second) : std::nullopt;
-        }
-
-        // The bottom of a text field's first character's glyph box in a_root's units (getExactCharBoundaries(0), a Scaleform extension;
-        // its rectangle is taken in the field's own coordinates). A second reading of the baseline that does not use the ascent:
-        // the glyphs differ, so it is shown beside the L2 verdict, not judged. nullopt when the movie does not give it.
-        std::optional<double> GlyphBottomIn(RE::GFxMovieView* a_movie, RE::GFxValue& a_parent, RE::GFxValue& a_field, RE::GFxValue& a_root)
-        {
-            RE::GFxValue box;
-            const RE::GFxValue char0(0.0);
-            if (!a_field.Invoke("getExactCharBoundaries", &box, &char0, 1)) return std::nullopt;
-            const auto top = Number(box, "y"), height = Number(box, "height"), x = Number(a_field, "_x"), y = Number(a_field, "_y");
-            if (!top || !height || !x || !y || *height <= 0) return std::nullopt;
-            const auto at = MapPoint(a_movie, a_parent, a_root, *x, *y + *top + *height);
-            return at ? std::optional<double>(at->second) : std::nullopt;
-        }
-
-        // A panel's "content" child's child, not a display object when any step is missing
-        RE::GFxValue ContentChild(RE::GFxValue& a_widget, const BlockId& a_id, const char* a_name, RE::GFxValue& a_content)
-        {
-            auto panel = BlockClip(a_widget, a_id);
-            a_content = panel.IsDisplayObject() ? Child(panel, "content") : RE::GFxValue{};
-            return a_content.IsDisplayObject() ? Child(a_content, a_name) : RE::GFxValue{};
-        }
-
-        // The progress card's first line and the node card's spell name share a baseline (spec v6 L2): both read back after a
-        // redraw. SKIP when the alignment was not asked for (or gave way), a field is missing, or the movie has no line metrics.
-        void CheckRowBaselines(RE::GFxMovieView* a_movie, RE::GFxValue& a_root, RE::GFxValue& a_widget)
-        {
-            if (!Settings::Get().selfTest || g_menu.tab == Tab::kPowers || g_menu.tab == Tab::kEffects) return;  // the cards are hidden
-            RE::GFxValue progress, card;
-            auto school = ContentChild(a_widget, Layout::kProgress, "school", progress);
-            auto name = ContentChild(a_widget, Layout::kNodeCard, "name", card);
-            if (!g_menu.rowAligned) return L2SelfTest(std::format("L2 baseline SKIP - not aligned: {}", g_menu.rowAlignNote));
-            if (!school.IsDisplayObject() || !name.IsDisplayObject()) {
-                return L2SelfTest(std::format("L2 baseline SKIP - no {} to compare", !school.IsDisplayObject() ? "school title" : "spell name on the node card"));
-            }
-            const auto first = BaselineIn(a_movie, progress, school, a_root), named = BaselineIn(a_movie, card, name, a_root);
-            if (!first || !named) {
-                return L2SelfTest(std::format("L2 baseline SKIP - getLineMetrics not available on the drawn fields (the offset used the {})",
-                    g_menu.ascentMeasured ? "probe's measured ascent" : "build-3 frame's ascent, not measured"));
-            }
-            const double diff = *first - *named;
-            const auto glyphFirst = GlyphBottomIn(a_movie, progress, school, a_root), glyphNamed = GlyphBottomIn(a_movie, card, name, a_root);
-            const auto glyphs = glyphFirst && glyphNamed ?
-                                    std::format("{:.2f} / {:.2f} (diff {:.2f})", *glyphFirst, *glyphNamed, *glyphFirst - *glyphNamed) :
-                                    std::string("SKIP (getExactCharBoundaries not available)");
-            L2SelfTest(std::format("L2 baseline {} - progress first line {:.2f}, node card name {:.2f} in _root (diff {:.2f}, tolerance {:.1f}; ascent "
-                                   "{:.3f} {}); first glyph bottoms, not judged: {}",
-                std::abs(diff) <= kBaselineTolerance ? "PASS" : "FAIL", *first, *named, diff, kBaselineTolerance, g_menu.ascent,
-                g_menu.ascentMeasured ? "measured" : "NOT measured", glyphs));
-        }
-
-        // The node card's button ends at the item card slot's bottom minus the padding (spec v6 L2: 615 with the E2 rects), read
-        // back once per menu as drawn (the rect's bottom mapped to _root), when the item card is in place (fitted by us, or left
-        // alone), with the item card's visible bottom beside it.
-        void CheckButtonBottom(RE::GFxMovieView* a_movie, RE::GFxValue& a_root, RE::GFxValue& a_widget)
-        {
-            if (g_menu.buttonChecked || !Settings::Get().selfTest || g_menu.tab == Tab::kPowers || g_menu.tab == Tab::kEffects) return;
-            const bool cardPlaced = g_menu.cardFit.has_value() || g_menu.irActive || !Settings::Get().moveItemCard || (OwnCard() && g_menu.ownCardShown);
-            RE::GFxValue content;
-            auto button = ContentChild(a_widget, Layout::kNodeCard, "button", content);
-            if (!button.IsDisplayObject() || !cardPlaced) return;
-            g_menu.buttonChecked = true;
-            // the E2 rects' row 2 (blocks plan Task 2): the node card and the card slot end at one bottom; a layout that puts
-            // them apart has nothing to line up
-            const auto slot = BlockRect(Layout::kSpellCard), nodeCard = BlockRect(Layout::kNodeCard);
-            if (std::abs(slot.bottom - nodeCard.bottom) > kRectTolerance) {
-                SelfTest(std::format("L2 node button bottom SKIP - the layout ends the node card at {:.0f} and the card slot at {:.0f}", nodeCard.bottom,
-                    slot.bottom));
-                return;
-            }
-            const double want = slot.bottom - kPad;
-            // the rect's own bottom (its _y + kButtonH), not the clip's bounds: its centred label can hang below a 28-high rect at
-            // large reading sizes (build 6 review round 2 #2)
-            const auto top = Number(button, "_y");
-            const auto edge = top ? MapPoint(a_movie, content, a_root, 0.0, *top + kButtonH) : std::nullopt;
-            std::string cardBottom = "not read";
-            if (OwnCard()) {
-                cardBottom = std::format("{:.2f} (our card)", g_menu.ownCardBottom);
-            } else if (auto card = FindCard(a_movie)) {
-                if (const auto seen = VisibleUnion(a_movie, *card, a_root)) cardBottom = std::format("{:.2f}", seen->bounds.yMax);
-            }
-            if (!edge) {
-                SelfTest(std::format("L2 node button bottom FAIL - the button rect's bottom could not be mapped to _root (want {:.0f}); item card "
-                                     "visible bottom {}",
-                    want, cardBottom));
-                return;
-            }
-            SelfTest(std::format("L2 node button bottom {} - rect bottom {:.2f} in _root, want {:.0f} (item card slot bottom {:.0f} - padding {:.0f}, "
-                                 "tolerance {:.1f}); item card visible bottom {}",
-                std::abs(edge->second - want) <= kBaselineTolerance ? "PASS" : "FAIL", edge->second, want, slot.bottom, kPad,
-                kBaselineTolerance, cardBottom));
-        }
-
-        void RequestState()
-        {
-            Spells::RequestRefresh({ g_session.school, CentreSchool() });
-            g_menu.refresh = false;
         }
 
         class Frame final : public RE::GFxFunctionHandler
@@ -8280,22 +6098,18 @@ namespace Widget
                 }
                 auto& widget = *a_params.thisPtr;
                 if (g_menu.firstFrame) {
-                    logger::info("Widget: first frame on thread {} (main thread {}); HoM is read by main-thread tasks",
-                        REX::W32::GetCurrentThreadId(), GameThread::Id());
+                    logger::info("Widget: first frame on thread {} (main thread {})", REX::W32::GetCurrentThreadId(), GameThread::Id());
                 }
-                // our own SetLearningTarget ran: ask for HoM's state now, not at the next poll
-                if (Hom::TakeStateChanged()) g_menu.refresh = true;
-                const auto snapshot = Spells::Current();
                 // spec v12 G1/G3: the selection wrap goes on in the first frames; without it the highlight is followed (build 11)
                 InstallSelectionWrap(movie);
                 InstallWheel(movie, widget);  // blocks plan Task 3 (D7)
                 WatchHeldShrinks();           // user 2026-10-30: a shrink that has waited its delay draws its block again
                 if (!g_menu.selWrapped) FollowHighlight(movie);
-                WatchTab(movie, widget, *snapshot);  // first: the item card's slot depends on the tab
+                WatchTab(movie, widget);  // first: the item card's slot depends on the tab
                 WatchChosen(movie, widget);
                 FitItemCard(movie, root);
                 WatchOwnCard(movie, widget);  // v7 C1 (after WatchTab: its box follows the tab)
-                MeasureListRow(movie, root, widget);  // Q4: our reading sizes follow the list's rows
+                MeasureListRow(movie, root);  // Q4: our reading sizes follow the list's rows
                 AddonClicks(widget);         // Block API v2: a release judged since the last frame (before any redraw of this frame)
                 const auto modeChanges = g_menu.layoutModeChanges;
                 LayoutFrame(movie, widget);  // blocks plan Task 4: the layout mode (after WatchTab: a tab change cancels it first)
@@ -8309,12 +6123,10 @@ namespace Widget
                 TakeAddonRedraws();          // Block API v2: the add-ons' kMessageRedraw requests
                 TakeAddonVisible(widget);    // Block API v3: kMessageVisible (hidden blocks keep their places)
                 DrawAddons(movie, widget);   // blocks plan Task 6: after the layout mode (it may make a panel again in its new column)
-                // the click first: its list selection is noticed in this same frame
-                if (const int clicked = std::exchange(g_menu.clicked, -1); clicked >= 0) OnNodeClicked(movie, clicked, *snapshot);
-                WatchSelection(*snapshot);
-                // Block API v3: an add-on's kMessageShowSpell, as a click - after the tree's (a click wins) and after a list change already
-                // pending is settled above (it would undo the request's tree card); its own list selection is settled at once
-                if (TakeAddonShowSpells(movie) && g_menu.selSeq != g_menu.selSeen) WatchSelection(*snapshot);
+                WatchSelection();
+                // Block API v3: an add-on's kMessageShowSpell, as a click on the spell - after a list change already pending is settled
+                // above (it would undo the request's tree card); its own list selection is settled at once
+                if (TakeAddonShowSpells(movie) && g_menu.selSeq != g_menu.selSeen) WatchSelection();
                 WatchReselect();        // review v12 #S3: after a category change, the list back on the selection
                 WatchTreeCard(movie);   // P2: our tree card leaves when the menu has no selection to show
                 WatchChosen(movie, widget);  // again: the tree card may have left this frame (GPT review: one frame late)
@@ -8327,26 +6139,9 @@ namespace Widget
                 if (TakeAddonHeights(movie, widget)) DrawAddons(movie, widget);
                 CheckUnlearned();       // P3: one model check per frame
                 g_menu.firstFrame = false;
-                if (g_pendingNext.exchange(false)) DoNext(*snapshot);
-                // both read every frame: the button and the key in the same frame are one request
-                const bool key = g_pendingSetTarget.exchange(false);
-                const bool button = g_pendingButton.exchange(false);
-                if ((key || button) && g_menu.chosen) DoSetTarget(*snapshot);  // review I8: nothing chosen - nothing on the node card to act on
-                if (++g_menu.frame % kPollFrames == 0) g_menu.refresh = true;
-                if (g_menu.refresh) RequestState();
-                if (snapshot->epoch != g_menu.epoch) {
-                    g_menu.epoch = snapshot->epoch;
-                    g_menu.dirty = true;
-                    SettleProvisionalCentre(*snapshot);
-                    LogAvailability(*snapshot);
-                }
-                WatchSnapshotCover(*snapshot);
-                CheckButtonBottom(movie, root, widget);  // once per menu, when the button and the item card are both up
-                DropStaleHover(movie, widget);  // review v11 #10
-                RedrawTooltip(movie, widget, *snapshot);  // the hover changes no tree: outside the dirty gate (spec v10 T6)
-                if (g_menu.dirty) RedrawPass(movie, root, widget, *snapshot);
-                // Block API v3: key and frame calls with this frame's content clips and overlays - after the redraw pass, whose fits
-                // may move the add-on panels (nothing below moves a block)
+                ++g_menu.frame;
+                // Block API v3: key and frame calls with this frame's content clips and overlays - after every draw and fit of this frame
+                // (nothing below moves a block)
                 AddonFrames(movie, widget);
                 // user 2026-10-30: the key-hint strip and the gear under the columns as this frame left them
                 PlaceStripAndGear(movie, widget);
@@ -8358,42 +6153,6 @@ namespace Widget
             }
 
         private:
-            // The tree, progress and node card drawn again. Final review 1: the cards' fits are collected (FitBlock with fitBatch;
-            // the tree keeps its ini height) and the columns laid out once at the end, in this frame - each card placed its own parts at its fitted height
-            // already, and only its panel moves after. A fill block whose height that changes (our card, when it has no fit
-            // yet) is drawn again here. The row-2 baseline offset (L2) reads the node card's top at the progress card's draw:
-            // after a fit that moved it, it is right from the next redraw on. The whole pass is timed and logged (20 a menu,
-            // then only a new slowest)
-            static void RedrawPass(RE::GFxMovieView* a_movie, RE::GFxValue& a_root, RE::GFxValue& a_widget, const Spells::Snapshot& a_snapshot)
-            {
-                constexpr int kMaxPassLogs = 20;
-                const auto started = std::chrono::steady_clock::now();
-                g_menu.dirty = false;
-                g_menu.fitBatch = true;
-                RedrawTree(a_movie, a_widget, a_snapshot);  // first: it drops a selection that is no longer drawn
-                RedrawProgress(a_movie, a_widget, a_snapshot);
-                RedrawNodeCard(a_movie, a_widget, a_snapshot);
-                g_menu.fitBatch = false;
-                const auto fitted = std::exchange(g_menu.fitBatchIds, {});
-                if (!fitted.empty()) {
-                    const double cardBefore = BlockRect(Layout::kSpellCard).Height();
-                    Rearrange(a_movie, a_widget, &fitted);
-                    if (std::abs(BlockRect(Layout::kSpellCard).Height() - cardBefore) > BlockRules::kHeightTolerance && OwnCard() && g_menu.ownCardShown) {
-                        g_menu.ownCardSig.clear();
-                        WatchOwnCard(a_movie, a_widget);
-                    }
-                }
-                RedrawTooltip(a_movie, a_widget, a_snapshot);  // final review 5: after every fit of the pass (a card above the tree may have moved it)
-                ApplyVisibility(a_widget);
-                CheckRowBaselines(a_movie, a_root, a_widget);
-                const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
-                if (++g_menu.passLogs <= kMaxPassLogs || ms > g_menu.passSlowest) {
-                    logger::info("Widget: redraw pass {:.2f} ms (tree, progress, node card, {} block(s) fitted{}){}", ms, fitted.size(),
-                        fitted.empty() ? "" : ", laid out once", g_menu.passLogs > kMaxPassLogs ? " - the slowest so far" : "");
-                }
-                g_menu.passSlowest = std::max(g_menu.passSlowest, ms);
-            }
-
             static void PreviewFrame(RE::GFxMovieView* a_movie, RE::GFxValue& a_root, RE::GFxValue& a_widget)
             {
                 Preview::FrameInfo info;
@@ -8503,34 +6262,10 @@ namespace Widget
             return a_movie->GetVariable(&script, kIrPanelPath) && !script.IsUndefined() && !script.IsNull();
         }
 
-        // Heart of Magic's style read again at each menu open (spec v11 T: the player may change HoM's settings or design between
-        // menus), published for the frame handler. The line (T19) is logged when it differs from the last one; each note (a
-        // default taken and why) once per game session
-        void ReadHomStyle()
-        {
-            static std::string s_lastSummary;
-            static std::set<std::string> s_notesLogged;
-            auto style = std::make_shared<const HomStyle::Style>(HomStyle::Read(kHomConfigPath, kHomPresetDir));
-            if (auto summary = style->Summary(); summary != s_lastSummary) {
-                logger::info("HomStyle: {} ({}, {})", summary, kHomConfigPath, kHomPresetDir);
-                s_lastSummary = std::move(summary);
-            }
-            for (const auto& note : style->notes) {
-                if (s_notesLogged.insert(note).second) logger::info("HomStyle: {} (logged once)", note);
-            }
-            const std::scoped_lock lock(g_styleLock);
-            g_style = std::move(style);
-        }
-
         void AttachWidget()
         {
             auto* movie = OpenMagicMenuMovie();
             if (!movie) return;  // closed meanwhile
-            if (!Hom::Ready()) {
-                if (!g_noApiLogged) logger::warn("Widget: Heart of Magic's API has not arrived - nothing drawn (logged once)");
-                g_noApiLogged = true;
-                return;
-            }
             RE::GFxValue root, existing;
             if (!movie->GetVariable(&root, "_root") || !root.IsDisplayObject()) return;
             if (root.GetMember(kRootName, &existing) && existing.IsDisplayObject()) return;  // already on this movie
@@ -8568,16 +6303,10 @@ namespace Widget
             logger::info("Widget: Inventory Reforged {} in this magic menu{}", g_menu.irActive ? "IS active" : "is not active",
                 g_menu.irActive ? " - the item card and the preview are not moved" : "");
             g_closing = false;
-            g_pendingNext = g_pendingSetTarget = g_pendingButton = false;
             ResetUnlearnedPreview(g_menu.irActive);
             Preview::OnMenuOpen(g_menu.irActive);
-            ReadHomStyle();
             if (!g_frame) {
                 g_frame = RE::make_gptr<Frame>();
-                g_nodeClick = RE::make_gptr<NodeClick>();
-                g_nodeRollOver = RE::make_gptr<NodeRollOver>();
-                g_nodeRollOut = RE::make_gptr<NodeRollOut>();
-                g_buttonClick = RE::make_gptr<ButtonClick>();
                 g_selectionWrap = RE::make_gptr<SelectionChangeWrap>();
                 g_highlightWrap = RE::make_gptr<HighlightChangeWrap>();
                 g_listPress = RE::make_gptr<ListPress>(false);
@@ -8653,23 +6382,15 @@ namespace Widget
             logger::info("Widget: info card {}", OwnCard() ? "ours (bOwnCard=1): SkyUI's item card is hidden" :
                                                   g_menu.irActive ? "SkyUI's, left to Inventory Reforged" :
                                                                     "SkyUI's, moved and fitted (bOwnCard=0)");
-            if (auto tree = BlockClip(widget, Layout::kTree); tree.IsDisplayObject()) {
-                const auto rect = BlockRect(Layout::kTree);
-                DrawLegend(movie, tree, rect.Width(), rect.Height(), {});
-            }
             MakeLayoutChrome(movie, widget);  // blocks plan Task 4 (D5): the border handle, the drag overlay, the gear and its reset button
             CalibrateFocusCheck();
             g_layoutBlock = g_layoutBlock.load() & ~kBlockNoWidget;
             RE::GFxValue fn;
             movie->CreateFunction(&fn, g_frame.get());
             widget.SetMember("onEnterFrame", fn);
-            RequestState();
-            // the keys the hints name (Q1: chosen by the key scan, v5-key-scan.md)
-            logger::info("Widget: keys - next learnable {} {}, set target {} {} (the on-screen hints use these names)", settings.keyNext,
-                KeyLabel(settings.keyNext), settings.keySetTarget, KeyLabel(settings.keySetTarget));
             const auto area = movie->GetVisibleFrameRect();
-            logger::info("Widget: attached on thread {} (visible stage x {:.0f}..{:.0f} y {:.0f}..{:.0f}, tree {})",
-                REX::W32::GetCurrentThreadId(), area.left, area.right, area.top, area.bottom, Spells::Get() ? "loaded" : "missing");
+            logger::info("Widget: attached on thread {} (visible stage x {:.0f}..{:.0f} y {:.0f}..{:.0f}, {} add-on block(s))",
+                REX::W32::GetCurrentThreadId(), area.left, area.right, area.top, area.bottom, g_addons.size());
         }
 
         class MenuSink final : public RE::BSTEventSink<RE::MenuOpenCloseEvent>
@@ -8701,11 +6422,6 @@ namespace Widget
                     LayoutAtClose();   // blocks plan Task 4: a mode still on is cancelled; the input tests
                     // the wheel listener is not removed here (final review ruling: no GFx call on the close thread) - it does nothing
                     // while g_closing (WheelColumn) and goes with the movie
-                    if (g_menu.nodeClicks > 0) {
-                        SelfTest(std::format("L2 mask clicks {} - {} node click(s) this menu, {} outside the tree column's visible area (ignored; "
-                                             "want 0: setMask keeps the masked-off part from taking clicks)",
-                            g_menu.nodeClicksOutside == 0 ? "PASS" : "FAIL", g_menu.nodeClicks, g_menu.nodeClicksOutside));
-                    }
                     if (g_menu.stripApplies > 0) {  // review R4: how often the strip was moved (again) this menu
                         logger::info("Widget: key-hint strip moved {} time(s) this menu", g_menu.stripApplies);
                     }
@@ -8870,11 +6586,6 @@ namespace Widget
         RegisterBlock(BlockApi::kPluginName, &reg, sizeof(reg));
     }
 
-    bool LoadTree()
-    {
-        return Spells::Load();
-    }
-
     void Install()
     {
         auto* ui = RE::UI::GetSingleton();
@@ -8890,16 +6601,6 @@ namespace Widget
         if (!Settings::Get().drawPreviewOver && !Settings::Get().movePreview) {
             logger::info("Widget: bDrawPreviewOver=0 and bMovePreview=0 - MagicMenu PostDisplay hooked for the Powers tab's 3D hide only");
         }
-    }
-
-    void RequestNext()
-    {
-        g_pendingNext = true;
-    }
-
-    void RequestSetTarget()
-    {
-        g_pendingSetTarget = true;
     }
 
     RE::GFxMovieView* OpenMagicMenuMovie()

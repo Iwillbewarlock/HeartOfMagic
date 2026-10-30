@@ -67,7 +67,7 @@ namespace Layout
 
     std::array<Frame, kColumns> DefaultFrames(const Settings::Values& a_values)
     {
-        const Frame frame{ a_values.preview.left, a_values.tree.right, a_values.preview.top, a_values.itemCard.bottom, a_values.panelGap,
+        const Frame frame{ a_values.preview.left, a_values.treeRight, a_values.preview.top, a_values.itemCard.bottom, a_values.panelGap,
             kMinColumn };
         return { frame, frame };
     }
@@ -76,10 +76,7 @@ namespace Layout
     {
         return {
             { kPreview, a_values.preview.Height() },
-            { kTree, a_values.tree.Height() },
-            { kProgress, a_values.progress.Height() },
             { kSpellCard, a_values.itemCard.Height() },
-            { kNodeCard, a_values.nodeCard.Height() },
         };
     }
 
@@ -132,11 +129,6 @@ namespace Layout
             return { frame.left, frame.top, border, frame.bottom };
         }
         return { border + a_frames[kColumnLeft].gap, frame.top, frame.right, frame.bottom };
-    }
-
-    std::set<BlockId> NoTreeTabHidden()
-    {
-        return { kTree, kProgress, kNodeCard };
     }
 
     std::string CardBoxProblem(const Settings::Rect& a_box, const Settings::Rect& a_column, double a_content)
@@ -662,6 +654,19 @@ namespace Layout
         std::map<BlockId, BlockId> finalToLegacy;
         for (const auto& [legacyId, finalId] : a_legacyToFinal) finalToLegacy.emplace(finalId, legacyId);
         return Rename(std::move(a_state), finalToLegacy);
+    }
+
+    WithAddonsResult WithAddons(const State& a_read, const std::set<BlockId>& a_builtins, const std::map<BlockId, BlockId>& a_legacyToFinal,
+        const std::vector<BlockId>& a_addons, const State& a_default)
+    {
+        WithAddonsResult result;
+        result.renamed = ToFinal(a_read, a_legacyToFinal);
+        result.fallback = AddAddons(ToFinal(a_default, a_legacyToFinal), a_addons);
+        auto known = a_builtins;
+        for (const auto& [legacyId, finalId] : a_legacyToFinal) known.erase(legacyId);
+        known.insert(a_addons.begin(), a_addons.end());
+        result.layout = Repair(result.renamed, known, result.fallback);
+        return result;
     }
 
     SavePlan PlanSave(FileState a_state, bool a_badKept, bool a_fileExists)

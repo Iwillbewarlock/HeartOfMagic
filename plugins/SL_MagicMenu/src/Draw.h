@@ -151,7 +151,8 @@ namespace Draw
         }
     }
 
-    // A closed polygon through points with .x / .y (HomStyle::ShapePoints), back to the first: the current lineStyle and fill
+    // A closed polygon through points with .x / .y (the Heart of Magic block's mark shapes), back to the first: the current lineStyle
+    // and fill
     template <class Points>
     void Polygon(RE::GFxValue& c, const Points& a_points)
     {
@@ -161,7 +162,7 @@ namespace Draw
         LineTo(c, a_points.front().x, a_points.front().y);
     }
 
-    // Separate strokes with .a / .b ends (HomStyle::DashOutline: a dashed outline in one phase round its shape, spec v11 R10)
+    // Separate strokes with .a / .b ends (the Heart of Magic block's dashed outlines: one phase round a shape, spec v11 R10)
     template <class Strokes>
     void Segments(RE::GFxValue& c, const Strokes& a_strokes)
     {
