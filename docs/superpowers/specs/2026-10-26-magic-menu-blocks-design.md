@@ -452,7 +452,7 @@ block) messages. v1 and v2 add-ons are read as before. The contract is the heade
   is cached, so the next frame reads again (`BlockRules::AllShownRead`); no part-union is used. The frames this happened
   on are counted at the menu's close.
 - Our key hints in the strip (user 2026-10-31, "단축키 표시"; `KeyHints.cpp`, the rules in `BlockRulesV3.h`): the layout
-  key (K, "Edit mode" / "편집 모드", `hint_layout`) and the add-ons' 'SLMK' hints (BlockApi.h `kMessageKeyHint`; the HoM
+  key (K, "Edit mode" / "편집 모드", `hint_layout`; in the layout mode "View mode" / "보기 모드로", `hint_layout_leave`) and the add-ons' 'SLMK' hints (BlockApi.h `kMessageKeyHint`; the HoM
   block's U "Next spell" and G "Set learning target", on its tree block) are buttons of SkyUI's own panel, so they look
   like SkyUI's. As STB Hotkey System does it (its BottomBarHint.cpp), `Menu_mc.updateBottomBar` - MagicMenu.as:193-219,
   the only place that clears and fills the panel - is wrapped on the menu object, and after it runs our buttons are added

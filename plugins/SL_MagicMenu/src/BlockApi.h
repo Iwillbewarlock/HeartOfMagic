@@ -168,7 +168,7 @@
 // for that code). The label: UTF-8, copied, cut to kMaxHintLabelBytes at a character boundary. The struct only needs to live
 // for the Dispatch call. Refused (logged) when the message is shorter than the fields read, apiVersion is not 3, the id is
 // empty, too long or not a registered block, scanCode is 0 or more than kMaxHintScanCode, or the block has kMaxKeyHints keys
-// already. A hint SkyUI's panel has no button for (it holds 6; SL_MagicMenu adds buttons to it the way the panel makes its own)
+// already (refusals logged, capped). A hint SkyUI's panel has no button for (it holds 6; SL_MagicMenu adds buttons to it the way the panel makes its own)
 // is dropped and logged. Not answered. An older SL_MagicMenu ignores the message.
 // =============================================================================
 

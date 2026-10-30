@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <initializer_list>
 #include <numbers>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -35,18 +36,23 @@ namespace Draw
     inline void MoveTo(RE::GFxValue& c, double x, double y) { Call(c, "moveTo", { x, y }); }
     inline void LineTo(RE::GFxValue& c, double x, double y) { Call(c, "lineTo", { x, y }); }
 
-    inline double NextDepth(RE::GFxValue& a_parent)
+    /// a_parent's getNextHighestDepth(), nullopt when it does not read as a number (fix round 1 of the key hints: a fallback of
+    /// depth 0 would replace a_parent's child there - SkyUI's button0, or a menu clip - so nothing is made instead)
+    inline std::optional<double> NextDepth(RE::GFxValue& a_parent)
     {
         RE::GFxValue depth;
         a_parent.Invoke("getNextHighestDepth", &depth);
-        return depth.IsNumber() ? depth.GetNumber() : 0.0;
+        if (!depth.IsNumber()) return std::nullopt;
+        return depth.GetNumber();
     }
 
-    // A child clip above every child a_parent already has (not a display object when that failed)
+    // A child clip above every child a_parent already has (not a display object when that failed, or the next depth did not read)
     inline RE::GFxValue Clip(RE::GFxValue& a_parent, const char* a_name)
     {
         RE::GFxValue clip;
-        a_parent.CreateEmptyMovieClip(&clip, a_name, static_cast<std::int32_t>(NextDepth(a_parent)));
+        const auto depth = NextDepth(a_parent);
+        if (!depth) return clip;
+        a_parent.CreateEmptyMovieClip(&clip, a_name, static_cast<std::int32_t>(*depth));
         return clip;
     }
 
@@ -62,7 +68,9 @@ namespace Draw
         double w, double h, const std::string& a_text, std::uint32_t a_rgb, double a_size, const char* a_align = "left")
     {
         RE::GFxValue field, format, text;
-        Call(a_parent, "createTextField", { a_name, NextDepth(a_parent), x, y, w, h });
+        const auto depth = NextDepth(a_parent);
+        if (!depth) return field;  // undefined: no field made (see NextDepth)
+        Call(a_parent, "createTextField", { a_name, *depth, x, y, w, h });
         if (!a_parent.GetMember(a_name, &field) || !field.IsDisplayObject()) return field;
         field.Invoke("getNewTextFormat", &format);
         if (format.IsObject()) {

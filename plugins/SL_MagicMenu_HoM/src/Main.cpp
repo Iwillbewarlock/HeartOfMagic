@@ -162,13 +162,16 @@ namespace
         const std::array<std::pair<std::uint32_t, HomStrings::Str>, 2> hints{ { { keys.keyNext, HomStrings::Str::kHintNext },
             { keys.keySetTarget, HomStrings::Str::kHintSetTarget } } };
         for (const auto& [key, text] : hints) {
+            if (key == 0 || key > BlockApi::kMaxHintScanCode) {
+                logger::info("SL_MagicMenu_HoM: \"{}\" key unbound - no hint", HomStrings::Text(text));
+                continue;
+            }
             BlockApi::KeyHint hint{ .id = id.c_str(), .scanCode = key, .label = HomStrings::Text(text) };  // Dispatch takes a non-const pointer
             if (!a_messaging->Dispatch(BlockApi::kMessageKeyHint, &hint, sizeof(hint), BlockApi::kPluginName)) {
                 logger::warn("SL_MagicMenu_HoM: the key hint {} was not delivered (SL_MagicMenu did not listen)", key);
             }
         }
-        logger::info("SL_MagicMenu_HoM: key hints sent for {}: {} \"{}\", {} \"{}\"", id, keys.keyNext, HomStrings::Text(HomStrings::Str::kHintNext),
-            keys.keySetTarget, HomStrings::Text(HomStrings::Str::kHintSetTarget));
+        logger::info("SL_MagicMenu_HoM: key hints for {} done (keys {} and {}; an unbound one is logged above)", id, keys.keyNext, keys.keySetTarget);
     }
 
     // True when the tree block (the driver) was accepted

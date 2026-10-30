@@ -4,6 +4,7 @@
 
 #include "Draw.h"
 #include "Settings.h"
+#include "Widget.h"
 #include "WidgetStrings.h"
 
 #include <algorithm>
@@ -36,7 +37,8 @@ namespace KeyHints
         constexpr std::size_t kMaxGrown = 8;         // buttons we add to one panel at most
         constexpr int kMaxRepairs = 8;               // per menu: our buttons found gone without the wrap (logged, put back)
         constexpr int kMaxLogs = 8;                  // per menu: change and drop lines
-        constexpr int kMaxSetLogs = 16;              // per session: 'SLMK' lines
+        constexpr int kMaxSetLogs = 16;              // per session: accepted 'SLMK' lines
+        constexpr int kMaxRefusedLogs = 8;           // per session: refused ones (a block's keys full), apart from the accepted
         constexpr int kMaxChecks = 4;                // per menu: SelfTest L10 read-backs
 
         // the add-ons' hints (any thread sets them, the UI thread reads them)
@@ -118,7 +120,9 @@ namespace KeyHints
             if (!a_panel.GetMember("buttonRenderer", &renderer) || !renderer.IsString() || (a_panel.GetMember(id.c_str(), &taken) && !taken.IsUndefined())) return false;
             a_movie->CreateString(&name, id.c_str());
             const bool init = a_panel.GetMember("buttonInitializer", &initializer) && initializer.IsObject();
-            const std::array<RE::GFxValue, 4> args{ renderer, name, RE::GFxValue{ Draw::NextDepth(a_panel) }, initializer };
+            const auto depth = Draw::NextDepth(a_panel);  // not read: no attach (depth 0 would replace SkyUI's button0)
+            if (!depth) return false;
+            const std::array<RE::GFxValue, 4> args{ renderer, name, RE::GFxValue{ *depth }, initializer };
             if (!a_panel.Invoke("attachMovie", &button, args.data(), init ? 4 : 3) || !button.IsDisplayObject()) return false;
             button.SetMember("_visible", false);
             if (!button.GetMember("initialized", &loaded) || !loaded.IsBool() || !loaded.GetBool()) button.Invoke("onLoad");
@@ -251,7 +255,9 @@ namespace KeyHints
                 RE::GFxValue original;
                 if (!a_params.thisPtr->GetMember(kSavedMethod, &original) || !original.IsObject()) return;
                 original.Invoke("call", a_params.retVal, a_params.argsWithThisRef, a_params.argCount + 1);
-                if (g_closed || !a_params.movie || g_menu.broken) return;
+                // only the open magic menu's own movie (as Widget.cpp's frame handler): a wrap left on another movie adds nothing
+                auto* open = Widget::OpenMagicMenuMovie();
+                if (g_closed || !a_params.movie || !open || a_params.movie != static_cast<RE::GFxMovie*>(open) || g_menu.broken) return;
                 ++g_hookCalls;
                 g_menu.seen = true;
                 g_menu.argPlain = a_params.argCount == 0 || (a_params.argCount == 1 && (a_params.args[0].IsBool() || a_params.args[0].IsUndefined()));
@@ -331,17 +337,20 @@ namespace KeyHints
 
     void Set(std::string_view a_sender, const BlockRules::KeyHintRead& a_hint)
     {
-        static std::atomic<int> s_logs{ 0 };
+        static std::atomic<int> s_logs{ 0 }, s_refusedLogs{ 0 };
         BlockRules::HintSet result;
         {
             const std::scoped_lock lock(g_hintLock);
             result = BlockRules::SetKeyHint(g_hints, a_hint, BlockApi::kMaxKeyHints);
         }
+        if (result == BlockRules::HintSet::kFull) {
+            if (s_refusedLogs.fetch_add(1) < kMaxRefusedLogs) {
+                logger::warn("KeyHints: key hint {} of {} from {} refused - the block has {} hints already", a_hint.scanCode, a_hint.id, a_sender, BlockApi::kMaxKeyHints);
+            }
+            return;
+        }
         if (s_logs.fetch_add(1) >= kMaxSetLogs) return;
         switch (result) {
-        case BlockRules::HintSet::kFull:
-            logger::warn("KeyHints: key hint {} of {} from {} refused - the block has {} hints already", a_hint.scanCode, a_hint.id, a_sender, BlockApi::kMaxKeyHints);
-            break;
         case BlockRules::HintSet::kNotThere: logger::info("KeyHints: key hint {} of {} removed by {} - it had none", a_hint.scanCode, a_hint.id, a_sender); break;
         case BlockRules::HintSet::kRemoved: logger::info("KeyHints: key hint {} of {} removed by {}", a_hint.scanCode, a_hint.id, a_sender); break;
         default:
@@ -374,8 +383,10 @@ namespace KeyHints
         const bool gamepad = found && Gamepad(menu);
         if (gamepad && !std::exchange(g_menu.gamepadLogged, true)) logger::info("KeyHints: SkyUI shows gamepad buttons - our keyboard hints are hidden");
         const auto& settings = Settings::Get();
+        // the layout key reads as the gear's hint does: "Edit mode" in the view mode, "View mode" in the layout mode (its press there
+        // leaves it; the label change makes our buttons again, once per toggle)
         const BlockRules::HintButton host{ settings.keyLayout <= BlockApi::kMaxHintScanCode ? settings.keyLayout : 0u,
-            WidgetText::Text(WidgetText::Str::kHintLayout), false };
+            WidgetText::Text(a_layoutMode ? WidgetText::Str::kHintLayoutLeave : WidgetText::Str::kHintLayout), false };
         {
             const std::scoped_lock lock(g_hintLock);
             g_menu.want = BlockRules::HintButtons(host, a_blocks, g_hints, a_layoutMode, gamepad);

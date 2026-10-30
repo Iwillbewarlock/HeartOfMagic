@@ -57,6 +57,7 @@ namespace WidgetText
         kLayoutGearLeave,
         // 2026-10-31: the layout key's hint in SkyUI's key-hint strip (KeyHints.cpp)
         kHintLayout,
+        kHintLayoutLeave,
         kCount
     };
 
@@ -105,6 +106,8 @@ namespace WidgetText
         { Str::kLayoutGearLeave, "layout_gear_leave", "View mode {key}" },
         // 2026-10-31: the layout key's hint in SkyUI's key-hint strip (the key is its icon there)
         { Str::kHintLayout, "hint_layout", "Edit mode" },
+        // fix round 1: the same key's hint in the layout mode (the gear's layout_gear_leave without the key)
+        { Str::kHintLayoutLeave, "hint_layout_leave", "View mode" },
     });
 
     consteval bool StringsInOrder()
