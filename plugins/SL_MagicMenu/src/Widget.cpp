@@ -6,6 +6,7 @@
 #include "BlockRegistry.h"
 #include "BlockRules.h"
 #include "BlockRulesV3.h"
+#include "BlockRulesStrip.h"
 
 #include "Draw.h"
 #include "GameThread.h"
@@ -475,6 +476,25 @@ namespace Widget
             int stripMoveLogs = 0, stripApplies = 0, stripChecks = 0;  // review R4: moves logged, moves this menu, read-back lines
             int stripFoundFrame = -1;   // the frame the panel was first found this menu (-1: not yet; a menu without it logs at the close)
             int stripReadFails = 0;     // frames a shown button's bounds did not read (StripContent; logged at the close)
+            // Task 8 R1: the signature the reads failed under, how many frames in a row, whether the content in use is partial
+            std::vector<double> stripFailSignature;
+            int stripFailsInRow = 0;
+            bool stripPartial = false;
+            std::set<std::string> stripUnreadLogged;  // the children logged as unread (once each this menu)
+            bool stripLeft = false;                   // Task 8 R3: SkyUI's strip left where it is (it would cover the board)
+            // Task 8 T1 (L8 last): the strip's target in effect, the frame of its last move, the last read of where it is (frame thread)
+            std::optional<Settings::Rect> stripTarget;
+            int stripMoveFrame = -1, stripReadFrame = -1;
+            std::optional<BlockRules::Point> stripRead;
+            // Task 8 T2 (L9, bSelfTest): read back every kPollFrames frames, logged at the close - checks, failures, the first
+            // failure; the reset button's clicks taken / ignored and taken before it was fully out
+            struct ChromeCheck
+            {
+                int checks = 0, fails = 0;
+                std::string firstFail;
+            };
+            ChromeCheck boardCheck, gearCheck, resetCheck;
+            int resetTaken = 0, resetIgnored = 0, resetTakenEarly = 0;
             bool gearHintLeft = false;  // the gear's hint is on its left (the edit mode: the reset button is on its right)
             bool gearHover = false;                  // the mouse is over the gear (GearHover)
             std::optional<bool> gearDrawnMode;       // the layout mode the gear's look and hint were made for (UpdateGear)
@@ -1028,7 +1048,7 @@ namespace Widget
         // Selects a spell in the list the way SkyUI does it itself: its public selectedIndex setter (an index into
         // entryList; it ignores an entry the current tab filters out, scrolls the entry into view and updates
         // the item card). Selection only: nothing is equipped.
-        ListPick SelectInList(RE::FormID a_id, SelectionRule::Source a_source = SelectionRule::Source::kTree)
+        ListPick SelectInList(RE::FormID a_id, SelectionRule::Source a_source)
         {
             ListPick pick;
             auto* list = ItemList();
@@ -3454,9 +3474,10 @@ namespace Widget
         }
 
         // SelfTest L1 (blocks plan Task 2, D6): each tab's arranged rects (our card and SkyUI's) logged, PASS when they are the
-        // core's reference (CoreRect), FAIL with the differences; SKIP when the layout file is not the default layout or an add-on
-        // block is arranged in the left column (the Heart of Magic block's progress card takes its retired place above the spell
-        // card): the rects differ by design then. The ini and the layout file are read once per game session, so this runs at the
+        // core's reference (CoreRect), FAIL with the differences; SKIP when the layout file is not the default layout. Per block
+        // (Task 8): a block with an add-on ahead of it in its column (the Heart of Magic block's progress card takes its retired
+        // place above the spell card), or after our card that fills its column, is not compared - its rect differs by design
+        // then; SKIP when no block is compared. The ini and the layout file are read once per game session, so this runs at the
         // first menu open only
         void CheckLayoutRects()
         {
@@ -3470,26 +3491,34 @@ namespace Widget
                     const int flag = tab == Tab::kSchool ? kFlagDestruction : tab == Tab::kPowers ? kFlagPowers :
                                      tab == Tab::kEffects ? kFlagActiveEffects : kFlagUnread;
                     const auto arranged = ArrangeBlocks(ArrangementFor(own, flag));
-                    const bool addonLeft = std::ranges::any_of(g_addons, [&](const auto& a_addon) {
-                        return arranged.contains(a_addon.id) && ColumnOf(a_addon.id) == 0;
-                    });
-                    std::string rects, diffs;
+                    const auto arrangedAddon = [&](const BlockId& a_id) {
+                        return arranged.contains(a_id) && std::ranges::any_of(g_addons, [&](const auto& a_addon) { return a_addon.id == a_id; });
+                    };
+                    std::string rects, diffs, skipped;
+                    int compared = 0;
                     for (const BlockId id : kBlocks) {
                         const auto it = arranged.find(id);
                         const std::optional<Settings::Rect> now = it != arranged.end() ? std::optional{ it->second } : std::nullopt;
                         const auto then = CoreRect(own, id);
                         rects += std::format(" {} {}", id, now ? RectText(*now) : std::string("not arranged"));
+                        // Task 8: per block - the preview is compared while it is first in its column, the spell card while no add-on
+                        // is ahead of it (our card: none after it either, BlockRules::CoreCompared)
+                        const auto column = ColumnOf(id);
+                        if (custom || !column || !BlockRules::CoreCompared(CurrentLayout().columns[*column], id, own && id == Layout::kSpellCard, arrangedAddon)) {
+                            skipped += std::format(" {}", id);
+                            continue;
+                        }
+                        ++compared;
                         if (!now || !SameRect(*now, then)) {
                             diffs += std::format("; {} {} (core {})", id, now ? RectText(*now) : std::string("not arranged"), RectText(then));
                         }
                     }
-                    const bool skip = custom || addonLeft;
-                    const char* verdict = skip ? "SKIP" : diffs.empty() ? "PASS" : "FAIL";
+                    const char* verdict = compared == 0 ? "SKIP" : diffs.empty() ? "PASS" : "FAIL";
                     SelfTest(std::format("L1 layout {} {} ({}) -{}{}{}", TabName(tab), verdict, own ? "our card" : "SkyUI's card", rects,
-                        custom    ? " (the layout file is not the default layout: the core's rects are no reference)" :
-                        addonLeft ? " (an add-on block is in the left column: the core's rects are no reference)" :
-                                    "",
-                        skip ? "" : diffs));
+                        custom            ? " (the layout file is not the default layout: the core's rects are no reference)" :
+                        !skipped.empty()  ? std::format(" (not compared:{} - an add-on block is ahead of it in its column, or after our card that fills it)", skipped) :
+                                            std::string{},
+                        diffs));
                 }
             }
         }
@@ -4092,6 +4121,7 @@ namespace Widget
                     logger::warn("Widget: C1 no card info for selection {} in {} frames - SkyUI's own card is back for this menu", selection, kC1NoInfoFrames);
                     SelfTest(std::format("C1 card FAIL - no card info object for {} frames; fell back to SkyUI's card", kC1NoInfoFrames));
                     g_menu.fitHeight.erase(Layout::kSpellCard);  // review GPT 3: SkyUI's card keeps its slot's size, not our card's fit
+                    g_menu.heldShrink.erase(Layout::kSpellCard);  // and no shrink of our card left waiting (Task 8)
                     Rearrange(a_movie, a_widget);  // SkyUI's card does not fill its column (ArrangementFor)
                     ApplyVisibility(a_widget);
                     return;
@@ -4461,7 +4491,15 @@ namespace Widget
             void Call(Params&) override
             {
                 // user 2026-10-30: the reset button takes a click only once fully out (a click while it unfolds is ignored)
-                if (!g_closing && BlockRules::ResetClickable(g_menu.resetShownW, g_menu.resetFullW, g_menu.layout.active)) g_menu.layout.resetDue = true;
+                if (g_closing) return;
+                if (!BlockRules::ResetClickable(g_menu.resetShownW, g_menu.resetFullW, g_menu.layout.active)) {
+                    ++g_menu.resetIgnored;
+                    return;
+                }
+                g_menu.layout.resetDue = true;
+                ++g_menu.resetTaken;
+                // Task 8 T2 (L9 reset): the widths at the click itself, not the rule - a taken click with the box not fully out fails
+                if (!g_menu.layout.active || g_menu.resetShownW < g_menu.resetFullW - BlockRules::kHeightTolerance) ++g_menu.resetTakenEarly;
             }
         };
 
@@ -4919,36 +4957,47 @@ namespace Widget
             ApplyVisibility(a_widget);
         }
 
-        // review R6: the button panel's visible content - its direct children that show (BlockRules::VisibleUnion: getBounds
-        // counts hidden ones too, and SkyUI hides the buttons it does not use, which would widen the strip and push it and the gear
-        // left). nullopt when no child shows (review of 4d50080a: hideButtons / clearButtons, ItemMenu.as:115, MagicMenu.as:195 -
-        // the panel's own bounds would count the hidden buttons), and when a shown child's bounds do not read (*a_readAll false then:
-        // BlockRules::AllShownRead). Through every parent (BoundsIn); a hidden child's bounds are not read (it is left out either way)
-        std::optional<Bounds> VisibleBounds(RE::GFxValue& a_clip, RE::GFxValue& a_space, bool* a_readAll = nullptr)
+        // review R6: the button panel's children as BlockRules::ChildBox - each direct child's _visible and, when shown, its bounds
+        // in a_space (BoundsIn: through every parent; a_flash: Flash's own getBounds instead, the L8 last read-back's other path).
+        // a_names (optional) gets each child's name in the same order. A hidden child's bounds are not read
+        std::vector<BlockRules::ChildBox> ChildBoxes(RE::GFxValue& a_clip, RE::GFxValue& a_space, std::vector<std::string>* a_names = nullptr, bool a_flash = false)
         {
-            std::vector<RE::GFxValue> children;
+            std::vector<std::pair<std::string, RE::GFxValue>> children;
             a_clip.VisitMembers([&](const char* a_name, const RE::GFxValue& a_value) {
-                if (a_name && *a_name != '_' && a_value.IsDisplayObject()) children.push_back(a_value);
+                if (a_name && *a_name != '_' && a_value.IsDisplayObject()) children.emplace_back(a_name, a_value);
             });
             std::vector<BlockRules::ChildBox> boxes;
-            for (auto& child : children) {
+            for (auto& [name, child] : children) {
+                if (a_names) a_names->push_back(name);
                 if (!BoolMember(child, "_visible")) {
                     boxes.push_back({ {}, false });
                     continue;
                 }
-                const auto bounds = BoundsIn(child, a_space);
+                const auto bounds = a_flash ? GetBounds(child, a_space) : BoundsIn(child, a_space);
                 boxes.push_back(bounds ? BlockRules::ChildBox{ { bounds->xMin, bounds->yMin, bounds->xMax, bounds->yMax }, true, true } : BlockRules::ChildBox{ {}, true, false });
             }
-            if (a_readAll) *a_readAll = BlockRules::AllShownRead(boxes);
-            const auto united = BlockRules::VisibleUnion(boxes);
+            return boxes;
+        }
+
+        // The panel's visible content: the union of its shown children (BlockRules::VisibleUnion: getBounds counts hidden ones too,
+        // and SkyUI hides the buttons it does not use, which would widen the strip and push it and the gear left). nullopt when no
+        // child shows (review of 4d50080a: hideButtons / clearButtons, ItemMenu.as:115, MagicMenu.as:195 - the panel's own bounds
+        // would count the hidden buttons), and when a shown child's bounds do not read - unless a_partial (Task 8 R1: the content in
+        // use was built without such a child, BlockRules::ReadUnion)
+        std::optional<Bounds> VisibleBounds(RE::GFxValue& a_clip, RE::GFxValue& a_space, bool a_partial = false, bool a_flash = false)
+        {
+            const auto boxes = ChildBoxes(a_clip, a_space, nullptr, a_flash);
+            const auto united = a_partial ? BlockRules::ReadUnion(boxes) : BlockRules::VisibleUnion(boxes);
             if (!united) return std::nullopt;
             return Bounds{ united->left, united->right, united->top, united->bottom };
         }
 
-        // review of 4d50080a (cost): the strip's visible content read again (VisibleBounds: getBounds and four mapped corners per
+        // review of 4d50080a (cost): the strip's visible content read again (ChildBoxes: getBounds and four mapped corners per
         // shown button) only when its signature changed - the panel's origin on the stage and each child's _visible and, when shown,
-        // _x, _y, _width, _height (a label change alters _width). A value that does not read (NaN) never matches, so it is read again;
-        // a shown button whose bounds do not read leaves nothing cached (no move this frame, read again the next)
+        // _x, _y, _width, _height (a label change alters _width). A value that does not read (NaN) never matches, so it is read again.
+        // A shown button whose bounds do not read leaves nothing cached (no move this frame, read again the next) - Task 8 R1: until
+        // that has failed kPollFrames frames in a row under one signature (NaN-equal there, BlockRules::SameSignature); then the
+        // buttons that read place the strip, cached with the signature, and the unread child is logged once this menu
         std::optional<Bounds> StripContent(RE::GFxValue& a_panel, const BlockRules::Point& a_nowStage, RE::GFxValue& a_widget)
         {
             constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
@@ -4967,17 +5016,31 @@ namespace Widget
                 if (!g_menu.stripContent) return std::nullopt;
                 return Bounds{ g_menu.stripContent->left, g_menu.stripContent->right, g_menu.stripContent->top, g_menu.stripContent->bottom };
             }
-            bool readAll = true;
-            const auto content = VisibleBounds(a_panel, a_widget, &readAll);
-            if (!readAll) {  // GPT on 4846c6a5: a failed read is not kept - nothing moves this frame, the next one reads again
+            std::vector<std::string> names;
+            const auto boxes = ChildBoxes(a_panel, a_widget, &names);
+            const bool same = BlockRules::SameSignature(signature, g_menu.stripFailSignature);
+            const auto read = BlockRules::ReadStrip(boxes, same, g_menu.stripFailsInRow, kPollFrames);
+            if (!read.cache) {  // GPT on 4846c6a5: a failed read is not kept - nothing moves this frame, the next one reads again
                 ++g_menu.stripReadFails;
+                g_menu.stripFailSignature = std::move(signature);
                 g_menu.stripSignature.clear();
                 g_menu.stripContent.reset();
                 return std::nullopt;
             }
+            if (read.partial) {
+                for (std::size_t i = 0; i < boxes.size(); ++i) {
+                    if (boxes[i].visible && !boxes[i].read && g_menu.stripUnreadLogged.insert(names[i]).second) {
+                        logger::warn("Layout: key-hint strip - the bounds of its shown child {} did not read on {} frames in a row; the strip is placed by "
+                                     "the buttons that read (logged once this menu)", names[i], g_menu.stripFailsInRow);
+                    }
+                }
+            }
+            g_menu.stripPartial = read.partial;
+            g_menu.stripFailSignature.clear();
             g_menu.stripSignature = std::move(signature);
-            g_menu.stripContent = content ? std::optional<Settings::Rect>{ Settings::Rect{ content->xMin, content->yMin, content->xMax, content->yMax } } : std::nullopt;
-            return content;
+            g_menu.stripContent = read.content;
+            if (!read.content) return std::nullopt;
+            return Bounds{ read.content->left, read.content->right, read.content->top, read.content->bottom };
         }
 
         // The key-hint strip moved (PlaceStripAndGear): BlockRules::PlacePanel with our stage -> the panel's parent through MapPoint,
@@ -4997,14 +5060,16 @@ namespace Widget
             if (!place) return;
             const bool first = !g_menu.stripInPlace;
             g_menu.stripInPlace = place->set ? place->want : a_now;  // where it is in place from here on
+            g_menu.stripTarget = target;                             // Task 8 T1: the target in effect (L8 last)
             if (!place->set) return;
             a_panel.SetMember("_x", place->want.x);
             a_panel.SetMember("_y", place->want.y);
             ++g_menu.stripApplies;
+            g_menu.stripMoveFrame = g_menu.frame;
             // review R4: read back where its visible part landed (through every parent), PASS / FAIL against the target
             if (g_menu.stripChecks < kMaxStripMoveLogs) {
                 ++g_menu.stripChecks;
-                const auto landed = VisibleBounds(a_panel, a_widget);
+                const auto landed = VisibleBounds(a_panel, a_widget, g_menu.stripPartial);
                 const bool pass = landed && std::abs(landed->xMin - target.left) <= kStripCheckTolerance && std::abs(landed->yMin - target.top) <= kStripCheckTolerance;
                 SelfTest(std::format("L8 strip {} {} - at {} (wanted {:.1f},{:.1f})", kButtonPanelPath, pass ? "PASS" : "FAIL",
                     landed ? std::format("{:.1f},{:.1f}", landed->xMin, landed->yMin) : std::string("no bounds (no button shown, or one did not read)"), target.left, target.top));
@@ -5020,6 +5085,24 @@ namespace Widget
                     target.right > right + kStripTolerance ? std::format(" (too wide: runs {:.0f} past the right column)", target.right - right) : "",
                     g_menu.stripMoveLogs == kMaxStripMoveLogs ? " - later moves not logged" : "");
             }
+        }
+
+        // Task 8 R2: the strip's last visible size (any menu this game session) - the gear's row while this menu's is not known
+        // yet, so the gear does not open at the board and jump a row down once the first button shows (a size from an earlier
+        // menu; the first menu of a session still has none)
+        std::optional<std::pair<double, double>> g_lastStripSize;
+
+        // Task 8 T1 (L8 last, bSelfTest): where the strip's visible content is, read on a frame after its last move (the frame
+        // after each move and every kPollFrames frames) through Flash's own getBounds - not the corner mapping that placed it;
+        // under Inventory Reforged's window getBounds is off (BoundsIn), so BoundsIn there. Judged at the close
+        void ReadStripBack(RE::GFxValue& a_panel, RE::GFxValue& a_widget)
+        {
+            if (!Settings::Get().selfTest || !g_menu.stripTarget || g_menu.frame <= g_menu.stripMoveFrame) return;
+            if (g_menu.frame != g_menu.stripMoveFrame + 1 && g_menu.frame % kPollFrames != 0) return;
+            const auto seen = VisibleBounds(a_panel, a_widget, g_menu.stripPartial, !g_menu.irActive);
+            if (!seen) return;
+            g_menu.stripRead = BlockRules::Point{ seen->xMin, seen->yMin };
+            g_menu.stripReadFrame = g_menu.frame;
         }
 
         // user 2026-10-30 (sketch), redesigned from SkyUI's source (BottomBar.as:26-53, ButtonPanel.as, ItemMenu.as:73): the
@@ -5047,19 +5130,34 @@ namespace Widget
             const std::optional<double> x = found ? Number(panel, "_x") : std::nullopt, y = found ? Number(panel, "_y") : std::nullopt;
             const auto nowStage = x && y ? MapPoint(a_movie, parent, a_widget, *x, *y) : std::nullopt;
             const auto content = nowStage ? StripContent(panel, BlockRules::Point{ nowStage->first, nowStage->second }, a_widget) : std::nullopt;
-            if (content) g_menu.stripSize = std::pair{ content->xMax - content->xMin, content->yMax - content->yMin };
-            const auto row = BlockRules::HintRowRects(left, below, g_menu.stripSize ? g_menu.stripSize->first : 0.0, g_menu.stripSize ? g_menu.stripSize->second : 0.0,
-                kGearSize, kBoardStripGap, kGearGap, visible);
-            if (content) {
+            if (content) g_menu.stripSize = g_lastStripSize = std::pair{ content->xMax - content->xMin, content->yMax - content->yMin };
+            const auto [stripW, stripH] = BlockRules::RowStripSize(g_menu.stripSize, g_lastStripSize);
+            auto row = BlockRules::HintRowRects(left, below, stripW, stripH, kGearSize, kBoardStripGap, kGearGap, visible);
+            // Task 8 R3: a row pulled up into the board (the columns reach the stage's bottom) - SkyUI's strip is left where it is (our
+            // board and panels in mmx_root would cover it) and the gear goes alone under the board
+            const bool covers = BlockRules::StripCoversBoard(row, below, kBoardStripGap, kStripCheckTolerance);
+            if (covers) row = BlockRules::HintRowRects(left, below, 0.0, 0.0, kGearSize, kBoardStripGap, kGearGap, visible);
+            static bool s_coverWarned = false;  // once a game session: the ini that sets the columns is read once too
+            if (content && covers) g_menu.stripLeft = true;
+            if (content && covers && !std::exchange(s_coverWarned, true)) {
+                logger::warn("Layout: key-hint strip left where SkyUI put it - placed under the board's bottom {:.0f} it would be pulled up into the "
+                             "board (the stage ends at {:.0f}, the strip is {:.0f} high); the gear goes alone under the board (logged once)",
+                    below, visible.bottom, stripH);
+            }
+            if (content && !covers) {
                 MoveStrip(a_movie, a_widget, panel, parent, BlockRules::Point{ *x, *y }, BlockRules::Point{ nowStage->first, nowStage->second }, *content, row, below);
             }
+            if (found) ReadStripBack(panel, a_widget);
             auto gear = Child(a_widget, kGearName);
             if (!gear.IsDisplayObject()) return;
             const auto& rect = row.gear;
             if (g_menu.gearLast && SameRect(*g_menu.gearLast, rect)) return;
             if (!g_menu.gearLast) {
                 logger::info("Layout: gear button at {} ({})", RectText(rect),
-                    g_menu.stripSize ? "one row under the key-hint strip, on its start" : "under the columns at the left column's left edge (no key-hint strip yet)");
+                    covers              ? "under the board at the left column's left edge (the key-hint strip stays at SkyUI's place)" :
+                    g_menu.stripSize    ? "one row under the key-hint strip, on its start" :
+                    g_lastStripSize     ? "one row under where the key-hint strip goes (its size from an earlier menu)" :
+                                          "under the columns at the left column's left edge (no key-hint strip yet)");
             }
             gear.SetMember("_x", rect.left);
             gear.SetMember("_y", rect.top);
@@ -5152,6 +5250,77 @@ namespace Widget
             }
             button.SetMember("_visible", g_menu.resetShownW > 0.0);
             if (auto gear = Child(a_widget, kGearName); gear.IsDisplayObject()) ShowGearLook(gear);
+        }
+
+        // Task 8 T2 (SelfTest L9, bSelfTest): the board, the gear and the reset button read back every kPollFrames frames on the
+        // frame thread - each against the rule that placed it (BlockRules::BoardProblem / GearProblem / ResetProblem); the counts
+        // and the first failure are logged at the close (CloseChecks: no GFx call there)
+        void CheckChrome(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
+        {
+            constexpr double kReadTolerance = 0.5;  // stage units: Flash keeps _x / _width in twips (0.05)
+            if (!Settings::Get().selfTest || g_menu.frame % kPollFrames != 0) return;
+            const auto area = a_movie->GetVisibleFrameRect();
+            const Settings::Rect visible{ area.left, area.top, area.right, area.bottom };
+            const auto note = [](auto& a_check, const std::string& a_problem) {
+                ++a_check.checks;
+                if (a_problem.empty()) return;
+                ++a_check.fails;
+                if (a_check.firstFail.empty()) a_check.firstFail = std::format("frame {}: {}", g_menu.frame, a_problem);
+            };
+            const auto point = [](RE::GFxValue& a_clip) -> std::optional<BlockRules::Point> {
+                const auto x = Number(a_clip, "_x"), y = Number(a_clip, "_y");
+                if (!x || !y) return std::nullopt;
+                return BlockRules::Point{ *x, *y };
+            };
+            if (auto board = Child(a_widget, kBoardName); board.IsDisplayObject()) {
+                const auto left = ColumnViewport(0), right = ColumnViewport(Layout::kColumns - 1);
+                const Settings::Rect columns{ left.left, std::min(left.top, right.top), right.right, std::max(left.bottom, right.bottom) };
+                const auto drawn = BoundsIn(board, a_widget);
+                note(g_menu.boardCheck, BlockRules::BoardProblem(g_menu.board, BlockRules::BoardRect(columns, BlockRules::kBoardPad, visible),
+                                            drawn ? std::optional{ Settings::Rect{ drawn->xMin, drawn->yMin, drawn->xMax, drawn->yMax } } : std::nullopt, kEdgeWidth,
+                                            kReadTolerance));
+            }
+            auto gear = Child(a_widget, kGearName);
+            if (!gear.IsDisplayObject() || !g_menu.gearLast) return;
+            note(g_menu.gearCheck,
+                BlockRules::GearProblem(point(gear), *g_menu.gearLast, g_menu.board.bottom, kBoardStripGap, ColumnViewport(0).left, visible, kReadTolerance));
+            auto button = Child(a_widget, kResetName);
+            RE::GFxValue mask, shown;
+            if (!button.IsDisplayObject() || g_menu.resetFullW <= 0.0 || !button.GetMember("mask", &mask) || !mask.IsDisplayObject()) return;
+            const auto want = BlockRules::ResetButtonRect(*g_menu.gearLast, g_menu.resetFullW, kGearSize, kResetGap, visible);
+            const std::optional<bool> isShown = button.GetMember("_visible", &shown) && shown.IsBool() ? std::optional{ shown.GetBool() } : std::nullopt;
+            note(g_menu.resetCheck, BlockRules::ResetProblem(point(button), want, isShown, g_menu.resetShownW, Number(mask, "_width"), kEdgeWidth, kReadTolerance));
+        }
+
+        // At the close (the close event's thread: g_menu only, no GFx call): SelfTest L8 last (the strip's last target against a
+        // read on a later frame, ReadStripBack) and L9 board / gear / reset (CheckChrome, the reset button's clicks)
+        void CloseChecks()
+        {
+            using BlockRules::Verdict3;
+            const auto at = [](const BlockRules::Point& a_point) { return std::format("{:.1f},{:.1f}", a_point.x, a_point.y); };
+            if (g_menu.stripFoundFrame < 0) {
+                SelfTest(std::format("L8 last SKIP - no key-hint strip ({}) this menu", kButtonPanelPath));
+            } else if (g_menu.stripLeft) {
+                SelfTest("L8 last SKIP - the key-hint strip was left at SkyUI's place (under the board it would be pulled up into it, Task 8 R3)");
+            } else {
+                const bool after = g_menu.stripReadFrame > g_menu.stripMoveFrame;
+                const auto verdict = BlockRules::StripLastCheck(g_menu.stripTarget, g_menu.stripRead, after, kStripCheckTolerance);
+                SelfTest(std::format("L8 last {} - target {}, read at {} on frame {} (last move on frame {}){}", BlockRules::VerdictText(verdict),
+                    g_menu.stripTarget ? RectText(*g_menu.stripTarget) : std::string("none (never placed: no button shown)"),
+                    g_menu.stripRead ? at(*g_menu.stripRead) : std::string("-"), g_menu.stripReadFrame, g_menu.stripMoveFrame,
+                    verdict == Verdict3::kSkip ? " - nothing to compare" : g_menu.stripPartial ? " (placed by the buttons that read, R1)" : ""));
+            }
+            const auto line = [](const char* a_what, const MenuState::ChromeCheck& a_check, const std::string& a_extra, bool a_extraFails) {
+                const char* verdict = a_check.fails > 0 || a_extraFails ? "FAIL" : a_check.checks == 0 ? "SKIP" : "PASS";
+                SelfTest(std::format("L9 {} {} - {} read-back(s) every {} frames, {} failed{}{}", a_what, verdict, a_check.checks, kPollFrames, a_check.fails,
+                    a_check.firstFail.empty() ? std::string{} : "; first: " + a_check.firstFail, a_extra));
+            };
+            line("board", g_menu.boardCheck, "", false);
+            line("gear", g_menu.gearCheck, "", false);
+            line("reset", g_menu.resetCheck,
+                std::format("; clicks {} taken, {} ignored (unfolding or out of the edit mode), {} taken before it was fully out (want 0)", g_menu.resetTaken,
+                    g_menu.resetIgnored, g_menu.resetTakenEarly),
+                g_menu.resetTakenEarly > 0);
         }
 
         // The border handle: a strip over the gap between the columns (at least kMinHandleW wide), a thin line in its middle;
@@ -6159,7 +6328,8 @@ namespace Widget
                 PlaceStripAndGear(movie, widget);
                 UpdateGear(movie, widget);
                 ResetButtonFrame(movie, widget);
-                if (g_menu.frame == kClipDumpFrame) DumpMenuClips(movie, root, widget);
+                CheckChrome(movie, widget);  // Task 8 T2: SelfTest L9 read-backs (bSelfTest)
+                if (g_menu.frame == kClipDumpFrame && Settings::Get().selfTest) DumpMenuClips(movie, root, widget);
                 // review GPT 1: the preview's place after every fit of this frame (a fitted block above it moves it)
                 PreviewFrame(movie, root, widget);
             }
@@ -6438,13 +6608,15 @@ namespace Widget
                         logger::info("Widget: key-hint strip moved {} time(s) this menu", g_menu.stripApplies);
                     }
                     if (g_menu.stripReadFails > 0) {
-                        logger::info("Widget: key-hint strip - a shown button's bounds did not read on {} frame(s) this menu (not moved then)",
-                            g_menu.stripReadFails);
+                        logger::info("Widget: key-hint strip - a shown button's bounds did not read on {} frame(s) this menu (not moved on those frames; "
+                                     "after {} in a row under one look the buttons that read place it)",
+                            g_menu.stripReadFails, kPollFrames);
                     }
                     if (g_menu.stripFoundFrame < 0 && g_menu.frame > 0) {
                         logger::info("Widget: no key-hint strip ({}) in {} frame(s) this menu - SkyUI's strip was left where it is", kButtonPanelPath,
                             g_menu.frame);
                     }
+                    CloseChecks();  // Task 8: SelfTest L8 last, L9 board / gear / reset
                     if (g_menu.wheelScrolls > 0 || g_menu.wheelZoomsKept > 0) {
                         logger::info("Widget: wheel this menu: {} column scroll(s), SkyUI's zoom kept from firing {} time(s)", g_menu.wheelScrolls,
                             g_menu.wheelZoomsKept);

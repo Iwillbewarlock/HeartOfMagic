@@ -13,6 +13,9 @@
 //
 //   magic-menu-layout-check     one PASS/FAIL line per check, a total line
 //
+// Task 8 (review fixes): the strip read once a button's bounds keep failing (R1, BlockRules::ReadStrip), the gear's row with an
+// earlier menu's strip size (R2), the strip left out of the board (R3), and the in-game self-test verdicts' rules (L8 last, L9, L1).
+//
 // Not covered here (widget code, checked by reading and in game only): PlaceStripAndGear / StripContent / MoveStrip (resolving
 // SkyUI's bottomBar.buttonPanel, reading its children and the content cache, setting _x/_y; the rule itself,
 // BlockRules::PlacePanel, is checked here with made-up mappings), Visibility / AddonsHiddenOn / WatchEmpty, the click delivery
@@ -23,6 +26,7 @@
 #include "BlockRegistry.h"
 #include "BlockRules.h"
 #include "BlockRulesV3.h"
+#include "BlockRulesStrip.h"
 #include "Layout.h"
 #include "Settings.h"
 
@@ -1437,6 +1441,7 @@ namespace
         const auto low = BlockRules::HintRowRects(648, 750, 400, 24, 18, 4, 4, visible1610);
         Expect(Near(low.gear.bottom, 760) && Near(low.gear.top - low.strip.bottom, 4) && Near(low.gear.left, low.strip.left),
             Text("columns down to the stage's bottom: strip and gear move up together, still apart by 4 (%s / %s)", Show(low.strip).c_str(), Show(low.gear).c_str()));
+        Expect(BlockRules::StripCoversBoard(low, 750, 4, 1.0), "the same row pulled up into the board: the no-move verdict (Task 8 R3: SkyUI's strip stays where it is)");
         const auto wide = BlockRules::HintRowRects(900, 600, 600, 24, 18, 4, 4, visible1610);
         Expect(Near(wide.strip.right, 1280) && Near(wide.gear.left, wide.strip.left),
             Text("a strip wider than the room right of the column: moved left to stay inside, the gear with it (%s)", Show(wide.strip).c_str()));
@@ -1617,6 +1622,108 @@ namespace
                 "a corner that is not a number, or an empty box: none");
         }
     }
+
+    /// Task 8 R1: a shown button whose bounds never read - nothing for kPoll - 1 frames under one signature, then the union of
+    /// the buttons that read, cached; a changed signature starts the count again; all read: the full union and the count back to 0
+    void VisibleUnionAfterFails()
+    {
+        std::printf("VisibleUnionAfterFails\n");
+        using BlockRules::ChildBox;
+        constexpr int kPoll = 15;
+        const std::vector<ChildBox> oneUnread{ { Rect{ 0, 0, 100, 24 }, true, true }, { Rect{}, true, false }, { Rect{ 110, 0, 220, 24 }, true, true },
+            { Rect{ -300, -10, 900, 40 }, false, true } };
+        int fails = 0;
+        bool early = true;
+        for (int frame = 1; frame < kPoll; ++frame) {
+            const auto read = BlockRules::ReadStrip(oneUnread, frame > 1, fails, kPoll);
+            early = early && !read.content && !read.cache && fails == frame;
+        }
+        Expect(early, Text("frames 1..%d: no content, nothing cached, the fail count %d", kPoll - 1, fails));
+        const auto due = BlockRules::ReadStrip(oneUnread, true, fails, kPoll);
+        Expect(due.cache && due.partial && due.content && Near(due.content->left, 0) && Near(due.content->right, 220) && Near(due.content->bottom, 24),
+            Text("frame %d: the union of the buttons that read (%s), cached, partial", kPoll, due.content ? Show(*due.content).c_str() : "none"));
+        int restart = kPoll - 1;
+        const auto changed = BlockRules::ReadStrip(oneUnread, false, restart, kPoll);
+        Expect(!changed.cache && restart == 1, "a new signature (the look changed): the count starts again at 1");
+        int recovered = 7;
+        const std::vector<ChildBox> allRead{ { Rect{ 0, 0, 100, 24 }, true, true }, { Rect{ 100, 0, 150, 24 }, true, true } };
+        const auto full = BlockRules::ReadStrip(allRead, true, recovered, kPoll);
+        Expect(full.cache && !full.partial && full.content && Near(full.content->right, 150) && recovered == 0, "every shown button read: the full union, count 0");
+        int none = kPoll - 1;
+        const auto nothing = BlockRules::ReadStrip({ { Rect{}, true, false } }, true, none, kPoll);
+        Expect(nothing.cache && !nothing.content, "the only shown button never reads: cached as no content (not read every frame)");
+        const double nan = std::numeric_limits<double>::quiet_NaN();
+        Expect(BlockRules::SameSignature({ 1, nan, 3 }, { 1, nan, 3 }) && !BlockRules::SameSignature({ 1, nan }, { 1, 2 }) && !BlockRules::SameSignature({ 1 }, { 1, 1 }),
+            "the fail count's signature compare: NaN alike to NaN, sizes and values must match");
+    }
+
+    /// Task 8 R2, R3, T1, T2: the gear's row with an earlier menu's strip size, the strip left out of the board, L8 last, L9 and L1's
+    /// per-block SKIP
+    void StripChecks()
+    {
+        std::printf("StripChecks\n");
+        const Rect visible{ 0, -40, 1280, 760 };
+        // R2: the game log's jump (gear 648,647 then 648,678): the row with the last size puts the gear where it ends up
+        const auto [w0, h0] = BlockRules::RowStripSize(std::nullopt, std::pair{ 400.0, 27.0 });
+        const auto opening = BlockRules::HintRowRects(648, 639, w0, h0, 18, 8, 4, visible);
+        const auto settled = BlockRules::HintRowRects(648, 639, 400, 27, 18, 8, 4, visible);
+        Expect(Near(opening.gear.top, settled.gear.top) && Near(opening.gear.top, 678), Text("R2: the gear at open with the last size: top %.0f, as when settled", opening.gear.top));
+        const auto [w1, h1] = BlockRules::RowStripSize(std::pair{ 300.0, 24.0 }, std::pair{ 400.0, 27.0 });
+        const auto [w2, h2] = BlockRules::RowStripSize(std::nullopt, std::nullopt);
+        Expect(Near(w1, 300) && Near(h1, 24) && Near(w2, 0) && Near(h2, 0), "R2: this menu's size first; none known: 0 x 0 (the gear alone)");
+        // R3: the "low" case (the columns down to the stage's bottom) is a no-move; the usual row and no strip are not
+        const auto low = BlockRules::HintRowRects(648, 750, 400, 24, 18, 4, 4, visible);
+        const auto usual = BlockRules::HintRowRects(648, 639, 400, 24, 18, 8, 4, visible);
+        const auto none = BlockRules::HintRowRects(648, 750, 0, 0, 18, 4, 4, visible);
+        Expect(BlockRules::StripCoversBoard(low, 750, 4, 1.0), Text("R3 low: the strip pulled up to %.0f over the board's bottom 750 - left at SkyUI's place", low.strip.top));
+        Expect(!BlockRules::StripCoversBoard(usual, 639, 8, 1.0) && !BlockRules::StripCoversBoard(none, 750, 4, 1.0), "R3: the usual row moves; no strip: no verdict");
+        // T1: L8 last
+        using BlockRules::Verdict3;
+        const Rect target{ 648, 647, 1048, 671 };
+        Expect(BlockRules::StripLastCheck(target, BlockRules::Point{ 648.4, 646.5 }, true, 1.0) == Verdict3::kPass, "L8 last: read on a later frame at the target: PASS");
+        Expect(BlockRules::StripLastCheck(target, BlockRules::Point{ 648, 700 }, true, 1.0) == Verdict3::kFail, "L8 last: moved off it since (53 lower): FAIL");
+        Expect(BlockRules::StripLastCheck(target, BlockRules::Point{ 648, 647 }, false, 1.0) == Verdict3::kSkip &&
+                   BlockRules::StripLastCheck(std::nullopt, std::nullopt, true, 1.0) == Verdict3::kSkip,
+            "L8 last: no read after the last move, or never placed: SKIP");
+        // T2: L9 board / gear / reset
+        const Rect board{ 632, 51, 1254, 639 };
+        Expect(BlockRules::BoardProblem(board, board, Rect{ 631.5, 50.5, 1254.5, 639.5 }, 1.0, 0.5).empty(), "L9 board: kept = BoardRect, drawn with its line: nothing wrong");
+        Expect(!BlockRules::BoardProblem(board, Rect{ 632, 51, 1254, 700 }, board, 1.0, 0.5).empty() && !BlockRules::BoardProblem(board, board, std::nullopt, 1.0, 0.5).empty() &&
+                   !BlockRules::BoardProblem(board, board, Rect{ 600, 51, 1254, 639 }, 1.0, 0.5).empty(),
+            "L9 board: columns moved, bounds unread, or drawn elsewhere: each a problem");
+        const Rect gear{ 648, 678, 666, 696 };
+        Expect(BlockRules::GearProblem(BlockRules::Point{ 648, 678 }, gear, 639, 8, 648, visible, 0.5).empty(), "L9 gear: read back where put, under the board: nothing wrong");
+        Expect(!BlockRules::GearProblem(BlockRules::Point{ 648, 647 }, gear, 639, 8, 648, visible, 0.5).empty() &&
+                   !BlockRules::GearProblem(BlockRules::Point{ 648, 620 }, Rect{ 648, 620, 666, 638 }, 639, 8, 648, visible, 0.5).empty() &&
+                   !BlockRules::GearProblem(std::nullopt, gear, 639, 8, 648, visible, 0.5).empty(),
+            "L9 gear: read elsewhere, over the board, or unread: each a problem");
+        Expect(BlockRules::GearProblem(BlockRules::Point{ 648, 742 }, Rect{ 648, 742, 666, 760 }, 750, 4, 648, visible, 0.5).empty(),
+            "L9 gear: held up by the stage's bottom (the low case): not over-the-board");
+        const Rect want{ 670, 678, 760, 696 };
+        Expect(BlockRules::ResetProblem(BlockRules::Point{ 670, 678 }, want, true, 45, 46, 1.0, 0.5).empty() &&
+                   BlockRules::ResetProblem(BlockRules::Point{ 670, 678 }, want, false, 0, 0, 1.0, 0.5).empty(),
+            "L9 reset: half out and shown with its mask 46 wide; folded and hidden: nothing wrong");
+        Expect(!BlockRules::ResetProblem(BlockRules::Point{ 670, 678 }, want, false, 45, 46, 1.0, 0.5).empty() &&
+                   !BlockRules::ResetProblem(BlockRules::Point{ 670, 678 }, want, true, 90, 30, 1.0, 0.5).empty() &&
+                   !BlockRules::ResetProblem(BlockRules::Point{ 600, 678 }, want, true, 90, 91, 1.0, 0.5).empty(),
+            "L9 reset: hidden while out, its mask narrower than the part out, or off its place: each a problem");
+        // L1 per block (Task 5 review): the preview while first in its column, the spell card with no add-on ahead (our card: none after)
+        const std::set<BlockId> addons{ "HoM.progress", "SR.archetypes" };
+        const auto addon = [&](const BlockId& a_id) { return addons.contains(a_id); };
+        const std::vector<BlockId> withProgress{ Layout::kPreview, "HoM.progress", Layout::kSpellCard };
+        Expect(BlockRules::CoreCompared(withProgress, Layout::kPreview, false, addon) && !BlockRules::CoreCompared(withProgress, Layout::kSpellCard, true, addon) &&
+                   !BlockRules::CoreCompared(withProgress, Layout::kSpellCard, false, addon),
+            "L1: an add-on between them - the preview compared, the spell card not");
+        const std::vector<BlockId> after{ Layout::kPreview, Layout::kSpellCard, "SR.archetypes" };
+        Expect(!BlockRules::CoreCompared(after, Layout::kSpellCard, true, addon) && BlockRules::CoreCompared(after, Layout::kSpellCard, false, addon) &&
+                   BlockRules::CoreCompared(after, Layout::kPreview, true, addon),
+            "L1: an add-on after the card - our card (it fills) not compared, SkyUI's card compared, the preview compared");
+        const std::vector<BlockId> ahead{ "HoM.progress", Layout::kPreview, Layout::kSpellCard };
+        const std::vector<BlockId> gone{ Layout::kPreview, "Gone.block", Layout::kSpellCard };
+        Expect(!BlockRules::CoreCompared(ahead, Layout::kPreview, false, addon) && BlockRules::CoreCompared(gone, Layout::kSpellCard, true, addon) &&
+                   !BlockRules::CoreCompared(std::vector<BlockId>{ "HoM.progress" }, Layout::kSpellCard, false, addon),
+            "L1: an add-on ahead of the preview - not compared; an id that is no arranged add-on does not count; not in the column - not compared");
+    }
 }
 
 int main()
@@ -1642,6 +1749,8 @@ int main()
     LegacyIds();
     CoreOnly();
     AddonHeightChange();
+    VisibleUnionAfterFails();
+    StripChecks();
     std::printf("layout-check: %d PASS, %d FAIL\n", g_pass, g_fail);
     return g_fail == 0 ? kExitOk : kExitFail;
 }
