@@ -523,6 +523,23 @@ namespace
         Check(!PM::ShouldMaster(1.0f, 1.0f, true, true, true) && !PM::ShouldMaster(0.5f, 0.99f, false, true, true),
               "mastery: already unlocked at 1.0, or below 1.0, does not master");
 
+        // Early grant: ShouldTryEarlyGrant(old, new, threshold, isTarget, alreadyGranted)
+        Check(PM::ShouldTryEarlyGrant(0.20f, 0.30f, 0.25f, true, false) &&
+                  PM::ShouldTryEarlyGrant(0.20f, 0.30f, 0.25f, false, false),
+              "early grant: crossing the threshold grants, target or not");
+        Check(PM::ShouldTryEarlyGrant(0.22f, 0.22f, 0.20f, true, false) &&
+                  PM::ShouldTryEarlyGrant(0.22f, 0.23f, 0.20f, true, false),
+              "early grant: a target at 22% after the threshold went 25% -> 20% grants (re-check and next XP)");
+        Check(!PM::ShouldTryEarlyGrant(0.22f, 0.23f, 0.20f, false, false),
+              "early grant: a spell no longer the target, above the threshold, is not granted again");
+        Check(!PM::ShouldTryEarlyGrant(0.10f, 0.15f, 0.20f, true, false), "early grant: below the threshold, nothing");
+        Check(!PM::ShouldTryEarlyGrant(0.20f, 0.30f, 0.25f, true, true) &&
+                  !PM::ShouldTryEarlyGrant(0.50f, 0.60f, 0.25f, true, true),
+              "early grant: already granted (early learned or held for ISL), nothing");
+        Check(!PM::ShouldTryEarlyGrant(1.0f, 1.0f, 0.25f, true, false) && PM::ShouldTryEarlyGrant(0.9f, 1.0f, 0.25f, true, false),
+              "early grant: a target at 1.0 before (cheat 100%) stays ready; reaching 1.0 now grants");
+        Check(!PM::ShouldTryEarlyGrant(0.5f, 0.5f, nan, true, false), "early grant: a NaN threshold grants nothing");
+
         // Passive learning ticks in game hours (Calendar::GetHoursPassed)
         const auto hour = PM::PassiveTickFor(100.0f, 101.0f);
         Check(Near(hour.grantHours, 1.0f) && Near(hour.lastHours, 101.0f),

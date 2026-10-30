@@ -73,6 +73,12 @@
 
 ### Fixed
 
+- **Lowering the early learning threshold grants the spells already past it.** A spell being learned was given
+  (weakened) only when its XP crossed the threshold, so one at 22% stayed ungranted for good after the threshold
+  went from 25% to 20%. Now a learning target at or past the threshold gets the spell when the setting changes
+  (also when early learning is switched on), or at its next XP. A spell that is no longer a learning target is not
+  given again. Not yet tested in game.
+
 - **Book Reading XP comes once per book.** Reading the same book or note again gave XP every time. Now each book or
   note gives XP once; copies of the same book count as one. A book read while no spell is being learned gives
   nothing then and can still give its XP later. Spell tomes give no Book Reading XP. The books that gave XP are

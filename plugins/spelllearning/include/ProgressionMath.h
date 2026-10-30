@@ -112,6 +112,21 @@ namespace ProgressionMath
         return (std::max)(oldProgress, (std::min)(added, kNoGrantMaxProgress));
     }
 
+    // AddXP with early learning on, and the settings re-check: whether to try the early
+    // (weakened) grant. Not when the spell is granted already (early learned, held for
+    // ISL among them) or below the threshold. Any spell crossing the threshold now, as
+    // before; a learning target also when it was above it already - a threshold lowered
+    // or early learning switched on - unless it was at 1.0 before (set there by cheat
+    // mode, never granted: it stays "ready" for Unlock). A spell that is not a target
+    // stays out once above: a target change took its weakened copy away on purpose
+    // (RemoveEarlySpellFromPlayer). The grant rule (ShouldGrantEarly) still decides.
+    [[nodiscard]] constexpr bool ShouldTryEarlyGrant(float oldProgress, float newProgress, float thresholdFraction,
+                                                     bool isTarget, bool alreadyGranted) noexcept
+    {
+        if (alreadyGranted || !(newProgress >= thresholdFraction)) return false;  // NaN too
+        return oldProgress < thresholdFraction || (isTarget && oldProgress < 1.0f);
+    }
+
     // AddXP with early learning on: mastery fires when progress crosses 1.0 now
     // (even for an unlocked spell lowered by cheat mode, as before), or when it was
     // already there, not unlocked (a study overflow saved by an older version left

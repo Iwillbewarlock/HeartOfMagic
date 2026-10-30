@@ -163,6 +163,7 @@ void ApplySettingsFromConfig(const nlohmann::json& config)
         elSettings.selfCastXPMultiplier = SafeJsonValue<float>(elConfig, "selfCastXPMultiplier", 150.0f) / 100.0f;
         elSettings.binaryEffectThreshold = SafeJsonValue<float>(elConfig, "binaryEffectThreshold", 80.0f);
         elSettings.modifyGameDisplay = SafeJsonValue<bool>(elConfig, "modifyGameDisplay", true);
+        const auto oldEarly = SpellEffectivenessHook::GetSingleton()->GetSettings();
         SpellEffectivenessHook::GetSingleton()->SetSettings(elSettings);
 
         // Load configurable power steps if present
@@ -179,6 +180,13 @@ void ApplySettingsFromConfig(const nlohmann::json& config)
             if (!steps.empty()) {
                 SpellEffectivenessHook::GetSingleton()->SetPowerSteps(steps);
             }
+        }
+
+        // Early learning switched on or its threshold lowered: a target already past the
+        // new threshold crossed none and got nothing - it gets its early grant now, not
+        // at its next XP (after the power steps, which name the grant's step)
+        if (elSettings.enabled && (!oldEarly.enabled || elSettings.unlockThreshold < oldEarly.unlockThreshold)) {
+            ProgressionManager::GetSingleton()->GrantDueEarlySpells();
         }
     }
 

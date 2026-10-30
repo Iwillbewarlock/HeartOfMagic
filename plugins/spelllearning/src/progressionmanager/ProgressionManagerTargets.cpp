@@ -67,6 +67,23 @@ void ProgressionManager::SetLearningTarget(const std::string& school, RE::FormID
     }
 }
 
+void ProgressionManager::GrantDueEarlySpells()
+{
+    const auto earlySettings = SpellEffectivenessHook::GetSingleton()->GetSettings();
+    if (!earlySettings.enabled) return;
+    ProgressionNotify::Batch notices;   // sent when this returns
+    // A copy: a grant must not change the map under the loop
+    const std::vector<std::pair<std::string, RE::FormID>> targets(m_learningTargets.begin(), m_learningTargets.end());
+    int granted = 0;
+    for (const auto& [school, formId] : targets) {
+        if (formId == 0) continue;
+        const float progress = GetProgressPercent(formId);
+        if (TryEarlyGrant(formId, progress, progress, earlySettings.unlockThreshold / 100.0f)) ++granted;
+    }
+    logger::info("ProgressionManager: early-learning settings re-check - {} of {} learning targets granted early",
+        granted, targets.size());
+}
+
 RE::FormID ProgressionManager::GetLearningTarget(const std::string& school) const
 {
     auto it = m_learningTargets.find(school);

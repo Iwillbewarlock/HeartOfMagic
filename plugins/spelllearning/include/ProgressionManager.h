@@ -122,6 +122,10 @@ public:
     // spell to 1.0 (ProgressionMath::NoGrantProgress). Returns the XP added.
     float AddXPNoGrant(const std::string& formIdStr, float amount);
     static constexpr const char* kStudySource = "isl_study";
+    // The early-learning settings changed so that more spells qualify (threshold lowered,
+    // early learning switched on): every learning target at or past the threshold gets
+    // its early grant now, not at its next XP (TryEarlyGrant). Game thread.
+    void GrantDueEarlySpells();
     SpellProgress GetProgress(RE::FormID formId) const;
     // Just the progress (0..1, 0 if none): no copy of the whole SpellProgress,
     // whose modded-source map allocates. For the per-effect and per-cast paths.
@@ -325,6 +329,11 @@ private:
     // XP (GetRequiredXP: tier, reverse unlock share) - not the struct's 100, which
     // made a Master tome's read worth 100% of an entry nobody had sized yet.
     SpellProgress& EnsureProgress(RE::FormID formId);
+
+    // The early (weakened) grant when ProgressionMath::ShouldTryEarlyGrant says so and the
+    // grant rule (SpellEffectivenessHook::ShouldGrantEarly) allows it; fires
+    // SpellLearning_SpellEarlyGranted. True when it granted. Early learning must be on.
+    bool TryEarlyGrant(RE::FormID spellId, float oldProgress, float newProgress, float thresholdFraction);
 
     // AddSourcedXP / AddInternalSourcedXP: internalCaller lets the internal names through
     float AddSourcedXPImpl(RE::FormID targetId, float amount, const std::string& sourceName, bool internalCaller);

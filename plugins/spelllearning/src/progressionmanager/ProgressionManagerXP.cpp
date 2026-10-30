@@ -302,25 +302,8 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
     const auto& earlySettings = effectivenessHook->GetSettings();
 
     if (earlySettings.enabled) {
-        float unlockThreshold = earlySettings.unlockThreshold / 100.0f;  // Convert to 0-1
-        float newProgress = progress.progressPercent;
-
-        // Check if we just crossed the unlock threshold (first grant)
-        if (oldProgress < unlockThreshold && newProgress >= unlockThreshold) {
-            // Grant the spell early (nerfed) by the one grant rule: not when the player
-            // knows a copy of it (CanUnlock), not while ISL holds it for its study
-            auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(targetSpellId);
-            effectivenessHook->ReleaseHeldIfOwned(spell);
-            if (effectivenessHook->ShouldGrantEarly(spell)) {
-                SpellEffectivenessHook::GrantEarlySpell(spell);
-                logger::info("ProgressionManager: Early granted spell {:08X} at {:.0f}% progress",
-                    targetSpellId, newProgress * 100.0f);
-
-                // Fire ModEvent: SpellLearning_SpellEarlyGranted, naming the school the way
-                // TargetChanged did for this spell (its target key), not the costliest effect's
-                SendModEvent("SpellLearning_SpellEarlyGranted", EventSchoolOf(targetSpellId), newProgress * 100.0f, spell);
-            }
-        }
+        const float newProgress = progress.progressPercent;
+        TryEarlyGrant(targetSpellId, oldProgress, newProgress, earlySettings.unlockThreshold / 100.0f);
 
         // Read before the step check: reaching the last step there masters the
         // spell's effect and drops it from the early-learned set. A spell held for
@@ -398,6 +381,29 @@ void ProgressionManager::AddXP(RE::FormID targetSpellId, float amount)
 
     // Notify UI of progress update
     ProgressionNotify::Progress(targetSpellId, newXP, progress.requiredXP);
+}
+
+bool ProgressionManager::TryEarlyGrant(RE::FormID spellId, float oldProgress, float newProgress, float thresholdFraction)
+{
+    auto* effectivenessHook = SpellEffectivenessHook::GetSingleton();
+    const bool isTarget = std::ranges::any_of(m_learningTargets, [spellId](const auto& t) { return t.second == spellId; });
+    if (!ProgressionMath::ShouldTryEarlyGrant(oldProgress, newProgress, thresholdFraction, isTarget,
+                                              effectivenessHook->IsEarlyLearnedSpell(spellId))) {
+        return false;
+    }
+    // Grant the spell early (nerfed) by the one grant rule: not when the player
+    // knows a copy of it (CanUnlock), not while ISL holds it for its study
+    auto* spell = RE::TESForm::LookupByID<RE::SpellItem>(spellId);
+    effectivenessHook->ReleaseHeldIfOwned(spell);
+    if (!effectivenessHook->ShouldGrantEarly(spell)) return false;
+    SpellEffectivenessHook::GrantEarlySpell(spell);
+    logger::info("ProgressionManager: Early granted spell {:08X} at {:.0f}% progress (threshold {:.0f}%)",
+        spellId, newProgress * 100.0f, thresholdFraction * 100.0f);
+
+    // Fire ModEvent: SpellLearning_SpellEarlyGranted, naming the school the way
+    // TargetChanged did for this spell (its target key), not the costliest effect's
+    SendModEvent("SpellLearning_SpellEarlyGranted", EventSchoolOf(spellId), newProgress * 100.0f, spell);
+    return true;
 }
 
 void ProgressionManager::AddXP(const std::string& formIdStr, float amount)
