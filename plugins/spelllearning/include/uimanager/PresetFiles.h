@@ -10,10 +10,11 @@
 #include <nlohmann/json.hpp>
 #include <string>
 #include <system_error>
+#include <utility>
 #include <vector>
 
 // =============================================================================
-// PRESET FILES - writing and deleting one preset's file (UIManagerIO.cpp)
+// PRESET FILES - writing, deleting and renaming one preset's file (UIManagerIO.cpp)
 // =============================================================================
 //
 // No logging and no game types, so an offline check can compile it as it is; the
@@ -68,24 +69,32 @@ namespace PresetFiles
         return (it != data.end() && it->is_string()) ? it->get<std::string>() : std::string();
     }
 
+    /** A preset's files on disk (Find): its own file, or an older build's files for it */
+    struct FoundFiles
+    {
+        std::filesystem::path direct;                     // the file named after the preset, empty when none
+        std::vector<std::filesystem::path> legacy;        // files found by the "name" inside
+        std::vector<std::string> problems;                // a file that could not be read
+        std::error_code walkError;                        // the folder walk stopped early
+    };
+
     /**
-     * Deletes a preset: its own file, or when there is none and the name has a non-ASCII
+     * A preset's files: its own file, or when there is none and the name has a non-ASCII
      * letter, every file whose "name" inside is the name. Builds before PathText::FromUtf8
      * wrote a non-ASCII name through the ANSI code page, so such a file sits under a garbled
      * name; an ASCII name was never garbled, so a file that only carries it inside (an
      * add-on's AddonFire.json named "Fire") is left alone. Each file has its own try.
      */
-    inline DeleteResult Delete(const std::filesystem::path& dir, const std::string& name, const std::string& safeName)
+    inline FoundFiles Find(const std::filesystem::path& dir, const std::string& name, const std::string& safeName)
     {
-        DeleteResult result;
+        FoundFiles found;
         const auto filePath = FilePath(dir, safeName);
         std::error_code error;
         if (std::filesystem::exists(filePath, error)) {
-            result.direct = std::filesystem::remove(filePath, error);
-            if (error) result.problems.push_back(error.message());
-            return result;
+            found.direct = filePath;
+            return found;
         }
-        if (!HasNonAscii(name) || !std::filesystem::is_directory(dir, error)) return result;
+        if (!HasNonAscii(name) || !std::filesystem::is_directory(dir, error)) return found;
 
         std::filesystem::directory_iterator it(dir, error);
         const std::filesystem::directory_iterator end;
@@ -93,13 +102,81 @@ namespace PresetFiles
             try {
                 const auto& path = it->path();
                 if (!it->is_regular_file() || !IsJsonFile(path)) continue;
-                if (NameInside(path) != name) continue;
-                if (std::filesystem::remove(path)) result.legacy.push_back(path);
+                if (NameInside(path) == name) found.legacy.push_back(path);
             } catch (const std::exception& e) {
-                result.problems.push_back(e.what());
+                found.problems.push_back(e.what());
             }
         }
-        result.walkError = error;
+        found.walkError = error;
+        return found;
+    }
+
+    /** Deletes a preset's files (Find): its own file, else an older build's files for it. */
+    inline DeleteResult Delete(const std::filesystem::path& dir, const std::string& name, const std::string& safeName)
+    {
+        DeleteResult result;
+        auto found = Find(dir, name, safeName);
+        result.problems = std::move(found.problems);
+        result.walkError = found.walkError;
+        std::error_code error;
+        if (!found.direct.empty()) {
+            result.direct = std::filesystem::remove(found.direct, error);
+            if (error) result.problems.push_back(error.message());
+            return result;
+        }
+        for (const auto& path : found.legacy) {
+            if (std::filesystem::remove(path, error)) {
+                result.legacy.push_back(path);
+            } else if (error) {
+                result.problems.push_back(PathText::Utf8(path) + ": " + error.message());
+            }
+        }
+        return result;
+    }
+
+    struct RenameResult
+    {
+        bool written = false;                             // the new file is on disk
+        std::filesystem::path newPath;
+        std::vector<std::filesystem::path> removed;       // the old preset's files, deleted after the write
+        std::vector<std::filesystem::path> kept;          // an old file that is the new file (same name on disk)
+        std::vector<std::string> problems;                // a file that could not be read or removed
+    };
+
+    /**
+     * Renames a preset: its old files are found first (Find, an older build's file under a
+     * garbled name too), the new file is written (Write), and only then are the old files
+     * deleted - none that is the new file itself (two names that sanitize alike, a case-only
+     * change: Windows file names ignore case). A failed write deletes nothing.
+     */
+    inline RenameResult Rename(const std::filesystem::path& dir, const std::string& oldName,
+                               const std::string& oldSafeName, const std::string& newSafeName,
+                               const std::string& text)
+    {
+        RenameResult result;
+        auto found = Find(dir, oldName, oldSafeName);
+        result.problems = std::move(found.problems);
+        if (found.walkError) result.problems.push_back("folder walk stopped early: " + found.walkError.message());
+        std::vector<std::filesystem::path> olds = std::move(found.legacy);
+        if (!found.direct.empty()) olds.push_back(found.direct);
+
+        result.newPath = FilePath(dir, newSafeName);
+        result.written = Write(result.newPath, text);
+        if (!result.written) return result;
+
+        for (const auto& old : olds) {
+            std::error_code error;
+            if (std::filesystem::equivalent(old, result.newPath, error) && !error) {
+                result.kept.push_back(old);
+                continue;
+            }
+            error.clear();
+            if (std::filesystem::remove(old, error)) {
+                result.removed.push_back(old);
+            } else if (error) {
+                result.problems.push_back(PathText::Utf8(old) + ": " + error.message());
+            }
+        }
         return result;
     }
 }

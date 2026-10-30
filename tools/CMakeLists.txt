@@ -187,6 +187,31 @@ target_link_libraries(file-utils-check PRIVATE
 )
 
 # =============================================================================
+# preset-files-check  -  offline check of a preset's rename
+# =============================================================================
+# The plugin's own uimanager/PresetFiles.h (header only, no game types): --self-test in
+# a temp folder - the old files found first, deleted only after the new one is written,
+# never the new file itself (names sanitized alike, a case-only change), an older build's
+# garbled file name for a non-ASCII preset.
+
+add_executable(preset-files-check
+    preset-files-check.cpp
+)
+
+target_compile_features(preset-files-check PRIVATE cxx_std_23)
+
+# Stub headers first (logger): FileUtils.h logs through the plugin's PCH
+target_include_directories(preset-files-check PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${SL_INCLUDE_DIR}
+)
+
+target_link_libraries(preset-files-check PRIVATE
+    spdlog::spdlog
+    nlohmann_json::nlohmann_json
+)
+
+# =============================================================================
 # tree-remap-check  -  offline check of a saved tree's load order fix
 # =============================================================================
 # The plugin's own TreeRemap.h (header only, no game types), the part of

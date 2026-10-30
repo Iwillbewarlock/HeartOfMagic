@@ -128,18 +128,6 @@ namespace
             logger::warn("UIManager: {} - no file for {}/{}", what, type, name);
         }
     }
-
-    // Whether two preset names land in one file (sanitized alike, or a case-only change:
-    // Windows file names ignore case). The rename must not delete what it just wrote
-    bool SamePresetFile(const std::string& type, const std::string& oldName, const std::string& newName)
-    {
-        const auto dir = GetPresetsBasePath() / PathText::FromUtf8(EncodingUtils::SanitizeFilename(type));
-        std::error_code error;
-        const bool same = std::filesystem::equivalent(
-            PresetFiles::FilePath(dir, EncodingUtils::SanitizeFilename(oldName)),
-            PresetFiles::FilePath(dir, EncodingUtils::SanitizeFilename(newName)), error);
-        return same && !error;
-    }
 }
 
 void UIManager::OnSavePreset(const char* argument)
@@ -182,10 +170,11 @@ void UIManager::OnDeletePreset(const char* argument)
 }
 
 // The panel renamed a preset. It used to send DeletePreset then SavePreset: a new name
-// SavePreset refused, or a write that failed, left neither file. The old file goes only
-// once the new one is written. A failure is logged, not told to the panel (there is no
-// preset notice back to it): the panel shows the new name until the presets are read
-// again, and the old file is still on disk.
+// SavePreset refused, or a write that failed, left neither file. PresetFiles::Rename deletes
+// the old files only once the new one is written. A failure is logged and shown on the
+// panel's status line (UpdateStatus); the panel's list keeps the new name until it reads
+// the presets again (onPresetsLoaded would apply the scanner preset again), the old file
+// still on disk.
 void UIManager::OnRenamePreset(const char* argument)
 {
     if (!argument || strlen(argument) == 0) {
@@ -201,17 +190,40 @@ void UIManager::OnRenamePreset(const char* argument)
             const std::string type = args.value("type", "");
             const std::string oldName = args.value("oldName", "");
             const std::string newName = args.value("newName", "");
-            if (!WritePresetFile(type, newName, args.value("data", json::object()), "RenamePreset")) {
+            const auto fail = [&]() {
                 logger::error("UIManager: RenamePreset - '{}' not renamed to '{}' ({}): its file is kept", oldName,
                     newName, type);
-                return;
+                // No "saved" in the text: updateStatus would show it as a success
+                GetSingleton()->UpdateStatus(std::format(
+                    "Error: preset '{}' could not be renamed to '{}' - the old file is kept (see SpellLearning.log)",
+                    oldName, newName));
+            };
+            const auto safeType = SafePresetPart(type, "RenamePreset");
+            const auto safeOld = SafePresetPart(oldName, "RenamePreset");
+            const auto safeNew = SafePresetPart(newName, "RenamePreset");
+            if (!safeType || !safeOld || !safeNew) return fail();
+
+            const auto dir = GetPresetsBasePath() / PathText::FromUtf8(*safeType);
+            std::filesystem::create_directories(dir);
+            const auto result = PresetFiles::Rename(dir, oldName, *safeOld, *safeNew,
+                                                    JsonText::Dump(args.value("data", json::object()), 2));
+            for (const auto& problem : result.problems) {
+                logger::warn("UIManager: RenamePreset - {}", problem);
             }
-            if (SamePresetFile(type, oldName, newName)) {
-                logger::info("UIManager: RenamePreset - '{}' and '{}' are one file, nothing to delete", oldName,
-                    newName);
-                return;
+            if (!result.written) {
+                logger::error("UIManager: RenamePreset - failed to write {}", PathText::Utf8(result.newPath));
+                return fail();
             }
-            DeletePresetFiles(type, oldName, "RenamePreset");
+            logger::info("UIManager: RenamePreset - saved {}/{}.json", type, *safeNew);
+            for (const auto& path : result.removed) {
+                logger::info("UIManager: RenamePreset - deleted '{}' ('{}')", PathText::Utf8(path), oldName);
+            }
+            for (const auto& path : result.kept) {
+                logger::info("UIManager: RenamePreset - '{}' is the new file too, kept", PathText::Utf8(path));
+            }
+            if (result.removed.empty() && result.kept.empty()) {
+                logger::warn("UIManager: RenamePreset - no file for {}/{} to delete", type, oldName);
+            }
         } catch (const std::exception& e) {
             logger::error("UIManager: RenamePreset exception: {}", e.what());
         }
