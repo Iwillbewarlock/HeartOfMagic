@@ -53,12 +53,10 @@ namespace SpellScanner
         std::string school = "Unknown";
         uint32_t minimumSkill = 0;
 
-        if (spell->effects.size() > 0) {
-            auto* firstEffect = spell->effects[0];
-            if (firstEffect && firstEffect->baseEffect) {
-                school = GetSchoolName(GetSpellSchool(spell));   // the scan's school (costliest effect's when the first has none)
-                minimumSkill = firstEffect->baseEffect->GetMinimumSkillLevel();
-            }
+        // The scan's school and minimum skill: one effect (GetSchoolEffect)
+        if (const auto* effect = GetSchoolEffect(spell); effect && effect->baseEffect) {
+            school = GetSchoolName(effect->baseEffect->GetMagickSkill());
+            minimumSkill = effect->baseEffect->GetMinimumSkillLevel();
         }
 
         // Use perk-based tier detection (fixes modded master spells with minimumSkill=0)

@@ -288,13 +288,11 @@ You MUST return ONLY valid JSON matching this exact schema. No explanations, no 
             }
         }
 
-        // Fallback: use minimumSkill from first effect
+        // Fallback: the minimum skill of the effect the school comes from (GetSchoolEffect:
+        // the first effect, the costliest when the first has no school)
         uint32_t minimumSkill = 0;
-        if (spell->effects.size() > 0) {
-            auto* firstEffect = spell->effects[0];
-            if (firstEffect && firstEffect->baseEffect) {
-                minimumSkill = firstEffect->baseEffect->GetMinimumSkillLevel();
-            }
+        if (const auto* effect = GetSchoolEffect(spell); effect && effect->baseEffect) {
+            minimumSkill = effect->baseEffect->GetMinimumSkillLevel();
         }
 
         return GetSkillLevelName(minimumSkill);

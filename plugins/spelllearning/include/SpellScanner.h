@@ -160,6 +160,10 @@ namespace SpellScanner
     // schools, its costliest effect's (ProgressionManager::TargetSchoolOf). Otherwise the
     // first effect's own value (kNone or another skill), kNone with no effect
     RE::ActorValue GetSpellSchool(RE::SpellItem* spell);
+    // The effect a spell's school and tier come from (GetSpellSchool, DetermineSpellTier's
+    // minimum skill, the card): the first effect when it has one of the five schools, else
+    // the costliest effect when that has one, else the first effect. nullptr with no effect
+    RE::Effect* GetSchoolEffect(RE::SpellItem* spell);
 
     // Stable string names for MGEF structure fields. Classification rules match
     // on these, so they must not become raw numbers.

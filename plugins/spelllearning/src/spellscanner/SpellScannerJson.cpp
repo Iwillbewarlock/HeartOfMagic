@@ -166,27 +166,26 @@ namespace SpellScanner
     // SPELL / EFFECT JSON
     // =============================================================================
 
+    RE::Effect* GetSchoolEffect(RE::SpellItem* spell)
+    {
+        if (!spell || spell->effects.empty()) return nullptr;
+
+        // The first effect, as always, so no spell that had a school there changes school
+        // or tier. A spell whose first effect has none (a schoolless light or sound effect
+        // first) goes by its costliest effect, as the learning target and cast XP already did
+        auto* firstEffect = spell->effects[0];
+        const auto hasSchool = [](const RE::Effect* effect) {
+            return effect && effect->baseEffect && IsValidMagicSchool(effect->baseEffect->GetMagickSkill());
+        };
+        if (hasSchool(firstEffect)) return firstEffect;
+        auto* costliest = spell->GetCostliestEffectItem();
+        return hasSchool(costliest) ? costliest : firstEffect;
+    }
+
     RE::ActorValue GetSpellSchool(RE::SpellItem* spell)
     {
-        if (!spell || spell->effects.empty()) {
-            return RE::ActorValue::kNone;
-        }
-
-        // The first effect's school, as always, so no spell that had one changes school.
-        // A spell whose first effect has none (a schoolless light or sound effect first)
-        // takes its costliest effect's, as the learning target and cast XP already did
-        auto* firstEffect = spell->effects[0];
-        if (firstEffect && firstEffect->baseEffect) {
-            const auto school = firstEffect->baseEffect->GetMagickSkill();
-            if (IsValidMagicSchool(school)) return school;
-        }
-        auto* costliest = spell->GetCostliestEffectItem();
-        if (costliest && costliest->baseEffect) {
-            const auto school = costliest->baseEffect->GetMagickSkill();
-            if (IsValidMagicSchool(school)) return school;
-        }
-        return firstEffect && firstEffect->baseEffect ? firstEffect->baseEffect->GetMagickSkill()
-                                                      : RE::ActorValue::kNone;
+        const auto* effect = GetSchoolEffect(spell);
+        return effect && effect->baseEffect ? effect->baseEffect->GetMagickSkill() : RE::ActorValue::kNone;
     }
 
     // Everything that comes from the MGEF record itself, split from what a
@@ -283,8 +282,8 @@ namespace SpellScanner
         }
         if (fields.minimumSkill) {
             uint32_t minSkill = 0;
-            if (spell->effects.size() > 0 && spell->effects[0] && spell->effects[0]->baseEffect) {
-                minSkill = spell->effects[0]->baseEffect->GetMinimumSkillLevel();
+            if (const auto* effect = GetSchoolEffect(spell); effect && effect->baseEffect) {
+                minSkill = effect->baseEffect->GetMinimumSkillLevel();
             }
             spellJson["minimumSkill"] = minSkill;
         }
