@@ -528,38 +528,30 @@ namespace BlockRules
         return std::abs(a_a.x - a_b.x) <= a_tolerance && std::abs(a_a.y - a_b.y) <= a_tolerance;
     }
 
-    /// The panel's home origin (parent space): the stored home while it still sits where the host last set it (a_tolerance: Flash
-    /// keeps _x in twips), else its present origin - SkyUI placed it (again), or nothing was set yet. SkyUI placing it exactly
-    /// onto the host's last value counts as unmoved: it is already where it belongs
-    inline Point PanelHome(const Point& a_now, const std::optional<Point>& a_lastSet, const std::optional<Point>& a_home, double a_tolerance)
-    {
-        return a_lastSet && a_home && NearPoint(a_now, *a_lastSet, a_tolerance) ? *a_home : a_now;
-    }
-
     struct PanelPlace
     {
-        Point home;        // this frame's home origin (PanelHome), the parent's space
-        Point want;        // the origin that puts the visible content's top-left on the target, the parent's space
-        bool set = false;  // want is off the present origin by more than the tolerance: _x / _y are to be set
+        Point want;             // the origin (parent space) that puts the visible content's top-left on the target
+        bool set = false;       // want is off the present origin by more than the tolerance: _x / _y are to be set
+        bool rePlaced = false;  // the panel is off the origin last known in place (or none is known yet): SkyUI placed it
     };
 
-    /// Where the panel goes: a_visibleNow (its visible content on the stage, the panel at a_now) taken to the home origin, moved
-    /// so its top-left is a_target (stage), that origin taken back into the parent. a_toStage / a_toParent (-> optional<Point>)
-    /// map parent <-> stage through every parent (Inventory Reforged scales the menu 0.85). The chain is affine, so the home
-    /// cancels out of want (= the present origin + the target's stage step); it only names SkyUI's place. nullopt: no mapping
-    template <class ToStage, class ToParent>
-    std::optional<PanelPlace> PlacePanel(const Point& a_now, const std::optional<Point>& a_lastSet, const std::optional<Point>& a_home,
-        const Settings::Rect& a_visibleNow, const Point& a_target, ToStage&& a_toStage, ToParent&& a_toParent, double a_tolerance)
+    /// Where the panel goes. a_now is its origin (parent space), a_nowStage the same point on the stage, a_visibleNow its visible
+    /// content on the stage; a_toParent (-> optional<Point>) maps a stage point into the parent through every parent (Inventory
+    /// Reforged scales the menu 0.85). want = the stage origin moved by the step from the content's top-left to a_target, taken
+    /// into the parent; a step of the origin moves the content by the mapped step (the chain is affine). a_inPlace is the origin
+    /// last known in place (set by the host, or found right): the panel off it by more than a_tolerance (parent space; Flash
+    /// keeps _x in twips) was placed by SkyUI, which writes only its _x (BottomBar.as:51). Landing exactly on it is harmless:
+    /// the panel is then where it belongs. nullopt when the mapping fails
+    template <class ToParent>
+    std::optional<PanelPlace> PlacePanel(const Point& a_now, const Point& a_nowStage, const std::optional<Point>& a_inPlace, const Settings::Rect& a_visibleNow,
+        const Point& a_target, ToParent&& a_toParent, double a_tolerance)
     {
-        PanelPlace place;
-        place.home = PanelHome(a_now, a_lastSet, a_home, a_tolerance);
-        const std::optional<Point> nowStage = a_toStage(a_now), homeStage = a_toStage(place.home);
-        if (!nowStage || !homeStage) return std::nullopt;
-        const Point atHome{ a_visibleNow.left + homeStage->x - nowStage->x, a_visibleNow.top + homeStage->y - nowStage->y };
-        const std::optional<Point> want = a_toParent(Point{ homeStage->x + a_target.x - atHome.x, homeStage->y + a_target.y - atHome.y });
+        const std::optional<Point> want = a_toParent(Point{ a_nowStage.x + a_target.x - a_visibleNow.left, a_nowStage.y + a_target.y - a_visibleNow.top });
         if (!want) return std::nullopt;
+        PanelPlace place;
         place.want = *want;
         place.set = !NearPoint(place.want, a_now, a_tolerance);
+        place.rePlaced = !a_inPlace || !NearPoint(a_now, *a_inPlace, a_tolerance);
         return place;
     }
 

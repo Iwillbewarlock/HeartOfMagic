@@ -426,15 +426,19 @@ header comment of `plugins/SL_MagicMenu/src/BlockApi.h`, the pure rules `BlockRu
   with `_visible`). STB Hotkey System adds its "Assign hotkey" / "Add to group" hints as buttons of that same panel, so
   they move with it. STB's keycaps in the list rows are list icons, not hints, and are never touched. The skill / XP row
   stays where SkyUI puts it.
-- The rule, each frame (`BlockRules::PlacePanel`):
-  1. If the panel's `_x/_y` differ from the values the host last set (0.5 tolerance; Flash keeps twips), or nothing was
-     set yet, SkyUI placed it: its present origin is its home (`BlockRules::PanelHome`). Otherwise the stored home stays.
-  2. Its visible content (the union of its visible children, `BlockRules::VisibleUnion`; the panel's own bounds when none
-     shows), mapped to the host's stage through every parent (Inventory Reforged scales the menu 0.85), goes with its
-     top-left to the strip's place (`BlockRules::HintRowRects`). The origin that does this is taken back into the
-     panel's parent (`MapPoint`) and set only when it differs from the present one. The parent chain is affine, so the
-     home cancels out of that origin; the home only names the place SkyUI chose in the log.
-  The panel is only moved, never drawn again. With no panel SkyUI's strip is left alone; a menu that never had one says
+- The rule, each frame (`BlockRules::PlacePanel`): the panel's visible content (the union of its visible children,
+  `BlockRules::VisibleUnion`), mapped to the host's stage through every parent (Inventory Reforged scales the menu 0.85),
+  goes with its top-left to the strip's place (`BlockRules::HintRowRects`). The origin that does this is the panel's
+  present origin on the stage moved by that step, taken back into the panel's parent (`MapPoint`), and it is set only
+  when it differs from the present one by more than 0.5 (parent space; Flash keeps twips). The panel off the origin last
+  known in place means SkyUI placed it again; SkyUI writes only its `_x` (BottomBar.as:51; nothing writes its `_y`), and
+  the move log says so with that `_x`.
+- Review of 4d50080a: with no button shown (`hideButtons` at ItemMenu.as:115, `clearButtons` at MagicMenu.as:195) the
+  panel is not moved, since its own bounds would count the hidden buttons. The gear keeps the row of the strip's last
+  visible size this menu, so it does not jump while the buttons are cleared. The visible content is read again only
+  when its signature changes: the panel's stage origin, and each child's `_visible` and, when shown, `_x`, `_y`,
+  `_width`, `_height`.
+- The panel is only moved, never drawn again. With no panel SkyUI's strip is left alone; a menu that never had one says
   so at its close.
 - The gear goes one row under the strip, with its left edge on the strip's start, so both sit on one vertical line. The
   user's words: "단축키 시작이랑 톱니바퀴랑 Y축이 같게", then "톱니바퀴가 한칸 아래로" (an earlier same-row reading was wrong).
