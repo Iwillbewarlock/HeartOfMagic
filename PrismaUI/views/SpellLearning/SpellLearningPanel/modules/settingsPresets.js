@@ -495,13 +495,15 @@ function renameSettingsPreset(oldName, newName) {
         return;
     }
 
-    // Check duplicate
-    if (settingsPresets[newName]) {
-        if (!confirm(t('settingsPresets.overwriteConfirm', {name: newName}))) {
+    // Check duplicate, ignoring case: Windows file names do, so "fire" would overwrite
+    // "Fire"'s file. A case-only rename of the preset itself is no clash
+    var clash = _findPresetKeyCaseInsensitive(settingsPresets, newName);
+    if (clash && clash !== oldName) {
+        if (!confirm(t('settingsPresets.overwriteConfirm', {name: clash}))) {
             updateSettingsPresetsUI();
             return;
         }
-        delete settingsPresets[newName];
+        delete settingsPresets[clash];
     }
 
     var preset = settingsPresets[oldName];

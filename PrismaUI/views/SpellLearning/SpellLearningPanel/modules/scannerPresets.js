@@ -322,13 +322,15 @@ function renameScannerPreset(oldName, newName) {
         return;
     }
 
-    // Check duplicate
-    if (scannerPresets[newName]) {
-        if (!confirm(t('scannerPresets.overwriteConfirm', {name: newName}))) {
+    // Check duplicate, ignoring case: Windows file names do, so "fire" would overwrite
+    // "Fire"'s file. A case-only rename of the preset itself is no clash
+    var clash = _findPresetKeyCaseInsensitive(scannerPresets, newName);
+    if (clash && clash !== oldName) {
+        if (!confirm(t('scannerPresets.overwriteConfirm', {name: clash}))) {
             updateScannerPresetsUI();
             return;
         }
-        delete scannerPresets[newName];
+        delete scannerPresets[clash];
     }
 
     var preset = scannerPresets[oldName];
