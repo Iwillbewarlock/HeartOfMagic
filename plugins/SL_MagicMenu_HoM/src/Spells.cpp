@@ -1,5 +1,5 @@
 // =============================================================================
-// SPELLS - see Spells.h. PROTOTYPE ONLY - replaced by the I1 contract.
+// SPELLS - see Spells.h.
 // =============================================================================
 
 #include "Common.h"
@@ -24,7 +24,7 @@ namespace Spells
 {
     namespace
     {
-        // PROTOTYPE ONLY - replaced by the I1 contract: the tree is read straight from HoM's saved file
+        // the tree is read straight from HoM's saved file
         constexpr const char* kTreePath = "Data/SKSE/Plugins/SpellLearning/spell_tree.json";
 
         std::optional<Data> g_data;
@@ -276,7 +276,7 @@ namespace Spells
 
     bool Load()
     {
-        // PROTOTYPE ONLY - replaced by the I1 contract: spell_tree.json is read here directly
+        // spell_tree.json is read here directly
         std::string error;
         auto tree = TreeData::Load(kTreePath, &error);
         if (!tree) {

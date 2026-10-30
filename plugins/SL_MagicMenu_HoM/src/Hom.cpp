@@ -1,5 +1,5 @@
 // =============================================================================
-// PROTOTYPE ONLY - replaced by the I1 contract. See Hom.h.
+// HOM - the wrappers around Heart of Magic's public API v2. See Hom.h.
 // =============================================================================
 
 #include "Common.h"

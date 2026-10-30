@@ -2,7 +2,7 @@
 
 // =============================================================================
 // HOM STYLE - Heart of Magic's spell-tree look and tree settings, read for the
-// magic menu's tree window (spec v11 T, R1-R12). PROTOTYPE ONLY. Read at menu
+// magic menu's tree window (spec v11 T, R1-R12). Read at menu
 // open from HoM's own files: Data/SKSE/Plugins/SpellLearning/config.json and the
 // design preset presets/design/*.json whose "id" is config's designPreset (its
 // "tree" block); a key the preset lacks keeps treeStyle.js DEFAULTS. Pure data:

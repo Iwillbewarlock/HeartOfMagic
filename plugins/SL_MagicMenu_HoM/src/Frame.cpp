@@ -22,7 +22,6 @@
 #include "Hom.h"
 #include "HomSettings.h"
 #include "Selection.h"
-#include "SpellSchool.h"
 #include "TreeDraw.h"
 
 #include <algorithm>
@@ -76,18 +75,19 @@ namespace HomAddon
 
         // spec v12 G2: follows the host's committed selection (Context::selectionSeq), not the list's highlight; a change of it is
         // a new selection even for the same spell. Bug G1: it drops the key pick and a clicked node, unless the change was the
-        // add-on's own served show request (Selection::DropPick)
+        // add-on's own served show request (Selection::DropPick). Final review I1: the rest is SettleShown, which the first draw for
+        // the new form already ran (the host draws before this frame) - run again here it changes nothing, so no second redraw. What
+        // only this frame can settle: a clicked node dropped by a player's list change (the draw cannot tell it from our own
+        // request) - that one change still redraws the blocks once more
         void WatchSelection(const BlockApi::Context& a_context, const Spells::Snapshot& a_snapshot)
         {
             auto& menu = Menu();
-            auto& session = TheSession();
+            const auto& session = TheSession();
             if (menu.seqSeen && *menu.seqSeen == a_context.selectionSeq) return;
             const auto seen = menu.seqSeen;
             menu.seqSeen = a_context.selectionSeq;
-            auto* form = a_context.listForm ? RE::TESForm::LookupByID(a_context.listForm) : nullptr;
-            auto* spell = form ? form->As<RE::SpellItem>() : nullptr;
-            const RE::FormID id = spell ? spell->GetFormID() : 0;
             const bool ours = Selection::OwnRequest(a_context.source, a_context.servedRequest, menu.lastRequest);
+            const bool drawSettled = !Selection::SettleDue(menu.settledShown, a_context.shown);
             const int selectedBefore = menu.selected;
             const bool notInTreeBefore = menu.notInTree;
             // review v11 #2: a list choice that is not our click drops the clicked node, so the focus follows the list; the U key's
@@ -97,24 +97,15 @@ namespace HomAddon
             const auto pick = Selection::PickAfterFrame({ menu.selected, menu.selectedByKey }, drop, -1);
             menu.selected = pick.node;
             menu.selectedByKey = pick.byKey;
-            // our own show request centres on the clicked node itself (a "_dup_" node's twin could push it out of the window);
-            // any other tree spell on its non-dup node
-            const int node = ours && menu.selected >= 0 && Spells::Get() && Data().gameIds[menu.selected] == id ? menu.selected : Spells::PrimaryNode(id);
-            // the school: a school tab's own, else a tree spell's node's, else the spell's magic skill
-            if (!menu.tabSchool.empty()) {
-                SetSchool(menu.tabSchool);
-            } else {
-                SetSchool(node >= 0 ? Data().tree.nodes[node].school : SpellSchool::Of(spell));
-            }
-            menu.notInTree = id && node < 0;
-            if (Centrable(node)) {
-                SetCentre(node);
-            } else if (session.centre < 0 || (!menu.tabSchool.empty() && !session.school.empty() && CentreSchool() != session.school)) {
-                SetDefaultCentre(session.school, a_snapshot);
-            }
-            logger::info("HoM block: list selection {:08X} {} (school {}, tree node {}{}{}; seq {})", id, spell ? spell->GetName() : "(none)",
+            const int node = SettleShown(a_context.shown, a_snapshot);
+            auto* form = a_context.listForm ? RE::TESForm::LookupByID(a_context.listForm) : nullptr;
+            auto* spell = form ? form->As<RE::SpellItem>() : nullptr;
+            const RE::FormID id = spell ? spell->GetFormID() : 0;
+            logger::info("HoM block: list selection {:08X} {} (school {}, tree node {}{}{}{}{}; seq {})", id, spell ? spell->GetName() : "(none)",
                 session.school.empty() ? "-" : session.school, node, node >= 0 && !Centrable(node) ? " without x/y" : "",
-                ours ? ", from our show request" : "", a_context.selectionSeq);
+                ours ? ", from our show request" : "", drawSettled ? ", settled in the draw" : "",
+                a_context.listForm != a_context.shown ? std::format(", the card shows {:08X}", a_context.shown) : std::string{},
+                a_context.selectionSeq);
             // the host drew the cards for the new form already; again only when what they show from our state changed
             if (menu.selected != selectedBefore || menu.notInTree != notInTreeBefore) menu.dirty = true;
         }
@@ -256,11 +247,12 @@ namespace HomAddon
         const auto snapshot = Spells::Current();
         WatchTab(a_context, *snapshot);
         WatchSelection(a_context, *snapshot);
-        // fix round 1 M3: a key pick made under another form goes now (the draws already treat it as dropped: G and the card agree)
-        if (Selection::StaleKeyPick(menu.selectedByKey, menu.pickShown, a_context.shown)) {
-            const auto pick = Selection::PickAfterFrame({ menu.selected, menu.selectedByKey }, true, -1);
-            menu.selected = pick.node;
-            menu.selectedByKey = pick.byKey;
+        // fix round 1 M3: a key pick made under another form goes now (the draws already treat it as dropped: G and the card agree;
+        // since I1 the first draw for the form has dropped it, so this is left for a form change no draw saw)
+        const Selection::Pick held{ menu.selected, menu.selectedByKey };
+        if (const auto kept = Selection::PickForShown(held, menu.pickShown, a_context.shown); kept != held) {
+            menu.selected = kept.node;
+            menu.selectedByKey = kept.byKey;
             menu.dirty = true;
         }
         menu.firstFrame = false;

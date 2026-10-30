@@ -396,6 +396,7 @@ namespace Widget
             std::set<Layout::BlockId> addonHidden, addonFramed;
             std::array<std::uint64_t, Layout::kColumns> panelsMade{};
             int addonKeyLogs = 0, addonShowLogs = 0, overlayLogs = 0;
+            int addonKeysUnused = 0;  // key calls no block used this menu (counted, logged at the close: final review M1)
             std::uint64_t layoutModeChanges = 0;  // the layout mode entered or left this menu (BlockRules::Moment)
             std::array<std::uint64_t, Layout::kColumns> scrollMoves{};  // each column's scroll changes this menu (BlockRules::Moment)
             // blocks plan Task 3 (D4): each column's scroll offset (stage units, 0 = its top block at the column's top), applied in
@@ -881,7 +882,7 @@ namespace Widget
                 }
                 g_menu.selWrapped = true;
                 logger::info("Widget: selection wrap installed - {}.{} wrapped ({}), itemList itemPress/itemPressAux observed (spec v12 G1/G4)",
-                    kListsPath, kSelectionChangeName, skyuis ? "SkyUI's own" : "not the prototype's: another handler, wrapped as it is");
+                    kListsPath, kSelectionChangeName, skyuis ? "SkyUI's own" : "not SkyUI's own: another handler, wrapped as it is");
             }
             InstallHighlightWrap(a_movie);
             // S3: the list's highlight when the menu opens is the selection
@@ -3169,7 +3170,9 @@ namespace Widget
         }
 
         // This frame's keys handed to one shown v3 block's key callback, in order (BlockRules::DeliversKey - the caller checked it).
-        // The return value is logged only. False when the callback threw (the block failed)
+        // The return value is logged only: a key the block used, one line (kMaxAddonKeyLogs per menu); one it did not use is only
+        // counted, for the close summary (final review M1: arrow-key list steps filled the cap). False when the callback threw
+        // (the block failed)
         bool AddonKeys(RE::GFxValue& a_widget, const BlockRegistry::Block& a_addon, const std::vector<std::uint32_t>& a_keys)
         {
             for (const auto key : a_keys) {
@@ -3179,8 +3182,10 @@ namespace Widget
                     FailAddon(a_widget, a_addon, "key", "L9", "key", error);
                     return false;
                 }
-                if (++g_menu.addonKeyLogs <= kMaxAddonKeyLogs) {
-                    logger::info("Widget: add-on block {} key {} -> {}{}", a_addon.id, key, used ? "used" : "not used",
+                if (!used) {
+                    ++g_menu.addonKeysUnused;
+                } else if (++g_menu.addonKeyLogs <= kMaxAddonKeyLogs) {
+                    logger::info("Widget: add-on block {} key {} -> used{}", a_addon.id, key,
                         g_menu.addonKeyLogs == kMaxAddonKeyLogs ? " - later ones this menu not logged" : "");
                 }
             }
@@ -6430,6 +6435,10 @@ namespace Widget
                             g_menu.frame);
                     }
                     CloseChecks();  // Task 8: SelfTest L8 last, L9 board / gear / reset
+                    if (g_menu.addonKeysUnused > 0) {
+                        logger::info("Widget: add-on keys this menu: {} key call(s) not used by a block (not logged one by one)",
+                            g_menu.addonKeysUnused);
+                    }
                     if (g_menu.wheelScrolls > 0 || g_menu.wheelZoomsKept > 0) {
                         logger::info("Widget: wheel this menu: {} column scroll(s), SkyUI's zoom kept from firing {} time(s)", g_menu.wheelScrolls,
                             g_menu.wheelZoomsKept);

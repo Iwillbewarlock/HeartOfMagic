@@ -2,7 +2,7 @@
 
 // =============================================================================
 // SPELLS - the tree's spells for the magic menu, and HoM's state of them.
-// PROTOTYPE ONLY - replaced by the I1 contract: the tree is spell_tree.json read
+// The tree is spell_tree.json read
 // at kDataLoaded, the state comes from HoM's API v2.
 //
 // Threads (game run 2026-10-25): the menu's frame handler runs on several

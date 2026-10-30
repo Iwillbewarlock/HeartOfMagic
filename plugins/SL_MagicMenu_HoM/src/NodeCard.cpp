@@ -295,6 +295,7 @@ namespace HomAddon
     {
         EnsureMenu();
         if (!a_movie) return;
+        SettleShownForDraw(a_shown);  // final review I1: a key pick made under another form dropped before the card is drawn
         auto& menu = Menu();
         menu.drawnWith[Index(BlockKind::kNodeCard)] = menu.metrics;
         menu.buttonDrawn = false;

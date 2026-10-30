@@ -1,7 +1,6 @@
 #pragma once
 
 // =============================================================================
-// PROTOTYPE ONLY - replaced by the I1 contract.
 // HOM - Heart of Magic's public API v2 (SpellLearningAPI.h) for the magic menu:
 // the pointer HoM broadcasts at kPostPostLoad and thin, null-safe wrappers.
 // API v2 calls are game-thread only: every wrapper checks the calling thread

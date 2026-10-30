@@ -143,7 +143,9 @@ work. `THIRD-PARTY-NOTICES.md` at the zip root (from `THIRD-PARTY-NOTICES.md.in`
 says so, lists every statically linked library with its license and points to the Corresponding Source (the
 GitHub tag of the release). `licenses/CommonLibSSE-NG/` holds CommonLib's `COPYING.txt`, `EXCEPTIONS.md` and the
 original CommonLibSSE `LICENSE-MIT.txt`; `licenses/<port>.txt` is each vcpkg library's copyright file. A new
-statically linked library needs its port in `_vcpkg_license_ports` (Distribution.cmake) and a row in the notices.
+statically linked library needs its port in `_vcpkg_license_ports` (Distribution.cmake) and a row in the notices;
+for the magic-menu DLLs (SL_MagicMenu, SL_MagicMenu_HoM) also in `_mm_vcpkg_license_ports` (Distribution.cmake) and a
+row in `fomod_magicmenu/THIRD-PARTY-NOTICES.md.in`.
 
 ### Deploying to the development mod folder
 

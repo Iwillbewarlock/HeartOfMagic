@@ -4,6 +4,7 @@
 
 #include "HomSettings.h"
 #include "Selection.h"
+#include "SpellSchool.h"
 #include "TreeMarks.h"
 
 #include <algorithm>
@@ -159,6 +160,37 @@ namespace HomAddon
         g_session.school = a_school;
         g_menu.refresh = true;
         g_menu.dirty = true;
+    }
+
+    int SettleShown(RE::FormID a_shown, const Spells::Snapshot& a_snapshot)
+    {
+        const auto pick = Selection::PickForShown({ g_menu.selected, g_menu.selectedByKey }, g_menu.pickShown, a_shown);
+        g_menu.selected = pick.node;
+        g_menu.selectedByKey = pick.byKey;
+        g_menu.settledShown = a_shown;
+        auto* form = a_shown ? RE::TESForm::LookupByID(a_shown) : nullptr;
+        auto* spell = form ? form->As<RE::SpellItem>() : nullptr;
+        const RE::FormID id = spell ? spell->GetFormID() : 0;
+        const bool hasTree = Spells::Get() != nullptr;
+        const RE::FormID pickedForm = hasTree && g_menu.selected >= 0 ? Data().gameIds[g_menu.selected] : 0;
+        const int node = Selection::CentreNodeFor(g_menu.selected, pickedForm, id, Spells::PrimaryNode(id));
+        const std::string nodeSchool = hasTree && node >= 0 ? Data().tree.nodes[node].school : std::string{};
+        SetSchool(std::string(Selection::SchoolFor(g_menu.tabSchool, node, nodeSchool, SpellSchool::Of(spell))));
+        g_menu.notInTree = id && node < 0;
+        if (Centrable(node)) {
+            SetCentre(node);
+        } else if (g_session.centre < 0 || (!g_menu.tabSchool.empty() && !g_session.school.empty() && CentreSchool() != g_session.school)) {
+            SetDefaultCentre(g_session.school, a_snapshot);
+        }
+        return node;
+    }
+
+    void SettleShownForDraw(RE::FormID a_shown)
+    {
+        if (!Selection::SettleDue(g_menu.settledShown, a_shown)) return;
+        const bool dirty = g_menu.dirty;
+        SettleShown(a_shown, *Spells::Current());
+        g_menu.dirty = dirty;
     }
 
     int KeyPick()

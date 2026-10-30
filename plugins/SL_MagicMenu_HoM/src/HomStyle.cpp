@@ -42,7 +42,7 @@ namespace HomStyle
         } };
 
         // designPresets.js:27-129: these ids are HoM's own (an add-on file cannot replace them, :337) and live in its
-        // script, which the prototype does not read
+        // script, which this block does not read
         constexpr std::array<std::string_view, 3> kBuiltIn{ "classic", "modern", "arcane" };
         constexpr std::string_view kDefaultDesign = "arcane";  // DesignPresets.DEFAULT_ID (designPresets.js:25)
 
@@ -661,10 +661,10 @@ namespace HomStyle
         const Json* render = nullptr;
         std::optional<Matched> preset;
         if (std::ranges::find(kBuiltIn, style.presetId) != kBuiltIn.end()) {
-            style.notes.push_back(std::format("preset {} is one of HoM's built-in designs, which the prototype does not read - treeStyle.js DEFAULTS",
+            style.notes.push_back(std::format("preset {} is one of HoM's built-in designs, which this block does not read - treeStyle.js DEFAULTS",
                 style.presetId));
         } else if (preset = FindPreset(style.presetId, a_presets, style.notes); !preset) {
-            style.notes.push_back(std::format("preset {} not found, HoM's built-in presets are not read by the prototype - treeStyle.js DEFAULTS",
+            style.notes.push_back(std::format("preset {} not found, HoM's built-in presets are not read by this block - treeStyle.js DEFAULTS",
                 style.presetId));
         } else {
             style.presetFile = "presets/design/" + preset->stem + ".json";

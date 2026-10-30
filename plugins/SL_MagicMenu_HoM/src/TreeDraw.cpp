@@ -567,6 +567,7 @@ namespace HomAddon
     {
         EnsureMenu();
         if (!a_movie) return;
+        SettleShownForDraw(a_shown);  // final review I1: a new form's centre, school and pick before it is drawn
         auto& menu = Menu();
         menu.drawnWith[Index(BlockKind::kTree)] = menu.metrics;
         // fix round 1 M1: the host placed the lent clip at its pad and title strip (BlockRules::ContentBoxOf) before this call

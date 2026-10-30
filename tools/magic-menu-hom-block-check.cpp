@@ -6,7 +6,8 @@
 // (HomLayoutMath.h CardHeight / HeightSender) and - moved here from magic-menu-preview-check in Task 6, unchanged - the tree
 // window's label, badge and link-box arithmetic, the progress card's plan and the node card's rows. Task 7: the frame's order
 // (Selection.h PickAfterFrame: U after the list change; one set-target request for G + the button; a stale key pick) and
-// TreeRules.h (TooltipValid, the tree's look and its legend - B1, L2 mask clicks counted and not acted on).
+// TreeRules.h (TooltipValid, the tree's look and its legend - B1, L2 mask clicks counted and not acted on). Final review I1:
+// the selection state a new card form settles in its first draw (Selection.h SettleDue, PickForShown, CentreNodeFor, SchoolFor).
 // Not covered here (the in-game self-test only, bSelfTest=1): GetPrivateProfileString itself, HoM's API, anything drawn.
 //
 //   magic-menu-hom-block-check              one PASS/FAIL line per check, a total line
@@ -26,6 +27,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <fstream>
 #include <map>
@@ -140,7 +142,7 @@ namespace
 
     void SettingsDefaults()
     {
-        std::printf("settings: defaults (Settings.h at f83dc6f3)\n");
+        std::printf("settings: defaults (HomSettings.h Values: keys, tree scales, rects, self-test)\n");
         const HomSettings::Values d;
         Expect(d.keyNext == 22 && d.keySetTarget == 34, Text("keys U %u and G %u (iNext 22, iSetTarget 34)", d.keyNext, d.keySetTarget));
         Expect(d.treeScale == 0.75 && d.treeMarkScale == 1.0 && d.maxSteps == 1 && d.maxNodes == 60 && d.debugExtraHeight == 0.0 && !d.selfTest,
@@ -270,6 +272,134 @@ namespace
             pending.setTarget = true;
             const auto gOnly = Selection::TakeKeys(pending);
             Expect(!gOnly.next && gOnly.setTarget, "G alone: only the set-target flag (a later U cannot carry an old G)");
+        }
+    }
+
+    // Final review I1: the selection state a new card form settles in its first draw (Selection.h SettleDue, PickForShown,
+    // CentreNodeFor, SchoolFor), run here as AddonState.cpp's SettleShown / SettleShownForDraw and Frame.cpp's WatchSelection run
+    // them. A made-up tree: node 0 is spell 100 (Destruction), node 1 spell 200 (Restoration), node 2 spell 100's "_dup_" twin;
+    // spell 300 (Illusion) has no node
+    struct SettleSim
+    {
+        std::optional<std::uint32_t> settled;
+        Selection::Pick pick;
+        std::uint32_t pickShown = 0;
+        int centre = -1;
+        std::string school;
+        bool notInTree = false;
+        int settles = 0;
+    };
+
+    constexpr std::uint32_t kSpellA = 0x100, kSpellB = 0x200, kSpellOff = 0x300;
+
+    std::uint32_t SimForm(int a_node)
+    {
+        return a_node == 1 ? kSpellB : a_node == 0 || a_node == 2 ? kSpellA : 0;
+    }
+
+    int SimPrimary(std::uint32_t a_form)
+    {
+        return a_form == kSpellA ? 0 : a_form == kSpellB ? 1 : -1;
+    }
+
+    std::string SimSchool(std::uint32_t a_form)
+    {
+        return a_form == kSpellB ? "Restoration" : a_form == kSpellOff ? "Illusion" : a_form ? "Destruction" : "";
+    }
+
+    void SimSettle(SettleSim& a_sim, std::uint32_t a_shown, std::string_view a_tabSchool)
+    {
+        a_sim.pick = Selection::PickForShown(a_sim.pick, a_sim.pickShown, a_shown);
+        a_sim.settled = a_shown;
+        const int node = Selection::CentreNodeFor(a_sim.pick.node, SimForm(a_sim.pick.node), a_shown, SimPrimary(a_shown));
+        const std::string nodeSchool = node >= 0 ? SimSchool(SimForm(node)) : std::string{};
+        a_sim.school = std::string(Selection::SchoolFor(a_tabSchool, node, nodeSchool, SimSchool(a_shown)));
+        a_sim.notInTree = a_shown != 0 && node < 0;
+        if (node >= 0) a_sim.centre = node;
+        ++a_sim.settles;
+    }
+
+    void SimDraw(SettleSim& a_sim, std::uint32_t a_shown, std::string_view a_tabSchool = "")
+    {
+        if (Selection::SettleDue(a_sim.settled, a_shown)) SimSettle(a_sim, a_shown, a_tabSchool);
+    }
+
+    // The tree's frame after a seq change: drop (DropPick), then the same settle; true when it would draw the blocks again
+    bool SimFrame(SettleSim& a_sim, std::uint32_t a_shown, bool a_drop)
+    {
+        const auto pickBefore = a_sim.pick;
+        const bool notInTreeBefore = a_sim.notInTree;
+        const int centreBefore = a_sim.centre;
+        const auto schoolBefore = a_sim.school;
+        a_sim.pick = Selection::PickAfterFrame(a_sim.pick, a_drop, -1);
+        SimSettle(a_sim, a_shown, "");
+        return a_sim.pick != pickBefore || a_sim.notInTree != notInTreeBefore || a_sim.centre != centreBefore || a_sim.school != schoolBefore;
+    }
+
+    void ShownSettle()
+    {
+        std::printf("shown settle (final review I1): a new card form settles in its first draw, the frame finds it done\n");
+        using Selection::Pick;
+        using Source = BlockApi::SelectionSource;
+        Expect(Selection::SettleDue(std::nullopt, kSpellA), "nothing settled yet this menu: the first draw settles");
+        Expect(Selection::SettleDue(kSpellA, kSpellB), "the card now shows another form: due");
+        Expect(!Selection::SettleDue(kSpellB, kSpellB), "the same form again (the other two blocks' draws, the frame): not due");
+        Expect(Selection::SettleDue(kSpellB, 0), "the card shows nothing now: due (0 is a form like any other here)");
+        Expect(Selection::CentreNodeFor(-1, 0, kSpellB, 1) == 1, "no pick: the spell's own (non-dup) node");
+        Expect(Selection::CentreNodeFor(2, kSpellA, kSpellA, 0) == 2, "the clicked dup twin of the shown spell: it, not the primary node");
+        Expect(Selection::CentreNodeFor(2, kSpellA, kSpellB, 1) == 1, "a clicked node of another spell: the shown spell's node");
+        Expect(Selection::CentreNodeFor(4, 0, 0, -1) == -1, "a node without a game form never matches 'not a spell' (0)");
+        Expect(Selection::SchoolFor("Illusion", 0, "Destruction", "Destruction") == "Illusion", "a school tab: its own school");
+        Expect(Selection::SchoolFor("", 0, "Destruction", "Alteration") == "Destruction", "no tab school: the node's");
+        Expect(Selection::SchoolFor("", -1, "", "Alteration") == "Alteration", "no node: the spell's magic skill");
+        {
+            SettleSim sim;
+            SimDraw(sim, kSpellA);
+            const int before = sim.settles;
+            SimDraw(sim, kSpellB);  // the node card's draw (the host's order: nodecard, progress, tree)
+            SimDraw(sim, kSpellB);  // the progress card's
+            SimDraw(sim, kSpellB);  // the tree's
+            Expect(sim.settles - before == 1, Text("a list step to 200: three draws, %d settle (one)", sim.settles - before));
+            Expect(sim.centre == 1 && sim.school == "Restoration" && !sim.notInTree,
+                Text("the draws are made with the new centre (node %d) and school (%s) - not 100's", sim.centre, sim.school.c_str()));
+            Expect(!SimFrame(sim, kSpellB, Selection::DropPick(3, 4, Source::kList, 0, 0)),
+                "the tree's frame after it (the player's list): nothing changes - no 'SLMD', one tree redraw for the step");
+        }
+        {
+            SettleSim sim;
+            SimDraw(sim, kSpellA);
+            sim.pick = { 1, true };  // U picked node 1 while the card showed 100
+            sim.pickShown = kSpellA;
+            SimDraw(sim, kSpellB);
+            Expect(sim.pick == Pick{}, "a key pick made under 100, the card now 200: dropped in the draw (the node card is drawn without it)");
+            Expect(!SimFrame(sim, kSpellB, true), "the frame's drop finds nothing left: no second redraw");
+        }
+        {
+            SettleSim sim;
+            SimDraw(sim, kSpellB);
+            sim.pick = { 2, false };  // our tree click on spell 100's dup twin; its show request (9) is served next frame
+            sim.centre = 2;
+            SimDraw(sim, kSpellA);
+            Expect(sim.pick == Pick{ 2, false } && sim.centre == 2, "our own request's clicked node: kept in the draw, the tree stays on it");
+            Expect(!SimFrame(sim, kSpellA, Selection::DropPick(3, 4, Source::kAddon, 9, 9)),
+                "the frame sees our own served request 9: the pick kept, nothing changes - no second redraw");
+        }
+        {
+            SettleSim sim;
+            SimDraw(sim, kSpellB);
+            sim.pick = { 1, false };  // a clicked node of 200, then the player picks 100 in the list
+            SimDraw(sim, kSpellA);
+            Expect(sim.pick == Pick{ 1, false } && sim.centre == 0, "a clicked node, then the player's list: the draw centres on 100 but keeps the pick");
+            Expect(SimFrame(sim, kSpellA, Selection::DropPick(3, 4, Source::kList, 9, 9)),
+                "the frame drops it (only it can tell the player's change from ours): one more redraw, the known rest of I1");
+        }
+        {
+            SettleSim sim;
+            SimDraw(sim, kSpellA, "Illusion");
+            Expect(sim.school == "Illusion" && sim.centre == 0, "on the Illusion tab: the tab's school, the centre on the spell's node");
+            SimDraw(sim, kSpellOff, "Illusion");
+            Expect(sim.notInTree && sim.centre == 0 && sim.school == "Illusion",
+                "a spell with no node: not in the tree, the centre kept (drawn dimmed), the tab's school");
         }
     }
 
@@ -547,6 +677,7 @@ int main(int a_argc, char** a_argv)
     SettingsValues();
     SelectionRules();
     FrameOrder();
+    ShownSettle();
     TreeWindowRules();
     StringsTable();
     CardHeights();

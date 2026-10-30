@@ -2,8 +2,8 @@
 
 // =============================================================================
 // TREE DATA - the saved Heart of Magic spell tree, read for the magic menu's
-// tree window. PROTOTYPE ONLY: reads spell_tree.json directly; the I1 contract
-// (design section 4, GetTreeWindow) replaces this. Pure data: no GFx and no game
+// tree window. It reads spell_tree.json directly (a planned HoM-side contract, I1
+// in design section 4, GetTreeWindow, would replace this). Pure data: no GFx and no game
 // calls (FormID -> form lookup happens in the caller), so the offline check tool
 // can use it too.
 // =============================================================================

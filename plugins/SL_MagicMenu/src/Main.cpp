@@ -1,5 +1,5 @@
 // =============================================================================
-// SL_MagicMenu - magic menu prototype (ACF M1-0)
+// SL_MagicMenu - the magic menu
 // =============================================================================
 // Draws a 3D preview box and a spell card into SkyUI's magic menu, on a board
 // with the layout mode's gear and the key-hint strip, and hosts other plugins'
@@ -80,7 +80,7 @@ namespace
 SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 {
     SKSE::Init(a_skse, SKSE::InitInfo{ .log = false });
-    SetupLog("Heart of Magic - magic menu prototype (ACF M1-0)");
+    SetupLog("Magic menu");
     // The main thread: the game's preview data are used on it only. kDataLoaded ran on another thread in the game
     // run of 2026-10-25, so it is taken here, where SKSE loads plugins.
     GameThread::Set();

@@ -100,6 +100,7 @@ namespace HomAddon
         RE::FormID shown = 0;
         std::uint32_t selectionSeq = 0;
         std::optional<std::uint32_t> seqSeen;    // the seq WatchSelection acted on last
+        std::optional<RE::FormID> settledShown;  // the card's form the selection state was last settled for (SettleShown)
         std::optional<std::uint32_t> tabBits;    // the tab WatchTab acted on last
         std::string tabSchool;                   // the school tab's school (empty on other tabs)
         bool layoutMode = false;                 // the last Context's (own handlers ignore events while it is on)
@@ -175,6 +176,17 @@ namespace HomAddon
     void SetDefaultCentre(const std::string& a_school, const Spells::Snapshot& a_snapshot);
     void SettleProvisionalCentre(const Spells::Snapshot& a_snapshot);
     void SetSchool(const std::string& a_school);
+
+    /// Final review I1: the selection-dependent state for the card's form a_shown - a stale key pick dropped
+    /// (Selection::PickForShown), the centre (Selection::CentreNodeFor, a school tab's default centre when the spell has no place in
+    /// the tree), the school (Selection::SchoolFor) and notInTree. One rule for the tree's frame (WatchSelection, after its own drop of
+    /// the pick by Context's seq and source) and the draws (SettleShownForDraw), so the frame finds what the draws were made with.
+    /// Returns the spell's tree node (-1 = none; it may have no x/y, then the centre stays or is the school's default)
+    int SettleShown(RE::FormID a_shown, const Spells::Snapshot& a_snapshot);
+
+    /// I1: every drawSelection callback first: a_shown not settled yet (Selection::SettleDue) is settled before the block is drawn.
+    /// Marks nothing dirty: the host draws all three blocks for the new form in this same pass (one tabs mask for all three)
+    void SettleShownForDraw(RE::FormID a_shown);
 
     /// The key pick (bug G1): the node the U key picked, -1 when none
     int KeyPick();

@@ -13,7 +13,7 @@
 #include <vector>
 
 // =============================================================================
-// INPUT - the keys of the magic menu prototype and the layout mode's input boundary.
+// INPUT - the magic menu's keys and the layout mode's input boundary.
 //
 // The next-learnable and set-target keys ([Keys] iNext / iSetTarget, defaults U and G: build-5 key scan,
 // docs/superpowers/specs/v5-key-scan.md): keyboard only, key-down only, only while the magic menu is open

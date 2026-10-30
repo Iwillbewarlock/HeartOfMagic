@@ -179,10 +179,11 @@ namespace HomAddon
     }
 
     // user 2026-10-30: the card fits its lines and bar ('SLMH': the blocks under it move up on the next frame)
-    void DrawProgressBlock(RE::GFxMovieView* a_movie, RE::GFxValue& a_clip, float a_width, float, std::uint32_t, void*)
+    void DrawProgressBlock(RE::GFxMovieView* a_movie, RE::GFxValue& a_clip, float a_width, float, std::uint32_t a_shown, void*)
     {
         EnsureMenu();
         if (!a_movie) return;
+        SettleShownForDraw(a_shown);  // final review I1: the school of a new form before the card is drawn
         auto& menu = Menu();
         menu.drawnWith[Index(BlockKind::kProgress)] = menu.metrics;
         SyncProgressShown();  // Task 6 review 4: with no school the box is hidden from its first draw, not a frame later
