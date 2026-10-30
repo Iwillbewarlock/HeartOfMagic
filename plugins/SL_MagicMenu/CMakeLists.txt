@@ -1,5 +1,5 @@
 # ==========================================================================
-# SL_MagicMenu -- magic menu prototype (ACF M1-0)
+# SL_MagicMenu -- the magic menu (ACF M1-0)
 # ==========================================================================
 # A separate DLL drawn into SkyUI's magic menu: the 3D preview box, our spell
 # card, the board, the layout mode and the add-on blocks (BlockApi.h). No Heart
@@ -12,7 +12,7 @@
 project(
     SL_MagicMenu
     VERSION ${MAGIC_MENU_VERSION}
-    DESCRIPTION "Heart of Magic - magic menu prototype"
+    DESCRIPTION "Magic menu - 3D spell preview, spell card and movable blocks"
     LANGUAGES CXX
 )
 

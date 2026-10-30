@@ -35,7 +35,7 @@ namespace Settings
     {
         // [General]
         bool enabled = true;
-        bool selfTest = true;      // the preview gates' "SelfTest:" log lines
+        bool selfTest = false;     // the "SelfTest:" log lines (off for release, Task 8 fix round 1; the shipped ini says 0 too)
         bool movePreview = true;   // G2: move the 3D preview into the preview box
         bool moveItemCard = true;  // move SkyUI's item card into the spell card block
         bool drawPreviewOver = true;  // draw the 3D preview again after the menu movie (MagicMenu PostDisplay)

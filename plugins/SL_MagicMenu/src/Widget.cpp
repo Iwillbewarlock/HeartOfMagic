@@ -17,6 +17,7 @@
 #include "Settings.h"
 #include "SpellSchool.h"
 #include "TextFit.h"
+#include "WidgetText.h"
 
 #include <algorithm>
 #include <array>
@@ -107,7 +108,6 @@ namespace Widget
         // effects/timeRemaining (none when <= 0). magicSchoolName is used when the object has it (ItemCard::SetForm's object does).
         constexpr int kTypeSpell = 7, kTypeShout = 10, kTypeEffect = 11, kTypePower = 13;
         constexpr int kShoutWords = 3;
-        constexpr double kSecondsPerMinute = 60.0, kSecondsPerHour = 3600.0;
         constexpr double kCardRuleGap = 5.0;      // above and below the card's rules
         constexpr double kCardFootShare = 0.62;   // the footer's left text (cost) takes this share of the width, the cast type the rest
         constexpr int kC1Frames = 30;             // frames a new selection may take before our card shows its item (else FAIL)
@@ -180,140 +180,7 @@ namespace Widget
         constexpr int kNameLines = 2;
         constexpr std::uint32_t kNotYet = 0xE05050;
 
-        // ---------------------------------------------------------------------
-        // On-screen text: one table (spec v5 Q2), Korean (the user plays in Korean). Placeholders in braces are filled by
-        // Fill(); {key} already carries its brackets ("[U]"). Wording: Gemini Argon's draft 2026-10-25 with two lines tightened
-        // by Claude (spec v5 table); the rows after "build 5" were written in the same short label style for states and lines
-        // the spec's table does not have. Not passed to std::format: the braces are names, not format fields.
-        // ---------------------------------------------------------------------
-
-        enum class Str : std::size_t
-        {
-            kPreviewTitle,
-            kCardSub,
-            kSchoolAlteration,
-            kSchoolConjuration,
-            kSchoolDestruction,
-            kSchoolIllusion,
-            kSchoolRestoration,
-            // build 7 (C1, drafts for Argon's review)
-            kCardMagicka,
-            kCardMagickaPerSec,
-            kCardCastFireForget,
-            kCardCastConcentration,
-            kCardCastConstant,
-            kCardCastScroll,
-            kCardShout,
-            kCardShoutRecharge,
-            kCardPower,
-            kCardLesserPower,
-            kCardAbility,
-            kCardPowerAny,
-            kCardActiveEffect,
-            kCardTimeLeft,
-            kCardHours,
-            kCardMinutes,
-            kCardSeconds,
-            // blocks plan Task 4 (D5): the layout buttons
-            kLayoutReset,
-            kEmptyChoose,
-            kLayoutGearEnter,
-            kLayoutGearLeave,
-            kCount
-        };
-
-        struct StrEntry
-        {
-            Str id;
-            const char* key;   // the name in the spec's table
-            const char* text;
-        };
-
-        // HoM add-on plan Task 5: the Heart of Magic rows (progress card, node card, tree, legend) left with the HoM block; the
-        // add-on keeps them as they were at f83dc6f3
-        constexpr auto kStrings = std::to_array<StrEntry>({
-            { Str::kPreviewTitle, "preview_title", "미리보기" },
-            // our card's school and level line (the node card's "node_sub" until Task 5)
-            { Str::kCardSub, "card_sub", "{school} · {level}" },
-            { Str::kSchoolAlteration, "school_alteration", "변화마법" },
-            { Str::kSchoolConjuration, "school_conjuration", "소환마법" },
-            { Str::kSchoolDestruction, "school_destruction", "파괴마법" },
-            { Str::kSchoolIllusion, "school_illusion", "환영마법" },
-            { Str::kSchoolRestoration, "school_restoration", "회복마법" },
-            // build 7 (spec v7 C1): our info card. DRAFT wording by Claude in the short label style, for Argon's review
-            { Str::kCardMagicka, "card_magicka", "매지카 {n}" },
-            { Str::kCardMagickaPerSec, "card_magicka_per_sec", "매지카 {n}/초" },
-            { Str::kCardCastFireForget, "card_cast_fire_forget", "단발" },
-            { Str::kCardCastConcentration, "card_cast_concentration", "집중" },
-            { Str::kCardCastConstant, "card_cast_constant", "지속 효과" },
-            { Str::kCardCastScroll, "card_cast_scroll", "마법 주문서" },
-            { Str::kCardShout, "card_shout", "함성" },
-            { Str::kCardShoutRecharge, "card_shout_recharge", "충전 {t}" },
-            { Str::kCardPower, "card_power", "특수능력 · 하루 1회" },
-            { Str::kCardLesserPower, "card_lesser_power", "하급 특수능력" },
-            { Str::kCardAbility, "card_ability", "능력" },
-            { Str::kCardPowerAny, "card_power_any", "특수능력" },
-            { Str::kCardActiveEffect, "card_active_effect", "적용중인 효과" },
-            { Str::kCardTimeLeft, "card_time_left", "남은 시간 {t}" },
-            { Str::kCardHours, "card_hours", "{n}시간" },
-            { Str::kCardMinutes, "card_minutes", "{n}분" },
-            { Str::kCardSeconds, "card_seconds", "{n}초" },
-            // the reset button right of the gear in the edit mode (user 2026-10-30), {key} the toggle key as the hints show keys
-            { Str::kLayoutReset, "layout_reset", "처음 배치로" },
-            // user 2026-10-30 (the board): a block's line while nothing is chosen
-            { Str::kEmptyChoose, "empty_choose", "주문을 고르면 표시됩니다" },
-            // user 2026-10-30: the gear's hover hint, out of the layout mode and in it
-            { Str::kLayoutGearEnter, "layout_gear_enter", "편집 모드 {key}" },
-            { Str::kLayoutGearLeave, "layout_gear_leave", "보기 모드로 {key}" },
-        });
-
-        consteval bool StringsInOrder()
-        {
-            for (std::size_t i = 0; i < kStrings.size(); ++i) {
-                if (static_cast<std::size_t>(kStrings[i].id) != i) return false;
-            }
-            return kStrings.size() == static_cast<std::size_t>(Str::kCount);
-        }
-        static_assert(StringsInOrder(), "kStrings must list every Str once, in enum order");
-
-        const char* Text(Str a_id)
-        {
-            return kStrings[static_cast<std::size_t>(a_id)].text;
-        }
-
-        // The table's text with each {placeholder} replaced (every occurrence)
-        std::string Fill(Str a_id, std::initializer_list<std::pair<std::string_view, std::string>> a_values)
-        {
-            std::string text = Text(a_id);
-            for (const auto& [name, value] : a_values) {
-                for (auto at = text.find(name); at != std::string::npos; at = text.find(name, at + value.size())) {
-                    text.replace(at, name.size(), value);
-                }
-            }
-            return text;
-        }
-
-        // A tree school key ("Destruction") as the list's school column names it
-        std::string SchoolText(const std::string& a_school)
-        {
-            constexpr std::array<std::pair<std::string_view, Str>, 5> kSchools{ { { "Alteration", Str::kSchoolAlteration },
-                { "Conjuration", Str::kSchoolConjuration }, { "Destruction", Str::kSchoolDestruction }, { "Illusion", Str::kSchoolIllusion },
-                { "Restoration", Str::kSchoolRestoration } } };
-            for (const auto& [name, id] : kSchools) {
-                if (name == a_school) return Text(id);
-            }
-            return a_school;
-        }
-
-        // A string game setting, empty when there is none
-        std::string GameString(const char* a_setting)
-        {
-            auto* settings = RE::GameSettingCollection::GetSingleton();
-            auto* setting = settings ? settings->GetSetting(a_setting) : nullptr;
-            const char* text = setting && setting->GetType() == RE::Setting::Type::kString ? setting->GetString() : nullptr;
-            return text ? text : "";
-        }
-
+        using namespace WidgetText;  // the on-screen text table and the card's text helpers (WidgetText.h)
 
         // ---------------------------------------------------------------------
         // Menu state
@@ -476,8 +343,8 @@ namespace Widget
             int stripMoveLogs = 0, stripApplies = 0, stripChecks = 0;  // review R4: moves logged, moves this menu, read-back lines
             int stripFoundFrame = -1;   // the frame the panel was first found this menu (-1: not yet; a menu without it logs at the close)
             int stripReadFails = 0;     // frames a shown button's bounds did not read (StripContent; logged at the close)
-            // Task 8 R1: the signature the reads failed under, how many frames in a row, whether the content in use is partial
-            std::vector<double> stripFailSignature;
+            // Task 8 R1: the look (signature without the origin) the reads failed under, frames in a row, the content partial
+            std::vector<double> stripFailLook;
             int stripFailsInRow = 0;
             bool stripPartial = false;
             std::set<std::string> stripUnreadLogged;  // the children logged as unread (once each this menu)
@@ -593,12 +460,6 @@ namespace Widget
         // ---------------------------------------------------------------------
         // Small helpers
         // ---------------------------------------------------------------------
-
-        std::string Upper(std::string a_text)
-        {
-            std::ranges::transform(a_text, a_text.begin(), [](char c) { return c >= 'a' && c <= 'z' ? static_cast<char>(c - 'a' + 'A') : c; });
-            return a_text;
-        }
 
         // A self-test line ("SelfTest: P2 PASS ..."), with bSelfTest only; the verdicts are written through (info lines
         // wait in the buffer, Common.h), the details ride along
@@ -3599,55 +3460,6 @@ namespace Widget
             return a_object.IsObject() && a_object.GetMember(a_member, &value) && value.IsBool() && value.GetBool();
         }
 
-        std::string HtmlEscape(std::string_view a_text)
-        {
-            std::string out;
-            for (const char c : a_text) {
-                switch (c) {
-                case '&': out += "&amp;"; break;
-                case '<': out += "&lt;"; break;
-                case '>': out += "&gt;"; break;
-                default: out += c; break;
-                }
-            }
-            return out;
-        }
-
-        std::string ColorHex(std::uint32_t a_rgb)
-        {
-            return std::format("#{:06X}", a_rgb);
-        }
-
-        // A time left in SkyUI's way (ItemCard.as:330-354: whole hours, else whole minutes, else seconds) in our words
-        std::string TimeText(double a_seconds)
-        {
-            const double whole = std::floor(a_seconds);
-            if (whole >= kSecondsPerHour) return Fill(Str::kCardHours, { { "{n}", std::format("{:.0f}", std::floor(whole / kSecondsPerHour)) } });
-            if (whole >= kSecondsPerMinute) return Fill(Str::kCardMinutes, { { "{n}", std::format("{:.0f}", std::floor(whole / kSecondsPerMinute)) } });
-            return Fill(Str::kCardSeconds, { { "{n}", std::format("{:.0f}", whole) } });
-        }
-
-        std::string CastTypeText(const RE::SpellItem* a_spell)
-        {
-            switch (a_spell->GetCastingType()) {
-            case RE::MagicSystem::CastingType::kConcentration: return Text(Str::kCardCastConcentration);
-            case RE::MagicSystem::CastingType::kConstantEffect: return Text(Str::kCardCastConstant);
-            case RE::MagicSystem::CastingType::kScroll: return Text(Str::kCardCastScroll);
-            default: return Text(Str::kCardCastFireForget);
-            }
-        }
-
-        std::string PowerText(const RE::SpellItem* a_spell)
-        {
-            if (!a_spell) return Text(Str::kCardPowerAny);
-            switch (a_spell->GetSpellType()) {
-            case RE::MagicSystem::SpellType::kPower: return Text(Str::kCardPower);
-            case RE::MagicSystem::SpellType::kLesserPower: return Text(Str::kCardLesserPower);
-            case RE::MagicSystem::SpellType::kAbility: return Text(Str::kCardAbility);
-            default: return Text(Str::kCardPowerAny);
-            }
-        }
-
         // The spell the card is about, for what its info object does not carry (school, cast type): the tree spell P2 put on
         // SkyUI's card, else the list's selection - used only when its name is the card's (a stale or other form is ignored)
         const RE::SpellItem* CardSpell(const std::string& a_name)
@@ -3767,21 +3579,6 @@ namespace Widget
             format.SetMember("size", a_size);
             format.SetMember("align", "left");
             a_field.Invoke("setTextFormat", nullptr, &format, 1);
-        }
-
-        // The colours an HTML text sets ("color=" values, upper case), for the colour check
-        std::set<std::string> HtmlColours(const std::string& a_html)
-        {
-            std::string lower = a_html;
-            std::ranges::transform(lower, lower.begin(), [](char c) { return c >= 'A' && c <= 'Z' ? static_cast<char>(c - 'A' + 'a') : c; });
-            std::set<std::string> colours;
-            constexpr std::size_t kHexDigits = 6;
-            for (auto at = lower.find("color="); at != std::string::npos; at = lower.find("color=", at + 1)) {
-                const auto hash = lower.find('#', at);
-                if (hash == std::string::npos || hash > at + 8 || hash + 1 + kHexDigits > lower.size()) continue;
-                colours.insert(Upper(a_html.substr(hash + 1, kHexDigits)));
-            }
-            return colours;
         }
 
         // The field's text set from HTML, then our font, size and left alignment on all of it (RestyleWhole). The HTML goes in
@@ -4896,6 +4693,19 @@ namespace Widget
             logger::info("Layout: menu clip dump - {} clip(s) seen to depth {}, {} logged", seen, kDumpDepth, lines);
         }
 
+        Settings::Rect VisibleStage(RE::GFxMovieView* a_movie)  // the movie's visible frame (stage units)
+        {
+            const auto area = a_movie->GetVisibleFrameRect();
+            return { area.left, area.top, area.right, area.bottom };
+        }
+
+        // the two columns' full areas' union, the board's base (DrawBoard; SelfTest L9 board recomputes the board from it)
+        Settings::Rect BoardColumns()
+        {
+            const auto left = ColumnViewport(0), right = ColumnViewport(Layout::kColumns - 1);
+            return { left.left, std::min(left.top, right.top), right.right, std::max(left.bottom, right.bottom) };
+        }
+
         // user 2026-10-30 (the board, mock board.png): a fixed panel behind both columns - their full areas (the frames: the border
         // between them does not change the union) BlockRules::kBoardPad larger, cut to the visible stage; lighter than the cards
         // (black kBoardAlpha, a kPanelEdge edge at kBoardEdgeAlpha), no title. Made once a menu, under the columns; it does not
@@ -4908,10 +4718,8 @@ namespace Widget
             constexpr double kBoardAlpha = 38.0, kBoardEdgeAlpha = 75.0;
             auto board = Child(a_widget, kBoardName);
             if (!board.IsDisplayObject()) board = Draw::Clip(a_widget, kBoardName);
-            const auto left = ColumnViewport(0), right = ColumnViewport(Layout::kColumns - 1);
-            const Settings::Rect columns{ left.left, std::min(left.top, right.top), right.right, std::max(left.bottom, right.bottom) };
-            const auto area = a_movie->GetVisibleFrameRect();
-            g_menu.board = BlockRules::BoardRect(columns, BlockRules::kBoardPad, Settings::Rect{ area.left, area.top, area.right, area.bottom });
+            const auto columns = BoardColumns();
+            g_menu.board = BlockRules::BoardRect(columns, BlockRules::kBoardPad, VisibleStage(a_movie));
             if (!board.IsDisplayObject()) {
                 logger::warn("Layout: the board could not be made - the columns show without it this menu");
                 return;
@@ -4957,23 +4765,35 @@ namespace Widget
             ApplyVisibility(a_widget);
         }
 
-        // review R6: the button panel's children as BlockRules::ChildBox - each direct child's _visible and, when shown, its bounds
-        // in a_space (BoundsIn: through every parent; a_flash: Flash's own getBounds instead, the L8 last read-back's other path).
-        // a_names (optional) gets each child's name in the same order. A hidden child's bounds are not read
-        std::vector<BlockRules::ChildBox> ChildBoxes(RE::GFxValue& a_clip, RE::GFxValue& a_space, std::vector<std::string>* a_names = nullptr, bool a_flash = false)
+        // review R6: the button panel's direct children (name, clip), one VisitMembers pass
+        std::vector<std::pair<std::string, RE::GFxValue>> PanelChildren(RE::GFxValue& a_clip)
         {
             std::vector<std::pair<std::string, RE::GFxValue>> children;
             a_clip.VisitMembers([&](const char* a_name, const RE::GFxValue& a_value) {
                 if (a_name && *a_name != '_' && a_value.IsDisplayObject()) children.emplace_back(a_name, a_value);
             });
+            return children;
+        }
+
+        // How the panel's content is read: partial (Task 8 R1: the content in use was built without a shown child whose bounds do
+        // not read, BlockRules::ReadUnion), and through Flash's own getBounds (the L8 last read-back's other path; else BoundsIn)
+        struct ContentRead
+        {
+            bool partial = false;
+            bool flash = false;
+        };
+
+        // The children as BlockRules::ChildBox: each one's _visible and, when shown, its bounds in a_space (a hidden child's bounds
+        // are not read)
+        std::vector<BlockRules::ChildBox> ChildBoxes(std::vector<std::pair<std::string, RE::GFxValue>>& a_children, RE::GFxValue& a_space, ContentRead a_how = {})
+        {
             std::vector<BlockRules::ChildBox> boxes;
-            for (auto& [name, child] : children) {
-                if (a_names) a_names->push_back(name);
+            for (auto& [name, child] : a_children) {
                 if (!BoolMember(child, "_visible")) {
                     boxes.push_back({ {}, false });
                     continue;
                 }
-                const auto bounds = a_flash ? GetBounds(child, a_space) : BoundsIn(child, a_space);
+                const auto bounds = a_how.flash ? GetBounds(child, a_space) : BoundsIn(child, a_space);
                 boxes.push_back(bounds ? BlockRules::ChildBox{ { bounds->xMin, bounds->yMin, bounds->xMax, bounds->yMax }, true, true } : BlockRules::ChildBox{ {}, true, false });
             }
             return boxes;
@@ -4982,12 +4802,12 @@ namespace Widget
         // The panel's visible content: the union of its shown children (BlockRules::VisibleUnion: getBounds counts hidden ones too,
         // and SkyUI hides the buttons it does not use, which would widen the strip and push it and the gear left). nullopt when no
         // child shows (review of 4d50080a: hideButtons / clearButtons, ItemMenu.as:115, MagicMenu.as:195 - the panel's own bounds
-        // would count the hidden buttons), and when a shown child's bounds do not read - unless a_partial (Task 8 R1: the content in
-        // use was built without such a child, BlockRules::ReadUnion)
-        std::optional<Bounds> VisibleBounds(RE::GFxValue& a_clip, RE::GFxValue& a_space, bool a_partial = false, bool a_flash = false)
+        // would count the hidden buttons), and when a shown child's bounds do not read - unless a_how.partial
+        std::optional<Bounds> VisibleBounds(RE::GFxValue& a_clip, RE::GFxValue& a_space, ContentRead a_how = {})
         {
-            const auto boxes = ChildBoxes(a_clip, a_space, nullptr, a_flash);
-            const auto united = a_partial ? BlockRules::ReadUnion(boxes) : BlockRules::VisibleUnion(boxes);
+            auto children = PanelChildren(a_clip);
+            const auto boxes = ChildBoxes(children, a_space, a_how);
+            const auto united = a_how.partial ? BlockRules::ReadUnion(boxes) : BlockRules::VisibleUnion(boxes);
             if (!united) return std::nullopt;
             return Bounds{ united->left, united->right, united->top, united->bottom };
         }
@@ -4996,17 +4816,15 @@ namespace Widget
         // shown button) only when its signature changed - the panel's origin on the stage and each child's _visible and, when shown,
         // _x, _y, _width, _height (a label change alters _width). A value that does not read (NaN) never matches, so it is read again.
         // A shown button whose bounds do not read leaves nothing cached (no move this frame, read again the next) - Task 8 R1: until
-        // that has failed kPollFrames frames in a row under one signature (NaN-equal there, BlockRules::SameSignature); then the
-        // buttons that read place the strip, cached with the signature, and the unread child is logged once this menu
+        // that has failed kPollFrames frames in a row under one look (BlockRules::StripLook: the signature without the panel's
+        // origin, so our own move and SkyUI's positionElements do not restart the count; NaN-equal there); then the buttons that
+        // read place the strip, cached with the signature, and the unread child is logged once this menu
         std::optional<Bounds> StripContent(RE::GFxValue& a_panel, const BlockRules::Point& a_nowStage, RE::GFxValue& a_widget)
         {
             constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
-            std::vector<RE::GFxValue> children;
-            a_panel.VisitMembers([&](const char* a_name, const RE::GFxValue& a_value) {
-                if (a_name && *a_name != '_' && a_value.IsDisplayObject()) children.push_back(a_value);
-            });
+            auto children = PanelChildren(a_panel);
             std::vector<double> signature{ a_nowStage.x, a_nowStage.y };
-            for (const auto& child : children) {
+            for (const auto& [name, child] : children) {
                 const bool shown = BoolMember(child, "_visible");
                 signature.push_back(shown ? 1.0 : 0.0);
                 if (!shown) continue;
@@ -5016,27 +4834,28 @@ namespace Widget
                 if (!g_menu.stripContent) return std::nullopt;
                 return Bounds{ g_menu.stripContent->left, g_menu.stripContent->right, g_menu.stripContent->top, g_menu.stripContent->bottom };
             }
-            std::vector<std::string> names;
-            const auto boxes = ChildBoxes(a_panel, a_widget, &names);
-            const bool same = BlockRules::SameSignature(signature, g_menu.stripFailSignature);
-            const auto read = BlockRules::ReadStrip(boxes, same, g_menu.stripFailsInRow, kPollFrames);
+            const auto boxes = ChildBoxes(children, a_widget);
+            auto look = BlockRules::StripLook(signature);
+            const auto read = BlockRules::ReadStrip(boxes, BlockRules::SameSignature(look, g_menu.stripFailLook), g_menu.stripFailsInRow, kPollFrames);
+            // the look is kept while a child stays unread (a partial content too): a move of the panel then takes the partial at once
+            if (read.partial || !read.cache) {
+                g_menu.stripFailLook = std::move(look);
+            } else {
+                g_menu.stripFailLook.clear();
+            }
             if (!read.cache) {  // GPT on 4846c6a5: a failed read is not kept - nothing moves this frame, the next one reads again
                 ++g_menu.stripReadFails;
-                g_menu.stripFailSignature = std::move(signature);
                 g_menu.stripSignature.clear();
                 g_menu.stripContent.reset();
                 return std::nullopt;
             }
-            if (read.partial) {
-                for (std::size_t i = 0; i < boxes.size(); ++i) {
-                    if (boxes[i].visible && !boxes[i].read && g_menu.stripUnreadLogged.insert(names[i]).second) {
-                        logger::warn("Layout: key-hint strip - the bounds of its shown child {} did not read on {} frames in a row; the strip is placed by "
-                                     "the buttons that read (logged once this menu)", names[i], g_menu.stripFailsInRow);
-                    }
+            for (std::size_t i = 0; read.partial && i < boxes.size(); ++i) {
+                if (boxes[i].visible && !boxes[i].read && g_menu.stripUnreadLogged.insert(children[i].first).second) {
+                    logger::warn("Layout: key-hint strip - the bounds of its shown child {} did not read on {} frames in a row; the strip is placed by "
+                                 "the buttons that read (logged once this menu)", children[i].first, g_menu.stripFailsInRow);
                 }
             }
             g_menu.stripPartial = read.partial;
-            g_menu.stripFailSignature.clear();
             g_menu.stripSignature = std::move(signature);
             g_menu.stripContent = read.content;
             if (!read.content) return std::nullopt;
@@ -5069,7 +4888,7 @@ namespace Widget
             // review R4: read back where its visible part landed (through every parent), PASS / FAIL against the target
             if (g_menu.stripChecks < kMaxStripMoveLogs) {
                 ++g_menu.stripChecks;
-                const auto landed = VisibleBounds(a_panel, a_widget, g_menu.stripPartial);
+                const auto landed = VisibleBounds(a_panel, a_widget, { .partial = g_menu.stripPartial });
                 const bool pass = landed && std::abs(landed->xMin - target.left) <= kStripCheckTolerance && std::abs(landed->yMin - target.top) <= kStripCheckTolerance;
                 SelfTest(std::format("L8 strip {} {} - at {} (wanted {:.1f},{:.1f})", kButtonPanelPath, pass ? "PASS" : "FAIL",
                     landed ? std::format("{:.1f},{:.1f}", landed->xMin, landed->yMin) : std::string("no bounds (no button shown, or one did not read)"), target.left, target.top));
@@ -5099,7 +4918,7 @@ namespace Widget
         {
             if (!Settings::Get().selfTest || !g_menu.stripTarget || g_menu.frame <= g_menu.stripMoveFrame) return;
             if (g_menu.frame != g_menu.stripMoveFrame + 1 && g_menu.frame % kPollFrames != 0) return;
-            const auto seen = VisibleBounds(a_panel, a_widget, g_menu.stripPartial, !g_menu.irActive);
+            const auto seen = VisibleBounds(a_panel, a_widget, { .partial = g_menu.stripPartial, .flash = !g_menu.irActive });
             if (!seen) return;
             g_menu.stripRead = BlockRules::Point{ seen->xMin, seen->yMin };
             g_menu.stripReadFrame = g_menu.frame;
@@ -5116,8 +4935,7 @@ namespace Widget
         // will open there). STB's keycaps in the list rows and the skill / XP row stay where their owners put them
         void PlaceStripAndGear(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
-            const auto area = a_movie->GetVisibleFrameRect();
-            const Settings::Rect visible{ area.left, area.top, area.right, area.bottom };
+            const auto visible = VisibleStage(a_movie);
             const double left = ColumnViewport(0).left;
             const double below = g_menu.board.bottom;  // user 2026-10-30: the board's bottom (fixed), not the columns' (fitted cards)
             RE::GFxValue panel, parent;
@@ -5184,8 +5002,7 @@ namespace Widget
                 const double size = TextFit::Size(Metrics(), kLabelSize), h = TextFit::FieldH(Metrics(), size) + 2 * kTooltipPad;
                 auto field = Draw::Text(a_movie, hint, "text", kTooltipPad, kTooltipPad, kTooltipW, TextFit::FieldH(Metrics(), size), text, kWhite, size);
                 const double w = (field.IsDisplayObject() ? TextW(field) : kTooltipW) + 2 * kTooltipPad;
-                const auto area = a_movie->GetVisibleFrameRect();
-                const Settings::Rect visible{ area.left, area.top, area.right, area.bottom };
+                const auto visible = VisibleStage(a_movie);
                 const double hintX = BlockRules::GearHintX(*g_menu.gearLast, w, kHintGap, visible, g_menu.layout.active);
                 g_menu.gearHintLeft = hintX < 0.0;  // review I10: in the edit mode on the gear's left, clear of the reset button
                 hint.SetMember("_x", hintX);
@@ -5222,8 +5039,7 @@ namespace Widget
             } else if (!button.GetMember("mask", &mask) || !mask.IsDisplayObject()) {
                 return;
             }
-            const auto area = a_movie->GetVisibleFrameRect();
-            const Settings::Rect visible{ area.left, area.top, area.right, area.bottom };
+            const auto visible = VisibleStage(a_movie);
             const auto rect = BlockRules::ResetButtonRect(*g_menu.gearLast, g_menu.resetFullW, kGearSize, kResetGap, visible);
             if (!g_menu.resetPlaced || !SameRect(*g_menu.resetPlaced, rect)) {
                 button.SetMember("_x", rect.left);
@@ -5259,8 +5075,7 @@ namespace Widget
         {
             constexpr double kReadTolerance = 0.5;  // stage units: Flash keeps _x / _width in twips (0.05)
             if (!Settings::Get().selfTest || g_menu.frame % kPollFrames != 0) return;
-            const auto area = a_movie->GetVisibleFrameRect();
-            const Settings::Rect visible{ area.left, area.top, area.right, area.bottom };
+            const auto visible = VisibleStage(a_movie);
             const auto note = [](auto& a_check, const std::string& a_problem) {
                 ++a_check.checks;
                 if (a_problem.empty()) return;
@@ -5273,10 +5088,8 @@ namespace Widget
                 return BlockRules::Point{ *x, *y };
             };
             if (auto board = Child(a_widget, kBoardName); board.IsDisplayObject()) {
-                const auto left = ColumnViewport(0), right = ColumnViewport(Layout::kColumns - 1);
-                const Settings::Rect columns{ left.left, std::min(left.top, right.top), right.right, std::max(left.bottom, right.bottom) };
                 const auto drawn = BoundsIn(board, a_widget);
-                note(g_menu.boardCheck, BlockRules::BoardProblem(g_menu.board, BlockRules::BoardRect(columns, BlockRules::kBoardPad, visible),
+                note(g_menu.boardCheck, BlockRules::BoardProblem(g_menu.board, BlockRules::BoardRect(BoardColumns(), BlockRules::kBoardPad, visible),
                                             drawn ? std::optional{ Settings::Rect{ drawn->xMin, drawn->yMin, drawn->xMax, drawn->yMax } } : std::nullopt, kEdgeWidth,
                                             kReadTolerance));
             }

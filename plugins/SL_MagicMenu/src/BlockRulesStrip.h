@@ -6,6 +6,7 @@
 
 #include <cmath>
 #include <cstddef>
+#include <format>
 #include <functional>
 #include <optional>
 #include <string>
@@ -44,6 +45,16 @@ namespace BlockRules
             if (!(a_a[i] == a_b[i]) && !(std::isnan(a_a[i]) && std::isnan(a_b[i]))) return false;
         }
         return true;
+    }
+
+    /// R1 fix round: the strip signature's look - without its first two entries (the panel's origin on the stage), so a move of
+    /// the panel (ours, or SkyUI's positionElements) does not restart the fail count while the same child stays unread
+    inline constexpr std::size_t kSignatureOriginEntries = 2;
+
+    inline std::vector<double> StripLook(const std::vector<double>& a_signature)
+    {
+        if (a_signature.size() <= kSignatureOriginEntries) return {};
+        return { a_signature.begin() + kSignatureOriginEntries, a_signature.end() };
     }
 
     /// What one read of the strip's children gives (R1)
@@ -110,8 +121,7 @@ namespace BlockRules
 
     inline std::string RectString(const Settings::Rect& a_rect)
     {
-        const auto n = [](double a_value) { return std::to_string(static_cast<long long>(std::lround(a_value))); };
-        return n(a_rect.left) + "," + n(a_rect.top) + ".." + n(a_rect.right) + "," + n(a_rect.bottom);
+        return std::format("{:.0f},{:.0f}..{:.0f},{:.0f}", a_rect.left, a_rect.top, a_rect.right, a_rect.bottom);  // a NaN prints "nan"
     }
 
     inline bool NearRect(const Settings::Rect& a_a, const Settings::Rect& a_b, double a_tolerance)
@@ -131,7 +141,7 @@ namespace BlockRules
         if (!a_drawn) {
             why += "the board clip's bounds did not read; ";
         } else if (!NearRect(*a_drawn, a_kept, a_edge + a_tolerance)) {
-            why += "drawn at " + RectString(*a_drawn) + " (want " + RectString(a_kept) + " within " + std::to_string(a_edge) + "); ";
+            why += "drawn at " + RectString(*a_drawn) + " (want " + RectString(a_kept) + " within " + std::format("{:.1f}", a_edge) + "); ";
         }
         return why;
     }
@@ -146,15 +156,15 @@ namespace BlockRules
         if (!a_read) {
             why += "its _x/_y did not read; ";
         } else if (!NearPoint(*a_read, Point{ a_put.left, a_put.top }, a_tolerance)) {
-            why += "at " + std::to_string(a_read->x) + "," + std::to_string(a_read->y) + " but put at " + RectString(a_put) + "; ";
+            why += std::format("at {:.1f},{:.1f}", a_read->x, a_read->y) + " but put at " + RectString(a_put) + "; ";
         }
         if (a_put.left < a_visible.left - a_tolerance || a_put.right > a_visible.right + a_tolerance || a_put.top < a_visible.top - a_tolerance ||
             a_put.bottom > a_visible.bottom + a_tolerance) {
             why += "off the stage " + RectString(a_visible) + "; ";
         }
         const bool heldUp = a_put.bottom >= a_visible.bottom - a_tolerance;
-        if (!heldUp && a_put.top < a_boardBottom + a_gap - a_tolerance) why += "over the board (its bottom " + std::to_string(a_boardBottom) + "); ";
-        if (a_put.left > a_left + a_tolerance) why += "right of the strip's start " + std::to_string(a_left) + "; ";
+        if (!heldUp && a_put.top < a_boardBottom + a_gap - a_tolerance) why += "over the board (its bottom " + std::format("{:.1f}", a_boardBottom) + "); ";
+        if (a_put.left > a_left + a_tolerance) why += "right of the strip's start " + std::format("{:.1f}", a_left) + "; ";
         return why;
     }
 
@@ -168,11 +178,11 @@ namespace BlockRules
         if (!a_read) {
             why += "its _x/_y did not read; ";
         } else if (!NearPoint(*a_read, Point{ a_want.left, a_want.top }, a_tolerance)) {
-            why += "at " + std::to_string(a_read->x) + "," + std::to_string(a_read->y) + " but ResetButtonRect " + RectString(a_want) + "; ";
+            why += std::format("at {:.1f},{:.1f}", a_read->x, a_read->y) + " but ResetButtonRect " + RectString(a_want) + "; ";
         }
-        if (!a_shown || *a_shown != (a_shownW > 0.0)) why += "_visible does not match the width out (" + std::to_string(a_shownW) + "); ";
+        if (!a_shown || *a_shown != (a_shownW > 0.0)) why += "_visible does not match the width out (" + std::format("{:.1f}", a_shownW) + "); ";
         if (a_shownW > 0.0 && (!a_maskW || std::abs(*a_maskW - (a_shownW + a_edge)) > a_tolerance)) {
-            why += "its mask " + (a_maskW ? std::to_string(*a_maskW) : std::string("unread")) + " wide, want " + std::to_string(a_shownW + a_edge) + "; ";
+            why += "its mask " + (a_maskW ? std::format("{:.1f}", *a_maskW) : std::string("unread")) + " wide, want " + std::format("{:.1f}", a_shownW + a_edge) + "; ";
         }
         return why;
     }

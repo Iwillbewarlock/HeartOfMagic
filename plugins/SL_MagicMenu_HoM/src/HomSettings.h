@@ -56,9 +56,9 @@ namespace HomSettings
         // column scroll can be tried in game (0 = no effect)
         double debugExtraHeight = 0.0;
 
-        // [General] bSelfTest: the host's switch (SL_MagicMenu reads the same key, its default 1): the add-on's "SelfTest:" lines
+        // [General] bSelfTest: the host's switch (SL_MagicMenu reads the same key, its default 0 since Task 8 fix round 1): the add-on's "SelfTest:" lines
         // in SL_MagicMenu_HoM.log
-        bool selfTest = true;
+        bool selfTest = false;
     };
 
     // The accepted ranges (Settings.cpp at f83dc6f3)

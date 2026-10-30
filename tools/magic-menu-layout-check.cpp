@@ -1642,6 +1642,15 @@ namespace
         const auto due = BlockRules::ReadStrip(oneUnread, true, fails, kPoll);
         Expect(due.cache && due.partial && due.content && Near(due.content->left, 0) && Near(due.content->right, 220) && Near(due.content->bottom, 24),
             Text("frame %d: the union of the buttons that read (%s), cached, partial", kPoll, due.content ? Show(*due.content).c_str() : "none"));
+        // fix round 1 (I2): the panel moved (our MoveStrip, or SkyUI's positionElements) while the child stays unread - the look
+        // (the signature without the origin) is the same, so the partial content is taken at once, not after kPoll more frames
+        const std::vector<double> before{ 100, 700, 1, 20, 0, 80, 24, 1, 120, 0, 90, 24 }, moved{ 628, 647, 1, 20, 0, 80, 24, 1, 120, 0, 90, 24 };
+        const auto afterMove = BlockRules::ReadStrip(oneUnread, BlockRules::SameSignature(BlockRules::StripLook(before), BlockRules::StripLook(moved)), fails, kPoll);
+        Expect(BlockRules::StripLook(moved).size() == moved.size() - BlockRules::kSignatureOriginEntries && afterMove.partial && afterMove.cache && fails == kPoll + 1,
+            Text("I2: the panel moved, the same child unread: the look is alike, partial at once (fail count %d)", fails));
+        const std::vector<double> relabelled{ 628, 647, 1, 20, 0, 95, 24, 1, 120, 0, 90, 24 };
+        Expect(!BlockRules::SameSignature(BlockRules::StripLook(moved), BlockRules::StripLook(relabelled)), "I2: a button's width changed: a new look (the count restarts)");
+        Expect(BlockRules::RectString(Rect{ std::numeric_limits<double>::quiet_NaN(), 1, 2, 3 }).starts_with("nan"), "RectString prints a NaN as nan (M2)");
         int restart = kPoll - 1;
         const auto changed = BlockRules::ReadStrip(oneUnread, false, restart, kPoll);
         Expect(!changed.cache && restart == 1, "a new signature (the look changed): the count starts again at 1");

@@ -143,8 +143,8 @@ namespace
         std::printf("settings: defaults (Settings.h at f83dc6f3)\n");
         const HomSettings::Values d;
         Expect(d.keyNext == 22 && d.keySetTarget == 34, Text("keys U %u and G %u (iNext 22, iSetTarget 34)", d.keyNext, d.keySetTarget));
-        Expect(d.treeScale == 0.75 && d.treeMarkScale == 1.0 && d.maxSteps == 1 && d.maxNodes == 60 && d.debugExtraHeight == 0.0 && d.selfTest,
-            "tree scale 0.75, mark scale 1.0, steps 1, nodes 60, no extra height, self-test on (the host's default)");
+        Expect(d.treeScale == 0.75 && d.treeMarkScale == 1.0 && d.maxSteps == 1 && d.maxNodes == 60 && d.debugExtraHeight == 0.0 && !d.selfTest,
+            "tree scale 0.75, mark scale 1.0, steps 1, nodes 60, no extra height, self-test off (the host's default)");
         Expect(SameRect(d.tree, { 978, 67, 1238, 297 }) && SameRect(d.progress, { 648, 306, 969, 408 }) && SameRect(d.nodeCard, { 978, 306, 1238, 623 }),
             "rects: tree 978,67..1238,297, progress 648,306..969,408, node card 978,306..1238,623 (layout E2)");
         const auto empty = ReadText("");
@@ -163,7 +163,7 @@ namespace
         const auto read = ReadText(text.str());
         Expect(read.warnings.empty(), Text("no warning (%zu)", read.warnings.size()));
         for (const auto& warning : read.warnings) std::printf("    %s\n", warning.c_str());
-        Expect(AllDefault(read.values), "every block key it sets is the block's default (keys 22 / 34, the E2 rects, scales, caps, self-test 1)");
+        Expect(AllDefault(read.values), "every block key it sets is the block's default (keys 22 / 34, the E2 rects, scales, caps, self-test 0)");
     }
 
     void SettingsValues()
