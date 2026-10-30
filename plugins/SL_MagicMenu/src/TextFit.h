@@ -49,6 +49,7 @@ namespace TextFit
     {
         std::set<std::string> cut;  // "Q4 text ... cut to" lines logged this menu (field and text)
         std::set<std::string> q2;   // Q2 states logged this menu
+        const char* prefix = "Widget";  // the Q4 lines' first word: the core's "Widget", an add-on's own name (HoM add-on plan Task 6)
     };
 
     /// Where Q2State writes its "SelfTest: ..." line (the caller's self-test log)
@@ -142,11 +143,11 @@ namespace TextFit
         const auto shown = StringMember(a_field, "text");
         if (a_log.cut.size() >= static_cast<std::size_t>(kMaxCutLogs) || !a_log.cut.insert(where + "|" + shown).second) return;
         if (a_dotsOnly) {
-            logger::warn("Widget: Q4 text {} cut to '{}' - WARN only the ellipsis is left ({:.0f} wide, {} line(s) at size {:.1f}; "
+            logger::warn("{}: Q4 text {} cut to '{}' - WARN only the ellipsis is left ({:.0f} wide, {} line(s) at size {:.1f}; "
                          "text {:.1f} x {:.1f})",
-                where, shown, a_w, a_lines, a_size, TextW(a_field), TextH(a_field));
+                a_log.prefix, where, shown, a_w, a_lines, a_size, TextW(a_field), TextH(a_field));
         } else {
-            logger::info("Widget: Q4 text {} cut to '{}' ({:.0f} wide, {} line(s) at size {:.1f})", where, shown, a_w, a_lines, a_size);
+            logger::info("{}: Q4 text {} cut to '{}' ({:.0f} wide, {} line(s) at size {:.1f})", a_log.prefix, where, shown, a_w, a_lines, a_size);
         }
     }
 
@@ -211,7 +212,7 @@ namespace TextFit
     {
         const double size = LayoutMath::SizeFor(LayoutMetrics(a_metrics), a_size, a_lines, a_room, kMinFitSize, kFitStep);
         if (a_what && FieldH(a_metrics, size, a_lines) > a_room && a_log.cut.insert(std::string("room|") + a_what).second) {
-            logger::info("Widget: Q4 {} needs {:.1f} of {:.1f} stage units even at size {:.1f} - it runs over", a_what,
+            logger::info("{}: Q4 {} needs {:.1f} of {:.1f} stage units even at size {:.1f} - it runs over", a_log.prefix, a_what,
                 FieldH(a_metrics, size, a_lines), a_room, size);
         }
         return size;

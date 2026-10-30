@@ -323,6 +323,37 @@ target_link_libraries(magic-menu-sr-block-check PRIVATE
 )
 
 # =============================================================================
+# magic-menu-hom-block-check  -  offline check of the Heart of Magic add-on block's pure parts
+# =============================================================================
+# The SL_MagicMenu_HoM add-on's own HomSettings.h, Selection.h, Strings.h and
+# HomLayoutMath.h (header only, no game types): the block's keys read from
+# SL_MagicMenu.ini (the shipped dist ini and made-up ones), the registered heights,
+# the pick rules (bug G1), the strings' fill and key labels, the cards' height
+# requests, and the tree window / progress card / node card arithmetic moved here
+# from magic-menu-preview-check (HoM add-on plan Task 6). The core's src is on the
+# include path for Settings.h, LayoutMath.h, BlockRules.h and BlockApi.h. One
+# PASS/FAIL line per check and a total; --selftest the same; exit 1 when any fails.
+
+add_executable(magic-menu-hom-block-check
+    magic-menu-hom-block-check.cpp
+)
+
+target_compile_features(magic-menu-hom-block-check PRIVATE cxx_std_23)
+
+target_include_directories(magic-menu-hom-block-check PRIVATE
+    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu_HoM/src
+    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/src
+)
+
+target_compile_definitions(magic-menu-hom-block-check PRIVATE
+    HOM_BLOCK_DIST_INI="${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/dist/SL_MagicMenu.ini"
+)
+
+target_link_libraries(magic-menu-hom-block-check PRIVATE
+    nlohmann_json::nlohmann_json
+)
+
+# =============================================================================
 # magic-menu-homstyle-check  -  offline check of the Heart of Magic block's style reader
 # =============================================================================
 # The SL_MagicMenu_HoM add-on's own HomStyle.cpp (no game types; the core's until
@@ -362,5 +393,4 @@ target_compile_features(magic-menu-preview-check PRIVATE cxx_std_23)
 
 target_include_directories(magic-menu-preview-check PRIVATE
     ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/src
-    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu_HoM/src
 )

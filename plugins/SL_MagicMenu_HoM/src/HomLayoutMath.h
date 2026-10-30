@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstddef>
 #include <numbers>
+#include <optional>
 #include <vector>
 
 // =============================================================================
@@ -254,4 +255,37 @@ namespace LayoutMath
     {
         return a_rowsTop + a_rowsH + a_ruleGap + a_bottomPart;
     }
+
+    // HoM add-on plan Task 6: the cards are add-on blocks - their fit is a 'SLMH' height request, at most the registered height
+
+    inline constexpr double kFitSlack = 0.5;  // stage units over a card's needed height (the host's BlockRules::kFitSlack, same value)
+
+    /// A card's height for content that needs a_needed, at most a_registered (a needed height that is not a finite number > 0:
+    /// a_registered) - the core's BlockRules::FittedHeight, which the built-in cards' FitBlock used at f83dc6f3
+    inline double CardHeight(double a_needed, double a_registered)
+    {
+        if (!std::isfinite(a_needed) || a_needed <= 0.0) return a_registered;
+        return std::min(a_needed + kFitSlack, a_registered);
+    }
+
+    /// The height a card last asked for this menu: a request goes out only when it changed (the host draws the block again at
+    /// the asked size, which asks for the same height - no loop). Every menu opens at the registered height: Reset
+    class HeightSender
+    {
+    public:
+        static constexpr double kTolerance = 0.01;  // the host's BlockRules::kHeightTolerance
+
+        /// True when a request for a_height should be sent now (and remembers it as sent)
+        bool ShouldSend(double a_height)
+        {
+            if (m_sent && std::abs(*m_sent - a_height) <= kTolerance) return false;
+            m_sent = a_height;
+            return true;
+        }
+
+        void Reset() { m_sent.reset(); }
+
+    private:
+        std::optional<double> m_sent;
+    };
 }

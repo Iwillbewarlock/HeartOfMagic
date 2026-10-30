@@ -2,9 +2,8 @@
 // (plugins/SL_MagicMenu/src/PreviewMath.h, the same functions Preview.cpp runs on the game's values):
 // place, measure, grow, the parent-space move, the rebuilt-model rule and the clip's pixel rect on
 // made-up cases, the build 4/5 review counter-examples among them (spec 2026-10-25-magic-menu-proto-v5.md Q5).
-// Also the tree window's and the progress card's layout arithmetic (build 6 review round 1 #7; the Heart of Magic
-// block's HomLayoutMath.h and HomSettings.h in plugins/SL_MagicMenu_HoM/src since HoM add-on plan Task 5): label widths
-// at the window edge, badge sectors, label places and what gives way in the progress card.
+// Also the text rows' fit arithmetic of LayoutMath.h (LinesFit). The tree window's and the HoM cards' layout cases (HomLayoutMath.h)
+// moved to tools/magic-menu-hom-block-check in HoM add-on plan Task 6.
 //
 //   magic-menu-preview-check     one PASS/FAIL line per check, a total line
 //
@@ -13,8 +12,6 @@
 // child's world point. No game types. Exit 0 when every check passes, 1 otherwise.
 
 #include "BlockRules.h"
-#include "HomLayoutMath.h"
-#include "HomSettings.h"
 #include "LayoutMath.h"
 #include "PreviewMath.h"
 #include "Settings.h"
@@ -423,159 +420,6 @@ namespace
         }
     }
 
-    // Build 6 (HomLayoutMath.h): the tree window's labels, its faint locked neighbours and exits, and the progress card's plan
-    void TreeLayout()
-    {
-        std::printf("tree window layout (labels at the edge, badge sectors, label places)\n");
-        const HomSettings::Values defaults;
-        const auto area = HomSettings::TreeContent(defaults.tree);
-        const double edge = area.halfW + Settings::kPanelPad, gap = 10.0 + 1.0, most = 104.0, least = 20.0;
-        Expect(Near(area.halfW, 122.0, 1e-9) && Near(area.halfH, 87.0, 1e-9), Text("E2 tree window half size %.1f x %.1f (want 122 x 87)", area.halfW, area.halfH));
-        const double atEdge = LayoutMath::LabelWidth(120.0, gap, edge, false, most);
-        Expect(atEdge < least, Text("a far-side label of a node at sx 120 has %.1f units to the edge: left out (< %.0f)", atEdge, least));
-        Expect(Near(LayoutMath::LabelWidth(52.6, gap, edge, false, most), 66.4, 1e-9), "a far-side label at sx 52.6 shrinks to the edge: 66.4");
-        bool towardCentre = true;
-        for (double sx = -area.halfW; sx <= area.halfW; sx += 1.0) {
-            // the selected node's brackets at fTreeMarkScale: the widest gap a drawn node's label uses (spec v10 T2)
-            const double reach = 15.0 * defaults.treeMarkScale + 1.0;
-            towardCentre = towardCentre && LayoutMath::LabelWidth(sx, reach, edge, sx > 0, most) >= most;
-        }
-        Expect(towardCentre, "a drawn node's label (facing the centre) keeps its full 104 everywhere in the window");
-
-        // the off-window badges' sectors (spec v10 T7): from the window centre, y down; each node of Window::outside once
-        {
-            const std::vector<TreeData::PlacedNode> outside{ { 1, 300.0, 0.0 }, { 2, 0.0, -200.0 }, { 3, 0.0, 150.0 }, { 4, -250.0, 0.0 },
-                { 5, 200.0, 190.0 }, { 6, 400.0, 30.0 } };
-            const auto badges = LayoutMath::Badges(outside);
-            Expect(badges.total == 6 && badges.sectors[0] == 2 && badges.sectors[6] == 1 && badges.sectors[2] == 1 && badges.sectors[4] == 1 &&
-                       badges.sectors[1] == 1,
-                Text("badges: right 2 (one 4 degrees down), up 1, down 1, left 1, down-right 1 (total %d)", badges.total));
-            const auto none = LayoutMath::Badges({});
-            Expect(none.total == 0 && std::ranges::all_of(none.sectors, [](int a_n) { return a_n == 0; }), "nothing outside: no badge");
-        }
-
-        // the centre's label place (round 3, build 7 T7.2): each place's box against what is reserved; a one-line label at size 14
-        // (FieldH 21.5) 88 wide, beside the centre at gap 11 (round 3's numbers)
-        using LayoutMath::Place;
-        const LayoutMath::Box right{ 11.0, -10.75, 99.0, 10.75 }, left{ -99.0, -10.75, -11.0, 10.75 };
-        const std::vector<LayoutMath::PlacedBox> sides{ { Place::kRight, right }, { Place::kLeft, left } };
-        const auto nodeBox = [](double a_x, double a_y, double a_r) { return LayoutMath::Box{ a_x - a_r, a_y - a_r, a_x + a_r, a_y + a_r }; };
-        {
-            const auto clear = LayoutMath::ChoosePlace(sides, { nodeBox(0, 0, 10) });
-            Expect(clear.clear && clear.index == 0 && clear.overlap == 0.0 && clear.firstOverlap == 0.0, "both sides clear: the right (as before)");
-        }
-        {
-            // GPT round 3: a drawn neighbour at (-52.5, 0) and an off-window exit up-right (sector 7: arrow at (80, -80), text
-            // 36 wide at about (52, -69)); the counting rule turned the label left onto the neighbour
-            const std::vector<LayoutMath::Box> reserved{ nodeBox(0, 0, 10), nodeBox(-52.5, 0, 10), nodeBox(80, -80, 10),
-                { 34.0, -79.6, 70.0, -58.1 } };
-            const auto side = LayoutMath::ChoosePlace(sides, reserved);
-            Expect(side.clear && side.index == 0 && side.overlap == 0.0, Text("a neighbour left, a badge up-right: right (overlap %.1f)", side.overlap));
-        }
-        {
-            // round 1 #4: the E2 scene, a faint locked neighbour up-right at (52.6, -45.7) with its link from the centre
-            std::vector<LayoutMath::Box> reserved{ nodeBox(0, 0, 10), nodeBox(52.6, -45.7, 10) };
-            const auto link = LayoutMath::LinkBoxes(0, 0, 52.6, -45.7, 10, 4, 1);
-            reserved.insert(reserved.end(), link.begin(), link.end());
-            const auto side = LayoutMath::ChoosePlace(sides, reserved);
-            Expect(side.clear && side.index == 1 && side.firstOverlap > 0.0 && side.overlap == 0.0,
-                Text("a faint locked neighbour up-right: its link crosses the right label, so left (overlap right %.1f, left %.1f)", side.firstOverlap,
-                    side.overlap));
-        }
-        {
-            // spec v10 T5: no overlap is accepted any more (build 9 took the smaller one, left 50 against right 200)
-            const std::vector<LayoutMath::Box> reserved{ { 20.0, -5.0, 40.0, 5.0 }, { -30.0, -5.0, -25.0, 5.0 } };
-            const auto side = LayoutMath::ChoosePlace(sides, reserved);
-            Expect(!side.clear && Near(side.firstOverlap, 200.0, 1e-9) && Near(side.overlap, 50.0, 1e-9),
-                "both sides covered: no place, the label is dropped (the log names the least covered: left 50 against right 200)");
-            Expect(!LayoutMath::ChoosePlace({}, reserved).clear, "no place offered at all: not clear");
-        }
-
-        // build 7 T7.2: labels start past the state mark's ring, and a kept label leaves two close neighbours' marks clear
-        {
-            constexpr double kReach = LayoutMath::MarkReach(7.0, 3.0, 2.5), kLabelGap = 1.0;
-            Expect(Near(kReach, 11.25, 1e-12), Text("the mark reaches %.2f (diamond 7, ring gap 3, half the 2.5 arc)", kReach));
-            const auto mark = nodeBox(0, 0, kReach);
-            const LayoutMath::Box oldLeft{ -11.0 - 30.0, -10.75, -11.0, 10.75 }, newLeft{ -(kReach + kLabelGap) - 30.0, -10.75, -(kReach + kLabelGap), 10.75 };
-            Expect(LayoutMath::OverlapArea(oldLeft, mark) > 0.0 && LayoutMath::OverlapArea(newLeft, mark) == 0.0,
-                Text("a left label at build 6's gap 11 reaches into the ring (%.2f); at %.2f it is clear", LayoutMath::OverlapArea(oldLeft, mark),
-                    kReach + kLabelGap));
-        }
-        {
-            // the build-6 game run (log "Heal ... centre label right (overlap right 297.8, left 365.5)", frames f_024-f_040): the centre
-            // with neighbours 15.5 right, 19 left and one up-left; a 30 x 21.5 label at gap 12.25
-            constexpr double kReach = 11.25, kGap = 12.25, kEdgeX = 130.0, kEdgeY = 95.0;
-            const std::vector<LayoutMath::Box> reserved{ nodeBox(0, 0, kReach), nodeBox(15.5, 0, kReach), nodeBox(-19.0, 0, kReach),
-                nodeBox(-9.0, -10.0, kReach), nodeBox(6.7, -48.0, kReach) };
-            const auto places = LayoutMath::KeptLabelPlaces(0, 0, 30.0, 21.5, kGap, false, kEdgeX, kEdgeY, 10.0, 2);
-            const auto choice = LayoutMath::ChoosePlace(places, reserved);
-            Expect(places.size() == 8 && places[0].place == Place::kRight && places[1].place == Place::kLeft && places[2].place == Place::kBelow,
-                Text("places tried: right, left, below, above, then both sides further out twice (%zu)", places.size()));
-            Expect(choice.clear && choice.firstOverlap > 0.0 && choice.overlap == 0.0 && places[choice.index].place == Place::kBelow,
-                Text("both sides cover a diamond (right %.1f): the label goes below, clear", choice.firstOverlap));
-        }
-        {
-            // a node near the right edge: a place past the window is not offered; the default side stays offered
-            const auto places = LayoutMath::KeptLabelPlaces(100.0, 0, 60.0, 21.5, 12.25, false, 130.0, 95.0, 10.0, 2);
-            const bool noRightFar = std::ranges::none_of(places, [](const LayoutMath::PlacedBox& a_p) { return a_p.place == Place::kRightFar; });
-            Expect(places.front().place == Place::kRight && noRightFar && places[1].place == Place::kLeft,
-                "near the right edge: no place further right; the drawn (default) side is still the first");
-        }
-        {
-            const auto link = LayoutMath::LinkBoxes(0, 0, 10, 0, 2, 2, 0.5);
-            Expect(link.size() == 4 && Near(link.front().left, 1.5, 1e-9) && Near(link.back().right, 8.5, 1e-9),
-                Text("a 10-long link, 2 off each end, every 2: 4 boxes from x 1.5 to 8.5 (got %zu)", link.size()));
-            Expect(LayoutMath::LinkBoxes(0, 0, 3, 0, 2, 2, 0.5).empty(), "a link shorter than both ends' room: no boxes");
-        }
-    }
-
-    void ProgressLayout()
-    {
-        std::printf("progress card plan (102 high: what gives way)\n");
-        constexpr double kAscent = 0.90;  // the build-3 frame's ascent share
-        const auto plan = [](double a_first, double a_title, double a_hint, double a_offset) {
-            const LayoutMath::TextMetrics metrics{ a_first, a_first, 4.0 };
-            return std::pair{ metrics, LayoutMath::PlanProgress(metrics, { 102.0, 4.0, 2.0, a_title, 19.0, 12.0, 2.0, a_hint, 8.0, 0.5, a_offset }) };
-        };
-        const auto last = [](const LayoutMath::TextMetrics& a_metrics, const LayoutMath::ProgressPlan& a_plan) {
-            return a_plan.hint ? a_plan.hintY + a_metrics.FieldH(a_plan.hintSize) : a_plan.barRowY + a_plan.barRowH;
-        };
-        {
-            const auto [m, p] = plan(1.25, 14.0, 14.0, kAscent * (19.0 - 14.0));
-            Expect(!p.offsetDropped && Near(p.offset, 4.5, 1e-9) && p.title && p.hint && Near(p.hintSize, 14.0, 1e-9) && Near(last(m, p), 98.25, 1e-9),
-                Text("rows 14, line 1.25: offset 4.50 kept, hint at 14, last line ends at %.2f of 100", last(m, p)));
-            const double titleBase = p.titleY + 2.0 + kAscent * 14.0, nameBase = 4.0 + 2.0 + kAscent * 19.0;
-            Expect(Near(titleBase, nameBase, 1e-9), Text("and the title's baseline %.2f meets the name's %.2f (both 306 + this = 329.1)", titleBase, nameBase));
-        }
-        {
-            const auto [m, p] = plan(1.25, 16.0, 16.0, kAscent * (19.0 - 16.0));
-            Expect(!p.offsetDropped && p.hint && p.hintSize < 16.0 && last(m, p) <= p.bottom,
-                Text("rows 16: the hint shrinks to %.1f first, the offset %.2f stays, ends at %.2f", p.hintSize, p.offset, last(m, p)));
-        }
-        {
-            const auto [m, p] = plan(1.25, 14.0, 16.0, 4.5);
-            Expect(!p.offsetDropped && p.hint && p.hintSize < 16.0 && last(m, p) <= p.bottom,
-                Text("review table case (offset 4.5, hint 16): the hint shrinks to %.1f, the offset stays, ends at %.2f", p.hintSize, last(m, p)));
-        }
-        {
-            const auto [m, p] = plan(1.5, 14.0, 14.0, 4.5);
-            const double withOffset = 4.0 + 4.5 + m.FieldH(14.0) + p.targetH + p.barRowH + m.FieldH(8.0);
-            Expect(p.offsetDropped && p.title && p.hint && Near(withOffset, 104.0, 1e-9) && Near(last(m, p), 99.5, 1e-9),
-                Text("line 1.5: with the offset a size-8 hint would end at %.2f, so the offset goes and the hint stays (size %.1f, ends %.2f)",
-                    withOffset, p.hintSize, last(m, p)));
-        }
-        {
-            const auto [m, p] = plan(1.6, 14.0, 14.0, 4.5);
-            Expect(p.offsetDropped && p.offset == 0.0 && p.title && !p.hint && last(m, p) <= p.bottom,
-                Text("a tall font (line 1.6): not even a size-8 hint fits, so the offset goes, then the hint; ends at %.2f", last(m, p)));
-        }
-        {
-            const auto [m, p] = plan(2.5, 14.0, 14.0, 4.5);
-            Expect(p.offsetDropped && !p.title && Near(p.targetY, 4.0, 1e-9) && !p.hint && last(m, p) <= p.bottom,
-                Text("line 2.5: offset, hint and title give way; the target and bar end at %.2f", last(m, p)));
-        }
-    }
-
     // P7.1 (spec v7): which shapes of a spell's menu art are hidden. Alpha flags as the NIFs have them (houseCARL):
     // Cylinder08:1 0x10ED (blending, SRC_ALPHA -> INV_SRC_ALPHA); an additive shape has destination ONE (0x000D here:
     // blending, source SRC_ALPHA, destination ONE)
@@ -584,14 +428,6 @@ namespace
     {
         std::printf("blocks fit their content (LayoutMath)\n");
         constexpr double kSlack = BlockRules::kFitSlack;  // the slack FitBlock adds (review R9: the host's own value)
-        const double rowH = 20.0, pitch = 17.0;
-        for (const int count : { 1, 2, 3, 7 }) {
-            const auto rows = static_cast<std::size_t>(count);
-            const double h = LayoutMath::RowsHeight(rows, rowH, pitch);
-            Expect(LayoutMath::RowsFit(h + kSlack, rowH, pitch) == rows && LayoutMath::RowsFit(h - 1.0, rowH, pitch) == rows - 1,
-                Text("%zu rows take %.1f: that room (+ slack) fits %zu, 1 less fits one fewer", rows, h, rows));
-        }
-        Expect(LayoutMath::RowsHeight(0, rowH, pitch) == 0.0 && LayoutMath::RowsFit(rowH - 1.0, rowH, pitch) == 0, "no rows: 0 high; under one row: none fit");
         const LayoutMath::TextMetrics metrics{ 1.2, 1.1, 4.0 };
         const double size = 13.0, lineH = size * metrics.linePitch;
         for (const int lines : { 1, 2, 5 }) {
@@ -599,19 +435,6 @@ namespace
                 Text("a description of %d line(s): its field's height (+ slack) gives %d lines back", lines, lines));
         }
         Expect(LayoutMath::LinesFit(0.0, metrics.FieldH(size), lineH) == 1, "no room: still one line (DrawHtmlText's floor)");
-        // the progress card: the plan at its needed height is the plan at its full height (hint, sizes, places)
-        for (const double hint : { 13.0, 16.0 }) {
-            const LayoutMath::ProgressIn full{ 102.0, 4.0, 2.0, 11.0, 19.0, 12.0, 2.0, hint, 8.0, 0.5, 0.0 };
-            const auto plan = LayoutMath::PlanProgress(metrics, full);
-            const double needed = LayoutMath::ProgressNeeded(metrics, full, plan);
-            auto fitted = full;
-            fitted.cardH = std::min(needed + kSlack, full.cardH);
-            const auto again = LayoutMath::PlanProgress(metrics, fitted);
-            Expect(needed < full.cardH && again.hint == plan.hint && again.hintSize == plan.hintSize && again.hintY == plan.hintY && again.title == plan.title &&
-                       LayoutMath::ProgressNeeded(metrics, fitted, again) == needed,
-                Text("progress card, hint size %.0f: needs %.1f of 102, the plan at that height is the same (hint %.1f at %.1f)", hint, needed, plan.hintSize, plan.hintY));
-        }
-        Expect(LayoutMath::NodeCardNeeded(80.0, 37.0, 4.0, 74.0) == 195.0, "node card: rows top 80 + rows 37 + gap 4 + bottom part 74 = 195");
     }
 
     void ArtShapes()
@@ -961,8 +784,6 @@ int main()
     L2ClipVerdict();
     ScreenBoxChoice();
     MotionWhileHidden();
-    TreeLayout();
-    ProgressLayout();
     FitMath();
     ArtShapes();
     PixelDecode();
