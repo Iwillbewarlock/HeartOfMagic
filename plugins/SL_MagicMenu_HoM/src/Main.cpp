@@ -147,7 +147,7 @@ namespace
         return g_accepted[index].load();
     }
 
-    // True when at least one block was accepted
+    // True when the tree block (the driver) was accepted
     bool Register()
     {
         auto* messaging = SKSE::GetMessagingInterface();
@@ -155,11 +155,14 @@ namespace
         const auto heights = HomSettings::BlockHeights(HomSettings::Get());
         g_heights = { heights.tree, heights.progress, heights.nodeCard };
         g_treeTitle = HomStrings::Text(HomStrings::Str::kTreeTitle);
-        bool any = false;
-        for (const auto kind : { HomAddon::BlockKind::kTree, HomAddon::BlockKind::kProgress, HomAddon::BlockKind::kNodeCard }) {
-            any = RegisterOne(messaging, kind) || any;
+        // the tree block's frame and key drive all three: without it the cards would never update, so none is registered
+        if (!RegisterOne(messaging, HomAddon::BlockKind::kTree)) {
+            logger::error("SL_MagicMenu_HoM: the tree block was not accepted - the progress and node cards are not registered either");
+            return false;
         }
-        return any;
+        RegisterOne(messaging, HomAddon::BlockKind::kProgress);
+        RegisterOne(messaging, HomAddon::BlockKind::kNodeCard);
+        return true;
     }
 
     void OnSKSEMessage(SKSE::MessagingInterface::Message* a_msg)

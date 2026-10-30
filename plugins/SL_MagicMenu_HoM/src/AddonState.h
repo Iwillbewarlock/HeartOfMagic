@@ -110,7 +110,7 @@ namespace HomAddon
         std::string uncoveredSchool;             // the school no snapshot has had since frame uncoveredFrom
         int uncoveredFrom = 0;
         bool noData = false;                     // kNoDataFrames passed without HoM's state for uncoveredSchool
-        TextFit::Log textLog;                    // the Q4 cut / room lines and the Q2 states logged this menu
+        TextFit::Log textLog{ {}, {}, kLogPrefix };  // the Q4 cut / room lines and the Q2 states logged this menu
         TextFit::Metrics metrics{ 0.0, kLineFactor, kLineFactor };  // the host's (Context), the fallback until the first frame
         std::array<std::optional<TextFit::Metrics>, kBlockCount> drawnWith;  // the metrics each block was last drawn with
         std::array<LayoutMath::HeightSender, kBlockCount> heights;          // 'SLMH' sent this menu

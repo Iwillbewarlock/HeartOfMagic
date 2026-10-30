@@ -56,7 +56,6 @@ namespace HomAddon
         if (g_menu.generation == generation) return;
         g_menu = MenuState{};
         g_menu.generation = generation;
-        g_menu.textLog.prefix = kLogPrefix;
     }
 
     void PressButton()

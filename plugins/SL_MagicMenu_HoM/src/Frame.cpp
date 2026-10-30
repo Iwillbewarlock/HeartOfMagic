@@ -276,8 +276,7 @@ namespace HomAddon
         EnsureMenu();
         const auto& settings = HomSettings::Get();
         if (a_scanCode == settings.keyNext) {
-            DoNext(*Spells::Current());
-            SendRedraws();
+            DoNext(*Spells::Current());  // its redraws go out from this frame's frame call (on a tab with the blocks)
             return true;
         }
         if (a_scanCode == settings.keySetTarget) {
