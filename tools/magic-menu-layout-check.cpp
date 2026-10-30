@@ -1360,6 +1360,12 @@ namespace
                 Text("VisibleUnion: the hidden child left out (%s)", united ? Show(*united).c_str() : "none"));
             Expect(!BlockRules::VisibleUnion({ { Settings::Rect{ 0, 0, 100, 24 }, false } }) && !BlockRules::VisibleUnion({}),
                 "VisibleUnion: nothing shown (hideButtons / clearButtons) - none");
+            // GPT on 4846c6a5: a shown button whose bounds did not read - no part-union, and not to be cached; nothing shown is
+            const std::vector<BlockRules::ChildBox> unread{ { Settings::Rect{ 0, 0, 100, 24 }, true, true }, { Settings::Rect{}, true, false } };
+            const std::vector<BlockRules::ChildBox> noneShown{ { Settings::Rect{ 0, 0, 100, 24 }, false, true }, { Settings::Rect{}, false, false } };
+            Expect(!BlockRules::VisibleUnion(unread) && !BlockRules::AllShownRead(unread), "a shown button's bounds failed to read: no union, not cacheable");
+            Expect(!BlockRules::VisibleUnion(noneShown) && BlockRules::AllShownRead(noneShown) && BlockRules::AllShownRead({}),
+                "nothing shown (a hidden child unread too): no union, cacheable");
         }
         // the board (user 2026-10-30): the columns' areas 648..1238 x 67..623, 16 larger; empty looks; the strip from its bottom
         {

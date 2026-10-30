@@ -438,6 +438,9 @@ header comment of `plugins/SL_MagicMenu/src/BlockApi.h`, the pure rules `BlockRu
   visible size this menu, so it does not jump while the buttons are cleared. The visible content is read again only
   when its signature changes: the panel's stage origin, and each child's `_visible` and, when shown, `_x`, `_y`,
   `_width`, `_height`.
+- GPT on 4846c6a5: a shown button whose bounds do not read is not "nothing shown". That frame nothing moves and nothing
+  is cached, so the next frame reads again (`BlockRules::AllShownRead`); no part-union is used. The frames this happened
+  on are counted at the menu's close.
 - The panel is only moved, never drawn again. With no panel SkyUI's strip is left alone; a menu that never had one says
   so at its close.
 - The gear goes one row under the strip, with its left edge on the strip's start, so both sit on one vertical line. The

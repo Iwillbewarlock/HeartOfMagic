@@ -501,16 +501,25 @@ namespace BlockRules
     // positionElements), moved with its buttons - SkyUI's and STB Hotkey System's, laid out inside it, hidden with _visible
     // ---------------------------------------------------------------------
 
-    /// One child of the panel: its bounds on the stage and whether it shows
+    /// One child of the panel: its bounds on the stage, whether it shows, and whether its bounds read (a shown child only)
     struct ChildBox
     {
         Settings::Rect stage;
         bool visible = true;
+        bool read = true;
     };
 
+    /// Every shown child's bounds read, so the content may be cached; a failed read is read again next frame (GPT on 4846c6a5)
+    inline bool AllShownRead(const std::vector<ChildBox>& a_children)
+    {
+        return std::none_of(a_children.begin(), a_children.end(), [](const ChildBox& a_child) { return a_child.visible && !a_child.read; });
+    }
+
     /// The union of the visible children's bounds (a hidden button is left out: it would widen the strip); nullopt when none shows
+    /// or a shown child's bounds did not read (no part-union: it would put the strip off by the missing button)
     inline std::optional<Settings::Rect> VisibleUnion(const std::vector<ChildBox>& a_children)
     {
+        if (!AllShownRead(a_children)) return std::nullopt;
         std::optional<Settings::Rect> united;
         for (const auto& child : a_children) {
             if (!child.visible) continue;

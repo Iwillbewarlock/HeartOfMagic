@@ -678,6 +678,7 @@ namespace Widget
             std::optional<std::pair<double, double>> stripSize;
             int stripMoveLogs = 0, stripApplies = 0, stripChecks = 0;  // review R4: moves logged, moves this menu, read-back lines
             int stripFoundFrame = -1;   // the frame the panel was first found this menu (-1: not yet; a menu without it logs at the close)
+            int stripReadFails = 0;     // frames a shown button's bounds did not read (StripContent; logged at the close)
             bool gearHintLeft = false;  // the gear's hint is on its left (the edit mode: the reset button is on its right)
             bool gearHover = false;                  // the mouse is over the gear (GearHover)
             std::optional<bool> gearDrawnMode;       // the layout mode the gear's look and hint were made for (UpdateGear)
@@ -5503,9 +5504,9 @@ namespace Widget
         // review R6: the button panel's visible content - its direct children that show (BlockRules::VisibleUnion: getBounds
         // counts hidden ones too, and SkyUI hides the buttons it does not use, which would widen the strip and push it and the gear
         // left). nullopt when no child shows (review of 4d50080a: hideButtons / clearButtons, ItemMenu.as:115, MagicMenu.as:195 -
-        // the panel's own bounds would count the hidden buttons). Through every parent (BoundsIn); a hidden child's bounds are not
-        // read (it is left out either way)
-        std::optional<Bounds> VisibleBounds(RE::GFxValue& a_clip, RE::GFxValue& a_space)
+        // the panel's own bounds would count the hidden buttons), and when a shown child's bounds do not read (*a_readAll false then:
+        // BlockRules::AllShownRead). Through every parent (BoundsIn); a hidden child's bounds are not read (it is left out either way)
+        std::optional<Bounds> VisibleBounds(RE::GFxValue& a_clip, RE::GFxValue& a_space, bool* a_readAll = nullptr)
         {
             std::vector<RE::GFxValue> children;
             a_clip.VisitMembers([&](const char* a_name, const RE::GFxValue& a_value) {
@@ -5517,8 +5518,10 @@ namespace Widget
                     boxes.push_back({ {}, false });
                     continue;
                 }
-                if (const auto bounds = BoundsIn(child, a_space)) boxes.push_back({ { bounds->xMin, bounds->yMin, bounds->xMax, bounds->yMax }, true });
+                const auto bounds = BoundsIn(child, a_space);
+                boxes.push_back(bounds ? BlockRules::ChildBox{ { bounds->xMin, bounds->yMin, bounds->xMax, bounds->yMax }, true, true } : BlockRules::ChildBox{ {}, true, false });
             }
+            if (a_readAll) *a_readAll = BlockRules::AllShownRead(boxes);
             const auto united = BlockRules::VisibleUnion(boxes);
             if (!united) return std::nullopt;
             return Bounds{ united->left, united->right, united->top, united->bottom };
@@ -5526,7 +5529,8 @@ namespace Widget
 
         // review of 4d50080a (cost): the strip's visible content read again (VisibleBounds: getBounds and four mapped corners per
         // shown button) only when its signature changed - the panel's origin on the stage and each child's _visible and, when shown,
-        // _x, _y, _width, _height (a label change alters _width). A value that does not read (NaN) never matches, so it is read again
+        // _x, _y, _width, _height (a label change alters _width). A value that does not read (NaN) never matches, so it is read again;
+        // a shown button whose bounds do not read leaves nothing cached (no move this frame, read again the next)
         std::optional<Bounds> StripContent(RE::GFxValue& a_panel, const BlockRules::Point& a_nowStage, RE::GFxValue& a_widget)
         {
             constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
@@ -5545,8 +5549,15 @@ namespace Widget
                 if (!g_menu.stripContent) return std::nullopt;
                 return Bounds{ g_menu.stripContent->left, g_menu.stripContent->right, g_menu.stripContent->top, g_menu.stripContent->bottom };
             }
+            bool readAll = true;
+            const auto content = VisibleBounds(a_panel, a_widget, &readAll);
+            if (!readAll) {  // GPT on 4846c6a5: a failed read is not kept - nothing moves this frame, the next one reads again
+                ++g_menu.stripReadFails;
+                g_menu.stripSignature.clear();
+                g_menu.stripContent.reset();
+                return std::nullopt;
+            }
             g_menu.stripSignature = std::move(signature);
-            const auto content = VisibleBounds(a_panel, a_widget);
             g_menu.stripContent = content ? std::optional<Settings::Rect>{ Settings::Rect{ content->xMin, content->yMin, content->xMax, content->yMax } } : std::nullopt;
             return content;
         }
@@ -5578,7 +5589,7 @@ namespace Widget
                 const auto landed = VisibleBounds(a_panel, a_widget);
                 const bool pass = landed && std::abs(landed->xMin - target.left) <= kStripCheckTolerance && std::abs(landed->yMin - target.top) <= kStripCheckTolerance;
                 SelfTest(std::format("L8 strip {} {} - at {} (wanted {:.1f},{:.1f})", kButtonPanelPath, pass ? "PASS" : "FAIL",
-                    landed ? std::format("{:.1f},{:.1f}", landed->xMin, landed->yMin) : std::string("no visible button"), target.left, target.top));
+                    landed ? std::format("{:.1f},{:.1f}", landed->xMin, landed->yMin) : std::string("no bounds (no button shown, or one did not read)"), target.left, target.top));
             }
             if (++g_menu.stripMoveLogs <= kMaxStripMoveLogs) {
                 const double right = ColumnViewport(Layout::kColumns - 1).right;
@@ -8538,6 +8549,10 @@ namespace Widget
                     }
                     if (g_menu.stripApplies > 0) {  // review R4: how often the strip was moved (again) this menu
                         logger::info("Widget: key-hint strip moved {} time(s) this menu", g_menu.stripApplies);
+                    }
+                    if (g_menu.stripReadFails > 0) {
+                        logger::info("Widget: key-hint strip - a shown button's bounds did not read on {} frame(s) this menu (not moved then)",
+                            g_menu.stripReadFails);
                     }
                     if (g_menu.stripFoundFrame < 0 && g_menu.frame > 0) {
                         logger::info("Widget: no key-hint strip ({}) in {} frame(s) this menu - SkyUI's strip was left where it is", kButtonPanelPath,
