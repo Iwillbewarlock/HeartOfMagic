@@ -368,7 +368,7 @@ add_custom_command(TARGET assemble_magicmenu_dist POST_BUILD
 add_custom_command(TARGET assemble_magicmenu_dist POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_licenses_dist}/CommonLibSSE-NG"
     COMMAND "${CMAKE_COMMAND}" -E copy
-    "${CMAKE_SOURCE_DIR}/LICENSE"
+    "${_mm_fomod_src}/LICENSE"
     "${CMAKE_BINARY_DIR}/magicmenu/THIRD-PARTY-NOTICES.md"
     "${_mm_dist}/"
     COMMAND "${CMAKE_COMMAND}" -E copy
