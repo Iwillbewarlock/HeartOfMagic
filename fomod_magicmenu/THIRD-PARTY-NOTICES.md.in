@@ -8,7 +8,7 @@
   distributed under those terms: `licenses/CommonLibSSE-NG/COPYING.txt` (GNU GPL version 3) and
   `licenses/CommonLibSSE-NG/EXCEPTIONS.md` (the two exceptions).
 - **The magic menu's own source files are MIT** (`LICENSE` next to this file): the C++ in the repository's
-  `plugins/SL_MagicMenu/` and `plugins/SL_MagicMenu_HoM/` (and the headers they share from `plugins/`) and the ini
+  `plugins/SL_MagicMenu/` and `plugins/SL_MagicMenu_HoM/` (and `Common.h`, `PCH.h`, `WideFileSink.h` and `SpellLearningAPI.h` from `plugins/`) and the ini
   files. MIT is compatible with the GPL; files you take from this project on their own stay MIT.
 
 ## Credits
