@@ -10,9 +10,10 @@
 //
 //   magic-menu-layout-check     one PASS/FAIL line per check, a total line
 //
-// Not covered here (widget code, checked by reading and in game only): PlaceStripAndGear's frame logic (finding and moving the
-// strip's clips), Visibility / AddonsHiddenOn / WatchEmpty, the click delivery of the gear and the reset button, and MapPoint
-// itself (the strip's moves go through it: each clip's home origin on the stage plus one step, back into its parent).
+// Not covered here (widget code, checked by reading and in game only): PlaceStripAndGear / MoveStrip's GFx side (resolving
+// SkyUI's bottomBar.buttonPanel, reading its children, setting _x/_y; the rule itself, BlockRules::PlacePanel, is checked here
+// with made-up mappings), Visibility / AddonsHiddenOn / WatchEmpty, the click delivery of the gear and the reset button, and
+// MapPoint itself (the strip's mapping between its parent and the stage goes through it).
 //
 // No game types. Exit 0 when every check passes, 1 otherwise.
 
@@ -1299,37 +1300,58 @@ namespace
             Text("a strip wider than the room right of the column: moved left to stay inside, the gear with it (%s)", Show(wide.strip).c_str()));
         const auto none = BlockRules::HintRowRects(648, 623, 0, 0, 18, 4, 4, visible1610);
         Expect(Near(none.gear.top, 627) && Near(none.gear.left, 648), "no strip: the gear alone, 4 under the columns at the column's edge");
-        // the strip's clips found over the search window (GPT review): new paths added once each, in order
+        // the key-hint strip: SkyUI's bottomBar.buttonPanel moved as one clip (BlockRules::PlacePanel, PanelHome, VisibleUnion)
         {
-            std::vector<std::string> known{ "_root.Menu_mc.bottomBar.buttonPanel" };
-            const auto added = BlockRules::AddNew(known, { "_root.Menu_mc.bottomBar.buttonPanel", "_root.STB_Keycaps" });
-            Expect(added == std::vector<std::string>{ "_root.STB_Keycaps" } && known.size() == 2, "AddNew: a clip found later is added once");
-            Expect(BlockRules::AddNew(known, { "_root.STB_Keycaps" }).empty() && known.size() == 2, "AddNew: found again, not added twice");
-            // the strip's homes, judged as a set (GPT review of f8506180), x only: homes A 0, B 100, step 100
-            using Place = BlockRules::StripClipPlace;
-            const auto x = [](double a_x) { return BlockRules::Point{ a_x, 0 }; };
-            const auto still = BlockRules::StripHomes({ Place{ x(100), x(0), x(100) }, Place{ x(200), x(100), x(200) } }, 0.5);
-            Expect(Near(still[0].x, 0) && Near(still[1].x, 100), "nothing moved: the remembered homes are kept (A 0, B 100)");
-            // SkyUI lays it out again to A 0, B 200: B sits exactly where the host had put it, A does not
-            const auto relaid = BlockRules::StripHomes({ Place{ x(0), x(0), x(100) }, Place{ x(200), x(100), x(200) } }, 0.5);
-            Expect(Near(relaid[0].x, 0) && Near(relaid[1].x, 200), "SkyUI re-laid A 0 / B 200 (B onto its old put place): homes A 0, B 200");
-            // review R1: SkyUI re-laid its panel (back at 0, home 0, put at 648); STB's clip (another group) still where it was put
-            const auto groups = BlockRules::StripHomes({ Place{ x(0), x(0), x(648), 0 }, Place{ x(848), x(200), x(848), 1 } }, 0.5);
-            Expect(Near(groups[0].x, 0) && Near(groups[1].x, 200), "SkyUI's group re-laid, STB's not: STB keeps its home 200 (no drift by a step)");
-            // GPT re-review of 0420eed9 (identity parents, x only): homes 0 / 200 placed at 648 / 848; a button at the first clip's left
-            // hides, so its visible bounds start 20 further right - its origin is still 648, so no re-layout, and the strip goes back
-            // to its visible start 648: the clips' origins 628 / 828
-            const auto kept = BlockRules::StripHomes({ Place{ x(648), x(0), x(648), 0 }, Place{ x(848), x(200), x(848), 1 } }, 0.5);
-            Expect(Near(kept[0].x, 0) && Near(kept[1].x, 200), "a hidden button inside a clip: the origins did not move - the homes stay 0 / 200");
-            const auto firstHome = BlockRules::VisibleAtHome({ 668, 0, 900, 24 }, x(648), x(kept[0].x));
-            const auto secondHome = BlockRules::VisibleAtHome({ 848, 0, 1000, 24 }, x(848), x(kept[1].x));
-            const double unionLeft = std::min(firstHome.left, secondHome.left), stepX = 648 - unionLeft;
-            Expect(Near(firstHome.left, 20) && Near(secondHome.left, 200) && Near(kept[0].x + stepX, 628) && Near(kept[1].x + stepX, 828),
-                Text("its visible start at home 20, step %.0f: origins 628 / 828 (not 1116 / 648)", stepX));
-            const auto newClip = BlockRules::StripHomes({ Place{ x(100), x(0), x(100) }, Place{ x(50), std::nullopt, std::nullopt } }, 0.5);
-            Expect(Near(newClip[0].x, 0) && Near(newClip[1].x, 50), "a new clip (STB, later): from its present place; the moved one keeps its home 0");
-            const auto newAndRelaid = BlockRules::StripHomes({ Place{ x(0), x(0), x(100) }, Place{ x(50), std::nullopt, std::nullopt } }, 0.5);
-            Expect(Near(newAndRelaid[0].x, 0) && Near(newAndRelaid[1].x, 50), "a new clip while SkyUI re-laid the others: every clip from its present place");
+            using BlockRules::Point;
+            constexpr double kTol = 0.5;
+            const auto unscaled = [](const Point& a_point) { return std::optional<Point>{ a_point }; };  // an unscaled parent
+            const Settings::Rect content{ 120, 700, 520, 724 };  // the panel at 100,700; its visible buttons start 20 right of its origin
+            const Point target{ 648, 647 };
+            // first frame: nothing set yet - home = the present origin; moved by the target's step (648 - 120, 647 - 700)
+            const auto first = BlockRules::PlacePanel(Point{ 100, 700 }, std::nullopt, std::nullopt, content, target, unscaled, unscaled, kTol);
+            Expect(first && Near(first->home.x, 100) && Near(first->home.y, 700) && first->set && Near(first->want.x, 628) && Near(first->want.y, 647),
+                Text("strip, first frame: home = the present origin 100,700, set to 628,647 (%s)",
+                    first ? Text("%.1f,%.1f", first->want.x, first->want.y).c_str() : "no place"));
+            // no change: the panel still where it was set (within a twip) - the stored home kept, nothing set
+            const Settings::Rect moved{ 648, 647, 1048, 671 };
+            const auto still = BlockRules::PlacePanel(Point{ 628.02, 647 }, Point{ 628, 647 }, Point{ 100, 700 }, moved, target, unscaled, unscaled, kTol);
+            Expect(still && Near(still->home.x, 100) && Near(still->home.y, 700) && !still->set, "strip, no change: home 100,700 kept, no set");
+            // SkyUI placed it again (positionElements, to 90,705): the present origin is the new home; moved by its new step
+            const Settings::Rect replaced{ 110, 705, 510, 729 };
+            const auto again = BlockRules::PlacePanel(Point{ 90, 705 }, Point{ 628, 647 }, Point{ 100, 700 }, replaced, target, unscaled, unscaled, kTol);
+            Expect(again && Near(again->home.x, 90) && Near(again->home.y, 705) && again->set && Near(again->want.x, 628) && Near(again->want.y, 647),
+                Text("strip, SkyUI re-placed it to 90,705: home 90,705, set to 628,647 (%s)", again ? Text("%.1f,%.1f", again->want.x, again->want.y).c_str() : "no place"));
+            // SkyUI placing it exactly onto the last set value: taken as unmoved (home kept) and already where it belongs
+            Expect(Near(BlockRules::PanelHome(Point{ 628, 647 }, Point{ 628, 647 }, Point{ 100, 700 }, kTol).x, 100) &&
+                       Near(BlockRules::PanelHome(Point{ 629, 647 }, Point{ 628, 647 }, Point{ 100, 700 }, kTol).x, 629) &&
+                       Near(BlockRules::PanelHome(Point{ 629, 647 }, std::nullopt, Point{ 100, 700 }, kTol).x, 629),
+                "PanelHome: on the last set value the home is kept; off it (or nothing set) the present origin");
+            // a button inside it hides (its visible content now starts 60 right of the origin): no re-place, moved by the new step
+            const Settings::Rect narrower{ 688, 647, 1048, 671 };
+            const auto hidden = BlockRules::PlacePanel(Point{ 628, 647 }, Point{ 628, 647 }, Point{ 100, 700 }, narrower, target, unscaled, unscaled, kTol);
+            Expect(hidden && Near(hidden->home.x, 100) && hidden->set && Near(hidden->want.x, 588) && Near(hidden->want.y, 647),
+                Text("strip, a button hid inside it: home kept, set to 588 so its visible start is 648 (%s)", hidden ? Text("%.1f", hidden->want.x).c_str() : "no place"));
+            // a scaled parent (Inventory Reforged: the menu at 0.85, offset 200,26): stage = 200 + 0.85 x, 26 + 0.85 y
+            constexpr double kScale = 0.85, kOffX = 200, kOffY = 26;
+            const auto toStage = [&](const Point& a_p) { return std::optional<Point>{ Point{ kOffX + kScale * a_p.x, kOffY + kScale * a_p.y } }; };
+            const auto toParent = [&](const Point& a_p) { return std::optional<Point>{ Point{ (a_p.x - kOffX) / kScale, (a_p.y - kOffY) / kScale } }; };
+            // the panel at 100,700 in its parent: on the stage 285,621; its visible buttons from local x 20 (17 on the stage), 255 x 20.4
+            const Settings::Rect scaled{ 302, 621, 557, 641.4 };
+            const auto inScaled = BlockRules::PlacePanel(Point{ 100, 700 }, std::nullopt, std::nullopt, scaled, target, toStage, toParent, kTol);
+            const auto landed = inScaled ? toStage(inScaled->want) : std::nullopt;
+            Expect(inScaled && inScaled->set && landed && Near(landed->x + 17, 648) && Near(landed->y, 647) && Near(inScaled->want.x, (631 - kOffX) / kScale),
+                Text("strip in a 0.85 parent: origin %.2f,%.2f in the parent, its visible start on the stage at 648,647",
+                    inScaled ? inScaled->want.x : 0.0, inScaled ? inScaled->want.y : 0.0));
+            const auto failed = BlockRules::PlacePanel(Point{ 100, 700 }, std::nullopt, std::nullopt, scaled, target,
+                [](const Point&) { return std::optional<Point>{}; }, toParent, kTol);
+            Expect(!failed, "strip: a mapping that fails - no place (nothing set)");
+            // the visible content: a hidden (wider) button left out; none shown - nullopt (the widget falls back to the clip's own bounds)
+            const auto united = BlockRules::VisibleUnion({ { Settings::Rect{ 0, 0, 100, 24 }, true }, { Settings::Rect{ -200, -10, 900, 40 }, false },
+                { Settings::Rect{ 110, 0, 220, 24 }, true } });
+            Expect(united && Near(united->left, 0) && Near(united->right, 220) && Near(united->top, 0) && Near(united->bottom, 24),
+                Text("VisibleUnion: the hidden child left out (%s)", united ? Show(*united).c_str() : "none"));
+            Expect(!BlockRules::VisibleUnion({ { Settings::Rect{ 0, 0, 100, 24 }, false } }) && !BlockRules::VisibleUnion({}),
+                "VisibleUnion: nothing shown - none");
         }
         // the board (user 2026-10-30): the columns' areas 648..1238 x 67..623, 16 larger; empty looks; the strip from its bottom
         {

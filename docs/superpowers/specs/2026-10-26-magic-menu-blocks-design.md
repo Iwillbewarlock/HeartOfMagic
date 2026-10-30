@@ -419,12 +419,23 @@ header comment of `plugins/SL_MagicMenu/src/BlockApi.h`, the pure rules `BlockRu
 - Key-hint strip and gear under the columns (user 2026-10-30, sketch on the layout map). SkyUI's bottom-bar key hints move
   to one row under the board (see the board note below; it first hung under the lower column, which moved with fitted
   cards) (`BlockRules::HintRowRects`).
-- The clips: `_root.Menu_mc.bottomBar.buttonPanel`, plus any clip under the bottom bar or _root whose name has STB or
-  Keycap in it (STB Hotkey System's hints). They are looked for in a menu's first 120 frames; the paths found are logged.
-  The clips are only moved, never drawn again. Each moves by the same stage step, taken into its own parent's space
-  (`MapPoint`), so Inventory Reforged's scale is followed and the clips keep their places to each
-  other. The strip is put back every frame SkyUI moves it. With no clip found, SkyUI's strip is left alone (logged once).
-  The skill / XP row stays where SkyUI puts it.
+- The strip is one clip (redesigned 2026-10-30 from SkyUI's source, replacing the earlier search for several clips):
+  `_root.Menu_mc.bottomBar.buttonPanel`. In SkyUI the bottom bar has two children, `playerInfoCard` (the skill / XP row)
+  and `buttonPanel` (BottomBar.as:26,31). The panel's own `_x` is set only in `positionElements` (BottomBar.as:49-53,
+  called from ItemMenu.as:444), and its buttons are laid out inside it (ButtonPanel.as:42,76,120,123; unused ones hidden
+  with `_visible`). STB Hotkey System adds its "Assign hotkey" / "Add to group" hints as buttons of that same panel, so
+  they move with it. STB's keycaps in the list rows are list icons, not hints, and are never touched. The skill / XP row
+  stays where SkyUI puts it.
+- The rule, each frame (`BlockRules::PlacePanel`):
+  1. If the panel's `_x/_y` differ from the values the host last set (0.5 tolerance; Flash keeps twips), or nothing was
+     set yet, SkyUI placed it: its present origin is its home (`BlockRules::PanelHome`). Otherwise the stored home stays.
+  2. Its visible content (the union of its visible children, `BlockRules::VisibleUnion`; the panel's own bounds when none
+     shows), mapped to the host's stage through every parent (Inventory Reforged scales the menu 0.85), goes with its
+     top-left to the strip's place (`BlockRules::HintRowRects`). The origin that does this is taken back into the
+     panel's parent (`MapPoint`) and set only when it differs from the present one. The parent chain is affine, so the
+     home cancels out of that origin; the home only names the place SkyUI chose in the log.
+  The panel is only moved, never drawn again. With no panel SkyUI's strip is left alone; a menu that never had one says
+  so at its close.
 - The gear goes one row under the strip, with its left edge on the strip's start, so both sit on one vertical line. The
   user's words: "단축키 시작이랑 톱니바퀴랑 Y축이 같게", then "톱니바퀴가 한칸 아래로" (an earlier same-row reading was wrong).
   The gear is 4 below the strip and the strip starts at the left column's left edge. Strip and gear move up together from
@@ -455,9 +466,6 @@ header comment of `plugins/SL_MagicMenu/src/BlockApi.h`, the pure rules `BlockRu
   - a v1 block shows as before.
 - Board review round 1:
   - The preview's empty line sits in a clip of its own, because removeMovieClip does not remove a text field.
-  - The strip's homes are judged per group: SkyUI's bottom bar is one group, another mod's clip under _root another, so
-    STB's clip does not drift a step when SkyUI re-lays its own strip. Only clips named "STB…" or with "Keycap" in the name
-    (case-sensitive) are taken.
   - The strip's size comes from its visible children only.
   - Each move is read back as a "SelfTest: L8 strip … PASS/FAIL" line, and the moves are counted at the menu's close.
   - In the layout mode the add-ons drawn per selection are not closed up (they can be moved), and entering or leaving the
@@ -465,7 +473,6 @@ header comment of `plugins/SL_MagicMenu/src/BlockApi.h`, the pure rules `BlockRu
   - The board is an edge only (no fill) when SkyUI's card or the game's own 3D pass would sit under it.
   - With nothing chosen the set-target key / button do nothing; the tree has no legend and no not-in-tree note.
   - In the edit mode the gear's hint shows on its left.
-- GPT re-review of 0420eed9: whether SkyUI or STB laid a strip clip out again is read from the clip's own origin (its
-  _x/_y in its parent, what the host sets), not from its visible children. A button hidden inside a clip moves the
-  children but is not a new layout. The visible children only give the strip's size and target, taken back to each clip's
-  home first (`BlockRules::VisibleAtHome`).
+- GPT re-review of 0420eed9: whether SkyUI placed the strip again is read from the panel's own origin (its _x/_y in its
+  parent, what the host sets), not from its visible children. A button hidden inside it moves the children but is not a
+  new layout. (The per-group homes and the STB / Keycap clip search of round 1 went with the one-clip redesign above.)

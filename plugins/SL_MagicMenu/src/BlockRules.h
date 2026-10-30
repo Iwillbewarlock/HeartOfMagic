@@ -496,49 +496,71 @@ namespace BlockRules
         return box;
     }
 
+    // ---------------------------------------------------------------------
+    // The key-hint strip's move (SkyUI's BottomBar.as / ButtonPanel.as): ONE clip, bottomBar.buttonPanel (_x set only by
+    // positionElements), moved with its buttons - SkyUI's and STB Hotkey System's, laid out inside it, hidden with _visible
+    // ---------------------------------------------------------------------
 
-    /// The paths of a_found that a_known does not have yet, added to a_known in their order (each once); returned for the log
-    inline std::vector<std::string> AddNew(std::vector<std::string>& a_known, const std::vector<std::string>& a_found)
+    /// One child of the panel: its bounds on the stage and whether it shows
+    struct ChildBox
     {
-        std::vector<std::string> added;
-        for (const auto& path : a_found) {
-            if (std::find(a_known.begin(), a_known.end(), path) != a_known.end()) continue;
-            a_known.push_back(path);
-            added.push_back(path);
-        }
-        return added;
-    }
-
-    /// A key-hint clip this frame: its origin (_x/_y in its parent), and the home origin (where SkyUI or STB put it) and the
-    /// origin the host last set, both remembered (nullopt: a clip not seen before). Origins, not visible bounds: a button hidden
-    /// inside the clip moves its visible bounds but is no new layout (GPT re-review of 0420eed9)
-    struct StripClipPlace
-    {
-        Point now;
-        std::optional<Point> home, lastPut;
-        int group = 0;  // who lays it out (review R1): 0 SkyUI's bottom bar, 1 another mod's clip (STB's under _root)
+        Settings::Rect stage;
+        bool visible = true;
     };
 
-    /// The clips' homes this frame. SkyUI lays the strip out as a whole, so the set is judged together (GPT review of f8506180:
-    /// one clip judged alone could be re-placed by SkyUI exactly onto where the host had put it and be taken as still moved):
-    /// only when EVERY clip the host has moved before still sits where it put it are the remembered homes kept; when any of
-    /// them is elsewhere, SkyUI (or STB) laid the strip out again and every clip's present place is its home. A clip not seen
-    /// before (STB's hints, made after SkyUI's panel) starts from its present place without unsettling the others - taking
-    /// the moved panel's present place as its home would move it a second time
-    /// Judged per group (review R1): SkyUI re-laying its bottom bar does not touch STB's clip, so STB's remembered home stays
-    inline std::vector<Point> StripHomes(const std::vector<StripClipPlace>& a_clips, double a_tolerance)
+    /// The union of the visible children's bounds (a hidden button is left out: it would widen the strip); nullopt when none shows
+    inline std::optional<Settings::Rect> VisibleUnion(const std::vector<ChildBox>& a_children)
     {
-        const auto off = [&](const StripClipPlace& a_clip) {
-            if (!a_clip.home || !a_clip.lastPut) return false;  // new: not a sign of a new layout
-            return std::abs(a_clip.now.x - a_clip.lastPut->x) > a_tolerance || std::abs(a_clip.now.y - a_clip.lastPut->y) > a_tolerance;
-        };
-        std::vector<Point> homes;
-        homes.reserve(a_clips.size());
-        for (const auto& clip : a_clips) {
-            const bool relaid = std::any_of(a_clips.begin(), a_clips.end(), [&](const StripClipPlace& a_other) { return a_other.group == clip.group && off(a_other); });
-            homes.push_back(!relaid && clip.home && clip.lastPut ? *clip.home : clip.now);
+        std::optional<Settings::Rect> united;
+        for (const auto& child : a_children) {
+            if (!child.visible) continue;
+            if (!united) united = child.stage;
+            united->left = std::min(united->left, child.stage.left);
+            united->top = std::min(united->top, child.stage.top);
+            united->right = std::max(united->right, child.stage.right);
+            united->bottom = std::max(united->bottom, child.stage.bottom);
         }
-        return homes;
+        return united;
+    }
+
+    inline bool NearPoint(const Point& a_a, const Point& a_b, double a_tolerance)
+    {
+        return std::abs(a_a.x - a_b.x) <= a_tolerance && std::abs(a_a.y - a_b.y) <= a_tolerance;
+    }
+
+    /// The panel's home origin (parent space): the stored home while it still sits where the host last set it (a_tolerance: Flash
+    /// keeps _x in twips), else its present origin - SkyUI placed it (again), or nothing was set yet. SkyUI placing it exactly
+    /// onto the host's last value counts as unmoved: it is already where it belongs
+    inline Point PanelHome(const Point& a_now, const std::optional<Point>& a_lastSet, const std::optional<Point>& a_home, double a_tolerance)
+    {
+        return a_lastSet && a_home && NearPoint(a_now, *a_lastSet, a_tolerance) ? *a_home : a_now;
+    }
+
+    struct PanelPlace
+    {
+        Point home;        // this frame's home origin (PanelHome), the parent's space
+        Point want;        // the origin that puts the visible content's top-left on the target, the parent's space
+        bool set = false;  // want is off the present origin by more than the tolerance: _x / _y are to be set
+    };
+
+    /// Where the panel goes: a_visibleNow (its visible content on the stage, the panel at a_now) taken to the home origin, moved
+    /// so its top-left is a_target (stage), that origin taken back into the parent. a_toStage / a_toParent (-> optional<Point>)
+    /// map parent <-> stage through every parent (Inventory Reforged scales the menu 0.85). The chain is affine, so the home
+    /// cancels out of want (= the present origin + the target's stage step); it only names SkyUI's place. nullopt: no mapping
+    template <class ToStage, class ToParent>
+    std::optional<PanelPlace> PlacePanel(const Point& a_now, const std::optional<Point>& a_lastSet, const std::optional<Point>& a_home,
+        const Settings::Rect& a_visibleNow, const Point& a_target, ToStage&& a_toStage, ToParent&& a_toParent, double a_tolerance)
+    {
+        PanelPlace place;
+        place.home = PanelHome(a_now, a_lastSet, a_home, a_tolerance);
+        const std::optional<Point> nowStage = a_toStage(a_now), homeStage = a_toStage(place.home);
+        if (!nowStage || !homeStage) return std::nullopt;
+        const Point atHome{ a_visibleNow.left + homeStage->x - nowStage->x, a_visibleNow.top + homeStage->y - nowStage->y };
+        const std::optional<Point> want = a_toParent(Point{ homeStage->x + a_target.x - atHome.x, homeStage->y + a_target.y - atHome.y });
+        if (!want) return std::nullopt;
+        place.want = *want;
+        place.set = !NearPoint(place.want, a_now, a_tolerance);
+        return place;
     }
 
     // ---------------------------------------------------------------------
@@ -573,13 +595,5 @@ namespace BlockRules
         if (a_id == Layout::kSpellCard) return EmptyLook::kLineOnly;
         if (a_drawSelection) return a_layoutMode ? EmptyLook::kAsUsual : EmptyLook::kClosed;
         return EmptyLook::kAsUsual;
-    }
-
-    /// A clip's visible bounds as they would be with the clip at its home origin: a_visible (stage, now) moved by home - origin
-    /// (both origins on the stage). The strip's size and target come from these, never its re-layout test
-    inline Settings::Rect VisibleAtHome(const Settings::Rect& a_visible, const Point& a_origin, const Point& a_home)
-    {
-        const double dx = a_home.x - a_origin.x, dy = a_home.y - a_origin.y;
-        return { a_visible.left + dx, a_visible.top + dy, a_visible.right + dx, a_visible.bottom + dy };
     }
 }
