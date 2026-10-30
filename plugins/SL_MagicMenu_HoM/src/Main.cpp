@@ -101,7 +101,11 @@ namespace
         {
             if (!a_event || a_event->menuName != RE::MagicMenu::MENU_NAME) return RE::BSEventNotifyControl::kContinue;
             // the per-menu state is reset by the next callback (EnsureMenu); the style is read for this open
-            if (a_event->opening) HomAddon::OnMenuOpen();
+            if (a_event->opening) {
+                HomAddon::OnMenuOpen();
+            } else {
+                HomAddon::OnMenuClose();  // SelfTest L2 mask clicks
+            }
             return RE::BSEventNotifyControl::kContinue;
         }
 
@@ -125,6 +129,7 @@ namespace
             reg.drawSelection = HomAddon::DrawTreeBlock;
             reg.frame = HomAddon::TreeFrame;
             reg.key = HomAddon::TreeKey;
+            reg.pad = static_cast<float>(HomAddon::kPad);  // the host's own: the tree's panel clip sits at (-kPad, -(title + kPad))
             reg.flags = kFlagOwnMouse | kFlagKeepWhenEmpty;
             break;
         case BlockKind::kProgress:
@@ -225,6 +230,16 @@ namespace HomAddon
         BlockApi::HeightRequest request{ .id = id.c_str(), .height = static_cast<float>(a_height) };
         if (auto* messaging = SKSE::GetMessagingInterface()) {
             messaging->Dispatch(BlockApi::kMessageHeight, &request, sizeof(request), BlockApi::kPluginName);
+        }
+    }
+
+    void RequestShowSpell(RE::FormID a_form, std::uint32_t a_requestId, bool a_nameShown)
+    {
+        if (!g_accepted[Index(BlockKind::kTree)]) return;
+        const auto id = FinalId(BlockKind::kTree);
+        BlockApi::ShowSpellRequest request{ .id = id.c_str(), .formId = a_form, .requestId = a_requestId, .nameShown = a_nameShown ? 1u : 0u };
+        if (auto* messaging = SKSE::GetMessagingInterface()) {
+            messaging->Dispatch(BlockApi::kMessageShowSpell, &request, sizeof(request), BlockApi::kPluginName);
         }
     }
 

@@ -35,7 +35,11 @@ namespace HomAddon
     /// What to do next in the active school (Q2): the progress card's line, also named in the U key's log
     Line NextStepLine(const SchoolInfo& a_info, bool a_hasTarget);
 
-    // ---- the tree block (Frame.cpp): its frame drives the three blocks' per-frame work, its key callback takes U and G ----
+    /// The node card's state words (NodeCard.cpp); on the button a target says only that it is the target. The tree's tooltip too
+    Line StateLine(Spells::State a_state, float a_percent, bool a_button);
+
+    // ---- the tree block: its window (TreeDraw.cpp); its frame (Frame.cpp) drives the three blocks' per-frame work, its key
+    // callback records U and G ----
 
     void DrawTreeBlock(RE::GFxMovieView* a_movie, RE::GFxValue& a_clip, float a_width, float a_height, std::uint32_t a_shown, void* a_user);
     void TreeFrame(RE::GFxMovieView* a_movie, RE::GFxValue& a_content, RE::GFxValue* a_overlay, const BlockApi::Context& a_context, void* a_user);

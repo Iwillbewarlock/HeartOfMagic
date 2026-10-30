@@ -185,6 +185,7 @@ namespace HomAddon
         if (!a_movie) return;
         auto& menu = Menu();
         menu.drawnWith[Index(BlockKind::kProgress)] = menu.metrics;
+        SyncProgressShown();  // Task 6 review 4: with no school the box is hidden from its first draw, not a frame later
         const auto snapshot = Spells::Current();
         if (const auto needed = DrawProgress(a_movie, a_clip, a_width + 2 * kCardPad, *snapshot)) FitCard(BlockKind::kProgress, *needed);
     }

@@ -4,7 +4,9 @@
 // Selection.h's pick rules (bug G1: a U key pick counts as chosen; G acts only when chosen; a list change drops the pick
 // unless it was the add-on's own served show request), Strings.h's fill and key labels, the cards' height requests
 // (HomLayoutMath.h CardHeight / HeightSender) and - moved here from magic-menu-preview-check in Task 6, unchanged - the tree
-// window's label, badge and link-box arithmetic, the progress card's plan and the node card's rows.
+// window's label, badge and link-box arithmetic, the progress card's plan and the node card's rows. Task 7: the frame's order
+// (Selection.h PickAfterFrame: U after the list change; one set-target request for G + the button; a stale key pick) and
+// TreeRules.h (TooltipValid, the tree's look and its legend - B1, L2 mask clicks counted and not acted on).
 // Not covered here (the in-game self-test only, bSelfTest=1): GetPrivateProfileString itself, HoM's API, anything drawn.
 //
 //   magic-menu-hom-block-check              one PASS/FAIL line per check, a total line
@@ -19,6 +21,7 @@
 #include "Selection.h"
 #include "Settings.h"
 #include "Strings.h"
+#include "TreeRules.h"
 
 #include <algorithm>
 #include <cctype>
@@ -231,6 +234,62 @@ namespace
         Expect(Selection::DropPick(3, 4, Source::kList, 9, 9), "the player's list (source kList): dropped, whatever servedRequest says");
         Expect(Selection::DropPick(3, 4, Source::kAddon, 0, 0), "we never sent a request (0): a served 0 is not ours");
         Expect(!Selection::DropPick(4, 4, Source::kList, 0, 0), "no change: kept");
+    }
+
+    // Task 7: the frame's order (U and G recorded by the key callback, acted on after the list change) and one request for G + the
+    // button (Task 6 review items 1-3)
+    void FrameOrder()
+    {
+        std::printf("frame order: U / G after the list change, G + button one request, a stale key pick\n");
+        using Selection::Pick;
+        using Selection::PickAfterFrame;
+        Expect(PickAfterFrame({ 5, true }, true, 9) == Pick{ 9, true },
+            "a U pick (node 9) recorded in the frame of a list change survives: applied after the drop");
+        Expect(PickAfterFrame(PickAfterFrame({}, false, 9), true, -1) == Pick{},
+            "the old Task 6 order (U in the key callback, then the list change) lost that pick - why U waits for the frame");
+        Expect(PickAfterFrame({ 5, true }, true, -1) == Pick{}, "a list change with no U drops the key pick");
+        Expect(PickAfterFrame({ 5, false }, false, -1) == Pick{ 5, false }, "no change, no U: the clicked node stays");
+        Expect(PickAfterFrame({ 5, false }, false, 2) == Pick{ 2, true }, "U over a clicked node: the key pick replaces it");
+        Expect(PickAfterFrame({}, false, -1) == Pick{}, "nothing: nothing");
+        Expect(Selection::SetTargetRequests(true, true, true) == 1, "G and the node card's button in one frame: one request");
+        Expect(Selection::SetTargetRequests(true, false, true) == 1 && Selection::SetTargetRequests(false, true, true) == 1,
+            "G alone or the button alone: one request");
+        Expect(Selection::SetTargetRequests(true, true, false) == 0, "both, but nothing chosen: none");
+        Expect(Selection::SetTargetRequests(false, false, true) == 0, "neither: none");
+        Expect(Selection::StaleKeyPick(true, 0x100, 0x200), "a key pick made under form 100, the card now shows 200: stale (dropped in the draw)");
+        Expect(!Selection::StaleKeyPick(true, 0x100, 0x100), "the same form: the key pick holds");
+        Expect(!Selection::StaleKeyPick(false, 0x100, 0x200), "a clicked node is not a key pick: its own show request changes the form");
+        Expect(Selection::StaleKeyPick(true, 0, 0x200), "a key pick with nothing shown, then a list choice: stale");
+    }
+
+    // Task 7: the tree window's rules (TreeRules.h)
+    void TreeWindowRules()
+    {
+        std::printf("tree window: tooltip generation, legend (B1), mask clicks (L2)\n");
+        using TreeRules::Look;
+        Expect(TreeRules::TooltipValid(3, 3), "TooltipValid(3, 3): the tooltip drawn into overlay 3 is up while the overlay is 3");
+        Expect(!TreeRules::TooltipValid(3, 4), "TooltipValid(3, 4): the host removed overlay 3 - drawn again");
+        Expect(TreeRules::LookOf(false, true, true, true) == Look::kEmpty && TreeRules::LookOf(false, false, false, false) == Look::kEmpty,
+            "nothing chosen: the empty look first, whatever else holds");
+        Expect(TreeRules::LookOf(true, false, true, true) == Look::kNoTree, "no tree read: no tree");
+        Expect(TreeRules::LookOf(true, true, false, true) == Look::kNoCentre, "no centre: no centre");
+        Expect(TreeRules::LookOf(true, true, true, false) == Look::kSchoolHidden, "a school HoM hides (T17)");
+        Expect(TreeRules::LookOf(true, true, true, true) == Look::kTree, "all there: the tree");
+        for (const auto look : { Look::kEmpty, Look::kNoTree, Look::kNoCentre, Look::kSchoolHidden }) {
+            Expect(!TreeRules::LegendShown(look), Text("B1: no legend in message state %d", static_cast<int>(look)));
+        }
+        Expect(TreeRules::LegendShown(Look::kTree), "B1: the legend with a drawn tree");
+        const TreeRules::View view{ 0.0, 20.0, 244.0, 192.0 };
+        Expect(TreeRules::ClickInView(std::pair{ 10.0, 30.0 }, view), "a click inside the visible part: in");
+        Expect(TreeRules::ClickInView(std::pair{ 0.0, 20.0 }, view) && TreeRules::ClickInView(std::pair{ 244.0, 192.0 }, view), "on its edges: in");
+        Expect(!TreeRules::ClickInView(std::pair{ 10.0, 10.0 }, view), "above the visible part (scrolled off): out");
+        Expect(!TreeRules::ClickInView(std::pair{ 10.0, 30.0 }, TreeRules::View{}), "no visible part (all 0): out");
+        Expect(TreeRules::ClickInView(std::nullopt, view), "a place that could not be read: acted on, as at f83dc6f3");
+        TreeRules::MaskCount count;
+        const bool inside = TreeRules::CountClick(count, std::pair{ 10.0, 30.0 }, view);
+        const bool outside = TreeRules::CountClick(count, std::pair{ 10.0, 300.0 }, view);
+        Expect(inside && !outside && count.clicks == 2 && count.outside == 1,
+            Text("a click outside the viewport is counted, not acted on (clicks %d, outside %d)", count.clicks, count.outside));
     }
 
     void StringsTable()
@@ -463,6 +522,8 @@ int main(int a_argc, char** a_argv)
     SettingsDistIni();
     SettingsValues();
     SelectionRules();
+    FrameOrder();
+    TreeWindowRules();
     StringsTable();
     CardHeights();
     TreeLayout();

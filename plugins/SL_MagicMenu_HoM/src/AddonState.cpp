@@ -166,9 +166,29 @@ namespace HomAddon
         return g_menu.selectedByKey ? g_menu.selected : -1;
     }
 
+    int KeyPickFor(RE::FormID a_shown)
+    {
+        return Selection::StaleKeyPick(g_menu.selectedByKey, g_menu.pickShown, a_shown) ? -1 : KeyPick();
+    }
+
+    int SelectedFor(RE::FormID a_shown)
+    {
+        return Selection::StaleKeyPick(g_menu.selectedByKey, g_menu.pickShown, a_shown) ? -1 : g_menu.selected;
+    }
+
     bool Chosen(RE::FormID a_shown)
     {
-        return Selection::Chosen(a_shown, KeyPick());
+        return Selection::Chosen(a_shown, KeyPickFor(a_shown));
+    }
+
+    void SyncProgressShown()
+    {
+        const bool want = !g_session.school.empty();
+        if (g_menu.progressShown.value_or(true) != want) {
+            RequestVisible(BlockKind::kProgress, want);
+            logger::info("HoM block: the progress card {} ({})", want ? "shown again" : "hidden", want ? "a school" : "no school yet");
+        }
+        g_menu.progressShown = want;
     }
 
     TextFit::Metrics Metrics()

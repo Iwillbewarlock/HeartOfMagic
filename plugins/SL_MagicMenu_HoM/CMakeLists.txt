@@ -36,6 +36,10 @@ add_commonlibsse_plugin(${PROJECT_NAME}
         src/ProgressCard.cpp
         src/NodeCard.cpp
         src/TreeMarks.cpp
+        src/TreeDraw.cpp
+        src/TreeLabels.cpp
+        src/TreeInput.cpp
+        src/Tooltip.cpp
         src/Hom.cpp
         src/Spells.cpp
         src/TreeData.cpp

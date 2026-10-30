@@ -50,4 +50,37 @@ namespace Selection
     {
         return DropPick(a_seqSeen, a_seqNow) && !OwnRequest(a_source, a_servedRequest, a_lastRequest);
     }
+
+    /// The node the add-on's tree and node card show as picked: a clicked node, or the U key's (byKey)
+    struct Pick
+    {
+        int node = -1;
+        bool byKey = false;
+
+        constexpr bool operator==(const Pick&) const = default;
+    };
+
+    /// The pick after one step of the tree's frame: the list change first (a_drop: DropPick said so), then the U key's pick
+    /// (a_next >= 0: the node it picked; -1 = no U, or nothing to pick). f83dc6f3's frame order (WatchSelection, then DoNext,
+    /// W:8174-8185): a U pressed in the frame of a list change survives it
+    constexpr Pick PickAfterFrame(Pick a_pick, bool a_drop, int a_next)
+    {
+        if (a_drop) a_pick = {};
+        if (a_next >= 0) a_pick = { a_next, true };
+        return a_pick;
+    }
+
+    /// A key pick made while the card showed a_pickShown is stale once the card shows another form (a_shownNow): the host draws
+    /// the node card for a new form before the tree's frame drops the pick, and that draw treats it as dropped
+    constexpr bool StaleKeyPick(bool a_byKey, std::uint32_t a_pickShown, std::uint32_t a_shownNow)
+    {
+        return a_byKey && a_pickShown != a_shownNow;
+    }
+
+    /// The set-target requests of one frame: the G key and the node card's button in the same frame are one request (f83dc6f3
+    /// W:8186-8189), none when nothing is chosen (a_acts: SetTargetActs)
+    constexpr int SetTargetRequests(bool a_key, bool a_button, bool a_acts)
+    {
+        return (a_key || a_button) && a_acts ? 1 : 0;
+    }
 }

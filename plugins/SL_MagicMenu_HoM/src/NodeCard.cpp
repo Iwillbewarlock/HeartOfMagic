@@ -46,25 +46,9 @@ namespace HomAddon
         constexpr std::uint32_t kOk = 0x6CC070, kNotYet = 0xE05050;
         constexpr double kBaselineTolerance = 0.5;  // L2 node button bottom: read back this close
         constexpr int kStableFrames = 2;            // frames the node card's content must stay the same before L2 reads it back
+        constexpr int kHeightWaitFrames = 60;       // frames L2 waits for the box to take its asked height (the host's held shrink: 150 ms)
         // No check/cross characters: the game font has neither U+2713 nor U+2717 (build 3 frame f_008: a missing-glyph box at the
         // start of each requirement line); Draw::Check / Draw::Cross draw them as lines. U+00B7 "·" is in the font.
-
-        // The node card's state words; on the button a target says only that it is the target
-        Line StateLine(State a_state, float a_percent, bool a_button)
-        {
-            const auto pct = std::format("{:.0f}", a_percent);
-            switch (a_state) {
-            case State::kTarget:
-                return a_button ? Line{ Str::kNodeIsTarget, Text(Str::kNodeIsTarget) } :
-                                  Line{ Str::kNodeTargetPct, Fill(Str::kNodeTargetPct, { { "{pct}", pct } }) };
-            case State::kLearning: return { Str::kNodeLearningPct, Fill(Str::kNodeLearningPct, { { "{pct}", pct } }) };
-            case State::kAvailable: return { Str::kNodeCanLearn, Text(Str::kNodeCanLearn) };
-            case State::kReady: return { Str::kNodeReady, Text(Str::kNodeReady) };
-            case State::kMastered: return { Str::kNodeMastered, Text(Str::kNodeMastered) };
-            case State::kLocked: return { Str::kNodeLocked, Text(Str::kNodeLocked) };
-            default: return { Str::kNodeUnknown, Text(Str::kNodeUnknown) };
-            }
-        }
 
         enum class Mark
         {
@@ -213,8 +197,10 @@ namespace HomAddon
             // clicked (spec v6 L3), only on this card - selected stays -1, so the tree neither recentres nor draws a selection for
             // it and no click path (list selection, P2 card, P3 preview) runs
             // user 2026-10-30 (the board): nothing chosen - the hint line only; bug G1: a U key pick counts as chosen
+            // Task 6 review 3: a key pick made under another form is dropped here already (the host draws the card for a new form
+            // before the tree's frame drops the pick)
             const bool chosen = Chosen(a_shown);
-            int shown = Spells::Get() && chosen ? menu.selected : -1;
+            int shown = Spells::Get() && chosen ? SelectedFor(a_shown) : -1;
             const bool byDefault = shown < 0;
             if (Spells::Get() && byDefault && chosen && !session.school.empty()) {
                 const RE::FormID target = a_snapshot.Target(session.school);
@@ -263,7 +249,7 @@ namespace HomAddon
             const auto stateField = TextFit::FitLine(metrics, log, a_movie, content, "state", kStateTextX, y, w - kStateTextX, stateSize, state.text, kWhite);
             Q2State(state.id, state.text, &stateField);
             if (byDefault) Q2State("node_default_target", std::format("{} - {}", Spells::NodeName(shown), state.text));
-            if (!byDefault && menu.selectedByKey) Q2State("node_next_candidate", std::format("{} - {}", Spells::NodeName(shown), state.text));
+            if (!byDefault && KeyPickFor(a_shown) >= 0) Q2State("node_next_candidate", std::format("{} - {}", Spells::NodeName(shown), state.text));
             y += stateH + kRuleGap;
             Draw::LineStyle(content, kEdgeWidth, kPanelEdge);
             Draw::MoveTo(content, 0, y);
@@ -288,6 +274,23 @@ namespace HomAddon
         }
     }
 
+    // The node card's state words; on the button a target says only that it is the target
+    Line StateLine(State a_state, float a_percent, bool a_button)
+    {
+        const auto pct = std::format("{:.0f}", a_percent);
+        switch (a_state) {
+        case State::kTarget:
+            return a_button ? Line{ Str::kNodeIsTarget, Text(Str::kNodeIsTarget) } :
+                              Line{ Str::kNodeTargetPct, Fill(Str::kNodeTargetPct, { { "{pct}", pct } }) };
+        case State::kLearning: return { Str::kNodeLearningPct, Fill(Str::kNodeLearningPct, { { "{pct}", pct } }) };
+        case State::kAvailable: return { Str::kNodeCanLearn, Text(Str::kNodeCanLearn) };
+        case State::kReady: return { Str::kNodeReady, Text(Str::kNodeReady) };
+        case State::kMastered: return { Str::kNodeMastered, Text(Str::kNodeMastered) };
+        case State::kLocked: return { Str::kNodeLocked, Text(Str::kNodeLocked) };
+        default: return { Str::kNodeUnknown, Text(Str::kNodeUnknown) };
+        }
+    }
+
     void DrawNodeCardBlock(RE::GFxMovieView* a_movie, RE::GFxValue& a_clip, float a_width, float a_height, std::uint32_t a_shown, void*)
     {
         EnsureMenu();
@@ -304,8 +307,11 @@ namespace HomAddon
     // button rect's bottom (its _y + kButtonH, not the clip's bounds: its centred label can hang below a 28-high rect at large
     // reading sizes, build 6 review round 2 #2) and the card box's bottom minus kPad, both mapped to _root. At f83dc6f3 the
     // reference was the item card slot's bottom (the two built-in blocks ended at one bottom); the add-on cannot see the
-    // host's spell card, and its block fits its content, so the reference is its own box (HoM add-on plan Task 6). Read once
-    // the node card's content clip has stayed the same for kStableFrames frames (a fit's redraw makes a new one)
+    // host's spell card, so this part only checks the card clip's offset and the bottom anchoring in GFx (both sides come from
+    // the drawn height). Task 6 review 5: the box's height is also compared with the height the add-on asked for ('SLMH',
+    // else the registered one) - a value the draw did not make. Read once the node card's content clip has stayed the same for
+    // kStableFrames frames (a fit's redraw makes a new one) and its box has its asked height (a held shrink waits up to
+    // kHeightWaitFrames)
     void NodeCardFrame(RE::GFxMovieView* a_movie, RE::GFxValue& a_content, RE::GFxValue*, const BlockApi::Context& a_context, void*)
     {
         EnsureMenu();
@@ -317,6 +323,10 @@ namespace HomAddon
             return;
         }
         if (++menu.nodeStableFrames < kStableFrames || !menu.buttonDrawn) return;
+        const double asked = menu.heights[Index(BlockKind::kNodeCard)].Sent().value_or(RegisteredHeight(BlockKind::kNodeCard));
+        const double box = menu.nodeContentH + 2 * kCardPad;
+        const bool heightOk = std::abs(box - asked) <= kBaselineTolerance;
+        if (!heightOk && ++menu.nodeHeightWait < kHeightWaitFrames) return;  // the host holds a shrink for a while
         RE::GFxValue root;
         auto card = Child(a_content, "card");
         auto button = card.IsDisplayObject() ? Child(card, "button") : RE::GFxValue{};
@@ -330,9 +340,10 @@ namespace HomAddon
             SelfTest(std::format("L2 node button bottom FAIL - the {} could not be mapped to _root", !edge ? "button rect's bottom" : "card box's bottom"));
             return;
         }
-        SelfTest(std::format("L2 node button bottom {} - rect bottom {:.2f} in _root, want {:.2f} (the node card box's bottom - padding {:.0f}, "
-                             "tolerance {:.1f}; box {:.1f} high, registered {:.1f})",
-            std::abs(edge->second - want->second) <= kBaselineTolerance ? "PASS" : "FAIL", edge->second, want->second, kPad, kBaselineTolerance,
-            menu.nodeContentH + 2 * kCardPad, RegisteredHeight(BlockKind::kNodeCard)));
+        const bool bottomOk = std::abs(edge->second - want->second) <= kBaselineTolerance;
+        SelfTest(std::format("L2 node button bottom {} - card clip offset: rect bottom {:.2f} in _root, want {:.2f} (the drawn box's bottom - "
+                             "padding {:.0f}) {}; box height {:.1f}, asked {:.1f} (registered {:.1f}) {}; tolerance {:.1f}",
+            bottomOk && heightOk ? "PASS" : "FAIL", edge->second, want->second, kPad, bottomOk ? "ok" : "off", box, asked,
+            RegisteredHeight(BlockKind::kNodeCard), heightOk ? "ok" : std::format("off after {} frames", menu.nodeHeightWait), kBaselineTolerance));
     }
 }

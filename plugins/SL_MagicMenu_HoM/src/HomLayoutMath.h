@@ -285,6 +285,9 @@ namespace LayoutMath
 
         void Reset() { m_sent.reset(); }
 
+        /// The height last sent this menu (nullopt: none - the block is at its registered height)
+        std::optional<double> Sent() const { return m_sent; }
+
     private:
         std::optional<double> m_sent;
     };

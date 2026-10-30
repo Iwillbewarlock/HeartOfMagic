@@ -100,7 +100,7 @@ namespace HomAddon
         std::optional<std::uint32_t> tabBits;    // the tab WatchTab acted on last
         std::string tabSchool;                   // the school tab's school (empty on other tabs)
         bool layoutMode = false;                 // the last Context's (own handlers ignore events while it is on)
-        // what the node card shows: the clicked node (Task 7) or the U key's pick (selectedByKey; bug G1: it counts as chosen)
+        // what the node card shows: the clicked node or the U key's pick (selectedByKey; bug G1: it counts as chosen)
         int selected = -1;
         bool selectedByKey = false;
         bool notInTree = false;                  // the list's spell has no tree node (the tree keeps its centre)
@@ -122,6 +122,27 @@ namespace HomAddon
         std::uint32_t nodeContentGeneration = 0;  // Context::contentGeneration seen at the node card's frame
         int nodeStableFrames = 0;
         bool buttonChecked = false;
+        int nodeHeightWait = 0;        // frames the node card's box has not matched its asked height (L2, a held shrink)
+        // the U and G keys recorded by the tree's key callback, acted on in its frame after the list change (Task 6 review 1, 2)
+        bool pendingNext = false;
+        bool pendingSetTarget = false;
+        RE::FormID pickShown = 0;      // the card's form when U picked (Selection::StaleKeyPick)
+        // the tree window (Task 7): the hovered node and its tooltip, the nodes of the last draw, a node click to act on
+        int hovered = -1;                         // the node clip under the mouse (onRollOver / onRollOut record it; spec v10 T6)
+        int tooltipFor = -1;                      // the node the tooltip shows (-1: none)
+        bool tooltipDue = false;                  // the tree was drawn again: the tooltip is drawn again too
+        std::uint32_t tooltipGeneration = 0;      // Context::overlayGeneration of the overlay the tooltip was drawn into
+        std::vector<TreeData::PlacedNode> drawn;      // every node of the last tree draw
+        std::vector<TreeData::PlacedNode> clickable;  // the clickable ones
+        std::pair<double, double> treeOrigin{};   // the drawing's 0,0 in the tree box (TreeContent's centre)
+        std::pair<double, double> treeBox{};      // the tree box's size at the last draw (the content clip + pad and title strip)
+        struct NodeClick
+        {
+            int index = -1;
+            std::optional<std::pair<double, double>> rootAt;  // _root._xmouse / _ymouse at the release (nullopt: not read)
+        };
+        std::optional<NodeClick> click;           // the last node click since the frame (onRelease records it)
+        bool spacingLogged = false;               // T2 spacing PASS logged this menu
     };
 
     Session& TheSession();
@@ -129,6 +150,9 @@ namespace HomAddon
 
     /// The menu sink (any thread): a new open - EnsureMenu resets the per-menu state at the next callback; HoM's style is read again
     void OnMenuOpen();
+
+    /// The menu sink at the close: SelfTest L2 mask clicks (TreeInput.cpp)
+    void OnMenuClose();
 
     /// Resets the per-menu state when a new menu opened since the last callback. Every callback calls it first
     void EnsureMenu();
@@ -152,8 +176,20 @@ namespace HomAddon
     /// The key pick (bug G1): the node the U key picked, -1 when none
     int KeyPick();
 
-    /// The add-on has something to show for a_shown (Selection::Chosen with the key pick)
+    /// The key pick for a draw of a_shown: -1 when stale (Selection::StaleKeyPick: the card shows another form than the one the
+    /// pick was made under - the frame drops it next)
+    int KeyPickFor(RE::FormID a_shown);
+
+    /// The picked node (clicked or key-picked) for a draw of a_shown: -1 for none or a stale key pick
+    int SelectedFor(RE::FormID a_shown);
+
+    /// The add-on has something to show for a_shown (Selection::Chosen with the key pick, KeyPickFor)
     bool Chosen(RE::FormID a_shown);
+
+    /// The progress card waits for a school (the core's Visibility at f83dc6f3, W:3952): hidden by 'SLMV', its place kept, shown
+    /// again once there is one. Called from the frame and from the card's own draw (Task 6 review 4: with no school at the
+    /// menu's open the empty box showed for a frame before the frame's 'SLMV'); sends only a change
+    void SyncProgressShown();
 
     // ---- text ----
 
@@ -190,6 +226,8 @@ namespace HomAddon
     void RequestRedraw(BlockKind a_kind);
     void RequestHeight(BlockKind a_kind, double a_height);  // the block's height ('SLMH'), at most its registered one
     void RequestVisible(BlockKind a_kind, bool a_shown);    // 'SLMV'
+    /// 'SLMS' from the tree block: show a_form as a click on it would (a_nameShown false: the card hides the name)
+    void RequestShowSpell(RE::FormID a_form, std::uint32_t a_requestId, bool a_nameShown);
 
     /// A card's needed height (from its box's top) sent as 'SLMH' (LayoutMath::CardHeight, once per change)
     void FitCard(BlockKind a_kind, double a_needed);

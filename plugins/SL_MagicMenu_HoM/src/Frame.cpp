@@ -6,9 +6,12 @@
 // RequestState (W:8118-8122) and the frame handler's U / G / polling lines
 // (W:8182-8199). The tree block's frame drives it (it shows on every tab the
 // three blocks show on and is never hidden by 'SLMV'), keys come through the tree
-// block's key callback (keys go to every v3 block that has one: one is enough).
+// block's key callback (keys go to every v3 block that has one: one is enough),
+// which only records them: U and G are acted on in the frame after the list
+// change, as at f83dc6f3 (Task 7, Task 6 review 1-2). The tree window's own work
+// (its node click, hover and tooltip) is TreeInput.cpp / Tooltip.cpp.
 // What the host's frame handler did with g_menu.dirty is a 'SLMD' per block here:
-// the cards are drawn again on the next UI frame.
+// the blocks are drawn again on the next UI frame.
 // =============================================================================
 
 #include "Common.h"
@@ -20,9 +23,11 @@
 #include "HomSettings.h"
 #include "Selection.h"
 #include "SpellSchool.h"
+#include "TreeDraw.h"
 
 #include <algorithm>
 #include <format>
+#include <utility>
 
 namespace HomAddon
 {
@@ -42,7 +47,7 @@ namespace HomAddon
             auto& menu = Menu();
             menu.metrics = { a_context.rowSize > 0 ? a_context.rowSize : 0.0, a_context.lineFirst > 0 ? a_context.lineFirst : kLineFactor,
                 a_context.linePitch > 0 ? a_context.linePitch : kLineFactor };
-            for (const auto kind : { BlockKind::kProgress, BlockKind::kNodeCard }) {
+            for (const auto kind : { BlockKind::kTree, BlockKind::kProgress, BlockKind::kNodeCard }) {
                 const auto& drawn = menu.drawnWith[Index(kind)];
                 if (drawn && !SameMetrics(*drawn, menu.metrics)) menu.dirty = true;
             }
@@ -87,10 +92,11 @@ namespace HomAddon
             const bool notInTreeBefore = menu.notInTree;
             // review v11 #2: a list choice that is not our click drops the clicked node, so the focus follows the list; the U key's
             // pick goes with it (G1)
-            if (!seen || Selection::DropPick(*seen, a_context.selectionSeq, a_context.source, a_context.servedRequest, menu.lastRequest)) {
-                menu.selected = -1;
-                menu.selectedByKey = false;
-            }
+            const bool drop =
+                !seen || Selection::DropPick(*seen, a_context.selectionSeq, a_context.source, a_context.servedRequest, menu.lastRequest);
+            const auto pick = Selection::PickAfterFrame({ menu.selected, menu.selectedByKey }, drop, -1);
+            menu.selected = pick.node;
+            menu.selectedByKey = pick.byKey;
             // our own show request centres on the clicked node itself (a "_dup_" node's twin could push it out of the window);
             // any other tree spell on its non-dup node
             const int node = ours && menu.selected >= 0 && Spells::Get() && Data().gameIds[menu.selected] == id ? menu.selected : Spells::PrimaryNode(id);
@@ -134,9 +140,11 @@ namespace HomAddon
             if (here != nodes.end() && std::next(here) != nodes.end()) next = *std::next(here);
             SetCentre(next);
             // bug G1: the pick counts as chosen (Selection::Chosen) - the node card shows it and G acts on it; no 'SLMS' (the 3D
-            // and the host's card stay on the list)
-            menu.selected = next;
-            menu.selectedByKey = true;
+            // and the host's card stay on the list). Made after this frame's list change (WatchSelection), under its form
+            const auto pick = Selection::PickAfterFrame({ menu.selected, menu.selectedByKey }, false, next);
+            menu.selected = pick.node;
+            menu.selectedByKey = pick.byKey;
+            menu.pickShown = menu.shown;
             menu.notInTree = false;  // the tree shows the next candidate: no longer dimmed (review v7 round 1)
             menu.dirty = true;
             logger::info("HoM block: next learnable in {} ({} of them): {} {:08X}", session.school, nodes.size(), Spells::NodeName(next),
@@ -159,15 +167,18 @@ namespace HomAddon
             Hom::RequestTarget(Data().gameIds[menu.selected], node.school, Spells::NodeName(menu.selected));
         }
 
-        // review I8: nothing chosen - nothing on the node card to act on (G1: a key pick is chosen)
-        void SetTargetIfChosen(const char* a_source)
+        // review I8: nothing chosen - nothing on the node card to act on (G1: a key pick is chosen). Task 6 review 1: the G key and
+        // the node card's button in one frame are one request (f83dc6f3 W:8186-8189)
+        void SetTargetIfChosen(bool a_key, bool a_button, const Spells::Snapshot& a_snapshot)
         {
+            if (!a_key && !a_button) return;
             const auto& menu = Menu();
-            if (!Selection::SetTargetActs(menu.shown, KeyPick())) {
-                logger::info("HoM block: set target ({}) - nothing chosen", a_source);
+            const char* source = a_key && a_button ? "the key and the node card's button" : a_key ? "the key" : "the node card's button";
+            if (Selection::SetTargetRequests(a_key, a_button, Selection::SetTargetActs(menu.shown, KeyPick())) == 0) {
+                logger::info("HoM block: set target ({}) - nothing chosen", source);
                 return;
             }
-            DoSetTarget(*Spells::Current());
+            DoSetTarget(a_snapshot);
         }
 
         // Once per menu open and school: how many nodes are available now (the tree-side availability rule)
@@ -214,19 +225,6 @@ namespace HomAddon
             Menu().refresh = false;
         }
 
-        // The progress card waits for a school (the core's Visibility at f83dc6f3, W:3952): hidden by 'SLMV', its place kept.
-        // Every menu opens with it shown
-        void WatchProgressShown()
-        {
-            auto& menu = Menu();
-            const bool want = !TheSession().school.empty();
-            if (menu.progressShown.value_or(true) != want) {
-                RequestVisible(BlockKind::kProgress, want);
-                logger::info("HoM block: the progress card {} ({})", want ? "shown again" : "hidden", want ? "a school" : "no school yet");
-            }
-            menu.progressShown = want;
-        }
-
         void SendRedraws()
         {
             auto& menu = Menu();
@@ -236,8 +234,12 @@ namespace HomAddon
         }
     }
 
-    // The tree block's frame: the per-frame work of all three blocks (once per UI frame - only this block has a frame that does it)
-    void TreeFrame(RE::GFxMovieView*, RE::GFxValue&, RE::GFxValue*, const BlockApi::Context& a_context, void*)
+    // The tree block's frame: the per-frame work of all three blocks (once per UI frame - only this block has a frame that does it).
+    // The order: the tab, the list selection, the tree click, U, G and the button (one request), the polling, the hover and the
+    // tooltip. f83dc6f3 took the click before the list selection, so its own list change was seen in the same frame; that change
+    // now comes a frame later through the host's 'SLMS' (OwnRequest keeps the pick), and a click after a player's list change of
+    // the same frame is the newer act (Task 7)
+    void TreeFrame(RE::GFxMovieView* a_movie, RE::GFxValue& a_content, RE::GFxValue* a_overlay, const BlockApi::Context& a_context, void*)
     {
         EnsureMenu();
         auto& menu = Menu();
@@ -255,7 +257,11 @@ namespace HomAddon
         WatchTab(a_context, *snapshot);
         WatchSelection(a_context, *snapshot);
         menu.firstFrame = false;
-        if (TakeButton()) SetTargetIfChosen("the node card's button");
+        TakeNodeClick(a_movie, a_content, a_context, *snapshot);
+        if (std::exchange(menu.pendingNext, false)) DoNext(*snapshot);
+        const bool key = std::exchange(menu.pendingSetTarget, false);
+        const bool button = TakeButton();
+        SetTargetIfChosen(key, button, *snapshot);
         if (++menu.frame % kPollFrames == 0) menu.refresh = true;
         if (menu.refresh) RequestState();
         if (snapshot->epoch != menu.epoch) {
@@ -265,30 +271,27 @@ namespace HomAddon
             LogAvailability(*snapshot);
         }
         WatchSnapshotCover(*snapshot);
-        WatchProgressShown();
+        SyncProgressShown();
+        DropStaleHover(a_movie, a_content);  // review v11 #10
+        RedrawTooltip(a_movie, a_overlay, a_context, *snapshot);  // the hover changes no tree: outside the dirty gate (spec v10 T6)
         SendRedraws();
     }
 
     // U and G (the core's Input.cpp at f83dc6f3 queued them for the frame handler; the host hands us the key on the frame, before
-    // the frame calls, never in the layout mode or while a text field takes keys)
+    // the frame calls, never in the layout mode or while a text field takes keys): recorded only, the frame acts on them after
+    // the list change (Task 6 review 2)
     bool TreeKey(std::uint32_t a_scanCode, void*)
     {
         EnsureMenu();
         const auto& settings = HomSettings::Get();
         if (a_scanCode == settings.keyNext) {
-            DoNext(*Spells::Current());  // its redraws go out from this frame's frame call (on a tab with the blocks)
+            Menu().pendingNext = true;
             return true;
         }
         if (a_scanCode == settings.keySetTarget) {
-            SetTargetIfChosen("the key");
+            Menu().pendingSetTarget = true;
             return true;
         }
         return false;
-    }
-
-    // Task 7 draws the tree window here; until then the block keeps its place and its title strip
-    void DrawTreeBlock(RE::GFxMovieView*, RE::GFxValue&, float, float, std::uint32_t, void*)
-    {
-        EnsureMenu();
     }
 }
