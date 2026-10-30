@@ -42,6 +42,8 @@ namespace Librarian::SpellResearchPatch
         constexpr const char* RULES_FILE = "compat/spellresearch.json";
         constexpr const char* REPORT_FILE = "spell_research_report.json";
         constexpr const char* CONFIG_SECTION = "spellResearch";
+        // SendModEvent("SR_ImportFinished"): an SR build that imports with no message box says it is done
+        constexpr std::string_view IMPORT_FINISHED_EVENT = "SR_ImportFinished";
 
         bool g_installed = false;
         SR::Lists g_lists;
@@ -451,6 +453,17 @@ namespace Librarian::SpellResearchPatch
             }
         }
 
+        // A possible end of an Import, checked on the game thread. Safe to repeat: Reconcile does nothing
+        // while the tier lists hold what the last run left (g_lastSeen); the same pairs make no new generation.
+        void QueueImportCheck(const char* reason)
+        {
+            // The tome pairs first: an Import that ends with the same entry count still re-paired
+            AddTaskToGameThread("SpellResearchImport", [reason] {
+                SpellTomes::Rebuild(SpellTomes::kReasonImport);
+                SafeReconcile(reason);
+            });
+        }
+
         // SR shows "All Spells Imported" in a message box when an Import ends.
         // Any message box opening or closing is checked; the tier lists' size
         // tells. On opening: the Import's globals are set before SR asks for the
@@ -467,13 +480,7 @@ namespace Librarian::SpellResearchPatch
             RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent* event,
                 RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
             {
-                if (event && event->menuName == RE::MessageBoxMenu::MENU_NAME) {
-                    // The tome pairs first: an Import that ends with the same entry count still re-paired
-                    AddTaskToGameThread("SpellResearchImport", [] {
-                        SpellTomes::Rebuild(SpellTomes::kReasonImport);
-                        SafeReconcile("import");
-                    });
-                }
+                if (event && event->menuName == RE::MessageBoxMenu::MENU_NAME) QueueImportCheck("import");
                 return RE::BSEventNotifyControl::kContinue;
             }
 
@@ -482,6 +489,34 @@ namespace Librarian::SpellResearchPatch
 
         private:
             MenuSink() = default;
+        };
+
+        // The same check without a message box: SR's Papyrus sends IMPORT_FINISHED_EVENT once its globals
+        // are set. Every mod's events come through here (Papyrus thread); others return at the name, read
+        // case-blind as Papyrus pools its strings.
+        class ModEventSink final : public RE::BSTEventSink<SKSE::ModCallbackEvent>
+        {
+        public:
+            static ModEventSink* GetSingleton()
+            {
+                static ModEventSink singleton;
+                return &singleton;
+            }
+
+            RE::BSEventNotifyControl ProcessEvent(const SKSE::ModCallbackEvent* event,
+                RE::BSTEventSource<SKSE::ModCallbackEvent>*) override
+            {
+                if (event && AsciiText::EqualsIgnoreCase(event->eventName.c_str(), IMPORT_FINISHED_EVENT)) {
+                    QueueImportCheck("import event");
+                }
+                return RE::BSEventNotifyControl::kContinue;
+            }
+
+            ModEventSink(const ModEventSink&) = delete;
+            ModEventSink& operator=(const ModEventSink&) = delete;
+
+        private:
+            ModEventSink() = default;
         };
     }
 
@@ -504,9 +539,15 @@ namespace Librarian::SpellResearchPatch
         }
 
         RE::UI::GetSingleton()->AddEventSink<RE::MenuOpenCloseEvent>(MenuSink::GetSingleton());
+        if (auto* modEvents = SKSE::GetModCallbackEventSource()) {
+            modEvents->AddEventSink(ModEventSink::GetSingleton());
+        } else {
+            logger::warn("SpellResearch: no SKSE mod event source - '{}' is not heard, only SR's message box",
+                IMPORT_FINISHED_EVENT);
+        }
         g_installed = true;
-        logger::info("SpellResearch: {} found - catalog spells are registered when its Import finishes and at save load",
-            SR_PLUGIN);
+        logger::info("SpellResearch: {} found - catalog spells are registered when its Import finishes (message box "
+                     "or mod event '{}') and at save load", SR_PLUGIN, IMPORT_FINISHED_EVENT);
     }
 
     void OnGameLoaded()

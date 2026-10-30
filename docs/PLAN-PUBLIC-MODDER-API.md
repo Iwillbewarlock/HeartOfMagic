@@ -376,6 +376,7 @@ string Function GetLearningMode() global native
 Function SetLearningTarget(Spell akSpell) global native
 Function SetLearningTargetForSchool(string schoolName, Spell akSpell) global native
 Function ClearLearningTarget(string schoolName) global native
+Function ClearLearningTargetForSpell(Spell akSpell) global native
 Function ClearAllLearningTargets() global native
 ```
 
@@ -384,6 +385,16 @@ panel's tree shows it (the costliest effect's only when the first has none). `Se
 picks that school itself; `SetLearningTargetForSchool` should be given it too, since a spell is the target
 of one school at most (setting it under another school moves it there). `ClearLearningTarget(schoolName)`
 also clears that spell under any other school.
+
+`ClearLearningTargetForSpell(akSpell)` (2026-10-31) clears every school whose target is that spell, in either
+learning mode (`ProgressionManager::ClearLearningTargetForSpell`, the one mastery and unlock use). Like the other
+setters and clears it posts its work to the game thread's task queue, so calls keep their order, and returns at
+once. Like any target clear it takes back the weakened copy an early grant gave
+(`SpellEffectivenessHook::RemoveEarlySpellFromPlayer`, the same form as the full spell). A script that then gives
+the full spell must wait until `GetAllLearningTargets()` no longer holds it before `AddSpell`: an `AddSpell` made
+earlier finds the spell already known, and the queued clear then removes it. To let the player keep the spell at
+full power, skip the clear and add XP up to `GetSpellRequiredXP`: mastery (`MarkMastered`) drops the weakening,
+keeps the spell and clears the target.
 
 ### Settings Queries (read-only)
 

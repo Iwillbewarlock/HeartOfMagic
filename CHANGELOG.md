@@ -42,6 +42,19 @@
   reading) do not happen for these tomes. Other mods that clear the flag the same way are covered too. Not yet
   tested in game.
 
+- **Spell Research builds that import without a message box are heard.** Heart of Magic adds your mods' spells to
+  Spell Research's lists when its Import finishes, which it noticed only by the "All Spells Imported" message box.
+  A Spell Research build that imports quietly can now say so instead: Papyrus `SendModEvent("SR_ImportFinished")`
+  once `_SR_GlobalImporting` is 0 and `_SR_GlobalIsSetup` is 1 runs the same check as the box. The box still works
+  for Spell Research versions that show it, and the check runs once however many of the two arrive. Not yet tested
+  in game.
+
+- Modders: Papyrus `SpellLearning.ClearLearningTargetForSpell(Spell akSpell)` stops learning one spell, whichever
+  school holds it, in order with `SetLearningTarget` and the other clears. Like any target clear it takes back the
+  weakened copy an early grant gave, after the call returns: wait until `GetAllLearningTargets()` no longer holds the
+  spell before `AddSpell` (or give XP up to its required XP instead, which keeps the spell at full power and clears
+  the target).
+
 ### Changed
 
 - **The main mod ships one design, Skald, now the default; the other five are add-ons.** Classic, Modern Dark,

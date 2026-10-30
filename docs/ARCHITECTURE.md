@@ -298,7 +298,8 @@ sink's `IsPairedTome`). TomeReachRecords.cpp's raw BOOK DATA read is not one: it
 - When: kDataLoaded (before the tome reach pass), kPostLoadGame (before the Spell Research registrations),
   before every scan (a panel full scan rebuilds on the game thread before it waits for the tome reach pass, so a
   new generation restarts the pass that scan then waits for), and after every message box while Spell Research is
-  loaded (its Import ends with one; the rebuild runs before Reconcile's "same entry count" return). The JSON is
+  loaded (its Import ends with one; the rebuild runs before Reconcile's "same entry count" return) or its
+  `SR_ImportFinished` mod event (a build that imports without the box). The JSON is
   read once a session (at most 64 MB).
 - The snapshot (book -> spell) is swapped through a `std::atomic<std::shared_ptr>` on the game thread and read
   from any thread. A rebuild with the same pairs changes nothing; different pairs get a new generation, which
@@ -417,8 +418,9 @@ Spell Research registrations below; it indexes the effect users only when a keyw
 
 **Spell Research (2026-10-03).** The catalog's third consumer, active only with `SpellResearch.esp` loaded:
 `Librarian::SpellResearchPatch` (`LibrarianSpellResearchPatch.cpp`) registers catalog spells in Spell Research's
-archetype FormLists when its Import ends (a `MessageBoxMenu` closing while `_SR_GlobalIsSetup` is 1 and the tier
-lists changed, run as an SKSE task), at `kPostLoadGame` and after a full scan (`OnCatalogChanged`, beside the perk
+archetype FormLists when its Import ends (a `MessageBoxMenu` opening or closing, or the SKSE mod event
+`SR_ImportFinished` sent from Papyrus by a build without that box, while `_SR_GlobalIsSetup` is 1 and the tier
+lists changed, run as an SKSE task; a second signal finds the lists unchanged and does nothing), at `kPostLoadGame` and after a full scan (`OnCatalogChanged`, beside the perk
 adapters). Only spells a tome teaches (`SpellScanner::TomesBySpell`), and as in the tree not voice slot spells or
 another plugin's copy (`SpellScanner::DuplicateGroupOf`: the kept record only, none of a group SR already holds a
 member of); tomeUnreachable spells are registered (SR's research is a way to them). Spells already in an SR tier
@@ -1461,6 +1463,7 @@ SpellLearning.GetLearningMode()                        ; "perSchool" or "single"
 SpellLearning.SetLearningTarget(spell)                 ; Auto-determines school
 SpellLearning.SetLearningTargetForSchool(school, spell)
 SpellLearning.ClearLearningTarget(school)
+SpellLearning.ClearLearningTargetForSpell(spell)       ; Every school holding it; takes back an early copy
 SpellLearning.ClearAllLearningTargets()
 
 ; Settings Queries
@@ -2668,7 +2671,7 @@ patch").
 
 #### Modder API (Papyrus + C++)
 - **`SpellLearningAPI.h`** — Public C++ header for SKSE plugins (messaging + full interface)
-- **`SpellLearning.psc`** — Papyrus API with 26 native functions
+- **`SpellLearning.psc`** — Papyrus API with 30 native functions
 - **`RegisterXPSource()`** — Creates UI controls (enable toggle, multiplier slider, cap slider)
 - **`AddSourcedXP()`** — Grants XP through cap system with named source
 - **`AddRawXP()`** — Bypasses all caps/multipliers

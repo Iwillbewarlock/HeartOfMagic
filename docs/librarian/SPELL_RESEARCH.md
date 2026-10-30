@@ -65,6 +65,11 @@
      지난번 맞춤 뒤로 바뀌었으면(= 방금 Import 가 끝남). 다른 메시지 상자에는 목록 크기가 그대로라 돌지 않는다.
      `_SR_ImportMain` 은 두 전역을 바꾼 **다음** "All Spells Imported" 상자를 부르므로, 열릴 때 이미 조건이 맞는다
      (2026-10-04: 처음에는 닫힐 때만 돌아서, 상자를 읽는 동안에는 아직 들어가지 않았다).
+     같은 맞춤을 SKSE 모드 이벤트 `SR_ImportFinished` 로도 부른다(2026-10-31): 상자 없이 조용히 Import 하는 SR 빌드
+     (Spell Research - Prisma UI 의 자동 Import)는 두 전역을 바꾼 **다음** Papyrus `SendModEvent("SR_ImportFinished")` 를
+     보낸다. 이벤트 이름은 대소문자를 가리지 않고 비교하고, 일은 상자 때와 같이 게임 스레드 작업으로 돈다(마법책 짝
+     다시 읽기 → 맞춤). 상자와 이벤트가 둘 다 와도 두 번째는 등급 목록 크기가 지난 맞춤 그대로라 아무것도 안 한다
+     (중복 등록·중복 알림 없음).
   2. 세이브를 불러온 뒤(`kPostLoadGame`) `IsSetup == 1` 이면. HoM 을 나중에 설치한 세이브, 메시지 상자를 다른
      모드가 숨긴 경우를 여기서 잡는다. 로드 때 도는 SR 스크립트는 목록을 건드리지 않는다: Fixes 1.4.3 의
      `_SR_AliasPlayerScript.OnPlayerLoadGame` 은 `Maintenance()`(애니메이션 3개 로드)만 부른다(소스 확인).
@@ -195,7 +200,8 @@ SR 의 메시지 상자와 메뉴를 PrismaUI 창으로 바꾸는 모드. `_SR_Q
 (2026-10-03 설치본 소스로 확인).
 
 - **Import 감지는 그대로 된다**: `_SR_ImportMain` 은 덮어쓰지 않아 "All Spells Imported" 는 원래 메시지 상자다
-  (3절 시점 1). 이 상자를 나중에 `SRPrismaUI.ShowNotice` 로 바꾸면 시점 1 이 사라지고 2·3 만 남는다.
+  (3절 시점 1). 상자 없이 조용히 Import 하는 빌드는 끝에서 `SendModEvent("SR_ImportFinished")` 를 보내면 시점 1 이
+  그대로 돈다(2026-10-31). 상자도 이벤트도 없으면 2·3 만 남는다.
 - **실제 조합은 우리 등록을 본다**: 덮어쓴 조합 스크립트도 목록을 Papyrus `HasForm`/`GetAt` 으로 그 자리에서 읽는다.
 - **확인 안 됨 — 조합 창의 미리보기**: 후보 수와 reach 는 DLL 의 `BuildComposeCache` 가 따로 센다(소스 없음). 세이브 쪽
   등록(`scriptAddedTempForms`)을 읽는지, 언제 다시 만드는지 모른다. 못 읽거나 맞춤 전에 만든 캐시라면 창의 숫자에는
