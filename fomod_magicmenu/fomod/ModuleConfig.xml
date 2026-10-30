@@ -2,7 +2,7 @@
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
 
-    <moduleName>SL Magic Menu</moduleName>
+    <moduleName>Magic Menu Note</moduleName>
 
     <!-- ================================================================== -->
     <!-- REQUIRED FILES - the magic menu itself, always installed            -->
