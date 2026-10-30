@@ -179,14 +179,14 @@ namespace
             const auto choice = ChooseCode(a_setting, a_game, a_text);
             return choice.code == a_code && choice.source == a_source && choice.signal == a_signal;
         };
-        const std::string alteration = "ë³ì±";  // "변성" (U+BCC0 U+C131) in UTF-8
-        Expect(HasHangul(alteration) && HasHangul("Alteration, " + alteration) && HasHangul("ã±") && HasHangul("á"),
+        const std::string alteration = "\xEB\xB3\x80\xEC\x84\xB1";  // "변성" (U+BCC0 U+C131) in UTF-8
+        Expect(HasHangul(alteration) && HasHangul("Alteration, " + alteration) && HasHangul("\xE3\x84\xB1") && HasHangul("\xE1\x84\x80"),
             "HasHangul: syllables, mixed with English, a compatibility jamo, a jamo");
-        Expect(!HasHangul("Alteration") && !HasHangul("") && !HasHangul("å¤") && !HasHangul("ã"),
+        Expect(!HasHangul("Alteration") && !HasHangul("") && !HasHangul("\xE5\xA4\x89") && !HasHangul("\xE3\x81\x82"),
             "HasHangul: English, empty, Han only (变), kana only - no");
-        Expect(!HasHangul("º¯¼º") && !HasHangul("ë³") && !HasHangul("Á") && !HasHangul("í ") && !HasHangul("ÿë"),
+        Expect(!HasHangul("\xBA\xAF\xBC\xBA") && !HasHangul("\xEB\xB3") && !HasHangul("\xC1\x81") && !HasHangul("\xED\xA0\x80") && !HasHangul("\xFF\xEB"),
             "HasHangul: CP949 bytes, a cut sequence, an overlong one, a surrogate, a bad lead - no, and no crash");
-        Expect(HasHangul("º¯" + alteration), "HasHangul: Hangul after invalid bytes is still found");
+        Expect(HasHangul("\xBA\xAF" + alteration), "HasHangul: Hangul after invalid bytes is still found");
         Expect(auto3("auto", "ENGLISH", alteration, "ko", CodeSource::kGame, AutoSignal::kGameText) &&
                    auto3("", "ENGLISH", "Alteration, " + alteration, "ko", CodeSource::kGame, AutoSignal::kGameText),
             "auto + ENGLISH + Korean game text -> ko (the Korean patch on an English game)");
