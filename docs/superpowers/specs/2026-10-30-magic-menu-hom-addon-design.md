@@ -1,5 +1,8 @@
 # Magic menu without Heart of Magic: the HoM add-on block (design draft, 2026-10-30)
 
+Implemented 2026-10-30 (plan docs/superpowers/plans/2026-10-30-magic-menu-hom-addon.md). The contract as built is the
+header comment of `plugins/SL_MagicMenu/src/BlockApi.h`; where it differs from the draft below, "As implemented" says how.
+
 User (2026-10-28/29/30): "Homl에 대한 종속성은 없애도록하자. Hom에서 추가해주던 창들은 hom이 직접 에드온으로 추가하는 방향으로",
 FOMOD picks the add-on blocks (HoML block now, the Spell Research block later), "마법메뉴랑 homl 에드온을 먼저 넥서스에".
 Map of the coupling at f83dc6f3: session notes (explorer report), older map `Desktop/Claude outputs/magic-menu-no-hom-brief.md`.
@@ -131,6 +134,32 @@ The 3D preview and our spell card keep following the list selection only (no Sho
 New `fomod_magicmenu/` (ModuleConfig.xml + info.xml): step 1 core (required), step 2 "add-on blocks" (checkbox group):
 Heart of Magic Librarian block (default on when SpellLearning.dll is present), place kept for the Spell Research block.
 `Distribution.cmake`: a second assembly `dist/SL_MagicMenu_<VERSION>/` + zip. The HoM `fomod/ModuleConfig.xml` is not touched.
+
+As built (Task 9): the core is the FOMOD's `requiredInstallFiles` (`00 Core`), not a step; one step "Add-on blocks"
+(SelectAny) with "Heart of Magic Librarian block" (`10 Heart of Magic Block`; Recommended when
+`SKSE\Plugins\SpellLearning.dll` is active, else Optional) and a comment where the Spell Research block goes. The magic
+menu has its own version, `MAGIC_MENU_VERSION` (1.0.0, top-level CMakeLists.txt), for the three magic-menu DLLs, the
+FOMOD's info.xml and the zip names; target `assemble_magicmenu_dist` makes `dist/SL_MagicMenu_<version>/` and its zip
+(with LICENSE, its own THIRD-PARTY-NOTICES.md from `fomod_magicmenu/THIRD-PARTY-NOTICES.md.in`, licenses/) and
+`SL_MagicMenu_<version>_DebugSymbols.zip` (the two DLLs' .pdb).
+
+## As implemented (2026-10-30)
+
+Contract changes made during the implementation (each in BlockApi.h's header comment, checked by
+`magic-menu-block-api-check`):
+
+- `key` goes only to the v3 blocks shown in the frame it is delivered in (a place on this tab, not hidden by 'SLMV'),
+  right before that block's `frame` call; a key pressed while a block is not shown is gone for it, not kept for later.
+- 'SLMS': at most one request is served per frame - the newest sent, by any block; the others of that frame are dropped
+  (one log line). It is also dropped while the layout mode is on, and when the list selection changed after it was queued.
+- `frame` gets no overlay (null) in the layout mode: the mode's covers must stay on top.
+- 'SLMV' is taken at the start of the frame and again after that frame's draws, before its `frame` calls, so a block can
+  hide itself from its first draw.
+- The saved layout keeps the retired ids (`tree`, `progress`, `nodecard`) on disk: the host maps them to the add-on's ids
+  when it reads a layout and back when it writes one, so an older SL_MagicMenu still reads the file.
+- Context has no `moved` field: `overlayGeneration` (bumped when the host clears the overlay) and `contentGeneration`
+  (bumped when the block is drawn into a new content clip) tell the add-on its clips changed; `ownMouse` and
+  `keepWhenEmpty` are the flags `kFlagOwnMouse` and `kFlagKeepWhenEmpty`.
 
 ## Open questions
 

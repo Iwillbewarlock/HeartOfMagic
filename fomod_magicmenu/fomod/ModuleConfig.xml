@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
+
+    <moduleName>SL Magic Menu</moduleName>
+
+    <!-- ================================================================== -->
+    <!-- REQUIRED FILES - the magic menu itself, always installed            -->
+    <!-- ================================================================== -->
+    <requiredInstallFiles>
+        <folder source="00 Core" destination="" priority="0"/>
+    </requiredInstallFiles>
+
+    <!-- ================================================================== -->
+    <!-- INSTALL STEPS - the add-on blocks                                   -->
+    <!-- ================================================================== -->
+    <installSteps order="Explicit">
+        <installStep name="Add-on blocks">
+            <optionalFileGroups order="Explicit">
+                <group name="Add-on blocks" type="SelectAny">
+                    <plugins order="Explicit">
+                        <plugin name="Heart of Magic Librarian block">
+                            <description>
+Adds Heart of Magic Librarian's windows to the magic menu: the spell tree, the learning progress card and the node card.
+
+Needs Heart of Magic Librarian. Without it, this block shows nothing in the menu.
+                            </description>
+                            <files>
+                                <folder source="10 Heart of Magic Block" destination="" priority="0"/>
+                            </files>
+                            <typeDescriptor>
+                                <dependencyType>
+                                    <defaultType name="Optional"/>
+                                    <patterns>
+                                        <pattern>
+                                            <dependencies operator="And">
+                                                <fileDependency file="SKSE\Plugins\SpellLearning.dll" state="Active"/>
+                                            </dependencies>
+                                            <type name="Recommended"/>
+                                        </pattern>
+                                    </patterns>
+                                </dependencyType>
+                            </typeDescriptor>
+                        </plugin>
+                        <!-- The Spell Research block (plugins/SL_MagicMenu_SpellResearch) goes here as a
+                             second option in a later release: folder "20 Spell Research Block", Recommended
+                             when Spell Research is installed. -->
+                    </plugins>
+                </group>
+            </optionalFileGroups>
+        </installStep>
+    </installSteps>
+</config>

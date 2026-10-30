@@ -10,7 +10,7 @@
 
 project(
     SL_MagicMenu_SpellResearch
-    VERSION ${PROJECT_VERSION}
+    VERSION ${MAGIC_MENU_VERSION}
     DESCRIPTION "Heart of Magic - Spell Research block for the magic menu"
     LANGUAGES CXX
 )
@@ -24,7 +24,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     AUTHOR "HeartOfMagic"
     USE_ADDRESS_LIBRARY
     MINIMUM_SKSE_VERSION "2.0.12"
-    VERSION ${PROJECT_VERSION}
+    VERSION ${MAGIC_MENU_VERSION}
     SOURCES
         src/Main.cpp
         src/Settings.cpp

@@ -135,7 +135,7 @@ When launching sub-agents via the Task tool, choose the correct `subagent_type` 
 
 **ALWAYS use `BuildRelease.ps1`**—never run cmake directly. The script handles VS dev shell setup, configuration, and output paths.
 
-The build also assembles the release: `dist/HeartOfMagic-Librarian_<VERSION>/` and its `.zip` (FOMOD, DLLs, Papyrus, runtime data, the PrismaUI views, `LICENSE`), and the DLLs' debug symbols apart in `dist/HeartOfMagic-Librarian_<VERSION>_DebugSymbols.zip` (`SKSE/Plugins/*.pdb`, an optional file on Nexus for crash logs, and `SKSE/Plugins/SpellLearning/debug.json` from `debug/`: with it the panel's full scan also writes `spell_scan_output.json`; `DeployDev.ps1` puts the same file in the dev install). The panel's development files stay out of it - the dev harness, `run-tests.js`, `test-runner.html`, `test-data/` and `modules/*Test.js` (`plugins/cmake/Distribution.cmake`; a new test module is picked up at the next configure).
+The build also assembles the release: `dist/HeartOfMagic-Librarian_<VERSION>/` and its `.zip` (FOMOD, DLLs, Papyrus, runtime data, the PrismaUI views, `LICENSE`), and the DLLs' debug symbols apart in `dist/HeartOfMagic-Librarian_<VERSION>_DebugSymbols.zip` (`SKSE/Plugins/*.pdb`, an optional file on Nexus for crash logs, and `SKSE/Plugins/SpellLearning/debug.json` from `debug/`: with it the panel's full scan also writes `spell_scan_output.json`; `DeployDev.ps1` puts the same file in the dev install). The panel's development files stay out of it - the dev harness, `run-tests.js`, `test-runner.html`, `test-data/` and `modules/*Test.js` (`plugins/cmake/Distribution.cmake`; a new test module is picked up at the next configure). The magic menu ships apart with its own version (`MAGIC_MENU_VERSION` in the top-level CMakeLists.txt): `dist/SL_MagicMenu_<VERSION>/` and its `.zip`, the FOMOD of `fomod_magicmenu/` (`00 Core` with `SL_MagicMenu.dll` and its ini files, the `10 Heart of Magic Block` option with `SL_MagicMenu_HoM.dll`, `LICENSE`, `THIRD-PARTY-NOTICES.md`, `licenses/`), and its debug symbols in `dist/SL_MagicMenu_<VERSION>_DebugSymbols.zip` (target `assemble_magicmenu_dist`; the Spell Research block is not in it yet).
 
 License files in the release: the project's own code is MIT (`LICENSE` at the zip root), but the DLLs statically
 link CommonLibSSE-NG (GPL-3.0-or-later with the Modding and Linking Exceptions), so they ship as a GPL combined
@@ -344,11 +344,18 @@ This project does not have a C++ test framework. Validation is done through:
   progress (SLPR v1-v3, written as v2), cap tracker (SLPX) and tome XP (SLTX) records, `include/ProgressionCoSave.h`,
   written and read in byte buffers - cut short, over the limits, SLPX without an SLPR entry - and the XP cap, study, SetSpellXP and mastery arithmetic of `include/ProgressionMath.h`;
   exit 1 on a failure); the magic menu prototype's (plugins/SL_MagicMenu, docs/superpowers/specs/2026-10-26-magic-menu-blocks-design.md):
-  `magic-menu-tree-check` (`--selftest`, or a spell_tree.json), `magic-menu-layout-check` (the block layout, the add-on registry),
-  `magic-menu-homstyle-check` (`--selftest`, or HoM's config), `magic-menu-preview-check` (the preview math) and
-  `magic-menu-block-api-check` (Block API v2: registration parsing of v1 and v2 bytes, the tabs mask per SkyUI tab, the
-  press / release cancel rules of `BlockRules.h`, the 'SLMD' ids and the 'SLMH' height requests - reading, judging against
-  the registered height, the layout mode's height, the per-id queue; `--selftest` the same) and the Spell Research add-on block's
+  `magic-menu-layout-check` (the block layout, the add-on registry, and the core alone: the default layout with no add-on,
+  the retired ids skipped), `magic-menu-preview-check` (the preview math) and
+  `magic-menu-block-api-check` (Block API v3: registration parsing of v1, v2 and v3 bytes - cut short, version 4 refused,
+  v3's flags, pad and legacy ids -, the tabs mask per SkyUI tab, the press / release cancel rules of `BlockRules.h`, the
+  'SLMD' ids, the 'SLMH' height requests - reading, judging against the registered height, the layout mode's height, the
+  per-id queue -, the 'SLMS' / 'SLMV' messages and their queues, the key queue, the v3 content box, visible part and
+  overlay clears; `--selftest` the same); the Heart of Magic add-on block's (plugins/SL_MagicMenu_HoM,
+  docs/superpowers/specs/2026-10-30-magic-menu-hom-addon-design.md), which build from plugins/SL_MagicMenu_HoM:
+  `magic-menu-tree-check` (`--selftest`, or a spell_tree.json), `magic-menu-homstyle-check` (`--selftest`, or HoM's
+  config) and `magic-menu-hom-block-check` (the block's keys read from SL_MagicMenu.ini - the shipped one and made-up
+  ones -, the registered heights, the pick rules, the strings, the cards' height requests and the tree window / progress
+  card / node card arithmetic; `--selftest` the same); and the Spell Research add-on block's
   (plugins/SL_MagicMenu_SpellResearch, docs/superpowers/specs/2026-10-27-spell-research-addon-design.md)
   `magic-menu-sr-block-check` (`SrBlockRules.h`: archetype grouping and order, what the block shows per state, the list and
   line layouts and their wrapping, the unknown archetype's frame-only icon, the icon data's bounds, the link click rule,

@@ -1,0 +1,46 @@
+# Third-party notices - SL Magic Menu @MAGIC_MENU_VERSION@
+
+## Licenses
+
+- **The plugin DLLs are a GPL-3.0-or-later combined work.** `00 Core/SKSE/Plugins/SL_MagicMenu.dll` and
+  `10 Heart of Magic Block/SKSE/Plugins/SL_MagicMenu_HoM.dll` statically link **CommonLibSSE-NG 10.0.0**, which is
+  licensed GPL-3.0-or-later with the **Modding Exception** and the **GPL-3.0 Linking Exception**. The DLLs are
+  distributed under those terms: `licenses/CommonLibSSE-NG/COPYING.txt` (GNU GPL version 3) and
+  `licenses/CommonLibSSE-NG/EXCEPTIONS.md` (the two exceptions).
+- **The magic menu's own source files are MIT** (`LICENSE` next to this file): the C++ in the repository's
+  `plugins/SL_MagicMenu/` and `plugins/SL_MagicMenu_HoM/` (and the headers they share from `plugins/`) and the ini
+  files. MIT is compatible with the GPL; files you take from this project on their own stay MIT.
+
+## Credits
+
+- The 3D preview's placement (`plugins/SL_MagicMenu/src/Preview.cpp`) follows the method of Inventory Reforged's
+  item view (PlacePreview / FitPreview). Its code was read for the method only; no code was taken from it.
+- `00 Core/MCM/Settings/InventoryReforged.ini` is a settings file for Inventory Reforged (it turns Inventory
+  Reforged's own magic menu panel off). It holds no Inventory Reforged code.
+
+## Corresponding Source
+
+The complete Corresponding Source for the DLLs is public at
+<https://github.com/Iwillbewarlock/HeartOfMagic>, tag `magic-menu-v@MAGIC_MENU_VERSION@` (the tag of this release).
+CommonLibSSE-NG is its git submodule `plugins/external/commonlibsse-ng` at tag `v10.0.0`
+(<https://github.com/alandtse/CommonLibVR>, branch `ng`); `git submodule update --init --recursive`
+fetches it. The third-party libraries below come from the vcpkg manifest `vcpkg.json`. Building:
+`BuildRelease.ps1` (see the repository's README and CLAUDE.md).
+
+## Libraries in the DLLs
+
+Linked statically or compiled in from headers (vcpkg triplet `x64-windows-static`). Their license
+texts are in `licenses/`.
+
+| Library | Version | License | License text |
+|---|---|---|---|
+| CommonLibSSE-NG | 10.0.0 | GPL-3.0-or-later + Modding Exception + GPL-3.0 Linking Exception | `licenses/CommonLibSSE-NG/COPYING.txt`, `licenses/CommonLibSSE-NG/EXCEPTIONS.md` |
+| CommonLibSSE (the original code by Ryan-rsm-McKenzie that CommonLibSSE-NG grew from) | - | MIT (kept for attribution) | `licenses/CommonLibSSE-NG/LICENSE-MIT.txt` |
+| {fmt} | 12.1.0 | MIT | `licenses/fmt.txt` |
+| spdlog | 1.17.0 | MIT | `licenses/spdlog.txt` |
+| JSON for Modern C++ (nlohmann-json) | 3.12.0 | MIT | `licenses/nlohmann-json.txt` |
+| Xbyak | 7.28 | BSD-3-Clause | `licenses/xbyak.txt` |
+| DirectXMath | 2025-04-03 | MIT | `licenses/directxmath.txt` |
+| DirectX Tool Kit (DirectXTK) | 2025-10-27 | MIT | `licenses/directxtk.txt` |
+
+The Microsoft C/C++ runtime (CRT) is linked statically under the Visual Studio redistribution terms.

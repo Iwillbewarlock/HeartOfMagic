@@ -354,6 +354,16 @@ header comment of `plugins/SL_MagicMenu/src/BlockApi.h`, the pure rules `BlockRu
   Favorites, the school tabs and unknown categories are spell tabs). An add-on its mask leaves out joins the tab's hidden
   set (Arrange closes up, as for the built-in tree blocks) and its panel is hidden (ApplyVisibility).
 
+## Block API v3 (2026-10-30)
+
+From the HoM add-on design (`2026-10-30-magic-menu-hom-addon-design.md`): the Heart of Magic blocks (the tree window,
+the learning progress card, the node card) left the core for the add-on `plugins/SL_MagicMenu_HoM`, and Block API v3
+gives an add-on what they need - a per-frame call with a Context, its own mouse handlers, keys, a pad, a legacy id
+that takes over a retired built-in block's saved place, and the 'SLMS' (show a spell) / 'SLMV' (hide or show the
+block) messages. v1 and v2 add-ons are read as before. The contract is the header comment of
+`plugins/SL_MagicMenu/src/BlockApi.h` (pure rules `BlockRules.h`, `BlockRulesV3.h`), checked offline by
+`tools/magic-menu-block-api-check`; the changes made while building it are in the HoM add-on design's "As implemented".
+
 ## Blocks fit their content, the gear button (user 2026-10-30)
 
 - Every built-in block but the 3D preview box fits its content: the progress card, the node card, our spell card and the

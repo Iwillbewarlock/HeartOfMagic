@@ -13,7 +13,7 @@
 
 project(
     SL_MagicMenu_HoM
-    VERSION ${PROJECT_VERSION}
+    VERSION ${MAGIC_MENU_VERSION}
     DESCRIPTION "Heart of Magic - spell tree, progress and node card blocks for the magic menu"
     LANGUAGES CXX
 )
@@ -27,7 +27,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     AUTHOR "HeartOfMagic"
     USE_ADDRESS_LIBRARY
     MINIMUM_SKSE_VERSION "2.0.12"
-    VERSION ${PROJECT_VERSION}
+    VERSION ${MAGIC_MENU_VERSION}
     SOURCES
         src/Main.cpp
         src/HomSettings.cpp
@@ -71,8 +71,9 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 
 # --------------------------------------------------------------------------
-# dist/SL_MagicMenu_HoM/ - the install folder, made on every build (as
-# SL_MagicMenu_SpellResearch_dist, until the SL_MagicMenu FOMOD task):
+# dist/SL_MagicMenu_HoM/ - the install folder for a dev copy, made on every
+# build (as SL_MagicMenu_SpellResearch_dist); the release zip with the FOMOD is
+# plugins/cmake/Distribution.cmake's assemble_magicmenu_dist:
 #   SKSE/Plugins/SL_MagicMenu_HoM.dll (+ .pdb for crash logs)
 # No ini of its own: the block reads its keys from SL_MagicMenu.ini.
 # --------------------------------------------------------------------------

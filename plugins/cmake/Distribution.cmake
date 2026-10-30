@@ -276,3 +276,129 @@ add_custom_command(TARGET assemble_dist POST_BUILD
 message(STATUS "Distribution assembly configured:")
 message(STATUS "  Output:   ${DIST_VERSION_DIR}")
 message(STATUS "  Archive:  ${DIST_DIR}/${_dist_folder_name}.zip (+ ${_pdb_folder_name}.zip)")
+
+# ============================================================================
+# 8. The magic menu's own release (SL_MagicMenu, MAGIC_MENU_VERSION from the
+#    top-level CMakeLists.txt), apart from Heart of Magic's: assemble_magicmenu_dist
+#    makes dist/SL_MagicMenu_<version>/ and its zip, the FOMOD of fomod_magicmenu/:
+#      fomod/ModuleConfig.xml, fomod/info.xml
+#      00 Core/SKSE/Plugins/SL_MagicMenu.dll, SL_MagicMenu.ini
+#      00 Core/MCM/Settings/InventoryReforged.ini
+#      10 Heart of Magic Block/SKSE/Plugins/SL_MagicMenu_HoM.dll
+#      LICENSE, THIRD-PARTY-NOTICES.md, licenses/ (as 3b, with the ports these
+#      two DLLs link)
+#    and the two DLLs' .pdb in SL_MagicMenu_<version>_DebugSymbols.zip. The Spell
+#    Research block is not in this release (a later FOMOD option). Nothing above
+#    changes: HoM's assemble_dist stays as it was.
+# ============================================================================
+
+if(NOT DEFINED MAGIC_MENU_DIST_VERSION_DIR)
+    message(STATUS "MAGIC_MENU_DIST_VERSION_DIR not defined - magic menu release assembly disabled")
+    return()
+endif()
+
+set(_mm_dist "${MAGIC_MENU_DIST_VERSION_DIR}")
+set(_mm_pdb_dir "${MAGIC_MENU_DIST_VERSION_DIR}_DebugSymbols")
+set(_mm_core "${_mm_dist}/00 Core")
+set(_mm_hom "${_mm_dist}/10 Heart of Magic Block")
+set(_mm_core_src "${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/dist")
+set(_mm_fomod_src "${CMAKE_SOURCE_DIR}/fomod_magicmenu")
+set(_mm_licenses_dist "${_mm_dist}/licenses")
+# CommonLibSSE-NG's ports these DLLs carry (fmt and spdlog for the log, DirectXTK and
+# DirectXMath, Xbyak with SKSE_SUPPORT_XBYAK) and the plugins' nlohmann-json. Not
+# rapidcsv (CommonLib uses it for VR only, off here) nor SpellLearning's rapidfuzz-cpp,
+# highway and zlib.
+set(_mm_vcpkg_license_ports fmt spdlog nlohmann-json xbyak directxmath directxtk)
+
+add_custom_target(assemble_magicmenu_dist ALL
+    COMMENT "Assembling the magic menu's release distribution...")
+
+add_dependencies(assemble_magicmenu_dist SL_MagicMenu SL_MagicMenu_HoM)
+
+configure_file(
+    "${_mm_fomod_src}/THIRD-PARTY-NOTICES.md.in"
+    "${CMAKE_BINARY_DIR}/magicmenu/THIRD-PARTY-NOTICES.md"
+    @ONLY
+)
+
+set(_mm_vcpkg_license_commands)
+foreach(_port IN LISTS _mm_vcpkg_license_ports)
+    if(NOT EXISTS "${_vcpkg_share}/${_port}/copyright")
+        message(FATAL_ERROR "Distribution (magic menu): no license file for vcpkg port ${_port} at ${_vcpkg_share}/${_port}/copyright")
+    endif()
+    list(APPEND _mm_vcpkg_license_commands
+        COMMAND "${CMAKE_COMMAND}" -E copy
+        "${_vcpkg_share}/${_port}/copyright"
+        "${_mm_licenses_dist}/${_port}.txt")
+endforeach()
+
+# Clean, then the FOMOD, the core folder and the HoM block's folder; the .pdb apart
+add_custom_command(TARGET assemble_magicmenu_dist POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E rm -rf "${_mm_dist}" "${_mm_pdb_dir}"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_dist}/fomod"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_core}/SKSE/Plugins"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_core}/MCM/Settings"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_hom}/SKSE/Plugins"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_pdb_dir}/SKSE/Plugins"
+    COMMAND "${CMAKE_COMMAND}" -E copy
+    "${_mm_fomod_src}/fomod/ModuleConfig.xml"
+    "${_mm_fomod_src}/fomod/info.xml"
+    "${_mm_dist}/fomod/"
+    COMMAND "${CMAKE_COMMAND}" -E copy
+    "$<TARGET_FILE:SL_MagicMenu>"
+    "${_mm_core_src}/SL_MagicMenu.ini"
+    "${_mm_core}/SKSE/Plugins/"
+    COMMAND "${CMAKE_COMMAND}" -E copy
+    "${_mm_core_src}/MCM/Settings/InventoryReforged.ini"
+    "${_mm_core}/MCM/Settings/"
+    COMMAND "${CMAKE_COMMAND}" -E copy
+    "$<TARGET_FILE:SL_MagicMenu_HoM>"
+    "${_mm_hom}/SKSE/Plugins/"
+    COMMAND "${CMAKE_COMMAND}" -E $<IF:$<BOOL:$<TARGET_PDB_FILE:SL_MagicMenu>>,copy,true>
+    "$<$<BOOL:$<TARGET_PDB_FILE:SL_MagicMenu>>:$<TARGET_PDB_FILE:SL_MagicMenu>>"
+    "${_mm_pdb_dir}/SKSE/Plugins/"
+    COMMAND "${CMAKE_COMMAND}" -E $<IF:$<BOOL:$<TARGET_PDB_FILE:SL_MagicMenu_HoM>>,copy,true>
+    "$<$<BOOL:$<TARGET_PDB_FILE:SL_MagicMenu_HoM>>:$<TARGET_PDB_FILE:SL_MagicMenu_HoM>>"
+    "${_mm_pdb_dir}/SKSE/Plugins/"
+    COMMAND "${CMAKE_COMMAND}" -E echo "Copying the magic menu's FOMOD, DLLs and ini files..."
+    VERBATIM
+)
+
+# The licences, as 3b
+add_custom_command(TARGET assemble_magicmenu_dist POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_licenses_dist}/CommonLibSSE-NG"
+    COMMAND "${CMAKE_COMMAND}" -E copy
+    "${CMAKE_SOURCE_DIR}/LICENSE"
+    "${CMAKE_BINARY_DIR}/magicmenu/THIRD-PARTY-NOTICES.md"
+    "${_mm_dist}/"
+    COMMAND "${CMAKE_COMMAND}" -E copy
+    "${_commonlib_dir}/COPYING.txt"
+    "${_commonlib_dir}/EXCEPTIONS.md"
+    "${_commonlib_dir}/licenses/LICENSE-MIT.txt"
+    "${_mm_licenses_dist}/CommonLibSSE-NG/"
+    ${_mm_vcpkg_license_commands}
+    COMMAND "${CMAKE_COMMAND}" -E echo "Copying the magic menu's licenses..."
+    VERBATIM
+)
+
+# The zips, as 7
+get_filename_component(_mm_dist_folder_name "${_mm_dist}" NAME)
+get_filename_component(_mm_pdb_folder_name "${_mm_pdb_dir}" NAME)
+
+add_custom_command(TARGET assemble_magicmenu_dist POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E tar cf
+    "${DIST_DIR}/${_mm_dist_folder_name}.zip"
+    --format=zip
+    -- "${_mm_dist_folder_name}"
+    COMMAND "${CMAKE_COMMAND}" -E tar cf
+    "${DIST_DIR}/${_mm_pdb_folder_name}.zip"
+    --format=zip
+    -- "${_mm_pdb_folder_name}"
+    WORKING_DIRECTORY "${DIST_DIR}"
+    COMMAND "${CMAKE_COMMAND}" -E echo "Creating ${_mm_dist_folder_name}.zip and ${_mm_pdb_folder_name}.zip..."
+    VERBATIM
+)
+
+message(STATUS "Magic menu release assembly configured:")
+message(STATUS "  Output:   ${_mm_dist}")
+message(STATUS "  Archive:  ${DIST_DIR}/${_mm_dist_folder_name}.zip (+ ${_mm_pdb_folder_name}.zip)")
