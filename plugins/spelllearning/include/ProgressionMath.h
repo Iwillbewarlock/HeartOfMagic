@@ -66,8 +66,11 @@ namespace ProgressionMath
         float grantHours = 0.0f;
         float lastHours = 0.0f;
     };
-    [[nodiscard]] constexpr PassiveTick PassiveTickFor(float lastHours, float nowHours) noexcept
+    // While passive learning is off (`enabled` false) the last time follows the clock and
+    // nothing is granted: switching it on pays only the hours from then, not the ones off.
+    [[nodiscard]] constexpr PassiveTick PassiveTickFor(float lastHours, float nowHours, bool enabled = true) noexcept
     {
+        if (!enabled) return { 0.0f, nowHours };
         const float elapsed = nowHours - lastHours;
         if (elapsed > kPassiveMinHours) return { elapsed, nowHours };
         if (elapsed < 0.0f || !(elapsed == elapsed)) return { 0.0f, nowHours };  // back in time, or NaN

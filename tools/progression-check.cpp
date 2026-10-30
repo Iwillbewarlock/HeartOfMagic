@@ -576,6 +576,30 @@ namespace
               "passive: time going back grants nothing and starts from now");
         const auto nanTick = PM::PassiveTickFor(100.0f, nan);
         Check(Near(nanTick.grantHours, 0.0f), "passive: a NaN time grants nothing");
+        // On or off: the poll loop's ticks, 3 game hours apart, from a load at hour 100
+        {
+            float last = 100.0f;   // OnGameLoad: the save's time
+            float paid = 0.0f;
+            auto run = [&](float now, bool on) {
+                const auto t = PM::PassiveTickFor(last, now, on);
+                last = t.lastHours;
+                paid += t.grantHours;
+            };
+            run(103.0f, true);
+            run(106.0f, true);
+            Check(Near(paid, 6.0f) && Near(last, 106.0f), "passive: on all along pays every hour since the load");
+            paid = 0.0f;
+            run(130.0f, false);
+            run(150.0f, false);
+            Check(Near(paid, 0.0f) && Near(last, 150.0f), "passive: while off nothing is paid and the last time follows the clock");
+            run(152.0f, true);
+            Check(Near(paid, 2.0f), "passive: switched on, only the 2 hours since the last tick off are paid (not 46)");
+            last = 200.0f;   // another save loaded at hour 200
+            paid = 0.0f;
+            run(200.05f, true);
+            run(201.0f, true);
+            Check(Near(paid, 1.0f), "passive: the first ticks after a load pay from the load's time");
+        }
 
         // AddXP's progress; a required XP not set leaves the progress alone
         Check(Near(PM::ProgressAfterXP(0.2f, 10.0f, 100.0f), 0.3f), "AddXP: 0.2 + 10 of 100 is 0.3");

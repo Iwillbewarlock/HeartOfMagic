@@ -71,20 +71,19 @@ void PassiveLearningSource::PollLoop() {
         // Quick check without lock
         if (!m_initialized) continue;
 
-        Settings currentSettings;
-        {
-            std::lock_guard<std::mutex> lock(m_settingsMutex);
-            if (!m_settings.enabled) continue;
-            currentSettings = m_settings;
-        }
-
-        // Must read Calendar on the game thread
-        AddTaskToGameThread("PassiveLearningTick", [this, currentSettings]() {
+        // Must read Calendar on the game thread. Also while off: the last time then follows
+        // the clock (PassiveTickFor), or switching it on paid every hour it was off
+        AddTaskToGameThread("PassiveLearningTick", [this]() {
             auto* calendar = RE::Calendar::GetSingleton();
             if (!calendar) return;
+            bool enabled = false;
+            {
+                std::lock_guard<std::mutex> lock(m_settingsMutex);
+                enabled = m_settings.enabled;
+            }
 
             // Game hours (the 0.1 h floor): GetCurrentGameTime is in days
-            const auto tick = ProgressionMath::PassiveTickFor(m_lastGameTime, calendar->GetHoursPassed());
+            const auto tick = ProgressionMath::PassiveTickFor(m_lastGameTime, calendar->GetHoursPassed(), enabled);
             m_lastGameTime = tick.lastHours;
             if (tick.grantHours > 0.0f) {
                 GrantPassiveXP(tick.grantHours);

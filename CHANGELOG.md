@@ -79,6 +79,10 @@
   (also when early learning is switched on), or at its next XP. A spell that is no longer a learning target is not
   given again. Not yet tested in game.
 
+- **Turning passive learning on no longer pays for the time it was off.** Switching it on gave XP for every game
+  hour since it was switched off (or since the save was loaded). Now only the time from when it is switched on
+  counts. Not yet tested in game.
+
 - **Book Reading XP comes once per book.** Reading the same book or note again gave XP every time. Now each book or
   note gives XP once; copies of the same book count as one. A book read while no spell is being learned gives
   nothing then and can still give its XP later. Spell tomes give no Book Reading XP. The books that gave XP are
