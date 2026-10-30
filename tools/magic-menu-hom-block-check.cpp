@@ -260,10 +260,17 @@ namespace
         Expect(!Selection::StaleKeyPick(true, 0x100, 0x100), "the same form: the key pick holds");
         Expect(!Selection::StaleKeyPick(false, 0x100, 0x200), "a clicked node is not a key pick: its own show request changes the form");
         Expect(Selection::StaleKeyPick(true, 0, 0x200), "a key pick with nothing shown, then a list choice: stale");
-        Expect(Selection::KeyStillDue(0.0) && Selection::KeyStillDue(16.7) && Selection::KeyStillDue(Selection::kKeyDueMs),
-            "a key recorded in this UI frame (0 .. 100 ms ago): acted on by the tree's frame");
-        Expect(!Selection::KeyStillDue(850.0), "a key pressed on a tab without the tree, the frame 850 ms later on a spells tab: dropped");
-        Expect(!Selection::KeyStillDue(-1.0), "a clock step back: dropped");
+        {
+            Selection::PendingKeys pending;
+            pending.next = true;  // U and G in one frame: two flags
+            pending.setTarget = true;
+            const auto now = Selection::TakeKeys(pending);
+            Expect(now.next && now.setTarget, "U and G arrive in a frame: both taken by that frame, each its own flag");
+            Expect(Selection::TakeKeys(pending) == Selection::PendingKeys{}, "the next frame: nothing left - a key acts only in the frame it arrived in");
+            pending.setTarget = true;
+            const auto gOnly = Selection::TakeKeys(pending);
+            Expect(!gOnly.next && gOnly.setTarget, "G alone: only the set-target flag (a later U cannot carry an old G)");
+        }
     }
 
     // Task 7: the tree window's rules (TreeRules.h)
@@ -294,6 +301,19 @@ namespace
         const bool outside = TreeRules::CountClick(count, std::pair{ 10.0, 300.0 }, view);
         Expect(inside && !outside && count.clicks == 2 && count.outside == 1,
             Text("a click outside the viewport is counted, not acted on (clicks %d, outside %d)", count.clicks, count.outside));
+        Expect(TreeRules::NextRequestId(0) == 0x48000001u, "the first 'SLMS' id: 0x48000001 (the add-on's tag 'H' in the high byte)");
+        Expect(TreeRules::NextRequestId(0x48000001u) == 0x48000002u, "then counts up inside the tag");
+        Expect(TreeRules::NextRequestId(0x48FFFFFFu) == 0x48000001u, "wraps inside the tag, never 0 and never the tag alone");
+        Expect(TreeRules::NextRequestId(7) == 0x48000001u, "a number without the tag starts again at the tag's first id");
+        const auto inset = TreeRules::InsetOf(std::optional<double>(8.0), std::optional<double>(30.0));
+        Expect(Near(inset.pad, 8.0, 1e-9) && Near(inset.titleH, 22.0, 1e-9), "the content clip at 8,30 of the box: pad 8, title strip 22");
+        const auto fallback = TreeRules::InsetOf(std::nullopt, std::optional<double>(30.0));
+        Expect(Near(fallback.pad, TreeRules::kFallbackPad, 1e-9) && Near(fallback.titleH, TreeRules::kFallbackTitleH, 1e-9),
+            "an unreadable _x: the host's constants as the fallback");
+        Expect(TreeRules::kFallbackPad == Settings::kPanelPad && TreeRules::kFallbackTitleH == Settings::kPanelTitleH,
+            "the fallback is the host's own pad 8 and title strip 22");
+        const auto odd = TreeRules::InsetOf(std::optional<double>(4.0), std::optional<double>(2.0));
+        Expect(Near(odd.pad, TreeRules::kFallbackPad, 1e-9), "a _y above the pad (no room for a title): the fallback");
     }
 
     void StringsTable()

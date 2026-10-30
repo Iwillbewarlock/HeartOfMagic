@@ -26,7 +26,6 @@
 #include "TreeDraw.h"
 
 #include <algorithm>
-#include <chrono>
 #include <format>
 #include <utility>
 
@@ -257,16 +256,19 @@ namespace HomAddon
         const auto snapshot = Spells::Current();
         WatchTab(a_context, *snapshot);
         WatchSelection(a_context, *snapshot);
+        // fix round 1 M3: a key pick made under another form goes now (the draws already treat it as dropped: G and the card agree)
+        if (Selection::StaleKeyPick(menu.selectedByKey, menu.pickShown, a_context.shown)) {
+            const auto pick = Selection::PickAfterFrame({ menu.selected, menu.selectedByKey }, true, -1);
+            menu.selected = pick.node;
+            menu.selectedByKey = pick.byKey;
+            menu.dirty = true;
+        }
         menu.firstFrame = false;
         TakeNodeClick(a_movie, a_content, a_context, *snapshot);
-        bool next = std::exchange(menu.pendingNext, false);
-        bool key = std::exchange(menu.pendingSetTarget, false);
-        if ((next || key) &&
-            !Selection::KeyStillDue(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - menu.pendingAt).count())) {
-            logger::info("HoM block: {} pressed on a tab without the tree - dropped", next && key ? "the next and set-target keys" : next ? "the next key" : "the set-target key");
-            next = key = false;
-        }
-        if (next) DoNext(*snapshot);
+        // the keys the host handed over right before this call (only while the tree shows): acted on in this frame
+        const auto keys = Selection::TakeKeys(menu.keys);
+        if (keys.next) DoNext(*snapshot);
+        const bool key = keys.setTarget;
         const bool button = TakeButton();
         SetTargetIfChosen(key, button, *snapshot);
         if (++menu.frame % kPollFrames == 0) menu.refresh = true;
@@ -285,20 +287,18 @@ namespace HomAddon
     }
 
     // U and G (the core's Input.cpp at f83dc6f3 queued them for the frame handler; the host hands us the key on the frame, before
-    // the frame calls, never in the layout mode or while a text field takes keys): recorded only, the frame acts on them after
-    // the list change (Task 6 review 2)
+    // the tree's frame call in the same frame and only while the tree shows, never in the layout mode or while a text field takes
+    // keys): recorded only, the frame acts on them after the list change (Task 6 review 2)
     bool TreeKey(std::uint32_t a_scanCode, void*)
     {
         EnsureMenu();
         const auto& settings = HomSettings::Get();
         if (a_scanCode == settings.keyNext) {
-            Menu().pendingNext = true;
-            Menu().pendingAt = std::chrono::steady_clock::now();
+            Menu().keys.next = true;
             return true;
         }
         if (a_scanCode == settings.keySetTarget) {
-            Menu().pendingSetTarget = true;
-            Menu().pendingAt = std::chrono::steady_clock::now();
+            Menu().keys.setTarget = true;
             return true;
         }
         return false;

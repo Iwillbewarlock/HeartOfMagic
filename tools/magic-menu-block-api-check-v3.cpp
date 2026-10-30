@@ -307,6 +307,10 @@ namespace BlockApiCheck
             Ids keys;
             Expect(BlockRules::QueueKey(keys, 22, 2) && BlockRules::QueueKey(keys, 22, 2) && keys == Ids{ 22, 22 }, "keys 22, 22: both queued (every key down)");
             Expect(!BlockRules::QueueKey(keys, 34, 2) && keys.size() == 2, "a third key past the cap 2: dropped");
+            Expect(BlockRules::DeliversKey(true, true, false), "a key for a shown block with a key callback: delivered (before its frame call)");
+            Expect(!BlockRules::DeliversKey(true, false, false), "a key for a block not shown this frame (another tab, 'SLMV'-hidden): not delivered");
+            Expect(!BlockRules::DeliversKey(true, true, true), "the layout mode: not delivered");
+            Expect(!BlockRules::DeliversKey(false, true, false), "no key callback: not delivered");
         }
 
         void EmptyLooks()

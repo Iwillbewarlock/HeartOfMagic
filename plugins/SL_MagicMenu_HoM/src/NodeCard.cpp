@@ -320,6 +320,7 @@ namespace HomAddon
         if (a_context.contentGeneration != menu.nodeContentGeneration) {
             menu.nodeContentGeneration = a_context.contentGeneration;
             menu.nodeStableFrames = 0;
+            menu.nodeHeightWait = 0;  // fix round 1 M6: a new draw waits afresh
             return;
         }
         if (++menu.nodeStableFrames < kStableFrames || !menu.buttonDrawn) return;

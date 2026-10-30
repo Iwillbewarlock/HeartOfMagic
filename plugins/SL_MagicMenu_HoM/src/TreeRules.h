@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <cstdint>
 #include <optional>
 #include <utility>
@@ -62,6 +63,31 @@ namespace TreeRules
         if (!(a_view.right > a_view.left) || !(a_view.bottom > a_view.top)) return false;
         const auto [x, y] = *a_at;
         return x >= a_view.left && x <= a_view.right && y >= a_view.top && y <= a_view.bottom;
+    }
+
+    /// The add-on's 'SLMS' requestIds: 'H' (0x48) in the high byte, counting up in the low 24 bits and wrapping inside them, 0 and
+    /// the tag alone never used - so another add-on's numbers cannot match OwnRequest (fix round 1 M4)
+    inline constexpr std::uint32_t kRequestTag = 0x48000000u, kRequestTagMask = 0xFF000000u;
+    constexpr std::uint32_t NextRequestId(std::uint32_t a_last)
+    {
+        const std::uint32_t low = a_last & ~kRequestTagMask;
+        if ((a_last & kRequestTagMask) != kRequestTag || low == ~kRequestTagMask) return kRequestTag | 1u;
+        return a_last + 1u;
+    }
+
+    /// Where the host put the tree's content clip in its box (fix round 1 M1): its _x is the pad, its _y the title strip plus the
+    /// pad (BlockRules::ContentBoxOf). Read from the lent clip; the host's constants (Settings::kPanelPad / kPanelTitleH) only when
+    /// the clip's place cannot be read or makes no sense
+    inline constexpr double kFallbackPad = 8.0, kFallbackTitleH = 22.0;
+    struct Inset
+    {
+        double pad = kFallbackPad;
+        double titleH = kFallbackTitleH;
+    };
+    inline Inset InsetOf(std::optional<double> a_x, std::optional<double> a_y)
+    {
+        if (!a_x || !a_y || !std::isfinite(*a_x) || !std::isfinite(*a_y) || *a_x < 0.0 || *a_y < *a_x) return {};
+        return { *a_x, *a_y - *a_x };
     }
 
     /// The node clicks of one menu, logged at its close (SelfTest L2 mask clicks: want 0 outside)

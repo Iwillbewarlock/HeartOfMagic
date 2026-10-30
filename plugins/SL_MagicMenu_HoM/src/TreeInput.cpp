@@ -30,7 +30,7 @@ namespace HomAddon
         // the node clicks of this menu (SelfTest L2 mask clicks at its close); the close comes from the menu sink's thread
         std::mutex g_maskLock;
         TreeRules::MaskCount g_mask;
-        std::uint32_t g_lastRequestId = 0;  // the add-on's 'SLMS' numbers (per process; 0 is "none")
+        std::uint32_t g_lastRequestId = 0;  // the add-on's last 'SLMS' number (TreeRules::NextRequestId; 0 = none yet)
 
         std::optional<std::pair<double, double>> RootMouse(RE::GFxMovie* a_movie)
         {
@@ -129,7 +129,7 @@ namespace HomAddon
             // what the core's click did next (select it in the list, else the tree card and the 3D; a hidden name gets neither) is the
             // host's now: one 'SLMS', its result in the next Context (source kAddon, servedRequest)
             const bool nameShown = NameShown(a_index, a_snapshot);
-            if (++g_lastRequestId == 0) ++g_lastRequestId;
+            g_lastRequestId = TreeRules::NextRequestId(g_lastRequestId);
             menu.lastRequest = g_lastRequestId;
             RequestShowSpell(id, menu.lastRequest, nameShown);
             logger::info("HoM block: tree click {:08X} {}: show request {} sent (name {})", id, Spells::NodeName(a_index), menu.lastRequest,
@@ -197,7 +197,7 @@ namespace HomAddon
     {
         auto& menu = Menu();
         const auto click = std::exchange(menu.click, std::nullopt);
-        if (!click || a_context.layoutMode) return;  // a click recorded just before the layout mode came on goes ('SLMS' would be dropped)
+        if (!click || a_context.layoutMode || !a_movie) return;  // a click recorded just before the layout mode came on goes ('SLMS' would be dropped)
         // the release's place in the content clip's space, judged against the visible part (blocks plan Task 3: setMask's click
         // masking is unverified in Skyrim's Scaleform). A place that could not be read or mapped is acted on, as at f83dc6f3
         TreeRules::Point at;

@@ -17,7 +17,8 @@
 // core's tree constants (W:173-193 at f83dc6f3), its drawn-node structs, and the
 // panel clip. The host lends a content clip below the title strip and inside the
 // padding; the tree draws into a child "panel" clip at the box's top-left (like
-// the cards' CardClip), so every part keeps the core's place and code:
+// the cards' CardClip; the offset read from the lent clip's _x / _y at each draw,
+// MenuState::treeInset), so every part keeps the core's place and code:
 // TreeContent of the box, the legend at its bottom, the not-in-tree note in the
 // title strip. TreeDraw.cpp: RedrawTree and its links, marks and badges;
 // TreeLabels.cpp: the labels; TreeInput.cpp: the node handlers, hover and click;
@@ -47,8 +48,6 @@ namespace HomAddon
     inline constexpr const char* kIndexMember = "mmxIndex";  // a node clip's tree index, read by its handlers
     inline constexpr const char* kFocusChild = "focus";      // a node clip's hover outline (spec v11 R6)
     inline constexpr const char* kTooltipName = "mmxTreeTooltip";  // the tooltip's clip in the overlay
-    // The tree box's title strip and padding (the host's Settings::kPanelTitleH / kPanelPad; the tree registers with pad kPad)
-    inline constexpr double kTitleH = Settings::kPanelTitleH;
     inline constexpr const char* kPanelName = "panel";     // the lent content clip's child at the box's top-left
     inline constexpr const char* kTreeContent = "content";  // the panel's child at the drawing's centre (the core's content clip)
 

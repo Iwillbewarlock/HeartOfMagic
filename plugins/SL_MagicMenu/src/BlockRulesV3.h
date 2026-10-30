@@ -181,6 +181,14 @@ namespace BlockRules
         return true;
     }
 
+    /// v3 key (fix round 1 of HoM add-on Task 7): a frame's keys go to a block only when it has a key callback, shows in that frame
+    /// (a place on the tab, not hidden by kMessageVisible, not failed, the columns up) and the layout mode is off - right before
+    /// its frame call. A block that does not show never gets them (a key for another tab is not kept for later)
+    constexpr bool DeliversKey(bool a_hasKey, bool a_shown, bool a_layoutMode)
+    {
+        return a_hasKey && a_shown && !a_layoutMode;
+    }
+
     // ---------------------------------------------------------------------
     // The v3 block's box, visible part and overlay (Widget.cpp's add-on drawing)
     // ---------------------------------------------------------------------

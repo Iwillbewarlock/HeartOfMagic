@@ -77,14 +77,23 @@ namespace Selection
         return a_byKey && a_pickShown != a_shownNow;
     }
 
-    /// A U / G key the tree's key callback recorded a_ageMs ago is acted on by its frame only when that frame is the key's own UI
-    /// frame (the host hands keys over just before the frame calls). Keys reach the key callback on every tab, the frame runs only
-    /// where the tree shows: a key pressed on Powers / Shouts / Active Effects would otherwise act when the player came back to a
-    /// spells tab. f83dc6f3 acted on it at once on any tab; it is dropped now (one log line)
-    inline constexpr double kKeyDueMs = 100.0;
-    constexpr bool KeyStillDue(double a_ageMs)
+    /// The U and G keys the tree's key callback recorded, each its own flag. The host hands a block its keys only while it shows,
+    /// right before its frame call in the same frame (BlockApi.h "key"), so the frame takes them at once: a key acts in the frame
+    /// it arrived in, never later (fix round 1: a G from another tab acted with a later U)
+    struct PendingKeys
     {
-        return a_ageMs >= 0.0 && a_ageMs <= kKeyDueMs;
+        bool next = false;
+        bool setTarget = false;
+
+        constexpr bool operator==(const PendingKeys&) const = default;
+    };
+
+    /// This frame's keys, the pending ones cleared
+    constexpr PendingKeys TakeKeys(PendingKeys& a_pending)
+    {
+        const auto keys = a_pending;
+        a_pending = {};
+        return keys;
     }
 
     /// The set-target requests of one frame: the G key and the node card's button in the same frame are one request (f83dc6f3

@@ -198,9 +198,11 @@ namespace HomSettings
 
     /// The tree window's content area: below the title, above the legend, inside the padding (Settings::kPanelTitleH / kPanelPad:
     /// every panel's, the host draws the title strip).
-    inline Area TreeContent(const Rect& a_tree)
+    /// a_titleH / a_pad: the box's title strip and padding (the block reads them from its content clip's place; the host's own by
+    /// default)
+    inline Area TreeContent(const Rect& a_tree, double a_titleH = Settings::kPanelTitleH, double a_pad = Settings::kPanelPad)
     {
-        const double bodyH = a_tree.Height() - Settings::kPanelTitleH - kTreeLegendH;
-        return { a_tree.Width() / 2, Settings::kPanelTitleH + bodyH / 2, a_tree.Width() / 2 - Settings::kPanelPad, bodyH / 2 - Settings::kPanelPad };
+        const double bodyH = a_tree.Height() - a_titleH - kTreeLegendH;
+        return { a_tree.Width() / 2, a_titleH + bodyH / 2, a_tree.Width() / 2 - a_pad, bodyH / 2 - a_pad };
     }
 }

@@ -181,6 +181,8 @@ namespace HomAddon
         return Selection::Chosen(a_shown, KeyPickFor(a_shown));
     }
 
+    // Only a change of the wanted state is sent (none twice in a row); the host takes one sent from the card's draw before that
+    // frame is shown (fix round 1 I1)
     void SyncProgressShown()
     {
         const bool want = !g_session.school.empty();

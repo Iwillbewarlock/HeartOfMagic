@@ -320,8 +320,9 @@ namespace HomAddon
             // the tree's box: the content clip and the host's padding and title strip (the column's width is the player's). The tree
             // window keeps its registered height in every state (user 2026-10-30: "트리창도 자동세로 줄이기 기능의 대상에서 빼자"):
             // its drawing centred in its body, as before the blocks fitted their content
-            const double boxW = a_width + 2 * kPad, boxH = a_height + kTitleH + 2 * kPad;
-            const auto frame = HomSettings::TreeContent({ 0.0, 0.0, boxW, boxH });
+            const auto inset = menu.treeInset;  // fix round 1 M1: where the host put the content clip, read at this draw
+            const double boxW = a_width + 2 * inset.pad, boxH = a_height + inset.titleH + 2 * inset.pad;
+            const auto frame = HomSettings::TreeContent({ 0.0, 0.0, boxW, boxH }, inset.titleH, inset.pad);
             menu.treeOrigin = { frame.cx, frame.cy };
             menu.treeBox = { boxW, boxH };
             content.SetMember("_x", frame.cx);
@@ -345,7 +346,7 @@ namespace HomAddon
                 const auto text = Text(Str::kTreeNotInTree);
                 const auto field = note.IsDisplayObject() ?
                                        FitLine(a_movie, note, "note", kPad, kPad / 2, boxW - 2 * kPad,
-                                           std::min(Size(kNoteSize), (kTitleH - TextFit::kGutter) / Metrics().lineFirst), text, kDimText, "right") :
+                                           std::min(Size(kNoteSize), (inset.titleH - TextFit::kGutter) / Metrics().lineFirst), text, kDimText, "right") :
                                        RE::GFxValue{};
                 Q2State(Str::kTreeNotInTree, text, &field);
             }
@@ -540,7 +541,8 @@ namespace HomAddon
                 target >= 0 ? Spells::NodeName(target) : std::string("none"), path.size(), a_snapshot.epoch,
                 std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count());
             if (menu.notInTree) logger::info("HoM block: tree drawn dimmed to {:.0f}% (the selection is not in the tree)", kDimTreeAlpha);
-            RecheckHover(hoveredAt);        }
+            RecheckHover(hoveredAt);
+        }
     }
 
     double MarkScale()
@@ -553,8 +555,9 @@ namespace HomAddon
     {
         auto panel = Draw::Clip(a_content, kPanelName);
         if (!panel.IsDisplayObject()) return panel;
-        panel.SetMember("_x", -kPad);
-        panel.SetMember("_y", -(kTitleH + kPad));
+        const auto& inset = Menu().treeInset;
+        panel.SetMember("_x", -inset.pad);
+        panel.SetMember("_y", -(inset.titleH + inset.pad));
         return panel;
     }
 
@@ -566,6 +569,13 @@ namespace HomAddon
         if (!a_movie) return;
         auto& menu = Menu();
         menu.drawnWith[Index(BlockKind::kTree)] = menu.metrics;
+        // fix round 1 M1: the host placed the lent clip at its pad and title strip (BlockRules::ContentBoxOf) before this call
+        const auto inset = TreeRules::InsetOf(Number(a_clip, "_x"), Number(a_clip, "_y"));
+        if (std::abs(inset.pad - menu.treeInset.pad) > kRectTolerance || std::abs(inset.titleH - menu.treeInset.titleH) > kRectTolerance) {
+            logger::info("HoM block: tree content clip at {:.1f},{:.1f} of its box - pad {:.1f}, title strip {:.1f}", inset.pad, inset.titleH + inset.pad,
+                inset.pad, inset.titleH);
+        }
+        menu.treeInset = inset;
         RedrawTree(a_movie, a_clip, a_width, a_height, a_shown, *Spells::Current());
     }
 }

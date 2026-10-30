@@ -6,7 +6,8 @@
 // above every panel in it, its origin on the content clip's: the core's tooltip
 // parent), so it is never under a neighbouring panel and is not dimmed with a
 // tree that is not the selection's (T7.1). The place is worked out in the tree
-// box's coordinates as before and moved by the content clip's offset in it; the
+// box's coordinates as before and moved by the content clip's offset in it (read
+// at the tree's draw: MenuState::treeInset); the
 // column's visible part comes from Context::view* (the core's ColumnViewport).
 // Drawn again when the hovered node changes, the tree was drawn again, or the
 // host removed the overlay (a new Context::overlayGeneration: TooltipValid). None
@@ -45,11 +46,11 @@ namespace HomAddon
         Draw::Remove(*a_overlay, kTooltipName);
         const auto it = std::ranges::find_if(menu.drawn, [&](const TreeData::PlacedNode& a_placed) { return a_placed.index == hovered; });
         if (hovered < 0 || !Spells::Get() || it == menu.drawn.end()) return;
-        // the column's visible part, in the tree box's coordinates (the content clip sits at kPad, kTitleH + kPad in it); none of it
+        // the column's visible part, in the tree box's coordinates (the content clip sits at pad, title strip + pad in it); none of it
         // shows: no tooltip
-        const double offX = kPad, offY = kTitleH + kPad;
+        const double pad = menu.treeInset.pad, titleH = menu.treeInset.titleH, offX = pad, offY = titleH + pad;
+        menu.tooltipFor = hovered;  // also with nothing shown (fix round 1 M5: not removed again every frame; a scroll makes a new overlay)
         if (!(a_context.viewBottom > a_context.viewTop) || !(a_context.viewRight > a_context.viewLeft)) return;
-        menu.tooltipFor = hovered;
         const auto [boxW, boxH] = menu.treeBox;
         const auto [originX, originY] = menu.treeOrigin;  // where RedrawTree put the drawing's 0,0 (the body's centre)
         const auto& node = Data().tree.nodes[hovered];
@@ -65,22 +66,22 @@ namespace HomAddon
             { StateLine(look.state, look.percent, false).text, kLabelColor },
         } };
         const double size = Size(kLabelSize), lineH = FieldH(size);
-        const double w = std::min(kTooltipW, boxW - 2 * kPad), h = static_cast<double>(lines.size()) * lineH + 2 * kTooltipPad;
+        const double w = std::min(kTooltipW, boxW - 2 * pad), h = static_cast<double>(lines.size()) * lineH + 2 * kTooltipPad;
         // right of the mark, else left of it, centred on its height; with room on neither side (review v10: the centre node of a
         // 260-wide tree, whose clamped tooltip covered it) above it, else below it, centred on it. Inside the box (below the title,
         // within the padding)
         const double nx = originX + it->sx, ny = originY + it->sy,
                      off = HomStyle::MaxReach(MarkScale(), style->tree.availableRing, HomSettings::Get().treeScale) + kTooltipGap;
         double x = nx + off, y = ny - h / 2;
-        if (x + w > boxW - kPad) x = nx - off - w;
-        if (x < kPad) {
+        if (x + w > boxW - pad) x = nx - off - w;
+        if (x < pad) {
             x = nx - w / 2;
-            y = ny - off - h >= kTitleH ? ny - off - h : ny + off;
+            y = ny - off - h >= titleH ? ny - off - h : ny + off;
         }
-        x = std::clamp(x, kPad, std::max(kPad, boxW - kPad - w));
+        x = std::clamp(x, pad, std::max(pad, boxW - pad - w));
         // inside the tree window (its registered height: it does not fit its content) and inside the column's visible part (review
         // round 2: the column mask would cut it), above its node when it would run past the visible bottom
-        y = BlockRules::TooltipY(y, h, kTitleH, boxH - kPad - h, ny - off - h, a_context.viewTop + offY, a_context.viewBottom + offY);
+        y = BlockRules::TooltipY(y, h, titleH, boxH - pad - h, ny - off - h, a_context.viewTop + offY, a_context.viewBottom + offY);
         auto tip = Draw::Clip(*a_overlay, kTooltipName);
         if (!tip.IsDisplayObject()) return;
         tip.SetMember("_x", x - offX);

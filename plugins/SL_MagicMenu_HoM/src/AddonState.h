@@ -4,11 +4,13 @@
 #include "HomLayoutMath.h"
 #include "Spells.h"
 #include "Strings.h"
+#include "Selection.h"
+#include "Settings.h"
 #include "TextFit.h"
+#include "TreeRules.h"
 
 #include <array>
 #include <atomic>
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -47,7 +49,7 @@ namespace HomAddon
     inline constexpr const char* kLogPrefix = "SL_MagicMenu_HoM";  // TextFit's Q4 lines
 
     // Panels and cards (the core's W:173-218 at f83dc6f3): the colours, the panel padding, the cards' top and bottom room
-    inline constexpr double kEdgeWidth = 1.0, kPad = 8.0;  // Settings::kPanelPad
+    inline constexpr double kEdgeWidth = 1.0, kPad = Settings::kPanelPad;  // the panels' padding (the cards' and the tree's drawing)
     inline constexpr std::uint32_t kPanelFill = 0x000000, kPanelEdge = 0x8A7A5A, kTitleColor = 0xC8C0B0;
     inline constexpr std::uint32_t kWhite = 0xF0F0F0, kLabelColor = 0xD8D8D8, kDimText = 0x8A8A8A;
     inline constexpr double kCardTop = 4.0, kCardBottom = 2.0;
@@ -125,9 +127,7 @@ namespace HomAddon
         bool buttonChecked = false;
         int nodeHeightWait = 0;        // frames the node card's box has not matched its asked height (L2, a held shrink)
         // the U and G keys recorded by the tree's key callback, acted on in its frame after the list change (Task 6 review 1, 2)
-        bool pendingNext = false;
-        bool pendingSetTarget = false;
-        std::chrono::steady_clock::time_point pendingAt{};  // when the last of them was recorded (Selection::KeyStillDue)
+        Selection::PendingKeys keys;
         RE::FormID pickShown = 0;      // the card's form when U picked (Selection::StaleKeyPick)
         // the tree window (Task 7): the hovered node and its tooltip, the nodes of the last draw, a node click to act on
         int hovered = -1;                         // the node clip under the mouse (onRollOver / onRollOut record it; spec v10 T6)
@@ -138,6 +138,7 @@ namespace HomAddon
         std::vector<TreeData::PlacedNode> clickable;  // the clickable ones
         std::pair<double, double> treeOrigin{};   // the drawing's 0,0 in the tree box (TreeContent's centre)
         std::pair<double, double> treeBox{};      // the tree box's size at the last draw (the content clip + pad and title strip)
+        TreeRules::Inset treeInset;               // the tree's content clip in its box, read at its draw (fix round 1 M1)
         struct NodeClick
         {
             int index = -1;

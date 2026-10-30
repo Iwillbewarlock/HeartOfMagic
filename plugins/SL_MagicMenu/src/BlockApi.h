@@ -106,9 +106,11 @@
 // bumped each time the block is drawn into a new content clip. A block hidden by kMessageVisible gets no frame call.
 //
 // key: a keyboard key down (a_scanCode: its DirectInput scan code) while the menu is open, no text field takes keys and the
-// layout mode is off, delivered on the next UI frame (before that frame's frame calls; none when the layout mode came on
-// meanwhile) to every v3 block that sets key, on any tab. The return value is logged only: SL_MagicMenu never consumes a key
-// (the menu and the game see it as before). No gamepad.
+// layout mode is off, delivered on the next UI frame to every v3 block that sets key and is shown in that frame (a place on
+// this tab, not hidden by kMessageVisible) - right before that block's own frame call, in the same frame (none when the layout
+// mode came on meanwhile, or when the block's frame call is skipped because it has no content clip yet). A block that is not
+// shown never gets the key, not even later: a key pressed on another tab is gone.
+// The return value is logged only: SL_MagicMenu never consumes a key (the menu and the game see it as before). No gamepad.
 //
 // pad: the content clip's inset in the block's box (stage units; top - below the title strip when there is one -, left,
 // right and bottom). < 0 (the default, kPadDefault) is the host's own pad; a pad that is not a finite number or more than
@@ -145,9 +147,10 @@
 // mode is on. Not answered: the next Context shows the result (source kAddon, servedRequest = its requestId).
 //
 // kMessageVisible ('SLMV'): add-on -> SL_MagicMenu, data = a VisibleRequest, dataLen its size: hide the block (shown 0) but
-// keep its place in the column, or show it again (shown 1). Queued, taken on the next UI frame. Every menu opens with the
-// block shown; a hidden block is still drawn (draw / drawSelection) but gets no frame call and cannot be grabbed in the
-// layout mode.
+// keep its place in the column, or show it again (shown 1). Queued, taken on the next UI frame - and taken again after that
+// frame's draws, before its frame calls, so one sent from a draw applies before the frame is shown (a block can hide itself
+// from its first draw). Requests are applied in order; only a change does anything. Every menu opens with the block shown; a
+// hidden block is still drawn (draw / drawSelection) but gets no frame call and cannot be grabbed in the layout mode.
 //
 // Both v3 messages: the struct only needs to live for the Dispatch call (the id is copied). Ignored while the magic menu is
 // closed and for an id that is not a registered block; refused (logged) when the message is shorter than the fields read,

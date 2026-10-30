@@ -129,7 +129,6 @@ namespace
             reg.drawSelection = HomAddon::DrawTreeBlock;
             reg.frame = HomAddon::TreeFrame;
             reg.key = HomAddon::TreeKey;
-            reg.pad = static_cast<float>(HomAddon::kPad);  // the host's own: the tree's panel clip sits at (-kPad, -(title + kPad))
             reg.flags = kFlagOwnMouse | kFlagKeepWhenEmpty;
             break;
         case BlockKind::kProgress:

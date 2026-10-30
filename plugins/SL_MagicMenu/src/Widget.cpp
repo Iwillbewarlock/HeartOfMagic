@@ -3278,31 +3278,32 @@ namespace Widget
             if (changed) ApplyVisibility(a_widget);
         }
 
-        // The keyboard downs queued since the last frame (QueueAddonKey) handed to every v3 block with a key callback, in order;
-        // none while the layout mode is on (it may have come on after the key was queued). The return value is logged only
-        void AddonKeys(RE::GFxValue& a_widget)
+        // The keyboard downs queued since the last frame (QueueAddonKey), taken once per frame
+        std::vector<std::uint32_t> TakeAddonKeys()
         {
             std::vector<std::uint32_t> keys;
-            {
-                const std::scoped_lock lock(g_v3Lock);
-                keys.swap(g_keyQueue);
-            }
-            if (keys.empty() || g_menu.layout.active) return;
-            for (const auto& addon : g_addons) {
-                if (!addon.key || g_menu.addonFailed.contains(addon.id)) continue;
-                for (const auto key : keys) {
-                    bool used = false;
-                    const auto error = GuardedCall([&] { used = addon.key(key, addon.user); });
-                    if (!error.empty()) {
-                        FailAddon(a_widget, addon, "key", "L9", "key", error);
-                        break;
-                    }
-                    if (++g_menu.addonKeyLogs <= kMaxAddonKeyLogs) {
-                        logger::info("Widget: add-on block {} key {} -> {}{}", addon.id, key, used ? "used" : "not used",
-                            g_menu.addonKeyLogs == kMaxAddonKeyLogs ? " - later ones this menu not logged" : "");
-                    }
+            const std::scoped_lock lock(g_v3Lock);
+            keys.swap(g_keyQueue);
+            return keys;
+        }
+
+        // This frame's keys handed to one shown v3 block's key callback, in order (BlockRules::DeliversKey - the caller checked it).
+        // The return value is logged only. False when the callback threw (the block failed)
+        bool AddonKeys(RE::GFxValue& a_widget, const BlockRegistry::Block& a_addon, const std::vector<std::uint32_t>& a_keys)
+        {
+            for (const auto key : a_keys) {
+                bool used = false;
+                const auto error = GuardedCall([&] { used = a_addon.key(key, a_addon.user); });
+                if (!error.empty()) {
+                    FailAddon(a_widget, a_addon, "key", "L9", "key", error);
+                    return false;
+                }
+                if (++g_menu.addonKeyLogs <= kMaxAddonKeyLogs) {
+                    logger::info("Widget: add-on block {} key {} -> {}{}", a_addon.id, key, used ? "used" : "not used",
+                        g_menu.addonKeyLogs == kMaxAddonKeyLogs ? " - later ones this menu not logged" : "");
                 }
             }
+            return true;
         }
 
         // An add-on's overlay clip removed from both column clips (the block may have moved)
@@ -3385,14 +3386,21 @@ namespace Widget
         // would lie above the mode's covers in the column clip
         void AddonFrames(RE::GFxMovieView* a_movie, RE::GFxValue& a_widget)
         {
-            AddonKeys(a_widget);
+            // fix round 1 (HoM add-on Task 7): the keys go to the blocks shown this frame only, right before their frame calls - a key
+            // pressed on a tab a block is not on is never handed to it later
+            const auto keys = TakeAddonKeys();
             const bool columnsUp = Visibility().any;
             for (std::size_t i = 0; i < g_addons.size(); ++i) {
                 const auto& addon = g_addons[i];
-                if (!addon.frame) continue;
+                if (!addon.frame && !addon.key) continue;
                 const auto column = ColumnOf(addon.id);
                 const bool shown = columnsUp && column && g_menu.blocks.contains(addon.id) && !g_menu.addonHidden.contains(addon.id) &&
                                    !g_menu.addonFailed.contains(addon.id);
+                const bool deliver = !keys.empty() && BlockRules::DeliversKey(addon.key != nullptr, shown, g_menu.layout.active);
+                if (!addon.frame) {  // a key-only block
+                    if (deliver) AddonKeys(a_widget, addon, keys);
+                    continue;
+                }
                 BlockRules::OverlaySnapshot now{ shown && !g_menu.layout.active, column.value_or(-1), BlockRect(addon.id), g_contentGenerations[i],
                     g_menu.layoutModeChanges, column ? g_menu.panelsMade[*column] : 0 };
                 auto& track = g_overlayTracks[i];
@@ -3419,6 +3427,8 @@ namespace Widget
                 auto panel = BlockClip(a_widget, addon.id);
                 auto content = panel.IsDisplayObject() ? Child(panel, "content") : RE::GFxValue{};
                 if (!content.IsDisplayObject()) continue;  // not drawn yet (DrawAddons logs a content clip it could not make)
+                // the keys right before the frame call (after every check that could skip it): a key acts in the frame it is given in
+                if (deliver && !AddonKeys(a_widget, addon, keys)) continue;  // its key callback threw: failed, no frame call
                 const auto context = ContextOf(i, addon, *column);
                 RE::GFxValue* overlayArg = overlay.IsDisplayObject() ? &overlay : nullptr;
                 const auto error = GuardedCall([&] { addon.frame(a_movie, content, overlayArg, context, addon.user); });
@@ -6137,6 +6147,8 @@ namespace Widget
                 // height would show past its box, over the block below, for one frame): laid out again and drawn once more - that
                 // draw is at the asked size, so it asks for nothing new
                 if (TakeAddonHeights(movie, widget)) DrawAddons(movie, widget);
+                // fix round 1 (HoM add-on Task 7): a kMessageVisible sent from one of those draws applies before this frame is shown
+                TakeAddonVisible(widget);
                 CheckUnlearned();       // P3: one model check per frame
                 g_menu.firstFrame = false;
                 ++g_menu.frame;
