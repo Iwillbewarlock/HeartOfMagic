@@ -20,8 +20,8 @@
 namespace
 {
     // Blocks plan Task 6 (D9): add-on block registrations from any plugin (BlockApi.h), answered to the sender with a
-    // BlockApi::Result; API v2: an add-on's redraw ('SLMD') and height ('SLMH') requests, not answered. This listener hears every plugin's
-    // messages and SKSE's: any other type passes silently
+    // BlockApi::Result; API v2: an add-on's redraw ('SLMD') and height ('SLMH') requests, v3: its show ('SLMS') and visible ('SLMV')
+    // requests, not answered. This listener hears every plugin's messages and SKSE's: any other type passes silently
     void OnAnyMessage(SKSE::MessagingInterface::Message* a_msg)
     {
         if (!a_msg) return;
@@ -31,6 +31,14 @@ namespace
         }
         if (a_msg->type == BlockApi::kMessageRedraw) {
             Widget::RequestAddonRedraw(a_msg->sender ? a_msg->sender : "", a_msg->data, a_msg->dataLen);
+            return;
+        }
+        if (a_msg->type == BlockApi::kMessageShowSpell) {
+            Widget::RequestAddonShowSpell(a_msg->sender ? a_msg->sender : "", a_msg->data, a_msg->dataLen);
+            return;
+        }
+        if (a_msg->type == BlockApi::kMessageVisible) {
+            Widget::RequestAddonVisible(a_msg->sender ? a_msg->sender : "", a_msg->data, a_msg->dataLen);
             return;
         }
         if (a_msg->type != BlockApi::kMessageRegister) return;

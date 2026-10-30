@@ -40,6 +40,22 @@ namespace Widget
     /// and the columns are laid out again. Dropped while the magic menu is closed; a bad message is logged and ignored
     void RequestAddonHeight(std::string_view a_sender, const void* a_data, std::uint32_t a_dataLen);
 
+    /// Block API v3: an add-on's kMessageShowSpell ('SLMS', data = BlockApi::ShowSpellRequest) from a_sender. Any thread: read and
+    /// queued (the newest per id) with the list selection's sequence now; on the menu's next frame it is served as a click on
+    /// the spell in the add-on's block, unless the list selection changed since (the player's newer choice wins) or the layout
+    /// mode is on. Dropped while the magic menu is closed; a bad message is logged and ignored
+    void RequestAddonShowSpell(std::string_view a_sender, const void* a_data, std::uint32_t a_dataLen);
+
+    /// Block API v3: an add-on's kMessageVisible ('SLMV', data = BlockApi::VisibleRequest) from a_sender. Any thread: read and
+    /// queued (the last per id); on the menu's next frame the block is hidden (its place kept, no frame call) or shown again.
+    /// Every menu opens with its blocks shown. Dropped while the magic menu is closed; a bad message is logged and ignored
+    void RequestAddonVisible(std::string_view a_sender, const void* a_data, std::uint32_t a_dataLen);
+
+    /// Block API v3: a keyboard down (DirectInput scan code) that passed the input's gate (the menu open, no text entry, the
+    /// layout mode off, not a key the mode owns). Any thread: queued, and on the menu's next frame each v3 block's key
+    /// callback gets it (none while the layout mode is on by then). Dropped while the magic menu is closed
+    void QueueAddonKey(std::uint32_t a_scanCode);
+
     /// [Debug] bDebugFillerBlock: registers the test block Layout::kDebugFillerId (300 high) through RegisterBlock (call at kDataLoaded); it joins the left column after the spell card
     void RegisterDebugFiller();
 

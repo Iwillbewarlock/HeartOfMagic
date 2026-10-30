@@ -39,6 +39,7 @@ namespace SelectionRule
         kClick,      // a mouse press on a row
         kKey,        // a keyboard/gamepad move or press
         kTree,       // a tree node click selected it in the list (marked by us before the setter)
+        kAddon,      // Block API v3: an add-on block's kMessageShowSpell selected it in the list (marked by us before the setter)
         kHighlight,  // the wrap is not installed: build 11's follow-the-highlight (G3)
         kOther,      // a selectionChange without SkyUI's keyboardOrMouse (another mod's dispatch): passed on
     };
@@ -82,6 +83,7 @@ namespace SelectionRule
         case Source::kClick: return "click";
         case Source::kKey: return "key";
         case Source::kTree: return "tree";
+        case Source::kAddon: return "addon";
         case Source::kHighlight: return "highlight";
         default: return "other";
         }

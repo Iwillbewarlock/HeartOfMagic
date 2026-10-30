@@ -345,6 +345,7 @@ namespace Input
                     const auto key = button->GetIDCode();
                     // blocks spec "When the mode is off": U and G do nothing while the layout mode is on or the press is the mode's
                     if (Widget::LayoutModeOn() || g_owned.contains(KeyOf(RE::INPUT_DEVICE::kKeyboard, key))) continue;
+                    Widget::QueueAddonKey(key);  // Block API v3: every key down past the same gate, for the add-ons' key calls
                     if (key == settings.keyNext) {
                         SKSE::GetTaskInterface()->AddUITask([] { Widget::RequestNext(); });
                     } else if (key == settings.keySetTarget) {
