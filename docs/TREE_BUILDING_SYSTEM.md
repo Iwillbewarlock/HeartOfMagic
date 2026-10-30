@@ -508,6 +508,9 @@ spells have every effect flagged Hide in UI, where the rules read the hidden one
 **Known and left as it is**
 - school is the school of the first effect (upstream behaviour); the engine uses the costliest effect.
   They differ for 2 of 1440 spells here. Changing it would move spells between schools in existing trees.
+  Only a spell whose first effect has none of the five schools takes its costliest effect's school, and its
+  tier the same effect's minimum skill (`SpellScanner::GetSchoolEffect`, Unreleased); before, the scan left
+  such a spell out.
 - a spell with two elements (5 here, the Creation Club fire-and-frost spells and one dispel) goes to
   whichever element its first such effect has. They really are dual-element; no single answer is right.
 - 111 spells stay unthemed, 49 of them one mod's. 168 spells have nothing but Script effects: a script

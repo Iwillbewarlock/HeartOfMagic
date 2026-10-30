@@ -2073,7 +2073,7 @@ PrismaUI has no WebGL) and the `autoTest.js` harness were removed on 2026-09-27.
 **Tree:** `LoadSpellTree`, `SaveSpellTree`, `GetSpellInfo`, `GetSpellInfoBatch`
 **Progression:** `SetLearningTarget`, `ClearLearningTarget`, `UnlockSpell`, `GetProgress`, `CheatUnlockSpell`, `RelockSpell`, `GetPlayerKnownSpells`, `SetSpellXP`, `SetTreePrerequisites`
 **Config:** `LoadUnifiedConfig`, `SaveUnifiedConfig`, `SetPauseGameOnFocus`
-**Presets:** `SavePreset`, `DeletePreset`, `LoadPresets`
+**Presets:** `SavePreset`, `DeletePreset`, `RenamePreset` (the new file written before the old one is deleted, `PresetFiles::Rename`), `LoadPresets`
 **Tree Building:** `ProceduralTreeGenerate`, `PreReqMasterScore`
 **Clipboard:** `GetClipboard`
 **Other:** `HidePanel`, `LogMessage`, `LoadPrompt`

@@ -81,7 +81,7 @@
 
 - **Turning passive learning on no longer pays for the time it was off.** Switching it on gave XP for every game
   hour since it was switched off (or since the save was loaded). Now only the time from when it is switched on
-  counts. Not yet tested in game.
+  counts, also right after a wait or fast travel. Not yet tested in game.
 
 - **A DEST_ISL.esp that is in Data but not checked no longer counts as installed.** Heart of Magic took it for an
   active ISL-DESTified setup, so reading a spell tome said "You begin to study..." and the spell
@@ -90,7 +90,11 @@
 - **Spells whose first effect has no magic school are scanned.** The scan took a spell's school from its first
   effect only, so a spell that starts with a school-less effect (a light or a sound, say) was left out of the
   tree. Such a spell now takes the school of its costliest effect, the one Heart of Magic already used for its
-  learning target and cast XP. A spell whose first effect has a school keeps that school. Not yet tested in game.
+  learning target and cast XP, and its tier (Novice to Master, which sets the XP it needs) comes from that same
+  effect. Now that it has a school, such a spell can also count as a copy of a spell of that school: another
+  plugin's copy with the same editor id (merged into one tree spell, and not given early while you know the
+  other), or a same-named copy without the spell's half-cost perk (left out like other non-player copies). A
+  spell whose first effect has a school keeps its school and tier. Not yet tested in game.
 
 - **A scan while a spell is weakened keeps the spell's own name.** With Modify Game Display on, a weakened spell is
   named "Flames (Learning - 35%)" in game, and a scan then (the Scan button, or a mod's scan through Papyrus) stored
@@ -98,10 +102,12 @@
   stores the spell's own name. Not yet tested in game.
 
 - **Renaming a preset can no longer lose it.** A rename deleted the preset's file first and then saved it under
-  the new name; when that save was refused (a name such as "..") or could not be written, both files were gone.
-  The new file is now written first, and the old one is deleted only after that worked. When the rename fails,
-  the old file stays and the log says so; the panel still shows the new name until it reads the presets again.
-  Not yet tested in game.
+  the new name; when that save was refused (a name with ".." in it) or could not be written, both files were
+  gone. The new file is now written first, and the old one is deleted only after that worked, also a file an
+  older version saved for a non-ASCII name. When the rename fails, the old file stays and the status line says
+  so; the panel's list still shows the new name until it reads the presets again. Renaming to a name that differs
+  from another preset's only in capital letters ("fire" next to "Fire") now asks before replacing it, as the same
+  name did: Windows takes them for one file. Not yet tested in game.
 
 - **Book Reading XP comes once per book.** Reading the same book or note again gave XP every time. Now each book or
   note gives XP once; copies of the same book count as one. A book read while no spell is being learned gives

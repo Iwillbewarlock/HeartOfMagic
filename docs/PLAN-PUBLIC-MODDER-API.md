@@ -380,7 +380,8 @@ Function ClearAllLearningTargets() global native
 ```
 
 The school a target is kept under (1.2.1) is the spell's tree school: the school of its first effect, as the
-panel's tree shows it (the costliest effect's only when the first has none). `SetLearningTarget(akSpell)`
+panel's tree shows it (the costliest effect's only when the first has none - the scan, the tree and the target
+all take it from `SpellScanner::GetSchoolEffect`). `SetLearningTarget(akSpell)`
 picks that school itself; `SetLearningTargetForSchool` should be given it too, since a spell is the target
 of one school at most (setting it under another school moves it there). `ClearLearningTarget(schoolName)`
 also clears that spell under any other school.
@@ -428,7 +429,7 @@ for a spell with effects of two schools.
 |-------|----------|----------------|
 | `XPGained` | `AddSourcedXP()` | After `AddXP()` call |
 | `SpellMastered` | `AddXP()` ~line 591 | After `progress.unlocked = true` |
-| `SpellEarlyGranted` | `AddXP()` ~line 561 | After `GrantEarlySpell()` |
+| `SpellEarlyGranted` | `TryEarlyGrant()` (`AddXP()`, and `GrantDueEarlySpells()` when early learning is switched on or its threshold lowered) | After `GrantEarlySpell()` |
 | `TargetChanged` | `SetLearningTarget()` ~line 52 | After target stored |
 | `TargetChanged` | `ClearLearningTarget()` ~line 268 | After target removed |
 | `ProgressMilestone` | `AddXP()` ~line 569 | After power step threshold crossed |

@@ -867,7 +867,7 @@ Split across: ProgressionManagerCore.cpp, ProgressionManagerSerialization.cpp, P
 - `IsSpellAvailableToLearn(formId)` - Check if spell can receive XP
 - `ClearLearningTargetForSpell(formId)` - Clear every school whose target is this spell (found by id in the target map, not from the spell's effects) - on mastery, unlock and relock, and when the panel's clear carries the spell's formId
 - `ClearLearningTarget(school)` - Clear that school's target, and the same spell under any other school key
-- `TargetSchoolOf(spell)` - The one school key a spell is a learning target under: the tree node's school (first effect, `SpellScanner::GetSpellSchool`), which the panel keys by; the costliest effect's school only when the first effect has none. The tome path and the cast's school (`SpellCastHandler`, for the same-school rate) use it too
+- `TargetSchoolOf(spell)` - The one school key a spell is a learning target under: the tree node's school (`SpellScanner::GetSpellSchool`: the first effect's, the costliest effect's only when the first effect has none - one rule with the scan, `GetSchoolEffect`), which the panel keys by. The tome path and the cast's school (`SpellCastHandler`, for the same-school rate) use it too
 - `OnGameSaved/OnGameLoaded/OnRevert` - SKSE serialization
 
 **Co-save records** (unique id `'SPLL'`). The SKSE callbacks are in `src/CoSave.cpp` (`CoSave::OnGameSaved`,
@@ -1160,7 +1160,8 @@ not affected.
   `XP: cast <spell> (<id>) from <path>: +<total> to <n> target(s), <k> duplicate key(s) skipped` (only when
   it earned something; the cast handler runs on every player cast). A report dropped as the other half of a
   credited cast logs `XP: duplicate skipped - ...` at debug level
-- **One school per learning target (1.2.1):** the panel keys a target by the node's school (first effect),
+- **One school per learning target (1.2.1):** the panel keys a target by the node's school (first effect;
+  since Unreleased the costliest effect when the first has no school, as `TargetSchoolOf` always did),
   a tome read used the costliest effect's school, so one spell could be the target of two schools and
   `OnSpellCast` paid it twice per cast - or of one school the panel did not look at, so it could neither
   show nor clear it. Now there is one key, `TargetSchoolOf` (the node's school), for the panel, the tome path
