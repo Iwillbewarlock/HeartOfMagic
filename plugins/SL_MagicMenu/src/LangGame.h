@@ -12,9 +12,10 @@
 // =============================================================================
 // LANG GAME - the game side of LangFiles.h, shared by SL_MagicMenu and
 // SL_MagicMenu_HoM: [Display] sLanguage from Data/SKSE/Plugins/SL_MagicMenu.ini
-// (both DLLs read the same key), the game's sLanguage:General, and one load of
-// a DLL's Catalog with its log lines. Call at kDataLoaded (the game's INI
-// settings are read by then), once per game session.
+// (both DLLs read the same key), the game's sLanguage:General, a localized
+// game string for auto's Hangul check (GameText), and one load of a DLL's
+// Catalog with its log lines. Call at kDataLoaded (the game's INI settings and
+// the plugins' strings are read by then), once per game session.
 // =============================================================================
 
 namespace LangGame
@@ -53,12 +54,29 @@ namespace LangGame
         return setting->GetString();
     }
 
-    /// Loads a_catalog from <game>/<a_langDir>/<code>.json once and logs which language and files were used
+    /// The five magic skills' names as the game shows them (the ActorValueInfo full names, localized from Skyrim.esm's strings,
+    /// loaded by kDataLoaded), joined by ", " - auto's Hangul check (LangFiles::AutoCode): the Korean patch makes them Korean on
+    /// a game whose sLanguage is ENGLISH. "" when none reads
+    inline std::string GameText()
+    {
+        constexpr std::array kSchools{ RE::ActorValue::kAlteration, RE::ActorValue::kConjuration, RE::ActorValue::kDestruction, RE::ActorValue::kIllusion,
+            RE::ActorValue::kRestoration };
+        std::string text;
+        for (const auto school : kSchools) {
+            const auto* info = RE::ActorValueList::GetActorValueInfo(school);
+            const char* name = info ? info->GetFullName() : nullptr;
+            if (name && *name) text += (text.empty() ? "" : ", ") + std::string(name);
+        }
+        return text;
+    }
+
+    /// Loads a_catalog from <game>/<a_langDir>/<code>.json once and logs which language and files were used (and, for auto,
+    /// which signal decided)
     template <class Catalog>
     void Load(Catalog& a_catalog, const char* a_langDir)
     {
         const auto dir = GamePath(a_langDir);
-        const auto report = a_catalog.Load(dir, IniLanguage(), GameLanguage());
+        const auto report = a_catalog.Load(dir, IniLanguage(), GameLanguage(), GameText());
         if (!report) return;  // loaded already this session
         const auto shown = SKSE::stl::utf16_to_utf8(dir.wstring()).value_or("(path not UTF-8)");
         for (const auto& [level, line] : LangFiles::ReportLines(*report, shown)) {

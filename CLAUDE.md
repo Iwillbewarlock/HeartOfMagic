@@ -361,7 +361,8 @@ This project does not have a C++ test framework. Validation is done through:
   `WidgetStrings.h` and the HoM block's `Strings.h` tables against their `dist/lang/en.json` and `ko.json` - every key, no
   extra key, the files parse, `{placeholders}` and the `" · "` separators equal in en, ko and the built-in English, the
   built-in text equal to en.json - and the shared `plugins/SL_MagicMenu/src/LangFiles.h`: `[Display] sLanguage` of
-  SL_MagicMenu.ini + the game's sLanguage -> the code (auto + KOREAN -> ko, anything else en), the chain `<code>.json`,
+  SL_MagicMenu.ini + the game's sLanguage -> the code (auto + KOREAN -> ko, else Hangul in a localized game string - the
+  magic skills' names - -> ko, else en; `HasHangul` on valid, CP949 and broken UTF-8), the chain `<code>.json`,
   en.json, built-in on the shipped and on made-up folders, the one load per session, the log lines, and the shipped ini's
   `sLanguage=auto`; `--selftest` the same); and the Spell Research add-on block's
   (plugins/SL_MagicMenu_SpellResearch, docs/superpowers/specs/2026-10-27-spell-research-addon-design.md)

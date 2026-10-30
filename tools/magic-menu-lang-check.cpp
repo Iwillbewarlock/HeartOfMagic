@@ -173,6 +173,44 @@ namespace
         Expect(is("../ko", "KOREAN", "ko", CodeSource::kBadSetting) && is("k?", "ENGLISH", "en", CodeSource::kBadSetting) &&
                    is("abcdefghijklmnopq", "ENGLISH", "en", CodeSource::kBadSetting),
             "not a code (a path, a non-ASCII '?', 17 letters) -> the game's language");
+        // 2026-10-31: auto on a Korean-patched English game - Hangul in a localized game string decides
+        const auto auto3 = [](std::string_view a_setting, std::string_view a_game, std::string_view a_text, std::string_view a_code, CodeSource a_source,
+                               AutoSignal a_signal) {
+            const auto choice = ChooseCode(a_setting, a_game, a_text);
+            return choice.code == a_code && choice.source == a_source && choice.signal == a_signal;
+        };
+        const std::string alteration = "ë³ì±";  // "변성" (U+BCC0 U+C131) in UTF-8
+        Expect(HasHangul(alteration) && HasHangul("Alteration, " + alteration) && HasHangul("ã±") && HasHangul("á"),
+            "HasHangul: syllables, mixed with English, a compatibility jamo, a jamo");
+        Expect(!HasHangul("Alteration") && !HasHangul("") && !HasHangul("å¤") && !HasHangul("ã"),
+            "HasHangul: English, empty, Han only (变), kana only - no");
+        Expect(!HasHangul("º¯¼º") && !HasHangul("ë³") && !HasHangul("Á") && !HasHangul("í ") && !HasHangul("ÿë"),
+            "HasHangul: CP949 bytes, a cut sequence, an overlong one, a surrogate, a bad lead - no, and no crash");
+        Expect(HasHangul("º¯" + alteration), "HasHangul: Hangul after invalid bytes is still found");
+        Expect(auto3("auto", "ENGLISH", alteration, "ko", CodeSource::kGame, AutoSignal::kGameText) &&
+                   auto3("", "ENGLISH", "Alteration, " + alteration, "ko", CodeSource::kGame, AutoSignal::kGameText),
+            "auto + ENGLISH + Korean game text -> ko (the Korean patch on an English game)");
+        Expect(auto3("auto", "ENGLISH", "Alteration, Conjuration", "en", CodeSource::kGame, AutoSignal::kNeither) &&
+                   auto3("auto", "ENGLISH", "", "en", CodeSource::kGame, AutoSignal::kNeither),
+            "auto + ENGLISH + English or no game text -> en");
+        Expect(auto3("auto", "KOREAN", "Alteration", "ko", CodeSource::kGame, AutoSignal::kGameLanguage), "auto + KOREAN -> ko by the game language, the text not needed");
+        Expect(auto3("en", "ENGLISH", alteration, "en", CodeSource::kSetting, AutoSignal::kNone) &&
+                   auto3("ko", "ENGLISH", "Alteration", "ko", CodeSource::kSetting, AutoSignal::kNone),
+            "an explicit code wins over the game text");
+        Expect(auto3("k?", "ENGLISH", alteration, "ko", CodeSource::kBadSetting, AutoSignal::kGameText), "a bad setting falls back to auto, the game text too");
+        {
+            LoadReport report{ .setting = "auto", .game = "ENGLISH", .gameText = alteration, .choice = ChooseCode("auto", "ENGLISH", alteration) };
+            report.shown = "ko";
+            const auto lines = ReportLines(report, "dir");
+            Expect(std::ranges::any_of(lines, [&](const auto& a_line) {
+                return a_line.second.find("language 'ko'") != std::string::npos && a_line.second.find("decided by Hangul in the game text '" + alteration + "'") != std::string::npos;
+            }), "log: the language line names the Hangul signal and the text");
+            report.choice = ChooseCode("auto", "ENGLISH", "");
+            report.gameText.clear();
+            const auto none = ReportLines(report, "dir");
+            Expect(std::ranges::any_of(none, [](const auto& a_line) { return a_line.second.find("no Korean signal: not KOREAN, no Hangul in no game text read") != std::string::npos; }),
+                "log: no signal says so");
+        }
         Expect(FillText("{n} of {n} {key}", { { "{n}", "3" }, { "{key}", "[U]" } }) == "3 of 3 [U]" && FillText("{n}", { { "{n}", "{n}{n}" } }) == "{n}{n}",
             "FillText: every occurrence, a value holding the name is not filled again");
         Expect(Placeholders("{b} x {a} {b}") == std::vector<std::string>{ "{a}", "{b}", "{b}" } && CountOf("a \xC2\xB7 b \xC2\xB7 c", kSeparator) == 2,

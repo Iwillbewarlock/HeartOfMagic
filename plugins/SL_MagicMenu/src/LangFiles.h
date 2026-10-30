@@ -22,7 +22,8 @@
 // =============================================================================
 // LANG FILES - the language files of the magic menu (SL_MagicMenu) and its
 // Heart of Magic block (SL_MagicMenu_HoM): which language ([Display] sLanguage
-// of SL_MagicMenu.ini, auto = the game's sLanguage:General), the files
+// of SL_MagicMenu.ini, auto = the game's sLanguage:General, or Korean when a
+// localized game string holds Hangul - the Korean patch on an English game), the files
 // (<lang dir>/<code>.json: one flat JSON object of strings, UTF-8, a BOM
 // accepted, "_" keys are notes) and each table key's text: the language's
 // file, then en.json, then the built-in English compiled in. A Catalog holds
@@ -89,6 +90,77 @@ namespace LangFiles
         return std::string(Detail::Lower(Detail::Trim(a_gameLanguage)) == Detail::Lower(kGameKorean) ? kKorean : kEnglish);
     }
 
+    namespace Detail
+    {
+        // Hangul code point blocks: Jamo, Compatibility Jamo, Jamo Extended-A, Syllables, Jamo Extended-B
+        inline constexpr std::array<std::pair<char32_t, char32_t>, 5> kHangulBlocks{ { { 0x1100, 0x11FF }, { 0x3130, 0x318F }, { 0xA960, 0xA97F },
+            { 0xAC00, 0xD7A3 }, { 0xD7B0, 0xD7FF } } };
+        inline constexpr char32_t kMaxCodePoint = 0x10FFFF, kSurrogateFirst = 0xD800, kSurrogateLast = 0xDFFF;
+
+        /// The UTF-8 sequence at a_text[a_at] as a code point, a_at moved past it; nullopt (a_at moved one byte) for a byte that
+        /// starts no valid sequence (a stray continuation byte, a cut or overlong sequence, a surrogate - CP949 bytes read as UTF-8)
+        inline std::optional<char32_t> NextCodePoint(std::string_view a_text, std::size_t& a_at)
+        {
+            constexpr unsigned char kCont = 0x80, kContMask = 0xC0, kContBits = 0x3F;  // 0x80: the first non-ASCII byte and the continuation mark
+            constexpr std::array<char32_t, 5> kLeast{ 0, 0, 0x80, 0x800, 0x10000 };  // the smallest code point of each length (overlong below)
+            const auto lead = static_cast<unsigned char>(a_text[a_at++]);
+            if (lead < kCont) return lead;
+            std::size_t length = 0;
+            char32_t point = 0;
+            if ((lead & 0xE0) == 0xC0) {
+                length = 2;
+                point = lead & 0x1F;
+            } else if ((lead & 0xF0) == 0xE0) {
+                length = 3;
+                point = lead & 0x0F;
+            } else if ((lead & 0xF8) == 0xF0) {
+                length = 4;
+                point = lead & 0x07;
+            } else {
+                return std::nullopt;
+            }
+            if (a_at + length - 1 > a_text.size()) return std::nullopt;
+            for (std::size_t i = 0; i + 1 < length; ++i) {
+                const auto next = static_cast<unsigned char>(a_text[a_at + i]);
+                if ((next & kContMask) != kCont) return std::nullopt;
+                point = (point << 6) | (next & kContBits);
+            }
+            if (point < kLeast[length] || point > kMaxCodePoint || (point >= kSurrogateFirst && point <= kSurrogateLast)) return std::nullopt;
+            a_at += length - 1;
+            return point;
+        }
+    }
+
+    /// a_text (UTF-8) holds at least one Hangul letter (Detail::kHangulBlocks); invalid bytes are skipped, never read as Hangul
+    inline bool HasHangul(std::string_view a_text)
+    {
+        for (std::size_t at = 0; at < a_text.size();) {
+            const auto point = Detail::NextCodePoint(a_text, at);
+            if (point && std::ranges::any_of(Detail::kHangulBlocks, [&](const auto& a_block) { return *point >= a_block.first && *point <= a_block.second; })) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// What decided an auto language (the log names it)
+    enum class AutoSignal
+    {
+        kNone,          // not auto (sLanguage named a code)
+        kGameLanguage,  // the game's sLanguage is KOREAN
+        kGameText,      // a localized game string holds Hangul (Korean .STRINGS on a game whose sLanguage is not KOREAN)
+        kNeither,       // neither: English
+    };
+
+    /// sLanguage auto: the game's sLanguage KOREAN -> ko; else a_gameText (a localized game string, UTF-8) with Hangul -> ko (the
+    /// Korean patch: most Korean players run sLanguage=ENGLISH with Korean .STRINGS files); else en
+    inline std::pair<std::string, AutoSignal> AutoCode(std::string_view a_gameLanguage, std::string_view a_gameText)
+    {
+        if (GameLanguageCode(a_gameLanguage) == kKorean) return { std::string(kKorean), AutoSignal::kGameLanguage };
+        if (HasHangul(a_gameText)) return { std::string(kKorean), AutoSignal::kGameText };
+        return { std::string(kEnglish), AutoSignal::kNeither };
+    }
+
     enum class CodeSource
     {
         kSetting,     // sLanguage named a code
@@ -100,15 +172,18 @@ namespace LangFiles
     {
         std::string code;
         CodeSource source = CodeSource::kGame;
+        AutoSignal signal = AutoSignal::kNone;  // kGame / kBadSetting: what decided (AutoCode)
     };
 
-    /// sLanguage (as written, may be empty) and the game's language -> the code to look for first
-    inline CodeChoice ChooseCode(std::string_view a_setting, std::string_view a_gameLanguage)
+    /// sLanguage (as written, may be empty), the game's language and a localized game string (AutoCode; "" = none read) -> the
+    /// code to look for first
+    inline CodeChoice ChooseCode(std::string_view a_setting, std::string_view a_gameLanguage, std::string_view a_gameText = {})
     {
         const auto setting = Detail::Lower(Detail::Trim(a_setting));
-        if (setting.empty() || setting == kAuto) return { GameLanguageCode(a_gameLanguage), CodeSource::kGame };
-        if (IsCode(setting)) return { setting, CodeSource::kSetting };
-        return { GameLanguageCode(a_gameLanguage), CodeSource::kBadSetting };
+        const bool automatic = setting.empty() || setting == kAuto;
+        if (!automatic && IsCode(setting)) return { setting, CodeSource::kSetting, AutoSignal::kNone };
+        auto [code, signal] = AutoCode(a_gameLanguage, a_gameText);
+        return { std::move(code), automatic ? CodeSource::kGame : CodeSource::kBadSetting, signal };
     }
 
     // ---------------------------------------------------------------------
@@ -221,6 +296,7 @@ namespace LangFiles
     {
         std::string setting;  // sLanguage as written ("" when not set)
         std::string game;     // the game's sLanguage:General
+        std::string gameText; // the localized game string auto looked at for Hangul ("" = none read)
         CodeChoice choice;
         std::string shown;    // the code whose file comes first: choice.code, or en when that file is not there
         TableRead language;   // <choice.code>.json (not read for en)
@@ -233,9 +309,10 @@ namespace LangFiles
     /// Each entry's text (a_table: rows with .key and .text, the built-in English): <code>.json, en.json, built-in
     template <class Entry, std::size_t N>
     std::pair<std::array<std::string, N>, LoadReport> Resolve(const std::array<Entry, N>& a_table, const std::filesystem::path& a_dir,
-        std::string_view a_setting, std::string_view a_gameLanguage)
+        std::string_view a_setting, std::string_view a_gameLanguage, std::string_view a_gameText = {})
     {
-        LoadReport report{ .setting = std::string(a_setting), .game = std::string(a_gameLanguage), .choice = ChooseCode(a_setting, a_gameLanguage) };
+        LoadReport report{ .setting = std::string(a_setting), .game = std::string(a_gameLanguage), .gameText = std::string(a_gameText),
+            .choice = ChooseCode(a_setting, a_gameLanguage, a_gameText) };
         report.english = ReadTableFile(FilePath(a_dir, kEnglish));
         if (report.choice.code != kEnglish) report.language = ReadTableFile(FilePath(a_dir, report.choice.code));
         report.shown = report.language.table ? report.choice.code : std::string(kEnglish);
@@ -281,10 +358,11 @@ namespace LangFiles
         bool Loaded() const { return loaded_.load(std::memory_order_acquire); }
 
         /// Reads the files and keeps the texts; nullopt when already loaded (the first load stands)
-        std::optional<LoadReport> Load(const std::filesystem::path& a_dir, std::string_view a_setting, std::string_view a_gameLanguage)
+        std::optional<LoadReport> Load(const std::filesystem::path& a_dir, std::string_view a_setting, std::string_view a_gameLanguage,
+            std::string_view a_gameText = {})
         {
             if (loaded_.load(std::memory_order_acquire)) return std::nullopt;
-            auto [texts, report] = Resolve(table_, a_dir, a_setting, a_gameLanguage);
+            auto [texts, report] = Resolve(table_, a_dir, a_setting, a_gameLanguage, a_gameText);
             texts_ = std::move(texts);
             loaded_.store(true, std::memory_order_release);
             return std::move(report);
@@ -326,6 +404,18 @@ namespace LangFiles
             for (const auto& key : a_keys) list += (list.empty() ? "" : ", ") + key;
             return list;
         }
+
+        /// What decided an auto choice, for the log line ("" when sLanguage named the code)
+        inline std::string SignalText(const LoadReport& a_report)
+        {
+            const std::string text = a_report.gameText.empty() ? "no game text read" : "the game text '" + a_report.gameText + "'";
+            switch (a_report.choice.signal) {
+            case AutoSignal::kGameLanguage: return "decided by the game's sLanguage";
+            case AutoSignal::kGameText: return "decided by Hangul in " + text + " (Korean strings on a game that is not KOREAN)";
+            case AutoSignal::kNeither: return "no Korean signal: not KOREAN, no Hangul in " + text;
+            default: return {};
+            }
+        }
     }
 
     /// a_shownDir: the language folder as the log shows it (UTF-8)
@@ -335,7 +425,8 @@ namespace LangFiles
         const auto& r = a_report;
         const std::string why = r.choice.source == CodeSource::kSetting ?
                                     "[Display] sLanguage = '" + r.setting + "'" :
-                                    "the game's sLanguage '" + r.game + "', [Display] sLanguage " + (r.setting.empty() ? "not set" : "'" + r.setting + "'");
+                                    "the game's sLanguage '" + r.game + "', [Display] sLanguage " + (r.setting.empty() ? "not set" : "'" + r.setting + "'") +
+                                        "; " + Detail::SignalText(r);
         if (r.choice.source == CodeSource::kBadSetting) {
             lines.emplace_back(Level::kWarn, "Lang: [Display] sLanguage = '" + r.setting + "' is not a language code (a-z, 0-9, - or _) - the game's language is used");
         }
