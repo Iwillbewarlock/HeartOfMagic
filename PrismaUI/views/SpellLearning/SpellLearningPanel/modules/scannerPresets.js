@@ -336,10 +336,10 @@ function renameScannerPreset(oldName, newName) {
     scannerPresets[newName] = preset;
     delete scannerPresets[oldName];
 
-    // Delete old file, save new file
+    // One call: C++ writes the new file and deletes the old one only once that worked
+    // (a DeletePreset then SavePreset lost both when the save was refused or failed)
     if (window.callCpp) {
-        window.callCpp('DeletePreset', JSON.stringify({ type: 'scanner', name: oldName }));
-        window.callCpp('SavePreset', JSON.stringify({ type: 'scanner', name: newName, data: preset }));
+        window.callCpp('RenamePreset', JSON.stringify({ type: 'scanner', oldName: oldName, newName: newName, data: preset }));
     }
 
     if (_activeScannerPreset === oldName) {

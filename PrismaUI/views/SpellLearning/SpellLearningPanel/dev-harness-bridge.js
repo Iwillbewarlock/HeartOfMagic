@@ -344,6 +344,21 @@ window.callCpp = function(method, data) {
             })();
             break;
 
+        case 'RenamePreset':
+            // Rename a preset in localStorage: the new entry first, the old one removed after
+            (function() {
+                try {
+                    var args = JSON.parse(data);
+                    var prefix = 'preset_' + args.type + '_';
+                    localStorage.setItem(prefix + args.newName, JSON.stringify(args.data));
+                    if (args.newName !== args.oldName) localStorage.removeItem(prefix + args.oldName);
+                    console.log('[Bridge] RenamePreset: ' + args.type + '/' + args.oldName + ' -> ' + args.newName);
+                } catch(e) {
+                    console.error('[Bridge] RenamePreset failed:', e);
+                }
+            })();
+            break;
+
         case 'LoadPresets':
             // Load all presets of a type from localStorage
             (function() {

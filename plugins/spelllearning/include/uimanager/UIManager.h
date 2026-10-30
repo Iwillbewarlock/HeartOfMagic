@@ -260,6 +260,8 @@ private:
     // Preset file I/O callbacks
     static void OnSavePreset(const char* argument);
     static void OnDeletePreset(const char* argument);
+    // {type, oldName, newName, data}: the new file written first, the old one deleted only once it is
+    static void OnRenamePreset(const char* argument);
     static void OnLoadPresets(const char* argument);
 
     // Console message callback

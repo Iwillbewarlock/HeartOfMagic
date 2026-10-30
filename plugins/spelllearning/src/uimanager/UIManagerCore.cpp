@@ -124,6 +124,7 @@ bool UIManager::Initialize()
     // Register JS callbacks - Preset file I/O
     m_prismaUI->RegisterJSListener(m_view, "SavePreset", OnSavePreset);
     m_prismaUI->RegisterJSListener(m_view, "DeletePreset", OnDeletePreset);
+    m_prismaUI->RegisterJSListener(m_view, "RenamePreset", OnRenamePreset);
     m_prismaUI->RegisterJSListener(m_view, "LoadPresets", OnLoadPresets);
 
     // Register JS callbacks - Panel control

@@ -509,10 +509,10 @@ function renameSettingsPreset(oldName, newName) {
     settingsPresets[newName] = preset;
     delete settingsPresets[oldName];
 
-    // Delete old file, save new file
+    // One call: C++ writes the new file and deletes the old one only once that worked
+    // (a DeletePreset then SavePreset lost both when the save was refused or failed)
     if (window.callCpp) {
-        window.callCpp('DeletePreset', JSON.stringify({ type: 'settings', name: oldName }));
-        window.callCpp('SavePreset', JSON.stringify({ type: 'settings', name: newName, data: preset }));
+        window.callCpp('RenamePreset', JSON.stringify({ type: 'settings', oldName: oldName, newName: newName, data: preset }));
     }
 
     if (_activeSettingsPreset === oldName) {

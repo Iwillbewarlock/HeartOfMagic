@@ -6,6 +6,8 @@
 #include "EncodingUtils.h"
 #include "ThreadUtils.h"
 
+#include <optional>
+
 // =============================================================================
 // CLIPBOARD CALLBACKS (Windows API)
 // =============================================================================
@@ -62,6 +64,84 @@ static std::filesystem::path GetPresetsBasePath()
     return "Data/SKSE/Plugins/SpellLearning/presets";
 }
 
+namespace
+{
+    // A preset's folder and file name part, sanitized; nullopt (logged) for an empty one or
+    // one that still holds ".." after sanitizing (path traversal). `what` names the caller
+    std::optional<std::string> SafePresetPart(const std::string& text, const char* what)
+    {
+        if (text.empty()) {
+            logger::warn("UIManager: {} - missing type or name", what);
+            return std::nullopt;
+        }
+        std::string safe = EncodingUtils::SanitizeFilename(text);
+        if (safe.find("..") != std::string::npos) {
+            logger::error("UIManager: {} - rejected suspicious name/type", what);
+            return std::nullopt;
+        }
+        return safe;
+    }
+
+    // Writes <presets>/<type>/<name>.json (PresetFiles::Write: temp file and move); false,
+    // logged, when the type or name is refused or the file could not be written
+    bool WritePresetFile(const std::string& type, const std::string& name, const nlohmann::json& data, const char* what)
+    {
+        const auto safeType = SafePresetPart(type, what);
+        const auto safeName = SafePresetPart(name, what);
+        if (!safeType || !safeName) return false;
+
+        const auto dir = GetPresetsBasePath() / PathText::FromUtf8(*safeType);
+        std::filesystem::create_directories(dir);
+
+        const auto filePath = PresetFiles::FilePath(dir, *safeName);
+        if (!PresetFiles::Write(filePath, JsonText::Dump(data, 2))) {
+            logger::error("UIManager: {} - failed to write {}", what, PathText::Utf8(filePath));
+            return false;
+        }
+        logger::info("UIManager: {} - saved {}/{}.json", what, type, *safeName);
+        return true;
+    }
+
+    // Deletes the preset's file (and an older build's file for a non-ASCII name: PresetFiles::Delete)
+    void DeletePresetFiles(const std::string& type, const std::string& name, const char* what)
+    {
+        const auto safeType = SafePresetPart(type, what);
+        const auto safeName = SafePresetPart(name, what);
+        if (!safeType || !safeName) return;
+
+        const auto dir = GetPresetsBasePath() / PathText::FromUtf8(*safeType);
+        const auto result = PresetFiles::Delete(dir, name, *safeName);
+        for (const auto& problem : result.problems) {
+            logger::warn("UIManager: {} - {}", what, problem);
+        }
+        if (result.walkError) {
+            logger::warn("UIManager: {} - the folder walk stopped early: {}", what, result.walkError.message());
+        }
+        if (result.direct) {
+            logger::info("UIManager: {} - deleted {}/{}.json", what, type, *safeName);
+        } else if (!result.legacy.empty()) {
+            for (const auto& path : result.legacy) {
+                logger::info("UIManager: {} - deleted '{}' (an older build's file for '{}')", what,
+                    PathText::Utf8(path), name);
+            }
+        } else {
+            logger::warn("UIManager: {} - no file for {}/{}", what, type, name);
+        }
+    }
+
+    // Whether two preset names land in one file (sanitized alike, or a case-only change:
+    // Windows file names ignore case). The rename must not delete what it just wrote
+    bool SamePresetFile(const std::string& type, const std::string& oldName, const std::string& newName)
+    {
+        const auto dir = GetPresetsBasePath() / PathText::FromUtf8(EncodingUtils::SanitizeFilename(type));
+        std::error_code error;
+        const bool same = std::filesystem::equivalent(
+            PresetFiles::FilePath(dir, EncodingUtils::SanitizeFilename(oldName)),
+            PresetFiles::FilePath(dir, EncodingUtils::SanitizeFilename(newName)), error);
+        return same && !error;
+    }
+}
+
 void UIManager::OnSavePreset(const char* argument)
 {
     if (!argument || strlen(argument) == 0) {
@@ -74,35 +154,8 @@ void UIManager::OnSavePreset(const char* argument)
     AddTaskToGameThread("SavePreset", [argStr]() {
         try {
             json args = json::parse(argStr);
-            std::string type = args.value("type", "");
-            std::string name = args.value("name", "");
-            json data = args.value("data", json::object());
-
-            if (type.empty() || name.empty()) {
-                logger::warn("UIManager: SavePreset - missing type or name");
-                return;
-            }
-
-            std::string safeName = EncodingUtils::SanitizeFilename(name);
-            // Sanitize type to prevent path traversal
-            std::string safeType = EncodingUtils::SanitizeFilename(type);
-
-            // Defense-in-depth: reject if sanitized values still contain ".."
-            if (safeName.find("..") != std::string::npos || safeType.find("..") != std::string::npos) {
-                logger::error("UIManager: SavePreset - rejected suspicious name/type");
-                return;
-            }
-
-            auto dir = GetPresetsBasePath() / PathText::FromUtf8(safeType);
-            std::filesystem::create_directories(dir);
-
-            const auto filePath = PresetFiles::FilePath(dir, safeName);
-            if (!PresetFiles::Write(filePath, JsonText::Dump(data, 2))) {
-                logger::error("UIManager: SavePreset - failed to write {}", PathText::Utf8(filePath));
-                return;
-            }
-
-            logger::info("UIManager: SavePreset - saved {}/{}.json", type, safeName);
+            (void)WritePresetFile(args.value("type", ""), args.value("name", ""), args.value("data", json::object()),
+                                  "SavePreset");
         } catch (const std::exception& e) {
             logger::error("UIManager: SavePreset exception: {}", e.what());
         }
@@ -121,44 +174,46 @@ void UIManager::OnDeletePreset(const char* argument)
     AddTaskToGameThread("DeletePreset", [argStr]() {
         try {
             json args = json::parse(argStr);
-            std::string type = args.value("type", "");
-            std::string name = args.value("name", "");
-
-            if (type.empty() || name.empty()) {
-                logger::warn("UIManager: DeletePreset - missing type or name");
-                return;
-            }
-
-            std::string safeName = EncodingUtils::SanitizeFilename(name);
-            // Sanitize type to prevent path traversal
-            std::string safeType = EncodingUtils::SanitizeFilename(type);
-
-            // Defense-in-depth: reject if sanitized values still contain ".."
-            if (safeName.find("..") != std::string::npos || safeType.find("..") != std::string::npos) {
-                logger::error("UIManager: DeletePreset - rejected suspicious name/type");
-                return;
-            }
-
-            const auto dir = GetPresetsBasePath() / PathText::FromUtf8(safeType);
-            const auto result = PresetFiles::Delete(dir, name, safeName);
-            for (const auto& problem : result.problems) {
-                logger::warn("UIManager: DeletePreset - {}", problem);
-            }
-            if (result.walkError) {
-                logger::warn("UIManager: DeletePreset - the folder walk stopped early: {}", result.walkError.message());
-            }
-            if (result.direct) {
-                logger::info("UIManager: DeletePreset - deleted {}/{}.json", type, safeName);
-            } else if (!result.legacy.empty()) {
-                for (const auto& path : result.legacy) {
-                    logger::info("UIManager: DeletePreset - deleted '{}' (an older build's file for '{}')",
-                        PathText::Utf8(path), name);
-                }
-            } else {
-                logger::warn("UIManager: DeletePreset - no file for {}/{}", type, name);
-            }
+            DeletePresetFiles(args.value("type", ""), args.value("name", ""), "DeletePreset");
         } catch (const std::exception& e) {
             logger::error("UIManager: DeletePreset exception: {}", e.what());
+        }
+    });
+}
+
+// The panel renamed a preset. It used to send DeletePreset then SavePreset: a new name
+// SavePreset refused, or a write that failed, left neither file. The old file goes only
+// once the new one is written. A failure is logged, not told to the panel (there is no
+// preset notice back to it): the panel shows the new name until the presets are read
+// again, and the old file is still on disk.
+void UIManager::OnRenamePreset(const char* argument)
+{
+    if (!argument || strlen(argument) == 0) {
+        logger::warn("UIManager: RenamePreset - no data provided");
+        return;
+    }
+
+    std::string argStr(argument);
+
+    AddTaskToGameThread("RenamePreset", [argStr]() {
+        try {
+            json args = json::parse(argStr);
+            const std::string type = args.value("type", "");
+            const std::string oldName = args.value("oldName", "");
+            const std::string newName = args.value("newName", "");
+            if (!WritePresetFile(type, newName, args.value("data", json::object()), "RenamePreset")) {
+                logger::error("UIManager: RenamePreset - '{}' not renamed to '{}' ({}): its file is kept", oldName,
+                    newName, type);
+                return;
+            }
+            if (SamePresetFile(type, oldName, newName)) {
+                logger::info("UIManager: RenamePreset - '{}' and '{}' are one file, nothing to delete", oldName,
+                    newName);
+                return;
+            }
+            DeletePresetFiles(type, oldName, "RenamePreset");
+        } catch (const std::exception& e) {
+            logger::error("UIManager: RenamePreset exception: {}", e.what());
         }
     });
 }

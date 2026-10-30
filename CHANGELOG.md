@@ -97,6 +97,12 @@
   that name, so the spell no longer grouped with its copies by name and showed the tag in the tree. The scan now
   stores the spell's own name. Not yet tested in game.
 
+- **Renaming a preset can no longer lose it.** A rename deleted the preset's file first and then saved it under
+  the new name; when that save was refused (a name such as "..") or could not be written, both files were gone.
+  The new file is now written first, and the old one is deleted only after that worked. When the rename fails,
+  the old file stays and the log says so; the panel still shows the new name until it reads the presets again.
+  Not yet tested in game.
+
 - **Book Reading XP comes once per book.** Reading the same book or note again gave XP every time. Now each book or
   note gives XP once; copies of the same book count as one. A book read while no spell is being learned gives
   nothing then and can still give its XP later. Spell tomes give no Book Reading XP. The books that gave XP are
