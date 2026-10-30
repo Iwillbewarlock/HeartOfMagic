@@ -68,8 +68,9 @@ namespace BlockRegistry
 
         /// One registration message: a_data / a_dataLen as the SKSE message carries them. Checked in this order - the
         /// window, the data's size, apiVersion (1, 2 or 3), structSize (at least v1's), then id, height, draw (v1) or draw /
-        /// drawSelection (v2, v3), tabs (known bits only), v3's flags (known bits only) and pad (finite), the id's uniqueness,
-        /// v3's legacyId (BlockRules::JudgeLegacy). Accepted ones are kept in registration order. O(blocks) per call
+        /// drawSelection (v2, v3), tabs (known bits only), v3's flags (known bits only) and pad (finite, <= kMaxHeight), the id's
+        /// uniqueness, v3's legacyId (BlockRules::JudgeLegacy, then not a reserved id: a built-in block still here). Accepted
+        /// ones are kept in registration order. O(blocks) per call
         Outcome Register(std::string_view a_sender, const void* a_data, std::uint32_t a_dataLen);
 
         /// Each claimed retired id -> the final id of the block that took it over (legacy -> final)

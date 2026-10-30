@@ -99,20 +99,23 @@
 // (a_content), its overlay clip (a_overlay: a clip of the block's column above every panel in it, its origin on the content
 // clip's origin - for a tooltip or a hover mark; null when the host has none this frame) and the Context below. Both clips
 // are lent for the call only, like draw's clip: do not keep them, or anything made in them, past the return. The host
-// clears the overlay when the block is hidden, moved, scrolled or drawn again and when the layout mode starts or ends, and
-// bumps Context::overlayGeneration each time: a cached "my tooltip is up" is stale once the generation changed.
-// contentGeneration is bumped each time the block is drawn into a new content clip. A block hidden by kMessageVisible gets
-// no frame call.
+// clears the overlay when the block is hidden, moved, scrolled or drawn again, when the layout mode starts or ends and when a
+// panel is made above it, and gives the next frame a new, empty one with a new Context::overlayGeneration (every overlay clip
+// has its own, the menu's first one too): a cached "my tooltip is up" is stale once the generation changed. contentGeneration
+// is bumped each time the block is drawn into a new content clip. A block hidden by kMessageVisible gets no frame call.
 //
 // key: a keyboard key down (a_scanCode: its DirectInput scan code) while the menu is open, no text field takes keys and the
-// layout mode is off, delivered on the next UI frame. The return value is logged only: SL_MagicMenu never consumes a key
+// layout mode is off, delivered on the next UI frame (before that frame's frame calls; none when the layout mode came on
+// meanwhile) to every v3 block that sets key, on any tab. The return value is logged only: SL_MagicMenu never consumes a key
 // (the menu and the game see it as before). No gamepad.
 //
-// pad: the content clip's inset in the block's box (stage units; top, left, right and bottom). < 0 (the default,
-// kPadDefault) is the host's own pad; a pad that is not a finite number is refused.
+// pad: the content clip's inset in the block's box (stage units; top - below the title strip when there is one -, left,
+// right and bottom). < 0 (the default, kPadDefault) is the host's own pad; a pad that is not a finite number or more than
+// kMaxHeight is refused.
 //
 // flags (kFlag* bits; a bit outside kFlagsKnown is refused):
-//   kFlagOwnMouse       the host lays no hit area over the block and calls no click: the add-on puts its own AS2 mouse
+//   kFlagOwnMouse       the host lays no hit area over the block and calls no click (click is ignored with kFlagOwnMouse;
+//                       the host logs it once at the registration): the add-on puts its own AS2 mouse
 //                       handlers (GFxFunctionHandler: onRelease, onRollOver, onRollOut, hitArea) on clips it draws. Those
 //                       handlers only record what happened; act on it in frame, and ignore events while the last
 //                       Context::layoutMode seen was true (the layout mode owns the mouse; its covers lie above the panels).
@@ -128,17 +131,22 @@
 // frames still bumps it); source: what made the last selection (kList: the list, kAddon: a kMessageShowSpell the host
 // served, its requestId in servedRequest); tabBits: the current tab's kTab* bit; tabSchool: "Alteration" .. "Restoration"
 // on a school tab, else ""; layoutMode; overlayGeneration / contentGeneration (above); viewLeft .. viewBottom: the block's
-// part inside its column's visible area, in content clip coordinates; rowSize / lineFirst / linePitch: the SkyUI list's
-// text metrics the host measured (0 until measured; every v3 block is drawn again once they are known).
+// part inside its column's visible area, in content clip coordinates (all 0 when none of it shows); rowSize: the SkyUI
+// list's row text size in stage units (0 until measured; every v3 block is drawn again once it is known); lineFirst /
+// linePitch: the game font's first line height and its step per further line, per size unit (measured at the menu's
+// open, else the host's fallback 1.25).
 //
 // kMessageShowSpell ('SLMS'): add-on -> SL_MagicMenu, data = a ShowSpellRequest, dataLen its size: show this spell as a
 // click on it in the add-on's block would - selected in the list when it is there, else on the menu's card (and in the 3D
-// preview when that setting is on; nameShown 0: the card hides the name). Queued, taken on the next UI frame; dropped when
-// the list selection changed after it was queued (the player's newer choice wins). Not answered: the next Context shows
-// the result (source kAddon, servedRequest = its requestId).
+// preview when that setting is on; nameShown 0: the card hides the name). Queued (several for one block before that frame:
+// the newest counts), taken on the next UI frame; dropped when the list selection changed after it was queued (the player's
+// newer choice wins - so is a second block's request queued before one served in the same frame) and while the layout
+// mode is on. Not answered: the next Context shows the result (source kAddon, servedRequest = its requestId).
 //
 // kMessageVisible ('SLMV'): add-on -> SL_MagicMenu, data = a VisibleRequest, dataLen its size: hide the block (shown 0) but
-// keep its place in the column, or show it again (shown 1). Queued, taken on the next UI frame.
+// keep its place in the column, or show it again (shown 1). Queued, taken on the next UI frame. Every menu opens with the
+// block shown; a hidden block is still drawn (draw / drawSelection) but gets no frame call and cannot be grabbed in the
+// layout mode.
 //
 // Both v3 messages: the struct only needs to live for the Dispatch call (the id is copied). Ignored while the magic menu is
 // closed and for an id that is not a registered block; refused (logged) when the message is shorter than the fields read,
@@ -308,6 +316,9 @@ namespace BlockApi
     static_assert(offsetof(Registration, click) == offsetof(RegistrationV2, click));
     static_assert(offsetof(Registration, tabs) == offsetof(RegistrationV2, tabs));
     static_assert(offsetof(Registration, frame) >= kRegistrationV2Size);
+    inline constexpr std::uint32_t kRegistrationV3Size = sizeof(Registration);
+    static_assert(sizeof(void*) != 8 || kRegistrationV3Size == 104, "the v3 layout of x64 builds is 104 bytes");
+    static_assert(sizeof(void*) != 8 || sizeof(Context) == 80, "the v3 Context of x64 builds is 80 bytes");
 
     enum class Status : std::uint32_t
     {
@@ -344,6 +355,7 @@ namespace BlockApi
         std::uint32_t requestId = 0;   // the add-on's own number, back in Context::servedRequest once served
         std::uint32_t nameShown = 1;   // 0: the card hides the spell's name
     };
+    static_assert(sizeof(void*) != 8 || sizeof(ShowSpellRequest) == 32, "ShowSpellRequest of x64 builds is 32 bytes");
 
     /// kMessageVisible's data (v3; see "kMessageVisible" above)
     struct VisibleRequest
@@ -353,4 +365,5 @@ namespace BlockApi
         const char* id = nullptr;      // the block's final id, as the Result gave it
         std::uint32_t shown = 1;       // 0: hidden, its place kept; 1: shown
     };
+    static_assert(sizeof(void*) != 8 || sizeof(VisibleRequest) == 24, "VisibleRequest of x64 builds is 24 bytes");
 }

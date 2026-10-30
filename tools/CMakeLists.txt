@@ -267,17 +267,20 @@ target_link_libraries(magic-menu-layout-check PRIVATE
 )
 
 # =============================================================================
-# magic-menu-block-api-check  -  offline check of the magic menu's Block API v2 host side
+# magic-menu-block-api-check  -  offline check of the magic menu's Block API v3 host side
 # =============================================================================
-# The SL_MagicMenu plugin's own BlockRegistry.cpp and BlockRules.h (no game types): the
-# registration parsing (v1 bytes in the frozen layout, v2 in full and cut short,
-# version 3 refused, v2 with neither draw refused, the tabs mask), the tab bit of a
-# SkyUI category and a block's visibility per tab, and the press / release cancel
-# rules. One PASS/FAIL line per check and a total; --selftest the same; exit 1 when
-# any check fails.
+# The SL_MagicMenu plugin's own BlockRegistry.cpp, BlockRules.h and BlockRulesV3.h (no
+# game types): the registration parsing (v1 bytes in the frozen layout, v2 in full and
+# cut short, SR's own v2 header bytes, v3 in full and cut at v2's size, version 4
+# refused, neither draw refused, the tabs mask, v3's flags, pad and legacy ids), the
+# tab bit of a SkyUI category and a block's visibility per tab, the press / release
+# cancel rules, the 'SLMH' / 'SLMS' / 'SLMV' messages and their queues, the key queue,
+# the v3 content box, visible part and overlay clears. One PASS/FAIL line per check and
+# a total; --selftest the same; exit 1 when any check fails.
 
 add_executable(magic-menu-block-api-check
     magic-menu-block-api-check.cpp
+    magic-menu-block-api-check-v3.cpp
     ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/src/BlockRegistry.cpp
 )
 

@@ -6,6 +6,8 @@
 // core asks it too.
 // =============================================================================
 
+#include "Common.h"
+
 #include <string>
 
 namespace SpellSchool

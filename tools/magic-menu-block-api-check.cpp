@@ -3,124 +3,36 @@
 // the frozen v1 layout, v2 in full and cut short, SR's own v2 header bytes, v3 in full and cut at v2's size, version 4
 // refused, the tabs mask, v3's flags and legacy ids), BlockRulesV3.h's 'SLMS' / 'SLMV' reading and ShowSpellDue, and the
 // pure rules of BlockRules.h that Widget.cpp runs on the game's values (the tab bit of a SkyUI category flag, a block's
-// visibility per tab, the press / release cancel rules, the content clip coordinates, the kMessageRedraw id rule).
+// visibility per tab, the press / release cancel rules, the content clip coordinates, the kMessageRedraw id rule). The v3
+// cases and the v3 host rules are in magic-menu-block-api-check-v3.cpp, the shared helpers in magic-menu-block-api-check.h.
 //
 //   magic-menu-block-api-check              one PASS/FAIL line per check, a total line
 //   magic-menu-block-api-check --selftest   the same checks (no game or input files exist for this tool), "selftest: ..." line
 //
 // No game types. Exit 0 when every check passes, 1 when one fails, 2 on an unknown argument.
 
+#include "magic-menu-block-api-check.h"
+
 #include "BlockApi.h"
 #include "BlockRegistry.h"
 #include "BlockRules.h"
-#include "BlockRulesV3.h"
 
-#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <string>
 #include <string_view>
-#include <limits>
 #include <vector>
-
-// The Spell Research add-on's own v2 header (std includes already in): an unmodified v2 add-on's bytes; its RE types are SrV2::RE
-namespace SrV2
-{
-#include "../plugins/SL_MagicMenu_SpellResearch/src/BlockApi.h"
-}
 
 namespace
 {
     constexpr int kExitOk = 0;
     constexpr int kExitFail = 1;
     constexpr int kExitUsage = 2;
-    constexpr unsigned char kJunkByte = 0xAB;  // bytes past a struct's covered part: never read as a field
 
-    int g_pass = 0;
-    int g_fail = 0;
-
-    void Expect(bool a_ok, const std::string& a_what)
-    {
-        std::printf("  %s  %s\n", a_ok ? "PASS" : "FAIL", a_what.c_str());
-        (a_ok ? g_pass : g_fail) += 1;
-    }
-
-    std::string Text(const char* a_format, auto... a_values)
-    {
-        char buffer[512];
-        std::snprintf(buffer, sizeof(buffer), a_format, a_values...);
-        return buffer;
-    }
-
-    void DrawNothing(RE::GFxMovieView*, RE::GFxValue&, float, float, void*) {}
-    void DrawSelectionNothing(RE::GFxMovieView*, RE::GFxValue&, float, float, std::uint32_t, void*) {}
-    void ClickNothing(float, float, float, float, void*) {}
-    void FrameNothing(RE::GFxMovieView*, RE::GFxValue&, RE::GFxValue*, const BlockApi::Context&, void*) {}
-    bool KeyNothing(std::uint32_t, void*) { return false; }
-    void SrDrawSelection(SrV2::RE::GFxMovieView*, SrV2::RE::GFxValue&, float, float, std::uint32_t, void*) {}
-
-    /// A function pointer's address, to compare pointers of the two headers' (distinct) callback types
-    std::uintptr_t Address(auto a_fn) { return std::bit_cast<std::uintptr_t>(a_fn); }
-
-    int g_user = 0;  // the user pointer handed back
-
-    /// a_bytes of a_value, then a_extra junk bytes: what a sender with a bigger struct (or garbage after it) puts in the message
-    template <class T>
-    std::vector<unsigned char> Bytes(const T& a_value, std::size_t a_extra = 0)
-    {
-        std::vector<unsigned char> bytes(sizeof(T) + a_extra, kJunkByte);
-        std::memcpy(bytes.data(), &a_value, sizeof(T));
-        return bytes;
-    }
-
-    BlockRegistry::Outcome Send(BlockRegistry::Registry& a_registry, const std::vector<unsigned char>& a_bytes, std::uint32_t a_dataLen)
-    {
-        return a_registry.Register("AddonA", a_bytes.data(), a_dataLen);
-    }
-
-    BlockRegistry::Outcome Send(BlockRegistry::Registry& a_registry, const std::vector<unsigned char>& a_bytes)
-    {
-        return Send(a_registry, a_bytes, static_cast<std::uint32_t>(a_bytes.size()));
-    }
-
-    void ExpectRefused(const BlockRegistry::Outcome& a_outcome, std::string_view a_reasonPart, const std::string& a_case)
-    {
-        Expect(!a_outcome.accepted && a_outcome.reason.find(a_reasonPart) != std::string::npos,
-            Text("%s: refused, reason has \"%s\" (got %s \"%s\")", a_case.c_str(), std::string(a_reasonPart).c_str(),
-                a_outcome.accepted ? "accepted" : "refused", a_outcome.reason.c_str()));
-    }
-
-    BlockApi::RegistrationV1 V1(const char* a_id)
-    {
-        BlockApi::RegistrationV1 reg;
-        reg.id = a_id;
-        reg.title = "T";
-        reg.height = 100.0f;
-        reg.draw = DrawNothing;
-        reg.user = &g_user;
-        return reg;
-    }
-
-    BlockApi::RegistrationV2 V2(const char* a_id)
-    {
-        return { .id = a_id, .title = "T", .height = 100.0f, .user = &g_user, .drawSelection = DrawSelectionNothing, .click = ClickNothing,
-            .tabs = BlockApi::kTabSpells };
-    }
-
-    BlockApi::Registration V3(const char* a_id, const char* a_legacyId = nullptr)
-    {
-        return { .id = a_id, .title = "T", .height = 100.0f, .user = &g_user, .drawSelection = DrawSelectionNothing, .click = ClickNothing,
-            .tabs = BlockApi::kTabSpells, .frame = FrameNothing, .key = KeyNothing, .pad = 4.0f,
-            .flags = BlockApi::kFlagOwnMouse | BlockApi::kFlagKeepWhenEmpty, .legacyId = a_legacyId };
-    }
-
-    /// No v3 field read: what a v1 / v2 block (or a v3 one cut at v2's size) is stored with
-    bool NoV3Fields(const BlockRegistry::Block* a_block)
-    {
-        return a_block && !a_block->frame && !a_block->key && a_block->pad == BlockApi::kPadDefault && a_block->flags == 0 && a_block->legacyId.empty();
-    }
+    using namespace BlockApiCheck;
 
     void Layouts()
     {
@@ -467,105 +379,6 @@ namespace
             "b again at the cap: replaced, not dropped");
     }
 
-    void V3Registrations()
-    {
-        std::printf("v3 registrations\n");
-        BlockRegistry::Registry registry;
-        const auto whole = Send(registry, Bytes(V3("whole", "tree")));
-        const auto* block = registry.Find("AddonA.whole");
-        Expect(whole.accepted && whole.apiVersion == BlockApi::kVersion && block && block->apiVersion == BlockApi::kVersion &&
-                   block->drawSelection == DrawSelectionNothing && block->click == ClickNothing && block->tabs == BlockApi::kTabSpells &&
-                   block->frame == FrameNothing && block->key == KeyNothing && block->pad == 4.0 && block->flags == BlockApi::kFlagsKnown &&
-                   block->legacyId == "tree",
-            "v3 bytes whole: accepted as v3, v2 fields and frame / key / pad 4 / flags / legacyId kept");
-        const auto aliases = registry.LegacyAliases();
-        Expect(aliases.size() == 1 && aliases.contains("tree") && aliases.at("tree") == "AddonA.whole", "LegacyAliases: tree -> AddonA.whole");
-
-        auto atV2 = V3("atv2", "progress");
-        atV2.structSize = BlockApi::kRegistrationV2Size;
-        const auto atV2Outcome = Send(registry, Bytes(atV2));
-        const auto* atV2Block = registry.Find("AddonA.atv2");
-        Expect(atV2Outcome.accepted && atV2Outcome.apiVersion == BlockApi::kVersion && atV2Block && atV2Block->click == ClickNothing &&
-                   NoV3Fields(atV2Block),
-            "v3 with structSize 72 (v2's): v2 fields read, v3 fields their defaults (pad -1)");
-        const auto read = BlockRegistry::ReadRegistration(Bytes(V3("x", "tree")).data(), BlockApi::kRegistrationV2Size);
-        Expect(read.apiVersion == BlockApi::kVersion && read.tabs == BlockApi::kTabSpells && !read.frame && !read.key && read.pad == BlockApi::kPadDefault &&
-                   read.flags == 0 && !read.legacyId,
-            "ReadRegistration of a v3 message cut at 72 bytes: tabs read, frame / key / flags / legacyId null, pad -1");
-        auto plain = V3("plain");
-        plain.flags = 0;
-        Expect(Send(registry, Bytes(plain)).accepted && registry.LegacyAliases().size() == 1, "v3 with no legacyId, no flags: accepted, no alias");
-
-        const SrV2::BlockApi::Registration sr{ .id = "archetypes", .title = "ARCHETYPES", .height = 132.0f, .drawSelection = SrDrawSelection,
-            .tabs = SrV2::BlockApi::kTabSpells };
-        const auto srOutcome = registry.Register("SL_MagicMenu_SpellResearch", &sr, sizeof(sr));
-        const auto* srBlock = registry.Find("SL_MagicMenu_SpellResearch.archetypes");
-        Expect(srOutcome.accepted && srOutcome.apiVersion == BlockApi::kVersionV2 && srBlock && srBlock->apiVersion == BlockApi::kVersionV2 &&
-                   Address(srBlock->drawSelection) == Address(&SrDrawSelection) && srBlock->tabs == BlockApi::kTabSpells && NoV3Fields(srBlock),
-            Text("SR's own v2 header bytes (%zu): accepted, answered as v2 (Result.apiVersion %u), no v3 field", sizeof(sr), srOutcome.apiVersion));
-
-        auto badFlag = V3("badflag");
-        badFlag.flags = BlockApi::kFlagsKnown + 1;
-        ExpectRefused(Send(registry, Bytes(badFlag)), "does not know", "v3 flags with a bit outside kFlagsKnown");
-        auto nanPad = V3("nanpad");
-        nanPad.pad = std::numeric_limits<float>::quiet_NaN();
-        ExpectRefused(Send(registry, Bytes(nanPad)), "pad", "v3 pad NaN");
-        const auto notRetired = Send(registry, Bytes(V3("notretired", "preview")));
-        ExpectRefused(notRetired, "retired", "v3 legacyId preview (not a retired id)");
-        Expect(notRetired.apiVersion == BlockApi::kVersion, "a v3 refusal is answered as v3");
-        ExpectRefused(Send(registry, Bytes(V3("second", "tree"))), "claimed already", "a second claim of tree");
-        Expect(registry.LegacyAliases().at("tree") == "AddonA.whole" && !registry.Find("AddonA.second"), "... the first claim stays");
-        const std::string longLegacy(BlockApi::kMaxIdLength + 1, 'l');
-        ExpectRefused(Send(registry, Bytes(V3("longlegacy", longLegacy.c_str()))), "legacyId", "a legacyId past kMaxIdLength");
-        auto neither = V3("neither");
-        neither.drawSelection = nullptr;
-        ExpectRefused(Send(registry, Bytes(neither)), "neither draw nor drawSelection", "v3 with neither draw");
-
-        std::printf("legacy ids (BlockRules::JudgeLegacy)\n");
-        for (const auto retired : BlockRules::kRetiredIds) {
-            Expect(!BlockRules::JudgeLegacy(retired, false), Text("%s, unclaimed: taken", std::string(retired).c_str()));
-        }
-        Expect(BlockRules::kRetiredIds.size() == 3 && BlockRules::kRetiredIds[0] == "tree" && BlockRules::kRetiredIds[1] == "progress" &&
-                   BlockRules::kRetiredIds[2] == "nodecard",
-            "kRetiredIds: tree, progress, nodecard");
-        Expect(!BlockRules::JudgeLegacy("", false) && BlockRules::JudgeLegacy("tree", true) && BlockRules::JudgeLegacy("Tree", false),
-            "empty: no claim; tree claimed already: refused; Tree (case): refused");
-    }
-
-    void V3Messages()
-    {
-        std::printf("'SLMS' / 'SLMV' (BlockRules::ReadShowSpell, ReadVisible, ShowSpellDue)\n");
-        std::string why;
-        const std::string id = "SL_MagicMenu_HoM.tree";
-        const BlockApi::ShowSpellRequest show{ .id = id.c_str(), .formId = 0x0001C789, .requestId = 7, .nameShown = 1 };
-        const auto spell = BlockRules::ReadShowSpell(&show, sizeof(show), why);
-        Expect(spell && spell->id == id && spell->formId == 0x0001C789 && spell->requestId == 7 && spell->nameShown, "a whole ShowSpellRequest read");
-        const auto shortBy = static_cast<std::uint32_t>(BlockRules::kShowSpellNeeded - 1);
-        const bool showShort = !BlockRules::ReadShowSpell(&show, shortBy, why) && why.find(std::to_string(shortBy) + " bytes") != std::string::npos;
-        Expect(showShort, Text("'SLMS' one byte short: refused with the byte count (%s)", why.c_str()));
-        for (const std::uint32_t version : { BlockApi::kVersionV2, BlockApi::kVersion + 1 }) {
-            auto bad = show;
-            bad.apiVersion = version;
-            Expect(!BlockRules::ReadShowSpell(&bad, sizeof(bad), why), Text("'SLMS' apiVersion %u: refused", version));
-        }
-        const BlockApi::ShowSpellRequest noForm{ .id = id.c_str() }, noId{ .id = "", .formId = 1 };
-        Expect(!BlockRules::ReadShowSpell(&noForm, sizeof(noForm), why) && !BlockRules::ReadShowSpell(nullptr, sizeof(show), why),
-            "'SLMS' with formId 0, or null data: refused");
-        Expect(!BlockRules::ReadShowSpell(&noId, sizeof(noId), why), "'SLMS' with an empty id: refused");
-
-        const BlockApi::VisibleRequest hide{ .id = id.c_str(), .shown = 0 }, showAgain{ .id = id.c_str(), .shown = 1 };
-        const auto hidden = BlockRules::ReadVisible(&hide, sizeof(hide), why);
-        const auto shownAgain = BlockRules::ReadVisible(&showAgain, sizeof(showAgain), why);
-        Expect(hidden && hidden->id == id && !hidden->shown && shownAgain && shownAgain->shown, "VisibleRequest shown 0 / 1 read");
-        const auto visibleShort = static_cast<std::uint32_t>(BlockRules::kVisibleNeeded - 1);
-        const bool hideShort = !BlockRules::ReadVisible(&hide, visibleShort, why) && why.find(std::to_string(visibleShort) + " bytes") != std::string::npos;
-        Expect(hideShort, Text("'SLMV' one byte short: refused with the byte count (%s)", why.c_str()));
-        const BlockApi::VisibleRequest hideV2{ .apiVersion = BlockApi::kVersionV2, .id = id.c_str() };
-        Expect(!BlockRules::ReadVisible(&hideV2, sizeof(hideV2), why), "'SLMV' apiVersion 2: refused");
-
-        Expect(BlockRules::ShowSpellDue(5, 5) && !BlockRules::ShowSpellDue(5, 6), "ShowSpellDue(5,5) true, (5,6) false (a newer list choice wins)");
-    }
-
     int Run()
     {
         Layouts();
@@ -577,6 +390,7 @@ namespace
         HeightRequests();
         V3Registrations();
         V3Messages();
+        V3Host();
         std::printf("block-api-check: %d PASS, %d FAIL\n", g_pass, g_fail);
         return g_fail == 0 ? kExitOk : kExitFail;
     }

@@ -5,9 +5,8 @@
 #include <cstddef>
 #include <vector>
 
-
 // =============================================================================
-// LAYOUT MATH - the arithmetic of Widget.cpp's tree window and progress card,
+// LAYOUT MATH - the arithmetic of Widget.cpp's tree window and text rows,
 // with no game types (spec v6, review round 1 #7): the widget feeds it the
 // font's measured line metrics, the snapshot's states (as predicates) and the
 // TreeData window; tools/magic-menu-preview-check runs these same functions on

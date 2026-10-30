@@ -8,17 +8,21 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cmath>
 #include <cstring>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 // =============================================================================
 // BLOCK RULES v3 - the pure parts of the Block API v3 host side (HoM add-on
 // design 2026-10-30, "Block API v3" and "Changes after the GPT design review"):
 // the retired ids a v3 block may take over (legacyId), reading the 'SLMS' and
-// 'SLMV' messages, and whether a queued 'SLMS' is still due. In namespace
+// 'SLMV' messages, whether a queued 'SLMS' is still due, the key queue, the
+// content clip's pad, the block's visible part and its overlay's clears. In namespace
 // BlockRules beside BlockRules.h (which is at the repo's 600-line limit). No
 // game types: tools/magic-menu-block-api-check runs these on made-up cases.
 // =============================================================================
@@ -121,5 +125,160 @@ namespace BlockRules
     constexpr bool ShowSpellDue(std::uint64_t a_seqAtQueue, std::uint64_t a_seqNow)
     {
         return a_seqAtQueue == a_seqNow;
+    }
+
+    /// A queued kMessageShowSpell: the request and the host's selection sequence when it was queued (BlockRules::Enqueue keeps
+    /// the newest one per block id)
+    struct QueuedShowSpell
+    {
+        ShowSpellRead request;
+        std::uint64_t seqAtQueue = 0;
+    };
+    using ShowSpellQueue = std::vector<std::pair<std::string, QueuedShowSpell>>;
+
+    /// One frame's queued requests in queue order: each still due goes to a_serve, each stale one to a_drop. a_seqNow() is
+    /// asked again before each request - a served request's own list selection bumps the sequence, so a later request queued
+    /// before it is stale (one choice per frame wins, the earliest queued)
+    template <class SeqNow, class Serve, class Drop>
+    void ServeShowSpells(const ShowSpellQueue& a_queue, SeqNow&& a_seqNow, Serve&& a_serve, Drop&& a_drop)
+    {
+        for (const auto& [id, queued] : a_queue) {
+            if (ShowSpellDue(queued.seqAtQueue, a_seqNow())) {
+                a_serve(queued);
+            } else {
+                a_drop(queued);
+            }
+        }
+    }
+
+    /// kMessageVisible applied to the host's hidden set: true when a_id's state changed
+    inline bool SetShown(std::set<std::string>& a_hidden, const std::string& a_id, bool a_shown)
+    {
+        return a_shown ? a_hidden.erase(a_id) > 0 : a_hidden.insert(a_id).second;
+    }
+
+    /// v3 key: a keyboard down queued for the next frame's key calls; false (dropped) when a_cap keys wait already
+    inline bool QueueKey(std::vector<std::uint32_t>& a_queue, std::uint32_t a_scanCode, std::size_t a_cap)
+    {
+        if (a_queue.size() >= a_cap) return false;
+        a_queue.push_back(a_scanCode);
+        return true;
+    }
+
+    // ---------------------------------------------------------------------
+    // The v3 block's box, visible part and overlay (Widget.cpp's add-on drawing)
+    // ---------------------------------------------------------------------
+
+    /// An add-on block that closes up while the menu shows no spell: one drawn per selection, without kFlagKeepWhenEmpty
+    constexpr bool ClosesWhenEmpty(bool a_drawSelection, std::uint32_t a_flags)
+    {
+        return a_drawSelection && (a_flags & BlockApi::kFlagKeepWhenEmpty) == 0;
+    }
+
+    /// The content clip in the block's box (box coordinates): below the title strip when it has one and inside the pad on
+    /// every side - a_pad when >= 0 (Registration::pad), else a_hostPad. Width and height are never negative
+    struct ContentBox
+    {
+        double left{}, top{}, width{}, height{};
+    };
+
+    inline ContentBox ContentBoxOf(double a_boxW, double a_boxH, bool a_titled, double a_titleH, double a_pad, double a_hostPad)
+    {
+        const double pad = a_pad >= 0 ? a_pad : a_hostPad;
+        const double top = a_titled ? a_titleH + pad : pad;
+        return { pad, top, std::max(0.0, a_boxW - 2 * pad), std::max(0.0, a_boxH - top - pad) };
+    }
+
+    /// Context::viewLeft .. viewBottom: the part of a_content (the content clip on screen) inside a_viewport (its column's
+    /// visible area), in content clip coordinates (0,0 = the clip's top-left); all 0 when none of it shows
+    inline Settings::Rect ViewInContent(const Settings::Rect& a_content, const Settings::Rect& a_viewport)
+    {
+        const double left = std::max(a_content.left, a_viewport.left), top = std::max(a_content.top, a_viewport.top);
+        const double right = std::min(a_content.right, a_viewport.right), bottom = std::min(a_content.bottom, a_viewport.bottom);
+        if (!(right > left) || !(bottom > top)) return {};
+        return { left - a_content.left, top - a_content.top, right - a_content.left, bottom - a_content.top };
+    }
+
+    /// What a block's overlay clip was made for, and the same now (StepOverlay)
+    struct OverlaySnapshot
+    {
+        bool shown = false;               // the block shows (a place on this tab, not hidden by kMessageVisible, the columns up)
+        int column = -1;
+        Settings::Rect onScreen;          // the block's box on screen (scrolled)
+        std::uint64_t contentDraws = 0;   // Context::contentGeneration: draws into a new content clip
+        std::uint64_t modeChanges = 0;    // the layout mode entered or left
+        std::uint64_t panelsMade = 0;     // panels made in its column (one made after the overlay lies above it)
+    };
+
+    enum class OverlayEvent
+    {
+        kNone,
+        kHidden,      // the block stopped showing
+        kMoved,       // another column or another place on screen: a move, a resize or a scroll
+        kDrawn,       // drawn again into a new content clip
+        kLayoutMode,  // the layout mode started or ended
+        kPanelAbove,  // a panel was made in its column after it
+    };
+
+    inline const char* OverlayEventText(OverlayEvent a_event)
+    {
+        switch (a_event) {
+        case OverlayEvent::kHidden: return "the block is hidden";
+        case OverlayEvent::kMoved: return "the block moved or scrolled";
+        case OverlayEvent::kDrawn: return "the block was drawn again";
+        case OverlayEvent::kLayoutMode: return "the layout mode started or ended";
+        case OverlayEvent::kPanelAbove: return "a panel was made above it";
+        default: return "nothing";
+        }
+    }
+
+    /// Why the overlay made at a_made must go now (the first reason in the enum's order), or kNone. Rects within a_tolerance are the same
+    inline OverlayEvent OverlayEventOf(const OverlaySnapshot& a_made, const OverlaySnapshot& a_now, double a_tolerance)
+    {
+        const auto same = [&](double a_a, double a_b) { return std::abs(a_a - a_b) <= a_tolerance; };
+        if (!a_now.shown) return OverlayEvent::kHidden;
+        if (a_now.column != a_made.column || !same(a_now.onScreen.left, a_made.onScreen.left) || !same(a_now.onScreen.top, a_made.onScreen.top) ||
+            !same(a_now.onScreen.right, a_made.onScreen.right) || !same(a_now.onScreen.bottom, a_made.onScreen.bottom)) {
+            return OverlayEvent::kMoved;
+        }
+        if (a_now.contentDraws != a_made.contentDraws) return OverlayEvent::kDrawn;
+        if (a_now.modeChanges != a_made.modeChanges) return OverlayEvent::kLayoutMode;
+        if (a_now.panelsMade != a_made.panelsMade) return OverlayEvent::kPanelAbove;
+        return OverlayEvent::kNone;
+    }
+
+    /// One block's overlay across frames: the overlay up now (as made) and Context::overlayGeneration, bumped with each new
+    /// overlay clip - so it changes whenever the overlay the add-on drew into was cleared. Kept across menus (a menu's first
+    /// overlay is a new one too)
+    struct OverlayTrack
+    {
+        std::optional<OverlaySnapshot> made;
+        std::uint32_t generation = 0;
+    };
+
+    struct OverlayStep
+    {
+        bool remove = false;  // the old overlay clip goes
+        bool make = false;    // a new one is made (generation bumped)
+        OverlayEvent why = OverlayEvent::kNone;
+    };
+
+    /// The frame's step for a block's overlay: the old one removed on an OverlayEventOf event, a new one made while the block
+    /// shows and has none. a_track is updated as if the host's make succeeds (a host whose make failed resets a_track.made, and
+    /// the next frame tries again)
+    inline OverlayStep StepOverlay(OverlayTrack& a_track, const OverlaySnapshot& a_now, double a_tolerance)
+    {
+        OverlayStep step;
+        if (a_track.made) {
+            step.why = OverlayEventOf(*a_track.made, a_now, a_tolerance);
+            if (step.why == OverlayEvent::kNone) return step;
+            step.remove = true;
+            a_track.made.reset();
+        }
+        if (!a_now.shown) return step;
+        step.make = true;
+        a_track.made = a_now;
+        ++a_track.generation;
+        return step;
     }
 }

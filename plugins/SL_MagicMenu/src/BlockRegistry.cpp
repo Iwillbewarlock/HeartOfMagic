@@ -118,13 +118,19 @@ namespace BlockRegistry
             return Refused(id, std::format("flags 0x{:X} has bits this SL_MagicMenu does not know (known: 0x{:X}): update SL_MagicMenu", reg.flags,
                                    BlockApi::kFlagsKnown), version);
         }
-        if (!std::isfinite(reg.pad)) return Refused(id, std::format("the pad {} is not a finite number (< 0: the host's pad)", reg.pad), version);
+        if (!std::isfinite(reg.pad) || reg.pad > BlockApi::kMaxHeight) {
+            return Refused(id, std::format("the pad {} is not a finite number <= {} (< 0: the host's pad)", reg.pad, BlockApi::kMaxHeight), version);
+        }
         if (_reserved.contains(id)) return Refused(id, "the id is a built-in block's", version);
         if (const Block* taken = Find(id)) return Refused(id, std::format("the id is registered already (by {})", taken->sender), version);
         const auto legacyId = Bounded(reg.legacyId, BlockApi::kMaxIdLength);
         if (!legacyId) return Refused(id, std::format("the legacyId is longer than {} characters", BlockApi::kMaxIdLength), version);
         const bool legacyTaken = !legacyId->empty() && std::ranges::any_of(_blocks, [&](const Block& a_block) { return a_block.legacyId == *legacyId; });
         if (auto why = BlockRules::JudgeLegacy(*legacyId, legacyTaken)) return Refused(id, std::move(*why), version);
+        // HoM add-on plan Task 2 ruling: a retired id that is still a built-in block here is not free to take over
+        if (!legacyId->empty() && _reserved.contains(*legacyId)) {
+            return Refused(id, std::format("the built-in block '{}' is still in this SL_MagicMenu", *legacyId), version);
+        }
 
         std::string title = reg.title ? std::string(reg.title, strnlen(reg.title, BlockApi::kMaxTitleLength)) : std::string{};
         _blocks.push_back({ id, std::move(title), static_cast<double>(reg.height), reg.draw, reg.user, std::string(a_sender), version,
