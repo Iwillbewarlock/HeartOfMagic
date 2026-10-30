@@ -3,6 +3,7 @@
 #include "FormIdText.h"
 #include "EncodingUtils.h"
 #include "ProgressionManager.h"
+#include "SpellEffectivenessHook.h"
 #include "SpellScanner.h"
 #include "ThreadUtils.h"
 #include "tomereach/TomeReach.h"
@@ -69,8 +70,7 @@ namespace SpellScanner
             // GetEditorId: the engine keeps no spell editor ids (GetFormEditorID() is always
             // empty for a spell, and no group ever formed); po3's Tweaks keeps them
             const std::string editorId = GetEditorId(spell);
-            const char* name = spell->GetFullName();
-            if (editorId.empty() || !name || !*name) return {};
+            if (editorId.empty() || SpellEffectivenessHook::GetSingleton()->GetOriginalName(spell).empty()) return {};
             const RE::ActorValue school = GetSpellSchool(spell);
             if (!IsValidMagicSchool(school) || IsEquippedInVoiceSlot(spell)) return {};
 
@@ -134,7 +134,7 @@ namespace SpellScanner
             }
             ++merged;
             logger::debug("SpellScanner: duplicate '{}' ({}): kept {}, merged {}",
-                EncodingUtils::SanitizeToUTF8(kept->GetFullName()),
+                EncodingUtils::SanitizeToUTF8(SpellEffectivenessHook::GetSingleton()->GetOriginalName(kept)),
                 EncodingUtils::SanitizeToUTF8(kept->GetFormEditorID()), Describe(kept), dropped);
         }
         logger::info("SpellScanner: {} duplicate spells merged into {}", duplicateOf.size(), merged);

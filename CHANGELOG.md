@@ -92,6 +92,11 @@
   tree. Such a spell now takes the school of its costliest effect, the one Heart of Magic already used for its
   learning target and cast XP. A spell whose first effect has a school keeps that school. Not yet tested in game.
 
+- **A scan while a spell is weakened keeps the spell's own name.** With Modify Game Display on, a weakened spell is
+  named "Flames (Learning - 35%)" in game, and a scan then (the Scan button, or a mod's scan through Papyrus) stored
+  that name, so the spell no longer grouped with its copies by name and showed the tag in the tree. The scan now
+  stores the spell's own name. Not yet tested in game.
+
 - **Book Reading XP comes once per book.** Reading the same book or note again gave XP every time. Now each book or
   note gives XP once; copies of the same book count as one. A book read while no spell is being learned gives
   nothing then and can still give its XP later. Spell tomes give no Book Reading XP. The books that gave XP are

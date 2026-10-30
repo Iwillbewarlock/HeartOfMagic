@@ -1,6 +1,7 @@
 #include "Common.h"
 #include "AsciiText.h"
 #include "EncodingUtils.h"
+#include "SpellEffectivenessHook.h"
 #include "SpellScanner.h"
 #include "SpellTomes.h"
 #include "librarian/PerkAdapterPatch.h"
@@ -47,7 +48,7 @@ namespace SpellScanner
         // Same spell to a player: same name (ASCII case ignored) in the same school.
         std::string CopyKey(RE::SpellItem* spell)
         {
-            std::string key = AsciiText::ToLower(spell->GetFullName());
+            std::string key = AsciiText::ToLower(SpellEffectivenessHook::GetSingleton()->GetOriginalName(spell));
             key += '|';
             key += std::to_string(static_cast<int>(GetSpellSchool(spell)));
             return key;
@@ -65,7 +66,7 @@ namespace SpellScanner
                 if (++count > kLoggedSpells) return;
                 if (!named.empty()) named += ", ";
                 named += std::format("'{}' (0x{:08X})",
-                    EncodingUtils::SanitizeToUTF8(spell->GetFullName()), spell->GetFormID());
+                    EncodingUtils::SanitizeToUTF8(SpellEffectivenessHook::GetSingleton()->GetOriginalName(spell)), spell->GetFormID());
             }
 
             void Log() const

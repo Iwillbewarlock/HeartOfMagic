@@ -166,6 +166,9 @@ public:
     void ApplyModifiedSpellName(RE::FormID spellFormId);
     void RestoreOriginalSpellName(RE::FormID spellFormId);
     void RefreshAllSpellNames();  // Update all tracked spell names
+    // The spell's own name, without "(Learning - 35%)": the name kept from before this hook
+    // renamed it, else GetFullName(). What the scanner stores and groups by. Takes m_mutex
+    std::string GetOriginalName(const RE::SpellItem* spell) const;
     
     // Directly modify effect descriptions to show scaled values
     void ApplyModifiedDescriptions(RE::FormID spellFormId);

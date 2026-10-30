@@ -2,6 +2,7 @@
 #include "AsciiText.h"
 #include "FormIdText.h"
 #include "JsonText.h"
+#include "SpellEffectivenessHook.h"
 #include "SpellScanner.h"
 #include "librarian/PerkAdapterPatch.h"
 #include "librarian/SpellResearchPatch.h"
@@ -265,7 +266,7 @@ namespace SpellScanner
         // Essential fields (always included)
         spellJson["formId"] = FormIdText::Format(formId);
         spellJson["persistentId"] = GetPersistentFormId(formId);  // Load order resilient ID
-        spellJson["name"] = EncodingUtils::SanitizeToUTF8(spell->GetFullName());  // Sanitize for valid UTF-8 JSON
+        spellJson["name"] = EncodingUtils::SanitizeToUTF8(SpellEffectivenessHook::GetSingleton()->GetOriginalName(spell));  // own name (not "(Learning - 35%)"), valid UTF-8
         spellJson["school"] = GetSchoolName(GetSpellSchool(spell));
         spellJson["skillLevel"] = DetermineSpellTier(spell);
         if (IsCastByVampires(formId)) {

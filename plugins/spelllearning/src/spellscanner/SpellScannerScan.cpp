@@ -271,7 +271,8 @@ namespace SpellScanner
         }
 
         const char* rawEditorId = spell->GetFormEditorID();
-        std::string name = spell->GetFullName();
+        // Its own name: a weakened spell is renamed "(Learning - 35%)" in game
+        std::string name = SpellEffectivenessHook::GetSingleton()->GetOriginalName(spell);
 
         // EditorID may be empty on SE 1.5.97 without po3's Tweaks — that's OK
         bool hasEditorId = (rawEditorId && strlen(rawEditorId) > 0);
@@ -556,7 +557,7 @@ namespace SpellScanner
             seenSpellIds.insert(spellFormId);
 
             // Get spell info
-            std::string spellName = spell->GetFullName();
+            std::string spellName = SpellEffectivenessHook::GetSingleton()->GetOriginalName(spell);
 
             if (spellName.empty()) continue;
 

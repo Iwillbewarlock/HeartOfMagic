@@ -213,6 +213,21 @@ void SpellEffectivenessHook::RestoreOriginalSpellName(RE::FormID spellFormId)
         spellFormId, originalName);
 }
 
+std::string SpellEffectivenessHook::GetOriginalName(const RE::SpellItem* spell) const
+{
+    if (!spell) return {};
+    {
+        // Kept while the spell is weakened (renamed, or held for ISL, or with Modify Game
+        // Display off - then it is the spell's name anyway); dropped at mastery and on revert
+        std::shared_lock<std::shared_mutex> lock(m_mutex);
+        if (const auto it = m_originalSpellNames.find(spell->GetFormID()); it != m_originalSpellNames.end()) {
+            return it->second;
+        }
+    }
+    const char* name = spell->GetFullName();
+    return name ? std::string(name) : std::string();
+}
+
 void SpellEffectivenessHook::RefreshAllSpellNames()
 {
     logger::info("SpellEffectivenessHook: Refreshing all spell names and descriptions...");

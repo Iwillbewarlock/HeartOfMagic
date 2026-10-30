@@ -44,7 +44,7 @@ namespace SpellScanner
         // Build spell info JSON
         json spellInfo;
         spellInfo["formId"] = formIdStr;
-        spellInfo["name"] = EncodingUtils::SanitizeToUTF8(spell->GetFullName());  // Sanitize for valid UTF-8 JSON
+        spellInfo["name"] = EncodingUtils::SanitizeToUTF8(SpellEffectivenessHook::GetSingleton()->GetOriginalName(spell));  // own name, valid UTF-8
 
         const char* editorId = spell->GetFormEditorID();
         spellInfo["editorId"] = editorId ? EncodingUtils::SanitizeToUTF8(editorId) : std::string();
