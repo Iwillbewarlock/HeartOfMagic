@@ -6,6 +6,7 @@
 #include "Settings.h"
 #include "WidgetStrings.h"
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <format>
@@ -257,7 +258,7 @@ namespace KeyHints
                 g_menu.lastArg = a_params.argCount > 0 && a_params.args[0].IsBool() ? std::optional<bool>(a_params.args[0].GetBool()) : std::nullopt;
                 RE::GFxValue bar, panel;
                 if (!a_params.thisPtr->GetMember("bottomBar", &bar) || !bar.IsObject() || !bar.GetMember("buttonPanel", &panel) || !panel.IsDisplayObject()) return;
-                if (g_menu.up && Intact(panel)) return;
+                if (g_menu.up && !g_menu.ours.empty() && Intact(panel)) return;  // with none of ours, Append only records the new end
                 Append(a_params.movie, *a_params.thisPtr, panel);
             }
         };
@@ -314,6 +315,11 @@ namespace KeyHints
             if (g_menu.seen && g_menu.argPlain) {
                 std::array<RE::GFxValue, 1> args{ RE::GFxValue{ g_menu.lastArg.value_or(false) } };
                 a_menu.Invoke(kMethod, nullptr, args.data(), g_menu.lastArg ? 1 : 0);
+                // a method that did not clear the panel left ours as they were: the change is taken as handled, not tried every frame
+                if (!BlockRules::SameHintSet(g_menu.appended, g_menu.want)) {
+                    if (g_menu.logs++ < kMaxLogs) logger::info("KeyHints: SkyUI's updateBottomBar ran again but did not take the new hint set - kept as it was");
+                    g_menu.appended = g_menu.want;
+                }
                 return;
             }
             // ours are not the panel's last and SkyUI's method never ran through the wrap: nothing safe to do - left as they are
@@ -391,7 +397,7 @@ namespace KeyHints
         RE::GFxValue buttons, button;
         bool changed = std::exchange(g_menu.relayout, false);
         if (!InUse(panel, buttons)) return;
-        for (std::size_t i = 0; i < g_menu.ours.size(); ++i) {
+        for (std::size_t i = 0; i < std::min(g_menu.ours.size(), g_menu.want.size()); ++i) {  // ours: a prefix of want (a full panel)
             const bool shown = g_menu.want[i].shown;
             if (!buttons.GetElement(static_cast<std::uint32_t>(g_menu.first + i), &button)) continue;
             RE::GFxValue visible;
