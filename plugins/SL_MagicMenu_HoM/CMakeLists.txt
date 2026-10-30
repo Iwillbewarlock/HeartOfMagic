@@ -75,16 +75,19 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 # build (as SL_MagicMenu_SpellResearch_dist); the release zip with the FOMOD is
 # plugins/cmake/Distribution.cmake's assemble_magicmenu_dist:
 #   SKSE/Plugins/SL_MagicMenu_HoM.dll (+ .pdb for crash logs)
-# No ini of its own: the block reads its keys from SL_MagicMenu.ini.
+#   SKSE/Plugins/SL_MagicMenu_HoM/lang/*.json (en, ko; sources in dist/lang)
+# No ini of its own: the block reads its keys (and [Display] sLanguage) from SL_MagicMenu.ini.
 # --------------------------------------------------------------------------
 set(HOM_BLOCK_DIST "${CMAKE_SOURCE_DIR}/dist/SL_MagicMenu_HoM")
 add_custom_target(SL_MagicMenu_HoM_dist ALL
     COMMAND "${CMAKE_COMMAND}" -E rm -rf "${HOM_BLOCK_DIST}"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${HOM_BLOCK_DIST}/SKSE/Plugins"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${HOM_BLOCK_DIST}/SKSE/Plugins/SL_MagicMenu_HoM/lang"
     COMMAND "${CMAKE_COMMAND}" -E copy "$<TARGET_FILE:${PROJECT_NAME}>" "${HOM_BLOCK_DIST}/SKSE/Plugins/"
     COMMAND "${CMAKE_COMMAND}" -E $<IF:$<BOOL:$<TARGET_PDB_FILE:${PROJECT_NAME}>>,copy,true>
         "$<$<BOOL:$<TARGET_PDB_FILE:${PROJECT_NAME}>>:$<TARGET_PDB_FILE:${PROJECT_NAME}>>"
         "${HOM_BLOCK_DIST}/SKSE/Plugins/"
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/dist/lang"
+        "${HOM_BLOCK_DIST}/SKSE/Plugins/SL_MagicMenu_HoM/lang"
     COMMENT "Assembling dist/SL_MagicMenu_HoM"
     VERBATIM
 )

@@ -19,6 +19,7 @@
 #include "GameThread.h"
 #include "Hom.h"
 #include "HomSettings.h"
+#include "LangGame.h"
 #include "SpellLearningAPI.h"
 #include "Spells.h"
 #include "Strings.h"
@@ -190,6 +191,8 @@ namespace
                 return;
             }
             logger::info("SL_MagicMenu_HoM: kDataLoaded on thread {}, main thread {}", REX::W32::GetCurrentThreadId(), GameThread::Id());
+            // the texts in [Display] sLanguage's language, once per session; before Register, which copies the tree title
+            LangGame::Load(HomStrings::g_catalog, HomStrings::kLangDir);
             Spells::Load();
             if (Register()) {
                 if (auto* ui = RE::UI::GetSingleton()) {

@@ -357,7 +357,13 @@ This project does not have a C++ test framework. Validation is done through:
   `magic-menu-tree-check` (`--selftest`, or a spell_tree.json), `magic-menu-homstyle-check` (`--selftest`, or HoM's
   config) and `magic-menu-hom-block-check` (the block's keys read from SL_MagicMenu.ini - the shipped one and made-up
   ones -, the registered heights, the pick rules, the strings, the cards' height requests and the tree window / progress
-  card / node card arithmetic; `--selftest` the same); and the Spell Research add-on block's
+  card / node card arithmetic; `--selftest` the same); `magic-menu-lang-check` (both DLLs' language files: the core's
+  `WidgetStrings.h` and the HoM block's `Strings.h` tables against their `dist/lang/en.json` and `ko.json` - every key, no
+  extra key, the files parse, `{placeholders}` and the `" · "` separators equal in en, ko and the built-in English, the
+  built-in text equal to en.json - and the shared `plugins/SL_MagicMenu/src/LangFiles.h`: `[Display] sLanguage` of
+  SL_MagicMenu.ini + the game's sLanguage -> the code (auto + KOREAN -> ko, anything else en), the chain `<code>.json`,
+  en.json, built-in on the shipped and on made-up folders, the one load per session, the log lines, and the shipped ini's
+  `sLanguage=auto`; `--selftest` the same); and the Spell Research add-on block's
   (plugins/SL_MagicMenu_SpellResearch, docs/superpowers/specs/2026-10-27-spell-research-addon-design.md)
   `magic-menu-sr-block-check` (`SrBlockRules.h`: archetype grouping and order, what the block shows per state, the list and
   line layouts and their wrapping, the unknown archetype's frame-only icon, the icon data's bounds, the link click rule,

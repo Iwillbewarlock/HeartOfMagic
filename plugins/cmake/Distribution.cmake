@@ -283,8 +283,10 @@ message(STATUS "  Archive:  ${DIST_DIR}/${_dist_folder_name}.zip (+ ${_pdb_folde
 #    makes dist/SL_MagicMenu_<version>/ and its zip, the FOMOD of fomod_magicmenu/:
 #      fomod/ModuleConfig.xml, fomod/info.xml
 #      00 Core/SKSE/Plugins/SL_MagicMenu.dll, SL_MagicMenu.ini
+#      00 Core/SKSE/Plugins/SL_MagicMenu/lang/en.json, ko.json
 #      00 Core/MCM/Settings/InventoryReforged.ini
 #      10 Heart of Magic Block/SKSE/Plugins/SL_MagicMenu_HoM.dll
+#      10 Heart of Magic Block/SKSE/Plugins/SL_MagicMenu_HoM/lang/en.json, ko.json
 #      LICENSE, THIRD-PARTY-NOTICES.md, licenses/ (as 3b, with the ports these
 #      two DLLs link)
 #    and the two DLLs' .pdb in SL_MagicMenu_<version>_DebugSymbols.zip. The Spell
@@ -302,6 +304,7 @@ set(_mm_pdb_dir "${MAGIC_MENU_DIST_VERSION_DIR}_DebugSymbols")
 set(_mm_core "${_mm_dist}/00 Core")
 set(_mm_hom "${_mm_dist}/10 Heart of Magic Block")
 set(_mm_core_src "${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/dist")
+set(_mm_hom_src "${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu_HoM/dist")
 set(_mm_fomod_src "${CMAKE_SOURCE_DIR}/fomod_magicmenu")
 set(_mm_licenses_dist "${_mm_dist}/licenses")
 # CommonLibSSE-NG's ports these DLLs carry (fmt and spdlog for the log, DirectXTK and
@@ -336,9 +339,9 @@ endforeach()
 add_custom_command(TARGET assemble_magicmenu_dist POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E rm -rf "${_mm_dist}" "${_mm_pdb_dir}"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_dist}/fomod"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_core}/SKSE/Plugins"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_core}/SKSE/Plugins/SL_MagicMenu/lang"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_core}/MCM/Settings"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_hom}/SKSE/Plugins"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_hom}/SKSE/Plugins/SL_MagicMenu_HoM/lang"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mm_pdb_dir}/SKSE/Plugins"
     COMMAND "${CMAKE_COMMAND}" -E copy
     "${_mm_fomod_src}/fomod/ModuleConfig.xml"
@@ -351,16 +354,22 @@ add_custom_command(TARGET assemble_magicmenu_dist POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E copy
     "${_mm_core_src}/MCM/Settings/InventoryReforged.ini"
     "${_mm_core}/MCM/Settings/"
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory
+    "${_mm_core_src}/lang"
+    "${_mm_core}/SKSE/Plugins/SL_MagicMenu/lang"
     COMMAND "${CMAKE_COMMAND}" -E copy
     "$<TARGET_FILE:SL_MagicMenu_HoM>"
     "${_mm_hom}/SKSE/Plugins/"
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory
+    "${_mm_hom_src}/lang"
+    "${_mm_hom}/SKSE/Plugins/SL_MagicMenu_HoM/lang"
     COMMAND "${CMAKE_COMMAND}" -E $<IF:$<BOOL:$<TARGET_PDB_FILE:SL_MagicMenu>>,copy,true>
     "$<$<BOOL:$<TARGET_PDB_FILE:SL_MagicMenu>>:$<TARGET_PDB_FILE:SL_MagicMenu>>"
     "${_mm_pdb_dir}/SKSE/Plugins/"
     COMMAND "${CMAKE_COMMAND}" -E $<IF:$<BOOL:$<TARGET_PDB_FILE:SL_MagicMenu_HoM>>,copy,true>
     "$<$<BOOL:$<TARGET_PDB_FILE:SL_MagicMenu_HoM>>:$<TARGET_PDB_FILE:SL_MagicMenu_HoM>>"
     "${_mm_pdb_dir}/SKSE/Plugins/"
-    COMMAND "${CMAKE_COMMAND}" -E echo "Copying the magic menu's FOMOD, DLLs and ini files..."
+    COMMAND "${CMAKE_COMMAND}" -E echo "Copying the magic menu's FOMOD, DLLs, ini and language files..."
     VERBATIM
 )
 

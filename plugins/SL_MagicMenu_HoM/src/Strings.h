@@ -1,5 +1,7 @@
 #pragma once
 
+#include "LangFiles.h"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -11,14 +13,17 @@
 
 // =============================================================================
 // STRINGS - the Heart of Magic block's on-screen text: the HoM rows of the core's
-// table at f83dc6f3 (Widget.cpp W:227-400, spec v5 Q2), copied unchanged (HoM
-// add-on plan Task 6), the five school names (the core keeps its own copy for its
-// card) and the tree's empty line. Korean (the user plays in Korean).
-// Placeholders in braces are filled by Fill(); {key} already carries its brackets
-// ("[U]"). Wording: Gemini Argon's draft 2026-10-25 with two lines tightened by
-// Claude (spec v5 table); the rows after "build 5" were written in the same
-// short label style. Not passed to std::format: the braces are names, not format
-// fields. No game types (tools/magic-menu-hom-block-check includes it).
+// table at f83dc6f3 (Widget.cpp W:227-400, spec v5 Q2, HoM add-on plan Task 6),
+// the five school names (the core keeps its own copy for its card) and the
+// tree's empty line. Each row's text is the built-in English, the last
+// fallback; the shown text comes from
+// Data/SKSE/Plugins/SL_MagicMenu_HoM/lang/<code>.json, then en.json (the core's
+// LangFiles.h, loaded once at kDataLoaded by Main.cpp). Wording: the reviewed
+// drafts of 2026-10-31 (en.json / ko.json); the Korean, Gemini Argon's draft
+// 2026-10-25 and the rows after it, lives in ko.json. Placeholders in braces
+// are filled by Fill(); {key} already carries its brackets ("[U]"). Not passed
+// to std::format: the braces are names, not format fields. No game types
+// (tools/magic-menu-hom-block-check and magic-menu-lang-check include it).
 // =============================================================================
 
 namespace HomStrings
@@ -94,64 +99,64 @@ namespace HomStrings
     };
 
     inline constexpr auto kStrings = std::to_array<StrEntry>({
-        { Str::kProgressTitle, "progress_title", "{school} 학습" },
-        { Str::kProgressTarget, "progress_target", "학습 목표: {spell} ({pct}%)" },
-        { Str::kProgressNoneCandidates, "progress_none_candidates", "학습 목표 없음 · 배울 수 있는 주문 {n}개 · {key} 다음 주문" },
-        { Str::kProgressNoneNothing, "progress_none_nothing", "배울 수 있는 주문 없음 (선행 조건 미충족)" },
-        { Str::kProgressAllMastered, "progress_all_mastered", "모든 주문 숙달 완료" },
-        { Str::kProgressNotReady, "progress_not_ready", "주문 데이터 불러오는 중..." },
-        { Str::kProgressNotInTree, "progress_not_in_tree", "선택한 주문은 주문 트리에 없음" },
-        { Str::kNodeHint, "node_hint", "트리에서 주문 클릭 · {key} 다음 주문" },
-        { Str::kNodeSetTarget, "node_set_target", "학습 목표 지정 {key}" },
-        { Str::kNodeIsTarget, "node_is_target", "현재 학습 목표" },
-        { Str::kNodeLocked, "node_locked", "선행 조건 필요" },
-        { Str::kNodeMastered, "node_mastered", "숙달 완료" },
-        { Str::kLegendMastered, "legend_mastered", "숙달" },
-        { Str::kLegendLearning, "legend_learning", "학습 중" },
-        { Str::kLegendCanLearn, "legend_can_learn", "배울 수 있음" },
-        { Str::kTreeNotInTree, "tree_not_in_tree", "주문 트리에 없는 주문" },
-        { Str::kTreeTitle, "tree_title", "주문 트리" },
+        { Str::kProgressTitle, "progress_title", "{school} progress" },
+        { Str::kProgressTarget, "progress_target", "Learning target: {spell} ({pct}%)" },
+        { Str::kProgressNoneCandidates, "progress_none_candidates", "No learning target · {n} can be learned · {key} Next spell" },
+        { Str::kProgressNoneNothing, "progress_none_nothing", "No spells to learn (prerequisites unmet)" },
+        { Str::kProgressAllMastered, "progress_all_mastered", "All spells mastered" },
+        { Str::kProgressNotReady, "progress_not_ready", "Loading spell data..." },
+        { Str::kProgressNotInTree, "progress_not_in_tree", "Selected spell not in spell tree" },
+        { Str::kNodeHint, "node_hint", "Click a spell in the tree · {key} Next spell" },
+        { Str::kNodeSetTarget, "node_set_target", "Set learning target {key}" },
+        { Str::kNodeIsTarget, "node_is_target", "Current learning target" },
+        { Str::kNodeLocked, "node_locked", "Prerequisites needed" },
+        { Str::kNodeMastered, "node_mastered", "Mastered" },
+        { Str::kLegendMastered, "legend_mastered", "Mastered" },
+        { Str::kLegendLearning, "legend_learning", "Learning" },
+        { Str::kLegendCanLearn, "legend_can_learn", "Can learn" },
+        { Str::kTreeNotInTree, "tree_not_in_tree", "Spell not in spell tree" },
+        { Str::kTreeTitle, "tree_title", "Spell tree" },
         // build 5
-        { Str::kProgressCandidates, "progress_candidates", "배울 수 있는 주문 {n}개 · {key} 다음 주문" },
-        { Str::kProgressCandidatesNoXY, "progress_candidates_no_xy", "배울 수 있는 주문 {n}개 · 트리 창에 표시 안 됨" },
-        { Str::kProgressReady, "progress_ready", "경험치 충족된 주문 {n}개 · 습득 대기" },
-        { Str::kProgressLearningEarly, "progress_learning_early", "미리 배운 주문 {n}개 · 숙달 진행 중" },
-        { Str::kProgressUnknown, "progress_unknown", "상태를 알 수 없는 주문 {n}개" },
-        { Str::kProgressNoOther, "progress_no_other", "배울 수 있는 다른 주문 없음" },
-        { Str::kProgressNoTree, "progress_no_tree", "주문 트리 파일 없음" },
-        { Str::kProgressNoSchoolTree, "progress_no_school_tree", "{school}: 주문 트리에 없는 학파" },
-        { Str::kXp, "xp", "{cur} / {need} 경험치" },
-        { Str::kTreeNoTree, "tree_no_tree", "주문 트리 파일 없음 (spell_tree.json)" },
-        { Str::kTreeNoCentre, "tree_no_centre", "선택한 학파 주문 없음" },
-        { Str::kTreeNoLinks, "tree_no_links", "연결된 주문 없음" },
+        { Str::kProgressCandidates, "progress_candidates", "{n} can be learned · {key} Next spell" },
+        { Str::kProgressCandidatesNoXY, "progress_candidates_no_xy", "{n} can be learned · Not shown in tree" },
+        { Str::kProgressReady, "progress_ready", "{n} at full XP · Ready to learn" },
+        { Str::kProgressLearningEarly, "progress_learning_early", "{n} learned early · Mastery in progress" },
+        { Str::kProgressUnknown, "progress_unknown", "{n} with unknown status" },
+        { Str::kProgressNoOther, "progress_no_other", "No other spells to learn" },
+        { Str::kProgressNoTree, "progress_no_tree", "No spell tree file" },
+        { Str::kProgressNoSchoolTree, "progress_no_school_tree", "{school} not in spell tree" },
+        { Str::kXp, "xp", "{cur} / {need} XP" },
+        { Str::kTreeNoTree, "tree_no_tree", "No spell tree file (spell_tree.json)" },
+        { Str::kTreeNoCentre, "tree_no_centre", "No spells in selected school" },
+        { Str::kTreeNoLinks, "tree_no_links", "No linked spells" },
         // spec v10 T7: an off-window badge (a drawn arrow, then this text)
-        { Str::kTreeExit, "tree_exit", "{n}개 더" },
-        { Str::kNodeCanLearn, "node_can_learn", "배울 수 있음" },
-        { Str::kNodeTargetPct, "node_target_pct", "현재 학습 목표 · {pct}%" },
-        { Str::kNodeLearningPct, "node_learning_pct", "미리 배움 · 숙달 {pct}%" },
-        { Str::kNodeReady, "node_ready", "경험치 충족 · 습득 대기" },
-        { Str::kNodeUnknown, "node_unknown", "상태 확인 중" },
+        { Str::kTreeExit, "tree_exit", "{n} more" },
+        { Str::kNodeCanLearn, "node_can_learn", "Can learn" },
+        { Str::kNodeTargetPct, "node_target_pct", "Learning target · {pct}%" },
+        { Str::kNodeLearningPct, "node_learning_pct", "Learned early · {pct}% mastered" },
+        { Str::kNodeReady, "node_ready", "XP full · Ready to learn" },
+        { Str::kNodeUnknown, "node_unknown", "Checking status" },
         { Str::kNodeSub, "node_sub", "{school} · {level}" },
-        { Str::kReqAll, "req_all", "선행 조건 모두 숙달 필요" },
-        { Str::kReqSome, "req_some", "선행 조건 중 {n}개 숙달 필요" },
-        { Str::kReqNone, "req_none", "선행 조건 없음" },
-        { Str::kReqMastered, "req_mastered", "{name} · 숙달" },
-        { Str::kReqNotMastered, "req_not_mastered", "{name} · 미숙달" },
-        { Str::kReqChecking, "req_checking", "{name} · 확인 중" },
-        { Str::kReqNotInGame, "req_not_in_game", "{name} · 게임에 없음" },
-        { Str::kReqMore, "req_more", "외 {n}개" },
-        { Str::kSchoolAlteration, "school_alteration", "변화마법" },
-        { Str::kSchoolConjuration, "school_conjuration", "소환마법" },
-        { Str::kSchoolDestruction, "school_destruction", "파괴마법" },
-        { Str::kSchoolIllusion, "school_illusion", "환영마법" },
-        { Str::kSchoolRestoration, "school_restoration", "회복마법" },
+        { Str::kReqAll, "req_all", "Master all prerequisites" },
+        { Str::kReqSome, "req_some", "Master {n} of the prerequisites" },
+        { Str::kReqNone, "req_none", "No prerequisites" },
+        { Str::kReqMastered, "req_mastered", "{name} · Mastered" },
+        { Str::kReqNotMastered, "req_not_mastered", "{name} · Not mastered" },
+        { Str::kReqChecking, "req_checking", "{name} · Checking" },
+        { Str::kReqNotInGame, "req_not_in_game", "{name} · Not in game" },
+        { Str::kReqMore, "req_more", "+{n} more" },
+        { Str::kSchoolAlteration, "school_alteration", "Alteration" },
+        { Str::kSchoolConjuration, "school_conjuration", "Conjuration" },
+        { Str::kSchoolDestruction, "school_destruction", "Destruction" },
+        { Str::kSchoolIllusion, "school_illusion", "Illusion" },
+        { Str::kSchoolRestoration, "school_restoration", "Restoration" },
         // review round 1 #3
-        { Str::kProgressNoHom, "progress_no_hom", "Heart of Magic 연결 안 됨" },
-        { Str::kProgressNoData, "progress_no_data", "주문 데이터를 받지 못함" },
+        { Str::kProgressNoHom, "progress_no_hom", "Heart of Magic not connected" },
+        { Str::kProgressNoData, "progress_no_data", "No spell data received" },
         // build 6 (spec v6 L4); since build 11 the tree legend's locked item (spec v11 T18)
-        { Str::kTreeLocked, "tree_locked", "잠김" },
+        { Str::kTreeLocked, "tree_locked", "Locked" },
         // user 2026-10-30 (the board): a block's line while nothing is chosen
-        { Str::kEmptyChoose, "empty_choose", "주문을 고르면 표시됩니다" },
+        { Str::kEmptyChoose, "empty_choose", "Select a spell to view" },
     });
 
     consteval bool StringsInOrder()
@@ -163,9 +168,15 @@ namespace HomStrings
     }
     static_assert(StringsInOrder(), "kStrings must list every Str once, in enum order");
 
+    /// The language files' texts once Main.cpp loaded them (kDataLoaded), the built-in English before
+    inline LangFiles::Catalog<StrEntry, kStrings.size()> g_catalog{ kStrings };
+
+    /// The language folder under the game folder
+    inline constexpr const char* kLangDir = "Data/SKSE/Plugins/SL_MagicMenu_HoM/lang";
+
     inline const char* Text(Str a_id)
     {
-        return kStrings[static_cast<std::size_t>(a_id)].text;
+        return g_catalog.Text(static_cast<std::size_t>(a_id));
     }
 
     inline const char* Key(Str a_id)
@@ -176,13 +187,7 @@ namespace HomStrings
     /// The table's text with each {placeholder} replaced (every occurrence)
     inline std::string Fill(Str a_id, std::initializer_list<std::pair<std::string_view, std::string>> a_values)
     {
-        std::string text = Text(a_id);
-        for (const auto& [name, value] : a_values) {
-            for (auto at = text.find(name); at != std::string::npos; at = text.find(name, at + value.size())) {
-                text.replace(at, name.size(), value);
-            }
-        }
-        return text;
+        return LangFiles::FillText(Text(a_id), a_values);
     }
 
     /// A tree school key ("Destruction") as the list's school column names it

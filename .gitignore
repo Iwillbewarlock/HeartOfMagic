@@ -3,6 +3,9 @@ build/
 dist/
 # the add-on's install files (en.json, the ini; a later ko.json) are sources, not build output
 !plugins/SL_MagicMenu_SpellResearch/dist/
+# the magic menu's and its Heart of Magic block's install files (the ini, lang/en.json and ko.json) are sources too
+!plugins/SL_MagicMenu/dist/
+!plugins/SL_MagicMenu_HoM/dist/
 plugin/build/
 plugin/build2/
 compatibility/*/build/

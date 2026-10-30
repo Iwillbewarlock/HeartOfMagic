@@ -354,6 +354,39 @@ target_link_libraries(magic-menu-hom-block-check PRIVATE
 )
 
 # =============================================================================
+# magic-menu-lang-check  -  offline check of the magic menu's language files
+# =============================================================================
+# The core's WidgetStrings.h and the HoM block's Strings.h tables against their
+# shipped dist/lang/en.json and ko.json (every key, no extra key, parse,
+# {placeholders} and " · " separators equal in en, ko and the built-in text, the
+# built-in text equal to en.json), and the shared LangFiles.h (plugins/SL_MagicMenu/src):
+# [Display] sLanguage + the game's language -> the code, the file chain on the
+# real and on made-up folders, the one load, the log lines; the shipped ini's
+# [Display] sLanguage=auto. One PASS/FAIL line per check and a total; --selftest
+# the same; exit 1 when any fails.
+
+add_executable(magic-menu-lang-check
+    magic-menu-lang-check.cpp
+)
+
+target_compile_features(magic-menu-lang-check PRIVATE cxx_std_23)
+
+target_include_directories(magic-menu-lang-check PRIVATE
+    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu_HoM/src
+    ${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/src
+)
+
+target_compile_definitions(magic-menu-lang-check PRIVATE
+    MM_CORE_LANG_DIR="${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/dist/lang"
+    MM_HOM_LANG_DIR="${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu_HoM/dist/lang"
+    MM_DIST_INI="${CMAKE_SOURCE_DIR}/plugins/SL_MagicMenu/dist/SL_MagicMenu.ini"
+)
+
+target_link_libraries(magic-menu-lang-check PRIVATE
+    nlohmann_json::nlohmann_json
+)
+
+# =============================================================================
 # magic-menu-homstyle-check  -  offline check of the Heart of Magic block's style reader
 # =============================================================================
 # The SL_MagicMenu_HoM add-on's own HomStyle.cpp (no game types; the core's until

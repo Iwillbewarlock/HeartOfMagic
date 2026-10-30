@@ -472,10 +472,10 @@ namespace
         std::printf("strings: the HoM rows\n");
         using namespace HomStrings;
         Expect(KeyLabel(22) == "[U]" && KeyLabel(34) == "[G]" && KeyLabel(19) == "[R]" && KeyLabel(2) == "[#2]", "key labels [U] [G] [R], an unnamed key [#2]");
-        Expect(Fill(Str::kProgressCandidates, { { "{n}", "3" }, { "{key}", KeyLabel(22) } }) == "배울 수 있는 주문 3개 · [U] 다음 주문",
-            "progress_candidates filled: 3, [U]");
-        Expect(Fill(Str::kXp, { { "{cur}", "40" }, { "{need}", "100" } }) == "40 / 100 경험치", "xp: 40 / 100");
-        Expect(SchoolText("Destruction") == "파괴마법" && SchoolText("Mysticism") == "Mysticism", "school names: Destruction 파괴마법, an unknown key as it is");
+        Expect(Fill(Str::kProgressCandidates, { { "{n}", "3" }, { "{key}", KeyLabel(22) } }) == "3 can be learned · [U] Next spell",
+            "progress_candidates filled: 3, [U] (the built-in English; nothing loaded)");
+        Expect(Fill(Str::kXp, { { "{cur}", "40" }, { "{need}", "100" } }) == "40 / 100 XP", "xp: 40 / 100");
+        Expect(SchoolText("Destruction") == "Destruction" && SchoolText("Mysticism") == "Mysticism", "school names: Destruction (built-in English), an unknown key as it is");
         Expect(std::string_view(Key(Str::kNodeSub)) == "node_sub" && std::string_view(Key(Str::kProgressNoData)) == "progress_no_data",
             "keys as the core logged them (node_sub, progress_no_data)");
     }

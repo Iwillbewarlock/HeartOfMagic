@@ -13,8 +13,10 @@
 
 #include "BlockApi.h"
 #include "GameThread.h"
+#include "LangGame.h"
 #include "Settings.h"
 #include "Widget.h"
+#include "WidgetStrings.h"
 
 namespace
 {
@@ -69,6 +71,8 @@ namespace
             return;
         }
         if (a_msg->type != SKSE::MessagingInterface::kDataLoaded) return;
+        // the on-screen texts in [Display] sLanguage's language (the game's INI settings are read by now), once per session
+        LangGame::Load(WidgetText::g_catalog, WidgetText::kLangDir);
         if (Settings::Get().debugFillerBlock) Widget::RegisterDebugFiller();  // blocks plan Task 6: through the add-on path
         logger::info("SL_MagicMenu: kDataLoaded on thread {}, main thread {}", REX::W32::GetCurrentThreadId(), GameThread::Id());
         Widget::Install();
