@@ -83,6 +83,10 @@
   hour since it was switched off (or since the save was loaded). Now only the time from when it is switched on
   counts. Not yet tested in game.
 
+- **A DEST_ISL.esp that is in Data but not checked no longer counts as installed.** Heart of Magic took it for an
+  active ISL-DESTified setup, so reading a spell tome said "You begin to study..." and the spell
+  was never learned, with no error. Only a plugin the game loaded counts now. Not yet tested in game.
+
 - **Book Reading XP comes once per book.** Reading the same book or note again gave XP every time. Now each book or
   note gives XP once; copies of the same book count as one. A book read while no spell is being learned gives
   nothing then and can still give its XP later. Spell tomes give no Book Reading XP. The books that gave XP are

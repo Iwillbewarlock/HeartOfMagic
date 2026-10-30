@@ -5,6 +5,7 @@
 #include "ProgressionManager.h"
 #include "ProgressionNotify.h"
 #include "SpellEffectivenessHook.h"
+#include "SpellScanner.h"
 #include "SpellTomeHook.h"
 
 namespace DESTIntegration {
@@ -116,7 +117,9 @@ namespace DESTIntegration {
         g_detectedPluginName = nullptr;
 
         for (size_t i = 0; i < DEST_PLUGIN_COUNT; ++i) {
-            if (dh->LookupModByName(DEST_PLUGIN_NAMES[i])) {
+            // Loaded only: LookupModByName also finds a DEST_ISL.esp left unchecked in Data, and
+            // tome reads then went the ISL way with nothing to teach the spell
+            if (SpellScanner::LookupLoadedPlugin(DEST_PLUGIN_NAMES[i])) {
                 g_destInstalled      = true;
                 g_detectedPluginName = DEST_PLUGIN_NAMES[i];
 
@@ -443,7 +446,7 @@ namespace DESTIntegration {
         auto* dh = RE::TESDataHandler::GetSingleton();
         if (!dh) return;
 
-        const auto* destMod = dh->LookupModByName(g_detectedPluginName);
+        const auto* destMod = SpellScanner::LookupLoadedPlugin(g_detectedPluginName);
         if (!destMod) return;
 
         uint8_t compileIndex = destMod->compileIndex;

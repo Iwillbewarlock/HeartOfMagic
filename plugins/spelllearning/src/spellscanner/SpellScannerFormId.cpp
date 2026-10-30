@@ -68,6 +68,16 @@ namespace SpellScanner
         {
             return file && file->GetCompileIndex() != kNotLoadedIndex ? file : nullptr;
         }
+    }
+
+    const RE::TESFile* LookupLoadedPlugin(std::string_view name)
+    {
+        auto* dataHandler = RE::TESDataHandler::GetSingleton();
+        return dataHandler ? IfLoaded(dataHandler->LookupModByName(name)) : nullptr;
+    }
+
+    namespace
+    {
 
         // The loaded plugin a persistentId names (PluginNames.h): the game's own
         // lookup by raw bytes, then, for a non-ASCII name, the converted names.

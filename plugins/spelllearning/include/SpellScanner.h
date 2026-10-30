@@ -152,6 +152,9 @@ namespace SpellScanner
     std::string GetSkillLevelFromPerk(RE::BGSPerk* perk);
     std::string DetermineSpellTier(RE::SpellItem* spell);
     std::string GetPluginName(RE::FormID formId);
+    // The plugin of this file name when the game loaded it (full or light), nullptr when it
+    // is not there or sits in Data unchecked: TESDataHandler::LookupModByName finds those too
+    const RE::TESFile* LookupLoadedPlugin(std::string_view name);
 
     // Magic school of a spell (school of its first effect), kNone if it has none
     RE::ActorValue GetSpellSchool(RE::SpellItem* spell);
