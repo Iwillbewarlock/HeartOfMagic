@@ -14,6 +14,10 @@
 
 #include "SpellLearningAPI.h"
 
+#include <mutex>
+#include <unordered_set>
+#include <vector>
+
 static constexpr float XP_PER_BOOK = 15.0f;
 static constexpr const char* SOURCE_ID = "book_reading";
 static constexpr const char* SOURCE_DISPLAY = "Book Reading";
@@ -23,6 +27,114 @@ static SpellLearning::ISpellLearningAPI* g_api = nullptr;
 
 // Track whether we've registered our source (do it once at kDataLoaded)
 static bool g_sourceRegistered = false;
+
+// =============================================================================
+// READ BOOKS
+// =============================================================================
+// XP comes once per book (user report 2026-10-30: re-reading the same book or note gave XP every time). The base
+// forms that gave it are kept in the save (SKSE co-save); a book counts once however many copies there are. A save
+// from before this - or before BookXP was installed - has no list: at its load the books the game itself marks read
+// (TESObjectBOOK::IsRead) are added, so they give nothing again. That mark is not used at the moment of reading: the
+// game may set it before the book menu opens, which would make every first read look like a second one.
+
+namespace ReadBooks
+{
+    inline constexpr std::uint32_t kUniqueID = 'SLBX';
+    inline constexpr std::uint32_t kRecord = 'READ';
+    inline constexpr std::uint32_t kVersion = 1;
+
+    std::mutex g_lock;
+    std::unordered_set<RE::FormID> g_read;
+
+    // true the first time a book is seen (and from then on it is in the list)
+    bool MarkRead(RE::FormID a_book)
+    {
+        const std::scoped_lock lock(g_lock);
+        return g_read.insert(a_book).second;
+    }
+
+    void OnSave(SKSE::SerializationInterface* a_intfc)
+    {
+        std::vector<RE::FormID> books;
+        {
+            const std::scoped_lock lock(g_lock);
+            books.assign(g_read.begin(), g_read.end());
+        }
+        if (!a_intfc->OpenRecord(kRecord, kVersion)) {
+            logger::error("SL_BookXP: could not open the read-books record - {} book(s) not saved", books.size());
+            return;
+        }
+        const auto count = static_cast<std::uint32_t>(books.size());
+        bool ok = a_intfc->WriteRecordData(count);
+        for (const auto book : books) {
+            if (!ok) break;
+            ok = a_intfc->WriteRecordData(book);
+        }
+        if (!ok) {
+            logger::error("SL_BookXP: writing the read-books record failed - the next load may give XP again for some books");
+            return;
+        }
+        logger::info("SL_BookXP: saved {} read book(s)", count);
+    }
+
+    void OnLoad(SKSE::SerializationInterface* a_intfc)
+    {
+        std::unordered_set<RE::FormID> loaded;
+        std::size_t dropped = 0;
+        std::uint32_t type = 0, version = 0, length = 0;
+        while (a_intfc->GetNextRecordInfo(type, version, length)) {
+            if (type != kRecord || version != kVersion) {
+                logger::warn("SL_BookXP: unknown co-save record {:08X} v{} ({} bytes) skipped", type, version, length);
+                continue;
+            }
+            std::uint32_t count = 0;
+            if (!a_intfc->ReadRecordData(count)) {
+                logger::error("SL_BookXP: the read-books record has no count - skipped");
+                continue;
+            }
+            for (std::uint32_t i = 0; i < count; ++i) {
+                RE::FormID saved = 0, now = 0;
+                if (!a_intfc->ReadRecordData(saved)) {
+                    logger::error("SL_BookXP: the read-books record ends after {} of {} book(s)", i, count);
+                    break;
+                }
+                // a book of a plugin removed since that save is dropped; one whose load order moved is renumbered
+                if (a_intfc->ResolveFormID(saved, now)) {
+                    loaded.insert(now);
+                } else {
+                    ++dropped;
+                }
+            }
+        }
+        const auto kept = loaded.size();
+        {
+            const std::scoped_lock lock(g_lock);
+            g_read = std::move(loaded);
+        }
+        logger::info("SL_BookXP: loaded the read-books list ({} book(s), {} of removed plugins dropped)", kept, dropped);
+    }
+
+    void OnRevert(SKSE::SerializationInterface*)
+    {
+        const std::scoped_lock lock(g_lock);
+        g_read.clear();
+    }
+
+    // After every save load: the books the game marks read join the list (a save from before this has none of its own)
+    void AddBooksTheGameMarksRead()
+    {
+        auto* data = RE::TESDataHandler::GetSingleton();
+        if (!data) return;
+        std::size_t added = 0;
+        {
+            const std::scoped_lock lock(g_lock);
+            for (auto* book : data->GetFormArray<RE::TESObjectBOOK>()) {
+                if (book && book->IsRead() && g_read.insert(book->GetFormID()).second) ++added;
+            }
+        }
+        logger::info("SL_BookXP: {} book(s) the game marks read joined the read-books list", added);
+    }
+}
 
 // =============================================================================
 // BOOK MENU WATCHER
@@ -54,14 +166,24 @@ public:
             return RE::BSEventNotifyControl::kContinue;
         }
 
-        logger::info("SL_BookXP: BookMenu opened - book read detected!");
-
-        if (g_api) {
-            GrantXPViaAPI();
-        } else {
-            logger::warn("SL_BookXP: API not available, cannot grant XP");
+        if (!g_api) {
+            logger::warn("SL_BookXP: BookMenu opened - API not available, cannot grant XP");
+            return RE::BSEventNotifyControl::kContinue;
         }
 
+        // The book on screen; when it cannot be told, XP is given as before the once-per-book check rather than none
+        if (auto* book = RE::BookMenu::GetTargetForm()) {
+            const char* name = book->GetName();
+            if (!ReadBooks::MarkRead(book->GetFormID())) {
+                logger::info("SL_BookXP: BookMenu opened - {:08X} '{}' was read before, no XP", book->GetFormID(), name ? name : "");
+                return RE::BSEventNotifyControl::kContinue;
+            }
+            logger::info("SL_BookXP: BookMenu opened - {:08X} '{}' read for the first time", book->GetFormID(), name ? name : "");
+        } else {
+            logger::warn("SL_BookXP: BookMenu opened but the book is not known - XP given without the once-per-book check");
+        }
+
+        GrantXPViaAPI();
         return RE::BSEventNotifyControl::kContinue;
     }
 
@@ -165,6 +287,10 @@ void OnSKSEMessage(SKSE::MessagingInterface::Message* a_msg)
             }
             break;
         }
+        case SKSE::MessagingInterface::kPostLoadGame:
+            ReadBooks::AddBooksTheGameMarksRead();
+            FlushLog();
+            break;
     }
 }
 
@@ -201,6 +327,16 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
     // Listen for SpellLearning API broadcast (arrives at kPostPostLoad)
     messaging->RegisterListener("SpellLearning", OnSpellLearningMessage);
     logger::info("SL_BookXP: Listening for SpellLearning API broadcast");
+
+    // The books that already gave XP, kept in the save
+    if (auto* serialization = SKSE::GetSerializationInterface()) {
+        serialization->SetUniqueID(ReadBooks::kUniqueID);
+        serialization->SetSaveCallback(ReadBooks::OnSave);
+        serialization->SetLoadCallback(ReadBooks::OnLoad);
+        serialization->SetRevertCallback(ReadBooks::OnRevert);
+    } else {
+        logger::error("SL_BookXP: no SKSE serialization interface - the read-books list is not kept in the save");
+    }
 
     logger::info("SL_BookXP: Initialization complete");
     return true;

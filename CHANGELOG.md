@@ -73,6 +73,11 @@
 
 ### Fixed
 
+- **Book Reading XP comes once per book.** Reading the same book or note again gave XP every time. Now a book or
+  note gives XP the first time it is read only; copies of the same book count as one. The books that gave XP are
+  kept in your save. In a save from before this update, the books the game already marks as read give nothing
+  again. Not yet tested in game.
+
 - **A spell mod renamed, merged or compacted keeps its spells in the tree.** When a plugin's name changes (a
   rename, a merge into another plugin, ESL compacting), its spells used to leave the tree. A spell is now found
   again by its editor id when exactly one spell of that school has it, and keeps its place and links. Needs
