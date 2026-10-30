@@ -219,6 +219,7 @@ target_link_libraries(tree-remap-check PRIVATE
 
 add_executable(progression-check
     progression-check.cpp
+    progression-check-math.cpp
 )
 
 target_compile_features(progression-check PRIVATE cxx_std_23)
