@@ -231,6 +231,17 @@ namespace Layout
     /// kDebugFillerId, which goes to the end of the left one (after the spell card: the preview's column then scrolls)
     State AddAddons(State a_default, const std::vector<BlockId>& a_ids);
 
+    /// HoM add-on design G-e: a layout as read, its retired ids (the keys of a_legacyToFinal: BlockRegistry::LegacyAliases) renamed
+    /// in place to their final ids. When a final id is in the layout as well, the retired one's place wins and the final one is
+    /// dropped (the file keys the place by the retired id; a final id beside it came from a build that did not know the alias).
+    /// An empty map: unchanged. Every read of the layout file goes through it. O(blocks log blocks)
+    State ToFinal(State a_state, const std::map<BlockId, BlockId>& a_legacyToFinal);
+
+    /// The other way, for every write: each final id with an alias written as its retired id, so the file keeps the old ids and an
+    /// older SL_MagicMenu reads it as before. Never a duplicate: a retired id already beside its final one is dropped (the final
+    /// one's place is the player's); a final id with no alias is written as is. An empty map: unchanged
+    State ToLegacy(State a_state, const std::map<BlockId, BlockId>& a_legacyToFinal);
+
     // -------------------------------------------------------------------------
     // The layout file's safety (blocks plan D10, Task 4): which files a save writes and keeps
     // -------------------------------------------------------------------------

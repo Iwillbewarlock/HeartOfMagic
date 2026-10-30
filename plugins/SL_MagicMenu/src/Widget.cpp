@@ -1678,10 +1678,12 @@ namespace Widget
         void CloseRegistry()
         {
             std::vector<BlockRegistry::Block> blocks;
+            std::map<std::string, std::string> legacyAliases;
             {
                 const std::scoped_lock lock(g_registryLock);
                 if (!g_registry.Close()) return;
                 blocks = g_registry.Blocks();
+                legacyAliases = g_registry.LegacyAliases();
             }
             g_addons = std::move(blocks);
             std::vector<BlockId> ids;
@@ -1694,6 +1696,7 @@ namespace Widget
             }
             logger::info("Widget: add-on block registration closed at the first magic menu open - {} block(s){}{}", g_addons.size(),
                 g_addons.empty() ? "" : ": ", names);
+            Settings::SetLegacyAliases(legacyAliases);  // HoM add-on design G-e: before AddBlocks, which renames the layout by it
             Settings::AddBlocks(ids);
         }
 

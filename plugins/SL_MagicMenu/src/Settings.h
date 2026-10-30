@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -144,6 +145,11 @@ namespace Settings
     /// plain move when there is no file yet. A file that failed to read at load is copied to .bad first; a newer build's file
     /// is never written. Called from the menu's frame handler (the layout mode); not thread-safe.
     SaveResult SaveLayout(const Layout::State& a_state, std::string* a_why);
+
+    /// HoM add-on design G-e: the retired ids v3 blocks took over (legacyId), retired -> final (BlockRegistry::Registry::LegacyAliases).
+    /// Call once at the first magic menu open, before AddBlocks: AddBlocks renames the saved layout and the default by it
+    /// (Layout::ToFinal), ReadLayoutFile reads through it and SaveLayout writes the retired ids back (Layout::ToLegacy)
+    void SetLegacyAliases(const std::map<std::string, std::string>& a_legacyToFinal);
 
     /// Blocks plan Task 6: the add-on blocks registered this game session (call once, at the first magic menu open, in
     /// registration order). The saved layout is repaired against them: one without a saved place goes to the end of the right

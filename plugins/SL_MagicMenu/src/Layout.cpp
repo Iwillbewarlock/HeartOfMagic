@@ -622,6 +622,48 @@ namespace Layout
         return AddBlocks(AddBlocks(std::move(a_default), right, kColumnRight), left, kColumnLeft);
     }
 
+    namespace
+    {
+        /// Each id that is a key of a_rename becomes its value in place; a value whose key is in the layout too is dropped (the
+        /// key's place wins). ToFinal is this rule with the map, ToLegacy with the map inverted
+        State Rename(State a_state, const std::map<BlockId, BlockId>& a_rename)
+        {
+            if (a_rename.empty()) {
+                return a_state;
+            }
+            std::set<BlockId> present;
+            for (const auto& column : a_state.columns) present.insert(column.begin(), column.end());
+            std::set<BlockId> beaten;  // the values whose key is in the layout
+            for (const auto& [from, to] : a_rename) {
+                if (present.contains(from)) beaten.insert(to);
+            }
+            for (auto& column : a_state.columns) {
+                std::vector<BlockId> renamed;
+                for (const auto& id : column) {
+                    if (const auto it = a_rename.find(id); it != a_rename.end()) {
+                        renamed.push_back(it->second);
+                    } else if (!beaten.contains(id)) {
+                        renamed.push_back(id);
+                    }
+                }
+                column = std::move(renamed);
+            }
+            return a_state;
+        }
+    }
+
+    State ToFinal(State a_state, const std::map<BlockId, BlockId>& a_legacyToFinal)
+    {
+        return Rename(std::move(a_state), a_legacyToFinal);
+    }
+
+    State ToLegacy(State a_state, const std::map<BlockId, BlockId>& a_legacyToFinal)
+    {
+        std::map<BlockId, BlockId> finalToLegacy;
+        for (const auto& [legacyId, finalId] : a_legacyToFinal) finalToLegacy.emplace(finalId, legacyId);
+        return Rename(std::move(a_state), finalToLegacy);
+    }
+
     SavePlan PlanSave(FileState a_state, bool a_badKept, bool a_fileExists)
     {
         SavePlan plan;

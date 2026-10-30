@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <map>
 #include <optional>
 #include <set>
 #include <string>
@@ -39,6 +40,9 @@ namespace Settings
         Layout::State g_layout;
         Layout::State g_defaultLayout;              // Layout::Default with the add-on blocks (AddBlocks)
         std::vector<Layout::BlockId> g_addonIds;   // the add-on blocks, in registration order
+        // HoM add-on design G-e: retired id -> the final id of the v3 block that took it over (SetLegacyAliases; empty until the
+        // first magic menu open). Every layout read goes through Layout::ToFinal with it, every write through Layout::ToLegacy
+        std::map<Layout::BlockId, Layout::BlockId> g_legacyAliases;
 
         // The built-in blocks: Repair appends any of them a layout file lacks
         std::set<Layout::BlockId> BuiltinBlocks()
@@ -212,6 +216,7 @@ namespace Settings
             bool newer = false;
             read.state = Layout::FromJson(text, &read.why, &newer);
             if (read.state) {
+                read.state = Layout::ToFinal(std::move(*read.state), g_legacyAliases);
                 read.file = Layout::FileState::kRead;
             } else {
                 read.file = newer ? Layout::FileState::kNewer : Layout::FileState::kBroken;
@@ -456,13 +461,30 @@ namespace Settings
         g_layout = a_state;
     }
 
+    void SetLegacyAliases(const std::map<std::string, std::string>& a_legacyToFinal)
+    {
+        g_legacyAliases = a_legacyToFinal;
+    }
+
     void AddBlocks(const std::vector<std::string>& a_ids)
     {
         g_addonIds = a_ids;
+        // the layout was read at load, before the aliases were known (the registry closes at the first menu open): renamed now.
+        // The default is renamed too, so an add-on that took a retired id over has that id's place there and is not appended again
+        const auto read = g_layout;
+        g_layout = Layout::ToFinal(g_layout, g_legacyAliases);
+        if (!(read == g_layout)) {
+            std::string renames;
+            for (const auto& [legacyId, finalId] : g_legacyAliases) renames += std::format("{}{} -> {}", renames.empty() ? "" : ", ", legacyId, finalId);
+            logger::info("Settings: retired block ids taken over by add-on blocks ({}) - layout columns {} read as {} (the file keeps the retired ids)",
+                renames, Columns(read), Columns(g_layout));
+        }
         // the add-ons at the end of the right column; [Debug] bDebugFillerBlock's test block in the left one after the spell card,
         // so the preview's column scrolls in game (RF3 test path; final review ruling)
-        g_defaultLayout = Layout::AddAddons(Layout::Default(g_values), g_addonIds);
+        g_defaultLayout = Layout::AddAddons(Layout::ToFinal(Layout::Default(g_values), g_legacyAliases), g_addonIds);
         auto known = BuiltinBlocks();
+        // a retired id an add-on took over is that add-on's now: Repair must not append it back (ToLegacy would then write it twice)
+        for (const auto& [legacyId, finalId] : g_legacyAliases) known.erase(legacyId);
         known.insert(g_addonIds.begin(), g_addonIds.end());
         const auto before = g_layout;
         // a broken / newer file was replaced by the default at load: the add-ons go into that default the same way
@@ -505,7 +527,8 @@ namespace Settings
             logger::info("Settings: layout save - the file that failed to read at load kept as {}", Shown(bad));
         }
         const auto tmp = WithSuffix(path, L".tmp");
-        const bool tmpWritten = WriteTemp(tmp, Layout::ToJson(a_state), &why);
+        // the file keeps the retired ids (design G-e): an older SL_MagicMenu reads it as before
+        const bool tmpWritten = WriteTemp(tmp, Layout::ToJson(Layout::ToLegacy(a_state, g_legacyAliases)), &why);
         const bool written = tmpWritten && PutInPlace(path, tmp, plan.replace, &why);
         g_fileState = Layout::AfterSave(g_fileState, written);
         if (!written) {

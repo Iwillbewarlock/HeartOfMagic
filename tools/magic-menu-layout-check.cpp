@@ -6,7 +6,8 @@
 // and the layout mode's pure parts (Task 4): moves keep every block once, cancel restores the entry State, the file safety plan;
 // the gamepad / keyboard focus model (Task 5): focus, pick, move, drop, cancel, border, the insertion line and keep-in-view scroll;
 // the add-on blocks (Task 6, BlockRegistry.cpp): the registration checks, the id prefix, the order, the window, and the layout
-// side (an add-on joins the end of the right column, an absent one keeps its place, a bad height does not move the others).
+// side (an add-on joins the end of the right column, an absent one keeps its place, a bad height does not move the others);
+// the retired ids on disk (HoM add-on Task 2): ToFinal on read, ToLegacy on write, upgrade -> downgrade -> upgrade keeps the place.
 //
 //   magic-menu-layout-check     one PASS/FAIL line per check, a total line
 //
@@ -19,6 +20,7 @@
 
 #include "BlockRegistry.h"
 #include "BlockRules.h"
+#include "BlockRulesV3.h"
 #include "Layout.h"
 #include "Settings.h"
 
@@ -1132,6 +1134,102 @@ namespace
             ExpectRect(rects, Layout::kNodeCard, 978, 306, 1238, 623, Text("height %.0f: node card (fill) unmoved", bad));
         }
     }
+
+    // HoM add-on plan Task 2 (design G-e): the retired ids tree / progress / nodecard stay on disk; ToFinal renames them on every
+    // read, ToLegacy back on every write. kHomTree is the add-on's final id (the alias a v3 block's legacyId makes)
+    constexpr const char* kHomTree = "SL_MagicMenu_HoM.tree";
+    const std::map<BlockId, BlockId> kTreeAlias{ { Layout::kTree, kHomTree } };
+
+    int Count(const State& a_state, const BlockId& a_id)
+    {
+        int count = 0;
+        for (const auto& column : a_state.columns) count += static_cast<int>(std::ranges::count(column, a_id));
+        return count;
+    }
+
+    /// What Settings::AddBlocks builds from a layout as read (ToFinal applied): the known blocks are the built-ins without the
+    /// aliased retired ids plus the add-ons, the fallback the default renamed (ToFinal) with the add-ons added
+    State Upgrade(const State& a_read, const std::map<BlockId, BlockId>& a_aliases, const std::vector<BlockId>& a_addons)
+    {
+        std::set<BlockId> known = kKnown;
+        for (const auto& [legacyId, finalId] : a_aliases) known.erase(legacyId);
+        known.insert(a_addons.begin(), a_addons.end());
+        const State fallback = Layout::AddAddons(Layout::ToFinal(Layout::Default(kValues), a_aliases), a_addons);
+        return Layout::Repair(Layout::ToFinal(a_read, a_aliases), known, fallback);
+    }
+
+    void LegacyIds()
+    {
+        std::printf("legacy ids in the saved layout (HoM add-on Task 2)\n");
+        const State legacy{ { std::vector<BlockId>{ Layout::kPreview, Layout::kTree }, std::vector<BlockId>{ Layout::kNodeCard } }, 900 };
+        const State finalState = Layout::ToFinal(legacy, kTreeAlias);
+        Expect(finalState.columns[0] == std::vector<BlockId>{ Layout::kPreview, kHomTree } && finalState.columns[1] == legacy.columns[1] &&
+                   Near(finalState.border, 900),
+            Text("ToFinal: tree read as %s in its place in the left column (got %s / %s)", kHomTree, Show(finalState.columns[0]).c_str(),
+                Show(finalState.columns[1]).c_str()));
+        Expect(Layout::ToLegacy(finalState, kTreeAlias) == legacy, "ToLegacy: written back as tree again");
+        const auto json = Layout::ToJson(Layout::ToLegacy(finalState, kTreeAlias));
+        const auto back = Layout::FromJson(json, nullptr);
+        Expect(json.find(kHomTree) == std::string::npos && back && *back == legacy && Layout::ToFinal(*back, kTreeAlias) == finalState,
+            "the JSON on disk holds tree, not the final id; read again it is the final id in the same place");
+
+        // a file with both ids: the retired one's place wins, the other is dropped (either order, either column)
+        const State both{ { std::vector<BlockId>{ kHomTree, Layout::kPreview }, std::vector<BlockId>{ Layout::kTree, Layout::kNodeCard } }, 900 };
+        const State bothRead = Layout::ToFinal(both, kTreeAlias);
+        Expect(bothRead.columns[0] == std::vector<BlockId>{ Layout::kPreview } && bothRead.columns[1] == std::vector<BlockId>{ kHomTree, Layout::kNodeCard },
+            Text("both ids: the retired one's place (right column top) wins (got %s / %s)", Show(bothRead.columns[0]).c_str(),
+                Show(bothRead.columns[1]).c_str()));
+        const State bothSame{ { std::vector<BlockId>{ Layout::kTree, Layout::kPreview, kHomTree }, {} }, 900 };
+        Expect(Layout::ToFinal(bothSame, kTreeAlias).columns[0] == std::vector<BlockId>{ kHomTree, Layout::kPreview },
+            "both ids in one column, the final one below: the retired one's place wins");
+
+        // ToLegacy never writes a duplicate: a stray retired id beside its final one is dropped (the final one's place is the
+        // player's), a final id with no alias is written as is
+        const State stray{ { std::vector<BlockId>{ Layout::kTree, Layout::kPreview }, std::vector<BlockId>{ kHomTree, "A.one" } }, 900 };
+        const State strayOut = Layout::ToLegacy(stray, kTreeAlias);
+        Expect(strayOut.columns[0] == std::vector<BlockId>{ Layout::kPreview } && strayOut.columns[1] == std::vector<BlockId>{ Layout::kTree, "A.one" } &&
+                   Count(strayOut, Layout::kTree) == 1,
+            Text("ToLegacy with both ids: tree once, at the final id's place (got %s / %s)", Show(strayOut.columns[0]).c_str(),
+                Show(strayOut.columns[1]).c_str()));
+        Expect(Layout::ToLegacy(finalState, {}) == finalState && Layout::ToFinal(finalState, {}) == finalState && Layout::ToFinal(legacy, {}) == legacy,
+            "no alias: ToFinal / ToLegacy change nothing");
+
+        // upgrade -> save -> read by a build with no alias (downgrade) -> save -> alias again: tree keeps the place the player gave it
+        const std::vector<BlockId> addons{ kHomTree };
+        const State moved = Layout::Move(Layout::Default(kValues), Layout::kTree, Slot{ 0, Layout::kProgress });  // tree above progress
+        const State up1 = Upgrade(moved, kTreeAlias, addons);
+        const State expectUp{ { std::vector<BlockId>{ Layout::kPreview, kHomTree, Layout::kProgress, Layout::kSpellCard },
+                                  std::vector<BlockId>{ Layout::kNodeCard } },
+            moved.border };
+        Expect(up1 == expectUp, Text("upgrade: the add-on in tree's place (got %s / %s)", Show(up1.columns[0]).c_str(), Show(up1.columns[1]).c_str()));
+        const auto saved = Layout::FromJson(Layout::ToJson(Layout::ToLegacy(up1, kTreeAlias)), nullptr);
+        const State down = saved ? Layout::Repair(Layout::ToFinal(*saved, {}), kKnown, Layout::Default(kValues)) : State{};
+        Expect(down == moved,
+            Text("downgrade: the older build reads tree where it was (got %s / %s)", Show(down.columns[0]).c_str(), Show(down.columns[1]).c_str()));
+        const auto savedDown = Layout::FromJson(Layout::ToJson(Layout::ToLegacy(down, {})), nullptr);
+        const State up2 = savedDown ? Upgrade(*savedDown, kTreeAlias, addons) : State{};
+        Expect(up2 == up1 && Count(up2, Layout::kTree) == 0 && Count(up2, kHomTree) == 1, "upgrade again: the same place, the add-on once");
+
+        // the default layout with the alias: the add-on takes tree's place, AddAddons does not append it a second time
+        const State defUp = Upgrade(Layout::Default(kValues), kTreeAlias, addons);
+        Expect(defUp.columns[1] == std::vector<BlockId>{ kHomTree, Layout::kNodeCard } && Count(defUp, kHomTree) == 1,
+            Text("default + alias: right column {%s, nodecard} (got %s)", kHomTree, Show(defUp.columns[1]).c_str()));
+
+        // no alias and no built-in tree / progress / nodecard (a core-only install): the retired ids are unknown ids - Repair keeps
+        // them in place, Arrange skips them (no height), so the spell card follows the preview with no gap
+        const std::set<BlockId> core{ Layout::kPreview, Layout::kSpellCard };
+        const State def = Layout::Default(kValues);
+        const State coreRead = Layout::Repair(Layout::ToFinal(def, {}), core, def);
+        Expect(coreRead == def, "no alias: Repair keeps tree / progress / nodecard in place as unknown ids");
+        auto coreHeights = kHeights;
+        for (const auto id : BlockRules::kRetiredIds) coreHeights.erase(BlockId(id));
+        const auto coreRects = Layout::Arrange(coreRead, coreHeights, {}, {}, kFrames);
+        Expect(coreRects.size() == 2 && !coreRects.contains(Layout::kTree) && !coreRects.contains(Layout::kProgress) &&
+                   !coreRects.contains(Layout::kNodeCard),
+            Text("no alias: Arrange skips the retired ids (%zu rects)", coreRects.size()));
+        ExpectRect(coreRects, Layout::kPreview, 648, 67, 969, 297, "core only");
+        ExpectRect(coreRects, Layout::kSpellCard, 648, 306, 969, 512, "core only: the spell card right below the preview");
+    }
 }
 
 namespace
@@ -1499,6 +1597,7 @@ int main()
     PadFocus();
     AddonRegistry();
     AddonLayout();
+    LegacyIds();
     AddonHeightChange();
     std::printf("layout-check: %d PASS, %d FAIL\n", g_pass, g_fail);
     return g_fail == 0 ? kExitOk : kExitFail;
