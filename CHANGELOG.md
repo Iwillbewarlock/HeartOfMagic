@@ -73,8 +73,9 @@
 
 ### Fixed
 
-- **Book Reading XP comes once per book.** Reading the same book or note again gave XP every time. Now a book or
-  note gives XP the first time it is read only; copies of the same book count as one. The books that gave XP are
+- **Book Reading XP comes once per book.** Reading the same book or note again gave XP every time. Now each book or
+  note gives XP once; copies of the same book count as one. A book read while no spell is being learned gives
+  nothing then and can still give its XP later. Spell tomes give no Book Reading XP. The books that gave XP are
   kept in your save. In a save from before this update, the books the game already marks as read give nothing
   again. Not yet tested in game.
 

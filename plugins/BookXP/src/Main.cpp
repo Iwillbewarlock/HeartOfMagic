@@ -31,11 +31,12 @@ static bool g_sourceRegistered = false;
 // =============================================================================
 // READ BOOKS
 // =============================================================================
-// XP comes once per book (user report 2026-10-30: re-reading the same book or note gave XP every time). The base
-// forms that gave it are kept in the save (SKSE co-save); a book counts once however many copies there are. A save
-// from before this - or before BookXP was installed - has no list: at its load the books the game itself marks read
-// (TESObjectBOOK::IsRead) are added, so they give nothing again. That mark is not used at the moment of reading: the
-// game may set it before the book menu opens, which would make every first read look like a second one.
+// XP comes once per book (user report 2026-10-30: re-reading the same book or note gave XP every time). A book joins
+// the list when it gives XP - read with no learning target it gives none and can still give it later. The list holds
+// base forms (copies of a book count as one) and is kept in the save (SKSE co-save). A save without the list - from
+// before this, or before BookXP was installed - gets the books the game itself marks read (TESObjectBOOK::IsRead) at
+// its load, so they give nothing again. That mark is used only then: the game sets it on every read, XP or not, and
+// may set it before the book menu opens.
 
 namespace ReadBooks
 {
@@ -45,12 +46,18 @@ namespace ReadBooks
 
     std::mutex g_lock;
     std::unordered_set<RE::FormID> g_read;
+    bool g_haveList = false;  // this save had its own list (OnLoad read the record)
 
-    // true the first time a book is seen (and from then on it is in the list)
-    bool MarkRead(RE::FormID a_book)
+    bool GaveXP(RE::FormID a_book)
     {
         const std::scoped_lock lock(g_lock);
-        return g_read.insert(a_book).second;
+        return g_read.contains(a_book);
+    }
+
+    void Remember(RE::FormID a_book)
+    {
+        const std::scoped_lock lock(g_lock);
+        g_read.insert(a_book);
     }
 
     void OnSave(SKSE::SerializationInterface* a_intfc)
@@ -81,20 +88,23 @@ namespace ReadBooks
     {
         std::unordered_set<RE::FormID> loaded;
         std::size_t dropped = 0;
+        bool haveList = false;
         std::uint32_t type = 0, version = 0, length = 0;
         while (a_intfc->GetNextRecordInfo(type, version, length)) {
             if (type != kRecord || version != kVersion) {
                 logger::warn("SL_BookXP: unknown co-save record {:08X} v{} ({} bytes) skipped", type, version, length);
                 continue;
             }
+            // ReadRecordData returns the bytes read: a value cut short is not taken
             std::uint32_t count = 0;
-            if (!a_intfc->ReadRecordData(count)) {
+            if (a_intfc->ReadRecordData(count) != sizeof(count)) {
                 logger::error("SL_BookXP: the read-books record has no count - skipped");
                 continue;
             }
+            haveList = true;
             for (std::uint32_t i = 0; i < count; ++i) {
                 RE::FormID saved = 0, now = 0;
-                if (!a_intfc->ReadRecordData(saved)) {
+                if (a_intfc->ReadRecordData(saved) != sizeof(saved)) {
                     logger::error("SL_BookXP: the read-books record ends after {} of {} book(s)", i, count);
                     break;
                 }
@@ -110,6 +120,7 @@ namespace ReadBooks
         {
             const std::scoped_lock lock(g_lock);
             g_read = std::move(loaded);
+            g_haveList = haveList;
         }
         logger::info("SL_BookXP: loaded the read-books list ({} book(s), {} of removed plugins dropped)", kept, dropped);
     }
@@ -118,21 +129,24 @@ namespace ReadBooks
     {
         const std::scoped_lock lock(g_lock);
         g_read.clear();
+        g_haveList = false;
     }
 
-    // After every save load: the books the game marks read join the list (a save from before this has none of its own)
-    void AddBooksTheGameMarksRead()
+    // After a save load that worked: a save without its own list takes the books the game marks read
+    void AfterLoad(bool a_loaded)
     {
         auto* data = RE::TESDataHandler::GetSingleton();
-        if (!data) return;
+        if (!a_loaded || !data) return;
         std::size_t added = 0;
         {
             const std::scoped_lock lock(g_lock);
+            if (g_haveList) return;
             for (auto* book : data->GetFormArray<RE::TESObjectBOOK>()) {
                 if (book && book->IsRead() && g_read.insert(book->GetFormID()).second) ++added;
             }
+            g_haveList = true;
         }
-        logger::info("SL_BookXP: {} book(s) the game marks read joined the read-books list", added);
+        logger::info("SL_BookXP: a save without a read-books list - {} book(s) the game marks read give no XP", added);
     }
 }
 
@@ -140,9 +154,9 @@ namespace ReadBooks
 // BOOK MENU WATCHER
 // =============================================================================
 // Detects when the player opens any book via BookMenu.
-// Normal books always open BookMenu. Spell tomes are intercepted by
-// SpellLearning's SpellTomeHook before reaching BookMenu, so we only
-// see non-spell-tome books here.
+// Normal books always open BookMenu. Spell tomes read from the inventory are
+// intercepted by SpellLearning's SpellTomeHook; one that still opens BookMenu
+// (if any path does) is skipped below.
 
 class BookMenuWatcher : public RE::BSTEventSink<RE::MenuOpenCloseEvent>
 {
@@ -172,18 +186,25 @@ public:
         }
 
         // The book on screen; when it cannot be told, XP is given as before the once-per-book check rather than none
-        if (auto* book = RE::BookMenu::GetTargetForm()) {
+        auto* book = RE::BookMenu::GetTargetForm();
+        if (book) {
             const char* name = book->GetName();
-            if (!ReadBooks::MarkRead(book->GetFormID())) {
-                logger::info("SL_BookXP: BookMenu opened - {:08X} '{}' was read before, no XP", book->GetFormID(), name ? name : "");
+            const auto id = book->GetFormID();
+            // a spell tome's XP is Heart of Magic's own (its tome hook), not a read book's
+            if (book->TeachesSpell()) {
+                logger::info("SL_BookXP: BookMenu opened - {:08X} '{}' is a spell tome, no book XP", id, name ? name : "");
                 return RE::BSEventNotifyControl::kContinue;
             }
-            logger::info("SL_BookXP: BookMenu opened - {:08X} '{}' read for the first time", book->GetFormID(), name ? name : "");
+            if (ReadBooks::GaveXP(id)) {
+                logger::info("SL_BookXP: BookMenu opened - {:08X} '{}' gave XP before, none now", id, name ? name : "");
+                return RE::BSEventNotifyControl::kContinue;
+            }
+            logger::info("SL_BookXP: BookMenu opened - {:08X} '{}' has not given XP yet", id, name ? name : "");
         } else {
             logger::warn("SL_BookXP: BookMenu opened but the book is not known - XP given without the once-per-book check");
         }
 
-        GrantXPViaAPI();
+        if (GrantXPViaAPI() > 0 && book) ReadBooks::Remember(book->GetFormID());
         return RE::BSEventNotifyControl::kContinue;
     }
 
@@ -200,8 +221,8 @@ private:
         return text;
     }
 
-    // Full API path - query targets and grant XP with source tracking
-    static void GrantXPViaAPI()
+    // Full API path - query targets and grant XP with source tracking; returns how many spells got XP
+    static int GrantXPViaAPI()
     {
         logger::info("SL_BookXP: Granting XP via API");
 
@@ -252,6 +273,7 @@ private:
         } else {
             logger::info("SL_BookXP: No active learning targets");
         }
+        return granted;
     }
 };
 
@@ -288,7 +310,8 @@ void OnSKSEMessage(SKSE::MessagingInterface::Message* a_msg)
             break;
         }
         case SKSE::MessagingInterface::kPostLoadGame:
-            ReadBooks::AddBooksTheGameMarksRead();
+            // data: whether the load worked
+            ReadBooks::AfterLoad(static_cast<bool>(a_msg->data));
             FlushLog();
             break;
     }

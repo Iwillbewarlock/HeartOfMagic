@@ -14,10 +14,11 @@ Pure SKSE DLL plugin (no ESP) that grants spell learning XP when the player read
    it shows the English text itself. The Papyrus version (`SL_BookXP_QuestScript`) gets its text from
    `SpellLearning.NotificationText` the same way, and shows its English text when that gives "" while
    `SpellLearning.NotificationsOff()` is false (an older SpellLearning.pex without the natives).
-4. Once per book: the book on screen (`RE::BookMenu::GetTargetForm()`) gives XP only the first time. The base forms
-   that gave XP are kept in the SKSE co-save (unique id `SLBX`, record `READ` v1); after each save load the books
-   the game marks read (`TESObjectBOOK::IsRead()`) join that list, so a save from before this has its read books
-   counted. When the book on screen cannot be told, XP is given without the check (logged as a warning).
+4. Once per book: the book on screen (`RE::BookMenu::GetTargetForm()`) gives XP once. A book joins the list when
+   at least one spell got XP from it (read with no learning target it can give XP later); spell tomes are skipped.
+   The base forms are kept in the SKSE co-save (unique id `SLBX`, record `READ` v1). A save without that record
+   (from before this) takes the books the game marks read (`TESObjectBOOK::IsRead()`) at its load. When the book
+   on screen cannot be told, XP is given without the check (logged as a warning).
 
 ## C++ API Demonstrated
 
