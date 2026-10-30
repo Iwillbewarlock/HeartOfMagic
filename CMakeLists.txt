@@ -67,6 +67,7 @@ add_subdirectory(plugins/DummyDEST)
 add_subdirectory(plugins/BookXP)
 add_subdirectory(plugins/SL_MagicMenu)
 add_subdirectory(plugins/SL_MagicMenu_SpellResearch)
+add_subdirectory(plugins/SL_MagicMenu_HoM)
 add_subdirectory(tools)
 
 # Generate fomod/info.xml from template with current version
