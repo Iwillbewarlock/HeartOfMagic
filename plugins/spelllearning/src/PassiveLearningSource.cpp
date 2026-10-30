@@ -44,8 +44,17 @@ void PassiveLearningSource::Shutdown() {
     logger::info("PassiveLearningSource: Shutdown");
 }
 
+// Game thread: ApplySettingsFromConfig (the startup config at kDataLoaded, the panel's load
+// and saves through game thread tasks), so the Calendar and m_lastGameTime are ours here
 void PassiveLearningSource::SetSettings(const Settings& settings) {
     std::lock_guard<std::mutex> lock(m_settingsMutex);
+    if (settings.enabled && !m_settings.enabled) {
+        // Switched on: the clock from now. The 3 s ticks while off left the last time up to
+        // 3 s behind, and a wait or fast travel in those seconds would be paid
+        if (auto* calendar = RE::Calendar::GetSingleton()) {
+            m_lastGameTime = ProgressionMath::PassiveTickFor(m_lastGameTime, calendar->GetHoursPassed(), false).lastHours;
+        }
+    }
     m_settings = settings;
     m_enabled = settings.enabled;
     logger::info("PassiveLearningSource: Settings updated - enabled: {}, scope: {}, xp/day: {}",

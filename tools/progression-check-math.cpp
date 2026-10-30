@@ -174,6 +174,13 @@ namespace ProgressionCheck
             run(200.05f, true);
             run(201.0f, true);
             Check(Near(paid, 1.0f), "passive: the first ticks after a load pay from the load's time");
+            // A wait of 8 hours between the last tick off (hour 300) and the switch: SetSettings
+            // resets the last time at the switch (an off tick at that moment), the wait unpaid
+            last = 300.0f;
+            paid = 0.0f;
+            run(308.0f, false);   // SetSettings on the off -> on change
+            run(309.0f, true);
+            Check(Near(paid, 1.0f), "passive: a wait just before switching on is not paid (reset at the switch)");
         }
 
         // AddXP's progress; a required XP not set leaves the progress alone
