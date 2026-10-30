@@ -12,6 +12,7 @@
 // child's world point. No game types. Exit 0 when every check passes, 1 otherwise.
 
 #include "BlockRules.h"
+#include "HomLayoutMath.h"
 #include "LayoutMath.h"
 #include "PreviewMath.h"
 #include "Settings.h"

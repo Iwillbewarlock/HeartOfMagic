@@ -11,6 +11,7 @@
 #include "Common.h"
 
 #include "BlockApi.h"
+#include "GameThread.h"
 #include "Hom.h"
 #include "Settings.h"
 #include "SpellLearningAPI.h"
@@ -62,7 +63,7 @@ namespace
         }
         if (a_msg->type != SKSE::MessagingInterface::kDataLoaded) return;
         if (Settings::Get().debugFillerBlock) Widget::RegisterDebugFiller();  // blocks plan Task 6: through the add-on path
-        logger::info("SL_MagicMenu: kDataLoaded on thread {}, main thread {} (API {})", REX::W32::GetCurrentThreadId(), Hom::GameThreadId(),
+        logger::info("SL_MagicMenu: kDataLoaded on thread {}, main thread {} (API {})", REX::W32::GetCurrentThreadId(), GameThread::Id(),
             Hom::Ready() ? "received" : "NOT received - is Heart of Magic installed?");
         Widget::LoadTree();
         Widget::Install();
@@ -90,7 +91,7 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
     SetupLog("Heart of Magic - magic menu prototype (ACF M1-0)");
     // The main thread: HoM's API and the game's preview data are used on it only. kDataLoaded ran on another
     // thread in the game run of 2026-10-25, so it is taken here, where SKSE loads plugins.
-    Hom::SetGameThread();
+    GameThread::Set();
     logger::info("SL_MagicMenu: main thread {}", REX::W32::GetCurrentThreadId());
 
     Settings::Load();

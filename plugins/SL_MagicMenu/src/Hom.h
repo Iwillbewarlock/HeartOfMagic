@@ -6,7 +6,7 @@
 // the pointer HoM broadcasts at kPostPostLoad and thin, null-safe wrappers.
 // API v2 calls are game-thread only: every wrapper checks the calling thread
 // against the main thread (the one SKSEPluginLoad runs on; kDataLoaded can run
-// on another, game run 2026-10-25), and returns the "nothing" value (logged
+// on another, game run 2026-10-25; GameThread.h), and returns the "nothing" value (logged
 // once) when it is called from another thread or before the API arrived.
 // =============================================================================
 
@@ -23,16 +23,8 @@ namespace Hom
     /// Stores the API pointer from HoM's kMessageType_APIReady broadcast.
     void SetApi(SpellLearning::ISpellLearningAPI* a_api);
 
-    /// Remembers the calling thread as the game (main) thread (call in SKSEPluginLoad).
-    void SetGameThread();
-
     /// The API arrived.
     bool Ready();
-
-    /// The calling thread is the main thread.
-    bool OnGameThread();
-
-    std::uint32_t GameThreadId();
 
     RE::FormID Target(const std::string& a_school);
     float ProgressPercent(RE::FormID a_spell);  // 0..100 (HoM's GetProgress multiplies by 100)

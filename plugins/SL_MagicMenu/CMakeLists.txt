@@ -28,6 +28,7 @@ add_commonlibsse_plugin(${PROJECT_NAME}
     VERSION ${PROJECT_VERSION}
     SOURCES
         src/Main.cpp
+        src/GameThread.cpp
         src/Settings.cpp
         src/Hom.cpp
         src/Spells.cpp

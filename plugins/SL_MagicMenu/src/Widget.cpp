@@ -7,14 +7,18 @@
 #include "BlockRules.h"
 
 #include "Draw.h"
+#include "GameThread.h"
 #include "Hom.h"
+#include "HomLayoutMath.h"
 #include "HomStyle.h"
 #include "Layout.h"
 #include "LayoutMath.h"
 #include "Preview.h"
 #include "SelectionRule.h"
 #include "Settings.h"
+#include "SpellSchool.h"
 #include "Spells.h"
+#include "TextFit.h"
 #include "TreeData.h"
 
 #include <algorithm>
@@ -125,7 +129,7 @@ namespace Widget
         // Reading sizes (spec v5 Q4): at least the left SkyUI list's row size, measured from the movie (MeasureListRow);
         // until it is measured kListRowFallback (UNVERIFIED: build 3 frame f_008 shows the list rows about as large as our 14).
         // A reading outside kListRowMin..kListRowMax is clamped and logged, so one bad read cannot blow the layout.
-        constexpr double kListRowFallback = 14.0, kListRowMin = 10.0, kListRowMax = 20.0;
+        constexpr double kListRowMin = 10.0, kListRowMax = 20.0;
         constexpr int kListMeasureFrames = 600;  // frames the list row is looked for after the menu opens (it needs a list selection)
         constexpr double kLineFactor = 1.25;     // a text line's height per font size unit until the font is measured (MeasureTextMetrics)
         constexpr double kProbeSize = 20.0, kMetricMin = 0.8, kMetricMax = 2.5;  // the font probe's size; accepted line shares of a size
@@ -134,14 +138,21 @@ namespace Widget
         // kAscentMin..kAscentMax; else kAscentFallback, measured on the build-3 frame base_v3_poison.png (size 19 -> 17 units,
         // tools/menu-render textengine.py BASELINE) - an approximation, logged as such
         constexpr double kAscentFallback = 0.90, kAscentMin = 0.5, kAscentMax = 1.5;
-        constexpr double kMinFitSize = 8.0;      // a text shrunk to its room goes no smaller (review round 1 #4)
-        constexpr double kFitStep = 0.5;         // and is shrunk in these steps
-        constexpr int kMaxCutLogs = 40;
         // the item card's description fields by frame (SkyUI ItemCard.as): the first one shown is measured for the log (round 2 #5)
         constexpr auto kCardTextFields = std::to_array<const char*>({ "MagicEffectsLabel", "ShoutEffectsLabel", "BookDescriptionLabel",
-            "PotionsLabel", "ApparelEnchantedLabel", "WeaponEnchantedLabel", "EnchantmentLabel", "MessageText" });          // "Q4 text ... cut to" lines per menu
+            "PotionsLabel", "ApparelEnchantedLabel", "WeaponEnchantedLabel", "EnchantmentLabel", "MessageText" });
         constexpr int kNoDataFrames = 600;       // frames without HoM's state for the school before the card stops saying "loading"
-        constexpr double kGutter = 4.0;          // AS2 text fields keep 2 units free on each side of their text (textWidth leaves it out)
+        // The text-fit helpers and their constants (TextFit.h)
+        using TextFit::kFitStep;
+        using TextFit::kGutter;
+        using TextFit::kListRowFallback;
+        using TextFit::kMinFitSize;
+        using TextFit::CodePoints;
+        using TextFit::Number;
+        using TextFit::SetText;
+        using TextFit::StringMember;
+        using TextFit::TextH;
+        using TextFit::TextW;
         constexpr const char* kItemListPath = "_root.Menu_mc.inventoryLists.itemList";  // SkyUI ItemMenu.as:42, BasicList.as:123 selectedClip
 
         // Selection (spec v12 S / G1-G4). InventoryLists listens to itemList's selectionChange by the method's name
@@ -629,7 +640,6 @@ namespace Widget
             SchoolInfo schoolInfo;
             double rowSize = 0.0;            // the list's row text size in stage units, 0 = not measured yet (Q4)
             int listMeasureLeft = kListMeasureFrames;
-            std::set<std::string> q2Logged;  // Q2 states logged this menu
             bool selectedByKey = false;      // the node card shows a candidate the next-learnable key picked
             double lineFirst = kLineFactor;  // the game font's first line height per size unit (MeasureTextMetrics)
             double linePitch = kLineFactor;  // and its step per further line
@@ -739,7 +749,7 @@ namespace Widget
             std::string c1Form;              // the selection's FormID part, last seen (same form again = same card)
             bool c1SameForm = false;         // the new selection is the same form as the one before it
             std::set<int> colourLogged;      // card types whose description colours were checked
-            std::set<std::string> cutLogged; // "Q4 text ... cut to" lines logged this menu (field and text)
+            TextFit::Log textLog;            // the Q4 cut / room lines and the Q2 states logged this menu
             std::string uncoveredSchool;     // the school no snapshot has had since frame uncoveredFrom
             int uncoveredFrom = 0;
             bool noData = false;             // kNoDataFrames passed without HoM's state for uncoveredSchool
@@ -814,13 +824,6 @@ namespace Widget
             return static_cast<RE::FormID>(static_cast<std::int64_t>(a_value.GetNumber()));
         }
 
-        std::optional<double> Number(const RE::GFxValue& a_object, const char* a_member)
-        {
-            RE::GFxValue value;
-            if (!a_object.IsObject() || !a_object.GetMember(a_member, &value) || !value.IsNumber()) return std::nullopt;
-            return value.GetNumber();
-        }
-
         std::string KeyName(std::uint32_t a_scanCode)
         {
             // DirectInput scan codes of the letter rows
@@ -838,167 +841,10 @@ namespace Widget
             return "[" + KeyName(a_scanCode) + "]";
         }
 
-        // A reading size: at least the left list's row size (Q4)
-        double Size(double a_base)
+        // The menu's measured text metrics for TextFit
+        TextFit::Metrics Metrics()
         {
-            return std::max(a_base, g_menu.rowSize > 0 ? g_menu.rowSize : kListRowFallback);
-        }
-
-        std::string StringMember(const RE::GFxValue& a_object, const char* a_member);  // defined with the item card's helpers
-
-        // The step from one text line to the next at a size: the game font's, measured at attach (MeasureTextMetrics)
-        double LineH(double a_size)
-        {
-            return a_size * g_menu.linePitch;
-        }
-
-        // A field's height for a size and line count: the font's first line, a step per further line, and the gutter
-        double FieldH(double a_size, int a_lines = 1)
-        {
-            return a_size * (g_menu.lineFirst + g_menu.linePitch * static_cast<double>(std::max(1, a_lines) - 1)) + kGutter;
-        }
-
-        // The same metrics for LayoutMath (its FieldH is this FieldH)
-        LayoutMath::TextMetrics Metrics()
-        {
-            return { g_menu.lineFirst, g_menu.linePitch, kGutter };
-        }
-
-        std::size_t CodePoints(std::string_view a_text)
-        {
-            return static_cast<std::size_t>(std::ranges::count_if(a_text, [](char c) { return (static_cast<unsigned char>(c) & 0xC0) != 0x80; }));
-        }
-
-        void SetText(RE::GFxMovieView* a_movie, RE::GFxValue& a_field, const std::string& a_text)
-        {
-            RE::GFxValue text;
-            a_movie->CreateString(&text, a_text.c_str());
-            a_field.SetMember("text", text);
-        }
-
-        double TextW(const RE::GFxValue& a_field)
-        {
-            return Number(a_field, "textWidth").value_or(0.0) + kGutter;
-        }
-
-        double TextH(const RE::GFxValue& a_field)
-        {
-            return Number(a_field, "textHeight").value_or(0.0) + kGutter;
-        }
-
-        // How many lines the field's text takes at a_size: its textHeight against the font's measured first line and step
-        // (0 for no text)
-        int TextLines(const RE::GFxValue& a_field, double a_size)
-        {
-            const double height = Number(a_field, "textHeight").value_or(0.0);
-            if (height <= 0 || a_size <= 0) return 0;
-            const double more = std::max(0.0, height - a_size * g_menu.lineFirst);
-            return 1 + static_cast<int>(std::lround(more / (a_size * g_menu.linePitch)));
-        }
-
-        // No wider than a_w and no more than a_lines lines. Judged by the line count, not the height: cutting a one-line text
-        // never lowers its height, so a font whose line is taller than our estimate cut every text to "..." (review round 1 #1)
-        bool TextFits(const RE::GFxValue& a_field, double a_w, double a_size, int a_lines)
-        {
-            constexpr double kSlack = 0.5;
-            return TextW(a_field) <= a_w + kSlack && TextLines(a_field, a_size) <= a_lines;
-        }
-
-        // A text that had to be cut, once per field and text per menu (up to kMaxCutLogs): what is shown now; WARN when only
-        // "..." is left of the variable part
-        void LogCut(const RE::GFxValue& a_field, double a_w, double a_size, int a_lines, bool a_dotsOnly)
-        {
-            auto where = StringMember(a_field, "_target");
-            if (where.empty()) where = StringMember(a_field, "_name");
-            const auto shown = StringMember(a_field, "text");
-            if (g_menu.cutLogged.size() >= static_cast<std::size_t>(kMaxCutLogs) || !g_menu.cutLogged.insert(where + "|" + shown).second) return;
-            if (a_dotsOnly) {
-                logger::warn("Widget: Q4 text {} cut to '{}' - WARN only the ellipsis is left ({:.0f} wide, {} line(s) at size {:.1f}; "
-                             "text {:.1f} x {:.1f})",
-                    where, shown, a_w, a_lines, a_size, TextW(a_field), TextH(a_field));
-            } else {
-                logger::info("Widget: Q4 text {} cut to '{}' ({:.0f} wide, {} line(s) at size {:.1f})", where, shown, a_w, a_lines, a_size);
-            }
-        }
-
-        // Puts a_compose(a_part) into the field when it fits (a_w wide, a_lines lines at a_size); else a_part cut to the most
-        // code points that fit, with "..." (Draw::Cut), found by bisection on the text the field really lays out
-        // (textWidth/textHeight read back), and logged (LogCut). False when even "..." alone does not fit (that text is kept).
-        bool FitText(RE::GFxMovieView* a_movie, RE::GFxValue& a_field, double a_w, double a_size, int a_lines, const std::string& a_part,
-            const std::function<std::string(const std::string&)>& a_compose)
-        {
-            SetText(a_movie, a_field, a_compose(a_part));
-            if (TextFits(a_field, a_w, a_size, a_lines)) return true;
-            std::size_t lo = 0, hi = CodePoints(a_part);  // fits(lo) unknown, fits(hi) false
-            bool any = false;
-            while (lo < hi) {
-                const std::size_t mid = (lo + hi) / 2;
-                SetText(a_movie, a_field, a_compose(Draw::Cut(a_part, mid)));
-                if (TextFits(a_field, a_w, a_size, a_lines)) {
-                    any = true;
-                    lo = mid + 1;
-                } else {
-                    hi = mid;
-                }
-            }
-            // lo is the first count that does not fit: lo - 1 is the longest that does (0 when none does)
-            const std::size_t best = lo > 0 ? lo - 1 : 0;
-            SetText(a_movie, a_field, a_compose(Draw::Cut(a_part, best)));
-            const bool fits = any || TextFits(a_field, a_w, a_size, a_lines);
-            LogCut(a_field, a_w, a_size, a_lines, best == 0);
-            return fits;
-        }
-
-        bool FitWhole(RE::GFxMovieView* a_movie, RE::GFxValue& a_field, double a_w, double a_size, int a_lines, const std::string& a_text)
-        {
-            return FitText(a_movie, a_field, a_w, a_size, a_lines, a_text, [](const std::string& a_part) { return a_part; });
-        }
-
-        // A one-line text field whose text ends in "..." when it is wider than a_w
-        RE::GFxValue FitLine(RE::GFxMovieView* a_movie, RE::GFxValue& a_parent, const char* a_name, double a_x, double a_y, double a_w,
-            double a_size, const std::string& a_text, std::uint32_t a_rgb, const char* a_align = "left")
-        {
-            auto field = Draw::Text(a_movie, a_parent, a_name, a_x, a_y, a_w, FieldH(a_size), "", a_rgb, a_size, a_align);
-            if (field.IsDisplayObject()) FitWhole(a_movie, field, a_w, a_size, 1, a_text);
-            return field;
-        }
-
-        // A text field wrapping to at most a_lines lines, the last ending in "..." when the text needs more
-        RE::GFxValue FitLines(RE::GFxMovieView* a_movie, RE::GFxValue& a_parent, const char* a_name, double a_x, double a_y, double a_w,
-            double a_size, int a_lines, const std::string& a_text, std::uint32_t a_rgb, const char* a_align = "left")
-        {
-            auto field = Draw::Text(a_movie, a_parent, a_name, a_x, a_y, a_w, FieldH(a_size, a_lines), "", a_rgb, a_size, a_align);
-            if (!field.IsDisplayObject()) return field;
-            field.SetMember("wordWrap", true);
-            FitWhole(a_movie, field, a_w, a_size, a_lines, a_text);
-            return field;
-        }
-
-        // The largest size up to a_size (down to kMinFitSize) whose a_lines-line field fits a_room; logged once per menu when
-        // even that runs over (review round 1 #4: at a list row size of 20 the progress card's last line ended at 104.75 of 102)
-        double SizeFor(double a_size, int a_lines, double a_room, const char* a_what)
-        {
-            const double size = LayoutMath::SizeFor(Metrics(), a_size, a_lines, a_room, kMinFitSize, kFitStep);
-            if (a_what && FieldH(size, a_lines) > a_room && g_menu.cutLogged.insert(std::string("room|") + a_what).second) {
-                logger::info("Widget: Q4 {} needs {:.1f} of {:.1f} stage units even at size {:.1f} - it runs over", a_what, FieldH(size, a_lines),
-                    a_room, size);
-            }
-            return size;
-        }
-
-        // "SelfTest: Q2 state <name>" the first time a state is shown in this menu, with the text the field shows (read back;
-        // the intended text after it when the two differ)
-        void Q2State(std::string_view a_name, const std::string& a_intended, const RE::GFxValue* a_field = nullptr)
-        {
-            if (!g_menu.q2Logged.emplace(a_name).second) return;
-            const auto shown = !a_field ? a_intended : a_field->IsDisplayObject() ? StringMember(*a_field, "text") : std::string("(no field)");
-            SelfTest(shown == a_intended ? std::format("Q2 state {} - \"{}\"", a_name, shown) :
-                                           std::format("Q2 state {} - \"{}\" (intended \"{}\")", a_name, shown, a_intended));
-        }
-
-        void Q2State(Str a_id, const std::string& a_intended, const RE::GFxValue* a_field = nullptr)
-        {
-            Q2State(Key(a_id), a_intended, a_field);
+            return { g_menu.rowSize, g_menu.lineFirst, g_menu.linePitch };
         }
 
         const Spells::Data& Data()
@@ -1953,14 +1799,6 @@ namespace Widget
             return box;
         }
 
-        std::string StringMember(const RE::GFxValue& a_object, const char* a_member)
-        {
-            RE::GFxValue value;
-            if (!a_object.IsObject() || !a_object.GetMember(a_member, &value) || !value.IsString()) return {};
-            const char* text = value.GetString();
-            return text ? text : "";
-        }
-
         // The item SkyUI's card shows: LastUpdateObj (ItemCard.as:66), what its itemInfo getter returns (ItemCard.as:172-175)
         RE::GFxValue CardInfo(const RE::GFxValue& a_card)
         {
@@ -2374,7 +2212,7 @@ namespace Widget
                 g_menu.cardTextLogged = true;
                 logger::info("Widget: Q4 item card text {} - format size {:.1f}, field _yscale {:.2f}, card to _root x{:.3f} (holder scale "
                              "{:.1f}%) -> {:.1f} stage units; list rows {:.1f}{}",
-                    name, text->size, text->yscale, text->toRoot, g_menu.cardFit->scale, text->stage, Size(0.0),
+                    name, text->size, text->yscale, text->toRoot, g_menu.cardFit->scale, text->stage, TextFit::Size(Metrics(), 0.0),
                     g_menu.rowSize > 0 ? "" : " (not measured yet: the fallback)");
                 return;
             }
@@ -3033,7 +2871,7 @@ namespace Widget
         void DrawQuestion(RE::GFxMovieView* a_movie, RE::GFxValue& a_clip, double a_cx, double a_cy, double a_scale, const MarkDrawn& a_drawn)
         {
             if (!a_drawn.question) return;
-            const double size = HomStyle::kMarkFontSize * a_scale, h = FieldH(size);
+            const double size = HomStyle::kMarkFontSize * a_scale, h = TextFit::FieldH(Metrics(), size);
             auto mark = Draw::Text(a_movie, a_clip, "mark", a_cx - h / 2, a_cy - h / 2, h, h, "?", a_drawn.questionColor.rgb, size, "center");
             if (mark.IsDisplayObject()) mark.SetMember("_alpha", Percent(a_drawn.questionColor, a_drawn.questionAlpha));
         }
@@ -3069,7 +2907,7 @@ namespace Widget
                 Draw::Remove(a_panel, "legend");
                 auto legend = Draw::Clip(a_panel, "legend");
                 if (!legend.IsDisplayObject()) return;
-                const double h = FieldH(size);
+                const double h = TextFit::FieldH(Metrics(), size);
                 std::array<RE::GFxValue, kItems.size()> fields;
                 double used = 0;
                 for (std::size_t i = 0; i < kItems.size(); ++i) {
@@ -3078,7 +2916,7 @@ namespace Widget
                     used += icon + kLegendTextGap + TextW(fields[i]);
                 }
                 if (used > room && size - kStep >= kMinFitSize) continue;  // shrinks to kMinFitSize before cutting
-                if (used > room && g_menu.cutLogged.insert("legend|cut").second) {  // final review 2: once a menu (Rearrange draws it again)
+                if (used > room && g_menu.textLog.cut.insert("legend|cut").second) {  // final review 2: once a menu (Rearrange draws it again)
                     logger::info("Widget: the tree legend needs {:.0f} of {:.0f} stage units at size {:.0f} - what runs past the border is cut "
                                  "(logged once this menu)",
                         used, room, size);
@@ -3108,7 +2946,7 @@ namespace Widget
                         fields[i].Invoke("removeTextField");
                         if (right - x >= size) {
                             const auto name = std::format("t{}", i);
-                            fields[i] = FitLine(a_movie, legend, name.c_str(), x, y - h / 2, right - x, size, Text(kItems[i].text), kDimText);
+                            fields[i] = TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, legend, name.c_str(), x, y - h / 2, right - x, size, Text(kItems[i].text), kDimText);
                         }
                         x = right;
                         continue;
@@ -4279,7 +4117,7 @@ namespace Widget
                 auto school = StringMember(a_info, "magicSchoolName");
                 if (school.empty() && spell) {
                     const int node = Spells::Get() ? Spells::PrimaryNode(spell->GetFormID()) : -1;
-                    school = SchoolText(node >= 0 ? Data().tree.nodes[node].school : Spells::SchoolOf(spell));
+                    school = SchoolText(node >= 0 ? Data().tree.nodes[node].school : SpellSchool::Of(spell));
                 }
                 auto level = StringMember(a_info, "castLevel");
                 if (level.empty() && spell) level = LevelText(spell);
@@ -4396,9 +4234,9 @@ namespace Widget
         double DrawHtmlText(RE::GFxMovieView* a_movie, RE::GFxValue& a_content, const char* a_name, double a_y, double a_w, double a_room,
             const std::string& a_html, double a_size, int a_colourType = -1, int* a_shown = nullptr)
         {
-            const int lines = LayoutMath::LinesFit(a_room, FieldH(a_size), LineH(a_size));
+            const int lines = LayoutMath::LinesFit(a_room, TextFit::FieldH(Metrics(), a_size), TextFit::LineH(Metrics(), a_size));
             if (a_shown) *a_shown = lines;
-            auto field = Draw::Text(a_movie, a_content, a_name, 0, a_y, a_w, FieldH(a_size, lines), "", kWhite, a_size);
+            auto field = Draw::Text(a_movie, a_content, a_name, 0, a_y, a_w, TextFit::FieldH(Metrics(), a_size, lines), "", kWhite, a_size);
             if (!field.IsDisplayObject()) return 0.0;
             field.SetMember("wordWrap", true);
             SetHtml(a_movie, field, a_html, a_size);
@@ -4419,13 +4257,13 @@ namespace Widget
                 SelfTest(std::format("C1 readable {} - card type {}: {} of {} description character(s) read, {} in a colour neither our white nor the game's",
                     readable ? "PASS" : "FAIL", a_colourType, count.read, count.length, count.off));
             }
-            const int needed = TextLines(field, a_size);
+            const int needed = TextFit::TextLines(Metrics(), field, a_size);
             if (a_shown) *a_shown = std::clamp(needed, 1, lines);
             if (needed > lines) {
                 const auto fitsAt = [&](int a_at) {
                     SetHtml(a_movie, field, a_html, a_size);
                     CutFrom(a_movie, field, a_at);
-                    return TextLines(field, a_size) <= lines;
+                    return TextFit::TextLines(Metrics(), field, a_size) <= lines;
                 };
                 int lo = 0, hi = static_cast<int>(Number(field, "length").value_or(0.0));  // fitsAt(lo) taken as true
                 while (lo < hi) {
@@ -4437,12 +4275,12 @@ namespace Widget
                     }
                 }
                 fitsAt(lo);
-                if (g_menu.cutLogged.insert(std::string("c1|") + a_name).second) {
+                if (g_menu.textLog.cut.insert(std::string("c1|") + a_name).second) {
                     logger::info("Widget: C1 card {} cut to {} of its {} lines at size {:.1f} (character {}, then \"{}\")", a_name, lines, needed, a_size, lo,
                         kEllipsis);
                 }
             }
-            return std::min(TextH(field), FieldH(a_size, lines));
+            return std::min(TextH(field), TextFit::FieldH(Metrics(), a_size, lines));
         }
 
         // Our card in a_rect (render layout F): name (size 19, two lines), sub line, the shout's words, a rule, the description,
@@ -4462,26 +4300,26 @@ namespace Widget
             content.SetMember("_x", kPad);
             const double w = a_rect.Width() - 2 * kPad, maxH = FullHeight(Layout::kSpellCard);
             double y = kCardTop;
-            auto name = FitLines(a_movie, content, "name", 0, y, w, kNameSize, kNameLines, a_view.name, a_view.negative ? kNotYet : kWhite);
-            y += name.IsDisplayObject() ? std::clamp(TextH(name), FieldH(kNameSize), FieldH(kNameSize, kNameLines)) : FieldH(kNameSize);
-            const double subSize = Size(kSubSize), bodySize = Size(kRowSize);
+            auto name = TextFit::FitLines(Metrics(), g_menu.textLog, a_movie, content, "name", 0, y, w, kNameSize, kNameLines, a_view.name, a_view.negative ? kNotYet : kWhite);
+            y += name.IsDisplayObject() ? std::clamp(TextH(name), TextFit::FieldH(Metrics(), kNameSize), TextFit::FieldH(Metrics(), kNameSize, kNameLines)) : TextFit::FieldH(Metrics(), kNameSize);
+            const double subSize = TextFit::Size(Metrics(), kSubSize), bodySize = TextFit::Size(Metrics(), kRowSize);
             if (!a_view.sub.empty()) {
-                FitLine(a_movie, content, "sub", 0, y, w, subSize, a_view.sub, kTitleColor);
-                y += FieldH(subSize);
+                TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, content, "sub", 0, y, w, subSize, a_view.sub, kTitleColor);
+                y += TextFit::FieldH(Metrics(), subSize);
             }
-            if (!a_view.words.empty()) y += DrawHtmlText(a_movie, content, "words", y, w, FieldH(subSize), a_view.words, subSize);
+            if (!a_view.words.empty()) y += DrawHtmlText(a_movie, content, "words", y, w, TextFit::FieldH(Metrics(), subSize), a_view.words, subSize);
             y += kCardRuleGap;
             Draw::LineStyle(content, kEdgeWidth, kPanelEdge);
             Draw::MoveTo(content, 0, y);
             Draw::LineTo(content, w, y);
             y += kCardRuleGap;
             const bool foot = !a_view.footLeft.empty() || !a_view.footRight.empty();
-            const double footH = FieldH(subSize), footReserve = foot ? 2 * kCardRuleGap + footH + kPad : kPad;
+            const double footH = TextFit::FieldH(Metrics(), subSize), footReserve = foot ? 2 * kCardRuleGap + footH + kPad : kPad;
             double used = y;
-            if (!a_view.effects.empty() && maxH - footReserve - y >= FieldH(kMinFitSize)) {
+            if (!a_view.effects.empty() && maxH - footReserve - y >= TextFit::FieldH(Metrics(), kMinFitSize)) {
                 int shown = 0;
                 DrawHtmlText(a_movie, content, "desc", y, w, maxH - footReserve - y, a_view.effects, bodySize, a_view.type, &shown);
-                used = y + FieldH(bodySize, shown);
+                used = y + TextFit::FieldH(Metrics(), bodySize, shown);
             }
             const double h = FitBlock(a_movie, a_widget, Layout::kSpellCard, used + footReserve);
             if (foot) {
@@ -4490,9 +4328,9 @@ namespace Widget
                 Draw::MoveTo(content, 0, ruleY);
                 Draw::LineTo(content, w, ruleY);
                 const double footY = h - kPad - footH;
-                if (!a_view.footLeft.empty()) FitLine(a_movie, content, "cost", 0, footY, w * kCardFootShare, subSize, a_view.footLeft, kLabelColor);
+                if (!a_view.footLeft.empty()) TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, content, "cost", 0, footY, w * kCardFootShare, subSize, a_view.footLeft, kLabelColor);
                 if (!a_view.footRight.empty()) {
-                    FitLine(a_movie, content, "cast", w * kCardFootShare, footY, w * (1 - kCardFootShare), subSize, a_view.footRight, kDimText, "right");
+                    TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, content, "cast", w * kCardFootShare, footY, w * (1 - kCardFootShare), subSize, a_view.footRight, kDimText, "right");
                 }
             }
             Draw::NoLine(panel);
@@ -4515,9 +4353,9 @@ namespace Widget
             auto content = Content(a_widget, Layout::kSpellCard);
             if (!content.IsDisplayObject()) return;
             content.SetMember("_x", kPad);
-            const double size = Size(kRowSize);
-            FitLine(a_movie, content, "empty", 0, kCardTop, a_rect.Width() - 2 * kPad, size, Text(Str::kEmptyChoose), kDimText);
-            const double h = FitBlock(a_movie, a_widget, Layout::kSpellCard, kCardTop + FieldH(size) + kPad);
+            const double size = TextFit::Size(Metrics(), kRowSize);
+            TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, content, "empty", 0, kCardTop, a_rect.Width() - 2 * kPad, size, Text(Str::kEmptyChoose), kDimText);
+            const double h = FitBlock(a_movie, a_widget, Layout::kSpellCard, kCardTop + TextFit::FieldH(Metrics(), size) + kPad);
             Draw::NoLine(panel);
             Draw::Rect(panel, 0, 0, a_rect.Width(), h, kPanelFill, kPanelAlpha);
             const auto drawnIn = BlockRect(Layout::kSpellCard);
@@ -5484,9 +5322,9 @@ namespace Widget
             auto holder = Draw::Clip(panel, "mmxEmpty");
             if (!holder.IsDisplayObject()) return;
             const auto rect = BlockRect(a_id);
-            const double size = Size(kRowSize), h = FieldH(size);
+            const double size = TextFit::Size(Metrics(), kRowSize), h = TextFit::FieldH(Metrics(), size);
             const double top = kTitleH + std::max(0.0, (rect.Height() - kTitleH - h) / 2);
-            FitLine(movie, holder, "line", kPad, top, std::max(0.0, rect.Width() - 2 * kPad), size, Text(Str::kEmptyChoose), kDimText, "center");
+            TextFit::FitLine(Metrics(), g_menu.textLog, movie, holder, "line", kPad, top, std::max(0.0, rect.Width() - 2 * kPad), size, Text(Str::kEmptyChoose), kDimText, "center");
         }
 
         // user 2026-10-30 (the board): the columns laid out again when the menu's card starts or stops showing a form - the add-ons
@@ -5668,8 +5506,8 @@ namespace Widget
             auto hint = Draw::Clip(gear, "hint");
             if (hint.IsDisplayObject()) {
                 const auto text = Fill(g_menu.layout.active ? Str::kLayoutGearLeave : Str::kLayoutGearEnter, { { "{key}", KeyLabel(Settings::Get().keyLayout) } });
-                const double size = Size(kLabelSize), h = FieldH(size) + 2 * kTooltipPad;
-                auto field = Draw::Text(a_movie, hint, "text", kTooltipPad, kTooltipPad, kTooltipW, FieldH(size), text, kWhite, size);
+                const double size = TextFit::Size(Metrics(), kLabelSize), h = TextFit::FieldH(Metrics(), size) + 2 * kTooltipPad;
+                auto field = Draw::Text(a_movie, hint, "text", kTooltipPad, kTooltipPad, kTooltipW, TextFit::FieldH(Metrics(), size), text, kWhite, size);
                 const double w = (field.IsDisplayObject() ? TextW(field) : kTooltipW) + 2 * kTooltipPad;
                 const auto area = a_movie->GetVisibleFrameRect();
                 const Settings::Rect visible{ area.left, area.top, area.right, area.bottom };
@@ -5696,7 +5534,7 @@ namespace Widget
                 mask = Draw::Clip(button, "mask");
                 if (!inner.IsDisplayObject() || !mask.IsDisplayObject()) return;
                 const double h = kGearSize;
-                auto field = Draw::Text(a_movie, inner, "label", kResetPadX, (h - FieldH(kResetTextSize)) / 2, kTooltipW, FieldH(kResetTextSize),
+                auto field = Draw::Text(a_movie, inner, "label", kResetPadX, (h - TextFit::FieldH(Metrics(), kResetTextSize)) / 2, kTooltipW, TextFit::FieldH(Metrics(), kResetTextSize),
                     Text(Str::kLayoutReset), kLabelColor, kResetTextSize);
                 g_menu.resetFullW = (field.IsDisplayObject() ? TextW(field) : kTooltipW) + 2 * kResetPadX;
                 Draw::Box(inner, g_menu.resetFullW, h, kPanelFill, kResetAlpha, kPanelEdge, kEdgeWidth);
@@ -6618,7 +6456,7 @@ namespace Widget
         bool PlaceLabel(RE::GFxMovieView* a_movie, RE::GFxValue& a_clip, const TreeData::PlacedNode& a_placed, const LabelText& a_text,
             const Settings::Area& a_frame, std::vector<LabelBox>& a_drawn)
         {
-            const double size = Size(kLabelSize), boxH = FieldH(size, kLabelLines);
+            const double size = TextFit::Size(Metrics(), kLabelSize), boxH = TextFit::FieldH(Metrics(), size, kLabelLines);
             const double labelW = LayoutMath::LabelWidth(a_placed.sx, a_text.gap, a_frame.halfW + kPad, a_text.left, kLabelW);
             if (labelW < kMinLabelW) return false;
             auto field = Draw::Text(a_movie, a_clip, "label", a_text.left ? -a_text.gap - labelW : a_text.gap, -boxH / 2, labelW, boxH, "",
@@ -6626,7 +6464,7 @@ namespace Widget
             if (!field.IsDisplayObject()) return false;
             field.SetMember("wordWrap", true);
             field.SetMember("_alpha", a_text.alpha * Draw::kAlphaFull);
-            FitWhole(a_movie, field, labelW, size, kLabelLines, a_text.name);
+            TextFit::FitWhole(Metrics(), g_menu.textLog, a_movie, field, labelW, size, kLabelLines, a_text.name);
             const double width = std::min(TextW(field), labelW), height = std::min(TextH(field), boxH);
             // centred on the node, inside the window's padding
             const double limit = a_frame.halfH + kPad;
@@ -6665,7 +6503,7 @@ namespace Widget
             const LabelBox& a_box, LayoutMath::Place a_place, std::vector<LabelBox>& a_drawn)
         {
             constexpr double kSlack = 1.0;
-            const double size = Size(kLabelSize), boxH = FieldH(size, kLabelLines), w = a_box.right - a_box.left + kSlack;
+            const double size = TextFit::Size(Metrics(), kLabelSize), boxH = TextFit::FieldH(Metrics(), size, kLabelLines), w = a_box.right - a_box.left + kSlack;
             const bool left = a_place == LayoutMath::Place::kLeft || a_place == LayoutMath::Place::kLeftFar;
             const bool centred = a_place == LayoutMath::Place::kBelow || a_place == LayoutMath::Place::kAbove;
             const double x = (left ? a_box.right - w : centred ? (a_box.left + a_box.right - w) / 2 : a_box.left) - a_placed.sx;
@@ -6674,7 +6512,7 @@ namespace Widget
             if (!field.IsDisplayObject()) return;
             field.SetMember("wordWrap", true);
             field.SetMember("_alpha", a_text.alpha * Draw::kAlphaFull);
-            FitWhole(a_movie, field, w, size, kLabelLines, a_text.name);
+            TextFit::FitWhole(Metrics(), g_menu.textLog, a_movie, field, w, size, kLabelLines, a_text.name);
             a_drawn.push_back(a_box);
         }
 
@@ -6793,7 +6631,7 @@ namespace Widget
             std::vector<LabelBox>& a_boxes)
         {
             constexpr double kTiny = 1e-9, kFar = 1e9;
-            const double size = Size(kNoteSize), h = FieldH(size), textW = kExitTextW;
+            const double size = TextFit::Size(Metrics(), kNoteSize), h = TextFit::FieldH(Metrics(), size), textW = kExitTextW;
             const double hw = a_frame.halfW - kExitInset, hh = a_frame.halfH - kExitInset;
             if (hw < textW / 2 + kExitArrow || hh < kExitArrow || a_frame.halfH + kPad < h / 2 + kExitArrow) return false;
             for (std::size_t i = 0; i < a_exits.sectors.size(); ++i) {
@@ -6812,7 +6650,7 @@ namespace Widget
                 const double cx = std::clamp(px - ux * (a + textW / 2), -a_frame.halfW + textW / 2, a_frame.halfW - textW / 2);
                 const double cy = std::clamp(py - uy * (a + h / 2), -a_frame.halfH - kPad + h / 2, a_frame.halfH + kPad - h / 2);
                 const auto name = std::format("exit{}", i);
-                FitLine(a_movie, a_content, name.c_str(), cx - textW / 2, cy - h / 2, textW, size,
+                TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, a_content, name.c_str(), cx - textW / 2, cy - h / 2, textW, size,
                     Fill(Str::kTreeExit, { { "{n}", std::to_string(a_exits.sectors[i]) } }), kLabelColor, "center");
                 // what the labels keep off: the arrow and its text
                 a_boxes.push_back({ px - 2 * a, py - 2 * a, px + 2 * a, py + 2 * a });
@@ -6920,10 +6758,10 @@ namespace Widget
                 // in the title strip, right of the title: the reading size as far as the strip's height allows
                 const auto text = Text(Str::kTreeNotInTree);
                 const auto note = overlay.IsDisplayObject() ?
-                                      FitLine(a_movie, overlay, "note", kPad, kPad / 2, treeRect.Width() - 2 * kPad,
-                                          std::min(Size(kNoteSize), (kTitleH - kGutter) / g_menu.lineFirst), text, kDimText, "right") :
+                                      TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, overlay, "note", kPad, kPad / 2, treeRect.Width() - 2 * kPad,
+                                          std::min(TextFit::Size(Metrics(), kNoteSize), (kTitleH - kGutter) / g_menu.lineFirst), text, kDimText, "right") :
                                       RE::GFxValue{};
-                Q2State(Str::kTreeNotInTree, text, &note);
+                TextFit::Q2State(g_menu.textLog, SelfTest, Key(Str::kTreeNotInTree), text, &note);
             }
             if (auto legend = treePanel.IsDisplayObject() ? Child(treePanel, "legend") : RE::GFxValue{}; legend.IsDisplayObject()) {
                 legend.SetMember("_visible", g_menu.chosen);  // review I9: no legend for an empty window
@@ -6932,18 +6770,18 @@ namespace Widget
                 // user 2026-10-30 (the board): nothing chosen - the window keeps its size, one dim line in its middle (the
                 // last school's legend and the not-in-tree note go - review I9)
                 if (treePanel.IsDisplayObject()) Draw::Remove(treePanel, "overlay");
-                const double size = Size(kRowSize);
-                FitLines(a_movie, content, "empty", -frame.halfW, -FieldH(size) / 2, std::max(0.0, 2 * frame.halfW), size, 1, Text(Str::kEmptyChoose), kDimText,
+                const double size = TextFit::Size(Metrics(), kRowSize);
+                TextFit::FitLines(Metrics(), g_menu.textLog, a_movie, content, "empty", -frame.halfW, -TextFit::FieldH(Metrics(), size) / 2, std::max(0.0, 2 * frame.halfW), size, 1, Text(Str::kEmptyChoose), kDimText,
                     "center");
                 RecheckHover(hoveredAt);
                 return;
             }
             if (!Spells::Get() || g_session.centre < 0) {
                 const Str id = Spells::Get() ? Str::kTreeNoCentre : Str::kTreeNoTree;
-                const double size = Size(kRowSize);
-                const auto empty = FitLines(a_movie, content, "empty", -frame.halfW, -FieldH(size), std::max(0.0, 2 * frame.halfW), size, 2,
+                const double size = TextFit::Size(Metrics(), kRowSize);
+                const auto empty = TextFit::FitLines(Metrics(), g_menu.textLog, a_movie, content, "empty", -frame.halfW, -TextFit::FieldH(Metrics(), size), std::max(0.0, 2 * frame.halfW), size, 2,
                     Text(id), kDimText, "center");
-                Q2State(id, Text(id), &empty);
+                TextFit::Q2State(g_menu.textLog, SelfTest, Key(id), Text(id), &empty);
                 RecheckHover(hoveredAt);
                 return;
             }
@@ -6955,11 +6793,11 @@ namespace Widget
             }
             if (!style->SchoolShown(centre.school)) {
                 // T17: HoM's schoolVisibility hides this school - nothing of it is drawn
-                const double size = Size(kRowSize);
-                const auto empty = FitLines(a_movie, content, "empty", -frame.halfW, -FieldH(size), std::max(0.0, 2 * frame.halfW), size, 2,
+                const double size = TextFit::Size(Metrics(), kRowSize);
+                const auto empty = TextFit::FitLines(Metrics(), g_menu.textLog, a_movie, content, "empty", -frame.halfW, -TextFit::FieldH(Metrics(), size), std::max(0.0, 2 * frame.halfW), size, 2,
                     Text(Str::kTreeNoCentre), kDimText, "center");
-                Q2State("tree_school_hidden", std::format("{} - \"{}\"", centre.school, Text(Str::kTreeNoCentre)), &empty);
-                if (g_menu.cutLogged.insert("hidden|" + centre.school).second) {
+                TextFit::Q2State(g_menu.textLog, SelfTest, "tree_school_hidden", std::format("{} - \"{}\"", centre.school, Text(Str::kTreeNoCentre)), &empty);
+                if (g_menu.textLog.cut.insert("hidden|" + centre.school).second) {
                     logger::info("Widget: tree - school {} is hidden by Heart of Magic's schoolVisibility: nothing of it drawn", centre.school);
                 }
                 RecheckHover(hoveredAt);
@@ -7037,7 +6875,7 @@ namespace Widget
                 // and no label on the legend strip (DrawLegend's row at its size), which the window's clamp alone can graze
                 // (review round 1 #5)
                 const double legendMid = treeRect.Height() - Settings::kTreeLegendH / 2 - kPad / 2 - frame.cy;
-                const double legendHalf = FieldH(kLegendSize) / 2;
+                const double legendHalf = TextFit::FieldH(Metrics(), kLegendSize) / 2;
                 labels.push_back({ -frame.halfW - kPad, legendMid - legendHalf, frame.halfW + kPad, legendMid + legendHalf });
             }
             // The badges first (build 6 review round 2 #1): their arrows and texts go into `labels` before any node label, so the
@@ -7049,17 +6887,17 @@ namespace Widget
             if (badges.total > 0) {
                 badgesDrawn = DrawBadges(a_movie, content, badges, frame, labels);
                 if (badgesDrawn) {
-                    Q2State(Str::kTreeExit, Fill(Str::kTreeExit, { { "{n}", std::to_string(badges.total) } }));
-                } else if (g_menu.cutLogged.insert("exits|no room").second) {
+                    TextFit::Q2State(g_menu.textLog, SelfTest, Key(Str::kTreeExit), Fill(Str::kTreeExit, { { "{n}", std::to_string(badges.total) } }));
+                } else if (g_menu.textLog.cut.insert("exits|no room").second) {
                     logger::info("Widget: {} tree badges not drawn - the tree window ({:.0f} x {:.0f} inside) has no room for them", badges.total,
                         2 * frame.halfW, 2 * frame.halfH);
                 }
             } else if (noLinks) {
-                const double size = Size(kNoteSize), top = frame.halfH - FieldH(size);
-                const auto note = FitLine(a_movie, content, "nolinks", -frame.halfW, top, std::max(0.0, 2 * frame.halfW), size,
+                const double size = TextFit::Size(Metrics(), kNoteSize), top = frame.halfH - TextFit::FieldH(Metrics(), size);
+                const auto note = TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, content, "nolinks", -frame.halfW, top, std::max(0.0, 2 * frame.halfW), size,
                     Text(Str::kTreeNoLinks), kDimText, "center");
-                labels.push_back({ -frame.halfW, top, frame.halfW, top + FieldH(size) });
-                Q2State(Str::kTreeNoLinks, Text(Str::kTreeNoLinks), &note);
+                labels.push_back({ -frame.halfW, top, frame.halfW, top + TextFit::FieldH(Metrics(), size) });
+                TextFit::Q2State(g_menu.textLog, SelfTest, Key(Str::kTreeNoLinks), Text(Str::kTreeNoLinks), &note);
             }
 
             // Labels in rank order, each only at a clear place (spec v10 T5); none at all when HoM's showNodeNames is off (T15)
@@ -7090,7 +6928,7 @@ namespace Widget
                     return HomStyle::Reveal(a_node.display, a_node.look.percent, style->revealName, style->cheatMode) == HomStyle::Name::kHidden;
                 });
                 hidden != nodes.end() && style->showNodeNames) {
-                Q2State("tree_name_hidden", std::format("{} - \"{}\" ({:.0f}% under revealName {})", Spells::NodeName(hidden->placed.index),
+                TextFit::Q2State(g_menu.textLog, SelfTest, "tree_name_hidden", std::format("{} - \"{}\" ({:.0f}% under revealName {})", Spells::NodeName(hidden->placed.index),
                     HomStyle::kHiddenName, hidden->look.percent, style->revealName));
             }
             const auto labelNote = [](const char* a_what, const KeptPlace& a_side) {
@@ -7165,7 +7003,7 @@ namespace Widget
             const double w = rect.Width() - 2 * kPad;
             content.SetMember("_x", kPad);
 
-            const double titleSize = Size(kSchoolSize), hintSize = Size(kHintSize), bottom = fullH - kCardBottom;
+            const double titleSize = TextFit::Size(Metrics(), kSchoolSize), hintSize = TextFit::Size(Metrics(), kHintSize), bottom = fullH - kCardBottom;
             // Row 2 (spec v6 L2): the school title's baseline on the node card name's. Both start kCardTop below their card's top
             // in the same font, so the title moves down by the tops' difference plus the ascent's difference of the two sizes
             // (the size-14 title under a size-19 name: about 4.5). Applied only when that lands within one title size; a card
@@ -7175,7 +7013,7 @@ namespace Widget
             double offset = shift >= 0 && shift <= titleSize ? shift : 0.0;
             // final review 2: once per state this menu (the shift moves with every fitted tree height)
             const char* l2State = shift == 0 || (shift > 0 && shift <= titleSize) ? "aligned" : shift < 0 ? "above" : "apart";
-            if (g_menu.cutLogged.insert(std::string("l2|") + l2State).second) {
+            if (g_menu.textLog.cut.insert(std::string("l2|") + l2State).second) {
                 logger::info("Widget: L2 progress card first line (size {:.1f}) {} - node card name size {:.0f}, ascent {:.3f} of the size ({}), card "
                              "tops {:.0f} / {:.0f}",
                     titleSize, offset > 0 || shift == 0 ? std::format("moved down {:.2f} to the name's baseline", offset) :
@@ -7187,16 +7025,16 @@ namespace Widget
             // tree above it shrinks), so row 2 is not aligned then - kept off by design (review R6)
             g_menu.rowAlignNote = g_menu.rowAligned ? "" : shift < 0 ? "the node card sits higher than the progress card (blocks fit their content)" :
                                                                        "the card tops are too far apart";
-            auto title = FitLine(a_movie, content, "school", 0, kCardTop + offset, w, titleSize,
+            auto title = TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, content, "school", 0, kCardTop + offset, w, titleSize,
                 Fill(Str::kProgressTitle, { { "{school}", SchoolText(g_session.school) } }), kTitleColor);
-            double y = kCardTop + offset + FieldH(titleSize);
+            double y = kCardTop + offset + TextFit::FieldH(Metrics(), titleSize);
             // The alignment gives way when what follows would not fit even at kMinFitSize (review round 1 #2: the last line
             // shrinks first): the title goes back up (logged once per menu)
             const auto giveUpOffset = [&](double a_left, const char* a_what) {
                 title.SetMember("_y", kCardTop);
                 g_menu.rowAligned = false;
                 g_menu.rowAlignNote = "the offset gave way (no room)";
-                if (g_menu.cutLogged.insert("progress|l2").second) {
+                if (g_menu.textLog.cut.insert("progress|l2").second) {
                     logger::info("Widget: L2 progress card drops its baseline offset {:.2f} - {} does not fit even at size {:.0f} ({:.1f} left "
                                  "under the title)",
                         offset, a_what, kMinFitSize, a_left);
@@ -7214,7 +7052,7 @@ namespace Widget
                 title = RE::GFxValue{};
                 g_menu.rowAligned = false;
                 g_menu.rowAlignNote = "the school title gave way";
-                if (g_menu.cutLogged.insert("progress|title").second) {
+                if (g_menu.textLog.cut.insert("progress|title").second) {
                     logger::info("Widget: Q4 progress card drops its school title - {} needs {:.1f} of the card's {:.1f}", a_what, a_need, bottom - kCardTop);
                 }
             };
@@ -7231,18 +7069,18 @@ namespace Widget
             // smaller (one row when two do not fit) when the card has no room for it at the reading size (review round 1 #4);
             // the baseline offset gives way only when the message does not fit even at kMinFitSize (makeRoom)
             const auto message = [&](const Line& a_line) {
-                makeRoom(FieldH(kMinFitSize), "the message");
+                makeRoom(TextFit::FieldH(Metrics(), kMinFitSize), "the message");
                 int lines = kMessageLines;
-                double size = SizeFor(hintSize, lines, bottom - y, nullptr);
-                if (FieldH(size, lines) > bottom - y) {
+                double size = TextFit::SizeFor(Metrics(), g_menu.textLog, hintSize, lines, bottom - y, nullptr);
+                if (TextFit::FieldH(Metrics(), size, lines) > bottom - y) {
                     lines = 1;
-                    size = SizeFor(hintSize, lines, bottom - y, "progress message");
+                    size = TextFit::SizeFor(Metrics(), g_menu.textLog, hintSize, lines, bottom - y, "progress message");
                 }
-                const auto field = FitLines(a_movie, content, "message", 0, y, w, size, lines, a_line.text, kWhite);
-                Q2State(a_line.id, a_line.text, &field);
+                const auto field = TextFit::FitLines(Metrics(), g_menu.textLog, a_movie, content, "message", 0, y, w, size, lines, a_line.text, kWhite);
+                TextFit::Q2State(g_menu.textLog, SelfTest, Key(a_line.id), a_line.text, &field);
                 // the lines the text took (one short message: one line), not the field's two
-                const int used = field.IsDisplayObject() ? std::clamp(TextLines(field, size), 1, lines) : lines;
-                return y + FieldH(size, used) + kCardBottom;
+                const int used = field.IsDisplayObject() ? std::clamp(TextFit::TextLines(Metrics(), field, size), 1, lines) : lines;
+                return y + TextFit::FieldH(Metrics(), size, used) + kCardBottom;
             };
             if (!Spells::Get()) return message({ Str::kProgressNoTree, Text(Str::kProgressNoTree) });
             // the widget is attached only once HoM's API is there, so this is a guard (review round 1 #3)
@@ -7271,15 +7109,15 @@ namespace Widget
             // where each line goes and what gives way (LayoutMath::PlanProgress: the hint shrinks, then the offset goes, then the
             // hint, then the title; the same function tools/magic-menu-preview-check runs)
             const LayoutMath::ProgressIn planIn{ fullH, kCardTop, kCardBottom, titleSize, kTargetSize, kXpSize, kBarH, hintSize, kMinFitSize, kFitStep, offset };
-            const auto plan = LayoutMath::PlanProgress(Metrics(), planIn);
-            if (plan.offsetDropped && title.IsDisplayObject()) giveUpOffset(bottom - (kCardTop + offset + FieldH(titleSize)), "the next step");
+            const auto plan = LayoutMath::PlanProgress(TextFit::LayoutMetrics(Metrics()), planIn);
+            if (plan.offsetDropped && title.IsDisplayObject()) giveUpOffset(bottom - (kCardTop + offset + TextFit::FieldH(Metrics(), titleSize)), "the next step");
             if (!plan.title && title.IsDisplayObject()) dropTitle(plan.targetH + plan.barRowH, "the learning target and its bar");
-            const double targetH = plan.targetH, barRowH = plan.barRowH, xpH = FieldH(kXpSize);
+            const double targetH = plan.targetH, barRowH = plan.barRowH, xpH = TextFit::FieldH(Metrics(), kXpSize);
             y = plan.targetY;
             auto target = Draw::Text(a_movie, content, "target", 0, y, w, targetH, "", kWhite, kTargetSize);
             const auto compose = [&](const std::string& a_name) { return Fill(Str::kProgressTarget, { { "{spell}", a_name }, { "{pct}", pct } }); };
-            if (target.IsDisplayObject()) FitText(a_movie, target, w, kTargetSize, 1, name, compose);
-            Q2State(Str::kProgressTarget, compose(name), &target);
+            if (target.IsDisplayObject()) TextFit::FitText(Metrics(), g_menu.textLog, a_movie, target, w, kTargetSize, 1, name, compose);
+            TextFit::Q2State(g_menu.textLog, SelfTest, Key(Str::kProgressTarget), compose(name), &target);
             y = plan.barRowY;
 
             const double barW = std::max(0.0, w - kXpW - kPad), barY = y + (barRowH - kBarH) / 2;
@@ -7290,26 +7128,26 @@ namespace Widget
             }
             const auto xp = Fill(Str::kXp, { { "{cur}", std::format("{:.0f}", state.required * state.percent / 100.0f) },
                                                { "{need}", std::format("{:.0f}", state.required) } });
-            FitLine(a_movie, content, "xp", barW + kPad, y + (barRowH - xpH) / 2, kXpW, kXpSize, xp, kWhite, "right");
+            TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, content, "xp", barW + kPad, y + (barRowH - xpH) / 2, kXpW, kXpSize, xp, kWhite, "right");
             y = plan.hintY;
             // the list's spell has no tree node: said here instead of the next step (the tree window says it too)
             const Line next = g_menu.notInTree ? Line{ Str::kProgressNotInTree, Text(Str::kProgressNotInTree) } : NextStepLine(info, true);
             if (!plan.hint) {
-                if (g_menu.cutLogged.insert("progress|hint").second) {
+                if (g_menu.textLog.cut.insert("progress|hint").second) {
                     logger::info("Widget: Q4 progress card leaves out its last line '{}' - {:.1f} left, it needs {:.1f} even at size {:.0f}",
-                        next.text, bottom - y, FieldH(kMinFitSize), kMinFitSize);
+                        next.text, bottom - y, TextFit::FieldH(Metrics(), kMinFitSize), kMinFitSize);
                 }
                 const RE::GFxValue none;
-                Q2State(next.id, next.text, &none);  // logged as "(no field)": the state was reached, its line not shown
-                return LayoutMath::ProgressNeeded(Metrics(), planIn, plan);
+                TextFit::Q2State(g_menu.textLog, SelfTest, Key(next.id), next.text, &none);  // logged as "(no field)": the state was reached, its line not shown
+                return LayoutMath::ProgressNeeded(TextFit::LayoutMetrics(Metrics()), planIn, plan);
             }
-            if (plan.hintSize < hintSize && g_menu.cutLogged.insert(std::format("progress|hint {:.1f}", plan.hintSize)).second) {
+            if (plan.hintSize < hintSize && g_menu.textLog.cut.insert(std::format("progress|hint {:.1f}", plan.hintSize)).second) {
                 logger::info("Widget: Q4 progress card hint at size {:.1f} (reading size {:.1f}) - {:.1f} left under the bar{}", plan.hintSize, hintSize,
                     bottom - y, offset > 0 ? std::format(", the L2 offset {:.2f} kept", offset) : std::string{});
             }
-            const auto hint = FitLine(a_movie, content, "hint", 0, y, w, plan.hintSize, next.text, kLabelColor);
-            Q2State(next.id, next.text, &hint);
-            return LayoutMath::ProgressNeeded(Metrics(), planIn, plan);
+            const auto hint = TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, content, "hint", 0, y, w, plan.hintSize, next.text, kLabelColor);
+            TextFit::Q2State(g_menu.textLog, SelfTest, Key(next.id), next.text, &hint);
+            return LayoutMath::ProgressNeeded(TextFit::LayoutMetrics(Metrics()), planIn, plan);
         }
 
         // user 2026-10-30: the card fits its lines and bar (FitBlock: the blocks under it move up this frame)
@@ -7382,7 +7220,7 @@ namespace Widget
                 { level.empty() ? school : Fill(Str::kNodeSub, { { "{school}", school }, { "{level}", level } }), kTitleColor },
                 { StateLine(look.state, look.percent, false).text, kLabelColor },
             } };
-            const double size = Size(kLabelSize), lineH = FieldH(size);
+            const double size = TextFit::Size(Metrics(), kLabelSize), lineH = TextFit::FieldH(Metrics(), size);
             const double w = std::min(kTooltipW, rect.Width() - 2 * kPad), h = static_cast<double>(lines.size()) * lineH + 2 * kTooltipPad;
             // right of the mark, else left of it, centred on its height; with room on neither side (review v10: the centre node of a
             // 260-wide tree, whose clamped tooltip covered it) above it, else below it, centred on it. Inside the panel (below the
@@ -7408,10 +7246,10 @@ namespace Widget
             Draw::Box(tip, w, h, kPanelFill, kTooltipAlpha, kPanelEdge, kEdgeWidth);
             for (std::size_t i = 0; i < lines.size(); ++i) {
                 const auto name = std::format("t{}", i);
-                FitLine(a_movie, tip, name.c_str(), kTooltipPad, kTooltipPad + static_cast<double>(i) * lineH, w - 2 * kTooltipPad, size,
+                TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, tip, name.c_str(), kTooltipPad, kTooltipPad + static_cast<double>(i) * lineH, w - 2 * kTooltipPad, size,
                     lines[i].first, lines[i].second);
             }
-            Q2State("tree_tooltip", std::format("{} - {}", lines[0].first, lines[2].first));
+            TextFit::Q2State(g_menu.textLog, SelfTest, "tree_tooltip", std::format("{} - {}", lines[0].first, lines[2].first));
         }
 
         enum class Mark
@@ -7462,10 +7300,10 @@ namespace Widget
         // the height the drawn rows take (LayoutMath::RowsHeight)
         double DrawRows(RE::GFxMovieView* a_movie, RE::GFxValue& a_content, std::vector<Row> a_rows, double a_w, double a_top, double a_bottom)
         {
-            const double size = Size(kRowSize), h = FieldH(size), pitch = LineH(size) + kGutter / 2;
+            const double size = TextFit::Size(Metrics(), kRowSize), h = TextFit::FieldH(Metrics(), size), pitch = TextFit::LineH(Metrics(), size) + kGutter / 2;
             const auto fit = LayoutMath::RowsFit(a_bottom - a_top, h, pitch);
             if (fit == 0) {
-                if (!a_rows.empty() && g_menu.cutLogged.insert("rows|no room").second) {
+                if (!a_rows.empty() && g_menu.textLog.cut.insert("rows|no room").second) {
                     logger::info("Widget: Q4 node card has no room for its {} requirement line(s) ({:.0f} high, one needs {:.0f})", a_rows.size(),
                         a_bottom - a_top, h);
                 }
@@ -7495,10 +7333,10 @@ namespace Widget
                 auto field = Draw::Text(a_movie, a_content, name.c_str(), x, y, a_w - x, h, "", row.color, size);
                 if (!field.IsDisplayObject()) continue;
                 if (row.format) {
-                    FitText(a_movie, field, a_w - x, size, 1, row.name,
+                    TextFit::FitText(Metrics(), g_menu.textLog, a_movie, field, a_w - x, size, 1, row.name,
                         [&](const std::string& a_name) { return Fill(*row.format, { { "{name}", a_name } }); });
                 } else {
-                    FitWhole(a_movie, field, a_w - x, size, 1, row.name);
+                    TextFit::FitWhole(Metrics(), g_menu.textLog, a_movie, field, a_w - x, size, 1, row.name);
                 }
             }
             return LayoutMath::RowsHeight(std::min(a_rows.size(), fit), h, pitch);
@@ -7516,8 +7354,8 @@ namespace Widget
             Draw::Rect(button, 0, 0, a_w, kButtonH, kPanelFill, Draw::kAlphaFull);
             const std::string label = enabled ? Fill(Str::kNodeSetTarget, { { "{key}", KeyLabel(Settings::Get().keySetTarget) } }) :
                                                 StateLine(a_look.state, a_look.percent, true).text;
-            const double size = Size(kButtonSize);
-            FitLine(a_movie, button, "label", 0, (kButtonH - FieldH(size)) / 2, a_w, size, label, enabled ? kWhite : kDimText, "center");
+            const double size = TextFit::Size(Metrics(), kButtonSize);
+            TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, button, "label", 0, (kButtonH - TextFit::FieldH(Metrics(), size)) / 2, a_w, size, label, enabled ? kWhite : kDimText, "center");
             if (enabled) SetHandler(a_movie, button, "onRelease", g_buttonClick.get());
         }
 
@@ -7542,18 +7380,18 @@ namespace Widget
                 if (target && shown < 0) {
                     // a target outside the tree: the hint stays (the progress card names it)
                     const auto* form = RE::TESForm::LookupByID(target);
-                    Q2State("node_default_target_not_in_tree", std::format("{:08X} {} - the hint is shown", target,
+                    TextFit::Q2State(g_menu.textLog, SelfTest, "node_default_target_not_in_tree", std::format("{:08X} {} - the hint is shown", target,
                         form && form->GetName() ? form->GetName() : "(no form)"));
                 }
             }
             if (shown < 0) {
                 // a short hint at the top (Q2), not a big centred line
                 const auto text = Fill(Str::kNodeHint, { { "{key}", KeyLabel(settings.keyNext) } });
-                const double size = Size(kRowSize);
-                const auto hint = FitLines(a_movie, content, "hint", 0, kCardTop, w, size, kHintLines, text, kDimText);
-                Q2State(Str::kNodeHint, text, &hint);
-                const int lines = hint.IsDisplayObject() ? std::clamp(TextLines(hint, size), 1, kHintLines) : kHintLines;
-                FitBlock(a_movie, a_widget, Layout::kNodeCard, kCardTop + FieldH(size, lines) + kPad);  // only the hint line
+                const double size = TextFit::Size(Metrics(), kRowSize);
+                const auto hint = TextFit::FitLines(Metrics(), g_menu.textLog, a_movie, content, "hint", 0, kCardTop, w, size, kHintLines, text, kDimText);
+                TextFit::Q2State(g_menu.textLog, SelfTest, Key(Str::kNodeHint), text, &hint);
+                const int lines = hint.IsDisplayObject() ? std::clamp(TextFit::TextLines(Metrics(), hint, size), 1, kHintLines) : kHintLines;
+                FitBlock(a_movie, a_widget, Layout::kNodeCard, kCardTop + TextFit::FieldH(Metrics(), size, lines) + kPad);  // only the hint line
                 return;
             }
             const auto& node = Data().tree.nodes[shown];
@@ -7561,15 +7399,15 @@ namespace Widget
             double y = kCardTop;
             // the name wraps to two lines, then ends in "..." (Q4); what follows moves down by the lines it took
             // "???" while HoM keeps the name hidden (review v11 #1; spellCardView.js:213-218)
-            auto name = FitLines(a_movie, content, "name", 0, y, w, kNameSize, kNameLines, ShownName(shown, a_snapshot), kWhite);
-            y += name.IsDisplayObject() ? std::clamp(TextH(name), FieldH(kNameSize), FieldH(kNameSize, kNameLines)) : FieldH(kNameSize);
-            const double subSize = Size(kSubSize);
+            auto name = TextFit::FitLines(Metrics(), g_menu.textLog, a_movie, content, "name", 0, y, w, kNameSize, kNameLines, ShownName(shown, a_snapshot), kWhite);
+            y += name.IsDisplayObject() ? std::clamp(TextH(name), TextFit::FieldH(Metrics(), kNameSize), TextFit::FieldH(Metrics(), kNameSize, kNameLines)) : TextFit::FieldH(Metrics(), kNameSize);
+            const double subSize = TextFit::Size(Metrics(), kSubSize);
             const auto school = SchoolText(node.school);
             const auto level = LevelName(node.skillLevel);
-            FitLine(a_movie, content, "sub", 0, y, w, subSize, level.empty() ? school : Fill(Str::kNodeSub, { { "{school}", school }, { "{level}", level } }),
+            TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, content, "sub", 0, y, w, subSize, level.empty() ? school : Fill(Str::kNodeSub, { { "{school}", school }, { "{level}", level } }),
                 kTitleColor);
-            y += FieldH(subSize);
-            const double stateSize = Size(kStateSize), stateH = FieldH(stateSize);
+            y += TextFit::FieldH(Metrics(), subSize);
+            const double stateSize = TextFit::Size(Metrics(), kStateSize), stateH = TextFit::FieldH(Metrics(), stateSize);
             {
                 // the state in HoM's look (spec v11 T13) at the known size kStateIconR, the node's school shape and colour
                 constexpr double kIconScale = kStateIconR / HomStyle::kKnownSize;
@@ -7580,10 +7418,10 @@ namespace Widget
                     { HomStyle::DisplayOf(BehaviourOf(look.state), isTarget), style->Mystery(), false, false, 1.0 });
             }
             const auto state = StateLine(look.state, look.percent, false);
-            const auto stateField = FitLine(a_movie, content, "state", kStateTextX, y, w - kStateTextX, stateSize, state.text, kWhite);
-            Q2State(state.id, state.text, &stateField);
-            if (byDefault) Q2State("node_default_target", std::format("{} - {}", Spells::NodeName(shown), state.text));
-            if (!byDefault && g_menu.selectedByKey) Q2State("node_next_candidate", std::format("{} - {}", Spells::NodeName(shown), state.text));
+            const auto stateField = TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, content, "state", kStateTextX, y, w - kStateTextX, stateSize, state.text, kWhite);
+            TextFit::Q2State(g_menu.textLog, SelfTest, Key(state.id), state.text, &stateField);
+            if (byDefault) TextFit::Q2State(g_menu.textLog, SelfTest, "node_default_target", std::format("{} - {}", Spells::NodeName(shown), state.text));
+            if (!byDefault && g_menu.selectedByKey) TextFit::Q2State(g_menu.textLog, SelfTest, "node_next_candidate", std::format("{} - {}", Spells::NodeName(shown), state.text));
             y += stateH + kRuleGap;
             Draw::LineStyle(content, kEdgeWidth, kPanelEdge);
             Draw::MoveTo(content, 0, y);
@@ -7599,7 +7437,7 @@ namespace Widget
             Draw::LineTo(content, w, bottomRule);
             const auto* spell = a_snapshot.Spell(Data().gameIds[shown]);
             const float required = spell ? spell->required : 0.0f;
-            FitLine(a_movie, content, "xp", 0, h - kXpFromBottom, w, stateSize,
+            TextFit::FitLine(Metrics(), g_menu.textLog, a_movie, content, "xp", 0, h - kXpFromBottom, w, stateSize,
                 Fill(Str::kXp, { { "{cur}", std::format("{:.0f}", required * look.percent / 100.0f) }, { "{need}", std::format("{:.0f}", required) } }),
                 kLabelColor, "right");
             DrawButton(a_movie, content, w, h - kButtonFromBottom, look, !byDefault);
@@ -7775,7 +7613,7 @@ namespace Widget
             if (g_menu.tab == Tab::kSchool && !g_menu.tabSchool.empty()) {
                 SetSchool(g_menu.tabSchool);
             } else if (g_menu.tab != Tab::kSchool) {
-                SetSchool(node >= 0 ? Data().tree.nodes[node].school : Spells::SchoolOf(spell));
+                SetSchool(node >= 0 ? Data().tree.nodes[node].school : SpellSchool::Of(spell));
             }
             g_menu.notInTree = id && node < 0;
             if (Centrable(node)) {
@@ -8140,7 +7978,7 @@ namespace Widget
                 auto& widget = *a_params.thisPtr;
                 if (g_menu.firstFrame) {
                     logger::info("Widget: first frame on thread {} (main thread {}); HoM is read by main-thread tasks",
-                        REX::W32::GetCurrentThreadId(), Hom::GameThreadId());
+                        REX::W32::GetCurrentThreadId(), GameThread::Id());
                 }
                 // our own SetLearningTarget ran: ask for HoM's state now, not at the next poll
                 if (Hom::TakeStateChanged()) g_menu.refresh = true;

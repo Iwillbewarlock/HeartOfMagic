@@ -6,6 +6,8 @@
 
 #include "Hom.h"
 
+#include "GameThread.h"
+
 #include "SpellLearningAPI.h"
 
 #include <atomic>
@@ -17,7 +19,6 @@ namespace Hom
     namespace
     {
         std::atomic<SpellLearning::ISpellLearningAPI*> g_api{ nullptr };
-        std::atomic<std::uint32_t> g_gameThread{ 0 };
         std::atomic<bool> g_wrongThreadLogged{ false };
         // Spells whose SetLearningTarget is queued and not finished (call and read-back); one entry per spell, so a
         // finished task clears only its own
@@ -30,10 +31,10 @@ namespace Hom
         {
             auto* api = g_api.load();
             if (!api) return nullptr;
-            if (!OnGameThread()) {
+            if (!GameThread::On()) {
                 if (!g_wrongThreadLogged.exchange(true)) {
                     logger::error("Hom: API call from thread {} but the game thread is {} - call skipped (logged once)",
-                        REX::W32::GetCurrentThreadId(), g_gameThread.load());
+                        REX::W32::GetCurrentThreadId(), GameThread::Id());
                 }
                 return nullptr;
             }
@@ -70,25 +71,9 @@ namespace Hom
         g_api = a_api;
     }
 
-    void SetGameThread()
-    {
-        g_gameThread = REX::W32::GetCurrentThreadId();
-    }
-
     bool Ready()
     {
         return g_api.load() != nullptr;
-    }
-
-    bool OnGameThread()
-    {
-        const auto game = g_gameThread.load();
-        return game != 0 && game == REX::W32::GetCurrentThreadId();
-    }
-
-    std::uint32_t GameThreadId()
-    {
-        return g_gameThread.load();
     }
 
     RE::FormID Target(const std::string& a_school)

@@ -6,6 +6,7 @@
 
 #include "Spells.h"
 
+#include "GameThread.h"
 #include "Hom.h"
 
 #include <algorithm>
@@ -235,13 +236,13 @@ namespace Spells
                 g_queued = false;
             }
             if (schools.empty() || !g_data) return;
-            if (!Hom::Ready() || !Hom::OnGameThread()) {
+            if (!Hom::Ready() || !GameThread::On()) {
                 // the menu would say "loading" until its no-data timeout; the reason is logged once (review round 1 #3)
                 static std::atomic<bool> s_logged{ false };
                 if (!s_logged.exchange(true)) {
                     logger::warn("Spells: HoM's state not read - {} (thread {}, game thread {}); logged once",
                         !Hom::Ready() ? "its API has not arrived" : "the refresh task is not on the game thread", REX::W32::GetCurrentThreadId(),
-                        Hom::GameThreadId());
+                        GameThread::Id());
                 }
                 return;
             }
@@ -362,37 +363,6 @@ namespace Spells
         if (!node.name.empty()) return node.name;
         const auto* form = RE::TESForm::LookupByID(g_data->gameIds[a_index]);
         return form ? form->GetName() : std::format("{:08X}", node.formId);
-    }
-
-    namespace
-    {
-        std::string SchoolKey(RE::ActorValue a_skill)
-        {
-            switch (a_skill) {
-            case RE::ActorValue::kAlteration: return "Alteration";
-            case RE::ActorValue::kConjuration: return "Conjuration";
-            case RE::ActorValue::kDestruction: return "Destruction";
-            case RE::ActorValue::kIllusion: return "Illusion";
-            case RE::ActorValue::kRestoration: return "Restoration";
-            default: return {};
-            }
-        }
-    }
-
-    // The costliest effect's magic skill; when that effect has none (a spell whose costliest effect is a skill-less
-    // script or light effect: game run 2, a healing spell kept "Destruction"), the first effect that has one
-    std::string SchoolOf(const RE::SpellItem* a_spell)
-    {
-        if (!a_spell) return {};
-        const auto* costliest = a_spell->GetCostliestEffectItem();
-        if (costliest && costliest->baseEffect) {
-            if (auto key = SchoolKey(costliest->baseEffect->GetMagickSkill()); !key.empty()) return key;
-        }
-        for (const auto* effect : a_spell->effects) {
-            if (!effect || !effect->baseEffect) continue;
-            if (auto key = SchoolKey(effect->baseEffect->GetMagickSkill()); !key.empty()) return key;
-        }
-        return {};
     }
 
     const SpellState* Snapshot::Spell(RE::FormID a_id) const

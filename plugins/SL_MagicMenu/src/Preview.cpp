@@ -2,7 +2,7 @@
 
 #include "Preview.h"
 
-#include "Hom.h"
+#include "GameThread.h"
 #include "Layout.h"
 #include "PreviewMath.h"
 
@@ -363,7 +363,7 @@ namespace Preview
         template <class Work>
         void OnMainThread(Work&& a_work)
         {
-            if (Hom::OnGameThread()) {
+            if (GameThread::On()) {
                 a_work();
             } else if (auto* tasks = SKSE::GetTaskInterface()) {
                 tasks->AddTask(std::forward<Work>(a_work));
@@ -3316,7 +3316,7 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
     // has nothing of the selection to draw
     bool OnPostDisplay(RE::Inventory3DManager& a_manager, bool a_fit, bool a_overPass, bool a_active, bool a_noBox, bool a_hide3D)
     {
-        if (!Hom::OnGameThread()) {
+        if (!GameThread::On()) {
             static std::atomic<bool> logged{ false };  // g_state is main-thread only
             if (!logged.exchange(true)) {
                 logger::warn("Preview: PostDisplay ran off the main thread ({}) - nothing placed, hidden or clipped", REX::W32::GetCurrentThreadId());

@@ -12,8 +12,8 @@
 // Exit 0 on success, 1 when a self-test fails or a drawn mark of the file's tree reaches past half the distance to
 // its closest neighbour at the plugin's defaults (spec v11 R5), 2 when the file cannot be read or parsed.
 
+#include "HomLayoutMath.h"
 #include "HomStyle.h"
-#include "LayoutMath.h"
 #include "SelectionRule.h"
 #include "Settings.h"
 #include "TreeData.h"

@@ -43,7 +43,6 @@ namespace Spells
     std::pair<int, RE::FormID> FindSaved(std::uint32_t a_saved, const std::string& a_school);  // (node, runtime id)
     const TreeData::School* SchoolNamed(const std::string& a_name);
     std::string NodeName(int a_index);
-    std::string SchoolOf(const RE::SpellItem* a_spell);  // the costliest effect's magic skill as a tree school key
 
     // ---- HoM state ----
 
