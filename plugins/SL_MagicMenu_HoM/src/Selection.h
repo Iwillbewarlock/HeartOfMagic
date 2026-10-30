@@ -95,6 +95,15 @@ namespace Selection
         return StaleKeyPick(a_pick.byKey, a_pickShown, a_shown) ? Pick{} : a_pick;
     }
 
+    /// I1 re-review B: a draw settles the centre, the school and notInTree only while no clicked node is held (a_pick after
+    /// PickForShown). A clicked node stays the tree's focus ("the tree follows what is clicked") until the frame decides by
+    /// DropPick / OwnRequest - a form change with no seq change (a tree card leaving for a click on a node whose name HoM hides)
+    /// never reaches the frame's WatchSelection, so a draw that moved the centre there would leave it on the list's spell
+    constexpr bool DrawSettlesView(Pick a_pick)
+    {
+        return a_pick.node < 0 || a_pick.byKey;
+    }
+
     /// I1: the node the tree centres on for the card's spell a_shown (0 = not a spell): the picked node when it is that spell's
     /// (a_pickedForm, its game form: the add-on's own show request for a clicked node - a "_dup_" node's twin could push it out of
     /// the window), else a_primary (the spell's non-dup node, -1 = none). A list change that was not ours dropped the pick first

@@ -2376,7 +2376,7 @@ namespace Preview
         {
             if (std::exchange(g_alphaPass.off, true)) return;
             ReleaseScratch();
-            logger::warn("Preview: A alpha restore off for the rest of the session - {}; the over-pass draws as build 11 (the art raises the "
+            logger::warn("Preview: A alpha restore off for the rest of the session - {}; the over-pass draws without the alpha restore (the art raises the "
                          "panel's alpha: the dark cloud can show)",
                 a_why);
             FlushLog();
@@ -2561,7 +2561,7 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
             if (!Settings::Get().keepPanelAlpha || g_alphaPass.off || REL::Module::IsVR()) return;
             ++g_state.clip.restoreSkipped;
             if (std::exchange(g_state.clip.restoreSkipLogged, true)) return;
-            logger::info("Preview: A alpha restore skipped at PostDisplay {} - {}; that over-pass draws as build 11 (later such frames counted only)",
+            logger::info("Preview: A alpha restore skipped at PostDisplay {} - {}; that over-pass draws without the alpha restore (later such frames counted only)",
                 g_state.clip.frame, a_why);
         }
 
@@ -2572,7 +2572,7 @@ float4 PSMain(float4 position : SV_Position) : SV_Target
             if (!Settings::Get().keepPanelAlpha || g_alphaPass.off || REL::Module::IsVR()) return;
             ++g_state.clip.restoreNoTarget;
             if (std::exchange(g_state.clip.restoreNoTargetLogged, true)) return;
-            logger::info("Preview: A alpha restore: no target to save at PostDisplay {} - {}; that over-pass draws as build 11 (counted apart "
+            logger::info("Preview: A alpha restore: no target to save at PostDisplay {} - {}; that over-pass draws without the alpha restore (counted apart "
                          "from the skips; later such frames counted only)",
                 g_state.clip.frame, a_why);
         }

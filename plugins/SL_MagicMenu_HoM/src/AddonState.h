@@ -182,10 +182,12 @@ namespace HomAddon
     /// the tree), the school (Selection::SchoolFor) and notInTree. One rule for the tree's frame (WatchSelection, after its own drop of
     /// the pick by Context's seq and source) and the draws (SettleShownForDraw), so the frame finds what the draws were made with.
     /// Returns the spell's tree node (-1 = none; it may have no x/y, then the centre stays or is the school's default)
-    int SettleShown(RE::FormID a_shown, const Spells::Snapshot& a_snapshot);
+    /// a_fromDraw: called from a draw (SettleShownForDraw), which leaves the view to a held clicked node (Selection::DrawSettlesView)
+    int SettleShown(RE::FormID a_shown, const Spells::Snapshot& a_snapshot, bool a_fromDraw = false);
 
-    /// I1: every drawSelection callback first: a_shown not settled yet (Selection::SettleDue) is settled before the block is drawn.
-    /// Marks nothing dirty: the host draws all three blocks for the new form in this same pass (one tabs mask for all three)
+    /// I1: every drawSelection callback first: a_shown not settled yet (Selection::SettleDue) is settled before the block is drawn -
+    /// only a stale key pick dropped while a clicked node is held (Selection::DrawSettlesView, re-review B). Marks nothing dirty:
+    /// the host draws all three blocks for the new form in this same pass (one tabs mask for all three)
     void SettleShownForDraw(RE::FormID a_shown);
 
     /// The key pick (bug G1): the node the U key picked, -1 when none

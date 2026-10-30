@@ -847,7 +847,7 @@ namespace Widget
             if (!found) {
                 if (--g_menu.selInstallLeft > 0) return;
                 g_menu.selInstallDone = true;
-                logger::warn("Widget: selection wrap NOT installed - no {}.{} after {} frames; the windows follow the list highlight (build 11, "
+                logger::warn("Widget: selection wrap NOT installed - no {}.{} after {} frames; the windows follow the list highlight (no selection wrap, "
                              "spec v12 G3)", kListsPath, kSelectionChangeName, kSelectionInstallFrames);
                 return;
             }
@@ -876,7 +876,7 @@ namespace Widget
                     if (auxOn) CallListener(a_movie, itemList, "removeEventListener", "itemPressAux", listener, "onPressAux");
                     lists.SetMember(kSelectionChangeName, current);
                     logger::warn("Widget: selection wrap NOT installed (itemPress listener {}, itemPressAux listener {}, wrap {}); the windows follow "
-                                 "the list highlight (build 11, spec v12 G3)",
+                                 "the list highlight (no selection wrap, spec v12 G3)",
                         pressOn ? "on" : "failed", auxOn ? "on" : "failed", auxOn ? "failed" : "not tried");
                     return;
                 }

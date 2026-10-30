@@ -162,12 +162,13 @@ namespace HomAddon
         g_menu.dirty = true;
     }
 
-    int SettleShown(RE::FormID a_shown, const Spells::Snapshot& a_snapshot)
+    int SettleShown(RE::FormID a_shown, const Spells::Snapshot& a_snapshot, bool a_fromDraw)
     {
         const auto pick = Selection::PickForShown({ g_menu.selected, g_menu.selectedByKey }, g_menu.pickShown, a_shown);
         g_menu.selected = pick.node;
         g_menu.selectedByKey = pick.byKey;
         g_menu.settledShown = a_shown;
+        if (a_fromDraw && !Selection::DrawSettlesView(pick)) return pick.node;  // re-review B: the clicked node keeps the tree
         auto* form = a_shown ? RE::TESForm::LookupByID(a_shown) : nullptr;
         auto* spell = form ? form->As<RE::SpellItem>() : nullptr;
         const RE::FormID id = spell ? spell->GetFormID() : 0;
@@ -189,7 +190,7 @@ namespace HomAddon
     {
         if (!Selection::SettleDue(g_menu.settledShown, a_shown)) return;
         const bool dirty = g_menu.dirty;
-        SettleShown(a_shown, *Spells::Current());
+        SettleShown(a_shown, *Spells::Current(), true);
         g_menu.dirty = dirty;
     }
 

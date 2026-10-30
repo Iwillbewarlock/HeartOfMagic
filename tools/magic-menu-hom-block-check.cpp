@@ -277,8 +277,8 @@ namespace
 
     // Final review I1: the selection state a new card form settles in its first draw (Selection.h SettleDue, PickForShown,
     // CentreNodeFor, SchoolFor), run here as AddonState.cpp's SettleShown / SettleShownForDraw and Frame.cpp's WatchSelection run
-    // them. A made-up tree: node 0 is spell 100 (Destruction), node 1 spell 200 (Restoration), node 2 spell 100's "_dup_" twin;
-    // spell 300 (Illusion) has no node
+    // them. A made-up tree: node 0 is spell 100 (Destruction), node 1 spell 200 (Restoration), node 2 spell 100's "_dup_" twin,
+    // node 3 spell 400 (Alteration); spell 300 (Illusion) has no node
     struct SettleSim
     {
         std::optional<std::uint32_t> settled;
@@ -290,38 +290,40 @@ namespace
         int settles = 0;
     };
 
-    constexpr std::uint32_t kSpellA = 0x100, kSpellB = 0x200, kSpellOff = 0x300;
+    constexpr std::uint32_t kSpellA = 0x100, kSpellB = 0x200, kSpellOff = 0x300, kSpellC = 0x400;
 
     std::uint32_t SimForm(int a_node)
     {
-        return a_node == 1 ? kSpellB : a_node == 0 || a_node == 2 ? kSpellA : 0;
+        return a_node == 1 ? kSpellB : a_node == 0 || a_node == 2 ? kSpellA : a_node == 3 ? kSpellC : 0;
     }
 
     int SimPrimary(std::uint32_t a_form)
     {
-        return a_form == kSpellA ? 0 : a_form == kSpellB ? 1 : -1;
+        return a_form == kSpellA ? 0 : a_form == kSpellB ? 1 : a_form == kSpellC ? 3 : -1;
     }
 
     std::string SimSchool(std::uint32_t a_form)
     {
-        return a_form == kSpellB ? "Restoration" : a_form == kSpellOff ? "Illusion" : a_form ? "Destruction" : "";
+        return a_form == kSpellB ? "Restoration" : a_form == kSpellOff ? "Illusion" : a_form == kSpellC ? "Alteration" : a_form ? "Destruction" : "";
     }
 
-    void SimSettle(SettleSim& a_sim, std::uint32_t a_shown, std::string_view a_tabSchool)
+    // AddonState.cpp SettleShown's steps; a_fromDraw as SettleShownForDraw passes it
+    void SimSettle(SettleSim& a_sim, std::uint32_t a_shown, std::string_view a_tabSchool, bool a_fromDraw)
     {
         a_sim.pick = Selection::PickForShown(a_sim.pick, a_sim.pickShown, a_shown);
         a_sim.settled = a_shown;
+        ++a_sim.settles;
+        if (a_fromDraw && !Selection::DrawSettlesView(a_sim.pick)) return;
         const int node = Selection::CentreNodeFor(a_sim.pick.node, SimForm(a_sim.pick.node), a_shown, SimPrimary(a_shown));
         const std::string nodeSchool = node >= 0 ? SimSchool(SimForm(node)) : std::string{};
         a_sim.school = std::string(Selection::SchoolFor(a_tabSchool, node, nodeSchool, SimSchool(a_shown)));
         a_sim.notInTree = a_shown != 0 && node < 0;
         if (node >= 0) a_sim.centre = node;
-        ++a_sim.settles;
     }
 
     void SimDraw(SettleSim& a_sim, std::uint32_t a_shown, std::string_view a_tabSchool = "")
     {
-        if (Selection::SettleDue(a_sim.settled, a_shown)) SimSettle(a_sim, a_shown, a_tabSchool);
+        if (Selection::SettleDue(a_sim.settled, a_shown)) SimSettle(a_sim, a_shown, a_tabSchool, true);
     }
 
     // The tree's frame after a seq change: drop (DropPick), then the same settle; true when it would draw the blocks again
@@ -332,7 +334,7 @@ namespace
         const int centreBefore = a_sim.centre;
         const auto schoolBefore = a_sim.school;
         a_sim.pick = Selection::PickAfterFrame(a_sim.pick, a_drop, -1);
-        SimSettle(a_sim, a_shown, "");
+        SimSettle(a_sim, a_shown, "", false);
         return a_sim.pick != pickBefore || a_sim.notInTree != notInTreeBefore || a_sim.centre != centreBefore || a_sim.school != schoolBefore;
     }
 
@@ -379,6 +381,7 @@ namespace
             SimDraw(sim, kSpellB);
             sim.pick = { 2, false };  // our tree click on spell 100's dup twin; its show request (9) is served next frame
             sim.centre = 2;
+            sim.school = "Destruction";  // OnNodeClicked: the node's school (no school tab)
             SimDraw(sim, kSpellA);
             Expect(sim.pick == Pick{ 2, false } && sim.centre == 2, "our own request's clicked node: kept in the draw, the tree stays on it");
             Expect(!SimFrame(sim, kSpellA, Selection::DropPick(3, 4, Source::kAddon, 9, 9)),
@@ -389,9 +392,27 @@ namespace
             SimDraw(sim, kSpellB);
             sim.pick = { 1, false };  // a clicked node of 200, then the player picks 100 in the list
             SimDraw(sim, kSpellA);
-            Expect(sim.pick == Pick{ 1, false } && sim.centre == 0, "a clicked node, then the player's list: the draw centres on 100 but keeps the pick");
+            Expect(sim.pick == Pick{ 1, false } && sim.centre == 1, "a clicked node, then the player's list: the draw keeps the pick and its centre");
             Expect(SimFrame(sim, kSpellA, Selection::DropPick(3, 4, Source::kList, 9, 9)),
                 "the frame drops it (only it can tell the player's change from ours): one more redraw, the known rest of I1");
+            Expect(sim.centre == 0 && sim.pick == Pick{}, "and the frame centres on 100");
+        }
+        {
+            // re-review B: a tree card for 400 is up; a click on node 1 (its name hidden by HoM, not in the list) - the host's served
+            // request finds no row, the tree card leaves and the card shows the list's 100: no seq change, so no WatchSelection
+            SettleSim sim;
+            SimDraw(sim, kSpellC);
+            sim.pick = { 1, false };  // OnNodeClicked: selected, centre and school on node 1
+            sim.centre = 1;
+            sim.school = "Restoration";
+            SimDraw(sim, kSpellA);
+            Expect(sim.pick == Pick{ 1, false } && sim.centre == 1 && sim.school == "Restoration",
+                Text("tree card 400, hidden-name click on node 1, the card back to 100 with no seq change: centre stays %d, the pick kept, the "
+                     "view not settled for 100 (\"the tree follows what is clicked\")",
+                    sim.centre));
+            Expect(sim.settles == 2 && !Selection::SettleDue(sim.settled, kSpellA), "the form counts as settled: the next draws of 100 leave it");
+            Expect(Selection::DrawSettlesView({ -1, false }) && Selection::DrawSettlesView({ 4, true }) && !Selection::DrawSettlesView({ 4, false }),
+                "DrawSettlesView: no pick or a key pick - the draw settles the view; a clicked node - it does not");
         }
         {
             SettleSim sim;

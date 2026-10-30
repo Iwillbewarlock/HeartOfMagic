@@ -77,8 +77,8 @@ namespace HomAddon
         // a new selection even for the same spell. Bug G1: it drops the key pick and a clicked node, unless the change was the
         // add-on's own served show request (Selection::DropPick). Final review I1: the rest is SettleShown, which the first draw for
         // the new form already ran (the host draws before this frame) - run again here it changes nothing, so no second redraw. What
-        // only this frame can settle: a clicked node dropped by a player's list change (the draw cannot tell it from our own
-        // request) - that one change still redraws the blocks once more
+        // only this frame can settle: a list change while a clicked node is held (the draw leaves the view to it - re-review B - and
+        // cannot tell a player's change from our own request) - that one change still redraws the blocks once more
         void WatchSelection(const BlockApi::Context& a_context, const Spells::Snapshot& a_snapshot)
         {
             auto& menu = Menu();
