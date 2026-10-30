@@ -109,7 +109,7 @@ fine, it has its own fonts).
 | `hud.lackSkill` | You lack the {{school}} skill ... ({{school}}: {{current}}/{{required}}) | `school` is the game's own (translated) skill name |
 | `hud.lackKnowledge`, `hud.alreadyLearned`, `hud.beginGrasp` | the older DEST path | |
 | `hud.studyInCombat`, `hud.studyTrespassing`, `hud.studiedHour`, `hud.studiedHours`, `hud.studyLearned`, `hud.studyForgotten` | Immersive Spell Learning patch (study by the hour) | `who`, `spell`, `hours` |
-| `hud.bookXpInitialized`, `hud.bookXpNoTargets`, `hud.bookXpGranted` | BookXP addon | `xp`, `count` |
+| `hud.bookXpGranted` | BookXP addon | `xp`, `count` |
 | `hud.spellResearchAdded` | Spell Research: {{count}} spells added by Heart of Magic | `count` (after Spell Research's Import, a load or a scan) |
 
 `{{who}}` in the study messages is the English "You" or "I" (ISL's first-person option) and stays English.

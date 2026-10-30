@@ -132,8 +132,6 @@
     "hud.loadOrderChanged": "呪文ツリーの構築後にロードオーダーが変わりました。新しい呪文を含めるには、スキャンタブで再構築してください。",
     "hud.autoBuildHeld": "Heart of Magic のパネルを開くと、呪文ツリーの構築が完了します。",
     "hud.spellsGrafted": "{{count}}個の新しい呪文が呪文ツリーに加わりました",
-    "hud.bookXpInitialized": "[BookXP] 初期化 - 本1冊につき {{xp}} XP",
-    "hud.bookXpNoTargets": "[BookXP] 本を{{count}}冊読んだが、学習目標がない",
     "hud.castPower": "{{spell}} 威力 {{percent}}%",
     "hud.castPowerXP": "{{spell}} 威力 {{percent}}%（+{{xp}} XP）",
     "hud.lackKnowledge": "この魔法を理解する知識が足りない。",

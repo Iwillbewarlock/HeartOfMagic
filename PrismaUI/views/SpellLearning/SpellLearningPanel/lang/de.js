@@ -129,8 +129,6 @@ window._i18nPreload = {
     "hud.loadOrderChanged": "Die Ladereihenfolge hat sich seit der Erstellung des Zauberbaums geändert. Erstelle ihn im Scan-Tab neu, um neue Zauber aufzunehmen.",
     "hud.autoBuildHeld": "Der Zauberbaum wird fertig erstellt, wenn du das Heart-of-Magic-Fenster öffnest.",
     "hud.spellsGrafted": "{{count}} neue Zauber wurden in den Zauberbaum aufgenommen",
-    "hud.bookXpInitialized": "[BookXP] Gestartet - {{xp}} EP pro Buch",
-    "hud.bookXpNoTargets": "[BookXP] {{count}} Buch/Bücher gelesen, aber kein Lernziel gesetzt",
     "hud.castPower": "{{spell}} wirkt mit {{percent}}% Stärke",
     "hud.castPowerXP": "{{spell}} wirkt mit {{percent}}% Stärke (+{{xp}} EP)",
     "hud.lackKnowledge": "Dir fehlt das Wissen, um diese Magie zu begreifen.",

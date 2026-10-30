@@ -11,9 +11,8 @@ Pure SKSE DLL plugin (no ESP) that grants spell learning XP when the player read
    really got after the multipliers and the cap ("7.5", or a range such as "3-15" when spells differ; up to
    1.5.0 it always said 15): in the panel's
    language, and not at all when Settings > XP Alerts is off. With an older Heart of Magic (API v1)
-   it shows the English text itself. The Papyrus version (`SL_BookXP_QuestScript`) gets its text from
-   `SpellLearning.NotificationText` the same way, and shows its English text when that gives "" while
-   `SpellLearning.NotificationsOff()` is false (an older SpellLearning.pex without the natives).
+   it shows the English text itself. (A Papyrus version, `SL_BookXP_QuestScript`, shipped in earlier releases
+   but no plugin ever attached it; it was removed.)
 4. Once per book: the book on screen (`RE::BookMenu::GetTargetForm()`) gives XP once. A book joins the list when
    at least one spell got XP from it (read with no learning target it can give XP later); spell tomes are skipped.
    The base forms are kept in the SKSE co-save (unique id `SLBX`, record `READ` v1). A save without that record
@@ -49,17 +48,11 @@ SL_BookXP.dll                              SpellLearning.dll
 ## Files
 
 ```
-plugins/addons/BookXP/
+plugins/BookXP/
 ├── CMakeLists.txt         # Build config (uses add_commonlibsse_plugin)
 ├── src/
-│   ├── PCH.h              # Precompiled header
-│   ├── Main.cpp           # SKSE plugin (BookMenu watcher + API integration)
-│   └── SpellLearningAPI.h # Public API header (copy from HeartOfMagic)
-├── Scripts/Source/
-│   └── SL_BookXP_QuestScript.psc  # Alternative Papyrus implementation
-├── Scripts/
-│   └── SL_BookXP_QuestScript.pex  # Compiled (for ESP-based approach)
-└── README.md
+│   └── Main.cpp           # SKSE plugin (BookMenu watcher + API integration)
+└── README.md              # (PCH.h, Common.h and SpellLearningAPI.h come from plugins/)
 ```
 
 ## Building the DLL

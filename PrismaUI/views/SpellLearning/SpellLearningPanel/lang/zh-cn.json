@@ -132,8 +132,6 @@
     "hud.loadOrderChanged": "构建法术树后加载顺序已改变。请在扫描标签页重新构建以加入新法术。",
     "hud.autoBuildHeld": "打开 Heart of Magic 面板时，法术树将完成构建。",
     "hud.spellsGrafted": "{{count}} 个新法术已加入法术树",
-    "hud.bookXpInitialized": "[BookXP] 已启动 - 每本书 {{xp}} 经验",
-    "hud.bookXpNoTargets": "[BookXP] 读了 {{count}} 本书，但没有设置学习目标",
     "hud.castPower": "{{spell}} 威力 {{percent}}%",
     "hud.castPowerXP": "{{spell}} 威力 {{percent}}%（+{{xp}} 经验）",
     "hud.lackKnowledge": "你缺乏领会这种魔法的知识。",

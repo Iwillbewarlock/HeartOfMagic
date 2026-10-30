@@ -129,8 +129,6 @@ window._i18nPreload = {
     "hud.loadOrderChanged": "Kolejność wczytywania zmieniła się od zbudowania drzewa zaklęć. Zbuduj je ponownie na karcie Skan, aby uwzględnić nowe zaklęcia.",
     "hud.autoBuildHeld": "Drzewo zaklęć zostanie dokończone, gdy otworzysz panel Heart of Magic.",
     "hud.spellsGrafted": "Do drzewa zaklęć dodano nowe zaklęcia: {{count}}",
-    "hud.bookXpInitialized": "[BookXP] Uruchomiono - {{xp}} PD za książkę",
-    "hud.bookXpNoTargets": "[BookXP] Przeczytano książki: {{count}}, ale brak celów nauki",
     "hud.castPower": "{{spell}} działa z mocą {{percent}}%",
     "hud.castPowerXP": "{{spell}} działa z mocą {{percent}}% (+{{xp}} PD)",
     "hud.lackKnowledge": "Brakuje ci wiedzy, by pojąć tę magię.",

@@ -17,7 +17,6 @@
     .\DeployDev.ps1
     .\DeployDev.ps1 -PanelOnly
     .\DeployDev.ps1 -WithISLPatch # also the ISL patch's scripts (otherwise only if the install has them)
-    .\DeployDev.ps1 -WithBookXP   # also the BookXP script (otherwise only if the install has BookXP)
     .\DeployDev.ps1 -NoScripts    # plugin and panel without the Papyrus scripts (left as they are)
     .\DeployDev.ps1 -WithSelfTest # also selftest.json: the 1.6 environment self-test runs in game
                                   # (docs/ENVIRONMENT.md); any deploy without the switch removes it
@@ -35,7 +34,6 @@ param(
     [string]$ModPath = 'D:\TAKEALOOK\mods\HeartOfMagic-Librarian-Dev',
     [switch]$PanelOnly,
     [switch]$WithISLPatch,
-    [switch]$WithBookXP,
     [switch]$NoScripts,
     [switch]$WithSelfTest,
     [switch]$NoAddons
@@ -100,9 +98,8 @@ if ($addonFiles.Count -eq 0) { throw "No design add-on files under $addonsSrc - 
 
 # The compiled Papyrus scripts (BuildRelease.ps1 puts them in build\Scripts\output),
 # laid out as the release has them (plugins/cmake/Papyrus.cmake, Distribution.cmake):
-# the core ones in Scripts\ always; the BookXP script (in the release's Scripts\ too,
-# but only of use with SL_BookXP.dll) and the ISL patch's three (optional\ISLPatch, a
-# FOMOD option) only when the install already has that part or the switch asks for it.
+# the core ones in Scripts\ always; the ISL patch's three (optional\ISLPatch, a FOMOD
+# option) only when the install already has them or the switch asks for them.
 # Each .psc goes to Scripts\Source next to its .pex, as in the release.
 $deployScripts = -not $PanelOnly -and -not $NoScripts
 $pexSrc = Join-Path $repo 'build\Scripts\output'
@@ -117,9 +114,6 @@ if ($deployScripts) {
     # Mirrors PAPYRUS_SPELLLEARNING_SOURCES / PAPYRUS_ISL_SOURCES in plugins/cmake/Papyrus.cmake
     $scripts = @('DEST_FormExt', 'SpellLearning', 'SpellLearning_DEST', 'SpellLearning_DEST_Handler',
                  'SpellLearning_ISL', 'SpellLearning_ISL_Handler')
-    $hasBookXP = (Test-Path (Join-Path $ModPath 'SKSE\Plugins\SL_BookXP.dll')) -or
-                 (Test-Path (Join-Path $scriptsDst 'SL_BookXP_QuestScript.pex'))
-    if ($WithBookXP -or $hasBookXP) { $scripts += 'SL_BookXP_QuestScript' }
     if ($WithISLPatch -or (Test-Path (Join-Path $scriptsDst 'DEST_ISL_PlayerSpellLearningScript.pex'))) {
         $scripts += @('DEST_AliasExt', 'DEST_ISL_PlayerSpellLearningScript', 'DEST_UIExt')
     }

@@ -174,6 +174,9 @@
 
 - The Require ALL toggle under Require Prereqs on the Spell Tomes page. It had no effect: the setting was
   saved but nothing read it. A config.json that still has `requireAllPrereqs` loads as before; the key is ignored.
+- The Papyrus script `SL_BookXP_QuestScript` (an old alternative to Book Reading XP). It came in `Scripts\`, but
+  no plugin ever attached it, so it never ran; Book Reading XP is the `SL_BookXP.dll` it always was. Its two
+  messages ("Initialized", "no learning targets") left the translations too.
 
 ## Heart of Magic Librarian 1.6.0
 

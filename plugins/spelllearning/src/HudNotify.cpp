@@ -91,11 +91,11 @@ namespace HudNotify
         // How XP and power grow: casting a weakened spell, a power step, studying a
         // tome (the hook, the ISL patch's hours), book XP. Not learned, mastered,
         // blocked or the Spell Research line - those the player needs to see
-        static constexpr std::array<std::string_view, 11> kXPAlertKeys = {
+        static constexpr std::array<std::string_view, 9> kXPAlertKeys = {
             "hud.castPowerXP", "hud.castPower", "hud.powerIncreased",
             "hud.beginStudy", "hud.review", "hud.beginGrasp",
             "hud.studiedHour", "hud.studiedHours",
-            "hud.bookXpGranted", "hud.bookXpNoTargets", "hud.bookXpInitialized"
+            "hud.bookXpGranted"
         };
         return std::ranges::find(kXPAlertKeys, a_key) != kXPAlertKeys.end();
     }

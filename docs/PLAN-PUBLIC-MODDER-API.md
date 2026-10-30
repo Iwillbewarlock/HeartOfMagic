@@ -317,7 +317,7 @@ string Function NotificationText(string asKey, string asEnglish, string asName1 
 bool Function NotificationsOff() global native
 ```
 
-The ISL patch (`DEST_ISL_PlayerSpellLearningScript`) and `SL_BookXP_QuestScript` show their messages this way.
+The ISL patch (`DEST_ISL_PlayerSpellLearningScript`) shows its messages this way.
 A script that may run with an older `SpellLearning.pex` (the native missing: the call gives "") shows its own
 English text when the result is "" and `NotificationsOff()` is false - a missing `NotificationsOff` reads as
 false too, so an install mix shows the message in English rather than nothing:
