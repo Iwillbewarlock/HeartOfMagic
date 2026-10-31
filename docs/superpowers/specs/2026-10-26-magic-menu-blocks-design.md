@@ -532,7 +532,7 @@ decision): with it a settings tab appears, without it everything works from the 
   (`BlockHeights`), so it is treated like an add-on that is not installed - no place (its place in the layout file kept, no
   gap), no panel, no draw, no frame / key call, no key hint, not in the layout mode.
   - A hidden preview: no box, and the over-pass and the place/fit pass are off for that menu - the game's own pass draws the
-    spell's 3D where the game puts it.
+    spell's 3D where the game puts it; the board is edge-only then (no fill over that 3D).
   - A hidden spell card: neither our card nor a moved SkyUI card - SkyUI's item card stays where SkyUI puts it.
   - Heart of Magic's progress and node cards are driven by the tree block's frame call: with only the tree hidden they get no
     updates (an add-on matter, not the host's).

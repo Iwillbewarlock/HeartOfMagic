@@ -4766,7 +4766,8 @@ namespace Widget
                 return;
             }
             const auto& r = g_menu.board;
-            const bool fill = OwnCard() && Settings::Get().drawPreviewOver && g_postDisplayHooked && !g_menu.irActive;
+            // [Blocks] sHidden: a hidden preview turns the over-pass off (AttachWidget), so the game's own 3D would sit under the fill
+            const bool fill = OwnCard() && Settings::Get().drawPreviewOver && g_postDisplayHooked && !g_menu.irActive && !g_menu.hidden.contains(Layout::kPreview);
             Draw::Call(board, "clear", {});
             Draw::LineStyle(board, kEdgeWidth, kPanelEdge, kBoardEdgeAlpha);
             Draw::Rect(board, r.left, r.top, r.Width(), r.Height(), kPanelFill, fill ? kBoardAlpha : 0.0);
@@ -6447,6 +6448,7 @@ namespace Widget
             SetVisible(widget, Layout::kSpellCard, false);
             logger::info("Widget: info card {}", OwnCard() ? "ours (bOwnCard=1): SkyUI's item card is hidden" :
                                                   g_menu.irActive ? "SkyUI's, left to Inventory Reforged" :
+                                                  SpellCardHidden() ? "none - the spell card is hidden ([Blocks] sHidden): SkyUI's item card stays where SkyUI puts it" :
                                                                     "SkyUI's, moved and fitted (bOwnCard=0)");
             MakeLayoutChrome(movie, widget);  // blocks plan Task 4 (D5): the border handle, the drag overlay, the gear and its reset button
             CalibrateFocusCheck();
