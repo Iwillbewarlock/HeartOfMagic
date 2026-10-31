@@ -235,23 +235,25 @@ namespace Settings
             const auto path = LayoutPath();
             auto read = ReadLayout(path);
             g_fileState = read.file;
-            if (read.file == Layout::FileState::kMissing) {
-                // final review: a save that moved the old file to .bak and then could not move the new one in leaves no file;
-                // the .bak is read then (the state stays kMissing: the next save creates the file, the .bak is left as it is)
-                const auto bak = WithSuffix(path, L".bak");
-                std::error_code bakError;
-                const bool bakThere = std::filesystem::exists(bak, bakError) && !bakError;
-                if (Layout::ReadBackup(read.file, bakThere)) {
-                    auto backup = ReadLayout(bak);
-                    if (backup.state) {
-                        logger::warn("Settings: layout {} not found - read {} instead (a save that lost the file left it there); the layout "
-                                     "mode's next save writes {}",
-                            Shown(path), Shown(bak), Shown(path));
-                        return Layout::Repair(*backup.state, known, fallback);
-                    }
-                    logger::warn("Settings: layout {} not found, and {} {} - the default layout", Shown(path), Shown(bak), backup.why);
-                    return fallback;
+            // final review: a save that lost the file leaves only its .bak; run 3 review: so does a file left empty or garbled
+            // (a power loss mid-write). The .bak is read then; the state stays as read (kMissing: the next save creates the
+            // file; kBroken: it is kept as .bad first), the .bak is left as it is
+            const auto bak = WithSuffix(path, L".bak");
+            std::error_code bakError;
+            const bool bakThere = !read.state && std::filesystem::exists(bak, bakError) && !bakError;
+            const bool missing = read.file == Layout::FileState::kMissing;
+            if (Layout::ReadBackup(read.file, bakThere)) {
+                const auto what = missing ? std::string("not found") : read.why;
+                auto backup = ReadLayout(bak);
+                if (backup.state) {
+                    logger::warn("Settings: layout {} {} - read {} instead; the layout mode's next save writes {}{}", Shown(path), what, Shown(bak),
+                        Shown(path), missing ? "" : " (the unreadable file kept as .bad first)");
+                    return Layout::Repair(*backup.state, known, fallback);
                 }
+                logger::warn("Settings: layout {} {}, and {} {} - the default layout", Shown(path), what, Shown(bak), backup.why);
+                return fallback;
+            }
+            if (missing) {
                 logger::info("Settings: layout {} not found - the default layout", Shown(path));
                 return fallback;
             }

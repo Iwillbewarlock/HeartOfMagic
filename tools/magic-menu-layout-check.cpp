@@ -852,7 +852,9 @@ namespace
         Expect(!Layout::KeepTmp(FailedPut::kFileThere, false) && !Layout::KeepTmp(FailedPut::kNoFile, false), "otherwise the .tmp is removed");
         Expect(Layout::ReadBackup(FileState::kMissing, true), "load: no file but a .bak - the .bak is read");
         Expect(!Layout::ReadBackup(FileState::kMissing, false), "load: no file and no .bak - the default");
-        Expect(!Layout::ReadBackup(FileState::kRead, true) && !Layout::ReadBackup(FileState::kBroken, true) && !Layout::ReadBackup(FileState::kNewer, true),
+        Expect(Layout::ReadBackup(FileState::kBroken, true) && !Layout::ReadBackup(FileState::kBroken, false),
+            "load: the file unreadable (empty or garbled after a power loss) - the .bak is read when there, else the default");
+        Expect(!Layout::ReadBackup(FileState::kRead, true) && !Layout::ReadBackup(FileState::kNewer, true),
             "load: a file there (read, broken or newer) - the .bak is never read instead");
         // the next save after a load from .bak: the file is missing, so it is created (move only), the .bak left alone
         Expect(plan(FileState::kMissing, false, false) == SavePlan{ false, false, false }, "after a .bak load: the next save moves the .tmp in");

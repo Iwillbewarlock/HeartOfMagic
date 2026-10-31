@@ -248,6 +248,7 @@ namespace KeyHints
                 button.SetMember("_visible", false);
                 button.SetMember("label", "");  // through CLIK's setter, as clearButtons
                 button.SetMember("_x", 0.0);
+                button.SetMember("_y", 0.0);  // Untarnished UI's rows set _y too (its doUpdateButtons); clearButtons leaves it
             }
             a_panel.SetMember("_buttonCount", static_cast<double>(g_menu.first));
             g_menu.ours.clear();

@@ -699,6 +699,6 @@ namespace Layout
 
     bool ReadBackup(FileState a_file, bool a_bakThere)
     {
-        return a_file == FileState::kMissing && a_bakThere;
+        return (a_file == FileState::kMissing || a_file == FileState::kBroken) && a_bakThere;
     }
 }

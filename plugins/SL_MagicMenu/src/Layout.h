@@ -306,8 +306,9 @@ namespace Layout
     /// then holds the edited layout and .bak the old one, and the log names both
     bool KeepTmp(FailedPut a_put, bool a_restored);
 
-    /// LoadLayout reads <file>.bak instead: the layout file is missing and a .bak is there (a save that lost the file between
-    /// its replace and its move; final review)
+    /// LoadLayout reads <file>.bak instead: the layout file is missing (a save that lost the file between its replace and its
+    /// move; final review) or unreadable (empty or garbled after a power loss; run 3 review) and a .bak is there. Never for a
+    /// newer build's file (kept as it is) or a read one
     bool ReadBackup(FileState a_file, bool a_bakThere);
 
     // -------------------------------------------------------------------------

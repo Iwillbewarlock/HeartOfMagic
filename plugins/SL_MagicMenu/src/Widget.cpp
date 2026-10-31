@@ -945,9 +945,11 @@ namespace Widget
             // G1: marked BEFORE the setter - its selectionChange (SELECT_MOUSE, BasicList.as:106-108) comes inside SetMember
             const auto callsBefore = g_menu.originalCalls;
             g_menu.selMark = SelectionRule::Mark{ a_source, pick.index };
-            Preview::OnOwnListSet();  // as PassToOriginal: the setter's selectionChange reaches SkyUI's UpdateItem3D
             list->root.SetMember("selectedIndex", static_cast<double>(pick.index));
             g_menu.selMark.reset();
+            // as PassToOriginal: only a setter whose selectionChange reached the original (SkyUI's UpdateItem3D follows); a
+            // same-row no-op is not one (its PassToOriginal below counts itself)
+            if (g_menu.originalCalls != callsBefore) Preview::OnOwnListSet();
             RE::GFxValue now;
             pick.took = list->root.GetMember("selectedIndex", &now) && now.IsNumber() &&
                         static_cast<int>(now.GetNumber()) == pick.index;
