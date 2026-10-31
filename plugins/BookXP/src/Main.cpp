@@ -18,7 +18,10 @@
 #include <unordered_set>
 #include <vector>
 
-static constexpr float XP_PER_BOOK = 15.0f;
+// A skill book of a magic school gives that school's learning target the larger amount; any other book a little to
+// every target (user 2026-10-31: books with nothing to do with magic gave the full 15 before)
+static constexpr float XP_PER_MAGIC_SKILL_BOOK = 45.0f;
+static constexpr float XP_PER_OTHER_BOOK = 5.0f;
 static constexpr const char* SOURCE_ID = "book_reading";
 static constexpr const char* SOURCE_DISPLAY = "Book Reading";
 
@@ -185,31 +188,55 @@ public:
             return RE::BSEventNotifyControl::kContinue;
         }
 
-        // The book on screen; when it cannot be told, XP is given as before the once-per-book check rather than none
-        auto* book = RE::BookMenu::GetTargetForm();
+        HandleBook(RE::BookMenu::GetTargetForm());
+        FlushLog();  // info lines wait in the buffer until a save or load otherwise, and quitting loses them
+        return RE::BSEventNotifyControl::kContinue;
+    }
+
+private:
+    BookMenuWatcher() = default;
+
+    // The school whose skill this book raises, nullptr for any other book
+    static const char* MagicSchoolTaught(const RE::TESObjectBOOK* a_book)
+    {
+        if (!a_book->TeachesSkill()) return nullptr;
+        switch (a_book->GetSkill()) {
+            case RE::ActorValue::kAlteration: return "Alteration";
+            case RE::ActorValue::kConjuration: return "Conjuration";
+            case RE::ActorValue::kDestruction: return "Destruction";
+            case RE::ActorValue::kIllusion: return "Illusion";
+            case RE::ActorValue::kRestoration: return "Restoration";
+            default: return nullptr;
+        }
+    }
+
+    // The book on screen; when it cannot be told, XP is given as for an ordinary book, without the once-per-book check
+    static void HandleBook(RE::TESObjectBOOK* book)
+    {
+        const char* school = nullptr;
         if (book) {
             const char* name = book->GetName();
             const auto id = book->GetFormID();
             // a spell tome's XP is Heart of Magic's own (its tome hook), not a read book's
             if (book->TeachesSpell()) {
                 logger::info("SL_BookXP: BookMenu opened - {:08X} '{}' is a spell tome, no book XP", id, name ? name : "");
-                return RE::BSEventNotifyControl::kContinue;
+                return;
             }
             if (ReadBooks::GaveXP(id)) {
                 logger::info("SL_BookXP: BookMenu opened - {:08X} '{}' gave XP before, none now", id, name ? name : "");
-                return RE::BSEventNotifyControl::kContinue;
+                return;
             }
-            logger::info("SL_BookXP: BookMenu opened - {:08X} '{}' has not given XP yet", id, name ? name : "");
+            school = MagicSchoolTaught(book);
+            logger::info("SL_BookXP: BookMenu opened - {:08X} '{}' has not given XP yet ({})", id, name ? name : "",
+                school ? fmt::format("a {} skill book", school) : std::string("not a magic skill book"));
         } else {
             logger::warn("SL_BookXP: BookMenu opened but the book is not known - XP given without the once-per-book check");
         }
 
-        if (GrantXPViaAPI() > 0 && book) ReadBooks::Remember(book->GetFormID());
-        return RE::BSEventNotifyControl::kContinue;
+        // a book joins the list only when a spell got XP from it: read with no fitting learning target it can give it later
+        const int granted = school ? GrantXPViaAPI(XP_PER_MAGIC_SKILL_BOOK, school) : GrantXPViaAPI(XP_PER_OTHER_BOOK, nullptr);
+        if (granted > 0 && book) ReadBooks::Remember(book->GetFormID());
     }
-
-private:
-    BookMenuWatcher() = default;
 
     // Whole numbers, or one decimal below 10 so a small grant does not read as 0 or 1 ("7.5", "3")
     static std::string FormatXP(float xp)
@@ -221,10 +248,11 @@ private:
         return text;
     }
 
-    // Full API path - query targets and grant XP with source tracking; returns how many spells got XP
-    static int GrantXPViaAPI()
+    // Full API path - query targets and grant XP with source tracking; returns how many spells got XP.
+    // a_onlySchool: that school's target alone (a magic skill book); nullptr: every school's target
+    static int GrantXPViaAPI(float a_xp, const char* a_onlySchool)
     {
-        logger::info("SL_BookXP: Granting XP via API");
+        logger::info("SL_BookXP: Granting {:.0f} XP via API to {}", a_xp, a_onlySchool ? a_onlySchool : "every learning target");
 
         const char* schools[] = {
             "Alteration", "Conjuration", "Destruction", "Illusion", "Restoration"
@@ -234,10 +262,11 @@ private:
         float leastGranted = 0.0f;
         float mostGranted = 0.0f;
         for (const char* school : schools) {
+            if (a_onlySchool && std::string_view(school) != a_onlySchool) continue;
             uint32_t targetId = g_api->GetLearningTarget(school);
             if (targetId != 0) {
                 logger::info("SL_BookXP: Found learning target {:08X} for {}", targetId, school);
-                float actual = g_api->AddSourcedXP(targetId, XP_PER_BOOK, SOURCE_ID);
+                float actual = g_api->AddSourcedXP(targetId, a_xp, SOURCE_ID);
                 if (actual > 0.0f) {
                     logger::info("SL_BookXP: Granted {:.1f} XP to {:08X} ({})",
                         actual, targetId, school);
@@ -253,7 +282,7 @@ private:
 
         if (granted > 0) {
             // The XP the spells really got - after the Overall XP Multiplier, this source's
-            // Multiplier and Cap - not XP_PER_BOOK, which the corner showed before 1.5.1
+            // Multiplier and Cap - not the base amount, which the corner showed before 1.5.1
             auto xpText = FormatXP(leastGranted);
             if (FormatXP(mostGranted) != xpText) {
                 xpText += "-" + FormatXP(mostGranted);

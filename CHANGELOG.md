@@ -44,6 +44,12 @@
 
 ### Changed
 
+- **Book Reading XP favours books about magic.** A skill book of a magic school (the books that raise Alteration,
+  Conjuration, Destruction, Illusion or Restoration) gives 45 XP, to the spell you are learning in that school only.
+  Any other book or note gives 5 XP to every spell you are learning (all books gave 15 before). A skill book read
+  while you learn nothing in its school gives nothing then and can still give its XP later. Settings > Book Reading's
+  multiplier and cap still apply. Not yet tested in game.
+
 - **The main mod ships one design, Skald, now the default; the other five are add-ons.** Classic, Modern Dark,
   Arcane, Chalkboard and Night Grimoire are each a separate archive (`HeartOfMagic-Design-<name>_<version>.zip`,
   installed like any mod) that adds its design file to `SKSE/Plugins/SpellLearning/presets/design/` and its

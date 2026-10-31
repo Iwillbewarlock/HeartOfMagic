@@ -6,7 +6,9 @@ Pure SKSE DLL plugin (no ESP) that grants spell learning XP when the player read
 
 1. At `kPostPostLoad`: receives `ISpellLearningAPI*` from SpellLearning's `kMessageType_APIReady` broadcast (SKSE messaging)
 2. On `kDataLoaded`: Registers "Book Reading" as a custom XP source (creates UI controls)
-3. On `BookMenu` open: Queries all active learning targets via API, grants XP to each, and shows
+3. On `BookMenu` open: a skill book of a magic school (`TESObjectBOOK::TeachesSkill()` + `GetSkill()` one of the
+   five schools) gives 45 XP to that school's learning target only; any other book gives 5 XP to every active
+   learning target. It grants through the API and shows
    "+XP to N spell(s)" with `api->ShowNotification("hud.bookXpGranted", ...)` (API v2) - the XP the spells
    really got after the multipliers and the cap ("7.5", or a range such as "3-15" when spells differ; up to
    1.5.0 it always said 15): in the panel's
@@ -17,7 +19,8 @@ Pure SKSE DLL plugin (no ESP) that grants spell learning XP when the player read
    at least one spell got XP from it (read with no learning target it can give XP later); spell tomes are skipped.
    The base forms are kept in the SKSE co-save (unique id `SLBX`, record `READ` v1). A save without that record
    (from before this) takes the books the game marks read (`TESObjectBOOK::IsRead()`) at its load. When the book
-   on screen cannot be told, XP is given without the check (logged as a warning).
+   on screen cannot be told, XP is given as for an ordinary book, without the check (logged as a warning). The log
+   is written out after each book (`FlushLog`), so a game quit right after reading still leaves the lines.
 
 ## C++ API Demonstrated
 
