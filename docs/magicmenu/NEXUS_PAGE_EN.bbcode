@@ -1,57 +1,69 @@
-[size=4][b]What It Does[/b][/size]
-Magic Menu Rewrite (version 1.0.0) by Iwillbewarlock is an SKSE plugin for Skyrim Special Edition and Anniversary Edition (SE and AE runtimes; not built for VR). It redraws SkyUI's magic menu around the spell list, while the spell list itself stays SkyUI's.
+[size=4][b]Overview[/b][/size]
+Magic Menu Rewrite is an SKSE plugin that reworks the SkyUI magic menu.
+It keeps the SkyUI spell list as is, and rebuilds the space next to it using blocks.
+Works on Skyrim SE and AE. VR is not supported.
 
-[size=4][b]Blocks[/b][/size]
-In the core plugin (MagicMenuRewrite.dll), each panel is a block in two columns, and each column scrolls on its own:
+[size=4][b]Features[/b][/size]
 [list]
-[*] [b]3D Preview Box:[/b] The selected spell's 3D model is drawn in its own box beside the list.
-[*] [b]Spell Card:[/b] Shows school, skill level, magicka cost, cast type, duration, and description.
-[*] [b]Edit Mode:[/b] K switches between view mode and edit mode; in edit mode Backspace resets the layout. In edit mode, the player drags blocks between and within the columns; places are saved for all characters (MagicMenuRewrite_Layout.json).
-[*] [b]Key Hints:[/b] The menu's own keys appear in SkyUI's bottom key-hint row (K for edit mode; in edit mode, Backspace: reset layout; with the Heart of Magic block, also U for next spell and G to set learning target).
-[*] [b]Add-on Blocks:[/b] Other SKSE plugins can add their own blocks to the menu (Block API). Optional blocks are chosen in the installer (FOMOD).
+[*]3D Preview: Shows the 3D model of the selected spell in a box next to the list.
+[*]Spell Card: Shows the school, skill level, magicka cost, cast type, duration, and description.
+[*]Block Layout: Each panel is a block, set in two columns. Each column scrolls on its own. Press K to turn on edit mode and drag blocks to where you want them. Press Backspace in edit mode to return to the default layout. The layout is saved across all characters.
+[*]Hotkey Prompts: Menu hotkeys are shown on the SkyUI bottom bar.
+[*]Add-on Blocks: Other SKSE plugins can add their own blocks to the menu (Block API).
 [/list]
 
-[size=4][b]Heart of Magic Block[/b][/size]
-This optional block (MagicMenuRewrite_HoM.dll) needs Heart of Magic Librarian. Without Heart of Magic installed, this block shows nothing.
+[size=4][b]Heart of Magic Block (Optional)[/b][/size]
+This block is for Heart of Magic Librarian users. You can select it during installation.
+If Heart of Magic is not installed, this block shows nothing.
 [list]
-[*] [b]Spell Tree Window:[/b] Shows the selected spell's place in Heart of Magic's spell tree, with its neighbours, hover tooltips, and click to show a spell (a spell not in the list shows on the card and in the 3D box).
-[*] [b]Learning Progress Card:[/b] Shows the school's learning target and progress, and spells you can learn.
-[*] [b]Node Card:[/b] Shows the clicked or picked spell's state and its prerequisites, and a button to set it as the learning target.
-[*] [b]Keys:[/b] U picks the next learnable spell, and G sets it as the learning target.
+[*]Spell Tree Panel: Shows where the selected spell is on the tree and what spells are around it. Hover to see the description, and click a spell to show it in the card and 3D box. You can also view spells you have not learned yet.
+[*]Learning Progress Card: Shows your learning target and progress for each school, along with spells you can learn right now.
+[*]Node Card: Shows the status and prerequisites of the selected spell, and has a button to set it as your learning target.
+[*]Hotkeys: U jumps to the next spell you can learn, and G sets that spell as your learning target.
 [/list]
+(You can choose which blocks are shown in the SKSE Menu Framework settings menu.)
 
 [size=4][b]Requirements[/b][/size]
 [list]
-[*] SKSE64, Address Library for SKSE Plugins, SkyUI.
-[*] Optional: Heart of Magic Librarian (for the Heart of Magic block).
-[*] Optional: SKSE Menu Framework (for the settings tab; Korean text there needs EnableKorean = true in SKSEMenuFramework.ini).
+[*]SKSE64
+[*]Address Library for SKSE Plugins
+[*]SkyUI
+[/list]
+
+[size=4][b]Optional Mods[/b][/size]
+[list]
+[*]Heart of Magic Librarian: Needed to use the Heart of Magic block.
+[*]SKSE Menu Framework: Needed to use the in-game settings menu. (Note for Korean players: set EnableKorean = true in SKSEMenuFramework.ini to show Korean in the settings menu.)
 [/list]
 
 [size=4][b]Installation[/b][/size]
-Use the FOMOD installer:
-[list]
-[*] [b]Step 1 - Core:[/b] Always installed.
-[*] [b]Step 2 - Add-on blocks:[/b] "Heart of Magic Librarian block" (recommended when Heart of Magic is installed).
-[/list]
+Installing with a mod manager opens the FOMOD installer.
+Step 1: Core files (always installed)
+Step 2: Add-on block - "Heart of Magic Librarian block" (recommended if you use Heart of Magic Librarian)
+
+[size=4][b]Settings and Language[/b][/size]
+Supports English and Korean. The language is selected automatically to match your game language.
+It also shows Korean if you use a Korean patch on an English copy of the game.
+If you have SKSE Menu Framework, you can choose the language and which blocks to show in the in-game settings menu.
+Without it, you can change the same settings in MagicMenuRewrite.ini.
+Settings chosen in the menu are saved separately, so they stay when you update the mod.
 
 [size=4][b]Compatibility[/b][/size]
 [list]
-[*] [b]Inventory Reforged:[/b] the archive includes SKSE/Plugins/InventoryReforged/MagicMenuRewrite.ini, which turns Inventory Reforged's own magic-menu panel off so the two do not share the magic menu. If you set that option yourself in Inventory Reforged, your choice is kept; uninstalling Magic Menu Rewrite brings the panel back.
-[*] [b]UI and Hotkey Mods:[/b] Works with Untarnished UI's bottom bar and STB Hotkey System's key hints (seen in testing).
-[*] [b]Spell Research:[/b] A Spell Research block is a later add-on, not in this release.
+[*]Inventory Reforged: Includes a config file that turns off Inventory Reforged's magic menu panel so both mods do not edit the magic menu at the same time. If you changed this setting yourself in Inventory Reforged, your choice is kept. Uninstalling this mod brings back the Inventory Reforged panel.
+[*]Confirmed working with the Untarnished UI bottom bar and STB Hotkey System hotkey prompts.
 [/list]
+A Spell Research block is planned for a separate release later. It is not included in this version.
 
-[size=4][b]Settings[/b][/size]
-Languages supported are English and Korean, chosen from the game's language automatically (Korean is also chosen on an English game with Korean strings), or set in the INI / settings tab.
-
-An optional settings tab in SKSE Menu Framework sets the language and which blocks are shown. Without SKSE Menu Framework, the same settings are in MagicMenuRewrite.ini. Choices from the tab are kept in MagicMenuRewrite_User.ini, so a mod update does not reset them.
-
-[size=4][b]Credits and License[/b][/size]
-Source: GitHub Iwillbewarlock/HeartOfMagic, tag magic-menu-v1.0.0. License: the mod's own code is MIT; the DLLs contain CommonLibSSE-NG (GPL-3.0 with the Modding and Linking Exceptions), so the DLLs ship as a GPL combined work (THIRD-PARTY-NOTICES.md in the archive).
+[size=4][b]Credits[/b][/size]
 [list]
-[*] [b]LayMovi[/b] - Inventory Reforged: the 3D preview's placement follows the method of Inventory Reforged's item view. Thank you for the permission and the advice.
-[*] [b]DinkelTwinkel[/b] - Heart of Magic (original): four shared headers from Heart of Magic (MIT).
-[*] [b]Thiago099[/b] - SKSE Menu Framework 2 API header (MIT).
-[*] [b]schlangster and the SkyUI team[/b] - SkyUI.
-[*] [b]CommonLibSSE-NG[/b] (alandtse and contributors), spdlog, {fmt}, nlohmann-json, Xbyak, DirectXMath.
+[*]LayMovi (Inventory Reforged): Learned how to position the 3D preview from Inventory Reforged's item preview. Thank you for the permission and advice.
+[*]DinkelTwinkel (original author of Heart of Magic): four shared headers from Heart of Magic (MIT)
+[*]Thiago099: SKSE Menu Framework 2 API header (MIT)
+[*]schlangster and the SkyUI team: SkyUI
+[*]CommonLibSSE-NG (alandtse and contributors), spdlog, {fmt}, nlohmann-json, Xbyak, DirectXMath
 [/list]
+
+[size=4][b]Source and License[/b][/size]
+Source: GitHub Iwillbewarlock/HeartOfMagic (tag magic-menu-v1.0.0)
+This mod's code is under the MIT license. Because the DLL includes CommonLibSSE-NG (GPL-3.0, with the modding and linking exceptions), the DLL is distributed as a GPL combined work. See THIRD-PARTY-NOTICES.md in the archive for details.
