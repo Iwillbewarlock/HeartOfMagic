@@ -142,6 +142,7 @@ window._i18nPreload = {
     "hud.needMore": "You need to master {{count}} more related spells to grasp this tome",
     "hud.needMoreOne": "You need to master 1 more related spell to grasp this tome",
     "hud.powerIncreased": "{{spell}} power increased to {{percent}}%",
+    "hud.presetRenameFailed": "Preset {{name}} could not be renamed. It is kept under its old name.",
     "hud.review": "You review {{spell}}... (no additional insight)",
     "hud.studiedHour": "{{who}} studied {{spell}} for {{hours}} hour.",
     "hud.studiedHours": "{{who}} studied {{spell}} for {{hours}} hours.",

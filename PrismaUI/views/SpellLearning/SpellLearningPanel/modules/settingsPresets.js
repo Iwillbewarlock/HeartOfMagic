@@ -495,15 +495,20 @@ function renameSettingsPreset(oldName, newName) {
         return;
     }
 
-    // Check duplicate, ignoring case: Windows file names do, so "fire" would overwrite
-    // "Fire"'s file. A case-only rename of the preset itself is no clash
-    var clash = _findPresetKeyCaseInsensitive(settingsPresets, newName);
+    // Check duplicate by file: Windows ignores case and the DLL sanitizes the name, so "fire"
+    // or "Fire." would overwrite "Fire"'s file. A case-only rename of the preset itself is no clash.
+    // C++ refuses to replace another preset's file unless told the player confirmed it
+    var clash = _findPresetKeySameFile(settingsPresets, newName);
+    var overwrite = false;
     if (clash && clash !== oldName) {
         if (!confirm(t('settingsPresets.overwriteConfirm', {name: clash}))) {
             updateSettingsPresetsUI();
             return;
         }
         delete settingsPresets[clash];
+        overwrite = true;
+        // The replaced preset is gone: not the active one any more (as its delete does)
+        if (_activeSettingsPreset === clash) _activeSettingsPreset = SETTINGS_PRESET_DEFAULT_NAME;
     }
 
     var preset = settingsPresets[oldName];
@@ -514,7 +519,8 @@ function renameSettingsPreset(oldName, newName) {
     // One call: C++ writes the new file and deletes the old one only once that worked
     // (a DeletePreset then SavePreset lost both when the save was refused or failed)
     if (window.callCpp) {
-        window.callCpp('RenamePreset', JSON.stringify({ type: 'settings', oldName: oldName, newName: newName, data: preset }));
+        window.callCpp('RenamePreset', JSON.stringify({ type: 'settings', oldName: oldName, newName: newName, data: preset,
+            overwrite: overwrite }));
     }
 
     if (_activeSettingsPreset === oldName) {

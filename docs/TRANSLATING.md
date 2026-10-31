@@ -111,6 +111,7 @@ fine, it has its own fonts).
 | `hud.studyInCombat`, `hud.studyTrespassing`, `hud.studiedHour`, `hud.studiedHours`, `hud.studyLearned`, `hud.studyForgotten` | Immersive Spell Learning patch (study by the hour) | `who`, `spell`, `hours` |
 | `hud.bookXpGranted` | BookXP addon | `xp`, `count` |
 | `hud.spellResearchAdded` | Spell Research: {{count}} spells added by Heart of Magic | `count` (after Spell Research's Import, a load or a scan) |
+| `hud.presetRenameFailed` | Preset {{name}} could not be renamed. It is kept under its old name. | `name` = the preset's old name (a rename the DLL could not write, or onto another preset's file) |
 
 `{{who}}` in the study messages is the English "You" or "I" (ISL's first-person option) and stays English.
 Leave it out and write the sentence without a subject ("Cannot study while in combat.") - every shipped

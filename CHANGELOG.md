@@ -104,10 +104,13 @@
 - **Renaming a preset can no longer lose it.** A rename deleted the preset's file first and then saved it under
   the new name; when that save was refused (a name with ".." in it) or could not be written, both files were
   gone. The new file is now written first, and the old one is deleted only after that worked, also a file an
-  older version saved for a non-ASCII name. When the rename fails, the old file stays and the status line says
-  so; the panel's list still shows the new name until it reads the presets again. Renaming to a name that differs
-  from another preset's only in capital letters ("fire" next to "Fire") now asks before replacing it, as the same
-  name did: Windows takes them for one file. Not yet tested in game.
+  older version saved for a non-ASCII name. When the rename fails, the old file stays, and a corner message (and
+  the Scan tab's status line) says so; the panel's list still shows the new name until it reads the presets
+  again. A new name that would land on another preset's file now asks before replacing that preset, as the same
+  name did: one that differs only in capital letters ("fire" next to "Fire": Windows takes them for one file), or
+  one that is saved under the same file name ("Fire." and "Fire", "a/b" and "a_b"; before, renaming "Ice" to
+  "Fire." replaced "Fire" without asking). Without that answer the rename is refused and both presets stay. Not
+  yet tested in game.
 
 - **Book Reading XP comes once per book.** Reading the same book or note again gave XP every time. Now each book or
   note gives XP once; copies of the same book count as one. A book read while no spell is being learned gives

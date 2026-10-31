@@ -445,6 +445,39 @@ function _findPresetKeyCaseInsensitive(presetsObj, name) {
 }
 
 /**
+ * A preset name as the file name the DLL gives it (EncodingUtils::SanitizeFilename: \ / : * ? " < > |
+ * and control characters to _, trailing dots and spaces dropped, empty as _unnamed, a device name such as
+ * CON with a _ in front), lower-cased: Windows file names ignore case. Two names with one key are one file.
+ * @param {string} name
+ * @returns {string}
+ */
+function _presetFileKey(name) {
+    var safe = String(name == null ? '' : name).replace(/[\\\/:*?"<>|\u0000-\u001f]/g, '_');
+    safe = safe.replace(/[. ]+$/, '');
+    if (safe === '') safe = '_unnamed';
+    var stem = safe.toUpperCase().split('.')[0];
+    if (/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/.test(stem)) safe = '_' + safe;
+    return safe.toLowerCase();
+}
+
+/**
+ * The preset key whose file a new name would land on (the same name, another case, or a name the
+ * DLL sanitizes alike: "Fire." and "Fire", "a/b" and "a_b"), or null. A rename onto it replaces it.
+ * @param {Object} presetsObj
+ * @param {string} name
+ * @returns {string|null}
+ */
+function _findPresetKeySameFile(presetsObj, name) {
+    if (!name || !presetsObj) return null;
+    if (presetsObj.hasOwnProperty(name)) return name;
+    var fileKey = _presetFileKey(name);
+    for (var key in presetsObj) {
+        if (presetsObj.hasOwnProperty(key) && _presetFileKey(key) === fileKey) return key;
+    }
+    return null;
+}
+
+/**
  * Callback invoked by C++ OnLoadPresets.
  * Receives JSON: { type: "scanner"|"settings", presets: [{ key, data }, ...] }
  * Dispatches to the appropriate preset module to populate its in-memory store.

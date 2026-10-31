@@ -4,6 +4,7 @@
 #include "uimanager/UIManager.h"
 #include "uimanager/PresetFiles.h"
 #include "EncodingUtils.h"
+#include "HudNotify.h"
 #include "ThreadUtils.h"
 
 #include <optional>
@@ -172,9 +173,11 @@ void UIManager::OnDeletePreset(const char* argument)
 // The panel renamed a preset. It used to send DeletePreset then SavePreset: a new name
 // SavePreset refused, or a write that failed, left neither file. PresetFiles::Rename deletes
 // the old files only once the new one is written. A failure is logged and shown on the
-// panel's status line (UpdateStatus); the panel's list keeps the new name until it reads
-// the presets again (onPresetsLoaded would apply the scanner preset again), the old file
-// still on disk.
+// Scan tab's status line (UpdateStatus) and in a corner message (the Settings tab, where
+// the settings presets are, has no status line); the panel's list keeps the new name until
+// it reads the presets again (onPresetsLoaded would apply the scanner preset again), the
+// old file still on disk. A name whose file is another preset's ("Fire." onto "Fire") is
+// refused unless the panel says the player confirmed replacing it ("overwrite").
 void UIManager::OnRenamePreset(const char* argument)
 {
     if (!argument || strlen(argument) == 0) {
@@ -197,6 +200,8 @@ void UIManager::OnRenamePreset(const char* argument)
                 GetSingleton()->UpdateStatus(std::format(
                     "Error: preset '{}' could not be renamed to '{}' - the old file is kept (see SpellLearning.log)",
                     oldName, newName));
+                HudNotify::Show("hud.presetRenameFailed",
+                    "Preset {{name}} could not be renamed. It is kept under its old name.", { { "name", oldName } });
             };
             const auto safeType = SafePresetPart(type, "RenamePreset");
             const auto safeOld = SafePresetPart(oldName, "RenamePreset");
@@ -204,11 +209,22 @@ void UIManager::OnRenamePreset(const char* argument)
             if (!safeType || !safeOld || !safeNew) return fail();
 
             const auto dir = GetPresetsBasePath() / PathText::FromUtf8(*safeType);
-            std::filesystem::create_directories(dir);
+            std::error_code dirError;
+            std::filesystem::create_directories(dir, dirError);
+            if (dirError) {
+                logger::error("UIManager: RenamePreset - cannot make {}: {}", PathText::Utf8(dir), dirError.message());
+                return fail();
+            }
+            const bool overwrite = args.value("overwrite", false);
             const auto result = PresetFiles::Rename(dir, oldName, *safeOld, *safeNew,
-                                                    JsonText::Dump(args.value("data", json::object()), 2));
+                                                    JsonText::Dump(args.value("data", json::object()), 2), overwrite);
             for (const auto& problem : result.problems) {
                 logger::warn("UIManager: RenamePreset - {}", problem);
+            }
+            if (result.refused) {
+                logger::error("UIManager: RenamePreset - {} is another preset's file and no overwrite was confirmed",
+                    PathText::Utf8(result.newPath));
+                return fail();
             }
             if (!result.written) {
                 logger::error("UIManager: RenamePreset - failed to write {}", PathText::Utf8(result.newPath));

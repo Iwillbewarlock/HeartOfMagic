@@ -4,6 +4,7 @@
 #include "FileUtils.h"
 #include "PathText.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -137,6 +138,7 @@ namespace PresetFiles
     struct RenameResult
     {
         bool written = false;                             // the new file is on disk
+        bool refused = false;                             // the new name's file is another preset's: nothing written
         std::filesystem::path newPath;
         std::vector<std::filesystem::path> removed;       // the old preset's files, deleted after the write
         std::vector<std::filesystem::path> kept;          // an old file that is the new file (same name on disk)
@@ -147,11 +149,14 @@ namespace PresetFiles
      * Renames a preset: its old files are found first (Find, an older build's file under a
      * garbled name too), the new file is written (Write), and only then are the old files
      * deleted - none that is the new file itself (two names that sanitize alike, a case-only
-     * change: Windows file names ignore case). A failed write deletes nothing.
+     * change: Windows file names ignore case). A failed write deletes nothing. When the new
+     * name's file is there and is none of the old preset's own files - another preset, whose
+     * name sanitizes to the same file ("Fire." and "Fire", "a/b" and "a_b") - nothing is
+     * written unless `overwrite` (the player confirmed replacing that preset).
      */
     inline RenameResult Rename(const std::filesystem::path& dir, const std::string& oldName,
                                const std::string& oldSafeName, const std::string& newSafeName,
-                               const std::string& text)
+                               const std::string& text, bool overwrite)
     {
         RenameResult result;
         auto found = Find(dir, oldName, oldSafeName);
@@ -161,6 +166,17 @@ namespace PresetFiles
         if (!found.direct.empty()) olds.push_back(found.direct);
 
         result.newPath = FilePath(dir, newSafeName);
+        std::error_code taken;
+        if (!overwrite && std::filesystem::exists(result.newPath, taken)) {
+            const bool own = std::ranges::any_of(olds, [&](const std::filesystem::path& old) {
+                std::error_code error;
+                return std::filesystem::equivalent(old, result.newPath, error) && !error;
+            });
+            if (!own) {
+                result.refused = true;
+                return result;
+            }
+        }
         result.written = Write(result.newPath, text);
         if (!result.written) return result;
 
