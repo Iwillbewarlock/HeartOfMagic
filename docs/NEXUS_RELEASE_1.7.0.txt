@@ -1,0 +1,85 @@
+Heart of Magic Librarian 1.7.0 - text for the Nexus upload
+(The page itself: docs/NEXUS_PAGE.bbcode, "New in 1.7.0" section. Full list: CHANGELOG.md. First draft by Gemini Argon from CHANGELOG 1.7.0 and the release facts, checked line by line against it. Left out as not a change for 1.6.0 players: "Spell Research's registrations are no longer skipped after an Import made during the tome check" (that wait came in after 1.6.0, 5d5a629b). Passive learning: for 1.6.0 players only the label changed.)
+
+=====================================================================
+1. Files tab - main file
+=====================================================================
+
+Name: Heart of Magic Librarian
+Version: 1.7.0
+
+Description:
+Main file. Run the installer (it installs the required HeartOfMagic.esp light plugin and offers the optional HeartOfMagic_Mysticism.esp patch when Mysticism is active). The main mod now ships one design, Skald, which is the new default; Classic, Modern Dark, Arcane, Chalkboard and Night Grimoire are the optional Design files on this page. Your saved tree and saves keep working, and the first game start after updating scans your spells once in the background at the main menu.
+
+Debug Symbols file description (same version):
+Optional. Puts function names into Crash Logger reports. Install it only if you want to send a crash log.
+
+
+=====================================================================
+1b. Files tab - design add-ons (optional, new files)
+=====================================================================
+
+Names: Design - Classic, Design - Modern Dark, Design - Arcane, Design - Chalkboard, Design - Night Grimoire
+Archives: dist/HeartOfMagic-Design-<Name>_1.7.0.zip (Classic, ModernDark, Arcane, Chalkboard, NightGrimoire)
+Version: 1.7.0
+
+Description (<NAME> = the design's name):
+Optional add-on that adds the <NAME> design to the Heart of Magic Librarian panel. Install and enable it like any other mod, then pick <NAME> in the panel under Settings > UI Display > Design. Requires Heart of Magic Librarian 1.7.0 or later; without it, a saved choice of <NAME> shows Skald until the add-on is installed again.
+
+
+=====================================================================
+2. Changelogs tab - version 1.7.0 (one line per entry)
+=====================================================================
+
+New: New spell mods are scanned at game start - when the load order changed since the last scan (also a mod updated under the same file name, or a change to gate/rules.json), the main menu scans every spell in the background, a few milliseconds a frame, and updates the spell catalog that perk overhauls, Spell Research and the spell card read, never your progress. Perk overhauls see the new spells from the next game start, Spell Research at the next save load; it does not run with "Build Spell Tree at Start" set to Off, and the first start after updating scans once.
+New: New spells join the tree you have - after that scan, spells of an added magic mod that the tree has never met (not blacklisted, not from a plugin turned off in the plugin list, with a tome the game hands out) go under a spell of their own school. Every spell already in the tree keeps its place, links and progress, the tree file is backed up first (spell_tree.json.bak), and a corner message at the next save load says how many joined. When the joining cannot run (for example a school with no spells in the tree yet), the "rebuild the tree" notice still comes and a build on the Scan tab takes those spells.
+New: Experimental - spell tomes changed by SpellScribe (through SkyPatcher), and by other mods that clear the "teaches spell" flag the same way, count as spell tomes for the tree, the check of which tomes the game hands out and the XP bonus for carrying a tome, so the tree no longer comes out empty. Reading such a tome still opens SpellScribe's puzzle, so Heart of Magic's own reading effects (setting the learning target, XP for reading) do not happen for it.
+Changed: Book Reading XP favours books about magic - a skill book of a magic school (Alteration, Conjuration, Destruction, Illusion or Restoration) gives 45 XP to the spell you are learning in that school only, and any other book or note gives 5 XP to every spell you are learning (all books gave 15 before). A skill book read while you learn nothing in its school gives nothing then and can still give its XP later; the multiplier and cap in Settings > Book Reading still apply.
+Changed: The main mod ships one design, Skald, now the default (it was Arcane); Classic, Modern Dark, Arcane, Chalkboard and Night Grimoire are optional Design add-on files on the Files tab, installed like any mod. A saved design whose add-on is not installed shows Skald and keeps its choice, so it comes back once the add-on is installed; a design of your own that uses another design's files under themes/ needs that design's add-on.
+Changed: Skald looks plainer - a flat tree page, Settings rows on their heading's line, one spacing scale, square chips, small labels as words instead of spaced capitals, a thin build bar, colour only where it shows a state, and no message ending in "!" in any language. The tree's tool bar draws its render settings, edit and edit-tool buttons as line icons in every design; the add-on designs keep their look.
+Changed: Spells only a quest gives are left out of the tree - a spell whose tomes the game hands out only through a quest (its script, an item the quest creates or gives, dialogue or a scene) is listed in the blacklist window under "Quest only", where Include puts it back for the next build. Tomes sold by merchants (so the College of Winterhold's novice spells stay), held by leveled lists or containers, made by recipes or handed out by distribution mods or other scripts keep their spells; a scan made before this update keeps its spells until the tree is built again.
+Fixed: Lowering the early learning threshold (or switching early learning on) now grants a learning target already at or past it, at once or at its next XP, instead of leaving it ungranted; a spell that is no longer a learning target is not given again.
+Fixed: Switching passive learning on now counts only the time from when it is switched on (also right after a wait or fast travel), instead of paying XP for every game hour since it was switched off or the save was loaded.
+Fixed: A DEST_ISL.esp that is in Data but not enabled no longer counts as an active ISL-DESTified setup, where reading a spell tome said "You begin to study..." and the spell was never learned; only a plugin the game loaded counts now.
+Fixed: Spells whose first effect has no magic school (a light or a sound, say) are no longer left out of the scan - they take the school and tier (Novice to Master, which sets the XP needed) of their costliest effect, and can then be merged with or left out as copies like other spells of that school. A spell whose first effect has a school keeps its school and tier.
+Fixed: A scan while a spell is weakened (with Modify Game Display on) stores the spell's own name instead of "Flames (Learning - 35%)", so it still groups with its copies by name and shows no tag in the tree.
+Fixed: Renaming a preset can no longer lose it - the new file is written before the old one is deleted, and a failed rename keeps the old file and says so in a corner message and on the Scan tab's status line. A new name that would land on another preset's file (differing only in capital letters, or "Fire." next to "Fire") now asks before replacing that preset.
+Fixed: Book Reading XP comes once per book - each book or note gives XP once (copies of the same book count as one) and the list is kept in your save; spell tomes give no Book Reading XP. In a save from before this update, the books the game already marks as read give nothing again.
+Fixed: A spell mod renamed, merged or ESL-compacted keeps its spells in the tree - a spell is found again by its editor id when exactly one spell of that school has it, and keeps its place and links (needs powerofthree's Tweaks; works for trees built with 1.7.0, so build a 1.6.0 tree once to cover it).
+Fixed: Spell tomes changed by Spell Research Synthesizer are spell tomes again - Heart of Magic takes each tome's spell from the patcher's SynthesizedPatch.json (or Spell Research's tome lists when that file is missing) for the tree, the tome check and the tome carrying bonus, so the tree no longer comes out empty with it. Reading such a tome still does what Spell Research does.
+Fixed: A file name in Data with characters Windows' language setting cannot show (Chinese, Japanese or emoji on a PC set to another language) no longer makes the tome check fail with "No mapping for the Unicode character".
+Fixed: Passive learning's setting is now labelled XP per game day, which is what it always gave; the pace and your saved number stay the same.
+Fixed: A damaged co-save no longer gives progress to the wrong spell - a cut-short record stops there and keeps what came before, and one part failing while saving or loading no longer stops the others.
+Fixed: XP for a spell with no required XP yet no longer resets its saved progress to 0.
+Fixed: A spell learned outside Heart of Magic (from a quest, the console, SpellScribe's puzzle or another mod) is no longer weakened, renamed with a power percent or taken away when its progress passes the early-learning threshold or it is picked as the target; a spell whose early-learned record was lost keeps its full power.
+Fixed: A spell under study with Immersive Spell Learning is no longer taught early by a save load, a cast past the early-learning threshold or picking it again as the target - only ISL teaches it, and it keeps its own name until then.
+Fixed: After a save load, required XP is the tree's and your per-spell overrides again, instead of the tier's numbers until the panel was opened.
+Fixed: Changing the power steps updates weakened spells' names and descriptions at once.
+Fixed: One spell carried by two plugins (the same editor id in the same school, such as Saints and Seducers' Conjure Hunger and an add-on's copy) is now one node in the tree, with powerofthree's Tweaks. Existing trees change too, without a rebuild: knowing one copy counts as knowing the other, mastering one opens the spells after the other, and reading a copy's tome teaches the copy in the tree.
+Fixed: Closing the panel runs its closing steps again.
+Fixed: A learning target whose prerequisite list holds a bad entry is still set, and one bad entry no longer stops the spells after it from getting their prerequisites.
+Fixed: A preset is no longer left empty when the game closes while saving it.
+Fixed: Scripts that register for spell tome reads through the Don't Eat Spell Tomes functions keep that after a save is loaded.
+Fixed: Typing in the console or a text field no longer opens the panel (the hotkey still closes an open panel).
+Fixed: When a scan's data cannot be read, the panel says so and leaves the tree preview alone instead of showing the last scan as new, and a scan's spells are no longer read twice (twice as long on large load orders).
+Fixed: A spell's name and details appear in the tree as soon as they arrive.
+Fixed: Choosing presets one after another no longer slows the panel's sliders.
+Fixed: Deleting a spell in edit mode and adding another no longer mixes up their copies and progress.
+Removed: The Require ALL toggle under Require Prereqs on the Spell Tomes page - nothing read the setting; a config.json that still has requireAllPrereqs loads as before.
+Removed: The unused Papyrus script SL_BookXP_QuestScript (no plugin ever attached it; Book Reading XP is SL_BookXP.dll as always) and its two messages in the translations.
+
+
+=====================================================================
+3. Posts tab - announcement (optional)
+=====================================================================
+
+1.7.0 is up.
+
+- New spell mods are picked up by themselves: when your load order changes, the main menu scans spells in the background and adds the new ones to your existing tree without moving your spells or touching your progress.
+- Skald is now the built-in default design, with a plainer look. Classic, Modern Dark, Arcane, Chalkboard and Night Grimoire are optional Design add-on files on the Files tab.
+- Spells whose tomes only a quest gives are left out of the tree (Include under "Quest only" in the blacklist window puts one back).
+- Book Reading XP: magic skill books give 45 XP to the spell you learn in their school, other books and notes 5 XP, once per book.
+- Compatibility: experimental SpellScribe support, Spell Research Synthesizer tomes count again, and spells of renamed, merged or compacted plugins keep their place (with powerofthree's Tweaks).
+- Fixes for early and passive learning, ISL, presets, damaged co-saves and the panel.
+
+After updating: your saved tree and saves keep working, and the first game start scans your spells once in the background. If you used Classic, Modern Dark, Arcane, Chalkboard or Night Grimoire, install that design's add-on file from the Files tab to keep your look.
