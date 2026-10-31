@@ -325,10 +325,11 @@ window.updateStatus = function(message, key, params) {
     if (msg.startsWith('"') && msg.endsWith('"')) {
         try { msg = JSON.parse(msg); } catch (e) {}
     }
-    // Forward to scan feedback bar with auto-detected type (from the English text)
+    // Forward to scan feedback bar with auto-detected type (from the English text). The error
+    // words first: a failure naming a preset "Unsaved" is still an error
     var type = '';
-    if (msg.indexOf('Saved') !== -1 || msg.indexOf('saved') !== -1) type = 'success';
-    else if (msg.indexOf('Error') !== -1 || msg.indexOf('Failed') !== -1 || msg.indexOf('failed') !== -1) type = 'error';
+    if (msg.indexOf('Error') !== -1 || msg.indexOf('Failed') !== -1 || msg.indexOf('failed') !== -1) type = 'error';
+    else if (msg.indexOf('Saved') !== -1 || msg.indexOf('saved') !== -1) type = 'success';
     if (!key && typeof cppStatusKey === 'function' && cppStatusKey(msg)) {
         key = cppStatusKey(msg);
         msg = typeof tOr === 'function' ? tOr(key, null, msg) : msg;
